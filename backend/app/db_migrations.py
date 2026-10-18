@@ -18523,3 +18523,48 @@ def _migrate_chot_cong_no_theo_ncc(db: Session) -> None:
 
 
 MIGRATIONS.append(("0415_chot_cong_no_theo_ncc", _migrate_chot_cong_no_theo_ncc))
+
+
+def _migrate_phieu_buoc_vat_tu_hang_loai(db: Session) -> None:
+    """0418 (18/10/2026) — giấy là vật tư của BƯỚC trong phiếu tính giá.
+
+    `phieu_buoc_vat_tu` thêm `hang_loai` (`vat_tu` | `giay`), khoá cặp như `lsx_cong_doan_vat_tu`.
+    Thành phần đang có `giay_id` mà chưa bước nào có dòng giấy ⇒ thêm MỘT dòng giấy vào bước In
+    (nhóm `print`) đầu tiên, không có bước In thì bước đầu chuỗi; thành phần không bước nào thì để
+    nguyên. `giay_id` giữ lại: từ nay nó là giấy chính dẫn xuất từ các dòng này. Chạy lại không
+    nhân dòng (thành phần đã có dòng giấy thì bỏ qua).
+    """
+    insp = inspect(db.get_bind())
+    if not {"phieu_buoc_vat_tu", "phieu_thanh_pham", "phieu_thanh_phan"} <= set(insp.get_table_names()):
+        return
+    co_cot = "hang_loai" in _existing_columns(insp, "phieu_buoc_vat_tu")
+    if not co_cot:
+        db.execute(text(
+            "ALTER TABLE phieu_buoc_vat_tu ADD COLUMN hang_loai VARCHAR(10) NOT NULL DEFAULT 'vat_tu'"))
+    rows = db.execute(text(
+        "SELECT tp.id, tp.giay_id, b.id, b.thu_tu, cd.nhom FROM phieu_thanh_phan tp "
+        "JOIN phieu_thanh_pham b ON b.thanh_phan_id = tp.id "
+        "LEFT JOIN cong_doan cd ON cd.id = b.cong_doan_id "
+        "WHERE tp.giay_id IS NOT NULL AND NOT EXISTS ("
+        "  SELECT 1 FROM phieu_buoc_vat_tu v JOIN phieu_thanh_pham b2 ON b2.id = v.thanh_pham_id "
+        "  WHERE b2.thanh_phan_id = tp.id AND v.hang_loai = 'giay') "
+        "ORDER BY tp.id, b.thu_tu, b.id"
+    )).all()
+    theo_tp: dict[int, list] = {}
+    for tp_id, giay_id, buoc_id, _thu_tu, nhom in rows:
+        theo_tp.setdefault(int(tp_id), []).append((int(giay_id), int(buoc_id), nhom))
+    bay_gio = datetime.now(timezone.utc)
+    for buocs in theo_tp.values():
+        giay_id = buocs[0][0]
+        dich = next((b for _g, b, nhom in buocs if nhom == "print"), buocs[0][1])
+        thu_tu = db.execute(text(
+            "SELECT COALESCE(MAX(thu_tu), -1) + 1 FROM phieu_buoc_vat_tu WHERE thanh_pham_id = :b"
+        ), {"b": dich}).scalar()
+        db.execute(text(
+            "INSERT INTO phieu_buoc_vat_tu (thanh_pham_id, thu_tu, hang_loai, vat_tu_id, "
+            "gia_tri_chip, created_at, updated_at) VALUES (:b, :t, 'giay', :g, NULL, :n, :n)"
+        ), {"b": dich, "t": int(thu_tu), "g": giay_id, "n": bay_gio})
+    db.commit()
+
+
+MIGRATIONS.append(("0418_phieu_buoc_vat_tu_hang_loai", _migrate_phieu_buoc_vat_tu_hang_loai))

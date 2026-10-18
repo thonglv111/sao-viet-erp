@@ -364,7 +364,12 @@ class PhieuBuocVatTu(Base):
         Integer, ForeignKey("phieu_thanh_pham.id", ondelete="CASCADE"), index=True, nullable=False
     )
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    vat_tu_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)  # → vat_tu_in_an.id (soft)
+    # Món thuộc danh mục nào (18/10/2026, mg 0418): `vat_tu` → vat_tu_in_an, `giay` → giay_nguyen.
+    # Khoá CẶP như `lsx_cong_doan_vat_tu`: Giấy #7 và Vật tư #7 là hai món khác nhau. Giấy nay chọn
+    # ở bước như mọi vật tư; `phieu_thanh_phan.giay_id` thành giấy chính DẪN XUẤT từ các dòng này.
+    hang_loai: Mapped[str] = mapped_column(
+        String(10), nullable=False, default="vat_tu", server_default="vat_tu")
+    vat_tu_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)  # → vat_tu_in_an.id | giay_nguyen.id (soft)
     gia_tri_chip: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

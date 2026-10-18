@@ -3990,7 +3990,9 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** 1 vật tư gắn vào 1 BƯỚC (công đoạn) của phiếu tính giá — con của `phieu_thanh_pham` (`thanh_pham_id` FK thật, cascade xoá). Vật tư của công đoạn tự hiện khi chọn công đoạn; sale thêm/bớt riêng cho phiếu. `vat_tu_id` soft → `vat_tu_in_an.id`; `gia_tri_chip` (JSON) = số sale nhập cho từng chip riêng của vật tư (khoá = `vat_tu_chip.ma`), engine thế vào `cong_thuc_gia` của vật tư. Lưu phiếu là replace-all nên `id` không được ghim; lệnh SX nối với bước theo vị trí (`thu_tu`).
 
-**Tất cả cột:** `id`, `thanh_pham_id`, `thu_tu`, `vat_tu_id`, `gia_tri_chip`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `thanh_pham_id`, `thu_tu`, `hang_loai`, `vat_tu_id`, `gia_tri_chip`, `created_at`, `updated_at`.
+
+- `hang_loai` (`String(10)`, NOT NULL, mặc định `vat_tu` — migration `0418`): món thuộc danh mục nào — `vat_tu` ⇒ `vat_tu_id` trỏ `vat_tu_in_an.id`, `giay` ⇒ trỏ `giay_nguyen.id`. Khoá CẶP như `lsx_cong_doan_vat_tu` (Giấy #7 ≠ Vật tư #7). Từ 18/10/2026 giấy chọn ở bước như mọi vật tư (không chip); engine tính một dòng tiền giấy cho mỗi dòng giấy theo đầu vào của bước, và `phieu_thanh_phan.giay_id` thành giấy chính DẪN XUẤT (giấy ở bước In, không có thì giấy ở bước đầu tiên có giấy). Migration `0418` chuyển `giay_id` của phiếu cũ thành một dòng giấy ở bước In (không có thì bước đầu).
 
 ---
 
