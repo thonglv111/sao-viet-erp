@@ -345,7 +345,9 @@ def test_kho_huy_yeu_cau_tu_lap_bao_ve_to_khong_bao_nguoi_phat_hanh(db, svc3, le
     truoc = db.query(Notification).filter(Notification.user_id == admin.id).count()
 
     V._req_service(db, V._hang_service(db)).cancel_by_kho(req, "Hết hàng")
-    db.commit()
+    # Route huỷ của kho không commit gì thêm sau service: chuông tổ phải tự commit, không thì đóng
+    # session là mất.
+    db.rollback()
 
     assert db.query(Notification).filter(Notification.user_id == admin.id).count() == truoc
     # Toast đích danh "Yêu cầu đã bị hủy" không tới người phát hành (tin danh sách kho thì vẫn tới,
@@ -355,6 +357,20 @@ def test_kho_huy_yeu_cau_tu_lap_bao_ve_to_khong_bao_nguoi_phat_hanh(db, svc3, le
         ModuleNotification.channel == "kho", ModuleNotification.recipient_user_id == admin.id).count() == 0
     to = db.query(ModuleNotification).filter(ModuleNotification.channel == kenh_to(cv.department_id)).all()
     assert [(n.event_type, n.source_code) for n in to] == [("kho_phan_hoi", req.ma)]
+
+
+def test_yeu_cau_tu_lap_khong_tinh_vao_badge_phan_hoi_cua_nguoi_phat_hanh(db, svc3, lenh, admin):
+    from app.repositories.stock_request_repo import StockRequestRepository
+    from app.services.san_xuat import vat_tu_de_nghi as V
+
+    cv = _phat_hanh(db, svc3, lenh, admin)
+    req = _req(db, cv)
+    repo = StockRequestRepository(db)
+    truoc = repo.unseen_response_counts(admin.id)
+
+    V._req_service(db, V._hang_service(db)).cancel_by_kho(req, "Hết hàng")
+
+    assert repo.unseen_response_counts(admin.id) == truoc
 
 
 def test_ngan_chi_tiet_danh_dau_lan_tu_lap(db, svc3, lenh, admin):

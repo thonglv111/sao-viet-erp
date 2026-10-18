@@ -340,7 +340,14 @@ class StockRequestRepository:
 
     def unseen_response_counts(self, nguoi_tao_id: int) -> dict[str, int]:
         """Số phản hồi kho CHƯA XEM của `nguoi_tao_id`, tách theo bộ lọc: done=Hoàn tất, fail=Không thành."""
+        from ..models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+
         fresh = StockRequest.updated_at > func.coalesce(StockRequest.quyet_dinh_xem_luc, _EPOCH)
+        # Yêu cầu TỰ LẬP lúc phát hành đứng tên người bấm phát hành, nhưng người đợi là tổ của bước
+        # (chuông vào kênh tổ) — không đếm vào badge của người phát hành.
+        tu_lap = exists(select(literal(1)).select_from(SanXuatVatTuDeNghi).where(
+            SanXuatVatTuDeNghi.stock_request_id == StockRequest.id,
+            SanXuatVatTuDeNghi.tu_lap.is_(True)))
 
         def cnt(statuses: tuple[str, ...]) -> int:
             stmt = select(func.count()).select_from(StockRequest).where(
@@ -350,6 +357,7 @@ class StockRequestRepository:
                 # nào) — nếu đếm thì badge "đã phản hồi" của người ấn điều chuyển kẹt +1 vĩnh viễn.
                 # Cùng luật ẩn với `_base_conds`.
                 or_(StockRequest.dieu_chuyen.is_(False), StockRequest.loai != REQ_XUAT),
+                ~tu_lap,
                 fresh,
             )
             return int(self.db.execute(stmt).scalar() or 0)

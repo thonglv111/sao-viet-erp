@@ -745,8 +745,10 @@ class StockRequestService:
         if to_id is not None:
             from .thong_bao_man import kenh_to
 
+            # Tự commit như nhánh người tạo (`NotificationRepository.add`): caller đã `save()` xong,
+            # sau đây không còn ai commit nữa.
             bao(self.requests.db, kenh=kenh_to(to_id), loai="kho_phan_hoi", actor_id=None,
-                ma=req.ma, commit=False)
+                ma=req.ma, commit=True)
             return
         if not req.nguoi_tao_id:
             return
