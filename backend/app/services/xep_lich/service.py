@@ -997,6 +997,7 @@ class XepLichLenhService:
         from ...repositories.san_xuat_repo import SanXuatRepository
         from ..san_xuat.component import thanh_phan_lien_thong
         from ..san_xuat.release import phat_hanh as _sx_phat_hanh
+        from ..san_xuat.vat_tu_tu_lap import lap_khi_phat_hanh
 
         l = self.repo.lsx_theo_ids([lsx_id]).get(lsx_id)
         if l is None:
@@ -1018,11 +1019,15 @@ class XepLichLenhService:
             if bg.trang_thai != BG_PHAT_HANH:
                 bg.trang_thai = BG_PHAT_HANH
         try:
-            _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+            goi = _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids,
+                                actor=actor)
         except ValueError as exc:
             # Gom lần gia công ngoài từ chối (bước thuê ngoài chưa chọn nhà gia công) — trả 400.
             self.db.rollback()
             raise XepLichLenhError(str(exc)) from None
+        # Tự lập yêu cầu xuất vật tư cho từng bước, CÙNG giao dịch (spec 2026-10-18 §4.1) và
+        # TRƯỚC dòng audit (audit tự commit). Lỗi từng dòng không chặn, nằm ở `bo_qua`.
+        tu_lap = lap_khi_phat_hanh(self.db, goi_id=goi.id, nguoi=actor)
         if self.audit is not None:
             self.audit.create(
                 actor_user_id=getattr(actor, "id", None), action="xep_lich_phat_hanh",
@@ -1031,8 +1036,10 @@ class XepLichLenhService:
                        f"{len(tp.bai_ghep_ids)} bài ghép) — màn Xếp lịch, không cửa gác",
             )
         self.db.commit()
-        return {"lsx_id": l.id, "trang_thai": l.trang_thai,
-                "cum_lsx": sorted(tp.lsx_ids), "cum_bai_ghep": sorted(tp.bai_ghep_ids)}
+        return {"lsx_id": l.id, "ma": l.ma, "trang_thai": l.trang_thai,
+                "cum_lsx": sorted(tp.lsx_ids), "cum_bai_ghep": sorted(tp.bai_ghep_ids),
+                "vat_tu": {"so_yeu_cau": len(tu_lap["request_ids"]), "bo_qua": tu_lap["bo_qua"]},
+                "_tu_lap": tu_lap}
 
     def thu_hoi(self, lsx_id: int, *, actor=None, ly_do: str | None = None) -> dict:
         """Thu hồi phát hành. Đi ĐƯỜNG CHUNG `go_phat_hanh_lsx` — hai điều kiện của nó KHÔNG phải

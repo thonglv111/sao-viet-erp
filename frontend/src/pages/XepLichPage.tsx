@@ -40,6 +40,7 @@ import {
   dauTuan, gioChu, moc, phutChayTrongCuaSo, soNgayGiua, themNgay, thuNgayGio, ymd,
 } from "./xlShared";
 import { CO_NHIN, NhanKhoang, khoangTheoCo, laCoNhin, soTuan, type CoNhin } from "./xlKhoang";
+import { cauBaoPhatHanh } from "./cauBaoPhatHanh";
 import "./ke-toan/ke-toan.css";
 import "./xep-lich-a.css";
 
@@ -59,7 +60,7 @@ const TT_NHOM: Record<string, string[]> = {
 
 type Nhanh = "tre" | "muon" | "chua";
 type BuocLui = { lsxId: number; ma: string; truoc: string | null };
-type Bao = { chu: string; loi?: boolean; hoanTac?: boolean };
+type Bao = { chu: string; loi?: boolean; hoanTac?: boolean; giai?: string };
 
 function docHien(): HienThi {
   try {
@@ -397,8 +398,8 @@ export function XepLichPage({
     setDangGhi(true);
     const n = ct?.cum?.lsx.length ?? 1;
     try {
-      await api.xepLich.phatHanh(token, chonId);
-      setBao({ chu: n > 1 ? `Đã phát hành ${n} lệnh xuống xưởng.` : "Đã phát hành xuống xưởng." });
+      const r = await api.xepLich.phatHanh(token, chonId);
+      setBao(cauBaoPhatHanh(n, r.vat_tu));
       sau(chonId);
     } catch (e) {
       setBao({ chu: e instanceof ApiError ? e.message : "Không phát hành được.", loi: true });
@@ -713,7 +714,7 @@ export function XepLichPage({
 
       {bao && (
         <div className={`xa-toast${bao.loi ? " xa-toast--loi" : ""}`} role={bao.loi ? "alert" : "status"}>
-          <span>{bao.chu}</span>
+          <span title={bao.giai}>{bao.chu}</span>
           {bao.hoanTac && lui.length > 0 && (
             <button type="button" onClick={() => { setBao(null); void hoanTac(); }}><RotateCcw size={14} />Hoàn tác<kbd>Ctrl Z</kbd></button>
           )}

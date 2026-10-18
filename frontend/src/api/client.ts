@@ -1452,6 +1452,13 @@ export interface XlGoiPhatHanh {
 
 /** Kết quả một lần Phát hành cập nhật (§4.3): tái chụp bao nhiêu việc, giữ nguyên bao nhiêu, huỷ bao
  *  nhiêu phân công/hỗ trợ để tổ xác nhận lại. */
+/** Yêu cầu xuất vật tư hệ thống tự lập lúc phát hành (spec 2026-10-18 §4). `bo_qua` = món chưa
+ *  tự lập được (tổ xin tay), kèm lý do. */
+export interface XlVatTuTuLap {
+  so_yeu_cau: number;
+  bo_qua: { cong_viec_id: number; ten_cong_doan: string; ten_hang: string; ly_do: string }[];
+}
+
 export interface XlCapNhatOut {
   goi_id: number;
   ma: string;
@@ -14882,8 +14889,10 @@ export const api = {
       return authed<{ ok: boolean }>(`/api/xep-lich/lenh/${lsxId}`, token, { method: "DELETE" });
     },
     /** Phát hành xuống xưởng — BẤM LÀ ĐI, không hộp thoại xác nhận, không cửa gác. */
-    phatHanh(token: string, lsxId: number): Promise<{ ok: boolean }> {
-      return authed<{ ok: boolean }>(`/api/xep-lich/phat-hanh/${lsxId}`, token, { method: "POST" });
+    phatHanh(token: string, lsxId: number): Promise<{ ok: boolean; vat_tu?: XlVatTuTuLap }> {
+      return authed<{ ok: boolean; vat_tu?: XlVatTuTuLap }>(`/api/xep-lich/phat-hanh/${lsxId}`, token, {
+        method: "POST",
+      });
     },
     /** Thu hồi phát hành. BẮT gõ lý do (≥3 ký tự) — thiếu thì 400, đã có việc chạy thì 409. */
     /** Thu hồi CẢ CỤM đã phát hành chung một gói; `cum_lsx` = mọi lệnh vừa lùi. */

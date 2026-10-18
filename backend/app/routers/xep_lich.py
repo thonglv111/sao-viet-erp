@@ -260,15 +260,21 @@ def phat_hanh(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
 ) -> dict:
-    """Phát hành xuống xưởng — BẤM LÀ ĐI, không hộp thoại, không cửa gác (spec §1)."""
+    """Phát hành xuống xưởng — BẤM LÀ ĐI, không hộp thoại, không cửa gác (spec §1).
+
+    Trả kèm `vat_tu` = số yêu cầu xuất vừa tự lập + các món chưa tự lập được (spec 2026-10-18 §4)
+    để toast nói cho người phát hành biết."""
+    from ..services.san_xuat.vat_tu_tu_lap import bao_sau_phat_hanh
+
     try:
-        _svc(db).phat_hanh(lsx_id, actor=user)
+        kq = _svc(db).phat_hanh(lsx_id, actor=user)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()
     _phat_goi_xuong_xuong(lsx_id)
     _cham_viec_moi(db, lsx_id, user.id)
-    return {"ok": True}
+    bao_sau_phat_hanh(db, kq["_tu_lap"], ma_lenh=kq["ma"], actor_id=user.id)
+    return {"ok": True, "vat_tu": kq["vat_tu"]}
 
 
 @router.get("/phat-hanh/{lsx_id}/goi", response_model=None)
