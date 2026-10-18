@@ -321,6 +321,29 @@ def test_toa_sang_buoc_nhan_to_khong_nhan_hai_lan(db, orders, lsx_svc, admin, cu
     assert t["da_nhan"] == 120.0 and t["toi_da"] == 480.0
 
 
+def test_tran_ghi_lam_tron_xuong_khi_he_so_le(db, orders, lsx_svc, admin, customer):
+    """E2E 19/10/2026: 4.150 tay sách vào Bắt tay (4 tay/cuốn) → nút Tối đa ghi "1.037,5 cuốn",
+    đầu ngăn lại nói 1.037. Không ai làm ra nửa cuốn ⇒ trần làm tròn XUỐNG như `quy_ra`."""
+    from app.models.san_xuat import SanXuatPhuThuoc
+    from app.services.san_xuat import dau_vao
+    from tests.test_san_xuat_ban_giao import _hai_cv
+
+    _to1, cv_nguon, cv_a, lsx_a = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-TRON-1")
+    cv_a.lsx_id = lsx_a
+    cv_a.don_vi_vao, cv_a.don_vi_ra, cv_a.he_so_quy_doi = "tay", "cuon", 0.25
+    cv_nguon.don_vi_ra = "tay"
+    db.add(SanXuatPhuThuoc(
+        goi_id=cv_nguon.goi_id, phien_ban_so=cv_nguon.phien_ban_so, nhom_id=cv_nguon.nhom_id,
+        nguon_cong_viec_id=cv_nguon.id, dich_cong_viec_id=cv_a.id,
+        ty_le_ghep=1.0, don_vi_nguon="tay", don_vi_dich="tay",
+    ))
+    db.commit()
+    tao_me(db, user=admin, cong_viec_id=cv_nguon.id,
+           bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=4150, tot=4150)
+    t = dau_vao.tran_ghi(db, cv_a)
+    assert t["da_nhan"] == 4150.0 and t["toi_da"] == 1037.0
+
+
 def test_chan_lsx_khac_dung_lot_diem_toa(db, orders, lsx_svc, admin, customer):
     from app.models.san_xuat import SanXuatPhuThuoc
     from tests.test_san_xuat_ban_giao import _hai_cv

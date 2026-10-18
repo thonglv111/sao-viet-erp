@@ -738,6 +738,10 @@ function khungDungMay(s: SxBatch["su_co"][number], meBatDau: string): string {
  *  Không còn cột "việc khoán" (10/10/2026): từ 21/09 khoán là cấu hình của công đoạn, thợ không chọn
  *  việc khi ghi mẻ — tên chụp vào mẻ chỉ là tên công đoạn, trống khi công đoạn chưa cấu hình Khoán. KHÔNG chia sản lượng cho ai (gỡ 18/09/2026). Danh mục đổi sau lúc ghi ⇒ băng so sánh
  *  cũ → mới + nút lấy số mới; không bấm = giữ số cũ. */
+/** Dòng gấp chỉ bày chừng này tên, còn lại "+N người"; mở dòng mới hiện đủ — tổ Thành phẩm 24 thợ
+ *  một lần ghi kéo dòng cao cả màn, che mất các lần ghi khác (19/10/2026). */
+const NGUOI_GON = 3;
+
 export function BatchRow({
   b, lan, canAssign, canSuaSo = false, busy, exec, tranGhi = null, banGiao = null, nguoiGhi = [], toKhac,
 }: {
@@ -777,9 +781,15 @@ export function BatchRow({
         </span>
         <span className="thsx-b-me__nguoi">
           {b.nguoi_tham_gia.length > 0
-            ? b.nguoi_tham_gia.map((x) => (
-              <span key={x.employee_id}>{x.ho_ten}{x.to_ten && <small className="thsx-b-mo3"> ({x.to_ten})</small>}</span>
-            ))
+            ? <>
+              {(mo || b.nguoi_tham_gia.length <= NGUOI_GON + 1 ? b.nguoi_tham_gia : b.nguoi_tham_gia.slice(0, NGUOI_GON))
+                .map((x) => (
+                  <span key={x.employee_id}>{x.ho_ten}{x.to_ten && <small className="thsx-b-mo3"> ({x.to_ten})</small>}</span>
+                ))}
+              {!mo && b.nguoi_tham_gia.length > NGUOI_GON + 1 && (
+                <span className="thsx-b-mo3">+{b.nguoi_tham_gia.length - NGUOI_GON} người</span>
+              )}
+            </>
             : b.so_nguoi > 0 ? `${b.so_nguoi} người` : <span className="thsx-b-mo3">—</span>}
         </span>
         <span className="thsx-b-me__may">{b.may_ten ?? <span className="thsx-b-mo3">—</span>}</span>

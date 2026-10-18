@@ -108,8 +108,9 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     const { container } = render(<ThsxDanhSach lenh={lenh} selectedId={null} onPick={vi.fn()} />);
     expect(container.querySelectorAll("tbody tr.lds-dong")).toHaveLength(3);
     expect([...container.querySelectorAll("thead th")].map((t) => t.textContent)).toEqual([
-      "Lệnh", "Sản phẩm", "Công đoạn", "Trạng thái", "Tốt / cần", "Hàng đang tới đâu",
-      "Máy và thời gian", "Quy cách", "Định mức vật tư", "Vật tư",
+      // Vật tư ngay sau Trạng thái: nó chặn nút Bắt đầu, để cuối là khuất ở màn 1440px.
+      "Lệnh", "Sản phẩm", "Công đoạn", "Trạng thái", "Vật tư", "Tốt / cần", "Hàng đang tới đâu",
+      "Máy và thời gian", "Quy cách", "Định mức vật tư",
     ]);
     expect(screen.getByText("Bìa sách A5")).toBeInTheDocument();
     expect(screen.getByText("Bibica")).toBeInTheDocument();

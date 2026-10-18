@@ -163,7 +163,8 @@ def tran_nhan(
         return None
     da_nhan, g, cung_to = min(muc, key=lambda t: t[0])
     return {
-        "toi_da": round(da_nhan * he_so, 3),
+        # Làm tròn XUỐNG như `quy_ra`: 4.150 tay ÷ 4 tay/cuốn không thành 1.037,5 cuốn.
+        "toi_da": float(math.floor(da_nhan * he_so + 1e-6)),
         "da_nhan": da_nhan,
         "he_so": he_so,
         "don_vi_nhan": dv_vao,

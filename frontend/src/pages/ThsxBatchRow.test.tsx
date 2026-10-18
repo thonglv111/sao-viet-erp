@@ -47,6 +47,18 @@ describe("Dòng mẻ ở bàn tổ", () => {
     expect(screen.queryByText(/Chia sản lượng|Phút|thành tiền/i)).toBeNull();
   });
 
+  it("đông người: dòng gấp chỉ 3 tên + '+N người', mở dòng mới hiện đủ (tổ 24 thợ kéo dòng cao cả màn)", async () => {
+    const nguoi = Array.from({ length: 24 }, (_, i) => ({ employee_id: 100 + i, ho_ten: `Thợ ${i + 1}` }));
+    const b = { ...batch, so_nguoi: 24, nguoi_tham_gia: nguoi } as unknown as SxBatch;
+    render(<BatchRow b={b} canAssign busy={false} exec={execGia()} />);
+    expect(screen.getByText("Thợ 3")).toBeInTheDocument();
+    expect(screen.queryByText("Thợ 4")).toBeNull();
+    expect(screen.getByText("+21 người")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("Thợ 24")).toBeInTheDocument();
+    expect(screen.queryByText("+21 người")).toBeNull();
+  });
+
   it("công đoạn chưa cấu hình Khoán: không có dòng đơn giá, không chữ 'chưa khai việc khoán'", async () => {
     const b = {
       ...batch, viec_khoan_id: null, viec_khoan_ten: null, viec_khoan_don_gia: null, viec_khoan_don_vi: null,

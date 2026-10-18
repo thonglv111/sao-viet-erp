@@ -77,6 +77,7 @@ import "./ke-toan/ke-toan.css";
 import { ngayCanMua, tinhDuBao, type DuBao } from "./ton-kho/duBao";
 import { ThuocMuc } from "./ton-kho/ThanhNguong";
 import { HopNguong } from "./ton-kho/HopNguong";
+import { tenTrungLap } from "./ton-kho/tenTrung";
 import { AnhMatHang, TongQuanTon } from "./ton-kho/TongQuanTon";
 import "./ton-kho/ton-kho.css";
 
@@ -520,6 +521,7 @@ export function KhoTonKhoPage({
   }, [loadVouchers, qPK, tab]);
 
   const groups = useMemo<MaterialGroup[]>(() => gomNhomTon(lots, mucTheo), [lots, mucTheo]);
+  const tenTrung = useMemo(() => tenTrungLap(groups), [groups]);
 
   // Dòng dự báo → dòng thời gian + "Đề nghị mua" của ngăn chi tiết và form mua. CHỈ phần trình bày; phán quyết
   // "Cần mua" và chip Tình trạng của dòng là của máy chủ (`g.muc`).
@@ -812,6 +814,7 @@ export function KhoTonKhoPage({
                       key={g.key}
                       g={g}
                       cot={cotTon}
+                      hienMa={!!g.code && !!g.name && tenTrung.has(g.name)}
                       checked={chon.has(g.key)}
                       dangMo={openMaterial?.key === g.key}
                       onToggleSel={() => toggleSel(g)}
@@ -1106,6 +1109,7 @@ async function printMaterialQr(
 function MaterialRow({
   g,
   cot,
+  hienMa = false,
   checked,
   dangMo,
   onToggleSel,
@@ -1116,6 +1120,8 @@ function MaterialRow({
 }: {
   g: MaterialGroup;
   cot: CotKho[];
+  /** Có dòng khác cùng tên (thành phẩm hai khách trùng tên) ⇒ kèm mã để phân biệt. */
+  hienMa?: boolean;
   checked: boolean;
   /** Dòng đang mở ở popup lịch sử — viền đủ bốn cạnh. */
   dangMo: boolean;
@@ -1156,11 +1162,13 @@ function MaterialRow({
           </td>
         );
       case "vattu":
-        // Chỉ tên; mã nằm ở ô tìm kiếm và đầu ngăn, khổ và ĐVT ở cột riêng.
+        // Chỉ tên; mã nằm ở ô tìm kiếm và đầu ngăn, khổ và ĐVT ở cột riêng. Riêng khi hai dòng
+        // trùng tên (thành phẩm của hai khách) thì kèm mã mờ, không thì kho không biết dòng nào của ai.
         return (
           <td key={c.key} title={[g.name, g.code].filter(Boolean).join(" ")}>
             <div className="tkh-vt">
               <span className="tkh-vt__ten">{g.name ?? g.code ?? "—"}</span>
+              {hienMa && <span className="lds-mu3">{g.code}</span>}
             </div>
           </td>
         );

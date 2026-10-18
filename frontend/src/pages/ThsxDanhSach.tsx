@@ -33,12 +33,13 @@ export const COT_THSX: CotThsx[] = [
   { key: "sp", label: "Sản phẩm", coDinh: true, w: 200 },
   { key: "cd", label: "Công đoạn", w: 230 },
   { key: "tt", label: "Trạng thái", w: 190 },
+  // Ngay sau Trạng thái: chip này quyết định bấm Bắt đầu được chưa, để cuối là khuất khỏi màn.
+  { key: "vtt", label: "Vật tư", w: 130 },
   { key: "sl", label: "Tốt / cần", w: 150, n: true },
   { key: "tuyen", label: "Hàng đang tới đâu", w: 260 },
   { key: "may", label: "Máy và thời gian", w: 190 },
   { key: "qc", label: "Quy cách", w: 290 },
   { key: "vt", label: "Định mức vật tư", w: 220 },
-  { key: "vtt", label: "Vật tư", w: 130 },
 ];
 
 /** Chip cột Vật tư — mỗi mức một sắc. Máy chủ chốt mức (cùng hàm với cổng Bắt đầu). */
