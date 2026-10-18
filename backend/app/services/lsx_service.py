@@ -1371,8 +1371,10 @@ class LsxService:
                 "don_vi_vao": cd.get("don_vi_vao"),
                 "don_vi_ra": cd.get("don_vi_ra"),
                 # Vật tư + chip của bước theo PHIẾU (01/10/2026) — nguồn BOM lúc tạo lệnh.
+                # 18/10/2026: kèm `hang_loai` — giấy chọn ở bước phiếu đi xuống đúng bước lệnh.
                 "vat_tus": [
-                    {"vat_tu_id": v["vat_tu_id"], "gia_tri_chip": dict(v.get("gia_tri_chip") or {})}
+                    {"hang_loai": v.get("hang_loai") or HANG_VAT_TU, "vat_tu_id": v["vat_tu_id"],
+                     "gia_tri_chip": dict(v.get("gia_tri_chip") or {})}
                     for v in (row.get("vat_tus") or [])
                 ],
             })
@@ -1604,16 +1606,27 @@ class LsxService:
             cd_obj = self.db.get(CongDoan, cd.cong_doan_id)
             if cd_obj is None:
                 continue
+            cua_buoc = theo_vi_tri.get(cd.thu_tu, [])
             dong_nguon = (
-                [(v["vat_tu_id"], v["gia_tri_chip"]) for v in theo_vi_tri.get(cd.thu_tu, [])]
+                [(v["vat_tu_id"], v["gia_tri_chip"]) for v in cua_buoc
+                 if (v.get("hang_loai") or HANG_VAT_TU) == HANG_VAT_TU]
                 if nguon is not None else None)
             rows, _canh_bao = self._vat_tu_bung(cd_obj, cd, quy_cach, dong_nguon=dong_nguon)
+            # GIẤY phiếu chọn ở bước (18/10/2026) — số/khổ/đơn vị gốc là DẪN XUẤT, `tao` gọi
+            # `_dong_bo_dong_giay` ngay sau để ghi. `tu_dong=False`: không phải món của danh mục công
+            # đoạn, đổi công đoạn (`_bung_lai_vat_tu`) không được quét mất nó.
+            giay = [self._mon_active().get((HANG_GIAY, int(v["vat_tu_id"]))) for v in cua_buoc
+                    if v.get("hang_loai") == HANG_GIAY]
+            for g in (g for g in giay if g is not None):
+                rows.append({"hang_loai": HANG_GIAY, "vat_tu_id": g.id, "ma": g.ma, "ten": g.ten,
+                             "don_vi": (g.don_vi_gia or "").strip(), "so_luong": 0,
+                             "gia_tri_chip": {}, "tu_dong": False})
             for pos, v in enumerate(rows):
                 cd.vat_tus.append(LsxCongDoanVatTu(
                     hang_loai=v.get("hang_loai") or HANG_VAT_TU,
                     vat_tu_id=v["vat_tu_id"], vat_tu_ma_snapshot=v["ma"],
                     vat_tu_ten_snapshot=v["ten"], don_vi_snapshot=v["don_vi"] or "",
-                    so_luong=float(v["so_luong"]), thu_tu=pos, tu_dong=True,
+                    so_luong=float(v["so_luong"]), thu_tu=pos, tu_dong=v.get("tu_dong", True),
                     gia_tri_chip=v.get("gia_tri_chip") or {},
                 ))
 
@@ -1698,6 +1711,8 @@ class LsxService:
             # nào dùng `so_luong`/`to_dau_vao` cũng ra 0 ⇒ bị coi là thiếu biến và không bung gì.
             self._bung_vat_tu_cong_doan(
                 lsx, quy_cach_bien(lsx), nguon=(calc["routing"] if tp is not None else None))
+            # Dòng giấy vừa chép từ phiếu: số tờ/khổ/đơn vị gốc suy từ đầu vào của bước chứa nó.
+            self._dong_bo_dong_giay(lsx)
             lsx.routing_goc_json = _routing_van_tay(lsx.cong_doans)
             self.repo.add(lsx)
             # Giữ hành vi tuyến tính hiện tại làm mặc định; sau đó kế hoạch có thể bỏ/thêm cạnh
@@ -1766,7 +1781,11 @@ class LsxService:
         if lsx.phieu_thanh_phan_id is None:
             thieu.append("khong_co_ptg")
         else:
-            if not qc.get("giay_id"):
+            # Thiếu giấy = KHÔNG công đoạn nào có dòng giấy (18/10/2026) — giấy chọn ở bước, bước
+            # nào cũng được, không riêng bước In. `qc.giay_id` là giấy chính phiếu dẫn xuất từ chính
+            # các bước đó; vẫn đọc nó cho lệnh lập trước 18/10 (giấy chỉ nằm ở quy cách).
+            if not qc.get("giay_id") and not any(
+                    v.hang_loai == HANG_GIAY for cd in lsx.cong_doans for v in cd.vat_tus):
                 thieu.append("thieu_giay")
             if not (qc.get("dai_thanh_pham") and qc.get("rong_thanh_pham")):
                 thieu.append("thieu_kho")
