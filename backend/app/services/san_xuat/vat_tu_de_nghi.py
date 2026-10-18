@@ -390,6 +390,57 @@ def _bao_de_nghi_doi(cv) -> None:
             **kem_ban_to((), [cv.department_id]))
 
 
+def _lap_lan(db: Session, *, cv, nguoi, bo_phan_id: int | None, can_luc: datetime,
+             dongs: list[dict], ghi_chu: str | None, tu_lap: bool, req_svc, hang):
+    """Ghi MỘT lần đề nghị + yêu cầu kho ảnh chiếu. Trả `(dn, req)`; `req` là None khi mọi dòng
+    bằng 0. `dongs` là output của `_chuan_hoa`.
+
+    KHÔNG commit, KHÔNG gate, KHÔNG báo tin: người gọi lo khoá, quyền, chốt giao dịch và báo SAU
+    commit. Tổ bấm (`tao`) và tự lập lúc phát hành (`vat_tu_tu_lap`) dùng chung.
+
+    `req_svc.create(commit=False)` là điều kiện sống còn của khoá ở `tao()`: mặc định repo kho tự
+    `commit()` trên chính session này, mà commit là NHẢ khoá hàng. Nhả xong thì lượt bấm trùng
+    chen vào, đọc `cac_de_nghi` vẫn rỗng, lấy cùng `lan_so`, đẻ yêu cầu kho thứ hai rồi vỡ
+    `UniqueConstraint("cong_viec_id","lan_so")` — thủ kho ôm một yêu cầu MỒ CÔI. Thứ tự "kho
+    trước, SX sau" chỉ vì `dn.stock_request_id` cần `req.id` (ruling minor-5).
+    """
+    vt_repo = SanXuatVatTuRepository(db)
+    lan_so = vt_repo.lan_ke_tiep(cv.id)
+    loai = DN_LAN_DAU if lan_so == 1 else DN_BO_SUNG
+    kho_lines = _lines_kho(hang, cv, dongs)
+
+    req = None
+    if kho_lines:
+        req = req_svc.create(
+            user=nguoi, loai=REQ_XUAT, lines=kho_lines, commit=False,
+            bo_phan_id=bo_phan_id,
+            ngay_can=_ngay_vn(can_luc), can_luc=_can_luc_luu(can_luc),
+            # Tổ gõ ghi chú thì thủ kho đọc đúng chữ đó; để trống thì giữ câu mặc định.
+            ghi_chu=((ghi_chu or "").strip()[:1000]
+                     or f"Cấp vật tư công đoạn «{cv.ten_cong_doan}» (lần {lan_so})."),
+        )
+
+    dn = SanXuatVatTuDeNghi(
+        cong_viec_id=cv.id, lan_so=lan_so, loai=loai, can_luc=_can_luc_luu(can_luc),
+        stock_request_id=(req.id if req is not None else None), tu_lap=tu_lap,
+        created_by_id=getattr(nguoi, "id", None), updated_by_id=getattr(nguoi, "id", None),
+    )
+    db.add(dn)
+    db.flush()
+    for d in dongs:
+        db.add(SanXuatVatTuDeNghiDong(de_nghi_id=dn.id, **{
+            k: v for k, v in d.items() if k not in ("ten", "don_vi_goc")
+        }))
+
+    AuditLogRepository(db).create(
+        actor_user_id=getattr(nguoi, "id", None), action="san_xuat_de_nghi_vat_tu",
+        target=f"san_xuat_cong_viec:{cv.id}",
+        detail=f"lần {lan_so} · {len(kho_lines)} dòng gửi kho",
+        commit=False,
+    )
+    return dn, req
+
+
 def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
         lines: list[dict], ghi_chu: str | None = None, kh_svc=None, req_svc=None) -> dict:
     """Tạo một LẦN đề nghị. Lần 1 = `lan_dau`, từ lần 2 trở đi = `bo_sung`.
@@ -438,64 +489,23 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
             raise VatTuDeNghiError(
                 "Đang có đề nghị chưa được kho lập phiếu — hãy sửa đề nghị đó thay vì tạo lần mới.")
 
-    lan_so = vt_repo.lan_ke_tiep(cong_viec_id)
-    loai = DN_LAN_DAU if lan_so == 1 else DN_BO_SUNG
     hang = _hang_service(db)
     kh_svc = kh_svc or _kh_service(db, hang)
     dongs = _chuan_hoa(kh_svc, cv, lines)
-    kho_lines = _lines_kho(hang, cv, dongs)
+    req_svc = req_svc or _req_service(db, hang)
 
-    # `commit=False` là điều kiện SỐNG CÒN của khoá ở đầu hàm, không phải tối ưu: mặc định
-    # `StockRequestRepository.create`/`save` tự `commit()` trên CHÍNH session `db` này, mà commit
-    # là NHẢ khoá hàng. Nhả xong thì lượt B chen vào khoá được, đọc `cac_de_nghi` vẫn RỖNG (lượt A
-    # chưa `db.add(dn)` bên dưới) nên cũng lấy `lan_so` đó, đẻ yêu cầu kho thứ hai, rồi một lượt vỡ
-    # `UniqueConstraint("cong_viec_id","lan_so")` — thủ kho ôm một yêu cầu kho MỒ CÔI mà
-    # `boi_canh_san_xuat` không trả nổi công đoạn/giờ cần.
-    #
-    # Với `commit=False`, toàn bộ `tao()` là MỘT giao dịch: khoá giữ liên tục từ `khoa_cong_viec`
-    # tới lúc chốt, lượt B chờ thật rồi đọc lại thật và dừng ở câu lỗi nghiệp vụ "Đang có đề nghị
-    # chưa được kho lập phiếu". Chết giữa chừng cũng hết mồ côi: rollback xoá sạch cả yêu cầu kho
-    # lẫn hai bảng SX, tổ gọi lại `tao()` là xong.
-    #
-    # ⚠️ RANH GIỚI THẬT của giao dịch đó là `AuditLogRepository.create` bên dưới, KHÔNG phải
-    # `db.commit()` đứng sau nó: `audit_repo.create` tự `commit()` trong thân hàm (`audit_repo.py`),
-    # nên tới dòng audit là khoá đã nhả và `db.commit()` chỉ còn là cái chốt rỗng. Muốn thêm một
-    # lệnh ghi vào giao dịch này thì phải đặt nó TRƯỚC dòng audit — đặt vào giữa audit và
-    # `db.commit()` là rơi ra ngoài khoá mà không có gì báo.
-    #
-    # Thứ tự "kho trước, SX sau" vì thế không còn gánh vai trò an toàn nào nữa — giữ nguyên chỉ vì
-    # `dn.stock_request_id` cần `req.id` (ruling minor-5).
-    req = None
-    if kho_lines:
-        req_svc = req_svc or _req_service(db, hang)
-        req = req_svc.create(
-            user=user, loai=REQ_XUAT, lines=kho_lines, commit=False,
-            # Bộ phận = của NGƯỜI bấm gửi (11/10/2026 — chủ xưởng: yêu cầu "phải theo người và tổ của người
-            # yêu cầu"). Tổ của công đoạn đọc ở công việc, không mượn ô bộ phận.
-            bo_phan_id=user.department_id,
-            ngay_can=_ngay_vn(can_luc), can_luc=_can_luc_luu(can_luc),
-            # Tổ gõ ghi chú thì thủ kho đọc đúng chữ đó; để trống thì giữ câu mặc định.
-            ghi_chu=((ghi_chu or "").strip()[:1000]
-                     or f"Cấp vật tư công đoạn «{cv.ten_cong_doan}» (lần {lan_so})."),
-        )
-
-    dn = SanXuatVatTuDeNghi(
-        cong_viec_id=cong_viec_id, lan_so=lan_so, loai=loai, can_luc=_can_luc_luu(can_luc),
-        stock_request_id=(req.id if req is not None else None),
-        created_by_id=getattr(user, "id", None), updated_by_id=getattr(user, "id", None),
+    # `_lap_lan` KHÔNG commit (audit đi `commit=False`): toàn bộ `tao()` là MỘT giao dịch, khoá
+    # `khoa_cong_viec` ở trên giữ liên tục tới `db.commit()` dưới đây. Lượt bấm trùng chờ thật,
+    # đọc lại thật và dừng ở câu "Đang có đề nghị chưa được kho lập phiếu". Muốn thêm lệnh ghi vào
+    # giao dịch này thì đặt TRƯỚC `db.commit()`.
+    dn, req = _lap_lan(
+        db, cv=cv, nguoi=user,
+        # Bộ phận = của NGƯỜI bấm gửi (11/10/2026 — chủ xưởng: yêu cầu "phải theo người và tổ của
+        # người yêu cầu"). Tổ của công đoạn đọc ở công việc, không mượn ô bộ phận.
+        bo_phan_id=user.department_id,
+        can_luc=can_luc, dongs=dongs, ghi_chu=ghi_chu, tu_lap=False, req_svc=req_svc, hang=hang,
     )
-    db.add(dn)
-    db.flush()
-    for d in dongs:
-        db.add(SanXuatVatTuDeNghiDong(de_nghi_id=dn.id, **{
-            k: v for k, v in d.items() if k not in ("ten", "don_vi_goc")
-        }))
-
-    AuditLogRepository(db).create(
-        actor_user_id=getattr(user, "id", None), action="san_xuat_de_nghi_vat_tu",
-        target=f"san_xuat_cong_viec:{cong_viec_id}",
-        detail=f"lần {lan_so} · {len(kho_lines)} dòng gửi kho",
-    )
+    lan_so = dn.lan_so
     db.commit()
     # Báo kho SAU khi giao dịch đã chốt, không sớm hơn: `create(commit=False)` cố ý IM LẶNG vì tin
     # bắn lúc hàng chưa commit sẽ khiến trình duyệt refetch trên một connection khác mà không thấy

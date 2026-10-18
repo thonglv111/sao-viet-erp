@@ -4860,6 +4860,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `dinh_muc_json` | `JSON` | — | yes | — | Snapshot định mức chi tiết: `{so_nhan_cong_tieu_chuan, setup_phut, nang_suat, don_vi_nang_suat, chay_phut, chay_phut_min, chay_phut_max, phat_sinh_phut, ngoai_dong}`. `sl_dien_giai` (câu "Số bản kẽm = 4 bản kẽm") gỡ 18/09/2026 cùng công thức sản lượng ra (mg `0324`); dòng cũ còn khoá đó, không ai đọc. `chay_phut*` lấy từ engine `thoi_luong_buoc` (dải min/max = tốc độ tối đa/tối thiểu của máy; máy chưa khai dải ⇒ ba số bằng nhau) và **nhân tỉ lệ sản lượng của phân đoạn** — bước tách hai mẻ thì mỗi thẻ mang nửa giờ chạy. Trước ngày đó `chay_phut` đọc cột `lsx_cong_doan.chay_phut` (ô nhập đè, dormant từ 04/08/2026 nên luôn NULL) ⇒ bàn tổ không có con số giờ nào. `ngoai_dong` = bước NGOÀI dòng giấy — chụp cờ vì bước khai tay mang đơn vị riêng (`kem`) thì không màn nào suy ngược được nữa. |
 | ~~`khoan_json`~~ | `JSON` | — | yes | — | 🔴 GỠ 18/09/2026 (mg `0321`) — bước lệnh thôi chọn đầu việc nên chẳng còn gì để đóng băng lúc phát hành; ảnh chụp nay ở MẺ (`san_xuat_batch.*_khoan_snapshot`, mg `0318`), chụp đúng lúc biết việc gì. Mô tả cũ: Snapshot cấu hình lương khoán (nội bộ bắt buộc hợp lệ — §4.2). Cùng hình dạng `lsx_cong_doan.khoan_json`, THÊM khoá `don_gia_hd` (08/09/2026) khi ô "Công thức tính tiền công" của bước RA THẲNG TIỀN (có chip `don_gia_khoan`): đơn giá **hiệu dụng** = tiền của bước ÷ `so_luong_ra`, tức cả công thức đã gộp vào một đơn giá trên đơn vị RA. Chốt lúc PHÁT HÀNH (`san_xuat/snapshot._SoPhatHanh.khoan_json`) vì công thức ăn `sl_vao`/`sl_ra` — hai số còn đổi suốt lúc lập kế hoạch. `don_gia` gốc vẫn giữ nguyên cạnh nó để đối chiếu ảnh chụp; **vắng khoá này = bước khai kiểu cũ**, tầng lương nhân `don_gia`. |
 | `vat_tu_json` | `JSON` | — | yes | — | Snapshot dữ liệu vật tư liên quan. |
+| `can_vat_tu` | `Boolean` | — | no | `false` | Lúc phát hành bước có nhu cầu vật tư (mg `0420`). Có cờ mà chưa có yêu cầu nào còn tính ⇒ "Chưa yêu cầu", chặn Bắt đầu. Lệnh phát hành trước 18/10/2026 để false. |
 | `ghi_chu` | `Text` | — | yes | — | DẶN DÒ của kế hoạch (mg `0290`) — ảnh chụp ô "Ghi chú kỹ thuật cho thợ" của bước (`lsx_cong_doan.ghi_chu` / `bai_ghep_cong_doan.ghi_chu`). Trước 10/09/2026 câu này viết cho thợ nhưng dừng ở màn Kế hoạch vì snapshot không chụp. |
 | `quy_cach_json` | `JSON` | — | yes | — | THẺ QUY CÁCH rút gọn của lệnh (mg `0290`): `{giay, dinh_luong, kho_in, kho_tp, so_mat, so_mau, so_kem, so_con, so_luong, ghi_chu_ky_thuat}`. Dựng từ `quy_cach_bien(lsx)` / `quy_cach_bien_bai(bai)` lúc phát hành. CHỤP chứ không tra ngược lệnh: tổ trưởng không có quyền `lsx` nên không mở nổi hồ sơ lệnh, và lệnh còn sửa được sau khi phát hành (§4.2). Chụp CHỌN LỌC — thợ cần 8 dòng để đứng máy, không cần cả `lsx.quy_cach_json`. NULL = lệnh phát hành trước mg `0290` (không backfill: ảnh chụp phải do "Phát hành cập nhật" dựng lại). |
 | `nha_cung_cap` | `String(255)` → `VARCHAR(255)` | — | yes | — | ẢNH CHỤP nhà gia công lúc phát hành (mg `0259`, chốt 04/09/2026) — để chip "Ngoài · <nơi làm>" hiện được ở bàn tổ và các màn theo dõi mà không phải tra ngược lệnh. Trước đó màn xưởng chỉ có `loai_buoc` nên chip thuê ngoài hiện trống trơn, không ai biết hàng đang ở đâu. |
@@ -4874,7 +4875,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
 
-**Tất cả cột:** `id`, `goi_id`, `phien_ban_so`, `nhom_id`, `lsx_id`, `bai_ghep_id`, `lsx_cong_doan_id`, `bai_ghep_cong_doan_id`, `step_key`, `phan_doan_so`, `phan_doan_tong`, `ten_cong_doan`, `nhom_cong_doan`, `loai_buoc`, `department_id`, `la_kcs_cuoi`, `kcs_tieu_chi_json`, `may_id`, `du_kien_bat_dau`, `du_kien_ket_thuc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `dinh_muc_json`, `vat_tu_json`, `nha_cung_cap`, `gia_cong_ngoai_id`, `khuon_json`, `khuon_nhan_luc`, `khuon_nhan_by_id`, `khuon_tra_luc`, `trang_thai`, `hoan_thanh_luc`, `version`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `goi_id`, `phien_ban_so`, `nhom_id`, `lsx_id`, `bai_ghep_id`, `lsx_cong_doan_id`, `bai_ghep_cong_doan_id`, `step_key`, `phan_doan_so`, `phan_doan_tong`, `ten_cong_doan`, `nhom_cong_doan`, `loai_buoc`, `department_id`, `la_kcs_cuoi`, `kcs_tieu_chi_json`, `may_id`, `du_kien_bat_dau`, `du_kien_ket_thuc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `dinh_muc_json`, `vat_tu_json`, `can_vat_tu`, `nha_cung_cap`, `gia_cong_ngoai_id`, `khuon_json`, `khuon_nhan_luc`, `khuon_nhan_by_id`, `khuon_tra_luc`, `trang_thai`, `hoan_thanh_luc`, `version`, `created_at`, `updated_at`.
 
 ### `san_xuat_cong_viec_lich_su`
 
@@ -5384,12 +5385,13 @@ KHÔNG còn cột TIỀN nào: `don_gia` đã bỏ (mg 0296, 11/09/2026) — s�
 | `loai` | `String(12)` | — | no | `lan_dau` | `lan_dau` \| `bo_sung`. |
 | `can_luc` | `DateTime(timezone=True)` | — | no | — | GIỜ cần thật (không chỉ ngày) — ca chiều cần lúc 13h30 khác ca sáng cần lúc 6h. |
 | `stock_request_id` | `Integer` FK→`stock_requests.id` (SET NULL) | **U** | yes | — | Yêu cầu kho ảnh chiếu. NULL khi mọi dòng bằng 0. Unique: một yêu cầu kho chỉ thuộc đúng một lần đề nghị. |
+| `tu_lap` | `Boolean` | — | no | `false` | Hệ thống tự lập lúc phát hành lệnh (mg `0420`), không phải tổ bấm. Kho báo lại thì báo về bàn tổ của công việc. |
 | `created_by_id` | `Integer` FK→`users.id` | — | yes | — | Người tạo lần đề nghị. |
 | `updated_by_id` | `Integer` FK→`users.id` | — | yes | — | Người sửa gần nhất. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now (UTC) | onupdate = now. |
 
-**Tất cả cột:** `id`, `cong_viec_id`, `lan_so`, `loai`, `can_luc`, `stock_request_id`, `created_by_id`, `updated_by_id`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_viec_id`, `lan_so`, `loai`, `can_luc`, `stock_request_id`, `tu_lap`, `created_by_id`, `updated_by_id`, `created_at`, `updated_at`.
 
 ---
 

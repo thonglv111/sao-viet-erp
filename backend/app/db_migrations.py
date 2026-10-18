@@ -18649,3 +18649,18 @@ def _migrate_phieu_buoc_vat_tu_hang_loai(db: Session) -> None:
 
 
 MIGRATIONS.append(("0419_phieu_buoc_vat_tu_hang_loai", _migrate_phieu_buoc_vat_tu_hang_loai))
+
+
+def _migrate_vat_tu_tu_lap(db: Session) -> None:
+    """Phát hành lệnh tự lập yêu cầu xuất vật tư (spec 2026-10-18): cờ `tu_lap` trên lần đề nghị và
+    cờ `can_vat_tu` trên công việc. Thuần cộng thêm, mặc định false: lệnh cũ không bị coi là
+    "Chưa yêu cầu". Idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for t, cot in (("san_xuat_vat_tu_de_nghi", "tu_lap"), ("san_xuat_cong_viec", "can_vat_tu")):
+        if t in bang and cot not in _existing_columns(insp, t):
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN {cot} BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0420_vat_tu_tu_lap", _migrate_vat_tu_tu_lap))
