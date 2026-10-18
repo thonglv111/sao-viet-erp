@@ -50,6 +50,8 @@ const LOI_NHAC: Record<string, (ma: string | null) => string> = {
   lenh_cho_xep: (ma) => `🔔 Lệnh${ma ? " " + ma : ""} vừa vào hàng chờ xếp lịch`,
   viec_moi: () => "🔔 Tổ có việc mới",
   kho_yeu_cau_moi: (ma) => `🔔 Có yêu cầu kho mới${ma ? " " + ma : ""} chờ lập phiếu`,
+  // Phát hành lệnh tự lập yêu cầu xuất: `ma` = "LSX…: N yêu cầu xuất mới" (máy chủ ghép sẵn).
+  kho_yeu_cau_phat_hanh: (ma) => `🔔 ${ma ?? "Có yêu cầu xuất mới"} chờ lập phiếu`,
   hoa_don_cho_thu: (ma) => `🔔 Hóa đơn${ma ? " " + ma : ""} chờ thu tiền`,
   coc_cho_thu: (ma) => `🔔 Đơn${ma ? " " + ma : ""} đã chốt, chờ thu cọc`,
   tra_lai_khach: (ma) => `🔔 Đơn${ma ? " " + ma : ""} có tiền chờ trả lại khách`,

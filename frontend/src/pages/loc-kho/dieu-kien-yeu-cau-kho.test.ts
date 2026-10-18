@@ -29,4 +29,14 @@ describe("lọc yêu cầu kho theo lệnh, tổ, vật tư", () => {
     const ts = thamSoLocYCK({ ...LOC_YCK_TRONG, bo_phan: 7, lenh: 42, vat_tu: ["giay:12"] });
     expect(ts).toMatchObject({ bo_phan: 7, lenh: 42, vat_tu: ["giay:12"] });
   });
+
+  it("Tổ là điều kiện riêng (khoá URL to), Phòng ban yêu cầu giữ khoá bp", () => {
+    const ghi = locYCKLenUrl({ ...LOC_YCK_TRONG, bo_phan: 3, to: 9 });
+    expect(ghi.bp).toBe("3");
+    expect(ghi.to).toBe("9");
+    const doc = locYCKTuUrl(url(ghi as Record<string, string | undefined>));
+    expect(doc.bo_phan).toBe(3);
+    expect(doc.to).toBe(9);
+    expect(thamSoLocYCK(doc)).toMatchObject({ bo_phan: 3, to: 9 });
+  });
 });

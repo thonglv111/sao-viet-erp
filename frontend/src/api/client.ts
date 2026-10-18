@@ -9898,7 +9898,7 @@ export interface StockRequestListParams {
   kho_id?: number | null;
   /** true = CHỈ yêu cầu điều chuyển (tab Điều chuyển) · false = nhập/xuất thường · bỏ = không lọc. */
   dieu_chuyen?: boolean | null;
-  /** Kỳ (tu_ngay/den_ngay/moc ∈ tao, can, duyet) + điều kiện bo_phan, nguoi_yeu_cau, kho, lenh, vat_tu. */
+  /** Kỳ (tu_ngay/den_ngay/moc ∈ tao, can, duyet) + điều kiện bo_phan, to, nguoi_yeu_cau, kho, lenh, vat_tu. */
   loc?: ThamSoLoc;
   /** Thứ tự: "id" = mới tạo trước (mặc định) · "updated" = vừa đổi trước (Hộp yêu cầu). */
   order?: "id" | "updated";
@@ -16854,7 +16854,7 @@ export const api = {
       },
       /** Giá trị điều kiện lọc Phòng ban yêu cầu / Người yêu cầu / Kho / Nguồn — trong tầm nhìn, cả Nhập lẫn Xuất. */
       locGiaTri(
-        token: string, truong: "bo-phan" | "nguoi-yeu-cau" | "kho" | "nguon" | "lenh" | "vat-tu",
+        token: string, truong: "bo-phan" | "to" | "nguoi-yeu-cau" | "kho" | "nguon" | "lenh" | "vat-tu",
         dieuChuyen: boolean,
       ): Promise<(Omit<LuaChonLoc, "id"> & { id: number | string })[]> {
         // Nguồn trả `id` là mã chữ ("kcs", "giao_hang"…), Vật tư trả khoá "giay:12"; còn lại id số.

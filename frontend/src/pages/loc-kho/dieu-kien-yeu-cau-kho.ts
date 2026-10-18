@@ -3,7 +3,7 @@
  *
  *  Hai màn nằm chung một mục thanh bên ("kho-main") nên chung một bộ lọc trên URL: sang tab kia vẫn
  *  giữ kỳ và điều kiện đang áp. Nhập và Xuất chung MỘT bảng (07/10/2026) — chiều là điều kiện "Loại". */
-import { ArrowDownUp, Building2, ClipboardList, Package, Route, Users, Warehouse } from "lucide-react";
+import { ArrowDownUp, Building2, ClipboardList, Factory, Package, Route, Users, Warehouse } from "lucide-react";
 
 import { api, type StockRequestKind, type ThamSoLoc } from "../../api/client";
 import type { GiaTriUrl } from "../ke-toan/shared/urlMan";
@@ -14,7 +14,10 @@ import type { DieuKien } from "../thanh-loc/thanh-loc";
 export type LocYeuCauKho = {
   /** Nhập hoặc Xuất; bỏ trống = cả hai. */
   loai?: StockRequestKind;
+  /** Phòng đứng tên yêu cầu. */
   bo_phan?: number;
+  /** Tổ sản xuất — tổ của công việc xin vật tư, người bấm có thể ở phòng khác (18/10/2026). */
+  to?: number;
   /** Id người yêu cầu (nhiều người). */
   nguoi: string[];
   kho?: number;
@@ -52,7 +55,7 @@ export const ghiLocManYCK = (t: LocManYCK): GiaTriUrl => ({ ...kyLenUrl(t.ky, "t
 /** Tab Điều chuyển không có điều kiện Nguồn — Nguồn còn nằm trên URL từ tab khác cũng không áp. */
 export function thamSoLocYCK(loc: LocYeuCauKho, dieuChuyen = false): ThamSoLoc {
   return {
-    loai: loc.loai, bo_phan: loc.bo_phan, nguoi_yeu_cau: loc.nguoi, kho: loc.kho,
+    loai: loc.loai, bo_phan: loc.bo_phan, to: loc.to, nguoi_yeu_cau: loc.nguoi, kho: loc.kho,
     nguon: dieuChuyen ? undefined : loc.nguon, lenh: loc.lenh, vat_tu: loc.vat_tu,
   };
 }
@@ -62,6 +65,7 @@ export function locYCKTuUrl(p: URLSearchParams): LocYeuCauKho {
   return {
     loai: loai === "NHAP" || loai === "XUAT" ? loai : undefined,
     bo_phan: soTuUrl(p.get("bp")),
+    to: soTuUrl(p.get("to")),
     nguoi: (p.get("nyc") ?? "").split(",").filter((x) => /^\d+$/.test(x)),
     kho: soTuUrl(p.get("kho_loc")),
     nguon: (p.get("nguon") ?? "").split(",").filter((x) => /^[a-z_]+$/.test(x)),
@@ -74,6 +78,7 @@ export function locYCKLenUrl(loc: LocYeuCauKho): GiaTriUrl {
   return {
     loai_yc: loc.loai,
     bp: soLenUrl(loc.bo_phan),
+    to: soLenUrl(loc.to),
     nyc: loc.nguoi.length ? loc.nguoi.join(",") : undefined,
     kho_loc: soLenUrl(loc.kho),
     nguon: loc.nguon.length ? loc.nguon.join(",") : undefined,
@@ -88,9 +93,10 @@ const LOAI: { value: StockRequestKind; nhan: string }[] = [
 ];
 
 export function useDieuKienYeuCauKho(dieuChuyen: boolean): DieuKien<LocYeuCauKho>[] {
-  const nap = (truong: "bo-phan" | "nguoi-yeu-cau" | "kho" | "nguon" | "lenh" | "vat-tu") => (token: string) =>
-    api.kho.deNghi.locGiaTri(token, truong, dieuChuyen);
+  const nap = (truong: "bo-phan" | "to" | "nguoi-yeu-cau" | "kho" | "nguon" | "lenh" | "vat-tu") =>
+    (token: string) => api.kho.deNghi.locGiaTri(token, truong, dieuChuyen);
   const boPhan = useLuaChonLoc(nap("bo-phan"));
+  const to = useLuaChonLoc(nap("to"));
   const nguoi = useLuaChonLoc(nap("nguoi-yeu-cau"));
   const kho = useLuaChonLoc(nap("kho"));
   const nguon = useLuaChonLoc(nap("nguon"));
@@ -103,10 +109,15 @@ export function useDieuKienYeuCauKho(dieuChuyen: boolean): DieuKien<LocYeuCauKho
       ghi: (l, v) => ({ ...l, loai: v === "NHAP" || v === "XUAT" ? v : undefined }),
     },
     {
-      // Phòng đứng tên yêu cầu HOẶC tổ của công đoạn xin vật tư — người bấm có thể ở phòng khác.
-      khoa: "bo_phan", nhan: "Tổ / bộ phận", icon: Building2, kieu: "mot", tim: true, giaTri: boPhan,
+      khoa: "bo_phan", nhan: "Phòng ban yêu cầu", icon: Building2, kieu: "mot", tim: true, giaTri: boPhan,
       doc: (l) => idThanhChu(l.bo_phan),
       ghi: (l, v) => ({ ...l, bo_phan: chuThanhId(v) }),
+    },
+    {
+      // Chỉ tổ sản xuất; khớp tổ của công đoạn xin vật tư — người bấm có thể ở phòng khác.
+      khoa: "to", nhan: "Tổ", icon: Factory, kieu: "mot", tim: true, giaTri: to,
+      doc: (l) => idThanhChu(l.to),
+      ghi: (l, v) => ({ ...l, to: chuThanhId(v) }),
     },
     {
       khoa: "nguoi", nhan: "Người yêu cầu", icon: Users, kieu: "nhieu", tim: true, giaTri: nguoi,

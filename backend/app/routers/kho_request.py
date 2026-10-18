@@ -395,8 +395,9 @@ def list_requests(
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern=_MOC),
-    bo_phan: int | None = Query(
-        default=None, description="Điều kiện Tổ / bộ phận: phòng đứng tên hoặc tổ của công việc"),
+    bo_phan: int | None = Query(default=None, description="Điều kiện Phòng ban yêu cầu"),
+    to: int | None = Query(
+        default=None, description="Điều kiện Tổ: tổ của công việc gắn yêu cầu, hoặc phòng đứng tên"),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None, description="Điều kiện Kho: gắn kho hoặc có phiếu ở kho"),
     nguon: list[str] | None = Query(default=None, description="Điều kiện Nguồn (NGUON_YEU_CAU)"),
@@ -408,7 +409,7 @@ def list_requests(
 ) -> StockRequestPage:
     rows, total = svc.requests.list(
         loai=loai, trang_thai=trang_thai, q=q, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, to_loc=bo_phan,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan, to_loc=to,
         nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon, lenh_loc=lenh, vat_tu_loc=vat_tu,
         order=order, page=page, size=size,
         **_scoped_filters(db, user, authz),
@@ -485,6 +486,7 @@ def request_counts_by_status(
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern=_MOC),
     bo_phan: int | None = Query(default=None),
+    to: int | None = Query(default=None),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None),
     nguon: list[str] | None = Query(default=None),
@@ -495,7 +497,7 @@ def request_counts_by_status(
     Trả {trang_thai: số}. Áp SCOPE như list để badge khớp đúng danh sách người dùng thấy."""
     return svc.requests.count_by_status(
         loai=loai, base_trang_thai=trang_thai, kho_id=kho_id, dieu_chuyen=dieu_chuyen, q=q,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, to_loc=bo_phan,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan, to_loc=to,
         nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon, lenh_loc=lenh, vat_tu_loc=vat_tu,
         **_scoped_filters(db, user, authz),
     )
@@ -514,11 +516,25 @@ def loc_bo_phan(
     loai: str | None = Query(default=None),
     dieu_chuyen: bool | None = Query(default=None),
 ) -> list[dict]:
-    """Giá trị điều kiện "Tổ / bộ phận": phòng đứng tên yêu cầu cộng tổ của công việc gắn yêu cầu
-    (người bấm có thể ở phòng khác), kèm số — cùng luật với lọc `bo_phan`."""
-    dem = svc.requests.dem_theo_to(**_loc_nen(db, user, authz, loai, dieu_chuyen))
+    """Giá trị điều kiện "Phòng ban yêu cầu": phòng ban có yêu cầu trong tầm nhìn, kèm số."""
+    dem = svc.requests.dem_theo_cot("bo_phan_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
     phong = DepartmentRepository(db)
     ra = [{"id": i, "ten": getattr(phong.get_by_id(i), "name", None) or f"#{i}", "so": n} for i, n in dem]
+    return sorted(ra, key=lambda d: d["ten"])
+
+
+@router.get("/loc-to")
+def loc_to(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Tổ": CHỈ tổ sản xuất (spec 2026-10-18 §5.4), số đếm theo tổ của công
+    việc gắn yêu cầu cộng phòng đứng tên — cùng luật với lọc `to`."""
+    to = {d.id: d.name for d in DepartmentRepository(db).to_san_xuat()}
+    dem = svc.requests.dem_theo_to(**_loc_nen(db, user, authz, loai, dieu_chuyen))
+    ra = [{"id": i, "ten": to[i], "so": n} for i, n in dem if i in to]
     return sorted(ra, key=lambda d: d["ten"])
 
 

@@ -149,3 +149,18 @@ class KeHoachVatTuRepository:
         return xong_lsx, xong_bai
 
     # (`khuon_theo_ids` + `cong_doan_can_dung_cu` đã gỡ 16/08/2026 cùng nhóm "Công cụ" — mg `0203`.)
+
+    def phan_doan_cung_buoc(self, cv: SanXuatCongViec) -> list[SanXuatCongViec]:
+        """Mọi phân đoạn của CÙNG bước, cùng gói với `cv`, theo `phan_doan_so` — nền chia số kế
+        hoạch của bước cho từng phân đoạn."""
+        if cv.lsx_cong_doan_id:
+            cung_buoc = SanXuatCongViec.lsx_cong_doan_id == cv.lsx_cong_doan_id
+        elif cv.bai_ghep_cong_doan_id:
+            cung_buoc = SanXuatCongViec.bai_ghep_cong_doan_id == cv.bai_ghep_cong_doan_id
+        else:
+            return [cv]
+        return list(self.db.execute(
+            select(SanXuatCongViec)
+            .where(SanXuatCongViec.goi_id == cv.goi_id, cung_buoc)
+            .order_by(SanXuatCongViec.phan_doan_so, SanXuatCongViec.id)
+        ).scalars())

@@ -985,6 +985,9 @@ class StockVoucherService:
         """Hủy phiếu khi CÒN NHÁP — BẮT BUỘC lý do; yêu cầu chuyển 'Đã hủy' kèm lý do (KẾT THÚC,
         không cấp lại). Phiếu đã ghi sổ không hủy được — muốn sửa thì lập phiếu điều chỉnh
         (BRD §1.5: chứng từ đã ghi không sửa trực tiếp)."""
+        # Khoá dòng phiếu TRƯỚC khi đọc trạng thái, như `post`: huỷ và ghi sổ cùng lúc thì lượt sau
+        # chờ lượt đầu commit rồi đọc lại — không có phiếu vừa ghi sổ vừa "đã huỷ".
+        self.vouchers.lock_for_update(voucher_id)
         v = self.vouchers.get(voucher_id)
         if v is None:
             raise StockVoucherError("Không tìm thấy phiếu.")

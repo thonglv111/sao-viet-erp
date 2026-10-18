@@ -453,7 +453,7 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
     # `db.info` để báo kho sau commit.
     from .vat_tu_tu_lap import KHOA_YC_HUY, huy_khi_thu_hoi
 
-    db.info.setdefault(KHOA_YC_HUY, []).extend(huy_khi_thu_hoi(db, goi_id=goi.id))
+    db.info.setdefault(KHOA_YC_HUY, []).extend(huy_khi_thu_hoi(db, goi_id=goi.id, actor_id=actor_uid))
     goi.trang_thai = GOI_DA_THU_HOI
     goi.version += 1
     AuditLogRepository(db).create(

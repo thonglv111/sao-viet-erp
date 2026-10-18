@@ -192,6 +192,19 @@ def _giay_chua_kho(hang: tuple, dv_to: str) -> bool:
     return not hang[2]
 
 
+def phan_cua_phan_doan(tong: float, so_vao: list[float], vi_tri: int) -> float:
+    """Phần của phân đoạn `vi_tri` trong `tong`, chia theo số vào của từng phân đoạn (chưa khai số
+    vào thì chia đều). Phân đoạn cuối nhận số dư để cộng lại đúng bằng `tong`."""
+    n = len(so_vao)
+    if n <= 1:
+        return tong
+    cong = sum(max(float(x or 0), 0.0) for x in so_vao)
+    ty_le = [max(float(x or 0), 0.0) / cong for x in so_vao] if cong > 0 else [1 / n] * n
+    if vi_tri == n - 1:
+        return tong - sum(round(tong * t, 4) for t in ty_le[:-1])
+    return round(tong * ty_le[vi_tri], 4)
+
+
 class KeHoachVatTuService:
     """Bảng cân đối vật tư. CHỈ ĐỌC — không có đường nào từ đây ghi vào kho.
 
@@ -929,6 +942,59 @@ class KeHoachVatTuService:
         self._nap_don_vi()
         # Đường này chỉ cần mặt hàng + số, không cần ngày cần.
         self._ngay_can_map = {}
+        khoa_nho = ("bai", int(bai_id)) if bai_id else ("lsx", int(lsx_id))
+        tho = self._tho_nho.get(khoa_nho) if self._tho_nho is not None else None
+        if tho is None:
+            tho = self._tho_cua_pham_vi(lsx_id, bai_id)
+            if self._tho_nho is not None:
+                self._tho_nho[khoa_nho] = tho
+
+        # Neo về ĐÚNG bước: dòng lệnh so `buoc_id` với `lsx_cong_doan_id`, dòng bài so với
+        # `bai_ghep_cong_doan_id` (hai không gian id khác nhau — cặp `(lsx_id, bai_ghep_id)` trên
+        # dòng đã phân biệt sẵn, xem chú thích `_dong_bai`). Chép dòng: `_nap_mat_hang` /
+        # `_quy_doi_dong` ghi vào dòng, dòng gốc còn nằm trong bộ nhớ đệm cho bước khác.
+        neo_lsx = cv.lsx_cong_doan_id
+        neo_bg = cv.bai_ghep_cong_doan_id
+        cua_buoc = [
+            dict(d) for d in tho
+            if (d["bai_ghep_id"] and neo_bg and d["buoc_id"] == neo_bg)
+            or (d["lsx_id"] and neo_lsx and d["lsx_id"] == lsx_id and d["buoc_id"] == neo_lsx)
+        ]
+        if not cua_buoc:
+            return []
+        gom = self._gom_theo_khoa(cua_buoc)
+        if int(getattr(cv, "phan_doan_tong", None) or 1) > 1:
+            self._chia_phan_doan(cv, gom)
+        return gom
+
+    #: Bộ nhớ đệm `_gom_nhu_cau` theo phạm vi, chỉ sống trong `nho_nhu_cau()`.
+    _tho_nho: dict | None = None
+
+    @contextmanager
+    def nho_nhu_cau(self):
+        """Trong khối này `nhu_cau_cua_cong_viec` tính `_gom_nhu_cau` MỘT lần cho mỗi lệnh/bài —
+        phát hành cụm hàng chục bước khỏi cân đối lại từng bước. Chỉ dùng khi dòng vật tư của
+        bước không đổi giữa chừng (lập yêu cầu không đụng tới chúng)."""
+        cu = self._tho_nho
+        self._tho_nho = {} if cu is None else cu
+        try:
+            yield
+        finally:
+            self._tho_nho = cu
+
+    def _chia_phan_doan(self, cv, gom: list[dict]) -> None:
+        """Bước tách nhiều phân đoạn lịch: mỗi phân đoạn mang phần số kế hoạch theo số vào của nó,
+        không phải nguyên số của cả bước (N phân đoạn xin nguyên số là xin gấp N lần)."""
+        cung = self.repo.phan_doan_cung_buoc(cv)
+        vi_tri = next((i for i, x in enumerate(cung) if x.id == cv.id), None)
+        if vi_tri is None or len(cung) <= 1:
+            return
+        so_vao = [float(x.so_luong_vao or 0) for x in cung]
+        for d in gom:
+            d["sl"] = phan_cua_phan_doan(float(d["sl"] or 0), so_vao, vi_tri)
+            d["sl_goc"] = phan_cua_phan_doan(float(d["sl_goc"] or 0), so_vao, vi_tri)
+
+    def _tho_cua_pham_vi(self, lsx_id, bai_id) -> list[dict]:
         # Phạm vi HẸP thật: đúng lệnh/bài của công việc này. Đừng quay lại `_lenh_trong_pham_vi`
         # — nó đi qua `cho_mrp`, hàm luôn OR thêm `trang_thai IN TRANG_THAI_TINH`, nên nó kéo về
         # mọi lệnh còn sống của xưởng và biến một lần mở form thành một lần `can_doi()` toàn bảng.
@@ -946,22 +1012,9 @@ class KeHoachVatTuService:
         lsx_ids |= {tv.lsx_id for b in bais for tv in b.thanh_viens}
         lenh = self.lsx_repo.theo_ids(lsx_ids)
         lenh_map = {l.id: l for l in lenh}
+        return self._gom_nhu_cau(lenh, lenh_map, bais)
 
-        tho = self._gom_nhu_cau(lenh, lenh_map, bais)
-
-        # Neo về ĐÚNG bước: dòng lệnh so `buoc_id` với `lsx_cong_doan_id`, dòng bài so với
-        # `bai_ghep_cong_doan_id` (hai không gian id khác nhau — cặp `(lsx_id, bai_ghep_id)` trên
-        # dòng đã phân biệt sẵn, xem chú thích `_dong_bai`).
-        neo_lsx = cv.lsx_cong_doan_id
-        neo_bg = cv.bai_ghep_cong_doan_id
-        cua_buoc = [
-            d for d in tho
-            if (d["bai_ghep_id"] and neo_bg and d["buoc_id"] == neo_bg)
-            or (d["lsx_id"] and neo_lsx and d["lsx_id"] == lsx_id and d["buoc_id"] == neo_lsx)
-        ]
-        if not cua_buoc:
-            return []
-
+    def _gom_theo_khoa(self, cua_buoc: list[dict]) -> list[dict]:
         self._nap_mat_hang(cua_buoc)
         self._quy_doi_dong(cua_buoc)
 

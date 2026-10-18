@@ -76,6 +76,7 @@ def test_loc_theo_to_khop_qua_cong_viec_khi_nguoi_bam_khac_phong(client, db, svc
     cv = _buoc_in_cv(db, lenh.id)
     dn = db.query(SanXuatVatTuDeNghi).filter_by(cong_viec_id=cv.id).one()
     req = db.get(StockRequest, dn.stock_request_id)
+    db.get(Department, cv.department_id).la_san_xuat = True
     # Người bấm thuộc phòng khác: yêu cầu đứng tên phòng đó, nhưng việc vẫn của tổ.
     khac = Department(name="Phòng Kế hoạch lọc", code="KH-LOC")
     db.add(khac)
@@ -84,12 +85,20 @@ def test_loc_theo_to_khop_qua_cong_viec_khi_nguoi_bam_khac_phong(client, db, svc
     db.commit()
     h = _h(client)
 
-    assert req.id in _ids(client, h, bo_phan=cv.department_id)
+    assert req.id in _ids(client, h, to=cv.department_id)
+    # "Phòng ban yêu cầu" giữ nghĩa cũ: đúng phòng đứng tên yêu cầu.
     assert req.id in _ids(client, h, bo_phan=khac.id)
+    assert req.id not in _ids(client, h, bo_phan=cv.department_id)
+
+    r = client.get(f"{URL}/loc-to", headers=h)
+    assert r.status_code == 200, r.text
+    dem = {d["id"]: d["so"] for d in r.json()}
+    assert dem.get(cv.department_id) == 1
+    assert khac.id not in dem, "danh sách Tổ chỉ liệt kê tổ sản xuất"
 
     r = client.get(f"{URL}/loc-bo-phan", headers=h)
     dem = {d["id"]: d["so"] for d in r.json()}
-    assert dem.get(cv.department_id) == 1 and dem.get(khac.id) == 1
+    assert dem.get(khac.id) == 1 and cv.department_id not in dem
 
 
 def test_loc_theo_vat_tu_nhieu_ma(client, db):

@@ -96,53 +96,68 @@ def lap_khi_phat_hanh(db: Session, *, goi_id: int, nguoi) -> KetQuaTuLap:
     vt_repo = SanXuatVatTuRepository(db)
     neo_bai = _neo_giay_bai(db, cvs)
 
-    for cv in cvs:
-        # Đã có đề nghị (gói cũ đã xuất chuyển sang, hay tổ đã xin) thì không lập thêm.
-        if chuyen_de_nghi_cu(db, cv) or vt_repo.cac_de_nghi(cv.id):
-            cv.can_vat_tu = True
-            continue
-        nhu_cau = kh_svc.nhu_cau_cua_cong_viec(cv)
-        if cv.bai_ghep_cong_doan_id and neo_bai.get(cv.bai_ghep_id) != cv.bai_ghep_cong_doan_id:
-            nhu_cau = [d for d in nhu_cau if d["hang_loai"] != "giay"]
-        if not nhu_cau:
-            continue
-        cv.can_vat_tu = True
-        kh = _NhuCauCo(kh_svc, nhu_cau)
-
-        nhan: list[dict] = []
-        for dong in nhu_cau:
-            # Kế hoạch ra 0 (chưa khai công thức lượng) thì không có số để xin — tổ tự xin. Có số
-            # mà không quy được về đơn vị gốc (mã thiếu đơn vị…) thì cứ thử: lỗi vào `bo_qua`.
-            if float(dong.get("sl") or 0) <= _EPS:
-                continue
-            ln = _dong_xin(dong)
-            try:
-                k = khoa_dong(dong["hang_loai"], dong["hang_id"], dong.get("don_vi_goc"),
-                              dong.get("kho_rong"), dong.get("kho_dai"))
-                mot = [d for d in vtdn._chuan_hoa(kh, cv, [ln])
-                       if khoa_dong(d["hang_loai"], d["hang_id"], d.get("don_vi_goc"),
-                                    d.get("kho_rong"), d.get("kho_dai")) == k]
-                req_svc._validate_lines(vtdn._lines_kho(hang, cv, mot))
-            except _LOI_DONG as e:
-                kq["bo_qua"].append({
-                    "cong_viec_id": cv.id, "ten_cong_doan": cv.ten_cong_doan,
-                    "ten_hang": dong.get("ten") or f"#{dong['hang_id']}", "ly_do": str(e),
-                })
-                continue
-            nhan.append(ln)
-        if not nhan:
-            continue
-
-        dongs = vtdn._chuan_hoa(kh, cv, nhan)
-        dn, req = vtdn._lap_lan(
-            db, cv=cv, nguoi=nguoi, bo_phan_id=cv.department_id, can_luc=_gio_can(cv),
-            dongs=dongs, ghi_chu=f"Tự lập khi phát hành «{cv.ten_cong_doan}».", tu_lap=True,
-            req_svc=req_svc, hang=hang,
-        )
-        kq["cv_ids"].append(cv.id)
-        if req is not None:
-            kq["request_ids"].append(req.id)
+    # Nhu cầu của mọi bước cùng lệnh tính MỘT lượt cân đối (cụm lớn là hàng chục bước).
+    with kh_svc.nho_nhu_cau():
+        for cv in cvs:
+            _lap_cho_viec(db, cv, kq=kq, nguoi=nguoi, hang=hang, kh_svc=kh_svc, req_svc=req_svc,
+                          vt_repo=vt_repo, neo_bai=neo_bai)
     return kq
+
+
+def _lap_cho_viec(db: Session, cv, *, kq: KetQuaTuLap, nguoi, hang, kh_svc, req_svc, vt_repo,
+                  neo_bai) -> None:
+    # Đã có đề nghị (gói cũ đã xuất chuyển sang, hay tổ đã xin) thì không lập thêm.
+    if chuyen_de_nghi_cu(db, cv) or vt_repo.cac_de_nghi(cv.id):
+        cv.can_vat_tu = True
+        return
+    nhu_cau = kh_svc.nhu_cau_cua_cong_viec(cv)
+    if cv.bai_ghep_cong_doan_id and neo_bai.get(cv.bai_ghep_id) != cv.bai_ghep_cong_doan_id:
+        nhu_cau = [d for d in nhu_cau if d["hang_loai"] != "giay"]
+    if not nhu_cau:
+        return
+    kh = _NhuCauCo(kh_svc, nhu_cau)
+
+    nhan: list[dict] = []
+    to_tu_xin = False
+    for dong in nhu_cau:
+        # Kế hoạch ra 0 (chưa khai công thức lượng) thì không có số để xin — tổ tự xin, nên bước
+        # vẫn phải chờ vật tư. Có số mà không quy được về đơn vị gốc (mã thiếu đơn vị…) thì cứ
+        # thử: lỗi vào `bo_qua`.
+        if float(dong.get("sl") or 0) <= _EPS:
+            to_tu_xin = True
+            continue
+        ln = _dong_xin(dong)
+        try:
+            k = khoa_dong(dong["hang_loai"], dong["hang_id"], dong.get("don_vi_goc"),
+                          dong.get("kho_rong"), dong.get("kho_dai"))
+            mot = [d for d in vtdn._chuan_hoa(kh, cv, [ln])
+                   if khoa_dong(d["hang_loai"], d["hang_id"], d.get("don_vi_goc"),
+                                d.get("kho_rong"), d.get("kho_dai")) == k]
+            req_svc._validate_lines(vtdn._lines_kho(hang, cv, mot))
+        except _LOI_DONG as e:
+            kq["bo_qua"].append({
+                "cong_viec_id": cv.id, "ten_cong_doan": cv.ten_cong_doan,
+                "ten_hang": dong.get("ten") or f"#{dong['hang_id']}", "ly_do": str(e),
+            })
+            continue
+        nhan.append(ln)
+    # Mọi dòng đều lỗi (mã thiếu đơn vị…) thì KHÔNG khoá bước ở "Chưa yêu cầu": tổ xin tay cũng
+    # vấp đúng lỗi đó, khoá lại là bước kẹt tới khi có người sửa danh mục. Toast phát hành đã kể
+    # tên từng món bị bỏ qua.
+    if nhan or to_tu_xin:
+        cv.can_vat_tu = True
+    if not nhan:
+        return
+
+    dongs = vtdn._chuan_hoa(kh, cv, nhan)
+    _dn, req = vtdn._lap_lan(
+        db, cv=cv, nguoi=nguoi, bo_phan_id=cv.department_id, can_luc=_gio_can(cv),
+        dongs=dongs, ghi_chu=f"Tự lập khi phát hành «{cv.ten_cong_doan}».", tu_lap=True,
+        req_svc=req_svc, hang=hang,
+    )
+    kq["cv_ids"].append(cv.id)
+    if req is not None:
+        kq["request_ids"].append(req.id)
 
 
 def bao_sau_phat_hanh(db: Session, kq: KetQuaTuLap, *, ma_lenh: str, actor_id: int | None) -> None:
@@ -160,8 +175,8 @@ def bao_sau_phat_hanh(db: Session, kq: KetQuaTuLap, *, ma_lenh: str, actor_id: i
         chuong = sorted(u for u in nhan if u != actor_id)
         if chuong:
             n = len(reqs)
-            bao(db, kenh="kho", loai="kho_yeu_cau_moi", actor_id=actor_id, nguoi_nhan=chuong,
-                commit=False)
+            bao(db, kenh="kho", loai="kho_yeu_cau_phat_hanh", actor_id=actor_id,
+                nguoi_nhan=chuong, ma=f"{ma_lenh}: {n} yêu cầu xuất mới", commit=False)
             NotificationRepository(db).add_many(
                 chuong, loai="kho_moi", tieu_de="Yêu cầu xuất mới chờ cấp",
                 noi_dung=f"Lệnh {ma_lenh} vừa phát hành, {n} yêu cầu xuất vật tư",
@@ -191,31 +206,51 @@ def _co_phieu_ghi_so(db: Session, request_id: int) -> bool:
     ).first() is not None
 
 
-def huy_khi_thu_hoi(db: Session, *, goi_id: int) -> list[int]:
+def huy_khi_thu_hoi(db: Session, *, goi_id: int, actor_id: int | None = None) -> list[int]:
     """Huỷ mọi yêu cầu xuất (tự lập lẫn tổ bấm) của công việc trong gói mà kho CHƯA ghi sổ phiếu
-    nào: phiếu nháp chuyển `cancelled`, yêu cầu `cancelled`. Yêu cầu đã có phiếu ghi sổ giữ nguyên
-    — vật tư đã về tổ, phát hành lại thì `chuyen_de_nghi_cu` nối nó sang công việc mới. KHÔNG
-    commit (nằm trong giao dịch gỡ phát hành); báo kho bằng `bao_da_huy` sau commit."""
+    nào: phiếu nháp chuyển `cancelled` (ghi nhật ký như kho tự huỷ), yêu cầu `cancelled`. Yêu cầu
+    đã có phiếu ghi sổ giữ nguyên — vật tư đã về tổ, phát hành lại thì `chuyen_de_nghi_cu` nối nó
+    sang công việc mới. KHÔNG commit (nằm trong giao dịch gỡ phát hành); báo kho bằng `bao_da_huy`
+    sau commit.
+
+    Thứ tự khoá PHIẾU trước, YÊU CẦU sau — cùng chiều với kho ghi sổ (`StockVoucherService.post`
+    khoá phiếu rồi mới cập nhật yêu cầu). Ngược chiều là hai lượt chờ nhau. Quyết định "đã ghi sổ
+    chưa" đọc từ chính các dòng phiếu vừa khoá (`populate_existing`): kho ghi sổ xong trước thì
+    lượt này thấy `posted` và để yên; một lượt đọc trước khoá thì có thể huỷ nhầm phiếu đã ghi."""
     from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
-    from ...models.stock_voucher import VOUCHER_CANCELLED, VOUCHER_DRAFT, StockVoucher
+    from ...models.stock_voucher import (
+        VOUCHER_CANCELLED, VOUCHER_DRAFT, VOUCHER_POSTED, StockVoucher,
+    )
+    from ...repositories.audit_repo import AuditLogRepository
     from ...repositories.stock_request_repo import StockRequestRepository
 
     req_repo = StockRequestRepository(db)
     vt_repo = SanXuatVatTuRepository(db)
+    audit = AuditLogRepository(db)
     da_huy: list[int] = []
     for cv in SanXuatRepository(db).cong_viec_cua_goi(goi_id):
         for dn in vt_repo.cac_de_nghi(cv.id):
             if not dn.stock_request_id:
                 continue
+            phieus = (db.query(StockVoucher)
+                      .filter(StockVoucher.request_id == dn.stock_request_id)
+                      .order_by(StockVoucher.id)
+                      .with_for_update().populate_existing().all())
             req_repo.lock_for_update(dn.stock_request_id)
-            req = db.get(StockRequest, dn.stock_request_id)
+            req = db.get(StockRequest, dn.stock_request_id, populate_existing=True)
             if req is None or req.trang_thai in (REQ_CANCELLED, REQ_REJECTED):
                 continue
-            if _co_phieu_ghi_so(db, req.id):
+            if any(v.trang_thai == VOUCHER_POSTED for v in phieus):
                 continue
-            for v in db.query(StockVoucher).filter(
-                    StockVoucher.request_id == req.id, StockVoucher.trang_thai == VOUCHER_DRAFT):
+            for v in phieus:
+                if v.trang_thai != VOUCHER_DRAFT:
+                    continue
                 v.trang_thai = VOUCHER_CANCELLED
+                audit.create(
+                    actor_user_id=actor_id, action="kho_phieu_huy", target=f"voucher:{v.id}",
+                    detail=f"Phiếu {v.ma} huỷ theo yêu cầu {req.ma}: lệnh bị thu hồi phát hành",
+                    commit=False,
+                )
             req.trang_thai, req.ly_do_huy = REQ_CANCELLED, LY_DO_HUY_THU_HOI
             da_huy.append(req.id)
     db.flush()
@@ -271,13 +306,15 @@ def chuyen_de_nghi_cu(db: Session, cv) -> bool:
 def doi_can_luc_theo_lich(db: Session, *, goi_id: int) -> list[int]:
     """Phát hành cập nhật dời giờ: lần đề nghị TỰ LẬP mà tổ chưa sửa (`updated_by_id` NULL) và kho
     chưa ghi sổ phiếu nào thì giờ cần đi theo giờ dự kiến bắt đầu mới. Tổ đã sửa thì giữ giờ của
-    tổ. Trả id yêu cầu đã đổi (báo kho sau commit). KHÔNG commit."""
+    tổ. Việc đã bắt đầu không đụng, giờ không đổi thì không ghi. Trả id yêu cầu đã đổi (báo kho
+    sau commit). KHÔNG commit."""
+    from ...models.san_xuat import CV_PHAT_HANH
     from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
     from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
 
     doi: list[int] = []
     for cv in SanXuatRepository(db).cong_viec_cua_goi(goi_id):
-        if cv.du_kien_bat_dau is None:
+        if cv.du_kien_bat_dau is None or cv.trang_thai != CV_PHAT_HANH:
             continue
         for dn in db.query(SanXuatVatTuDeNghi).filter(
                 SanXuatVatTuDeNghi.cong_viec_id == cv.id, SanXuatVatTuDeNghi.tu_lap.is_(True),
@@ -288,7 +325,11 @@ def doi_can_luc_theo_lich(db: Session, *, goi_id: int) -> list[int]:
             if _co_phieu_ghi_so(db, req.id):
                 continue
             gio = _gio_can(cv)
-            dn.can_luc = req.can_luc = vtdn._can_luc_luu(gio)
+            moi = vtdn._can_luc_luu(gio)
+            cu = req.can_luc
+            if cu is not None and cu.replace(tzinfo=None) == moi.replace(tzinfo=None):
+                continue
+            dn.can_luc = req.can_luc = moi
             req.ngay_can = vtdn._ngay_vn(gio)
             doi.append(req.id)
     db.flush()
