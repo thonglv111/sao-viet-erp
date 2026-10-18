@@ -307,7 +307,10 @@ def phat_hanh_cap_nhat(
         kq = _svc(db).phat_hanh_cap_nhat(lsx_id, actor=user, ly_do=payload.ly_do)
     except Exception as exc:
         raise _map(exc)
+    from ..services.san_xuat.vat_tu_tu_lap import bao_doi_gio
+
     xoa_cache_can_doi()
+    bao_doi_gio(db, kq.get("yeu_cau_doi_gio") or [])
     _cham_viec_moi(db, lsx_id, user.id)
     # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
     # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
@@ -327,7 +330,10 @@ def thu_hoi(
         kq = _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
         raise _map(exc)
+    from ..services.san_xuat.vat_tu_tu_lap import bao_da_huy
+
     xoa_cache_can_doi()
+    bao_da_huy(db, kq.get("yeu_cau_da_huy") or [])
     _phat_goi_xuong_xuong(lsx_id)
     for i in kq["cum_lsx"]:
         _cham_cho_xep(db, i, user.id)

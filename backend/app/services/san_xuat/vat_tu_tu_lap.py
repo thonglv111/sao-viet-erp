@@ -97,8 +97,8 @@ def lap_khi_phat_hanh(db: Session, *, goi_id: int, nguoi) -> KetQuaTuLap:
     neo_bai = _neo_giay_bai(db, cvs)
 
     for cv in cvs:
-        # Đã có đề nghị (gói cũ chuyển sang, hay tổ đã xin) thì không lập thêm.
-        if vt_repo.cac_de_nghi(cv.id):
+        # Đã có đề nghị (gói cũ đã xuất chuyển sang, hay tổ đã xin) thì không lập thêm.
+        if chuyen_de_nghi_cu(db, cv) or vt_repo.cac_de_nghi(cv.id):
             cv.can_vat_tu = True
             continue
         nhu_cau = kh_svc.nhu_cau_cua_cong_viec(cv)
@@ -174,3 +174,133 @@ def bao_sau_phat_hanh(db: Session, kq: KetQuaTuLap, *, ma_lenh: str, actor_id: i
         cv = repo.cong_viec(cv_id)
         if cv is not None:
             vtdn._bao_de_nghi_doi(cv)
+
+
+# --- Thu hồi / phát hành lại / phát hành cập nhật (spec §4.5) -------------------------------
+LY_DO_HUY_THU_HOI = "Lệnh bị thu hồi phát hành"
+# Khoá `db.info` mang id yêu cầu vừa huỷ từ `thu_hoi_goi` (sâu dưới đường gỡ phát hành, trả `int`)
+# lên tới tầng gọi để báo kho SAU commit — khỏi đổi kiểu trả của cả chuỗi chỉ để chở danh sách id.
+KHOA_YC_HUY = "vat_tu_tu_lap.yeu_cau_da_huy"
+
+
+def _co_phieu_ghi_so(db: Session, request_id: int) -> bool:
+    from ...models.stock_voucher import VOUCHER_POSTED, StockVoucher
+
+    return db.query(StockVoucher.id).filter(
+        StockVoucher.request_id == request_id, StockVoucher.trang_thai == VOUCHER_POSTED,
+    ).first() is not None
+
+
+def huy_khi_thu_hoi(db: Session, *, goi_id: int) -> list[int]:
+    """Huỷ mọi yêu cầu xuất (tự lập lẫn tổ bấm) của công việc trong gói mà kho CHƯA ghi sổ phiếu
+    nào: phiếu nháp chuyển `cancelled`, yêu cầu `cancelled`. Yêu cầu đã có phiếu ghi sổ giữ nguyên
+    — vật tư đã về tổ, phát hành lại thì `chuyen_de_nghi_cu` nối nó sang công việc mới. KHÔNG
+    commit (nằm trong giao dịch gỡ phát hành); báo kho bằng `bao_da_huy` sau commit."""
+    from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
+    from ...models.stock_voucher import VOUCHER_CANCELLED, VOUCHER_DRAFT, StockVoucher
+    from ...repositories.stock_request_repo import StockRequestRepository
+
+    req_repo = StockRequestRepository(db)
+    vt_repo = SanXuatVatTuRepository(db)
+    da_huy: list[int] = []
+    for cv in SanXuatRepository(db).cong_viec_cua_goi(goi_id):
+        for dn in vt_repo.cac_de_nghi(cv.id):
+            if not dn.stock_request_id:
+                continue
+            req_repo.lock_for_update(dn.stock_request_id)
+            req = db.get(StockRequest, dn.stock_request_id)
+            if req is None or req.trang_thai in (REQ_CANCELLED, REQ_REJECTED):
+                continue
+            if _co_phieu_ghi_so(db, req.id):
+                continue
+            for v in db.query(StockVoucher).filter(
+                    StockVoucher.request_id == req.id, StockVoucher.trang_thai == VOUCHER_DRAFT):
+                v.trang_thai = VOUCHER_CANCELLED
+            req.trang_thai, req.ly_do_huy = REQ_CANCELLED, LY_DO_HUY_THU_HOI
+            da_huy.append(req.id)
+    db.flush()
+    return da_huy
+
+
+def bao_da_huy(db: Session, request_ids: list[int]) -> None:
+    """Sau commit: badge "chờ cấp" của thủ kho tụt ngay, bàn tổ thôi hiện yêu cầu cũ."""
+    from .kho import bao_yeu_cau_da_huy
+
+    for rid in request_ids:
+        req = db.get(StockRequest, rid)
+        if req is not None:
+            bao_yeu_cau_da_huy(db, req)
+
+
+def chuyen_de_nghi_cu(db: Session, cv) -> bool:
+    """Phát hành lại sau thu hồi: đề nghị của CÙNG bước ở gói đã thu hồi mà yêu cầu còn sống (kho
+    đã xuất) chuyển sang công việc mới, đánh lại `lan_so` từ 1. Cùng phân đoạn thì nhận; phân đoạn
+    cũ không còn ở lịch mới thì phân đoạn 1 nhận. Trả True nếu có chuyển. KHÔNG commit."""
+    from ...models.san_xuat import GOI_DA_THU_HOI, SanXuatCongViec, SanXuatGoiPhatHanh
+    from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+    from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
+
+    if cv.lsx_cong_doan_id:
+        cung_buoc = SanXuatCongViec.lsx_cong_doan_id == cv.lsx_cong_doan_id
+    elif cv.bai_ghep_cong_doan_id:
+        cung_buoc = SanXuatCongViec.bai_ghep_cong_doan_id == cv.bai_ghep_cong_doan_id
+    else:
+        return False
+    rows = (
+        db.query(SanXuatVatTuDeNghi, SanXuatCongViec.phan_doan_so)
+        .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatVatTuDeNghi.cong_viec_id)
+        .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
+        .join(StockRequest, StockRequest.id == SanXuatVatTuDeNghi.stock_request_id)
+        .filter(cung_buoc, SanXuatCongViec.id != cv.id,
+                SanXuatGoiPhatHanh.trang_thai == GOI_DA_THU_HOI,
+                StockRequest.trang_thai.notin_((REQ_CANCELLED, REQ_REJECTED)))
+        .order_by(SanXuatVatTuDeNghi.created_at, SanXuatVatTuDeNghi.id)
+        .all()
+    )
+    so = int(cv.phan_doan_so or 1)
+    tong = int(cv.phan_doan_tong or 1)
+    nhan = [dn for dn, pd in rows if int(pd or 1) == so or (so == 1 and int(pd or 1) > tong)]
+    if not nhan:
+        return False
+    for i, dn in enumerate(nhan, start=1):
+        dn.cong_viec_id, dn.lan_so = cv.id, i
+    db.flush()
+    return True
+
+
+def doi_can_luc_theo_lich(db: Session, *, goi_id: int) -> list[int]:
+    """Phát hành cập nhật dời giờ: lần đề nghị TỰ LẬP mà tổ chưa sửa (`updated_by_id` NULL) và kho
+    chưa ghi sổ phiếu nào thì giờ cần đi theo giờ dự kiến bắt đầu mới. Tổ đã sửa thì giữ giờ của
+    tổ. Trả id yêu cầu đã đổi (báo kho sau commit). KHÔNG commit."""
+    from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+    from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
+
+    doi: list[int] = []
+    for cv in SanXuatRepository(db).cong_viec_cua_goi(goi_id):
+        if cv.du_kien_bat_dau is None:
+            continue
+        for dn in db.query(SanXuatVatTuDeNghi).filter(
+                SanXuatVatTuDeNghi.cong_viec_id == cv.id, SanXuatVatTuDeNghi.tu_lap.is_(True),
+                SanXuatVatTuDeNghi.updated_by_id.is_(None)):
+            req = db.get(StockRequest, dn.stock_request_id) if dn.stock_request_id else None
+            if req is None or req.trang_thai in (REQ_CANCELLED, REQ_REJECTED):
+                continue
+            if _co_phieu_ghi_so(db, req.id):
+                continue
+            gio = _gio_can(cv)
+            dn.can_luc = req.can_luc = vtdn._can_luc_luu(gio)
+            req.ngay_can = vtdn._ngay_vn(gio)
+            doi.append(req.id)
+    db.flush()
+    return doi
+
+
+def bao_doi_gio(db: Session, request_ids: list[int]) -> None:
+    """Sau commit: màn kho refetch, cột Cần lúc nhảy giờ mới."""
+    if not request_ids:
+        return
+    svc = vtdn._req_service(db, vtdn._hang_service(db))
+    for rid in request_ids:
+        req = db.get(StockRequest, rid)
+        if req is not None:
+            svc.thong_bao_da_doi(req)

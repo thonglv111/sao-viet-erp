@@ -1102,19 +1102,23 @@ class XepLichLenhService:
                         detail=f"Thu hồi phát hành bài ghép {bg.ma} cùng cụm với lệnh {l.ma} — {ly_do}",
                         commit=False,
                     )
+        from ..san_xuat.vat_tu_tu_lap import KHOA_YC_HUY
+
         try:
             XepLichVanDeService(self.db, self.audit).go_phat_hanh_lsx(
                 lsx_id=lsx_id, actor=actor, ly_do=ly_do,
             )
         except Exception:
             self.db.rollback()
+            self.db.info.pop(KHOA_YC_HUY, None)
             raise
         # Lệnh được bấm mà vốn không ở `da_phat_hanh` thì đường chung không commit gì — chốt nốt.
         self.db.commit()
+        yc_huy = self.db.info.pop(KHOA_YC_HUY, [])
         for x in [l, *khac]:
             self._ve_san_sang(x, actor=actor)
         return {"lsx_id": lsx_id, "trang_thai": l.trang_thai,
-                "cum_lsx": sorted({lsx_id, *(x.id for x in khac)})}
+                "cum_lsx": sorted({lsx_id, *(x.id for x in khac)}), "yeu_cau_da_huy": yc_huy}
 
     def _cum_cua_goi(self, lsx_id: int) -> tuple[set[int], set[int]]:
         """(lsx_ids, bai_ghep_ids) của gói ĐANG hiệu lực chứa lệnh này. Không có gói ⇒ chỉ lệnh này.

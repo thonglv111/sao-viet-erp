@@ -165,3 +165,303 @@ def test_cum_hai_lenh_lap_cho_ca_cum(db, svc3, hai_lenh, admin):
         cv = _cv_cua_buoc(db, _buoc_in(db, x.id).id)
         assert len(_dns(db, cv.id)) == 1
     assert kq["vat_tu"]["so_yeu_cau"] == 2
+
+
+# ============================================================ thu hồi / phát hành lại / cập nhật
+
+def _phieu(db, req, trang_thai):
+    """Kho lập phiếu cho yêu cầu: `draft` = đang soạn, `posted` = đã ghi sổ (xuất đủ)."""
+    from datetime import date
+
+    from app.models.stock_request import REQ_DONE, REQ_PREPARING
+    from app.models.stock_voucher import VOUCHER_XUAT, StockVoucher
+
+    db.add(StockVoucher(
+        ma=f"PXK-TL-{req.id}-{trang_thai}", loai=VOUCHER_XUAT, request_id=req.id, kho_id=1,
+        ngay=date(2026, 9, 11), nguoi_lap_id=req.nguoi_tao_id, trang_thai=trang_thai,
+    ))
+    req.trang_thai = REQ_DONE if trang_thai == "posted" else REQ_PREPARING
+    db.commit()
+
+
+def _req_cua(db, cv):
+    return [db.get(StockRequest, dn.stock_request_id) for dn in _dns(db, cv.id) if dn.stock_request_id]
+
+
+def _thu_hoi(svc3, lsx_id, admin):
+    return svc3.thu_hoi(lsx_id, actor=admin, ly_do="Đổi lịch")
+
+
+def test_thu_hoi_huy_yeu_cau_chua_xuat_ca_tu_lap_lan_to_bam(db, svc3, lenh, admin):
+    from app.services.san_xuat import vat_tu_de_nghi as V
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (tu_lap,) = _req_cua(db, cv)
+    # Tổ bấm thêm một lần bổ sung (lần tự lập đã có phiếu nháp ⇒ đóng, mở được lần mới).
+    _phieu(db, tu_lap, "draft")
+    kh = V._kh_service(db, V._hang_service(db)).nhu_cau_cua_cong_viec(cv)
+    V.tao(db, user=admin, cong_viec_id=cv.id, can_luc=_MOC, lines=[
+        {"hang_loai": k["hang_loai"], "hang_id": k["hang_id"], "kho_rong": k["kho_rong"],
+         "kho_dai": k["kho_dai"], "dvt": k["dvt"], "sl_yeu_cau": k["sl"]} for k in kh])
+
+    kq = _thu_hoi(svc3, lenh.id, admin)
+
+    reqs = _req_cua(db, cv)
+    assert len(reqs) == 2
+    assert all(r.trang_thai == "cancelled" for r in reqs)
+    assert all(r.ly_do_huy == "Lệnh bị thu hồi phát hành" for r in reqs)
+    assert sorted(kq["yeu_cau_da_huy"]) == sorted(r.id for r in reqs)
+
+
+def test_thu_hoi_huy_ca_phieu_nhap_kho_dang_soan(db, svc3, lenh, admin):
+    from app.models.stock_voucher import StockVoucher
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (req,) = _req_cua(db, cv)
+    _phieu(db, req, "draft")
+
+    _thu_hoi(svc3, lenh.id, admin)
+
+    v = db.query(StockVoucher).filter(StockVoucher.request_id == req.id).one()
+    assert v.trang_thai == "cancelled"
+    assert db.get(StockRequest, req.id).trang_thai == "cancelled"
+
+
+def test_thu_hoi_giu_yeu_cau_da_xuat_va_phat_hanh_lai_chuyen_sang_cong_viec_moi(db, svc3, lenh, admin):
+    in_ = _buoc_in(db, lenh.id)
+    sau = _them_buoc(db, lenh.id, ten="Bồi", thu_tu=int(in_.thu_tu or 0) + 1)
+    _them_vat_tu(db, sau, ma="KEO-BOI", don_vi="kg", so_luong=2.0)
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv_in = _cv_cua_buoc(db, in_.id)
+    cv_boi = _cv_cua_buoc(db, sau.id)
+    (req_in,) = _req_cua(db, cv_in)
+    (req_boi,) = _req_cua(db, cv_boi)
+    _phieu(db, req_in, "posted")
+
+    _thu_hoi(svc3, lenh.id, admin)
+    assert db.get(StockRequest, req_in.id).trang_thai == "done"
+    assert db.get(StockRequest, req_boi.id).trang_thai == "cancelled"
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    moi_in = db.query(SanXuatCongViec).filter(
+        SanXuatCongViec.lsx_cong_doan_id == in_.id, SanXuatCongViec.id != cv_in.id).one()
+    moi_boi = db.query(SanXuatCongViec).filter(
+        SanXuatCongViec.lsx_cong_doan_id == sau.id, SanXuatCongViec.id != cv_boi.id).one()
+    dns_in = _dns(db, moi_in.id)
+    assert [(d.stock_request_id, d.lan_so) for d in dns_in] == [(req_in.id, 1)]
+    assert moi_in.can_vat_tu is True
+    dns_boi = _dns(db, moi_boi.id)
+    assert len(dns_boi) == 1 and dns_boi[0].stock_request_id != req_boi.id
+    assert db.get(StockRequest, dns_boi[0].stock_request_id).trang_thai == "approved"
+
+
+def test_thu_hoi_van_bi_chan_khi_co_viec_da_bat_dau(db, svc3, lenh, admin):
+    import pytest
+
+    from app.models.san_xuat import CV_DANG_CHAY
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    cv.trang_thai = CV_DANG_CHAY
+    db.commit()
+    with pytest.raises(Exception):
+        _thu_hoi(svc3, lenh.id, admin)
+    db.rollback()
+    assert all(r.trang_thai == "approved" for r in _req_cua(db, cv))
+
+
+def _cap_nhat(svc3, lenh, admin, moc):
+    svc3.dat_moc(lenh.id, moc)
+    return svc3.phat_hanh_cap_nhat(lenh.id, actor=admin, ly_do="Dời lịch")
+
+
+def test_phat_hanh_cap_nhat_doi_can_luc_tu_lap(db, svc3, lenh, admin):
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (req,) = _req_cua(db, cv)
+    cu = req.can_luc
+
+    _cap_nhat(svc3, lenh, admin, datetime(2026, 9, 14, 8, 0))
+
+    db.refresh(cv)
+    req = db.get(StockRequest, req.id)
+    assert req.can_luc != cu
+    assert req.can_luc.replace(tzinfo=None) == cv.du_kien_bat_dau.replace(tzinfo=None)
+    assert req.ngay_can == cv.du_kien_bat_dau.date()
+    (dn,) = _dns(db, cv.id)
+    assert dn.can_luc.replace(tzinfo=None) == cv.du_kien_bat_dau.replace(tzinfo=None)
+
+
+def test_phat_hanh_cap_nhat_giu_can_luc_to_da_sua(db, svc3, lenh, admin):
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (dn,) = _dns(db, cv.id)
+    dn.updated_by_id = admin.id          # tổ đã sửa lần đề nghị (đổi giờ cần)
+    db.commit()
+    (req,) = _req_cua(db, cv)
+    cu = req.can_luc
+
+    _cap_nhat(svc3, lenh, admin, datetime(2026, 9, 14, 8, 0))
+
+    assert db.get(StockRequest, req.id).can_luc == cu
+
+
+# ============================================================ thu hồi / phát hành lại / cập nhật
+
+def _phieu(db, req, trang_thai):
+    """Kho lập phiếu cho yêu cầu: `draft` = đang soạn, `posted` = đã ghi sổ (xuất đủ)."""
+    from datetime import date
+
+    from app.models.stock_request import REQ_DONE, REQ_PREPARING
+    from app.models.stock_voucher import VOUCHER_XUAT, StockVoucher
+
+    db.add(StockVoucher(
+        ma=f"PXK-TL-{req.id}-{trang_thai}", loai=VOUCHER_XUAT, request_id=req.id, kho_id=1,
+        ngay=date(2026, 9, 11), nguoi_lap_id=req.nguoi_tao_id, trang_thai=trang_thai,
+    ))
+    req.trang_thai = REQ_DONE if trang_thai == "posted" else REQ_PREPARING
+    db.commit()
+
+
+def _req_cua(db, cv):
+    return [db.get(StockRequest, dn.stock_request_id) for dn in _dns(db, cv.id) if dn.stock_request_id]
+
+
+def _thu_hoi(svc3, lsx_id, admin):
+    return svc3.thu_hoi(lsx_id, actor=admin, ly_do="Đổi lịch")
+
+
+def test_thu_hoi_huy_yeu_cau_chua_xuat_ca_tu_lap_lan_to_bam(db, svc3, lenh, admin):
+    from app.services.san_xuat import vat_tu_de_nghi as V
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (tu_lap,) = _req_cua(db, cv)
+    # Lần tự lập có phiếu nháp ⇒ đóng, tổ bấm được lần bổ sung.
+    _phieu(db, tu_lap, "draft")
+    from app.models.department import Department
+    from tests.quyen_to_fixtures import cap_quyen_to
+
+    cap_quyen_to(db, admin, db.get(Department, cv.department_id))
+    db.commit()
+    kh = V._kh_service(db, V._hang_service(db)).nhu_cau_cua_cong_viec(cv)
+    V.tao(db, user=admin, cong_viec_id=cv.id, can_luc=_MOC, lines=[
+        {"hang_loai": k["hang_loai"], "hang_id": k["hang_id"], "kho_rong": k["kho_rong"],
+         "kho_dai": k["kho_dai"], "dvt": k["dvt"], "sl_yeu_cau": k["sl"]} for k in kh])
+
+    kq = _thu_hoi(svc3, lenh.id, admin)
+
+    reqs = _req_cua(db, cv)
+    assert len(reqs) == 2
+    assert all(r.trang_thai == "cancelled" for r in reqs)
+    assert all(r.ly_do_huy == "Lệnh bị thu hồi phát hành" for r in reqs)
+    assert sorted(kq["yeu_cau_da_huy"]) == sorted(r.id for r in reqs)
+
+
+def test_thu_hoi_huy_ca_phieu_nhap_kho_dang_soan(db, svc3, lenh, admin):
+    from app.models.stock_voucher import StockVoucher
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (req,) = _req_cua(db, cv)
+    _phieu(db, req, "draft")
+
+    _thu_hoi(svc3, lenh.id, admin)
+
+    v = db.query(StockVoucher).filter(StockVoucher.request_id == req.id).one()
+    assert v.trang_thai == "cancelled"
+    assert db.get(StockRequest, req.id).trang_thai == "cancelled"
+
+
+def test_thu_hoi_giu_yeu_cau_da_xuat_va_phat_hanh_lai_chuyen_sang_cong_viec_moi(db, svc3, lenh, admin):
+    in_ = _buoc_in(db, lenh.id)
+    sau = _them_buoc(db, lenh.id, ten="Bồi", thu_tu=int(in_.thu_tu or 0) + 1)
+    _them_vat_tu(db, sau, ma="KEO-BOI", don_vi="kg", so_luong=2.0)
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv_in = _cv_cua_buoc(db, in_.id)
+    cv_boi = _cv_cua_buoc(db, sau.id)
+    (req_in,) = _req_cua(db, cv_in)
+    (req_boi,) = _req_cua(db, cv_boi)
+    _phieu(db, req_in, "posted")
+
+    _thu_hoi(svc3, lenh.id, admin)
+    assert db.get(StockRequest, req_in.id).trang_thai == "done"
+    assert db.get(StockRequest, req_boi.id).trang_thai == "cancelled"
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    moi_in = db.query(SanXuatCongViec).filter(
+        SanXuatCongViec.lsx_cong_doan_id == in_.id, SanXuatCongViec.id != cv_in.id).one()
+    moi_boi = db.query(SanXuatCongViec).filter(
+        SanXuatCongViec.lsx_cong_doan_id == sau.id, SanXuatCongViec.id != cv_boi.id).one()
+    assert [(d.stock_request_id, d.lan_so) for d in _dns(db, moi_in.id)] == [(req_in.id, 1)]
+    assert moi_in.can_vat_tu is True
+    dns_boi = _dns(db, moi_boi.id)
+    assert len(dns_boi) == 1 and dns_boi[0].stock_request_id != req_boi.id
+    assert db.get(StockRequest, dns_boi[0].stock_request_id).trang_thai == "approved"
+
+
+def test_thu_hoi_van_bi_chan_khi_co_viec_da_bat_dau(db, svc3, lenh, admin):
+    import pytest
+
+    from app.models.san_xuat import CV_DANG_CHAY
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    cv.trang_thai = CV_DANG_CHAY
+    db.commit()
+    with pytest.raises(Exception):
+        _thu_hoi(svc3, lenh.id, admin)
+    assert all(r.trang_thai == "approved" for r in _req_cua(db, cv))
+
+
+def _cap_nhat(svc3, lenh, admin, moc):
+    svc3.dat_moc(lenh.id, moc)
+    return svc3.phat_hanh_cap_nhat(lenh.id, actor=admin, ly_do="Dời lịch")
+
+
+def test_phat_hanh_cap_nhat_doi_can_luc_tu_lap(db, svc3, lenh, admin):
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (req,) = _req_cua(db, cv)
+    cu = req.can_luc
+
+    kq = _cap_nhat(svc3, lenh, admin, datetime(2026, 9, 14, 8, 0))
+
+    db.refresh(cv)
+    req = db.get(StockRequest, req.id)
+    assert req.can_luc != cu
+    assert req.can_luc.replace(tzinfo=None) == cv.du_kien_bat_dau.replace(tzinfo=None)
+    assert req.ngay_can == cv.du_kien_bat_dau.date()
+    (dn,) = _dns(db, cv.id)
+    assert dn.can_luc.replace(tzinfo=None) == cv.du_kien_bat_dau.replace(tzinfo=None)
+    assert kq["yeu_cau_doi_gio"] == [req.id]
+
+
+def test_phat_hanh_cap_nhat_giu_can_luc_to_da_sua(db, svc3, lenh, admin):
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    cv = _cv_cua_buoc(db, _buoc_in(db, lenh.id).id)
+    (dn,) = _dns(db, cv.id)
+    dn.updated_by_id = admin.id          # tổ đã sửa lần đề nghị (đổi giờ cần)
+    db.commit()
+    (req,) = _req_cua(db, cv)
+    cu = req.can_luc
+
+    _cap_nhat(svc3, lenh, admin, datetime(2026, 9, 14, 8, 0))
+
+    assert db.get(StockRequest, req.id).can_luc == cu

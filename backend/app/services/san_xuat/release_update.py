@@ -384,6 +384,11 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
     dong_bo_lan_khi_cap_nhat(db, lsx_ids=lsx_ids, actor=actor)
     # Lần của bước CHUNG bài ghép (spec 2026-09-27) — cùng luật, nguồn là bài.
     dong_bo_lan_bai_ghep_khi_cap_nhat(db, bai_ghep_ids=bg_ids, actor=actor)
+    # Giờ cần của yêu cầu vật tư tự lập đi theo lịch mới (tổ đã sửa thì giữ) — trước audit, vì
+    # audit tự commit.
+    from .vat_tu_tu_lap import doi_can_luc_theo_lich
+
+    yeu_cau_doi_gio = doi_can_luc_theo_lich(db, goi_id=goi.id)
 
     AuditLogRepository(db).create(
         actor_user_id=actor_uid,
@@ -405,6 +410,7 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         "so_huy_phan_cong": so_huy_pc,
         # >0 ⇒ số lần chạy đã đổi sau phát hành; những việc đó KHÔNG được cập nhật, UI phải nói ra.
         "so_lech_phan_doan": so_lech_phan_doan,
+        "yeu_cau_doi_gio": yeu_cau_doi_gio,
     }
 
 
@@ -443,6 +449,11 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
     from ..gia_cong_ngoai.lan import huy_lan_cua_goi
 
     huy_lan_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
+    # Yêu cầu xuất vật tư kho chưa xuất thì huỷ (spec 2026-10-18 §4.5); id đi lên tầng gọi qua
+    # `db.info` để báo kho sau commit.
+    from .vat_tu_tu_lap import KHOA_YC_HUY, huy_khi_thu_hoi
+
+    db.info.setdefault(KHOA_YC_HUY, []).extend(huy_khi_thu_hoi(db, goi_id=goi.id))
     goi.trang_thai = GOI_DA_THU_HOI
     goi.version += 1
     AuditLogRepository(db).create(

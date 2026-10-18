@@ -423,7 +423,10 @@ def _lap_lan(db: Session, *, cv, nguoi, bo_phan_id: int | None, can_luc: datetim
     dn = SanXuatVatTuDeNghi(
         cong_viec_id=cv.id, lan_so=lan_so, loai=loai, can_luc=_can_luc_luu(can_luc),
         stock_request_id=(req.id if req is not None else None), tu_lap=tu_lap,
-        created_by_id=getattr(nguoi, "id", None), updated_by_id=getattr(nguoi, "id", None),
+        # Tự lập: `updated_by_id` để trống tới khi tổ sửa lần đề nghị — phát hành cập nhật nhìn
+        # cột này để biết còn được dời giờ cần theo lịch hay tổ đã chốt giờ của mình.
+        created_by_id=getattr(nguoi, "id", None),
+        updated_by_id=None if tu_lap else getattr(nguoi, "id", None),
     )
     db.add(dn)
     db.flush()
