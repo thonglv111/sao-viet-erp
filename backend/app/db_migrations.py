@@ -18526,7 +18526,7 @@ MIGRATIONS.append(("0415_chot_cong_no_theo_ncc", _migrate_chot_cong_no_theo_ncc)
 
 
 def _migrate_phieu_buoc_vat_tu_hang_loai(db: Session) -> None:
-    """0418 (18/10/2026) — giấy là vật tư của BƯỚC trong phiếu tính giá.
+    """0419 (18/10/2026) — giấy là vật tư của BƯỚC trong phiếu tính giá.
 
     `phieu_buoc_vat_tu` thêm `hang_loai` (`vat_tu` | `giay`), khoá cặp như `lsx_cong_doan_vat_tu`.
     Thành phần đang có `giay_id` mà chưa bước nào có dòng giấy ⇒ thêm MỘT dòng giấy vào bước In
@@ -18567,4 +18567,4 @@ def _migrate_phieu_buoc_vat_tu_hang_loai(db: Session) -> None:
     db.commit()
 
 
-MIGRATIONS.append(("0418_phieu_buoc_vat_tu_hang_loai", _migrate_phieu_buoc_vat_tu_hang_loai))
+MIGRATIONS.append(("0419_phieu_buoc_vat_tu_hang_loai", _migrate_phieu_buoc_vat_tu_hang_loai))

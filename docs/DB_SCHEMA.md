@@ -3992,7 +3992,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Tất cả cột:** `id`, `thanh_pham_id`, `thu_tu`, `hang_loai`, `vat_tu_id`, `gia_tri_chip`, `created_at`, `updated_at`.
 
-- `hang_loai` (`String(10)`, NOT NULL, mặc định `vat_tu` — migration `0418`): món thuộc danh mục nào — `vat_tu` ⇒ `vat_tu_id` trỏ `vat_tu_in_an.id`, `giay` ⇒ trỏ `giay_nguyen.id`. Khoá CẶP như `lsx_cong_doan_vat_tu` (Giấy #7 ≠ Vật tư #7). Từ 18/10/2026 giấy chọn ở bước như mọi vật tư (không chip); engine tính một dòng tiền giấy cho mỗi dòng giấy theo đầu vào của bước, và `phieu_thanh_phan.giay_id` thành giấy chính DẪN XUẤT (giấy ở bước In, không có thì giấy ở bước đầu tiên có giấy). Migration `0418` chuyển `giay_id` của phiếu cũ thành một dòng giấy ở bước In (không có thì bước đầu).
+- `hang_loai` (`String(10)`, NOT NULL, mặc định `vat_tu` — migration `0419`): món thuộc danh mục nào — `vat_tu` ⇒ `vat_tu_id` trỏ `vat_tu_in_an.id`, `giay` ⇒ trỏ `giay_nguyen.id`. Khoá CẶP như `lsx_cong_doan_vat_tu` (Giấy #7 ≠ Vật tư #7). Từ 18/10/2026 giấy chọn ở bước như mọi vật tư (không chip); engine tính một dòng tiền giấy cho mỗi dòng giấy theo đầu vào của bước, và `phieu_thanh_phan.giay_id` thành giấy chính DẪN XUẤT (giấy ở bước In, không có thì giấy ở bước đầu tiên có giấy). Migration `0419` chuyển `giay_id` của phiếu cũ thành một dòng giấy ở bước In (không có thì bước đầu).
 
 ---
 

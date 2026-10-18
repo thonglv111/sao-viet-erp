@@ -135,7 +135,7 @@ def lay_chi_tiet(db: Session, customer_id: int, tp_id: int) -> dict | None:
     if r is None or not r.la_thanh_pham or r.customer_id != customer_id:
         return None
     # Cấu hình chụp TRƯỚC 18/10/2026 còn giấy ở `giay_id` cấp sản phẩm, chưa có dòng giấy ở bước ⇒
-    # chuyển thành dòng giấy ở bước In (cùng luật mg 0418), không thì nạp vào thẻ là mất giấy.
+    # chuyển thành dòng giấy ở bước In (cùng luật mg 0419), không thì nạp vào thẻ là mất giấy.
     cau_hinh = [dict(c) for c in (r.cau_hinh_tai_ban or [])]
     nhom_cua = nhom_cong_doan(db, (b.get("cong_doan_id") for c in cau_hinh
                                    for b in (c.get("thanh_phams") or [])))

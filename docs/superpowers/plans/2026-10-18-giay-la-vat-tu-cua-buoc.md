@@ -21,7 +21,7 @@
 ## Global Constraints
 
 - Cột Boolean server_default `false`/`true`; cột mới phải ghi vào `docs/DB_SCHEMA.md` (guard test).
-- Migration: raw SQL đích danh cột, idempotent, đặt tên `0418_phieu_buoc_vat_tu_hang_loai` (0416/0417 đang dở ở cây chính).
+- Migration: raw SQL đích danh cột, idempotent, đặt tên `0419_phieu_buoc_vat_tu_hang_loai` (0416–0418 đang dở ở cây chính).
 - Verify: `python -m pytest tests/<file> -q` từ `backend/`, `npx tsc --noEmit` + `npx vitest run <file>` từ `frontend/`. KHÔNG chạy `./init.ps1`, KHÔNG pytest cả bộ.
 - Commit tiếng Việt, không trailer Co-Authored-By.
 
@@ -41,7 +41,7 @@
 
 **Produces:** `PhieuBuocVatTu.hang_loai: str` (String(10), NOT NULL, default/server_default `"vat_tu"`); `BuocVatTuIn.hang_loai: Literal["vat_tu","giay"] = "vat_tu"`; `BuocVatTuOut.hang_loai: str = "vat_tu"`; migration `_migrate_phieu_buoc_vat_tu_hang_loai(db)`.
 
-- [ ] Test `test_mg_0418_chuyen_giay_id_thanh_dong_buoc_in`: dựng bảng cũ (thiếu cột) trên SQLite, một thành phần có `giay_id=5`, hai bước (Cắt nhóm `finishing` thu_tu 0, In nhóm `print` thu_tu 1) ⇒ sau migration bước In có đúng một dòng `hang_loai='giay', vat_tu_id=5`; chạy lần hai không nhân dòng; thành phần không bước nào thì không thêm gì.
+- [ ] Test `test_mg_0419_chuyen_giay_id_thanh_dong_buoc_in`: dựng bảng cũ (thiếu cột) trên SQLite, một thành phần có `giay_id=5`, hai bước (Cắt nhóm `finishing` thu_tu 0, In nhóm `print` thu_tu 1) ⇒ sau migration bước In có đúng một dòng `hang_loai='giay', vat_tu_id=5`; chạy lần hai không nhân dòng; thành phần không bước nào thì không thêm gì.
 - [ ] Migration: ADD COLUMN nếu thiếu, rồi INSERT dòng giấy cho thành phần có `giay_id` mà chưa bước nào có dòng giấy; bước đích = bước nhóm `print` đầu tiên theo (thu_tu, id), không có thì bước đầu; `thu_tu` = max+1 của bước đó.
 - [ ] Ghi cột vào DB_SCHEMA.md; chạy test mới + `tests/test_db_schema*.py` xanh; commit.
 

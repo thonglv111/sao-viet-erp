@@ -9,13 +9,13 @@ from sqlalchemy.orm import Session
 from app.db_migrations import MIGRATIONS
 
 
-# ============================ Migration 0418 ============================
+# ============================ Migration 0419 ============================
 def _mg(db: Session) -> None:
-    dict(MIGRATIONS)["0418_phieu_buoc_vat_tu_hang_loai"](db)
+    dict(MIGRATIONS)["0419_phieu_buoc_vat_tu_hang_loai"](db)
 
 
 def _db_cu() -> Session:
-    """Ba bảng ĐÚNG hình dạng trước 0418 — `phieu_buoc_vat_tu` chưa có `hang_loai`."""
+    """Ba bảng ĐÚNG hình dạng trước 0419 — `phieu_buoc_vat_tu` chưa có `hang_loai`."""
     db = Session(create_engine("sqlite://"))
     for sql in (
         "CREATE TABLE cong_doan (id INTEGER PRIMARY KEY, nhom VARCHAR(20))",
@@ -38,7 +38,7 @@ def _dong(db: Session, thanh_pham_id: int) -> list[tuple]:
         "ORDER BY thu_tu"), {"b": thanh_pham_id}).all()]
 
 
-def test_mg_0418_chuyen_giay_id_thanh_dong_buoc_in():
+def test_mg_0419_chuyen_giay_id_thanh_dong_buoc_in():
     db = _db_cu()
     db.execute(text("INSERT INTO phieu_thanh_phan (id, giay_id) VALUES (10, 5)"))
     # Cắt đứng TRƯỚC In: giấy vẫn phải vào bước In, không vào bước đầu chuỗi.
@@ -56,7 +56,7 @@ def test_mg_0418_chuyen_giay_id_thanh_dong_buoc_in():
     assert _dong(db, 101) == [("vat_tu", 7, 0), ("giay", 5, 1)]
 
 
-def test_mg_0418_khong_buoc_in_thi_vao_buoc_dau_khong_buoc_thi_bo_qua():
+def test_mg_0419_khong_buoc_in_thi_vao_buoc_dau_khong_buoc_thi_bo_qua():
     db = _db_cu()
     db.execute(text("INSERT INTO phieu_thanh_phan (id, giay_id) VALUES (10, 5), (11, 6), (12, NULL)"))
     db.execute(text("INSERT INTO phieu_thanh_pham (id, thanh_phan_id, thu_tu, cong_doan_id) "

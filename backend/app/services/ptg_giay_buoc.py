@@ -6,7 +6,7 @@ Giấy chọn ở ô "Thêm vật tư" của công đoạn như mọi vật tư 
 quy cách lệnh, báo giá, kiểm gsm máy, biến `dinh_luong`) vì thế giữ nguyên.
 
 Payload cũ (API, test, cấu hình tái bản chụp trước 18/10) gửi `giay_id` mà không dòng giấy nào ⇒
-chuyển thành một dòng giấy ở bước In, đúng luật migration `0418` — không để giấy rơi mất.
+chuyển thành một dòng giấy ở bước In, đúng luật migration `0419` — không để giấy rơi mất.
 """
 from __future__ import annotations
 

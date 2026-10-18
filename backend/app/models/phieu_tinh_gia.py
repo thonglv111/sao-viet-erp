@@ -364,7 +364,7 @@ class PhieuBuocVatTu(Base):
         Integer, ForeignKey("phieu_thanh_pham.id", ondelete="CASCADE"), index=True, nullable=False
     )
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Món thuộc danh mục nào (18/10/2026, mg 0418): `vat_tu` → vat_tu_in_an, `giay` → giay_nguyen.
+    # Món thuộc danh mục nào (18/10/2026, mg 0419): `vat_tu` → vat_tu_in_an, `giay` → giay_nguyen.
     # Khoá CẶP như `lsx_cong_doan_vat_tu`: Giấy #7 và Vật tư #7 là hai món khác nhau. Giấy nay chọn
     # ở bước như mọi vật tư; `phieu_thanh_phan.giay_id` thành giấy chính DẪN XUẤT từ các dòng này.
     hang_loai: Mapped[str] = mapped_column(
