@@ -4111,7 +4111,13 @@ function ComponentModal({
                 {nvl.giay.map((d, i) => (
                   <div className="tg-sheetrow" key={`g${i}`}>
                     <span className="tg-sheetrow__stack">
-                      <HaiDongCongThuc ten="Giấy" d={d} tra={tra} />
+                      {/* Giấy chọn được ở nhiều bước (18/10/2026): từ hai giấy trở lên thì gọi bằng
+                          TÊN giấy, không thì các dòng cùng nhãn "Giấy" không biết dòng nào là gì. */}
+                      <HaiDongCongThuc
+                        ten={nvl.giay.length > 1 ? (d.ten.split(" · ").pop() ?? "Giấy") : "Giấy"}
+                        d={d}
+                        tra={tra}
+                      />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>

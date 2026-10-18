@@ -837,7 +837,9 @@ def _dong_giay_buoc(vt: dict, *, buoc_idx: int, ten_buoc: str, ten_tp: str, sl: 
         except Exception as e:  # noqa: BLE001
             luong, ly_do = None, f"công thức lượng giấy lỗi ({e})"
         if luong is not None and luong <= 0:
-            luong, ly_do = None, "lượng giấy ra 0 (thiếu khổ giấy nguyên hoặc định lượng?)"
+            # Nói đúng chỗ hụt: chưa có tờ (thường do số lượng 0) khác hẳn thiếu khổ/định lượng.
+            luong, ly_do = None, ("bước này chưa có tờ giấy nào (số lượng sản phẩm = 0?)" if to_ng <= 0
+                                  else "lượng giấy ra 0 (thiếu khổ giấy nguyên hoặc định lượng?)")
     return {
         "loai": "giay",
         "hang_loai": "giay",
