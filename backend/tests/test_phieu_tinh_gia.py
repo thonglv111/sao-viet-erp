@@ -919,4 +919,7 @@ def test_vat_tu_theo_buoc_luu_mo_lai_va_xoa_duoc(client, auth_headers):
     tp["thanh_phams"][0]["vat_tus"] = []
     client.put(f"/api/phieu-tinh-gia/{pid}", json={"thanh_phans": [tp]}, headers=auth_headers)
     mo2 = client.get(f"/api/phieu-tinh-gia/{pid}", headers=auth_headers).json()
-    assert mo2["thanh_phans"][0]["thanh_phams"][0]["vat_tus"] == []
+    # Payload còn gửi `giay_id` cấp sản phẩm (kiểu cũ) ⇒ máy chủ đặt nó thành dòng GIẤY ở bước —
+    # chỉ dòng vật tư khác là phải biến mất.
+    assert [v for v in mo2["thanh_phans"][0]["thanh_phams"][0]["vat_tus"]
+            if v["hang_loai"] == "vat_tu"] == []

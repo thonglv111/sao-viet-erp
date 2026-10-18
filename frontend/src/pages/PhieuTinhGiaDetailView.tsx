@@ -4,7 +4,9 @@
 // trong drawer có SƠ ĐỒ BÌNH BÀI live. Auto + override giữ nguyên. "Tính giá" = create (lần đầu,
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
-import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong, type DinhMuc } from "./BuocVatTu";
+import BuocVatTu, {
+  chipsCua, khoaVatTu, soOChipTrong, type BuocVatTuDong, type DinhMuc,
+} from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   api,
@@ -35,7 +37,7 @@ import { MucInHang } from "../components/MucIn";
 import { SanPhamTaiBanGoiY as SanPhamTaiBanCombo } from "../components/SanPhamTaiBanGoiY";
 import { Select, type SelectOption } from "../components/Select";
 import { ImpositionDiagram } from "./ImpositionDiagram";
-import { heSoChu, nhanChang, nhanDonVi } from "./lsxBuoc";
+import { heSoChu, nhanChang } from "./lsxBuoc";
 import { NHOM_CONG_DOAN } from "./keHoachSxShared";
 import { donViDangDung, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
@@ -62,7 +64,7 @@ const cdName = (r: Row): string => (r.ten_hien_thi ? String(r.ten_hien_thi) : St
  *  phiếu tưởng phần mềm nuốt mất dữ liệu — cùng luật với ô ĐVT ngay bên cạnh.
  *
  *  `nhan` đổi được cách viết một dòng: mặc định "MÃ · Tên", ô nào không cần mã thì truyền hàm
- *  khác (xem `giayOpts`). */
+ *  khác (vd tên trần, không mã). */
 function optsConDung(
   rows: Row[],
   dangDung: number | null,
@@ -471,24 +473,26 @@ function tienTheoBuoc(groups: PhieuTinhGiaGroupOut[] | null): Map<number, DongTi
   return out;
 }
 
-/** Định mức vật tư theo BƯỚC: `buoc_idx` → (`vat_tu_id` → lượng). Engine gắn cả hai khoá vào dòng
- *  NVL loại `vat_tu`; một vật tư có thể nằm ở nhiều bước nên phải ghép theo bước, không chỉ theo id. */
+/** Định mức vật tư theo BƯỚC: `buoc_idx` → (`khoaVatTu(loại, id)` → lượng). Engine gắn cả hai khoá
+ *  vào dòng NVL loại `vat_tu` VÀ dòng giấy chọn ở bước (18/10/2026); một món có thể nằm ở nhiều bước
+ *  nên phải ghép theo bước, không chỉ theo id. Dòng giấy cấp sản phẩm của phiếu cũ không có
+ *  `buoc_idx` ⇒ bỏ qua tự nhiên. */
 function dinhMucTheoBuoc(
   groups: PhieuTinhGiaGroupOut[] | null, tra: TraBien, vatTuDm: Row[],
-): Map<number, Map<number, DinhMuc>> {
-  const out = new Map<number, Map<number, DinhMuc>>();
+): Map<number, Map<string, DinhMuc>> {
+  const out = new Map<number, Map<string, DinhMuc>>();
   const grp = groups?.find((g) => g.idx === "nvl");
   for (const r of grp?.rows ?? []) {
-    if (r.loai !== "vat_tu") continue;
+    if (r.loai !== "vat_tu" && r.loai !== "giay") continue;
     const b = _so(r.buoc_idx);
     const id = _so(r.vat_tu_id);
     if (b === null || id === null) continue;
     if (!out.has(b)) out.set(b, new Map());
-    // Chip riêng của vật tư phải đọc được tên ("Dài vùng ép"), không để mã thô.
-    const traVt = traKemChip(tra, vatTuDm.find((v) => v.id === id));
+    // Chip riêng của vật tư phải đọc được tên ("Dài vùng ép"), không để mã thô. Giấy không có chip.
+    const traVt = r.loai === "giay" ? tra : traKemChip(tra, vatTuDm.find((v) => v.id === id));
     const goc = _chuoi(r.dinh_muc_cong_thuc_goc);
     const theSo = _chuoi(r.dinh_muc_cong_thuc);
-    out.get(b)!.set(id, {
+    out.get(b)!.set(khoaVatTu(r.loai === "giay" ? "giay" : "vat_tu", id), {
       so: _so(r.dinh_muc),
       donVi: _chuoi(r.dinh_muc_don_vi),
       lyDo: r.dinh_muc_ly_do == null ? null : _chuoi(r.dinh_muc_ly_do),
@@ -755,7 +759,8 @@ function fromFinishing(f: ThanhPhamOut): EditableFinishing {
     phi_khuon: f.phi_khuon ?? 0,
     khuon_nguon: f.khuon_nguon ?? null,
     vat_tus: (f.vat_tus ?? []).map((v) => ({
-      uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
+      uid: nextUid(), hang_loai: v.hang_loai === "giay" ? "giay" : "vat_tu",
+      vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
     })),
   };
 }
@@ -807,6 +812,23 @@ function fromComponent(c: ThanhPhanOut): EditableComponent {
   };
 }
 
+/** Sản phẩm đã có giấy chưa — giấy chọn ở BẤT KỲ công đoạn nào cũng tính (18/10/2026). Chưa có bước
+ *  nào (phiếu rất cũ) thì đọc `giay_id` như trước. */
+function coGiay(c: EditableComponent): boolean {
+  if (c.thanh_phams.length === 0) return c.giay_id != null;
+  return c.thanh_phams.some((f) => f.vat_tus.some((v) => v.hang_loai === "giay"));
+}
+
+/** `giay_id` gửi lên: máy chủ tự chốt giấy chính từ các dòng giấy của bước, nên chỉ cần KHÔNG gửi
+ *  giấy cũ khi người dùng đã xoá hết dòng giấy — gửi số cũ là máy chủ tưởng phiếu kiểu cũ và cấy
+ *  lại giấy vào bước In. */
+function giayGuiLen(c: EditableComponent): number | null {
+  if (c.thanh_phams.length === 0) return c.giay_id;
+  for (const f of c.thanh_phams)
+    for (const v of f.vat_tus) if (v.hang_loai === "giay") return v.vat_tu_id;
+  return null;
+}
+
 function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
   return {
     loai_thanh_phan: c.loai_thanh_phan,
@@ -819,7 +841,7 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
     don_vi_tinh: c.don_vi_tinh.trim() || "cái",
     nhom_bao_gia: c.nhom_bao_gia.trim() || null,
     dvt_nhom: c.dvt_nhom.trim() || null,
-    giay_id: c.giay_id,
+    giay_id: giayGuiLen(c),
     kho_nguyen: c.kho_nguyen.trim() || null,
     kho_nguyen_dai: c.kho_nguyen_dai,
     kho_nguyen_rong: c.kho_nguyen_rong,
@@ -858,7 +880,7 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
       phi_khuon: f.phi_khuon,
       khuon_nguon: f.khuon_nguon,
       vat_tus: f.vat_tus.map((v, k) => ({
-        vat_tu_id: v.vat_tu_id, thu_tu: k, gia_tri_chip: v.gia_tri_chip,
+        hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, thu_tu: k, gia_tri_chip: v.gia_tri_chip,
       })),
     })),
     // Dòng TRỐNG HẲN (chưa gõ tên, chưa gõ tiền) không gửi lên: bấm "+" rồi đổi ý là chuyện
@@ -941,7 +963,8 @@ function fromThanhPhanIn(
       phi_khuon: f.phi_khuon ?? 0,
       khuon_nguon: f.khuon_nguon ?? null,
       vat_tus: (f.vat_tus ?? []).map((v) => ({
-        uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
+        uid: nextUid(), hang_loai: v.hang_loai === "giay" ? "giay" : "vat_tu",
+        vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
       })),
     })),
     tai_ban: giu.tai_ban,
@@ -1574,29 +1597,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
     setEditingUid(uidMoi);
   }, []);
 
-  // Chọn giấy → đơn giá + đơn vị (CHỐT CỨNG theo danh mục, read-only). Khổ giấy nguyên KHÔNG còn
-  // ở danh mục Giấy → người dùng nhập tay khổ ở phiếu (ô Khổ giấy nguyên ①).
-  const onPickGiay = useCallback(
-    (uid: string, gid: number | null) => {
-      setComps((cs) =>
-        cs.map((c) => {
-          if (c.uid !== uid) return c;
-          if (gid === null) return { ...c, giay_id: null };
-          const g = giays.find((x) => x.id === gid);
-          if (!g) return { ...c, giay_id: gid };
-          // Đổi giấy → đổi giá (không giữ giá cũ) + đồng bộ đơn vị giá theo danh mục.
-          return {
-            ...c,
-            giay_id: gid,
-            don_gia_giay: numOf(g.don_gia),
-            don_gia_don_vi: (g.don_vi_gia as string) || "kg",
-          };
-        }),
-      );
-    },
-    [giays],
-  );
-
   const addFin = useCallback((
     cuid: string,
     cong_doan_id: number | null = null,
@@ -1719,13 +1719,13 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
       // nên hai bên lệch nhau mà nhìn thoáng qua tưởng đã cập nhật.)
       //
       // ⚠️ LUẬT CHUNG: thêm bất kỳ ô nhập nào ảnh hưởng số của engine thì phải khai vào chữ ký này.
-      gid: c.giay_id, may: c.may_id, pgh: c.phi_giao_hang,
+      gid: giayGuiLen(c), may: c.may_id, pgh: c.phi_giao_hang,
       // Chi phí khác ký theo CẢ TÊN lẫn tiền: tên đi vào dòng kết quả bên phải, sửa tên mà chữ ký
       // không đổi thì bảng bên phải còn gọi khoản đó bằng tên cũ.
       cpk: c.chi_phi_khacs.map((k) => [k.ten, k.so_tien]),
       cds: c.thanh_phams.map((f) => [
         f.cong_doan_id, f.phi_khuon, f.khuon_nguon,
-        f.vat_tus.map((v) => [v.vat_tu_id, JSON.stringify(v.gia_tri_chip)]),
+        f.vat_tus.map((v) => [v.hang_loai, v.vat_tu_id, JSON.stringify(v.gia_tri_chip)]),
       ]),
     });
   }, [editingComp, phieuSL]);
@@ -2250,7 +2250,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                           // gọn KHÔNG trả các field đó, nên cảnh báo sẽ đỏ oan mọi dòng.
                           const thieu =
                             xemRuotGia &&
-                            (!c.giay_id || c.dai_thanh_pham <= 0 || c.rong_thanh_pham <= 0);
+                            (!coGiay(c) || c.dai_thanh_pham <= 0 || c.rong_thanh_pham <= 0);
                           return (
                             <tr
                               key={c.uid}
@@ -2669,7 +2669,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
           }}
           patchComp={patchComp}
           patchFin={patchFin}
-          onPickGiay={onPickGiay}
           addFin={addFin}
           removeFin={removeFin}
           customerId={khach.customer_id}
@@ -2709,7 +2708,6 @@ function ComponentModal({
   onRemove,
   patchComp,
   patchFin,
-  onPickGiay,
   addFin,
   removeFin,
   customerId,
@@ -2733,7 +2731,6 @@ function ComponentModal({
   onRemove: () => void;
   patchComp: (uid: string, patch: Partial<EditableComponent>) => void;
   patchFin: (cuid: string, fuid: string, patch: Partial<EditableFinishing>) => void;
-  onPickGiay: (uid: string, gid: number | null) => void;
   addFin: (cuid: string, cong_doan_id?: number | null, ten?: string, insertIndex?: number | null, vat_tus?: BuocVatTuDong[]) => void;
   removeFin: (cuid: string, fuid: string) => void;
   /** Khách đầu phiếu — ô tái bản chỉ liệt kê thành phẩm của khách này. */
@@ -2891,16 +2888,6 @@ function ComponentModal({
       ds.unshift({ value: c.don_vi_tinh, label: `${c.don_vi_tinh} (ngoài danh mục)` });
     return ds;
   }, [dvtOpts, c.don_vi_tinh]);
-  // Ô chọn giấy hiện MỖI TÊN, không kèm mã (03/09/2026). Mã giấy là số tự sinh
-  // (`GL-0001-COPY-COPY`), không nói lên gì về tờ giấy — người lập phiếu nhận giấy bằng tên
-  // ("Giấy C300"), mã chỉ làm dòng dài ra và đẩy tên ra xa. Các ô danh mục khác vẫn giữ mã.
-  const giayOpts = useMemo<SelectOption<string>[]>(
-    () => [
-      { value: "", label: "— Chọn giấy —" },
-      ...optsConDung(giays, c.giay_id, (r) => String(r.ten)),
-    ],
-    [giays, c.giay_id],
-  );
   // Ô "Máy in" (mở lại 06/09/2026) — CHỈ mời máy đã khai ở một CÔNG ĐOẠN GIAI ĐOẠN IN (07/09/2026).
   //
   // Trước đó lọc theo chữ "in" đứng riêng trong `loai_may`, tức đoán theo TÊN NHÓM MÁY: máy bế/cán
@@ -2975,7 +2962,7 @@ function ComponentModal({
     // Vật tư mặc định của công đoạn tự hiện ở bước (chép một lần; sau đó sửa riêng cho phiếu).
     const macDinh: BuocVatTuDong[] = Array.isArray(cd?.vat_tus)
       ? (cd!.vat_tus as Array<{ vat_tu_id: number }>).map((v) => ({
-          uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: {},
+          uid: nextUid(), hang_loai: "vat_tu" as const, vat_tu_id: v.vat_tu_id, gia_tri_chip: {},
         }))
       : [];
     addFin(c.uid, cd ? cd.id : null, cd ? cdName(cd) : "", insertIdx, macDinh);
@@ -3241,20 +3228,9 @@ function ComponentModal({
               <div className="rc-sec__title">
                 <span className="tg-step-badge">2</span> Giấy nguyên
               </div>
+              {/* Ô "Loại giấy" + dòng đơn giá GỠ 18/10/2026: giấy chọn ở "+ Thêm vật tư" của công đoạn
+                  (bước nào cũng được), tiền theo công thức của giấy. Mục này chỉ còn khổ nguyên. */}
               <div className="tg-grid">
-                <label className="tg-field tg-span-6">
-                  <span className="tg-microlabel">Loại giấy</span>
-                  <Select
-                    options={giayOpts}
-                    value={c.giay_id == null ? "" : String(c.giay_id)}
-                    onChange={(v) => onPickGiay(c.uid, v === "" ? null : Number(v))}
-                    ariaLabel="Loại giấy"
-                    searchable
-                    portal
-                    className="tg-input"
-                    listClassName="tg-pop"
-                  />
-                </label>
                 {/* GỠ 2026-08-09 (Đợt 4 · K): ô chọn "Nguồn giấy — Công ty / Khách cấp".
                     Công ty luôn cấp giấy, và engine đã thôi đọc cờ đó. Để lại ô mà engine không
                     nghe là tệ hơn không có ô: người tính giá tick "Khách cấp", nhìn thấy nó lưu
@@ -3276,18 +3252,6 @@ function ComponentModal({
                     thapPhan
                     suffix="mm"
                   />
-                </div>
-                <div className="tg-field tg-span-6">
-                  <div className="tg-readout" style={{ minHeight: "36px", display: "flex", alignItems: "center" }}>
-                    {(() => {
-                      const g = c.giay_id ? giays.find((x) => x.id === c.giay_id) : null;
-                      if (!g) return "— chọn giấy để lấy giá —";
-                      // Tên đơn vị đọc từ DANH MỤC, không phải chuỗi ba nhánh khai cứng ở đây —
-                      // giấy bán theo đơn vị nào là việc của danh mục, thêm đơn vị mới thì dòng
-                      // này tự hiện đúng thay vì rơi hết về "tờ".
-                      return `${fmt(numOf(g.don_gia))} đ / ${nhanDonVi(String(g.don_vi_gia ?? "")) || "—"}`;
-                    })()}
-                  </div>
                 </div>
               </div>
             </section>
@@ -3645,6 +3609,7 @@ function ComponentModal({
                           tenBuoc={ten}
                           dong={f.vat_tus}
                           vatTuDm={vatTuDm}
+                          giayDm={giays}
                           taoUid={nextUid}
                           onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
                           dinhMuc={mapDinhMuc.get(fIdx)}
@@ -4128,7 +4093,13 @@ function ComponentModal({
                 {nvl.giay.map((d, i) => (
                   <div className="tg-sheetrow" key={`g${i}`}>
                     <span className="tg-sheetrow__stack">
-                      <HaiDongCongThuc ten="Giấy" d={d} tra={tra} />
+                      {/* Giấy chọn được ở nhiều bước (18/10/2026): từ hai giấy trở lên thì gọi bằng
+                          TÊN giấy, không thì các dòng cùng nhãn "Giấy" không biết dòng nào là gì. */}
+                      <HaiDongCongThuc
+                        ten={nvl.giay.length > 1 ? (d.ten.split(" · ").pop() ?? "Giấy") : "Giấy"}
+                        d={d}
+                        tra={tra}
+                      />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>
