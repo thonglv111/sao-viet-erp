@@ -789,6 +789,77 @@ def _step_cost_safe(cd: dict, ctx: dict, warnings: list[str], ten: str) -> tuple
     return _f(res.get("total")), ghi
 
 
+def _dong_giay_buoc(vt: dict, *, buoc_idx: int, ten_buoc: str, ten_tp: str, sl: int,
+                    tram_vao: str | None, vao: float, xa: int, ctx_vars: dict,
+                    warnings: list[str]) -> dict:
+    """Dòng tiền của MỘT dòng giấy ở bước (18/10/2026). Lượng giấy suy từ ĐẦU VÀO của chính bước:
+    nhận tờ in ⇒ tờ nguyên = tờ vào ÷ số mảnh xả; nhận tờ nguyên ⇒ số tờ vào. Đầu vào khác (con,
+    cái…) không phải giấy nguyên liệu ⇒ 0đ kèm lý do, không bịa số. Tiền chạy CÔNG THỨC GIÁ của chính
+    mã giấy với định lượng + đơn giá của mã đó, nên hai loại giấy ở hai bước tính độc lập."""
+    ten = vt.get("ten") or "Giấy"
+    if tram_vao == TRAM_TO:
+        to_in = ceil(vao)
+        to_ng = ceil(to_in / xa) if to_in > 0 else 0
+    elif tram_vao == TRAM_TO_NGUYEN:
+        to_ng = ceil(vao)
+        to_in = to_ng * xa
+    else:
+        to_in = to_ng = None
+    don_gia = _f(vt.get("don_gia"))
+    don_vi = vt.get("don_vi_gia") or "to"
+    he_so = vt.get("he_so")
+    goc = vt.get("goc") or ("kg" if don_vi in ("kg", "tan") else "to")
+    la_can = goc == "kg"
+    formula = (vt.get("cong_thuc_gia") or "").strip() or (
+        "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen" if la_can
+        else "don_gia_giay * to_nguyen")
+    ct_luong = "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen" if la_can else "to_nguyen"
+    ctx = {**ctx_vars, "dinh_luong": _f(vt.get("gsm")) / 1000.0,
+           "don_gia_giay": don_gia * float(he_so) if he_so is not None else _don_gia_co_so(don_gia, don_vi)}
+    luong: float | None = None
+    the_so = ""
+    if to_ng is None:
+        ly_do = "đầu vào của bước không phải tờ giấy nên không tính được lượng giấy"
+        warnings.append(f"Thành phần '{ten_tp}': giấy '{ten}' ở công đoạn '{ten_buoc}' — {ly_do}, tính 0đ.")
+        tien, dan = 0.0, f"{ly_do} — 0đ"
+    else:
+        ly_do = None
+        ctx.update(to_nguyen=to_ng, to_dau_vao=to_in)
+        try:
+            tien = safe_eval(formula, ctx)
+            dan = _ct(format_substituted_formula(formula, ctx), tien, sl)
+        except Exception as e:  # noqa: BLE001 — công thức người khai, lỗi gì cũng chỉ báo
+            warnings.append(f"Thành phần '{ten_tp}': lỗi công thức giấy '{ten}' ({e}) — tính 0đ.")
+            tien, dan = 0.0, "lỗi công thức — 0đ"
+        try:
+            luong = float(safe_eval(ct_luong, ctx))
+            the_so = format_substituted_formula(ct_luong, ctx)
+        except Exception as e:  # noqa: BLE001
+            luong, ly_do = None, f"công thức lượng giấy lỗi ({e})"
+        if luong is not None and luong <= 0:
+            luong, ly_do = None, "lượng giấy ra 0 (thiếu khổ giấy nguyên hoặc định lượng?)"
+    return {
+        "loai": "giay",
+        "hang_loai": "giay",
+        "cong_thuc_goc": formula,
+        "ten": _pre(ten_tp, ten),
+        "so_to": to_ng or 0,
+        "don_gia": _r(don_gia),
+        "thanh_tien": _r(tien),
+        "gia_don_sp": _r(tien / sl) if sl > 0 else 0.0,
+        "cong_thuc": dan,
+        "luong": round(luong, 4) if luong is not None else None,
+        "luong_don_vi": goc if luong is not None else None,
+        "vat_tu_id": vt.get("vat_tu_id"),
+        "buoc_idx": buoc_idx,
+        "dinh_muc": round(luong, 4) if luong is not None else None,
+        "dinh_muc_don_vi": goc,
+        "dinh_muc_ly_do": ly_do,
+        "dinh_muc_cong_thuc_goc": ct_luong,
+        "dinh_muc_cong_thuc": the_so,
+    }
+
+
 def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: dict) -> dict:
     """Tính chi phí 1 SẢN PHẨM → 2 nhóm (nvl · cong_doan). Trả {name, rows, total, meta}."""
     name = tp.get("ten") or ""
@@ -1065,10 +1136,16 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     rows: dict[str, list[dict]] = {k: [] for k in _NHOM}
 
     # --- Giấy (Nguyên vật liệu) ---
+    # 18/10/2026: giấy là VẬT TƯ CỦA BƯỚC (`vat_tus[].hang_loai == "giay"`) — mỗi dòng giấy một dòng
+    # tiền, tính trong vòng vật tư theo bước ngay dưới. Dòng giấy CẤP SẢN PHẨM ở đây chỉ còn cho
+    # dict không có dòng giấy nào ở bước mà vẫn mang giá giấy (chuỗi rỗng, test/script dựng tay).
     # GỠ 2026-08-09 (Đợt 4 · K): nhánh "khách cấp giấy → 0đ". Cột `nguon_giay` còn trong DB nhưng
     # engine KHÔNG đọc nữa — mọi thành phần đều tính tiền giấy theo công thức.
-    # ⚠️ Phiếu CŨ có `nguon_giay='khach'` mở ra tính lại sẽ NHẢY GIÁ TĂNG (trước không tính tiền
-    # giấy, nay có). Báo giá đã chốt không ảnh hưởng — chúng đã chụp giá tại thời điểm gửi.
+    co_giay_buoc = any(v.get("hang_loai") == "giay" for r in chain for v in (r.get("vat_tus") or []))
+    giay_cap_sp = not co_giay_buoc and (
+        _f(tp.get("don_gia_giay")) > 0 or bool((tp.get("cong_thuc_gia") or "").strip()))
+    if not co_giay_buoc and not giay_cap_sp:
+        warnings.append(f"Thành phần '{name}': chưa chọn giấy ở công đoạn nào — chưa tính tiền giấy.")
     don_gia_giay = _f(tp.get("don_gia_giay"))
     don_vi = tp.get("don_gia_don_vi", "to")
     giay_ten = tp.get("giay_ten") or tp.get("kho_nguyen") or "Giấy"
@@ -1094,7 +1171,7 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         warnings.append(f"Thành phần '{name}': lỗi công thức giấy ({e}) — tính 0đ.")
         gia_giay = 0.0
 
-    rows["nvl"].append({
+    rows["nvl"].extend([] if not giay_cap_sp else [{
         # Nhóm `nvl` trộn GIẤY với vật tư (mực/màng/keo) trong cùng một danh sách. Panel số tờ của
         # sản phẩm cần tách riêng dòng giấy nên phải có cờ — dò bằng "dòng đầu tiên" là đúng hôm
         # nay và sai ngay hôm engine đổi thứ tự.
@@ -1109,7 +1186,7 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         # dòng DUY NHẤT không quy ra đơn giá/sản phẩm — người lập phiếu phải bấm máy tính tay để
         # so với mấy dòng công đoạn ngay bên dưới (kêu 25/08/2026).
         "cong_thuc": _ct(format_substituted_formula(formula, eval_ctx), gia_giay, sl),
-    })
+    }])
 
     # --- Vật tư THEO BƯỚC (01/10/2026): mỗi bước mang danh sách vật tư riêng + số chip nhập ở phiếu.
     # Vật tư → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
@@ -1133,6 +1210,15 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
             "so_mat": _so_mat_vt,
         }
         for vt in (r_buoc.get("vat_tus") or []):
+            if vt.get("hang_loai") == "giay":
+                rows["nvl"].append(_dong_giay_buoc(
+                    vt, buoc_idx=idx_vt, ten_buoc=_ten_buoc(r_buoc), ten_tp=name, sl=sl,
+                    # Bước NGOÀI dòng giấy (chưa khai đơn vị vào/ra) lấy tờ vào máy của cả chuỗi —
+                    # cùng luật `sl_vao` của vật tư khác ngay dưới; engine đã kêu bước đó ở trên.
+                    tram_vao=_tram(_cd_vt, "vao") if _b_vt else TRAM_TO,
+                    vao=_b_vt["vao"] if _b_vt else to_dau_vao, xa=xa, ctx_vars=ctx_vars,
+                    warnings=warnings))
+                continue
             vt_ten = vt.get("ten") or "Vật tư"
             vt_formula = vt.get("cong_thuc_gia")
             vt_don_gia = _f(vt.get("don_gia"))
@@ -1188,6 +1274,7 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
                     tien_vt, dan_vt = 0.0, "lỗi công thức — 0đ"
             rows["nvl"].append({
                 "loai": "vat_tu",
+                "hang_loai": "vat_tu",
                 "cong_thuc_goc": (vt_formula or "").strip(),
                 "ten": _pre(name, vt_ten),
                 "so_to": to_dau_vao,

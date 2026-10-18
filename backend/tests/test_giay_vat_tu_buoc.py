@@ -172,6 +172,9 @@ def test_giay_va_vat_tu_trung_id_khong_lan(client, h):
     assert ids["vt"] == ids["a"]
     out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"]), {"vat_tu_id": ids["vt"]}]))
     assert _dong_buoc(out["thanh_phans"][0])[0] == [("giay", ids["a"]), ("vat_tu", ids["vt"])]
+    nvl = next(g for g in out["result"]["groups"] if g["idx"] == "nvl")["rows"]
+    ten = {r["loai"]: r["ten"] for r in nvl if r.get("buoc_idx") == 0}
+    assert "Ivory 300" in ten["giay"] and "Keo X" in ten["vat_tu"]
 
 
 def test_cau_hinh_tai_ban_cu_chuyen_giay_vao_buoc_in():
@@ -187,3 +190,84 @@ def test_cau_hinh_tai_ban_cu_chuyen_giay_vao_buoc_in():
     assert out["giay_id"] == 9
     # Chuỗi rỗng: không có chỗ đặt, giữ nguyên giấy cấp sản phẩm.
     assert chuan_hoa_giay({"giay_id": 9, "thanh_phams": []}, nhom)["giay_id"] == 9
+
+
+# ============================ Engine: tiền giấy theo bước ============================
+from math import ceil  # noqa: E402
+
+from app.services.thanh_phan_engine import compute_phieu  # noqa: E402
+
+
+def _buoc_e(ten, dv_vao, dv_ra, *, nhom="finishing", hao=0, vat_tus=()) -> dict:
+    return {"ten": ten, "vat_tus": list(vat_tus), "cong_doan": {
+        "ten": ten, "nhom": nhom, "kieu_bu_hao": "co_dinh" if hao else "khong",
+        "so_to_bu_hao": hao, "don_vi_vao": dv_vao, "don_vi_ra": dv_ra}}
+
+
+def _tp_e(*buocs, **kw) -> dict:
+    """Giấy nguyên 860×650, tờ in 650×430 ⇒ xả 2; 49 con/tờ. KHÔNG mang giá giấy cấp sản phẩm."""
+    return {"ten": "Card", "quy_cach_in": "hai_mat", "con_auto": True,
+            "dai_thanh_pham": 90, "rong_thanh_pham": 54, "kho_in_dai": 650, "kho_in_rong": 430,
+            "kho_dai": 860, "kho_rong": 650, "so_mau_a": 4, "so_mau_b": 4, "co_in": True,
+            "thanh_phams": list(buocs), **kw}
+
+
+def _gy(gid, ten, *, gsm, don_gia, dv) -> dict:
+    return {"hang_loai": "giay", "vat_tu_id": gid, "ten": ten, "gsm": gsm, "don_gia": don_gia,
+            "don_vi_gia": dv, "he_so": 1.0, "goc": "kg" if dv == "kg" else "to"}
+
+
+def _dong_giay(res) -> list[dict]:
+    return [r for r in next(g for g in res["groups"] if g["idx"] == "nvl")["rows"]
+            if r.get("loai") == "giay"]
+
+
+def test_engine_giay_o_buoc_in_tinh_bang_giay_cap_san_pham_cu():
+    to = _gy(1, "Couche 300", gsm=300, don_gia=5000, dv="to")
+    moi = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
+        _buoc_e("In", "to", "to", nhom="print", hao=150, vat_tus=[to]),
+        _buoc_e("Cán", "to", "to", hao=50))])
+    cu = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
+        _buoc_e("In", "to", "to", nhom="print", hao=150), _buoc_e("Cán", "to", "to", hao=50),
+        don_gia_giay=5000, don_gia_don_vi="to", gsm=300, giay_ten="Couche 300")])
+    (g,) = _dong_giay(moi)
+    assert g["thanh_tien"] == _dong_giay(cu)[0]["thanh_tien"] > 0
+    assert g["buoc_idx"] == 0 and g["vat_tu_id"] == 1
+    assert g["dinh_muc"] == moi["meta"]["components"][0]["to_nguyen"] and g["dinh_muc_don_vi"] == "to"
+
+
+def test_engine_hai_loai_giay_hai_buoc_tinh_doc_lap():
+    a = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
+    b = _gy(2, "Carton 500", gsm=500, don_gia=10000, dv="kg")
+    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
+        _buoc_e("In", "to", "to", nhom="print", hao=150, vat_tus=[a]),
+        _buoc_e("Bồi", "to", "to", hao=50, vat_tus=[b]))])
+    m = res["meta"]["components"][0]
+    vao_boi = next(x["vao"] for x in m["bu_hao_chi_tiet"] if x["ten"] == "Bồi")
+    ga, gb = _dong_giay(res)
+    assert ga["thanh_tien"] == round(0.3 * 0.86 * 0.65 * 20000 * m["to_nguyen"], 2)
+    assert gb["thanh_tien"] == round(0.5 * 0.86 * 0.65 * 10000 * ceil(vao_boi / 2), 2)
+    assert gb["dinh_muc_don_vi"] == "kg" and gb["buoc_idx"] == 1
+
+
+def test_engine_giay_o_buoc_vao_cai_khong_tinh_duoc():
+    g = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
+    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
+        _buoc_e("In", "to", "to", nhom="print"), _buoc_e("Bế", "to", "cai"),
+        _buoc_e("Đóng gói", "cai", "cai", vat_tus=[g]))])
+    (d,) = _dong_giay(res)
+    assert d["thanh_tien"] == 0 and d["dinh_muc"] is None and "không phải tờ" in d["dinh_muc_ly_do"]
+    assert any("Đóng gói" in w and "Ivory 300" in w for w in res["warnings"])
+
+
+def test_engine_chuoi_khong_giay_thi_khong_dong_giay_va_nhac():
+    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(_buoc_e("In", "to", "to", nhom="print"))])
+    assert _dong_giay(res) == []
+    assert any("chưa chọn giấy" in w for w in res["warnings"])
+
+
+def test_engine_dict_cu_khong_buoc_van_tinh_giay_cap_san_pham():
+    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
+        don_gia_giay=5000, don_gia_don_vi="to", giay_ten="Couche 300")])
+    (g,) = _dong_giay(res)
+    assert g["thanh_tien"] > 0
