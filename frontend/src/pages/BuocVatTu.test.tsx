@@ -28,45 +28,45 @@ describe("BuocVatTu", () => {
 
   it("vật tư có chip → mọc đúng ô nhập, gõ số báo ra ngoài", () => {
     const onChange = vi.fn();
-    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
     fireEvent.change(screen.getByLabelText(/Dài support/), { target: { value: "5" } });
-    expect(onChange).toHaveBeenCalledWith([{ uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } }]);
+    expect(onChange).toHaveBeenCalledWith([{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } }]);
     expect(screen.getByLabelText(/Rộng support/)).toBeTruthy();
   });
 
   it("đơn vị hiện bằng TÊN trong danh mục, mã lạ thì không in mã trần", () => {
     const dm = [{ id: 3, ma: "X", ten: "Cũ", chips: [{ ma: "a", ten: "Dài", don_vi: "mm" }, { ma: "b", ten: "Rộng", don_vi: "khong_co" }] }];
-    render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [{ uid: "c", vat_tu_id: 3, gia_tri_chip: {} }] })} />);
+    render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [{ uid: "c", hang_loai: "vat_tu", vat_tu_id: 3, gia_tri_chip: {} }] })} />);
     expect(screen.getByText("milimét")).toBeTruthy();
     expect(screen.queryByText("mm")).toBeNull();
     expect(screen.queryByText("khong_co")).toBeNull();
   });
 
   it("vật tư không chip thì không có ô nhập", () => {
-    render(<BuocVatTu {...props({ dong: [{ uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
+    render(<BuocVatTu {...props({ dong: [{ uid: "b", hang_loai: "vat_tu", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
     expect(screen.queryByRole("spinbutton")).toBeNull();
   });
 
   it("xoá bớt và thêm vật tư chưa có", () => {
     const onChange = vi.fn();
-    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
-    fireEvent.click(screen.getByRole("button", { name: /Xóa vật tư Support/ }));
+    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    fireEvent.click(screen.getByRole("button", { name: /Xóa Support/ }));
     expect(onChange).toHaveBeenLastCalledWith([]);
     fireEvent.click(screen.getByRole("button", { name: /Thêm vật tư vào bước/ }));
     fireEvent.mouseDown(screen.getByRole("option", { name: /Keo dán/ }));
     expect(onChange).toHaveBeenLastCalledWith([
-      { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "u1", vat_tu_id: 2, gia_tri_chip: {} }]);
+      { uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "u1", hang_loai: "vat_tu", vat_tu_id: 2, gia_tri_chip: {} }]);
   });
 
   it("ô để trống → bỏ khỏi gia_tri_chip (không gửi NaN)", () => {
     const onChange = vi.fn();
-    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } }] })} />);
+    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } }] })} />);
     fireEvent.change(screen.getByLabelText(/Dài support/), { target: { value: "" } });
-    expect(onChange).toHaveBeenCalledWith([{ uid: "a", vat_tu_id: 1, gia_tri_chip: {} }]);
+    expect(onChange).toHaveBeenCalledWith([{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }]);
   });
 
   it("ô chip hiện NHÃN NGẮN, tên đầy đủ vẫn ở tooltip + aria-label", () => {
-    render(<BuocVatTu {...props({ dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    render(<BuocVatTu {...props({ dong: [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
     expect(screen.getByText("Dài")).toBeTruthy();
     expect(screen.getByText("Rộng")).toBeTruthy();
     expect(screen.queryByText("Dài support")).toBeNull();
@@ -75,14 +75,14 @@ describe("BuocVatTu", () => {
   });
 
   it("ô chip chưa có số thì viền cảnh báo, có số thì hết", () => {
-    render(<BuocVatTu {...props({ dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } }] })} />);
+    render(<BuocVatTu {...props({ dong: [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: { dai_support: 5 } }] })} />);
     expect(screen.getByLabelText("Dài support").closest("label")?.className).not.toMatch(/--trong/);
     expect(screen.getByLabelText("Rộng support").closest("label")?.className).toMatch(/tg-bvt__o--trong/);
   });
 
   it("chưa nhập ≠ đã nhập 0: ô trống không placeholder \"0\", ô 0 hiện 0 viền thường", () => {
     const onChange = vi.fn();
-    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0 } }] })} />);
+    render(<BuocVatTu {...props({ onChange, dong: [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: { dai_support: 0 } }] })} />);
     const dai = screen.getByLabelText("Dài support") as HTMLInputElement;
     const rong = screen.getByLabelText("Rộng support") as HTMLInputElement;
     expect(dai.value).toBe("0");
@@ -92,13 +92,13 @@ describe("BuocVatTu", () => {
     expect(rong.closest("label")?.className).toMatch(/--trong/);
     fireEvent.change(rong, { target: { value: "0" } });
     expect(onChange).toHaveBeenLastCalledWith([
-      { uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0, rong_support: 0 } }]);
+      { uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: { dai_support: 0, rong_support: 0 } }]);
   });
 
   it("mỗi vật tư một hàng [tên, lượng, ×]; vật tư có chip đứng trước và thêm dòng ô chip", () => {
     const dm = [...DM, { id: 4, ma: "MUC", ten: "Mực", don_vi_gia: "ghi", chips: [] }];
     const { container } = render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [
-      { uid: "b", vat_tu_id: 4, gia_tri_chip: {} }, { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+      { uid: "b", hang_loai: "vat_tu", vat_tu_id: 4, gia_tri_chip: {} }, { uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
     const hang = Array.from(container.querySelectorAll(".tg-bvt__ds > li"));
     expect(hang.map((e) => e.className)).toEqual(["tg-bvt__dong tg-bvt__dong--chip", "tg-bvt__dong"]);
     expect(Array.from(hang[0].children).map((e) => e.className))
@@ -115,7 +115,7 @@ describe("BuocVatTu", () => {
     const ten = ["Dài", "Rộng", "Số dao", "Dài đường bế", "Độ dày"];
     const dm = [{ id: 9, ma: "KB", ten: "Khuôn bế", chips: ten.map((t, k) => ({ ma: `c${k}`, ten: t, don_vi: "mm" })) }];
     const { container } = render(<BuocVatTu {...props({ vatTuDm: dm as never, dong: [
-      { uid: "k", vat_tu_id: 9, gia_tri_chip: { c0: 420 } }] })} />);
+      { uid: "k", hang_loai: "vat_tu", vat_tu_id: 9, gia_tri_chip: { c0: 420 } }] })} />);
     const luoi = container.querySelectorAll(".tg-bvt__luoi");
     expect(luoi).toHaveLength(1);
     const o = luoi[0].querySelectorAll(".tg-bvt__o");
@@ -125,13 +125,51 @@ describe("BuocVatTu", () => {
   });
 });
 
+describe("BuocVatTu — giấy là vật tư của bước", () => {
+  const GIAY = [{ id: 1, ma: "C150", ten: "Couche 150", don_vi_gia: "kg" },
+                { id: 7, ma: "OLD", ten: "Giấy ngừng", active: false }];
+
+  it("ô thêm có nhóm Giấy đứng trước nhóm Vật tư, giấy ngừng dùng không mời", () => {
+    const { container } = render(<BuocVatTu {...props({ giayDm: GIAY as never })} />);
+    fireEvent.click(screen.getByRole("button", { name: /Thêm vật tư vào bước/ }));
+    const nhom = Array.from(document.querySelectorAll(".sel__group")).map((e) => e.textContent);
+    expect(nhom).toEqual(["Giấy", "Vật tư"]);
+    expect(screen.queryByRole("option", { name: /Giấy ngừng/ })).toBeNull();
+    expect(container).toBeTruthy();
+  });
+
+  it("chọn giấy thêm dòng hang_loai giay; giấy và vật tư cùng id không lẫn nhau", () => {
+    const onChange = vi.fn();
+    const dong = [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }];
+    render(<BuocVatTu {...props({ onChange, giayDm: GIAY as never, dong })} />);
+    // Vật tư #1 (Support) đã có, giấy #1 (Couche 150) vẫn được mời.
+    fireEvent.click(screen.getByRole("button", { name: /Thêm vật tư vào bước/ }));
+    expect(screen.queryByRole("option", { name: /^Support/ })).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("option", { name: /Couche 150/ }));
+    expect(onChange).toHaveBeenLastCalledWith([...dong,
+      { uid: expect.any(String), hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }]);
+  });
+
+  it("dòng giấy hiện tên giấy, không ô chip, lượng tra theo khoá giay:id", () => {
+    const dinhMuc = new Map([["giay:1", { so: 2_600, donVi: "to", lyDo: null }],
+                             ["vat_tu:1", { so: 3, donVi: "mm", lyDo: null }]]);
+    const { container } = render(<BuocVatTu {...props({ giayDm: GIAY as never, dinhMuc, dong: [
+      { uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    expect(container.querySelector(".tg-bvt__ten")?.textContent).toBe("Couche 150");
+    expect(container.querySelector(".tg-bvt__luoi")).toBeNull();
+    expect(container.querySelector(".tg-bvt__luong-so")?.textContent).toBe("2.600");
+  });
+});
+
 describe("soOChipTrong", () => {
   it("đếm ô chưa nhập theo chip danh mục; đã nhập 0 không tính", () => {
     expect(soOChipTrong([
-      { uid: "a", vat_tu_id: 1, gia_tri_chip: { dai_support: 0 } },
-      { uid: "b", vat_tu_id: 2, gia_tri_chip: {} },
+      { uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: { dai_support: 0 } },
+      { uid: "b", hang_loai: "vat_tu", vat_tu_id: 2, gia_tri_chip: {} },
     ], DM as never)).toBe(1);
     expect(soOChipTrong([], DM as never)).toBe(0);
+    // Dòng giấy cùng id với vật tư có chip KHÔNG bị đếm chip.
+    expect(soOChipTrong([{ uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }], DM as never)).toBe(0);
   });
 });
 
@@ -151,12 +189,12 @@ describe("nhanNgan", () => {
 describe("BuocVatTu — định mức", () => {
   it("hiện lượng engine tính theo công thức định mức + tên đơn vị; chưa tính được thì gạch kèm lý do", () => {
     const dinhMuc = new Map([
-      [1, { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
+      ["vat_tu:1", { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
             thaySo: "3 milimét × 4 milimét ÷ 10000" }],
-      [2, { so: null, donVi: "ghi", lyDo: "chưa khai công thức định mức" }],
+      ["vat_tu:2", { so: null, donVi: "ghi", lyDo: "chưa khai công thức định mức" }],
     ]);
     const { container } = render(<BuocVatTu {...props({ dinhMuc, dong: [
-      { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
+      { uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", hang_loai: "vat_tu", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
     const luong = container.querySelectorAll(".tg-bvt__luong");
     expect(luong[0].querySelector(".tg-bvt__luong-so")?.textContent).toBe("0,0012");
     expect(luong[0].querySelector(".tg-bvt__dv")?.textContent).toBe("milimét");
@@ -167,12 +205,12 @@ describe("BuocVatTu — định mức", () => {
 
   it("bong bóng: thẻ Công thức bằng chữ, thẻ Thế số '= thế số = kết quả'; công thức một biến thì chỉ '= số'", () => {
     const dinhMuc = new Map([
-      [1, { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
+      ["vat_tu:1", { so: 0.0012, donVi: "mm", lyDo: null, dienGiai: "Dài support × Rộng support ÷ 10000",
             thaySo: "3 milimét × 4 milimét ÷ 10000" }],
-      [2, { so: 32, donVi: "ghi", lyDo: null, dienGiai: "Số bản kẽm", thaySo: "32 bản" }],
+      ["vat_tu:2", { so: 32, donVi: "ghi", lyDo: null, dienGiai: "Số bản kẽm", thaySo: "32 bản" }],
     ]);
     const { container } = render(<BuocVatTu {...props({ dinhMuc, dong: [
-      { uid: "a", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
+      { uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }, { uid: "b", hang_loai: "vat_tu", vat_tu_id: 2, gia_tri_chip: {} }] })} />);
     const luong = container.querySelectorAll(".tg-bvt__luong");
     const dd = () => Array.from(screen.getByRole("tooltip").querySelectorAll("dd")).map((x) => x.textContent);
     fireEvent.mouseEnter(luong[0]);

@@ -4553,13 +4553,17 @@ export interface ThanhPhamOut {
 }
 
 /** 1 vật tư gắn vào 1 bước của phiếu — `gia_tri_chip` khoá theo mã chip của vật tư. */
+/** `giay` = giấy chọn ở bước (18/10/2026, id trỏ danh mục Giấy) — cùng ô "Thêm vật tư"; vắng = `vat_tu`. */
+export type HangLoaiBuoc = "vat_tu" | "giay";
 export interface BuocVatTuOut {
   id: number;
   thu_tu: number;
+  hang_loai?: HangLoaiBuoc;
   vat_tu_id: number;
   gia_tri_chip: Record<string, number>;
 }
 export interface BuocVatTuIn {
+  hang_loai?: HangLoaiBuoc;
   vat_tu_id: number;
   thu_tu?: number;
   gia_tri_chip?: Record<string, number>;
