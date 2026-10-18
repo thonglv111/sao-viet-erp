@@ -1672,6 +1672,22 @@ export interface SxWorkItem {
   nguoi_lam?: string[];
   /** Bước của lệnh — tìm ô của việc trên dải routing (phân đoạn sau). */
   step_key?: string | null;
+  /** Cột Vật tư của lưới — null = bước không cần vật tư. Drawer không điền. */
+  trang_thai_vat_tu?: SxTrangThaiVatTu | null;
+}
+/** Mức vật tư của một bước — cùng hàm máy chủ với cổng Bắt đầu (spec 2026-10-18 §5.1). */
+export type SxMucVatTu = "chua_yeu_cau" | "cho_kho" | "kho_dang_soan" | "cap_thieu" | "san_sang";
+export interface SxTrangThaiVatTu {
+  muc: SxMucVatTu;
+  mon: {
+    ten: string;
+    dvt: string | null;
+    sl_xin: number;
+    sl_da_xuat: number;
+    chot_thieu: boolean;
+    lan_so: number | null;
+    muc: string;
+  }[];
 }
 /** Quy cách in RÚT GỌN đi theo thẻ việc (mg `0290`) — 8 dòng đủ để đứng máy, không phải bản sao
  *  của `lsx.quy_cach_json`. Khoá nào không có số thì server BỎ HẲN (không gửi `null`), nên UI chỉ
@@ -2159,6 +2175,8 @@ export interface SxVatTuCapLan {
   id: number;
   lan_so: number;
   loai: string;
+  /** Hệ thống tự lập lúc phát hành lệnh (không phải tổ bấm). */
+  tu_lap?: boolean;
   can_luc: string;
   stock_request_id: number | null;
   stock_request_ma: string | null;

@@ -100,7 +100,7 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(screen.getByText("Công đoạn")).toBeInTheDocument();
   });
 
-  it("lưới phẳng: mỗi việc một dòng, đủ 9 cột, lệnh thành cột Lệnh + Sản phẩm", () => {
+  it("lưới phẳng: mỗi việc một dòng, đủ 10 cột, lệnh thành cột Lệnh + Sản phẩm", () => {
     const a = mockViec({ id: 1, nguon_ma: "LSX26-0004", nguon_ten: "Bìa sách A5", khach_hang: "Bibica" });
     const b = mockViec({ id: 2, nguon_ma: "LSX26-0005", nguon_ten: "Ruột sách", ten_cong_doan: "Xén 3 mặt" });
     const c = mockViec({ id: 3, nguon_ma: "LSX26-0005", nguon_ten: "Ruột sách", ten_cong_doan: "Cắt tờ" });
@@ -109,7 +109,7 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(container.querySelectorAll("tbody tr.lds-dong")).toHaveLength(3);
     expect([...container.querySelectorAll("thead th")].map((t) => t.textContent)).toEqual([
       "Lệnh", "Sản phẩm", "Công đoạn", "Trạng thái", "Tốt / cần", "Hàng đang tới đâu",
-      "Máy và thời gian", "Quy cách", "Định mức vật tư",
+      "Máy và thời gian", "Quy cách", "Định mức vật tư", "Vật tư",
     ]);
     expect(screen.getByText("Bìa sách A5")).toBeInTheDocument();
     expect(screen.getByText("Bibica")).toBeInTheDocument();
@@ -175,5 +175,36 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(dongPhuTrangThai(mockViec({
       trang_thai: "completed", thuc_te: [{ bat_dau: "2026-10-05T08:00:00", ket_thuc: "2026-10-05T16:20:00" }],
     }))).toMatch(/^xong 5\/10(\/2026)? 16:20$/);
+  });
+});
+
+describe("ThsxDanhSach — cột Vật tư (tự lập yêu cầu xuất khi phát hành)", () => {
+  const mon = [
+    { ten: "Couche 300", dvt: "tờ", sl_xin: 2700, sl_da_xuat: 0, chot_thieu: false, lan_so: 1, muc: "kho_dang_soan" },
+    { ten: "Mực đen", dvt: "kg", sl_xin: 2, sl_da_xuat: 1.5, chot_thieu: true, lan_so: 1, muc: "kho_dang_soan" },
+  ] as const;
+
+  function ve(p: Partial<SxWorkItem>) {
+    render(<ThsxDanhSach lenh={mockLenh([mockViec({ id: 301, ...p })])} selectedId={null} onPick={vi.fn()} />);
+  }
+
+  it("cột Vật tư hiện chip Kho đang soạn", () => {
+    ve({ trang_thai_vat_tu: { muc: "kho_dang_soan", mon: [...mon] } });
+    expect(screen.getByRole("columnheader", { name: /^Vật tư/ })).toBeInTheDocument();
+    expect(screen.getByText("Kho đang soạn")).toBeInTheDocument();
+  });
+
+  it("bước không cần vật tư thì ô Vật tư trống", () => {
+    ve({ trang_thai_vat_tu: null });
+    for (const nhan of ["Chưa yêu cầu", "Chờ kho", "Kho đang soạn", "Cấp thiếu", "Sẵn sàng"]) {
+      expect(screen.queryByText(nhan)).toBeNull();
+    }
+  });
+
+  it("rê chuột chip thấy từng món và số đã xuất", () => {
+    ve({ trang_thai_vat_tu: { muc: "kho_dang_soan", mon: [...mon] } });
+    const title = screen.getByText("Kho đang soạn").getAttribute("title") ?? "";
+    expect(title).toContain("Couche 300 xin 2.700 tờ và đã xuất 0");
+    expect(title).toContain("Mực đen xin 2 kg và đã xuất 1,5 (kho chốt thiếu)");
   });
 });

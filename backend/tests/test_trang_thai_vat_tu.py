@@ -248,3 +248,122 @@ def test_loc_vuong_chua_san_sang_vat_tu(db, svc3, lenh, admin):
     cap_du_vat_tu(db, cv)
     ra = thuoc_tinh(db, SanXuatRepository(db), [cv], can={"vuong"})
     assert "chua_san_sang_vat_tu" not in ra[cv.id]["vuong"]
+
+
+# ============================================================ lưới bàn tổ + tin từ kho (Task 6)
+
+def _admin_h(client) -> dict[str, str]:
+    tok = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"}).json()
+    return {"Authorization": f"Bearer {tok['access_token']}"}
+
+
+def _cap_quyen_to_cua(db, admin, cv):
+    from app.models.department import Department
+    from tests.quyen_to_fixtures import cap_quyen_to
+
+    cap_quyen_to(db, admin, db.get(Department, cv.department_id))
+    db.commit()
+
+
+def test_danh_sach_ban_to_tra_trang_thai_vat_tu(client, db, svc3, lenh, admin):
+    cv = _phat_hanh(db, svc3, lenh, admin)
+    _cap_quyen_to_cua(db, admin, cv)
+    h = _admin_h(client)
+
+    r = client.get("/api/san-xuat/work-items", params={"team_id": cv.department_id}, headers=h)
+    assert r.status_code == 200, r.text
+    items = {it["id"]: it for nhom in r.json()["lenh"] for it in nhom["cong_viec"]}
+    tt = items[cv.id]["trang_thai_vat_tu"]
+    assert tt["muc"] == "cho_kho"
+    assert tt["mon"][0]["sl_xin"] > 0 and tt["mon"][0]["sl_da_xuat"] == 0
+
+    r = client.get("/api/san-xuat/work-items", params={"team_id": cv.department_id, "nhom": "phang"},
+                   headers=h)
+    assert {it["id"]: it for it in r.json()["cong_viec"]}[cv.id]["trang_thai_vat_tu"]["muc"] == "cho_kho"
+
+
+def _nhap_ton(client, h, req):
+    """Nhập đủ hàng của yêu cầu tự lập vào một kho (đề nghị NHẬP → phiếu → ghi sổ, qua API). Trả kho."""
+    ln = req.lines[0]
+    r = client.post("/api/kho", json={"ten": "Kho NVL test"}, headers=h)
+    assert r.status_code in (200, 201), r.text
+    kho_id = r.json()["id"]
+    r = client.post("/api/kho/de-nghi", headers=h, json={"loai": "NHAP", "kho_id": kho_id, "lines": [{
+        "hang_loai": ln.hang_loai, "hang_id": ln.hang_id, "kho_rong": ln.kho_rong, "kho_dai": ln.kho_dai,
+        "dvt": ln.dvt, "sl_de_nghi": float(ln.sl_de_nghi), "don_gia": 1000}]})
+    assert r.status_code == 201, r.text
+    nhap = r.json()
+    r = client.post("/api/kho/phieu", headers=h, json={
+        "request_id": nhap["id"], "kho_id": kho_id,
+        "lines": [{"request_line_id": nhap["lines"][0]["id"], "so_luong": float(ln.sl_de_nghi)}]})
+    assert r.status_code == 201, r.text
+    assert client.post(f"/api/kho/phieu/{r.json()['id']}/ghi-so", headers=h).status_code == 200
+    return kho_id
+
+
+def test_lap_va_ghi_so_phieu_xuat_bao_ban_to(client, db, svc3, lenh, admin, monkeypatch):
+    from app.services.san_xuat import kho as kho_sx
+
+    cv = _phat_hanh(db, svc3, lenh, admin)
+    req = _req(db, cv)
+    h = _admin_h(client)
+    kho_id = _nhap_ton(client, h, req)
+    gui: list[tuple[dict, dict]] = []
+    monkeypatch.setattr(kho_sx.hub, "gui", lambda ev, **kw: gui.append((ev, kw)))
+
+    def _toi_to():
+        return [ev for ev, kw in gui if ev["type"] == "san_xuat_cong_viec_changed"
+                and kw.get("to") == [cv.department_id] and ev.get("request_id") == req.id]
+
+    ln = req.lines[0]
+    alloc = client.get("/api/kho/phieu/lo/goi-y", headers=h, params={
+        "hang_loai": ln.hang_loai, "hang_id": ln.hang_id, "kho_id": kho_id,
+        "so_luong": float(ln.sl_de_nghi)}).json()
+    r = client.post("/api/kho/phieu", headers=h, json={
+        "request_id": req.id, "kho_id": kho_id,
+        "lines": [{"request_line_id": ln.id, "so_luong": x["so_luong"], "lot_id": x["lot_id"]}
+                  for x in alloc["lines"]]})
+    assert r.status_code == 201, r.text
+    assert len(_toi_to()) == 1, "lập phiếu (kho đang soạn) phải báo bàn tổ"
+
+    assert client.post(f"/api/kho/phieu/{r.json()['id']}/ghi-so", headers=h).status_code == 200
+    assert len(_toi_to()) == 2, "ghi sổ (sẵn sàng) phải báo bàn tổ"
+
+
+def test_kho_huy_yeu_cau_tu_lap_bao_ve_to_khong_bao_nguoi_phat_hanh(db, svc3, lenh, admin, monkeypatch):
+    from app.models.module_notification import ModuleNotification
+    from app.models.notification import Notification
+    from app.services import stock_request_service as srs
+    from app.services.san_xuat import vat_tu_de_nghi as V
+    from app.services.thong_bao_man import kenh_to
+
+    cv = _phat_hanh(db, svc3, lenh, admin)
+    req = _req(db, cv)
+    assert req.nguoi_tao_id == admin.id      # người bấm phát hành đứng tên yêu cầu tự lập
+    gui_rieng: list[tuple[int, dict]] = []
+    monkeypatch.setattr(srs.hub, "publish", lambda uid, ev: gui_rieng.append((uid, ev)))
+    truoc = db.query(Notification).filter(Notification.user_id == admin.id).count()
+
+    V._req_service(db, V._hang_service(db)).cancel_by_kho(req, "Hết hàng")
+    db.commit()
+
+    assert db.query(Notification).filter(Notification.user_id == admin.id).count() == truoc
+    # Toast đích danh "Yêu cầu đã bị hủy" không tới người phát hành (tin danh sách kho thì vẫn tới,
+    # vì admin cũng là người của kho).
+    assert not [ev for uid, ev in gui_rieng if uid == admin.id and ev["type"] == "stock_request"]
+    assert db.query(ModuleNotification).filter(
+        ModuleNotification.channel == "kho", ModuleNotification.recipient_user_id == admin.id).count() == 0
+    to = db.query(ModuleNotification).filter(ModuleNotification.channel == kenh_to(cv.department_id)).all()
+    assert [(n.event_type, n.source_code) for n in to] == [("kho_phan_hoi", req.ma)]
+
+
+def test_ngan_chi_tiet_danh_dau_lan_tu_lap(db, svc3, lenh, admin):
+    from app.repositories.rbac_repo import RoleRepository
+    from app.services.rbac_service import AuthorizationService
+    from app.services.san_xuat import board
+
+    cv = _phat_hanh(db, svc3, lenh, admin)
+    _cap_quyen_to_cua(db, admin, cv)
+    ct = board.chi_tiet_cong_viec(db, admin, AuthorizationService(RoleRepository(db)), cong_viec_id=cv.id)
+    (lan,) = ct["vat_tu_cap"]["cac_de_nghi"]
+    assert lan["tu_lap"] is True

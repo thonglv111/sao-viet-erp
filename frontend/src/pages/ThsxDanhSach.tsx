@@ -7,7 +7,7 @@
 // nhỏ ở cột "Hàng đang tới đâu" (rê chuột lên chấm đọc số liệu từng bước như dải to cũ). Máy chủ vẫn
 // cắt trang theo LỆNH — một lệnh không bị xé qua hai trang.
 import { Icon } from "../components/Icons";
-import type { SxChoXacNhanBanGiao, SxLenhNhom, SxWorkItem } from "../api/client";
+import type { SxChoXacNhanBanGiao, SxLenhNhom, SxMucVatTu, SxTrangThaiVatTu, SxWorkItem } from "../api/client";
 import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import {
   ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, apLuoi, type CauHinhLuoi, type CotLuoi, type MauTT,
@@ -38,7 +38,27 @@ export const COT_THSX: CotThsx[] = [
   { key: "may", label: "Máy và thời gian", w: 190 },
   { key: "qc", label: "Quy cách", w: 290 },
   { key: "vt", label: "Định mức vật tư", w: 220 },
+  { key: "vtt", label: "Vật tư", w: 130 },
 ];
+
+/** Chip cột Vật tư — mỗi mức một sắc. Máy chủ chốt mức (cùng hàm với cổng Bắt đầu). */
+export const NHAN_VAT_TU: Record<SxMucVatTu, { nhan: string; mau: MauTT }> = {
+  chua_yeu_cau: { nhan: "Chưa yêu cầu", mau: "do" },
+  cho_kho: { nhan: "Chờ kho", mau: "vang" },
+  kho_dang_soan: { nhan: "Kho đang soạn", mau: "cyan" },
+  cap_thieu: { nhan: "Cấp thiếu", mau: "cam" },
+  san_sang: { nhan: "Sẵn sàng", mau: "la" },
+};
+
+/** Title của chip: mỗi món một dòng, số xin và số kho đã xuất. */
+export function dienGiaiVatTu(tt: SxTrangThaiVatTu): string {
+  return tt.mon
+    .map((m) => {
+      const dv = m.dvt ? ` ${nhanDonVi(m.dvt)}` : "";
+      return `${m.ten} xin ${num(m.sl_xin)}${dv} và đã xuất ${num(m.sl_da_xuat)}${m.chot_thieu ? " (kho chốt thiếu)" : ""}`;
+    })
+    .join("\n");
+}
 
 /** Cùng sắc với chip đếm ở thanh lọc của bàn (chờ làm xanh dương, đang chạy xanh lá, tạm dừng vàng,
  *  hoàn thành xám) — mỗi trạng thái một sắc. */
@@ -297,6 +317,16 @@ function OThsx({ cot, l, w, cho }: { cot: string; l: SxLenhNhom; w: SxWorkItem; 
             )}
           </span>
           {rest > 0 && <span className="thsx-l2">+{rest} khác</span>}
+        </td>
+      );
+    }
+    case "vtt": {
+      const tt = w.trang_thai_vat_tu;
+      if (!tt) return <td />;
+      const c = NHAN_VAT_TU[tt.muc];
+      return (
+        <td>
+          <ChipTT mau={c?.mau ?? "xam"} title={dienGiaiVatTu(tt) || undefined}>{c?.nhan ?? tt.muc}</ChipTT>
         </td>
       );
     }

@@ -65,6 +65,22 @@ class KhuonChipOut(BaseModel):
     tinh_trang: str | None = None
 
 
+class MonVatTuOut(BaseModel):
+    ten: str
+    dvt: str | None = None
+    sl_xin: float
+    sl_da_xuat: float
+    chot_thieu: bool = False
+    lan_so: int | None = None
+    muc: str
+
+
+class TrangThaiVatTuOut(BaseModel):
+    """Chip cột Vật tư của lưới bàn tổ (spec 2026-10-18 §5.1) — cùng hàm với cổng Bắt đầu."""
+    muc: str            # chua_yeu_cau | cho_kho | kho_dang_soan | cap_thieu | san_sang
+    mon: list[MonVatTuOut] = []
+
+
 class WorkItemOut(BaseModel):
     id: int
     department_id: int | None = None  # tổ thật của việc (bàn nút cha gộp nhiều tổ con)
@@ -140,6 +156,8 @@ class WorkItemOut(BaseModel):
     # tổ. Rỗng = chưa giao thợ. Drawer không điền (đã có roster riêng).
     nguoi_lam: list[str] = []
     step_key: str | None = None
+    # Mức vật tư của bước — None = bước không cần vật tư (ô trống). Drawer không điền.
+    trang_thai_vat_tu: TrangThaiVatTuOut | None = None
 
 
 class TrangOut(BaseModel):
@@ -872,6 +890,7 @@ class VatTuCapLanOut(BaseModel):
     id: int
     lan_so: int
     loai: str
+    tu_lap: bool = False        # lần hệ thống tự lập lúc phát hành lệnh (spec 2026-10-18)
     can_luc: datetime
     stock_request_id: int | None = None
     stock_request_ma: str | None = None

@@ -1866,8 +1866,11 @@ function VtDeNghiLanRow({ d, phieu, onMoPhieu, onMoDeNghi }: {
         </td>
         <td><ChipTT mau="cyan">Xuất kho</ChipTT></td>
         <td className="thsx-num">{ngayGio(d.can_luc)}</td>
-        <td title={`Gửi lúc ${ngayGio(d.created_at)}${suaBoi ? `\n${d.updated_by_ten || "—"} sửa lúc ${ngayGio(d.updated_at)}` : ""}`}>
-          {d.created_by_ten || "—"}
+        {/* Lần tự lập: người bấm phát hành chỉ đứng tên — ô ghi rõ hệ thống lập, tên người để ở title.
+            Tổ sửa lần tự lập thì `updated_by_id` mới có (lúc lập để trống). */}
+        <td title={`${d.tu_lap ? `${d.created_by_ten || "—"} phát hành lệnh lúc` : "Gửi lúc"} ${ngayGio(d.created_at)}${
+          d.updated_by_id != null && (d.tu_lap || suaBoi) ? `\n${d.updated_by_ten || "—"} sửa lúc ${ngayGio(d.updated_at)}` : ""}`}>
+          {d.tu_lap ? "Tự lập khi phát hành" : d.created_by_ten || "—"}
         </td>
         <td>
           {d.stock_request_ma

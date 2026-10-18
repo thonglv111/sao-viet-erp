@@ -639,14 +639,12 @@ export function AppShell() {
       );
       return;
     }
-    // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. `hub.broadcast` gửi cho MỌI kết nối chứ
-    // không theo phạm vi, nên cả hai cổng lọc nằm ở đây:
-    //   1) toast gác quyền Xem bàn tổ — không thì kế toán, lái xe cũng ăn toast của tổ in;
-    //   2) KHÔNG bump tick nhóm — chỉ đẩy đích danh `cong_viec_id`
-    //      xuống bàn tổ để đúng drawer đang mở việc đó nạp lại. Bump tick chung ở đây là biến
-    //      một lần tổ gửi đề nghị thành một lượt gọi API cho MỌI màn đang mở của cả nhà máy.
+    // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. Máy chủ gửi đích danh tổ của bước, nên chỉ
+    // bàn tổ đó nhận: đẩy `cong_viec_id` xuống để drawer đang mở việc đó nạp lại, và nhích nhóm
+    // `san_xuat` để cột Vật tư của lưới đổi theo (18/10/2026). Toast vẫn gác quyền Xem bàn tổ.
     if (e.type === "san_xuat_vat_tu_de_nghi_changed") {
       if (coQuyenBanTo(readable)) {
+        boGop.danhDau(nhomCua(e.type));
         const cv = e.cong_viec_id;
         setVatTuDeNghiDem((m) => ({ ...m, [cv]: (m[cv] ?? 0) + 1 }));
         // Cổng thứ 3: KHÔNG toast cho việc người này đang mở (drawer vừa tươi, và nếu chính họ

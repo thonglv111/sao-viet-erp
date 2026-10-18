@@ -49,6 +49,7 @@ from .nguoi_ghi import ung_vien_ghi
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _aware
 from .tinh_trang_nguoi import hom_nay, tinh_trang_nhieu
+from .trang_thai_vat_tu import chan_bat_dau, ly_do_vat_tu, trang_thai_vat_tu
 from .vat_tu_de_nghi import _hang_service, _kh_service, can_luc_hien_thi, lan_con_mo
 
 MODULE = "san_xuat"
@@ -389,9 +390,12 @@ def _dung_items(db: Session, repo: SanXuatRepository, rows: list,
     }
     # Người đang được giao — dòng phụ cột Trạng thái của lưới (09/10/2026).
     ten_map = SanXuatThucThiRepository(db).ten_nguoi_dang_giao_nhieu(cv_ids)
+    # Cột Vật tư — một lượt cho cả trang, cùng hàm với cổng Bắt đầu (spec 2026-10-18 §5.1).
+    vt_map = trang_thai_vat_tu(db, rows)
     return [
         {**_item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map, so_map, chay_ids, kcs_map,
-                      khach_map), "nguoi_lam": ten_map.get(cv.id, [])}
+                      khach_map), "nguoi_lam": ten_map.get(cv.id, []),
+         "trang_thai_vat_tu": vt_map.get(cv.id)}
         for cv in rows
     ]
 
@@ -1165,7 +1169,7 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
         "ke_hoach": ke_hoach,
         "cac_de_nghi": [{
             # `can_luc_hien_thi` gỡ nhãn UTC: Postgres trả AWARE, để nguyên là FE dịch thêm +7h.
-            "id": d.id, "lan_so": d.lan_so, "loai": d.loai,
+            "id": d.id, "lan_so": d.lan_so, "loai": d.loai, "tu_lap": bool(d.tu_lap),
             "can_luc": can_luc_hien_thi(d.can_luc),
             "stock_request_id": d.stock_request_id,
             "stock_request_ma": tom_tat.get(d.stock_request_id, {}).get("ma"),
@@ -1204,7 +1208,6 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
 
 def _vat_tu_chua_san_sang(db: Session, cv) -> str | None:
     from ...models.san_xuat import CV_PHAT_HANH
-    from .trang_thai_vat_tu import chan_bat_dau, ly_do_vat_tu, trang_thai_vat_tu
 
     if cv.trang_thai != CV_PHAT_HANH:
         return None

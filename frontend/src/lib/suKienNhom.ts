@@ -44,7 +44,8 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // Chấm đỏ thanh bên: AppShell hỏi lại tóm tắt, không màn nào phải nạp lại.
   thong_bao_man: [],
   notification_new: [],
-  san_xuat_vat_tu_de_nghi_changed: [],
+  // Máy chủ gửi đích danh tổ của bước (`kem_ban_to`) ⇒ chỉ bàn tổ đó nạp lại cột Vật tư.
+  san_xuat_vat_tu_de_nghi_changed: ["san_xuat"],
   lsx_dinh_kem_changed: [],
 
   // Bán hàng: báo giá · đơn · chăm sóc khách.

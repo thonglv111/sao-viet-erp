@@ -483,6 +483,8 @@ def create_voucher(
         )
     except StockVoucherError as e:
         raise _err(e) from None
+    # Lập phiếu đẩy yêu cầu sang "Kho đang soạn" — bàn tổ của bước xin vật tư phải thấy ngay.
+    _bao_san_xuat(db, v)
     # Yêu cầu của GIAO HÀNG thì báo tài xế "kho soạn xong, tới lấy được" — mốc đó chỉ kho biết.
     # Toàn bộ logic ở `services/delivery_notify`; hàm đó tự nuốt lỗi nên không cần `try` ở đây và
     # không đường nào làm hỏng việc lập phiếu.
@@ -491,7 +493,8 @@ def create_voucher(
 
 
 def _bao_san_xuat(db: Session, v) -> None:
-    """Phiếu thuộc yêu cầu nhập thành phẩm từ KCS ⇒ báo người KCS + refresh màn sản xuất NGAY (sau commit)."""
+    """Phiếu thuộc yêu cầu nhập thành phẩm từ KCS ⇒ báo người KCS + refresh màn sản xuất NGAY (sau
+    commit). Yêu cầu cấp vật tư của một bước ⇒ báo bàn tổ của bước (cột Vật tư, cổng Bắt đầu)."""
     req = StockRequestRepository(db).get(v.request_id) if getattr(v, "request_id", None) else None
     if req is not None:
         phat_su_kien_kho(req, bao_nguoi_tao=True)

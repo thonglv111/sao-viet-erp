@@ -9,6 +9,8 @@ describe("nhomCua", () => {
   it("sự kiện bàn tổ chỉ thuộc nhóm sản xuất — màn Nghỉ phép không phải nạp lại", () => {
     expect(nhomCua("san_xuat_cong_viec_changed")).toEqual(["san_xuat"]);
     expect(nhomCua("leave_pending_changed")).toEqual(["nhan_su"]);
+    // Đề nghị vật tư của một bước đổi ⇒ cột Vật tư của lưới bàn tổ phải đổi theo.
+    expect(nhomCua("san_xuat_vat_tu_de_nghi_changed")).toEqual(["san_xuat"]);
   });
 
   it("sự kiện có đường riêng (quyền, nhật ký) không bump nhóm nào", () => {

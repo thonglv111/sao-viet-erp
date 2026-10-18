@@ -666,6 +666,21 @@ describe("ThsxDrawer · nội dung các tab (ngăn B)", () => {
     expect(screen.getByRole("button", { name: "Yêu cầu cấp vật tư" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Yêu cầu nhập kho" })).toBeTruthy();
   });
+
+  it("Vật tư: lần hệ thống tự lập lúc phát hành ghi Tự lập khi phát hành thay tên người phát hành", () => {
+    const lan = (id: number, tuLap: boolean) => ({
+      id, lan_so: id, loai: id === 1 ? "lan_dau" : "bo_sung", tu_lap: tuLap, can_luc: "2026-09-11T08:00:00",
+      stock_request_id: 50 + id, stock_request_ma: `DNX0000${id}`, stock_request_trang_thai: "approved",
+      created_by_id: 1, updated_by_id: tuLap ? null : 1, created_by_ten: "Kế hoạch Lan", updated_by_ten: null,
+      created_at: "2026-09-10T09:00:00", updated_at: "2026-09-10T09:00:00", dongs: [],
+    });
+    moTab("vt", { vat_tu_cap: {
+      doi_chieu: [], cac_de_nghi: [lan(1, true), lan(2, false)], de_nghi_co_the_sua_id: null,
+      co_the_tao_bo_sung: false, du_lieu_cu: false,
+    } });
+    expect(screen.getAllByText("Tự lập khi phát hành")).toHaveLength(1);
+    expect(screen.getAllByText("Kế hoạch Lan")).toHaveLength(1);
+  });
 });
 
 describe("ThsxDrawer · Giao người ở cột phải", () => {

@@ -646,7 +646,9 @@ class StockRequestService:
         "có việc mới"; người tạo (cũng là kho) không nhận thêm toast đích danh → tránh 2 toast trùng.
         `targeted=True` (duyệt/từ chối/hủy/cấp…): thêm tin ĐÍCH DANH cho người tạo + người duyệt.
         Các bước này KHÔNG làm tăng số 'chờ cấp' nên broadcast không toast lại → vẫn 1 toast."""
-        if targeted:
+        # Yêu cầu tự lập lúc phát hành: người bấm phát hành chỉ đứng tên (tạo lẫn duyệt), không chờ
+        # kho trả lời — tổ nghe tin qua bàn tổ (`phat_su_kien_kho`) và chuông tổ (`_notif_nguoi_tao`).
+        if targeted and self._to_tu_lap(req) is None:
             event = {
                 "type": "stock_request",
                 "request_id": req.id,
@@ -721,9 +723,31 @@ class StockRequestService:
         for uid in uids:
             hub.publish(uid, {"type": "notification_new"})
 
+    def _to_tu_lap(self, req: StockRequest) -> int | None:
+        """Tổ của bước nếu yêu cầu là lần đề nghị TỰ LẬP lúc phát hành lệnh, không thì None."""
+        from ..models.san_xuat import SanXuatCongViec
+        from ..models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+
+        if req.id is None:
+            return None
+        return self.requests.db.query(SanXuatCongViec.department_id).join(
+            SanXuatVatTuDeNghi, SanXuatVatTuDeNghi.cong_viec_id == SanXuatCongViec.id,
+        ).filter(SanXuatVatTuDeNghi.stock_request_id == req.id,
+                 SanXuatVatTuDeNghi.tu_lap.is_(True)).scalar()
+
     def _notif_nguoi_tao(self, req: StockRequest, *, loai: str, tieu_de: str) -> None:
         """Lưu thông báo phản hồi kho cho NGƯỜI TẠO (hoàn tất/hủy/từ chối) + đẩy SSE. Bấm → mở màn
-        Yêu cầu tại đúng yêu cầu (link_loai='kho_mine')."""
+        Yêu cầu tại đúng yêu cầu (link_loai='kho_mine').
+
+        Yêu cầu tự lập lúc phát hành thì người đợi là TỔ của bước, không phải người bấm phát hành:
+        chấm vào kênh của tổ (spec 2026-10-18 §6)."""
+        to_id = self._to_tu_lap(req)
+        if to_id is not None:
+            from .thong_bao_man import kenh_to
+
+            bao(self.requests.db, kenh=kenh_to(to_id), loai="kho_phan_hoi", actor_id=None,
+                ma=req.ma, commit=False)
+            return
         if not req.nguoi_tao_id:
             return
         # Chấm đỏ mục Kho của người tạo (phản hồi kho) — đi chung commit của chuông bên dưới.
