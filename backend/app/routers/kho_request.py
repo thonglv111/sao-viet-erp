@@ -12,6 +12,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -326,6 +327,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         can_luc=can_luc_hien_thi(getattr(req, "can_luc", None) or bc.get("can_luc")),
         san_xuat_cong_viec_id=bc.get("cong_viec_id"),
         san_xuat_cong_doan_ten=bc.get("cong_doan_ten"),
+        san_xuat_tu_lap=bool(bc.get("tu_lap")),
         gia_cong_ngoai_id=getattr(req, "gia_cong_ngoai_id", None),
         created_at=req.created_at, updated_at=req.updated_at, lines=lines,
     )
@@ -393,18 +395,21 @@ def list_requests(
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern=_MOC),
-    bo_phan: int | None = Query(default=None, description="Điều kiện Phòng ban yêu cầu"),
+    bo_phan: int | None = Query(
+        default=None, description="Điều kiện Tổ / bộ phận: phòng đứng tên hoặc tổ của công việc"),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None, description="Điều kiện Kho: gắn kho hoặc có phiếu ở kho"),
     nguon: list[str] | None = Query(default=None, description="Điều kiện Nguồn (NGUON_YEU_CAU)"),
+    lenh: int | None = Query(default=None, description="Điều kiện Lệnh: dòng gắn lệnh hoặc bài chứa lệnh"),
+    vat_tu: list[str] | None = Query(default=None, description='Điều kiện Vật tư: "giay:12", "vat_tu:5"'),
     order: str = Query(default="id", pattern="^(id|updated)$"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> StockRequestPage:
     rows, total = svc.requests.list(
         loai=loai, trang_thai=trang_thai, q=q, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
-        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, to_loc=bo_phan,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon, lenh_loc=lenh, vat_tu_loc=vat_tu,
         order=order, page=page, size=size,
         **_scoped_filters(db, user, authz),
     )
@@ -483,13 +488,15 @@ def request_counts_by_status(
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None),
     nguon: list[str] | None = Query(default=None),
+    lenh: int | None = Query(default=None),
+    vat_tu: list[str] | None = Query(default=None),
 ) -> dict[str, int]:
     """Đếm yêu cầu theo TỪNG trạng thái (áp cùng bộ lọc list, TRỪ tab) → FE cộng theo tab cho badge.
     Trả {trang_thai: số}. Áp SCOPE như list để badge khớp đúng danh sách người dùng thấy."""
     return svc.requests.count_by_status(
         loai=loai, base_trang_thai=trang_thai, kho_id=kho_id, dieu_chuyen=dieu_chuyen, q=q,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
-        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, to_loc=bo_phan,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon, lenh_loc=lenh, vat_tu_loc=vat_tu,
         **_scoped_filters(db, user, authz),
     )
 
@@ -507,8 +514,9 @@ def loc_bo_phan(
     loai: str | None = Query(default=None),
     dieu_chuyen: bool | None = Query(default=None),
 ) -> list[dict]:
-    """Giá trị điều kiện "Phòng ban yêu cầu": phòng ban có yêu cầu trong tầm nhìn, kèm số."""
-    dem = svc.requests.dem_theo_cot("bo_phan_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
+    """Giá trị điều kiện "Tổ / bộ phận": phòng đứng tên yêu cầu cộng tổ của công việc gắn yêu cầu
+    (người bấm có thể ở phòng khác), kèm số — cùng luật với lọc `bo_phan`."""
+    dem = svc.requests.dem_theo_to(**_loc_nen(db, user, authz, loai, dieu_chuyen))
     phong = DepartmentRepository(db)
     ra = [{"id": i, "ten": getattr(phong.get_by_id(i), "name", None) or f"#{i}", "so": n} for i, n in dem]
     return sorted(ra, key=lambda d: d["ten"])
@@ -545,6 +553,44 @@ def loc_kho(
         if n:
             ra.append({"id": kid, "ten": ten, "so": n})
     return ra
+
+
+@router.get("/loc-lenh")
+def loc_lenh(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Lệnh": lệnh có yêu cầu trong tầm nhìn (dòng gắn lệnh, hay gắn bài ghép
+    chứa lệnh), kèm số. Mới nhất lên đầu — kho thường tìm lệnh đang chạy."""
+    from ..models.lsx import Lsx
+
+    dem = dict(svc.requests.dem_theo_lenh(**_loc_nen(db, user, authz, loai, dieu_chuyen)))
+    if not dem:
+        return []
+    rows = db.execute(select(Lsx.id, Lsx.ma, Lsx.ten).where(Lsx.id.in_(dem))).all()
+    ra = [{"id": i, "ten": ma or f"#{i}", "phu": ten or None, "so": dem[i]} for i, ma, ten in rows]
+    return sorted(ra, key=lambda d: -d["id"])
+
+
+@router.get("/loc-vat-tu")
+def loc_vat_tu(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Vật tư": mã hàng xuất hiện ở dòng yêu cầu trong tầm nhìn, kèm số. Khoá
+    `"<hang_loai>:<hang_id>"` — hai danh mục có hai dãy id riêng."""
+    dem = svc.requests.dem_theo_vat_tu(**_loc_nen(db, user, authz, loai, dieu_chuyen))
+    hang_map = _hang_service(db).map_theo_cap([cap for cap, _n in dem])
+    ra = []
+    for (l, i), n in dem:
+        m = hang_map.get((l, i))
+        ra.append({"id": f"{l}:{i}", "ten": getattr(m, "ten", None) or f"#{i}",
+                   "phu": getattr(m, "ma", None), "so": n})
+    return sorted(ra, key=lambda d: d["ten"])
 
 
 #: Nhãn điều kiện "Nguồn" — trùng chữ ô Nguồn trên danh sách.

@@ -9878,6 +9878,8 @@ export interface StockRequest {
   /** Nguồn gia công ngoài (mg 0339) — ô Nguồn hiện thẻ "Gia công". */
   gia_cong_ngoai_id?: number | null;
   san_xuat_cong_doan_ten: string | null;
+  /** Hệ thống tự lập lúc phát hành lệnh — ô Nguồn ghi "Tự lập khi phát hành". */
+  san_xuat_tu_lap?: boolean;
   created_at: string;
   /** Lần đổi gần nhất (tạo/cấp/hoàn tất/hủy) — xếp yêu cầu vừa có phản hồi lên đầu. */
   updated_at: string;
@@ -9896,7 +9898,7 @@ export interface StockRequestListParams {
   kho_id?: number | null;
   /** true = CHỈ yêu cầu điều chuyển (tab Điều chuyển) · false = nhập/xuất thường · bỏ = không lọc. */
   dieu_chuyen?: boolean | null;
-  /** Kỳ (tu_ngay/den_ngay/moc ∈ tao, can, duyet) + điều kiện bo_phan, nguoi_yeu_cau, kho. */
+  /** Kỳ (tu_ngay/den_ngay/moc ∈ tao, can, duyet) + điều kiện bo_phan, nguoi_yeu_cau, kho, lenh, vat_tu. */
   loc?: ThamSoLoc;
   /** Thứ tự: "id" = mới tạo trước (mặc định) · "updated" = vừa đổi trước (Hộp yêu cầu). */
   order?: "id" | "updated";
@@ -16852,10 +16854,10 @@ export const api = {
       },
       /** Giá trị điều kiện lọc Phòng ban yêu cầu / Người yêu cầu / Kho / Nguồn — trong tầm nhìn, cả Nhập lẫn Xuất. */
       locGiaTri(
-        token: string, truong: "bo-phan" | "nguoi-yeu-cau" | "kho" | "nguon",
+        token: string, truong: "bo-phan" | "nguoi-yeu-cau" | "kho" | "nguon" | "lenh" | "vat-tu",
         dieuChuyen: boolean,
       ): Promise<(Omit<LuaChonLoc, "id"> & { id: number | string })[]> {
-        // Nguồn trả `id` là mã chữ ("kcs", "giao_hang"…), các trường còn lại là id số.
+        // Nguồn trả `id` là mã chữ ("kcs", "giao_hang"…), Vật tư trả khoá "giay:12"; còn lại id số.
         const qs = new URLSearchParams({ dieu_chuyen: String(dieuChuyen) });
         return authed(`/api/kho/de-nghi/loc-${truong}?${qs.toString()}`, token);
       },

@@ -48,7 +48,7 @@ class SanXuatVatTuRepository:
         return int(cao or 0) + 1
 
     def boi_canh_san_xuat(self, request_ids: list[int]) -> dict[int, dict]:
-        """`{request_id: {"can_luc", "cong_viec_id", "cong_doan_ten"}}` — MỘT truy vấn join
+        """`{request_id: {"can_luc", "cong_viec_id", "cong_doan_ten", "tu_lap"}}` — MỘT truy vấn join
         `san_xuat_vat_tu_de_nghi` → `san_xuat_cong_viec` cho cả danh sách.
 
         Hộp yêu cầu kho hiện HÀNG TRĂM dòng một trang; hỏi từng yêu cầu là N+1 ngay trên đường mở
@@ -61,7 +61,8 @@ class SanXuatVatTuRepository:
             return {}
         rows = self.db.execute(
             select(SanXuatVatTuDeNghi.stock_request_id, SanXuatVatTuDeNghi.can_luc,
-                   SanXuatVatTuDeNghi.cong_viec_id, SanXuatCongViec.ten_cong_doan)
+                   SanXuatVatTuDeNghi.cong_viec_id, SanXuatCongViec.ten_cong_doan,
+                   SanXuatVatTuDeNghi.tu_lap)
             .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatVatTuDeNghi.cong_viec_id)
             .where(SanXuatVatTuDeNghi.stock_request_id.in_(ids))
         )
@@ -70,8 +71,8 @@ class SanXuatVatTuRepository:
         # `SanXuatVatTuDeNghi` cùng trỏ một `stock_request_id` ngay ở tầng DB. Ai gỡ ràng buộc đó
         # sau này phải quay lại đây: dict sẽ âm thầm mất một dòng theo thứ tự DB trả, không lỗi.
         return {
-            rid: {"can_luc": can_luc, "cong_viec_id": cv_id, "cong_doan_ten": ten}
-            for rid, can_luc, cv_id, ten in rows
+            rid: {"can_luc": can_luc, "cong_viec_id": cv_id, "cong_doan_ten": ten, "tu_lap": bool(tu_lap)}
+            for rid, can_luc, cv_id, ten, tu_lap in rows
         }
 
     # `co_voucher` KHÔNG ở đây: "yêu cầu này đã có phiếu chưa" là câu hỏi của phía KHO, và bản duy

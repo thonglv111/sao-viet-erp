@@ -218,6 +218,8 @@ class StockRequestOut(BaseModel):
     # NGUỒN GIA CÔNG NGOÀI (mg 0339) — ô Nguồn hiện thẻ "Gia công", khớp điều kiện lọc Nguồn.
     gia_cong_ngoai_id: int | None = None
     san_xuat_cong_doan_ten: str | None = None
+    # Hệ thống tự lập lúc phát hành lệnh (spec 2026-10-18) — ô Nguồn ghi "Tự lập khi phát hành".
+    san_xuat_tu_lap: bool = False
     lines: list[StockRequestLineOut] = []
 
 
