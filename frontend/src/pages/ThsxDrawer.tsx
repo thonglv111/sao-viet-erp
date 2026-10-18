@@ -20,7 +20,7 @@ import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import { ChipTT } from "../components/LuoiDs";
 import { gioNgan, ngayGio, num } from "./keHoachSxShared";
-import { nhanChang } from "./lsxBuoc";
+import { nhanChangLenh } from "./lsxBuoc";
 import { batTatRongHet, docDoRong, doRongToiDa, DO_RONG_MIN, ghiDoRong } from "./ke-toan/shared/doRongNgan";
 import { MAU_TT, NHAN_TT } from "./ThsxDanhSach";
 import { phutChayText, slText } from "./thsxShared";
@@ -482,7 +482,7 @@ export function ThsxDrawer({
                 {/* Nhận vào | Giao đi, Các lần giao. */}
                 {activeTab === "gn" && nhacGiao && conChuaGiao > 0.0005 && cv && (
                   <div className="thsx-bao thsx-bao--vang thsx-b-bao" role="alert">
-                    Còn {num(conChuaGiao)} {nhanChang(cv.don_vi_ra || cv.don_vi_vao)} chưa đề xuất giao sang{" "}
+                    Còn {num(conChuaGiao)} {nhanChangLenh(cv.don_vi_ra || cv.don_vi_vao, cv.don_vi_tinh)} chưa đề xuất giao sang{" "}
                     {[...new Set(changSau.map((c) => c.ten_cong_doan).filter(Boolean))].join(", ") || "công đoạn sau"}.
                     Đề xuất giao hết rồi mới bấm Kết thúc.
                   </div>

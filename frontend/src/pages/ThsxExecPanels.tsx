@@ -27,7 +27,7 @@ import { chuanKho, coDonViGoc, nhanKhoGiay } from "../lib/khoGiay";
 import { TaoYeuCauP2, type DongTuCongViec, type DraftLine, type TuCongViec } from "./KhoDeNghiPage";
 import { num, ngayGio, gioNgan } from "./keHoachSxShared";
 import { ChungTuKhoNoi, type ChungTuKho } from "./gia-cong/ChungTuKhoNoi";
-import { nhanChang, nhanDonVi } from "./lsxBuoc";
+import { nhanChangLenh, nhanDonVi } from "./lsxBuoc";
 import { tinhTrangChon } from "./thsxTinhTrangNguoi";
 import { ThsxHop } from "./thsx/ThsxHop";
 
@@ -279,7 +279,7 @@ function SanLuongSection({
           </div>
           <ul>
             {sl.batches.map((b) => (
-              <BatchRow key={b.id} b={b} lan={lan.get(b.id)} canAssign={canAssign} canSuaSo={canSuaSo} busy={busy} exec={exec}
+              <BatchRow key={b.id} b={b} lan={lan.get(b.id)} dvt={chiTiet.cong_viec.don_vi_tinh} canAssign={canAssign} canSuaSo={canSuaSo} busy={busy} exec={exec}
                 tranGhi={chiTiet.tran_ghi ?? null} nguoiGhi={chiTiet.nguoi_ghi ?? []} toKhac={toKhac}
                 banGiao={chiTiet.ban_giao_di.find((g) => g.batch_ids.includes(b.id)) ?? null} />
             ))}
@@ -355,7 +355,8 @@ export function BatchForm({
   // phải được GÕ (kể cả số 0), để trống thì chưa cho lưu.
   const soLuongDaGo = soLuong.trim() !== "" && Number.isFinite(Number(soLuong.replace(/,/g, "")));
   const donVi = cv.don_vi_ra ?? cv.don_vi_vao ?? null;
-  const donViHienThi = cv.don_vi_ra ? (nhanDonVi(cv.don_vi_ra) ?? cv.don_vi_ra) : (cv.don_vi_vao ? (nhanDonVi(cv.don_vi_vao) ?? cv.don_vi_vao) : "SP");
+  // Tên CHẶNG ("tờ in", chặng thành phẩm = ĐVT lệnh "cuốn") — cùng chữ với đầu ngăn, KCS và kho.
+  const donViHienThi = donVi ? nhanChangLenh(donVi, cv.don_vi_tinh) : "SP";
 
   function tickPs(p: SxViecPhatSinhChon) {
     setPsSl((cu) => {
@@ -743,9 +744,11 @@ function khungDungMay(s: SxBatch["su_co"][number], meBatDau: string): string {
 const NGUOI_GON = 3;
 
 export function BatchRow({
-  b, lan, canAssign, canSuaSo = false, busy, exec, tranGhi = null, banGiao = null, nguoiGhi = [], toKhac,
+  b, lan, canAssign, canSuaSo = false, busy, exec, tranGhi = null, banGiao = null, nguoiGhi = [], toKhac, dvt = null,
 }: {
   b: SxBatch; canAssign: boolean; busy: boolean; exec: ThsxExec;
+  /** ĐVT thành phẩm của lệnh — tên chặng "cai". */
+  dvt?: string | null;
   /** Người tổ mình đang được giao — hộp Sửa số cho thêm họ vào lần ghi. */
   nguoiGhi?: SxNguoiGhi[];
   /** Thợ tổ khác — hộp Sửa số thêm được họ vào lần ghi. */
@@ -794,7 +797,7 @@ export function BatchRow({
         </span>
         <span className="thsx-b-me__may">{b.may_ten ?? <span className="thsx-b-mo3">—</span>}</span>
         <span className="thsx-b-me__tot thsx-num" data-nhan="Tốt">
-          {num(b.tot)}{b.don_vi && <small> {nhanChang(b.don_vi)}</small>}
+          {num(b.tot)}{b.don_vi && <small> {nhanChangLenh(b.don_vi, dvt)}</small>}
         </span>
         <span className="thsx-b-me__hong thsx-num" data-nhan="Hỏng">{num(b.hong)}</span>
         <Icon name="chevron" size={12} className={`thsx-b-me__mui${mo ? "" : " thsx-rot-90"}`} />
@@ -894,7 +897,7 @@ export function BatchRow({
         </div>
       )}
       {suaOpen && (
-        <SuaSoMeForm b={b} lan={lan} tranGhi={tranGhi} banGiao={banGiao} busy={busy} nguoiGhi={nguoiGhi}
+        <SuaSoMeForm b={b} lan={lan} dvt={dvt} tranGhi={tranGhi} banGiao={banGiao} busy={busy} nguoiGhi={nguoiGhi}
           toKhac={toKhac} onXong={() => setSuaOpen(false)} exec={exec} />
       )}
     </li>
@@ -914,7 +917,7 @@ function GiaoDiSection({
   const chang = chiTiet.ban_giao_chang_sau;
   const di = chiTiet.ban_giao_di;
   const buocCuoi = chang.length === 0;
-  const dv = chiTiet.san_luong.don_vi ? ` ${nhanChang(chiTiet.san_luong.don_vi)}` : "";
+  const dv = chiTiet.san_luong.don_vi ? ` ${nhanChangLenh(chiTiet.san_luong.don_vi, chiTiet.cong_viec.don_vi_tinh)}` : "";
 
   return (
     <section className="thsx-b-sec">
@@ -938,7 +941,7 @@ function GiaoDiSection({
       {di.length > 0 ? (
         <BanGiaoBang phia="di">
           {di.map((g) => (
-            <BanGiaoRow key={g.id} g={g} phia="di" canAssign={canAssign} busy={busy} exec={exec}
+            <BanGiaoRow key={g.id} g={g} phia="di" dvt={chiTiet.cong_viec.don_vi_tinh} canAssign={canAssign} busy={busy} exec={exec}
               batches={chiTiet.san_luong.batches} conLai={conLai} />
           ))}
         </BanGiaoBang>
@@ -1017,7 +1020,7 @@ export function ThsxNhanVe({
       ) : (
         <BanGiaoBang phia="den">
           {[...cho, ...xong].map((g) => (
-            <BanGiaoRow key={g.id} g={g} phia="den" canAssign={canXacNhan} busy={busy} exec={exec} />
+            <BanGiaoRow key={g.id} g={g} phia="den" dvt={chiTiet.cong_viec.don_vi_tinh} canAssign={canXacNhan} busy={busy} exec={exec} />
           ))}
         </BanGiaoBang>
       )}
@@ -1102,7 +1105,7 @@ export function BanGiaoForm({
 }) {
   const cv = chiTiet.cong_viec;
   const donVi = cv.don_vi_ra ?? null;
-  const dv = donVi ? ` ${nhanChang(donVi)}` : "";
+  const dv = donVi ? ` ${nhanChangLenh(donVi, cv.don_vi_tinh)}` : "";
   const changSau = chiTiet.ban_giao_chang_sau;
   const meChuaGiao = chiTiet.san_luong.batches.filter((b) => !b.da_ban_giao && b.tot > 0);
   const macDinh = changSau.find((c) => c.trang_thai !== "completed") ?? changSau[0];
@@ -1179,9 +1182,11 @@ export function BanGiaoForm({
 }
 
 function BanGiaoRow({
-  g, phia, canAssign, busy, exec, batches = [], conLai = 0,
+  g, phia, canAssign, busy, exec, batches = [], conLai = 0, dvt = null,
 }: {
   g: SxBanGiao; phia: "di" | "den"; canAssign: boolean; busy: boolean;
+  /** ĐVT thành phẩm của lệnh — tên chặng "cai". */
+  dvt?: string | null;
   exec: ThsxExec;
   /** Chỉ dòng "Giao đi": mẻ của công đoạn nguồn + phần còn chưa giao — để sửa mẻ. */
   batches?: SxBatch[]; conLai?: number;
@@ -1191,7 +1196,7 @@ function BanGiaoRow({
     ? { txt: "chờ xác nhận lại", mau: "cam" }
     : BG_TT[g.trang_thai] ?? { txt: g.trang_thai, mau: "vang" };
   // Số đầu thẻ đọc nhãn CHẶNG ("tờ in") cho khớp khối Sản lượng ngay trên — `nhanDonVi` ra "tờ".
-  const dvChang = g.don_vi ? ` ${nhanChang(g.don_vi)}` : "";
+  const dvChang = g.don_vi ? ` ${nhanChangLenh(g.don_vi, dvt)}` : "";
   // Mẻ sửa được = mẻ chưa đi theo lần giao nào + mẻ của chính lần giao này.
   const meSua = batches.filter((b) => b.tot > 0 && (!b.da_ban_giao || g.batch_ids.includes(b.id)));
   // Nguồn (đi) đổi mẻ khi còn 'proposed'; đích (đến) xác nhận khi 'proposed' hoặc chờ xác nhận lại.
@@ -1245,7 +1250,7 @@ function BanGiaoRow({
         </td>
       </tr>
       {suaOpen && (
-        <SuaMeForm g={g} me={meSua} lan={lanTheoId(batches)} conLai={conLai} busy={busy}
+        <SuaMeForm g={g} me={meSua} dvt={dvt} lan={lanTheoId(batches)} conLai={conLai} busy={busy}
           onXong={() => setSuaOpen(false)} exec={exec} />
       )}
     </>
@@ -1255,16 +1260,17 @@ function BanGiaoRow({
 /** Hộp SỬA MẺ của lần giao còn chờ xác nhận (`#sua-me`) — chọn nhầm thì bỏ, sót thì thêm; số giao
  *  tính lại theo mẻ. Nút Lưu chỉ sáng khi đã đổi gì đó. */
 export function SuaMeForm({
-  g, me, conLai, busy, onXong, exec, lan,
+  g, me, conLai, busy, onXong, exec, lan, dvt = null,
 }: {
   g: SxBanGiao; me: SxBatch[]; conLai: number; busy: boolean; lan?: Map<number, number>;
+  dvt?: string | null;
   onXong: () => void; exec: ThsxExec;
 }) {
   const [chon, setChon] = useState<Set<number>>(() => new Set(g.batch_ids));
   // Phần còn lại tính cả số của chính lần giao này (nó sắp được thay bằng số mới).
   const tong = soTheoMe(me, chon, conLai + g.so_luong);
   const doi = chon.size !== g.batch_ids.length || g.batch_ids.some((id) => !chon.has(id));
-  const dv = g.don_vi ? ` ${nhanChang(g.don_vi)}` : "";
+  const dv = g.don_vi ? ` ${nhanChangLenh(g.don_vi, dvt)}` : "";
   const sang = g.dich_cong_doan ?? g.doi_tac_ten;
   const hopLe = doi && chon.size > 0 && tong > 0;
 
@@ -1295,9 +1301,10 @@ const LY_DO_SUA_SO = ["Đếm lại", "Gõ nhầm"];
  *  chiều giảm (dưới số KCS đã kiểm đạt, dưới số bước sau đã ghi) — câu chặn hiện nguyên văn.
  *  Cùng hộp đổi được người làm lần đó, kể cả thêm hoặc bỏ người tổ khác. */
 export function SuaSoMeForm({
-  b, lan, tranGhi, banGiao, busy, nguoiGhi = [], toKhac, onXong, exec,
+  b, lan, tranGhi, banGiao, busy, nguoiGhi = [], toKhac, onXong, exec, dvt = null,
 }: {
   b: SxBatch; tranGhi: SxTranGhi | null; banGiao: SxBanGiao | null; busy: boolean;
+  dvt?: string | null;
   onXong: () => void; exec: ThsxExec;
   /** Số "Lần N" của lần ghi đang sửa. */
   lan?: number;
@@ -1324,7 +1331,7 @@ export function SuaSoMeForm({
   const daGo = so.trim() !== "" && Number.isFinite(Number(so.replace(/,/g, "")));
   const chenhLech = daGo ? nSo - b.tot : 0;
   // Nhãn CHẶNG ("tờ in") cho khớp cột Tốt của dòng mẻ ngay dưới.
-  const dv = b.don_vi ? nhanChang(b.don_vi) : "";
+  const dv = b.don_vi ? nhanChangLenh(b.don_vi, dvt) : "";
   // Mẻ được sửa lên tới số cũ + phần còn ghi được của bước (các mẻ khác giữ nguyên).
   const toiDa = tranGhi ? b.tot + Math.max(0, tranGhi.con_ghi_duoc) : null;
   const vuotTran = toiDa != null && nSo > toiDa + 0.0005;

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ... import audit_registry
 from ...models.user import User
 from ...repositories.audit_repo import AuditLogRepository
-from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+from ...repositories.don_vi_do_repo import nhan_don_vi
 from ...repositories.ky_thuat_may_repo import KyThuatMayRepository
 from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
@@ -28,6 +28,7 @@ from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
 from ...repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
 from ..gio_xuong import thuc_te_hien_thi
 from .board import MUC_CUA_TOI, _loc_viec_cua_tho, _may_thiet_bi_nhan, _pham_vi_doc
+from .dau_vao import bang_dv_viec
 
 NHOM_LS = ("chay_may", "nguoi_khuon", "san_luong", "ban_giao", "vat_tu", "kcs", "khac")
 
@@ -125,7 +126,7 @@ def cac_dong(db: Session, cv, *, gio=thuc_te_hien_thi) -> list[dict]:
     logs = [l for ds in theo_target.values() for l in ds]
 
     # --- Bảng tra theo lô (một truy vấn mỗi loại) -----------------------------------------------
-    dv_bang = DonViDoRepository(db).ten_theo_ma()
+    dv_bang = bang_dv_viec(db, cv)
     dv = lambda ma: nhan_don_vi(dv_bang, ma)  # noqa: E731
     emp_ids: set[int] = set()
     may_ids: set[int] = {p.may_id for p in tt.cac_phien(cv.id) if p.may_id} | {y.may_id for y in su_co}

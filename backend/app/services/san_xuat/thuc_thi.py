@@ -48,7 +48,7 @@ from ..bai_ghep_service import BaiGhepService
 from ..may_trang_thai import NHAN as NHAN_TT_MAY
 from ..may_trang_thai import TT_RANH, trang_thai_may
 from ..quyen_to import VIEC_THUC_HIEN, gate_to
-from .dau_vao import kiem_bat_dau
+from .dau_vao import bang_dv_viec, kiem_bat_dau
 from .tinh_trang_nguoi import di_lam_nhieu, hom_nay, kiem_di_lam
 
 # Sai số làm tròn cột Numeric(18,3) — dưới ngưỡng này coi như đã giao hết.
@@ -395,7 +395,7 @@ def _kiem_giao_het(db: Session, cv) -> None:
     if con <= _EPS_GIAO:
         return
     ten = ", ".join(dict.fromkeys(c.ten_cong_doan for c in chang_sau if c.ten_cong_doan)) or "công đoạn sau"
-    dv = nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), cv.don_vi_ra or cv.don_vi_vao)
+    dv = nhan_don_vi(bang_dv_viec(db, cv), cv.don_vi_ra or cv.don_vi_vao)
     so = f"{con:,.3f}".rstrip("0").rstrip(".").replace(",", ".")
     raise ValueError(
         f"Còn {so}{f' {dv}' if dv else ''} chưa đề xuất giao sang {ten}. "

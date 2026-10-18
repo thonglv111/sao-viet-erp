@@ -31,7 +31,7 @@ from ...models.san_xuat_san_luong import (
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import moc_tu_client
-from .dau_vao import _so, kiem_giam_buoc_sau, kiem_tran_ghi, tran_buoc_sau
+from .dau_vao import _so, bang_dv_viec, kiem_giam_buoc_sau, kiem_tran_ghi, tran_buoc_sau
 from .nguoi_ghi import chot_nguoi, ghi_nguoi, sua_nguoi
 from .nguoi_trong_me import ngay_cua_me
 from .thuc_thi import _gate, _kiem_version, _moc
@@ -292,7 +292,7 @@ def tao_batch(
     don_vi_cv = (cv.don_vi_ra or "").strip()
     # Câu này TỔ đọc, nên nói tên đơn vị ("tờ") chứ đừng nói mã ("to") — cột giữ mã, xem
     # `DonViDoRepository.ten_theo_ma`.
-    dv_ten = DonViDoRepository(db).ten_theo_ma()
+    dv_ten = bang_dv_viec(db, cv)
     if don_vi_cv and don_vi_batch != don_vi_cv:
         raise ValueError(
             f"Đơn vị sản lượng phải là “{nhan_don_vi(dv_ten, don_vi_cv)}” — "
@@ -413,7 +413,7 @@ def sua_so_me(
     bg = repo.ban_giao_cua_me(batch.id)
     if bg is not None and moi <= _EPS:
         raise ValueError("Sản lượng lần này đã giao sang bước sau — không sửa về 0 được.")
-    dv_ten = DonViDoRepository(db).ten_theo_ma()
+    dv_ten = bang_dv_viec(db, cv)
     dv = nhan_don_vi(dv_ten, batch.don_vi) if batch.don_vi else ""
 
     truoc: dict = {}

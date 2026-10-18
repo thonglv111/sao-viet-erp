@@ -1605,6 +1605,8 @@ export interface SxWorkItem {
   nguon_ten: string;
   /** Khách của lệnh; bài ghép = khách các lệnh thành viên nối " · ". null = lệnh không có đơn/khách. */
   khach_hang?: string | null;
+  /** ĐVT thành phẩm của lệnh ("cuốn") — tên chặng "cai". null = bước chạy chung của bài ghép. */
+  don_vi_tinh?: string | null;
   nhom_id: number | null;      // id nhóm thành phẩm (khoá cho panel Kho §14 + checklist đóng §16)
   nhom: string;                // nhãn nhóm thành phẩm
   ten_cong_doan: string;

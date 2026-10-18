@@ -189,6 +189,17 @@ def tran_ghi(
             "toi_da": round(max(0.0, t["toi_da"] - loi), 3)}
 
 
+def bang_dv_viec(db: Session, cv) -> dict[str, str]:
+    """Bảng mã → tên đơn vị cho câu báo của `cv`: chặng thành phẩm ("cai") gọi bằng ĐVT của lệnh
+    ("cuốn") như KCS và kho — không thì cùng một hàng tổ đọc "cái", kho đọc "cuốn"."""
+    bang = DonViDoRepository(db).ten_theo_ma()
+    if cv.lsx_id and not cv.bai_ghep_id:
+        dvt = SanXuatRepository(db).lsx_dvt({cv.lsx_id}).get(cv.lsx_id)
+        if dvt:
+            bang = {**bang, "cai": dvt}
+    return bang
+
+
 def _cau_tran(dv_ten: dict[str, str], cv, t: dict) -> str:
     dv_ra = nhan_don_vi(dv_ten, cv.don_vi_ra) if cv.don_vi_ra else ""
     dv_nhan = nhan_don_vi(dv_ten, t["don_vi_nhan"]) if t.get("don_vi_nhan") else ""
@@ -216,7 +227,7 @@ def kiem_tran_ghi(db: Session, repo: SanXuatSanLuongRepository, cv, them: float,
     da_ghi = repo.tong_tot(cv.id) - bo_qua
     if da_ghi + them <= t["toi_da"] + _EPS:
         return
-    dv_ten = DonViDoRepository(db).ten_theo_ma()
+    dv_ten = bang_dv_viec(db, cv)
     dv_ra = nhan_don_vi(dv_ten, cv.don_vi_ra) if cv.don_vi_ra else ""
     con = max(0.0, t["toi_da"] - da_ghi)
     if con > _EPS:
@@ -265,7 +276,7 @@ def kiem_giam_buoc_sau(db: Session, repo: SanXuatSanLuongRepository, cv,
         cu = truoc.get(d.id)
         if t["toi_da"] + _EPS >= da_ghi or (cu is not None and t["toi_da"] >= cu - _EPS):
             continue
-        dv_ten = DonViDoRepository(db).ten_theo_ma()
+        dv_ten = bang_dv_viec(db, d)
         dv_ra = nhan_don_vi(dv_ten, d.don_vi_ra) if d.don_vi_ra else ""
         raise ValueError(
             f"Không giảm được: {d.ten_cong_doan} đã ghi {_so(da_ghi)} {dv_ra}, "

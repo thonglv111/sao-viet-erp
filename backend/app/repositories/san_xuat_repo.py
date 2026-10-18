@@ -889,6 +889,13 @@ class SanXuatRepository:
         ).all()
         return {lid: (ma, ten) for lid, ma, ten in rows}
 
+    def lsx_dvt(self, lsx_ids: set[int]) -> dict[int, str]:
+        """{lsx_id: ĐVT thành phẩm} — chặng "cai" trên bàn tổ gọi bằng tên này ("cuốn"), như KCS/kho."""
+        if not lsx_ids:
+            return {}
+        rows = self.db.execute(select(Lsx.id, Lsx.don_vi_tinh).where(Lsx.id.in_(lsx_ids))).all()
+        return {lid: dvt for lid, dvt in rows}
+
     def bai_ghep_nhan(self, bg_ids: set[int]) -> dict[int, tuple[str, str]]:
         if not bg_ids:
             return {}

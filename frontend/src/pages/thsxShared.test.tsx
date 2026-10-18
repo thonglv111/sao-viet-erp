@@ -1,7 +1,8 @@
 // Bàn tổ có HAI hình dữ liệu; chọn nhầm hình là băng KPI đếm sai.
 import { describe, expect, it } from "vitest";
-import { chonHinhBan } from "./thsxShared";
-import type { SxWorkItemsOut } from "../api/client";
+import { chonHinhBan, slText, slThucTe, slTot } from "./thsxShared";
+import type { SxWorkItem, SxWorkItemsOut } from "../api/client";
+import { nhanChang } from "./lsxBuoc";
 
 const viec = { id: 3, trang_thai: "released" } as never;
 
@@ -33,5 +34,21 @@ describe("chonHinhBan", () => {
     const h = chonHinhBan({ team_id: 12, nhom: "lenh", trang: { trang: 1, co_trang: 20, tong: 0 }, lenh: [], cong_viec: [] });
     expect(h.lenh).toEqual([]);
     expect(h.cong_viec).toBeNull();
+  });
+});
+
+describe("tên chặng thành phẩm theo ĐVT lệnh", () => {
+  // E2E 19/10/2026: form ghi nói "cái", đầu ngăn nói "thành phẩm", KCS và kho nói "cuốn".
+  const w = {
+    don_vi_vao: "tay", don_vi_ra: "cai", so_luong_vao: 4000, so_luong_ra: 1000,
+    da_lam: 900, nhan: 4000, ngoai_dong: false, don_vi_tinh: "cuốn",
+  } as unknown as SxWorkItem;
+  it("chặng cai gọi bằng ĐVT của lệnh", () => {
+    expect(slTot(w)).toBe("900 cuốn");
+    expect(slText(w)).toContain("1.000 cuốn");
+    expect(slThucTe(w)).toContain("Tốt 900 cuốn");
+  });
+  it("lệnh không có ĐVT (bài ghép) giữ tên chặng", () => {
+    expect(slTot({ ...w, don_vi_tinh: null })).toBe(`900 ${nhanChang("cai")}`);
   });
 });

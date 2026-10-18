@@ -90,6 +90,7 @@ class WorkItemOut(BaseModel):
     nguon_ma: str
     nguon_ten: str
     khach_hang: str | None = None  # khách của lệnh; bài ghép = khách các lệnh thành viên nối " · "
+    don_vi_tinh: str | None = None  # ĐVT thành phẩm của lệnh — tên chặng "cai" ("cuốn")
     nhom_id: int | None = None   # id nhóm thành phẩm (khoá cho panel Kho §14 + checklist đóng §16)
     nhom: str                # nhãn nhóm thành phẩm
     ten_cong_doan: str

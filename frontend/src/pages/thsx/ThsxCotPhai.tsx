@@ -15,7 +15,7 @@ import { ChipTT } from "../../components/LuoiDs";
 import { Icon } from "../../components/Icons";
 import { gioNgan, num } from "../keHoachSxShared";
 import { MAU_TT_KTM } from "../KyThuatMayChung";
-import { nhanChang } from "../lsxBuoc";
+import { nhanChangLenh } from "../lsxBuoc";
 import { tienDoThucTe } from "../thsxShared";
 import { tinhTrangChon } from "../thsxTinhTrangNguoi";
 import { ThsxTepLenh } from "../ThsxTepLenh";
@@ -151,13 +151,13 @@ export function ThsxCotPhai({
   // Ô đuôi: làm xong bước cuối thì hàng đi đâu (máy chủ dựng, 11/10/2026).
   const duoi = chiTiet.dai_duoi ? {
     icon: (chiTiet.dai_duoi.loai === "ve_kho" ? "warehouse" : chiTiet.dai_duoi.loai === "giao_khach" ? "truck" : "arrowRight") as "warehouse" | "truck" | "arrowRight",
-    ...cauDuoi(chiTiet.dai_duoi, nhanChang, (v) => `${gioNgan(v)} ${v ? new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) : ""}`.trim()),
+    ...cauDuoi(chiTiet.dai_duoi, (d) => nhanChangLenh(d, cv.don_vi_tinh), (v) => `${gioNgan(v)} ${v ? new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) : ""}`.trim()),
   } : null;
 
   // 3 · Tiến độ — CÙNG luật dòng bảng (`tienDoThucTe`): tốt / nhận quy ra; đã Kết thúc = 100%.
   const tienDo = tienDoThucTe(cv);
-  const dvRa = nhanChang(cv.don_vi_ra || (cv.ngoai_dong ? cv.don_vi_vao : null));
-  const dvVao = cv.don_vi_vao ? nhanChang(cv.don_vi_vao) : "";
+  const dvRa = nhanChangLenh(cv.don_vi_ra || (cv.ngoai_dong ? cv.don_vi_vao : null), cv.don_vi_tinh);
+  const dvVao = cv.don_vi_vao ? nhanChangLenh(cv.don_vi_vao, cv.don_vi_tinh) : "";
   const tot = cv.da_lam ?? 0;
   const sl = chiTiet.san_luong;
   const buocCuoi = (chiTiet.ban_giao_chang_sau ?? []).length === 0;

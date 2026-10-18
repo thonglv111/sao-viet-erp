@@ -248,7 +248,8 @@ def _dm(cv, khoa: str):
 
 
 def _item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map=None, so_map=None,
-               chay_ids: set[int] | None = None, kcs_map=None, khach_map=None) -> dict:
+               chay_ids: set[int] | None = None, kcs_map=None, khach_map=None,
+               dvt_map=None) -> dict:
     """Một dòng công việc trên timeline — nhãn nguồn/nhóm/máy đã resolve theo lô (§18)."""
     if cv.bai_ghep_id and cv.bai_ghep_id in bg_map:
         nguon_ma, nguon_ten = bg_map[cv.bai_ghep_id]
@@ -272,6 +273,8 @@ def _item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map=None, so_map=No
         "nguon_ten": nguon_ten,
         # Tên khách của lệnh (bài ghép: khách mọi lệnh thành viên) — tổ nhìn biết hàng của ai.
         "khach_hang": khach,
+        # ĐVT thành phẩm của lệnh — bước chạy chung của bài ghép (nhiều lệnh) không có.
+        "don_vi_tinh": (dvt_map or {}).get(cv.lsx_id) if nguon_loai == "lsx" else None,
         "nhom_id": cv.nhom_id,
         "nhom": nhom_map.get(cv.nhom_id or 0, ""),
         "ten_cong_doan": cv.ten_cong_doan,
@@ -366,6 +369,7 @@ def _dung_items(db: Session, repo: SanXuatRepository, rows: list,
     if not rows:
         return []
     lsx_map = repo.lsx_nhan({cv.lsx_id for cv in rows if cv.lsx_id})
+    dvt_map = repo.lsx_dvt({cv.lsx_id for cv in rows if cv.lsx_id})
     bg_map = repo.bai_ghep_nhan({cv.bai_ghep_id for cv in rows if cv.bai_ghep_id})
     khach_map = repo.khach_nhan({cv.lsx_id for cv in rows if cv.lsx_id},
                                 {cv.bai_ghep_id for cv in rows if cv.bai_ghep_id})
@@ -394,7 +398,7 @@ def _dung_items(db: Session, repo: SanXuatRepository, rows: list,
     vt_map = trang_thai_vat_tu(db, rows)
     return [
         {**_item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map, so_map, chay_ids, kcs_map,
-                      khach_map), "nguoi_lam": ten_map.get(cv.id, []),
+                      khach_map, dvt_map), "nguoi_lam": ten_map.get(cv.id, []),
          "trang_thai_vat_tu": vt_map.get(cv.id)}
         for cv in rows
     ]
@@ -1369,6 +1373,7 @@ def chi_tiet_cong_viec(
         # CÙNG một khái niệm trong CÙNG một response là nói dối.
         "cong_viec": _item_dict(
             cv, lsx_map, bg_map, may_map, nhom_map,
+            dvt_map=repo.lsx_dvt({cv.lsx_id} if cv.lsx_id else set()),
             khach_map=repo.khach_nhan({cv.lsx_id} if cv.lsx_id else set(),
                                       {cv.bai_ghep_id} if cv.bai_ghep_id else set()),
             so_map={cv.id: {

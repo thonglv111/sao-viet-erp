@@ -14,7 +14,7 @@ import {
 } from "../components/LuoiDs";
 import { gioNgan, num, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { ngayGioDayDu, ngayNgan } from "./loc-san-xuat/ngay";
-import { nhanChang, nhanDonVi } from "./lsxBuoc";
+import { nhanChang, nhanChangLenh, nhanDonVi } from "./lsxBuoc";
 import { TheGap } from "./lsxKhau";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { slTot, sxNguonIcon, tienDoThucTe } from "./thsxShared";
@@ -260,7 +260,7 @@ function OThsx({ cot, l, w, cho }: { cot: string; l: SxLenhNhom; w: SxWorkItem; 
     }
     case "sl": {
       const can = w.muc_tieu ?? w.so_luong_ra;
-      const dv = nhanDonVi(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null) || "");
+      const dv = nhanChangLenh(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null), w.don_vi_tinh);
       const td = tienDoThucTe(w);
       const pct = td ? td.pct : can ? Math.min(100, Math.round(((w.da_lam ?? 0) / can) * 100)) : null;
       return (

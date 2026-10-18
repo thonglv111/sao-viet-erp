@@ -344,6 +344,32 @@ def test_tran_ghi_lam_tron_xuong_khi_he_so_le(db, orders, lsx_svc, admin, custom
     assert t["da_nhan"] == 4150.0 and t["toi_da"] == 1037.0
 
 
+def test_cau_vuot_tran_goi_thanh_pham_bang_dvt_cua_lenh(db, orders, lsx_svc, admin, customer):
+    """E2E 19/10/2026: form ghi nói "cái" trong khi KCS và kho nói "cuốn" — chặng "cai" của lệnh
+    phải gọi bằng ĐVT của lệnh, cả trong câu chặn vượt trần ở máy chủ."""
+    from app.models.lsx import Lsx
+    from app.models.san_xuat import SanXuatPhuThuoc
+    from tests.test_san_xuat_ban_giao import _hai_cv
+
+    _to1, cv_nguon, cv_a, lsx_a = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-DVT-1")
+    cv_a.lsx_id = lsx_a
+    db.get(Lsx, lsx_a).don_vi_tinh = "cuốn"
+    cv_a.don_vi_vao, cv_a.don_vi_ra, cv_a.he_so_quy_doi = "tay", "cai", 0.25
+    cv_nguon.don_vi_ra = "tay"
+    db.add(SanXuatPhuThuoc(
+        goi_id=cv_nguon.goi_id, phien_ban_so=cv_nguon.phien_ban_so, nhom_id=cv_nguon.nhom_id,
+        nguon_cong_viec_id=cv_nguon.id, dich_cong_viec_id=cv_a.id,
+        ty_le_ghep=1.0, don_vi_nguon="tay", don_vi_dich="tay",
+    ))
+    db.commit()
+    tao_me(db, user=admin, cong_viec_id=cv_nguon.id,
+           bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=400, tot=400)
+    with pytest.raises(ValueError) as e:
+        tao_me(db, user=admin, cong_viec_id=cv_a.id,
+               bat_dau=_T0 + timedelta(hours=2), ket_thuc=_T0 + timedelta(hours=3), tong=150, tot=150)
+    assert "100 cuốn" in str(e.value) and "cái" not in str(e.value)
+
+
 def test_chan_lsx_khac_dung_lot_diem_toa(db, orders, lsx_svc, admin, customer):
     from app.models.san_xuat import SanXuatPhuThuoc
     from tests.test_san_xuat_ban_giao import _hai_cv

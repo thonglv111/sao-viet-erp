@@ -59,6 +59,13 @@ describe("Dòng mẻ ở bàn tổ", () => {
     expect(screen.queryByText("+21 người")).toBeNull();
   });
 
+  it("lần ghi chặng thành phẩm gọi bằng ĐVT của lệnh (cuốn), không 'thành phẩm'", () => {
+    const b = { ...batch, don_vi: "cai" } as SxBatch;
+    render(<BatchRow b={b} dvt="cuốn" canAssign busy={false} exec={execGia()} />);
+    expect(screen.getByText("cuốn")).toBeInTheDocument();
+    expect(screen.queryByText("thành phẩm")).toBeNull();
+  });
+
   it("công đoạn chưa cấu hình Khoán: không có dòng đơn giá, không chữ 'chưa khai việc khoán'", async () => {
     const b = {
       ...batch, viec_khoan_id: null, viec_khoan_ten: null, viec_khoan_don_gia: null, viec_khoan_don_vi: null,
