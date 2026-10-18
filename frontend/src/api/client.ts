@@ -2321,6 +2321,8 @@ export interface SxWorkItemChiTiet {
   tran_ghi: SxTranGhi | null;
   /** Tên công đoạn trước chưa giao được gì sang — khác rỗng thì chưa bắt đầu được. */
   thieu_dau_vao: string[];
+  /** Câu chặn Bắt đầu vì vật tư chưa sẵn sàng (spec 2026-10-18 §5.3); null = không chặn. */
+  vat_tu_chua_san_sang?: string | null;
   ban_giao_chang_sau: SxBanGiaoChangSau[];
   vat_tu: SxPhieuXuatVatTu[];
   vat_tu_cap: SxVatTuCap;

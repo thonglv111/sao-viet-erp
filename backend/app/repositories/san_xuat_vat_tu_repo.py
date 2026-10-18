@@ -78,3 +78,45 @@ class SanXuatVatTuRepository:
     # nhất nằm ở `StockRequestRepository.co_voucher` (ruling task-4-fix-1 minor-7). Trước đây hai
     # repo tự viết CÙNG một câu SELECT; một facade uỷ quyền cũng vẫn là hai cửa để hai bên trôi
     # khỏi nhau, nên bỏ hẳn — mọi chỗ gọi thẳng repo kho.
+
+    def yeu_cau_cua_cong_viec(self, cv_ids: list[int]) -> dict[int, list[tuple[int, int, str]]]:
+        """`{cv_id: [(lan_so, stock_request_id, trang_thai kho)]}` theo `lan_so` — MỘT truy vấn cho
+        cả bàn. Lần đề nghị không đẻ yêu cầu kho (mọi dòng xin 0) không có mặt."""
+        from ..models.stock_request import StockRequest
+
+        ra: dict[int, list[tuple[int, int, str]]] = {}
+        if not cv_ids:
+            return ra
+        rows = self.db.execute(
+            select(SanXuatVatTuDeNghi.cong_viec_id, SanXuatVatTuDeNghi.lan_so, StockRequest.id,
+                   StockRequest.trang_thai)
+            .join(StockRequest, StockRequest.id == SanXuatVatTuDeNghi.stock_request_id)
+            .where(SanXuatVatTuDeNghi.cong_viec_id.in_(sorted(set(cv_ids))))
+            .order_by(SanXuatVatTuDeNghi.cong_viec_id, SanXuatVatTuDeNghi.lan_so)
+        )
+        for cid, lan, rid, tt in rows:
+            ra.setdefault(cid, []).append((lan, rid, tt))
+        return ra
+
+    def dong_yeu_cau(self, request_ids: list[int]) -> dict[int, list[dict]]:
+        """`{request_id: [dòng]}` — MỘT truy vấn. Mỗi dòng: hàng, đơn vị, số xin, đã ứng, chốt
+        thực xuất."""
+        from ..models.stock_request import StockRequestLine
+
+        ra: dict[int, list[dict]] = {}
+        ids = sorted({i for i in request_ids if i})
+        if not ids:
+            return ra
+        rows = self.db.execute(
+            select(StockRequestLine.request_id, StockRequestLine.hang_loai, StockRequestLine.hang_id,
+                   StockRequestLine.dvt, StockRequestLine.sl_de_nghi, StockRequestLine.sl_da_ung,
+                   StockRequestLine.sl_chot_thuc_xuat)
+            .where(StockRequestLine.request_id.in_(ids))
+            .order_by(StockRequestLine.request_id, StockRequestLine.id)
+        )
+        for rid, loai, hid, dvt, xin, ung, chot in rows:
+            ra.setdefault(rid, []).append({
+                "hang_loai": loai, "hang_id": hid, "dvt": dvt, "sl_de_nghi": xin,
+                "sl_da_ung": ung, "sl_chot_thuc_xuat": chot,
+            })
+        return ra

@@ -25,6 +25,7 @@ import math
 
 from sqlalchemy.orm import Session
 
+from ...models.san_xuat import CV_PHAT_HANH
 from ...models.san_xuat_san_luong import BG_DE_XUAT, BG_XAC_NHAN
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
@@ -313,6 +314,15 @@ def thieu_dau_vao(repo: SanXuatSanLuongRepository, cv) -> list[str]:
 
 
 def kiem_bat_dau(repo: SanXuatSanLuongRepository, cv) -> None:
+    # Cổng VẬT TƯ (spec 2026-10-18 §5.3, chủ dự án chốt "để bắt đầu thì vật tư phải sẵn sàng"):
+    # chỉ lần bắt đầu ĐẦU — việc tạm dừng đã từng đủ vật tư, lần bổ sung đang chờ kho không giữ
+    # chân thợ đang làm dở.
+    if cv.trang_thai == CV_PHAT_HANH:
+        from .trang_thai_vat_tu import chan_bat_dau, ly_do_vat_tu, trang_thai_vat_tu
+
+        tt = trang_thai_vat_tu(repo.db, [cv])[cv.id]
+        if tt and chan_bat_dau(tt["muc"]):
+            raise ValueError(ly_do_vat_tu(tt["muc"]))
     thieu = thieu_dau_vao(repo, cv)
     if thieu:
         raise ValueError(

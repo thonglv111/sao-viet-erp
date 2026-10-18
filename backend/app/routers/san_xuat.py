@@ -317,7 +317,7 @@ def work_items(
     sap_xep: Literal["moi_nhan", "cu_nhan", "du_kien"] = Query("moi_nhan"),
     cho_loai: list[Literal["ban_giao", "kcs"]] | None = Query(None),
     toi: Literal["toi", "con_1", "con_2_3", "con_4", "qua"] | None = Query(None),
-    vuong: list[Literal["chua_giao_tho", "chua_nhan_khuon", "chua_nhan_buoc_truoc"]]
+    vuong: list[Literal["chua_giao_tho", "chua_nhan_khuon", "chua_nhan_buoc_truoc", "chua_san_sang_vat_tu"]]
     | None = Query(None),
     tre: Literal["bat_dau", "xong"] | None = Query(None),
     nguoi: list[int] | None = Query(None),

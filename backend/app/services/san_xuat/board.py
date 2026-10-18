@@ -1202,6 +1202,16 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     }
 
 
+def _vat_tu_chua_san_sang(db: Session, cv) -> str | None:
+    from ...models.san_xuat import CV_PHAT_HANH
+    from .trang_thai_vat_tu import chan_bat_dau, ly_do_vat_tu, trang_thai_vat_tu
+
+    if cv.trang_thai != CV_PHAT_HANH:
+        return None
+    tt = trang_thai_vat_tu(db, [cv])[cv.id]
+    return ly_do_vat_tu(tt["muc"]) if tt and chan_bat_dau(tt["muc"]) else None
+
+
 def chi_tiet_cong_viec(
     db: Session, user: User, authz: AuthorizationService, *, cong_viec_id: int
 ) -> dict:
@@ -1519,6 +1529,8 @@ def chi_tiet_cong_viec(
             if (t := dau_vao.tran_ghi(db, cv, repo=sl)) else None
         ),
         "thieu_dau_vao": dau_vao.thieu_dau_vao(sl, cv),
+        # Câu chặn Bắt đầu vì vật tư (spec 2026-10-18 §5.3) — cùng hàm cổng máy chủ dùng.
+        "vat_tu_chua_san_sang": _vat_tu_chua_san_sang(db, cv),
         "ban_giao_chang_sau": [
             {
                 "cong_viec_id": c.id,

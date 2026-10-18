@@ -326,6 +326,39 @@ describe("ThsxDrawer · công đoạn trước", () => {
   });
 });
 
+describe("ThsxDrawer · vật tư chưa sẵn sàng", () => {
+  function mo(vatTu: string | null) {
+    const base = chiTiet(true, true);
+    const ct = {
+      ...base,
+      cong_viec: { ...base.cong_viec, khuon: null },
+      phan_cong: [{ id: 1, employee_id: 100, ho_ten: "Thợ 1", la_luong_khoan: true, trang_thai: "active" }],
+      thieu_dau_vao: [],
+      vat_tu_chua_san_sang: vatTu,
+    } as unknown as SxWorkItemChiTiet;
+    render(
+      <ThsxDrawer chiTiet={ct} loading={false} candidates={[]} hoTroUngVien={[]}
+        mayOptions={[]} exec={{} as ThsxExec} busy={false} onGiao={vi.fn()} onRut={vi.fn()}
+        onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
+        onKetThuc={vi.fn()} onClose={vi.fn()} />,
+    );
+  }
+
+  it("máy chủ báo chưa sẵn sàng: Bắt đầu khoá, cột phải nói đúng câu máy chủ", () => {
+    mo("Vật tư chưa sẵn sàng: kho đang soạn. Đợi kho xuất xong mới bắt đầu được.");
+    expect((screen.getByRole("button", { name: "Bắt đầu" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(cotPhai().textContent).toContain(
+      "Vật tư chưa sẵn sàng: kho đang soạn. Đợi kho xuất xong mới bắt đầu được.",
+    );
+  });
+
+  it("sẵn sàng: Bắt đầu mở, không có câu vật tư", () => {
+    mo(null);
+    expect((screen.getByRole("button", { name: "Bắt đầu" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(document.body.textContent).not.toContain("Vật tư chưa sẵn sàng");
+  });
+});
+
 describe("ThsxDrawer · chân ngăn theo trạng thái", () => {
   function moTrangThai(trangThai: string) {
     const base = chiTiet(true, true);

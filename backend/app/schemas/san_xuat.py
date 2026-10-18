@@ -1001,6 +1001,8 @@ class WorkItemChiTietOut(BaseModel):
     cong_doan_truoc: list[CongDoanTruocOut] = []
     tran_ghi: TranGhiOut | None = None
     thieu_dau_vao: list[str] = []
+    # Câu chặn Bắt đầu vì vật tư chưa sẵn sàng (spec 2026-10-18 §5.3); None = không chặn.
+    vat_tu_chua_san_sang: str | None = None
     ban_giao_chang_sau: list[BanGiaoChangSauOut]
     vat_tu: list[PhieuXuatVatTuOut]
     vat_tu_cap: VatTuCapOut = VatTuCapOut()

@@ -24,7 +24,7 @@ from ..gio_xuong import gio_xuong
 from . import routing_dai
 
 TOI = ("toi", "con_1", "con_2_3", "con_4", "qua")
-VUONG = ("chua_giao_tho", "chua_nhan_khuon", "chua_nhan_buoc_truoc")
+VUONG = ("chua_giao_tho", "chua_nhan_khuon", "chua_nhan_buoc_truoc", "chua_san_sang_vat_tu")
 TRE = ("bat_dau", "xong")
 CHO = ("ban_giao", "kcs")
 GAP = ("gap", "thuong")
@@ -120,8 +120,11 @@ def thuoc_tinh(
         # Đúng thứ tự cổng của `thuc_thi.bat_dau`: người → đầu vào bước trước → khuôn.
         # Import muộn: dau_vao đọc ngược board.
         from .dau_vao import thieu_dau_vao
+        from .trang_thai_vat_tu import chan_bat_dau, trang_thai_vat_tu
 
         sl = SanXuatSanLuongRepository(db)
+        # Cổng vật tư chỉ chặn lần bắt đầu đầu (`dau_vao.kiem_bat_dau`) — tính lô một lần.
+        vt = trang_thai_vat_tu(db, [cv for cv in rows if cv.trang_thai == CV_PHAT_HANH])
         for cv in rows:
             if cv.trang_thai not in (CV_PHAT_HANH, CV_TAM_DUNG):
                 continue
@@ -132,6 +135,9 @@ def thuoc_tinh(
                 v.add("chua_nhan_khuon")
             if thieu_dau_vao(sl, cv):
                 v.add("chua_nhan_buoc_truoc")
+            tt = vt.get(cv.id)
+            if tt and chan_bat_dau(tt["muc"]):
+                v.add("chua_san_sang_vat_tu")
 
     if "tre" in can:
         now = _tuong(gio_xuong())

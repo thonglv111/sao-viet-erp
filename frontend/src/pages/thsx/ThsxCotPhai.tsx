@@ -40,6 +40,8 @@ export interface VuongMac {
   coNguoi: boolean;
   khuonChoNhan: boolean;
   thieuDauVao: string[];
+  /** Câu máy chủ chặn Bắt đầu vì vật tư chưa sẵn sàng (`vat_tu_chua_san_sang`); null = không chặn. */
+  vatTu: string | null;
 }
 
 export function ThsxCotPhai({
@@ -131,6 +133,7 @@ export function ThsxCotPhai({
               : "cần quyền Thực hiện lệnh ở tổ này mới xác nhận được."}</>,
       });
     }
+    if (vuong.vatTu) cauVuong.push({ key: "vattu", noi: vuong.vatTu });
     if (vuong.thieuDauVao.length > 0) {
       cauVuong.push({
         key: "dauvao",
