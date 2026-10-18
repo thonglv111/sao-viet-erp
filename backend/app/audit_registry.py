@@ -215,10 +215,18 @@ _HD += _dong("kho", "bao_cao_kho", {
     "kho_export": "Xuất Excel báo cáo kho",
     "kho_tinh_gia": "Tính giá kỳ kho",
     "kho_sua_gia_goc": "Sửa giá gốc lô hàng",
+    # Khoá / mở kỳ kho chỉ lưu ở bảng riêng `kho_khoa_so`; trước 18/10/2026 không để lại dấu vết
+    # nào ở nhật ký (lỗi E2E #49).
+    "kho_khoa_ky": "Khoá kỳ kho",
+    "kho_mo_ky": "Mở kỳ kho",
 })
 _HD += _dong("kho", "kho", {
     "kho_xuat_dieu_chinh": "Điều chỉnh phiếu xuất kho",
     "kho_bo_sung_kho_lo": "Bổ sung khổ giấy cho lô cũ",
+    # Phiếu nhập / xuất kho: lập, ghi sổ (điểm duy nhất tồn kho đổi) và huỷ phiếu nháp.
+    "kho_phieu_lap": "Lập phiếu kho",
+    "kho_phieu_ghi_so": "Ghi sổ phiếu kho",
+    "kho_phieu_huy": "Huỷ phiếu kho",
 })
 _HD += _dong("kho", "dm_kho_hang", {
     "kho_vi_tri_create": "Tạo vị trí trong kho",
@@ -265,6 +273,11 @@ _HD += _dong("mua_hang", "nha_cung_cap", {
 _HD += _dong("ke_toan", "ke_toan", {
     "assign_purchase_invoice": "Gán hoá đơn cho đơn mua hàng",
 })
+# Khoá / mở kỳ công nợ (phải thu 131, phải trả 331): cổng GHI của màn là quyền Báo cáo công nợ.
+_HD += _dong("ke_toan", "bao_cao_cong_no", {
+    "cong_no_khoa_ky": "Khoá kỳ công nợ",
+    "cong_no_mo_ky": "Mở kỳ công nợ",
+})
 _HD += _dong("ke_toan", "cong_no_phai_thu", {
     "create_sales_invoice": "Tạo hoá đơn bán hàng",
     "cancel_sales_invoice": "Huỷ hoá đơn bán hàng",
@@ -272,6 +285,7 @@ _HD += _dong("ke_toan", "cong_no_phai_thu", {
 })
 _HD += _dong("ke_toan", "phieu_thu", {
     "create_payment_receipt": "Tạo phiếu thu",
+    "create_payment_receipt_gop": "Tạo phiếu thu gộp nhiều khoản",
     "update_payment_receipt": "Sửa phiếu thu",
     "cancel_payment_receipt": "Huỷ phiếu thu",
     "mark_payment_receipt_received": "Đánh dấu đã nhận tiền",
@@ -295,6 +309,19 @@ _HD += _dong("ke_toan", "tk_ngan_hang", {
     "create_company_bank_account": "Thêm tài khoản ngân hàng công ty",
     "update_company_bank_account": "Sửa tài khoản ngân hàng công ty",
     "toggle_company_bank_account": "Bật/tắt tài khoản ngân hàng công ty",
+})
+
+# Sổ tài sản & CCDC: mọi thao tác ghi đều để lại vết (trước 18/10/2026 thư mục tài sản không gọi
+# nhật ký lần nào — lỗi E2E #49).
+_HD += _dong("ke_toan", "tai_san", {
+    "tai_san_them": "Thêm tài sản",
+    "tai_san_nhap_excel": "Nhập tài sản từ Excel",
+    "tai_san_sua": "Sửa tài sản",
+    "tai_san_xoa": "Xoá tài sản",
+    "tai_san_dieu_chuyen": "Chuyển bộ phận cho tài sản",
+    "tai_san_nang_cap": "Sửa chữa lớn tài sản",
+    "tai_san_thoi_dung": "Thôi dùng tài sản",
+    "tai_san_bo_thoi_dung": "Bỏ thôi dùng tài sản",
 })
 
 # --- Nhân sự --------------------------------------------------------------------------------
@@ -405,6 +432,14 @@ _HD += _dong("luong", "luong", {
     "bulk_assign_component": "Gán khoản lương hàng loạt",
     "unassign_all_component": "Gỡ khoản lương khỏi toàn bộ nhân viên",
     "set_employee_components": "Đặt khoản lương của nhân sự",
+})
+
+# Mức khoán km: bảng giá trả lương tài xế / phụ xe — gác bằng khoá `luong` (cùng cổng GHI của màn).
+_HD += _dong("luong", "luong", {
+    "km_muc_tao": "Tạo mức khoán km",
+    "km_muc_sua": "Sửa mức khoán km",
+    "km_muc_xoa": "Xoá mức khoán km",
+    "km_muc_bac": "Ghi bảng bậc giá mức khoán km",
 })
 
 # --- Danh mục -------------------------------------------------------------------------------

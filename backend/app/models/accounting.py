@@ -19,9 +19,10 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from ..db import Base
 
@@ -296,6 +297,14 @@ class PaymentVoucher(Base):
     receipts: Mapped[list["PaymentReceipt"]] = relationship(
         "PaymentReceipt", back_populates="payment_voucher", order_by="PaymentReceipt.id"
     )
+    # Phân bổ tiền của phiếu vào từng đơn mua / đợt giao (17/10/2026). Phiếu lẻ có đúng một dòng
+    # (hook `_dong_phan_bo_mac_dinh` tự dựng); phiếu GỘP để trống nguồn trên đầu phiếu, chỉ có dòng.
+    lines: Mapped[list["PaymentVoucherLine"]] = relationship(
+        "PaymentVoucherLine",
+        back_populates="voucher",
+        order_by="PaymentVoucherLine.id",
+        cascade="all, delete-orphan",
+    )
     attachments: Mapped[list["PaymentVoucherAttachment"]] = relationship(
         "PaymentVoucherAttachment",
         back_populates="payment_voucher",
@@ -357,6 +366,52 @@ class SalesInvoice(Base):
     receipts: Mapped[list["PaymentReceipt"]] = relationship(
         "PaymentReceipt", back_populates="sales_invoice", order_by="PaymentReceipt.id"
     )
+    dieu_chinh: Mapped[list["SalesInvoiceAdjustment"]] = relationship(
+        "SalesInvoiceAdjustment", back_populates="sales_invoice",
+        order_by="SalesInvoiceAdjustment.id",
+    )
+
+
+class SalesInvoiceAdjustment(Base):
+    """Hóa đơn ĐIỀU CHỈNH GIẢM của một hóa đơn bán (18/10/2026) — chứng từ thuế để hoàn tiền chiết
+    khấu cho khách. Hóa đơn gốc giữ nguyên 100%; khoản giảm trừ vào phải thu của hóa đơn gốc và,
+    nếu khách đã trả đủ, phần trả dư thành tiền phải trả lại (Phiếu chi, Chờ trả lại khách)."""
+
+    __tablename__ = "sales_invoice_adjustments"
+    __table_args__ = (
+        UniqueConstraint(
+            "adj_symbol", "adj_number", name="uq_sales_invoice_adj_symbol_number"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    sales_invoice_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sales_invoices.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    adj_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    adj_number: Mapped[str] = mapped_column(String(64), nullable=False)
+    adj_date: Mapped[date] = mapped_column(Date, nullable=False)
+    amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=SALES_INVOICE_ISSUED, index=True
+    )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    cancelled_by_user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    sales_invoice = relationship("SalesInvoice", back_populates="dieu_chinh")
 
 
 class PaymentReceipt(Base):
@@ -399,6 +454,11 @@ class PaymentReceipt(Base):
     # Mục thu chi (11/10/2026, mg 0395) — cùng luật với `PaymentVoucher.muc_thu_chi_id`.
     muc_thu_chi_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("muc_thu_chi.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    # Khách nộp tiền (mg 0416). Phiếu gộp nhiều đơn không còn một đơn/hoá đơn nào để suy ra khách,
+    # nên khách nằm thẳng trên phiếu; phiếu lẻ được hook điền từ hoá đơn hoặc đơn.
+    customer_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True, index=True
     )
     order_no_snapshot: Mapped[str | None] = mapped_column(String(32), nullable=True)
     customer_name_snapshot: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -453,14 +513,219 @@ class PaymentReceipt(Base):
     payment_voucher = relationship("PaymentVoucher", back_populates="receipts")
     sales_invoice = relationship("SalesInvoice", back_populates="receipts")
     supplier = relationship("Supplier")
+    customer = relationship("Customer")
     muc_thu_chi = relationship("MucThuChi")
     company_bank_account = relationship("CompanyBankAccount")
+    # Phân bổ tiền của phiếu vào từng hoá đơn / cọc đơn (17/10/2026) — xem `PaymentReceiptLine`.
+    lines: Mapped[list["PaymentReceiptLine"]] = relationship(
+        "PaymentReceiptLine",
+        back_populates="receipt",
+        order_by="PaymentReceiptLine.id",
+        cascade="all, delete-orphan",
+    )
     attachments: Mapped[list["PaymentReceiptAttachment"]] = relationship(
         "PaymentReceiptAttachment",
         back_populates="payment_receipt",
         order_by="PaymentReceiptAttachment.id",
         cascade="all, delete-orphan",
     )
+
+
+class PaymentVoucherLine(Base):
+    """Một dòng PHÂN BỔ của phiếu chi trả đơn mua (17/10/2026, chủ: "một phiếu cho cả lượt").
+
+    Nguồn DUY NHẤT cho câu hỏi "tiền của phiếu này trả cho đơn nào, đợt nào": mọi phép tính đã chi
+    theo đơn/đợt (`purchase_money`, `phan_bo_tien_dot`, công nợ phải trả) đọc các dòng này, không
+    đọc cột nguồn trên đầu phiếu nữa. `delivery_id` NULL = dòng CỌC của đơn.
+
+    Dòng KHÔNG có trạng thái riêng — huỷ phiếu là huỷ cả mọi dòng, nên mọi chỗ đọc phải lọc theo
+    trạng thái của PHIẾU (`status` dưới đây đọc thẳng từ phiếu)."""
+
+    __tablename__ = "payment_voucher_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    payment_voucher_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("payment_vouchers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    purchase_request_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("purchase_requests.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    delivery_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    voucher = relationship("PaymentVoucher", back_populates="lines")
+    purchase_request = relationship("PurchaseRequest", back_populates="khoan_chi")
+
+    # Đọc qua phiếu — để các vòng tính tiền cũ (viết cho phiếu) chạy nguyên trên dòng.
+    @property
+    def voucher_id(self) -> int:
+        return self.payment_voucher_id
+
+    @property
+    def status(self) -> str:
+        return self.voucher.status
+
+    @property
+    def voucher_date(self):
+        return self.voucher.voucher_date
+
+    @property
+    def paid_at(self):
+        return self.voucher.paid_at
+
+    @property
+    def code(self) -> str:
+        return self.voucher.code
+
+    @property
+    def doc_no(self) -> str | None:
+        return self.voucher.doc_no
+
+    @property
+    def gop(self) -> bool:
+        return len(self.voucher.lines) > 1
+
+    @property
+    def payment_stage(self) -> str:
+        """Phiếu lẻ giữ nguyên giai đoạn đã ghi (phiếu cũ có thể là `partial`); dòng của phiếu gộp
+        suy từ đợt: không đợt = cọc."""
+        if not self.gop:
+            return self.voucher.payment_stage
+        return PAYMENT_STAGE_ADVANCE if self.delivery_id is None else PAYMENT_STAGE_FINAL
+
+    @property
+    def receipts(self) -> list:
+        """Tiền NỘP LẠI hoàn phiếu chi — chỉ phiếu lẻ nhận được (phiếu gộp bị chặn ở service), nên
+        quy trọn về đơn của dòng duy nhất."""
+        return [] if self.gop else list(self.voucher.receipts)
+
+
+class PaymentReceiptLine(Base):
+    """Một dòng PHÂN BỔ của phiếu thu đơn bán (17/10/2026): tiền thu cho hoá đơn nào hoặc cọc đơn
+    nào. `sales_invoice_id` NULL = dòng CỌC của `order_id`. Nguồn duy nhất cho đã thu theo hoá đơn
+    và cọc đã thu theo đơn; lọc theo trạng thái của PHIẾU."""
+
+    __tablename__ = "payment_receipt_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    payment_receipt_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("payment_receipts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    sales_invoice_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("sales_invoices.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    receipt = relationship("PaymentReceipt", back_populates="lines")
+    order = relationship("Order")
+    sales_invoice = relationship("SalesInvoice")
+
+    # Mặt phiếu của dòng — vòng lặp "từng lần thu" cũ đọc dòng như đọc phiếu, tiền là của DÒNG.
+    @property
+    def receipt_id(self) -> int:
+        return self.payment_receipt_id
+
+    @property
+    def code(self) -> str:
+        return self.receipt.code
+
+    @property
+    def doc_no(self) -> str | None:
+        return self.receipt.doc_no
+
+    @property
+    def status(self) -> str:
+        return self.receipt.status
+
+    @property
+    def receipt_date(self):
+        return self.receipt.receipt_date
+
+    @property
+    def receipt_method(self) -> str:
+        return self.receipt.receipt_method
+
+    @property
+    def payer_name(self) -> str:
+        return self.receipt.payer_name
+
+    @property
+    def bank_reference(self) -> str | None:
+        return self.receipt.bank_reference
+
+    @property
+    def created_by_user_id(self) -> int | None:
+        return self.receipt.created_by_user_id
+
+    @property
+    def order_no_snapshot(self) -> str | None:
+        return self.order.order_no if self.order is not None else self.receipt.order_no_snapshot
+
+    @property
+    def la_coc(self) -> bool:
+        return self.sales_invoice_id is None
+
+    @property
+    def gop(self) -> bool:
+        return len(self.receipt.lines) > 1
+
+
+def _dong_chi_mac_dinh(v: "PaymentVoucher") -> None:
+    if v.source_type != VOUCHER_SOURCE_PURCHASE or v.purchase_request_id is None:
+        return
+    if len(v.lines) > 1:
+        return
+    if v.lines:
+        l = v.lines[0]
+        l.purchase_request_id = v.purchase_request_id
+        l.delivery_id = v.delivery_id
+        l.amount_vnd = int(v.amount_vnd)
+    else:
+        v.lines.append(PaymentVoucherLine(
+            purchase_request_id=v.purchase_request_id, delivery_id=v.delivery_id,
+            amount_vnd=int(v.amount_vnd),
+        ))
+
+
+def _dong_thu_mac_dinh(session, p: "PaymentReceipt") -> None:
+    from .order import Order
+
+    if p.sales_invoice_id is not None:
+        hd = session.get(SalesInvoice, p.sales_invoice_id)
+        if hd is None:
+            return
+        don_id, hd_id, khach = hd.order_id, hd.id, hd.customer_id
+    elif p.source_type == RECEIPT_SOURCE_ORDER and p.order_id is not None:
+        don = session.get(Order, p.order_id)
+        if don is None:
+            return
+        don_id, hd_id, khach = don.id, None, don.customer_id
+    else:
+        return
+    if p.customer_id is None:
+        p.customer_id = khach
+    if len(p.lines) > 1:
+        return
+    if p.lines:
+        l = p.lines[0]
+        l.order_id, l.sales_invoice_id, l.amount_vnd = don_id, hd_id, int(p.amount_vnd)
+    else:
+        p.lines.append(PaymentReceiptLine(order_id=don_id, sales_invoice_id=hd_id, amount_vnd=int(p.amount_vnd)))
+
+
+@event.listens_for(Session, "before_flush")
+def _dong_phan_bo_mac_dinh(session, flush_context, instances) -> None:
+    """Phiếu MỘT chứng từ (mọi đường lập cũ, seed, test) tự có đúng một dòng phân bổ khớp nguồn trên
+    đầu phiếu — để bảng phân bổ luôn đủ mà không phải sửa từng chỗ lập phiếu. Phiếu gộp (đầu phiếu
+    không nguồn, nhiều dòng) không bị đụng."""
+    for obj in list(session.new) + list(session.dirty):
+        if isinstance(obj, PaymentVoucher):
+            _dong_chi_mac_dinh(obj)
+        elif isinstance(obj, PaymentReceipt):
+            _dong_thu_mac_dinh(session, obj)
 
 
 class PaymentVoucherAttachment(Base):

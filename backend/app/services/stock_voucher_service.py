@@ -128,6 +128,28 @@ class StockVoucherService:
         except VatLieuKhoError as e:
             raise StockVoucherError(str(e)) from None
 
+    # --- Nhật ký ------------------------------------------------------------
+
+    def _nhat_ky(self, user, action: str, v: StockVoucher, *, them: str = "",
+                 commit: bool = True) -> None:
+        """Một dòng nhật ký cho thao tác lập / ghi sổ / huỷ phiếu (lỗi E2E #49, 18/10/2026: ba việc
+        này không để lại dấu vết, màn Nhật ký trống đúng lúc kho làm việc nhiều nhất).
+
+        `target = voucher:<id>` — cùng khoá với dòng "điều chỉnh phiếu xuất" nên tab lịch sử của
+        phiếu đọc chung được. `commit=False` cho chỗ đang đóng một giao dịch lớn (ghi sổ): dòng
+        nhật ký sống/chết cùng sổ kho. `user=None` (tác vụ nền) ⇒ actor rỗng, vẫn ghi."""
+        from ..models.kho_hang import KhoHang
+
+        kho = self.vouchers.db.get(KhoHang, v.kho_id) if v.kho_id else None
+        loai = "nhập" if v.loai == VOUCHER_NHAP else "xuất"
+        detail = f"Phiếu {loai} {v.ma}" + (f" tại {kho.ten}" if kho is not None else "")
+        if them:
+            detail += f": {them}"
+        AuditLogRepository(self.vouchers.db).create(
+            actor_user_id=getattr(user, "id", None), action=action, target=f"voucher:{v.id}",
+            detail=detail, commit=commit,
+        )
+
     # --- Lập phiếu ----------------------------------------------------------
 
     def create(self, *, user, request_id: int, kho_id: int, lines: list[dict],
@@ -285,6 +307,7 @@ class StockVoucherService:
         )
         # Đã lập phiếu (nháp) → yêu cầu rời "Cần cấp" sang "Đang cấp" (Đang chuẩn bị).
         self.request_service.mark_in_progress(req)
+        self._nhat_ky(user, "kho_phieu_lap", voucher)
         return voucher
 
     def _chan_thanh_pham_ngoai_kho(self, req, loai: str, kho_id: int) -> None:
@@ -577,7 +600,14 @@ class StockVoucherService:
 
         src_req = self._apply_post(src_v, user) if src_v is not None else None  # trừ nguồn
         req = self._apply_post(v, user)                                          # cộng đích
+        # Nhật ký cùng giao dịch với sổ kho: phiếu đã vào sổ thì dòng này có, rollback thì mất theo.
+        # Điều chuyển ghi sổ CẢ CẶP một nhịp nên mỗi phiếu một dòng, để tab lịch sử phiếu nào cũng đủ.
+        if src_v is not None:
+            self._nhat_ky(user, "kho_phieu_ghi_so", src_v, them=f"cùng phiếu điều chuyển {v.ma}",
+                          commit=False)
+        self._nhat_ky(user, "kho_phieu_ghi_so", v, commit=False)
         self.vouchers.db.commit()  # MỘT commit → trừ nguồn + cộng đích cùng nhịp (atomic)
+        AuditLogRepository.bao_co_dong_moi()   # `commit=False` ở trên không tự báo màn Nhật ký
         self.vouchers.db.refresh(v)
         if self.giu_cho is not None:
             self.giu_cho.sau_ghi_so()
@@ -951,7 +981,7 @@ class StockVoucherService:
         return {"yeu_cau": dest_req, "phieu_xuat": xuat, "phieu_nhap": nhap,
                 "gia_von": tong_gia_von}
 
-    def cancel(self, voucher_id: int, ly_do: str):
+    def cancel(self, voucher_id: int, ly_do: str, user=None):
         """Hủy phiếu khi CÒN NHÁP — BẮT BUỘC lý do; yêu cầu chuyển 'Đã hủy' kèm lý do (KẾT THÚC,
         không cấp lại). Phiếu đã ghi sổ không hủy được — muốn sửa thì lập phiếu điều chỉnh
         (BRD §1.5: chứng từ đã ghi không sửa trực tiếp)."""
@@ -980,9 +1010,10 @@ class StockVoucherService:
             rows, _ = self.vouchers.list(request_id=req.id)
             if not any(x.trang_thai != VOUCHER_CANCELLED for x in rows):
                 self.request_service.cancel_by_kho(req, ly_do)
+        self._nhat_ky(user, "kho_phieu_huy", v, them=f"lý do {ly_do}")
         return v
 
-    def huy_dieu_chuyen(self, dest_req_id: int, ly_do: str):
+    def huy_dieu_chuyen(self, dest_req_id: int, ly_do: str, user=None):
         """Hủy CẢ phiếu điều chuyển khi CHƯA ghi sổ (spec-phieu-dieu-chuyen §5). Nhờ (ii) trừ-khi-ghi-
         sổ nên trước ghi sổ CHƯA trừ gì → hủy sạch: phiếu NHẬP đích (nháp) + phiếu XUẤT nguồn (nháp)
         + đóng 2 yêu cầu, KHÔNG đụng tồn. Đã ghi sổ → chặn (sửa sai bằng điều chuyển ngược)."""
@@ -1004,13 +1035,23 @@ class StockVoucherService:
         self.vouchers.save(dest_v)
         # Phiếu XUẤT nguồn (nháp) gắn cặp — hủy luôn + đóng yêu cầu xuất nội bộ (nếu còn nháp).
         src_v = self.vouchers.get(dest_req.xuat_voucher_id) if dest_req.xuat_voucher_id else None
+        src_huy_luc_nay = False     # chỉ ghi nhật ký "huỷ" cho phiếu mà CHÍNH lần này huỷ
         if src_v is not None and src_v.trang_thai == VOUCHER_DRAFT:
+            src_huy_luc_nay = True
             src_v.trang_thai = VOUCHER_CANCELLED
             self.vouchers.save(src_v)
             src_req = self.requests.get_with_lines(src_v.request_id)
             if src_req is not None:
                 self.request_service.cancel_by_kho(src_req, ly_do)
         self.request_service.cancel_by_kho(dest_req, ly_do)
+        # Hai phiếu con bị huỷ cùng nhịp: mỗi phiếu một dòng để tab lịch sử phiếu nào cũng đủ.
+        self._nhat_ky(user, "kho_phieu_huy", dest_v, them=f"huỷ cả cặp điều chuyển, lý do {ly_do}",
+                      commit=False)
+        if src_huy_luc_nay:
+            self._nhat_ky(user, "kho_phieu_huy", src_v,
+                          them=f"huỷ cả cặp điều chuyển, lý do {ly_do}", commit=False)
+        self.vouchers.db.commit()
+        AuditLogRepository.bao_co_dong_moi()
         return dest_req
 
     def dc_request_id_for_voucher(self, voucher_id: int) -> int | None:

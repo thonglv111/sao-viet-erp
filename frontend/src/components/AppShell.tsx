@@ -29,7 +29,7 @@ import type { KhoNhapSeed } from "../pages/KhoDeNghiPage";
 // Danh mục rebuild (config .tsx — render pill JSX). Nạp TĨNH: bảng này quyết định định tuyến
 // (`REBUILD_CONFIGS[baseId]`) nên phải có ngay, không chờ được.
 import { REBUILD_CONFIGS } from "../pages/rebuildCatalogConfigs";
-import { manTrenUrl } from "../pages/ke-toan/shared/urlMan";
+import { boManDangMo, datManDangMo, manTrenUrl } from "../pages/ke-toan/shared/urlMan";
 import {
   MOI_NHOM,
   nhomCua,
@@ -396,6 +396,15 @@ export function AppShell() {
 
   useEffect(() => {
     activeIdRef.current = activeId;
+  }, [activeId]);
+
+  // URL luôn mang `?man=<màn đang mở>` (E2E 18/10/2026, lỗi #2): trước đây dấu này chỉ do màn con có
+  // bộ lọc ghi, nên sang Chấm công / mở một phiếu tính giá là URL trơ về `/` và tải lại rơi về màn
+  // mặc định. Màn con cứ ghi khoá lọc của nó; dấu `man` là việc của AppShell vì chỉ nó biết màn nào
+  // đang mở. Cleanup chạy trước effect của lượt đổi màn kế tiếp nên không để sót dấu của màn cũ.
+  useEffect(() => {
+    datManDangMo(activeId);
+    return () => boManDangMo(activeId);
   }, [activeId]);
 
   // Số thứ tự lượt hỏi quyền: lượt cũ về muộn (hoặc về sau khi đổi phiên) thì bỏ, đừng đè lượt mới.

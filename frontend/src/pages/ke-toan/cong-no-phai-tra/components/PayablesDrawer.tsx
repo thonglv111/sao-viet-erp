@@ -6,8 +6,9 @@
 // liên hệ, tài khoản nhận tiền. Ba tab:
 // - "Còn nợ": một lưới mọi đợt, nhóm theo đơn mua (hoặc xếp theo hạn trả), tích để trả nhiều đợt. Mở từ
 //   danh sách đang lọc quá hạn / mốc tuổi thì lọc sẵn (thẻ lọc + "Bỏ lọc"). Tích đợt ⇒ chân tối "Đã
-//   chọn n đợt … — Bỏ chọn — Lập phiếu chi trả" mở ngăn chồng `BatchPaymentDialog` với ẢNH CHỤP các đợt
-//   lúc bấm (ngăn dưới nạp lại / tải hỏng cũng không đổi form đang gõ).
+//   chọn n đợt … — Bỏ chọn — Lập phiếu chi trả" mở ngăn chồng `LapPhieuChiGop` với ẢNH CHỤP các đợt
+//   lúc bấm (ngăn dưới nạp lại / tải hỏng cũng không đổi form đang gõ) — MỘT phiếu chi cho cả lượt
+//   (17/10/2026), bảng phân bổ từng đợt.
 // - "Sao kê": số dư đầu kỳ, từng chứng từ với số dư chạy, số dư cuối kỳ; in được.
 // - "Lịch sử": dòng thời gian mọi chứng từ với nhà cung cấp + các đợt đã trễ.
 // Nút "Nhà cung cấp hoàn tiền" trên đầu ngăn (12/10/2026) mở ngăn chồng phiếu thu gắn thẳng NCC, số
@@ -21,7 +22,7 @@ import {
   type PayablePaidRow,
   type PayablesDetail,
   type PaymentReceiptRow,
-  type VoucherBatchResult,
+  type PaymentVoucherRow,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import type { NavigateFn } from "../../../../components/AppShell";
@@ -37,7 +38,7 @@ import { NccHoanTienModal } from "../../phieu-thu/modals/NccHoanTienModal";
 import { PAID_PAGE } from "../shared/constants";
 import { tenKhoan } from "../shared/helpers";
 import type { Bucket } from "../shared/types";
-import { BatchPaymentDialog } from "./BatchPaymentDialog";
+import { LapPhieuChiGop } from "../../phieu-chi/components/LapPhieuChiGop";
 import { DotConNoBlock } from "./DotConNoBlock";
 
 export type QuyenCongNoTra = {
@@ -109,7 +110,7 @@ export function PayablesDrawer({
   const [chon, setChon] = useState<Set<number>>(new Set());
   const [moHang, setMoHang] = useState<string | null>(null);
   const [moTra, setMoTra] = useState<PayableItemRow[] | null>(null);
-  const [daLap, setDaLap] = useState<VoucherBatchResult | null>(null);
+  const [daLap, setDaLap] = useState<PaymentVoucherRow | null>(null);
   const [moHoan, setMoHoan] = useState(false);
   const [daThuHoan, setDaThuHoan] = useState<PaymentReceiptRow | null>(null);
   const [dangIn, setDangIn] = useState(false);
@@ -143,7 +144,7 @@ export function PayablesDrawer({
     },
   });
 
-  // Thông báo "Đã lập n phiếu chi" tự tắt sau vài giây.
+  // Thông báo "Đã lập PC-…" tự tắt sau vài giây.
   useEffect(() => {
     if (!daLap) return;
     const t = window.setTimeout(() => setDaLap(null), 8000);
@@ -298,7 +299,7 @@ export function PayablesDrawer({
 
         {daLap && (
           <div className="kt-bao" role="status">
-            <span>{`Đã lập ${vietSo(daLap.vouchers.length)} phiếu chi`}</span>
+            <span>{`Đã lập ${daLap.code}`}</span>
             <button type="button"
               onClick={() => {
                 // Phiếu vừa lập đứng đầu dòng thời gian của tab Lịch sử.
@@ -340,12 +341,19 @@ export function PayablesDrawer({
       )}
 
       {moTra && (
-        <BatchPaymentDialog
+        <LapPhieuChiGop
           supplierId={detail?.supplier_id ?? null}
           supplierName={ten}
           conNoNcc={detail?.total_due ?? null}
           hanMuc={detail?.credit_limit ?? 0}
-          items={moTra}
+          khoan={moTra.map((it) => ({
+            purchase_request_id: it.purchase_request_id,
+            ma_don: it.code,
+            delivery_id: it.delivery_id,
+            nhan: tenKhoan(it),
+            han: it.due_date,
+            con: it.con_no,
+          }))}
           onClose={() => setMoTra(null)}
           onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
           onSaved={(kq) => {

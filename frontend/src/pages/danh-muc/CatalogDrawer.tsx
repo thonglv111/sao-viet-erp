@@ -159,6 +159,16 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
   // body theo từng ký tự.
   const formMoiNhat = useRef(form);
   formMoiNhat.current = form;
+  // Tạo xong mà drawer ở lại (`config.moLaiSauKhiTao`): `existing` đổi từ null sang bản ghi vừa tạo
+  // nhưng `form` vẫn là bản lúc MỞ, nên ô Mã (mã máy chủ vừa cấp — nhất là `autoCode`) hiện trống dù
+  // danh sách đã có mã (E2E 18/10/2026, Khai báo kho). Mã này do máy cấp, không phải người dùng gõ ⇒
+  // điền vào form VÀ đẩy mốc theo, không thì đóng ngay sau khi lưu vẫn bị hỏi "bỏ thay đổi?".
+  const maMay = existing?.ma == null ? "" : String(existing.ma);
+  useEffect(() => {
+    if (!maMay) return;
+    mocBanDau.current = { ...mocBanDau.current, ma: maMay };
+    setForm((p) => (String(p.ma ?? "") === maMay ? p : { ...p, ma: maMay }));
+  }, [maMay]);
   const [hoiBoThayDoi, setHoiBoThayDoi] = useState(false);
   // Hộp hỏi "bỏ tổ phụ trách thì bỏ luôn định mức đầu việc?" GỠ 18/09/2026 cùng bảng đầu việc
   // định mức (mg `0320`): tổ phụ trách không còn kéo theo dòng nào của công đoạn.

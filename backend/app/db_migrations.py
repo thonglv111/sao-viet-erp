@@ -18523,3 +18523,84 @@ def _migrate_chot_cong_no_theo_ncc(db: Session) -> None:
 
 
 MIGRATIONS.append(("0415_chot_cong_no_theo_ncc", _migrate_chot_cong_no_theo_ncc))
+
+
+def _migrate_phieu_gop_phan_bo(db) -> None:
+    """0416 (17/10/2026) — phiếu chi / phiếu thu GỘP nhiều chứng từ.
+
+    Bảng `payment_voucher_lines` / `payment_receipt_lines` do `create_all` dựng. Ở đây:
+    - thêm `payment_receipts.customer_id` (phiếu gộp nhiều đơn không còn một nguồn để suy ra khách);
+    - backfill đúng MỘT dòng phân bổ cho mỗi phiếu cũ một chứng từ, khớp cột nguồn trên đầu phiếu:
+      phiếu chi trả đơn mua ⇒ (đơn, đợt, tiền); phiếu thu hoá đơn ⇒ (đơn của hoá đơn, hoá đơn, tiền);
+      phiếu thu cọc ⇒ (đơn, NULL, tiền). Phiếu đã có dòng thì bỏ qua — chạy lại không nhân dòng.
+    """
+    bind = db.get_bind()
+    insp = inspect(bind)
+    tables = set(insp.get_table_names())
+    if not {"payment_vouchers", "payment_receipts", "payment_voucher_lines", "payment_receipt_lines"} <= tables:
+        return
+    cot_thu = _existing_columns(insp, "payment_receipts")
+    if "customer_id" not in cot_thu:
+        db.execute(text("ALTER TABLE payment_receipts ADD COLUMN customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_payment_receipts_customer_id ON payment_receipts (customer_id)"))
+    db.execute(text(
+        "INSERT INTO payment_voucher_lines (payment_voucher_id, purchase_request_id, delivery_id, amount_vnd) "
+        "SELECT v.id, v.purchase_request_id, v.delivery_id, v.amount_vnd FROM payment_vouchers v "
+        "WHERE v.source_type = 'purchase_request' AND v.purchase_request_id IS NOT NULL "
+        "AND NOT EXISTS (SELECT 1 FROM payment_voucher_lines l WHERE l.payment_voucher_id = v.id)"
+    ))
+    db.execute(text(
+        "INSERT INTO payment_receipt_lines (payment_receipt_id, order_id, sales_invoice_id, amount_vnd) "
+        "SELECT p.id, s.order_id, s.id, p.amount_vnd FROM payment_receipts p "
+        "JOIN sales_invoices s ON s.id = p.sales_invoice_id "
+        "WHERE NOT EXISTS (SELECT 1 FROM payment_receipt_lines l WHERE l.payment_receipt_id = p.id)"
+    ))
+    db.execute(text(
+        "INSERT INTO payment_receipt_lines (payment_receipt_id, order_id, sales_invoice_id, amount_vnd) "
+        "SELECT p.id, p.order_id, NULL, p.amount_vnd FROM payment_receipts p "
+        "WHERE p.source_type = 'order_deposit' AND p.order_id IS NOT NULL AND p.sales_invoice_id IS NULL "
+        "AND NOT EXISTS (SELECT 1 FROM payment_receipt_lines l WHERE l.payment_receipt_id = p.id)"
+    ))
+    db.execute(text(
+        "UPDATE payment_receipts SET customer_id = (SELECT s.customer_id FROM sales_invoices s "
+        "WHERE s.id = payment_receipts.sales_invoice_id) "
+        "WHERE customer_id IS NULL AND sales_invoice_id IS NOT NULL"
+    ))
+    db.execute(text(
+        "UPDATE payment_receipts SET customer_id = (SELECT o.customer_id FROM orders o "
+        "WHERE o.id = payment_receipts.order_id) "
+        "WHERE customer_id IS NULL AND order_id IS NOT NULL AND source_type = 'order_deposit'"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0416_phieu_gop_phan_bo", _migrate_phieu_gop_phan_bo))
+
+
+def _migrate_order_lines_chiet_khau(db: Session) -> None:
+    """Dòng đơn mang tiền chiết khấu (giá bán = vốn + chiết khấu + lợi nhuận). Idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    if "order_lines" not in insp.get_table_names():
+        return
+    if "chiet_khau" not in _existing_columns(insp, "order_lines"):
+        db.execute(text("ALTER TABLE order_lines ADD COLUMN chiet_khau BIGINT"))
+    db.commit()
+
+
+MIGRATIONS.append(("0417_order_lines_chiet_khau", _migrate_order_lines_chiet_khau))
+
+
+def _migrate_sales_invoice_adjustments(db: Session) -> None:
+    """0418 (18/10/2026) — bảng `sales_invoice_adjustments`: hóa đơn điều chỉnh giảm để hoàn tiền
+    chiết khấu cho khách. Bảng mới do `create_all` dựng; bước này chỉ lo DB đã chạy nhưng thiếu bảng
+    (Postgres live) bằng cách tạo đúng bảng đó. Idempotent."""
+    from .models.accounting import SalesInvoiceAdjustment
+
+    bind = db.get_bind()
+    if "sales_invoice_adjustments" not in inspect(bind).get_table_names():
+        SalesInvoiceAdjustment.__table__.create(bind=bind, checkfirst=True)
+    db.commit()
+
+
+MIGRATIONS.append(("0418_sales_invoice_adjustments", _migrate_sales_invoice_adjustments))

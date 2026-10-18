@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from uuid import uuid4
 
 from sqlalchemy import (
-    MetaData, Table, and_, asc, case, desc, exists, false, func, inspect, or_, select, update,
+    MetaData, Table, and_, asc, case, desc, false, func, inspect, or_, select, update,
 )
 from sqlalchemy.orm import Session, selectinload
 
@@ -24,9 +24,12 @@ from ..models.accounting import (
     CompanyBankAccount,
     PaymentReceipt,
     PaymentReceiptAttachment,
+    PaymentReceiptLine,
     PaymentVoucher,
     PaymentVoucherAttachment,
+    PaymentVoucherLine,
     SalesInvoice,
+    SalesInvoiceAdjustment,
     SupplierBankAccount,
 )
 from ..models.customer import Customer, CustomerContact
@@ -192,8 +195,10 @@ class AccountingRepository:
         (id nhỏ hơn). Không tính chính phiếu đó."""
         return int(
             self.db.execute(
-                select(func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0)).where(
-                    PaymentVoucher.delivery_id == delivery_id,
+                select(func.coalesce(func.sum(PaymentVoucherLine.amount_vnd), 0))
+                .join(PaymentVoucher, PaymentVoucher.id == PaymentVoucherLine.payment_voucher_id)
+                .where(
+                    PaymentVoucherLine.delivery_id == delivery_id,
                     PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
                     PaymentVoucher.id < voucher_id,
                 )
@@ -204,8 +209,10 @@ class AccountingRepository:
         """Σ tiền các phiếu thu ĐÃ THU gắn hoá đơn này, lập TRƯỚC phiếu `receipt_id`."""
         return int(
             self.db.execute(
-                select(func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0)).where(
-                    PaymentReceipt.sales_invoice_id == sales_invoice_id,
+                select(func.coalesce(func.sum(PaymentReceiptLine.amount_vnd), 0))
+                .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
+                .where(
+                    PaymentReceiptLine.sales_invoice_id == sales_invoice_id,
                     PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
                     PaymentReceipt.id < receipt_id,
                 )
@@ -290,7 +297,7 @@ class AccountingRepository:
     ) -> list:
         """Điều kiện lọc CHUNG cho bảng, số đếm thẻ lọc và tổng tiền — một nguồn, không ba chỗ tự lọc.
 
-        KHÔNG gồm `status` / `chung_tu`: hai cái đó là thẻ lọc, thẻ phải đếm trên nền CHƯA chọn thẻ
+        KHÔNG gồm `status`: đó là thẻ lọc, thẻ phải đếm trên nền CHƯA chọn thẻ
         (chọn "Đã huỷ" mà các thẻ còn lại về 0 thì người dùng không còn thấy đường quay lại)."""
         c = []
         if q:
@@ -304,10 +311,15 @@ class AccountingRepository:
                     func.lower(func.coalesce(PaymentVoucher.cash_recipient_name, "")).like(like),
                     func.lower(func.coalesce(PaymentVoucher.beneficiary_account_holder_snapshot, "")).like(like),
                     func.lower(PaymentVoucher.content).like(like),
-                    PaymentVoucher.purchase_request.has(func.lower(PurchaseRequest.code).like(like)),
-                    PaymentVoucher.purchase_request.has(
-                        PurchaseRequest.sources.any(
-                            func.lower(PurchaseRequestSource.source_code_snapshot).like(like)
+                    # Mã đơn tìm qua DÒNG phân bổ — phiếu gộp nhiều đơn cũng ra (17/10/2026).
+                    PaymentVoucher.lines.any(
+                        PaymentVoucherLine.purchase_request.has(func.lower(PurchaseRequest.code).like(like))
+                    ),
+                    PaymentVoucher.lines.any(
+                        PaymentVoucherLine.purchase_request.has(
+                            PurchaseRequest.sources.any(
+                                func.lower(PurchaseRequestSource.source_code_snapshot).like(like)
+                            )
                         )
                     ),
                 )
@@ -323,7 +335,7 @@ class AccountingRepository:
         if supplier_id is not None:
             c.append(PaymentVoucher.supplier_id == supplier_id)
         if purchase_request_id is not None:
-            c.append(PaymentVoucher.purchase_request_id == purchase_request_id)
+            c.append(PaymentVoucher.lines.any(PaymentVoucherLine.purchase_request_id == purchase_request_id))
         # Kỳ tính theo mốc (06/10/2026): `chi` = ngày chi trên chứng từ (Date), `tao` = lúc lập phiếu
         # (mốc giờ UTC — ranh ngày theo giờ VN).
         if moc == "tao":
@@ -351,29 +363,23 @@ class AccountingRepository:
             )
         return c
 
-    @staticmethod
-    def _co_chung_tu_chi():
-        return exists().where(PaymentVoucherAttachment.payment_voucher_id == PaymentVoucher.id)
-
     def _the_loc_chi(self, nen: list) -> dict:
         """Số trên hàng thẻ lọc: đếm trên nền đã lọc kỳ + bộ lọc nâng cao nhưng CHƯA chọn thẻ.
-        "Thiếu chứng từ" chỉ tính phiếu ĐÃ CHI (phiếu huỷ không cần chứng từ)."""
+        Đếm "Thiếu chứng từ" gỡ 18/10/2026 cùng điều kiện lọc Chứng từ."""
         da_chi = PaymentVoucher.status == PAYMENT_VOUCHER_PAID
         stmt = select(
             func.count(),
             func.coalesce(func.sum(case((da_chi, 1), else_=0)), 0),
             func.coalesce(func.sum(case((da_chi, PaymentVoucher.amount_vnd), else_=0)), 0),
-            func.coalesce(func.sum(case((and_(da_chi, ~self._co_chung_tu_chi()), 1), else_=0)), 0),
             func.coalesce(func.sum(case((PaymentVoucher.status == PAYMENT_VOUCHER_CANCELLED, 1), else_=0)), 0),
         ).select_from(PaymentVoucher)
         for dk in nen:
             stmt = stmt.where(dk)
-        tat_ca, xong, xong_tien, thieu, huy = self.db.execute(stmt).one()
+        tat_ca, xong, xong_tien, huy = self.db.execute(stmt).one()
         return {
             "tat_ca": int(tat_ca),
             "xong": int(xong),
             "xong_tien": int(xong_tien),
-            "thieu_chung_tu": int(thieu),
             "da_huy": int(huy),
             "cho": int(tat_ca) - int(xong) - int(huy),
         }
@@ -396,7 +402,6 @@ class AccountingRepository:
         muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
-        chung_tu: str | None = None,
         nhan: str | None = None,
         moc: str = "chi",
         dem_only: bool = False,
@@ -413,10 +418,6 @@ class AccountingRepository:
         conditions = list(nen)
         if status:
             conditions.append(PaymentVoucher.status == status)
-        if chung_tu == "co":
-            conditions.append(self._co_chung_tu_chi())
-        elif chung_tu == "thieu":
-            conditions.append(~self._co_chung_tu_chi())
 
         stmt = self._voucher_stmt()
         count_stmt = select(func.count()).select_from(PaymentVoucher)
@@ -525,7 +526,7 @@ class AccountingRepository:
         moc: str = "thu",
     ) -> list:
         """Điều kiện lọc CHUNG của phiếu thu (bảng + số thẻ lọc + tổng đã thu). KHÔNG gồm `status`
-        và `chung_tu` — xem `_dieu_kien_phieu_chi`."""
+        — xem `_dieu_kien_phieu_chi`."""
         conditions = []
         if source_type is not None:
             conditions.append(PaymentReceipt.source_type == source_type)
@@ -561,9 +562,12 @@ class AccountingRepository:
                     func.lower(PaymentReceipt.supplier_name_snapshot).like(like),
                     func.lower(PaymentReceipt.order_no_snapshot).like(like),
                     func.lower(PaymentReceipt.customer_name_snapshot).like(like),
-                    PaymentReceipt.sales_invoice.has(
+                    PaymentReceipt.lines.any(PaymentReceiptLine.sales_invoice.has(
                         func.lower(SalesInvoice.invoice_number).like(like)
-                    ),
+                    )),
+                    PaymentReceipt.lines.any(PaymentReceiptLine.order.has(
+                        func.lower(Order.order_no).like(like)
+                    )),
                     func.lower(PaymentReceipt.payer_name).like(like),
                     func.lower(PaymentReceipt.content).like(like),
                 )
@@ -575,10 +579,6 @@ class AccountingRepository:
             conditions.append(func.lower(PaymentReceipt.payer_name).like(like_nhan))
         return conditions
 
-    @staticmethod
-    def _co_chung_tu_thu():
-        return exists().where(PaymentReceiptAttachment.payment_receipt_id == PaymentReceipt.id)
-
     def _the_loc_thu(self, nen: list) -> dict:
         """Số trên hàng thẻ lọc phiếu thu: nền đã lọc kỳ + bộ lọc nâng cao, CHƯA chọn thẻ.
         `xong` = đã thu, `cho` = chờ thu (phần còn lại sau khi trừ đã thu và đã huỷ)."""
@@ -587,17 +587,15 @@ class AccountingRepository:
             func.count(),
             func.coalesce(func.sum(case((da_thu, 1), else_=0)), 0),
             func.coalesce(func.sum(case((da_thu, PaymentReceipt.amount_vnd), else_=0)), 0),
-            func.coalesce(func.sum(case((and_(da_thu, ~self._co_chung_tu_thu()), 1), else_=0)), 0),
             func.coalesce(func.sum(case((PaymentReceipt.status == PAYMENT_RECEIPT_CANCELLED, 1), else_=0)), 0),
         ).select_from(PaymentReceipt)
         for dk in nen:
             stmt = stmt.where(dk)
-        tat_ca, xong, xong_tien, thieu, huy = self.db.execute(stmt).one()
+        tat_ca, xong, xong_tien, huy = self.db.execute(stmt).one()
         return {
             "tat_ca": int(tat_ca),
             "xong": int(xong),
             "xong_tien": int(xong_tien),
-            "thieu_chung_tu": int(thieu),
             "da_huy": int(huy),
             "cho": int(tat_ca) - int(xong) - int(huy),
         }
@@ -618,7 +616,6 @@ class AccountingRepository:
         muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
-        chung_tu: str | None = None,
         nhan: str | None = None,
         moc: str = "thu",
         dem_only: bool = False,
@@ -635,10 +632,6 @@ class AccountingRepository:
         conditions = list(nen)
         if status:
             conditions.append(PaymentReceipt.status == status)
-        if chung_tu == "co":
-            conditions.append(self._co_chung_tu_thu())
-        elif chung_tu == "thieu":
-            conditions.append(~self._co_chung_tu_thu())
 
         stmt = self._receipt_stmt()
         count_stmt = select(func.count()).select_from(PaymentReceipt)
@@ -701,17 +694,15 @@ class AccountingRepository:
 
     def receipt_received_sum_for_order(self, order_id: int) -> int:
         """Σ phiếu thu ĐÃ THU của một đơn bán (cổng chốt đơn đọc số này)."""
-        stmt = select(func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0)).where(
-            PaymentReceipt.order_id == order_id,
-            PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
-        )
-        return int(self.db.execute(stmt).scalar_one())
+        return self.received_deposit_sum(order_id)
 
     def list_receipts_for_order(self, order_id: int) -> list[PaymentReceipt]:
         """Các phiếu thu (mọi trạng thái) của một đơn bán, mới nhất trước."""
         stmt = (
             self._receipt_stmt()
-            .where(PaymentReceipt.order_id == order_id)
+            .where(PaymentReceipt.lines.any(
+                (PaymentReceiptLine.order_id == order_id) & PaymentReceiptLine.sales_invoice_id.is_(None)
+            ))
             .order_by(PaymentReceipt.created_at.desc())
         )
         return list(self.db.execute(stmt).scalars().all())
@@ -722,12 +713,7 @@ class AccountingRepository:
     def received_deposit_sum(self, order_id: int) -> int:
         """Σ tiền THỰC thu của phiếu thu cọc (source=order, đã 'received') gắn đơn —
         base cổng đủ cọc. 0 nếu chưa có phiếu received."""
-        stmt = select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).where(
-            PaymentReceipt.order_id == order_id,
-            PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
-            PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
-        )
-        return int(self.db.execute(stmt).scalar_one())
+        return int(self.received_deposit_sums([order_id]).get(order_id, 0))
 
     def received_deposit_sums(self, order_ids: list[int]) -> dict[int, int]:
         """Batch của received_deposit_sum: `{order_id: Σ tiền đã thu}` cho nhiều đơn (KPI, tránh
@@ -735,22 +721,27 @@ class AccountingRepository:
         if not order_ids:
             return {}
         stmt = (
-            select(PaymentReceipt.order_id, func.coalesce(func.sum(PaymentReceipt.amount), 0))
+            select(PaymentReceiptLine.order_id, func.coalesce(func.sum(PaymentReceiptLine.amount_vnd), 0))
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
             .where(
-                PaymentReceipt.order_id.in_(order_ids),
-                PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
+                PaymentReceiptLine.order_id.in_(order_ids),
+                PaymentReceiptLine.sales_invoice_id.is_(None),
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
             )
-            .group_by(PaymentReceipt.order_id)
+            .group_by(PaymentReceiptLine.order_id)
         )
         return {int(oid): int(s) for oid, s in self.db.execute(stmt)}
 
     def tong_coc_da_thu(self, order_ids_stmt) -> int:
         """Σ cọc đã thu (phiếu 'received') của mọi đơn trong câu chọn id — dòng "Cộng" của lưới đơn."""
-        stmt = select(func.coalesce(func.sum(PaymentReceipt.amount), 0)).where(
-            PaymentReceipt.order_id.in_(order_ids_stmt),
-            PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
-            PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+        stmt = (
+            select(func.coalesce(func.sum(PaymentReceiptLine.amount_vnd), 0))
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
+            .where(
+                PaymentReceiptLine.order_id.in_(order_ids_stmt),
+                PaymentReceiptLine.sales_invoice_id.is_(None),
+                PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+            )
         )
         return int(self.db.execute(stmt).scalar_one() or 0)
 
@@ -760,10 +751,10 @@ class AccountingRepository:
         return list(
             self.db.execute(
                 select(PaymentReceipt)
-                .where(
-                    PaymentReceipt.order_id == order_id,
-                    PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
-                )
+                .options(selectinload(PaymentReceipt.lines))
+                .where(PaymentReceipt.lines.any(
+                    (PaymentReceiptLine.order_id == order_id) & PaymentReceiptLine.sales_invoice_id.is_(None)
+                ))
                 .order_by(PaymentReceipt.id.asc())
             ).scalars()
         )
@@ -808,27 +799,34 @@ class AccountingRepository:
         nối với `list_receipts_for_receivables` nhưng KHÔNG mốc kỳ: "thu gần nhất" là của cả lịch sử."""
         if not invoice_ids and not order_ids:
             return []
-        links = []
-        if invoice_ids:
-            links.append(PaymentReceipt.sales_invoice_id.in_(invoice_ids))
-        if order_ids:
-            links.append(
-                (PaymentReceipt.order_id.in_(order_ids))
-                & (PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER)
-            )
         return list(
             self.db.execute(
                 select(
-                    PaymentReceipt.sales_invoice_id,
-                    PaymentReceipt.order_id,
+                    PaymentReceiptLine.sales_invoice_id,
+                    PaymentReceiptLine.order_id,
                     PaymentReceipt.receipt_date,
                     PaymentReceipt.id,
                     PaymentReceipt.amount_vnd,
                 )
-                .where(or_(*links), PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
-                .order_by(PaymentReceipt.receipt_date.desc(), PaymentReceipt.id.desc())
+                .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
+                .where(self._noi_dong_cong_no(invoice_ids, order_ids),
+                       PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
+                .order_by(PaymentReceipt.receipt_date.desc(), PaymentReceipt.id.desc(),
+                          PaymentReceiptLine.id.asc())
             ).all()
         )
+
+    @staticmethod
+    def _noi_dong_cong_no(invoice_ids: list[int], order_ids: list[int]):
+        """Dòng phân bổ thuộc công nợ của các hoá đơn / cọc của các đơn này."""
+        links = []
+        if invoice_ids:
+            links.append(PaymentReceiptLine.sales_invoice_id.in_(invoice_ids))
+        if order_ids:
+            links.append(
+                PaymentReceiptLine.order_id.in_(order_ids) & PaymentReceiptLine.sales_invoice_id.is_(None)
+            )
+        return or_(*links)
 
     def customer_ids_co_nhan(self, label: str) -> set[int]:
         """Id các khách mang nhãn `label` — lọc Công nợ phải thu theo nhãn. Gọi thẳng
@@ -885,31 +883,39 @@ class AccountingRepository:
             .where(SalesInvoice.order_id.in_(order_ids), SalesInvoice.status == SALES_INVOICE_ISSUED)
             .group_by(SalesInvoice.order_id)
         )
-        coc_stmt = (
-            select(PaymentReceipt.order_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
-            .where(PaymentReceipt.order_id.in_(order_ids),
-                   PaymentReceipt.sales_invoice_id.is_(None),
-                   PaymentReceipt.source_type != RECEIPT_SOURCE_PURCHASE,
+        thu_stmt = (
+            select(PaymentReceiptLine.order_id, func.coalesce(func.sum(PaymentReceiptLine.amount_vnd), 0))
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
+            .where(PaymentReceiptLine.order_id.in_(order_ids),
                    PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
-            .group_by(PaymentReceipt.order_id)
-        )
-        thu_hd_stmt = (
-            select(SalesInvoice.order_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
-            .join(SalesInvoice, SalesInvoice.id == PaymentReceipt.sales_invoice_id)
-            .where(SalesInvoice.order_id.in_(order_ids),
-                   PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
-            .group_by(SalesInvoice.order_id)
+            .group_by(PaymentReceiptLine.order_id)
         )
         if den_ngay is not None:
             hd_stmt = hd_stmt.where(SalesInvoice.invoice_date <= den_ngay)
-            coc_stmt = coc_stmt.where(PaymentReceipt.receipt_date <= den_ngay)
-            thu_hd_stmt = thu_hd_stmt.where(PaymentReceipt.receipt_date <= den_ngay)
+            thu_stmt = thu_stmt.where(PaymentReceipt.receipt_date <= den_ngay)
         hoa_don = {int(o): int(s or 0) for o, s in self.db.execute(hd_stmt)}
-        da_thu: dict[int, int] = {}
-        for stmt in (coc_stmt, thu_hd_stmt):
-            for o, s in self.db.execute(stmt):
-                da_thu[int(o)] = da_thu.get(int(o), 0) + int(s or 0)
+        da_thu = {int(o): int(s or 0) for o, s in self.db.execute(thu_stmt)}
         return hoa_don, da_thu
+
+    def dieu_chinh_tong_theo_don(
+        self, order_ids: list[int], *, den_ngay: date | None = None
+    ) -> dict[int, int]:
+        """`{order_id: Σ hoá đơn điều chỉnh giảm còn hiệu lực}` (của hoá đơn còn hiệu lực), lập tới hết
+        `den_ngay` — Báo cáo kinh doanh trừ phần này khỏi số khách phải thu (18/10/2026)."""
+        if not order_ids:
+            return {}
+        stmt = (
+            select(SalesInvoiceAdjustment.order_id,
+                   func.coalesce(func.sum(SalesInvoiceAdjustment.amount_vnd), 0))
+            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
+            .where(SalesInvoiceAdjustment.order_id.in_(order_ids),
+                   SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
+                   SalesInvoice.status == SALES_INVOICE_ISSUED)
+            .group_by(SalesInvoiceAdjustment.order_id)
+        )
+        if den_ngay is not None:
+            stmt = stmt.where(SalesInvoiceAdjustment.adj_date <= den_ngay)
+        return {int(o): int(s or 0) for o, s in self.db.execute(stmt)}
 
     def issued_invoice_sums(self, order_ids: list[int]) -> dict[int, int]:
         """`{order_id: Σ hoá đơn đã ghi}` MỘT câu cho nhiều đơn — đơn chưa ghi vắng mặt."""
@@ -948,31 +954,65 @@ class AccountingRepository:
             return {}
         stmt = (
             select(
-                PaymentReceipt.sales_invoice_id,
-                func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0),
+                PaymentReceiptLine.sales_invoice_id,
+                func.coalesce(func.sum(PaymentReceiptLine.amount_vnd), 0),
             )
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
             .where(
-                PaymentReceipt.sales_invoice_id.in_(invoice_ids),
+                PaymentReceiptLine.sales_invoice_id.in_(invoice_ids),
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
             )
-            .group_by(PaymentReceipt.sales_invoice_id)
+            .group_by(PaymentReceiptLine.sales_invoice_id)
         )
         return {int(iid): int(amount) for iid, amount in self.db.execute(stmt)}
 
-    def received_invoice_receipts(self, invoice_ids: list[int]) -> list[PaymentReceipt]:
-        """Phiếu thu ĐÃ THU gắn thẳng vào các hoá đơn — từng phiếu, cùng tập với
-        `received_invoice_receipt_sums`."""
+    def received_invoice_receipts(self, invoice_ids: list[int]) -> list[PaymentReceiptLine]:
+        """DÒNG phân bổ của phiếu thu ĐÃ THU gắn vào các hoá đơn — cùng tập với
+        `received_invoice_receipt_sums`. Dòng mang mặt phiếu (`receipt_id`, `code`, `doc_no`,
+        `receipt_date`); tiền là của dòng."""
         if not invoice_ids:
             return []
         stmt = (
-            select(PaymentReceipt)
+            self._dong_thu_stmt()
             .where(
-                PaymentReceipt.sales_invoice_id.in_(invoice_ids),
+                PaymentReceiptLine.sales_invoice_id.in_(invoice_ids),
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
             )
-            .order_by(PaymentReceipt.receipt_date, PaymentReceipt.id)
+            .order_by(PaymentReceipt.receipt_date, PaymentReceipt.id, PaymentReceiptLine.id)
         )
         return list(self.db.execute(stmt).scalars())
+
+    def dong_coc_da_thu(self, order_id: int) -> list[PaymentReceiptLine]:
+        """DÒNG cọc của đơn trên phiếu thu ĐÃ THU — popup chi tiết khoản cọc."""
+        stmt = (
+            self._dong_thu_stmt()
+            .where(
+                PaymentReceiptLine.order_id == order_id,
+                PaymentReceiptLine.sales_invoice_id.is_(None),
+                PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+            )
+            .order_by(PaymentReceipt.receipt_date, PaymentReceipt.id, PaymentReceiptLine.id)
+        )
+        return list(self.db.execute(stmt).scalars())
+
+    def luot_giao(self, trip_id: int):
+        from ..models.delivery import DeliveryTrip
+
+        return self.db.execute(
+            select(DeliveryTrip).options(selectinload(DeliveryTrip.lines)).where(DeliveryTrip.id == trip_id)
+        ).scalar_one_or_none()
+
+    @staticmethod
+    def _dong_thu_stmt():
+        return (
+            select(PaymentReceiptLine)
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
+            .options(
+                selectinload(PaymentReceiptLine.receipt).selectinload(PaymentReceipt.lines),
+                selectinload(PaymentReceiptLine.sales_invoice),
+                selectinload(PaymentReceiptLine.order),
+            )
+        )
 
     def list_receipts_for_receivables(
         self,
@@ -980,26 +1020,20 @@ class AccountingRepository:
         invoice_ids: list[int],
         order_ids: list[int],
         since=None,
-    ) -> list[PaymentReceipt]:
+    ) -> list[PaymentReceiptLine]:
+        """DÒNG phân bổ (một lần thu = một dòng) thuộc công nợ của các hoá đơn / cọc của các đơn."""
         if not invoice_ids and not order_ids:
             return []
-        links = []
-        if invoice_ids:
-            links.append(PaymentReceipt.sales_invoice_id.in_(invoice_ids))
-        if order_ids:
-            links.append(
-                (PaymentReceipt.order_id.in_(order_ids))
-                & (PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER)
-            )
-        stmt = self._receipt_stmt().where(
-            or_(*links),
+        stmt = self._dong_thu_stmt().where(
+            self._noi_dong_cong_no(invoice_ids, order_ids),
             PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
         )
         if since is not None:
             stmt = stmt.where(PaymentReceipt.receipt_date >= since)
         return list(
             self.db.execute(
-                stmt.order_by(PaymentReceipt.receipt_date.desc(), PaymentReceipt.id.desc())
+                stmt.order_by(PaymentReceipt.receipt_date.desc(), PaymentReceipt.id.desc(),
+                              PaymentReceiptLine.id.asc())
             ).scalars()
         )
 
@@ -1019,6 +1053,8 @@ class AccountingRepository:
             select(PaymentReceipt)
             .options(
                 selectinload(PaymentReceipt.sales_invoice),
+                # Phiếu gộp: tiền theo DÒNG (hoá đơn nào, cọc đơn nào).
+                selectinload(PaymentReceipt.lines).selectinload(PaymentReceiptLine.sales_invoice),
                 # Nhánh `purchase_refund` (NCC hoàn tiền) của TK 331 truy NCC qua phiếu chi rồi
                 # qua phiếu mua. Không nạp sẵn là N+1 HAI TẦNG trên báo cáo cả năm.
                 selectinload(PaymentReceipt.payment_voucher).selectinload(
@@ -1088,8 +1124,9 @@ class AccountingRepository:
         trả thì phiếu thu vẫn giữ (tiền đã vào quỹ); số tiền đó về chung quỹ tiền của đơn như cọc,
         trừ vào hoá đơn ghi lại sau. `order_ids=None` = mọi đơn."""
         stmt = (
-            select(SalesInvoice.order_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
-            .join(SalesInvoice, PaymentReceipt.sales_invoice_id == SalesInvoice.id)
+            select(SalesInvoice.order_id, func.coalesce(func.sum(PaymentReceiptLine.amount_vnd), 0))
+            .join(SalesInvoice, PaymentReceiptLine.sales_invoice_id == SalesInvoice.id)
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
             .where(
                 SalesInvoice.status == SALES_INVOICE_CANCELLED,
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
@@ -1103,6 +1140,106 @@ class AccountingRepository:
             stmt = stmt.where(SalesInvoice.order_id.in_(ids))
         return {int(oid): int(s) for oid, s in self.db.execute(stmt) if int(s) > 0}
 
+    # --- Hóa đơn điều chỉnh giảm (18/10/2026) ---
+    def get_dieu_chinh(self, adj_id: int) -> SalesInvoiceAdjustment | None:
+        return self.db.get(SalesInvoiceAdjustment, adj_id)
+
+    def save_dieu_chinh(self, row: SalesInvoiceAdjustment) -> SalesInvoiceAdjustment:
+        self.db.add(row)
+        self.db.commit()
+        self.db.refresh(row)
+        return row
+
+    def dieu_chinh_sums(self, invoice_ids) -> dict[int, int]:
+        """`{sales_invoice_id: Σ điều chỉnh CÒN HIỆU LỰC}`, MỘT câu cho cả tập. Hoá đơn chưa điều
+        chỉnh vắng mặt trong map."""
+        ids = sorted({int(i) for i in invoice_ids if i})
+        if not ids:
+            return {}
+        stmt = (
+            select(SalesInvoiceAdjustment.sales_invoice_id,
+                   func.coalesce(func.sum(SalesInvoiceAdjustment.amount_vnd), 0))
+            .where(SalesInvoiceAdjustment.sales_invoice_id.in_(ids),
+                   SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED)
+            .group_by(SalesInvoiceAdjustment.sales_invoice_id)
+        )
+        return {int(i): int(s) for i, s in self.db.execute(stmt) if int(s) > 0}
+
+    def dieu_chinh_cua_hoa_don(self, invoice_ids) -> dict[int, list[SalesInvoiceAdjustment]]:
+        """`{sales_invoice_id: [điều chỉnh MỌI trạng thái]}` — để ngăn đơn hiện cả cái đã hủy."""
+        ids = sorted({int(i) for i in invoice_ids if i})
+        if not ids:
+            return {}
+        ra: dict[int, list[SalesInvoiceAdjustment]] = {}
+        for r in self.db.scalars(
+            select(SalesInvoiceAdjustment)
+            .where(SalesInvoiceAdjustment.sales_invoice_id.in_(ids))
+            .order_by(SalesInvoiceAdjustment.adj_date, SalesInvoiceAdjustment.id)
+        ):
+            ra.setdefault(r.sales_invoice_id, []).append(r)
+        return ra
+
+    def dieu_chinh_hieu_luc_toi_ngay(self, den_ngay: date) -> list[SalesInvoiceAdjustment]:
+        """Điều chỉnh còn hiệu lực, của hoá đơn còn hiệu lực, lập tới hết `den_ngay` — sổ 131."""
+        return list(self.db.scalars(
+            select(SalesInvoiceAdjustment)
+            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
+            .where(SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
+                   SalesInvoice.status == SALES_INVOICE_ISSUED,
+                   SalesInvoiceAdjustment.adj_date <= den_ngay)
+            .options(selectinload(SalesInvoiceAdjustment.sales_invoice))
+            .order_by(SalesInvoiceAdjustment.adj_date, SalesInvoiceAdjustment.id)))
+
+    def don_co_dieu_chinh(self) -> set[int]:
+        """Id mọi đơn có hoá đơn điều chỉnh còn hiệu lực — ứng viên hàng "Chờ trả lại khách"."""
+        return {int(i) for i in self.db.scalars(
+            select(SalesInvoiceAdjustment.order_id)
+            .where(SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED).distinct())}
+
+    def dieu_chinh_hieu_luc_theo_don(self, order_ids) -> dict[int, list[SalesInvoiceAdjustment]]:
+        ids = sorted({int(i) for i in order_ids if i})
+        if not ids:
+            return {}
+        ra: dict[int, list[SalesInvoiceAdjustment]] = {}
+        for r in self.db.scalars(
+            select(SalesInvoiceAdjustment)
+            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
+            .where(SalesInvoiceAdjustment.order_id.in_(ids),
+                   SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
+                   SalesInvoice.status == SALES_INVOICE_ISSUED)
+            .order_by(SalesInvoiceAdjustment.adj_date, SalesInvoiceAdjustment.id)
+        ):
+            ra.setdefault(r.order_id, []).append(r)
+        return ra
+
+    def thua_dieu_chinh_theo_don(self, order_ids=None) -> dict[int, int]:
+        """`{order_id: Σ tiền khách đã trả VƯỢT phần còn phải thu của hoá đơn sau điều chỉnh}`.
+        Hoá đơn gốc 100%, khách trả đủ, điều chỉnh giảm 5% ⇒ 5% là tiền phải trả lại. Chỉ tính tiền
+        thu ĐÍCH DANH hoá đơn; cọc / tiền hoá đơn huỷ đi đường `quy_tien_don` riêng. `None` = mọi đơn."""
+        stmt = (
+            select(SalesInvoice.id, SalesInvoice.order_id, SalesInvoice.amount_vnd)
+            .where(SalesInvoice.status == SALES_INVOICE_ISSUED,
+                   SalesInvoice.id.in_(
+                       select(SalesInvoiceAdjustment.sales_invoice_id)
+                       .where(SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED)))
+        )
+        if order_ids is not None:
+            ids = sorted({int(i) for i in order_ids if i})
+            if not ids:
+                return {}
+            stmt = stmt.where(SalesInvoice.order_id.in_(ids))
+        hd = [(int(i), int(o), int(a)) for i, o, a in self.db.execute(stmt)]
+        if not hd:
+            return {}
+        giam = self.dieu_chinh_sums([i for i, _, _ in hd])
+        thu = self.received_invoice_receipt_sums([i for i, _, _ in hd])
+        ra: dict[int, int] = {}
+        for iid, oid, tien in hd:
+            thua = max(0, thu.get(iid, 0) - max(0, tien - giam.get(iid, 0)))
+            if thua:
+                ra[oid] = ra.get(oid, 0) + thua
+        return ra
+
     # --- Hàng việc tiền của đơn bán (services/ban_hang_cho_thu_chi.py, 17/10/2026) ---
     def don_chot_co_coc(self) -> list[Order]:
         """Đơn ĐÃ CHỐT có % cọc — ứng viên hàng "cọc chờ thu"."""
@@ -1114,9 +1251,10 @@ class AccountingRepository:
     def don_co_coc_da_thu(self) -> set[int]:
         """Id mọi đơn có phiếu thu cọc ĐÃ THU."""
         return {int(i) for i in self.db.scalars(
-            select(PaymentReceipt.order_id).where(
-                PaymentReceipt.order_id.is_not(None),
-                PaymentReceipt.source_type == RECEIPT_SOURCE_ORDER,
+            select(PaymentReceiptLine.order_id)
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
+            .where(
+                PaymentReceiptLine.sales_invoice_id.is_(None),
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED).distinct())}
 
     def don_cua_khach_co_tien(self, customer_id: int) -> set[int]:
@@ -1144,7 +1282,8 @@ class AccountingRepository:
             return {}
         stmt = (
             select(SalesInvoice.order_id, SalesInvoice.invoice_number)
-            .join(PaymentReceipt, PaymentReceipt.sales_invoice_id == SalesInvoice.id)
+            .join(PaymentReceiptLine, PaymentReceiptLine.sales_invoice_id == SalesInvoice.id)
+            .join(PaymentReceipt, PaymentReceipt.id == PaymentReceiptLine.payment_receipt_id)
             .where(SalesInvoice.order_id.in_(ids),
                    SalesInvoice.status == SALES_INVOICE_CANCELLED,
                    PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED)
@@ -1299,6 +1438,7 @@ class AccountingRepository:
             selectinload(SalesInvoice.order),
             selectinload(SalesInvoice.customer),
             selectinload(SalesInvoice.receipts),
+            selectinload(SalesInvoice.dieu_chinh),
         )
 
     def save_receipt(self, receipt: PaymentReceipt) -> PaymentReceipt:
@@ -1314,6 +1454,9 @@ class AccountingRepository:
             selectinload(PaymentReceipt.company_bank_account),
             selectinload(PaymentReceipt.attachments),
             selectinload(PaymentReceipt.muc_thu_chi),
+            selectinload(PaymentReceipt.lines).options(
+                selectinload(PaymentReceiptLine.sales_invoice), selectinload(PaymentReceiptLine.order)
+            ),
         )
 
     # --- receipt attachments ------------------------------------------------
@@ -1385,9 +1528,10 @@ class AccountingRepository:
             .selectinload(PurchaseRequest.sources)
             .selectinload(PurchaseRequestSource.department_request),
             # Các phiếu chi anh em cùng PMH — tính "PMH đã chi" cho dải nhóm.
-            selectinload(PaymentVoucher.purchase_request).selectinload(
-                PurchaseRequest.payment_vouchers
-            ),
+            selectinload(PaymentVoucher.purchase_request).selectinload(PurchaseRequest.khoan_chi)
+            .selectinload(PaymentVoucherLine.voucher),
+            selectinload(PaymentVoucher.lines).selectinload(PaymentVoucherLine.purchase_request)
+            .selectinload(PurchaseRequest.deliveries),
             selectinload(PaymentVoucher.supplier),
             selectinload(PaymentVoucher.company_bank_account),
             selectinload(PaymentVoucher.supplier_bank_account),

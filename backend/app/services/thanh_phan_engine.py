@@ -34,7 +34,7 @@ from .routing_engine import basis_qty, compute_step_cost
 # xưởng khai mã riêng cho một chặng (`to_in` gắn cờ *tờ in*) vẫn khớp. Xem `services/dong_giay.py`.
 from ..models.don_vi_do import TRAM_CAI, TRAM_CON, TRAM_TAY, TRAM_TO, TRAM_TO_NGUYEN
 from .bien_cong_thuc import MA_TANG_BUOC_TIEN, ma_hop_le, ngu_canh_phieu
-from .bu_hao_engine import chuoi_nguoc_dv
+from .bu_hao_engine import chuoi_nguoc_dv, kiem_chuoi_don_vi
 from .dong_giay import dich_chuoi
 
 
@@ -952,8 +952,14 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     tram_cuoi = buoc_in[-1]["tram_ra"] if buoc_in else None
     to_can = dich_chuoi(sl, tram_ra_cuoi=tram_cuoi, cai_moi_to=cai_moi_to, he_so=he_so_dv)
     buoc_giay, canh_bao_dv = chuoi_nguoc_dv(buoc_in, to_can=to_can, he_so=he_so_dv)
+    # Chuỗi ĐỨT đơn vị là LỖI chặn ra giá (lỗi #8, 18/10/2026), không phải cảnh báo: số tính trên
+    # chuỗi đứt chia số con hai lần, bù hao âm, giá vốn thấp hơn thật. Engine vẫn chạy hết để màn
+    # xem trước có số mà soi, nhưng `loi_chuoi` báo đích danh bước và máy chủ từ chối LƯU phiếu.
+    _dut = kiem_chuoi_don_vi(buoc_in)
+    loi_chuoi = [f"Thành phần '{name}': {_c}" for _c in _dut]
     for _c in canh_bao_dv:
-        warnings.append(f"Thành phần '{name}': {_c}")
+        if _c not in _dut:
+            warnings.append(f"Thành phần '{name}': {_c}")
 
     # --- Số tờ: đọc RA KHỎI CHUỖI tại đúng ranh giới đơn vị, không tính riêng bên ngoài ---
 
@@ -1419,6 +1425,7 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
             "so_mau_a": so_mau_a, "so_mau_b": so_mau_b, "so_mau_pha": so_mau_pha,
             "to_dau_vao": to_dau_vao, "to_sau_in": to_sau_in,
             "bu_hao_auto": _r(finishing_spoilage_sum),   # Σ bù hao công đoạn (chuỗi ngược)
+            "loi_chuoi": loi_chuoi,                      # chuỗi đứt đơn vị — LỖI chặn lưu phiếu
             "bu_hao_chi_tiet": bu_hao_chi_tiet,          # phân rã: bước nào ăn bao nhiêu tờ
             "so_trang": so_trang, "trang_moi_tay": trang_moi_tay,   # người dùng khai
             "so_to_per_sp": so_to_per_sp,                # số bài in — DẪN XUẤT: so_trang / trang_moi_tay
@@ -1537,4 +1544,6 @@ def compute_phieu(*, so_luong: int, thanh_phans: list[dict], warnings: list[str]
         "groups": groups,
         "grand_total": _r(grand_total),
         "warnings": warns,
+        # LỖI chặn LƯU phiếu (khác `warnings`): số đã tính là số sai, không được thành giá vốn.
+        "loi": [s for c in components for s in (c.get("loi_chuoi") or [])],
     }

@@ -5,7 +5,8 @@
  *  `man=<mã màn>`: chỉ màn trùng mã mới đọc các khoá còn lại (Phiếu thu không ăn nhầm `ky` của
  *  Phiếu chi), và AppShell đọc `man` lúc mở app để vào thẳng màn đó. Mỗi màn chỉ đụng khoá của
  *  mình — khoá lạ (của ai khác) giữ nguyên, hash (`#lsx=…` của phiếu công nghệ) giữ nguyên. Ghi
- *  bằng `history.replaceState`: đổi lọc không đẻ thêm bước "Back". Gỡ màn thì dọn khoá của mình.
+ *  bằng `history.replaceState`: đổi lọc không đẻ thêm bước "Back". Gỡ màn thì dọn khoá của mình
+ *  (dấu `man` thì AppShell giữ/đổi/dọn theo màn đang mở — `datManDangMo`, `boManDangMo`).
  */
 import { useEffect, useRef } from "react";
 
@@ -43,12 +44,29 @@ export function ghiThamSoMan(search: string, man: string, giaTri: Record<string,
   return raChuoi(p);
 }
 
-/** Bỏ các khoá của màn; dấu `man` chỉ bỏ khi nó đang là của màn này. */
-export function boThamSoMan(search: string, man: string, khoa: readonly string[]): string {
+/** Bỏ các khoá của màn; dấu `man` chỉ bỏ khi nó đang là của màn này (và không `giuMan`). */
+export function boThamSoMan(search: string, man: string, khoa: readonly string[], giuMan = false): string {
   const p = new URLSearchParams(search);
   for (const k of khoa) p.delete(k);
-  if (p.get(KHOA_MAN) === man) p.delete(KHOA_MAN);
+  if (!giuMan && p.get(KHOA_MAN) === man) p.delete(KHOA_MAN);
   return raChuoi(p);
+}
+
+/** Đặt dấu `man` = màn đang mở, giữ nguyên mọi khoá khác. Việc của AppShell: nó biết màn nào đang mở,
+ *  còn màn con chỉ ghi khoá lọc của mình (nhiều màn không ghi gì ⇒ trước đây URL trơ về `/`). */
+export function datManDangMo(man: string): void {
+  if (typeof window === "undefined" || !MA_MAN_HOP_LE.test(man)) return;
+  const p = new URLSearchParams(window.location.search);
+  if (p.get(KHOA_MAN) === man) return;
+  p.set(KHOA_MAN, man);
+  thayQuery(raChuoi(p));
+}
+
+/** AppShell gỡ/đổi màn: dọn dấu `man` nếu nó vẫn là của màn vừa rời. */
+export function boManDangMo(man: string): void {
+  if (typeof window === "undefined") return;
+  if (new URLSearchParams(window.location.search).get(KHOA_MAN) !== man) return;
+  thayQuery(boThamSoMan(window.location.search, man, []));
 }
 
 function thayQuery(search: string) {
@@ -70,6 +88,8 @@ export function useDongBoUrl(man: string, giaTri: GiaTriUrl): void {
   }, [man, chuoi]);
   useEffect(() => {
     const khoa = daGhi.current;
-    return () => thayQuery(boThamSoMan(window.location.search, man, [...khoa]));
+    // Chỉ dọn KHOÁ của màn, GIỮ dấu `man`: màn con (tab Lương, danh sách phiếu tính giá) gỡ ra khi
+    // người dùng đổi tab hay mở một phiếu, mà màn bao quanh vẫn đang mở. Dấu `man` do AppShell lo.
+    return () => thayQuery(boThamSoMan(window.location.search, man, [...khoa], true));
   }, [man]);
 }

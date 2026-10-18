@@ -23,7 +23,7 @@ export function LsxPreviewDrawer({
   canCreate: boolean;
   onClose: () => void;
   /** Tạo xong → controller nhảy sang tab Lệnh SX đã lọc theo đơn này. */
-  onCreated: (orderId: number, maList: string[]) => void;
+  onCreated: (orderId: number, maList: string[], orderNo?: string) => void;
   onOpenLsx: (lsxId: number) => void;
 }) {
   const { token } = useAuth();
@@ -93,7 +93,7 @@ export function LsxPreviewDrawer({
     setErr(null);
     try {
       const r = await api.lsx.tao(token, data.order_id, [...picked]);
-      onCreated(data.order_id, r.items.map((i) => i.ma));
+      onCreated(data.order_id, r.items.map((i) => i.ma), data.order_no);
     } catch (e: unknown) {
       setErr(e instanceof ApiError ? e.message : String(e));
     } finally {
@@ -113,7 +113,7 @@ export function LsxPreviewDrawer({
         <header className="khsx-drawer__head">
           <div className="khsx-drawer__headmain">
             <p className="khsx-drawer__kicker">
-              <span className="khsx-badge-kicker">Lệnh dự kiến · chưa ghi DB</span>
+              <span className="khsx-badge-kicker">Lệnh dự kiến, chưa lưu</span>
             </p>
             <h2 className="khsx-drawer__title" id="khsx-drawer-title" tabIndex={-1} ref={titleRef}>
               {data ? `${data.order_no} · ${data.customer_name ?? "—"}` : "Đang tải…"}
@@ -158,7 +158,7 @@ export function LsxPreviewDrawer({
             <div className="khsx-empty khsx-empty--inline">
               <Icon name="check" size={36} />
               <p className="khsx-empty__title">Tất cả dòng của đơn này đã lên lệnh.</p>
-              <Button variant="secondary" onClick={() => onCreated(orderId, [])}>
+              <Button variant="secondary" onClick={() => onCreated(orderId, [], data?.order_no)}>
                 Xem lệnh của đơn →
               </Button>
             </div>
@@ -274,7 +274,8 @@ function O({ v, dv }: { v: number | null; dv: string }) {
   return (
     <>
       <span className="khsx-num__main">{num(v)}</span>
-      <span className="khsx-prev__dv">{dv}</span>
+      {/* Đơn vị rỗng = máy chủ không nói chặng này ⇒ chỉ hiện con số, không bịa nhãn. */}
+      {dv && <span className="khsx-prev__dv">{dv}</span>}
     </>
   );
 }
@@ -375,7 +376,10 @@ function PreviewRow({
           <td className="khsx-num khsx-num--val"><O v={line.so_to_ke_hoach} dv={dvTo} /></td>
           <td className="khsx-num khsx-num--val"><O v={line.bu_hao_to} dv={dvTo} /></td>
           <td className="khsx-num khsx-num--val">
-            <O v={line.so_to_nguyen} dv={nhanChang(line.don_vi_to_nguyen) || dvTo} />
+            {/* `don_vi_to_nguyen` null = routing không có bước xả giấy: máy chủ quy ước "client chỉ hiện
+                con số, KHÔNG bịa nhãn" (`schemas/lsx.py`). Lùi về nhãn tờ in là ghi sai đơn vị: số
+                tờ NGUYÊN (1.400 tờ in chia 2 = 700) bị đọc thành 700 tờ in. */}
+            <O v={line.so_to_nguyen} dv={nhanChang(line.don_vi_to_nguyen)} />
           </td>
           <td className="khsx-num khsx-num--val" title={`${num(line.so_con)} con trên 1 ${dvTo}`}>
             <O v={line.so_con} dv="con" />

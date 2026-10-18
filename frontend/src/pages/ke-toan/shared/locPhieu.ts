@@ -1,11 +1,11 @@
 /** Điều kiện lọc DÙNG CHUNG của hai sổ phiếu — Phiếu chi và Phiếu thu (đặc tả PC-1, PT-1, A.18),
  *  đặt trên thanh lọc chung `ThanhLoc` (06/10/2026).
  *
- *  Hai màn có cùng năm điều kiện: Số tiền (khoảng), Hình thức, Mục (nhiều), Tài khoản công ty và
- *  Chứng từ. Lọc Mục thay lọc Nguồn từ 11/10/2026 — danh sách mục nạp từ danh mục Mục thu chi. Tên người nhận / người nộp
+ *  Hai màn có cùng bốn điều kiện: Số tiền (khoảng), Hình thức, Mục (nhiều) và Tài khoản công ty
+ *  (điều kiện Chứng từ gỡ 18/10/2026). Lọc Mục thay lọc Nguồn từ 11/10/2026 — danh sách mục nạp từ danh mục Mục thu chi. Tên người nhận / người nộp
  *  tìm bằng ô tìm (máy chủ so cả tên người trong `q`). File này là hàm thuần, không React.
  */
-import { ArrowLeftRight, Banknote, Landmark, Layers, Paperclip } from "lucide-react";
+import { ArrowLeftRight, Banknote, Landmark, Layers } from "lucide-react";
 
 import type { CompanyBankAccountRow, LocPhieu, TheLoc as SoTheLoc } from "../../../api/client";
 import { dkTheoTab, type DieuKien, type GiaTriDK } from "../../thanh-loc/thanh-loc";
@@ -17,7 +17,6 @@ export type LocNangCao = {
   hinh_thuc?: "cash" | "bank_transfer";
   muc: number[];
   tai_khoan_id?: number;
-  chung_tu?: "co" | "thieu";
 };
 
 export const LOC_TRONG: LocNangCao = { muc: [] };
@@ -41,7 +40,6 @@ export function soDieuKien(loc: LocNangCao): number {
   if (loc.hinh_thuc) n++;
   if (loc.muc.length) n++;
   if (loc.tai_khoan_id != null) n++;
-  if (loc.chung_tu) n++;
   return n;
 }
 
@@ -50,10 +48,6 @@ export function soDieuKien(loc: LocNangCao): number {
 const HINH_THUC: GiaTriDK[] = [
   { value: "cash", nhan: "Tiền mặt" },
   { value: "bank_transfer", nhan: "Chuyển khoản" },
-];
-const CHUNG_TU: GiaTriDK[] = [
-  { value: "co", nhan: "Đã có" },
-  { value: "thieu", nhan: "Còn thiếu" },
 ];
 
 /** Chữ riêng của từng sổ. */
@@ -104,11 +98,6 @@ export function dieuKienPhieu(
       ghi: (l, v) => ({ ...l, tai_khoan_id: v == null ? undefined : Number(v) }),
     });
   }
-  ds.push({
-    khoa: "chung_tu", nhan: "Chứng từ", icon: Paperclip, kieu: "mot", giaTri: CHUNG_TU,
-    doc: (l) => l.chung_tu,
-    ghi: (l, v) => ({ ...l, chung_tu: v as LocNangCao["chung_tu"] }),
-  });
   return ds;
 }
 
@@ -125,7 +114,6 @@ export function dkTrangThaiPhieu(o: {
   const so = (id: string): number | undefined => {
     if (!o.n) return undefined;
     if (id === "xong") return o.n.xong;
-    if (id === "thieu") return o.n.thieu_chung_tu;
     if (id === "da_huy") return o.n.da_huy;
     if (id === "cho") return o.n.cho;
     return undefined;
@@ -155,7 +143,6 @@ export function locNangCaoLenUrl(loc: LocNangCao): Record<string, string | undef
     hinh_thuc: loc.hinh_thuc,
     muc: loc.muc.length ? loc.muc.join(",") : undefined,
     tk: loc.tai_khoan_id != null ? String(loc.tai_khoan_id) : undefined,
-    chung_tu: loc.chung_tu,
   };
 }
 
@@ -174,7 +161,5 @@ export function locNangCaoTuUrl(p: URLSearchParams): LocNangCao {
     .filter((n) => Number.isSafeInteger(n)))];
   const tk = soDuong(p.get("tk"));
   if (tk != null && tk > 0) loc.tai_khoan_id = tk;
-  const ct = p.get("chung_tu");
-  if (ct === "co" || ct === "thieu") loc.chung_tu = ct;
   return loc;
 }

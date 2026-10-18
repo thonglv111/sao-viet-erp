@@ -79,7 +79,9 @@ def _dung_phieu(db, so_buoc: int, nhan: str = "a") -> PhieuTinhGia:
     tp.thanh_phams.append(PhieuThanhPham(thu_tu=0, cong_doan_id=cd_in.id, ten="In offset", don_gia=200))
     for i in range(so_buoc):
         cd = CongDoan(ma=f"CD-S{nhan}{i}", ten=f"Sau in {i}", nhom="finishing", cong_thuc_gia="so_luong * don_gia",
-                      department_ids=[to_id], nang_suat=4000, don_vi_vao="cai", don_vi_ra="cai")
+                      department_ids=[to_id], nang_suat=4000,
+                      # Bước đầu nhận tờ in của bước In (chuỗi liền đơn vị — lưu tuyến đứt bị chặn từ 18/10/2026).
+                      don_vi_vao="to" if i == 0 else "cai", don_vi_ra="cai")
         db.add(cd)
         db.flush()
         vt = VatTuInAn(ma=f"VT-{nhan}{i}", ten=f"Vật tư {i}", don_vi_gia="m2_sup", don_gia=1_000,

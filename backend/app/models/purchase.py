@@ -286,6 +286,13 @@ class PurchaseRequest(Base):
         back_populates="purchase_request",
         order_by="PaymentVoucher.id",
     )
+    # Dòng PHÂN BỔ phiếu chi trỏ vào đơn này (17/10/2026) — gồm cả phần của phiếu GỘP nhiều đơn, thứ
+    # `payment_vouchers` (theo cột nguồn đầu phiếu) không thấy. Mọi phép tính tiền đã chi đọc ở đây.
+    khoan_chi: Mapped[list["PaymentVoucherLine"]] = relationship(
+        "PaymentVoucherLine",
+        back_populates="purchase_request",
+        order_by="PaymentVoucherLine.id",
+    )
     deliveries: Mapped[list["PurchaseDelivery"]] = relationship(
         "PurchaseDelivery",
         back_populates="request",

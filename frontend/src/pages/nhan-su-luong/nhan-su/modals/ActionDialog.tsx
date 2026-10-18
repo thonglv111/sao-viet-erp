@@ -8,6 +8,7 @@ import {
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { ChonNgay } from "../../../../components/ChonNgay";
+import { homNayVN } from "../../../../utils/ky";
 import { ACTION_TITLE } from "../shared/constants";
 import { errMsg } from "../shared/helpers";
 import { Field } from "../components/form-fields";
@@ -29,7 +30,7 @@ export function ActionDialog({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = homNayVN();
   const [effective, setEffective] = useState(today);
   const [note, setNote] = useState("");
   const [newDept, setNewDept] = useState<number | "">("");

@@ -1004,10 +1004,33 @@ def set_khoa_so(payload: KhoKhoaSoIn, db: Db, user: CloseBookUser) -> KhoKhoaSoR
                     f"{cutoff.strftime('%d/%m/%Y')}) TRƯỚC."
                 ),
             )
+    # Tên kỳ cho dòng nhật ký. Khoá: tên vừa đặt. Mở: body không mang tên, nên tra tên các kỳ đang
+    # khoá mà khoảng mở chạm vào — phải tra TRƯỚC `repo.add` vì bản ghi 'mo' mới ghi sẽ che chúng.
+    if payload.hanh_dong == "khoa":
+        ten_ky_nk = (payload.ten or "").strip()
+    else:
+        ten_ky_nk = "; ".join(
+            t[4] for t in repo.locked_periods()
+            if t[0] == payload.kho_id and t[4] and t[1] <= payload.den_ngay and t[2] >= payload.tu_ngay
+        )
     row = repo.add(
         kho_id=payload.kho_id, tu_ngay=payload.tu_ngay, den_ngay=payload.den_ngay,
         hanh_dong=payload.hanh_dong, nguoi_khoa_id=user.id,
         ten=((payload.ten or "").strip() or None) if payload.hanh_dong == "khoa" else None,
+    )
+    kho_nk = KhoHangRepository(db).get(payload.kho_id) if payload.kho_id is not None else None
+    # Trước 18/10/2026 khoá / mở kỳ kho chỉ nằm ở bảng `kho_khoa_so`, không có dòng nhật ký nào
+    # (lỗi E2E #49). Mở kỳ là việc nhạy cảm nhất: nó xoá số đã chốt giá của kỳ.
+    _nk_khoa_so = dict(
+        actor_user_id=user.id,
+        action="kho_khoa_ky" if payload.hanh_dong == "khoa" else "kho_mo_ky",
+        target=f"kho_khoa_so:{row.id}",
+        detail=(
+            ("Khoá kỳ" if payload.hanh_dong == "khoa" else "Mở kỳ")
+            + (f" “{ten_ky_nk}”" if ten_ky_nk else "")
+            + f" {_fmt_date(payload.tu_ngay)} – {_fmt_date(payload.den_ngay)}"
+            + f", {getattr(kho_nk, 'ten', None) or 'toàn kho'}"
+        ),
     )
     # KHÓA sổ CHỈ khai + đóng băng kỳ (không tự tính giá — luồng chốt 29/08/2026): tính giá là bước
     # RIÊNG, vào tab N-X-T chọn kỳ đã khóa rồi bấm "Tính giá kỳ". Tách bạch cho đỡ rối.
@@ -1016,7 +1039,12 @@ def set_khoa_so(payload: KhoKhoaSoIn, db: Db, user: CloseBookUser) -> KhoKhoaSoR
     if payload.hanh_dong == "mo":
         kho_ids = [payload.kho_id] if payload.kho_id else None
         KhoKyTonRepository(db).delete_range(payload.tu_ngay, payload.den_ngay, kho_ids)
+        # Cùng giao dịch với việc xoá số đã chốt: mất số mà không có vết (hay ngược lại) là sai.
+        AuditLogRepository(db).create(**_nk_khoa_so, commit=False)
         db.commit()
+        AuditLogRepository.bao_co_dong_moi()
+    else:
+        AuditLogRepository(db).create(**_nk_khoa_so)
     return _khoa_row(db, row)
 
 

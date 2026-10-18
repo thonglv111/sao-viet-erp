@@ -59,6 +59,17 @@ describe("useDongBoUrl", () => {
     expect(window.location.search).toBe("?abc=1&man=ke-toan-phieu-chi");
     expect(window.history.length).toBe(dau);
     unmount();
-    expect(window.location.search).toBe("?abc=1");
+    // Dấu `man` là của AppShell (nó biết màn nào đang mở); hook chỉ dọn khoá của mình.
+    expect(window.location.search).toBe("?abc=1&man=ke-toan-phieu-chi");
+  });
+
+  it("#2 đổi tab con giữ ?man=: tab có hook gỡ ra, tab không có hook thế vào, URL vẫn còn man", () => {
+    window.history.replaceState(null, "", "/");
+    const tabLoc = renderHook(() => useDongBoUrl("luong", { ky: "thang" }));
+    expect(window.location.search).toBe("?man=luong&ky=thang");
+    // Rời tab "Bảng lương" sang tab "Nhân viên" (không dùng hook): trước đây `man` bị xoá ⇒ URL `/`.
+    tabLoc.unmount();
+    expect(new URLSearchParams(window.location.search).get("man")).toBe("luong");
+    expect(new URLSearchParams(window.location.search).has("ky")).toBe(false);
   });
 });

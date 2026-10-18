@@ -46,16 +46,33 @@ function chuTran(el: Element): string[] {
 }
 
 describe("ReceiptsTable", () => {
-  it("mười một cột đúng thứ tự: Mục thu sau Lý do, Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
+  it("phiếu gộp: Thu theo ghi số chứng từ, chữ nổi liệt kê từng dòng (mỗi dòng một hàng)", () => {
+    ve({
+      rows: [phieuThu({
+        id: 9, code: "PT-261017-GOP1", source_type: "sales_invoice", sales_invoice_id: null, sales_invoice_number: null,
+        order_id: null, order_code: "DH-0018 +1", customer_id: 3,
+        lines: [
+          { order_id: 21, order_code: "DH-0021", sales_invoice_id: null, invoice_number: null, amount: 3_000_000 },
+          { order_id: 18, order_code: "DH-0018", sales_invoice_id: 77, invoice_number: "0000123", amount: 5_000_000 },
+        ],
+      })],
+      tong: 1,
+    });
+    const o = screen.getByText("2 chứng từ").closest("td")!;
+    expect(o).toHaveAttribute("title", "Cọc đơn DH-0021 3.000.000\nHĐ 0000123 đơn DH-0018 5.000.000");
+    expect(within(o).queryByRole("button")).toBeNull();
+  });
+
+  it("mười cột đúng thứ tự: Mục thu sau Lý do, Trạng thái đứng sau Số tiền, Ngày tạo cuối (cột Ghi chú gỡ 18/10/2026)", () => {
     ve();
     expect(screen.getAllByRole("columnheader").map((th) => th.textContent)).toEqual([
       "Số phiếu", "Ngày thu", "Người nộp tiền", "Lý do nộp", "Mục thu", "Thu theo", "Hình thức", "Số tiền", "Trạng thái",
-      "Ngày tạo", "Ghi chú",
+      "Ngày tạo",
     ]);
     expect(screen.getByRole("table")).toHaveClass("lds-g");
   });
 
-  it("không nối mẩu bằng · • hay dấu phẩy; nhãn Thu theo là thẻ nhỏ; Trạng thái và Ghi chú nói đúng", () => {
+  it("không nối mẩu bằng · • hay dấu phẩy; nhãn Thu theo là thẻ nhỏ; Trạng thái nói đúng", () => {
     const { container } = ve({ moNguon: undefined });
     const bang = screen.getByRole("table");
     for (const t of chuTran(bang)) expect(t).not.toMatch(/[·•]|,\s/);
@@ -74,16 +91,15 @@ describe("ReceiptsTable", () => {
     // Phiếu thu lập tay: ô Thu theo trống (cột Mục nói nó là khoản gì); chưa gắn mục thì "Chưa phân loại".
     expect(within(dong[2]).queryByText("Khác")).toBeNull();
     expect(within(dong[2]).getAllByText("Chưa phân loại")[0]).toHaveClass("lds-mu");
-    // Phiếu đã thu: chip xanh lá; thiếu chứng từ gốc nhắc bằng chữ vàng ở Ghi chú.
+    // Phiếu đã thu: chip xanh lá; phiếu thiếu tệp không còn bị nhắc "Thiếu chứng từ gốc" (gỡ 18/10/2026).
     expect(within(dong[0]).getByText("Đã thu")).toHaveClass("lds-chip", "lds-chip--la");
-    expect(within(dong[2]).getByText("Thiếu chứng từ gốc")).toHaveClass("lds-vang");
-    // Phiếu đã hủy: dòng mờ, chip "Đã hủy", không bị nhắc thiếu chứng từ.
+    expect(within(dong[2]).queryByText("Thiếu chứng từ gốc")).toBeNull();
+    // Phiếu đã hủy: dòng mờ, chip "Đã hủy".
     expect(dong[3]).toHaveClass("kt-da-huy");
     expect(within(dong[3]).getByText("Đã hủy")).toHaveClass("lds-chip", "lds-chip--xam");
     expect(within(dong[3]).queryByText("Thiếu chứng từ gốc")).toBeNull();
-    // Phiếu cũ chờ thu: chip "Chờ thu" (màu cam, khác Thiếu chứng từ), chưa thu nên chưa đòi chứng từ.
+    // Phiếu cũ chờ thu: chip "Chờ thu" màu cam.
     expect(within(dong[4]).getByText("Chờ thu")).toHaveClass("lds-chip", "lds-chip--cam");
-    expect(within(dong[4]).queryByText("Thiếu chứng từ gốc")).toBeNull();
     expect(within(dong[4]).getByText("Thu lại tiền chi")).toHaveClass("lds-tag");
     expect(within(dong[4]).getByText("UNC-260810-AB12")).toBeInTheDocument();
     // Ô Thu theo hẹp: chữ nổi giữ đủ nhãn + mã khi mã bị cắt.

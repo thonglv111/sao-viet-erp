@@ -25,3 +25,20 @@ describe("dongPhuPhieuChi — dòng Đợt thanh toán", () => {
     expect(dot({ ...goc, payment_stage: "final", delivery_seq_no: null })).toBe("Thanh toán tiền hàng");
   });
 });
+
+describe("dongPhuPhieuChi — phiếu gộp", () => {
+  it("mỗi khoản một dòng in, không in Đợt thanh toán", () => {
+    const dong = dongPhuPhieuChi({
+      ...goc, payment_stage: "final", delivery_seq_no: null,
+      lines: [
+        { purchase_request_id: 9, purchase_code: "PMH-0009", delivery_id: null, delivery_seq_no: null, invoice_number: null, amount: 500_000 },
+        { purchase_request_id: 10, purchase_code: "PMH-0010", delivery_id: 31, delivery_seq_no: 1, invoice_number: "88", amount: 764_000 },
+      ],
+    });
+    expect(dong.find((l) => l.label === "Đợt thanh toán")).toBeUndefined();
+    expect(dong.filter((l) => l.label.startsWith("Khoản"))).toEqual([
+      { label: "Khoản 1", value: "PMH-0009 cọc số tiền 500.000 đ" },
+      { label: "Khoản 2", value: "PMH-0010 đợt 1 hoá đơn 88 số tiền 764.000 đ" },
+    ]);
+  });
+});

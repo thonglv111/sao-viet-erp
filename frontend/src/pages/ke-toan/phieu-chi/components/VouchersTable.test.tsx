@@ -40,12 +40,30 @@ function chuTran(el: Element): string[] {
 }
 
 describe("VouchersTable", () => {
-  it("mười một cột đúng thứ tự: Mục chi sau Lý do, Trạng thái đứng sau Số tiền, Ghi chú cuối", () => {
+  it("phiếu gộp: Chi theo ghi số chứng từ, chữ nổi liệt kê từng dòng (mỗi dòng một hàng)", () => {
+    ve({
+      rows: [phieu({
+        id: 9, code: "PC-261017-GOP1", source_type: "purchase_request", payment_stage: "final",
+        purchase_request_id: null, purchase_request_code: "PMH-0009 +1",
+        lines: [
+          { purchase_request_id: 9, purchase_code: "PMH-0009", delivery_id: null, delivery_seq_no: null, invoice_number: null, amount: 500_000 },
+          { purchase_request_id: 10, purchase_code: "PMH-0010", delivery_id: 31, delivery_seq_no: 1, invoice_number: "88", amount: 764_000 },
+        ],
+      })],
+      tong: 1,
+    });
+    const o = screen.getByText("2 chứng từ").closest("td")!;
+    expect(within(o).getByText("Đơn mua")).toHaveClass("lds-tag");
+    expect(o).toHaveAttribute("title", "PMH-0009 cọc 500.000\nPMH-0010 đợt 1 764.000");
+    expect(within(o).queryByRole("button")).toBeNull();
+  });
+
+  it("mười cột đúng thứ tự: Mục chi sau Lý do, Trạng thái đứng sau Số tiền, Ngày tạo cuối (cột Ghi chú gỡ 18/10/2026)", () => {
     ve();
     const tieuDe = screen.getAllByRole("columnheader").map((th) => th.textContent);
     expect(tieuDe).toEqual([
       "Số phiếu", "Ngày chi", "Người nhận tiền", "Lý do chi", "Mục chi", "Chi theo", "Hình thức", "Số tiền", "Trạng thái",
-      "Ngày tạo", "Ghi chú",
+      "Ngày tạo",
     ]);
     // Khuôn lưới chung: bảng `lds-g`, số tiền canh phải, hai cột ghim không có (chỉ Số phiếu cố định).
     expect(screen.getByRole("table")).toHaveClass("lds-g");
@@ -69,19 +87,19 @@ describe("VouchersTable", () => {
     expect(within(dong[1]).getByText("DMH-261002-K4P1")).toBeInTheDocument();
   });
 
-  it("Trạng thái là chip, Ghi chú nhắc thiếu chứng từ gốc bằng chữ vàng; phiếu hủy mờ và không bị nhắc", () => {
+  it("Trạng thái là chip; phiếu thiếu tệp không còn bị nhắc \"Thiếu chứng từ gốc\"; phiếu hủy mờ", () => {
     const { container } = ve();
     const dong = container.querySelectorAll<HTMLElement>("tr.lds-dong");
     expect(within(dong[0]).getByText("Đã chi")).toHaveClass("lds-chip", "lds-chip--la");
     expect(within(dong[0]).queryByText("Thiếu chứng từ gốc")).toBeNull();
-    expect(within(dong[1]).getByText("Thiếu chứng từ gốc")).toHaveClass("lds-vang");
+    expect(within(dong[1]).queryByText("Thiếu chứng từ gốc")).toBeNull();
     expect(dong[2]).toHaveClass("kt-da-huy");
     expect(within(dong[2]).getByText("Đã hủy")).toHaveClass("lds-chip", "lds-chip--xam");
     expect(within(dong[2]).queryByText("Thiếu chứng từ gốc")).toBeNull();
   });
 
   it("cột người xem ẩn thì không vẽ, dòng Cộng vẫn thẳng cột", () => {
-    const { container } = ve({ cot: COT_PHIEU_CHI.filter((c) => c.key !== "hinh_thuc" && c.key !== "ghi_chu") });
+    const { container } = ve({ cot: COT_PHIEU_CHI.filter((c) => c.key !== "hinh_thuc") });
     expect(screen.queryByRole("columnheader", { name: "Hình thức" })).toBeNull();
     const cong = container.querySelector<HTMLElement>("tr.lds-cong")!;
     // Số phiếu … Chi theo = 6 cột trước ô tiền (có cột Mục chi).

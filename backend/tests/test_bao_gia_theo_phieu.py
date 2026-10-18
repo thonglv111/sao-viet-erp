@@ -68,6 +68,7 @@ def test_dong_go_tay_giu_gia_go_tay_va_chiet_khau(client):
     pid = _phieu(client, t, comps=[_component(giay, cd)])
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(t)).json()
     iid = q["items"][0]["id"]
+    von_cu = q["items"][0]["total_cost_snapshot"]
     r = client.put(f"/api/quotations/{q['id']}", json={"items": [{
         "id": iid, "manual_selling_price": 9_000_000, "discount_amount": 450_000, "dien_giai": "Sửa tay",
     }]}, headers=_h(t))
@@ -77,10 +78,12 @@ def test_dong_go_tay_giu_gia_go_tay_va_chiet_khau(client):
     assert it["quantity"] == 20000
     assert it["gia_go_tay"] is True
     assert round(it["selling_price"]) == 9_000_000       # giữ giá gõ tay
-    assert round(it["discount_amount"]) == 450_000       # giữ 5% chiết khấu
+    # % chiết khấu TRÊN GIÁ VỐN giữ nguyên khi giá vốn đổi (chiết khấu cộng vào giá bán).
+    assert abs(it["discount_amount"] - 450_000 / von_cu * it["total_cost_snapshot"]) <= 1
     assert it["dien_giai"] == "Sửa tay"                  # giữ diễn giải đã sửa
-    expect = round((9_000_000 / it["total_cost_snapshot"] - 1) * 100, 2)
-    assert abs(it["margin_percent"] - expect) < 0.01     # markup suy lại theo giá vốn mới
+    goc = it["total_cost_snapshot"] + it["discount_amount"]
+    expect = round((9_000_000 / goc - 1) * 100, 2)
+    assert abs(it["margin_percent"] - expect) < 0.01     # lợi nhuận % trên (vốn + chiết khấu) suy lại
 
 
 def test_them_bot_san_pham_o_phieu(client):

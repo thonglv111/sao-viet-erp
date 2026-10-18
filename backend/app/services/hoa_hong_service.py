@@ -22,6 +22,10 @@ Công thức:
 
     tỷ_lệ_trước_VAT(đơn) = Σ line_total / tổng_có_VAT      (1.0 nếu đơn không có VAT)
 
+Hoá đơn ĐIỀU CHỈNH GIẢM (hoàn chiết khấu) có `adj_date` trong kỳ đi vào công thức như hoá đơn ÂM, nên trừ
+vào hoa hồng của kỳ nó phát hành. Hoa hồng một người không âm: phần trừ quá số có của kỳ không mang sang
+kỳ sau (chủ dự án chốt KHÔNG truy thu — 18/10/2026).
+
 `order_lines.line_total` là NET **trước VAT, sau chiết khấu** — xem `order_service.py` chỗ tính
 `net_line = final_amount − vat_amount`.
 """
@@ -32,7 +36,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..models.accounting import SALES_INVOICE_ISSUED, SalesInvoice
+from ..models.accounting import SALES_INVOICE_ISSUED, SalesInvoice, SalesInvoiceAdjustment
 from ..models.employee import Employee
 from ..models.order import Order
 
@@ -62,7 +66,20 @@ class HoaHongService:
                 SalesInvoice.invoice_date <= den_ngay,
             )
         ).all()
-        return [(int(r[0]), int(r[1] or 0)) for r in rows if r[0]]
+        moc = [(int(r[0]), int(r[1] or 0)) for r in rows if r[0]]
+        # Hoá đơn điều chỉnh giảm (hoàn chiết khấu cho khách, 18/10/2026) là doanh số bị trả lại: trừ
+        # vào hoa hồng của kỳ nó phát hành. Hoa hồng một người không xuống dưới 0 (xem hai hàm API).
+        giam = self.db.execute(
+            select(SalesInvoiceAdjustment.order_id, SalesInvoiceAdjustment.amount_vnd)
+            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
+            .where(
+                SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
+                SalesInvoice.status == SALES_INVOICE_ISSUED,
+                SalesInvoiceAdjustment.adj_date >= tu_ngay,
+                SalesInvoiceAdjustment.adj_date <= den_ngay,
+            )
+        ).all()
+        return moc + [(int(r[0]), -int(r[1] or 0)) for r in giam if r[0]]
 
     # ---------------------------------------------------------------- quy đổi trước VAT
     def _ty_le_truoc_vat(self, order: Order) -> float:
@@ -121,7 +138,7 @@ class HoaHongService:
             if pct <= 0:
                 continue                      # đơn không có hoa hồng
             tong[emp_id] = tong.get(emp_id, 0.0) + tien_co_vat * self._ty_le_truoc_vat(o) * pct
-        return {k: round(v) for k, v in tong.items()}
+        return {k: round(v) for k, v in tong.items() if v > 0}
 
     def hoa_hong_ky(self, employee_id: int, *, tu_ngay: date, den_ngay: date) -> float:
         """Tiền hoa hồng của MỘT nhân viên trong kỳ `[tu_ngay, den_ngay]`. 0 nếu không có.
@@ -159,4 +176,4 @@ class HoaHongService:
             if pct <= 0:
                 continue                      # đơn không có hoa hồng
             tong += tien_co_vat * self._ty_le_truoc_vat(o) * pct
-        return round(tong)
+        return max(0, round(tong))

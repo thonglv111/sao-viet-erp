@@ -360,6 +360,38 @@ export function boBuoc(rows: EditRow[], idx: number): EditRow[] {
     });
 }
 
+/** Dời một bước từ `from` sang `to` (nút ▲▼ / kéo thả) — lỗi #15, 18/10/2026.
+ *
+ * Bản cũ chỉ `splice` dòng, dây phụ thuộc giữ nguyên: Be thu lên trên Cán màng mà vẫn ghi tiền
+ * nhiệm "Cán màng" đứng SAU nó, máy chủ tính chuỗi ngược theo thứ tự mới ra số sai. Nay:
+ *  · tuyến THẲNG (mỗi bước chỉ phụ thuộc đúng bước liền trên trong bảng) ⇒ nối lại dây theo thứ
+ *    tự mới, giữ các tiền nhiệm ngoài bảng (cạnh xuyên lệnh) ở sau;
+ *  · tuyến rẽ nhánh ⇒ chỉ dời dòng — người lập lệnh tự sửa tab Phụ thuộc; máy chủ từ chối lưu
+ *    nếu còn bước phụ thuộc bước đứng sau nó (`LsxService._kiem_tuyen_luu`). */
+export function doiChoBuoc(rows: EditRow[], from: number, to: number): EditRow[] {
+  if (to < 0 || to >= rows.length || from < 0 || from >= rows.length || from === to) return rows;
+  const trong = new Set(rows.map((r) => r.key));
+  const thang = rows.every((r, i) => {
+    const dep = r.phu_thuoc_step_keys.filter((k) => trong.has(k));
+    return i === 0 ? dep.length === 0 : dep.length === 1 && dep[0] === rows[i - 1].key;
+  });
+  const next = [...rows];
+  const [row] = next.splice(from, 1);
+  next.splice(to, 0, row);
+  if (!thang) return next;
+  return next.map((r, i) => {
+    const ngoai = r.phu_thuoc_step_keys.filter((k) => !trong.has(k));
+    return { ...r, phu_thuoc_step_keys: [...(i === 0 ? [] : [next[i - 1].key]), ...ngoai] };
+  });
+}
+
+/** Lý do nút "Lưu công đoạn" bị khoá vì thiếu lý do đổi tuyến (§10, lỗi #15). `null` = lưu được.
+ *  Tuyến khác bài tính giá mà không ghi lý do thì nhật ký chỉ còn "3 → 3 công đoạn", không ai đối
+ *  chiếu lại được vì sao lệnh lệch phiếu. */
+export function lyDoChanLuu(doiCauTruc: boolean, lyDo: string): string | null {
+  return doiCauTruc && !lyDo.trim() ? "Ghi lý do đổi công đoạn rồi mới lưu được" : null;
+}
+
 export function n(v: string): number {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;

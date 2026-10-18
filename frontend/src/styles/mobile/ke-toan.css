@@ -154,42 +154,8 @@
     flex-shrink: 0;
   }
 
-  /* ---- Phiếu chi → Mua hàng chờ chi (17/10/2026) -------------------------------------------
-     Thẻ đơn: ô mũi tên "›" (cột Mở) chiếm cả một hàng trống ở đáy thẻ — cả thẻ đã bấm được, bỏ.
-     Popup: dải tóm tắt 4 ô ⇒ lưới 2×2; đầu mỗi khoản [tên | số còn | nút] ⇒ tên + số còn một hàng,
-     nút trải ngang hàng dưới (ngón tay bấm được); bảng vật tư bớt đệm cho vừa 5 cột. */
-  .lds-g.kt-mh td[aria-hidden="true"] {
-    display: none !important;
-  }
-  .kt-mh-tom.kt-mh-tom {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .kt-mh-tom > div:nth-child(2n) {
-    border-right: 0;
-  }
-  .kt-mh-tom > div:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--rule-hair);
-  }
-  .kt-mh-k .kt-mh-k__dau {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "ten so"
-      "nut nut";
-    gap: 8px 12px;
-  }
-  .kt-mh-k__dau > .kt-mh-k__ten {
-    grid-area: ten;
-  }
-  .kt-mh-k__dau > .kt-mh-k__so {
-    grid-area: so;
-    align-self: start;
-  }
-  .kt-mh-k__dau > .kt-btn {
-    grid-area: nut;
-    width: 100%;
-    min-height: 44px;
-    justify-content: center;
-  }
+  /* ---- Phiếu chi → Mua hàng chờ chi (17/10/2026): popup một khoản — bảng vật tư bớt đệm cho vừa
+     5–7 cột. */
   .kt-mh-bang th,
   .kt-mh-bang td {
     padding-left: 8px;
@@ -201,7 +167,54 @@
     width: auto;
     white-space: nowrap;
   }
-  .kt-mh-k__tien {
-    justify-content: flex-start;
+  /* Popup chi tiết khoản: nút lập phiếu to, ngày lịch sử hẹp lại cho chữ nội dung đủ chỗ. */
+  .kt-ctk__con.kt-ctk__con > .kt-btn {
+    height: 46px;
+    font-size: 15px;
+  }
+  .kt-ctk__ng.kt-ctk__ng {
+    width: 72px;
+  }
+  .kt-ctk__ls.kt-ctk__ls li {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+  .kt-ctk__so.kt-ctk__so {
+    margin-left: auto;
+  }
+  /* Phiếu gộp: dải "Đã chọn n khoản" dính đáy màn, nút to trải ngang; bảng phân bổ cuộn ngang. */
+  /* Không lề âm: khung lưới (`lds-sheet`) cắt phần tràn ⇒ nền tối hụt vào, chữ dính mép trái. */
+  .kt-gop-chan.kt-gop-chan {
+    position: sticky;
+    /* bottom 0 là đủ: khung cuộn có đệm đáy bằng thanh điều hướng nên dải chân dừng ngay trên thanh. */
+    bottom: 0;
+    margin: 8px 0 0;
+    padding: 10px 14px;
+  }
+  .kt-gop-chan.kt-gop-chan > span:first-child {
+    flex: 1 1 auto;
+  }
+  .kt-gop-chan.kt-gop-chan .kt-gop-chan__tong {
+    margin-right: 0;
+  }
+  .kt-gop-chan.kt-gop-chan > .kt-btn {
+    flex: 1 1 auto;
+    height: 46px;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .kt-gop-tick.kt-gop-tick input {
+    width: 20px;
+    height: 20px;
+  }
+  .kt-gop-o.kt-gop-o {
+    max-width: 150px;
+  }
+  .kt-gop-o.kt-gop-o input {
+    height: 40px;
+  }
+  .kt-gop-trong.kt-gop-trong input {
+    width: 20px;
+    height: 20px;
   }
 }

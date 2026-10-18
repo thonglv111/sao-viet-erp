@@ -32,6 +32,7 @@ import {
   type OrderStatsOut,
   type SalesInvoiceListOut,
   type SalesInvoiceRow,
+  type DieuChinhRow,
   type LuotGiaoHoaDon,
 } from "../api/client";
 import { PhieuXuatBanHangPrint } from "./giao-hang/phieu-giao-hang";
@@ -47,6 +48,7 @@ import { gopTheoNhom } from "../utils/gop-nhom";
 import { layHoaDonNapTruoc, layLenhNapTruoc, layNhatKyNapTruoc, napTruocNganDon } from "./napTruocNganDon";
 import "./don-hang-ban.css";
 import { fmtDateTime } from "../utils/format";
+import { homNayVN, ngayCuaMoc } from "../utils/ky";
 
 function vnd(v: number | null | undefined): string {
   if (v == null) return "—";
@@ -621,6 +623,12 @@ function OrderDrawer({
   const [acts, setActs] = useState<{ at: string; actor_name: string | null; action: string; detail: string }[]>([]);
   const isDraft = order.status === "draft";
   const [drawerTab, setDrawerTab] = useState<"overview" | "commercial" | "files" | "history">("overview");
+  // Tiền chiết khấu nằm trong thành tiền (hoàn lại khách): tổng đơn, và ô từng dòng / cụm ("—" khi không có).
+  const tongCk = order.lines.reduce((t, l) => t + (l.chiet_khau ?? 0), 0);
+  const ckDong = (ds: { chiet_khau?: number | null }[]) => {
+    const t = ds.reduce((x, l) => x + (l.chiet_khau ?? 0), 0);
+    return t > 0 ? soVN(t) : "—";
+  };
 
   const isChotDone = order.status === "ordered" || order.ordered_at != null;
   // Vòng đời: CHỐT (thông tin) → CỌC (kế toán thu, SAU chốt) → SẢN XUẤT. Cọc 'xong' = đã chốt VÀ
@@ -743,7 +751,7 @@ function OrderDrawer({
   // tính đơn. Mỗi thẻ chặng CHỈ nói chuyện của chặng đó; mỗi thông tin nằm đúng một chỗ: hạn giao ở
   // dòng việc tiếp theo, ngày chốt ở thẻ Chốt, người phụ trách ở đầu ngăn, báo giá nguồn ở thẻ Đơn hàng.
   const soNgayHen = order.delivery_committed_date && order.ordered_at
-    ? Math.round((Date.parse(order.delivery_committed_date.slice(0, 10)) - Date.parse(order.ordered_at.slice(0, 10))) / 86_400_000)
+    ? Math.round((Date.parse(order.delivery_committed_date.slice(0, 10)) - Date.parse(ngayCuaMoc(order.ordered_at))) / 86_400_000)
     : null;
   const phieuCuoi = order.deposits.length > 0
     ? order.deposits.reduce((a, d) => (d.created_at > a.created_at ? d : a))
@@ -932,7 +940,8 @@ function OrderDrawer({
                                 {d.doc_no ?? d.code}
                               </button>
                             ),
-                            dien: `${RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method} lúc ${fmtDateTime(d.created_at)}`,
+                            dien: `${RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method} lúc ${fmtDateTime(d.created_at)}`
+                              + (d.gop && d.tong_phieu ? ` phiếu gộp ${soVN(d.tong_phieu)}` : ""),
                             so: soVN(d.amount),
                           })),
                           { nhan: "Đã thu", dien: order.deposits.length > 0 ? `${order.deposits.length} phiếu thu` : undefined,
@@ -1076,6 +1085,7 @@ function OrderDrawer({
                         <th>Đơn vị</th>
                         <th className="dhb__text-right">Đơn giá</th>
                         <th className="dhb__text-right">VAT</th>
+                        <th className="dhb__text-right" title="Nằm trong thành tiền — công ty hoàn lại khách">Chiết khấu</th>
                         <th className="dhb__text-right">Thành tiền</th>
                       </tr>
                     </thead>
@@ -1103,6 +1113,7 @@ function OrderDrawer({
                             <td>{g.donViTinh || "—"}</td>
                             <td className="dhb__mono dhb__text-right">{g.donGia == null ? "—" : soVN(g.donGia)}</td>
                             <td className="dhb__mono dhb__text-right">{g.vatPct === null ? "—" : `${g.vatPct}%`}</td>
+                            <td className="dhb__mono dhb__text-right">{ckDong(g.goc)}</td>
                             <td className="dhb__mono dhb__text-right">{soVN(g.thanhTien)}</td>
                           </tr>,
                           ...(dongLe ? [] : g.goc.map((l, k) => (
@@ -1113,6 +1124,7 @@ function OrderDrawer({
                               <td>{l.don_vi_tinh || "—"}</td>
                               <td className="dhb__mono dhb__text-right">{l.unit_price_snapshot == null ? "—" : soVN(l.unit_price_snapshot)}</td>
                               <td className="dhb__mono dhb__text-right">{l.vat_pct_estimate}%</td>
+                              <td className="dhb__mono dhb__text-right">{ckDong([l])}</td>
                               <td className="dhb__mono dhb__text-right">{l.line_total == null ? "—" : soVN(l.line_total)}</td>
                             </tr>
                           ))),
@@ -1124,6 +1136,7 @@ function OrderDrawer({
                 <div className="dhb__hh-tong">
                   <TomTat d={[
                     { nhan: "Cộng trước VAT", so: order.total == null ? "—" : soVN(order.total) },
+                    ...(tongCk > 0 ? [{ nhan: "Trong đó chiết khấu (hoàn lại khách)", so: soVN(tongCk) }] : []),
                     { nhan: "Thuế VAT", so: order.total == null ? "—" : soVN(order.total_with_vat - order.total) },
                     { nhan: "Tổng gồm VAT", so: soVN(order.total_with_vat), tong: true },
                   ]} />
@@ -1266,11 +1279,7 @@ function InvoicePanel({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
-  const today = (() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60_000;
-    return new Date(now.getTime() - offset).toISOString().slice(0, 10);
-  })();
+  const today = homNayVN();
   // Lượt đang ghi hóa đơn: hóa đơn lập theo từng lượt khách đã nhận, không vượt hàng của lượt.
   const [luotGhi, setLuotGhi] = useState<LuotGiaoHoaDon | null>(null);
   const showCreate = luotGhi !== null;
@@ -1283,11 +1292,25 @@ function InvoicePanel({
   const [cancelTarget, setCancelTarget] = useState<SalesInvoiceRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [moHuy, setMoHuy] = useState(false);
+  // Hóa đơn điều chỉnh GIẢM (hoàn tiền chiết khấu, 18/10/2026): chứng từ thuế đi kèm khoản trả lại.
+  const [dcTarget, setDcTarget] = useState<SalesInvoiceRow | null>(null);
+  const [dcSymbol, setDcSymbol] = useState("");
+  const [dcNumber, setDcNumber] = useState("");
+  const [dcDate, setDcDate] = useState(today);
+  const [dcAmount, setDcAmount] = useState("");
+  const [dcHuy, setDcHuy] = useState<DieuChinhRow | null>(null);
+  const [dcHuyLyDo, setDcHuyLyDo] = useState("");
 
   const issued = book?.items.filter((item) => item.status === "issued") ?? [];
   const outstanding = issued.reduce((sum, item) => sum + item.remaining_amount, 0);
   const truCoc = issued.reduce((sum, item) => sum + item.deposit_offset_amount, 0);
-  const daTra = issued.reduce((sum, item) => sum + item.direct_received_amount, 0);
+  // Điều chỉnh giảm bớt phần khách phải trả: "Khách đã trả" chỉ tính tới phần còn phải trả, khoản
+  // trả dư (khách đã trả đủ rồi mới điều chỉnh) là tiền chờ trả lại — hiện riêng một dòng.
+  const tongDieuChinh = issued.reduce((sum, item) => sum + (item.dieu_chinh_amount ?? 0), 0);
+  const phaiTra = (item: SalesInvoiceRow) => item.amount_vnd - (item.dieu_chinh_amount ?? 0);
+  const daTra = issued.reduce((sum, item) => sum + Math.min(item.direct_received_amount, phaiTra(item)), 0);
+  // Số còn phải trả lại lấy từ máy chủ: đã trừ phần chi trả lại rồi, và cấn quỹ của đơn vào hóa đơn khác.
+  const traDu = book?.cho_tra_lai ?? 0;
   const phieuThu = book?.phieu_thu ?? [];
   // Tiền trả lại khách KHÔNG gắn đơn cộng nợ lại vào hoá đơn (17/10/2026) là khoản RIÊNG
   // (`hoan_khong_don`): trừ cọc / đã trả giữ số thật của phiếu, tóm tắt thêm một dòng cộng.
@@ -1361,6 +1384,73 @@ function InvoicePanel({
     }
   }
 
+  function moDieuChinh(item: SalesInvoiceRow) {
+    setDcTarget(item);
+    setDcSymbol("");
+    setDcNumber("");
+    setDcDate(today);
+    setDcAmount(item.ck_goi_y ? String(item.ck_goi_y) : "");
+    setFormError(null);
+    setCancelTarget(null);
+    setDcHuy(null);
+  }
+
+  async function luuDieuChinh(event: React.FormEvent) {
+    event.preventDefault();
+    if (!token || !dcTarget || saving) return;
+    const tien = Number(dcAmount || 0);
+    const conLai = dcTarget.amount_vnd - (dcTarget.dieu_chinh_amount ?? 0);
+    if (!dcSymbol.trim() || !dcNumber.trim() || !dcDate) {
+      setFormError("Vui lòng nhập ký hiệu, số và ngày của hóa đơn điều chỉnh.");
+      return;
+    }
+    if (dcDate > today) {
+      setFormError("Ngày hóa đơn điều chỉnh không được nằm trong tương lai.");
+      return;
+    }
+    if (!Number.isFinite(tien) || tien <= 0 || tien > conLai) {
+      setFormError(`Số tiền điều chỉnh phải từ 1 đến ${vnd(conLai)}.`);
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await api.accounting.createDieuChinh(token, dcTarget.id, {
+        adj_symbol: dcSymbol.trim(),
+        adj_number: dcNumber.trim(),
+        adj_date: dcDate,
+        amount_vnd: Math.round(tien),
+      });
+      setDcTarget(null);
+      await onChanged();
+    } catch (cause) {
+      setFormError(cause instanceof ApiError ? cause.message : "Không ghi nhận được hóa đơn điều chỉnh.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function huyDieuChinh(event: React.FormEvent) {
+    event.preventDefault();
+    if (!token || !dcHuy || saving) return;
+    if (!dcHuyLyDo.trim()) {
+      setFormError("Vui lòng nhập lý do hủy hóa đơn điều chỉnh.");
+      return;
+    }
+    setSaving(true);
+    setFormError(null);
+    try {
+      await api.accounting.cancelDieuChinh(token, dcHuy.id, dcHuyLyDo.trim());
+      setDcHuy(null);
+      setDcHuyLyDo("");
+      await onChanged();
+    } catch (cause) {
+      setFormError(cause instanceof ApiError ? cause.message : "Không hủy được hóa đơn điều chỉnh.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function cancelInvoice(event: React.FormEvent) {
     event.preventDefault();
     if (!token || !cancelTarget || saving) return;
@@ -1413,7 +1503,21 @@ function InvoicePanel({
           <small>{fmtDate(item.invoice_date)}</small>
         </td>
         <td className="dhb__mono dhb__muted">{item.invoice_symbol}</td>
-        <td className="dhb__mono dhb__text-right">{soVN(item.amount_vnd)}</td>
+        <td className="dhb__text-right dhb__g-hai">
+          <span className="dhb__mono">{soVN(item.amount_vnd)}</span>
+          {/* Hóa đơn điều chỉnh giảm (hoàn chiết khấu): giá trị gốc giữ nguyên, điều chỉnh ghi ngay dưới. */}
+          {!huy && (item.dieu_chinh ?? []).filter((a) => a.status === "issued").map((a) => (
+            <small key={a.id} title={`${a.reason ?? "Điều chỉnh giảm"}, ngày ${fmtDate(a.adj_date)}`}>
+              {`điều chỉnh ${a.adj_symbol} ${a.adj_number} −${soVN(a.amount_vnd)}`}
+              {canCancel && (
+                <button type="button" className="dhb__td-link dhb__td-link--do" title="Hủy hóa đơn điều chỉnh này"
+                  onClick={() => { setDcHuy(a); setDcHuyLyDo(""); setDcTarget(null); setCancelTarget(null); setFormError(null); }}>
+                  {" "}Hủy
+                </button>
+              )}
+            </small>
+          ))}
+        </td>
         <td className={item.due_date && !huy ? "dhb__mono" : "dhb__muted"}>
           {huy ? "" : item.due_date ? fmtDate(item.due_date) : "chưa đặt"}
         </td>
@@ -1429,6 +1533,12 @@ function InvoicePanel({
           {!huy && (item.hoan_khong_don ?? 0) > 0 && <small>cộng lại {soVN(item.hoan_khong_don ?? 0)} đã trả khách ngoài đơn</small>}
         </td>
         <td className="dhb__text-right dhb__g-nut">
+          {!huy && canCreate && phaiTra(item) > 0 && (
+            <button type="button" className="dhb__td-link" title="Ghi nhận hóa đơn điều chỉnh giảm, để hoàn tiền chiết khấu cho khách"
+              onClick={() => moDieuChinh(item)}>
+              Điều chỉnh
+            </button>
+          )}
           {/* Khách đã trả vẫn hủy được (17/10/2026): tiền về quỹ của đơn, trừ vào hóa đơn ghi lại. */}
           {!huy && canCancel && (
             <button type="button" className="dhb__td-link dhb__td-link--do" title="Hủy hóa đơn"
@@ -1456,6 +1566,11 @@ function InvoicePanel({
             { nhan: "Đã giao chưa ghi", so: soVN(book.invoiceable_amount ?? 0),
               tone: (book.invoiceable_amount ?? 0) > 0 ? "chu" : undefined },
             { nhan: "Đã ghi hóa đơn", dien: issued.length > 0 ? `${issued.length} hóa đơn` : undefined, so: soVN(book.invoiced_amount) },
+            ...(tongDieuChinh > 0 ? [{
+              nhan: "Điều chỉnh giảm",
+              dien: "hoàn chiết khấu",
+              so: `−${soVN(tongDieuChinh)}`,
+            }] : []),
             ...(truCoc > 0 ? [{
               nhan: phieuHdHuy.length > 0 ? "Trừ tiền đã thu" : "Trừ cọc",
               dien: (
@@ -1468,7 +1583,15 @@ function InvoicePanel({
             }] : []),
             ...(daTra > 0 ? [{
               nhan: "Khách đã trả",
-              dien: <span className="dhb__g-cach">{phieuThu.map((p) => <span key={p.id}>{linkPhieu(p.code, p.doc_no)}</span>)}</span>,
+              dien: (
+                <span className="dhb__g-cach">
+                  {phieuThu.map((p) => (
+                    <span key={p.id} title={p.gop ? `Phiếu gộp nhiều chứng từ. Phần của hoá đơn này ${soVN(p.amount)}` : undefined}>
+                      {linkPhieu(p.code, p.doc_no)}
+                    </span>
+                  ))}
+                </span>
+              ),
               so: `−${soVN(daTra)}`,
             }] : []),
             ...(hoanNgoai > 0 ? [{
@@ -1478,6 +1601,11 @@ function InvoicePanel({
             }] : []),
             { nhan: "Còn phải thu", dien: "trên các hóa đơn đã ghi", so: soVN(outstanding), tong: true,
               tone: outstanding > 0 ? "chu" : undefined },
+            ...(traDu > 0 ? [{
+              nhan: "Khách trả dư",
+              dien: "chờ trả lại ở Phiếu chi",
+              so: soVN(traDu),
+            }] : []),
           ]} />
 
           {(luotGiao.length > 0 || book.items.length > 0) && (
@@ -1587,6 +1715,69 @@ function InvoicePanel({
             </form>
           )}
 
+          {dcTarget && (
+            <form className="dhb__invoice-cancel-form dhb__dc-form" style={{ margin: "0 20px 12px" }} onSubmit={luuDieuChinh}>
+              <div>
+                <span>Điều chỉnh giảm hóa đơn {dcTarget.invoice_number}</span>
+                <small>
+                  Xuất hóa đơn điều chỉnh trên phần mềm hóa đơn điện tử xong thì chép số vào đây. Hóa đơn gốc giữ nguyên;
+                  khách đã trả đủ thì phần giảm sang Phiếu chi, mục Chờ trả lại khách.
+                </small>
+              </div>
+              <div className="dhb__invoice-form-grid">
+                <label>
+                  <span>Ký hiệu <b>*</b></span>
+                  <input className="dhb__input" value={dcSymbol} maxLength={64} placeholder="Ký hiệu hóa đơn điều chỉnh"
+                    onChange={(event) => { setDcSymbol(event.target.value); setFormError(null); }} />
+                </label>
+                <label>
+                  <span>Số hóa đơn <b>*</b></span>
+                  <input className="dhb__input" value={dcNumber} maxLength={64} placeholder="Số hóa đơn điều chỉnh"
+                    onChange={(event) => { setDcNumber(event.target.value); setFormError(null); }} />
+                </label>
+                <label>
+                  <span>Ngày <b>*</b></span>
+                  <ChonNgay className="dhb__input" aria-label="Ngày hóa đơn điều chỉnh" min={dcTarget.invoice_date} max={today} value={dcDate}
+                    onChange={(v) => { setDcDate(v); setFormError(null); }} />
+                </label>
+                <label>
+                  <span>Số tiền giảm, gồm VAT <b>*</b></span>
+                  <span className="dhb__invoice-money-wrap">
+                    <OGoDinhDang className="dhb__input dhb__invoice-money" inputMode="numeric" aria-label="Số tiền điều chỉnh"
+                      value={dcAmount ? Number(dcAmount).toLocaleString("vi-VN") : ""}
+                      onChange={(event) => { setDcAmount(event.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "")); setFormError(null); }} />
+                    <i>đ</i>
+                  </span>
+                  <small className="dhb__invoice-hint">
+                    {(dcTarget.ck_goi_y ?? 0) > 0 && String(dcTarget.ck_goi_y) === dcAmount
+                      ? "Điền sẵn phần chiết khấu của đơn rơi vào hóa đơn này, sửa lại cho khớp hóa đơn điều chỉnh."
+                      : `Tối đa ${vnd(dcTarget.amount_vnd - (dcTarget.dieu_chinh_amount ?? 0))}.`}
+                  </small>
+                </label>
+              </div>
+              {formError && <div className="banner banner--error" role="alert">{formError}</div>}
+              <div className="dhb__invoice-form-actions">
+                <button type="button" className="btn btn--secondary" onClick={() => setDcTarget(null)} disabled={saving}>Đóng</button>
+                <button type="submit" className="btn btn--primary" disabled={saving}>{saving ? "Đang lưu..." : "Ghi nhận điều chỉnh"}</button>
+              </div>
+            </form>
+          )}
+
+          {dcHuy && (
+            <form className="dhb__invoice-cancel-form" style={{ margin: "0 20px 12px" }} onSubmit={huyDieuChinh}>
+              <div>
+                <span>Hủy hóa đơn điều chỉnh {dcHuy.adj_symbol} {dcHuy.adj_number}</span>
+                <small>Hủy xong, phần phải thu của hóa đơn gốc trở lại như trước. Đã trả lại khách khoản này rồi thì phải hủy phiếu chi trước.</small>
+              </div>
+              <textarea className="dhb__input" rows={2} value={dcHuyLyDo} onChange={(event) => setDcHuyLyDo(event.target.value)} placeholder="Lý do hủy *" />
+              {formError && <div className="banner banner--error" role="alert">{formError}</div>}
+              <div className="dhb__invoice-form-actions">
+                <button type="button" className="btn btn--secondary" onClick={() => setDcHuy(null)} disabled={saving}>Đóng</button>
+                <button type="submit" className="btn btn--danger" disabled={saving}>{saving ? "Đang hủy..." : "Xác nhận hủy"}</button>
+              </div>
+            </form>
+          )}
+
           <ChanKhung chu={luotGiao.length === 0 && order.status === "ordered"
             ? "Hóa đơn ghi theo hàng khách đã nhận. Chưa có lượt nào giao xong."
             : "Hóa đơn ghi theo từng lượt khách đã nhận. Chỉ hóa đơn đã ghi mới thành công nợ phải thu."} />
@@ -1616,7 +1807,7 @@ function InvoicePanel({
                 </label>
                 <label>
                   <span>Ngày hóa đơn <b>*</b></span>
-                  <ChonNgay className="dhb__input" aria-label="Ngày hóa đơn" min={order.ordered_at?.slice(0, 10)} max={today} value={invoiceDate} onChange={(v) => { setInvoiceDate(v); setFormError(null); }} />
+                  <ChonNgay className="dhb__input" aria-label="Ngày hóa đơn" min={order.ordered_at ? ngayCuaMoc(order.ordered_at) : undefined} max={today} value={invoiceDate} onChange={(v) => { setInvoiceDate(v); setFormError(null); }} />
                 </label>
                 <label>
                   <span>Giá trị hóa đơn <b>*</b></span>

@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, emptyRow, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, doiChoBuoc, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -310,5 +310,49 @@ describe("dòng giấy là số MÁY tính", () => {
     expect(giayChoLuu({ hang_loai: "giay" })).toBe(true);
     expect(giayChoLuu({ hang_loai: "giay", don_vi_goc: "to" })).toBe(false);
     expect(giayChoLuu({ hang_loai: "vat_tu" })).toBe(false);
+  });
+});
+
+// Lỗi #15 (E2E 18/10/2026): ▲▼ chỉ dời dòng, Be thu vẫn ghi tiền nhiệm "Cán màng" nằm SAU nó.
+describe("doiChoBuoc", () => {
+  it("tuyến thẳng: dời bước thì nối lại tiền nhiệm theo thứ tự mới", () => {
+    expect(day(doiChoBuoc(chuoiThang(), 2, 1))).toEqual([["A"], ["C", "A"], ["B", "C"]]);
+  });
+
+  it("tuyến thẳng: dời bước đầu xuống thì bước kế thành đầu chuỗi", () => {
+    expect(day(doiChoBuoc(chuoiThang(), 0, 1))).toEqual([["B"], ["A", "B"], ["C", "A"]]);
+  });
+
+  it("giữ tiền nhiệm ngoài bảng (cạnh xuyên lệnh) khi nối lại", () => {
+    const rows = [
+      dong({ ten: "A", key: "ka" }),
+      dong({ ten: "B", key: "kb", phu_thuoc_step_keys: ["ka", "ngoai"] }),
+      dong({ ten: "C", key: "kc", phu_thuoc_step_keys: ["kb"] }),
+    ];
+    expect(day(doiChoBuoc(rows, 2, 1))).toEqual([["A"], ["C", "A"], ["B", "C", "ngoai"]]);
+  });
+
+  it("tuyến rẽ nhánh: chỉ dời dòng, không tự sửa phụ thuộc (máy chủ chặn nếu ngược)", () => {
+    const rows = [
+      dong({ ten: "A", key: "ka" }),
+      dong({ ten: "B", key: "kb", phu_thuoc_step_keys: ["ka"] }),
+      dong({ ten: "C", key: "kc", phu_thuoc_step_keys: ["ka"] }),
+    ];
+    expect(day(doiChoBuoc(rows, 2, 1))).toEqual([["A"], ["C", "A"], ["B", "A"]]);
+  });
+
+  it("chỉ số ngoài bảng thì giữ nguyên", () => {
+    const rows = chuoiThang();
+    expect(doiChoBuoc(rows, 0, -1)).toBe(rows);
+  });
+});
+
+describe("lyDoChanLuu (#15: ô lý do bắt buộc khi tuyến khác bài tính giá)", () => {
+  it("đổi cấu trúc mà lý do trống thì chặn, nói rõ cần gì", () => {
+    expect(lyDoChanLuu(true, "  ")).toBe("Ghi lý do đổi công đoạn rồi mới lưu được");
+  });
+  it("có lý do, hoặc không đổi cấu trúc, thì lưu được", () => {
+    expect(lyDoChanLuu(true, "khách đổi cán thuê ngoài")).toBeNull();
+    expect(lyDoChanLuu(false, "")).toBeNull();
   });
 });

@@ -681,6 +681,10 @@
 
 /* ===== Ngăn công nợ kiểu 3 (Task 8, 07/10/2026): lưới đợt / hoá đơn + cột thuộc tính ===== */
 .kt-ncn-ben { margin-left: 6px; }
+/* Dòng phụ "Trả lại khách ngoài đơn" dưới hoá đơn được cộng nợ lại — số mờ, dính vào hoá đơn phía trên. */
+.lds-g tr.kt-ncn-phu td { color: var(--ash-2); }
+/* Bảng Còn nợ đệm ô 8px (lưới chung 10px) để 9 cột vừa khung 820px của ngăn ở độ rộng mặc định. */
+.lds-bang .lds-g.kt-ncn-conno th, .lds-bang .lds-g.kt-ncn-conno tbody td:not(.lds-nut) { padding-left: 8px; padding-right: 8px; }
 .kt-ncn-vang { color: var(--tt-vang-fg); }
 .kt-ray .kt-lk { font-weight: 400; }
 .kt-hang-loc.kt-ncn-loc { margin-bottom: 10px; }
@@ -710,26 +714,7 @@
 .lds .lds-g tbody tr.kt-da-huy td { color: var(--lds-mo); }
 /* Ghi chú đầu bảng "Gia công chờ chi". */
 .kt-gc-ghi { margin: 0; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; color: var(--ash-2); }
-/* Hàng "Mua hàng chờ chi" (17/10/2026): bấm dòng đơn mở POPUP — tóm tắt tiền cả đơn, rồi từng khoản (cọc,
-   từng đợt) thành một khối: đầu khối [tên + ngày/hạn/HĐ | số còn | nút], bảng vật tư, chân tiền của đợt. */
-.kt-mh-khoan { display: flex; flex-direction: column; gap: 14px; }
-.kt-mh-tom { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; margin: 0;
-  border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
-.kt-mh-tom > div { padding: 10px 12px; border-right: 1px solid var(--rule-hair); }
-.kt-mh-tom > div:last-child { border-right: 0; }
-.kt-mh-tom dt { font-size: 12px; color: var(--ash-2); }
-.kt-mh-tom dd { margin: 2px 0 0; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
-.kt-mh-tom__can { background: var(--tt-cam-bg); }
-.kt-mh-tom__can dd { color: var(--tt-cam-fg); }
-.kt-mh-khoan__ds { display: flex; flex-direction: column; gap: 12px; }
-.kt-mh-k { border: 1px solid var(--rule-soft); border-radius: 10px; overflow: hidden; }
-.kt-mh-k__dau { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
-  padding: 10px 12px; background: var(--paper); border-bottom: 1px solid var(--rule-hair); }
-.kt-mh-k__ten { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.kt-mh-k__ten > b { font-size: 14px; color: var(--ink); }
-.kt-mh-k__mo { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; color: var(--ash-2); font-size: 12.5px; }
-.kt-mh-k__so { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
-.kt-mh-k__dau .kt-btn { white-space: nowrap; }
+/* Bảng hàng trong popup chi tiết khoản (ChiTietKhoan). */
 .kt-mh-bang { width: 100%; border-collapse: collapse; font-size: 13px; }
 .kt-mh-bang caption { caption-side: top; text-align: left; padding: 8px 12px 2px; font-size: 11.5px; color: var(--ash-2);
   text-transform: uppercase; letter-spacing: .04em; }
@@ -738,17 +723,84 @@
 .kt-mh-bang td { padding: 7px 12px; border-bottom: 1px solid var(--rule-hair); color: var(--ink); }
 .kt-mh-bang tr:last-child td { border-bottom: 0; }
 .kt-mh-bang .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.kt-mh-k__tien { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 20px; margin: 0; padding: 8px 12px;
-  border-top: 1px solid var(--rule-hair); font-size: 12.5px; }
-.kt-mh-k__tien > div { display: flex; gap: 6px; }
-.kt-mh-k__tien dt { color: var(--ash-2); }
-.kt-mh-k__tien dd { margin: 0; font-variant-numeric: tabular-nums; color: var(--ink); }
-.kt-mh-k__con dd { font-weight: 600; }
-.kt-mh-khoan__chan { display: flex; justify-content: flex-end; }
-.kt-mh-khoan__xem { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+
+/* Popup chi tiết một khoản chờ chi / chờ thu — phương án B (ChiTietKhoan, 17/10/2026): hai cột, trái
+   thẻ Hàng + Lịch sử, phải thẻ "Còn phải chi/thu" (số lớn + nút lập phiếu) + Thông tin. */
+.kt-ctk { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; align-items: start; }
+.kt-ctk__trai, .kt-ctk__phai { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.kt-ctk__the { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 10px; min-width: 0; }
+.kt-ctk__the > h4 { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--rule-hair); font-size: 13px;
+  font-weight: 500; color: var(--ink); }
+.kt-ctk__cuon { overflow-x: auto; }
+.kt-ctk__cuon .kt-mh-bang th:first-child, .kt-ctk__cuon .kt-mh-bang td:first-child { padding-left: 16px; }
+.kt-ctk__cuon .kt-mh-bang th:last-child, .kt-ctk__cuon .kt-mh-bang td:last-child { padding-right: 16px; }
+.kt-ctk__tong { margin: 0; padding: 6px 16px 12px; border-top: 1px solid var(--rule-hair); font-size: 13.5px; }
+.kt-ctk__tong > div { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
+.kt-ctk__tong dt { color: var(--ash-2); }
+.kt-ctk__tong dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.kt-ctk__tong > .kt-ctk__cuoi { border-top: 1px solid var(--rule-soft); margin-top: 6px; padding-top: 10px; font-size: 15px; }
+.kt-ctk__tong > .kt-ctk__cuoi dt { color: var(--ink); }
+.kt-ctk__tong > .kt-ctk__cuoi dd { font-weight: 500; }
+.kt-ctk__trong { margin: 0; padding: 12px 16px; font-size: 13px; color: var(--ash-2); }
+/* Lịch sử: dòng thời gian chấm + vạch nối. */
+.kt-ctk__ls { list-style: none; margin: 0; padding: 4px 16px 12px; }
+.kt-ctk__ls li { position: relative; display: flex; gap: 12px; padding: 8px 0 8px 18px; font-size: 13.5px; }
+.kt-ctk__ls li::before { content: ""; position: absolute; left: 3px; top: 15px; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ash-3); }
+.kt-ctk__ls li::after { content: ""; position: absolute; left: 6px; top: 24px; bottom: -8px; width: 1px; background: var(--rule-soft); }
+.kt-ctk__ls li:last-child::after { display: none; }
+.kt-ctk__ng { width: 84px; flex: none; color: var(--ash-2); font-variant-numeric: tabular-nums; }
+.kt-ctk__tx { flex: 1; min-width: 0; }
+.kt-ctk__so { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kt-ctk__con { padding: 14px 16px; }
+.kt-ctk__nhan { font-size: 12.5px; color: var(--ash-2); }
+.kt-ctk__lon { margin: 2px 0 12px; font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); }
+.kt-ctk__con > .kt-btn { width: 100%; justify-content: center; }
+.kt-ctk__kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 6px 14px; margin: 0; padding: 12px 16px;
+  font-size: 13.5px; }
+.kt-ctk__kv > div { display: contents; }
+.kt-ctk__kv dt { color: var(--ash-2); }
+.kt-ctk__kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 820px) {
+  .kt-ctk { grid-template-columns: minmax(0, 1fr); }
+  /* Xếp chồng: "Còn phải chi/thu" + nút lên đầu, rồi hàng, lịch sử, thông tin. */
+  .kt-ctk__phai { display: contents; }
+  .kt-ctk__con { order: -1; }
+  .kt-ctk__trai { display: contents; }
+}
 
 /* Tên đối tác kèm dấu (phải thu: "Còn giữ cọc …"): tên co lại cắt ba chấm, dấu giữ nguyên. */
 .kt-ten-dau { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .kt-ten-dau > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .kt-ten-dau > :last-child { flex: none; }
 .kt-coc-huy { margin-bottom: 12px; }
+
+/* Phiếu chi/thu gộp nhiều khoản (17/10/2026): ô tick trên hàng chờ, dải chân "Đã chọn n khoản",
+   bảng phân bổ trong form với ô "Chi lần này" từng dòng. */
+/* Ô 40px mà `.lds-g td` đệm 10px mỗi bên chỉ còn 20px lòng — nhãn 24px tràn ra thành dấu "…". Bỏ đệm của ô,
+   để nhãn phủ kín ô: ô tick vừa khít, vùng bấm cả ô. */
+.lds-g td.kt-gop-tick { width: 40px; padding: 0; text-align: center; cursor: default; overflow: visible; text-overflow: clip; }
+.kt-gop-tick label { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 34px; padding: 0; cursor: pointer; }
+.kt-gop-tick label[title] { cursor: not-allowed; }
+.kt-gop-tick input { width: 16px; height: 16px; margin: 0; }
+.kt-gop-chan { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px; padding: 10px 16px; border-radius: 10px; background: var(--charcoal); color: var(--on-charcoal-muted);
+  font-size: var(--fs-sm); }
+.kt-gop-chan > span:first-child { margin-right: 6px; }
+.kt-gop-chan__tong { margin-right: auto; color: var(--on-charcoal); font-size: var(--fs-lg); font-variant-numeric: tabular-nums; }
+.kt-gop-chan .kt-btn--tron { color: var(--on-charcoal-muted); }
+.kt-gop-bang { margin-top: 10px; }
+/* Form gộp có tờ xem trước bên phải: ngăn hẹp (cửa sổ dưới ~1150px) thì cột trái không đủ 560px cho
+   bảng phân bổ — cột "Thu lần này" bị đẩy khuất sau cuộn ngang. Thả tờ xem trước xuống dưới. */
+@container (max-width: 920px) {
+  .kt-f-chia:has(.kt-gop-bang) { grid-template-columns: minmax(0, 1fr); }
+  .kt-f-chia:has(.kt-gop-bang) .kt-f-chia__xem { position: static; }
+}
+.kt-gop-bang td { vertical-align: middle; }
+.kt-gop-o { margin-left: auto; max-width: 180px; }
+.kt-gop-o input { height: 34px; font-weight: 400; }
+.kt-gop-o span { top: 6px; }
+.kt-gop-o input[aria-invalid="true"] { border-color: var(--rust); }
+/* Ô tick nằm trong ô số chứng từ (ngăn Công nợ phải thu: bảng không thêm cột). */
+.kt-gop-trong { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; max-width: 100%; }
+.kt-gop-trong input { width: 15px; height: 15px; margin: 0; flex: none; }

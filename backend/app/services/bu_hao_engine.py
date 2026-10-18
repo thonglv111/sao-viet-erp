@@ -105,6 +105,38 @@ def chuoi_nguoc(cong_doans: list[dict], *, to_can: float) -> list[dict]:
     return chuoi_nguoc_dv([{"cd": cd} for cd in (cong_doans or [])], to_can=to_can)[0]
 
 
+def _tram_vao(b: dict) -> str | None:
+    return b.get("tram_vao") or b.get("dv_vao")
+
+
+def _tram_ra(b: dict) -> str | None:
+    return b.get("tram_ra") or b.get("dv_ra")
+
+
+def kiem_chuoi_don_vi(buoc: list[dict]) -> list[str]:
+    """Chuỗi bước (thứ tự XUÔI, `[{ten, dv_vao, dv_ra, tram_vao?, tram_ra?}]`) có LIỀN MẠCH đơn vị
+    không: chặng ra của bước trước phải là chặng vào của bước sau. Trả các câu lỗi đích danh hai
+    bước, rỗng = hợp lệ. So theo TRẠM (lùi về mã khi không có trạm), xem `chuoi_nguoc_dv`.
+
+    Đây là LỖI, không phải cảnh báo (18/10/2026, lỗi #8): engine không được tự bắc cầu, số tính
+    trên chuỗi đứt là số sai (chia số con hai lần, bù hao âm). Phiếu tính giá và tuyến lệnh dùng
+    chung hàm này để chặn lúc lưu.
+    """
+    from ..models.don_vi_do import nhan_tram   # nhãn chặng: câu báo không in mã thô
+
+    def _nhan(tram: str | None, ma: str | None) -> str:
+        return nhan_tram(tram, ngan=True) or ma or "?"
+
+    canh = list(buoc or [])
+    return [
+        f"Bước '{truoc.get('ten') or '?'}' ra {_nhan(_tram_ra(truoc), truoc.get('dv_ra'))} nhưng "
+        f"bước '{sau.get('ten') or '?'}' nhận {_nhan(_tram_vao(sau), sau.get('dv_vao'))} — chuỗi "
+        f"đứt đơn vị."
+        for truoc, sau in zip(canh, canh[1:])
+        if _tram_ra(truoc) != _tram_vao(sau)
+    ]
+
+
 def chuoi_nguoc_dv(buoc: list[dict], *, to_can: float,
                    he_so: dict | None = None) -> tuple[list[dict], list[str]]:
     """Như `chuoi_nguoc` nhưng CÓ QUY ĐỔI ĐƠN VỊ ở từng bước — bản engine thật dùng.
@@ -131,23 +163,12 @@ def chuoi_nguoc_dv(buoc: list[dict], *, to_can: float,
     """
     hs_map = he_so or {}
     canh = list(buoc or [])
-    warnings: list[str] = []
-
-    def _tv(b: dict) -> str | None:
-        return b.get("tram_vao") or b.get("dv_vao")
-
-    def _tr(b: dict) -> str | None:
-        return b.get("tram_ra") or b.get("dv_ra")
-
+    _tv, _tr = _tram_vao, _tram_ra
     # Chuỗi phải LIỀN MẠCH: chặng ra của bước trước = chặng vào của bước sau. So bằng TRẠM chứ
     # không bằng mã — hai bước khai hai mã khác nhau cho cùng một chặng là chuyện hợp lệ. Lệch thật
-    # thì engine KHÔNG được tự bắc cầu, chỉ nói ra để người khai đi sửa.
-    for truoc, sau in zip(canh, canh[1:]):
-        if _tr(truoc) != _tv(sau):
-            warnings.append(
-                f"Bước '{truoc.get('ten') or '?'}' ra {truoc.get('dv_ra')} nhưng bước "
-                f"'{sau.get('ten') or '?'}' vào {sau.get('dv_vao')} — chuỗi đứt đơn vị."
-            )
+    # thì engine KHÔNG được tự bắc cầu, chỉ nói ra để người khai đi sửa (caller chặn bằng
+    # `kiem_chuoi_don_vi`; câu ở đây giữ cho caller cũ đọc `warnings`).
+    warnings: list[str] = kiem_chuoi_don_vi(canh)
 
     ra = _f(to_can)
     out: list[dict] = []

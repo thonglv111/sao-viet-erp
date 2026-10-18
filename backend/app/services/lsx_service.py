@@ -1776,6 +1776,11 @@ class LsxService:
             thieu.append("thieu_ngay_giao")
 
         # --- Điều kiện "sẵn sàng xếp lịch" của từng bước (§12) ---
+        from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+        tron_goi = self.db.query(GiaCongNgoai.id).filter(
+            GiaCongNgoai.lsx_id == lsx.id, GiaCongNgoai.kieu == KIEU_TRON_GOI,
+            GiaCongNgoai.huy_luc.is_(None),
+        ).first() is not None
         buoc: dict[str, list[int]] = {}
         for cd in lsx.cong_doans:
             # Bước MÁY/TỔ phải biết ai/máy nào làm thì Gantt mới có chỗ đặt. Bước THUÊ NGOÀI không
@@ -1793,8 +1798,10 @@ class LsxService:
             # (`co_dung_cu` nạp theo lô ở trên), KHÔNG ghi cứng tên bước.
             # Bước THUÊ NGOÀI: nhà gia công tự lo dao/khuôn (hộp bước ẩn luôn thẻ khuôn) ⇒ không
             # đòi — đòi thì lệnh kẹt "Còn thiếu 1 mục" mà không còn chỗ nào để chọn (E2E 27/09/2026).
+            # Lệnh GIA CÔNG TRỌN GÓI (18/10/2026, lỗi #16): cả lệnh giao nhà gia công, họ lo khuôn
+            # cho MỌI bước — cùng lẽ với bước thuê ngoài lẻ ở trên.
             can_dc, loai_dc = co_dung_cu.get(cd.cong_doan_id, (False, None))
-            if (cd.loai_buoc != LB_THUE_NGOAI and can_chot_khuon(can_dc, loai_dc)
+            if (cd.loai_buoc != LB_THUE_NGOAI and not tron_goi and can_chot_khuon(can_dc, loai_dc)
                     and cd.khuon_be_id is None):
                 buoc.setdefault("thieu_khuon", []).append(cd.id)
         # Thứ tự mã giữ như trước: nhà gia công → tổ/máy → khuôn, theo bước đầu tiên dính.
@@ -3430,6 +3437,10 @@ class LsxService:
                 self._ap_chuoi_nguoc(khac)
         # SAU chuỗi ngược: lượng vật tư tính trên số vào–ra của chính bước, số ấy vừa mới chốt.
         self._bung_lai_vat_tu(lsx, doi_cd)
+        if commit:
+            # Chặn LƯU tuyến hỏng (18/10/2026, lỗi #15 #29) — sau chuỗi ngược vì đơn vị vào/ra của
+            # bước do nó ghi. Xem trước vẫn đi tiếp: người lập lệnh cần số để thấy chỗ hỏng.
+            self._kiem_tuyen_luu(lsx, rows)
         if not commit:
             # XEM TRƯỚC (đổi/chèn công đoạn): số vào–ra + đơn vị của MỌI bước đã nằm trên
             # `lsx.cong_doans` nhưng CHƯA ghi DB. Không đụng bài ghép / trạng thái / audit —
@@ -3473,6 +3484,85 @@ class LsxService:
         bg = ghep[0]
         svc._sap_lai_thu_tu(bg)
         svc._tinh_lai(bg)
+
+    def _kiem_tuyen_luu(self, lsx: Lsx, rows: list[LsxCongDoan]) -> None:
+        """Từ chối lưu tuyến lệnh mà xưởng chạy sẽ ra số sai hoặc kẹt (18/10/2026):
+
+        · phụ thuộc NGƯỢC — bước trỏ tới bước đứng SAU nó trong bảng (▲▼ chỉ dời dòng, không
+          nối lại dây, lỗi #15);
+        · cạnh BẮC CẦU — A → C trong khi C đã nhận từ A qua B: ra xưởng C đòi nhận hàng từ A, mà A
+          giao hết cho B, C kẹt vĩnh viễn (lỗi #29);
+        · chuỗi ĐỨT ĐƠN VỊ trên dòng giấy — bước sau nhận thứ bước trước không nhả ra, chuỗi ngược
+          chia hệ số sai (1.400 → 413 tờ in cho 5.000 hộp, lỗi #15). Dùng chung luật với phiếu tính
+          giá (`bu_hao_engine.kiem_chuoi_don_vi`).
+
+        Cạnh ngầm theo thứ tự bảng (bước không khai cạnh ra nào ⇒ đứng trước bước liền sau, đúng
+        luật `cong_viec_chang_truoc` của xưởng) được tính như cạnh thật. Lệnh CŨ đã lưu tuyến hỏng
+        vẫn mở được — hàm chỉ chạy lúc lưu."""
+        from .bu_hao_engine import kiem_chuoi_don_vi
+
+        vi_tri = {r.id: i for i, r in enumerate(rows)}
+        ten = {r.id: r.ten for r in rows}
+        step_ids = set(self.db.execute(
+            select(LsxCongDoan.id).join(Lsx, Lsx.id == LsxCongDoan.lsx_id)
+            .where(Lsx.order_id == lsx.order_id)
+        ).scalars())
+        canh = set(self.db.execute(select(
+            LsxCongDoanPhuThuoc.buoc_truoc_id, LsxCongDoanPhuThuoc.buoc_sau_id
+        ).where(LsxCongDoanPhuThuoc.buoc_sau_id.in_(step_ids))).all()) if step_ids else set()
+        co_canh_ra = {a for a, _ in canh}
+        for truoc, sau in zip(rows, rows[1:]):
+            if truoc.id not in co_canh_ra:
+                canh.add((truoc.id, sau.id))
+
+        def _ten(i: int) -> str:
+            if i not in ten:
+                c = self.db.get(LsxCongDoan, i)
+                ten[i] = c.ten if c is not None else "?"
+            return ten[i]
+
+        for a, b in sorted(canh):
+            if a in vi_tri and b in vi_tri and vi_tri[a] > vi_tri[b]:
+                raise LsxValidationError(
+                    f"Bước '{_ten(b)}' phụ thuộc bước '{_ten(a)}' đứng sau nó — đổi chỗ lại hoặc "
+                    f"sửa tab Phụ thuộc của '{_ten(b)}'.")
+
+        sau_cua: dict[int, set[int]] = {}
+        for a, b in canh:
+            sau_cua.setdefault(a, set()).add(b)
+
+        def _toi_duoc(tu: int, dich: int, bo: tuple[int, int]) -> bool:
+            ngan, da = [tu], {tu}
+            while ngan:
+                x = ngan.pop()
+                for y in sau_cua.get(x, ()):
+                    if (x, y) == bo or y in da:
+                        continue
+                    if y == dich:
+                        return True
+                    da.add(y)
+                    ngan.append(y)
+            return False
+
+        for r in rows:
+            truoc = sorted(a for a, b in canh if b == r.id)
+            for a in truoc:
+                qua = next((q for q in truoc if q != a and _toi_duoc(a, q, (a, r.id))), None)
+                if qua is not None:
+                    raise LsxValidationError(
+                        f"Bước '{r.ten}' phụ thuộc thẳng '{_ten(a)}' trong khi đã nhận qua "
+                        f"'{_ten(qua)}' — bỏ '{_ten(a)}' khỏi tab Phụ thuộc của '{r.ten}', nếu không "
+                        f"ra xưởng '{r.ten}' sẽ chờ hàng từ '{_ten(a)}' mãi.")
+
+        tram = self._tram()
+        tren = [r for r in rows if tren_dong_giay(r.don_vi_vao, r.don_vi_ra, tram)]
+        loi = kiem_chuoi_don_vi([
+            {"ten": r.ten, "dv_vao": r.don_vi_vao, "dv_ra": r.don_vi_ra,
+             "tram_vao": tram_cua(r.don_vi_vao, tram), "tram_ra": tram_cua(r.don_vi_ra, tram)}
+            for r in tren
+        ])
+        if loi:
+            raise LsxValidationError(" ".join(loi) + " Đổi chỗ lại các bước rồi lưu.")
 
     def _kiem_chu_trinh_phu_thuoc(self, order_id: int) -> None:
         step_ids = set(self.db.execute(

@@ -7,7 +7,7 @@ from typing import Sequence
 from sqlalchemy import Date, Integer, and_, asc, case, desc, exists, func, literal, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher
+from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher, PaymentVoucherLine
 from ..models.department import Department
 from ..models.user import User
 from .loc_danh_sach import dk_khoang_ngay
@@ -52,6 +52,11 @@ def _quan_he_tien():
         selectinload(PurchaseRequest.supplier),
         selectinload(PurchaseRequest.deliveries).selectinload(PurchaseDelivery.lines),
         selectinload(PurchaseRequest.payment_vouchers).selectinload(PaymentVoucher.receipts),
+        # Dòng phân bổ + phiếu của dòng (+ các dòng anh em để biết phiếu gộp, + tiền nộp lại):
+        # mọi phép tính đã chi theo đơn/đợt đọc ở đây (17/10/2026).
+        selectinload(PurchaseRequest.khoan_chi).selectinload(PaymentVoucherLine.voucher).options(
+            selectinload(PaymentVoucher.receipts), selectinload(PaymentVoucher.lines),
+        ),
     )
 
 
@@ -1540,12 +1545,16 @@ class PurchaseRequestRepository:
             if tong_den is not None:
                 conditions.append(tong <= tong_den)
         if deposit_status:
+            # Cọc đã chi = dòng phân bổ không đợt của đơn này (phiếu lẻ: chỉ phiếu giai đoạn cọc,
+            # như trước; phiếu gộp: mọi dòng không đợt là cọc).
             advance_paid = (
-                select(func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0))
+                select(func.coalesce(func.sum(PaymentVoucherLine.amount_vnd), 0))
+                .join(PaymentVoucher, PaymentVoucher.id == PaymentVoucherLine.payment_voucher_id)
                 .where(
-                    PaymentVoucher.purchase_request_id == PurchaseRequest.id,
+                    PaymentVoucherLine.purchase_request_id == PurchaseRequest.id,
+                    PaymentVoucherLine.delivery_id.is_(None),
                     PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
-                    PaymentVoucher.payment_stage == "advance",
+                    or_(PaymentVoucher.payment_stage == "advance", PaymentVoucher.purchase_request_id.is_(None)),
                 )
                 .correlate(PurchaseRequest)
                 .scalar_subquery()
@@ -1644,6 +1653,9 @@ class PurchaseRequestRepository:
                 # Badge "chưa có chứng từ" đọc `voucher.attachments`. Thiếu dòng này là mỗi phiếu
                 # chi bắn thêm một query — đúng cái N+1 mà eager load ở đây sinh ra để tránh.
                 selectinload(PurchaseRequest.payment_vouchers).selectinload(
+                    PaymentVoucher.attachments
+                ),
+                selectinload(PurchaseRequest.khoan_chi).selectinload(PaymentVoucherLine.voucher).selectinload(
                     PaymentVoucher.attachments
                 ),
                 # File hoá đơn của TỪNG ĐỢT — màn Công nợ phải trả cần hiện link file ngay tại

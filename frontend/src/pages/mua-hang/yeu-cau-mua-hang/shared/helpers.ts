@@ -7,6 +7,7 @@ import type {
   DepartmentPurchaseSourceType,
 } from "../../../../api/client";
 import { chuanKho } from "../../../../lib/khoGiay";
+import { homNayVN } from "../../../../utils/ky";
 
 export function emptyLine(): DepartmentPurchaseRequestLineInput {
   return {
@@ -56,10 +57,16 @@ export function coDonSong(line: DepartmentPurchaseRequestLineOut): boolean {
   return !!st && st !== "cancelled" && st !== "rejected";
 }
 
+/** Phiếu đã có chữ người dùng gõ chưa (ngày, nội dung, hoặc món). Dòng trống mồi sẵn không đếm. Dùng để
+ *  hỏi trước khi đóng ngăn Tạo yêu cầu: bấm nhầm ra nền là mất hết, không có đường quay lại. */
+export function phieuCoDuLieu(f: DepartmentPurchaseRequestInput): boolean {
+  if (f.content.trim() || f.needed_date) return true;
+  return f.lines.some((l) =>
+    !!(l.hang_loai || l.item_name.trim() || (l.note ?? "").trim() || Number(l.quantity) > 0));
+}
+
 export function todayInputValue(): string {
-  const now = new Date();
-  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return localNow.toISOString().slice(0, 10);
+  return homNayVN();
 }
 
 /** Chuẩn hoá phiếu trước khi gửi máy chủ (nguyên văn từ file gốc, chỉ bỏ 2 dấu cách thụt đầu

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { EmptyState } from "../../../../components/EmptyState";
+import { homNayVN } from "../../../../utils/ky";
 import { GpsRadarMap2D } from "../components/GpsRadarMap2D";
 import { MyHistoryModal } from "../modals/MyHistoryModal";
 import {
@@ -266,7 +267,7 @@ export function MyCheckIn({
 
   function getShiftProgress(start: string, end: string, now: number): number {
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = homNayVN();
       const startMs = new Date(`${todayStr}T${start}:00`).getTime();
       let endMs = new Date(`${todayStr}T${end}:00`).getTime();
       if (endMs < startMs) {

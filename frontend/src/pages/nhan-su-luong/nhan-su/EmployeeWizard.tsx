@@ -9,6 +9,7 @@ import {
 import { Button } from "../../../components/Button";
 import { ChonNgay } from "../../../components/ChonNgay";
 import { fmtDate, money } from "../../../utils/format";
+import { homNayVN } from "../../../utils/ky";
 import { Trash2 } from "lucide-react";
 import { DOC_KIND_LABEL } from "./shared/constants";
 import {
@@ -49,7 +50,7 @@ export function EmployeeWizard({
     full_name: "",
     department_id: initialDepartmentId ?? meta.departments[0]?.id ?? null,
     status: "probation",
-    hire_date: new Date().toISOString().slice(0, 10),
+    hire_date: homNayVN(),
     dependents_count: 0,
   });
   const [files, setFiles] = useState<{ file: File; doc_kind: string }[]>([]);
@@ -151,7 +152,7 @@ export function EmployeeWizard({
         if (canSalary) {
           input.initial_salary = {
             effective_from:
-              form.hire_date || new Date().toISOString().slice(0, 10),
+              form.hire_date || homNayVN(),
             luong_vi_tri: luongViTri,
             luong_trach_nhiem: luongTrachNhiem,
             insurance_base: mucDongBh ?? salaryBase,

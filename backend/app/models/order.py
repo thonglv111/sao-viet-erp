@@ -255,6 +255,10 @@ class OrderLine(Base):
 
     vat_pct_estimate: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     line_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Tiền CHIẾT KHẤU của dòng (mg 0417, 18/10/2026): phần NẰM TRONG `line_total` (giá bán = vốn +
+    # chiết khấu + lợi nhuận) mà công ty sẽ hoàn lại khách. Chép từ `quote_items.discount_amount` lúc
+    # chốt đơn. NULL = đơn cũ / nhập tay.
+    chiet_khau: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="lines")
 

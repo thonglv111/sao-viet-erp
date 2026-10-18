@@ -937,7 +937,7 @@ export function LsxDetailView({
               <span className="khsx-topbar__tag khsx-topbar__tag--ok">
                 <Icon name="check" size={14} /> Sẵn sàng lập kế hoạch
               </span>
-            ) : d.thieu.length > 0 ? (
+            ) : daQuaKeHoach ? null : d.thieu.length > 0 ? (
               <span className="khsx-topbar__tag khsx-topbar__tag--warn">
                 <Icon name="alert" size={14} /> Còn thiếu {d.thieu.length} mục
               </span>
@@ -976,7 +976,9 @@ export function LsxDetailView({
         {/* Lý do nút Sẵn sàng bị khoá — HIỆN SẴN, không giấu sau rê chuột (07/10/2026: người dùng
             nhìn nhãn "Còn thiếu 1 mục" mà không biết thiếu gì). Mục cấp bước gọi đích danh bước,
             bấm tên bước là mở thẳng ngăn bước đó. */}
-        {d.trang_thai !== "san_sang" && d.thieu.length > 0 && (
+        {/* Lệnh đã qua cửa (lập kế hoạch / phát hành / đóng) thì "còn thiếu" vừa sai vừa vô dụng —
+            lỗi #16: lệnh trọn gói đã phát hành vẫn đeo "Còn thiếu 1 mục — khuôn". */}
+        {d.trang_thai !== "san_sang" && !daQuaKeHoach && d.thieu.length > 0 && (
           <ul className="khsx-thieu">
             {d.thieu.map((code) => {
               const buocs = (d.thieu_buoc?.[code] ?? [])

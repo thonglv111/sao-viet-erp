@@ -364,6 +364,11 @@ export function ThuTienHoaDon({
                       ) : (
                         p.code
                       )}
+                      {(p.so_dong ?? 1) > 1 && p.receipt_amount != null && (
+                        <span className="lds-mu" title="Một phiếu thu nhiều khoản, Số tiền là phần của hoá đơn này">
+                          {` phiếu gộp ${vietSo(p.receipt_amount)}`}
+                        </span>
+                      )}
                     </td>
                     <td>{ngay(p.receipt_date)}</td>
                     <td>{METHOD_LABELS[p.receipt_method] ?? p.receipt_method}</td>

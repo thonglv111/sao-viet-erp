@@ -120,6 +120,15 @@
   color: var(--ink, #0f172a);
 }
 
+/* Danh sách nơi đang dùng / thứ mất theo trong hộp xoá danh mục: mỗi mục một dòng, không nối dấu chấm. */
+.cdlg__ds {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--ink, #0f172a);
+}
+
 .cdlg__foot {
   flex: 0 0 auto;
   display: flex;

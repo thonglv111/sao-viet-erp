@@ -28,6 +28,7 @@ import { Button } from "../../components/Button";
 import { DetailModal } from "../../components/DetailModal";
 import { Icon } from "../../components/Icons";
 import { Select } from "../../components/Select";
+import { homNayVN } from "../../utils/ky";
 import {
   BangLoi,
   HOM_NAY,
@@ -347,8 +348,11 @@ export function SuaChuaLonKhung({ token, taiSan, lich, onClose, onDone }: Chung 
 export function ThoiDungKhung({ token, taiSan, lich, onClose, onDone }: Chung & {
   lich: DongDuKien[] | null;
 }) {
+  // Không thôi dùng cho ngày chưa tới (lỗi E2E #44): lưu là thẻ đổi sang "Đã thôi dùng" ngay trong
+  // khi máy còn chạy. Hôm nay theo giờ xưởng, không theo giờ máy đang mở trang; máy chủ chặn lại.
+  const homNay = homNayVN();
   const [kieu, setKieu] = useState("");
-  const [ngay, setNgay] = useState(HOM_NAY);
+  const [ngay, setNgay] = useState(homNay);
   const [ghiChu, setGhiChu] = useState("");
   const [loiO, setLoiO] = useState<Record<string, string>>({});
   const { ban, loi, gui } = useGui(onDone);
@@ -370,6 +374,7 @@ export function ThoiDungKhung({ token, taiSan, lich, onClose, onDone }: Chung & 
     const l: Record<string, string> = {};
     if (!kieu) l["ts-thoi-kieu"] = "Chọn lý do thôi dùng";
     if (!ngay) l["ts-thoi-ngay"] = "Chọn ngày thôi dùng";
+    else if (ngay > homNayVN()) l["ts-thoi-ngay"] = "Không chọn được ngày sau hôm nay";
     setLoiO(l);
     if (Object.keys(l).length) return toiOLoi(l, ["ts-thoi-kieu", "ts-thoi-ngay"]);
     void gui(() => taiSanApi.thoiDung(token, taiSan.id, { ngay, kieu, ly_do: ghiChu.trim() || null }));
@@ -404,7 +409,7 @@ export function ThoiDungKhung({ token, taiSan, lich, onClose, onDone }: Chung & 
         <label className="rc-field ts-o--ngay">
           <span className="rc-field__label">Ngày thôi dùng <em>*</em></span>
           <ChonNgay id="ts-thoi-ngay" aria-label="Ngày thôi dùng" className={`rc-input${loiO["ts-thoi-ngay"] ? " is-loi" : ""}`}
-            min={taiSan.ngay_su_dung.slice(0, 10)} max={NGAY_MAX} value={ngay}
+            min={taiSan.ngay_su_dung.slice(0, 10)} max={homNay} value={ngay}
             onChange={(v) => setNgay(v)} />
           <LoiO loi={loiO["ts-thoi-ngay"]} />
         </label>

@@ -522,7 +522,7 @@ def cancel_voucher(
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
 ) -> StockVoucherOut:
     try:
-        v = svc.cancel(voucher_id, ly_do=payload.ly_do)
+        v = svc.cancel(voucher_id, ly_do=payload.ly_do, user=user)
     except StockVoucherError as e:
         raise _err(e) from None
     _bao_san_xuat(db, v)
@@ -721,7 +721,7 @@ def huy_dieu_chuyen(
 ):
     """Hủy phiếu điều chuyển (spec-phieu-dieu-chuyen §5) — chỉ khi chưa ghi sổ."""
     try:
-        svc.huy_dieu_chuyen(req_id, payload.ly_do)
+        svc.huy_dieu_chuyen(req_id, payload.ly_do, user=user)
     except StockVoucherError as e:
         raise _err(e) from None
 

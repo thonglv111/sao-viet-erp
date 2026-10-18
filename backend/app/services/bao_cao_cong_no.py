@@ -261,7 +261,9 @@ def _ncc_cua_hoan(p) -> int | None:
     return _ncc_cua_phieu_chi(v) if v is not None else None
 
 
-def _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach=()) -> list[dict]:
+def _chung_tu_phai_thu(
+    hoa_don, phieu, khach_don, ma_khach, hoan_khach=(), den_ngay: date | None = None
+) -> list[dict]:
     """Phải thu: hoá đơn bán → NỢ (khách nợ thêm) · phiếu thu → CÓ (khách trả bớt) · phiếu chi
     hoàn tiền cho khách → NỢ (tiền khách đã đưa nay trả lại).
 
@@ -291,13 +293,28 @@ def _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach=()) -> li
             "net": int(hd.amount_vnd),
             "tk_doi_ung": "",
         })
+        # Hoá đơn điều chỉnh giảm (18/10/2026) → CÓ: khách nợ bớt, như phiếu thu nhưng là chứng từ thuế.
+        for a in _dieu_chinh_hieu_luc(hd, den_ngay):
+            ra.append({
+                **_dt(hd.customer_id, hd.customer_name_snapshot),
+                "ngay": a.adj_date,
+                "loai": "dieu_chinh_giam",
+                "so_ct": f"{a.adj_symbol} {a.adj_number}".strip(),
+                "ky_hieu": (a.adj_symbol or "").strip() or None,
+                "don_id": getattr(hd, "order_id", None),
+                "dien_giai": f"Điều chỉnh giảm hoá đơn {hd.invoice_symbol} {hd.invoice_number}".strip(),
+                "luc": getattr(a, "created_at", None),
+                "net": -int(a.amount_vnd),
+                "tk_doi_ung": "",
+            })
     for p in phieu:
         if p.source_type == RECEIPT_SOURCE_PURCHASE:
             continue  # tiền NCC trả lại — thuộc 331, không phải 131.
-        kh_id = None
-        if p.sales_invoice is not None:
+        # Một phiếu = một dòng Có, kể cả phiếu gộp nhiều hoá đơn/đơn (mọi dòng cùng một khách).
+        kh_id = getattr(p, "customer_id", None)
+        if kh_id is None and p.sales_invoice is not None:
             kh_id = p.sales_invoice.customer_id
-        elif p.order_id is not None:
+        elif kh_id is None and p.order_id is not None:
             kh_id = khach_don.get(p.order_id)
         if kh_id is None:
             continue
@@ -407,6 +424,7 @@ def _nap_phai_thu(
     phieu = repo.phieu_thu_cho_bao_cao(den_ngay=den_ngay)
     hoan_khach = [v for v in repo.phieu_chi_hoan_khach() if ngay_chi(v) <= den_ngay]
     khach_don = repo.khach_cua_don([p.order_id for p in phieu if p.order_id is not None])
+    khach_phieu = {p.customer_id for p in phieu if getattr(p, "customer_id", None)}
     # Nạp danh mục khách MỘT LẦN cho cả ba nguồn. Trước đó dùng hai bản đồ rời nên khách chỉ có
     # phiếu thu (chưa hoá đơn nào) rơi vào nhánh tên-snapshot và MẤT mã — mà mã chính là thứ để
     # đối chiếu với sổ MISA.
@@ -414,6 +432,7 @@ def _nap_phai_thu(
         {hd.customer_id for hd in hoa_don if hd.customer_id}
         | {p.sales_invoice.customer_id for p in phieu if p.sales_invoice is not None}
         | set(khach_don.values())
+        | khach_phieu
         | {v.customer_id for v in hoan_khach}
     )
     return hoa_don, phieu, khach_don, ma_khach, hoan_khach
@@ -489,7 +508,15 @@ def phan_bo_hoan_khong_don(khoan: list[dict], hoan: dict) -> dict:
     return them
 
 
-def _khoan_phai_thu(hoa_don, phieu, hoan_khach=()) -> list[dict]:
+def _dieu_chinh_hieu_luc(hd, den_ngay: date | None = None) -> list:
+    """Hoá đơn điều chỉnh giảm còn hiệu lực của một hoá đơn bán, lập tới hết `den_ngay` (18/10/2026)."""
+    return [
+        a for a in getattr(hd, "dieu_chinh", None) or []
+        if a.status == SALES_INVOICE_ISSUED and (den_ngay is None or a.adj_date <= den_ngay)
+    ]
+
+
+def _khoan_phai_thu(hoa_don, phieu, hoan_khach=(), den_ngay: date | None = None) -> list[dict]:
     """Phần CÒN LẠI của từng hoá đơn bán tính tới `den_ngay` (phiếu đã nạp sẵn tới mốc đó).
 
     Phải tính lại ở đây, không mượn `remaining_amount` của `_receivable_rows` — số đó là "còn lại
@@ -503,16 +530,18 @@ def _khoan_phai_thu(hoa_don, phieu, hoan_khach=()) -> list[dict]:
     for p in phieu:
         if p.source_type == RECEIPT_SOURCE_PURCHASE:
             continue
-        hd = p.sales_invoice if p.sales_invoice_id is not None else None
-        if hd is not None and hd.status != SALES_INVOICE_ISSUED:
-            # Hoá đơn đã huỷ: tiền khách đã trả về quỹ của đơn như cọc (`quy_tien_don`, 17/10/2026).
-            coc_theo_don[hd.order_id] = coc_theo_don.get(hd.order_id, 0) + int(p.amount_vnd)
-        elif p.sales_invoice_id is not None:
-            thu_dich_danh[p.sales_invoice_id] = (
-                thu_dich_danh.get(p.sales_invoice_id, 0) + int(p.amount_vnd)
-            )
-        elif p.order_id is not None:
-            coc_theo_don[p.order_id] = coc_theo_don.get(p.order_id, 0) + int(p.amount_vnd)
+        # Tiền đi theo DÒNG phân bổ (17/10/2026) — phiếu gộp trả nhiều hoá đơn / cọc nhiều đơn.
+        for l in getattr(p, "lines", None) or []:
+            hd = l.sales_invoice if l.sales_invoice_id is not None else None
+            if hd is not None and hd.status != SALES_INVOICE_ISSUED:
+                # Hoá đơn đã huỷ: tiền khách đã trả về quỹ của đơn như cọc (`quy_tien_don`).
+                coc_theo_don[hd.order_id] = coc_theo_don.get(hd.order_id, 0) + int(l.amount_vnd)
+            elif l.sales_invoice_id is not None:
+                thu_dich_danh[l.sales_invoice_id] = (
+                    thu_dich_danh.get(l.sales_invoice_id, 0) + int(l.amount_vnd)
+                )
+            else:
+                coc_theo_don[l.order_id] = coc_theo_don.get(l.order_id, 0) + int(l.amount_vnd)
 
     tra_theo_don: dict[int, int] = {}
     hoan_rieng: dict[int, int] = {}
@@ -528,9 +557,16 @@ def _khoan_phai_thu(hoa_don, phieu, hoan_khach=()) -> list[dict]:
 
     ra: list[dict] = []
     for don_id, ds in theo_don.items():
-        con_coc = max(0, coc_theo_don.get(don_id, 0) - tra_theo_don.get(don_id, 0))
+        # Hoá đơn điều chỉnh giảm (18/10/2026): phần phải thu của hoá đơn là gốc − điều chỉnh; khách
+        # đã trả vượt phần đó thì khoản vượt về quỹ của đơn (cùng luật `quy_tien_don`).
+        giam = {hd.id: sum(int(a.amount_vnd) for a in _dieu_chinh_hieu_luc(hd, den_ngay)) for hd in ds}
+        thua = sum(
+            max(0, thu_dich_danh.get(hd.id, 0) - max(0, int(hd.amount_vnd) - giam[hd.id]))
+            for hd in ds if giam[hd.id]
+        )
+        con_coc = max(0, coc_theo_don.get(don_id, 0) + thua - tra_theo_don.get(don_id, 0))
         for hd in sorted(ds, key=lambda x: (x.invoice_date, x.id)):
-            tien = int(hd.amount_vnd)
+            tien = max(0, int(hd.amount_vnd) - giam[hd.id])
             truc_tiep = min(tien, thu_dich_danh.get(hd.id, 0))
             bu_coc = min(con_coc, max(0, tien - truc_tiep))
             con_coc -= bu_coc
@@ -544,7 +580,7 @@ def _khoan_phai_thu(hoa_don, phieu, hoan_khach=()) -> list[dict]:
                 "han": hd.due_date,
                 "goc": tien,
                 "con_no": max(0, tien - truc_tiep - bu_coc),
-                "thua": max(0, thu_dich_danh.get(hd.id, 0) - tien),
+                "thua": max(0, thu_dich_danh.get(hd.id, 0) - int(hd.amount_vnd)),
             })
     them = phan_bo_hoan_khong_don(ra, hoan_rieng)
     for k in ra:
@@ -647,7 +683,7 @@ def khoan_con_no_phai_thu(repo, *, doi_tuong_id: int | None, den_ngay: date) -> 
     """Các hoá đơn bán CÒN NỢ của một khách tại `den_ngay` — tab "Hoá đơn còn nợ"."""
     hoa_don, phieu, _khach_don, _ma_khach, hoan_khach = _nap_phai_thu(repo, den_ngay=den_ngay)
     # Theo ĐƠN, không cân theo dư 131 (17/10/2026) — xem `phan_bo_hoan_khong_don`.
-    khoan = _khoan_phai_thu(hoa_don, phieu, hoan_khach)
+    khoan = _khoan_phai_thu(hoa_don, phieu, hoan_khach, den_ngay)
     return _ra_khoan_con_no(khoan, doi_tuong_id=doi_tuong_id, den_ngay=den_ngay)
 
 
@@ -855,16 +891,17 @@ def tong_hop_phai_thu(
 
     # --- PS Nợ (hoá đơn bán) + PS Có (phiếu thu) ---
     # Đi qua ĐÚNG luồng chứng từ mà sổ chi tiết dùng, không tự lặp lại luật ngày/dấu ở đây.
-    # `ban_ky`: phần PS Nợ là HOÁ ĐƠN — cột "Bán trong kỳ" của màn Công nợ đọc số này; PS Nợ còn
-    # gồm phiếu hoàn tiền khách, không phải bán.
+    # `ban_ky`: phần PS Nợ là HOÁ ĐƠN trừ hoá đơn điều chỉnh giảm — cột "Bán trong kỳ" của màn Công nợ
+    # đọc số này; PS Nợ còn gồm phiếu hoàn tiền khách, không phải bán.
     ban_ky: dict[int | None, int] = {}
-    chung_tu = _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach)
+    chung_tu = _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach, den_ngay)
     for ct in chung_tu:
         gom.cong(
             gom.muc(ct["doi_tuong_id"], ct["ten"], ct["ma"]), ct["ngay"], ct["net"],
             hoan=ct["loai"] in LOAI_HOAN,
         )
-        if ct["loai"] == "hoa_don" and tu_ngay <= ct["ngay"] <= den_ngay:
+        # Hoá đơn điều chỉnh giảm trừ vào "bán trong kỳ" của kỳ nó phát hành: cùng kỳ kê khai thuế.
+        if ct["loai"] in ("hoa_don", "dieu_chinh_giam") and tu_ngay <= ct["ngay"] <= den_ngay:
             ban_ky[ct["doi_tuong_id"]] = ban_ky.get(ct["doi_tuong_id"], 0) + ct["net"]
 
     # ── PHÂN TUỔI NỢ tại `den_ngay` (§5.3) ────────────────────────────────────────────────
@@ -879,7 +916,7 @@ def tong_hop_phai_thu(
     # Từ 17/10/2026 tuổi nợ đi THEO ĐƠN (không cân theo dư 131): tiền khách đang để ở đơn khác không
     # trừ vào hoá đơn của đơn này, nên sáu mốc hạn của một khách có thể cộng lớn hơn dư Nợ cuối kỳ
     # đúng bằng phần tiền đó. Phiếu trả lại không gắn đơn vẫn cộng nợ lại (`phan_bo_hoan_khong_don`).
-    khoan = _khoan_phai_thu(hoa_don, phieu, hoan_khach) if tinh_tuoi else ()
+    khoan = _khoan_phai_thu(hoa_don, phieu, hoan_khach, den_ngay) if tinh_tuoi else ()
     for k in khoan:
         _bo_ro(_muc(k["doi_tuong_id"], k["ten_lui"]), k["con_no"], k["han"], den_ngay)
 
@@ -988,7 +1025,7 @@ def so_chi_tiet_phai_thu(
     """Sổ chi tiết TK 131 của một khách hàng. `doi_tuong_id=None` = dòng không gắn khách (dữ liệu cũ)."""
     hoa_don, phieu, khach_don, ma_khach, hoan_khach = _nap_phai_thu(repo, den_ngay=den_ngay)
     return _so_chi_tiet(
-        _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach),
+        _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach, den_ngay),
         doi_tuong_id=doi_tuong_id,
         tu_ngay=tu_ngay,
         den_ngay=den_ngay,
@@ -1071,7 +1108,7 @@ def so_chi_tiet_tat_ca_phai_thu(repo, *, tu_ngay: date, den_ngay: date, loc=TAT_
     """Sổ chi tiết TK 131 của MỌI khách có số trong kỳ — hoặc đúng một khách (`loc`)."""
     hoa_don, phieu, khach_don, ma_khach, hoan_khach = _nap_phai_thu(repo, den_ngay=den_ngay)
     return _so_chi_tiet_moi_doi_tuong(
-        _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach),
+        _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach, den_ngay),
         tu_ngay=tu_ngay, den_ngay=den_ngay, tk=TK_PHAI_THU,
         tieu_de="SỔ CHI TIẾT CÔNG NỢ PHẢI THU", ten_khong_gan=KHONG_GAN_TEN_THU, loc=loc,
     )

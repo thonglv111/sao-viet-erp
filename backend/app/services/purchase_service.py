@@ -401,7 +401,7 @@ def phan_bo_tien_dot(row, *, den_ngay: date | None = None) -> tuple[list[dict], 
     thì một đợt có thể biến mất khỏi công nợ ở màn này mà vẫn còn ở màn kia.
 
     Mỗi đợt trả về `{delivery, amount, paid, coc_bu, con_no}`:
-      - `paid`   = tiền trả ĐÍCH DANH đợt (`payment_vouchers.delivery_id` trỏ đúng đợt) — cột này
+      - `paid`   = tiền trả ĐÍCH DANH đợt (dòng phân bổ `payment_voucher_lines.delivery_id`) — cột này
                    phải khớp sao kê NCC theo từng đợt.
       - `coc_bu` = phần CỌC của cả đơn chiếu xuống, GIAO TRƯỚC BÙ TRƯỚC. Không phải ai đó trả riêng
                    cho đợt này.
@@ -418,7 +418,7 @@ def phan_bo_tien_dot(row, *, den_ngay: date | None = None) -> tuple[list[dict], 
 
     tra_theo_dot: dict[int, int] = {}
     coc = 0
-    for v in row.payment_vouchers:
+    for v in row.khoan_chi:
         if v.status != PAYMENT_VOUCHER_PAID:
             continue
         if den_ngay is not None and _ngay_tien_ra(v) > den_ngay:
@@ -431,7 +431,7 @@ def phan_bo_tien_dot(row, *, den_ngay: date | None = None) -> tuple[list[dict], 
     # Tiền NỘP LẠI hoàn lại phần ứng trước ⇒ trừ vào cọc chung, không trừ vào đợt nào.
     coc -= sum(
         int(r.amount_vnd)
-        for v in row.payment_vouchers
+        for v in row.khoan_chi
         for r in v.receipts
         if r.status == PAYMENT_RECEIPT_RECEIVED
         and (den_ngay is None or r.receipt_date <= den_ngay)
@@ -490,12 +490,12 @@ def coc_chua_bu(row) -> int:
         return phan_bo_tien_dot(row)[2]
     coc = sum(
         int(v.amount_vnd)
-        for v in row.payment_vouchers
+        for v in row.khoan_chi
         if v.status == PAYMENT_VOUCHER_PAID and getattr(v, "delivery_id", None) is None
     )
     coc -= sum(
         int(r.amount_vnd)
-        for v in row.payment_vouchers
+        for v in row.khoan_chi
         for r in v.receipts
         if r.status == PAYMENT_RECEIPT_RECEIVED
     )
@@ -606,14 +606,14 @@ def purchase_money(row) -> dict:
 
     paid_amount = sum(
         int(voucher.amount_vnd)
-        for voucher in row.payment_vouchers
+        for voucher in row.khoan_chi
         if voucher.status == PAYMENT_VOUCHER_PAID
     )
     # Tiền ĐÃ THU về (phiếu thu received) làm giảm số đã chi thực;
     # paid_amount giữ số thô để UI hiện tách bạch "đã chi X, đã thu Y".
     receipt_received_amount = sum(
         int(receipt.amount_vnd)
-        for voucher in row.payment_vouchers
+        for voucher in row.khoan_chi
         for receipt in voucher.receipts
         if receipt.status == PAYMENT_RECEIPT_RECEIVED
     )
@@ -625,7 +625,7 @@ def purchase_money(row) -> dict:
     coc_du_kien = int(getattr(row, "deposit_expected", 0) or 0)
     coc_da_chi = sum(
         int(v.amount_vnd)
-        for v in row.payment_vouchers
+        for v in row.khoan_chi
         if v.status == PAYMENT_VOUCHER_PAID and v.payment_stage == PAYMENT_STAGE_ADVANCE
     )
     tran_dat_coc = max(0, coc_du_kien - coc_da_chi)
@@ -3271,7 +3271,7 @@ class PurchaseService:
         phiếu gắn đợt này nghĩa là tiền đã rời két. Phiếu đã HUỶ thì không tính."""
         vuong = [
             v.code
-            for v in row.payment_vouchers
+            for v in row.khoan_chi
             if getattr(v, "delivery_id", None) == delivery_id
             and v.status != PAYMENT_VOUCHER_CANCELLED
         ]
@@ -3857,7 +3857,7 @@ class PurchaseService:
         row = self._request_ghi(request_id, actor)
         if row.status != PR_RECEIVED:
             raise PurchaseConflict("Chỉ phiếu đã nhận hàng mới lùi được.")
-        if any(v.status == PAYMENT_VOUCHER_PAID for v in row.payment_vouchers):
+        if any(v.status == PAYMENT_VOUCHER_PAID for v in row.khoan_chi):
             raise PurchaseConflict(
                 "Đơn đã có phiếu chi ĐÃ CHI — xử lý phần tiền trước khi lùi trạng thái."
             )
@@ -3903,7 +3903,7 @@ class PurchaseService:
                     "Chi huy duoc phieu nhap do chinh minh lap. "
                     "Phieu da gui duyet thi nguoi duyet quyet."
                 )
-        if any(voucher.status == PAYMENT_VOUCHER_PAID for voucher in row.payment_vouchers):
+        if any(voucher.status == PAYMENT_VOUCHER_PAID for voucher in row.khoan_chi):
             raise PurchaseConflict("Phiếu đã có chứng từ thanh toán nên không thể hủy.")
         self._dat_trang_thai(row, PR_CANCELLED, doc_type=DOC_PMH, actor=actor, ly_do=reason)
         row.reject_reason = (reason or "").strip() or row.reject_reason
@@ -4160,19 +4160,24 @@ class PurchaseService:
         # sắp lập phiếu cọc thứ hai — chủ chốt 06/08/2026: cảnh báo, KHÔNG chặn. Ứng thêm là ca có
         # thật (cọc 30% rồi NCC đòi ứng thêm 20%), và mỗi lần tiền rời két phải là một chứng từ
         # riêng; sửa phiếu cũ lên số to hơn là làm phiếu không khớp lần chi thật.
+        # Đọc theo DÒNG phân bổ (17/10/2026): phiếu gộp nhiều đơn chỉ góp phần dòng của đơn này.
         coc_phieu = []
-        for v in row.payment_vouchers:
+        chi_theo_dot: dict[int, list[dict]] = {}
+        for v in row.khoan_chi:
             if v.status != PAYMENT_VOUCHER_PAID:
                 continue
+            muc = {
+                "voucher_id": v.voucher_id,
+                "code": v.code,
+                "doc_no": v.doc_no,
+                "amount": int(v.amount_vnd),
+                "voucher_date": v.voucher_date,
+                "gop": v.gop,
+            }
             if v.payment_stage == "advance":
-                coc_phieu.append(
-                    {
-                        "code": v.code,
-                        "doc_no": v.doc_no,
-                        "amount": int(v.amount_vnd),
-                        "voucher_date": v.voucher_date,
-                    }
-                )
+                coc_phieu.append(muc)
+            elif v.delivery_id is not None:
+                chi_theo_dot.setdefault(v.delivery_id, []).append(muc)
         # Đợt giao nào ĐÃ sinh yêu cầu NHẬP (chưa hủy) → chặn nhập kho trùng (nút đổi "Đã nhập kho").
         _dot_ids = [d.id for d in getattr(row, "deliveries", []) or []]
         _nhap_map: dict[int, tuple[int, str, str]] = {}
@@ -4219,6 +4224,9 @@ class PurchaseService:
                 # được bám công nợ cả đơn (lỗi 07/08/2026: trả thừa cho đợt 2 xoá sổ nợ của đợt 1).
                 "coc_bu": phan_bo.get(d.id, {}).get("coc_bu", 0),
                 "con_no": phan_bo.get(d.id, {}).get("con_no", 0),
+                # Các lần chi ĐÍCH DANH đợt này (phần của dòng nếu là phiếu gộp) — lịch sử ở popup
+                # chi tiết khoản của hàng chờ chi.
+                "phieu_chi": chi_theo_dot.get(d.id, []),
                 # Ai ghi đợt này, lúc nào. Đợt giao đẻ ra công nợ nên phải truy được người khai —
                 # bảng ĐÃ lưu sẵn hai cột này, thiếu mỗi việc phơi ra.
                 "created_by_name": self._user_name(d.created_by_user_id),
@@ -4336,7 +4344,7 @@ class PurchaseService:
             # Nhóm cột Tiền của danh sách (chua_tra | mot_phan | qua_han | da_tra | None) — cùng
             # hàm máy chủ dùng để LỌC, để chip trên dòng và chip lọc không bao giờ nói hai kiểu.
             "nhom_tien": nhom_tien_phieu(row, _business_today()),
-            "payment_voucher_count": len(row.payment_vouchers),
+            "payment_voucher_count": len({k.voucher_id for k in row.khoan_chi}),
             "sources": sources,
             "lines": lines,
             "loai_mua_cac": loai_mua_cac,

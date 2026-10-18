@@ -46,6 +46,10 @@ function viecCuaDong(ben: BenCongNo, d: SoChiTietDong, i: number, onMoPhieu?: (c
       return { ...goc, loai: "lap", icon: <Banknote size={14} aria-hidden="true" />, ten: `Thu ${tien(s.giam)}`, chiTiet: phieu };
     case "phieu_chi":
       return { ...goc, loai: "lap", icon: <Banknote size={14} aria-hidden="true" />, ten: `Trả ${tien(s.giam)}`, chiTiet: phieu };
+    case "dieu_chinh_giam":
+      // Hóa đơn điều chỉnh giảm (hoàn chiết khấu): khách nợ bớt như một lần thu, nhưng là chứng từ thuế.
+      return { ...goc, loai: "khac", icon: <FileText size={14} aria-hidden="true" />, ten: `Điều chỉnh giảm ${d.so_ct}`,
+        chiTiet: <span>{tien(s.giam)}</span> };
     case "hoan_tien_khach":
       // Trả lại tiền cho khách: phần khách đã đưa trước giảm đi, tức số khách nợ TĂNG lại.
       return { ...goc, loai: "khac", icon: <Undo2 size={14} aria-hidden="true" />, ten: `Trả lại khách ${tien(s.tang)}`,

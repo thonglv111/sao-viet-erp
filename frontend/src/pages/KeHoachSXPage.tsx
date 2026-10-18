@@ -38,6 +38,7 @@ import {
   MOC_HANG_CHO,
   MOC_LENH_KHSX,
   locKhsxLenUrl,
+  locKhsxSauKhiTao,
   locKhsxTuUrl,
   thamSoLocHangCho,
   thamSoLocLenhKhsx,
@@ -113,7 +114,7 @@ export function KeHoachSXPage({
   const [locMan, setLocMan] = useLocMan<LocKhsx>("ke-hoach-sx", LOC_KHSX_TRONG, locKhsxTuUrl, locKhsxLenUrl);
   // Nạp lại danh sách khách/đơn của ô lọc khi có sự kiện hay vừa tạo lệnh (đơn mới mới có để chọn).
   const [nguonTick, setNguonTick] = useState(0);
-  const dkLenh = useDieuKienLenhKhsx((eventTick ?? 0) + nguonTick);
+  const dkLenh = useDieuKienLenhKhsx((eventTick ?? 0) + nguonTick, locMan.lenh.loc);
   const dkCho = useDieuKienHangCho((eventTick ?? 0) + nguonTick);
   const khoaLenh = JSON.stringify({ ...thamSoKy(locMan.lenh.ky), ...thamSoLocLenhKhsx(locMan.lenh.loc) });
   const khoaCho = JSON.stringify({ ...thamSoKy(locMan.cho.ky), ...thamSoLocHangCho(locMan.cho.loc) });
@@ -238,13 +239,11 @@ export function KeHoachSXPage({
     return () => clearTimeout(t);
   }, [flash]);
 
-  function sauKhiTao(orderId: number, maList: string[]) {
+  function sauKhiTao(orderId: number, maList: string[], orderNo?: string) {
     setPreviewOrderId(null);
     // Sang bảng lệnh, lọc đúng đơn vừa tạo; kỳ về "Tất cả" (giữ mốc) để kỳ cũ không giấu lệnh mới.
-    setLocMan({
-      ...locMan,
-      lenh: { ky: { loai: "tat_ca", moc: locMan.lenh.ky.moc }, loc: { don: orderId } },
-    });
+    // Ghi kèm mã đơn: thẻ lọc không tra được mã từ danh sách đơn khi đơn hết lệnh (E2E #17).
+    setLocMan(locKhsxSauKhiTao(locMan, orderId, orderNo));
     setNguonTick((n) => n + 1);
     setTab("lenh");
     if (maList.length) setFlash(`Đã tạo ${maList.length} lệnh: ${maList.join(", ")}`);

@@ -537,7 +537,7 @@ def create_item(
     _ghi_thanh_phans(p, payload.thanh_phans)
     db.add(p)
     db.flush()
-    compute_phieu_snapshot(db, p)
+    _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     # Nhật ký hoạt động: ai LẬP phiếu, khi nào — cùng một commit với phiếu.
     AuditLogRepository(db).create(
         actor_user_id=user.id,
@@ -548,6 +548,17 @@ def create_item(
     )
     db.commit()
     return _out_day_du(db, _nap_lai(db, p.id))
+
+
+def _chan_neu_chuoi_dut(result: dict) -> None:
+    """Engine báo chuỗi công đoạn đứt đơn vị (`result["loi"]`) ⇒ KHÔNG lưu: số tính trên chuỗi
+    đứt là giá vốn sai (lỗi #8). Ném trước `commit` nên phiếu đã lưu giữ nguyên bản cũ."""
+    loi = result.get("loi") or []
+    if loi:
+        raise HTTPException(
+            status_code=422,
+            detail=" ".join(loi) + " Sửa thứ tự hoặc đơn vị vào/ra của công đoạn rồi tính lại.",
+        )
 
 
 @router.post("/{p_id}/nhan-ban", response_model=PhieuTinhGiaOut, status_code=status.HTTP_201_CREATED)
@@ -566,7 +577,7 @@ def nhan_ban_phieu(
     p = ptg_nhan_ban_service.nhan_ban(nguon, ma=_next_ma(db), actor=user)
     db.add(p)
     db.flush()
-    compute_phieu_snapshot(db, p)
+    _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     AuditLogRepository(db).create(
         actor_user_id=user.id,
         action="create_ptg",
@@ -681,7 +692,7 @@ def update_item(
     if "thanh_phans" in data:
         _ghi_thanh_phans(p, payload.thanh_phans)
     db.flush()
-    compute_phieu_snapshot(db, p)
+    _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     # Báo giá NHÁP của phiếu theo ngay số lượng / giá vốn mới (dòng gõ tay giữ giá gõ tay);
     # báo giá đã gửi giữ nguyên, màn báo giá hiện băng "phiếu đã đổi".
     ptg_khach_hang_service.dong_bo_bao_gia_nhap(db, p, actor=user)

@@ -839,6 +839,7 @@ ordered`) the lines are read-only (sửa → chặn; đổi phải change_order)
 | `vat_pct_estimate`    | `Integer` → `INTEGER`                 | —                        | no   | `0`            | VAT DỰ KIẾN (%) cho dòng — chân lý ở InvoiceLine (⑬).                                 |
 | `line_total`          | `Integer` → `INTEGER`                 | —                        | yes  | —              | Thành tiền = qty × unit_price_snapshot (derived + stored; null khi chưa có giá).      |
 | `cost_snapshot`       | `BigInteger` → `BIGINT`               | —                        | yes  | —              | **Copy-on-write**: giá vốn đông cứng từ `QuoteItem.total_cost_snapshot` lúc tạo — CÙNG GRAIN với `line_total` (tổng cả SL), dùng soi biên lợi nhuận. NULL cho đơn cũ (trước A2). |
+| `chiet_khau`          | `BigInteger` → `BIGINT`               | —                        | yes  | —              | Tiền CHIẾT KHẤU của dòng (migration `0417`, 18/10/2026): phần NẰM TRONG `line_total` (giá bán = vốn + chiết khấu + lợi nhuận) mà công ty sẽ hoàn lại khách. Chép từ `quote_items.discount_amount` lúc chốt đơn. NULL = đơn cũ / nhập tay. |
 | `phieu_thanh_phan_id` | `Integer` → `INTEGER`                 | (soft)                   | yes  | —              | Pin truy vết ấn phẩm: `PhieuThanhPhan` của PTG mà dòng báo giá nguồn trỏ tới (song sinh `QuoteItem.phieu_thanh_phan_id`). Soft ref, KHÔNG FK cứng, copy lúc snapshot. NULL cho đơn nhập tay. Migration 0071. |
 | `thanh_pham_id`       | `Integer` → `INTEGER`                 | **IX** (soft)            | yes  | —              | Mã THÀNH PHẨM của cụm bán chứa dòng (soft → `vat_tu_in_an.id`, mg `0394`, 11/10/2026). Đóng dấu lúc chốt đơn (`thanh_pham_khai_bao.khai_cho_don`): ruột + bìa cùng cụm mang cùng mã; kho, giao hàng, tiến độ đọc mã ở đây chứ không tra lại theo tên. NULL = đơn chốt trước 11/10/2026 ⇒ đọc rơi về tìm theo (khách, tên). |
 
@@ -2558,6 +2559,42 @@ giá trị đơn đã chốt. One row = 1 hóa đơn bán.
 
 ---
 
+### `sales_invoice_adjustments`
+
+**Purpose:** Hóa đơn ĐIỀU CHỈNH GIẢM của một hóa đơn bán (18/10/2026) — chứng từ thuế để hoàn tiền
+chiết khấu cho khách. Hóa đơn gốc giữ nguyên giá trị; khoản giảm trừ vào phải thu của hóa đơn gốc
+và, nếu khách đã trả đủ, phần trả dư thành tiền phải trả lại (Phiếu chi, mục Chờ trả lại khách).
+Số và ký hiệu do phần mềm hóa đơn điện tử cấp, hệ thống chỉ ghi nhận. Migration 0418. One row = 1 hóa đơn điều chỉnh.
+
+| Column                 | Type (SQLAlchemy → SQLite / Postgres)                  | Key                                | Null | Default  | Meaning                                                    |
+| ---------------------- | ------------------------------------------------------ | ---------------------------------- | ---- | -------- | ---------------------------------------------------------- |
+| `id`                   | `Integer` → `INTEGER` / `SERIAL`                       | **PK**                             | no   | auto     | Surrogate primary key.                                     |
+| `sales_invoice_id`     | `Integer` → `INTEGER`                                  | **FK→sales_invoices.id**, **IX**   | no   | —        | Hóa đơn gốc được điều chỉnh; `ON DELETE RESTRICT`.          |
+| `order_id`             | `Integer` → `INTEGER`                                  | **FK→orders.id**, **IX**           | no   | —        | Đơn của hóa đơn gốc (để gom tiền phải trả lại theo đơn); `ON DELETE RESTRICT`. |
+| `adj_symbol`           | `String(64)` → `VARCHAR(64)`                           | **UQ pair**                        | no   | —        | Ký hiệu hóa đơn điều chỉnh.                                 |
+| `adj_number`           | `String(64)` → `VARCHAR(64)`                           | **UQ pair**                        | no   | —        | Số hóa đơn điều chỉnh.                                      |
+| `adj_date`             | `Date` → `DATE`                                        | —                                  | no   | —        | Ngày lập hóa đơn điều chỉnh.                                |
+| `amount_vnd`           | `BigInteger` → `BIGINT`                                | —                                  | no   | —        | Số tiền giảm gồm VAT; lớn hơn 0, tổng các điều chỉnh còn hiệu lực không vượt giá trị hóa đơn gốc. |
+| `reason`               | `Text` → `TEXT`                                        | —                                  | yes  | —        | Lý do điều chỉnh (mặc định "Chiết khấu").                   |
+| `status`               | `String(16)` → `VARCHAR(16)`                           | **IX**                             | no   | `issued` | `issued` hoặc `cancelled`.                                  |
+| `created_by_user_id`   | `Integer` → `INTEGER`                                  | **FK→users.id**                    | yes  | —        | Người ghi nhận; `ON DELETE SET NULL`.                       |
+| `created_at`           | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                  | no   | now (UTC)| Khi ghi.                                                    |
+| `cancelled_by_user_id` | `Integer` → `INTEGER`                                  | **FK→users.id**                    | yes  | —        | Người hủy; `ON DELETE SET NULL`.                            |
+| `cancelled_at`         | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                  | yes  | —        | Thời điểm hủy.                                              |
+| `cancel_reason`        | `Text` → `TEXT`                                        | —                                  | yes  | —        | Lý do hủy.                                                  |
+
+**Keys, indexes & rules**
+
+- Primary key: `id`; unique constraint `(adj_symbol, adj_number)`.
+- Indexes: `sales_invoice_id`, `order_id`, `status`.
+- Chỉ điều chỉnh hóa đơn `issued`; chỉ điều chỉnh `issued` làm giảm phải thu.
+
+**Relationships**
+
+- Many adjustments belong to one `sales_invoices` row (và một `orders` row).
+
+---
+
 ### `payment_receipts`
 
 **Purpose:** Phiếu thu (PT) đa nguồn: hoàn tiền từ Phiếu chi/UNC, cọc Đơn hàng bán, thu công nợ
@@ -2576,6 +2613,7 @@ vào số tiền thực thu.
 | `sales_invoice_id`                | `Integer` → `INTEGER`                                  | **FK→sales_invoices.id**, **IX**        | yes  | —                   | Hóa đơn bán nguồn (RESTRICT) khi thu công nợ. Migration 0187.    |
 | `supplier_id` | `Integer` → `INTEGER` | **FK→suppliers.id (RESTRICT)**, **IX** | yes | — | NCC hoàn tiền (`purchase_refund`, mg 0397). Phiếu lập từ ngăn Công nợ phải trả gắn thẳng NCC, không cần `payment_voucher_id`; phiếu cũ lập từ phiếu chi được điền ngược từ phiếu chi gốc. |
 | `muc_thu_chi_id` | `Integer` → `INTEGER` | **FK→muc_thu_chi.id (RESTRICT)**, **IX** | yes | — | Mục thu (11/10/2026, mg 0395) — cùng luật với `payment_vouchers.muc_thu_chi_id`. |
+| `customer_id` | `Integer` → `INTEGER` | **FK→customers.id (SET NULL)**, **IX** | yes | — | Khách nộp tiền (mg 0416, 17/10/2026). Phiếu thu GỘP nhiều đơn không còn một đơn/hoá đơn để suy ra khách; phiếu lẻ được điền từ hoá đơn hoặc đơn. |
 | `order_no_snapshot`               | `String(32)` → `VARCHAR(32)`                           | —                                       | yes  | —                   | Mã đơn snapshot (đường đơn bán). Migration 0070.                   |
 | `customer_name_snapshot`          | `String(255)` → `VARCHAR(255)`                         | —                                       | yes  | —                   | Tên khách snapshot (đường đơn bán). Migration 0070.                |
 | `payer_name`                      | `String(255)` → `VARCHAR(255)`                         | —                                       | no   | —                   | Người nộp tiền (NCC/nhân viên) — default suy từ phiếu chi.         |
@@ -4107,6 +4145,38 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 ---
 
+### `payment_voucher_lines`
+
+**Purpose:** Dòng PHÂN BỔ của phiếu chi trả đơn mua (17/10/2026, mg 0416) — nguồn duy nhất cho "tiền phiếu này trả cho đơn nào, đợt nào". Phiếu lẻ có đúng một dòng khớp cột nguồn trên đầu phiếu (tự dựng lúc lưu); phiếu GỘP nhiều đơn/đợt của cùng một NCC để trống nguồn đầu phiếu, chỉ có dòng. Dòng không có trạng thái riêng — đọc theo trạng thái của phiếu. Bảng MỚI do `create_all` dựng; mg 0416 backfill phiếu cũ.
+
+| Column | Type | Key | Null | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `Integer` | **PK** | no | auto-increment | Surrogate primary key. |
+| `payment_voucher_id` | `Integer` | **FK→payment_vouchers.id (CASCADE)**, **IX** | no | — | Phiếu chi chứa dòng. |
+| `purchase_request_id` | `Integer` | **FK→purchase_requests.id (RESTRICT)**, **IX** | no | — | Đơn mua được trả. |
+| `delivery_id` | `Integer` | **IX** | yes | — | Đợt giao được trả (soft ref như `payment_vouchers.delivery_id`). NULL = dòng cọc của đơn. |
+| `amount_vnd` | `BigInteger` | — | no | — | Số tiền của dòng; tổng các dòng = `payment_vouchers.amount_vnd`. |
+
+**Tất cả cột:** `id`, `payment_voucher_id`, `purchase_request_id`, `delivery_id`, `amount_vnd`.
+
+---
+
+### `payment_receipt_lines`
+
+**Purpose:** Dòng PHÂN BỔ của phiếu thu đơn bán (17/10/2026, mg 0416) — nguồn duy nhất cho đã thu theo hoá đơn và cọc đã thu theo đơn. Phiếu lẻ (thu hoá đơn / thu cọc) có đúng một dòng tự dựng; phiếu GỘP nhiều hoá đơn/cọc của cùng một khách chỉ có dòng. Đọc theo trạng thái của phiếu. Bảng MỚI do `create_all` dựng; mg 0416 backfill.
+
+| Column | Type | Key | Null | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `Integer` | **PK** | no | auto-increment | Surrogate primary key. |
+| `payment_receipt_id` | `Integer` | **FK→payment_receipts.id (CASCADE)**, **IX** | no | — | Phiếu thu chứa dòng. |
+| `order_id` | `Integer` | **FK→orders.id (RESTRICT)**, **IX** | no | — | Đơn bán của khoản (đơn của hoá đơn, hoặc đơn được cọc). |
+| `sales_invoice_id` | `Integer` | **FK→sales_invoices.id (RESTRICT)**, **IX** | yes | — | Hoá đơn được thu. NULL = dòng cọc của `order_id`. |
+| `amount_vnd` | `BigInteger` | — | no | — | Số tiền của dòng; tổng các dòng = `payment_receipts.amount_vnd`. |
+
+**Tất cả cột:** `id`, `payment_receipt_id`, `order_id`, `sales_invoice_id`, `amount_vnd`.
+
+---
+
 ### `payment_receipt_attachments`
 
 **Purpose:** Kế toán — ảnh minh chứng đã thu đính kèm Phiếu thu (biên nhận/UNC báo có scan). One row = 1 file; bytes ở `backend/static/ke-toan-thu/<receipt_id>/`, DB chỉ lưu metadata + path. Đính thêm được cả khi phiếu đã `received`; chỉ chặn `cancelled`.
@@ -4119,7 +4189,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 
 **Purpose:** Kế toán — Phiếu thu đa nguồn (V5): hoàn ứng từ Phiếu chi đã chi (`purchase_refund`), thu cọc khách từ Đơn hàng bán (`order_deposit`), thu công nợ theo Hóa đơn bán (`sales_invoice`) hoặc thu khác/thu độc lập (`other`).
 
-**Tất cả cột:** `id`, `code`, `doc_no`, `source_type`, `payment_voucher_id`, `purchase_request_id`, `order_id`, `sales_invoice_id`, `supplier_id`, `muc_thu_chi_id`, `payer_name`, `payer_address`, `receipt_method`, `status`, `receipt_date`, `amount`, `amount_vnd`, `currency`, `exchange_rate`, `content`, `company_bank_account_id`, `bank_reference`, `debit_account`, `credit_account`, `voucher_code_snapshot`, `purchase_code_snapshot`, `supplier_name_snapshot`, `customer_name_snapshot`, `order_no_snapshot`, `company_account_holder_snapshot`, `company_account_number_snapshot`, `company_bank_name_snapshot`, `company_bank_branch_snapshot`, `created_by_user_id`, `received_by_user_id`, `received_at`, `cancelled_by_user_id`, `cancelled_at`, `cancel_reason`, `note`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `code`, `doc_no`, `source_type`, `payment_voucher_id`, `purchase_request_id`, `order_id`, `sales_invoice_id`, `supplier_id`, `muc_thu_chi_id`, `customer_id`, `payer_name`, `payer_address`, `receipt_method`, `status`, `receipt_date`, `amount`, `amount_vnd`, `currency`, `exchange_rate`, `content`, `company_bank_account_id`, `bank_reference`, `debit_account`, `credit_account`, `voucher_code_snapshot`, `purchase_code_snapshot`, `supplier_name_snapshot`, `customer_name_snapshot`, `order_no_snapshot`, `company_account_holder_snapshot`, `company_account_number_snapshot`, `company_bank_name_snapshot`, `company_bank_branch_snapshot`, `created_by_user_id`, `received_by_user_id`, `received_at`, `cancelled_by_user_id`, `cancelled_at`, `cancel_reason`, `note`, `created_at`, `updated_at`.
 
 ---
 

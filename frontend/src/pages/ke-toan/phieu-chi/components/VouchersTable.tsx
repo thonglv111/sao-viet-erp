@@ -12,6 +12,7 @@ import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { diChuyen } from "../../shared/BangPhieu";
 import { ngay, ngayGio } from "../../shared/dinhDang";
 import { soPhieu } from "../../shared/LuoiGon";
+import { laGop, tenDongChi } from "../../shared/phieuGop";
 import { VOUCHER_METHOD_LABELS, nguonPhieu } from "../shared/list-constants";
 
 export interface CotPhieuChi extends CotLuoi {
@@ -19,7 +20,8 @@ export interface CotPhieuChi extends CotLuoi {
   n?: boolean;
 }
 
-/** Cột Lý do chi rộng 220 và Số tiền 136 (đủ số tới chục tỷ); cột cuối (Ghi chú) co giãn. */
+/** Cột Lý do chi rộng 220 và Số tiền 136 (đủ số tới chục tỷ); cột cuối (Ngày tạo) co giãn.
+ *  Cột Ghi chú (chỉ để nhắc "Thiếu chứng từ gốc") gỡ 18/10/2026. */
 export const COT_PHIEU_CHI: CotPhieuChi[] = [
   { key: "so", label: "Số phiếu", coDinh: true, w: 100 },
   { key: "ngay_chi", label: "Ngày chi", w: 104 },
@@ -30,8 +32,7 @@ export const COT_PHIEU_CHI: CotPhieuChi[] = [
   { key: "hinh_thuc", label: "Hình thức", w: 112 },
   { key: "so_tien", label: "Số tiền", n: true, w: 136 },
   { key: "trang_thai", label: "Trạng thái", w: 112 },
-  { key: "ngay_tao", label: "Ngày tạo", w: 104 },
-  { key: "ghi_chu", label: "Ghi chú" },
+  { key: "ngay_tao", label: "Ngày tạo" },
 ];
 
 function OPhieuChi({ cot, row, onMoDonMua }: {
@@ -56,6 +57,15 @@ function OPhieuChi({ cot, row, onMoDonMua }: {
       const nguon = nguonPhieu(row);
       // Phiếu chi rời không có chứng từ nguồn — cột Mục đã nói nó là khoản gì, khỏi chữ "Khác".
       if (!nguon.ma && nguon.loai === "Khác") return <td />;
+      // Phiếu gộp: không một mã nào đại diện được — ghi số chứng từ, chữ nổi liệt kê từng dòng.
+      if (laGop(row)) {
+        return (
+          <td title={row.lines!.map((l) => `${tenDongChi(l)} ${soVN(l.amount)}`).join("\n")}>
+            <span className="lds-tag">{nguon.loai}</span>{" "}
+            <span className="lds-mu">{`${row.lines!.length} chứng từ`}</span>
+          </td>
+        );
+      }
       return (
         <td title={[nguon.loai, nguon.ma].filter(Boolean).join(" ")}>
           <span className="lds-tag">{nguon.loai}</span>
@@ -91,13 +101,6 @@ function OPhieuChi({ cot, row, onMoDonMua }: {
       );
     case "ngay_tao":
       return <td className="lds-mu" title={ngayGio(row.created_at)}>{ngay(row.created_at)}</td>;
-    case "ghi_chu":
-      // Phiếu đã chi mà chưa có chứng từ gốc: nhắc bằng chữ vàng; phiếu hủy không cần chứng từ.
-      return (
-        <td>
-          {row.status === "paid" && row.attachment_count === 0 ? <span className="lds-vang">Thiếu chứng từ gốc</span> : null}
-        </td>
-      );
     default:
       return <td />;
   }

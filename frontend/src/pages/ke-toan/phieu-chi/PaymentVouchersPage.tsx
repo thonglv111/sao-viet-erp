@@ -29,10 +29,11 @@ import { GoiYPhim } from "../shared/BangPhieu";
 import { soPhieuCong } from "../shared/PhieuGon";
 import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { COT_GIA_CONG, HangChoGiaCong } from "./components/HangChoGiaCong";
-import { COT_MUA_HANG, HangChoMuaHang, type KhoanChi } from "./components/HangChoMuaHang";
+import { COT_MUA_HANG, dongMuaHang, HangChoMuaHang, type KhoanChi } from "./components/HangChoMuaHang";
 import { COT_TRA_LAI, HangChoTraLai } from "./components/HangChoTraLai";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { COT_PHIEU_CHI, VouchersTable } from "./components/VouchersTable";
+import { LapPhieuChiGop, type KhoanGop } from "./components/LapPhieuChiGop";
 import { LapPhieuChiGiaCongModal } from "./modals/LapPhieuChiGiaCongModal";
 import { StandaloneVoucherDialog } from "./modals/StandaloneVoucherDialog";
 import { TraLaiTienKhachModal } from "./modals/TraLaiTienKhachModal";
@@ -130,6 +131,9 @@ export function PaymentVouchersPage({
   const [mhLoi, setMhLoi] = useState<string | null>(null);
   const [timMh, setTimMh] = useState("");
   const [lapMh, setLapMh] = useState<{ row: MuaHangChoChi; khoan: KhoanChi } | null>(null);
+  // Phiếu chi gộp: các khoản đã tick cùng NCC. `lanGop` đổi sau khi lập để hàng chờ bỏ hết dấu tick.
+  const [lapGop, setLapGop] = useState<{ ncc: { id: number | null; ten: string }; khoan: KhoanGop[] } | null>(null);
+  const [lanGop, setLanGop] = useState(0);
   const taiMh = useCallback(() => {
     if (!token) return;
     api.accounting
@@ -170,9 +174,12 @@ export function PaymentVouchersPage({
   const sp = useTrangPhieu(cauHinh, token, eventTick, focusQuery);
   const moDonMua = coXemDonMua ? (code: string) => navigate("ke-toan-don-mua-hang", { focusRequestCode: code }) : undefined;
   const { the, setThe, loc, rows, mo, setMo, load } = sp;
-  // Link "Chi tiền ở Phiếu chi" từ ngăn Đơn mua hàng ⇒ đứng ngay ở tab Mua hàng chờ chi.
+  // Link "Chi tiền ở Phiếu chi" từ ngăn Đơn mua hàng ⇒ đứng ngay ở tab Mua hàng chờ chi, ô tìm điền sẵn
+  // mã đơn ⇒ chỉ còn các khoản của đơn đó (xoá ô tìm là thấy lại cả hàng).
   useEffect(() => {
-    if (focusChoChi) setThe("mh");
+    if (!focusChoChi) return;
+    setThe("mh");
+    setTimMh(focusChoChi);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusChoChi]);
   const { soThe } = sp;
@@ -180,7 +187,6 @@ export function PaymentVouchersPage({
   const muc = useMemo<MucLocNhanh[]>(() => [
     { key: "tat_ca", label: "Tất cả", count: soThe?.tat_ca },
     { key: "xong", label: "Đã chi", mau: "la", count: soThe?.xong },
-    { key: "thieu", label: "Thiếu chứng từ gốc", mau: "vang", count: soThe?.thieu_chung_tu },
     // Gia công không có đơn giá (chủ chốt 07/10/2026) ⇒ mục đếm việc, không cộng tiền. Không có việc
     // (hoặc đang tải) thì ẩn — trừ khi đang đứng ở mục đó (vd mở từ link) hoặc tải LỖI: lỗi thì mục vẫn
     // hiện (không số) để bấm vào thấy câu lỗi, việc chờ chi không lặng lẽ biến mất.
@@ -191,7 +197,8 @@ export function PaymentVouchersPage({
       ? []
       : [{ key: "tl", label: "Chờ trả lại khách", mau: "cam" as const, count: tl?.length }]),
     // Đơn mua chờ chi: luôn hiện (đây là chỗ duy nhất lập phiếu theo đơn mua) — đếm ĐƠN, không cộng tiền.
-    { key: "mh", label: "Mua hàng chờ chi", mau: "cam", count: mh?.length },
+    // Đếm KHOẢN (cọc, từng đợt) như dòng của hàng — cùng cách đếm "Đơn hàng chờ thu".
+    { key: "mh", label: "Mua hàng chờ chi", mau: "cam", count: mh ? dongMuaHang(mh).length : undefined },
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
   ], [soThe, gc, gcLoi, tl, tlLoi, the, mh]);
   // Trạng thái trong nút Lọc = các tab có bảng (các hàng chờ thay cả bảng nên không vào).
@@ -205,8 +212,8 @@ export function PaymentVouchersPage({
     ],
     [muc, soThe, the, setThe, sp.taiKhoan, mucLoc],
   );
-  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
-  const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
+  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab).
+  const soXong = soPhieuCong({ the, n: soThe, tong: sp.tong });
   const luoi = useCauHinhLuoi(MAN);
   const luoiGc = useCauHinhLuoi(`${MAN}:gia-cong`);
   const luoiTl = useCauHinhLuoi(`${MAN}:tra-lai`);
@@ -268,11 +275,12 @@ export function PaymentVouchersPage({
         <HangChoTraLai rows={tl} loi={tlLoi} onLap={coLap ? setLapTl : undefined} onMoDon={moDon} luoi={luoiTl} />
       ) : the === "mh" ? (
         <HangChoMuaHang
+          key={lanGop}
           rows={mh}
           loi={mhLoi}
           tim={timMh}
-          moSan={focusChoChi}
           onLap={coLap ? (row, khoan) => setLapMh({ row, khoan }) : undefined}
+          onLapGop={coLap ? (ncc, khoan) => setLapGop({ ncc, khoan }) : undefined}
           onMoDon={moDonMua}
           luoi={luoiMh}
         />
@@ -337,6 +345,22 @@ export function PaymentVouchersPage({
           onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
           onSaved={(saved) => {
             setLapMh(null);
+            setMo(saved);
+            load();
+            taiMh();
+          }}
+        />
+      )}
+      {lapGop && (
+        <LapPhieuChiGop
+          supplierId={lapGop.ncc.id ?? undefined}
+          supplierName={lapGop.ncc.ten}
+          khoan={lapGop.khoan}
+          onClose={() => setLapGop(null)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onSaved={(saved) => {
+            setLapGop(null);
+            setLanGop((n) => n + 1);
             setMo(saved);
             load();
             taiMh();

@@ -44,6 +44,9 @@ import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
 import { HAM_TOAN, catToken, laSo, laToanTu } from "./danh-muc/formulaTokens";
 import { ngatDongIf } from "../lib/ngatDongCongThuc";
+import { ngayVN } from "../utils/ky";
+import { ThanhGopBaoGia } from "./ThanhGopBaoGia";
+import { LoiChuoiDonVi } from "./LoiChuoiDonVi";
 import "./rebuild-catalog.css";
 import "./tinh-gia.css";
 
@@ -1426,7 +1429,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
   const applyOut = useCallback((out: PhieuTinhGiaOut) => {
     setMa(out.ma);
     setKtv(out.ktv);
-    setNgay(out.created_at ? out.created_at.slice(0, 10) : null);
+    setNgay(out.created_at ? ngayVN(out.created_at) : null);
     setTongGiaVon(out.tong_gia_von);
     setGiaVonDonLuu(out.gia_von_don);
     setNhomTongLuu(out.nhom_tong ?? []);
@@ -2213,40 +2216,14 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                 <>
                 {/* Thanh gộp: chỉ hiện khi có dòng được tick — không chiếm chỗ lúc không dùng. */}
                 {chonUids.size > 0 && (
-                  <div className="tg-gopbar" role="group" aria-label="Gộp dòng khi báo giá">
-                    <span className="tg-gopbar__count">{chonUids.size} dòng đã chọn</span>
-                    <input
-                      className="tg-input tg-gopbar__input"
-                      type="text"
-                      list="tg-nhom-goiy"
-                      value={tenNhom}
-                      placeholder="Tên in ra báo giá, vd Sách hướng dẫn A5"
-                      aria-label="Tên nhóm in ra báo giá"
-                      onChange={(e) => setTenNhom(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          apDungNhom();
-                        }
-                      }}
-                    />
-                    <datalist id="tg-nhom-goiy">
-                      {nhomDaCo.map((n) => (
-                        <option key={n} value={n} />
-                      ))}
-                    </datalist>
-                    <button
-                      type="button"
-                      className="tg-chip tg-chip--on"
-                      onClick={apDungNhom}
-                      disabled={!tenNhom.trim()}
-                    >
-                      Gộp khi báo giá
-                    </button>
-                    <button type="button" className="tg-chip" onClick={boNhom}>
-                      Bỏ gộp
-                    </button>
-                  </div>
+                  <ThanhGopBaoGia
+                    soChon={chonUids.size}
+                    tenNhom={tenNhom}
+                    onTenNhom={setTenNhom}
+                    nhomDaCo={nhomDaCo}
+                    onApDung={apDungNhom}
+                    onBo={boNhom}
+                  />
                 )}
                 <div className="tg-complist__wrap">
                   <table>
@@ -3949,6 +3926,7 @@ function ComponentModal({
               <div className="tg-sheetbox__title">
                 Số tờ <span className="tg-sheetbox__hint">tự tính · engine thật</span>
               </div>
+              <LoiChuoiDonVi loi={liveMeta?.loi_chuoi} />
               <div className="tg-sheetrow">
                 <span>Thành phẩm cần</span>
                 {liveMeta
@@ -3990,12 +3968,16 @@ function ComponentModal({
                     title={moPhanRa ? "Thu gọn" : "Xem bước nào ăn bao nhiêu tờ"}
                     onClick={() => setMoPhanRa((v) => !v)}
                   >
-                    <SoDv so={fmt(liveMeta?.bu_hao_auto ?? 0)} dv={dvDauChuoi} />
+                    {liveMeta?.loi_chuoi?.length
+                      ? <b className="tg-val">—</b>
+                      : <SoDv so={fmt(liveMeta?.bu_hao_auto ?? 0)} dv={dvDauChuoi} />}
                     <ChevronIcon open={moPhanRa} />
                   </button>
                 ) : (
                   liveMeta
-                    ? <SoDv so={fmt(liveMeta.bu_hao_auto ?? 0)} dv={dvDauChuoi} />
+                    ? (liveMeta.loi_chuoi?.length
+                        ? <b className="tg-val">—</b>
+                        : <SoDv so={fmt(liveMeta.bu_hao_auto ?? 0)} dv={dvDauChuoi} />)
                     : <b className="tg-val">…</b>
                 )}
               </div>

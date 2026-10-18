@@ -359,7 +359,7 @@ function OPhai({
       </div>
       <p className="ktc-phai__phu">
         {ds.length
-          ? `${ds.length} tiêu chí. KCS cuối xét nhóm này ở các lệnh có chạy ${cd.ten.charAt(0).toLowerCase()}${cd.ten.slice(1)} phát hành từ nay.`
+          ? `${ds.length} tiêu chí. KCS cuối xét nhóm này ở các lệnh có chạy công đoạn ${cd.ten} phát hành từ nay.`
           : suaDuoc
             ? "Chưa có tiêu chí. Gõ tiêu chí đầu tiên bên dưới hoặc chép từ công đoạn khác."
             : "Chưa có tiêu chí."}

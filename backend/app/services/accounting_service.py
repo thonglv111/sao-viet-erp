@@ -41,9 +41,12 @@ from ..models.accounting import (
     CompanyBankAccount,
     PaymentReceipt,
     PaymentReceiptAttachment,
+    PaymentReceiptLine,
     PaymentVoucher,
     PaymentVoucherAttachment,
+    PaymentVoucherLine,
     SalesInvoice,
+    SalesInvoiceAdjustment,
     SupplierBankAccount,
 )
 from ..models.customer import Customer
@@ -72,6 +75,7 @@ from ..repositories.purchase_repo import PurchaseRequestRepository, SupplierRepo
 from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from . import bao_cao_cong_no
+from .hoa_don_theo_giao import _ngay_vn
 from .muc_thu_chi_service import MucThuChiError, MucThuChiService
 from .purchase_service import (
     _purchase_line_amounts,
@@ -363,10 +367,13 @@ def quy_tien_don(repo: AccountingRepository, order_ids: list[int]) -> dict[int, 
     cọc + tiền đã thu của hoá đơn ĐÃ HUỶ − đã trả lại khách. Quỹ này cấn FIFO vào hoá đơn của đơn."""
     coc = repo.received_deposit_sums(order_ids)
     huy = repo.thu_hoa_don_huy_theo_don(order_ids)
+    # Khách đã trả VƯỢT phần còn phải thu sau hoá đơn điều chỉnh giảm (18/10/2026): tiền đó nay là
+    # tiền khách đang để ở đơn, đi cùng quỹ — hết chỗ ghi hoá đơn thì thành việc trả lại khách.
+    thua = repo.thua_dieu_chinh_theo_don(order_ids)
     tra = repo.coc_da_tra_lai_nhieu(order_ids)
     return {
-        oid: max(0, coc.get(oid, 0) + huy.get(oid, 0) - tra.get(oid, 0))
-        for oid in set(coc) | set(huy)
+        oid: max(0, coc.get(oid, 0) + huy.get(oid, 0) + thua.get(oid, 0) - tra.get(oid, 0))
+        for oid in set(coc) | set(huy) | set(thua)
     }
 
 
@@ -408,6 +415,9 @@ def receivable_rows(
 
     invoice_ids = [row.id for row in invoices]
     direct_sums = repo.received_invoice_receipt_sums(invoice_ids)
+    # Hoá đơn điều chỉnh giảm (18/10/2026) bớt phần khách phải trả của hoá đơn gốc; `amount` vẫn là
+    # giá trị hoá đơn gốc (chứng từ thuế), còn nợ / cấn quỹ tính trên `amount − giam`.
+    giam_sums = repo.dieu_chinh_sums(invoice_ids)
     order_ids = sorted({row.order_id for row in invoices})
     deposit_sums = quy_tien_don(repo, order_ids)
     customers = repo.customers_by_ids(
@@ -422,8 +432,9 @@ def receivable_rows(
     for order_id, order_invoices in by_order.items():
         deposit_pool = int(deposit_sums.get(order_id, 0))
         for invoice in sorted(order_invoices, key=lambda row: (row.invoice_date, row.id)):
-            direct = min(int(invoice.amount_vnd), int(direct_sums.get(invoice.id, 0)))
-            offset = min(deposit_pool, max(0, int(invoice.amount_vnd) - direct))
+            phai_thu = max(0, int(invoice.amount_vnd) - int(giam_sums.get(invoice.id, 0)))
+            direct = min(phai_thu, int(direct_sums.get(invoice.id, 0)))
+            offset = min(deposit_pool, max(0, phai_thu - direct))
             deposit_offsets[invoice.id] = offset
             deposit_pool -= offset
 
@@ -432,7 +443,9 @@ def receivable_rows(
         direct = int(direct_sums.get(invoice.id, 0))
         deposit_offset = int(deposit_offsets.get(invoice.id, 0))
         amount = int(invoice.amount_vnd)
-        received = min(amount, direct + deposit_offset)
+        giam = int(giam_sums.get(invoice.id, 0))
+        phai_thu = max(0, amount - giam)
+        received = min(phai_thu, direct + deposit_offset)
         customer = customers.get(invoice.customer_id) if invoice.customer_id else None
         rows.append(
             {
@@ -454,7 +467,8 @@ def receivable_rows(
                 "direct_received_amount": direct,
                 "deposit_offset_amount": deposit_offset,
                 "received_amount": received,
-                "remaining_amount": max(0, amount - received),
+                "remaining_amount": max(0, phai_thu - received),
+                "dieu_chinh_amount": giam,
                 "hoan_khong_don": 0,
             }
         )
@@ -463,21 +477,34 @@ def receivable_rows(
     return rows
 
 
-def _cong_hoan_khong_don(repo: AccountingRepository, rows: list[dict]) -> None:
-    hoan = repo.hoan_khach_khong_don({r["customer_id"] for r in rows if r["customer_id"]})
+def _phan_bo_hoan(
+    repo: AccountingRepository, customer_ids: set, rows: list[dict] | None = None, *, tru_thua: bool = True
+) -> dict[int, int]:
+    """`{invoice_id: tiền trả lại ngoài đơn cộng nợ lại}` cho các khách. `tru_thua=False` ⇒ phần GỘP,
+    chưa trừ tiền khách đã trả vượt hoá đơn — đối chiếu từng phiếu thu dùng số này, vì phần trả vượt
+    chính là các phiếu thu đã đếm riêng (trừ hai lần thì "còn nợ sau phiếu" thấp hơn thật)."""
+    hoan = repo.hoan_khach_khong_don(customer_ids)
     if not hoan:
-        return
-    co_san = {r["invoice_id"] for r in rows}
+        return {}
+    co_san = {r["invoice_id"] for r in rows or []}
     du = repo.hoa_don_hieu_luc_cua_khach(hoan)
     # Phân bổ cần MỌI hoá đơn của khách — người gọi có thể chỉ đưa hoá đơn của một đơn.
-    day_du = rows if all(i.id in co_san for i in du) else receivable_rows(repo, invoices=du, hoan=False)
+    day_du = (rows if rows is not None and all(i.id in co_san for i in du)
+              else receivable_rows(repo, invoices=du, hoan=False))
     khoan = [
         {"id": r["invoice_id"], "doi_tuong_id": r["customer_id"], "han": r["due_date"],
-         "ngay": r["invoice_date"], "goc": r["amount"], "con_no": r["remaining_amount"],
-         "thua": max(0, r["direct_received_amount"] - r["amount"])}
+         "ngay": r["invoice_date"], "goc": r["amount"] - r.get("dieu_chinh_amount", 0),
+         "con_no": r["remaining_amount"],
+         "thua": max(0, r["direct_received_amount"] - r["amount"]) if tru_thua else 0}
         for r in day_du if r["customer_id"] in hoan
     ]
-    them = bao_cao_cong_no.phan_bo_hoan_khong_don(khoan, hoan)
+    return bao_cao_cong_no.phan_bo_hoan_khong_don(khoan, hoan)
+
+
+def _cong_hoan_khong_don(repo: AccountingRepository, rows: list[dict]) -> None:
+    them = _phan_bo_hoan(repo, {r["customer_id"] for r in rows if r["customer_id"]}, rows)
+    if not them:
+        return
     for r in rows:
         cong = them.get(r["invoice_id"], 0)
         if not cong:
@@ -1037,10 +1064,11 @@ class AccountingService:
         tra_cuoi: dict[int | None, tuple] = {}
         if not chi_tong:
             for row in don_ds:
-                for v in row.payment_vouchers:
+                for v in row.khoan_chi:
                     if v.status != PAYMENT_VOUCHER_PAID:
                         continue
-                    moc = (self._ngay_chi(v), v.id, int(v.amount_vnd))
+                    # Theo dòng phân bổ nhưng số là của CẢ phiếu — "lần trả cuối" là một lần chi.
+                    moc = (self._ngay_chi(v), v.voucher_id, int(v.voucher.amount_vnd))
                     cu = tra_cuoi.get(row.supplier_id)
                     if cu is None or moc[:2] > cu[:2]:
                         tra_cuoi[row.supplier_id] = moc
@@ -1048,7 +1076,7 @@ class AccountingService:
             no = self._no_cua_phieu(row)
             da_tra_ky = sum(
                 int(v.amount_vnd)
-                for v in row.payment_vouchers
+                for v in row.khoan_chi
                 if v.status == PAYMENT_VOUCHER_PAID and moc_ky <= self._ngay_chi(v) <= cuoi_ky
             )
             ten = (row.supplier.name if row.supplier else "").lower()
@@ -1353,25 +1381,30 @@ class AccountingService:
             # Số ĐỢT của từng phiếu chi. Chỉ có `delivery_id` thì màn hình đành ghi "trả theo đợt"
             # chung chung — cầm sao kê NCC đối chiếu không biết dòng nào là đợt mấy (chủ 07/08/2026).
             seq_theo_dot = {d.id: d.seq_no for d in (getattr(row, "deliveries", []) or [])}
-            for v in row.payment_vouchers:
+            # Một dòng kết quả cho MỖI DÒNG PHÂN BỔ (17/10/2026): phiếu gộp trả 3 khoản hiện 3 dòng, mỗi
+            # dòng số của khoản đó, kèm tổng phiếu để đối chiếu với sao kê.
+            for k in row.khoan_chi:
+                v = k.voucher
                 if v.status != PAYMENT_VOUCHER_PAID:
                     continue
                 ngay = self._ngay_chi(v)
                 if ngay < moc_ky or ngay > cuoi_ky:
                     continue
-                did = getattr(v, "delivery_id", None)
+                did = k.delivery_id
                 da_chi.append(
                     {
                         "voucher_id": v.id,
                         "code": v.code,
                         "doc_no": v.doc_no,
                         "voucher_type": v.voucher_type,
-                        "payment_stage": v.payment_stage,
+                        "payment_stage": k.payment_stage,
                         "delivery_id": did,
                         "delivery_seq_no": seq_theo_dot.get(did),
                         "purchase_request_id": row.id,
                         "purchase_code": row.code,
-                        "amount": int(v.amount_vnd),
+                        "amount": int(k.amount_vnd),
+                        "voucher_amount": int(v.amount_vnd),
+                        "so_dong": len(v.lines),
                         "invoice_number": v.invoice_number,
                         "invoice_date": v.invoice_date,
                         "has_attachment": bool(v.attachments),
@@ -1459,7 +1492,28 @@ class AccountingService:
         row = self._voucher(voucher_id)
         out = self._voucher_out(row)
         out["truoc_do"], out["con_no_sau"] = self._doi_chieu_phieu_chi(row)
+        out["doi_chieu"] = self._doi_chieu_tung_dong(row) if len(row.lines) > 1 else []
         return out
+
+    def _doi_chieu_tung_dong(self, row: PaymentVoucher) -> list[dict]:
+        """Phiếu GỘP: đối chiếu của từng dòng trả đợt — đã trả trước phiếu này và còn nợ sau nó."""
+        ra = []
+        for k in row.lines:
+            if k.delivery_id is None or k.purchase_request is None:
+                continue
+            dot = next((d for d in phan_bo_tien_dot(k.purchase_request)[0]
+                        if d["delivery"].id == k.delivery_id), None)
+            if dot is None:
+                continue
+            truoc_do = self.repo.tong_chi_dot_truoc_phieu(k.delivery_id, row.id)
+            phieu_nay = int(k.amount_vnd) if row.status == PAYMENT_VOUCHER_PAID else 0
+            ra.append({
+                "purchase_code": k.purchase_request.code,
+                "delivery_seq_no": dot["delivery"].seq_no,
+                "truoc_do": truoc_do,
+                "con_no_sau": max(0, int(dot["amount"]) - int(dot["coc_bu"]) - truoc_do - phieu_nay),
+            })
+        return ra
 
     def _doi_chieu_phieu_chi(self, row: PaymentVoucher) -> tuple[int | None, int | None]:
         """Số đã trả TRƯỚC phiếu chi này và số còn nợ của đợt SAU phiếu này (bảng đối chiếu ở ngăn).
@@ -1523,94 +1577,95 @@ class AccountingService:
         )
         return self._voucher_out(saved)
 
-    def create_vouchers_batch(
-        self, *, actor, items: list[dict], shared: dict
-    ) -> list[dict]:
-        """Lập MỘT LƯỢT nhiều phiếu THANH TOÁN, mỗi phiếu trả TRỌN một đợt giao (04/09/2026):
-        *"Cùng một nhà cung cấp thì có thể chọn nhiều đợt giao và thanh toán một lượt luôn"*.
+    def create_voucher_gop(self, *, actor, lines: list[dict], shared: dict) -> dict:
+        """MỘT phiếu chi trả NHIỀU khoản (cọc, đợt giao, nhiều đơn) của CÙNG một NCC (chủ chốt
+        17/10/2026: "một phiếu cho cả lượt") — thay lượt "mỗi đợt một phiếu" cũ (04/09/2026).
 
-        KHÔNG đẻ khái niệm "một phiếu trả nhiều đợt" — `PaymentVoucher.delivery_id` vẫn là MỘT
-        đợt (đúng luật 09/08/2026, xem `_prepare_voucher`). Batch chỉ gộp Ở TẦNG THAO TÁC: kế
-        toán điền hình thức chi + tài khoản/người nhận MỘT LẦN (`shared`), hệ LẶP LẠI đúng
-        đường `_prepare_voucher` đã được kiểm chứng cho TỪNG đợt trong `items`
-        (`[{"purchase_request_id", "delivery_id"}]`) — không viết lại luật trần/kiểm tra nào ở
-        đây, chỉ lặp cái đã có.
+        Mỗi dòng `{purchase_request_id, delivery_id|None, amount}` đi qua đúng đường kiểm của phiếu lẻ
+        (`_prepare_voucher`: trạng thái đơn, đợt thuộc đơn, trần cọc / trần còn nợ của đợt, hình thức
+        chi). Thẩm định MỌI dòng trước, ghi MỘT phiếu sau — dòng thứ 3 sai thì không gì được ghi.
 
-        SỐ TIỀN mỗi phiếu = CÒN NỢ CỦA ĐÚNG ĐỢT ĐÓ, máy tự tính tại đúng lúc lập (không nhận số
-        tiền từ client) — đúng nếp "TIỀN CỦA ĐỢT: MÁY TÍNH, KHÔNG AI GÕ TAY". Batch pay luôn là
-        TRẢ HẾT từng đợt đã chọn, không trả một phần.
-
-        THẨM ĐỊNH TRƯỚC, GHI SAU: chuẩn bị (`_prepare_voucher`) cho MỌI đợt trước, đợt nào trật
-        luật (đã trả hết, khác NCC, sai trạng thái…) thì NỔ NGAY và KHÔNG phiếu nào được ghi —
-        chọn 5 đợt mà đợt thứ 3 lỗi thì kế toán không phải tự dò xem 2 phiếu đầu đã lỡ tạo chưa.
-        """
-        if not items:
-            raise AccountingValidationError("Chưa chọn đợt giao nào để thanh toán.")
-        if len(items) > 50:
-            raise AccountingValidationError("Chọn tối đa 50 đợt cho một lượt thanh toán.")
-
-        # Không cho hai dòng cùng trỏ một đợt — click đúp hay chọn nhầm hai lần thành hai phiếu
-        # cho cùng một món nợ.
-        da_thay: set[int] = set()
+        Một dòng ⇒ phiếu lẻ bình thường (đầu phiếu mang nguồn). Nhiều dòng ⇒ đầu phiếu để trống nguồn,
+        tiền nằm ở `PaymentVoucherLine`; số phiếu = tổng các dòng."""
+        if not lines:
+            raise AccountingValidationError("Chưa chọn khoản nào để chi.")
+        if len(lines) > 50:
+            raise AccountingValidationError("Một phiếu chi gộp tối đa 50 khoản.")
+        if (shared.get("currency") or "VND") != "VND":
+            raise AccountingValidationError("Phiếu chi gộp chỉ lập bằng VND.")
+        da_thay: set[tuple[int, int | None]] = set()
         chuan_bi: list[tuple[PurchaseRequest, dict]] = []
         ncc_id: int | None = None
-        for it in items:
-            delivery_id = int(it["delivery_id"])
-            if delivery_id in da_thay:
-                raise AccountingValidationError(f"Đợt giao #{delivery_id} bị chọn trùng lặp.")
-            da_thay.add(delivery_id)
-
-            purchase = self._purchase(int(it["purchase_request_id"]))
-            if not any(d.id == delivery_id for d in purchase.deliveries):
-                raise AccountingValidationError(
-                    f"Đợt giao #{delivery_id} không thuộc phiếu mua {purchase.code}."
-                )
-            # CÙNG MỘT NHÀ CUNG CẤP — đúng nguyên văn yêu cầu. Không chặn thì kế toán lỡ chọn
-            # nhầm đợt của hai NCC khác nhau sẽ lập ra một phiếu mang tên/tài khoản nhận của
-            # NCC A nhưng trả nợ hộ NCC B.
+        for it in lines:
+            pr_id = int(it["purchase_request_id"])
+            did = int(it["delivery_id"]) if it.get("delivery_id") is not None else None
+            if (pr_id, did) in da_thay:
+                raise AccountingValidationError("Có khoản bị chọn trùng lặp hai lần.")
+            da_thay.add((pr_id, did))
+            so = int(it.get("amount") or 0)
+            if so <= 0:
+                raise AccountingValidationError("Số tiền từng khoản phải lớn hơn 0.")
+            purchase = self._purchase(pr_id)
             if ncc_id is None:
                 ncc_id = purchase.supplier_id
             elif purchase.supplier_id != ncc_id:
                 raise AccountingValidationError(
-                    "Các đợt giao phải cùng một nhà cung cấp mới thanh toán chung một lượt được."
+                    "Các khoản phải cùng một nhà cung cấp mới chi chung một phiếu được."
                 )
-
-            so_con_no = self._tran_lap_phieu(purchase, PAYMENT_STAGE_FINAL, delivery_id)
-            if so_con_no <= 0:
-                raise AccountingValidationError(
-                    f"Đợt giao #{delivery_id} của {purchase.code} đã trả hết, không còn gì để "
-                    "thanh toán."
-                )
-            dot = next(d for d in purchase.deliveries if d.id == delivery_id)
-            noi_dung = shared.get("content") or (
-                f"Thanh toán {purchase.code} đợt {dot.seq_no}"
-            )
             values = {
                 **shared,
-                "payment_stage": PAYMENT_STAGE_FINAL,
-                "delivery_id": delivery_id,
-                "amount": so_con_no,
-                "content": noi_dung[:500],
+                "currency": "VND",
+                "exchange_rate": 1,
+                "payment_stage": PAYMENT_STAGE_ADVANCE if did is None else PAYMENT_STAGE_FINAL,
+                "delivery_id": did,
+                "amount": so,
+                "content": shared.get("content") or "-",
             }
             prepared = self._prepare_voucher(
                 purchase, values, allow_pending_purchase=False, exclude_voucher_id=None
             )
             chuan_bi.append((purchase, prepared))
 
-        # Mọi đợt đã qua kiểm — giờ mới THỰC GHI, đúng thứ tự người dùng chọn.
-        ra: list[dict] = []
-        for purchase, prepared in chuan_bi:
-            doc_no = self._next_voucher_doc_no()
-            voucher = self._new_voucher(purchase, prepared, actor.id, doc_no=doc_no)
-            saved = self.repo.save_voucher(voucher)
-            self.audit.create(
-                actor_user_id=actor.id,
-                action="create_payment_voucher",
-                target=f"payment_voucher:{saved.id}",
-                detail=f"{saved.code} <- {purchase.code} (thanh toán một lượt)",
+        nhan = []
+        for purchase, p in chuan_bi:
+            seq = next((d.seq_no for d in purchase.deliveries if d.id == p["delivery_id"]), None)
+            nhan.append(f"cọc {purchase.code}" if p["delivery_id"] is None else f"{purchase.code} đợt {seq}")
+        noi_dung = (shared.get("content") or "").strip() or (
+            "Thanh toán " + (nhan[0] if len(nhan) == 1 else f"{', '.join(nhan[:-1])} và {nhan[-1]}")
+        )
+        dau, p0 = chuan_bi[0]
+        p0 = dict(p0)
+        p0["content"] = noi_dung[:500]
+        if len(chuan_bi) > 1:
+            tong = sum(int(p["amount_vnd"]) for _, p in chuan_bi)
+            p0.update(
+                amount=tong, amount_vnd=tong, delivery_id=None,
+                payment_stage=(
+                    PAYMENT_STAGE_FINAL if any(p["delivery_id"] is not None for _, p in chuan_bi)
+                    else PAYMENT_STAGE_ADVANCE
+                ),
             )
-            ra.append(self._voucher_out(saved))
-        return ra
+        doc_no = self._next_voucher_doc_no()
+        voucher = self._new_voucher(dau, p0, actor.id, doc_no=doc_no)
+        if len(chuan_bi) > 1:
+            voucher.purchase_request_id = None
+            so_don = len({pu.id for pu, _ in chuan_bi})
+            voucher.source_code_snapshot = (
+                f"{dau.code} +{len(chuan_bi) - 1}" if so_don > 1 else dau.code
+            )[:32]
+            for purchase, p in chuan_bi:
+                voucher.lines.append(PaymentVoucherLine(
+                    purchase_request_id=purchase.id, delivery_id=p["delivery_id"],
+                    amount_vnd=int(p["amount_vnd"]),
+                ))
+        saved = self.repo.save_voucher(voucher)
+        self.audit.create(
+            actor_user_id=actor.id,
+            action="create_payment_voucher",
+            target=f"payment_voucher:{saved.id}",
+            detail=f"{saved.code} <- {', '.join(nhan)}",
+        )
+        return self._voucher_out(self._voucher(saved.id))
 
     # ĐÃ GỠ 04/08/2026: `approve_and_create_voucher()` — gộp duyệt PMH + lập phiếu chi vào một
     # thao tác. Tách vai: người đồng ý chi không được là người viết phiếu chi. Duyệt nay ở
@@ -1708,6 +1763,7 @@ class AccountingService:
             "received_amount": received if active else 0,
             "remaining_amount": remaining if active else 0,
             "hoan_khong_don": (money_row or {}).get("hoan_khong_don", 0) if active else 0,
+            "dieu_chinh_amount": (money_row or {}).get("dieu_chinh_amount", 0) if active else 0,
             "created_by_user_id": invoice.created_by_user_id,
             "created_by_name": self._user_name(invoice.created_by_user_id),
             "created_at": invoice.created_at,
@@ -1760,8 +1816,13 @@ class AccountingService:
         luot = self._luot_giao_ghi_hoa_don(order)
         delivered = sum(r["gia_tri"] for r in luot)
         ma_luot = {r["trip_id"]: r["ma"] for r in luot}
+        dieu_chinh = self.repo.dieu_chinh_cua_hoa_don([row.id for row in invoices])
+        ty_le_ck = self._ty_le_chiet_khau(order, order_total)
+        from .ban_hang_cho_thu_chi import tien_cho_tra_lai
+        cho_tra = next((r["con_lai"] for r in tien_cho_tra_lai(self.repo, [order.id])), 0)
         return {
             "order_id": order.id,
+            "cho_tra_lai": cho_tra,
             "order_code": order.order_no,
             "order_total": order_total,
             "invoiced_amount": invoiced,
@@ -1777,25 +1838,140 @@ class AccountingService:
             # Từng phiếu thu thẳng vào hoá đơn của đơn — khối Hoá đơn ghi số phiếu ở dòng "Khách đã
             # trả" (13/10/2026). Cọc đã có ở `order.deposits`.
             "phieu_thu": [
-                {"id": p.id, "code": p.code, "doc_no": p.doc_no, "invoice_id": p.sales_invoice_id,
-                 "amount": int(p.amount_vnd), "receipt_date": p.receipt_date}
+                {"id": p.receipt_id, "code": p.code, "doc_no": p.doc_no, "invoice_id": p.sales_invoice_id,
+                 "amount": int(p.amount_vnd), "receipt_date": p.receipt_date, "gop": p.gop}
                 for p in self.repo.received_invoice_receipts(
                     [row.id for row in invoices if row.status == SALES_INVOICE_ISSUED])
             ],
             # Phiếu thu của hoá đơn ĐÃ HUỶ (17/10/2026): tiền về quỹ của đơn như cọc — khối Hoá đơn
             # ghi chúng cạnh phiếu cọc ở dòng trừ.
             "phieu_thu_hd_huy": [
-                {"id": p.id, "code": p.code, "doc_no": p.doc_no, "invoice_id": p.sales_invoice_id,
-                 "amount": int(p.amount_vnd), "receipt_date": p.receipt_date}
+                {"id": p.receipt_id, "code": p.code, "doc_no": p.doc_no, "invoice_id": p.sales_invoice_id,
+                 "amount": int(p.amount_vnd), "receipt_date": p.receipt_date, "gop": p.gop}
                 for p in self.repo.received_invoice_receipts(
                     [row.id for row in invoices if row.status != SALES_INVOICE_ISSUED])
             ],
             "items": [
                 {**self._sales_invoice_out(row, money.get(row.id)),
-                 "luot_giao_ma": ma_luot.get(row.delivery_trip_id)}
+                 "luot_giao_ma": ma_luot.get(row.delivery_trip_id),
+                 "dieu_chinh": [self._dieu_chinh_out(a) for a in dieu_chinh.get(row.id, [])],
+                 "ck_goi_y": self._ck_goi_y(row, ty_le_ck, money.get(row.id))}
                 for row in invoices
             ],
         }
+
+    @staticmethod
+    def _ty_le_chiet_khau(order, order_total: int) -> float:
+        """Tỉ lệ tiền chiết khấu (gồm VAT) trên tổng đơn gồm VAT — chiết khấu rải đều lên hoá đơn."""
+        if order_total <= 0:
+            return 0.0
+        ck_x100 = sum(
+            int(line.chiet_khau or 0) * (100 + int(line.vat_pct_estimate or 0))
+            for line in order.lines
+        )
+        return (ck_x100 / 100) / order_total
+
+    @staticmethod
+    def _ck_goi_y(invoice: SalesInvoice, ty_le: float, money_row: dict | None) -> int:
+        """Số điều chỉnh gợi ý của một hoá đơn: phần chiết khấu rơi vào hoá đơn trừ phần đã điều chỉnh,
+        không quá giá trị hoá đơn còn lại. Chỉ gợi ý — kế toán gõ số thật theo hoá đơn điều chỉnh."""
+        if invoice.status != SALES_INVOICE_ISSUED or ty_le <= 0:
+            return 0
+        da = int((money_row or {}).get("dieu_chinh_amount", 0))
+        return max(0, min(int(round(int(invoice.amount_vnd) * ty_le)), int(invoice.amount_vnd)) - da)
+
+    def _dieu_chinh_out(self, a) -> dict:
+        return {
+            "id": a.id, "sales_invoice_id": a.sales_invoice_id, "order_id": a.order_id,
+            "adj_symbol": a.adj_symbol, "adj_number": a.adj_number, "adj_date": a.adj_date,
+            "amount_vnd": int(a.amount_vnd), "reason": a.reason, "status": a.status,
+            "created_by_name": self._user_name(a.created_by_user_id), "created_at": a.created_at,
+            "cancelled_at": a.cancelled_at, "cancel_reason": a.cancel_reason,
+        }
+
+    def create_dieu_chinh(self, invoice_id: int, *, actor, **values) -> dict:
+        """Ghi nhận hoá đơn điều chỉnh GIẢM (18/10/2026): hoàn tiền chiết khấu cần chứng từ thuế, không
+        được chỉ chuyển tiền lại. Hoá đơn gốc giữ nguyên; phải thu của nó giảm đúng số điều chỉnh, và
+        nếu khách đã trả đủ thì phần dư thành việc trả lại ở Phiếu chi (Chờ trả lại khách)."""
+        invoice = self.repo.get_sales_invoice(invoice_id)
+        if invoice is None:
+            raise AccountingNotFound("Không tìm thấy hóa đơn bán.")
+        if invoice.status != SALES_INVOICE_ISSUED:
+            raise AccountingConflict("Chỉ hóa đơn còn hiệu lực mới điều chỉnh được.")
+        adj_date = values.get("adj_date")
+        if adj_date is None:
+            raise AccountingValidationError("Ngày hóa đơn điều chỉnh không được để trống.")
+        if adj_date > _business_today():
+            raise AccountingValidationError("Ngày hóa đơn điều chỉnh không được ở tương lai.")
+        if adj_date < invoice.invoice_date:
+            raise AccountingValidationError("Ngày hóa đơn điều chỉnh không được trước ngày hóa đơn gốc.")
+        symbol = _text(values.get("adj_symbol"), label="Ký hiệu hóa đơn điều chỉnh", required=True, max_length=64)
+        number = _text(values.get("adj_number"), label="Số hóa đơn điều chỉnh", required=True, max_length=64)
+        da = int(self.repo.dieu_chinh_sums([invoice.id]).get(invoice.id, 0))
+        con_lai = max(0, int(invoice.amount_vnd) - da)
+        amount = values.get("amount_vnd")
+        if amount is None:
+            order = self.repo.get_sales_order(invoice.order_id)
+            ty_le = self._ty_le_chiet_khau(order, _order_total_with_vat(order)) if order else 0.0
+            amount = self._ck_goi_y(invoice, ty_le, {"dieu_chinh_amount": da})
+        amount = int(amount or 0)
+        if amount <= 0:
+            raise AccountingValidationError("Nhập số tiền hóa đơn điều chỉnh giảm.")
+        if amount > con_lai:
+            raise AccountingValidationError(
+                f"Số tiền điều chỉnh vượt phần hóa đơn gốc còn lại ({con_lai:,} đ)."
+            )
+        row = SalesInvoiceAdjustment(
+            sales_invoice_id=invoice.id, order_id=invoice.order_id,
+            adj_symbol=symbol, adj_number=number, adj_date=adj_date, amount_vnd=amount,
+            reason=_text(values.get("reason"), label="Lý do", max_length=500) or "Chiết khấu",
+            status=SALES_INVOICE_ISSUED, created_by_user_id=actor.id,
+        )
+        try:
+            saved = self.repo.save_dieu_chinh(row)
+        except IntegrityError as exc:
+            self.repo.db.rollback()
+            raise AccountingConflict("Số và ký hiệu hóa đơn điều chỉnh đã tồn tại.") from exc
+        self.audit.create(
+            actor_user_id=actor.id, action="create_sales_invoice_adjustment",
+            target=f"sales_invoice_adjustment:{saved.id}",
+            detail=f"{symbol} {number} <- {invoice.invoice_number}: -{amount:,}đ",
+        )
+        return self._dieu_chinh_out(saved)
+
+    def cancel_dieu_chinh(self, adj_id: int, *, actor, reason: str) -> dict:
+        row = self.repo.get_dieu_chinh(adj_id)
+        if row is None:
+            raise AccountingNotFound("Không tìm thấy hóa đơn điều chỉnh.")
+        if row.status == SALES_INVOICE_CANCELLED:
+            raise AccountingConflict("Hóa đơn điều chỉnh đã hủy rồi.")
+        cleaned = _text(reason, label="Lý do hủy", required=True, max_length=2000)
+        row.status = SALES_INVOICE_CANCELLED
+        self.repo.db.flush()
+        # Hủy điều chỉnh làm tiền khách trả vượt biến mất khỏi quỹ của đơn. Nếu đã trả lại khách phần
+        # đó rồi thì quỹ âm — chặn, phải hủy phiếu chi trước.
+        order_id = row.order_id
+        quy = (
+            self.repo.received_deposit_sums([order_id]).get(order_id, 0)
+            + self.repo.thu_hoa_don_huy_theo_don([order_id]).get(order_id, 0)
+            + self.repo.thua_dieu_chinh_theo_don([order_id]).get(order_id, 0)
+            - self.repo.coc_da_tra_lai(order_id)
+        )
+        if quy < 0:
+            self.repo.db.rollback()
+            raise AccountingConflict(
+                "Đã trả lại khách tiền thuộc hóa đơn điều chỉnh này. Hủy phiếu chi trả lại trước khi hủy hóa đơn điều chỉnh."
+            )
+        row.cancel_reason = cleaned
+        row.cancelled_by_user_id = actor.id
+        row.cancelled_at = _now()
+        saved = self.repo.save_dieu_chinh(row)
+        self.audit.create(
+            actor_user_id=actor.id, action="cancel_sales_invoice_adjustment",
+            target=f"sales_invoice_adjustment:{saved.id}",
+            detail=f"{saved.adj_symbol} {saved.adj_number}: {cleaned}",
+        )
+        return self._dieu_chinh_out(saved)
 
     def create_sales_invoice(self, *, actor, **values) -> dict:
         order_id = int(values.get("order_id") or 0)
@@ -1814,7 +1990,9 @@ class AccountingService:
             raise AccountingValidationError("Ngày hóa đơn không được để trống.")
         if invoice_date > _business_today():
             raise AccountingValidationError("Ngày hóa đơn không được ở tương lai.")
-        if order.ordered_at is not None and invoice_date < order.ordered_at.date():
+        # `ordered_at` lưu UTC: đơn chốt 06:36 sáng 18/10 giờ VN là 17/10 23:36 UTC, `.date()` thẳng
+        # ra 17/10 và để hoá đơn ngày 17/10 lọt qua. Đổi sang ngày giờ xưởng trước khi so.
+        if order.ordered_at is not None and invoice_date < _ngay_vn(order.ordered_at):
             raise AccountingValidationError("Ngày hóa đơn không được trước ngày chốt đơn.")
         invoice_number = _text(
             values.get("invoice_number"), label="Số hóa đơn", required=True, max_length=64
@@ -1914,27 +2092,22 @@ class AccountingService:
             receipts = [r for r in receipts if r.receipt_date <= until]
         return [
             {
-                "receipt_id": row.id,
+                "receipt_id": row.receipt_id,
                 "code": row.code,
                 "doc_no": row.doc_no,
-                "order_id": (
-                    row.order_id
-                    if row.order_id is not None
-                    else (row.sales_invoice.order_id if row.sales_invoice else None)
-                ),
+                "order_id": row.order_id,
                 "order_code": row.order_no_snapshot,
-                "source_type": row.source_type,
+                "source_type": RECEIPT_SOURCE_ORDER if row.la_coc else RECEIPT_SOURCE_SALES_INVOICE,
                 "sales_invoice_id": row.sales_invoice_id,
                 "sales_invoice_number": (
                     row.sales_invoice.invoice_number if row.sales_invoice else None
                 ),
-                "applied_to": (
-                    "deposit_offset"
-                    if row.source_type == RECEIPT_SOURCE_ORDER
-                    else "sales_invoice"
-                ),
+                "applied_to": "deposit_offset" if row.la_coc else "sales_invoice",
                 "receipt_method": row.receipt_method,
                 "amount": int(row.amount_vnd),
+                # Phiếu gộp: `amount` là phần của dòng này, `receipt_amount` là cả phiếu.
+                "receipt_amount": int(row.receipt.amount_vnd),
+                "so_dong": len(row.receipt.lines),
                 "receipt_date": row.receipt_date,
                 "payer_name": row.payer_name,
                 "bank_reference": row.bank_reference,
@@ -2376,7 +2549,6 @@ class AccountingService:
         muc: list[int] | None = None,
         tai_khoan_id: int | None = None,
         nguoi_lap_id: int | None = None,
-        chung_tu: str | None = None,
         nhan: str | None = None,
         moc: str = "thu",
         dem_only: bool = False,
@@ -2401,7 +2573,6 @@ class AccountingService:
             muc=muc,
             tai_khoan_id=tai_khoan_id,
             nguoi_lap_id=nguoi_lap_id,
-            chung_tu=chung_tu,
             nhan=nhan,
             moc=moc,
             dem_only=dem_only,
@@ -2414,17 +2585,37 @@ class AccountingService:
     def get_receipt(self, receipt_id: int) -> dict:
         row = self._receipt(receipt_id)
         out = self._receipt_out(row)
-        out["truoc_do"], out["con_no_sau"] = self._doi_chieu_phieu_thu(row)
+        if len(row.lines) > 1:
+            out["truoc_do"], out["con_no_sau"] = None, None
+            out["doi_chieu"] = [
+                {"order_code": l.order_no_snapshot,
+                 "invoice_number": l.sales_invoice.invoice_number if l.sales_invoice else None,
+                 "truoc_do": td, "con_no_sau": cn}
+                for l in row.lines
+                if l.sales_invoice_id is not None
+                for td, cn in [self._doi_chieu_dong_thu(row, l.sales_invoice, int(l.amount_vnd))]
+                if td is not None
+            ]
+        else:
+            dong = row.lines[0] if row.lines else None
+            out["truoc_do"], out["con_no_sau"] = self._doi_chieu_dong_thu(
+                row, dong.sales_invoice if dong else row.sales_invoice,
+                int(dong.amount_vnd) if dong else int(row.amount_vnd),
+            )
+            out["doi_chieu"] = []
         return out
 
-    def _doi_chieu_phieu_thu(self, row: PaymentReceipt) -> tuple[int | None, int | None]:
-        """Số đã thu TRƯỚC phiếu thu này và số hoá đơn còn nợ SAU phiếu này (chỉ phiếu thu gắn hoá
-        đơn). `received_amount` của hoá đơn tính cả phiếu lập sau nên không dùng được. Phần cọc cấn
-        vào hoá đơn lấy từ `receivable_rows` — cùng nguồn với màn Công nợ phải thu."""
-        iid = row.sales_invoice_id
-        invoice = row.sales_invoice
-        if iid is None or invoice is None:
+    def _doi_chieu_dong_thu(
+        self, row: PaymentReceipt, invoice, tien_dong: int
+    ) -> tuple[int | None, int | None]:
+        """Số đã thu TRƯỚC phiếu thu này và số hoá đơn còn nợ SAU phiếu này, cho MỘT hoá đơn mà
+        phiếu trả (`tien_dong` = phần của phiếu cho hoá đơn đó). `received_amount` của hoá đơn tính
+        cả phiếu lập sau nên không dùng được. Phần cọc cấn vào hoá đơn và tiền trả lại khách ngoài đơn
+        cộng nợ lại vào hoá đơn (phần gộp, `_phan_bo_hoan`) — cùng luật với hàng chờ thu và màn Công nợ
+        phải thu (18/10/2026: thiếu khoản trả lại thì ngăn phiếu ghi còn nợ thấp hơn hàng chờ)."""
+        if invoice is None:
             return None, None
+        iid = invoice.id
         if invoice.status != SALES_INVOICE_ISSUED:
             # Hoá đơn đã huỷ không còn sinh nợ ⇒ không có "còn nợ sau phiếu này" để đối chiếu.
             return None, None
@@ -2439,9 +2630,11 @@ class AccountingService:
             None,
         )
         coc_can = int(money["deposit_offset_amount"]) if money else 0
+        hoan = (_phan_bo_hoan(self.repo, {invoice.customer_id}, tru_thua=False).get(iid, 0)
+                if invoice.customer_id is not None else 0)
         truoc_do = self.repo.tong_thu_hoa_don_truoc_phieu(iid, row.id)
-        phieu_nay = int(row.amount_vnd) if row.status == PAYMENT_RECEIPT_RECEIVED else 0
-        con_no_sau = max(0, int(invoice.amount_vnd) - coc_can - truoc_do - phieu_nay)
+        phieu_nay = tien_dong if row.status == PAYMENT_RECEIPT_RECEIVED else 0
+        con_no_sau = max(0, int(invoice.amount_vnd) + hoan - coc_can - truoc_do - phieu_nay)
         return truoc_do, con_no_sau
 
     def create_other_receipt(self, *, actor, **values):
@@ -2499,6 +2692,11 @@ class AccountingService:
         voucher = self._voucher(payment_voucher_id)
         if voucher.status != PAYMENT_VOUCHER_PAID:
             raise AccountingConflict("Chỉ Phiếu chi/UNC đã chi mới được lập phiếu thu.")
+        if len(voucher.lines) > 1:
+            # Tiền nộp lại không biết trừ vào khoản nào của phiếu gộp — khoá hẳn, đỡ đoán.
+            raise AccountingValidationError(
+                "Phiếu chi gộp nhiều chứng từ không nhận nộp lại. Huỷ phiếu rồi lập lại."
+            )
         prepared = self._prepare_receipt(voucher, values, exclude_receipt_id=None)
         # Cấp số trước khi chạm ORM object (xem _next_voucher_doc_no).
         doc_no = self.sequences.generate_flat_code(SEQ_DOC_TYPE_PAYMENT_RECEIPT)
@@ -2676,6 +2874,193 @@ class AccountingService:
             detail=f"{saved.code} <- HĐ {invoice.invoice_number}",
         )
         return self._receipt_out(saved)
+
+    def create_receipt_gop(self, *, actor, lines: list[dict], shared: dict) -> dict:
+        """MỘT phiếu thu cho NHIỀU khoản (hoá đơn, cọc, nhiều đơn) của CÙNG một khách (17/10/2026).
+
+        Dòng hoá đơn `{sales_invoice_id, amount}`: hoá đơn còn hiệu lực, không vượt phần còn phải
+        thu, ngày thu không trước ngày hoá đơn — đúng luật phiếu thu lẻ theo hoá đơn. Dòng cọc
+        `{order_id, amount}`: đơn của khách, số > 0 (cọc lẻ cũng không chặn trần). Thẩm định MỌI dòng
+        trước, ghi MỘT phiếu sau. Một dòng ⇒ phiếu lẻ bình thường (đầu phiếu mang nguồn)."""
+        if not lines:
+            raise AccountingValidationError("Chưa chọn khoản nào để thu.")
+        if len(lines) > 50:
+            raise AccountingValidationError("Một phiếu thu gộp tối đa 50 khoản.")
+        receipt_date = shared.get("receipt_date")
+        da_thay: set[tuple[str, int]] = set()
+        khach_id: int | None = None
+        con_no: dict[int, int] | None = None
+        dong: list[dict] = []
+        for it in lines:
+            so = int(it.get("amount") or 0)
+            if so <= 0:
+                raise AccountingValidationError("Số tiền từng khoản phải lớn hơn 0.")
+            hd_id = it.get("sales_invoice_id")
+            if hd_id is not None:
+                invoice = self.repo.get_sales_invoice(int(hd_id))
+                if invoice is None:
+                    raise AccountingNotFound("Không tìm thấy hóa đơn bán.")
+                if invoice.status != SALES_INVOICE_ISSUED:
+                    raise AccountingConflict(
+                        f"Hoá đơn {invoice.invoice_number} đã huỷ, không thu được nữa."
+                    )
+                khoa = ("hd", invoice.id)
+                order = invoice.order
+                kh = invoice.customer_id if invoice.customer_id is not None else order.customer_id
+                if receipt_date is not None and receipt_date < invoice.invoice_date:
+                    raise AccountingValidationError(
+                        f"Ngày thu không được trước ngày hóa đơn {invoice.invoice_number}."
+                    )
+            else:
+                if it.get("order_id") is None:
+                    raise AccountingValidationError("Mỗi khoản phải là một hoá đơn hoặc cọc của một đơn.")
+                order = self.repo.get_sales_order(int(it["order_id"]))
+                if order is None:
+                    raise AccountingNotFound("Không tìm thấy đơn hàng bán.")
+                if order.status == ORDER_CANCELLED:   # đúng luật thu cọc lẻ (OrderService.add_deposit_receipt)
+                    raise AccountingConflict(f"Đơn {order.order_no} đã huỷ, không ghi cọc.")
+                invoice = None
+                khoa = ("coc", order.id)
+                kh = order.customer_id
+            if khoa in da_thay:
+                raise AccountingValidationError("Có khoản bị chọn trùng lặp hai lần.")
+            da_thay.add(khoa)
+            if khach_id is None:
+                khach_id = kh
+            elif kh != khach_id:
+                raise AccountingValidationError(
+                    "Các khoản phải cùng một khách hàng mới thu chung một phiếu được."
+                )
+            if invoice is not None:
+                if con_no is None:
+                    con_no = {
+                        r["invoice_id"]: int(r["remaining_amount"])
+                        for r in self._receivable_rows(customer_id=khach_id)
+                    }
+                tran = con_no.get(invoice.id, 0)
+                if so > tran:
+                    raise AccountingValidationError(
+                        f"Số thu cho hoá đơn {invoice.invoice_number} vượt phần còn phải thu ({tran:,} đ)."
+                    )
+            dong.append({"invoice": invoice, "order": order, "amount": so})
+
+        nhan = [
+            f"HĐ {d['invoice'].invoice_number}" if d["invoice"] is not None else f"cọc đơn {d['order'].order_no}"
+            for d in dong
+        ]
+        tong = sum(d["amount"] for d in dong)
+        customer = self.repo.get_customer(khach_id) if khach_id else None
+        values = {
+            **shared,
+            "amount": tong,
+            "payer_name": (shared.get("payer_name") or "").strip() or (customer.name if customer else None),
+            "content": (shared.get("content") or "").strip() or (
+                "Thu " + (nhan[0] if len(nhan) == 1 else f"{', '.join(nhan[:-1])} và {nhan[-1]}")
+            )[:500],
+        }
+        prepared = self._prepare_other_receipt(values)
+        account = prepared.pop("company_account")
+        dau = dong[0]
+        co_hd = any(d["invoice"] is not None for d in dong)
+        doc_no = self.sequences.generate_flat_code(SEQ_DOC_TYPE_PAYMENT_RECEIPT)
+        receipt = PaymentReceipt(
+            code=self._new_receipt_code(),
+            doc_no=doc_no,
+            source_type=RECEIPT_SOURCE_SALES_INVOICE if co_hd else RECEIPT_SOURCE_ORDER,
+            customer_id=khach_id,
+            customer_name_snapshot=(
+                dau["invoice"].customer_name_snapshot if dau["invoice"] is not None
+                else (customer.name if customer else None)
+            ),
+            order_no_snapshot=(
+                dau["order"].order_no if len(dong) == 1 or len({d["order"].id for d in dong}) == 1
+                else f"{dau['order'].order_no} +{len(dong) - 1}"
+            )[:32],
+            status=PAYMENT_RECEIPT_RECEIVED,
+            created_by_user_id=actor.id,
+            received_by_user_id=actor.id,
+            received_at=_now(),
+        )
+        if len(dong) == 1:
+            if dau["invoice"] is not None:
+                # Thu hoá đơn không gắn order_id đầu phiếu — tiền này không làm cổng cọc nhích lên.
+                receipt.sales_invoice_id = dau["invoice"].id
+            else:
+                receipt.order_id = dau["order"].id
+        for key, value in prepared.items():
+            setattr(receipt, key, value)
+        receipt.company_bank_account_id = account.id if account else None
+        receipt.company_account_holder_snapshot = account.account_holder if account else None
+        receipt.company_account_number_snapshot = account.account_number if account else None
+        receipt.company_bank_name_snapshot = account.bank_name if account else None
+        receipt.company_bank_branch_snapshot = account.bank_branch if account else None
+        if len(dong) > 1:
+            for d in dong:
+                receipt.lines.append(PaymentReceiptLine(
+                    order_id=d["order"].id,
+                    sales_invoice_id=d["invoice"].id if d["invoice"] is not None else None,
+                    amount_vnd=d["amount"],
+                ))
+        self._gan_muc_thu(receipt, None)
+        saved = self.repo.save_receipt(receipt)
+        self.audit.create(
+            actor_user_id=actor.id,
+            action="create_payment_receipt_gop",
+            target=f"payment_receipt:{saved.id}",
+            detail=f"{saved.code} <- {', '.join(nhan)}",
+        )
+        return self._receipt_out(self._receipt(saved.id))
+
+    def chi_tiet_khoan_thu(self, *, invoice_id: int | None = None, order_id: int | None = None) -> dict:
+        """Popup chi tiết một khoản chờ thu (17/10/2026, phương án B): hàng của khoản + các lần đã
+        thu. Hoá đơn gắn lượt giao ⇒ hàng theo lượt (thành tiền = dòng đơn × SL giao / SL đặt);
+        không gắn ⇒ dòng đơn. Cọc ⇒ hàng của đơn + phiếu cọc. Số của phiếu gộp là phần của DÒNG."""
+        if invoice_id is not None:
+            invoice = self.repo.get_sales_invoice(int(invoice_id))
+            if invoice is None:
+                raise AccountingNotFound("Không tìm thấy hóa đơn bán.")
+            order = invoice.order
+            phieu = self.repo.received_invoice_receipts([invoice.id])
+            trip = self.repo.luot_giao(invoice.delivery_trip_id) if invoice.delivery_trip_id else None
+        elif order_id is not None:
+            order = self.repo.get_sales_order(int(order_id))
+            if order is None:
+                raise AccountingNotFound("Không tìm thấy đơn hàng bán.")
+            phieu = self.repo.dong_coc_da_thu(order.id)
+            trip = None
+        else:
+            raise AccountingValidationError("Thiếu hoá đơn hoặc đơn.")
+
+        dong_don = {ln.id: ln for ln in order.lines}
+
+        def _hang(ln, sl: int) -> dict:
+            dat = int(ln.qty or 0)
+            tien = int(ln.line_total or 0)
+            return {
+                "ten": ln.description,
+                "so_luong": sl,
+                "dvt": ln.don_vi_tinh,
+                "don_gia": (tien // dat) if dat else 0,
+                "vat": int(ln.vat_pct_estimate or 0),
+                "thanh_tien": round(tien * sl / dat) if dat else 0,
+            }
+
+        if trip is not None:
+            hang = [
+                _hang(dong_don[tl.order_line_id], int(tl.qty_giao or 0))
+                for tl in trip.lines
+                if tl.order_line_id in dong_don and int(tl.qty_giao or 0) > 0
+            ]
+        else:
+            hang = [_hang(ln, int(ln.qty or 0)) for ln in order.lines]
+        return {
+            "hang": hang,
+            "phieu": [
+                {"receipt_id": p.receipt_id, "code": p.code, "doc_no": p.doc_no,
+                 "ngay": p.receipt_date, "amount": int(p.amount_vnd), "gop": p.gop}
+                for p in phieu
+            ],
+        }
 
     def received_sum_for_order(self, order_id: int) -> int:
         """Σ số tiền các phiếu thu ĐÃ THU (received) của một đơn — cổng chốt đơn đọc số này."""
@@ -2965,7 +3350,17 @@ class AccountingService:
                 else (row.sales_invoice.order_id if row.sales_invoice else None)
             ),
             "order_code": row.order_no_snapshot,
+            "customer_id": row.customer_id,
             "customer_name": row.customer_name_snapshot,
+            # Bảng phân bổ (17/10/2026). Phiếu gộp: đầu phiếu không hoá đơn/đơn, đọc ở đây.
+            "lines": [
+                {"order_id": l.order_id,
+                 "order_code": l.order.order_no if l.order is not None else None,
+                 "sales_invoice_id": l.sales_invoice_id,
+                 "invoice_number": l.sales_invoice.invoice_number if l.sales_invoice else None,
+                 "amount": int(l.amount_vnd)}
+                for l in row.lines
+            ],
             "sales_invoice_id": row.sales_invoice_id,
             "sales_invoice_number": (
                 row.sales_invoice.invoice_number if row.sales_invoice else None
@@ -3304,8 +3699,7 @@ class AccountingService:
             else:
                 nhan = "thanh toán"
             raise AccountingValidationError(
-                f"Số tiền quy đổi vượt quá số còn được phép {nhan} ({tran:,} đ). "
-                "Trả cho nhiều đợt thì lập nhiều phiếu, mỗi phiếu một đợt."
+                f"Số tiền quy đổi vượt quá số còn được phép {nhan} ({tran:,} đ)."
             )
         content = _text(values.get("content"), label="Nội dung chi", required=True, max_length=500)
 
@@ -3981,13 +4375,30 @@ class AccountingService:
         # Tổng ĐÃ CHI của cả PMH (mọi phiếu chi anh em) — hiện trên dải nhóm.
         purchase_paid_amount = (
             sum(
-                int(sibling.amount_vnd)
-                for sibling in purchase.payment_vouchers
-                if sibling.status == PAYMENT_VOUCHER_PAID
+                int(k.amount_vnd)
+                for k in purchase.khoan_chi
+                if k.status == PAYMENT_VOUCHER_PAID
             )
             if purchase
             else None
         )
+        # Bảng phân bổ (17/10/2026). Phiếu gộp: đầu phiếu không nguồn, đọc đơn/đợt ở đây.
+        dong = []
+        for k in row.lines:
+            don = k.purchase_request
+            dong.append({
+                "purchase_request_id": k.purchase_request_id,
+                "purchase_code": don.code if don else None,
+                "delivery_id": k.delivery_id,
+                "delivery_seq_no": next(
+                    (d.seq_no for d in (don.deliveries if don else []) if d.id == k.delivery_id), None
+                ),
+                "invoice_number": next(
+                    (d.invoice_number for d in (don.deliveries if don else []) if d.id == k.delivery_id), None
+                ),
+                "amount": int(k.amount_vnd),
+                "purchase_created_by_user_id": don.created_by_user_id if don else None,
+            })
         receipt_received_amount = sum(
             int(receipt.amount_vnd)
             for receipt in row.receipts
@@ -4017,6 +4428,7 @@ class AccountingService:
             "receipt_received_amount": receipt_received_amount,
             "receipt_pending_amount": receipt_pending_amount,
             "attachment_count": len(row.attachments),
+            "lines": dong,
             # Đợt giao mà phiếu này trả cho. NULL = phiếu đặt cọc (hoặc phiếu cũ trước 06/08/2026,
             # khi chưa có khái niệm đợt giao) — màn hình hiện "cả đơn" cho hai ca đó.
             "delivery_id": getattr(row, "delivery_id", None),

@@ -29,6 +29,7 @@ import { soPhieuCong } from "../shared/PhieuGon";
 import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { ThuTienHoaDon } from "../cong-no-phai-thu/components/ThuTienHoaDon";
 import { COT_CHO_THU, HangChoThuDon, gopDongChoThu, type DongChoThu } from "./components/HangChoThuDon";
+import { LapPhieuThuGop, type KhoanThuGop } from "./components/LapPhieuThuGop";
 import { ReceiptsDrawer } from "./components/ReceiptsDrawer";
 import { COT_PHIEU_THU, ReceiptsTable } from "./components/ReceiptsTable";
 import { DepositReceiptDialog } from "./modals/DepositReceiptDialog";
@@ -84,6 +85,9 @@ export function PaymentReceiptsPage({
   const [dh, setDh] = useState<DongChoThu[] | null>(null);
   const [dhLoi, setDhLoi] = useState<string | null>(null);
   const [lapDh, setLapDh] = useState<DongChoThu | null>(null);
+  // Phiếu thu gộp: các khoản đã tick cùng khách. `lanGop` đổi sau khi lập để hàng chờ bỏ hết dấu tick.
+  const [lapGop, setLapGop] = useState<{ khach: { id: number; ten: string }; khoan: KhoanThuGop[] } | null>(null);
+  const [lanGop, setLanGop] = useState(0);
 
   const taiDh = useCallback(() => {
     if (!token) return;
@@ -184,7 +188,6 @@ export function PaymentReceiptsPage({
     ...(the !== "dh" && !dhLoi && (dh?.length ?? 0) === 0
       ? []
       : [{ key: "dh", label: "Đơn hàng chờ thu", mau: "cam" as const, count: dh?.length }]),
-    { key: "thieu", label: "Thiếu chứng từ gốc", mau: "vang", count: soThe?.thieu_chung_tu },
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
   ], [soThe, the, dh, dhLoi]);
   const mucLoc = useMucThuChi("thu", false).ds;
@@ -199,8 +202,8 @@ export function PaymentReceiptsPage({
     ],
     [muc, soThe, the, setThe, sp.taiKhoan, mucLoc],
   );
-  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
-  const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
+  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab).
+  const soXong = soPhieuCong({ the, n: soThe, tong: sp.tong });
   const luoi = useCauHinhLuoi(MAN);
   const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU_THU).filter((c) => !luoi.an.has(c.key)));
   const luoiDh = useCauHinhLuoi(`${MAN}:don-hang`);
@@ -238,7 +241,8 @@ export function PaymentReceiptsPage({
       </section>
 
       {the === "dh" ? (
-        <HangChoThuDon rows={dh} loi={dhLoi} onLap={coLap ? setLapDh : undefined} onMoDon={moDon} luoi={luoiDh} />
+        <HangChoThuDon key={lanGop} rows={dh} loi={dhLoi} onLap={coLap ? setLapDh : undefined}
+          onLapGop={coLap ? (khach, khoan) => setLapGop({ khach, khoan }) : undefined} onMoDon={moDon} luoi={luoiDh} />
       ) : (
         <>
       <ReceiptsTable
@@ -303,6 +307,22 @@ export function PaymentReceiptsPage({
           onClose={() => setLapDh(null)}
           onSaved={() => {
             setLapDh(null);
+            load();
+            taiDh();
+          }}
+        />
+      )}
+      {lapGop && (
+        <LapPhieuThuGop
+          customerId={lapGop.khach.id}
+          customerName={lapGop.khach.ten}
+          khoan={lapGop.khoan}
+          onClose={() => setLapGop(null)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onSaved={(saved) => {
+            setLapGop(null);
+            setLanGop((n) => n + 1);
+            setMo(saved);
             load();
             taiDh();
           }}

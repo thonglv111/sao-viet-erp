@@ -27,10 +27,10 @@ COT = (
     ("M", "Cọc đã nhận", 15), ("N", "Cọc còn thiếu", 15),
     ("O", "Tỷ lệ báo giá", 10),
     ("P", "Đã giao (SL)", 10), ("Q", "Còn phải giao (SL)", 10), ("R", "Giá trị đã giao", 16),
-    ("S", "Đã xuất hoá đơn", 16), ("T", "Đã thu", 16), ("U", "Còn phải thu", 16),
-    ("V", "Hẹn giao", 11),
+    ("S", "Đã xuất hoá đơn", 16), ("T", "Điều chỉnh giảm", 16), ("U", "Đã thu", 16),
+    ("V", "Còn phải thu", 16), ("W", "Hẹn giao", 11),
 )
-_COT_TIEN = ("G", "I", "J", "L", "M", "N", "R", "S", "T", "U")
+_COT_TIEN = ("G", "I", "J", "L", "M", "N", "R", "S", "T", "U", "V")
 
 
 def _dmy(d: date | None) -> str:
@@ -49,11 +49,11 @@ def xuat_xlsx(bc: dict) -> bytes:
     nen_khach = PatternFill("solid", fgColor="FFE8EDF4")
     nen_tieu_de = PatternFill("solid", fgColor="FF1B2A41")
 
-    ws.merge_cells("A1:V1")
+    ws.merge_cells("A1:W1")
     ws["A1"] = "BÁO CÁO KINH DOANH THEO KHÁCH HÀNG"
     ws["A1"].font = Font(name="Times New Roman", size=14, bold=True)
     ws["A1"].alignment = Alignment(horizontal="center")
-    ws.merge_cells("A2:V2")
+    ws.merge_cells("A2:W2")
     tu, den = bc["tu_ngay"], bc["den_ngay"]
     ky = (f"từ ngày {_dmy(tu)} đến ngày {_dmy(den)}" if tu and den else
           f"từ ngày {_dmy(tu)}" if tu else f"đến ngày {_dmy(den)}" if den else "mọi thời gian")
@@ -84,7 +84,7 @@ def xuat_xlsx(bc: dict) -> bytes:
             if cot in _COT_TIEN:
                 o.number_format = DINH_DANG_TIEN
                 o.alignment = Alignment(horizontal="right", vertical="center")
-            elif cot in ("E", "H", "K", "B", "F", "O", "P", "Q", "V"):
+            elif cot in ("E", "H", "K", "B", "F", "O", "P", "Q", "W"):
                 o.alignment = Alignment(horizontal="center", vertical="center")
             else:
                 o.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
@@ -97,8 +97,9 @@ def xuat_xlsx(bc: dict) -> bytes:
         ws[f"N{hang}"] = m["coc_con_thieu"]
         ws[f"R{hang}"] = m["gia_tri_giao"]
         ws[f"S{hang}"] = m["da_xuat_hd"]
-        ws[f"T{hang}"] = m["da_thu"]
-        ws[f"U{hang}"] = m["con_phai_thu"]
+        ws[f"T{hang}"] = m["dieu_chinh"]
+        ws[f"U{hang}"] = m["da_thu"]
+        ws[f"V{hang}"] = m["con_phai_thu"]
 
     hang = 5
     for k in bc["khach"]:
@@ -116,7 +117,7 @@ def xuat_xlsx(bc: dict) -> bytes:
             _tien_tong(hang, d)
             ws[f"K{hang}"] = f"{d['coc_pct']:g}%" if d["coc_pct"] else ""
             ws[f"O{hang}"] = f"{d['ty_le_bao_gia']}%" if d.get("ty_le_bao_gia") is not None else ""
-            ws[f"V{hang}"] = _dmy(d.get("ngay_giao"))
+            ws[f"W{hang}"] = _dmy(d.get("ngay_giao"))
             _ke(hang, dam=True)
             hang += 1
             for ln in d["dong"]:

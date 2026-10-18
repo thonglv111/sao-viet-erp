@@ -31,6 +31,7 @@ import { ChipTT, TT_DON, TT_KHO, TT_TIEN, nhanHangDon } from "../trang-thai-mua"
 import { Icon } from "../../../components/Icons";
 import { hanGanNhat } from "./BangDonMua";
 import { moTaHanTra } from "./hanTra";
+import { khoanPhieuChiCuaDon, type KhoanPhieuChi } from "../../ke-toan/shared/phieuGop";
 import "../../ke-toan/ke-toan.css";
 import "../trang-thai-mua.css";
 
@@ -842,7 +843,9 @@ function TabThanhToan({
   onMoChoChi?: () => void;
 }) {
   const dots = [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no);
-  const cuaDot = (id: number | null) => (phieuChi ?? []).filter((v) => v.delivery_id === id);
+  // Phiếu gộp nhiều chứng từ tách theo dòng của đơn này: mỗi đợt/cọc chỉ thấy phần của nó.
+  const khoan = khoanPhieuChiCuaDon(row.id, phieuChi ?? []);
+  const cuaDot = (id: number | null) => khoan.filter((k) => k.deliveryId === id);
   const coc = cuaDot(null);
   // Đơn đã duyệt còn đợt còn nợ, hoặc còn cọc chưa chi cho PHẦN HÀNG CHƯA VỀ ⇒ chỉ đường sang chỗ chi
   // (cùng luật `khoan_cho_chi` của tab "Mua hàng chờ chi").
@@ -856,20 +859,25 @@ function TabThanhToan({
       <button type="button" className="lds-lk" onClick={onMoChoChi}>Phiếu chi → Mua hàng chờ chi</button>.
     </p>
   );
-  const DongPhieu = ({ v }: { v: PaymentVoucherRow }) => (
+  const DongPhieu = ({ k: { v, amount, gop } }: { k: KhoanPhieuChi }) => (
     <tr className="mh-con">
       <td style={{ paddingLeft: 28 }} title={v.content ?? undefined}>
         <span className={v.status === "cancelled" ? "mh-gach" : undefined}>{v.code}</span>
         <span className="mh-mo" style={{ marginLeft: 8 }}>{LOAI_PHIEU[v.voucher_type] ?? v.voucher_type}</span>
         {v.created_by_name && <span className="mh-mo3" style={{ marginLeft: 8 }}>{v.created_by_name}</span>}
         {v.status === "cancelled" && <span className="mh-tag">Đã huỷ</span>}
+        {gop && (
+          <span className="mh-mo3" style={{ marginLeft: 8 }} title="Một phiếu chi trả nhiều khoản, số bên phải là phần của khoản này">
+            {`phiếu gộp ${so(v.amount_vnd)}`}
+          </span>
+        )}
       </td>
       <td>{fmtDate(v.voucher_date)}</td>
       <td />
       <td />
       <td />
       <td />
-      <td className="n"><span className={v.status === "cancelled" ? "mh-gach" : undefined}>{so(v.amount_vnd)}</span></td>
+      <td className="n"><span className={v.status === "cancelled" ? "mh-gach" : undefined}>{so(amount)}</span></td>
       <td />
     </tr>
   );
@@ -921,7 +929,7 @@ function TabThanhToan({
                   <td className="n">{so(row.coc_da_chi)}</td>
                   <td className="n lds-mu" title="Cọc tự trừ vào các đợt giao, giao trước trừ trước">trừ dần</td>
                 </tr>
-                {coc.map((v) => <DongPhieu key={v.id} v={v} />)}
+                {coc.map((k) => <DongPhieu key={k.v.id} k={k} />)}
               </>
             )}
             {dots.map((d) => (
@@ -940,7 +948,7 @@ function TabThanhToan({
                   </td>
                   <td className="n">{d.con_no > 0 ? so(d.con_no) : <span className="mh-la">Đã trả</span>}</td>
                 </tr>
-                {cuaDot(d.id).map((v) => <DongPhieu key={v.id} v={v} />)}
+                {cuaDot(d.id).map((k) => <DongPhieu key={k.v.id} k={k} />)}
               </Fragment>
             ))}
           </tbody>

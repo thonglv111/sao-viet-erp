@@ -13,6 +13,7 @@ import { PhanTrangDayDu } from "../../../../components/PhanTrangDayDu";
 import { diChuyen } from "../../shared/BangPhieu";
 import { ngay, ngayGio } from "../../shared/dinhDang";
 import { soPhieu } from "../../shared/LuoiGon";
+import { laGop, tenDongThu } from "../../shared/phieuGop";
 import { STATUS_META } from "../shared/constants";
 import { methodText, sourceCode, sourceLabel } from "../shared/helpers";
 
@@ -21,7 +22,8 @@ export interface CotPhieuThu extends CotLuoi {
   n?: boolean;
 }
 
-/** Cột Lý do nộp rộng 220 và Số tiền 136 (đủ số tới chục tỷ); cột cuối (Ghi chú) co giãn. */
+/** Cột Lý do nộp rộng 220 và Số tiền 136 (đủ số tới chục tỷ); cột cuối (Ngày tạo) co giãn.
+ *  Cột Ghi chú (chỉ để nhắc "Thiếu chứng từ gốc") gỡ 18/10/2026. */
 export const COT_PHIEU_THU: CotPhieuThu[] = [
   { key: "so", label: "Số phiếu", coDinh: true, w: 100 },
   { key: "ngay_thu", label: "Ngày thu", w: 104 },
@@ -32,8 +34,7 @@ export const COT_PHIEU_THU: CotPhieuThu[] = [
   { key: "hinh_thuc", label: "Hình thức", w: 112 },
   { key: "so_tien", label: "Số tiền", n: true, w: 136 },
   { key: "trang_thai", label: "Trạng thái", w: 112 },
-  { key: "ngay_tao", label: "Ngày tạo", w: 104 },
-  { key: "ghi_chu", label: "Ghi chú" },
+  { key: "ngay_tao", label: "Ngày tạo" },
 ];
 
 /** Màu chip của từng trạng thái (bộ `--tt-*`, mỗi trạng thái một sắc). */
@@ -60,6 +61,15 @@ function OPhieuThu({ cot, row, moNguon }: {
     case "thu_theo": {
       // Phiếu thu lập tay không có chứng từ nguồn — cột Mục đã nói nó là khoản gì, khỏi chữ "Khác".
       if (row.source_type === "other") return <td />;
+      // Phiếu gộp: không một mã nào đại diện được — ghi số chứng từ, chữ nổi liệt kê từng dòng.
+      if (laGop(row)) {
+        return (
+          <td title={row.lines!.map((l) => `${tenDongThu(l)} ${soVN(l.amount)}`).join("\n")}>
+            <span className="lds-tag">Đơn bán</span>{" "}
+            <span className="lds-mu">{`${row.lines!.length} chứng từ`}</span>
+          </td>
+        );
+      }
       const ma = sourceCode(row);
       const mo = ma ? moNguon?.(row) : undefined;
       // Ô hẹp: mã dài bị "…" cắt thì chữ nổi giữ đủ nhãn + mã.
@@ -96,13 +106,6 @@ function OPhieuThu({ cot, row, moNguon }: {
     }
     case "ngay_tao":
       return <td className="lds-mu" title={ngayGio(row.created_at)}>{ngay(row.created_at)}</td>;
-    case "ghi_chu":
-      // Phiếu đã thu mà chưa có chứng từ gốc: nhắc bằng chữ vàng; phiếu hủy / chờ thu chưa đòi chứng từ.
-      return (
-        <td>
-          {row.status === "received" && row.attachment_count === 0 ? <span className="lds-vang">Thiếu chứng từ gốc</span> : null}
-        </td>
-      );
     default:
       return <td />;
   }

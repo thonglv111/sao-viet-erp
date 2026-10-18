@@ -39,6 +39,7 @@ import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombo
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { chuanKho, coDonViGoc, tenGoc } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO, fmtDateTime } from "../utils/format";
+import { congNgay } from "../utils/ky";
 import {
   LOC_MAN_YCK_TRONG,
   MAN_YEU_CAU_KHO,
@@ -992,9 +993,7 @@ const CHON_NGAY: { nhan: string; ngay: number }[] = [
 ];
 
 function cachHomNay(n: number): string {
-  const d = new Date(`${todayISO()}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  return congNgay(todayISO(), n);
 }
 
 /** Ngày "yyyy-mm-dd" + giờ "HH:mm" → giờ tường "yyyy-mm-ddTHH:mm:00" gửi `can_luc`. Thiếu ngày hoặc

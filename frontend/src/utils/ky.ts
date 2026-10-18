@@ -45,6 +45,12 @@ export function ngayCuaMoc(moc: string): string {
   return Number.isNaN(t) ? moc.slice(0, 10) : homNayVN(t);
 }
 
+/** Tên ngắn của `ngayCuaMoc`: ngày giờ xưởng của một mốc UTC ("2026-10-17T23:07:00Z" thành "2026-10-18").
+ *  KHÔNG cắt 10 ký tự đầu của mốc: trước 7 giờ sáng giờ VN, UTC còn là ngày hôm trước. */
+export function ngayVN(moc: string): string {
+  return ngayCuaMoc(moc);
+}
+
 /** "dd/mm/yyyy" từ "YYYY-MM-DD" hoặc mốc thời gian đầy đủ; rỗng thì "—". */
 export function ngayDeDoc(s: string | null | undefined): string {
   if (!s) return "—";

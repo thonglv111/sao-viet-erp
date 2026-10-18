@@ -304,3 +304,19 @@ def test_tra_lai_khong_gan_don_cong_no_lai_hoa_don_muon_nhat(client):
     assert vuot.status_code == 422, vuot.text
     _thu_hd(client, h, hd2["id"], 300_000)
     assert _dong_hd(client, h, hd2["id"]) is None
+
+
+def test_doi_chieu_phieu_thu_tinh_ca_tien_tra_lai_ngoai_don(client):
+    """Ngăn phiếu thu "Còn nợ sau phiếu này" phải cùng số hàng chờ thu / Công nợ phải thu: hoá đơn được
+    cộng nợ lại tiền trả khách ngoài đơn thì còn nợ sau phiếu tính cả khoản đó (bấm thử 18/10/2026:
+    phiếu gộp ghi 748.989 trong khi hàng chờ ghi 798.989 — lệch đúng 50.000 trả lại ngoài đơn)."""
+    h = _headers(client)
+    don, kh = _sales_order(total=1_000_000, suffix="CT22")
+    hd = _ghi_hd(client, h, don, "CT-0022", 1_000_000)
+    _thu_hd(client, h, hd["id"], 1_000_000)
+    assert _tra_lai(client, h, kh=kh, don=None, tien=300_000).status_code == 201
+
+    pt = _thu_hd(client, h, hd["id"], 100_000)
+    ct = client.get(f"/api/accounting/payment-receipts/{pt['id']}", headers=h).json()
+    assert (ct["truoc_do"], ct["con_no_sau"]) == (1_000_000, 200_000)
+    assert _dong_hd(client, h, hd["id"])["con_no"] == 200_000

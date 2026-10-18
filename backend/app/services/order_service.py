@@ -322,11 +322,15 @@ class OrderService:
         names = self._user_names([order.sale_user_id, order.ordered_by])
         m = self._money(order)
         # V5: danh sách phiếu thu cọc (PaymentReceipt nguồn đơn) — thay bản ghi OrderDeposit cũ.
+        # Phiếu gộp nhiều đơn: chỉ phần cọc của ĐƠN NÀY (dòng phân bổ), không phải cả phiếu.
         deposits = [
             OrderDepositReceiptOut(
-                id=r.id, code=r.code, doc_no=r.doc_no, amount=int(r.amount),
+                id=r.id, code=r.code, doc_no=r.doc_no,
+                amount=sum(int(l.amount_vnd) for l in r.lines
+                           if l.order_id == order.id and l.sales_invoice_id is None),
                 receipt_method=r.receipt_method, status=r.status,
                 receipt_date=r.receipt_date, created_at=r.created_at,
+                gop=len(r.lines) > 1, tong_phieu=int(r.amount_vnd),
             )
             for r in self.accounting_repo.list_order_receipts(order.id)
         ]
@@ -609,9 +613,8 @@ class OrderService:
 
         lines = []
         for it in sorted(source_items, key=lambda x: x.line_no):
-            # line_total = NET trước VAT (SAU chiết khấu) = final_amount − vat_amount — khớp đúng số
-            # trên báo giá đã ghim. KHÔNG dùng qty×unit_price: `unit_price` của báo giá là giá GỘP
-            # (trước CK, = selling_price/qty) → nhân trực tiếp sẽ thổi phồng đúng bằng discount.
+            # line_total = giá bán trước VAT = final_amount − vat_amount, ĐÃ GỒM tiền chiết khấu (khoản
+            # hoàn lại khách, chép riêng sang `chiet_khau`) — khớp đúng số trên báo giá đã ghim.
             net_line = int(round(float(it.final_amount) - float(it.vat_amount)))
             unit = int(round(net_line / it.quantity)) if it.quantity else net_line
             lines.append(dict(
@@ -621,6 +624,7 @@ class OrderService:
                 dvt_nhom=getattr(it, "dvt_nhom", None),   # ĐVT cụm khi in gộp (khớp báo giá)
                 unit_price_snapshot=unit,
                 line_total=net_line,
+                chiet_khau=int(round(float(it.discount_amount or 0))),
                 vat_pct_estimate=_i(it.vat_percent),
                 cost_snapshot=(_i(it.total_cost_snapshot) if it.total_cost_snapshot else None),
                 phieu_thanh_phan_id=it.phieu_thanh_phan_id,   # pin truy vết ấn phẩm (soft) từ dòng báo giá
@@ -834,6 +838,19 @@ class OrderService:
         d = self._detail(self.repo.get_with_lines(order_id))
         d.phieu_vua_lap_id = phieu["id"]
         return d
+
+    def sau_thu_coc_ngoai(self, *, order_ids: list[int], actor) -> list[tuple[OrderDetailOut, bool]]:
+        """Phiếu thu GỘP có dòng cọc (lập ở Kế toán, 17/10/2026) = thu cọc thật: chạy đúng phần sau
+        phiếu của `add_deposit_receipt` cho từng đơn — tự chuyển SX khi đủ cọc. Trả (chi tiết đơn,
+        lần này mới chuyển SX) để router bắn đúng tín hiệu như thu cọc lẻ."""
+        ket: list[tuple[OrderDetailOut, bool]] = []
+        for oid in dict.fromkeys(order_ids):
+            order = self.repo.get_by_id(oid)
+            if order is None:
+                continue
+            moi = self._tu_chuyen_sx(order, actor)
+            ket.append((self._detail(self.repo.get_with_lines(oid)), moi))
+        return ket
 
     # --- Chốt đơn (P4) — transaction compare-and-set + khóa báo giá ---------
     def confirm(self, *, order_id: int, actor, scope: str) -> OrderDetailOut:

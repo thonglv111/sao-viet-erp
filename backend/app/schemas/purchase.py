@@ -642,6 +642,18 @@ class PurchaseDeliveryLineOut(BaseModel):
     note: str | None = None
 
 
+class PurchaseDepositVoucherOut(BaseModel):
+    """Một lần chi cho đơn: phiếu ĐẶT CỌC (form phiếu chi cảnh báo trùng) hoặc phiếu trả ĐỢT (lịch sử
+    popup chi tiết khoản). `amount` là phần của đơn/đợt này — phiếu gộp (`gop`) chỉ góp phần dòng."""
+
+    voucher_id: int | None = None
+    code: str
+    doc_no: str | None = None
+    amount: int
+    voucher_date: date
+    gop: bool = False
+
+
 class PurchaseDeliveryOut(BaseModel):
     id: int
     seq_no: int
@@ -670,6 +682,7 @@ class PurchaseDeliveryOut(BaseModel):
     # đơn (lỗi 07/08/2026: trả thừa cho đợt 2 xoá sổ luôn nợ của đợt 1).
     coc_bu: int = 0
     con_no: int = 0
+    phieu_chi: list[PurchaseDepositVoucherOut] = Field(default_factory=list)
     # Đợt giao đẻ ra công nợ ⇒ phải truy được ai khai, lúc nào.
     created_by_name: str | None = None
     created_at: datetime | None = None
@@ -736,15 +749,6 @@ class SupplierCreditOut(BaseModel):
     no_hien_tai: int = 0
     vuot_han_muc: bool = False
     vuot_bao_nhieu: int = 0
-
-
-class PurchaseDepositVoucherOut(BaseModel):
-    """Một phiếu ĐẶT CỌC đã lập cho phiếu mua — chỉ để form phiếu chi cảnh báo trùng."""
-
-    code: str
-    doc_no: str | None = None
-    amount: int
-    voucher_date: date
 
 
 class PurchaseRequestOut(BaseModel):
