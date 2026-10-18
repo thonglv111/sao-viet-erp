@@ -254,19 +254,6 @@ def _cham_viec_moi(db: Session, lsx_id: int, actor_id: int) -> None:
         bao(db, kenh=kenh_to(to_id), loai="viec_moi", actor_id=actor_id)
 
 
-def _bao_to_cat(db: Session, lsx_id: int, actor_id: int) -> None:
-    """Phát hành lệnh có giấy chưa chốt ⇒ tổ Cắt có dòng mới ở "Chờ chốt giấy" (spec giấy theo khổ
-    §4.6): chấm đỏ + toast tức thì, bàn tổ Cắt tự nạp lại."""
-    from ..services.san_xuat.chot_giay import to_cat_can_bao
-
-    to_cat = to_cat_can_bao(db, lsx_id)
-    for to_id in to_cat:
-        bao(db, kenh=kenh_to(to_id), loai="cho_chot_giay", actor_id=actor_id)
-    if to_cat:
-        hub.gui({"type": "san_xuat_cong_viec_changed", "team_id": to_cat[0]},
-                **kem_ban_to(MAN_THEO_LENH, to_cat))
-
-
 @router.post("/phat-hanh/{lsx_id}", response_model=None)
 def phat_hanh(
     lsx_id: int,
@@ -281,7 +268,6 @@ def phat_hanh(
     xoa_cache_can_doi()
     _phat_goi_xuong_xuong(lsx_id)
     _cham_viec_moi(db, lsx_id, user.id)
-    _bao_to_cat(db, lsx_id, user.id)
     return {"ok": True}
 
 

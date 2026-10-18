@@ -61,9 +61,6 @@ class DepartmentSummaryOut(BaseModel):
     # TỔ IN (mg 0304) — cờ ĐÍCH DANH, không kế thừa cây con. Thợ in ăn khoán: ngày CN / lễ đi làm
     # không có công gốc, trả hết ở phần thêm (2 / 3 / 5 công).
     la_to_in: bool = False
-    # TỔ CẮT (mg 0355) — cờ ĐÍCH DANH, không kế thừa cây con. Lệnh có giấy sau phát hành tới tổ
-    # này để chốt chèn bước cắt hay không cắt.
-    la_to_cat: bool = False
     # --- Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật ------------------
     #: Đơn giá mỗi km, là số TÀI XẾ ĐƯỢC HƯỞNG (không còn tầng % nào nữa).
     don_gia_km: float = Field(default=0, ge=0)
@@ -121,9 +118,6 @@ class DepartmentCreate(BaseModel):
     # TỔ IN (mg 0304) — cờ ĐÍCH DANH, không kế thừa cây con. Thợ in ăn khoán: ngày CN / lễ đi làm
     # không có công gốc, trả hết ở phần thêm (2 / 3 / 5 công).
     la_to_in: bool = False
-    # TỔ CẮT (mg 0355) — cờ ĐÍCH DANH, không kế thừa cây con. Lệnh có giấy sau phát hành tới tổ
-    # này để chốt chèn bước cắt hay không cắt.
-    la_to_cat: bool = False
     # --- Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật ------------------
     #: Đơn giá mỗi km, là số TÀI XẾ ĐƯỢC HƯỞNG (không còn tầng % nào nữa).
     don_gia_km: float = Field(default=0, ge=0)
@@ -150,9 +144,6 @@ class DepartmentUpdate(BaseModel):
     # TỔ IN (mg 0304) — cờ ĐÍCH DANH, không kế thừa cây con. Thợ in ăn khoán: ngày CN / lễ đi làm
     # không có công gốc, trả hết ở phần thêm (2 / 3 / 5 công).
     la_to_in: bool = False
-    # TỔ CẮT (mg 0355) — cờ ĐÍCH DANH, không kế thừa cây con. Lệnh có giấy sau phát hành tới tổ
-    # này để chốt chèn bước cắt hay không cắt.
-    la_to_cat: bool = False
     # --- Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật ------------------
     #: Đơn giá mỗi km, là số TÀI XẾ ĐƯỢC HƯỞNG (không còn tầng % nào nữa).
     don_gia_km: float = Field(default=0, ge=0)

@@ -28,7 +28,7 @@ export type ThsxSapXep = "moi_nhan" | "cu_nhan" | "du_kien";
 
 export type ThsxChoLoai = "ban_giao" | "kcs";
 export type ThsxToiLoc = "toi" | "con_1" | "con_2_3" | "con_4" | "qua";
-export type ThsxVuongLoc = "chua_giao_tho" | "chua_nhan_khuon" | "cho_chot_giay" | "chua_nhan_buoc_truoc";
+export type ThsxVuongLoc = "chua_giao_tho" | "chua_nhan_khuon" | "chua_nhan_buoc_truoc";
 export type ThsxTreLoc = "bat_dau" | "xong";
 export type ThsxGapLoc = "gap" | "thuong";
 
@@ -75,7 +75,6 @@ const TOI: GiaTriDK[] = [
 const VUONG: GiaTriDK[] = [
   { value: "chua_giao_tho", nhan: "Chưa giao thợ" },
   { value: "chua_nhan_khuon", nhan: "Chưa nhận khuôn" },
-  { value: "cho_chot_giay", nhan: "Chờ chốt giấy" },
   { value: "chua_nhan_buoc_truoc", nhan: "Chưa nhận hàng bước trước" },
 ];
 

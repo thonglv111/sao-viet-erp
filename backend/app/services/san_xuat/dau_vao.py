@@ -313,13 +313,6 @@ def thieu_dau_vao(repo: SanXuatSanLuongRepository, cv) -> list[str]:
 
 
 def kiem_bat_dau(repo: SanXuatSanLuongRepository, cv) -> None:
-    # Cổng "chờ tổ Cắt" (spec giấy theo khổ §4.7) đứng TRƯỚC cổng đầu vào: chưa chốt thì chưa biết
-    # bước này còn chặng trước là Cắt hay không.
-    from .chot_giay import ly_do_cho_chot
-
-    ly_do = ly_do_cho_chot(repo.db, cv)
-    if ly_do:
-        raise ValueError(ly_do)
     thieu = thieu_dau_vao(repo, cv)
     if thieu:
         raise ValueError(

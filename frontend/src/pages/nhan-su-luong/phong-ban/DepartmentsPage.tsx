@@ -62,7 +62,6 @@ import {
   Move,
   ShieldCheck,
   Printer,
-  Scissors,
   AlertCircle,
   ArrowRightLeft,
 } from "lucide-react";
@@ -366,8 +365,6 @@ export function DepartmentsPage({
   // (chủ chốt 24/08/2026). Ở đây chỉ còn CỜ bật/tắt Bộ phận Giao hàng.
   // Cờ TỔ IN (mg 0304, khách chốt 15/09/2026) — đích danh từng tổ, không kế thừa cây con.
   const [editLaToIn, setEditLaToIn] = useState(false);
-  // Cờ TỔ CẮT (mg 0355) — đích danh, không kế thừa cây con: tổ chốt giấy sau phát hành.
-  const [editLaToCat, setEditLaToCat] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -855,7 +852,6 @@ export function DepartmentsPage({
     setEditLaKinhDoanh(dept?.la_kinh_doanh ?? false);
     setEditLaGiaoHang(dept?.la_giao_hang ?? false);
     setEditLaToIn(dept?.la_to_in ?? false);
-    setEditLaToCat(dept?.la_to_cat ?? false);
     if (!token || selectedId == null) {
       setMembers([]);
       setRoles([]);
@@ -959,7 +955,6 @@ export function DepartmentsPage({
     setEditLaKinhDoanh(currentDept?.la_kinh_doanh ?? false);
     setEditLaGiaoHang(currentDept?.la_giao_hang ?? false);
     setEditLaToIn(currentDept?.la_to_in ?? false);
-    setEditLaToCat(currentDept?.la_to_cat ?? false);
     setSaveError(null);
     setDirty(false);
     setInfoOpen(true);
@@ -1147,7 +1142,6 @@ export function DepartmentsPage({
         // Khoán km (đơn giá + %) ĐÃ DỜI sang Cấu hình lương — không gửi từ đây nữa.
         undefined,
         editLaToIn,
-        editLaToCat,
       );
       await refresh(selectedId);
       setDirty(false);
@@ -2090,9 +2084,6 @@ export function DepartmentsPage({
                       {currentDept.la_giao_hang && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Giao hàng</span>
                       )}
-                      {currentDept.la_to_cat && (
-                        <span className="rdx-drawer__pill rdx-drawer__pill--gh">Tổ Cắt</span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -3016,34 +3007,6 @@ export function DepartmentsPage({
                     </span>
                     <span className="rdx-switch-card__desc">
                       Ngày Chủ nhật / lễ của thợ in trả hết ở phần thêm, không nằm trong phần so với tiền khoán
-                    </span>
-                  </div>
-                </div>
-                <div className="rdx-toggle-switch" aria-hidden="true" />
-              </div>
-            </div>
-
-            {/* Switch Card "Tổ Cắt" — đích danh, KHÔNG kế thừa cây con (như "Tổ in"). Spec giấy
-                theo khổ §4.6: lệnh có giấy sau phát hành tới tổ này chốt chèn bước cắt hay không. */}
-            <div className="field depts__field--full">
-              <div
-                className={`rdx-switch-card${editLaToCat ? " is-checked" : ""}`}
-                onClick={() => {
-                  setEditLaToCat(!editLaToCat);
-                  setDirty(true);
-                }}
-              >
-                <div className="rdx-switch-card__left">
-                  <div className="rdx-switch-card__icon">
-                    <Scissors size={20} />
-                  </div>
-                  <div className="rdx-switch-card__main">
-                    <span className="rdx-switch-card__title">
-                      Tổ Cắt
-                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ cắt giấy — KHÔNG kế thừa cho cây con. Khi có ít nhất một tổ bật, bước đầu tiên dùng giấy của lệnh chỉ bắt đầu được sau khi tổ Cắt chốt: chèn bước cắt hoặc bấm Không cần cắt." />
-                    </span>
-                    <span className="rdx-switch-card__desc">
-                      Lệnh có giấy sau phát hành tới tổ này để chốt cắt hay không cắt.
                     </span>
                   </div>
                 </div>

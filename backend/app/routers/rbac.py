@@ -310,7 +310,6 @@ def create_department(
             la_kinh_doanh=payload.la_kinh_doanh,
             la_giao_hang=payload.la_giao_hang,
             la_to_in=payload.la_to_in,
-            la_to_cat=payload.la_to_cat,
             don_gia_km=payload.don_gia_km,
             pct_tai_xe=payload.pct_tai_xe,
             pct_phu_xe=payload.pct_phu_xe,
@@ -364,9 +363,6 @@ def update_department(
         # Cờ Tổ in: cùng luật "không gửi = giữ nguyên".
         if "la_to_in" in payload.model_fields_set:
             gh_kw["la_to_in"] = payload.la_to_in
-        # Cờ Tổ Cắt: cùng luật "không gửi = giữ nguyên".
-        if "la_to_cat" in payload.model_fields_set:
-            gh_kw["la_to_cat"] = payload.la_to_cat
         # Ba ô khoán km: cùng luật "không gửi = giữ nguyên". Ghi đè mặc định 0/60/40 ở luồng chỉ
         # sửa tên phòng là âm thầm xoá đơn giá — tháng sau tài xế nhận 0 đồng km mà không ai biết.
         for _o in ("don_gia_km", "pct_tai_xe", "pct_phu_xe"):

@@ -190,7 +190,6 @@ class DepartmentService:
             "la_kinh_doanh": dept.la_kinh_doanh,
             "la_giao_hang": dept.la_giao_hang,
             "la_to_in": dept.la_to_in,
-            "la_to_cat": dept.la_to_cat,
             "don_gia_km": float(dept.don_gia_km or 0),
             "pct_tai_xe": float(dept.pct_tai_xe if dept.pct_tai_xe is not None else 60),
             "pct_phu_xe": float(dept.pct_phu_xe if dept.pct_phu_xe is not None else 40),
@@ -407,7 +406,6 @@ class DepartmentService:
         la_kinh_doanh: bool = False,
         la_giao_hang: bool = False,
         la_to_in: bool = False,
-        la_to_cat: bool = False,
         don_gia_km: float = 0.0,
         pct_tai_xe: float = 60.0,
         pct_phu_xe: float = 40.0,
@@ -445,8 +443,6 @@ class DepartmentService:
             self.departments.set_la_giao_hang(dept, True)
         if la_to_in:
             self.departments.set_la_to_in(dept, True)
-        if la_to_cat:
-            self.departments.set_la_to_cat(dept, True)
         self._dat_khoan_km(dept, don_gia_km, pct_tai_xe, pct_phu_xe)
         _dong_bo_quyen_to(self.departments.db)
         self.audit.create(
@@ -474,7 +470,6 @@ class DepartmentService:
         la_kinh_doanh: object = _KEEP,
         la_giao_hang: object = _KEEP,
         la_to_in: object = _KEEP,
-        la_to_cat: object = _KEEP,
         don_gia_km: object = _KEEP,
         pct_tai_xe: object = _KEEP,
         pct_phu_xe: object = _KEEP,
@@ -549,8 +544,6 @@ class DepartmentService:
         # ngày CN / lễ của thợ in đổi tiền mà không ai báo.
         if la_to_in is not _KEEP:
             self.departments.set_la_to_in(dept, bool(la_to_in))
-        if la_to_cat is not _KEEP:
-            self.departments.set_la_to_cat(dept, bool(la_to_cat))
         if don_gia_km is not _KEEP or pct_tai_xe is not _KEEP or pct_phu_xe is not _KEEP:
             self._dat_khoan_km(
                 dept,

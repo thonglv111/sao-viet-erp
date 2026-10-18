@@ -48,7 +48,6 @@ def test_teams_admin_thay_to_moi(client):
     assert row is not None
     assert set(row) == {
         "id", "ten", "ma", "cap", "la_tho", "so_viec_cho", "quyen", "so_cho_xac_nhan",
-        "la_to_cat",
     }
     assert row["ten"] == "Tổ In API" and row["so_viec_cho"] == 0
     assert row["cap"] == 0  # tổ không có phòng cha → gốc cây

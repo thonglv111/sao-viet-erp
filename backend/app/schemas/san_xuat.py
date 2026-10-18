@@ -19,7 +19,6 @@ class TeamOut(BaseModel):
     id: int
     ten: str
     ma: str
-    la_to_cat: bool = False
     # Vai của NGƯỜI ĐANG XEM ở tổ này, không phải thuộc tính của tổ: cùng một tổ, tổ trưởng thấy
     # `false` còn thợ trong tổ thấy `true`.
     la_tho: bool = False
@@ -1002,8 +1001,6 @@ class WorkItemChiTietOut(BaseModel):
     cong_doan_truoc: list[CongDoanTruocOut] = []
     tran_ghi: TranGhiOut | None = None
     thieu_dau_vao: list[str] = []
-    #: Câu "Chờ tổ Cắt chốt giấy…" khi bước mang giấy chưa được tổ Cắt chốt; None = không chặn.
-    cho_chot_giay: str | None = None
     ban_giao_chang_sau: list[BanGiaoChangSauOut]
     vat_tu: list[PhieuXuatVatTuOut]
     vat_tu_cap: VatTuCapOut = VatTuCapOut()
@@ -1709,101 +1706,3 @@ class DongLenhKetQuaOut(BaseModel):
     da_dat: float = 0.0
     muc_tieu: float | None = None
     don_vi: str = ""
-
-
-# --- Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6) ---------------------------------
-class ChotGiayGiayOut(BaseModel):
-    giay_id: int
-    ma: str
-    ten: str
-    kho_rong: int
-    kho_dai: int
-    nhan_kho: str
-    so_to: float
-    don_vi: str | None = None
-    #: Đơn vị gốc của dòng (`to` khi đếm tờ; đơn vị giá của mã khi giấy khổ rộng tính kg…).
-    don_vi_goc: str = ""
-    #: Tồn lô ĐÚNG khoá (mã + khổ + đơn vị gốc), theo đơn vị gốc; None khi dòng chưa đủ khổ.
-    ton_to_dung_kho: float | None = None
-
-
-class ChotGiayLoCungMaOut(BaseModel):
-    """Lô CÙNG MÃ nhưng khác khổ / khác đơn vị gốc với mọi dòng giấy — chỉ để tổ Cắt tự xem."""
-    ma_lo: str
-    giay_ma: str
-    kho_rong: int
-    kho_dai: int = 0
-    sl_con_lai: float
-    #: MÃ đơn vị gốc của lô (`to`, `kg`…).
-    don_vi: str | None = None
-    kho_ten: str
-
-
-class ChotGiayDaChotOut(BaseModel):
-    cach: Literal["cat", "khong_cat"]
-    luc: datetime | None = None
-    boi_ten: str | None = None
-    cong_doan: list[str] = []
-
-
-class ChotGiayCongDoanOut(BaseModel):
-    id: int
-    ma: str
-    ten: str
-
-
-class ChotGiayBuocOut(BaseModel):
-    buoc_id: int
-    cong_doan_id: int | None = None
-    ma: str
-    ten: str
-    xoa_duoc: bool
-
-
-class ChotGiayDongOut(BaseModel):
-    chu_the: Literal["lsx", "bai"]
-    id: int
-    ma: str
-    ten: str
-    han: str | None = None
-    giay: list[ChotGiayGiayOut]
-    #: Thay `cuon_cung_ma` (10/10/2026, giấy bỏ dạng cuộn/tờ).
-    lo_cung_ma: list[ChotGiayLoCungMaOut] = []
-    chot: ChotGiayDaChotOut | None = None
-    sua_duoc: bool
-    #: Bước trong phạm vi (công đoạn Trước In của tổ Cắt) theo thứ tự tuyến — kể cả bước đặt sẵn.
-    buoc_truoc_in: list[ChotGiayBuocOut] = []
-    #: Người lập lệnh đã đặt sẵn bước cắt trước In ⇒ coi là đã xác nhận, không khoá gì.
-    cau_hinh_san: bool = False
-    #: Công đoạn tổ THÊM được: Giai đoạn Trước In, có tổ này trong tổ phụ trách.
-    cong_doan_chen_duoc: list[ChotGiayCongDoanOut]
-
-
-class ChotGiayIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-    #: Chỉ còn "không cắt" — thêm bước cắt đi qua `POST /chot-giay/them`.
-    cach: Literal["cat", "khong_cat"]
-    cong_doan_ids: list[int] = []
-
-
-class GoChotGiayIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-
-
-class ThemBuocCatIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-    #: Công đoạn thêm, ĐÚNG thứ tự tổ Cắt sắp — chèn ngay trước bước In.
-    cong_doan_ids: list[int] = Field(min_length=1)
-
-
-class XoaBuocCatIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-    buoc_id: int = Field(ge=1)

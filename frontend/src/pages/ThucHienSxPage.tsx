@@ -39,7 +39,6 @@ import { ThsxTamDungHop } from "./thsx/ThsxTamDungHop";
 import { ThsxDrawer, type ThsxDrawerTab } from "./ThsxDrawer";
 import { type ThsxExec } from "./ThsxExecPanels";
 import { ThsxChoNgoaiBan } from "./ThsxChoNgoaiBan";
-import { ThsxChotGiay } from "./ThsxChotGiay";
 import { ThsxTuyenChuGiai } from "./ThsxTuyenNho";
 import { ThsxDemTrangThai } from "./thsx/ThsxDemTrangThai";
 import { ThsxSapXepNut } from "./thsx/ThsxSapXep";
@@ -108,7 +107,6 @@ export function ThucHienSxPage({
   teamId,
   tenTo,
   laTho = false,
-  laToCat = false,
   eventTick,
   vatTuDeNghiDem,
   dinhKemDem,
@@ -120,8 +118,6 @@ export function ThucHienSxPage({
   /** Người đang xem vào tổ này ở mức "Của tôi" (cờ `la_tho` của `GET /teams`, máy chủ tính): danh
    *  sách chỉ có việc giao cho họ, nên khi trống phải nói đúng lý do đó. */
   laTho?: boolean;
-  /** Tổ mang cờ Tổ Cắt (`la_to_cat` của `GET /teams`) ⇒ bày khối "Chờ chốt giấy" trên danh sách. */
-  laToCat?: boolean;
   eventTick?: number;
   /** Số lần đề nghị cấp vật tư đổi, ĐẾM THEO công việc (SSE, mắc ở AppShell). CỐ TÌNH không đi qua
    *  `eventTick`: sự kiện này broadcast TOÀN HỆ, nếu bump tick chung thì mỗi lần bất kỳ tổ nào
@@ -876,11 +872,6 @@ export function ThucHienSxPage({
       {view === "san_luong" ? (
         <ThsxSanLuongTab teamId={teamId} eventTick={eventTick} />
       ) : (<>
-      {/* Khối cảnh báo / việc chờ nằm TRÊN thanh lọc (khuôn lưới). */}
-      {view === "danh_sach" && laToCat && (
-        <ThsxChotGiay teamId={teamId} eventTick={eventTick} onDaGhi={() => { loadItems(); onBadgeStale?.(); }} />
-      )}
-
       {/* Việc chờ TỔ bấm (bàn giao đến, lỗi KCS) gắn vào công đoạn của nó (§11.5); chỉ
           việc không có dòng trên bàn mới liệt kê riêng, khi bật ô "chờ xác nhận". */}
       {chiCho && <ThsxChoNgoaiBan

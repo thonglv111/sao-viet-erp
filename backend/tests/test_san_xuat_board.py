@@ -146,11 +146,10 @@ def test_teams_liet_ke_va_badge(db, orders, lsx_svc, admin, customer):
     assert to.id in by_id
     row = by_id[to.id]
     assert set(row) == {
-        "id", "ten", "ma", "cap", "la_to_cat", "la_tho", "so_viec_cho", "quyen",
+        "id", "ten", "ma", "cap", "la_tho", "so_viec_cho", "quyen",
         "so_cho_xac_nhan",
     }
     assert row["ten"] == "Tổ In Board" and row["ma"] == "TO-BOARD"
-    assert row["la_to_cat"] is False
     # Tổ không có phòng cha → gốc cây, cấp 0; `_to_moi` bật Xem + 3 quyền chi tiết phạm vi all.
     assert row["cap"] == 0
     assert row["quyen"] == _TAT_CA_4_VIEC and row["la_tho"] is False

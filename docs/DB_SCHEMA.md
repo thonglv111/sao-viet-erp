@@ -98,7 +98,7 @@ belongs to exactly one, and roles are defined per department.
 | `la_kinh_doanh` | `Boolean` → `BOOLEAN`                                 | —                             | no   | `false`        | Đánh dấu phòng ban thuộc khối KINH DOANH (mg 0181) — cùng luật kế thừa cây con như `la_san_xuat`: tick phòng cha ⇒ KD1/KD2 bên dưới cũng là kinh doanh. Trả lời "ai được giao phụ trách khách hàng": hộp chọn NV phụ trách ở màn Khách hàng đổ theo khối này, giao với phạm vi dữ liệu của người xem. **Chưa tick phòng nào ⇒ lùi về quy tắc "ai có quyền module `khach_hang`"** nên DB cũ không cần khai lại. |
 | `la_giao_hang` | `Boolean` → `BOOLEAN` | — | no | `false` | **Bộ phận GIAO HÀNG** (mg 0205) — kế thừa xuống cây con như hai cờ trên. Trả lời câu *"ai là tài xế"*: tab Nhân viên giao hàng liệt kê MỌI người thuộc khối này, kể cả người chưa chạy chuyến nào. Trước 20/08/2026 tab đó lọc theo quyền RBAC rồi bỏ ai chưa có chuyến, nên tài xế mới tuyển không hiện ra. |
 | `la_to_in` | `Boolean` → `BOOLEAN` | — | no | `false` | **TỔ IN** (mg 0304, khách chốt 15/09/2026) — thợ in ăn khoán thì ngày CN / lễ đi làm KHÔNG có công gốc: cả 2 / 3 / 5 công trả ở phần THÊM và bù lỗ theo công không đếm ngày đó (sản lượng ngày đó vẫn vào tiền khoán). Cờ ĐÍCH DANH, không kế thừa cây con như `la_giao_hang`; chỉ đổi tiền khi tổ bật Lương khoán. |
-| `la_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | **TỔ CẮT** (mg 0355, spec giấy theo khổ §4.6) — lệnh có giấy sau phát hành tới tổ này để chốt chèn bước cắt đầu tuyến hay không cắt; khi có ít nhất một tổ bật, bước mang giấy chờ chốt mới bắt đầu được. Cờ ĐÍCH DANH, không kế thừa cây con như `la_to_in`. |
+| `la_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). **TỔ CẮT** (mg 0355, spec giấy theo khổ §4.6) — lệnh có giấy sau phát hành tới tổ này để chốt chèn bước cắt đầu tuyến hay không cắt; khi có ít nhất một tổ bật, bước mang giấy chờ chốt mới bắt đầu được. Cờ ĐÍCH DANH, không kế thừa cây con như `la_to_in`. |
 | `don_gia_km` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | `0` | **Khoán km giao hàng** (mg 0231) — đơn giá mỗi km, là số **tài xế được hưởng**, không phải cước cả xe. Chỉ có nghĩa khi `la_giao_hang` bật. Seed 4.330 = 84.031.992đ ÷ 19.406 km, mức giữ NGUYÊN tổng chi T05/2026 của cả bốn xe. Chuyến CHỤP LẠI số này lúc ghi kết quả (`delivery_trips.don_gia_km`) nên sửa ở đây không nắn lại kỳ đã tính. |
 | `pct_tai_xe` | `Numeric(5,2)` → `NUMERIC(5,2)` | — | no | `60` | Phần trăm tiền chuyến chia cho **tài xế** (mg 0231). Cộng với `pct_phu_xe` phải đúng **100** — service chặn; lệch là tổng chi cho một chuyến khác nhau tuỳ đi mấy người. |
 | `pct_phu_xe` | `Numeric(5,2)` → `NUMERIC(5,2)` | — | no | `40` | Phần trăm chia cho **phụ xe** (mg 0231). Chuyến không có phụ xe ⇒ tài xế ăn **100%**, không ai nhận phần này. |
@@ -4256,9 +4256,9 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `created_by` | `Integer` | — | yes | — | Soft → `users.id`. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
-| `giay_chot_cach` | `String(12)` | — | yes | — | **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
-| `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
-| `giay_chot_boi_id` | `Integer` | — | yes | — | Soft → `users.id` — người chốt (mg 0356). |
+| `giay_chot_cach` | `String(12)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
+| `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
+| `giay_chot_boi_id` | `Integer` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Soft → `users.id` — người chốt (mg 0356). |
 
 **Tất cả cột:** `id`, `ma`, `loai`, `lsx_goc_id`, `ten`, `order_id`, `order_line_id`, `quote_version_id`, `phieu_thanh_phan_id`, `so_luong_dat`, `don_vi_tinh`, `so_to_ke_hoach`, `so_to_nguyen`, `so_con`, `ban_giao_at`, `han_giao_khach`, `han_hoan_thanh_sx`, `is_rush`, `giu_cho_bat`, `quy_cach_json`, `routing_goc_json`, `may_id`, `trang_thai`, `nguoi_phu_trach_id`, `ghi_chu`, `created_by`, `created_at`, `updated_at`, `giay_chot_cach`, `giay_chot_luc`, `giay_chot_boi_id`.
 
@@ -4313,7 +4313,7 @@ Trả về BA số bằng cách thay `toc_do` bằng `toc_do_max` / `toc_do` / `
 | `ghi_chu` | `String(500)` | — | yes | — | |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
-| `chen_boi_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | Bước do **tổ Cắt chèn đầu tuyến** sau phát hành (mg 0356, spec giấy theo khổ §4.6), nối cạnh tường minh tới bước mang giấy. Gỡ chốt xoá đúng các bước này. |
+| `chen_boi_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Bước do **tổ Cắt chèn đầu tuyến** sau phát hành (mg 0356, spec giấy theo khổ §4.6), nối cạnh tường minh tới bước mang giấy. Gỡ chốt xoá đúng các bước này. |
 
 > **Derived, KHÔNG lưu cột** (engine `lsx_service.thoi_luong_buoc(cd, may)` tính): `chiem_may_phut = phat_sinh + chuẩn bị(máy) + chạy(theo tốc độ máy)` · `chiem_may_phut_min`/`_max` theo `toc_do_max`/`toc_do_min` · `tong_phut = chiem_may_phut` (chờ/di chuyển đã bỏ) · `ty_le_hao_hut = hao_hut / so_luong_vao` · lead time cả lệnh.
 > **Đã BỎ ở migration `0093`:** `thue_ngoai` (tập con của `loai_buoc`) · `don_vi` (tách thành `don_vi_vao`/`don_vi_ra`).
@@ -4470,9 +4470,9 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `created_by` | `Integer` | — | yes | — | Soft → `users.id`. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
-| `giay_chot_cach` | `String(12)` | — | yes | — | **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
-| `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
-| `giay_chot_boi_id` | `Integer` | — | yes | — | Soft → `users.id` — người chốt (mg 0356). |
+| `giay_chot_cach` | `String(12)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
+| `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
+| `giay_chot_boi_id` | `Integer` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Soft → `users.id` — người chốt (mg 0356). |
 
 > **Derived, KHÔNG lưu cột** (engine `bai_ghep_service` tính lúc đọc): số tờ tốt = `max_i(ceil(lsx.so_luong_dat / so_con_tren_to))` · sản lượng dự kiến/dư mỗi thành viên · tổng tờ cấp = số tờ tốt + hao hụt · hạn in muộn nhất = `min(han_hoan_thanh_sx)` · % tờ dùng (fill).
 
@@ -4549,7 +4549,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú của BÀI. Ghi chú kỹ thuật của từng lệnh **KHÔNG bị đè** — service gom lại kèm mã lệnh, vì thợ chạy chung một lượt phải đọc được yêu cầu của mọi khách trên tờ đó. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
-| `chen_boi_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | Bước do **tổ Cắt chèn đầu tuyến** sau phát hành (mg 0356, spec giấy theo khổ §4.6), nối cạnh tường minh tới bước mang giấy. Gỡ chốt xoá đúng các bước này. |
+| `chen_boi_to_cat` | `Boolean` → `BOOLEAN` | — | no | `false` | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Bước do **tổ Cắt chèn đầu tuyến** sau phát hành (mg 0356, spec giấy theo khổ §4.6), nối cạnh tường minh tới bước mang giấy. Gỡ chốt xoá đúng các bước này. |
 
 > 🔴 **GỠ 18/09/2026 (mg `0321`)** — mirror đúng `lsx_cong_doan`: `so_nhan_cong_tieu_chuan` · `khoan_json` · `nang_suat` · `don_vi_nang_suat`.
 

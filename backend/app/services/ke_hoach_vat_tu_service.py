@@ -1072,9 +1072,9 @@ class KeHoachVatTuService:
         self._chung_nap = self.bai_ghep_repo.buoc_chung_theo_bai(bai_ids)
         if bais:
             self._bg().nap_truoc(bai_ids, tv_ids, buoc_chung=self._chung_nap)
-        # Neo giấy bài = bước chung THẬT nhận giấy — cùng luật với chốt giấy (`buoc_lay_giay`):
-        # Ghi kẽm CTP đứng đầu tuyến bài (đơn vị `kem`) không phải bước lấy giấy. Nạp LÔ cho mọi bài.
-        from .san_xuat.chot_giay import buoc_lay_giay_bai_lo
+        # Neo giấy bài = bước chung THẬT nhận giấy (`buoc_giay_bai`, cùng luật đường tự lập yêu cầu
+        # khi phát hành): Ghi kẽm CTP đứng đầu tuyến bài (đơn vị `kem`) không phải bước lấy giấy.
+        from .san_xuat.buoc_giay_bai import buoc_lay_giay_bai_lo
 
         neo_bai = buoc_lay_giay_bai_lo(
             self.db, {bg.id: list(self._buoc_chung(bg.id)) for bg in bais if bg.giay_id})

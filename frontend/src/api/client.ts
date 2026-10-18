@@ -1473,8 +1473,6 @@ export interface SxTeam {
   id: number;
   ten: string;
   ma: string;
-  /** Phòng ban có cờ "Tổ Cắt" (`la_to_cat`) — bàn tổ bày khối "Chờ chốt giấy". */
-  la_to_cat?: boolean;
   /** Độ sâu của nút trong cây khối sản xuất (0 = gốc) — menu thụt lề theo số này. */
   cap: number;
   /** Vai của NGƯỜI ĐANG XEM ở nút này, không phải thuộc tính của tổ: mức Xem của dòng quyền
@@ -2316,8 +2314,6 @@ export interface SxWorkItemChiTiet {
   tran_ghi: SxTranGhi | null;
   /** Tên công đoạn trước chưa giao được gì sang — khác rỗng thì chưa bắt đầu được. */
   thieu_dau_vao: string[];
-  /** Câu "Chờ tổ Cắt chốt giấy…" — bước mang giấy chưa được tổ Cắt chốt; null = không chặn. */
-  cho_chot_giay?: string | null;
   ban_giao_chang_sau: SxBanGiaoChangSau[];
   vat_tu: SxPhieuXuatVatTu[];
   vat_tu_cap: SxVatTuCap;
@@ -3544,8 +3540,6 @@ export interface Department {
   la_giao_hang?: boolean;
   /** Tổ IN (mg 0304) — thợ in ăn khoán: ngày CN / lễ đi làm không có công gốc, trả hết ở phần thêm. */
   la_to_in?: boolean;
-  /** Tổ CẮT (mg 0355) — lệnh có giấy sau phát hành tới tổ này để chốt cắt hay không cắt. */
-  la_to_cat?: boolean;
   /** Khoán km giao hàng (mg 0231) — chỉ có nghĩa khi `la_giao_hang` bật. Đơn giá là số TÀI XẾ
    *  ĐƯỢC HƯỞNG, không phải cước cả xe. Hai ô % bắt buộc cộng đúng 100 (máy chủ chặn). */
   don_gia_km?: number;
@@ -12317,8 +12311,6 @@ export const api = {
       khoanKm?: { don_gia_km?: number; pct_tai_xe?: number; pct_phu_xe?: number },
       /** Cờ Tổ in (mg 0304). Cùng luật `undefined` = KHÔNG gửi ⇒ backend giữ nguyên. */
       laToIn?: boolean,
-      /** Cờ Tổ Cắt (mg 0355). Cùng luật `undefined` = KHÔNG gửi ⇒ backend giữ nguyên. */
-      laToCat?: boolean,
     ): Promise<Department> {
       return authed<Department>(`/api/departments/${id}`, token, {
         method: "PUT",
@@ -12334,7 +12326,6 @@ export const api = {
           ...(laGiaoHang === undefined ? {} : { la_giao_hang: laGiaoHang }),
           ...(khoanKm ?? {}),
           ...(laToIn === undefined ? {} : { la_to_in: laToIn }),
-          ...(laToCat === undefined ? {} : { la_to_cat: laToCat }),
         }),
       });
     },
@@ -14924,43 +14915,6 @@ export const api = {
   // Ghi trả `SxLenhKetQua` (version lạc quan). Lỗi: 400 = lệch version/ràng buộc → refetch + toast;
   // 403 = ngoài phạm vi tổ. `teams` một cú gọi ra cả list lẫn badge (`so_viec_cho`).
   sanXuat: {
-    /** Tổ Cắt chốt giấy sau phát hành (spec dòng giấy theo đầu vào §3). Tổ không mang cờ ⇒ rỗng. */
-    chotGiay: {
-      list(token: string, teamId: number): Promise<ChotGiayDong[]> {
-        return authed<ChotGiayDong[]>(`/api/san-xuat/chot-giay${qs({ team_id: teamId })}`, token);
-      },
-      /** Chốt "Không cần cắt" — thêm bước cắt đi qua `them`. */
-      chot(token: string, body: {
-        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null;
-        cach: "khong_cat";
-      }): Promise<unknown> {
-        return authed<unknown>("/api/san-xuat/chot-giay", token, {
-          method: "POST", body: JSON.stringify(body),
-        });
-      },
-      go(token: string, body: { team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null }):
-        Promise<unknown> {
-        return authed<unknown>("/api/san-xuat/chot-giay/go", token, {
-          method: "POST", body: JSON.stringify(body),
-        });
-      },
-      /** Thêm công đoạn Trước In của tổ vào ngay trước bước In, đúng thứ tự `cong_doan_ids`. */
-      them(token: string, body: {
-        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null; cong_doan_ids: number[];
-      }): Promise<unknown> {
-        return authed<unknown>("/api/san-xuat/chot-giay/them", token, {
-          method: "POST", body: JSON.stringify(body),
-        });
-      },
-      /** Xoá một công đoạn Trước In (kể cả bước đặt sẵn). Xoá hết ⇒ "không cắt". */
-      xoa(token: string, body: {
-        team_id: number; lsx_id?: number | null; bai_ghep_id?: number | null; buoc_id: number;
-      }): Promise<unknown> {
-        return authed<unknown>("/api/san-xuat/chot-giay/xoa", token, {
-          method: "POST", body: JSON.stringify(body),
-        });
-      },
-    },
     /** Danh sách tổ user thấy + badge số việc chờ (navbar + màn). */
     teams(token: string): Promise<SxTeamsOut> {
       return authed<SxTeamsOut>("/api/san-xuat/teams", token);
@@ -18314,32 +18268,3 @@ export interface DonNoiNhan {
   lien_he: { id: number; ten: string; chuc_vu: string | null; sdt: string | null; chinh: boolean }[];
 }
 
-/** Một lệnh / bài ghép trong khối "Chờ chốt giấy" của tổ Cắt (`GET /api/san-xuat/chot-giay`). */
-export interface ChotGiayDong {
-  chu_the: "lsx" | "bai";
-  id: number;
-  ma: string;
-  ten: string;
-  han: string | null;
-  giay: {
-    giay_id: number; ma: string; ten: string; kho_rong: number; kho_dai: number; nhan_kho: string;
-    so_to: number; don_vi: string | null;
-    /** Tồn ĐÚNG khổ, đếm theo tờ (đơn vị gốc "to"); null khi dòng chưa có khổ. */
-    ton_to_dung_kho: number | null;
-  }[];
-  /** Lô CÙNG MÃ nhưng khác khổ hoặc khác đơn vị gốc (vd. giấy khổ rộng tính kg) — chỉ để tổ tự
-   *  xem, máy không kết luận. Thay `cuon_cung_ma` cũ (10/10/2026, giấy bỏ dạng cuộn/tờ). */
-  lo_cung_ma?: {
-    ma_lo: string; giay_ma: string; kho_rong: number; kho_dai: number; sl_con_lai: number;
-    don_vi: string | null; kho_ten: string;
-  }[];
-  chot: { cach: "cat" | "khong_cat"; luc: string | null; boi_ten: string | null; cong_doan: string[] } | null;
-  /** In chưa bắt đầu ⇒ gỡ chốt "không cắt" / thêm công đoạn được. */
-  sua_duoc: boolean;
-  /** Công đoạn Trước In của tổ Cắt đang có trong tuyến (kể cả bước đặt sẵn), theo thứ tự. */
-  buoc_truoc_in: { buoc_id: number; cong_doan_id: number | null; ma: string; ten: string; xoa_duoc: boolean }[];
-  /** Người lập lệnh đã đặt sẵn bước cắt trước In ⇒ đã xác nhận, không khoá gì. */
-  cau_hinh_san: boolean;
-  /** Chỉ công đoạn Giai đoạn Trước In của tổ. */
-  cong_doan_chen_duoc: { id: number; ma: string; ten: string }[];
-}

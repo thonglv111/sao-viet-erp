@@ -24,7 +24,7 @@ from ..gio_xuong import gio_xuong
 from . import routing_dai
 
 TOI = ("toi", "con_1", "con_2_3", "con_4", "qua")
-VUONG = ("chua_giao_tho", "chua_nhan_khuon", "cho_chot_giay", "chua_nhan_buoc_truoc")
+VUONG = ("chua_giao_tho", "chua_nhan_khuon", "chua_nhan_buoc_truoc")
 TRE = ("bat_dau", "xong")
 CHO = ("ban_giao", "kcs")
 GAP = ("gap", "thuong")
@@ -117,9 +117,8 @@ def thuoc_tinh(
             ra[cid]["nguoi"] = set(emps)
 
     if "vuong" in can:
-        # Đúng thứ tự cổng của `thuc_thi.bat_dau`: người → (chốt giấy | đầu vào bước trước) → khuôn.
-        # Import muộn: chot_giay/dau_vao đọc ngược board.
-        from .chot_giay import ly_do_cho_chot
+        # Đúng thứ tự cổng của `thuc_thi.bat_dau`: người → đầu vào bước trước → khuôn.
+        # Import muộn: dau_vao đọc ngược board.
         from .dau_vao import thieu_dau_vao
 
         sl = SanXuatSanLuongRepository(db)
@@ -131,9 +130,7 @@ def thuoc_tinh(
                 v.add("chua_giao_tho")
             if cv.khuon_json and cv.khuon_nhan_luc is None:
                 v.add("chua_nhan_khuon")
-            if ly_do_cho_chot(db, cv):
-                v.add("cho_chot_giay")
-            elif thieu_dau_vao(sl, cv):
+            if thieu_dau_vao(sl, cv):
                 v.add("chua_nhan_buoc_truoc")
 
     if "tre" in can:

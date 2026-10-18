@@ -39,7 +39,6 @@ export function AnhNguoi({ ten, url, size }: { ten: string; url?: string | null;
 export interface VuongMac {
   coNguoi: boolean;
   khuonChoNhan: boolean;
-  choChotGiay: string | null;
   thieuDauVao: string[];
 }
 
@@ -132,8 +131,7 @@ export function ThsxCotPhai({
               : "cần quyền Thực hiện lệnh ở tổ này mới xác nhận được."}</>,
       });
     }
-    if (vuong.choChotGiay) cauVuong.push({ key: "giay", noi: vuong.choChotGiay });
-    if (vuong.thieuDauVao.length > 0 && !vuong.choChotGiay) {
+    if (vuong.thieuDauVao.length > 0) {
       cauVuong.push({
         key: "dauvao",
         noi: <>Chưa nhận hàng từ {vuong.thieuDauVao.join(", ")} — tổ trước giao sang và tổ mình xác nhận ở tab

@@ -100,32 +100,15 @@ def test_create_child_and_edit_description(client):
     assert body["code"] == child["code"]  # code never changes on edit
 
 
-def test_co_to_cat_dich_danh_va_giu_nguyen_khi_khong_gui(client):
-    """Cờ TỔ CẮT (mg 0355): tạo kèm cờ / bật qua PUT / không gửi thì giữ / summary trả cờ / tổ con
-    KHÔNG kế thừa (đích danh như `la_to_in`). Chốt giấy sau phát hành hỏi đúng `dept_ids_to_cat`."""
+def test_phong_ban_khong_con_co_to_cat(client):
+    """Khâu tổ Cắt chốt giấy đã gỡ (18/10/2026): API phòng ban không còn đọc / ghi cờ Tổ Cắt."""
     token = _admin_token(client)
-    cha = client.post("/api/departments", json={"name": "Tổ cắt giấy", "la_to_cat": True},
-                      headers=_h(token)).json()
-    assert cha["la_to_cat"] is True
-    con = client.post("/api/departments", json={"name": "Ca cắt đêm", "parent_id": cha["id"]},
-                      headers=_h(token)).json()
-    assert con["la_to_cat"] is False, "cờ không lan xuống tổ con"
-
-    kept = client.put(f"/api/departments/{cha['id']}", json={"name": "Tổ cắt giấy 2"},
+    tao = client.post("/api/departments", json={"name": "Tổ cắt giấy", "la_to_cat": True},
                       headers=_h(token))
-    assert kept.status_code == 200 and kept.json()["la_to_cat"] is True, kept.text
-
-    off = client.put(f"/api/departments/{cha['id']}",
-                     json={"name": "Tổ cắt giấy 2", "la_to_cat": False}, headers=_h(token))
-    assert off.json()["la_to_cat"] is False
-    on = client.put(f"/api/departments/{con['id']}",
-                    json={"name": "Ca cắt đêm", "la_to_cat": True}, headers=_h(token))
-    assert on.json()["la_to_cat"] is True
-
-    ds = {d["id"]: d for d in client.get("/api/departments", headers=_h(token)).json()}
-    assert ds[con["id"]]["la_to_cat"] is True and ds[cha["id"]]["la_to_cat"] is False
-    with SessionLocal() as db:
-        assert DepartmentRepository(db).dept_ids_to_cat() == {con["id"]}
+    assert tao.status_code in (200, 201), tao.text
+    assert "la_to_cat" not in tao.json()
+    ds = client.get("/api/departments", headers=_h(token)).json()
+    assert all("la_to_cat" not in d for d in ds)
 
 
 def test_rename_department(client):

@@ -326,30 +326,6 @@ describe("ThsxDrawer · công đoạn trước", () => {
   });
 });
 
-// Cổng "chờ tổ Cắt" (spec giấy theo khổ §4.7): bước mang giấy chưa được tổ Cắt chốt.
-describe("ThsxDrawer · chờ tổ Cắt chốt giấy", () => {
-  it("bày câu máy chủ trả, khoá Bắt đầu, che câu thiếu đầu vào", () => {
-    const base = chiTiet(true, true);
-    const cau = "Chờ tổ Cắt chốt giấy cho LSX26-0001 — tổ Cắt chèn bước cắt hoặc bấm \"Không cần cắt\" rồi mới bắt đầu được.";
-    const ct = {
-      ...base,
-      cong_viec: { ...base.cong_viec, khuon: null },
-      phan_cong: [{ id: 1, employee_id: 100, ho_ten: "Thợ 1", la_luong_khoan: true, trang_thai: "active" }],
-      thieu_dau_vao: ["Cắt tờ"],
-      cho_chot_giay: cau,
-    } as unknown as SxWorkItemChiTiet;
-    render(
-      <ThsxDrawer chiTiet={ct} loading={false} candidates={[]} hoTroUngVien={[]}
-        mayOptions={[]} exec={{} as ThsxExec} busy={false} onGiao={vi.fn()} onRut={vi.fn()}
-        onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
-        onKetThuc={vi.fn()} onClose={vi.fn()} />,
-    );
-    expect((screen.getByRole("button", { name: "Bắt đầu" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(document.body.textContent).toContain(cau);
-    expect(document.body.textContent).not.toContain("Chưa nhận hàng từ");
-  });
-});
-
 describe("ThsxDrawer · chân ngăn theo trạng thái", () => {
   function moTrangThai(trangThai: string) {
     const base = chiTiet(true, true);

@@ -2337,8 +2337,10 @@ class LsxService:
         """Ghi lại MỌI dòng giấy của lệnh theo ĐẦU VÀO của bước chứa nó. KHÔNG commit.
 
         Số/khổ/đơn vị/đơn vị gốc của dòng giấy là dẫn xuất — không ai gõ. Cửa duy nhất là cuối
-        `_ap_chuoi_nguoc`, nên chèn thêm bước rồi gọi chuỗi ngược là dòng giấy của bước ấy đúng ngay."""
-        self._chep_giay_sang_buoc_cat(lsx)
+        `_ap_chuoi_nguoc`, nên chèn thêm bước rồi gọi chuỗi ngược là dòng giấy của bước ấy đúng ngay.
+
+        Giấy nằm ở bước nào thì bước đó lấy (18/10/2026): KHÔNG còn tự chép giấy của In sang bước cắt
+        đứng trước."""
         qc = quy_cach_bien(lsx)
         for cd in lsx.cong_doans:
             for v in cd.vat_tus:
@@ -2354,35 +2356,6 @@ class LsxService:
                 v.kho_rong, v.kho_dai = d["kho_rong"], d["kho_dai"]
                 if d["don_vi"]:
                     v.don_vi_snapshot = d["don_vi"]
-
-    def _chep_giay_sang_buoc_cat(self, lsx: Lsx) -> None:
-        """Spec 2026-10-01 dong-giay-theo-dau-vao §3.2/§5: bước cắt của tổ Cắt (Trước In) đứng trước
-        bước In là bước LẤY giấy. Người lập lệnh chỉ chọn mã giấy ở In thì chép các MÃ giấy của In
-        sang bước cắt chưa có dòng giấy nào (số/khổ do `_dong_bo_dong_giay` dẫn xuất ngay sau) — giống
-        bước tổ Cắt tự thêm (`chot_giay._chen_truoc_lenh`). Không thì In vẫn là bước lấy giấy, cổng
-        chờ tổ Cắt khoá In mãi và tổ Cắt xin giấy bị hỏi lý do "khác kế hoạch"."""
-        from .san_xuat.chot_giay import la_buoc_truoc_in_to_cat
-
-        buoc = sorted(lsx.cong_doans, key=lambda c: (c.thu_tu or 0, c.id or 0))
-        if not any(v.hang_loai == HANG_GIAY for cd in buoc for v in cd.vat_tus):
-            return
-        cat: list = []
-        for cd in buoc:
-            giay = [v for v in cd.vat_tus if v.hang_loai == HANG_GIAY]
-            la_cat = la_buoc_truoc_in_to_cat(self.db, cd)
-            if la_cat:
-                if not giay:
-                    cat.append(cd)
-                continue
-            if giay:
-                for b in cat:
-                    for i, v in enumerate(giay):
-                        b.vat_tus.append(LsxCongDoanVatTu(
-                            hang_loai=HANG_GIAY, vat_tu_id=v.vat_tu_id,
-                            vat_tu_ma_snapshot=v.vat_tu_ma_snapshot,
-                            vat_tu_ten_snapshot=v.vat_tu_ten_snapshot,
-                            don_vi_snapshot=v.don_vi_snapshot, so_luong=0, thu_tu=i))
-                return
 
     def _may_cua_buoc(self, cd) -> MayThietBi | None:
         """Máy ĐANG GÁN của bước — nguồn SỐNG của tốc độ + thời gian chuẩn bị sau chốt 2026-08-04.

@@ -44,7 +44,7 @@ from ..quyen_to import (
 from ..gio_xuong import lich_hien_thi, thuc_te_hien_thi, ve_utc_that
 from ..kho_giay import DON_VI_TO_KHO, co_don_vi_goc, khoa_dong, nhan_kho
 from ..may_trang_thai import bao_hong_dang_mo
-from . import chot_giay, dau_vao, loc_ban_to, routing_dai, viec_khoan
+from . import dau_vao, loc_ban_to, routing_dai, viec_khoan
 from .nguoi_ghi import ung_vien_ghi
 from .nguoi_trong_me import nguoi_theo_me
 from .thuc_thi import _aware
@@ -109,8 +109,6 @@ def teams(db: Session, user: User, authz: AuthorizationService) -> list[dict]:
             "ten": d.name if d else q.cay.ten.get(did, ""),
             "ma": (d.code if d else None) or "",
             "cap": cap,
-            # Tổ Cắt: FE bày khối "Chờ chốt giấy" trên bàn tổ này (spec giấy theo khổ §4.6).
-            "la_to_cat": bool(getattr(d, "la_to_cat", False)),
             # "Tôi vào bàn này chỉ với phần CỦA TÔI" — tính sẵn, đừng để FE tự suy từ phạm vi.
             "la_tho": muc == MUC_CUA_TOI,
             "so_viec_cho": sum(badge.get(x, 0) for x in vung),
@@ -1521,8 +1519,6 @@ def chi_tiet_cong_viec(
             if (t := dau_vao.tran_ghi(db, cv, repo=sl)) else None
         ),
         "thieu_dau_vao": dau_vao.thieu_dau_vao(sl, cv),
-        # Cổng "chờ tổ Cắt" (§4.7) — cùng hàm `kiem_bat_dau` dùng để chặn.
-        "cho_chot_giay": chot_giay.ly_do_cho_chot(db, cv),
         "ban_giao_chang_sau": [
             {
                 "cong_viec_id": c.id,

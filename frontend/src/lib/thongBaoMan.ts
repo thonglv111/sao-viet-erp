@@ -49,8 +49,6 @@ const LOI_NHAC: Record<string, (ma: string | null) => string> = {
   don_cho_coc: (ma) => `🔔 Đơn hàng${ma ? " " + ma : ""} chờ ghi cọc`,
   lenh_cho_xep: (ma) => `🔔 Lệnh${ma ? " " + ma : ""} vừa vào hàng chờ xếp lịch`,
   viec_moi: () => "🔔 Tổ có việc mới",
-  cho_chot_giay: () => "🔔 Có lệnh mới chờ tổ Cắt chốt giấy",
-  viec_mo: () => "🔔 Tổ Cắt đã chốt giấy — việc của tổ đã mở",
   kho_yeu_cau_moi: (ma) => `🔔 Có yêu cầu kho mới${ma ? " " + ma : ""} chờ lập phiếu`,
   hoa_don_cho_thu: (ma) => `🔔 Hóa đơn${ma ? " " + ma : ""} chờ thu tiền`,
   coc_cho_thu: (ma) => `🔔 Đơn${ma ? " " + ma : ""} đã chốt, chờ thu cọc`,

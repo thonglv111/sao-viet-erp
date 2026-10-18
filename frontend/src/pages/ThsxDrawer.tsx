@@ -231,11 +231,9 @@ export function ThsxDrawer({
   const khuonChoNhan = !!cv?.khuon && !cv?.khuon_da_nhan;
   // Cổng routing (`dau_vao.kiem_bat_dau`): công đoạn trước chưa giao sang + mình chưa xác nhận nhận.
   const thieuDauVao = chiTiet?.thieu_dau_vao ?? [];
-  // Cổng "chờ tổ Cắt" (`chot_giay.ly_do_cho_chot`) — đứng trước cổng đầu vào.
-  const choChotGiay = chiTiet?.cho_chot_giay ?? null;
   const canBatDau =
     canAssign && !busy && (tt === "released" || tt === "paused") && coNguoi && !khuonChoNhan &&
-    thieuDauVao.length === 0 && !choChotGiay;
+    thieuDauVao.length === 0;
   const canTamDung = canAssign && !busy && tt === "running";
   const canKetThuc = canAssign && !busy && (tt === "running" || tt === "paused");
   // Kết thúc phải giao hết (10/10/2026, chủ xưởng: *"phải đề xuất giao hết thì mới kết thúc được"*):
@@ -306,7 +304,7 @@ export function ThsxDrawer({
   const cotPhai = cv && chiTiet && (
     <ThsxCotPhai chiTiet={chiTiet} candidates={candidates} ungVienHomNay={ungVienHomNay}
       onMoChonNguoi={onMoChonNguoi} busy={busy} canAssign={canAssign} chuaGiaoChoToi={chuaGiaoChoToi}
-      vuong={{ coNguoi, khuonChoNhan, choChotGiay, thieuDauVao }}
+      vuong={{ coNguoi, khuonChoNhan, thieuDauVao }}
       onGiao={onGiao} onRut={onRut} onNhanKhuon={onNhanKhuon} onTraKhuon={onTraKhuon} dinhKemDem={dinhKemDem} hep={hep} />
   );
 

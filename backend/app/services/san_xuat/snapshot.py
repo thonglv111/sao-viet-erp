@@ -444,7 +444,7 @@ def cong_viec_buoc_bai(
     tieu_chi_theo_cd: dict,
 ) -> list[SanXuatCongViec]:
     """Công việc (theo phân đoạn) của MỘT bước chạy chung của bài ghép. Phát hành gọi cho mọi bước
-    chung; tổ Cắt gọi cho bước cắt vừa chèn sau phát hành (`chot_giay`)."""
+    chung."""
     return _cong_viec_theo_phan_doan(
         repo, lich=repo.lich_bg_step(cd.id), cd=cd,
         tieu_chi_theo_cd=tieu_chi_theo_cd,

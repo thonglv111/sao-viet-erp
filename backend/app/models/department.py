@@ -86,8 +86,8 @@ class Department(Base):
     la_to_in: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
-    # TỔ CẮT (mg 0355, spec giấy theo khổ §4.6). Lệnh có giấy sau phát hành tới tổ này để chốt chèn
-    # bước cắt đầu tuyến hay không cắt. Đích danh — KHÔNG kế thừa cây con, như `la_to_in`.
+    # TỔ CẮT (mg 0355). KHÔNG CÒN DÙNG từ 18/10/2026: khâu tổ Cắt chốt giấy sau phát hành đã gỡ,
+    # giấy nằm ở bước nào thì bước đó lấy. Giữ cột để DB cũ khỏi phải DROP; không đọc, không ghi.
     la_to_cat: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )

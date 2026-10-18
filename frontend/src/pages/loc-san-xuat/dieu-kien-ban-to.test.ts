@@ -32,12 +32,12 @@ describe("thanh lọc bàn tổ", () => {
       ky: { loai: "thang", moc: "tao" },
       loc: {
         trangThai: ["running", "paused"], cho: ["ban_giao", "kcs"], toi: "con_2_3",
-        vuong: ["chua_giao_tho", "cho_chot_giay"], tre: "xong", nguoi: [12, 4],
+        vuong: ["chua_giao_tho", "chua_nhan_khuon"], tre: "xong", nguoi: [12, 4],
       },
       sapXep: "du_kien",
     };
     const url = locBanToLenUrl(t);
-    expect(url).toMatchObject({ cho: "ban_giao.kcs", toi: "con_2_3", vg: "chua_giao_tho.cho_chot_giay", tre: "xong", ng: "12.4" });
+    expect(url).toMatchObject({ cho: "ban_giao.kcs", toi: "con_2_3", vg: "chua_giao_tho.chua_nhan_khuon", tre: "xong", ng: "12.4" });
     expect(locBanToTuUrl(quaUrl(url))).toEqual(t);
     const rac = locBanToTuUrl(new URLSearchParams("tt=chay.running&sap=la&moc=x&cho=2&toi=xa&vg=la.chua_nhan_khuon&tre=som&ng=a.7"));
     expect(rac).toEqual({
