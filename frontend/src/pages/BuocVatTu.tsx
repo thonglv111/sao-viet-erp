@@ -105,6 +105,17 @@ export interface DinhMuc {
    *  bằng từ điển biến + chip của vật tư, cùng cách dòng tiền ở bảng giá vốn. Rỗng = không có. */
   dienGiai?: string;
   thaySo?: string;
+  /** Khổ giấy của dòng (18/10/2026): tờ in ⇒ khổ in, tờ nguyên ⇒ khổ nguyên, con/cái ⇒ khổ thành
+   *  phẩm; bước đầu vào "—" không có. Dạng "430 × 650 mm". */
+  kho?: string;
+}
+
+/** "430 × 650 mm" từ hai cạnh mm (cạnh ngắn trước); thiếu cạnh ⇒ rỗng. */
+export function nhanKhoGiay(a: unknown, b: unknown): string {
+  const x = Math.round(Number(a) || 0);
+  const y = Math.round(Number(b) || 0);
+  if (x <= 0 || y <= 0) return "";
+  return `${Math.min(x, y).toLocaleString("vi-VN")} × ${Math.max(x, y).toLocaleString("vi-VN")} mm`;
 }
 
 /** Số định mức kiểu Việt: lượng dưới 1 giữ 4 chữ số lẻ để không thành 0 (0,0012 kg), còn lại 2
@@ -224,7 +235,8 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, giayDm = [], onChang
     const loai = d.hang_loai === "giay" ? "Giấy" : "Vật tư";
     const ten = vt ? String(vt.ten) : `${loai} #${d.vat_tu_id} (đã ngừng dùng)`;
     const dv = vt?.don_vi_gia ? (tenDonVi(String(vt.don_vi_gia)) ?? "") : "";
-    return { d, i, khoa, ten, dv, chips: d.hang_loai === "giay" ? [] : chipsCua(vt) };
+    const kho = d.hang_loai === "giay" ? (dinhMuc?.get(khoa)?.kho ?? "") : "";
+    return { d, i, khoa, ten, dv, kho, chips: d.hang_loai === "giay" ? [] : chipsCua(vt) };
   });
   const sapXep = [...ds.filter((x) => x.chips.length > 0), ...ds.filter((x) => x.chips.length === 0)];
 
@@ -234,7 +246,7 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, giayDm = [], onChang
         <p className="tg-bvt__rong">Chưa có vật tư.</p>
       ) : (
         <ul className="tg-bvt__ds">
-          {sapXep.map(({ d, i, khoa, ten, dv, chips }) =>
+          {sapXep.map(({ d, i, khoa, ten, dv, kho, chips }) =>
             chips.length > 0 ? (
               <li className="tg-bvt__dong tg-bvt__dong--chip" key={d.uid}>
                 <span className="tg-bvt__ten" title={ten}>{ten}</span>
@@ -255,7 +267,11 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, giayDm = [], onChang
               </li>
             ) : (
               <li className="tg-bvt__dong" key={d.uid}>
-                <span className="tg-bvt__ten" title={ten}>{ten}</span>
+                <span className="tg-bvt__ten" title={kho ? `${ten}
+Khổ ${kho}` : ten}>
+                  {ten}
+                  {kho ? <span className="tg-bvt__kho">{kho}</span> : null}
+                </span>
                 {oLuong(khoa, dv, ten)}
                 {nutXoa(i, ten)}
               </li>

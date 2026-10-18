@@ -18649,3 +18649,50 @@ def _migrate_phieu_buoc_vat_tu_hang_loai(db: Session) -> None:
 
 
 MIGRATIONS.append(("0419_phieu_buoc_vat_tu_hang_loai", _migrate_phieu_buoc_vat_tu_hang_loai))
+
+
+def _migrate_giay_luon_co_to_kg(db: Session) -> None:
+    """0421 — Mã giấy LUÔN có nhóm tờ + nhóm kg (chốt 18/10/2026, spec
+    2026-10-18-luong-giay-theo-dau-vao-buoc): bước nhận tờ xin kho bằng tờ, bước ra kg xin kho bằng
+    kg. Mã cũ thiếu nhóm nào thì thêm đơn vị gốc của nhóm (`to` / `kg`) vào `don_vi_them`; nhóm đã có
+    qua đơn vị khác (ram ∈ tờ, tấn ∈ kg) thì thôi — cùng luật `VatLieuKhoService._bu_to_kg_giay`.
+    Danh mục Đơn vị chưa có mã đó (DB trắng) thì bỏ qua. Raw SQL đích danh cột; idempotent."""
+    import json
+
+    from .repositories.don_vi_do_repo import DonViDoRepository
+    from .services.kho_giay import GIAY_DON_VI_BAT_BUOC, GocMatHang, don_vi_khai
+    from .services.quy_doi_service import don_vi_map
+
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if not {"giay_nguyen", "don_vi_do", "don_vi_quy_doi"} <= bang:
+        return
+    if "don_vi_them" not in _existing_columns(insp, "giay_nguyen"):
+        return
+    dvs = [{"ma": m, "ten": t} for m, t in db.execute(text("SELECT ma, ten FROM don_vi_do")).all()]
+    co = {(d["ma"] or "").strip().lower() for d in dvs}
+    gm = GocMatHang(don_vi_map(dvs), DonViDoRepository(db).cap_rows())
+
+    class _K:
+        def __init__(self, a, b) -> None:
+            self.don_vi_gia, self.don_vi_them = a, b
+
+    for gid, dvg, them in db.execute(text("SELECT id, don_vi_gia, don_vi_them FROM giay_nguyen")).all():
+        if isinstance(them, str):
+            try:
+                them = json.loads(them)
+            except ValueError:
+                them = []
+        khai = don_vi_khai(_K(dvg, them or []))
+        ra = list(khai)
+        for bat_buoc in GIAY_DON_VI_BAT_BUOC:
+            if bat_buoc in co and not any(gm.cung_nhom(u, bat_buoc) for u in ra):
+                ra.append(bat_buoc)
+        if ra == khai:
+            continue
+        db.execute(text("UPDATE giay_nguyen SET don_vi_gia = :g, don_vi_them = :t WHERE id = :i"),
+                   {"g": ra[0], "t": json.dumps(ra[1:]), "i": int(gid)})
+    db.commit()
+
+
+MIGRATIONS.append(("0421_giay_luon_co_to_kg", _migrate_giay_luon_co_to_kg))

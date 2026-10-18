@@ -419,6 +419,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             value={Array.isArray(form[f.key]) ? (form[f.key] as string[]) : []}
             chinh={String(form[f.donViChinh ?? "don_vi_gia"] ?? "")}
             donVi={optsRef(f)}
+            batBuoc={f.donViBatBuoc}
             onChange={(v) => set(f.key, v)}
           />
         ) : f.type === "ref-multi" ? (

@@ -5,7 +5,7 @@
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
 import BuocVatTu, {
-  chipsCua, khoaVatTu, soOChipTrong, type BuocVatTuDong, type DinhMuc,
+  chipsCua, khoaVatTu, nhanKhoGiay, soOChipTrong, type BuocVatTuDong, type DinhMuc,
 } from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
@@ -498,6 +498,7 @@ function dinhMucTheoBuoc(
       lyDo: r.dinh_muc_ly_do == null ? null : _chuoi(r.dinh_muc_ly_do),
       dienGiai: dienGiaiFormula(goc, traVt),
       thaySo: theSo ? humanizeFormula(theSo, traVt) : "",
+      kho: r.loai === "giay" ? nhanKhoGiay(r.kho_rong, r.kho_dai) : "",
     });
   }
   return out;

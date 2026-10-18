@@ -91,26 +91,39 @@ def test_vang_don_vi_them_khong_dung_rong_la_xoa(client):
 def test_chan_bo_don_vi_con_ton(client):
     h = _admin(client)
     _don_vi()
-    r = client.post(GIAY, json={"ma": "ZZIV", "ten": "Ivory ZZ", "gsm": 300, "don_vi_gia": "kg",
-                                "don_vi_them": ["to"]}, headers=h)
-    assert r.status_code in (200, 201), r.text
-    g = r.json()
+    vt = _tao_vt(client, h, ma="ZZTON", don_vi_them=["thung"])
     kho_id = _mk_kho(client, h)
     db = SessionLocal()
     try:
-        db.add(StockLot(ma_lo="ZZL1", kho_id=kho_id, ngay_nhap=date.today(), hang_loai="giay", hang_id=g["id"], don_vi_goc="to", kho_rong=720, kho_dai=1020,
-                        sl_ban_dau=3070, sl_con_lai=3070))
+        db.add(StockLot(ma_lo="ZZL1", kho_id=kho_id, ngay_nhap=date.today(), hang_loai="vat_tu",
+                        hang_id=vt["id"], don_vi_goc="thung", sl_ban_dau=3070, sl_con_lai=3070))
         db.commit()
     finally:
         db.close()
-    body = {"ma": g["ma"], "ten": g["ten"], "gsm": 300, "don_vi_gia": "kg", "don_vi_them": []}
-    r = client.put(f"{GIAY}/{g['id']}", json=body, headers=h)
+    r = _sua(client, h, VT, vt, don_vi_them=[])
     assert r.status_code == 422, r.text
-    assert "Chưa bỏ được đơn vị “tờ”: còn 3.070 tờ tồn kho." in r.text, r.text
+    assert "Chưa bỏ được đơn vị “thùng”: còn 3.070 thùng tồn kho." in r.text, r.text
     # Đổi ĐVT chính khỏi kg cũng là bỏ kg — kg không có tồn nên được.
-    body = {"ma": g["ma"], "ten": g["ten"], "gsm": 300, "don_vi_gia": "thung", "don_vi_them": ["to"]}
-    r = client.put(f"{GIAY}/{g['id']}", json=body, headers=h)
+    r = _sua(client, h, VT, {**vt, "don_vi_gia": "thung"}, don_vi_them=[])
     assert r.status_code == 200, r.text
+
+
+def test_giay_luon_co_to_va_kg(client):
+    """18/10/2026: mã giấy luôn có nhóm tờ + nhóm kg — thiếu thì máy chủ tự thêm, bỏ đi cũng mọc lại;
+    nhóm đã có qua đơn vị khác (ram ∈ tờ, tấn ∈ kg) thì không thêm trùng nhóm."""
+    h = _admin(client)
+    _don_vi()
+    r = client.post(GIAY, json={"ma": "ZZIV", "ten": "Ivory ZZ", "gsm": 300, "don_vi_gia": "kg"},
+                    headers=h)
+    assert r.status_code in (200, 201), r.text
+    g = r.json()
+    assert g["don_vi_them"] == ["to"]
+    r = client.put(f"{GIAY}/{g['id']}", json={"ma": g["ma"], "ten": g["ten"], "gsm": 300,
+                                              "don_vi_gia": "kg", "don_vi_them": []}, headers=h)
+    assert r.status_code == 200 and r.json()["don_vi_them"] == ["to"], r.text
+    r = client.post(GIAY, json={"ma": "ZZRAM", "ten": "Couche ram", "gsm": 150, "don_vi_gia": "ram",
+                                "don_vi_them": ["tan"]}, headers=h)
+    assert r.status_code in (200, 201) and r.json()["don_vi_them"] == ["tan"], r.text
 
 
 def test_chua_co_dvt_chinh_khong_khai_them(client):

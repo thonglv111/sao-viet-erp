@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import BuocVatTu, { nhanNgan, soOChipTrong } from "./BuocVatTu";
+import BuocVatTu, { nhanKhoGiay, nhanNgan, soOChipTrong } from "./BuocVatTu";
 
 vi.mock("./tenDonVi", () => ({
   useNapTenDonVi: () => 1,
@@ -158,6 +158,24 @@ describe("BuocVatTu — giấy là vật tư của bước", () => {
     expect(container.querySelector(".tg-bvt__ten")?.textContent).toBe("Couche 150");
     expect(container.querySelector(".tg-bvt__luoi")).toBeNull();
     expect(container.querySelector(".tg-bvt__luong-so")?.textContent).toBe("2.600");
+  });
+
+  it("dòng giấy hiện khổ engine trả ngay sau tên; không có khổ (bước đầu vào —) thì thôi", () => {
+    const dinhMuc = new Map([["giay:1", { so: 2_600, donVi: "to", lyDo: null, kho: nhanKhoGiay(650, 430) }]]);
+    const { container, rerender } = render(<BuocVatTu {...props({ giayDm: GIAY as never, dinhMuc, dong: [
+      { uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    expect(container.querySelector(".tg-bvt__kho")?.textContent).toBe("430 × 650 mm");
+    const khongKho = new Map([["giay:1", { so: 21.2, donVi: "kg", lyDo: null, kho: "" }]]);
+    rerender(<BuocVatTu {...props({ giayDm: GIAY as never, dinhMuc: khongKho, dong: [
+      { uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
+    expect(container.querySelector(".tg-bvt__kho")).toBeNull();
+  });
+});
+
+describe("nhanKhoGiay", () => {
+  it("cạnh ngắn trước, thiếu cạnh thì rỗng", () => {
+    expect(nhanKhoGiay(1090, 790)).toBe("790 × 1.090 mm");
+    expect(nhanKhoGiay(790, 0)).toBe("");
   });
 });
 

@@ -790,56 +790,72 @@ def _step_cost_safe(cd: dict, ctx: dict, warnings: list[str], ten: str) -> tuple
 
 
 def _dong_giay_buoc(vt: dict, *, buoc_idx: int, ten_buoc: str, ten_tp: str, sl: int,
-                    tram_vao: str | None, vao: float, xa: int, ctx_vars: dict,
-                    warnings: list[str]) -> dict:
-    """Dòng tiền của MỘT dòng giấy ở bước (18/10/2026). Lượng giấy suy từ ĐẦU VÀO của chính bước:
-    nhận tờ in ⇒ tờ nguyên = tờ vào ÷ số mảnh xả; nhận tờ nguyên ⇒ số tờ vào. Đầu vào khác (con,
-    cái…) không phải giấy nguyên liệu ⇒ 0đ kèm lý do, không bịa số. Tiền chạy CÔNG THỨC GIÁ của chính
-    mã giấy với định lượng + đơn giá của mã đó, nên hai loại giấy ở hai bước tính độc lập."""
+                    tram_vao: str | None, vao: float, sl_ra: float, tram_ra: str | None, xa: int,
+                    kho_mm: dict, ctx_vars: dict, warnings: list[str]) -> dict:
+    """Dòng tiền của MỘT dòng giấy ở bước (18/10/2026, spec 2026-10-18-luong-giay-theo-dau-vao-buoc).
+
+    LƯỢNG theo đầu vào của chính bước — cùng hàm với lệnh (`kho_giay.dong_giay_theo_dau_vao`): nhận tờ
+    in / tờ nguyên ⇒ SL vào, đếm tờ; nhận con/cái/tay ⇒ kg theo khổ của thứ đó × SL vào; đầu vào "—"
+    ⇒ kg theo khổ tờ ra × SL ra (`sl_ra` = SL vào của bước kế tiếp, bên gọi tìm). TIỀN chạy CÔNG THỨC
+    GIÁ của chính mã giấy như cũ; ở bước ra kg, `to_nguyen`/`dai_nguyen`/`rong_nguyen` nhận số và khổ
+    của chính bước để công thức kg ra đúng kg × đơn giá."""
+    from .kho_giay import dong_giay_theo_dau_vao
+
     ten = vt.get("ten") or "Giấy"
-    if tram_vao == TRAM_TO:
-        to_in = ceil(vao)
-        to_ng = ceil(to_in / xa) if to_in > 0 else 0
-    elif tram_vao == TRAM_TO_NGUYEN:
-        to_ng = ceil(vao)
-        to_in = to_ng * xa
-    else:
-        to_in = to_ng = None
+    gsm = _f(vt.get("gsm"))
+    # Đếm nguyên chiếc như mọi chỗ khác của phiếu (bù hao ngược ra số lẻ).
+    vao, sl_ra = float(ceil(vao)), float(ceil(sl_ra))
+    d = dong_giay_theo_dau_vao(don_vi_vao=tram_vao, so_luong_vao=vao, so_luong_ra=sl_ra,
+                               quy_cach=kho_mm, gsm=gsm or None, tram_ra=tram_ra)
+    la_to = tram_vao in (TRAM_TO, TRAM_TO_NGUYEN)
     don_gia = _f(vt.get("don_gia"))
     don_vi = vt.get("don_vi_gia") or "to"
     he_so = vt.get("he_so")
     goc = vt.get("goc") or ("kg" if don_vi in ("kg", "tan") else "to")
-    la_can = goc == "kg"
     formula = (vt.get("cong_thuc_gia") or "").strip() or (
-        "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen" if la_can
+        "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen" if goc == "kg"
         else "don_gia_giay * to_nguyen")
-    ct_luong = "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen" if la_can else "to_nguyen"
-    ctx = {**ctx_vars, "dinh_luong": _f(vt.get("gsm")) / 1000.0,
+    ctx = {**ctx_vars, "dinh_luong": gsm / 1000.0, "sl_vao": ceil(vao), "sl_ra": ceil(sl_ra),
            "don_gia_giay": don_gia * float(he_so) if he_so is not None else _don_gia_co_so(don_gia, don_vi)}
-    luong: float | None = None
-    the_so = ""
-    if to_ng is None:
-        ly_do = "đầu vào của bước không phải tờ giấy nên không tính được lượng giấy"
-        warnings.append(f"Thành phần '{ten_tp}': giấy '{ten}' ở công đoạn '{ten_buoc}' — {ly_do}, tính 0đ.")
-        tien, dan = 0.0, f"{ly_do} — 0đ"
+    ly_do: str | None = None
+    if la_to:
+        to_ng = ceil(vao) if tram_vao == TRAM_TO_NGUYEN else (ceil(ceil(vao) / xa) if vao > 0 else 0)
+        ctx.update(to_nguyen=to_ng, to_dau_vao=ceil(vao) if tram_vao == TRAM_TO else to_ng * xa)
+        ct_luong = "sl_vao"
+        luong = float(ceil(vao)) if vao > 0 else None
+        if luong is None:
+            ly_do = "bước này chưa có tờ giấy nào (số lượng sản phẩm = 0?)"
     else:
-        ly_do = None
-        ctx.update(to_nguyen=to_ng, to_dau_vao=to_in)
-        try:
-            tien = safe_eval(formula, ctx)
-            dan = _ct(format_substituted_formula(formula, ctx), tien, sl)
-        except Exception as e:  # noqa: BLE001 — công thức người khai, lỗi gì cũng chỉ báo
-            warnings.append(f"Thành phần '{ten_tp}': lỗi công thức giấy '{ten}' ({e}) — tính 0đ.")
-            tien, dan = 0.0, "lỗi công thức — 0đ"
-        try:
-            luong = float(safe_eval(ct_luong, ctx))
-            the_so = format_substituted_formula(ct_luong, ctx)
-        except Exception as e:  # noqa: BLE001
-            luong, ly_do = None, f"công thức lượng giấy lỗi ({e})"
+        # Bước ra kg: khổ đã dùng tính kg + số của bước thế vào ba biến tờ nguyên của công thức giá.
+        # Thiếu khổ thì giữ khổ của phiếu — công thức giá theo tờ vẫn ra tiền, chỉ lượng kg để trống.
+        kr, kd = d["kho_tinh"]
+        so = ceil(sl_ra) if tram_vao not in (TRAM_CON, TRAM_CAI, TRAM_TAY) else ceil(vao)
+        to_ng = so
+        ctx["to_nguyen"] = so
+        if kr and kd:
+            ctx.update(dai_nguyen=kd / 1000.0, rong_nguyen=kr / 1000.0)
+        if tram_vao in (TRAM_CON, TRAM_CAI):
+            ct_luong = "dinh_luong * dai_tp * rong_tp * sl_vao"
+        elif tram_vao == TRAM_TAY:
+            ct_luong = "dinh_luong * dai_in * rong_in * sl_vao"
+        elif tram_ra == TRAM_TO and kho_mm.get("kho_in_dai") and kho_mm.get("kho_in_rong"):
+            ct_luong = "dinh_luong * dai_in * rong_in * sl_ra"
+        else:
+            ct_luong = "dinh_luong * dai_nguyen * rong_nguyen * sl_ra"
+        luong = d["so_luong"]
         if luong is not None and luong <= 0:
-            # Nói đúng chỗ hụt: chưa có tờ (thường do số lượng 0) khác hẳn thiếu khổ/định lượng.
-            luong, ly_do = None, ("bước này chưa có tờ giấy nào (số lượng sản phẩm = 0?)" if to_ng <= 0
-                                  else "lượng giấy ra 0 (thiếu khổ giấy nguyên hoặc định lượng?)")
+            luong, d["ly_do"] = None, "bước này chưa có số lượng (số lượng sản phẩm = 0?)"
+        ly_do = None if luong is not None else (d["ly_do"] or "chưa tính được lượng giấy")
+    if ly_do:
+        warnings.append(f"Thành phần '{ten_tp}': giấy '{ten}' ở công đoạn '{ten_buoc}' — "
+                        f"chưa tính được lượng giấy: {ly_do}.")
+    try:
+        tien = safe_eval(formula, ctx)
+        dan = _ct(format_substituted_formula(formula, ctx), tien, sl)
+    except Exception as e:  # noqa: BLE001 — công thức người khai, lỗi gì cũng chỉ báo
+        warnings.append(f"Thành phần '{ten_tp}': lỗi công thức giấy '{ten}' ({e}) — tính 0đ.")
+        tien, dan = 0.0, "lỗi công thức — 0đ"
+    don_vi_luong = "to" if la_to else "kg"
     return {
         "loai": "giay",
         "hang_loai": "giay",
@@ -851,14 +867,18 @@ def _dong_giay_buoc(vt: dict, *, buoc_idx: int, ten_buoc: str, ten_tp: str, sl: 
         "gia_don_sp": _r(tien / sl) if sl > 0 else 0.0,
         "cong_thuc": dan,
         "luong": round(luong, 4) if luong is not None else None,
-        "luong_don_vi": goc if luong is not None else None,
+        "luong_don_vi": don_vi_luong if luong is not None else None,
         "vat_tu_id": vt.get("vat_tu_id"),
         "buoc_idx": buoc_idx,
         "dinh_muc": round(luong, 4) if luong is not None else None,
-        "dinh_muc_don_vi": goc,
+        "dinh_muc_don_vi": don_vi_luong,
         "dinh_muc_ly_do": ly_do,
         "dinh_muc_cong_thuc_goc": ct_luong,
-        "dinh_muc_cong_thuc": the_so,
+        "dinh_muc_cong_thuc": format_substituted_formula(ct_luong, ctx) if luong is not None else "",
+        # Khổ cạnh tên giấy: tờ in ⇒ khổ in, tờ nguyên ⇒ khổ nguyên, con/cái ⇒ khổ thành phẩm;
+        # bước đầu vào "—" KHÔNG hiện khổ (chốt 18/10/2026).
+        "kho_rong": d["kho_rong"] if d["hien_kho"] else 0,
+        "kho_dai": d["kho_dai"] if d["hien_kho"] else 0,
     }
 
 
@@ -1203,6 +1223,9 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     # 03/10/2026: công thức giá dùng ĐỦ bộ chip của công thức định mức, kể cả số của CHÍNH bước
     # (`sl_vao`/`sl_ra`/`so_luot_chay`/`so_mat`) — vật tư nay đứng ở bước nên có số đó, bơm y như
     # vòng công đoạn dưới đây. Kết quả công thức LÀ tiền — máy không tự nhân thêm gì.
+    # Khổ (mm) cho lượng giấy theo bước — cùng khoá `quy_cach` của lệnh để một hàm phục vụ cả hai.
+    _kho_mm = {"kho_nguyen_dai": kho_ng_d, "kho_nguyen_rong": kho_ng_r, "kho_in_dai": kho_in_d,
+               "kho_in_rong": kho_in_r, "dai_thanh_pham": dai_tp, "rong_thanh_pham": rong_tp}
     for idx_vt, r_buoc in enumerate(chain):
         _b_vt = buoc.get(idx_vt)
         _cd_vt = r_buoc.get("cong_doan") or {}
@@ -1219,13 +1242,19 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         }
         for vt in (r_buoc.get("vat_tus") or []):
             if vt.get("hang_loai") == "giay":
+                if _b_vt:
+                    _g_vao, _g_ra, _g_tv, _g_tr = _b_vt["vao"], _b_vt["ra"], _b_vt["tram_vao"], _b_vt["tram_ra"]
+                else:
+                    # Bước đầu vào "—" (vd cắt từ cuộn): SL ra theo chuỗi bù hao ngược = SL vào của
+                    # bước KẾ TIẾP trên dòng giấy; không có thì tờ nguyên của cả chuỗi.
+                    _sau = next((buoc[j] for j in idx_giay if j > idx_vt), None)
+                    _g_vao, _g_tv = 0.0, None
+                    _g_ra, _g_tr = ((_sau["vao"], _sau["tram_vao"]) if _sau
+                                    else (float(to_nguyen), TRAM_TO_NGUYEN))
                 rows["nvl"].append(_dong_giay_buoc(
                     vt, buoc_idx=idx_vt, ten_buoc=_ten_buoc(r_buoc), ten_tp=name, sl=sl,
-                    # Bước NGOÀI dòng giấy (chưa khai đơn vị vào/ra) lấy tờ vào máy của cả chuỗi —
-                    # cùng luật `sl_vao` của vật tư khác ngay dưới; engine đã kêu bước đó ở trên.
-                    tram_vao=_tram(_cd_vt, "vao") if _b_vt else TRAM_TO,
-                    vao=_b_vt["vao"] if _b_vt else to_dau_vao, xa=xa, ctx_vars=ctx_vars,
-                    warnings=warnings))
+                    tram_vao=_g_tv, vao=_g_vao, sl_ra=_g_ra, tram_ra=_g_tr, xa=xa,
+                    kho_mm=_kho_mm, ctx_vars=ctx_vars, warnings=warnings))
                 continue
             vt_ten = vt.get("ten") or "Vật tư"
             vt_formula = vt.get("cong_thuc_gia")

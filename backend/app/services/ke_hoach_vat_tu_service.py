@@ -1098,7 +1098,7 @@ class KeHoachVatTuService:
             neo = neo or (buoc[0] if buoc else None)
             # Bước đầu nhận tờ (mã chặng tờ) ⇒ dòng đếm "tờ"; nhận giấy khổ rộng ⇒ dòng kg (đơn vị
             # gốc suy sau khi nạp danh mục — kg thường thuộc họ đơn vị giá của mã, xem `_nap_mat_hang`).
-            # `dong_giay_theo_dau_vao` chỉ trả "kg" ở nhánh giấy khổ rộng; mọi nhánh khác là tờ.
+            # `dong_giay_theo_dau_vao` trả "kg" khi bước nhận con/cái/tay hoặc đầu vào ngoài 5 chặng.
             to = (gy.get("don_vi") or "").strip().lower() != "kg"
             if not to and gy.get("so_luong") is None:
                 # Giấy khổ rộng thiếu gsm / khổ: KHÔNG lấy số tờ dán nhãn kg — dòng cảnh báo, nhu cầu 0.
