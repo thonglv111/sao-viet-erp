@@ -69,3 +69,121 @@ def test_mg_0418_khong_buoc_in_thi_vao_buoc_dau_khong_buoc_thi_bo_qua():
     assert _dong(db, 102) == []                   # thành phần không có giấy
     # Thành phần 11 không bước nào ⇒ không có chỗ đặt, giữ nguyên giay_id.
     assert db.execute(text("SELECT giay_id FROM phieu_thanh_phan WHERE id = 11")).scalar() == 6
+
+
+# ============================ Lưu phiếu: máy chủ chốt giấy chính ============================
+import pytest  # noqa: E402
+
+from app.db import SessionLocal  # noqa: E402
+from app.models.cong_doan import CongDoan  # noqa: E402
+from app.models.vat_lieu_kho import GiayNguyen, VatTuInAn  # noqa: E402
+
+
+@pytest.fixture
+def h(client, seed_credentials) -> dict[str, str]:
+    r = client.post("/api/auth/login", json=seed_credentials)
+    assert r.status_code == 200
+    return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+
+def _seed() -> dict[str, int]:
+    """Hai giấy + In + Cán + một vật tư CÙNG id với giấy A (để soi lẫn khoá)."""
+    db = SessionLocal()
+    try:
+        a = GiayNguyen(don_vi_them=["kg"], ma="G-A", ten="Ivory 300", gsm=300,
+                       don_vi_gia="kg", don_gia=20000)
+        b = GiayNguyen(don_vi_them=["kg"], ma="G-B", ten="Carton 500", gsm=500,
+                       don_vi_gia="kg", don_gia=10000)
+        cd_in = CongDoan(ma="CD-IN", ten="In offset", nhom="print", kieu_bu_hao="khong",
+                         don_vi_vao="to", don_vi_ra="to")
+        cd_can = CongDoan(ma="CD-CAN", ten="Cán màng", nhom="finishing", kieu_bu_hao="khong",
+                          don_vi_vao="to", don_vi_ra="to")
+        db.add_all([a, b, cd_in, cd_can])
+        db.flush()
+        vt = VatTuInAn(id=a.id, ma="VT-X", ten="Keo X", don_vi_gia="kg", don_gia=1,
+                       cong_thuc_gia="don_gia_vat_tu * 1")
+        db.add(vt)
+        db.flush()
+        ids = {"a": a.id, "b": b.id, "in": cd_in.id, "can": cd_can.id, "vt": vt.id}
+        db.commit()
+        return ids
+    finally:
+        db.close()
+
+
+def _tp(ids, *, giay_id=None, vt_in=(), vt_can=()) -> dict:
+    tp = {"ten": "Tờ rơi", "so_luong": 1000, "dai_thanh_pham": 210, "rong_thanh_pham": 297,
+          "kho_nguyen_dai": 1090, "kho_nguyen_rong": 790, "kho_in_dai": 545, "kho_in_rong": 790,
+          "muc_a": ["C", "M", "Y", "K"],
+          "thanh_phams": [
+              {"ten": "In", "cong_doan_id": ids["in"], "vat_tus": list(vt_in)},
+              {"ten": "Cán", "cong_doan_id": ids["can"], "vat_tus": list(vt_can)},
+          ]}
+    if giay_id is not None:
+        tp["giay_id"] = giay_id
+    return tp
+
+
+def _giay(gid) -> dict:
+    return {"hang_loai": "giay", "vat_tu_id": gid}
+
+
+def _luu(client, h, tp) -> dict:
+    r = client.post("/api/phieu-tinh-gia", json={"so_luong": 1000, "thanh_phans": [tp]}, headers=h)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def _dong_buoc(tp_out) -> list[list[tuple]]:
+    return [[(v["hang_loai"], v["vat_tu_id"]) for v in b["vat_tus"]] for b in tp_out["thanh_phams"]]
+
+
+def test_payload_cu_giay_id_thanh_dong_giay_o_buoc_in(client, h):
+    ids = _seed()
+    out = _luu(client, h, _tp(ids, giay_id=ids["a"]))["thanh_phans"][0]
+    assert _dong_buoc(out) == [[("giay", ids["a"])], []]
+    assert out["giay_id"] == ids["a"]
+
+
+def test_giay_chi_o_buoc_can_la_giay_chinh(client, h):
+    ids = _seed()
+    out = _luu(client, h, _tp(ids, vt_can=[_giay(ids["b"])]))["thanh_phans"][0]
+    assert out["giay_id"] == ids["b"]
+
+
+def test_giay_o_buoc_in_thang_giay_buoc_sau(client, h):
+    ids = _seed()
+    out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])], vt_can=[_giay(ids["b"])]))["thanh_phans"][0]
+    assert out["giay_id"] == ids["a"]
+    assert _dong_buoc(out) == [[("giay", ids["a"])], [("giay", ids["b"])]]
+
+
+def test_xoa_dong_giay_thi_giay_chinh_ve_null(client, h):
+    ids = _seed()
+    p = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])]))
+    r = client.put(f"/api/phieu-tinh-gia/{p['id']}",
+                   json={"thanh_phans": [_tp(ids)]}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["thanh_phans"][0]["giay_id"] is None
+
+
+def test_giay_va_vat_tu_trung_id_khong_lan(client, h):
+    ids = _seed()
+    assert ids["vt"] == ids["a"]
+    out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"]), {"vat_tu_id": ids["vt"]}]))
+    assert _dong_buoc(out["thanh_phans"][0])[0] == [("giay", ids["a"]), ("vat_tu", ids["vt"])]
+
+
+def test_cau_hinh_tai_ban_cu_chuyen_giay_vao_buoc_in():
+    """Cấu hình tái bản chụp trước 18/10 (JSON trên mã thành phẩm) — `giay_id` không kèm dòng giấy."""
+    from app.services.ptg_giay_buoc import chuan_hoa_giay
+
+    nhom = {1: "finishing", 2: "print"}.get
+    cfg = {"giay_id": 9, "thanh_phams": [{"cong_doan_id": 1, "vat_tus": []},
+                                         {"cong_doan_id": 2, "vat_tus": [{"vat_tu_id": 4}]}]}
+    out = chuan_hoa_giay(cfg, nhom)
+    assert out["thanh_phams"][1]["vat_tus"][-1]["hang_loai"] == "giay"
+    assert out["thanh_phams"][1]["vat_tus"][-1]["vat_tu_id"] == 9
+    assert out["giay_id"] == 9
+    # Chuỗi rỗng: không có chỗ đặt, giữ nguyên giấy cấp sản phẩm.
+    assert chuan_hoa_giay({"giay_id": 9, "thanh_phams": []}, nhom)["giay_id"] == 9

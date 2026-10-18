@@ -390,7 +390,8 @@ def danh_muc_doi_sau_khi_tinh(db: Session, phieu) -> dict | None:
                     ten_luu_cd[cid] = str(f.ten)
             for vt in f.vat_tus:
                 if vt.vat_tu_id:
-                    vt_ids.add(int(vt.vat_tu_id))
+                    # Khoá CẶP: dòng giấy của bước trỏ `giay_nguyen`, không phải `vat_tu_in_an`.
+                    (giay_ids if vt.hang_loai == "giay" else vt_ids).add(int(vt.vat_tu_id))
 
     # Bậc bù hao NAY nằm trên chính công đoạn (22/09/2026) nên đã được soi cùng dòng Công đoạn
     # ngay dưới — sửa bậc là `cong_doan.updated_at` nhảy. Trước đây bù hao là danh mục riêng, công
