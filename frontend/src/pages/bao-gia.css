@@ -1178,8 +1178,16 @@ select.input {
 
 .qpdf .q-date-line { text-align: right; font-style: italic; font-size: var(--q-fs-small); margin: var(--q-sp-3) 0 0; }
 
-/* Kính gửi: đúng thể thức thư mời — tên khách in đậm, địa chỉ lấy từ ĐC giao hàng Sale đã chọn. */
-.qpdf .q-salut { margin: var(--q-sp-3) 0 0; font-size: var(--q-fs-body); line-height: 1.6; }
+/* Kính gửi: đúng thể thức thư mời — tên khách in đậm, địa chỉ lấy từ ĐC giao hàng Sale đã chọn.
+   Lưới 4 cột nhãn|giá trị|nhãn|giá trị: cột nhãn co theo chữ dài nhất nên dấu hai chấm thẳng hàng;
+   tên + địa chỉ trải từ cột 2 tới hết, MST + người liên hệ tự chảy vào chung một dòng. */
+.qpdf .q-salut {
+  margin: var(--q-sp-3) 0 0; font-size: var(--q-fs-body); line-height: 1.6;
+  display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
+  column-gap: 8px;
+}
+.qpdf .q-salut > :nth-child(odd) { white-space: nowrap; } /* ô lẻ luôn là nhãn */
+.qpdf .q-salut-full { grid-column: 2 / -1; }
 .qpdf .q-salut-lbl { font-weight: 700; }
 
 .qpdf .q-th { text-align: center; margin: var(--q-sp-4) 0 0; }
@@ -1229,6 +1237,9 @@ select.input {
 .qpdf table.q-tbl tbody tr.q-muc-tiep > td { border-top-style: dashed; }
 
 .qpdf table.q-tbl td.c { text-align: center; }
+/* ĐVT là MỘT chữ ("cuốn", "quyển", "hộp") — cấm bẻ giữa chữ (rule chung `overflow-wrap: anywhere`
+   từng xẻ "cuốn" thành "cuố/n"). ĐVT nhiều chữ vẫn xuống dòng ở dấu cách. */
+.qpdf table.q-tbl td.q-dvt { overflow-wrap: normal; word-break: keep-all; padding-left: var(--q-sp-1); padding-right: var(--q-sp-1); }
 .qpdf table.q-tbl td.q-empty { font-style: italic; padding: var(--q-sp-4) var(--q-sp-2); }
 .qpdf table.q-tbl td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .qpdf table.q-tbl .q-prod { font-weight: 700; }
@@ -1281,6 +1292,14 @@ select.input {
   body:has(.qpdf) .shell > *:not(.shell__main),
   body:has(.qpdf) .shell__main > *:not(.shell__content) { display: none !important; }
   body:has(.qpdf) .shell__content { padding: 0 !important; overflow: visible !important; }
+  /* Vỏ app khoá cao 100% khung nhìn (html/body/#root/.shell) + `.shell__main` flex + overflow
+     hidden. Để nguyên thì lúc in tờ báo giá dài hơn khung thành NỘI DUNG TRÀN, Chrome không
+     đẩy dòng sang trang sau mà CẮT NGANG dòng chữ ở mép trang (dòng điều khoản bị xẻ đôi,
+     15/10/2026). Nhả hết chiều cao/flex/overflow cho tờ chảy như văn bản thường. */
+  html:has(.qpdf), body:has(.qpdf), body:has(.qpdf) #root,
+  body:has(.qpdf) .shell, body:has(.qpdf) .shell__main, body:has(.qpdf) .shell__content {
+    display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important;
+  }
   /* Màn Báo giá từng mang class `.bg`; sau redesign thành `.rdx-quote.bgv` nên rule cũ neo vào
      `.bg` trượt sạch → nội dung trang nền vẫn in ra trước bản báo giá ("in cả trang").
      Neo theo QUAN HỆ với bản in, KHÔNG theo tên màn/độ sâu: giữ đúng tổ tiên của `.qpdf` +
@@ -1929,6 +1948,13 @@ select.input {
 .rdx-quote .qgrouphd__sub {
   margin-left: 8px; font-size: 11px; color: var(--rust);
 }
+/* Bảng dòng báo giá: có chiết khấu là 7 cột — tiêu đề cột số được xuống dòng, ô số bớt đệm cho vừa
+   khung; khung quá hẹp thì cuộn ngang thay vì cắt mất cột cuối. */
+.rdx-quote .bg-dong-cuon { overflow-x: auto; overscroll-behavior-x: contain; }
+.rdx-quote table.bg-dong thead th.num { white-space: normal; padding-left: 10px; padding-right: 10px; }
+.rdx-quote table.bg-dong tbody td.num { padding-left: 10px; padding-right: 10px; }
+.rdx-quote table.bg-dong tr.qgrouphd > td.num { white-space: nowrap; }
+.rdx-quote table.bg-dong .qgrouphd__sub { flex-wrap: wrap; }
 .rdx-quote tr.qrow--con > td:first-child {
   padding-left: 22px;
   /* Ray dọc suốt các dòng thuộc nhóm + kẻ đóng ở dòng cuối → thấy rõ nhóm hết ở đâu. */
@@ -2108,12 +2134,13 @@ select.input {
   padding: 0 6px; border-radius: var(--r-2); background: rgba(245, 241, 232, 0.12);
   letter-spacing: 0; font-weight: 700;
 }
-/* Ô chiết khấu trên thẻ tối: rộng ngang nút VAT, % nằm trong ô. */
-.rdx-quote .dk .nf.dnf {
-  width: 76px; height: 30px; margin-left: 10px; padding: 0 8px;
-  border-color: rgba(230, 224, 210, 0.22); background: rgba(230, 224, 210, 0.06);
+
+/* Ô hai tab "%" | "Số" (Markup, Chiết khấu) — tab nhỏ phía trên ô nhập, căn phải như cột số. */
+.rdx-quote .o2tab { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.rdx-quote .o2tab__tab { display: inline-flex; border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 6px; overflow: hidden; }
+.rdx-quote .o2tab__tab button {
+  border: 0; background: transparent; padding: 1px 9px; font-size: 11px; line-height: 18px; cursor: pointer; color: var(--ash-2);
 }
-.rdx-quote .dk .nf.dnf:hover { border-color: rgba(230, 224, 210, 0.4); }
-.rdx-quote .dk .nf.dnf:focus-within { border-color: var(--on-dark); box-shadow: none; }
-.rdx-quote .dk .nf.dnf input { color: var(--on-dark); }
-.rdx-quote .dk .nf.dnf .u { color: var(--on-dark-muted); }
+.rdx-quote .o2tab__tab button + button { border-left: 1px solid var(--rule-soft, #e2e8f0); }
+.rdx-quote .o2tab__tab button.is-on { background: var(--charcoal, #1e293b); color: #fff; }
+.rdx-quote .o2tab__tab button:disabled { cursor: default; opacity: 0.6; }

@@ -580,6 +580,9 @@ export function TimesheetTab({
             <span className="cc-ts-legend-item cc-ts-legend-item--ot">
               OT (+)
             </span>
+            <span className="cc-ts-legend-item cc-ts-legend-item--khong-cham">
+              ✕ Không chấm
+            </span>
           </div>
         </div>
 
@@ -664,7 +667,7 @@ export function TimesheetTab({
       {loading && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải biểu công…" />}
       {!loading && data && (
         <div className="cc-timesheet-scroll-container">
-          <table className="cc-timesheet-table">
+          <table className="cc-timesheet-table cc-ts-thang">
             <thead>
               <tr>
                 <th className="cc-sticky-col-code">Mã</th>
@@ -694,6 +697,9 @@ export function TimesheetTab({
                 <th>Tăng ca</th>
                 <th>Tổng công</th>
                 <th>Giờ</th>
+                {/* Hai cột CHỈ hiện trên thẻ điện thoại (máy lớn ẩn — đã có ✕ / ? trong từng ô ngày). */}
+                <th className="cc-ts-chi-dt">Không chấm</th>
+                <th className="cc-ts-chi-dt">Thiếu lượt</th>
               </tr>
             </thead>
             <tbody>
@@ -710,7 +716,7 @@ export function TimesheetTab({
               ))}
               {rowsHien.length === 0 && (
                 <tr>
-                  <td colSpan={days.length + 8} className="ns__empty">
+                  <td colSpan={days.length + 10} className="ns__empty">
                     {tim.trim()
                       ? `Không có nhân viên nào khớp "${tim.trim()}" trong tháng này.`
                       : "Chưa có dữ liệu chấm công tháng này."}
@@ -825,6 +831,22 @@ export function TimesheetTab({
         </div>
       )}
 
+      {selectedEmployeeCal && (
+        <EmployeeCalendarModal
+          employeeName={selectedEmployeeCal.name}
+          employeeRow={selectedEmployeeCal.row}
+          year={year}
+          month={month}
+          daysInMonth={data?.days_in_month ?? 30}
+          heSoNgay={data?.he_so_ngay ?? HE_SO_NGAY_MAC_DINH}
+          onClose={() => setSelectedEmployeeCal(null)}
+          onSelectDay={(dayNum) => moChiTietNgay(selectedEmployeeCal.row, dayNum)}
+        />
+      )}
+
+      {/* Chi tiết NGÀY vẽ SAU lịch tháng của người: mở từ một ô trên lịch thì phải nằm TRÊN lịch —
+          cùng z-index nên ai đứng sau trong DOM thì đè lên (14/10/2026, điện thoại thấy rõ vì cả hai
+          đều toàn màn). */}
       {openDay && (
         <DayDetailModal
           token={token}
@@ -837,19 +859,6 @@ export function TimesheetTab({
             reload();
             loadPeriod(); // băng "phiếu TC thiếu cặp bấm" + số ngày treo đổi theo lượt chấm bù
           }}
-        />
-      )}
-
-      {selectedEmployeeCal && (
-        <EmployeeCalendarModal
-          employeeName={selectedEmployeeCal.name}
-          employeeRow={selectedEmployeeCal.row}
-          year={year}
-          month={month}
-          daysInMonth={data?.days_in_month ?? 30}
-          heSoNgay={data?.he_so_ngay ?? HE_SO_NGAY_MAC_DINH}
-          onClose={() => setSelectedEmployeeCal(null)}
-          onSelectDay={(dayNum) => moChiTietNgay(selectedEmployeeCal.row, dayNum)}
         />
       )}
 
@@ -1009,6 +1018,12 @@ const TimesheetRowView = memo(function TimesheetRowView({
   onSpecialClick?: (row: TimesheetRow) => void;
 }) {
   const congCnLe = tongCongDacBiet(row);
+  // Đếm cho thẻ điện thoại (31 ô ngày ẩn trên thẻ): ngày làm việc không bấm lượt nào · ngày treo.
+  const dsNgay = Object.values(row.days);
+  const soKhongCham = dsNgay.filter((x) => x.khong_cham).length;
+  const soThieuLuot = dsNgay.filter(
+    (x) => (x.first_in || x.last_out) && x.cong == null && x.hours == null,
+  ).length;
   const gioTc = gioTangCa(row);
   const clickable = !!onCellClick;
   const cellProps = (d: number) =>
@@ -1062,6 +1077,21 @@ const TimesheetRowView = memo(function TimesheetRowView({
                 }
               >
                 {nhanNghi}
+              </span>
+            </td>
+          );
+        }
+
+        // Ngày LÀM VIỆC đã qua mà không một lượt bấm nào (14/10/2026) — dấu ✕ đỏ, khác hẳn dấu lặng
+        // của ngày chưa tới. Cùng ký hiệu với file Excel (`bang_cong_excel.o_ngay`).
+        if (!coBam && day.khong_cham) {
+          return (
+            <td key={d} className={cellClass} {...cellProps(d)}>
+              <span
+                className="cc-cell-badge cc-cell-badge--khong-cham"
+                title="Không chấm công — ngày làm việc đã qua mà không có lượt chấm nào (quên chấm vào và ra / vắng)"
+              >
+                ✕
               </span>
             </td>
           );
@@ -1123,14 +1153,18 @@ const TimesheetRowView = memo(function TimesheetRowView({
           </td>
         );
       })}
+      {/* `data-luon-hien` / `data-vai-the`: thẻ điện thoại (components/luoiThe.ts) phải hiện ĐỦ năm
+          cột số kể cả khi bằng 0 — thiếu CN/Lễ là đọc sai tổng công. */}
       <td
         style={{ fontWeight: "bold", textAlign: "center" }}
         title="Công ngày thường = tổng công − công CN/lễ − công phép có lương"
+        data-luon-hien=""
+        data-vai-the=""
       >
         {congThuong(row)}
       </td>
       {/* KHÔNG flex trên <td> (layout bảng vỡ ở Safari/Firefox) — bọc trong <button> rồi flex ở đó. */}
-      <td style={{ textAlign: "center" }}>
+      <td style={{ textAlign: "center" }} data-luon-hien="" data-vai-the="">
         {congCnLe <= 0 ? (
           <span style={{ color: "var(--ash-2)" }}>—</span>
         ) : (
@@ -1146,7 +1180,7 @@ const TimesheetRowView = memo(function TimesheetRowView({
           </button>
         )}
       </td>
-      <td style={{ fontWeight: "bold", textAlign: "center" }}>
+      <td style={{ fontWeight: "bold", textAlign: "center" }} data-luon-hien="" data-vai-the="">
         {gioTc > 0 ? (
           `${gioTc}h`
         ) : (
@@ -1157,12 +1191,20 @@ const TimesheetRowView = memo(function TimesheetRowView({
       <td
         className="cc-ts-tongcong"
         style={{ fontWeight: "bold", textAlign: "center" }}
+        data-luon-hien=""
+        data-vai-the="tien"
         title="Tổng công = công thường + công CN/lễ + công phép có lương. Đây là số Bảng lương dùng."
       >
         {soCong(row.total_cong ?? row.total_days)}
       </td>
-      <td style={{ fontWeight: "bold", textAlign: "center" }}>
+      <td style={{ fontWeight: "bold", textAlign: "center" }} data-luon-hien="" data-vai-the="">
         {row.total_hours}h
+      </td>
+      <td className="cc-ts-chi-dt" data-vai-the="">
+        {soKhongCham > 0 ? <span className="cc-cell-badge cc-cell-badge--khong-cham">✕ {soKhongCham} ngày</span> : "—"}
+      </td>
+      <td className="cc-ts-chi-dt" data-vai-the="">
+        {soThieuLuot > 0 ? <span className="cc-cell-badge cc-cell-badge--treo">? {soThieuLuot} ngày</span> : "—"}
       </td>
     </tr>
   );

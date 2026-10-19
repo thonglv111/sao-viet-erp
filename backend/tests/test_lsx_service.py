@@ -1670,6 +1670,11 @@ def test_bo_buoc_giua_chuoi_khong_bao_oan_chinh_lenh_minh(db, orders, lsx_svc, a
     assert bo.step_key in {c.step_key for c in hop.cong_doans}, "xem trước không được ghi DB"
 
     # ② LƯU thật — bước bị bỏ biến mất, cạnh chết trỏ vào nó cũng đi theo (FK RESTRICT không nổ).
+    # Bỏ Bế thì Dán hộp nhận thẳng tờ in của In: khai lại đầu vào Dán là tờ để chuỗi còn liền đơn
+    # vị (lưu tuyến đứt đơn vị bị chặn từ 18/10/2026).
+    cd_dan = db.get(CongDoan, con_lai[-1].cong_doan_id)
+    cd_dan.don_vi_vao = "to"
+    db.commit()
     lsx_svc.replace_routing(lsx_id=hop.id, actor=admin, rows_in=[
         LsxCongDoanIn(step_key=c.step_key, thu_tu=i, cong_doan_id=c.cong_doan_id,
                       ten=c.ten, nhom=c.nhom, loai_buoc=c.loai_buoc,
@@ -2843,11 +2848,10 @@ def test_replace_routing_ghi_ly_do_vao_audit(db, orders, lsx_svc, admin, custome
     cd_be = db.query(CongDoan).filter(CongDoan.ma == "CD-BE-T").first()
     cd_in = db.query(CongDoan).filter(CongDoan.nhom == "print").first()
 
-    # Bế nhả CON rồi tới bước ăn TỜ → chuỗi đứt đơn vị. Đơn vị lấy từ DANH MỤC nên phải gắn
-    # `cong_doan_id`, client gửi `don_vi_*` không còn tác dụng.
+    # Bỏ bước Dán hộp: In → Bế, chuỗi vẫn liền đơn vị (lưu tuyến đứt bị chặn từ 18/10/2026).
     lsx_svc.replace_routing(lsx_id=hop.id, actor=admin, ly_do="Khách đổi sang gia công ngoài", rows_in=[
-        LsxCongDoanIn(ten="Bế", nhom="finishing", department_id=to_id, cong_doan_id=cd_be.id),
         LsxCongDoanIn(ten="In offset", nhom="print", department_id=to_id, cong_doan_id=cd_in.id),
+        LsxCongDoanIn(ten="Bế", nhom="finishing", department_id=to_id, cong_doan_id=cd_be.id),
     ])
     chi_tiet = [r.detail for r in AuditLogRepository(db).list_by_target(f"lsx:{hop.id}")]
     assert any("Khách đổi sang gia công ngoài" in c for c in chi_tiet)

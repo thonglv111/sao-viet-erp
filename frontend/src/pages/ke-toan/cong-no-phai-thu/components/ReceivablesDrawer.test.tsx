@@ -4,8 +4,8 @@
  *  Khoá chặt: thẻ mã; cột thuộc tính Còn nợ tới hôm nay | Quá hạn | Hạn sớm nhất | Hạn mức (đã dùng %)
  *  + Cho nợ (hoặc một mục "chưa đặt" kèm Đặt trong hồ sơ) | Người liên hệ | Phụ trách, KHÔNG thẻ / dải
  *  vượt hạn mức nào khác; ba tab Còn nợ | Sao kê | Lịch sử; một lưới hoá đơn nhóm theo đơn bán, Trừ cọc
- *  và Đã thu là hai cột, "Thu" từng hoá đơn (không tick nhiều); sao kê có số dư chạy và in được; lịch
- *  sử mới nhất trên cùng; lập phiếu xong dòng hoá đơn đổi ngay; không nối mẩu thông tin bằng "·" / "•"
+ *  và Đã thu là hai cột, "Thu" từng hoá đơn; sao kê có số dư chạy và in được; lịch
+ *  sử mới nhất trên cùng; tick nhiều hoá đơn ⇒ MỘT phiếu thu gộp (17/10/2026); lập phiếu xong dòng hoá đơn đổi ngay; không nối mẩu thông tin bằng "·" / "•"
  *  / dấu phẩy.
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -18,6 +18,7 @@ const receivablesDetail = vi.fn();
 const saoKeDoiTac = vi.fn();
 const companyAccounts = vi.fn();
 const createSalesInvoiceReceipt = vi.fn();
+const createReceiptGop = vi.fn();
 const contacts = vi.fn();
 
 vi.mock("../../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
@@ -29,6 +30,7 @@ vi.mock("../../../../api/client", async (g) => ({
       saoKeDoiTac: (...a: unknown[]) => saoKeDoiTac(...a),
       companyAccounts: (...a: unknown[]) => companyAccounts(...a),
       createSalesInvoiceReceipt: (...a: unknown[]) => createSalesInvoiceReceipt(...a),
+      createReceiptGop: (...a: unknown[]) => createReceiptGop(...a),
     },
     customers: { contacts: (...a: unknown[]) => contacts(...a) },
   },
@@ -183,26 +185,28 @@ describe("ReceivablesDrawer — đầu ngăn", () => {
 });
 
 describe("ReceivablesDrawer — tab Còn nợ", () => {
-  it("một lưới nhóm theo đơn bán: số và ký hiệu hai cột, ngày đủ năm, hạn trễ / còn N ngày; Trừ cọc và Đã thu tách cột", async () => {
+  it("một lưới nhóm theo đơn bán: số và ký hiệu hai cột, ngày đủ năm, hạn chỉ ngày tô màu; Trừ cọc và Đã thu tách cột", async () => {
     await moNgan();
     const bang = screen.getByRole("table", { name: "Hoá đơn còn nợ" });
     expect(within(bang).getAllByRole("columnheader").map((c) => c.textContent)).toEqual(
       ["Số hoá đơn", "Ký hiệu", "Ngày", "Hạn thu", "Giá trị", "Trừ cọc", "Đã thu", "Còn nợ", ""]);
     expect(within(bang).getByRole("columnheader", { name: "Trừ cọc" })).toBeInTheDocument();
     expect(within(bang).getByRole("columnheader", { name: "Đã thu" })).toBeInTheDocument();
-    // Không tick nhiều hoá đơn (máy chủ chưa thu gộp).
-    expect(within(bang).queryByRole("checkbox")).toBeNull();
+    // Ô tick nằm trong ô Số hoá đơn — không thêm cột (bảng vừa khung ngăn).
+    expect(within(bang).getAllByRole("checkbox")).toHaveLength(3);
 
     const dong = screen.getByText("0001198").closest("tr")!;
     expect([...dong.querySelectorAll("td")].map((c) => c.textContent)).toEqual(
-      ["0001198", "1C26TSV", "21/07/2026", "20/08/2026trễ 46", "36.000.000", "–", "–", "36.000.000", "Thu"]);
+      ["0001198", "1C26TSV", "21/07/2026", "20/08/2026", "36.000.000", "–", "–", "36.000.000", "Thu"]);
     expect(within(dong).getByText("1C26TSV")).toHaveClass("lds-mu");
-    expect(within(dong).getByText("trễ 46")).toHaveClass("lds-do");
+    // Ô hạn chỉ ghi ngày (bảng vừa khung ngăn): trễ thì ngày đỏ.
+    expect(within(dong).getByText("20/08/2026")).toHaveClass("lds-do");
     expect(dong.textContent).not.toMatch(/[·•]|, /);
 
     const dong2 = screen.getByText("0001234").closest("tr")!;
     expect([...dong2.querySelectorAll("td")].slice(3, 8).map((c) => c.textContent)).toEqual(
-      ["22/10/2026còn 17", "96.000.000", "20.000.000", "32.000.000", "44.000.000"]);
+      ["22/10/2026", "96.000.000", "20.000.000", "32.000.000", "44.000.000"]);
+    expect(within(dong2).getByText("22/10/2026")).not.toHaveClass("lds-do");
     // Khách CÓ đặt cho nợ mà hoá đơn chưa có hạn (hoá đơn cũ): nói rõ.
     expect(screen.getByText("0001251").closest("tr")!.querySelectorAll("td")[3]).toHaveTextContent("chưa đặt hạn");
 
@@ -236,16 +240,36 @@ describe("ReceivablesDrawer — tab Còn nợ", () => {
     expect(o).toEqual(["0001198 1C26TSV DH-0398", "0001234 1C26TSV DH-0412", "0001251  DH-0420"]);
   });
 
-  it("ô hạn hẹp: bỏ chữ 'ngày', title và cột thuộc tính giữ chữ đủ", async () => {
+  it("ô hạn hẹp: chỉ ngày, số ngày trễ ở title và cột thuộc tính", async () => {
     const goc = chiTiet();
     receivablesDetail.mockImplementation(async () => ({
       ...goc, items: [{ ...goc.items[0], due_date: "2026-06-01", overdue_days: 126, aging_bucket: "d60_plus" }],
     }));
     await moNgan();
-    const o = screen.getByText("trễ 126").closest("td")!;
+    const o = within(screen.getByRole("table", { name: "Hoá đơn còn nợ" })).getByText("01/06/2026").closest("td")!;
+    expect(o).toHaveTextContent(/^01\/06\/2026$/);
     expect(o).toHaveAttribute("title", "01/06/2026 trễ 126 ngày");
     // Cột thuộc tính rộng: nói đủ.
     expect(within(screen.getByRole("complementary", { name: "Thuộc tính" })).getByText("trễ 126 ngày")).toBeInTheDocument();
+  });
+
+  it("tiền trả lại khách ngoài đơn là dòng phụ dưới hoá đơn, không thêm cột; dòng tổng cộng cả dòng phụ", async () => {
+    const goc = chiTiet();
+    receivablesDetail.mockImplementation(async () => ({
+      ...goc, items: [{ ...goc.items[0], hoan_khong_don: 5_000_000, remaining_amount: 41_000_000 }],
+    }));
+    await moNgan();
+    const bang = screen.getByRole("table", { name: "Hoá đơn còn nợ" });
+    expect(within(bang).getAllByRole("columnheader")).toHaveLength(9);
+    const phu = within(bang).getByText("Trả lại khách ngoài đơn").closest("tr")!;
+    expect(phu.previousElementSibling).toHaveTextContent("0001198");
+    expect(phu.querySelectorAll("td")[1]).toHaveTextContent("+5.000.000");
+    const tongCot = (r: Element) => [...r.querySelectorAll("td")].reduce((t, c) => t + (c as HTMLTableCellElement).colSpan, 0);
+    expect(tongCot(phu)).toBe(9);
+    // Giá trị dòng Cộng = 36.000.000 + 5.000.000 ⇒ Giá trị − Trừ cọc − Đã thu = Còn nợ.
+    const cong = within(bang).getByText("Cộng 1 hoá đơn").closest("tr")!;
+    expect([...cong.querySelectorAll("td")].slice(1, 5).map((c) => c.textContent))
+      .toEqual(["41.000.000", "–", "–", "41.000.000"]);
   });
 
   it("mở từ danh sách đang lọc mốc tuổi / bấm số Quá hạn: lọc sẵn và hiện thẻ lọc; Bỏ lọc hiện lại đủ", async () => {
@@ -408,5 +432,32 @@ describe("ReceivablesDrawer — giữ nháp ngăn Thu tiền", () => {
     await userEvent.click(within(ngan).getByRole("radio", { name: "Chuyển khoản" }));
     await userEvent.keyboard("{ArrowDown}");
     expect(xuong).not.toHaveBeenCalled();
+  });
+});
+
+describe("ReceivablesDrawer — thu nhiều hoá đơn một phiếu (17/10/2026)", () => {
+  it("tick 2 hoá đơn ⇒ chân 'Đã chọn 2 hoá đơn' + 'Lập một phiếu thu' mở form gộp; lập xong báo mã phiếu và nạp lại", async () => {
+    createReceiptGop.mockResolvedValue({ id: 901, code: "PT-0401", amount_vnd: 80_000_000, amount: 80_000_000 });
+    await moNgan();
+    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn hoá đơn số 0001198" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Chọn hoá đơn số 0001234" }));
+    const chan = screen.getByText(/Đã chọn 2 hoá đơn/).closest(".kt-ngan__chan") as HTMLElement;
+    expect(chan).toHaveTextContent("80.000.000 đ");
+    await userEvent.click(within(chan).getByRole("button", { name: "Lập một phiếu thu" }));
+    const ngan = await screen.findByRole("dialog", { name: "Lập phiếu thu 2 khoản" });
+    expect(within(ngan).getByRole("textbox", { name: "Thu lần này DH-0398 HĐ 0001198" })).toHaveValue("36.000.000");
+    expect(within(ngan).getByRole("textbox", { name: "Thu lần này DH-0412 HĐ 0001234" })).toHaveValue("44.000.000");
+    const goiTruoc = receivablesDetail.mock.calls.length;
+    await userEvent.click(within(ngan).getByRole("button", { name: "Lập phiếu thu" }));
+    await waitFor(() => expect(createReceiptGop).toHaveBeenCalledTimes(1));
+    expect(createReceiptGop.mock.calls[0][1].lines).toStrictEqual([
+      { sales_invoice_id: 1, order_id: 40, amount: 36_000_000 },
+      { sales_invoice_id: 2, order_id: 41, amount: 44_000_000 },
+    ]);
+    expect(await screen.findByText("Đã lập PT-0401")).toBeInTheDocument();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    await waitFor(() => expect(receivablesDetail.mock.calls.length).toBeGreaterThan(goiTruoc));
+    expect(onChanged).toHaveBeenCalled();
+    expect(screen.queryByText(/Đã chọn 2 hoá đơn/)).toBeNull();
   });
 });

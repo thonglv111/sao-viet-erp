@@ -355,7 +355,7 @@ def test_formula_engine_ast_va_hai_o_nhap_tay_da_bo():
 
     # Check formula formatting
     row = _grp(res, "nvl")["rows"][0]
-    assert "dinh_luong(0,30) × dai_nguyen(0,86) × rong_nguyen(0,65)" in row["cong_thuc"]
+    assert "dinh_luong(0,3) × dai_nguyen(0,86) × rong_nguyen(0,65)" in row["cong_thuc"]
 
 
 def test_giay_don_vi_tan_quy_ve_kg():
@@ -1019,9 +1019,9 @@ def test_the_so_chi_the_nhanh_if_dang_dung():
           "if(sl_ra >= 10000, 1500000 * so_mat, sl_ra * 400 * so_mat + 100000 * so_kem))")
     the = format_substituted_formula(ct, {"sl_ra": 0, "so_mat": 2, "so_kem": 1})
     assert "if" not in the
-    assert the == "sl_ra(0) × 400 × so_mat(2) + 100000 × so_kem(1)"
+    assert the == "sl_ra(0) × 400 × so_mat(2) + 100.000 × so_kem(1)"
     the = format_substituted_formula(ct, {"sl_ra": 12000, "so_mat": 2, "so_kem": 1})
-    assert the == "1500000 × so_mat(2)"
+    assert the == "1.500.000 × so_mat(2)"
     # Thiếu biến ở điều kiện ⇒ không đoán nhánh, trả nguyên cây.
     assert "if" in format_substituted_formula(ct, {"so_mat": 2})
 
@@ -1032,7 +1032,7 @@ def test_the_so_max_min_tinh_san_ve_phuc_hop():
 
     ctx = {"sl_ra": 300, "so_mat": 2, "phi_toi_thieu": 150000}
     assert (format_substituted_formula("max(sl_ra * 400 * so_mat, 100000)", ctx)
-            == "max(240.000, 100000)")
+            == "max(240.000, 100.000)")
     assert (format_substituted_formula("min(sl_ra * 400, phi_toi_thieu)", ctx)
             == "min(120.000, phi_toi_thieu(150.000))")
     # if bên trong max: chọn nhánh rồi mới tính vế.
@@ -1194,3 +1194,43 @@ def test_anh_chup_cu_duoc_dap_cot_cho_nhom_giao_hang():
     moi = chuan_hoa_cot(cu)
     gh = next(g for g in moi["groups"] if g["idx"] == "giao_hang")
     assert [c["key"] for c in gh["columns"]] == ["ten", "thanh_tien", "gia_don_sp", "cong_thuc"]
+
+
+def test_xa_giay_theo_kho_to_in_khong_theo_kho_may():
+    """Giấy nguyên 790×1090, tờ in 390×540, máy nhận tối đa 520×720 (16/10/2026).
+
+    Xả ra đúng khổ tờ in ⇒ 4 mảnh (2 × 2). Xả theo khổ máy cũ chỉ ra 2 ⇒ báo giá tính số tờ nguyên
+    gấp đôi lệnh sản xuất."""
+    tp = {**_component(), "kho_dai": 1090, "kho_rong": 790, "kho_in_dai": 540, "kho_in_rong": 390,
+          "kho_may_dai": 720, "kho_may_rong": 520}
+    m = compute_phieu(so_luong=5000, thanh_phans=[tp])["meta"]["components"][0]
+    assert m["so_manh_xa"] == 4
+    assert m["to_nguyen"] == ceil(m["to_dau_vao"] / 4)
+
+
+def test_don_gia_giay_khai_theo_ram_quy_ve_gia_mot_to():
+    """Giấy khai 500.000 đ/ram: tiền = số tờ nguyên × 1.000 đ/tờ, không phải × 500.000."""
+    tp = {**_component(), "don_gia_giay": 500_000, "don_gia_don_vi": "ram",
+          "don_gia_giay_he_so": 1 / 500}
+    tp.pop("cong_thuc_gia", None)
+    res = compute_phieu(so_luong=5000, thanh_phans=[tp])
+    m = res["meta"]["components"][0]
+    giay = next(r for r in _grp(res, "nvl")["rows"] if r["loai"] == "giay")
+    assert giay["thanh_tien"] == pytest.approx(1000 * m["to_nguyen"])
+
+
+def test_he_so_gia_giay_tra_bang_cap_don_vi():
+    from app.services.quy_doi_service import cap_map, don_vi_map
+    from app.services.tinh_gia_service import DanhMucNapSan, he_so_gia_giay
+
+    nap = DanhMucNapSan(
+        dvs=don_vi_map([{"ma": m, "ten": t} for m, t in
+                        (("to", "tờ"), ("ram", "ram"), ("kg", "kg"), ("tan", "tấn"), ("cai", "cái"))]),
+        cap=cap_map([{"tu_ma": "ram", "den_ma": "to", "he_so": 500},
+                     {"tu_ma": "tan", "den_ma": "kg", "he_so": 1000}]))
+    assert he_so_gia_giay("ram", nap) == pytest.approx(1 / 500)
+    assert he_so_gia_giay("tan", nap) == pytest.approx(1 / 1000)
+    assert he_so_gia_giay("to", nap) == 1
+    assert he_so_gia_giay("kg", nap) == 1
+    assert he_so_gia_giay("cai", nap) is None
+    assert he_so_gia_giay(None, nap) is None

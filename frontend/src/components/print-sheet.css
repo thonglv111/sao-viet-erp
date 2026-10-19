@@ -149,6 +149,9 @@
 /* Rộng đủ ôm tờ A4 (210mm ≈ 794px); màn hẹp hơn thì cuộn chứ không bóp méo tờ. Việc CUỘN nằm ở
    khung này, không nằm ở tờ — tờ luôn giữ đúng khổ A4. */
 .ps-dialog { background: #fff; border-radius: 10px; max-width: 820px; width: 100%; max-height: 88vh; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); display: flex; flex-direction: column; overflow: auto; }
+/* Tờ A4 NGANG (prop `ngang`): xem trước đúng khổ 297×210mm ≈ 1123px; khung nới theo. */
+.ps-dialog--ngang { max-width: 1150px; }
+.psheet.psheet--ngang { width: 297mm; min-height: 210mm; }
 .ps-dialog-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #e5e2d8; }
 .ps-dialog-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: #14130f; }
 /* chọn mẫu in — hai nút liền nhau ở đầu khung xem trước */
@@ -167,6 +170,13 @@
   body:has(.psheet) .shell > *:not(.shell__main),
   body:has(.psheet) .shell__main > *:not(.shell__content) { display: none !important; }
   body:has(.psheet) .shell__content { padding: 0 !important; overflow: visible !important; }
+  /* Vỏ app khoá cao 100% khung nhìn (html/body/#root/.shell) + `.shell__main` flex + overflow
+     hidden. Để nguyên thì tờ dài hơn khung thành NỘI DUNG TRÀN, Chrome không đẩy dòng sang trang
+     sau mà CẮT NGANG dòng chữ ở mép trang (gặp ở bản in báo giá 15/10/2026). Nhả hết cho tờ chảy. */
+  html:has(.psheet), body:has(.psheet), body:has(.psheet) #root,
+  body:has(.psheet) .shell, body:has(.psheet) .shell__main, body:has(.psheet) .shell__content {
+    display: block !important; height: auto !important; min-height: 0 !important; overflow: visible !important;
+  }
   /* Khối này TỪNG chỉ ẩn sidebar/topbar mà quên nội dung của chính trang nền → in ra cả bảng
      danh sách đơn rồi mới tới tờ phiếu. Neo theo QUAN HỆ với `.psheet`: giữ tổ tiên + chính nó
      + ruột nó, ẩn phần còn lại. Phiếu nằm sâu mấy tầng drawer cũng đúng. */

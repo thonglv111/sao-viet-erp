@@ -649,16 +649,23 @@ export function PurchaseRequestsPage({
     // sớm hơn hôm nay — yêu cầu đã quá hạn thì ô ngày bị chặn ngay khi lưu.
     const somNhat = sources.map((s) => s.needed_date).filter(Boolean).sort()[0] ?? "";
     const canSomNhat = somNhat && somNhat < minPurchaseDate ? minPurchaseDate : somNhat;
+    // Câu tự điền khi gom nhiều yêu cầu: nói mua cho bộ phận nào, KHÔNG ghi số yêu cầu — form có
+    // thể tách ra nhiều đơn theo NCC, mỗi đơn gom số yêu cầu khác nhau.
+    const boPhan = [...new Set(sources.map((s) => s.requesting_department_name).filter(Boolean))] as string[];
+    // Tên bộ phận đã mang sẵn "Tổ", "Nhóm", "Ban"… nên không chêm chữ "bộ phận" trước tên.
+    const noiDungGom = boPhan.length === 0
+      ? "Mua vật tư theo yêu cầu của các bộ phận."
+      : boPhan.length === 1
+        ? `Mua vật tư theo yêu cầu của ${boPhan[0]}.`
+        : `Mua vật tư theo yêu cầu của ${boPhan.slice(0, -1).join(", ")} và ${boPhan[boPhan.length - 1]}.`;
     setEditing(null);
     setForm({
       supplier_id: null,
       // Gửi CẢ tập; máy chủ gắn mỗi đơn đúng các yêu cầu có món nằm trong đơn đó.
       source_request_ids: sources.map((s) => s.id),
-      // Nhiều nguồn: không ghi số — form có thể tách ra nhiều đơn theo NCC, mỗi đơn gom số yêu cầu
-      // khác nhau (mã yêu cầu đã nằm ở cột Yêu cầu của từng đơn).
       content: sources.length === 1
         ? (sources[0].content ?? sources[0].purpose ?? "")
-        : "Gom yêu cầu mua hàng của các bộ phận",
+        : noiDungGom,
       needed_date: canSomNhat,
       expected_receipt_date: "",
       note: null,
@@ -816,6 +823,10 @@ export function PurchaseRequestsPage({
             note: line.note,
             supplier_id: line.supplier_id as number,
             department_request_line_id: line.department_request_line_id,
+            // Mặt hàng gốc: máy chủ kiểm "NCC có bán không" theo mã này. Thiếu nó thì chỉ còn so
+            // TÊN — danh mục đổi tên mà bảng giá NCC giữ tên cũ là báo "không bán" oan (14/10/2026).
+            hang_loai: line.hang_loai ?? null,
+            hang_id: line.hang_id ?? null,
             // Khổ MUA chỉ gửi cho giấy; hàng khác để server ép 0.
             ...(line.hang_loai === "giay"
               ? { kho_rong: line.kho_rong ?? 0, kho_dai: line.kho_dai ?? 0 }
@@ -1093,6 +1104,7 @@ export function PurchaseRequestsPage({
       {selected && (
         <PurchaseDetailDrawer
           onMoLenh={moLenh}
+          onMoNcc={can("nha_cung_cap", "read") ? (id) => navigate("nha-cung-cap", { openSupplierId: id }) : undefined}
           selected={selected}
           setSelectedId={setSelectedId}
           openYcmh={openYcmh}

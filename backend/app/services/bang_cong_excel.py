@@ -40,7 +40,9 @@ CHU_THICH = (
     "Ký hiệu: 1 / 0.5 = số công · 8h = số giờ (ngày chưa gán ca) · +2h = giờ tăng ca của ngày đó · "
     "P = nghỉ phép có lương · KL = nghỉ không lương · L = nghỉ lễ (vẫn hưởng lương) · "
     "NL = nghỉ theo lịch phân ca · ? = có chấm nhưng thiếu lượt (ngày treo) · "
-    "TC? = có phiếu tăng ca nhưng chưa có cặp bấm (đang tính 0 giờ) · ô trống = không đi làm. "
+    "TC? = có phiếu tăng ca nhưng chưa có cặp bấm (đang tính 0 giờ) · "
+    "✕ = ngày làm việc đã qua mà không có lượt chấm nào (quên chấm vào và ra / vắng) · "
+    "ô trống = ngày chưa tới hoặc không xếp ca. "
     "Nền hồng = ngày lễ · nền xám = thứ Bảy / Chủ nhật."
 )
 
@@ -76,6 +78,8 @@ def o_ngay(d: dict | None) -> str:
         nhan = "P" if d.get("leave_paid") else "KL"
     elif d.get("planned_off"):
         nhan = "NL"
+    elif d.get("khong_cham"):
+        nhan = "✕"              # ngày làm việc đã qua, không lượt bấm nào — khớp dấu trên màn
     else:
         nhan = ""               # đã xếp ca mà chưa tới / không đi làm ⇒ TRỐNG, đừng in "có"
     phut = int(d.get("ot_minutes") or 0)

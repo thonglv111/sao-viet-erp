@@ -8,6 +8,7 @@ import { MonthPicker } from "../../../../components/MonthPicker";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { PAGE_SIZE } from "../shared/constants";
 import { errMsg, getInitials } from "../shared/helpers";
+import { useLaDienThoai } from "../../../../utils/dienThoai";
 
 // --- Tab: Lịch nghỉ (HR) — lưới NV × ngày, tránh duyệt trùng người ----------
 
@@ -62,6 +63,7 @@ export function CalendarTab({ token, dau }: {
 
   const days = data ? Array.from({ length: data.days_in_month }, (_, i) => i + 1) : [];
   const isWeekend = (d: number) => { const wd = new Date(ym.year, ym.month - 1, d).getDay(); return wd === 0 || wd === 6; };
+  const laDT = useLaDienThoai();
   const getWeekday = (d: number) => WEEKDAYS[new Date(ym.year, ym.month - 1, d).getDay()];
 
   // Date highlights
@@ -204,7 +206,7 @@ export function CalendarTab({ token, dau }: {
             <tbody>
               {pagedEmployees.map((e) => (
                 <tr key={e.employee_id} className="cc-calendar-row">
-                  <td className="cc-calendar-sticky-name">
+                  <td className="cc-calendar-sticky-name" data-vai-the="dau-ten">
                     <div className="cc-name-cell-wrapper">
                       <span className="cc-name-avatar">{getInitials(e.employee_name)}</span>
                       <span className="cc-name-text-plain" title={e.employee_name}>
@@ -241,8 +243,26 @@ export function CalendarTab({ token, dau }: {
                             {cell.is_paid ? "P" : "KL"}
                           </span>
                         );
+                        // Thẻ điện thoại không có bong bóng rê chuột ⇒ nói luôn tên loại nghỉ.
+                        if (laDT) {
+                          cellContent = (
+                            <>
+                              {cellContent}
+                              <span className="np-lich__loai">{cell.leave_type_name}</span>
+                            </>
+                          );
+                        }
                       } else {
                         cellContent = <span className="cc-calendar-grid-cell-dot" title="Chờ duyệt" />;
+                        // Chấm tròn không có chữ ⇒ thẻ điện thoại coi là ô trống và ẩn mất ngày chờ duyệt.
+                        if (laDT) {
+                          cellContent = (
+                            <>
+                              {cellContent}
+                              <span className="np-lich__loai">Chờ duyệt · {cell.leave_type_name}</span>
+                            </>
+                          );
+                        }
                       }
                     }
                     
@@ -256,6 +276,7 @@ export function CalendarTab({ token, dau }: {
                     return (
                       <td key={d}
                         className={cellClass}
+                        data-nhan-the={`${getWeekday(d)} ${d}/${ym.month}`}
                         style={{ textAlign: "center", padding: "6px 2px", position: "relative" }}
                         onMouseEnter={(event) => {
                           if (cell) {

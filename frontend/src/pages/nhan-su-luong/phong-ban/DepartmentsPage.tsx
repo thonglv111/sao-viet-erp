@@ -90,6 +90,7 @@ import "../../departments.css";
 import "../../nhan-su.css";
 import "../../redesign-phong-ban.css";
 import { EmptyState } from "../../../components/EmptyState";
+import { useLaDienThoai } from "../../../utils/dienThoai";
 
 // Kỳ (Ngày tạo) + điều kiện lọc cây — ghi lên URL, nhớ theo màn.
 type LocMan = { ky: KyDS; loc: LocPhongBan };
@@ -252,6 +253,14 @@ export function DepartmentsPage({
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  // ĐIỆN THOẠI: không có cột phải ⇒ chi tiết phòng là MÀN PHỦ mở khi chạm một phòng, ✕ quay về danh
+  // sách (vẫn giữ phòng đang chọn). Máy lớn: chi tiết luôn ở cột phải như cũ.
+  const laDT = useLaDienThoai();
+  const [moCtDT, setMoCtDT] = useState(false);
+  const chonPhong = (id: number) => {
+    setSelectedId(id);
+    if (laDT) setMoCtDT(true);
+  };
   const [members, setMembers] = useState<DepartmentMember[]>([]);
   // Mở form Thêm NV vào phòng đang xem; meta (danh sách phòng/vai trò…) nạp 1 lần khi có quyền.
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -288,6 +297,8 @@ export function DepartmentsPage({
   const [editRoleError, setEditRoleError] = useState<string | null>(null);
   const [editRoleBusy, setEditRoleBusy] = useState(false);
   const [editRoleConfirmDelete, setEditRoleConfirmDelete] = useState(false);
+  // Xoá bị chặn vì còn N người giữ vai ⇒ hỏi lần hai "Vẫn xóa" (cưỡng chế, 15/10/2026).
+  const [editRoleSoNguoi, setEditRoleSoNguoi] = useState<number | null>(null);
   const [editRoleDeleting, setEditRoleDeleting] = useState(false);
   // Vai đang được nhân bản (null = hộp thoại đóng).
   const [nhanBanVai, setNhanBanVai] = useState<Role | null>(null);
@@ -1281,6 +1292,7 @@ export function DepartmentsPage({
     setEditRoleMatrix([]);
     setEditRoleError(null);
     setEditRoleConfirmDelete(false);
+    setEditRoleSoNguoi(null);
     setEditRoleOpen(true);
     setEditRoleLoading(true);
     try {
@@ -1298,6 +1310,7 @@ export function DepartmentsPage({
     setEditRoleOpen(false);
     setEditRoleId(null);
     setEditRoleConfirmDelete(false);
+    setEditRoleSoNguoi(null);
     setEditRoleError(null);
   }
 
@@ -1346,24 +1359,31 @@ export function DepartmentsPage({
     }
   }
 
-  async function deleteEditRole() {
+  async function deleteEditRole(force = false) {
     if (!token || editRoleId == null || editRoleDeleting) return;
     setEditRoleDeleting(true);
     setEditRoleError(null);
+    let conNguoi = false;
     try {
-      await api.rbac.deleteRole(token, editRoleId);
+      await api.rbac.deleteRole(token, editRoleId, force);
       if (selectedId != null) setRoles(await api.rbac.roles(token, selectedId));
       setEditRoleOpen(false);
       setEditRoleId(null);
     } catch (err) {
-      // 409 = a user still holds this role (delete blocked).
-      if (err instanceof ApiError && err.isConflict) setEditRoleError(err.message);
+      // 409 = còn người giữ vai ⇒ không báo lỗi, chuyển sang hỏi "Vẫn xóa" (gỡ vai khỏi họ).
+      if (err instanceof ApiError && err.isConflict && !force) {
+        conNguoi = true;
+        setEditRoleSoNguoi(Number(/còn (\d+)/.exec(err.message)?.[1]) || 1);
+      } else if (err instanceof ApiError && err.isConflict) setEditRoleError(err.message);
       else if (err instanceof ApiError && err.isForbidden)
         setEditRoleError("Bạn không có quyền xóa vai trò.");
       else setEditRoleError("Không xóa được vai trò. Vui lòng thử lại.");
     } finally {
       setEditRoleDeleting(false);
-      setEditRoleConfirmDelete(false);
+      if (!conNguoi) {
+        setEditRoleConfirmDelete(false);
+        setEditRoleSoNguoi(null);
+      }
     }
   }
 
@@ -1403,11 +1423,11 @@ export function DepartmentsPage({
         tabIndex={0}
         aria-pressed={isActive}
         style={{ marginLeft: depth * 14 }}
-        onClick={() => setSelectedId(d.id)}
+        onClick={() => chonPhong(d.id)}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            setSelectedId(d.id);
+            chonPhong(d.id);
           }
         }}
       >
@@ -1557,7 +1577,7 @@ export function DepartmentsPage({
             className={`rdx-org-node${isSelected ? " is-selected" : ""}${
               dept.la_san_xuat ? " is-sx" : ""
             }`}
-            onClick={() => setSelectedId(dept.id)}
+            onClick={() => chonPhong(dept.id)}
           >
             <div className="rdx-org-node__head">
               <div className="rdx-org-node__icon">
@@ -2036,7 +2056,10 @@ export function DepartmentsPage({
 
         {/* ── CỘT PHẢI: drawer chi tiết (4 tab) ─────────────────────────── */}
         {(selectedId != null || viewMode === "tree") && (
-          <section className="rdx-dept__detail" aria-label="Chi tiết phòng ban">
+          <section
+            className={`rdx-dept__detail${laDT && moCtDT ? " is-mo-dt" : ""}`}
+            aria-label="Chi tiết phòng ban"
+          >
           {selectedId != null && currentDept ? (
             <div className="rdx-drawer">
               <header className="rdx-drawer__head">
@@ -2095,7 +2118,7 @@ export function DepartmentsPage({
                     className="rdx-drawer__close"
                     aria-label="Đóng chi tiết"
                     title="Đóng chi tiết phòng ban"
-                    onClick={() => setSelectedId(null)}
+                    onClick={() => (laDT ? setMoCtDT(false) : setSelectedId(null))}
                   >
                     <Icon name="x" size={18} />
                   </button>
@@ -2231,7 +2254,7 @@ export function DepartmentsPage({
                             <div
                               key={child.id}
                               className="rdx-subdept-card"
-                              onClick={() => setSelectedId(child.id)}
+                              onClick={() => chonPhong(child.id)}
                             >
                               <span className="rdx-subdept-card__name" title={child.name}>
                                 {child.name}
@@ -2671,21 +2694,30 @@ export function DepartmentsPage({
                             {editRoleConfirmDelete ? (
                               <div className="depts__inline">
                                 <span className="depts__confirm-count">
-                                  Xóa vai trò này? Không thể hoàn tác.
+                                  {editRoleSoNguoi != null
+                                    ? `Còn ${editRoleSoNguoi} người đang giữ vai trò này. Vẫn xóa thì họ mất vai trò, chỉ còn quyền mặc định.`
+                                    : "Xóa vai trò này? Không thể hoàn tác."}
                                 </span>
                                 <button
                                   type="button"
                                   className="btn btn--danger"
                                   disabled={editRoleDeleting}
-                                  onClick={deleteEditRole}
+                                  onClick={() => deleteEditRole(editRoleSoNguoi != null)}
                                 >
-                                  {editRoleDeleting ? "Đang xóa…" : "Xác nhận xóa"}
+                                  {editRoleDeleting
+                                    ? "Đang xóa…"
+                                    : editRoleSoNguoi != null
+                                      ? "Vẫn xóa"
+                                      : "Xác nhận xóa"}
                                 </button>
                                 <button
                                   type="button"
                                   className="btn btn--ghost"
                                   disabled={editRoleDeleting}
-                                  onClick={() => setEditRoleConfirmDelete(false)}
+                                  onClick={() => {
+                                    setEditRoleConfirmDelete(false);
+                                    setEditRoleSoNguoi(null);
+                                  }}
                                 >
                                   Hủy
                                 </button>

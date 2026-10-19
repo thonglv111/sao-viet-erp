@@ -11,6 +11,7 @@ import type {
   SupplierRow,
 } from "../../../../api/client";
 import { chuanKho, coDonViGoc } from "../../../../lib/khoGiay";
+import { homNayVN } from "../../../../utils/ky";
 import { SO_NCC_GOI_Y } from "./constants";
 import type { ChaoGia, FormLine, FormState } from "./types";
 
@@ -70,9 +71,7 @@ export function noiDung(row: { content?: string | null; purpose?: string | null;
 }
 
 export function todayInputValue(): string {
-  const now = new Date();
-  const localNow = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return localNow.toISOString().slice(0, 10);
+  return homNayVN();
 }
 
 export function fromRequest(row: PurchaseRequestRow): FormState {

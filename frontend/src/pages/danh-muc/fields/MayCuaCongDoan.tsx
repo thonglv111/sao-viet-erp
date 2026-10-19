@@ -209,7 +209,7 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
       {mo.o === "gio" ? <FormulaField
         id={`ct-gio-${mo.may}`} configPrefix="/api/cong-doan" loaiO="quy_doi"
         nhanO={`Công thức giờ chạy — ${tenMay(mo.may)}`}
-        goY="Ra LƯỢNG theo đơn vị tốc độ của máy. Bỏ trống = hệ tự quy đổi. vd máy 5 màu chạy 2 lượt: sl_vao * so_mau / 5. ĐỪNG nhân so_luot_chay — hệ đã tự nhân."
+        goY="Ra LƯỢNG theo đơn vị tốc độ của máy. Bỏ trống = hệ tự quy đổi. vd máy 5 màu chạy 2 lượt: sl_vao * so_mau_phu / 5. ĐỪNG nhân so_luot_chay — hệ đã tự nhân."
         value={chon[iMo].cong_thuc_gio ?? ""}
         onChange={(v) => patch(iMo, { cong_thuc_gio: v })} /> : <FormulaField
         id={`ct-gia-${mo.may}`} configPrefix="/api/cong-doan" loaiO="cong_doan"

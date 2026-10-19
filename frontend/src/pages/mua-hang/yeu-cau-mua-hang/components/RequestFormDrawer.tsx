@@ -6,7 +6,7 @@
 //   - Bảng món trải hết bề ngang: Vật tư | Khổ | Tồn khổ này | Số lượng mua | Ghi chú. Kho và mua hàng
 //     giấy tờ chỉ đếm "tờ"; tờ khác tờ ở KHỔ.
 // Toàn bộ `save` / validate ở trang cha giữ NGUYÊN.
-import { useEffect, useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type {
   DepartmentPurchaseRequestInput,
   DepartmentPurchaseRequestRow,
@@ -20,22 +20,20 @@ import { ChonNgay } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { DonViChonTheoHang, MaterialCombobox } from "../../../../components/MaterialCombobox";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
-import { NganPhai } from "../../../ke-toan/shared/NganPhai";
+import { NganPhai, useDongNgan } from "../../../ke-toan/shared/NganPhai";
 import { fmtQty } from "../../../khoShared";
 import { OMuaCho } from "../../mua-cho/OMuaCho";
 import { SOURCE_TYPE_LABELS } from "../shared/constants";
 import { chuanKho, coDonViGoc } from "../../../../lib/khoGiay";
-import { emptyLine, laGiayDong, todayInputValue } from "../shared/helpers";
+import { congNgay as congNgayVN } from "../../../../utils/ky";
+import { emptyLine, laGiayDong, phieuCoDuLieu, todayInputValue } from "../shared/helpers";
 import "../../../ke-toan/ke-toan.css";
 import "../../../kho-ngan-a.css";
 import "./yc-form-a.css";
 
-/** Ngày cách hôm nay `n` ngày, dạng yyyy-mm-dd theo giờ máy. */
+/** Ngày cách hôm nay `n` ngày, dạng yyyy-mm-dd theo giờ xưởng. */
 function congNgay(n: number): string {
-  const d = new Date(`${todayInputValue()}T00:00:00`);
-  d.setDate(d.getDate() + n);
-  const tz = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
-  return tz.toISOString().slice(0, 10);
+  return congNgayVN(todayInputValue(), n);
 }
 
 const CHON_NHANH: { nhan: string; ngay: number }[] = [
@@ -69,6 +67,12 @@ function useTonKhoa(token: string | null, lines: DepartmentPurchaseRequestLineIn
   return ton;
 }
 
+/** Nút Huỷ ở chân ngăn: đi qua cửa đóng của ngăn để cũng hỏi "Bỏ phiếu đang nhập?" khi gõ dở. */
+function NutHuy({ disabled }: { disabled: boolean }) {
+  const dong = useDongNgan();
+  return <Button variant="ghost" onClick={dong} disabled={disabled}>Huỷ</Button>;
+}
+
 export function RequestFormDrawer({
   editing,
   departmentName,
@@ -93,6 +97,10 @@ export function RequestFormDrawer({
   closeForm: () => void;
 }) {
   const { token, user } = useAuth();
+  // Gõ dở = hỏi trước khi đóng (bấm nền / Esc / nút X). TẠO MỚI: có chữ nào đã gõ là hỏi. SỬA: chỉ hỏi
+  // khi khác bản lúc mở — phiếu cũ vốn đầy dữ liệu, mở ra xem rồi đóng không có gì để mất.
+  const bangLucMo = useRef(JSON.stringify(form));
+  const dangGoDo = () => !saving && (editing ? JSON.stringify(form) !== bangLucMo.current : phieuCoDuLieu(form));
   const ton = useTonKhoa(token, form.lines);
   const coQuyenTon = !Object.values(ton).some((v) => v === null);
 
@@ -163,7 +171,7 @@ export function RequestFormDrawer({
         )}
       </span>
       <span className="rc__spacer" />
-      <Button variant="ghost" onClick={closeForm} disabled={saving}>Huỷ</Button>
+      <NutHuy disabled={saving} />
       <Button type="submit" form="ycmh-form" variant="accent" loading={saving}>
         <Icon name={editing ? "edit" : "send"} size={14} /> {editing ? "Cập nhật yêu cầu" : "Gửi yêu cầu"}
       </Button>
@@ -187,6 +195,7 @@ export function RequestFormDrawer({
       }
       chan={chan}
       onDong={closeForm}
+      chanDong={dangGoDo}
     >
       <form
         id="ycmh-form"

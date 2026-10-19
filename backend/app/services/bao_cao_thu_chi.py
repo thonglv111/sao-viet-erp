@@ -16,6 +16,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date
 
+from ..models.accounting import RECEIPT_SOURCE_ORDER, RECEIPT_SOURCE_SALES_INVOICE
 from ..models.muc_thu_chi import LOAI_CHI, LOAI_THU, muc_co_dinh
 from .bao_cao_cong_no import ngay_chi
 
@@ -91,20 +92,30 @@ def _phieu_chi(v) -> dict:
     }
 
 
-def _phieu_thu(p) -> dict:
-    muc_id, muc_ten = _muc_cua(LOAI_THU, p.source_type or "purchase_refund", p.muc_thu_chi)
-    return {
-        "loai": LOAI_THU, "id": p.id, "so": p.doc_no or p.code, "ngay": p.receipt_date, "tien": int(p.amount_vnd),
-        "nguoi": (p.payer_name or "").strip(), "ly_do": p.content or "",
-        "hinh_thuc": p.receipt_method,
-        "muc_id": muc_id, "muc_ten": muc_ten,
-    }
+def _phieu_thu(p) -> list[dict]:
+    """Một phiếu = một dòng báo cáo; phiếu gộp có CẢ dòng cọc lẫn dòng hoá đơn (17/10/2026) tách
+    thành hai dòng cùng số phiếu — cọc vào mục "Thu cọc", hoá đơn vào "Thu tiền hoá đơn"."""
+    def _dong(nguon: str, muc, tien: int) -> dict:
+        muc_id, muc_ten = _muc_cua(LOAI_THU, nguon, muc)
+        return {
+            "loai": LOAI_THU, "id": p.id, "so": p.doc_no or p.code, "ngay": p.receipt_date, "tien": tien,
+            "nguoi": (p.payer_name or "").strip(), "ly_do": p.content or "",
+            "hinh_thuc": p.receipt_method,
+            "muc_id": muc_id, "muc_ten": muc_ten,
+        }
+
+    dong = getattr(p, "lines", None) or []
+    coc = sum(int(l.amount_vnd) for l in dong if l.sales_invoice_id is None)
+    hoa_don = sum(int(l.amount_vnd) for l in dong if l.sales_invoice_id is not None)
+    if coc and hoa_don:
+        return [_dong(RECEIPT_SOURCE_ORDER, None, coc), _dong(RECEIPT_SOURCE_SALES_INVOICE, None, hoa_don)]
+    return [_dong(p.source_type or "purchase_refund", p.muc_thu_chi, int(p.amount_vnd))]
 
 
 def nap_phieu(repo, tu: date, den: date, *, hinh_thuc: str | None = None,
               muc: list[int] | None = None) -> list[dict]:
     ds = [_phieu_chi(v) for v in repo.phieu_chi(tu, den) if tu <= ngay_chi(v) <= den]
-    ds += [_phieu_thu(p) for p in repo.phieu_thu(tu, den)]
+    ds += [d for p in repo.phieu_thu(tu, den) for d in _phieu_thu(p)]
     if hinh_thuc:
         ds = [p for p in ds if p["hinh_thuc"] == hinh_thuc]
     if muc:

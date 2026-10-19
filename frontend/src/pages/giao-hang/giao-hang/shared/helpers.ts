@@ -65,6 +65,9 @@ export function toneChuyen(tt: string): GhTone {
 /** Chuyến CHƯA có kết quả giao. */
 export const CHUA_KET_QUA = ["da_len_ke_hoach", "dang_chuan_bi", "da_lay_hang", "dang_giao"];
 
+/** Chuyến thất bại (kể cả đang/đã trả hàng về kho, hẹn lại kiểu cũ) — khách không nhận gì. */
+export const CHUYEN_THAT_BAI = ["that_bai", "dang_tra_hang", "da_tra_hang", "hen_lai"];
+
 export const so = (n: number | null | undefined) => (n == null ? "—" : n.toLocaleString("vi-VN"));
 
 const GIO_NGAY = new Intl.DateTimeFormat("vi-VN", {

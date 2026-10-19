@@ -138,6 +138,12 @@ class SuaChuaMay(Base):
     # Chỉ điền khi đóng phiếu. `hoan_thanh_at` là DẤU VẾT (giờ đóng), không dùng để tính chu kỳ.
     hoan_thanh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     hoan_thanh_boi: Mapped[int | None] = mapped_column(Integer, nullable=True)  # soft → users.id
+    # Số GIÂY phiếu đã nằm ở trạng thái đóng, cộng dồn qua các lần mở lại (#71, mg 0424): mỗi lần mở
+    # lại cộng (giờ mở lại − `hoan_thanh_at`) rồi mới xoá `hoan_thanh_at`. "Sửa mất" = giờ xong −
+    # `thoi_diem` − cột này, để quãng máy chạy bình thường không bị tính là thời gian sửa.
+    thoi_gian_dong_giay: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

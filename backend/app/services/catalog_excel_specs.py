@@ -163,6 +163,27 @@ def _tach_danh_sach(gt: Any, _ctx: NguCanh) -> list[str]:
     return [t.strip() for t in str(gt or "").split(",") if t.strip()]
 
 
+def _doc_dvt_them(gt: Any, ctx: NguCanh) -> list[str]:
+    """Ô "ĐVT thêm" nhận cả nhãn lẫn mã; nhãn quy về mã ngay lúc đọc để file vừa xuất nạp lại không bị
+    tính là "sửa" (so mã đang lưu với nhãn). Chữ lạ để nguyên cho service báo đúng chữ người gõ."""
+    co = ctx.nho("dvt_ma", lambda: {(d.ma or "").strip().lower()
+                                    for d in DonViDoRepository(ctx.db).all_rows()})
+    nguoc = ctx.nho("dvt_ma_theo_ten", lambda: DonViDoRepository(ctx.db).ma_theo_ten())
+    return [t if t.lower() in co else nguoc.get(t.lower(), t) for t in _tach_danh_sach(gt, ctx)]
+
+
+def _ghi_dvt_them(gt: Any, ctx: NguCanh) -> str:
+    """Cột "ĐVT thêm" xuất NHÃN đơn vị ("tờ"), không phải mã thô "to" (#55, 18/10/2026). Chỉ đổi khi
+    nhãn tra ngược ra đúng mã đó — nhãn trùng giữa hai đơn vị thì giữ mã, để nhập lại không lạc."""
+    ten = ctx.nho("dvt_ten_theo_ma", lambda: DonViDoRepository(ctx.db).ten_theo_ma())
+    nguoc = ctx.nho("dvt_ma_theo_ten", lambda: DonViDoRepository(ctx.db).ma_theo_ten())
+    ra = []
+    for m in gt or []:
+        nhan = ten.get(m)
+        ra.append(nhan if nhan and nguoc.get(nhan.strip().lower()) == m else m)
+    return ", ".join(ra)
+
+
 def _enum_viet(nhan_cua: dict[str, str], ten_cot: str, *, bi_danh: dict[str, str] | None = None):
     """Cặp `(doc, ghi)` cho cột MÃ enum: file xuất ra NHÃN tiếng Việt, nhập nhận cả nhãn lẫn mã gốc.
 
@@ -334,8 +355,7 @@ GIAY = CatalogExcelSpec(
         Cot("Tên", "ten", rong=32),
         Cot("Định lượng (gsm)", "gsm", kieu="nguyen", rong=16),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
-        Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_tach_danh_sach,
-            ghi=lambda gt, _ctx: ", ".join(gt or [])),
+        Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_doc_dvt_them, ghi=_ghi_dvt_them),
         Cot("Đơn giá", "don_gia", kieu="so", rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         Cot("Công thức giá", "cong_thuc_gia", rong=36),
@@ -351,8 +371,7 @@ VAT_TU = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
-        Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_tach_danh_sach,
-            ghi=lambda gt, _ctx: ", ".join(gt or [])),
+        Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_doc_dvt_them, ghi=_ghi_dvt_them),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),

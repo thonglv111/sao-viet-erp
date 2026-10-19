@@ -10,6 +10,7 @@ nhưng chưa chống spoofing sâu ở lát này.
 """
 from __future__ import annotations
 
+import re
 import calendar
 import json
 import math
@@ -129,6 +130,12 @@ def _gio_text(phut: int) -> str:
     return f"{g} giờ {p:02d}" if p else f"{g} giờ"
 
 
+def _ten_ca(ten: str) -> str:
+    """Tên ca đã mở đầu bằng "Ca" ("Ca Hành Chính") thì để nguyên — tránh câu "Ca Ca Hành Chính…"."""
+    t = (ten or "").strip()
+    return t if re.match(r"(?i)ca(\s|$)", t) else f"Ca {t}"
+
+
 def check_in_block_reason(*, shift, work_day: date, now_local: datetime) -> str | None:
     """Lý do không được chấm VÀO; None nghĩa là đang trong cửa sổ hợp lệ."""
     midnight = datetime(work_day.year, work_day.month, work_day.day, tzinfo=VN_TZ)
@@ -139,12 +146,12 @@ def check_in_block_reason(*, shift, work_day: date, now_local: datetime) -> str 
     earliest = start_at - timedelta(minutes=CHECK_IN_EARLY_MINUTES)
     if now_local < earliest:
         return (
-            f"Ca {shift.name} bắt đầu lúc {min_to_hhmm(shift.start_minute)}. "
+            f"{_ten_ca(shift.name)} bắt đầu lúc {min_to_hhmm(shift.start_minute)}. "
             f"Bạn chỉ được chấm vào từ {earliest.strftime('%H:%M')}."
         )
     if now_local >= end_at:
         return (
-            f"Ca {shift.name} đã kết thúc lúc {min_to_hhmm(shift.end_minute)}. "
+            f"{_ten_ca(shift.name)} đã kết thúc lúc {min_to_hhmm(shift.end_minute)}. "
             "Không thể chấm vào cho ca này."
         )
     return None
@@ -1630,7 +1637,11 @@ class AttendanceService:
                     # người làm Chủ nhật tưởng mình bị trả thiếu. Ba cờ này LOẠI TRỪ NHAU, đúng
                     # thứ tự `plain > holiday > restday` mà tiền đang tính ở dưới.
                     "restday": False, "plain": False,
-                    "planned_off": False}
+                    "planned_off": False,
+                    # NGÀY LÀM VIỆC đã qua mà KHÔNG có lượt bấm nào (quên cả vào lẫn ra / vắng) —
+                    # 14/10/2026: trước đây ngày này không có ô, màn để trống y như ngày chưa tới.
+                    # Chỉ là DẤU: không công, không tiền (`cong` vẫn None).
+                    "khong_cham": False}
 
         rows = []
         for emp_id in base_ids | set(by_emp) | set(leave_map) | set(hourly_map):
@@ -1721,8 +1732,26 @@ class AttendanceService:
             # Ngày có PHIẾU TC đã duyệt (đã qua) cũng phải có ô — để cảnh báo "phiếu mà không bấm".
             phieu_tc_ngay = ot_map.get(emp_id, {})
             ngay_phieu_qua = {dd for dd in phieu_tc_ngay if date(year, month, dd) < today}
+            # NGÀY KHÔNG CHẤM CÔNG (14/10/2026, chủ: "quên không chấm cả vào lẫn ra mà bảng công không
+            # thể hiện gì"): ngày ĐÃ QUA, trong biên chế, là ngày làm việc (lịch tuần công ty, hoặc
+            # được xếp ca tay), CÓ ca, mà không lượt bấm / không phép / không lễ / không nghỉ theo lịch.
+            # Hôm nay chưa hết ngày ⇒ chưa tính.
+            khong_cham: set[int] = set()
+            for dd in range(1, days_in_month + 1):
+                the_d = date(year, month, dd)
+                if the_d >= today:
+                    break
+                if (dd in att_days or dd in lv_days or dd in emp_holidays or dd in planned_off
+                        or dd in paid_holidays):
+                    continue
+                if not self._trong_bien_che(emp, the_d):
+                    continue
+                lam_viec = (dd in scheduled or self._work_calendar is None
+                            or self._work_calendar.is_working_day(the_d))
+                if lam_viec and self._shift_for_day(emp, the_d, shifts) is not None:
+                    khong_cham.add(dd)
             for d in sorted(set(att_days) | set(lv_days) | emp_holidays | planned_off
-                            | scheduled | xem_truoc | set(hl_days) | ngay_phieu_qua):
+                            | scheduled | xem_truoc | set(hl_days) | ngay_phieu_qua | khong_cham):
                 cell = _empty_cell()
                 main_out_min_kep = None
                 phieu_tc = phieu_tc_ngay.get(d)
@@ -1732,7 +1761,7 @@ class AttendanceService:
                     # Ngày CHỈ mới xếp ca (tương lai, chưa chấm/nghỉ/lễ) KHÔNG tính vào "ca đã làm"
                     # của tháng: nó chỉ hiện cho biết "mai làm ca nào". Để nó vào `used_shift_ids`
                     # thì summary nhảy "Nhiều ca" và `total_cong` ra 0 thay vì trống.
-                    chi_xep_truoc = (d in (scheduled | xem_truoc) and d not in att_days
+                    chi_xep_truoc = (d in (scheduled | xem_truoc | khong_cham) and d not in att_days
                                      and d not in lv_days and d not in emp_holidays)
                     if not chi_xep_truoc:
                         used_shift_ids.add(shift.id)
@@ -1940,6 +1969,8 @@ class AttendanceService:
                     # Ngày CHỈ mang dấu 'nghỉ theo lịch' HOẶC ngày đã XẾP CA nhưng chưa tới (tương
                     # lai): giữ ô để bảng công hiện ca / "nghỉ theo lịch" thay vì để trống giống
                     # vắng. Không công, không tiền — `cell.cong` vẫn None.
+                    if d in khong_cham:
+                        cell["khong_cham"] = True
                     if phieu_tc is not None and d in ngay_phieu_qua:
                         # Có phiếu TC đã duyệt mà cả ngày không bấm lượt nào — vẫn phải nói ra.
                         cell["ot_thieu_cap"] = True

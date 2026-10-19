@@ -88,7 +88,7 @@ def _hhmm(minute: int) -> str:
 class OvertimeService:
     def __init__(self, overtime: OvertimeRepository, employees: EmployeeRepository,
                  audit: AuditLogRepository, attendance=None, payroll=None,
-                 yeu_cau_huy=None) -> None:
+                 yeu_cau_huy=None, leaves=None) -> None:
         self.overtime = overtime
         self.employees = employees
         self.audit = audit
@@ -100,6 +100,8 @@ class OvertimeService:
         self._attendance = attendance
         # YeuCauHuyRepository | None — xin hủy phiếu ĐÃ DUYỆT (23/09/2026). None ⇒ không có đường xin.
         self._yc = yeu_cau_huy
+        # LeaveRepository | None — ngày đã duyệt nghỉ cả ngày thì không tăng ca (#40, 18/10/2026).
+        self._leaves = leaves
 
     def _chan_neu_ky_cong_da_chot(self, ngay: date, viec: str) -> None:
         if self._attendance is None:
@@ -214,6 +216,7 @@ class OvertimeService:
             emp = self._employee_for_user(actor)
 
         self._chan_ngoai_bien_che(emp, work_date)
+        self._chan_ngay_nghi(emp, work_date)
         # Tháng đã chốt công thì phiếu treo là ngõ cụt (duyệt cũng không được nữa) — chặn ngay lúc gửi
         # (bản rà liên thông D9, 08/09/2026), không đợi tới lúc duyệt.
         self._chan_neu_ky_cong_da_chot(work_date, "gửi phiếu tăng ca")
@@ -305,6 +308,19 @@ class OvertimeService:
         if ly_do:
             raise OvertimeValidationError(ly_do)
 
+    def _chan_ngay_nghi(self, emp, work_date: date) -> None:
+        """Ngày đã DUYỆT nghỉ (đơn nghỉ luôn là cả ngày) ⇒ không gửi, không duyệt tăng ca (#40).
+        Trước đó lọt cả hai chiều: người duyệt ký tăng ca cho người đang nghỉ mà không ai nhắc."""
+        if self._leaves is None:
+            return
+        don = self._leaves.approved_for_employees({emp.id}, tu=work_date, den=work_date)
+        if don:
+            raise OvertimeValidationError(
+                f"Ngày {work_date:%d/%m/%Y} {emp.full_name} có đơn nghỉ cả ngày đã duyệt — không gửi "
+                "hay duyệt tăng ca cho ngày nghỉ. Hôm đó thật ra đi làm thì huỷ (hoặc xin huỷ) đơn "
+                "nghỉ trước."
+            )
+
     def _chan_tu_duyet(self, employee_id: int, *, scope: str | None, actor) -> None:
         """Không TỰ duyệt phiếu của mình khi phạm vi chỉ là tổ (07/09/2026). Tổ trưởng cũng là NV
         trong tổ mình — thiếu chốt này là họ tự cấp tăng ca cho chính mình. Phạm vi toàn công ty
@@ -329,6 +345,7 @@ class OvertimeService:
             emp = self.employees.get_by_id(r.employee_id)
             if emp is not None:
                 self._chan_ngoai_bien_che(emp, r.work_date)
+                self._chan_ngay_nghi(emp, r.work_date)
             self._chan_neu_ky_cong_da_chot(r.work_date, "duyệt phiếu tăng ca")
         self.overtime.update_request(
             r, status=new_status, decided_by=actor.id,

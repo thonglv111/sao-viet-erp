@@ -39,7 +39,7 @@ class BaoCaoThuChiRepository:
     def phieu_thu(self, tu_ngay: date, den_ngay: date) -> list[PaymentReceipt]:
         stmt = (
             select(PaymentReceipt)
-            .options(selectinload(PaymentReceipt.muc_thu_chi))
+            .options(selectinload(PaymentReceipt.muc_thu_chi), selectinload(PaymentReceipt.lines))
             .where(
                 PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
                 PaymentReceipt.receipt_date >= tu_ngay,

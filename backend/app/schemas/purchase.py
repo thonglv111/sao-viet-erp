@@ -99,6 +99,9 @@ class SupplierIn(BaseModel):
     # ĐỊNH MỨC = số NGÀY cho nợ kể từ ngày giao. 0 = trả ngay · None = CHƯA ĐẶT hạn (đợt giao của
     # NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép None thành 0.
     credit_days: int | None = Field(default=None, ge=0)
+    # Cách tính hạn trả (16/10/2026): None = từ ngày hoá đơn; 1–31 = chốt hằng tháng ngày đó
+    # (31 = cuối tháng). Thuộc NCC — đơn mua không có điều khoản riêng.
+    debt_cutoff_day: int | None = Field(default=None, ge=1, le=31)
     status: str = Field(default="active", max_length=16)
     # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
     nhan_gia_cong: bool = False
@@ -153,6 +156,7 @@ class SupplierRow(BaseModel):
     payment_terms: str | None = None
     credit_limit: int = 0
     credit_days: int | None = None
+    debt_cutoff_day: int | None = None
     status: str
     nhan_gia_cong: bool = False
     note: str | None = None
@@ -626,12 +630,28 @@ class PurchaseDeliveryLineOut(BaseModel):
     quantity_tinh_tien: float = 0
     #: Phần DƯ, giá 0đ. `quantity_tinh_tien + quantity_du == quantity`.
     quantity_du: float = 0
+    #: Đơn giá chốt trên dòng đơn (chưa CK/VAT) và thành tiền phần tính tiền của dòng (đã CK/VAT) —
+    #: đúng số `phan_bo_du_dot` cộng vào giá trị đợt.
+    don_gia: int = 0
+    thanh_tien: int = 0
     #: KHỔ THỰC NHẬN (giấy tờ): khổ lưu ở đợt, hoặc khổ đặt khi đợt không ghi. 0 · 0 với hàng khác.
     kho_rong: int = 0
     kho_dai: int = 0
     #: NCC giao khác khổ đặt — hàng vào tồn theo khổ nhận.
     khac_kho_dat: bool = False
     note: str | None = None
+
+
+class PurchaseDepositVoucherOut(BaseModel):
+    """Một lần chi cho đơn: phiếu ĐẶT CỌC (form phiếu chi cảnh báo trùng) hoặc phiếu trả ĐỢT (lịch sử
+    popup chi tiết khoản). `amount` là phần của đơn/đợt này — phiếu gộp (`gop`) chỉ góp phần dòng."""
+
+    voucher_id: int | None = None
+    code: str
+    doc_no: str | None = None
+    amount: int
+    voucher_date: date
+    gop: bool = False
 
 
 class PurchaseDeliveryOut(BaseModel):
@@ -662,6 +682,7 @@ class PurchaseDeliveryOut(BaseModel):
     # đơn (lỗi 07/08/2026: trả thừa cho đợt 2 xoá sổ luôn nợ của đợt 1).
     coc_bu: int = 0
     con_no: int = 0
+    phieu_chi: list[PurchaseDepositVoucherOut] = Field(default_factory=list)
     # Đợt giao đẻ ra công nợ ⇒ phải truy được ai khai, lúc nào.
     created_by_name: str | None = None
     created_at: datetime | None = None
@@ -690,12 +711,12 @@ class PurchaseDeliveryLineIn(BaseModel):
 
 class PurchaseDeliveryIn(BaseModel):
     delivery_date: date
-    due_date: date | None = None
     invoice_symbol: str | None = Field(default=None, max_length=64)
     invoice_number: str | None = Field(default=None, max_length=64)
     invoice_date: date | None = None
     note: str | None = Field(default=None, max_length=2000)
-    # None khi SỬA = giữ nguyên các dòng hàng, chỉ đổi phần đầu đợt (ngày, hạn, hoá đơn).
+    # None khi SỬA = giữ nguyên các dòng hàng, chỉ đổi phần đầu đợt (ngày, hoá đơn).
+    # Hạn trả KHÔNG nhận từ ngoài (16/10/2026): máy tính theo điều khoản NCC lúc ghi/sửa đợt.
     lines: list[PurchaseDeliveryLineIn] | None = None
 
 
@@ -708,11 +729,14 @@ class PurchaseInvoiceAssignIn(BaseModel):
     invoice_date: date | None = None
 
 
+class PurchaseSubmitIn(BaseModel):
+    # Cọc CHỐT lúc gửi duyệt (15/10/2026): người duyệt đồng ý đúng con số này. None = giữ số đang
+    # có trên đơn (gọi cũ không gửi thân).
+    deposit_expected: int | None = Field(default=None, ge=0)
+
+
 class PurchaseContractIn(BaseModel):
     contract_number: str | None = Field(default=None, max_length=64)
-    # NGÀY CHỐT CÔNG NỢ do NCC báo cho ĐƠN. Bỏ trống = chưa báo ⇒ hạn trả lùi về luật cũ
-    # (ngày hoá đơn + số ngày cho nợ), không đơn nào đổi hạn ngoài ý muốn.
-    debt_cutoff_date: date | None = None
     # Cọc DỰ KIẾN — chỉ để đối chiếu, KHÔNG vào công thức công nợ (cọc thật là phiếu chi).
     deposit_expected: int = Field(default=0, ge=0)
 
@@ -727,15 +751,6 @@ class SupplierCreditOut(BaseModel):
     vuot_bao_nhieu: int = 0
 
 
-class PurchaseDepositVoucherOut(BaseModel):
-    """Một phiếu ĐẶT CỌC đã lập cho phiếu mua — chỉ để form phiếu chi cảnh báo trùng."""
-
-    code: str
-    doc_no: str | None = None
-    amount: int
-    voucher_date: date
-
-
 class PurchaseRequestOut(BaseModel):
     id: int
     code: str
@@ -745,10 +760,10 @@ class PurchaseRequestOut(BaseModel):
     purpose: str | None = None
     needed_date: date | None = None
     expected_receipt_date: date | None = None
-    #: Ngày chốt công nợ NCC báo cho đơn — hạn trả MỌI đợt = ngày này + `suppliers.credit_days`.
-    debt_cutoff_date: date | None = None
-    #: Chụp `suppliers.credit_days` để màn hình suy hạn trả ngay tại chỗ gõ ngày chốt.
+    #: Điều khoản trả của NCC (16/10/2026 — thuộc NCC, đơn không có điều khoản riêng): số ngày cho
+    #: nợ + ngày chốt hằng tháng (1–31, 31 = cuối tháng; None = tính từ ngày hoá đơn).
     supplier_credit_days: int | None = None
+    supplier_debt_cutoff_day: int | None = None
     created_by_user_id: int | None = None
     created_by_name: str | None = None
     submitted_at: datetime | None = None
@@ -781,6 +796,8 @@ class PurchaseRequestOut(BaseModel):
     # ứng thêm là ca có thật, và mỗi lần tiền rời két phải có chứng từ riêng.
     coc_da_lap: list[PurchaseDepositVoucherOut] = Field(default_factory=list)
     coc_da_chi: int = 0
+    #: Cọc đã chi mà CHƯA bù vào đợt giao nào — đợt ghi tiếp theo sẽ được trừ phần này trước.
+    coc_chua_bu: int = 0
     payment_status: str
     nhom_tien: str | None = None
     payment_voucher_count: int
@@ -804,6 +821,23 @@ class PurchaseRequestListOut(BaseModel):
     # Số đơn theo nhóm TIỀN (chua_tra | mot_phan | qua_han | da_tra) — cùng bộ lọc, trước khi lọc
     # nhóm Hàng lẫn nhóm Tiền. Đơn chưa phát sinh nợ không vào nhóm nào.
     dem_theo_tien: dict[str, int] | None = None
+
+
+class MuaHangChoChiOut(BaseModel):
+    """Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi): ĐƠN + khoản còn phải chi của đơn đó.
+    `don` là nguyên dòng đơn như hộp Đơn mua hàng — form lập phiếu chi dùng thẳng, các đợt còn nợ
+    đọc ở `don.deliveries[].con_no`."""
+
+    don: PurchaseRequestOut
+    # Cọc khai lúc gửi duyệt còn chưa chi (không quá phần giá trị đơn còn chưa trả).
+    coc_can_chi: int
+    # Số đợt giao còn nợ và tổng nợ của chúng (đã trừ phần cọc bù vào đợt).
+    so_dot_no: int
+    no_dot: int
+    tong_can_chi: int
+    # Hạn trả gần nhất trong các đợt còn nợ; None = chưa có đợt nào (chỉ còn cọc).
+    han_gan_nhat: date | None = None
+    qua_han: bool = False
 
 
 class PurchaseNotifySummaryOut(BaseModel):

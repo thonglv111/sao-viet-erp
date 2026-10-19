@@ -164,7 +164,7 @@ def _chan_neu_khong_toan_cong_ty(authz: AuthorizationService, user: User, viec: 
         )
 
 
-def _ghi_cau_hinh_chung(action: str, viec: str):
+def _ghi_cau_hinh_chung(action: str, viec: str, o_tab: str):
     """Dependency cho các đường GHI vào dữ liệu DÙNG CHUNG cả nhà máy: điểm chấm công · khai ca ·
     lịch & ngày lễ (chủ chốt 15/08/2026).
 
@@ -172,16 +172,20 @@ def _ghi_cau_hinh_chung(action: str, viec: str):
     viên. Người phạm vi "Của tôi" / "Cả phòng" mà sửa được thì họ đụng vào bảng công của cả công
     ty — cùng loại rủi ro với Chốt kỳ công, nên dùng chung một hàng rào.
 
+    Đòi thêm ô chi tiết của tab (`o_tab`, 15/10/2026): Thao tác Chấm công nay LUÔN BẬT cho mọi vai
+    (mg 0412 — tự chấm, xin chỉnh công), nên riêng nó không còn phân biệt được ai sửa dữ liệu chung.
+
     Trả về `User` để endpoint dùng như `require_permission` bình thường."""
 
     doi_o = require_permission(MODULE, action)
+    doi_tab = require_permission(MODULE, o_tab)
 
     # ⚠️ KHÔNG dùng `Annotated[...]` ở đây: file bật `from __future__ import annotations` nên chú
     # thích kiểu thành CHUỖI, mà chuỗi đó lại tham chiếu `action` — biến của closure, không nằm
     # trong globals. FastAPI giải không ra ⇒ coi `user` là tham số QUERY và trả 422 "Field
     # required". Tham số mặc định thì `Depends(...)` được tính NGAY, không qua chú thích.
     def _dep(authz: AuthorizationService = Depends(get_authorization_service),
-             user: User = Depends(doi_o)) -> User:
+             user: User = Depends(doi_o), _tab: User = Depends(doi_tab)) -> User:
         _chan_neu_khong_toan_cong_ty(authz, user, viec)
         return user
 
@@ -240,7 +244,7 @@ def list_shifts(
 def create_shift(
     body: WorkShiftIn,
     svc: Service,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("create", "Khai ca"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("create", "Khai ca", "manage_shifts"))],
 ) -> WorkShiftOut:
     try:
         s = svc.create_shift(
@@ -261,7 +265,7 @@ def update_shift(
     shift_id: int,
     body: WorkShiftIn,
     svc: Service,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("update", "Khai ca"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("update", "Khai ca", "manage_shifts"))],
 ) -> WorkShiftOut:
     try:
         s = svc.update_shift(
@@ -281,7 +285,7 @@ def update_shift(
 def delete_shift(
     shift_id: int,
     svc: Service,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("delete", "Khai ca"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("delete", "Khai ca", "manage_shifts"))],
 ):
     try:
         svc.delete_shift(actor=user, shift_id=shift_id)
@@ -325,7 +329,7 @@ def save_shift_plan(
     body: ShiftPlanSaveIn,
     svc: Service,
     authz: Authz,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("update", "Khai ca (lưới phân ca)"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("update", "Khai ca (lưới phân ca)", "manage_shifts"))],
 ) -> ShiftPlanSaveOut:
     """Ghi hàng loạt ô lưới trong MỘT request (không lặp N request). Ô không hợp lệ
     trả về trong `rejected` kèm lý do thay vì bị bỏ qua im lặng."""
@@ -402,7 +406,7 @@ def list_locations(
 def create_location(
     body: WorkLocationIn,
     svc: Service,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("create", "Điểm chấm công"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("create", "Điểm chấm công", "manage_locations"))],
 ) -> WorkLocationOut:
     try:
         loc = svc.create_location(
@@ -419,7 +423,7 @@ def update_location(
     location_id: int,
     body: WorkLocationIn,
     svc: Service,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("update", "Điểm chấm công"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("update", "Điểm chấm công", "manage_locations"))],
 ) -> WorkLocationOut:
     try:
         loc = svc.update_location(
@@ -435,7 +439,7 @@ def update_location(
 def delete_location(
     location_id: int,
     svc: Service,
-    user: Annotated[User, Depends(_ghi_cau_hinh_chung("delete", "Điểm chấm công"))],
+    user: Annotated[User, Depends(_ghi_cau_hinh_chung("delete", "Điểm chấm công", "manage_locations"))],
 ):
     try:
         svc.delete_location(actor=user, location_id=location_id)

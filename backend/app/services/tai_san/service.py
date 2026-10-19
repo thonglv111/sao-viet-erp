@@ -43,6 +43,7 @@ from ...models.tai_san import (
     TaiSanChiPhi,
     TaiSanMoc,
 )
+from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.loc_danh_sach import hom_nay_vn
 from ...repositories.tai_san_repo import NHOM_BO_PHAN, NHOM_LOAI, LocTaiSan, TaiSanRepository
 from ..bien_che import TRANG_THAI_DANG_LAM
@@ -172,9 +173,38 @@ class SuKien:
     chi_tiet: str
 
 
+
 class TaiSanService:
-    def __init__(self, repo: TaiSanRepository) -> None:
+    def __init__(self, repo: TaiSanRepository, audit: AuditLogRepository | None = None) -> None:
         self.repo = repo
+        # Nhật ký: TUỲ CHỌN để chỗ dựng service ngoài router (bảng tháng, test thuần nghiệp vụ) không
+        # phải kéo theo. Router luôn truyền vào — thiếu là thao tác tài sản không để lại dấu vết
+        # (lỗi E2E #49, 18/10/2026: cả thư mục này không gọi nhật ký lần nào).
+        self.audit = audit
+
+    def _nhat_ky(self, user_id: int | None, action: str, t: TaiSan, chi_tiet: str = "") -> None:
+        """Một dòng nhật ký, KHÔNG tự commit: gọi ngay trước `_chot()` (commit + báo tick) của thao tác để tài sản
+        đổi và dòng nhật ký sống / chết cùng một giao dịch. `target = tai_san:<id>` như các màn khác."""
+        if self.audit is None:
+            return
+        detail = f"{t.ma} {t.ten}" + (f": {chi_tiet}" if chi_tiet else "")
+        self.audit.create(actor_user_id=user_id, action=action, target=f"tai_san:{t.id}",
+                          detail=detail, commit=False)
+
+    def _chot(self) -> None:
+        """Commit thao tác (kèm dòng nhật ký ghi `commit=False` trước đó) rồi báo màn Nhật ký đang
+        mở có dòng mới — `AuditLogRepository.create(commit=False)` không tự báo."""
+        self.repo.commit()
+        if self.audit is not None:
+            self.audit.bao_co_dong_moi()
+
+    def _ten_bo_phan(self, bo_phan_id: int | None) -> str | None:
+        if not bo_phan_id:
+            return None
+        from ...models.department import Department
+
+        d = self.repo.db.get(Department, bo_phan_id)
+        return d.name if d is not None else None
 
     # --- Tiện ích -------------------------------------------------------------------------
 
@@ -476,7 +506,10 @@ class TaiSanService:
                       co_so_trich=t.nguyen_gia, so_thang_con=t.so_thang, luy_ke_dau=0,
                       nguon=MOC_GHI_TANG)
         self.repo.them(t)
-        self.repo.commit()
+        self.repo.flush()                        # có id cho `target` của dòng nhật ký
+        self._nhat_ky(user_id, "tai_san_them", t,
+                      f"mua mới, giá {_tien(t.nguyen_gia)}, dùng từ {t.ngay_su_dung:%d/%m/%Y}")
+        self._chot()
         return t
 
     def nap_dau_ky(
@@ -506,14 +539,17 @@ class TaiSanService:
                       luy_ke_dau=hao_mon, nguon=MOC_DAU_KY)
         self.repo.them(t)
         if commit:
-            self.repo.commit()
-        else:
             self.repo.flush()
+            self._nhat_ky(user_id, "tai_san_them", t,
+                          f"đang dùng, giá {_tien(t.nguyen_gia)}, tính tiếp từ {t.moc_tu_ngay:%m/%Y}")
+            self._chot()
+        else:
+            self.repo.flush()                    # nhập Excel: nơi gọi ghi MỘT dòng tổng kết
         return t
 
     # --- Sửa / xoá ------------------------------------------------------------------------
 
-    def sua(self, tai_san_id: int, payload: dict) -> TaiSan:
+    def sua(self, tai_san_id: int, payload: dict, *, user_id: int | None = None) -> TaiSan:
         t = self._bat_buoc(tai_san_id)
         dung_o_so = {k for k in payload if k in O_ANH_HUONG_SO}
         if dung_o_so and t.bien_dong:
@@ -527,7 +563,8 @@ class TaiSanService:
             self._gan_nguoi_quan_ly(t, None)     # đổi bộ phận mà không chọn người mới ⇒ bỏ trống
         if dung_o_so:
             self._ap_lai_o_so(t, payload)
-        self.repo.commit()
+        self._nhat_ky(user_id, "tai_san_sua", t, "đổi " + ", ".join(sorted(payload)))
+        self._chot()
         return t
 
     def _ap_lai_o_so(self, t: TaiSan, payload: dict) -> None:
@@ -577,7 +614,7 @@ class TaiSanService:
         self._dat_moc(t, tu_ngay=moc, nguyen_gia=nguyen_gia, co_so_trich=nguyen_gia - hao_mon_dau,
                       so_thang_con=so_thang_con, luy_ke_dau=hao_mon_dau, nguon=MOC_SUA)
 
-    def xoa(self, tai_san_id: int) -> None:
+    def xoa(self, tai_san_id: int, *, user_id: int | None = None) -> None:
         """Gỡ hẳn khỏi sổ — CHỈ cho tài sản nhập nhầm, chưa có chứng từ nào (05/10/2026).
 
         Món đã bán / hỏng / mất đi bằng Thôi dùng để giữ lịch sử. Mốc và dòng chi phí cascade theo.
@@ -587,8 +624,9 @@ class TaiSanService:
             raise TaiSanDaCoChungTu(
                 "Tài sản đã có lịch sử, không xoá được. Máy đã bán hay hỏng thì bấm Thôi dùng."
             )
+        self._nhat_ky(user_id, "tai_san_xoa", t, "gỡ khỏi sổ vì nhập nhầm")
         self.repo.xoa(t)
-        self.repo.commit()
+        self._chot()
 
     # --- Ba chứng từ: chuyển bộ phận · sửa chữa lớn · thôi dùng ------------------------------
     #
@@ -643,9 +681,15 @@ class TaiSanService:
             t, loai=BD_DIEU_CHUYEN, ngay=ngay, bo_phan_moi_id=bo_phan_moi_id,
             ly_do=ly_do, nguoi_tao_id=user_id,
         )
+        bo_phan_cu = self._ten_bo_phan(t.bo_phan_id)
         t.bo_phan_id = bo_phan_moi_id
         self._gan_nguoi_quan_ly(t, nguoi_quan_ly_id)
-        self.repo.commit()
+        self._nhat_ky(
+            user_id, "tai_san_dieu_chuyen", t,
+            f"ngày {ngay:%d/%m/%Y}, từ {bo_phan_cu or 'chưa có bộ phận'} sang "
+            f"{self._ten_bo_phan(bo_phan_moi_id) or f'bộ phận #{bo_phan_moi_id}'}"
+            + (f", lý do {ly_do}" if ly_do else ""))
+        self._chot()
         return bd
 
     def nang_cap(
@@ -696,7 +740,11 @@ class TaiSanService:
                       co_so_trich=nguyen_gia_moi - luy_ke_truoc,
                       so_thang_con=int(so_thang_con_lai), luy_ke_dau=luy_ke_truoc,
                       nguon=MOC_NANG_CAP)
-        self.repo.commit()
+        self._nhat_ky(
+            user_id, "tai_san_nang_cap", t,
+            f"ngày {ngay:%d/%m/%Y}, thêm {_tien(so_tien)}, dùng thêm {int(so_thang_con_lai)} tháng"
+            + (f", lý do {ly_do}" if ly_do else ""))
+        self._chot()
         return bd
 
     def thoi_dung(
@@ -716,6 +764,11 @@ class TaiSanService:
         if kieu not in KIEU_THOI_DUNG:
             raise TaiSanValidationError("Chọn lý do thôi dùng: Bán, Thanh lý, Hỏng hoặc Mất")
         self._chan_truoc_khi_dung(t, ngay)
+        # Không thôi dùng cho ngày CHƯA TỚI (lỗi E2E #44): lưu là thẻ đổi sang "Đã thôi dùng" ngay,
+        # ngăn tính sẵn khấu hao tới tận ngày đó, trong khi máy vẫn đang chạy. Dự kiến bán tháng
+        # sau thì tháng sau mới bấm. "Hôm nay" theo giờ xưởng (UTC+7), không theo giờ máy chủ.
+        if ngay > hom_nay_vn():
+            raise TaiSanValidationError("Không chọn được ngày sau hôm nay")
         dau = mocs_cua(t)[0].tu_ngay
         if t.nguon_vao == NGUON_DAU_KY and ngay < dau:
             raise TaiSanValidationError(
@@ -732,10 +785,14 @@ class TaiSanService:
         )
         t.trang_thai = TT_DA_GIAM
         t.ngay_giam = ngay
-        self.repo.commit()
+        self._nhat_ky(
+            user_id, "tai_san_thoi_dung", t,
+            f"ngừng khấu hao từ {ngay:%d/%m/%Y}, lý do {KIEU_THOI_DUNG[kieu].lower()}"
+            + (f", ghi chú {bd.ly_do}" if bd.ly_do else ""))
+        self._chot()
         return bd
 
-    def bo_thoi_dung(self, tai_san_id: int) -> TaiSan:
+    def bo_thoi_dung(self, tai_san_id: int, *, user_id: int | None = None) -> TaiSan:
         """Bấm nhầm Thôi dùng ⇒ xoá chứng từ đó, tài sản về Đang dùng, lịch khấu hao như cũ."""
         t = self._bat_buoc(tai_san_id)
         ds = [b for b in t.bien_dong if b.loai == BD_THOI_DUNG]
@@ -744,7 +801,10 @@ class TaiSanService:
         for b in ds:
             t.bien_dong.remove(b)
             self.repo.xoa(b)
+        ngay_cu = t.ngay_giam
         t.trang_thai = TT_DANG_DUNG
         t.ngay_giam = None
-        self.repo.commit()
+        self._nhat_ky(user_id, "tai_san_bo_thoi_dung", t,
+                      "về đang dùng" + (f", bỏ lần thôi dùng ngày {ngay_cu:%d/%m/%Y}" if ngay_cu else ""))
+        self._chot()
         return t

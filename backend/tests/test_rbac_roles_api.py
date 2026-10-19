@@ -98,20 +98,24 @@ def test_matrix_get_defaults_and_save_persists(client):
     ).json()["id"]
 
     rows = client.get(f"/api/roles/{role_id}/permissions", headers=_h(token)).json()
-    # Một dòng cho mỗi module. Vai mới TẮT HẾT, trừ ĐÚNG HAI ô bật sẵn (10/08/2026, xem
-    # `RoleRepository.O_MAC_DINH`): Tự phục vụ + Nội quy — hai thứ là quyền của mọi người lao
-    # động, không phải đặc quyền của một vai. Vai mới mà thiếu chúng thì người vừa được gán vai
-    # không tự chấm công nổi và không đọc được nội quy.
+    # Một dòng cho mỗi module. Vai mới TẮT HẾT, trừ các ô bật sẵn (`RoleRepository.O_MAC_DINH`):
+    # Tự phục vụ + Nội quy (10/08/2026) và ô LUÔN BẬT của nhân sự (`rbac_repo.O_LUON_BAT`, mg 0412,
+    # 15/10/2026) — Chấm công / Nghỉ phép / Tăng ca đủ Xem + Thao tác, Lương chỉ Xem. Đó là quyền
+    # của mọi người lao động, không phải đặc quyền của một vai.
     assert len(rows) >= 11
-    bat_san = {"self_service", "noi_quy"}
+    bat_du = {"cham_cong", "nghi_phep", "tang_ca"}
+    bat_san = {"self_service", "noi_quy", "luong"} | bat_du
     for r in rows:
-        if r["module_key"] in bat_san:
+        if r["module_key"] in bat_du:
+            assert r["can_read"] and r["can_create"] and r["can_update"] and r["can_delete"], (
+                r["module_key"])
+        elif r["module_key"] in bat_san:
             assert r["can_read"], f'{r["module_key"]} phải bật sẵn cho vai mới'
             # `self_service` cần CẢ ô Thao tác (`can_create`) — từ 11/08/2026 nó mới là thứ cho
-            # chấm công / gửi đơn nghỉ · phiếu tăng ca · xin tạm ứng. Chỉ bật Xem thì vai mới gán
-            # xong, thợ mở màn ra mà không bấm được nút nào.
+            # chấm công / gửi đơn nghỉ · phiếu tăng ca · xin tạm ứng. Lương thì CHỈ Xem: Thao tác
+            # Lương gồm sửa mức lương, cấu hình lương.
             assert r["can_create"] is (r["module_key"] == "self_service"), (
-                f'{r["module_key"]}: can_create sai — Tự phục vụ phải có ô Thao tác, Nội quy thì không'
+                f'{r["module_key"]}: can_create sai — Tự phục vụ phải có ô Thao tác, Nội quy / Lương thì không'
             )
             assert not (r["can_update"] or r["can_delete"])
         else:
@@ -221,6 +225,18 @@ def test_delete_role_in_use_is_blocked(client):
     # Still present (not deleted).
     ids = {r["id"] for r in client.get(f"/api/roles?department_id={kd_id}", headers=_h(token)).json()}
     assert role_id in ids
+
+    # Cưỡng chế (15/10/2026): `force=true` gỡ vai khỏi người đang giữ rồi xoá.
+    forced = client.delete(f"/api/roles/{role_id}?force=true", headers=_h(token))
+    assert forced.status_code == 204, forced.text
+    ids = {r["id"] for r in client.get(f"/api/roles?department_id={kd_id}", headers=_h(token)).json()}
+    assert role_id not in ids
+    db = SessionLocal()
+    try:
+        u = UserRepository(db).get_by_username("busy")
+        assert u.role_id is None and u.department_id == kd_id and u.is_active
+    finally:
+        db.close()
 
 
 def test_non_admin_forbidden(client):

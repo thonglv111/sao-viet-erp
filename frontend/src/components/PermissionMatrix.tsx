@@ -78,6 +78,13 @@ export type ActionKey =
   // Chỉ dòng tổ có cờ KCS (mg 0382, 08/10/2026).
   | "can_close_short";
 
+//: Dòng có ô Xem cố định bật, không tắt được (kể cả "Tắt hết" của dòng / nhóm). Máy chủ ép bật lúc
+//: lưu — `rbac_repo.O_LUON_BAT`, mg 0410 / 0412 (Nội quy riêng một luật cũ).
+const XEM_CO_DINH = new Set(["noi_quy", "self_service", "cham_cong", "nghi_phep", "tang_ca", "luong"]);
+//: Dòng có ô Thao tác cố định bật (15/10/2026, mg 0412): tự chấm công, gửi đơn nghỉ, gửi phiếu tăng
+//: ca là việc của mọi người. Lương KHÔNG ở đây — Thao tác Lương gồm sửa mức lương, cấu hình lương.
+const THAO_TAC_CO_DINH = new Set(["cham_cong", "nghi_phep", "tang_ca"]);
+
 // UI gộp Thêm/Sửa/Xóa thành một công tắc "quyền chỉnh sửa": tick là bật cả ba.
 // Dữ liệu vẫn lưu tách (can_create/can_update/can_delete) nên backend không đổi.
 const WRITE_ACTIONS: ActionKey[] = ["can_create", "can_update", "can_delete"];
@@ -96,6 +103,9 @@ type FineAction = {
   hint?: string;
   mod?: string;
   chung?: string;
+  /** Ô soi kèm PHẠM VI (14/10/2026): bật = các cột `keys`/`key` bật VÀ dòng nguồn ở phạm vi này;
+   *  tắt = chỉ hạ phạm vi dòng nguồn về "Của tôi" (giữ nguyên Xem). */
+  phamVi?: Scope;
 };
 
 //: Ô chi tiết "Xem giá thành" — MỖI module kho một ô RIÊNG, cột `can_view_cost` của chính dòng đó
@@ -374,12 +384,12 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     {
       key: "can_manage_locations",
       label: "Điểm chấm công",
-      hint: "Cho phép mở tab Điểm chấm công (vị trí, bán kính). Lưu ý: muốn thêm, sửa phải bật kèm Thao tác và phạm vi “Tất cả”.",
+      hint: "Cho phép mở tab Điểm chấm công (vị trí, bán kính). Lưu ý: muốn thêm, sửa phải chọn phạm vi “Tất cả”.",
     },
     { key: "can_manage_shifts", label: "Khai ca",
-      hint: "Cho phép mở tab Khai ca (giờ vào / ra, ca đêm, phụ cấp). Lưu ý: muốn thêm, sửa phải bật kèm Thao tác và phạm vi “Tất cả”." },
+      hint: "Cho phép mở tab Khai ca (giờ vào / ra, ca đêm, phụ cấp). Lưu ý: muốn thêm, sửa phải chọn phạm vi “Tất cả”." },
     { key: "can_manage_calendar", label: "Lịch & Ngày lễ",
-      hint: "Cho phép mở tab Lịch & Ngày lễ. Lưu ý: muốn sửa phải bật kèm Thao tác và phạm vi “Tất cả”; đổi ở đây là đổi công chuẩn của tháng." },
+      hint: "Cho phép mở tab Lịch & Ngày lễ. Lưu ý: muốn sửa phải chọn phạm vi “Tất cả”; đổi ở đây là đổi công chuẩn của tháng." },
     {
       key: "can_view_log",
       label: "Xem Nhật ký chấm công",
@@ -421,7 +431,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       // là ăn 403. Màn nay ẩn ba nút đó theo ô này.
       key: "can_cancel",
       label: "Huỷ đơn nghỉ của mình",
-      hint: "Cho phép: huỷ đơn nghỉ của mình khi chưa duyệt; xin huỷ đơn đã duyệt (người duyệt quyết); rút lại lời xin huỷ. Lưu ý: nên bật cùng Thao tác cho mọi nhân viên.",
+      hint: "Cho phép: huỷ đơn nghỉ của mình khi chưa duyệt; xin huỷ đơn đã duyệt (người duyệt quyết); rút lại lời xin huỷ. Lưu ý: nên bật cho mọi nhân viên.",
     },
     {
       // CỘT RIÊNG từ 15/08/2026 (mg 0197). Trước đó ô này mượn `can_update` — mà `can_update` là
@@ -494,6 +504,17 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     },
   ],
   thu_mua: [
+    // Tab "Yêu cầu chờ xử lý" của màn Mua hàng đọc yêu cầu theo PHẠM VI của dòng Yêu cầu mua hàng
+    // (`purchase_service._sees_all_department_requests`). Soi lên đây (14/10/2026) để người cấp
+    // quyền Mua hàng thấy ngay: thiếu ô này thì thu mua mở tab ra trống, không biết vì sao.
+    {
+      key: "can_read",
+      mod: "yeu_cau_mua_hang",
+      phamVi: "all",
+      chung: "chung ô Yêu cầu mua hàng",
+      label: "Thấy yêu cầu mua của mọi phòng",
+      hint: "Cho phép thấy yêu cầu mua của mọi phòng ở tab Yêu cầu chờ xử lý để lập đơn. Lưu ý: bật ô này là bật Xem và chọn phạm vi Tất cả ở Yêu cầu mua hàng; tắt thì phạm vi về Của tôi.",
+    },
     // ĐÃ BỎ 12/08/2026 (chủ chốt test rồi quyết) — hai ô này không đáng tồn tại:
     //   • "Sửa / đảo trạng thái đơn sau khi nhận hàng" (`can_manage_status`): ba việc nó gác
     //     (sửa số nhận · mở lại đơn · đóng đơn) là việc thường ngày của chính người lập phiếu,
@@ -507,8 +528,8 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   ke_toan: [
     {
       key: "can_approve",
-      label: "Duyệt / từ chối PMH",
-      hint: "Cho phép duyệt, từ chối phiếu mua hàng và huỷ phiếu đã gửi duyệt.",
+      label: "Duyệt đơn mua hàng",
+      hint: "Cho phép: duyệt hoặc từ chối đơn mua hàng đang chờ duyệt; huỷ đơn đã gửi duyệt. Lưu ý: duyệt được cả đơn do chính mình lập.",
     },
   ],
   // Phân hệ Kế toán tách mỗi màn một khoá (10/08/2026). Ô "Lập phiếu" nay là cột **Thêm** của
@@ -532,23 +553,23 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
 // không hiện ⓘ — thà thiếu còn hơn mô tả sai.
 const MODULE_HINTS: Record<string, string> = {
   self_service:
-    "Xem: hiện mục “Hồ sơ của tôi” (hồ sơ, số công, quỹ phép, phiếu lương của chính mình). Lưu ý: tắt chỉ ẩn mục này trên menu.",
+    "Xem: hiện mục “Hồ sơ của tôi” (hồ sơ, số công, quỹ phép, phiếu lương của chính mình). Lưu ý: luôn bật cho mọi nhân viên, không tắt được.",
   giao_hang:
     "Xem: đơn giao hàng. Thao tác: gửi yêu cầu giao, báo đã lấy hàng, nhập kết quả và số km; đính chứng từ giao hàng (biên bản khách ký, kể cả đơn nhà gia công giao thẳng). Lưu ý: phạm vi ở màn này tính khác — Của tôi là yêu cầu mình lập hoặc chuyến mình chở; Cả phòng chỉ đúng phòng mình, không gồm phòng con. Kế toán cần đính biên bản cho mọi đơn thì chọn Tất cả.",
   nhan_su:
     "Xem: hồ sơ nhân viên. Thao tác: thêm, sửa hồ sơ; gán ca; đính kèm giấy tờ; tạo tài khoản đăng nhập; nhập Excel. Lưu ý: không có xoá hồ sơ.",
   cham_cong:
-    "Xem: mở màn, xem công của mình. Thao tác: tự bấm giờ; xin đi muộn / về sớm; gửi yêu cầu chỉnh công. Lưu ý: xem công người khác cần ô Bảng công tháng; duyệt yêu cầu chỉnh công cần ô Duyệt yêu cầu chỉnh công.",
+    "Xem: mở màn, xem công của mình. Thao tác: tự bấm giờ; xin đi muộn / về sớm; gửi yêu cầu chỉnh công. Lưu ý: Xem và Thao tác luôn bật cho mọi nhân viên; xem công người khác cần ô Bảng công tháng; duyệt yêu cầu chỉnh công cần ô Duyệt yêu cầu chỉnh công.",
   noi_quy:
     "Xem: đọc nội quy. Thao tác: thêm, xoá tài liệu.",
   nghi_phep:
-    "Xem: mở màn, xem đơn nghỉ của mình. Thao tác: gửi đơn nghỉ. Lưu ý: huỷ đơn của mình cần ô Huỷ đơn nghỉ của mình; duyệt đơn người khác cần ô Duyệt đơn nghỉ phép.",
+    "Xem: mở màn, xem đơn nghỉ của mình. Thao tác: gửi đơn nghỉ. Lưu ý: Xem và Thao tác luôn bật cho mọi nhân viên; huỷ đơn của mình cần ô Huỷ đơn nghỉ của mình; duyệt đơn người khác cần ô Duyệt đơn nghỉ phép.",
   tang_ca:
-    "Xem: mở màn, xem phiếu tăng ca của mình. Thao tác: gửi phiếu tăng ca. Lưu ý: duyệt phiếu người khác cần ô Duyệt phiếu tăng ca.",
+    "Xem: mở màn, xem phiếu tăng ca của mình. Thao tác: gửi phiếu tăng ca. Lưu ý: Xem và Thao tác luôn bật cho mọi nhân viên; duyệt phiếu người khác cần ô Duyệt phiếu tăng ca.",
   luong:
-    "Xem: mở màn Lương, thấy phiếu lương và tạm ứng của mình. Thao tác: gửi đề nghị tạm ứng; lập tạm ứng hộ; sửa mức lương; tính lại, sửa dòng bảng lương; thêm, xoá khoản thu nhập; sửa cấu hình lương. Lưu ý: Thao tác gồm cả sửa lương của mọi người trong phạm vi đang chọn.",
+    "Xem: mở màn Lương, thấy phiếu lương và tạm ứng của mình. Thao tác: gửi đề nghị tạm ứng; lập tạm ứng hộ; sửa mức lương; tính lại, sửa dòng bảng lương; thêm, xoá khoản thu nhập; sửa cấu hình lương. Lưu ý: Xem luôn bật cho mọi nhân viên; Thao tác gồm cả sửa lương của mọi người trong phạm vi đang chọn.",
   thu_mua:
-    "Xem: phiếu mua hàng. Thao tác: lập, sửa, gửi duyệt, đánh dấu đã mua / đã nhận. Lưu ý: phạm vi Của tôi là phiếu mình lập; Cả phòng chỉ đúng phòng mình, không gồm phòng con. Ai có màn Đơn mua hàng (Kế toán) thì thấy mọi phiếu đã gửi duyệt.",
+    "Xem: phiếu mua hàng. Thao tác: lập, sửa, gửi duyệt, đánh dấu đã mua / đã nhận. Lưu ý: ai có màn này đều thấy mọi phiếu mua của công ty.",
   // Hai chú giải dưới bổ sung 21/08/2026: trước đó hai màn này KHÔNG có dòng nào, người cấp quyền
   // phải tự đoán "Xem cái này thì thấy gì" (xem docs/RBAC_QUYEN_THEO_MODULE.md §5).
   yeu_cau_mua_hang:
@@ -580,7 +601,7 @@ const MODULE_HINTS: Record<string, string> = {
   phong_ban:
     "Xem: cây phòng ban, nhân sự và vai trò. Thao tác: thêm, sửa, xoá phòng ban và vai trò.",
   ke_toan:
-    "Xem: mọi phiếu mua hàng đã gửi duyệt (chờ duyệt, đã duyệt, đang chi…).",
+    "Xem: mở màn, thấy mọi đơn mua hàng đã gửi duyệt (chờ duyệt, đã duyệt, đang chi…). Lưu ý: duyệt, từ chối đơn cần ô Duyệt đơn mua hàng.",
   phieu_chi:
     "Xem: phiếu chi. Chỉnh sửa: lập phiếu chi. Lưu ý: bật Chỉnh sửa là bật luôn Trả lại cọc ở Đơn hàng bán, tắt cũng vậy.",
   phieu_thu:
@@ -646,7 +667,7 @@ const HINT_PHAM_VI_KD =
 const COL_HINTS = {
   read: "Cho phép mở màn và xem dữ liệu. Tắt Xem thì Thao tác cũng tắt theo.",
   write: "Cho phép thêm, sửa, xoá. Bật Thao tác thì Xem tự bật theo. Lưu ý: vài màn có việc riêng (Yêu cầu nhập xuất là tạo yêu cầu, mỗi kho là khai ngưỡng tồn); xem dấu hỏi cạnh tên màn.",
-  scope: "Người này được thấy dữ liệu của những ai. Của tôi: chỉ dữ liệu do chính mình phụ trách. Cả phòng: của mình và của mọi người cùng phòng, kể cả các tổ / phòng nhỏ trực thuộc phòng đó. Tất cả: toàn bộ công ty. Lưu ý: vài màn tính khác — xem dấu hỏi cạnh tên màn.",
+  scope: "Người này thấy được dữ liệu của ai. Của tôi: chỉ cái mình lập hoặc mình phụ trách. Cả phòng: của cả phòng mình, gồm cả tổ con. Tất cả: cả công ty. Lưu ý: vài màn tính hơi khác, xem dấu hỏi cạnh tên màn.",
 };
 
 export const SCOPES: { value: Scope; label: string }[] = [
@@ -1029,6 +1050,9 @@ export function defaultMatrix(modules: ModuleDef[]): PermissionRow[] {
 
 /** Một module có "quyền" nào không (để đếm N/M ở đầu nhóm + quyết định nhóm nào mở sẵn). */
 function rowHasAny(row: PermissionRow): boolean {
+  // Dòng có ô LUÔN BẬT là có quyền — kể cả ở form "Thêm vai trò", nơi giá trị chưa nạp từ máy chủ
+  // (máy chủ tự bật lúc tạo vai) mà công tắc đã hiện bật. Không tính thì đầu nhóm ghi "0/7".
+  if (XEM_CO_DINH.has(row.module_key)) return true;
   if (row.can_read || cotThaoTac(row.module_key).some((k) => row[k])) return true;
   // Ô soi (`mod`) là quyền của dòng khác — không tính dòng này "có quyền".
   const fine = fineCua(row.module_key);
@@ -1054,6 +1078,8 @@ interface PermissionMatrixProps {
 //  chờ chủ chốt chốt (xem PRD vòng 2 §2.6).
 const PHAM_VI_CHO_PHEP: Record<string, Scope[]> = {
   nha_cung_cap: ["all"],
+  // Mua hàng khoá "Tất cả" (14/10/2026) — máy chủ ép lúc lưu (`role_service`), mg 0411.
+  thu_mua: ["all"],
   ke_toan: ["all"],
   cong_no_phai_tra: ["all"],
   cong_no_phai_thu: ["all"],
@@ -1272,10 +1298,10 @@ export function PermissionMatrix({
   const oCuaDong = (row: PermissionRow, noWrite: boolean) => {
     const out: { khoa: string; key: ActionKey; on: boolean }[] = [];
     const khoa = row.module_key;
-    if (khoa !== "noi_quy" && oSong(khoa, "read")) {
+    if (!XEM_CO_DINH.has(khoa) && oSong(khoa, "read")) {
       out.push({ khoa, key: "can_read", on: row.can_read });
     }
-    if (!noWrite) {
+    if (!noWrite && !THAO_TAC_CO_DINH.has(khoa)) {
       const ks = cotThaoTac(khoa);
       if (ks.some((k) => oSong(khoa, k.replace("can_", "")))) {
         ks.forEach((k) => out.push({ khoa, key: k, on: !!row[k] }));
@@ -1412,7 +1438,9 @@ export function PermissionMatrix({
                       </div>
                     );
                   }
-                  const isNoiQuy = row.module_key === "noi_quy";
+                  // Xem cố định bật cho mọi nhân viên: Nội quy, và Hồ sơ của tôi (14/10/2026, máy chủ
+                  // ép bật lúc lưu — `role_service.KHOA_LUON_XEM`, mg 0410).
+                  const xemCoDinh = XEM_CO_DINH.has(row.module_key);
                   const actionKeys = cotThaoTac(row.module_key);
                   const canWrite = actionKeys.every((k) => row[k]);
                   // Khoá ô chi tiết bắt buộc bám "CÓ ĐƯỜNG GHI NÀO KHÔNG", KHÔNG bám `canWrite`.
@@ -1436,7 +1464,8 @@ export function PermissionMatrix({
                   // Công tắc gộp (`keys`): bật = TẤT CẢ cột bật.
                   const fineOn = (a: FineAction) => {
                     const r = dongCua(a);
-                    return a.keys ? a.keys.every((k) => r[k]) : !!r[a.key];
+                    const cot = a.keys ? a.keys.every((k) => r[k]) : !!r[a.key];
+                    return cot && (!a.phamVi || r.scope === a.phamVi);
                   };
                   const fineGranted = fineActs ? fineActs.filter(fineOn).length : 0;
                   const fineIsOpen = openFine.has(row.module_key);
@@ -1481,8 +1510,8 @@ export function PermissionMatrix({
                         )}
                       </div>
                       <div className="rdx-perm__cell rdx-perm__cell--act">
-                        {isNoiQuy ? (
-                          <div className="rdx-perm__fixed-read">
+                        {xemCoDinh ? (
+                          <div className="rdx-perm__fixed-read" title="Mọi nhân viên luôn được xem, không tắt được">
                             <input
                               type="checkbox"
                               className="switch"
@@ -1490,7 +1519,6 @@ export function PermissionMatrix({
                               disabled
                               aria-label={`Xem — ${label} — mọi nhân viên`}
                             />
-                            <span className="rdx-perm__fixed-note">Mọi nhân viên</span>
                           </div>
                         ) : (
                           <input
@@ -1508,6 +1536,15 @@ export function PermissionMatrix({
                       </div>
                       {!g.noWrite && (
                       <div className="rdx-perm__cell rdx-perm__cell--act">
+                        {THAO_TAC_CO_DINH.has(row.module_key) ? (
+                          <input
+                            type="checkbox"
+                            className="switch"
+                            checked
+                            disabled
+                            aria-label={`${nhanThaoTac(row.module_key)} — ${label} — mọi nhân viên`}
+                          />
+                        ) : (
                         <input
                           type="checkbox"
                           className="switch"
@@ -1525,6 +1562,7 @@ export function PermissionMatrix({
                             if (kem && e.target.checked) onToggle(row.module_key, kem, true);
                           }}
                         />
+                        )}
                       </div>
                       )}
                       {/* Nhóm `noScope` (Danh mục) KHÔNG dựng ô này. Trước 17/08/2026 chỉ tiêu đề
@@ -1600,13 +1638,19 @@ export function PermissionMatrix({
                                         : CANH_BAO_O_CHET
                                 }
                                 aria-label={`${a.label} — ${label}`}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  // Ô kèm phạm vi: tắt = hạ phạm vi dòng nguồn về "Của tôi", giữ Xem.
+                                  if (a.phamVi && !e.target.checked) {
+                                    onScope(khoaO, "own");
+                                    return;
+                                  }
                                   // Công tắc gộp → set TẤT CẢ cột trong `keys`; thường → 1 cột. Ô soi
                                   // ghi vào dòng nguồn (`mod`).
                                   (a.keys ?? [a.key]).forEach((k) =>
                                     onToggle(khoaO, k, e.target.checked),
-                                  )
-                                }
+                                  );
+                                  if (a.phamVi) onScope(khoaO, a.phamVi);
+                                }}
                               />
                               <span className="rdx-perm__fine-text">
                                 {a.label}

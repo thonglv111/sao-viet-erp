@@ -133,6 +133,12 @@ def test_don_vi_doc_duoc_boi_nguoi_thu_mua(client):
     assert client.get("/api/don-vi", headers=_h(token)).status_code == 200
 
 
+def test_don_vi_doc_duoc_boi_nguoi_ke_toan(client):
+    """Kế toán > Đơn mua hàng đổi mã sang tên đơn vị cho cột Đặt — 403 thì hiện mã trần `to`."""
+    token = _token_for_role("ketoan-only", [("ke_toan", "all")])
+    assert client.get("/api/don-vi", headers=_h(token)).status_code == 200
+
+
 def test_don_vi_nguoi_la_van_403(client):
     token = _token_for_role("nobody", [("dashboard", "own")])
     assert client.get("/api/don-vi", headers=_h(token)).status_code == 403

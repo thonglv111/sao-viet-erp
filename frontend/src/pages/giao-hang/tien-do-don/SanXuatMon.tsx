@@ -76,16 +76,18 @@ export function BangSanXuatMon({
                 <td>
                   {m.lenh.length === 0 ? <span className="sxm-mo-nhat">Không có lệnh</span> : (
                     <span className="sxm-lenhs">
-                      {m.lenh.map((x) => (
+                      {m.lenh.map((x) => onMoLenh ? (
                         <button
                           key={x.id}
                           type="button"
                           className="sxm-lenh"
-                          disabled={!onMoLenh}
-                          onClick={(e) => { e.stopPropagation(); onMoLenh?.(x.id); }}
+                          onClick={(e) => { e.stopPropagation(); onMoLenh(x.id); }}
                         >
                           {x.ma} <span aria-hidden="true">↗</span>
                         </button>
+                      ) : (
+                        // Không vào được Kế hoạch SX thì chỉ là mã, không mũi tên dẫn ra màn 403 (#77).
+                        <span key={x.id} className="sxm-lenh">{x.ma}</span>
                       ))}
                     </span>
                   )}

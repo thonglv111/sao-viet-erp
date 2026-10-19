@@ -34,6 +34,15 @@ const utc = (s: string) => {
   return Date.UTC(y, m - 1, d);
 };
 
+/** `YYYY-MM-DDTHH:mm` giờ Việt Nam của một mốc — giờ tường của xưởng, không theo múi của máy đang mở
+ *  trang. `themGio` dời mốc đi bấy nhiêu giờ; `troiGio` làm tròn lên ĐẦU giờ kế tiếp. */
+export function gioVN(now: number = Date.now(), { themGio = 0, troiGio = false } = {}): string {
+  const H = 3_600_000;
+  let t = now + GIO_VN;
+  if (troiGio) t = Math.floor(t / H) * H + H;
+  return new Date(t + themGio * H).toISOString().slice(0, 16);
+}
+
 /** Hôm nay theo giờ Việt Nam, không phụ thuộc múi giờ của máy đang mở trang. */
 export function homNayVN(now: number = Date.now()): string {
   return new Date(now + GIO_VN).toISOString().slice(0, 10);
@@ -43,6 +52,12 @@ export function homNayVN(now: number = Date.now()): string {
 export function ngayCuaMoc(moc: string): string {
   const t = new Date(moc).getTime();
   return Number.isNaN(t) ? moc.slice(0, 10) : homNayVN(t);
+}
+
+/** Tên ngắn của `ngayCuaMoc`: ngày giờ xưởng của một mốc UTC ("2026-10-17T23:07:00Z" thành "2026-10-18").
+ *  KHÔNG cắt 10 ký tự đầu của mốc: trước 7 giờ sáng giờ VN, UTC còn là ngày hôm trước. */
+export function ngayVN(moc: string): string {
+  return ngayCuaMoc(moc);
 }
 
 /** "dd/mm/yyyy" từ "YYYY-MM-DD" hoặc mốc thời gian đầy đủ; rỗng thì "—". */

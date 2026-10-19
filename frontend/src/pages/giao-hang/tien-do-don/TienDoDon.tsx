@@ -19,7 +19,7 @@ import { DetailModal } from "../../../components/DetailModal";
 import { EmptyState } from "../../../components/EmptyState";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
-import { nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
+import { CHUYEN_THAT_BAI, nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
 import { ChipTT, type MauTT } from "../../../components/LuoiDs";
 
 // Lời gọi tiến độ bắn SẴN lúc bấm mở đơn, chạy SONG SONG với lời gọi chi tiết đơn. Trước 06/10/2026
@@ -582,8 +582,9 @@ export function BuocGiaoHang({
                     </td>
                     <td><ChipTT mau={(TONE_YC[y.trang_thai] ?? "slate") as MauTT}>{NHAN_TRANG_THAI_YC[y.trang_thai] ?? y.trang_thai}</ChipTT></td>
                     <td className="dhb__text-right dhb__g-nut">
-                      {/* In theo SỐ THỰC XUẤT + số phiếu xuất ⇒ kho ghi sổ xong mới mở (13/10/2026). */}
-                      {y.chuyen?.kho_da_xuat
+                      {/* In theo số phiếu xuất ⇒ kho ghi sổ xong mới mở (13/10/2026). Chuyến thất bại thì
+                          khách không nhận gì để ký ⇒ không có phiếu giao (#34, 18/10/2026). */}
+                      {y.chuyen?.kho_da_xuat && !CHUYEN_THAT_BAI.includes(y.chuyen.trang_thai)
                         ? <button type="button" className="dhb__td-link" onClick={() => onIn(y)}>In phiếu giao</button>
                         : (y.chuyen?.trang_thai === "da_len_ke_hoach" || y.chuyen?.trang_thai === "dang_chuan_bi")
                           && <span className="dhb__muted">chờ kho xuất mới in</span>}

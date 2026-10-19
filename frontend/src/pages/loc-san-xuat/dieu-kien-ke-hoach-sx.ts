@@ -3,7 +3,7 @@
  *
  *  Một màn chỉ có MỘT dấu `?man=` trên URL, nên hai bảng chung một trạng thái: khoá của hàng chờ mang
  *  tiền tố `c_` (`c_ky`, `c_khach`…) để không đè khoá của bảng lệnh. */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Factory, FileText, Users } from "lucide-react";
 
 import { api, type LuaChonLoc, type ThamSoLoc } from "../../api/client";
@@ -23,6 +23,10 @@ export const MOC_LENH_KHSX: [string, string][] = [
 export type LocLenhKhsx = {
   khach?: number;
   don?: number;
+  /** Mã đơn đang lọc (DH012), ghi kèm `don`. Danh sách đơn của ô lọc chỉ có đơn CÒN lệnh, nên đơn vừa
+   *  hết lệnh (xoá lệnh cuối) không còn trong đó và thẻ lọc chỉ biết id nội bộ ("Đơn hàng là 40").
+   *  Nhãn nhớ ở đây để thẻ vẫn ghi đúng mã đơn. Chọn đơn khác từ menu thì nhãn tự bỏ. */
+  nhan?: string;
   gia_cong?: "cho_mang_di" | "dang_o_ngoai" | "tron_goi";
 };
 
@@ -67,6 +71,15 @@ export const LOC_KHSX_TRONG: LocKhsx = {
   cho: { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_HANG_CHO_TRONG },
 };
 
+/** Bộ lọc sau khi tạo lệnh cho một đơn: sang bảng lệnh, lọc đúng đơn đó; kỳ về "Tất cả" (giữ mốc) để
+ *  kỳ cũ không giấu lệnh mới. Ghi kèm MÃ đơn để thẻ lọc không phải đoán nhãn từ danh sách đơn. */
+export function locKhsxSauKhiTao(cu: LocKhsx, orderId: number, orderNo?: string): LocKhsx {
+  return {
+    ...cu,
+    lenh: { ky: { loai: "tat_ca", moc: cu.lenh.ky.moc }, loc: { don: orderId, nhan: orderNo || undefined } },
+  };
+}
+
 const TIEN_TO_CHO = "c_";
 
 /** Khoá có tiền tố `c_` của hàng chờ → bộ khoá trần để dùng lại `kyTuUrl`. */
@@ -90,6 +103,7 @@ export function locKhsxTuUrl(p: URLSearchParams): LocKhsx {
       loc: {
         khach: soTuUrl(p.get("khach")),
         don: soTuUrl(p.get("don")),
+        nhan: soTuUrl(p.get("don")) != null ? p.get("dn") || undefined : undefined,
         gia_cong: giaCongTuUrl(p.get("gc")),
       },
     },
@@ -105,6 +119,7 @@ export function locKhsxLenUrl(t: LocKhsx): GiaTriUrl {
     ...kyLenUrl(t.lenh.ky, "tao"),
     khach: soLenUrl(t.lenh.loc.khach),
     don: soLenUrl(t.lenh.loc.don),
+    dn: t.lenh.loc.don != null ? t.lenh.loc.nhan : undefined,
     gc: t.lenh.loc.gia_cong,
     ...themTienTo({ ...kyLenUrl(t.cho.ky, "tao"), khach: soLenUrl(t.cho.loc.khach) }),
   };
@@ -134,9 +149,16 @@ function useLuaChonTick(nap: (token: string) => Promise<LuaChonLoc[]>, tick: num
   return ds;
 }
 
-export function useDieuKienLenhKhsx(tick: number): DieuKien<LocLenhKhsx>[] {
+export function useDieuKienLenhKhsx(tick: number, locDangAp?: LocLenhKhsx): DieuKien<LocLenhKhsx>[] {
   const khach = useLuaChonTick(api.lsx.khachLoc, tick);
-  const don = useLuaChonTick(api.lsx.donLoc, tick);
+  const donMayChu = useLuaChonTick(api.lsx.donLoc, tick);
+  // Đơn đang lọc mà máy chủ không còn liệt kê (hết lệnh) thì bổ sung bằng nhãn đã nhớ.
+  const don = useMemo<GiaTriDK[]>(() => {
+    const id = locDangAp?.don;
+    const nhan = locDangAp?.nhan;
+    if (id == null || !nhan || donMayChu.some((g) => g.value === String(id))) return donMayChu;
+    return [...donMayChu, { value: String(id), nhan }];
+  }, [donMayChu, locDangAp?.don, locDangAp?.nhan]);
   return [
     {
       khoa: "khach", nhan: "Khách hàng", icon: Users, kieu: "mot", tim: true, giaTri: khach,
@@ -146,7 +168,7 @@ export function useDieuKienLenhKhsx(tick: number): DieuKien<LocLenhKhsx>[] {
     {
       khoa: "don", nhan: "Đơn hàng", icon: FileText, kieu: "mot", tim: true, giaTri: don,
       doc: (l) => idThanhChu(l.don),
-      ghi: (l, v) => ({ ...l, don: chuThanhId(v) }),
+      ghi: (l, v) => ({ ...l, don: chuThanhId(v), nhan: undefined }),
     },
     {
       khoa: "gia_cong", nhan: "Gia công ngoài", icon: Factory, kieu: "mot", giaTri: GIA_CONG,

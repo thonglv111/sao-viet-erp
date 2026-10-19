@@ -630,7 +630,7 @@ function BangHang({ dong, hep = false }: { dong: DeliveryRequestLine[]; hep?: bo
     </ul>
   );
   return (
-    <table>
+    <table className="gh-hang">
       <thead>
         <tr>
           <th>Hàng giao</th>

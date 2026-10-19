@@ -2173,11 +2173,15 @@ def _dot_giao_qua_han(client, headers, supplier_id: int) -> dict:
     assert client.post(
         f"/api/purchase-requests/{pr['id']}/mark-purchased", headers=headers
     ).status_code == 200
+    # Hạn do máy chụp theo điều khoản NCC (16/10/2026): giao 20 ngày trước, cho nợ 15 ngày.
+    from tests.test_payables_api import _han_bang_dieu_khoan_ncc
+
+    ngay_giao = date.today() - timedelta(days=20)
+    _han_bang_dieu_khoan_ncc(pr["id"], ngay_giao.isoformat(), (date.today() - timedelta(days=5)).isoformat())
     r = client.post(
         f"/api/purchase-requests/{pr['id']}/deliveries",
         json={
-            "delivery_date": (date.today() - timedelta(days=20)).isoformat(),
-            "due_date": (date.today() - timedelta(days=5)).isoformat(),
+            "delivery_date": ngay_giao.isoformat(),
             "lines": [{"purchase_request_line_id": pr["lines"][0]["id"], "quantity": 100}],
         },
         headers=headers,

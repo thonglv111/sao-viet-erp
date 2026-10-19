@@ -1,5 +1,5 @@
 /** Mảnh chung của hai sổ phiếu (Phiếu chi, Phiếu thu) theo phương án A (07/10/2026,
- *  docs/mockups/ke-toan-gon-3-phuong-an.html): dòng Cộng cuối lưới, ô Ghi chú, ô số "–", tab
+ *  docs/mockups/ke-toan-gon-3-phuong-an.html): dòng Cộng cuối lưới, ô số "–", tab
  *  "Chứng từ gốc" và các ô của cột thuộc tính trong ngăn kiểu 3. */
 import type { ReactNode } from "react";
 
@@ -32,29 +32,18 @@ export function DongCong({ so, chuXong, tongTien, truoc, sau }: {
 }
 
 /** Số phiếu đã xong KHỚP với tổng tiền máy chủ trả (`total_paid_amount` / `total_received_amount`
- *  cộng trên bộ lọc CÓ thẻ đang chọn và ô Chứng từ, còn `the_loc` đếm trên nền KHÔNG có hai thứ đó).
+ *  cộng trên bộ lọc CÓ thẻ đang chọn, còn `the_loc` đếm trên nền KHÔNG có thẻ).
  *  null = thẻ đang xem không có phiếu đã xong (Đã hủy, Chờ thu) ⇒ không vẽ dòng Cộng. */
 export function soPhieuCong(o: {
   the: string;
-  chungTu: "co" | "thieu" | undefined;
   n: SoTheLoc | null;
   /** Tổng số dòng của bảng (mọi trang). */
   tong: number;
 }): number | null {
-  // Thẻ "Đã chi"/"Đã thu" và "Thiếu chứng từ" chỉ chứa phiếu đã xong ⇒ số dòng chính là số phiếu.
-  if (o.the === "xong" || o.the === "thieu") return o.tong;
+  // Thẻ "Đã chi"/"Đã thu" chỉ chứa phiếu đã xong ⇒ số dòng chính là số phiếu.
+  if (o.the === "xong") return o.tong;
   if (o.the !== "tat_ca" || !o.n) return null;
-  if (o.chungTu === "thieu") return o.n.thieu_chung_tu;
-  if (o.chungTu === "co") return o.n.xong - o.n.thieu_chung_tu;
   return o.n.xong;
-}
-
-/** Ô Ghi chú của dòng phiếu: chip trạng thái khi cần (Đã hủy, Chờ thu) hoặc chữ amber "Thiếu chứng
- *  từ gốc"; còn lại để trống. */
-export function GhiChuPhieu({ chip, thieu }: { chip?: { chu: string; mau: "xam" | "amber" } | null; thieu: boolean }) {
-  if (chip) return <span className={`kt-tt kt-tt--${chip.mau}`}>{chip.chu}</span>;
-  if (thieu) return <span className="kt-ghi-chu--thieu">Thiếu chứng từ gốc</span>;
-  return null;
 }
 
 /** Ô số của bảng đối chiếu: chưa biết (null) hoặc 0 thì gạch mờ "–". */

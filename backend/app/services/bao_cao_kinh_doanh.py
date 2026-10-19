@@ -19,7 +19,9 @@ số cũ — cách MISA "lấy tình hình đã thực hiện đến cuối kỳ
   • Đã giao = Σ khách đã thực nhận (cùng luật `delivery_repo.da_giao_theo_dong`), quy ra tiền theo
     tỷ lệ số giao / số đặt của từng dòng (giao dư không tính quá số đặt).
   • Đã xuất HĐ = Σ hoá đơn bán đã ghi; Đã thu = phiếu thu cọc + phiếu thu hoá đơn ĐÃ THU
-    (`AccountingRepository.hoa_don_va_da_thu_toi_ngay`). Còn phải thu = tổng có VAT − đã thu.
+    (`AccountingRepository.hoa_don_va_da_thu_toi_ngay`). Còn phải thu = tổng có VAT − điều chỉnh
+    giảm − đã thu + tiền trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (`hoan_khong_don`,
+    cùng phép phân bổ của Công nợ phải thu — #47, 18/10/2026).
 Không có giá vốn / lãi gộp: giá thành gốc do kế toán điền, chưa có (chốt 11/10/2026).
 """
 from __future__ import annotations
@@ -108,6 +110,11 @@ def lap_bao_cao(
     da_giao = orders_repo.da_giao_theo_dong_nhieu(
         ids, truoc=_moc_utc(den_ngay + timedelta(days=1)) if den_ngay else None)
     hoa_don, da_thu = accounting_repo.hoa_don_va_da_thu_toi_ngay(ids, den_ngay=den_ngay)
+    giam_hd = accounting_repo.dieu_chinh_tong_theo_don(ids, den_ngay=den_ngay)
+    from .accounting_service import hoan_khong_don_theo_don
+
+    hoan_hd = hoan_khong_don_theo_don(accounting_repo, {o.customer_id for o in don},
+                                      den_ngay=den_ngay)
     khach = orders_repo.khach_theo_ids({o.customer_id for o in don if o.customer_id})
     sale = orders_repo.ten_nguoi_dung({o.sale_user_id for o in don if o.sale_user_id})
     so_dong_bg = orders_repo.so_dong_bao_gia({o.quotation_id for o in don if o.quotation_id})
@@ -160,6 +167,11 @@ def lap_bao_cao(
                 (x["thanh_tien"] or 0) * (100 + x["vat_pct"]) * min(x["da_giao"], x["so_luong"])
                 / x["so_luong"] for x in dong if x["so_luong"]) / 100))
         thu_o = int(da_thu.get(o.id, 0))
+        # Hoá đơn điều chỉnh giảm (hoàn chiết khấu) bớt phần khách phải trả; hoá đơn gốc vẫn 100%.
+        giam = int(giam_hd.get(o.id, 0))
+        # Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn này — khách lại phải trả phần đó.
+        hoan_o = int(hoan_hd.get(o.id, 0))
+        phai_tra = max(0, tong_vat - giam) + hoan_o
         muc["don"].append({
             "order_id": o.id,
             "order_no": o.order_no,
@@ -176,10 +188,12 @@ def lap_bao_cao(
             "ty_le_bao_gia": ty_le_bg,
             "gia_tri_giao": gt_giao,
             "da_xuat_hd": int(hoa_don.get(o.id, 0)),
+            "dieu_chinh": giam,
             "da_thu": thu_o,
-            "con_phai_thu": max(0, tong_vat - thu_o),
+            "hoan_khong_don": hoan_o,
+            "con_phai_thu": max(0, phai_tra - thu_o),
             "giao": giao_d,
-            "thu": _tinh_trang(thu_o, tong_vat),
+            "thu": _tinh_trang(thu_o, phai_tra),
             "dong": dong,
         })
 
@@ -203,7 +217,7 @@ def lap_bao_cao(
         muc["don"] = giu
 
     _cot = ("tong", "tong_vat", "coc_phai_thu", "coc_da_nhan", "coc_con_thieu",
-            "gia_tri_giao", "da_xuat_hd", "da_thu", "con_phai_thu")
+            "gia_tri_giao", "da_xuat_hd", "dieu_chinh", "da_thu", "hoan_khong_don", "con_phai_thu")
     ds = []
     for muc in theo_khach.values():
         if not muc["don"]:

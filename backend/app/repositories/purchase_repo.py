@@ -7,7 +7,7 @@ from typing import Sequence
 from sqlalchemy import Date, Integer, and_, asc, case, desc, exists, func, literal, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher
+from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher, PaymentVoucherLine
 from ..models.department import Department
 from ..models.user import User
 from .loc_danh_sach import dk_khoang_ngay
@@ -52,6 +52,11 @@ def _quan_he_tien():
         selectinload(PurchaseRequest.supplier),
         selectinload(PurchaseRequest.deliveries).selectinload(PurchaseDelivery.lines),
         selectinload(PurchaseRequest.payment_vouchers).selectinload(PaymentVoucher.receipts),
+        # Dòng phân bổ + phiếu của dòng (+ các dòng anh em để biết phiếu gộp, + tiền nộp lại):
+        # mọi phép tính đã chi theo đơn/đợt đọc ở đây (17/10/2026).
+        selectinload(PurchaseRequest.khoan_chi).selectinload(PaymentVoucherLine.voucher).options(
+            selectinload(PaymentVoucher.receipts), selectinload(PaymentVoucher.lines),
+        ),
     )
 
 
@@ -76,6 +81,8 @@ KHO_CHO_GUI = "cho_gui_kho"
 KHO_CHUA_NHAP = "kho_chua_nhap"
 KHO_DA_NHAP = "da_nhap_kho"
 KHO_DA_VE = (KHO_CHO_GUI, KHO_CHUA_NHAP, KHO_DA_NHAP)
+#: Trạng thái yêu cầu nhập mà hàng của đợt giao đã nằm trong tồn (kho nhập xong hoặc nhập một phần).
+NHAP_DA_VAO_TON = ("done", "partial")
 
 
 def _dk_kho_da_ve(nac: str) -> list:
@@ -417,6 +424,7 @@ class SupplierRepository:
         payment_terms: str | None = None,
         credit_limit: int = 0,
         credit_days: int | None = None,
+        debt_cutoff_day: int | None = None,
         status: str = SUPPLIER_ACTIVE,
         nhan_gia_cong: bool = False,
         note: str | None = None,
@@ -434,6 +442,7 @@ class SupplierRepository:
             payment_terms=payment_terms,
             credit_limit=credit_limit,
             credit_days=credit_days,
+            debt_cutoff_day=debt_cutoff_day,
             status=status,
             nhan_gia_cong=nhan_gia_cong,
             note=note,
@@ -607,15 +616,33 @@ class SupplierRepository:
         ).all()
         return {(str(loai), int(hang_id)) for loai, hang_id in rows}
 
-    def supplier_sells(self, supplier_id: int, item_name: str) -> bool:
+    def supplier_sells(
+        self,
+        supplier_id: int,
+        item_name: str,
+        *,
+        hang_loai: str | None = None,
+        hang_id: int | None = None,
+    ) -> bool:
         """NCC CỤ THỂ này có bán mặt hàng đó không — dùng lúc lập PHIẾU MUA, khi đã chọn NCC.
 
         Khác `has_active_item` ở hai chỗ: bó theo đúng một NCC, và có xét `SupplierItem.is_active`
-        (mặt hàng đã ngưng bán thì không đặt mới được nữa). Khớp tên theo chuỗi viết thường đã cắt
-        khoảng trắng — đúng cách `list_item_catalog` gom danh mục, để hai nơi không hiểu khác nhau.
+        (mặt hàng đã ngưng bán thì không đặt mới được nữa).
+
+        Dòng có MẶT HÀNG GỐC (`hang_loai`, `hang_id`) thì khớp theo cặp đó — y như ô chọn NCC ở form
+        (`chaoGiaChoMatHang`). Trước 14/10/2026 chỉ khớp TÊN: danh mục đổi tên "IVORY 210-230" thành
+        "IVORY 210--230" còn bảng giá NCC giữ tên cũ ⇒ form cho chọn mà Lưu lại báo "không bán".
+        Tên (viết thường, cắt khoảng trắng) vẫn khớp song song cho dòng giá chưa gắn mặt hàng gốc.
         """
+        if not supplier_id:
+            return False
         clean_name = (item_name or "").strip().lower()
-        if not clean_name or not supplier_id:
+        khop = func.lower(SupplierItem.item_name) == clean_name if clean_name else None
+        if hang_loai and hang_id:
+            theo_ma = (SupplierItem.hang_loai == hang_loai) & (SupplierItem.hang_id == int(hang_id))
+            # HOẶC tên: dòng bảng giá cũ chưa gắn mặt hàng gốc vẫn khớp được như trước.
+            khop = theo_ma if khop is None else (theo_ma | khop)
+        if khop is None:
             return False
         return (
             self.db.execute(
@@ -623,7 +650,7 @@ class SupplierRepository:
                 .where(
                     SupplierItem.supplier_id == int(supplier_id),
                     SupplierItem.is_active.is_(True),
-                    func.lower(SupplierItem.item_name) == clean_name,
+                    khop,
                 )
                 .limit(1)
             ).scalar_one_or_none()
@@ -811,7 +838,10 @@ class DepartmentPurchaseRequestRepository:
             )
 
         return case(
-            (and_(co_dong(True), co_dong(False)), literal("partially_cancelled")),
+            # Phiếu đã huỷ cả / đã xong thì không còn là "huỷ một phần" (#58) — cùng luật service.
+            (and_(co_dong(True), co_dong(False),
+                  DepartmentPurchaseRequest.status.notin_([DPR_CANCELLED, DPR_DONE])),
+             literal("partially_cancelled")),
             (
                 DepartmentPurchaseRequest.status.in_([DPR_OPEN, DPR_IN_PURCHASE, DPR_DONE, DPR_CANCELLED]),
                 DepartmentPurchaseRequest.status,
@@ -1520,12 +1550,16 @@ class PurchaseRequestRepository:
             if tong_den is not None:
                 conditions.append(tong <= tong_den)
         if deposit_status:
+            # Cọc đã chi = dòng phân bổ không đợt của đơn này (phiếu lẻ: chỉ phiếu giai đoạn cọc,
+            # như trước; phiếu gộp: mọi dòng không đợt là cọc).
             advance_paid = (
-                select(func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0))
+                select(func.coalesce(func.sum(PaymentVoucherLine.amount_vnd), 0))
+                .join(PaymentVoucher, PaymentVoucher.id == PaymentVoucherLine.payment_voucher_id)
                 .where(
-                    PaymentVoucher.purchase_request_id == PurchaseRequest.id,
+                    PaymentVoucherLine.purchase_request_id == PurchaseRequest.id,
+                    PaymentVoucherLine.delivery_id.is_(None),
                     PaymentVoucher.status == PAYMENT_VOUCHER_PAID,
-                    PaymentVoucher.payment_stage == "advance",
+                    or_(PaymentVoucher.payment_stage == "advance", PaymentVoucher.purchase_request_id.is_(None)),
                 )
                 .correlate(PurchaseRequest)
                 .scalar_subquery()
@@ -1626,6 +1660,9 @@ class PurchaseRequestRepository:
                 selectinload(PurchaseRequest.payment_vouchers).selectinload(
                     PaymentVoucher.attachments
                 ),
+                selectinload(PurchaseRequest.khoan_chi).selectinload(PaymentVoucherLine.voucher).selectinload(
+                    PaymentVoucher.attachments
+                ),
                 # File hoá đơn của TỪNG ĐỢT — màn Công nợ phải trả cần hiện link file ngay tại
                 # bảng đợt, không bắt kế toán nhảy sang Thu mua mới xem được ảnh (04/09/2026:
                 # *"Hóa đơn có file hóa đơn thì hiện ra đây luôn"*).
@@ -1650,22 +1687,44 @@ class PurchaseRequestRepository:
         `quantity − Σ các đợt đã giao`, mà đợt giao treo ở phiếu. Cắt sẵn ở tầng repo thì phía gọi
         phải join lại bằng tay — đúng chỗ dễ tính thiếu một đợt rồi cộng dư hàng chưa về.
 
-        Bỏ `PR_RECEIVED` (đã nhận đủ ⇒ hàng nằm trong kho rồi, tồn đã cộng — đếm lại là ĐẾM HAI
-        LẦN), bỏ `draft`/`pending`/`rejected`/`cancelled` (chưa chắc có hàng, hứa suông).
+        `PR_RECEIVED` chỉ lấy khi còn đợt giao CHƯA vào tồn (lỗi #57, 19/10/2026): nhận đủ mà chưa
+        gửi kho / kho chưa nhập thì tồn chưa cộng, bỏ đi là hàng biến khỏi cả hai chỗ và bảng xui mua
+        lần hai. Đợt đã nhập xong thì tồn đã cộng — đếm lại là ĐẾM HAI LẦN. Bỏ `draft`/`pending`/
+        `rejected`/`cancelled` (chưa chắc có hàng, hứa suông).
         """
+        from ..models.stock_request import StockRequest
+
+        dot_chua_vao_ton = exists(
+            select(PurchaseDelivery.id).where(
+                PurchaseDelivery.purchase_request_id == PurchaseRequest.id,
+                ~exists(select(StockRequest.id).where(
+                    StockRequest.purchase_delivery_id == PurchaseDelivery.id,
+                    StockRequest.trang_thai.in_(NHAP_DA_VAO_TON))),
+            )
+        )
         stmt = (
             select(PurchaseRequest)
             .options(
                 selectinload(PurchaseRequest.lines),
                 selectinload(PurchaseRequest.deliveries).selectinload(PurchaseDelivery.lines),
             )
-            .where(
-                PurchaseRequest.status.in_(
-                    [PR_APPROVED, PR_PURCHASED, PR_PARTIALLY_RECEIVED]
-                )
-            )
+            .where(or_(
+                PurchaseRequest.status.in_([PR_APPROVED, PR_PURCHASED, PR_PARTIALLY_RECEIVED]),
+                and_(PurchaseRequest.status == PR_RECEIVED, dot_chua_vao_ton),
+            ))
         )
         return list(self.db.execute(stmt.order_by(PurchaseRequest.id.asc())).scalars())
+
+    def trang_thai_nhap_dot(self, dot_ids) -> dict[int, str]:
+        """`{id đợt giao: trạng thái yêu cầu nhập}` (bỏ yêu cầu đã huỷ) — đợt nào đã vào tồn (#57)."""
+        from ..models.stock_request import REQ_CANCELLED, StockRequest
+
+        ids = sorted({int(i) for i in dot_ids if i})
+        if not ids:
+            return {}
+        return {int(d): t for d, t in self.db.execute(
+            select(StockRequest.purchase_delivery_id, StockRequest.trang_thai).where(
+                StockRequest.purchase_delivery_id.in_(ids), StockRequest.trang_thai != REQ_CANCELLED))}
 
     def dong_tu_yeu_cau(self, dong_yc_ids) -> list[PurchaseRequestLine]:
         """Mọi dòng đơn mua (MỌI trạng thái) lập từ các dòng yêu cầu này — kèm phiếu + đợt giao.

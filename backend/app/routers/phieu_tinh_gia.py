@@ -38,6 +38,7 @@ from ..models.quotation import Quote
 from ..repositories.loc_danh_sach import dk_khoang_ngay
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..services.actor_display import actor_labels
+from ..services.ptg_giay_buoc import NhomCua, chuan_hoa_giay, nhom_cong_doan
 from ..schemas.phieu_tinh_gia import (
     DanhMucDoi,
     DanhMucDoiOut,
@@ -183,9 +184,22 @@ def _con_cua_thanh_phan(tp: PhieuThanhPhan, rows_in: list[dict],
         tp.chi_phi_khacs.append(PhieuChiPhiKhac(**cd))
 
 
-def _build_thanh_phan(tp_in: ThanhPhanIn, thu_tu: int) -> PhieuThanhPhan:
-    """Dựng ORM thành phần MỚI + con finishing từ payload (chỉ set field được gửi → giữ default model)."""
+def nhom_cua_payload(db: Session, thanh_phans: list[ThanhPhanIn] | None) -> NhomCua:
+    """Bản tra nhóm công đoạn cho mọi bước trong payload — để chốt giấy chính (`chuan_hoa_giay`)."""
+    return nhom_cong_doan(db, (r.cong_doan_id for t in (thanh_phans or [])
+                               for r in (t.thanh_phams or [])))
+
+
+def _du_lieu_thanh_phan(tp_in: ThanhPhanIn, nhom_cua: NhomCua | None) -> dict:
+    """Payload → dict để ghi; giấy chính (`giay_id`) do máy chủ chốt từ dòng giấy của các bước."""
     data = tp_in.model_dump(exclude_unset=True)
+    return chuan_hoa_giay(data, nhom_cua) if nhom_cua is not None else data
+
+
+def _build_thanh_phan(tp_in: ThanhPhanIn, thu_tu: int,
+                      nhom_cua: NhomCua | None = None) -> PhieuThanhPhan:
+    """Dựng ORM thành phần MỚI + con finishing từ payload (chỉ set field được gửi → giữ default model)."""
+    data = _du_lieu_thanh_phan(tp_in, nhom_cua)
     rows_in = data.pop("thanh_phams", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
@@ -211,9 +225,10 @@ def _mac_dinh_cot(ten_cot: str):
     return d.arg(None) if d.is_callable else d.arg
 
 
-def _ghi_de_thanh_phan(tp: PhieuThanhPhan, tp_in: ThanhPhanIn, thu_tu: int) -> None:
+def _ghi_de_thanh_phan(tp: PhieuThanhPhan, tp_in: ThanhPhanIn, thu_tu: int,
+                       nhom_cua: NhomCua | None = None) -> None:
     """Ghi payload lên thành phần CÓ SẴN, GIỮ NGUYÊN `id` (đây là chỗ cứu pin ấn phẩm)."""
-    data = tp_in.model_dump(exclude_unset=True)
+    data = _du_lieu_thanh_phan(tp_in, nhom_cua)
     rows_in = data.pop("thanh_phams", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
@@ -227,7 +242,8 @@ def _khoa_ten(ten: str | None) -> str:
     return (ten or "").strip().lower()
 
 
-def _ghi_thanh_phans(p: PhieuTinhGia, thanh_phans: list[ThanhPhanIn] | None) -> None:
+def _ghi_thanh_phans(p: PhieuTinhGia, thanh_phans: list[ThanhPhanIn] | None,
+                    nhom_cua: NhomCua | None = None) -> None:
     """Ghi lại danh sách thành phần, DÙNG LẠI hàng cũ để `PhieuThanhPhan.id` KHÔNG đổi.
 
     Trước 07/09/2026 hàm này xoá sạch rồi chèn lại, nên mỗi lần bấm Lưu/Tính giá là id thành phần
@@ -262,9 +278,9 @@ def _ghi_thanh_phans(p: PhieuTinhGia, thanh_phans: list[ThanhPhanIn] | None) -> 
     for i, tp_in in enumerate(moi):
         cu_tp = ghep[i]
         if cu_tp is None:
-            p.thanh_phans.append(_build_thanh_phan(tp_in, i))
+            p.thanh_phans.append(_build_thanh_phan(tp_in, i, nhom_cua))
         else:
-            _ghi_de_thanh_phan(cu_tp, tp_in, i)
+            _ghi_de_thanh_phan(cu_tp, tp_in, i, nhom_cua)
 
 
 # SL hiển thị ngoài bảng = Σ SL các sản phẩm bên trong phiếu, sản phẩm bỏ trống SL rơi về SL mặc
@@ -534,10 +550,10 @@ def create_item(
         db, p, payload.model_dump(exclude_unset=True, include=set(ptg_khach_hang_service.O_KHACH)),
         actor=user, scope_khach=authz.scope_for(user, "khach_hang"),
     )
-    _ghi_thanh_phans(p, payload.thanh_phans)
+    _ghi_thanh_phans(p, payload.thanh_phans, nhom_cua_payload(db, payload.thanh_phans))
     db.add(p)
     db.flush()
-    compute_phieu_snapshot(db, p)
+    _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     # Nhật ký hoạt động: ai LẬP phiếu, khi nào — cùng một commit với phiếu.
     AuditLogRepository(db).create(
         actor_user_id=user.id,
@@ -548,6 +564,17 @@ def create_item(
     )
     db.commit()
     return _out_day_du(db, _nap_lai(db, p.id))
+
+
+def _chan_neu_chuoi_dut(result: dict) -> None:
+    """Engine báo chuỗi công đoạn đứt đơn vị (`result["loi"]`) ⇒ KHÔNG lưu: số tính trên chuỗi
+    đứt là giá vốn sai (lỗi #8). Ném trước `commit` nên phiếu đã lưu giữ nguyên bản cũ."""
+    loi = result.get("loi") or []
+    if loi:
+        raise HTTPException(
+            status_code=422,
+            detail=" ".join(loi) + " Sửa thứ tự hoặc đơn vị vào/ra của công đoạn rồi tính lại.",
+        )
 
 
 @router.post("/{p_id}/nhan-ban", response_model=PhieuTinhGiaOut, status_code=status.HTTP_201_CREATED)
@@ -566,7 +593,7 @@ def nhan_ban_phieu(
     p = ptg_nhan_ban_service.nhan_ban(nguon, ma=_next_ma(db), actor=user)
     db.add(p)
     db.flush()
-    compute_phieu_snapshot(db, p)
+    _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     AuditLogRepository(db).create(
         actor_user_id=user.id,
         action="create_ptg",
@@ -679,9 +706,9 @@ def update_item(
         if field in data:
             setattr(p, field, data[field])
     if "thanh_phans" in data:
-        _ghi_thanh_phans(p, payload.thanh_phans)
+        _ghi_thanh_phans(p, payload.thanh_phans, nhom_cua_payload(db, payload.thanh_phans))
     db.flush()
-    compute_phieu_snapshot(db, p)
+    _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     # Báo giá NHÁP của phiếu theo ngay số lượng / giá vốn mới (dòng gõ tay giữ giá gõ tay);
     # báo giá đã gửi giữ nguyên, màn báo giá hiện băng "phiếu đã đổi".
     ptg_khach_hang_service.dong_bo_bao_gia_nhap(db, p, actor=user)
@@ -760,8 +787,8 @@ def phieu_activity(
 ) -> PtgActivityOut:
     """Nhật ký hoạt động THẬT của 1 phiếu tính giá (ai làm gì · khi nào) — nhiều vai trò
     (KTV/sale/TP) có thể cùng sửa 1 phiếu nên mỗi thao tác để lại dấu vết. Đọc audit theo
-    target `phieu_tinh_gia:{id}`, mới→cũ, kèm NGƯỜI thao tác ghi theo HỒ SƠ ("Phòng ban · Chức vụ
-    · Tên" — `actor_display`, dùng chung với feed Báo giá). RBAC + phạm vi qua `_fetch_in_scope`
+    target `phieu_tinh_gia:{id}`, mới→cũ, kèm NGƯỜI thao tác ghi theo HỒ SƠ ("Tên (Phòng ban)"
+    — `actor_display`, dùng chung với feed Báo giá). RBAC + phạm vi qua `_fetch_in_scope`
     (ngoài phạm vi = 404, không lộ tồn tại)."""
     _fetch_in_scope(db, p_id, user, authz)
     rows = AuditLogRepository(db).list_by_target(f"phieu_tinh_gia:{p_id}")

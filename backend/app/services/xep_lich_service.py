@@ -473,6 +473,14 @@ def _thoi_luong_in_ghep(bg: BaiGhep, tong_to: int, may: MayThietBi | None) -> di
             "phat_sinh_phut": 0.0}
 
 
+def may_cho_hop_khoa(db: Session) -> list[dict]:
+    """Máy còn dùng cho ô chọn của hộp Khoá máy — hàm rời, không dựng cả `XepLichService` (lịch ca,
+    ngày nghỉ) chỉ để đọc một danh sách."""
+    from ..repositories.may_thiet_bi_repo import MayThietBiRepository
+
+    return [{"id": i, "ma": m, "ten": t} for i, m, t in MayThietBiRepository(db).con_dung_gon()]
+
+
 class XepLichService:
     def __init__(self, db: Session, repo, audit: AuditLogRepository) -> None:
         self.db = db
@@ -2242,7 +2250,8 @@ class XepLichService:
         self.unavail_repo.commit()
         return self._khoa_dict(row)
 
-    def xoa_vung_khoa(self, *, pid: int, actor) -> None:
+    def xoa_vung_khoa(self, *, pid: int, actor) -> int:
+        """Bỏ một khoảng khoá; trả `may_id` để router phát lịch đổi đúng máy."""
         row = self.unavail_repo.get(pid)
         if row is None:
             raise XepLichNotFound("Không tìm thấy vùng khóa máy")
@@ -2251,6 +2260,7 @@ class XepLichService:
         self.audit.create(actor_user_id=getattr(actor, "id", None), action="xep_lich_mo_khoa_may",
                           target=f"may:{may_id}", detail=f"Bỏ khóa máy #{pid}")
         self.unavail_repo.commit()
+        return may_id
 
     # ================= BẢNG + HÀNG CHỜ (DTO cho router) =================
 

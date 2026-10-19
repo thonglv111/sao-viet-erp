@@ -146,6 +146,19 @@ jobs:
               exit 1
             fi
 
+            # DB TRẮNG (lần deploy đầu của môi trường mới) chưa có ai đăng nhập được: SEED_DEMO=false
+            # ⇒ lúc khởi động seeder KHÔNG ghi gì. Chỉ khi bảng users RỖNG mới tạo admin tối thiểu
+            # (SEED_ADMIN_USERNAME/PASSWORD trong .env). Có người dùng rồi thì bỏ qua hẳn, không đụng DB.
+            # Lệnh idempotent; lỗi ở đây không chặn deploy — chạy tay lại được.
+            echo "→ Kiểm DB có tài khoản chưa"
+            SO_USER=$(docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM users"' 2>/dev/null | tr -d '[:space:]' || true)
+            if [ "$SO_USER" = "0" ]; then
+              echo "  users rỗng → tạo admin (app.khoi_tao_admin)"
+              docker compose exec -T backend python -m app.khoi_tao_admin || echo "  CẢNH BÁO: tạo admin lỗi — chạy tay: docker compose run --rm backend python -m app.khoi_tao_admin"
+            else
+              echo "  đã có tài khoản (users=${SO_USER:-?}) — bỏ qua"
+            fi
+
             # Kiểm thêm ĐƯỜNG THẬT người dùng đi: nginx (web) → backend. Backend healthy mà nginx
             # không tới được (sai tên service, resolver, web chưa lên) thì người dùng vẫn chỉ thấy lỗi.
             # Gọi trong container `web` vì mỗi môi trường bind cổng khác nhau (stg 8181, prod 8180).

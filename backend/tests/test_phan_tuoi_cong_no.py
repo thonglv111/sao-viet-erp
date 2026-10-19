@@ -88,8 +88,8 @@ def _ro(danh_sach: list[dict], khoa: str) -> dict:
 def _don_du_bien(client, headers, supplier_id: int, ngay_soi):
     """Một PMH 10 đợt giao, mỗi đợt đáo hạn đúng một BIÊN rổ tính từ `ngay_soi`.
 
-    Hạn trả đặt tay (`due_date`) vì NCC chưa khai `credit_days`; `han_tra_dot` khi đó lấy đúng
-    ngày mình gõ. Ngày giao vẫn là HÔM NAY thật (không được ở tương lai), còn hạn thì nằm sau —
+    Hạn trả của từng đợt = số ngày cho nợ của NCC đặt ngay trước khi ghi đợt đó (máy chụp hạn
+    lúc ghi, xem `_han_bang_dieu_khoan_ncc`). Ngày giao vẫn là HÔM NAY thật (không được ở tương lai), còn hạn thì nằm sau —
     lúc dời "hôm nay" tới `ngay_soi` mới lần lượt quá hạn.
     """
     don = _don(client, headers, supplier_id)

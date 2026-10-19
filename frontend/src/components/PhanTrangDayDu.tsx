@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { laDienThoai } from "../utils/dienThoai";
 import "./phan-trang-day-du.css";
 
 /** Dãy ô trang để vẽ "1 · 2 · 3 … n": luôn giữ trang ĐẦU và trang CUỐI, cộng một cửa sổ quanh
@@ -66,6 +67,12 @@ export function PhanTrangDayDu({
   // Màn có cỡ trang riêng (KCS 30…) mà ô chọn thiếu số đó thì trình duyệt hiện số ĐẦU danh sách —
   // người dùng tưởng đang xem 15 dòng. Chen cỡ đang dùng vào cho ô luôn nói thật.
   const luaChon = coTrang.includes(size) ? coTrang : [...coTrang, size].sort((a, b) => a - b);
+  // Điện thoại: chân trang nằm cuối danh sách thẻ dài — sang trang mà màn đứng yên thì thấy ngay đuôi
+  // trang mới. Đưa màn về đầu.
+  const sang = (p: number) => {
+    onTrang(p);
+    if (laDienThoai()) document.querySelector(".shell__content")?.scrollTo({ top: 0 });
+  };
   return (
     <footer className="ptdd">
       <div className="ptdd__info">
@@ -94,7 +101,7 @@ export function PhanTrangDayDu({
 
         <nav className="ptdd__btns" aria-label={ariaLabel}>
           <button type="button" className="ptdd__mui" disabled={trang <= 1 || loading}
-            onClick={() => onTrang(trang - 1)} title="Trang trước" aria-label="Trang trước">
+            onClick={() => sang(trang - 1)} title="Trang trước" aria-label="Trang trước">
             <ChevronLeft size={14} />
           </button>
           {dayTrang(trang, tongSoTrang).map((o, i) =>
@@ -105,13 +112,13 @@ export function PhanTrangDayDu({
                 className={`ptdd__so${o === trang ? " ptdd__so--active" : ""}`}
                 disabled={loading}
                 aria-current={o === trang ? "page" : undefined}
-                onClick={() => o !== trang && onTrang(o)}>
+                onClick={() => o !== trang && sang(o)}>
                 {o}
               </button>
             ),
           )}
           <button type="button" className="ptdd__mui" disabled={trang >= tongSoTrang || loading}
-            onClick={() => onTrang(trang + 1)} title="Trang sau" aria-label="Trang sau">
+            onClick={() => sang(trang + 1)} title="Trang sau" aria-label="Trang sau">
             <ChevronRight size={14} />
           </button>
         </nav>

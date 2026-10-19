@@ -105,6 +105,7 @@ import {
 } from "./khoNganA";
 import { OMuaCho } from "./mua-hang/mua-cho/OMuaCho";
 import { khopGanDung } from "../utils/timGanDung";
+import { ngayVN } from "../utils/ky";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
 import "./ke-toan/ke-toan.css";
@@ -772,7 +773,7 @@ export function TransferDrawer({
     // NHẬP đích (per-lô + giá vốn + HSD). Giá vốn null khi thiếu quyền → bản in tự bỏ 2 cột tiền.
     const data: TransferPrintData = {
       docNo: req.ma,
-      docDate: v ? v.ngay : (req.created_at ? req.created_at.slice(0, 10) : null),
+      docDate: v ? v.ngay : (req.created_at ? ngayVN(req.created_at) : null),
       khoNguon: req.kho_nguon_ten,
       khoDich: req.kho_ten,
       nguoiLap: v?.nguoi_lap_ten ?? req.nguoi_tao_ten ?? null,
@@ -1924,6 +1925,7 @@ function VoucherCreateDrawer({
         ngay,
         ghi_chu: ghiChu || null,
         lines: payload,
+        ghi_so: post,
       });
       // Chứng từ đã chọn cần voucher_id → upload NGAY SAU khi tạo phiếu (trước khi ghi sổ).
       for (const f of files) {

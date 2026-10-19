@@ -254,17 +254,21 @@ def update_sua_chua(phieu_id: int, payload: SuaChuaPatch, svc: Service, user: Wr
         raise _404(e) from None
     except KyThuatMayValidationError as e:
         raise _400(e) from None
+    # `yeu_cau_map` như GET — thiếu nó thì ngăn đổi "Từ yêu cầu" thành "không có" (#30, 18/10/2026).
     return _row_sua_chua(svc, phieu, svc.may_map([phieu.may_id]),
-                         svc.repo.anh_thong_ke(LOAI_PHIEU_SUA_CHUA, [phieu.id]))
+                         svc.repo.anh_thong_ke(LOAI_PHIEU_SUA_CHUA, [phieu.id]),
+                         svc.yeu_cau_map([phieu.id]))
 
 
 @router.post("/sua-chua/{phieu_id}/trang-thai", response_model=SuaChuaRow)
 def doi_trang_thai_sua_chua(
     phieu_id: int, payload: DoiTrangThaiIn, svc: Service, user: Writer,
 ) -> SuaChuaRow:
-    """Chuyển bước; `da_sua_xong` bị cửa ẢNH chặn (409 nếu chưa có ảnh chứng thực)."""
+    """Chuyển bước; `da_sua_xong` bị cửa ẢNH chặn (409 nếu chưa có ảnh chứng thực). Mở lại phiếu
+    đã sửa xong phải kèm `ly_do` (400 nếu thiếu)."""
     try:
-        phieu = svc.doi_trang_thai_sua_chua(phieu_id, payload.trang_thai, actor_id=user.id)
+        phieu = svc.doi_trang_thai_sua_chua(phieu_id, payload.trang_thai, actor_id=user.id,
+                                            ly_do=payload.ly_do)
     except KyThuatMayNotFound as e:
         raise _404(e) from None
     except KyThuatMayThieuAnh as e:
@@ -272,7 +276,8 @@ def doi_trang_thai_sua_chua(
     except KyThuatMayValidationError as e:
         raise _400(e) from None
     return _row_sua_chua(svc, phieu, svc.may_map([phieu.may_id]),
-                         svc.repo.anh_thong_ke(LOAI_PHIEU_SUA_CHUA, [phieu.id]))
+                         svc.repo.anh_thong_ke(LOAI_PHIEU_SUA_CHUA, [phieu.id]),
+                         svc.yeu_cau_map([phieu.id]))
 
 
 

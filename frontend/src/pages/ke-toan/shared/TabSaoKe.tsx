@@ -102,30 +102,36 @@ function BangSaoKe({ ben, so, onMoPhieu, onMoDon, onMoDonMua, inAn }: {
   return (
     // Bề rộng tối thiểu trên ngăn = tổng cột cố định + 160 cho Diễn giải: ngăn hẹp thì khung cuộn ngang,
     // không ép Diễn giải về 0px (phải trả có thêm ba cột hoá đơn từ 13/10/2026).
-    <table className={inAn ? "ps-tbl kt-sk-in" : "lds-g"}
+    <table className={inAn ? `ps-tbl kt-sk-in${coHdMua ? " kt-sk-in--tra" : ""}` : "lds-g"}
       style={inAn ? undefined : { minWidth: (coKyHieu ? 102 + 150 + 92 : 102 + 190 + 112 + 88 + 114) + 3 * 116 + 160 }}>
       {inAn ? (
+        // Bản in (vùng chữ A4 = 160mm, 10pt): Ký hiệu "1C26TSV" ~14mm + đệm — 9–11% từng làm gãy mã;
+        // Chứng từ "PT-261007-FSAE" ~28mm + đệm ⇒ 20%, ở 16% số phiếu lấn sang cột bên. Diễn giải xuống dòng được.
         coKyHieu ? (
           <colgroup>
             <col style={{ width: "13%" }} />
+            <col style={{ width: "20%" }} />
+            <col style={{ width: "12%" }} />
             <col style={{ width: "16%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "21%" }} />
             <col style={{ width: "13%" }} />
             <col style={{ width: "13%" }} />
             <col style={{ width: "13%" }} />
           </colgroup>
         ) : (
+          // Phải trả 9 cột in A4 NGANG (vùng chữ 247mm, 15/10/2026): ở khổ dọc riêng phần không được
+          // xuống dòng đã ~177mm. Đo ở bản xem 247mm ≈ 934px: "DMH-261007-2AKM đợt 1" cần 165px kể
+          // cả đệm (17% = 158 thì lấn) ⇒ 19%; ngày 77px ⇒ 9%; số HĐ "HD9093426" 82px (8% từng chạm
+          // mép) ⇒ 10%; Ký hiệu 7%; tiền 13 ký tự "1.234.567.890" ⇒ 10%. Diễn giải còn ~40mm.
           <colgroup>
-            <col style={{ width: "10%" }} />
-            <col style={{ width: "15%" }} />
-            <col style={{ width: "10%" }} />
             <col style={{ width: "9%" }} />
+            <col style={{ width: "19%" }} />
             <col style={{ width: "10%" }} />
-            <col style={{ width: "13%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "11%" }} />
-            <col style={{ width: "11%" }} />
+            <col style={{ width: "7%" }} />
+            <col style={{ width: "9%" }} />
+            <col style={{ width: "16%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "10%" }} />
           </colgroup>
         )
       ) : (
@@ -203,15 +209,15 @@ function BangSaoKe({ ben, so, onMoPhieu, onMoDon, onMoDonMua, inAn }: {
                   soCt
                 )}
               </td>
-              {coKyHieu && <td className={inAn ? undefined : "lds-mu"}>{d.ky_hieu ?? ""}</td>}
+              {coKyHieu && <td className={inAn ? "kt-sk__kh" : "lds-mu"}>{d.ky_hieu ?? ""}</td>}
               {coHdMua && (
                 <>
                   <td>{d.so_hoa_don ?? ""}</td>
-                  <td className={inAn ? undefined : "lds-mu"}>{d.ky_hieu ?? ""}</td>
+                  <td className={inAn ? "kt-sk__kh" : "lds-mu"}>{d.ky_hieu ?? ""}</td>
                   <td>{d.ngay_hoa_don ? ngay(d.ngay_hoa_don) : ""}</td>
                 </>
               )}
-              <td>{d.dien_giai}</td>
+              <td className={inAn ? "kt-sk__dg" : undefined}>{d.dien_giai}</td>
               <td className={lopSo}>{soTien(s.tang)}</td>
               <td className={lopSo}>{soTien(s.giam)}</td>
               <td className={lopSo}>
@@ -303,7 +309,7 @@ export function TabSaoKe({
       )}
 
       {dangIn && so && (
-        <PrintSheet title="SAO KÊ CÔNG NỢ" docDate={ngay(homNay)} onClose={onDongIn}>
+        <PrintSheet title="SAO KÊ CÔNG NỢ" docDate={ngay(homNay)} onClose={onDongIn} ngang={ben === "payables"}>
           <div className="ps-info">
             <div className="ps-info-grid">
               <div>

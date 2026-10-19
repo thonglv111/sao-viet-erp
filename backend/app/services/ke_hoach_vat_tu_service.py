@@ -572,6 +572,18 @@ class KeHoachVatTuService:
         self.nap_nen_quy_doi(hangs)
         return self._hang_dang_ve(), self._vet_mua_theo_hang()
 
+    def _nhap_dot(self) -> dict[int, str]:
+        """`{id đợt giao: trạng thái yêu cầu nhập}` của mọi phiếu đang về — một câu, nhớ theo lượt."""
+        if self._nho is not None and "nhap_dot" in self._nho:
+            return self._nho["nhap_dot"]
+        doc = getattr(self.purchases, "trang_thai_nhap_dot", None)   # bản giả trong test cũ không có
+        ids = [d.id for p in self._doc("dang_ve", self.purchases.dong_dang_ve)
+               for d in getattr(p, "deliveries", None) or []]
+        m = doc(ids) if doc and ids else {}
+        if self._nho is not None:
+            self._nho["nhap_dot"] = m
+        return m
+
     def _hang_dang_ve(self) -> dict[tuple, list[tuple[date, float, str | None, int]]]:
         """`{hang: [(ngày về, số còn về, mã phiếu mua, id dòng phiếu)]}` đã sắp theo ngày — đơn vị GỐC.
 
@@ -584,14 +596,17 @@ class KeHoachVatTuService:
         `expected_receipt_date` trống ⇒ KHÔNG cộng: hàng không có ngày về thì không hứa được với
         lệnh nào cả.
         """
-        from .purchase_service import da_giao_theo_dong
+        from .purchase_service import da_vao_ton_theo_dong, ngay_ve_cua_phieu
 
         ra: dict[tuple, list[tuple[date, float, str | None, int]]] = {}
+        nhap = self._nhap_dot()
         for phieu in self._doc("dang_ve", self.purchases.dong_dang_ve):
-            ngay_ve = phieu.expected_receipt_date
+            ngay_ve = ngay_ve_cua_phieu(phieu, nhap)
             if ngay_ve is None:
                 continue
-            da_giao = da_giao_theo_dong(phieu)
+            # Chỉ đợt ĐÃ VÀO TỒN mới trừ khỏi "còn về" (#57): nhận rồi mà kho chưa nhập thì tồn chưa
+            # có, hàng vẫn phải đứng ở đây.
+            da_giao = da_vao_ton_theo_dong(phieu, nhap)
             for ln in phieu.lines:
                 if not ln.hang_loai or not ln.hang_id:
                     continue
@@ -633,13 +648,14 @@ class KeHoachVatTuService:
         mặt hàng để giao với danh sách còn thiếu — KHÔNG quy đổi số lượng (câu hỏi là "có/không",
         không phải "bao nhiêu").
         """
-        from .purchase_service import da_giao_theo_dong
+        from .purchase_service import da_vao_ton_theo_dong, ngay_ve_cua_phieu
 
         dong: list = []
+        nhap = self._nhap_dot()
         for phieu in self._doc("dang_ve", self.purchases.dong_dang_ve):
-            if phieu.expected_receipt_date is not None:
+            if ngay_ve_cua_phieu(phieu, nhap) is not None:
                 continue
-            da_giao = da_giao_theo_dong(phieu)
+            da_giao = da_vao_ton_theo_dong(phieu, nhap)
             for ln in phieu.lines:
                 if not ln.hang_loai or not ln.hang_id:
                     continue
@@ -669,9 +685,10 @@ class KeHoachVatTuService:
         Gộp cả hai chuỗi (YCMH của bộ phận → PMH của thu mua) vì người lập kế hoạch chỉ cần biết
         "đã có ai lo món này chưa", không cần biết nó đang nằm ở khâu nào.
         """
-        from .purchase_service import da_giao_theo_dong
+        from .purchase_service import da_vao_ton_theo_dong, ngay_ve_cua_phieu
 
         ra: dict[tuple, list[dict]] = {}
+        nhap = self._nhap_dot()
 
         def _them(hang: tuple, ma: str | None, loai: str, trang_thai: str, ngay_ve) -> None:
             if not ma:
@@ -718,7 +735,7 @@ class KeHoachVatTuService:
                 dong_yc_kep[int(src)] = nhan_kep
 
         for phieu in phieu_song:
-            da_giao = da_giao_theo_dong(phieu)
+            da_giao = da_vao_ton_theo_dong(phieu, nhap)
             for ln in phieu.lines:
                 if not ln.hang_loai or not ln.hang_id:
                     continue
@@ -729,11 +746,12 @@ class KeHoachVatTuService:
                     float(da_giao.get(ln.id, 0.0)) if da_giao is not None
                     else _f(ln.received_quantity)
                 )
-                # Dòng đã nhận đủ thì phiếu không còn là việc đang chạy của mặt hàng này.
+                # Dòng đã VÀO TỒN đủ thì phiếu không còn là việc đang chạy của mặt hàng này (nhận đủ
+                # mà kho chưa nhập vẫn là việc đang chạy — #57).
                 if _f(ln.quantity) - nhan <= 0:
                     continue
                 _them(hang, getattr(phieu, "code", None), "pmh", phieu.status,
-                      phieu.expected_receipt_date)
+                      ngay_ve_cua_phieu(phieu, nhap))
 
         for yc in self._doc("dang_de_nghi", self.dpr.dang_de_nghi):
             for ln in yc.lines:
@@ -778,13 +796,17 @@ class KeHoachVatTuService:
                 return None
             return self._ve_goc(hang, dvt, sl).get("sl")
 
+        doc_nhap = getattr(self.purchases, "trang_thai_nhap_dot", None)
+        dot_ids = {dt.id for d in dong_don for dt in getattr(d.request, "deliveries", None) or []}
+        nhap = {**self._nhap_dot(), **(doc_nhap(list(dot_ids)) if doc_nhap and dot_ids else {})}
         return _dung_mach(ycs, dong_don, ve_goc=ve_goc, can_o=lambda k: can_o.get(k, 0.0),
-                          khoa=self._khoa_mua)
+                          khoa=self._khoa_mua, nhap_dot=nhap)
 
     @property
     def mach(self) -> dict:
         """Mạch của lượt `can_doi()` gần nhất — rỗng nếu chưa dựng bảng."""
-        return getattr(self, "_mach", None) or {"mach": [], "theo_o": {}, "dat_cho": {}, "peg": {}}
+        return getattr(self, "_mach", None) or {"mach": [], "theo_o": {}, "dat_cho": {}, "peg": {},
+                                                "khac": {}}
 
     # ================== HÀM CHÍNH ==================
 
@@ -856,7 +878,7 @@ class KeHoachVatTuService:
 
         nhom = self._chay_con_tro(tho, ton=ton, dang_ve=dang_ve, da_cap=da_cap,
                                   dang_linh=dang_linh, vet_mua=vet_mua,
-                                  peg=self._mach["peg"])
+                                  peg=self._mach["peg"], khac=self._mach.get("khac"))
         self._gan_cung_kho_khac_don_vi(nhom, dang_ve)
         return {"items": self._loc(nhom, q=q, chi_thieu=chi_thieu)}
 
@@ -1098,7 +1120,7 @@ class KeHoachVatTuService:
             neo = neo or (buoc[0] if buoc else None)
             # Bước đầu nhận tờ (mã chặng tờ) ⇒ dòng đếm "tờ"; nhận giấy khổ rộng ⇒ dòng kg (đơn vị
             # gốc suy sau khi nạp danh mục — kg thường thuộc họ đơn vị giá của mã, xem `_nap_mat_hang`).
-            # `dong_giay_theo_dau_vao` chỉ trả "kg" ở nhánh giấy khổ rộng; mọi nhánh khác là tờ.
+            # `dong_giay_theo_dau_vao` trả "kg" khi bước nhận con/cái/tay hoặc đầu vào ngoài 5 chặng.
             to = (gy.get("don_vi") or "").strip().lower() != "kg"
             if not to and gy.get("so_luong") is None:
                 # Giấy khổ rộng thiếu gsm / khổ: KHÔNG lấy số tờ dán nhãn kg — dòng cảnh báo, nhu cầu 0.
@@ -1459,7 +1481,7 @@ class KeHoachVatTuService:
     # ---- (d) ----------------------------------------------------------------
 
     def _chay_con_tro(self, tho, *, ton, dang_ve, da_cap, dang_linh, vet_mua=None,
-                      peg=None) -> list[dict]:
+                      peg=None, khac=None) -> list[dict]:
         # Phần đã cấp CÒN LẠI chưa gán cho dòng nào — bản sao để trừ dần, không đụng dict gốc.
         cap_con = dict(da_cap)
         theo_hang: dict[tuple, list[dict]] = {}
@@ -1576,6 +1598,10 @@ class KeHoachVatTuService:
                     "ly_do_canh_bao": d["ly_do_canh_bao"],
                     # Cùng cờ của nhóm — dòng là đơn vị người tick để lập mua.
                     "don_vi_chua_khai": chua_khai,
+                    # Đã có yêu cầu/đơn "Mua cho" lệnh này nhưng khác khổ/ĐVT (lỗi #23): không bù
+                    # số (tờ và kg không quy đổi), chỉ để không ai đề nghị mua lần hai.
+                    "mua_khac_quy_cach": list((khac or {}).get(
+                        (hang[0], int(hang[1]), d["lsx_id"], d["bai_ghep_id"]), [])),
                 })
             ra.append({
                 "loai_nhom": "vat_tu",

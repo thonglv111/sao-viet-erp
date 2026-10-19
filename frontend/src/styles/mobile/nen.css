@@ -1,0 +1,571 @@
+/* ============================================================================
+   ĐIỆN THOẠI — NỀN (14/10/2026, docs/thiet-ke-mobile.md §3, §4.3, §4.4)
+   ----------------------------------------------------------------------------
+   Khung app (thanh trên gọn có tên màn, thanh dưới 4 ô, menu toàn màn có ô tìm), hộp thoại →
+   trang toàn màn, hộp xác nhận → bảng đáy, ô nhập 16px (iOS không tự phóng to), nút ≥ 44px.
+
+   CHỈ trong mốc điện thoại — guard `mobile.test.ts`. iPad / laptop / PC không đổi.
+
+   Lớp chồng (z-index) trên điện thoại:
+     40   thanh dưới `.dt-tabbar` — THẤP hơn mọi hộp thoại (≥ 50) nên hộp thoại toàn màn che nó
+     39   bảng đáy của thanh dưới `.dt-bang` — nằm DƯỚI thanh dưới: thanh vẫn hiện, chạm lại ô là đóng
+     120  sidebar (menu toàn màn) — khi mở, thanh dưới nhấc lên 121 để còn nút "Đóng"
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  /* ---- Khung -------------------------------------------------------------- */
+  .shell__content {
+    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior-y: contain;
+    /* Neo cuộn của trình duyệt: danh sách thẻ nạp lại / đổi chế độ xem (Bảng ↔ Lịch của bàn tổ) làm
+       khối phía trên đổi chiều cao ⇒ trình duyệt "giữ chỗ" bằng cách đẩy trang xuống hàng trăm px, mở
+       màn đã thấy giữa danh sách. Điện thoại xem từ đầu là đúng — tắt. */
+    overflow-anchor: none;
+  }
+
+  .topbar {
+    height: 52px;
+    padding: 0 12px 0 16px;
+    gap: 8px;
+  }
+  /* Menu đã ở thanh dưới — bỏ nút ☰ trên đầu. */
+  .topbar__nav-toggle {
+    display: none !important;
+  }
+  .topbar__tieu-de {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar__tieu-de + .topbar__spacer {
+    display: none;
+  }
+
+  /* Toast real-time: trải ngang dưới thanh trên thay vì góc phải 340px. */
+  .apx-toastwrap {
+    top: 60px !important;
+    left: 12px !important;
+    right: 12px !important;
+    max-width: none !important;
+  }
+
+  /* ---- Menu = trang toàn màn ---------------------------------------------- */
+  .sidebar {
+    width: 100vw !important;
+    bottom: calc(62px + env(safe-area-inset-bottom, 0px)) !important;
+    /* Gốc đặt `height: 100vh` ⇒ `bottom` vô hiệu, menu dài tới đáy, mục cuối ("Nhật ký") nằm dưới thanh tab. */
+    height: auto !important;
+    border-right: 0;
+  }
+  .shell.is-nav-open .sidebar {
+    box-shadow: none;
+  }
+  .sidebar__close {
+    display: none !important;
+  }
+  .sidebar__brand {
+    padding: 14px 16px;
+  }
+  .sidebar__tim {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 10px 16px;
+    background: var(--ink);
+    border-bottom: 1px solid var(--sb-edge);
+    color: var(--sb-muted);
+  }
+  .sidebar__tim input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid var(--sb-edge);
+    border-radius: 10px;
+    background: rgba(248, 250, 252, 0.07);
+    color: var(--sb-text);
+    font-size: 16px;
+    outline: none;
+  }
+  .sidebar__tim input::placeholder {
+    color: var(--sb-muted);
+  }
+  .sidebar__tim input:focus {
+    border-color: var(--sb-muted);
+  }
+  .sidebar__nav {
+    padding: 4px 12px 24px;
+  }
+  .sidebar__sectionhead {
+    min-height: 40px;
+  }
+  .sidebar__link {
+    min-height: 48px;
+    font-size: 15px;
+  }
+
+  /* ---- Thanh dưới --------------------------------------------------------- */
+  .dt-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: grid;
+    grid-template-columns: repeat(var(--dt-so-o, 5), minmax(0, 1fr));
+    height: calc(62px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--canvas, #fff);
+    border-top: 1px solid var(--rule-soft);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.05);
+  }
+  .shell.is-nav-open .dt-tabbar {
+    z-index: 121;
+  }
+  .dt-tabbar__o {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 0 4px;
+    border: 0;
+    background: none;
+    color: var(--ash);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.1;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dt-tabbar__o.is-on {
+    color: var(--rust);
+  }
+  .dt-tabbar__o:active {
+    background: var(--paper);
+  }
+  .dt-tabbar__icon {
+    position: relative;
+    display: inline-flex;
+  }
+  .dt-tabbar__badge {
+    position: absolute;
+    top: -6px;
+    left: 14px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #d92d20;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--canvas, #fff);
+  }
+
+  /* ---- Chuông việc chờ (thanh trên, cạnh avatar) ------------------------- */
+  .dt-chuong {
+    position: relative;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 20px;
+    background: none;
+    color: var(--ash);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dt-chuong:active,
+  .dt-chuong.is-on {
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .dt-chuong__so {
+    position: absolute;
+    top: 3px;
+    left: 21px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #d92d20;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--canvas, #fff);
+  }
+
+  /* ---- Bảng đáy "Việc chờ" ------------------------------------------------ */
+  .dt-bang {
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    display: flex;
+    align-items: flex-end;
+    background: rgba(15, 23, 42, 0.42);
+    animation: dtMo 0.18s ease;
+  }
+  .dt-bang__hop {
+    width: 100%;
+    max-height: 78dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--canvas, #fff);
+    border-radius: 18px 18px 0 0;
+    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    animation: dtTruotLen 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .dt-bang__tay {
+    width: 40px;
+    height: 4px;
+    margin: 8px auto 2px;
+    border-radius: 2px;
+    background: var(--rule);
+  }
+  .dt-bang__dau {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px 8px 20px;
+  }
+  .dt-bang__dau h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .dt-bang__x {
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 20px;
+    background: var(--paper);
+    color: var(--ash);
+  }
+  .dt-bang__ds {
+    list-style: none;
+    margin: 0;
+    padding: 0 12px 8px;
+    overflow-y: auto;
+  }
+  .dt-bang__muc {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 60px;
+    padding: 8px;
+    border: 0;
+    border-radius: 12px;
+    background: none;
+    text-align: left;
+    color: var(--ink);
+  }
+  .dt-bang__muc:active {
+    background: var(--paper);
+  }
+  .dt-bang__icon {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--ash);
+  }
+  .dt-bang__chu {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .dt-bang__chu strong {
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .dt-bang__chu small {
+    font-size: 13px;
+    color: var(--ash-2);
+  }
+  .dt-bang__so {
+    flex: none;
+    min-width: 28px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 13px;
+    background: #d92d20;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 26px;
+    text-align: center;
+  }
+  .dt-bang__trong {
+    padding: 28px 12px 32px;
+    text-align: center;
+    color: var(--ash-2);
+    font-size: 14.5px;
+  }
+
+  @keyframes dtMo {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes dtTruotLen {
+    from {
+      transform: translateY(40%);
+      opacity: 0.4;
+    }
+  }
+
+  /* ---- Hộp thoại → trang toàn màn ----------------------------------------- */
+  .ns-modal,
+  .dmodal-overlay {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  /* Bộ chọn hai lớp: trang hay đè `.ns-modal__box--xxx { width/max-height … !important }` (nạp
+     lười, đến sau) — một lớp thì thua. */
+  .ns-modal .ns-modal__box,
+  .ns-modal .ns-detail-modal-box,
+  .dmodal-overlay .dmodal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    animation: dtTruotLen 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .ns-modal .ns-modal__head,
+  .dmodal-overlay .dmodal__head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex: none;
+    height: auto !important;
+    min-height: 56px;
+    padding: 10px 12px 10px 16px !important;
+  }
+  .ns-modal__head h2 {
+    font-size: 17px;
+  }
+  .ns-modal__x {
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+  .ns-modal__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 16px !important;
+  }
+  .ns-modal__foot,
+  .dmodal__foot {
+    position: sticky;
+    bottom: 0;
+    flex-wrap: wrap;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)) !important;
+    background: var(--canvas, #fff);
+  }
+  /* Thân hộp (mỗi màn một tên lớp: `ns-modal__body`, `cc-modal-body`, form bọc ngoài…) giãn hết chiều
+     cao còn lại ⇒ chân hộp (Hủy / Lưu) luôn nằm sát đáy màn, không lơ lửng giữa màn. */
+  .ns-modal .ns-modal__box > :is(.ns-modal__body, [class*="modal-body"], [class*="__body"], form) {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .ns-modal .ns-modal__box > form {
+    display: flex;
+    flex-direction: column;
+  }
+  .ns-modal .ns-modal__box > :is(footer, [class*="footer"], [class*="__foot"]):last-child {
+    margin-top: auto;
+    flex: none;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .ns-modal .ns-modal__box > :is(footer, [class*="footer"], [class*="__foot"]):last-child > :is(button, .btn) {
+    flex: 1 1 0;
+    min-height: 46px;
+    justify-content: center;
+  }
+  .ns-modal__footright {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+
+  /* Hộp lớn họ `rc-modal` (Tính giá — soạn sản phẩm, Danh mục…) → toàn màn. */
+  .rc-modal__scrim.rc-modal__scrim {
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  .rc-modal__scrim .rc-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    transform: none !important;
+  }
+
+  /* Ngăn trượt phải (drawer chi tiết) → trang toàn màn. */
+  .rc-drawer,
+  .rc-drawer--wide,
+  .rc-drawer--mid,
+  .rc-drawer--formula,
+  .rc-drawer--mat-wide {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+  }
+
+  /* ---- Hộp xác nhận → bảng đáy ------------------------------------------ */
+  .cdlg-overlay {
+    padding: 0 !important;
+    place-items: end stretch !important;
+    align-items: end !important;
+  }
+  .cdlg,
+  .cdlg--wide {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: 92dvh !important;
+    border: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+    animation: dtTruotLen 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .cdlg__foot {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .cdlg__foot > button,
+  .cdlg__foot > .btn {
+    flex: 1 1 0;
+    min-height: 48px;
+    font-size: 15px;
+    justify-content: center;
+  }
+
+  /* ---- Ô nhập & nút ------------------------------------------------------- */
+  /* 16px: dưới mức này Safari iOS tự phóng to cả trang mỗi lần chạm vào ô. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  :is(
+      input[type="text"],
+      input[type="number"],
+      input[type="date"],
+      input[type="month"],
+      input[type="time"],
+      input[type="datetime-local"],
+      input[type="search"],
+      input[type="tel"],
+      input[type="email"],
+      input[type="password"],
+      input:not([type]),
+      select
+    ):not(td *):not(th *) {
+    min-height: 44px;
+  }
+  .btn:not(td *) {
+    min-height: 44px;
+  }
+
+  /* ---- BÀN PHÍM ẢO (theoDoiBanPhim — utils/dienThoai.ts) ----------------------------------------
+     `html.dang-go` = một ô gõ chữ đang focus; `--ban-phim` = phần màn bàn phím đang che (iPhone; Android
+     đã tự co trang nhờ `interactive-widget=resizes-content` nên ≈ 0).
+     - Thanh tab dưới giấu đi: không thì nó nổi ngay trên bàn phím, ăn chỗ của ô đang gõ.
+     - Khung toàn màn (hộp, ngăn, menu) và bảng đáy dừng NGAY TRÊN bàn phím ⇒ ô đang gõ + chân hộp
+       (Huỷ / Lưu) không bị che. */
+  html.dang-go .dt-tabbar {
+    display: none !important;
+  }
+  html.dang-go .shell__content {
+    padding-bottom: calc(16px + var(--ban-phim, 0px));
+  }
+  html.dang-go .sidebar {
+    bottom: var(--ban-phim, 0px) !important;
+  }
+  html.dang-go .ns-modal .ns-modal__box,
+  html.dang-go .ns-modal .ns-detail-modal-box,
+  html.dang-go .dmodal-overlay .dmodal,
+  html.dang-go .rc-modal__scrim .rc-modal {
+    height: calc(100dvh - var(--ban-phim, 0px)) !important;
+    max-height: calc(100dvh - var(--ban-phim, 0px)) !important;
+    align-self: flex-start;
+  }
+  html.dang-go .kt-ngan,
+  html.dang-go :is(.rc-drawer, .rc-drawer--wide, .rc-drawer--mid, .rc-drawer--formula, .rc-drawer--mat-wide) {
+    bottom: var(--ban-phim, 0px) !important;
+    max-height: calc(100dvh - var(--ban-phim, 0px)) !important;
+  }
+  /* Hộp xác nhận (bảng đáy) có ô gõ — vd ô lý do từ chối: đẩy cả hộp lên trên bàn phím. */
+  html.dang-go .cdlg-overlay {
+    padding-bottom: var(--ban-phim, 0px) !important;
+  }
+  html.dang-go :is(.cdlg, .cdlg--wide) {
+    max-height: calc(100dvh - var(--ban-phim, 0px) - 12px) !important;
+    overflow-y: auto;
+  }
+  /* Bảng đáy RIÊNG của từng màn có ô gõ: hộp Khách hàng (`kh__overlay` — thêm / sửa khách…) và hộp thao
+     tác ở bàn tổ (`thsx-hop-nen` — nhập sản lượng, báo sự cố…). */
+  html.dang-go :is(.kh__overlay, .thsx-hop-nen) {
+    padding-bottom: var(--ban-phim, 0px) !important;
+  }
+  html.dang-go :is(.kh__dialog--hero, .thsx-hop, .thsx-hop--hep) {
+    max-height: calc(100dvh - var(--ban-phim, 0px) - 12px) !important;
+    overflow-y: auto;
+  }
+  html.dang-go .thsx-hop--dt-toan {
+    height: calc(100dvh - 40px - var(--ban-phim, 0px)) !important;
+  }
+  html.dang-go .tl-pop.tl-pop {
+    max-height: calc(100dvh - 52px - var(--ban-phim, 0px) - 8px);
+  }
+
+  /* `vh` trên trình duyệt điện thoại tính CẢ phần thanh địa chỉ ⇒ khung cao 100vh có đáy (chân nút) nằm
+     dưới thanh công cụ trình duyệt. Trình giả lập trên máy không có thanh địa chỉ nên không thấy. */
+  .kh__dialog--hero.kh__dialog--hero {
+    max-height: 94dvh;
+  }
+  .thsx-hop.thsx-hop,
+  .thsx-hop--hep.thsx-hop--hep {
+    max-height: 92dvh;
+  }
+  .thsx-hop--dt-toan.thsx-hop--dt-toan {
+    height: calc(100dvh - 40px);
+  }
+  .khsx .khvt-drawer {
+    height: 100dvh !important;
+  }
+}

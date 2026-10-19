@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Khối điều khoản đơn mua</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ink-2:#1e293b;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--link:#2563eb;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-xam-bg:#e5e7eb;--tt-xam-fg:#374151;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button{font:inherit;color:inherit;cursor:pointer}
+.doc{max-width:1400px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1080px}
+.doc ul{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.h2{margin:36px 0 6px;font-size:20px;font-weight:500;padding-top:18px;border-top:1px solid var(--rule)}
+.cap{margin:22px 0 6px;font-size:15px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1080px}
+.gia{display:inline-block;padding:0 6px;border-radius:4px;background:var(--tt-vang-bg);color:var(--tt-vang-fg);font-size:12px}
+
+/* tham khảo */
+.refs{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:10px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px}
+.ref img{width:100%;height:220px;object-fit:cover;object-position:top left;border:1px solid var(--rule-hair);border-radius:6px}
+.ref .t{margin:8px 0 2px;font-weight:500}
+.ref .h{color:var(--ash);font-size:13px}
+
+/* chọn phương án */
+.pick{position:sticky;top:0;z-index:20;background:#e9edf2;padding:10px 0;margin:22px 0 0;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--rule)}
+.pick button{padding:6px 14px;border:1px solid var(--rule);background:#fff;border-radius:8px}
+.pick button.on{border-color:var(--ink);}
+.pa{display:none}.pa.on{display:block}
+
+/* bố cục mỗi phương án: cột phải ngăn đơn (2 trạng thái) + hộp sửa */
+.row3{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-top:10px}
+.lbl{font-size:12.5px;color:var(--ash-2);margin:0 0 6px}
+
+.col{width:330px;background:#fff;border:1px solid var(--rule-soft);border-radius:12px;padding:6px 20px 14px}
+.sb{padding:12px 0;border-bottom:1px solid var(--rule-soft)}
+.sb:last-child{border-bottom:0}
+.sb h4{margin:0 0 6px;font-size:13px;font-weight:500;color:var(--ash);display:flex;align-items:center}
+.sb h4 .gian{flex:1}
+.lk{background:none;border:0;padding:0;color:var(--link);font-size:13px}
+.r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-height:26px;font-size:13px}
+.r>span:first-child{color:var(--ash-2)}
+.r>span:last-child{text-align:right;max-width:64%}
+.r.tong{border-top:1px solid var(--rule-soft);margin-top:2px;padding-top:2px}
+.r.tong>span:last-child{font-size:15px}
+.mo{color:var(--ash-3)}
+.phu{display:block;color:var(--ash-3);font-size:12px;line-height:1.35;margin-top:1px}
+.canh{background:var(--tt-vang-bg);color:var(--tt-vang-fg);border-radius:8px;padding:7px 10px;font-size:12.5px;margin:6px 0 2px}
+
+/* lịch trả (phương án B) */
+.lich{border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;margin-top:4px}
+.lich .d{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 10px;border-bottom:1px solid var(--rule-hair);font-size:13px}
+.lich .d:last-child{border-bottom:0}
+.lich .d .n{color:var(--ash-2)}
+.lich .d .s{text-align:right}
+.lich .d .k{grid-column:1 / -1;color:var(--ash-3);font-size:12px}
+
+/* hộp sửa */
+.dlg{width:560px;background:#fff;border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.08);overflow:hidden}
+.dlg .hd{display:flex;align-items:center;padding:16px 22px;border-bottom:1px solid var(--rule-soft);font-size:16px;font-weight:500}
+.dlg .hd span{flex:1}
+.dlg .bd{padding:6px 22px}
+.f{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid var(--rule-hair)}
+.f:last-child{border-bottom:0}
+.f .nh{color:var(--ash);padding-top:7px}
+.o{border:1px solid var(--rule);border-radius:7px;padding:7px 10px;min-height:36px;background:#fff}
+.o.mo{color:var(--ash-3)}
+.o.so{text-align:right;width:220px}
+.o.ngay{width:200px}
+.goi{color:var(--ash-2);font-size:12.5px;margin-top:5px}
+.radio{display:flex;flex-direction:column;gap:8px}
+.radio label{display:flex;gap:8px;align-items:flex-start}
+.radio i{width:16px;height:16px;border:1px solid var(--rule);border-radius:50%;margin-top:2px;flex:none;position:relative}
+.radio i.on{border-color:var(--rust)}
+.radio i.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--rust)}
+.radio .con{margin:6px 0 0 24px}
+.ncc{background:var(--rule-hair);border-radius:8px;padding:8px 10px;color:var(--ash);font-size:12.5px;margin-top:10px}
+.xem{background:var(--paper);border-radius:8px;padding:10px 12px;margin:12px 0 6px;font-size:13px;color:var(--ash)}
+.xem b{color:var(--ink)}
+.dlg .ft{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;background:var(--paper);border-top:1px solid var(--rule-soft)}
+.btn{padding:7px 16px;border-radius:8px;border:1px solid var(--rule);background:#fff}
+.btn.chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.giai{max-width:1080px}
+.giai li b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="doc">
+<h1>Khối điều khoản của đơn mua: 3 phương án</h1>
+<p>Đơn thật: DMH-261015-0VZE của Công ty TNHH Giấy Tân Mai Sài Gòn, tổng 2.648.457 đ, đang Nháp. Mỗi phương án vẽ cột phải ngăn đơn ở hai trạng thái và hộp sửa. Trạng thái 1 là số thật trên DB dev. Trạng thái 2 là một NCC cho nợ 30 ngày, có ngày chốt, có cọc và đang vượt hạn mức; số ở đó là <span class="gia">giả định</span> để thấy khối trông ra sao khi đủ dữ liệu.</p>
+
+<div class="cap">Logic hiện tại, nói bằng lời</div>
+<ul>
+  <li>Số ngày NCC cho nợ nằm ở hồ sơ NCC, áp cho mọi đơn của NCC đó. Đơn này không sửa được.</li>
+  <li>Đơn có ngày chốt công nợ thì mọi đợt giao cùng một hạn trả: ngày chốt cộng số ngày cho nợ. Không có ngày chốt thì mỗi đợt có hạn riêng: ngày hoá đơn của đợt cộng số ngày cho nợ.</li>
+  <li>Cọc dự kiến chỉ để nhắc và điền sẵn khi Kế toán lập phiếu chi cọc. Nó không trừ vào công nợ, tối đa bằng tổng đơn và khoá lại khi đơn được duyệt.</li>
+  <li>Số hợp đồng chỉ để ghi, sửa được cả sau khi duyệt.</li>
+</ul>
+
+<div class="cap">Đã đọc</div>
+<ul>
+  <li><code>NganDonMua.tsx</code> khối Điều khoản trong <code>CotPhai</code>: dòng Cho nợ lấy <code>supplier_credit_days</code>; Hạn mức và Đang nợ chỉ hiện khi có <code>credit</code>.</li>
+  <li><code>SuaDieuKhoan.tsx</code>: hộp sửa ba ô Số hợp đồng, Ngày chốt công nợ, Cọc dự kiến.</li>
+  <li><code>purchase_service.han_tra_dot</code>: thang bốn bậc tính hạn trả của một đợt.</li>
+  <li><code>PurchaseDetailDrawer.tsx</code> (Mua hàng) không truyền <code>credit</code>, nên chỉ ngăn bên Kế toán thấy hạn mức và tiền đang nợ.</li>
+</ul>
+
+<div class="cap">Bốn chỗ chưa ổn của bản hiện tại</div>
+<ol class="giai">
+  <li>Dòng Cho nợ đứng cạnh nút Sửa nhưng hộp sửa không có ô đó và không nói phải sửa ở đâu.</li>
+  <li>Ngăn ghi "Ngày chốt nợ", hộp sửa ghi "Ngày chốt công nợ".</li>
+  <li>Hộp sửa không báo cọc sẽ khoá sau khi duyệt.</li>
+  <li>Bên Mua hàng không thấy NCC đang nợ bao nhiêu và đã vượt hạn mức chưa.</li>
+</ol>
+
+<div class="h2">Tham khảo</div>
+<p class="note">Đã mở thêm trang tài liệu của Odoo Purchase (bị chặn 403, lấy ảnh từ kho tài liệu GitHub của Odoo), một trang danh sách đơn của Zoho và một trang hoá đơn của Stripe. Hai trang sau bỏ vì không có gì về điều khoản trả tiền.</p>
+<div class="refs">
+  <div class="ref">
+    <img src="tham-khao-dieu-khoan-don-mua/shopify-loai-dieu-khoan.png" alt="Shopify các loại điều khoản trả tiền">
+    <div class="t">Shopify B2B: loại điều khoản trả tiền</div>
+    <div class="h">Điều khoản đặt ở hồ sơ công ty rồi đơn kế thừa. Mỗi loại là một câu dễ hiểu: trả ngay, trả trong N ngày, trả vào một ngày cố định. Phương án A bám ảnh này.</div>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-dieu-khoan-don-mua/odoo-cau-hinh-dieu-khoan.png" alt="Odoo các dòng hạn trả">
+    <div class="t">Odoo: các dòng hạn trả</div>
+    <div class="h">Điều khoản là vài dòng, mỗi dòng ghi phải trả bao nhiêu và tính hạn từ mốc nào (ngày hoá đơn, cuối tháng). Phương án B bám ảnh này: cọc và phần còn lại thành hai dòng tiền có hạn.</div>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-dieu-khoan-don-mua/zoho-tao-don-mua.png" alt="Zoho tạo đơn mua">
+    <div class="t">Zoho Books: thông tin NCC ngay dưới tên NCC</div>
+    <div class="h">Chọn NCC là hiện ngay việc dở dang với NCC đó (đơn đang mở) kèm liên kết tới hồ sơ NCC. Phương án C bám ảnh này: tách phần của NCC ra một nhóm chỉ xem, có liên kết sang hồ sơ NCC.</div>
+  </div>
+</div>
+
+<div class="pick">
+  <span style="color:var(--ash-2)">Xem phương án</span>
+  <button class="on" data-pa="a">A. Hạn trả nói thành câu</button>
+  <button data-pa="b">B. Lịch trả tiền</button>
+  <button data-pa="c">C. Tách NCC và đơn</button>
+</div>
+
+<!-- ============ A ============ -->
+<div class="pa on" id="pa-a">
+<div class="h2">A. Hạn trả nói thành câu (khuôn Shopify)</div>
+<p class="note">Gộp "Cho nợ" và "Ngày chốt nợ" thành một dòng Hạn trả, viết ra kết quả thay vì hai thông số để người đọc tự cộng. Hộp sửa hỏi đúng một câu: hạn trả tính theo cái gì. Số ngày NCC cho nợ hiện trong hộp kèm liên kết sang hồ sơ NCC. Chữ "Cọc dự kiến 0 đ" đổi thành "Không cọc".</p>
+<div class="row3">
+  <div>
+    <p class="lbl">Trạng thái 1: số thật của đơn</p>
+    <div class="col">
+      <div class="sb">
+        <h4>Tiền</h4>
+        <div class="r"><span>Tiền hàng</span><span>2.452.275</span></div>
+        <div class="r"><span>Thuế GTGT</span><span>196.182</span></div>
+        <div class="r tong"><span>Tổng đơn</span><span>2.648.457 đ</span></div>
+      </div>
+      <div class="sb">
+        <h4>Điều khoản<span class="gian"></span><button class="lk">Sửa</button></h4>
+        <div class="r"><span>Hạn trả</span><span>Trả ngay khi có hoá đơn</span></div>
+        <div class="r"><span>Cọc</span><span class="mo">Không cọc</span></div>
+        <div class="r"><span>Số hợp đồng</span><span class="mo">Chưa có</span></div>
+      </div>
+      <div class="sb">
+        <h4>Người</h4>
+        <div class="r"><span>NV mua hàng</span><span>Đặng Văn Bình</span></div>
+        <div class="r"><span>Gửi duyệt</span><span class="mo">Chưa gửi</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Trạng thái 2: <span class="gia">giả định</span> cho nợ 30 ngày, có ngày chốt và cọc</p>
+    <div class="col">
+      <div class="sb">
+        <h4>Điều khoản<span class="gian"></span><button class="lk">Sửa</button></h4>
+        <div class="r"><span>Hạn trả</span><span>30/11/2026<span class="phu">ngày chốt 31/10 cộng 30 ngày cho nợ</span></span></div>
+        <div class="r"><span>Cọc</span><span>500.000 đ</span></div>
+        <div class="r"><span>Số hợp đồng</span><span>HĐ-2026/118</span></div>
+      </div>
+    </div>
+    <p class="lbl" style="margin-top:14px">Không có ngày chốt thì dòng Hạn trả đọc là</p>
+    <div class="col">
+      <div class="sb">
+        <div class="r"><span>Hạn trả</span><span>30 ngày sau ngày hoá đơn<span class="phu">mỗi đợt giao một hạn</span></span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Hộp sửa</p>
+    <div class="dlg">
+      <div class="hd"><span>Điều khoản đơn DMH-261015-0VZE</span>✕</div>
+      <div class="bd">
+        <div class="f">
+          <div class="nh">Hạn trả tính từ</div>
+          <div>
+            <div class="radio">
+              <label><i class="on"></i><span>Ngày hoá đơn của từng đợt giao</span></label>
+              <label><i></i><span>Một ngày chốt công nợ cho cả đơn</span></label>
+              <div class="con"><div class="o ngay mo">dd/mm/yyyy</div></div>
+            </div>
+            <div class="ncc">NCC này cho nợ 0 ngày (trả ngay). Số ngày cho nợ đặt ở hồ sơ nhà cung cấp. <button class="lk">Mở hồ sơ NCC</button></div>
+          </div>
+        </div>
+        <div class="f">
+          <div class="nh">Cọc dự kiến</div>
+          <div><div class="o so">0 đ</div><div class="goi">Tối đa 2.648.457 đ. Kế toán lập phiếu chi cọc sẽ thấy số này điền sẵn. Đơn được duyệt xong là không đổi được nữa.</div></div>
+        </div>
+        <div class="f">
+          <div class="nh">Số hợp đồng</div>
+          <div><div class="o mo">Chưa có hợp đồng</div></div>
+        </div>
+        <div class="xem">Sau khi lưu, hạn trả của đơn: <b>trả ngay khi có hoá đơn</b>.</div>
+      </div>
+      <div class="ft"><button class="btn">Huỷ</button><button class="btn chinh">Lưu điều khoản</button></div>
+    </div>
+  </div>
+</div>
+<ul class="giai">
+  <li>Sửa được cả 4 chỗ chưa ổn: chỗ 1 và 2 vì chỉ còn một dòng Hạn trả, chỗ 3 nhờ dòng nhắc dưới ô cọc. Chỗ 4 làm chung: thêm hai dòng Hạn mức và Đang nợ dưới Hạn trả cho cả ngăn Mua hàng.</li>
+  <li>Đổi ở giao diện là chính. Máy chủ không đổi luật tính hạn.</li>
+  <li>Không cho đổi số ngày cho nợ riêng một đơn như Shopify. Cái đó phải thêm cột vào đơn, chỉ làm nếu bạn muốn.</li>
+</ul>
+</div>
+
+<!-- ============ B ============ -->
+<div class="pa" id="pa-b">
+<div class="h2">B. Lịch trả tiền (khuôn Odoo)</div>
+<p class="note">Khối đổi tên thành "Trả tiền" và nói theo tiền: phải trả bao nhiêu, trước khi nào. Cọc là một dòng, phần còn lại là một dòng, mỗi dòng ghi số tiền và mốc hạn. Kế toán nhìn vào là biết sắp phải chi gì. Số hợp đồng nằm dưới lịch.</p>
+<div class="row3">
+  <div>
+    <p class="lbl">Trạng thái 1: số thật của đơn</p>
+    <div class="col">
+      <div class="sb">
+        <h4>Tiền</h4>
+        <div class="r"><span>Tiền hàng</span><span>2.452.275</span></div>
+        <div class="r"><span>Thuế GTGT</span><span>196.182</span></div>
+        <div class="r tong"><span>Tổng đơn</span><span>2.648.457 đ</span></div>
+      </div>
+      <div class="sb">
+        <h4>Trả tiền<span class="gian"></span><button class="lk">Sửa</button></h4>
+        <div class="lich">
+          <div class="d"><span class="n">Trả khi có hoá đơn</span><span class="s">2.648.457 đ</span><span class="k">NCC cho nợ 0 ngày, không cọc</span></div>
+        </div>
+        <div class="r" style="margin-top:6px"><span>Số hợp đồng</span><span class="mo">Chưa có</span></div>
+      </div>
+      <div class="sb">
+        <h4>Người</h4>
+        <div class="r"><span>NV mua hàng</span><span>Đặng Văn Bình</span></div>
+        <div class="r"><span>Gửi duyệt</span><span class="mo">Chưa gửi</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Trạng thái 2: <span class="gia">giả định</span> cho nợ 30 ngày, có ngày chốt và cọc</p>
+    <div class="col">
+      <div class="sb">
+        <h4>Trả tiền<span class="gian"></span><button class="lk">Sửa</button></h4>
+        <div class="lich">
+          <div class="d"><span class="n">Cọc</span><span class="s">500.000 đ</span><span class="k">trước khi nhận hàng</span></div>
+          <div class="d"><span class="n">Còn lại</span><span class="s">2.148.457 đ</span><span class="k">trước 30/11/2026, tức ngày chốt 31/10 cộng 30 ngày</span></div>
+        </div>
+        <div class="r" style="margin-top:6px"><span>Số hợp đồng</span><span>HĐ-2026/118</span></div>
+      </div>
+    </div>
+    <p class="lbl" style="margin-top:14px">Không có ngày chốt thì dòng Còn lại đọc là</p>
+    <div class="col">
+      <div class="sb">
+        <div class="lich"><div class="d"><span class="n">Còn lại</span><span class="s">2.148.457 đ</span><span class="k">30 ngày sau ngày hoá đơn của từng đợt</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Hộp sửa</p>
+    <div class="dlg">
+      <div class="hd"><span>Trả tiền đơn DMH-261015-0VZE</span>✕</div>
+      <div class="bd">
+        <div class="f">
+          <div class="nh">Cọc</div>
+          <div><div class="o so">0 đ</div><div class="goi">Tối đa 2.648.457 đ. Đơn được duyệt xong là không đổi được nữa.</div></div>
+        </div>
+        <div class="f">
+          <div class="nh">Phần còn lại trả</div>
+          <div>
+            <div class="radio">
+              <label><i class="on"></i><span>Theo ngày hoá đơn của từng đợt</span></label>
+              <label><i></i><span>Theo một ngày chốt công nợ</span></label>
+              <div class="con"><div class="o ngay mo">dd/mm/yyyy</div></div>
+            </div>
+            <div class="goi">Cộng thêm 0 ngày NCC cho nợ. <button class="lk">Đổi ở hồ sơ NCC</button></div>
+          </div>
+        </div>
+        <div class="f">
+          <div class="nh">Số hợp đồng</div>
+          <div><div class="o mo">Chưa có hợp đồng</div></div>
+        </div>
+      </div>
+      <div class="ft"><button class="btn">Huỷ</button><button class="btn chinh">Lưu</button></div>
+    </div>
+  </div>
+</div>
+<ul class="giai">
+  <li>Hợp với Kế toán nhất vì nói thẳng ra số tiền và hạn. Sửa được chỗ 1, 2, 3; chỗ 4 làm chung như A.</li>
+  <li>"Còn lại" chỉ là tổng đơn trừ cọc dự kiến, không trừ cọc đã chi thật. Đã chi bao nhiêu vẫn xem ở tab Thanh toán. Để khỏi hiểu lầm có thể giữ chữ "Còn lại sau cọc".</li>
+  <li>Khi đơn đã có đợt giao, mỗi đợt có hạn riêng mà khối này chỉ ghi luật chung. Hạn từng đợt vẫn ở tab Đợt giao.</li>
+</ul>
+</div>
+
+<!-- ============ C ============ -->
+<div class="pa" id="pa-c">
+<div class="h2">C. Tách phần của NCC và phần của đơn (khuôn Zoho)</div>
+<p class="note">Hai nhóm. "Nhà cung cấp" chỉ để xem: cho nợ, hạn mức, đang nợ, cách trả, có liên kết sang hồ sơ NCC. "Điều khoản của đơn" có nút Sửa và chỉ gồm ba ô sửa được. Ai nhìn cũng biết dòng nào sửa ở đâu. Nhóm NCC hiện ở cả ngăn Mua hàng lẫn Kế toán.</p>
+<div class="row3">
+  <div>
+    <p class="lbl">Trạng thái 1: số thật của đơn (Đang nợ là <span class="gia">giả định</span>)</p>
+    <div class="col">
+      <div class="sb">
+        <h4>Tiền</h4>
+        <div class="r"><span>Tiền hàng</span><span>2.452.275</span></div>
+        <div class="r"><span>Thuế GTGT</span><span>196.182</span></div>
+        <div class="r tong"><span>Tổng đơn</span><span>2.648.457 đ</span></div>
+      </div>
+      <div class="sb">
+        <h4>Nhà cung cấp<span class="gian"></span><button class="lk">Mở hồ sơ</button></h4>
+        <div class="r"><span>Cho nợ</span><span>Trả ngay</span></div>
+        <div class="r"><span>Hạn mức nợ</span><span class="mo">Không đặt</span></div>
+        <div class="r"><span>Đang nợ</span><span>0 đ</span></div>
+        <div class="r"><span>Cách trả</span><span>Tiền mặt</span></div>
+      </div>
+      <div class="sb">
+        <h4>Điều khoản của đơn<span class="gian"></span><button class="lk">Sửa</button></h4>
+        <div class="r"><span>Ngày chốt công nợ</span><span class="mo">Không có</span></div>
+        <div class="r"><span>Cọc dự kiến</span><span class="mo">Không cọc</span></div>
+        <div class="r"><span>Số hợp đồng</span><span class="mo">Chưa có</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Trạng thái 2: <span class="gia">giả định</span> NCC đang vượt hạn mức</p>
+    <div class="col">
+      <div class="sb">
+        <h4>Nhà cung cấp<span class="gian"></span><button class="lk">Mở hồ sơ</button></h4>
+        <div class="r"><span>Cho nợ</span><span>30 ngày</span></div>
+        <div class="r"><span>Hạn mức nợ</span><span>50.000.000 đ</span></div>
+        <div class="r"><span>Đang nợ</span><span>56.200.000 đ</span></div>
+        <div class="canh">Vượt hạn mức 6.200.000 đ. Chỉ nhắc, vẫn lập và duyệt đơn được.</div>
+        <div class="r"><span>Cách trả</span><span>Chuyển khoản</span></div>
+      </div>
+      <div class="sb">
+        <h4>Điều khoản của đơn<span class="gian"></span><button class="lk">Sửa</button></h4>
+        <div class="r"><span>Ngày chốt công nợ</span><span>31/10/2026<span class="phu">hạn trả 30/11/2026</span></span></div>
+        <div class="r"><span>Cọc dự kiến</span><span>500.000 đ</span></div>
+        <div class="r"><span>Số hợp đồng</span><span>HĐ-2026/118</span></div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Hộp sửa (chỉ ba ô của đơn)</p>
+    <div class="dlg">
+      <div class="hd"><span>Điều khoản đơn DMH-261015-0VZE</span>✕</div>
+      <div class="bd">
+        <div class="f">
+          <div class="nh">Ngày chốt công nợ</div>
+          <div><div class="o ngay mo">dd/mm/yyyy</div><div class="goi">Có ngày chốt thì mọi đợt giao cùng hạn: ngày chốt cộng 0 ngày NCC cho nợ. Bỏ trống thì mỗi đợt tính từ ngày hoá đơn của đợt đó.</div></div>
+        </div>
+        <div class="f">
+          <div class="nh">Cọc dự kiến</div>
+          <div><div class="o so">0 đ</div><div class="goi">Tối đa 2.648.457 đ. Kế toán lập phiếu chi cọc sẽ thấy số này điền sẵn. Đơn được duyệt xong là không đổi được nữa.</div></div>
+        </div>
+        <div class="f">
+          <div class="nh">Số hợp đồng</div>
+          <div><div class="o mo">Chưa có hợp đồng</div></div>
+        </div>
+      </div>
+      <div class="ft"><button class="btn">Huỷ</button><button class="btn chinh">Lưu điều khoản</button></div>
+    </div>
+  </div>
+</div>
+<ul class="giai">
+  <li>Ít đổi nhất so với bản hiện tại: hộp sửa giữ ba ô, chỉ viết lại chữ gợi ý. Sửa được cả 4 chỗ, trong đó chỗ 4 là chính.</li>
+  <li>Dải vàng vượt hạn mức chuyển vào nhóm NCC, bỏ dải trên đầu ngăn Kế toán để khỏi nói hai lần.</li>
+  <li>Cột phải dài thêm 4 dòng. Người đọc vẫn phải tự cộng ngày chốt với số ngày cho nợ, chỉ có dòng phụ "hạn trả …" đỡ phần đó.</li>
+</ul>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.pick button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.pa').forEach(p=>p.classList.toggle('on',p.id==='pa-'+b.dataset.pa));
+});
+</script>
+</body>
+</html>

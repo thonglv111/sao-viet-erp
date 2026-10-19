@@ -108,15 +108,17 @@ def test_to_truong_VAN_huy_duoc_phieu_to_minh(client):
 # --- 3. PUT / cancel phải có ô quyền ---------------------------------------------
 
 
-def test_khong_o_quyen_thi_khong_sua_khong_huy_duoc(client):
+def test_phieu_cua_minh_sua_huy_duoc_vi_thao_tac_luon_bat(client):
+    """LUẬT ĐỔI 15/10/2026 (mg 0412): Thao tác Tăng ca luôn bật cho mọi vai ⇒ huỷ phiếu CỦA MÌNH khi
+    chưa duyệt được. Sửa thì vẫn chỉ người TẠO phiếu — phiếu này người khác tạo hộ nên 403."""
     admin = _admin_token(client)
     tok, eid = _nv_thuong_token(client, admin)
     rid = _ot_pending(eid)
     r = client.put(f"/api/overtime/{rid}",
                    json={"work_date": NGAY, "from_minute": 1080, "to_minute": 1140, "reason": "x"},
                    headers=_h(tok))
-    assert r.status_code == 403
-    assert client.post(f"/api/overtime/{rid}/cancel", headers=_h(tok)).status_code == 403
+    assert r.status_code == 403 and "do mình tạo" in r.json()["detail"], r.text
+    assert client.post(f"/api/overtime/{rid}/cancel", headers=_h(tok)).status_code == 200
 
 
 # --- 4. tran-thang trong phạm vi -------------------------------------------------

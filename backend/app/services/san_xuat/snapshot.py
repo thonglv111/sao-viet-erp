@@ -166,7 +166,8 @@ def the_quy_cach(qc: dict | None) -> dict | None:
         "kho_tp": _kho(ctx["dai_tp"], ctx["rong_tp"]),
         "cach_in": (qc.get("quy_cach_in") or "").strip() or None,
         "so_mat": _so(ctx["so_mat"]),
-        "so_mau": _so(ctx["so_mau"]),
+        # Thẻ cho thợ đọc: số màu PHỦ giấy (mặt A + mặt B) như trước — biến `so_mau` nay là số kẽm.
+        "so_mau": _so(ctx["so_mau_phu"]),
         "so_kem": _so(ctx["so_kem"]),
         "muc_a": muc_a or None,
         "muc_b": muc_b or None,

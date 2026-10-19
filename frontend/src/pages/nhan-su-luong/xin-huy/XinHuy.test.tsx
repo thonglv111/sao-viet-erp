@@ -55,7 +55,7 @@ describe("XinHuyNhan", () => {
     expect(screen.getByText("Tổ thiếu người")).toBeInTheDocument();
     rerender(<XinHuyNhan yc={{ ...YC, trang_thai: "dong_y", den_ngay_cu: "2099-10-07" }} />);
     expect(screen.getByText("Rút ngắn")).toBeInTheDocument();
-    expect(screen.getByText("gốc tới 7/10/2099")).toBeInTheDocument();
+    expect(screen.getByText("gốc tới 07/10/2099")).toBeInTheDocument();
     rerender(<XinHuyNhan yc={{ ...YC, trang_thai: "rut_lai" }} />);
     expect(container).toBeEmptyDOMElement();
   });

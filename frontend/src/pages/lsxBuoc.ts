@@ -360,6 +360,38 @@ export function boBuoc(rows: EditRow[], idx: number): EditRow[] {
     });
 }
 
+/** Dời một bước từ `from` sang `to` (nút ▲▼ / kéo thả) — lỗi #15, 18/10/2026.
+ *
+ * Bản cũ chỉ `splice` dòng, dây phụ thuộc giữ nguyên: Be thu lên trên Cán màng mà vẫn ghi tiền
+ * nhiệm "Cán màng" đứng SAU nó, máy chủ tính chuỗi ngược theo thứ tự mới ra số sai. Nay:
+ *  · tuyến THẲNG (mỗi bước chỉ phụ thuộc đúng bước liền trên trong bảng) ⇒ nối lại dây theo thứ
+ *    tự mới, giữ các tiền nhiệm ngoài bảng (cạnh xuyên lệnh) ở sau;
+ *  · tuyến rẽ nhánh ⇒ chỉ dời dòng — người lập lệnh tự sửa tab Phụ thuộc; máy chủ từ chối lưu
+ *    nếu còn bước phụ thuộc bước đứng sau nó (`LsxService._kiem_tuyen_luu`). */
+export function doiChoBuoc(rows: EditRow[], from: number, to: number): EditRow[] {
+  if (to < 0 || to >= rows.length || from < 0 || from >= rows.length || from === to) return rows;
+  const trong = new Set(rows.map((r) => r.key));
+  const thang = rows.every((r, i) => {
+    const dep = r.phu_thuoc_step_keys.filter((k) => trong.has(k));
+    return i === 0 ? dep.length === 0 : dep.length === 1 && dep[0] === rows[i - 1].key;
+  });
+  const next = [...rows];
+  const [row] = next.splice(from, 1);
+  next.splice(to, 0, row);
+  if (!thang) return next;
+  return next.map((r, i) => {
+    const ngoai = r.phu_thuoc_step_keys.filter((k) => !trong.has(k));
+    return { ...r, phu_thuoc_step_keys: [...(i === 0 ? [] : [next[i - 1].key]), ...ngoai] };
+  });
+}
+
+/** Lý do nút "Lưu công đoạn" bị khoá vì thiếu lý do đổi tuyến (§10, lỗi #15). `null` = lưu được.
+ *  Tuyến khác bài tính giá mà không ghi lý do thì nhật ký chỉ còn "3 → 3 công đoạn", không ai đối
+ *  chiếu lại được vì sao lệnh lệch phiếu. */
+export function lyDoChanLuu(doiCauTruc: boolean, lyDo: string): string | null {
+  return doiCauTruc && !lyDo.trim() ? "Ghi lý do đổi công đoạn rồi mới lưu được" : null;
+}
+
 export function n(v: string): number {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
@@ -683,8 +715,8 @@ export interface DonViChuoi {
   tp: string;
   /** Chặng GIỮA (tay sách) — chỉ có khi chuỗi đổi mức từ 2 lần trở lên. "" = không có. */
   tay: string;
-  /** Chặng TỜ NGUYÊN. Routing KHÔNG có bước xả giấy ⇒ tờ nguyên đếm bằng chính đơn vị tờ in
-   *  (không xả thì một tờ nguyên đúng là một tờ in), nên trả luôn `to` — KHÔNG bịa chữ khác. */
+  /** Chặng TỜ NGUYÊN. Routing KHÔNG có bước xả giấy ⇒ lùi về nhãn "tờ nguyên", KHÔNG mượn chữ
+   *  "tờ in" (giấy nguyên lấy kho không phải tờ in). */
   toNguyen: string;
 }
 
@@ -696,6 +728,21 @@ export interface MaDonViChuoi {
   don_vi_to_nguyen?: string | null;
 }
 
+/** Nhãn dự phòng chặng tờ nguyên khi danh mục chặng chưa nạp / routing không có bước xả. */
+const NHAN_TO_NGUYEN = "tờ nguyên";
+
+/** Sau thao tác của CHÍNH MÌNH (lưu, đổi trạng thái…) máy chủ broadcast SSE; client gộp nhịp 400 ms nên
+ *  tick về SAU khi dữ liệu trả về. Tick nhảy trong cửa sổ này sau thao tác của mình là của mình. */
+export const CUA_SO_TU_LAM_MS = 3000;
+
+/** Banner "Có thay đổi mới" có hiện không? `tuLamLuc` = mốc (ms) thao tác thành công gần nhất của chính
+ *  người dùng, 0 = chưa có. Tick vượt mốc đã xem mà rơi trong cửa sổ sau thao tác của mình ⇒ KHÔNG báo;
+ *  người khác đổi (ngoài cửa sổ) vẫn báo. */
+export function tickConLaCuaNguoiKhac(eventTick: number, daXem: number, tuLamLuc: number, now: number): boolean {
+  if (eventTick <= daXem) return false;
+  return !(tuLamLuc > 0 && now - tuLamLuc <= CUA_SO_TU_LAM_MS);
+}
+
 /** MÃ bốn chặng (server) → TÊN bốn chặng (danh mục).
  *
  *  LUẬT SUY CHẶNG NẰM Ở SERVER, đúng một bản: `services/dong_giay.don_vi_chuoi`. Hàm này chỉ dịch
@@ -705,7 +752,8 @@ export interface MaDonViChuoi {
  *
  *  Hai lối lùi ở đây là DẪN XUẤT chứ không phải nhãn bịa:
  *   · `tp` rỗng → ĐVT của chính sản phẩm (người dùng khai ở đơn/phiếu).
- *   · `toNguyen` rỗng → dùng `to`: routing không có bước xả thì một tờ nguyên đúng là một tờ in.
+ *   · `toNguyen` rỗng → "tờ nguyên" (nhãn chặng): routing không có bước xả thì SỐ vẫn bằng số tờ in,
+ *     nhưng nó là GIẤY NGUYÊN lấy kho — gọi "tờ in" là sai tên (#66, 19/10/2026).
  *  Ngoài hai lối đó, chặng nào server không nói thì trả RỖNG — nơi gọi hiện mỗi con số. Nhãn khối
  *  đã nói CHẶNG ("Vào máy" · "Giấy nguyên") nên rỗng cũng không mất nghĩa.
  */
@@ -715,7 +763,7 @@ export function donViChuoi(src: MaDonViChuoi, dvSanPham?: string | null): DonViC
     to,
     tp: nhanChang(src.don_vi_tp) || dvSanPham || "",
     tay: nhanChang(src.don_vi_tay),
-    toNguyen: nhanChang(src.don_vi_to_nguyen) || to,
+    toNguyen: nhanChang(src.don_vi_to_nguyen) || nhanTram("to_nguyen") || NHAN_TO_NGUYEN,
   };
 }
 

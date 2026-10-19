@@ -29,6 +29,7 @@ const NHAN_LOAI: Record<string, string> = {
   phieu_chi: "Phiếu chi",
   hoan_tien: "NCC hoàn tiền",
   hoan_tien_khach: "Trả lại tiền khách",
+  dieu_chinh_giam: "Điều chỉnh giảm",
 };
 
 const CHU = {

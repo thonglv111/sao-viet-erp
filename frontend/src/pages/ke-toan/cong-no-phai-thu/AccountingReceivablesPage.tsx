@@ -61,8 +61,10 @@ const CAU_HINH: CauHinhThanCongNo<ReceivableCustomerRow> = {
   lienHe: (r) => ({ ten: r.lien_he_ten, sdt: r.lien_he_sdt, phuTrach: r.sale_user_name }),
   theThem: [THE_TRA_COC],
   danhDau: (r) =>
-    (r.coc_don_huy ?? 0) > 0 ? (
-      <ChipTT mau="cam" vuong title="Cọc của đơn đã huỷ chưa trả lại khách">Còn giữ cọc {soVN(r.coc_don_huy ?? 0)}</ChipTT>
+    (r.cho_tra_lai ?? 0) > 0 ? (
+      <ChipTT mau="cam" vuong title="Tiền khách phải trả lại: đơn đã huỷ, hoặc đã ghi đủ hoá đơn mà vẫn dư">Chờ trả lại {soVN(r.cho_tra_lai ?? 0)}</ChipTT>
+    ) : (r.tien_dang_de ?? 0) > 0 ? (
+      <ChipTT mau="xam" vuong title="Tiền khách đang để ở đơn, sẽ trừ vào hoá đơn của chính đơn đó">Đang để {soVN(r.tien_dang_de ?? 0)}</ChipTT>
     ) : null,
 };
 

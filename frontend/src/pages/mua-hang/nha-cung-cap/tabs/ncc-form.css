@@ -106,6 +106,13 @@
 .ncc-a__o:user-invalid {
   border-color: var(--signal);
 }
+/* Nhắc khi đổi điều khoản trả: hạn của đợt giao chụp lúc ghi đợt nên chỉ hàng về từ nay theo. */
+.ncc-a__nhac {
+  display: block;
+  padding: 6px 0;
+  color: var(--ash-2);
+  font-size: 12px;
+}
 .ncc-a__o--dam {
   font-size: 14px;
   font-weight: 400;
@@ -127,6 +134,31 @@
 }
 .ncc-a__so-wrap .ncc-a__o {
   max-width: 100%;
+}
+/* Tính hạn từ: [Chốt ngày ▾] [25] hằng tháng — ô chọn co theo chữ, ô ngày vừa hai chữ số. */
+.ncc-a__han {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.ncc-a__o--vua {
+  width: auto;
+  min-width: 0;
+  /* Co theo lựa chọn ĐANG chọn, không theo dòng dài nhất — chừa chỗ cho ô ngày cùng hàng. */
+  field-sizing: content;
+  cursor: pointer;
+}
+.ncc-a__ngay-chot {
+  flex: 0 0 auto;
+  width: calc(4ch + 12px);
+  margin-left: 0;
+  padding: 4px 6px;
+  text-align: center;
+}
+.ncc-a__han .ncc-a__don-vi {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 .ncc-a__don-vi {
   font-size: 14px;

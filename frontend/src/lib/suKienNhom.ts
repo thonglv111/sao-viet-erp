@@ -71,6 +71,8 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   el_decision: ["nhan_su"],
   adjust_pending_changed: ["nhan_su"],
   adjust_decision: ["nhan_su"],
+  phieu_luong_cong_bo: ["nhan_su"],
+  phieu_luong_thu_hoi: ["nhan_su"],
   shift_changed: ["nhan_su"],
 
   // Sản xuất: lệnh · bài ghép · xếp lịch · bàn tổ · KCS.
@@ -103,6 +105,9 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   department_purchase_request_created: ["mua_ke_toan", "khvt"],
   sales_invoice_created: ["mua_ke_toan", "ban_hang"],
   sales_invoice_cancelled: ["mua_ke_toan", "ban_hang"],
+  // Hóa đơn điều chỉnh giảm (hoàn chiết khấu): ngăn đơn + Công nợ phải thu + Phiếu chi (chờ trả lại).
+  sales_invoice_adjusted: ["mua_ke_toan", "ban_hang"],
+  sales_invoice_adjustment_cancelled: ["mua_ke_toan", "ban_hang"],
   sales_invoice_receipt_created: ["mua_ke_toan", "ban_hang"],
   purchase_pending_approval: ["mua_ke_toan", "khvt"],
   purchase_decision: ["mua_ke_toan", "khvt"],

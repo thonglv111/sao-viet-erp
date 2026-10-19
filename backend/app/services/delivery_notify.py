@@ -54,6 +54,37 @@ def bao_tai_xe_kho_lap_phieu(db, request_id: int | None, ma_phieu: str | None = 
         return
 
 
+def kho_huy_hang_giao(db, request_id: int | None, *, actor) -> None:
+    """Kho vừa huỷ đề nghị xuất của chuyến giao (huỷ yêu cầu, hoặc huỷ phiếu nháp cuối) ⇒ chuyến về
+    "Đã lên kế hoạch" kèm lý do của kho, màn Giao hàng + tài xế được đẩy ngay (#32, 18/10/2026).
+    Nuốt lỗi như các móc khác: lời huỷ của kho đã ghi đúng."""
+    try:
+        if not request_id:
+            return
+        req = db.get(StockRequest, int(request_id))
+        if req is None or not getattr(req, "delivery_trip_id", None):
+            return
+        from ..repositories.delivery_repo import DeliveryRepository
+        from ..repositories.employee_repo import EmployeeRepository
+        from ..repositories.order_repo import OrderRepository
+        from .delivery_service import DeliveryService
+
+        svc = DeliveryService(DeliveryRepository(db), OrderRepository(db), EmployeeRepository(db),
+                              None, None)
+        trip = svc.sau_kho_huy_xuat(req, actor=actor)
+        if trip is None:
+            return
+        db.commit()
+        svc.bao_tai_xe(trip, f"Kho đã huỷ yêu cầu xuất {req.ma} của chuyến bạn — chờ điều phối báo lại.",
+                       viec="kho_huy")
+        hub.gui({"type": "giao_hang_changed", "trip_id": trip.id,
+                 "message": f"Kho đã huỷ yêu cầu xuất {req.ma}, chuyến về Đã lên kế hoạch."},
+                quyen=hop(MAN_GIAO_HANG, MAN_BAN_HANG))
+    except Exception:
+        db.rollback()
+        return
+
+
 def kho_ghi_so_hang_giao(db, request_id: int | None, *, actor) -> None:
     """Kho vừa ghi sổ một phiếu của yêu cầu thuộc chuyến giao:
 

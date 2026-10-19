@@ -1,0 +1,586 @@
+/* ============================================================================
+   ĐIỆN THOẠI — SẢN XUẤT (14/10/2026, docs/thiet-ke-mobile.md §5)
+   ----------------------------------------------------------------------------
+   Kế hoạch SX · Hồ sơ lệnh SX · Theo dõi SX · Kế hoạch vật tư · Xếp lịch · KCS · Tổ sản xuất ·
+   Sửa chữa & bảo dưỡng. CHỈ trong mốc điện thoại — guard `mobile.test.ts`.
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  /* ---- Kế hoạch SX — chi tiết lệnh ------------------------------------------
+     Hàng nút đầu lệnh (Làm mới · chip "Trong bài ghép …" · Xoá lệnh) không xuống dòng ⇒ đẩy cả
+     trang tràn ngang 565px. */
+  .khsx-detail__headnut.khsx-detail__headnut {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    min-width: 0;
+  }
+  .khsx-detail__headnut .khsx-khoa-chip {
+    white-space: normal !important;
+    max-width: 100%;
+  }
+
+  /* ---- Xếp lịch (XepLichPage + XlDanhSachDT) --------------------------------
+     Đầu màn rộng 1164px (khoảng ngày + 3 cỡ nhìn + ô tìm + Lọc + Hiển thị + Chờ xếp lịch một hàng)
+     ⇒ xuống dòng; chân màn (chú thích màu thanh Gantt + phím tắt bàn phím) bỏ — điện thoại không có
+     thanh Gantt lẫn bàn phím. */
+  .xa.xa {
+    min-width: 0;
+    width: 100%;
+  }
+  .xa .xa-dau {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+  .xa .xa-dau > h1,
+  .xa .xa-ngan-dung,
+  .xa .xa-gian,
+  .xa .xa-chan,
+  .xa .xa-phim {
+    display: none !important;
+  }
+  /* Cụm chọn khoảng ngày (`xa-kn`, dùng chung Xếp lịch + Lịch của bàn tổ): một hàng nowrap 560px ⇒
+     "Hôm nay" trơ một hàng, cụm ‹ ngày › và Tuần/2 tuần/Tháng lệch nhau. Lưới 2 hàng:
+       [ ‹      12 → 25 tháng 10      › ]
+       [ ● Hôm nay ][ Tuần | 2 tuần | Tháng ] */
+  :root .xa-kn.xa-kn {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 8px;
+    flex: 1 1 100%;
+    width: 100%;
+    white-space: normal;
+  }
+  :root .xa-kn .xa-kn__hop {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    width: 100%;
+    height: 46px;
+    padding: 3px;
+  }
+  :root .xa-kn .xa-kn__mui {
+    flex: none;
+    width: 40px;
+    height: 40px;
+  }
+  :root .xa-kn .xa-kn__giua {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 40px;
+    justify-content: center;
+    padding: 0 8px;
+  }
+  :root .xa-kn .xa-kn__chu {
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  :root .xa-kn .xa-kn__nam {
+    display: none;
+  }
+  :root .xa-kn .xa-kn__phu {
+    white-space: nowrap;
+    flex: none;
+  }
+  :root .xa-kn .xa-kn__nay {
+    grid-column: 1;
+    grid-row: 2;
+    height: 40px;
+  }
+  :root .xa-kn .xa-kn__co {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    height: 40px;
+  }
+  :root .xa-kn .xa-kn__co button {
+    flex: 1 1 0;
+    height: 34px;
+    padding: 0 6px;
+    font-size: 14px;
+  }
+  .xa .xa-o-tim {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    height: 44px !important;
+  }
+  .xa .xa-o-tim kbd {
+    display: none;
+  }
+  .xa .xa-btn {
+    min-height: 40px;
+  }
+  .xa .xa-tom {
+    padding: 8px 12px !important;
+  }
+  .xa .xa-than {
+    display: block !important;
+  }
+  /* Khay "Chờ xếp lịch" (cột phải 340px) → trang phủ kín màn. */
+  .xa .xa-khay {
+    position: fixed !important;
+    inset: 0;
+    z-index: 60;
+    width: 100vw !important;
+    max-width: none !important;
+    border-left: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .xl-dt {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 12px;
+  }
+  .xl-dt__trong {
+    margin: 24px 12px;
+    padding: 24px 16px;
+    border: 1px dashed var(--rule-soft);
+    border-radius: 14px;
+    text-align: center;
+    color: var(--ash-2);
+    font-size: 14px;
+  }
+  .xl-dt__ngay {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .xl-dt__ngay-ten {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 4px 2px 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .xl-dt__ngay-ten span {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ash-2);
+  }
+  .xl-dt__the {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--rule-soft);
+    border-radius: 14px;
+    background: var(--canvas, #fff);
+    text-align: left;
+    font: inherit;
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  }
+  .xl-dt__the.is-gap {
+    border-left: 3px solid var(--signal, #dc2626);
+  }
+  .xl-dt__the.is-chon {
+    border-color: var(--ink);
+    box-shadow: 0 0 0 1px var(--ink);
+  }
+  .xl-dt__dau {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .xl-dt__ma {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ash);
+  }
+  .xl-dt__gap {
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--signal-soft);
+    color: var(--signal-deep);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .xl-dt__tt {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--ash);
+  }
+  .xl-dt__ten {
+    font-size: 16px;
+    line-height: 1.35;
+  }
+  .xl-dt__phu {
+    font-size: 13.5px;
+    color: var(--ash);
+  }
+  .xl-dt__gio {
+    margin: 4px 0 2px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--paper);
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .xl-dt__dong {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .xl-dt__dong > span {
+    color: var(--ash-2);
+  }
+  .xl-dt__dong b {
+    font-weight: 600;
+    text-align: right;
+  }
+  .xl-dt__dong b.is-tre {
+    color: var(--signal-deep);
+  }
+  .xl-dt__vt {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    background: var(--amber-soft);
+    color: var(--amber-deep);
+  }
+  .xl-dt__vt.is-do {
+    background: var(--signal-soft);
+    color: var(--signal-deep);
+  }
+
+  /* ---- Phiếu bảo trì — chế độ Lịch ------------------------------------------
+     Thẻ ngày đã ghi CHỮ trạng thái ("Quá hạn · 2/2 việc") ⇒ khối chú thích 5 màu thừa, bỏ; hàng
+     chip nhóm máy thành một dải trượt ngang thay vì bọc nhiều dòng. */
+  .ktm-lich .ktm-lich__bar {
+    padding: 8px 0 !important;
+    border: 0 !important;
+    background: none !important;
+  }
+  .ktm-lich .ktm-lich__chu-giai {
+    display: none !important;
+  }
+  .ktm-lich .ktm-lich__nhom-may {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-width: 0;
+  }
+  .ktm-lich .ktm-lich__nhom-may > * {
+    flex-shrink: 0;
+  }
+
+  /* Ngăn chi tiết lệnh (XlNgan) — bảng công đoạn là lưới div 4 cột cố định (tên 220 · SL 64 · giờ 120
+     · trục Gantt mini ≥420px) ⇒ cuộn ngang 900px. Điện thoại: mỗi bước tên trọn hàng, dưới là giờ ·
+     số lượng; bỏ trục mini + hàng tiêu đề + chú thích màu (không có thanh Gantt thì vô nghĩa). */
+  .xa-b-bang.xa-b-bang {
+    overflow: visible;
+  }
+  .xa-b-bang .xa-b-hang--dau,
+  .xa-b-bang .xa-b-chu,
+  .xa-b-bang .xa-b-hang > .xa-b-truc {
+    display: none !important;
+  }
+  .xa-b-bang .xa-b-hang {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    row-gap: 4px;
+    padding: 10px 0;
+  }
+  .xa-b-bang .xa-b-hang:first-of-type,
+  .xa-b-bang .xa-b-hang--dau + .xa-b-hang {
+    border-top: 0;
+  }
+  .xa-b-bang .xa-b-hang > .xa-b-ten {
+    grid-column: 1 / -1;
+  }
+  .xa-b-bang .xa-b-hang > .xa-b-gio {
+    grid-column: 1;
+    grid-row: 2;
+    padding-left: 38px;
+  }
+  .xa-b-bang .xa-b-hang > .xa-b-sl {
+    grid-column: 2;
+    grid-row: 2;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .xa-b-bang .xa-b-t,
+  .xa-b-bang .xa-b-m {
+    white-space: normal;
+    overflow: visible;
+  }
+
+  /* Chân ngăn lệnh: Đóng · câu giải thích · Thu hồi · Phát hành cập nhật xếp chồng thành khối ~220px
+     dính đáy. Câu giải thích lên đầu, hai nút hành động chia đôi một hàng; "Đóng" bỏ (đã có ✕). */
+  .xa-ng-chan.xa-ng-chan {
+    gap: 8px;
+  }
+  .xa-ng-chan > .xa-gian,
+  .xa-ng-chan > .xa-btn:first-child {
+    display: none;
+  }
+  .xa-ng-chan > .xa-goi-y {
+    order: -1;
+    flex: 1 1 100%;
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .xa-ng-chan > .xa-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 44px !important;
+    white-space: normal;
+    line-height: 1.2;
+    justify-content: center;
+  }
+
+  /* ---- KCS — sơ đồ công đoạn của nhóm (kcs-b.css) ---------------------------------------------
+     Mỗi lệnh là một LÀN NGANG (tên 112px + ô bước 200px nối nhau) ⇒ 1.100px, trượt ngang thấy một bước
+     mỗi lần. Điện thoại: làn xếp DỌC, bước trải cả bề ngang, vạch nối thành vạch dọc; lớp SVG nối giữa
+     các làn (tính theo vị trí ngang) bỏ — xếp dọc thì nó vẽ sai chỗ. */
+  .kcsb-sodo.kcsb-sodo {
+    overflow-x: visible;
+    padding: 12px;
+  }
+  .kcsb-sodo .kcsb-duong {
+    display: none;
+  }
+  .kcsb-sodo .kcsb-lan {
+    flex-direction: column;
+    align-items: stretch;
+    width: auto;
+    min-width: 0;
+    margin-bottom: 18px;
+  }
+  .kcsb-sodo .kcsb-lan__ten {
+    width: auto;
+    padding: 0 0 6px;
+    font-size: 13.5px;
+  }
+  .kcsb-sodo .kcsb-lan__phu {
+    white-space: normal;
+  }
+  .kcsb-sodo .kcsb-lan__o {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .kcsb-sodo .kcsb-noi {
+    width: 1.5px;
+    height: 10px;
+    align-self: center;
+  }
+  .kcsb-sodo .kcsb-nut,
+  .kcsb-sodo .kcsb-nut--kho {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+  .kcsb-sodo .kcsb-nut__ten {
+    -webkit-line-clamp: unset;
+    display: block;
+  }
+
+  /* ---- Bàn tổ (ThucHienSxPage) ---------------------------------------------------------------
+     Đầu màn ~500px trước thẻ việc đầu tiên: tiêu đề "Bàn tổ <tên tổ>" lặp tên trên thanh trên, và 6
+     chip trạng thái bọc 3 hàng. Bỏ tiêu đề, chip thành một dải trượt ngang như các màn danh sách khác. */
+  .thsx-top .lds-dau__ten {
+    display: none;
+  }
+  /* Thanh chọn Bảng / Lịch / Sản lượng dạt mép phải 244px ⇒ trải cả hàng, ba nút chia đều. */
+  .thsx-top .lds-dau {
+    padding-bottom: 0 !important;
+  }
+  .thsx-top .lds-dau__nut,
+  .thsx-top .thsx-seg {
+    flex: 1 1 100% !important;
+    width: 100%;
+    margin-left: 0 !important;
+  }
+  .thsx-top .thsx-seg {
+    display: flex !important;
+  }
+  .thsx-top .thsx-seg > *,
+  .thsx-top .thsx-seg button {
+    flex: 1 1 0 !important;
+    justify-content: center;
+  }
+  /* Hàng lọc: [Mọi thời gian ⟷][Lọc] / [Sắp xếp ⟷][Cột] — thẳng mép trái, ô giãn lấp chỗ trống. */
+  .thsx .lds-loc__thanh {
+    justify-content: flex-start !important;
+  }
+  .thsx .lds-loc__thanh > .tl-neo:not(.thsx-sx):first-of-type {
+    flex: 1 1 calc(100% - 90px) !important;
+    min-width: 0;
+  }
+  .thsx .lds-loc__thanh > .thsx-sx {
+    flex: 1 1 calc(100% - 88px) !important;
+    min-width: 0;
+  }
+  .thsx .lds-loc__thanh > .tl-neo > button {
+    width: 100%;
+  }
+  .thsx .lds-loc__thanh > .lds-cot {
+    margin-left: 0 !important;
+  }
+  /* Màn là khung cuộn riêng cao 100% (`.thsx` overflow-y auto) với danh sách cuộn bên trong ⇒ trên
+     điện thoại danh sách (đã thành thẻ, nới chiều cao) tràn vào khung đó: cuộn lồng trong trang, và
+     khung tự trượt xuống cuối. Để trang cuộn như mọi màn khác. */
+  .thsx.thsx {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding-bottom: 16px;
+  }
+  /* Cả chuỗi khung con phải cao THEO NỘI DUNG: `.thsx-ds__scroll` gốc `flex: 1 1 0` ⇒ cao cơ sở 0,
+     danh sách thẻ tràn ra ngoài khung mà không đẩy trang dài ra ⇒ khung cuộn chính không tính đủ, đuôi
+     danh sách + chú giải kẹt dưới thanh tab. */
+  .thsx .thsx-grid,
+  .thsx .thsx-center,
+  .thsx .thsx-ds__scroll {
+    flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* Lưới 3 cột (hàng chờ · bảng · ngăn) chỉ còn một cột trên điện thoại, nhưng rãnh hàng `minmax(0,1fr)`
+     khoá cột giữa ở ~325px ⇒ chuyển thành khối thường. */
+  .thsx .thsx-grid.thsx-grid--full {
+    display: block !important;
+  }
+  /* Chú giải tuyến nhỏ "Rê chuột lên chấm…" — điện thoại không rê chuột. */
+  .thsx-tk-cg > span:last-child:not(:has(i)) {
+    display: none;
+  }
+  .thsx .thsx-dem {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -12px;
+    padding: 2px 12px;
+  }
+  .thsx .thsx-dem::-webkit-scrollbar {
+    display: none;
+  }
+  .thsx .thsx-dem > * {
+    flex-shrink: 0;
+  }
+
+  /* ---- Kế hoạch vật tư — tiêu đề nhóm (theo lệnh / mặt hàng) -----------------------------------
+     Một hàng flex không xuống dòng: ‹ · mã lệnh · tên · khách · ngày giao ⇒ ở 313px mã bẻ "LSX2 / 6-0013",
+     tên/khách thành cột 3 dòng. Xuống dòng: hàng 1 nút + mã + ngày giao, hàng 2 tên, hàng 3 khách. */
+  :root:root table[data-the][data-the].lvt-g > tbody > tr.lds-nhom > td {
+    text-align: left !important;
+    justify-content: flex-start !important;
+  }
+  .lvt-g tr.lds-nhom .gl,
+  .lvt-g tr.lds-nhom .lds-dinh-trai {
+    width: 100%;
+    max-width: 100% !important;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 4px;
+    column-gap: 8px;
+    white-space: normal;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai > * {
+    flex: none;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai > .lvt-lk {
+    font-weight: 600;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai > .lvt-k {
+    margin-left: auto;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai > span:not([class]) {
+    order: 2;
+    flex: 1 1 100%;
+    white-space: normal;
+    font-weight: 600;
+    font-size: 14.5px;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai > .lvt-mu {
+    order: 3;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+  }
+  .lvt-g tr.lds-nhom .lds-dinh-trai > .lvt-btn {
+    order: 4;
+    margin-left: auto;
+    height: 34px;
+    padding: 0 12px;
+  }
+
+  /* Chân bàn tổ (chú giải "Kế hoạch · Thực tế: Đang chạy · Tạm dừng · Hoàn thành"): trước nằm đáy khung
+     cao 100% ⇒ khuất sau thanh dưới. Nay chạy theo nội dung; gọn một khối nhỏ, chừa đáy cho thanh dưới. */
+  .thsx .thsx-foot {
+    padding: 10px 12px 16px !important;
+    gap: 6px !important;
+    border-top: 0 !important;
+    background: transparent !important;
+  }
+  .thsx .thsx-foot__legend {
+    gap: 6px 14px !important;
+    font-size: 12px;
+  }
+  .thsx .thsx-foot__spacer {
+    display: none;
+  }
+  /* Chú giải dải tuyến trong thẻ việc ("Đã xong · Đang làm · … · Bước khác cũng của tổ mình"). */
+  .thsx-tk-cg.thsx-tk-cg {
+    gap: 4px 12px;
+    padding-top: 8px;
+    font-size: 12px;
+  }
+
+  /* Chi tiết lệnh → tab Công đoạn: dải "Dự kiến xong 15/10 · Còn 5 ngày tới hạn giao" (khsx-lead) một hàng
+     flex không xuống dòng ⇒ lố mép phải. Khối xếp dọc, nội dung xuống dòng. */
+  .khsx-rt .khsx-lead {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+  }
+  .khsx-rt .khsx-lead__sec {
+    width: auto !important;
+    min-width: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* ---- Tiêu chí KCS (danh mục) — danh sách công đoạn cuộn trong khung 260px phía trên, tiêu chí phía
+     dưới ⇒ cuộn lồng. Danh sách ngắn (vài công đoạn) — hiện hết; chạm công đoạn thì cuộn xuống tiêu chí. */
+  .ktc-trai .ktc-ds-cd {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* ---- Xếp lịch — ngăn chi tiết lệnh (XlNgan) ---------------------------------------------
+     Chip đầu ngăn nowrap: tên khách dài ("CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ …") rộng hơn màn ⇒ cả
+     ngăn cuộn ngang. Cho chip xuống dòng, không vượt bề rộng ngăn. */
+  .kt-ngan__phu .xa-chip-dau {
+    max-width: 100%;
+    height: auto;
+    min-height: 24px;
+    padding-block: 3px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .kt-ngan__phu .xa-chip-dau > svg {
+    flex: none;
+  }
+}

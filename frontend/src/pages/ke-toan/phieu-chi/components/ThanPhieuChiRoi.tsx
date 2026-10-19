@@ -25,6 +25,7 @@ export function BanXemPhieuChi({
   soChungTu,
   nguon,
   tenMuc,
+  soDot,
 }: {
   form: PaymentVoucherBaseInput;
   taiKhoan: CompanyBankAccountRow[];
@@ -32,6 +33,8 @@ export function BanXemPhieuChi({
   nguon: PaymentVoucherSource;
   /** Tên mục chi đang chọn — in dòng "Mục chi". */
   tenMuc?: string | null;
+  /** Số thứ tự đợt giao đang trả — in "Đợt thanh toán: Đợt N". */
+  soDot?: number | null;
 }) {
   const ck = form.voucher_type === "bank_transfer";
   const tk = taiKhoan.find((t) => t.id === form.company_bank_account_id);
@@ -47,6 +50,7 @@ export function BanXemPhieuChi({
         voucher_type: form.voucher_type,
         source_type: nguon,
         muc_thu_chi_ten: tenMuc ?? null,
+        delivery_seq_no: soDot ?? null,
         payment_stage: form.payment_stage,
         company_account_number: tk?.account_number ?? null,
         company_bank_name: tk?.bank_name ?? null,

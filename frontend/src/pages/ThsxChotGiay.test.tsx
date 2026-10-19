@@ -87,3 +87,27 @@ describe("ThsxChotGiay · tổ Cắt chỉ thấy công đoạn Trước In", ()
     expect(screen.queryByRole("button", { name: /Thêm công đoạn/ })).toBeNull();
   });
 });
+
+
+describe("ThsxChotGiay · lỗi máy chủ và quyền (#26)", () => {
+  beforeEach(() => { list.mockReset(); chot.mockReset(); });
+
+  it("máy chủ từ chối thì câu báo còn nguyên sau lượt nạp lại", async () => {
+    list.mockResolvedValue([dong({})]);
+    const { ApiError } = await import("../api/client");
+    chot.mockRejectedValue(new ApiError("Bạn không có quyền Thực hiện lệnh ở tổ này", 403));
+    render(<ThsxChotGiay teamId={5} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Không cần cắt/ }));
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByRole("alert").textContent).toContain("Bạn không có quyền Thực hiện lệnh ở tổ này");
+  });
+
+  it("không có quyền Thực hiện cả tổ thì không bày nút ghi", async () => {
+    list.mockResolvedValue([dong({})]);
+    render(<ThsxChotGiay teamId={5} ghiDuoc={false} />);
+    await screen.findByText("Chưa có công đoạn cắt");
+    expect(screen.queryByRole("button", { name: /Không cần cắt/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Thêm công đoạn/ })).toBeNull();
+  });
+});

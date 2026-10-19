@@ -1,7 +1,7 @@
 // Global top header bar (ERP shell). Light `--paper` surface that sits above the
 // scrolling content on every page. Hosts the user widget on the right — avatar +
 // name + a dropdown (Hồ sơ của tôi + Đăng xuất).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { anhNho } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Icon } from "./Icons";
@@ -14,9 +14,13 @@ interface TopbarProps {
   onToggleNav?: () => void;
   /** Ngăn kéo điều hướng đang mở? — nuôi `aria-expanded` của nút hamburger. */
   navOpen?: boolean;
+  /** Tên màn đang mở — CHỈ điện thoại hiện (`.topbar__tieu-de`, CSS lớp mobile); máy lớn ẩn. */
+  tieuDe?: string;
+  /** Chuông việc chờ đứng cạnh avatar — CHỈ điện thoại truyền vào (AppShell). */
+  chuong?: ReactNode;
 }
 
-export function Topbar({ onOpenProfile, onToggleNav, navOpen = false }: TopbarProps) {
+export function Topbar({ onOpenProfile, onToggleNav, navOpen = false, tieuDe, chuong }: TopbarProps) {
   return (
     <header className="topbar">
       {/* Hamburger: CSS ẩn ở màn rộng (sidebar cố định), hiện khi sidebar hoá ngăn kéo. */}
@@ -29,7 +33,9 @@ export function Topbar({ onOpenProfile, onToggleNav, navOpen = false }: TopbarPr
       >
         <Icon name={navOpen ? "x" : "menu"} size={20} />
       </button>
+      {tieuDe && <h1 className="topbar__tieu-de">{tieuDe}</h1>}
       <div className="topbar__spacer" />
+      {chuong}
       <UserWidget onOpenProfile={onOpenProfile} />
     </header>
   );

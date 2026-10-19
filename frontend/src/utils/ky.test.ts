@@ -1,10 +1,22 @@
 /** Kỳ xem dùng chung (Thống kê khách hàng và 5 màn kế toán) — sai một ngày là số kỳ này lệch số
  *  cùng kỳ mà vẫn trông hợp lý. */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { homNayVN, kyCungKy, loiKhoang, luiNam, ngayDeDoc, tinhKy } from "./ky";
+import { gioVN, homNayVN, kyCungKy, loiKhoang, luiNam, ngayDeDoc, ngayVN, tinhKy } from "./ky";
 
 describe("ngày giờ Việt Nam", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("05:30 sáng 18/10 giờ VN (22:30 UTC hôm trước) vẫn là ngày 18", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-17T22:30:00Z"));
+    expect(homNayVN()).toBe("2026-10-18");
+  });
+  it("ngayVN đổi mốc UTC sang ngày giờ xưởng", () => {
+    expect(ngayVN("2026-10-17T23:07:00Z")).toBe("2026-10-18");
+    expect(ngayVN("2026-10-17T16:59:00Z")).toBe("2026-10-17");
+    expect(ngayVN("2026-10-18")).toBe("2026-10-18");
+  });
   it("23h giờ UTC đã là ngày hôm sau ở Việt Nam", () => {
     expect(homNayVN(Date.UTC(2026, 9, 3, 18, 0))).toBe("2026-10-04");
     expect(homNayVN(Date.UTC(2026, 9, 3, 16, 59))).toBe("2026-10-03");
@@ -48,5 +60,14 @@ describe("ngày để đọc", () => {
 describe("cùng kỳ năm trước", () => {
   it("kyCungKy lùi đúng một năm, 29/02 thành 28/02", () => {
     expect(kyCungKy({ tu: "2028-02-01", den: "2028-02-29" })).toEqual({ tu: "2027-02-01", den: "2027-02-28" });
+  });
+});
+
+describe("gioVN", () => {
+  it("giờ tường VN của một mốc UTC, làm tròn lên đầu giờ kế tiếp", () => {
+    const t = Date.UTC(2026, 9, 18, 17, 25);           // 00:25 ngày 19/10 giờ VN
+    expect(gioVN(t)).toBe("2026-10-19T00:25");
+    expect(gioVN(t, { troiGio: true })).toBe("2026-10-19T01:00");
+    expect(gioVN(t, { troiGio: true, themGio: 4 })).toBe("2026-10-19T05:00");
   });
 });

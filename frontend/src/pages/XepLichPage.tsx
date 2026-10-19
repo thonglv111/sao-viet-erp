@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock, Inbox, RotateCcw, Search, Send,
-  SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash,
+  SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash, Wrench,
 } from "lucide-react";
 
 import {
@@ -21,6 +21,9 @@ import { XlKhay } from "./XlKhay";
 import { XlKhoangNgay } from "./XlKhoangNgay";
 import { XlLuoi, type HienThi } from "./XlLuoi";
 import { XlNgan } from "./XlNgan";
+import { XlKhoaMay } from "./XlKhoaMay";
+import { XlDanhSachDT } from "./XlDanhSachDT";
+import { useLaDienThoai } from "../utils/dienThoai";
 import {
   LOC_HANG_CHO_TRONG,
   MAN_XEP_LICH,
@@ -93,6 +96,8 @@ export function XepLichPage({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
+  // Điện thoại: lưới Gantt → danh sách lệnh theo ngày (XlDanhSachDT); khay chờ xếp đóng sẵn.
+  const laDT = useLaDienThoai();
   const can = useCan();
   const suaDuoc = can("xep_lich", "update");
   const duyetDuoc = can("xep_lich", "approve");
@@ -205,6 +210,7 @@ export function XepLichPage({
 
   const [nhip, setNhip] = useState(0);
   const lamMoi = useCallback(() => setNhip((n) => n + 1), []);
+  const [moKhoaMay, setMoKhoaMay] = useState(false);
   const tickRef = useRef(eventTick);
   tickRef.current = eventTick;
   const theRef = useRef(the);
@@ -583,6 +589,9 @@ export function XepLichPage({
           <ThanhLoc dieuKien={dieuKienLuoi} loc={locLuoi} onLoc={setLocLuoi} />
         </div>
         <span className="xa-gian" />
+        <button type="button" className="xa-btn" aria-haspopup="dialog" onClick={() => setMoKhoaMay(true)}>
+          <Wrench size={15} />Khoá máy
+        </button>
         <button ref={nutHienRef} type="button" className={`xa-btn${moHien ? " xa-btn--bat" : ""}`} aria-expanded={moHien} onClick={() => setMoHien((m) => !m)}>
           <SlidersHorizontal size={15} />Hiển thị
         </button>
@@ -631,6 +640,16 @@ export function XepLichPage({
       </div>
 
       <div className="xa-than">
+        {laDT ? (
+          <XlDanhSachDT
+            dong={dong}
+            vatTu={vatTu}
+            hienXong={hien.hienXong}
+            chonId={chonId}
+            trong={coLoc ? "Không có lệnh nào khớp bộ lọc." : undefined}
+            onChon={setChonId}
+          />
+        ) : (
         <main className="xa-luoi">
           <XlLuoi
             tu={tu}
@@ -652,6 +671,7 @@ export function XepLichPage({
             onThu={(id, gio, signal) => api.xepLich.thuMoc(token ?? "", id, gio, signal)}
           />
         </main>
+        )}
         {khayMo && (
           <XlKhay
             the={the}
@@ -730,6 +750,8 @@ export function XepLichPage({
           xuong={viTri >= 0 && viTri < dongThay.length - 1 ? () => setChonId(dongThay[viTri + 1].lsx_id) : undefined}
         />
       )}
+
+      <XlKhoaMay open={moKhoaMay} suaDuoc={suaDuoc} onDong={() => setMoKhoaMay(false)} onDoi={lamMoi} />
 
       <ConfirmDialog
         open={chePrompt !== null}

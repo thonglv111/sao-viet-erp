@@ -159,6 +159,15 @@ def _pct_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> float
     return float(getattr(ms, "commission_pct", 0) or 0)
 
 
+#: Trường sửa được ở đơn nháp → nhãn ghi nhật ký (#52: nhật ký nói đúng trường đã đổi).
+_NHAN_SUA_DON = {
+    "customer_po_no": "PO khách", "delivery_committed_date": "ngày hẹn giao",
+    "deposit_pct": "% cọc", "delivery_address": "địa chỉ giao", "delivery_contact_name": "người nhận",
+    "delivery_contact_phone": "điện thoại người nhận", "delivery_note": "ghi chú giao hàng",
+    "production_note": "lưu ý sản xuất", "is_rush": "đơn gấp",
+}
+
+
 class OrderService:
     def __init__(
         self,
@@ -277,7 +286,8 @@ class OrderService:
     def _row(self, order: Order, customer_name: str | None, sale_name: str | None,
              quotation_code: str | None = None, *, agg: dict | None = None,
              received: int | None = None,
-             line_sum: tuple[str, int] | None = None, refunded: int = 0) -> OrderRow:
+             line_sum: tuple[str, int] | None = None, refunded: int = 0,
+             tien_khach: tuple[int, int] = (0, 0)) -> OrderRow:
         m = self._money(order, agg=agg, received=received)
         return OrderRow(
             id=order.id,
@@ -297,6 +307,8 @@ class OrderService:
             deposit_received=m["deposit_received"],
             deposit_ok=m["deposit_ok"],
             deposit_refunded=refunded,
+            tien_khach_da_nhan=tien_khach[0],
+            tien_khach_con_giu=tien_khach[1],
             delivery_committed_date=order.delivery_committed_date,
             is_rush=order.is_rush,
             sale_user_id=order.sale_user_id,
@@ -319,11 +331,15 @@ class OrderService:
         names = self._user_names([order.sale_user_id, order.ordered_by])
         m = self._money(order)
         # V5: danh sách phiếu thu cọc (PaymentReceipt nguồn đơn) — thay bản ghi OrderDeposit cũ.
+        # Phiếu gộp nhiều đơn: chỉ phần cọc của ĐƠN NÀY (dòng phân bổ), không phải cả phiếu.
         deposits = [
             OrderDepositReceiptOut(
-                id=r.id, code=r.code, doc_no=r.doc_no, amount=int(r.amount),
+                id=r.id, code=r.code, doc_no=r.doc_no,
+                amount=sum(int(l.amount_vnd) for l in r.lines
+                           if l.order_id == order.id and l.sales_invoice_id is None),
                 receipt_method=r.receipt_method, status=r.status,
                 receipt_date=r.receipt_date, created_at=r.created_at,
+                gop=len(r.lines) > 1, tong_phieu=int(r.amount_vnd),
             )
             for r in self.accounting_repo.list_order_receipts(order.id)
         ]
@@ -338,6 +354,8 @@ class OrderService:
         can_confirm, blockers = self._confirm_gate(order)
         da_tra_lai = (self.accounting_repo.coc_da_tra_lai(order.id)
                       if order.status == STATUS_CANCELLED else 0)
+        tien_khach = self._tien_khach_don_huy([order.id] if order.status == STATUS_CANCELLED else [],
+                                              {order.id: m["deposit_received"]}).get(order.id, (0, 0))
         q_code = None
         quote_expired = False
         if order.quotation_id:
@@ -357,7 +375,8 @@ class OrderService:
             # chạy hai lần mỗi lần mở ngăn đơn (13/10/2026).
             **self._row(order, cust_name, names.get(order.sale_user_id), q_code,
                         agg={k: m[k] for k in ("total", "total_with_vat", "order_cost")},
-                        received=m["deposit_received"], refunded=da_tra_lai).model_dump(),
+                        received=m["deposit_received"], refunded=da_tra_lai,
+                        tien_khach=tien_khach).model_dump(),
             quotation_version=order.quotation_version,
             quotation_effective_from=order.quotation_effective_from,
             parent_order_id=order.parent_order_id,
@@ -411,15 +430,27 @@ class OrderService:
         dem[CHO_TRA_COC] = len(self._con_giu_coc(self.repo.don_huy_khop(scope=scope, actor=actor)))
         return dem
 
+    def _tien_khach_don_huy(self, huy_ids: list[int], coc: dict[int, int]) -> dict[int, tuple[int, int]]:
+        """`{order_id: (tiền khách đã đưa, còn giữ)}` cho các đơn ĐÃ HUỶ — `coc` = cọc đã thu đã nạp sẵn."""
+        if not huy_ids:
+            return {}
+        from .ban_hang_cho_thu_chi import tien_cho_tra_lai
+
+        thu_hd = self.accounting_repo.thu_hoa_don_huy_theo_don(huy_ids)
+        con = {r["order_id"]: r["con_lai"] for r in tien_cho_tra_lai(self.accounting_repo, huy_ids)}
+        return {i: (coc.get(i, 0) + thu_hd.get(i, 0), con.get(i, 0)) for i in huy_ids}
+
     def _con_giu_coc(self, order_ids: list[int]) -> list[int]:
-        """Trong các đơn (đã huỷ) cho vào, đơn nào còn giữ cọc của khách: đã thu − đã trả lại > 0.
-        Hai câu gộp cho cả tập. Không có ca "chuyển cọc sang đơn khác" (chủ chốt 13/10/2026) nên
-        tiền còn giữ chỉ có một lối ra là phiếu chi trả lại."""
+        """Trong các đơn (đã huỷ) cho vào, đơn nào còn giữ tiền khách: cọc + tiền hoá đơn đã huỷ −
+        đã trả lại > 0 — cùng phép tính hàng "Chờ trả lại khách" của Phiếu chi (17/10/2026). Không
+        có ca "chuyển cọc sang đơn khác" (chủ chốt 13/10/2026) nên tiền còn giữ chỉ có một lối ra là
+        phiếu chi trả lại."""
         if not order_ids:
             return []
-        thu = self.accounting_repo.received_deposit_sums(order_ids)
-        tra = self.accounting_repo.coc_da_tra_lai_nhieu(order_ids)
-        return sorted(i for i in order_ids if thu.get(i, 0) - tra.get(i, 0) > 0)
+        from .ban_hang_cho_thu_chi import tien_cho_tra_lai
+
+        return sorted(r["order_id"] for r in tien_cho_tra_lai(self.accounting_repo, order_ids)
+                      if r["don_huy"])
 
     def list(
         self, *, actor, scope: str, q: str | None, status: str | None,
@@ -444,17 +475,19 @@ class OrderService:
         # Đơn huỷ: đã trả lại cọc bao nhiêu (một câu cho cả trang); còn giữ thì đơn "chờ trả lại cọc".
         from .don_hang_san_xuat import CHO_TRA_COC
 
-        tra = self.accounting_repo.coc_da_tra_lai_nhieu(
-            [o.id for o in rows if o.status == STATUS_CANCELLED])
+        huy = [o.id for o in rows if o.status == STATUS_CANCELLED]
+        tra = self.accounting_repo.coc_da_tra_lai_nhieu(huy)
+        tien_khach = self._tien_khach_don_huy(huy, received)
         items = []
         for o in rows:
             dang_cho = sx.get(o.id, {}).get("dang_cho", [])
-            if o.status == STATUS_CANCELLED and received.get(o.id, 0) - tra.get(o.id, 0) > 0:
+            if tien_khach.get(o.id, (0, 0))[1] > 0:
                 dang_cho = [CHO_TRA_COC]
             items.append(self._row(o, names.get(o.id), sale_names.get(o.sale_user_id),
                                    q_codes.get(o.quotation_id),
                                    agg=sums.get(o.id, {}), received=received.get(o.id, 0),
-                                   line_sum=line_sums.get(o.id), refunded=tra.get(o.id, 0)).model_copy(update={
+                                   line_sum=line_sums.get(o.id), refunded=tra.get(o.id, 0),
+                                   tien_khach=tien_khach.get(o.id, (0, 0))).model_copy(update={
                 "san_xuat_mon": [MonSanXuatOut(**m) for m in sx.get(o.id, {}).get("mon", [])],
                 "dang_cho": dang_cho,
             }))
@@ -589,9 +622,8 @@ class OrderService:
 
         lines = []
         for it in sorted(source_items, key=lambda x: x.line_no):
-            # line_total = NET trước VAT (SAU chiết khấu) = final_amount − vat_amount — khớp đúng số
-            # trên báo giá đã ghim. KHÔNG dùng qty×unit_price: `unit_price` của báo giá là giá GỘP
-            # (trước CK, = selling_price/qty) → nhân trực tiếp sẽ thổi phồng đúng bằng discount.
+            # line_total = giá bán trước VAT = final_amount − vat_amount, ĐÃ GỒM tiền chiết khấu (khoản
+            # hoàn lại khách, chép riêng sang `chiet_khau`) — khớp đúng số trên báo giá đã ghim.
             net_line = int(round(float(it.final_amount) - float(it.vat_amount)))
             unit = int(round(net_line / it.quantity)) if it.quantity else net_line
             lines.append(dict(
@@ -601,6 +633,7 @@ class OrderService:
                 dvt_nhom=getattr(it, "dvt_nhom", None),   # ĐVT cụm khi in gộp (khớp báo giá)
                 unit_price_snapshot=unit,
                 line_total=net_line,
+                chiet_khau=int(round(float(it.discount_amount or 0))),
                 vat_pct_estimate=_i(it.vat_percent),
                 cost_snapshot=(_i(it.total_cost_snapshot) if it.total_cost_snapshot else None),
                 phieu_thanh_phan_id=it.phieu_thanh_phan_id,   # pin truy vết ấn phẩm (soft) từ dòng báo giá
@@ -647,25 +680,27 @@ class OrderService:
         if order.status != STATUS_DRAFT:
             raise OrderConflict("Đơn đã chốt/hủy — không sửa được")
 
+        # KHÔNG gửi = giữ nguyên; GỬI `null` = xoá (#52, 18/10/2026). Trước đó mọi `None` bị bỏ qua nên
+        # xoá trắng PO / ngày hẹn / % cọc rồi Lưu thì giá trị cũ ở lại, mà nhật ký vẫn ghi đã cập nhật.
+        gui = payload.model_fields_set
         fields: dict = {}
-        for f in (
-            "customer_po_no", "delivery_committed_date", "delivery_address",
-            "delivery_contact_name", "delivery_contact_phone", "delivery_note",
-            "production_note", "is_rush",
-        ):
+        for f in _NHAN_SUA_DON:
+            if f not in gui:
+                continue
             val = getattr(payload, f)
-            if val is not None:
-                fields[f] = val
-        if payload.deposit_pct is not None:
-            if not 0 <= payload.deposit_pct <= 100:
+            if f == "is_rush" and val is None:
+                continue                      # cờ gấp không có trạng thái "trống"
+            if f == "deposit_pct" and val is not None and not 0 <= val <= 100:
                 raise OrderValidationError("% cọc phải trong khoảng 0–100")
-            fields["deposit_pct"] = payload.deposit_pct
+            cu = getattr(order, f)
+            if (float(cu) if f == "deposit_pct" and cu is not None else cu) != val:
+                fields[f] = val
         if fields:
             self.repo.update(order, **fields)
-        self.audit.create(
-            actor_user_id=actor.id, action="update_order",
-            target=f"order:{order.id}", detail=f"Cập nhật đơn {order.order_no}",
-        )
+            self.audit.create(
+                actor_user_id=actor.id, action="update_order", target=f"order:{order.id}",
+                detail=f"Cập nhật đơn {order.order_no}: " + ", ".join(_NHAN_SUA_DON[f] for f in fields),
+            )
         return self._detail(self.repo.get_with_lines(order_id))
 
     def update_production_hint(self, *, order_id: int, actor, scope: str, payload) -> OrderDetailOut:
@@ -814,6 +849,19 @@ class OrderService:
         d = self._detail(self.repo.get_with_lines(order_id))
         d.phieu_vua_lap_id = phieu["id"]
         return d
+
+    def sau_thu_coc_ngoai(self, *, order_ids: list[int], actor) -> list[tuple[OrderDetailOut, bool]]:
+        """Phiếu thu GỘP có dòng cọc (lập ở Kế toán, 17/10/2026) = thu cọc thật: chạy đúng phần sau
+        phiếu của `add_deposit_receipt` cho từng đơn — tự chuyển SX khi đủ cọc. Trả (chi tiết đơn,
+        lần này mới chuyển SX) để router bắn đúng tín hiệu như thu cọc lẻ."""
+        ket: list[tuple[OrderDetailOut, bool]] = []
+        for oid in dict.fromkeys(order_ids):
+            order = self.repo.get_by_id(oid)
+            if order is None:
+                continue
+            moi = self._tu_chuyen_sx(order, actor)
+            ket.append((self._detail(self.repo.get_with_lines(oid)), moi))
+        return ket
 
     # --- Chốt đơn (P4) — transaction compare-and-set + khóa báo giá ---------
     def confirm(self, *, order_id: int, actor, scope: str) -> OrderDetailOut:

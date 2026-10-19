@@ -13,9 +13,83 @@ import { MonthPicker } from "../../../../components/MonthPicker";
 import { statusBadge } from "../components/badges";
 import { RequestAdjustModal } from "../modals/RequestAdjustModal";
 import { HE_SO_NGAY_MAC_DINH } from "../shared/constants";
-import { docONgay, fmtDateTime, fmtDateVN } from "../shared/helpers";
+import { docONgay, fmtDateTime, fmtDateVN, soCong } from "../shared/helpers";
+import { useLaDienThoai } from "../../../../utils/dienThoai";
 
 // --- Tab: Công của tôi (self-service timesheet) -----------------------------
+
+type NgayCong = Timesheet["rows"][number]["days"][string];
+
+/** Ký hiệu một-hai chữ trên ô lịch điện thoại: số công nếu có đi làm, không thì loại ngày nghỉ. */
+function kyHieuNgan(day: NgayCong | undefined): string {
+  if (!day) return "";
+  if (day.first_in || day.last_out) return day.cong != null ? String(soCong(day.cong)) : "✓";
+  if (day.holiday) return "Lễ";
+  if (day.leave) return day.leave_paid ? "P" : "KL";
+  if (day.planned_off) return "Nghỉ";
+  if (day.khong_cham) return "✕";
+  return "";
+}
+
+const THU = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+
+/** Thẻ chi tiết NGÀY ĐANG CHỌN dưới lịch — chỉ điện thoại. Cùng dữ liệu `docONgay` với ô lịch máy lớn. */
+function ChiTietNgay({
+  ngay, thang, nam, day, o, chuaToi, onXinChinh,
+}: {
+  ngay: number;
+  thang: number;
+  nam: number;
+  day: NgayCong | undefined;
+  o: ReturnType<typeof docONgay>;
+  chuaToi: boolean;
+  onXinChinh: () => void;
+}) {
+  const thu = THU[new Date(nam, thang - 1, ngay).getDay()];
+  return (
+    <div className="cc-ngay-the">
+      <div className="cc-ngay-the__dau">
+        <strong>
+          {thu}, {String(ngay).padStart(2, "0")}/{String(thang).padStart(2, "0")}/{nam}
+        </strong>
+        <span className="cc-month-cell__pills">
+          {o.pills.map((p) => (
+            <span key={p.text} className={`cc-badge-pill cc-badge-pill--cell cc-badge-pill--${p.tone}`}>
+              {p.text}
+            </span>
+          ))}
+        </span>
+      </div>
+      <dl className="cc-ngay-the__ds">
+        <div><dt>Ca</dt><dd>{o.caLabel || "—"}</dd></div>
+        <div><dt>Giờ vào – ra</dt><dd>{o.timeRange || "—"}</dd></div>
+        <div>
+          <dt>Công</dt>
+          <dd>
+            {o.statusLabel || (chuaToi ? "Chưa tới" : "Không có lượt chấm")}
+            {o.gain && <span className={o.gainClass}> {o.gain}</span>}
+          </dd>
+        </div>
+        {(day?.late || day?.early) && (
+          <div>
+            <dt>Ghi chú</dt>
+            <dd className="cc-ngay-the__canh">
+              {[day?.late && "Đi muộn", day?.early && "Về sớm"].filter(Boolean).join(" · ")}
+            </dd>
+          </div>
+        )}
+        {day?.ot_minutes ? (
+          <div><dt>Tăng ca</dt><dd>{day.ot_minutes} phút</dd></div>
+        ) : null}
+      </dl>
+      {!chuaToi && (
+        <button type="button" className="btn btn--ghost cc-ngay-the__nut" onClick={onXinChinh}>
+          Xin chỉnh công ngày này
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function MyTimesheetTab({ token }: { token: string }) {
   const [ym, setYm] = useState(() => {
@@ -28,6 +102,11 @@ export function MyTimesheetTab({ token }: { token: string }) {
   const [quota, setQuota] = useState<AdjustQuota | null>(null);
   const [reqDate, setReqDate] = useState<string | null>(null); // ngày đang xin chỉnh (mở modal)
   const [year, month] = ym.split("-").map(Number);
+  // Điện thoại: lịch 7 cột chỉ đủ chỗ cho số ngày + số công ⇒ chạm ô là CHỌN ngày, chi tiết ngày
+  // hiện ở thẻ dưới lịch (kèm nút xin chỉnh công). Máy lớn giữ nếp cũ: chạm ô là mở form xin chỉnh.
+  const laDT = useLaDienThoai();
+  const [chonNgay, setChonNgay] = useState<number | null>(null);
+  useEffect(() => setChonNgay(null), [ym]);
 
   const taiBieuCong = useCallback(() => {
     setLoading(true);
@@ -108,6 +187,8 @@ export function MyTimesheetTab({ token }: { token: string }) {
   }
 
   const row = data?.rows[0] ?? null;
+  const laThangNay = homNay.getFullYear() === year && homNay.getMonth() + 1 === month;
+  const ngayXem = chonNgay ?? (laThangNay ? homNay.getDate() : null);
   // Hệ số quy đổi công lễ / nghỉ tuần — LẤY TỪ MÁY CHỦ (khai ở Cấu hình lương), không viết cứng.
   const heSoNgay = data?.he_so_ngay ?? HE_SO_NGAY_MAC_DINH;
 
@@ -209,6 +290,9 @@ export function MyTimesheetTab({ token }: { token: string }) {
             </span>
             <span className="cc-badge-pill cc-badge-pill--purple">
               Nghỉ lễ/Phép
+            </span>
+            <span className="cc-badge-pill cc-badge-pill--red">
+              ✕ Không chấm công
             </span>
           </div>
 
@@ -313,7 +397,8 @@ export function MyTimesheetTab({ token }: { token: string }) {
                       ? "Ngày chưa tới — chỉ xin chỉnh công cho ngày đã qua hoặc hôm nay."
                       : "Bấm để gửi yêu cầu chỉnh công"
                   }
-                  onClick={() => openReq(dayNum)}
+                  onClick={() => (laDT ? setChonNgay(dayNum) : openReq(dayNum))}
+                  data-chon={laDT && ngayXem === dayNum ? "1" : undefined}
                 >
                   <div
                     style={{
@@ -323,6 +408,7 @@ export function MyTimesheetTab({ token }: { token: string }) {
                     }}
                   >
                     <span className="cc-month-cell-num">{dayNum}</span>
+                    {laDT && <span className="cc-month-cell__mini">{kyHieuNgan(day)}</span>}
                     <span className="cc-month-cell__pills">
                       {o.pills.map((p) => (
                         <span
@@ -395,6 +481,17 @@ export function MyTimesheetTab({ token }: { token: string }) {
               );
             })}
           </div>
+          {laDT && ngayXem != null && (
+            <ChiTietNgay
+              ngay={ngayXem}
+              thang={month}
+              nam={year}
+              day={row.days[String(ngayXem)]}
+              o={docONgay(row.days[String(ngayXem)], heSoNgay)}
+              chuaToi={laTuongLai(ngayXem)}
+              onXinChinh={() => openReq(ngayXem)}
+            />
+          )}
         </div>
       )}
 

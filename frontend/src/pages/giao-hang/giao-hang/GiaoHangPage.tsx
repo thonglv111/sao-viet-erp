@@ -15,7 +15,7 @@
 //
 // Shell (tách từ pages/GiaoHangPage.tsx): state + `load()` + `moChiTiet()` + bộ tab + chỗ mount ba
 // bảng, drawer chi tiết và ba hộp thoại.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   BangGiaoItem,
   DeliveryDriver,
@@ -205,10 +205,18 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
     load();
   }, [load, eventTick]);
 
+  // Khoá của ngăn vừa huỷ chuyến trong đó: lượt chỉ có chuyến ấy thì máy chủ xoá lượt, lần nạp sau
+  // không còn khối này ⇒ đóng ngăn, đừng để nó đứng mãi ở "Chờ kho xuất" (#33, 18/10/2026). Chỉ đóng
+  // theo thao tác huỷ của chính người này — khối lệch sang trang khác vì người khác lên đơn thì giữ.
+  const dongKhiMat = useRef<string | null>(null);
   useEffect(() => {
     if (!ngan) return;
     const it = khoi.find((k) => khoaKhoi(k) === ngan.khoa);
     if (it) setNganItem(it);
+    else if (dongKhiMat.current === ngan.khoa) {
+      dongKhiMat.current = null;
+      setNgan(null);
+    }
   }, [ngan, khoi]);
 
   useEffect(() => {
@@ -568,7 +576,11 @@ export default function GiaoHangPage({ eventTick = 0 }: { eventTick?: number }) 
           trip={doiFor}
           token={token}
           onClose={() => setDoiFor(null)}
-          onXong={() => {
+          onXong={(daHuy) => {
+            if (daHuy) {
+              setTin(`Đã huỷ chuyến ${doiFor.request_code}.`);
+              if (ngan) dongKhiMat.current = ngan.khoa;
+            }
             setDoiFor(null);
             load();
           }}

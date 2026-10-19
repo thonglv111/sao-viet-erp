@@ -38,13 +38,14 @@ export function PaymentVoucherDialog({
   purchase,
   voucher = null,
   dotId = null,
+  coc = false,
   onClose,
   onSaved,
   onMoTaiKhoan,
 }: PaymentVoucherDialogProps & { onMoTaiKhoan?: () => void }) {
   const { token } = useAuth();
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() =>
-    initialForm(purchase, voucher, dotId),
+    initialForm(purchase, voucher, dotId, coc),
   );
   const goc = useRef<string | null>(null);
   const [companyAccounts, setCompanyAccounts] = useState<
@@ -331,7 +332,8 @@ export function PaymentVoucherDialog({
       banXem={
         <BanXemPhieuChi
           form={{ ...form, amount: loiTran ? 0 : amountVnd, cash_recipient_name: form.cash_recipient_name || purchase.supplier_name }}
-          taiKhoan={companyAccounts} soChungTu={files.length} nguon="purchase_request" />
+          taiKhoan={companyAccounts} soChungTu={files.length} nguon="purchase_request"
+          soDot={loai === "thanh_toan" ? dot?.seq_no ?? null : null} />
       }
     >
       <KhoiForm tieu="Đơn mua">

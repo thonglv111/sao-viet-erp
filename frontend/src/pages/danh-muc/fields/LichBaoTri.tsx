@@ -123,7 +123,7 @@ export function LichBaoTriField({
                 nguồn sự thật — mốc thật nằm ở phiếu, không nằm trong ô. */}
             {han[r.id ?? ""]?.han && (
               <p className="rc-goi__ky">
-                Kỳ tới: <strong>{new Date(`${han[r.id!]!.han}T00:00:00`).toLocaleDateString("vi-VN")}</strong>
+                Kỳ tới: <strong>{new Date(`${han[r.id!]!.han}T00:00:00`).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</strong>
                 <span className="rc-goi__ky-nguon">
                   {han[r.id!]!.nguon === "phieu"
                     ? "tính từ phiếu bảo trì gần nhất"

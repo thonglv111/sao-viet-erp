@@ -277,6 +277,16 @@ export function EmployeeCalendarModal({
                       {day.leave_paid ? "P" : "KL"}
                     </span>
                   );
+                } else if (day?.khong_cham) {
+                  badges.push(
+                    <span
+                      key="kc"
+                      className="cc-badge-pill cc-badge-pill--cell cc-badge-pill--red"
+                      title="Không chấm công — ngày làm việc đã qua mà không có lượt chấm nào"
+                    >
+                      ✕
+                    </span>
+                  );
                 }
 
                 if (day?.ot_minutes && day.ot_minutes > 0) {
@@ -316,6 +326,8 @@ export function EmployeeCalendarModal({
                   displayTime = day.leave_paid ? "Nghỉ phép (P)" : "Nghỉ KL";
                 } else if (day?.planned_off) {
                   displayTime = "Nghỉ ca";
+                } else if (day?.khong_cham) {
+                  displayTime = "Không chấm công";
                 } else if (isSunday || isWeekendDay) {
                   displayTime = "Nghỉ tuần";
                 }
@@ -427,6 +439,10 @@ export function EmployeeCalendarModal({
             <span className="cc-emp-cal-legend-item">
               <span className="cc-emp-cal-legend-dot cc-emp-cal-legend-dot--fault" />
               Đi muộn / Về sớm
+            </span>
+            <span className="cc-emp-cal-legend-item">
+              <span className="cc-emp-cal-legend-dot cc-emp-cal-legend-dot--khong-cham" />
+              ✕ Không chấm công
             </span>
             <span className="cc-emp-cal-legend-item">
               <span className="cc-emp-cal-legend-dot cc-emp-cal-legend-dot--rest" />

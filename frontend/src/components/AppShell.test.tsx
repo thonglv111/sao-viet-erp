@@ -158,6 +158,35 @@ describe("AppShell · deep link QR nối hash → props của LenhSanXuatPage (T
   });
 });
 
+// #2 (E2E 18/10/2026): đi sang màn không tự ghi `?man=` (Chấm công qua "Đặt ca nền", Tính giá mở một
+// phiếu) thì URL trơ về `/` — tải lại trang rơi về màn mặc định thay vì màn đang xem. Dấu `man` là
+// việc của AppShell vì chỉ nó biết màn nào đang mở; màn con chỉ ghi khoá lọc của mình.
+describe("AppShell · URL luôn mang ?man= của màn đang mở", () => {
+  afterEach(() => {
+    window.location.hash = "";
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("#2 điều hướng sang màn không dùng bộ lọc URL vẫn ghi ?man=<màn>; gỡ AppShell thì dọn", async () => {
+    window.history.replaceState(null, "", "/");
+    stubApi();
+    const { unmount } = ve();
+    await screen.findByTestId("probe-ho-so-cua-toi");
+    expect(new URLSearchParams(window.location.search).get("man")).toBe("ho-so-cua-toi");
+
+    // Bản dò LenhSanXuatPage KHÔNG gọi hook ghi URL — đúng như Chấm công / chi tiết phiếu tính giá.
+    act(() => {
+      window.location.hash = "#lsx=88&pv=5";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await screen.findByTestId("probe-lenh-san-xuat");
+    expect(new URLSearchParams(window.location.search).get("man")).toBe("lenh-san-xuat");
+
+    unmount();
+    expect(new URLSearchParams(window.location.search).has("man")).toBe(false);
+  });
+});
+
 // Lưu ma trận vai trò của CHÍNH mình xong mà menu vẫn giữ quyền cũ tới khi F5 (16/09/2026: tắt Xem
 // cả 9 dòng tổ của vai Giám đốc, menu vẫn bày đủ bàn tổ). Menu phải đi theo lượt hỏi quyền mới.
 describe("AppShell · tải lại quyền không cần F5", () => {

@@ -300,7 +300,7 @@ def _noi_dung_de_nghi(gom: dict, ghi_chu: str | None) -> str:
     trên form, hệ ghi một nẻo vào phiếu, mà không ai kiểm được vì hai câu nằm ở hai chỗ.
     """
     return (ghi_chu or "").strip() or (
-        f"Thiếu vật tư cho {gom['related_document_code']} — lập từ bảng cân đối kế hoạch vật tư."
+        f"Mua vật tư còn thiếu để chạy lệnh {gom['related_document_code']}."
     )
 
 

@@ -542,7 +542,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # `thu_mua:request`. KHÔNG cấp thì nút tự ẩn và người điều độ nhìn thấy lệnh sắp
             # thiếu giấy mà không làm gì được ngay tại chỗ. Chỉ `request` + đọc phiếu của mình:
             # điều độ ĐỀ NGHỊ mua, còn đặt hàng và duyệt chi vẫn là việc bộ phận Mua hàng.
-            "thu_mua": {**_read(SCOPE_OWN), "can_request": True},
+            "thu_mua": {**_read(SCOPE_ALL), "can_request": True},
             "khuon_be": _read(SCOPE_ALL),  # ③ điều độ đọc danh mục khuôn để gán vào lệnh có bế
             # Sửa routing của lệnh cần ĐỌC danh mục: công đoạn (thêm bước), máy (gán máy), tổ
             # (đổi tổ phụ trách). Chỉ READ — cấu hình danh mục vẫn là việc của phòng khác.
@@ -914,8 +914,9 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # Scope `own` (chủ 04/08/2026: "tôi là nhân viên chỉ thấy đơn của tôi thôi"). Trước
             # đây là `all` — nhân viên nhìn thấy phiếu của cả công ty.
             # `can_cancel` ĐÃ BỎ 11/08/2026: ô "Hủy PMH" gỡ cùng endpoint (không dùng tới).
+            # 14/10/2026: Mua hàng khoá phạm vi "Tất cả" (mg 0411) — bỏ `own` của 04/08/2026.
             "thu_mua": {
-                **_rcu(SCOPE_OWN),
+                **_rcu(SCOPE_ALL),
                 "can_approve": False,
             },
             # Hai màn tách ra từ `thu_mua` (10/08/2026). Phạm vi ALL chứ không `own` như màn Mua
@@ -945,7 +946,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # riêng mình — nhưng cũng không nhìn sang phiếu bộ phận khác.
             # `_full` bật sẵn `can_manage_status` = ô "Sửa / đảo trạng thái đơn sau khi nhận
             # hàng" (tách khỏi `can_approve` ngày 11/08/2026) — đúng việc của trưởng bộ phận.
-            "thu_mua": {**_full(SCOPE_DEPARTMENT), "can_approve": False},
+            "thu_mua": {**_full(SCOPE_ALL), "can_approve": False},
             # ⚠️ `_full` tự bật `can_approve` — ghi đè False cho khớp luật tách vai ở trên.
             "nha_cung_cap": {**_full(SCOPE_ALL), "can_approve": False},
             "yeu_cau_mua_hang": {**_full(SCOPE_ALL), "can_approve": False},

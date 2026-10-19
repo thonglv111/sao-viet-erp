@@ -29,7 +29,7 @@ import type { KhoNhapSeed } from "../pages/KhoDeNghiPage";
 // Danh mục rebuild (config .tsx — render pill JSX). Nạp TĨNH: bảng này quyết định định tuyến
 // (`REBUILD_CONFIGS[baseId]`) nên phải có ngay, không chờ được.
 import { REBUILD_CONFIGS } from "../pages/rebuildCatalogConfigs";
-import { manTrenUrl } from "../pages/ke-toan/shared/urlMan";
+import { boManDangMo, datManDangMo, manTrenUrl } from "../pages/ke-toan/shared/urlMan";
 import {
   MOI_NHOM,
   nhomCua,
@@ -116,6 +116,9 @@ import {
   type NavItem,
 } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { ChuongViec, MobileTabBar, bangMuc } from "./MobileTabBar";
+import { theoDoiBanPhim, useLaDienThoai } from "../utils/dienThoai";
+import { useTheHoaBang } from "./luoiThe";
 import { GoiYBang } from "./LuoiDs";
 import { coQuyenBanTo, khoaBanTo } from "./appShellRealtime";
 import { khoaTonKho, xemKhoNao } from "../auth/quyenKho";
@@ -141,7 +144,7 @@ export interface NavParams {
   /** Liên thông từ Hồ sơ NV, nút "Đặt ca nền" (bản rà E6, 07/09/2026): mở Chấm công ở tab
    *  Khai ca, lưới Phân ca tháng lọc sẵn + mở form ca nền cho đúng `focusEmployeeId`. Không có
    *  nó thì `focusEmployeeId` mở tab Nhật ký như cũ. */
-  chamCongTab?: "khai-ca";
+  chamCongTab?: "khai-ca" | "my-timesheet";
   /** Liên thông: mở màn Yêu cầu mua hàng (YCMH) lọc + tô sáng đúng mã phiếu này. */
   focusRequestCode?: string;
   /** Kèm `focusRequestCode` mã YCMH (07/10/2026): màn Mua hàng mở luôn form lập đơn cho yêu cầu đó
@@ -153,6 +156,8 @@ export interface NavParams {
   focusLsxMa?: string;
   /** Liên thông: mở màn Phiếu chi / UNC với ô tìm kiếm điền sẵn (mã PC/PMH...). */
   focusVoucherQuery?: string;
+  /** Liên thông Đơn mua hàng → Phiếu chi: mở tab "Mua hàng chờ chi", bung sẵn đơn mã này. */
+  focusChoChiCode?: string;
   /** Liên thông Mục thu chi → Báo cáo thu chi (số "Đã dùng"): mở báo cáo lọc đúng mục này. */
   locMucThuChi?: number;
   /** Liên thông: mở màn Phiếu thu với ô tìm kiếm điền sẵn (mã PC/PT...). */
@@ -199,7 +204,7 @@ export interface NavParams {
    *  chi tiết một bài ghép. */
   openBaiGhepId?: number;
   /** Liên thông Phòng ban → Lương: mở thẳng tab "Cấu hình lương" (bảng lương của tổ). */
-  luongTab?: "cauhinh";
+  luongTab?: "cauhinh" | "phieu";
   /** Deep-link QR tem kho: mở thẳng drawer lô + vị trí của đúng vật tư này trên màn Tồn kho. */
   /** Deep-link tem QR: khoá mặt hàng gốc dạng `"giay:12"`. */
   openMatHangKey?: string;
@@ -238,6 +243,12 @@ export function AppShell() {
   const [navParams, setNavParams] = useState<NavParams | null>(null);
   // Ngăn kéo điều hướng ở màn hẹp (≤1024px). Màn rộng: sidebar cố định, cờ này vô hại.
   const [navOpen, setNavOpen] = useState(false);
+  const laDT = useLaDienThoai();
+  // Điện thoại: bảng danh sách ở mọi màn (kể cả trong hộp thoại / ngăn) thành thẻ — luoiThe.ts.
+  useTheHoaBang(laDT);
+  // Bàn phím ảo của điện thoại: đo phần màn bị che + đánh dấu "đang gõ" (CSS điện thoại dùng để đẩy
+  // bảng đáy / chân hộp lên trên bàn phím và giấu thanh tab dưới).
+  useEffect(() => (laDT ? theoDoiBanPhim() : undefined), [laDT]);
   const [readable, setReadable] = useState<Set<string> | null>(null);
   const [caps, setCaps] = useState<Capabilities>(new Map());
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
@@ -385,6 +396,15 @@ export function AppShell() {
 
   useEffect(() => {
     activeIdRef.current = activeId;
+  }, [activeId]);
+
+  // URL luôn mang `?man=<màn đang mở>` (E2E 18/10/2026, lỗi #2): trước đây dấu này chỉ do màn con có
+  // bộ lọc ghi, nên sang Chấm công / mở một phiếu tính giá là URL trơ về `/` và tải lại rơi về màn
+  // mặc định. Màn con cứ ghi khoá lọc của nó; dấu `man` là việc của AppShell vì chỉ nó biết màn nào
+  // đang mở. Cleanup chạy trước effect của lượt đổi màn kế tiếp nên không để sót dấu của màn cũ.
+  useEffect(() => {
+    datManDangMo(activeId);
+    return () => boManDangMo(activeId);
   }, [activeId]);
 
   // Số thứ tự lượt hỏi quyền: lượt cũ về muộn (hoặc về sau khi đổi phiên) thì bỏ, đừng đè lượt mới.
@@ -617,6 +637,13 @@ export function AppShell() {
         String(e.message ?? "Chuyến giao của bạn vừa cập nhật."),
         e.viec === "kho_xong" || e.viec === "da_xuat_kho" ? "ok" : "info",
       );
+      return;
+    }
+    // Phiếu lương của CHÍNH người này vừa mở (#39) hoặc vừa bị thu hồi (#59) — máy chủ đẩy đích danh,
+    // không lọc quyền nữa; màn Phiếu lương nghe nhóm nhân sự nên tự nạp lại.
+    if (e.type === "phieu_luong_cong_bo" || e.type === "phieu_luong_thu_hoi") {
+      boGop.danhDau(nhomCua(e.type));
+      pushToast(String(e.message ?? "Phiếu lương của bạn vừa đổi."), "info");
       return;
     }
     // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. `hub.broadcast` gửi cho MỌI kết nối chứ
@@ -1143,22 +1170,34 @@ export function AppShell() {
   if (sanXuatDong.length) dynamicItems["to-san-xuat"] = sanXuatDong;
   // Mục "Kho" chỉ cần `kho:read`; tab "Phiếu từ đề nghị" (cần create/view_stock) tự ẩn trong KhoPage.
   const hiddenIds = new Set<string>();
+  // Điện thoại: bảng tra mục menu cho thanh dưới + chuông việc chờ + tên màn trên thanh trên.
+  const mucDT = laDT && readable ? bangMuc(dynamicItems, itemChildren, readable, hiddenIds) : null;
 
 
   function renderContent() {
     if (!allowed) {
+      // Tài khoản chưa gán vai thì không có mục nào để về — nói đúng lý do, không chỉ nút dẫn về
+      // chính trang 403 (#75). Nút "Về Hồ sơ của tôi" chỉ khi người đó vào được Hồ sơ và đang ở chỗ khác.
+      const chuaCoVai = readable != null && readable.size === 0;
+      const veHoSo = !!readable?.has("self_service") && baseId !== "ho-so-cua-toi";
       return (
         <main className="shell__forbidden">
           <div className="banner banner--error" role="alert">
-            <span>Bạn không có quyền truy cập mục này (403).</span>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              style={{ padding: "2px 10px" }}
-              onClick={() => setActiveId("ho-so-cua-toi")}
-            >
-              Về Hồ sơ của tôi
-            </button>
+            <span>
+              {chuaCoVai
+                ? "Tài khoản của bạn chưa được gán vai trò nào nên chưa mở được mục nào. Nhờ quản trị viên gán vai rồi tải lại trang."
+                : "Bạn không có quyền truy cập mục này (403)."}
+            </span>
+            {veHoSo && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                style={{ padding: "2px 10px" }}
+                onClick={() => setActiveId("ho-so-cua-toi")}
+              >
+                Về Hồ sơ của tôi
+              </button>
+            )}
           </div>
         </main>
       );
@@ -1216,6 +1255,7 @@ export function AppShell() {
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
           laToCat={t?.la_to_cat ?? false}
+          ghiChotGiay={t?.quyen?.run_order === "all"}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}
@@ -1429,8 +1469,10 @@ export function AppShell() {
         return (
           <PaymentVouchersPage
             navigate={navigate}
-            eventTick={tickCua("mua_ke_toan")}
+            // `ban_hang`: huỷ đơn / huỷ hoá đơn đổi hàng "Chờ trả lại khách".
+            eventTick={tickCua("mua_ke_toan", "ban_hang")}
             focusQuery={navParams?.focusVoucherQuery ?? null}
+            focusChoChi={navParams?.focusChoChiCode ?? null}
           />
         );
       case "ke-toan-cong-no":
@@ -1490,11 +1532,18 @@ export function AppShell() {
         />
         <div className="shell__main">
           {/* Bong bóng rê chuột cho ô bảng bị cắt "…" / có title — một bản cho cả app. */}
-          <GoiYBang />
+          {/* Điện thoại không có chuột — chạm ô là mở dòng, bong bóng chỉ che thẻ. */}
+          {!laDT && <GoiYBang />}
           <Topbar
             onOpenProfile={() => navigate("ho-so-cua-toi")}
             onToggleNav={() => setNavOpen((v) => !v)}
             navOpen={navOpen}
+            tieuDe={mucDT?.get(activeId)?.label}
+            chuong={
+              mucDT && (
+                <ChuongViec activeId={activeId} badges={badges} muc={mucDT} onSelect={(id) => navigate(id)} />
+              )
+            }
           />
           <div className="shell__content">
             {/* Mỗi màn là một chunk nạp khi mở lần đầu — chờ tải thì báo nhẹ, không trắng màn. */}
@@ -1509,6 +1558,17 @@ export function AppShell() {
             </Suspense>
           </div>
         </div>
+        {/* Điện thoại (≤639px): thanh điều hướng dưới — máy lớn không vẽ phần tử này. */}
+        {mucDT && (
+          <MobileTabBar
+            activeId={activeId}
+            badges={badges}
+            muc={mucDT ?? new Map()}
+            menuOpen={navOpen}
+            onSelect={(id, params) => navigate(id, params)}
+            onMenu={() => setNavOpen((v) => !v)}
+          />
+        )}
         {/* Toast real-time luồng gửi duyệt — nổi góc trên-phải, tự tắt sau 6s. */}
         {toasts.length > 0 && (
           <div

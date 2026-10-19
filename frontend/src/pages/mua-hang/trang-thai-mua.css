@@ -37,29 +37,75 @@
 .mh-tc .mh-seg { height: 32px; align-items: stretch; margin-left: 0 !important; }
 .mh-tc .mh-seg button { padding: 0 11px; }
 
-/* ---- Hộp Điều khoản đơn (SuaDieuKhoan): mỗi ô một dòng, nhãn trái 140px, nhắc là chữ nhỏ dưới ô ---- */
-.mh-dk { display: flex; flex-direction: column; }
-.mh-dk__dong { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; align-items: start;
-  padding: 10px 0; border-bottom: 1px solid var(--rule-hair); }
-.mh-dk__dong:last-child { border-bottom: 0; }
-.mh-dk__nhan { font-size: 13px; color: var(--ash); line-height: 34px; white-space: nowrap; }
-.mh-dk__o { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-.mh-dk__o .input { height: 34px; width: 100%; font-size: 13.5px; }
-.mh-dk__o .mh-dk__ngay { width: 180px; }
-.mh-dk__chu { line-height: 34px; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink); }
-.mh-dk__tien { display: inline-flex; align-items: center; gap: 6px; width: 220px; height: 34px; padding: 0 10px;
-  border: 1px solid var(--rule); border-radius: 8px; background: #fff; }
+/* ---- Điều khoản neo vào nút (15/10/2026) ----
+   Cọc chốt ở dải "Tiếp theo: gửi duyệt" đầu ngăn (DaiGuiDuyet). Hạn trả chỉ đọc — điều khoản trả
+   thuộc nhà cung cấp, sửa ở hồ sơ NCC (16/10/2026). */
+/* Một hàng gọn: nhãn, Cọc, Hạn trả + lối sang NCC, chip nợ, nút bên phải. */
+.mh-tiep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 8px; padding: 6px 8px 6px 12px;
+  border: 1px solid var(--rule-soft); border-radius: 8px; background: var(--paper); font-size: 13px; }
+.mh-tiep .mh-gian { flex: 1; }
+.mh-tiep__nhan { color: var(--ash-2); white-space: nowrap; }
+.mh-tiep__o { display: inline-flex; align-items: center; gap: 8px; color: var(--ash-2); white-space: nowrap; }
+.mh-tiep__han { position: relative; }
+.mh-tiep__gt { color: var(--ink); }
+.mh-tiep__han > .mh-lk { margin-left: 4px; }
+.mh-tiep__no { padding: 1px 8px; border-radius: 999px; background: var(--tt-vang-bg); color: var(--tt-vang-fg); font-size: 12px;
+  white-space: nowrap; cursor: help; }
+.mh-tiep__loi { flex-basis: 100%; color: var(--tt-do-fg); font-size: 12.5px; }
+/* Bong bóng (gõ lý do từ chối ở dải Chờ duyệt): bật dưới nút, không làm dải cao lên. */
+.mh-tiep__pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 380px; display: flex; flex-direction: column;
+  gap: 10px; padding: 12px; border: 1px solid var(--rule); border-radius: 10px; background: #fff; white-space: normal;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .14); color: var(--ink); }
+.mh-tiep__luu { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--rule-hair); }
+.mh-tiep__luu .mh-nut { height: 28px; padding: 0 12px; }
+.mh-tiep__xem { flex: 1; min-width: 0; color: var(--ash-2); }
+.mh-tiep__xem span { color: var(--ink); }
+/* Dải Chờ duyệt (Kế toán): cụm Từ chối + Duyệt, bong bóng gõ lý do bám mép phải dưới cụm nút. */
+.mh-tiep__nut { position: relative; display: inline-flex; gap: 8px; }
+.mh-tiep__pop--phai { left: auto; right: 0; }
+.mh-tiep__lydo { display: flex; flex-direction: column; gap: 6px; color: var(--ash-2); }
+.mh-tiep__lydo textarea { min-height: 72px; resize: vertical; color: var(--ink); }
+.mh-tiep__pop .mh-tiep__loi { flex-basis: auto; }
+.mh-nut--do { border-color: var(--tt-do-fg); background: var(--tt-do-fg); color: #fff; }
+/* Ô tiền có chữ "đ" bên phải; dấu chấm nghìn khi gõ do OGoDinhDang lo. */
+.mh-dk__tien { display: inline-flex; align-items: center; gap: 6px; width: 150px; height: 30px; padding: 0 10px;
+  border: 1px solid var(--rule); border-radius: 7px; background: #fff; }
 .mh-dk__tien:focus-within { outline: 2px solid var(--ink); outline-offset: -1px; }
 .mh-dk__tien.is-loi { border-color: var(--tt-do-dot); }
-.mh-dk__tien input { flex: 1; width: 0; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 14px;
+.mh-dk__tien input { flex: 1; width: 0; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 13.5px;
   text-align: right; font-variant-numeric: tabular-nums; }
 .mh-dk__tien > span { color: var(--ash-2); font-size: 13px; }
-.mh-dk__nhac { font-size: 12px; line-height: 1.45; color: var(--ash-2); }
-.mh-dk__nhac.is-loi { color: var(--tt-do-fg); }
-@media (max-width: 520px) {
-  .mh-dk__dong { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-  .mh-dk__nhan { line-height: 1.4; }
+@media screen and (max-width: 768px) {
+  /* Xếp dọc; bong bóng nằm trong dải (không bay), nút Gửi duyệt cuối và rộng hết hàng. */
+  .mh-tiep { flex-direction: column; align-items: stretch; gap: 10px; padding: 10px 12px; }
+  .mh-tiep .mh-gian { display: none; }
+  .mh-tiep__o { justify-content: space-between; flex-wrap: wrap; white-space: normal; }
+  .mh-tiep__no { align-self: flex-start; }
+  .mh-tiep > .btn { justify-content: center; }
+  .mh-tiep__nut { display: flex; flex-wrap: wrap; }
+  .mh-tiep__nut > .btn { flex: 1; justify-content: center; }
+  .mh-tiep__pop { position: static; width: 100%; flex-basis: 100%; box-shadow: none; }
+  .mh-dk__tien { max-width: none; flex: 1; }
+  .mh-tiep__xem { flex-basis: 100%; }
+  .mh-tiep__luu { flex-wrap: wrap; }
+  .mh-tiep__luu .mh-nut { flex: 1; justify-content: center; }
 }
+/* Cọc đã duyệt: ổ khoá nhỏ cạnh số, rê chuột ra người duyệt. Tên riêng — `mh-khoa` là lớp dòng bảng bị khoá
+   (BangYeuCau/BangMonYeuCau), trùng tên thì dòng thành inline-flex và lệch cột. */
+.mh-khoa-coc { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; color: var(--ash-2); font-size: 12px; }
+/* Hạn từng đợt dưới dòng Hạn trả ở cột phải ngăn. */
+.mh-han-dot { margin: 2px 0 4px; border: 1px solid var(--rule-soft); border-radius: 8px; overflow: hidden; }
+.mh-han-dot > div { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 6px; align-items: baseline;
+  padding: 5px 8px; border-bottom: 1px solid var(--rule-hair); font-size: 12.5px; }
+.mh-han-dot > div:last-child { border-bottom: 0; }
+.mh-han-dot .n { color: var(--ash-2); }
+.mh-han-dot .m { color: var(--ash-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Ô số hợp đồng gõ thẳng ở cột phải: trông như chữ, rê chuột/bấm vào mới hiện khung. */
+.mh-o-hd { width: 140px; height: 26px; padding: 0 6px; border: 1px dashed var(--rule); border-radius: 6px; background: none;
+  font: inherit; font-size: 13px; text-align: right; color: var(--ink); }
+.mh-o-hd:focus { outline: 0; border-style: solid; border-color: var(--ink); background: #fff; }
+.mh-o-hd.co { border-color: transparent; }
+.mh-o-hd.co:hover { border-color: var(--rule); }
 
 /* Hai tab của màn Mua hàng: nút đoạn, không mang số đếm; còn yêu cầu quá ngày cần thì một chấm đỏ. */
 .mh-tab { display: inline-flex; gap: 2px; padding: 2px; background: var(--rule-hair); border: 1px solid var(--rule-soft); border-radius: 8px; }
@@ -149,6 +195,7 @@
 /* Số tiền không bao giờ bị bẻ giữa chừng — thiếu chỗ thì nhãn bên trái xuống dòng. */
 .mh-r > span:last-child { flex-shrink: 0; max-width: 62%; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: break-word; }
 .mh-r--lon > span:last-child { font-size: 15px; }
+.mh-r__phu { display: block; font-size: 12px; line-height: 1.35; color: var(--ash-3); }
 .mh-r--tong { border-top: 1px solid var(--rule-soft); margin-top: 2px; }
 .mh-vach { display: block; height: 4px; border-radius: 2px; background: var(--rule-soft); margin: 2px 0 4px; overflow: hidden; }
 .mh-vach > i { display: block; height: 100%; background: var(--tt-cam-dot); }

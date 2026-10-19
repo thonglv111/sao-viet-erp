@@ -1,6 +1,7 @@
 // Mẩu dùng chung của lưới danh sách kiểu bảng tính (phương án A, 07/10/2026) — xem luoi-ds.css.
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type ReactNode, type Ref } from "react";
 import { createPortal } from "react-dom";
+import { useLaDienThoai } from "../utils/dienThoai";
 import "./hover-tip.css";
 import "./luoi-ds.css";
 
@@ -613,6 +614,17 @@ function khungCuonDoc(el: HTMLElement): HTMLElement | Window {
 export function CuonLuoi({ ghim = 0, children }: { ghim?: number; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const tinhRef = useRef<() => void>(() => {});
+  const laDT = useLaDienThoai();
+
+  // ĐIỆN THOẠI (≤ 639px, 14/10/2026): mỗi hàng thành một THẺ. Gắn nhãn cột cho ô do bộ quan sát
+  // chung của khung app lo (`useTheHoaBang` — luoiThe.ts); ở đây chỉ đánh dấu khung cuộn để CSS
+  // `styles/mobile/the.css` bỏ cuộn ngang + bỏ viền "tờ". Máy lớn không chạy đoạn này.
+  useEffect(() => {
+    const k = ref.current;
+    if (!k) return;
+    if (laDT) k.dataset.the = "1";
+    else delete k.dataset.the;
+  }, [laDT]);
 
   // Vị trí trái của từng cột ghim = mép trái ô tiêu đề tương ứng (đo lại khi bộ cột đổi: ẩn/hiện, đổi chỗ
   // cột, và khi đổi cỡ cửa sổ). Chỉ ghim những cột đầu mà tổng bề rộng còn ≤ nửa khung — khung hẹp

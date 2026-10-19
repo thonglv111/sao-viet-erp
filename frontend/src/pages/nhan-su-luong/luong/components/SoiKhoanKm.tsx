@@ -9,6 +9,7 @@ import {
 import { money } from "../shared/helpers";
 import { EmptyState } from "../../../../components/EmptyState";
 
+
 /** Bảng đối chiếu KHOÁN KM của một dòng lương — HCNS bấm số ở cột "Khoán km" để mở.
  *
  * ⭐ Vì sao bắt buộc có: km là **tài xế tự gõ**. Hoa hồng thì nguồn là hoá đơn kế toán đã xuất,
@@ -93,10 +94,15 @@ export function SoiKhoanKm({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((c) => (
-                    <tr key={c.trip_id}>
-                      <td>{c.ngay ? new Date(c.ngay).toLocaleDateString("vi-VN") : "—"}</td>
-                      <td>#{c.trip_id}</td>
+                  {/* Chặng về kho mang mã chuyến ở điểm cuối ⇒ trip_id trùng, không làm key được. */}
+                  {data.items.map((c, i) => (
+                    <tr key={i}>
+                      <td>{c.ngay ? new Date(c.ngay).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}</td>
+                      <td>
+                        {c.ma_chuyen ?? `#${c.trip_id}`}
+                        {/* #38: không ghi thì dòng về kho trông y hệt dòng giao, HCNS tưởng tính đôi. */}
+                        {c.ghi_chu && <div className="cc-note">{c.ghi_chu}</div>}
+                      </td>
                       <td>
                         <span
                           className={`ns-badge ${

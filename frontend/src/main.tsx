@@ -11,6 +11,17 @@ import "./styles/global.css";
 import "./styles/responsive.css";
 // Sàn chữ 12px cho điện thoại — SINH TỰ ĐỘNG từ chính CSS của dự án (xem đầu file).
 import "./styles/responsive-chu.css";
+// GIAO DIỆN ĐIỆN THOẠI RIÊNG (≤ 639px, 14/10/2026 — docs/thiet-ke-mobile.md). Mọi luật trong
+// `styles/mobile/` bọc đúng mốc điện thoại (guard `mobile.test.ts`) ⇒ iPad / laptop / PC không đổi.
+import "./styles/mobile/nen.css";
+import "./styles/mobile/the.css";
+import "./styles/mobile/ds.css";
+import "./styles/mobile/chung.css";
+import "./styles/mobile/ke-toan.css";
+import "./styles/mobile/nhan-su-luong.css";
+import "./styles/mobile/kinh-doanh.css";
+import "./styles/mobile/san-xuat.css";
+import "./styles/mobile/thu-mua-kho.css";
 
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("Root element #root not found");

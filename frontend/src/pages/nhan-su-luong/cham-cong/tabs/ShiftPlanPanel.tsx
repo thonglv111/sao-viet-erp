@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { ChonNgay } from "../../../../components/ChonNgay";
 import { EmptyState } from "../../../../components/EmptyState";
+import { useLaDienThoai } from "../../../../utils/dienThoai";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import {
   DiscardChangesDialog,
@@ -316,6 +317,21 @@ export function ShiftPlanPanel({
       };
     });
   }, [data]);
+
+  // ĐIỆN THOẠI: lưới người × 31 ngày không thể vừa 375px ⇒ xem THEO TUẦN (7 cột, Thứ 2 → CN),
+  // nút ‹ › đổi tuần. Chỉ ẨN cột bằng CSS (`data-tuan` / `data-tuan-xem`, styles/mobile) — chỉ số
+  // cột `ci` của bút tô / vùng kéo giữ nguyên nên logic tô ca không phải biết tới tuần.
+  const laDT = useLaDienThoai();
+  const lechTuan = cal[0]?.weekday ?? 0;
+  const tuanCua = (day: number) => Math.floor((day - 1 + lechTuan) / 7);
+  const soTuan = cal.length ? tuanCua(cal.length) + 1 : 1;
+  const [tuanXem, setTuanXem] = useState(0);
+  useEffect(() => {
+    const d = new Date();
+    const thangNay = d.getFullYear() === year && d.getMonth() + 1 === month;
+    setTuanXem(thangNay ? Math.floor((d.getDate() - 1 + ((new Date(year, month - 1, 1).getDay() + 6) % 7)) / 7) : 0);
+  }, [year, month]);
+  const ngayTuan = cal.filter((c) => tuanCua(c.day) === tuanXem);
 
   const noDefaultCount = useMemo(
     () => (data?.rows ?? []).filter((r) => r.no_default).length,
@@ -1083,7 +1099,42 @@ export function ShiftPlanPanel({
 
       {loading && <EmptyState trangThai="dang-tai" inline />}
       {!loading && data && (
-        <div className="cc-timesheet-scroll-container cc-sp-scroll">
+        <>
+        {laDT && cal.length > 0 && (
+          <div className="cc-sp-tuan">
+            <button
+              type="button"
+              className="cc-sp-tuan__nut"
+              onClick={() => setTuanXem((t) => Math.max(0, t - 1))}
+              disabled={tuanXem <= 0}
+              aria-label="Tuần trước"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="cc-sp-tuan__nhan">
+              Tuần {tuanXem + 1}/{soTuan}
+              {ngayTuan.length > 0 && (
+                <small>
+                  {fmtYmd(ngayTuan[0].date)} – {fmtYmd(ngayTuan[ngayTuan.length - 1].date)}
+                </small>
+              )}
+            </span>
+            <button
+              type="button"
+              className="cc-sp-tuan__nut"
+              onClick={() => setTuanXem((t) => Math.min(soTuan - 1, t + 1))}
+              disabled={tuanXem >= soTuan - 1}
+              aria-label="Tuần sau"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        )}
+        <div
+          className="cc-timesheet-scroll-container cc-sp-scroll"
+          data-khong-the=""
+          data-tuan-xem={laDT ? tuanXem : undefined}
+        >
           <table
             className={`cc-timesheet-table cc-sp-table ${density === "roomy" ? "cc-sp-table--roomy" : ""} ${drag ? "is-dragging" : ""}`}
           >
@@ -1119,7 +1170,7 @@ export function ShiftPlanPanel({
                     .filter(Boolean)
                     .join(" · ");
                   return (
-                    <th key={c.day} className={cls} title={tip} scope="col">
+                    <th key={c.day} className={cls} title={tip} scope="col" data-tuan={tuanCua(c.day)}>
                       <div className="cc-sp-hdr__wd">
                         {getWeekdayLabel(year, month, c.day)}
                       </div>
@@ -1329,6 +1380,7 @@ export function ShiftPlanPanel({
                           key={c.day}
                           className={cls}
                           title={dayTip}
+                          data-tuan={tuanCua(c.day)}
                           onMouseDown={
                             paintable
                               ? (e) => {
@@ -1451,6 +1503,7 @@ export function ShiftPlanPanel({
                       key={c.day}
                       className={`cc-sp-foot ${c.weekday === 0 ? "cc-sp-cell--wk" : ""}`}
                       title={tip}
+                      data-tuan={tuanCua(c.day)}
                     >
                       {parts.map((s, i) => (
                         <span key={s.id}>
@@ -1485,6 +1538,7 @@ export function ShiftPlanPanel({
             </tfoot>
           </table>
         </div>
+        </>
       )}
 
       {!locked && (

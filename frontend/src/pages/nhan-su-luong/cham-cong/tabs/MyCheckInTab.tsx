@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { EmptyState } from "../../../../components/EmptyState";
+import { homNayVN } from "../../../../utils/ky";
 import { GpsRadarMap2D } from "../components/GpsRadarMap2D";
 import { MyHistoryModal } from "../modals/MyHistoryModal";
 import {
@@ -38,14 +39,21 @@ import {
 
 // --- Tab: Chấm công của tôi -------------------------------------------------
 
+/** Tên ca đã mở đầu bằng "Ca" (vd "Ca Hành Chính") thì không ghép thêm chữ "Ca" — tránh "Ca Ca Hành Chính". */
+function tenCa(ten: string): string {
+  return /^ca(\s|$)/i.test(ten.trim()) ? ten : `Ca ${ten}`;
+}
+
 export function MyCheckIn({
   token,
-  canConfig,
+  canDatDiem,
   coQuyenGhi,
   navigate,
 }: {
   token: string;
-  canConfig: boolean;
+  /** Ô Điểm chấm công (`manage_locations`) — nút "Đặt điểm chấm công tại đây" tạo điểm mới, máy chủ
+   *  đòi đúng ô này (#37, 18/10/2026: trước gác bằng ô Thao tác chung, có Thao tác bấm ra 403). */
+  canDatDiem: boolean;
   /** Ô THAO TÁC của Tự phục vụ — bấm chấm công là GHI dữ liệu (tách 11/08/2026). */
   coQuyenGhi: boolean;
   navigate?: NavigateFn;
@@ -261,7 +269,7 @@ export function MyCheckIn({
 
   function getShiftProgress(start: string, end: string, now: number): number {
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = homNayVN();
       const startMs = new Date(`${todayStr}T${start}:00`).getTime();
       let endMs = new Date(`${todayStr}T${end}:00`).getTime();
       if (endMs < startMs) {
@@ -338,7 +346,7 @@ export function MyCheckIn({
             <div className="cc-shift-tracker-compact">
               <div className="cc-shift-title">
                 <Clock3 size={13} style={{ color: "var(--rust)" }} />
-                <span>Ca {status.shift.name} ({status.shift.start_time} - {status.shift.end_time})</span>
+                <span>{tenCa(status.shift.name)} ({status.shift.start_time} - {status.shift.end_time})</span>
               </div>
               {showTimer && (
                 <div className="cc-shift-elapsed-time">
@@ -463,7 +471,7 @@ export function MyCheckIn({
                 <span className="cc-today-summary-title">Tóm tắt công hôm nay</span>
                 {status.shift && (
                   <span className="cc-today-shift-tag">
-                    Ca {status.shift.name} ({status.shift.start_time} - {status.shift.end_time})
+                    {tenCa(status.shift.name)} ({status.shift.start_time} - {status.shift.end_time})
                   </span>
                 )}
               </div>
@@ -556,7 +564,7 @@ export function MyCheckIn({
               </div>
             )}
 
-            {canConfig &&
+            {canDatDiem &&
               (!status.locations_configured ||
                 (result != null && !result.within_range && !result.vi_tri_gan_dung)) && (
                 <div className="cc-setup" style={{ width: "100%", marginTop: 12 }}>

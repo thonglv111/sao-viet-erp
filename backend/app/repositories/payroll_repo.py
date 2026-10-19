@@ -488,6 +488,24 @@ class PayrollRepository:
             ).scalars()
         )
 
+    def user_ids_cua_ky(self, period_id: int) -> list[int]:
+        """Tài khoản của những người có dòng lương trong kỳ — người nhận tin "phiếu đã công bố"."""
+        from ..models.employee import Employee
+
+        return sorted(self.db.execute(
+            select(Employee.user_id).join(PayrollLine, PayrollLine.employee_id == Employee.id)
+            .where(PayrollLine.period_id == period_id, Employee.user_id.is_not(None)).distinct()
+        ).scalars())
+
+    def ky_mo_chua_bao(self, tu, until) -> list[PayrollPeriod]:
+        """Kỳ đã tới giờ mở phiếu (trong (tu, until]) mà lần mở đó chưa báo người lao động (#39)."""
+        return list(self.db.execute(
+            select(PayrollPeriod).where(
+                PayrollPeriod.cong_bo_luc > tu, PayrollPeriod.cong_bo_luc <= until,
+                or_(PayrollPeriod.da_bao_mo_luc.is_(None),
+                    PayrollPeriod.da_bao_mo_luc < PayrollPeriod.cong_bo_luc))
+        ).scalars())
+
     def get_line(self, line_id: int) -> PayrollLine | None:
         return self.db.get(PayrollLine, line_id)
 

@@ -11,29 +11,27 @@ describe("thamSoTai — Phiếu thu", () => {
     const p = thamSoTai("tat_ca", LOC_TRONG, "", KY, 3, 25);
     expect(p).toMatchObject({ tu_ngay: "2026-10-01", den_ngay: "2026-10-05", moc: "thu", page: 3, size: 25, sort: "-receipt_date" });
     expect(p.status).toBeUndefined();
-    expect(p.chung_tu).toBeUndefined();
+    expect("chung_tu" in p).toBe(false);
     expect(p.q).toBeUndefined();
     expect(p.muc).toEqual([]);
   });
 
-  it("thẻ → trạng thái: Đã thu = received; Thiếu chứng từ = received + chung_tu=thieu; Chờ thu; Đã hủy", () => {
+  it("thẻ → trạng thái: Đã thu = received; Chờ thu; Đã hủy", () => {
     expect(thamSoLoc("xong", LOC_TRONG, "", KY)).toMatchObject({ status: "received" });
-    expect(thamSoLoc("xong", LOC_TRONG, "", KY).chung_tu).toBeUndefined();
-    expect(thamSoLoc("thieu", LOC_TRONG, "", KY)).toMatchObject({ status: "received", chung_tu: "thieu" });
     expect(thamSoLoc("cho", LOC_TRONG, "", KY)).toMatchObject({ status: "waiting_receipt" });
     expect(thamSoLoc("da_huy", LOC_TRONG, "", KY)).toMatchObject({ status: "cancelled" });
   });
 
-  it("thẻ Thiếu chứng từ thắng điều kiện Chứng từ; thẻ khác thì điều kiện Chứng từ đi nguyên", () => {
-    expect(thamSoLoc("thieu", { ...LOC_TRONG, chung_tu: "co" }, "", KY).chung_tu).toBe("thieu");
-    expect(thamSoLoc("tat_ca", { ...LOC_TRONG, chung_tu: "co" }, "", KY).chung_tu).toBe("co");
+  it("link cũ ?the=thieu về Tất cả; ?chung_tu=… bị bỏ (lọc chứng từ gỡ 18/10/2026)", () => {
+    expect(locTuUrl(new URLSearchParams("the=thieu")).the).toBe("tat_ca");
+    expect(locTuUrl(new URLSearchParams("chung_tu=co"))).toEqual({ the: "tat_ca", tim: "", loc: LOC_TRONG });
   });
 
   it("điều kiện: khoảng tiền, hình thức, mục, vào tài khoản; ô tìm đi vào q", () => {
     const p = thamSoLoc(
       "tat_ca",
       { tien_tu: 1_000_000, tien_den: 9_000_000, hinh_thuc: "bank_transfer", muc: [7, 0],
-        tai_khoan_id: 4, chung_tu: undefined },
+        tai_khoan_id: 4 },
       " PT-2610 ",
       KY,
     );
@@ -56,13 +54,13 @@ describe("dangLoc", () => {
 describe("URL (A.18)", () => {
   it("ghi rồi đọc lại ra đúng trạng thái; mục ghi id nối phẩy", () => {
     const tt = {
-      the: "thieu" as const,
+      the: "xong" as const,
       tim: "An Phát",
       loc: { tien_tu: 5_000_000, hinh_thuc: "cash" as const, muc: [2, 0],
-        tai_khoan_id: 2, chung_tu: "co" as const },
+        tai_khoan_id: 2 },
     };
     const url = locLenUrl(tt);
-    expect(url).toMatchObject({ the: "thieu", q: "An Phát", muc: "2,0", tk: "2", tien_tu: "5000000" });
+    expect(url).toMatchObject({ the: "xong", q: "An Phát", muc: "2,0", tk: "2", tien_tu: "5000000" });
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(url)) if (v != null) p.set(k, v);
     expect(locTuUrl(p)).toEqual(tt);

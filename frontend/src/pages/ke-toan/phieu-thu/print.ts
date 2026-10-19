@@ -1,6 +1,8 @@
 // In PHIẾU THU theo mẫu 01-TT (tách từ pages/PaymentReceiptsPage.tsx).
 import type { PaymentReceiptRow } from "../../../api/client";
 import { printTT200 } from "../../../utils/printTT200";
+import { vietSo } from "../shared/dinhDang";
+import { laGop, tenDongThu } from "../shared/phieuGop";
 import { methodText, sourceCode, sourceLabel } from "./shared/helpers";
 
 export function printReceipt(row: PaymentReceiptRow): boolean {
@@ -31,7 +33,11 @@ export function printReceipt(row: PaymentReceiptRow): boolean {
         : row.source_type !== "other"
           ? [{ label: "Nguồn thu", value: sourceLabel(row) }]
           : []),
-      ...(linkedSourceCode ? [{ label: "Mã nguồn", value: linkedSourceCode }] : []),
+      ...(linkedSourceCode && !laGop(row) ? [{ label: "Mã nguồn", value: linkedSourceCode }] : []),
+      // Phiếu gộp (17/10/2026): mỗi khoản một dòng in — hoá đơn/cọc, đơn, số tiền của khoản.
+      ...(laGop(row)
+        ? row.lines!.map((l, i) => ({ label: `Khoản ${i + 1}`, value: `${tenDongThu(l)} số tiền ${vietSo(l.amount)} đ` }))
+        : []),
       ...(row.bank_reference ? [{ label: "Mã giao dịch", value: row.bank_reference }] : []),
     ],
     amount: row.amount,

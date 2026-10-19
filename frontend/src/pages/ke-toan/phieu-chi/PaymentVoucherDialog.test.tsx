@@ -111,6 +111,15 @@ describe("PaymentVoucherDialog — nối trần vào form", () => {
     expect(createVoucher).not.toHaveBeenCalled();
   });
 
+  it("bấm CHI CỌC trên đơn đã có đợt giao: mở sẵn loại Đặt cọc, điền cọc còn chi được (không phải nợ đợt)", () => {
+    render(<PaymentVoucherDialog coc
+      purchase={don({ deliveries: [dot(11, 1, 3_000_000)] as never, deposit_expected: 1_200_000, tran_dat_coc: 1_200_000 })}
+      onClose={() => {}} onSaved={() => {}} />);
+    expect(screen.getByRole("button", { name: /Đặt cọc hoặc ứng trước/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Trả tiền hàng đã giao/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByLabelText(/Số tiền/)).toHaveValue("1.200.000");
+  });
+
   it("thẻ đợt: ngày nhận hàng tách khỏi ngày hoá đơn, ký hiệu là một thẻ riêng", () => {
     const coHd = { ...dot(11, 1, 3_000_000), invoice_number: "0000123", invoice_symbol: "1C26TAA", invoice_date: "2026-10-10" };
     render(<PaymentVoucherDialog purchase={don({ deliveries: [coHd, dot(12, 2, 2_000_000)] as never })}

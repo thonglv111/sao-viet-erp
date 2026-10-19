@@ -204,6 +204,24 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
     ve(yc(true));
     expect(screen.getByRole("button", { name: "In phiếu giao" })).toBeInTheDocument();
   });
+
+  it("chuyến thất bại ⇒ không có nút In phiếu giao: khách không nhận gì để ký (#34)", () => {
+    stubApi();
+    ve({
+      ...TD,
+      yeu_cau: [{
+        id: 6, code: "YCGH-0006", ngay_can_giao: ngayMai(), trang_thai: "that_bai" as const, ly_do_huy: null,
+        dia_chi: "Lô C3", nguoi_nhan: null, sdt_nguoi_nhan: null, ghi_chu: null, created_at: "",
+        dong: [{ order_line_id: 11, ten: "Hộp thuốc", qty: 40, da_giao: 0 }],
+        chuyen: {
+          id: 10, trang_thai: "dang_tra_hang" as const, tai_xe: "Anh Tư",
+          xe: null, thoi_gian_ket_thuc: null, nguoi_nhan_thuc_te: null, ly_do_that_bai: "Khách đóng cửa",
+          tra_hang_ma: "DNN0003", tra_hang_xong: false, kho_da_lap_phieu: true, kho_da_xuat: true, so_anh: 0,
+        },
+      }],
+    });
+    expect(screen.queryByRole("button", { name: "In phiếu giao" })).toBeNull();
+  });
 });
 
 describe("Tóm tắt vòng đời · Nhập kho tính mọi sản phẩm, báo món thiếu nguồn", () => {

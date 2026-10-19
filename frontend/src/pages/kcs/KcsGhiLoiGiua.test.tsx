@@ -90,4 +90,15 @@ describe("KcsGhiLoiGiua", () => {
     fireEvent.click(screen.getByLabelText("Không lem mực"));
     expect((screen.getByLabelText("Số lỗi Không lem mực") as HTMLInputElement).value).toBe("");
   });
+
+  it("công đoạn đã xong: số lỗi vượt phần còn ghi được thì chưa cho Lưu (#72)", () => {
+    const xong = { ...cd, trang_thai: "completed" } as SxKcsCongDoan;   // tổ làm 100, đã ghi lỗi 30
+    render(<KcsGhiLoiGiua lenh={lenh} cd={xong} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText("Màu đúng mẫu"));
+    fireEvent.change(screen.getByLabelText("Số lỗi Màu đúng mẫu"), { target: { value: "71" } });
+    expect(screen.getByRole("status").textContent).toBe("Công đoạn đã xong, tổ đã làm 100 con: chỉ còn ghi được 70 con lỗi");
+    expect((screen.getByRole("button", { name: "Lưu lỗi" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Số lỗi Màu đúng mẫu"), { target: { value: "70" } });
+    expect(screen.getByRole("status").textContent).toMatch(/^Lưu được/);
+  });
 });

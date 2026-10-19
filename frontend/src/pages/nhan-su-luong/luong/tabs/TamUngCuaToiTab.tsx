@@ -7,6 +7,8 @@ import { printAdvanceRequest } from "../../../../utils/printAdvanceRequest";
 import { RowActionButton } from "../../../../components/RowActionButton";
 import { advPrintData, money } from "../shared/helpers";
 import { MyAdvanceModal } from "../modals/MyAdvanceModal";
+// Nhãn trạng thái / loại DÙNG CHUNG với tab Tạm ứng — bản riêng cũ thiếu "Đã chi" nên hiện mã "paid".
+import { KIND, STATUS } from "./TamUngHanhDong";
 
 // --- Tab: Tạm ứng của tôi (self-service — nhân viên tự đề nghị) --------------
 
@@ -41,17 +43,6 @@ export function TamUngCuaToiTab({
   useEffect(() => {
     load();
   }, [load, eventTick]);
-
-  const STATUS: Record<string, [string, string]> = {
-    pending: ["Chờ duyệt", "ns-badge--warn"],
-    approved: ["Đã duyệt", "ns-badge--ok"],
-    rejected: ["Từ chối", "ns-badge--danger"],
-    cancelled: ["Đã hủy", "ns-badge--gray"],
-  };
-  const KIND: Record<string, [string, string]> = {
-    tam_ung: ["Tạm ứng", "ns-badge--muted"],
-    luong_dot_1: ["Lương đợt 1", "ns-badge--info"],
-  };
 
   if (!data && loi) return <EmptyState trangThai="loi" loi={loi} onThuLai={load} />;
   if (!data) return <EmptyState trangThai="dang-tai" />;

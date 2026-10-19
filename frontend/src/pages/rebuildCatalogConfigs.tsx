@@ -10,6 +10,7 @@ import { nhanTramDai, tenDonVi, tramOptions } from "./tenDonVi";
 import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
 import { KhoViTriPanel } from "./KhoViTriPanel";
+import { DON_VI_KHOA } from "./danh-muc/ODonViNhieu";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Package } from "lucide-react";
 import { ChipTT, TheDem, type MauTT } from "../components/LuoiDs";
@@ -621,7 +622,7 @@ export const CFG_GIAY: CatalogConfig = {
   columns: [
     { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
     { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
-    { key: "don_gia", label: "Đơn giá (đ/kg)", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
+    { key: "don_gia", label: "Đơn giá", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
     // Cột "Cách tính tiền" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem ở ô Công thức tính giá.
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
@@ -631,10 +632,11 @@ export const CFG_GIAY: CatalogConfig = {
     // theo tờ thì chọn `tờ` — cặp cố định "1 ram = 500 tờ" chạy sẵn, không cần khai khổ.
     { key: "don_vi_gia", label: "ĐVT", ...F_DON_VI, group: "Thông số" },
     // Đơn vị THÊM (10/10/2026): cùng loại giấy lúc mua theo tờ lúc mua theo kg — hai nhóm không quy
-    // đổi lẫn nhau, mỗi nhóm một dòng tồn. Máy KHÔNG còn ngầm thêm họ tờ cho giấy.
-    F_DON_VI_THEM,
-    // Đơn giá theo cân — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
-    { key: "don_gia", label: "Đơn giá (đ/kg)", type: "number", group: "Giá", hint: "Đơn giá theo ĐVT đã chọn (mặc định đ/kg)" },
+    // đổi lẫn nhau, mỗi nhóm một dòng tồn. Từ 18/10/2026 mọi mã giấy BẮT BUỘC có nhóm tờ + nhóm kg
+    // (bước nhận tờ xin kho bằng tờ, bước ra kg xin bằng kg): chip tờ/kg không bỏ được.
+    { ...F_DON_VI_THEM, donViBatBuoc: DON_VI_KHOA },
+    // Đơn giá theo ĐVT chính — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
+    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một ĐVT chính (đ/kg, đ/tờ, đ/ram…). Tính giá tự quy về giá một tờ hoặc một kg." },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
       nhanTab: "Công thức tính giá",
       // ĐIỀN SẴN khi thêm mới (11/09/2026), sửa/xoá được. Trước đó ô này để trống và engine âm
@@ -1081,6 +1083,12 @@ export const CFG_DON_VI: CatalogConfig = {
   dieuKien: [{ key: "ho", nhan: "Loại đo", icon: "don-vi" }],
   // Tạo xong giữ drawer mở để khai quy đổi ngay — khối quy đổi phải có id mới gắn vào được.
   moLaiSauKhiTao: true,
+  // Tờ + kg là đơn vị bắt buộc của mọi mã giấy (18/10/2026): ổ khoá, không nút xoá; vẫn mở được để
+  // sửa tên / quy đổi. Máy chủ chặn xoá, ngừng dùng, đổi mã.
+  dongKhoa: (r) => (DON_VI_KHOA.includes(String(r.ma ?? "").trim().toLowerCase())
+    ? "Đơn vị bắt buộc của giấy: không xoá, không ngừng dùng, không đổi mã được. Quy đổi vẫn sửa được."
+    : null),
+  dongKhoaMoDuoc: true,
   // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
   // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
   widthMa: 110,

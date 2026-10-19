@@ -14,6 +14,7 @@ const KENH_NAV: Record<string, string> = {
   xep_lich: "xep-lich",
   kho: "kho-main",
   phieu_chi: "ke-toan-phieu-chi",
+  phieu_thu: "ke-toan-phieu-thu",
   ky_thuat_may: "sua-chua-may",
   phieu_bao_tri: "phieu-bao-tri",
   khach_hang: "khach-hang",
@@ -51,6 +52,9 @@ const LOI_NHAC: Record<string, (ma: string | null) => string> = {
   cho_chot_giay: () => "🔔 Có lệnh mới chờ tổ Cắt chốt giấy",
   viec_mo: () => "🔔 Tổ Cắt đã chốt giấy — việc của tổ đã mở",
   kho_yeu_cau_moi: (ma) => `🔔 Có yêu cầu kho mới${ma ? " " + ma : ""} chờ lập phiếu`,
+  hoa_don_cho_thu: (ma) => `🔔 Hóa đơn${ma ? " " + ma : ""} chờ thu tiền`,
+  coc_cho_thu: (ma) => `🔔 Đơn${ma ? " " + ma : ""} đã chốt, chờ thu cọc`,
+  tra_lai_khach: (ma) => `🔔 Đơn${ma ? " " + ma : ""} có tiền chờ trả lại khách`,
 };
 
 export function loiNhacCua(loai: string, ma: string | null): string | null {

@@ -23,6 +23,7 @@ from ..deps import (
 )
 from ..db import get_db
 from ..models.user import User
+from ..services import ban_hang_cho_thu_chi
 from ..services.thong_bao_man import bao
 from ..schemas.customer import SaleOption
 from ..schemas.loc_danh_sach import LuaChonLoc
@@ -399,6 +400,9 @@ def cancel_order(
     except Exception as exc:
         raise _map(exc)
     _order_changed(d.order_no)   # hủy nháp → rời tập chờ, badge 'chờ xử lý' các vai tụt
+    # Đơn huỷ còn giữ tiền khách ⇒ chấm Phiếu chi "Chờ trả lại khách" (17/10/2026).
+    ban_hang_cho_thu_chi.bao_hang_cho(svc.db, svc.accounting_repo, actor_id=user.id,
+                                      order_id=d.id, order_code=d.order_no)
     return d
 
 
@@ -426,6 +430,9 @@ def confirm_order(
     # đã có tin trên — và `mua_ke_toan`, nơi không màn nào bày đơn chờ cọc. Gói tin còn mang SỐ TIỀN
     # cọc đi tới MỌI kết nối, kể cả người không có quyền xem tiền.
     _order_changed(d.order_no)
+    # Đơn chốt còn thiếu cọc ⇒ chấm Phiếu thu "Đơn hàng chờ thu" (17/10/2026).
+    ban_hang_cho_thu_chi.bao_hang_cho(db, svc.accounting_repo, actor_id=user.id, order_id=d.id,
+                                      order_code=d.order_no, coc_moi=True)
     if svc.vua_chuyen_sx:   # đơn không cần cọc → xuống SX ngay lúc chốt
         _bao_xuong_sx(db, d, user)
     return d

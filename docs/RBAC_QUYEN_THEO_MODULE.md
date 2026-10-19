@@ -89,7 +89,7 @@ sửa được TK của họ **mà không cần** ô *Tài khoản ngân hàng*.
 - *"Huỷ PMH"* → **chưa bao giờ được đọc**. `purchase_service.cancel` gác bằng `ke_toan:approve`
   (hoặc chính người lập, khi phiếu còn nháp).
 
-⚠️ **Duyệt / từ chối PMH KHÔNG nằm ở đây** — nó là ô chi tiết của **Kế toán** (§3.2), vì nút Duyệt
+⚠️ **Duyệt đơn mua hàng KHÔNG nằm ở đây** — nó là ô chi tiết của **Kế toán** (§3.2), vì nút Duyệt
 chỉ có ở màn Đơn mua hàng bên kế toán.
 
 ### 3.2 Kế toán
@@ -108,7 +108,7 @@ chỉ có ở màn Đơn mua hàng bên kế toán.
 
 | Module | Ô | Việc |
 |---|---|---|
-| `ke_toan` | **Duyệt / từ chối PMH** ⚠️ | quyết phiếu có đi tiếp thành khoản chi hay không · huỷ phiếu đã gửi duyệt |
+| `ke_toan` | **Duyệt đơn mua hàng** ⚠️ | quyết phiếu có đi tiếp thành khoản chi hay không · huỷ phiếu đã gửi duyệt |
 | `phieu_chi` | Huỷ phiếu chi · In phiếu chi | huỷ ở mọi trạng thái trừ đã huỷ; chặn khi đã có phiếu thu hoàn tiền hoặc tạm ứng đã trừ vào kỳ lương đã chốt; huỷ phiếu chi tạm ứng thì cả lô về chờ chi |
 | `phieu_thu` | Huỷ phiếu thu / hoá đơn bán · In phiếu thu | Hoá đơn còn phiếu thu thì phải huỷ phiếu thu trước. Ô *Xác nhận đã thu tiền* đã gỡ 27/08/2026 — phiếu thu lập ra là ĐÃ THU, sai thì huỷ rồi lập lại |
 

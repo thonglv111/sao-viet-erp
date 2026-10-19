@@ -19,7 +19,7 @@ import { homNayVN } from "../../../../utils/ky";
 const payablesDetail = vi.fn();
 const saoKeDoiTac = vi.fn();
 const companyAccounts = vi.fn();
-const createVouchersBatch = vi.fn();
+const createVoucherGop = vi.fn();
 const uploadVoucherAttachment = vi.fn();
 
 vi.mock("../../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
@@ -31,13 +31,12 @@ vi.mock("../../../../api/client", async (goc) => ({
       payablesDetail: (...a: unknown[]) => payablesDetail(...a),
       saoKeDoiTac: (...a: unknown[]) => saoKeDoiTac(...a),
       companyAccounts: (...a: unknown[]) => companyAccounts(...a),
-      createVouchersBatch: (...a: unknown[]) => createVouchersBatch(...a),
+      createVoucherGop: (...a: unknown[]) => createVoucherGop(...a),
       uploadVoucherAttachment: (...a: unknown[]) => uploadVoucherAttachment(...a),
     },
   },
 }));
 
-import { BatchPaymentDialog } from "./BatchPaymentDialog";
 import { PayablesDrawer } from "./PayablesDrawer";
 
 const ST = "purchased" as PurchaseRequestStatus;
@@ -124,13 +123,7 @@ beforeEach(() => {
   companyAccounts.mockResolvedValue([
     { id: 4, bank_name: "Vietcombank", account_number: "0281000456789", currency: "VND", is_active: true },
   ]);
-  createVouchersBatch.mockResolvedValue({
-    vouchers: [
-      { id: 501, code: "PC-0101", voucher_date: homNayVN() },
-      { id: 502, code: "PC-0102", voucher_date: homNayVN() },
-    ],
-    total_amount: 94_900_000,
-  });
+  createVoucherGop.mockResolvedValue({ id: 501, code: "PC-0101", voucher_date: homNayVN(), amount: 94_900_000 });
 });
 
 async function moTabNo(bucket: "all" | "overdue" = "all", tuoi: { khoa: string; nhan: string } | null = null) {
@@ -244,6 +237,10 @@ describe("PayablesDrawer — NPT-2", () => {
   it("tích đợt ⇒ chân tối 'Đã chọn n đợt' + tổng; đợt Cả đơn không tích được; Bỏ chọn", async () => {
     await moTabNo();
     expect(screen.getByRole("checkbox", { name: "Chọn Cả đơn của PMH-0009" })).toBeDisabled();
+    // #56: màn Đơn mua hàng không có nút lập phiếu chi — câu nhắc nói đúng lý do, không chỉ sai chỗ.
+    const cu = screen.getByRole("checkbox", { name: "Chọn Cả đơn của PMH-0009" });
+    expect(cu.getAttribute("title")).not.toMatch(/màn Đơn mua hàng/);
+    expect(cu.getAttribute("title")).toMatch(/phải gắn đợt giao/);
     expect(screen.queryByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0012" })).toBeNull();
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
@@ -368,14 +365,19 @@ describe("PayablesDrawer — NPT-2", () => {
   });
 });
 
-describe("BatchPaymentDialog — NPT-3", () => {
+describe("Phiếu chi gộp từ ngăn công nợ — NPT-3", () => {
+  const TEN = "Lập phiếu chi 2 khoản";
   async function moTra() {
     await moTabNo();
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
     await userEvent.click(screen.getByRole("button", { name: "Lập phiếu chi trả" }));
-    return screen.findByRole("dialog", { name: "Trả 2 đợt cùng lúc" });
+    return screen.findByRole("dialog", { name: TEN });
   }
+  const DONG = [
+    { purchase_request_id: 12, delivery_id: 102, amount: 26_500_000 },
+    { purchase_request_id: 15, delivery_id: 103, amount: 68_400_000 },
+  ];
 
   it("ngăn chồng giữ ẢNH CHỤP các đợt lúc mở: ngăn dưới nạp lại hỏng vẫn không mất form", async () => {
     const { rerender } = render(ve(0));
@@ -384,81 +386,42 @@ describe("BatchPaymentDialog — NPT-3", () => {
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));
     await userEvent.click(screen.getByRole("button", { name: "Lập phiếu chi trả" }));
-    await screen.findByRole("dialog", { name: "Trả 2 đợt cùng lúc" });
+    await screen.findByRole("dialog", { name: TEN });
     payablesDetail.mockRejectedValue(new Error("mất mạng"));
     rerender(ve(1));
     await waitFor(() => expect(payablesDetail).toHaveBeenCalledTimes(2));
     await screen.findByText("Không tải được chi tiết công nợ.");
-    const ngan = screen.getByRole("dialog", { name: "Trả 2 đợt cùng lúc" });
-    expect(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" })).toBeEnabled();
-  });
-
-  it("không có đợt nào thì nút lập bị khoá", async () => {
-    render(<BatchPaymentDialog supplierName="Giấy Bình Minh" items={[]} onClose={() => {}} onSaved={() => {}} />);
-    const ngan = await screen.findByRole("dialog", { name: "Trả 0 đợt cùng lúc" });
-    expect(within(ngan).getByRole("button", { name: "Lập 0 phiếu chi" })).toBeDisabled();
-  });
-
-  it("chứng từ hỏng ở từ ba phiếu: 'PC-a, PC-b và PC-c'", async () => {
-    uploadVoucherAttachment.mockRejectedValue(new Error("mất mạng"));
-    createVouchersBatch.mockResolvedValueOnce({
-      vouchers: [
-        { id: 501, code: "PC-0101", voucher_date: homNayVN() },
-        { id: 502, code: "PC-0102", voucher_date: homNayVN() },
-        { id: 503, code: "PC-0103", voucher_date: homNayVN() },
-      ],
-      total_amount: 94_900_000,
-    });
-    const ngan = await moTra();
-    const o = ngan.querySelector('input[type="file"]') as HTMLInputElement;
-    await act(async () => {
-      fireEvent.change(o, { target: { files: [new File(["x"], "unc.pdf", { type: "application/pdf" })] } });
-    });
-    await userEvent.click(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" }));
-    expect(await within(ngan).findByText(/PC-0101, PC-0102 và PC-0103/)).toBeInTheDocument();
+    const ngan = screen.getByRole("dialog", { name: TEN });
+    expect(within(ngan).getAllByRole("textbox", { name: /^Chi lần này/ })).toHaveLength(2);
+    expect(within(ngan).getByRole("button", { name: "Lập phiếu chi" })).toBeEnabled();
   });
 
   it("Esc chỉ đóng ngăn chồng, ngăn nhà cung cấp vẫn mở (lỗi 6)", async () => {
     await moTra();
     fireEvent.keyDown(document, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Trả 2 đợt cùng lúc" })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: TEN })).toBeNull());
     expect(screen.getByRole("dialog", { name: "Giấy Bình Minh" })).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("tiền mặt: payload Y NGUYÊN bản cũ; lập xong báo 'Đã lập 2 phiếu chi' và nạp lại", async () => {
+  it("tiền mặt: MỘT phiếu, lines đúng Còn từng đợt; lập xong báo 'Đã lập PC-0101' và nạp lại", async () => {
     const ngan = await moTra();
-    expect(within(ngan).getByText("Mỗi đợt ra một phiếu chi riêng")).toBeInTheDocument();
-    expect(within(ngan).getByText("Tổng phải trả").nextElementSibling).toHaveTextContent("94.900.000 đ");
-    expect(within(ngan).getByText("Ảnh chứng từ gắn vào cả 2 phiếu")).toBeInTheDocument();
-    const chan = ngan.querySelector(".kt-ngan__xt") as HTMLElement;
-    expect(chan.textContent).toBe("Lập 2 phiếu chi tổng 94.900.000 đ");
+    expect(within(ngan).getByText("Tổng phiếu").nextElementSibling).toHaveTextContent("94.900.000 đ");
     expect(within(ngan).getByRole("textbox", { name: /Người nhận tiền/ })).toHaveValue("Giấy Bình Minh");
     const goiTruoc = payablesDetail.mock.calls.length;
-    await userEvent.click(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" }));
-    await waitFor(() => expect(createVouchersBatch).toHaveBeenCalledTimes(1));
-    expect(createVouchersBatch.mock.calls[0][1]).toStrictEqual({
-      items: [
-        { purchase_request_id: 12, delivery_id: 102 },
-        { purchase_request_id: 15, delivery_id: 103 },
-      ],
+    await userEvent.click(within(ngan).getByRole("button", { name: "Lập phiếu chi" }));
+    await waitFor(() => expect(createVoucherGop).toHaveBeenCalledTimes(1));
+    expect(createVoucherGop.mock.calls[0][1]).toMatchObject({
+      lines: DONG,
       voucher_type: "cash",
       voucher_date: homNayVN(),
-      currency: "VND",
-      exchange_rate: 1,
-      content: null,
       company_bank_account_id: null,
       cash_recipient_name: "Giấy Bình Minh",
-      cash_recipient_address: null,
-      cash_recipient_identity: null,
-      beneficiary_account_holder: null,
       beneficiary_account_number: null,
-      beneficiary_bank_name: null,
-      beneficiary_bank_branch: null,
       bank_fee_bearer: "payer",
     });
-    expect(await screen.findByText("Đã lập 2 phiếu chi")).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: "Trả 2 đợt cùng lúc" })).toBeNull();
+    expect(await screen.findByText("Đã lập PC-0101")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: TEN })).toBeNull();
     await waitFor(() => expect(payablesDetail.mock.calls.length).toBeGreaterThan(goiTruoc));
     expect(onChanged).toHaveBeenCalled();
     // "Xem phiếu" đưa sang tab Lịch sử (phiếu vừa lập đứng đầu).
@@ -469,52 +432,40 @@ describe("BatchPaymentDialog — NPT-3", () => {
   it("chuyển khoản: thiếu ô thì lỗi tại ô, không gọi; đủ thì payload đúng trường ngân hàng", async () => {
     const ngan = await moTra();
     await userEvent.click(within(ngan).getByRole("radio", { name: "Chuyển khoản" }));
-    await userEvent.click(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" }));
-    expect(createVouchersBatch).not.toHaveBeenCalled();
+    await userEvent.click(within(ngan).getByRole("button", { name: "Lập phiếu chi" }));
+    expect(createVoucherGop).not.toHaveBeenCalled();
     expect(within(ngan).getByText("Chọn tài khoản công ty dùng để chi.")).toBeInTheDocument();
     expect(within(ngan).getByText("Ghi số tài khoản người nhận.")).toBeInTheDocument();
 
     await userEvent.selectOptions(within(ngan).getByRole("combobox", { name: /Trả từ tài khoản/ }), "4");
     await userEvent.type(within(ngan).getByRole("textbox", { name: /Số tài khoản/ }), "0011223344");
     await userEvent.type(within(ngan).getByRole("textbox", { name: /^Ngân hàng/ }), "ACB");
-    await userEvent.click(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" }));
-    await waitFor(() => expect(createVouchersBatch).toHaveBeenCalledTimes(1));
-    expect(createVouchersBatch.mock.calls[0][1]).toStrictEqual({
-      items: [
-        { purchase_request_id: 12, delivery_id: 102 },
-        { purchase_request_id: 15, delivery_id: 103 },
-      ],
+    await userEvent.click(within(ngan).getByRole("button", { name: "Lập phiếu chi" }));
+    await waitFor(() => expect(createVoucherGop).toHaveBeenCalledTimes(1));
+    expect(createVoucherGop.mock.calls[0][1]).toMatchObject({
+      lines: DONG,
       voucher_type: "bank_transfer",
-      voucher_date: homNayVN(),
-      currency: "VND",
-      exchange_rate: 1,
-      content: null,
       company_bank_account_id: 4,
       cash_recipient_name: null,
-      cash_recipient_address: null,
-      cash_recipient_identity: null,
       beneficiary_account_holder: "Giấy Bình Minh",
       beneficiary_account_number: "0011223344",
       beneficiary_bank_name: "ACB",
-      beneficiary_bank_branch: null,
-      bank_fee_bearer: "payer",
     });
   });
 
-  it("chứng từ: gắn vào TỪNG phiếu; tải hỏng thì ở lại, nêu mã phiếu nối bằng 'và'", async () => {
+  it("chứng từ gắn MỘT lần vào phiếu vừa lập; tải hỏng thì ở lại, nêu mã phiếu", async () => {
     uploadVoucherAttachment.mockRejectedValue(new Error("mất mạng"));
     const ngan = await moTra();
-    const tep = new File(["x"], "unc.pdf", { type: "application/pdf" });
     const o = ngan.querySelector('input[type="file"]') as HTMLInputElement;
     await act(async () => {
-      fireEvent.change(o, { target: { files: [tep] } });
+      fireEvent.change(o, { target: { files: [new File(["x"], "unc.pdf", { type: "application/pdf" })] } });
     });
-    await userEvent.click(within(ngan).getByRole("button", { name: "Lập 2 phiếu chi" }));
-    await waitFor(() => expect(uploadVoucherAttachment).toHaveBeenCalledTimes(2));
-    expect(uploadVoucherAttachment.mock.calls.map((c) => c[1])).toEqual([501, 502]);
-    expect(await within(ngan).findByText(/PC-0101 và PC-0102/)).toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Trả 2 đợt cùng lúc" })).toBeInTheDocument();
+    await userEvent.click(within(ngan).getByRole("button", { name: "Lập phiếu chi" }));
+    await waitFor(() => expect(uploadVoucherAttachment).toHaveBeenCalledTimes(1));
+    expect(uploadVoucherAttachment.mock.calls[0][1]).toBe(501);
+    expect(await within(ngan).findByText(/PC-0101/)).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: TEN })).toBeInTheDocument();
     await userEvent.click(within(ngan).getByRole("button", { name: "Xong" }));
-    expect(await screen.findByText("Đã lập 2 phiếu chi")).toBeInTheDocument();
+    expect(await screen.findByText("Đã lập PC-0101")).toBeInTheDocument();
   });
 });

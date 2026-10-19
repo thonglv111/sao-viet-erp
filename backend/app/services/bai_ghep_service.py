@@ -41,7 +41,8 @@ from .bu_hao_engine import chuoi_nguoc_dv, hao_buoc
 from ..models.don_vi_do import TRAM_CAI, TRAM_TAY, TRAM_TO, TRAM_TO_NGUYEN
 from .dong_giay import ban_do_tram, don_vi_chuoi, tram_cua, tren_dong_giay
 from .thanh_phan_engine import (
-    cau_to_sang_cai, la_gap_tay, so_kem_moi_tay, so_mau_dan_xuat, so_tay_moi_cuon, tap_muc,
+    cau_to_sang_cai, dem_mau_cong_thuc, la_gap_tay, so_kem_moi_tay, so_mau_dan_xuat,
+    so_tay_moi_cuon, tap_muc,
     tap_muc_tu_so,
 )
 
@@ -1731,8 +1732,11 @@ class BaiGhepService:
         if len(kieu_in) != 1:
             return {}
         sa, sb, sp = so_mau_dan_xuat(a, b)
+        # Ba BIẾN công thức (Số màu in = số kẽm, ...) — `bien_cong_thuc._dem_mau_lenh` đọc khoá này.
+        m, mp, phu = dem_mau_cong_thuc(a, b, kieu_in[0])
         return {"so_mau_a": sa, "so_mau_b": sb, "so_mau_pha": sp,
-                "so_kem": so_kem_moi_tay(a, b, kieu_in[0])}
+                "so_kem": so_kem_moi_tay(a, b, kieu_in[0]),
+                "bien_so_mau": m, "bien_so_mau_pha": mp, "bien_so_mau_phu": phu}
 
     def quy_cach_bien_cua_bai(self, bg: BaiGhep) -> dict:
         """Bộ BIẾN CÔNG THỨC của tờ ghép — cửa CÔNG KHAI của `_qc_bien_bai` cho người ngoài service.

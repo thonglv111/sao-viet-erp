@@ -7,7 +7,10 @@
 .ycf-gi.dfa-gi--nho { width: 108px; height: 30px; }
 .dfa-vat { height: 30px; width: 72px; padding: 0 6px; }
 .dfa-duoi { font-size: var(--fs-xs); color: var(--ash-2); margin-top: 3px; }
-
+.dfa-duoi--1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Ô số lượng chờ gõ lại sau khi đổi ĐVT theo NCC. */
+.ycf-gi.dfa-gi--cho { border-color: var(--tt-vang-dot); background: var(--tt-vang-bg); }
+.ycf-gi.dfa-gi--cho input::placeholder { color: var(--tt-vang-fg); opacity: .7; }
 .dfa-cs { display: flex; flex-direction: column; gap: 6px; }
 .dfa-cs__nhom { display: flex; flex-direction: column; gap: 3px; padding-bottom: 8px; border-bottom: 1px solid var(--rule-hair); }
 .dfa-cs__nh, .dfa-cs__con, .dfa-cs__tong { display: flex; justify-content: space-between; gap: 12px; }
@@ -88,7 +91,38 @@
 .dfa-the-nho--bam:hover { border-color: var(--rule); color: var(--ink); }
 .dfa-phu .mc-o { flex: none; }
 .dfa-ncc { display: block; }
-.dfa-ncc select { width: 100%; height: 30px; font-size: var(--fs-sm); padding: 0 6px; }
+/* Ô chọn NCC tự dựng (LineSupplierPicker): nút trông như ô nhập, hộp gắn vào body. */
+.dfa-ncc { position: relative; }
+.dfa-nccb {
+  display: flex; align-items: center; gap: 6px; width: 100%; height: 30px; padding: 0 8px 0 10px;
+  font: inherit; font-size: var(--fs-sm); color: var(--ink); text-align: left; cursor: pointer;
+  background: var(--canvas); border: 1px solid var(--rule); border-radius: var(--r-2);
+}
+.dfa-nccb:hover:not(:disabled) { border-color: var(--ash-2); }
+.dfa-nccb:focus-visible, .dfa-nccb.mo { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--rule-soft); }
+.dfa-nccb.loi { border-color: var(--tt-do-dot); }
+.dfa-nccb:disabled { cursor: default; background: var(--paper); }
+.dfa-nccb__chu { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfa-nccb__chu--mo { color: var(--ash-2); }
+.dfa-nccb__mui { flex: none; color: var(--ash-2); transition: transform var(--duration-base) var(--easing-standard); }
+.dfa-nccb.mo .dfa-nccb__mui { transform: rotate(180deg); }
+.dfa-nccb__giu { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+
+.dfa-nccp {
+  position: fixed; z-index: 1000; max-width: 380px; max-height: 300px; overflow-y: auto; padding: 4px;
+  background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: var(--r-2);
+  box-shadow: var(--shadow-lg); font-size: var(--fs-sm);
+}
+.dfa-nccp__nhom + .dfa-nccp__nhom { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--rule-hair); }
+.dfa-nccp__nhan { padding: 6px 10px 4px 30px; font-size: var(--fs-xs); color: var(--ash-2); }
+.dfa-nccp__dong {
+  display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px 0 8px;
+  border-radius: calc(var(--r-2) - 2px); cursor: pointer; white-space: nowrap;
+}
+.dfa-nccp__dong.sang { background: var(--rule-hair); }
+.dfa-nccp__tick { flex: none; width: 14px; color: var(--ink); text-align: center; }
+.dfa-nccp__ten { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.dfa-nccp__gia { flex: none; margin-left: 16px; color: var(--ash-2); font-variant-numeric: tabular-nums; }
 .dfa-nut-tuy { width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: 7px; cursor: pointer;
   border: 1px solid transparent; background: none; color: var(--ash-2); }
 .dfa-nut-tuy:hover, .dfa-nut-tuy.is-mo { border-color: var(--rule-soft); background: var(--canvas); color: var(--ink); }
@@ -122,3 +156,9 @@
 .dfa-don .kna-mo { font-size: var(--fs-xs); }
 .dfa-se-tao__tong { flex: none; margin-left: auto; display: inline-flex; align-items: baseline; gap: 10px; white-space: nowrap; }
 .dfa-se-tao__tong .kna-so { font-size: var(--fs-md, 15px); color: var(--ink); }
+
+/* Hạn trả đợt này dưới "Cộng đợt" của hộp Ghi đợt giao (15/10/2026): gõ ngày hoá đơn là thấy hạn,
+   đổi cách tính của cả đơn ngay tại đây. */
+.dgd-han { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule-soft); }
+.dgd-han__dong { display: flex; justify-content: space-between; gap: 12px; }
+.dgd-han .mh-canh { align-items: flex-start; font-size: 12.5px; }

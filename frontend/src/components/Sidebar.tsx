@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import logoUrl from "../assets/sao-viet-nhat-logo-mark.png";
 import { BAI_GHEP_ENABLED, VOUCHER_PAGE_LABEL } from "../constants/features";
 import { Icon, type IconName } from "./Icons";
+import { useLaDienThoai } from "../utils/dienThoai";
+import { boDau, khopGanDung } from "../utils/timGanDung";
 import "./sidebar.css";
 
 interface NavChild {
@@ -441,6 +443,10 @@ export function Sidebar({ activeId, onSelect, readable, itemChildren, dynamicIte
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [gap, setGap] = useState<Set<string>>(docGap);
+  // Điện thoại: menu là trang toàn màn ~60 mục — có ô tìm. Máy lớn không vẽ ô này.
+  const laDT = useLaDienThoai();
+  const [tim, setTim] = useState("");
+  const timChuan = laDT ? boDau(tim.trim()) : "";
 
   useEffect(() => {
     try { localStorage.setItem(GAP_KEY, JSON.stringify([...gap])); } catch { /* riêng tư/đầy */ }
@@ -477,6 +483,19 @@ export function Sidebar({ activeId, onSelect, readable, itemChildren, dynamicIte
     // Nút cha phải tính TRƯỚC khi cắt nhánh gập — cắt xong thì cha không còn con nào để nhận ra
     // mình là cha, nút ▾ biến mất và nhánh gập rồi không mở lại được.
     const coCon = new Set(duoc.map((i) => i.parentId).filter((x): x is string => !!x));
+    if (timChuan) {
+      // Đang tìm: phẳng, bỏ gập — khớp tên mục, tên menu con hoặc tên nhóm.
+      const khop = (t: string) => khopGanDung(t, timChuan);
+      const theoNhom = khop(s.label);
+      const items = duoc
+        .map((i) => {
+          if (theoNhom || khop(i.label)) return i;
+          const con = i.children?.filter((c) => khop(c.label));
+          return con?.length ? { ...i, children: con } : null;
+        })
+        .filter((i): i is NavItem => !!i);
+      return { ...s, coCon: new Set<string>(), items };
+    }
     return { ...s, coCon, items: locGap(duoc, gap) };
   }).filter((s) => s.items.length > 0);
 
@@ -530,9 +549,21 @@ export function Sidebar({ activeId, onSelect, readable, itemChildren, dynamicIte
         </span>
       </a>
 
+      {laDT && (
+        <div className="sidebar__tim">
+          <Icon name="search" size={16} />
+          <input
+            type="search"
+            value={tim}
+            onChange={(e) => setTim(e.target.value)}
+            placeholder="Tìm màn: lương, phiếu chi, kho…"
+            aria-label="Tìm mục menu"
+          />
+        </div>
+      )}
       <nav className="sidebar__nav" aria-label="Điều hướng chính">
         {sections.map((section) => {
-          const isCollapsed = collapsed.has(section.id);
+          const isCollapsed = !timChuan && collapsed.has(section.id);
           return (
             <div className="sidebar__section" key={section.id}>
               <button
@@ -556,7 +587,7 @@ export function Sidebar({ activeId, onSelect, readable, itemChildren, dynamicIte
                       key={item.id}
                       item={item}
                       activeId={activeId}
-                      isOpen={expanded.has(item.id)}
+                      isOpen={expanded.has(item.id) || (!!timChuan && !!item.children?.length)}
                       badge={badges?.[item.id] ?? 0}
                       coCon={section.coCon.has(item.id)}
                       dangGap={gap.has(item.id)}

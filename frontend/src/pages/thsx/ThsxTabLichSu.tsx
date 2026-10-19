@@ -3,7 +3,7 @@
 // Mọi việc đã xảy ra với CHÍNH công việc này — chạy máy, người và khuôn, sản lượng, bàn giao, vật
 // tư, KCS — mới nhất trên cùng. Máy chủ dựng câu (`services/san_xuat/lich_su_viec.py`), FE chỉ vẽ.
 // 10/10/2026: vẽ bằng `Timeline` chung — cùng dáng tab Nhật ký của lệnh (chấm rỗng nối trục dọc,
-// câu, thẻ nhỏ cho `ct` và lý do, dòng xám "người · ngày giờ" bên dưới).
+// câu, thẻ nhỏ cho `ct` và lý do, dòng xám "người lúc ngày giờ" bên dưới).
 //
 // Chip nhóm lọc TẠI CHỖ: đây là một công việc, vài chục dòng, không phải danh sách bản ghi có trang.
 // Nạp lại mỗi khi `tick` đổi (ngăn truyền đúng object chi tiết vừa nạp — SSE hay cú bấm của chính
@@ -32,7 +32,7 @@ function ngayGio(luc: string | null): string {
   const d = new Date(luc);
   if (Number.isNaN(d.getTime())) return "—";
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export function ThsxTabLichSu({ congViecId, tick }: { congViecId: number; tick?: unknown }) {
@@ -99,7 +99,7 @@ export function ThsxTabLichSu({ congViecId, tick }: { congViecId: number; tick?:
             items={dong.map((x) => ({
               title: x.cau,
               tags: x.ly_do ? [...x.ct, `Lý do: ${x.ly_do}`] : x.ct,
-              meta: `${x.nguoi || "—"} · ${ngayGio(x.luc)}`,
+              meta: `${x.nguoi || "—"} lúc ${ngayGio(x.luc)}`,
               tone: TONE[x.mau as keyof typeof TONE],
             }))}
           />

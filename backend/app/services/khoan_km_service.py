@@ -36,6 +36,7 @@ from ..models.delivery import (
     LG_DA_TRA_HANG,
     LG_DANG_TRA_HANG,
     LG_THAT_BAI,
+    DeliveryRequest,
     DeliveryTrip,
     LuotXe,
 )
@@ -149,6 +150,12 @@ class KhoanKmService:
                 ra.append((luot, trip))
         return ra
 
+    def _ma_yeu_cau(self, request_id: int) -> str | None:
+        """Mã yêu cầu giao (YCGH-…) của chuyến — thứ người dùng thấy ở màn Giao hàng; id thô thì không."""
+        return self.db.execute(
+            select(DeliveryRequest.code).where(DeliveryRequest.id == request_id)
+        ).scalar_one_or_none()
+
     def chi_tiet(self, employee_id: int, nam: int, thang: int) -> list[dict]:
         """Từng chuyến của MỘT người — nuôi bảng đối chiếu cho HCNS.
 
@@ -173,6 +180,7 @@ class KhoanKmService:
                 continue
             ra.append({
                 "trip_id": t.id,
+                "ma_chuyen": self._ma_yeu_cau(t.request_id),
                 "ngay": t.thoi_gian_ket_thuc,
                 "km": int(t.km or 0),
                 "don_gia_km": float(t.don_gia_km or 0),
@@ -191,6 +199,7 @@ class KhoanKmService:
                 continue
             ra.append({
                 "trip_id": t.id,
+                "ma_chuyen": self._ma_yeu_cau(t.request_id),
                 "ngay": luot.ve_kho_luc,
                 "km": int(luot.km_ve_kho or 0),
                 "don_gia_km": float(luot.don_gia_ve_kho or 0),
@@ -199,7 +208,7 @@ class KhoanKmService:
                         else float((t.pct_tai_xe if t.employee_id == employee_id
                                     else t.pct_phu_xe) or 0)),
                 "thanh_tien": round(tien, 2),
-                "ghi_chu": f"Về kho · lượt {luot.code}",
+                "ghi_chu": f"Về kho của lượt {luot.code}",
             })
         ra.sort(key=lambda r: (r["ngay"] is None, r["ngay"] or datetime.min.replace(tzinfo=timezone.utc)))
         return ra

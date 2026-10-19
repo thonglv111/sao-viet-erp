@@ -20,8 +20,10 @@ export { LOC_TRONG, soDieuKien };
 /** Mốc kỳ của màn — mặc định Ngày tạo. */
 export const MOC_PC: [string, string][] = [["tao", "Ngày tạo"], ["chi", "Ngày chi"]];
 
-/** Thẻ lọc đầu bảng. "gc" không lọc phiếu — nó đổi bảng sang hàng chờ gia công. */
-export type TheLocPC = "tat_ca" | "xong" | "thieu" | "gc" | "da_huy";
+/** Thẻ lọc đầu bảng. "gc" / "tl" / "mh" không lọc phiếu — chúng đổi bảng sang hàng chờ gia công /
+ *  hàng chờ trả lại khách / hàng đơn mua chờ chi (việc CHƯA lập phiếu). */
+// Lọc theo chứng từ gốc ĐÃ GỠ hẳn: thẻ "Thiếu chứng từ gốc" 17/10/2026, điều kiện "Chứng từ" ở nút Lọc 18/10/2026.
+export type TheLocPC = "tat_ca" | "xong" | "gc" | "tl" | "mh" | "da_huy";
 
 /** Bộ lọc ĐÃ ÁP — khuôn chung của hai sổ phiếu (`shared/locPhieu.ts`). */
 export type LocPC = LocNangCao;
@@ -33,13 +35,10 @@ export const CAU_HINH_LOC_PC: CauHinhLocPhieu = {
 
 /** Tham số lọc dùng chung cho bảng và số cùng kỳ — một nguồn, không hai chỗ. */
 export function thamSoLoc(the: TheLocPC, loc: LocPC, tim: string, ky: KyDS): ThamSoSo {
-  // "Thiếu chứng từ" chỉ tính phiếu ĐÃ CHI (máy chủ đếm số trên thẻ như vậy) — gửi kèm status để
-  // tổng ở chân bảng khớp đúng con số trên thẻ.
-  const status = the === "xong" || the === "thieu" ? "paid" : the === "da_huy" ? "cancelled" : undefined;
+  const status = the === "xong" ? "paid" : the === "da_huy" ? "cancelled" : undefined;
   return {
     q: tim.trim() || undefined,
     status,
-    chung_tu: the === "thieu" ? "thieu" : loc.chung_tu,
     ...(thamSoKy(ky) as Pick<ThamSoSo, "tu_ngay" | "den_ngay" | "moc">),
     ...thamSoNangCao(loc),
   };
@@ -60,7 +59,7 @@ export function dangLoc(the: TheLocPC, loc: LocPC, tim: string): boolean {
 /** Trạng thái lọc của màn — thứ ghi lên URL cùng với kỳ (kỳ do `useKyKeToan` tự ghi). */
 export type TrangThaiLocPC = { the: TheLocPC; tim: string; loc: LocPC };
 
-const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "thieu", "gc", "da_huy"];
+const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "gc", "tl", "mh", "da_huy"];
 
 /** Trạng thái lọc → khoá URL. Giá trị mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPC): Record<string, string | undefined> {

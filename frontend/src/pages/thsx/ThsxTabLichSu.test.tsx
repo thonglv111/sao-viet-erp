@@ -24,7 +24,7 @@ describe("Tab Lịch sử", () => {
     render(<ThsxTabLichSu congViecId={5} />);
     expect(await screen.findByText("3 việc")).toBeInTheDocument();
     expect(screen.getByText("Lý do: Chuyển sang máy Kyodo cho kịp lệnh 0003")).toBeInTheDocument();
-    expect(screen.getByText("Trần Tổ Trưởng · 9/10/2026 10:01")).toBeInTheDocument();
+    expect(screen.getByText("Trần Tổ Trưởng lúc 09/10/2026 10:01")).toBeInTheDocument();
     expect(screen.getByText("Gói phát hành 1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Bàn giao" }).className).toContain("is-rong");
 

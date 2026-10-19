@@ -8,6 +8,6 @@ import type { PaymentStage } from "../../../../api/client";
 export const STAGE_LABELS: Record<PaymentStage, string> = {
   advance: "Tạm ứng / đặt cọc",
   partial: "Thanh toán một phần",
-  final: "Thanh toán cuối",
+  final: "Thanh toán tiền hàng",
   other: "Khác",
 };

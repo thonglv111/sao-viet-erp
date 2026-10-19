@@ -123,6 +123,25 @@ class CancelPaymentVoucherIn(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class PaymentVoucherLineOut(BaseModel):
+    """Một dòng phân bổ của phiếu chi trả đơn mua."""
+
+    purchase_request_id: int
+    purchase_code: str | None = None
+    delivery_id: int | None = None
+    delivery_seq_no: int | None = None
+    invoice_number: str | None = None
+    amount: int
+    purchase_created_by_user_id: int | None = None
+
+
+class DoiChieuDongChiOut(BaseModel):
+    purchase_code: str
+    delivery_seq_no: int | None = None
+    truoc_do: int
+    con_no_sau: int
+
+
 class PaymentVoucherOut(BaseModel):
     id: int
     code: str
@@ -148,7 +167,9 @@ class PaymentVoucherOut(BaseModel):
     receipt_received_amount: int = 0
     receipt_pending_amount: int = 0
     attachment_count: int = 0
-    # NULL = phiếu đặt cọc, hoặc phiếu cũ lập trước khi có khái niệm đợt giao.
+    # Bảng phân bổ (17/10/2026): phiếu lẻ một dòng, phiếu GỘP nhiều dòng (đầu phiếu không nguồn).
+    lines: list[PaymentVoucherLineOut] = Field(default_factory=list)
+    # NULL = phiếu đặt cọc, hoặc phiếu cũ lập trước khi có khái niệm đợt giao, hoặc phiếu gộp.
     delivery_id: int | None = None
     delivery_seq_no: int | None = None
     source_request_codes: list[str]
@@ -201,6 +222,8 @@ class PaymentVoucherOut(BaseModel):
     # không đối chiếu theo đợt/hoá đơn được (cọc, gia công, tạm ứng, thu khác…).
     truoc_do: int | None = None
     con_no_sau: int | None = None
+    # Phiếu gộp: đối chiếu của từng dòng trả đợt.
+    doi_chieu: list[DoiChieuDongChiOut] = Field(default_factory=list)
 
 
 class GiaCongChoChiOut(BaseModel):
@@ -218,29 +241,91 @@ class GiaCongChoChiOut(BaseModel):
     chot_boi_ten: str | None = None
 
 
+class CocChoThuOut(BaseModel):
+    """Một dòng "cọc chờ thu" — đơn đã chốt, cọc chưa đủ (17/10/2026)."""
+    order_id: int
+    order_code: str
+    customer_id: int | None = None
+    customer_name: str | None = None
+    deposit_pct: float
+    can_thu: int
+    da_thu: int
+    con_thieu: int
+    ordered_at: datetime | None = None
+
+
+class HoaDonChoThuOut(BaseModel):
+    """Một dòng "hoá đơn chờ thu" — hoá đơn còn hiệu lực khách chưa trả hết."""
+    invoice_id: int
+    invoice_symbol: str
+    invoice_number: str
+    invoice_date: date
+    due_date: date | None = None
+    order_id: int
+    order_code: str
+    customer_id: int | None = None
+    customer_name: str | None = None
+    amount: int
+    direct_received_amount: int
+    deposit_offset_amount: int
+    hoan_khong_don: int = 0
+    da_thu: int
+    con_no: int
+
+
+class DonHangChoThuOut(BaseModel):
+    """Mục "Đơn hàng chờ thu" của màn Phiếu thu."""
+    coc: list[CocChoThuOut]
+    hoa_don: list[HoaDonChoThuOut]
+
+
+class HoaDonDieuChinhRefOut(BaseModel):
+    """Hóa đơn điều chỉnh giảm — chứng từ gốc của khoản hoàn chiết khấu (18/10/2026)."""
+    id: int
+    so_hoa_don: str
+    ngay: date
+    so_tien: int
+    ly_do: str | None = None
+    hoa_don_goc: str
+
+
+class TraLaiKhachChoChiOut(BaseModel):
+    """Một dòng "Chờ trả lại khách" của màn Phiếu chi — đơn hết chỗ ghi hoá đơn mà tiền khách còn dư."""
+    order_id: int
+    order_code: str
+    don_huy: bool
+    customer_id: int | None = None
+    customer_name: str | None = None
+    hoa_don_huy: list[str] = []
+    hoa_don_dieu_chinh: list[HoaDonDieuChinhRefOut] = []
+    da_tra_lai: int
+    con_lai: int
+
+
 class GiaCongChoChiDemOut(BaseModel):
     so: int
 
 
-# --- thanh toán NHIỀU đợt giao một lượt (04/09/2026: "cùng một NCC thì thanh toán một lượt") ---
+# --- MỘT phiếu chi trả NHIỀU khoản của cùng một NCC (17/10/2026: "một phiếu cho cả lượt") ---
 
 
-class VoucherBatchItemIn(BaseModel):
+class PhieuChiGopDongIn(BaseModel):
     purchase_request_id: int = Field(gt=0)
-    delivery_id: int = Field(gt=0)
+    #: Bỏ trống = trả CỌC của đơn; có = trả cho đợt giao đó.
+    delivery_id: int | None = Field(default=None, gt=0)
+    amount: int = Field(gt=0)
 
 
-class VoucherBatchIn(BaseModel):
-    items: list[VoucherBatchItemIn] = Field(min_length=1, max_length=50)
-    # Hình thức chi + tài khoản/người nhận điền MỘT LẦN cho cả lượt — mỗi đợt vẫn ra MỘT
-    # `PaymentVoucher` riêng (đúng `delivery_id` của nó), chỉ khác là kế toán không phải gõ lại
-    # phần "trả bằng gì, trả vào đâu" N lần cho N đợt của CÙNG một nhà cung cấp.
+class PhieuChiGopIn(BaseModel):
+    lines: list[PhieuChiGopDongIn] = Field(min_length=1, max_length=50)
+    # Phần CHUNG của cả phiếu — hình thức chi, người nhận/tài khoản, định khoản. Chỉ VND.
     voucher_type: str = Field(min_length=1, max_length=24)
     voucher_date: date
-    currency: str = Field(default="VND", min_length=3, max_length=3)
-    exchange_rate: float = Field(default=1, gt=0)
-    #: Bỏ trống thì mỗi phiếu tự đặt nội dung "Thanh toán {mã đơn} đợt {số đợt}".
+    #: Bỏ trống thì máy đặt "Thanh toán {mã đơn} đợt {n}, … và …".
     content: str | None = Field(default=None, max_length=500)
+    invoice_number: str | None = Field(default=None, max_length=64)
+    invoice_date: date | None = None
+    contract_number: str | None = Field(default=None, max_length=64)
     company_bank_account_id: int | None = Field(default=None, gt=0)
     supplier_bank_account_id: int | None = Field(default=None, gt=0)
     cash_recipient_name: str | None = Field(default=None, max_length=255)
@@ -253,6 +338,7 @@ class VoucherBatchIn(BaseModel):
     bank_fee_bearer: str | None = Field(default=None, max_length=16)
     debit_account: str | None = Field(default=None, max_length=64)
     credit_account: str | None = Field(default=None, max_length=64)
+    note: str | None = Field(default=None, max_length=2000)
 
 
 class VoucherFromAdvancesBatchIn(BaseModel):
@@ -299,13 +385,12 @@ class VoucherBatchOut(BaseModel):
 
 
 class TheLocOut(BaseModel):
-    """Số trên hàng thẻ lọc của Phiếu chi / Phiếu thu. Đếm trên bộ lọc KHÔNG gồm trạng thái và
-    chứng từ, nên chọn một thẻ không làm các thẻ còn lại sập về 0."""
+    """Số trên hàng thẻ lọc của Phiếu chi / Phiếu thu. Đếm trên bộ lọc KHÔNG gồm trạng thái, nên
+    chọn một thẻ không làm các thẻ còn lại sập về 0."""
 
     tat_ca: int = 0
     xong: int = 0
     xong_tien: int = 0
-    thieu_chung_tu: int = 0
     da_huy: int = 0
     cho: int = 0
 
@@ -356,6 +441,56 @@ class PaymentReceiptIn(BaseModel):
     muc_thu_chi_id: int | None = Field(default=None, gt=0)
 
 
+class PhieuThuGopDongIn(BaseModel):
+    #: Có = thu cho hoá đơn đó (đơn suy từ hoá đơn); trống = thu CỌC của `order_id`.
+    sales_invoice_id: int | None = Field(default=None, gt=0)
+    order_id: int | None = Field(default=None, gt=0)
+    amount: int = Field(gt=0)
+
+
+class PhieuThuGopIn(BaseModel):
+    """MỘT phiếu thu cho NHIỀU khoản của cùng một khách (17/10/2026). Chỉ VND."""
+
+    lines: list[PhieuThuGopDongIn] = Field(min_length=1, max_length=50)
+    #: Trống ⇒ tên khách.
+    payer_name: str | None = Field(default=None, max_length=255)
+    payer_address: str | None = Field(default=None, max_length=500)
+    receipt_method: str = Field(min_length=1, max_length=24)
+    receipt_date: date
+    debit_account: str | None = Field(default=None, max_length=64)
+    credit_account: str | None = Field(default=None, max_length=64)
+    #: Trống ⇒ máy đặt "Thu HĐ …, cọc đơn … và …".
+    content: str | None = Field(default=None, max_length=500)
+    company_bank_account_id: int | None = Field(default=None, gt=0)
+    bank_reference: str | None = Field(default=None, max_length=64)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class HangKhoanThuOut(BaseModel):
+    ten: str | None = None
+    so_luong: int
+    dvt: str | None = None
+    don_gia: int
+    vat: int = 0
+    thanh_tien: int
+
+
+class PhieuKhoanThuOut(BaseModel):
+    receipt_id: int
+    code: str
+    doc_no: str | None = None
+    ngay: date
+    amount: int
+    gop: bool = False
+
+
+class ChiTietKhoanThuOut(BaseModel):
+    """Popup chi tiết một khoản chờ thu — hàng của khoản + các lần đã thu."""
+
+    hang: list[HangKhoanThuOut]
+    phieu: list[PhieuKhoanThuOut]
+
+
 class MarkPaymentReceiptReceivedIn(BaseModel):
     bank_reference: str | None = Field(default=None, max_length=64)
 
@@ -364,10 +499,31 @@ class CancelPaymentReceiptIn(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class PaymentReceiptLineOut(BaseModel):
+    """Một dòng phân bổ của phiếu thu đơn bán. `sales_invoice_id` trống = dòng cọc của đơn."""
+
+    order_id: int
+    order_code: str | None = None
+    sales_invoice_id: int | None = None
+    invoice_number: str | None = None
+    amount: int
+
+
+class DoiChieuDongThuOut(BaseModel):
+    order_code: str | None = None
+    invoice_number: str | None = None
+    truoc_do: int
+    con_no_sau: int
+
+
 class PaymentReceiptOut(BaseModel):
     id: int
     code: str
     doc_no: str | None = None
+    customer_id: int | None = None
+    lines: list[PaymentReceiptLineOut] = Field(default_factory=list)
+    #: Phiếu gộp: đối chiếu theo từng hoá đơn mà phiếu trả.
+    doi_chieu: list[DoiChieuDongThuOut] = Field(default_factory=list)
     # Nguồn: purchase_refund | order_deposit | sales_invoice | other.
     source_type: str = "purchase_refund"
     muc_thu_chi_id: int | None = None
@@ -466,6 +622,33 @@ class CancelSalesInvoiceIn(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class DieuChinhIn(BaseModel):
+    """Ghi nhận hóa đơn điều chỉnh GIẢM của một hóa đơn bán (18/10/2026). Số / ký hiệu do phần mềm
+    hóa đơn điện tử cấp. `amount_vnd` bỏ trống = phần chiết khấu gợi ý còn chưa điều chỉnh."""
+
+    adj_symbol: str = Field(min_length=1, max_length=64)
+    adj_number: str = Field(min_length=1, max_length=64)
+    adj_date: date
+    amount_vnd: int | None = Field(default=None, gt=0)
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class DieuChinhOut(BaseModel):
+    id: int
+    sales_invoice_id: int
+    order_id: int
+    adj_symbol: str
+    adj_number: str
+    adj_date: date
+    amount_vnd: int
+    reason: str | None = None
+    status: str
+    created_by_name: str | None = None
+    created_at: datetime
+    cancelled_at: datetime | None = None
+    cancel_reason: str | None = None
+
+
 class SalesInvoiceOut(BaseModel):
     id: int
     order_id: int
@@ -483,6 +666,13 @@ class SalesInvoiceOut(BaseModel):
     deposit_offset_amount: int = 0
     received_amount: int = 0
     remaining_amount: int = 0
+    #: Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026).
+    hoan_khong_don: int = 0
+    #: Tổng hóa đơn điều chỉnh giảm còn hiệu lực (18/10/2026); phải thu = `amount_vnd` − số này.
+    dieu_chinh_amount: int = 0
+    #: Phần chiết khấu của đơn rơi vào hóa đơn này mà chưa điều chỉnh — số điền sẵn khi lập điều chỉnh.
+    ck_goi_y: int = 0
+    dieu_chinh: list[DieuChinhOut] = []
     created_by_user_id: int | None = None
     created_by_name: str | None = None
     created_at: datetime
@@ -512,6 +702,8 @@ class PhieuThuHoaDonOut(BaseModel):
     invoice_id: int
     amount: int
     receipt_date: date
+    #: Phiếu gộp nhiều chứng từ — `amount` là phần của hoá đơn này.
+    gop: bool = False
 
 
 class SalesInvoiceListOut(BaseModel):
@@ -525,8 +717,11 @@ class SalesInvoiceListOut(BaseModel):
     last_invoice_symbol: str | None = None
     delivered_amount: int = 0
     invoiceable_amount: int = 0
+    #: Tiền khách đưa dư còn phải trả lại (cùng số với hàng Chờ trả lại khách ở Phiếu chi).
+    cho_tra_lai: int = 0
     luot_giao: list[LuotGiaoHoaDonOut] = []
     phieu_thu: list[PhieuThuHoaDonOut] = []
+    phieu_thu_hd_huy: list[PhieuThuHoaDonOut] = []
     items: list[SalesInvoiceOut]
 
 
@@ -702,6 +897,9 @@ class PayableItemOut(BaseModel):
     # Phần CỌC của cả đơn chiếu xuống đợt này. Cố ý tách khỏi `paid`: không ai trả riêng cho đợt
     # này số đó. Nhưng `con_no` thì đã trừ CẢ HAI.
     coc_bu: int = 0
+    # Phiếu NCC hoàn tiền không gắn đơn cộng nợ lại vào đợt hạn muộn nhất (#36, 18/10/2026):
+    # con_no = amount − paid − coc_bu + hoan_ncc.
+    hoan_ncc: int = 0
     con_no: int
     # True = đợt đã trả hết (thường do CỌC nuốt trọn, vì cọc bù giao-trước-bù-trước). Vẫn liệt kê
     # để dò được tiền cọc đi đâu, nhưng màn hình làm mờ và xếp xuống đáy đơn — nó KHÔNG phải việc
@@ -723,7 +921,10 @@ class PayablePaidOut(BaseModel):
     delivery_seq_no: int | None = None
     purchase_request_id: int
     purchase_code: str
+    # Phần của khoản này. Phiếu GỘP (`so_dong > 1`) hiện nhiều dòng — `voucher_amount` là tổng phiếu.
     amount: int
+    voucher_amount: int | None = None
+    so_dong: int = 1
     invoice_number: str | None = None
     invoice_date: date | None = None
     has_attachment: bool = False
@@ -815,7 +1016,10 @@ class ReceivableCustomerOut(BaseModel):
     thu_gan_nhat_ngay: date | None = None
     thu_gan_nhat_tien: int = 0
     #: Σ cọc còn giữ của các đơn ĐÃ HUỶ của khách — việc kế toán phải lập phiếu chi trả lại.
-    coc_don_huy: int = 0
+    #: Tiền khách đang để ở các đơn (17/10/2026) — không trừ vào hoá đơn đơn khác; `cho_tra_lai`
+    #: là phần phải trả lại ngay (đơn huỷ / đã ghi đủ hoá đơn mà vẫn dư). Nút nhóm `tra_coc` đếm số này.
+    cho_tra_lai: int = 0
+    tien_dang_de: int = 0
 
 
 class ReceivablesSummaryOut(BaseModel):
@@ -862,6 +1066,8 @@ class ReceivableItemOut(BaseModel):
     deposit_offset_amount: int = 0
     received_amount: int = 0
     remaining_amount: int
+    #: Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026).
+    hoan_khong_don: int = 0
 
 
 class ReceivableReceiptOut(BaseModel):
@@ -880,15 +1086,24 @@ class ReceivableReceiptOut(BaseModel):
     payer_name: str
     bank_reference: str | None = None
     created_by_name: str | None = None
+    #: Phiếu gộp: `amount` là phần của dòng này, `receipt_amount` là cả phiếu, `so_dong` số khoản.
+    receipt_amount: int | None = None
+    so_dong: int = 1
 
 
-class CocDonHuyOut(BaseModel):
-    """Một đơn ĐÃ HUỶ còn giữ cọc của khách — ngăn Công nợ phải thu lập phiếu trả lại theo đơn."""
+class TienDangDeOut(BaseModel):
+    """Một đơn còn đang để tiền khách (cọc + tiền hoá đơn đã huỷ − đã trả lại − đã trừ vào hoá
+    đơn, 17/10/2026) — khối "Tiền khách đang để" của ngăn Công nợ phải thu. `con_lai` > 0 thì
+    lập phiếu trả lại theo đơn; `tinh_trang`: don_huy / ghi_du / cho_tru."""
 
     order_id: int
     order_code: str
     da_nhan: int
+    da_tra_lai: int = 0
+    da_tru: int = 0
+    dang_de: int
     con_lai: int
+    tinh_trang: str
 
 
 class ReceivablesDetailOut(BaseModel):
@@ -915,8 +1130,8 @@ class ReceivablesDetailOut(BaseModel):
     aging: list[AgingBucketOut] = Field(default_factory=list)
     received_in_period: int
     as_of: date
-    #: Đơn đã huỷ còn giữ cọc (13/10/2026) — mỗi đơn một nút "Trả lại cọc" gắn đúng đơn.
-    coc_don_huy: list[CocDonHuyOut] = Field(default_factory=list)
+    #: Tiền khách đang để ở từng đơn (17/10/2026) — đơn còn phải trả lại có nút "Trả lại" gắn đúng đơn.
+    tien_dang_de: list[TienDangDeOut] = Field(default_factory=list)
 
 
 # --- báo cáo tổng hợp công nợ theo kỳ (docs/prd-bao-cao-cong-no.md §5.1) ------------------

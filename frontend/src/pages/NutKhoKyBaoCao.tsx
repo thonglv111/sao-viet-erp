@@ -29,7 +29,7 @@ export function NutKho({ ds, khoId, onDoi }: {
         <ChevronDown size={15} aria-hidden="true" className="tl-nut__mui" />
       </button>
       {mo && (
-        <LopNoi className="tl-pop--ky">
+        <LopNoi className="tl-pop--ky" onDong={() => setMo(false)}>
           <div role="dialog" aria-label="Chọn kho">
             <div className="tl-nhom">Kho</div>
             <div role="radiogroup" aria-label="Kho">
@@ -81,7 +81,7 @@ export function NutKyBaoCao({ cacKy, kyIdx, tu, den, nhan, phu, onChonKy, onTu, 
         <ChevronDown size={15} aria-hidden="true" className="tl-nut__mui" />
       </button>
       {mo && (
-        <LopNoi className="tl-pop--ky">
+        <LopNoi className="tl-pop--ky" onDong={() => setMo(false)}>
           <div role="dialog" aria-label="Kỳ báo cáo">
             {coKy ? (
               <>

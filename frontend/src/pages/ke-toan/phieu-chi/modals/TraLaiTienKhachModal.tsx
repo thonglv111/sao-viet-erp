@@ -4,7 +4,7 @@
 // - Đơn bán đã huỷ, nút "Trả lại cọc": số tiền điền sẵn bằng cọc còn lại; máy chủ chặn vượt cọc còn lại.
 // Phiếu thuộc mục cố định "Trả lại tiền cho khách" nên không có ô Mục; tiền vào Công nợ phải thu của
 // đúng khách. Thân form dùng chung `ThanPhieuChiRoi` (bố cục chia đôi, tờ phiếu xem trước bên phải).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   ApiError,
   api,
@@ -26,7 +26,9 @@ import { loiChuyenKhoan } from "../components/VoucherRecipientSection";
 import { optional } from "../shared/helpers";
 import "../../ke-toan.css";
 
-export type DonTraCoc = { id: number; ma: string; daNhan: number; conLai: number };
+/** `daTraLai` có = khoản dư của đơn hết chỗ ghi hoá đơn (hàng "Chờ trả lại khách", 17/10/2026) —
+ *  gồm cả tiền của hoá đơn đã huỷ, nên form gọi là "tiền khách" thay vì "cọc". */
+export type DonTraCoc = { id: number; ma: string; daNhan: number; conLai: number; daTraLai?: number };
 
 export function TraLaiTienKhachModal({
   khachId,
@@ -35,14 +37,18 @@ export function TraLaiTienKhachModal({
   onClose,
   onDone,
   onMoTaiKhoan,
+  duongDan,
 }: {
   khachId: number;
   khachTen: string;
-  /** Có = trả lại cọc của đơn đã huỷ (từ màn Đơn hàng). Vắng = trả lại tiền chung (từ Công nợ phải thu). */
+  /** Có = trả lại tiền khách của một đơn. Vắng = khoản trả NGOÀI đơn (vd. hàng lỗi, từ Công nợ phải thu):
+   *  tiền khách đang để ở đơn trả theo từng đơn, nên đường này không điền sẵn số nào (17/10/2026). */
   don?: DonTraCoc | null;
   onClose: () => void;
   onDone: (pc: PaymentVoucherRow) => void;
   onMoTaiKhoan?: () => void;
+  /** Đường dẫn đầu form khi mở từ nơi khác màn Đơn hàng (vd. Phiếu chi > Chờ trả lại khách). */
+  duongDan?: ReactNode;
 }) {
   const { token } = useAuth();
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() => ({
@@ -52,7 +58,9 @@ export function TraLaiTienKhachModal({
     amount: don ? Math.max(0, don.conLai) : 0,
     currency: "VND",
     exchange_rate: 1,
-    content: don ? `Trả lại cọc đơn ${don.ma}` : `Trả lại tiền cho ${khachTen}`,
+    content: don
+      ? (don.daTraLai != null ? `Trả lại tiền khách đơn ${don.ma}` : `Trả lại cọc đơn ${don.ma}`)
+      : `Trả lại tiền cho ${khachTen}`,
     invoice_date: homNayVN(),
     note: null,
     cash_recipient_name: khachTen,
@@ -68,8 +76,6 @@ export function TraLaiTienKhachModal({
   const muc = useMucThuChi("chi");
   const tenMuc = mucCoDinh(muc.ds, "customer_refund")?.ten ?? "Trả lại tiền cho khách";
   const goc = useRef(JSON.stringify(form));
-  // Số khách đang dư (dư Có tới hôm nay) — chỉ đường Công nợ phải thu cần. null = đang đọc / đọc hỏng.
-  const [du, setDu] = useState<number | null>(null);
   const [tkList, setTkList] = useState<CompanyBankAccountRow[]>([]);
   const [tkDangTai, setTkDangTai] = useState(false);
   const [tkLoi, setTkLoi] = useState(false);
@@ -80,30 +86,6 @@ export function TraLaiTienKhachModal({
   const [loiTep, setLoiTep] = useState<string | null>(null);
   const [daLap, setDaLap] = useState<PaymentVoucherRow | null>(null);
   const chuyenKhoan = form.voucher_type === "bank_transfer";
-
-  useEffect(() => {
-    if (don || !token) return;
-    let alive = true;
-    const homNay = homNayVN();
-    api.accounting
-      .saoKeDoiTac(token, "receivables", khachId, { tuNgay: homNay, denNgay: homNay })
-      .then((sk) => {
-        if (!alive) return;
-        const soDu = Math.max(0, sk.cuoi_co - sk.cuoi_no);
-        setDu(soDu);
-        // Điền sẵn số dư khi người dùng chưa gõ số nào; goc theo đó để Đóng không hỏi oan.
-        setForm((f) => {
-          if (f.amount) return f;
-          const moi = { ...f, amount: soDu };
-          goc.current = JSON.stringify(moi);
-          return moi;
-        });
-      })
-      .catch(() => {
-        if (alive) setDu(null);
-      });
-    return () => { alive = false; };
-  }, [don, token, khachId]);
 
   useEffect(() => {
     if (!chuyenKhoan || !token) return;
@@ -141,7 +123,9 @@ export function TraLaiTienKhachModal({
   }
 
   const soTien = Math.round(Number(form.amount)) || 0;
-  const vuotCoc = don && soTien > don.conLai ? `Vượt phần cọc còn lại của đơn (${tien(don.conLai)}).` : null;
+  const laTien = don?.daTraLai != null;
+  const vuotCoc = don && soTien > don.conLai
+    ? `Vượt phần ${laTien ? "tiền khách" : "cọc"} còn lại của đơn (${tien(don.conLai)}).` : null;
 
   function kiemTra(): LoiForm {
     const l: LoiForm = {};
@@ -212,18 +196,14 @@ export function TraLaiTienKhachModal({
   // Dòng nhắc dưới ô số tiền: đường công nợ so với số khách đang dư (chỉ nhắc), đường đơn đã có `vuot`
   // — đang báo vượt thì thôi nhắc, khỏi nói một ý hai lần.
   const nhac = don
-    ? vuotCoc ? null : "Không vượt phần cọc còn lại của đơn."
-    : du == null
-      ? "Gõ số tiền trả lại cho khách."
-      : du === 0
-        ? "Khách không còn dư tiền nào. Vẫn lập được, ví dụ trả tiền hàng lỗi."
-        : soTien > du
-          ? `Vượt số khách đang dư ${tien(du)}. Vẫn lập được, ví dụ trả tiền hàng lỗi.`
-          : "Điền sẵn bằng số khách đang dư.";
+    ? vuotCoc ? null : `Không vượt phần ${laTien ? "tiền khách" : "cọc"} còn lại của đơn.`
+    : "Khoản trả ngoài đơn, ví dụ tiền hàng lỗi. Số này cộng nợ lại vào hoá đơn hạn muộn nhất của khách. Tiền khách đang để ở đơn thì trả lại ở từng đơn.";
 
   return (
     <KhungFormPhieu
-      duongDan={don ? <>Đơn hàng {don.ma} &gt; Trả lại cọc</> : <>Công nợ phải thu &gt; {khachTen} &gt; Trả lại tiền</>}
+      duongDan={duongDan ?? (don
+        ? <>Đơn hàng {don.ma} &gt; {laTien ? "Trả lại tiền khách" : "Trả lại cọc"}</>
+        : <>Công nợ phải thu &gt; {khachTen} &gt; Trả lại tiền</>)}
       tieuDe="Trả lại tiền cho khách"
       phuDe={
         <span className="kt-tag">
@@ -239,17 +219,22 @@ export function TraLaiTienKhachModal({
       nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
       banXem={<BanXemPhieuChi form={form} taiKhoan={tkList} soChungTu={files.length} nguon="customer_refund" tenMuc={tenMuc} />}
     >
-      <KhoiForm tieu={don ? "Cọc của đơn" : "Khách hàng"}>
+      <KhoiForm tieu={don ? (laTien ? "Tiền khách của đơn" : "Cọc của đơn") : "Khách hàng"}>
         <HangDoiChieu
-          o={don
+          o={don && laTien
+            ? [
+                { nhan: "Đơn", giaTri: don.ma },
+                { nhan: "Đã trả lại", giaTri: tien(don.daTraLai ?? 0) },
+                { nhan: "Còn phải trả lại", giaTri: tien(don.conLai), chot: true },
+              ]
+            : don
             ? [
                 { nhan: "Đơn", giaTri: don.ma },
                 { nhan: "Cọc đã nhận", giaTri: tien(don.daNhan) },
                 { nhan: "Cọc còn lại", giaTri: tien(don.conLai), chot: true },
               ]
             : [
-                { nhan: "Khách", giaTri: khachTen },
-                { nhan: "Khách đang dư", giaTri: du == null ? "Đang đọc" : tien(du), chot: true },
+                { nhan: "Khách", giaTri: khachTen, chot: true },
               ]}
         />
       </KhoiForm>
@@ -264,7 +249,7 @@ export function TraLaiTienKhachModal({
         files={files} setFiles={setFiles} loiTep={loiTep} setLoiTep={setLoiTep}
         goiSoTien={nhac}
         vuot={vuotCoc}
-        nutDu={don ? { nhan: "Trả hết cọc còn lại", so: don.conLai } : du ? { nhan: "Trả hết số dư", so: du } : undefined}
+        nutDu={don ? { nhan: laTien ? "Trả hết số còn lại" : "Trả hết cọc còn lại", so: don.conLai } : undefined}
         goiY={[{ ten: khachTen, phu: "khách hàng" }]} />
     </KhungFormPhieu>
   );

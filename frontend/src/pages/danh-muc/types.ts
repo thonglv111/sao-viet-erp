@@ -49,6 +49,8 @@ export interface FieldDef {
    *  bị ẩn khỏi danh sách thêm. */
   donViChinh?: string;
   refPrefix?: string;           // ref / ref-multi / ref-search: endpoint danh mục nguồn (đổ theo TÊN/MÃ)
+  /** `don-vi-them`: mã đơn vị không bỏ được (Giấy: tờ + kg, 18/10/2026). */
+  donViBatBuoc?: string[];
   /** Query thêm khi nạp danh mục nguồn, vd `{ active: true }` — không lọc thì picker mời cả dòng
    *  đã ngừng dùng, người ta chọn xong bấm Lưu mới ăn lỗi từ server. */
   refParams?: Record<string, unknown>;

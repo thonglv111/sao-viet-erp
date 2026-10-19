@@ -232,11 +232,7 @@ def test_tu_phuc_vu_khong_can_o_quyen(client):
     admin = _admin_token(client)
     t = _plain_token_with_emp(client, admin)
 
-    # Chưa có ô Thao tác ⇒ chặn.
-    assert client.post("/api/overtime/me",
-                       json={"work_date": "2026-07-23", "from_minute": 1200, "to_minute": 1320},
-                       headers=_h(t)).status_code == 403
-
+    # 15/10/2026 (mg 0412): ô Thao tác Tăng ca LUÔN BẬT cho mọi vai — không còn ca "chưa có ô".
     _cap_o_tang_ca_cho_vai("NV Sales", "Kinh doanh")
 
     r = client.post("/api/overtime/me",

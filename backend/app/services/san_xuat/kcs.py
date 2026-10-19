@@ -142,9 +142,23 @@ def _chi_ghi_loi(db: Session, repo: SanXuatKcsRepository, cv, loi_sl: float) -> 
     """Công đoạn GIỮA: KCS chỉ ghi lỗi khi thấy, không bắt buộc và không có "đạt" (19/09/2026 — chỉ
     KCS cuối mới kiểm đạt để nhập kho). Trả số đạt = 0. Công đoạn đã bắt đầu là ghi được, KHÔNG chờ
     tổ ghi mẻ và không chặn trần theo số tổ đã ghi (10/10/2026 — KCS thấy lỗi ngay lúc máy chạy, tổ
-    thường ghi mẻ sau)."""
+    thường ghi mẻ sau).
+
+    Công đoạn ĐÃ KẾT THÚC thì trần quay lại (#31 bấm thử 18/10/2026): tổ đã ghi hết sản lượng, nên
+    Σ lỗi bắt tại công đoạn (cũ + lần này) không vượt Σ tốt tổ đã ghi. Không có trần đó thì gõ nhầm
+    1.300 cho bước In đã làm 1.250 tờ vẫn lưu được — và lần ghi lỗi không sửa được trên giao diện."""
     if loi_sl <= _EPS:
         raise ValueError("Nhập ít nhất một dòng lỗi.")
+    if cv.trang_thai == CV_HOAN_THANH:
+        from .dau_vao import _so
+
+        tot = SanXuatSanLuongRepository(db).tong_tot(cv.id)
+        con = max(0.0, tot - repo.tong_loi(cv.id))
+        if loi_sl > con + _EPS:
+            raise ValueError(
+                f"Công đoạn đã xong, tổ đã làm {_so(tot)}: số lỗi {_so(loi_sl)} vượt phần "
+                f"còn ghi được {_so(con)}."
+            )
     return 0.0
 
 

@@ -176,11 +176,14 @@ def _ghi_dot(
     client, headers, purchase_id: int, *, lines: list[dict], han: str | None = None,
     ngay: str | None = None,
 ) -> dict:
+    if han is not None:
+        from tests.test_payables_api import _han_bang_dieu_khoan_ncc
+
+        _han_bang_dieu_khoan_ncc(purchase_id, ngay or _hom_nay().isoformat(), han)
     r = client.post(
         f"/api/purchase-requests/{purchase_id}/deliveries",
         json={
             "delivery_date": ngay or _hom_nay().isoformat(),
-            "due_date": han,
             "invoice_number": None,
             "invoice_date": None,
             "lines": lines,

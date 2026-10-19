@@ -58,6 +58,8 @@ def test_ky_hieu_tung_loai_ngay():
     # lễ nghỉ ở nhà: "L", KHÔNG phải "P" — lễ không tiêu ngày phép năm
     assert o_ngay(_ngay(holiday=True, leave="Quốc khánh", leave_paid=True)) == "L"
     assert o_ngay(_ngay(planned_off=True)) == "NL"
+    # ngày làm việc đã qua, không lượt bấm nào (14/10/2026) — cùng dấu ✕ với màn hình
+    assert o_ngay(_ngay(shift_name="Ca ngày", khong_cham=True)) == "✕"
 
 
 def test_ngay_le_di_lam_van_ra_so_cong():
@@ -98,7 +100,8 @@ def test_khuon_file_va_cot_tang_ca():
     assert ws.cell(row=1, column=1).value == "BẢNG CÔNG THÁNG 09/2026"
     assert "Tổ In" in ws.cell(row=2, column=1).value
     assert "Công chuẩn tháng: 26" in ws.cell(row=2, column=1).value
-    assert "ô trống = không đi làm" in ws.cell(row=3, column=1).value
+    assert "ô trống = ngày chưa tới hoặc không xếp ca" in ws.cell(row=3, column=1).value
+    assert "✕ = ngày làm việc đã qua mà không có lượt chấm nào" in ws.cell(row=3, column=1).value
 
     # 4 cột thông tin + 30 cột ngày + 5 cột tổng
     assert [ws.cell(row=5, column=i).value for i in range(1, 5)] == ["Mã", "Họ tên", "Phòng/Tổ", "Ca"]

@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Điều khoản theo nút bấm</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;--link:#2563eb;
+  --tt-vang-bg:#fef3c7;--tt-vang-fg:#b45309;--tt-xanh-bg:#dcfce7;--tt-xanh-fg:#15803d;
+  --tt-lam-bg:#dbeafe;--tt-lam-fg:#1d4ed8;--tt-xam-bg:#e5e7eb;--tt-xam-fg:#374151;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b{font-weight:500}
+button{font:inherit;color:inherit;cursor:pointer}
+.doc{max-width:1440px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:26px;font-weight:500;margin:0 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1080px}
+.doc ul,.doc ol{padding-left:20px;margin:6px 0}
+.doc li{margin:3px 0}
+.h2{margin:36px 0 6px;font-size:20px;font-weight:500;padding-top:18px;border-top:1px solid var(--rule)}
+.cap{margin:22px 0 6px;font-size:15px;font-weight:500}
+.note{color:var(--ash);font-size:13.5px;margin:0 0 10px;max-width:1080px}
+.gia{display:inline-block;padding:0 6px;border-radius:4px;background:var(--tt-vang-bg);color:var(--tt-vang-fg);font-size:12px}
+code{font-size:12.5px;background:var(--rule-hair);padding:0 4px;border-radius:4px}
+
+.refs{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:10px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px}
+.ref img{width:100%;height:200px;object-fit:contain;object-position:top left;border:1px solid var(--rule-hair);border-radius:6px;background:#fff}
+.ref .t{margin:8px 0 2px;font-weight:500}
+.ref .h{color:var(--ash);font-size:13px}
+
+/* luồng */
+.buoc{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 4px}
+.buoc span{padding:4px 12px;border-radius:999px;background:#fff;border:1px solid var(--rule-soft);font-size:12.5px;color:var(--ash)}
+.buoc i{color:var(--ash-3);font-style:normal}
+.row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap;margin-top:10px}
+.lbl{font-size:12.5px;color:var(--ash-2);margin:0 0 6px;max-width:560px}
+.pick{position:sticky;top:0;z-index:20;background:#e9edf2;padding:10px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.pick button{padding:6px 14px;border:1px solid var(--rule);background:#fff;border-radius:8px}
+.pick button.on{border-color:var(--ink)}
+.pa{display:none}.pa.on{display:block}
+
+/* đầu ngăn */
+.ngan{width:760px;background:#fff;border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ngan .dau{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--rule-soft)}
+.ngan .dau .ma{font-size:17px;font-weight:500}
+.ngan .dau .gian{flex:1}
+.ngan .than{display:grid;grid-template-columns:1fr 290px;min-height:120px}
+.ngan .trai{padding:14px 20px;color:var(--ash-3);border-right:1px solid var(--rule-soft)}
+.ngan .phai{padding:0 18px}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px}
+.chip.xam{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}
+.chip.vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.chip.xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)}
+.btn{padding:6px 14px;border-radius:8px;border:1px solid var(--rule);background:#fff;font-size:13px}
+.btn.chinh{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn.tron{border-color:transparent;background:none;color:var(--ash)}
+.tiep{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:10px 20px;background:var(--paper);border-bottom:1px solid var(--rule-soft);font-size:13px}
+.tiep .t{color:var(--ash-2)}
+.tiep .gian{flex:1}
+.tiep .o{min-height:30px;padding:4px 10px}
+
+/* cột phải */
+.sb{padding:12px 0;border-bottom:1px solid var(--rule-soft)}
+.sb:last-child{border-bottom:0}
+.sb h4{margin:0 0 6px;font-size:13px;font-weight:500;color:var(--ash)}
+.lk{background:none;border:0;padding:0;color:var(--link);font-size:13px}
+.r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-height:26px;font-size:13px}
+.r>span:first-child{color:var(--ash-2);flex:none}
+.r>.v{text-align:right;display:flex;gap:6px;align-items:baseline;justify-content:flex-end;flex-wrap:wrap}
+.r.tong{border-top:1px solid var(--rule-soft);margin-top:2px;padding-top:2px}
+.r.tong .v{font-size:15px}
+.mo{color:var(--ash-3)}
+.phu{display:block;width:100%;color:var(--ash-3);font-size:12px;line-height:1.35;text-align:right}
+.khoa{display:inline-flex;align-items:center;gap:3px;color:var(--ash-2);font-size:12px}
+.khoa svg{width:12px;height:12px}
+.inl{display:inline-block;min-width:120px;border:1px dashed var(--rule);border-radius:6px;padding:0 8px;color:var(--ash-3);text-align:left}
+.inl.co{border-style:solid;border-color:transparent;color:var(--ink);padding:0}
+.dot{border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden;margin:4px 0 2px}
+.dot .d{display:grid;grid-template-columns:50px 1fr auto;gap:2px 8px;padding:6px 10px;border-bottom:1px solid var(--rule-hair);font-size:12.5px;align-items:baseline}
+.dot .d:last-child{border-bottom:0}
+.dot .d .n{color:var(--ash-2)}
+.dot .d .m{color:var(--ash-3)}
+.dot .d .s{text-align:right}
+.dot .d.cho .s,.dot .d.cho .m{color:var(--ash-3)}
+.cu{color:var(--ash-3);text-decoration:line-through;margin-right:6px}
+
+/* hộp */
+.dlg{width:500px;background:#fff;border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.08);overflow:hidden}
+.dlg .hd{display:flex;align-items:center;padding:16px 22px;border-bottom:1px solid var(--rule-soft);font-size:16px;font-weight:500}
+.dlg .hd span{flex:1}
+.dlg .bd{padding:6px 22px}
+.f{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid var(--rule-hair)}
+.f:last-child{border-bottom:0}
+.f .nh{color:var(--ash);padding-top:7px}
+.f .gt{padding-top:7px}
+.o{border:1px solid var(--rule);border-radius:7px;padding:7px 10px;min-height:36px;background:#fff;display:inline-block}
+.o.mo{color:var(--ash-3)}
+.o.so{text-align:right;width:180px}
+.o.ngay{width:150px}
+.goi{color:var(--ash-2);font-size:12.5px;margin-top:5px}
+.radio{display:flex;flex-direction:column;gap:8px}
+.radio label{display:flex;gap:8px;align-items:flex-start}
+.radio i{width:16px;height:16px;border:1px solid var(--rule);border-radius:50%;margin-top:2px;flex:none;position:relative}
+.radio i.on{border-color:var(--rust)}
+.radio i.on::after{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--rust)}
+.radio .con{margin:4px 0 0 24px}
+.xem{background:var(--paper);border-radius:8px;padding:10px 12px;margin:10px 0 6px;font-size:13px;color:var(--ash)}
+.canh{background:var(--tt-vang-bg);color:var(--tt-vang-fg);border-radius:8px;padding:8px 10px;font-size:12.5px;margin:8px 0 2px}
+.dlg .ft{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px;background:var(--paper);border-top:1px solid var(--rule-soft)}
+
+/* hộp ghi đợt giao (vẽ lại cột phải của hộp thật) */
+.ghi{width:760px;background:#fff;border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ghi .hd{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--rule-soft)}
+.ghi .hd .ma{font-size:17px;font-weight:500}
+.ghi .than{display:grid;grid-template-columns:1fr 330px;gap:16px;padding:14px 20px;background:var(--paper)}
+.the{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px}
+.the h3{margin:0 0 8px;font-size:13.5px;font-weight:500}
+.the .o-t{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ash);margin-bottom:10px}
+.the .ba{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.the .ba .o{width:100%}
+.mon{color:var(--ash-3);font-size:12.5px;padding:30px 0;text-align:center}
+.cs{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.cs.tong{border-top:1px solid var(--rule-soft);margin-top:4px;padding-top:6px}
+.han{border-top:1px solid var(--rule-soft);margin-top:8px;padding-top:8px}
+.ghi .ft{display:flex;justify-content:flex-end;gap:10px;padding:12px 20px;border-top:1px solid var(--rule-soft)}
+
+.giai{max-width:1080px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="khoa" viewBox="0 0 16 16"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+</svg>
+<div class="doc">
+<h1>Điều khoản đơn mua gắn vào nút Gửi duyệt và Ghi đợt giao</h1>
+<p>Đơn thật: DMH-261015-0VZE của Công ty TNHH Giấy Tân Mai Sài Gòn, tổng 2.648.457 đ, đang Nháp, NCC cho nợ 0 ngày, không cọc. Từ bước Đã duyệt trở đi số liệu là <span class="gia">giả định</span> để thấy đủ các trường hợp: NCC cho nợ 30 ngày, cọc 500.000 đ, người duyệt Trần Thị Hạnh, đợt 1 hoá đơn 12/10, đợt 2 hoá đơn 21/10.</p>
+
+<div class="cap">Logic đã chốt</div>
+<ol class="giai">
+  <li><b>Bấm Gửi duyệt</b> là lúc chốt cọc. Người dùng thấy tổng đơn, ghi cọc, xem cách tính hạn trả rồi mới gửi. Duyệt xong cọc khoá. Bị từ chối thì lần gửi lại hỏi lại.</li>
+  <li><b>Bấm Ghi đợt giao</b> là lúc hạn trả thành ngày cụ thể. Gõ ngày hoá đơn xong, hộp hiện ngay hạn của đợt này. Muốn tính theo một ngày chốt chung thì đổi ngay tại đó; hộp báo các đợt đã ghi sẽ đổi hạn sang ngày nào.</li>
+  <li><b>Số hợp đồng</b> không gắn với nút nào. Gõ thẳng ở ngăn, lúc nào cũng được.</li>
+  <li><b>Khối Điều khoản ở ngăn</b> chỉ để xem: cọc (ổ khoá sau khi duyệt), cách tính hạn và hạn từng đợt. Bỏ hộp "Sửa điều khoản".</li>
+</ol>
+<div class="buoc"><span>Nháp</span><i>→</i><span>Gửi duyệt: chốt cọc</span><i>→</i><span>Đã duyệt: cọc khoá</span><i>→</i><span>Ghi đợt giao: ra ngày hạn</span><i>→</i><span>Ngăn: hạn từng đợt</span></div>
+
+<div class="cap">Đã đọc</div>
+<ul>
+  <li><code>PurchaseDetailDrawer.tsx</code>: nút Gửi duyệt gọi thẳng <code>api.purchaseRequests.submit</code>, không có bước xác nhận.</li>
+  <li><code>DeliveryDialog.tsx</code>: cột phải có Ngày nhận hàng, Hoá đơn của NCC (ký hiệu, số, ngày), Ảnh, thẻ Tiền đợt này. Ô Hạn trả đang bị comment. Biến <code>hanTra</code> vẫn gửi lên để không xoá hạn khai tay cũ.</li>
+  <li><code>purchase_service.han_tra_dot</code>: có ngày chốt thì ngày chốt cộng số ngày cho nợ; không thì ngày hoá đơn cộng; không có hoá đơn thì hạn khai tay, rồi tới ngày nhận hàng cộng.</li>
+  <li><code>NganDonMua.tsx</code> <code>CotPhai</code> và <code>SuaDieuKhoan.tsx</code>: khối Điều khoản và hộp sửa hiện nay (phương án A ngày 15/10).</li>
+</ul>
+
+<div class="h2">Tham khảo</div>
+<p class="note">Đã mở tài liệu Zoho Books "Transaction Approval Workflow" và "Record Locking", tài liệu Odoo Accounting "Payment terms". Trang "Simple Approval" của Zoho không có ảnh nên bỏ. Ảnh "Save and Submit" của Zoho có tải về nhưng bỏ, vì chỉ là menu nút, không nói gì về điều khoản.</p>
+<div class="refs">
+  <div class="ref">
+    <img src="tham-khao-dieu-khoan-theo-giai-doan/zoho-submit-for-approval.png" alt="Zoho Books dải việc tiếp theo">
+    <div class="t">Zoho Books: dải "What's next?"</div>
+    <div class="h">Bản ghi Nháp có một dải nói việc tiếp theo là gửi duyệt, kèm nút ngay trong dải. Cách B của bước Gửi duyệt bám ảnh này: đưa luôn ô cọc vào dải.</div>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-dieu-khoan-theo-giai-doan/odoo-han-tung-dong.png" alt="Odoo hạn trả từng dòng">
+    <div class="t">Odoo: hạn tính ra từng dòng</div>
+    <div class="h">Ghi hoá đơn xong là thấy ngay từng khoản phải trả và ngày đến hạn, tính từ ngày hoá đơn và điều khoản. Hộp Ghi đợt giao và khối hạn từng đợt ở ngăn bám ảnh này.</div>
+  </div>
+  <div class="ref">
+    <img src="tham-khao-dieu-khoan-theo-giai-doan/zoho-locked-record-view-details.png" alt="Zoho Books bản ghi đã khoá">
+    <div class="t">Zoho Books: ổ khoá cạnh thứ bị khoá</div>
+    <div class="h">Bấm ổ khoá thấy ai khoá, lúc nào. Dòng Cọc ở ngăn sau khi duyệt bám ảnh này.</div>
+  </div>
+</div>
+
+<!-- ================= BƯỚC 1: GỬI DUYỆT ================= -->
+<div class="h2">Bước 1. Bấm Gửi duyệt: chốt cọc</div>
+<p class="note">Chỗ này có hai cách trình bày, anh chọn một. Cả hai cùng luật: cọc trống nghĩa là không cọc; cọc tối đa bằng tổng đơn; hạn trả chỉ hiện để xem lại, đổi được nếu muốn.</p>
+<div class="pick">
+  <span style="color:var(--ash-2)">Cách trình bày</span>
+  <button class="on" data-pa="a">A. Hộp xác nhận</button>
+  <button data-pa="b">B. Dải việc tiếp theo</button>
+</div>
+
+<div class="pa on" id="pa-a">
+<div class="row">
+  <div>
+    <p class="lbl">Ngăn lúc Nháp: nút Gửi duyệt như bây giờ</p>
+    <div class="ngan">
+      <div class="dau"><span class="ma">DMH-261015-0VZE</span><span class="chip xam">Nháp</span><span class="gian"></span><button class="btn tron">In phiếu</button><button class="btn tron">Sửa</button><button class="btn chinh">Gửi duyệt</button></div>
+      <div class="than">
+        <div class="trai">tab Mặt hàng như hiện nay</div>
+        <div class="phai">
+          <div class="sb">
+            <h4>Tiền</h4>
+            <div class="r tong"><span>Tổng đơn</span><span class="v">2.648.457 đ</span></div>
+          </div>
+          <div class="sb">
+            <h4>Điều khoản</h4>
+            <div class="r"><span>Cọc</span><span class="v mo">ghi lúc gửi duyệt</span></div>
+            <div class="r"><span>Hạn trả</span><span class="v">Trả ngay khi có hoá đơn</span></div>
+            <div class="r"><span>Số hợp đồng</span><span class="v"><span class="inl">Gõ số hợp đồng</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Bấm Gửi duyệt: hộp nhỏ hỏi cọc trước khi gửi</p>
+    <div class="dlg">
+      <div class="hd"><span>Gửi duyệt DMH-261015-0VZE</span>✕</div>
+      <div class="bd">
+        <div class="f"><div class="nh">Tổng đơn</div><div class="gt">2.648.457 đ</div></div>
+        <div class="f">
+          <div class="nh">Cọc</div>
+          <div><span class="o so mo">Không cọc</span><div class="goi">Người duyệt đồng ý đúng số này. Duyệt xong là không đổi được. Tối đa 2.648.457 đ.</div></div>
+        </div>
+        <div class="f">
+          <div class="nh">Hạn trả</div>
+          <div class="gt">Trả ngay khi có hoá đơn <button class="lk" style="margin-left:6px">Đổi cách tính</button><div class="goi">Nhà cung cấp cho nợ 0 ngày.</div></div>
+        </div>
+      </div>
+      <div class="ft"><button class="btn">Huỷ</button><button class="btn chinh">Gửi duyệt</button></div>
+    </div>
+  </div>
+</div>
+<ul class="giai">
+  <li>Thêm một cú bấm mỗi lần gửi, đổi lại không ai gửi mà quên cọc.</li>
+  <li>"Đổi cách tính" mở ngay trong hộp hai lựa chọn: ngày hoá đơn từng đợt, hoặc một ngày chốt cho cả đơn (giống bước 2).</li>
+</ul>
+</div>
+
+<div class="pa" id="pa-b">
+<div class="row">
+  <div>
+    <p class="lbl">Ngăn lúc Nháp: dải việc tiếp theo nằm ngay dưới đầu ngăn, ô cọc nằm trong dải</p>
+    <div class="ngan">
+      <div class="dau"><span class="ma">DMH-261015-0VZE</span><span class="chip xam">Nháp</span><span class="gian"></span><button class="btn tron">In phiếu</button><button class="btn tron">Sửa</button></div>
+      <div class="tiep">
+        <span class="t">Tiếp theo: gửi duyệt</span>
+        <span>Cọc <span class="o so mo" style="width:140px">Không cọc</span></span>
+        <span>Hạn trả: trả ngay khi có hoá đơn <button class="lk">Đổi</button></span>
+        <span class="gian"></span>
+        <button class="btn chinh">Gửi duyệt</button>
+      </div>
+      <div class="than">
+        <div class="trai">tab Mặt hàng như hiện nay</div>
+        <div class="phai">
+          <div class="sb">
+            <h4>Tiền</h4>
+            <div class="r tong"><span>Tổng đơn</span><span class="v">2.648.457 đ</span></div>
+          </div>
+          <div class="sb">
+            <h4>Điều khoản</h4>
+            <div class="r"><span>Số hợp đồng</span><span class="v"><span class="inl">Gõ số hợp đồng</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<ul class="giai">
+  <li>Không thêm hộp nào. Mở ngăn Nháp là thấy ngay việc phải làm tiếp và ô cọc nằm cạnh nút gửi.</li>
+  <li>Dải chỉ có ở Nháp và Bị từ chối. Chờ duyệt thì dải đổi thành "Đang chờ duyệt, cọc xin 500.000 đ" và vẫn sửa được cọc (giữ luật hiện nay).</li>
+  <li>Điện thoại: dải xếp dọc, nút Gửi duyệt chiếm cả hàng.</li>
+</ul>
+</div>
+
+<!-- ================= SAU KHI DUYỆT ================= -->
+<div class="h2">Sau khi duyệt: cọc khoá</div>
+<div class="row">
+  <div>
+    <p class="lbl">Ngăn lúc Đã duyệt, chưa giao: <span class="gia">giả định</span></p>
+    <div class="ngan" style="width:560px">
+      <div class="dau"><span class="ma">DMH-261015-0VZE</span><span class="chip xanh">Đã duyệt</span><span class="gian"></span><button class="btn">Đã đặt hàng</button><button class="btn chinh">Ghi đợt giao</button></div>
+      <div class="than" style="grid-template-columns:1fr 290px">
+        <div class="trai">tab Mặt hàng</div>
+        <div class="phai">
+          <div class="sb">
+            <h4>Điều khoản</h4>
+            <div class="r"><span>Cọc</span><span class="v">500.000 đ<span class="khoa" title="Trần Thị Hạnh duyệt 14/10/2026 09:12"><svg><use href="#khoa"/></svg>đã duyệt</span></span></div>
+            <div class="r"><span>Hạn trả</span><span class="v">30 ngày sau ngày hoá đơn<span class="phu">ra ngày cụ thể khi ghi đợt giao</span></span></div>
+            <div class="r"><span>Số hợp đồng</span><span class="v"><span class="inl co">HĐ-2026/118</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= BƯỚC 2: GHI ĐỢT GIAO ================= -->
+<div class="h2">Bước 2. Bấm Ghi đợt giao: ra ngày hạn của đợt</div>
+<p class="note">Vẽ lại hộp Ghi đợt giao như hiện nay, chỉ thêm phần Hạn trả dưới "Cộng đợt" trong thẻ Tiền đợt này. Bảng món bên trái giữ nguyên.</p>
+<div class="row">
+  <div>
+    <p class="lbl">Đợt 2, vừa gõ ngày hoá đơn 21/10: <span class="gia">giả định</span></p>
+    <div class="ghi">
+      <div class="hd"><span class="ma">Đợt 2</span><span class="chip xam">Công ty TNHH Giấy Tân Mai Sài Gòn</span></div>
+      <div class="than">
+        <div class="the"><h3>Hàng nhận đợt này</h3><div class="mon">bảng món và số nhận như hiện nay</div></div>
+        <div>
+          <div class="the" style="margin-bottom:12px">
+            <div class="o-t">Ngày nhận hàng<span class="o ngay">20/10/2026</span></div>
+            <div class="o-t" style="margin-bottom:0">Hoá đơn của nhà cung cấp
+              <div class="ba"><span class="o">1C26TAA</span><span class="o">0001842</span><span class="o">21/10/2026</span></div>
+            </div>
+          </div>
+          <div class="the">
+            <h3>Tiền đợt này</h3>
+            <div class="cs"><span>Giấy Couche 150</span><span>882.819</span></div>
+            <div class="cs tong"><span>Cộng đợt 2</span><span>882.819 đ</span></div>
+            <div class="han">
+              <div class="cs"><span>Hạn trả đợt này</span><span>20/11/2026</span></div>
+              <div class="goi">Ngày hoá đơn 21/10 cộng 30 ngày cho nợ. <button class="lk">Đổi cách tính</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ft"><button class="btn">Huỷ</button><button class="btn chinh">Ghi đợt giao</button></div>
+    </div>
+  </div>
+  <div>
+    <p class="lbl">Chưa gõ ngày hoá đơn</p>
+    <div class="the" style="width:330px">
+      <div class="cs tong" style="border-top:0;margin-top:0;padding-top:0"><span>Cộng đợt 2</span><span>882.819 đ</span></div>
+      <div class="han">
+        <div class="cs"><span>Hạn trả đợt này</span><span>19/11/2026</span></div>
+        <div class="goi">Chưa có hoá đơn nên tạm tính từ ngày nhận hàng 20/10. Có hoá đơn thì sửa đợt, hạn tự tính lại.</div>
+      </div>
+    </div>
+    <p class="lbl" style="margin-top:16px">Bấm "Đổi cách tính": mở ngay trong thẻ, lưu cùng nút Ghi đợt giao</p>
+    <div class="the" style="width:330px">
+      <div class="cs tong" style="border-top:0;margin-top:0;padding-top:0"><span>Cộng đợt 2</span><span>882.819 đ</span></div>
+      <div class="han">
+        <div class="goi" style="margin:0 0 6px">Hạn trả của cả đơn tính từ</div>
+        <div class="radio">
+          <label><i></i><span>Ngày hoá đơn của từng đợt</span></label>
+          <label><i class="on"></i><span>Một ngày chốt cho cả đơn</span></label>
+          <div class="con"><span class="o ngay">31/10/2026</span></div>
+        </div>
+        <div class="canh">Đổi cho cả đơn. Đợt 1 đã ghi đổi hạn <span class="cu">11/11</span>30/11/2026. Đợt này hạn 30/11/2026.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<ul class="giai">
+  <li>Hạn trả hiện trong lúc gõ, tính ở trình duyệt theo cùng luật với máy chủ (<code>hanTra.ts</code> mở rộng thêm bậc "chưa có hoá đơn thì từ ngày nhận hàng").</li>
+  <li>Đổi cách tính ở đây là đổi cho cả đơn, nên luôn có dòng vàng báo các đợt đã ghi đổi hạn sang ngày nào.</li>
+  <li>Máy chủ: lưu đợt giao nhận thêm ngày chốt (nếu người dùng đổi) và ghi cả hai trong một lần lưu, để không có lúc đợt đã ghi mà cách tính chưa đổi.</li>
+</ul>
+
+<!-- ================= NGĂN SAU KHI GIAO ================= -->
+<div class="h2">Ngăn sau 2 đợt giao: chỉ xem</div>
+<div class="row">
+  <div>
+    <p class="lbl">Cột phải ngăn: <span class="gia">giả định</span></p>
+    <div class="ngan" style="width:330px">
+      <div class="than" style="grid-template-columns:1fr">
+        <div class="phai">
+          <div class="sb">
+            <h4>Tiền</h4>
+            <div class="r tong"><span>Tổng đơn</span><span class="v">2.648.457 đ</span></div>
+            <div class="r"><span>Hàng đã về</span><span class="v">1.765.638</span></div>
+            <div class="r tong"><span>Còn nợ</span><span class="v">1.265.638 đ</span></div>
+          </div>
+          <div class="sb">
+            <h4>Điều khoản</h4>
+            <div class="r"><span>Cọc</span><span class="v">500.000 đ<span class="khoa"><svg><use href="#khoa"/></svg>đã duyệt</span></span></div>
+            <div class="r"><span>Hạn trả</span><span class="v">30 ngày sau ngày hoá đơn</span></div>
+            <div class="dot">
+              <div class="d"><span class="n">Đợt 1</span><span class="m">hoá đơn 12/10</span><span class="s">11/11/2026</span></div>
+              <div class="d"><span class="n">Đợt 2</span><span class="m">hoá đơn 21/10</span><span class="s">20/11/2026</span></div>
+            </div>
+            <div class="r"><span>Số hợp đồng</span><span class="v"><span class="inl co">HĐ-2026/118</span></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div style="max-width:560px">
+    <p class="lbl">Ghi chú</p>
+    <ul class="giai" style="margin-top:0">
+      <li>Không còn chữ "Sửa" ở khối Điều khoản. Đổi cách tính hạn sau khi đã giao: sửa một đợt bất kỳ (hộp Ghi đợt giao ở chế độ sửa) hoặc lần ghi đợt kế tiếp.</li>
+      <li>Đơn trên 4 đợt: danh sách gọn thành "4 đợt, hạn gần nhất 11/11/2026", bấm ra tab Đợt giao.</li>
+      <li>Ngăn bên Kế toán dùng chung khối này. Người duyệt thấy "Cọc xin duyệt 500.000 đ" lúc Chờ duyệt.</li>
+      <li>Hộp "Sửa điều khoản" (<code>SuaDieuKhoan.tsx</code>) gỡ hẳn.</li>
+    </ul>
+  </div>
+</div>
+</div>
+
+<script>
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.pick button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.pa').forEach(p=>p.classList.toggle('on',p.id==='pa-'+b.dataset.pa));
+});
+</script>
+</body>
+</html>

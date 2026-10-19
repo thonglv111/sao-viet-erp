@@ -26,7 +26,7 @@ export const STATUS_META: Record<
 export const STAGE_LABELS = {
   advance: "Tạm ứng / đặt cọc",
   partial: "Thanh toán một phần",
-  final: "Thanh toán cuối",
+  final: "Thanh toán tiền hàng",
   other: "Khác",
 } as const;
 

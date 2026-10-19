@@ -22,6 +22,7 @@ from ..deps import (
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
+from ..services.thong_bao_man import bao
 from ..models.user import User
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.rbac_repo import DepartmentRepository
@@ -41,7 +42,11 @@ from ..schemas.accounting import (
     CongNoKyRow,
     GiaCongChoChiDemOut,
     GiaCongChoChiOut,
+    DonHangChoThuOut,
+    TraLaiKhachChoChiOut,
     CancelSalesInvoiceIn,
+    DieuChinhIn,
+    DieuChinhOut,
     CancelPaymentReceiptIn,
     CancelPaymentVoucherIn,
     CompanyBankAccountIn,
@@ -57,7 +62,9 @@ from ..schemas.accounting import (
     PaymentVoucherIn,
     PaymentVoucherListOut,
     PaymentVoucherOut,
-    VoucherBatchIn,
+    PhieuChiGopIn,
+    PhieuThuGopIn,
+    ChiTietKhoanThuOut,
     VoucherBatchOut,
     VoucherFromAdvancesBatchIn,
     BangKeTamUngOut,
@@ -73,8 +80,9 @@ from ..schemas.accounting import (
     TaiKhoanThongKeOut,
 )
 from ..schemas.loc_danh_sach import LuaChonLoc
-from ..schemas.purchase import PurchaseRequestListOut
+from ..schemas.purchase import MuaHangChoChiOut, PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
+from ..services import ban_hang_cho_thu_chi
 from ..services.gia_cong_ngoai import cho_chi as gc_cho_chi
 from ..services.accounting_service import (
     AccountingBulkBlocked,
@@ -868,6 +876,10 @@ def create_sales_invoice(
         invoice_id=row.get("id"),
         invoice_number=row.get("invoice_number"),
     )
+    ban_hang_cho_thu_chi.bao_hang_cho(
+        svc.repo.db, svc.repo, actor_id=user.id, order_id=row.get("order_id"),
+        order_code=row.get("order_code"), hoa_don_moi=row.get("invoice_number"),
+    )
     return SalesInvoiceOut(**row)
 
 
@@ -891,7 +903,62 @@ def cancel_sales_invoice(
         invoice_id=row.get("id"),
         invoice_number=row.get("invoice_number"),
     )
+    ban_hang_cho_thu_chi.bao_hang_cho(
+        svc.repo.db, svc.repo, actor_id=user.id, order_id=row.get("order_id"),
+        order_code=row.get("order_code"),
+    )
     return SalesInvoiceOut(**row)
+
+
+@router.post(
+    "/api/accounting/sales-invoices/{invoice_id}/dieu-chinh",
+    response_model=DieuChinhOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_dieu_chinh(
+    invoice_id: int,
+    payload: DieuChinhIn,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PT, "create"))],
+) -> DieuChinhOut:
+    """Ghi nhận hóa đơn điều chỉnh giảm (hoàn tiền chiết khấu) — 18/10/2026."""
+    try:
+        row = svc.create_dieu_chinh(invoice_id, actor=user, **payload.model_dump())
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+    _thong_bao_dieu_chinh(svc, row, user, event_type="sales_invoice_adjusted")
+    return DieuChinhOut(**row)
+
+
+@router.post(
+    "/api/accounting/sales-invoice-adjustments/{adj_id}/cancel",
+    response_model=DieuChinhOut,
+)
+def cancel_dieu_chinh(
+    adj_id: int,
+    payload: CancelSalesInvoiceIn,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PT, "cancel"))],
+) -> DieuChinhOut:
+    try:
+        row = svc.cancel_dieu_chinh(adj_id, actor=user, reason=payload.reason)
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+    _thong_bao_dieu_chinh(svc, row, user, event_type="sales_invoice_adjustment_cancelled")
+    return DieuChinhOut(**row)
+
+
+def _thong_bao_dieu_chinh(svc: AccountingService, row: dict, user: User, *, event_type: str) -> None:
+    """Báo ngăn đơn + chấm đỏ Phiếu chi (nếu có tiền phải trả lại) sau khi ghi / hủy điều chỉnh."""
+    order = svc.repo.get_sales_order(row["order_id"])
+    ma = order.order_no if order else None
+    _notify_accounting_changed(
+        ma, event_type=event_type, invoice_id=row["sales_invoice_id"],
+        invoice_number=f'{row["adj_symbol"]} {row["adj_number"]}',
+    )
+    ban_hang_cho_thu_chi.bao_hang_cho(
+        svc.repo.db, svc.repo, actor_id=user.id, order_id=row["order_id"], order_code=ma,
+    )
 
 
 @router.get("/api/accounting/company-bank-accounts", response_model=list[CompanyBankAccountOut])
@@ -1058,7 +1125,6 @@ def list_payment_vouchers(
     muc: list[int] = Query(default=[]),
     tai_khoan_id: int | None = Query(default=None),
     nguoi_lap_id: int | None = Query(default=None),
-    chung_tu: str | None = Query(default=None, pattern="^(co|thieu)$"),
     # Ô "Người nhận" của bộ lọc nâng cao — tách khỏi `q` (xem `_dieu_kien_phieu_chi`).
     nhan: str | None = Query(default=None, max_length=200),
     # Kỳ `tu_ngay..den_ngay` tính theo mốc nào: `chi` = ngày chi (mặc định, các nơi gọi cũ), `tao` = ngày lập.
@@ -1086,7 +1152,6 @@ def list_payment_vouchers(
         muc=muc,
         tai_khoan_id=tai_khoan_id,
         nguoi_lap_id=nguoi_lap_id,
-        chung_tu=chung_tu,
         nhan=nhan,
         moc=moc,
         dem_only=dem_only,
@@ -1113,6 +1178,42 @@ def gia_cong_cho_chi_dem(
     _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
 ):
     return {"so": gc_cho_chi.dem_cho_chi(db)}
+
+
+@router.get("/api/accounting/tra-lai-khach-cho-chi", response_model=list[TraLaiKhachChoChiOut])
+def tra_lai_khach_cho_chi(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+):
+    """Đơn hết chỗ ghi hoá đơn (ghi đủ / đã huỷ) mà tiền khách đưa còn dư — việc lập phiếu chi trả
+    lại khách (17/10/2026). Dòng tự rời khi phiếu chi trả lại đủ."""
+    return ban_hang_cho_thu_chi.tien_cho_tra_lai(svc.repo)
+
+
+@router.get("/api/accounting/don-hang-cho-thu", response_model=DonHangChoThuOut)
+def don_hang_cho_thu(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PT, "read"))],
+):
+    """Cọc đơn đã chốt chưa thu đủ + hoá đơn khách chưa trả hết (17/10/2026) — mục "Đơn hàng chờ
+    thu" của màn Phiếu thu. Dòng tự rời khi phiếu thu đủ."""
+    return {
+        "coc": ban_hang_cho_thu_chi.coc_cho_thu(svc),
+        "hoa_don": ban_hang_cho_thu_chi.hoa_don_cho_thu(svc),
+    }
+
+
+@router.get("/api/accounting/mua-hang-cho-chi", response_model=list[MuaHangChoChiOut])
+def mua_hang_cho_chi(
+    purchases: Annotated[PurchaseService, Depends(get_purchase_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+    q: str | None = Query(default=None),
+    supplier_id: int | None = Query(default=None),
+):
+    """Tab "Mua hàng chờ chi" của màn Phiếu chi (docs/prd-mua-hang-cho-chi-o-phieu-chi.md): đơn đã
+    duyệt còn cọc chưa chi hoặc còn đợt giao còn nợ — mỗi đơn một dòng. Lập phiếu vẫn đi
+    `POST /api/accounting/payment-vouchers` như cũ."""
+    return purchases.hang_cho_chi(q=q, supplier_id=supplier_id)
 
 
 @router.get("/api/accounting/payment-vouchers/{voucher_id}", response_model=PaymentVoucherOut)
@@ -1160,42 +1261,44 @@ def create_payment_voucher(
 
 
 @router.post(
-    "/api/accounting/payment-vouchers/batch",
-    response_model=VoucherBatchOut,
+    "/api/accounting/payment-vouchers/gop",
+    response_model=PaymentVoucherOut,
     status_code=status.HTTP_201_CREATED,
 )
-def create_payment_vouchers_batch(
-    payload: VoucherBatchIn,
+def create_payment_voucher_gop(
+    payload: PhieuChiGopIn,
     svc: Annotated[AccountingService, Depends(get_accounting_service)],
     notifications: NotificationRepo,
     user: Annotated[User, Depends(require_permission(MODULE_PC, "create"))],
-) -> VoucherBatchOut:
-    """Thanh toán NHIỀU đợt giao của CÙNG một NCC trong MỘT lượt (04/09/2026, §Công nợ phải trả).
-
-    Vẫn ra N `PaymentVoucher` riêng (mỗi phiếu một đợt, đúng luật cũ) — batch chỉ gộp thao tác
-    nhập liệu, không gộp chứng từ.
-    """
+) -> PaymentVoucherOut:
+    """MỘT phiếu chi trả NHIỀU khoản (cọc, đợt giao, nhiều đơn) của CÙNG một NCC — 17/10/2026."""
     body = payload.model_dump()
-    items = body.pop("items")
+    lines = body.pop("lines")
     try:
-        rows = svc.create_vouchers_batch(actor=user, items=items, shared=body)
+        row = svc.create_voucher_gop(actor=user, lines=lines, shared=body)
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
-    for row in rows:
-        purchase_code = row.get("purchase_request_code")
+    _bao_cac_don_cua_phieu_chi(row, "payment_voucher_created", notifications, user.id)
+    return PaymentVoucherOut(**row)
+
+
+def _bao_cac_don_cua_phieu_chi(row: dict, event_type: str, notifications, actor_user_id: int) -> None:
+    """Phiếu chi gộp đụng nhiều đơn mua ⇒ báo từng đơn (mỗi người lập đơn một lần)."""
+    da_bao: set[str] = set()
+    for dong in row.get("lines") or []:
+        ma = dong.get("purchase_code")
+        if not ma or ma in da_bao:
+            continue
+        da_bao.add(ma)
         _notify_accounting_changed(
-            purchase_code or row.get("code"),
-            event_type="payment_voucher_created" if purchase_code else "accounting_changed",
+            ma,
+            event_type=event_type,
             voucher_code=row.get("code"),
-            notifications=notifications if purchase_code else None,
-            channel=CHANNEL_THU_MUA if purchase_code else None,
-            actor_user_id=user.id,
-            recipient_user_id=row.get("purchase_created_by_user_id"),
+            notifications=notifications,
+            channel=CHANNEL_THU_MUA,
+            actor_user_id=actor_user_id,
+            recipient_user_id=dong.get("purchase_created_by_user_id"),
         )
-    return VoucherBatchOut(
-        vouchers=[PaymentVoucherOut(**r) for r in rows],
-        total_amount=sum(int(r.get("amount_vnd") or 0) for r in rows),
-    )
 
 
 @router.post(
@@ -1269,15 +1372,19 @@ def cancel_payment_voucher(
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
     purchase_code = row.get("purchase_request_code")
-    _notify_accounting_changed(
-        purchase_code or row.get("code"),
-        event_type="payment_voucher_cancelled" if purchase_code else "accounting_changed",
-        voucher_code=row.get("code"),
-        notifications=notifications if purchase_code else None,
-        channel=CHANNEL_THU_MUA if purchase_code else None,
-        actor_user_id=user.id,
-        recipient_user_id=row.get("purchase_created_by_user_id"),
-    )
+    # Phiếu gộp: đầu phiếu không gắn đơn, mã đơn ở đầu chỉ là mã ghép ("PMH-A +2") ⇒ báo theo dòng.
+    if len(row.get("lines") or []) > 1:
+        _bao_cac_don_cua_phieu_chi(row, "payment_voucher_cancelled", notifications, user.id)
+    else:
+        _notify_accounting_changed(
+            purchase_code or row.get("code"),
+            event_type="payment_voucher_cancelled" if purchase_code else "accounting_changed",
+            voucher_code=row.get("code"),
+            notifications=notifications if purchase_code else None,
+            channel=CHANNEL_THU_MUA if purchase_code else None,
+            actor_user_id=user.id,
+            recipient_user_id=row.get("purchase_created_by_user_id"),
+        )
     if row.get("source_type") == "salary_advance":
         # Huỷ phiếu chi tạm ứng ⇒ cả lô về "Chờ chi" — màn Tạm ứng của HCNS phải thấy ngay.
         hub.gui({"type": "advance_pending_changed", "code": row.get("code")}, quyen=MAN_NHAN_SU)
@@ -1369,7 +1476,6 @@ def list_payment_receipts(
     muc: list[int] = Query(default=[]),
     tai_khoan_id: int | None = Query(default=None),
     nguoi_lap_id: int | None = Query(default=None),
-    chung_tu: str | None = Query(default=None, pattern="^(co|thieu)$"),
     # Ô "Người nộp" của bộ lọc nâng cao — chỉ so tên người nộp, đi cùng `q` là AND.
     nhan: str | None = Query(default=None, max_length=200),
     # Kỳ tính theo mốc: `thu` = ngày thu (mặc định, các nơi gọi cũ), `tao` = ngày lập phiếu.
@@ -1395,7 +1501,6 @@ def list_payment_receipts(
         muc=muc,
         tai_khoan_id=tai_khoan_id,
         nguoi_lap_id=nguoi_lap_id,
-        chung_tu=chung_tu,
         nhan=nhan,
         moc=moc,
         dem_only=dem_only,
@@ -1483,6 +1588,71 @@ def create_sales_invoice_receipt(
 
 
 @router.post(
+    "/api/accounting/payment-receipts/gop",
+    response_model=PaymentReceiptOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_payment_receipt_gop(
+    payload: PhieuThuGopIn,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    orders: Annotated[OrderService, Depends(get_order_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PT, "create"))],
+    db: Annotated[Session, Depends(get_db)],
+) -> PaymentReceiptOut:
+    """MỘT phiếu thu cho NHIỀU khoản (hoá đơn, cọc, nhiều đơn) của CÙNG một khách — 17/10/2026."""
+    from .orders import _bao_xuong_sx, _order_changed
+
+    body = payload.model_dump()
+    lines = body.pop("lines")
+    try:
+        row = svc.create_receipt_gop(actor=user, lines=lines, shared=body)
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+    _bao_cac_don_cua_phieu_thu(row, "sales_invoice_receipt_created")
+    # Dòng cọc = thu cọc thật: đủ cọc ⇒ báo Sale + tự xuống SX, đúng như thu cọc lẻ trên đơn.
+    don_coc = [d["order_id"] for d in row.get("lines") or [] if d.get("sales_invoice_id") is None]
+    for d, moi in orders.sau_thu_coc_ngoai(order_ids=don_coc, actor=user):
+        if d.deposit_ok and d.sale_user_id:
+            hub.publish(d.sale_user_id, {"type": "order_deposit_ok", "code": d.order_no})
+            bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
+                nguoi_nhan=d.sale_user_id, ma=d.order_no)
+        _order_changed(d.order_no)
+        if moi:
+            _bao_xuong_sx(db, d, user)
+    return PaymentReceiptOut(**row)
+
+
+def _bao_cac_don_cua_phieu_thu(row: dict, event_type: str) -> None:
+    """Phiếu thu đụng nhiều đơn bán ⇒ báo từng đơn; có dòng cọc ⇒ màn Đơn hàng bán tải lại."""
+    da_bao: set[str] = set()
+    for dong in row.get("lines") or []:
+        ma = dong.get("order_code")
+        if ma and ma not in da_bao:
+            da_bao.add(ma)
+            _notify_accounting_changed(
+                ma, event_type=event_type, invoice_id=dong.get("sales_invoice_id"),
+                receipt_code=row.get("code"),
+            )
+        if dong.get("sales_invoice_id") is None:
+            hub.gui({"type": "order_pending_changed", "code": ma}, quyen=MAN_BAN_HANG)
+    if not da_bao:
+        _notify_accounting_changed(row.get("code"))
+
+
+@router.get("/api/accounting/chi-tiet-khoan-thu", response_model=ChiTietKhoanThuOut)
+def chi_tiet_khoan_thu(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PT, "read"))],
+    invoice_id: int | None = None,
+    order_id: int | None = None,
+) -> ChiTietKhoanThuOut:
+    try:
+        return ChiTietKhoanThuOut(**svc.chi_tiet_khoan_thu(invoice_id=invoice_id, order_id=order_id))
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+
+
+@router.post(
     "/api/accounting/payment-vouchers/{voucher_id}/receipts",
     response_model=PaymentReceiptOut,
     status_code=status.HTTP_201_CREATED,
@@ -1547,10 +1717,14 @@ def cancel_payment_receipt(
         row = svc.cancel_receipt(receipt_id, actor=user, reason=payload.reason)
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
-    _notify_accounting_changed(row.get("code"))
-    if row.get("source_type") == "order_deposit":
-        # Huỷ cọc làm đơn bớt số đã cọc ⇒ màn Đơn hàng bán / hàng chờ ghi cọc tự tải lại.
-        hub.gui({"type": "order_pending_changed", "code": row.get("order_code")}, quyen=MAN_BAN_HANG)
+    if len(row.get("lines") or []) > 1:
+        # Phiếu gộp: báo từng đơn; có dòng cọc thì màn Đơn hàng bán / hàng chờ ghi cọc tự tải lại.
+        _bao_cac_don_cua_phieu_thu(row, "accounting_changed")
+    else:
+        _notify_accounting_changed(row.get("code"))
+        if row.get("source_type") == "order_deposit":
+            # Huỷ cọc làm đơn bớt số đã cọc ⇒ màn Đơn hàng bán / hàng chờ ghi cọc tự tải lại.
+            hub.gui({"type": "order_pending_changed", "code": row.get("order_code")}, quyen=MAN_BAN_HANG)
     return PaymentReceiptOut(**row)
 
 

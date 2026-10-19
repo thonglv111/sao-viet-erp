@@ -19,7 +19,7 @@ from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
-from .kho_giay import DON_VI_TO_KHO, GocMatHang, don_vi_khai, la_ma_to_giay
+from .kho_giay import DON_VI_TO_KHO, GIAY_DON_VI_BAT_BUOC, GocMatHang, don_vi_khai, la_ma_to_giay
 from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU, ma_chip_hop_le, ma_tu_ten_chip
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
@@ -210,6 +210,8 @@ class VatLieuKhoService:
                     raise VatLieuKhoValidationError(
                         f"“{nhan_don_vi(ten, b)}” đã nằm trong nhóm của “{nhan_don_vi(ten, a)}” — "
                         "không cần khai thêm.")
+        if kind == "giay":
+            khai = self._bu_to_kg_giay(data, khai, gm)
         if obj is None:
             return
         cu_khai = don_vi_khai(obj)
@@ -233,6 +235,23 @@ class VatLieuKhoService:
                 ke = con[0] if len(con) == 1 else ", ".join(con[:-1]) + " và " + con[-1]
                 raise VatLieuKhoValidationError(
                     f"Chưa bỏ được đơn vị “{nhan_don_vi(ten, u)}”: {ke}.")
+
+    def _bu_to_kg_giay(self, data: dict, khai: list[str], gm) -> list[str]:
+        """Mã giấy LUÔN có nhóm tờ và nhóm kg (chốt 18/10/2026): bước nhận tờ xin kho bằng tờ, bước
+        ra kg xin kho bằng kg. Thiếu nhóm nào thì tự thêm đơn vị gốc của nhóm (`to` / `kg`) — người
+        dùng không bỏ được. Nhóm đã có qua đơn vị khác (ram ∈ nhóm tờ, tấn ∈ nhóm kg) thì thôi, khai
+        thêm là thừa. Danh mục Đơn vị chưa có mã đó (DB trắng) thì bỏ qua, không tự tạo."""
+        co = {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}
+        ra = list(khai)
+        for bat_buoc in GIAY_DON_VI_BAT_BUOC:
+            if bat_buoc in co and not any(gm.cung_nhom(u, bat_buoc) for u in ra):
+                ra.append(bat_buoc)
+        if ra == khai:
+            return khai
+        if not khai:
+            data["don_vi_gia"] = ra[0]
+        data["don_vi_them"] = ra[1:]
+        return ra
 
     def _kiem_chip_va_cong_thuc(self, kind: str, data: dict, obj=None) -> None:
         """Vật tư: chuẩn hoá chip rồi kiểm công thức với tập biến = hệ thống ∪ chip của chính vật tư.

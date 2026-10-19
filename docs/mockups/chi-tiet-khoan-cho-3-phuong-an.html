@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chi tiết khoản chờ thu chi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07; --charcoal:#0f172a;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss-soft:#dcfce7; --moss-deep:#166534;
+  --amber-soft:#fef3c7; --amber-deep:#92400e;
+  --signal:#b91c1c; --signal-soft:#fee2e2;
+  --sky-soft:#e0f2fe; --sky-deep:#075985;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:900px}
+.lead ul{margin:6px 0 0;padding-left:20px}
+.lead li{margin:2px 0}
+.ref{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 28px}
+.ref figure{margin:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ref img{display:block;width:100%;height:190px;object-fit:cover;object-position:top;border-bottom:1px solid var(--rule-soft)}
+.ref figcaption{padding:10px 12px;font-size:12.5px;color:var(--ash)}
+.ref figcaption span{display:block;color:var(--ink);margin-bottom:2px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:24px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:500;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}
+.opt.on{display:block}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;font-weight:500;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 18px;max-width:900px}
+.why ul{margin:6px 0 0;padding-left:18px}
+.cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);margin:30px 0 10px}
+
+.mu{color:var(--ash-2)}
+.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.do{color:var(--signal)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--pri:hover{background:var(--rust-deep)}
+.btn--sm{height:30px;padding:0 10px;font-size:12.5px}
+.lk{color:var(--ink);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer;font-size:13px}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;background:var(--rule-hair);color:var(--ash)}
+.tag--dot{background:var(--sky-soft);color:var(--sky-deep)}
+.tag--coc{background:var(--amber-soft);color:var(--amber-deep)}
+.tag--hd{background:var(--moss-soft);color:var(--moss-deep)}
+.tag--do{background:var(--signal-soft);color:var(--signal)}
+
+/* nền màn mờ phía sau popup */
+.stage{background:rgba(15,23,42,.28);border-radius:14px;padding:36px 16px;display:flex;justify-content:center}
+.modal{background:var(--canvas);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.25);width:100%;display:flex;flex-direction:column}
+.mh{display:flex;align-items:flex-start;gap:12px;padding:18px 22px 0}
+.mh .t{font-size:17px;font-weight:500;line-height:1.35}
+.mh .s{font-size:13px;color:var(--ash-2)}
+.x{margin-left:auto;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;color:var(--ash-2);cursor:pointer;flex:none}
+.x:hover{background:var(--rule-hair)}
+.mb{padding:16px 22px 20px}
+.mf{display:flex;align-items:center;gap:10px;padding:12px 22px;border-top:1px solid var(--rule-soft)}
+.mf .lk{margin-right:auto}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:500;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--rule-hair);font-size:13.5px;vertical-align:top}
+th.n,td.n{text-align:right}
+
+/* danh sách nhãn trái giá trị phải (Stripe To/From/Memo) */
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;font-size:13.5px}
+.kv dt{color:var(--ash-2)}
+.kv dd{margin:0}
+
+/* phép tính dọc */
+.tinh{display:grid;gap:0;font-size:13.5px}
+.tinh div{display:flex;justify-content:space-between;gap:16px;padding:6px 0}
+.tinh div span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+.tinh .phu span:first-child{color:var(--ash)}
+.tinh .gach{border-top:1px solid var(--rule);margin-top:4px;padding-top:10px}
+.tinh .con{font-size:15px}
+.tinh .con span:last-child{font-size:17px;font-weight:500}
+
+/* ===== A ===== */
+.a-modal{max-width:600px}
+.a-so{padding:4px 0 16px;border-bottom:1px solid var(--rule-soft);margin-bottom:16px}
+.a-so .lon{font-size:28px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.a-so .duoi{font-size:13px;color:var(--ash-2)}
+.a-khoi{margin-top:18px}
+.a-khoi h4{font-size:12.5px;font-weight:500;color:var(--ash-2);margin:0 0 6px}
+.a-hang td{padding:8px 0}
+.a-hang td + td{padding-left:12px}
+.a-hang tr:last-child td{border-bottom:0}
+.a-hang .ten{display:block}
+.a-hang .ct{display:block;font-size:12.5px;color:var(--ash-2)}
+
+/* ===== B ===== */
+.b-modal{max-width:1000px;background:var(--paper)}
+.b-modal .mh{background:var(--canvas);padding-bottom:14px;border-bottom:1px solid var(--rule-soft);border-radius:14px 14px 0 0}
+.b-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;padding:16px 22px 20px}
+.card{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px}
+.card + .card{margin-top:14px}
+.card h4{font-size:13px;font-weight:500;margin:0;padding:12px 16px;border-bottom:1px solid var(--rule-hair)}
+.card .in{padding:12px 16px}
+.b-tong{display:grid;gap:0;padding:6px 16px 12px;font-size:13.5px}
+.b-tong div{display:flex;justify-content:space-between;padding:4px 0}
+.b-tong div span:last-child{font-variant-numeric:tabular-nums}
+.b-tong .cuoi{border-top:1px solid var(--rule-soft);margin-top:6px;padding-top:10px;font-size:15px}
+.b-tong .cuoi span:last-child{font-weight:500}
+.tl{list-style:none;margin:0;padding:4px 16px 12px}
+.tl li{position:relative;padding:8px 0 8px 18px;display:flex;gap:12px;font-size:13.5px}
+.tl li::before{content:"";position:absolute;left:3px;top:15px;width:7px;height:7px;border-radius:50%;background:var(--ash-3)}
+.tl li::after{content:"";position:absolute;left:6px;top:24px;bottom:-8px;width:1px;background:var(--rule-soft)}
+.tl li:last-child::after{display:none}
+.tl .ng{color:var(--ash-2);width:84px;flex:none;font-variant-numeric:tabular-nums}
+.tl .tx{flex:1}
+.tl .tx + span{font-variant-numeric:tabular-nums;white-space:nowrap}
+.b-con{padding:14px 16px}
+.b-con .nhan{font-size:12.5px;color:var(--ash-2)}
+.b-con .lon{font-size:24px;font-weight:500;font-variant-numeric:tabular-nums;margin:2px 0 12px}
+.b-con .btn{width:100%;justify-content:center}
+
+/* ===== C ===== */
+.c-stage{position:relative;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:14px;overflow:hidden;min-height:640px}
+.c-ds{padding:16px 18px;opacity:.55}
+.c-ds .the{display:flex;gap:6px;margin-bottom:12px}
+.c-ds .the span{height:30px;padding:0 12px;border-radius:7px;display:inline-flex;align-items:center;font-size:13px;color:var(--ash);border:1px solid var(--rule-soft)}
+.c-ds .the span.on{background:var(--charcoal);color:#fff;border-color:var(--charcoal)}
+.c-ds tr.chon td{background:var(--sky-soft)}
+.c-ngan{position:absolute;top:0;right:0;bottom:0;width:480px;background:var(--canvas);box-shadow:-10px 0 30px rgba(15,23,42,.14);display:flex;flex-direction:column}
+.c-ngan .keo{position:absolute;left:0;top:0;bottom:0;width:5px;cursor:ew-resize}
+.c-ngan .keo:hover{background:var(--rule)}
+.c-top{padding:16px 20px 10px}
+.c-top .t{font-size:17px;font-weight:500;display:flex;align-items:center;gap:8px}
+.c-top .meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ash-2);margin-top:6px}
+.c-than{flex:1;overflow:auto;padding:0 14px 14px}
+.c-muc{border-radius:10px;margin-top:10px}
+.c-muc > .h{display:flex;align-items:center;justify-content:space-between;background:var(--rule-hair);border-radius:8px;padding:7px 12px;font-size:13px;color:var(--ash);cursor:pointer}
+.c-muc > .h em{font-style:normal;color:var(--ash-3)}
+.c-muc .in{padding:8px 8px 4px}
+.c-hang{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:13.5px}
+.c-hang .ct{display:block;font-size:12.5px;color:var(--ash-2)}
+.c-hang > span:last-child{font-variant-numeric:tabular-nums;white-space:nowrap}
+.c-chan{display:flex;gap:10px;align-items:center;padding:12px 20px;border-top:1px solid var(--rule-soft)}
+.c-chan .lk{margin-right:auto}
+
+.note{margin-top:14px;padding:12px 14px;border:1px dashed var(--rule);border-radius:10px;background:var(--canvas);font-size:13px;color:var(--ash);max-width:900px}
+.note ul{margin:4px 0 0;padding-left:18px}
+
+@media (max-width:820px){
+  .ref{grid-template-columns:1fr}
+  .b-grid{grid-template-columns:1fr}
+  .c-ngan{width:100%}
+  .kv{grid-template-columns:96px 1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Chi tiết một khoản chờ thu, chờ chi</h1>
+<div class="lead">
+  Bấm vào một dòng ở <span>Mua hàng chờ chi</span> (Phiếu chi) hoặc <span>Đơn hàng chờ thu</span> (Phiếu thu) đều mở cùng một khuôn chi tiết. Khuôn đó trả lời ba câu: khoản này là gì, gồm hàng gì, vì sao còn đúng số tiền này.
+  <ul>
+    <li>Đã đọc: popup hiện tại của Mua hàng chờ chi (<code>HangChoMuaHang.tsx</code>), hàng chờ thu (<code>HangChoThuDon.tsx</code>) và dữ liệu dev svn_erp_trong (chỉ đọc).</li>
+    <li>Số trong mockup là số thật: đợt 1 đơn DMH-261017-YZ4M của Giấy An Phát, hoá đơn 0000124 đơn DH002 của BIBICA.</li>
+    <li>Mỗi phương án bám đúng một ảnh tham khảo dưới đây.</li>
+  </ul>
+</div>
+
+<div class="ref">
+  <figure>
+    <img src="tham-khao-chi-tiet-khoan-cho/stripe-trang-hoa-don.png" alt="Stripe trang hoá đơn">
+    <figcaption><span>A. Stripe trang hoá đơn</span>Số tiền còn phải trả to nhất ở đầu, dưới là vài cặp nhãn và giá trị, chi tiết hàng để sau.</figcaption>
+  </figure>
+  <figure>
+    <img src="tham-khao-chi-tiet-khoan-cho/moltin-chi-tiet-hai-cot.jpg" alt="Moltin chi tiết đơn hai cột">
+    <figcaption><span>B. Moltin chi tiết đơn</span>Cột trái là hàng và tổng tiền rồi lịch sử, cột phải hẹp là thông tin đối tác và nút việc.</figcaption>
+  </figure>
+  <figure>
+    <img src="tham-khao-chi-tiet-khoan-cho/lemonsqueezy-ngan-don-ben-phai.jpg" alt="Lemon Squeezy ngăn đơn bên phải">
+    <figcaption><span>C. Lemon Squeezy ngăn đơn</span>Danh sách vẫn thấy bên trái, ngăn phải chia mục gập được: tóm tắt, hàng, khách, dòng thời gian.</figcaption>
+  </figure>
+</div>
+
+<div class="switch">
+  <button class="on" data-o="a">A. Popup gọn kiểu Stripe</button>
+  <button data-o="b">B. Popup rộng hai cột</button>
+  <button data-o="c">C. Ngăn bên phải</button>
+</div>
+
+<!-- ===================== A ===================== -->
+<section class="opt on" id="o-a">
+  <div class="opt-head"><h2>A. Popup gọn, số còn phải thu chi ở đầu</h2><span class="src">theo Stripe trang hoá đơn</span></div>
+  <div class="why">
+    Mở ra là thấy ngay số còn phải chi hay thu và hạn. Dưới đó là thông tin khoản theo cặp nhãn, bảng hàng, rồi phép tính từ giá trị khoản xuống còn lại, mỗi phiếu một dòng có mã.
+    <ul>
+      <li>Hợp khi kế toán chỉ cần soát nhanh rồi bấm Lập phiếu.</li>
+      <li>Rộng 600px, dài theo số dòng hàng. Đơn nhiều hàng thì popup cuộn dọc.</li>
+    </ul>
+  </div>
+
+  <div class="cap">Mua hàng chờ chi, bấm dòng Đợt 1</div>
+  <div class="stage">
+    <div class="modal a-modal">
+      <div class="mh">
+        <div><div class="t">Đợt 1 đơn DMH-261017-YZ4M</div><div class="s">Công ty TNHH Thương mại Giấy An Phát</div></div>
+        <span class="x">✕</span>
+      </div>
+      <div class="mb">
+        <div class="a-so">
+          <div class="lon">19.610 đ</div>
+          <div class="duoi">Còn phải chi, hạn 20/11/2026</div>
+        </div>
+        <dl class="kv">
+          <dt>Ngày giao</dt><dd>17/10/2026</dd>
+          <dt>Hoá đơn</dt><dd>TEST 23 ngày 17/10/2026</dd>
+          <dt>Đơn mua</dt><dd><span class="lk">DMH-261017-YZ4M</span> <span class="mu">giao 2 đợt</span></dd>
+        </dl>
+
+        <div class="a-khoi">
+          <h4>Hàng của đợt</h4>
+          <table class="a-hang">
+            <tbody>
+              <tr>
+                <td><span class="ten">GIẤY IVORY 210--230-250GSM 790×1090</span><span class="ct">25 tờ × 4.430 đ VAT 8%</span></td>
+                <td class="n">119.610 đ</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="a-khoi">
+          <h4>Tiền</h4>
+          <div class="tinh">
+            <div><span>Giá trị đợt</span><span>119.610 đ</span></div>
+            <div class="phu"><span>Trừ cọc đã chi của đơn</span><span>−100.000 đ</span></div>
+            <div class="phu"><span>Đã chi cho đợt</span><span>0 đ</span></div>
+            <div class="gach con"><span>Còn phải chi</span><span>19.610 đ</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mf"><span class="lk">Xem đơn đầy đủ</span><button class="btn btn--pri">Lập phiếu chi</button></div>
+    </div>
+  </div>
+
+  <div class="cap">Đơn hàng chờ thu, bấm dòng HĐ 0000124</div>
+  <div class="stage">
+    <div class="modal a-modal">
+      <div class="mh">
+        <div><div class="t">Hoá đơn 0000124 đơn DH002</div><div class="s">Công ty Cổ phần BIBICA</div></div>
+        <span class="x">✕</span>
+      </div>
+      <div class="mb">
+        <div class="a-so">
+          <div class="lon">18.471.796 đ</div>
+          <div class="duoi">Còn phải thu, chưa đặt hạn</div>
+        </div>
+        <dl class="kv">
+          <dt>Hoá đơn</dt><dd>1C26TSV 0000124 ngày 06/10/2026</dd>
+          <dt>Đơn bán</dt><dd><span class="lk">DH002</span></dd>
+        </dl>
+
+        <div class="a-khoi">
+          <h4>Hàng trên hoá đơn</h4>
+          <table class="a-hang">
+            <tbody>
+              <tr><td><span class="ten">Ruột sách A5 64 trang</span><span class="ct">1.000 cuốn × 21.538 đ VAT 10%</span></td><td class="n">23.691.579 đ</td></tr>
+              <tr><td><span class="ten">Bìa sách A5</span><span class="ct">1.000 cuốn × 2.957 đ VAT 10%</span></td><td class="n">3.252.217 đ</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="a-khoi">
+          <h4>Tiền</h4>
+          <div class="tinh">
+            <div><span>Giá trị hoá đơn</span><span>26.943.796 đ</span></div>
+            <div class="phu"><span>Trả lại khách ngoài đơn</span><span>+5.000.000 đ</span></div>
+            <div class="phu"><span>PT00006 ngày 07/10/2026</span><span>−13.472.000 đ</span></div>
+            <div class="gach con"><span>Còn phải thu</span><span>18.471.796 đ</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="mf"><span class="lk">Xem đơn đầy đủ</span><button class="btn btn--pri">Lập phiếu thu</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== B ===================== -->
+<section class="opt" id="o-b">
+  <div class="opt-head"><h2>B. Popup rộng hai cột, có lịch sử</h2><span class="src">theo Moltin chi tiết đơn</span></div>
+  <div class="why">
+    Cột trái là bảng hàng đủ cột (SL, ĐVT, đơn giá, VAT, thành tiền) với tổng ở chân, dưới là lịch sử khoản theo ngày. Cột phải là thông tin khoản và ô số còn phải thu chi kèm nút.
+    <ul>
+      <li>Hợp khi hay phải đối chiếu từng dòng hàng với hoá đơn giấy, hoặc cần biết tiền đã đi qua những phiếu nào vào ngày nào.</li>
+      <li>Rộng 1000px nên màn 1366 vẫn vừa, điện thoại thì hai cột xếp chồng.</li>
+    </ul>
+  </div>
+
+  <div class="cap">Mua hàng chờ chi, bấm dòng Đợt 1</div>
+  <div class="stage">
+    <div class="modal b-modal">
+      <div class="mh">
+        <div><div class="t">Đợt 1 đơn DMH-261017-YZ4M <span class="tag tag--dot">Đợt 1</span></div><div class="s">Công ty TNHH Thương mại Giấy An Phát</div></div>
+        <span class="x">✕</span>
+      </div>
+      <div class="b-grid">
+        <div>
+          <div class="card">
+            <h4>Hàng của đợt</h4>
+            <table>
+              <thead><tr><th style="padding-left:16px">Hàng</th><th class="n">SL</th><th>ĐVT</th><th class="n">Đơn giá</th><th class="n">VAT</th><th class="n" style="padding-right:16px">Thành tiền</th></tr></thead>
+              <tbody>
+                <tr><td style="padding-left:16px">GIẤY IVORY 210--230-250GSM 790×1090</td><td class="n">25</td><td>tờ</td><td class="n">4.430</td><td class="n">8%</td><td class="n" style="padding-right:16px">110.750</td></tr>
+              </tbody>
+            </table>
+            <div class="b-tong">
+              <div><span class="mu">Cộng tiền hàng</span><span>110.750 đ</span></div>
+              <div><span class="mu">VAT</span><span>8.860 đ</span></div>
+              <div class="cuoi"><span>Giá trị đợt</span><span>119.610 đ</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4>Lịch sử</h4>
+            <ul class="tl">
+              <li><span class="ng">17/10/2026</span><span class="tx">Phiếu chi cọc PC00030</span><span>100.000 đ</span></li>
+              <li><span class="ng">17/10/2026</span><span class="tx">Nhận hàng đợt 1</span><span>119.610 đ</span></li>
+              <li><span class="ng">17/10/2026</span><span class="tx">Ghi hoá đơn TEST 23, cọc trừ vào đợt</span><span>−100.000 đ</span></li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="card b-con">
+            <div class="nhan">Còn phải chi</div>
+            <div class="lon">19.610 đ</div>
+            <button class="btn btn--pri">Lập phiếu chi</button>
+          </div>
+          <div class="card">
+            <h4>Thông tin</h4>
+            <div class="in">
+              <dl class="kv" style="grid-template-columns:84px 1fr">
+                <dt>Hạn chi</dt><dd>20/11/2026</dd>
+                <dt>Ngày giao</dt><dd>17/10/2026</dd>
+                <dt>Hoá đơn</dt><dd>TEST 23<br><span class="mu">ngày 17/10/2026</span></dd>
+                <dt>Đơn mua</dt><dd><span class="lk">DMH-261017-YZ4M</span></dd>
+                <dt>Cả đơn</dt><dd>598.050 đ<br><span class="mu">đã chi 100.000 đ</span></dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap">Đơn hàng chờ thu, bấm dòng HĐ 0000124</div>
+  <div class="stage">
+    <div class="modal b-modal">
+      <div class="mh">
+        <div><div class="t">Hoá đơn 0000124 đơn DH002 <span class="tag tag--hd">Hoá đơn</span></div><div class="s">Công ty Cổ phần BIBICA</div></div>
+        <span class="x">✕</span>
+      </div>
+      <div class="b-grid">
+        <div>
+          <div class="card">
+            <h4>Hàng trên hoá đơn</h4>
+            <table>
+              <thead><tr><th style="padding-left:16px">Hàng</th><th class="n">SL</th><th>ĐVT</th><th class="n">Đơn giá</th><th class="n">VAT</th><th class="n" style="padding-right:16px">Thành tiền</th></tr></thead>
+              <tbody>
+                <tr><td style="padding-left:16px">Ruột sách A5 64 trang</td><td class="n">1.000</td><td>cuốn</td><td class="n">21.538</td><td class="n">10%</td><td class="n" style="padding-right:16px">21.537.799</td></tr>
+                <tr><td style="padding-left:16px">Bìa sách A5</td><td class="n">1.000</td><td>cuốn</td><td class="n">2.957</td><td class="n">10%</td><td class="n" style="padding-right:16px">2.956.561</td></tr>
+              </tbody>
+            </table>
+            <div class="b-tong">
+              <div><span class="mu">Cộng tiền hàng</span><span>24.494.360 đ</span></div>
+              <div><span class="mu">VAT</span><span>2.449.436 đ</span></div>
+              <div class="cuoi"><span>Giá trị hoá đơn</span><span>26.943.796 đ</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h4>Lịch sử</h4>
+            <ul class="tl">
+              <li><span class="ng">06/10/2026</span><span class="tx">Ghi hoá đơn 1C26TSV 0000124</span><span>26.943.796 đ</span></li>
+              <li><span class="ng">07/10/2026</span><span class="tx">Phiếu thu PT00006</span><span>−13.472.000 đ</span></li>
+              <li><span class="ng mu">ngoài đơn</span><span class="tx">Trả lại khách ngoài đơn, cộng nợ lại vào hoá đơn này</span><span>+5.000.000 đ</span></li>
+            </ul>
+          </div>
+        </div>
+        <div>
+          <div class="card b-con">
+            <div class="nhan">Còn phải thu</div>
+            <div class="lon">18.471.796 đ</div>
+            <button class="btn btn--pri">Lập phiếu thu</button>
+          </div>
+          <div class="card">
+            <h4>Thông tin</h4>
+            <div class="in">
+              <dl class="kv" style="grid-template-columns:84px 1fr">
+                <dt>Hạn thu</dt><dd class="mu">chưa đặt hạn</dd>
+                <dt>Hoá đơn</dt><dd>1C26TSV 0000124<br><span class="mu">ngày 06/10/2026</span></dd>
+                <dt>Đơn bán</dt><dd><span class="lk">DH002</span></dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== C ===================== -->
+<section class="opt" id="o-c">
+  <div class="opt-head"><h2>C. Ngăn bên phải, danh sách vẫn thấy</h2><span class="src">theo Lemon Squeezy ngăn đơn</span></div>
+  <div class="why">
+    Bấm dòng thì ngăn mở bên phải, bấm dòng khác thì ngăn đổi nội dung mà không phải đóng. Ngăn chia mục gập được: Hàng, Tiền, Lịch sử. Kéo mép trái để rộng ra như ngăn Công nợ.
+    <ul>
+      <li>Hợp khi soát lần lượt nhiều khoản liền nhau.</li>
+      <li>Ngăn che phần phải của bảng nên cột Còn phải thu chi và nút trên dòng bị khuất khi ngăn mở, phải bấm Lập phiếu trong ngăn.</li>
+    </ul>
+  </div>
+
+  <div class="cap">Đơn hàng chờ thu, đang mở HĐ 0000124 (Mua hàng chờ chi dùng cùng khuôn)</div>
+  <div class="c-stage">
+    <div class="c-ds">
+      <div class="the"><span>Tất cả</span><span>Đã thu</span><span class="on">Đơn hàng chờ thu 6</span></div>
+      <table>
+        <thead><tr><th>Khách hàng</th><th>Khoản</th><th>Nguồn</th><th>Hạn thu</th><th class="n">Phải thu</th><th class="n">Còn</th></tr></thead>
+        <tbody>
+          <tr class="chon"><td>Công ty Cổ phần BIBICA</td><td><span class="tag tag--hd">Hoá đơn</span></td><td>HĐ 0000124 <span class="mu">đơn</span> DH002</td><td class="mu">chưa đặt hạn</td><td class="n">26.943.796</td><td class="n">18.471.796</td></tr>
+          <tr><td>Công ty Cổ phần Cao Lợi Hưng Việt Nam</td><td><span class="tag tag--hd">Hoá đơn</span></td><td>HĐ 123 <span class="mu">đơn</span> DH001</td><td>05/11/2026</td><td class="n">8.460.973</td><td class="n">7.460.973</td></tr>
+          <tr><td>Công ty Cổ phần Café Katinat</td><td><span class="tag tag--hd">Hoá đơn</span></td><td>HĐ 0000126 <span class="mu">đơn</span> DH004</td><td class="mu">chưa đặt hạn</td><td class="n">5.748.989</td><td class="n">1.798.989</td></tr>
+          <tr><td>Công ty Cổ phần Café Katinat</td><td><span class="tag tag--hd">Hoá đơn</span></td><td>HĐ 12 <span class="mu">đơn</span> DH007</td><td class="mu">chưa đặt hạn</td><td class="n">…</td><td class="n">…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <aside class="c-ngan">
+      <span class="keo" title="Kéo để đổi độ rộng"></span>
+      <div class="c-top">
+        <div class="t">Hoá đơn 0000124 đơn DH002<span class="x" style="margin-left:auto">✕</span></div>
+        <div class="meta"><span>Công ty Cổ phần BIBICA</span><span>ngày 06/10/2026</span><span>chưa đặt hạn</span></div>
+      </div>
+      <div class="c-than">
+        <div class="c-muc">
+          <div class="h"><span>Hàng trên hoá đơn</span><em>⌃</em></div>
+          <div class="in">
+            <div class="c-hang"><span>Ruột sách A5 64 trang<span class="ct">1.000 cuốn × 21.538 đ VAT 10%</span></span><span>23.691.579 đ</span></div>
+            <div class="c-hang"><span>Bìa sách A5<span class="ct">1.000 cuốn × 2.957 đ VAT 10%</span></span><span>3.252.217 đ</span></div>
+          </div>
+        </div>
+        <div class="c-muc">
+          <div class="h"><span>Tiền</span><em>⌃</em></div>
+          <div class="in tinh">
+            <div><span>Giá trị hoá đơn</span><span>26.943.796 đ</span></div>
+            <div class="phu"><span>Trả lại khách ngoài đơn</span><span>+5.000.000 đ</span></div>
+            <div class="phu"><span>PT00006 ngày 07/10/2026</span><span>−13.472.000 đ</span></div>
+            <div class="gach con"><span>Còn phải thu</span><span>18.471.796 đ</span></div>
+          </div>
+        </div>
+        <div class="c-muc">
+          <div class="h"><span>Lịch sử</span><em>⌄</em></div>
+        </div>
+      </div>
+      <div class="c-chan"><span class="lk">Xem đơn đầy đủ</span><button class="btn btn--pri">Lập phiếu thu</button></div>
+    </aside>
+  </div>
+</section>
+
+<div class="note">
+  Chung cho cả ba phương án:
+  <ul>
+    <li>Khoản cọc dùng cùng khuôn: phần hàng là hàng đã đặt của đơn, phần tiền là cọc phải trả hoặc phải thu, trừ từng phiếu cọc đã có, còn thiếu.</li>
+    <li>Phía thu cần máy chủ trả thêm: hàng trên hoá đơn (theo lượt giao nếu hoá đơn gắn lượt, không thì theo dòng đơn) và danh sách phiếu thu của hoá đơn có mã, ngày, số tiền. Hàng chờ thu hiện chỉ có tổng.</li>
+    <li>Đơn giá trên hàng bán là giá đã làm tròn lưu trong đơn, nên đơn giá nhân SL có thể lệch vài trăm đồng so với thành tiền. Thành tiền lấy đúng số đã lưu.</li>
+  </ul>
+</div>
+</div>
+<script>
+document.querySelectorAll('.switch button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.switch button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o.id==='o-'+b.dataset.o));
+}));
+</script>
+</body>
+</html>

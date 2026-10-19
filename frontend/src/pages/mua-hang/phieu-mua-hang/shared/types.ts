@@ -44,9 +44,9 @@ export type FormLine = PurchaseRequestLineInput & {
   yeu_cau_ma?: string | null;
   loai_mua?: LoaiMua | null;
   mua_cho?: MuaChoLenh[];
-  /** Chỉ để HIỆN (không gửi): dòng vừa đổi ĐVT vì chọn NCC bán khác họ đơn vị — nhắc gõ lại số
-   *  lượng. Gõ số lượng là tắt. */
-  doi_don_vi?: boolean;
+  /** Chỉ để HIỆN (không gửi): số lượng + ĐVT bộ phận đề nghị, giữ lại khi dòng đổi ĐVT vì chọn
+   *  NCC bán khác họ đơn vị — số lượng bị xoá, người lập nhìn số gốc này mà quy đổi. Vắng = chưa đổi. */
+  de_nghi?: { so: number; unit: string } | null;
 };
 
 /** Dòng có vào đơn đang lập không (vắng cờ = có). */

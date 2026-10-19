@@ -18,6 +18,7 @@ class OrderLineOut(BaseModel):
     unit_price_snapshot: int | None
     vat_pct_estimate: int
     line_total: int | None
+    chiet_khau: int | None = None            # tiền chiết khấu nằm trong line_total (hoàn lại khách)
     cost_snapshot: int | None
     phieu_thanh_phan_id: int | None = None   # pin truy vết ấn phẩm (từ dòng báo giá nguồn)
     nhom: str | None = None                  # nhãn gộp dòng khi IN xác nhận đơn (khớp báo giá)
@@ -67,6 +68,9 @@ class OrderDepositReceiptOut(BaseModel):
     status: str
     receipt_date: date | None = None
     created_at: datetime
+    #: Phiếu gộp nhiều chứng từ (17/10/2026): `amount` là phần cọc của đơn này, `tong_phieu` cả phiếu.
+    gop: bool = False
+    tong_phieu: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -178,6 +182,10 @@ class OrderRow(BaseModel):
     # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.
     # Lên dòng danh sách từ 13/10/2026 để cột Cọc của đơn huỷ nói "Còn giữ … / Đã trả lại".
     deposit_refunded: int = 0
+    # Đơn đã huỷ (17/10/2026): tiền khách đã đưa = cọc + tiền đã thu của hoá đơn đã huỷ; còn giữ =
+    # phần chưa trả lại — cùng số hàng "Chờ trả lại khách" của Phiếu chi. Đơn chưa huỷ để 0.
+    tien_khach_da_nhan: int = 0
+    tien_khach_con_giu: int = 0
     delivery_committed_date: date | None
     sale_user_id: int | None
     sale_name: str | None

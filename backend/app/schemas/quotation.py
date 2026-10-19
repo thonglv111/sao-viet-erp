@@ -13,6 +13,8 @@ class QuoteItemUpdate(BaseModel):
     manual_unit_price: float | None = None
     discount_amount: float = Field(default=0.0)
     discount_percent: float = Field(default=0.0)
+    # Lợi nhuận gõ THẲNG bằng số tiền (tab "Số" của ô Markup); có thì thắng `margin_percent`.
+    profit_amount: float | None = None
     vat_percent: float = Field(default=10.0)
     rounding: str = Field(default="no_rounding")
     note: str | None = None

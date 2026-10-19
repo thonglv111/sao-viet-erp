@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import type { HangLoaiBuoc } from "../api/client";
 import type { Row } from "../api/rebuildCatalog";
 import { HoverTip } from "../components/HoverTip";
 import { Select } from "../components/Select";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 
-export interface BuocVatTuDong { uid: string; vat_tu_id: number; gia_tri_chip: Record<string, number> }
+/** Một dòng vật tư của bước. `hang_loai = "giay"` (18/10/2026): giấy chọn ngay ở bước như mọi vật
+ *  tư, `vat_tu_id` khi đó trỏ danh mục Giấy — hai danh mục đánh id riêng nên mọi chỗ tra/ghép phải
+ *  đi theo CẶP (`khoaVatTu`), không theo id trần. */
+export interface BuocVatTuDong {
+  uid: string; hang_loai: HangLoaiBuoc; vat_tu_id: number; gia_tri_chip: Record<string, number>;
+}
 export interface Chip { ma: string; ten: string; don_vi?: string | null }
 
+/** Khoá ghép một dòng với danh mục / định mức: "giay:12", "vat_tu:12". */
+export const khoaVatTu = (hang: HangLoaiBuoc, id: number) => `${hang}:${id}`;
 export const chipsCua = (vt: Row | undefined): Chip[] =>
   Array.isArray(vt?.chips) ? (vt!.chips as Chip[]) : [];
 
@@ -39,6 +47,7 @@ export function nhanNgan(tenChip: string, tenVatTu: string): string {
 export function soOChipTrong(dong: BuocVatTuDong[], vatTuDm: Row[]): number {
   let n = 0;
   for (const d of dong) {
+    if (d.hang_loai !== "vat_tu") continue;   // giấy không có chip
     const vt = vatTuDm.find((v) => v.id === d.vat_tu_id);
     for (const c of chipsCua(vt)) if (d.gia_tri_chip[c.ma] === undefined) n++;
   }
@@ -96,6 +105,17 @@ export interface DinhMuc {
    *  bằng từ điển biến + chip của vật tư, cùng cách dòng tiền ở bảng giá vốn. Rỗng = không có. */
   dienGiai?: string;
   thaySo?: string;
+  /** Khổ giấy của dòng (18/10/2026): tờ in ⇒ khổ in, tờ nguyên ⇒ khổ nguyên, con/cái ⇒ khổ thành
+   *  phẩm; bước đầu vào "—" không có. Dạng "430 × 650 mm". */
+  kho?: string;
+}
+
+/** "430 × 650 mm" từ hai cạnh mm (cạnh ngắn trước); thiếu cạnh ⇒ rỗng. */
+export function nhanKhoGiay(a: unknown, b: unknown): string {
+  const x = Math.round(Number(a) || 0);
+  const y = Math.round(Number(b) || 0);
+  if (x <= 0 || y <= 0) return "";
+  return `${Math.min(x, y).toLocaleString("vi-VN")} × ${Math.max(x, y).toLocaleString("vi-VN")} mm`;
 }
 
 /** Số định mức kiểu Việt: lượng dưới 1 giữ 4 chữ số lẻ để không thành 0 (0,0012 kg), còn lại 2
@@ -156,15 +176,29 @@ interface Props {
   vatTuDm: Row[];
   onChange: (next: BuocVatTuDong[]) => void;
   taoUid: () => string;
-  /** Định mức theo `vat_tu_id` của CHÍNH bước này. Vắng (chưa có kết quả tính) ⇒ hiện gạch. */
-  dinhMuc?: Map<number, DinhMuc>;
+  /** Danh mục Giấy — giấy thêm vào bước được như vật tư (engine tính tiền theo công thức của giấy,
+   *  lệnh sản xuất nhận đúng số tờ của bước). */
+  giayDm?: Row[];
+  /** Định mức theo `khoaVatTu` của CHÍNH bước này. Vắng (chưa có kết quả tính) ⇒ hiện gạch. */
+  dinhMuc?: Map<string, DinhMuc>;
 }
 
-export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, dinhMuc }: Props) {
+export default function BuocVatTu({ tenBuoc, dong, vatTuDm, giayDm = [], onChange, taoUid, dinhMuc }: Props) {
   useNapTenDonVi();   // đơn vị hiện bằng TÊN trong danh mục, không in mã trần
   // Dựng một lần theo danh mục — danh mục đứng yên trong khi người dùng gõ chip, mỗi nhịp gõ chỉ `dong` đổi.
-  const tra = useMemo(() => new Map(vatTuDm.map((v) => [v.id, v])), [vatTuDm]);
-  const chuaCo = vatTuDm.filter((v) => !dong.some((d) => d.vat_tu_id === v.id));
+  const tra = useMemo(() => new Map<string, Row>([
+    ...giayDm.map((g) => [khoaVatTu("giay", g.id), g] as const),
+    ...vatTuDm.map((v) => [khoaVatTu("vat_tu", v.id), v] as const),
+  ]), [vatTuDm, giayDm]);
+  const daCo = new Set(dong.map((d) => khoaVatTu(d.hang_loai, d.vat_tu_id)));
+  // Ô thêm chia hai nhóm: giấy đứng đầu (bước nào cũng chọn được), sau là vật tư. Giấy ngừng dùng
+  // không mời thêm; dòng đang dùng thì vẫn hiện tên ở danh sách bên trên.
+  const luaChon = [
+    ...giayDm.filter((g) => g.active !== false && !daCo.has(khoaVatTu("giay", g.id)))
+      .map((g) => ({ value: khoaVatTu("giay", g.id), label: String(g.ten), group: "Giấy" })),
+    ...vatTuDm.filter((v) => !daCo.has(khoaVatTu("vat_tu", v.id)))
+      .map((v) => ({ value: khoaVatTu("vat_tu", v.id), label: String(v.ten), group: "Vật tư" })),
+  ];
 
   const setChip = (i: number, ma: string, raw: string) =>
     onChange(dong.map((d, j) => {
@@ -178,7 +212,7 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
     <button
       type="button"
       className="tg-bvt__xoa"
-      aria-label={`Xóa vật tư ${ten}`}
+      aria-label={`Xóa ${ten}`}
       title="Bỏ vật tư khỏi bước này"
       onClick={() => onChange(dong.filter((_, j) => j !== i))}
     >
@@ -188,18 +222,21 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
 
   // Cột LƯỢNG bên phải mọi hàng (04/10/2026): số định mức engine tính + đơn vị, thẳng cột giữa các
   // vật tư. Chưa tính ra thì gạch, rê chuột đọc lý do — không bịa số.
-  const oLuong = (vatTuId: number, dvDm: string, ten: string) => (
-    <OLuong ten={ten} dm={dinhMuc?.get(vatTuId)} dvMacDinh={dvDm} />
+  const oLuong = (khoa: string, dvDm: string, ten: string) => (
+    <OLuong ten={ten} dm={dinhMuc?.get(khoa)} dvMacDinh={dvDm} />
   );
 
   // Danh sách GỌN (thiết kế B, 04/10/2026): mỗi vật tư một hàng [tên, lượng + đơn vị, ×]. Vật tư có
   // chip đứng trước, ô chip nằm ở dòng dưới của chính hàng đó, dồn về mép phải. Cuối cùng là ô nét
   // đứt "+ Thêm vật tư".
   const ds = dong.map((d, i) => {
-    const vt = tra.get(d.vat_tu_id);
-    const ten = vt ? String(vt.ten) : `Vật tư #${d.vat_tu_id} (đã ngừng dùng)`;
+    const khoa = khoaVatTu(d.hang_loai, d.vat_tu_id);
+    const vt = tra.get(khoa);
+    const loai = d.hang_loai === "giay" ? "Giấy" : "Vật tư";
+    const ten = vt ? String(vt.ten) : `${loai} #${d.vat_tu_id} (đã ngừng dùng)`;
     const dv = vt?.don_vi_gia ? (tenDonVi(String(vt.don_vi_gia)) ?? "") : "";
-    return { d, i, ten, dv, chips: chipsCua(vt) };
+    const kho = d.hang_loai === "giay" ? (dinhMuc?.get(khoa)?.kho ?? "") : "";
+    return { d, i, khoa, ten, dv, kho, chips: d.hang_loai === "giay" ? [] : chipsCua(vt) };
   });
   const sapXep = [...ds.filter((x) => x.chips.length > 0), ...ds.filter((x) => x.chips.length === 0)];
 
@@ -209,11 +246,11 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
         <p className="tg-bvt__rong">Chưa có vật tư.</p>
       ) : (
         <ul className="tg-bvt__ds">
-          {sapXep.map(({ d, i, ten, dv, chips }) =>
+          {sapXep.map(({ d, i, khoa, ten, dv, kho, chips }) =>
             chips.length > 0 ? (
               <li className="tg-bvt__dong tg-bvt__dong--chip" key={d.uid}>
                 <span className="tg-bvt__ten" title={ten}>{ten}</span>
-                {oLuong(d.vat_tu_id, dv, ten)}
+                {oLuong(khoa, dv, ten)}
                 {nutXoa(i, ten)}
                 <div className="tg-bvt__luoi">
                   {chips.map((c) => (
@@ -230,22 +267,28 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, di
               </li>
             ) : (
               <li className="tg-bvt__dong" key={d.uid}>
-                <span className="tg-bvt__ten" title={ten}>{ten}</span>
-                {oLuong(d.vat_tu_id, dv, ten)}
+                <span className="tg-bvt__ten" title={kho ? `${ten}
+Khổ ${kho}` : ten}>
+                  {ten}
+                  {kho ? <span className="tg-bvt__kho">{kho}</span> : null}
+                </span>
+                {oLuong(khoa, dv, ten)}
                 {nutXoa(i, ten)}
               </li>
             ),
           )}
         </ul>
       )}
-      {chuaCo.length > 0 && (
+      {luaChon.length > 0 && (
         <Select
-          options={chuaCo.map((v) => ({ value: String(v.id), label: String(v.ten) }))}
+          options={luaChon}
           value=""
           placeholder="+ Thêm vật tư — gõ tên…"
           onChange={(v) => {
-            const id = Number(v);
-            if (id) onChange([...dong, { uid: taoUid(), vat_tu_id: id, gia_tri_chip: {} }]);
+            const [hang, so] = String(v).split(":");
+            const id = Number(so);
+            if (id && (hang === "giay" || hang === "vat_tu"))
+              onChange([...dong, { uid: taoUid(), hang_loai: hang, vat_tu_id: id, gia_tri_chip: {} }]);
           }}
           ariaLabel={`Thêm vật tư vào bước ${tenBuoc}`}
           searchable

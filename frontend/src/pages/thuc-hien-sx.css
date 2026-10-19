@@ -2026,7 +2026,11 @@
  * Cả tab cuộn MỘT khối (bộ lọc + tổng trôi đi theo), không còn khung cuộn con kẹt ở 1/4 dưới màn.
  * Chỉ thanh tìm + nút Kỳ + nút Lọc dính trên đầu (lớp nổi của thanh lọc chung thành tấm sát đáy màn);
  * bảng 8 cột đổi thành thẻ. */
-.thsx-sl--hep { overflow-y: auto; overscroll-behavior: contain; }
+/* Khung này cao THEO NỘI DUNG (không có chiều cao khoá), trang cuộn ở `.shell__content`. Trước đây đặt
+   `overflow-y: auto; overscroll-behavior: contain` ⇒ nó thành khung cuộn rỗng mà chặn không cho cuộn lan ra
+   trang: vuốt trên danh sách thẻ không kéo xuống được (đo 18/10/2026: nội dung 2851px / khung 760px, cuộn
+   không nhúc nhích). Để `visible` thì cuộn tự rơi về trang. */
+.thsx-sl--hep { overflow: visible; }
 .thsx-sl--hep > .thsx-ds__scroll { flex: none; overflow: visible; padding: var(--sp-3); }
 .thsx-sl__loc-gon {
   position: sticky; top: 0; z-index: 3;

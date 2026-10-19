@@ -39,6 +39,35 @@ describe("thông báo lỗi 422", () => {
     expect(e.message).not.toContain("Yêu cầu thất bại");
   });
 
+  // #5 (E2E 18/10/2026): nhập Định lượng giấy bằng 0 thì máy chủ chặn đúng, nhưng người dùng đọc
+  // được nguyên câu tiếng Anh của pydantic "gsm: Input should be greater than 0".
+  it("`greater_than` dịch thành câu tiếng Việt kèm nhãn ô, không còn chữ Anh của pydantic", async () => {
+    const e = await batLoi(422, {
+      detail: [
+        { type: "greater_than", loc: ["body", "gsm"], msg: "Input should be greater than 0", input: 0, ctx: { gt: 0 } },
+      ],
+    });
+    expect(e.message).toBe("Định lượng phải lớn hơn 0");
+    expect(e.message).not.toMatch(/Input should/);
+  });
+
+  it("các loại pydantic thường gặp đều ra câu tiếng Việt; trường lạ giữ tên trường", async () => {
+    const e = await batLoi(422, {
+      detail: [
+        { type: "missing", loc: ["body", "ten"], msg: "Field required" },
+        { type: "less_than_equal", loc: ["body", "gsm"], msg: "Input should be less than or equal to 1000", ctx: { le: 1000 } },
+        { type: "float_parsing", loc: ["body", "don_gia"], msg: "Input should be a valid number, unable to parse string as a number" },
+      ],
+    });
+    expect(e.message).toBe(
+      "Tên không được để trống · Định lượng phải từ 1.000 trở xuống · Đơn giá phải là số",
+    );
+    const la = await batLoi(422, {
+      detail: [{ type: "greater_than_equal", loc: ["body", "nang_suat"], msg: "x", ctx: { ge: 1 } }],
+    });
+    expect(la.message).toBe("nang_suat phải từ 1 trở lên");
+  });
+
   it("gộp nhiều lỗi nhưng CẮT ở 3 — form sai chục ô thì banner dài hơn cả form", async () => {
     const e = await batLoi(422, {
       detail: Array.from({ length: 5 }, (_, i) => ({

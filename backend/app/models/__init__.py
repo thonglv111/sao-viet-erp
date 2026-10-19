@@ -71,10 +71,13 @@ from .purchase import (
 from .accounting import (
     CompanyBankAccount,
     PaymentReceipt,
+    PaymentReceiptLine,
     PaymentReceiptAttachment,
     PaymentVoucher,
     PaymentVoucherAttachment,
+    PaymentVoucherLine,
     SalesInvoice,
+    SalesInvoiceAdjustment,
     SupplierBankAccount,
 )
 from .quotation import (
@@ -226,8 +229,11 @@ __all__ = [
     "SupplierBankAccount",
     "PaymentVoucher",
     "PaymentReceipt",
+    "PaymentReceiptLine",
     "SalesInvoice",
+    "SalesInvoiceAdjustment",
     "PaymentVoucherAttachment",
+    "PaymentVoucherLine",
     "PaymentReceiptAttachment",
     "Machine",
     "MachineRate",

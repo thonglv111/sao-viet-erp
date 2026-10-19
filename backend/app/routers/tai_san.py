@@ -24,6 +24,7 @@ from ..models.department import Department
 from ..models.tai_san import NGUON_DAU_KY, TT_DA_GIAM, TaiSan
 from .catalog_base import ImportExcelLoi, ImportExcelOut
 from ..models.user import User
+from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.tai_san_repo import LocTaiSan, TaiSanRepository
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.tai_san import (
@@ -70,7 +71,7 @@ _XUAT = require_permission(MODULE, "update")
 
 
 def get_service(db: Annotated[Session, Depends(get_db)]) -> TaiSanService:
-    return TaiSanService(TaiSanRepository(db))
+    return TaiSanService(TaiSanRepository(db), AuditLogRepository(db))
 
 
 Service = Annotated[TaiSanService, Depends(get_service)]
@@ -199,6 +200,13 @@ def import_excel(
         )
     except ExcelSaiMan as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None
+    if kq.da_ghi:
+        # Cả file là MỘT giao dịch nên cũng chỉ MỘT dòng tổng kết (từng dòng thì Excel 200 máy ra
+        # 200 dòng nhật ký che mất việc khác). Xem trước (`preview`) không phải việc đã xảy ra.
+        AuditLogRepository(db).create(
+            actor_user_id=user.id, action="tai_san_nhap_excel", target="tai_san",
+            detail=f"Nhập {kq.tao_moi} tài sản đang dùng từ file Excel {file.filename or ''}".strip(),
+        )
     return ImportExcelOut(
         hop_le=not kq.loi, tong_dong=kq.tong_dong, tao_moi=kq.tao_moi, da_ghi=kq.da_ghi,
         loi=[ImportExcelLoi(dong=d, cot=c, ly_do=l) for d, c, l in kq.loi],
@@ -292,20 +300,20 @@ def chi_tiet(
 @router.put("/{tai_san_id}", response_model=TaiSanRow)
 def sua(
     tai_san_id: int, payload: TaiSanSuaIn, db: Db, svc: Service,
-    _: Annotated[User, Depends(_GHI)],
+    user: Annotated[User, Depends(_GHI)],
 ) -> TaiSanRow:
     body = payload.model_dump(exclude_unset=True)
     try:
-        t = svc.sua(tai_san_id, body)
+        t = svc.sua(tai_san_id, body, user_id=user.id)
     except LOI_NGHIEP_VU as e:
         raise _bao_loi(e) from None
     return _dung_rows(db, svc, [t])[0]
 
 
 @router.delete("/{tai_san_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-def xoa(tai_san_id: int, svc: Service, _: Annotated[User, Depends(_XOA)]) -> Response:
+def xoa(tai_san_id: int, svc: Service, user: Annotated[User, Depends(_XOA)]) -> Response:
     try:
-        svc.xoa(tai_san_id)
+        svc.xoa(tai_san_id, user_id=user.id)
     except LOI_NGHIEP_VU as e:
         raise _bao_loi(e) from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -378,11 +386,11 @@ def thoi_dung(
 
 @router.delete("/{tai_san_id}/thoi-dung", response_model=TaiSanRow)
 def bo_thoi_dung(
-    tai_san_id: int, db: Db, svc: Service, _: Annotated[User, Depends(_GHI)]
+    tai_san_id: int, db: Db, svc: Service, user: Annotated[User, Depends(_GHI)]
 ) -> TaiSanRow:
     """Bấm nhầm Thôi dùng ⇒ tài sản về Đang dùng, lịch khấu hao như cũ."""
     try:
-        t = svc.bo_thoi_dung(tai_san_id)
+        t = svc.bo_thoi_dung(tai_san_id, user_id=user.id)
     except LOI_NGHIEP_VU as e:
         raise _bao_loi(e) from None
     return _dung_rows(db, svc, [t])[0]

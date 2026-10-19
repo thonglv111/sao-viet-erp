@@ -1,0 +1,270 @@
+/* ============================================================================
+   ĐIỆN THOẠI — LƯỚI THÀNH THẺ (14/10/2026, docs/thiet-ke-mobile.md §4.1)
+   ----------------------------------------------------------------------------
+   Khung app đánh `data-the` lên mọi bảng danh sách (`lds-g`, `ns__table`… — `BANG_THE` trong
+   components/luoiThe.ts) và gắn `data-nhan` / `data-vai` / `data-trong` cho từng ô. Ở đây biến mỗi
+   `<tr>` thành một thẻ. Bộ chọn `:root:root table[data-the][data-the]` cho đủ nặng để thắng CSS của
+   trang (nạp lười, đến sau):
+
+     ┌──────────────────────────────────────┐
+     │ ☐ DH-2610-0012              ● Đã chốt│  chon · dau · tt
+     │ Công ty CP Gostream                  │  ten
+     │ Ngày chốt                     12/10   │  ô thường: nhãn · giá trị
+     │ Giá trị                  125.400.000  │
+     │                         [Sửa] [Xoá]   │  nut
+     └──────────────────────────────────────┘
+
+   CHỈ trong mốc điện thoại — guard `mobile.test.ts`. Máy lớn giữ lưới như cũ.
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  /* Khung "tờ" bao lưới (viền + nền) — thẻ đã có viền riêng, bỏ để khỏi lồng khung trong khung. */
+  .lds-sheet:has(.lds-cuon.lds-cuon[data-the]) {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+  }
+  .lds-cuon.lds-cuon[data-the],
+  .ns__tablewrap:has(> table[data-the]),
+  :has(> table[data-the]) {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .ns__tablewrap:has(> table[data-the]) {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+  :root:root table[data-the][data-the] {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: auto;
+    border: 0;
+    background: transparent;
+  }
+  :root:root table[data-the][data-the] > colgroup,
+  :root:root table[data-the][data-the] > thead {
+    display: none;
+  }
+  :root:root table[data-the][data-the] > tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 2px 0 6px;
+  }
+  /* Hàng TỔNG (tfoot — "Tổng cộng 23 đơn · 232.375.000 đ…"): cũng thành thẻ, nền nhạt cuối danh sách
+     (trước giữ dạng bảng ⇒ một hàng 1.088px tràn ngang). */
+  :root:root table[data-the][data-the] > tfoot {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 0 6px;
+  }
+  :root:root:root table[data-the][data-the] > tfoot > tr {
+    background: var(--paper, #f8fafc);
+    font-weight: 600;
+  }
+
+
+  /* ---- Thẻ ---------------------------------------------------------------- */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 7px;
+    padding: 13px 14px;
+    background: var(--canvas, #fff);
+    border: 1px solid var(--rule-soft);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    outline: none;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.lds-dong {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.lds-dong:active {
+    transform: scale(0.985);
+    box-shadow: 0 0 0 2px var(--rule-soft);
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.is-tick,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.is-chon {
+    border-color: var(--charcoal, #1f2937);
+    box-shadow: 0 0 0 1px var(--charcoal, #1f2937);
+    outline: none;
+  }
+
+  /* ---- Ô: mặc định là cặp "nhãn · giá trị" trải hết bề ngang ---------------- */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    column-gap: 8px;
+    row-gap: 2px;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    position: static !important;
+    left: auto !important;
+    /* Cột ghim bản máy tính mang z-index — ô là phần tử lưới của thẻ nên z-index VẪN có hiệu lực
+       dù position static, đè lên nút ở ô khác. */
+    z-index: auto !important;
+    transform: none !important;
+    white-space: normal;
+    overflow: visible;
+    text-align: right;
+    font-size: 14px;
+    line-height: 1.4;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-nhan]::before {
+    content: attr(data-nhan);
+    flex: none;
+    margin-right: auto;
+    padding-right: 4px;
+    max-width: 46%;
+    text-align: left;
+    font-size: 13px;
+    color: var(--ash-2);
+    font-weight: 400;
+  }
+  /* Ô chữ dài (`data-dai`, luoiThe.ts): nhãn chiếm trọn dòng trên, chữ bên dưới căn trái. */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-dai] {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-dai][data-nhan]::before {
+    flex-basis: 100%;
+    max-width: none;
+    margin-right: 0;
+  }
+  /* Nội dung trong ô hay khoá một dòng + "…" cho lưới — trên thẻ cho xuống dòng. */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td * {
+    white-space: normal;
+    max-width: 100%;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-trong] {
+    display: none;
+  }
+
+  /* ---- Đầu thẻ: tick · mã · trạng thái ------------------------------------- */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="chon"] {
+    grid-column: 1;
+    grid-row: 1;
+    justify-content: flex-start;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="chon"] input {
+    width: 22px;
+    height: 22px;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td:is([data-vai="dau"], [data-vai="dau-ten"]) {
+    grid-column: 1 / 3;
+    grid-row: 1;
+    justify-content: flex-start;
+    text-align: left;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ash);
+    letter-spacing: 0.01em;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="chon"] ~ td:is([data-vai="dau"], [data-vai="dau-ten"]) {
+    grid-column: 2;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="tt"] {
+    grid-column: 3;
+    grid-row: 1;
+    justify-content: flex-end;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td:is([data-vai="dau"], [data-vai="dau-ten"])::before,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="tt"]::before,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="chon"]::before,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="ten"]::before,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="nut"]::before,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="toan"]::before {
+    content: none;
+  }
+
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="dau-ten"] {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0;
+  }
+
+  /* ---- Tên chính: dòng to dưới mã ------------------------------------------ */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="ten"] {
+    grid-row: 2;
+    justify-content: flex-start;
+    text-align: left;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.35;
+    margin-bottom: 2px;
+  }
+
+  /* ---- Tiền: đậm, số thẳng cột ------------------------------------------- */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="tien"] {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- Chân thẻ: nút thao tác --------------------------------------------- */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="nut"] {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 10px !important;
+    margin-top: 2px;
+    border-top: 1px solid var(--rule-hair) !important;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="nut"] button,
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="nut"] a {
+    min-height: 40px;
+    height: auto !important;
+    padding: 0 14px !important;
+    font-size: 14px !important;
+    border-radius: 10px;
+  }
+
+  /* ---- Dòng gộp: dòng trống / đang tải / Cộng ------------------------------ */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr > td[data-vai="toan"] {
+    justify-content: center;
+    text-align: center;
+    color: var(--ash-2);
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr:has(> td.lds-trong) {
+    border-style: dashed;
+    box-shadow: none;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.lds-cong {
+    background: var(--paper);
+    border-style: dashed;
+    box-shadow: none;
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.lds-cong td[data-vai="toan"] {
+    justify-content: flex-start;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.lds-cong td:not([data-vai="toan"]) {
+    font-weight: 600;
+  }
+
+  /* Bảng mở rộng / dòng phụ của lưới (sổ chi tiết …) cũng thành khối trong luồng thẻ. */
+  :root:root table[data-the][data-the] > :is(tbody, tfoot) > tr.lds-so {
+    display: block;
+  }
+}

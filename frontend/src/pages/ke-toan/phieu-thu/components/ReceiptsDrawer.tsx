@@ -33,6 +33,7 @@ import {
   useHuyPhieu,
   useTabNho,
 } from "../../shared/NganPhieu";
+import { laGop } from "../../shared/phieuGop";
 import { NguoiLapO, OSo, TaiKhoanO, tabChungTuGoc } from "../../shared/PhieuGon";
 import { TabChungTu } from "../../shared/TabChungTu";
 import { TabLichSu, tenTheoId, viecHuy, viecLap, viecThemTep, xepMoiNhat, type ViecLs } from "../../shared/TabLichSu";
@@ -62,6 +63,7 @@ const LECH_XAC_NHAN_MS = 60_000;
  *  cuộn ngang, không để cột Hoá đơn về 0px. */
 const COT_HD = [null, 104, 116, 106, 106, 116, 116]; // đo 07/10: ngày tới 82px, số tỷ 94px; +2px mỗi cột vì ô lds-g đệm 10px (kt-g 9px); tổng 804 < khung 820
 const RONG_HD = COT_HD.reduce<number>((t, w) => t + (w ?? 140), 0);
+const COT_GOP = [120, 120, 116, 116, 116];
 
 /** Xác nhận đã thu là việc RIÊNG (đáng nói) khi người khác xác nhận hoặc xác nhận sau lúc lập. */
 function xacNhanRieng(phieu: PaymentReceiptRow): boolean {
@@ -219,6 +221,11 @@ export function ReceiptsDrawer({
   const so = soPhieu(phieu);
   const soTep = tepDaNap ? tep.length : phieu.attachment_count;
   const chuyenKhoan = phieu.receipt_method === "bank_transfer";
+  const gop = laGop(phieu);
+  // Phiếu gộp: mỗi đơn bán của các dòng một lần, theo thứ tự dòng.
+  const donGop = gop
+    ? [...new Map(phieu.lines!.map((l) => [l.order_id, l.order_code ?? String(l.order_id)])).entries()]
+    : [];
 
   function inPhieu() {
     setLoi(null);
@@ -296,7 +303,17 @@ export function ReceiptsDrawer({
               ? TaiKhoanO({ nganHang: phieu.company_bank_name, so: phieu.company_account_number, chiNhanh: phieu.company_bank_branch })
               : null },
           { nhan: "Mã giao dịch", giaTri: phieu.bank_reference },
-          { nhan: "Đơn bán", giaTri: !phieu.order_code || phieu.source_type === "purchase_refund" ? null
+          { nhan: "Đơn bán", giaTri: gop ? (
+            <Cum>
+              {donGop.map(([oid, ma]) =>
+                onMoDonBan ? (
+                  <button key={oid} type="button" className="kt-lk" onClick={() => onMoDonBan(oid)}>{ma}</button>
+                ) : (
+                  <span key={oid}>{ma}</span>
+                ),
+              )}
+            </Cum>
+          ) : !phieu.order_code || phieu.source_type === "purchase_refund" ? null
               : onMoDonBan && phieu.order_id != null ? (
                 <button type="button" className="kt-lk" onClick={() => onMoDonBan(phieu.order_id!)}>{phieu.order_code}</button>
               ) : phieu.order_code },
@@ -345,7 +362,60 @@ export function ReceiptsDrawer({
           <div className="kt-ngan__muc">Lý do nộp</div>
           <p className="kt-ngan__ly">{phieu.content || "—"}</p>
 
-          {phieu.source_type === "sales_invoice" && (
+          {gop && (
+            <>
+              <div className="kt-ngan__muc">
+                <span>Các khoản trong phiếu</span>
+              </div>
+              <div className="lds-bang">
+                <table className="lds-g" aria-label="Các khoản trong phiếu"
+                  style={{ minWidth: COT_GOP.reduce((t, w) => t + w, 0) }}>
+                  <colgroup>
+                    {COT_GOP.map((w, i) => <col key={i} style={{ width: w }} />)}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Đơn bán</th>
+                      <th>Khoản</th>
+                      <th className="n">Thu trước đó</th>
+                      <th className="n">Phiếu này</th>
+                      <th className="n">Còn nợ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {phieu.lines!.map((l) => {
+                      // Đối chiếu chỉ có cho dòng hoá đơn (cọc không phải nợ).
+                      const dc = l.invoice_number
+                        ? phieu.doi_chieu?.find((d) => d.order_code === l.order_code && d.invoice_number === l.invoice_number)
+                        : undefined;
+                      return (
+                        <tr key={l.sales_invoice_id != null ? `hd-${l.sales_invoice_id}` : `coc-${l.order_id}`}>
+                          <td>
+                            {onMoDonBan ? (
+                              <button type="button" className="kt-lk" onClick={() => onMoDonBan(l.order_id)}>{l.order_code}</button>
+                            ) : (
+                              l.order_code
+                            )}
+                          </td>
+                          <td>{l.invoice_number ? `HĐ ${l.invoice_number}` : "Cọc"}</td>
+                          <td className="n"><OSo so={dc?.truoc_do} /></td>
+                          <td className="n">{vietSo(l.amount)}</td>
+                          <td className="n"><OSo so={dc?.con_no_sau} /></td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="lds-cong">
+                      <td colSpan={3}>{`Cộng ${vietSo(phieu.lines!.length)} khoản`}</td>
+                      <td className="n">{vietSo(phieu.amount_vnd)}</td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {phieu.source_type === "sales_invoice" && !gop && (
             <>
               <div className="kt-ngan__muc">
                 <span>Áp vào hoá đơn</span>

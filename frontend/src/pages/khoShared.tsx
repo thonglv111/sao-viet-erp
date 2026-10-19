@@ -7,6 +7,7 @@ import type { StockRequestKind, StockRequestStatus, StockVoucherStatus } from ".
 import { useCan } from "../auth/permissions";
 import { ChipTT, type MauTT } from "../components/LuoiDs";
 import { tenDonVi } from "./tenDonVi";
+import { homNayVN } from "../utils/ky";
 import "./kho-request.css";
 
 /** TẠM ẨN toàn bộ giao diện ĐIỀU CHUYỂN kho — CHỈ ở FE (backend/API + dữ liệu cũ giữ nguyên).
@@ -291,11 +292,9 @@ export function fmtQty(value: number | null | undefined): string {
   return value.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 }
 
-/** Chuỗi ISO của hôm nay theo giờ máy (dùng để so hạn + mặc định ngày phiếu). */
+/** Chuỗi ISO của hôm nay theo giờ xưởng, không theo múi giờ máy (dùng để so hạn + mặc định ngày phiếu). */
 export function todayISO(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return homNayVN();
 }
 
 /** Trạng thái đã đóng sổ — quá hạn thì cũng không còn ý nghĩa cảnh báo. */
@@ -313,7 +312,7 @@ export function fmtGioCan(canLuc: string | null | undefined): string {
   if (!canLuc) return "—";
   const d = new Date(canLuc);
   if (Number.isNaN(d.getTime())) return canLuc;
-  return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 /** `canLuc` (giờ cần thật, từ đề nghị sản xuất) ưu tiên khi có — so THEO GIỜ, không theo ngày:

@@ -50,6 +50,18 @@ export function XoaDanhMucDialog({
   const xoaHan = coXoaMem && kiem?.xoa_han_duoc === true;
   const cung = !coXoaMem;
 
+  // Nơi đang dùng / thứ mất theo là DANH SÁCH (mỗi mục một dòng), không nối bằng dấu chấm giữa.
+  const chan = kiem?.chan ?? [];
+  const keoTheo = kiem?.keo_theo ?? [];
+  const cauNgung =
+    ` Mục này sẽ không còn hiện ở các ô chọn, nhưng chứng từ cũ vẫn giữ nguyên.`
+    + ` Bật lại ở thẻ "Đã ngừng".`;
+  const ds = (muc: string[]) => (
+    <ul className="cdlg__ds">
+      {muc.map((m) => <li key={m}>{m}</li>)}
+    </ul>
+  );
+
   return (
     <ConfirmDialog
       open
@@ -61,13 +73,11 @@ export function XoaDanhMucDialog({
             ? `Xóa "${row.ten}" (${row.ma})? Hành động này sẽ xóa hoàn toàn bản ghi khỏi hệ thống.`
             : xoaHan
               ? `Chưa nơi nào dùng "${row.ten}" (${row.ma}) — xóa hẳn khỏi hệ thống?`
-                + (kiem?.keo_theo?.length
-                    ? ` Sẽ mất theo: ${kiem.keo_theo.join(" · ")}.` : "")
+                + (keoTheo.length ? " Sẽ mất theo:" : "")
               : `Ngừng dùng "${row.ten}" (${row.ma})?`
-                + (kiem?.chan?.length
-                    ? ` Đang được dùng ở: ${kiem.chan.join(" · ")} — nên không xóa hẳn được.` : "")
-                + ` Mục này sẽ không còn hiện ở các ô chọn, nhưng chứng từ cũ vẫn giữ nguyên.`
-                + ` Bật lại ở thẻ "Đã ngừng".`
+                + (chan.length
+                    ? " Đang được dùng ở các nơi dưới đây nên không xóa hẳn được."
+                    : cauNgung)
       }
       confirmLabel={(xoaHan || cung) ? "Xóa hẳn" : "Ngừng dùng"}
       hideConfirm={dangHoi}
@@ -83,6 +93,14 @@ export function XoaDanhMucDialog({
         }
       }}
       onCancel={onClose}
-    />
+    >
+      {xoaHan && keoTheo.length > 0 && ds(keoTheo)}
+      {!xoaHan && !cung && !dangHoi && chan.length > 0 && (
+        <>
+          {ds(chan)}
+          <p className="cdlg__msg">{cauNgung.trim()}</p>
+        </>
+      )}
+    </ConfirmDialog>
   );
 }

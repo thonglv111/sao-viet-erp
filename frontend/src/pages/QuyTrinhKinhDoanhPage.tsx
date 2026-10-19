@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon } from "../components/Icons";
+import { useLaDienThoai } from "../utils/dienThoai";
 import "./quy-trinh-kinh-doanh.css";
 
 /** Quy trình kinh doanh — sơ đồ làn "đơn hàng đi qua những bộ phận nào, làm ở màn nào".
@@ -142,6 +143,7 @@ export function QuyTrinhKinhDoanhPage({
   /** Người đang xem có mở được màn này không — thiếu quyền thì nút mở bị khoá kèm lời nói rõ. */
   moDuoc?: (manId: string) => boolean;
 }) {
+  const laDT = useLaDienThoai();
   const [loc, setLoc] = useState<BoPhan | "all">(docLoc);
   const [chon, setChon] = useState<string | null>(null);
   const [roi, setRoi] = useState<string | null>(null);
@@ -223,6 +225,58 @@ export function QuyTrinhKinhDoanhPage({
   // Thẻ chi tiết: dưới ô được chọn, ép vào trong khung; sát đáy thì lật lên trên ô.
   const theTrai = nutChon ? Math.max(6, Math.min(W - THE_W - 6, xGiua(nutChon) - THE_W / 2)) : 0;
   const latLen = nutChon ? yTren(nutChon) + NUT_H + 210 > H : false;
+
+  // ĐIỆN THOẠI (14/10/2026): sơ đồ 7 làn không vừa 375px ⇒ dòng thời gian dọc, mỗi bước một thẻ có
+  // sẵn mô tả + nút mở màn (không phải chạm ô mới thấy). Cùng dữ liệu `BUOC`, cùng bộ lọc bộ phận.
+  if (laDT) {
+    return (
+      <main className="qtkd qtkd--dt">
+        <div className="qtkd-dt__loc" role="group" aria-label="Lọc theo bộ phận">
+          <button type="button" className={loc === "all" ? "is-on" : ""}
+            onClick={() => loc !== "all" && chonLoc(loc)}>
+            Tất cả
+          </button>
+          {BO_PHAN.map((b) => (
+            <button key={b.key} type="button" className={`is-${b.key}${loc === b.key ? " is-on" : ""}`}
+              onClick={() => chonLoc(b.key)}>
+              <span className="qtkd__cham" aria-hidden="true" />
+              {b.nhan}
+            </button>
+          ))}
+        </div>
+        <ol className="qtkd-dt">
+          {BUOC.filter((b) => b.loai || loc === "all" || b.boPhan === loc).map((b) =>
+            b.loai ? (
+              <li key={b.id} className={`qtkd-dt__moc${b.loai === "cuoi" ? " is-cuoi" : ""}`}>{b.ten}</li>
+            ) : (
+              <li key={b.id} className={`qtkd-dt__buoc is-${b.boPhan}`}>
+                <span className="qtkd-dt__so">{b.stt}</span>
+                <div className="qtkd-dt__than">
+                  <span className="qtkd-dt__bp">
+                    <span className="qtkd__cham" aria-hidden="true" />
+                    {BO_PHAN.find((x) => x.key === b.boPhan)!.nhan}
+                  </span>
+                  <strong className="qtkd-dt__ten">{b.ten}</strong>
+                  {b.moTa && <p className="qtkd-dt__mota">{b.moTa}</p>}
+                  {b.man && (moDuoc(b.man) ? (
+                    <button type="button" className="qtkd-dt__mo" onClick={() => navigate(b.man!)}>
+                      Mở {b.tenMan}
+                      <Icon name="arrowRight" size={14} />
+                    </button>
+                  ) : (
+                    <span className="qtkd-dt__mo is-khoa">
+                      <Icon name="lock" size={13} />
+                      {b.tenMan}: chưa có quyền
+                    </span>
+                  ))}
+                </div>
+              </li>
+            ),
+          )}
+        </ol>
+      </main>
+    );
+  }
 
   return (
     <main className="qtkd">

@@ -151,6 +151,35 @@ describe("CatalogDrawer — form của màn danh mục dùng chung", () => {
     expect(ghi.body?.ten).toBe("Bế tay");
   });
 
+  it("#4 mã sinh ngầm (`autoCode`) + giữ drawer sau khi tạo: ô Mã hiện mã máy chủ vừa cấp, không để trống", async () => {
+    // Khai báo kho: tạo xong drawer ở lại để khai vị trí, đổi sang chế độ sửa và bày ô Mã — nhưng form
+    // vẫn là bản lúc MỞ (chưa có mã) nên ô Mã trống dù danh sách đã có KHO-0006.
+    const user = userEvent.setup();
+    moMan({
+      ...CO_BAN,
+      autoCode: true,
+      moLaiSauKhiTao: true,
+      fields: [{ key: "ghi_chu", label: "Ghi chú", type: "text" }],
+    });
+    const goc = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) =>
+      (init?.method ?? "GET").toUpperCase() === "POST"
+        ? Promise.resolve(new Response(JSON.stringify({ id: 99, ma: "KHO-0006", ten: "Kho mới", ghi_chu: "" }),
+          { status: 200, headers: { "Content-Type": "application/json" } }))
+        : (goc as typeof fetch)(url, init)));
+    await moDrawerTao(user, false);
+
+    await user.type(drawer().getByLabelText(/^Tên/), "Kho mới");
+    await user.click(drawer().getByRole("button", { name: "Tạo mới" }));
+
+    const oMa = (await drawer().findByPlaceholderText("Mã...")) as HTMLInputElement;
+    await waitFor(() => expect(oMa.value).toBe("KHO-0006"));
+    expect(oMa).toBeDisabled();
+    // Mã máy cấp không phải việc người dùng sửa ⇒ đóng ngay không bị hỏi "bỏ thay đổi?".
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("body POST đúng KIỂU: ô số ra số, ô công tắc ra boolean, mã viết HOA", async () => {
     const user = userEvent.setup();
     const goi = moMan({

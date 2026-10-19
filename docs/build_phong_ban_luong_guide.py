@@ -96,7 +96,7 @@ THU_MUA_PERMISSION_ROWS = [
         "Không tự bao gồm quyền duyệt hoặc hủy PMH nếu chưa bật quyền chi tiết.",
     ),
     (
-        "Duyệt / từ chối PMH",
+        "Duyệt đơn mua hàng",
         "Hiện các nút Duyệt và Từ chối trên các phiếu đang chờ duyệt.",
         "Quyết định phiếu mua hàng nào được đi tiếp sang bước chi tiền hoặc mua hàng thực tế.",
         "Đây là quyền quyết định nghiệp vụ, nên tách khỏi người chỉ lập phiếu.",
@@ -854,7 +854,7 @@ def build_doc() -> Path:
     )
     add_para(
         doc,
-        "Ở phân hệ Thu mua, cần phân biệt rõ người lập phiếu với người duyệt phiếu. Quyền Duyệt / từ chối PMH nên cấp rất chọn lọc để tránh tự lập rồi tự duyệt."
+        "Ở phân hệ Thu mua, cần phân biệt rõ người lập phiếu với người duyệt phiếu. Quyền Duyệt đơn mua hàng nên cấp rất chọn lọc để tránh tự lập rồi tự duyệt."
     )
 
     add_heading(doc, "6. Vai trò thường gặp", 1)

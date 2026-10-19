@@ -15,7 +15,7 @@ import { ChipNhan, DongRong, type CotBang, type CotMH } from "../luoi-mua-hang";
 import { ChamTT, TT_TIEN, nhanHangDon } from "../trang-thai-mua";
 import "../trang-thai-mua.css";
 
-/** Cột của lưới Đơn mua: Mã → Ngày → Nhà cung cấp → NV yêu cầu, NV mua hàng, NV duyệt → chứng từ nguồn → Mua cho → Tiền → Hàng → Tiền (trả). */
+/** Cột của lưới Đơn mua: Mã → Ngày → Nhà cung cấp → NV yêu cầu, NV mua hàng, NV duyệt → chứng từ nguồn → Mua cho → Tiền (tổng, cọc, nợ) → Hàng → Tiền (trả). */
 export const COT_DON: CotMH[] = [
   { key: "ma", label: "Mã đơn", coDinh: true, w: 150 },
   { key: "ngay", label: "Ngày tạo", w: 104 },
@@ -27,6 +27,7 @@ export const COT_DON: CotMH[] = [
   { key: "yc", label: "Yêu cầu", w: 160 },
   { key: "mua_cho", label: "Mua cho", w: 160 },
   { key: "tong", label: "Tổng đơn", w: 120, n: true },
+  { key: "coc", label: "Tiền cọc", w: 130, n: true },
   { key: "no", label: "Còn nợ", w: 110, n: true },
   { key: "hang", label: "Hàng", w: 190 },
   { key: "tien", label: "Tiền" },
@@ -62,12 +63,23 @@ function OHang({ row }: { row: PurchaseRequestRow }) {
   );
 }
 
-function OTien({ row }: { row: PurchaseRequestRow }) {
-  if (!row.nhom_tien) {
-    return row.coc_da_chi > 0 && row.status !== "cancelled" ? (
-      <span className="lds-mu">Đã cọc {soVN(row.coc_da_chi)}</span>
-    ) : null;
+/** Cọc ĐÃ CHI (phiếu chi đặt cọc đã chi). Chưa chi mà hợp đồng có hẹn cọc thì nhắc số hẹn, chữ mờ —
+ *  số hẹn chỉ để nhắc, không phải tiền đã rời két. Cột riêng (17/10/2026): trước đó cọc chỉ hiện ở ô
+ *  Tiền khi hàng chưa về, hàng về là chip trạng thái đè mất. */
+function OCoc({ row, huy }: { row: PurchaseRequestRow; huy: boolean }) {
+  if (row.coc_da_chi > 0) return <>{soVN(row.coc_da_chi)}</>;
+  if (!huy && row.deposit_expected > 0) {
+    return (
+      <span className="lds-mu" title="Cọc theo hợp đồng, kế toán chưa chi">
+        chờ cọc {soVN(row.deposit_expected)}
+      </span>
+    );
   }
+  return null;
+}
+
+function OTien({ row }: { row: PurchaseRequestRow }) {
+  if (!row.nhom_tien) return null;
   const han = row.nhom_tien === "da_tra" ? null : hanGanNhat(row);
   return (
     <>
@@ -247,6 +259,12 @@ export function BangDonMua({
                           return (
                             <td key={c.key} className="n">
                               <span className={huy ? "mh-gach" : undefined}>{soVN(row.total_estimate)}</span>
+                            </td>
+                          );
+                        case "coc":
+                          return (
+                            <td key={c.key} className="n">
+                              <OCoc row={row} huy={huy} />
                             </td>
                           );
                         case "no":

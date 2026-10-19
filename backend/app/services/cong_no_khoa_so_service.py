@@ -12,6 +12,7 @@ from ..models.cong_no_khoa_so import (
     CongNoKhoaSo,
     CongNoKyChot,
 )
+from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.cong_no_khoa_so_repo import CongNoKhoaSoRepository
 from ..services.accounting_service import AccountingService
 
@@ -24,11 +25,26 @@ class CongNoKhoaSoError(ValueError):
     """Thao tác khóa/mở kỳ không hợp lệ. Router dịch thành 422."""
 
 
+_TEN_PHAN_HE = {PHAN_HE_PHAI_THU: "phải thu", PHAN_HE_PHAI_TRA: "phải trả"}
+
+
 class CongNoKhoaSoService:
     def __init__(self, db: Session, acct_svc: AccountingService | None = None) -> None:
         self.db = db
         self.repo = CongNoKhoaSoRepository(db)
         self.acct_svc = acct_svc
+
+    def _nhat_ky(self, user_id: int | None, action: str, log: CongNoKhoaSo, *, phan_he: str,
+                 viec: str, ten: str | None = None) -> None:
+        """Dòng nhật ký cho khoá / mở kỳ công nợ (lỗi E2E #49, 18/10/2026: hộp mở kỳ hứa "được ghi
+        lại trong nhật ký" mà `audit_logs` không có dòng nào — kỳ chỉ nằm ở `cong_no_khoa_so`).
+        Ghi SAU khi bản ghi khoá đã commit (repo tự commit), nên việc thất bại ở trên không để lại vết."""
+        AuditLogRepository(self.db).create(
+            actor_user_id=user_id, action=action, target=f"cong_no_khoa_so:{log.id}",
+            detail=(f"{viec} công nợ {_TEN_PHAN_HE.get(phan_he, phan_he)}"
+                    + (f" “{ten}”" if ten else "")
+                    + f" {log.tu_ngay:%d/%m/%Y} – {log.den_ngay:%d/%m/%Y}"),
+        )
 
     def is_locked(self, ngay: date, phan_he: str | None = None) -> bool:
         return self.repo.is_locked(ngay, phan_he)
@@ -160,7 +176,9 @@ class CongNoKhoaSoService:
                             tu_ngay=tu_ngay,
                             den_ngay=den_ngay,
                             ten_ky=ten_ky,
-                            tong_tien=r.get("amount", 0),
+                            # Hoá đơn đã điều chỉnh giảm: tổng = phần khách còn phải trả sau điều
+                            # chỉnh, để Tổng − Đã trả = Còn nợ vẫn đúng (18/10/2026).
+                            tong_tien=r.get("amount", 0) - r.get("dieu_chinh_amount", 0),
                             da_thanh_toan=r.get("received_amount", 0),
                             con_no=con_no,
                             is_settled=(con_no <= 0),
@@ -199,6 +217,7 @@ class CongNoKhoaSoService:
         if snapshots:
             self.repo.save_snapshots(snapshots)
 
+        self._nhat_ky(user_id, "cong_no_khoa_ky", log, phan_he=phan_he, viec="Khoá kỳ", ten=ten_ky)
         return log
 
     def _kiem_chong_lan(self, tu_ngay: date, den_ngay: date, phan_he: str | None = None) -> None:
@@ -279,6 +298,12 @@ class CongNoKhoaSoService:
                 f"Kỳ này đã niêm: đã có kỳ chốt sau nó ({chan[0]:%d/%m/%Y}–{chan[1]:%d/%m/%Y}). "
                 f"Sổ đã đóng thì không mở lại được nữa, kể cả khi kỳ sau đã được mở ra."
             )
+        # Tên kỳ đang mở, tra TRƯỚC khi ghi bản 'mo' (body không mang tên; bản mới sẽ che bản khoá).
+        ten_dang_mo = next(
+            (r.ten for r in self.repo.history(500, phan_he)
+             if r.hanh_dong == "khoa" and r.ten and r.tu_ngay <= den_ngay and r.den_ngay >= tu_ngay),
+            None,
+        )
         log = self.repo.add_log(
             phan_he=phan_he,
             tu_ngay=tu_ngay,
@@ -288,4 +313,5 @@ class CongNoKhoaSoService:
             ten=None,
         )
         self.repo.delete_snapshots(tu_ngay, den_ngay, phan_he)
+        self._nhat_ky(user_id, "cong_no_mo_ky", log, phan_he=phan_he, viec="Mở kỳ", ten=ten_dang_mo)
         return log

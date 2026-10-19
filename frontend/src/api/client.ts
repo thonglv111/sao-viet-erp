@@ -6,6 +6,7 @@
 // chỗ ở `rebuildCatalog`. `import type` ⇒ TS xoá lúc build, không đẻ vòng import lúc chạy.
 import type { ImportExcelOut } from "./rebuildCatalog";
 import { laAnhCanNen, nenNeuLaAnh } from "../lib/anhNen";
+import { cauLoi422 } from "./loi422";
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(
   /\/$/,
@@ -252,16 +253,8 @@ async function safeDetail(resp: Response): Promise<{ text: string | null; raw: u
     // Không nói trường nào sai thì người dùng chỉ biết bấm lại, còn người sửa code phải dựng lại
     // thân request rồi bắn thử từng cái để đoán — đã mất hai lượt vì đúng chỗ này.
     if (Array.isArray(detail) && detail.length > 0) {
-      const doc = (it: unknown): string | null => {
-        const o = it as { loc?: unknown; msg?: unknown };
-        if (typeof o?.msg !== "string") return null;
-        // `loc` = ["body", "<trường>", <chỉ số>, ...] — bỏ "body", còn lại là đường dẫn tới ô sai.
-        const duong = Array.isArray(o.loc)
-          ? o.loc.filter((x) => x !== "body" && x !== "query" && x !== "path").join(" › ")
-          : "";
-        return duong ? `${duong}: ${o.msg}` : o.msg;
-      };
-      const ds = detail.map(doc).filter((x): x is string => x !== null);
+      // Dịch theo `type` pydantic + nhãn ô ở `loi422.ts` (18/10/2026).
+      const ds = detail.map(cauLoi422).filter((x): x is string => x !== null);
       if (ds.length > 0) {
         // Cắt ở 3: một form sai chục ô thì banner dài hơn cả form. Ba cái đầu đủ để biết đi đâu sửa.
         const text =
@@ -578,6 +571,8 @@ export type QuoteEvent =
   | { type: "sales_invoice_created"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_cancelled"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_receipt_created"; code?: string | null; invoice_id?: number; receipt_code?: string | null }
+  | { type: "sales_invoice_adjusted"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
+  | { type: "sales_invoice_adjustment_cancelled"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_created"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_cancelled"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_receipt_created"; code?: string | null; invoice_id?: number; receipt_code?: string | null }
@@ -630,6 +625,10 @@ export type QuoteEvent =
       ma_phieu?: string | null;
       message: string;
     }
+  // Phiếu lương kỳ này vừa mở cho người nhận (#39, 18/10/2026): đẩy ĐÍCH DANH người có dòng lương,
+  // lúc HCNS công bố mở ngay hoặc lúc tới giờ hẹn.
+  | { type: "phieu_luong_cong_bo"; year: number; month: number; message: string }
+  | { type: "phieu_luong_thu_hoi"; year: number; month: number; message: string }
   // Yêu cầu / chuyến giao đổi (mọi thao tác ghi của module giao hàng) — tín hiệu NHẸ để drawer đơn
   // và màn Giao hàng đang mở tự tải lại, không toast.
   | { type: "giao_hang_changed" }
@@ -1251,6 +1250,8 @@ export interface XlDong extends XlLich {
   may_ten: string | null;
   /** Số bước chưa tính được giờ (thiếu máy / quy đổi) — lệnh "có thể xong muộn hơn". */
   so_buoc_chua_gio: number;
+  /** Bước chạy đè vùng khoá máy / máy đang dừng chờ sửa — câu máy chủ phát, chỉ nhắc không chặn. */
+  canh_bao_may?: string[];
   /** Mép thanh của lệnh ĐÃ CHẠY DỞ — `null` khi lệnh chưa vào việc.
    *  Thanh vẽ từ `thuc_bat_dau_lenh ?? bat_dau_at` tới `ket_thuc_thuc_te ?? ket_thuc`; đoạn
    *  `thuc_bat_dau_lenh → bat_dau_at` là phần đã chạy, KHOÁ không kéo được. `bat_dau_at` vẫn là
@@ -1441,6 +1442,23 @@ export interface XlGoiPhienBan {
 
 /** Trạng thái gói phát hành của một LSX/bài ghép (§4.3): còn Phát hành cập nhật / Thu hồi được không +
  *  số việc đã/chưa bắt đầu + lịch sử phiên bản. `co_goi=false` ⇒ chưa phát hành (các field khác vắng). */
+/** Khoảng máy nghỉ khai tay ở Xếp lịch. Mốc là GIỜ TƯỜNG của xưởng (`YYYY-MM-DDTHH:mm:ss`, không múi). */
+export interface XlVungKhoa {
+  id: number;
+  may_id: number;
+  start: string;
+  finish: string;
+  ly_do: string;
+  note: string | null;
+  kieu: string;
+}
+
+export interface XlMayGon {
+  id: number;
+  ma: string;
+  ten: string;
+}
+
 export interface XlGoiPhatHanh {
   co_goi: boolean;
   goi_id?: number;
@@ -1453,6 +1471,17 @@ export interface XlGoiPhatHanh {
   cho_phep_cap_nhat?: boolean;
   cho_phep_thu_hoi?: boolean;
   phien_bans?: XlGoiPhienBan[];
+  /** MỌI gói của lệnh, mới nhất trước — kể cả gói đã thu hồi kèm lý do (lỗi #25). */
+  lich_su_goi?: XlGoiLichSu[];
+}
+
+export interface XlGoiLichSu {
+  goi_id: number;
+  ma: string;
+  trang_thai: string;
+  thu_hoi_ly_do: string | null;
+  thu_hoi_luc: string | null;
+  phien_bans: XlGoiPhienBan[];
 }
 
 /** Kết quả một lần Phát hành cập nhật (§4.3): tái chụp bao nhiêu việc, giữ nguyên bao nhiêu, huỷ bao
@@ -3645,6 +3674,8 @@ export interface AuditRow {
   nhom: string;
   target: string;
   target_loai: string | null;
+  /** "Tài sản #28" cho loại ngoài khối danh mục; null = máy chủ chưa khai tên loại. */
+  target_nhan?: string | null;
   detail: string;
   created_at: string;
 }
@@ -4366,6 +4397,7 @@ export interface TinhGiaComponentMeta {
   to_dau_vao: number;
   to_sau_in: number;
   bu_hao_auto?: number; // Σ bù hao công đoạn — engine đi NGƯỢC từ cuối chuỗi lên
+  loi_chuoi?: string[]; // chuỗi công đoạn đứt đơn vị — LỖI, máy chủ chặn lưu phiếu (#8)
   bu_hao_chi_tiet?: BuHaoBuoc[]; // phân rã: bước nào ăn bao nhiêu tờ (thứ tự xuôi)
   so_trang?: number; // số trang nội dung của 1 sản phẩm (người dùng khai)
   trang_moi_tay?: number; // số trang mỗi tay gấp
@@ -4553,13 +4585,17 @@ export interface ThanhPhamOut {
 }
 
 /** 1 vật tư gắn vào 1 bước của phiếu — `gia_tri_chip` khoá theo mã chip của vật tư. */
+/** `giay` = giấy chọn ở bước (18/10/2026, id trỏ danh mục Giấy) — cùng ô "Thêm vật tư"; vắng = `vat_tu`. */
+export type HangLoaiBuoc = "vat_tu" | "giay";
 export interface BuocVatTuOut {
   id: number;
   thu_tu: number;
+  hang_loai?: HangLoaiBuoc;
   vat_tu_id: number;
   gia_tri_chip: Record<string, number>;
 }
 export interface BuocVatTuIn {
+  hang_loai?: HangLoaiBuoc;
   vat_tu_id: number;
   thu_tu?: number;
   gia_tri_chip?: Record<string, number>;
@@ -5020,7 +5056,10 @@ export interface QuoteItemUpdateInput {
   manual_selling_price?: number | null;
   manual_unit_price?: number | null;
   discount_amount?: number;
+  /** Chiết khấu % trên GIÁ VỐN (số tiền `discount_amount` > 0 thì thắng). Chiết khấu CỘNG vào giá bán. */
   discount_percent?: number;
+  /** Lợi nhuận gõ thẳng bằng số tiền (thắng `margin_percent`, = % trên vốn + chiết khấu). */
+  profit_amount?: number | null;
   vat_percent?: number;
   rounding?: string;
   note?: string | null;
@@ -5557,6 +5596,9 @@ export interface TimesheetDay {
   le_nghi_tuan?: boolean;
   plain?: boolean;       // ngày `off1x` có đi làm → 1× phẳng, KHÔNG hệ số
   planned_off?: boolean; // ngày nghỉ theo lịch phân ca (dấu kế hoạch, không sinh hệ số)
+  /** Ngày LÀM VIỆC đã qua, có ca, mà KHÔNG có lượt bấm nào (quên chấm vào & ra / vắng) — 14/10/2026.
+   *  Chỉ là dấu: không công. */
+  khong_cham?: boolean;
 }
 
 export interface TimesheetRow {
@@ -6518,6 +6560,8 @@ export interface LineComponent {
 }
 export interface KhoanKmChuyen {
   trip_id: number;
+  /** Mã yêu cầu giao (YCGH-…) của chuyến — cột Chuyến hiện mã này, không in id (#74). */
+  ma_chuyen?: string | null;
   ngay: string | null;
   km: number;
   don_gia_km: number;
@@ -6526,6 +6570,8 @@ export interface KhoanKmChuyen {
   /** % được hưởng của chuyến. Đi một mình = 100, không phải `pct_tai_xe`. */
   pct: number;
   thanh_tien: number;
+  /** Dòng chặng về kho của lượt xe: "Về kho của lượt LX-…"; chuyến giao khách thì null. */
+  ghi_chu?: string | null;
 }
 
 export interface KhoanKmChiTiet {
@@ -7135,6 +7181,9 @@ export interface SupplierRow {
   /** ĐỊNH MỨC = số NGÀY cho nợ kể từ ngày giao. `0` = trả ngay · `null` = CHƯA ĐẶT hạn (đợt giao
       của NCC này không vào cột Quá hạn). Hai thứ khác nhau, đừng ép null thành 0. */
   credit_days: number | null;
+  /** Cách tính hạn trả (16/10/2026, thuộc NCC): `null` = từ ngày hoá đơn · 1–31 = chốt công nợ
+   *  hằng tháng ngày đó (31 = cuối tháng). Sửa chỉ áp cho đợt giao ghi từ đó. */
+  debt_cutoff_day: number | null;
   status: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong: boolean;
@@ -7205,6 +7254,8 @@ export interface SupplierInput {
   credit_limit?: number;
   /** Số ngày cho nợ — `0` = trả ngay · `null` = chưa đặt hạn. */
   credit_days?: number | null;
+  /** Ngày chốt công nợ hằng tháng 1–31 (31 = cuối tháng) · `null` = tính từ ngày hoá đơn. */
+  debt_cutoff_day?: number | null;
   status?: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong?: boolean;
@@ -7232,6 +7283,22 @@ export interface GiaCongChoChi {
   don_vi: string | null;
   chot_luc: string | null;
   chot_boi_ten: string | null;
+}
+
+/** Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi, docs/prd-mua-hang-cho-chi-o-phieu-chi.md): ĐƠN đã
+ *  duyệt còn cọc chưa chi hoặc còn đợt giao còn nợ. `don` là nguyên dòng đơn — form lập phiếu chi dùng
+ *  thẳng; từng đợt còn nợ đọc ở `don.deliveries[].con_no`. */
+export interface MuaHangChoChi {
+  don: PurchaseRequestRow;
+  /** Cọc khai lúc gửi duyệt còn chưa chi (không quá phần giá trị đơn còn chưa trả). */
+  coc_can_chi: number;
+  so_dot_no: number;
+  /** Tổng nợ các đợt còn nợ (đã trừ phần cọc bù vào đợt). */
+  no_dot: number;
+  tong_can_chi: number;
+  /** Hạn trả gần nhất trong các đợt còn nợ — `null` = chưa có đợt nào (chỉ còn cọc). */
+  han_gan_nhat: string | null;
+  qua_han: boolean;
 }
 
 export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
@@ -7727,6 +7794,9 @@ export interface PayableItemRow {
   /** Phần CỌC của cả đơn chiếu xuống đợt này (giao trước bù trước). Tách khỏi `paid` vì không ai
    *  trả riêng cho đợt này số đó — nhưng `con_no` đã trừ CẢ HAI. */
   coc_bu: number;
+  /** NCC hoàn tiền không gắn đơn cộng nợ lại vào đợt hạn muộn nhất (#36): con_no = amount − paid −
+   *  coc_bu + hoan_ncc. */
+  hoan_ncc?: number;
   con_no: number;
   /** Đợt đã trả hết — có mặt CHỈ để dò được tiền cọc đi đâu (cọc bù giao-trước-bù-trước nên hay
    *  nuốt trọn đợt sớm). Làm mờ, xếp cuối đơn, không đếm vào rổ tuổi / lời nhắc "chưa đặt hạn". */
@@ -7828,8 +7898,10 @@ export interface ReceivableCustomerRow {
   sale_user_name?: string | null;
   thu_gan_nhat_ngay?: string | null;
   thu_gan_nhat_tien?: number;
-  /** Σ cọc còn giữ của các đơn ĐÃ HUỶ của khách — kế toán phải lập phiếu chi trả lại. */
-  coc_don_huy?: number;
+  /** Tiền khách đang để ở các đơn (17/10/2026) — không trừ vào hoá đơn đơn khác. `cho_tra_lai` =
+   *  phần phải trả lại ngay (đơn huỷ, hoặc đã ghi đủ hoá đơn mà vẫn dư). */
+  cho_tra_lai?: number;
+  tien_dang_de?: number;
 }
 
 export interface ReceivablesSummary {
@@ -7855,6 +7927,101 @@ export interface ReceivablesSummary {
   as_of: string;
 }
 
+/** Một dòng cọc chờ thu — đơn đã chốt, cọc chưa đủ (17/10/2026). */
+export interface CocChoThu {
+  order_id: number;
+  order_code: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  deposit_pct: number;
+  can_thu: number;
+  da_thu: number;
+  con_thieu: number;
+  ordered_at: string | null;
+}
+
+/** Một dòng hoá đơn chờ thu — còn nợ đã cân theo sổ 131, cùng số màn Công nợ phải thu. */
+export interface HoaDonChoThu {
+  invoice_id: number;
+  invoice_symbol: string;
+  invoice_number: string;
+  invoice_date: string;
+  due_date: string | null;
+  order_id: number;
+  order_code: string;
+  customer_id: number | null;
+  customer_name: string | null;
+  amount: number;
+  direct_received_amount: number;
+  deposit_offset_amount: number;
+  /** Tiền đã trả lại khách ngoài đơn, cộng nợ lại vào hoá đơn này: amount + hoan − da_thu = con_no. */
+  hoan_khong_don?: number;
+  da_thu: number;
+  con_no: number;
+}
+
+/** Popup chi tiết một khoản chờ thu (17/10/2026, phương án B): hàng của khoản + các lần đã thu. */
+export interface ChiTietKhoanThu {
+  hang: { ten: string | null; so_luong: number; dvt: string | null; don_gia: number; vat: number; thanh_tien: number }[];
+  /** Phiếu gộp: `amount` là phần của khoản này. */
+  phieu: { receipt_id: number; code: string; doc_no: string | null; ngay: string; amount: number; gop: boolean }[];
+}
+
+export interface DonHangChoThu {
+  coc: CocChoThu[];
+  hoa_don: HoaDonChoThu[];
+}
+
+/** Một dòng "Chờ trả lại khách" — đơn hết chỗ ghi hoá đơn (ghi đủ / đã huỷ) mà tiền khách còn dư. */
+export interface TraLaiKhachChoChi {
+  order_id: number;
+  order_code: string;
+  don_huy: boolean;
+  customer_id: number | null;
+  customer_name: string | null;
+  /** Số các hoá đơn đã huỷ mà khách đã trả tiền — nguồn của khoản dư. */
+  hoa_don_huy: string[];
+  /** Hóa đơn điều chỉnh giảm (hoàn chiết khấu) của đơn — chứng từ gốc của khoản trả lại (18/10/2026). */
+  hoa_don_dieu_chinh?: HoaDonDieuChinhRef[];
+  da_tra_lai: number;
+  con_lai: number;
+}
+
+export interface HoaDonDieuChinhRef {
+  id: number;
+  so_hoa_don: string;
+  ngay: string;
+  so_tien: number;
+  ly_do: string | null;
+  hoa_don_goc: string;
+}
+
+/** Hóa đơn điều chỉnh GIẢM của một hóa đơn bán (18/10/2026). */
+export interface DieuChinhRow {
+  id: number;
+  sales_invoice_id: number;
+  order_id: number;
+  adj_symbol: string;
+  adj_number: string;
+  adj_date: string;
+  amount_vnd: number;
+  reason: string | null;
+  status: "issued" | "cancelled";
+  created_by_name: string | null;
+  created_at: string;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+}
+
+export interface DieuChinhInput {
+  adj_symbol: string;
+  adj_number: string;
+  adj_date: string;
+  /** Bỏ trống = phần chiết khấu gợi ý còn chưa điều chỉnh. */
+  amount_vnd?: number | null;
+  reason?: string | null;
+}
+
 export interface ReceivableItemRow {
   invoice_id: number;
   invoice_symbol: string | null;
@@ -7875,6 +8042,8 @@ export interface ReceivableItemRow {
   deposit_offset_amount: number;
   received_amount: number;
   remaining_amount: number;
+  /** Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026). */
+  hoan_khong_don?: number;
 }
 
 export interface ReceivableReceiptRow {
@@ -7893,6 +8062,9 @@ export interface ReceivableReceiptRow {
   payer_name: string;
   bank_reference: string | null;
   created_by_name: string | null;
+  /** Phiếu gộp: `amount` là phần của dòng này, `receipt_amount` là cả phiếu, `so_dong` số khoản. */
+  receipt_amount?: number | null;
+  so_dong?: number;
 }
 
 export interface SalesInvoiceInput {
@@ -7923,6 +8095,13 @@ export interface SalesInvoiceRow {
   deposit_offset_amount: number;
   received_amount: number;
   remaining_amount: number;
+  /** Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026). */
+  hoan_khong_don?: number;
+  /** Tổng hóa đơn điều chỉnh giảm còn hiệu lực; còn phải thu = `amount_vnd` − số này − đã thu. */
+  dieu_chinh_amount?: number;
+  /** Phần chiết khấu của đơn rơi vào hóa đơn này mà chưa điều chỉnh — số điền sẵn. */
+  ck_goi_y?: number;
+  dieu_chinh?: DieuChinhRow[];
   created_by_user_id: number | null;
   created_by_name: string | null;
   created_at: string;
@@ -7960,9 +8139,17 @@ export interface SalesInvoiceListOut {
   delivered_amount?: number;
   /** Đã giao trừ đã ghi hóa đơn — trần ghi hóa đơn của cả đơn. */
   invoiceable_amount?: number;
+  /** Tiền khách đưa dư còn phải trả lại — cùng số với hàng Chờ trả lại khách ở Phiếu chi. */
+  cho_tra_lai?: number;
   luot_giao?: LuotGiaoHoaDon[];
   /** Phiếu thu ĐÃ THU gắn thẳng vào hoá đơn của đơn (không gồm cọc). */
-  phieu_thu?: { id: number; code: string; doc_no: string | null; invoice_id: number; amount: number; receipt_date: string }[];
+  phieu_thu?: {
+    id: number; code: string; doc_no: string | null; invoice_id: number; amount: number; receipt_date: string;
+    /** Phiếu gộp nhiều chứng từ — `amount` là phần của hoá đơn này. */
+    gop?: boolean;
+  }[];
+  /** Phiếu thu của hoá đơn ĐÃ HUỶ — tiền về quỹ của đơn, trừ vào hoá đơn khác như cọc (17/10/2026). */
+  phieu_thu_hd_huy?: { id: number; code: string; doc_no: string | null; invoice_id: number; amount: number; receipt_date: string }[];
   items: SalesInvoiceRow[];
 }
 
@@ -7989,15 +8176,22 @@ export interface ReceivablesDetail {
   aging: AgingBucket[];
   received_in_period: number;
   as_of: string;
-  /** Đơn đã huỷ còn giữ cọc — mỗi đơn một nút "Trả lại cọc" gắn đúng đơn. */
-  coc_don_huy?: CocDonHuy[];
+  /** Tiền khách đang để ở từng đơn — đơn còn phải trả lại có nút trả lại gắn đúng đơn. */
+  tien_dang_de?: TienDangDe[];
 }
 
-export interface CocDonHuy {
+export interface TienDangDe {
   order_id: number;
   order_code: string;
+  /** Tiền khách đã đưa cho đơn: cọc + tiền đã thu của hoá đơn đã huỷ. */
   da_nhan: number;
+  da_tra_lai?: number;
+  da_tru?: number;
+  /** Còn để ở đơn, chưa trừ vào hoá đơn nào. */
+  dang_de: number;
+  /** Phần phải trả lại ngay; 0 = còn chờ trừ vào hoá đơn ghi sau. */
   con_lai: number;
+  tinh_trang: "don_huy" | "ghi_du" | "cho_tru" | string;
 }
 
 /** Dòng hàng ĐÃ GÁN nhà cung cấp — chỉ dùng cho đường tạo cả mẻ. */
@@ -8261,6 +8455,10 @@ export interface PurchaseDeliveryLineRow {
    *  PHẢI hiện ra chứ đừng chỉ hiện tổng: hệ không biết phần dư có thật là hàng tặng hay không,
    *  nên phải để người đọc bắt được ca NCC thực ra CÓ tính tiền phần dư. */
   quantity_du: number;
+  /** Đơn giá chốt trên dòng đơn (chưa CK/VAT). */
+  don_gia: number;
+  /** Thành tiền phần TÍNH TIỀN của dòng (đã CK/VAT) — đúng số máy chủ cộng vào `amount` của đợt. */
+  thanh_tien: number;
   /** KHỔ THỰC NHẬN (giấy tờ): khổ ghi ở đợt, không ghi thì khổ đặt. 0 · 0 với hàng khác. */
   kho_rong: number;
   kho_dai: number;
@@ -8302,6 +8500,17 @@ export interface PurchaseDeliveryRow {
   created_by_name: string | null;
   created_at: string | null;
   lines: PurchaseDeliveryLineRow[];
+  /** Phiếu chi trả đợt này; phiếu gộp thì `amount` là phần của đợt, `gop` = true. */
+  phieu_chi?: PhieuChiCuaKhoan[];
+}
+
+export interface PhieuChiCuaKhoan {
+  voucher_id?: number;
+  code: string;
+  doc_no: string | null;
+  amount: number;
+  voucher_date: string;
+  gop?: boolean;
 }
 
 /** `hop_dong` = file của cả phiếu mua · các loại còn lại thường gắn vào một đợt giao. */
@@ -8334,7 +8543,6 @@ export interface PurchaseDeliveryLineInput {
 
 export interface PurchaseDeliveryInput {
   delivery_date: string;
-  due_date?: string | null;
   invoice_symbol?: string | null;
   invoice_number?: string | null;
   invoice_date?: string | null;
@@ -8353,9 +8561,6 @@ export interface PurchaseInvoiceAssignInput {
 
 export interface PurchaseContractInput {
   contract_number?: string | null;
-  /** NGÀY CHỐT CÔNG NỢ do NCC báo cho ĐƠN (YYYY-MM-DD). Hạn trả MỌI đợt của đơn = ngày này +
-   *  số ngày cho nợ của NCC. `null` = chưa báo ⇒ hạn lùi về luật cũ (ngày hoá đơn + số ngày). */
-  debt_cutoff_date?: string | null;
   /** Cọc DỰ KIẾN — chỉ để đối chiếu, KHÔNG vào công thức công nợ (cọc thật là phiếu chi). */
   deposit_expected: number;
 }
@@ -8403,11 +8608,10 @@ export interface PurchaseRequestRow {
   created_at: string;
   updated_at: string;
   contract_number: string | null;
-  /** NGÀY CHỐT CÔNG NỢ NCC báo cho đơn. Hạn trả MỌI đợt = ngày này + số ngày cho nợ của NCC —
-   *  đồng hồ chạy từ mốc CHỐT, không phải từ ngày hoá đơn. `null` = chưa báo. */
-  debt_cutoff_date: string | null;
-  /** Chụp `credit_days` của NCC — để suy hạn trả ngay tại ô gõ ngày chốt. `null` = NCC chưa khai. */
+  /** Điều khoản trả của NCC (16/10/2026 — đơn không có điều khoản riêng): số ngày cho nợ
+   *  (`null` = NCC chưa khai) + ngày chốt hằng tháng (`null` = tính từ ngày hoá đơn). */
   supplier_credit_days: number | null;
+  supplier_debt_cutoff_day: number | null;
   /** Cọc DỰ KIẾN — chỉ để nhắc, KHÔNG vào công thức công nợ. */
   deposit_expected: number;
   total_estimate: number;
@@ -8426,8 +8630,10 @@ export interface PurchaseRequestRow {
   /** Phiếu ĐẶT CỌC đã lập cho đơn này — dùng để CẢNH BÁO khi sắp lập phiếu cọc thứ hai.
    *  Cảnh báo chứ không chặn: ứng thêm là ca có thật, và mỗi lần tiền rời két phải có chứng từ
    *  riêng (sửa phiếu cũ lên số to hơn là làm phiếu không khớp lần chi thật). */
-  coc_da_lap: { code: string; doc_no: string | null; amount: number; voucher_date: string }[];
+  coc_da_lap: PhieuChiCuaKhoan[];
   coc_da_chi: number;
+  /** Cọc đã chi mà CHƯA trừ vào đợt giao nào — đợt ghi tiếp theo được trừ phần này trước. */
+  coc_chua_bu: number;
   payment_status: "unpaid" | "partial" | "paid";
   /** Nhóm cột Tiền (máy chủ xếp, cùng hàm với bộ lọc). `null` = chưa phát sinh nợ. */
   nhom_tien: NhomTien | null;
@@ -8622,24 +8828,23 @@ export interface PaymentVoucherInput extends PaymentVoucherBaseInput {
   gia_cong_ngoai_id?: number | null;
 }
 
-/** MỘT đợt giao được chọn để trả trong lượt thanh toán gộp (04/09/2026). */
-export interface VoucherBatchItem {
+/** Một khoản trong phiếu chi gộp (17/10/2026): `delivery_id` trống = CỌC của đơn. */
+export interface PhieuChiGopDong {
   purchase_request_id: number;
-  delivery_id: number;
+  delivery_id: number | null;
+  amount: number;
 }
 
-/** Thanh toán NHIỀU đợt giao — của CÙNG một nhà cung cấp — trong MỘT lượt.
- *
- *  Cố ý KHÔNG có `amount`/`delivery_id`/`payment_stage` ở đây: batch LUÔN trả HẾT từng đợt đã
- *  chọn (server tự tính đúng số còn nợ tại thời điểm lập), không trả một phần — và luôn là
- *  phiếu THANH TOÁN, không phải đặt cọc. `content` bỏ trống thì mỗi phiếu tự đặt câu riêng. */
-export interface VoucherBatchInput extends PaymentVoucherAccountsInput {
-  items: VoucherBatchItem[];
+/** MỘT phiếu chi trả NHIỀU khoản (cọc, đợt giao, nhiều đơn) của CÙNG một nhà cung cấp — chỉ VND.
+ *  `content` trống thì máy đặt "Thanh toán {mã} đợt {n}, … và …". */
+export interface PhieuChiGopInput extends PaymentVoucherAccountsInput {
+  lines: PhieuChiGopDong[];
   voucher_type: PaymentVoucherType;
   voucher_date: string;
-  currency?: string;
-  exchange_rate?: number;
   content?: string | null;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  contract_number?: string | null;
   company_bank_account_id?: number | null;
   supplier_bank_account_id?: number | null;
   cash_recipient_name?: string | null;
@@ -8650,6 +8855,17 @@ export interface VoucherBatchInput extends PaymentVoucherAccountsInput {
   beneficiary_bank_name?: string | null;
   beneficiary_bank_branch?: string | null;
   bank_fee_bearer?: "payer" | "beneficiary" | "shared" | null;
+  note?: string | null;
+}
+
+/** Một dòng phân bổ của phiếu chi đơn mua. Phiếu lẻ có đúng một dòng; phiếu gộp có nhiều. */
+export interface PaymentVoucherLineRow {
+  purchase_request_id: number;
+  purchase_code: string | null;
+  delivery_id: number | null;
+  delivery_seq_no: number | null;
+  invoice_number: string | null;
+  amount: number;
 }
 
 export interface VoucherBatchResult {
@@ -8790,18 +9006,21 @@ export interface PaymentVoucherRow {
   updated_at: string;
   /** Bảng đối chiếu trong ngăn: đã trả/thu TRƯỚC phiếu này và còn nợ SAU phiếu này. Chỉ route đọc
    *  MỘT phiếu mới điền; null ở danh sách hoặc loại phiếu không đối chiếu theo đợt/hoá đơn. */
+  /** Bảng phân bổ (17/10/2026). > 1 dòng = phiếu gộp: đầu phiếu không đơn/đợt. */
+  lines?: PaymentVoucherLineRow[];
+  /** Phiếu gộp: đối chiếu theo từng dòng (chỉ khi đọc một phiếu). */
+  doi_chieu?: { purchase_code: string; delivery_seq_no: number | null; truoc_do: number; con_no_sau: number }[];
   truoc_do?: number | null;
   con_no_sau?: number | null;
 }
 
-/** Số trên hàng thẻ lọc Phiếu chi / Phiếu thu. Máy chủ đếm trên bộ lọc KHÔNG gồm `status` và
- *  `chung_tu`, nên chọn một thẻ không làm các thẻ còn lại về 0. `xong` = đã chi / đã thu, `cho` =
- *  chờ (phần còn lại sau khi trừ xong và đã huỷ), `thieu_chung_tu` chỉ tính phiếu đã xong. */
+/** Số trên hàng thẻ lọc Phiếu chi / Phiếu thu. Máy chủ đếm trên bộ lọc KHÔNG gồm `status`, nên
+ *  chọn một thẻ không làm các thẻ còn lại về 0. `xong` = đã chi / đã thu, `cho` = chờ (phần còn
+ *  lại sau khi trừ xong và đã huỷ). */
 export type TheLoc = {
   tat_ca: number;
   xong: number;
   xong_tien: number;
-  thieu_chung_tu: number;
   da_huy: number;
   cho: number;
 };
@@ -8824,7 +9043,6 @@ export type LocPhieu = {
   muc?: number[];
   tai_khoan_id?: number;
   nguoi_lap_id?: number;
-  chung_tu?: "co" | "thieu";
   /** Ô tên người trong bộ lọc nâng cao, tách khỏi `q`. Phiếu chi: "Người nhận" (so tên người
    *  nhận/chủ tài khoản/nhà cung cấp). Phiếu thu: "Người nộp" (so `payer_name`). */
   nhan?: string;
@@ -8845,7 +9063,6 @@ function themLocPhieuVaoQuery(qs: URLSearchParams, p: Omit<LocPhieu, "status">):
   for (const m of p.muc ?? []) qs.append("muc", String(m));
   if (p.tai_khoan_id != null) qs.set("tai_khoan_id", String(p.tai_khoan_id));
   if (p.nguoi_lap_id != null) qs.set("nguoi_lap_id", String(p.nguoi_lap_id));
-  if (p.chung_tu) qs.set("chung_tu", p.chung_tu);
   if (p.nhan?.trim()) qs.set("nhan", p.nhan.trim());
   if (p.dem_only) qs.set("dem_only", "true");
 }
@@ -8938,7 +9155,7 @@ export interface PaymentVoucherListOut {
   /** DORMANT từ 06/08/2026: không còn phiếu "chờ chi" nên số này luôn 0. Đừng hiện lên màn. */
   total_waiting_amount: number;
   total_receipt_received_amount: number;
-  /** Số trên hàng thẻ lọc. Đếm bỏ qua `status` và `chung_tu`. */
+  /** Số trên hàng thẻ lọc. Đếm bỏ qua `status`. */
   the_loc: TheLoc;
 }
 
@@ -9032,6 +9249,41 @@ export interface PaymentReceiptRow {
    *  MỘT phiếu mới điền; null ở danh sách hoặc loại phiếu không đối chiếu theo đợt/hoá đơn. */
   truoc_do?: number | null;
   con_no_sau?: number | null;
+  /** Khách của phiếu thu đơn bán (phiếu gộp không có đơn/hoá đơn ở đầu phiếu). */
+  customer_id?: number | null;
+  /** Bảng phân bổ (17/10/2026). > 1 dòng = phiếu gộp nhiều chứng từ. */
+  lines?: PaymentReceiptLineRow[];
+  /** Phiếu gộp: đối chiếu theo từng dòng hoá đơn (chỉ khi đọc một phiếu). */
+  doi_chieu?: { order_code: string | null; invoice_number: string | null; truoc_do: number; con_no_sau: number }[] | null;
+}
+
+/** Một dòng phân bổ của phiếu thu đơn bán. `sales_invoice_id` trống = dòng cọc của đơn. */
+export interface PaymentReceiptLineRow {
+  order_id: number;
+  order_code: string | null;
+  sales_invoice_id: number | null;
+  invoice_number: string | null;
+  amount: number;
+}
+
+/** Một khoản trong phiếu thu gộp: có `sales_invoice_id` = thu hoá đơn; trống = thu CỌC của `order_id`. */
+export interface PhieuThuGopDong {
+  sales_invoice_id: number | null;
+  order_id: number | null;
+  amount: number;
+}
+
+/** MỘT phiếu thu cho NHIỀU khoản (cọc, hoá đơn, nhiều đơn) của CÙNG một khách — chỉ VND. */
+export interface PhieuThuGopInput {
+  lines: PhieuThuGopDong[];
+  payer_name?: string | null;
+  payer_address?: string | null;
+  receipt_method: PaymentVoucherType;
+  receipt_date: string;
+  content?: string | null;
+  company_bank_account_id?: number | null;
+  bank_reference?: string | null;
+  note?: string | null;
 }
 
 export interface PaymentReceiptAttachment {
@@ -9051,7 +9303,7 @@ export interface PaymentReceiptListOut {
   size: number;
   /** Tổng tiền (VND) các phiếu ĐÃ THU khớp bộ lọc — mọi trang. */
   total_received_amount: number;
-  /** Số trên hàng thẻ lọc; `cho` = chờ thu. Đếm bỏ qua `status` và `chung_tu`. */
+  /** Số trên hàng thẻ lọc; `cho` = chờ thu. Đếm bỏ qua `status`. */
   the_loc: TheLoc;
 }
 
@@ -9065,6 +9317,8 @@ export interface OrderLineOut {
   unit_price_snapshot: number | null;
   vat_pct_estimate: number;
   line_total: number | null;
+  /** Tiền chiết khấu nằm trong `line_total` — công ty sẽ hoàn lại khách. null = đơn cũ / nhập tay. */
+  chiet_khau?: number | null;
   cost_snapshot: number | null;
   phieu_thanh_phan_id: number | null;
   /** Nhãn nhóm gộp KHI IN xác nhận đơn — copy từ dòng báo giá, khớp bản khách đã nhận. */
@@ -9089,6 +9343,9 @@ export interface OrderDepositReceipt {
   status: string;           // received (V5: lập là đã thu)
   receipt_date: string | null;
   created_at: string;
+  /** Phiếu gộp nhiều chứng từ: `amount` là phần cọc của đơn này, `tong_phieu` là cả phiếu. */
+  gop?: boolean;
+  tong_phieu?: number | null;
 }
 export interface OrderDepositReceiptInput {
   receipt_method: string;   // cash | bank_transfer
@@ -9161,8 +9418,11 @@ export interface OrderRow {
   deposit_required: number;
   deposit_received: number;
   deposit_ok: boolean;
-  /** Đơn đã huỷ: tổng phiếu chi trả lại cọc còn hiệu lực. Cọc còn giữ = deposit_received − số này. */
+  /** Đơn đã huỷ: tổng phiếu chi trả lại tiền khách còn hiệu lực của đơn. */
   deposit_refunded: number;
+  /** Đơn đã huỷ: tiền khách đã đưa (cọc + tiền hoá đơn đã huỷ) và phần còn giữ chưa trả lại. */
+  tien_khach_da_nhan?: number;
+  tien_khach_con_giu?: number;
   delivery_committed_date: string | null;
   sale_user_id: number | null;
   sale_name: string | null;
@@ -10097,6 +10357,18 @@ export interface CanDoiDong {
   /** Nhu cầu ra đơn vị mà mã CHƯA khai ở danh mục (nhóm gốc `don_vi_goc` của nhóm) — dòng này
    *  không lập mua được, bảng ghi "Chưa khai đơn vị «X» ở danh mục" thay ô tick. */
   don_vi_chua_khai?: boolean;
+  /** Yêu cầu/đơn "Mua cho" lệnh này mà KHÁC khổ/ĐVT với nhu cầu (lỗi #23) — không bù số. */
+  mua_khac_quy_cach?: MuaKhacQuyCach[];
+}
+
+/** Một yêu cầu/đơn "Mua cho" lệnh nhưng khác khổ hoặc ĐVT với nhu cầu — chỉ để gọi tên. */
+export interface MuaKhacQuyCach {
+  ma: string;
+  so_luong: number;
+  /** MÃ đơn vị trên dòng đơn — dịch bằng `tenGoc`/`nhanDonVi`. */
+  don_vi: string | null;
+  kho_rong: number;
+  kho_dai: number;
 }
 
 /** Một phiếu ĐANG CHẠY của mặt hàng — chỉ đủ để GỌI TÊN, không mang số lượng, không mang tiền.
@@ -10375,6 +10647,8 @@ export interface LuoiDong {
   ghi_chu: string[];
   buoc: { buoc_id: number | null; ten_viec: string | null; can: number; da_xuat: number; thieu: number }[];
   khoa_mua: CanDoiKhoaDong[];
+  /** Có ⇒ `khoa_mua` rỗng, ô tick xám (lỗi #23). */
+  mua_khac_quy_cach?: MuaKhacQuyCach[];
 }
 
 export interface LuoiLichSu {
@@ -11352,6 +11626,8 @@ export interface StockVoucherInput {
   ngay?: string | null;
   ghi_chu?: string | null;
   lines: StockVoucherLineInput[];
+  /** "Tạo và ghi sổ": máy chủ xét khoá kỳ ngay lúc tạo, không để lại phiếu nháp khi bị chặn. */
+  ghi_so?: boolean;
 }
 
 /** 1 mặt hàng cần điều chuyển. `so_luong` theo ĐƠN VỊ GỐC của mặt hàng. */
@@ -11745,7 +12021,12 @@ export interface BaoCaoKinhDoanhTien {
   /** Phần thực hiện đơn (phương án C, 11/10/2026) — lũy kế tới hết `tinh_toi`. */
   gia_tri_giao: number;
   da_xuat_hd: number;
+  /** Hoá đơn điều chỉnh giảm (hoàn chiết khấu) tới hết `tinh_toi`; Còn phải thu = Tổng có VAT − cái này − Đã thu. */
+  dieu_chinh: number;
   da_thu: number;
+  /** Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — Còn phải thu = Tổng có VAT −
+   *  Điều chỉnh giảm − Đã thu + cái này. */
+  hoan_khong_don: number;
   con_phai_thu: number;
 }
 export type TinhTrangBCKD = "chua" | "mot_phan" | "du";
@@ -12275,8 +12556,11 @@ export const api = {
         body: JSON.stringify({ name }),
       });
     },
-    deleteRole(token: string, roleId: number): Promise<void> {
-      return authed<void>(`/api/roles/${roleId}`, token, { method: "DELETE" });
+    /** `force`: còn người giữ vai thì máy chủ gỡ vai khỏi họ rồi xoá (15/10/2026). */
+    deleteRole(token: string, roleId: number, force = false): Promise<void> {
+      return authed<void>(`/api/roles/${roleId}${force ? "?force=true" : ""}`, token, {
+        method: "DELETE",
+      });
     },
     /** Nhân bản vai trò: vai MỚI với ma trận quyền chép y nguyên vai gốc.
      *  Bỏ `name` = máy chủ tự đặt "«tên gốc» (bản sao)"; bỏ `departmentId` = cùng phòng vai gốc.
@@ -14695,6 +14979,25 @@ export const api = {
         body: JSON.stringify({ ly_do: lyDo }),
       });
     },
+    /** Máy còn dùng cho hộp Khoá máy — gác bằng quyền Xếp lịch. */
+    mayGon(token: string): Promise<XlMayGon[]> {
+      return authed<XlMayGon[]>("/api/xep-lich/may", token);
+    },
+    vungKhoa(token: string, mayId: number): Promise<XlVungKhoa[]> {
+      return authed<XlVungKhoa[]>(`/api/xep-lich/may/${mayId}/vung-khoa`, token);
+    },
+    /** `tu`/`den` là giờ tường `YYYY-MM-DDTHH:mm` — đừng `toISOString()`, nó dịch sang UTC. */
+    taoVungKhoa(token: string, mayId: number,
+      body: { tu: string; den: string; ly_do: string; note: string | null }): Promise<XlVungKhoa> {
+      return authed<XlVungKhoa>(`/api/xep-lich/may/${mayId}/vung-khoa`, token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    },
+    xoaVungKhoa(token: string, id: number): Promise<{ ok: boolean }> {
+      return authed<{ ok: boolean }>(`/api/xep-lich/vung-khoa/${id}`, token, { method: "DELETE" });
+    },
   },
 
   // --- Thực hiện sản xuất (module `san_xuat`) — bàn của TỔ -------------------
@@ -15627,8 +15930,12 @@ export const api = {
     remove(token: string, id: number): Promise<void> {
       return authed<void>(`/api/purchase-requests/${id}`, token, { method: "DELETE" });
     },
-    submit(token: string, id: number): Promise<PurchaseRequestRow> {
-      return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}/submit`, token, { method: "POST" });
+    /** Gửi duyệt. `deposit_expected` = cọc chốt cùng lần gửi; bỏ trống = giữ cọc đang có. */
+    submit(token: string, id: number, input?: { deposit_expected?: number }): Promise<PurchaseRequestRow> {
+      return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}/submit`, token, {
+        method: "POST",
+        ...(input ? { body: JSON.stringify(input) } : {}),
+      });
     },
     approve(token: string, id: number): Promise<PurchaseRequestRow> {
       return authed<PurchaseRequestRow>(`/api/purchase-requests/${id}/approve`, token, { method: "POST" });
@@ -15849,6 +16156,10 @@ export const api = {
     },
   },
   accounting: {
+    /** Tab "Mua hàng chờ chi" của màn Phiếu chi — mỗi đơn một dòng (khoá `phieu_chi` read). */
+    muaHangChoChi(token: string, params: { q?: string; supplier_id?: number | null } = {}) {
+      return authed<MuaHangChoChi[]>(`/api/accounting/mua-hang-cho-chi${qs(params)}`, token);
+    },
     inbox(
       token: string,
       params: {
@@ -16088,6 +16399,14 @@ export const api = {
         body: JSON.stringify(payload),
       });
     },
+    /** Mục "Đơn hàng chờ thu" của màn Phiếu thu (17/10/2026): cọc chưa đủ + hoá đơn chưa trả hết. */
+    donHangChoThu(token: string): Promise<DonHangChoThu> {
+      return authed<DonHangChoThu>("/api/accounting/don-hang-cho-thu", token);
+    },
+    /** Mục "Chờ trả lại khách" của màn Phiếu chi (17/10/2026). */
+    traLaiKhachChoChi(token: string): Promise<TraLaiKhachChoChi[]> {
+      return authed<TraLaiKhachChoChi[]>("/api/accounting/tra-lai-khach-cho-chi", token);
+    },
     salesInvoices(token: string, orderId: number): Promise<SalesInvoiceListOut> {
       return authed<SalesInvoiceListOut>(
         `/api/accounting/sales-invoices?order_id=${orderId}`,
@@ -16113,6 +16432,30 @@ export const api = {
         token,
         { method: "POST", body: JSON.stringify({ reason }) },
       );
+    },
+    /** Ghi nhận hóa đơn điều chỉnh giảm — hoàn tiền chiết khấu cho khách (18/10/2026). */
+    createDieuChinh(token: string, invoiceId: number, input: DieuChinhInput): Promise<DieuChinhRow> {
+      return authed<DieuChinhRow>(`/api/accounting/sales-invoices/${invoiceId}/dieu-chinh`, token, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+    },
+    cancelDieuChinh(token: string, adjId: number, reason: string): Promise<DieuChinhRow> {
+      return authed<DieuChinhRow>(`/api/accounting/sales-invoice-adjustments/${adjId}/cancel`, token, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+    },
+    chiTietKhoanThu(token: string, khoan: { invoice_id: number } | { order_id: number }): Promise<ChiTietKhoanThu> {
+      const q = "invoice_id" in khoan ? `invoice_id=${khoan.invoice_id}` : `order_id=${khoan.order_id}`;
+      return authed<ChiTietKhoanThu>(`/api/accounting/chi-tiet-khoan-thu?${q}`, token);
+    },
+    /** MỘT phiếu thu cho NHIỀU khoản của CÙNG một khách (17/10/2026). Một khoản ⇒ phiếu lẻ thường. */
+    createReceiptGop(token: string, input: PhieuThuGopInput): Promise<PaymentReceiptRow> {
+      return authed<PaymentReceiptRow>("/api/accounting/payment-receipts/gop", token, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
     },
     createSalesInvoiceReceipt(
       token: string,
@@ -16244,14 +16587,9 @@ export const api = {
         body: JSON.stringify(input),
       });
     },
-    /** Thanh toán NHIỀU đợt giao của CÙNG một NCC trong MỘT lượt (04/09/2026). Vẫn ra N phiếu
-     *  chi riêng — server lặp lại đúng đường kiểm/lập của `createVoucher` cho từng đợt, batch
-     *  chỉ gộp thao tác nhập liệu (hình thức chi + tài khoản/người nhận điền một lần). */
-    createVouchersBatch(
-      token: string,
-      input: VoucherBatchInput,
-    ): Promise<VoucherBatchResult> {
-      return authed<VoucherBatchResult>("/api/accounting/payment-vouchers/batch", token, {
+    /** MỘT phiếu chi cho NHIỀU khoản của CÙNG một NCC (17/10/2026). Một khoản ⇒ phiếu lẻ thường. */
+    createVoucherGop(token: string, input: PhieuChiGopInput): Promise<PaymentVoucherRow> {
+      return authed<PaymentVoucherRow>("/api/accounting/payment-vouchers/gop", token, {
         method: "POST",
         body: JSON.stringify(input),
       });
@@ -18007,8 +18345,11 @@ export interface PhieuXuatIn {
   ngay: string;
   kho_ten: string | null;
   nguoi_lap: string | null;
-  /** Số thực xuất theo dòng đơn (dòng đầu mỗi cụm). */
-  thuc_xuat: { order_line_id: number; so_luong: number; ma_hang: string | null }[];
+  /** Theo dòng đơn (dòng đầu mỗi cụm): `so_luong` = số in phiếu giao (khách thực nhận khi chuyến đã có
+   *  kết quả, chưa có thì bằng số xuất), `so_xuat` = số kho thực xuất (mẫu 02-VT). */
+  thuc_xuat: { order_line_id: number; so_luong: number; so_xuat: number; ma_hang: string | null }[];
+  /** Người ký nhận: người nhận thực tế của chuyến, chưa giao thì người nhận ghi trên yêu cầu. */
+  nguoi_mua: string | null;
   khach_ma_so_thue: string | null;
   khach_dia_chi: string | null;
   khach_dien_thoai: string | null;

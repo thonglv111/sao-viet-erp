@@ -144,7 +144,7 @@ def test_nhan_tieng_viet_do_may_chu_dich(client):
     # Ba mã danh mục dùng chung: nhãn phải lấy thêm LOẠI từ target.
     _do(n=1, action="dm_sua", target="giay:7", detail="x")
     dm = client.get("/api/audit?action=dm_sua&loai=giay", headers=_h(token)).json()
-    assert dm["items"][0]["nhan"] == "Sửa · Giấy"
+    assert dm["items"][0]["nhan"] == "Sửa giấy"
     assert dm["items"][0]["target_loai"] == "giay"
 
 

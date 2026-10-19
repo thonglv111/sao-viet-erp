@@ -42,13 +42,16 @@ def _ghi_lich_chung(action: str):
 
     Ngày lễ và tuần làm việc là dữ liệu dùng chung: đổi một ngày là đổi CÔNG của toàn bộ nhân
     viên, và đổi tuần làm việc còn đổi cả CÔNG CHUẨN (tức đơn giá ngày). Người quản một tổ không
-    có việc gì phải đụng vào đó. Cùng hàng rào với Chốt kỳ công và Khai ca."""
+    có việc gì phải đụng vào đó. Cùng hàng rào với Chốt kỳ công và Khai ca.
+
+    Đòi thêm ô "Lịch & Ngày lễ" (15/10/2026): Thao tác Chấm công nay luôn bật cho mọi vai (mg 0412)."""
 
     doi_o = require_permission(MODULE, action)
+    doi_tab = require_permission(MODULE, "manage_calendar")
 
     # Xem chú thích cùng loại ở `attendance._ghi_cau_hinh_chung`: không dùng Annotated ở đây.
     def _dep(authz: AuthorizationService = Depends(get_authorization_service),
-             user: User = Depends(doi_o)) -> User:
+             user: User = Depends(doi_o), _tab: User = Depends(doi_tab)) -> User:
         if authz.scope_for(user, MODULE) != SCOPE_ALL:
             raise HTTPException(
                 status_code=403,

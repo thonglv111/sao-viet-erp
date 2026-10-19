@@ -10,7 +10,12 @@ import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock, X } from "
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
+import { laDienThoai } from "../utils/dienThoai";
 import "./chon-ngay.css";
+
+/** Điện thoại: chạm ô ngày / giờ CHỈ mở lịch / danh sách giờ, KHÔNG bật bàn phím số — bàn phím bật lên che
+ *  mất cái lịch nằm ngay dưới ô (bàn phím chiếm nửa dưới màn). Máy lớn vẫn gõ tay được như cũ. */
+const kieuGo = (): "none" | "numeric" => (laDienThoai() ? "none" : "numeric");
 
 export type MauDanhDau = "la" | "xanh" | "vang" | "do" | "tim";
 
@@ -78,9 +83,12 @@ function useViTriNoi(mo: boolean, neo: RefObject<HTMLElement>, hop: RefObject<HT
       if (!r) return;
       const h = hop.current?.offsetHeight ?? 360;
       const w = hop.current?.offsetWidth ?? 300;
-      const duoi = r.bottom + 6 + h <= window.innerHeight - 8 || r.top - 6 - h < 8;
+      const duoi = r.bottom + 6 + h <= window.innerHeight - 8;
+      const tren = r.top - 6 - h >= 8;
+      // Dưới lẫn trên đều thiếu chỗ (điện thoại: ô nằm giữa màn, lịch ngày-giờ cao ~440px) ⇒ kéo hộp
+      // lên cho đáy chạm mép màn, đè lên ô — thà che ô còn hơn mất hàng nút "Bây giờ / Xong" dưới đáy.
       setVt({
-        top: duoi ? r.bottom + 6 : r.top - 6 - h,
+        top: duoi ? r.bottom + 6 : tren ? r.top - 6 - h : Math.max(8, window.innerHeight - 8 - h),
         left: Math.min(Math.max(8, r.left), window.innerWidth - w - 8),
       });
     };
@@ -231,6 +239,17 @@ interface OChung {
   xoaDuoc?: boolean;
 }
 
+/** Giá trị NGOÀI đổi (chọn ở chỗ khác, nạp lại…) ⇒ chép lại chữ trong ô. CHỈ chạy khi giá trị đổi thật,
+ *  KHÔNG chạy lúc vừa gắn: effect gắn có thể tới trễ (ô hiện ra từ một promise) và đè mất chữ người vừa gõ. */
+function useKhiDoi(value: string, chepLai: () => void) {
+  const truoc = useRef(value);
+  useEffect(() => {
+    if (truoc.current === value) return;
+    truoc.current = value;
+    chepLai();
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 function useDongNgoai(mo: boolean, dong: () => void, khung: RefObject<HTMLElement>, hop: RefObject<HTMLElement>) {
   useEffect(() => {
     if (!mo) return;
@@ -263,7 +282,7 @@ export function ChonNgay({
   const vt = useViTriNoi(mo, khungRef, hopRef, con.getMonth());
   const xoa = (xoaDuoc ?? !required) && !!value && !khoa;
 
-  useEffect(() => { if (document.activeElement !== oRef.current) setChu(hienNgay(value)); }, [value]);
+  useKhiDoi(value, () => { if (document.activeElement !== oRef.current) setChu(hienNgay(value)); });
 
   const moLich = () => { if (khoa || mo) return; setCon(docYmd(value) ?? new Date()); setMo(true); };
   const dong = () => setMo(false);
@@ -294,7 +313,7 @@ export function ChonNgay({
       }}>
       <CalendarDays size={15} className="cn-khung__ic" aria-hidden="true" />
       <input ref={oRef} id={id} className="cn-khung__go" value={chu} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
-        required={required} aria-label={nhan} aria-haspopup="dialog" aria-expanded={mo} autoFocus={autoFocus} inputMode="numeric"
+        required={required} aria-label={nhan} aria-haspopup="dialog" aria-expanded={mo} autoFocus={autoFocus} inputMode={kieuGo()}
         autoComplete="off"
         onChange={(e) => {
           setChu(e.target.value);
@@ -372,7 +391,7 @@ export function ChonGio({
   const hopRef = useRef<HTMLDivElement>(null);
   const vt = useViTriNoi(mo, khungRef, hopRef, null);
   const xoa = (xoaDuoc ?? !required) && !!value && !khoa;
-  useEffect(() => { if (document.activeElement !== oRef.current) setChu(value.slice(0, 5)); }, [value]);
+  useKhiDoi(value, () => { if (document.activeElement !== oRef.current) setChu(value.slice(0, 5)); });
   useDongNgoai(mo, () => setMo(false), khungRef, hopRef);
 
   const dat = (v: string) => { onChange(v); setChu(v); setMo(false); };
@@ -393,7 +412,7 @@ export function ChonGio({
       }}>
       <Clock size={15} className="cn-khung__ic" aria-hidden="true" />
       <input ref={oRef} id={id} className="cn-khung__go" value={chu} placeholder={placeholder} disabled={disabled} readOnly={readOnly}
-        required={required} aria-label={nhan} aria-haspopup="listbox" aria-expanded={mo} autoFocus={autoFocus} inputMode="numeric"
+        required={required} aria-label={nhan} aria-haspopup="listbox" aria-expanded={mo} autoFocus={autoFocus} inputMode={kieuGo()}
         autoComplete="off"
         onChange={(e) => setChu(e.target.value)}
         onFocus={() => { if (!khoa) setMo(true); }}
@@ -438,11 +457,11 @@ export function ChonNgayGio({
   const minN = min?.slice(0, 10);
   const maxN = max?.slice(0, 10);
 
-  useEffect(() => {
+  useKhiDoi(value, () => {
     const a = document.activeElement;
     if (a !== ngayRef.current) setChuNgay(hienNgay(ngay));
     if (a !== gioRef.current) setChuGio(gioCu);
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+  });
   useDongNgoai(mo, () => setMo(false), khungRef, hopRef);
 
   const ghep = (n: string, g: string) => {
@@ -485,7 +504,7 @@ export function ChonNgayGio({
       <CalendarDays size={15} className="cn-khung__ic" aria-hidden="true" />
       <input ref={ngayRef} id={id} className="cn-khung__go cn-khung__go--ngay" value={chuNgay} placeholder="dd/mm/yyyy" disabled={disabled}
         readOnly={readOnly} required={required} aria-label={`${nhan}, ngày`} aria-haspopup="dialog" aria-expanded={mo} autoFocus={autoFocus}
-        inputMode="numeric" autoComplete="off"
+        inputMode={kieuGo()} autoComplete="off"
         onChange={(e) => {
           setChuNgay(e.target.value);
           const n = docNgayGo(e.target.value);
@@ -506,7 +525,7 @@ export function ChonNgayGio({
           if (phimLich(e, con, setCon)) e.preventDefault();
         }} />
       <input ref={gioRef} className="cn-khung__go cn-khung__go--gio" value={chuGio} placeholder="--:--" disabled={disabled} readOnly={readOnly}
-        aria-label={`${nhan}, giờ`} inputMode="numeric" autoComplete="off"
+        aria-label={`${nhan}, giờ`} inputMode={kieuGo()} autoComplete="off"
         onChange={(e) => setChuGio(e.target.value)}
         onFocus={moLich}
         onBlur={(e) => { chotGio(); roiKhung(e); }}

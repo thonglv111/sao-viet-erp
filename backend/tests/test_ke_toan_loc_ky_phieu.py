@@ -185,28 +185,19 @@ def test_the_loc_theo_ky_nhung_khong_theo_the(client):
     assert r["the_loc"]["tat_ca"] == 1 and r["the_loc"]["xong_tien"] == 2_000_000
 
 
-def test_chung_tu_thieu_va_dem_only(client):
-    h = _headers(client)
-    p = _lap_phieu_chi(client, h, so_tien=700_000)
-    r = client.get(URL_PC, headers=h, params={"chung_tu": "thieu", "dem_only": True})
-    assert r.json()["items"] == []
-    assert r.json()["total"] >= 1
-    r2 = client.get(URL_PC, headers=h, params={"chung_tu": "thieu"})
-    assert p["id"] in [x["id"] for x in r2.json()["items"]]
-    assert r2.json()["the_loc"]["thieu_chung_tu"] >= 1
-
-
-def test_chung_tu_co_loai_phieu_thieu_va_the_loc_giam(client):
+def test_phieu_chi_bo_loc_chung_tu_va_dem_only(client):
+    """Lọc theo chứng từ gốc đã gỡ (18/10/2026): `chung_tu` cũ trên URL bị bỏ qua, thẻ lọc không còn
+    đếm "thiếu chứng từ"; `dem_only` vẫn chỉ trả số."""
     h = _headers(client)
     thieu = _lap_phieu_chi(client, h, so_tien=700_000)
     du = _lap_phieu_chi(client, h, so_tien=800_000)
     tep = _dinh_kem(client, h, URL_PC, du["id"])
     try:
-        co = client.get(URL_PC, headers=h, params={"chung_tu": "co"}).json()
-        assert [x["id"] for x in co["items"]] == [du["id"]]
-        ths = client.get(URL_PC, headers=h, params={"chung_tu": "thieu"}).json()
-        assert [x["id"] for x in ths["items"]] == [thieu["id"]]
-        assert ths["the_loc"]["thieu_chung_tu"] == 1 and ths["the_loc"]["tat_ca"] == 2
+        r = client.get(URL_PC, headers=h, params={"chung_tu": "thieu"}).json()
+        assert {x["id"] for x in r["items"]} == {thieu["id"], du["id"]}
+        assert "thieu_chung_tu" not in r["the_loc"] and r["the_loc"]["tat_ca"] == 2
+        d = client.get(URL_PC, headers=h, params={"dem_only": True}).json()
+        assert d["items"] == [] and d["total"] == 2
     finally:
         client.delete(f"{URL_PC}/{du['id']}/attachments/{tep['id']}", headers=h)
 
@@ -227,17 +218,17 @@ def test_phieu_thu_loc_ky_va_tong_da_thu(client):
         "tu_ngay": hn.isoformat(), "den_ngay": (hn - timedelta(days=1)).isoformat()}).status_code == 422
 
 
-def test_phieu_thu_the_loc_chung_tu_va_dem_only(client):
+def test_phieu_thu_bo_loc_chung_tu_va_dem_only(client):
     h = _headers(client)
     thieu = _lap_phieu_thu_khac(client, h, so_tien=100_000)
     du = _lap_phieu_thu_khac(client, h, so_tien=200_000)
     tep = _dinh_kem(client, h, URL_PT, du["id"])
     try:
         r = client.get(URL_PT, headers=h, params={"chung_tu": "thieu"}).json()
-        assert [x["id"] for x in r["items"]] == [thieu["id"]]
-        assert r["the_loc"]["thieu_chung_tu"] == 1 and r["the_loc"]["tat_ca"] == 2
-        d = client.get(URL_PT, headers=h, params={"chung_tu": "co", "dem_only": True}).json()
-        assert d["items"] == [] and d["total"] == 1
+        assert {x["id"] for x in r["items"]} == {thieu["id"], du["id"]}
+        assert "thieu_chung_tu" not in r["the_loc"] and r["the_loc"]["tat_ca"] == 2
+        d = client.get(URL_PT, headers=h, params={"dem_only": True}).json()
+        assert d["items"] == [] and d["total"] == 2
         # Sắp xếp theo ngày chứng từ phải được nhận.
         s = client.get(URL_PT, headers=h, params={"sort": "receipt_date"})
         assert s.status_code == 200

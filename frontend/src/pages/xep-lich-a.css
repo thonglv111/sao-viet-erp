@@ -464,3 +464,24 @@ button.xa-b-nhan:hover { text-decoration: underline; }
   .xa-hien { left: 16px; right: 16px; width: auto; }
   .xa-ng-ls__dong { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Hộp Khoá máy (lỗi #50, 18/10/2026). */
+.xa-km { display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+.xa-km__o { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.xa-km__o > span { color: var(--xa-chu-3); font-size: 12px; }
+.xa-km__o select, .xa-km__o input { height: 32px; padding: 0 8px; border: 1px solid var(--xa-vien); border-radius: 6px; font: inherit; background: #fff; }
+.xa-km__bang { width: 100%; border-collapse: collapse; }
+.xa-km__bang th, .xa-km__bang td { padding: 6px 8px; border-bottom: 1px solid var(--xa-vien-2); text-align: left; font-weight: 400; }
+.xa-km__bang th { color: var(--xa-chu-3); font-size: 12px; }
+.xa-km__them { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.xa-km__o--rong { grid-column: 1 / -1; }
+.xa-km__them > .xa-btn { grid-column: 1 / -1; justify-self: start; }
+@media (max-width: 640px) {
+  .xa-km__them { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Tab Lịch sử phát hành: gói đã thu hồi (lỗi #25, 18/10/2026) — chỉ đọc, không chọn để so. */
+.xa-ng-ls__cu-goi { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px dashed var(--xa-vien); border-radius: 10px; }
+.xa-ng-ls__thu-hoi { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.xa-ng-ls__muc--cu { cursor: default; background: var(--xa-vien-3); }
+.xa-ng-ls__muc--cu:hover { border-color: var(--xa-vien); }

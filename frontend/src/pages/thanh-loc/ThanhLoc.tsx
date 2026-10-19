@@ -15,6 +15,7 @@ import { OGoDinhDang } from "../../components/OGoDinhDang";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as PhimReact, ReactNode, RefObject } from "react";
 
+import { laDienThoai, useLaDienThoai } from "../../utils/dienThoai";
 import { loiKhoang, ngayDeDoc } from "../../utils/ky";
 import { LOAI_KY_DS, khoangKy, type KyDS, type LoaiKyDS } from "./ky-danh-sach";
 import {
@@ -93,12 +94,19 @@ function canhMepPhai(el: HTMLElement) {
 
 /** Đưa con trỏ vào ô vừa hiện mà KHÔNG cuộn khung chứa (`autoFocus` của React cuộn khung để ô lọt
  *  vào tầm nhìn, có lúc kéo cả trang trượt ngang). Hàm cấp module ⇒ React chỉ gọi lúc gắn / gỡ. */
-const chonKhongCuon = (n: HTMLElement | null) => n?.focus({ preventScroll: true });
+// Điện thoại: KHÔNG tự đưa con trỏ vào — mỗi lần mở "Lọc" là bàn phím ảo bật lên che bảng, trong khi
+// người dùng thường chỉ chạm chọn một điều kiện. Muốn gõ thì chạm vào ô.
+const chonKhongCuon = (n: HTMLElement | null) => {
+  if (!laDienThoai()) n?.focus({ preventScroll: true });
+};
 
 /** Lớp nổi neo dưới nút; tràn mép phải thì lùi sang trái cho vừa. Canh lại mỗi khi lớp nổi đổi cỡ
  *  (mở menu con làm nó rộng ra) hay cửa sổ đổi cỡ. */
-export function LopNoi({ children, className }: { children: ReactNode; className?: string }) {
+export function LopNoi({ children, className, onDong }: { children: ReactNode; className?: string; onDong?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  // Điện thoại: lớp nổi là tấm trải ngang màn (styles/mobile/chung.css) — không có chỗ "bấm ra ngoài"
+  // rõ ràng nên cần nút ✕ để tắt.
+  const laDT = useLaDienThoai();
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -119,6 +127,11 @@ export function LopNoi({ children, className }: { children: ReactNode; className
   });
   return (
     <div ref={ref} className={`tl-pop${className ? ` ${className}` : ""}`}>
+      {laDT && onDong && (
+        <button type="button" className="tl-pop__dong" aria-label="Đóng bộ lọc" onClick={onDong}>
+          <X size={18} aria-hidden="true" />
+        </button>
+      )}
       {children}
     </div>
   );
@@ -171,7 +184,7 @@ function NutKy({ ky, moc, onKy, boLoai }: {
         <ChevronDown size={15} aria-hidden="true" className="tl-nut__mui" />
       </button>
       {mo && (
-        <LopNoi className="tl-pop--ky">
+        <LopNoi className="tl-pop--ky" onDong={() => setMo(false)}>
           <div role="dialog" aria-label="Kỳ xem danh sách">
             {moc.length > 1 && (
               <>
@@ -430,7 +443,7 @@ function NutLoc<L>({ dieuKien, loc, onLoc }: { dieuKien: DieuKien<L>[]; loc: L; 
         {so > 0 && <span className="tl-nut__so" aria-hidden="true">{so}</span>}
       </button>
       {mo && (
-        <LopNoi className={`tl-pop--menu${dk ? " co-con" : ""}`}>
+        <LopNoi className={`tl-pop--menu${dk ? " co-con" : ""}`} onDong={dong}>
           <div className="tl-menu" role="menu" aria-label="Lọc theo">
             <label className="tl-tim">
               <Search size={14} aria-hidden="true" />
@@ -493,7 +506,7 @@ function KhoiDieuKien<L>({ dk, loc, onLoc }: { dk: DieuKien<L>; loc: L; onLoc: (
         </button>
       </span>
       {mo && (
-        <LopNoi className="tl-pop--con">
+        <LopNoi className="tl-pop--con" onDong={() => setMo(false)}>
           <BangGiaTri dk={dk} loc={loc} onLoc={onLoc} onXong={() => setMo(false)} />
         </LopNoi>
       )}

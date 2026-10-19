@@ -15,6 +15,8 @@ export interface PaymentVoucherDialogProps {
   voucher?: PaymentVoucherRow | null;
   /** Lập phiếu chi cho ĐÚNG một đợt (bấm tại dòng đợt) — bỏ trống thì máy gợi ý đợt còn nợ đầu tiên. */
   dotId?: number | null;
+  /** Lập phiếu CỌC (nút "Chi cọc" ở tab Mua hàng chờ chi) — mở sẵn loại Đặt cọc. */
+  coc?: boolean;
   onClose: () => void;
   onSaved: (voucher: PaymentVoucherRow) => void;
 }

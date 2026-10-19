@@ -271,6 +271,30 @@ def kiem_giam_buoc_sau(db: Session, repo: SanXuatSanLuongRepository, cv,
         )
 
 
+def _to_tien(repo: SanXuatSanLuongRepository, cv, da: set) -> set:
+    """Khoá (`_khoa`) của MỌI bước đứng trước `cv` theo routing, đi ngược hết chuỗi."""
+    for g in nhom_truoc(repo, cv):
+        k = _khoa(g[0])
+        if k in da:
+            continue
+        da.add(k)
+        _to_tien(repo, g[0], da)
+    return da
+
+
+def _nhom_truoc_truc_tiep(repo: SanXuatSanLuongRepository, cv) -> list[list]:
+    """`nhom_truoc` bỏ các bước chỉ là cạnh BẮC CẦU (18/10/2026, lỗi #29): Z phụ thuộc cả X lẫn
+    Y mà Y đã đứng sau X thì hàng của X tới Z QUA Y — đòi Z nhận thẳng từ X là kẹt vĩnh viễn, vì
+    X giao hết số cho Y. Lưu tuyến mới đã bị chặn cạnh thừa (`LsxService._kiem_tuyen_luu`); hàm
+    này gỡ cho lệnh CŨ đang chạy có sẵn cạnh đó."""
+    nhom = nhom_truoc(repo, cv)
+    if len(nhom) < 2:
+        return nhom
+    tien = {_khoa(g[0]): _to_tien(repo, g[0], set()) for g in nhom}
+    return [g for g in nhom
+            if not any(_khoa(g[0]) in tien[_khoa(h[0])] for h in nhom if h is not g)]
+
+
 def thieu_dau_vao(repo: SanXuatSanLuongRepository, cv) -> list[str]:
     """Tên các công đoạn trước CHƯA giao được gì (bàn giao đã xác nhận, số dương) sang đây —
     rỗng thì bắt đầu được (luật 1). Không xét đơn vị: nhận bản kẽm cũng là đã nhận đầu vào.
@@ -278,7 +302,7 @@ def thieu_dau_vao(repo: SanXuatSanLuongRepository, cv) -> list[str]:
     Bước trước CÙNG TỔ + CÙNG LỆNH không tính vào cổng (23/09/2026): hàng chưa rời tổ, bắt tổ tự
     giao cho chính mình rồi mới được bắt đầu là thao tác rỗng. Trần ghi mẻ vẫn giữ, chỉ đổi sang
     bám sản lượng bước trước (`tran_ghi`)."""
-    nhom = [g for g in nhom_truoc(repo, cv) if not cung_to_cung_lsx(g[0], cv)]
+    nhom = [g for g in _nhom_truoc_truc_tiep(repo, cv) if not cung_to_cung_lsx(g[0], cv)]
     if not nhom:
         return []
     co_nhan = {

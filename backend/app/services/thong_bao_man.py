@@ -30,7 +30,10 @@ KENH: dict[str, tuple[str, ...]] = {
     "san_xuat": (),
     "xep_lich": (),
     "kho": (),
-    "phieu_chi": (),
+    # Hàng việc tiền của đơn bán (17/10/2026): chấm cho người LẬP được phiếu — "Đơn hàng chờ thu"
+    # ở Phiếu thu, "Chờ trả lại khách" ở Phiếu chi.
+    "phieu_chi": ("create",),
+    "phieu_thu": ("create",),
     "ky_thuat_may": (),
     "phieu_bao_tri": (),
     "khach_hang": (),

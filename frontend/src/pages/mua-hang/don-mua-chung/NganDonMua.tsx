@@ -30,7 +30,8 @@ import { OMuaCho, khoaMuaCho } from "../mua-cho/OMuaCho";
 import { ChipTT, TT_DON, TT_KHO, TT_TIEN, nhanHangDon } from "../trang-thai-mua";
 import { Icon } from "../../../components/Icons";
 import { hanGanNhat } from "./BangDonMua";
-import { SuaDieuKhoan } from "./SuaDieuKhoan";
+import { moTaHanTra } from "./hanTra";
+import { khoanPhieuChiCuaDon, type KhoanPhieuChi } from "../../ke-toan/shared/phieuGop";
 import "../../ke-toan/ke-toan.css";
 import "../trang-thai-mua.css";
 
@@ -90,10 +91,11 @@ export function NganDonMua({
   tabDau,
   hanhDong,
   canhBao,
+  tiepTheo,
   openYcmh,
   credit,
   viecDot,
-  onLapPhieuChi,
+  onMoChoChi,
   suaDuoc,
   onDoi,
   onLoi,
@@ -104,16 +106,19 @@ export function NganDonMua({
   row: PurchaseRequestRow;
   duongDan: string;
   tabDau: TabDon;
-  /** Nút ở đầu ngăn — mỗi màn một bộ (Thu mua: Ghi đợt giao, Đóng đơn…; Kế toán: Duyệt, Lập phiếu chi). */
+  /** Nút ở đầu ngăn — mỗi màn một bộ (Thu mua: Ghi đợt giao, Đóng đơn…). */
   hanhDong?: ReactNode;
   /** Dải cảnh báo thêm dưới đầu ngăn (vd vượt hạn mức nợ NCC). */
   canhBao?: ReactNode;
+  /** Dải việc tiếp theo dưới đầu ngăn — Mua hàng: "Tiếp theo: gửi duyệt" kèm ô cọc. */
+  tiepTheo?: ReactNode;
   openYcmh?: (code: string) => void;
   credit?: SupplierCredit | null;
   viecDot?: ViecDot;
-  /** Kế toán: lập phiếu chi cho đúng một đợt (`null` = phiếu cọc khi chưa có đợt). */
-  onLapPhieuChi?: (dotId: number | null) => void;
-  /** Sửa điều khoản + tải/xoá tệp hợp đồng. */
+  /** Kế toán: nhảy sang Phiếu chi → "Mua hàng chờ chi" đúng đơn này. Ngăn đơn KHÔNG lập phiếu chi
+   *  (chủ 17/10/2026: Đơn mua hàng chỉ để duyệt, chi tiền ở màn Phiếu chi). Thiếu = không hiện link. */
+  onMoChoChi?: () => void;
+  /** Gõ số hợp đồng ở cột phải + tải/xoá tệp hợp đồng. */
   suaDuoc: boolean;
   onDoi: (next: PurchaseRequestRow) => void;
   onLoi: (msg: string | null) => void;
@@ -162,7 +167,6 @@ export function NganDonMua({
   }, [row, chiXem, phieuChi]);
   const [tab, setTab] = useState<TabDon>(tabDau);
   const tabDung = tabs.some((t) => t.id === tab) ? tab : "mh";
-  const [suaDK, setSuaDK] = useState(false);
 
   const nd = row.content?.trim() || row.purpose?.trim() || "";
   const moc = huy
@@ -215,7 +219,25 @@ export function NganDonMua({
             </div>
           </div>
         }
-        canhBao={canhBao}
+        canhBao={
+          credit?.vuot_han_muc || canhBao || tiepTheo ? (
+            <>
+              {tiepTheo}
+              {/* Vượt hạn mức nợ NCC: chỉ nhắc, không chặn. Đặt ở đây để ngăn Mua hàng lẫn Kế toán
+                  cùng thấy (trước 15/10/2026 chỉ ngăn Kế toán có). */}
+              {/* Có dải gửi duyệt thì dải tự nói một dòng nợ NCC — hai dải chồng nhau làm đầu ngăn dày. */}
+              {credit?.vuot_han_muc && !tiepTheo && (
+                <div className="mh-canh mh-canh--vang" role="status">
+                  <span>
+                    Đang nợ {row.supplier_name || "nhà cung cấp"} {so(credit.no_hien_tai)} đ, vượt hạn mức{" "}
+                    {so(credit.credit_limit)} đ là {so(credit.vuot_bao_nhieu)} đ. Chỉ nhắc, không chặn lập đơn.
+                  </span>
+                </div>
+              )}
+              {canhBao}
+            </>
+          ) : undefined
+        }
         tabs={tabs}
         tab={tabDung}
         onTab={(id) => setTab(id as TabDon)}
@@ -226,33 +248,119 @@ export function NganDonMua({
             {tabDung === "mh" && <TabMatHang row={row} coHangVe={coHangVe} onMoLenh={onMoLenh} />}
             {tabDung === "dg" && <TabDotGiao row={row} viecDot={viecDot} />}
             {tabDung === "tt" && (
-              <TabThanhToan row={row} phieuChi={phieuChi} xemPhieuChi={xemPhieuChi} onLapPhieuChi={onLapPhieuChi} />
+              <TabThanhToan row={row} phieuChi={phieuChi} xemPhieuChi={xemPhieuChi} onMoChoChi={onMoChoChi} />
             )}
             {tabDung === "ct" && <TabChungTu row={row} suaDuoc={suaDuoc} onDoi={onDoi} onLoi={onLoi} />}
             {tabDung === "ls" && <TabLichSu row={row} />}
           </div>
-          <CotPhai row={row} credit={credit} huy={huy} moc={moc} onSua={suaDuoc ? () => setSuaDK(true) : undefined} />
+          <CotPhai row={row} credit={credit} huy={huy} moc={moc} suaDuoc={suaDuoc} onDoi={onDoi} onLoi={onLoi} />
         </div>
       </NganPhai>
-      {suaDK && <SuaDieuKhoan row={row} onDong={() => setSuaDK(false)} onLuu={onDoi} />}
     </>
   );
 }
 
 // ---------------------------------------------------------------------------------------------- //
 
+/** Ngày ngắn "21/10" cho dòng đợt — năm đã nằm ở cột hạn bên phải. */
+const ngayNgan = (iso: string) => `${Number(iso.slice(8, 10))}/${Number(iso.slice(5, 7))}`;
+
+/** Hạn thật của từng đợt ngay dưới dòng Hạn trả (15/10/2026) — đổi cách tính là thấy đợt nào dời hạn
+ *  mà không phải sang tab Đợt giao. Trên 4 đợt thì gọn lại một dòng, chi tiết ở tab đó. */
+function HanTungDot({ row }: { row: PurchaseRequestRow }) {
+  const dots = [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no);
+  if (dots.length > 4) {
+    const han = hanGanNhat(row);
+    return (
+      <div className="mh-r">
+        <span />
+        <span className="mh-mo3">{dots.length} đợt{han ? `, hạn gần nhất ${fmtDate(han)}` : ""}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mh-han-dot" aria-label="Hạn trả từng đợt">
+      {dots.map((d) => (
+        <div key={d.id}>
+          <span className="n">Đợt {d.seq_no}</span>
+          <span className="m">{d.invoice_date ? `hoá đơn ${ngayNgan(d.invoice_date)}` : `nhận ${ngayNgan(d.delivery_date)}`}</span>
+          <OHan dot={d} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Số hợp đồng gõ thẳng ở cột phải: rời ô hoặc Enter là lưu, Esc trả lại số cũ. */
+function OSoHopDong({
+  row,
+  onDoi,
+  onLoi,
+}: {
+  row: PurchaseRequestRow;
+  onDoi: (next: PurchaseRequestRow) => void;
+  onLoi: (msg: string | null) => void;
+}) {
+  const { token } = useAuth();
+  const [chu, setChu] = useState(row.contract_number ?? "");
+  const [busy, setBusy] = useState(false);
+  async function luu() {
+    const moi = chu.trim();
+    if (!token || busy || moi === (row.contract_number ?? "")) return;
+    setBusy(true);
+    try {
+      onDoi(
+        await api.purchaseRequests.updateContract(token, row.id, {
+          contract_number: moi || null,
+          // Gửi lại ĐÚNG cọc đang có — ô này chỉ đổi số hợp đồng.
+          deposit_expected: row.deposit_expected || 0,
+        }),
+      );
+      onLoi(null);
+    } catch (err) {
+      setChu(row.contract_number ?? "");
+      onLoi(err instanceof ApiError ? err.message : "Không lưu được số hợp đồng.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <input
+      className={`mh-o-hd${chu ? " co" : ""}`}
+      maxLength={64}
+      value={chu}
+      disabled={busy}
+      placeholder="Gõ số hợp đồng"
+      aria-label="Số hợp đồng"
+      onChange={(e) => setChu(e.target.value)}
+      onBlur={() => void luu()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setChu(row.contract_number ?? "");
+          e.stopPropagation();
+        }
+      }}
+    />
+  );
+}
+
 function CotPhai({
   row,
   credit,
   huy,
   moc,
-  onSua,
+  suaDuoc,
+  onDoi,
+  onLoi,
 }: {
   row: PurchaseRequestRow;
   credit?: SupplierCredit | null;
   huy: boolean;
   moc?: { actor_name: string | null; created_at: string };
-  onSua?: () => void;
+  suaDuoc: boolean;
+  onDoi: (next: PurchaseRequestRow) => void;
+  onLoi: (msg: string | null) => void;
 }) {
   const tienHang = row.lines.reduce((t, l) => t + l.quantity * l.expected_unit_price, 0);
   const tienGiam = row.lines.reduce(
@@ -263,9 +371,7 @@ function CotPhai({
   const coNo = !huy && (row.gia_tri_da_giao > 0 || row.coc_da_chi > 0);
   const pt = row.total_estimate > 0 ? Math.min(100, Math.round((row.gia_tri_da_giao / row.total_estimate) * 100)) : 0;
   const han = hanGanNhat(row);
-  const choNo =
-    row.supplier_credit_days == null ? <span className="mh-mo3">Chưa đặt</span>
-      : row.supplier_credit_days === 0 ? "Trả ngay" : `${row.supplier_credit_days} ngày`;
+  const hanTra = moTaHanTra(row.supplier_credit_days, row.supplier_debt_cutoff_day);
   const henGiao = ["approved", "purchased", "partially_received"].includes(row.status);
   return (
     <aside className="mh-ngan__phai" aria-label="Tiền, điều khoản và người">
@@ -305,14 +411,41 @@ function CotPhai({
         )}
       </div>
 
+      {/* ĐIỀU KHOẢN CHỈ ĐỂ XEM (15/10/2026): cọc chốt ở dải "Tiếp theo: gửi duyệt", cách tính hạn
+          đổi ở dải đó hoặc trong hộp Ghi đợt giao. Riêng số hợp đồng không gắn nút nào — gõ thẳng. */}
       <div className="mh-sb">
-        <h4>
-          Điều khoản<span className="mh-gian" />
-          {onSua && !huy && (
-            <button type="button" className="mh-lk" onClick={onSua}>Sửa</button>
-          )}
-        </h4>
-        <div className="mh-r"><span>Cho nợ</span><span>{choNo}</span></div>
+        <h4>Điều khoản</h4>
+        {row.status !== "cancelled" && (
+          <div className="mh-r">
+            <span>Cọc</span>
+            <span>
+              {row.deposit_expected > 0 ? (
+                `${so(row.deposit_expected)} đ`
+              ) : ["draft", "rejected"].includes(row.status) ? (
+                <span className="mh-mo3">Ghi lúc gửi duyệt</span>
+              ) : (
+                <span className="mh-mo3">Không cọc</span>
+              )}
+              {row.status === "pending_approval" && <small className="mh-r__phu">chờ người duyệt đồng ý</small>}
+              {row.approved_at && !["draft", "pending_approval", "rejected"].includes(row.status) && (
+                <span
+                  className="mh-khoa-coc"
+                  title={`Chốt khi duyệt${row.approved_by_name ? `: ${row.approved_by_name}` : ""} lúc ${fmtDateTime(row.approved_at)}. Không đổi được nữa.`}
+                >
+                  <Icon name="lock" size={12} /> đã duyệt
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+        <div className="mh-r">
+          <span>Hạn trả</span>
+          <span className={hanTra.chuaRo ? "mh-mo3" : undefined}>
+            {hanTra.chinh}
+            {hanTra.phu && <small className="mh-r__phu">{hanTra.phu}</small>}
+          </span>
+        </div>
+        {row.deliveries.length > 0 && <HanTungDot row={row} />}
         {credit && (
           <>
             <div className="mh-r">
@@ -323,15 +456,17 @@ function CotPhai({
             {credit.payment_terms?.trim() && <div className="mh-r"><span>Cách trả</span><span>{credit.payment_terms}</span></div>}
           </>
         )}
-        {!huy && (
-          <>
-            <div className="mh-r"><span>Số hợp đồng</span><span>{row.contract_number || <span className="mh-mo3">Chưa có</span>}</span></div>
-            <div className="mh-r">
-              <span>Ngày chốt nợ</span>
-              <span>{row.debt_cutoff_date ? fmtDate(row.debt_cutoff_date) : <span className="mh-mo3">Theo hoá đơn</span>}</span>
-            </div>
-            <div className="mh-r"><span>Cọc dự kiến</span><span>{so(row.deposit_expected)} đ</span></div>
-          </>
+        {row.status !== "cancelled" && (
+          <div className="mh-r">
+            <span>Số hợp đồng</span>
+            <span>
+              {suaDuoc ? (
+                <OSoHopDong key={`${row.id}:${row.contract_number ?? ""}`} row={row} onDoi={onDoi} onLoi={onLoi} />
+              ) : (
+                row.contract_number || <span className="mh-mo3">Chưa có</span>
+              )}
+            </span>
+          </div>
         )}
         {henGiao && (
           <div className="mh-r">
@@ -700,32 +835,49 @@ function TabThanhToan({
   row,
   phieuChi,
   xemPhieuChi,
-  onLapPhieuChi,
+  onMoChoChi,
 }: {
   row: PurchaseRequestRow;
   phieuChi: PaymentVoucherRow[] | null;
   xemPhieuChi: boolean;
-  onLapPhieuChi?: (dotId: number | null) => void;
+  onMoChoChi?: () => void;
 }) {
   const dots = [...row.deliveries].sort((a, b) => a.seq_no - b.seq_no);
-  const cuaDot = (id: number | null) => (phieuChi ?? []).filter((v) => v.delivery_id === id);
+  // Phiếu gộp nhiều chứng từ tách theo dòng của đơn này: mỗi đợt/cọc chỉ thấy phần của nó.
+  const khoan = khoanPhieuChiCuaDon(row.id, phieuChi ?? []);
+  const cuaDot = (id: number | null) => khoan.filter((k) => k.deliveryId === id);
   const coc = cuaDot(null);
-  const lapCoc = onLapPhieuChi && row.tran_dat_coc > 0 && ["approved", "purchased", "partially_received", "received"].includes(row.status);
-  const DongPhieu = ({ v }: { v: PaymentVoucherRow }) => (
+  // Đơn đã duyệt còn đợt còn nợ, hoặc còn cọc chưa chi cho PHẦN HÀNG CHƯA VỀ ⇒ chỉ đường sang chỗ chi
+  // (cùng luật `khoan_cho_chi` của tab "Mua hàng chờ chi").
+  const noDot = row.deliveries.reduce((t, d) => t + Math.max(0, d.con_no), 0);
+  const cocTreo = Math.min(row.tran_dat_coc, Math.max(0, row.total_estimate - row.net_paid - noDot));
+  const conPhaiChi =
+    ["approved", "purchased", "partially_received", "received"].includes(row.status) && (noDot > 0 || cocTreo > 0);
+  const chiODau = onMoChoChi && conPhaiChi && (
+    <p className="mh-ghi">
+      Chi tiền cho đơn này ở{" "}
+      <button type="button" className="lds-lk" onClick={onMoChoChi}>Phiếu chi → Mua hàng chờ chi</button>.
+    </p>
+  );
+  const DongPhieu = ({ k: { v, amount, gop } }: { k: KhoanPhieuChi }) => (
     <tr className="mh-con">
       <td style={{ paddingLeft: 28 }} title={v.content ?? undefined}>
         <span className={v.status === "cancelled" ? "mh-gach" : undefined}>{v.code}</span>
         <span className="mh-mo" style={{ marginLeft: 8 }}>{LOAI_PHIEU[v.voucher_type] ?? v.voucher_type}</span>
         {v.created_by_name && <span className="mh-mo3" style={{ marginLeft: 8 }}>{v.created_by_name}</span>}
         {v.status === "cancelled" && <span className="mh-tag">Đã huỷ</span>}
+        {gop && (
+          <span className="mh-mo3" style={{ marginLeft: 8 }} title="Một phiếu chi trả nhiều khoản, số bên phải là phần của khoản này">
+            {`phiếu gộp ${so(v.amount_vnd)}`}
+          </span>
+        )}
       </td>
       <td>{fmtDate(v.voucher_date)}</td>
       <td />
       <td />
       <td />
       <td />
-      <td className="n"><span className={v.status === "cancelled" ? "mh-gach" : undefined}>{so(v.amount_vnd)}</span></td>
-      <td />
+      <td className="n"><span className={v.status === "cancelled" ? "mh-gach" : undefined}>{so(amount)}</span></td>
       <td />
     </tr>
   );
@@ -733,9 +885,7 @@ function TabThanhToan({
     return (
       <>
         <p className="mh-ghi" style={{ marginTop: 0 }}>Chưa có hàng về nên chưa phát sinh nợ.</p>
-        {lapCoc && (
-          <button type="button" className="mh-nut" style={{ marginTop: 8 }} onClick={() => onLapPhieuChi(null)}>Lập phiếu chi cọc</button>
-        )}
+        {chiODau}
       </>
     );
   }
@@ -752,7 +902,6 @@ function TabThanhToan({
             <col style={{ width: 110 }} />
             <col style={{ width: 110 }} />
             <col style={{ width: 110 }} />
-            <col style={{ width: onLapPhieuChi ? 116 : 8 }} />
           </colgroup>
           <thead>
             <tr>
@@ -765,7 +914,6 @@ function TabThanhToan({
               <th className="n">Giá trị</th>
               <th className="n">Đã chi</th>
               <th className="n">Còn nợ</th>
-              <th />
             </tr>
           </thead>
           <tbody>
@@ -780,13 +928,8 @@ function TabThanhToan({
                   <td className="n">{row.deposit_expected > 0 ? so(row.deposit_expected) : ""}</td>
                   <td className="n">{so(row.coc_da_chi)}</td>
                   <td className="n lds-mu" title="Cọc tự trừ vào các đợt giao, giao trước trừ trước">trừ dần</td>
-                  <td>
-                    {lapCoc && (
-                      <button type="button" className="mh-nut" onClick={() => onLapPhieuChi(null)}>Lập phiếu cọc</button>
-                    )}
-                  </td>
                 </tr>
-                {coc.map((v) => <DongPhieu key={v.id} v={v} />)}
+                {coc.map((k) => <DongPhieu key={k.v.id} k={k} />)}
               </>
             )}
             {dots.map((d) => (
@@ -804,22 +947,17 @@ function TabThanhToan({
                     {so(d.paid_amount + d.coc_bu)}
                   </td>
                   <td className="n">{d.con_no > 0 ? so(d.con_no) : <span className="mh-la">Đã trả</span>}</td>
-                  <td>
-                    {onLapPhieuChi && d.con_no > 0 && (
-                      <button type="button" className="mh-nut" onClick={() => onLapPhieuChi(d.id)}>Lập phiếu chi</button>
-                    )}
-                  </td>
                 </tr>
-                {cuaDot(d.id).map((v) => <DongPhieu key={v.id} v={v} />)}
+                {cuaDot(d.id).map((k) => <DongPhieu key={k.v.id} k={k} />)}
               </Fragment>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="mh-ghi">
-        Mỗi phiếu chi tối đa bằng số còn nợ của đợt.
-        {!xemPhieuChi && " Bạn không có quyền xem màn Phiếu chi nên bảng không liệt kê từng phiếu; số Đã chi vẫn đúng."}
-      </p>
+      {chiODau}
+      {!xemPhieuChi && (
+        <p className="mh-ghi">Bạn không có quyền xem màn Phiếu chi nên bảng không liệt kê từng phiếu; số Đã chi vẫn đúng.</p>
+      )}
     </>
   );
 }

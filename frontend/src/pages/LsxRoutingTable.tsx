@@ -28,6 +28,8 @@ import { nhanTram, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   boBuoc,
   chenBuoc,
+  doiChoBuoc,
+  lyDoChanLuu,
   type DonViChuoi,
   type EditRow,
   emptyRow,
@@ -41,6 +43,7 @@ import {
   toEdit,
 } from "./lsxBuoc";
 import "./dag-routing.css";
+import { laDienThoai } from "../utils/dienThoai";
 
 export interface RefRow {
   id: number;
@@ -183,7 +186,9 @@ export function LsxRoutingTable({
   // số vào–ra đứng im, tới khi bấm Lưu mới hiện băng đỏ.
   const suaDuoc = canUpdate && !giuCho;
   const [rows, setRows] = useState<EditRow[]>(() => congDoans.map(toEdit));
-  const [viewMode, setViewMode] = useState<"dag" | "table">("dag");
+  // Điện thoại (14/10/2026) mở sẵn dạng DANH SÁCH: sơ đồ DAG kéo-thả cần màn rộng + chuột; vẫn
+  // bấm "Sơ đồ DAG" để xem được.
+  const [viewMode, setViewMode] = useState<"dag" | "table">(() => (laDienThoai() ? "table" : "dag"));
   const [undo, setUndo] = useState<
     { row: EditRow; at: number; truoc: EditRow[] } | null>(null);
   const [live, setLive] = useState("");
@@ -456,11 +461,9 @@ export function LsxRoutingTable({
 
   function doiCho(from: number, to: number) {
     setRows((prev) => {
-      if (to < 0 || to >= prev.length || from === to) return prev;
-      const next = [...prev];
-      const [row] = next.splice(from, 1);
-      next.splice(to, 0, row);
-      setLive(`Đã chuyển ${row.ten || "công đoạn"} tới vị trí ${to + 1}`);
+      const next = doiChoBuoc(prev, from, to);
+      if (next === prev) return prev;
+      setLive(`Đã chuyển ${prev[from].ten || "công đoạn"} tới vị trí ${to + 1}`);
       return next;
     });
   }
@@ -602,6 +605,7 @@ export function LsxRoutingTable({
     const van = (cd: { ten: string; loai_buoc: string }) => `${cd.ten}|${cd.loai_buoc}`;
     return JSON.stringify(congDoans.map(van)) !== JSON.stringify(rows.map(van));
   }, [congDoans, rows]);
+  const chanLuu = lyDoChanLuu(doiCauTruc, lyDo);
 
   return (
     <div className="khsx-rt">
@@ -640,7 +644,8 @@ export function LsxRoutingTable({
                 trống bên dưới — không giấu mất đường tạo bước đầu tiên. */}
             <Button
               variant="accent"
-              disabled={!dirty}
+              disabled={!dirty || chanLuu != null}
+              title={chanLuu ?? undefined}
               loading={saving}
               onClick={() => onSave(toBody(rows), doiCauTruc ? lyDo : undefined)}
             >
@@ -1009,7 +1014,7 @@ export function LsxRoutingTable({
       {suaDuoc && doiCauTruc && (
         <label className="khsx-lydo">
           <span className="khsx-field__label">
-            Routing đã khác bài tính giá — ghi lý do để lưu vào nhật ký
+            Routing đã khác bài tính giá — ghi lý do (bắt buộc) để lưu vào nhật ký
           </span>
           <input
             value={lyDo}
@@ -1027,7 +1032,8 @@ export function LsxRoutingTable({
         {suaDuoc && (
           <Button
             variant="accent"
-            disabled={!dirty}
+            disabled={!dirty || chanLuu != null}
+            title={chanLuu ?? undefined}
             loading={saving}
             onClick={() => onSave(toBody(rows), doiCauTruc ? lyDo : undefined)}
           >

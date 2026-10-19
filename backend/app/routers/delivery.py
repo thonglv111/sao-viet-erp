@@ -32,6 +32,7 @@ from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_GIAO_HANG, hop
 from ..realtime import hub
 from ..models.role import SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
+from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.customer_repo import CustomerRepository
 from ..repositories.delivery_repo import HAN_YEU_CAU, DeliveryRepository, LocChuyen, LocYeuCau
 from ..repositories.employee_repo import EmployeeRepository
@@ -1316,48 +1317,98 @@ def danh_sach_muc(svc: Service, _: Annotated[User, Depends(_DOC_MUC)]) -> MucKmL
     return MucKmListOut(items=[MucKmOut(**m) for m in svc.danh_sach_muc()])
 
 
+def _nhat_ky_muc(db: Session, user: User, action: str, muc_id: int, detail: str) -> None:
+    """Ghi một dòng nhật ký cho thao tác trên MỨC khoán km — cùng giao dịch với thao tác (gọi TRƯỚC
+    `db.commit()` của route), nên mức đổi mà không có dòng nhật ký, hay ngược lại, đều không xảy ra.
+
+    Mức khoán km là giá dùng để TRẢ LƯƠNG tài xế: ai đổi bảng bậc, lúc nào, từ mức nào là câu hỏi
+    kế toán sẽ hỏi (lỗi E2E #3, 18/10/2026: bốn thao tác này không để lại dấu vết)."""
+    AuditLogRepository(db).create(
+        actor_user_id=user.id, action=action, target=f"muc_khoan_km:{muc_id}", detail=detail,
+        commit=False,
+    )
+
+
+def _tom_tat_bac(items: list[dict]) -> str:
+    """Dạng "đến 5 km 18.000 đ; đến 20 km 11.200 đ; trên đó 3.600 đ" — bậc cuối (`up_to_km` rỗng) là
+    mọi km còn lại. Số kiểu Việt như mọi chỗ khác trên màn (#70: "trên đó 4000đ")."""
+    ra = []
+    for it in items:
+        km = it.get("up_to_km")
+        gia = f"{int(it.get('don_gia') or 0):,}".replace(",", ".")
+        ra.append(f"đến {f'{km:g}'.replace('.', ',')} km {gia} đ" if km is not None else f"trên đó {gia} đ")
+    return "; ".join(ra)
+
+
 @router.post("/muc-khoan-km", response_model=MucKmListOut, status_code=201)
 def tao_muc(body: MucKmIn, svc: Service, db: Db,
-            _: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
+            user: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
     try:
-        svc.tao_muc(ten=body.ten, ghi_chu=body.ghi_chu)
+        muc_id = svc.tao_muc(ten=body.ten, ghi_chu=body.ghi_chu)
     except DeliveryError as e:
         raise _err(e)
+    _nhat_ky_muc(db, user, "km_muc_tao", muc_id, f"Tạo mức khoán km “{body.ten.strip()}”")
     db.commit()
+    AuditLogRepository.bao_co_dong_moi()
     return MucKmListOut(items=[MucKmOut(**m) for m in svc.danh_sach_muc()])
 
 
 @router.put("/muc-khoan-km/{muc_id}", response_model=MucKmListOut)
 def sua_muc(muc_id: int, body: MucKmSua, svc: Service, db: Db,
-            _: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
+            user: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
+    cu = svc._muc_repo().get(muc_id)
+    truoc = {"ten": cu.ten, "ghi_chu": cu.ghi_chu, "active": cu.active} if cu is not None else {}
     try:
         # `exclude_unset`: ô KHÔNG gửi thì giữ nguyên. Ghi cả ba ô mỗi lần là màn đổi tên (chỉ gửi
         # `{ten}`) xoá mất ghi chú và bật lại mức đang tắt — lỗi thật, bắt được 14/09/2026.
         svc.sua_muc(muc_id, **body.model_dump(exclude_unset=True))
     except DeliveryError as e:
         raise _err(e)
+    moi = svc._muc_repo().get(muc_id)
+    doi = []
+    if moi.ten != truoc.get("ten"):
+        doi.append(f"tên “{truoc.get('ten')}” thành “{moi.ten}”")
+    if (moi.ghi_chu or "") != (truoc.get("ghi_chu") or ""):
+        doi.append("ghi chú")
+    if bool(moi.active) != bool(truoc.get("active")):
+        doi.append("bật dùng lại" if moi.active else "ngừng dùng")
+    _nhat_ky_muc(db, user, "km_muc_sua", muc_id,
+                 f"Sửa mức khoán km “{moi.ten}”: " + ("; ".join(doi) if doi else "không đổi gì"))
     db.commit()
+    AuditLogRepository.bao_co_dong_moi()
     return MucKmListOut(items=[MucKmOut(**m) for m in svc.danh_sach_muc()])
 
 
 @router.delete("/muc-khoan-km/{muc_id}", response_model=MucKmListOut)
 def xoa_muc(muc_id: int, svc: Service, db: Db,
-            _: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
+            user: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
+    cu = svc._muc_repo().get(muc_id)
+    ten = cu.ten if cu is not None else f"#{muc_id}"
     try:
         svc.xoa_muc(muc_id)
     except DeliveryError as e:
         raise _err(e)
+    _nhat_ky_muc(db, user, "km_muc_xoa", muc_id, f"Xoá mức khoán km “{ten}”")
     db.commit()
+    AuditLogRepository.bao_co_dong_moi()
     return MucKmListOut(items=[MucKmOut(**m) for m in svc.danh_sach_muc()])
 
 
 @router.put("/muc-khoan-km/{muc_id}/bac", response_model=MucKmListOut)
 def ghi_bac_muc(muc_id: int, body: MucKmBracketsIn, svc: Service, db: Db,
-                _: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
+                user: Annotated[User, Depends(_GHI_MUC)]) -> MucKmListOut:
     """Ghi bảng bậc của một mức. Hết tham số phòng ban (14/09/2026): bậc thuộc về MỨC."""
+    items = [it.model_dump() for it in body.items]
     try:
-        svc.ghi_bac_muc(muc_id, [it.model_dump() for it in body.items])
+        svc.ghi_bac_muc(muc_id, items)
     except DeliveryError as e:
         raise _err(e)
+    muc = svc._muc_repo().get(muc_id)
+    _nhat_ky_muc(
+        db, user, "km_muc_bac", muc_id,
+        f"Ghi bảng bậc mức khoán km “{muc.ten}”: {len(items)} bậc" + (
+            f" ({_tom_tat_bac(items)})" if items else " (để trống)"),
+    )
     db.commit()
+    AuditLogRepository.bao_co_dong_moi()
     return MucKmListOut(items=[MucKmOut(**m) for m in svc.danh_sach_muc()])

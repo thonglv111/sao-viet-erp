@@ -16,7 +16,7 @@ import { Icon } from "../../components/Icons";
 import { gioNgan, num } from "../keHoachSxShared";
 import { MAU_TT_KTM } from "../KyThuatMayChung";
 import { nhanChang } from "../lsxBuoc";
-import { tienDoThucTe } from "../thsxShared";
+import { conPhaiLam, tienDoThucTe } from "../thsxShared";
 import { tinhTrangChon } from "../thsxTinhTrangNguoi";
 import { ThsxTepLenh } from "../ThsxTepLenh";
 import { cauDuoi, cauViTri, viTriHang } from "../thsxTuyen";
@@ -41,6 +41,8 @@ export interface VuongMac {
   khuonChoNhan: boolean;
   choChotGiay: string | null;
   thieuDauVao: string[];
+  /** Mã yêu cầu/phiếu sửa ĐANG DỪNG máy của việc (lỗi #27) — máy chủ chặn Bắt đầu. */
+  mayDung?: string | null;
 }
 
 export function ThsxCotPhai({
@@ -132,6 +134,12 @@ export function ThsxCotPhai({
               : "cần quyền Thực hiện lệnh ở tổ này mới xác nhận được."}</>,
       });
     }
+    if (vuong.mayDung) {
+      cauVuong.push({
+        key: "maydung",
+        noi: <>Máy đang dừng chờ sửa ({vuong.mayDung}) — sửa xong hoặc đổi máy rồi mới {tt === "paused" ? "Tiếp tục" : "Bắt đầu"} được.</>,
+      });
+    }
     if (vuong.choChotGiay) cauVuong.push({ key: "giay", noi: vuong.choChotGiay });
     if (vuong.thieuDauVao.length > 0 && !vuong.choChotGiay) {
       cauVuong.push({
@@ -153,7 +161,7 @@ export function ThsxCotPhai({
     ...cauDuoi(chiTiet.dai_duoi, nhanChang, (v) => `${gioNgan(v)} ${v ? new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) : ""}`.trim()),
   } : null;
 
-  // 3 · Tiến độ — CÙNG luật dòng bảng (`tienDoThucTe`): tốt / nhận quy ra; đã Kết thúc = 100%.
+  // 3 · Tiến độ — CÙNG luật dòng bảng (`tienDoThucTe`): tốt / số cần ra; đã Kết thúc = 100%.
   const tienDo = tienDoThucTe(cv);
   const dvRa = nhanChang(cv.don_vi_ra || (cv.ngoai_dong ? cv.don_vi_vao : null));
   const dvVao = cv.don_vi_vao ? nhanChang(cv.don_vi_vao) : "";
@@ -164,7 +172,8 @@ export function ThsxCotPhai({
   const choGiao = sl ? Math.max(0, sl.tong_tot - sl.da_giao) : 0;
   // Lỗi KCS bắt tại công đoạn trừ khỏi số tổ còn làm được (10/10/2026, cùng luật trần ghi mẻ).
   const loiKcs = chiTiet.tran_ghi?.loi_kcs ?? 0;
-  const conPhaiLam = !done && cv.nhan_ra != null ? Math.max(cv.nhan_ra - loiKcs - tot, 0) : null;
+  // Theo số cần ra của bước (lỗi #28), cùng mốc với cột Sản lượng ở danh sách.
+  const conLam = done ? null : conPhaiLam(cv);
   const voiDv = (n: number, dv: string) => `${num(n)}${dv ? ` ${dv}` : ""}`;
 
   return (
@@ -259,7 +268,7 @@ export function ThsxCotPhai({
                 <dt>Chờ giao</dt><dd className={choGiao > 0 ? "is-canh" : undefined}>{voiDv(choGiao, dvRa)}</dd>
               </>
             )}
-            {conPhaiLam != null && <><dt>Còn phải làm</dt><dd>{voiDv(conPhaiLam, dvRa)}</dd></>}
+            {conLam != null && <><dt>Còn phải làm</dt><dd>{voiDv(conLam, dvRa)}</dd></>}
           </dl>
         </div>
       </section>

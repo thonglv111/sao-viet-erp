@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../api/client";
 import { ChonNgay } from "../../../../components/ChonNgay";
 import { MonthPicker } from "../../../../components/MonthPicker";
+import { homNayVN } from "../../../../utils/ky";
 import { curYm, errText, khoangKyUng, ymLabel } from "../shared/helpers";
 
 export function MyAdvanceModal({
@@ -25,9 +26,7 @@ export function MyAdvanceModal({
   const [ym, setYm] = useState(curYm());
   // Phiếu đợt 1: điền sẵn theo "Lương trả 1 lần" trong hồ sơ (vẫn cho sửa).
   const [amount, setAmount] = useState(isDot1 ? dot1Prefill : 0);
-  const [dateStr, setDateStr] = useState(() =>
-    new Date().toISOString().slice(0, 10),
-  );
+  const [dateStr, setDateStr] = useState(() => homNayVN());
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);

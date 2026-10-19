@@ -2493,6 +2493,11 @@
   border-color: var(--rust);
   color: var(--rust-deep);
 }
+.cc-month-cell--khong-cham {
+  background: var(--signal-soft);
+  border-color: var(--signal);
+  color: var(--signal-deep);
+}
 .cc-month-cell--makeup {
   background: var(--plum-soft);
   border-color: var(--plum);
@@ -3504,6 +3509,8 @@
 .cc-ts-legend-item--leave::before { background: var(--steel); }
 .cc-ts-legend-item--ot { color: var(--rust-deep) !important; }
 .cc-ts-legend-item--ot::before { background: var(--rust); }
+.cc-ts-legend-item--khong-cham { color: var(--signal-deep) !important; }
+.cc-ts-legend-item--khong-cham::before { background: var(--signal); }
 
 .cc-ts-actions {
   display: flex;
@@ -3721,6 +3728,18 @@
   background: var(--amber-soft) !important;
   color: var(--amber-deep) !important;
   border: 1px solid var(--amber-deep);
+}
+/* Cột đếm "Không chấm" / "Thiếu lượt" của Bảng công tháng: chỉ thẻ điện thoại dùng (styles/mobile
+   bật lại); bảng máy lớn đã có dấu trong từng ô ngày nên ẩn cho khỏi đẩy cột Giờ ra khỏi màn. */
+.cc-timesheet-table .cc-ts-chi-dt {
+  display: none;
+}
+/* Ngày LÀM VIỆC đã qua mà không một lượt bấm nào (14/10/2026) — đỏ, khác dấu lặng ngày chưa tới. */
+.cc-cell-badge--khong-cham {
+  background: var(--signal-soft) !important;
+  color: var(--signal-deep) !important;
+  border: 1px solid var(--signal);
+  font-weight: var(--fw-bold);
 }
 .cc-cell-ot-dot {
   position: absolute;
@@ -4219,6 +4238,12 @@
 }
 .cc-emp-cal-legend-dot--fault {
   background: var(--amber, #d97706);
+}
+.cc-emp-cal-legend-dot--khong-cham {
+  background: var(--signal);
+}
+.cc-emp-cal-cell.cc-month-cell--khong-cham {
+  border-left: 3.5px solid var(--signal);
 }
 .cc-emp-cal-legend-dot--rest {
   background: var(--ash, #94a3b8);

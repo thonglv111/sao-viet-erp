@@ -8,11 +8,11 @@ import { fmtGioCan, isOverdue } from "./khoShared";
 describe("fmtGioCan — giờ cần của đề nghị sản xuất", () => {
   it("hiện đúng giờ wall-clock, KHÔNG cộng thêm 7 tiếng", () => {
     // Tổ trưởng gõ 31/08/2026 17:56. Coi naive = UTC sẽ ra "1/9/2026 00:56" — lệch ngày.
-    expect(fmtGioCan("2026-08-31T17:56:00")).toBe("31/8/2026 17:56");
+    expect(fmtGioCan("2026-08-31T17:56:00")).toBe("31/08/2026 17:56");
   });
 
   it("giữ nguyên ngày với giờ sát nửa đêm", () => {
-    expect(fmtGioCan("2026-08-31T23:30:00")).toBe("31/8/2026 23:30");
+    expect(fmtGioCan("2026-08-31T23:30:00")).toBe("31/08/2026 23:30");
   });
 
   it("rỗng → gạch ngang; chuỗi không parse được → trả nguyên", () => {

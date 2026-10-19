@@ -139,6 +139,10 @@ def nhan_kho(kho_rong: int, kho_dai: int) -> str:
 #: là do KHỔ. Chữ "tờ nguyên / tờ in" chỉ còn trong sản xuất (mã chặng, xem `don_vi_do.TRAM_*`).
 DON_VI_TO_KHO = "to"
 
+#: Hai đơn vị mọi mã giấy BẮT BUỘC có (chốt 18/10/2026): bước nhận tờ đếm tờ, bước ra kg đếm kg.
+#: Ở module Đơn vị & quy đổi hai mã này bị KHOÁ — không xoá, không ngừng dùng, không đổi mã.
+GIAY_DON_VI_BAT_BUOC = (DON_VI_TO_KHO, "kg")
+
 
 def la_ma_to_giay(dvt: str | None) -> bool:
     """Mã đếm TỜ của dòng giấy: đơn vị kho `to` hoặc mã chặng tờ của lệnh (`to_nguyen`, `to`).
@@ -192,15 +196,23 @@ def goi_y_dong_giay(qc: dict) -> dict:
 
 
 def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_luong_ra: float,
-                           quy_cach: dict, gsm: float | None) -> dict:
-    """Dòng giấy của MỘT bước, dẫn xuất từ ĐẦU VÀO của bước (spec 2026-10-01 dong-giay-theo-dau-vao §4).
+                           quy_cach: dict, gsm: float | None, tram_ra: str | None = None) -> dict:
+    """Dòng giấy của MỘT bước, dẫn xuất từ ĐẦU VÀO của bước — MỘT luật cho phiếu tính giá, lệnh, kế
+    hoạch vật tư (chốt 18/10/2026, spec 2026-10-18-luong-giay-theo-dau-vao-buoc).
 
-    Bước nhận tờ in (`TRAM_TO`) ⇒ tờ khổ in; nhận tờ nguyên (`TRAM_TO_NGUYEN`) ⇒ tờ khổ nguyên; còn lại
-    (đơn vị vào có khai nhưng KHÔNG phải mã chặng giấy — bước nhận giấy khổ rộng, vd Cắt cuộn) ⇒
-    khổ rộng, đếm bằng **kg** = tờ nguyên ra × diện tích × gsm, luôn trả `don_vi="kg"` — bên gọi đổi
-    sang đơn vị của mã giấy. Thiếu khổ / gsm ⇒ `so_luong=None` + `ly_do`.
+    - Nhận tờ in (`TRAM_TO`) ⇒ SL vào, đếm tờ, khổ tờ in (thiếu thì khổ nguyên).
+    - Nhận tờ nguyên (`TRAM_TO_NGUYEN`) ⇒ SL vào, đếm tờ, khổ nguyên.
+    - Nhận con / cái ⇒ **kg** = gsm × khổ chi tiết (khổ thành phẩm) × SL vào; nhận tay (tờ gấp) ⇒
+      khổ tờ in. Khổ của dòng = khổ ấy.
+    - Đầu vào "—" (bỏ trống, vd cắt từ cuộn) hoặc đơn vị ngoài 5 chặng ⇒ **kg** = gsm × khổ tờ RA ×
+      SL ra. Bên gọi tìm SL ra (chuỗi bù hao ngược: SL vào của bước kế tiếp) và `tram_ra` = chặng của
+      thứ đó (tờ in ⇒ khổ in, còn lại ⇒ khổ nguyên). Khổ của dòng chỉ còn cạnh rộng, `hien_kho=False`.
+
+    `don_vi` = mã chặng vào ở nhánh tờ, "kg" ở nhánh cân — bên gọi đổi sang đơn vị của mã giấy.
+    `kho_tinh` = (rộng, dài) mm đã dùng để tính — đủ hai cạnh kể cả khi khổ của dòng chỉ còn cạnh rộng.
+    Thiếu khổ / gsm ⇒ `so_luong=None` + `ly_do`, không đoán số.
     """
-    from ..models.don_vi_do import TRAM_TO, TRAM_TO_NGUYEN
+    from ..models.don_vi_do import TRAM_CAI, TRAM_CON, TRAM_TAY, TRAM_TO, TRAM_TO_NGUYEN
     from .dong_giay import ban_do_tram, tram_cua
 
     def so(*khoa):
@@ -215,34 +227,42 @@ def dong_giay_theo_dau_vao(*, don_vi_vao: str | None, so_luong_vao: float, so_lu
 
     ng_r, ng_d = chuan_kho(so("kho_nguyen_rong"), so("kho_nguyen_dai"))
     in_r, in_d = chuan_kho(so("kho_in_rong"), so("kho_in_dai"))
+    tp_r, tp_d = chuan_kho(so("rong_thanh_pham"), so("dai_thanh_pham"))
     tram = tram_cua(don_vi_vao, ban_do_tram()) if don_vi_vao else None
     out = {"so_luong": None, "don_vi": don_vi_vao or "", "kho_rong": 0,
-           "kho_dai": 0, "ly_do": None}
+           "kho_dai": 0, "hien_kho": True, "kho_tinh": (0, 0), "ly_do": None}
     if tram == TRAM_TO:
         kr, kd = (in_r, in_d) if (in_r and in_d) else (ng_r, ng_d)
-        out.update(so_luong=float(so_luong_vao or 0), kho_rong=kr, kho_dai=kd)
+        out.update(so_luong=float(so_luong_vao or 0), kho_rong=kr, kho_dai=kd, kho_tinh=(kr, kd))
         if not (kr and kd):
-            out.update(so_luong=None, ly_do="Lệnh chưa có khổ giấy (khổ tờ in / khổ nguyên).")
+            out.update(so_luong=None, ly_do="Chưa có khổ giấy (khổ tờ in / khổ nguyên).")
         return out
     if tram == TRAM_TO_NGUYEN:
-        out.update(so_luong=float(so_luong_vao or 0), kho_rong=ng_r, kho_dai=ng_d)
+        out.update(so_luong=float(so_luong_vao or 0), kho_rong=ng_r, kho_dai=ng_d, kho_tinh=(ng_r, ng_d))
         if not (ng_r and ng_d):
-            out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên của giấy.")
+            out.update(so_luong=None, ly_do="Chưa có khổ nguyên của giấy.")
         return out
-    if not (don_vi_vao or "").strip():
-        out.update(ly_do="Bước chưa khai đơn vị vào.")
+
+    def _kg(sl: float, kr: int, kd: int, *, thieu_kho: str) -> None:
+        out["kho_tinh"] = (kr, kd)
+        if not (kr and kd):
+            out.update(so_luong=None, ly_do=thieu_kho)
+        elif not gsm or float(gsm) <= 0:
+            out.update(so_luong=None, ly_do="Giấy chưa khai định lượng (gsm) nên không tính được số kg.")
+        else:
+            out["so_luong"] = float(sl or 0) * (kr / 1000) * (kd / 1000) * float(gsm) / 1000
+
+    out["don_vi"] = "kg"
+    if tram in (TRAM_CON, TRAM_CAI, TRAM_TAY):
+        kr, kd = (in_r, in_d) if tram == TRAM_TAY else (tp_r, tp_d)
+        out.update(kho_rong=kr, kho_dai=kd)
+        _kg(so_luong_vao, kr, kd, thieu_kho=("Chưa có khổ tờ in để tính số kg giấy." if tram == TRAM_TAY
+                                            else "Chưa có khổ thành phẩm (khổ của cái/con) để tính số kg giấy."))
         return out
-    if tram is not None:
-        # Chặng giấy nhưng không phải tờ (con / cai / tay): đầu vào không còn là giấy nguyên liệu.
-        out.update(ly_do="Đầu vào của bước không phải giấy nguyên liệu nên không tính được dòng giấy.")
-        return out
-    out.update(don_vi="kg", kho_rong=ng_r, kho_dai=0)
-    if not (ng_r and ng_d):
-        out.update(so_luong=None, ly_do="Lệnh chưa có khổ nguyên để tính số kg giấy.")
-    elif not gsm or float(gsm) <= 0:
-        out.update(so_luong=None, ly_do="Giấy chưa khai định lượng (gsm) nên không tính được số kg.")
-    else:
-        out["so_luong"] = float(so_luong_ra or 0) * (ng_r / 1000) * (ng_d / 1000) * float(gsm) / 1000
+    # "—" / đơn vị ngoài dòng giấy: lượng theo thứ bước NHẢ RA.
+    kr, kd = (in_r, in_d) if tram_ra == TRAM_TO and in_r and in_d else (ng_r, ng_d)
+    out.update(kho_rong=kr, kho_dai=0, hien_kho=False)
+    _kg(so_luong_ra, kr, kd, thieu_kho="Chưa có khổ nguyên để tính số kg giấy.")
     return out
 
 

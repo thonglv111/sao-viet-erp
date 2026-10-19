@@ -290,7 +290,7 @@ def seed_rebuild_catalog(db: Session) -> None:
             # thụ một tháng ÷ tổng m² đã in) — hiện nó chưa vào phiếu nào vì xưởng tính giá KHOÁN
             # theo công đoạn, không thêm dòng vật tư rời.
             VatTuInAn(ma="MUC-CMYK", ten="Mực process CMYK", don_vi_gia="kg", don_gia=250000,
-                      cong_thuc_gia="so_mau * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * 0.0003"),
+                      cong_thuc_gia="so_mau_phu * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * 0.0003"),
             VatTuInAn(ma="MUC-PANTONE", ten="Mực pha Pantone", don_vi_gia="kg", don_gia=15000),
             # `kem` chứ không phải `ban`: đơn vị PHẢI là mã có thật trong `don_vi_do` (xem
             # `_DON_VI_SEED`) — mã lạ thì mọi quy đổi của món đó tắt lặng lẽ.

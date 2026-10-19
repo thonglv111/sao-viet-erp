@@ -52,12 +52,14 @@ import { thamSoKy } from "./thanh-loc/ky-danh-sach";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { ChamCho, choNgoaiBan, choTheoViec, tabCho, tongCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { ThsxSanLuongTab } from "./ThsxSanLuongTab";
+import { verMoiNhat, verTuKetQua, type VerViec } from "./thsxVersion";
 import {
   chonHinhBan, sxCoGio, sxDigest, sxNguonIcon, sxSerial,
   ThsxTrangThaiPill,
 } from "./thsxShared";
 import "./xep-lich-a.css";
 import "./thuc-hien-sx.css";
+import { laDienThoai } from "../utils/dienThoai";
 
 // ============================ helper thuần ==================================
 function ymd(d: Date): string {
@@ -108,6 +110,7 @@ export function ThucHienSxPage({
   tenTo,
   laTho = false,
   laToCat = false,
+  ghiChotGiay = true,
   eventTick,
   vatTuDeNghiDem,
   dinhKemDem,
@@ -121,6 +124,9 @@ export function ThucHienSxPage({
   laTho?: boolean;
   /** Tổ mang cờ Tổ Cắt (`la_to_cat` của `GET /teams`) ⇒ bày khối "Chờ chốt giấy" trên danh sách. */
   laToCat?: boolean;
+  /** Quyền Thực hiện TRỌN tổ (`quyen.run_order === "all"`) — khối Chờ chốt giấy chỉ bày nút ghi
+   *  khi có (máy chủ đòi đúng mức này). */
+  ghiChotGiay?: boolean;
   eventTick?: number;
   /** Số lần đề nghị cấp vật tư đổi, ĐẾM THEO công việc (SSE, mắc ở AppShell). CỐ TÌNH không đi qua
    *  `eventTick`: sự kiện này broadcast TOÀN HỆ, nếu bump tick chung thì mỗi lần bất kỳ tổ nào
@@ -206,10 +212,16 @@ export function ThucHienSxPage({
   const homNayStr = ymd(new Date());
   const coHomNay = homNayStr >= winTu && homNayStr <= winDen;
   // Khay Hàng chờ bên phải (như khay Chờ xếp lịch) — mặc định mở, nhớ theo máy.
+  // Điện thoại: khay Hàng chờ là trang phủ kín màn (không phải cột bên) — luôn mở ra ĐÓNG, bấm nút mới
+  // hiện; đóng/mở trên điện thoại cũng không ghi đè lựa chọn đã nhớ của máy lớn.
   const [khayMo, setKhayMo] = useState<boolean>(() => {
+    if (laDienThoai()) return false;
     try { return localStorage.getItem(KHAY_KEY) !== "0" && localStorage.getItem("thsx.hangChoThu") !== "1"; } catch { return true; }
   });
-  useEffect(() => { try { localStorage.setItem(KHAY_KEY, khayMo ? "1" : "0"); } catch { /* bỏ qua */ } }, [khayMo]);
+  useEffect(() => {
+    if (laDienThoai()) return;
+    try { localStorage.setItem(KHAY_KEY, khayMo ? "1" : "0"); } catch { /* bỏ qua */ }
+  }, [khayMo]);
   // Lọc nhanh theo trạng thái trên dòng tóm tắt (chỉ view Lịch, lọc trên máy như ô tìm).
   const [ttLich, setTtLich] = useState<TtLich | null>(null);
   const [lichLv, setLichLv] = useState<LichLamViec>(LICH_TRONG);
@@ -348,6 +360,8 @@ export function ThucHienSxPage({
 
   // `mutate` đang chờ máy chủ lưu (từ lúc gửi tới lúc bắt đầu nạp lại chi tiết).
   const dangGhi = useRef(false);
+  // `version` trong phản hồi lần ghi gần nhất — dùng khi chi tiết việc chưa kịp nạp lại (lỗi #43).
+  const verTam = useRef<VerViec | null>(null);
   useEffect(() => { void loadChiTiet(selectedId); }, [loadChiTiet, selectedId]);
   // Sự kiện SX (SSE) → nạp lại việc đang mở. Đang có lượt ghi của chính mình thì BỎ: `mutate` nạp
   // lại ngay sau khi lưu xong, lượt đó bắt đầu sau mọi sự kiện về trước nó nên đã phủ luôn. Không
@@ -544,6 +558,7 @@ export function ThucHienSxPage({
       setBusy(false);
       return null;
     }
+    verTam.current = verTuKetQua(r) ?? verTam.current;
     setReason(null);
     setToast(ok);
     // Trả kết quả NGAY khi máy chủ đã lưu để hộp nhập (Ghi mẻ, Đề xuất bàn giao…) đóng liền. Trước
@@ -592,7 +607,8 @@ export function ThucHienSxPage({
     setSelectedId(congViecId);
   }, []);
 
-  const ver = () => chiTiet?.version;
+  const ver = () => verMoiNhat(
+    chiTiet ? { id: chiTiet.cong_viec.id, version: chiTiet.version } : null, verTam.current);
 
   const onGiao = useCallback((employeeId: number) => {
     if (selectedId == null) return;
@@ -871,7 +887,8 @@ export function ThucHienSxPage({
       ) : (<>
       {/* Khối cảnh báo / việc chờ nằm TRÊN thanh lọc (khuôn lưới). */}
       {view === "danh_sach" && laToCat && (
-        <ThsxChotGiay teamId={teamId} eventTick={eventTick} onDaGhi={() => { loadItems(); onBadgeStale?.(); }} />
+        <ThsxChotGiay teamId={teamId} eventTick={eventTick} ghiDuoc={ghiChotGiay}
+          onDaGhi={() => { loadItems(); onBadgeStale?.(); }} />
       )}
 
       {/* Việc chờ TỔ bấm (bàn giao đến, lỗi KCS) gắn vào công đoạn của nó (§11.5); chỉ

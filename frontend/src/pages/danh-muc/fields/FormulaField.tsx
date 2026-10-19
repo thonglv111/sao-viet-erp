@@ -793,7 +793,7 @@ export function FormulaField({
       "dai", "rong"];
     // `so_con` là tên hiện hành (đổi lại từ `so_tp` ngày 08/09/2026, mg `0286`) — nó vốn đã nằm
     // cuối danh sách này từ thời trước mg `0189`, nên xoá `so_tp` là đủ, chip vẫn về đúng nhóm.
-    const qtyVars = ["so_luong", "so_trang", "trang_moi_tay", "so_mau", "so_mat",
+    const qtyVars = ["so_luong", "so_trang", "trang_moi_tay", "so_mau", "so_mau_phu", "so_mat",
       "so_kem", "to_dau_vao", "to_sau_in", "to_nguyen", "so_con"];
     const priceVars = ["dinh_luong", "don_gia_giay", "don_gia_vat_tu"];
     const daXep = new Set([...sizeVars, ...qtyVars, ...priceVars]);

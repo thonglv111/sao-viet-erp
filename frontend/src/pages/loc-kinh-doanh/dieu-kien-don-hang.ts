@@ -49,7 +49,7 @@ const DANG_CHO: { value: DangCho; nhan: string }[] = [
   { value: "giao", nhan: "Giao hàng" },
   { value: "hoa_don", nhan: "Hoá đơn" },
   { value: "xong", nhan: "Không chờ gì, đã xong" },
-  { value: "tra_coc", nhan: "Chờ trả lại cọc" },
+  { value: "tra_coc", nhan: "Chờ trả lại tiền khách" },
 ];
 const GIA_CONG: GiaTriDK[] = [
   { value: "co", nhan: "Có gia công ngoài" },

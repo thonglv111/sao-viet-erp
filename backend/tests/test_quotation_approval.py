@@ -382,3 +382,25 @@ def test_ha_markup_sau_khi_duyet_thi_het_bao_phu(client):
     assert d2["markup_pct"] == 2
     assert d2["exception_status"] == "stale"
     assert d2["exception_cleared"] is False
+
+
+# --- Chiết khấu gõ riêng TỪNG sản phẩm → rào của khách soi từng sản phẩm (15/10/2026) ---------
+
+def test_rao_chiet_khau_soi_tung_san_pham():
+    from app.services.exception_gate import evaluate_quote
+    lines = [
+        {"ten": "Hộp bánh", "gross": 9_000_000, "discount": 0},
+        {"ten": "Tờ rơi A4", "gross": 1_000_000, "discount": 400_000},   # 40% — vượt trần 10%
+    ]
+    # Bình quân cả đơn chỉ 4% (trong rào) — trước đây lọt.
+    r = evaluate_quote(subtotal=9_600_000, total_gross=10_560_000, cost=8_000_000,
+                       discount_amount=400_000, subtotal_gross=10_000_000,
+                       discount_max_pct=10, discount_lines=lines)
+    dk = [t for t in r["triggers"] if t["key"] == "discount_out"]
+    assert len(dk) == 1 and "Tờ rơi A4" in dk[0]["label"] and "Hộp bánh" not in dk[0]["label"]
+
+    lines[1]["discount"] = 100_000                                        # 10% — đúng trần
+    r = evaluate_quote(subtotal=9_900_000, total_gross=10_890_000, cost=8_000_000,
+                       discount_amount=100_000, subtotal_gross=10_000_000,
+                       discount_max_pct=10, discount_lines=lines)
+    assert not [t for t in r["triggers"] if t["key"] == "discount_out"]

@@ -25,6 +25,7 @@ import "../../yeu-cau-mua-hang/components/yc-ds-a.css";
 import "../components/don-form-a.css";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
+import { hanTraDot } from "../../don-mua-chung/hanTra";
 import { ATTACHMENT_IMAGE_TYPES } from "../shared/constants";
 import { daGiaoKhac, nhanKhoMua, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
 import type { AnhCho } from "../shared/types";
@@ -81,17 +82,13 @@ export function DeliveryDialog({
   const [ngayGiao, setNgayGiao] = useState(
     delivery?.delivery_date ?? todayInputValue(),
   );
-  // Ô "Hạn trả" đang TẮT trên form (khối JSX bên dưới bị comment): hạn trả ưu tiên suy từ
-  // `ngày hóa đơn + số ngày cho nợ của NCC`; chưa có hóa đơn mới lùi về ngày giao.
-  //
-  // Vẫn giữ biến này và vẫn GỬI LÊN: sửa một đợt đã có hạn khai tay trước đó mà gửi `null` là âm
-  // thầm xoá mất hạn đó, và món nợ tụt khỏi cột Quá hạn không ai hay. Bật lại ô thì đổi dòng này
-  // về `useState` là xong.
-  const hanTra = delivery?.due_date ?? "";
   // Một hoá đơn = cặp ký hiệu + số (13/10/2026): số chỉ duy nhất trong một ký hiệu.
   const [kyHieu, setKyHieu] = useState(delivery?.invoice_symbol ?? "");
   const [soHoaDon, setSoHoaDon] = useState(delivery?.invoice_number ?? "");
   const [ngayHoaDon, setNgayHoaDon] = useState(delivery?.invoice_date ?? "");
+  // HẠN TRẢ của đợt do MÁY CHỦ chụp lúc lưu theo điều khoản NCC (16/10/2026) — không ô nào đổi
+  // được. Đây chỉ xem trước bằng đúng luật `tinh_han_dot`; sửa đợt thì hạn tính lại như vậy.
+  const hanDot = hanTraDot(row.supplier_credit_days, row.supplier_debt_cutoff_day, ngayHoaDon || null, ngayGiao || null);
   const [ghiChu, setGhiChu] = useState(delivery?.note ?? "");
   // Ghi chú là ô HIẾM dùng ⇒ mặc định thu về một nút chữ. Nhưng đợt đang sửa mà ĐÃ có ghi chú thì
   // phải mở sẵn: giấu nó đi là người sửa không thấy câu cũ, và tưởng đợt này chưa ghi gì.
@@ -195,6 +192,12 @@ export function DeliveryDialog({
       }, 0),
     [row.lines, chiaDong],
   );
+  // CỌC ĐÃ CHI trừ vào đợt này (15/10/2026) — chép luật `phan_bo_tien_dot`: cọc chung bù đợt giao
+  // trước trước. Đợt mới nhận phần cọc chưa bù (`coc_chua_bu`); đợt đang sửa giữ phần đã bù cộng
+  // phần còn dư. Không hiện thì người ghi đợt tưởng còn phải trả đủ giá trị đợt. Cọc mới DUYỆT mà
+  // chưa chi thì không trừ gì — cọc dự kiến không vào công nợ.
+  const cocTru = Math.min(tienDot, (suaDot ? delivery!.coc_bu : 0) + (row.coc_chua_bu ?? 0));
+  const traRieng = suaDot ? delivery!.paid_amount : 0;
 
   /** Nhận file vào hàng chờ. Chặn ngay tại đây thay vì để server từ chối sau khi đợt đã lưu —
    *  lúc đó đợt đã tạo rồi mà người dùng chỉ thấy một câu báo lỗi, dễ ghi lại lần nữa. */
@@ -280,10 +283,6 @@ export function DeliveryDialog({
       setError("Khổ nhận của giấy tờ cần đủ hai cạnh.");
       return;
     }
-    if (hanTra && hanTra < ngayGiao) {
-      setError("Hạn trả không được trước ngày giao.");
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
@@ -304,7 +303,6 @@ export function DeliveryDialog({
         });
       const payload: PurchaseDeliveryInput = {
         delivery_date: ngayGiao,
-        due_date: hanTra || null,
         invoice_symbol: kyHieu.trim().toUpperCase() || null,
         invoice_number: soHoaDon.trim() || null,
         invoice_date: ngayHoaDon || null,
@@ -719,7 +717,34 @@ export function DeliveryDialog({
                   <span>Cộng đợt {suaDot ? delivery!.seq_no : row.deliveries.length + 1}</span>
                   <b className="kna-so">{so(tienDot)} đ</b>
                 </div>
+                {(cocTru > 0 || traRieng > 0) && (
+                  <>
+                    {cocTru > 0 && (
+                      <div className="dfa-cs__con" style={{ paddingLeft: 0 }}>
+                        <span>Trừ cọc đã chi</span>
+                        <span className="kna-so">{so(-cocTru)}</span>
+                      </div>
+                    )}
+                    {traRieng > 0 && (
+                      <div className="dfa-cs__con" style={{ paddingLeft: 0 }}>
+                        <span>Đã trả riêng đợt này</span>
+                        <span className="kna-so">{so(-traRieng)}</span>
+                      </div>
+                    )}
+                    <div className="dfa-cs__tong">
+                      <span>Còn phải trả</span>
+                      <b className="kna-so">{so(Math.max(0, tienDot - cocTru - traRieng))} đ</b>
+                    </div>
+                  </>
+                )}
                 <small className="kna-mo">Đã gồm chiết khấu và VAT của đơn. Phần nhận vượt số đặt tính 0 đ.</small>
+                <div className="dgd-han">
+                  <div className="dgd-han__dong">
+                    <span>Hạn trả đợt này</span>
+                    <span className="kna-so">{hanDot.ngay ?? <span className="kna-mo">Chưa có</span>}</span>
+                  </div>
+                  <small className="kna-mo">{hanDot.giai} Theo điều khoản của nhà cung cấp.</small>
+                </div>
               </div>
             </section>
           </div>

@@ -245,6 +245,7 @@ export function PurchaseFormDrawer({
                   line={line}
                   suppliers={suppliers}
                   dsDonVi={ds}
+                  loi={daBamLuu}
                   onPick={(chao) =>
                     setLine(index, {
                       supplier_id: chao?.supplier_id ?? null,
@@ -257,8 +258,14 @@ export function PurchaseFormDrawer({
                             unit: chao.unit,
                             expected_unit_price: chao.unit_price,
                             vat_percent: chao.vat_percent,
-                            quantity: 0,
-                            doi_don_vi: true,
+                            // Giữ số đề nghị GỐC (đổi NCC lần hai không đè). NCC bán lại đúng ĐVT
+                            // đề nghị thì trả số lượng gốc về luôn.
+                            ...(() => {
+                              const goc = line.de_nghi ?? { so: line.quantity, unit: line.unit };
+                              return goc.unit === chao.unit
+                                ? { quantity: goc.so, de_nghi: null }
+                                : { quantity: 0, de_nghi: goc };
+                            })(),
                           }
                         : chao
                           ? {
@@ -280,22 +287,28 @@ export function PurchaseFormDrawer({
         )}
         <td className="n">
           {/* SỐ LƯỢNG MUA sửa được: mua khổ to hơn rồi tề, NCC chỉ bán chẵn ram… Mặc định = số yêu cầu. */}
-          <label className={`ycf-gi dfa-gi${daBamLuu && chon && !(line.quantity > 0) ? " loi" : ""}`}>
+          {/* Đổi ĐVT theo NCC: ô trống viền vàng + dòng xám số đề nghị gốc để quy đổi — không
+              dựng câu cảnh báo (cột hẹp, câu gãy hai dòng đỏ cả bảng). */}
+          <label className={`ycf-gi dfa-gi${
+            daBamLuu && chon && !(line.quantity > 0) ? " loi"
+              : chon && line.de_nghi && !(line.quantity > 0) ? " dfa-gi--cho" : ""}`}>
             <input
               inputMode="decimal"
               disabled={!chon}
               required={chon}
               aria-label={`Số lượng mua ${line.item_name}`}
+              placeholder={chon && line.de_nghi ? `Số ${dv}` : undefined}
               value={line.quantity > 0 ? String(line.quantity) : ""}
               onChange={(e) => setLine(index, {
                 quantity: Number(e.target.value.replace(",", ".").replace(/[^\d.]/g, "")) || 0,
-                doi_don_vi: false,
               })}
             />
-            <span title={line.doi_don_vi ? "Đơn vị nhà cung cấp bán" : "Đơn vị do bộ phận đề nghị khai"}>{dv}</span>
+            <span title={line.de_nghi ? "Đơn vị nhà cung cấp bán" : "Đơn vị do bộ phận đề nghị khai"}>{dv}</span>
           </label>
-          {chon && line.doi_don_vi && !(line.quantity > 0) && (
-            <div className="dfa-duoi ycd-vang">Đổi sang {dv} — gõ lại số lượng</div>
+          {chon && line.de_nghi && (
+            <div className="dfa-duoi dfa-duoi--1" title="Số lượng bộ phận đề nghị, trước khi đổi đơn vị theo nhà cung cấp">
+              Đề nghị {line.de_nghi.so > 0 ? so(line.de_nghi.so) : "?"} {tenDonVi(line.de_nghi.unit) ?? line.de_nghi.unit}
+            </div>
           )}
         </td>
         <td className="n">

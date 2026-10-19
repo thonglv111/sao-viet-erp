@@ -441,7 +441,7 @@ export function LineEditModal({
                     </div>
                     <div className="lg-lc__note">
                       {fromEmp || readOnly || tuDong ? (
-                        <span className="lg-lc__ro">{r.note || "—"}</span>
+                        <span className={`lg-lc__ro${r.note ? "" : " lg-lc__ro--trong"}`}>{r.note || "—"}</span>
                       ) : (
                         <input
                           type="text"

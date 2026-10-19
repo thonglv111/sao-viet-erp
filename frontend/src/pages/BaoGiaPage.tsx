@@ -5,6 +5,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -44,6 +45,7 @@ import { LocNguoiPhuTrach } from "../components/LocNguoiPhuTrach";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { DaiKhachHang } from "../components/DaiKhachHang";
 import { ONhapSo } from "../components/ONhapSo";
+import { OHaiTab, type Kieu } from "../components/OHaiTab";
 import { LOC_BG_TRONG, locBGLenUrl, locBGTuUrl, thamSoLocBG, useDieuKienBaoGia, type LocBaoGia } from "./loc-kinh-doanh/dieu-kien-bao-gia";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { dkTheoTab } from "./thanh-loc/thanh-loc";
@@ -56,6 +58,8 @@ import { useLocMan } from "./thanh-loc/useLocMan";
 // phải sửa code, mà chữ dựng lại vẫn không khớp bản in thật.
 import letterheadUrl from "../assets/letterhead-sao-viet-nhat.jpg";
 import { useInTuDong } from "./bao-gia-in-tu-dong";
+import { congTongBaoGia, dongDuocCong } from "./bao-gia-tong";
+import { useKhiTickDoi } from "../hooks/useKhiTickDoi";
 import {
   Activity,
   AlertCircle,
@@ -89,6 +93,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import "./bao-gia.css";
+import { taoLuot } from "../lib/luotMoiNhat";
 
 // Điều khoản MẶC ĐỊNH điền sẵn khi tạo báo giá (khớp DEFAULT_TERMS backend). Mỗi dòng = 1 điều
 // khoản; bản in tự đánh số 1..N theo dòng. Sale sửa thoải mái trước khi gửi khách.
@@ -122,6 +127,9 @@ const PAGE_SIZE = 25;
 const MOC_BG: [string, string][] = [["tao", "Ngày tạo"], ["gui", "Ngày gửi khách"], ["hieu_luc", "Hạn hiệu lực"]];
 const COT_SAP_THEO_MOC: Record<string, string> = { tao: "created_at", gui: "sent_at", hieu_luc: "valid_until" };
 type LocMan = { ky: KyDS; loc: LocBaoGia };
+
+/** Số đang gõ dở của một dòng báo giá (chưa lưu): chiết khấu `ck`, lợi nhuận `ln` (% hoặc số tiền), giá bán gõ tay `gia`. */
+type NhapDong = { ck?: { k: Kieu; v: number }; ln?: { k: Kieu; v: number }; gia?: number };
 const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_BG_TRONG };
 const docLocMan = (p: URLSearchParams): LocMan => ({
   ky: kyTuUrl(p, MOC_BG.map(([m]) => m), "tao"),
@@ -137,7 +145,7 @@ function labelOf(options: EnumOption[], value: string | null): string {
 function fmtDate(v: string | null): string {
   if (!v) return "—";
   try {
-    return new Date(v).toLocaleDateString("vi-VN");
+    return new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   } catch {
     return v;
   }
@@ -297,6 +305,7 @@ export function BaoGiaPage({
         navigate={navigate}
         onClose={() => setOpenId(null)}
         onChanged={() => load()}
+        eventTick={eventTick}
       />
     );
   }
@@ -709,18 +718,21 @@ function gomDongTheoNhom(items: QuoteItemDetail[]): NodeBaoGia[] {
 
 
 
-function QuotationDetailView({
+export function QuotationDetailView({
   quotationId,
   statuses,
   navigate,
   onClose,
   onChanged,
+  eventTick = 0,
 }: {
   quotationId: number;
   statuses: EnumOption[];
   navigate?: (id: string, params?: any) => void;
   onClose: () => void;
   onChanged: () => void;
+  /** Tick nhóm bán hàng (SSE) — bên kia duyệt/từ chối/trình duyệt thì màn đang mở tự đổi (#12). */
+  eventTick?: number;
 }) {
   const { token } = useAuth();
   // Xuất PDF đối ngoại = ô THAO TÁC của Báo giá (05/10/2026) — khớp `quotations.py` /pdf.
@@ -743,16 +755,10 @@ function QuotationDetailView({
   const [apprNote, setApprNote] = useState("");
   const [apprSaving, setApprSaving] = useState(false);
 
-  // Margin sống (preview cục bộ trước khi persist) — chỉ dùng khi báo giá 1 dòng.
-  const [draftMargin, setDraftMargin] = useState<number | null>(null);
-  // Markup từng dòng khi đang gõ (đa dòng) — override tạm để preview.
-  const [lineDraft, setLineDraft] = useState<Record<number, number>>({});
-  // Giá bán GÕ TAY (ghi đè markup) — 1 dòng dùng draftPrice, nhiều dòng dùng linePriceDraft theo id.
-  // Gõ giá tay xong thì Thành tiền/chiết khấu/VAT/tổng đơn/bản in đều tính lại theo số này (làm gốc).
-  const [draftPrice, setDraftPrice] = useState<number | null>(null);
-  const [linePriceDraft, setLinePriceDraft] = useState<Record<number, number>>({});
-  // Chiết khấu (%) ÁP CHUNG cho cả đơn khi đang gõ — override tạm để preview trước khi persist.
-  const [discPctDraft, setDiscPctDraft] = useState<number | null>(null);
+  // Số đang gõ dở (nháp, chưa lưu) theo từng dòng — bảng tính lại ngay. `ck` = chiết khấu, `ln` = lợi nhuận
+  // (kiểu "pct" = % hoặc "so" = số tiền), `gia` = giá bán gõ tay. Dòng thuộc nhóm (ruột + bìa) gõ chiết
+  // khấu ở dải nhóm: nháp đặt cho mọi dòng của nhóm.
+  const [nhap, setNhap] = useState<Record<number, NhapDong>>({});
   // Diễn giải quy cách đang sửa: id dòng đang mở ô + nội dung gõ dở (lưu khi rời ô).
   const [dgOpen, setDgOpen] = useState<number | null>(null);
   const [dgDraft, setDgDraft] = useState<string>("");
@@ -779,19 +785,29 @@ function QuotationDetailView({
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [acceptPicks, setAcceptPicks] = useState<Record<number, boolean>>({});
 
+  // Lượt nạp về muộn không đè lượt mới hơn (rà cuối 19/10): sự kiện SSE tới dồn, hoặc vừa đổi phiên
+  // bản, thì các lượt gọi về không theo thứ tự gửi. `canDatLai`: một lượt THƯỜNG (sau thao tác, đổi
+  // phiên bản) đòi xoá ô gõ dở; lượt SSE mới hơn thắng nó vẫn phải làm việc đó thay.
+  const luot = useRef(taoLuot()).current;
+  const canDatLai = useRef(false);
   const reload = useCallback(
-    async (id: number) => {
+    // `giuNhap`: lượt nạp do sự kiện SSE — chỉ thay số của báo giá, KHÔNG xoá ô người dùng đang gõ dở
+    // (số dòng, điều khoản, hạn hiệu lực). Sự kiện nhóm bán hàng tới cả khi người khác đụng báo giá khác.
+    async (id: number, giuNhap = false) => {
       if (!token) return;
+      const conMoi = luot.bat();
+      if (!giuNhap) canDatLai.current = true;
       // Nhật ký Hoạt động tải SONG SONG với chi tiết, không đợi chi tiết xong mới gọi.
-      api.quotations.activity(token, id).then((r) => setActs(r.items)).catch(() => setActs([]));
+      api.quotations.activity(token, id)
+        .then((r) => { if (conMoi()) setActs(r.items); })
+        .catch(() => { if (conMoi()) setActs([]); });
       try {
         const det = await api.quotations.get(token, id);
+        if (!conMoi()) return;
         setD(det);
-        setDraftMargin(null);
-        setLineDraft({});
-        setDraftPrice(null);
-        setLinePriceDraft({});
-        setDiscPctDraft(null);
+        if (!canDatLai.current) return;
+        canDatLai.current = false;
+        setNhap({});
         setTermsText(det.terms_text ?? DEFAULT_TERMS);
         setVerNote((det as any).change_reason ?? "");
         setValidUntilEdit(det.valid_until ?? "");
@@ -805,15 +821,18 @@ function QuotationDetailView({
           setValidity(days > 0 ? days : 30);
         } else setValidity(30);
       } catch {
-        setErr("Không tải được chi tiết báo giá.");
+        if (conMoi()) setErr("Không tải được chi tiết báo giá.");
       }
     },
-    [token],
+    [token, luot],
   );
 
   useEffect(() => {
     reload(quotationId);
   }, [reload, quotationId]);
+  // #12: trước đó chi tiết chỉ nạp khi đổi `quotationId` — người duyệt từ chối xong, màn bên này vẫn
+  // "Chờ duyệt" kèm nút cũ tới khi về danh sách mở lại.
+  useKhiTickDoi(eventTick, () => reload(quotationId, true));
 
   if (!d) {
     return (
@@ -830,56 +849,39 @@ function QuotationDetailView({
   const editable = d.status === "draft" && viewingLatest;
   const multi = d.items.length > 1;
 
-  // ---- Tính toán sống (áp override margin nếu có) --------------------------
+  // ---- Tính toán sống (áp số đang gõ nếu có) -------------------------------
+  // Giá bán = giá vốn + tiền chiết khấu + tiền lợi nhuận. Chiết khấu % tính trên giá vốn; lợi nhuận %
+  // tính trên (giá vốn + chiết khấu). Khớp backend `calculate_pricing`.
   function calcItem(it: QuoteItemDetail) {
     const cost = it.total_cost_snapshot;
-    const priceOverride = multi ? linePriceDraft[it.id] : draftPrice;
-    let m: number, selling: number;
-    if (priceOverride != null) {
-      // Giá bán GÕ TAY làm gốc — markup chỉ còn là số suy ra để hiển thị, không dùng để tính selling.
-      selling = priceOverride;
-      m = cost > 0 ? ((selling / cost) - 1) * 100 : 0;
-    } else {
-      const override = multi ? lineDraft[it.id] : draftMargin;
-      if (override != null) {
-        m = override;
-        // Markup TRÊN GIÁ VỐN: gốc 100, markup 20% → bán 120 (khớp backend calculate_pricing).
-        selling = cost * (1 + m / 100);
-      } else {
-        // Không đang gõ gì — bám ĐÚNG số đã lưu ở server (selling_price), không suy ngược từ
-        // margin_percent (cột này chỉ lưu 2 số lẻ, suy ngược sẽ lệch vài trăm đồng so với bản in).
-        selling = it.selling_price;
-        m = cost > 0 ? ((selling / cost) - 1) * 100 : it.margin_percent;
-      }
-    }
-    // Chiết khấu (%) ÁP CHUNG cho cả đơn — dùng bản nháp đang gõ nếu có, không thì suy từ số đã lưu
-    // của chính dòng này (mỗi dòng chiết khấu cùng % trên giá bán riêng, tổng vẫn đúng % đơn).
-    const savedPct = selling > 0 ? (it.discount_amount / selling) * 100 : 0;
-    const discPct = discPctDraft != null ? discPctDraft : savedPct;
-    const disc = Math.min(selling, Math.max(0, (selling * discPct) / 100));
-    const net = Math.max(0, selling - disc);
-    const vat = (net * (it.vat_percent || 0)) / 100;
-    return { m, cost, selling, disc, net, vat, final: net + vat, profit: net - cost, qty: it.quantity };
+    const n = nhap[it.id];
+    const lam = Math.round;
+    const ck = n?.ck
+      ? lam(n.ck.k === "pct" ? (cost * Math.max(0, n.ck.v)) / 100 : Math.max(0, n.ck.v))
+      : it.discount_amount;
+    const goc = cost + ck;
+    let selling: number;
+    if (n?.gia != null) selling = n.gia;                                   // giá gõ tay: lợi nhuận là phần còn lại
+    else if (n?.ln) selling = goc + lam(n.ln.k === "pct" ? (goc * Math.max(0, n.ln.v)) / 100 : Math.max(0, n.ln.v));
+    else if (n?.ck && !it.gia_go_tay) selling = goc + lam((goc * it.margin_percent) / 100);   // đổi chiết khấu: lợi nhuận giữ %
+    else selling = it.selling_price;                                       // số đã lưu (dòng gõ tay giữ giá)
+    const ln = selling - goc;
+    const vat = (selling * (it.vat_percent || 0)) / 100;
+    return {
+      m: goc > 0 ? (ln / goc) * 100 : 0, cost, ck, disc: ck, goc, ln, selling, net: selling, vat,
+      final: selling + vat, profit: ln, qty: it.quantity, vatPct: it.vat_percent || 0,
+    };
   }
-  let costT = 0, sellingT = 0, netT = 0, vatT = 0, grandT = 0, discountT = 0;
-  d.items.forEach((it) => {
-    const c = calcItem(it);
-    costT += c.cost; sellingT += c.selling; netT += c.net; vatT += c.vat; grandT += c.final; discountT += c.disc;
-  });
-  const profitT = netT - costT;
-  // Có chiết khấu mới hiện cột "Sau chiết khấu" (không có thì nó trùng y cột giá bán).
-  const coChietKhau = discountT > 0.5 || (discPctDraft ?? 0) > 0;
+  // #10 cộng số đã làm tròn từng dòng; #13 khách chốt một phần thì chỉ cộng dòng khách lấy.
+  const daChot = d.status === "accepted" || d.status === "converted_to_order";
+  const dongCong = dongDuocCong(d.items, daChot);
+  const tong = congTongBaoGia(dongCong.map(calcItem));
+  const costT = tong.cost, netT = tong.selling, vatT = tong.vat;
+  const grandT = tong.grand, discountT = tong.ck, profitT = tong.profit;
   const pctf = (v: number) => (Math.round(v * 10) / 10).toLocaleString("vi-VN");
   const singleVat = d.items[0]?.vat_percent ?? 10;
-  // Chiết khấu hiển thị ở sidebar: đang gõ thì lấy bản nháp, không thì suy từ dòng đầu (đã lưu).
-  const firstSellingSaved = d.items[0]?.selling_price ?? 0;
-  const singleDiscPct = discPctDraft != null
-    ? discPctDraft
-    : (d.items[0] && firstSellingSaved > 0 ? Math.round((d.items[0].discount_amount / firstSellingSaved) * 100) : 0);
-  // Markup hiển thị = Lợi nhuận SAU chiết khấu / Giá vốn — khớp với Lợi nhuận ngay bên dưới trong
-  // cùng khối giá bán đề xuất. Ô "Markup% cho dòng này" (nhập tay) vẫn là số TRƯỚC chiết khấu như cũ,
-  // hai chỗ này tách biệt nên không đụng nhau.
-  const markupPctDisp = costT ? Math.round((profitT / costT) * 100) : 0;
+  // Markup hiển thị = tổng lợi nhuận / (giá vốn + chiết khấu) — cùng gốc với ô Markup từng dòng.
+  const markupPctDisp = costT + discountT > 0 ? Math.round((profitT / (costT + discountT)) * 100) : 0;
 
   // Tên tóm tắt: dòng đầu thuộc nhóm thì lấy TÊN NHÓM (khách mua "quyển sách", không mua "ruột").
   const productSummary = d.items[0]?.nhom?.trim() || d.items[0]?.product_name || "—";
@@ -888,7 +890,7 @@ function QuotationDetailView({
   // Patch theo dòng: bỏ trống field nào thì GIỮ giá trị hiện tại của dòng đó (dùng ?? để 0 vẫn áp).
   // Header lấy từ edit-state (không clobber ghi chú/điều khoản đang sửa chưa lưu).
   async function persistItems(
-    items: { id: number; margin_percent?: number; manual_selling_price?: number | null; vat_percent?: number; discount_amount?: number; rounding?: string; note?: string | null; dien_giai?: string | null }[],
+    items: { id: number; margin_percent?: number; manual_selling_price?: number | null; vat_percent?: number; discount_amount?: number; discount_percent?: number; profit_amount?: number; rounding?: string; note?: string | null; dien_giai?: string | null }[],
   ) {
     if (!token || !d) return;
     setBusy(true);
@@ -903,19 +905,21 @@ function QuotationDetailView({
           return {
             id: it.id,
             margin_percent: patch?.margin_percent ?? it.margin_percent,
-            // Giá gõ tay: dòng đang gõ thì gửi số mới; sửa Markup% (patch có margin, không kèm giá)
-            // là về theo markup; dòng KHÔNG đụng tới mà đang gõ tay thì giữ nguyên giá đã gõ (để
-            // đổi VAT/chiết khấu cả đơn không làm rơi giá gõ tay của nó).
+            // Giá gõ tay: dòng đang gõ thì gửi số mới; sửa Markup (patch có % hoặc số tiền, không kèm
+            // giá) là về theo markup; dòng KHÔNG đụng tới mà đang gõ tay thì giữ nguyên giá đã gõ (để
+            // đổi VAT/chiết khấu không làm rơi giá gõ tay của nó).
             manual_selling_price:
               patch?.manual_selling_price !== undefined
                 ? patch.manual_selling_price
-                : patch?.margin_percent !== undefined
+                : patch?.margin_percent !== undefined || patch?.profit_amount !== undefined
                   ? undefined
                   : it.gia_go_tay
                     ? it.selling_price
                     : undefined,
-            discount_amount: patch?.discount_amount ?? it.discount_amount,
-            discount_percent: 0,
+            // Chiết khấu gõ theo % thì gửi % (tiền = 0 để % thắng); còn lại gửi tiền đã lưu.
+            discount_amount: patch?.discount_percent !== undefined ? 0 : (patch?.discount_amount ?? it.discount_amount),
+            discount_percent: patch?.discount_percent ?? 0,
+            profit_amount: patch?.profit_amount,
             vat_percent: patch?.vat_percent ?? it.vat_percent,
             rounding: patch?.rounding ?? "no_rounding",
             note: patch?.note !== undefined ? patch.note : it.note,
@@ -932,65 +936,47 @@ function QuotationDetailView({
       setBusy(false);
     }
   }
-  /** Dòng về tính theo markup `m`: tiền chiết khấu tính lại để GIỮ NGUYÊN % đang áp (không thì
-   *  % trôi theo giá bán mới). */
-  function theoMarkup(it: QuoteItemDetail, m: number) {
-    const selling = it.total_cost_snapshot * (1 + m / 100);
-    return { id: it.id, margin_percent: m, discount_amount: Math.round((selling * currentDiscPct(it)) / 100) };
+  /** Chia số tiền gõ cho CẢ NHÓM (ruột + bìa) về từng dòng theo tỷ lệ `trong` — dòng cuối nhận phần dư
+   *  để tổng đúng từng đồng. */
+  function chiaTheoTyLe(dong: QuoteItemDetail[], tong: number, trong: (it: QuoteItemDetail) => number): number[] {
+    const tat = dong.reduce((s, it) => s + trong(it), 0);
+    let con = Math.round(tong);
+    return dong.map((it, i) => {
+      const phan = i === dong.length - 1 ? con : Math.min(con, Math.round(tat > 0 ? (tong * trong(it)) / tat : tong / dong.length));
+      con -= phan;
+      return phan;
+    });
   }
-  function commitSingleMargin(val: number) {
+  /** Chốt chiết khấu của MỘT sản phẩm khách thấy (dòng riêng hoặc cả nhóm): % áp cho từng dòng trên giá
+   *  vốn của nó; số tiền chia cho các dòng theo giá vốn. */
+  function commitChietKhau(dong: QuoteItemDetail[], kieu: Kieu, v: number) {
     if (!editable || !d) return;
-    const v = Math.max(0, Math.min(100, val));
-    persistItems(d.items.map((it) => theoMarkup(it, v)));
+    if (kieu === "pct") {
+      const p = Math.max(0, Math.min(100, v));
+      persistItems(dong.map((it) => ({ id: it.id, discount_percent: p })));
+    } else {
+      const phan = chiaTheoTyLe(dong, Math.max(0, v), (it) => it.total_cost_snapshot);
+      persistItems(dong.map((it, i) => ({ id: it.id, discount_amount: phan[i] })));
+    }
   }
-  function commitLineMargin(itemId: number, val: number) {
+  /** Chốt lợi nhuận (Markup) của một dòng: % trên (vốn + chiết khấu) hoặc số tiền. Sửa Markup bỏ giá gõ tay. */
+  function commitLoiNhuan(it: QuoteItemDetail, kieu: Kieu, v: number) {
     if (!editable || !d) return;
-    const v = Math.max(0, Math.min(100, val));
-    const it = d.items.find((x) => x.id === itemId);
-    if (it) persistItems([theoMarkup(it, v)]);
+    persistItems([kieu === "pct"
+      ? { id: it.id, margin_percent: Math.max(0, Math.min(1000, v)) }
+      : { id: it.id, margin_percent: it.margin_percent, profit_amount: Math.max(0, Math.round(v)) }]);
   }
-  /** % chiết khấu đang áp cho 1 dòng (bám bản nháp đang gõ nếu có, không thì suy từ số đã lưu) —
-   * dùng để GIỮ NGUYÊN % này khi giá bán gõ tay đổi, thay vì để tiền chiết khấu đứng yên và % trôi. */
-  function currentDiscPct(it: QuoteItemDetail): number {
-    if (discPctDraft != null) return discPctDraft;
-    const oldSelling = it.selling_price;
-    return oldSelling > 0 ? (it.discount_amount / oldSelling) * 100 : 0;
-  }
-  /** Giá bán GÕ TAY — làm gốc, kèm markup suy ra để ô Markup% hiển thị đúng số sau khi lưu.
-   * Chiết khấu (%) đã áp phải GIỮ NGUYÊN — tính lại tiền chiết khấu theo giá bán mới. */
-  function commitSinglePrice(val: number) {
+  /** Giá bán GÕ TAY — làm gốc; chiết khấu giữ nguyên, lợi nhuận là phần còn lại. */
+  function commitGia(it: QuoteItemDetail, val: number) {
     if (!editable || !d) return;
-    const v = Math.max(0, val);
-    const cost = d.items[0]?.total_cost_snapshot ?? 0;
-    const impliedMargin = cost > 0 ? ((v / cost) - 1) * 100 : 0;
-    persistItems(d.items.map((it) => ({
-      id: it.id,
-      margin_percent: impliedMargin,
-      manual_selling_price: v,
-      discount_amount: Math.round((v * currentDiscPct(it)) / 100),
-    })));
-  }
-  function commitLinePrice(itemId: number, val: number) {
-    if (!editable || !d) return;
-    const v = Math.max(0, val);
-    const it = d.items.find((x) => x.id === itemId);
-    const cost = it?.total_cost_snapshot ?? 0;
-    const impliedMargin = cost > 0 ? ((v / cost) - 1) * 100 : 0;
-    persistItems([{
-      id: itemId,
-      margin_percent: impliedMargin,
-      manual_selling_price: v,
-      discount_amount: it ? Math.round((v * currentDiscPct(it)) / 100) : undefined,
-    }]);
+    persistItems([{ id: it.id, manual_selling_price: Math.max(0, val) }]);
   }
   /** Bỏ giá gõ tay của dòng, về tính theo markup (làm tròn markup đang suy ra từ giá gõ tay). */
   function veTheoMarkup(it: QuoteItemDetail) {
     if (!editable) return;
-    const cost = it.total_cost_snapshot;
-    const m = cost > 0 ? Math.round(((it.selling_price / cost) - 1) * 100) : it.margin_percent;
-    if (multi) setLinePriceDraft((p) => { const n = { ...p }; delete n[it.id]; return n; });
-    else setDraftPrice(null);
-    persistItems([theoMarkup(it, Math.max(0, Math.min(100, m)))]);
+    const c = calcItem(it);
+    setNhap((p) => { const n = { ...p }; delete n[it.id]; return n; });
+    persistItems([{ id: it.id, margin_percent: Math.max(0, Math.round(c.m)) }]);
   }
   /** Đặt ảnh minh họa (in ở cột "Hình ảnh minh họa" bản gửi khách) cho CỤM chứa dòng này.
    *  Backend ghi cho mọi dòng cùng tên — sản phẩm cùng tên chỉ cần upload MỘT lần. */
@@ -1086,17 +1072,38 @@ function QuotationDetailView({
     const v = Math.max(0, Math.min(100, val));
     persistItems(d.items.map((it) => ({ id: it.id, vat_percent: v })));
   }
-  // Chiết khấu (%) ÁP CHUNG cho cả đơn — quy ra tiền theo giá bán TỪNG dòng rồi persist hết,
-  // giống hệt cách VAT đang làm (commitVat). Backend vẫn giữ discount_amount theo từng dòng,
-  // chỉ khác là FE fan-out cùng % thay vì cho sửa riêng từng dòng.
-  function commitOrderDiscount(pct: number) {
-    if (!editable || !d) return;
-    const v = Math.max(0, Math.min(100, pct));
-    // Tính trên giá bán ĐANG HIỆN (giá gõ tay / nháp / số đã lưu) — suy ngược từ margin_percent
-    // (lưu 2 số lẻ) lệch vài đồng: 5% của 5.000.000 ra 250.002.
-    persistItems(d.items.map((it) => (
-      { id: it.id, discount_amount: Math.round((calcItem(it).selling * v) / 100) }
-    )));
+  /** Nháp của một ô (đang gõ) cho mọi dòng `ids`; `v == null` = bỏ nháp. */
+  function datNhap(ids: number[], khoa: "ck" | "ln" | "gia", v: { k: Kieu; v: number } | number | null) {
+    setNhap((p) => {
+      const n = { ...p };
+      ids.forEach((id) => {
+        const cu = { ...(n[id] ?? {}) } as NhapDong;
+        if (v == null) delete cu[khoa]; else (cu as Record<string, unknown>)[khoa] = v;
+        if (Object.keys(cu).length) n[id] = cu; else delete n[id];
+      });
+      return n;
+    });
+  }
+  /** Ô CHIẾT KHẤU của MỘT sản phẩm khách thấy (dòng đứng riêng hoặc cả nhóm): hai tab "%" và "Số". */
+  function oChietKhau(dong: QuoteItemDetail[], ten: string) {
+    const von = dong.reduce((s, it) => s + calcItem(it).cost, 0);
+    const ck = dong.reduce((s, it) => s + calcItem(it).ck, 0);
+    const pct = von > 0 ? (ck / von) * 100 : 0;
+    const ids = dong.map((it) => it.id);
+    if (!editable) return ck > 0 ? `${numf(ck)} đ (${pctf(pct)} %)` : "—";
+    return (
+      <OHaiTab
+        pct={Math.round(pct * 10) / 10}
+        so={ck}
+        disabled={busy}
+        ariaLabel={`Chiết khấu ${ten}`}
+        titlePct="Chiết khấu (%) trên giá vốn — cộng vào giá bán, hoàn lại khách sau"
+        titleSo="Tiền chiết khấu — cộng vào giá bán, hoàn lại khách sau"
+        onNhap={(k, v) => datNhap(ids, "ck", { k, v })}
+        onHuy={() => datNhap(ids, "ck", null)}
+        onChot={(k, v) => commitChietKhau(dong, k, v)}
+      />
+    );
   }
 
 
@@ -1430,12 +1437,17 @@ function QuotationDetailView({
                 </div>
               </div>
             )}
-            <table>
+            {/* `bg-dong`: thẻ điện thoại (components/luoiThe.ts) nhận diện bảng dòng hàng của báo giá. */}
+            {/* Khung cuộn ngang dự phòng: có chiết khấu thì bảng 7 cột, màn hẹp vẫn xem đủ cột cuối. */}
+            <div className="bg-dong-cuon">
+            <table className="bg-dong">
               <thead>
                 <tr>
-                  <th>Sản phẩm</th><th className="num">SL</th><th className="num">Giá vốn</th><th className="num">Markup</th><th className="num">Giá bán</th>
-                  {/* Không chiết khấu thì "thành tiền" trùng y giá bán — chỉ hiện cột khi có. */}
-                  {coChietKhau && <th className="num">Sau chiết khấu</th>}
+                  {/* Giá bán = giá vốn + chiết khấu + lợi nhuận: các cột đi đúng thứ tự công thức. */}
+                  <th>Sản phẩm</th><th className="num">SL</th><th className="num">Giá vốn</th>
+                  <th className="num">Chiết khấu</th>
+                  <th className="num">Markup</th>
+                  <th className="num">Giá bán</th>
                 </tr>
               </thead>
               <tbody>
@@ -1444,9 +1456,8 @@ function QuotationDetailView({
                 {nhomTrongBaoGia.flatMap((node) => {
                   const dongIt = (it: QuoteItemDetail, con: boolean, cuoi = false, slDauNhom?: number) => {
                   const c = calcItem(it);
-                  const markupVal = multi ? (lineDraft[it.id] ?? it.margin_percent) : (draftMargin ?? it.margin_percent);
-                  const priceVal = multi ? (linePriceDraft[it.id] ?? c.selling) : (draftPrice ?? c.selling);
-                  const priceOverridden = (multi ? linePriceDraft[it.id] : draftPrice) != null || it.gia_go_tay;
+                  const priceVal = nhap[it.id]?.gia ?? c.selling;
+                  const priceOverridden = nhap[it.id]?.gia != null || it.gia_go_tay;
                   const declined = quoteClosed && acceptedDecided && !it.accepted;
                   // Dòng con có SL khác PHẦN ĐẦU nhóm → bản in in số phần đầu, không in số này. Đánh dấu.
                   const lechNhom = slDauNhom !== undefined && it.quantity !== slDauNhom;
@@ -1505,30 +1516,27 @@ function QuotationDetailView({
                         )}
                       </td>
                       <td className="num muted">{numf(c.cost)}</td>
+                      {/* Phần con của nhóm: chiết khấu gõ ở dải nhóm phía trên, ở đây chỉ hiện số tiền của phần này. */}
+                      <td className={con ? "num muted" : "num"}>
+                        {con ? (c.ck > 0 ? numf(c.ck) : "—") : oChietKhau([it], it.product_name)}
+                      </td>
                       <td className="num">
                         <div className="markcell">
-                          <ONhapSo
-                            className={`pct${priceOverridden ? " auto" : ""}`}
-                            giaTri={Math.round((priceOverridden ? c.m : markupVal) * 10) / 10}
-                            donVi="%"
-                            soLe={1}
-                            buoc={0.5}
-                            disabled={!editable || busy}
-                            ariaLabel={`Markup ${it.product_name}`}
-                            title="Markup (%) trên giá vốn của dòng này"
-                            onNhap={(v) => multi
-                              ? setLineDraft((p) => ({ ...p, [it.id]: v }))
-                              : setDraftMargin(v)}
-                            onHuy={() => multi
-                              ? setLineDraft((p) => { const n = { ...p }; delete n[it.id]; return n; })
-                              : setDraftMargin(null)}
-                            onChot={(v) => {
-                              if (multi) setLinePriceDraft((p) => { const n = { ...p }; delete n[it.id]; return n; });
-                              else setDraftPrice(null);
-                              if (multi) commitLineMargin(it.id, v);
-                              else commitSingleMargin(v);
-                            }}
-                          />
+                          {editable ? (
+                            <OHaiTab
+                              pct={Math.round(c.m * 10) / 10}
+                              so={c.ln}
+                              disabled={busy}
+                              ariaLabel={`Markup ${it.product_name}`}
+                              titlePct="Markup (%) trên (giá vốn + chiết khấu) của dòng này"
+                              titleSo="Tiền lợi nhuận của dòng này"
+                              onNhap={(k, v) => datNhap([it.id], "ln", { k, v })}
+                              onHuy={() => datNhap([it.id], "ln", null)}
+                              onChot={(k, v) => { datNhap([it.id], "gia", null); commitLoiNhuan(it, k, v); }}
+                            />
+                          ) : (
+                            <span>{pctf(c.m)} %<span className="meta"> {numf(c.ln)} đ</span></span>
+                          )}
                           {priceOverridden && <span className="meta">suy ra từ giá gõ tay</span>}
                         </div>
                       </td>
@@ -1540,14 +1548,10 @@ function QuotationDetailView({
                             donVi="đ"
                             disabled={!editable || busy}
                             ariaLabel={`Giá bán ${it.product_name}`}
-                            title="Gõ tay giá bán dòng này — chiết khấu, VAT, tổng đơn và bản in tính lại theo số này. Sửa lại Markup sẽ bỏ giá gõ tay."
-                            onNhap={(v) => multi
-                              ? setLinePriceDraft((p) => ({ ...p, [it.id]: v }))
-                              : setDraftPrice(v)}
-                            onChot={(v) => multi ? commitLinePrice(it.id, v) : commitSinglePrice(v)}
-                            onHuy={() => multi
-                              ? setLinePriceDraft((p) => { const n = { ...p }; delete n[it.id]; return n; })
-                              : setDraftPrice(null)}
+                            title="Gõ tay giá bán dòng này — chiết khấu giữ nguyên, lợi nhuận là phần còn lại. Sửa lại Markup sẽ bỏ giá gõ tay."
+                            onNhap={(v) => datNhap([it.id], "gia", v)}
+                            onChot={(v) => commitGia(it, v)}
+                            onHuy={() => datNhap([it.id], "gia", null)}
                           />
                           {priceOverridden && (
                             <span className="meta">
@@ -1561,7 +1565,6 @@ function QuotationDetailView({
                           )}
                         </div>
                       </td>
-                      {coChietKhau && <td className="num strong">{vnd(c.net)}</td>}
                     </tr>
                   );
                   };
@@ -1570,7 +1573,7 @@ function QuotationDetailView({
                   // Ảnh của cụm đặt ở DẢI NHÓM: dải này chính là dòng sẽ in ra khách, mà cả cụm
                   // dùng chung một ảnh — treo ở từng phần con là mời người dùng upload 2 lần.
                   const tongVon = node.members.reduce((s, m) => s + calcItem(m).cost, 0);
-                  const tongTien = node.members.reduce((s, m) => s + calcItem(m).net, 0);
+                  const tongGoc = node.members.reduce((s, m) => s + calcItem(m).goc, 0);
                   const tongBan = node.members.reduce((s, m) => s + calcItem(m).selling, 0);
                   return [
                     <tr key={`nh-${node.key}`} className="qgrouphd">
@@ -1584,15 +1587,16 @@ function QuotationDetailView({
                       </td>
                       <td className="num">{node.members[0].quantity.toLocaleString("vi-VN")}</td>
                       <td className="num muted">{numf(tongVon)}</td>
-                      <td className="num muted">{tongVon > 0 ? `${pctf(((tongBan / tongVon) - 1) * 100)} %` : "—"}</td>
+                      <td className="num">{oChietKhau(node.members, node.ten)}</td>
+                      <td className="num muted">{tongGoc > 0 ? `${pctf(((tongBan / tongGoc) - 1) * 100)} %` : "—"}</td>
                       <td className="num strong">{vnd(tongBan)}</td>
-                      {coChietKhau && <td className="num strong">{vnd(tongTien)}</td>}
                     </tr>,
                     ...node.members.map((m, k) => dongIt(m, true, k === node.members.length - 1, node.members[0].quantity)),
                   ];
                 })}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* Điều khoản & hiệu lực (Redesigned Modern WOW UI) */}
@@ -1721,7 +1725,7 @@ function QuotationDetailView({
                     {active && <span className="vnow">Đang xem</span>}
                     <div className="vmid">
                       <div className="a">{v.change_reason || "—"}</div>
-                      <div className="m">{fmtDate(v.created_at)}{isCur ? " · hiện tại" : ""}</div>
+                      <div className="m">{fmtDate(v.created_at)}{isCur ? " (hiện tại)" : ""}</div>
                     </div>
                     <div className="vright">
                       <div className="p rust-num">{vnd(v.total ?? 0)}</div>
@@ -1776,30 +1780,13 @@ function QuotationDetailView({
             </div>
             <div className="dk__rows">
               <div className="drow"><span className="k">Giá vốn (khóa)</span><span className="v">{numf(costT)} đ</span></div>
-              <div className="drow profit"><span className="k">Lợi nhuận</span><span className="v">{profitT >= 0 ? "+" : ""}{numf(profitT)} đ</span></div>
               <div className="drow">
-                <span className="k">
-                  Chiết khấu
-                  {editable ? (
-                    <ONhapSo
-                      className="dnf"
-                      giaTri={singleDiscPct}
-                      donVi="%"
-                      soLe={1}
-                      buoc={1}
-                      disabled={busy}
-                      ariaLabel="Chiết khấu cả đơn"
-                      title="Chiết khấu (%) áp CHUNG cho cả đơn — trừ trước VAT"
-                      onNhap={(v) => setDiscPctDraft(v)}
-                      onChot={(v) => commitOrderDiscount(v)}
-                      onHuy={() => setDiscPctDraft(null)}
-                    />
-                  ) : singleDiscPct > 0 ? ` ${singleDiscPct}%` : null}
-                </span>
-                <span className="v" style={discountT > 0 ? { color: "var(--rust)" } : undefined}>
-                  {discountT > 0 ? `−${numf(discountT)} đ` : "0 đ"}
-                </span>
+                {/* Chỉ cộng tổng — gõ riêng từng sản phẩm ở cột Chiết khấu trong bảng. Khoản này nằm TRONG
+                    giá bán và sẽ hoàn lại khách. */}
+                <span className="k">Chiết khấu (hoàn lại khách)</span>
+                <span className="v">{discountT > 0 ? `+${numf(discountT)} đ` : "0 đ"}</span>
               </div>
+              <div className="drow profit"><span className="k">Lợi nhuận</span><span className="v">{profitT >= 0 ? "+" : ""}{numf(profitT)} đ</span></div>
               <div className="drow"><span className="k">Giá bán (chưa VAT)</span><span className="v">{numf(netT)} đ</span></div>
               <div className="drow">
                 <span className="k">
@@ -1826,6 +1813,9 @@ function QuotationDetailView({
                 <span className="v">{numf(vatT)} đ</span>
               </div>
               {/* Bỏ "Tổng cộng" — trùng số lớn "Giá bán đề xuất" ở đầu card. */}
+              {dongCong.length < d.items.length && (
+                <div className="drow"><span className="k">Chỉ cộng {dongCong.length} trên {d.items.length} sản phẩm khách lấy</span></div>
+              )}
             </div>
 
             {/* Báo giá đặc thù (giá trị cao / lời mỏng / bán dưới vốn): Nháp → TRÌNH DUYỆT → Chờ duyệt →
@@ -1867,8 +1857,8 @@ function QuotationDetailView({
                         {d.exception_decision === "rejected" ? <><X size={13} /> Từ chối</> : <><Check size={13} /> Duyệt</>}
                       </span>{" "}bởi{" "}
                       <b>{d.exception_decided_by_name}</b>
-                      {d.exception_decided_at ? ` · ${fmtDate(d.exception_decided_at)}` : ""}
-                      {d.exception_note ? ` · “${d.exception_note}”` : ""}
+                      {d.exception_decided_at ? ` ngày ${fmtDate(d.exception_decided_at)}` : ""}
+                      {d.exception_note ? <>{": "}“{d.exception_note}”</> : ""}
                     </div>
                   )}
                   {/* GĐ Kinh doanh duyệt/từ chối — CHỈ khi báo giá đang Chờ duyệt (pending_approval). */}
@@ -1916,12 +1906,12 @@ function QuotationDetailView({
                     <div className="tlb">
                       <div className="a">{m[2]}</div>
                       <div className="m">
-                        {/* actor_name là "Phòng · Chức vụ · Tên" — cột phụ chỉ đủ chỗ cho TÊN,
-                            chức danh đầy đủ nằm ở tooltip. Không cắt thì mỗi sự kiện chiếm 3 dòng. */}
+                        {/* actor_name là "Tên (Phòng ban)" — cột phụ chỉ đủ chỗ cho TÊN, phòng ban
+                            nằm ở tooltip. Tên và giờ là hai mẩu riêng, không nối bằng "·" (#68). */}
                         {a.actor_name ? (
-                          <><span className="who" title={a.actor_name}>{a.actor_name.split(" · ").pop()}</span> · </>
+                          <><span className="who" title={a.actor_name}>{a.actor_name.replace(/\s*\([^)]*\)$/, "")}</span>{" "}</>
                         ) : null}
-                        {fmtDateTime(a.at)}
+                        <span>{fmtDateTime(a.at)}</span>
                       </div>
                     </div>
                   </div>
@@ -2113,7 +2103,7 @@ function QuotationPrintModal({
     soLuong: it.quantity,
     donViTinh: it.unit,
     dvtNhom: it.dvt_nhom,
-    thanhTien: Math.max(0, it.selling_price - it.discount_amount),   // net chưa VAT
+    thanhTien: Math.max(0, it.selling_price),   // chưa VAT — đã gồm chiết khấu (hoàn lại khách sau)
     tienVat: it.vat_amount,
     vatPct: it.vat_percent,
     dienGiai: it.dien_giai,
@@ -2150,10 +2140,16 @@ function QuotationPrintModal({
 
           <div className="q-date-line">{SVN_COMPANY.placeOfIssue}, ngày {p2(now.getDate())} tháng {p2(now.getMonth() + 1)} năm {now.getFullYear()}</div>
 
-          {/* KÍNH GỬI — tên + địa chỉ giao hàng của báo giá (Sale đã chọn tay khi lập phiếu) */}
+          {/* KÍNH GỬI — tên + MST + địa chỉ giao hàng + người liên hệ của báo giá (Sale đã chọn tay
+              khi lập phiếu). Tên + địa chỉ dài nên chiếm cả dòng; MST và người liên hệ ngắn nên đứng
+              chung một dòng hai cột. Trống thì bỏ hẳn ô, không in "—". */}
           <div className="q-salut">
-            <div><span className="q-salut-lbl">Kính gửi</span>: <b>{d.customer?.name ?? "—"}</b></div>
-            <div>Địa chỉ: {d.delivery_address || "—"}</div>
+            <span className="q-salut-lbl">Kính gửi:</span>
+            <b className="q-salut-full">{d.customer?.name ?? "—"}</b>
+            <span>Địa chỉ:</span>
+            <span className="q-salut-full">{d.delivery_address || "—"}</span>
+            {d.customer?.tax_code && <><span>Mã số thuế:</span><span>{d.customer.tax_code}</span></>}
+            {d.contact_name_snapshot && <><span>Người liên hệ:</span><span>{d.contact_name_snapshot}</span></>}
           </div>
 
           <div className="q-th"><h1>BẢN BÁO GIÁ</h1></div>
@@ -2167,8 +2163,8 @@ function QuotationPrintModal({
                 "Mã hàng" (dòng gộp ruột+bìa có 2 mã khác nhau nên luôn để trống — mà báo giá kiểu
                 quyển sách thì hầu hết dòng đều gộp). Chỗ trống dồn cho mô tả và 3 cột số. */}
             <colgroup>
-              <col style={{ width: "5%" }} /><col style={{ width: "37%" }} />
-              <col style={{ width: "7%" }} /><col style={{ width: "12%" }} />
+              <col style={{ width: "5%" }} /><col style={{ width: "35%" }} />
+              <col style={{ width: "9%" }} /><col style={{ width: "12%" }} />
               <col style={{ width: "15%" }} /><col style={{ width: "24%" }} />
             </colgroup>
             <thead>
@@ -2215,7 +2211,7 @@ function QuotationPrintModal({
                                 </ul>
                               )}
                             </td>
-                            <td className="c" rowSpan={g.muc.length}>{g.donViTinh}</td>
+                            <td className="c q-dvt" rowSpan={g.muc.length}>{g.donViTinh}</td>
                           </>
                         )}
                         <td className="r">{m.soLuong.toLocaleString("vi-VN")}</td>

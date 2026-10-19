@@ -131,7 +131,7 @@ function NutKyChot({ ky, kyList, onKy }: { ky: Ky; kyList: CongNoKyRow[]; onKy: 
         <ChevronDown size={15} aria-hidden="true" className="tl-nut__mui" />
       </button>
       {mo && (
-        <LopNoi className="tl-pop--ky">
+        <LopNoi className="tl-pop--ky" onDong={() => setMo(false)}>
           <div role="dialog" aria-label="Kỳ kế toán">
             <div className="tl-nhom">Kỳ kế toán</div>
             <div role="radiogroup" aria-label="Kỳ">

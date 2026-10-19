@@ -446,12 +446,14 @@ def get_overtime_service(
     attendance: Annotated[AttendanceRepository, Depends(get_attendance_repository)],
     payroll: Annotated[PayrollRepository, Depends(get_payroll_repository)],
     yeu_cau_huy: Annotated[YeuCauHuyRepository, Depends(get_yeu_cau_huy_repository)],
+    leaves: Annotated[LeaveRepository, Depends(get_leave_repository)],
 ) -> OvertimeService:
     # attendance (REPO) → chặn duyệt/hủy phiếu của tháng ĐÃ CHỐT CÔNG (12/08/2026).
     # payroll (REPO) → đọc trần giờ làm thêm ở `payroll_params` (Đ107, chủ chốt 17/08/2026).
     # yeu_cau_huy (REPO) → xin hủy phiếu ĐÃ DUYỆT (23/09/2026), cùng luật với đơn nghỉ.
+    # leaves (REPO) → ngày đã duyệt nghỉ cả ngày thì không tăng ca (#40, 18/10/2026).
     return OvertimeService(overtime, employees, audit, attendance=attendance, payroll=payroll,
-                           yeu_cau_huy=yeu_cau_huy)
+                           yeu_cau_huy=yeu_cau_huy, leaves=leaves)
 
 
 def get_payroll_repository(

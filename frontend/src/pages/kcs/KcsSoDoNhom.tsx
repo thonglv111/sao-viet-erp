@@ -29,6 +29,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { Icon } from "../../components/Icons";
 import { ChipTT, type MauTT } from "../../components/LuoiDs";
 import type { TepXem } from "../../components/tepDinhKem";
+import { laDienThoai } from "../../utils/dienThoai";
 import { ngayGio, num } from "../keHoachSxShared";
 import { nhanChangLenh, nhanDonVi } from "../lsxBuoc";
 import { useNapTenDonVi } from "../tenDonVi";
@@ -407,6 +408,19 @@ export function KcsSoDoNhom({
   const [data, setData] = useState<SxKcsSoDoNhom | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
   const [chon, setChon] = useState<Chon | null>(null);
+  // Điện thoại: sơ đồ xếp dọc nên bảng chi tiết nằm dưới mép màn — chạm một bước thì cuộn tới bảng,
+  // không thì chạm xong không thấy gì đổi. Chỉ khi NGƯỜI chạm (lần tự chọn bước lúc mở màn thì không).
+  const pnRef = useRef<HTMLDivElement>(null);
+  const vuaCham = useRef(false);
+  const chamChon = (c: Chon) => {
+    vuaCham.current = true;
+    setChon(c);
+  };
+  useEffect(() => {
+    if (!vuaCham.current) return;
+    vuaCham.current = false;
+    if (laDienThoai()) pnRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [chon]);
   const [tab, setTab] = useState<"lan" | "tc" | "kho">("lan");
   const [tabGiua, setTabGiua] = useState<"tc" | "qc" | "loi">("tc");
   const [moTep, setMoTep] = useState(false);
@@ -795,7 +809,7 @@ export function KcsSoDoNhom({
                         tieuChi={tieuChiCua(cuoi, cd.cong_viec_id).length}
                         cuoiGop={cd.la_kcs_cuoi ? cd.checklist.length : null}
                         chon={chon === cd.cong_viec_id} gan={ganNut(cd.cong_viec_id)}
-                        onChon={() => { setChon(cd.cong_viec_id); setTab("lan"); }} />
+                        onChon={() => { chamChon(cd.cong_viec_id); setTab("lan"); }} />
                     </span>
                   );
                 })}
@@ -803,7 +817,7 @@ export function KcsSoDoNhom({
                   <span className="kcsb-lan__o">
                     <span className="kcsb-noi" />
                     <button type="button" className={`kcsb-nut kcsb-nut--kho${chon === "kho" ? " is-chon" : ""}`}
-                      aria-pressed={chon === "kho"} onClick={() => setChon("kho")}>
+                      aria-pressed={chon === "kho"} onClick={() => chamChon("kho")}>
                       <span className="kcsb-nut__h"><IconNut tt={ttKho} /><span className="kcsb-nut__ten">Nhập kho</span></span>
                       <span className="kcsb-nut__p"><span>đã gửi {num(cuoi.da_yeu_cau_kho)}</span></span>
                       <span className="kcsb-nut__p">
@@ -833,7 +847,7 @@ export function KcsSoDoNhom({
             </div>
           </div>
 
-          <div className="kcsb-pn">
+          <div className="kcsb-pn" ref={pnRef}>
             {chon === "kho" ? panelKho() : sel ? (sel.cd.la_kcs_cuoi ? panelCuoi(sel) : panelGiua(sel)) : null}
           </div>
         </>

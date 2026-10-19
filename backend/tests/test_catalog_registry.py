@@ -77,6 +77,9 @@ SCOPELESS_CU = frozenset({
     "kcs",
     # Mục thu chi + Báo cáo thu chi (11/10/2026, mg 0395): danh mục và sổ của cả công ty.
     "dm_muc_thu_chi", "bao_cao_thu_chi",
+    # Mua hàng (14/10/2026, mg 0411): ai có màn Mua hàng thấy mọi phiếu mua — "để tất cả và không
+    # chuyển đổi được".
+    "thu_mua",
 })
 
 #: `nhat_ky_danh_muc.LOAI_MODULE` — tên chính của từng màn, 2 tên đời cũ (`machine`/`operation`),

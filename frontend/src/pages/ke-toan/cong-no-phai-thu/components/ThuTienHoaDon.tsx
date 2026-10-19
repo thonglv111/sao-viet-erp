@@ -85,6 +85,7 @@ export function ThuTienHoaDon({
   onMoDon,
   onMoPhieu,
   onMoTaiKhoan,
+  coNganKhach = true,
 }: {
   item: ReceivableItemRow;
   customerId: number;
@@ -95,6 +96,8 @@ export function ThuTienHoaDon({
   onMoDon?: (orderId: number) => void;
   onMoPhieu?: (code: string) => void;
   onMoTaiKhoan?: () => void;
+  /** Mở từ ngăn khách (Công nợ phải thu) — có nút "Xem ở ngăn khách". Màn Phiếu thu mở thẳng thì không. */
+  coNganKhach?: boolean;
 }) {
   const { token } = useAuth();
   const conNo = item.remaining_amount;
@@ -290,7 +293,7 @@ export function ThuTienHoaDon({
           <TheHan item={item} />
         </>
       }
-      xemTruoc={daLap ? <>Phiếu <b>{daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
+      xemTruoc={daLap ? <>Phiếu <b>{daLap.doc_no ?? daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
       dangLuu={dangLap}
       loiChung={loiChung}
       onDong={() => (daLap ? onDaLap(daLap) : onDong())}
@@ -324,6 +327,10 @@ export function ThuTienHoaDon({
         <HangDoiChieu
           o={[
             { nhan: "Giá trị hoá đơn", giaTri: vietSo(item.amount) },
+            // Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn (17/10/2026): đứng riêng để Đã thu là số thật.
+            ...((item.hoan_khong_don ?? 0) > 0
+              ? [{ nhan: "Trả lại khách ngoài đơn", giaTri: vietSo(item.hoan_khong_don ?? 0) }]
+              : []),
             { nhan: "Trừ cọc", giaTri: vietSo(item.deposit_offset_amount) },
             { nhan: "Đã thu", giaTri: vietSo(item.direct_received_amount) },
             { nhan: "Còn phải thu", giaTri: vietSo(conNo), chot: true },
@@ -353,9 +360,14 @@ export function ThuTienHoaDon({
                   <tr key={p.receipt_id}>
                     <td>
                       {onMoPhieu ? (
-                        <button type="button" className="kt-lk" onClick={() => onMoPhieu(p.code)}>{p.code}</button>
+                        <button type="button" className="kt-lk" onClick={() => onMoPhieu(p.code)}>{p.doc_no ?? p.code}</button>
                       ) : (
-                        p.code
+                        p.doc_no ?? p.code
+                      )}
+                      {(p.so_dong ?? 1) > 1 && p.receipt_amount != null && (
+                        <span className="lds-mu" title="Một phiếu thu nhiều khoản, Số tiền là phần của hoá đơn này">
+                          {` phiếu gộp ${vietSo(p.receipt_amount)}`}
+                        </span>
                       )}
                     </td>
                     <td>{ngay(p.receipt_date)}</td>
@@ -381,7 +393,7 @@ export function ThuTienHoaDon({
                     {x.overdue_days > 0 ? `trễ ${vietSo(x.overdue_days)} ngày` : null}
                   </span>
                 ))}
-                <NutVeNganKhach />
+                {coNganKhach && <NutVeNganKhach />}
               </>
             )}
           </p>

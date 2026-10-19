@@ -1,0 +1,216 @@
+/* ============================================================================
+   ĐIỆN THOẠI — VỎ MÀN DANH SÁCH `lds` (14/10/2026, docs/thiet-ke-mobile.md §4.2)
+   ----------------------------------------------------------------------------
+   Đầu màn: tên màn đã lên thanh trên ⇒ ẩn tên trong trang, nút chính trải ngang cho ngón cái.
+   Lọc nhanh trạng thái: một hàng chip CUỘN NGANG (thay vì xuống 3 dòng). Hàng công cụ: ô tìm
+   trải ngang, các nút cao 40px. CHỈ trong mốc điện thoại — guard `mobile.test.ts`.
+   Bộ chọn có `.lds.lds` / `.lds-loc.lds-loc` cho thắng CSS của trang (nạp lười, đến SAU).
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  .lds.lds {
+    gap: 12px;
+  }
+
+  /* ---- Đầu màn ------------------------------------------------------------ */
+  .lds.lds > .lds-dau > .lds-dau__ten {
+    display: none;
+  }
+  .lds.lds > .lds-dau {
+    gap: 8px;
+    min-height: 0;
+  }
+  .lds.lds > .lds-dau:not(:has(> :not(.lds-dau__ten))) {
+    display: none;
+  }
+  .lds.lds > .lds-dau > .lds-dau__nut {
+    flex: 1 1 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+  .lds.lds > .lds-dau > .lds-dau__nut > :is(button, a, .btn) {
+    flex: 1 1 auto;
+    min-height: 44px;
+    justify-content: center;
+    font-size: 15px;
+  }
+
+  /* ---- Khung lọc ---------------------------------------------------------- */
+  .lds-loc.lds-loc {
+    border: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+  .lds-loc.lds-loc + .lds-sheet {
+    margin-top: 0;
+  }
+  .lds-loc.lds-loc > .lds-flt {
+    padding: 0 0 8px;
+    border-bottom: 0;
+  }
+  .lds-flt.lds-flt {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -12px;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    scroll-padding-inline: 12px;
+  }
+  .lds-flt.lds-flt::-webkit-scrollbar {
+    display: none;
+  }
+  .lds-flt.lds-flt button {
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--rule-soft);
+    border-radius: 18px;
+    background: var(--canvas, #fff);
+    font-size: 14px;
+  }
+  .lds-flt.lds-flt button.on {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--canvas, #fff);
+  }
+  .lds-flt.lds-flt button.on .lds-flt__so {
+    color: rgba(255, 255, 255, 0.72);
+  }
+
+  .lds-loc.lds-loc .lds-loc__thanh {
+    gap: 8px;
+    padding: 0;
+  }
+  .lds-loc.lds-loc .lds-tim {
+    flex: 1 1 100%;
+    max-width: none;
+    min-width: 0;
+    height: 44px;
+    border-radius: 10px;
+  }
+  .lds-loc.lds-loc .lds-loc__thanh :is(.tl-nut, .tl-dk, .lds-btn, .btn) {
+    height: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  .lds-loc.lds-loc .lds-loc__thanh .loc-nguoi {
+    flex: 1 1 100%;
+    min-width: 0;
+    height: 40px;
+  }
+  .lds-loc.lds-loc .lds-loc__thanh .loc-nguoi .sel__trigger {
+    height: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+  }
+  /* Gốc `flex: none` ⇒ cụm luôn rộng bằng nội dung (Báo cáo thu chi: "Theo mục / Theo người nhận,
+     nộp" + "Bảng / Biểu đồ" + "Cột" = 466px, đẩy cả trang tràn ngang). Co theo hàng, nút xuống dòng. */
+  .lds-loc.lds-loc .lds-loc__phai {
+    margin-left: 0;
+    flex-wrap: wrap;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    row-gap: 8px;
+  }
+
+  /* Tiêu đề trang trùng tên màn trên thanh trên (đánh dấu ở luoiThe.ts) + dòng chữ nhóm phân hệ
+     ("NHÂN SỰ & LƯƠNG") đứng ngay trên nó — bỏ cho đỡ lặp, lấy lại đầu màn. */
+  .shell__content h1[data-trung-tieu-de] {
+    display: none !important;
+  }
+  .shell__content .eyebrow:has(+ h1[data-trung-tieu-de]),
+  .shell__content :has(> h1[data-trung-tieu-de]) > .eyebrow {
+    display: none !important;
+  }
+
+  /* ---- Chân phân trang (PhanTrangDayDu `.ptdd`) — dùng chung mọi danh sách ----------------------
+     Bản máy lớn: khung xám, "Trang 1/1" + "2 dòng / tổng 2" trái, ô "Dòng/trang" + dãy số trang phải
+     ⇒ ở 375px gãy 2 hàng lủng củng. Điện thoại: một hàng "‹  Trang 3/12  ›" nút to, dòng phụ nhỏ
+     "25 dòng / tổng 280 phiếu" bên dưới; bỏ ô Dòng/trang và dãy số. Chỉ một trang ⇒ chỉ còn dòng phụ. */
+  :root .ptdd.ptdd {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 4px;
+    column-gap: 8px;
+    margin-top: 4px;
+    padding: 12px 2px 4px;
+    background: transparent;
+    border: 0;
+    font-size: 13px;
+  }
+  .ptdd .ptdd__info,
+  .ptdd .ptdd__nav,
+  .ptdd .ptdd__btns {
+    display: contents;
+  }
+  .ptdd .ptdd__size,
+  .ptdd .ptdd__so,
+  .ptdd .ptdd__dots {
+    display: none;
+  }
+  .ptdd .ptdd__mui {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+  .ptdd .ptdd__mui:first-of-type {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .ptdd .ptdd__mui:last-of-type {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .ptdd .ptdd__info > span:first-child {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: center;
+    font-size: 15px;
+    color: var(--ink);
+  }
+  .ptdd .ptdd__phan {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin: 0;
+    text-align: center;
+    color: var(--ash-2);
+  }
+  .ptdd .ptdd__ghichu {
+    grid-column: 1 / -1;
+    margin: 0;
+    text-align: center;
+  }
+  /* Chỉ một trang (hai mũi tên cùng tắt): bỏ mũi tên và "Trang 1/1". */
+  :root .ptdd:not(:has(.ptdd__mui:not(:disabled))) .ptdd__mui,
+  :root .ptdd:not(:has(.ptdd__mui:not(:disabled))) .ptdd__info > span:first-child {
+    display: none;
+  }
+  :root .ptdd:not(:has(.ptdd__mui:not(:disabled))) .ptdd__phan {
+    grid-row: 1;
+  }
+
+  /* Nút chọn góc nhìn (`lds-xem`: "Đơn của tôi · Duyệt đơn · Lịch nghỉ · Loại nghỉ", "Tuổi nợ · Trong kỳ…")
+     — bốn nút = 369px trong khung 351px ⇒ trải đúng bề ngang, nút co theo chữ; nhiều nút hơn thì trượt. */
+  .lds-dau .lds-xem.lds-xem {
+    display: flex;
+    flex: 1 1 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .lds-dau .lds-xem::-webkit-scrollbar {
+    display: none;
+  }
+  .lds-dau .lds-xem > .lds-xem__nut {
+    flex: 1 0 auto;
+    padding-left: 10px;
+    padding-right: 10px;
+    white-space: nowrap;
+  }
+}

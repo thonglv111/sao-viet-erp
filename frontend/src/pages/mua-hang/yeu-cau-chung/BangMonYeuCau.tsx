@@ -21,6 +21,7 @@ export const COT_MON: CotMH[] = [
   { key: "chon", label: "Chọn", coDinh: true, w: 40 },
   { key: "vat_tu", label: "Vật tư", coDinh: true, w: 260 },
   { key: "yc", label: "Yêu cầu", w: 150 },
+  { key: "nv", label: "NV yêu cầu", w: 160 },
   { key: "can", label: "Cần hàng", w: 200 },
   { key: "kho", label: "Khổ", w: 120 },
   { key: "sl", label: "Số lượng", w: 110, n: true },
@@ -206,6 +207,12 @@ export function BangMonYeuCau({
                               ) : (
                                 <span title={chuThich(r)}>{r.request_code}</span>
                               )}
+                            </td>
+                          );
+                        case "nv":
+                          return (
+                            <td key={c.key} title={r.requesting_department_name ?? undefined}>
+                              {r.requested_by_name || <span className="lds-mu3">Không rõ</span>}
                             </td>
                           );
                         case "can":

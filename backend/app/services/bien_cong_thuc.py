@@ -39,7 +39,7 @@ _MOI_O = (*_TIEN, LOAI_QUY_DOI)                    # bộ CHUNG — có mặt �
 #
 # BỘ CHUNG 17 BIẾN (15 + hai chip quy cách sách, 03/09/2026) + đúng MỘT biến đơn giá cho ô nào có
 # mục để lấy giá, + năm chip TẦNG BƯỚC cho hai ô đứng ở một bước:
-#     Giấy 19 · Vật tư 22 · Công đoạn 19 · Quy đổi 22 (Vật tư mở thêm chip bước 03/10/2026)
+#     Giấy 20 · Vật tư 23 · Công đoạn 20 · Quy đổi 23 (+ `so_mau_phu` 16/10/2026) (Vật tư mở thêm chip bước 03/10/2026)
 # Con số này bị khoá bằng test (`test_bon_o_dung_chung_bo_bien_va_hai_chip_rieng_cua_buoc`).
 # Công đoạn KHÔNG có biến tiền — không có ô nhập đơn giá ở cả phiếu lẫn danh mục, và 13/13 công
 # thức đang gõ đơn giá thẳng vào công thức. Quy đổi dùng chung bộ 16: nó chỉ chạy ở TẦNG LỆNH
@@ -94,10 +94,15 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     ("to_nguyen", "Tờ giấy nguyên", "Số tờ giấy nguyên tiêu hao (giấy to chưa cắt)", "tờ",
      "CHUỖI BÙ HAO NGƯỢC — đọc tại bước xả giấy; không có bước xả thì chia số mảnh xả", _MOI_O),
     # --- Quy cách in ----------------------------------------------------------------------------
-    ("so_mau", "Số màu in", "Tổng số màu in (mặt A + mặt B)", "màu",
-     "dẫn xuất từ TẬP MỰC mỗi mặt, không phải số gõ tay", _MOI_O),
-    ("so_mau_pha", "Số màu pha", "Số màu pha riêng (Pantone) trong tổng số màu", "màu",
-     "dẫn xuất từ tập mực — phần màu pha riêng", _MOI_O),
+    # 16/10/2026: "Số màu in" = SỐ KẼM một tay, đổi theo quy cách in (AB cộng hai mặt, tự trở/trở
+    # nhíp hợp hai mặt) — tiền in tính theo bản lên máy. Cách đếm cũ (mặt A + mặt B + màu pha) sang
+    # tên mới `so_mau_phu` cho mực, giờ máy, bình bài; mg 0414 chuyển công thức đã lưu.
+    ("so_mau", "Số màu in", "Số màu lên máy = số kẽm một tay, đổi theo quy cách in", "màu",
+     "dẫn xuất từ TẬP MỰC mỗi mặt + quy cách in (AB cộng hai mặt, tự trở hợp hai mặt)", _MOI_O),
+    ("so_mau_pha", "Số màu pha", "Số kẽm màu pha (Pantone) trong Số màu in", "màu",
+     "dẫn xuất từ tập mực + quy cách in — AB có Pantone hai mặt là 2", _MOI_O),
+    ("so_mau_phu", "Số màu phủ giấy", "Tổng màu phủ lên giấy: mặt A + mặt B (màu pha đếm một lần)",
+     "màu", "dẫn xuất từ tập mực — không đổi theo quy cách in; dùng cho mực, giờ máy", _MOI_O),
     ("so_mat", "Số mặt in", "Số mặt qua máy (1 mặt = 1 · 2 mặt/tự trở = 2)", "mặt",
      "quy cách in của lệnh — CÔNG ĐOẠN gõ số riêng vào ô của bước thì ăn số đó, để trống mới theo quy cách", _MOI_O),
     ("so_kem", "Số bản kẽm", "Số bản kẽm = số bản mỗi tay × số tay", "bản",
@@ -310,7 +315,7 @@ def ngu_canh_phieu(
     so_luong: float, so_con: float,
     so_trang: float, trang_moi_tay: float,
     to_dau_vao: float, to_sau_in: float, to_nguyen: float,
-    so_mau: float, so_mau_pha: float, so_mat: float, so_kem: float,
+    so_mau: float, so_mau_pha: float, so_mau_phu: float, so_mat: float, so_kem: float,
     dinh_luong: float,
 ) -> dict[str, float]:
     """Ngữ cảnh biến cho ba ô công thức TIỀN — engine `thanh_phan_engine` gọi hàm này.
@@ -328,7 +333,8 @@ def ngu_canh_phieu(
         "so_luong": so_luong, "so_con": so_con,
         "so_trang": so_trang, "trang_moi_tay": trang_moi_tay,
         "to_dau_vao": to_dau_vao, "to_sau_in": to_sau_in, "to_nguyen": to_nguyen,
-        "so_mau": so_mau, "so_mau_pha": so_mau_pha, "so_mat": so_mat, "so_kem": so_kem,
+        "so_mau": so_mau, "so_mau_pha": so_mau_pha, "so_mau_phu": so_mau_phu,
+        "so_mat": so_mat, "so_kem": so_kem,
         "dinh_luong": dinh_luong,
     }
     # Chốt tại chỗ: bảng khai và ngữ cảnh phải trùng khít. Test guard cũng soi, nhưng bắt ngay ở
@@ -336,6 +342,32 @@ def ngu_canh_phieu(
     assert set(ctx) == set(MA_NGU_CANH_PHIEU), (
         f"bảng khai và ngữ cảnh lệch: {set(ctx) ^ set(MA_NGU_CANH_PHIEU)}")
     return ctx
+
+
+def _dem_mau_lenh(qc: dict) -> tuple[float, float, float]:
+    """`(so_mau, so_mau_pha, so_mau_phu)` ở TẦNG LỆNH — đếm bằng ĐÚNG hàm của phiếu
+    (`thanh_phan_engine.dem_mau_cong_thuc`), không đếm lại ở đây.
+
+    Ba cột `so_mau_a/b/pha` trong quy cách lệnh giữ nghĩa cũ (UI, phiếu công nghệ đọc chúng), nên
+    biến công thức phải tính riêng từ tập mực + quy cách in. Bài ghép thì `muc_gop` đếm sẵn trên
+    HỢP tập mực rồi gửi qua khoá `bien_so_mau*`. Không có gì về mực thì lùi về khoá `so_mau` cũ
+    (ảnh chụp kiểu `{"so_mau": 4}`) cho cả hai nghĩa — không đoán quy cách.
+    """
+    if "bien_so_mau" in qc:
+        return (_f(qc.get("bien_so_mau")), _f(qc.get("bien_so_mau_pha")),
+                _f(qc.get("bien_so_mau_phu")))
+    muc_a, muc_b = qc.get("muc_a"), qc.get("muc_b")
+    co_so = any(_f(qc.get(k)) > 0 for k in ("so_mau_a", "so_mau_b", "so_mau_pha"))
+    if not muc_a and not muc_b and not co_so:
+        cu = _f(qc.get("so_mau"))
+        return cu, 0.0, cu
+    # Import trễ: engine import file này ở cấp module (`ngu_canh_phieu`).
+    from .thanh_phan_engine import dem_mau_cong_thuc, tap_muc, tap_muc_tu_so
+    a, b = tap_muc(muc_a), tap_muc(muc_b)
+    if not a and not b:
+        a, b = tap_muc_tu_so(qc.get("so_mau_a"), qc.get("so_mau_b"), qc.get("so_mau_pha"))
+    m, p, phu = dem_mau_cong_thuc(a, b, str(qc.get("quy_cach_in") or "mot_mat"))
+    return float(m), float(p), float(phu)
 
 
 def ngu_canh_lenh(quy_cach: dict | None) -> dict[str, float]:
@@ -381,8 +413,7 @@ def ngu_canh_lenh(quy_cach: dict | None) -> dict[str, float]:
                 return v
         return 0.0
 
-    so_mau = _so("so_mau") or (_f(qc.get("so_mau_a")) + _f(qc.get("so_mau_b"))
-                               + _f(qc.get("so_mau_pha")))
+    so_mau, so_mau_pha, so_mau_phu = _dem_mau_lenh(qc)
     ctx = {
         "dai_tp": _met("dai_tp", "dai_thanh_pham"),
         "rong_tp": _met("rong_tp", "rong_thanh_pham"),
@@ -414,7 +445,8 @@ def ngu_canh_lenh(quy_cach: dict | None) -> dict[str, float]:
         # Tờ TỐT sau in: lệnh không có cột riêng — đọc `so_luong_ra` của bước nhóm `print`.
         "to_sau_in": _so("to_sau_in"),
         "so_mau": so_mau,
-        "so_mau_pha": _so("so_mau_pha"),
+        "so_mau_pha": so_mau_pha,
+        "so_mau_phu": so_mau_phu,
         "so_mat": _so("so_mat") or (2.0 if qc.get("quy_cach_in") == "hai_mat" else 1.0),
         "so_kem": _so("so_kem"),
         # kg/m² — cùng đơn vị với `dinh_luong` của công thức tiền, khỏi hai nghĩa cho một chữ.

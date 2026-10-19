@@ -65,6 +65,9 @@ export function initialForm(
   voucher?: PaymentVoucherRow | null,
   /** Đợt bấm "Lập phiếu chi" ngay tại dòng đợt (ngăn đơn, tab Thanh toán) — gắn sẵn đúng đợt đó. */
   dotId?: number | null,
+  /** Bấm đúng nút CHI CỌC (tab "Mua hàng chờ chi") ⇒ mở loại Đặt cọc dù đơn đã có đợt giao. Không
+   *  có cờ này thì đơn có đợt mặc định "Thanh toán" — người bấm "chi cọc" phải tự đổi loại. */
+  coc = false,
 ): PaymentVoucherBaseInput {
   if (voucher) {
     return {
@@ -95,18 +98,18 @@ export function initialForm(
       note: voucher.note,
     };
   }
-  // Chưa có đợt giao nào ⇒ hàng chưa về ⇒ đây chỉ có thể là tiền ĐẶT CỌC. Có đợt rồi thì mặc định
-  // là THANH TOÁN, gắn sẵn đợt còn nợ và điền sẵn số công nợ.
-  const chuaCoDot = purchase.deliveries.length === 0;
+  // Chưa có đợt giao nào ⇒ hàng chưa về ⇒ đây chỉ có thể là tiền ĐẶT CỌC (hoặc người bấm đúng nút chi
+  // cọc). Có đợt rồi thì mặc định là THANH TOÁN, gắn sẵn đợt còn nợ và điền sẵn số công nợ.
+  const laCoc = coc || purchase.deliveries.length === 0;
   const dot = dotId != null && purchase.deliveries.some((d) => d.id === dotId) ? dotId : dotGoiY(purchase);
   return {
     voucher_type: "cash",
-    payment_stage: chuaCoDot ? "advance" : "final",
-    delivery_id: chuaCoDot ? null : dot,
+    payment_stage: laCoc ? "advance" : "final",
+    delivery_id: laCoc ? null : dot,
     voucher_date: isoToday(),
     // DORMANT: hạn trả đã chuyển lên đợt giao, phiếu chi không còn hạn.
     planned_payment_date: null,
-    amount: chuaCoDot
+    amount: laCoc
       ? cocGoiY(purchase)
       : conNoDot(purchase, dot),
     currency: "VND",

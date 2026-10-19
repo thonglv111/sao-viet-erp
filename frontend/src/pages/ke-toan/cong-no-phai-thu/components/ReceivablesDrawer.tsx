@@ -28,6 +28,7 @@ import {
 import { useAuth } from "../../../../auth/useAuth";
 import type { NavigateFn } from "../../../../components/AppShell";
 import { useChiTietCongNo } from "../../shared/chiTietCongNo";
+import { tien, vietSo } from "../../shared/dinhDang";
 import { LichSuCongNo, type KhoanTre } from "../../shared/LichSuCongNo";
 import { nhanLocNo, TheLocNo } from "../../shared/locNoNgan";
 import { RayThuocTinh } from "../../shared/LuoiGon";
@@ -37,9 +38,10 @@ import { TabSaoKe } from "../../shared/TabSaoKe";
 import { TraLaiTienKhachModal, type DonTraCoc } from "../../phieu-chi/modals/TraLaiTienKhachModal";
 import { PAID_PAGE } from "../shared/constants";
 import type { Bucket, TuoiDangLoc } from "../shared/types";
-import { CocDonHuyBlock } from "./CocDonHuyBlock";
+import { TienDangDeBlock } from "./TienDangDeBlock";
 import { HoaDonConNoBlock } from "./HoaDonConNoBlock";
 import { ThuTienHoaDon } from "./ThuTienHoaDon";
+import { LapPhieuThuGop } from "../../phieu-thu/components/LapPhieuThuGop";
 
 export type QuyenCongNoThu = {
   /** Lập phiếu thu (`phieu_thu.create`) — nút "Thu". */
@@ -103,6 +105,9 @@ export function ReceivablesDrawer({
   );
   const [loc, setLoc] = useState<string | null>(bucket === "overdue" ? "overdue" : tuoi ? tuoi.khoa : null);
   const [dangThu, setDangThu] = useState<ReceivableItemRow | null>(null);
+  // Thu nhiều hoá đơn một phiếu: hoá đơn đã tick + ẢNH CHỤP lúc bấm "Lập một phiếu thu".
+  const [chon, setChon] = useState<Set<number>>(new Set());
+  const [moGop, setMoGop] = useState<ReceivableItemRow[] | null>(null);
   const [daLap, setDaLap] = useState<PaymentReceiptRow | PaymentVoucherRow | null>(null);
   // Trả lại tiền: `don` vắng = trả chung; có = trả lại cọc của đúng đơn đã huỷ đó.
   const [moTraLai, setMoTraLai] = useState<{ don: DonTraCoc | null } | null>(null);
@@ -121,6 +126,14 @@ export function ReceivablesDrawer({
     eventTick,
     chuLoi: "Không tải được chi tiết công nợ.",
     chuLoiThem: "Không tải thêm được lần thu.",
+    onTai: (d) => {
+      // Hoá đơn đã thu đủ / biến mất sau khi nạp lại thì bỏ khỏi lựa chọn.
+      const con = new Set((Array.isArray(d.items) ? d.items : []).filter((x) => x.remaining_amount > 0).map((x) => x.invoice_id));
+      setChon((cu) => {
+        const giu = [...cu].filter((id) => con.has(id));
+        return giu.length === cu.size ? cu : new Set(giu);
+      });
+    },
   });
 
   // Thông báo "Đã lập PT-…" tự tắt sau vài giây.
@@ -134,6 +147,10 @@ export function ReceivablesDrawer({
   const hopLe = detail != null && Array.isArray(detail.items) && Array.isArray(detail.aging);
   const conNo = useMemo(() => (hopLe ? detail!.items.filter((x) => x.remaining_amount > 0) : []), [hopLe, detail]);
   const dangHien = useMemo(() => conNo.filter((x) => khopLoc(x, loc)), [conNo, loc]);
+  const hdDaChon = dangHien.filter((x) => chon.has(x.invoice_id));
+  const tongDaChon = hdDaChon.reduce((s, x) => s + x.remaining_amount, 0);
+  // Chân tối chỉ ở tab Còn nợ, khi đã tick và không có ngăn chồng nào đang mở.
+  const coChan = tab === "no" && hdDaChon.length > 0 && !moGop;
   const tre = useMemo<KhoanTre[]>(
     () =>
       conNo
@@ -255,22 +272,43 @@ export function ReceivablesDrawer({
         len={len}
         xuong={xuong}
         onDong={onClose}
+        chanToi={coChan}
+        chan={
+          coChan ? (
+            <>
+              <span className="kt-ngan__xt">
+                {`Đã chọn ${vietSo(hdDaChon.length)} hoá đơn`}
+                <b>{tien(tongDaChon)}</b>
+              </span>
+              <button type="button" className="kt-btn kt-btn--tron" onClick={() => setChon(new Set())}>
+                Bỏ chọn
+              </button>
+              <button type="button" className="kt-btn kt-btn--chinh" onClick={() => setMoGop(hdDaChon)}>
+                Lập một phiếu thu
+              </button>
+            </>
+          ) : undefined
+        }
       >
         {hopLe && tab === "no" && (
           <>
             {nhan && (
               <div className="kt-hang-loc kt-ncn-loc">
-                <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => setLoc(null)} />
+                <TheLocNo nhan={nhan} so={dangHien.length} onBo={() => {
+                  setLoc(null);
+                  setChon(new Set());
+                }} />
               </div>
             )}
-            {(detail!.coc_don_huy?.length ?? 0) > 0 && (
-              <CocDonHuyBlock ds={detail!.coc_don_huy!} onMoDon={moDon}
+            {(detail!.tien_dang_de?.length ?? 0) > 0 && (
+              <TienDangDeBlock ds={detail!.tien_dang_de!} onMoDon={moDon}
                 onTraLai={quyen.traLai
-                  ? (d) => setMoTraLai({ don: { id: d.order_id, ma: d.order_code, daNhan: d.da_nhan, conLai: d.con_lai } })
+                  ? (d) => setMoTraLai({ don: { id: d.order_id, ma: d.order_code, daNhan: d.da_nhan, conLai: d.con_lai, daTraLai: d.da_tra_lai ?? 0 } })
                   : undefined} />
             )}
             <HoaDonConNoBlock items={dangHien} homNay={detail!.as_of} khachChuaDatHan={detail!.payment_term_days == null}
-              dangLoc={loc != null} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon} />
+              dangLoc={loc != null} coThu={quyen.thu} onThu={setDangThu} onMoDon={moDon}
+              chon={chon} onChon={quyen.thu ? setChon : undefined} />
           </>
         )}
 
@@ -322,11 +360,42 @@ export function ReceivablesDrawer({
         />
       )}
 
+      {moGop && (
+        <LapPhieuThuGop
+          customerId={customerId}
+          customerName={ten}
+          conNoKhach={detail?.total_due ?? null}
+          khoan={moGop.map((x) => ({
+            sales_invoice_id: x.invoice_id,
+            order_id: x.order_id,
+            ma_don: x.order_code,
+            nhan: `HĐ ${x.invoice_number}`,
+            han: x.due_date,
+            con: x.remaining_amount,
+            ngay_hd: x.invoice_date,
+          }))}
+          onClose={() => setMoGop(null)}
+          onMoTaiKhoan={() => {
+            onClose();
+            navigate("ke-toan-tai-khoan-ngan-hang");
+          }}
+          onSaved={(r) => {
+            setMoGop(null);
+            setChon(new Set());
+            setDaLap(r);
+            setSoLanLap((n) => n + 1);
+            reload();
+            onChanged();
+          }}
+        />
+      )}
+
       {moTraLai && (
         <TraLaiTienKhachModal
           khachId={customerId}
           khachTen={ten}
           don={moTraLai.don}
+          duongDan={moTraLai.don ? <>Công nợ phải thu &gt; {ten} &gt; {moTraLai.don.ma}</> : undefined}
           onClose={() => setMoTraLai(null)}
           onMoTaiKhoan={() => {
             onClose();

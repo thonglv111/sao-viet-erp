@@ -23,6 +23,7 @@ from pathlib import Path
 from tests._fe_source import (
     MAN_CHAM_CONG,
     MAN_KE_TOAN_DON_MUA_HANG,
+    MAN_KE_TOAN_PHIEU_CHI,
     MAN_LUONG,
     MAN_MUA_HANG_PHIEU,
     doc_module_fe,
@@ -196,7 +197,7 @@ def test_moi_khoa_module_may_chu_gac_deu_co_cho_dung_o_giao_dien():
 NUT_NGUY_HIEM: list[tuple[str, str, str, tuple[str, ...]]] = [
     # (mô tả, module, action, thư mục màn giao diện)
     ("Chốt kỳ công / Mở lại kỳ", "cham_cong", "lock", MAN_CHAM_CONG),
-    ("Duyệt / từ chối PMH", "ke_toan", "approve", MAN_KE_TOAN_DON_MUA_HANG),
+    ("Duyệt đơn mua hàng", "ke_toan", "approve", MAN_KE_TOAN_DON_MUA_HANG),
     # Gộp về ô "Thao tác" 12/08/2026 — ô riêng `manage_status` đã bỏ khỏi ma trận.
     ("Sửa số nhận · Mở lại đơn · Đóng đơn", "thu_mua", "update", MAN_MUA_HANG_PHIEU),
     # GỘP VỀ MÀN CHẤM CÔNG 15/08/2026 (mg 0194) — hai tab này vốn nằm trong màn đó, không phải
@@ -204,7 +205,9 @@ NUT_NGUY_HIEM: list[tuple[str, str, str, tuple[str, ...]]] = [
     ("Duyệt yêu cầu chỉnh công", "cham_cong", "approve", MAN_CHAM_CONG),
     ("Chốt bảng lương", "luong", "lock", MAN_LUONG),
     ("Đánh dấu đã chi lương", "luong", "manage_status", MAN_LUONG),
-    ("Lập phiếu chi", "phieu_chi", "create", MAN_KE_TOAN_DON_MUA_HANG),
+    # Lập phiếu chi theo đơn mua DỜI sang Phiếu chi → "Mua hàng chờ chi" (17/10/2026); màn Đơn mua
+    # hàng chỉ còn duyệt (dòng "Duyệt đơn mua hàng" ở trên).
+    ("Lập phiếu chi", "phieu_chi", "create", MAN_KE_TOAN_PHIEU_CHI),
     ("Duyệt phiếu đi muộn / về sớm", "cham_cong", "approve_late_early", MAN_CHAM_CONG),
     # MỘT Ô = MỘT TAB: ba tab cấu hình tách khỏi ô "Cấu hình chấm công" cũ.
     ("Bảng công tháng", "cham_cong", "view_timesheet", MAN_CHAM_CONG),

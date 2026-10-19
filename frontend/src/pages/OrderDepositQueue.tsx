@@ -26,7 +26,7 @@ const METHODS: Record<string, string> = { cash: "Tiền mặt", bank_transfer: "
 function fmtDate(v: string | null | undefined): string {
   if (!v) return "—";
   const d = new Date(v);
-  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("vi-VN");
+  return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export function OrderDepositQueue() {

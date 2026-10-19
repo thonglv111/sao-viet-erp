@@ -806,9 +806,11 @@ def delete_role(
     role_id: int,
     svc: Service,
     user: Annotated[object, Depends(require_permission("phong_ban", "delete"))],
+    force: bool = Query(default=False),
 ) -> Response:
+    """`force=true`: còn người giữ vai thì gỡ vai khỏi họ rồi xoá (15/10/2026)."""
     try:
-        svc.delete_role(role_id=role_id, actor_id=user.id)
+        svc.delete_role(role_id=role_id, actor_id=user.id, force=force)
     except RoleInUse as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from None
     except RoleNotFound as e:

@@ -240,7 +240,7 @@ def test_deposit_offsets_issued_invoices_fifo_without_creating_early_debt(client
     assert second.json()["remaining_amount"] == 200_000
 
 
-def test_invoice_receipt_reduces_debt_and_guards_cancellation(client):
+def test_invoice_receipt_reduces_debt_and_invoice_still_cancellable(client):
     headers = _headers(client)
     order_id, customer_id = _sales_order()
     invoice = client.post(
@@ -290,19 +290,7 @@ def test_invoice_receipt_reduces_debt_and_guards_cancellation(client):
     )
     assert overpay.status_code == 422, overpay.text
 
-    blocked = client.post(
-        f"/api/accounting/sales-invoices/{invoice['id']}/cancel",
-        json={"reason": "Incorrect invoice"},
-        headers=headers,
-    )
-    assert blocked.status_code == 409, blocked.text
-
-    cancelled_receipt = client.post(
-        f"/api/accounting/payment-receipts/{receipt.json()['id']}/cancel",
-        json={"reason": "Receipt entered twice"},
-        headers=headers,
-    )
-    assert cancelled_receipt.status_code == 200, cancelled_receipt.text
+    # Khách đã trả vẫn huỷ được hoá đơn (17/10/2026): phiếu thu giữ nguyên, tiền về quỹ của đơn.
     cancelled_invoice = client.post(
         f"/api/accounting/sales-invoices/{invoice['id']}/cancel",
         json={"reason": "Incorrect invoice"},
@@ -313,6 +301,9 @@ def test_invoice_receipt_reduces_debt_and_guards_cancellation(client):
     assert client.get(
         f"/api/accounting/receivables/{customer_id}", headers=headers
     ).json()["total_due"] == 0
+    assert client.get(
+        f"/api/accounting/payment-receipts/{receipt.json()['id']}", headers=headers
+    ).json()["status"] == "received"
 
 
 def test_overdue_and_credit_limit_use_invoice_date_and_snapshot(client):

@@ -1,0 +1,94 @@
+/* ============================================================================
+   ĐIỆN THOẠI — THU MUA & KHO (14/10/2026, docs/thiet-ke-mobile.md §5)
+   ----------------------------------------------------------------------------
+   Yêu cầu mua hàng · Mua hàng · Nhà cung cấp · Yêu cầu nhập xuất / Kho.
+   CHỈ trong mốc điện thoại — guard `mobile.test.ts`.
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  /* Ô chọn vật tư (`kho-combo`) nằm trong bảng đã thành thẻ — dòng "Thêm vật tư" của form yêu cầu mua
+     căn giữa ô 214px ⇒ trải hết bề ngang thẻ; danh sách gợi ý (fixed, rộng theo ô) rộng theo. */
+  :root table[data-the] td:has(> .kho-combo),
+  :root table[data-the] td.ycf3-them {
+    justify-content: stretch !important;
+  }
+  :root table[data-the] td .kho-combo {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  :root table[data-the] td .kho-combo__input {
+    width: 100% !important;
+    height: 44px;
+  }
+
+  /* Bảng giá vật tư của nhà cung cấp (ncc-form.css đã xếp thẻ ở ≤640px): ô con là flex NGANG ⇒ nhãn
+     nhỏ "Đơn vị" đứng cạnh ô chọn, bị bóp dọc 2 dòng và ô chọn cụt "cái (gố…". Nhãn lên trên ô. */
+  .ncc-bg .ncc-bg__dong:not(.ncc-bg__dong--dau) {
+    padding: 10px 12px !important;
+    column-gap: 10px !important;
+  }
+  .ncc-bg .ncc-bg__dong:not(.ncc-bg__dong--dau) > * {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+  }
+  .ncc-bg .ncc-bg__dong:not(.ncc-bg__dong--dau) > :last-child {
+    align-items: center;
+  }
+  .ncc-bg .ncc-bg__dong .rc-input,
+  .ncc-bg .ncc-bg__gia .input {
+    height: 40px;
+    border-color: var(--rule-soft);
+    background-color: var(--canvas);
+  }
+  .ncc-bg .ncc-bg__dong > :first-child .rc-input {
+    border-color: transparent;
+    padding-left: 0;
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .ncc-bg .ncc-bg__dong select.rc-input {
+    background-size: 14px !important;
+  }
+
+  /* Thẻ khối trong ngăn kho / form phiếu (`kna-the`, khoNganA.tsx): phần phải của đầu thẻ (bộ lọc
+     "Tất cả · Cần xem" + ô "Tìm vật tư" + nút "Cấp tối đa theo tồn") là inline-flex một hàng 455px
+     ⇒ xuống dòng dưới tiêu đề, ô tìm trải cả hàng. */
+  .kna-the .kna-the__dau {
+    padding: 12px 12px 0;
+  }
+  .kna-the .kna-the__phai {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+    min-width: 0;
+  }
+  .kna-the .kna-the__phai > :is(input, [class*="tim"], [class*="search"]) {
+    flex: 1 1 100%;
+    min-width: 0;
+    order: 1;
+  }
+
+  /* Ngăn tồn kho → Tổng quan → bảng phép tính "Dự kiến còn" (TongQuanTon.tsx, không tiêu đề nên GIỮ
+     dạng bảng): 4 cột cố định 34 · tự co · 140 · 88px ⇒ cột nhãn còn ~80px, "Đang c…", "Sắp xu…".
+     Cho bảng tự chia cột, chữ được xuống dòng, chữ phụ ("1 lô", "chưa lệnh…") xuống dòng riêng. */
+  .tkh-tq2 .lds-bang > table.lds-g {
+    table-layout: auto !important;
+  }
+  .tkh-tq2 .lds-bang > table.lds-g col:nth-child(n + 2) {
+    width: auto !important;
+  }
+  .tkh-tq2 .lds-bang > table.lds-g td {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  .tkh-tq2 .lds-bang > table.lds-g td.n {
+    white-space: nowrap !important;
+  }
+  .tkh-tq2 .tkh-phu {
+    display: block;
+    margin-left: 0 !important;
+  }
+}

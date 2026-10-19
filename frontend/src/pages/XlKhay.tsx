@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import type { XlThe, XlVatTu } from "../api/client";
 import { EmptyState } from "../components/EmptyState";
+import { useLaDienThoai } from "../utils/dienThoai";
 import { gioChu } from "./xlShared";
 
 export function XlKhay({
@@ -29,6 +30,7 @@ export function XlKhay({
   onKeo(t: XlThe | null): void;
   onThu(): void;
 }) {
+  const laDT = useLaDienThoai();
   const soTrang = Math.max(1, Math.ceil(tong / moiTrang));
   return (
     <aside className="xa-khay" aria-label="Lệnh chờ xếp lịch">
@@ -103,7 +105,10 @@ export function XlKhay({
         </div>
       )}
       <div className="xa-khay__chan">
-        Kéo một lệnh thả vào ngày muốn bắt đầu. Thả vào ngày nghỉ hoặc ngoài ca thì lệnh tự sang ca kế tiếp.
+        {/* Điện thoại không có lưới Gantt để thả — chạm lệnh mở ngăn chi tiết, gõ giờ ở ô "Bắt đầu". */}
+        {laDT
+          ? "Chạm một lệnh để mở, rồi gõ giờ ở ô Bắt đầu. Rơi vào ngày nghỉ hoặc ngoài ca thì lệnh tự sang ca kế tiếp."
+          : "Kéo một lệnh thả vào ngày muốn bắt đầu. Thả vào ngày nghỉ hoặc ngoài ca thì lệnh tự sang ca kế tiếp."}
       </div>
     </aside>
   );

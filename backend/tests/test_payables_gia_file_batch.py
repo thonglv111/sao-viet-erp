@@ -154,25 +154,26 @@ def test_file_hop_dong_ca_don_khong_lan_vao_hoa_don_cua_dot(client):
     assert row["hoa_don_files"] == []
 
 
-# ══ 3) THANH TOÁN NHIỀU ĐỢT MỘT LƯỢT ═════════════════════════════════════════════════════════
+# ══ 3) THANH TOÁN NHIỀU ĐỢT MỘT LƯỢT — MỘT phiếu chi cho cả lượt (17/10/2026) ═══════════════
+# Trước 17/10 lượt này ra N phiếu (mỗi đợt một phiếu). Nay ra MỘT phiếu, tiền chia theo dòng.
 
 
-def _batch(client, headers, items, expect=201, **shared):
+def _gop(client, headers, items, expect=201, **shared):
     body = {
-        "items": items,
+        "lines": items,
         "voucher_type": "cash",
         "voucher_date": _hom_nay().isoformat(),
         "cash_recipient_name": "Nguyễn Lan",
         "cash_recipient_address": "Hà Nội",
         **shared,
     }
-    r = client.post("/api/accounting/payment-vouchers/batch", json=body, headers=headers)
+    r = client.post("/api/accounting/payment-vouchers/gop", json=body, headers=headers)
     assert r.status_code == expect, r.text
     return r.json()
 
 
-def test_thanh_toan_hai_dot_mot_luot_ra_hai_phieu_rieng(client):
-    """⭐ Chọn 2 đợt của cùng một NCC → 2 `PaymentVoucher` riêng, mỗi phiếu đúng một đợt."""
+def test_thanh_toan_hai_dot_mot_luot_ra_mot_phieu(client):
+    """⭐ Chọn 2 đợt của cùng một NCC → MỘT `PaymentVoucher`, hai dòng phân bổ đúng từng đợt."""
     headers = _headers(client)
     ncc = _supplier(client, headers, name="NCC Batch 2 Dot")
     don = _don(client, headers, ncc["id"], quantity=1000)
@@ -182,29 +183,24 @@ def test_thanh_toan_hai_dot_mot_luot_ra_hai_phieu_rieng(client):
     dot2 = _ghi_dot(client, headers, don["id"], lines=[{"purchase_request_line_id": dong_id, "quantity": 700}])
     d1, d2 = dot1["deliveries"][0]["id"], dot2["deliveries"][1]["id"]
 
-    kq = _batch(
+    pv = _gop(
         client, headers,
         items=[
-            {"purchase_request_id": don["id"], "delivery_id": d1},
-            {"purchase_request_id": don["id"], "delivery_id": d2},
+            {"purchase_request_id": don["id"], "delivery_id": d1, "amount": 300 * 2200},
+            {"purchase_request_id": don["id"], "delivery_id": d2, "amount": 700 * 2200},
         ],
     )
-    assert len(kq["vouchers"]) == 2
-    assert {v["delivery_id"] for v in kq["vouchers"]} == {d1, d2}
-    assert kq["total_amount"] == 300 * 2200 + 700 * 2200
-    for v in kq["vouchers"]:
-        assert v["status"] == "paid", "lập phiếu chi = tiền đã ra (Đ1), không có trạng thái chờ"
+    assert {l["delivery_id"] for l in pv["lines"]} == {d1, d2}
+    assert pv["amount"] == 300 * 2200 + 700 * 2200
+    assert pv["status"] == "paid", "lập phiếu chi = tiền đã ra (Đ1), không có trạng thái chờ"
 
-    # Cả HAI đợt của đơn này đều đã trả hết ⇒ đơn TẤT TOÁN SẠCH ⇒ biến mất hoàn toàn khỏi "Đợt
-    # giao còn nợ" (đúng hợp đồng đã có từ trước, không phải hành vi mới của batch — xem
-    # `test_coc_la_coc_ca_don_khong_thuoc_dot_nao`). Vế THẬT cần chứng minh — batch trả đúng số
-    # tiền, đúng đợt — đã nằm trong assertion trên response `kq["vouchers"]`.
+    # Cả HAI đợt đã trả hết ⇒ đơn tất toán sạch ⇒ biến mất khỏi "Đợt giao còn nợ".
     cong_no = _cong_no_ncc(client, headers, ncc["id"])
     assert all(x["purchase_request_id"] != don["id"] for x in cong_no["items"])
 
 
 def test_thanh_toan_mot_luot_qua_hai_don_khac_nhau_cung_ncc(client):
-    """Batch không giới hạn trong MỘT đơn mua — cùng NCC, khác đơn vẫn gộp một lượt được."""
+    """Không giới hạn trong MỘT đơn mua — cùng NCC, khác đơn vẫn chung một phiếu được."""
     headers = _headers(client)
     ncc = _supplier(client, headers, name="NCC Batch 2 Don")
     don_a = _don(client, headers, ncc["id"])
@@ -214,15 +210,14 @@ def test_thanh_toan_mot_luot_qua_hai_don_khac_nhau_cung_ncc(client):
     dot_a = _ghi_dot(client, headers, don_a["id"], lines=[{"purchase_request_line_id": _dong_dau_tien(don_a), "quantity": 400}])
     dot_b = _ghi_dot(client, headers, don_b["id"], lines=[{"purchase_request_line_id": _dong_dau_tien(don_b), "quantity": 400}])
 
-    kq = _batch(
+    pv = _gop(
         client, headers,
         items=[
-            {"purchase_request_id": don_a["id"], "delivery_id": dot_a["deliveries"][0]["id"]},
-            {"purchase_request_id": don_b["id"], "delivery_id": dot_b["deliveries"][0]["id"]},
+            {"purchase_request_id": don_a["id"], "delivery_id": dot_a["deliveries"][0]["id"], "amount": 400 * 2200},
+            {"purchase_request_id": don_b["id"], "delivery_id": dot_b["deliveries"][0]["id"], "amount": 400 * 2200},
         ],
     )
-    assert len(kq["vouchers"]) == 2
-    assert {v["purchase_request_code"] for v in kq["vouchers"]} == {don_a["code"], don_b["code"]}
+    assert {l["purchase_code"] for l in pv["lines"]} == {don_a["code"], don_b["code"]}
 
 
 def test_batch_khac_ncc_thi_chan(client):
@@ -238,11 +233,11 @@ def test_batch_khac_ncc_thi_chan(client):
     dot_a = _ghi_dot(client, headers, don_a["id"], lines=[{"purchase_request_line_id": _dong_dau_tien(don_a), "quantity": 400}])
     dot_b = _ghi_dot(client, headers, don_b["id"], lines=[{"purchase_request_line_id": _dong_dau_tien(don_b), "quantity": 400}])
 
-    kq = _batch(
+    kq = _gop(
         client, headers,
         items=[
-            {"purchase_request_id": don_a["id"], "delivery_id": dot_a["deliveries"][0]["id"]},
-            {"purchase_request_id": don_b["id"], "delivery_id": dot_b["deliveries"][0]["id"]},
+            {"purchase_request_id": don_a["id"], "delivery_id": dot_a["deliveries"][0]["id"], "amount": 10_000},
+            {"purchase_request_id": don_b["id"], "delivery_id": dot_b["deliveries"][0]["id"], "amount": 10_000},
         ],
         expect=422,
     )
@@ -261,11 +256,11 @@ def test_batch_dot_trung_lap_thi_chan(client):
     dot = _ghi_dot(client, headers, don["id"], lines=[{"purchase_request_line_id": _dong_dau_tien(don), "quantity": 400}])
     d1 = dot["deliveries"][0]["id"]
 
-    kq = _batch(
+    kq = _gop(
         client, headers,
         items=[
-            {"purchase_request_id": don["id"], "delivery_id": d1},
-            {"purchase_request_id": don["id"], "delivery_id": d1},
+            {"purchase_request_id": don["id"], "delivery_id": d1, "amount": 10_000},
+            {"purchase_request_id": don["id"], "delivery_id": d1, "amount": 10_000},
         ],
         expect=422,
     )
@@ -273,8 +268,7 @@ def test_batch_dot_trung_lap_thi_chan(client):
 
 
 def test_batch_dot_da_tra_het_thi_chan_khong_dung_phieu_nao(client):
-    """Trong 2 đợt chọn, 1 đợt ĐÃ trả hết ⇒ chặn CẢ LƯỢT, không lập lẻ đợt còn lại — thẩm định
-    trước, ghi sau."""
+    """Trong 2 đợt chọn, 1 đợt ĐÃ trả hết ⇒ chặn CẢ LƯỢT — thẩm định trước, ghi sau."""
     headers = _headers(client)
     ncc = _supplier(client, headers, name="NCC Batch Da Tra Het")
     don = _don(client, headers, ncc["id"], quantity=1000)
@@ -284,33 +278,29 @@ def test_batch_dot_da_tra_het_thi_chan_khong_dung_phieu_nao(client):
     dot2 = _ghi_dot(client, headers, don["id"], lines=[{"purchase_request_line_id": dong_id, "quantity": 700}])
     d1, d2 = dot1["deliveries"][0]["id"], dot2["deliveries"][1]["id"]
 
-    # Trả hết đợt 1 trước bằng một phiếu đơn lẻ.
-    _batch(client, headers, items=[{"purchase_request_id": don["id"], "delivery_id": d1}])
+    # Trả hết đợt 1 trước bằng một phiếu lẻ.
+    _gop(client, headers, items=[{"purchase_request_id": don["id"], "delivery_id": d1, "amount": 300 * 2200}])
 
-    kq = _batch(
+    _gop(
         client, headers,
         items=[
-            {"purchase_request_id": don["id"], "delivery_id": d1},
-            {"purchase_request_id": don["id"], "delivery_id": d2},
+            {"purchase_request_id": don["id"], "delivery_id": d1, "amount": 10_000},
+            {"purchase_request_id": don["id"], "delivery_id": d2, "amount": 10_000},
         ],
         expect=422,
     )
-    assert "đã trả hết" in kq["detail"].lower()
-
     cong_no = _cong_no_ncc(client, headers, ncc["id"])
     assert _dong_dot(cong_no, d2)["con_no"] == 700 * 2200, "đợt 2 KHÔNG được lập phiếu khi cả lượt bị chặn"
 
 
 def test_batch_rong_thi_chan(client):
-    """Danh sách rỗng bị chặn ngay ở tầng schema (`Field(min_length=1)`) — 422 vẫn đúng, chỉ
-    khác câu chữ với lỗi tự viết ở tầng service (`AccountingValidationError`)."""
+    """Danh sách rỗng bị chặn ngay ở tầng schema (`Field(min_length=1)`)."""
     headers = _headers(client)
-    _batch(client, headers, items=[], expect=422)
+    _gop(client, headers, items=[], expect=422)
 
 
 def test_batch_khong_co_quyen_tao_phieu_chi_thi_403(client):
-    """Batch dùng CHUNG quyền với lập phiếu chi đơn lẻ (`phieu_chi:create`) — không đẻ ô quyền
-    riêng cho một cách thao tác khác của cùng một việc."""
+    """Phiếu gộp dùng CHUNG quyền với lập phiếu chi đơn lẻ (`phieu_chi:create`)."""
     from tests.test_payables_api import _token_vai
 
     headers = _headers(client)
@@ -321,9 +311,9 @@ def test_batch_khong_co_quyen_tao_phieu_chi_thi_403(client):
 
     token = _token_vai("batch_no_perm", module="phieu_chi", can_read=True, can_create=False)
     r = client.post(
-        "/api/accounting/payment-vouchers/batch",
+        "/api/accounting/payment-vouchers/gop",
         json={
-            "items": [{"purchase_request_id": don["id"], "delivery_id": dot["deliveries"][0]["id"]}],
+            "lines": [{"purchase_request_id": don["id"], "delivery_id": dot["deliveries"][0]["id"], "amount": 10_000}],
             "voucher_type": "cash",
             "voucher_date": _hom_nay().isoformat(),
             "cash_recipient_name": "X",

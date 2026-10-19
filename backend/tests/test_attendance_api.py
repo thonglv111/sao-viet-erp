@@ -1078,6 +1078,26 @@ def test_o_ngay_mang_du_co_le_nghi_tuan_va_off1x(client):
     assert row["holiday_cong"] == 1.0 and row["restday_cong"] == 1.0 and row["plain_cong"] == 1.0
 
 
+def test_ngay_lam_viec_da_qua_khong_bam_luot_nao_mang_dau_khong_cham(client):
+    """⭐ 14/10/2026 (chủ): "quên không chấm cả vào lẫn ra mà bảng công không thể hiện gì". Ngày
+    làm việc ĐÃ QUA, có ca, không lượt bấm / phép / lễ ⇒ ô mang cờ `khong_cham`. Chỉ là DẤU:
+    không công, Tổng công không đổi. Chủ nhật (nghỉ tuần) không bấm thì KHÔNG phải "không chấm"."""
+    token = _admin_token(client)
+    eid, wt = _nv_ca_hanh_chinh(client, token, ten="NV Khong Cham")
+    _bam_ca_chinh(eid, 9)                    # thứ Ba đi làm đủ
+
+    r = client.get(f"/api/attendance/me/timesheet?year={NAM_LN}&month={THANG_LN}", headers=_h(wt))
+    assert r.status_code == 200, r.text
+    row = r.json()["rows"][0]
+    o = row["days"]
+    assert o["8"]["khong_cham"] is True and o["8"]["cong"] is None, "thứ Hai không bấm lượt nào"
+    assert o["8"]["shift_name"] == "Ca giờ hành chính LN"
+    assert o["9"]["khong_cham"] is False and o["9"]["cong"] == 1.0
+    assert not o.get("14", {}).get("khong_cham"), "Chủ nhật nghỉ tuần không phải ngày quên chấm"
+    assert row["total_cong"] == 1.0, "dấu không chấm không được sinh công"
+    assert row["shift_name"] == "Ca giờ hành chính LN", "ngày không chấm không làm nhảy 'Nhiều ca'"
+
+
 def test_he_so_ngay_doc_tu_cau_hinh_luong_le_va_le_trung_chu_nhat(client):
     """⭐ Ô lịch phải nói ĐÚNG số tiền `payroll_service._compute` trả: lễ = hệ số lễ (khách chốt
     15/09/2026 chiều "ngày lễ chỉ 300%", ĐẢO cách cũ 1 + 3 = 4×) · nghỉ tuần = hệ số nghỉ tuần ·

@@ -1,0 +1,220 @@
+/* ============================================================================
+   ĐIỆN THOẠI — NGĂN PHẢI `kt-ngan` (NganPhai — 42 màn: Kế toán, Kho, Mua hàng…) & form lập phiếu
+   (14/10/2026, docs/thiet-ke-mobile.md §4.3–4.4)
+   ----------------------------------------------------------------------------
+   Ngăn → trang toàn màn; form chia đôi (form | tờ phiếu xem trước) → MỘT cột, tờ phiếu xuống dưới;
+   hàng ô nhập → một cột; chân ngăn dính đáy, nút to. Bộ chọn nhân đôi lớp cho thắng ke-toan.css
+   (nạp lười, đến sau). CHỈ trong mốc điện thoại — guard `mobile.test.ts`.
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  .kt-ngan.kt-ngan {
+    width: 100vw !important;
+    box-shadow: none;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__keo {
+    display: none;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dong1 {
+    min-height: 40px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__nut .kt-btn,
+  .kt-ngan.kt-ngan .kt-ngan__nut button {
+    min-width: 40px;
+    height: 40px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__tieu h2 {
+    font-size: 19px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__hd {
+    margin-left: 0;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__su {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__su b {
+    white-space: normal;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__tab {
+    gap: 18px;
+    scrollbar-width: none;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__tab button {
+    height: 44px;
+    font-size: 14.5px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__than {
+    padding: 16px 16px 24px;
+    gap: 16px;
+  }
+
+  /* CẢ NGĂN cuộn một khối. Bản máy lớn: đầu ngăn (tiêu đề + số lớn + ô tóm tắt + dải tab) đứng yên,
+     chỉ thân cuộn — ở 812px đầu ngăn đã ăn ~390px, danh sách còn khung ~420px cuộn lồng trong trang.
+     Đầu ngăn `display: contents` để con của nó thành con trực tiếp của khung cuộn ⇒ hàng nút (đóng)
+     và dải tab DÍNH được; phần còn lại (tiêu đề, số, tóm tắt) trôi lên theo nội dung. */
+  .kt-ngan.kt-ngan {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dau {
+    display: contents;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dau > :not(.kt-ngan__dong1) {
+    margin-left: 16px;
+    margin-right: 12px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dong1 {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    flex-shrink: 0;
+    padding: 4px 12px 0 16px;
+    background: var(--canvas);
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dau > .kt-ngan__tab {
+    position: sticky;
+    top: 44px;
+    z-index: 2;
+    flex-shrink: 0;
+    background: var(--canvas);
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dau > :last-child:not(.kt-ngan__tab) {
+    padding-bottom: 12px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__dau > * {
+    flex-shrink: 0;
+  }
+  /* Nút "Mở rộng" đổi độ rộng ngăn — ngăn đã kín màn. */
+  .kt-ngan.kt-ngan .kt-ngan__nut [aria-label="Mở rộng"] {
+    display: none;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__than {
+    flex: none;
+    overflow: visible;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__chan {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin-top: auto;
+    flex-shrink: 0;
+  }
+
+  /* Chân ngăn: tổng tiền một dòng, nút chính trải ngang. */
+  .kt-ngan.kt-ngan .kt-ngan__chan {
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__xt {
+    flex: 1 1 100%;
+    font-size: 13.5px;
+  }
+  .kt-ngan.kt-ngan .kt-ngan__chan > :is(button, .kt-btn) {
+    flex: 1 1 auto;
+    height: 46px;
+    justify-content: center;
+    font-size: 15px;
+  }
+
+  /* ---- Form lập phiếu ----------------------------------------------------- */
+  .kt-f-chia.kt-f-chia {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .kt-f-chia.kt-f-chia .kt-f-chia__xem {
+    position: static;
+  }
+  .kt-f__hang.kt-f__hang,
+  .kt-f__hang--21.kt-f__hang--21 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .kt-o.kt-o input:not([type="checkbox"]):not([type="radio"]),
+  .kt-o.kt-o select {
+    height: 44px;
+  }
+  .kt-o.kt-o textarea {
+    min-height: 88px;
+  }
+  .kt-btn.kt-btn {
+    min-height: 40px;
+  }
+
+  /* Nhóm nút "Xếp theo: Đơn mua · Hạn trả" (kt-dai-tab) đứng cạnh câu hướng dẫn trong đầu mục ngăn công
+     nợ — được phép xuống dòng nên bị bóp còn 109px, hai nút thành hai dòng. Giữ một hàng. */
+  .kt-ngan .kt-ngan__muc {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .kt-ngan .kt-dai-tab {
+    flex-wrap: nowrap !important;
+    flex-shrink: 0;
+  }
+
+  /* ---- Phiếu chi → Mua hàng chờ chi (17/10/2026): popup một khoản — bảng vật tư bớt đệm cho vừa
+     5–7 cột. */
+  .kt-mh-bang th,
+  .kt-mh-bang td {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  /* Bảng vật tư thành thẻ (lớp thẻ chung) ⇒ `caption` mất chỗ đứng của bảng, bị bóp gãy từng chữ. */
+  .kt-mh-bang > caption {
+    display: block;
+    width: auto;
+    white-space: nowrap;
+  }
+  /* Popup chi tiết khoản: nút lập phiếu to, ngày lịch sử hẹp lại cho chữ nội dung đủ chỗ. */
+  .kt-ctk__con.kt-ctk__con > .kt-btn {
+    height: 46px;
+    font-size: 15px;
+  }
+  .kt-ctk__ng.kt-ctk__ng {
+    width: 72px;
+  }
+  .kt-ctk__ls.kt-ctk__ls li {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+  .kt-ctk__so.kt-ctk__so {
+    margin-left: auto;
+  }
+  /* Phiếu gộp: dải "Đã chọn n khoản" dính đáy màn, nút to trải ngang; bảng phân bổ cuộn ngang. */
+  /* Không lề âm: khung lưới (`lds-sheet`) cắt phần tràn ⇒ nền tối hụt vào, chữ dính mép trái. */
+  .kt-gop-chan.kt-gop-chan {
+    position: sticky;
+    /* bottom 0 là đủ: khung cuộn có đệm đáy bằng thanh điều hướng nên dải chân dừng ngay trên thanh. */
+    bottom: 0;
+    margin: 8px 0 0;
+    padding: 10px 14px;
+  }
+  .kt-gop-chan.kt-gop-chan > span:first-child {
+    flex: 1 1 auto;
+  }
+  .kt-gop-chan.kt-gop-chan .kt-gop-chan__tong {
+    margin-right: 0;
+  }
+  .kt-gop-chan.kt-gop-chan > .kt-btn {
+    flex: 1 1 auto;
+    height: 46px;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .kt-gop-tick.kt-gop-tick input {
+    width: 20px;
+    height: 20px;
+  }
+  .kt-gop-o.kt-gop-o {
+    max-width: 150px;
+  }
+  .kt-gop-o.kt-gop-o input {
+    height: 40px;
+  }
+  .kt-gop-trong.kt-gop-trong input {
+    width: 20px;
+    height: 20px;
+  }
+}

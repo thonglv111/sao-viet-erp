@@ -16,7 +16,7 @@ import {
   FileEdit,
 } from "lucide-react";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan, useSelfService } from "../../../auth/permissions";
+import { useCan, useScopeOf, useSelfService } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import type { Tab } from "./shared/types";
 import { AdjustRequestsTab } from "./tabs/AdjustRequestsTab";
@@ -41,7 +41,7 @@ export function ChamCongPage({
   navigate?: NavigateFn;
   focusEmployeeId?: number;
   /** Mở thẳng tab Khai ca (nút "Đặt ca nền" ở hồ sơ NV) — xem `NavParams.chamCongTab`. */
-  openTab?: "khai-ca";
+  openTab?: "khai-ca" | "my-timesheet";
   /** Gọi sau mỗi lần tải/thao tác → AppShell refetch badge sidebar + chuông ngay. */
   onChanged?: () => void;
   /** Tăng theo mỗi sự kiện real-time (SSE) → tab phiếu đang mở tự tải lại, khỏi bắt F5. */
@@ -55,6 +55,10 @@ export function ChamCongPage({
   // MỘT Ô = MỘT TAB (chủ chốt 15/08/2026, mg 0194). Trước đó `canConfig` một mình mở BA tab
   // cấu hình — bật một ô ra ba màn, người cấp quyền không biết mình vừa mở cái gì.
   const canDiemChamCong = can("cham_cong", "manage_locations");
+  // Nút "Đặt điểm chấm công tại đây" TẠO điểm — máy chủ (`_ghi_cau_hinh_chung`) đòi đủ ô Thêm, ô Điểm
+  // chấm công và phạm vi Toàn công ty. Thiếu một là bấm ăn 403 (rà cuối 19/10/2026).
+  const scopeOf = useScopeOf();
+  const canDatDiem = canDiemChamCong && can("cham_cong", "create") && scopeOf("cham_cong") === "all";
   const canKhaiCa = can("cham_cong", "manage_shifts");
   const canLichLe = can("cham_cong", "manage_calendar");
   // Ghi vào ba tab cấu hình: vẫn là ô Thao tác chung của màn (luật "bật Thao tác là thao tác cả").
@@ -92,8 +96,13 @@ export function ChamCongPage({
       setTab("khai-ca");
       return;
     }
+    // Ô "Công của tôi" ở thanh dưới điện thoại.
+    if (openTab === "my-timesheet" && tuPhucVu) {
+      setTab("my-timesheet");
+      return;
+    }
     if (focusEmployeeId && canViewLog) setTab("logs");
-  }, [focusEmployeeId, canViewLog, openTab, canKhaiCa]);
+  }, [focusEmployeeId, canViewLog, openTab, canKhaiCa, tuPhucVu]);
 
   return (
     <main className="ns">
@@ -184,7 +193,7 @@ export function ChamCongPage({
       {tab === "me" && (
         <MyCheckIn
           token={token!}
-          canConfig={canConfig}
+          canDatDiem={canDatDiem}
           coQuyenGhi={tuPhucVuGhi}
           navigate={navigate}
         />

@@ -35,7 +35,7 @@ export const VOUCHER_TYPE_LABEL: Record<PaymentVoucherRow["voucher_type"], strin
 export const PAYMENT_STAGE_LABEL: Record<PaymentVoucherRow["payment_stage"], string> = {
   advance: "Đặt cọc",
   partial: "Thanh toán một phần",
-  final: "Thanh toán cuối",
+  final: "Thanh toán tiền hàng",
   other: "Khác",
 };
 

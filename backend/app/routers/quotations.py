@@ -72,12 +72,14 @@ from ..schemas.quotation import (
     QuoteItemOut,
 )
 from ..services.quotation_service import (
+    STATUS_LABELS,
     QuotationConflict,
     QuotationForbidden,
     QuotationLocked,
     QuotationNotFound,
     QuotationService,
     QuotationValidationError,
+    markup_binh_quan,
 )
 from ..services.quotation_state import TRANSITIONS
 from ..services.thong_bao_man import bao
@@ -96,21 +98,7 @@ MODULE = "bao_gia"
 Service = Annotated[QuotationService, Depends(get_quotation_service)]
 Authz = Annotated[AuthorizationService, Depends(get_authorization_service)]
 
-STATUS_LABELS = {
-    # 7 trạng thái nghiệp vụ (redesign-bao-gia §3) — bám đúng chữ chủ đầu tư chốt.
-    "draft": "Nháp",
-    "pending_approval": "Chờ duyệt",   # đặc thù đã "Trình duyệt", chờ Giám đốc Kinh doanh
-    "approved": "Đã duyệt",             # GĐ KD duyệt xong, CHỜ sale gửi khách (tách duyệt/gửi)
-    "sent": "Đã gửi khách",             # sale tự gửi (tách khỏi "duyệt")
-    "accepted": "Khách đồng ý",   # một tên cho cả chip lẫn tab (07/10/2026, trước là "Khách chốt"/"Khách hàng đồng ý")
-    "rejected": "Bị từ chối",   # khách từ chối HOẶC GĐ/TP từ chối đặc thù (phân biệt bằng banner/nhật ký)
-    "expired": "Hết hiệu lực",
-    "converted_to_order": "Đã lên đơn",
-    "cancelled": "Hủy báo giá",
-    # Trạng thái riêng của PHIÊN BẢN (không phải header) — pill lịch sử phiên bản dùng chung enum này.
-    "locked": "Đã khóa",
-    "superseded": "Đã thay thế",
-}
+# Nhãn trạng thái nằm ở service (nhật ký cũng cần — #70); router dùng lại.
 
 
 def _scope_for(authz: AuthorizationService, user: User) -> str:
@@ -177,7 +165,7 @@ def _row(
         valid_until=q.valid_until,
         version_count=len(q.versions),
         sent_at=active_version.sent_at if active_version else None,
-        margin_percent=float(items[0].margin_percent) if items else None,
+        margin_percent=markup_binh_quan(items, q.status),
         product_summary=product_summary,
         updated_at=q.updated_at,
         salesperson_name=(user_names or {}).get(q.salesperson_id),
@@ -733,11 +721,10 @@ def transition_quotation(
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from None
     except QuotationValidationError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None
-    # Real-time: TRÌNH DUYỆT (thêm vào 'chờ duyệt') hoặc HỦY (rời 'chờ duyệt') → báo người duyệt
-    # ngay (họ tự refetch 'chờ tôi duyệt'; badge nhảy + toast khi số tăng).
-    if payload.to_status in ("pending_approval", "cancelled"):
-        # Nhóm `ban_hang`: badge + danh sách Báo giá, cùng các màn bán hàng nghe nhóm đó.
-        hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
+    # Real-time: MỌI lần đổi trạng thái (trình duyệt, gửi khách, khách chốt/từ chối, huỷ…) báo nhóm
+    # `ban_hang` ngay — badge 'chờ tôi duyệt' tự refetch, màn chi tiết đang mở của người khác nạp lại
+    # (lỗi #60: trước chỉ trình duyệt/huỷ mới phát nên Gửi khách đứng yên ở màn người khác).
+    hub.gui({"type": "quote_pending_changed", "code": q.quote_number}, quyen=MAN_BAN_HANG)
     if payload.to_status == "pending_approval":
         # Chấm đỏ Báo giá cho người duyệt đặc thù trong phạm vi phòng của Sale đứng tên.
         sale = db.get(User, q.salesperson_id) if q.salesperson_id else None

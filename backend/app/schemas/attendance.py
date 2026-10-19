@@ -233,6 +233,8 @@ class TimesheetDay(BaseModel):
     # Nghỉ luân phiên đã khai trên lưới phân ca — để phân biệt "nghỉ theo lịch" với
     # "vắng". Chỉ là dấu kế hoạch: không công, không tiền.
     planned_off: bool = False
+    # Ngày làm việc ĐÃ QUA không có lượt bấm nào (quên chấm vào & ra / vắng) — dấu, không công.
+    khong_cham: bool = False
 
 
 class TimesheetRow(BaseModel):

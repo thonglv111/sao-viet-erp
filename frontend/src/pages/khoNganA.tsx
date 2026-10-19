@@ -130,6 +130,14 @@ export function lenhCua(r: StockRequest): string[] {
 
 export const tuKcs = (r: StockRequest) => r.lines.some((l) => l.tu_kcs);
 
+/** Nguồn sản xuất của yêu cầu: gia công ngoài THẮNG KCS (#41, 18/10/2026). Yêu cầu nhập do chốt gia
+ *  công về kho cũng mang cờ thành phẩm (`tu_kcs` — cờ đó lo cột giá gốc), nhưng hàng do nhà gia công
+ *  giao về, KCS không kiểm. Cùng thứ tự với bộ lọc Nguồn ở máy chủ. */
+export function nguonSanXuat(r: StockRequest): "gia_cong" | "kcs" | null {
+  if (r.gia_cong_ngoai_id != null) return "gia_cong";
+  return tuKcs(r) ? "kcs" : null;
+}
+
 /** Ô "Nguồn" ở danh sách: đơn mua + đợt, KCS + lệnh, điều chuyển từ kho nào, giao hàng (lượt xe +
  *  đơn), hoặc lệnh SX. */
 export function NguonA({ r }: { r: StockRequest }) {
@@ -157,12 +165,12 @@ export function NguonA({ r }: { r: StockRequest }) {
   }
   const lenh = lenhCua(r);
   // Gia công ngoài (giấy cấp cho nhà gia công / thành phẩm nhận về) — cùng nhãn điều kiện lọc Nguồn.
-  const giaCong = r.gia_cong_ngoai_id != null && !tuKcs(r);
-  if (!lenh.length && !tuKcs(r) && !giaCong) return <span className="kna-mo">—</span>;
+  const nguon = nguonSanXuat(r);
+  if (!lenh.length && !nguon) return <span className="kna-mo">—</span>;
   return (
     <span className="kna-nguon">
-      {tuKcs(r) && <span className="kna-tag">KCS</span>}
-      {giaCong && <span className="kna-tag">Gia công</span>}
+      {nguon === "kcs" && <span className="kna-tag">KCS</span>}
+      {nguon === "gia_cong" && <span className="kna-tag">Gia công</span>}
       {lenh.slice(0, 2).map((m) => <span key={m}>{m}</span>)}
       {lenh.length > 2 && <span className="kna-tag">+{lenh.length - 2} lệnh</span>}
     </span>
@@ -205,14 +213,15 @@ export function TheNguonHang({ r, khach }: { r: StockRequest; khach?: string | n
       </TheA>
     );
   }
-  if (!tuKcs(r)) return null;
+  const nguon = nguonSanXuat(r);
+  if (!nguon || (nguon === "gia_cong" && !tuKcs(r))) return null;
   const lenh = lenhCua(r);
   const don = [...new Set(r.lines.map((l) => l.don_ban_ma).filter((m): m is string => !!m))];
   return (
     <TheA tieuDe="Nguồn hàng">
       <div className="kna-the__than">
         <KvA dong={[
-          ["Từ", "KCS gửi thành phẩm"],
+          ["Từ", nguon === "gia_cong" ? "Nhà gia công giao thành phẩm" : "KCS gửi thành phẩm"],
           r.san_xuat_cong_doan_ten ? ["Công đoạn", r.san_xuat_cong_doan_ten] : null,
           lenh.length > 0 && ["Lệnh sản xuất", <span className="kna-nguon" style={{ justifyContent: "flex-end" }}>{lenh.map((m) => <span key={m} className="kna-tag kna-tag--ma">{m}</span>)}</span>],
           don.length > 0 && ["Đơn bán", <span className="kna-nguon" style={{ justifyContent: "flex-end" }}>{don.map((m) => <span key={m} className="kna-tag kna-tag--ma">{m}</span>)}</span>],
@@ -226,7 +235,7 @@ export function TheNguonHang({ r, khach }: { r: StockRequest; khach?: string | n
 /** Ngày cần hiển thị: giờ cần thật (từ đề nghị sản xuất) ưu tiên, không thì ngày trơn. */
 export function canLucCua(r: StockRequest): string | null {
   if (r.can_luc) return fmtGioCan(r.can_luc);
-  if (r.ngay_can) return new Date(`${r.ngay_can}T00:00:00`).toLocaleDateString("vi-VN");
+  if (r.ngay_can) return new Date(`${r.ngay_can}T00:00:00`).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   return null;
 }
 

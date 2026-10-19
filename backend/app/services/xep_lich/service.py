@@ -583,6 +583,17 @@ class XepLichLenhService:
                 continue
             d = self._dong(l, m, kq, tin, tt, kq_con)
             d.update(self._phan_cum(cum, l.id))
+            # Bước ĐÃ XONG không còn chạy trên máy nào — máy hỏng/khoá sau đó không phải việc của
+            # lệnh này nữa (#79: LSX26-0016 xong In 18/10 vẫn ghi "máy dừng chờ sửa").
+            da_xong = {cd.id for cd in cds
+                       if self._thuc_te_cua(cd, l.id).get("trang_thai") == CV_HOAN_THANH}
+            d["_khung_may"] = [
+                (tin[b.lsx_cong_doan_id]["may_id"], tin[b.lsx_cong_doan_id]["may_ten"],
+                 b.bat_dau, b.ket_thuc)
+                for b in (kq_con or kq).buoc
+                if not b.la_thue_ngoai and b.lsx_cong_doan_id not in da_xong
+                and (tin.get(b.lsx_cong_doan_id) or {}).get("may_id")
+            ]
             d["_khach_id"] = getattr(self._don_cua(l), "customer_id", None)
             dong.append(d)
 
@@ -608,8 +619,10 @@ class XepLichLenhService:
         dem = {k: sum(1 for d in dong if self._nhanh(d, k)) for k in ("tre", "muon", "chua")}
         if nhanh in dem:
             dong = [d for d in dong if self._nhanh(d, nhanh)]
+        self._gan_canh_bao_may(dong, d_tu, d_den)
         for d in dong:
             d.pop("_khach_id", None)
+            d.pop("_khung_may", None)
         co_cum = {d["cum_id"] for d in dong if d.get("cum_id")}
         return {
             "dem": dem,
@@ -620,6 +633,55 @@ class XepLichLenhService:
             "cac_ca": mo_ta_ca(self._ca_xuong),
             "cum": [cum.cum[i] for i in sorted(co_cum)],
         }
+
+    def _gan_canh_bao_may(self, dong: list[dict], d_tu: datetime, d_den: datetime) -> None:
+        """`canh_bao_may` của từng thanh: bước chạy đè vùng khoá máy, hoặc máy đang dừng chờ sửa.
+
+        CHỈ nhắc, không chặn — cùng mức với `constraint.de_vung_khoa_may` (chủ hạ 21/08/2026: bản
+        khai tay còn thưa, chặn cứng thì bịt khe của máy đang chạy tốt). Lỗi #50 và #27 bấm thử
+        18/10/2026: khai được khoá máy rồi mà thanh lệnh vẫn im, máy dừng chờ sửa cũng im.
+        Vùng khoá hỏi MỘT lượt cho cả cửa sổ; báo hỏng hỏi theo từng máy có mặt trên bàn.
+        """
+        from ...models.machine_unavailable import (
+            KIEU_CHAN, LY_DO_BAO_TRI, LY_DO_HONG_HOC, LY_DO_NGHI,
+        )
+        from ...repositories.machine_unavailable_repo import MachineUnavailableRepository
+        from ..may_trang_thai import bao_hong_dang_mo
+
+        may_ids = {k[0] for d in dong for k in d.get("_khung_may") or ()}
+        if not may_ids:
+            for d in dong:
+                d["canh_bao_may"] = []
+            return
+        khoa: dict[int, list] = {}
+        for p in MachineUnavailableRepository(self.db).list_range(tu=d_tu.date(), den=d_den.date()):
+            if p.may_id in may_ids and (getattr(p, "kieu", None) or KIEU_CHAN) == KIEU_CHAN:
+                khoa.setdefault(p.may_id, []).append(
+                    (_aware(p.unavailable_from), _aware(p.unavailable_to), p.reason))
+        dung: dict[int, str] = {}
+        for mid in may_ids:
+            ma = next((b["ma"] for b in bao_hong_dang_mo(self.db, mid) if b["may_dung"]), None)
+            if ma:
+                dung[mid] = ma
+        ten_ly_do = {LY_DO_BAO_TRI: "bảo trì", LY_DO_HONG_HOC: "hỏng", LY_DO_NGHI: "nghỉ"}
+        for d in dong:
+            cau: list[str] = []
+            for mid, ten, a, b in d.get("_khung_may") or ():
+                ten = ten or "Máy"
+                a, b = _aware(a), _aware(b)
+                for k_tu, k_den, ly_do in khoa.get(mid, ()):
+                    # Bước 0 phút (thiếu dữ kiện) vẫn phải bắt được khi mốc nằm TRONG vùng khoá.
+                    if k_tu < max(b, a + timedelta(seconds=1)) and a < k_den:
+                        c = (f"{ten} có lịch {ten_ly_do.get(ly_do, 'khoá máy')} "
+                             f"{_naive(k_tu):%d/%m %H:%M}–{_naive(k_den):%d/%m %H:%M}, "
+                             f"đè lên giờ chạy.")
+                        if c not in cau:
+                            cau.append(c)
+                if mid in dung:
+                    c = f"{ten} đang dừng chờ sửa ({dung[mid]})."
+                    if c not in cau:
+                        cau.append(c)
+            d["canh_bao_may"] = cau
 
     def vat_tu(self, lsx_ids: list[int]) -> list[dict]:
         """Đèn vật tư của các lệnh đang hiện trên bàn — ĐƯỜNG RIÊNG, màn gọi SAU khi lưới đã vẽ.

@@ -1,0 +1,324 @@
+/* ============================================================================
+   ĐIỆN THOẠI — KHỐI DÙNG CHUNG nhiều màn (14/10/2026, docs/thiet-ke-mobile.md §4.2)
+   ----------------------------------------------------------------------------
+   · StatusTabs `.stabs`      — dải tab trạng thái → một hàng chip cuộn ngang
+   · Thanh lọc `.tl-*`        — nút cao 40px, lớp nổi (đã là tấm đáy ở thanh-loc.css) nhấc lên
+                                trên thanh điều hướng dưới, dòng chọn cao 44px cho ngón tay
+   · Nút chia đoạn `.np-seg`  — hai nửa bằng nhau trải ngang
+   CHỈ trong mốc điện thoại — guard `mobile.test.ts`.
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  /* ---- StatusTabs ---------------------------------------------------------- */
+  .stabs.stabs {
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    width: auto;
+    max-width: none;
+    margin: 0 -12px;
+    padding: 2px 12px;
+    gap: 6px;
+    overflow-x: auto;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    scrollbar-width: none;
+  }
+  .stabs.stabs::-webkit-scrollbar {
+    display: none;
+  }
+  .stabs.stabs .stabs__tab {
+    flex: none;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--rule-soft);
+    border-radius: 18px;
+    background: var(--canvas, #fff);
+    font-size: 14px;
+  }
+  .stabs.stabs .stabs__tab--active {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--canvas, #fff);
+  }
+  .stabs.stabs .stabs__tab--active * {
+    color: inherit;
+  }
+
+  /* ---- Thanh lọc ----------------------------------------------------------- */
+  .tl-thanh.tl-thanh {
+    gap: 8px;
+  }
+  .tl-nut.tl-nut {
+    height: 40px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+  .tl-thanh.tl-thanh > .btn {
+    min-height: 40px;
+  }
+  /* Ô tìm trong thanh lọc: khung đã trải ngang (thanh-loc.css) nhưng ô nhập bên trong còn bề rộng cố
+     định của bản máy tính ⇒ cho ô nhập giãn hết khung. */
+  .tl-thanh.tl-thanh > :is([class*="search"], [class*="tim"]) {
+    flex: 1 1 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  .tl-thanh.tl-thanh > :is([class*="search"], [class*="tim"]) input {
+    flex: 1 1 auto;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .tl-dk.tl-dk {
+    height: 36px;
+    border-radius: 10px;
+  }
+  /* Bảng lọc thả XUỐNG từ ngay dưới thanh trên (không trượt lên từ đáy): ô "Lọc theo…" ở đầu bảng — bàn
+     phím bật lên từ đáy chỉ che phần dưới, ô gõ + các dòng đầu vẫn thấy (bản trượt từ đáy: bàn phím che sạch). */
+  .tl-pop.tl-pop {
+    position: fixed !important;
+    top: 52px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: auto !important;
+    max-height: min(70dvh, calc(100dvh - 52px - 62px));
+    overflow-y: auto;
+    border-radius: 0 0 18px 18px;
+    padding-bottom: 8px;
+    z-index: 39;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
+  }
+  /* Nút ✕ tắt bảng lọc (LopNoi `onDong`, chỉ dựng trên điện thoại): góc trên phải, dính khi bảng cuộn. */
+  .tl-pop.tl-pop > .tl-pop__dong {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 40px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ash);
+  }
+  .tl-pop.tl-pop:has(> .tl-pop__dong) :is(.tl-tim, .tl-dau, .tl-con__dau) {
+    padding-right: 48px;
+  }
+  .tl-pop.tl-pop .tl-dong {
+    min-height: 46px;
+    font-size: 15px;
+  }
+  .tl-pop.tl-pop .tl-ds {
+    max-height: none;
+  }
+  .tl-pop.tl-pop .tl-khoang input,
+  .tl-pop.tl-pop .tl-khoang .cn-khung,
+  .tl-pop.tl-pop .tl-o {
+    height: 44px;
+  }
+  .tl-pop.tl-pop .tl-chan > button {
+    min-height: 44px;
+    flex: 1 1 0;
+  }
+  .tl-pop.tl-pop .tl-lui {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* ---- Nút chia đoạn ------------------------------------------------------- */
+  .np-seg.np-seg {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .np-seg.np-seg::-webkit-scrollbar {
+    display: none;
+  }
+  .np-seg.np-seg .np-seg__btn {
+    flex: 1 0 auto;
+    white-space: nowrap;
+    padding: 0 12px;
+    min-height: 40px;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  /* ---- Bong bóng gợi ý khi rê chuột ---------------------------------------
+     Điện thoại không có chuột: chạm nút là bấm luôn, bong bóng chỉ kẹt lại che nội dung (nút ✎ / 🖨
+     trên thẻ bảng lương giữ focus ⇒ bong bóng đứng giữa màn). Nút đã có aria-label cho đọc màn hình. */
+  .rowact__tip .rowact__tip-bubble {
+    display: none !important;
+  }
+
+  /* ---- Dải tab BÊN TRONG hộp thoại / ngăn chi tiết --------------------------
+     Mỗi phân hệ một họ lớp; trên điện thoại cùng một cách: MỘT hàng cuộn ngang, nhãn không gãy
+     dòng (trước: "Bảo hiểm & Công đoàn" gãy 3 dòng trong ô 90px). */
+  :is(.lg-modal-tab-nav, .rc-drawer__tabs, .drawer-sticky-tabs, .supplier-drawer__tabs, .rdx-drawer__tabs,
+      .dhb__drawer-tabs, .khsx-tabs, .khsx-tabman, .khsx-tabs-bar, .thsx-b-tabs, .lg-hl-mode__tabs,
+      .kh__so-tabs, .kcsb-tabs, .bg2-tabs-bar, .bckt__tabs, .acct-toolbar__tabs):is(div, nav, section, header) {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    /* Đặt overflow ⇒ min-height thành 0: trong khung flex dọc dải tab bị CO còn 1px (đã gặp ở ngăn
+       chi tiết đơn hàng). Không cho co. */
+    flex-shrink: 0 !important;
+    max-width: 100%;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    gap: 6px !important;
+  }
+  :is(.lg-modal-tab-nav, .rc-drawer__tabs, .drawer-sticky-tabs, .supplier-drawer__tabs, .rdx-drawer__tabs,
+      .dhb__drawer-tabs, .khsx-tabs, .khsx-tabman, .khsx-tabs-bar, .thsx-b-tabs, .lg-hl-mode__tabs,
+      .kh__so-tabs, .kcsb-tabs, .bg2-tabs-bar, .bckt__tabs, .acct-toolbar__tabs) > :is(button, a, [role="tab"]) {
+    flex: none !important;
+    white-space: nowrap !important;
+    min-height: 40px;
+  }
+
+  /* ---- Ma trận phân quyền (PermissionMatrix — Phòng ban · Người dùng & quyền) ---------
+     Bốn cột (phân hệ · Xem · Thao tác · Phạm vi) không vừa 375px ⇒ mỗi phân hệ một khối: tên trên
+     một dòng, bên dưới [Xem ☐] [Thao tác ☐] [Phạm vi ▾]; bỏ dòng tiêu đề cột, nhãn gắn ngay công tắc. */
+  .rdx-perm .rdx-perm__colhead {
+    display: none !important;
+  }
+  .rdx-perm .rdx-perm__row,
+  .rdx-perm .rdx-perm__rows--noscope .rdx-perm__row,
+  .rdx-perm .rdx-perm__rows--to .rdx-perm__row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 8px 18px !important;
+    padding: 12px 14px !important;
+  }
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--mod,
+  .rdx-perm .rdx-perm__row > .rdx-perm__fine,
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--scope {
+    grid-column: 1 / -1;
+  }
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--scope::before {
+    content: "Phạm vi";
+    flex: none;
+    font-size: 13.5px;
+    color: var(--ash);
+  }
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--act,
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--scope {
+    justify-content: flex-start !important;
+    align-items: center;
+    gap: 8px;
+  }
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--act:nth-child(2)::before {
+    content: "Xem";
+    font-size: 13.5px;
+    color: var(--ash);
+  }
+  .rdx-perm .rdx-perm__rows:not(.rdx-perm__rows--to) .rdx-perm__row > .rdx-perm__cell--act:nth-child(3)::before {
+    content: "Thao tác";
+    font-size: 13.5px;
+    color: var(--ash);
+  }
+  .rdx-perm .rdx-perm__row > .rdx-perm__cell--scope .rdx-perm__scope {
+    flex: 1 1 auto;
+    width: auto !important;
+    min-width: 0;
+    min-height: 40px;
+  }
+  .rdx-perm .rdx-perm__ghead {
+    min-height: 48px;
+  }
+  .rdx-perm .rdx-perm__fine {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* ---- Nút chia đoạn của các phân hệ (`*-seg`) -------------------------------
+     Mỗi màn một họ lớp; khung hẹp thì chúng xuống 2–3 dòng trong ô xám. Điện thoại: một hàng cuộn
+     ngang, nhãn không gãy, nút cao 38px. (np-seg / lg-seg đã có luật riêng phía trên.) */
+  :is(.gh-seg, .kt-seg, .mh-seg, .ts-seg, .xa-seg, .tg-seg, .thsx-seg, .lvt-seg, .khsx-seg, .kcsb-seg,
+      .ktm-seg, .lg-view-seg, .cc-otc-seg):is(div, nav, [role="tablist"], [role="group"]) {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+  :is(.gh-seg, .kt-seg, .mh-seg, .ts-seg, .xa-seg, .tg-seg, .thsx-seg, .lvt-seg, .khsx-seg, .kcsb-seg,
+      .ktm-seg, .lg-view-seg, .cc-otc-seg) > :is(button, a, label) {
+    flex: none !important;
+    white-space: nowrap !important;
+    min-height: 38px;
+  }
+
+  /* Ô chỉ số của báo cáo dạng biểu đồ (BieuDo — kinh doanh, công nợ, thu chi): chú thích "9,5% doanh
+     số có VAT" khoá một dòng + "…" ở ô nửa màn ⇒ cho xuống dòng; ô lẻ cuối lưới 2 cột trải cả hàng. */
+  .bd-the-hang .bd-the .bd-the__phu {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .bd-the-hang > .bd-the:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  /* Nút chọn kỳ của thanh lọc ("15/09/2026 – 14/10/2026 · theo ngày ghi"): `min-width: auto` ⇒ giữ
+     340px trong ô neo hẹp hơn, tràn mép phải (Nhật ký). Co theo ô; chữ phụ cắt "…" khi chật. */
+  .tl-neo {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .tl-neo > .tl-nut--ky {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .tl-nut--ky > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tl-nut--ky > span:first-of-type {
+    flex-shrink: 0;
+  }
+
+  /* Nhật ký hoạt động: lề trang 24px + khung lọc 16px ⇒ lề điện thoại. */
+  main.act-page {
+    padding: 12px !important;
+  }
+  .act-page .act-filters {
+    padding: 12px !important;
+  }
+
+  /* Trình soạn công thức (công đoạn / tính giá): đầu khung "Công thức tính giá · [Trực quan|Dạng chữ] ·
+     Sao chép · Cú pháp" một hàng ⇒ nút gãy 2 dòng. Nhãn trọn hàng trên, các nút một hàng dưới, chữ không gãy. */
+  .rc-formula__editor-header.rc-formula__editor-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .rc-formula__editor-header > .rc-formula__editor-label {
+    flex: 1 1 100%;
+  }
+  .rc-formula__editor-header > * {
+    flex-shrink: 0;
+  }
+  .rc-formula__editor-header button,
+  .rc-formula__editor-header .rc-formula__che-do > * {
+    white-space: nowrap;
+  }
+
+  /* ---- Ô chọn ngày / giờ — hộp lịch nổi (`cn-hop`, ChonNgay.tsx) ----------------------------
+     Hộp ngày-giờ (ChonNgayGio) đặt cứng 428px trong style ⇒ màn 375px bị đẩy lệch trái, mất cột T2
+     (useViTriNoi kẹp mép phải trước). Chặn ở bề rộng màn: hộp đo lại `offsetWidth` rồi mới đặt nên
+     tự nằm gọn 8px hai mép; cột giờ hẹp lại cho lịch đủ chỗ 7 cột. */
+  .cn-hop.cn-hop {
+    max-width: calc(100vw - 16px);
+  }
+  .cn-hop .cn-ngay-gio {
+    grid-template-columns: minmax(0, 1fr) 68px;
+    gap: 8px;
+  }
+  .cn-hop .cn-ngay-gio__gio {
+    padding-left: 6px;
+  }
+}

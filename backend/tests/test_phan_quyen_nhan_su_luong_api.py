@@ -93,11 +93,11 @@ def test_moi_tai_khoan_deu_vao_duoc_duong_cua_minh(client):
         r = client.get(duong, headers=_h(tok))
         assert r.status_code != 403, f"vai không có ô nào mà bị chặn ở {duong}"
 
-    # NHƯNG ĐƯỜNG GHI THÌ KHÔNG (chủ chốt 15/08/2026: *"chưa bật thao tác vẫn bấm gửi đơn được"*).
-    # Đọc dữ liệu của mình là quyền đương nhiên; GHI vẫn đòi ô Thao tác của chính màn đó.
+    # GHI cho chính mình: ô Thao tác Tăng ca LUÔN BẬT cho mọi vai từ 15/10/2026 (mg 0412,
+    # `rbac_repo.O_LUON_BAT`) ⇒ vai mới gửi được phiếu của mình ngay.
     assert client.post("/api/overtime/me", json={
         "work_date": "2026-08-20", "from_minute": 1020, "to_minute": 1080, "reason": "x",
-    }, headers=_h(tok)).status_code == 403, "chưa có ô Thao tác mà vẫn gửi được phiếu"
+    }, headers=_h(tok)).status_code != 403, "vai mới phải gửi được phiếu tăng ca của mình"
 
 
 def test_o_tang_ca_quyet_dinh_THAY_PHIEU_NGUOI_KHAC(client):
@@ -105,14 +105,13 @@ def test_o_tang_ca_quyet_dinh_THAY_PHIEU_NGUOI_KHAC(client):
     CHO CHÍNH MÌNH nay là quyền đương nhiên.
 
     Cái ô `tang_ca` còn quyết định là: có thấy phiếu của NGƯỜI KHÁC không."""
+    # 15/10/2026 (mg 0412): Xem Tăng ca luôn bật ⇒ vai mới mở được danh sách, nhưng phạm vi "Của
+    # tôi" chỉ trả phiếu của chính mình — không thấy phiếu cả xưởng.
     khong_o = _tai_khoan("tc-khong-o")
-    assert client.get("/api/overtime", headers=_h(khong_o)).status_code == 403, (
-        "không có ô Tăng ca mà vẫn mở được danh sách phiếu của cả xưởng"
+    r = client.get("/api/overtime", headers=_h(khong_o))
+    assert r.status_code == 200 and r.json()["total"] == 0, (
+        "vai mới (phạm vi Của tôi) mà thấy phiếu của người khác"
     )
-    # …và gửi phiếu cho chính mình cũng KHÔNG được: ghi thì phải có ô Thao tác của màn Tăng ca.
-    assert client.post("/api/overtime/me", json={
-        "work_date": "2026-08-21", "from_minute": 1020, "to_minute": 1080, "reason": "x",
-    }, headers=_h(khong_o)).status_code == 403
 
     # Có ô Thao tác thì gửi được — đây mới là đường của thợ.
     # Ô Thao tác trên ma trận bật cả create/update/delete cùng lúc; cổng "gửi phiếu" đọc `create`

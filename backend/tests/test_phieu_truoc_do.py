@@ -222,7 +222,7 @@ def test_phieu_thu_cua_hoa_don_da_huy_khong_bao_con_no(client):
     assert r.status_code == 201, r.text
     hd = r.json()["id"]
     p = _thu(client, h, hd, 4_000_000)
-    # Huỷ hoá đơn bị chặn khi còn phiếu thu sống ⇒ huỷ phiếu thu trước.
+    # Huỷ phiếu thu (nhập sai) rồi huỷ hoá đơn.
     assert client.post(f"/api/accounting/payment-receipts/{p['id']}/cancel",
                        json={"reason": "Nhập sai"}, headers=h).status_code == 200
     assert client.post(f"/api/accounting/sales-invoices/{hd}/cancel",

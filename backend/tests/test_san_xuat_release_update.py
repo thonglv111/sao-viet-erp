@@ -82,7 +82,7 @@ def _mark_started(db, cv) -> None:
 # --- Đọc thông tin gói (cho UI quyết nút Cập nhật / Thu hồi) ------------------
 def test_thong_tin_goi_chua_phat_hanh(db, orders, lsx_svc, admin, customer):
     a, _b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
-    assert release_update.thong_tin_goi(db, nguon="lsx", id=a.id) == {"co_goi": False}
+    assert release_update.thong_tin_goi(db, nguon="lsx", id=a.id) == {"co_goi": False, "lich_su_goi": []}
 
 
 def test_thong_tin_goi_sau_phat_hanh(db, orders, lsx_svc, xl_svc, admin, customer):
@@ -352,8 +352,10 @@ def test_thu_hoi_goi_khi_chua_bat_dau(db, orders, lsx_svc, xl_svc, admin, custom
 
     db.refresh(goi)
     assert goi.trang_thai == GOI_DA_THU_HOI
-    # Gói đã thu hồi biến khỏi "gói hiện tại" → thông tin gói báo không còn.
-    assert release_update.thong_tin_goi(db, nguon="lsx", id=a.id) == {"co_goi": False}
+    # Gói đã thu hồi biến khỏi "gói hiện tại" → thông tin gói báo không còn, nhưng lịch sử giữ nó (#25).
+    tt = release_update.thong_tin_goi(db, nguon="lsx", id=a.id)
+    assert tt["co_goi"] is False
+    assert [(g["goi_id"], g["trang_thai"]) for g in tt["lich_su_goi"]] == [(goi.id, GOI_DA_THU_HOI)]
 
     pc = db.query(SanXuatPhanCong).filter_by(cong_viec_id=cv.id).first()
     assert pc.trang_thai == PC_DA_RUT

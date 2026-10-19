@@ -31,7 +31,7 @@ type Xep = "don" | "han";
  *  thiểu ≤818px: vừa cột trái của ngăn ở độ rộng mặc định (~840px, trừ thanh cuộn dọc) — không cuộn ngang;
  *  hẹp hơn (dưới 760px) thì khung cuộn. Cột tiền 114px (đủ 9,99 tỷ), Còn nợ 122px (tổng ở dòng Cộng),
  *  Hạn trả 154px (vừa "22/10/2026 còn 14", chữ đủ ở title). Số đã tính đệm ô 10px của lds-g. */
-function cacCot(coChon: boolean, xep: Xep): { rong: (number | null)[]; toiThieu: number } {
+function cacCot(coChon: boolean, xep: Xep, coHoan = false): { rong: (number | null)[]; toiThieu: number } {
   // Xếp theo hạn: ô Đợt mang cả mã đơn ("PMH-0012 đợt 2") nên rộng hơn, Hoá đơn nhường lại.
   // Đo 08/10 (Be Vietnam Pro 13px): "22/10/2026 còn 14" (ChuHan gọn) ⇒ Hạn trả 152; Trừ cọc 104 (đủ
   // trăm triệu). Tổng ≤ 818 để vừa khung cột trái đo được 820px (824 cũ luôn hiện thanh cuộn).
@@ -42,7 +42,8 @@ function cacCot(coChon: boolean, xep: Xep): { rong: (number | null)[]; toiThieu:
   const dot = xep === "don" ? 58 : 194;
   // Tiêu đề "Ngày nhận hàng" / "Ngày hoá đơn" đo ~100px + đệm ⇒ 120 / 114; số hoá đơn co giãn, tối thiểu 112.
   const coGian = 112;
-  const rong = [...(coChon ? [38] : []), dot, 120, null, 88, 114, 154, 114, 106, 114, 122];
+  // Cột "NCC hoàn" chỉ khi có khoản hoàn (#73) — không có thì bảng giữ bề rộng cũ.
+  const rong = [...(coChon ? [38] : []), dot, 120, null, 88, 114, 154, 114, 106, 114, ...(coHoan ? [106] : []), 122];
   return { rong, toiThieu: rong.reduce<number>((t, w) => t + (w ?? coGian), 0) };
 }
 
@@ -91,7 +92,8 @@ function OHoaDon({ row }: { row: PayableItemRow }) {
   );
 }
 
-const cong = (ds: PayableItemRow[], k: "amount" | "coc_bu" | "paid" | "con_no") => ds.reduce((s, r) => s + r[k], 0);
+const cong = (ds: PayableItemRow[], k: "amount" | "coc_bu" | "paid" | "con_no" | "hoan_ncc") =>
+  ds.reduce((s, r) => s + (r[k] ?? 0), 0);
 
 export function DotConNoBlock({
   detail,
@@ -131,7 +133,10 @@ export function DotConNoBlock({
     );
   }
 
-  const { rong, toiThieu } = cacCot(coChon, xep);
+  // NCC hoàn tiền không gắn đơn cộng nợ lại vào đợt hạn muộn nhất (#36). Có khoản đó thì phải có
+  // cột riêng, không thì "Giá trị − Trừ cọc − Đã trả" không ra Còn nợ (#73).
+  const coHoan = khoanNo.some((r) => (r.hoan_ncc ?? 0) > 0);
+  const { rong, toiThieu } = cacCot(coChon, xep, coHoan);
   const soCot = rong.length;
 
   function dao(ids: number[], bat: boolean) {
@@ -174,10 +179,12 @@ export function DotConNoBlock({
             <td className="c" onClick={(e) => e.stopPropagation()}>
               {row.delivery_id == null ? (
                 // Đơn cũ không theo đợt: ô mờ + lời giải thích, không giấu đi — giấu thì người dùng
-                // tưởng dòng này trả gộp được mà không ra.
+                // tưởng dòng này trả gộp được mà không ra. Máy chủ chặn phiếu thanh toán không gắn
+                // đợt (luật 09/08/2026) và màn Đơn mua hàng không có nút lập phiếu chi ⇒ nói đúng lý
+                // do, không chỉ tới chỗ không làm được (#56, 18/10/2026).
                 <input type="checkbox" className="kt-ck" disabled
                   aria-label={`Chọn ${tenKhoan(row)} của ${row.code}`}
-                  title="Đơn cũ không theo đợt giao. Lập phiếu chi cho đơn này ở màn Đơn mua hàng." />
+                  title="Đơn nhận hàng kiểu cũ, không theo đợt giao. Phiếu thanh toán phải gắn đợt giao nên đơn này chưa trả được ở đây." />
               ) : chonDuoc(row) ? (
                 <input type="checkbox" className="kt-ck" checked={daTich}
                   aria-label={`Chọn ${tenKhoan(row)} của ${row.code}`}
@@ -205,6 +212,7 @@ export function DotConNoBlock({
           <td className="n">{vietSo(row.amount)}</td>
           <td className="n"><OTien so={row.coc_bu} /></td>
           <td className="n"><OTien so={row.paid} /></td>
+          {coHoan && <td className="n"><OTien so={row.hoan_ncc ?? 0} /></td>}
           <td className="n"><OTien so={row.con_no} /></td>
         </tr>
         {mo && <HangCuaDot item={row} soCot={soCot} />}
@@ -252,6 +260,7 @@ export function DotConNoBlock({
             <td className="n">{vietSo(cong(don.items, "amount"))}</td>
             <td className="n"><OTien so={cong(don.items, "coc_bu")} /></td>
             <td className="n"><OTien so={cong(don.items, "paid")} /></td>
+            {coHoan && <td className="n"><OTien so={cong(don.items, "hoan_ncc")} /></td>}
             <td className="n"><OTien so={don.con_no} /></td>
           </tr>
           {don.items.map((row) => dongDot(row, false))}
@@ -285,6 +294,7 @@ export function DotConNoBlock({
               <th className="n">Giá trị</th>
               <th className="n">Trừ cọc</th>
               <th className="n">Đã trả</th>
+              {coHoan && <th className="n" title="Nhà cung cấp hoàn tiền không gắn đơn, cộng nợ lại vào đợt hạn muộn nhất">NCC hoàn</th>}
               <th className="n">Còn nợ</th>
             </tr>
           </thead>
@@ -296,6 +306,7 @@ export function DotConNoBlock({
               <td className="n">{vietSo(cong(khoanNo, "amount"))}</td>
               <td className="n"><OTien so={cong(khoanNo, "coc_bu")} /></td>
               <td className="n"><OTien so={cong(khoanNo, "paid")} /></td>
+              {coHoan && <td className="n"><OTien so={cong(khoanNo, "hoan_ncc")} /></td>}
               <td className="n"><OTien so={cong(khoanNo, "con_no")} /></td>
             </tr>
           </tbody>

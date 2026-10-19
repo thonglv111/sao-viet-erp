@@ -80,6 +80,7 @@ export function emptySupplier(): SupplierInput {
     // xem hint trên form.
     credit_limit: 0,
     credit_days: null,
+    debt_cutoff_day: null,
     status: "active",
     nhan_gia_cong: false,
     note: "",
@@ -99,6 +100,7 @@ export function fromSupplier(row: SupplierRow): SupplierInput {
     payment_terms: row.payment_terms ?? "",
     credit_limit: row.credit_limit ?? 0,
     credit_days: row.credit_days ?? null,
+    debt_cutoff_day: row.debt_cutoff_day ?? null,
     status: row.status,
     nhan_gia_cong: row.nhan_gia_cong ?? false,
     note: row.note ?? "",
@@ -169,6 +171,7 @@ export function cleanSupplier(input: SupplierInput): SupplierInput {
       input.credit_days == null
         ? null
         : Math.max(0, Math.round(Number(input.credit_days) || 0)),
+    debt_cutoff_day: input.debt_cutoff_day || null,
     status: input.status ?? "active",
     nhan_gia_cong: Boolean(input.nhan_gia_cong),
     note: trimOptional(input.note),

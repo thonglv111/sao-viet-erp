@@ -3716,6 +3716,8 @@ select.tg-input--sm {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Khổ giấy ngay sau tên dòng giấy (18/10/2026) — chữ nhỏ xám, không dấu nối. */
+.tg-bvt__kho { margin-left: var(--sp-2); font-size: 12px; font-weight: 400; color: var(--ash-2); }
 .tg-bvt__luong {
   grid-area: luong;
   display: inline-flex;

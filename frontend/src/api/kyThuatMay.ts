@@ -53,6 +53,8 @@ export interface SuaChua {
   nguyen_nhan_phuong_an: string | null;
   trang_thai: string;
   hoan_thanh_at: string | null;
+  /** Giây phiếu đã đóng, cộng dồn các lần mở lại — trừ khỏi "Sửa mất" (#71). */
+  thoi_gian_dong_giay: number;
   ghi_chu: string | null;
   created_at: string | null;
   // dẫn xuất (backend bơm) — KHÔNG gửi lên khi lưu
@@ -236,9 +238,10 @@ export const kyThuatMay = {
   updateSuaChua(token: string, id: number, body: Record<string, unknown>): Promise<SuaChua> {
     return authed<SuaChua>(`${P}/sua-chua/${id}`, token, { method: "PUT", body: JSON.stringify(body) });
   },
-  trangThaiSuaChua(token: string, id: number, trang_thai: string): Promise<SuaChua> {
+  /** `ly_do` bắt buộc khi MỞ LẠI phiếu đã sửa xong (máy chủ trả 400 nếu thiếu). */
+  trangThaiSuaChua(token: string, id: number, trang_thai: string, ly_do?: string): Promise<SuaChua> {
     return authed<SuaChua>(`${P}/sua-chua/${id}/trang-thai`, token, {
-      method: "POST", body: JSON.stringify({ trang_thai }),
+      method: "POST", body: JSON.stringify(ly_do ? { trang_thai, ly_do } : { trang_thai }),
     });
   },
   // KHÔNG có `removeSuaChua`/`removeBaoTri` (12/08/2026): phiếu là vết của việc đã xảy ra, backend

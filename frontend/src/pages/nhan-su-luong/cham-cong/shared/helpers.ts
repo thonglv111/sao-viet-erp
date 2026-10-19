@@ -85,6 +85,16 @@ export function docONgay(day: TimesheetDay | undefined, heSo: HeSoNgay): ONgay {
     // để màu lặng như cuối tuần, đừng mượn màu lễ/phép.
     o.variant = " cc-month-cell--weekend";
     o.statusLabel = "Nghỉ theo lịch";
+  } else if (day.khong_cham) {
+    // Ngày làm việc đã qua, có ca, KHÔNG một lượt bấm nào (chủ 14/10/2026: "quên cả vào lẫn ra mà
+    // không thể hiện gì") — trước đây ô chỉ có tên ca, y hệt ngày chưa tới.
+    o.variant = " cc-month-cell--khong-cham";
+    o.statusLabel = "Không chấm công";
+    o.pills.push({
+      text: "✕",
+      tone: "red",
+      title: "Ngày làm việc đã qua mà không có lượt chấm nào (quên chấm vào và ra / vắng)",
+    });
   }
   if (day.ot_minutes) {
     o.pills.push({ text: "+OT", tone: "orange", title: `Tăng ca: ${day.ot_minutes}′` });

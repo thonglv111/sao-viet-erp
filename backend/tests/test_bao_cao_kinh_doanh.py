@@ -346,7 +346,71 @@ def test_thuc_hien_don_luy_ke_toi_cuoi_ky_va_loc_giao_thu(client):
                    headers=_h(client))
     ws = load_workbook(BytesIO(x.content)).active
     assert ws["O4"].value == "Tỷ lệ báo giá" and ws["P4"].value == "Đã giao (SL)"
-    assert ws["V4"].value == "Hẹn giao"
+    assert ws["T4"].value == "Điều chỉnh giảm" and ws["X4"].value == "Hẹn giao"
+    assert ws["V4"].value == "Trả lại ngoài đơn" and ws["W4"].value == "Còn phải thu"
     don_g1 = next(r for r in range(5, ws.max_row + 1) if ws[f"A{r}"].value == "DH-BCKD-G1")
-    assert (ws[f"R{don_g1}"].value, ws[f"T{don_g1}"].value, ws[f"U{don_g1}"].value) == (432_000, 524_000, 556_000)
+    assert (ws[f"R{don_g1}"].value, ws[f"T{don_g1}"].value, ws[f"U{don_g1}"].value, ws[f"W{don_g1}"].value) == (
+        432_000, 0, 524_000, 556_000)
     assert (ws[f"P{don_g1 + 1}"].value, ws[f"Q{don_g1 + 1}"].value) == (40, 60)
+
+
+def test_dieu_chinh_giam_bot_so_khach_phai_thu(client):
+    """Hoá đơn điều chỉnh giảm (hoàn chiết khấu, 18/10/2026): hoá đơn gốc vẫn 100%, nhưng khách chỉ phải
+    trả phần sau điều chỉnh — trả đúng số đó là ĐỦ, không còn "thu một phần". Lũy kế tới hết `den_ngay`."""
+    from app.models.accounting import SalesInvoiceAdjustment
+
+    kh = _khach("Công ty BCKD Điều chỉnh", "KH-BCKD-DC")
+    don = _don(kh, "DH-BCKD-DC", chot_luc=_luc(2026, 8, 3), dong=(("Hộp cứng", 100, 10000),))  # 1.080.000
+    hd = _hoa_don(don, kh, 1_080_000, date(2026, 8, 10))
+    db = SessionLocal()
+    try:
+        db.add(SalesInvoiceAdjustment(sales_invoice_id=hd, order_id=don, adj_symbol="1C26DC",
+                                      adj_number="DC-BCKD-1", adj_date=date(2026, 8, 20),
+                                      amount_vnd=54_000, reason="Chiết khấu"))
+        db.commit()
+    finally:
+        db.close()
+    _phieu_thu(don, 1_026_000, date(2026, 8, 25), hoa_don_id=hd)
+
+    def dong(den):
+        j = client.get(URL, params={"tu_ngay": "2026-08-01", "den_ngay": den}, headers=_h(client)).json()
+        return {x["order_no"]: x for k in j["khach"] for x in k["don"]}["DH-BCKD-DC"], j["tong"]
+
+    d, tong = dong("2026-08-31")
+    assert (d["da_xuat_hd"], d["dieu_chinh"], d["da_thu"], d["con_phai_thu"], d["thu"]) == (
+        1_080_000, 54_000, 1_026_000, 0, "du")
+    assert tong["dieu_chinh"] == 54_000
+    # In lại kỳ trước ngày điều chỉnh: chưa có điều chỉnh, khách mới trả 0 ⇒ còn phải thu cả đơn.
+    d, _ = dong("2026-08-15")
+    assert (d["dieu_chinh"], d["da_thu"], d["con_phai_thu"], d["thu"]) == (0, 0, 1_080_000, "chua")
+
+
+def test_bckd_tru_hoan_khach_ngoai_don_nhu_cong_no(client):
+    """Tiền trả lại khách KHÔNG gắn đơn cộng nợ lại vào hoá đơn hạn muộn nhất của khách — Báo cáo kinh
+    doanh đi cùng luật Công nợ phải thu (lỗi #47 bấm thử 18/10/2026: BIBICA báo cáo còn 13.471.796,
+    Công nợ ghi 18.471.796, chênh đúng phiếu chi 5.000.000 trả lại khách ngoài đơn). Đã thu giữ số
+    thật của phiếu; khoản cộng lại đứng riêng. In lại kỳ trước ngày trả lại thì chưa có khoản đó."""
+    from tests.test_ban_hang_cho_thu_chi import _tra_lai
+
+    h = _h(client)
+    hom_nay = datetime.now(VN).date()
+    kh = _khach("Công ty BCKD Trả lại", "KH-BCKD-TL")
+    don = _don(kh, "DH-BCKD-TL", chot_luc=datetime.now(timezone.utc) - timedelta(days=20),
+               dong=(("Hộp cứng", 100, 10000),))  # 1.080.000 có VAT
+    hd = _hoa_don(don, kh, 1_080_000, hom_nay - timedelta(days=10))
+    _phieu_thu(don, 1_080_000, hom_nay - timedelta(days=5), hoa_don_id=hd)
+    r = _tra_lai(client, h, kh=kh, don=None, tien=300_000)
+    assert r.status_code == 201, r.text
+
+    def dong(den: date):
+        j = client.get(URL, params={"tu_ngay": (hom_nay - timedelta(days=30)).isoformat(),
+                                    "den_ngay": den.isoformat()}, headers=h).json()
+        return {x["order_no"]: x for k in j["khach"] for x in k["don"]}["DH-BCKD-TL"]
+
+    d = dong(hom_nay)
+    assert (d["da_thu"], d["hoan_khong_don"], d["con_phai_thu"], d["thu"]) == (
+        1_080_000, 300_000, 300_000, "mot_phan")
+    no = client.get(f"/api/accounting/receivables/{kh}", headers=h).json()["total_due"]
+    assert no == d["con_phai_thu"]
+    d = dong(hom_nay - timedelta(days=1))
+    assert (d["hoan_khong_don"], d["con_phai_thu"], d["thu"]) == (0, 0, "du")

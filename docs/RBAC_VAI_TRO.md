@@ -40,7 +40,7 @@ trên module *Khách hàng* — bật hay tắt đều không đổi gì. Script
 | **Kế hoạch SX** | *Của tôi* | chỉ **Xem** — để biết vật tư đã đặt tới đâu |
 | **Giám đốc** | *Tất cả* | đủ 4 ô |
 
-⚠️ **Không vai mua hàng nào duyệt được PMH.** Ô *Duyệt / từ chối PMH* thuộc module **Kế toán** —
+⚠️ **Không vai mua hàng nào duyệt được PMH.** Ô *Duyệt đơn mua hàng* thuộc module **Kế toán** —
 người mua lập phiếu, kế toán quyết chi. Tách vai cố ý.
 
 ### 2.2 Kế toán
@@ -57,7 +57,7 @@ Vai **Kế toán tổng hợp** thêm 26/08/2026 — trước đó 5 màn tách 
 ngoài Giám đốc, tức người làm kế toán không mở nổi màn của chính mình. Bộ ô bám vai mẫu
 `ke_toan` cũ (bảng vai mẫu + nút "Điền theo vai mẫu" đã gỡ 05/10/2026 — cấp quyền từng ô trực tiếp).
 
-⚠️ **Kế toán tổng hợp KHÔNG duyệt được PMH.** Ô *Duyệt / từ chối PMH* (`ke_toan:approve`) vẫn
+⚠️ **Kế toán tổng hợp KHÔNG duyệt được PMH.** Ô *Duyệt đơn mua hàng* (`ke_toan:approve`) vẫn
 chỉ Giám đốc giữ — cùng cách chia việc với phân hệ Mua hàng ở §2.1: người ghi sổ không tự quyết chi.
 
 Từ 20/09/2026 tách vai chỉ còn nằm ở **phân quyền**: tầng nghiệp vụ không chặn người lập tự duyệt

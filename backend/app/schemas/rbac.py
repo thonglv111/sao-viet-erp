@@ -305,6 +305,8 @@ class AuditRow(BaseModel):
     nhom: str = "khac"
     target: str
     target_loai: str | None = None
+    #: "Tài sản #28" cho loại ngoài khối danh mục (`audit_registry.TEN_DOI_TUONG`); None = chưa khai.
+    target_nhan: str | None = None
     detail: str
     created_at: datetime
 

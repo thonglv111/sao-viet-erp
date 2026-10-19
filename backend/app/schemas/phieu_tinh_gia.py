@@ -7,14 +7,19 @@ optional (cho phép tạo nháp trắng / thành phần thiếu). SAVE = engine 
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 
 # ============================ VẬT TƯ CỦA BƯỚC (spec 2026-10-01) ============================
 class BuocVatTuIn(BaseModel):
-    """1 vật tư của một bước (đầu vào). `gia_tri_chip` = {mã chip riêng của vật tư: số}."""
+    """1 vật tư của một bước (đầu vào). `gia_tri_chip` = {mã chip riêng của vật tư: số}.
+
+    `hang_loai` (18/10/2026): `giay` ⇒ `vat_tu_id` trỏ `giay_nguyen` — giấy chọn ở bước như mọi vật
+    tư, không chip. Vắng = `vat_tu` (payload cũ)."""
     thu_tu: int | None = None
+    hang_loai: Literal["vat_tu", "giay"] = "vat_tu"
     vat_tu_id: int
     gia_tri_chip: dict[str, float] | None = None
 
@@ -24,6 +29,7 @@ class BuocVatTuOut(BaseModel):
 
     id: int
     thu_tu: int
+    hang_loai: str = "vat_tu"
     vat_tu_id: int
     gia_tri_chip: dict[str, float] = Field(default_factory=dict)
 

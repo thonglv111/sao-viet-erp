@@ -39,8 +39,9 @@ export const THE_CONG_NO: [TheCongNo, string][] = [
   ["overdue", "Quá hạn"],
   ["vuot_han_muc", "Vượt hạn mức"],
 ];
-/** Nút riêng của phải thu (13/10/2026): khách còn giữ cọc của đơn đã huỷ, chờ lập phiếu chi trả lại. */
-export const THE_TRA_COC: [TheCongNo, string] = ["tra_coc", "Còn giữ cọc đơn huỷ"];
+/** Nút riêng của phải thu (13/10/2026): khách còn tiền ở đơn đã huỷ (cọc + tiền hoá đơn đã huỷ), chờ lập
+ *  phiếu chi trả lại. */
+export const THE_TRA_COC: [TheCongNo, string] = ["tra_coc", "Chờ trả lại tiền khách"];
 
 const HAN_TRA: GiaTriDK[] = [
   { value: "qua_han", nhan: "Đã quá hạn" },

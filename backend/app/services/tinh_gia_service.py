@@ -41,18 +41,56 @@ class DanhMucNapSan:
     ct_gia_may: dict[int, dict[int, str]] = field(default_factory=dict)
     cong_doan: dict[int, CongDoan] = field(default_factory=dict)
     vat_tu: dict[int, VatTuInAn] = field(default_factory=dict)
+    # Đơn vị + cặp quy đổi (`don_vi_map` / `cap_map`) — để quy đơn giá giấy khai theo ram/tấn/...
+    # về giá một tờ (một kg). Chỉ nạp khi phiếu có giấy.
+    dvs: dict[str, dict] = field(default_factory=dict)
+    cap: dict[str, dict[str, float]] = field(default_factory=dict)
+
+
+def quy_gia_giay(ma: str | None, nap: DanhMucNapSan) -> tuple[float | None, str | None]:
+    """`(hệ số, gốc)` để quy đơn giá giấy khai theo `ma` về giá MỘT TỜ hoặc MỘT KG (16/10/2026):
+    đ/ram × 1/500 về `"to"`; giấy bán theo cân không về tờ được ⇒ đ/tấn × 1/1.000 về `"kg"`.
+    `to`/`kg` = `(1, chính nó)`. Không có đường quy đổi (hoặc chưa khai đơn vị) ⇒ `(None, None)` —
+    engine lùi về luật cũ, không bịa hệ số."""
+    from .quy_doi_service import duong_di, he_so_duong
+
+    if not ma:
+        return None, None
+    ma = ma.strip().lower()
+    for goc in ("to", "kg"):
+        if ma == goc:
+            return 1.0, goc
+        duong = duong_di(ma, goc, nap.cap)
+        if duong:
+            hs = he_so_duong(duong, nap.cap)
+            return (1.0 / hs if hs > 0 else None), goc
+    return None, None
+
+
+def he_so_gia_giay(ma: str | None, nap: DanhMucNapSan) -> float | None:
+    """Hệ số nhân đơn giá giấy về giá một tờ / một kg — xem `quy_gia_giay`."""
+    return quy_gia_giay(ma, nap)[0]
 
 
 def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
-    giay_ids = {int(tp.giay_id) for tp in tps if tp.giay_id is not None}
+    # Dòng vật tư của bước khoá CẶP (18/10/2026): `hang_loai='giay'` trỏ `giay_nguyen`, còn lại
+    # trỏ `vat_tu_in_an` — Giấy #7 và Vật tư #7 là hai món, gom chung một bộ id là nạp nhầm bảng.
+    dong = [v for tp in tps for r in tp.thanh_phams for v in r.vat_tus if v.vat_tu_id is not None]
+    giay_ids = ({int(tp.giay_id) for tp in tps if tp.giay_id is not None}
+                | {int(v.vat_tu_id) for v in dong if v.hang_loai == "giay"})
     may_ids = {int(tp.may_id) for tp in tps if tp.may_id is not None}
     cd_ids = {int(r.cong_doan_id) for tp in tps for r in tp.thanh_phams if r.cong_doan_id is not None}
-    vt_ids = {int(v.vat_tu_id) for tp in tps for r in tp.thanh_phams for v in r.vat_tus
-              if v.vat_tu_id is not None}
+    vt_ids = {int(v.vat_tu_id) for v in dong if v.hang_loai != "giay"}
     nap = DanhMucNapSan()
     if giay_ids:
         nap.giay = {g.id: g for g in db.execute(
             select(GiayNguyen).where(GiayNguyen.id.in_(giay_ids))).scalars()}
+        from ..repositories.don_vi_do_repo import DonViDoRepository
+        from .quy_doi_service import cap_map, don_vi_map
+
+        repo = DonViDoRepository(db)
+        nap.dvs = don_vi_map(repo.all_rows())
+        nap.cap = cap_map(repo.cap_rows())
     if may_ids:
         nap.may = {m.id: m for m in db.execute(
             select(MayThietBi).where(MayThietBi.id.in_(may_ids))).scalars()}
@@ -71,17 +109,30 @@ def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
     return nap
 
 
-def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham,
-                      vat_tu_map: dict[int, VatTuInAn] | None = None) -> list[dict]:
+def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham, nap: DanhMucNapSan) -> list[dict]:
     """Vật tư của MỘT bước kèm công thức giá + chip của vật tư (engine không tự tra DB).
 
-    Vật tư đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống."""
+    Dòng GIẤY (18/10/2026) mang định lượng + công thức + đơn giá của chính mã giấy, kèm hệ số quy
+    đơn giá về một tờ / một kg — engine tính tiền mỗi dòng giấy theo đầu vào của bước.
+    Món đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống."""
     out: list[dict] = []
     for vt in sorted(buoc.vat_tus or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
-        m = vat_tu_map.get(vt.vat_tu_id) if vat_tu_map is not None else db.get(VatTuInAn, vt.vat_tu_id)
+        if vt.hang_loai == "giay":
+            g = nap.giay.get(int(vt.vat_tu_id))
+            if g is None:
+                continue
+            he_so, goc = quy_gia_giay(g.don_vi_gia, nap)
+            out.append({
+                "hang_loai": "giay", "vat_tu_id": g.id, "ten": g.ten, "gsm": g.gsm,
+                "don_gia": _f(g.don_gia), "don_vi_gia": g.don_vi_gia,
+                "he_so": he_so, "goc": goc, "cong_thuc_gia": g.cong_thuc_gia,
+            })
+            continue
+        m = nap.vat_tu.get(vt.vat_tu_id)
         if m is None:
             continue
         out.append({
+            "hang_loai": "vat_tu",
             "vat_tu_id": m.id,
             "ten": m.ten,
             "don_gia": _f(m.don_gia),
@@ -187,16 +238,21 @@ def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> di
         else:
             d[k] = _f(v)  # Decimal → float
 
-    # Giấy: bơm định lượng + tên + CÔNG THỨC + đơn giá. Đơn giá/kg CHỐT CỨNG ở danh mục Giấy —
-    # luôn lấy theo record (phiếu không sửa). Khổ KHÔNG còn ở danh mục → nhập tay ở phiếu (kho_nguyen).
-    if tp.giay_id is not None:
-        giay = nap.giay.get(int(tp.giay_id))
-        if giay is not None:
-            d["gsm"] = giay.gsm
-            d["giay_ten"] = giay.ten
-            d["cong_thuc_gia"] = giay.cong_thuc_gia   # G1: bơm công thức cấu hình từ danh mục Giấy
-            d["don_gia_giay"] = _f(giay.don_gia)      # chốt cứng: đơn giá/kg theo danh mục
+    # Giấy CHÍNH (`giay_id`, máy chủ dẫn xuất từ dòng giấy của bước — `ptg_giay_buoc`): nuôi định
+    # lượng (`dinh_luong`) + tên giấy của quy cách. TIỀN giấy thì tính theo từng dòng giấy ở bước;
+    # chỉ chuỗi RỖNG (phiếu/test cũ chưa có bước) mới còn tính giấy cấp sản phẩm như trước. Cột
+    # `don_gia_giay` trong DB có thể còn số cũ từ thời chọn giấy ở mục 2 — không cho nó đẻ dòng giấy ma.
+    d["don_gia_giay"] = 0.0
+    d["cong_thuc_gia"] = None
+    giay = nap.giay.get(int(tp.giay_id)) if tp.giay_id is not None else None
+    if giay is not None:
+        d["gsm"] = giay.gsm
+        d["giay_ten"] = giay.ten
+        if not tp.thanh_phams:
+            d["cong_thuc_gia"] = giay.cong_thuc_gia   # G1: công thức cấu hình từ danh mục Giấy
+            d["don_gia_giay"] = _f(giay.don_gia)      # chốt cứng: đơn giá theo danh mục
             d["don_gia_don_vi"] = giay.don_vi_gia
+            d["don_gia_giay_he_so"] = he_so_gia_giay(giay.don_vi_gia, nap)
 
     # Khổ giấy nguyên ①: nhập tay ở phiếu (kho_nguyen_dai/rong). Áp cả khi khách cấp giấy.
     if _f(d.get("kho_nguyen_dai")):
@@ -234,7 +290,7 @@ def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> di
     # Máy in được chọn ở khối In của THÀNH PHẦN (`PhieuThanhPhan.may_id`) — đây là chỗ DUY NHẤT
     # phiếu tính giá chọn máy, nên chỉ dòng công đoạn nhóm In mới có cơ hội ăn công thức riêng.
     ct_gia_theo_cd = nap.ct_gia_may.get(int(tp.may_id), {}) if tp.may_id is not None else {}
-    cd_map, vt_map = nap.cong_doan, nap.vat_tu
+    cd_map = nap.cong_doan
     rows: list[dict] = []
     for row in sorted(tp.thanh_phams, key=lambda r: (r.thu_tu or 0, r.id or 0)):
         rd: dict = {}
@@ -249,7 +305,7 @@ def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> di
                 rd["cong_doan"] = _cong_doan_to_dict(
                     cd, tram,
                     ct_gia_may=ct_gia_theo_cd.get(cd.id) if cd.nhom == "print" else None)
-        rd["vat_tus"] = _vat_tus_cua_buoc(db, row, vt_map)
+        rd["vat_tus"] = _vat_tus_cua_buoc(db, row, nap)
         rows.append(rd)
     d["thanh_phams"] = rows
 
@@ -358,7 +414,8 @@ def danh_muc_doi_sau_khi_tinh(db: Session, phieu) -> dict | None:
                     ten_luu_cd[cid] = str(f.ten)
             for vt in f.vat_tus:
                 if vt.vat_tu_id:
-                    vt_ids.add(int(vt.vat_tu_id))
+                    # Khoá CẶP: dòng giấy của bước trỏ `giay_nguyen`, không phải `vat_tu_in_an`.
+                    (giay_ids if vt.hang_loai == "giay" else vt_ids).add(int(vt.vat_tu_id))
 
     # Bậc bù hao NAY nằm trên chính công đoạn (22/09/2026) nên đã được soi cùng dòng Công đoạn
     # ngay dưới — sửa bậc là `cong_doan.updated_at` nhảy. Trước đây bù hao là danh mục riêng, công

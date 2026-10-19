@@ -153,6 +153,12 @@ class Supplier(Base):
     # giao. 0 = trả ngay. NULL = CHƯA ĐẶT HẠN ⇒ đợt giao không bao giờ
     # vào cột "Quá hạn", nên màn Công nợ phải đẩy nó lên ĐẦU kèm badge thay vì để chìm.
     credit_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # NGÀY CHỐT CÔNG NỢ HẰNG THÁNG của NCC (1–31; 31 = cuối tháng, tháng ngắn rơi về ngày cuối).
+    # NULL = tính hạn từ ngày hoá đơn từng đợt. Điều khoản trả thuộc NCC, không thuộc đơn (16/10/2026,
+    # docs/prd-dieu-khoan-tra-tien-theo-ncc.md): NCC chốt công nợ một lần cho cả công ty mình, nên
+    # mỗi đơn một cách tính là sổ mình lệch bảng đối chiếu của họ. Migration 0415 chuyển từ
+    # `purchase_requests.debt_cutoff_day` sang đây.
+    debt_cutoff_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=SUPPLIER_ACTIVE)
     # NHẬN GIA CÔNG (26/09/2026) — nhà cung cấp này nhận gia công ngoài cho xưởng. Ô chọn "Nhà gia
     # công" ở Kế hoạch SX chỉ mời NCC đang hoạt động có cờ này. KHÔNG lọc theo chữ `supplier_group`
@@ -238,18 +244,7 @@ class PurchaseRequest(Base):
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     needed_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     expected_receipt_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    # NGÀY CHỐT CÔNG NỢ do NCC báo cho ĐƠN NÀY (chủ chốt 28/08/2026).
-    #
-    # Hạn trả của MỌI đợt giao trong đơn = ngày chốt + `suppliers.credit_days`. Điểm mấu chốt:
-    # đồng hồ chạy từ mốc CHỐT, không phải từ ngày hoá đơn — nên hàng giao 05/8 và hàng giao
-    # 28/8 cùng chốt 31/8 thì cùng hạn 30/9, đúng nếp NCC gom cả kỳ thành một lần thanh toán.
-    # Trước đó hệ tính `invoice_date + credit_days` nên cái giao 05/8 bị báo quá hạn sớm hơn
-    # thoả thuận thật tới 26 ngày.
-    #
-    # Khai ở ĐƠN chứ không ở từng đợt (chủ chốt: *"họ báo cho mình theo đơn hàng"*) — kể cả khi
-    # đơn giao vắt qua hai tháng thì mọi đợt vẫn chung một hạn.
-    # NULL = NCC chưa báo ⇒ `han_tra_dot` lùi về luật cũ, đơn cũ không vỡ cái nào.
-    debt_cutoff_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Ngày chốt công nợ KHÔNG còn ở đơn — dời sang `suppliers.debt_cutoff_day` (mg 0415, 16/10/2026).
     # Số hợp đồng mua. Bản thân hợp đồng là ẢNH đính kèm (`purchase_attachments.kind='hop_dong'`) —
     # cố ý KHÔNG dựng danh mục hợp đồng (chủ chốt 06/08/2026, Đ3).
     contract_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -290,6 +285,13 @@ class PurchaseRequest(Base):
         "PaymentVoucher",
         back_populates="purchase_request",
         order_by="PaymentVoucher.id",
+    )
+    # Dòng PHÂN BỔ phiếu chi trỏ vào đơn này (17/10/2026) — gồm cả phần của phiếu GỘP nhiều đơn, thứ
+    # `payment_vouchers` (theo cột nguồn đầu phiếu) không thấy. Mọi phép tính tiền đã chi đọc ở đây.
+    khoan_chi: Mapped[list["PaymentVoucherLine"]] = relationship(
+        "PaymentVoucherLine",
+        back_populates="purchase_request",
+        order_by="PaymentVoucherLine.id",
     )
     deliveries: Mapped[list["PurchaseDelivery"]] = relationship(
         "PurchaseDelivery",
@@ -354,6 +356,9 @@ class PurchaseRequestLine(Base):
 
 DOC_YCMH = "ycmh"
 DOC_PMH = "pmh"
+# Dòng lịch sử "bỏ một món, còn món sống" (lỗi #19): trạng thái lưu của yêu cầu không đổi, nên
+# `to_status` mang nhãn riêng này thay vì một trạng thái thật — chỉ tab Lịch sử đọc nó.
+LS_HUY_MOT_PHAN = "huy_mot_phan"
 STATUS_DOC_TYPES = (DOC_YCMH, DOC_PMH)
 
 # Ai làm đổi trạng thái. `may` = hệ tự suy, KHÔNG ai bấm — xem `PurchaseStatusHistory`.
@@ -428,8 +433,9 @@ class PurchaseDelivery(Base):
     # phải chứng từ ký được, nó là sự kiện của phiếu mua.
     seq_no: Mapped[int] = mapped_column(Integer, nullable=False)
     delivery_date: Mapped[date] = mapped_column(Date, nullable=False)
-    # Hạn trả riêng của đợt/dữ liệu cũ. Khi có ngày hóa đơn + số ngày cho nợ, service ưu tiên suy
-    # `invoice_date + suppliers.credit_days`; chưa có ngày hóa đơn mới dùng hạn này hoặc ngày giao.
+    # HẠN TRẢ ĐÃ CHỐT của đợt (16/10/2026): máy tính theo điều khoản NCC lúc ghi/sửa đợt hoặc gán
+    # hoá đơn (`tinh_han_dot`) rồi LƯU lại — sửa điều khoản NCC sau đó không kéo hạn đợt này theo.
+    # NULL = lúc chốt NCC chưa khai số ngày cho nợ ⇒ `han_tra_dot` tính theo điều khoản hiện hành.
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Ký hiệu hoá đơn (VD 1C26TAA). Một hoá đơn = cặp ký hiệu + số: số chỉ duy nhất trong một ký hiệu.
     invoice_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True)

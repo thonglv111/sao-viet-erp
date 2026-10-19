@@ -138,6 +138,20 @@ def test_check_in_window_blocks_morning_for_evening_shift():
         now_local=datetime(2026, 7, 21, 23, 0, tzinfo=VN_TZ),
     )
     assert ended is not None and "đã kết thúc" in ended
+    # Tên ca đã có chữ "Ca" ⇒ không ghép thêm ("Ca Ca tối …").
+    assert ended.startswith("Ca tối đã kết thúc")
+
+
+def test_check_in_reason_ten_ca_khong_co_chu_ca_thi_them():
+    shift = type("Shift", (), {
+        "name": "Hành chính", "start_minute": 8 * 60, "end_minute": 17 * 60,
+        "is_overnight": False,
+    })()
+    ended = check_in_block_reason(
+        shift=shift, work_day=date(2026, 7, 21),
+        now_local=datetime(2026, 7, 21, 18, 0, tzinfo=VN_TZ),
+    )
+    assert ended is not None and ended.startswith("Ca Hành chính đã kết thúc")
 
 
 def test_compute_day_cong_overnight():

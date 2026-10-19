@@ -142,7 +142,7 @@ def _import_giay(db: Session) -> int:
 # 2) Vật tư (thêm 20). Nhóm CÓ công thức tiền (mực/màng/dầu/kẽm) + nhóm phụ liệu giá phẳng.
 #    Công thức mực: diện tích in × số tờ × đơn giá × ĐỊNH MỨC (kg/m²/màu). Đặt đơn giá=1 ⇒ ra lượng.
 # ---------------------------------------------------------------------------------------------
-_CT_MUC = "so_mau * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * {dm}"   # nhiều màu
+_CT_MUC = "so_mau_phu * dai_in * rong_in * don_gia_vat_tu * to_dau_vao * {dm}"   # nhiều màu
 _CT_MUC_1 = "dai_in * rong_in * don_gia_vat_tu * to_dau_vao * {dm}"          # 1 màu named
 _CT_PHU_MAT = "dai_in * rong_in * don_gia_vat_tu * to_sau_in"               # phủ theo diện tích tờ tốt
 _CT_KEM = "so_kem * don_gia_vat_tu"                                          # theo số bản kẽm
@@ -278,7 +278,7 @@ _CONG_DOAN = [
     # --- Chế bản (không đơn vị dòng giấy; kieu_bu_hao khong) ---
     _cd("CD-1001", "Phơi kẽm PS", "prepress", "so_kem * 55000",
         nhom_may_cho_phep=[_CB], run_rate=55000),
-    _cd("CD-1002", "Bình bài điện tử", "prepress", "so_mau * 25000",
+    _cd("CD-1002", "Bình bài điện tử", "prepress", "so_mau_phu * 25000",
         nhom_may_cho_phep=[_CB], run_rate=25000),
     _cd("CD-1003", "Xuất film / ghi phim", "prepress", "so_kem * 40000",
         nhom_may_cho_phep=[_CB], run_rate=40000),

@@ -58,6 +58,35 @@ beforeEach(() => {
 });
 
 describe("ReceiptsDrawer — kiểu 3", () => {
+  it("phiếu gộp: khối Các khoản trong phiếu từng dòng, Còn nợ của hoá đơn từ đối chiếu; Đơn bán liệt kê từng đơn", async () => {
+    const GOP = phieuThu({
+      id: 21, code: "PT-261017-GOP1", doc_no: "PT00030", source_type: "sales_invoice", sales_invoice_id: null,
+      sales_invoice_number: null, order_id: null, order_code: "DH-0021 +1", customer_id: 3, amount: 8_000_000,
+      amount_vnd: 8_000_000,
+      lines: [
+        { order_id: 21, order_code: "DH-0021", sales_invoice_id: null, invoice_number: null, amount: 3_000_000 },
+        { order_id: 18, order_code: "DH-0018", sales_invoice_id: 77, invoice_number: "0000123", amount: 5_000_000 },
+      ],
+    });
+    const moDon = vi.fn();
+    ve(GOP, { onMoDonBan: moDon }, {
+      doi_chieu: [{ order_code: "DH-0018", invoice_number: "0000123", truoc_do: 1_000_000, con_no_sau: 6_000_000 }],
+    });
+    expect(screen.queryByText("Áp vào hoá đơn")).toBeNull();
+    const bang = await screen.findByRole("table", { name: "Các khoản trong phiếu" });
+    expect(within(bang).getAllByRole("columnheader").map((th) => th.textContent))
+      .toEqual(["Đơn bán", "Khoản", "Thu trước đó", "Phiếu này", "Còn nợ"]);
+    const dong = within(bang).getAllByRole("row");
+    expect([...dong[1].querySelectorAll("td")].map((c) => c.textContent)).toEqual(["DH-0021", "Cọc", "–", "3.000.000", "–"]);
+    await waitFor(() =>
+      expect([...dong[2].querySelectorAll("td")].map((c) => c.textContent))
+        .toEqual(["DH-0018", "HĐ 0000123", "1.000.000", "5.000.000", "6.000.000"]));
+    const cot = screen.getByRole("complementary", { name: "Thuộc tính" });
+    expect(within(cot).queryByText("DH-0021 +1")).toBeNull();
+    await userEvent.click(within(cot).getByRole("button", { name: "DH-0018" }));
+    expect(moDon).toHaveBeenCalledWith(18);
+  });
+
   it("số tiền làm tiêu đề; cột Thuộc tính có người nộp, tài khoản nhận, mã giao dịch, đơn bán, mã hệ thống", async () => {
     ve(PHIEU_HD);
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("32.000.000");

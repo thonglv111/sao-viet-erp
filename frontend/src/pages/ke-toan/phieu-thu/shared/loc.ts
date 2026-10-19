@@ -21,8 +21,10 @@ export { LOC_TRONG };
 /** Mốc kỳ của màn — mặc định Ngày tạo. */
 export const MOC_PT: [string, string][] = [["tao", "Ngày tạo"], ["thu", "Ngày thu"]];
 
-/** Thẻ lọc đầu bảng. "cho" (Chờ thu) chỉ hiện khi còn phiếu CŨ chờ thu (`the_loc.cho > 0`). */
-export type TheLocPT = "tat_ca" | "xong" | "thieu" | "cho" | "da_huy";
+/** Thẻ lọc đầu bảng. "cho" (Chờ thu) chỉ hiện khi còn phiếu CŨ chờ thu (`the_loc.cho > 0`). "dh" không
+ *  lọc phiếu — nó đổi bảng sang hàng "Đơn hàng chờ thu" (cọc + hoá đơn, 17/10/2026). */
+// Lọc theo chứng từ gốc ĐÃ GỠ hẳn: thẻ "Thiếu chứng từ gốc" 17/10/2026, điều kiện "Chứng từ" ở nút Lọc 18/10/2026.
+export type TheLocPT = "tat_ca" | "xong" | "cho" | "dh" | "da_huy";
 
 /** Bộ lọc ĐÃ ÁP. */
 export type LocPT = LocNangCao;
@@ -33,10 +35,7 @@ export const CAU_HINH_LOC_PT: CauHinhLocPhieu = {
 };
 
 const TRANG_THAI: Partial<Record<TheLocPT, string>> = {
-  // "Thiếu chứng từ" chỉ tính phiếu ĐÃ THU (máy chủ đếm số trên thẻ như vậy) — gửi kèm status để
-  // tổng ở chân bảng khớp đúng con số trên thẻ.
   xong: "received",
-  thieu: "received",
   cho: "waiting_receipt",
   da_huy: "cancelled",
 };
@@ -46,7 +45,6 @@ export function thamSoLoc(the: TheLocPT, loc: LocPT, tim: string, ky: KyDS): Tha
   return {
     q: tim.trim() || undefined,
     status: TRANG_THAI[the],
-    chung_tu: the === "thieu" ? "thieu" : loc.chung_tu,
     ...(thamSoKy(ky) as Pick<ThamSoSo, "tu_ngay" | "den_ngay" | "moc">),
     ...thamSoNangCao(loc),
   };
@@ -66,7 +64,7 @@ export function dangLoc(the: TheLocPT, loc: LocPT, tim: string): boolean {
 
 export type TrangThaiLocPT = { the: TheLocPT; tim: string; loc: LocPT };
 
-const THE_HOP_LE: TheLocPT[] = ["tat_ca", "xong", "thieu", "cho", "da_huy"];
+const THE_HOP_LE: TheLocPT[] = ["tat_ca", "xong", "cho", "dh", "da_huy"];
 
 /** Trạng thái lọc → khoá URL (kỳ do `useKyKeToan` tự ghi). Giá trị mặc định ⇒ undefined. */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPT): Record<string, string | undefined> {

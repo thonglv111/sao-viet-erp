@@ -76,6 +76,7 @@ def evaluate_quote(
     discount_max_pct: float | None = None,
     markup_min_pct: float | None = None,
     markup_max_pct: float | None = None,
+    discount_lines: list[dict] | None = None,
     high_value_threshold: int = DEFAULT_HIGH_VALUE_THRESHOLD,
 ) -> dict:
     """Cổng đặc thù cho **BÁO GIÁ** — rào theo TỪNG KHÁCH HÀNG (Đơn hàng vẫn dùng `evaluate` ngưỡng chung).
@@ -86,7 +87,8 @@ def evaluate_quote(
 
     Trigger (dính bất kỳ → gửi duyệt):
     - **Giá trị cao** (subtotal TRƯỚC VAT ≥ ngưỡng) và **Bán dưới vốn**: LUÔN áp (chung, không đổi).
-    - **Chiết khấu NGOÀI khoảng [min,max] của KH** (dưới min HOẶC vượt max).
+    - **Chiết khấu NGOÀI khoảng [min,max] của KH** (dưới min HOẶC vượt max). Có `discount_lines`
+      ([{ten, gross, discount}] — mỗi sản phẩm khách thấy) thì soi TỪNG sản phẩm; không có thì soi tổng.
     - **Markup NGOÀI khoảng [min,max] của KH** (dưới min HOẶC vượt max).
     Rào nào KH để None → KHÔNG soi chiều đó (chỉ chặn phía đã đặt). So sánh nhân chéo (không chia).
 
@@ -110,14 +112,24 @@ def evaluate_quote(
             if below or above:
                 triggers.append({"key": EXC_MARKUP_OUT, "label": _LABELS[EXC_MARKUP_OUT]})
 
+    def _ngoai_rao(disc: float, gross: float) -> bool:
+        d100 = float(disc) * 100
+        return (discount_min_pct is not None and d100 < discount_min_pct * gross) or (
+            discount_max_pct is not None and d100 > discount_max_pct * gross)
+
     disc_pct = None
     if subtotal_gross and subtotal_gross > 0:
-        d100 = float(discount_amount) * 100
-        disc_pct = round(d100 / subtotal_gross)
-        below = discount_min_pct is not None and d100 < discount_min_pct * subtotal_gross
-        above = discount_max_pct is not None and d100 > discount_max_pct * subtotal_gross
-        if below or above:
-            triggers.append({"key": EXC_DISCOUNT_OUT, "label": _LABELS[EXC_DISCOUNT_OUT]})
+        disc_pct = round(float(discount_amount) * 100 / subtotal_gross)
+    if discount_lines is not None:
+        # Chiết khấu gõ RIÊNG từng sản phẩm → rào soi từng sản phẩm: một dòng 40% không được lọt
+        # chỉ vì bình quân cả đơn thấp. Nhãn nêu tên sản phẩm lệch rào.
+        lech = [ln["ten"] for ln in discount_lines
+                if ln["gross"] > 0 and _ngoai_rao(ln["discount"], ln["gross"])]
+        if lech:
+            triggers.append({"key": EXC_DISCOUNT_OUT,
+                             "label": f"{_LABELS[EXC_DISCOUNT_OUT]}: {', '.join(lech)}"})
+    elif subtotal_gross and subtotal_gross > 0 and _ngoai_rao(discount_amount, subtotal_gross):
+        triggers.append({"key": EXC_DISCOUNT_OUT, "label": _LABELS[EXC_DISCOUNT_OUT]})
 
     return {
         "subtotal": subtotal,

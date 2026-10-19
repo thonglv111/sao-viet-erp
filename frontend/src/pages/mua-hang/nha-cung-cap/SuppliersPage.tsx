@@ -62,6 +62,7 @@ import {
 import "../../master-data.css";
 import "../../purchase.css";
 import "../trang-thai-mua.css";
+import { moTaHanTra } from "../don-mua-chung/hanTra";
 // Vỏ `NganPhai` + cột thuộc tính `kt-ray` sống ở ke-toan.css — thiếu dòng này thì vào thẳng màn NCC
 // (chưa ghé màn kế toán nào) ngăn hiện trơ không kiểu.
 import "../../ke-toan/ke-toan.css";
@@ -619,8 +620,8 @@ export function SuppliersPage({
               { nhan: "Điện thoại", giaTri: selected.phone
                   ? <a className="kt-lk" href={`tel:${selected.phone.replace(/\s+/g, "")}`}>{selected.phone}</a>
                   : <span className="kt-mo">Chưa khai</span> },
-              { nhan: "Cho nợ", giaTri: selected.credit_days
-                  ? `${selected.credit_days} ngày`
+              { nhan: "Cho nợ", giaTri: selected.credit_days != null
+                  ? moTaHanTra(selected.credit_days, selected.debt_cutoff_day).chinh
                   : <span className="kt-mo">Chưa thỏa thuận</span> },
               { nhan: "Mặt hàng báo giá", giaTri: String(soMonDaKhai) },
               { nhan: "Đúng hẹn", giaTri: selected.rating !== null && selected.rating_count > 0
@@ -667,6 +668,7 @@ export function SuppliersPage({
                 form={form}
                 setForm={setForm}
                 nhomGoiY={groupPills.map((g) => g.group)}
+                goc={mode === "edit" ? formGoc : null}
               />
             )}
 

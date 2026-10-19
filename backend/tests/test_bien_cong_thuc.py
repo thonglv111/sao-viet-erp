@@ -96,7 +96,8 @@ def test_bon_o_dung_chung_bo_bien_va_hai_chip_rieng_cua_buoc():
     # mở cho ô công đoạn vì ô đó là công thức TIỀN, nhân đơn giá vào là tính hai lần.
     RIENG_QUY_DOI = {"dinh_luong", "don_gia_khoan"}
     dem = {loai: len(bien_cho(loai)) for loai in LOAI}
-    assert dem == {LOAI_GIAY: 19, LOAI_VAT_TU: 22, LOAI_CONG_DOAN: 19, LOAI_QUY_DOI: 22}, dem
+    # 16/10/2026: +1 mọi ô — `so_mau_phu` (Số màu phủ giấy) giữ nghĩa cũ của `so_mau`, nay là số kẽm.
+    assert dem == {LOAI_GIAY: 20, LOAI_VAT_TU: 23, LOAI_CONG_DOAN: 20, LOAI_QUY_DOI: 23}, dem
 
     chung = ma_hop_le(LOAI_CONG_DOAN) - CUA_BUOC    # 17 biến ai cũng có
     assert {"so_trang", "trang_moi_tay"} <= chung, "hai chip quy cách sách phải có ở MỌI ô"

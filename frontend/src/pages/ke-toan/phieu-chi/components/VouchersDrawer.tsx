@@ -34,6 +34,7 @@ import {
   useTabNho,
 } from "../../shared/NganPhieu";
 import { NguoiLapO, OSo, TaiKhoanO, tabChungTuGoc } from "../../shared/PhieuGon";
+import { laGop } from "../../shared/phieuGop";
 import { TabChungTu } from "../../shared/TabChungTu";
 import { printVoucher } from "../print";
 import { SOURCE_LABELS, STATUS_META, VOUCHER_METHOD_LABELS, nguonPhieu } from "../shared/list-constants";
@@ -57,6 +58,7 @@ export type QuyenNgan = {
  *  ba tên giấy xếp thành sáu dòng, bảng cao 250px). Khung hẹp hơn thì bảng cuộn ngang. */
 const COT_DOT = [56, 120, 112, 88, 114, null];
 const COT_TIEN_DOT = [116, 106, 106, 116, 116];
+const COT_GOP = [120, 72, 104, 112, 112, 112];
 const rongToiThieu = (cot: (number | null)[]) => cot.reduce<number>((t, w) => t + (w ?? 200), 0);
 
 export function VouchersDrawer({
@@ -175,7 +177,10 @@ export function VouchersDrawer({
   const nguoiNhan = chuyenKhoan
     ? phieu.supplier_name || phieu.beneficiary_account_holder
     : phieu.cash_recipient_name || phieu.supplier_name;
-  const moDon = laDonMua && nguon.ma && onMoDonMua ? () => onMoDonMua(nguon.ma!) : undefined;
+  const gop = laGop(phieu);
+  const moDon = laDonMua && !gop && nguon.ma && onMoDonMua ? () => onMoDonMua(nguon.ma!) : undefined;
+  // Phiếu gộp: mỗi đơn mua của các dòng một lần, theo thứ tự dòng.
+  const maDonGop = gop ? [...new Set(phieu.lines!.map((l) => l.purchase_code).filter((m): m is string => !!m))] : [];
 
   return (
     <NganPhai
@@ -249,7 +254,17 @@ export function VouchersDrawer({
           { nhan: "Địa chỉ người nhận", giaTri: !chuyenKhoan && phieu.cash_recipient_address },
           { nhan: "CCCD người nhận", giaTri: !chuyenKhoan && phieu.cash_recipient_identity },
           // Mã nguồn: đơn mua (mở được khi có quyền), lệnh gia công, phiếu tạm ứng lương.
-          { nhan: SOURCE_LABELS[phieu.source_type] ?? "Nguồn", giaTri: nguon.ma && (moDon
+          { nhan: SOURCE_LABELS[phieu.source_type] ?? "Nguồn", giaTri: gop ? (
+            <Cum>
+              {maDonGop.map((ma) =>
+                onMoDonMua ? (
+                  <button key={ma} type="button" className="kt-lk" onClick={() => onMoDonMua(ma)}>{ma}</button>
+                ) : (
+                  <span key={ma}>{ma}</span>
+                ),
+              )}
+            </Cum>
+          ) : nguon.ma && (moDon
               ? <button type="button" className="kt-lk" onClick={moDon}>{nguon.ma}</button>
               : nguon.ma) },
           { nhan: "Yêu cầu mua", giaTri: phieu.source_request_codes.length > 0 && (
@@ -301,7 +316,63 @@ export function VouchersDrawer({
             </div>
           )}
 
-          {laDonMua && (
+          {laDonMua && gop && (
+            <>
+              <div className="kt-ngan__muc">
+                <span>Các khoản trong phiếu</span>
+              </div>
+              <div className="lds-bang">
+                <table className="lds-g" aria-label="Các khoản trong phiếu" style={{ minWidth: rongToiThieu(COT_GOP) }}>
+                  <colgroup>
+                    {COT_GOP.map((w, i) => <col key={i} style={{ width: w }} />)}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Đơn mua</th>
+                      <th>Khoản</th>
+                      <th>Số hoá đơn</th>
+                      <th className="n">Trả trước đó</th>
+                      <th className="n">Phiếu này</th>
+                      <th className="n">Còn nợ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {phieu.lines!.map((l) => {
+                      // Đối chiếu chỉ có cho dòng đợt giao (cọc không phải nợ).
+                      const dc = l.delivery_seq_no != null
+                        ? phieu.doi_chieu?.find((d) => d.purchase_code === l.purchase_code && d.delivery_seq_no === l.delivery_seq_no)
+                        : undefined;
+                      return (
+                        <tr key={`${l.purchase_request_id}:${l.delivery_id ?? "coc"}`}>
+                          <td>
+                            {onMoDonMua && l.purchase_code ? (
+                              <button type="button" className="kt-lk" onClick={() => onMoDonMua(l.purchase_code!)}>
+                                {l.purchase_code}
+                              </button>
+                            ) : (
+                              l.purchase_code
+                            )}
+                          </td>
+                          <td>{l.delivery_seq_no != null ? `Đợt ${l.delivery_seq_no}` : "Cọc"}</td>
+                          <td>{l.invoice_number || <span className="lds-mu3">–</span>}</td>
+                          <td className="n"><OSo so={dc?.truoc_do} /></td>
+                          <td className="n">{vietSo(l.amount)}</td>
+                          <td className="n"><OSo so={dc?.con_no_sau} /></td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="lds-cong">
+                      <td colSpan={4}>{`Cộng ${vietSo(phieu.lines!.length)} khoản`}</td>
+                      <td className="n">{vietSo(phieu.amount_vnd)}</td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {laDonMua && !gop && (
             <>
               <div className="kt-ngan__muc">
                 <span>{phieu.payment_stage === "advance" ? "Đặt cọc cho đơn mua" : "Trả cho đợt giao"}</span>

@@ -13,6 +13,7 @@ import { ApiError, api, type KcsHangMuc } from "../../../api/client";
 import { useCan } from "../../../auth/permissions";
 import { useAuth } from "../../../auth/useAuth";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
+import { laDienThoai } from "../../../utils/dienThoai";
 import { useDebounced } from "../../../utils/useDebounced";
 import { useLocMan } from "../../thanh-loc/useLocMan";
 import { HopChepTieuChi } from "./HopChepTieuChi";
@@ -51,6 +52,13 @@ export function KcsTieuChiPage() {
   const timCham = useDebounced(tim.trim());
   const [anRong, setAnRong] = useState(false);
   const [url, setUrl] = useLocMan("kcs-tieu-chi", { cd: null as number | null }, docUrl, lenUrl);
+  // Điện thoại: danh sách công đoạn ở trên, tiêu chí ở dưới — chạm công đoạn thì cuộn tới phần tiêu chí,
+  // không thì chạm xong không thấy gì đổi.
+  const phaiRef = useRef<HTMLElement>(null);
+  const chonCd = (id: number) => {
+    setUrl({ cd: id });
+    if (laDienThoai()) requestAnimationFrame(() => phaiRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  };
   const chonId = url.cd;
   const daChonDau = useRef(chonId != null);
 
@@ -158,8 +166,8 @@ export function KcsTieuChiPage() {
                   <div key={c.cong_doan_id} role="option" tabIndex={0}
                     aria-selected={c.cong_doan_id === chonId}
                     className={`ktc-cd${c.hang_muc.length ? "" : " ktc-cd--rong"}`}
-                    onClick={() => setUrl({ cd: c.cong_doan_id })}
-                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setUrl({ cd: c.cong_doan_id }); } }}>
+                    onClick={() => chonCd(c.cong_doan_id)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); chonCd(c.cong_doan_id); } }}>
                     <span className="ktc-cd__ten">{c.ten}</span>
                     {c.hang_muc.length
                       ? <span className="ktc-dem">{c.hang_muc.length}</span>
@@ -171,7 +179,7 @@ export function KcsTieuChiPage() {
           </div>
         </aside>
 
-        <section className="ktc-phai" aria-label="Tiêu chí của công đoạn">
+        <section className="ktc-phai" ref={phaiRef} aria-label="Tiêu chí của công đoạn">
           {chon ? (
             <OPhai key={chon.cong_doan_id} cd={chon} token={token} suaDuoc={suaDuoc} xoaDuoc={xoaDuoc}
               datHangMuc={datHangMuc} onLoi={setLoi}
@@ -351,7 +359,7 @@ function OPhai({
       </div>
       <p className="ktc-phai__phu">
         {ds.length
-          ? `${ds.length} tiêu chí. KCS cuối xét nhóm này ở các lệnh có chạy ${cd.ten.charAt(0).toLowerCase()}${cd.ten.slice(1)} phát hành từ nay.`
+          ? `${ds.length} tiêu chí. KCS cuối xét nhóm này ở các lệnh có chạy công đoạn ${cd.ten} phát hành từ nay.`
           : suaDuoc
             ? "Chưa có tiêu chí. Gõ tiêu chí đầu tiên bên dưới hoặc chép từ công đoạn khác."
             : "Chưa có tiêu chí."}

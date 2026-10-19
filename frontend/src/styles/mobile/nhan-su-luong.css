@@ -1,0 +1,1282 @@
+/* ============================================================================
+   ĐIỆN THOẠI — NHÂN SỰ & LƯƠNG (14/10/2026, docs/thiet-ke-mobile.md §5)
+   ----------------------------------------------------------------------------
+   Phòng ban · Hồ sơ NS · Chấm công · Nghỉ phép · Tăng ca · Lương · Nội quy.
+   Trang CSS của các màn này (cham-cong.css, luong.css, nghi-phep.css…) nạp lười và có nhiều
+   `!important` ⇒ bộ chọn ở đây nhân đôi lớp + `!important` khi phải đè (dải tab: `:root` + ba lần
+   lớp, vì nghi-phep.css khai `.ns-tabs.cc-tabs.lg-tabs { … !important }`).
+   CHỈ trong mốc điện thoại — guard `mobile.test.ts`.
+   ========================================================================== */
+
+@media (max-width: 639px) {
+  /* ---- Khung trang `.ns` --------------------------------------------------- */
+  main.ns.ns {
+    padding: 12px 12px 20px !important;
+  }
+  /* Tên màn đã lên thanh trên. Đầu trang chỉ có tên (không nút) thì bỏ hẳn. */
+  main.ns.ns > .ns__head:not(:has(button, a, input, select)) {
+    display: none !important;
+  }
+  main.ns.ns > .ns__head .ns__title {
+    display: none;
+  }
+
+  /* ---- Dải tab của màn (Chấm công · Lương · Nghỉ phép · Tăng ca…) ----------
+     Một hàng chip CUỘN NGANG, tràn mép màn — thay cho khối tab 4–8 dòng chiếm nửa màn. */
+  :root .cc-tabs.cc-tabs.cc-tabs {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin: 0 -12px 14px !important;
+    padding: 2px 12px 4px !important;
+    flex-shrink: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    scrollbar-width: none;
+    scroll-padding-inline: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  :root .cc-tabs.cc-tabs.cc-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  :root .cc-tabs.cc-tabs.cc-tabs .lg-tabs__divider {
+    display: none !important;
+  }
+  /* Nhóm tab (Lương: nhóm quản lý | nhóm cá nhân) — trải phẳng vào cùng một hàng. */
+  :root .cc-tabs.cc-tabs.cc-tabs .lg-tabs__group {
+    display: contents !important;
+  }
+  :root .cc-tabs.cc-tabs.cc-tabs .lg-tabs__group::before,
+  :root .cc-tabs.cc-tabs.cc-tabs .lg-tabs__group::after {
+    content: none !important;
+  }
+  :root .cc-tabs.cc-tabs.cc-tabs button {
+    flex: none !important;
+    width: auto !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    margin: 0 !important;
+    padding: 0 14px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    border: 1px solid var(--rule-soft) !important;
+    border-radius: 19px !important;
+    background: var(--canvas, #fff) !important;
+    box-shadow: none !important;
+    color: var(--ash) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+  :root .cc-tabs.cc-tabs.cc-tabs button.is-active {
+    border-color: var(--ink) !important;
+    background: var(--ink) !important;
+    color: var(--canvas, #fff) !important;
+  }
+  :root .cc-tabs.cc-tabs.cc-tabs button svg {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  /* ---- Chấm công của tôi --------------------------------------------------
+     Nút CHẤM nằm trong tầm mắt ngay khi mở màn: đầu thẻ gọn một khối (tên · trạng thái · giờ ·
+     ca), rồi tới khối Chấm, bản đồ radar xuống dưới cùng. */
+  .cc-checkin-hero-wrapper.cc-checkin-hero-wrapper {
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .cc-checkin-hero-header.cc-checkin-hero-header {
+    padding: 12px 14px !important;
+    gap: 10px !important;
+    border-radius: 14px !important;
+  }
+  .cc-checkin-hero-header .cc-employee-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 15px !important;
+  }
+  .cc-checkin-hero-header .cc-checkin-user-profile {
+    gap: 10px !important;
+    min-width: 0;
+  }
+  .cc-checkin-hero-header .cc-checkin-user-name {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+  .cc-checkin-hero-header .cc-checkin-user-name h3 {
+    font-size: 17px !important;
+  }
+  .cc-checkin-hero-header .cc-employee-sub-chip {
+    font-size: 12px !important;
+    padding: 2px 10px !important;
+  }
+  .cc-checkin-hero-header .cc-checkin-clock-banner {
+    width: 100%;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+  }
+  .cc-checkin-hero-header .cc-live-clock-compact {
+    flex: none;
+    font-size: 20px !important;
+    padding: 6px 10px !important;
+    border-radius: 10px !important;
+  }
+  .cc-checkin-hero-header .cc-shift-tracker-compact {
+    flex: 1 1 auto;
+    min-width: 0 !important;
+    padding: 6px 10px !important;
+    font-size: 12.5px;
+  }
+
+  .cc-checkin-grid-layout.cc-checkin-grid-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  .cc-checkin-grid-layout > .cc-checkin-right-col {
+    order: -1;
+  }
+  .cc-punch-card.cc-punch-card {
+    padding: 14px !important;
+    border-radius: 14px !important;
+  }
+  .cc-punch-card .cc-radar-container {
+    margin: 10px 0 14px !important;
+    height: 176px !important;
+  }
+  .cc-punch-card .cc-shortcuts-strip {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+  }
+  .cc-punch-card .cc-shortcut-btn {
+    min-height: 48px;
+    font-size: 14px !important;
+  }
+  .cc-today-metrics-grid.cc-today-metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+  .cc-today-metric-label.cc-today-metric-label {
+    font-size: 11px !important;
+    letter-spacing: 0.02em !important;
+  }
+  .cc-today-summary-header.cc-today-summary-header {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+
+  /* ---- Lịch công tháng (Công của tôi) ---------------------------------------
+     7 cột VỪA màn 375px, không cuộn ngang: ô chỉ còn số ngày + số công / ký hiệu (P, KL, Lễ…).
+     Chi tiết ngày (ca, giờ vào–ra, công, muộn/sớm) nằm ở thẻ `.cc-ngay-the` dưới lịch. */
+  div:has(> .cc-month-grid) {
+    padding: 14px 10px !important;
+    border-radius: 14px !important;
+  }
+  .cc-month-grid.cc-month-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    overflow: visible !important;
+    margin-top: 8px !important;
+    padding: 0 !important;
+  }
+  .cc-month-grid > div:not(.cc-month-cell) {
+    padding-bottom: 4px !important;
+    font-size: 11.5px !important;
+  }
+  .cc-month-grid .cc-month-cell {
+    min-width: 0 !important;
+    min-height: 50px !important;
+    padding: 5px 2px 4px !important;
+    border-radius: 10px !important;
+    justify-content: flex-start !important;
+    align-items: center;
+    transform: none !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cc-month-grid .cc-month-cell > div:first-child {
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    gap: 3px;
+    width: 100%;
+  }
+  .cc-month-grid .cc-month-cell > div:not(:first-child),
+  .cc-month-grid .cc-month-cell .cc-month-cell__pills {
+    display: none !important;
+  }
+  .cc-month-grid .cc-month-cell-num {
+    font-size: 14px !important;
+    font-weight: 600;
+    line-height: 1.1;
+  }
+  .cc-month-cell__mini {
+    min-height: 15px;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 15px;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .cc-month-cell--khong-cham .cc-month-cell__mini {
+    color: var(--signal-deep);
+  }
+  .cc-month-grid .cc-month-cell[data-chon] {
+    outline: 2px solid var(--ink);
+    outline-offset: -1px;
+  }
+
+  .cc-ngay-the {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px solid var(--rule-soft);
+    border-radius: 12px;
+    background: var(--paper);
+  }
+  .cc-ngay-the__dau {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .cc-ngay-the__dau strong {
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .cc-ngay-the__ds {
+    margin: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .cc-ngay-the__ds > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .cc-ngay-the__ds dt {
+    color: var(--ash-2);
+  }
+  .cc-ngay-the__ds dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .cc-ngay-the__canh {
+    color: var(--signal) !important;
+  }
+  .cc-ngay-the__nut {
+    width: 100%;
+    min-height: 44px;
+    margin-top: 12px;
+    justify-content: center;
+  }
+
+  /* Thanh tháng của lịch công: ‹ Tháng › gọn một hàng; mẹo "bấm ô ngày" bỏ (điện thoại chạm ô là
+     xem chi tiết, nút xin chỉnh nằm ở thẻ ngày); chú giải một hàng nhỏ. */
+  .cc-ts-toolbar-container.cc-ts-toolbar-container {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+    border-radius: 14px !important;
+    margin-bottom: 12px !important;
+  }
+  .cc-ts-toolbar-container .cc-month-navigator {
+    width: 100%;
+    flex-wrap: nowrap !important;
+    justify-content: space-between;
+  }
+  .cc-ts-toolbar-container .cc-month-picker-wrapper {
+    display: none !important;
+  }
+  .cc-ts-toolbar-container .cc-month-nav-btn {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .cc-ts-toolbar-container .cc-month-nav-label {
+    font-size: 16px !important;
+    font-weight: 700;
+  }
+  .cc-ts-toolbar-container .cc-ts-tip {
+    display: none !important;
+  }
+  .cc-ts-toolbar-container .cc-ts-legend {
+    flex-wrap: wrap;
+    gap: 6px !important;
+    font-size: 12px;
+  }
+  .cc-ts-toolbar-container .cc-ts-legend-title {
+    display: none;
+  }
+
+  /* ---- Dải số liệu đầu tab (Điểm chấm công, Lịch & ngày lễ…) — 3 ô một hàng, nút chính trải ngang */
+  .cc-calendar-dashboard.cc-calendar-dashboard {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .cc-calendar-stats-strip.cc-calendar-stats-strip {
+    display: grid !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .cc-calendar-stat-card.cc-calendar-stat-card {
+    min-width: 0 !important;
+    padding: 10px !important;
+    gap: 8px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+  .cc-calendar-stat-card .cc-calendar-stat-label {
+    font-size: 11.5px !important;
+    line-height: 1.25;
+  }
+  .cc-calendar-dashboard > .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* ---- Khai ca · Phân ca tháng: xem THEO TUẦN ------------------------------
+     ShiftPlanPanel gắn `data-tuan` cho mọi ô ngày và `data-tuan-xem` cho khung; ở đây ẩn 3–4 tuần
+     còn lại ⇒ 7 cột ngày + tên + ca nền vừa khít bề ngang, KHÔNG cuộn ngang. */
+  .cc-sp-scroll[data-tuan-xem="0"] [data-tuan]:not([data-tuan="0"]),
+  .cc-sp-scroll[data-tuan-xem="1"] [data-tuan]:not([data-tuan="1"]),
+  .cc-sp-scroll[data-tuan-xem="2"] [data-tuan]:not([data-tuan="2"]),
+  .cc-sp-scroll[data-tuan-xem="3"] [data-tuan]:not([data-tuan="3"]),
+  .cc-sp-scroll[data-tuan-xem="4"] [data-tuan]:not([data-tuan="4"]),
+  .cc-sp-scroll[data-tuan-xem="5"] [data-tuan]:not([data-tuan="5"]) {
+    display: none !important;
+  }
+  .cc-sp-scroll.cc-sp-scroll {
+    overflow-x: hidden !important;
+    max-height: none !important;
+    border-radius: 12px;
+  }
+  .cc-sp-scroll .cc-sp-table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+  .cc-sp-scroll .cc-sp-table .cc-sp-col-name {
+    width: 96px !important;
+    min-width: 96px !important;
+    max-width: 96px !important;
+    padding: 4px 6px !important;
+  }
+  .cc-sp-scroll .cc-sp-table .cc-sp-col-base {
+    left: 96px !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+  }
+  /* Tiêu đề "CA NỀN" in hoa nowrap cần 55px trong cột 40px ⇒ chữ tràn đè cột T2. Cho xuống 2 dòng
+     "CA / NỀN", chữ nhỏ, cắt phần thừa. */
+  .cc-sp-scroll .cc-sp-table thead th.cc-sp-col-base {
+    white-space: normal !important;
+    overflow: hidden;
+    padding: 2px !important;
+    font-size: 9.5px !important;
+    letter-spacing: 0 !important;
+    line-height: 1.15;
+    text-align: center;
+    word-break: keep-all;
+  }
+  .cc-sp-scroll .cc-sp-table th.cc-sp-hdr,
+  .cc-sp-scroll .cc-sp-table td.cc-sp-cell,
+  .cc-sp-scroll .cc-sp-table td.cc-sp-foot {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .cc-sp-scroll .cc-sp-table td.cc-sp-cell {
+    height: 40px;
+  }
+  .cc-sp-scroll .cc-sp-hdr__wd {
+    font-size: 10px !important;
+  }
+  .cc-sp-scroll .cc-sp-hdr__d {
+    font-size: 13px !important;
+  }
+  .cc-sp-scroll .cc-sp-col-bar {
+    display: none !important;
+  }
+  .cc-sp-tuan {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 10px 0 8px;
+  }
+  .cc-sp-tuan__nut {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--rule-soft);
+    border-radius: 12px;
+    background: var(--canvas, #fff);
+    color: var(--ink);
+  }
+  .cc-sp-tuan__nut:disabled {
+    opacity: 0.35;
+  }
+  .cc-sp-tuan__nhan {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .cc-sp-tuan__nhan small {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ash-2);
+  }
+
+  /* Khai ca: khối A/B gập — bớt đệm lồng nhau (trang 12 + khối 20 + thanh 20 ăn mất 100px ngang). */
+  .cc-sp-sect.cc-sp-sect .cc-sp-sect__body {
+    padding: 12px 10px 14px !important;
+  }
+  .cc-sp-toolbar.cc-sp-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    padding: 10px !important;
+    gap: 8px !important;
+  }
+  .cc-sp-toolbar .cc-ts-filters,
+  .cc-sp-toolbar .cc-ts-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+  .cc-sp-toolbar .cc-sp-month {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .cc-sp-toolbar .cc-ts-select-dept,
+  .cc-sp-toolbar .cc-sp-search {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+  .cc-sp-toolbar .cc-sp-search input {
+    width: 100% !important;
+  }
+  .cc-sp-toolbar .cc-ts-actions > .btn {
+    flex: 1 1 auto;
+    min-height: 40px;
+    justify-content: center;
+  }
+  /* Gọn/Thoáng chỉ đổi bề rộng cột — điện thoại đã xem theo tuần, cột tự giãn. */
+  .cc-sp-toolbar .cc-sp-density {
+    display: none !important;
+  }
+  /* Hộp bút ca: một hàng viên cuộn ngang, dính đầu khi cuộn lưới. */
+  .cc-sp-brush.cc-sp-brush {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    padding: 8px 10px !important;
+    margin: 0 -10px !important;
+    border-radius: 0 !important;
+    scrollbar-width: none;
+    z-index: 15;
+  }
+  .cc-sp-brush.cc-sp-brush::-webkit-scrollbar {
+    display: none;
+  }
+  .cc-sp-brush .cc-sp-brush__label,
+  .cc-sp-brush .cc-sp-brush__hint {
+    display: none !important;
+  }
+  .cc-sp-brush .cc-sp-pill {
+    flex: none !important;
+    min-height: 38px;
+    white-space: nowrap;
+  }
+  .cc-sp-legend.cc-sp-legend {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    scrollbar-width: none;
+    font-size: 11.5px;
+  }
+  .cc-sp-legend .cc-sp-lg {
+    flex: none;
+    white-space: nowrap;
+  }
+  /* Thanh Lưu/Hoàn tác dính đáy: khối sau (C · Nhật ký đổi ca) nằm sau trong DOM nên vẽ ĐÈ lên
+     nó ⇒ nâng cả khối Phân ca lên trên. */
+  .cc-sp-sect:has(.cc-sp-actionbar) {
+    position: relative;
+    z-index: 3;
+  }
+  .cc-sp-actionbar.cc-sp-actionbar {
+    z-index: 20 !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+  .cc-sp-actionbar .cc-sp-dirty {
+    flex: 1 1 100%;
+  }
+  .cc-sp-actionbar .cc-sp-actionbar__gap {
+    display: none;
+  }
+  .cc-sp-actionbar .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  /* Tên người trong cột hẹp 96px: bỏ ảnh chữ tắt, cho tên xuống 2 dòng thay vì cắt "Cao Mi…". */
+  .cc-sp-scroll .cc-sp-col-name .cc-name-avatar {
+    display: none !important;
+  }
+  .cc-sp-scroll .cc-sp-col-name .cc-sp-who__name {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2;
+    font-size: 12.5px;
+    text-align: left;
+  }
+
+  /* Ngăn "Lịch sử ca" của một người (bấm tên trên lưới Phân ca): toàn màn, nội dung một cột —
+     trước đây lưới bên trong giãn theo chữ dài, nút Đóng văng ra ngoài màn (x≈474px). */
+  .cc-sp-drawer .cc-sp-drawer__panel {
+    width: 100vw !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding: 14px 14px calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+    box-shadow: none !important;
+  }
+  .cc-sp-drawer .cc-sp-drawer__panel > * {
+    min-width: 0;
+  }
+  /* Dòng nhật ký đổi ca (ngăn Lịch sử + khối C): chip · ngày áp dụng trên một hàng, "trước → sau"
+     và người sửa xuống các hàng dưới — thay 4 cột 84/96/120/118px không vừa 375px. */
+  .cc-scl .cc-scl__row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 4px 10px !important;
+    padding: 10px 12px !important;
+    font-size: 13px !important;
+  }
+  .cc-scl .cc-scl__row > :nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+  .cc-scl .cc-scl__filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .cc-scl .cc-scl__filter {
+    flex: none;
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  /* Thẻ ca (Khai ca · A): hàng giờ nghỉ / dung sai xuống dòng thay vì tràn mép phải. */
+  .cc-shift-card-v3 .cc-shift-schedule-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 4px !important;
+  }
+  .cc-shift-card-v3 .cc-shift-schedule-col {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Khung bọc khối (Lịch & Ngày lễ…): đệm 24px ăn bề ngang của thẻ bên trong. */
+  .cal-panel.cal-panel {
+    padding: 14px 12px !important;
+    border-radius: 14px !important;
+  }
+
+  /* KPI Nhật ký chấm công: 2×2 gọn thay vì 4 ô cao xếp dọc. */
+  .cc-kpi-grid.cc-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .cc-kpi-grid .cc-kpi-card {
+    padding: 10px 12px !important;
+    gap: 10px !important;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .cc-kpi-grid .cc-kpi-card::before,
+  .cc-kpi-grid .cc-kpi-card::after {
+    display: none !important;
+  }
+  .cc-kpi-grid .cc-kpi-title {
+    font-size: 12px !important;
+    line-height: 1.25;
+  }
+
+  /* ---- Bảng công tháng → thẻ mỗi người --------------------------------------
+     31 ô ngày ẩn; còn Mã · Họ tên · Ca · Công thường · CN/Lễ · Tăng ca · Tổng công · Giờ. Tên người
+     (vốn là chỗ bấm "Xem lịch công tháng") giãn phủ cả thẻ ⇒ chạm đâu trên thẻ cũng mở lịch. */
+  table.cc-ts-thang[data-the] > tbody > tr > td.cc-day-cell {
+    display: none !important;
+  }
+  table.cc-ts-thang[data-the] > tbody > tr {
+    position: relative;
+  }
+  table.cc-ts-thang[data-the] .cc-name-avatar {
+    display: none;
+  }
+  table.cc-ts-thang[data-the] .cc-name-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+  table.cc-ts-thang[data-the] .cc-name-link {
+    white-space: normal !important;
+    overflow: visible !important;
+  }
+  /* Ô CN/Lễ là nút mở chi tiết công đặc biệt — đứng trên lớp phủ của tên. */
+  table.cc-ts-thang[data-the] > tbody > tr > td button,
+  table.cc-ts-thang[data-the] > tbody > tr > td [role="button"] {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* ---- Lịch công tháng của MỘT người (hộp mở từ Bảng công tháng) -------------
+     Số liệu 2×2 vừa màn; ô ngày chỉ giữ số ngày + viên tóm tắt (công / lễ / OT…) — giờ vào-ra,
+     tên ca, dòng quy đổi bỏ khỏi ô (7 cột × 46px không chứa nổi). */
+  .cc-emp-cal-modal-box .cc-emp-cal-header {
+    flex-wrap: nowrap;
+    align-items: flex-start !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-avatar {
+    display: none !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-name-row {
+    flex-wrap: wrap;
+    gap: 6px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-name {
+    font-size: 17px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-kpi-card {
+    min-width: 0 !important;
+    padding: 10px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-kpi-icon {
+    display: none !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-kpi-label {
+    font-size: 11px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-kpi-val {
+    font-size: 17px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-grid-head,
+  .cc-emp-cal-modal-box .cc-emp-cal-grid-body {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-cell {
+    min-width: 0 !important;
+    min-height: 48px !important;
+    padding: 4px 3px !important;
+    border-radius: 9px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-cell-top {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 2px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-cell-body,
+  .cc-emp-cal-modal-box .cc-emp-cal-cell-foot {
+    display: none !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-cell-pills {
+    flex-wrap: wrap;
+    gap: 2px !important;
+  }
+  .cc-emp-cal-modal-box .cc-emp-cal-cell-pills .cc-badge-pill {
+    font-size: 9.5px !important;
+    padding: 0 4px !important;
+    line-height: 14px !important;
+  }
+
+  /* Chi tiết chấm công một ngày → khối "Chấm bù / sửa": 3 cột 45/180/66px bóp ô chọn còn 1 ký tự
+     ⇒ 2 cột đều nhau (Loại chấm · Giờ / Ngày · Nguyên nhân). */
+  .cc-adjust-grid.cc-adjust-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+  .cc-adjust-grid .cc-adjust-field,
+  .cc-adjust-grid .cc-select-wrapper,
+  .cc-adjust-grid select,
+  .cc-adjust-grid .cn-khung {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .cc-adjust-section .cc-btn-add-punch {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* ---- Bảng lương tháng → thẻ mỗi người -------------------------------------
+     THỰC LĨNH là con số người ta mở thẻ để xem ⇒ kéo lên ngay dưới tên, chữ to, có vạch ngăn. */
+  :root:root table[data-the][data-the] > tbody > tr > td[data-nhan^="Thực lĩnh"] {
+    order: -1;
+    padding: 8px 0 !important;
+    margin: 2px 0;
+    border-top: 1px dashed var(--rule-soft) !important;
+    border-bottom: 1px dashed var(--rule-soft) !important;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--moss-deep, var(--ink));
+  }
+  :root:root table[data-the][data-the] > tbody > tr > td[data-nhan^="Thực lĩnh"]::before {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* Phiếu lương: đầu phiếu (tên + mã | công chuẩn, mức đóng BH) xếp dọc thay vì hai cột chen nhau. */
+  .lg-payslip2 .lg-payslip2__head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .lg-payslip2 .lg-payslip2__head > :last-child {
+    text-align: left !important;
+    align-items: flex-start !important;
+  }
+  .lg-payslip2 .lg-payslip2__title {
+    font-size: 20px !important;
+  }
+
+  /* Lương nhân viên: ô tìm + 3 ô chọn trải đều hai cột; dải số đếm thành chip cuộn ngang. */
+  .lg-emp-filters.lg-emp-filters {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+  .lg-emp-filters > :first-child {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .lg-emp-filters .lg-emp-select-wrap,
+  .lg-emp-filters .lg-emp-select,
+  .lg-emp-filters input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .lg-emp-kpi-bar.lg-emp-kpi-bar {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+    margin: 0 -12px 10px !important;
+    padding: 2px 12px !important;
+  }
+  .lg-emp-kpi-bar .lg-emp-kpi-btn {
+    flex: none !important;
+    white-space: nowrap;
+    min-height: 38px;
+  }
+
+  /* Nút chia đoạn của Lương (`.lg-seg` — lọc trạng thái tạm ứng, bộ chọn kiểu…): một hàng cuộn
+     ngang thay vì gãy 2 dòng trong khung xám. */
+  .lg-seg.lg-seg {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    scrollbar-width: none;
+  }
+  .lg-seg.lg-seg::-webkit-scrollbar {
+    display: none;
+  }
+  .lg-seg.lg-seg > button {
+    flex: none !important;
+    white-space: nowrap !important;
+    min-height: 36px;
+  }
+  .lg-tu-loc.lg-tu-loc {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    min-width: 0;
+  }
+
+  /* ---- Cấu hình lương ------------------------------------------------------
+     Tab con gạch chân (Cơ chế lương theo bộ phận · Khoán km · Danh mục khoản · Bảo hiểm & Thuế):
+     một hàng cuộn ngang, tràn mép màn. */
+  .cl-subtabs.cl-subtabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -12px;
+    margin-right: -12px;
+    padding: 0 12px;
+  }
+  .cl-subtabs.cl-subtabs::-webkit-scrollbar {
+    display: none;
+  }
+  .cl-subtabs .cl-subtab {
+    flex: none;
+    white-space: nowrap;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* ---- Lịch nghỉ (Nghỉ phép) → thẻ mỗi người --------------------------------
+     Ngày không nghỉ là ô trống ⇒ tự ẩn; còn lại "T3 30/9 · [P] Phép Năm". */
+  table.cc-calendar-table[data-the] .cc-name-avatar {
+    display: none;
+  }
+  table.cc-calendar-table[data-the] .cc-calendar-cell {
+    min-width: 0 !important;
+  }
+  table.cc-calendar-table[data-the] .cc-calendar-grid-cell-badge {
+    position: static !important;
+    width: auto !important;
+    height: auto !important;
+    padding: 1px 8px !important;
+  }
+  .np-lich__loai {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* ---- Phòng ban: danh sách → màn chi tiết ----------------------------------
+     Cột chi tiết (máy lớn nằm bên phải) trên điện thoại rơi xuống dưới cả danh sách ⇒ chạm phòng
+     không thấy gì. Nay ẩn khi chưa mở; chạm phòng ⇒ phủ kín màn (DepartmentsPage `is-mo-dt`). */
+  .rdx-dept__detail.rdx-dept__detail:not(.is-mo-dt) {
+    display: none !important;
+  }
+  .rdx-dept__detail.is-mo-dt {
+    position: fixed !important;
+    inset: 0;
+    z-index: 60;
+    margin: 0 !important;
+    overflow-y: auto;
+    background: var(--canvas, #fff);
+    animation: dtTruotLen 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .rdx-dept__detail.is-mo-dt .rdx-drawer,
+  .rdx-dept__detail.is-mo-dt .rdx-drawer__panel {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .rdx-dept__detail.is-mo-dt .rdx-drawer {
+    min-height: 100dvh;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  .rdx-dept__detail.is-mo-dt .rdx-drawer__head {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--canvas, #fff);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .rdx-dept__detail.is-mo-dt .rdx-drawer__close {
+    width: 40px;
+    height: 40px;
+  }
+  .rdx-ov__grid.rdx-ov__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .rdx-dept__body.rdx-dept__body {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Tab Nhân sự của phòng — dòng người (`li.depts__member`, không phải bảng nên lớp thẻ chung
+     không chạm tới). Một hàng flex [tick][ảnh][tên · chức danh · @tài khoản][vai trò · trạng thái]
+     bóp cột giữa còn ~90px: chức danh gãy từng chữ một ("Kế / hoạch / sản / xuất"), viên trạng
+     thái gãy ba dòng. Nay lưới hai tầng — tick + ảnh đứng bên trái, các viên xuống dưới tên:
+       [☐][NT]  Nguyễn Thị Hoàng Uyên  NV019
+                Kế hoạch sản xuất · @nguyenthihoanguyen
+                [Giám đốc] [● Đang hoạt động]                                          */
+  .depts__members .depts__member {
+    display: grid !important;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      "chk av main"
+      "chk av phai";
+    align-items: center;
+    gap: 6px 12px !important;
+    padding: 12px !important;
+  }
+  .depts__member > .depts__member-check {
+    grid-area: chk;
+  }
+  .depts__member > .rdx-avatar-wrap,
+  .depts__member > .depts__member-avatar {
+    grid-area: av;
+  }
+  .depts__member > .depts__member-main {
+    grid-area: main;
+    min-width: 0;
+  }
+  .depts__member > .depts__member-right {
+    grid-area: phai;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+  }
+  .depts__member .depts__member-line {
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+  .depts__member .depts__member-name {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    font-size: 15px;
+  }
+  .depts__member .depts__member-sub {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    font-size: 13px;
+  }
+  .depts__member .depts__member-user {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .depts__member .depts__member-right > * {
+    white-space: nowrap;
+  }
+  /* Thanh trên danh sách: ô tìm trần 240px + ô trạng thái 160px + nút ⇒ ô tìm một mình một hàng
+     cụt lủn. Ô tìm trải hết hàng; ô trạng thái + "Thêm nhân viên" chia đôi hàng dưới. */
+  .depts__staff-toolbar.depts__staff-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+  .depts__staff-toolbar > .rdx-tree__search {
+    flex: 1 1 100% !important;
+    max-width: none !important;
+  }
+  .depts__staff-toolbar > div:not(.rdx-tree__search) {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    min-width: 0;
+  }
+  .depts__staff-toolbar > .rdx-head-hero__btn-highlight {
+    flex: 0 0 auto !important;
+    height: 44px !important;
+    padding: 0 14px !important;
+    font-size: 13.5px !important;
+  }
+
+  /* ---- Hồ sơ của tôi ----------------------------------------------------------
+     Thẻ đầu (ảnh · tên · nút Chấm công · Vào làm · Ca · Tài khoản…) cao 626px ⇒ ảnh nhỏ lại đứng
+     cạnh tên, bớt đệm; 4 ô số liệu (Phép · Công · Phiếu lương · Đề nghị) thành lưới 2×2. */
+  .mine__hero.mine__hero {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start !important;
+    gap: 12px 14px !important;
+    padding: 16px !important;
+    border-radius: 16px !important;
+  }
+  .mine__hero .ns-avatar--xl {
+    width: 56px !important;
+    height: 56px !important;
+    font-size: 22px !important;
+    border-radius: 14px !important;
+  }
+  .mine__hero .mine__heroid {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+  }
+  .mine__hero .mine__heroid h1 {
+    font-size: 19px !important;
+  }
+  .mine__hero .mine__chamcong {
+    width: 100%;
+    min-height: 46px;
+    justify-content: center;
+    font-size: 15px;
+  }
+  .mine__hero .mine__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+  .mine__stats.mine__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .mine__stats .mine__stat {
+    min-width: 0;
+    padding: 12px !important;
+  }
+
+  /* Hồ sơ của tôi: bong bóng "Họ tên do HCNS quản lý — bấm để gửi đề nghị sửa" chỉ hiện khi RÊ CHUỘT
+     nhưng vẫn chiếm chỗ (opacity 0, rộng 220px) ⇒ cả trang tràn ngang 392px. Điện thoại không rê chuột. */
+  .mine__tip.mine__tip {
+    display: none;
+  }
+
+  /* ---- Chấm công — khối vị trí dưới bản đồ GPS ----------------------------------------------------
+     Ba ô cao bằng nhau, nhãn IN HOA bẻ 2–3 dòng ("BÁN KÍNH / HỢP LỆ"), "Trong phạm vi" gãy đôi. Điện
+     thoại: trạng thái là dải màu trọn hàng ở trên (cái thợ cần biết nhất); hai con số chia đôi bên dưới,
+     nhãn chữ thường một dòng; chú giải thu nhỏ một hàng. */
+  :root .cc-radar-map-metrics-strip.cc-radar-map-metrics-strip {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+  :root .cc-radar-map-metrics-strip > .cc-radar-metric-chip {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 2px !important;
+    min-width: 0;
+    padding: 10px 12px !important;
+    border: 1px solid var(--rule-soft) !important;
+    border-radius: 12px !important;
+    background: var(--canvas, #fff) !important;
+  }
+  :root .cc-radar-map-metrics-strip .cc-radar-metric-label {
+    font-size: 12.5px !important;
+    font-weight: 400 !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap;
+    color: var(--ash-2) !important;
+  }
+  :root .cc-radar-map-metrics-strip .cc-radar-metric-val {
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    white-space: nowrap;
+  }
+  /* Ô trạng thái: lên đầu, trọn hàng, nền theo kết quả; bỏ nhãn (chữ trạng thái đã đủ nghĩa). */
+  :root .cc-radar-map-metrics-strip > .cc-radar-metric-chip:last-child {
+    order: -1;
+    grid-column: 1 / -1;
+    flex-direction: row !important;
+    align-items: center !important;
+    padding: 10px 14px !important;
+  }
+  :root .cc-radar-map-metrics-strip > .cc-radar-metric-chip:last-child:has(.is-safe) {
+    border-color: #bbf7d0 !important;
+    background: #f0fdf4 !important;
+  }
+  :root .cc-radar-map-metrics-strip > .cc-radar-metric-chip:last-child:has(.is-warn) {
+    border-color: #fecaca !important;
+    background: #fef2f2 !important;
+  }
+  :root .cc-radar-map-metrics-strip > .cc-radar-metric-chip:last-child .cc-radar-metric-label {
+    display: none;
+  }
+  :root .cc-radar-map-metrics-strip > .cc-radar-metric-chip:last-child .cc-radar-metric-val {
+    font-size: 15px !important;
+  }
+  :root .cc-radar-map-legend.cc-radar-map-legend {
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 4px 14px !important;
+    padding: 8px 2px 0 !important;
+    font-size: 12px !important;
+  }
+
+  /* "Tóm tắt công hôm nay": 3 ô nhãn IN HOA ("CÔNG ĐÃ / TÍNH" gãy dòng). Nhãn chữ thường một dòng, số to. */
+  :root .cc-today-metrics-grid.cc-today-metrics-grid {
+    gap: 8px !important;
+  }
+  :root .cc-today-metrics-grid .cc-today-metric-item {
+    align-items: flex-start !important;
+    text-align: left !important;
+    padding: 8px 10px !important;
+    min-width: 0;
+  }
+  :root .cc-today-metrics-grid .cc-today-metric-label::first-letter {
+    text-transform: uppercase;
+  }
+  :root .cc-today-metrics-grid .cc-today-metric-label {
+    font-size: 12px !important;
+    font-weight: 400 !important;
+    /* Nhãn viết IN HOA sẵn trong markup ("VÀO ĐẦU") ⇒ hạ thường, chữ đầu viết hoa lại. */
+    text-transform: lowercase !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap;
+    color: var(--ash-2) !important;
+  }
+  :root .cc-today-metrics-grid .cc-today-metric-item > :not(.cc-today-metric-label) {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+  }
+
+  /* ---- Modal "Sửa lương" — các khoản trong kỳ (LineEditModal `.lg-lc`) ----------------------------
+     Bản ≤1000px vẫn là lưới 4 cột cố định 92 · 128 · 96px ⇒ ở 375px cột tên còn ~40px: "mức theo hồ sơ;
+     sửa ở đây…" mỗi từ một dòng, chip "Miễn thuế" đè chữ, ô số tiền tràn mép. Mỗi khoản thành một thẻ:
+       [Tên khoản  (Từ hồ sơ)]
+       [mức theo hồ sơ; sửa ở đây chỉ đổi riêng kỳ này]
+       [Miễn thuế]        [ ô số tiền ⟷ ]
+       [ghi chú ⟷]
+                      [Về mức hồ sơ][Lưu] */
+  .lg-lc .lg-lc__head {
+    display: none !important;
+  }
+  :root .lg-lc .lg-lc__row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__name {
+    grid-column: 1 / -1;
+    font-size: 14.5px;
+    line-height: 1.35;
+  }
+  .lg-lc .lg-lc__src {
+    font-size: 12.5px !important;
+    line-height: 1.4;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__name + div {
+    grid-column: 1;
+    align-self: center;
+    white-space: nowrap;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__money {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .lg-lc .lg-lc__money input {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__note {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .lg-lc .lg-lc__note input {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-lc .lg-lc__note:has(> .lg-lc__ro) {
+    color: var(--ash-2);
+    font-size: 13px;
+  }
+  /* Ghi chú chỉ đọc mà trống: bản máy lớn in "—" cho thẳng cột; trên thẻ là một dòng gạch lẻ — bỏ. */
+  .lg-lc .lg-lc__note:has(> .lg-lc__ro--trong) {
+    display: none;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__act {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .lg-lc .lg-lc__row > .lg-lc__act:empty {
+    display: none;
+  }
+  .lg-lc .lg-lc__act .btn {
+    min-height: 40px;
+    margin-left: 0 !important;
+    font-size: 14px !important;
+    padding: 0 14px !important;
+  }
+
+  /* Form "+ Thêm khoản phát sinh" (lg-lc__add): chọn khoản · số tiền 140px · ghi chú + 2 nút chen một hàng.
+     Mỗi ô trọn hàng, hai nút chia đôi hàng cuối. */
+  .lg-lc__add.lg-lc__add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .lg-lc__add > :is(select, input) {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-lc__add > .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  /* ---- Modal hồ sơ lương (SalaryModal) — "Mức lương & Phụ cấp" `.lg-comp` --------------------------
+     Bản ≤640px vẫn lưới cố định (danh mục: 1fr 80 120 50) ⇒ tên khoản còn ~70px, chip "Miễn thuế" đè chữ,
+     nút "Gỡ" trơ một hàng. Mỗi khoản thành thẻ:
+       [Tên khoản ⟷]  [Miễn thuế] [Gỡ]
+       [ số tiền ⟷ ]
+       [ ghi chú ⟷ ] */
+  .lg-comp .lg-comp__head {
+    display: none !important;
+  }
+  :root .lg-comp--cat .lg-comp__row.lg-comp__row {
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 8px !important;
+    padding: 12px !important;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__name {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__name + div {
+    grid-column: 2;
+    grid-row: 1;
+    white-space: nowrap;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__act {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .lg-comp--cat .lg-comp__row > .lg-comp__money,
+  .lg-comp--cat .lg-comp__row > .lg-comp__note {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .lg-comp .lg-comp__money input,
+  .lg-comp .lg-comp__note input {
+    width: 100%;
+    height: 44px;
+    font-size: 16px;
+  }
+  .lg-comp .lg-btn-remove-comp {
+    height: 34px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+  }
+  /* Khoản HỆ THỐNG (lg-comp--sys: lương cơ bản…): tên trọn hàng trên, chip + số tiền hàng dưới. */
+  :root .lg-comp--sys .lg-comp__row.lg-comp__row {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 8px 10px !important;
+    padding: 12px !important;
+  }
+  .lg-comp--sys .lg-comp__row > :first-child {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+}

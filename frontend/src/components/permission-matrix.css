@@ -418,8 +418,10 @@
 }
 .rdx-perm__fine-text {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 /* Dấu hỏi tròn giải thích quyền — icon nét (bộ Icons), không dùng ký tự Unicode.
    inline-flex + vertical-align để icon canh giữa theo dòng chữ bên cạnh. */
@@ -501,7 +503,6 @@
 
 /* Ô soi (13/10/2026): nói ra mặt ô này là ô của màn nào — cùng một quyền hiện ở hai dòng. */
 .rdx-perm__fine-chung {
-  margin-left: 6px;
   padding: 1px 7px;
   border-radius: var(--r-pill);
   background: var(--steel-soft);

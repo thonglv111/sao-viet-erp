@@ -4,7 +4,9 @@
 // trong drawer có SƠ ĐỒ BÌNH BÀI live. Auto + override giữ nguyên. "Tính giá" = create (lần đầu,
 // khi phiếu còn nháp) hoặc update(pid) — BE replace-all + tính lại + snapshot → refresh từ Out.
 // LƯU = TÍNH, và phiếu KHÔNG vào DB cho tới lần lưu đầu tiên (chống phiếu rỗng bỏ lại).
-import BuocVatTu, { chipsCua, soOChipTrong, type BuocVatTuDong, type DinhMuc } from "./BuocVatTu";
+import BuocVatTu, {
+  chipsCua, khoaVatTu, nhanKhoGiay, soOChipTrong, type BuocVatTuDong, type DinhMuc,
+} from "./BuocVatTu";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import {
   api,
@@ -35,7 +37,7 @@ import { MucInHang } from "../components/MucIn";
 import { SanPhamTaiBanGoiY as SanPhamTaiBanCombo } from "../components/SanPhamTaiBanGoiY";
 import { Select, type SelectOption } from "../components/Select";
 import { ImpositionDiagram } from "./ImpositionDiagram";
-import { heSoChu, nhanChang, nhanDonVi } from "./lsxBuoc";
+import { heSoChu, nhanChang } from "./lsxBuoc";
 import { NHOM_CONG_DOAN } from "./keHoachSxShared";
 import { donViDangDung, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
@@ -44,6 +46,9 @@ import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
 import { HAM_TOAN, catToken, laSo, laToanTu } from "./danh-muc/formulaTokens";
 import { ngatDongIf } from "../lib/ngatDongCongThuc";
+import { ngayVN } from "../utils/ky";
+import { ThanhGopBaoGia } from "./ThanhGopBaoGia";
+import { LoiChuoiDonVi } from "./LoiChuoiDonVi";
 import "./rebuild-catalog.css";
 import "./tinh-gia.css";
 
@@ -51,15 +56,15 @@ import "./tinh-gia.css";
 const fmt = (v: number | null | undefined): string =>
   typeof v === "number" ? Math.round(v).toLocaleString("vi-VN") : "—";
 
-const rowLabel = (r: Row): string => `${r.ma ? `${r.ma} · ` : ""}${r.ten}`;
+const rowLabel = (r: Row): string => `${r.ma ? `${r.ma} ` : ""}${r.ten}`;
 const cdName = (r: Row): string => (r.ten_hien_thi ? String(r.ten_hien_thi) : String(r.ten));
 
 /** Lựa chọn cho một ô danh mục: BỎ mục đã ngừng dùng, nhưng GIỮ lại đúng mục phiếu đang dùng
  *  (kèm chữ "ngừng dùng"). Bỏ hẳn cả mục đang dùng thì mở phiếu cũ ra ô tự về rỗng, người lập
  *  phiếu tưởng phần mềm nuốt mất dữ liệu — cùng luật với ô ĐVT ngay bên cạnh.
  *
- *  `nhan` đổi được cách viết một dòng: mặc định "MÃ · Tên", ô nào không cần mã thì truyền hàm
- *  khác (xem `giayOpts`). */
+ *  `nhan` đổi được cách viết một dòng: mặc định "MÃ Tên", ô nào không cần mã thì truyền hàm
+ *  khác (vd tên trần, không mã). */
 function optsConDung(
   rows: Row[],
   dangDung: number | null,
@@ -75,7 +80,8 @@ function optsConDung(
 
 /** Kể tên vài mục rồi gộp phần đuôi — băng nhắc dài quá thì không ai đọc hết. */
 const keTen = (ds: string[], toi = 4): string =>
-  ds.slice(0, toi).join(" · ") + (ds.length > toi ? ` · +${ds.length - toi} mục nữa` : "");
+  ds.slice(0, toi).map((t) => `“${t}”`).join(" ") +
+  (ds.length > toi ? ` và ${ds.length - toi} mục nữa` : "");
 const numOf = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0);
 
 /** Số BÀI IN = số trang ÷ trang mỗi tay — dẫn xuất y hệt engine (`thanh_phan_engine`), FE chỉ
@@ -277,7 +283,9 @@ function dienGiaiFormula(raw: string, tra: TraBien): string {
   return catToken(raw)
     .map((t) => {
       if (laToanTu(t)) return dau[t] ?? t;
-      if (laSo(t) || /^\s+$/.test(t)) return t;
+      // Hằng số gõ trong câu ("150000") chấm ngăn nghìn như dòng Thế số ngay dưới (15/10/2026).
+      if (laSo(t)) return Number(t).toLocaleString("vi-VN", { maximumFractionDigits: 6 });
+      if (/^\s+$/.test(t)) return t;
       if ((HAM_TOAN as readonly string[]).includes(t)) return t;
       return tra(t)?.nhan ?? t;
     })
@@ -388,7 +396,7 @@ function dongKhuon(groups: PhieuTinhGiaGroupOut[] | null): DongTien[] {
     const tien = _so(r.thanh_tien);
     if (tien === null) continue;
     ra.push({
-      ten: _chuoi(r.ten).split(" · ").slice(1).join(" · ") || _chuoi(r.ten),
+      ten: _chuoi(r.ten).split(" · ").slice(1).join(" ") ||_chuoi(r.ten),
       tien,
       congThuc: _chuoi(r.cong_thuc),
       congThucGoc: "",
@@ -466,29 +474,32 @@ function tienTheoBuoc(groups: PhieuTinhGiaGroupOut[] | null): Map<number, DongTi
   return out;
 }
 
-/** Định mức vật tư theo BƯỚC: `buoc_idx` → (`vat_tu_id` → lượng). Engine gắn cả hai khoá vào dòng
- *  NVL loại `vat_tu`; một vật tư có thể nằm ở nhiều bước nên phải ghép theo bước, không chỉ theo id. */
+/** Định mức vật tư theo BƯỚC: `buoc_idx` → (`khoaVatTu(loại, id)` → lượng). Engine gắn cả hai khoá
+ *  vào dòng NVL loại `vat_tu` VÀ dòng giấy chọn ở bước (18/10/2026); một món có thể nằm ở nhiều bước
+ *  nên phải ghép theo bước, không chỉ theo id. Dòng giấy cấp sản phẩm của phiếu cũ không có
+ *  `buoc_idx` ⇒ bỏ qua tự nhiên. */
 function dinhMucTheoBuoc(
   groups: PhieuTinhGiaGroupOut[] | null, tra: TraBien, vatTuDm: Row[],
-): Map<number, Map<number, DinhMuc>> {
-  const out = new Map<number, Map<number, DinhMuc>>();
+): Map<number, Map<string, DinhMuc>> {
+  const out = new Map<number, Map<string, DinhMuc>>();
   const grp = groups?.find((g) => g.idx === "nvl");
   for (const r of grp?.rows ?? []) {
-    if (r.loai !== "vat_tu") continue;
+    if (r.loai !== "vat_tu" && r.loai !== "giay") continue;
     const b = _so(r.buoc_idx);
     const id = _so(r.vat_tu_id);
     if (b === null || id === null) continue;
     if (!out.has(b)) out.set(b, new Map());
-    // Chip riêng của vật tư phải đọc được tên ("Dài vùng ép"), không để mã thô.
-    const traVt = traKemChip(tra, vatTuDm.find((v) => v.id === id));
+    // Chip riêng của vật tư phải đọc được tên ("Dài vùng ép"), không để mã thô. Giấy không có chip.
+    const traVt = r.loai === "giay" ? tra : traKemChip(tra, vatTuDm.find((v) => v.id === id));
     const goc = _chuoi(r.dinh_muc_cong_thuc_goc);
     const theSo = _chuoi(r.dinh_muc_cong_thuc);
-    out.get(b)!.set(id, {
+    out.get(b)!.set(khoaVatTu(r.loai === "giay" ? "giay" : "vat_tu", id), {
       so: _so(r.dinh_muc),
       donVi: _chuoi(r.dinh_muc_don_vi),
       lyDo: r.dinh_muc_ly_do == null ? null : _chuoi(r.dinh_muc_ly_do),
       dienGiai: dienGiaiFormula(goc, traVt),
       thaySo: theSo ? humanizeFormula(theSo, traVt) : "",
+      kho: r.loai === "giay" ? nhanKhoGiay(r.kho_rong, r.kho_dai) : "",
     });
   }
   return out;
@@ -750,7 +761,8 @@ function fromFinishing(f: ThanhPhamOut): EditableFinishing {
     phi_khuon: f.phi_khuon ?? 0,
     khuon_nguon: f.khuon_nguon ?? null,
     vat_tus: (f.vat_tus ?? []).map((v) => ({
-      uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
+      uid: nextUid(), hang_loai: v.hang_loai === "giay" ? "giay" : "vat_tu",
+      vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
     })),
   };
 }
@@ -802,6 +814,23 @@ function fromComponent(c: ThanhPhanOut): EditableComponent {
   };
 }
 
+/** Sản phẩm đã có giấy chưa — giấy chọn ở BẤT KỲ công đoạn nào cũng tính (18/10/2026). Chưa có bước
+ *  nào (phiếu rất cũ) thì đọc `giay_id` như trước. */
+function coGiay(c: EditableComponent): boolean {
+  if (c.thanh_phams.length === 0) return c.giay_id != null;
+  return c.thanh_phams.some((f) => f.vat_tus.some((v) => v.hang_loai === "giay"));
+}
+
+/** `giay_id` gửi lên: máy chủ tự chốt giấy chính từ các dòng giấy của bước, nên chỉ cần KHÔNG gửi
+ *  giấy cũ khi người dùng đã xoá hết dòng giấy — gửi số cũ là máy chủ tưởng phiếu kiểu cũ và cấy
+ *  lại giấy vào bước In. */
+function giayGuiLen(c: EditableComponent): number | null {
+  if (c.thanh_phams.length === 0) return c.giay_id;
+  for (const f of c.thanh_phams)
+    for (const v of f.vat_tus) if (v.hang_loai === "giay") return v.vat_tu_id;
+  return null;
+}
+
 function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
   return {
     loai_thanh_phan: c.loai_thanh_phan,
@@ -814,7 +843,7 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
     don_vi_tinh: c.don_vi_tinh.trim() || "cái",
     nhom_bao_gia: c.nhom_bao_gia.trim() || null,
     dvt_nhom: c.dvt_nhom.trim() || null,
-    giay_id: c.giay_id,
+    giay_id: giayGuiLen(c),
     kho_nguyen: c.kho_nguyen.trim() || null,
     kho_nguyen_dai: c.kho_nguyen_dai,
     kho_nguyen_rong: c.kho_nguyen_rong,
@@ -853,7 +882,7 @@ function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
       phi_khuon: f.phi_khuon,
       khuon_nguon: f.khuon_nguon,
       vat_tus: f.vat_tus.map((v, k) => ({
-        vat_tu_id: v.vat_tu_id, thu_tu: k, gia_tri_chip: v.gia_tri_chip,
+        hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, thu_tu: k, gia_tri_chip: v.gia_tri_chip,
       })),
     })),
     // Dòng TRỐNG HẲN (chưa gõ tên, chưa gõ tiền) không gửi lên: bấm "+" rồi đổi ý là chuyện
@@ -936,7 +965,8 @@ function fromThanhPhanIn(
       phi_khuon: f.phi_khuon ?? 0,
       khuon_nguon: f.khuon_nguon ?? null,
       vat_tus: (f.vat_tus ?? []).map((v) => ({
-        uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
+        uid: nextUid(), hang_loai: v.hang_loai === "giay" ? "giay" : "vat_tu",
+        vat_tu_id: v.vat_tu_id, gia_tri_chip: v.gia_tri_chip ?? {},
       })),
     })),
     tai_ban: giu.tai_ban,
@@ -1424,7 +1454,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
   const applyOut = useCallback((out: PhieuTinhGiaOut) => {
     setMa(out.ma);
     setKtv(out.ktv);
-    setNgay(out.created_at ? out.created_at.slice(0, 10) : null);
+    setNgay(out.created_at ? ngayVN(out.created_at) : null);
     setTongGiaVon(out.tong_gia_von);
     setGiaVonDonLuu(out.gia_von_don);
     setNhomTongLuu(out.nhom_tong ?? []);
@@ -1569,29 +1599,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
     setEditingUid(uidMoi);
   }, []);
 
-  // Chọn giấy → đơn giá + đơn vị (CHỐT CỨNG theo danh mục, read-only). Khổ giấy nguyên KHÔNG còn
-  // ở danh mục Giấy → người dùng nhập tay khổ ở phiếu (ô Khổ giấy nguyên ①).
-  const onPickGiay = useCallback(
-    (uid: string, gid: number | null) => {
-      setComps((cs) =>
-        cs.map((c) => {
-          if (c.uid !== uid) return c;
-          if (gid === null) return { ...c, giay_id: null };
-          const g = giays.find((x) => x.id === gid);
-          if (!g) return { ...c, giay_id: gid };
-          // Đổi giấy → đổi giá (không giữ giá cũ) + đồng bộ đơn vị giá theo danh mục.
-          return {
-            ...c,
-            giay_id: gid,
-            don_gia_giay: numOf(g.don_gia),
-            don_gia_don_vi: (g.don_vi_gia as string) || "kg",
-          };
-        }),
-      );
-    },
-    [giays],
-  );
-
   const addFin = useCallback((
     cuid: string,
     cong_doan_id: number | null = null,
@@ -1714,13 +1721,13 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
       // nên hai bên lệch nhau mà nhìn thoáng qua tưởng đã cập nhật.)
       //
       // ⚠️ LUẬT CHUNG: thêm bất kỳ ô nhập nào ảnh hưởng số của engine thì phải khai vào chữ ký này.
-      gid: c.giay_id, may: c.may_id, pgh: c.phi_giao_hang,
+      gid: giayGuiLen(c), may: c.may_id, pgh: c.phi_giao_hang,
       // Chi phí khác ký theo CẢ TÊN lẫn tiền: tên đi vào dòng kết quả bên phải, sửa tên mà chữ ký
       // không đổi thì bảng bên phải còn gọi khoản đó bằng tên cũ.
       cpk: c.chi_phi_khacs.map((k) => [k.ten, k.so_tien]),
       cds: c.thanh_phams.map((f) => [
         f.cong_doan_id, f.phi_khuon, f.khuon_nguon,
-        f.vat_tus.map((v) => [v.vat_tu_id, JSON.stringify(v.gia_tri_chip)]),
+        f.vat_tus.map((v) => [v.hang_loai, v.vat_tu_id, JSON.stringify(v.gia_tri_chip)]),
       ]),
     });
   }, [editingComp, phieuSL]);
@@ -2058,7 +2065,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
           {daLuu && (ktv || ngay) ? (
             <div className="tg-head__meta">
               {ktv ? <span className="tag">Người lập {ktv}</span> : null}
-              {ngay ? <span className="tag">{new Date(ngay).toLocaleDateString("vi-VN")}</span> : null}
+              {ngay ? <span className="tag">{new Date(ngay).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}</span> : null}
             </div>
           ) : null}
         </div>
@@ -2089,7 +2096,8 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
               <Copy size={14} aria-hidden="true" /> Nhân bản
             </Button>
           )}
-          {navigate && (
+          {/* #53: đã có báo giá thì chỉ mở xem (ô Xem Báo giá); chưa có thì lập mới — máy chủ đòi ô Tạo. */}
+          {navigate && can("bao_gia", baoGiaCo ? "read" : "create") && (
             <Button
               variant="primary"
               onClick={openOrCreateQuote}
@@ -2211,40 +2219,14 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                 <>
                 {/* Thanh gộp: chỉ hiện khi có dòng được tick — không chiếm chỗ lúc không dùng. */}
                 {chonUids.size > 0 && (
-                  <div className="tg-gopbar" role="group" aria-label="Gộp dòng khi báo giá">
-                    <span className="tg-gopbar__count">{chonUids.size} dòng đã chọn</span>
-                    <input
-                      className="tg-input tg-gopbar__input"
-                      type="text"
-                      list="tg-nhom-goiy"
-                      value={tenNhom}
-                      placeholder="Tên in ra báo giá, vd Sách hướng dẫn A5"
-                      aria-label="Tên nhóm in ra báo giá"
-                      onChange={(e) => setTenNhom(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          apDungNhom();
-                        }
-                      }}
-                    />
-                    <datalist id="tg-nhom-goiy">
-                      {nhomDaCo.map((n) => (
-                        <option key={n} value={n} />
-                      ))}
-                    </datalist>
-                    <button
-                      type="button"
-                      className="tg-chip tg-chip--on"
-                      onClick={apDungNhom}
-                      disabled={!tenNhom.trim()}
-                    >
-                      Gộp khi báo giá
-                    </button>
-                    <button type="button" className="tg-chip" onClick={boNhom}>
-                      Bỏ gộp
-                    </button>
-                  </div>
+                  <ThanhGopBaoGia
+                    soChon={chonUids.size}
+                    tenNhom={tenNhom}
+                    onTenNhom={setTenNhom}
+                    nhomDaCo={nhomDaCo}
+                    onApDung={apDungNhom}
+                    onBo={boNhom}
+                  />
                 )}
                 <div className="tg-complist__wrap">
                   <table>
@@ -2271,7 +2253,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                           // gọn KHÔNG trả các field đó, nên cảnh báo sẽ đỏ oan mọi dòng.
                           const thieu =
                             xemRuotGia &&
-                            (!c.giay_id || c.dai_thanh_pham <= 0 || c.rong_thanh_pham <= 0);
+                            (!coGiay(c) || c.dai_thanh_pham <= 0 || c.rong_thanh_pham <= 0);
                           return (
                             <tr
                               key={c.uid}
@@ -2407,10 +2389,12 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                             <td>
                               <span className="grouphd__ten">{node.ten}</span>
                               <span className="grouphd__sub">
-                                {node.members.length} sản phẩm ·{" "}
-                                {lechNhom
-                                  ? `in ${cumIn.size} dòng khi báo giá`
-                                  : "gộp 1 dòng khi báo giá"}
+                                <span>{node.members.length} sản phẩm</span>{" "}
+                                <span>
+                                  {lechNhom
+                                    ? `in ${cumIn.size} dòng khi báo giá`
+                                    : "gộp 1 dòng khi báo giá"}
+                                </span>
                               </span>
                               {lechNhom && (
                                 <span
@@ -2418,7 +2402,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                                   title={`Các phần lệch nhau: ${phanSL
                                     .map((x) => `${x.ten} ${fmt(x.sl)} ${x.dvt}`)
                                     .join(
-                                      " · ",
+                                      "; ",
                                     )}. Chỉ các phần cùng số lượng mới gộp chung, nên bản gửi khách sẽ in ${
                                     cumIn.size
                                   } dòng cho nhãn này. Sửa SL cho khớp nếu muốn về 1 dòng.`}
@@ -2510,7 +2494,11 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                   <h3><RowsIcon /> Chi tiết dòng giá vốn</h3>
                   {/* Đọc TÊN NHÓM THẬT của kết quả, không gõ cứng: nhóm "Giao hàng" chỉ mọc khi
                       có phí, gõ cứng hai nhóm là nhãn nói thiếu đúng lúc bảng có ba khối. */}
-                  <span className="tag">{result.groups.map((g) => g.name).join(" · ")}</span>
+                  <span className="tag">
+                    {result.groups.map((g, gi) => (
+                      <span key={g.idx}>{gi > 0 ? " " : ""}{g.name}</span>
+                    ))}
+                  </span>
                 </div>
                 {result.groups.map((g, gi) => (
                   <div key={g.idx}>
@@ -2584,8 +2572,8 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                   <CalcIcon />
                   <p className="tg-empty__title">Chưa có kết quả</p>
                   <p className="tg-empty__sub">
-                    Cấu hình sản phẩm rồi bấm <b>Tính giá</b> để xem bảng 2 nhóm (Nguyên vật liệu ·
-                    Công đoạn).
+                    Cấu hình sản phẩm rồi bấm <b>Tính giá</b> để xem bảng giá vốn theo nhóm: Nguyên vật liệu
+                    và Công đoạn.
                   </p>
                 </div>
               </section>
@@ -2597,7 +2585,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
             {/* Dark card: TỔNG GIÁ VỐN · nội bộ */}
             <div className="dk">
               <div className="dk__hd">
-                <div className="dk__eyebrow"><LockIcon /> Tổng giá vốn · nội bộ</div>
+                <div className="dk__eyebrow"><LockIcon /> Tổng giá vốn <span>nội bộ</span></div>
               </div>
               <div className="dk__big">
                 {grand == null ? "—" : fmt(grand)}
@@ -2608,7 +2596,7 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
               ) : tongSoLuong > 0 ? (
                 <div className="dk__meta">{fmt(soSanPham)} sản phẩm, tổng {fmt(tongSoLuong)} SP</div>
               ) : (
-                <div className="dk__meta">Giá vốn sản xuất · chưa gồm lợi nhuận</div>
+                <div className="dk__meta">Giá vốn sản xuất, chưa gồm lợi nhuận</div>
               )}
               {summaryRows.length > 0 ? (
                 <div className="dk__rows">
@@ -2690,7 +2678,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
           }}
           patchComp={patchComp}
           patchFin={patchFin}
-          onPickGiay={onPickGiay}
           addFin={addFin}
           removeFin={removeFin}
           customerId={khach.customer_id}
@@ -2730,7 +2717,6 @@ function ComponentModal({
   onRemove,
   patchComp,
   patchFin,
-  onPickGiay,
   addFin,
   removeFin,
   customerId,
@@ -2754,7 +2740,6 @@ function ComponentModal({
   onRemove: () => void;
   patchComp: (uid: string, patch: Partial<EditableComponent>) => void;
   patchFin: (cuid: string, fuid: string, patch: Partial<EditableFinishing>) => void;
-  onPickGiay: (uid: string, gid: number | null) => void;
   addFin: (cuid: string, cong_doan_id?: number | null, ten?: string, insertIndex?: number | null, vat_tus?: BuocVatTuDong[]) => void;
   removeFin: (cuid: string, fuid: string) => void;
   /** Khách đầu phiếu — ô tái bản chỉ liệt kê thành phẩm của khách này. */
@@ -2898,6 +2883,8 @@ function ComponentModal({
     buocDauChuoi && buocDauChuoi.dv_vao !== buocIn?.dv_vao
       ? dvNgan(buocDauChuoi.dv_vao) || "tờ nguyên"
       : "tờ nguyên";
+  // Chuỗi đứt ⇒ engine chưa ra giá được; mọi con số tờ / giá vốn kèm theo đều là số của chuỗi dở.
+  const chuoiDut = (liveMeta?.loi_chuoi?.length ?? 0) > 0;
   const chuaCh = chuaTheoChieu(c, c.may_id ? mays.find((x) => x.id === c.may_id) : null);
   // ---- Lựa chọn cho các ô CÓ TÌM GẦN ĐÚNG ----
   // Bốn danh mục dưới đây dài hàng chục tới hàng trăm dòng; <select> gốc bắt người dùng cuộn hoặc
@@ -2912,16 +2899,6 @@ function ComponentModal({
       ds.unshift({ value: c.don_vi_tinh, label: `${c.don_vi_tinh} (ngoài danh mục)` });
     return ds;
   }, [dvtOpts, c.don_vi_tinh]);
-  // Ô chọn giấy hiện MỖI TÊN, không kèm mã (03/09/2026). Mã giấy là số tự sinh
-  // (`GL-0001-COPY-COPY`), không nói lên gì về tờ giấy — người lập phiếu nhận giấy bằng tên
-  // ("Giấy C300"), mã chỉ làm dòng dài ra và đẩy tên ra xa. Các ô danh mục khác vẫn giữ mã.
-  const giayOpts = useMemo<SelectOption<string>[]>(
-    () => [
-      { value: "", label: "— Chọn giấy —" },
-      ...optsConDung(giays, c.giay_id, (r) => String(r.ten)),
-    ],
-    [giays, c.giay_id],
-  );
   // Ô "Máy in" (mở lại 06/09/2026) — CHỈ mời máy đã khai ở một CÔNG ĐOẠN GIAI ĐOẠN IN (07/09/2026).
   //
   // Trước đó lọc theo chữ "in" đứng riêng trong `loai_may`, tức đoán theo TÊN NHÓM MÁY: máy bế/cán
@@ -2996,7 +2973,7 @@ function ComponentModal({
     // Vật tư mặc định của công đoạn tự hiện ở bước (chép một lần; sau đó sửa riêng cho phiếu).
     const macDinh: BuocVatTuDong[] = Array.isArray(cd?.vat_tus)
       ? (cd!.vat_tus as Array<{ vat_tu_id: number }>).map((v) => ({
-          uid: nextUid(), vat_tu_id: v.vat_tu_id, gia_tri_chip: {},
+          uid: nextUid(), hang_loai: "vat_tu" as const, vat_tu_id: v.vat_tu_id, gia_tri_chip: {},
         }))
       : [];
     addFin(c.uid, cd ? cd.id : null, cd ? cdName(cd) : "", insertIdx, macDinh);
@@ -3239,7 +3216,7 @@ function ComponentModal({
                     label="Bleed (tràn lề)"
                     value={c.bleed_mm}
                     onChange={(n) => patchComp(c.uid, { bleed_mm: n })}
-                    opt="mỗi cạnh con · 0 = không tràn lề"
+                    opt="mỗi cạnh con, 0 = không tràn lề"
                     thapPhan
                     suffix="mm"
                   />
@@ -3262,20 +3239,9 @@ function ComponentModal({
               <div className="rc-sec__title">
                 <span className="tg-step-badge">2</span> Giấy nguyên
               </div>
+              {/* Ô "Loại giấy" + dòng đơn giá GỠ 18/10/2026: giấy chọn ở "+ Thêm vật tư" của công đoạn
+                  (bước nào cũng được), tiền theo công thức của giấy. Mục này chỉ còn khổ nguyên. */}
               <div className="tg-grid">
-                <label className="tg-field tg-span-6">
-                  <span className="tg-microlabel">Loại giấy</span>
-                  <Select
-                    options={giayOpts}
-                    value={c.giay_id == null ? "" : String(c.giay_id)}
-                    onChange={(v) => onPickGiay(c.uid, v === "" ? null : Number(v))}
-                    ariaLabel="Loại giấy"
-                    searchable
-                    portal
-                    className="tg-input"
-                    listClassName="tg-pop"
-                  />
-                </label>
                 {/* GỠ 2026-08-09 (Đợt 4 · K): ô chọn "Nguồn giấy — Công ty / Khách cấp".
                     Công ty luôn cấp giấy, và engine đã thôi đọc cờ đó. Để lại ô mà engine không
                     nghe là tệ hơn không có ô: người tính giá tick "Khách cấp", nhìn thấy nó lưu
@@ -3297,18 +3263,6 @@ function ComponentModal({
                     thapPhan
                     suffix="mm"
                   />
-                </div>
-                <div className="tg-field tg-span-6">
-                  <div className="tg-readout" style={{ minHeight: "36px", display: "flex", alignItems: "center" }}>
-                    {(() => {
-                      const g = c.giay_id ? giays.find((x) => x.id === c.giay_id) : null;
-                      if (!g) return "— chọn giấy để lấy giá —";
-                      // Tên đơn vị đọc từ DANH MỤC, không phải chuỗi ba nhánh khai cứng ở đây —
-                      // giấy bán theo đơn vị nào là việc của danh mục, thêm đơn vị mới thì dòng
-                      // này tự hiện đúng thay vì rơi hết về "tờ".
-                      return `${fmt(numOf(g.don_gia))} đ / ${nhanDonVi(String(g.don_vi_gia ?? "")) || "—"}`;
-                    })()}
-                  </div>
                 </div>
               </div>
             </section>
@@ -3349,7 +3303,7 @@ function ComponentModal({
                         dùng được cho hàng này", mà lại ăn 1/4 bề ngang làm hai nút kia gãy chữ. */}
                     {laSach(c) && (
                       <span className="tg-tag tg-tag--auto" title="Tay gấp lại thì cả hai mặt tờ đều là trang ruột">
-                        sách · in 2 mặt
+                        sách in 2 mặt
                       </span>
                     )}
                   </span>
@@ -3666,6 +3620,7 @@ function ComponentModal({
                           tenBuoc={ten}
                           dong={f.vat_tus}
                           vatTuDm={vatTuDm}
+                          giayDm={giays}
                           taoUid={nextUid}
                           onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
                           dinhMuc={mapDinhMuc.get(fIdx)}
@@ -3703,7 +3658,7 @@ function ComponentModal({
                   <div className="tg-khuon">
                     <div className="tg-khuon__head">
                       <span className="tg-khuon__title">Phí khuôn</span>
-                      <span className="tg-khuon__note">một lần · không chia theo số lượng</span>
+                      <span className="tg-khuon__note">một lần, không chia theo số lượng</span>
                     </div>
                     {daos.map(({ f, dao }) => (
                       <Fragment key={f.uid}>
@@ -3799,7 +3754,7 @@ function ComponentModal({
               <div className="tg-khuon">
                 <div className="tg-khuon__head">
                   <span className="tg-khuon__title">Chi phí giao hàng</span>
-                  <span className="tg-khuon__note">một lần · cho cả sản lượng</span>
+                  <span className="tg-khuon__note">một lần cho cả sản lượng</span>
                 </div>
                 <div className="tg-khuon__row">
                   <span className="tg-khuon__ten">
@@ -3845,7 +3800,7 @@ function ComponentModal({
               <div className="tg-khuon">
                 <div className="tg-khuon__head">
                   <span className="tg-khuon__title">Khoản chi thêm</span>
-                  <span className="tg-khuon__note">một lần · cho cả sản lượng</span>
+                  <span className="tg-khuon__note">một lần cho cả sản lượng</span>
                 </div>
                 {c.chi_phi_khacs.map((k) => {
                   const moiDv = slHieuLuc > 0 ? k.so_tien / slHieuLuc : 0;
@@ -3945,8 +3900,11 @@ function ComponentModal({
             {/* SỐ TỜ (tính LIVE qua /preview) + ô Bù / Hao nhập tay */}
             <div className="tg-sheetbox">
               <div className="tg-sheetbox__title">
-                Số tờ <span className="tg-sheetbox__hint">tự tính · engine thật</span>
+                Số tờ <span className="tg-sheetbox__hint">máy tự tính</span>
               </div>
+              <LoiChuoiDonVi loi={liveMeta?.loi_chuoi} />
+              {/* Chuỗi đứt ⇒ engine chưa ra giá được: số tờ / giá vốn lúc đó là số của chuỗi dở
+                  dang, in ra cạnh câu "chưa ra giá được" là tự mâu thuẫn. Chỉ để câu lỗi. */}
               <div className="tg-sheetrow">
                 <span>Thành phẩm cần</span>
                 {liveMeta
@@ -3959,7 +3917,7 @@ function ComponentModal({
                   {/* SÁCH đi đường NHÂN, không phải đường chia: engine gom `so_tay` tờ mới ra 1
                       cuốn (`cau_to_sang_cai` → 1/so_tay), `con` không dính vào. Dòng cũ chia cho
                       `con` chỉ tình cờ ra đúng khi con == trang mỗi tay; đổi tay 16 → 32 là lệch. */}
-                  {liveMeta &&
+                  {liveMeta && !chuoiDut &&
                     ((liveMeta.trang_moi_tay ?? 1) > 1 ? (
                       <em className="tg-sheetrow__derive">
                         {fmt(liveMeta.so_luong)} {c.don_vi_tinh || "cuốn"} ×{" "}
@@ -3975,7 +3933,9 @@ function ComponentModal({
                     ) : null)}
                 </span>
                 {liveMeta
-                  ? <SoDv so={fmt(liveMeta.to_net)} dv={dvDauChuoi} />
+                  ? (chuoiDut
+                      ? <b className="tg-val">—</b>
+                      : <SoDv so={fmt(liveMeta.to_net)} dv={dvDauChuoi} />)
                   : <b className="tg-val">…</b>}
               </div>
               <div className="tg-sheetrow">
@@ -3988,12 +3948,16 @@ function ComponentModal({
                     title={moPhanRa ? "Thu gọn" : "Xem bước nào ăn bao nhiêu tờ"}
                     onClick={() => setMoPhanRa((v) => !v)}
                   >
-                    <SoDv so={fmt(liveMeta?.bu_hao_auto ?? 0)} dv={dvDauChuoi} />
+                    {liveMeta?.loi_chuoi?.length
+                      ? <b className="tg-val">—</b>
+                      : <SoDv so={fmt(liveMeta?.bu_hao_auto ?? 0)} dv={dvDauChuoi} />}
                     <ChevronIcon open={moPhanRa} />
                   </button>
                 ) : (
                   liveMeta
-                    ? <SoDv so={fmt(liveMeta.bu_hao_auto ?? 0)} dv={dvDauChuoi} />
+                    ? (liveMeta.loi_chuoi?.length
+                        ? <b className="tg-val">—</b>
+                        : <SoDv so={fmt(liveMeta.bu_hao_auto ?? 0)} dv={dvDauChuoi} />)
                     : <b className="tg-val">…</b>
                 )}
               </div>
@@ -4078,7 +4042,9 @@ function ComponentModal({
                 {/* "Tờ vào máy" → "Tờ in" (03/09/2026): xưởng gọi số này là tờ in. */}
                 <span>= Tờ in</span>
                 {liveMeta
-                  ? <SoDv so={fmt(liveMeta.to_dau_vao)} dv={dvDauChuoi} />
+                  ? (chuoiDut
+                      ? <b className="tg-val">—</b>
+                      : <SoDv so={fmt(liveMeta.to_dau_vao)} dv={dvDauChuoi} />)
                   : <b className="tg-val">…</b>}
               </div>
               <div className="tg-sheetrow tg-sheetrow--total">
@@ -4087,7 +4053,7 @@ function ComponentModal({
                   {/* Chú thích phải bám ĐÚNG nguồn của con số: chuỗi có bước ăn tờ nguyên (bước in)
                       thì engine đọc thẳng số vào của bước đó — nói "to_dau_vao ÷ số mảnh xả" là mô
                       tả một phép tính KHÔNG được dùng, và ra kết quả khác hẳn số đang hiện. */}
-                  {(() => {
+                  {!chuoiDut && (() => {
                     const buocNguyen = liveMeta?.bu_hao_chi_tiet?.find(
                       (b) => b.dv_vao === "to_nguyen",
                     );
@@ -4108,17 +4074,27 @@ function ComponentModal({
                   })()}
                 </span>
                 {liveMeta
-                  ? <SoDv so={fmt(liveMeta.to_nguyen)} dv={dvToNguyen} />
+                  ? (chuoiDut
+                      ? <b className="tg-val">—</b>
+                      : <SoDv so={fmt(liveMeta.to_nguyen)} dv={dvToNguyen} />)
                   : <b className="tg-val">…</b>}
               </div>
               {/* Ẩn "số con" ở ô nhập mà để nó lòi ra ở chân khối thì coi như chưa ẩn. */}
               <div className="tg-sheetbox__foot">
                 {liveMeta
-                  ? `${
-                      (liveMeta.trang_moi_tay ?? 1) > 1
-                        ? `${fmt(Math.ceil((liveMeta.trang_moi_tay ?? 2) / 2))} trang/mặt`
-                        : `${fmt(liveMeta.con)} ${dvCuoiChuoi}/${dvDauChuoi}`
-                    } · ${fmt(liveMeta.so_kem)} kẽm`
+                  ? (chuoiDut
+                      ? null
+                      : (
+                        <>
+                          <span>
+                            {(liveMeta.trang_moi_tay ?? 1) > 1
+                              ? `${fmt(Math.ceil((liveMeta.trang_moi_tay ?? 2) / 2))} trang/mặt`
+                              : `${fmt(liveMeta.con)} ${dvCuoiChuoi}/${dvDauChuoi}`}
+                          </span>
+                          {" "}
+                          <span>{fmt(liveMeta.so_kem)} kẽm</span>
+                        </>
+                      ))
                   : "Nhập đủ khổ + số lượng để tính"}
               </div>
             </div>
@@ -4126,7 +4102,7 @@ function ComponentModal({
             {/* GIÁ THÀNH: mạch tiền nối tiếp mạch số tờ ở trên. Cùng một vòng /preview, không
                 gọi thêm request nào. Chi tiết TỪNG bước nằm trong phân rã "Bù hao công đoạn" —
                 ở đây chỉ chốt tổng, để khối không dài gấp đôi vì lặp lại tên 6 công đoạn. */}
-            {liveMeta && (
+            {liveMeta && !chuoiDut && (
               <div className="tg-sheetbox tg-sheetbox--tien">
                 <div className="tg-sheetbox__title">
                   Giá vốn <span className="tg-sheetbox__hint">sản phẩm này</span>
@@ -4144,7 +4120,13 @@ function ComponentModal({
                 {nvl.giay.map((d, i) => (
                   <div className="tg-sheetrow" key={`g${i}`}>
                     <span className="tg-sheetrow__stack">
-                      <HaiDongCongThuc ten="Giấy" d={d} tra={tra} />
+                      {/* Giấy chọn được ở nhiều bước (18/10/2026): từ hai giấy trở lên thì gọi bằng
+                          TÊN giấy, không thì các dòng cùng nhãn "Giấy" không biết dòng nào là gì. */}
+                      <HaiDongCongThuc
+                        ten={nvl.giay.length > 1 ? (d.ten.split(" · ").pop() ?? "Giấy") : "Giấy"}
+                        d={d}
+                        tra={tra}
+                      />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>

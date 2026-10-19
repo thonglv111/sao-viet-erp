@@ -7,12 +7,16 @@
  *  Mọi lọc chạy ở MÁY CHỦ. Số trên hàng lọc nhanh (`the_loc`) tính theo kỳ + bộ lọc, KHÔNG theo mục
  *  đang chọn. Mục "Chờ thu" chỉ hiện khi còn phiếu CŨ chờ thu (phiếu mới lập là đã thu).
  *
- *  Thu cọc lập ở Đơn hàng bán, thu hoá đơn lập ở Công nợ phải thu; ở đây chỉ lập khoản thu khác.
+ *  Mục "Đơn hàng chờ thu" (17/10/2026) thay cả bảng bằng hàng việc: cọc đơn đã chốt chưa đủ + hoá đơn
+ *  khách chưa trả hết, mỗi dòng lập phiếu thu ngay tại đây (cùng form với Đơn hàng bán / Công nợ phải
+ *  thu). Nút đầu trang lập khoản thu khác.
  */
 import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ApiError, api, type PaymentReceiptRow, type PaymentVoucherRow } from "../../../api/client";
+import {
+  ApiError, api, type HoaDonChoThu, type PaymentReceiptRow, type PaymentVoucherRow, type ReceivableItemRow,
+} from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
@@ -23,8 +27,12 @@ import {
 import { GoiYPhim } from "../shared/BangPhieu";
 import { soPhieuCong } from "../shared/PhieuGon";
 import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
+import { ThuTienHoaDon } from "../cong-no-phai-thu/components/ThuTienHoaDon";
+import { COT_CHO_THU, HangChoThuDon, gopDongChoThu, type DongChoThu } from "./components/HangChoThuDon";
+import { LapPhieuThuGop, type KhoanThuGop } from "./components/LapPhieuThuGop";
 import { ReceiptsDrawer } from "./components/ReceiptsDrawer";
 import { COT_PHIEU_THU, ReceiptsTable } from "./components/ReceiptsTable";
+import { DepositReceiptDialog } from "./modals/DepositReceiptDialog";
 import { OtherReceiptDialog } from "./modals/OtherReceiptDialog";
 import { PaymentReceiptDialog } from "./PaymentReceiptDialog";
 import { PAGE_SIZE } from "./shared/constants";
@@ -74,6 +82,26 @@ export function PaymentReceiptsPage({
   const [loiMo, setLoiMo] = useState<string | null>(null);
   const [lapKhac, setLapKhac] = useState(false);
   const [sua, setSua] = useState<{ voucher: PaymentVoucherRow; receipt: PaymentReceiptRow } | null>(null);
+  const [dh, setDh] = useState<DongChoThu[] | null>(null);
+  const [dhLoi, setDhLoi] = useState<string | null>(null);
+  const [lapDh, setLapDh] = useState<DongChoThu | null>(null);
+  // Phiếu thu gộp: các khoản đã tick cùng khách. `lanGop` đổi sau khi lập để hàng chờ bỏ hết dấu tick.
+  const [lapGop, setLapGop] = useState<{ khach: { id: number; ten: string }; khoan: KhoanThuGop[] } | null>(null);
+  const [lanGop, setLanGop] = useState(0);
+
+  const taiDh = useCallback(() => {
+    if (!token) return;
+    api.accounting
+      .donHangChoThu(token)
+      .then((r) => {
+        setDh(gopDongChoThu(r.coc, r.hoa_don));
+        setDhLoi(null);
+      })
+      .catch((e: unknown) => setDhLoi(e instanceof ApiError ? e.message : "Không tải được danh sách đơn hàng chờ thu."));
+  }, [token]);
+  useEffect(() => {
+    taiDh();
+  }, [taiDh]);
 
   // Nối dây trang sổ (kỳ, thẻ, lọc, URL, tải + cùng kỳ, SSE, liên thông, ngăn): khuôn chung. Ngăn tự
   // nạp bản mới nhất của phiếu đang mở (route đọc MỘT phiếu thu).
@@ -86,6 +114,8 @@ export function PaymentReceiptsPage({
     thamSoLoc,
     thamSoTai,
     goiDanhSach: (t, p) => api.accounting.receipts(t, p),
+    theKhongBang: (t) => t === "dh",
+    onSuKien: taiDh,
     chuLoi: "Không tải được danh sách phiếu thu.",
     coTrang: PAGE_SIZE,
     coXemTaiKhoan,
@@ -153,25 +183,31 @@ export function PaymentReceiptsPage({
     ...(!((soThe?.cho ?? 0) > 0) && the !== "cho"
       ? []
       : [{ key: "cho", label: "Chờ thu", mau: "cam" as const, count: soThe?.cho }]),
-    { key: "thieu", label: "Thiếu chứng từ gốc", mau: "vang", count: soThe?.thieu_chung_tu },
+    // Hàng việc, không phải trạng thái phiếu ⇒ số là số khoản chờ thu. Hết việc thì ẩn (trừ khi đang
+    // đứng ở mục đó, hoặc tải lỗi — lỗi thì mục vẫn hiện để bấm vào thấy câu lỗi).
+    ...(the !== "dh" && !dhLoi && (dh?.length ?? 0) === 0
+      ? []
+      : [{ key: "dh", label: "Đơn hàng chờ thu", mau: "cam" as const, count: dh?.length }]),
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
-  ], [soThe, the]);
+  ], [soThe, the, dh, dhLoi]);
   const mucLoc = useMucThuChi("thu", false).ds;
   // Trạng thái trong nút Lọc = các mục đang hiện của hàng lọc nhanh (đọc/ghi thẳng mục đang chọn).
   const dieuKien = useMemo(
     () => [
       dkTrangThaiPhieu({
-        muc: muc.map((m) => ({ id: m.key, nhan: m.label })),
+        muc: muc.filter((m) => m.key !== "dh").map((m) => ({ id: m.key, nhan: m.label })),
         n: soThe, dang: the, dat: (id) => setThe(id as TheLocPT),
       }),
       ...dieuKienPhieu(CAU_HINH_LOC_PT, sp.taiKhoan, mucLoc),
     ],
     [muc, soThe, the, setThe, sp.taiKhoan, mucLoc],
   );
-  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab + ô Chứng từ).
-  const soXong = soPhieuCong({ the, chungTu: loc.chung_tu, n: soThe, tong: sp.tong });
+  // Dòng Cộng: số phiếu khớp với tổng tiền máy chủ cộng (có tính tab).
+  const soXong = soPhieuCong({ the, n: soThe, tong: sp.tong });
   const luoi = useCauHinhLuoi(MAN);
   const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU_THU).filter((c) => !luoi.an.has(c.key)));
+  const luoiDh = useCauHinhLuoi(`${MAN}:don-hang`);
+  const moDon = coXemDonBan ? (id: number) => navigate("don-hang-ban", { openOrderId: id }) : undefined;
 
   return (
     <main className="kt-trang lds">
@@ -189,14 +225,26 @@ export function PaymentReceiptsPage({
 
       <section className="lds-loc">
         <LocNhanhTrangThai muc={muc} dang={the} onChon={(k) => setThe(k as TheLocPT)} />
-        <div className="lds-loc__thanh tl-thanh" role="search">
-          <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nộp, số hoá đơn"
-            ariaLabel="Tìm phiếu thu" />
-          <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
-          <ChonCot cot={COT_PHIEU_THU} {...luoi.chonCot} />
-        </div>
+        {/* "Đơn hàng chờ thu" không có bảng phiếu ⇒ ô tìm, bộ lọc không áp vào, ẩn đi. */}
+        {the === "dh" ? (
+          <div className="lds-loc__thanh tl-thanh">
+            <ChonCot cot={COT_CHO_THU} {...luoiDh.chonCot} />
+          </div>
+        ) : (
+          <div className="lds-loc__thanh tl-thanh" role="search">
+            <OTim value={sp.tim} onChange={sp.setTim} placeholder="Tìm số phiếu, người nộp, số hoá đơn"
+              ariaLabel="Tìm phiếu thu" />
+            <ThanhLoc ky={sp.ky} moc={MOC_PT} onKy={sp.setKy} dieuKien={dieuKien} loc={loc} onLoc={sp.setLoc} />
+            <ChonCot cot={COT_PHIEU_THU} {...luoi.chonCot} />
+          </div>
+        )}
       </section>
 
+      {the === "dh" ? (
+        <HangChoThuDon key={lanGop} rows={dh} loi={dhLoi} onLap={coLap ? setLapDh : undefined}
+          onLapGop={coLap ? (khach, khoan) => setLapGop({ khach, khoan }) : undefined} onMoDon={moDon} luoi={luoiDh} />
+      ) : (
+        <>
       <ReceiptsTable
         cot={cotHien}
         luoi={luoi}
@@ -219,6 +267,8 @@ export function PaymentReceiptsPage({
         soXong={soXong}
       />
       <GoiYPhim />
+        </>
+      )}
 
       {mo && (
         <ReceiptsDrawer
@@ -246,6 +296,61 @@ export function PaymentReceiptsPage({
           }}
         />
       )}
+      {lapDh?.loai === "coc" && lapDh.r.customer_id != null && (
+        <DepositReceiptDialog
+          order={{
+            id: lapDh.r.order_id, order_no: lapDh.r.order_code, customer_id: lapDh.r.customer_id,
+            customer_name: lapDh.r.customer_name ?? "", deposit_pct: lapDh.r.deposit_pct,
+            deposit_required: lapDh.r.can_thu, deposit_received: lapDh.r.da_thu,
+          }}
+          coTheTaiTep={coLap}
+          onClose={() => setLapDh(null)}
+          onSaved={() => {
+            setLapDh(null);
+            load();
+            taiDh();
+          }}
+        />
+      )}
+      {lapGop && (
+        <LapPhieuThuGop
+          customerId={lapGop.khach.id}
+          customerName={lapGop.khach.ten}
+          khoan={lapGop.khoan}
+          onClose={() => setLapGop(null)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onSaved={(saved) => {
+            setLapGop(null);
+            setLanGop((n) => n + 1);
+            setMo(saved);
+            load();
+            taiDh();
+          }}
+        />
+      )}
+      {lapDh?.loai === "hoa_don" && lapDh.r.customer_id != null && (
+        <ThuTienHoaDon
+          key={lapDh.r.invoice_id}
+          item={hoaDonThanhDongCongNo(lapDh.r)}
+          customerId={lapDh.r.customer_id}
+          customerName={lapDh.r.customer_name ?? ""}
+          coNganKhach={false}
+          onDong={() => setLapDh(null)}
+          onDaLap={(saved) => {
+            setLapDh(null);
+            setMo(saved);
+            load();
+            taiDh();
+          }}
+          onMoDon={moDon}
+          onMoPhieu={(code) => {
+            setLapDh(null);
+            setThe("tat_ca");
+            sp.setTim(code);
+          }}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+        />
+      )}
       {sua && (
         <PaymentReceiptDialog
           key={sua.receipt.id}
@@ -261,4 +366,28 @@ export function PaymentReceiptsPage({
       )}
     </main>
   );
+}
+
+/** Dòng "hoá đơn chờ thu" → dạng dòng hoá đơn của Công nợ phải thu mà form thu tiền hoá đơn đọc. */
+function hoaDonThanhDongCongNo(h: HoaDonChoThu): ReceivableItemRow {
+  return {
+    invoice_id: h.invoice_id,
+    invoice_symbol: h.invoice_symbol,
+    invoice_number: h.invoice_number,
+    invoice_date: h.invoice_date,
+    order_id: h.order_id,
+    order_code: h.order_code,
+    customer_id: h.customer_id,
+    customer_name: h.customer_name ?? "",
+    due_date: h.due_date,
+    chua_dat_han: h.due_date == null,
+    overdue_days: 0,
+    aging_bucket: null,
+    amount: h.amount,
+    direct_received_amount: h.direct_received_amount,
+    deposit_offset_amount: h.deposit_offset_amount,
+    hoan_khong_don: h.hoan_khong_don,
+    received_amount: h.da_thu,
+    remaining_amount: h.con_no,
+  };
 }

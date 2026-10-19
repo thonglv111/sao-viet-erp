@@ -15,6 +15,7 @@ export function PrintSheet({
   footer,
   chonMau,
   boDauTrang,
+  ngang,
 }: {
   title: string;
   docNo?: string;
@@ -27,10 +28,16 @@ export function PrintSheet({
   chonMau?: ReactNode;
   /** Mẫu tự dựng đầu trang (chứng từ theo mẫu MISA / Bộ Tài chính) ⇒ bỏ đầu trang logo mặc định. */
   boDauTrang?: boolean;
+  /** In A4 NGANG (vùng chữ 247mm) cho bảng nhiều cột không lọt 160mm của khổ dọc. Chỉ tờ này;
+   *  mọi tờ khác vẫn A4 dọc theo `@page` trong print-sheet.css. */
+  ngang?: boolean;
 }) {
   return (
     <div className="ps-ov" onClick={onClose}>
-      <div className="ps-dialog" onClick={(e) => e.stopPropagation()}>
+      {/* `@page` không gắn theo lớp của tờ được ⇒ chèn luật khổ ngang chỉ khi tờ ngang đang mở. Thẻ
+          này nằm sau stylesheet trong <head> nên thắng `size: A4`; lề vẫn lấy từ luật gốc. */}
+      {ngang && <style>{"@media print { @page { size: A4 landscape; } }"}</style>}
+      <div className={`ps-dialog${ngang ? " ps-dialog--ngang" : ""}`} onClick={(e) => e.stopPropagation()}>
         <div className="ps-dialog-head">
           <h2>Xem trước bản in</h2>
           {chonMau}
@@ -38,7 +45,7 @@ export function PrintSheet({
             ✕
           </button>
         </div>
-        <div className="psheet">
+        <div className={`psheet${ngang ? " psheet--ngang" : ""}`}>
           {!boDauTrang && <header className="ps-mh">
             <div className="ps-logo">
               <img src={svnLogoUrl} alt="SVN" />

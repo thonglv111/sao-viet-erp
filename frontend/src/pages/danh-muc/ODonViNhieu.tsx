@@ -18,6 +18,11 @@ import { tenDonVi } from "../tenDonVi";
 
 const apiCap = crud("/api/don-vi/quy-doi");
 
+/** Tờ + kg: đơn vị BẮT BUỘC của mọi mã giấy (18/10/2026) — chip không có nút bỏ, máy chủ tự thêm
+ *  nhóm còn thiếu lúc lưu; ở màn Đơn vị & quy đổi hai dòng này bị khoá. Cùng hằng số máy chủ
+ *  `kho_giay.GIAY_DON_VI_BAT_BUOC`. */
+export const DON_VI_KHOA = ["to", "kg"];
+
 const chuan = (ma: unknown) => String(ma ?? "").trim().toLowerCase();
 
 /** Đồ thị cặp quy đổi `{mã: tập mã kề}`, cả hai chiều — khai "1 tấn = 1.000 kg" là đủ đi ngược. */
@@ -51,13 +56,15 @@ function nhomCua(ma: string, g: Map<string, Set<string>>): string[] {
   return hang;
 }
 
-export function ODonViNhieu({ value, chinh, donVi, onChange }: {
+export function ODonViNhieu({ value, chinh, donVi, batBuoc, onChange }: {
   /** Mã các đơn vị thêm, theo thứ tự khai. */
   value: string[];
   /** Mã ĐVT chính (ô "ĐVT" của form) — nhóm của nó cũng bị ẩn khỏi danh sách thêm. */
   chinh: string;
   /** Danh mục Đơn vị (đã bỏ mục ngừng dùng, trừ mục đang chọn) — cùng nguồn ô ĐVT chính. */
   donVi: Row[];
+  /** Mã đơn vị không bỏ được (Giấy: tờ, kg) — chip mất nút ×; nhóm nào còn thiếu thì nhắc máy tự thêm. */
+  batBuoc?: string[];
   onChange: (v: string[]) => void;
 }) {
   const { token } = useAuth();
@@ -139,6 +146,10 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
   }, [mo, conThem.length]);
 
   const loi = the.filter((t) => t.trung);
+  const khoa = useMemo(() => new Set((batBuoc ?? []).map(chuan)), [batBuoc]);
+  // Nhóm bắt buộc chưa có ở ĐVT chính lẫn đơn vị thêm ⇒ máy chủ thêm lúc lưu, nói trước ở đây.
+  const thieu = useMemo(() => [...khoa].filter(
+    (b) => ![maChinh, ...ds].some((u) => u && (u === b || nhomCua(u, g).includes(b)))), [khoa, maChinh, ds, g]);
 
   // MỘT ô như các ô nhập khác (nằm ngay dưới ô ĐVT): mỗi đơn vị thêm một thẻ CHỈ có tên, nút thêm
   // ở cuối ô. Nhóm quy đổi KHÔNG bày ra ô (13/10/2026: "gồm ram" trong thẻ + "kg đã gồm g tấn" dưới
@@ -151,11 +162,13 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
           {the.map((t) => (
             <span key={t.ma} className={`rc-dvn__the${t.trung ? " rc-dvn__the--loi" : ""}`}>
               <span className="rc-dvn__ten">{tenCua(t.ma)}</span>
-              <button type="button" className="rc-dvn__bo"
-                title={`Bỏ đơn vị ${tenCua(t.ma)}`} aria-label={`Bỏ đơn vị ${tenCua(t.ma)}`}
-                onClick={() => onChange(ds.filter((x) => x !== t.ma))}>
-                <X size={12} strokeWidth={2} aria-hidden="true" />
-              </button>
+              {!khoa.has(t.ma) && (
+                <button type="button" className="rc-dvn__bo"
+                  title={`Bỏ đơn vị ${tenCua(t.ma)}`} aria-label={`Bỏ đơn vị ${tenCua(t.ma)}`}
+                  onClick={() => onChange(ds.filter((x) => x !== t.ma))}>
+                  <X size={12} strokeWidth={2} aria-hidden="true" />
+                </button>
+              )}
             </span>
           ))}
           <button type="button" className="rc-dvn__nut" disabled={!maChinh}
@@ -195,6 +208,10 @@ export function ODonViNhieu({ value, chinh, donVi, onChange }: {
             {tenCua(t.ma)} đã nằm trong nhóm của {tenCua(t.trung!)}, bỏ thẻ này đi.
           </span>
         ))
+      ) : thieu.length > 0 ? (
+        <span className="rc-field__hint">
+          Giấy luôn có {thieu.map(tenCua).join(" và ")}, máy tự thêm khi lưu.
+        </span>
       ) : null}
     </div>
   );

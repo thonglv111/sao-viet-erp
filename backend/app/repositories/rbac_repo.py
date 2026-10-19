@@ -14,6 +14,23 @@ from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN, Role, RolePerm
 from ..models.unit_level import UnitLevel
 from ..models.user import User
 
+#: Ô LUÔN BẬT, không tắt được (15/10/2026, mg 0412) — việc người lao động làm cho CHÍNH MÌNH:
+#: chấm công, gửi đơn nghỉ, gửi phiếu tăng ca, xem phiếu lương. Vai mới sinh ra đã có;
+#: `role_service.save_matrix` ép bật lúc lưu nên client gửi tắt cũng không tắt được.
+#:   · Chấm công / Nghỉ phép / Tăng ca: Xem + Thao tác. Thao tác ở đây là gửi của mình; sửa dữ
+#:     liệu chung (ca, điểm chấm công, lịch) còn đòi phạm vi "Tất cả" + ô chi tiết riêng.
+#:   · Lương: CHỈ Xem. Thao tác của Lương gồm sửa mức lương, cấu hình lương, khoản thu nhập —
+#:     khoá bật là mọi nhân viên sửa được lương.
+#:   · Hồ sơ của tôi: Xem (mg 0410).
+_GHI = ("can_create", "can_update", "can_delete")
+O_LUON_BAT: dict[str, tuple[str, ...]] = {
+    "self_service": ("can_read",),
+    "cham_cong": ("can_read", *_GHI),
+    "nghi_phep": ("can_read", *_GHI),
+    "tang_ca": ("can_read", *_GHI),
+    "luong": ("can_read",),
+}
+
 
 class ModuleRepository:
     def __init__(self, db: Session) -> None:
@@ -332,14 +349,14 @@ class RoleRepository:
     #: được gán vai không tự chấm công nổi, và mỗi lần thêm vai lại phải nhớ tick tay — nhớ được
     #: một lần, quên từ lần thứ hai. Khác trước ở chỗ: nay chúng HIỆN trên ma trận và GỠ ĐƯỢC,
     #: chứ không phải luật ngầm "ai đăng nhập cũng làm được".
-    O_MAC_DINH: tuple[str, ...] = ("self_service", "noi_quy")
+    O_MAC_DINH: tuple[str, ...] = ("self_service", "noi_quy", *O_LUON_BAT)
 
     def create(self, *, name: str, department_id: int) -> Role:
         role = Role(name=name, department_id=department_id)
         self.db.add(role)
         self.db.commit()
         self.db.refresh(role)
-        for khoa in self.O_MAC_DINH:
+        for khoa in dict.fromkeys(self.O_MAC_DINH):
             # Module chưa tồn tại (DB cũ chưa chạy migration) thì bỏ qua — khoá ngoại sẽ vỡ.
             # ⚠️ Tra theo CỘT `key`, không dùng `db.get(Module, khoa)`: khoá chính của bảng là `id`
             # (số), nên `get` bằng chuỗi luôn trả None và nhánh này lặng lẽ bỏ qua MỌI lần.
@@ -348,9 +365,12 @@ class RoleRepository:
                 continue
             # `self_service` cần CẢ ô Thao tác (`can_create`) — nếu không thì vai mới gán
             # xong, thợ mở màn Chấm công ra mà không bấm được nút nào (đổi 11/08/2026).
+            luon_bat = O_LUON_BAT.get(khoa, ())
             self.db.add(RolePermission(
                 role_id=role.id, module_key=khoa, can_read=True,
-                can_create=(khoa == "self_service"),
+                can_create=(khoa == "self_service" or "can_create" in luon_bat),
+                can_update="can_update" in luon_bat,
+                can_delete="can_delete" in luon_bat,
                 # `noi_quy` là tài liệu CHUNG toàn công ty ⇒ phạm vi `all` ngay từ lúc sinh vai
                 # (24/09/2026). Để mặc định `own` thì ô chọn phạm vi — nay đã khoá về một lựa
                 # chọn "Tất cả" — hiện RỖNG vì giá trị đang lưu không nằm trong danh sách.

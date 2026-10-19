@@ -215,10 +215,18 @@ _HD += _dong("kho", "bao_cao_kho", {
     "kho_export": "Xuất Excel báo cáo kho",
     "kho_tinh_gia": "Tính giá kỳ kho",
     "kho_sua_gia_goc": "Sửa giá gốc lô hàng",
+    # Khoá / mở kỳ kho chỉ lưu ở bảng riêng `kho_khoa_so`; trước 18/10/2026 không để lại dấu vết
+    # nào ở nhật ký (lỗi E2E #49).
+    "kho_khoa_ky": "Khoá kỳ kho",
+    "kho_mo_ky": "Mở kỳ kho",
 })
 _HD += _dong("kho", "kho", {
     "kho_xuat_dieu_chinh": "Điều chỉnh phiếu xuất kho",
     "kho_bo_sung_kho_lo": "Bổ sung khổ giấy cho lô cũ",
+    # Phiếu nhập / xuất kho: lập, ghi sổ (điểm duy nhất tồn kho đổi) và huỷ phiếu nháp.
+    "kho_phieu_lap": "Lập phiếu kho",
+    "kho_phieu_ghi_so": "Ghi sổ phiếu kho",
+    "kho_phieu_huy": "Huỷ phiếu kho",
 })
 _HD += _dong("kho", "dm_kho_hang", {
     "kho_vi_tri_create": "Tạo vị trí trong kho",
@@ -265,13 +273,21 @@ _HD += _dong("mua_hang", "nha_cung_cap", {
 _HD += _dong("ke_toan", "ke_toan", {
     "assign_purchase_invoice": "Gán hoá đơn cho đơn mua hàng",
 })
+# Khoá / mở kỳ công nợ (phải thu 131, phải trả 331): cổng GHI của màn là quyền Báo cáo công nợ.
+_HD += _dong("ke_toan", "bao_cao_cong_no", {
+    "cong_no_khoa_ky": "Khoá kỳ công nợ",
+    "cong_no_mo_ky": "Mở kỳ công nợ",
+})
 _HD += _dong("ke_toan", "cong_no_phai_thu", {
     "create_sales_invoice": "Tạo hoá đơn bán hàng",
     "cancel_sales_invoice": "Huỷ hoá đơn bán hàng",
+    "create_sales_invoice_adjustment": "Lập hoá đơn điều chỉnh",
+    "cancel_sales_invoice_adjustment": "Huỷ hoá đơn điều chỉnh",
     "create_sales_invoice_receipt": "Ghi thu theo hoá đơn bán hàng",
 })
 _HD += _dong("ke_toan", "phieu_thu", {
     "create_payment_receipt": "Tạo phiếu thu",
+    "create_payment_receipt_gop": "Tạo phiếu thu gộp nhiều khoản",
     "update_payment_receipt": "Sửa phiếu thu",
     "cancel_payment_receipt": "Huỷ phiếu thu",
     "mark_payment_receipt_received": "Đánh dấu đã nhận tiền",
@@ -295,6 +311,19 @@ _HD += _dong("ke_toan", "tk_ngan_hang", {
     "create_company_bank_account": "Thêm tài khoản ngân hàng công ty",
     "update_company_bank_account": "Sửa tài khoản ngân hàng công ty",
     "toggle_company_bank_account": "Bật/tắt tài khoản ngân hàng công ty",
+})
+
+# Sổ tài sản & CCDC: mọi thao tác ghi đều để lại vết (trước 18/10/2026 thư mục tài sản không gọi
+# nhật ký lần nào — lỗi E2E #49).
+_HD += _dong("ke_toan", "tai_san", {
+    "tai_san_them": "Thêm tài sản",
+    "tai_san_nhap_excel": "Nhập tài sản từ Excel",
+    "tai_san_sua": "Sửa tài sản",
+    "tai_san_xoa": "Xoá tài sản",
+    "tai_san_dieu_chuyen": "Chuyển bộ phận cho tài sản",
+    "tai_san_nang_cap": "Sửa chữa lớn tài sản",
+    "tai_san_thoi_dung": "Thôi dùng tài sản",
+    "tai_san_bo_thoi_dung": "Bỏ thôi dùng tài sản",
 })
 
 # --- Nhân sự --------------------------------------------------------------------------------
@@ -405,6 +434,14 @@ _HD += _dong("luong", "luong", {
     "bulk_assign_component": "Gán khoản lương hàng loạt",
     "unassign_all_component": "Gỡ khoản lương khỏi toàn bộ nhân viên",
     "set_employee_components": "Đặt khoản lương của nhân sự",
+})
+
+# Mức khoán km: bảng giá trả lương tài xế / phụ xe — gác bằng khoá `luong` (cùng cổng GHI của màn).
+_HD += _dong("luong", "luong", {
+    "km_muc_tao": "Tạo mức khoán km",
+    "km_muc_sua": "Sửa mức khoán km",
+    "km_muc_xoa": "Xoá mức khoán km",
+    "km_muc_bac": "Ghi bảng bậc giá mức khoán km",
 })
 
 # --- Danh mục -------------------------------------------------------------------------------
@@ -538,6 +575,50 @@ for _d in DANH_MUC:
 
 _DM = {"dm_tao": "Thêm", "dm_sua": "Sửa", "dm_xoa": "Xoá"}
 
+# Tên ĐỐI TƯỢNG của `target` ngoài khối danh mục (#70 bấm lại 19/10/2026: cột Đối tượng in "tai_san:28",
+# "voucher:188"). Loại danh mục đã có nhãn riêng ở facet `loai` của màn Nhật ký.
+TEN_DOI_TUONG: dict[str, str] = {
+    "purchase_request": "Đơn mua hàng", "department_purchase_request": "Yêu cầu mua hàng",
+    "department_purchase_request_line": "Món yêu cầu mua", "lsx": "Lệnh sản xuất", "bai_ghep": "Bài ghép",
+    "employee": "Nhân viên", "quote": "Báo giá", "payment_receipt": "Phiếu thu", "payment_voucher": "Phiếu chi",
+    "user": "Tài khoản", "role": "Vai trò", "customer": "Khách hàng", "order": "Đơn hàng bán",
+    "gia_cong_ngoai": "Gia công ngoài", "overtime_request": "Đơn tăng ca", "leave_request": "Đơn nghỉ",
+    "late_early_request": "Đơn đi muộn về sớm", "payroll_component": "Khoản lương",
+    "san_xuat_batch": "Lần ghi sản lượng", "san_xuat_cong_viec": "Công việc sản xuất",
+    "san_xuat_ban_giao": "Lần bàn giao", "san_xuat_goi": "Gói sản xuất", "san_xuat_nhom": "Nhóm lệnh",
+    "san_xuat_kcs_batch": "Lần kiểm KCS", "san_xuat_kcs_loi": "Lỗi KCS",
+    "san_xuat_vat_tu_de_nghi": "Đề nghị vật tư", "phieu_tinh_gia": "Phiếu tính giá",
+    "operation": "Công đoạn", "cong_doan": "Công đoạn", "machine": "Máy", "may": "Máy",
+    "work_shift": "Ca làm", "work_location": "Điểm chấm công", "special_day": "Ngày đặc biệt",
+    "supplier": "Nhà cung cấp", "supplier_bank_account": "Tài khoản ngân hàng NCC",
+    "company_bank_account": "Tài khoản ngân hàng công ty", "norm": "Định mức", "level": "Bậc",
+    "leave_type": "Loại nghỉ", "dept": "Phòng ban", "to": "Tổ", "voucher": "Phiếu kho", "kho": "Kho",
+    "stock_lot": "Lô kho", "sales_invoice": "Hoá đơn bán", "sales_invoice_adjustment": "Hoá đơn điều chỉnh",
+    "noi_quy_record": "Biên bản nội quy", "attendance_period": "Kỳ công", "attendance_log": "Lượt chấm công",
+    "attendance_adjust_request": "Yêu cầu chỉnh công", "attendance_day": "Ngày công",
+    "attendance_shift_plan": "Lịch ca", "employee_shift_bulk": "Xếp ca hàng loạt", "tai_san": "Tài sản",
+    "muc_khoan_km": "Mức khoán km", "khuon_be": "Khuôn bế", "kho_khoa_so": "Kỳ kho",
+    "cong_no_khoa_so": "Kỳ công nợ", "nhom_dung_chung": "Nhóm dùng chung", "xep_lich": "Xếp lịch",
+    "xep_lich_van_de": "Vấn đề xếp lịch", "ky_thuat_sua_chua": "Phiếu sửa chữa",
+    "ky_thuat_yeu_cau": "Yêu cầu báo hỏng",
+}
+
+
+def nhan_doi_tuong(target: str | None) -> str | None:
+    """`tai_san:28` → "Tài sản #28"; loại chưa khai thì None (giao diện giữ cách hiện cũ)."""
+    if not target:
+        return None
+    loai, _, ma = target.partition(":")
+    ten = TEN_DOI_TUONG.get(loai)
+    if ten is None:
+        return None
+    return f"{ten} #{ma}" if ma else ten
+
+
+def _chu_thuong_dau(s: str) -> str:
+    """Hạ chữ đầu để ghép sau động từ ("Giấy" → "giấy"); chữ viết tắt ("NCC") giữ nguyên."""
+    return s[:1].lower() + s[1:] if len(s) > 1 and not s[1].isupper() else s
+
 # Kỹ thuật máy: hai mã chung `create`/`update`, loại phiếu nằm ở `target`.
 _KTM = {"create": "Tạo", "update": "Sửa"}
 _KTM_LOAI: dict[str, tuple[str, str]] = {
@@ -565,7 +646,8 @@ def tra(ma: str, target: str = "") -> HanhDong:
     if ma in _DM:
         d = _loai_cua(target)
         if d is not None:
-            return HanhDong(ma, f"{_DM[ma]} · {d.nhan}", hd.nhom, d.module)
+            # "Sửa giấy", không "Sửa · Giấy" — không nối mẩu nhãn bằng dấu chấm giữa (#68).
+            return HanhDong(ma, f"{_DM[ma]} {_chu_thuong_dau(d.nhan)}", hd.nhom, d.module)
     if ma in _KTM:
         loai = target.split(":", 1)[0] if target else ""
         if loai in _KTM_LOAI:
