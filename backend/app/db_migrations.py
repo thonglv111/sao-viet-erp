@@ -18776,3 +18776,9 @@ def _migrate_sua_chua_thoi_gian_dong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0424_sua_chua_thoi_gian_dong", _migrate_sua_chua_thoi_gian_dong))
+
+
+# mg 0425 — chạy lại luật 0327 lần 4, cho bảng `sales_invoice_adjustments` (mg 0418, 18/10/2026):
+# hai cột vết `created_by_user_id` / `cancelled_by_user_id` lúc đầu khai SET NULL, lọt vì bảng đẻ ở
+# phiên song song chưa chạy guard `test_user_fk_cascade`. Luật chung: CASCADE cho MỌI FK trỏ users.
+MIGRATIONS.append(("0425_user_fks_delete_cascade_lan_4", _migrate_user_fks_delete_cascade))

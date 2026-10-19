@@ -173,9 +173,6 @@ class SuKien:
     chi_tiet: str
 
 
-def _tien(n: int) -> str:
-    return f"{int(n):,}".replace(",", ".")
-
 
 class TaiSanService:
     def __init__(self, repo: TaiSanRepository, audit: AuditLogRepository | None = None) -> None:
