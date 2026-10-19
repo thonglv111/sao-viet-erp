@@ -21,5 +21,8 @@ def test_gui_khach_va_khach_chot_deu_day_su_kien(client, monkeypatch):
         r = client.post(f"/api/quotations/{q['id']}/transition", json={"to_status": st},
                         headers=_h(sales))
         assert r.status_code == 200, r.text
-    assert [e["type"] for e in ds] == ["quote_pending_changed", "quote_pending_changed"]
-    assert all(e["code"] == q["code"] for e in ds)
+    # `nhat_ky_moi` bị chặn tần suất theo đồng hồ: có phát hay không tuỳ test trước vừa ghi nhật ký
+    # lúc nào, nên chỉ đếm sự kiện báo giá.
+    bg = [e for e in ds if e["type"] != "nhat_ky_moi"]
+    assert [e["type"] for e in bg] == ["quote_pending_changed", "quote_pending_changed"]
+    assert all(e["code"] == q["code"] for e in bg)
