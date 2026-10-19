@@ -101,13 +101,13 @@ services:
 
   minio:
     profiles: ["minio"]
-    # CẢNH BÁO (kiểm 28/09/2026): MinIO đã GỠ repo `minio/minio` khỏi Docker Hub (404), quay.io thì
-    # đòi đăng nhập — image này chỉ còn chạy được vì VPS đã có sẵn trong cache. VPS mới, hoặc lỡ
-    # `docker image prune -a` / `docker rmi`, sẽ KHÔNG kéo lại được. GIỮ đúng tên tag cũ, KHÔNG ghim
-    # digest: bản trong cache VPS có thể khác digest của máy dev, ghim digest là compose đi kéo bản
-    # không tồn tại và deploy chết. Đổi nguồn image thì đặt MINIO_IMAGE trong .env — xem
-    # docs/DEPLOY.md mục "Image MinIO".
-    image: ${MINIO_IMAGE:-minio/minio}
+    # `minio/minio` đã bị gỡ khỏi Docker Hub (11/09/2026), quay.io chặn kéo ẩn danh từ 24/09 —
+    # dùng `pgsty/silo`: fork cộng đồng của chính mã MinIO (tên cũ `pgsty/minio`), kéo ẩn danh được,
+    # có tag theo bản. Giữ nguyên định dạng /data, biến MINIO_*, đường /minio/health/*, console :9001,
+    # entrypoint tự thêm `silo` trước `server`. Đã chạy thật 19/10/2026: dữ liệu do minio/minio
+    # RELEASE.2025-09-07 ghi thì bản này đọc được, ghi tiếp được. Ghim TAG bản (không `latest`).
+    # Đổi nguồn khác thì đặt MINIO_IMAGE trong .env — xem docs/DEPLOY.md mục "Image MinIO".
+    image: ${MINIO_IMAGE:-pgsty/silo:RELEASE.2026-09-16T00-00-00Z}
     restart: unless-stopped
     logging: *logging
     command: ["server", "/data", "--console-address", ":9001"]
@@ -124,7 +124,7 @@ services:
       - "127.0.0.1:${MINIO_API_PORT:-9010}:9000"
       - "127.0.0.1:${MINIO_CONSOLE_PORT:-9002}:9001"
     healthcheck:
-      # `curl` có sẵn trong image minio/minio (đã kiểm bằng cách chạy thật, không đoán).
+      # `curl` có sẵn trong image pgsty/silo (đã kiểm bằng cách chạy thật 19/10/2026, không đoán).
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 5s
