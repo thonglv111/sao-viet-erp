@@ -1732,9 +1732,11 @@ export interface SxTrangThaiVatTu {
  *  của `lsx.quy_cach_json`. Khoá nào không có số thì server BỎ HẲN (không gửi `null`), nên UI chỉ
  *  vẽ những dòng thật sự có. Khổ đã ghép sẵn thành chuỗi mm ("640 × 450") ở server. */
 export interface SxQuyCachThe {
-  /** Lệnh NHIỀU giấy (hộp bồi couche lên sóng) ⇒ danh sách tên, và không có `dinh_luong`. */
+  /** Tên mã loại Giấy. Lệnh cũ nhiều mã Giấy ⇒ danh sách tên, và không có `dinh_luong`. */
   giay?: string | string[];
-  dinh_luong?: number;     // gsm
+  dinh_luong?: number;     // gsm của giấy (không bao giờ của sóng)
+  /** Tên mã loại Sóng (mg 0426) — vắng khi lệnh không bồi sóng. */
+  song?: string | string[];
   kho_nguyen?: string;     // khổ giấy nguyên (tờ mua về), chuỗi mm
   kho_in?: string;         // KHÔNG có = khổ tờ in 0 × 0 ⇒ in thẳng khổ giấy nguyên
   kho_tp?: string;
@@ -3107,7 +3109,9 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
   /** `hang_loai` nói món nằm ở DANH MỤC nào: `"giay"` = NVL chính người lập lệnh tự chọn,
    *  `"vat_tu"` = mực/keo/màng. `vat_tu_id` là id TRONG danh mục đó ⇒ so sánh phải đi theo CẶP,
    *  Giấy #7 và Vật tư #7 là hai món khác nhau (08/09/2026). */
-  vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; vat_tu_ma: string;
+  /** `giay_loai` (mg 0426): dòng giấy là Giấy hay Sóng; vật tư khác "". */
+  vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; giay_loai?: "giay" | "song" | "";
+             vat_tu_id: number; vat_tu_ma: string;
              vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean; sua_tay?: boolean;
              /** Khổ dòng GIẤY (mm, ngắn × dài) — giấy đếm tờ nguyên theo khổ. Hàng khác 0 · 0. */
              kho_rong?: number; kho_dai?: number;

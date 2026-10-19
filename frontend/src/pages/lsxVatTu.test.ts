@@ -31,8 +31,8 @@ function vt(id: number, ten: string, so_luong: number, don_vi = "kg"): VatTuDong
 
 /** Dòng lấy từ DANH MỤC GIẤY — cùng bảng, cùng ô "Thêm vật tư", chỉ khác danh mục nguồn. */
 function giay(id: number, ten: string, so_luong: number, don_vi = "to_nguyen",
-              kho_rong = 650, kho_dai = 860): VatTuDong {
-  return { id: id * 100 + 1, hang_loai: "giay", vat_tu_id: id, vat_tu_ma: `GY-${id}`,
+              kho_rong = 650, kho_dai = 860, giay_loai: "giay" | "song" = "giay"): VatTuDong {
+  return { id: id * 100 + 1, hang_loai: "giay", giay_loai, vat_tu_id: id, vat_tu_ma: `GY-${id}`,
            vat_tu_ten: ten, don_vi, so_luong, tu_dong: false, kho_rong, kho_dai } as VatTuDong;
 }
 
@@ -141,16 +141,18 @@ describe("bangKeVatTu", () => {
 });
 
 describe("giayVaVatTuQuyCach — giấy là NVL chính, không phải vật tư khác", () => {
-  it("hộp hai giấy ở bước Cắt tờ: ô Giấy kể đủ hai giấy, vật tư khác bỏ giấy", () => {
+  it("hộp bồi ở bước Cắt tờ: sóng sang ô Sóng dù khai trước, vật tư khác bỏ cả hai", () => {
     seq = 0;
     const ke = bangKeVatTu({ congDoans: [
-      buoc({ ten: "Cắt tờ", vat_tus: [giay(1, "COUCHE 150GSM", 305), giay(2, "GIẤY SÓNG E 300GSM", 305)] }),
+      buoc({ ten: "Cắt tờ", vat_tus: [giay(2, "GIẤY SÓNG E 300GSM", 305, "to_nguyen", 650, 860, "song"),
+                                      giay(1, "COUCHE 150GSM", 305)] }),
       buoc({ ten: "Cán màng", vat_tus: [vt(6, "Màng cán bóng", 120, "m2")] }),
     ] });
     const r = giayVaVatTuQuyCach(ke, "COUCHE 150GSM", [
       { ten: "COUCHE 150GSM" }, { ten: "GIẤY SÓNG E 300GSM" }, { ten: "Màng cán bóng" },
     ]);
-    expect(r.giays).toEqual(["COUCHE 150GSM", "GIẤY SÓNG E 300GSM"]);
+    expect(r.giays).toEqual(["COUCHE 150GSM"]);
+    expect(r.songs).toEqual(["GIẤY SÓNG E 300GSM"]);
     expect(r.vatTuKhac.map((v) => v.ten)).toEqual(["Màng cán bóng"]);
   });
 

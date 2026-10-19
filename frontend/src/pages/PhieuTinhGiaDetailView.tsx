@@ -3627,6 +3627,8 @@ function ComponentModal({
                           dong={f.vat_tus}
                           vatTuDm={vatTuDm}
                           giayDm={giays}
+                          giayCuaSanPham={c.thanh_phams.flatMap((b) => b.vat_tus
+                            .filter((v) => v.hang_loai === "giay").map((v) => v.vat_tu_id))}
                           taoUid={nextUid}
                           onChange={(next) => patchFin(c.uid, f.uid, { vat_tus: next })}
                           dinhMuc={mapDinhMuc.get(fIdx)}

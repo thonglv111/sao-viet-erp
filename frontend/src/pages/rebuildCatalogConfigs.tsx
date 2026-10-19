@@ -604,6 +604,9 @@ const congThucGiaGiay = (donViGia: unknown): string =>
     ? "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay"
     : "don_gia_giay * to_nguyen");
 
+/** Loại mã giấy — `giay` = tờ để in, `song` = tấm sóng để bồi (mg 0426). */
+const LOAI_GIAY_OPT = [{ value: "giay", label: "Giấy" }, { value: "song", label: "Sóng" }];
+
 export const CFG_GIAY: CatalogConfig = {
   title: "Giấy",
   moduleQuyen: "dm_giay",
@@ -614,12 +617,16 @@ export const CFG_GIAY: CatalogConfig = {
   softDelete: true,
   // Thanh lọc (06/10/2026): Đơn vị giá — giá trị + tên đơn vị do máy chủ đếm/tra.
   man: "giay",
-  dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
+  dieuKien: [
+    { key: "loai", nhan: "Loại", icon: "nhom", giaTri: LOAI_GIAY_OPT },
+    { key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" },
+  ],
   // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
   // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
   widthMa: 130,
   widthTen: 230,
   columns: [
+    { key: "loai", label: "Loại", w: 80, render: (r) => (r.loai === "song" ? "Sóng" : "Giấy") },
     { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
     { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
     { key: "don_gia", label: "Đơn giá", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
@@ -627,6 +634,9 @@ export const CFG_GIAY: CatalogConfig = {
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
+    // Loại (mg 0426, 19/10/2026): một sản phẩm tính giá / một lệnh có tối đa 1 Giấy + 1 Sóng.
+    { key: "loai", label: "Loại", type: "select", required: true, group: "Thông số", default: "giay",
+      options: LOAI_GIAY_OPT },
     { key: "gsm", label: "Định lượng (g/m²)", type: "number", required: true, group: "Thông số" },
     // Đơn vị GỐC: tồn kho cộng dồn theo đơn vị này. Giấy để `kg` thì kho đếm theo cân; muốn đếm
     // theo tờ thì chọn `tờ` — cặp cố định "1 ram = 500 tờ" chạy sẵn, không cần khai khổ.

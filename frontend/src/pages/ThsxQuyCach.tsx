@@ -16,6 +16,8 @@ import "./thuc-hien-sx.css";
 const QUY_CACH_DONG: [keyof SxQuyCachThe, string, string][] = [
   ["giay", "Giấy", ""],
   ["dinh_luong", "Định lượng", " gsm"],
+  // Sóng (mg 0426) — ô riêng ngay sau định lượng của giấy; lệnh không bồi sóng thì không có khoá.
+  ["song", "Sóng", ""],
   ["kho_nguyen", "Khổ giấy nguyên", " mm"],
   ["kho_in", "Khổ tờ in", " mm"],
   ["kho_tp", "Khổ thành phẩm", " mm"],
@@ -43,10 +45,10 @@ export function dongQuyCach(qc: SxQuyCachThe): [string, string, string][] {
     const v = qc[k];
     if (k === "kho_in" && v == null) {
       out.push([k, nhan, "In thẳng khổ giấy nguyên"]);
-    } else if (k === "giay") {
-      // Nhiều giấy: mỗi giấy một dòng (thẻ tách theo xuống dòng), không nối bằng dấu.
-      const giays = tenGiays(qc.giay);
-      if (giays.length) out.push([k, nhan, giays.join("\n")]);
+    } else if (k === "giay" || k === "song") {
+      // Nhiều mã cùng loại (lệnh cũ): mỗi mã một dòng (thẻ tách theo xuống dòng), không nối bằng dấu.
+      const ten = tenGiays(qc[k]);
+      if (ten.length) out.push([k, nhan, ten.join("\n")]);
     } else if (k === "cach_in" && typeof v === "string") {
       out.push([k, nhan, nhanCachIn(v) ?? v]);
     } else if (v != null) {

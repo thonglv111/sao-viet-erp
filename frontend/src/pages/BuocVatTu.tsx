@@ -179,11 +179,15 @@ interface Props {
   /** Danh mục Giấy — giấy thêm vào bước được như vật tư (engine tính tiền theo công thức của giấy,
    *  lệnh sản xuất nhận đúng số tờ của bước). */
   giayDm?: Row[];
+  /** Id mọi dòng giấy (cả Giấy lẫn Sóng) ở MỌI bước của sản phẩm — để khoá mã thứ hai cùng loại. */
+  giayCuaSanPham?: number[];
   /** Định mức theo `khoaVatTu` của CHÍNH bước này. Vắng (chưa có kết quả tính) ⇒ hiện gạch. */
   dinhMuc?: Map<string, DinhMuc>;
 }
 
-export default function BuocVatTu({ tenBuoc, dong, vatTuDm, giayDm = [], onChange, taoUid, dinhMuc }: Props) {
+export default function BuocVatTu({
+  tenBuoc, dong, vatTuDm, giayDm = [], giayCuaSanPham = [], onChange, taoUid, dinhMuc,
+}: Props) {
   useNapTenDonVi();   // đơn vị hiện bằng TÊN trong danh mục, không in mã trần
   // Dựng một lần theo danh mục — danh mục đứng yên trong khi người dùng gõ chip, mỗi nhịp gõ chỉ `dong` đổi.
   const tra = useMemo(() => new Map<string, Row>([
@@ -191,11 +195,31 @@ export default function BuocVatTu({ tenBuoc, dong, vatTuDm, giayDm = [], onChang
     ...vatTuDm.map((v) => [khoaVatTu("vat_tu", v.id), v] as const),
   ]), [vatTuDm, giayDm]);
   const daCo = new Set(dong.map((d) => khoaVatTu(d.hang_loai, d.vat_tu_id)));
-  // Ô thêm chia hai nhóm: giấy đứng đầu (bước nào cũng chọn được), sau là vật tư. Giấy ngừng dùng
-  // không mời thêm; dòng đang dùng thì vẫn hiện tên ở danh sách bên trên.
+  // Mỗi sản phẩm tối đa MỘT mã Giấy + MỘT mã Sóng (mg 0426, máy chủ chặn khi lưu). Sản phẩm đã có mã
+  // của một loại ở bất kỳ bước nào ⇒ mã KHÁC cùng loại hiện mờ, kèm lý do; mã đang dùng vẫn chọn
+  // được ở bước khác. Muốn đổi thì xoá dòng cũ trước.
+  const loaiCua = (g: Row) => (g.loai === "song" ? "song" : "giay");
+  const dangDung = (loai: "giay" | "song") => {
+    const id = giayCuaSanPham.find((i) => {
+      const g = giayDm.find((x) => x.id === i);
+      return (g ? loaiCua(g) : "giay") === loai;
+    });
+    return id == null ? null : (giayDm.find((x) => x.id === id) ?? null);
+  };
+  const dangDungTheoLoai = { giay: dangDung("giay"), song: dangDung("song") };
+  const moGiay = (g: Row) => {
+    const loai = loaiCua(g);
+    const co = dangDungTheoLoai[loai];
+    if (co == null || co.id === g.id) return {};
+    return { disabled: true, sub: `Sản phẩm đã có ${loai === "song" ? "sóng" : "giấy"} ${String(co.ten)}` };
+  };
+  // Ô thêm chia nhóm: Giấy, Sóng (bước nào cũng chọn được), sau là vật tư. Mã ngừng dùng không mời
+  // thêm; dòng đang dùng thì vẫn hiện tên ở danh sách bên trên.
+  const giayMoi = giayDm.filter((g) => g.active !== false && !daCo.has(khoaVatTu("giay", g.id)));
   const luaChon = [
-    ...giayDm.filter((g) => g.active !== false && !daCo.has(khoaVatTu("giay", g.id)))
-      .map((g) => ({ value: khoaVatTu("giay", g.id), label: String(g.ten), group: "Giấy" })),
+    ...(["giay", "song"] as const).flatMap((loai) => giayMoi.filter((g) => loaiCua(g) === loai)
+      .map((g) => ({ value: khoaVatTu("giay", g.id), label: String(g.ten),
+                     group: loai === "song" ? "Sóng" : "Giấy", ...moGiay(g) }))),
     ...vatTuDm.filter((v) => !daCo.has(khoaVatTu("vat_tu", v.id)))
       .map((v) => ({ value: khoaVatTu("vat_tu", v.id), label: String(v.ten), group: "Vật tư" })),
   ];

@@ -735,7 +735,7 @@ export function LsxDetailView({
   const keVatTu = bangKeVatTu({ congDoans: d.cong_doans });
   // Giấy là NVL chính: ô "Giấy" kể MỌI giấy khai ở các bước (hộp bồi couche lên sóng có hai),
   // khối "Vật tư khác" chỉ còn mực/màng/keo.
-  const { giays, vatTuKhac } = giayVaVatTuQuyCach(keVatTu, qc.giay_ten as string | null, vatTus);
+  const { giays, songs, vatTuKhac } = giayVaVatTuQuyCach(keVatTu, qc.giay_ten as string | null, vatTus);
 
   // SÁCH GẤP TAY vs CẮT RỜI — cùng tiêu chí backend dùng để chọn nhánh hệ số (`la_gap_tay`).
   // Sách: tờ in gấp NGUYÊN VẸN thành một tay, một cuốn cần `soTay` TỜ → giấy nhân lên theo số tay,
@@ -1438,6 +1438,13 @@ export function LsxDetailView({
                           một số đứng cạnh hai tên giấy là nói sai cho giấy còn lại. */}
                       {giays.length <= 1 && (
                         <KV k="Định lượng (gsm)" v={qc.gsm ? num(n("gsm")) : "—"} mono />
+                      )}
+                      {/* Sóng (mg 0426) — ô riêng, chỉ khi lệnh bồi sóng. */}
+                      {songs.length > 0 && (
+                        <KV
+                          k="Sóng"
+                          v={songs.map((t) => <span key={t} className="khsx-kv__dong">{t}</span>)}
+                        />
                       )}
                       <KV k="Cách in" v={nhanCachIn(form.qc.quy_cach_in ?? "mot_mat")} />
                       <KVKho k="Khổ tờ nguyên" dai={form.qc.kho_nguyen_dai} rong={form.qc.kho_nguyen_rong} />
