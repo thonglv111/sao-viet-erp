@@ -115,6 +115,7 @@ from sqlalchemy.orm import Session
 
 from ...config import settings
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+from ...repositories.lsx_repo import LsxRepository
 from ..gio_xuong import gio_xuong
 from ..pdf_font import THUONG, cat_vua, dang_ky_font as _dang_ky_font
 from . import ho_so
@@ -399,9 +400,14 @@ def render_pdf(
 
     so_trang = ts.get("so_trang")
     nhieu_trang = bool(so_trang) and float(so_trang) > 1
+    # Lệnh nhiều giấy (hộp bồi couche lên sóng): ô Giấy kể đủ, mỗi giấy một dòng, và bỏ định lượng —
+    # `dinh_luong` chỉ là gsm của giấy chính, đứng cạnh hai tên là nói sai cho giấy kia.
+    giays = LsxRepository(db).ten_giay_cac_buoc(lsx_id)
+    nhieu_giay = len(giays) > 1
     o_ts = [
-        ("Giấy", ts.get("giay_ten")),
-        ("Định lượng", f"{_so(ts['dinh_luong'])} g/m²" if ts.get("dinh_luong") else ""),
+        ("Giấy", Paragraph("<br/>".join(_xml_escape(g) for g in giays), s_gt) if nhieu_giay
+         else ts.get("giay_ten")),
+        ("Định lượng", f"{_so(ts['dinh_luong'])} g/m²" if ts.get("dinh_luong") and not nhieu_giay else ""),
         ("Khổ nguyên", kho(ts.get("kho_nguyen_dai"), ts.get("kho_nguyen_rong"))),
         ("Khổ in", kho(ts.get("kho_in_dai"), ts.get("kho_in_rong"))),
         ("Thành phẩm", kho(ts.get("dai_thanh_pham"), ts.get("rong_thanh_pham"))),
@@ -419,7 +425,7 @@ def render_pdf(
     ]
     o_ts = [(n, v) for n, v in o_ts if v not in (None, "")]
     if o_ts:
-        o_luoi = [[p(n, s_nhan), v if isinstance(v, Table) else p(v, s_gt)] for n, v in o_ts]
+        o_luoi = [[p(n, s_nhan), v if isinstance(v, (Table, Paragraph)) else p(v, s_gt)] for n, v in o_ts]
         o_luoi += [""] * (-len(o_luoi) % 4)
         luoi = Table(
             [o_luoi[i:i + 4] for i in range(0, len(o_luoi), 4)],

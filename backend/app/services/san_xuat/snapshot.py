@@ -74,20 +74,9 @@ class _SoPhatHanh:
         return self._qc_lsx[lsx_id]
 
     def _giay_cac_buoc(self, lsx_id: int) -> list[str]:
-        """Tên mọi giấy khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự khai. Hộp bồi couche
-        lên sóng có HAI giấy ở bước Cắt tờ — `giay_ten` của quy cách chỉ biết giấy chính."""
-        from ...models.lsx import LsxCongDoan, LsxCongDoanVatTu
+        from ...repositories.lsx_repo import LsxRepository
 
-        rows = (self.db.query(LsxCongDoanVatTu.vat_tu_ten_snapshot)
-                .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
-                .filter(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == "giay")
-                .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id).all())
-        out: list[str] = []
-        for (ten,) in rows:
-            t = (ten or "").strip()
-            if t and t not in out:
-                out.append(t)
-        return out
+        return LsxRepository(self.db).ten_giay_cac_buoc(lsx_id)
 
     def _quy_cach_bai(self, bg_id: int) -> dict:
         if bg_id not in self._qc_bai:

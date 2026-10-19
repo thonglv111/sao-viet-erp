@@ -60,6 +60,22 @@ class LsxRepository:
             .where(LsxCongDoan.lsx_id.in_(lsx_ids), Lsx.trang_thai.in_(trang_thais))
         ).scalars())
 
+    def ten_giay_cac_buoc(self, lsx_id: int) -> list[str]:
+        """Tên mọi giấy khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự khai, không lặp. Hộp
+        bồi couche lên sóng có HAI giấy ở bước Cắt tờ — `giay_ten` của quy cách chỉ biết giấy chính."""
+        rows = self.db.execute(
+            select(LsxCongDoanVatTu.vat_tu_ten_snapshot)
+            .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+            .where(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == "giay")
+            .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
+        ).scalars()
+        out: list[str] = []
+        for ten in rows:
+            t = (ten or "").strip()
+            if t and t not in out:
+                out.append(t)
+        return out
+
     def get(self, lsx_id: int) -> Lsx | None:
         return self.db.execute(
             select(Lsx).where(Lsx.id == lsx_id).options(
