@@ -181,3 +181,24 @@ function gomTong(buocs: BuocKe[]): TongKe[] {
     (a, b) => hang[a.nhom] - hang[b.nhom] || a.ten.localeCompare(b.ten, "vi"),
   );
 }
+
+/** Thẻ quy cách của lệnh: GIẤY là NVL chính nên kể ở ô "Giấy", khối "Vật tư khác" chỉ còn
+ *  mực/màng/keo. Hộp bồi couche lên sóng có HAI giấy ở bước Cắt tờ — chỉ đọc `giay_ten` của quy
+ *  cách là mất giấy thứ hai, còn `vat_tus` của ảnh chụp lệnh cũ (trước 19/10/2026) chép cả giấy.
+ *  Tên giấy lấy theo thứ tự bước rồi thứ tự khai; lệnh chưa khai giấy ở bước nào thì về
+ *  `giay_ten` của quy cách. */
+export function giayVaVatTuQuyCach<T extends { ten?: string }>(
+  ke: BangKeVatTu,
+  giayTen: string | null | undefined,
+  vatTus: T[],
+): { giays: string[]; vatTuKhac: T[] } {
+  const giays: string[] = [];
+  for (const b of ke.buocs) {
+    for (const d of b.dong) {
+      if (d.nhom === "nvl" && d.ten && !giays.includes(d.ten)) giays.push(d.ten);
+    }
+  }
+  const tenQc = (giayTen ?? "").trim();
+  if (giays.length === 0 && tenQc) giays.push(tenQc);
+  return { giays, vatTuKhac: vatTus.filter((v) => !giays.includes((v.ten ?? "").trim())) };
+}

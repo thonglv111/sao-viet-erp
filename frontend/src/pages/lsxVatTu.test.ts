@@ -7,7 +7,7 @@
 // món khác: một dòng của BƯỚC, chỉ khác `hang_loai === "giay"`.
 import { describe, expect, it } from "vitest";
 import type { LsxCongDoan } from "../api/client";
-import { bangKeVatTu } from "./lsxVatTu";
+import { bangKeVatTu, giayVaVatTuQuyCach } from "./lsxVatTu";
 
 type VatTuDong = LsxCongDoan["vat_tus"][number];
 
@@ -137,5 +137,27 @@ describe("bangKeVatTu", () => {
     seq = 0;
     const r = ke([buoc({ requires_tooling: true }), buoc({ requires_tooling: false })]);
     expect(r.buocs.map((b) => b.thieu_khuon)).toEqual([true, false]);
+  });
+});
+
+describe("giayVaVatTuQuyCach — giấy là NVL chính, không phải vật tư khác", () => {
+  it("hộp hai giấy ở bước Cắt tờ: ô Giấy kể đủ hai giấy, vật tư khác bỏ giấy", () => {
+    seq = 0;
+    const ke = bangKeVatTu({ congDoans: [
+      buoc({ ten: "Cắt tờ", vat_tus: [giay(1, "COUCHE 150GSM", 305), giay(2, "GIẤY SÓNG E 300GSM", 305)] }),
+      buoc({ ten: "Cán màng", vat_tus: [vt(6, "Màng cán bóng", 120, "m2")] }),
+    ] });
+    const r = giayVaVatTuQuyCach(ke, "COUCHE 150GSM", [
+      { ten: "COUCHE 150GSM" }, { ten: "GIẤY SÓNG E 300GSM" }, { ten: "Màng cán bóng" },
+    ]);
+    expect(r.giays).toEqual(["COUCHE 150GSM", "GIẤY SÓNG E 300GSM"]);
+    expect(r.vatTuKhac.map((v) => v.ten)).toEqual(["Màng cán bóng"]);
+  });
+
+  it("lệnh chưa khai giấy ở bước nào: ô Giấy về tên giấy của quy cách", () => {
+    seq = 0;
+    const ke = bangKeVatTu({ congDoans: [buoc()] });
+    expect(giayVaVatTuQuyCach(ke, "Ford 70", []).giays).toEqual(["Ford 70"]);
+    expect(giayVaVatTuQuyCach(ke, null, []).giays).toEqual([]);
   });
 });

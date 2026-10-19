@@ -39,7 +39,7 @@ import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
 import { donViChuoi, nhanDonVi } from "./lsxBuoc";
-import { bangKeVatTu } from "./lsxVatTu";
+import { bangKeVatTu, giayVaVatTuQuyCach } from "./lsxVatTu";
 import { useNapTenDonVi } from "./tenDonVi";
 import {
   BangLoi,
@@ -719,6 +719,9 @@ export function LsxDetailView({
   // Bảng kê vật tư — tính MỘT lần cho cả ô tóm tắt trên đầu màn lẫn tab "Vật tư". Hàm thuần chạy
   // trên ≤ vài chục bước nên gọi thẳng trong render, không cần memo.
   const keVatTu = bangKeVatTu({ congDoans: d.cong_doans });
+  // Giấy là NVL chính: ô "Giấy" kể MỌI giấy khai ở các bước (hộp bồi couche lên sóng có hai),
+  // khối "Vật tư khác" chỉ còn mực/màng/keo.
+  const { giays, vatTuKhac } = giayVaVatTuQuyCach(keVatTu, qc.giay_ten as string | null, vatTus);
 
   // SÁCH GẤP TAY vs CẮT RỜI — cùng tiêu chí backend dùng để chọn nhánh hệ số (`la_gap_tay`).
   // Sách: tờ in gấp NGUYÊN VẸN thành một tay, một cuốn cần `soTay` TỜ → giấy nhân lên theo số tay,
@@ -1409,10 +1412,19 @@ export function LsxDetailView({
                         nguyên" cố tình KHÔNG lấy `dvToNguyen`: routing không có bước xả thì
                         `dvToNguyen === dvTo`, hai ô cạnh nhau sẽ cùng một chữ. */}
                     <div className="khsx-giayrow khsx-kv--span">
-                      <KV k="Giấy" v={s("giay_ten")} />
+                      <KV
+                        k="Giấy"
+                        v={giays.length === 0 ? "—" : giays.map((t) => (
+                          <span key={t} className="khsx-kv__dong">{t}</span>
+                        ))}
+                      />
                       {/* Định lượng đọc thẳng từ ảnh chụp, không tra lại danh mục: giấy ở lệnh
-                          không đổi được nữa nên `gsm` đã lưu luôn là gsm của giấy đang hiện. */}
-                      <KV k="Định lượng (gsm)" v={qc.gsm ? num(n("gsm")) : "—"} mono />
+                          không đổi được nữa nên `gsm` đã lưu luôn là gsm của giấy đang hiện.
+                          Ảnh chụp chỉ có gsm của MỘT giấy ⇒ lệnh nhiều giấy thì bỏ ô này, để
+                          một số đứng cạnh hai tên giấy là nói sai cho giấy còn lại. */}
+                      {giays.length <= 1 && (
+                        <KV k="Định lượng (gsm)" v={qc.gsm ? num(n("gsm")) : "—"} mono />
+                      )}
                       <KV k="Cách in" v={nhanCachIn(form.qc.quy_cach_in ?? "mot_mat")} />
                       <KVKho k="Khổ tờ nguyên" dai={form.qc.kho_nguyen_dai} rong={form.qc.kho_nguyen_rong} />
                       <KVKho k={`Khổ ${dvTo}`} dai={form.qc.kho_in_dai} rong={form.qc.kho_in_rong} />
@@ -1513,7 +1525,7 @@ export function LsxDetailView({
                 </div>
               </div>
 
-              {vatTus.length > 0 && (
+              {vatTuKhac.length > 0 && (
                 <div className="khsx-spec__card">
                   <div className="khsx-spec__card-head">
                     <div className="khsx-spec__card-icon">
@@ -1523,7 +1535,7 @@ export function LsxDetailView({
                   </div>
                   <div className="khsx-spec__card-body">
                     <div className="khsx-kvgrid">
-                      {vatTus.map((vt, i) => (
+                      {vatTuKhac.map((vt, i) => (
                         <KV
                           key={i}
                           k={vt.ten || `Vật tư ${i + 1}`}

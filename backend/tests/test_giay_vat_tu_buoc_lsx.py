@@ -73,6 +73,12 @@ def test_giay_chi_o_buoc_can_van_khong_thieu_giay(db, orders, lsx_svc, admin, cu
     assert "thieu_giay" not in lsx_svc.thieu_cua(lsx)
 
 
+def test_quy_cach_lenh_khong_xep_giay_vao_vat_tu_khac(db, orders, lsx_svc, admin, customer):
+    """Giấy là NVL chính: khối "Vật tư khác" của quy cách lệnh chỉ còn mực/màng/keo."""
+    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    assert [v["ten"] for v in lsx.quy_cach_json["vat_tus"]] == []
+
+
 def test_phieu_khong_giay_thi_lenh_thieu_giay(db, orders, lsx_svc, admin, customer):
     lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o=None))
     assert "thieu_giay" in lsx_svc.thieu_cua(lsx)

@@ -1307,11 +1307,13 @@ class LsxService:
             # Nhãn nhóm + ghi chú kỹ thuật không nằm trong bộ field engine → lấy thẳng từ ORM.
             "nhom_bao_gia": getattr(tp, "nhom_bao_gia", None),
             "ghi_chu_ky_thuat": getattr(tp, "ghi_chu_ky_thuat", None),
-            # Vật tư in ấn (mực · màng · keo): tên + lượng, KHÔNG kèm đơn giá.
+            # Vật tư in ấn (mực · màng · keo): tên + lượng, KHÔNG kèm đơn giá. Giấy của bước là NVL
+            # chính, màn lệnh kể ở ô "Giấy" — để lọt vào đây là xếp giấy thành "vật tư khác".
             "vat_tus": [
                 {"ten": vt.get("ten"), "so_luong": None}
                 for row in (resolved.get("thanh_phams") or [])
                 for vt in (row.get("vat_tus") or [])
+                if vt.get("hang_loai") != "giay"
             ],
             # MỰC: hai trường này là LIST nên bộ lọc `not isinstance(v, (list, dict))` ở trên
             # nuốt mất — phải chép tay. Không có chúng thì bản lệnh chỉ biết "4/1 màu" mà không
