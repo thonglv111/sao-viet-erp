@@ -772,6 +772,9 @@ class XepLichLenhService:
             "nguoi_phu_trach_ten": self._ten_nguoi(l.nguoi_phu_trach_id),
             "luu_y_gui_xuong": l.ghi_chu,
             "giay": _chu(qc.get("giay_ten") or qc.get("giay")),
+            # Mọi giấy khai ở các bước, theo thứ tự bước (hộp bồi couche + sóng là HAI giấy). `giay` của
+            # quy cách chỉ là giấy chính chụp lúc tạo lệnh.
+            "giays": self.repo.giay_cac_buoc(l.id),
             "kho_in": _chu(qc.get("kho_in") or qc.get("kho")),
             "so_mau": _chu(qc.get("so_mau") or qc.get("mau")),
             "so_kem": _chu(qc.get("so_kem")),
@@ -1533,7 +1536,9 @@ class XepLichLenhService:
         from ...models.user import User
 
         u = self.db.get(User, user_id)
-        return getattr(u, "full_name", None) or getattr(u, "username", None)
+        # Họ tên nằm ở `User.name` — `full_name` là cột của HỒ SƠ nhân sự, User không có; đọc nhầm thì
+        # ngăn luôn in tên đăng nhập ("admin", "nguyenthihuyen").
+        return (getattr(u, "name", None) or "").strip() or getattr(u, "username", None)
 
     def _nap_to(self, dept_ids: list[int | None]) -> None:
         """Tên tổ của cả bảng công đoạn — MỘT truy vấn. Trước 14/09/2026 mỗi bước một `db.get`:

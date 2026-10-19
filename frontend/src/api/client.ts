@@ -1386,6 +1386,8 @@ export interface XlChiTiet extends XlLich {
   luu_y_gui_xuong: string | null;
   /** Quy cách đọc từ ảnh chụp lúc tạo lệnh — khoá có thể trống. Trống thì BỎ ô, đừng in `null`. */
   giay: string | null;
+  /** Mọi giấy khai ở các bước, theo thứ tự bước — hộp bồi couche + sóng là hai giấy. */
+  giays?: string[];
   kho_in: string | null;
   so_mau: string | null;
   so_kem: string | null;

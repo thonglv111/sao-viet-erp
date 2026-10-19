@@ -538,7 +538,9 @@ export function XlNgan({
         <span className="xa-chip-dau"><FileText size={13} />{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ in</span>
         {ct.so_con > 1 && <span className="xa-chip-dau">{ct.so_con} con một tờ</span>}
         {ct.so_kem && <span className="xa-chip-dau"><Layers size={13} />{ct.so_kem} tấm kẽm</span>}
-        {ct.giay ? <span className="xa-chip-dau">{ct.giay}</span> : <span className="xa-chip-dau xa-mo">Chưa chọn giấy</span>}
+        {/* Mỗi giấy khai ở bước một chip; lệnh cũ chưa khai giấy ở bước thì rơi về giấy của quy cách. */}
+        {(ct.giays?.length ? ct.giays : ct.giay ? [ct.giay] : []).map((g) => <span key={g} className="xa-chip-dau">{g}</span>)}
+        {!ct.giays?.length && !ct.giay && <span className="xa-chip-dau xa-mo">Chưa chọn giấy</span>}
         {ct.kho_in && <span className="xa-chip-dau">khổ {ct.kho_in}</span>}
         {ct.so_mau && <span className="xa-chip-dau">{ct.so_mau} màu</span>}
         {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`}>{vatTu.chu}</span>}

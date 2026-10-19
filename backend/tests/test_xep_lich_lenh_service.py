@@ -19,6 +19,7 @@ from app.services.xep_lich import XepLichLenhConflict, XepLichLenhNotFound, XepL
 # Fixtures + helper dùng lại — import tên vào module này là pytest nhận luôn thành fixture.
 from tests.test_xep_lich_service import (  # noqa: F401
     _hai_lsx_san_sang,
+    _in_step,
     _khai_giay_len_buoc_in,
     admin,
     customer,
@@ -907,3 +908,32 @@ def test_cum_co_viec_da_bat_dau_thi_KHONG_lenh_nao_lui(db, svc3, hai_lenh, admin
     db.expire_all()
     assert db.get(type(a), a.id).trang_thai == TT_DA_PHAT_HANH
     assert db.get(type(b), b.id).trang_thai == TT_DA_PHAT_HANH
+
+
+def test_chi_tiet_goi_nguoi_bang_ho_ten_khong_bang_ten_dang_nhap(db, svc3, lenh, admin):
+    """`User` giữ họ tên ở cột `name` — đọc nhầm `full_name` (không có) thì ngăn in "admin"."""
+    admin.name = "Trần Điều Phối"
+    lenh.nguoi_phu_trach_id = admin.id
+    db.commit()
+    assert svc3.chi_tiet(lenh.id)["nguoi_phu_trach_ten"] == "Trần Điều Phối"
+
+
+def test_chi_tiet_ke_moi_giay_cua_cac_buoc(db, svc3, lenh):
+    """Hộp bồi couche + sóng: hai giấy khai ở bước — ngăn phải kể cả hai, không chỉ giấy chính
+    của quy cách."""
+    from app.models.lsx import LsxCongDoanVatTu
+    from app.models.vat_lieu_kho import GiayNguyen
+
+    song = GiayNguyen(ma="SONG-E-T", ten="Giấy sóng E", gsm=400)
+    db.add(song)
+    db.flush()
+    buoc = _in_step(db, lenh.id)
+    giay_cu = [v.vat_tu_ten_snapshot for v in buoc.vat_tus if v.hang_loai == "giay"]
+    db.add(LsxCongDoanVatTu(
+        lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=song.id,
+        vat_tu_ma_snapshot=song.ma, vat_tu_ten_snapshot=song.ten,
+        don_vi_snapshot="kg", so_luong=1.0, kho_rong=780, kho_dai=905, thu_tu=1, tu_dong=False,
+    ))
+    db.commit()
+    db.expire_all()
+    assert svc3.chi_tiet(lenh.id)["giays"] == [*giay_cu, "Giấy sóng E"]
