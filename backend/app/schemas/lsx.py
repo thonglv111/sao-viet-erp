@@ -142,6 +142,8 @@ class LsxBuocVatTuIn(BaseModel):
 class LsxBuocVatTuOut(BaseModel):
     id: int
     hang_loai: str = "vat_tu"
+    # Dòng giấy: `giay` | `song` (loại của mã, mg 0426). Vật tư khác: "".
+    giay_loai: str = ""
     vat_tu_id: int
     vat_tu_ma: str
     vat_tu_ten: str

@@ -138,3 +138,54 @@ def test_nap_tai_ban_hai_giay_khong_chan():
 
     cfg = {"thanh_phams": [{"cong_doan_id": 2, "vat_tus": [_g(10), _g(11)]}]}
     assert chuan_hoa_giay(cfg, _NHOM, _BANG)["giay_id"] == 10
+
+
+# ---- Lệnh sản xuất ---------------------------------------------------------------------------------
+from app.services.lsx_service import LsxValidationError  # noqa: E402
+from tests.test_giay_vat_tu_buoc_lsx import _ptg, _tao_lenh  # noqa: E402
+from tests.test_lsx_service import (  # noqa: E402,F401 — fixture dùng chung
+    _don_da_chuyen_sx, _may_in, _to_san_xuat, admin, customer, db, lsx_svc, orders,
+)
+
+
+def _routing(lsx, vat_tus_theo_buoc: dict[int, list[dict]]):
+    """Routing hiện tại của lệnh; bước có trong `vat_tus_theo_buoc` gửi đúng dòng đó, bước khác KHÔNG
+    gửi khoá `vat_tus` (giữ nguyên dòng cũ)."""
+    from app.schemas.lsx import LsxCongDoanIn
+
+    ra = []
+    for i, cd in enumerate(sorted(lsx.cong_doans, key=lambda c: c.thu_tu)):
+        kw = dict(step_key=cd.step_key, cong_doan_id=cd.cong_doan_id, ten=cd.ten, nhom=cd.nhom,
+                  loai_buoc=cd.loai_buoc, thu_tu=cd.thu_tu)
+        if i in vat_tus_theo_buoc:
+            kw["vat_tus"] = vat_tus_theo_buoc[i]
+        ra.append(LsxCongDoanIn(**kw))
+    return ra
+
+
+def _ma_giay(db, lsx_svc, ma: str, loai: str) -> int:
+    g = GiayNguyen(don_vi_them=["to"], ma=ma, ten=ma, gsm=300, don_gia=1, don_vi_gia="to", loai=loai)
+    db.add(g)
+    db.commit()
+    lsx_svc._mon_cache = lsx_svc._loai_giay_cache = None   # service nhớ danh mục từ lúc tạo lệnh
+    return g.id
+
+
+def test_luu_lenh_hai_giay_bi_chan_ke_ca_buoc_khong_gui_vat_tus(db, orders, lsx_svc, admin, customer):
+    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    ivory = _ma_giay(db, lsx_svc, "IVORY-300", "giay")
+    # Bước In (0) giữ COUCHE vì không gửi `vat_tus`; bước Cán (1) thêm IVORY ⇒ lệnh có 2 giấy.
+    with pytest.raises(LsxValidationError, match="Mỗi lệnh chỉ một giấy"):
+        lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_routing(
+            lsx, {1: [{"hang_loai": "giay", "vat_tu_id": ivory}]}))
+
+
+def test_luu_lenh_giay_va_song_duoc_va_dong_mang_loai(db, orders, lsx_svc, admin, customer):
+    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    song = _ma_giay(db, lsx_svc, "SONG-E", "song")
+    lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_routing(
+        lsx, {1: [{"hang_loai": "giay", "vat_tu_id": song}]}))
+    db.commit()
+    d = lsx_svc.detail_dict(lsx)
+    loai = {v["vat_tu_ten"]: v["giay_loai"] for cd in d["cong_doans"] for v in cd["vat_tus"]}
+    assert loai == {"Couche 150": "giay", "SONG-E": "song"}

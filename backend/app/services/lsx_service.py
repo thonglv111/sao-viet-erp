@@ -54,7 +54,8 @@ from ..models.order import STATUS_CANCELLED, STATUS_ORDERED, Order, OrderLine
 from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from ..models.quotation import QuoteVersion
 from ..models.user import User
-from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, GiayNguyen, VatTuInAn
+from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, LOAI_GIAY, GiayNguyen, VatTuInAn
+from .ptg_giay_buoc import bang_giay, id_giay_cua_rows, loi_tran_giay
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from .gia_cong_ngoai import lan_can_hoi_xuat_giay, tom_tat_theo_lenh as tom_tat_gcn_theo_lenh
 from ..services.bu_hao_engine import hao_buoc
@@ -502,6 +503,7 @@ class LsxService:
         self._ma_dv_cache: dict | None = None   # tên đơn vị → mã (xem `_ma_don_vi`)
         self._mon_cache: dict | None = None     # giấy + vật tư đang dùng (xem `_mon_active`)
         self._vt_theo_id_cache: dict | None = None
+        self._loai_giay_cache: dict[int, str] | None = None   # id giấy → loại (xem `_loai_giay`)
         self._vt_theo_id_nguon: dict | None = None
         self._cd_giu: list = []                 # công đoạn đã nạp sẵn (xem `_nap_cd`)
 
@@ -554,6 +556,13 @@ class LsxService:
                 ra[(HANG_GIAY, g.id)] = g
             self._mon_cache = ra
         return self._mon_cache
+
+    def _loai_giay(self, gid: int) -> str:
+        """Loại Giấy/Sóng của mã giấy (kể cả mã đã ngừng dùng) — dựng MỘT lần cho cả service."""
+        if self._loai_giay_cache is None:
+            self._loai_giay_cache = {int(i): (l or LOAI_GIAY) for i, l in self.db.execute(
+                select(GiayNguyen.id, GiayNguyen.loai))}
+        return self._loai_giay_cache.get(int(gid), LOAI_GIAY)
 
     def _vat_tu_theo_id(self) -> dict:
         """`{id: vật tư}` của vật tư đang dùng — dựng MỘT lần cùng `_mon_cache`, không dựng lại mỗi bước."""
@@ -2652,6 +2661,8 @@ class LsxService:
             ],
             "vat_tus": [
                 {"id": v.id, "hang_loai": v.hang_loai, "vat_tu_id": v.vat_tu_id,
+                 # Giấy hay Sóng (mg 0426) — màn lệnh tách ô Giấy / Sóng theo khoá này.
+                 "giay_loai": self._loai_giay(v.vat_tu_id) if v.hang_loai == HANG_GIAY else "",
                  "vat_tu_ma": v.vat_tu_ma_snapshot, "vat_tu_ten": v.vat_tu_ten_snapshot,
                  "don_vi": v.don_vi_snapshot, "so_luong": _f(v.so_luong),
                  "kho_rong": int(v.kho_rong or 0), "kho_dai": int(v.kho_dai or 0),
@@ -3426,6 +3437,13 @@ class LsxService:
                     tu_dong=bool(item.get("tu_dong")) and not sua_tay_dong,
                     sua_tay=sua_tay_dong,
                 ))
+
+        # Một lệnh tối đa 1 mã Giấy + 1 mã Sóng (19/10/2026) — đếm trên dòng THẬT của mọi bước sau khi
+        # gán, kể cả bước payload không gửi `vat_tus` (giữ nguyên dòng cũ).
+        ids_giay = id_giay_cua_rows(sorted(rows, key=lambda r: r.thu_tu or 0))
+        loi = loi_tran_giay(lsx.ma, ids_giay, bang_giay(self.db, ids_giay), chu_the="Lệnh")
+        if loi:
+            raise LsxValidationError(loi)
 
         # Ghi lại cạnh đến từng bước; key có thể trỏ bước cùng LSX hoặc LSX khác cùng đơn hàng.
         all_keys = {k for d in payloads for k in (d.get("phu_thuoc_step_keys") or [])}

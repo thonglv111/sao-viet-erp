@@ -61,7 +61,8 @@ def id_giay_cua_rows(rows: list) -> list[int]:
     return [_gid(v) for r in rows for v in _vat_tus(r) if _la_giay(v)]
 
 
-def loi_tran_giay(ten_sp: str, ids: Iterable[int], bang: BangGiay) -> str | None:
+def loi_tran_giay(ten_sp: str, ids: Iterable[int], bang: BangGiay, *,
+                  chu_the: str = "Sản phẩm") -> str | None:
     """Câu lỗi khi một sản phẩm (hoặc một lệnh) có quá 1 mã Giấy hoặc quá 1 mã Sóng; None = hợp lệ.
     `ids` lặp được — cùng mã ở nhiều bước là MỘT mã."""
     theo_loai: dict[str, list[int]] = {}
@@ -71,8 +72,8 @@ def loi_tran_giay(ten_sp: str, ids: Iterable[int], bang: BangGiay) -> str | None
         ds = theo_loai.get(loai, [])
         if len(ds) > 1:
             ten = ", ".join((bang.get(g).ten if bang.get(g) else f"#{g}") for g in ds)
-            return (f"Sản phẩm «{ten_sp}» đang có {len(ds)} {chu}: {ten}. "
-                    f"Mỗi sản phẩm chỉ một {chu}.")
+            return (f"{chu_the} «{ten_sp}» đang có {len(ds)} {chu}: {ten}. "
+                    f"Mỗi {chu_the.lower()} chỉ một {chu}.")
     return None
 
 
