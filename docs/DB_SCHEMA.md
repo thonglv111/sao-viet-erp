@@ -3034,6 +3034,7 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `generated_at` | `DateTime(tz)` | — | yes | — | Lần chạy engine (Tính lại) gần nhất. So với `attendance_periods.locked_at` để chặn chốt lương trên số tính TRƯỚC lúc chốt công. NULL = kỳ có từ trước migration `0186`. |
 | `cong_bo_luc` | `DateTime(tz)` | — | yes | — | Mốc MỞ phiếu lương cho NLĐ. NULL = chưa công bố. Mốc tương lai = đã hẹn giờ. Mở lại kỳ ⇒ tự về NULL. Thêm qua migration `0187`. |
 | `dong_phieu_luc` | `DateTime(tz)` | — | yes | — | Mốc ĐÓNG phiếu. NULL = mở không thời hạn. Cùng `cong_bo_luc` tạo một CỬA SỔ: NV thấy phiếu khi `cong_bo_luc <= now < dong_phieu_luc` — kiểm lúc ĐỌC, không cần job nền. Thêm qua migration `0189`. |
+| `da_bao_mo_luc` | `DateTime(tz)` | — | yes | — | Mốc mở (`cong_bo_luc`) đã đẩy tin "phiếu lương đã mở" tới NLĐ. NULL hoặc nhỏ hơn `cong_bo_luc` = lần mở này chưa báo ⇒ vòng quét báo bù (lùi tối đa 2 ngày). Thêm qua migration `0423`. |
 
 ---
 
@@ -3831,9 +3832,12 @@ Bảng mới → `create_all` tự dựng, không migration.
 **Tất cả cột:** `id`, `ma` (SC-#### sinh ngầm), `may_id` (soft → `may_thiet_bi.id`),
 `bo_phan_hong`, `mo_ta`, `muc_do` (nhe·trung_binh·nghiem_trong), `nguoi_bao_id` (soft →
 `employees.id`), `nguoi_bao_ten` (snapshot), `thoi_diem`, `nguyen_nhan_phuong_an`, `trang_thai`
-(cho_sua·da_sua_xong), `hoan_thanh_at`, `hoan_thanh_boi`, `ghi_chu`,
+(cho_sua·da_sua_xong), `hoan_thanh_at`, `hoan_thanh_boi`, `thoi_gian_dong_giay`, `ghi_chu`,
 `created_at`, `updated_at`.
 
+- **`thoi_gian_dong_giay`** (INTEGER NOT NULL, mặc định 0; mg 0424, 19/10/2026, lỗi #71): số giây phiếu đã nằm ở
+  trạng thái đóng, cộng dồn mỗi lần mở lại (giờ mở lại − `hoan_thanh_at`, cộng trước khi xoá mốc). "Sửa mất" =
+  `hoan_thanh_at` − `thoi_diem` − cột này. Số nguyên, KHÔNG phải Boolean.
 - **Người báo (`nguoi_bao_id` + `nguoi_bao_ten`) do SERVER chốt lúc tạo, KHÔNG gõ, KHÔNG sửa**
   (14/09/2026, bỏ ô chữ "nhập hộ"): phiếu sinh từ yêu cầu chép TÊN người gửi yêu cầu (id để NULL);
   phiếu tổ kỹ thuật tự lập lấy tài khoản đang lập — tên `users.name`, id là `employees.id` nối với
@@ -4801,10 +4805,13 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `trang_thai` | `String(24)` | — | no | `dang_phat_hanh` | `dang_phat_hanh`/`da_thu_hoi` (thu hồi chỉ khi CHƯA việc nào bắt đầu). |
 | `version_hien_tai` | `Integer` | — | no | `1` | Trỏ tới `san_xuat_phien_ban.so` đang hiệu lực. |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
+| `thu_hoi_ly_do` | `String(500)` | — | yes | — | Lý do lúc thu hồi gói (mg 0420). Gói thu hồi trước 18/10/2026 để trống, lý do cũ ở Nhật ký hệ thống. |
+| `thu_hoi_at` | `DateTime(timezone=True)` | — | yes | — | Lúc thu hồi (mg 0420). |
+| `thu_hoi_by_id` | `Integer` | — | yes | — | Người thu hồi, soft → `users.id` (mg 0420). |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
 
-**Tất cả cột:** `id`, `ma`, `trang_thai`, `version_hien_tai`, `version`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `trang_thai`, `version_hien_tai`, `version`, `thu_hoi_ly_do`, `thu_hoi_at`, `thu_hoi_by_id`, `created_at`, `updated_at`.
 
 ### `san_xuat_phien_ban`
 

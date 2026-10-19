@@ -149,6 +149,11 @@ def _f(v: Any, default: float = 0.0) -> float:
 # tương lai". Một nguồn duy nhất, mọi tầng gọi hàm này.
 BUSINESS_TZ = timezone(timedelta(hours=7))
 
+# Nhãn trạng thái ghi vào nhật ký (#70) — khớp `NHAN_TT_SUA_CHUA` / `NHAN_TT_BAO_TRI` bên FE
+# (`frontend/src/api/kyThuatMay.ts`); đổi nhãn ở một bên thì sửa bên kia.
+NHAN_TT_SUA_CHUA = {"cho_sua": "Chờ sửa", "da_sua_xong": "Đã sửa xong"}
+NHAN_TT_BAO_TRI = {"cho_thuc_hien": "Chưa làm", "hoan_thanh": "Đã xong", "da_huy": "Đã hủy"}
+
 
 def hom_nay_vn() -> date:
     return datetime.now(BUSINESS_TZ).date()
@@ -343,7 +348,7 @@ class KyThuatMayService:
         phieu = self.repo.create_sua_chua(data, ma=self.repo.next_ma_sua_chua(),
                                           nguoi_bao_id=nguoi_bao_id, nguoi_bao_ten=nguoi_bao_ten)
         self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "create",
-                  " · ".join(x for x in (phieu.ma, may.ma, phieu.bo_phan_hong) if x), actor_id)
+                  f"{phieu.ma}: máy {may.ma}" + (f" hỏng {phieu.bo_phan_hong}" if phieu.bo_phan_hong else ""), actor_id)
         return phieu
 
     def sua_sua_chua(self, phieu_id: int, data: dict, *, actor_id: int | None = None) -> SuaChuaMay:
@@ -356,15 +361,23 @@ class KyThuatMayService:
         if "bo_phan_hong" in data:      # để trống được, nhưng cột NOT NULL ⇒ null quy về ""
             data = {**data, "bo_phan_hong": (data["bo_phan_hong"] or "").strip()}
         phieu = self.repo.update_sua_chua(phieu, data)
-        self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "update", f"{phieu.ma} · sửa nội dung", actor_id)
+        self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "update", f"{phieu.ma}: sửa nội dung", actor_id)
         return phieu
 
     def doi_trang_thai_sua_chua(self, phieu_id: int, trang_thai: str, *,
-                                actor_id: int | None = None) -> SuaChuaMay:
-        """Chuyển bước. ĐÓNG phiếu (`da_sua_xong`) đi qua đây và bị cửa ảnh chặn."""
+                                actor_id: int | None = None, ly_do: str | None = None) -> SuaChuaMay:
+        """Chuyển bước. ĐÓNG phiếu (`da_sua_xong`) đi qua đây và bị cửa ảnh chặn.
+
+        MỞ LẠI phiếu đã sửa xong (sửa chưa đạt, máy hỏng lại) bắt buộc lý do (#51, 18/10/2026): đây
+        là đảo một lần đóng phiếu, thứ còn lại để đối chiếu là vết trong nhật ký.
+        """
         if trang_thai not in TRANG_THAI_SUA_CHUA:
             raise KyThuatMayValidationError(f"Trạng thái không hợp lệ: {trang_thai}")
         phieu = self.get_sua_chua(phieu_id)
+        ly_do = (ly_do or "").strip()
+        mo_lai = phieu.trang_thai == TT_SC_DA_SUA_XONG and trang_thai != TT_SC_DA_SUA_XONG
+        if mo_lai and not ly_do:
+            raise KyThuatMayValidationError("Mở lại phiếu đã sửa xong phải ghi lý do.")
         if trang_thai == TT_SC_DA_SUA_XONG:
             self._kiem_anh_chung_thuc(LOAI_PHIEU_SUA_CHUA, phieu.id)
             phieu.hoan_thanh_at = datetime.now(timezone.utc)
@@ -372,13 +385,23 @@ class KyThuatMayService:
         else:
             # Mở lại phiếu đã đóng thì phải dọn mốc, không thì phiếu "đang sửa" vẫn mang giờ hoàn
             # thành cũ và mọi báo cáo đọc theo mốc đó đều sai.
+            if mo_lai and phieu.hoan_thanh_at is not None:
+                # Cộng quãng phiếu vừa nằm đóng vào tổng, rồi mới xoá mốc (#71) — không thì "Sửa
+                # mất" lần xong sau tính luôn cả quãng máy đã chạy bình thường.
+                dong_tu = phieu.hoan_thanh_at
+                if dong_tu.tzinfo is None:
+                    dong_tu = dong_tu.replace(tzinfo=timezone.utc)
+                phieu.thoi_gian_dong_giay = (phieu.thoi_gian_dong_giay or 0) + max(
+                    0, int((datetime.now(timezone.utc) - dong_tu).total_seconds()))
             phieu.hoan_thanh_at = None
             phieu.hoan_thanh_boi = None
         phieu.trang_thai = trang_thai
         self.db.commit()
         self.db.refresh(phieu)
+        nhan = NHAN_TT_SUA_CHUA.get(trang_thai, trang_thai)
         self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "update",
-                  f"{phieu.ma} · trạng thái → {trang_thai}", actor_id)
+                  f"{phieu.ma}: mở lại vì {ly_do[:500]}" if mo_lai
+                  else f"{phieu.ma}: trạng thái → {nhan}", actor_id)
         self.bao_ban_to_may(phieu.may_id)
         return phieu
 
@@ -540,7 +563,7 @@ class KyThuatMayService:
             cong_viec_id=cong_viec_id, lsx_id=lsx_id, commit=commit,
         )
         self._ghi(NHAT_KY_LOAI_YEU_CAU, yc.id, "create",
-                  " · ".join(x for x in (yc.ma, may.ma, yc.bo_phan_hong) if x), actor_id,
+                  f"{yc.ma}: máy {may.ma}" + (f" hỏng {yc.bo_phan_hong}" if yc.bo_phan_hong else ""), actor_id,
                   commit=commit)
         if commit:
             self.bao_to_sua_chua(yc)
@@ -620,7 +643,7 @@ class KyThuatMayService:
                   f"{yc.ma} → tạo phiếu {phieu.ma}"
                   + (f" · chuyển {so_anh} ảnh" if so_anh else ""), actor_id)
         self._ghi(NHAT_KY_LOAI_SUA_CHUA, phieu.id, "update",
-                  f"{phieu.ma} · tạo từ yêu cầu {yc.ma}"
+                  f"{phieu.ma}: tạo từ yêu cầu {yc.ma}"
                   + (f" của {yc.nguoi_bao_ten}" if yc.nguoi_bao_ten else ""), actor_id)
         self._bao_nguoi_bao(yc, TT_YC_DA_TAO_PHIEU, phieu_ma=phieu.ma)
         self.bao_ban_to_may(yc.may_id)
@@ -717,7 +740,7 @@ class KyThuatMayService:
                     payload["hang_muc"] = hang_muc_snapshot(goi)
         phieu = self.repo.create_bao_tri(payload, ma=self.repo.next_ma_bao_tri())
         self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "create",
-                  f"{phieu.ma} · {may.ma} · {phieu.goi_ten or 'đột xuất'}", actor_id)
+                  f"{phieu.ma}: máy {may.ma} gói {phieu.goi_ten}" if phieu.goi_ten else f"{phieu.ma}: máy {may.ma} đột xuất", actor_id)
         return phieu
 
     def sua_bao_tri(self, phieu_id: int, data: dict, *, actor_id: int | None = None) -> BaoTriMay:
@@ -732,7 +755,7 @@ class KyThuatMayService:
         # ngày không còn là thao tác hợp lệ (chức năng dời lịch đã gỡ — hủy phiếu nếu không làm nữa).
         data.pop("ngay_ke_hoach", None)
         phieu = self.repo.update_bao_tri(phieu, data)
-        self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "update", f"{phieu.ma} · sửa nội dung", actor_id)
+        self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "update", f"{phieu.ma}: sửa nội dung", actor_id)
         return phieu
 
     def tick_hang_muc(self, phieu_id: int, hang_muc_id: str, xong: bool, *,
@@ -784,7 +807,7 @@ class KyThuatMayService:
         # Ghi vết TỪNG việc con: đây là thứ trả lời "hôm đó thợ đã làm những gì" khi máy hỏng lại
         # ngay sau kỳ bảo trì. Không ghi thì checklist chỉ còn là mấy ô tick không ai truy được.
         self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "update",
-                  f"{phieu.ma} · {dau} {ten_viec}", actor_id)
+                  f"{phieu.ma}: {dau} {ten_viec}", actor_id)
         return phieu
 
     def huy_bao_tri(self, phieu_id: int, ly_do: str, *,
@@ -809,7 +832,7 @@ class KyThuatMayService:
         self.db.commit()
         self.db.refresh(phieu)
         self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "update",
-                  f"{phieu.ma} · hủy phiếu · {phieu.ly_do_huy}", actor_id)
+                  f"{phieu.ma}: hủy phiếu · {phieu.ly_do_huy}", actor_id)
         return phieu
 
     @staticmethod
@@ -887,7 +910,7 @@ class KyThuatMayService:
         self.db.commit()
         self.db.refresh(phieu)
         self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "update",
-                  f"{phieu.ma} · trạng thái → {trang_thai}", actor_id)
+                  f"{phieu.ma}: trạng thái → {NHAN_TT_BAO_TRI.get(trang_thai, trang_thai)}", actor_id)
         return phieu
 
 
@@ -1089,7 +1112,7 @@ class KyThuatMayService:
                 if goi_id:
                     mo_map[(may.id, goi_id)] = phieu
                 self._ghi(NHAT_KY_LOAI_BAO_TRI, phieu.id, "create",
-                          f"{phieu.ma} · tự sinh khi tới hạn · {may.ma} · "
+                          f"{phieu.ma}: tự sinh khi tới hạn · {may.ma} · "
                           f"{(goi.get('viec') or '').strip() or 'gói chưa đặt tên'}", actor_id)
         if ra:
             # Chốt MỘT lần cho cả loạt: hoặc cả kỳ hôm nay ra phiếu, hoặc không phiếu nào —

@@ -22,6 +22,7 @@ import {
   BangSanXuatMon, BuocGiaoHang, CanhBaoTre, ChanKhung, TomTat, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
   viecTiepTheo,
 } from "./giao-hang/tien-do-don";
+import { duocHuyDon, trangThaiSanXuat } from "./don-hang-ban-dieu-kien";
 import {
   api,
   ApiError,
@@ -57,7 +58,7 @@ function vnd(v: number | null | undefined): string {
 function fmtDate(s: string | null): string {
   if (!s) return "—";
   const d = new Date(s);
-  return d.toLocaleDateString("vi-VN");
+  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 /** Tên gọi của người Việt là chữ cuối ("Nguyễn Thị Huyên" → "Huyên"); họ tên đủ để ở `title`. */
 const tenGoi = (ten: string) => ten.trim().split(/\s+/).pop() ?? ten;
@@ -163,9 +164,6 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   const canUpdate = can("don_hang_ban", "update");
   // Thu cọc = lập phiếu thu ⇒ hỏi Phiếu thu → Tạo (13/10/2026, trước đó là ô riêng của Đơn hàng bán).
   const canRecordDeposit = can("phieu_thu", "create");
-  // Hủy đơn đã chốt MẶC ĐỊNH BẬT cho vai có Sửa đơn (gỡ công tắc `approve_exception` 24/08/2026;
-  // luồng "duyệt đơn đặc thù" vốn đã bỏ nên cờ này giờ chỉ còn gác việc hủy đơn đã chốt).
-  const canApproveException = true;
 
   const [tab, setTab] = useState("all");
   const [q, setQ] = useState("");
@@ -371,7 +369,6 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
           order={selected}
           canUpdate={canUpdate}
           canRecordDeposit={canRecordDeposit}
-          canApproveException={canApproveException}
           onClose={() => setSelected(null)}
           onSaved={(d) => {
             setSelected(d);
@@ -552,13 +549,12 @@ function ThanhKeoNgan() {
 }
 
 function OrderDrawer({
-  order, canUpdate, canRecordDeposit, canApproveException, onClose, onSaved, navigate,
+  order, canUpdate, canRecordDeposit, onClose, onSaved, navigate,
   eventTick, keToanTick, moChang,
 }: {
   order: OrderDetail;
   canUpdate: boolean;
   canRecordDeposit: boolean;
-  canApproveException: boolean;
   onClose: () => void;
   onSaved: (d: OrderDetail) => void;
   navigate?: (id: string, params?: Record<string, unknown>) => void;
@@ -586,7 +582,8 @@ function OrderDrawer({
   const cocConGiu = order.tien_khach_con_giu ?? 0;
   const tienDaNhan = order.tien_khach_da_nhan ?? order.deposit_received;
   const coTienHd = tienDaNhan > order.deposit_received;
-  const canCancel = (order.status === "draft" && canUpdate) || (order.status === "ordered" && canApproveException);
+  // Hủy đơn (nháp hay đã chốt) = ô Sửa đơn, đúng cổng máy chủ (#53).
+  const canCancel = duocHuyDon(order.status, canUpdate);
 
   // `dungNapTruoc` chỉ ở lần nạp đầu của ngăn: lấy lại lời gọi đã bắn lúc bấm mở đơn.
   const taiHoaDon = useCallback(async (dungNapTruoc: boolean) => {
@@ -662,8 +659,8 @@ function OrderDrawer({
   const khoDone = td != null && tt.khoXong;
   const sxDone = lenhXongHet && khoDone;
   const giaoDone = td != null && tt.giaoXong;
-  const sxState: "chua" | "cho_kh" | "chay" =
-    !sxReleased ? "chua" : lenhs.length === 0 ? "cho_kh" : "chay";
+  // #54: không xem được lệnh thì `lenhs` rỗng — lấy "có lệnh" theo tiến độ máy chủ gộp.
+  const sxState = trangThaiSanXuat(sxReleased, lenhs.length, tt.coLenh);
   // Món có lệnh đã đóng hết mà hàng chưa đủ (máy chủ chốt `o = dong_thieu`) — không còn "đang chạy".
   const soMonDongThieu = (td?.cum ?? []).filter((c) => c.o === "dong_thieu").length;
   // Chỉ BÁO thiếu nguồn khi Kế hoạch đã bắt đầu lên lệnh: trước đó mọi món đều chưa có lệnh, báo
@@ -725,12 +722,15 @@ function OrderDrawer({
     { k: "hoadon", nhan: "Hóa đơn", sub: invoiceStageLabel.toLowerCase(), xong: invoiceStage === "full" },
   ];
 
+  // Nạp lại mỗi khi đơn đổi (Lưu, chốt, cọc… trả về đơn mới — lỗi #64). Chỉ lần đầu lấy lời gọi bắn
+  // sẵn lúc bấm mở đơn; các lần sau phải hỏi lại, bản bắn sẵn là nhật ký TRƯỚC thao tác.
+  const nkLan = useRef(0);
   useEffect(() => {
-    if (token) {
-      (layNhatKyNapTruoc(order.id) || api.orders.activity(token, order.id))
-        .then((r) => setActs(r.items)).catch(() => {});
-    }
-  }, [token, order.id]);
+    if (!token) return;
+    const dau = nkLan.current++ === 0;
+    ((dau && layNhatKyNapTruoc(order.id)) || api.orders.activity(token, order.id))
+      .then((r) => setActs(r.items)).catch(() => {});
+  }, [token, order]);
 
   useEffect(() => {
     // Đơn hủy → dừng chuỗi tại "Chốt" (đã có khối lý-do-hủy riêng), đừng để mặc định trôi
@@ -856,7 +856,8 @@ function OrderDrawer({
                                 ))}
                               </span>
                             )}
-                            {viec.nut && (viec.nut.toi !== activeStep) && (
+                            {viec.nut && (viec.nut.toi !== activeStep)
+                              && (viec.nut.toi !== "ke-hoach-sx" || can("san_xuat", "read")) && (
                               <Button variant="secondary" className="dhb__viec-nut"
                                 onClick={() => {
                                   const toi = viec.nut!.toi;
@@ -934,12 +935,12 @@ function OrderDrawer({
                             so: soVN(order.deposit_required) },
                           ...order.deposits.map((d) => ({
                             khoa: `pt-${d.id}`,
-                            nhan: (
+                            nhan: can("phieu_thu", "read") ? (
                               <button type="button" className="dhb__td-link" title="Mở phiếu thu này bên Kế toán"
                                 onClick={() => navigate?.("ke-toan-phieu-thu", { focusReceiptQuery: d.code })}>
                                 {d.doc_no ?? d.code}
                               </button>
-                            ),
+                            ) : (d.doc_no ?? d.code),
                             dien: `${RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method} lúc ${fmtDateTime(d.created_at)}`
                               + (d.gop && d.tong_phieu ? ` phiếu gộp ${soVN(d.tong_phieu)}` : ""),
                             so: soVN(d.amount),
@@ -998,12 +999,14 @@ function OrderDrawer({
                           <BangSanXuatMon td={td}
                             onMoLenh={navigate && can("san_xuat", "read") ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
                         </div>
-                        <ChanKhung chu="Theo dõi từng công đoạn của lệnh ở Kế hoạch sản xuất.">
-                          <button type="button" className="btn"
-                            onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
-                            Mở Kế hoạch sản xuất ↗
-                          </button>
-                        </ChanKhung>
+                        {can("san_xuat", "read") && (
+                          <ChanKhung chu="Theo dõi từng công đoạn của lệnh ở Kế hoạch sản xuất.">
+                            <button type="button" className="btn"
+                              onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
+                              Mở Kế hoạch sản xuất ↗
+                            </button>
+                          </ChanKhung>
+                        )}
                       </>
                     )}
                   </TheChang>
@@ -1035,7 +1038,9 @@ function OrderDrawer({
                 <TheBen tieuDe="Đơn hàng">
                   <DongBen k="Nguồn" v={order.source_type === "bao_gia" && order.quotation_code ? (
                     <>
-                      <button type="button" className="dhb__td-link" onClick={moBaoGia}>{order.quotation_code} ↗</button>
+                      {can("bao_gia", "read")
+                        ? <button type="button" className="dhb__td-link" onClick={moBaoGia}>{order.quotation_code} ↗</button>
+                        : order.quotation_code}
                       {order.quotation_version != null && <span className="dhb__muted dhb__ben-phu">bản {order.quotation_version}</span>}
                     </>
                   ) : "Nhập giá tay"} />

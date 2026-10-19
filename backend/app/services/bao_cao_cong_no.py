@@ -776,6 +776,10 @@ def cat_trang_so_chi_tiet(so: dict, *, page: int, size: int | None) -> dict:
     return {**so, "dong": moi_truoc[(page - 1) * size: page * size], "so_dong": len(dong)}
 
 
+# Thứ tự trong một ngày của sổ chi tiết: chứng từ phát sinh nợ trước, chứng từ trả/thu sau.
+_HANG_TRONG_NGAY = {"hoa_don": 0, "dot_giao": 0}
+
+
 def _so_chi_tiet(
     chung_tu: list[dict],
     *,
@@ -802,8 +806,11 @@ def _so_chi_tiet(
         # Cùng một ngày thì xếp theo GIỜ ghi nhận (`luc`), rồi tới số chứng từ cho ổn định — in
         # lại sổ phải ra đúng thứ tự cũ, không phụ thuộc thứ tự SQL trả về. So bằng chuỗi ISO để
         # không vấp chuyện datetime có/không mang múi giờ.
+        # Trong một ngày, chứng từ PHÁT SINH nợ (hoá đơn, đợt nhận hàng) đứng trước chứng từ trả/thu:
+        # nhận hàng nhập vào hệ sau phiếu chi cùng ngày thì số dư giữa kỳ ra âm (#73).
         key=lambda c: (
             c["ngay"],
+            _HANG_TRONG_NGAY.get(c["loai"], 1),
             c["luc"].isoformat() if isinstance(c.get("luc"), datetime) else "",
             c["so_ct"] or "",
         ),

@@ -143,6 +143,9 @@ export function DepartmentPurchaseRequestsPage({
   const [canceling, setCanceling] = useState<DepartmentPurchaseRequestRow | null>(
     null,
   );
+  // Lý do huỷ cả yêu cầu — mở hộp cho phiếu khác thì xoá chữ của lần trước.
+  const [lyDoHuy, setLyDoHuy] = useState("");
+  useEffect(() => setLyDoHuy(""), [canceling?.id]);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   /** Đang hỏi bỏ MỘT MÓN khỏi yêu cầu (mg 0233). Lý do bắt buộc — máy chủ trả 422 nếu trống, nên
    *  khoá luôn nút Xác nhận ở đây để người dùng không phải bấm mới biết. */
@@ -428,7 +431,7 @@ export function DepartmentPurchaseRequestsPage({
       const saved = await api.departmentPurchaseRequests.cancel(
         token,
         canceling.id,
-        "Hủy yêu cầu mua hàng",
+        lyDoHuy.trim(),
       );
       setRows((current) =>
         current.map((row) => (row.id === saved.id ? saved : row)),
@@ -598,6 +601,8 @@ export function DepartmentPurchaseRequestsPage({
         canceling={canceling}
         setCanceling={setCanceling}
         confirmCancel={confirmCancel}
+        lyDoHuy={lyDoHuy}
+        setLyDoHuy={setLyDoHuy}
         boMon={boMon}
         setBoMon={setBoMon}
         confirmBoMon={confirmBoMon}

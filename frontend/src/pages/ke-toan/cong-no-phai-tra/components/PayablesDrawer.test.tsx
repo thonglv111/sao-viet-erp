@@ -237,6 +237,10 @@ describe("PayablesDrawer — NPT-2", () => {
   it("tích đợt ⇒ chân tối 'Đã chọn n đợt' + tổng; đợt Cả đơn không tích được; Bỏ chọn", async () => {
     await moTabNo();
     expect(screen.getByRole("checkbox", { name: "Chọn Cả đơn của PMH-0009" })).toBeDisabled();
+    // #56: màn Đơn mua hàng không có nút lập phiếu chi — câu nhắc nói đúng lý do, không chỉ sai chỗ.
+    const cu = screen.getByRole("checkbox", { name: "Chọn Cả đơn của PMH-0009" });
+    expect(cu.getAttribute("title")).not.toMatch(/màn Đơn mua hàng/);
+    expect(cu.getAttribute("title")).toMatch(/phải gắn đợt giao/);
     expect(screen.queryByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0012" })).toBeNull();
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 2 của PMH-0012" }));
     await userEvent.click(screen.getByRole("checkbox", { name: "Chọn Đợt 1 của PMH-0015" }));

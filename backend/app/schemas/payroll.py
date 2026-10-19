@@ -866,6 +866,8 @@ class KhoanKmChuyenOut(BaseModel):
     """MỘT chuyến giao trong bảng đối chiếu khoán km (mg 0231)."""
 
     trip_id: int
+    #: Mã yêu cầu giao (YCGH-…) của chuyến — cái người dùng nhận ra; `trip_id` chỉ là khoá nội bộ.
+    ma_chuyen: str | None = None
     ngay: datetime | None = None
     km: int = 0
     don_gia_km: float = 0
@@ -874,7 +876,7 @@ class KhoanKmChuyenOut(BaseModel):
     #: % được hưởng của chuyến. Đi một mình = 100, không phải `pct_tai_xe`.
     pct: float = 0
     thanh_tien: float = 0
-    #: Dòng không phải chuyến giao, vd "Về kho · lượt LX-…" — chặng về kho của lượt xe (PRD khoán
+    #: Dòng không phải chuyến giao, vd "Về kho của lượt LX-…" — chặng về kho của lượt xe (PRD khoán
     #: km §14) chia cho kíp của điểm cuối, nên `trip_id` là chuyến ở điểm cuối.
     ghi_chu: str | None = None
 

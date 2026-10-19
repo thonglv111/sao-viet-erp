@@ -285,6 +285,16 @@ def bat_dau(
     # từ công đoạn trước thì chưa có gì để làm. Công đoạn đầu lệnh ⇒ no-op.
     kiem_bat_dau(sl_repo, cv)
 
+    # Cổng MÁY DỪNG (lỗi #27, 18/10/2026): máy có yêu cầu/phiếu sửa mà người báo ghi "máy dừng",
+    # chưa sửa xong ⇒ không mở phiên trên máy đó. Báo hỏng không dừng máy thì vẫn chạy được.
+    from ..may_trang_thai import bao_hong_dang_mo
+
+    dung = next((b for b in bao_hong_dang_mo(db, cv.may_id) if b.get("may_dung")), None)
+    if dung is not None:
+        raise ValueError(
+            f"Máy đang dừng chờ sửa ({dung['ma']}) — sửa xong hoặc đổi máy rồi mới bắt đầu được."
+        )
+
     # Cổng KHUÔN/KHUNG: bước có dụng cụ lưu kho thì phải có người xác nhận dao đang nằm trên bàn.
     # Đây là ĐIỂM CHẶN DUY NHẤT của luật "bế phải có khuôn mới làm được" — ngày dự kiến có khuôn
     # KHÔNG chặn xếp lịch (chốt 04/09/2026), vì ngày đó thợ tự sửa trong danh mục nên không đủ tin

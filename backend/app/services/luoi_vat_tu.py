@@ -239,8 +239,15 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don, *, nhom: dict | Non
         if hut > EPS_GIU and phieu.get("o"):
             ghi_chu.append(f"Phiếu thiếu {so_vn(hut)} {dvt}".rstrip())
 
+    # Đã có yêu cầu/đơn "Mua cho" ô này mà khác khổ/ĐVT (lỗi #23): số không bù, nhưng không mở
+    # đề nghị mua lần hai — FE xám ô tick và nói đơn nào đã mua.
+    khac: list[dict] = []
+    for d in buoc:
+        for x in d.get("mua_khac_quy_cach") or []:
+            if not any(y["ma"] == x["ma"] for y in khac):
+                khac.append(x)
     khoa_mua = []
-    if tinh == TT_CAN_MUA and not chua_khai:
+    if tinh == TT_CAN_MUA and not chua_khai and not khac:
         for d in buoc:
             if _f(d.get("thieu")) > 0:
                 khoa_mua.append({
@@ -273,6 +280,7 @@ def _dong(chu, hang, h, o, buoc, ph_o, mach, giu_rs, ma_don, *, nhom: dict | Non
             "thieu": round(_f(d.get("thieu")), 4),
         } for d in buoc],
         "khoa_mua": khoa_mua,
+        "mua_khac_quy_cach": khac,
         "don_vi_chua_khai": chua_khai,
         "ly_do_chua_khai": ly_chua_khai,
     }

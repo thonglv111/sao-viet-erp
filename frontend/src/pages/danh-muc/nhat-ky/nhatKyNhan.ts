@@ -27,7 +27,7 @@ export function nhanThoiGian(iso: string): string {
   const lech = Math.round((moc - ngay0) / 86400000);
   if (lech === 0) return `${gio} hôm nay`;
   if (lech === 1) return `${gio} hôm qua`;
-  return `${gio} ${d.toLocaleDateString("vi-VN")}`;
+  return `${gio} ${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`;
 }
 
 const NK_SUB_LABELS: Record<string, string> = {

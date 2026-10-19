@@ -639,6 +639,13 @@ export function AppShell() {
       );
       return;
     }
+    // Phiếu lương của CHÍNH người này vừa mở (#39) hoặc vừa bị thu hồi (#59) — máy chủ đẩy đích danh,
+    // không lọc quyền nữa; màn Phiếu lương nghe nhóm nhân sự nên tự nạp lại.
+    if (e.type === "phieu_luong_cong_bo" || e.type === "phieu_luong_thu_hoi") {
+      boGop.danhDau(nhomCua(e.type));
+      pushToast(String(e.message ?? "Phiếu lương của bạn vừa đổi."), "info");
+      return;
+    }
     // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. `hub.broadcast` gửi cho MỌI kết nối chứ
     // không theo phạm vi, nên cả hai cổng lọc nằm ở đây:
     //   1) toast gác quyền Xem bàn tổ — không thì kế toán, lái xe cũng ăn toast của tổ in;
@@ -1169,18 +1176,28 @@ export function AppShell() {
 
   function renderContent() {
     if (!allowed) {
+      // Tài khoản chưa gán vai thì không có mục nào để về — nói đúng lý do, không chỉ nút dẫn về
+      // chính trang 403 (#75). Nút "Về Hồ sơ của tôi" chỉ khi người đó vào được Hồ sơ và đang ở chỗ khác.
+      const chuaCoVai = readable != null && readable.size === 0;
+      const veHoSo = !!readable?.has("self_service") && baseId !== "ho-so-cua-toi";
       return (
         <main className="shell__forbidden">
           <div className="banner banner--error" role="alert">
-            <span>Bạn không có quyền truy cập mục này (403).</span>
-            <button
-              type="button"
-              className="btn btn--ghost"
-              style={{ padding: "2px 10px" }}
-              onClick={() => setActiveId("ho-so-cua-toi")}
-            >
-              Về Hồ sơ của tôi
-            </button>
+            <span>
+              {chuaCoVai
+                ? "Tài khoản của bạn chưa được gán vai trò nào nên chưa mở được mục nào. Nhờ quản trị viên gán vai rồi tải lại trang."
+                : "Bạn không có quyền truy cập mục này (403)."}
+            </span>
+            {veHoSo && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                style={{ padding: "2px 10px" }}
+                onClick={() => setActiveId("ho-so-cua-toi")}
+              >
+                Về Hồ sơ của tôi
+              </button>
+            )}
           </div>
         </main>
       );
@@ -1238,6 +1255,7 @@ export function AppShell() {
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
           laToCat={t?.la_to_cat ?? false}
+          ghiChotGiay={t?.quyen?.run_order === "all"}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}

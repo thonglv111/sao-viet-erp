@@ -1925,6 +1925,7 @@ function VoucherCreateDrawer({
         ngay,
         ghi_chu: ghiChu || null,
         lines: payload,
+        ghi_so: post,
       });
       // Chứng từ đã chọn cần voucher_id → upload NGAY SAU khi tạo phiếu (trước khi ghi sổ).
       for (const f of files) {

@@ -625,6 +625,10 @@ export type QuoteEvent =
       ma_phieu?: string | null;
       message: string;
     }
+  // Phiếu lương kỳ này vừa mở cho người nhận (#39, 18/10/2026): đẩy ĐÍCH DANH người có dòng lương,
+  // lúc HCNS công bố mở ngay hoặc lúc tới giờ hẹn.
+  | { type: "phieu_luong_cong_bo"; year: number; month: number; message: string }
+  | { type: "phieu_luong_thu_hoi"; year: number; month: number; message: string }
   // Yêu cầu / chuyến giao đổi (mọi thao tác ghi của module giao hàng) — tín hiệu NHẸ để drawer đơn
   // và màn Giao hàng đang mở tự tải lại, không toast.
   | { type: "giao_hang_changed" }
@@ -1246,6 +1250,8 @@ export interface XlDong extends XlLich {
   may_ten: string | null;
   /** Số bước chưa tính được giờ (thiếu máy / quy đổi) — lệnh "có thể xong muộn hơn". */
   so_buoc_chua_gio: number;
+  /** Bước chạy đè vùng khoá máy / máy đang dừng chờ sửa — câu máy chủ phát, chỉ nhắc không chặn. */
+  canh_bao_may?: string[];
   /** Mép thanh của lệnh ĐÃ CHẠY DỞ — `null` khi lệnh chưa vào việc.
    *  Thanh vẽ từ `thuc_bat_dau_lenh ?? bat_dau_at` tới `ket_thuc_thuc_te ?? ket_thuc`; đoạn
    *  `thuc_bat_dau_lenh → bat_dau_at` là phần đã chạy, KHOÁ không kéo được. `bat_dau_at` vẫn là
@@ -1436,6 +1442,23 @@ export interface XlGoiPhienBan {
 
 /** Trạng thái gói phát hành của một LSX/bài ghép (§4.3): còn Phát hành cập nhật / Thu hồi được không +
  *  số việc đã/chưa bắt đầu + lịch sử phiên bản. `co_goi=false` ⇒ chưa phát hành (các field khác vắng). */
+/** Khoảng máy nghỉ khai tay ở Xếp lịch. Mốc là GIỜ TƯỜNG của xưởng (`YYYY-MM-DDTHH:mm:ss`, không múi). */
+export interface XlVungKhoa {
+  id: number;
+  may_id: number;
+  start: string;
+  finish: string;
+  ly_do: string;
+  note: string | null;
+  kieu: string;
+}
+
+export interface XlMayGon {
+  id: number;
+  ma: string;
+  ten: string;
+}
+
 export interface XlGoiPhatHanh {
   co_goi: boolean;
   goi_id?: number;
@@ -1448,6 +1471,17 @@ export interface XlGoiPhatHanh {
   cho_phep_cap_nhat?: boolean;
   cho_phep_thu_hoi?: boolean;
   phien_bans?: XlGoiPhienBan[];
+  /** MỌI gói của lệnh, mới nhất trước — kể cả gói đã thu hồi kèm lý do (lỗi #25). */
+  lich_su_goi?: XlGoiLichSu[];
+}
+
+export interface XlGoiLichSu {
+  goi_id: number;
+  ma: string;
+  trang_thai: string;
+  thu_hoi_ly_do: string | null;
+  thu_hoi_luc: string | null;
+  phien_bans: XlGoiPhienBan[];
 }
 
 /** Kết quả một lần Phát hành cập nhật (§4.3): tái chụp bao nhiêu việc, giữ nguyên bao nhiêu, huỷ bao
@@ -3640,6 +3674,8 @@ export interface AuditRow {
   nhom: string;
   target: string;
   target_loai: string | null;
+  /** "Tài sản #28" cho loại ngoài khối danh mục; null = máy chủ chưa khai tên loại. */
+  target_nhan?: string | null;
   detail: string;
   created_at: string;
 }
@@ -6524,6 +6560,8 @@ export interface LineComponent {
 }
 export interface KhoanKmChuyen {
   trip_id: number;
+  /** Mã yêu cầu giao (YCGH-…) của chuyến — cột Chuyến hiện mã này, không in id (#74). */
+  ma_chuyen?: string | null;
   ngay: string | null;
   km: number;
   don_gia_km: number;
@@ -6532,6 +6570,8 @@ export interface KhoanKmChuyen {
   /** % được hưởng của chuyến. Đi một mình = 100, không phải `pct_tai_xe`. */
   pct: number;
   thanh_tien: number;
+  /** Dòng chặng về kho của lượt xe: "Về kho của lượt LX-…"; chuyến giao khách thì null. */
+  ghi_chu?: string | null;
 }
 
 export interface KhoanKmChiTiet {
@@ -7754,6 +7794,9 @@ export interface PayableItemRow {
   /** Phần CỌC của cả đơn chiếu xuống đợt này (giao trước bù trước). Tách khỏi `paid` vì không ai
    *  trả riêng cho đợt này số đó — nhưng `con_no` đã trừ CẢ HAI. */
   coc_bu: number;
+  /** NCC hoàn tiền không gắn đơn cộng nợ lại vào đợt hạn muộn nhất (#36): con_no = amount − paid −
+   *  coc_bu + hoan_ncc. */
+  hoan_ncc?: number;
   con_no: number;
   /** Đợt đã trả hết — có mặt CHỈ để dò được tiền cọc đi đâu (cọc bù giao-trước-bù-trước nên hay
    *  nuốt trọn đợt sớm). Làm mờ, xếp cuối đơn, không đếm vào rổ tuổi / lời nhắc "chưa đặt hạn". */
@@ -10314,6 +10357,18 @@ export interface CanDoiDong {
   /** Nhu cầu ra đơn vị mà mã CHƯA khai ở danh mục (nhóm gốc `don_vi_goc` của nhóm) — dòng này
    *  không lập mua được, bảng ghi "Chưa khai đơn vị «X» ở danh mục" thay ô tick. */
   don_vi_chua_khai?: boolean;
+  /** Yêu cầu/đơn "Mua cho" lệnh này mà KHÁC khổ/ĐVT với nhu cầu (lỗi #23) — không bù số. */
+  mua_khac_quy_cach?: MuaKhacQuyCach[];
+}
+
+/** Một yêu cầu/đơn "Mua cho" lệnh nhưng khác khổ hoặc ĐVT với nhu cầu — chỉ để gọi tên. */
+export interface MuaKhacQuyCach {
+  ma: string;
+  so_luong: number;
+  /** MÃ đơn vị trên dòng đơn — dịch bằng `tenGoc`/`nhanDonVi`. */
+  don_vi: string | null;
+  kho_rong: number;
+  kho_dai: number;
 }
 
 /** Một phiếu ĐANG CHẠY của mặt hàng — chỉ đủ để GỌI TÊN, không mang số lượng, không mang tiền.
@@ -10592,6 +10647,8 @@ export interface LuoiDong {
   ghi_chu: string[];
   buoc: { buoc_id: number | null; ten_viec: string | null; can: number; da_xuat: number; thieu: number }[];
   khoa_mua: CanDoiKhoaDong[];
+  /** Có ⇒ `khoa_mua` rỗng, ô tick xám (lỗi #23). */
+  mua_khac_quy_cach?: MuaKhacQuyCach[];
 }
 
 export interface LuoiLichSu {
@@ -11569,6 +11626,8 @@ export interface StockVoucherInput {
   ngay?: string | null;
   ghi_chu?: string | null;
   lines: StockVoucherLineInput[];
+  /** "Tạo và ghi sổ": máy chủ xét khoá kỳ ngay lúc tạo, không để lại phiếu nháp khi bị chặn. */
+  ghi_so?: boolean;
 }
 
 /** 1 mặt hàng cần điều chuyển. `so_luong` theo ĐƠN VỊ GỐC của mặt hàng. */
@@ -11965,6 +12024,9 @@ export interface BaoCaoKinhDoanhTien {
   /** Hoá đơn điều chỉnh giảm (hoàn chiết khấu) tới hết `tinh_toi`; Còn phải thu = Tổng có VAT − cái này − Đã thu. */
   dieu_chinh: number;
   da_thu: number;
+  /** Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — Còn phải thu = Tổng có VAT −
+   *  Điều chỉnh giảm − Đã thu + cái này. */
+  hoan_khong_don: number;
   con_phai_thu: number;
 }
 export type TinhTrangBCKD = "chua" | "mot_phan" | "du";
@@ -14916,6 +14978,25 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ly_do: lyDo }),
       });
+    },
+    /** Máy còn dùng cho hộp Khoá máy — gác bằng quyền Xếp lịch. */
+    mayGon(token: string): Promise<XlMayGon[]> {
+      return authed<XlMayGon[]>("/api/xep-lich/may", token);
+    },
+    vungKhoa(token: string, mayId: number): Promise<XlVungKhoa[]> {
+      return authed<XlVungKhoa[]>(`/api/xep-lich/may/${mayId}/vung-khoa`, token);
+    },
+    /** `tu`/`den` là giờ tường `YYYY-MM-DDTHH:mm` — đừng `toISOString()`, nó dịch sang UTC. */
+    taoVungKhoa(token: string, mayId: number,
+      body: { tu: string; den: string; ly_do: string; note: string | null }): Promise<XlVungKhoa> {
+      return authed<XlVungKhoa>(`/api/xep-lich/may/${mayId}/vung-khoa`, token, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    },
+    xoaVungKhoa(token: string, id: number): Promise<{ ok: boolean }> {
+      return authed<{ ok: boolean }>(`/api/xep-lich/vung-khoa/${id}`, token, { method: "DELETE" });
     },
   },
 
@@ -18264,8 +18345,11 @@ export interface PhieuXuatIn {
   ngay: string;
   kho_ten: string | null;
   nguoi_lap: string | null;
-  /** Số thực xuất theo dòng đơn (dòng đầu mỗi cụm). */
-  thuc_xuat: { order_line_id: number; so_luong: number; ma_hang: string | null }[];
+  /** Theo dòng đơn (dòng đầu mỗi cụm): `so_luong` = số in phiếu giao (khách thực nhận khi chuyến đã có
+   *  kết quả, chưa có thì bằng số xuất), `so_xuat` = số kho thực xuất (mẫu 02-VT). */
+  thuc_xuat: { order_line_id: number; so_luong: number; so_xuat: number; ma_hang: string | null }[];
+  /** Người ký nhận: người nhận thực tế của chuyến, chưa giao thì người nhận ghi trên yêu cầu. */
+  nguoi_mua: string | null;
   khach_ma_so_thue: string | null;
   khach_dia_chi: string | null;
   khach_dien_thoai: string | null;

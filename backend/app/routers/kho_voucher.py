@@ -91,7 +91,11 @@ from ..services.stock_voucher_service import (
 )
 from ..tai_len import doc_gioi_han
 
-from ..services.delivery_notify import bao_tai_xe_kho_lap_phieu, kho_ghi_so_hang_giao
+from ..services.delivery_notify import (
+    bao_tai_xe_kho_lap_phieu,
+    kho_ghi_so_hang_giao,
+    kho_huy_hang_giao,
+)
 from ..services.san_xuat.kho import phat_su_kien_kho
 
 router = APIRouter(prefix="/api/kho/phieu", tags=["kho-phieu"])
@@ -479,7 +483,7 @@ def create_voucher(
         v = svc.create(
             user=user, request_id=payload.request_id, kho_id=payload.kho_id, ma=payload.ma,
             lines=[ln.model_dump() for ln in payload.lines],
-            ngay=payload.ngay, ghi_chu=payload.ghi_chu,
+            ngay=payload.ngay, ghi_chu=payload.ghi_chu, ghi_so=payload.ghi_so,
         )
     except StockVoucherError as e:
         raise _err(e) from None
@@ -526,6 +530,8 @@ def cancel_voucher(
     except StockVoucherError as e:
         raise _err(e) from None
     _bao_san_xuat(db, v)
+    # Phiếu nháp cuối của đề nghị xuất chuyến giao ⇒ yêu cầu đã huỷ theo, chuyến về trước kho (#32).
+    kho_huy_hang_giao(db, getattr(v, "request_id", None), actor=user)
     return _serialize(v, svc=svc, db=db, can_view_cost=authz.can(user, MODULE, "view_cost"))
 
 

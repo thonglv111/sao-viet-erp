@@ -856,7 +856,7 @@ class XepLichVanDeService:
                     "Gói đã có công việc bắt đầu — không thể thu hồi toàn bộ phát hành (§4.3). "
                     "Chỉ cập nhật được phần chưa bắt đầu."
                 )
-            _ru.thu_hoi_goi(self.db, nguon="lsx", id=lsx_id, actor=actor)
+            _ru.thu_hoi_goi(self.db, nguon="lsx", id=lsx_id, actor=actor, ly_do=ly_do)
             lsx.trang_thai = LSX_DA_LAP
             self.audit.create(actor_user_id=getattr(actor, "id", None), action="xep_lich_go_phat_hanh",
                               target=f"lsx:{lsx.id}",
@@ -876,7 +876,7 @@ class XepLichVanDeService:
                     "Gói đã có công việc bắt đầu — không thể thu hồi toàn bộ phát hành (§4.3). "
                     "Chỉ cập nhật được phần chưa bắt đầu."
                 )
-            _ru.thu_hoi_goi(self.db, nguon="in_ghep", id=bai_ghep_id, actor=actor)
+            _ru.thu_hoi_goi(self.db, nguon="in_ghep", id=bai_ghep_id, actor=actor, ly_do=ly_do)
             bg.trang_thai = BG_DA_LAP
             for tv in bg.thanh_viens:
                 lsx = self.xl.lsx_repo.get(tv.lsx_id)

@@ -11,8 +11,15 @@ import { legacyBonusRows, money } from "../shared/helpers";
 
 /** Số công in trên nhãn: 1 · 1.5 · 4.44 — cùng cách ô "Ngày công" ở đầu phiếu, không đuôi ,00. */
 function soCong(n: number): string {
-  return String(Number(n.toFixed(2)));
+  return soVi(n, 2);
 }
+
+/** Số kiểu Việt: dấu phẩy thập phân, chấm hàng nghìn, bỏ đuôi ",0" thừa — "1,87" · "0" · "1.234,5". */
+export function soVi(n: number, toiDa = 2): string {
+  return n.toLocaleString("vi-VN", { maximumFractionDigits: toiDa });
+}
+
+const HANG_META = { display: "flex", justifyContent: "flex-end", gap: 16 } as const;
 
 export function PayslipCard({
   line: l,
@@ -100,7 +107,7 @@ export function PayslipCard({
     (l.luong_ngay_le ?? 0) !== 0
       ? [[
           "Công ngày lễ (ngoài khoán)"
-            + ((l.le_nghi_cong ?? 0) > 0 ? ` · ${soCong(l.le_nghi_cong ?? 0)} ngày` : ""),
+            + ((l.le_nghi_cong ?? 0) > 0 ? ` (${soCong(l.le_nghi_cong ?? 0)} ngày)` : ""),
           l.luong_ngay_le ?? 0,
         ]]
       : [];
@@ -171,7 +178,7 @@ export function PayslipCard({
             ? [[((l.off1x_pay ?? 0) > 0
                 ? "Làm ngày Chủ nhật / lễ / ngày nghỉ 1×"
                 : "Làm ngày Chủ nhật / lễ")
-                + ((l.special_cong ?? 0) > 0 ? ` · ${soCong(l.special_cong ?? 0)} công` : ""), l.ot_pay]]
+                + ((l.special_cong ?? 0) > 0 ? ` (${soCong(l.special_cong ?? 0)} công)` : ""), l.ot_pay]]
             : []),
           ...dongCongLe,
         ] as [string, number][])
@@ -236,18 +243,26 @@ export function PayslipCard({
             <span className="ns__code">{l.employee_code}</span>
           </div>
           <div className="cc-card__hint">
-            {l.department_name ?? "—"} · Tháng{" "}
-            {String(period.month).padStart(2, "0")}/{period.year}
+            <span>{l.department_name ?? "—"}</span>{" "}
+            <span>Tháng {String(period.month).padStart(2, "0")}/{period.year}</span>
           </div>
         </div>
         <div className="lg-payslip2__meta">
-          <div>
-            NC chuẩn: <b>{l.standard_cong}</b> · Ngày công:{" "}
-            <b>{l.actual_cong}</b>
+          <div style={HANG_META}>
+            <span>
+              NC chuẩn: <b>{soVi(l.standard_cong)}</b>
+            </span>
+            <span>
+              Ngày công: <b>{soVi(l.actual_cong)}</b>
+            </span>
           </div>
-          <div>
-            Giờ tăng ca: <b>{(l.ot_minutes / 60).toFixed(1)}h</b> · Mức đóng BH:{" "}
-            <b>{money(l.insurance_base)}</b>
+          <div style={HANG_META}>
+            <span>
+              Giờ tăng ca: <b>{soVi(l.ot_minutes / 60, 1)} giờ</b>
+            </span>
+            <span>
+              Mức đóng BH: <b>{money(l.insurance_base)}</b>
+            </span>
           </div>
           <span
             className={`ns-badge ${period.status !== "draft" ? "ns-badge--ok" : "ns-badge--muted"}`}

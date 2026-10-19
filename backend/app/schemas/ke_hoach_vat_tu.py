@@ -11,6 +11,17 @@ from datetime import date, datetime
 from pydantic import BaseModel, Field
 
 
+class MuaKhacQuyCach(BaseModel):
+    """Một yêu cầu/đơn "Mua cho" lệnh mà khác khổ hoặc ĐVT với nhu cầu (lỗi #23) — chỉ để gọi tên."""
+
+    ma: str
+    so_luong: float
+    #: MÃ đơn vị trên dòng đơn — FE dịch bằng `nhanDonVi`.
+    don_vi: str | None = None
+    kho_rong: int = 0
+    kho_dai: int = 0
+
+
 class CanDoiDong(BaseModel):
     """1 dòng nhu cầu = 1 lệnh (hoặc 1 bài ghép) cần mặt hàng này vào một ngày."""
 
@@ -70,6 +81,8 @@ class CanDoiDong(BaseModel):
     #: [MỚI 10/10/2026] Nhu cầu ra đơn vị mã CHƯA khai ở danh mục (cùng cờ của nhóm) — không lập
     #: mua được dòng này (`/de-nghi-mua` chặn 400).
     don_vi_chua_khai: bool = False
+    #: [MỚI 18/10/2026] Yêu cầu/đơn "Mua cho" lệnh này mà KHÁC khổ/ĐVT với nhu cầu (lỗi #23).
+    mua_khac_quy_cach: list[MuaKhacQuyCach] = Field(default_factory=list)
 
 
 class PhieuMuaTom(BaseModel):
@@ -447,6 +460,8 @@ class LuoiDong(BaseModel):
     #: [MỚI 10/10/2026] Đơn vị của ô chưa khai ở danh mục — FE hiện `ly_do_chua_khai` thay nút mua.
     don_vi_chua_khai: bool = False
     ly_do_chua_khai: str | None = None
+    #: [MỚI 18/10/2026] Xem `CanDoiDong.mua_khac_quy_cach` — có thì `khoa_mua` rỗng.
+    mua_khac_quy_cach: list[MuaKhacQuyCach] = Field(default_factory=list)
 
 
 class LuoiLichSu(BaseModel):

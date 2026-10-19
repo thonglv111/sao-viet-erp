@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, doiChoBuoc, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -354,5 +354,28 @@ describe("lyDoChanLuu (#15: ô lý do bắt buộc khi tuyến khác bài tính 
   it("có lý do, hoặc không đổi cấu trúc, thì lưu được", () => {
     expect(lyDoChanLuu(true, "khách đổi cán thuê ngoài")).toBeNull();
     expect(lyDoChanLuu(false, "")).toBeNull();
+  });
+});
+
+describe("donViChuoi · chặng tờ nguyên (#66)", () => {
+  it("routing không có bước xả thì giấy nguyên ghi 'tờ nguyên', KHÔNG mượn nhãn 'tờ in'", () => {
+    const dv = donViChuoi({ don_vi_to: "to", don_vi_to_nguyen: null });
+    expect(dv.toNguyen).toBe("tờ nguyên");
+    expect(dv.toNguyen).not.toContain("tờ in");
+  });
+});
+
+describe("tickConLaCuaNguoiKhac · banner 'Có thay đổi mới' (#65)", () => {
+  const T0 = 1_000_000;
+  it("sự kiện SSE về ngay sau thao tác của chính mình thì coi là đã xem", () => {
+    expect(tickConLaCuaNguoiKhac(5, 4, T0, T0 + 500)).toBe(false);
+    expect(tickConLaCuaNguoiKhac(5, 4, T0, T0 + CUA_SO_TU_LAM_MS)).toBe(false);
+  });
+  it("sự kiện về khi mình không vừa thao tác (người khác đổi) thì vẫn báo", () => {
+    expect(tickConLaCuaNguoiKhac(5, 4, T0, T0 + CUA_SO_TU_LAM_MS + 1)).toBe(true);
+    expect(tickConLaCuaNguoiKhac(5, 4, 0, T0)).toBe(true);
+  });
+  it("tick không vượt mốc đã xem thì không báo", () => {
+    expect(tickConLaCuaNguoiKhac(4, 4, 0, T0)).toBe(false);
   });
 });

@@ -75,6 +75,7 @@ from ..repositories.purchase_repo import PurchaseRequestRepository, SupplierRepo
 from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from . import bao_cao_cong_no
+from .cong_no_khoa_ky import loi_ky_khoa
 from .hoa_don_theo_giao import _ngay_vn
 from .muc_thu_chi_service import MucThuChiError, MucThuChiService
 from .purchase_service import (
@@ -478,12 +479,13 @@ def receivable_rows(
 
 
 def _phan_bo_hoan(
-    repo: AccountingRepository, customer_ids: set, rows: list[dict] | None = None, *, tru_thua: bool = True
+    repo: AccountingRepository, customer_ids: set, rows: list[dict] | None = None, *, tru_thua: bool = True,
+    den_ngay: date | None = None,
 ) -> dict[int, int]:
     """`{invoice_id: tiền trả lại ngoài đơn cộng nợ lại}` cho các khách. `tru_thua=False` ⇒ phần GỘP,
     chưa trừ tiền khách đã trả vượt hoá đơn — đối chiếu từng phiếu thu dùng số này, vì phần trả vượt
     chính là các phiếu thu đã đếm riêng (trừ hai lần thì "còn nợ sau phiếu" thấp hơn thật)."""
-    hoan = repo.hoan_khach_khong_don(customer_ids)
+    hoan = repo.hoan_khach_khong_don(customer_ids, den_ngay=den_ngay)
     if not hoan:
         return {}
     co_san = {r["invoice_id"] for r in rows or []}
@@ -499,6 +501,24 @@ def _phan_bo_hoan(
         for r in day_du if r["customer_id"] in hoan
     ]
     return bao_cao_cong_no.phan_bo_hoan_khong_don(khoan, hoan)
+
+
+def hoan_khong_don_theo_don(
+    repo: AccountingRepository, customer_ids, *, den_ngay: date | None = None
+) -> dict[int, int]:
+    """`{order_id: tiền trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn đó}` — cùng phép phân
+    bổ của Công nợ phải thu (`_phan_bo_hoan`), để Báo cáo kinh doanh ra cùng số (#47, 18/10/2026)."""
+    ids = {int(i) for i in customer_ids if i}
+    them = _phan_bo_hoan(repo, ids, den_ngay=den_ngay) if ids else {}
+    if not them:
+        return {}
+    don_cua = {hd.id: hd.order_id for hd in repo.hoa_don_hieu_luc_cua_khach(ids)}
+    ra: dict[int, int] = {}
+    for hd_id, tien in them.items():
+        don = don_cua.get(hd_id)
+        if don is not None:
+            ra[int(don)] = ra.get(int(don), 0) + int(tien)
+    return ra
 
 
 def _cong_hoan_khong_don(repo: AccountingRepository, rows: list[dict]) -> None:
@@ -802,6 +822,32 @@ class AccountingService:
             for m in phan_bo
         ]
         return out, coc, coc_du
+
+    def _hoan_ncc_theo_dot(self, rows, hoan: dict, dot_cua: dict | None = None) -> list[tuple]:
+        """Phiếu NCC hoàn tiền không gắn đơn (`ncc_hoan_khong_don`) cộng vào đợt giao hạn MUỘN NHẤT của
+        NCC — cùng phép phân bổ tiền trả lại khách ngoài đơn bên phải thu (#36, 18/10/2026). Trả
+        `[(supplier_id, đơn, đợt, tiền)]`. `dot_cua` = `{row.id: _no_tung_dot(row)}` đã tính sẵn."""
+        khoan, dot_theo_id = [], {}
+        for row in rows:
+            if row.supplier_id not in hoan:
+                continue
+            dots = (dot_cua or {}).get(row.id) or self._no_tung_dot(row)
+            # Cọc NCC còn giữ chưa dùng (`coc_du`) là tiền họ hoàn lại trước — giống phần khách thu
+            # vượt bên phải thu: hoàn trong phạm vi đó không đẻ ra nợ (rà cuối 19/10/2026).
+            thua = max(0, dots[2])
+            for d in dots[0]:
+                if d["delivery_id"] is None:
+                    continue
+                dot_theo_id[d["delivery_id"]] = (row, d)
+                khoan.append({"id": d["delivery_id"], "doi_tuong_id": row.supplier_id,
+                              "han": d["due_date"], "ngay": d["delivery_date"], "goc": d["amount"],
+                              "con_no": d["con_no"], "thua": thua})
+                thua = 0
+        if not khoan:
+            return []
+        them = bao_cao_cong_no.phan_bo_hoan_khong_don(khoan, hoan)
+        return [(dot_theo_id[k][0].supplier_id, dot_theo_id[k][0], dot_theo_id[k][1], int(t))
+                for k, t in them.items() if t]
 
     def _no_theo_han(self, row, con_no: int, hom_nay: date) -> tuple[int, int]:
         """Tách phần còn nợ thành (QUÁ HẠN, CHƯA TỚI HẠN).
@@ -1107,6 +1153,23 @@ class AccountingService:
             # Rổ tuổi = xé chính hai con số trên ra theo `overdue_days`, không cộng lại từ đầu.
             _aging_cong(muc["aging"], self._no_theo_ro_tuoi(row, no["con_no"], hom_nay))
 
+        if so_chup:
+            # NCC hoàn tiền không gắn đơn ⇒ mình nợ thêm, cộng vào đợt hạn muộn nhất (#36). Kỳ đã qua
+            # thì sổ 331 ghi đè còn nợ ngay dưới — sổ vốn đã tính phiếu hoàn.
+            hoan_ncc = self.repo.ncc_hoan_khong_don()
+            for sid, row, d, tien in self._hoan_ncc_theo_dot(don_ds, hoan_ncc) if hoan_ncc else []:
+                muc = _muc(row)
+                muc["total_due"] += tien
+                tre = ((hom_nay - d["due_date"]).days
+                       if d["due_date"] is not None and d["due_date"] < hom_nay else 0)
+                if tre > 0:
+                    muc["overdue_amount"] += tien
+                else:
+                    muc["no_han_amount"] += tien
+                ro = muc["aging"][ro_tuoi(tre) if tre > 0 else AGING_CHUA_TOI_HAN]
+                ro["amount"] += tien
+                ro["count"] += 1
+
         if co_ky:
             # Kỳ kết thúc hôm nay thì rổ tuổi của sổ không được đọc (còn nợ / tuổi nợ theo ảnh
             # chụp) ⇒ bỏ luôn lượt phân tuổi của sổ: mỗi đơn đỡ một lần `phan_bo_tien_dot`.
@@ -1276,13 +1339,25 @@ class AccountingService:
         coc_chung: list[dict] = []
         da_chi: list[dict] = []
         qua_han_tong = 0
-        for row in self.purchases.list_for_payables(supplier_id=supplier_id):
+        don_ds = self.purchases.list_for_payables(supplier_id=supplier_id)
+        dot_cua = {row.id: self._no_tung_dot(row) for row in don_ds}
+        # NCC hoàn tiền không gắn đơn ⇒ cộng vào đợt hạn muộn nhất, đợt mang khoản riêng `hoan_ncc` (#36).
+        hoan_ncc = self.repo.ncc_hoan_khong_don([supplier_id])
+        hoan_dot = {d["delivery_id"]: tien
+                    for _s, _r, d, tien in self._hoan_ncc_theo_dot(don_ds, hoan_ncc, dot_cua)}
+        for row in don_ds:
             no = self._no_cua_phieu(row)
             money = no["money"]
             # Quá hạn tính SAU khi trừ cọc — cọc đã trả rồi thì phần đó không còn trễ. Dùng chung
             # hàm với màn tổng hợp để hai màn không bao giờ ra hai con số.
             qua_han_tong += self._no_theo_han(row, no["con_no"], hom_nay)[0]
-            dots, coc, coc_du = self._no_tung_dot(row)
+            dots, coc, coc_du = dot_cua[row.id]
+            for d in dots:
+                d["hoan_ncc"] = hoan_dot.get(d["delivery_id"], 0)
+                if d["hoan_ncc"]:
+                    d["con_no"] += d["hoan_ncc"]
+                    if d["due_date"] is not None and d["due_date"] < hom_nay:
+                        qua_han_tong += d["hoan_ncc"]
             if coc > 0:
                 # CỌC là cọc của CẢ ĐƠN, không thuộc đợt nào — hiện thành dòng riêng chứ không nhét
                 # vào cột "đã trả" của một đợt. Nhét vào là bảng nói dối: người đối chiếu với NCC
@@ -1350,6 +1425,7 @@ class AccountingService:
                             "amount": d["amount"],
                             "paid": d["paid"],
                             "coc_bu": d["coc_bu"],
+                            "hoan_ncc": d["hoan_ncc"],
                             "con_no": d["con_no"],
                             "da_tat_toan": da_tat_toan,
                         }
@@ -1372,6 +1448,7 @@ class AccountingService:
                         "invoice_number": None,
                         "amount": money["gia_tri_da_giao"],
                         "paid": money["net_paid"],
+                        "hoan_ncc": 0,
                         "con_no": no["con_no"],
                         # Nhánh này chỉ chạy khi CÒN nợ (`elif no["con_no"] > 0`) ⇒ không bao giờ
                         # là dòng tất toán. Vẫn phải khai khoá: hàm sắp xếp đọc thẳng `x["da_tat_toan"]`.
@@ -1534,6 +1611,13 @@ class AccountingService:
         con_no_sau = max(0, int(dot["amount"]) - int(dot["coc_bu"]) - truoc_do - phieu_nay)
         return truoc_do, con_no_sau
 
+    def _chan_ky_khoa(self, obj) -> None:
+        """Chứng từ công nợ có ngày trong kỳ đã khoá thì không lập/sửa/huỷ (#46, 18/10/2026) —
+        gọi ngay trước mỗi lần lưu phiếu chi, phiếu thu, hoá đơn bán, hoá đơn điều chỉnh."""
+        loi = loi_ky_khoa(self.repo.db, obj)
+        if loi:
+            raise AccountingValidationError(loi)
+
     def create_voucher(self, *, actor, purchase_request_id: int | None = None,
                        salary_advance_id: int | None = None,
                        gia_cong_ngoai_id: int | None = None, **values):
@@ -1562,6 +1646,7 @@ class AccountingService:
                 self._gan_khach_tra_lai(prepared, values)
         doc_no = self._next_voucher_doc_no()
         voucher = self._new_voucher(purchase, prepared, actor.id, doc_no=doc_no)
+        self._chan_ky_khoa(voucher)
         saved = self.repo.save_voucher(voucher)
         if advance is not None:
             # Tiền ĐÃ RA két ⇒ phiếu tạm ứng sang ĐÃ CHI. Từ 07/09/2026 chỉ trạng thái này mới trừ vào
@@ -1658,6 +1743,7 @@ class AccountingService:
                     purchase_request_id=purchase.id, delivery_id=p["delivery_id"],
                     amount_vnd=int(p["amount_vnd"]),
                 ))
+        self._chan_ky_khoa(voucher)
         saved = self.repo.save_voucher(voucher)
         self.audit.create(
             actor_user_id=actor.id,
@@ -1725,6 +1811,7 @@ class AccountingService:
                 a.decided_at = luc
             if a.payment_voucher_id == voucher.id:
                 a.payment_voucher_id = None
+        self._chan_ky_khoa(voucher)
         saved = self.repo.save_voucher(voucher)   # một commit cho phiếu chi + cả lô
         self.audit.create(
             actor_user_id=actor.id,
@@ -1928,6 +2015,7 @@ class AccountingService:
             status=SALES_INVOICE_ISSUED, created_by_user_id=actor.id,
         )
         try:
+            self._chan_ky_khoa(row)
             saved = self.repo.save_dieu_chinh(row)
         except IntegrityError as exc:
             self.repo.db.rollback()
@@ -1965,6 +2053,7 @@ class AccountingService:
         row.cancel_reason = cleaned
         row.cancelled_by_user_id = actor.id
         row.cancelled_at = _now()
+        self._chan_ky_khoa(row)
         saved = self.repo.save_dieu_chinh(row)
         self.audit.create(
             actor_user_id=actor.id, action="cancel_sales_invoice_adjustment",
@@ -2043,6 +2132,7 @@ class AccountingService:
             created_by_user_id=actor.id,
         )
         try:
+            self._chan_ky_khoa(invoice)
             saved = self.repo.save_sales_invoice(invoice)
         except IntegrityError as exc:
             raise AccountingConflict("Số và ký hiệu hóa đơn đã tồn tại.") from exc
@@ -2071,6 +2161,7 @@ class AccountingService:
         invoice.cancel_reason = cleaned
         invoice.cancelled_by_user_id = actor.id
         invoice.cancelled_at = _now()
+        self._chan_ky_khoa(invoice)
         saved = self.repo.save_sales_invoice(invoice)
         self.audit.create(
             actor_user_id=actor.id,
@@ -2679,6 +2770,7 @@ class AccountingService:
         receipt.company_bank_name_snapshot = account.bank_name if account else None
         receipt.company_bank_branch_snapshot = account.bank_branch if account else None
         self._gan_muc_thu(receipt, values.get("muc_thu_chi_id"))
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -2722,6 +2814,7 @@ class AccountingService:
         receipt.source_type = RECEIPT_SOURCE_PURCHASE
         receipt.supplier_id = bao_cao_cong_no.ncc_cua_phieu_chi(voucher)
         self._gan_muc_thu(receipt, values.get("muc_thu_chi_id"))
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -2807,6 +2900,7 @@ class AccountingService:
             receipt.received_by_user_id = actor.id
             receipt.received_at = _now()
         self._gan_muc_thu(receipt, None)
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -2866,6 +2960,7 @@ class AccountingService:
         receipt.company_bank_name_snapshot = account.bank_name if account else None
         receipt.company_bank_branch_snapshot = account.bank_branch if account else None
         self._gan_muc_thu(receipt, values.get("muc_thu_chi_id"))
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -3002,6 +3097,7 @@ class AccountingService:
                     amount_vnd=d["amount"],
                 ))
         self._gan_muc_thu(receipt, None)
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -3079,6 +3175,7 @@ class AccountingService:
         receipt.cancel_reason = cleaned
         receipt.cancelled_by_user_id = actor.id
         receipt.cancelled_at = _now()
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id, action="cancel_order_receipt",
@@ -3103,6 +3200,7 @@ class AccountingService:
         voucher = receipt.payment_voucher
         prepared = self._prepare_receipt(voucher, values, exclude_receipt_id=receipt.id)
         self._apply_receipt(receipt, voucher, prepared)
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -3125,6 +3223,7 @@ class AccountingService:
         receipt.bank_reference = reference
         receipt.received_by_user_id = actor.id
         receipt.received_at = _now()
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -3156,6 +3255,7 @@ class AccountingService:
             receipt.cancel_reason = cleaned_reason
             receipt.cancelled_by_user_id = actor.id
             receipt.cancelled_at = _now()
+            self._chan_ky_khoa(receipt)
             saved = self.repo.save_receipt(receipt)
             self.audit.create(
                 actor_user_id=actor.id,
@@ -3171,6 +3271,7 @@ class AccountingService:
         receipt.cancel_reason = cleaned_reason
         receipt.cancelled_by_user_id = actor.id
         receipt.cancelled_at = _now()
+        self._chan_ky_khoa(receipt)
         saved = self.repo.save_receipt(receipt)
         self.audit.create(
             actor_user_id=actor.id,
@@ -3324,7 +3425,7 @@ class AccountingService:
 
     def _new_receipt_code(self) -> str:
         alphabet = string.ascii_uppercase + string.digits
-        date_part = _now().strftime("%y%m%d")
+        date_part = _now().astimezone(timezone(timedelta(hours=7))).strftime("%y%m%d")
         for _ in range(30):
             suffix = "".join(secrets.choice(alphabet) for _ in range(4))
             code = f"PT-{date_part}-{suffix}"
@@ -4077,7 +4178,7 @@ class AccountingService:
     def _new_voucher_code(self, voucher_type: str) -> str:
         prefix = "PC" if voucher_type == VOUCHER_CASH else "UNC"
         alphabet = string.ascii_uppercase + string.digits
-        date_part = _now().strftime("%y%m%d")
+        date_part = _now().astimezone(timezone(timedelta(hours=7))).strftime("%y%m%d")
         for _ in range(30):
             suffix = "".join(secrets.choice(alphabet) for _ in range(4))
             code = f"{prefix}-{date_part}-{suffix}"

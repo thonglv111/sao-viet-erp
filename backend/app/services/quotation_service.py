@@ -52,6 +52,23 @@ _QUY_CACH_IN_NHAN = {
 }
 
 
+STATUS_LABELS = {
+    # 7 trạng thái nghiệp vụ (redesign-bao-gia §3) — bám đúng chữ chủ đầu tư chốt.
+    "draft": "Nháp",
+    "pending_approval": "Chờ duyệt",   # đặc thù đã "Trình duyệt", chờ Giám đốc Kinh doanh
+    "approved": "Đã duyệt",             # GĐ KD duyệt xong, CHỜ sale gửi khách (tách duyệt/gửi)
+    "sent": "Đã gửi khách",             # sale tự gửi (tách khỏi "duyệt")
+    "accepted": "Khách đồng ý",   # một tên cho cả chip lẫn tab (07/10/2026, trước là "Khách chốt"/"Khách hàng đồng ý")
+    "rejected": "Bị từ chối",   # khách từ chối HOẶC GĐ/TP từ chối đặc thù (phân biệt bằng banner/nhật ký)
+    "expired": "Hết hiệu lực",
+    "converted_to_order": "Đã lên đơn",
+    "cancelled": "Hủy báo giá",
+    # Trạng thái riêng của PHIÊN BẢN (không phải header) — pill lịch sử phiên bản dùng chung enum này.
+    "locked": "Đã khóa",
+    "superseded": "Đã thay thế",
+}
+
+
 def _kho_tp(tp) -> str | None:
     """Khổ thành phẩm dạng người đọc — `"205×145mm"`. None khi chưa khai đủ hai chiều.
 
@@ -81,6 +98,23 @@ def _dvt_nhom_dong(tp) -> str | None:
     if not (getattr(tp, "nhom_bao_gia", None) or "").strip():
         return None
     return (getattr(tp, "dvt_nhom", None) or "").strip() or None
+
+
+def markup_binh_quan(items, status: str) -> float | None:
+    """Markup bình quân của báo giá = lợi nhuận ÷ (giá vốn + chiết khấu), cộng số đã làm tròn từng
+    dòng — ĐÚNG công thức khối "Giá bán đề xuất" ở chi tiết (`bao-gia-tong.ts`). Cột "Lãi" của danh
+    sách dùng hàm này (#11, 18/10/2026: trước đó lấy markup dòng đầu, trước chiết khấu).
+
+    Khách chốt một phần ⇒ chỉ dòng khách lấy; chưa chốt, hoặc chốt trước khi có cờ, ⇒ mọi dòng."""
+    da_chot = status in (STATUS_ACCEPTED, STATUS_CONVERTED_TO_ORDER)
+    dong = [i for i in items if i.accepted] if da_chot and any(i.accepted for i in items) else list(items)
+    if not dong:
+        return None
+    cost = sum(round(float(i.total_cost_snapshot or 0)) for i in dong)
+    ck = sum(round(float(i.discount_amount or 0)) for i in dong)
+    sell = sum(round(float(i.selling_price or 0)) for i in dong)
+    goc = cost + ck
+    return (sell - goc) / goc * 100 if goc > 0 else None
 
 
 def dien_giai_tu_thanh_phan(db, tp) -> str | None:
@@ -125,8 +159,8 @@ def dien_giai_tu_thanh_phan(db, tp) -> str | None:
         for r in sorted(getattr(tp, "thanh_phams", []) or [], key=lambda r: (r.thu_tu or 0, r.id or 0))
         if (r.ten or "").strip()
     ]
-    if gia_cong:
-        dong.append(" · ".join(gia_cong))
+    # Mỗi công đoạn một dòng — không nối bằng "·" (#68).
+    dong.extend(gia_cong)
 
     return "\n".join(dong) or None
 
@@ -314,12 +348,20 @@ class QuotationService:
         it.final_amount = p["final_amount"]
 
     def _cong_tong(self, version) -> None:
+        """Tổng của phiên bản — CÙNG phép tính với đơn hàng (lỗi #62, 19/10/2026): giá bán tròn từng
+        dòng, gồm VAT = ⌊Σ giá tròn·(100 + VAT%)/100⌋ (`order_repo._line_total_with_vat`). Khách chốt
+        MỘT PHẦN ⇒ chỉ dòng khách lấy (#61), như khối tổng ở chi tiết và như đơn kéo sang; phiên bản
+        chốt trước khi có cờ (không dòng nào `accepted`) thì cộng hết."""
         its = list(version.items)
+        if version.status == VERSION_STATUS_ACCEPTED and any(i.accepted for i in its):
+            its = [i for i in its if i.accepted]
+        ban = [int(round(float(i.selling_price or 0))) for i in its]
+        gom_vat_x100 = sum(b * (100 + int(round(float(i.vat_percent or 0)))) for b, i in zip(ban, its))
         version.total_cost_snapshot = sum(float(i.total_cost_snapshot or 0) for i in its)
-        version.subtotal_amount = sum(float(i.selling_price or 0) for i in its)
+        version.subtotal_amount = sum(ban)
         version.discount_amount = sum(float(i.discount_amount or 0) for i in its)
-        version.vat_amount = sum(float(i.vat_amount or 0) for i in its)
-        version.final_amount = sum(float(i.final_amount or 0) for i in its)
+        version.final_amount = gom_vat_x100 // 100
+        version.vat_amount = version.final_amount - version.subtotal_amount
 
     def _ap_so_tu_phieu(self, version, ptg) -> bool:
         """Cập nhật TẠI CHỖ dòng của `version` theo sản phẩm của phiếu, khớp theo
@@ -1027,7 +1069,7 @@ class QuotationService:
         self.audit.create(
             actor_user_id=actor.id, action=f"quote_exception_{decision}", target=f"quote:{quote.id}",
             detail=f"{quote.quote_number}: {verb} báo giá đặc thù "
-            f"({', '.join(t['key'] for t in exc['triggers'])})",
+            f"({' và '.join(t['label'] for t in exc['triggers'])})",
         )
         return row
 
@@ -1367,6 +1409,7 @@ class QuotationService:
                 version.status = VERSION_STATUS_ACCEPTED
                 version.accepted_at = datetime.now(timezone.utc)
                 self._apply_accept_picks(version, accepted_item_ids)
+                self._cong_tong(version)
 
         elif to_status == STATUS_REJECTED:
             # Khách từ chối (SAU khi gửi) — khác với Giám đốc KD từ chối duyệt (→ về Nháp).
@@ -1399,7 +1442,7 @@ class QuotationService:
             actor_user_id=actor.id,
             action=f"transition_{to_status}",
             target=f"quote:{quote.id}",
-            detail=f"{quote.quote_number}: chuyển sang {to_status}" + (f" ({cancel_reason})" if cancel_reason else ""),
+            detail=f"{quote.quote_number}: chuyển sang {STATUS_LABELS.get(to_status, to_status)}" + (f" ({cancel_reason})" if cancel_reason else ""),
         )
         return quote
 

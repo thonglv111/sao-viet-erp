@@ -2950,9 +2950,13 @@ class PayrollService:
             raise PayrollValidationError("Kỳ đã chi — hủy đã chi trước khi mở lại.")
         # TỰ THU HỒI PHIẾU khi mở lại kỳ: mở lại nghĩa là số sắp đổi. Để phiếu mở là NLĐ đang đọc
         # một con số không còn đúng — mà họ không có cách nào biết.
+        da_mo = period.cong_bo_luc is not None
         p = self.payroll.update_period(period, status=PERIOD_DRAFT, locked_at=None, locked_by=None,
                                        cong_bo_luc=None, dong_phieu_luc=None)
         self._audit(actor, "payroll_reopen", f"payroll_period:{p.id}", f"{int(month)}/{int(year)}")
+        if da_mo:
+            from .phieu_luong_mo import bao_phieu_luong_thu_hoi
+            bao_phieu_luong_thu_hoi(self.payroll.db, p)
         return p
 
     def pay_period(self, *, year, month, actor, note=None):
@@ -3074,6 +3078,10 @@ class PayrollService:
         self._audit(actor, "payroll_cong_bo", f"payroll_period:{p.id}",
                     f"{int(month)}/{int(year)} · {moc.isoformat()}"
                     + (f" → {het.isoformat()}" if het else " → không thời hạn"))
+        # Mở ngay ⇒ báo từng người ngay (#39). Hẹn giờ ⇒ vòng quét `phieu_luong_mo` báo lúc tới giờ.
+        if moc <= datetime.now(timezone.utc):
+            from .phieu_luong_mo import bao_phieu_luong_mo
+            bao_phieu_luong_mo(self.payroll.db, p)
         return p
 
     def thu_hoi_phieu(self, *, year, month, actor):
@@ -3083,6 +3091,8 @@ class PayrollService:
             raise PayrollNotFound("Chưa có bảng lương tháng này.")
         p = self.payroll.update_period(period, cong_bo_luc=None, dong_phieu_luc=None)
         self._audit(actor, "payroll_thu_hoi", f"payroll_period:{p.id}", f"{int(month)}/{int(year)}")
+        from .phieu_luong_mo import bao_phieu_luong_thu_hoi
+        bao_phieu_luong_thu_hoi(self.payroll.db, p)
         return p
 
     def ky_min_chon_duoc(self) -> str:

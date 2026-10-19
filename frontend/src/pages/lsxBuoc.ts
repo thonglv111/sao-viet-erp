@@ -715,8 +715,8 @@ export interface DonViChuoi {
   tp: string;
   /** Chặng GIỮA (tay sách) — chỉ có khi chuỗi đổi mức từ 2 lần trở lên. "" = không có. */
   tay: string;
-  /** Chặng TỜ NGUYÊN. Routing KHÔNG có bước xả giấy ⇒ tờ nguyên đếm bằng chính đơn vị tờ in
-   *  (không xả thì một tờ nguyên đúng là một tờ in), nên trả luôn `to` — KHÔNG bịa chữ khác. */
+  /** Chặng TỜ NGUYÊN. Routing KHÔNG có bước xả giấy ⇒ lùi về nhãn "tờ nguyên", KHÔNG mượn chữ
+   *  "tờ in" (giấy nguyên lấy kho không phải tờ in). */
   toNguyen: string;
 }
 
@@ -728,6 +728,21 @@ export interface MaDonViChuoi {
   don_vi_to_nguyen?: string | null;
 }
 
+/** Nhãn dự phòng chặng tờ nguyên khi danh mục chặng chưa nạp / routing không có bước xả. */
+const NHAN_TO_NGUYEN = "tờ nguyên";
+
+/** Sau thao tác của CHÍNH MÌNH (lưu, đổi trạng thái…) máy chủ broadcast SSE; client gộp nhịp 400 ms nên
+ *  tick về SAU khi dữ liệu trả về. Tick nhảy trong cửa sổ này sau thao tác của mình là của mình. */
+export const CUA_SO_TU_LAM_MS = 3000;
+
+/** Banner "Có thay đổi mới" có hiện không? `tuLamLuc` = mốc (ms) thao tác thành công gần nhất của chính
+ *  người dùng, 0 = chưa có. Tick vượt mốc đã xem mà rơi trong cửa sổ sau thao tác của mình ⇒ KHÔNG báo;
+ *  người khác đổi (ngoài cửa sổ) vẫn báo. */
+export function tickConLaCuaNguoiKhac(eventTick: number, daXem: number, tuLamLuc: number, now: number): boolean {
+  if (eventTick <= daXem) return false;
+  return !(tuLamLuc > 0 && now - tuLamLuc <= CUA_SO_TU_LAM_MS);
+}
+
 /** MÃ bốn chặng (server) → TÊN bốn chặng (danh mục).
  *
  *  LUẬT SUY CHẶNG NẰM Ở SERVER, đúng một bản: `services/dong_giay.don_vi_chuoi`. Hàm này chỉ dịch
@@ -737,7 +752,8 @@ export interface MaDonViChuoi {
  *
  *  Hai lối lùi ở đây là DẪN XUẤT chứ không phải nhãn bịa:
  *   · `tp` rỗng → ĐVT của chính sản phẩm (người dùng khai ở đơn/phiếu).
- *   · `toNguyen` rỗng → dùng `to`: routing không có bước xả thì một tờ nguyên đúng là một tờ in.
+ *   · `toNguyen` rỗng → "tờ nguyên" (nhãn chặng): routing không có bước xả thì SỐ vẫn bằng số tờ in,
+ *     nhưng nó là GIẤY NGUYÊN lấy kho — gọi "tờ in" là sai tên (#66, 19/10/2026).
  *  Ngoài hai lối đó, chặng nào server không nói thì trả RỖNG — nơi gọi hiện mỗi con số. Nhãn khối
  *  đã nói CHẶNG ("Vào máy" · "Giấy nguyên") nên rỗng cũng không mất nghĩa.
  */
@@ -747,7 +763,7 @@ export function donViChuoi(src: MaDonViChuoi, dvSanPham?: string | null): DonViC
     to,
     tp: nhanChang(src.don_vi_tp) || dvSanPham || "",
     tay: nhanChang(src.don_vi_tay),
-    toNguyen: nhanChang(src.don_vi_to_nguyen) || to,
+    toNguyen: nhanChang(src.don_vi_to_nguyen) || nhanTram("to_nguyen") || NHAN_TO_NGUYEN,
   };
 }
 

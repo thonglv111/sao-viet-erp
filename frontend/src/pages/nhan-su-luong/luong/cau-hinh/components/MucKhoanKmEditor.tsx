@@ -381,7 +381,10 @@ export function MucKhoanKmEditor({
           >
             <header className="ns-modal__head">
               <div>
-                <h2>Bậc giá khoán km · {dangMo.ten}</h2>
+                <h2 style={{ display: "flex", gap: 8, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <span>Bậc giá khoán km</span>
+                  <span>{dangMo.ten}</span>
+                </h2>
                 <p className="cl-hint-inline" style={{ marginTop: 2, margin: 0 }}>
                   {dangMo.so_xe > 0
                     ? `Đang áp dụng cho ${dangMo.so_xe} xe giao hàng.`

@@ -41,7 +41,14 @@ function lyDoChuaCoPhieu(cp: ChoPhat | null): { tieu_de: string; mo_ta: string }
   };
 }
 
-export function PhieuLuongTab({ token }: { token: string }) {
+export function PhieuLuongTab({
+  token,
+  eventTick,
+}: {
+  token: string;
+  /** Nhảy theo sự kiện nhóm nhân sự — có `phieu_luong_cong_bo` khi HCNS công bố (#39). */
+  eventTick?: number;
+}) {
   const [data, setData] = useState<Awaited<
     ReturnType<typeof api.luong.myPayslip>
   > | null>(null);
@@ -68,7 +75,7 @@ export function PhieuLuongTab({ token }: { token: string }) {
     return () => {
       huy = true;
     };
-  }, [token, ky, lanThu]);
+  }, [token, ky, lanThu, eventTick]);
 
   if (loi) return <EmptyState trangThai="loi" loi={loi} onThuLai={() => setLanThu((n) => n + 1)} />;
   if (!data) return <EmptyState trangThai="dang-tai" />;

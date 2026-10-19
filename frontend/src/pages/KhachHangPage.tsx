@@ -143,7 +143,7 @@ function gioTaoKH(iso: string | null | undefined): string | undefined {
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("vi-VN");
+  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 function moneyCompact(n: number | null | undefined): string {
   if (n == null) return "—";

@@ -38,7 +38,7 @@ import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
-import { donViChuoi, nhanDonVi } from "./lsxBuoc";
+import { donViChuoi, nhanDonVi, tickConLaCuaNguoiKhac } from "./lsxBuoc";
 import { bangKeVatTu } from "./lsxVatTu";
 import { useNapTenDonVi } from "./tenDonVi";
 import {
@@ -188,7 +188,7 @@ function tinhNgayDem(hanSxStr: string | null | undefined, hanGiaoStr: string | n
 export function LsxDetailView({
   lsxId,
   onBack,
-  onChanged,
+  onChanged: onChangedNgoai,
   navigate,
   eventTick,
   dinhKemTick,
@@ -332,7 +332,21 @@ export function LsxDetailView({
   // một lúc. Chấp nhận: bấm vào chỉ tốn một lần nạp lại, còn BỎ SÓT thay đổi thật thì người kế
   // hoạch sửa trên dữ liệu cũ rồi ghi đè việc của người khác.
   const tickDaXem = useRef(eventTick ?? 0);
-  const coDuLieuMoi = (eventTick ?? 0) > tickDaXem.current;
+  // #65: thao tác thành công của CHÍNH MÌNH (lưu, đổi trạng thái…) cũng làm server broadcast, mà tick
+  // về sau dữ liệu trả về (gộp nhịp 400 ms) ⇒ banner sáng oan. Ghi mốc để bỏ qua tick trong cửa sổ
+  // ngắn sau đó; người KHÁC đổi (ngoài cửa sổ) vẫn báo như cũ.
+  const tuLamLuc = useRef(0);
+  const onChanged = useCallback(() => {
+    tuLamLuc.current = Date.now();
+    onChangedNgoai();
+  }, [onChangedNgoai]);
+  const coDuLieuMoi = tickConLaCuaNguoiKhac(eventTick ?? 0, tickDaXem.current, tuLamLuc.current, Date.now());
+  useEffect(() => {
+    // Tick về trong cửa sổ sau thao tác của mình ⇒ coi như đã xem (không ghi đè tick người khác).
+    if (!tickConLaCuaNguoiKhac(eventTick ?? 0, tickDaXem.current, tuLamLuc.current, Date.now())) {
+      tickDaXem.current = Math.max(tickDaXem.current, eventTick ?? 0);
+    }
+  }, [eventTick]);
   const lamMoi = useCallback(() => {
     tickDaXem.current = eventTick ?? 0;
     load();

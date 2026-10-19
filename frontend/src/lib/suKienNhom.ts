@@ -71,6 +71,8 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   el_decision: ["nhan_su"],
   adjust_pending_changed: ["nhan_su"],
   adjust_decision: ["nhan_su"],
+  phieu_luong_cong_bo: ["nhan_su"],
+  phieu_luong_thu_hoi: ["nhan_su"],
   shift_changed: ["nhan_su"],
 
   // Sản xuất: lệnh · bài ghép · xếp lịch · bàn tổ · KCS.

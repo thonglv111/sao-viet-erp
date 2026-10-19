@@ -18651,6 +18651,22 @@ def _migrate_phieu_buoc_vat_tu_hang_loai(db: Session) -> None:
 MIGRATIONS.append(("0419_phieu_buoc_vat_tu_hang_loai", _migrate_phieu_buoc_vat_tu_hang_loai))
 
 
+def _migrate_goi_phat_hanh_vet_thu_hoi(db: Session) -> None:
+    """0420 (18/10/2026) — `san_xuat_goi_phat_hanh` thêm `thu_hoi_ly_do`, `thu_hoi_at`,
+    `thu_hoi_by_id`: tab Lịch sử phát hành giữ được gói đã thu hồi kèm lý do (lỗi #25 bấm thử).
+    Gói đã thu hồi từ trước để trống, lý do cũ vẫn còn ở Nhật ký hệ thống. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "san_xuat_goi_phat_hanh" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "san_xuat_goi_phat_hanh")
+    for ten, kieu in (("thu_hoi_ly_do", "VARCHAR(500)"), ("thu_hoi_at", "TIMESTAMP WITH TIME ZONE"),
+                      ("thu_hoi_by_id", "INTEGER")):
+        if ten not in co:
+            db.execute(text(f"ALTER TABLE san_xuat_goi_phat_hanh ADD COLUMN {ten} {kieu}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0420_goi_phat_hanh_vet_thu_hoi", _migrate_goi_phat_hanh_vet_thu_hoi))
 def _migrate_giay_luon_co_to_kg(db: Session) -> None:
     """0421 — Mã giấy LUÔN có nhóm tờ + nhóm kg (chốt 18/10/2026, spec
     2026-10-18-luong-giay-theo-dau-vao-buoc): bước nhận tờ xin kho bằng tờ, bước ra kg xin kho bằng
@@ -18696,3 +18712,67 @@ def _migrate_giay_luon_co_to_kg(db: Session) -> None:
 
 
 MIGRATIONS.append(("0421_giay_luon_co_to_kg", _migrate_giay_luon_co_to_kg))
+
+
+def _migrate_tong_bao_gia_theo_don(db: Session) -> None:
+    """0422 (19/10/2026) — tính lại tổng các phiên bản báo giá đã lưu theo luật mới của
+    `QuotationService._cong_tong` (lỗi #61, #62 bấm lại): giá bán tròn từng dòng, gồm VAT =
+    ⌊Σ giá tròn·(100 + VAT%)/100⌋ như đơn hàng; phiên bản đã chốt một phần chỉ cộng dòng khách lấy.
+    Không thêm cột. Raw SQL đích danh cột; chạy lại ra cùng số nên idempotent."""
+    insp = inspect(db.get_bind())
+    if not {"quote_versions", "quote_items"} <= set(insp.get_table_names()):
+        return
+    if "accepted" not in _existing_columns(insp, "quote_items"):
+        return
+    dong: dict[int, list] = {}
+    for vid, ban, vat, gv, ck, nhan in db.execute(text(
+            "SELECT quote_version_id, selling_price, vat_percent, total_cost_snapshot, discount_amount,"
+            " accepted FROM quote_items")).all():
+        dong.setdefault(int(vid), []).append((ban, vat, gv, ck, bool(nhan)))
+    for vid, status in db.execute(text("SELECT id, status FROM quote_versions")).all():
+        its = dong.get(int(vid), [])
+        if status == "accepted" and any(x[4] for x in its):
+            its = [x for x in its if x[4]]
+        tron = [int(round(float(x[0] or 0))) for x in its]
+        gom = sum(t * (100 + int(round(float(x[1] or 0)))) for t, x in zip(tron, its)) // 100
+        db.execute(text(
+            "UPDATE quote_versions SET total_cost_snapshot = :gv, subtotal_amount = :sub,"
+            " discount_amount = :ck, vat_amount = :vat, final_amount = :tong WHERE id = :i"), {
+            "gv": sum(float(x[2] or 0) for x in its), "sub": sum(tron),
+            "ck": sum(float(x[3] or 0) for x in its), "vat": gom - sum(tron), "tong": gom,
+            "i": int(vid)})
+    db.commit()
+
+
+MIGRATIONS.append(("0422_tong_bao_gia_theo_don", _migrate_tong_bao_gia_theo_don))
+
+
+def _migrate_phieu_luong_da_bao_mo(db: Session) -> None:
+    """0423 (19/10/2026) — `payroll_periods.da_bao_mo_luc`: dấu đã báo người lao động "phiếu lương đã
+    mở", để vòng quét báo bù khi máy chủ tắt đúng giờ hẹn (rà cuối). Kỳ cũ để NULL; vòng quét chỉ lùi
+    2 ngày nên không báo lại hàng loạt. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "payroll_periods" not in insp.get_table_names():
+        return
+    if "da_bao_mo_luc" not in _existing_columns(insp, "payroll_periods"):
+        db.execute(text("ALTER TABLE payroll_periods ADD COLUMN da_bao_mo_luc TIMESTAMP WITH TIME ZONE"))
+    db.commit()
+
+
+MIGRATIONS.append(("0423_phieu_luong_da_bao_mo", _migrate_phieu_luong_da_bao_mo))
+
+
+def _migrate_sua_chua_thoi_gian_dong(db: Session) -> None:
+    """0424 (19/10/2026) — `ky_thuat_sua_chua.thoi_gian_dong_giay`: số giây phiếu đã nằm ở trạng thái
+    đóng, cộng dồn mỗi lần mở lại (lỗi #71: "Sửa mất 15 giờ" tính cả quãng đã đóng). Phiếu cũ để 0 —
+    chưa từng mở lại trước khi có cột nên không có quãng đóng nào để trừ. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "ky_thuat_sua_chua" not in insp.get_table_names():
+        return
+    if "thoi_gian_dong_giay" not in _existing_columns(insp, "ky_thuat_sua_chua"):
+        db.execute(text(
+            "ALTER TABLE ky_thuat_sua_chua ADD COLUMN thoi_gian_dong_giay INTEGER NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0424_sua_chua_thoi_gian_dong", _migrate_sua_chua_thoi_gian_dong))

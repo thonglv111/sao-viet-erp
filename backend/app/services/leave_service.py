@@ -33,6 +33,7 @@ from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.leave_repo import LeaveRepository
 from .ky_cong_guard import ly_do_ky_cong_da_chot
+from .attendance_service import VN_TZ, _as_utc   # mốc ngày VN + dán nhãn UTC cho SQLite
 
 
 class LeaveError(Exception):
@@ -417,6 +418,23 @@ class LeaveService:
         if loi:
             raise LeaveValidationError(loi)
 
+    def _chan_da_cham_cong(self, emp, r: LeaveRequest) -> None:
+        """Ngày đã có lượt chấm công ⇒ không duyệt đơn nghỉ cả ngày phủ ngày đó (#40, 18/10/2026).
+        Trước đó duyệt lọt: bảng công lấy công chấm nên không ra tiền sai, nhưng người duyệt ký một
+        ngày nghỉ cho người đã đi làm mà không ai nhắc."""
+        if self._attendance is None:
+            return
+        dau = datetime(r.start_date.year, r.start_date.month, r.start_date.day, tzinfo=VN_TZ)
+        cuoi = datetime(r.end_date.year, r.end_date.month, r.end_date.day, tzinfo=VN_TZ) + timedelta(days=1)
+        logs = self._attendance.list_by_employee_in_range(emp.id, dau, cuoi)
+        if logs:
+            ngay = _as_utc(logs[0].checked_at).astimezone(VN_TZ)
+            raise LeaveValidationError(
+                f"{emp.full_name} đã chấm công ngày {ngay:%d/%m/%Y} (lượt đầu {ngay:%H:%M}) — không "
+                "duyệt nghỉ cả ngày cho ngày đã đi làm. Từ chối đơn, hoặc nhờ người xin sửa đơn bỏ "
+                "ngày đó ra."
+            )
+
     def _decide(self, *, actor, request_id, new_status, note, scope: str) -> LeaveRequest:
         r = self.leaves.get_request(request_id)
         if r is None:
@@ -436,6 +454,7 @@ class LeaveService:
             emp = self.employees.get_by_id(r.employee_id)
             if emp is not None:
                 self._chan_ngoai_bien_che(emp, r.start_date, r.end_date)
+                self._chan_da_cham_cong(emp, r)
             self._chan_neu_ky_cong_da_chot(r, "duyệt đơn nghỉ")
         self.leaves.update_request(
             r, status=new_status, decided_by=actor.id,

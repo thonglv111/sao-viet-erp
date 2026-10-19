@@ -1093,9 +1093,10 @@ class AccountingRepository:
         )
         return {int(oid): int(s) for oid, s in self.db.execute(stmt)}
 
-    def hoan_khach_khong_don(self, customer_ids=None) -> dict[int, int]:
+    def hoan_khach_khong_don(self, customer_ids=None, *, den_ngay: date | None = None) -> dict[int, int]:
         """`{customer_id: Σ phiếu chi trả lại khách ĐÃ CHI không gắn đơn}` (17/10/2026) — tiền trả
-        ngoài đơn (vd. hàng lỗi) cộng nợ lại vào hoá đơn hạn muộn nhất của khách. `None` = mọi khách."""
+        ngoài đơn (vd. hàng lỗi) cộng nợ lại vào hoá đơn hạn muộn nhất của khách. `None` = mọi khách.
+        `den_ngay`: chỉ phiếu chi tới hết ngày đó (Báo cáo kinh doanh in lại kỳ cũ)."""
         stmt = (
             select(PaymentVoucher.customer_id, func.coalesce(func.sum(PaymentVoucher.amount_vnd), 0))
             .where(PaymentVoucher.source_type == VOUCHER_SOURCE_CUSTOMER_REFUND,
@@ -1104,12 +1105,34 @@ class AccountingRepository:
                    PaymentVoucher.customer_id.is_not(None))
             .group_by(PaymentVoucher.customer_id)
         )
+        if den_ngay is not None:
+            stmt = stmt.where(PaymentVoucher.voucher_date <= den_ngay)
         if customer_ids is not None:
             ids = sorted({int(i) for i in customer_ids if i})
             if not ids:
                 return {}
             stmt = stmt.where(PaymentVoucher.customer_id.in_(ids))
         return {int(c): int(t) for c, t in self.db.execute(stmt) if int(t) > 0}
+
+    def ncc_hoan_khong_don(self, supplier_ids=None) -> dict[int, int]:
+        """`{supplier_id: Σ phiếu thu NCC hoàn tiền ĐÃ THU lập thẳng cho NCC}` (#36, 18/10/2026) — phiếu
+        không qua phiếu chi gốc nên không gắn đơn mua nào; mình nợ NCC thêm đúng số đó. Phiếu hoàn qua
+        phiếu chi đã nằm sẵn trong `net_paid` của đơn. `None` = mọi NCC."""
+        stmt = (
+            select(PaymentReceipt.supplier_id, func.coalesce(func.sum(PaymentReceipt.amount_vnd), 0))
+            .where(PaymentReceipt.source_type == RECEIPT_SOURCE_PURCHASE,
+                   PaymentReceipt.status == PAYMENT_RECEIPT_RECEIVED,
+                   PaymentReceipt.payment_voucher_id.is_(None),
+                   PaymentReceipt.purchase_request_id.is_(None),
+                   PaymentReceipt.supplier_id.is_not(None))
+            .group_by(PaymentReceipt.supplier_id)
+        )
+        if supplier_ids is not None:
+            ids = sorted({int(i) for i in supplier_ids if i})
+            if not ids:
+                return {}
+            stmt = stmt.where(PaymentReceipt.supplier_id.in_(ids))
+        return {int(s): int(t) for s, t in self.db.execute(stmt) if int(t) > 0}
 
     def hoa_don_hieu_luc_cua_khach(self, customer_ids) -> list[SalesInvoice]:
         ids = sorted({int(i) for i in customer_ids if i})

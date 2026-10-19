@@ -21,6 +21,8 @@ const NHAN_TRANG_THAI: Record<string, string> = {
   // Chung
   pending_approval: "Chờ duyệt",
   cancelled: "Đã hủy",
+  // Không phải trạng thái lưu: dòng "bỏ một món, còn món sống" của yêu cầu mua (lỗi #19).
+  huy_mot_phan: "Huỷ một phần",
 };
 
 /** Trạng thái lạ (dữ liệu cũ, hoặc bậc mới chưa kịp khai nhãn) thì hiện NGUYÊN mã — im lặng bỏ
@@ -31,7 +33,7 @@ function nhan(status: string | null | undefined): string {
 }
 
 function tone(to: string): TimelineEntry["tone"] {
-  if (to === "cancelled" || to === "rejected") return "signal";
+  if (to === "cancelled" || to === "rejected" || to === "huy_mot_phan") return "signal";
   if (to === "done" || to === "received" || to === "approved" || to === "purchased") return "moss";
   return "steel";
 }
@@ -53,13 +55,17 @@ export function StatusHistoryTimeline({ items }: { items: StatusHistoryRow[] }) 
     ]
       .filter(Boolean)
       .join(" · "),
-    accent: !it.from_status || it.to_status === "cancelled" || it.to_status === "rejected",
+    accent:
+      !it.from_status ||
+      it.to_status === "cancelled" ||
+      it.to_status === "rejected" ||
+      it.to_status === "huy_mot_phan",
     tone: it.from_status ? tone(it.to_status) : "rust",
   }));
   return (
     <Timeline
       items={entries}
-      emptyText="Chưa ghi nhận đổi trạng thái nào — phiếu lập trước 07/08/2026 thì không có lịch sử."
+      emptyText="Chưa ghi nhận đổi trạng thái nào."
     />
   );
 }

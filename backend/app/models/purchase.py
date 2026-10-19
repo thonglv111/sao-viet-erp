@@ -356,6 +356,9 @@ class PurchaseRequestLine(Base):
 
 DOC_YCMH = "ycmh"
 DOC_PMH = "pmh"
+# Dòng lịch sử "bỏ một món, còn món sống" (lỗi #19): trạng thái lưu của yêu cầu không đổi, nên
+# `to_status` mang nhãn riêng này thay vì một trạng thái thật — chỉ tab Lịch sử đọc nó.
+LS_HUY_MOT_PHAN = "huy_mot_phan"
 STATUS_DOC_TYPES = (DOC_YCMH, DOC_PMH)
 
 # Ai làm đổi trạng thái. `may` = hệ tự suy, KHÔNG ai bấm — xem `PurchaseStatusHistory`.

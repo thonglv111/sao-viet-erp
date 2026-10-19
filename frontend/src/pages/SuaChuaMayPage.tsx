@@ -52,6 +52,7 @@ import {
 import "./rebuild-catalog.css";
 import "./ke-toan/ke-toan.css";
 import "./ky-thuat-may.css";
+import { MoLaiPhieuSua } from "./MoLaiPhieuSua";
 
 // Kỳ + bộ lọc của màn — DÙNG CHUNG hai khung (xem `dieu-kien-ky-thuat-may.ts`), ghi lên URL `?man=`.
 type LocMan = { ky: KyDS; loc: LocSuaChua };
@@ -100,6 +101,13 @@ const COT_YC: Cot[] = [
 interface FormSua {
   nguyen_nhan_phuong_an: string;
 }
+
+/** "Đã kéo dài" / "Sửa mất" của phiếu: từ lúc hỏng tới giờ (hoặc tới lúc xong), TRỪ quãng phiếu đã
+ *  đóng trước khi mở lại (`thoi_gian_dong_giay`, cộng dồn ở máy chủ) — #71. */
+const keoDaiPhieu = (p: SuaChua, xong: boolean): string => {
+  const hong = p.thoi_diem ? new Date(p.thoi_diem).getTime() + (p.thoi_gian_dong_giay || 0) * 1000 : NaN;
+  return Number.isNaN(hong) ? "" : keoDai(new Date(hong).toISOString(), xong ? p.hoan_thanh_at : null);
+};
 
 const formTuPhieu = (p: SuaChua): FormSua => ({
   nguyen_nhan_phuong_an: p.nguyen_nhan_phuong_an ?? "",
@@ -403,7 +411,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
       case "muc": return <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />;
       case "tt": return <ChipKtm tt={r.trang_thai}>{NHAN_TT_SUA_CHUA[r.trang_thai] ?? r.trang_thai}</ChipKtm>;
       case "hong": return <span title={ngayGioDayDu(r.thoi_diem)}>{fmtNgayGioNgan(r.thoi_diem)}</span>;
-      case "keo": return <span className={xong ? "lds-mu" : undefined}>{keoDai(r.thoi_diem, xong ? r.hoan_thanh_at : null)}</span>;
+      case "keo": return <span className={xong ? "lds-mu" : undefined}>{keoDaiPhieu(r, xong)}</span>;
       // Chỉ hiện số khi có ảnh. Thiếu ảnh sau khi sửa thì nút đóng phiếu tự chặn và nói lý do —
       // nhắc lại ở đây là một viên đỏ trên mọi dòng đang mở.
       case "anh": return r.so_anh > 0 ? String(r.so_anh) : "";
@@ -477,7 +485,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
                   <span className="ktm-the__meta">
                     <MucDo muc={r.muc_do} nhan={NHAN_MUC_DO[r.muc_do] ?? r.muc_do} />
                     <span>Hỏng {fmtNgayGioNgan(r.thoi_diem)}</span>
-                    <span>{xong ? "Sửa mất" : "Đã kéo dài"} {keoDai(r.thoi_diem, xong ? r.hoan_thanh_at : null)}</span>
+                    <span>{xong ? "Sửa mất" : "Đã kéo dài"} {keoDaiPhieu(r, xong)}</span>
                     {r.so_anh > 0 && <span>{r.so_anh} ảnh</span>}
                     <span>Tạo {ngayDayDu(r.created_at)}</span>
                   </span>
@@ -668,6 +676,8 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
         </Button>
         {lyDoKhoa && <span className="ktm-ly">{lyDoKhoa}</span>}
       </>
+    ) : suaDuoc && dong ? (
+      <MoLaiPhieuSua phieuId={hienTai.id} onDone={(p) => { setHienTai(p); onSaved(p); }} />
     ) : undefined}>
       <DongTT nhan="Trạng thái">
         <ChipKtm tt={hienTai.trang_thai}>{NHAN_TT_SUA_CHUA[hienTai.trang_thai] ?? hienTai.trang_thai}</ChipKtm>
@@ -680,7 +690,7 @@ function SuaChuaDrawer({ phieu, suaDuoc, onClose, onSaved }: {
       <DongTT nhan="Người báo">{hienTai.nguoi_bao_ten || hienTai.yeu_cau_nguoi_bao || "—"}</DongTT>
       <DongTT nhan="Hỏng lúc">{fmtNgayGio(hienTai.thoi_diem)}</DongTT>
       <DongTT nhan={dong ? "Sửa mất" : "Đã kéo dài"}>
-        {keoDai(hienTai.thoi_diem, dong ? hienTai.hoan_thanh_at : null) || "—"}
+        {keoDaiPhieu(hienTai, dong) || "—"}
       </DongTT>
       {dong && <DongTT nhan="Sửa xong lúc">{fmtNgayGio(hienTai.hoan_thanh_at)}</DongTT>}
       <DongTT nhan="Từ yêu cầu">

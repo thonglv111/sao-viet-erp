@@ -2,7 +2,7 @@
  *  cùng kỳ mà vẫn trông hợp lý. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { homNayVN, kyCungKy, loiKhoang, luiNam, ngayDeDoc, ngayVN, tinhKy } from "./ky";
+import { gioVN, homNayVN, kyCungKy, loiKhoang, luiNam, ngayDeDoc, ngayVN, tinhKy } from "./ky";
 
 describe("ngày giờ Việt Nam", () => {
   afterEach(() => vi.useRealTimers());
@@ -60,5 +60,14 @@ describe("ngày để đọc", () => {
 describe("cùng kỳ năm trước", () => {
   it("kyCungKy lùi đúng một năm, 29/02 thành 28/02", () => {
     expect(kyCungKy({ tu: "2028-02-01", den: "2028-02-29" })).toEqual({ tu: "2027-02-01", den: "2027-02-28" });
+  });
+});
+
+describe("gioVN", () => {
+  it("giờ tường VN của một mốc UTC, làm tròn lên đầu giờ kế tiếp", () => {
+    const t = Date.UTC(2026, 9, 18, 17, 25);           // 00:25 ngày 19/10 giờ VN
+    expect(gioVN(t)).toBe("2026-10-19T00:25");
+    expect(gioVN(t, { troiGio: true })).toBe("2026-10-19T01:00");
+    expect(gioVN(t, { troiGio: true, themGio: 4 })).toBe("2026-10-19T05:00");
   });
 });

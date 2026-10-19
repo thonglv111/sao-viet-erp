@@ -1330,13 +1330,13 @@ def _nhat_ky_muc(db: Session, user: User, action: str, muc_id: int, detail: str)
 
 
 def _tom_tat_bac(items: list[dict]) -> str:
-    """Dạng "đến 5 km 18000đ; đến 20 km 11200đ; trên đó 3600đ" — bậc cuối (`up_to_km` rỗng) là
-    mọi km còn lại. Số trần, không dấu chấm nghìn: dò theo giá cũ mới khớp chuỗi."""
+    """Dạng "đến 5 km 18.000 đ; đến 20 km 11.200 đ; trên đó 3.600 đ" — bậc cuối (`up_to_km` rỗng) là
+    mọi km còn lại. Số kiểu Việt như mọi chỗ khác trên màn (#70: "trên đó 4000đ")."""
     ra = []
     for it in items:
         km = it.get("up_to_km")
-        gia = int(it.get("don_gia") or 0)
-        ra.append(f"đến {km:g} km {gia}đ" if km is not None else f"trên đó {gia}đ")
+        gia = f"{int(it.get('don_gia') or 0):,}".replace(",", ".")
+        ra.append(f"đến {f'{km:g}'.replace('.', ',')} km {gia} đ" if km is not None else f"trên đó {gia} đ")
     return "; ".join(ra)
 
 

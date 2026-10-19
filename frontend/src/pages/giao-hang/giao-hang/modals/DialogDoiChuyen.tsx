@@ -25,7 +25,8 @@ export function DialogDoiChuyen({
   trip: DeliveryTrip;
   token: string;
   onClose: () => void;
-  onXong: () => void;
+  /** `daHuy` = chuyến vừa bị huỷ (máy chủ rút nó khỏi lượt) — màn cha đóng ngăn lượt nếu lượt mất. */
+  onXong: (daHuy?: boolean) => void;
 }) {
   const goc = {
     tai: String(trip.employee_id),
@@ -74,7 +75,7 @@ export function DialogDoiChuyen({
       .then((r) => {
         if (r.canh_bao.length) {
           setCanhBao(r.canh_bao);
-          window.setTimeout(onXong, 1500);
+          window.setTimeout(() => onXong(), 1500);
         } else onXong();
       })
       .catch((e: unknown) => setLoi(e instanceof Error ? e.message : "Không đổi được chuyến"))
@@ -86,7 +87,7 @@ export function DialogDoiChuyen({
     setDangGui(true);
     api.giaoHang
       .cancelPlan(token, trip.id, lyDo.trim())
-      .then(onXong)
+      .then(() => onXong(true))
       .catch((e: unknown) => setLoiHuy(e instanceof Error ? e.message : "Không huỷ được chuyến"))
       .finally(() => setDangGui(false));
   };

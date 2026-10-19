@@ -53,6 +53,8 @@ class SuaChuaRow(BaseModel):
     nguyen_nhan_phuong_an: str | None = None
     trang_thai: str
     hoan_thanh_at: datetime | None = None
+    # Giây phiếu đã đóng (cộng dồn các lần mở lại) — FE trừ khỏi "Sửa mất" (#71).
+    thoi_gian_dong_giay: int = 0
     ghi_chu: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -272,6 +274,8 @@ class HuyPhieuIn(BaseModel):
 
 class DoiTrangThaiIn(BaseModel):
     trang_thai: str
+    # Bắt buộc khi MỞ LẠI phiếu sửa chữa đã sửa xong (#51, 18/10/2026) — đảo một lần đóng phiếu.
+    ly_do: str | None = Field(default=None, max_length=500)
     # Chỉ dùng khi chuyển sang `hoan_thanh`: ngày làm THẬT (thợ làm thứ Bảy, thứ Hai mới vào bấm).
     # Đây là mốc tính kỳ sau nên không lấy giờ bấm nút.
     ngay_hoan_thanh: date | None = None

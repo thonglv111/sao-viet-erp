@@ -37,6 +37,7 @@ import {
 } from "../loc-san-xuat/dieu-kien-ke-hoach-vat-tu";
 import { ThanhLoc } from "../thanh-loc/ThanhLoc";
 import { useLocMan } from "../thanh-loc/useLocMan";
+import { cauMuaKhacQuyCach } from "./muaKhacQuyCach";
 import "../ke-toan/ke-toan.css";
 import "./luoi-vat-tu.css";
 
@@ -82,7 +83,7 @@ function ngayGio(v: string | null): string {
   if (!v) return "";
   const t = new Date(v);
   if (Number.isNaN(t.getTime())) return "";
-  return `${t.toLocaleDateString("vi-VN")} ${t.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${t.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })} ${t.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export function Chip({ t }: { t: TinhTrangO }) {
@@ -595,7 +596,10 @@ function NhomDong({
           // Nhu cầu ra đơn vị mà mã chưa khai ở danh mục: không lập mua được dòng này (máy chủ cũng
           // chặn) — ô tick nhường chỗ cho câu nói rõ phải khai gì, ghi ở cột Phiếu.
           const chuaKhai = !!(d.don_vi_chua_khai || h?.don_vi_chua_khai);
-          const tickDuoc = canMua && d.tinh_trang === "can_mua" && !chuaKhai;
+          // Đã có đơn "Mua cho" lệnh này khác khổ/ĐVT (lỗi #23): không mở đề nghị mua lần hai.
+          const khacQc = cauMuaKhacQuyCach(d.mua_khac_quy_cach);
+          const tickDuoc = canMua && d.tinh_trang === "can_mua" && !chuaKhai && khacQc.length === 0;
+          const ghiChu = [...khacQc, ...d.ghi_chu];
           const da = chon.has(d.khoa);
           return (
             <tr key={d.khoa} className={`row lds-dong${da ? " sel" : ""}`}>
@@ -603,7 +607,7 @@ function NhomDong({
                 {!chuaKhai && (
                   <input type="checkbox" className="lvt-cb" checked={da} disabled={!tickDuoc}
                     aria-label={`Chọn ${d.hang_ten} của ${d.ma}`}
-                    title={tickDuoc ? "Chọn để đề nghị mua" : d.tinh_trang === "dang_mua" ? "Đã có phiếu mua" : undefined}
+                    title={tickDuoc ? "Chọn để đề nghị mua" : khacQc.length ? khacQc.join("\n") : d.tinh_trang === "dang_mua" ? "Đã có phiếu mua" : undefined}
                     onChange={() => onChon(d.khoa)} />
                 )}
               </td>
@@ -626,7 +630,7 @@ function NhomDong({
               <td>{d.phieu ? <Buoc b={d.phieu.buoc} /> : <span className="lvt-mu3">—</span>}</td>
               <td><NgayCoHang d={d} /></td>
               <td><Chip t={d.tinh_trang} /></td>
-              <td title={d.ghi_chu.join("\n")}><GhiChu ds={d.ghi_chu} /></td>
+              <td title={ghiChu.join("\n")}><GhiChu ds={ghiChu} /></td>
             </tr>
           );
         })}

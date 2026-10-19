@@ -216,7 +216,7 @@ export function LuongPage({
           onDirtyChange={setCfgDirty}
         />
       )}
-      {tab === "phieu" && tuPhucVu && <PhieuLuongTab token={token!} />}
+      {tab === "phieu" && tuPhucVu && <PhieuLuongTab token={token!} eventTick={eventTick} />}
       {tab === "tamung-me" && tuPhucVu && (
         <TamUngCuaToiTab token={token!} eventTick={eventTick} canCreate={canCreateAdvance} />
       )}

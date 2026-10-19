@@ -293,7 +293,7 @@ export function ThuTienHoaDon({
           <TheHan item={item} />
         </>
       }
-      xemTruoc={daLap ? <>Phiếu <b>{daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
+      xemTruoc={daLap ? <>Phiếu <b>{daLap.doc_no ?? daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
       dangLuu={dangLap}
       loiChung={loiChung}
       onDong={() => (daLap ? onDaLap(daLap) : onDong())}
@@ -360,9 +360,9 @@ export function ThuTienHoaDon({
                   <tr key={p.receipt_id}>
                     <td>
                       {onMoPhieu ? (
-                        <button type="button" className="kt-lk" onClick={() => onMoPhieu(p.code)}>{p.code}</button>
+                        <button type="button" className="kt-lk" onClick={() => onMoPhieu(p.code)}>{p.doc_no ?? p.code}</button>
                       ) : (
-                        p.code
+                        p.doc_no ?? p.code
                       )}
                       {(p.so_dong ?? 1) > 1 && p.receipt_amount != null && (
                         <span className="lds-mu" title="Một phiếu thu nhiều khoản, Số tiền là phần của hoá đơn này">
