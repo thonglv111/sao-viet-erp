@@ -30,6 +30,7 @@ import { BangLoi, EmptyState, gioNgan, ngay, num } from "./keHoachSxShared";
 import { ThanhLoc } from "./thanh-loc/ThanhLoc";
 import { khoangKy, type KyDS } from "./thanh-loc/ky-danh-sach";
 import type { DieuKien } from "./thanh-loc/thanh-loc";
+import { tenGiays } from "./ThsxQuyCach";
 
 /** Kỳ tính theo ngày BẮT ĐẦU mẻ (giờ xưởng). Máy chủ chặn khoảng quá 366 ngày ⇒ không có "Mọi thời gian". */
 const MOC_SL: [string, string][] = [["bat_dau", "Ngày bắt đầu"]];
@@ -109,7 +110,9 @@ function QuyCachLenh({ qc }: { qc: SxSlLenh["quy_cach"] }) {
   return (
     <div className="thsx-sl__qc">
       <div className="thsx-sl__qc-giay">
-        <b>{qc.giay || "Chưa khai giấy"}</b>
+        {tenGiays(qc.giay).length
+          ? tenGiays(qc.giay).map((g) => <b key={g}>{g}</b>)
+          : <b>Chưa khai giấy</b>}
         {qc.dinh_luong ? <span className="thsx-sl__qc-gsm thsx-num">{num(qc.dinh_luong)} gsm</span> : null}
       </div>
       <dl className="thsx-sl__qc-kho" aria-label="Quy cách dài × rộng, đơn vị cm">

@@ -69,8 +69,25 @@ class _SoPhatHanh:
             from ..bien_cong_thuc import quy_cach_bien
 
             lsx = self.db.get(Lsx, lsx_id)
-            self._qc_lsx[lsx_id] = quy_cach_bien(lsx) if lsx is not None else {}
+            self._qc_lsx[lsx_id] = (
+                {**quy_cach_bien(lsx), "giays": self._giay_cac_buoc(lsx_id)} if lsx is not None else {})
         return self._qc_lsx[lsx_id]
+
+    def _giay_cac_buoc(self, lsx_id: int) -> list[str]:
+        """Tên mọi giấy khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự khai. Hộp bồi couche
+        lên sóng có HAI giấy ở bước Cắt tờ — `giay_ten` của quy cách chỉ biết giấy chính."""
+        from ...models.lsx import LsxCongDoan, LsxCongDoanVatTu
+
+        rows = (self.db.query(LsxCongDoanVatTu.vat_tu_ten_snapshot)
+                .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+                .filter(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == "giay")
+                .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id).all())
+        out: list[str] = []
+        for (ten,) in rows:
+            t = (ten or "").strip()
+            if t and t not in out:
+                out.append(t)
+        return out
 
     def _quy_cach_bai(self, bg_id: int) -> dict:
         if bg_id not in self._qc_bai:
@@ -157,10 +174,14 @@ def the_quy_cach(qc: dict | None) -> dict | None:
     if not muc_a and not muc_b:
         muc_a, muc_b = tap_muc_tu_so(qc.get("so_mau_a"), qc.get("so_mau_b"), qc.get("so_mau_pha"))
 
+    # Lệnh nhiều giấy (`giays` do `_SoPhatHanh` gắn): ô Giấy là DANH SÁCH, và bỏ định lượng —
+    # ảnh chụp chỉ có gsm của giấy chính, để một số đứng cạnh hai tên là nói sai cho giấy kia.
+    giays = [t for t in (qc.get("giays") or []) if t]
+    nhieu_giay = len(giays) > 1
     the = {
-        "giay": (qc.get("giay_ten") or "").strip() or None,
+        "giay": giays if nhieu_giay else (qc.get("giay_ten") or "").strip() or None,
         # gsm là số xưởng nói ("giấy 150"), `ngu_canh_lenh` thì trả kg/m² cho công thức.
-        "dinh_luong": _so(ctx["dinh_luong"] * 1000.0),
+        "dinh_luong": None if nhieu_giay else _so(ctx["dinh_luong"] * 1000.0),
         "kho_nguyen": _kho(ctx["dai_nguyen"], ctx["rong_nguyen"]),
         "kho_in": _kho(ctx["dai_in"], ctx["rong_in"]),
         "kho_tp": _kho(ctx["dai_tp"], ctx["rong_tp"]),

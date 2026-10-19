@@ -1543,7 +1543,8 @@ export interface SxSlCongDoan {
 }
 export interface SxSlKho { dai: number; rong: number }
 export interface SxSlQuyCach {
-  giay: string | null;
+  /** Lệnh nhiều giấy ⇒ danh sách tên (cùng ảnh chụp với thẻ quy cách bàn tổ). */
+  giay: string | string[] | null;
   dinh_luong: number | null;
   to_nguyen: SxSlKho | null;
   to_in: SxSlKho | null;
@@ -1697,7 +1698,8 @@ export interface SxTrangThaiVatTu {
  *  của `lsx.quy_cach_json`. Khoá nào không có số thì server BỎ HẲN (không gửi `null`), nên UI chỉ
  *  vẽ những dòng thật sự có. Khổ đã ghép sẵn thành chuỗi mm ("640 × 450") ở server. */
 export interface SxQuyCachThe {
-  giay?: string;
+  /** Lệnh NHIỀU giấy (hộp bồi couche lên sóng) ⇒ danh sách tên, và không có `dinh_luong`. */
+  giay?: string | string[];
   dinh_luong?: number;     // gsm
   kho_nguyen?: string;     // khổ giấy nguyên (tờ mua về), chuỗi mm
   kho_in?: string;         // KHÔNG có = khổ tờ in 0 × 0 ⇒ in thẳng khổ giấy nguyên

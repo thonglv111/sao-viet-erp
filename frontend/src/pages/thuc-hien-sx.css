@@ -2609,3 +2609,6 @@
 /* Khay Hàng chờ: thẻ việc của bàn tổ (`thsx-lrow`) trong vỏ khay Xếp lịch. */
 .thsx-xa-khay .xa-khay__ds { padding: 2px 12px 12px; }
 .thsx-xa-khay .thsx-lsec__label { font-weight: 400; }
+
+/* Thẻ quy cách lệnh nhiều giấy (19/10/2026): mỗi giấy một dòng trong cùng ô "Giấy". */
+.thsx-flat-spec-dong { display: block; }

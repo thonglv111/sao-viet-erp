@@ -30,6 +30,12 @@ const QUY_CACH_DONG: [keyof SxQuyCachThe, string, string][] = [
 /** Các dòng của thẻ quy cách thành cặp nhãn–chữ. Khổ tờ in LUÔN có dòng: server bỏ khoá khi
  *  khổ 0 × 0, và 0 × 0 nghĩa là in thẳng khổ giấy nguyên (cùng câu với màn lệnh) — mất dòng thì
  *  đọc như lệnh thiếu khổ. "Số mặt" nhường cho "Cách in" khi có: "2 mặt (AB)" đã nói số mặt. */
+/** Tên giấy của thẻ thành danh sách — lệnh nhiều giấy server gửi mảng, lệnh một giấy gửi chuỗi. */
+export function tenGiays(g: string | string[] | null | undefined): string[] {
+  if (Array.isArray(g)) return g.filter(Boolean);
+  return g ? [g] : [];
+}
+
 export function dongQuyCach(qc: SxQuyCachThe): [string, string, string][] {
   const out: [string, string, string][] = [];
   for (const [k, nhan, duoi] of QUY_CACH_DONG) {
@@ -37,6 +43,10 @@ export function dongQuyCach(qc: SxQuyCachThe): [string, string, string][] {
     const v = qc[k];
     if (k === "kho_in" && v == null) {
       out.push([k, nhan, "In thẳng khổ giấy nguyên"]);
+    } else if (k === "giay") {
+      // Nhiều giấy: mỗi giấy một dòng (thẻ tách theo xuống dòng), không nối bằng dấu.
+      const giays = tenGiays(qc.giay);
+      if (giays.length) out.push([k, nhan, giays.join("\n")]);
     } else if (k === "cach_in" && typeof v === "string") {
       out.push([k, nhan, nhanCachIn(v) ?? v]);
     } else if (v != null) {
@@ -66,7 +76,10 @@ export function ThsxQuyCachThe({ qc, trongNgan = false }: { qc: SxQuyCachThe; tr
         {dongQuyCach(qc).map(([k, nhan, chu]) => (
           <div className="thsx-flat-spec-item" key={k}>
             <span className="thsx-flat-spec-lbl">{trongNgan ? nhan : `${nhan}:`}</span>
-            <span className="thsx-flat-spec-val">{chu}</span>
+            <span className="thsx-flat-spec-val">
+              {chu.split("\n").map((dong, i, ds) =>
+                ds.length > 1 ? <span key={i} className="thsx-flat-spec-dong">{dong}</span> : dong)}
+            </span>
           </div>
         ))}
       </div>

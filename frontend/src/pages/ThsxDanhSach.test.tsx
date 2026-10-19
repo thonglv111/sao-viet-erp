@@ -68,6 +68,13 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(screen.queryByText(/150GSM 150gsm/i)).toBeNull();
   });
 
+  it("lệnh hai giấy: mỗi giấy một thẻ quy cách", () => {
+    const item = mockViec({ quy_cach: { giay: ["COUCHE 150GSM", "GIẤY SÓNG E 300GSM"], kho_in: "790 × 545", so_mau: 4, so_kem: 4 } });
+    render(<ThsxDanhSach lenh={mockLenh([item])} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByText("COUCHE 150GSM")).toBeInTheDocument();
+    expect(screen.getByText("GIẤY SÓNG E 300GSM")).toBeInTheDocument();
+  });
+
   // 28/09/2026: cột cuối CHỈ còn nhãn trạng thái — nút chạy nhanh đứng cạnh nhãn đọc ra thành nhiều
   // trạng thái. Kể cả người giữ quyền Thực hiện lệnh cũng không thấy nút ở dòng; thao tác ở drawer.
   it("cột trạng thái chỉ có nhãn, không còn nút Bắt đầu / Tạm dừng / Kết thúc", () => {

@@ -20,6 +20,7 @@ import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { slTot, sxNguonIcon, tienDoThucTe } from "./thsxShared";
 import { cauViTri, daiCuaViec, viTriHang } from "./thsxTuyen";
 import { ThsxTuyenNho } from "./ThsxTuyenNho";
+import { tenGiays } from "./ThsxQuyCach";
 import "./lenh-sx-chung.css"; // thẻ GẤP (`lsc-gap`) của lsxKhau
 
 interface CotThsx extends CotLuoi { w?: number; n?: boolean }
@@ -94,10 +95,14 @@ interface Props {
 function mauQuyCach(qc: SxWorkItem["quy_cach"]): string[] {
   if (!qc) return [];
   const parts: string[] = [];
-  // Tên giấy hay mang sẵn định lượng ("COUCHE 150GSM") — nối thêm là in hai lần.
-  const coSan = qc.giay && qc.dinh_luong && new RegExp(`\\b${qc.dinh_luong}\\s*g`, "i").test(qc.giay);
-  if (qc.giay) parts.push(`${qc.giay}${qc.dinh_luong && !coSan ? ` ${qc.dinh_luong}gsm` : ""}`);
-  else if (qc.dinh_luong) parts.push(`${qc.dinh_luong}gsm`);
+  // Tên giấy hay mang sẵn định lượng ("COUCHE 150GSM") — nối thêm là in hai lần. Lệnh nhiều giấy
+  // thì mỗi giấy một thẻ, và server đã bỏ `dinh_luong` (chỉ biết gsm của một giấy).
+  const giays = tenGiays(qc.giay);
+  for (const g of giays) {
+    const coSan = qc.dinh_luong && new RegExp(`\\b${qc.dinh_luong}\\s*g`, "i").test(g);
+    parts.push(`${g}${qc.dinh_luong && !coSan ? ` ${qc.dinh_luong}gsm` : ""}`);
+  }
+  if (!giays.length && qc.dinh_luong) parts.push(`${qc.dinh_luong}gsm`);
   if (qc.kho_in) parts.push(`Khổ ${qc.kho_in}`);
   if (qc.so_mau != null) parts.push(`${qc.so_mat ? `${qc.so_mat} mặt ` : ""}${qc.so_mau} màu`);
   if (qc.so_kem != null && qc.so_kem > 0) parts.push(`${qc.so_kem} kẽm`);
