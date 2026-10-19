@@ -937,3 +937,12 @@ def test_chi_tiet_ke_moi_giay_cua_cac_buoc(db, svc3, lenh):
     db.commit()
     db.expire_all()
     assert svc3.chi_tiet(lenh.id)["giays"] == [*giay_cu, "Giấy sóng E"]
+
+
+def test_loc_nhanh_xong_muon_bo_qua_lenh_da_dong():
+    """Bấm thử 19/10: lệnh đã đóng vẫn đếm vào "Có thể xong muộn hơn" chỉ vì một bước chưa tính
+    được giờ — lệnh đã xong thì ngày xong là số thật, không còn gì để "lạc quan"."""
+    dang_chay = {"trang_thai": "da_phat_hanh", "so_buoc_chua_gio": 1}
+    da_dong = {"trang_thai": "da_dong", "so_buoc_chua_gio": 1}
+    assert XepLichLenhService._nhanh(dang_chay, "muon") is True
+    assert XepLichLenhService._nhanh(da_dong, "muon") is False

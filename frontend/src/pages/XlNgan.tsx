@@ -282,13 +282,16 @@ export function XlNgan({
   const doi = (phut: number) => { if (ct.bat_dau_at) onDoiGio(congPhut(ct.bat_dau_at, phut)); };
 
   // ---------------------------------------------------------------- số tổng
+  // `chay`/`cho` là phút của KẾ HOẠCH ⇒ chia phần trăm theo khung kế hoạch. Lệnh đã xong mà chia
+  // cho quãng thực tế là đem hai hệ đo khác nhau ra chia (xưởng làm nhanh 12 phút ⇒ "máy chạy 1608%").
+  const tongKh = daXep ? Math.max(0, ((moc(ct.ket_thuc) ?? 0) - (moc(ct.bat_dau_at) ?? 0)) / 60_000) : 0;
   const tong = daXongHet
     ? Math.max(0, ((moc(ct.ket_thuc_thuc_te) ?? 0) - (moc(ct.thuc_bat_dau_lenh) ?? 0)) / 60_000)
-    : daXep ? Math.max(0, ((moc(ct.ket_thuc) ?? 0) - (moc(ct.bat_dau_at) ?? 0)) / 60_000) : 0;
+    : tongKh;
   const chay = ct.chay_phut || 0;
   const cho = ct.cho_phut || 0;
-  const nghi = Math.max(0, tong - chay - cho);
-  const pt = (v: number) => (tong > 0 ? Math.round((v / tong) * 100) : 0);
+  const nghi = Math.max(0, tongKh - chay - cho);
+  const pt = (v: number) => (tongKh > 0 ? Math.min(100, Math.round((v / tongKh) * 100)) : 0);
   const dem = soDem(ct.bat_dau_at, ct.ket_thuc);
 
   // ---------------------------------------------------------------- dải ô số
@@ -337,7 +340,7 @@ export function XlNgan({
       <div className="xa-b-o"><div className="xa-b-o__n"><Clock size={13} />Từ đầu tới xong</div>
         <div className="xa-b-o__g">{tong > 0 ? quangDongHo(tong) : "—"}</div></div>
       <div className="xa-b-o"><div className="xa-b-o__n"><PlayCircle size={13} />Máy chạy</div>
-        <div className="xa-b-o__g">{chay > 0 ? gioChu(chay) : "—"}{tong > 0 && chay > 0 && <span className="xa-mo2 xa-b-pt">{pt(chay)}%</span>}</div></div>
+        <div className="xa-b-o__g">{chay > 0 ? gioChu(chay) : "—"}{tongKh > 0 && chay > 0 && <span className="xa-mo2 xa-b-pt">{pt(chay)}%</span>}</div></div>
       {ct.han_hoan_thanh_sx && oHan("Hạn xong sản xuất", ct.han_hoan_thanh_sx, <Target size={13} />)}
       {oHan("Hạn giao khách", ct.han_giao_khach, <Truck size={13} />)}
     </div>
@@ -437,7 +440,8 @@ export function XlNgan({
     return (
       <div key={c.id} className={`xa-b-hang${choPhut > 0 ? " xa-b-hang--cho" : ""}`}>
         <div className="xa-b-ten">
-          <span className="xa-b-stt">{c.thu_tu}</span>
+          {/* `thu_tu` của bước lệnh đếm từ 0 — người đọc đếm từ 1 như bàn tổ ("bước 4 trên 5"). */}
+          <span className="xa-b-stt">{c.thu_tu + 1}</span>
           <span className={`xa-oic xa-b-oic ${t.mau}`}>{t.ic}</span>
           <span className="xa-b-cot">
             <span className="xa-b-t" title={c.ten}>{c.ten}
@@ -489,12 +493,12 @@ export function XlNgan({
         : ct.cong_doans.map(dongBuoc)}
       {truc && (
         <div className="xa-b-chu">
-          <span><i className="xa-b-ct xa-b-ct--chay" />Máy chạy {chay > 0 ? gioChu(chay) : "0 phút"}{tong > 0 && <span className="xa-mo2"> {pt(chay)}%</span>}</span>
+          <span><i className="xa-b-ct xa-b-ct--chay" />Máy chạy {chay > 0 ? gioChu(chay) : "0 phút"}{tongKh > 0 && <span className="xa-mo2"> {pt(chay)}%</span>}</span>
           {coTo && <span><i className="xa-b-ct xa-b-ct--to" />Tổ làm</span>}
-          {(coCho || cho > 0) && <span><i className="xa-b-ct xa-b-ct--cho" />Chờ lệnh khác {quangDongHo(cho)}{tong > 0 && <span className="xa-mo2"> {pt(cho)}%</span>}</span>}
+          {(coCho || cho > 0) && <span><i className="xa-b-ct xa-b-ct--cho" />Chờ lệnh khác {quangDongHo(cho)}{tongKh > 0 && <span className="xa-mo2"> {pt(cho)}%</span>}</span>}
           {nghi > 0 && (
             <span><i className="xa-b-ct xa-b-ct--gach" />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"} {quangDongHo(nghi)}
-              {tong > 0 && <span className="xa-mo2"> {Math.max(0, 100 - pt(chay) - pt(cho))}%</span>}</span>
+              {tongKh > 0 && <span className="xa-mo2"> {Math.max(0, 100 - pt(chay) - pt(cho))}%</span>}</span>
           )}
           {phanTach && phanTach.nghi_giua_ca_phut > 0 && <span className="xa-mo">nghỉ giữa ca {gioChu(phanTach.nghi_giua_ca_phut)}</span>}
           {soNghiTuan > 0 && <span className="xa-mo">{soNghiTuan} ngày nghỉ tuần</span>}

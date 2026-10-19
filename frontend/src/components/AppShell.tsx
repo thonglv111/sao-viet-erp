@@ -22,6 +22,7 @@ import {
   type Capabilities,
 } from "../auth/permissions";
 import { nhanChang, nhanDonVi } from "../pages/lsxBuoc";
+import { toastKhoNhapThanhPham } from "../pages/kcs/kcsNhan";
 import { num } from "../pages/keHoachSxShared";
 import { kenhCuaNav, loiNhacCua, navCuaKenh } from "../lib/thongBaoMan";
 import { toLaDauTien } from "../lib/banToLa";
@@ -779,13 +780,8 @@ export function AppShell() {
     } else if (e.type === "san_xuat_kho") {
       // Nhập kho thành phẩm là tương tác GIỮA KCS và kho — kho ghi sổ phiếu nhập thì đẩy ĐÍCH DANH
       // tới người tạo yêu cầu (kho đã nhận tới đâu). `trang_thai` = trạng thái yêu cầu kho.
-      const ma = e.ma ? ` ${e.ma}` : "";
-      pushToast(
-        e.trang_thai === "partial"
-          ? `📦 Kho đã nhận MỘT PHẦN yêu cầu nhập kho${ma} — phần còn lại vẫn chờ nhập`
-          : `📦 Kho đã nhận đủ yêu cầu nhập kho${ma}`,
-        "ok",
-      );
+      const t = toastKhoNhapThanhPham(e.trang_thai, e.ma);
+      if (t) pushToast(t.chu, t.kieu);
     } else if (
       (readable.has("san_xuat") || readable.has("don_hang_ban")) &&
       e.type === "san_xuat_lenh_dong"

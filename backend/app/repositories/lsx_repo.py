@@ -12,7 +12,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.customer import Customer
-from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
+from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.order import STATUS_ORDERED, Order, OrderLine
 from .catalog_base import SIZE_TRAN
 from .loc_danh_sach import dk_khoang_ngay
@@ -47,6 +47,18 @@ class LsxRepository:
         self.db = db
 
     # --- reads ---------------------------------------------------------------
+
+    def co_vat_tu_buoc(self, lsx_ids: list[int], trang_thais: tuple[str, ...]) -> set[int]:
+        """Lệnh (trong `lsx_ids`, đang ở một trong `trang_thais`) có ít nhất một dòng vật tư khai ở
+        bước — MỘT câu cho cả trang."""
+        if not lsx_ids:
+            return set()
+        return set(self.db.execute(
+            select(LsxCongDoan.lsx_id).distinct()
+            .join(LsxCongDoanVatTu, LsxCongDoanVatTu.lsx_cong_doan_id == LsxCongDoan.id)
+            .join(Lsx, Lsx.id == LsxCongDoan.lsx_id)
+            .where(LsxCongDoan.lsx_id.in_(lsx_ids), Lsx.trang_thai.in_(trang_thais))
+        ).scalars())
 
     def get(self, lsx_id: int) -> Lsx | None:
         return self.db.execute(

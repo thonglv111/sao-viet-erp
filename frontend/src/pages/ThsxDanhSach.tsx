@@ -94,7 +94,9 @@ interface Props {
 function mauQuyCach(qc: SxWorkItem["quy_cach"]): string[] {
   if (!qc) return [];
   const parts: string[] = [];
-  if (qc.giay) parts.push(`${qc.giay}${qc.dinh_luong ? ` ${qc.dinh_luong}gsm` : ""}`);
+  // Tên giấy hay mang sẵn định lượng ("COUCHE 150GSM") — nối thêm là in hai lần.
+  const coSan = qc.giay && qc.dinh_luong && new RegExp(`\\b${qc.dinh_luong}\\s*g`, "i").test(qc.giay);
+  if (qc.giay) parts.push(`${qc.giay}${qc.dinh_luong && !coSan ? ` ${qc.dinh_luong}gsm` : ""}`);
   else if (qc.dinh_luong) parts.push(`${qc.dinh_luong}gsm`);
   if (qc.kho_in) parts.push(`Khổ ${qc.kho_in}`);
   if (qc.so_mau != null) parts.push(`${qc.so_mat ? `${qc.so_mat} mặt ` : ""}${qc.so_mau} màu`);

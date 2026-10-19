@@ -60,6 +60,14 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(screen.getByText(/Couche 300gsm/i)).toBeInTheDocument();
   });
 
+  it("tên giấy đã mang định lượng thì không nối thêm lần nữa", () => {
+    // Bấm thử 19/10: cột Quy cách in "COUCHE 150GSM 150gsm".
+    const item = mockViec({ quy_cach: { giay: "COUCHE 150GSM", dinh_luong: 150, kho_in: "1090 × 790", so_mau: 4, so_kem: 4 } });
+    render(<ThsxDanhSach lenh={mockLenh([item])} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByText("COUCHE 150GSM")).toBeInTheDocument();
+    expect(screen.queryByText(/150GSM 150gsm/i)).toBeNull();
+  });
+
   // 28/09/2026: cột cuối CHỈ còn nhãn trạng thái — nút chạy nhanh đứng cạnh nhãn đọc ra thành nhiều
   // trạng thái. Kể cả người giữ quyền Thực hiện lệnh cũng không thấy nút ở dòng; thao tác ở drawer.
   it("cột trạng thái chỉ có nhãn, không còn nút Bắt đầu / Tạm dừng / Kết thúc", () => {

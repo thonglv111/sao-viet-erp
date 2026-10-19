@@ -488,3 +488,21 @@ def test_buoc_tach_phan_doan_moi_viec_xin_phan_cua_minh(db, svc3, lenh, admin):
     for k, sl in ca_buoc.items():
         assert abs(mot[k] - sl * 0.75) < 1e-3
         assert abs(mot[k] + hai_[k] - sl) < 1e-6
+
+
+def test_den_vat_tu_xanh_khi_cac_buoc_co_vat_tu_da_chay_xong(db, svc3, lenh, admin):
+    """Bấm thử 19/10: bước Cắt tờ ăn cả hai giấy chạy xong ⇒ dòng vật tư rụng khỏi bảng cân đối ⇒
+    lệnh "không còn nhu cầu" và đèn rơi về đỏ "Chưa giữ chỗ vật tư", dù kho đã cấp và xưởng đã
+    dùng hết. Vật tư của lệnh đã dùng xong thì đèn phải xanh."""
+    from app.models.san_xuat import CV_HOAN_THANH
+    from app.services.lsx_tong_quan import MUC_OK, den_vat_tu_va_bang
+
+    svc3.dat_moc(lenh.id, _MOC)
+    svc3.phat_hanh(lenh.id, actor=admin)
+    for cv in _cvs(db, lenh.id):
+        cv.trang_thai = CV_HOAN_THANH
+        cv.hoan_thanh_luc = _MOC
+    db.commit()
+
+    den, _ = den_vat_tu_va_bang(db, [lenh.id])
+    assert den[lenh.id]["muc"] == MUC_OK, den[lenh.id]

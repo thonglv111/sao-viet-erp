@@ -414,6 +414,7 @@ td.khsx-num > .khsx-unit {
 }
 .khsx-drawer__title { margin: 0; font-size: 20px; color: var(--ink); font-weight: var(--fw-bold); }
 .khsx-drawer__title:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+.khsx-drawer__khach { margin-left: 10px; font-weight: var(--fw-regular); color: var(--ash); }
 .khsx-drawer__meta {
   display: flex;
   align-items: center;

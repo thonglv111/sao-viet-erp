@@ -1700,7 +1700,7 @@ function QuotationDetailView({
                     {active && <span className="vnow">Đang xem</span>}
                     <div className="vmid">
                       <div className="a">{v.change_reason || "—"}</div>
-                      <div className="m">{fmtDate(v.created_at)}{isCur ? " · hiện tại" : ""}</div>
+                      <div className="m">{fmtDate(v.created_at)}{isCur && <span className="vhien">hiện tại</span>}</div>
                     </div>
                     <div className="vright">
                       <div className="p rust-num">{vnd(v.total ?? 0)}</div>

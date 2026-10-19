@@ -21,7 +21,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy.orm import Session
 
 from ...models.lsx import (
-    LB_MAY, LB_THUE_NGOAI, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH, TT_SAN_SANG,
+    LB_MAY, LB_THUE_NGOAI, TT_DA_DONG, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH, TT_SAN_SANG,
 )
 from ...models.san_xuat import CV_HOAN_THANH, CV_PHAT_HANH
 from ...models.xep_lich_lenh import XepLichLenh
@@ -637,12 +637,12 @@ class XepLichLenhService:
     @staticmethod
     def _nhanh(d: dict, k: str) -> bool:
         """Ba nút lọc nhanh của đầu màn. `tre`: xong (thực tế nếu đã chạy) sau hết ngày hạn SX — không
-        có hạn SX thì so hạn giao. `muon`: có bước chưa tính được giờ nên ngày xong đang lạc quan.
-        `chua`: có lịch nhưng chưa phát hành."""
+        có hạn SX thì so hạn giao. `muon`: có bước chưa tính được giờ nên ngày xong đang lạc quan —
+        lệnh đã đóng thì ngày xong là số thật, không tính. `chua`: có lịch nhưng chưa phát hành."""
         if k == "chua":
             return d["trang_thai"] in TT_XEP_DUOC
         if k == "muon":
-            return d.get("so_buoc_chua_gio", 0) > 0
+            return d["trang_thai"] != TT_DA_DONG and d.get("so_buoc_chua_gio", 0) > 0
         han = d.get("han_hoan_thanh_sx") or d.get("han_giao_khach")
         xong = d.get("ket_thuc_thuc_te") or d.get("ket_thuc")
         return bool(han and xong and xong > datetime.combine(han, time.max))

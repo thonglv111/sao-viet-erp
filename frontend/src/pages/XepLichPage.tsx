@@ -480,7 +480,9 @@ export function XepLichPage({
     [dong, hienLuoi.hienXong],
   );
   const viTri = chonId === null ? -1 : dongThay.findIndex((d) => d.lsx_id === chonId);
-  const phutChay = useMemo(() => phutChayTrongCuaSo(dong, tu, soNgay), [dong, tu, soNgay]);
+  // Đếm đúng các lệnh lưới đang vẽ — lệnh đã xong bị ẩn mà vẫn cộng giờ thì đầu màn ghi "máy chạy
+  // 3 giờ" cạnh "0 lệnh trong khoảng".
+  const phutChay = useMemo(() => phutChayTrongCuaSo(dongThay, tu, soNgay), [dongThay, tu, soNgay]);
   const caPhut = useMemo(() => phutCa(cacCa), [cacCa]);
   const caDau = useMemo(() => cacCa.map((c) => c.tu.slice(0, 5)).sort()[0] ?? "00:00", [cacCa]);
   const truocDo = useMemo(() => {
