@@ -1030,9 +1030,8 @@ class QuotationService:
 
     def record_approval(self, *, quotation_id: int, decision: str, note: str | None, scope: str, actor):
         """Giám đốc Kinh doanh DUYỆT / TỪ CHỐI 'báo giá đặc thù' — chỉ khi báo giá đang **Chờ duyệt**
-        (`pending_approval`, tức đã 'Trình duyệt'). Ghim số + ngưỡng (audit). Duyệt 'bao phủ' → báo giá
-        sang **Đã duyệt** (`sent`, gộp 'đã gửi khách' — Q2). Từ chối → **quay về Nháp** (`draft`) + banner
-        lý do (Q4). Chặn nếu báo giá KHÔNG thuộc diện đặc thù."""
+        (`pending_approval`, tức đã 'Trình duyệt'). Ghim số + ngưỡng (audit). Chặn nếu báo giá KHÔNG
+        thuộc diện đặc thù."""
         if decision not in _EXC_DECISIONS:
             raise QuotationValidationError("Quyết định không hợp lệ (chỉ 'approved' / 'rejected').")
         quote = self.get_quotation(quotation_id=quotation_id, scope=scope, actor=actor)
@@ -1323,9 +1322,8 @@ class QuotationService:
 
     # --- Writes: Transition (redesign-bao-gia §3) -----------------------------
     def _apply_send(self, quote: Quote, version) -> None:
-        """Thân bước 'Gửi khách' = sang **Đã duyệt** (`sent`): khóa phiên bản + freeze snapshot
-        copy-on-write + đặt hạn hiệu lực nếu chưa có. Dùng chung cho draft→sent (báo giá THƯỜNG) và
-        duyệt đặc thù (pending_approval → sent, gọi từ `record_approval`)."""
+        """Thân bước 'Gửi khách': khóa phiên bản + freeze snapshot copy-on-write + đặt hạn hiệu lực
+        nếu chưa có."""
         if version:
             version.status = VERSION_STATUS_SENT
             version.sent_at = datetime.now(timezone.utc)
