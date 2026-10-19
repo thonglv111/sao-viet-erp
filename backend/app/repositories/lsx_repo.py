@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, aliased, selectinload
 from ..models.customer import Customer
 from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.order import STATUS_ORDERED, Order, OrderLine
+from ..models.vat_lieu_kho import LOAI_SONG, GiayNguyen
 from .catalog_base import SIZE_TRAN
 from .loc_danh_sach import dk_khoang_ngay
 from .org_scope import chu_theo_khach
@@ -60,21 +61,25 @@ class LsxRepository:
             .where(LsxCongDoan.lsx_id.in_(lsx_ids), Lsx.trang_thai.in_(trang_thais))
         ).scalars())
 
-    def ten_giay_cac_buoc(self, lsx_id: int) -> list[str]:
-        """Tên mọi giấy khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự khai, không lặp. Hộp
-        bồi couche lên sóng có HAI giấy ở bước Cắt tờ — `giay_ten` của quy cách chỉ biết giấy chính."""
+    def giay_song_cac_buoc(self, lsx_id: int) -> tuple[list[str], list[str]]:
+        """`(tên Giấy, tên Sóng)` khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự khai, không
+        lặp. Hộp bồi couche lên sóng có hai mã ở bước Cắt tờ — `giay_ten` của quy cách chỉ biết giấy
+        chính. Loại tra `giay_nguyen` theo `vat_tu_id` (mg 0426); mã đã xoá cứng coi là Giấy."""
         rows = self.db.execute(
-            select(LsxCongDoanVatTu.vat_tu_ten_snapshot)
+            select(LsxCongDoanVatTu.vat_tu_ten_snapshot, GiayNguyen.loai)
             .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+            .outerjoin(GiayNguyen, GiayNguyen.id == LsxCongDoanVatTu.vat_tu_id)
             .where(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == "giay")
             .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
-        ).scalars()
-        out: list[str] = []
-        for ten in rows:
+        ).all()
+        giays: list[str] = []
+        songs: list[str] = []
+        for ten, loai in rows:
             t = (ten or "").strip()
-            if t and t not in out:
-                out.append(t)
-        return out
+            ds = songs if loai == LOAI_SONG else giays
+            if t and t not in ds:
+                ds.append(t)
+        return giays, songs
 
     def get(self, lsx_id: int) -> Lsx | None:
         return self.db.execute(

@@ -924,7 +924,7 @@ def test_chi_tiet_ke_moi_giay_cua_cac_buoc(db, svc3, lenh):
     from app.models.lsx import LsxCongDoanVatTu
     from app.models.vat_lieu_kho import GiayNguyen
 
-    song = GiayNguyen(ma="SONG-E-T", ten="Giấy sóng E", gsm=400)
+    song = GiayNguyen(ma="SONG-E-T", ten="Giấy sóng E", gsm=400, loai="song")
     db.add(song)
     db.flush()
     buoc = _in_step(db, lenh.id)
@@ -932,10 +932,11 @@ def test_chi_tiet_ke_moi_giay_cua_cac_buoc(db, svc3, lenh):
     db.add(LsxCongDoanVatTu(
         lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=song.id,
         vat_tu_ma_snapshot=song.ma, vat_tu_ten_snapshot=song.ten,
-        don_vi_snapshot="kg", so_luong=1.0, kho_rong=780, kho_dai=905, thu_tu=1, tu_dong=False,
+        don_vi_snapshot="kg", so_luong=1.0, kho_rong=780, kho_dai=905, thu_tu=-1, tu_dong=False,
     ))
     db.commit()
     db.expire_all()
+    # Sóng khai TRƯỚC giấy cũ trong bước, ngăn vẫn kể giấy trước sóng sau (mg 0426).
     assert svc3.chi_tiet(lenh.id)["giays"] == [*giay_cu, "Giấy sóng E"]
 
 

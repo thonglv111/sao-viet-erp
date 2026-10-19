@@ -271,19 +271,12 @@ class XepLichLenhRepository:
         return out
 
     def giay_cac_buoc(self, lsx_id: int) -> list[str]:
-        """Tên mọi giấy khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự dòng, không lặp — MỘT
-        truy vấn (đọc `vat_tus` từng bước là mỗi bước một câu)."""
-        ten: list[str] = []
-        for (t,) in self.db.execute(
-            select(LsxCongDoanVatTu.vat_tu_ten_snapshot)
-            .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
-            .where(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == "giay")
-            .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
-        ):
-            t = (t or "").strip()
-            if t and t not in ten:
-                ten.append(t)
-        return ten
+        """Tên mọi giấy khai ở các bước của lệnh, GIẤY trước SÓNG sau (mg 0426), trong mỗi loại theo
+        thứ tự bước rồi thứ tự dòng, không lặp — MỘT truy vấn (xem `LsxRepository.giay_song_cac_buoc`)."""
+        from .lsx_repo import LsxRepository
+
+        giays, songs = LsxRepository(self.db).giay_song_cac_buoc(lsx_id)
+        return [*giays, *songs]
 
     def cum_lien_thong(self, lsx_ids) -> list[set[int]]:
         """Chia lệnh thành CỤM liên thông, mỗi cụm một tập — cùng ba quan hệ của

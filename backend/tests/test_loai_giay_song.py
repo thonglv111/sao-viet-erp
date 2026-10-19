@@ -189,3 +189,31 @@ def test_luu_lenh_giay_va_song_duoc_va_dong_mang_loai(db, orders, lsx_svc, admin
     d = lsx_svc.detail_dict(lsx)
     loai = {v["vat_tu_ten"]: v["giay_loai"] for cd in d["cong_doans"] for v in cd["vat_tus"]}
     assert loai == {"Couche 150": "giay", "SONG-E": "song"}
+
+
+# ---- Thẻ quy cách tách Giấy / Sóng -----------------------------------------------------------------
+from app.services.san_xuat.snapshot import the_quy_cach  # noqa: E402
+
+
+def test_the_quy_cach_giay_va_song():
+    the = the_quy_cach({"giay_ten": "COUCHE 150GSM", "gsm": 150, "giays": ["COUCHE 150GSM"],
+                        "songs": ["SÓNG E"]})
+    assert the["giay"] == "COUCHE 150GSM" and the["song"] == "SÓNG E" and the["dinh_luong"] == 150
+
+
+def test_the_quy_cach_khong_song_khong_khoa():
+    the = the_quy_cach({"giay_ten": "COUCHE 150GSM", "gsm": 150, "giays": [], "songs": []})
+    assert the["giay"] == "COUCHE 150GSM" and "song" not in the
+
+
+def test_giay_song_cac_buoc_tach_loai(db, orders, lsx_svc, admin, customer):
+    from app.repositories.lsx_repo import LsxRepository
+
+    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    song = _ma_giay(db, lsx_svc, "SONG-E", "song")
+    lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_routing(
+        lsx, {0: [{"hang_loai": "giay", "vat_tu_id": song},
+                  {"hang_loai": "giay", "vat_tu_id": next(
+                      v.vat_tu_id for cd in lsx.cong_doans for v in cd.vat_tus if v.hang_loai == "giay")}]}))
+    db.commit()
+    assert LsxRepository(db).giay_song_cac_buoc(lsx.id) == (["Couche 150"], ["SONG-E"])

@@ -70,13 +70,14 @@ class _SoPhatHanh:
 
             lsx = self.db.get(Lsx, lsx_id)
             self._qc_lsx[lsx_id] = (
-                {**quy_cach_bien(lsx), "giays": self._giay_cac_buoc(lsx_id)} if lsx is not None else {})
+                {**quy_cach_bien(lsx), **self._giay_song_cac_buoc(lsx_id)} if lsx is not None else {})
         return self._qc_lsx[lsx_id]
 
-    def _giay_cac_buoc(self, lsx_id: int) -> list[str]:
+    def _giay_song_cac_buoc(self, lsx_id: int) -> dict:
         from ...repositories.lsx_repo import LsxRepository
 
-        return LsxRepository(self.db).ten_giay_cac_buoc(lsx_id)
+        giays, songs = LsxRepository(self.db).giay_song_cac_buoc(lsx_id)
+        return {"giays": giays, "songs": songs}
 
     def _quy_cach_bai(self, bg_id: int) -> dict:
         if bg_id not in self._qc_bai:
@@ -163,14 +164,18 @@ def the_quy_cach(qc: dict | None) -> dict | None:
     if not muc_a and not muc_b:
         muc_a, muc_b = tap_muc_tu_so(qc.get("so_mau_a"), qc.get("so_mau_b"), qc.get("so_mau_pha"))
 
-    # Lệnh nhiều giấy (`giays` do `_SoPhatHanh` gắn): ô Giấy là DANH SÁCH, và bỏ định lượng —
-    # ảnh chụp chỉ có gsm của giấy chính, để một số đứng cạnh hai tên là nói sai cho giấy kia.
+    # Giấy và Sóng tách ô (mg 0426; `giays`/`songs` do `_SoPhatHanh` gắn). Bình thường mỗi loại một
+    # mã; lệnh cũ (trước luật) hoặc mã bị đổi loại sau khi lập lệnh mà có nhiều mã cùng loại thì ô là
+    # DANH SÁCH, và nhiều GIẤY thì bỏ định lượng — ảnh chụp chỉ có gsm của giấy chính.
     giays = [t for t in (qc.get("giays") or []) if t]
+    songs = [t for t in (qc.get("songs") or []) if t]
     nhieu_giay = len(giays) > 1
     the = {
-        "giay": giays if nhieu_giay else (qc.get("giay_ten") or "").strip() or None,
+        "giay": (giays if nhieu_giay else
+                 giays[0] if giays else (qc.get("giay_ten") or "").strip() or None),
         # gsm là số xưởng nói ("giấy 150"), `ngu_canh_lenh` thì trả kg/m² cho công thức.
         "dinh_luong": None if nhieu_giay else _so(ctx["dinh_luong"] * 1000.0),
+        "song": songs if len(songs) > 1 else (songs[0] if songs else None),
         "kho_nguyen": _kho(ctx["dai_nguyen"], ctx["rong_nguyen"]),
         "kho_in": _kho(ctx["dai_in"], ctx["rong_in"]),
         "kho_tp": _kho(ctx["dai_tp"], ctx["rong_tp"]),

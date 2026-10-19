@@ -400,14 +400,19 @@ def render_pdf(
 
     so_trang = ts.get("so_trang")
     nhieu_trang = bool(so_trang) and float(so_trang) > 1
-    # Lệnh nhiều giấy (hộp bồi couche lên sóng): ô Giấy kể đủ, mỗi giấy một dòng, và bỏ định lượng —
-    # `dinh_luong` chỉ là gsm của giấy chính, đứng cạnh hai tên là nói sai cho giấy kia.
-    giays = LsxRepository(db).ten_giay_cac_buoc(lsx_id)
+    # Hộp bồi couche lên sóng: ô Giấy + ô Sóng tách theo loại (mg 0426). Lệnh cũ nhiều mã cùng loại thì
+    # ô kể đủ, mỗi mã một dòng; nhiều GIẤY thì bỏ định lượng — `dinh_luong` chỉ là gsm của giấy chính.
+    giays, songs = LsxRepository(db).giay_song_cac_buoc(lsx_id)
     nhieu_giay = len(giays) > 1
+
+    def _o_ten(ds: list[str]):
+        return Paragraph("<br/>".join(_xml_escape(g) for g in ds), s_gt) if len(ds) > 1 else ds[0]
+
     o_ts = [
-        ("Giấy", Paragraph("<br/>".join(_xml_escape(g) for g in giays), s_gt) if nhieu_giay
-         else ts.get("giay_ten")),
+        ("Giấy", _o_ten(giays) if giays else ts.get("giay_ten")),
         ("Định lượng", f"{_so(ts['dinh_luong'])} g/m²" if ts.get("dinh_luong") and not nhieu_giay else ""),
+        # Sóng (mg 0426) — ô riêng ngay sau định lượng của giấy, chỉ khi lệnh có sóng.
+        *([("Sóng", _o_ten(songs))] if songs else []),
         ("Khổ nguyên", kho(ts.get("kho_nguyen_dai"), ts.get("kho_nguyen_rong"))),
         ("Khổ in", kho(ts.get("kho_in_dai"), ts.get("kho_in_rong"))),
         ("Thành phẩm", kho(ts.get("dai_thanh_pham"), ts.get("rong_thanh_pham"))),

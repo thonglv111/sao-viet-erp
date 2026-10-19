@@ -834,7 +834,7 @@ class XepLichLenhService:
             "nguoi_phu_trach_ten": self._ten_nguoi(l.nguoi_phu_trach_id),
             "luu_y_gui_xuong": l.ghi_chu,
             "giay": _chu(qc.get("giay_ten") or qc.get("giay")),
-            # Mọi giấy khai ở các bước, theo thứ tự bước (hộp bồi couche + sóng là HAI giấy). `giay` của
+            # Mọi giấy khai ở các bước, giấy trước sóng sau (hộp bồi couche + sóng là HAI mã). `giay` của
             # quy cách chỉ là giấy chính chụp lúc tạo lệnh.
             "giays": self.repo.giay_cac_buoc(l.id),
             "kho_in": _chu(qc.get("kho_in") or qc.get("kho")),

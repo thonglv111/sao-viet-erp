@@ -132,16 +132,16 @@ def test_giay_cung_ma_o_cat_va_in_chi_cat_lay(db, svc3, lenh, admin):
     assert cv_in.can_vat_tu is False
 
 
-def test_the_quy_cach_viec_ke_du_hai_giay_cua_lenh(db, svc3, lenh, admin):
-    """Hộp bồi couche lên sóng: thẻ quy cách ở bàn tổ kể ĐỦ hai giấy, không chỉ giấy chính —
-    và bỏ ô định lượng, vì ảnh chụp chỉ có gsm của một giấy."""
+def test_the_quy_cach_viec_tach_giay_va_song_cua_lenh(db, svc3, lenh, admin):
+    """Hộp bồi couche lên sóng: thẻ quy cách ở bàn tổ có ô Giấy (kèm định lượng của giấy) và ô Sóng
+    tách theo loại mã (mg 0426), dù sóng khai ở cùng bước."""
     from app.models.lsx import LsxCongDoanVatTu
     from app.models.vat_lieu_kho import GiayNguyen
 
     in_ = _buoc_in(db, lenh.id)
     giay_in = db.query(LsxCongDoanVatTu).filter_by(lsx_cong_doan_id=in_.id, hang_loai="giay").one()
     song = GiayNguyen(don_vi_them=["to"], ma="SONG-E", ten="GIẤY SÓNG E 300GSM", gsm=300,
-                      don_gia=12_000, don_vi_gia="kg")
+                      don_gia=12_000, don_vi_gia="kg", loai="song")
     db.add(song)
     db.flush()
     db.add(LsxCongDoanVatTu(
@@ -155,8 +155,9 @@ def test_the_quy_cach_viec_ke_du_hai_giay_cua_lenh(db, svc3, lenh, admin):
     svc3.phat_hanh(lenh.id, actor=admin)
 
     for cv in _cvs(db, lenh.id):
-        assert cv.quy_cach_json["giay"] == [giay_in.vat_tu_ten_snapshot, "GIẤY SÓNG E 300GSM"]
-        assert "dinh_luong" not in cv.quy_cach_json
+        assert cv.quy_cach_json["giay"] == giay_in.vat_tu_ten_snapshot
+        assert cv.quy_cach_json["song"] == "GIẤY SÓNG E 300GSM"
+        assert cv.quy_cach_json["dinh_luong"] > 0
 
 
 def test_mot_dong_loi_khong_chan_phat_hanh(db, svc3, lenh, admin):
