@@ -14,7 +14,7 @@
 // của ngày đó. Hai đầu bóng thanh ghi giờ bắt đầu / xong do MÁY CHỦ tính (đường `thu`), thả xong mới
 // ghi. Chỉnh lẻ giờ bằng ◀ ▶ 15 phút, Shift một ca.
 import {
-  AlertCircle, Building2, CalendarDays, Check, Clock, Layers, Link2, Package, Play, PlayCircle, Printer,
+  AlertCircle, Building2, CalendarDays, Check, Clock, Layers, Link2, Package, Play, PlayCircle, Printer, Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, DragEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from "react";
@@ -25,6 +25,7 @@ import {
   congPhut, gioChu, kieuNgay, moc, mocNgay, quangDongHo, soNgayDu, soNgayGiua, soNgayTre, THU, themNgay,
   thuNgayGio, veDen, veTu, ymd, type KieuNgay,
 } from "./xlShared";
+import { chuCanhBaoMay } from "./xlCanhBaoMay";
 
 const NGAY_MS = 86_400_000;
 /** Bề rộng tối thiểu một ngày theo nấc cửa sổ (cùng bộ số với bàn tổ) — hẹp hơn thì lưới cuộn
@@ -542,6 +543,10 @@ export function XlLuoi({
       const lien = d.lien.find((l) => l.loai === "cho") ?? d.lien.find((l) => l.loai === "chung");
       const ai = lien ? (lien.loai === "chung" ? "in chung" : lien.ma_khac) : "lệnh khác";
       canh.push(<span key="cho" className="xa-canh xa-chu-vang"><Clock size={13} />chờ {ai} {quangDongHo(d.cho_phut)}</span>);
+    }
+    const chuMay = chuCanhBaoMay(d.canh_bao_may);
+    if (chuMay) {
+      canh.push(<span key="may" className="xa-canh xa-chu-do" title={(d.canh_bao_may ?? []).join("\n")}><Wrench size={13} />{chuMay}</span>);
     }
     const so: string[] = [];
     if (hien.sl) so.push(`${d.so_luong_dat.toLocaleString("vi-VN")} ${d.don_vi_tinh ?? ""}`.trim());

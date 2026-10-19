@@ -159,7 +159,8 @@ def test_giay_don_vi_kg_thi_chi_dem_theo_can():
     assert ra["don_vi_goc"] == "kg"
     ma = {d["ma"] for d in ra["ds"]}
     assert {"kg", "g", "tan"} <= ma
-    assert "to" not in ma and "ram" not in ma and "m2" not in ma
+    # 18/10/2026: mã giấy luôn có nhóm tờ (tự thêm) — nhưng khổ vẫn không bơm vào quy đổi (không m²).
+    assert "to" in ma and "m2" not in ma
 
 
 def test_giay_muon_dem_theo_to_thi_chon_don_vi_goc_la_to():

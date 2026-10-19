@@ -154,7 +154,7 @@ class StockVoucherService:
 
     def create(self, *, user, request_id: int, kho_id: int, lines: list[dict],
                ngay: date | None = None, ma: str | None = None,
-               _dc_dest: bool = False, **header) -> StockVoucher:
+               _dc_dest: bool = False, ghi_so: bool = False, **header) -> StockVoucher:
         req = self.requests.get_with_lines(request_id)
         if req is None:
             raise StockVoucherError("Không tìm thấy yêu cầu.")
@@ -165,7 +165,11 @@ class StockVoucherService:
             )
         if not lines:
             raise StockVoucherError("Phiếu phải có ít nhất 1 dòng.")
-        # Lập phiếu NHÁP chưa vào sổ → không xét khóa kỳ ở đây (chỉ xét lúc GHI SỔ).
+        # Lập phiếu NHÁP chưa vào sổ → không xét khóa kỳ ở đây (chỉ xét lúc GHI SỔ). Trừ khi người
+        # dùng bấm "Tạo và ghi sổ" (`ghi_so`): xét ngay, không thì lượt ghi sổ sau bị chặn mà phiếu
+        # nháp đã nằm lại, bấm lại là đẻ thêm phiếu (#45, 18/10/2026).
+        if ghi_so:
+            self._assert_period_open(kho_id, ngay or date.today())
 
         loai = req.loai
         if loai not in VOUCHER_KINDS:

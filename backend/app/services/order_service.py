@@ -159,6 +159,15 @@ def _pct_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> float
     return float(getattr(ms, "commission_pct", 0) or 0)
 
 
+#: Trường sửa được ở đơn nháp → nhãn ghi nhật ký (#52: nhật ký nói đúng trường đã đổi).
+_NHAN_SUA_DON = {
+    "customer_po_no": "PO khách", "delivery_committed_date": "ngày hẹn giao",
+    "deposit_pct": "% cọc", "delivery_address": "địa chỉ giao", "delivery_contact_name": "người nhận",
+    "delivery_contact_phone": "điện thoại người nhận", "delivery_note": "ghi chú giao hàng",
+    "production_note": "lưu ý sản xuất", "is_rush": "đơn gấp",
+}
+
+
 class OrderService:
     def __init__(
         self,
@@ -671,25 +680,27 @@ class OrderService:
         if order.status != STATUS_DRAFT:
             raise OrderConflict("Đơn đã chốt/hủy — không sửa được")
 
+        # KHÔNG gửi = giữ nguyên; GỬI `null` = xoá (#52, 18/10/2026). Trước đó mọi `None` bị bỏ qua nên
+        # xoá trắng PO / ngày hẹn / % cọc rồi Lưu thì giá trị cũ ở lại, mà nhật ký vẫn ghi đã cập nhật.
+        gui = payload.model_fields_set
         fields: dict = {}
-        for f in (
-            "customer_po_no", "delivery_committed_date", "delivery_address",
-            "delivery_contact_name", "delivery_contact_phone", "delivery_note",
-            "production_note", "is_rush",
-        ):
+        for f in _NHAN_SUA_DON:
+            if f not in gui:
+                continue
             val = getattr(payload, f)
-            if val is not None:
-                fields[f] = val
-        if payload.deposit_pct is not None:
-            if not 0 <= payload.deposit_pct <= 100:
+            if f == "is_rush" and val is None:
+                continue                      # cờ gấp không có trạng thái "trống"
+            if f == "deposit_pct" and val is not None and not 0 <= val <= 100:
                 raise OrderValidationError("% cọc phải trong khoảng 0–100")
-            fields["deposit_pct"] = payload.deposit_pct
+            cu = getattr(order, f)
+            if (float(cu) if f == "deposit_pct" and cu is not None else cu) != val:
+                fields[f] = val
         if fields:
             self.repo.update(order, **fields)
-        self.audit.create(
-            actor_user_id=actor.id, action="update_order",
-            target=f"order:{order.id}", detail=f"Cập nhật đơn {order.order_no}",
-        )
+            self.audit.create(
+                actor_user_id=actor.id, action="update_order", target=f"order:{order.id}",
+                detail=f"Cập nhật đơn {order.order_no}: " + ", ".join(_NHAN_SUA_DON[f] for f in fields),
+            )
         return self._detail(self.repo.get_with_lines(order_id))
 
     def update_production_hint(self, *, order_id: int, actor, scope: str, payload) -> OrderDetailOut:

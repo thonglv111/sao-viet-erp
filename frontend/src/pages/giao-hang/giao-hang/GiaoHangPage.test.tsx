@@ -338,6 +338,28 @@ describe("Giao hàng · không để chuyến nào tắc", () => {
     await waitFor(() => expect(goi.some((g) => g.url.endsWith("/plans/1/huy"))).toBe(true));
     expect(goi.find((g) => g.url.endsWith("/plans/1/huy"))!.body).toEqual({ ly_do: "Khách dời ngày" });
   });
+
+  it("⭐ huỷ chuyến xong mà dòng biến khỏi danh sách ⇒ ngăn đang mở đóng theo, không đứng ở Chờ kho xuất (#33)", async () => {
+    const trips: unknown[] = [{ ...CHUYEN, trang_thai: "dang_chuan_bi" }];
+    stubApi({
+      trips,
+      rieng: (u) => {
+        if (!u.endsWith("/plans/1/huy")) return undefined;
+        trips.length = 0;     // máy chủ: chuyến huỷ ⇒ rút khỏi bảng giao
+        return { ...CHUYEN, trang_thai: "da_huy" };
+      },
+    });
+    veDon({ can_plan: true, can_create: true });
+    const n = await moNganChuyen();
+    expect(within(n).getAllByText(/Chờ kho xuất/).length).toBeGreaterThan(0);
+    await userEvent.click(within(n).getByRole("button", { name: /Đổi \/ huỷ chuyến/ }));
+    const ngan = await screen.findByRole("dialog", { name: "Đổi chuyến" });
+    await userEvent.click(within(ngan).getByRole("button", { name: "Huỷ chuyến" }));
+    await userEvent.type(await screen.findByRole("textbox", { name: "Lý do huỷ" }), "Khách hoãn");
+    await userEvent.click(screen.getAllByRole("button", { name: "Huỷ chuyến" }).at(-1)!);
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "YCGH-260819-A1B2" })).toBeNull());
+  });
 });
 
 describe("Giao hàng · yêu cầu xuất kho là chứng từ CỦA KHO", () => {

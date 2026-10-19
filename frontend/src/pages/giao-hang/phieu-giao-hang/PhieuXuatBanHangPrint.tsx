@@ -98,7 +98,8 @@ export function PhieuXuatBanHangPrint({
       const ids = g.goc.map((x) => x.id);
       const yeuCau = Math.max(0, ...ids.map((i) => slYc.get(i) ?? 0));
       const tx = ids.map((i) => xuatTheoDong.get(i)).filter((x) => x !== undefined);
-      const xuat = Math.max(0, ...tx.map((x) => x.so_luong));
+      // Có giá là biên bản giao ⇒ số khách thực nhận; 02-VT là chứng từ kho ⇒ số kho thực xuất (#34).
+      const xuat = Math.max(0, ...tx.map((x) => (coGia ? x.so_luong : x.so_xuat)));
       const tile = g.soLuong > 0 ? xuat / g.soLuong : 0;
       return {
         ...g, yeuCau, xuat, maHang: tx[0]?.ma_hang ?? "",
@@ -134,7 +135,7 @@ export function PhieuXuatBanHangPrint({
           </div>
           <div className="mx-dau">
             <div className="mx-dong-tt">
-              <div><span>Người mua:</span><span className="mx-cham" /></div>
+              <div><span>Người mua:</span>{px.nguoi_mua ? <span>{px.nguoi_mua}</span> : <span className="mx-cham" />}</div>
               <div><span>Tên khách hàng:</span><span>{khach}</span></div>
               <div><span>Địa chỉ:</span><span>{px.khach_dia_chi ?? ""}</span></div>
               <div><span>Điện thoại:</span>{px.khach_dien_thoai ? <span>{px.khach_dien_thoai}</span> : <span className="mx-cham" />}</div>

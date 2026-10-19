@@ -37,6 +37,8 @@ phát hành của `xep_lich_van_de_service` nên KHÔNG commit. Router phát SSE
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy.orm import Session
 
 from ...models.san_xuat import (
@@ -187,8 +189,9 @@ def thong_tin_goi(db: Session, *, nguon: str, id: int) -> dict:
     thuc = SanXuatThucThiRepository(db)
     lsx_ids, bg_ids = _refs(repo, nguon, id)
     goi = repo.goi_hien_tai_cua(lsx_ids, bg_ids)
+    lich_su_goi = [_goi_lich_su(g) for g in repo.cac_goi_cua(lsx_ids, bg_ids)]
     if goi is None:
-        return {"co_goi": False}
+        return {"co_goi": False, "lich_su_goi": lich_su_goi}
     all_cv = repo.cong_viec_cua_goi(goi.id)
     so_da = len(_da_bat_dau_ids(thuc, all_cv))
     so_chua = len(all_cv) - so_da
@@ -205,17 +208,31 @@ def thong_tin_goi(db: Session, *, nguon: str, id: int) -> dict:
         "so_chua_bat_dau": so_chua,
         "cho_phep_cap_nhat": dang and so_chua > 0,
         "cho_phep_thu_hoi": dang and so_da == 0,
-        "phien_bans": [
-            {
-                "so": p.so,
-                "loai": p.loai,
-                "ly_do": p.ly_do,
-                "phat_hanh_by_id": p.phat_hanh_by_id,
-                # `created_at` là UTC thật — đưa về giờ xưởng như mọi mốc thực thi khác.
-                "luc": thuc_te_hien_thi(p.created_at).isoformat() if p.created_at else None,
-            }
-            for p in phien_bans
-        ],
+        "phien_bans": [_phien_ban(p) for p in phien_bans],
+        "lich_su_goi": lich_su_goi,
+    }
+
+
+def _phien_ban(p) -> dict:
+    return {
+        "so": p.so,
+        "loai": p.loai,
+        "ly_do": p.ly_do,
+        "phat_hanh_by_id": p.phat_hanh_by_id,
+        # `created_at` là UTC thật — đưa về giờ xưởng như mọi mốc thực thi khác.
+        "luc": thuc_te_hien_thi(p.created_at).isoformat() if p.created_at else None,
+    }
+
+
+def _goi_lich_su(g) -> dict:
+    """Một gói trong tab Lịch sử phát hành, kể cả gói đã thu hồi kèm lý do (lỗi #25, 18/10/2026)."""
+    return {
+        "goi_id": g.id,
+        "ma": g.ma,
+        "trang_thai": g.trang_thai,
+        "thu_hoi_ly_do": g.thu_hoi_ly_do,
+        "thu_hoi_luc": thuc_te_hien_thi(g.thu_hoi_at).isoformat() if g.thu_hoi_at else None,
+        "phien_bans": [_phien_ban(p) for p in sorted(g.phien_bans, key=lambda p: p.so)],
     }
 
 
@@ -432,7 +449,7 @@ def co_cong_viec_da_bat_dau(db: Session, *, nguon: str, id: int) -> bool:
     return GiaCongNgoaiRepository(db).co_lan_da_di_trong_goi(goi.id)
 
 
-def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
+def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor, ly_do: str | None = None) -> int:
     """Thu hồi gói phát hành khi CHƯA việc nào bắt đầu: đánh `da_thu_hoi` (biến khỏi bàn tổ) + huỷ
     phân công/hỗ trợ còn treo. KHÔNG commit — nằm trong giao dịch gỡ-phát-hành của caller. Trả số
     công việc trong gói (0 nếu không có gói). Người gọi phải chặn trước bằng `co_cong_viec_da_bat_dau`."""
@@ -455,6 +472,9 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor) -> int:
 
     db.info.setdefault(KHOA_YC_HUY, []).extend(huy_khi_thu_hoi(db, goi_id=goi.id, actor_id=actor_uid))
     goi.trang_thai = GOI_DA_THU_HOI
+    goi.thu_hoi_ly_do = (ly_do or "").strip()[:500] or None
+    goi.thu_hoi_at = datetime.now(timezone.utc)
+    goi.thu_hoi_by_id = actor_uid
     goi.version += 1
     AuditLogRepository(db).create(
         actor_user_id=actor_uid,

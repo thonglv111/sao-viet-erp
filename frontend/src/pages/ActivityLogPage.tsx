@@ -434,12 +434,13 @@ export function ActivityLogPage({
     return m;
   }, [facets]);
 
-  /** `giay:12` → "Giấy #12". Loại ngoài khối danh mục thì giữ nguyên mã — thà thô còn hơn đoán sai. */
-  const moTaTarget = (target: string): string => {
+  /** `giay:12` → "Giấy #12". Loại ngoài khối danh mục lấy tên máy chủ đặt (`target_nhan`, #70);
+   *  máy chủ chưa khai thì giữ nguyên mã — thà thô còn hơn đoán sai. */
+  const moTaTarget = (target: string, nhan?: string | null): string => {
     if (!target) return "";
     const [loai, id] = target.split(":");
     const d = nhanLoai[loai];
-    return d ? `${d.nhan}${id ? ` #${id}` : ""}` : target;
+    return d ? `${d.nhan}${id ? ` #${id}` : ""}` : nhan ?? target;
   };
 
   const moBanGhi = (r: AuditRow) => {
@@ -714,7 +715,7 @@ export function ActivityLogPage({
                                 title={coCua ? `Mở màn ${nhanLoai[r.target_loai!].nhan}` : r.target}
                               >
                                 <Tag size={11} />
-                                {moTaTarget(r.target)}
+                                {moTaTarget(r.target, r.target_nhan)}
                               </span>
                             )}
 
@@ -790,7 +791,7 @@ export function ActivityLogPage({
                       </td>
                       <td>
                         {r.target ? (
-                          <span className="act-mono-pill">{moTaTarget(r.target)}</span>
+                          <span className="act-mono-pill">{moTaTarget(r.target, r.target_nhan)}</span>
                         ) : (
                           <span className="act-muted">—</span>
                         )}
@@ -889,7 +890,7 @@ export function ActivityLogPage({
                   <span className="act-modal-label">Đối tượng tác động</span>
                   <div>
                     {selectedRow.target ? (
-                      <span className="act-mono-pill">{moTaTarget(selectedRow.target)}</span>
+                      <span className="act-mono-pill">{moTaTarget(selectedRow.target, selectedRow.target_nhan)}</span>
                     ) : (
                       <span className="act-muted">— Không xác định —</span>
                     )}

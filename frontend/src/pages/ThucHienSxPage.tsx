@@ -51,6 +51,7 @@ import { thamSoKy } from "./thanh-loc/ky-danh-sach";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { ChamCho, choNgoaiBan, choTheoViec, tabCho, tongCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { ThsxSanLuongTab } from "./ThsxSanLuongTab";
+import { verMoiNhat, verTuKetQua, type VerViec } from "./thsxVersion";
 import {
   chonHinhBan, sxCoGio, sxDigest, sxNguonIcon, sxSerial,
   ThsxTrangThaiPill,
@@ -351,6 +352,8 @@ export function ThucHienSxPage({
 
   // `mutate` đang chờ máy chủ lưu (từ lúc gửi tới lúc bắt đầu nạp lại chi tiết).
   const dangGhi = useRef(false);
+  // `version` trong phản hồi lần ghi gần nhất — dùng khi chi tiết việc chưa kịp nạp lại (lỗi #43).
+  const verTam = useRef<VerViec | null>(null);
   useEffect(() => { void loadChiTiet(selectedId); }, [loadChiTiet, selectedId]);
   // Sự kiện SX (SSE) → nạp lại việc đang mở. Đang có lượt ghi của chính mình thì BỎ: `mutate` nạp
   // lại ngay sau khi lưu xong, lượt đó bắt đầu sau mọi sự kiện về trước nó nên đã phủ luôn. Không
@@ -547,6 +550,7 @@ export function ThucHienSxPage({
       setBusy(false);
       return null;
     }
+    verTam.current = verTuKetQua(r) ?? verTam.current;
     setReason(null);
     setToast(ok);
     // Trả kết quả NGAY khi máy chủ đã lưu để hộp nhập (Ghi mẻ, Đề xuất bàn giao…) đóng liền. Trước
@@ -595,7 +599,8 @@ export function ThucHienSxPage({
     setSelectedId(congViecId);
   }, []);
 
-  const ver = () => chiTiet?.version;
+  const ver = () => verMoiNhat(
+    chiTiet ? { id: chiTiet.cong_viec.id, version: chiTiet.version } : null, verTam.current);
 
   const onGiao = useCallback((employeeId: number) => {
     if (selectedId == null) return;

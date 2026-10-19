@@ -101,7 +101,8 @@ def _utcnow() -> datetime:
 def sinh_ma_chung_tu(tien_to: str, da_ton_tai) -> str:
     """`YCGH-yymmdd-XXXX` / `DNXGH-yymmdd-XXXX` — cùng khuôn `YCMH-` bên Thu mua. Dùng chung cho
     giao thẳng của gia công ngoài (không qua cửa lập yêu cầu)."""
-    hom_nay = _utcnow().strftime("%y%m%d")
+    # Ngày giờ VN: 00:00–07:00 sáng UTC còn ngày hôm trước (lỗi #69).
+    hom_nay = _utcnow().astimezone(timezone(timedelta(hours=7))).strftime("%y%m%d")
     bang_chu = string.ascii_uppercase + string.digits
     for _ in range(20):
         duoi = "".join(secrets.choice(bang_chu) for _ in range(4))
@@ -1436,6 +1437,30 @@ class DeliveryService:
             return None
         self._doi_trang_thai(trip, LG_DA_LAY_HANG, actor=actor,
                              ghi_chu=f"Kho đã xuất hàng — {stock_request.ma}")
+        return trip
+
+    def sau_kho_huy_xuat(self, stock_request, *, actor):
+        """Kho huỷ đề nghị xuất của chuyến (huỷ yêu cầu, hoặc huỷ phiếu nháp cuối cùng) ⇒ kho không
+        xuất nữa, chuyến rời "Chờ kho xuất" về "Đã lên kế hoạch" — trạng thái trước khi gửi kho — và
+        lịch sử chuyến ghi lý do của kho (#32, 18/10/2026). Trước đó chuyến kẹt "Chờ kho xuất" mãi,
+        điều phối không biết kho đã huỷ.
+
+        Chỉ đổi khi chuyến còn ĐANG chờ kho: lời huỷ đến từ chính `huy_ke_hoach` thì chuyến đã
+        `da_huy`, không kéo ngược. Trả chuyến vừa đổi, hoặc None — người gọi commit rồi mới báo."""
+        from ..models.stock_request import REQ_CANCELLED
+
+        if (getattr(stock_request, "loai", None) != "XUAT"
+                or not getattr(stock_request, "delivery_trip_id", None)
+                or stock_request.trang_thai != REQ_CANCELLED):
+            return None
+        trip = self.deliveries.get_trip(int(stock_request.delivery_trip_id))
+        if trip is None or trip.trang_thai != LG_DANG_CHUAN_BI:
+            return None
+        ly_do = (getattr(stock_request, "ly_do_huy", None) or "").strip()
+        self._doi_trang_thai(
+            trip, LG_DA_LEN_KE_HOACH, actor=actor,
+            ly_do=(f"Kho huỷ yêu cầu xuất {stock_request.ma}: {ly_do}" if ly_do
+                   else f"Kho huỷ yêu cầu xuất {stock_request.ma}")[:500])
         return trip
 
     def _chan_thieu_ton(self, lines: list[dict], kho_id) -> None:

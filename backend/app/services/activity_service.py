@@ -12,12 +12,15 @@ frontend đang tự làm trên 100 dòng đã tải về (nên làm sai):
 """
 from __future__ import annotations
 
+import json
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from .. import audit_registry as reg
 from ..repositories.loc_danh_sach import VN_TZ
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository, BoLoc
+from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.user_repo import UserRepository
 from .rbac_service import AuthorizationService
 
@@ -27,6 +30,39 @@ from .rbac_service import AuthorizationService
 CUA_SO_MAC_DINH_NGAY = 30
 
 TRAN_LIMIT = 200
+
+
+_NV_ID = re.compile(r"employee_id=(\d+)")
+
+
+# Vài màn ghi `detail` dạng JSON để màn của chúng tách cột (Điều chỉnh phiếu xuất, Tính giá kỳ kho).
+# Nhật ký chung đọc ra câu — không in `{"noi_dung": …}` thô (#70).
+_NHAN_KHOA_JSON = {"ly_do": "Lý do", "khoang_ngay": "Khoảng ngày", "ten_ky": "Tên kỳ"}
+
+
+def _doc_json(s: str) -> str:
+    if not s.startswith("{"):
+        return s
+    try:
+        d = json.loads(s)
+    except ValueError:
+        return s
+    if not isinstance(d, dict):
+        return s
+    phan = []
+    for k, v in d.items():
+        if v is None or v == "":
+            continue
+        nhan = _NHAN_KHOA_JSON.get(k)
+        phan.append(f"{nhan}: {v}" if nhan else str(v))
+    return ". ".join(phan) if phan else s
+
+
+def _ten_tho(e, so: str) -> str:
+    if e is None:
+        return f"thợ #{so}"
+    ma = (getattr(e, "code", None) or "").strip()
+    return f"thợ {e.full_name} ({ma})" if ma else f"thợ {e.full_name}"
 
 
 class ActivityService:
@@ -105,6 +141,19 @@ class ActivityService:
         # Chỉ tra `users` cho những dòng CŨ chưa có tên chụp sẵn — dòng mới đọc thẳng từ cột.
         can_tra = {r.actor_user_id for r in rows if r.actor_user_id and not r.actor_name_luc_do}
         ten = self.users.map_by_ids(can_tra) if can_tra else {}
+        # "employee_id=123" (phân công thợ ở bàn tổ) → tên thợ (#70). Giữ nguyên chuỗi gốc trong DB
+        # vì lịch sử việc đọc ngược số đó; chỉ đổi lúc trình bày.
+        nv_ids = {int(m) for r in rows for m in _NV_ID.findall(r.detail or "")}
+        nv = EmployeeRepository(self.audit.db).map_by_ids(nv_ids) if nv_ids else {}
+
+        def _chi_tiet(s: str | None) -> str | None:
+            if not s:
+                return s
+            s = _doc_json(s)
+            if not nv_ids:
+                return s
+            return _NV_ID.sub(lambda m: _ten_tho(nv.get(int(m.group(1))), m.group(1)), s)
+
         ra = []
         for r in rows:
             hd = reg.tra(r.action, r.target or "")
@@ -123,7 +172,8 @@ class ActivityService:
                     "nhom": hd.nhom,
                     "target": r.target,
                     "target_loai": (r.target or "").split(":", 1)[0] or None,
-                    "detail": r.detail,
+                    "target_nhan": reg.nhan_doi_tuong(r.target),
+                    "detail": _chi_tiet(r.detail),
                     "created_at": r.created_at,
                 }
             )

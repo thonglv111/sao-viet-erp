@@ -248,8 +248,10 @@ def test_yeu_cau_loc_theo_nguon_va_dem_tab(client):
         for i, loai in enumerate(["NHAP", "XUAT", "NHAP", "NHAP", "NHAP", "XUAT"]))
     _sua_yc(mua["id"], purchase_delivery_id=901)
     _sua_yc(giao["id"], delivery_trip_id=902)
-    _sua_yc(kcs["id"], san_xuat_cong_viec_id=903, gia_cong_ngoai_id=904)   # KCS đứng trước gia công
-    _sua_yc(gc["id"], gia_cong_ngoai_id=905)
+    _sua_yc(kcs["id"], san_xuat_cong_viec_id=903)
+    # Gia công THẮNG KCS (#41, 18/10/2026): thành phẩm nhà gia công giao về mang cả công việc lẫn
+    # gia công ngoài, mà KCS không kiểm lô đó.
+    _sua_yc(gc["id"], san_xuat_cong_viec_id=904, gia_cong_ngoai_id=905)
     _sua_yc(xuat_cv["id"], san_xuat_cong_viec_id=906)    # XUẤT có công việc ≠ KCS ⇒ không nguồn
 
     so = {d["id"]: d["so"] for d in client.get(f"{URL_YC}/loc-nguon", headers=h).json()}

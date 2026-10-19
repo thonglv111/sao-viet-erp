@@ -203,14 +203,14 @@ export type LoaiNhatKy = "ky_thuat_sua_chua" | "ky_thuat_bao_tri" | "ky_thuat_ye
 export function fmtNgay(v: string | null | undefined): string {
   if (!v) return "—";
   const d = new Date(v.length <= 10 ? `${v}T00:00:00` : v);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("vi-VN");
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export function fmtNgayGio(v: string | null | undefined): string {
   if (!v) return "—";
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "—";
-  return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 /** `yyyy-mm-dd` của HÔM NAY theo giờ máy người dùng — giá trị của ô ngày (`ChonNgay`). */

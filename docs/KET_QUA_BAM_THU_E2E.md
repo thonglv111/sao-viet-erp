@@ -393,3 +393,134 @@ Ghi chú P: hộp huỷ đơn để sẵn "Lỗi tại ai" là "Khách hàng" (c
 | 54 | Nhẹ | Người không có quyền xem lệnh mở ngăn đơn thì ô "Sản xuất" ghi "chờ lệnh" dù đơn đã có lệnh và đủ hàng: thợ xem DH017 thấy "chờ lệnh", admin thấy "kho đủ 1/1 món" | `DonHangBanPage.tsx:641-642` gọi `api.lsx.list` (403 với vai này) rồi `.catch(() => setLenhs([]))`; dòng 657 coi không có lệnh là `cho_kh`, dòng 671 in "chờ lệnh" |
 | 55 | Nhẹ | Nhập Excel danh mục Giấy (B21): mỗi lượt chỉ báo lỗi đầu tiên (một dòng ba lỗi phải nạp ba lần); lỗi đơn giá âm để ô cột "—"; file xuất ghi cột "ĐVT thêm" bằng mã thô "to" thay vì "tờ" | Thấy ở màn xem trước của hộp Nhập Excel và trong file xuất; chưa lần tới chỗ code |
 | 56 | Nhẹ | Công nợ phải trả: đơn mua cũ không theo đợt chỉ được nhắc "Lập phiếu chi cho đơn này ở màn Đơn mua hàng", nhưng màn đó không còn nút lập phiếu chi (P8). Chưa gặp trên dữ liệu clone, xác nhận qua code | `cong-no-phai-tra/components/DotConNoBlock.tsx:180`; ngoài Kế toán → Phiếu chi và Lương không trang nào có nút "Lập phiếu chi" |
+
+## R. Bấm lại sau khi sửa — 18/10 tối tới 19/10/2026 01:10
+
+Cùng bản sao `svn_erp_ui_luong` (backend 8010, frontend 5174, Redis 6392). Code sửa 56 lỗi theo
+`docs/superpowers/plans/2026-10-18-sua-56-loi-e2e.md`; mỗi lỗi bấm lại đúng chỗ đã gặp, rồi ghi lỗi
+mới từ #57.
+
+Cách chạy (khai ngay):
+
+- Hai trình duyệt. Playwright đăng nhập admin. Khung trình duyệt của ứng dụng đăng nhập `e2e_tho1`
+  (E2E Tho Mot, NV132) bằng mật khẩu thử của dự án, dùng cho các lỗi cần người thứ hai (#12, #26,
+  #37, #39, #40, #53, #54).
+- Trong Playwright, nút bấm bằng locator theo vai trò hoặc nhãn (click DOM thật), chữ gõ bằng `fill`,
+  ô `<select>` gốc chọn bằng `selectOption`. Ba thao tác khác: `page.mouse.click(40,400)` để bấm ra
+  nền ngoài ngăn; `dragTo` để kéo thẻ lệnh trên Xếp lịch; `setInputFiles` để chọn file ở Nhập Excel.
+  File Excel lỗi (#55) dựng bằng openpyxl từ chính file vừa xuất.
+- Đọc trạng thái bằng `innerText` và cây truy cập, không dựa vào ảnh. Phản hồi máy chủ đọc bằng cách
+  nghe `response` của trang. Đây chỉ là đọc, không gửi lệnh nào thay người bấm.
+- Đối chiếu số trong CSDL bằng `psql` chỉ đọc (đếm phiếu kho, xem quyền vai 94, xem khoảng khoá máy).
+- Ở trình duyệt thợ có hai lần đổi trang bằng script: một lần `location.reload()` sau khi admin đổi
+  quyền, một lần đặt URL `?man=tinh-gia`.
+- Không gọi API hay curl thay cho bất kỳ bước nào. Quyền của thợ được đổi qua màn Phòng ban → Vai trò
+  & Quyền và màn Hồ sơ nhân sự → Tài khoản & Quyền của admin.
+
+### Kết quả từng lỗi
+
+| # | Kết quả | Đã bấm, gõ và thấy |
+|---|---|---|
+| 1 | Chỉ kiểm bằng test | Bấm lúc 23:30 giờ VN (UTC cùng ngày) nên không tái hiện được; test máy chủ và giao diện xanh |
+| 2 | Đạt | Lương → tab Tạm ứng ⇒ URL `?man=luong&tab=tamung`, tải lại vẫn ở tab Tạm ứng. Tính giá → bấm PTG-2026-0024 ⇒ URL giữ `?man=tinh-gia`, tải lại về danh sách Tính giá (không về đúng phiếu) |
+| 3 | Đạt | Khoán km giao hàng: gõ "E2E Muc R" → Tạo mức mới → bậc 4000 → Lưu bậc giá → Xóa mức. Nhật ký có đủ 3 dòng Tạo, Ghi bảng bậc, Xoá mức |
+| 4 | Đạt | Khai báo kho → Thêm kho "E2E Kho R" → Tạo mới ⇒ form hiện ngay mã KHO-0007 |
+| 5 | Đạt | Giấy → Thêm giấy, định lượng 0 → Tạo mới ⇒ "Định lượng phải lớn hơn 0"; Hủy hỏi "Bỏ thay đổi?" |
+| 6 | Đạt | Tiêu chí KCS → E2E Be thu ⇒ "…các lệnh có chạy công đoạn E2E Be thu phát hành từ nay." |
+| 7 | Đạt | Giấy → Xóa COUCHE 150GSM ⇒ hộp Ngừng dùng liệt kê 5 dòng chỗ đang dùng, không dấu "·"; bấm Hủy |
+| 8 | Đạt | PTG-2026-0024 → Nhân bản (PTG-2026-0025) → thêm "Cắt thành phẩm" sau E2E Be thu ⇒ "Chuỗi công đoạn đứt đơn vị nên chưa ra giá được…", Bù hao "—"; bấm Xong ⇒ máy chủ từ chối, phiếu giữ 3 công đoạn cũ |
+| 9 | Đạt | PTG-2026-0021 tick 2 ô "Chọn để gộp" ⇒ "Gộp khi báo giá" xám, title "Gõ tên in ra báo giá trước khi gộp" |
+| 10 | Đạt (sửa thêm khi bấm lại) | BG26-0015 v2: khối tổng lần đầu 14.054.020, lịch sử phiên bản 14.054.019. Sửa ngay `bao-gia-tong.ts` (cộng VAT thô rồi mới làm tròn), tải lại ⇒ 14.054.019, VAT 1.277.638, khớp lịch sử và danh sách |
+| 11 | Đạt | Danh sách BG26-0013 v3 cột Lãi 18%, chi tiết Markup bình quân 18% |
+| 12 | Đạt | Thợ mở BG26-0020 "Nháp". Admin bấm Trình duyệt ⇒ 4 giây sau màn thợ tự sang "Chờ duyệt", có nút Duyệt và Từ chối (vai thợ có quyền duyệt đặc thù). Admin gõ ý kiến "E2E R duyet de thu real-time" rồi bấm Duyệt ⇒ 4 giây sau thợ thấy "Đã duyệt" và nút "Gửi khách". Không nạp lại trang. Riêng "Gửi khách" không đẩy (#60) |
+| 13 | Đạt ở khối tổng | BG26-0013 v3: khối Giá bán đề xuất 6.345.355, "Chỉ cộng 1 trên 2 sản phẩm khách lấy". Lịch sử phiên bản và danh sách vẫn lệch (#61) |
+| 14 | Đạt | Hàng chờ → DH016 ⇒ cột Giấy nguyên có nhãn. Đầu hồ sơ lệnh vẫn ghi sai nhãn (#66) |
+| 15 | Đạt | LSX26-0010 → chuyển Bế lên trên Cán màng ⇒ tiền nhiệm nối theo thứ tự mới, Cần xem lại báo "đứt đơn vị", Lưu xám tới khi gõ lý do "E2E R thu doi thu tu"; Lưu ⇒ máy chủ từ chối với câu chuỗi đứt đơn vị; bấm Tải lại |
+| 16 | Đạt | LSX26-0015 (gia công trọn gói) không còn khối "Còn thiếu" |
+| 17 | Đạt | DH015 → Xác nhận tạo LSX26-0017 → Xoá lệnh ⇒ danh sách trống, chip lọc vẫn "Đơn hàng là DH015" |
+| 18 | Đạt (phiên khác sửa) | DH016 → LSX26-0018 → tab Vật tư có "NVL chính E2E Couche 120 430 × 650 mm 600 tờ"; đã xoá lệnh thử |
+| 19 | Đạt | YCMH-261018-7OHY → Bỏ COUCHE 80GSM, lý do "E2E R khong can nua" ⇒ Lịch sử ghi chuyển trạng thái kèm lý do |
+| 20 | Đạt | Huỷ yêu cầu ⇒ ô "Lý do huỷ (bắt buộc)", nút xám tới khi gõ "E2E R huy ca phieu thu" ⇒ Lịch sử có lý do. Chip vẫn sai (#58) |
+| 21 | Đạt | Tạo yêu cầu mua, gõ dở, bấm ra nền ⇒ hộp "Bỏ phiếu đang nhập?" → Nhập tiếp, dữ liệu còn |
+| 22 | Đạt | DMH-261017-SK10: nhận 500 ⇒ nợ NCC 840.780; nhận nốt 1.075 ⇒ nợ 2.648.457, ngay lúc lưu |
+| 23 | Đạt | Kế hoạch vật tư LSX26-0008 → Đề nghị mua khổ 650 × 860, 800 tờ (YCMH-261019-K1X2) ⇒ dòng "Đã mua khác quy cách: YCMH-261019-K1X2 800 tờ 650 × 860 mm", ô chọn khoá. Lộ thêm #57 |
+| 24 | Đạt | Tạo LSX26-0019 từ DH016, chọn khuôn KB-0001, Sẵn sàng, kéo vào T3 20/10 ⇒ ngăn ghi "Sớm nhất xong T3 20/10 16:16" và "Chưa tính được giờ ở 1 bước…" |
+| 25 | Đạt | Phát hành → Thu hồi, lý do "E2E R doi may in" → Phát hành ⇒ Lịch sử phát hành ghi lần thu hồi kèm lý do và bản cũ |
+| 26 | Đạt | Đặt tổ E2E To thu phạm vi "Của tôi" cho vai thợ ⇒ khối Chờ chốt giấy LSX26-0019 chỉ để xem, không còn nút "Không cần cắt". Nhánh hiện câu báo lỗi chỉ kiểm bằng vitest |
+| 27 | Đạt | Xếp lịch ghi "máy dừng chờ sửa" trên LSX26-0019; bàn tổ Nhóm thợ in máy 4 màu: Bắt đầu xám, "Máy đang dừng chờ sửa (SC-0013)…" |
+| 28 | Đạt | Danh sách và ngăn cùng "0 / 500" (LSX26-0019), "1.250 / 1.250" (LSX26-0013). "Chạy máy 24 phút" khác lịch 14:00–15:39 vì lịch gồm chuẩn bị máy (theo ruling) |
+| 29 | Đạt | Sơ đồ LSX26-0010 kéo dây Bài in → Bế ⇒ Lưu bị máy chủ từ chối với câu phụ thuộc thừa; giao diện chưa báo trước khi Lưu |
+| 30 | Đạt | SC-0017 → Mở lại (lý do bắt buộc "E2E R may ket lai") → Xác nhận đã sửa xong ⇒ "Từ yêu cầu YC-0009" vẫn còn |
+| 31 | Đạt ở máy chủ | KCS LSX26-0016 bước In gõ 900 lỗi trên 800 tờ ⇒ Lưu trả 400 "…số lỗi 900 vượt phần còn ghi được 800." Hộp vẫn báo "Lưu được" trước khi lưu (#72) |
+| 32 | Đạt | YCGH-261012-PQKC lên lượt LX-261018-CISD, có DNX00115. Kho huỷ DNX00115 ở "Phiếu từ yêu cầu" với lý do "E2E R het hang kho" ⇒ chuyến về "Đã lên kế hoạch", lịch sử ghi lý do |
+| 33 | Đạt | Huỷ chuyến, lý do "E2E R khach hoan" ⇒ ngăn tự đóng, dòng "Đã huỷ" |
+| 34 | Đạt | DH011 tab Giao: lượt 1TWW giao thất bại không có nút in; REHT in ra "Người mua E2E Nguoi Mua", 800 cái, tổng 964.494 |
+| 35 | Đạt | DH011 Ghi hóa đơn: lịch khoá 17/10 và trước đó; gõ đè 17/10 không ăn. Đã huỷ, không ghi |
+| 36 | Đạt | E2E NCC giay: danh sách, tab Còn nợ, tab Sao kê cùng 420.000 |
+| 37 | Đạt | Thợ ở Chấm công thấy "NGOÀI VÙNG" mà không có nút "Đặt điểm chấm công tại đây" (vai thợ không có quyền quản lý vùng). Chưa dựng được trạng thái "đã chấm rồi bị báo ngoài vùng" vì lúc 00:33 chưa tới giờ chấm |
+| 38 | Đạt | Bảng lương 10/2026 → Khoán km Dương Văn Nhí ⇒ dòng phụ "Về kho của lượt LX-261018-ZRQ2". Còn in id thô (#74) |
+| 39 | Đạt | Admin Thu hồi phiếu lương rồi Công bố ⇒ khoảng 4 giây sau màn thợ tự hiện phiếu kèm toast "Phiếu lương 10/2026 đã công bố…". Chiều thu hồi không đẩy (#59) |
+| 40 | Đạt một phần | Thợ gửi tăng ca 20:00–21:00 ngày 19/10 (ngày đã duyệt nghỉ) ⇒ bị chặn với câu rõ. Chưa bấm phần duyệt đơn nghỉ cho ngày đã chấm công (không có ngày phù hợp), mới chỉ kiểm bằng test |
+| 41 | Đạt | Yêu cầu nhập xuất: DNN00083 cột Nguồn "Gia công LSX26-0015"; ngăn ghi "Từ Nhà gia công giao thành phẩm" |
+| 42 | Đạt | Phiếu chi → Gia công chờ chi: "250 tay sách", "790 tờ in" |
+| 43 | Đạt | Bàn tổ in 4 màu, LSX26-0019: rút Nguyễn Hoàng Huynh rồi 0,8 giây sau rút Trần Công Quyền ⇒ cả hai rời việc, không có câu "Phiên bản không khớp". Đã giao lại cả hai |
+| 44 | Đạt | TS-0014 → Dùng lại → Thôi dùng: lịch khoá từ 20/10 trở đi; chọn 19/10, Thanh lý, "E2E R thanh ly lai" ⇒ "Thôi dùng từ 19/10/2026", khấu hao tính tới 10/2026 (129.032 đ) |
+| 45 | Đạt | Khoá kỳ kho 01–19/10 → DNX00017 Lập phiếu → Tạo và ghi sổ → Ghi sổ ⇒ 400 "Kỳ kế toán chứa ngày 19/10/2026 đã khóa sổ…", không có phiếu nháp nào (bảng phiếu kho vẫn 182 dòng). Mở kỳ rồi lập PXK00097 ghi sổ, "Sửa số xuất nhầm" 500 → 1 lý do "E2E R tra lai kho" ⇒ được; gõ 0 bị chặn |
+| 46 | Đạt | Khoá kỳ phải thu "E2E R ky phai thu" 01/01–19/10 ⇒ lập phiếu thu HĐ 00000104 ngày 19/10 và huỷ PT00026 (18/10) đều trả 422 "Kỳ công nợ phải thu chứa ngày … đã khoá…"; PT00026 vẫn "Đã thu". Đã mở lại kỳ |
+| 47 | Đạt | Báo cáo kinh doanh DH002 BIBICA có cột "Trả lại ngoài đơn 5.000.000", "Còn phải thu 18.471.796", khớp Công nợ phải thu |
+| 48 | Đạt 3/3 | Kỳ "E2E R ky 1-19/10" khoá rồi tính giá (686.432.342). Ba lần vào lại từ thanh bên ⇒ luôn hiện đúng kỳ, banner "Đã tính giá kỳ…", đủ cột giá trị |
+| 49 | Đạt | Nhật ký có: Bỏ thôi dùng và Thôi dùng tài sản; Khoá, Tính giá, Mở kỳ kho; Lập, Ghi sổ, Điều chỉnh phiếu xuất PXK00097; Khoá, Mở kỳ công nợ. Còn in JSON thô (#70) |
+| 50 | Đạt | Xếp lịch → Khoá máy: khai máy in 4 màu bảo trì 20/10 13:00–17:00 ⇒ ô nhãn LSX26-0019 "2 cảnh báo máy", title có "…có lịch bảo trì 20/10 13:00–20/10 17:00, đè lên giờ chạy." Khai máy in 2 màu 19/10 00:00–06:00 ⇒ Thiết bị & Máy móc ghi IN-01 "Đang bảo trì". Đã xoá cả hai khoảng khoá |
+| 51 | Đạt | Mở lại SC-0017 bắt buộc lý do; lịch sử ghi "mở lại — E2E R may ket lai" |
+| 52 | Đạt | DH010 nháp: xoá PO, % cọc, ngày giao → Lưu ⇒ các ô về "—", khối chốt báo thiếu PO và thiếu ngày giao |
+| 53 | Đạt | Thợ chỉ có quyền Xem. DH017: không có "Hủy đơn". PTG-2026-0008 (chưa có báo giá): không có "Báo giá →", nút Tính giá xám, title "Bạn chỉ được xem phiếu này — không có quyền lưu". PTG-2026-0025 (đã có báo giá): có "Mở BG26-0020 →". Báo cáo kho: không có "Tính giá kỳ", không có "Khóa / mở kỳ" |
+| 54 | Đạt | Thợ không có quyền xem lệnh mở DH017 ⇒ ô Sản xuất "kho đủ 1/1 món" (trước đây "chờ lệnh") |
+| 55 | Đạt | File Excel giấy có dòng lỗi 3 ô ⇒ "File có 3 chỗ chưa hợp lệ", đúng cột; file xuất ghi "tờ" |
+| 56 | Chỉ kiểm code | Clone không có đơn mua kiểu cũ. Câu gợi ý đã sửa thành "…Phiếu thanh toán phải gắn đợt giao nên đơn này chưa trả được ở đây." (`DotConNoBlock.tsx:182`) |
+
+Dữ liệu thử để lại trên clone: KHO-0007 "E2E Kho R", PTG-2026-0025, YCMH-261018-7OHY (đã huỷ),
+YCMH-261019-K1X2, LSX26-0019 (phát hành, thu hồi, phát hành lại), DNX00115 (huỷ), lượt
+LX-261018-CISD (huỷ chuyến), SC-0017 (mở lại rồi xong), phiếu lương 10/2026 (thu hồi rồi công bố lại),
+BG26-0011 (đã gửi khách), BG26-0019 (nháp, markup 0%), BG26-0020 (đã duyệt), TS-0014 (thôi dùng
+19/10), PXK00097 (1 tờ COUCHE 150GSM 700 × 1000, DNX00017 thành đủ), kỳ kho "E2E R ky 1-19/10" và kỳ
+công nợ "E2E R ky phai thu" (đã khoá rồi mở lại). Vai "E2E To truong" (94) gán lại cho e2e_tho1.
+Quyền của vai lúc dừng: Xem Tính giá, Đơn hàng bán, Báo cáo kho, Báo giá (đã tắt quyền tạo và sửa,
+còn quyền duyệt đặc thù); tổ E2E To thu phạm vi "Của tôi".
+
+### Lỗi mới thấy khi bấm lại
+
+| # | Mức | Lỗi | Chỗ |
+|---|---|---|---|
+| 57 | Vừa | Hàng đã nhận đủ nhưng chưa nhập kho thì Kế hoạch vật tư coi như chưa mua. DMH-261017-SK10 nhận đủ 1.575 tờ cho LSX26-0008, đang "Chờ gửi kho", vậy mà Kế hoạch vật tư ghi "Cần mua 1.575, Phiếu mua —" và nút Đề nghị mua vẫn mở, nên mua được lần hai | `ke_hoach_vat_tu_service._vet_mua_theo_hang` và `_hang_dang_ve` bỏ qua dòng mua đã nhận đủ; hàng đã về nhưng chưa vào kho không thuộc nhóm nào |
+| 58 | Vừa | Bỏ một món rồi huỷ cả yêu cầu mua: chip ở danh sách và ngăn vẫn "Huỷ một phần", cột Cần hàng vẫn đếm ngày, tải lại vẫn vậy (YCMH-261018-7OHY) | Huỷ cả phiếu không đặt `cancelled_at` cho món còn sống, nên `purchase_repo.py:839` và `purchase_service.py:4512` vẫn suy ra `partially_cancelled` |
+| 59 | Vừa | Thu hồi phiếu lương không đẩy tới người lao động. Màn "Phiếu lương của tôi" đang mở vẫn hiện phiếu đã thu hồi cho tới khi người đó tự nạp lại. Chiều công bố thì đẩy ngay | Sự kiện chỉ phát lúc công bố |
+| 60 | Nhẹ | Báo giá chuyển "Gửi khách", "Khách chốt", "Khách từ chối" không đẩy tới màn đang mở của người khác: thợ mở BG26-0011, admin gửi khách, hơn 8 giây sau màn thợ vẫn "Nháp" và còn nút "Gửi khách" | `routers/quotations.py` `transition_quotation` chỉ phát sự kiện khi `to_status` là `pending_approval` hoặc `cancelled` |
+| 61 | Nhẹ | BG26-0013 v3 có hai tổng: khối tổng 6.345.355 (chỉ dòng khách lấy), còn Lịch sử phiên bản và cột "Giá bán gồm VAT" ở danh sách 12.810.204 (cộng cả dòng khách không lấy) | Tổng phiên bản ở máy chủ chưa theo luật #13 |
+| 62 | Nhẹ | Đơn lệch báo giá 1–2 đ: DH017 5.453.186 so với BG26-0018 5.453.185; DH010 42.454.541 so với BG26-0012 42.454.539 | Đơn và báo giá làm tròn ở hai chỗ khác nhau |
+| 63 | Nhẹ | Ngăn sửa sản phẩm khi chuỗi công đoạn đứt đã ghi "chưa ra giá được", nhưng vẫn in Tờ in 288 (cần 750), Tờ nguyên 144 và "Giá vốn sản phẩm 3.712.850 đ" ngay cạnh câu đó. Lưu thì bị chặn | Ngăn sản phẩm Tính giá |
+| 64 | Nhẹ | Tab "Nhật ký" của ngăn đơn hàng không nạp lại sau khi Lưu; phải đóng rồi mở lại ngăn | Ngăn đơn hàng bán |
+| 65 | Nhẹ | Bấm "Sẵn sàng lập kế hoạch" xong, đầu hồ sơ lệnh hiện "Có thay đổi mới — làm mới" dù thay đổi do chính người đó vừa làm | Hồ sơ lệnh sản xuất |
+| 66 | Nhẹ | Đầu hồ sơ lệnh ghi "GIẤY NGUYÊN 300 tờ in" (LSX26-0019) và "700 tờ in" (LSX26-0015): giấy nguyên mà gọi là tờ in, cùng lỗi nhãn #14 ở chỗ khác | Đầu hồ sơ lệnh |
+| 67 | Nhẹ | Ngày thiếu số 0: "Hạn giao 5/11/2026" ở hồ sơ lệnh, "hạn 5/11" và "5/11/2026" ở ngăn đơn, "7/10/2026" ở danh sách Phiếu từ yêu cầu, ngay cạnh "12/10/2026" | Nhiều màn |
+| 68 | Nhẹ | Còn nối mẩu dữ liệu bằng "·" hoặc dấu phẩy: nhãn nhật ký "Thêm · Khai báo kho"; "Ban giám đốc · Admin"; "NGUYÊN VẬT LIỆU · CÔNG ĐOẠN"; khối Chờ chốt giấy (mã · khổ · cần); dòng báo giá "Bài in… · Cán màng · E2E Be thu", "5 % · 206.560 đ"; banner Báo cáo kho; phiếu lương "NC chuẩn: 27 · Ngày công: 1"; bàn tổ "đã giao Nguyễn Hoàng Huynh, Trần Công Quyền"; tiêu đề "Bậc giá khoán km · E2E Muc R" | Nhiều màn |
+| 69 | Nhẹ | Mã lượt xe lấy ngày UTC: lượt tạo 00:15 ngày 19/10 giờ VN mang mã LX-261018-CISD, trong khi YCMH lập 00:04 cùng đêm mang mã YCMH-261019-K1X2 | Sinh mã lượt giao hàng |
+| 70 | Nhẹ | Nhật ký còn mã thô và JSON thô: "Phân công thợ — employee_id=123" (không tên thợ, không mã lệnh); "BG26-0020: chuyển sang pending_approval"; "duyệt báo giá đặc thù (markup_out)"; "Điều chỉnh phiếu xuất kho {"noi_dung": "COUCHE 150GSM: 500 1", …}"; "Tính giá kỳ kho {"pham_vi": …}"; "1 bậc (trên đó 4000đ)"; lịch sử phiếu sửa "trạng thái → da_sua_xong"; cột Đối tượng "tai_san:28", "voucher:188" | Chỗ ghi `audit_logs` của các service tương ứng; nhãn ở `audit_registry.py` |
+| 71 | Nhẹ | Phiếu sửa mở lại rồi xong ghi "Sửa mất 15 giờ", tính từ lúc hỏng tới lần xong mới, gồm cả quãng phiếu đã đóng | Phiếu sửa chữa máy |
+| 72 | Nhẹ | Hộp Ghi lỗi KCS báo "Lưu được" khi số lỗi vượt trần của công đoạn đã xong; chỉ biết sai khi máy chủ trả 400 | Giao diện KCS không biết trần của công đoạn đã xong |
+| 73 | Nhẹ | Công nợ NCC tab Còn nợ: Đợt 2 "Giá trị 390.000, Đã trả 390.000, Còn nợ 50.000". Số 50.000 là phiếu hoàn bị cộng vào, không cột nào giải thích, cộng hàng ngang không ra. Tab Sao kê xếp phiếu chi trước đợt nhận hàng cùng ngày nên số dư giữa kỳ ra âm (−300.000, −1.190.000) | Ngăn công nợ NCC |
+| 74 | Nhẹ | Hộp Khoán km cột Chuyến in id thô "#20", "#21" thay vì mã yêu cầu giao hoặc mã lượt | Bảng lương, hộp Khoán km |
+| 75 | Nhẹ | Tài khoản chưa có vai đăng nhập vào thì thấy "Bạn không có quyền truy cập mục này (403). Về Hồ sơ của tôi" ngay trên trang Hồ sơ của tôi: nút dẫn về chính trang 403, không câu nào nói tài khoản chưa được gán vai | Màn 403 |
+| 76 | Nhẹ | Định dạng số lẫn kiểu máy: bảng lương "1.87" cạnh "122,87"; phiếu lương "Giờ tăng ca: 0.0h"; lỗi Excel "phải ≥ 0.0" | Bảng lương, phiếu lương, nhập Excel |
+| 77 | Nhẹ | Người chỉ có quyền Xem vẫn thấy lối sang màn họ không vào được: ngăn đơn hiện "Mở Kế hoạch sản xuất ↗", link "LSX26-0016 ↗", "Xem giao hàng", bấm ra 403. Báo cáo kho ghi "Chưa có kỳ nào. Bấm “Khóa / mở kỳ”…" và banner "Khóa sổ ở Kỳ kế toán →", bảo bấm nút họ không có | Ngăn đơn hàng bán, Báo cáo kho |
+| 78 | Nhẹ | Một phiếu thu mang hai số: danh sách ghi "PT00026" (`doc_no`), ngăn thu tiền của hoá đơn 00000104 ghi "PT-261018-VNXN phiếu gộp" (`code`) | Ngăn thu tiền hoá đơn đọc `code`, danh sách đọc `doc_no` |
+| 79 | Nhẹ | Cảnh báo máy gắn cả lệnh đã xong bước trên máy đó: ô nhãn LSX26-0016 (bước In xong 18/10 11:54) vẫn ghi "máy dừng chờ sửa" | `xep_lich/service.py` `_gan_canh_bao_may` xét mọi khung máy của dòng, không bỏ bước đã xong |
+
+Thấy nhưng chưa xác minh đủ để gọi là lỗi:
+
+- Ngăn việc ở bàn tổ ghi "Khổ giấy nguyên 860 × 650 mm", còn kho và Chờ chốt giấy ghi lô
+  "650 × 860 mm".
+- Mở Báo cáo kho hay Báo cáo kinh doanh từ thanh bên thì URL mang theo
+  `?ky=tuy&tu=2026-09-20&den=2026-10-19`, tức khoảng ngày của màn Nhật ký vừa xem.
+- Tổng hợp công nợ phải trả: NCC006 Kim Long "Đã trả −30.000", "Còn nợ cuối kỳ 30.000", đầu kỳ "–".
+- Ngăn lệnh ghi "Chạy máy 24 phút" trong khi lịch xếp 14:00–15:39. Chênh lệch là phần chuẩn bị máy
+  (theo ruling), nhưng số phút chuẩn bị không hiện ở chỗ nào.

@@ -174,7 +174,7 @@ def test_tra_ma_la_khong_no():
 
 def test_tra_danh_muc_lay_nhan_va_quyen_theo_target():
     hd = reg.tra("dm_sua", "giay:12")
-    assert hd.nhan == "Sửa · Giấy"
+    assert hd.nhan == "Sửa giấy"
     assert hd.module == "dm_giay"
     # Tên loại đời cũ còn nằm trong audit_logs vẫn phải tra ra.
     assert reg.tra("dm_tao", "machine:3").module == "dm_thiet_bi"

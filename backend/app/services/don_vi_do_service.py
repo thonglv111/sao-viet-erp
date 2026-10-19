@@ -18,6 +18,7 @@ from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogService, CatalogValidationError,
 )
 from ..repositories.don_vi_do_repo import DonViDoRepository
+from .kho_giay import GIAY_DON_VI_BAT_BUOC
 from .quy_doi_service import (
     BIEN, _so, bien_trong, cap_map, cum_tinh, duong_di, he_so_duong,
 )
@@ -75,6 +76,12 @@ LOAI_DON_VI = "don_vi_do"
 LOAI_CAP = "don_vi_quy_doi"
 
 
+def la_don_vi_khoa(ma: str | None) -> bool:
+    """Tờ + kg bị KHOÁ ở module Đơn vị & quy đổi (chốt 18/10/2026): mọi mã giấy bắt buộc có hai
+    nhóm này. Không xoá, không ngừng dùng, không đổi mã; tên và quy đổi vẫn sửa được."""
+    return (ma or "").strip().lower() in GIAY_DON_VI_BAT_BUOC
+
+
 class DonViDoService(CatalogService):
     """Thân CRUD của ĐƠN VỊ dùng chung ở `services/catalog_base.CatalogService`.
 
@@ -100,6 +107,9 @@ class DonViDoService(CatalogService):
         if not (data.get("ten") or "").strip():
             raise DonViDoValidationError("Tên đơn vị không được trống.")
         self._kiem_trung_ten(data, obj)
+        if obj is not None and la_don_vi_khoa(obj.ma)                 and (data.get("ma") or "").strip().lower() != (obj.ma or "").strip().lower():
+            raise DonViDoValidationError(
+                f"Không đổi được mã «{obj.ma}» — tờ và kg là đơn vị bắt buộc của giấy.")
         # `tram_dong_giay` (cờ TRẠM trên dòng giấy) GỠ 06/09/2026. Nó là lớp trung gian cho một thứ
         # không cần trung gian: dòng giấy có ĐÚNG 5 chặng đóng cứng trong engine, cờ này chỉ cho
         # đổi TÊN chặng chứ không thêm được chặng thứ 6 — đổi lại bắt người khai đơn vị (việc của
@@ -108,6 +118,17 @@ class DonViDoService(CatalogService):
         # CÁCH ĐO của đơn vị (`cong_thuc`, mg 0192) GỠ 17/08/2026 — xem mg `0215`. Module này nay
         # chỉ còn HAI việc: khai đơn vị, và quy đổi giữa các đơn vị bằng hệ số cố định. Câu "một
         # lệnh cần bao nhiêu" thuộc về MÓN / MÁY / ĐẦU VIỆC / BƯỚC, mỗi nơi đã có ô riêng.
+
+    def _blockers(self, obj) -> list[str]:
+        if la_don_vi_khoa(obj.ma):
+            return ["tờ và kg là đơn vị bắt buộc của giấy"]
+        return []
+
+    def dat_active(self, item_id: int, active: bool, actor_id: int | None = None):
+        if not active and la_don_vi_khoa(self.get(item_id).ma):
+            raise DonViDoValidationError(
+                "Không ngừng dùng được — tờ và kg là đơn vị bắt buộc của giấy.")
+        return super().dat_active(item_id, active, actor_id)
 
     def _kiem_trung_ten(self, data: dict, obj=None) -> None:
         """Chặn hai đơn vị cùng TÊN (bỏ hoa thường, bỏ khoảng trắng hai đầu).

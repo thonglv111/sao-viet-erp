@@ -1218,7 +1218,7 @@ def _log_tinh_gia(db: Session, user: User, *, kho_id: int | None,
         target="Tính giá kỳ",
         detail=json.dumps(
             {
-                "pham_vi": f"Tính giá kỳ · {kho_ten or 'Tất cả kho'}",
+                "pham_vi": f"Tính giá kỳ ({kho_ten or 'tất cả kho'})",
                 "khoang_ngay": f"{_fmt_date(tu)} – {_fmt_date(den)}",
                 "ten_ky": ten,
             },

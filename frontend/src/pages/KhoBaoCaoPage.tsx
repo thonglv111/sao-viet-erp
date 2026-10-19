@@ -64,6 +64,7 @@ import {
 } from "./dieu-kien-bao-cao-kho";
 import "./rebuild-catalog.css";
 import "./kho-request.css";
+import { taoLuot } from "../lib/luotMoiNhat";
 
 type KhoOpt = { id: number; ma: string; ten: string };
 type Tab = "tong-quan" | "nxt" | "gia-goc" | "ky";
@@ -451,6 +452,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
   // Ô "Xem giá thành" của CHÍNH màn Báo cáo kho (05/10/2026 — mỗi màn kho một ô xem giá riêng).
   const can = useCan();
   const canViewCost = can("bao_cao_kho", "view_cost");
+  // Tính giá kỳ + khoá/mở kỳ = ô "Khóa sổ" (`close_book`), đúng cổng máy chủ (#53): người chỉ có
+  // Xem trước đó thấy nút, điền hộp xong mới ăn 403.
+  const canCloseBook = can("bao_cao_kho", "close_book");
   const [search, setSearch] = useState("");
   const searchTre = useDebounced(search.trim());
   // Điều kiện THUỘC TÍNH của nút Lọc (loại phiếu, lý do, loại hàng, mặt hàng, đối tác, phát sinh, tồn) — chung
@@ -513,7 +517,11 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
   const [nxtDaKhoa, setNxtDaKhoa] = useState(false);   // kỳ này đã khóa sổ chưa
   // "Đến ngày" rơi GIỮA một kỳ ĐÃ TÍNH (chốt ở ngày khác) → vẫn hiện cuối kỳ, dạng TẠM TÍNH.
   const [nxtKyBao, setNxtKyBao] = useState<{ den: string; ten: string | null } | null>(null);
+  // Lượt về sau không được đè lượt mới hơn (#48): lúc vào màn có lượt "tháng này" mặc định rồi lượt
+  // theo kỳ đã khoá, lượt tháng về chậm hơn là bảng hiện số tạm tính dưới tên kỳ đã chốt.
+  const luotNxt = useRef(taoLuot()).current;
   const loadNxt = useCallback(() => {
+    const conMoi = luotNxt.bat();
     if (!nxtTu || !nxtDen) {
       setNxtRows([]); setNxtDaTinh(false); setNxtDaKhoa(false); setNxtKyBao(null); return;
     }
@@ -522,12 +530,13 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     api.kho.baoCao
       .nxt(token, { tu: nxtTu, den: nxtDen, kho_id: khoId, q: searchTre || undefined, loc: JSON.parse(khoaLocNxt) })
       .then((p) => {
+        if (!conMoi()) return;
         setNxtRows(p.items); setNxtDaTinh(p.da_tinh); setNxtDaKhoa(p.da_khoa); setLuaChonNxt(p.lua_chon ?? null);
         setNxtKyBao(p.ky_da_tinh_den ? { den: p.ky_da_tinh_den, ten: p.ky_da_tinh_ten } : null);
       })
-      .catch((e) => setError(e instanceof ApiError ? e.message : "Không tải được báo cáo N-X-T."))
-      .finally(() => setLoading(false));
-  }, [token, nxtTu, nxtDen, khoId, searchTre, khoaLocNxt]);
+      .catch((e) => { if (conMoi()) setError(e instanceof ApiError ? e.message : "Không tải được báo cáo N-X-T."); })
+      .finally(() => { if (conMoi()) setLoading(false); });
+  }, [token, nxtTu, nxtDen, khoId, searchTre, khoaLocNxt, luotNxt]);
   // Chi tiết phiếu nạp riêng (xem `load`) — hai bên dùng chung cờ `loading` nên đừng nạp chồng.
   const xemTongHop = tab === "nxt" && nxtView !== "chitiet";
   useEffect(() => {
@@ -653,7 +662,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     if (r.kho_id == null) return;
     const kho = r.hang_loai === "giay" && r.kho_rong ? nhanKho(r.kho_rong, r.kho_dai) : "";
     setMatInfo({ kho_id: r.kho_id, kho_ten: r.kho_ten, hang_loai: r.hang_loai as HangLoai, hang_id: r.hang_id,
-      ten: kho ? `${r.ten_hang ?? ""} · ${kho}` : r.ten_hang, dvt: r.dvt });
+      ten: kho ? `${r.ten_hang ?? ""} (${kho})` : r.ten_hang, dvt: r.dvt });
     setMatHist(null);
     setMatErr(null);
     setMatLoading(true);
@@ -740,7 +749,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
         const key = `${r.ma_hang ?? r.ten_hang ?? "?"}|${kho}|${r.don_vi_goc ?? ""}`;
         let cur = m.get(key);
         if (!cur) {
-          cur = { ma: r.ma_hang, ten: kho ? `${r.ten_hang ?? ""} · ${kho}` : r.ten_hang, dvt: r.dvt, sl: 0, tien: 0 };
+          cur = { ma: r.ma_hang, ten: kho ? `${r.ten_hang ?? ""} (${kho})` : r.ten_hang, dvt: r.dvt, sl: 0, tien: 0 };
           m.set(key, cur);
         }
         cur.sl += r.so_luong ?? 0;
@@ -1254,9 +1263,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           <td key={key} className="lds-nut">
             {r.kyIdx >= 0 && (
               <>
-                <button type="button" className="lds-btn lds-btn--xs" onClick={() => tinhGiaDongKy(r)} disabled={tinhBusy}>
+                {canCloseBook && <><button type="button" className="lds-btn lds-btn--xs" onClick={() => tinhGiaDongKy(r)} disabled={tinhBusy}>
                   {r.tinh ? "Tính lại giá" : "Tính giá"}
-                </button>{" "}
+                </button>{" "}</>}
                 <button type="button" className="lds-btn lds-btn--xs" onClick={() => xemKy(r)}>Xem số liệu</button>
               </>
             )}
@@ -1318,7 +1327,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                     : `${kyRows.length} kỳ`}
           </span>
           {/* Khóa / mở kỳ là việc của KỲ → chỉ nằm ở tab Kỳ kế toán. */}
-          {tab === "ky" && (
+          {tab === "ky" && canCloseBook && (
             <button
               type="button"
               className="btn btn--secondary kho-export-btn"
@@ -1351,7 +1360,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                   </button>
                 ))}
               </div>
-              <button
+              {canCloseBook && <button
                 type="button"
                 className="btn btn--accent kho-export-btn"
                 disabled={!nxtTu || !nxtDen || tinhBusy}
@@ -1359,7 +1368,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 title="Tính giá bình quân cuối kỳ & chốt tồn cuối kỳ để kỳ sau nối tiếp (như MISA)"
               >
                 {nxtDaTinh ? "Tính lại giá kỳ" : "Tính giá kỳ"}
-              </button>
+              </button>}
               {nxtView !== "chitiet" && (
                 <button
                   type="button"
@@ -1467,7 +1476,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                       {fmtMoneyShort(dash.chuyenGiaTri)}
                     </span>
                     <span className="kho-dash__sub">
-                      {dash.chuyenSoPhieu} phiếu · {dash.chuyenSoDong} dòng
+                      {dash.chuyenSoPhieu} phiếu gồm {dash.chuyenSoDong} dòng
                     </span>
                   </div>
                 )}
@@ -1758,7 +1767,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
             </div>
           ) : nxtDaTinh ? (
             <div className="banner banner--info" style={{ marginBottom: 8 }}>
-              <span><b>Đã tính giá kỳ</b> (bình quân gia quyền cuối kỳ){nxtDaKhoa ? " · kỳ đã khóa sổ" : ""}. Có phát sinh mới thì bấm “Tính lại giá kỳ”.</span>
+              <span><b>Đã tính giá kỳ</b> (bình quân gia quyền cuối kỳ){nxtDaKhoa ? ". Kỳ đã khóa sổ" : ""}. Có phát sinh mới thì bấm “Tính lại giá kỳ”.</span>
             </div>
           ) : nxtKyBao ? (
             <div className="banner banner--info" style={{ marginBottom: 8 }}>
@@ -1789,9 +1798,12 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 <span>
                   Kỳ này <b>chưa khóa sổ</b> nên chưa tính giá được. Đơn giá BQ và Giá trị xuất là số
                   tạm tính; Giá trị cuối kỳ để trống.
-                  <button type="button" className="rc__link-btn" style={{ marginLeft: 8 }} onClick={() => setTab("ky")}>
-                    Khóa sổ ở Kỳ kế toán →
-                  </button>
+                  {/* Người chỉ xem không khoá sổ được — đừng chỉ họ tới nút họ không có (#77). */}
+                  {canCloseBook && (
+                    <button type="button" className="rc__link-btn" style={{ marginLeft: 8 }} onClick={() => setTab("ky")}>
+                      Khóa sổ ở Kỳ kế toán →
+                    </button>
+                  )}
                 </span>
               )}
             </div>
@@ -1953,7 +1965,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 <div className="rc-sec__title" style={{ marginBottom: 8 }}>
                   Top mặt hàng theo giá trị tồn cuối kỳ
                   {hienCuoiKy && !nxtDaTinh && (
-                    <span className="rc__muted" style={{ fontWeight: 400 }}> · tạm tính tới {fmtDate(nxtDen)}</span>
+                    <span className="rc__muted" style={{ fontWeight: 400 }}> (tạm tính tới {fmtDate(nxtDen)})</span>
                   )}
                 </div>
                 {!hienCuoiKy ? (
@@ -1975,7 +1987,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               {/* Biểu đồ 2 — Nhập vs Xuất (giá trị) theo kho: luôn hiện (số đã biết / tạm tính). */}
               <div className="card" style={{ padding: 16 }}>
                 <div className="rc-sec__title" style={{ marginBottom: 8 }}>
-                  Nhập vs Xuất (giá trị) theo kho{!nxtDaTinh && <span className="rc__muted" style={{ fontWeight: 400 }}> · xuất tạm tính</span>}
+                  Nhập vs Xuất (giá trị) theo kho{!nxtDaTinh && <span className="rc__muted" style={{ fontWeight: 400 }}> (xuất tạm tính)</span>}
                 </div>
                 {nxTheoKho.every((k) => k.nhap === 0 && k.xuat === 0) ? (
                   <div className="rc__empty-state">Không có phát sinh nhập / xuất trong kỳ.</div>
@@ -2068,7 +2080,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                       )
                     ) : filteredKy.length === 0 ? (
                       kyRows.length === 0
-                        ? dongTrong(cot.length, "Chưa có kỳ nào. Bấm “Khóa / mở kỳ” để khóa sổ kỳ đầu tiên, rồi tính giá ngay trên dòng kỳ.")
+                        ? dongTrong(cot.length, canCloseBook
+                          ? "Chưa có kỳ nào. Bấm “Khóa / mở kỳ” để khóa sổ kỳ đầu tiên, rồi tính giá ngay trên dòng kỳ."
+                          : "Chưa có kỳ nào được khóa sổ.")
                         : dongTrong(cot.length, "Không có kỳ nào khớp điều kiện đang lọc.", coLoc ? xoaLoc : undefined)
                     ) : (
                       pagedKy.map((r) => <tr key={r.key}>{cot.map((c) => oKy(c.key, r))}</tr>)
@@ -2136,7 +2150,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               }}
               options={[
                 { value: "", label: "Toàn kho" },
-                ...khoList.map((k) => ({ value: String(k.id), label: `${k.ma} · ${k.ten}` })),
+                ...khoList.map((k) => ({ value: String(k.id), label: `${k.ma} ${k.ten}` })),
               ]}
             />
           </div>
@@ -2185,7 +2199,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
               return k ? (
                 <p className="kho-khoa__kyten">
                   Kỳ khóa gần nhất: <b>{fmtDate(k.tu_ngay)} – {fmtDate(k.den_ngay)}</b>
-                  {k.ten ? ` · ${k.ten}` : ""}
+                  {k.ten ? ` (${k.ten})` : ""}
                 </p>
               ) : null;
             })()}
@@ -2250,8 +2264,8 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                   <option value="-1" disabled>— Chọn kỳ đã khóa —</option>
                   {kyList.map((k, i) => (
                     <option key={i} value={i}>
-                      {(k.ten || "Kỳ")} · {fmtDate(k.tu_ngay)}–{fmtDate(k.den_ngay)}
-                      {k.kho_ten ? ` · ${k.kho_ten}` : ""}
+                      {(k.ten || "Kỳ")} từ {fmtDate(k.tu_ngay)} đến {fmtDate(k.den_ngay)}
+                      {k.kho_ten ? ` (${k.kho_ten})` : ""}
                     </option>
                   ))}
                 </select>
@@ -2260,8 +2274,9 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 <span className="kho-khoa__label">Kỳ sẽ tính</span>
                 <div style={{ fontWeight: "var(--fw-medium)", color: "var(--ink)" }}>
                   {nxtTu ? fmtDate(nxtTu) : "—"} → {nxtDen ? fmtDate(nxtDen) : "—"}
-                  {" · "}
+                  {" ("}
                   {khoId == null ? "Tất cả kho" : (khoList.find((w) => w.id === khoId)?.ten ?? `Kho #${khoId}`)}
+                  {")"}
                 </div>
               </div>
               {/* Tên kỳ = tên của kỳ ĐÃ KHÓA đang chọn (kỳ khóa không đặt tên → suy từ khoảng ngày). */}
@@ -2269,7 +2284,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
                 <span className="kho-khoa__label">Tên kỳ</span>
                 <div style={{ fontWeight: "var(--fw-medium)", color: "var(--ink)" }}>
                   {(nxtKyIdx >= 0 ? kyList[nxtKyIdx]?.ten?.trim() : "") || autoTenKy(nxtTu, nxtDen) || "—"}
-                  <span className="rc__muted" style={{ fontWeight: 400 }}> · theo kỳ đã khóa</span>
+                  <span className="rc__muted" style={{ fontWeight: 400 }}> (theo kỳ đã khóa)</span>
                 </div>
               </div>
             </>
@@ -2282,7 +2297,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
         open={matInfo !== null}
         wide
         hideConfirm
-        title={`${matInfo?.ten ?? "Mặt hàng"} — Lô nhập / xuất${matInfo?.kho_ten ? ` · ${matInfo.kho_ten}` : ""}`}
+        title={`${matInfo?.ten ?? "Mặt hàng"} — Lô nhập / xuất${matInfo?.kho_ten ? ` (${matInfo.kho_ten})` : ""}`}
         cancelLabel="Đóng"
         onConfirm={() => {}}
         onCancel={() => { setMatInfo(null); setMatHist(null); }}
@@ -2294,7 +2309,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <div className="rc-sec__title" style={{ marginBottom: 6 }}>
-                Lô nhập ({matHist.nhap.length}) · Tồn hiện tại: <b>{fmtQty(matHist.on_hand)}</b> {matInfo?.dvt ?? ""}
+                Lô nhập ({matHist.nhap.length}). Tồn hiện tại: <b>{fmtQty(matHist.on_hand)}</b> {matInfo?.dvt ?? ""}
               </div>
               <div className="kho-bc-wrap" style={{ maxHeight: 260 }}>
                 <table className="rc__table kho-bc">

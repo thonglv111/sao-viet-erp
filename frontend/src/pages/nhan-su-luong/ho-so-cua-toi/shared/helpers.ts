@@ -10,7 +10,7 @@ import { REQ_FIELD_LABEL, REQ_LOC, REQ_STATUS_CONFIG } from "./constants";
 export function fmtDate(s: string | null | undefined): string {
   if (!s) return "—";
   const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString("vi-VN");
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 export function fmtDateTime(s: string | null | undefined): string {
   if (!s) return "—";

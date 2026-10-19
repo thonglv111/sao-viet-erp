@@ -233,9 +233,11 @@ export function ThsxDrawer({
   const thieuDauVao = chiTiet?.thieu_dau_vao ?? [];
   // Cổng vật tư (`dau_vao.kiem_bat_dau`): chỉ chặn lần bắt đầu đầu, máy chủ đã tính sẵn câu.
   const vatTu = chiTiet?.vat_tu_chua_san_sang ?? null;
+  // Cổng máy dừng (`thuc_thi.bat_dau`, lỗi #27): báo hỏng ghi "máy dừng" chưa sửa xong.
+  const mayDung = chiTiet?.bao_hong_may?.find((b) => b.may_dung)?.ma ?? null;
   const canBatDau =
     canAssign && !busy && (tt === "released" || tt === "paused") && coNguoi && !khuonChoNhan &&
-    thieuDauVao.length === 0 && !vatTu;
+    thieuDauVao.length === 0 && !vatTu && !mayDung;
   const canTamDung = canAssign && !busy && tt === "running";
   const canKetThuc = canAssign && !busy && (tt === "running" || tt === "paused");
   // Kết thúc phải giao hết (10/10/2026, chủ xưởng: *"phải đề xuất giao hết thì mới kết thúc được"*):
@@ -306,7 +308,7 @@ export function ThsxDrawer({
   const cotPhai = cv && chiTiet && (
     <ThsxCotPhai chiTiet={chiTiet} candidates={candidates} ungVienHomNay={ungVienHomNay}
       onMoChonNguoi={onMoChonNguoi} busy={busy} canAssign={canAssign} chuaGiaoChoToi={chuaGiaoChoToi}
-      vuong={{ coNguoi, khuonChoNhan, thieuDauVao, vatTu }}
+      vuong={{ coNguoi, khuonChoNhan, thieuDauVao, vatTu, mayDung }}
       onGiao={onGiao} onRut={onRut} onNhanKhuon={onNhanKhuon} onTraKhuon={onTraKhuon} dinhKemDem={dinhKemDem} hep={hep} />
   );
 

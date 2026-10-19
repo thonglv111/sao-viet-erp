@@ -81,6 +81,8 @@ KHO_CHO_GUI = "cho_gui_kho"
 KHO_CHUA_NHAP = "kho_chua_nhap"
 KHO_DA_NHAP = "da_nhap_kho"
 KHO_DA_VE = (KHO_CHO_GUI, KHO_CHUA_NHAP, KHO_DA_NHAP)
+#: Trạng thái yêu cầu nhập mà hàng của đợt giao đã nằm trong tồn (kho nhập xong hoặc nhập một phần).
+NHAP_DA_VAO_TON = ("done", "partial")
 
 
 def _dk_kho_da_ve(nac: str) -> list:
@@ -836,7 +838,10 @@ class DepartmentPurchaseRequestRepository:
             )
 
         return case(
-            (and_(co_dong(True), co_dong(False)), literal("partially_cancelled")),
+            # Phiếu đã huỷ cả / đã xong thì không còn là "huỷ một phần" (#58) — cùng luật service.
+            (and_(co_dong(True), co_dong(False),
+                  DepartmentPurchaseRequest.status.notin_([DPR_CANCELLED, DPR_DONE])),
+             literal("partially_cancelled")),
             (
                 DepartmentPurchaseRequest.status.in_([DPR_OPEN, DPR_IN_PURCHASE, DPR_DONE, DPR_CANCELLED]),
                 DepartmentPurchaseRequest.status,
@@ -1682,22 +1687,44 @@ class PurchaseRequestRepository:
         `quantity − Σ các đợt đã giao`, mà đợt giao treo ở phiếu. Cắt sẵn ở tầng repo thì phía gọi
         phải join lại bằng tay — đúng chỗ dễ tính thiếu một đợt rồi cộng dư hàng chưa về.
 
-        Bỏ `PR_RECEIVED` (đã nhận đủ ⇒ hàng nằm trong kho rồi, tồn đã cộng — đếm lại là ĐẾM HAI
-        LẦN), bỏ `draft`/`pending`/`rejected`/`cancelled` (chưa chắc có hàng, hứa suông).
+        `PR_RECEIVED` chỉ lấy khi còn đợt giao CHƯA vào tồn (lỗi #57, 19/10/2026): nhận đủ mà chưa
+        gửi kho / kho chưa nhập thì tồn chưa cộng, bỏ đi là hàng biến khỏi cả hai chỗ và bảng xui mua
+        lần hai. Đợt đã nhập xong thì tồn đã cộng — đếm lại là ĐẾM HAI LẦN. Bỏ `draft`/`pending`/
+        `rejected`/`cancelled` (chưa chắc có hàng, hứa suông).
         """
+        from ..models.stock_request import StockRequest
+
+        dot_chua_vao_ton = exists(
+            select(PurchaseDelivery.id).where(
+                PurchaseDelivery.purchase_request_id == PurchaseRequest.id,
+                ~exists(select(StockRequest.id).where(
+                    StockRequest.purchase_delivery_id == PurchaseDelivery.id,
+                    StockRequest.trang_thai.in_(NHAP_DA_VAO_TON))),
+            )
+        )
         stmt = (
             select(PurchaseRequest)
             .options(
                 selectinload(PurchaseRequest.lines),
                 selectinload(PurchaseRequest.deliveries).selectinload(PurchaseDelivery.lines),
             )
-            .where(
-                PurchaseRequest.status.in_(
-                    [PR_APPROVED, PR_PURCHASED, PR_PARTIALLY_RECEIVED]
-                )
-            )
+            .where(or_(
+                PurchaseRequest.status.in_([PR_APPROVED, PR_PURCHASED, PR_PARTIALLY_RECEIVED]),
+                and_(PurchaseRequest.status == PR_RECEIVED, dot_chua_vao_ton),
+            ))
         )
         return list(self.db.execute(stmt.order_by(PurchaseRequest.id.asc())).scalars())
+
+    def trang_thai_nhap_dot(self, dot_ids) -> dict[int, str]:
+        """`{id đợt giao: trạng thái yêu cầu nhập}` (bỏ yêu cầu đã huỷ) — đợt nào đã vào tồn (#57)."""
+        from ..models.stock_request import REQ_CANCELLED, StockRequest
+
+        ids = sorted({int(i) for i in dot_ids if i})
+        if not ids:
+            return {}
+        return {int(d): t for d, t in self.db.execute(
+            select(StockRequest.purchase_delivery_id, StockRequest.trang_thai).where(
+                StockRequest.purchase_delivery_id.in_(ids), StockRequest.trang_thai != REQ_CANCELLED))}
 
     def dong_tu_yeu_cau(self, dong_yc_ids) -> list[PurchaseRequestLine]:
         """Mọi dòng đơn mua (MỌI trạng thái) lập từ các dòng yêu cầu này — kèm phiếu + đợt giao.

@@ -4,6 +4,10 @@ giao (chủ chốt 13/10/2026, bám hai mẫu MISA BH03479 / XK03479).
 In ở ngăn đơn hàng, nút "In phiếu giao" của từng yêu cầu — CHỈ sau khi kho đã ghi sổ phiếu xuất của
 chuyến: hai mẫu cùng mang số phiếu xuất và SỐ THỰC XUẤT, chưa xuất thì chưa có số để in.
 
+Phiếu có giá là BIÊN BẢN GIAO khách ký nhận (#34, 18/10/2026): chuyến đã có kết quả thì in số khách
+THỰC NHẬN từng dòng (giao thiếu 1.000 xuất, 200 trả ⇒ 800), chưa có kết quả (tài xế mang phiếu đi) thì
+in số xuất. Chuyến thất bại ⇒ không có phiếu giao. `so_xuat` giữ số kho thực xuất cho mẫu 02-VT.
+
 Chỉ đọc. Giá bán, VAT, tên hàng ghép cụm — trình duyệt đã có ở chi tiết đơn, ở đây chỉ trả phần
 đơn chưa có: phiếu xuất, số thực xuất theo dòng đơn, MST / địa chỉ khách, kíp xe.
 """
@@ -12,6 +16,13 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ..models.customer import Customer
+from ..models.delivery import (
+    LAN_GIAO_CO_HANG_DEN_TAY,
+    LG_DA_TRA_HANG,
+    LG_DANG_TRA_HANG,
+    LG_HEN_LAI,
+    LG_THAT_BAI,
+)
 from ..models.employee import Employee
 from ..models.kho_hang import KhoHang
 from ..models.user import User
@@ -53,6 +64,11 @@ def du_lieu_in_phieu_xuat(db: Session, order, yeu_cau_id: int) -> dict:
     phieu = rp.phieu_da_ghi_so_cua_yeu_cau(xuat.id) if xuat is not None else []
     if not phieu:
         raise PhieuXuatChuaCo("Kho chưa xuất hàng cho yêu cầu này — kho ghi sổ phiếu xuất xong mới in được.")
+    if t.trang_thai in (LG_THAT_BAI, LG_DANG_TRA_HANG, LG_DA_TRA_HANG, LG_HEN_LAI):
+        raise PhieuXuatChuaCo("Chuyến giao thất bại, khách không nhận hàng — không có phiếu giao để in.")
+    # Số khách thực nhận từng dòng đơn — chỉ có khi chuyến đã có kết quả giao.
+    nhan = ({int(ln.order_line_id): float(ln.qty_giao) for ln in t.lines}
+            if t.trang_thai in LAN_GIAO_CO_HANG_DEN_TAY else {})
 
     thuc: dict[tuple[str, int], float] = {}
     for v in phieu:
@@ -74,9 +90,11 @@ def du_lieu_in_phieu_xuat(db: Session, order, yeu_cau_id: int) -> dict:
         "ngay": phieu[-1].ngay,
         "kho_ten": getattr(kho, "ten", None),
         "nguoi_lap": getattr(lap, "name", None),
-        "thuc_xuat": [{"order_line_id": k, "so_luong": sl,
+        "thuc_xuat": [{"order_line_id": k, "so_luong": min(sl, nhan.get(k, sl)), "so_xuat": sl,
                        "ma_hang": ma_hang.get(khoa[1]) if khoa[0] == "vat_tu" else None}
                       for k, (sl, khoa) in chia.items()],
+        # Người ký nhận ở dòng "Người mua": người nhận thực tế, chưa giao thì người nhận ghi trên yêu cầu.
+        "nguoi_mua": (getattr(t, "nguoi_nhan_thuc_te", None) or getattr(req, "nguoi_nhan", None)),
         "khach_ma_so_thue": getattr(kh, "tax_code", None),
         "khach_dia_chi": getattr(kh, "address", None),
         "khach_dien_thoai": getattr(kh, "phone", None),

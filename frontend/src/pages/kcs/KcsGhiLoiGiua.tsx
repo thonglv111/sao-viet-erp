@@ -214,6 +214,12 @@ export function KcsGhiLoiGiua({
             if (!(Number(d.so) > 0)) return `Nhập số lỗi cho ${tenDong(k)}`;
             if (k === KHAC && !d.ghi.trim()) return "Ghi chú Lỗi khác là lỗi gì";
           }
+          // Công đoạn đã xong thì trần quay lại, cùng luật máy chủ `_chi_ghi_loi` (#31, #72): Σ lỗi
+          // (cũ + lần này) không vượt số tốt tổ đã ghi.
+          if (cd.trang_thai === "completed") {
+            const con = Math.max(0, cd.tot - cd.tong_loi);
+            if (tong > con) return `Công đoạn đã xong, tổ đã làm ${num(cd.tot)} ${dv}: chỉ còn ghi được ${num(con)} ${dv} lỗi`;
+          }
           if (soAnh > TOI_DA_ANH_MOI_LAN) return `${LOI_QUA_SO_ANH} Bỏ bớt ${soAnh - TOI_DA_ANH_MOI_LAN} ảnh.`;
           return null;
         })();

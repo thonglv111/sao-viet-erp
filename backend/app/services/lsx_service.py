@@ -765,7 +765,7 @@ class LsxService:
                     # bong bóng là lặp; không nối mẩu bằng dấu chấm giữa.
                     dien_giai = d.get("dien_giai_nguon") or (
                         ("Số tờ và khổ" if d["don_vi_goc"] == DON_VI_TO_KHO
-                         else "Số lượng và khổ rộng") + " lấy theo đầu vào của bước")
+                         else "Số kg") + " lấy theo đầu vào của bước")
                 ra.append({
                     "hang_loai": HANG_GIAY, "vat_tu_id": mon_id, "don_vi_goc": d["don_vi_goc"],
                     "so_luong": (round(d["so_luong"], 3) if d["so_luong"] is not None else None),
@@ -2282,6 +2282,45 @@ class LsxService:
             self._gmh = GocMatHang.tu_db(self.db)
         return self._gmh
 
+    @staticmethod
+    def _sl_ra_buoc_giay(cd, qc: dict) -> tuple[float, str | None]:
+        """`(SL ra, chặng của nó)` cho dòng giấy ở bước đầu vào "—" (vd cắt từ cuộn, 18/10/2026): bước
+        ngoài dòng giấy không có số của riêng nó, nên SL ra lấy theo chuỗi bù hao ngược = SL vào của
+        bước KẾ TIẾP trên dòng giấy. Không có bước kế tiếp thì số ra đã ghi của chính bước, rồi tờ
+        nguyên của lệnh. Bước trên dòng giấy trả số ra của chính nó (nhánh tờ không đọc tới)."""
+        tram_vao = tram_cua(getattr(cd, "don_vi_vao", None), ban_do_tram())
+        if tram_vao is not None:
+            return _f(cd.so_luong_ra), tram_cua(getattr(cd, "don_vi_ra", None), ban_do_tram())
+        lsx = getattr(cd, "lsx", None)
+        moc = (cd.thu_tu or 0, cd.id or 0)
+        for b in sorted(getattr(lsx, "cong_doans", None) or [], key=lambda c: (c.thu_tu or 0, c.id or 0)):
+            if (b.thu_tu or 0, b.id or 0) <= moc:
+                continue
+            t = tram_cua(getattr(b, "don_vi_vao", None), ban_do_tram())
+            if t is not None and _f(b.so_luong_vao) > 0:
+                return _f(b.so_luong_vao), t
+        if _f(cd.so_luong_ra) > 0:
+            return _f(cd.so_luong_ra), None
+        return _f((qc or {}).get("to_nguyen")), TRAM_TO_NGUYEN
+
+    def _quy_kg_ve_goc(self, giay_id: int, goc: str | None) -> dict | str:
+        """Quy 1 kg của mã giấy về đơn vị gốc `goc` — `quy_ve_goc` (đọc danh mục) MỘT lần mỗi cặp
+        trong lượt, vì bước đầu vào "—"/con/cái nào cũng ra kg mà chi tiết lệnh hỏi từng bước × từng
+        mã giấy. Trả kết quả `quy_ve_goc` hoặc câu lỗi."""
+        nho = self.__dict__.setdefault("_kg_goc", {})
+        if (giay_id, goc) not in nho:
+            from ..repositories.don_vi_do_repo import DonViDoRepository
+            from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
+            from .vat_lieu_kho_service import VatLieuKhoError, VatLieuKhoService
+
+            try:
+                nho[(giay_id, goc)] = VatLieuKhoService(
+                    VatLieuKhoRepository(self.db), DonViDoRepository(self.db)
+                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", 1.0, goc=goc)
+            except VatLieuKhoError as e:
+                nho[(giay_id, goc)] = str(e)
+        return nho[(giay_id, goc)]
+
     def _dong_giay_cho_ma(self, cd, qc: dict, giay_id: int) -> dict:
         """Dòng giấy của MỘT bước ứng với mã giấy `giay_id`, ĐÃ đổi sang đơn vị của mã (spec
         2026-10-01 dong-giay-theo-dau-vao §4). Trả `dong_giay_theo_dau_vao` + `so_luong`/`don_vi`
@@ -2289,10 +2328,12 @@ class LsxService:
         rộng (nhánh kg) ⇒ đơn vị giá của mã, số kg quy qua `quy_ve_goc`. Không đổi được (thiếu cặp
         quy đổi kg → đơn vị giá) thì `so_luong=None` + `ly_do`."""
         giay = self.db.get(GiayNguyen, giay_id)
+        sl_ra, tram_ra = self._sl_ra_buoc_giay(cd, qc)
         d = dong_giay_theo_dau_vao(
             don_vi_vao=getattr(cd, "don_vi_vao", None), so_luong_vao=_f(cd.so_luong_vao),
-            so_luong_ra=_f(cd.so_luong_ra), quy_cach=qc, gsm=_f(getattr(giay, "gsm", None)) or None)
-        # `dong_giay_theo_dau_vao` chỉ trả "kg" ở nhánh giấy khổ rộng; mọi nhánh khác đếm tờ.
+            so_luong_ra=sl_ra, quy_cach=qc, gsm=_f(getattr(giay, "gsm", None)) or None,
+            tram_ra=tram_ra)
+        # `dong_giay_theo_dau_vao` trả "kg" ở bước nhận con/cái/tay và bước đầu vào "—"; nhận tờ thì đếm tờ.
         kg = d["don_vi"] == "kg"
         gia = (getattr(giay, "don_vi_gia", None) or "").strip().lower() or None
         khai = don_vi_khai(giay) if giay is not None else []
@@ -2318,19 +2359,13 @@ class LsxService:
         gia = goc_kg or gia
         d["don_vi_goc"] = (gia or "kg") if kg else DON_VI_TO_KHO
         if kg and d["so_luong"] is not None:
-            from ..repositories.don_vi_do_repo import DonViDoRepository
-            from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
-            from .vat_lieu_kho_service import VatLieuKhoError, VatLieuKhoService
-
-            try:
-                # Ép gốc = đơn vị giá của mã: thiếu cặp kg → đơn vị giá thì báo, không lặng lẽ để kg.
-                r = VatLieuKhoService(
-                    VatLieuKhoRepository(self.db), DonViDoRepository(self.db)
-                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", d["so_luong"], goc=gia)
-                d["so_luong"], d["don_vi"] = float(r["sl_goc"]), r["don_vi_goc"]
-                d["don_vi_goc"] = r["don_vi_goc"]
-            except VatLieuKhoError as e:
-                d["so_luong"], d["ly_do"] = None, str(e)
+            # Ép gốc = đơn vị giá của mã: thiếu cặp kg → đơn vị giá thì báo, không lặng lẽ để kg.
+            r = self._quy_kg_ve_goc(giay_id, gia)
+            if isinstance(r, str):
+                d["so_luong"], d["ly_do"] = None, r
+            else:
+                d["so_luong"] = d["so_luong"] * float(r["he_so_ve_goc"])
+                d["don_vi"] = d["don_vi_goc"] = r["don_vi_goc"]
         if kg and d["so_luong"] is None:
             d["don_vi"] = gia or "kg"
         return d

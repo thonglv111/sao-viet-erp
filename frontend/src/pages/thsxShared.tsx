@@ -100,10 +100,24 @@ export function slTot(w: SxWorkItem): string {
  *  thành số lỗi, không còn "thiếu" treo mãi. null = không biết số nhận ⇒ không vẽ thanh. */
 export function tienDoThucTe(w: SxWorkItem): { pct: number; tot: number; nhan: number | null } | null {
   const tot = w.da_lam ?? 0;
-  const nhan = w.nhan_ra ?? null;
+  const nhan = mocTienDo(w);
   if (w.trang_thai === "completed") return { pct: 100, tot, nhan };
   if (nhan == null || nhan <= 0) return null;
   return { pct: Math.min(100, Math.round((tot / nhan) * 100)), tot, nhan };
+}
+
+/** Mốc tiến độ của việc = số CẦN RA ở bước (`muc_tieu`, rồi `so_luong_ra`) — KHÔNG gồm bù hao
+ *  (lỗi #28: ghi đủ 1.250 cần ra mà ngăn việc chấm 89% trên 1.400 tờ giấy nhận). Chỉ khi bước
+ *  không khai số cần ra mới lùi về số nhận quy ra. Trần ghi sản lượng vẫn theo giấy cấp (máy chủ). */
+export function mocTienDo(w: SxWorkItem): number | null {
+  return w.muc_tieu ?? w.so_luong_ra ?? w.nhan_ra ?? null;
+}
+
+/** "Còn phải làm" của ngăn việc = mốc − tốt (sàn 0); đã Kết thúc hoặc không có mốc ⇒ null. */
+export function conPhaiLam(w: SxWorkItem): number | null {
+  const moc = mocTienDo(w);
+  if (w.trang_thai === "completed" || moc == null) return null;
+  return Math.max(moc - (w.da_lam ?? 0), 0);
 }
 
 /** "13 phút (11 – 15)" — phút CHẠY của thẻ kèm dải theo tốc độ máy (§7). Ba số bằng nhau ⇒ máy

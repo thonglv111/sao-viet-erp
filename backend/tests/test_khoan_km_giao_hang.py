@@ -286,6 +286,8 @@ def test_BANG_DOI_CHIEU_cong_lai_DUNG_BANG_cot_tren_bang_luong(client):
     # điều đó, không thì HCNS thấy hai chuyến cùng km mà tiền khác nhau và không hiểu vì sao.
     assert sorted(x["pct"] for x in kq["items"]) == [60.0, 100.0]
     assert {x["vai_tro"] for x in kq["items"]} == {"tai_xe"}
+    # #74: cột Chuyến hiện MÃ yêu cầu giao, không phải id thô — schema mà thiếu field là Pydantic nuốt.
+    assert all((x.get("ma_chuyen") or "").startswith("YCGH-") for x in kq["items"]), kq
 
 
 def test_bang_doi_chieu_cua_PHU_XE_ghi_dung_vai_tro(client):

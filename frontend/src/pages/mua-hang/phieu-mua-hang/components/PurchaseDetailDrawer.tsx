@@ -1,12 +1,11 @@
 // Ngăn CHI TIẾT ĐƠN MUA ở màn Mua hàng — phương án 3 (07/10/2026): thân ngăn là `NganDonMua` dùng
 // CHUNG với Kế toán; ở đây chỉ còn cụm nút đầu ngăn và các việc trên đợt giao của Thu mua.
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import {
   api,
   type MuaChoLenh,
   type PurchaseDeliveryRow,
   type PurchaseRequestRow,
-  type SupplierCredit,
 } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
 import { useCan } from "../../../../auth/permissions";
@@ -15,6 +14,7 @@ import { Icon } from "../../../../components/Icons";
 import { NganDonMua } from "../../don-mua-chung/NganDonMua";
 import { DaiGuiDuyet } from "./DaiGuiDuyet";
 import { GHI_DOT_DUOC } from "../shared/constants";
+import { useHanMucNcc } from "./useHanMucNcc";
 import type {
   CloseModalState,
   DeletingDeliveryState,
@@ -93,20 +93,8 @@ export function PurchaseDetailDrawer({
   const coQuyenNhapKho = can("kho", "request");
 
   // Hạn mức và tiền đang nợ NCC (15/10/2026): trước đây chỉ ngăn Kế toán nạp, người lập đơn và đặt
-  // cọc không biết NCC đã vượt hạn mức. Một lần một đơn, chỉ khi mở ngăn; hỏng thì nuốt — cảnh báo phụ.
-  const [credit, setCredit] = useState<SupplierCredit | null>(null);
-  useEffect(() => {
-    if (!token || selected.supplier_id == null) {
-      setCredit(null);
-      return;
-    }
-    let bo = false;
-    api.purchaseRequests
-      .supplierCredit(token, selected.id)
-      .then((data) => { if (!bo) setCredit(data); })
-      .catch(() => { if (!bo) setCredit(null); });
-    return () => { bo = true; };
-  }, [token, selected.id, selected.supplier_id]);
+  // cọc không biết NCC đã vượt hạn mức.
+  const credit = useHanMucNcc(token, selected);
 
   // Cụm nút đầu ngăn — cùng kiểu với ngăn Yêu cầu mua: nút thường có icon, VIỆC TIẾP THEO của đơn
   // (Đã đặt hàng / Ghi đợt giao) tô màu và đứng cuối bên phải; In, Sửa, Huỷ để trơn.

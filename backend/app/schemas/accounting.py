@@ -897,6 +897,9 @@ class PayableItemOut(BaseModel):
     # Phần CỌC của cả đơn chiếu xuống đợt này. Cố ý tách khỏi `paid`: không ai trả riêng cho đợt
     # này số đó. Nhưng `con_no` thì đã trừ CẢ HAI.
     coc_bu: int = 0
+    # Phiếu NCC hoàn tiền không gắn đơn cộng nợ lại vào đợt hạn muộn nhất (#36, 18/10/2026):
+    # con_no = amount − paid − coc_bu + hoan_ncc.
+    hoan_ncc: int = 0
     con_no: int
     # True = đợt đã trả hết (thường do CỌC nuốt trọn, vì cọc bù giao-trước-bù-trước). Vẫn liệt kê
     # để dò được tiền cọc đi đâu, nhưng màn hình làm mờ và xếp xuống đáy đơn — nó KHÔNG phải việc

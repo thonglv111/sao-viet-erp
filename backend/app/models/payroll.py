@@ -368,6 +368,10 @@ class PayrollPeriod(Base):
     #: `cong_bo_luc <= bây giờ < dong_phieu_luc`. Chủ chốt 12/08/2026: *"cài giờ phiếu nó hiển thị
     #: trong bao nhiêu lâu"* — phiếu lương không cần mở vĩnh viễn, xem xong là đóng lại.
     dong_phieu_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    #: Mốc mở (`cong_bo_luc`) đã đẩy tin "phiếu lương đã mở" tới người lao động (rà cuối 19/10/2026).
+    #: Nhỏ hơn `cong_bo_luc` hoặc NULL = lần mở này chưa báo ⇒ vòng quét báo bù kể cả khi máy chủ tắt đúng
+    #: lúc tới giờ hẹn. Thêm qua migration `0423`.
+    da_bao_mo_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PayrollLine(Base):

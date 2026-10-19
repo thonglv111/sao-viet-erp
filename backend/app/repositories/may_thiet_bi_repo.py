@@ -39,6 +39,13 @@ class MayThietBiRepository(CatalogRepo):
         """
         return [int(i) for i in self.db.execute(select(MayThietBi.id)).scalars()]
 
+    def con_dung_gon(self) -> list[tuple[int, str, str]]:
+        """`(id, ma, ten)` máy CÒN DÙNG, theo mã — ô chọn máy của hộp Khoá máy ở Xếp lịch."""
+        return [(int(i), m, t) for i, m, t in self.db.execute(
+            select(MayThietBi.id, MayThietBi.ma, MayThietBi.ten)
+            .where(MayThietBi.active.is_(True)).order_by(MayThietBi.ma)
+        ).all()]
+
     def dem_theo_loai(self, **kw) -> dict[str, int]:
         """Số máy của TỪNG loại — số hiện trên tab lọc của màn Thiết bị.
 

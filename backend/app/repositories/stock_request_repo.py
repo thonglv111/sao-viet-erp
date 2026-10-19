@@ -145,8 +145,11 @@ _COT_MOC = {
 }
 
 #: Giá trị điều kiện "Nguồn" (12/10/2026) — cùng thứ tự ưu tiên ô Nguồn ở danh sách (`NguonA`):
-#: đơn mua → điều chuyển → giao hàng → KCS → gia công ngoài → lệnh SX → không nguồn (lập tay).
-NGUON_YEU_CAU = ("mua_hang", "dieu_chuyen", "giao_hang", "kcs", "gia_cong", "san_xuat", "khong")
+#: đơn mua → điều chuyển → giao hàng → gia công ngoài → KCS → lệnh SX → không nguồn (lập tay).
+#: Gia công đứng TRƯỚC KCS (#41, 18/10/2026): yêu cầu nhập do chốt gia công về kho cũng mang
+#: `san_xuat_cong_viec_id` (công việc thuê ngoài), xếp KCS trước là hàng nhà gia công giao về bị
+#: gọi là "KCS gửi thành phẩm".
+NGUON_YEU_CAU = ("mua_hang", "dieu_chuyen", "giao_hang", "gia_cong", "kcs", "san_xuat", "khong")
 
 
 def _dk_nguon(nguon: str):
@@ -156,8 +159,8 @@ def _dk_nguon(nguon: str):
         StockRequest.purchase_delivery_id.is_not(None),
         StockRequest.dieu_chuyen.is_(True),
         StockRequest.delivery_trip_id.is_not(None),
-        and_(StockRequest.loai == REQ_NHAP, StockRequest.san_xuat_cong_viec_id.is_not(None)),
         StockRequest.gia_cong_ngoai_id.is_not(None),
+        and_(StockRequest.loai == REQ_NHAP, StockRequest.san_xuat_cong_viec_id.is_not(None)),
     ]
     co_lenh = StockRequest.id.in_(select(StockRequestLine.request_id).where(or_(
         StockRequestLine.lsx_id.is_not(None), StockRequestLine.bai_ghep_id.is_not(None))))

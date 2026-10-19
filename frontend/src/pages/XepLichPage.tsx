@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock, Inbox, RotateCcw, Search, Send,
-  SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash,
+  SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash, Wrench,
 } from "lucide-react";
 
 import {
@@ -21,6 +21,7 @@ import { XlKhay } from "./XlKhay";
 import { XlKhoangNgay } from "./XlKhoangNgay";
 import { XlLuoi, type HienThi } from "./XlLuoi";
 import { XlNgan } from "./XlNgan";
+import { XlKhoaMay } from "./XlKhoaMay";
 import { XlDanhSachDT } from "./XlDanhSachDT";
 import { useLaDienThoai } from "../utils/dienThoai";
 import {
@@ -210,6 +211,7 @@ export function XepLichPage({
 
   const [nhip, setNhip] = useState(0);
   const lamMoi = useCallback(() => setNhip((n) => n + 1), []);
+  const [moKhoaMay, setMoKhoaMay] = useState(false);
   const tickRef = useRef(eventTick);
   tickRef.current = eventTick;
   const theRef = useRef(the);
@@ -590,6 +592,9 @@ export function XepLichPage({
           <ThanhLoc dieuKien={dieuKienLuoi} loc={locLuoi} onLoc={setLocLuoi} />
         </div>
         <span className="xa-gian" />
+        <button type="button" className="xa-btn" aria-haspopup="dialog" onClick={() => setMoKhoaMay(true)}>
+          <Wrench size={15} />Khoá máy
+        </button>
         <button ref={nutHienRef} type="button" className={`xa-btn${moHien ? " xa-btn--bat" : ""}`} aria-expanded={moHien} onClick={() => setMoHien((m) => !m)}>
           <SlidersHorizontal size={15} />Hiển thị
         </button>
@@ -748,6 +753,8 @@ export function XepLichPage({
           xuong={viTri >= 0 && viTri < dongThay.length - 1 ? () => setChonId(dongThay[viTri + 1].lsx_id) : undefined}
         />
       )}
+
+      <XlKhoaMay open={moKhoaMay} suaDuoc={suaDuoc} onDong={() => setMoKhoaMay(false)} onDoi={lamMoi} />
 
       <ConfirmDialog
         open={chePrompt !== null}

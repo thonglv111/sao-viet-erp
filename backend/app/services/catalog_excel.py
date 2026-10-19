@@ -786,6 +786,9 @@ def nhap_excel(spec: CatalogExcelSpec, svc, InModel, du_lieu: bytes, *,
         thong, hong, tu_cot = _doc_dong_chinh(spec, hang, co_mat, ctx, cu, ten_chinh, so_dong,
                                               kq.loi)
         if hong:
+            # Ô hỏng thì không ghi được dòng này, nhưng vẫn soi schema cho các ô còn lại để một lượt
+            # nạp báo đủ lỗi kiểu/giới hạn (#55) — không bắt người ta sửa một lỗi, nạp lại, mới thấy lỗi kế.
+            _them_loi_schema(spec, InModel, {**thong, "ma": ma}, cu, ten_chinh, so_dong, kq.loi)
             continue
         thong["ma"] = ma
 
@@ -1033,6 +1036,64 @@ def _mac_dinh_tu_ban_ghi(InModel, obj) -> dict:
     return ra
 
 
+def _them_loi_schema(spec: CatalogExcelSpec, InModel, thong: dict, cu, ten_sheet: str, so_dong: int,
+                     loi: list[LoiDong]) -> None:
+    """Dòng đã có ô hỏng: soi schema phần còn lại, mỗi lỗi một dòng gắn đúng cột. Bỏ qua field của
+    ô đã báo hỏng — thiếu nó là hệ quả của lỗi đã báo, không phải lỗi mới."""
+    from pydantic import ValidationError
+
+    da_bao = {x.cot for x in loi if x.sheet == ten_sheet and x.dong == so_dong}
+    bo = {c.field for c in spec.cot if c.nhan in da_bao}
+    nen = _mac_dinh_tu_ban_ghi(InModel, cu) if cu is not None else {}
+    try:
+        InModel(**{**nen, **{k: v for k, v in thong.items() if k not in bo}})
+    except ValidationError as e:
+        for truong, ten, cau in _loi_pydantic_theo_cot(e, spec):
+            if truong not in bo:
+                loi.append(LoiDong(ten_sheet, so_dong, ten, cau))
+
+
+def _so_viet(v) -> str:
+    """Số trong câu báo lỗi theo kiểu Việt: phẩy thập phân, chấm hàng nghìn, bỏ đuôi ".0" thừa
+    (0.0 → "0", 1234.5 → "1.234,5"). Giá trị không phải số thì giữ nguyên."""
+    if isinstance(v, bool) or not isinstance(v, (int, float, Decimal)):
+        return str(v)
+    d = Decimal(str(v)).normalize()
+    if d == d.to_integral_value():
+        return f"{int(d):,}".replace(",", ".")
+    nguyen, le = f"{d:f}".split(".")
+    dau = "-" if nguyen.startswith("-") else ""
+    return f"{dau}{int(nguyen.lstrip('-')):,}".replace(",", ".") + "," + le
+
+
+def _loi_pydantic_theo_cot(e, spec: CatalogExcelSpec | None) -> list[tuple[str, str, str]]:
+    """Lỗi schema → `[(field, tên cột trên file, câu)]`, mỗi cột một câu."""
+    cot_cua = {}
+    for c in (spec.cot if spec is not None else ()):
+        if not c.chi_doc:
+            cot_cua.setdefault(c.field, c)
+    ra: list[tuple[str, str, str]] = []
+    for x in e.errors():
+        if not x.get("loc"):
+            continue
+        truong = str(x["loc"][0])
+        c = cot_cua.get(truong)
+        ten = c.nhan if c else truong
+        if any(r[0] == truong for r in ra):
+            continue
+        if x.get("type") == "missing":
+            ra.append((truong, ten, f'Thiếu ô bắt buộc "{ten}" — dòng mới phải điền đủ cột này.'))
+            continue
+        ctx = x.get("ctx") or {}
+        gioi_han = {"greater_than_equal": ("ge", "≥"), "less_than_equal": ("le", "≤"),
+                    "greater_than": ("gt", ">"), "less_than": ("lt", "<")}.get(x.get("type"))
+        if gioi_han and gioi_han[0] in ctx:
+            ra.append((truong, ten, f'Cột "{ten}" phải {gioi_han[1]} {_so_viet(ctx[gioi_han[0]])}.'))
+        else:
+            ra.append((truong, ten, f'Giá trị không hợp lệ ở cột "{ten}".'))
+    return ra
+
+
 def _cau_loi_pydantic(e, spec: CatalogExcelSpec | None = None) -> LoiO:
     """Lỗi schema → câu gọi theo TÊN CỘT trên file (không phải tên trường trong code)."""
     cot_cua = {}
@@ -1042,6 +1103,7 @@ def _cau_loi_pydantic(e, spec: CatalogExcelSpec | None = None) -> LoiO:
     thieu: list[str] = []
     sai: list[str] = []
     cau_rieng: list[str] = []
+    cot_rieng: list[str] = []
     for x in e.errors():
         if not x.get("loc"):
             continue
@@ -1056,9 +1118,11 @@ def _cau_loi_pydantic(e, spec: CatalogExcelSpec | None = None) -> LoiO:
         gioi_han = {"greater_than_equal": ("ge", "≥"), "less_than_equal": ("le", "≤"),
                     "greater_than": ("gt", ">"), "less_than": ("lt", "<")}.get(x.get("type"))
         if gioi_han and gioi_han[0] in ctx:
-            cau = f'Cột "{ten}" phải {gioi_han[1]} {ctx[gioi_han[0]]}.'
+            cau = f'Cột "{ten}" phải {gioi_han[1]} {_so_viet(ctx[gioi_han[0]])}.'
             if cau not in cau_rieng:
                 cau_rieng.append(cau)
+            if ten not in cot_rieng:
+                cot_rieng.append(ten)
         elif ten not in sai:
             sai.append(ten)
     ngoac = lambda ds: ", ".join(f'"{t}"' for t in ds)  # noqa: E731
@@ -1068,7 +1132,8 @@ def _cau_loi_pydantic(e, spec: CatalogExcelSpec | None = None) -> LoiO:
     cau.extend(cau_rieng)
     if sai:
         cau.append(f"Giá trị không hợp lệ ở cột {ngoac(sai)}.")
-    return LoiO(" ".join(cau) or "Dữ liệu không hợp lệ.", ", ".join(thieu + sai) or "—")
+    # Cột của lỗi giới hạn cũng phải ghi ra (#55: "Đơn giá phải ≥ 0" từng ghi cột "—").
+    return LoiO(" ".join(cau) or "Dữ liệu không hợp lệ.", ", ".join(thieu + cot_rieng + sai) or "—")
 
 
 def _co_doi(cu, thong: dict, bo_qua: set[str]) -> bool:

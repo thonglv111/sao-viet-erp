@@ -39,6 +39,7 @@ from ..models.purchase import (
     CHANGE_BY_NGUOI,
     DOC_PMH,
     DOC_YCMH,
+    LS_HUY_MOT_PHAN,
     PURCHASE_ATTACHMENT_KINDS,
     PURCHASE_ATTACHMENT_HOP_DONG,
     PurchaseAttachment,
@@ -280,6 +281,37 @@ def da_giao_theo_dong(row) -> dict[int, float] | None:
             key = dl.purchase_request_line_id
             out[key] = out.get(key, 0.0) + float(dl.quantity)
     return out
+
+
+def da_vao_ton_theo_dong(row, nhap_dot: dict[int, str]) -> dict[int, float] | None:
+    """Σ số ĐÃ VÀO TỒN của từng dòng đặt — chỉ các đợt giao mà yêu cầu nhập đã nhập (`nhap_dot` =
+    `PurchaseRequestRepository.trang_thai_nhap_dot`). Đợt nhận rồi mà chưa gửi kho / kho chưa nhập
+    vẫn là hàng ĐANG VỀ của kế hoạch vật tư (#57). None = phiếu chưa có đợt nào (luật cũ)."""
+    from ..repositories.purchase_repo import NHAP_DA_VAO_TON
+
+    dot = getattr(row, "deliveries", None)
+    if not dot:
+        return None
+    out: dict[int, float] = {}
+    for d in dot:
+        if nhap_dot.get(d.id) not in NHAP_DA_VAO_TON:
+            continue
+        for dl in d.lines:
+            key = dl.purchase_request_line_id
+            out[key] = out.get(key, 0.0) + float(dl.quantity)
+    return out
+
+
+def ngay_ve_cua_phieu(row, nhap_dot: dict[int, str]):
+    """Ngày về để hứa với lệnh: ngày hẹn NCC; phiếu đã nhận đủ mà không còn ngày hẹn thì lấy ngày giao
+    muộn nhất của đợt chưa vào tồn — hàng đã nằm ở xưởng (#57)."""
+    from ..repositories.purchase_repo import NHAP_DA_VAO_TON
+
+    if row.expected_receipt_date is not None:
+        return row.expected_receipt_date
+    ngay = [d.delivery_date for d in getattr(row, "deliveries", None) or []
+            if nhap_dot.get(d.id) not in NHAP_DA_VAO_TON and d.delivery_date]
+    return max(ngay) if ngay else None
 
 
 def qty_thuc_nhan(line, da_giao: dict[int, float] | None = None) -> float:
@@ -1889,7 +1921,7 @@ class PurchaseService:
         return lines
 
     def _new_department_request_code(self) -> str:
-        today = datetime.now().strftime("%y%m%d")
+        today = datetime.now(timezone(timedelta(hours=7))).strftime("%y%m%d")
         alphabet = string.ascii_uppercase + string.digits
         for _ in range(20):
             rand = "".join(secrets.choice(alphabet) for _ in range(4))
@@ -1939,6 +1971,12 @@ class PurchaseService:
             lines=cleaned_lines,
             nguon_lenh=nguon_sach,
         )
+        # Dòng "Lập phiếu" đầu tab Lịch sử (lỗi #19) — trước đó yêu cầu mới lập tab trống trơn.
+        self.lich_su.them(
+            doc_type=DOC_YCMH, doc_id=row.id, from_status=None, to_status=row.status,
+            changed_by_user_id=actor.id, source=CHANGE_BY_NGUOI,
+        )
+        row = self.department_requests.save(row)
         self.audit.create(
             actor_user_id=actor.id,
             action="create_department_purchase_request",
@@ -2141,6 +2179,9 @@ class PurchaseService:
         if row.status != DPR_OPEN:
             raise PurchaseConflict("Chi yeu cau dang cho mua moi duoc huy.")
         self._chan_khi_co_mon_trong_don(row, "huỷ cả")
+        if not (reason or "").strip():
+            # Cùng luật với bỏ một món (lỗi #20): huỷ cả yêu cầu là việc người khác sẽ hỏi lại.
+            raise PurchaseValidationError("Nhập lý do huỷ yêu cầu.")
         # Huỷ HỘ người khác (05/10/2026): router đã đòi ô Thao tác (`yeu_cau_mua_hang:update`), ở
         # đây chỉ chặn yêu cầu NGOÀI phạm vi người huỷ xem được. Trước đó đòi ô `cancel` riêng mà
         # ma trận không bày ⇒ ngoài admin không ai huỷ hộ được.
@@ -2246,6 +2287,13 @@ class PurchaseService:
             row.reject_reason = ly_do
             self._dat_trang_thai(row, DPR_CANCELLED, doc_type=DOC_YCMH, actor=actor, ly_do=ly_do)
         else:
+            # Trạng thái lưu không đổi ("Huỷ một phần" là chip suy ra) nên `_dat_trang_thai` không
+            # ghi gì — ghi thẳng một dòng lịch sử để tab Lịch sử nói được món nào bị bỏ, vì sao (#19).
+            self.lich_su.them(
+                doc_type=DOC_YCMH, doc_id=row.id, from_status=row.status,
+                to_status=LS_HUY_MOT_PHAN, changed_by_user_id=actor.id, source=CHANGE_BY_NGUOI,
+                reason=f"{line.item_name} — {ly_do}",
+            )
             # Bỏ một món có thể làm đổi trạng thái phiếu: yêu cầu 2 món, món chưa ai mua bị bỏ ⇒
             # phần còn lại đang ở đơn đã duyệt ⇒ phiếu nhảy từ "Chờ mua" sang "Đang mua".
             self._tinh_lai_trang_thai_ycmh(row)
@@ -2707,7 +2755,7 @@ class PurchaseService:
     def _new_purchase_code(self) -> str:
         # Prefix DMH (Đơn mua hàng) — đổi từ PMH 25/08/2026 theo yêu cầu chủ. CHỈ áp cho đơn MỚI;
         # đơn cũ đã lưu mã "PMH-..." giữ nguyên (mã đã in/tham chiếu ở phiếu chi, không đổi ngược).
-        today = datetime.now().strftime("%y%m%d")
+        today = datetime.now(timezone(timedelta(hours=7))).strftime("%y%m%d")
         alphabet = string.ascii_uppercase + string.digits
         for _ in range(20):
             rand = "".join(secrets.choice(alphabet) for _ in range(4))
@@ -4490,9 +4538,13 @@ class PurchaseService:
             progress_status = row.status
         # HUỶ MỘT PHẦN đè lên nhãn tiến độ (chủ chốt 24/08/2026: có món bị bỏ là phải thấy ngay).
         # Tiến độ phần còn lại KHÔNG mất — nó ở `progress_status`, giao diện in thành dòng chữ nhỏ
-        # dưới huy hiệu. Huỷ HẾT món thì `status` đã là `cancelled`, rơi vào nhánh trên.
+        # dưới huy hiệu. Huỷ HẾT món thì `status` đã là `cancelled`, rơi vào nhánh trên. Bỏ một món
+        # rồi huỷ CẢ phiếu (món còn lại không mang `cancelled_at`) cũng là đã huỷ, không phải một phần
+        # (#58 bấm lại 19/10/2026); phiếu đã xong cũng vậy.
         workflow_status = (
-            "partially_cancelled" if (so_dong_huy and so_dong_song) else progress_status
+            "partially_cancelled"
+            if (so_dong_huy and so_dong_song and row.status not in (DPR_CANCELLED, DPR_DONE))
+            else progress_status
         )
 
         return {

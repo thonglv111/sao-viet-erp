@@ -34,6 +34,15 @@ const utc = (s: string) => {
   return Date.UTC(y, m - 1, d);
 };
 
+/** `YYYY-MM-DDTHH:mm` giờ Việt Nam của một mốc — giờ tường của xưởng, không theo múi của máy đang mở
+ *  trang. `themGio` dời mốc đi bấy nhiêu giờ; `troiGio` làm tròn lên ĐẦU giờ kế tiếp. */
+export function gioVN(now: number = Date.now(), { themGio = 0, troiGio = false } = {}): string {
+  const H = 3_600_000;
+  let t = now + GIO_VN;
+  if (troiGio) t = Math.floor(t / H) * H + H;
+  return new Date(t + themGio * H).toISOString().slice(0, 16);
+}
+
 /** Hôm nay theo giờ Việt Nam, không phụ thuộc múi giờ của máy đang mở trang. */
 export function homNayVN(now: number = Date.now()): string {
   return new Date(now + GIO_VN).toISOString().slice(0, 10);

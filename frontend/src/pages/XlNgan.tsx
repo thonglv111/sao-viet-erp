@@ -23,6 +23,7 @@ import {
   congPhut, gio, gioChu, moc, quangDongHo, soNgayDu, thuNgay, thuNgayGio, type XlPhanTachNghi,
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
+import { cauChuaTinhGio, goiDaThuHoi, soBuocChuaGio } from "./xlNganSo";
 
 /** Bộ màu + biểu tượng theo loại bước — cùng bộ của lưới (`.xa-m-*`). */
 function theBuoc(ten: string): { ic: ReactNode; mau: string } {
@@ -253,6 +254,7 @@ export function XlNgan({
   }, [capA, capB]);
 
   const phienBans = goi?.co_goi ? (goi.phien_bans ?? []) : [];
+  const goiCu = goiDaThuHoi(goi);
 
   if (!ct) {
     return (
@@ -293,6 +295,8 @@ export function XlNgan({
   const nghi = Math.max(0, tongKh - chay - cho);
   const pt = (v: number) => (tongKh > 0 ? Math.min(100, Math.round((v / tongKh) * 100)) : 0);
   const dem = soDem(ct.bat_dau_at, ct.ket_thuc);
+  // Bước 0 phút vì thiếu dữ kiện ⇒ ngày xong chỉ là mốc sớm nhất, đừng tô nó như số chắc (#24).
+  const cauThieuGio = daXongHet || !daXep ? null : cauChuaTinhGio(soBuocChuaGio(ct.cong_doans));
 
   // ---------------------------------------------------------------- dải ô số
   const oHan = (ten: string, h: string | null, ic: ReactNode) => (
@@ -333,9 +337,10 @@ export function XlNgan({
           </div>
         </label>
       )}
-      <div className="xa-b-o xa-b-o--xong">
-        <div className="xa-b-o__n"><Target size={13} />{daXongHet ? "Xong thực tế" : "Dự kiến xong"}</div>
+      <div className={`xa-b-o${cauThieuGio ? "" : " xa-b-o--xong"}`}>
+        <div className="xa-b-o__n"><Target size={13} />{daXongHet ? "Xong thực tế" : cauThieuGio ? "Sớm nhất xong" : "Dự kiến xong"}</div>
         <div className="xa-b-o__g">{daXongHet ? thuNgayGio(ct.ket_thuc_thuc_te) : daXep ? thuNgayGio(ct.ket_thuc) : "—"}</div>
+        {cauThieuGio && <div className="xa-vien xa-vien--vang">{cauThieuGio}</div>}
       </div>
       <div className="xa-b-o"><div className="xa-b-o__n"><Clock size={13} />Từ đầu tới xong</div>
         <div className="xa-b-o__g">{tong > 0 ? quangDongHo(tong) : "—"}</div></div>
@@ -571,7 +576,7 @@ export function XlNgan({
   const lichSu = (
     <div className="xa-ng-ls">
       {phienBans.length === 0 ? (
-        <p className="xa-ng-ghi">Lệnh chưa phát hành nên chưa có phiên bản nào.</p>
+        <p className="xa-ng-ghi">{goiCu.length > 0 ? "Lệnh chưa phát hành lại sau lần thu hồi." : "Lệnh chưa phát hành nên chưa có phiên bản nào."}</p>
       ) : (
         <>
           <div className="xa-ng-ls__goi">
@@ -603,6 +608,28 @@ export function XlNgan({
               )) : <p className="xa-mo">Không có bước nào đổi giờ hay đổi máy giữa hai phiên bản này. Lịch sử chi tiết chỉ lưu từ 10/09/2026.</p>)}
             </div>
           )}
+        </>
+      )}
+      {goiCu.length > 0 && (
+        <>
+          <p className="xa-ng-ls__goi">Các lần phát hành đã thu hồi</p>
+          {goiCu.map((g) => (
+            <div key={g.goi_id} className="xa-ng-ls__cu-goi">
+              <div className="xa-ng-ls__thu-hoi">
+                <span className="xa-nho xa-nho--do">thu hồi</span>
+                <span className="xa-ng-ls__ly">{g.thu_hoi_ly_do || "Không ghi lý do"}</span>
+                <span className="xa-mo">{g.thu_hoi_luc ? gio(g.thu_hoi_luc) : ""}</span>
+              </div>
+              {g.phien_bans.map((p) => (
+                <div key={p.so} className="xa-ng-ls__muc xa-ng-ls__muc--cu">
+                  <span className="xa-nho">Phiên bản {p.so}</span>
+                  <span className={`xa-nho ${p.loai === "cap_nhat" ? "xa-nho--vang" : "xa-nho--la"}`}>{p.loai === "cap_nhat" ? "cập nhật" : "phát hành"}</span>
+                  <span className="xa-ng-ls__ly">{p.ly_do || "Không ghi lý do"}</span>
+                  <span className="xa-mo">{gio(p.luc)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
         </>
       )}
     </div>

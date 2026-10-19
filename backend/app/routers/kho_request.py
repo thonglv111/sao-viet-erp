@@ -43,6 +43,7 @@ from ..schemas.stock import (
     StockRequestReject,
     StockRequestUpdate,
 )
+from ..services.delivery_notify import kho_huy_hang_giao
 from ..services.kho_giay import co_don_vi_goc, khoa_ton_cua
 from ..services.kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
@@ -791,8 +792,11 @@ def cancel_kho(request_id: int, payload: StockRequestReject, svc: Service, db: D
     """Kho HỦY yêu cầu (quyết định KHÔNG lập phiếu) — kèm lý do; gate bằng `create` (quyền lập
     phiếu), KHÔNG cần là người tạo. Yêu cầu chuyển 'Đã hủy'; số đã cấp bởi phiếu đã ghi sổ (nếu
     có) vẫn giữ nguyên trong kho."""
-    return _act(svc, request_id, user, authz, db, lambda r: svc.cancel_by_kho(r, payload.ly_do),
-                bao_nguoi_tao=True)
+    ra = _act(svc, request_id, user, authz, db, lambda r: svc.cancel_by_kho(r, payload.ly_do),
+              bao_nguoi_tao=True)
+    # Đề nghị xuất của chuyến giao: chuyến rời "Chờ kho xuất", Giao hàng được báo (#32).
+    kho_huy_hang_giao(db, request_id, actor=user)
+    return ra
 
 
 @router.post("/{request_id}/tiep-nhan", response_model=StockRequestOut)

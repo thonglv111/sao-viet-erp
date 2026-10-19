@@ -1,7 +1,7 @@
 """Nghiệp vụ danh mục tài liệu nội quy."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import secrets
 import string
 
@@ -37,7 +37,7 @@ def _clean(value: str | None, *, max_length: int, required: bool = False) -> str
 
 
 def _new_code() -> str:
-    date_part = datetime.now(timezone.utc).strftime("%y%m%d")
+    date_part = datetime.now(timezone(timedelta(hours=7))).strftime("%y%m%d")
     suffix = "".join(secrets.choice(_ALPHABET) for _ in range(4))
     return f"NQ-{date_part}-{suffix}"
 

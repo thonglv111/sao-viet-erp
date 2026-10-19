@@ -24,6 +24,7 @@ import {
   type PayrollPeriod,
 } from "../../../../api/client";
 import { useTre } from "../../../../lib/useTre";
+import { soVi } from "../components/PayslipCard";
 import { ThanhLoc } from "../../../thanh-loc/ThanhLoc";
 import { docThamSoMan, useDongBoUrl } from "../../../ke-toan/shared/urlMan";
 import {
@@ -992,9 +993,9 @@ export function BangLuongTab({
                         {/* 1. Công thường */}
                         <td
                           className="lg-num"
-                          title={`Công ngày thường thực tế: ${getCongThuongVal(l)} / tổng ${l.actual_cong} công`}
+                          title={`Công ngày thường thực tế: ${soVi(getCongThuongVal(l))} / tổng ${soVi(l.actual_cong)} công`}
                         >
-                          {getCongThuongVal(l)}
+                          {soVi(getCongThuongVal(l))}
                         </td>
                         {/* 2. Lương thường */}
                         <td
@@ -1075,7 +1076,7 @@ export function BangLuongTab({
                             [
                               chiTiet(phuCapRows(l), ""),
                               l.phu_cap_thang != null && l.phu_cap_thang > 0
-                                ? `Phụ cấp tháng ${money(l.phu_cap_thang)} ÷ ${l.standard_cong} × ${l.cong_phu_cap ?? 0} công (kể cả khoản hồ sơ)`
+                                ? `Phụ cấp tháng ${money(l.phu_cap_thang)} ÷ ${soVi(l.standard_cong)} × ${soVi(l.cong_phu_cap ?? 0)} công (kể cả khoản hồ sơ)`
                                 : "",
                             ]
                               .filter(Boolean)
@@ -1124,7 +1125,7 @@ export function BangLuongTab({
                         <td
                           className={`lg-num ${getTienTangCaVal(l) ? "" : "lg-zero"}`}
                           title={[
-                            l.ot_minutes ? `${(l.ot_minutes / 60).toFixed(1)}h tăng ca: ${money(getTienTangCaVal(l))}` : "",
+                            l.ot_minutes ? `${soVi(l.ot_minutes / 60, 1)} giờ tăng ca: ${money(getTienTangCaVal(l))}` : "",
                             // TỔ GIAO HÀNG tách khỏi câu của tổ khoán sản lượng (16/09/2026, PRD
                             // §00.10): tài xế / phụ xe CÓ tiền giờ tăng ca, và tiền đó là một vế
                             // của phép so với khoán km — nói "khoán không có tiền tăng ca" ở đây
@@ -1316,7 +1317,7 @@ export function BangLuongTab({
                         </td>
                         <td>{l.department_name ?? "—"}</td>
                         <td className="lg-num">
-                          {l.actual_cong}
+                          {soVi(l.actual_cong)}
                           {(l.special_cong ?? 0) > 0 || l.luong_ngay_le ? (
                             <span className="lg-cong-le"> •</span>
                           ) : null}

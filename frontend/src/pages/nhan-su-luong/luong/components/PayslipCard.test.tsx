@@ -197,9 +197,9 @@ describe("Phiếu lương — luật bù lỗ tổ khoán", () => {
         })}
       />,
     );
-    const cn = dongThu("Làm ngày Chủ nhật / lễ · 2 công");
+    const cn = dongThu("Làm ngày Chủ nhật / lễ (2 công)");
     expect(within(cn).getByText("553.846")).toBeInTheDocument();
-    const le = dongThu("Công ngày lễ (ngoài khoán) · 1 ngày");
+    const le = dongThu("Công ngày lễ (ngoài khoán) (1 ngày)");
     expect(within(le).getByText("276.923")).toBeInTheDocument();
     expect(cn.nextElementSibling).toBe(le);
     expect(tongThu()).toBe("20.830.769");

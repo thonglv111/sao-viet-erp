@@ -787,8 +787,8 @@ def phieu_activity(
 ) -> PtgActivityOut:
     """Nhật ký hoạt động THẬT của 1 phiếu tính giá (ai làm gì · khi nào) — nhiều vai trò
     (KTV/sale/TP) có thể cùng sửa 1 phiếu nên mỗi thao tác để lại dấu vết. Đọc audit theo
-    target `phieu_tinh_gia:{id}`, mới→cũ, kèm NGƯỜI thao tác ghi theo HỒ SƠ ("Phòng ban · Chức vụ
-    · Tên" — `actor_display`, dùng chung với feed Báo giá). RBAC + phạm vi qua `_fetch_in_scope`
+    target `phieu_tinh_gia:{id}`, mới→cũ, kèm NGƯỜI thao tác ghi theo HỒ SƠ ("Tên (Phòng ban)"
+    — `actor_display`, dùng chung với feed Báo giá). RBAC + phạm vi qua `_fetch_in_scope`
     (ngoài phạm vi = 404, không lộ tồn tại)."""
     _fetch_in_scope(db, p_id, user, authz)
     rows = AuditLogRepository(db).list_by_target(f"phieu_tinh_gia:{p_id}")

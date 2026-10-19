@@ -183,6 +183,9 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
   it("dòng phụ trạng thái: chưa giao, đã giao, đang chạy, xong", () => {
     expect(dongPhuTrangThai(mockViec({ trang_thai: "released", nguoi_lam: [] }))).toBe("chưa giao thợ");
     expect(dongPhuTrangThai(mockViec({ trang_thai: "released", nguoi_lam: ["Đào Văn Hoan"] }))).toBe("đã giao Đào Văn Hoan");
+    expect(dongPhuTrangThai(mockViec({ trang_thai: "released", nguoi_lam: ["Nguyễn Hoàng Huynh", "Trần Công Quyền"] })))
+      .toBe("đã giao Nguyễn Hoàng Huynh và Trần Công Quyền");
+    expect(dongPhuTrangThai(mockViec({ trang_thai: "released", nguoi_lam: ["A", "B", "C"] }))).toBe("đã giao A và 2 người nữa");
     const bay = new Date();
     bay.setHours(11, 41, 0, 0);
     expect(dongPhuTrangThai(mockViec({
@@ -190,7 +193,7 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     }))).toBe("từ 11:41 Đào Văn Hoan");
     expect(dongPhuTrangThai(mockViec({
       trang_thai: "completed", thuc_te: [{ bat_dau: "2026-10-05T08:00:00", ket_thuc: "2026-10-05T16:20:00" }],
-    }))).toMatch(/^xong 5\/10(\/2026)? 16:20$/);
+    }))).toMatch(/^xong 05\/10(\/2026)? 16:20$/);
   });
 });
 

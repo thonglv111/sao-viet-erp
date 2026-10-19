@@ -208,7 +208,7 @@ export function addGiayVersion(
 // -- Nhật ký của MỘT bản ghi danh mục (ai đổi gì, lúc nào) — một cửa chung cho 10 màn --
 export interface NhatKyItem {
   at: string;
-  /** "Phòng ban · Chức vụ · Tên"; null khi do hệ thống/seed sinh ra. */
+  /** "Tên (Phòng ban)"; null khi do hệ thống/seed sinh ra. */
   actor_name: string | null;
   action: string;
   /** Các thay đổi trong cùng một lần lưu, nối bằng " · ". */

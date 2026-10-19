@@ -15,7 +15,7 @@ function donGia(n: number): string {
   return n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 }
 
-/** dd/mm/yyyy — `toLocaleDateString("vi-VN")` trả "9/8/2026", thiếu số 0 nên hai ngày trên cùng
+/** dd/mm/yyyy — `toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })` trả "9/8/2026", thiếu số 0 nên hai ngày trên cùng
  *  tờ nhìn so le. Chứng từ gửi khách phải một khuôn ngày duy nhất. */
 function fmtDate(v: string | null | undefined): string {
   if (!v) return "—";

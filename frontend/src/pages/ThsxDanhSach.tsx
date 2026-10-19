@@ -148,8 +148,14 @@ function HangChoNhan({ hang }: { hang: SxChoXacNhanBanGiao[] }) {
   );
 }
 
+/** "A", "A và B", "A và 2 người nữa" — không nối tên bằng dấu phẩy (#68). */
+export function noiTen(ds: string[]): string {
+  if (ds.length <= 2) return ds.join(" và ");
+  return `${ds[0]} và ${ds.length - 1} người nữa`;
+}
+
 export function dongPhuTrangThai(w: SxWorkItem): string {
-  const ten = (w.nguoi_lam ?? []).join(", ");
+  const ten = noiTen(w.nguoi_lam ?? []);
   const phien = w.thuc_te ?? [];
   const cuoi = phien[phien.length - 1];
   if (w.trang_thai === "running") {

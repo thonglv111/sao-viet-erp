@@ -1,4 +1,4 @@
-"""Nhãn NGƯỜI THAO TÁC cho mọi nhật ký hoạt động — "Phòng ban · Chức vụ · Tên".
+"""Nhãn NGƯỜI THAO TÁC cho mọi nhật ký hoạt động — "Tên (Phòng ban)".
 
 LUẬT (chủ đầu tư chốt): mỗi tài khoản đã gắn 1 hồ sơ nhân sự, mà hồ sơ mới là nơi giữ vai thật
 (phòng ban + chức vụ). Nên log KHÔNG bao giờ suy vai từ HÀNH ĐỘNG ("Giám đốc KD duyệt" — sai khi
@@ -24,7 +24,10 @@ from ..models.user import User
 
 
 def actor_labels(db: Session, user_ids: set[int]) -> dict[int, str]:
-    """Map user_id → "Phòng ban · Chức vụ · Tên" (thiếu phần nào bỏ phần đó).
+    """Map user_id → "Tên (Phòng ban)" — thiếu phòng ban thì "Tên (Chức vụ)", thiếu cả hai thì tên.
+
+    Không nối "Phòng ban · Chức vụ · Tên" nữa (#68 bấm lại 19/10/2026: "Ban giám đốc · Admin"):
+    tên người đứng trước, chỗ làm trong ngoặc.
 
     Fallback `User.name` khi tài khoản chưa có hồ sơ nhân sự.
     """
@@ -51,14 +54,10 @@ def actor_labels(db: Session, user_ids: set[int]) -> dict[int, str]:
 
     out: dict[int, str] = {}
     for r in rows:
-        parts = [
-            dept_names.get(r.department_id) if r.department_id else None,
-            (r.position or "").strip() or None,
-            (r.full_name or "").strip() or None,
-        ]
-        label = " · ".join(p for p in parts if p)
-        if label:
-            out[r.user_id] = label
+        ten = (r.full_name or "").strip()
+        cho = (dept_names.get(r.department_id) if r.department_id else None) or (r.position or "").strip()
+        if ten:
+            out[r.user_id] = f"{ten} ({cho})" if cho else ten
 
     # Tài khoản không có hồ sơ (hoặc hồ sơ trống trơn) → tên tài khoản.
     for uid in ids:

@@ -145,6 +145,11 @@ class SanXuatGoiPhatHanh(Base):
     )
     version_hien_tai: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # Vết THU HỒI ngay trên gói (mg 0420, 18/10/2026, lỗi #25 bấm thử): trước đó lý do bắt buộc
+    # chỉ nằm trong Nhật ký hệ thống, phát hành lại là tab Lịch sử phát hành mất luôn bản cũ.
+    thu_hoi_ly_do: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    thu_hoi_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    thu_hoi_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # soft → users.id
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow

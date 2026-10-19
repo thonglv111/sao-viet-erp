@@ -122,6 +122,8 @@ class DongLichOut(_LichChung):
     may_ten: str | None = None
     # Số bước chưa tính được giờ (thiếu máy / thiếu quy đổi) — nút lọc nhanh "có thể xong muộn".
     so_buoc_chua_gio: int = 0
+    # Bước chạy đè vùng khoá máy / máy đang dừng chờ sửa — chỉ nhắc, không chặn.
+    canh_bao_may: list[str] = Field(default_factory=list)
     # --- MÉP THANH của lệnh ĐÃ CHẠY DỞ (cả hai `None` khi lệnh chưa vào việc) ---
     # Thanh KHÔNG bắt đầu ở `bat_dau_at`: từ khi mốc đổi nghĩa thành "bắt đầu phần còn lại", mốc
     # nằm ở TƯƠNG LAI trong khi lệnh đã chạy từ trước. Vẽ từ mốc là nói lệnh chưa bắt đầu, ngược
@@ -398,3 +400,27 @@ class PhatHanhCapNhatIn(BaseModel):
 
 
 LichOut.model_rebuild()
+
+
+class MayGonOut(BaseModel):
+    id: int
+    ma: str
+    ten: str
+
+
+class VungKhoaIn(BaseModel):
+    """Khoảng máy nghỉ khai tay ở Xếp lịch (bảo trì / hỏng / nghỉ / khác)."""
+    tu: datetime
+    den: datetime
+    ly_do: str = Field("bao_tri", max_length=20)
+    note: str | None = Field(None, max_length=500)
+
+
+class VungKhoaOut(BaseModel):
+    id: int
+    may_id: int
+    start: datetime
+    finish: datetime
+    ly_do: str
+    note: str | None = None
+    kieu: str

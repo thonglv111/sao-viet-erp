@@ -5,6 +5,7 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -57,6 +58,8 @@ import { useLocMan } from "./thanh-loc/useLocMan";
 // phải sửa code, mà chữ dựng lại vẫn không khớp bản in thật.
 import letterheadUrl from "../assets/letterhead-sao-viet-nhat.jpg";
 import { useInTuDong } from "./bao-gia-in-tu-dong";
+import { congTongBaoGia, dongDuocCong } from "./bao-gia-tong";
+import { useKhiTickDoi } from "../hooks/useKhiTickDoi";
 import {
   Activity,
   AlertCircle,
@@ -90,6 +93,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import "./bao-gia.css";
+import { taoLuot } from "../lib/luotMoiNhat";
 
 // Điều khoản MẶC ĐỊNH điền sẵn khi tạo báo giá (khớp DEFAULT_TERMS backend). Mỗi dòng = 1 điều
 // khoản; bản in tự đánh số 1..N theo dòng. Sale sửa thoải mái trước khi gửi khách.
@@ -141,7 +145,7 @@ function labelOf(options: EnumOption[], value: string | null): string {
 function fmtDate(v: string | null): string {
   if (!v) return "—";
   try {
-    return new Date(v).toLocaleDateString("vi-VN");
+    return new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
   } catch {
     return v;
   }
@@ -301,6 +305,7 @@ export function BaoGiaPage({
         navigate={navigate}
         onClose={() => setOpenId(null)}
         onChanged={() => load()}
+        eventTick={eventTick}
       />
     );
   }
@@ -713,18 +718,21 @@ function gomDongTheoNhom(items: QuoteItemDetail[]): NodeBaoGia[] {
 
 
 
-function QuotationDetailView({
+export function QuotationDetailView({
   quotationId,
   statuses,
   navigate,
   onClose,
   onChanged,
+  eventTick = 0,
 }: {
   quotationId: number;
   statuses: EnumOption[];
   navigate?: (id: string, params?: any) => void;
   onClose: () => void;
   onChanged: () => void;
+  /** Tick nhóm bán hàng (SSE) — bên kia duyệt/từ chối/trình duyệt thì màn đang mở tự đổi (#12). */
+  eventTick?: number;
 }) {
   const { token } = useAuth();
   // Xuất PDF đối ngoại = ô THAO TÁC của Báo giá (05/10/2026) — khớp `quotations.py` /pdf.
@@ -777,14 +785,28 @@ function QuotationDetailView({
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [acceptPicks, setAcceptPicks] = useState<Record<number, boolean>>({});
 
+  // Lượt nạp về muộn không đè lượt mới hơn (rà cuối 19/10): sự kiện SSE tới dồn, hoặc vừa đổi phiên
+  // bản, thì các lượt gọi về không theo thứ tự gửi. `canDatLai`: một lượt THƯỜNG (sau thao tác, đổi
+  // phiên bản) đòi xoá ô gõ dở; lượt SSE mới hơn thắng nó vẫn phải làm việc đó thay.
+  const luot = useRef(taoLuot()).current;
+  const canDatLai = useRef(false);
   const reload = useCallback(
-    async (id: number) => {
+    // `giuNhap`: lượt nạp do sự kiện SSE — chỉ thay số của báo giá, KHÔNG xoá ô người dùng đang gõ dở
+    // (số dòng, điều khoản, hạn hiệu lực). Sự kiện nhóm bán hàng tới cả khi người khác đụng báo giá khác.
+    async (id: number, giuNhap = false) => {
       if (!token) return;
+      const conMoi = luot.bat();
+      if (!giuNhap) canDatLai.current = true;
       // Nhật ký Hoạt động tải SONG SONG với chi tiết, không đợi chi tiết xong mới gọi.
-      api.quotations.activity(token, id).then((r) => setActs(r.items)).catch(() => setActs([]));
+      api.quotations.activity(token, id)
+        .then((r) => { if (conMoi()) setActs(r.items); })
+        .catch(() => { if (conMoi()) setActs([]); });
       try {
         const det = await api.quotations.get(token, id);
+        if (!conMoi()) return;
         setD(det);
+        if (!canDatLai.current) return;
+        canDatLai.current = false;
         setNhap({});
         setTermsText(det.terms_text ?? DEFAULT_TERMS);
         setVerNote((det as any).change_reason ?? "");
@@ -799,15 +821,18 @@ function QuotationDetailView({
           setValidity(days > 0 ? days : 30);
         } else setValidity(30);
       } catch {
-        setErr("Không tải được chi tiết báo giá.");
+        if (conMoi()) setErr("Không tải được chi tiết báo giá.");
       }
     },
-    [token],
+    [token, luot],
   );
 
   useEffect(() => {
     reload(quotationId);
   }, [reload, quotationId]);
+  // #12: trước đó chi tiết chỉ nạp khi đổi `quotationId` — người duyệt từ chối xong, màn bên này vẫn
+  // "Chờ duyệt" kèm nút cũ tới khi về danh sách mở lại.
+  useKhiTickDoi(eventTick, () => reload(quotationId, true));
 
   if (!d) {
     return (
@@ -844,15 +869,15 @@ function QuotationDetailView({
     const vat = (selling * (it.vat_percent || 0)) / 100;
     return {
       m: goc > 0 ? (ln / goc) * 100 : 0, cost, ck, disc: ck, goc, ln, selling, net: selling, vat,
-      final: selling + vat, profit: ln, qty: it.quantity,
+      final: selling + vat, profit: ln, qty: it.quantity, vatPct: it.vat_percent || 0,
     };
   }
-  let costT = 0, sellingT = 0, netT = 0, vatT = 0, grandT = 0, discountT = 0, profitT = 0;
-  d.items.forEach((it) => {
-    const c = calcItem(it);
-    costT += c.cost; sellingT += c.selling; netT += c.net; vatT += c.vat; grandT += c.final;
-    discountT += c.ck; profitT += c.ln;
-  });
+  // #10 cộng số đã làm tròn từng dòng; #13 khách chốt một phần thì chỉ cộng dòng khách lấy.
+  const daChot = d.status === "accepted" || d.status === "converted_to_order";
+  const dongCong = dongDuocCong(d.items, daChot);
+  const tong = congTongBaoGia(dongCong.map(calcItem));
+  const costT = tong.cost, netT = tong.selling, vatT = tong.vat;
+  const grandT = tong.grand, discountT = tong.ck, profitT = tong.profit;
   const pctf = (v: number) => (Math.round(v * 10) / 10).toLocaleString("vi-VN");
   const singleVat = d.items[0]?.vat_percent ?? 10;
   // Markup hiển thị = tổng lợi nhuận / (giá vốn + chiết khấu) — cùng gốc với ô Markup từng dòng.
@@ -1510,7 +1535,7 @@ function QuotationDetailView({
                               onChot={(k, v) => { datNhap([it.id], "gia", null); commitLoiNhuan(it, k, v); }}
                             />
                           ) : (
-                            <span>{pctf(c.m)} %<span className="meta"> · {numf(c.ln)} đ</span></span>
+                            <span>{pctf(c.m)} %<span className="meta"> {numf(c.ln)} đ</span></span>
                           )}
                           {priceOverridden && <span className="meta">suy ra từ giá gõ tay</span>}
                         </div>
@@ -1788,6 +1813,9 @@ function QuotationDetailView({
                 <span className="v">{numf(vatT)} đ</span>
               </div>
               {/* Bỏ "Tổng cộng" — trùng số lớn "Giá bán đề xuất" ở đầu card. */}
+              {dongCong.length < d.items.length && (
+                <div className="drow"><span className="k">Chỉ cộng {dongCong.length} trên {d.items.length} sản phẩm khách lấy</span></div>
+              )}
             </div>
 
             {/* Báo giá đặc thù (giá trị cao / lời mỏng / bán dưới vốn): Nháp → TRÌNH DUYỆT → Chờ duyệt →
@@ -1829,8 +1857,8 @@ function QuotationDetailView({
                         {d.exception_decision === "rejected" ? <><X size={13} /> Từ chối</> : <><Check size={13} /> Duyệt</>}
                       </span>{" "}bởi{" "}
                       <b>{d.exception_decided_by_name}</b>
-                      {d.exception_decided_at ? ` · ${fmtDate(d.exception_decided_at)}` : ""}
-                      {d.exception_note ? ` · “${d.exception_note}”` : ""}
+                      {d.exception_decided_at ? ` ngày ${fmtDate(d.exception_decided_at)}` : ""}
+                      {d.exception_note ? <>{": "}“{d.exception_note}”</> : ""}
                     </div>
                   )}
                   {/* GĐ Kinh doanh duyệt/từ chối — CHỈ khi báo giá đang Chờ duyệt (pending_approval). */}
@@ -1878,12 +1906,12 @@ function QuotationDetailView({
                     <div className="tlb">
                       <div className="a">{m[2]}</div>
                       <div className="m">
-                        {/* actor_name là "Phòng · Chức vụ · Tên" — cột phụ chỉ đủ chỗ cho TÊN,
-                            chức danh đầy đủ nằm ở tooltip. Không cắt thì mỗi sự kiện chiếm 3 dòng. */}
+                        {/* actor_name là "Tên (Phòng ban)" — cột phụ chỉ đủ chỗ cho TÊN, phòng ban
+                            nằm ở tooltip. Tên và giờ là hai mẩu riêng, không nối bằng "·" (#68). */}
                         {a.actor_name ? (
-                          <><span className="who" title={a.actor_name}>{a.actor_name.split(" · ").pop()}</span> · </>
+                          <><span className="who" title={a.actor_name}>{a.actor_name.replace(/\s*\([^)]*\)$/, "")}</span>{" "}</>
                         ) : null}
-                        {fmtDateTime(a.at)}
+                        <span>{fmtDateTime(a.at)}</span>
                       </div>
                     </div>
                   </div>

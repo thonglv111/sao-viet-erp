@@ -42,6 +42,9 @@ from ..schemas.xep_lich import (
     PhatHanhCapNhatIn,
     ThuMocOut,
     VatTuLenhOut,
+    MayGonOut,
+    VungKhoaIn,
+    VungKhoaOut,
 )
 from ..services.xep_lich import (
     XepLichLenhConflict,
@@ -52,6 +55,7 @@ from ..services.xep_lich import (
 from ..services.xep_lich_service import (
     XepLichConflict,
     XepLichNotFound,
+    XepLichService,
     XepLichValidationError,
 )
 
@@ -95,6 +99,11 @@ def _phat_goi_xuong_xuong(lsx_id: int) -> None:
     (bàn nào có việc của lệnh thì phải tự nạp; tra tổ cần đọc lại gói, còn cửa này thưa)."""
     _phat_lich_doi(lsx_id)
     hub.gui({"type": "lsx_changed"}, quyen=hop(NGHE_LENH, (BAN_TO,)))
+
+
+def _phat_lich_doi_may(may_id: int) -> None:
+    """Khai / bỏ khoá máy: thanh lệnh trên máy đó đổi cảnh báo ⇒ nhích cùng tập người như dời mốc."""
+    hub.gui({"type": "xep_lich_changed", "may_id": may_id}, quyen=hop(MAN_THEO_LENH, MAN_KHVT))
 
 
 # --- Đọc ---------------------------------------------------------------------
@@ -338,3 +347,61 @@ def thu_hoi(
     for i in kq["cum_lsx"]:
         _cham_cho_xep(db, i, user.id)
     return {"ok": True, "cum_lsx": kq["cum_lsx"]}
+
+# --- Vùng khoá máy (bảo trì / hỏng / nghỉ) — lỗi #50 bấm thử 18/10/2026 ---------------------------
+# Route cũ mất cùng bàn theo công đoạn (0001d386, 20/08/2026) nên `tao_vung_khoa` chỉ còn test gọi:
+# nhãn "Đang bảo trì" ở màn Máy và cảnh báo đè lịch bảo trì không bao giờ có dữ liệu để hiện.
+def _khoa_svc(db: Session) -> XepLichService:
+    from ..repositories.xep_lich_repo import XepLichRepository
+
+    return XepLichService(db, XepLichRepository(db), AuditLogRepository(db))
+
+
+@router.get("/may", response_model=list[MayGonOut])
+def danh_sach_may(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    """Máy còn dùng cho ô chọn của hộp Khoá máy — gác bằng quyền Xếp lịch, không mượn khoá màn Máy."""
+    from ..services.xep_lich_service import may_cho_hop_khoa
+
+    return may_cho_hop_khoa(db)
+
+
+@router.get("/may/{may_id}/vung-khoa", response_model=list[VungKhoaOut])
+def list_vung_khoa(
+    may_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    return _khoa_svc(db).list_vung_khoa(may_id=may_id)
+
+
+@router.post("/may/{may_id}/vung-khoa", response_model=VungKhoaOut)
+def tao_vung_khoa(
+    may_id: int,
+    body: VungKhoaIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    try:
+        kq = _khoa_svc(db).tao_vung_khoa(may_id=may_id, tu=body.tu, den=body.den, ly_do=body.ly_do,
+                                         note=(body.note or "").strip() or None, actor=user)
+    except Exception as exc:
+        raise _map(exc)
+    _phat_lich_doi_may(may_id)
+    return kq
+
+
+@router.delete("/vung-khoa/{pid}", response_model=None)
+def xoa_vung_khoa(
+    pid: int,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> dict:
+    try:
+        may_id = _khoa_svc(db).xoa_vung_khoa(pid=pid, actor=user)
+    except Exception as exc:
+        raise _map(exc)
+    _phat_lich_doi_may(may_id)
+    return {"ok": True}

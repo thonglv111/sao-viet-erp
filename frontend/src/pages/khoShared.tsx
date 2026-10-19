@@ -312,7 +312,7 @@ export function fmtGioCan(canLuc: string | null | undefined): string {
   if (!canLuc) return "—";
   const d = new Date(canLuc);
   if (Number.isNaN(d.getTime())) return canLuc;
-  return `${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 /** `canLuc` (giờ cần thật, từ đề nghị sản xuất) ưu tiên khi có — so THEO GIỜ, không theo ngày:

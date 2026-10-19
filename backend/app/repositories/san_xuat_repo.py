@@ -383,6 +383,25 @@ class SanXuatRepository:
             .limit(1)
         ).scalar_one_or_none()
 
+    def cac_goi_cua(
+        self, lsx_ids: set[int], bai_ghep_ids: set[int]
+    ) -> list[SanXuatGoiPhatHanh]:
+        """MỌI gói (kể cả đã thu hồi) có công việc trỏ tới LSX/bài ghép trong tập, mới nhất trước."""
+        conds = []
+        if lsx_ids:
+            conds.append(SanXuatCongViec.lsx_id.in_(lsx_ids))
+        if bai_ghep_ids:
+            conds.append(SanXuatCongViec.bai_ghep_id.in_(bai_ghep_ids))
+        if not conds:
+            return []
+        from sqlalchemy import or_
+
+        ids = select(SanXuatCongViec.goi_id).where(or_(*conds))
+        return list(self.db.execute(
+            select(SanXuatGoiPhatHanh).where(SanXuatGoiPhatHanh.id.in_(ids))
+            .order_by(SanXuatGoiPhatHanh.id.desc())
+        ).scalars())
+
     def goi_dang_phat_hanh(self, goi_id: int) -> bool:
         """Gói còn hiệu lực? Thu hồi rồi thì công việc vẫn nằm đó nhưng tổ không còn thấy."""
         return self.db.execute(

@@ -11,6 +11,8 @@ export function RequestModals({
   canceling,
   setCanceling,
   confirmCancel,
+  lyDoHuy,
+  setLyDoHuy,
   boMon,
   setBoMon,
   confirmBoMon,
@@ -20,6 +22,8 @@ export function RequestModals({
   canceling: DepartmentPurchaseRequestRow | null;
   setCanceling: Dispatch<SetStateAction<DepartmentPurchaseRequestRow | null>>;
   confirmCancel: () => Promise<void>;
+  lyDoHuy: string;
+  setLyDoHuy: Dispatch<SetStateAction<string>>;
   boMon: BoMonState | null;
   setBoMon: Dispatch<SetStateAction<BoMonState | null>>;
   confirmBoMon: () => Promise<void>;
@@ -34,9 +38,20 @@ export function RequestModals({
         danger
         confirmLabel="Hủy yêu cầu"
         busy={canceling ? actionBusy === `cancel:${canceling.id}` : false}
+        // Lý do bắt buộc như bỏ một món (lỗi #20): trước đây gửi cứng tiêu đề hộp làm "lý do".
+        confirmDisabled={!lyDoHuy.trim()}
         onConfirm={confirmCancel}
         onCancel={() => setCanceling(null)}
-      />
+      >
+        <label className="purchase__field">
+          <span>Lý do huỷ (bắt buộc)</span>
+          <textarea
+            className="input purchase__textarea"
+            value={lyDoHuy}
+            onChange={(e) => setLyDoHuy(e.target.value)}
+          />
+        </label>
+      </ConfirmDialog>
 
       {/* Cùng khuôn với hộp "Hủy yêu cầu" ngay trên: hộp XÁC NHẬN, không phải modal biểu mẫu —
           đây là một câu hỏi có/không kèm ô lý do. `confirmDisabled` khoá nút cho tới khi có lý do

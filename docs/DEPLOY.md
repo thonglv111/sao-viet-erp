@@ -207,13 +207,21 @@ giờ chưa chạy; nên có người nhìn trạng thái này, và một dịch
 
 ## 8. Image MinIO
 
-Repo `minio/minio` đã bị gỡ khỏi Docker Hub (kiểm 28/09/2026: 404; `quay.io/minio/minio` đòi đăng
-nhập). `docker-compose.yml` giữ đúng tên `minio/minio` như trước — VPS đã có image này trong cache
-nên chạy bình thường, không phải kéo gì. Cố ý KHÔNG ghim digest: bản trong cache VPS có thể khác
-digest máy dev, ghim là compose đi kéo bản không tồn tại và deploy dừng. Nhưng:
+`minio/minio` và `minio/mc` bị gỡ khỏi Docker Hub ngày 11/09/2026; `quay.io/minio/minio` chặn kéo
+ẩn danh từ 24/09/2026; dl.min.io không còn phát binary. Từ 19/10/2026 `docker-compose.yml` mặc định
+dùng **`pgsty/silo:RELEASE.2026-09-16T00-00-00Z`** — fork cộng đồng của chính mã MinIO do Pigsty duy
+trì (tên cũ `pgsty/minio`, đổi thành Silo từ 06/08/2026), kéo ẩn danh từ Docker Hub, có tag theo bản.
 
-- ĐỪNG `docker image prune -a` / `docker system prune -a` trên VPS — mất image là không kéo lại được.
-  (Bước dọn của deploy chỉ xoá image lơ lửng của đúng project, không đụng image đang dùng.)
-- Lưu một bản phòng thân: `docker save minio/minio -o minio-image.tar` (khôi phục: `docker load -i …`).
-- VPS mới (không có image trong cache): nạp bản phòng thân (`docker load -i minio-image.tar`) hoặc
-  đặt `MINIO_IMAGE=<image kéo được>` trong `.env`. Sao lưu (mục 7) trước khi đổi sang bản MinIO khác.
+Vì sao chọn bản này: cùng định dạng `/data` (`.minio.sys`) nên volume `miniodata` dùng tiếp, không
+chuyển dữ liệu; giữ biến `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`, API S3, đường `/minio/health/live`,
+console :9001; chạy bằng root nên không phải `chown` volume; có `curl` cho healthcheck và `mcli`
+(thay `mc`). Đã chạy thật trên máy dev 19/10/2026: `minio/minio` RELEASE.2025-09-07 ghi một tệp vào
+volume, dừng, Silo mở đúng volume đó đọc lại được tệp và ghi thêm được tệp mới.
+
+Lần deploy đầu sau khi đổi: compose kéo image mới và dựng lại container `minio` (kho tệp gián đoạn
+vài giây, dữ liệu giữ nguyên trong volume). Nên chạy sao lưu (mục 7) trước lần đó.
+
+Nguồn dự phòng nếu Silo cũng mất — đặt `MINIO_IMAGE=` trong `.env`:
+- `cgr.dev/chainguard/minio:latest` — bản miễn phí chỉ có `latest`; chạy bằng uid 65532 (phải
+  `chown -R 65532:65532` volume trước) và KHÔNG có `curl`, phải đổi healthcheck.
+- Tự build từ mã nguồn MinIO (repo vẫn còn trên GitHub) rồi `docker save`/`docker load` lên VPS.

@@ -33,14 +33,35 @@ def test_buoc_nhan_cuon_tinh_kg_tu_to_nguyen_ra():
     assert (d["kho_rong"], d["kho_dai"]) == (790, 0)
 
 
-def test_don_vi_vao_trong_hoac_khong_phai_to_cuon_thi_khong_doan():
-    for dv in (None, "", "cai", "con", "tay"):
-        d = dong_giay_theo_dau_vao(don_vi_vao=dv, so_luong_vao=10, so_luong_ra=10,
+def test_buoc_dau_vao_trong_tinh_kg_theo_sl_ra_va_kho_to_ra():
+    """18/10/2026: đầu vào "—" (cắt từ cuộn) ⇒ kg = gsm × khổ tờ RA × SL ra, không hiện khổ."""
+    for dv in (None, ""):
+        d = dong_giay_theo_dau_vao(don_vi_vao=dv, so_luong_vao=0, so_luong_ra=1000,
                                    quy_cach=QC, gsm=250)
-        assert d["so_luong"] is None and d["ly_do"], dv
-        assert d["don_vi"] != "kg"    # không bị lật sang nhánh khổ rộng tính kg
-    assert "chưa khai" in dong_giay_theo_dau_vao(
-        don_vi_vao=None, so_luong_vao=1, so_luong_ra=1, quy_cach=QC, gsm=250)["ly_do"]
+        assert d["don_vi"] == "kg" and d["hien_kho"] is False
+        assert d["so_luong"] == pytest.approx(1000 * 0.79 * 1.09 * 0.25)
+    # Bước kế tiếp nhận tờ IN ⇒ SL ra đếm tờ in, khổ tờ in.
+    d = dong_giay_theo_dau_vao(don_vi_vao=None, so_luong_vao=0, so_luong_ra=1000,
+                               quy_cach=QC, gsm=250, tram_ra=TRAM_TO)
+    assert d["so_luong"] == pytest.approx(1000 * 0.545 * 0.79 * 0.25)
+    assert (d["kho_rong"], d["kho_dai"]) == (545, 0)
+
+
+def test_buoc_nhan_cai_con_tinh_kg_theo_kho_thanh_pham():
+    qc = {**QC, "dai_thanh_pham": 90, "rong_thanh_pham": 54}
+    for dv in ("cai", "con"):
+        d = dong_giay_theo_dau_vao(don_vi_vao=dv, so_luong_vao=5000, so_luong_ra=0,
+                                   quy_cach=qc, gsm=300)
+        assert d["don_vi"] == "kg" and d["hien_kho"] is True
+        assert (d["kho_rong"], d["kho_dai"]) == (54, 90)
+        assert d["so_luong"] == pytest.approx(5000 * 0.054 * 0.09 * 0.3)
+    d = dong_giay_theo_dau_vao(don_vi_vao="tay", so_luong_vao=100, so_luong_ra=0,
+                               quy_cach=qc, gsm=300)
+    assert (d["kho_rong"], d["kho_dai"]) == (545, 790)
+    # Thiếu khổ thành phẩm ⇒ không đoán.
+    d = dong_giay_theo_dau_vao(don_vi_vao="cai", so_luong_vao=10, so_luong_ra=0,
+                               quy_cach=QC, gsm=300)
+    assert d["so_luong"] is None and "khổ thành phẩm" in d["ly_do"]
 
 
 def test_thieu_kho_thi_khong_doan():
@@ -136,6 +157,26 @@ def test_buoc_nhan_cuon_don_vi_kg(db):
     # Nhánh khổ rộng: đơn vị gốc = đơn vị giá của mã (kg), khổ chỉ-rộng.
     assert (goc, kr, kd, dv) == ("kg", 790, 0, "kg")
     assert round(sl, 3) == 176.956
+
+
+def test_buoc_dau_vao_trong_lay_sl_ra_tu_buoc_ke_tiep(db):
+    """Cắt cuộn ("—") → Cắt tờ (tờ nguyên → tờ in) → In: dòng giấy ở Cắt cuộn = kg của số tờ
+    nguyên mà Cắt tờ nhận (chuỗi bù hao ngược), khổ nguyên."""
+    from app.models.customer import Customer
+    c = Customer(code="KH-CC", name="Khách cuộn")
+    db.add(c)
+    db.commit()
+    g = _giay(db, ma="CC250", gsm=250, don_vi="kg")
+    lsx = _lenh(db, c, g)
+    cuon = _buoc(db, lsx, 1, "Cắt cuộn", None, None, g)
+    cat = _buoc(db, lsx, 2, "Cắt tờ", TRAM_TO_NGUYEN, TRAM_TO, g)
+    _buoc(db, lsx, 3, "In", TRAM_TO, TRAM_TO, g)
+    db.refresh(lsx)
+    _svc(db)._ap_chuoi_nguoc(lsx)
+    assert float(cat.so_luong_vao) > 0
+    goc, sl, kr, kd, dv = _dong_giay(cuon)
+    assert (goc, kr, kd, dv) == ("kg", 790, 0, "kg")
+    assert sl == pytest.approx(float(cat.so_luong_vao) * 0.79 * 1.09 * 0.25, rel=1e-6)
 
 
 def test_buoc_nhan_cuon_don_vi_tan_co_cap_quy_doi(db):

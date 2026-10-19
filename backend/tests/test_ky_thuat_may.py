@@ -433,7 +433,7 @@ def test_mo_lai_phieu_da_dong_thi_don_moc_hoan_thanh():
     _anh_sau(svc, LOAI_PHIEU_SUA_CHUA, phieu.id)
     svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_DA_SUA_XONG)
 
-    phieu = svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_CHO_SUA)
+    phieu = svc.doi_trang_thai_sua_chua(phieu.id, TT_SC_CHO_SUA, ly_do="Sửa chưa đạt")
     assert phieu.hoan_thanh_at is None and phieu.hoan_thanh_boi is None
 
 

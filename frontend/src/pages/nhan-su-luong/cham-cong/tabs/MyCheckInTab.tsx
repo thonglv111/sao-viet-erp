@@ -46,12 +46,14 @@ function tenCa(ten: string): string {
 
 export function MyCheckIn({
   token,
-  canConfig,
+  canDatDiem,
   coQuyenGhi,
   navigate,
 }: {
   token: string;
-  canConfig: boolean;
+  /** Ô Điểm chấm công (`manage_locations`) — nút "Đặt điểm chấm công tại đây" tạo điểm mới, máy chủ
+   *  đòi đúng ô này (#37, 18/10/2026: trước gác bằng ô Thao tác chung, có Thao tác bấm ra 403). */
+  canDatDiem: boolean;
   /** Ô THAO TÁC của Tự phục vụ — bấm chấm công là GHI dữ liệu (tách 11/08/2026). */
   coQuyenGhi: boolean;
   navigate?: NavigateFn;
@@ -562,7 +564,7 @@ export function MyCheckIn({
               </div>
             )}
 
-            {canConfig &&
+            {canDatDiem &&
               (!status.locations_configured ||
                 (result != null && !result.within_range && !result.vi_tri_gan_dung)) && (
                 <div className="cc-setup" style={{ width: "100%", marginTop: 12 }}>

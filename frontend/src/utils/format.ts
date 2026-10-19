@@ -21,7 +21,7 @@ export function originalMoney(value: number, currency: string): string {
 export function fmtDate(value?: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("vi-VN");
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /** HẠN TRẢ suy từ MỐC CHỐT CÔNG NỢ: mốc + số ngày NCC cho nợ (chủ chốt 28/08/2026).
@@ -38,7 +38,7 @@ export function hanTraTuMoc(
   const d = new Date(`${moc}T00:00:00`);
   if (Number.isNaN(d.getTime())) return "—";
   d.setDate(d.getDate() + soNgay);
-  return d.toLocaleDateString("vi-VN");
+  return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 /** Đếm ngược hạn giao → nhãn + mức khẩn (đổi màu). So 2 dữ kiện có sẵn (hạn vs hôm nay) — máy CHỈ

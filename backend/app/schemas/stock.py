@@ -593,6 +593,9 @@ class StockVoucherCreate(BaseModel):
     ngay: date | None = None
     ghi_chu: str | None = Field(default=None, max_length=1000)
     lines: list[StockVoucherLineIn] = Field(min_length=1)
+    # Người dùng bấm "Tạo và ghi sổ": xét khoá kỳ NGAY lúc tạo, đừng để lại phiếu nháp khi lượt ghi
+    # sổ sau đó bị chặn (#45, 18/10/2026). Lập nháp thuần thì bỏ trống — vẫn lập được trong kỳ khoá.
+    ghi_so: bool = False
 
 
 class StockVoucherLineOut(BaseModel):

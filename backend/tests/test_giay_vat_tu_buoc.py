@@ -233,7 +233,9 @@ def test_engine_giay_o_buoc_in_tinh_bang_giay_cap_san_pham_cu():
     (g,) = _dong_giay(moi)
     assert g["thanh_tien"] == _dong_giay(cu)[0]["thanh_tien"] > 0
     assert g["buoc_idx"] == 0 and g["vat_tu_id"] == 1
-    assert g["dinh_muc"] == moi["meta"]["components"][0]["to_nguyen"] and g["dinh_muc_don_vi"] == "to"
+    # Lượng = SL vào của In, đếm tờ (in); khổ tờ in hiện cạnh tên giấy.
+    assert g["dinh_muc"] == moi["meta"]["components"][0]["to_dau_vao"] and g["dinh_muc_don_vi"] == "to"
+    assert (g["kho_rong"], g["kho_dai"]) == (430, 650)
 
 
 def test_engine_hai_loai_giay_hai_buoc_tinh_doc_lap():
@@ -247,17 +249,37 @@ def test_engine_hai_loai_giay_hai_buoc_tinh_doc_lap():
     ga, gb = _dong_giay(res)
     assert ga["thanh_tien"] == round(0.3 * 0.86 * 0.65 * 20000 * m["to_nguyen"], 2)
     assert gb["thanh_tien"] == round(0.5 * 0.86 * 0.65 * 10000 * ceil(vao_boi / 2), 2)
-    assert gb["dinh_muc_don_vi"] == "kg" and gb["buoc_idx"] == 1
+    # Tiền theo công thức giá kg của mã; LƯỢNG theo đầu vào của bước (Bồi nhận tờ in ⇒ tờ).
+    assert gb["dinh_muc"] == vao_boi and gb["dinh_muc_don_vi"] == "to" and gb["buoc_idx"] == 1
 
 
-def test_engine_giay_o_buoc_vao_cai_khong_tinh_duoc():
+def test_engine_giay_o_buoc_vao_cai_tinh_kg_theo_kho_cai():
+    """Bước nhận cái: kg = định lượng × khổ thành phẩm × SL vào; tiền = kg × đơn giá kg."""
     g = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
     res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
         _buoc_e("In", "to", "to", nhom="print"), _buoc_e("Bế", "to", "cai"),
         _buoc_e("Đóng gói", "cai", "cai", vat_tus=[g]))])
     (d,) = _dong_giay(res)
-    assert d["thanh_tien"] == 0 and d["dinh_muc"] is None and "không phải tờ" in d["dinh_muc_ly_do"]
-    assert any("Đóng gói" in w and "Ivory 300" in w for w in res["warnings"])
+    vao = next(x["vao"] for x in res["meta"]["components"][0]["bu_hao_chi_tiet"] if x["ten"] == "Đóng gói")
+    kg = 0.3 * 0.09 * 0.054 * vao
+    assert d["dinh_muc_don_vi"] == "kg" and d["dinh_muc"] == round(kg, 4)
+    assert d["thanh_tien"] == round(kg * 20000, 2)
+    assert (d["kho_rong"], d["kho_dai"]) == (54, 90)
+
+
+def test_engine_giay_o_buoc_dau_vao_trong_tinh_kg_theo_buoc_ke_tiep():
+    """Cắt cuộn ("—") → In: SL ra của Cắt cuộn = tờ in In nhận ⇒ kg theo khổ tờ in, không hiện khổ."""
+    g = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
+    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
+        _buoc_e("Cắt cuộn", None, None, vat_tus=[g]),
+        _buoc_e("In", "to", "to", nhom="print", hao=150))])
+    (d,) = _dong_giay(res)
+    to_in = res["meta"]["components"][0]["to_dau_vao"]
+    kg = 0.3 * 0.65 * 0.43 * to_in
+    assert d["dinh_muc_don_vi"] == "kg" and d["dinh_muc"] == round(kg, 4)
+    assert d["thanh_tien"] == round(kg * 20000, 2)
+    assert (d["kho_rong"], d["kho_dai"]) == (0, 0)
+    assert "sl_ra" in d["dinh_muc_cong_thuc_goc"]
 
 
 def test_engine_chuoi_khong_giay_thi_khong_dong_giay_va_nhac():
