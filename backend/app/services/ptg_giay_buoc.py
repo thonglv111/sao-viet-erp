@@ -7,20 +7,73 @@ quy cách lệnh, báo giá, kiểm gsm máy, biến `dinh_luong`) vì thế gi�
 
 Payload cũ (API, test, cấu hình tái bản chụp trước 18/10) gửi `giay_id` mà không dòng giấy nào ⇒
 chuyển thành một dòng giấy ở bước In, đúng luật migration `0419` — không để giấy rơi mất.
+
+LOẠI Giấy / Sóng (19/10/2026, mg 0426): một sản phẩm có TỐI ĐA 1 mã loại Giấy + 1 mã loại Sóng
+(`loi_tran_giay`, cùng mã lặp ở nhiều bước vẫn là một mã). Giấy chính là mã loại Giấy; chỉ có Sóng
+thì là mã Sóng — để bình bài/khổ/định lượng vẫn có số. Thiếu giấy KHÔNG chặn.
 """
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Iterable, NamedTuple
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models.cong_doan import CongDoan
+from ..models.vat_lieu_kho import LOAI_GIAY, LOAI_SONG, GiayNguyen
 
 HANG_GIAY = "giay"
 NHOM_IN = "print"
 
 NhomCua = Callable[[int | None], str | None]
+
+
+class ThongTinGiay(NamedTuple):
+    loai: str
+    ten: str
+
+
+# id giấy → (loại, tên). Mã vắng (đã xoá cứng) coi là loại Giấy — xem `loai_cua`.
+BangGiay = dict[int, ThongTinGiay]
+
+
+def bang_giay(db: Session, ids: Iterable[int]) -> BangGiay:
+    """Loại + tên của các mã giấy `ids` — MỘT truy vấn cho cả lượt lưu."""
+    tap = {int(i) for i in ids if i}
+    if not tap:
+        return {}
+    return {int(i): ThongTinGiay(loai or LOAI_GIAY, ten or "")
+            for i, loai, ten in db.execute(select(GiayNguyen.id, GiayNguyen.loai, GiayNguyen.ten)
+                                           .where(GiayNguyen.id.in_(tap)))}
+
+
+def loai_cua(bang: BangGiay | None, gid: int) -> str:
+    tt = (bang or {}).get(int(gid))
+    return tt.loai if tt else LOAI_GIAY
+
+
+def _gid(v) -> int:
+    return int(v["vat_tu_id"] if isinstance(v, dict) else v.vat_tu_id)
+
+
+def id_giay_cua_rows(rows: list) -> list[int]:
+    """Id các dòng giấy của chuỗi `rows` (dict payload hoặc ORM), theo thứ tự bước rồi dòng, CÓ lặp."""
+    return [_gid(v) for r in rows for v in _vat_tus(r) if _la_giay(v)]
+
+
+def loi_tran_giay(ten_sp: str, ids: Iterable[int], bang: BangGiay) -> str | None:
+    """Câu lỗi khi một sản phẩm (hoặc một lệnh) có quá 1 mã Giấy hoặc quá 1 mã Sóng; None = hợp lệ.
+    `ids` lặp được — cùng mã ở nhiều bước là MỘT mã."""
+    theo_loai: dict[str, list[int]] = {}
+    for gid in dict.fromkeys(int(i) for i in ids):
+        theo_loai.setdefault(loai_cua(bang, gid), []).append(gid)
+    for loai, chu in ((LOAI_GIAY, "giấy"), (LOAI_SONG, "sóng")):
+        ds = theo_loai.get(loai, [])
+        if len(ds) > 1:
+            ten = ", ".join((bang.get(g).ten if bang.get(g) else f"#{g}") for g in ds)
+            return (f"Sản phẩm «{ten_sp}» đang có {len(ds)} {chu}: {ten}. "
+                    f"Mỗi sản phẩm chỉ một {chu}.")
+    return None
 
 
 def _la_giay(v) -> bool:
@@ -35,24 +88,28 @@ def _vat_tus(r) -> list:
     return (r.get("vat_tus") if isinstance(r, dict) else getattr(r, "vat_tus", None)) or []
 
 
-def giay_chinh(rows: list, nhom_cua: NhomCua) -> int | None:
-    """Giấy chính của chuỗi `rows` (dict payload hoặc ORM `PhieuThanhPham`, đã xếp đúng thứ tự):
-    giấy đầu tiên ở bước In đầu tiên có giấy; không bước In nào có giấy thì giấy đầu tiên ở bước
-    đầu tiên có giấy; chuỗi không giấy ⇒ None."""
-    dau_tien = None
-    for r in rows:
-        giay = [v for v in _vat_tus(r) if _la_giay(v)]
-        if not giay:
-            continue
-        gid = int(giay[0]["vat_tu_id"] if isinstance(giay[0], dict) else giay[0].vat_tu_id)
-        if nhom_cua(_cd_id(r)) == NHOM_IN:
-            return gid
-        if dau_tien is None:
-            dau_tien = gid
-    return dau_tien
+def giay_chinh(rows: list, nhom_cua: NhomCua, bang: BangGiay | None = None) -> int | None:
+    """Giấy chính của chuỗi `rows` (dict payload hoặc ORM `PhieuThanhPham`, đã xếp đúng thứ tự).
+
+    Ứng viên là các dòng loại Giấy; không có thì các dòng loại Sóng. Trong ứng viên: dòng đầu tiên ở
+    bước In đầu tiên có ứng viên; không bước In nào có thì dòng đầu tiên ở bước đầu tiên có. Chuỗi
+    không giấy ⇒ None. `bang=None` ⇒ mọi mã coi là loại Giấy (hành vi trước khi có loại)."""
+    for loai in (LOAI_GIAY, LOAI_SONG):
+        dau_tien = None
+        for r in rows:
+            ung_vien = [v for v in _vat_tus(r) if _la_giay(v) and loai_cua(bang, _gid(v)) == loai]
+            if not ung_vien:
+                continue
+            if nhom_cua(_cd_id(r)) == NHOM_IN:
+                return _gid(ung_vien[0])
+            if dau_tien is None:
+                dau_tien = _gid(ung_vien[0])
+        if dau_tien is not None:
+            return dau_tien
+    return None
 
 
-def chuan_hoa_giay(data: dict, nhom_cua: NhomCua) -> dict:
+def chuan_hoa_giay(data: dict, nhom_cua: NhomCua, bang: BangGiay | None = None) -> dict:
     """Chuẩn hoá `ThanhPhanIn.model_dump()` tại chỗ rồi trả lại chính nó.
 
     1. Có `giay_id` mà chưa bước nào có dòng giấy ⇒ thêm dòng giấy vào bước In đầu tiên (không có
@@ -68,7 +125,7 @@ def chuan_hoa_giay(data: dict, nhom_cua: NhomCua) -> dict:
         dich = next((r for r in rows if nhom_cua(_cd_id(r)) == NHOM_IN), rows[0])
         dich["vat_tus"] = [*_vat_tus(dich), {"hang_loai": HANG_GIAY, "vat_tu_id": int(gid),
                                              "gia_tri_chip": None}]
-    data["giay_id"] = giay_chinh(rows, nhom_cua)
+    data["giay_id"] = giay_chinh(rows, nhom_cua, bang)
     return data
 
 

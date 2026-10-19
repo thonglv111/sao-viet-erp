@@ -38,7 +38,9 @@ from ..models.quotation import Quote
 from ..repositories.loc_danh_sach import dk_khoang_ngay
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..services.actor_display import actor_labels
-from ..services.ptg_giay_buoc import NhomCua, chuan_hoa_giay, nhom_cong_doan
+from ..services.ptg_giay_buoc import (
+    BangGiay, NhomCua, bang_giay, chuan_hoa_giay, id_giay_cua_rows, loi_tran_giay, nhom_cong_doan,
+)
 from ..schemas.phieu_tinh_gia import (
     DanhMucDoi,
     DanhMucDoiOut,
@@ -190,16 +192,32 @@ def nhom_cua_payload(db: Session, thanh_phans: list[ThanhPhanIn] | None) -> Nhom
                                for r in (t.thanh_phams or [])))
 
 
-def _du_lieu_thanh_phan(tp_in: ThanhPhanIn, nhom_cua: NhomCua | None) -> dict:
+def bang_giay_payload(db: Session, thanh_phans: list[ThanhPhanIn] | None) -> BangGiay:
+    """Loại + tên mọi mã giấy khai ở các bước của payload — để chốt giấy chính theo loại."""
+    return bang_giay(db, (v.vat_tu_id for t in (thanh_phans or []) for r in (t.thanh_phams or [])
+                          for v in (r.vat_tus or []) if v.hang_loai == "giay"))
+
+
+def chan_tran_giay(thanh_phans: list[ThanhPhanIn] | None, bang: BangGiay) -> None:
+    """422 khi một sản phẩm có quá 1 mã Giấy hoặc quá 1 mã Sóng (spec 2026-10-19 loại giấy/sóng)."""
+    for t in thanh_phans or []:
+        loi = loi_tran_giay(t.ten or "chưa đặt tên", id_giay_cua_rows(
+            [r.model_dump() for r in (t.thanh_phams or [])]), bang)
+        if loi:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=loi)
+
+
+def _du_lieu_thanh_phan(tp_in: ThanhPhanIn, nhom_cua: NhomCua | None,
+                        bang: BangGiay | None = None) -> dict:
     """Payload → dict để ghi; giấy chính (`giay_id`) do máy chủ chốt từ dòng giấy của các bước."""
     data = tp_in.model_dump(exclude_unset=True)
-    return chuan_hoa_giay(data, nhom_cua) if nhom_cua is not None else data
+    return chuan_hoa_giay(data, nhom_cua, bang) if nhom_cua is not None else data
 
 
 def _build_thanh_phan(tp_in: ThanhPhanIn, thu_tu: int,
-                      nhom_cua: NhomCua | None = None) -> PhieuThanhPhan:
+                      nhom_cua: NhomCua | None = None, bang: BangGiay | None = None) -> PhieuThanhPhan:
     """Dựng ORM thành phần MỚI + con finishing từ payload (chỉ set field được gửi → giữ default model)."""
-    data = _du_lieu_thanh_phan(tp_in, nhom_cua)
+    data = _du_lieu_thanh_phan(tp_in, nhom_cua, bang)
     rows_in = data.pop("thanh_phams", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
@@ -226,9 +244,9 @@ def _mac_dinh_cot(ten_cot: str):
 
 
 def _ghi_de_thanh_phan(tp: PhieuThanhPhan, tp_in: ThanhPhanIn, thu_tu: int,
-                       nhom_cua: NhomCua | None = None) -> None:
+                       nhom_cua: NhomCua | None = None, bang: BangGiay | None = None) -> None:
     """Ghi payload lên thành phần CÓ SẴN, GIỮ NGUYÊN `id` (đây là chỗ cứu pin ấn phẩm)."""
-    data = _du_lieu_thanh_phan(tp_in, nhom_cua)
+    data = _du_lieu_thanh_phan(tp_in, nhom_cua, bang)
     rows_in = data.pop("thanh_phams", None) or []
     cpk_in = data.pop("chi_phi_khacs", None) or []
     data.setdefault("thu_tu", thu_tu)
@@ -243,7 +261,7 @@ def _khoa_ten(ten: str | None) -> str:
 
 
 def _ghi_thanh_phans(p: PhieuTinhGia, thanh_phans: list[ThanhPhanIn] | None,
-                    nhom_cua: NhomCua | None = None) -> None:
+                    nhom_cua: NhomCua | None = None, bang: BangGiay | None = None) -> None:
     """Ghi lại danh sách thành phần, DÙNG LẠI hàng cũ để `PhieuThanhPhan.id` KHÔNG đổi.
 
     Trước 07/09/2026 hàm này xoá sạch rồi chèn lại, nên mỗi lần bấm Lưu/Tính giá là id thành phần
@@ -278,9 +296,9 @@ def _ghi_thanh_phans(p: PhieuTinhGia, thanh_phans: list[ThanhPhanIn] | None,
     for i, tp_in in enumerate(moi):
         cu_tp = ghep[i]
         if cu_tp is None:
-            p.thanh_phans.append(_build_thanh_phan(tp_in, i, nhom_cua))
+            p.thanh_phans.append(_build_thanh_phan(tp_in, i, nhom_cua, bang))
         else:
-            _ghi_de_thanh_phan(cu_tp, tp_in, i, nhom_cua)
+            _ghi_de_thanh_phan(cu_tp, tp_in, i, nhom_cua, bang)
 
 
 # SL hiển thị ngoài bảng = Σ SL các sản phẩm bên trong phiếu, sản phẩm bỏ trống SL rơi về SL mặc
@@ -550,7 +568,9 @@ def create_item(
         db, p, payload.model_dump(exclude_unset=True, include=set(ptg_khach_hang_service.O_KHACH)),
         actor=user, scope_khach=authz.scope_for(user, "khach_hang"),
     )
-    _ghi_thanh_phans(p, payload.thanh_phans, nhom_cua_payload(db, payload.thanh_phans))
+    bang = bang_giay_payload(db, payload.thanh_phans)
+    chan_tran_giay(payload.thanh_phans, bang)
+    _ghi_thanh_phans(p, payload.thanh_phans, nhom_cua_payload(db, payload.thanh_phans), bang)
     db.add(p)
     db.flush()
     _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
@@ -706,7 +726,9 @@ def update_item(
         if field in data:
             setattr(p, field, data[field])
     if "thanh_phans" in data:
-        _ghi_thanh_phans(p, payload.thanh_phans, nhom_cua_payload(db, payload.thanh_phans))
+        bang = bang_giay_payload(db, payload.thanh_phans)
+        chan_tran_giay(payload.thanh_phans, bang)
+        _ghi_thanh_phans(p, payload.thanh_phans, nhom_cua_payload(db, payload.thanh_phans), bang)
     db.flush()
     _chan_neu_chuoi_dut(compute_phieu_snapshot(db, p))
     # Báo giá NHÁP của phiếu theo ngay số lượng / giá vốn mới (dòng gõ tay giữ giá gõ tay);

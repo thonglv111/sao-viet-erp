@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..models.phieu_tinh_gia import PhieuThanhPhan
 from ..schemas.phieu_tinh_gia import BuocVatTuIn, ChiPhiKhacIn, ThanhPhamIn, ThanhPhanIn
-from .ptg_giay_buoc import chuan_hoa_giay, nhom_cong_doan
+from .ptg_giay_buoc import bang_giay, chuan_hoa_giay, id_giay_cua_rows, nhom_cong_doan
 
 _DAU_MAP = str.maketrans({"đ": "d", "Đ": "D"})
 
@@ -139,5 +139,7 @@ def lay_chi_tiet(db: Session, customer_id: int, tp_id: int) -> dict | None:
     cau_hinh = [dict(c) for c in (r.cau_hinh_tai_ban or [])]
     nhom_cua = nhom_cong_doan(db, (b.get("cong_doan_id") for c in cau_hinh
                                    for b in (c.get("thanh_phams") or [])))
+    # Đường ĐỌC: cấu hình cũ quá một giấy vẫn nạp được để người dùng mở ra sửa — lần lưu phiếu mới chặn.
+    bang = bang_giay(db, (g for c in cau_hinh for g in id_giay_cua_rows(c.get("thanh_phams") or [])))
     return {"id": r.id, "ma": r.ma, "ten": r.ten,
-            "thanh_phans": [chuan_hoa_giay(c, nhom_cua) for c in cau_hinh]}
+            "thanh_phans": [chuan_hoa_giay(c, nhom_cua, bang) for c in cau_hinh]}

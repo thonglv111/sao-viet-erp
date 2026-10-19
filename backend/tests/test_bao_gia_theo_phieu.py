@@ -75,7 +75,7 @@ def test_dien_giai_ke_moi_giay_cua_cac_buoc(client):
     try:
         cou = GiayNguyen(don_vi_them=["to"], ma="COU-150", ten="COUCHE 150GSM", gsm=150,
                          kho_dai=1090, kho_rong=790, don_vi_gia="kg", don_gia=19500)
-        song = GiayNguyen(ma="SONG-E", ten="Giấy sóng E 3 lớp", gsm=400,
+        song = GiayNguyen(ma="SONG-E", ten="Giấy sóng E 3 lớp", gsm=400, loai="song",
                           kho_dai=1090, kho_rong=790, don_vi_gia="kg", don_gia=12000)
         db.add_all([cou, song])
         db.commit()
@@ -83,12 +83,14 @@ def test_dien_giai_ke_moi_giay_cua_cac_buoc(client):
     finally:
         db.close()
     comp = _component(giay, cd)
+    # Sóng khai TRƯỚC couche: diễn giải vẫn ghi giấy trước, sóng sau (19/10/2026 loại Giấy/Sóng).
     comp["thanh_phams"][0]["vat_tus"] = [
-        {"hang_loai": "giay", "vat_tu_id": cou_id}, {"hang_loai": "giay", "vat_tu_id": song_id}]
+        {"hang_loai": "giay", "vat_tu_id": song_id}, {"hang_loai": "giay", "vat_tu_id": cou_id}]
     pid = _phieu(client, t, comps=[comp])
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(t)).json()
     dg = q["items"][0]["dien_giai"]
     assert "COUCHE 150GSM" in dg and "Giấy sóng E 3 lớp 400g" in dg
+    assert dg.index("COUCHE 150GSM") < dg.index("Giấy sóng E 3 lớp")
     assert "150GSM 150g" not in dg
 
 

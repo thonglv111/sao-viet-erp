@@ -153,6 +153,11 @@ def test_giay_chi_o_buoc_can_la_giay_chinh(client, h):
 
 def test_giay_o_buoc_in_thang_giay_buoc_sau(client, h):
     ids = _seed()
+    # Mỗi sản phẩm chỉ một mã loại Giấy (19/10/2026) — mã thứ hai phải là Sóng mới lưu được.
+    db = SessionLocal()
+    db.get(GiayNguyen, ids["b"]).loai = "song"
+    db.commit()
+    db.close()
     out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])], vt_can=[_giay(ids["b"])]))["thanh_phans"][0]
     assert out["giay_id"] == ids["a"]
     assert _dong_buoc(out) == [[("giay", ids["a"])], [("giay", ids["b"])]]

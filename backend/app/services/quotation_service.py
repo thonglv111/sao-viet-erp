@@ -152,10 +152,9 @@ def dien_giai_tu_thanh_phan(db, tp) -> str | None:
     # Giấy nay là vật tư của BƯỚC (mg 0419): kể MỌI giấy theo thứ tự bước — hộp bồi sóng mà báo giá
     # chỉ ghi tờ couche là hứa với khách một món khác. Phiếu cũ chưa có giấy ở bước thì rơi về
     # `giay_id`. Tên đã chứa định lượng ("COUCHE 150GSM") thì không gắn thêm "150g".
-    for gid in _giay_cac_buoc(tp):
-        giay = db.get(GiayNguyen, gid)
-        if giay is None:
-            continue
+    # Giấy trước, sóng sau (mg 0426) — dù sóng khai ở bước trước In.
+    giays = [g for g in (db.get(GiayNguyen, gid) for gid in _giay_cac_buoc(tp)) if g is not None]
+    for giay in sorted(giays, key=lambda g: g.loai == "song"):
         g = giay.ten or ""
         if giay.gsm and str(int(giay.gsm)) not in g:
             g = f"{g} {int(giay.gsm)}g".strip()
