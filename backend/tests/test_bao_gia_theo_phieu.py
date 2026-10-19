@@ -62,6 +62,36 @@ def test_luu_phieu_thi_bao_gia_nhap_theo_sl_va_gia_von(client):
     assert _version_count(q["id"]) == 1
 
 
+def test_dien_giai_ke_moi_giay_cua_cac_buoc(client):
+    """E2E 19/10/2026: hộp có bước Cắt tờ mang COUCHE + giấy sóng, báo giá gửi khách chỉ ghi
+    "COUCHE 150GSM 150g" — giấy nay là vật tư của bước nên mô tả phải kể mọi giấy theo thứ tự bước,
+    và không lặp định lượng khi tên giấy đã có."""
+    from app.db import SessionLocal
+    from app.models.vat_lieu_kho import GiayNguyen
+
+    t = _token(client)
+    giay, cd = _seed_catalog()
+    db = SessionLocal()
+    try:
+        cou = GiayNguyen(don_vi_them=["to"], ma="COU-150", ten="COUCHE 150GSM", gsm=150,
+                         kho_dai=1090, kho_rong=790, don_vi_gia="kg", don_gia=19500)
+        song = GiayNguyen(ma="SONG-E", ten="Giấy sóng E 3 lớp", gsm=400,
+                          kho_dai=1090, kho_rong=790, don_vi_gia="kg", don_gia=12000)
+        db.add_all([cou, song])
+        db.commit()
+        cou_id, song_id = cou.id, song.id
+    finally:
+        db.close()
+    comp = _component(giay, cd)
+    comp["thanh_phams"][0]["vat_tus"] = [
+        {"hang_loai": "giay", "vat_tu_id": cou_id}, {"hang_loai": "giay", "vat_tu_id": song_id}]
+    pid = _phieu(client, t, comps=[comp])
+    q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(t)).json()
+    dg = q["items"][0]["dien_giai"]
+    assert "COUCHE 150GSM" in dg and "Giấy sóng E 3 lớp 400g" in dg
+    assert "150GSM 150g" not in dg
+
+
 def test_dong_go_tay_giu_gia_go_tay_va_chiet_khau(client):
     t = _token(client)
     giay, cd = _seed_catalog()

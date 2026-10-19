@@ -2236,7 +2236,7 @@ function QuotationPrintModal({
 
 // ---- helpers cho detail view -----------------------------------------------
 function vnd(v: number): string {
-  return Math.round(v).toLocaleString("vi-VN") + "₫";
+  return Math.round(v).toLocaleString("vi-VN") + " đ";   // cùng ký hiệu với thẻ Giá bán đề xuất
 }
 function numf(v: number): string {
   return Math.round(v).toLocaleString("vi-VN");

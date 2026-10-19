@@ -83,6 +83,19 @@ def _dvt_nhom_dong(tp) -> str | None:
     return (getattr(tp, "dvt_nhom", None) or "").strip() or None
 
 
+def _giay_cac_buoc(tp) -> list[int]:
+    """Id giấy của sản phẩm theo thứ tự bước rồi thứ tự vật tư, không lặp. Chưa bước nào mang
+    giấy (phiếu trước mg 0419) ⇒ giấy chính `giay_id`."""
+    ids: list[int] = []
+    for r in sorted(getattr(tp, "thanh_phams", []) or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
+        for v in getattr(r, "vat_tus", []) or []:
+            if v.hang_loai == "giay" and v.vat_tu_id not in ids:
+                ids.append(v.vat_tu_id)
+    if not ids and getattr(tp, "giay_id", None) is not None:
+        ids.append(tp.giay_id)
+    return ids
+
+
 def dien_giai_tu_thanh_phan(db, tp) -> str | None:
     """Bung DIỄN GIẢI quy cách (in ra báo giá) từ 1 'sản phẩm' của bài tính giá.
 
@@ -102,14 +115,18 @@ def dien_giai_tu_thanh_phan(db, tp) -> str | None:
     # Giấy: tên + định lượng từ danh mục.
     # GỠ 2026-08-09 (Đợt 4 · K): hậu tố "(khách cấp)". Công ty luôn cấp giấy, nên nhãn đó chỉ còn
     # là câu thừa trên báo giá — và tệ hơn, nó hứa với khách một điều giá không còn phản ánh.
-    if getattr(tp, "giay_id", None) is not None:
-        giay = db.get(GiayNguyen, tp.giay_id)
-        if giay is not None:
-            g = giay.ten or ""
-            if giay.gsm:
-                g = f"{g} {giay.gsm}g".strip()
-            if g:
-                dong.append(g)
+    # Giấy nay là vật tư của BƯỚC (mg 0419): kể MỌI giấy theo thứ tự bước — hộp bồi sóng mà báo giá
+    # chỉ ghi tờ couche là hứa với khách một món khác. Phiếu cũ chưa có giấy ở bước thì rơi về
+    # `giay_id`. Tên đã chứa định lượng ("COUCHE 150GSM") thì không gắn thêm "150g".
+    for gid in _giay_cac_buoc(tp):
+        giay = db.get(GiayNguyen, gid)
+        if giay is None:
+            continue
+        g = giay.ten or ""
+        if giay.gsm and str(int(giay.gsm)) not in g:
+            g = f"{g} {int(giay.gsm)}g".strip()
+        if g:
+            dong.append(g)
 
     # In: số màu + quy cách. 2 mặt khác số màu → "4+1 màu"; bằng nhau → "4 màu".
     if getattr(tp, "co_in", False):
@@ -276,7 +293,7 @@ class QuotationService:
 
         from ..models.vat_lieu_kho import GiayNguyen
 
-        ids = {tp.giay_id for tp in tps if getattr(tp, "giay_id", None) is not None}
+        ids = {gid for tp in tps for gid in _giay_cac_buoc(tp)}
         if not ids:
             return []
         return self.quotations.db.execute(select(GiayNguyen).where(GiayNguyen.id.in_(ids))).scalars().all()

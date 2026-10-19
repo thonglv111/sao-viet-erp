@@ -172,7 +172,7 @@ def _row(
         version=active_version.version_number if active_version else 1,
         customer_id=q.customer_id,
         customer_name=customer_name or q.customer_name_snapshot,
-        total=int(active_version.final_amount) if active_version else 0,
+        total=round(active_version.final_amount) if active_version else 0,
         status=q.status,
         valid_until=q.valid_until,
         version_count=len(q.versions),
@@ -266,10 +266,10 @@ def _detail(
                 id=v.id,
                 version=v.version_number,
                 status=v.status,
-                total=int(v.final_amount),
-                total_cost=int(v.total_cost_snapshot) if v.total_cost_snapshot is not None else None,
-                subtotal=int(v.subtotal_amount) if v.subtotal_amount is not None else None,
-                discount=int(v.discount_amount) if v.discount_amount is not None else None,
+                total=round(v.final_amount),   # làm tròn như thẻ giá bán — int() cắt cụt lệch 1 đ
+                total_cost=round(v.total_cost_snapshot) if v.total_cost_snapshot is not None else None,
+                subtotal=round(v.subtotal_amount) if v.subtotal_amount is not None else None,
+                discount=round(v.discount_amount) if v.discount_amount is not None else None,
                 created_at=v.created_at,
                 change_reason=v.change_reason,
             )

@@ -2308,7 +2308,13 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                                     <button
                                       type="button"
                                       className="tg-icon-btn tg-icon-btn--danger"
-                                      onClick={() => removeComp(c.uid)}
+                                      onClick={() => {
+                                        // Như nút Xóa trong ngăn: tính lại + lưu. Chỉ bỏ dòng ở máy
+                                        // khách thì tổng/bảng dòng giá vốn còn số cũ, tải lại trang
+                                        // là sản phẩm đã xoá hiện về.
+                                        removeComp(c.uid);
+                                        setPendingCalc(true);
+                                      }}
                                       title="Xóa sản phẩm"
                                       aria-label="Xóa sản phẩm"
                                     >
