@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..models.customer import Customer
 from ..models.don_vi_do import DonViDo
 from ..models.order import Order
-from ..models.vat_lieu_kho import GiayGiaVersion, GiayNguyen, VatTuChip, VatTuInAn
+from ..models.vat_lieu_kho import NHAN_LOAI_GIAY, GiayGiaVersion, GiayNguyen, VatTuChip, VatTuInAn
 from .catalog_base import CatalogRepo
 
 # Các trường "ảnh chụp" của 1 phiên bản giá giấy (khớp cột GiayGiaVersion + GiayNguyen).
@@ -19,15 +19,19 @@ VERSION_SNAPSHOT = ("kho_dai", "kho_rong", "gsm", "caliper_micron", "tho",
 # bản ghi cũng không lọt vào DB (xem `services/catalog_base`).
 class _GiayRepo(CatalogRepo):
     model = GiayNguyen
-    fields = ("ten", "gsm", "caliper_micron",
+    fields = ("ten", "gsm", "loai", "caliper_micron",
               "tho", "don_vi_gia", "don_gia", "gia_thi_truong", "kho_tinh_gia", "ghi_chu",
               "active", "cong_thuc_gia", "don_vi_them")
     commit_on_write = False
     bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
+    nhan_cot = {"loai": NHAN_LOAI_GIAY}
 
-    def extra_conds(self, *, don_vi_gia: str | None = None, **_) -> list:
-        """Lọc theo ĐƠN VỊ GIÁ (thanh lọc của màn Giấy)."""
-        return [GiayNguyen.don_vi_gia == don_vi_gia] if don_vi_gia else []
+    def extra_conds(self, *, don_vi_gia: str | None = None, loai: str | None = None, **_) -> list:
+        """Lọc theo ĐƠN VỊ GIÁ và LOẠI Giấy/Sóng (thanh lọc của màn Giấy)."""
+        conds = [GiayNguyen.don_vi_gia == don_vi_gia] if don_vi_gia else []
+        if loai:
+            conds.append(GiayNguyen.loai == loai)
+        return conds
 
 
 class _VatTuRepo(CatalogRepo):

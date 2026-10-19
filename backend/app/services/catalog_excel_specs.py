@@ -24,7 +24,7 @@ from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import TRAM_NHAN, TRAM_NHAN_NGAN
 from ..models.may_thiet_bi import MayThietBi
-from ..models.vat_lieu_kho import VatTuInAn
+from ..models.vat_lieu_kho import LOAI_GIAY, NHAN_LOAI_GIAY, VatTuInAn
 from ..models.xe import MucKhoanKm
 from ..repositories.cong_doan_repo import CongDoanRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
@@ -348,12 +348,21 @@ DON_VI_DO = CatalogExcelSpec(
 # ======================================================================================
 
 
+_DOC_LOAI_ENUM, _GHI_LOAI_GIAY = _enum_viet(NHAN_LOAI_GIAY, "Loại")
+
+
+def _DOC_LOAI_GIAY(gt: Any, ctx: NguCanh) -> str:
+    """Ô Loại trống = Giấy (file cũ chưa có cột vẫn nhập được)."""
+    return _DOC_LOAI_ENUM(gt, ctx) if str(gt or "").strip() else LOAI_GIAY
+
+
 GIAY = CatalogExcelSpec(
     loai="giay", tieu_de="Giấy", repo_cls=_GiayRepo,
     cot=(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Định lượng (gsm)", "gsm", kieu="nguyen", rong=16),
+        Cot("Loại", "loai", rong=10, doc=_DOC_LOAI_GIAY, ghi=_GHI_LOAI_GIAY),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
         Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_doc_dvt_them, ghi=_ghi_dvt_them),
         Cot("Đơn giá", "don_gia", kieu="so", rong=16),

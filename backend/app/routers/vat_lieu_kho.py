@@ -124,8 +124,10 @@ def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_c
 
 # Đơn vị giá: lọc + đếm theo mã đơn vị, nhãn = tên đơn vị (repo tra danh mục Đơn vị).
 _DON_VI_GIA = {"loc_them": {"don_vi_gia": str}, "dem_them": {"don_vi_gia": "don_vi_gia"}}
+# Giấy lọc thêm theo LOẠI Giấy/Sóng (mg 0426) — nhãn do repo (`nhan_cot`).
 _khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True, excel_spec=GIAY,
-      **_DON_VI_GIA)
+      loc_them={**_DON_VI_GIA["loc_them"], "loai": str},
+      dem_them={**_DON_VI_GIA["dem_them"], "loai": "loai"})
 _khai("vat_tu", VatTuIn, VatTuRow, "vat-tu-in-an", kem_don_vi=True, enable_clone=True,
       excel_spec=VAT_TU, **_DON_VI_GIA)
 # Thành phẩm: CÙNG nền CRUD, nhưng `VatLieuKhoService._chan_tao_tay` / `_chan_go_tay` chặn tạo/xoá — dòng ở

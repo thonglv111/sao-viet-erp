@@ -18797,3 +18797,17 @@ def _migrate_vat_tu_tu_lap(db: Session) -> None:
 
 
 MIGRATIONS.append(("0420_vat_tu_tu_lap", _migrate_vat_tu_tu_lap))
+
+
+def _migrate_giay_loai(db: Session) -> None:
+    """0426 (19/10/2026) — `giay_nguyen.loai`: Giấy (`giay`) hay Sóng (`song`). Mọi mã cũ thành `giay`;
+    mã sóng phải sửa tay ở màn danh mục. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "giay_nguyen" not in insp.get_table_names():
+        return
+    if "loai" not in _existing_columns(insp, "giay_nguyen"):
+        db.execute(text("ALTER TABLE giay_nguyen ADD COLUMN loai VARCHAR(8) NOT NULL DEFAULT 'giay'"))
+    db.commit()
+
+
+MIGRATIONS.append(("0426_giay_loai", _migrate_giay_loai))

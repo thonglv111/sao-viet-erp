@@ -3376,7 +3376,9 @@ dùng cho bình bài.
 
 **Purpose:** tờ giấy nguyên (khổ mua). Một row = một loại giấy cụ thể. (`chung_loai_giay_id` GỠ ở mg 0342 cùng danh mục Chủng loại giấy.)
 
-**Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `caliper_micron`, `tho`, `don_vi_gia`, `don_vi_them`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `loai`, `caliper_micron`, `tho`, `don_vi_gia`, `don_vi_them`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
+
+`loai` (VARCHAR(8) NOT NULL DEFAULT `'giay'`, mg `0426`, 19/10/2026): `giay` = tờ để in, `song` = tấm sóng để bồi. Một sản phẩm tính giá / một lệnh có TỐI ĐA 1 mã mỗi loại (máy chủ chặn khi lưu, `ptg_giay_buoc.loi_tran_giay`); giấy chính (`phieu_thanh_phan.giay_id`) là mã loại `giay`, chỉ có sóng thì là mã sóng. Mã cũ thành `giay`. `giay_gia_version` KHÔNG chụp cột này (không phải giá).
 
 `thay_the_ids` ĐÃ GỠ (mg 0405, 13/10/2026): danh sách giấy thay thế chỉ để tra cứu, không đường nào đọc.
 

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,6 +49,8 @@ class GiayIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)
     ten: str = Field(min_length=1, max_length=150)
     gsm: int = Field(gt=0)
+    # Loại Giấy / Sóng (mg 0426) — luật "tối đa 1 mỗi loại" ở tính giá + lệnh bám vào đây.
+    loai: Literal["giay", "song"] = "giay"
     caliper_micron: int | None = None
     tho: str | None = None
     # Mã đơn vị trong `don_vi_do`. None/"" = chưa chọn — KHÔNG mặc định "kg" nữa: đơn vị gốc quyết
@@ -70,6 +72,7 @@ class GiayRow(BaseModel):
     ma: str
     ten: str
     gsm: int
+    loai: str = "giay"
     caliper_micron: int | None = None
     tho: str | None = None
     don_vi_gia: str | None = None
