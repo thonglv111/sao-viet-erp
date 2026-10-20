@@ -77,7 +77,6 @@ from .accounting import (
     PaymentVoucherAttachment,
     PaymentVoucherLine,
     SalesInvoice,
-    SalesInvoiceAdjustment,
     SupplierBankAccount,
 )
 from .quotation import (
@@ -231,7 +230,6 @@ __all__ = [
     "PaymentReceipt",
     "PaymentReceiptLine",
     "SalesInvoice",
-    "SalesInvoiceAdjustment",
     "PaymentVoucherAttachment",
     "PaymentVoucherLine",
     "PaymentReceiptAttachment",

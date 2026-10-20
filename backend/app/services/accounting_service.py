@@ -46,7 +46,6 @@ from ..models.accounting import (
     PaymentVoucherAttachment,
     PaymentVoucherLine,
     SalesInvoice,
-    SalesInvoiceAdjustment,
     SupplierBankAccount,
 )
 from ..models.customer import Customer
@@ -368,13 +367,10 @@ def quy_tien_don(repo: AccountingRepository, order_ids: list[int]) -> dict[int, 
     cọc + tiền đã thu của hoá đơn ĐÃ HUỶ − đã trả lại khách. Quỹ này cấn FIFO vào hoá đơn của đơn."""
     coc = repo.received_deposit_sums(order_ids)
     huy = repo.thu_hoa_don_huy_theo_don(order_ids)
-    # Khách đã trả VƯỢT phần còn phải thu sau hoá đơn điều chỉnh giảm (18/10/2026): tiền đó nay là
-    # tiền khách đang để ở đơn, đi cùng quỹ — hết chỗ ghi hoá đơn thì thành việc trả lại khách.
-    thua = repo.thua_dieu_chinh_theo_don(order_ids)
     tra = repo.coc_da_tra_lai_nhieu(order_ids)
     return {
-        oid: max(0, coc.get(oid, 0) + huy.get(oid, 0) + thua.get(oid, 0) - tra.get(oid, 0))
-        for oid in set(coc) | set(huy) | set(thua)
+        oid: max(0, coc.get(oid, 0) + huy.get(oid, 0) - tra.get(oid, 0))
+        for oid in set(coc) | set(huy)
     }
 
 
@@ -416,9 +412,6 @@ def receivable_rows(
 
     invoice_ids = [row.id for row in invoices]
     direct_sums = repo.received_invoice_receipt_sums(invoice_ids)
-    # Hoá đơn điều chỉnh giảm (18/10/2026) bớt phần khách phải trả của hoá đơn gốc; `amount` vẫn là
-    # giá trị hoá đơn gốc (chứng từ thuế), còn nợ / cấn quỹ tính trên `amount − giam`.
-    giam_sums = repo.dieu_chinh_sums(invoice_ids)
     order_ids = sorted({row.order_id for row in invoices})
     deposit_sums = quy_tien_don(repo, order_ids)
     customers = repo.customers_by_ids(
@@ -433,7 +426,7 @@ def receivable_rows(
     for order_id, order_invoices in by_order.items():
         deposit_pool = int(deposit_sums.get(order_id, 0))
         for invoice in sorted(order_invoices, key=lambda row: (row.invoice_date, row.id)):
-            phai_thu = max(0, int(invoice.amount_vnd) - int(giam_sums.get(invoice.id, 0)))
+            phai_thu = int(invoice.amount_vnd)
             direct = min(phai_thu, int(direct_sums.get(invoice.id, 0)))
             offset = min(deposit_pool, max(0, phai_thu - direct))
             deposit_offsets[invoice.id] = offset
@@ -444,9 +437,7 @@ def receivable_rows(
         direct = int(direct_sums.get(invoice.id, 0))
         deposit_offset = int(deposit_offsets.get(invoice.id, 0))
         amount = int(invoice.amount_vnd)
-        giam = int(giam_sums.get(invoice.id, 0))
-        phai_thu = max(0, amount - giam)
-        received = min(phai_thu, direct + deposit_offset)
+        received = min(amount, direct + deposit_offset)
         customer = customers.get(invoice.customer_id) if invoice.customer_id else None
         rows.append(
             {
@@ -468,8 +459,7 @@ def receivable_rows(
                 "direct_received_amount": direct,
                 "deposit_offset_amount": deposit_offset,
                 "received_amount": received,
-                "remaining_amount": max(0, phai_thu - received),
-                "dieu_chinh_amount": giam,
+                "remaining_amount": max(0, amount - received),
                 "hoan_khong_don": 0,
             }
         )
@@ -495,7 +485,7 @@ def _phan_bo_hoan(
               else receivable_rows(repo, invoices=du, hoan=False))
     khoan = [
         {"id": r["invoice_id"], "doi_tuong_id": r["customer_id"], "han": r["due_date"],
-         "ngay": r["invoice_date"], "goc": r["amount"] - r.get("dieu_chinh_amount", 0),
+         "ngay": r["invoice_date"], "goc": r["amount"],
          "con_no": r["remaining_amount"],
          "thua": max(0, r["direct_received_amount"] - r["amount"]) if tru_thua else 0}
         for r in day_du if r["customer_id"] in hoan
@@ -1850,7 +1840,6 @@ class AccountingService:
             "received_amount": received if active else 0,
             "remaining_amount": remaining if active else 0,
             "hoan_khong_don": (money_row or {}).get("hoan_khong_don", 0) if active else 0,
-            "dieu_chinh_amount": (money_row or {}).get("dieu_chinh_amount", 0) if active else 0,
             "created_by_user_id": invoice.created_by_user_id,
             "created_by_name": self._user_name(invoice.created_by_user_id),
             "created_at": invoice.created_at,
@@ -1903,8 +1892,6 @@ class AccountingService:
         luot = self._luot_giao_ghi_hoa_don(order)
         delivered = sum(r["gia_tri"] for r in luot)
         ma_luot = {r["trip_id"]: r["ma"] for r in luot}
-        dieu_chinh = self.repo.dieu_chinh_cua_hoa_don([row.id for row in invoices])
-        ty_le_ck = self._ty_le_chiet_khau(order, order_total)
         from .ban_hang_cho_thu_chi import tien_cho_tra_lai
         cho_tra = next((r["con_lai"] for r in tien_cho_tra_lai(self.repo, [order.id])), 0)
         return {
@@ -1940,127 +1927,10 @@ class AccountingService:
             ],
             "items": [
                 {**self._sales_invoice_out(row, money.get(row.id)),
-                 "luot_giao_ma": ma_luot.get(row.delivery_trip_id),
-                 "dieu_chinh": [self._dieu_chinh_out(a) for a in dieu_chinh.get(row.id, [])],
-                 "ck_goi_y": self._ck_goi_y(row, ty_le_ck, money.get(row.id))}
+                 "luot_giao_ma": ma_luot.get(row.delivery_trip_id)}
                 for row in invoices
             ],
         }
-
-    @staticmethod
-    def _ty_le_chiet_khau(order, order_total: int) -> float:
-        """Tỉ lệ tiền chiết khấu (gồm VAT) trên tổng đơn gồm VAT — chiết khấu rải đều lên hoá đơn."""
-        if order_total <= 0:
-            return 0.0
-        ck_x100 = sum(
-            int(line.chiet_khau or 0) * (100 + int(line.vat_pct_estimate or 0))
-            for line in order.lines
-        )
-        return (ck_x100 / 100) / order_total
-
-    @staticmethod
-    def _ck_goi_y(invoice: SalesInvoice, ty_le: float, money_row: dict | None) -> int:
-        """Số điều chỉnh gợi ý của một hoá đơn: phần chiết khấu rơi vào hoá đơn trừ phần đã điều chỉnh,
-        không quá giá trị hoá đơn còn lại. Chỉ gợi ý — kế toán gõ số thật theo hoá đơn điều chỉnh."""
-        if invoice.status != SALES_INVOICE_ISSUED or ty_le <= 0:
-            return 0
-        da = int((money_row or {}).get("dieu_chinh_amount", 0))
-        return max(0, min(int(round(int(invoice.amount_vnd) * ty_le)), int(invoice.amount_vnd)) - da)
-
-    def _dieu_chinh_out(self, a) -> dict:
-        return {
-            "id": a.id, "sales_invoice_id": a.sales_invoice_id, "order_id": a.order_id,
-            "adj_symbol": a.adj_symbol, "adj_number": a.adj_number, "adj_date": a.adj_date,
-            "amount_vnd": int(a.amount_vnd), "reason": a.reason, "status": a.status,
-            "created_by_name": self._user_name(a.created_by_user_id), "created_at": a.created_at,
-            "cancelled_at": a.cancelled_at, "cancel_reason": a.cancel_reason,
-        }
-
-    def create_dieu_chinh(self, invoice_id: int, *, actor, **values) -> dict:
-        """Ghi nhận hoá đơn điều chỉnh GIẢM (18/10/2026): hoàn tiền chiết khấu cần chứng từ thuế, không
-        được chỉ chuyển tiền lại. Hoá đơn gốc giữ nguyên; phải thu của nó giảm đúng số điều chỉnh, và
-        nếu khách đã trả đủ thì phần dư thành việc trả lại ở Phiếu chi (Chờ trả lại khách)."""
-        invoice = self.repo.get_sales_invoice(invoice_id)
-        if invoice is None:
-            raise AccountingNotFound("Không tìm thấy hóa đơn bán.")
-        if invoice.status != SALES_INVOICE_ISSUED:
-            raise AccountingConflict("Chỉ hóa đơn còn hiệu lực mới điều chỉnh được.")
-        adj_date = values.get("adj_date")
-        if adj_date is None:
-            raise AccountingValidationError("Ngày hóa đơn điều chỉnh không được để trống.")
-        if adj_date > _business_today():
-            raise AccountingValidationError("Ngày hóa đơn điều chỉnh không được ở tương lai.")
-        if adj_date < invoice.invoice_date:
-            raise AccountingValidationError("Ngày hóa đơn điều chỉnh không được trước ngày hóa đơn gốc.")
-        symbol = _text(values.get("adj_symbol"), label="Ký hiệu hóa đơn điều chỉnh", required=True, max_length=64)
-        number = _text(values.get("adj_number"), label="Số hóa đơn điều chỉnh", required=True, max_length=64)
-        da = int(self.repo.dieu_chinh_sums([invoice.id]).get(invoice.id, 0))
-        con_lai = max(0, int(invoice.amount_vnd) - da)
-        amount = values.get("amount_vnd")
-        if amount is None:
-            order = self.repo.get_sales_order(invoice.order_id)
-            ty_le = self._ty_le_chiet_khau(order, _order_total_with_vat(order)) if order else 0.0
-            amount = self._ck_goi_y(invoice, ty_le, {"dieu_chinh_amount": da})
-        amount = int(amount or 0)
-        if amount <= 0:
-            raise AccountingValidationError("Nhập số tiền hóa đơn điều chỉnh giảm.")
-        if amount > con_lai:
-            raise AccountingValidationError(
-                f"Số tiền điều chỉnh vượt phần hóa đơn gốc còn lại ({con_lai:,} đ)."
-            )
-        row = SalesInvoiceAdjustment(
-            sales_invoice_id=invoice.id, order_id=invoice.order_id,
-            adj_symbol=symbol, adj_number=number, adj_date=adj_date, amount_vnd=amount,
-            reason=_text(values.get("reason"), label="Lý do", max_length=500) or "Chiết khấu",
-            status=SALES_INVOICE_ISSUED, created_by_user_id=actor.id,
-        )
-        try:
-            self._chan_ky_khoa(row)
-            saved = self.repo.save_dieu_chinh(row)
-        except IntegrityError as exc:
-            self.repo.db.rollback()
-            raise AccountingConflict("Số và ký hiệu hóa đơn điều chỉnh đã tồn tại.") from exc
-        self.audit.create(
-            actor_user_id=actor.id, action="create_sales_invoice_adjustment",
-            target=f"sales_invoice_adjustment:{saved.id}",
-            detail=f"{symbol} {number} <- {invoice.invoice_number}: -{amount:,}đ",
-        )
-        return self._dieu_chinh_out(saved)
-
-    def cancel_dieu_chinh(self, adj_id: int, *, actor, reason: str) -> dict:
-        row = self.repo.get_dieu_chinh(adj_id)
-        if row is None:
-            raise AccountingNotFound("Không tìm thấy hóa đơn điều chỉnh.")
-        if row.status == SALES_INVOICE_CANCELLED:
-            raise AccountingConflict("Hóa đơn điều chỉnh đã hủy rồi.")
-        cleaned = _text(reason, label="Lý do hủy", required=True, max_length=2000)
-        row.status = SALES_INVOICE_CANCELLED
-        self.repo.db.flush()
-        # Hủy điều chỉnh làm tiền khách trả vượt biến mất khỏi quỹ của đơn. Nếu đã trả lại khách phần
-        # đó rồi thì quỹ âm — chặn, phải hủy phiếu chi trước.
-        order_id = row.order_id
-        quy = (
-            self.repo.received_deposit_sums([order_id]).get(order_id, 0)
-            + self.repo.thu_hoa_don_huy_theo_don([order_id]).get(order_id, 0)
-            + self.repo.thua_dieu_chinh_theo_don([order_id]).get(order_id, 0)
-            - self.repo.coc_da_tra_lai(order_id)
-        )
-        if quy < 0:
-            self.repo.db.rollback()
-            raise AccountingConflict(
-                "Đã trả lại khách tiền thuộc hóa đơn điều chỉnh này. Hủy phiếu chi trả lại trước khi hủy hóa đơn điều chỉnh."
-            )
-        row.cancel_reason = cleaned
-        row.cancelled_by_user_id = actor.id
-        row.cancelled_at = _now()
-        self._chan_ky_khoa(row)
-        saved = self.repo.save_dieu_chinh(row)
-        self.audit.create(
-            actor_user_id=actor.id, action="cancel_sales_invoice_adjustment",
-            target=f"sales_invoice_adjustment:{saved.id}",
-            detail=f"{saved.adj_symbol} {saved.adj_number}: {cleaned}",
-        )
-        return self._dieu_chinh_out(saved)
 
     def create_sales_invoice(self, *, actor, **values) -> dict:
         order_id = int(values.get("order_id") or 0)

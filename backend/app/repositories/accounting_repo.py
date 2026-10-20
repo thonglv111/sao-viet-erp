@@ -29,7 +29,6 @@ from ..models.accounting import (
     PaymentVoucherAttachment,
     PaymentVoucherLine,
     SalesInvoice,
-    SalesInvoiceAdjustment,
     SupplierBankAccount,
 )
 from ..models.customer import Customer, CustomerContact
@@ -897,26 +896,6 @@ class AccountingRepository:
         da_thu = {int(o): int(s or 0) for o, s in self.db.execute(thu_stmt)}
         return hoa_don, da_thu
 
-    def dieu_chinh_tong_theo_don(
-        self, order_ids: list[int], *, den_ngay: date | None = None
-    ) -> dict[int, int]:
-        """`{order_id: Σ hoá đơn điều chỉnh giảm còn hiệu lực}` (của hoá đơn còn hiệu lực), lập tới hết
-        `den_ngay` — Báo cáo kinh doanh trừ phần này khỏi số khách phải thu (18/10/2026)."""
-        if not order_ids:
-            return {}
-        stmt = (
-            select(SalesInvoiceAdjustment.order_id,
-                   func.coalesce(func.sum(SalesInvoiceAdjustment.amount_vnd), 0))
-            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
-            .where(SalesInvoiceAdjustment.order_id.in_(order_ids),
-                   SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
-                   SalesInvoice.status == SALES_INVOICE_ISSUED)
-            .group_by(SalesInvoiceAdjustment.order_id)
-        )
-        if den_ngay is not None:
-            stmt = stmt.where(SalesInvoiceAdjustment.adj_date <= den_ngay)
-        return {int(o): int(s or 0) for o, s in self.db.execute(stmt)}
-
     def issued_invoice_sums(self, order_ids: list[int]) -> dict[int, int]:
         """`{order_id: Σ hoá đơn đã ghi}` MỘT câu cho nhiều đơn — đơn chưa ghi vắng mặt."""
         if not order_ids:
@@ -1163,106 +1142,6 @@ class AccountingRepository:
             stmt = stmt.where(SalesInvoice.order_id.in_(ids))
         return {int(oid): int(s) for oid, s in self.db.execute(stmt) if int(s) > 0}
 
-    # --- Hóa đơn điều chỉnh giảm (18/10/2026) ---
-    def get_dieu_chinh(self, adj_id: int) -> SalesInvoiceAdjustment | None:
-        return self.db.get(SalesInvoiceAdjustment, adj_id)
-
-    def save_dieu_chinh(self, row: SalesInvoiceAdjustment) -> SalesInvoiceAdjustment:
-        self.db.add(row)
-        self.db.commit()
-        self.db.refresh(row)
-        return row
-
-    def dieu_chinh_sums(self, invoice_ids) -> dict[int, int]:
-        """`{sales_invoice_id: Σ điều chỉnh CÒN HIỆU LỰC}`, MỘT câu cho cả tập. Hoá đơn chưa điều
-        chỉnh vắng mặt trong map."""
-        ids = sorted({int(i) for i in invoice_ids if i})
-        if not ids:
-            return {}
-        stmt = (
-            select(SalesInvoiceAdjustment.sales_invoice_id,
-                   func.coalesce(func.sum(SalesInvoiceAdjustment.amount_vnd), 0))
-            .where(SalesInvoiceAdjustment.sales_invoice_id.in_(ids),
-                   SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED)
-            .group_by(SalesInvoiceAdjustment.sales_invoice_id)
-        )
-        return {int(i): int(s) for i, s in self.db.execute(stmt) if int(s) > 0}
-
-    def dieu_chinh_cua_hoa_don(self, invoice_ids) -> dict[int, list[SalesInvoiceAdjustment]]:
-        """`{sales_invoice_id: [điều chỉnh MỌI trạng thái]}` — để ngăn đơn hiện cả cái đã hủy."""
-        ids = sorted({int(i) for i in invoice_ids if i})
-        if not ids:
-            return {}
-        ra: dict[int, list[SalesInvoiceAdjustment]] = {}
-        for r in self.db.scalars(
-            select(SalesInvoiceAdjustment)
-            .where(SalesInvoiceAdjustment.sales_invoice_id.in_(ids))
-            .order_by(SalesInvoiceAdjustment.adj_date, SalesInvoiceAdjustment.id)
-        ):
-            ra.setdefault(r.sales_invoice_id, []).append(r)
-        return ra
-
-    def dieu_chinh_hieu_luc_toi_ngay(self, den_ngay: date) -> list[SalesInvoiceAdjustment]:
-        """Điều chỉnh còn hiệu lực, của hoá đơn còn hiệu lực, lập tới hết `den_ngay` — sổ 131."""
-        return list(self.db.scalars(
-            select(SalesInvoiceAdjustment)
-            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
-            .where(SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
-                   SalesInvoice.status == SALES_INVOICE_ISSUED,
-                   SalesInvoiceAdjustment.adj_date <= den_ngay)
-            .options(selectinload(SalesInvoiceAdjustment.sales_invoice))
-            .order_by(SalesInvoiceAdjustment.adj_date, SalesInvoiceAdjustment.id)))
-
-    def don_co_dieu_chinh(self) -> set[int]:
-        """Id mọi đơn có hoá đơn điều chỉnh còn hiệu lực — ứng viên hàng "Chờ trả lại khách"."""
-        return {int(i) for i in self.db.scalars(
-            select(SalesInvoiceAdjustment.order_id)
-            .where(SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED).distinct())}
-
-    def dieu_chinh_hieu_luc_theo_don(self, order_ids) -> dict[int, list[SalesInvoiceAdjustment]]:
-        ids = sorted({int(i) for i in order_ids if i})
-        if not ids:
-            return {}
-        ra: dict[int, list[SalesInvoiceAdjustment]] = {}
-        for r in self.db.scalars(
-            select(SalesInvoiceAdjustment)
-            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
-            .where(SalesInvoiceAdjustment.order_id.in_(ids),
-                   SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
-                   SalesInvoice.status == SALES_INVOICE_ISSUED)
-            .order_by(SalesInvoiceAdjustment.adj_date, SalesInvoiceAdjustment.id)
-        ):
-            ra.setdefault(r.order_id, []).append(r)
-        return ra
-
-    def thua_dieu_chinh_theo_don(self, order_ids=None) -> dict[int, int]:
-        """`{order_id: Σ tiền khách đã trả VƯỢT phần còn phải thu của hoá đơn sau điều chỉnh}`.
-        Hoá đơn gốc 100%, khách trả đủ, điều chỉnh giảm 5% ⇒ 5% là tiền phải trả lại. Chỉ tính tiền
-        thu ĐÍCH DANH hoá đơn; cọc / tiền hoá đơn huỷ đi đường `quy_tien_don` riêng. `None` = mọi đơn."""
-        stmt = (
-            select(SalesInvoice.id, SalesInvoice.order_id, SalesInvoice.amount_vnd)
-            .where(SalesInvoice.status == SALES_INVOICE_ISSUED,
-                   SalesInvoice.id.in_(
-                       select(SalesInvoiceAdjustment.sales_invoice_id)
-                       .where(SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED)))
-        )
-        if order_ids is not None:
-            ids = sorted({int(i) for i in order_ids if i})
-            if not ids:
-                return {}
-            stmt = stmt.where(SalesInvoice.order_id.in_(ids))
-        hd = [(int(i), int(o), int(a)) for i, o, a in self.db.execute(stmt)]
-        if not hd:
-            return {}
-        giam = self.dieu_chinh_sums([i for i, _, _ in hd])
-        thu = self.received_invoice_receipt_sums([i for i, _, _ in hd])
-        ra: dict[int, int] = {}
-        for iid, oid, tien in hd:
-            thua = max(0, thu.get(iid, 0) - max(0, tien - giam.get(iid, 0)))
-            if thua:
-                ra[oid] = ra.get(oid, 0) + thua
-        return ra
-
     # --- Hàng việc tiền của đơn bán (services/ban_hang_cho_thu_chi.py, 17/10/2026) ---
     def don_chot_co_coc(self) -> list[Order]:
         """Đơn ĐÃ CHỐT có % cọc — ứng viên hàng "cọc chờ thu"."""
@@ -1461,7 +1340,6 @@ class AccountingRepository:
             selectinload(SalesInvoice.order),
             selectinload(SalesInvoice.customer),
             selectinload(SalesInvoice.receipts),
-            selectinload(SalesInvoice.dieu_chinh),
         )
 
     def save_receipt(self, receipt: PaymentReceipt) -> PaymentReceipt:

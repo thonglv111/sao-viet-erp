@@ -45,8 +45,6 @@ from ..schemas.accounting import (
     DonHangChoThuOut,
     TraLaiKhachChoChiOut,
     CancelSalesInvoiceIn,
-    DieuChinhIn,
-    DieuChinhOut,
     CancelPaymentReceiptIn,
     CancelPaymentVoucherIn,
     CompanyBankAccountIn,
@@ -908,57 +906,6 @@ def cancel_sales_invoice(
         order_code=row.get("order_code"),
     )
     return SalesInvoiceOut(**row)
-
-
-@router.post(
-    "/api/accounting/sales-invoices/{invoice_id}/dieu-chinh",
-    response_model=DieuChinhOut,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_dieu_chinh(
-    invoice_id: int,
-    payload: DieuChinhIn,
-    svc: Annotated[AccountingService, Depends(get_accounting_service)],
-    user: Annotated[User, Depends(require_permission(MODULE_PT, "create"))],
-) -> DieuChinhOut:
-    """Ghi nhận hóa đơn điều chỉnh giảm (hoàn tiền chiết khấu) — 18/10/2026."""
-    try:
-        row = svc.create_dieu_chinh(invoice_id, actor=user, **payload.model_dump())
-    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
-        raise _map_error(exc) from None
-    _thong_bao_dieu_chinh(svc, row, user, event_type="sales_invoice_adjusted")
-    return DieuChinhOut(**row)
-
-
-@router.post(
-    "/api/accounting/sales-invoice-adjustments/{adj_id}/cancel",
-    response_model=DieuChinhOut,
-)
-def cancel_dieu_chinh(
-    adj_id: int,
-    payload: CancelSalesInvoiceIn,
-    svc: Annotated[AccountingService, Depends(get_accounting_service)],
-    user: Annotated[User, Depends(require_permission(MODULE_PT, "cancel"))],
-) -> DieuChinhOut:
-    try:
-        row = svc.cancel_dieu_chinh(adj_id, actor=user, reason=payload.reason)
-    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
-        raise _map_error(exc) from None
-    _thong_bao_dieu_chinh(svc, row, user, event_type="sales_invoice_adjustment_cancelled")
-    return DieuChinhOut(**row)
-
-
-def _thong_bao_dieu_chinh(svc: AccountingService, row: dict, user: User, *, event_type: str) -> None:
-    """Báo ngăn đơn + chấm đỏ Phiếu chi (nếu có tiền phải trả lại) sau khi ghi / hủy điều chỉnh."""
-    order = svc.repo.get_sales_order(row["order_id"])
-    ma = order.order_no if order else None
-    _notify_accounting_changed(
-        ma, event_type=event_type, invoice_id=row["sales_invoice_id"],
-        invoice_number=f'{row["adj_symbol"]} {row["adj_number"]}',
-    )
-    ban_hang_cho_thu_chi.bao_hang_cho(
-        svc.repo.db, svc.repo, actor_id=user.id, order_id=row["order_id"], order_code=ma,
-    )
 
 
 @router.get("/api/accounting/company-bank-accounts", response_model=list[CompanyBankAccountOut])

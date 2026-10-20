@@ -366,52 +366,6 @@ class SalesInvoice(Base):
     receipts: Mapped[list["PaymentReceipt"]] = relationship(
         "PaymentReceipt", back_populates="sales_invoice", order_by="PaymentReceipt.id"
     )
-    dieu_chinh: Mapped[list["SalesInvoiceAdjustment"]] = relationship(
-        "SalesInvoiceAdjustment", back_populates="sales_invoice",
-        order_by="SalesInvoiceAdjustment.id",
-    )
-
-
-class SalesInvoiceAdjustment(Base):
-    """Hóa đơn ĐIỀU CHỈNH GIẢM của một hóa đơn bán (18/10/2026) — chứng từ thuế để hoàn tiền chiết
-    khấu cho khách. Hóa đơn gốc giữ nguyên 100%; khoản giảm trừ vào phải thu của hóa đơn gốc và,
-    nếu khách đã trả đủ, phần trả dư thành tiền phải trả lại (Phiếu chi, Chờ trả lại khách)."""
-
-    __tablename__ = "sales_invoice_adjustments"
-    __table_args__ = (
-        UniqueConstraint(
-            "adj_symbol", "adj_number", name="uq_sales_invoice_adj_symbol_number"
-        ),
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    sales_invoice_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("sales_invoices.id", ondelete="RESTRICT"), nullable=False, index=True
-    )
-    order_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orders.id", ondelete="RESTRICT"), nullable=False, index=True
-    )
-    adj_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
-    adj_number: Mapped[str] = mapped_column(String(64), nullable=False)
-    adj_date: Mapped[date] = mapped_column(Date, nullable=False)
-    amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[str] = mapped_column(
-        String(16), nullable=False, default=SALES_INVOICE_ISSUED, index=True
-    )
-    created_by_user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, nullable=False
-    )
-    cancelled_by_user_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
-    )
-    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    sales_invoice = relationship("SalesInvoice", back_populates="dieu_chinh")
 
 
 class PaymentReceipt(Base):

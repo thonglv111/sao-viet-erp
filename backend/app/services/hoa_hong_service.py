@@ -36,7 +36,7 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from ..models.accounting import SALES_INVOICE_ISSUED, SalesInvoice, SalesInvoiceAdjustment
+from ..models.accounting import SALES_INVOICE_ISSUED, SalesInvoice
 from ..models.employee import Employee
 from ..models.order import Order
 
@@ -66,20 +66,7 @@ class HoaHongService:
                 SalesInvoice.invoice_date <= den_ngay,
             )
         ).all()
-        moc = [(int(r[0]), int(r[1] or 0)) for r in rows if r[0]]
-        # Hoá đơn điều chỉnh giảm (hoàn chiết khấu cho khách, 18/10/2026) là doanh số bị trả lại: trừ
-        # vào hoa hồng của kỳ nó phát hành. Hoa hồng một người không xuống dưới 0 (xem hai hàm API).
-        giam = self.db.execute(
-            select(SalesInvoiceAdjustment.order_id, SalesInvoiceAdjustment.amount_vnd)
-            .join(SalesInvoice, SalesInvoice.id == SalesInvoiceAdjustment.sales_invoice_id)
-            .where(
-                SalesInvoiceAdjustment.status == SALES_INVOICE_ISSUED,
-                SalesInvoice.status == SALES_INVOICE_ISSUED,
-                SalesInvoiceAdjustment.adj_date >= tu_ngay,
-                SalesInvoiceAdjustment.adj_date <= den_ngay,
-            )
-        ).all()
-        return moc + [(int(r[0]), -int(r[1] or 0)) for r in giam if r[0]]
+        return [(int(r[0]), int(r[1] or 0)) for r in rows if r[0]]
 
     # ---------------------------------------------------------------- quy đổi trước VAT
     def _ty_le_truoc_vat(self, order: Order) -> float:

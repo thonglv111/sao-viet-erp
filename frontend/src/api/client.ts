@@ -571,8 +571,6 @@ export type QuoteEvent =
   | { type: "sales_invoice_created"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_cancelled"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_receipt_created"; code?: string | null; invoice_id?: number; receipt_code?: string | null }
-  | { type: "sales_invoice_adjusted"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
-  | { type: "sales_invoice_adjustment_cancelled"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_created"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_cancelled"; code?: string | null; invoice_id?: number; invoice_number?: string | null }
   | { type: "sales_invoice_receipt_created"; code?: string | null; invoice_id?: number; receipt_code?: string | null }
@@ -8012,45 +8010,8 @@ export interface TraLaiKhachChoChi {
   customer_name: string | null;
   /** Số các hoá đơn đã huỷ mà khách đã trả tiền — nguồn của khoản dư. */
   hoa_don_huy: string[];
-  /** Hóa đơn điều chỉnh giảm (hoàn chiết khấu) của đơn — chứng từ gốc của khoản trả lại (18/10/2026). */
-  hoa_don_dieu_chinh?: HoaDonDieuChinhRef[];
   da_tra_lai: number;
   con_lai: number;
-}
-
-export interface HoaDonDieuChinhRef {
-  id: number;
-  so_hoa_don: string;
-  ngay: string;
-  so_tien: number;
-  ly_do: string | null;
-  hoa_don_goc: string;
-}
-
-/** Hóa đơn điều chỉnh GIẢM của một hóa đơn bán (18/10/2026). */
-export interface DieuChinhRow {
-  id: number;
-  sales_invoice_id: number;
-  order_id: number;
-  adj_symbol: string;
-  adj_number: string;
-  adj_date: string;
-  amount_vnd: number;
-  reason: string | null;
-  status: "issued" | "cancelled";
-  created_by_name: string | null;
-  created_at: string;
-  cancelled_at: string | null;
-  cancel_reason: string | null;
-}
-
-export interface DieuChinhInput {
-  adj_symbol: string;
-  adj_number: string;
-  adj_date: string;
-  /** Bỏ trống = phần chiết khấu gợi ý còn chưa điều chỉnh. */
-  amount_vnd?: number | null;
-  reason?: string | null;
 }
 
 export interface ReceivableItemRow {
@@ -8128,11 +8089,6 @@ export interface SalesInvoiceRow {
   remaining_amount: number;
   /** Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026). */
   hoan_khong_don?: number;
-  /** Tổng hóa đơn điều chỉnh giảm còn hiệu lực; còn phải thu = `amount_vnd` − số này − đã thu. */
-  dieu_chinh_amount?: number;
-  /** Phần chiết khấu của đơn rơi vào hóa đơn này mà chưa điều chỉnh — số điền sẵn. */
-  ck_goi_y?: number;
-  dieu_chinh?: DieuChinhRow[];
   created_by_user_id: number | null;
   created_by_name: string | null;
   created_at: string;
@@ -12054,8 +12010,6 @@ export interface BaoCaoKinhDoanhTien {
   /** Phần thực hiện đơn (phương án C, 11/10/2026) — lũy kế tới hết `tinh_toi`. */
   gia_tri_giao: number;
   da_xuat_hd: number;
-  /** Hoá đơn điều chỉnh giảm (hoàn chiết khấu) tới hết `tinh_toi`; Còn phải thu = Tổng có VAT − cái này − Đã thu. */
-  dieu_chinh: number;
   da_thu: number;
   /** Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — Còn phải thu = Tổng có VAT −
    *  Điều chỉnh giảm − Đã thu + cái này. */
@@ -16427,19 +16381,6 @@ export const api = {
         token,
         { method: "POST", body: JSON.stringify({ reason }) },
       );
-    },
-    /** Ghi nhận hóa đơn điều chỉnh giảm — hoàn tiền chiết khấu cho khách (18/10/2026). */
-    createDieuChinh(token: string, invoiceId: number, input: DieuChinhInput): Promise<DieuChinhRow> {
-      return authed<DieuChinhRow>(`/api/accounting/sales-invoices/${invoiceId}/dieu-chinh`, token, {
-        method: "POST",
-        body: JSON.stringify(input),
-      });
-    },
-    cancelDieuChinh(token: string, adjId: number, reason: string): Promise<DieuChinhRow> {
-      return authed<DieuChinhRow>(`/api/accounting/sales-invoice-adjustments/${adjId}/cancel`, token, {
-        method: "POST",
-        body: JSON.stringify({ reason }),
-      });
     },
     chiTietKhoanThu(token: string, khoan: { invoice_id: number } | { order_id: number }): Promise<ChiTietKhoanThu> {
       const q = "invoice_id" in khoan ? `invoice_id=${khoan.invoice_id}` : `order_id=${khoan.order_id}`;

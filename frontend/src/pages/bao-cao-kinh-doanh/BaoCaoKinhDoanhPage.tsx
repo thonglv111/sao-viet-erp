@@ -65,7 +65,6 @@ const COT: Cot[] = [
   { key: "tt", label: "Thành tiền", w: 130, n: true },
   { key: "vat", label: "Tổng có VAT", w: 140, n: true },
   { key: "hd", label: "Đã xuất HĐ", w: 130, n: true },
-  { key: "dc", label: "Điều chỉnh giảm", w: 130, n: true },
   { key: "thu", label: "Đã thu", w: 130, n: true },
   // Tiền trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — cùng luật Công nợ phải thu.
   { key: "hk", label: "Trả lại ngoài đơn", w: 130, n: true },
@@ -157,7 +156,6 @@ function tienCot(key: string, m: BaoCaoKinhDoanhTien): number | undefined {
     case "tt": return m.tong;
     case "vat": return m.tong_vat;
     case "hd": return m.da_xuat_hd;
-    case "dc": return m.dieu_chinh;
     case "thu": return m.da_thu;
     case "hk": return m.hoan_khong_don;
     case "cthu": return m.con_phai_thu;
@@ -223,7 +221,6 @@ function KhoiKhach({ k, cot, soGhim, hl }: { k: BaoCaoKinhDoanhKhach; cot: Cot[]
                 return <td key={c.key} {...g} className={so_}>{ln && <Tien v={ln.thanh_tien} />}</td>;
               case "vat":
               case "hd":
-              case "dc":
               case "thu":
               case "hk":
               case "cthu":

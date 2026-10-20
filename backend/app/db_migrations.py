@@ -18592,15 +18592,10 @@ MIGRATIONS.append(("0417_order_lines_chiet_khau", _migrate_order_lines_chiet_kha
 
 
 def _migrate_sales_invoice_adjustments(db: Session) -> None:
-    """0418 (18/10/2026) — bảng `sales_invoice_adjustments`: hóa đơn điều chỉnh giảm để hoàn tiền
-    chiết khấu cho khách. Bảng mới do `create_all` dựng; bước này chỉ lo DB đã chạy nhưng thiếu bảng
-    (Postgres live) bằng cách tạo đúng bảng đó. Idempotent."""
-    from .models.accounting import SalesInvoiceAdjustment
-
-    bind = db.get_bind()
-    if "sales_invoice_adjustments" not in inspect(bind).get_table_names():
-        SalesInvoiceAdjustment.__table__.create(bind=bind, checkfirst=True)
-    db.commit()
+    """0418 (18/10/2026) — từng dựng bảng `sales_invoice_adjustments` (hóa đơn điều chỉnh giảm). Bỏ
+    tính năng đó ngày 20/10/2026 (mg 0427 xoá bảng) nên bước này nay KHÔNG làm gì; giữ id để DB đã
+    ghi nhận 0418 khỏi chạy lại."""
+    return None
 
 
 MIGRATIONS.append(("0418_sales_invoice_adjustments", _migrate_sales_invoice_adjustments))
@@ -18811,3 +18806,15 @@ def _migrate_giay_loai(db: Session) -> None:
 
 
 MIGRATIONS.append(("0426_giay_loai", _migrate_giay_loai))
+
+
+def _migrate_bo_hoa_don_dieu_chinh(db: Session) -> None:
+    """0427 (20/10/2026) — bỏ hẳn hóa đơn điều chỉnh giảm: xoá bảng `sales_invoice_adjustments`.
+    Chiết khấu nay chi lại khách bằng phiếu chi khi hóa đơn hết nợ (mg 0428). Dữ liệu điều chỉnh cũ
+    mất theo bảng — chấp nhận, chưa có người dùng thật. Idempotent."""
+    if "sales_invoice_adjustments" in inspect(db.get_bind()).get_table_names():
+        db.execute(text("DROP TABLE sales_invoice_adjustments"))
+    db.commit()
+
+
+MIGRATIONS.append(("0427_bo_hoa_don_dieu_chinh", _migrate_bo_hoa_don_dieu_chinh))

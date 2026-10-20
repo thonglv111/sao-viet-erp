@@ -2559,42 +2559,6 @@ giá trị đơn đã chốt. One row = 1 hóa đơn bán.
 
 ---
 
-### `sales_invoice_adjustments`
-
-**Purpose:** Hóa đơn ĐIỀU CHỈNH GIẢM của một hóa đơn bán (18/10/2026) — chứng từ thuế để hoàn tiền
-chiết khấu cho khách. Hóa đơn gốc giữ nguyên giá trị; khoản giảm trừ vào phải thu của hóa đơn gốc
-và, nếu khách đã trả đủ, phần trả dư thành tiền phải trả lại (Phiếu chi, mục Chờ trả lại khách).
-Số và ký hiệu do phần mềm hóa đơn điện tử cấp, hệ thống chỉ ghi nhận. Migration 0418. One row = 1 hóa đơn điều chỉnh.
-
-| Column                 | Type (SQLAlchemy → SQLite / Postgres)                  | Key                                | Null | Default  | Meaning                                                    |
-| ---------------------- | ------------------------------------------------------ | ---------------------------------- | ---- | -------- | ---------------------------------------------------------- |
-| `id`                   | `Integer` → `INTEGER` / `SERIAL`                       | **PK**                             | no   | auto     | Surrogate primary key.                                     |
-| `sales_invoice_id`     | `Integer` → `INTEGER`                                  | **FK→sales_invoices.id**, **IX**   | no   | —        | Hóa đơn gốc được điều chỉnh; `ON DELETE RESTRICT`.          |
-| `order_id`             | `Integer` → `INTEGER`                                  | **FK→orders.id**, **IX**           | no   | —        | Đơn của hóa đơn gốc (để gom tiền phải trả lại theo đơn); `ON DELETE RESTRICT`. |
-| `adj_symbol`           | `String(64)` → `VARCHAR(64)`                           | **UQ pair**                        | no   | —        | Ký hiệu hóa đơn điều chỉnh.                                 |
-| `adj_number`           | `String(64)` → `VARCHAR(64)`                           | **UQ pair**                        | no   | —        | Số hóa đơn điều chỉnh.                                      |
-| `adj_date`             | `Date` → `DATE`                                        | —                                  | no   | —        | Ngày lập hóa đơn điều chỉnh.                                |
-| `amount_vnd`           | `BigInteger` → `BIGINT`                                | —                                  | no   | —        | Số tiền giảm gồm VAT; lớn hơn 0, tổng các điều chỉnh còn hiệu lực không vượt giá trị hóa đơn gốc. |
-| `reason`               | `Text` → `TEXT`                                        | —                                  | yes  | —        | Lý do điều chỉnh (mặc định "Chiết khấu").                   |
-| `status`               | `String(16)` → `VARCHAR(16)`                           | **IX**                             | no   | `issued` | `issued` hoặc `cancelled`.                                  |
-| `created_by_user_id`   | `Integer` → `INTEGER`                                  | **FK→users.id**                    | yes  | —        | Người ghi nhận; `ON DELETE SET NULL`.                       |
-| `created_at`           | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                  | no   | now (UTC)| Khi ghi.                                                    |
-| `cancelled_by_user_id` | `Integer` → `INTEGER`                                  | **FK→users.id**                    | yes  | —        | Người hủy; `ON DELETE SET NULL`.                            |
-| `cancelled_at`         | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                  | yes  | —        | Thời điểm hủy.                                              |
-| `cancel_reason`        | `Text` → `TEXT`                                        | —                                  | yes  | —        | Lý do hủy.                                                  |
-
-**Keys, indexes & rules**
-
-- Primary key: `id`; unique constraint `(adj_symbol, adj_number)`.
-- Indexes: `sales_invoice_id`, `order_id`, `status`.
-- Chỉ điều chỉnh hóa đơn `issued`; chỉ điều chỉnh `issued` làm giảm phải thu.
-
-**Relationships**
-
-- Many adjustments belong to one `sales_invoices` row (và một `orders` row).
-
----
-
 ### `payment_receipts`
 
 **Purpose:** Phiếu thu (PT) đa nguồn: hoàn tiền từ Phiếu chi/UNC, cọc Đơn hàng bán, thu công nợ

@@ -91,8 +91,7 @@ def tien_cua_don(repo, order_ids: list[int] | None = None) -> list[dict]:
     from .accounting_service import quy_tien_don, receivable_rows
 
     if order_ids is None:
-        order_ids = sorted(repo.don_co_coc_da_thu() | set(repo.thu_hoa_don_huy_theo_don())
-                           | set(repo.thua_dieu_chinh_theo_don()))
+        order_ids = sorted(repo.don_co_coc_da_thu() | set(repo.thu_hoa_don_huy_theo_don()))
     quy = quy_tien_don(repo, order_ids)
     ids = sorted(i for i, so in quy.items() if so > 0)
     if not ids:
@@ -105,7 +104,6 @@ def tien_cua_don(repo, order_ids: list[int] | None = None) -> list[dict]:
         da_ghi[r["order_id"]] = da_ghi.get(r["order_id"], 0) + r["amount"]
     tong = OrderRepository(repo.db).money_sums(ids)
     huy = repo.hoa_don_huy_da_thu(ids)
-    dieu_chinh = repo.dieu_chinh_hieu_luc_theo_don(ids)
     tra = repo.coc_da_tra_lai_nhieu(ids)
     khach = repo.customers_by_ids({o.customer_id for o in don.values() if o.customer_id})
     ra = []
@@ -125,13 +123,6 @@ def tien_cua_don(repo, order_ids: list[int] | None = None) -> list[dict]:
             "order_id": oid, "order_code": o.order_no, "don_huy": don_huy,
             "customer_id": o.customer_id, "customer_name": k.name if k else None,
             "hoa_don_huy": huy.get(oid, []), "da_tra_lai": tra.get(oid, 0), "con_lai": con_lai,
-            # Hoá đơn điều chỉnh giảm (hoàn chiết khấu) của đơn — chứng từ gốc của khoản trả lại.
-            "hoa_don_dieu_chinh": [
-                {"id": a.id, "so_hoa_don": f"{a.adj_symbol} {a.adj_number}".strip(),
-                 "ngay": a.adj_date, "so_tien": int(a.amount_vnd), "ly_do": a.reason,
-                 "hoa_don_goc": f"{a.sales_invoice.invoice_symbol} {a.sales_invoice.invoice_number}".strip()}
-                for a in dieu_chinh.get(oid, [])
-            ],
             "da_tru": da_tru.get(oid, 0), "dang_de": du,
             "tinh_trang": "don_huy" if don_huy else ("ghi_du" if con_lai > 0 else "cho_tru"),
             # Tiền khách đã đưa cho đơn (cọc + tiền hoá đơn đã huỷ), chưa trừ phần đã trả lại.

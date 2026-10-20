@@ -16,7 +16,6 @@ from app.models.accounting import (
     SALES_INVOICE_CANCELLED,
     SALES_INVOICE_ISSUED,
     SalesInvoice,
-    SalesInvoiceAdjustment,
 )
 from app.models.customer import Customer
 from app.models.employee import STATUS_ACTIVE, Employee
@@ -90,33 +89,6 @@ def _tinh(employee_id: int, *, tu=KY_TU, den=KY_DEN) -> float:
         return HoaHongService(db).hoa_hong_ky(employee_id, tu_ngay=tu, den_ngay=den)
     finally:
         db.close()
-
-
-def _dieu_chinh(order_id: int, tien: int, ngay: date) -> None:
-    db = SessionLocal()
-    try:
-        hd = db.query(SalesInvoice).filter(SalesInvoice.order_id == order_id).first()
-        db.add(SalesInvoiceAdjustment(sales_invoice_id=hd.id, order_id=order_id, adj_symbol="1C26TDC",
-                                      adj_number=f"{order_id}{ngay.day:02d}", adj_date=ngay,
-                                      amount_vnd=tien, reason="Chiết khấu"))
-        db.commit()
-    finally:
-        db.close()
-
-
-def test_DIEU_CHINH_GIAM_tru_hoa_hong_cua_ky_phat_hanh(client):
-    """Hoàn chiết khấu cho khách = doanh số bị trả lại: trừ hoa hồng ở kỳ hoá đơn điều chỉnh phát hành,
-    cùng tỷ lệ trước VAT và % hoa hồng. Hoa hồng một người không xuống dưới 0 (chưa có luật truy thu)."""
-    emp, uid = _sales("dieu chinh")
-    oid = _don("DH-HH-DC", uid, truoc_vat=100_000_000, vat_pct=8)
-    _hoa_don(oid, 108_000_000, ngay=date(2026, 8, 15))
-    _dieu_chinh(oid, 5_400_000, date(2026, 9, 5))        # 5% hoá đơn, kỳ sau
-    assert _tinh(emp) == 5_000_000                        # kỳ 8: chưa điều chỉnh
-    # Kỳ 9: không có hoá đơn mới, điều chỉnh âm ⇒ kẹp ở 0 chứ không thành tiền âm.
-    assert _tinh(emp, tu=date(2026, 9, 1), den=date(2026, 9, 30)) == 0
-    # Cùng kỳ với hoá đơn: 5% bị trừ — (108tr − 5,4tr) × (100/108) × 5% = 4,75tr.
-    _dieu_chinh(oid, 5_400_000, date(2026, 8, 28))
-    assert _tinh(emp) == 4_750_000
 
 
 # =============================================================================================

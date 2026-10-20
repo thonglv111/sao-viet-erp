@@ -29,7 +29,6 @@ from ..models.accounting import (
     PaymentReceipt,
     PaymentVoucher,
     SalesInvoice,
-    SalesInvoiceAdjustment,
 )
 from ..models.cong_no_khoa_so import PHAN_HE_PHAI_THU, PHAN_HE_PHAI_TRA
 from ..repositories.cong_no_khoa_so_repo import CongNoKhoaSoRepository
@@ -64,15 +63,13 @@ def _xep(obj) -> tuple[str | None, str, str]:
         return _phan_he_phieu_chi(obj), "phiếu chi", "voucher_date"
     if isinstance(obj, PaymentReceipt):
         return _phan_he_phieu_thu(obj), "phiếu thu", "receipt_date"
-    if isinstance(obj, SalesInvoiceAdjustment):
-        return PHAN_HE_PHAI_THU, "hoá đơn điều chỉnh", "adj_date"
     if isinstance(obj, SalesInvoice):
         return PHAN_HE_PHAI_THU, "hoá đơn bán", "invoice_date"
     return None, "", ""
 
 
 _COT_NGAY = {PaymentVoucher: "voucher_date", PaymentReceipt: "receipt_date",
-             SalesInvoiceAdjustment: "adj_date", SalesInvoice: "invoice_date"}
+             SalesInvoice: "invoice_date"}
 
 
 def loi_ky_khoa(db, obj) -> str | None:

@@ -279,16 +279,6 @@ class DonHangChoThuOut(BaseModel):
     hoa_don: list[HoaDonChoThuOut]
 
 
-class HoaDonDieuChinhRefOut(BaseModel):
-    """Hóa đơn điều chỉnh giảm — chứng từ gốc của khoản hoàn chiết khấu (18/10/2026)."""
-    id: int
-    so_hoa_don: str
-    ngay: date
-    so_tien: int
-    ly_do: str | None = None
-    hoa_don_goc: str
-
-
 class TraLaiKhachChoChiOut(BaseModel):
     """Một dòng "Chờ trả lại khách" của màn Phiếu chi — đơn hết chỗ ghi hoá đơn mà tiền khách còn dư."""
     order_id: int
@@ -297,7 +287,6 @@ class TraLaiKhachChoChiOut(BaseModel):
     customer_id: int | None = None
     customer_name: str | None = None
     hoa_don_huy: list[str] = []
-    hoa_don_dieu_chinh: list[HoaDonDieuChinhRefOut] = []
     da_tra_lai: int
     con_lai: int
 
@@ -622,33 +611,6 @@ class CancelSalesInvoiceIn(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
-class DieuChinhIn(BaseModel):
-    """Ghi nhận hóa đơn điều chỉnh GIẢM của một hóa đơn bán (18/10/2026). Số / ký hiệu do phần mềm
-    hóa đơn điện tử cấp. `amount_vnd` bỏ trống = phần chiết khấu gợi ý còn chưa điều chỉnh."""
-
-    adj_symbol: str = Field(min_length=1, max_length=64)
-    adj_number: str = Field(min_length=1, max_length=64)
-    adj_date: date
-    amount_vnd: int | None = Field(default=None, gt=0)
-    reason: str | None = Field(default=None, max_length=500)
-
-
-class DieuChinhOut(BaseModel):
-    id: int
-    sales_invoice_id: int
-    order_id: int
-    adj_symbol: str
-    adj_number: str
-    adj_date: date
-    amount_vnd: int
-    reason: str | None = None
-    status: str
-    created_by_name: str | None = None
-    created_at: datetime
-    cancelled_at: datetime | None = None
-    cancel_reason: str | None = None
-
-
 class SalesInvoiceOut(BaseModel):
     id: int
     order_id: int
@@ -668,11 +630,6 @@ class SalesInvoiceOut(BaseModel):
     remaining_amount: int = 0
     #: Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026).
     hoan_khong_don: int = 0
-    #: Tổng hóa đơn điều chỉnh giảm còn hiệu lực (18/10/2026); phải thu = `amount_vnd` − số này.
-    dieu_chinh_amount: int = 0
-    #: Phần chiết khấu của đơn rơi vào hóa đơn này mà chưa điều chỉnh — số điền sẵn khi lập điều chỉnh.
-    ck_goi_y: int = 0
-    dieu_chinh: list[DieuChinhOut] = []
     created_by_user_id: int | None = None
     created_by_name: str | None = None
     created_at: datetime
