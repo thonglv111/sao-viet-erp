@@ -4997,6 +4997,9 @@ export interface QuoteItemDetail {
   gia_go_tay: boolean;
   unit_price: number;
   discount_amount: number;
+  /** Kê giá (20/10/2026): cộng SAU giá bán; `gia_sau_ke = selling_price + ke_gia`, VAT tính trên số này. */
+  ke_gia: number;
+  gia_sau_ke: number;
   vat_percent: number;
   vat_amount: number;
   final_amount: number;
@@ -5049,6 +5052,8 @@ export interface QuotationDetail {
   total_cost: number;
   subtotal_amount: number;
   discount_amount: number;
+  /** Σ kê — `subtotal_amount` đã gồm. */
+  ke_gia_amount: number;
   vat_amount: number;
   total: number;
   
@@ -5103,6 +5108,9 @@ export interface QuoteItemUpdateInput {
   note?: string | null;
   /** Diễn giải quy cách in dưới tên SP. BE dump đủ field → không gửi = XOÁ; luôn echo giá trị cũ. */
   dien_giai?: string | null;
+  /** Kê: số tiền hoặc % trên giá bán. Không gửi cả hai = máy chủ giữ số tiền kê đang có. */
+  ke_gia?: number;
+  ke_percent?: number;
 }
 
 export interface QuotationUpdateInput {

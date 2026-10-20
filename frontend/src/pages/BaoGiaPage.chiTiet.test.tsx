@@ -42,6 +42,11 @@ describe("Tổng báo giá", () => {
     expect(t.grand).toBe(14_054_019);
   });
 
+  it("kê cộng sau giá bán — VAT trên giá bán sau kê, lợi nhuận không gồm kê", () => {
+    const t = congTongBaoGia([{ cost: 800, ck: 0, selling: 1000, ke: 500, vatPct: 10 }]);
+    expect([t.selling, t.ke, t.sauKe, t.vat, t.grand, t.profit]).toEqual([1000, 500, 1500, 150, 1650, 200]);
+  });
+
   it("#13 báo giá đã chốt một phần chỉ cộng dòng khách lấy", () => {
     const ds = [{ id: 1, accepted: true }, { id: 2, accepted: false }];
     expect(dongDuocCong(ds, true).map((x) => x.id)).toEqual([1]);

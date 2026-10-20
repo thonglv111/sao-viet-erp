@@ -129,7 +129,7 @@ const COT_SAP_THEO_MOC: Record<string, string> = { tao: "created_at", gui: "sent
 type LocMan = { ky: KyDS; loc: LocBaoGia };
 
 /** Số đang gõ dở của một dòng báo giá (chưa lưu): chiết khấu `ck`, lợi nhuận `ln` (% hoặc số tiền), giá bán gõ tay `gia`. */
-type NhapDong = { ck?: { k: Kieu; v: number }; ln?: { k: Kieu; v: number }; gia?: number };
+type NhapDong = { ck?: { k: Kieu; v: number }; ln?: { k: Kieu; v: number }; gia?: number; ke?: { k: Kieu; v: number } };
 const LOC_MAN_TRONG: LocMan = { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_BG_TRONG };
 const docLocMan = (p: URLSearchParams): LocMan => ({
   ky: kyTuUrl(p, MOC_BG.map(([m]) => m), "tao"),
@@ -866,17 +866,22 @@ export function QuotationDetailView({
     else if (n?.ck && !it.gia_go_tay) selling = goc + lam((goc * it.margin_percent) / 100);   // đổi chiết khấu: lợi nhuận giữ %
     else selling = it.selling_price;                                       // số đã lưu (dòng gõ tay giữ giá)
     const ln = selling - goc;
-    const vat = (selling * (it.vat_percent || 0)) / 100;
+    // Kê giá (20/10/2026) cộng SAU giá bán: % tính trên giá bán; không gõ thì giữ số tiền đã lưu.
+    const ke = n?.ke
+      ? lam(n.ke.k === "pct" ? (selling * Math.max(0, n.ke.v)) / 100 : Math.max(0, n.ke.v))
+      : (it.ke_gia ?? 0);
+    const sauKe = selling + ke;
+    const vat = (sauKe * (it.vat_percent || 0)) / 100;
     return {
-      m: goc > 0 ? (ln / goc) * 100 : 0, cost, ck, disc: ck, goc, ln, selling, net: selling, vat,
-      final: selling + vat, profit: ln, qty: it.quantity, vatPct: it.vat_percent || 0,
+      m: goc > 0 ? (ln / goc) * 100 : 0, cost, ck, disc: ck, goc, ln, selling, ke, sauKe, net: sauKe, vat,
+      final: sauKe + vat, profit: ln, qty: it.quantity, vatPct: it.vat_percent || 0,
     };
   }
   // #10 cộng số đã làm tròn từng dòng; #13 khách chốt một phần thì chỉ cộng dòng khách lấy.
   const daChot = d.status === "accepted" || d.status === "converted_to_order";
   const dongCong = dongDuocCong(d.items, daChot);
   const tong = congTongBaoGia(dongCong.map(calcItem));
-  const costT = tong.cost, netT = tong.selling, vatT = tong.vat;
+  const costT = tong.cost, netT = tong.selling, vatT = tong.vat, keT = tong.ke, sauKeT = tong.sauKe;
   const grandT = tong.grand, discountT = tong.ck, profitT = tong.profit;
   const pctf = (v: number) => (Math.round(v * 10) / 10).toLocaleString("vi-VN");
   const singleVat = d.items[0]?.vat_percent ?? 10;
@@ -890,7 +895,7 @@ export function QuotationDetailView({
   // Patch theo dòng: bỏ trống field nào thì GIỮ giá trị hiện tại của dòng đó (dùng ?? để 0 vẫn áp).
   // Header lấy từ edit-state (không clobber ghi chú/điều khoản đang sửa chưa lưu).
   async function persistItems(
-    items: { id: number; margin_percent?: number; manual_selling_price?: number | null; vat_percent?: number; discount_amount?: number; discount_percent?: number; profit_amount?: number; rounding?: string; note?: string | null; dien_giai?: string | null }[],
+    items: { id: number; margin_percent?: number; manual_selling_price?: number | null; vat_percent?: number; discount_amount?: number; discount_percent?: number; profit_amount?: number; rounding?: string; note?: string | null; dien_giai?: string | null; ke_gia?: number; ke_percent?: number }[],
   ) {
     if (!token || !d) return;
     setBusy(true);
@@ -925,6 +930,9 @@ export function QuotationDetailView({
             note: patch?.note !== undefined ? patch.note : it.note,
             // Payload dump đủ field ở BE → phải echo giá trị cũ, không gửi = XOÁ diễn giải.
             dien_giai: patch?.dien_giai !== undefined ? patch.dien_giai : it.dien_giai,
+            // Kê: không gửi = máy chủ GIỮ số tiền kê đang có (sửa markup không làm mất kê).
+            ke_gia: patch?.ke_gia,
+            ke_percent: patch?.ke_percent,
           };
         }),
       });
@@ -957,6 +965,18 @@ export function QuotationDetailView({
     } else {
       const phan = chiaTheoTyLe(dong, Math.max(0, v), (it) => it.total_cost_snapshot);
       persistItems(dong.map((it, i) => ({ id: it.id, discount_amount: phan[i] })));
+    }
+  }
+  /** Chốt KÊ của MỘT sản phẩm khách thấy (dòng riêng hoặc cả nhóm): % áp cho từng dòng trên giá bán của
+   *  nó; số tiền chia cho các dòng theo giá bán, dòng cuối nhận phần dư. */
+  function commitKe(dong: QuoteItemDetail[], kieu: Kieu, v: number) {
+    if (!editable || !d) return;
+    if (kieu === "pct") {
+      const p = Math.max(0, Math.min(1000, v));
+      persistItems(dong.map((it) => ({ id: it.id, ke_percent: p })));
+    } else {
+      const phan = chiaTheoTyLe(dong, Math.max(0, v), (it) => calcItem(it).selling);
+      persistItems(dong.map((it, i) => ({ id: it.id, ke_gia: phan[i] })));
     }
   }
   /** Chốt lợi nhuận (Markup) của một dòng: % trên (vốn + chiết khấu) hoặc số tiền. Sửa Markup bỏ giá gõ tay. */
@@ -1073,7 +1093,7 @@ export function QuotationDetailView({
     persistItems(d.items.map((it) => ({ id: it.id, vat_percent: v })));
   }
   /** Nháp của một ô (đang gõ) cho mọi dòng `ids`; `v == null` = bỏ nháp. */
-  function datNhap(ids: number[], khoa: "ck" | "ln" | "gia", v: { k: Kieu; v: number } | number | null) {
+  function datNhap(ids: number[], khoa: "ck" | "ln" | "gia" | "ke", v: { k: Kieu; v: number } | number | null) {
     setNhap((p) => {
       const n = { ...p };
       ids.forEach((id) => {
@@ -1102,6 +1122,27 @@ export function QuotationDetailView({
         onNhap={(k, v) => datNhap(ids, "ck", { k, v })}
         onHuy={() => datNhap(ids, "ck", null)}
         onChot={(k, v) => commitChietKhau(dong, k, v)}
+      />
+    );
+  }
+  /** Ô KÊ GIÁ của MỘT sản phẩm khách thấy: hai tab "%" (trên giá bán) và "Số". */
+  function oKe(dong: QuoteItemDetail[], ten: string) {
+    const ban = dong.reduce((s, it) => s + calcItem(it).selling, 0);
+    const ke = dong.reduce((s, it) => s + calcItem(it).ke, 0);
+    const pct = ban > 0 ? (ke / ban) * 100 : 0;
+    const ids = dong.map((it) => it.id);
+    if (!editable) return ke > 0 ? `${numf(ke)} đ (${pctf(pct)} %)` : "—";
+    return (
+      <OHaiTab
+        pct={Math.round(pct * 10) / 10}
+        so={ke}
+        disabled={busy}
+        ariaLabel={`Kê ${ten}`}
+        titlePct="Kê (%) trên giá bán — cộng sau giá bán, chi lại khách khi hoá đơn thu đủ"
+        titleSo="Tiền kê — cộng sau giá bán, chi lại khách khi hoá đơn thu đủ"
+        onNhap={(k, v) => datNhap(ids, "ke", { k, v })}
+        onHuy={() => datNhap(ids, "ke", null)}
+        onChot={(k, v) => commitKe(dong, k, v)}
       />
     );
   }
@@ -1448,6 +1489,8 @@ export function QuotationDetailView({
                   <th className="num">Chiết khấu</th>
                   <th className="num">Markup</th>
                   <th className="num">Giá bán</th>
+                  <th className="num">Kê</th>
+                  <th className="num">Giá bán sau kê</th>
                 </tr>
               </thead>
               <tbody>
@@ -1565,6 +1608,11 @@ export function QuotationDetailView({
                           )}
                         </div>
                       </td>
+                      {/* Phần con của nhóm: kê gõ ở dải nhóm phía trên, ở đây chỉ hiện số tiền của phần này. */}
+                      <td className={con ? "num muted" : "num"}>
+                        {con ? (c.ke > 0 ? numf(c.ke) : "—") : oKe([it], it.product_name)}
+                      </td>
+                      <td className="num strong">{numf(c.sauKe)}</td>
                     </tr>
                   );
                   };
@@ -1575,6 +1623,7 @@ export function QuotationDetailView({
                   const tongVon = node.members.reduce((s, m) => s + calcItem(m).cost, 0);
                   const tongGoc = node.members.reduce((s, m) => s + calcItem(m).goc, 0);
                   const tongBan = node.members.reduce((s, m) => s + calcItem(m).selling, 0);
+                  const tongSauKe = node.members.reduce((s, m) => s + calcItem(m).sauKe, 0);
                   return [
                     <tr key={`nh-${node.key}`} className="qgrouphd">
                       <td>
@@ -1590,6 +1639,8 @@ export function QuotationDetailView({
                       <td className="num">{oChietKhau(node.members, node.ten)}</td>
                       <td className="num muted">{tongGoc > 0 ? `${pctf(((tongBan / tongGoc) - 1) * 100)} %` : "—"}</td>
                       <td className="num strong">{vnd(tongBan)}</td>
+                      <td className="num">{oKe(node.members, node.ten)}</td>
+                      <td className="num strong">{vnd(tongSauKe)}</td>
                     </tr>,
                     ...node.members.map((m, k) => dongIt(m, true, k === node.members.length - 1, node.members[0].quantity)),
                   ];
@@ -1788,6 +1839,13 @@ export function QuotationDetailView({
               </div>
               <div className="drow profit"><span className="k">Lợi nhuận</span><span className="v">{profitT >= 0 ? "+" : ""}{numf(profitT)} đ</span></div>
               <div className="drow"><span className="k">Giá bán (chưa VAT)</span><span className="v">{numf(netT)} đ</span></div>
+              {/* Kê giá (20/10/2026): cộng sau giá bán, VAT tính trên cả kê. Gõ ở cột Kê trong bảng. */}
+              {keT > 0 && (
+                <>
+                  <div className="drow"><span className="k">Kê</span><span className="v">+{numf(keT)} đ</span></div>
+                  <div className="drow"><span className="k">Giá bán sau kê (chưa VAT)</span><span className="v">{numf(sauKeT)} đ</span></div>
+                </>
+              )}
               <div className="drow">
                 <span className="k">
                   VAT
@@ -2103,7 +2161,8 @@ function QuotationPrintModal({
     soLuong: it.quantity,
     donViTinh: it.unit,
     dvtNhom: it.dvt_nhom,
-    thanhTien: Math.max(0, it.selling_price),   // chưa VAT — đã gồm chiết khấu (hoàn lại khách sau)
+    // chưa VAT — giá bán SAU KÊ (đã gồm chiết khấu); bản in không có dòng kê riêng.
+    thanhTien: Math.max(0, it.selling_price + (it.ke_gia ?? 0)),
     tienVat: it.vat_amount,
     vatPct: it.vat_percent,
     dienGiai: it.dien_giai,

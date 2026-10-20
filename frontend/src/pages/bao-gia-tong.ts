@@ -5,6 +5,8 @@ export interface DongTien {
   cost: number;
   ck: number;
   selling: number;
+  /** Kê giá của dòng (20/10/2026) — cộng SAU giá bán; VAT tính trên giá bán + kê. */
+  ke?: number;
   /** % VAT của dòng. */
   vatPct: number;
 }
@@ -21,14 +23,20 @@ export function dongDuocCong<T extends { accepted?: boolean }>(items: T[], daCho
  *  CÙNG phép tính của máy chủ (`_cong_tong`) và của đơn hàng, nên khối tổng, lịch sử phiên bản, danh
  *  sách và đơn kéo sang khớp tới từng đồng (#62, bấm lại 19/10). */
 export function congTongBaoGia(dong: DongTien[]) {
-  let cost = 0, ck = 0, selling = 0, gomX100 = 0;
+  let cost = 0, ck = 0, selling = 0, ke = 0, sauKe = 0, gomX100 = 0;
   for (const d of dong) {
     const ban = Math.round(d.selling);
+    const k = Math.round(d.ke ?? 0);
+    // Giá bán sau kê tròn MỘT lần như máy chủ (`round(selling + ke)`).
+    const sau = Math.round(d.selling + (d.ke ?? 0));
     cost += Math.round(d.cost);
     ck += Math.round(d.ck);
     selling += ban;
-    gomX100 += ban * (100 + Math.round(d.vatPct || 0));
+    ke += k;
+    sauKe += sau;
+    gomX100 += sau * (100 + Math.round(d.vatPct || 0));
   }
   const grand = Math.floor(gomX100 / 100);
-  return { cost, ck, selling, vat: grand - selling, grand, profit: selling - cost - ck };
+  // Lợi nhuận tính trên giá bán (trước kê) — kê không phải lãi của công ty.
+  return { cost, ck, selling, ke, sauKe, vat: grand - sauKe, grand, profit: selling - cost - ck };
 }
