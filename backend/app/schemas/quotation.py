@@ -22,6 +22,10 @@ class QuoteItemUpdate(BaseModel):
     # Diễn giải quy cách in dưới tên sản phẩm (mỗi dòng = 1 gạch đầu dòng). FE echo giá trị cũ khi
     # không sửa — payload dump đủ field nên bỏ trống là XOÁ (cùng quy ước với `note`).
     dien_giai: str | None = None
+    # KÊ GIÁ (20/10/2026) — tiền cộng SAU giá bán. Gõ số tiền (`ke_gia`) hoặc % trên giá bán
+    # (`ke_percent`). Bỏ trống cả hai = GIỮ số tiền kê đang có (sửa markup không làm mất kê).
+    ke_gia: float | None = Field(default=None, ge=0)
+    ke_percent: float | None = Field(default=None, ge=0)
 
 
 # --- create / update ----------------------------------------------------------
@@ -146,6 +150,7 @@ class VersionRow(BaseModel):
     total_cost: int | None = None   # giá vốn khóa (so sánh phiên bản)
     subtotal: int | None = None     # giá bán chưa VAT
     discount: int | None = None     # chiết khấu
+    ke_gia: int | None = None       # kê giá (đã nằm trong subtotal)
     created_at: datetime
     change_reason: str | None = None
 
@@ -171,6 +176,9 @@ class QuoteItemOut(BaseModel):
     gia_go_tay: bool = False       # giá bán gõ tay, không theo markup
     unit_price: float
     discount_amount: float
+    # Kê giá (20/10/2026): `gia_sau_ke = selling_price + ke_gia`; đơn giá / VAT / thành tiền trên số này.
+    ke_gia: float = 0
+    gia_sau_ke: float = 0
     vat_percent: float
     vat_amount: float
     final_amount: float
@@ -210,6 +218,7 @@ class QuotationDetailOut(BaseModel):
     total_cost: float
     subtotal_amount: float
     discount_amount: float
+    ke_gia_amount: float = 0   # Σ kê — subtotal_amount đã gồm
     vat_amount: float
     total: float  # maps to final_amount
     

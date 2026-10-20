@@ -634,6 +634,8 @@ class OrderService:
                 unit_price_snapshot=unit,
                 line_total=net_line,
                 chiet_khau=int(round(float(it.discount_amount or 0))),
+                # Kê giá (20/10/2026) nằm trong line_total (giá bán sau kê) — chép riêng để chia vào hoá đơn.
+                ke_gia=int(round(float(it.ke_gia or 0))),
                 vat_pct_estimate=_i(it.vat_percent),
                 cost_snapshot=(_i(it.total_cost_snapshot) if it.total_cost_snapshot else None),
                 phieu_thanh_phan_id=it.phieu_thanh_phan_id,   # pin truy vết ấn phẩm (soft) từ dòng báo giá

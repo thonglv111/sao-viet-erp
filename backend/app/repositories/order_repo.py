@@ -647,6 +647,7 @@ class OrderRepository:
                     vat_pct_estimate=ln.get("vat_pct_estimate", 0),
                     line_total=ln.get("line_total"),
                     chiet_khau=ln.get("chiet_khau"),   # tiền chiết khấu nằm trong line_total
+                    ke_gia=ln.get("ke_gia"),           # tiền kê giá nằm trong line_total
                     cost_snapshot=ln.get("cost_snapshot"),  # giá vốn dòng (soi biên)
                     phieu_thanh_phan_id=ln.get("phieu_thanh_phan_id"),  # pin ấn phẩm (soft)
                     nhom=ln.get("nhom"),   # nhãn gộp dòng khi in xác nhận đơn (khớp bản báo giá)

@@ -345,7 +345,7 @@ class QuotationService:
 
     def _gia_dong(self, it: QuoteItem, *, cost: float, qty: int) -> None:
         """Tính lại tiền một dòng với giá vốn / SL mới, GIỮ ý người soạn: % chiết khấu (trên giá vốn),
-        % lợi nhuận (trên vốn + chiết khấu), giá bán GÕ TAY (giữ nguyên số đã gõ), VAT."""
+        % lợi nhuận (trên vốn + chiết khấu), giá bán GÕ TAY (giữ nguyên số đã gõ), VAT, SỐ TIỀN kê."""
         cu = float(it.selling_price or 0)
         von_cu = float(it.total_cost_snapshot or 0)
         pct_ck = (float(it.discount_amount or 0) / von_cu * 100) if von_cu > 0 else 0.0
@@ -353,6 +353,7 @@ class QuotationService:
             total_cost=cost, margin_percent=float(it.margin_percent or 0),
             manual_selling_price=cu if it.gia_go_tay else None,
             discount_percent=pct_ck, vat_percent=float(it.vat_percent or 0), quantity=qty,
+            ke_gia=float(it.ke_gia or 0),
         )
         it.quantity = qty
         it.total_cost_snapshot = cost
@@ -371,11 +372,13 @@ class QuotationService:
         its = list(version.items)
         if version.status == VERSION_STATUS_ACCEPTED and any(i.accepted for i in its):
             its = [i for i in its if i.accepted]
-        ban = [int(round(float(i.selling_price or 0))) for i in its]
+        # Giá bán sau kê (20/10/2026): kê cộng vào số trước VAT, VAT tính trên cả kê.
+        ban = [int(round(float(i.selling_price or 0) + float(getattr(i, "ke_gia", 0) or 0))) for i in its]
         gom_vat_x100 = sum(b * (100 + int(round(float(i.vat_percent or 0)))) for b, i in zip(ban, its))
         version.total_cost_snapshot = sum(float(i.total_cost_snapshot or 0) for i in its)
         version.subtotal_amount = sum(ban)
         version.discount_amount = sum(float(i.discount_amount or 0) for i in its)
+        version.ke_gia_amount = sum(float(getattr(i, "ke_gia", 0) or 0) for i in its)
         version.final_amount = gom_vat_x100 // 100
         version.vat_amount = version.final_amount - version.subtotal_amount
 
@@ -472,6 +475,7 @@ class QuotationService:
                 gia_go_tay=item.gia_go_tay,
                 unit_price=item.unit_price,
                 discount_amount=item.discount_amount,
+                ke_gia=item.ke_gia,
                 vat_percent=item.vat_percent,
                 vat_amount=item.vat_amount,
                 final_amount=item.final_amount,
@@ -492,6 +496,7 @@ class QuotationService:
         rounding: str = "no_rounding",
         quantity: int = 1,
         profit_amount: float | None = None,
+        ke_gia: float = 0.0,
     ) -> dict[str, Any]:
         """Giá bán = giá vốn + tiền chiết khấu + tiền lợi nhuận (chủ chốt 18/10/2026).
 
@@ -500,7 +505,9 @@ class QuotationService:
         - Tiền lợi nhuận = `margin_percent` × (giá vốn + chiết khấu), hoặc `profit_amount` gõ thẳng.
         - Giá bán gõ tay (`manual_*`) thắng cả hai: chiết khấu giữ nguyên, lợi nhuận là phần còn lại.
         - Giá bán chính là số tiền trước VAT khách phải trả; VAT tính trên nó. `discount_amount` trả
-          ra là phần chiết khấu NẰM TRONG giá bán (không còn là khoản trừ)."""
+          ra là phần chiết khấu NẰM TRONG giá bán (không còn là khoản trừ).
+        - KÊ GIÁ (20/10/2026): tiền `ke_gia` cộng SAU giá bán, markup không nhân lên. Giá bán sau kê =
+          giá bán + kê; đơn giá, VAT, thành tiền tính trên số đó. `selling_price` trả ra KHÔNG gồm kê."""
         quantity = max(1, quantity)
         total_cost = float(total_cost)
 
@@ -537,11 +544,12 @@ class QuotationService:
         margin_pct = (loi_nhuan / goc * 100.0) if goc > 0 else 0.0
         actual_margin = ((selling_price - total_cost) / selling_price) * 100.0 if selling_price > 0 else 0.0
 
-        # 5. VAT trên giá bán
-        subtotal = max(0.0, selling_price)
+        # 5. Kê sau giá bán; VAT trên giá bán sau kê
+        ke = float(round(max(0.0, float(ke_gia or 0))))
+        subtotal = max(0.0, selling_price) + ke
         vat_amount = subtotal * (max(0.0, float(vat_percent)) / 100.0)
         final_amount = subtotal + vat_amount
-        unit_price = selling_price / quantity
+        unit_price = subtotal / quantity
 
         return {
             "selling_price": selling_price,
@@ -550,6 +558,8 @@ class QuotationService:
             "margin_percent": round(margin_pct, 2),
             "profit_amount": loi_nhuan,
             "discount_amount": chiet_khau,
+            "ke_gia": ke,
+            "gia_sau_ke": subtotal,
             "subtotal": subtotal,
             "vat_amount": vat_amount,
             "final_amount": final_amount,
@@ -970,7 +980,9 @@ class QuotationService:
             return _exc_evaluate_quote(subtotal=0, total_gross=0, cost=None)
         # Giá bán đã GỒM chiết khấu (khoản sẽ hoàn lại khách) ⇒ doanh thu khách trả = subtotal. Soi markup
         # bằng lợi nhuận / (vốn + chiết khấu): đưa `cost` = vốn + chiết khấu vào cổng.
-        subtotal_net = int(round(float(version.subtotal_amount)))
+        # Kê giá (20/10/2026) nằm trong subtotal nhưng KHÔNG phải doanh thu của markup: tách ra.
+        ke_tong = int(round(float(version.ke_gia_amount or 0)))
+        subtotal_net = int(round(float(version.subtotal_amount))) - ke_tong
         discount = int(round(float(version.discount_amount)))
         total_gross = int(round(float(version.final_amount)))
         von = int(round(float(version.total_cost_snapshot)))
@@ -986,6 +998,8 @@ class QuotationService:
             ln = sp.setdefault(nh or f"#{it.id}", {"ten": nh or it.product_name, "gross": 0.0, "discount": 0.0})
             ln["gross"] += float(it.total_cost_snapshot or 0)      # % chiết khấu tính trên GIÁ VỐN
             ln["discount"] += float(it.discount_amount or 0)
+            ln["ban"] = ln.get("ban", 0.0) + float(it.selling_price or 0)   # rào kê: % trên GIÁ BÁN
+            ln["ke"] = ln.get("ke", 0.0) + float(it.ke_gia or 0)
         return _exc_evaluate_quote(
             subtotal=subtotal_net, total_gross=total_gross, cost=cost,
             discount_amount=discount, subtotal_gross=von,
@@ -994,6 +1008,10 @@ class QuotationService:
             discount_max_pct=(cust.discount_max_pct if cust else None),
             markup_min_pct=(cust.markup_min_pct if cust else None),
             markup_max_pct=(cust.markup_max_pct if cust else None),
+            ke_amount=ke_tong,
+            ke_lines=[{"ten": ln["ten"], "ban": ln["ban"], "ke": ln["ke"]} for ln in sp.values()],
+            ke_min_pct=(cust.ke_min_pct if cust else None),
+            ke_max_pct=(cust.ke_max_pct if cust else None),
         )
 
     def approval_status(self, quote: Quote, exc: dict | None = None) -> dict:
@@ -1248,12 +1266,6 @@ class QuotationService:
             raise QuotationLocked("Phiên bản hiện tại không ở trạng thái nháp để chỉnh sửa.")
 
         # Update Items and Recalculate
-        subtotal = 0.0
-        discount = 0.0
-        vat = 0.0
-        final = 0.0
-        total_cost = 0.0
-
         if items_payload is not None:
             # We map the submitted array of items to the DB
             item_map = {item.id: item for item in version.items}
@@ -1273,6 +1285,23 @@ class QuotationService:
                         rounding=ip.get("rounding", "no_rounding"),
                         quantity=db_item.quantity,
                     )
+                    # Kê (20/10/2026): % tính trên giá bán MỚI; bỏ trống thì giữ số tiền kê cũ.
+                    if ip.get("ke_percent") is not None:
+                        ke = round(pricing["selling_price"] * float(ip["ke_percent"]) / 100)
+                    elif ip.get("ke_gia") is not None:
+                        ke = float(ip["ke_gia"])
+                    else:
+                        ke = float(db_item.ke_gia or 0)
+                    if ke:
+                        pricing = self.calculate_pricing(
+                            total_cost=float(db_item.total_cost_snapshot),
+                            margin_percent=pricing["margin_percent"],
+                            manual_selling_price=pricing["selling_price"],
+                            discount_amount=pricing["discount_amount"],
+                            vat_percent=float(ip.get("vat_percent", db_item.vat_percent)),
+                            quantity=db_item.quantity, ke_gia=ke,
+                        )
+                    db_item.ke_gia = pricing["ke_gia"]
                     db_item.margin_percent = pricing["margin_percent"]
                     db_item.selling_price = pricing["selling_price"]
                     db_item.gia_go_tay = (
@@ -1288,25 +1317,10 @@ class QuotationService:
                     db_item.po_code = ip.get("po_code", db_item.po_code)
                     db_item.dien_giai = ip.get("dien_giai", db_item.dien_giai)
 
-                    subtotal += pricing["selling_price"]
-                    discount += pricing["discount_amount"]
-                    vat += pricing["vat_amount"]
-                    final += pricing["final_amount"]
-                    total_cost += float(db_item.total_cost_snapshot)
-        else:
-            # Just sum up existing items
-            for db_item in version.items:
-                subtotal += float(db_item.selling_price)
-                discount += float(db_item.discount_amount)
-                vat += float(db_item.vat_amount)
-                final += float(db_item.final_amount)
-                total_cost += float(db_item.total_cost_snapshot)
-
-        version.total_cost_snapshot = total_cost
-        version.subtotal_amount = subtotal
-        version.discount_amount = discount
-        version.vat_amount = vat
-        version.final_amount = final
+        self.quotations.db.flush()
+        # Tổng đi CÙNG phép tính với đơn hàng (giá tròn từng dòng, gồm kê) — trước 20/10/2026 hàm này
+        # cộng thô số lẻ nên khối tổng lệch đơn vài đồng.
+        self._cong_tong(version)
 
         self.quotations.update(quote)
 
