@@ -346,7 +346,8 @@ def test_thuc_hien_don_luy_ke_toi_cuoi_ky_va_loc_giao_thu(client):
                    headers=_h(client))
     ws = load_workbook(BytesIO(x.content)).active
     assert ws["O4"].value == "Tỷ lệ báo giá" and ws["P4"].value == "Đã giao (SL)"
-    assert ws["T4"].value == "Đã thu" and ws["W4"].value == "Hẹn giao"
+    assert ws["T4"].value == "Đã thu" and ws["AC4"].value == "Hẹn giao"
+    assert ws["W4"].value == "Chiết khấu phải chi" and ws["AB4"].value == "Kê đã chi"
     assert ws["U4"].value == "Trả lại ngoài đơn" and ws["V4"].value == "Còn phải thu"
     don_g1 = next(r for r in range(5, ws.max_row + 1) if ws[f"A{r}"].value == "DH-BCKD-G1")
     assert (ws[f"R{don_g1}"].value, ws[f"T{don_g1}"].value, ws[f"V{don_g1}"].value) == (
@@ -383,3 +384,33 @@ def test_bckd_tru_hoan_khach_ngoai_don_nhu_cong_no(client):
     assert no == d["con_phai_thu"]
     d = dong(hom_nay - timedelta(days=1))
     assert (d["hoan_khong_don"], d["con_phai_thu"], d["thu"]) == (0, 0, "du")
+
+
+def test_cot_ck_ke_theo_hoa_don_het_no(client):
+    """Cột chiết khấu / kê (20/10/2026): phải chi chỉ hóa đơn đã thu đủ; kê chi lại đã trừ thuế TNDN."""
+    from tests.test_chi_ck_ke import URL_PC, _don as _don_ck, _hoa_don as _hd_ck, _phieu, _thu
+
+    h = _h(client)
+    oid, _, _ = _don_ck("BC1")
+    db = SessionLocal()
+    try:
+        db.get(Order, oid).ordered_at = datetime.now(timezone.utc) - timedelta(days=1)
+        db.commit()
+    finally:
+        db.close()
+
+    def dong_don() -> dict:
+        j = client.get(URL, headers=h).json()
+        return next(d for k in j["khach"] for d in k["don"] if d["order_id"] == oid)
+
+    inv = _hd_ck(client, h, oid, "BC0001")
+    d = dong_don()
+    assert (d["ck_phai_chi"], d["ke_tien"], d["ke_thue_tndn"], d["ke_phai_chi"]) == (0, 5_000_000, 1_000_000, 0)
+    _thu(client, h, inv)
+    for loai, so in (("chiet_khau", 1_000_000), ("ke_gia", 4_000_000)):
+        r = client.post(URL_PC, headers=h, json=_phieu(
+            loai, [{"sales_invoice_id": inv["id"], "amount": so}], cash_recipient_name="Người nhận"))
+        assert r.status_code == 201, r.text
+    d = dong_don()
+    assert (d["ck_phai_chi"], d["ck_da_chi"], d["ke_tien"], d["ke_thue_tndn"], d["ke_phai_chi"],
+            d["ke_da_chi"]) == (1_000_000, 1_000_000, 5_000_000, 1_000_000, 4_000_000, 4_000_000)

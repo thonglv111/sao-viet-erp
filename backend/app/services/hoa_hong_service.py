@@ -17,14 +17,13 @@ Nền: `docs/redesign-luong-kinh-doanh.md` §4.6, có HAI điểm chủ dự án
 
 Công thức:
 
-    Hoa hồng(NV, kỳ) = Σ  hoá_đơn.amount_vnd × tỷ_lệ_trước_VAT(đơn) × commission_pct(đơn)
+    Hoa hồng(NV, kỳ) = Σ  (hoá_đơn.amount_vnd × tỷ_lệ_trước_VAT(đơn) − CK − kê) × commission_pct(đơn)
                       hoá đơn ISSUED, invoice_date trong kỳ, đơn có sale_user_id = NV
 
     tỷ_lệ_trước_VAT(đơn) = Σ line_total / tổng_có_VAT      (1.0 nếu đơn không có VAT)
 
-Hoá đơn ĐIỀU CHỈNH GIẢM (hoàn chiết khấu) có `adj_date` trong kỳ đi vào công thức như hoá đơn ÂM, nên trừ
-vào hoa hồng của kỳ nó phát hành. Hoa hồng một người không âm: phần trừ quá số có của kỳ không mang sang
-kỳ sau (chủ dự án chốt KHÔNG truy thu — 18/10/2026).
+CK và kê (20/10/2026) là phần của hoá đơn chi lại khách — gốc tính trừ CK và TOÀN BỘ kê (cả phần thuế
+TNDN trên kê). Hoá đơn điều chỉnh giảm đã gỡ hẳn cùng ngày.
 
 `order_lines.line_total` là NET **trước VAT, sau chiết khấu** — xem `order_service.py` chỗ tính
 `net_line = final_amount − vat_amount`.
@@ -52,7 +51,8 @@ class HoaHongService:
 
     # ---------------------------------------------------------------- mốc phát sinh
     def _moc_phat_sinh(self, tu_ngay: date, den_ngay: date):
-        """Các chứng từ làm PHÁT SINH hoa hồng trong kỳ. Trả `[(order_id, số tiền có VAT)]`.
+        """Các chứng từ làm PHÁT SINH hoa hồng trong kỳ. Trả `[(order_id, số tiền có VAT, phần trừ
+        trước VAT = CK + kê của hoá đơn)]`.
 
         Đổi chính sách thì sửa DUY NHẤT hàm này:
           · mốc công nợ (đang dùng)  → hoá đơn `issued` trong kỳ;
@@ -60,13 +60,14 @@ class HoaHongService:
             lẫn `sales_invoice_id`.
         """
         rows = self.db.execute(
-            select(SalesInvoice.order_id, SalesInvoice.amount_vnd).where(
+            select(SalesInvoice.order_id, SalesInvoice.amount_vnd, SalesInvoice.chiet_khau,
+                   SalesInvoice.ke_gia).where(
                 SalesInvoice.status == SALES_INVOICE_ISSUED,
                 SalesInvoice.invoice_date >= tu_ngay,
                 SalesInvoice.invoice_date <= den_ngay,
             )
         ).all()
-        return [(int(r[0]), int(r[1] or 0)) for r in rows if r[0]]
+        return [(int(r[0]), int(r[1] or 0), int(r[2] or 0) + int(r[3] or 0)) for r in rows if r[0]]
 
     # ---------------------------------------------------------------- quy đổi trước VAT
     def _ty_le_truoc_vat(self, order: Order) -> float:
@@ -86,6 +87,10 @@ class HoaHongService:
             return 1.0
         return truoc / co_vat
 
+    def _goc(self, order: Order, tien_co_vat: int, tru: int) -> float:
+        """Gốc tính của một hoá đơn: phần trước VAT trừ CK và kê (không âm)."""
+        return max(0.0, tien_co_vat * self._ty_le_truoc_vat(order) - tru)
+
     # ---------------------------------------------------------------- API
     def hoa_hong_ky_map(self, *, tu_ngay: date, den_ngay: date) -> dict[int, float]:
         """Hoa hồng của TẤT CẢ nhân viên trong kỳ — `{employee_id: tiền}`, 3 truy vấn cho cả mẻ.
@@ -97,7 +102,7 @@ class HoaHongService:
         moc = self._moc_phat_sinh(tu_ngay, den_ngay)
         if not moc:
             return {}
-        ids = sorted({oid for oid, _ in moc})
+        ids = sorted({oid for oid, _, _ in moc})
         # Nạp kèm dòng đơn: `_ty_le_truoc_vat` đọc `order.lines`, để lazy là N+1 theo số hoá đơn.
         don = {
             o.id: o for o in self.db.execute(
@@ -114,7 +119,7 @@ class HoaHongService:
             ).scalars()
         }
         tong: dict[int, float] = {}
-        for oid, tien_co_vat in moc:
+        for oid, tien_co_vat, tru in moc:
             o = don.get(oid)
             if o is None or not o.sale_user_id:
                 continue
@@ -124,7 +129,7 @@ class HoaHongService:
             pct = float(o.commission_pct or 0)
             if pct <= 0:
                 continue                      # đơn không có hoa hồng
-            tong[emp_id] = tong.get(emp_id, 0.0) + tien_co_vat * self._ty_le_truoc_vat(o) * pct
+            tong[emp_id] = tong.get(emp_id, 0.0) + self._goc(o, tien_co_vat, tru) * pct
         return {k: round(v) for k, v in tong.items() if v > 0}
 
     def hoa_hong_ky(self, employee_id: int, *, tu_ngay: date, den_ngay: date) -> float:
@@ -145,7 +150,7 @@ class HoaHongService:
 
         # Nạp MỘT lượt các đơn có liên quan — mỗi hoá đơn tra một đơn là N+1 ngay giữa vòng tính
         # lương của cả trăm người.
-        ids = sorted({oid for oid, _ in moc})
+        ids = sorted({oid for oid, _, _ in moc})
         don = {
             o.id: o for o in self.db.execute(
                 select(Order).where(Order.id.in_(ids), Order.sale_user_id == int(uid))
@@ -155,12 +160,12 @@ class HoaHongService:
             return 0.0
 
         tong = 0.0
-        for oid, tien_co_vat in moc:
+        for oid, tien_co_vat, tru in moc:
             o = don.get(oid)
             if o is None:
                 continue                      # đơn của người khác
             pct = float(o.commission_pct or 0)
             if pct <= 0:
                 continue                      # đơn không có hoa hồng
-            tong += tien_co_vat * self._ty_le_truoc_vat(o) * pct
+            tong += self._goc(o, tien_co_vat, tru) * pct
         return max(0, round(tong))

@@ -121,6 +121,31 @@ def ck_ke_cho_chi(repo, *, order_ids: list[int] | None = None,
     return ra
 
 
+def ck_ke_theo_don(repo, order_ids: list[int]) -> dict[int, dict[str, int]]:
+    """Cột chiết khấu / kê của Báo cáo kinh doanh theo đơn: thuế TNDN trên kê của các hóa đơn còn
+    hiệu lực; "phải chi" chỉ cộng hóa đơn đã thu đủ; "đã chi" qua phiếu chi chưa huỷ."""
+    from .accounting_service import receivable_rows
+
+    hoa_don = repo.hoa_don_cua_don_co_ck_ke(order_ids=order_ids)
+    if not hoa_don:
+        return {}
+    du = {r["invoice_id"] for r in receivable_rows(repo, invoices=hoa_don, hoan=False)
+          if r["remaining_amount"] == 0}
+    da_chi = repo.da_chi_ck_ke([i.id for i in hoa_don])
+    ra: dict[int, dict[str, int]] = {}
+    for inv in hoa_don:
+        d = ra.setdefault(inv.order_id, {"ck_phai_chi": 0, "ck_da_chi": 0, "ke_thue_tndn": 0,
+                                         "ke_phai_chi": 0, "ke_da_chi": 0})
+        d["ke_thue_tndn"] += int(inv.ke_thue_tndn or 0)
+        d["ck_da_chi"] += da_chi.get((inv.id, LOAI_CK), 0)
+        d["ke_da_chi"] += da_chi.get((inv.id, LOAI_KE), 0)
+        if inv.id in du:
+            phai = phai_chi(inv)
+            d["ck_phai_chi"] += phai[LOAI_CK]
+            d["ke_phai_chi"] += phai[LOAI_KE]
+    return ra
+
+
 def bao_ck_ke(db, repo, *, actor_id: int | None, order_ids: list[int]) -> None:
     """Chấm đỏ Phiếu chi + toast khi hóa đơn của các đơn vừa vào hàng chờ chi CK / kê. Gọi SAU khi
     nghiệp vụ đã commit. Mỗi hóa đơn báo một lần."""

@@ -12082,9 +12082,17 @@ export interface BaoCaoKinhDoanhTien {
   da_xuat_hd: number;
   da_thu: number;
   /** Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — Còn phải thu = Tổng có VAT −
-   *  Điều chỉnh giảm − Đã thu + cái này. */
+   *  Đã thu + cái này. */
   hoan_khong_don: number;
   con_phai_thu: number;
+  /** Chiết khấu / kê chi lại khách (20/10/2026). Phải chi chỉ tính hóa đơn đã thu đủ; kê phải chi đã
+   *  trừ thuế TNDN trên kê. */
+  ck_phai_chi: number;
+  ck_da_chi: number;
+  ke_tien: number;
+  ke_thue_tndn: number;
+  ke_phai_chi: number;
+  ke_da_chi: number;
 }
 export type TinhTrangBCKD = "chua" | "mot_phan" | "du";
 export interface BaoCaoKinhDoanhDon extends BaoCaoKinhDoanhTien {

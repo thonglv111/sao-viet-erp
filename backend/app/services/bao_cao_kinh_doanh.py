@@ -115,6 +115,10 @@ def lap_bao_cao(
 
     hoan_hd = hoan_khong_don_theo_don(accounting_repo, {o.customer_id for o in don},
                                       den_ngay=den_ngay)
+    from .chi_ck_ke import ck_ke_theo_don
+
+    # Chiết khấu / kê (20/10/2026): số hiện tại của hóa đơn và phiếu chi, không cắt theo `den_ngay`.
+    ck_ke = ck_ke_theo_don(accounting_repo, ids)
     khach = orders_repo.khach_theo_ids({o.customer_id for o in don if o.customer_id})
     sale = orders_repo.ten_nguoi_dung({o.sale_user_id for o in don if o.sale_user_id})
     so_dong_bg = orders_repo.so_dong_bao_gia({o.quotation_id for o in don if o.quotation_id})
@@ -170,6 +174,7 @@ def lap_bao_cao(
         # Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn này — khách lại phải trả phần đó.
         hoan_o = int(hoan_hd.get(o.id, 0))
         phai_tra = tong_vat + hoan_o
+        ck_ke_o = ck_ke.get(o.id, {})
         muc["don"].append({
             "order_id": o.id,
             "order_no": o.order_no,
@@ -189,6 +194,13 @@ def lap_bao_cao(
             "da_thu": thu_o,
             "hoan_khong_don": hoan_o,
             "con_phai_thu": max(0, phai_tra - thu_o),
+            # Chiết khấu chi lại khách (100%) và kê (trừ thuế TNDN trên kê) — phải chi chỉ hóa đơn thu đủ.
+            "ck_phai_chi": ck_ke_o.get("ck_phai_chi", 0),
+            "ck_da_chi": ck_ke_o.get("ck_da_chi", 0),
+            "ke_tien": sum(int(ln.ke_gia or 0) for ln in o.lines),
+            "ke_thue_tndn": ck_ke_o.get("ke_thue_tndn", 0),
+            "ke_phai_chi": ck_ke_o.get("ke_phai_chi", 0),
+            "ke_da_chi": ck_ke_o.get("ke_da_chi", 0),
             "giao": giao_d,
             "thu": _tinh_trang(thu_o, phai_tra),
             "dong": dong,
@@ -214,7 +226,8 @@ def lap_bao_cao(
         muc["don"] = giu
 
     _cot = ("tong", "tong_vat", "coc_phai_thu", "coc_da_nhan", "coc_con_thieu",
-            "gia_tri_giao", "da_xuat_hd", "da_thu", "hoan_khong_don", "con_phai_thu")
+            "gia_tri_giao", "da_xuat_hd", "da_thu", "hoan_khong_don", "con_phai_thu",
+            "ck_phai_chi", "ck_da_chi", "ke_tien", "ke_thue_tndn", "ke_phai_chi", "ke_da_chi")
     ds = []
     for muc in theo_khach.values():
         if not muc["don"]:

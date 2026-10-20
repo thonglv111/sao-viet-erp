@@ -142,6 +142,22 @@ def test_HOA_DON_TUNG_PHAN_chi_an_hoa_hong_phan_do(client):
 # =============================================================================================
 # Các trường KHÔNG được tính
 # =============================================================================================
+def test_hoa_hong_tru_ck_va_toan_bo_ke(client):
+    """CK và kê của hoá đơn chi lại khách (20/10/2026) ⇒ gốc tính trừ CK và TOÀN BỘ kê (cả phần thuế
+    TNDN trên kê). HĐ 16,5tr gồm VAT 10%, CK 1tr, kê 5tr ⇒ (15tr − 6tr) × 5% = 450k."""
+    emp, uid = _sales("tru ck ke")
+    oid = _don("DH-HH-CK", uid, truoc_vat=15_000_000, vat_pct=10)
+    _hoa_don(oid, 16_500_000)
+    db = SessionLocal()
+    try:
+        inv = db.query(SalesInvoice).filter(SalesInvoice.order_id == oid).one()
+        inv.chiet_khau, inv.ke_gia, inv.ke_thue_tndn = 1_000_000, 5_000_000, 1_000_000
+        db.commit()
+    finally:
+        db.close()
+    assert _tinh(emp) == 450_000
+
+
 def test_hoa_don_HUY_khong_tinh(client):
     emp, uid = _sales("huy")
     oid = _don("DH-HH-05", uid, truoc_vat=100_000_000)

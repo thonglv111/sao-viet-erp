@@ -1,7 +1,8 @@
 """Xuất BÁO CÁO KINH DOANH theo khách hàng ra .xlsx (24/09/2026).
 
     dòng 1-2  tiêu đề + kỳ
-    dòng 4    tiêu đề cột (23 cột, A→W; P→W là phần thực hiện đơn của phương án C, 11/10/2026)
+    dòng 4    tiêu đề cột (29 cột, A→AC; P→V là phần thực hiện đơn của phương án C, 11/10/2026;
+              W→AB là chiết khấu / kê chi lại khách, 20/10/2026)
     rồi từng khách:
         [KHÁCH]  Mã - Tên (n đơn)                       … tổng tiền + cọc của khách   (tô nền)
         [ĐƠN]    Số đơn · Ngày chốt · Sale · PO          … tổng đơn + % cọc + cọc      (đậm)
@@ -28,9 +29,12 @@ COT = (
     ("O", "Tỷ lệ báo giá", 10),
     ("P", "Đã giao (SL)", 10), ("Q", "Còn phải giao (SL)", 10), ("R", "Giá trị đã giao", 16),
     ("S", "Đã xuất hoá đơn", 16), ("T", "Đã thu", 16),
-    ("U", "Trả lại ngoài đơn", 16), ("V", "Còn phải thu", 16), ("W", "Hẹn giao", 11),
+    ("U", "Trả lại ngoài đơn", 16), ("V", "Còn phải thu", 16),
+    ("W", "Chiết khấu phải chi", 16), ("X", "Chiết khấu đã chi", 16),
+    ("Y", "Tiền kê", 16), ("Z", "Thuế TNDN trên kê", 16), ("AA", "Kê phải chi", 16), ("AB", "Kê đã chi", 16),
+    ("AC", "Hẹn giao", 11),
 )
-_COT_TIEN = ("G", "I", "J", "L", "M", "N", "R", "S", "T", "U", "V")
+_COT_TIEN = ("G", "I", "J", "L", "M", "N", "R", "S", "T", "U", "V", "W", "X", "Y", "Z", "AA", "AB")
 
 
 def _dmy(d: date | None) -> str:
@@ -49,11 +53,11 @@ def xuat_xlsx(bc: dict) -> bytes:
     nen_khach = PatternFill("solid", fgColor="FFE8EDF4")
     nen_tieu_de = PatternFill("solid", fgColor="FF1B2A41")
 
-    ws.merge_cells("A1:W1")
+    ws.merge_cells("A1:AC1")
     ws["A1"] = "BÁO CÁO KINH DOANH THEO KHÁCH HÀNG"
     ws["A1"].font = Font(name="Times New Roman", size=14, bold=True)
     ws["A1"].alignment = Alignment(horizontal="center")
-    ws.merge_cells("A2:W2")
+    ws.merge_cells("A2:AC2")
     tu, den = bc["tu_ngay"], bc["den_ngay"]
     ky = (f"từ ngày {_dmy(tu)} đến ngày {_dmy(den)}" if tu and den else
           f"từ ngày {_dmy(tu)}" if tu else f"đến ngày {_dmy(den)}" if den else "mọi thời gian")
@@ -84,7 +88,7 @@ def xuat_xlsx(bc: dict) -> bytes:
             if cot in _COT_TIEN:
                 o.number_format = DINH_DANG_TIEN
                 o.alignment = Alignment(horizontal="right", vertical="center")
-            elif cot in ("E", "H", "K", "B", "F", "O", "P", "Q", "W"):
+            elif cot in ("E", "H", "K", "B", "F", "O", "P", "Q", "AC"):
                 o.alignment = Alignment(horizontal="center", vertical="center")
             else:
                 o.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
@@ -101,6 +105,13 @@ def xuat_xlsx(bc: dict) -> bytes:
         # Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — J + U − T = V.
         ws[f"U{hang}"] = m["hoan_khong_don"]
         ws[f"V{hang}"] = m["con_phai_thu"]
+        # Chiết khấu / kê chi lại khách (20/10/2026) — phải chi chỉ hóa đơn đã thu đủ.
+        ws[f"W{hang}"] = m["ck_phai_chi"]
+        ws[f"X{hang}"] = m["ck_da_chi"]
+        ws[f"Y{hang}"] = m["ke_tien"]
+        ws[f"Z{hang}"] = m["ke_thue_tndn"]
+        ws[f"AA{hang}"] = m["ke_phai_chi"]
+        ws[f"AB{hang}"] = m["ke_da_chi"]
 
     hang = 5
     for k in bc["khach"]:
@@ -118,7 +129,7 @@ def xuat_xlsx(bc: dict) -> bytes:
             _tien_tong(hang, d)
             ws[f"K{hang}"] = f"{d['coc_pct']:g}%" if d["coc_pct"] else ""
             ws[f"O{hang}"] = f"{d['ty_le_bao_gia']}%" if d.get("ty_le_bao_gia") is not None else ""
-            ws[f"W{hang}"] = _dmy(d.get("ngay_giao"))
+            ws[f"AC{hang}"] = _dmy(d.get("ngay_giao"))
             _ke(hang, dam=True)
             hang += 1
             for ln in d["dong"]:
