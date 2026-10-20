@@ -39,6 +39,8 @@ export const SOURCE_LABELS: Record<PaymentVoucherSource, string> = {
   gia_cong_ngoai: "Gia công",
   internal_expense: "Khác",
   customer_refund: "Trả lại tiền khách",
+  chi_chiet_khau: "Chi chiết khấu",
+  chi_ke_gia: "Chi kê",
   other: "Khác",
 };
 

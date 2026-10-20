@@ -55,6 +55,7 @@ const LOI_NHAC: Record<string, (ma: string | null) => string> = {
   hoa_don_cho_thu: (ma) => `🔔 Hóa đơn${ma ? " " + ma : ""} chờ thu tiền`,
   coc_cho_thu: (ma) => `🔔 Đơn${ma ? " " + ma : ""} đã chốt, chờ thu cọc`,
   tra_lai_khach: (ma) => `🔔 Đơn${ma ? " " + ma : ""} có tiền chờ trả lại khách`,
+  ck_ke_cho_chi: (ma) => `🔔 Hóa đơn${ma ? " " + ma : ""} đã thu đủ, chờ chi chiết khấu/kê`,
 };
 
 export function loiNhacCua(loai: string, ma: string | null): string | null {

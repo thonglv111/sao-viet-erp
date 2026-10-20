@@ -1431,6 +1431,12 @@ function InvoicePanel({
         <td className="dhb__mono dhb__muted">{item.invoice_symbol}</td>
         <td className="dhb__text-right dhb__g-hai">
           <span className="dhb__mono">{soVN(item.amount_vnd)}</span>
+          {/* Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT, chi lại khách khi hóa đơn thu đủ. */}
+          {(item.chiet_khau ?? 0) > 0 && <small>chiết khấu {soVN(item.chiet_khau ?? 0)}</small>}
+          {(item.ck_da_chi ?? 0) > 0 && <small>đã chi chiết khấu {soVN(item.ck_da_chi ?? 0)}</small>}
+          {(item.ke_gia ?? 0) > 0 && <small>kê {soVN(item.ke_gia ?? 0)}</small>}
+          {(item.ke_thue_tndn ?? 0) > 0 && <small>thuế TNDN trên kê {soVN(item.ke_thue_tndn ?? 0)}</small>}
+          {(item.ke_da_chi ?? 0) > 0 && <small>đã chi kê {soVN(item.ke_da_chi ?? 0)}</small>}
         </td>
         <td className={item.due_date && !huy ? "dhb__mono" : "dhb__muted"}>
           {huy ? "" : item.due_date ? fmtDate(item.due_date) : "chưa đặt"}

@@ -8033,6 +8033,44 @@ export interface TraLaiKhachChoChi {
   con_lai: number;
 }
 
+/** Một dòng "Chờ chi chiết khấu / kê" (20/10/2026) — một khoản (hóa đơn, loại) đã thu đủ còn phải chi. */
+export interface CkKeChoChi {
+  sales_invoice_id: number;
+  invoice_symbol: string | null;
+  invoice_number: string;
+  invoice_date: string;
+  order_id: number;
+  order_code: string;
+  customer_id: number | null;
+  customer_name: string;
+  loai: "chiet_khau" | "ke_gia";
+  /** Tiền CK / kê của hóa đơn (trước VAT); `thue_tndn` chỉ có ở kê. */
+  tien: number;
+  thue_tndn: number;
+  phai_chi: number;
+  da_chi: number;
+  con: number;
+}
+
+/** MỘT phiếu chi trả chiết khấu HOẶC kê của nhiều hóa đơn cùng khách. CK: người nhận máy khoá theo khách. */
+export interface PhieuChiCkKeInput extends PaymentVoucherAccountsInput {
+  loai: "chiet_khau" | "ke_gia";
+  dong: { sales_invoice_id: number; amount: number }[];
+  voucher_type: PaymentVoucherType;
+  voucher_date: string;
+  content?: string | null;
+  company_bank_account_id?: number | null;
+  cash_recipient_name?: string | null;
+  cash_recipient_address?: string | null;
+  cash_recipient_identity?: string | null;
+  beneficiary_account_holder?: string | null;
+  beneficiary_account_number?: string | null;
+  beneficiary_bank_name?: string | null;
+  beneficiary_bank_branch?: string | null;
+  bank_fee_bearer?: "payer" | "beneficiary" | "shared" | null;
+  note?: string | null;
+}
+
 export interface ReceivableItemRow {
   invoice_id: number;
   invoice_symbol: string | null;
@@ -8118,6 +8156,13 @@ export interface SalesInvoiceRow {
   delivery_trip_id?: number | null;
   /** Mã lượt giao của hóa đơn; null với hóa đơn ghi trước khi gắn lượt. */
   luot_giao_ma?: string | null;
+  /** Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT; kê chi lại sau khi trừ thuế TNDN. */
+  chiet_khau?: number;
+  ke_gia?: number;
+  ke_thue_tndn_pct?: number | null;
+  ke_thue_tndn?: number;
+  ck_da_chi?: number;
+  ke_da_chi?: number;
 }
 
 /** Một lượt khách đã nhận hàng, giá trị gồm VAT — trần ghi hóa đơn của lượt. */
@@ -8735,6 +8780,9 @@ export type PaymentVoucherSource =
   | "gia_cong_ngoai"
   | "internal_expense"
   | "customer_refund"
+  /** Chi chiết khấu / kê trả khách theo hóa đơn đã thu đủ (20/10/2026). */
+  | "chi_chiet_khau"
+  | "chi_ke_gia"
   | "other";
 /** BỎ HẲN `waiting_payment` từ 06/08/2026 (Đ1): lập phiếu chi = tiền ĐÃ RA, phiếu sinh ra đã là
  *  `paid`. Migration đã chuyển mọi phiếu "chờ chi" cũ thành `paid` (có dấu trong `note`). */
@@ -16377,6 +16425,16 @@ export const api = {
     /** Mục "Chờ trả lại khách" của màn Phiếu chi (17/10/2026). */
     traLaiKhachChoChi(token: string): Promise<TraLaiKhachChoChi[]> {
       return authed<TraLaiKhachChoChi[]>("/api/accounting/tra-lai-khach-cho-chi", token);
+    },
+    /** Mục "Chờ chi CK / kê" của màn Phiếu chi (20/10/2026). */
+    ckKeChoChi(token: string): Promise<CkKeChoChi[]> {
+      return authed<{ items: CkKeChoChi[] }>("/api/accounting/ck-ke-cho-chi", token).then((r) => r.items);
+    },
+    createVoucherCkKe(token: string, input: PhieuChiCkKeInput): Promise<PaymentVoucherRow> {
+      return authed<PaymentVoucherRow>("/api/accounting/payment-vouchers/ck-ke", token, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
     },
     salesInvoices(token: string, orderId: number): Promise<SalesInvoiceListOut> {
       return authed<SalesInvoiceListOut>(
