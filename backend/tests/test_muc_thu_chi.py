@@ -41,18 +41,18 @@ def test_danh_sach_ghep_muc_co_dinh_cat_trang_va_dem_dung(client):
     tat = ten(page=1, size=50, kem_dem=True)
     assert [i["ten"] for i in tat["items"]] == [
         "Trả nhà cung cấp", "Thuê gia công ngoài", "Tạm ứng lương", "Trả lại tiền cho khách",
-        "Mực in lẻ", "Tiền điện", "Văn phòng phẩm",
+        "Chi chiết khấu trả khách", "Chi kê trả khách", "Mực in lẻ", "Tiền điện", "Văn phòng phẩm",
         "Khách trả tiền hàng", "Khách đặt cọc", "Nhà cung cấp hoàn tiền"]
-    assert tat["total"] == 10
+    assert tat["total"] == 12
     # Số của hàng Đang dùng / Đã ngừng và của điều kiện Bên trong nút Lọc — mục cố định tính là
     # đang dùng.
     so = lambda ds: {d["value"]: d["so"] for d in ds}  # noqa: E731
-    assert so(tat["dem"]["active"]) == {"true": 9, "false": 1}
-    assert so(tat["dem"]["loai"]) == {"chi": 7, "thu": 3}
-    # Trang cắt trên dãy ghép: trang 2 cỡ 4 = 3 mục chi tự khai + 1 mục thu cố định.
+    assert so(tat["dem"]["active"]) == {"true": 11, "false": 1}
+    assert so(tat["dem"]["loai"]) == {"chi": 9, "thu": 3}
+    # Trang cắt trên dãy ghép: trang 2 cỡ 4 = 2 mục chi cố định cuối + 2 mục chi tự khai.
     tr2 = ten(page=2, size=4)
     assert [i["ten"] for i in tr2["items"]] == [
-        "Mực in lẻ", "Tiền điện", "Văn phòng phẩm", "Khách trả tiền hàng"]
+        "Chi chiết khấu trả khách", "Chi kê trả khách", "Mực in lẻ", "Tiền điện"]
     # Mục cố định không lọt bộ lọc "Đã ngừng" và tìm theo tên.
     assert [i["ten"] for i in ten(active=False)["items"]] == ["Mực in lẻ"]
     assert [i["ten"] for i in ten(q="gia công")["items"]] == ["Thuê gia công ngoài"]

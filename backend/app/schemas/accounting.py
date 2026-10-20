@@ -331,6 +331,59 @@ class PhieuChiGopIn(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+# --- Chi chiết khấu / kê theo hóa đơn đã thu đủ (20/10/2026) ---
+
+
+class CkKeChoChiRow(BaseModel):
+    sales_invoice_id: int
+    invoice_symbol: str | None = None
+    invoice_number: str
+    invoice_date: date
+    order_id: int
+    order_code: str
+    customer_id: int | None = None
+    customer_name: str
+    #: `chiet_khau` | `ke_gia`.
+    loai: str
+    #: Tiền CK / kê của hóa đơn (trước VAT); `thue_tndn` chỉ có ở kê.
+    tien: int
+    thue_tndn: int = 0
+    phai_chi: int
+    da_chi: int
+    con: int
+
+
+class CkKeChoChiOut(BaseModel):
+    items: list[CkKeChoChiRow]
+
+
+class PhieuChiCkKeDongIn(BaseModel):
+    sales_invoice_id: int = Field(gt=0)
+    amount: int = Field(gt=0)
+
+
+class PhieuChiCkKeIn(BaseModel):
+    loai: str = Field(pattern="^(chiet_khau|ke_gia)$")
+    dong: list[PhieuChiCkKeDongIn] = Field(min_length=1, max_length=50)
+    voucher_type: str = Field(min_length=1, max_length=24)
+    voucher_date: date
+    #: Bỏ trống thì máy đặt "Chi chiết khấu hóa đơn …".
+    content: str | None = Field(default=None, max_length=500)
+    company_bank_account_id: int | None = Field(default=None, gt=0)
+    #: Chiết khấu: máy khoá theo tên khách. Kê: bắt buộc gõ.
+    cash_recipient_name: str | None = Field(default=None, max_length=255)
+    cash_recipient_address: str | None = Field(default=None, max_length=500)
+    cash_recipient_identity: str | None = Field(default=None, max_length=64)
+    beneficiary_account_holder: str | None = Field(default=None, max_length=255)
+    beneficiary_account_number: str | None = Field(default=None, max_length=64)
+    beneficiary_bank_name: str | None = Field(default=None, max_length=255)
+    beneficiary_bank_branch: str | None = Field(default=None, max_length=255)
+    bank_fee_bearer: str | None = Field(default=None, max_length=16)
+    debit_account: str | None = Field(default=None, max_length=64)
+    credit_account: str | None = Field(default=None, max_length=64)
+    note: str | None = Field(default=None, max_length=2000)
+
+
 class VoucherFromAdvancesBatchIn(BaseModel):
     """Chi MỘT LƯỢT cho nhiều phiếu tạm ứng đã duyệt ⇒ MỘT phiếu chi cho cả lô (25/09/2026). Chỉ
     phần CHUNG — số tiền (tổng lô), người nhận ("Theo bảng kê…"), nội dung máy tự điền."""
@@ -640,6 +693,13 @@ class SalesInvoiceOut(BaseModel):
     cancel_reason: str | None = None
     delivery_trip_id: int | None = None
     luot_giao_ma: str | None = None
+    # Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT; kê chi lại sau khi trừ thuế TNDN.
+    chiet_khau: int = 0
+    ke_gia: int = 0
+    ke_thue_tndn_pct: float | None = None
+    ke_thue_tndn: int = 0
+    ck_da_chi: int = 0
+    ke_da_chi: int = 0
 
 
 class LuotGiaoHoaDonOut(BaseModel):

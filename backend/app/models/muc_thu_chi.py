@@ -31,7 +31,7 @@ LOAI_THU = "thu"
 LOAI_CHI = "chi"
 LOAI_MUC = (LOAI_THU, LOAI_CHI)
 
-#: Bảy mục cố định theo nguồn phiếu. `id` ÂM để không bao giờ trùng id dòng thật — ô lọc phiếu,
+#: Chín mục cố định theo nguồn phiếu. `id` ÂM để không bao giờ trùng id dòng thật — ô lọc phiếu,
 #: báo cáo và URL (`muc=-2`) dùng chung một kiểu số. `nguon` là đúng chuỗi `source_type` của phiếu.
 MUC_CO_DINH: tuple[dict, ...] = (
     {"id": -1, "ma": "HT-01", "nguon": "purchase_request", "loai": LOAI_CHI,
@@ -42,6 +42,10 @@ MUC_CO_DINH: tuple[dict, ...] = (
      "ten": "Tạm ứng lương", "ghi_chu": "Phiếu chi tạm ứng lương"},
     {"id": -7, "ma": "HT-07", "nguon": "customer_refund", "loai": LOAI_CHI,
      "ten": "Trả lại tiền cho khách", "ghi_chu": "Phiếu chi trả lại tiền cho khách"},
+    {"id": -8, "ma": "HT-08", "nguon": "chi_chiet_khau", "loai": LOAI_CHI,
+     "ten": "Chi chiết khấu trả khách", "ghi_chu": "Phiếu chi chiết khấu theo hóa đơn đã thu đủ"},
+    {"id": -9, "ma": "HT-09", "nguon": "chi_ke_gia", "loai": LOAI_CHI,
+     "ten": "Chi kê trả khách", "ghi_chu": "Phiếu chi kê theo hóa đơn đã thu đủ"},
     {"id": -4, "ma": "HT-04", "nguon": "sales_invoice", "loai": LOAI_THU,
      "ten": "Khách trả tiền hàng", "ghi_chu": "Phiếu thu theo hoá đơn"},
     {"id": -5, "ma": "HT-05", "nguon": "order_deposit", "loai": LOAI_THU,

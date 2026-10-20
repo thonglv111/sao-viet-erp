@@ -479,6 +479,9 @@ def add_deposit_receipt(
     _order_changed(d.order_no)
     if svc.vua_chuyen_sx:   # đủ cọc → đơn TỰ xuống hàng chờ Kế hoạch
         _bao_xuong_sx(db, d, user)
+    # Cọc thu sau khi đã ghi hóa đơn có thể làm hóa đơn thu đủ ⇒ vào hàng chờ chi CK / kê.
+    from ..services.chi_ck_ke import bao_ck_ke
+    bao_ck_ke(db, svc.accounting_repo, actor_id=user.id, order_ids=[d.id])
     return d
 
 

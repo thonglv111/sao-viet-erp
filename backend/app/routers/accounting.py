@@ -22,6 +22,7 @@ from ..deps import (
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
+from ..services.chi_ck_ke import bao_ck_ke
 from ..services.thong_bao_man import bao
 from ..models.user import User
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
@@ -61,6 +62,9 @@ from ..schemas.accounting import (
     PaymentVoucherListOut,
     PaymentVoucherOut,
     PhieuChiGopIn,
+    PhieuChiCkKeIn,
+    CkKeChoChiOut,
+    CkKeChoChiRow,
     PhieuThuGopIn,
     ChiTietKhoanThuOut,
     VoucherBatchOut,
@@ -878,6 +882,8 @@ def create_sales_invoice(
         svc.repo.db, svc.repo, actor_id=user.id, order_id=row.get("order_id"),
         order_code=row.get("order_code"), hoa_don_moi=row.get("invoice_number"),
     )
+    # Cọc phủ trọn hóa đơn ⇒ hóa đơn vào hàng chờ chi CK / kê ngay lúc ghi.
+    bao_ck_ke(svc.repo.db, svc.repo, actor_id=user.id, order_ids=[row.get("order_id")])
     return SalesInvoiceOut(**row)
 
 
@@ -1229,6 +1235,38 @@ def create_payment_voucher_gop(
     return PaymentVoucherOut(**row)
 
 
+@router.get("/api/accounting/ck-ke-cho-chi", response_model=CkKeChoChiOut)
+def ck_ke_cho_chi(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+    customer_id: int | None = None,
+) -> CkKeChoChiOut:
+    """Hàng "Chờ chi chiết khấu / kê" — hóa đơn đã thu đủ còn khoản chưa chi (20/10/2026)."""
+    return CkKeChoChiOut(items=[CkKeChoChiRow(**r) for r in svc.ck_ke_cho_chi(customer_id=customer_id)])
+
+
+@router.post(
+    "/api/accounting/payment-vouchers/ck-ke",
+    response_model=PaymentVoucherOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_payment_voucher_ck_ke(
+    payload: PhieuChiCkKeIn,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PC, "create"))],
+) -> PaymentVoucherOut:
+    """MỘT phiếu chi trả chiết khấu HOẶC kê của nhiều hóa đơn cùng một khách (20/10/2026)."""
+    body = payload.model_dump()
+    loai = body.pop("loai")
+    dong = body.pop("dong")
+    try:
+        row = svc.create_voucher_ck_ke(actor=user, loai=loai, dong=dong, shared=body)
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+    _notify_accounting_changed(row.get("code"), voucher_code=row.get("code"), actor_user_id=user.id)
+    return PaymentVoucherOut(**row)
+
+
 def _bao_cac_don_cua_phieu_chi(row: dict, event_type: str, notifications, actor_user_id: int) -> None:
     """Phiếu chi gộp đụng nhiều đơn mua ⇒ báo từng đơn (mỗi người lập đơn một lần)."""
     da_bao: set[str] = set()
@@ -1531,6 +1569,7 @@ def create_sales_invoice_receipt(
         invoice_id=row.get("sales_invoice_id"),
         receipt_code=row.get("code"),
     )
+    bao_ck_ke(svc.repo.db, svc.repo, actor_id=user.id, order_ids=[row.get("order_id")])
     return PaymentReceiptOut(**row)
 
 
@@ -1556,6 +1595,8 @@ def create_payment_receipt_gop(
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
     _bao_cac_don_cua_phieu_thu(row, "sales_invoice_receipt_created")
+    bao_ck_ke(db, svc.repo, actor_id=user.id,
+              order_ids=sorted({d.get("order_id") for d in row.get("lines") or [] if d.get("order_id")}))
     # Dòng cọc = thu cọc thật: đủ cọc ⇒ báo Sale + tự xuống SX, đúng như thu cọc lẻ trên đơn.
     don_coc = [d["order_id"] for d in row.get("lines") or [] if d.get("sales_invoice_id") is None]
     for d, moi in orders.sau_thu_coc_ngoai(order_ids=don_coc, actor=user):
@@ -1650,6 +1691,9 @@ def mark_payment_receipt_received(
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
     _notify_accounting_changed(row.get("code"))
+    bao_ck_ke(svc.repo.db, svc.repo, actor_id=user.id,
+              order_ids=sorted({d.get("order_id") for d in row.get("lines") or [] if d.get("order_id")}
+                               | ({row["order_id"]} if row.get("order_id") else set())))
     return PaymentReceiptOut(**row)
 
 

@@ -28,6 +28,7 @@ from ..models.accounting import (
     PaymentVoucher,
     PaymentVoucherAttachment,
     PaymentVoucherLine,
+    PhieuChiCkKe,
     SalesInvoice,
     SupplierBankAccount,
 )
@@ -904,6 +905,50 @@ class AccountingRepository:
             select(SalesInvoice.order_id, func.coalesce(func.sum(SalesInvoice.amount_vnd), 0))
             .where(SalesInvoice.order_id.in_(order_ids), SalesInvoice.status == SALES_INVOICE_ISSUED)
             .group_by(SalesInvoice.order_id))}
+
+    def hoa_don_cua_don_co_ck_ke(
+        self, *, order_ids: list[int] | None = None, customer_id: int | None = None
+    ) -> list[SalesInvoice]:
+        """Mọi hóa đơn còn hiệu lực của các đơn có ÍT NHẤT một hóa đơn còn hiệu lực mang CK hoặc kê
+        (20/10/2026) — hàng chờ chi CK / kê cần đủ hóa đơn của đơn để cấn cọc FIFO đúng."""
+        don = select(SalesInvoice.order_id).where(
+            SalesInvoice.status == SALES_INVOICE_ISSUED,
+            or_(SalesInvoice.chiet_khau > 0, SalesInvoice.ke_gia > 0),
+        )
+        if order_ids is not None:
+            if not order_ids:
+                return []
+            don = don.where(SalesInvoice.order_id.in_(order_ids))
+        if customer_id is not None:
+            don = don.where(SalesInvoice.customer_id == customer_id)
+        stmt = self._sales_invoice_stmt().where(
+            SalesInvoice.status == SALES_INVOICE_ISSUED,
+            SalesInvoice.order_id.in_(don.distinct()),
+        )
+        return list(self.db.execute(stmt.order_by(SalesInvoice.invoice_date, SalesInvoice.id)).scalars())
+
+    def da_chi_ck_ke(self, invoice_ids: list[int]) -> dict[tuple[int, str], int]:
+        """{(hóa đơn, loại): Σ đã chi} qua phiếu chi CK / kê chưa huỷ."""
+        if not invoice_ids:
+            return {}
+        rows = self.db.execute(
+            select(PhieuChiCkKe.sales_invoice_id, PhieuChiCkKe.loai,
+                   func.coalesce(func.sum(PhieuChiCkKe.amount_vnd), 0))
+            .join(PaymentVoucher, PaymentVoucher.id == PhieuChiCkKe.payment_voucher_id)
+            .where(PhieuChiCkKe.sales_invoice_id.in_(invoice_ids),
+                   PaymentVoucher.status != PAYMENT_VOUCHER_CANCELLED)
+            .group_by(PhieuChiCkKe.sales_invoice_id, PhieuChiCkKe.loai)
+        ).all()
+        return {(int(i), str(loai)): int(so) for i, loai, so in rows}
+
+    def ck_ke_da_ghi_cua_don(self, order_id: int) -> tuple[int, int]:
+        """(Σ CK, Σ kê) của các hóa đơn còn hiệu lực của đơn."""
+        ck, ke = self.db.execute(
+            select(func.coalesce(func.sum(SalesInvoice.chiet_khau), 0),
+                   func.coalesce(func.sum(SalesInvoice.ke_gia), 0))
+            .where(SalesInvoice.order_id == order_id, SalesInvoice.status == SALES_INVOICE_ISSUED)
+        ).one()
+        return int(ck), int(ke)
 
     def issued_invoice_amount_for_order(self, order_id: int) -> int:
         return int(
