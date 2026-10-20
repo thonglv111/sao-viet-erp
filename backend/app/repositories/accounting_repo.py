@@ -1147,7 +1147,8 @@ class AccountingRepository:
         """Đơn ĐÃ CHỐT có % cọc — ứng viên hàng "cọc chờ thu"."""
         from ..models.order import STATUS_ORDERED
         return list(self.db.scalars(
-            select(Order).where(Order.status == STATUS_ORDERED, Order.deposit_pct > 0)
+            select(Order).where(Order.status == STATUS_ORDERED,
+                                (Order.deposit_pct > 0) | (Order.deposit_amount > 0))
             .order_by(Order.ordered_at, Order.id)))
 
     def don_co_coc_da_thu(self) -> set[int]:

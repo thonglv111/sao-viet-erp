@@ -100,6 +100,8 @@ class OrderUpdate(BaseModel):
     """Chỉ sửa khi đơn còn NHÁP — chỉ thông tin ĐẶT HÀNG. Dòng + giá + VAT BẤT BIẾN (đổi = tạo
     nháp mới), KHÔNG sửa qua đây. Field None = giữ nguyên."""
     deposit_pct: float | None = None   # % cọc — sale sửa trên đơn khi còn nháp
+    # Cọc gõ bằng SỐ TIỀN (20/10/2026). Gửi số này là xoá `deposit_pct` và ngược lại.
+    deposit_amount: int | None = Field(default=None, ge=0)
     customer_po_no: str | None = None
     delivery_committed_date: date | None = None
     delivery_address: str | None = None
@@ -176,7 +178,8 @@ class OrderRow(BaseModel):
     total: int | None                   # Σ line_total (trước VAT)
     total_with_vat: int
     deposit_pct: float | None
-    deposit_required: int               # deposit_pct% × total_with_vat
+    deposit_amount: int | None = None   # cọc gõ bằng số tiền — thắng deposit_pct
+    deposit_required: int               # services.coc.coc_phai_thu
     deposit_received: int               # Σ phiếu thu cọc received (V5)
     deposit_ok: bool
     # Đơn đã huỷ: Σ phiếu chi TRẢ LẠI CỌC còn hiệu lực. Cọc còn giữ = deposit_received − số này.

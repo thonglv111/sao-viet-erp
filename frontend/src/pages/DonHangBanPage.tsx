@@ -1047,7 +1047,7 @@ function OrderDrawer({
                   {order.parent_order_no && <DongBen k="Đơn gốc" v={order.parent_order_no} />}
                   <DongBen k="Số PO khách" v={order.customer_po_no || "—"} />
                   <DongBen k="Ngày tạo" v={<span className="dhb__mono">{fmtDate(order.created_at)}</span>} />
-                  <DongBen k="Cọc quy định" v={order.deposit_pct != null ? `${order.deposit_pct}%` : "—"} />
+                  <DongBen k="Cọc quy định" v={order.deposit_amount != null ? `${soVN(order.deposit_amount)} đ` : order.deposit_pct != null ? `${order.deposit_pct}%` : "—"} />
                 </TheBen>
 
                 {/* Lưu ý sản xuất — sửa được cả khi đã chốt (đường hẹp D3 → realtime bàn Kế hoạch). */}
@@ -1831,11 +1831,20 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
   const [productionNote, setProductionNote] = useState(order.production_note ?? "");
   const [isRush, setIsRush] = useState(order.is_rush);
   const [depositPct, setDepositPct] = useState(order.deposit_pct != null ? String(order.deposit_pct) : "");
+  // Cọc hai tab (20/10/2026): "%" trên tổng đơn gồm VAT hoặc "Số" tiền gõ thẳng. Lưu tab nào thì máy
+  // chủ xoá cách kia. Số tiền không vượt tổng đơn gồm VAT.
+  const [cocKieu, setCocKieu] = useState<"pct" | "so">(order.deposit_amount != null ? "so" : "pct");
+  const [depositAmount, setDepositAmount] = useState(order.deposit_amount != null ? String(order.deposit_amount) : "");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function save() {
     if (!token) return;
+    const tienCoc = depositAmount === "" ? null : Number(depositAmount);
+    if (cocKieu === "so" && tienCoc != null && tienCoc > order.total_with_vat) {
+      setErr(`Tiền cọc không được vượt giá trị đơn hàng (${soVN(order.total_with_vat)} đ).`);
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
@@ -1845,7 +1854,10 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
         delivery_note: deliveryNote.trim() || null,
         production_note: productionNote.trim() || null,
         is_rush: isRush,
-        deposit_pct: depositPct.trim() === "" ? null : Number(depositPct),
+        ...(cocKieu === "so"
+          ? { deposit_amount: tienCoc, ...(tienCoc == null ? { deposit_pct: null } : {}) }
+          : { deposit_pct: depositPct.trim() === "" ? null : Number(depositPct),
+              ...(depositPct.trim() === "" ? { deposit_amount: null } : {}) }),
       });
       onSaved(d);
     } catch (e: unknown) {
@@ -1860,19 +1872,40 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
       <div onClick={(e) => e.stopPropagation()} className="dhb__modal-content" style={{ width: 480, display: "grid", gap: 8 }}>
       <h3 className="dhb__modal-title" style={{ fontSize: 18, margin: 0 }}>Sửa đơn {order.order_no}</h3>
       <Field label="Số PO khách"><input value={po} onChange={(e) => setPo(e.target.value)} className="dhb__input" /></Field>
-      <Field label="% cọc">
-        <OGoDinhDang
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={depositPct}
-          onChange={(e) => {
-            const digits = e.target.value.replace(/[^0-9]/g, "");
-            setDepositPct(digits === "" ? "" : String(Math.min(100, Number(digits))));
-          }}
-          placeholder="vd 30"
-          className="dhb__input"
-        />
+      <Field label="Cọc phải thu">
+        <div className="dhb__coc">
+          <div className="dhb__coc-tab" role="tablist" aria-label="Cọc phải thu — cách nhập">
+            {(["pct", "so"] as const).map((k) => (
+              <button key={k} type="button" role="tab" aria-selected={cocKieu === k}
+                className={cocKieu === k ? "is-on" : undefined} onClick={() => { setCocKieu(k); setErr(null); }}>
+                {k === "pct" ? "%" : "Số"}
+              </button>
+            ))}
+          </div>
+          {cocKieu === "pct" ? (
+            <OGoDinhDang
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              aria-label="% cọc"
+              value={depositPct}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, "");
+                setDepositPct(digits === "" ? "" : String(Math.min(100, Number(digits))));
+              }}
+              placeholder="vd 30"
+              className="dhb__input"
+            />
+          ) : (
+            <span className="dhb__invoice-money-wrap">
+              <OGoDinhDang className="dhb__input dhb__invoice-money" inputMode="numeric" aria-label="Tiền cọc"
+                value={depositAmount ? Number(depositAmount).toLocaleString("vi-VN") : ""}
+                onChange={(e) => { setDepositAmount(e.target.value.replace(/\D/g, "").replace(/^0+(?=\d)/, "")); setErr(null); }}
+                placeholder={`tối đa ${soVN(order.total_with_vat)}`} />
+              <i>đ</i>
+            </span>
+          )}
+        </div>
       </Field>
       <Field label="Ngày giao cam kết"><ChonNgay aria-label="Ngày giao cam kết" value={date} onChange={(v) => setDate(v)} className="dhb__input" /></Field>
       {/* Địa chỉ giao + người nhận: KẾ THỪA từ báo giá gốc (Sale chọn ở màn Báo giá) — chỉ đọc ở

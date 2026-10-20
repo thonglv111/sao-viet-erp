@@ -757,7 +757,7 @@ class OrderRepository:
     def value_rows(self, *, scope: str, actor, statuses: tuple[str, ...],
                    nguoi: int | None = None) -> dict[int, dict]:
         """Nguyên liệu tính KPI tiền cho từng đơn trong phạm vi (status ∈ statuses):
-        `{order_id: {status, deposit_pct, total_with_vat}}`. total_with_vat khớp ĐÚNG helper
+        `{order_id: {status, deposit_pct, deposit_amount, total_with_vat}}`. total_with_vat khớp ĐÚNG helper
         `total_with_vat` (Σ line_total·(100+vat) rồi //100 theo TỪNG đơn) → KPI = tổng số per-row,
         không lệch. 1 truy vấn GROUP BY, không N+1."""
         base = self._scope_condition(scope=scope, actor=actor)
@@ -766,20 +766,22 @@ class OrderRepository:
                 Order.id,
                 Order.status,
                 Order.deposit_pct,
+                Order.deposit_amount,
                 func.coalesce(func.sum(_line_total_with_vat()), 0),
             )
             .select_from(Order)
             .join(OrderLine, OrderLine.order_id == Order.id, isouter=True)
             .where(Order.status.in_(statuses))
-            .group_by(Order.id, Order.status, Order.deposit_pct)
+            .group_by(Order.id, Order.status, Order.deposit_pct, Order.deposit_amount)
         )
         if base is not None:
             stmt = stmt.where(base)
         if nguoi is not None:
             stmt = stmt.where(Order.sale_user_id == nguoi)
         out: dict[int, dict] = {}
-        for oid, status, pct, num in self.db.execute(stmt):
-            out[int(oid)] = {"status": status, "deposit_pct": pct, "total_with_vat": int(num) // 100}
+        for oid, status, pct, so_tien, num in self.db.execute(stmt):
+            out[int(oid)] = {"status": status, "deposit_pct": pct, "deposit_amount": so_tien,
+                             "total_with_vat": int(num) // 100}
         return out
 
     # V5: Σ cọc đã thu chuyển sang AccountingRepository.received_deposit_sum (cọc = PaymentReceipt).

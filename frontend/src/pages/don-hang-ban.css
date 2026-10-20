@@ -1924,3 +1924,10 @@
 .dhb__the .dhb__td-link, .dhb__ben .dhb__td-link { font-weight: 400; font-size: inherit; padding: 0; }
 /* Phụ đề form yêu cầu giao: mã đơn và khách tách bằng khoảng cách, không nối dấu chấm giữa. */
 .dhb__yc-phude { display: inline-flex; flex-wrap: wrap; gap: 12px; }
+
+/* Cọc phải thu hai tab % | Số (20/10/2026) — khuôn ô hai tab của bảng báo giá. */
+.dhb__coc { display: grid; gap: 6px; }
+.dhb__coc-tab { display: inline-flex; justify-self: start; border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 6px; overflow: hidden; }
+.dhb__coc-tab button { border: 0; background: transparent; padding: 3px 12px; font: inherit; font-size: 12px; cursor: pointer; color: var(--ink); }
+.dhb__coc-tab button + button { border-left: 1px solid var(--rule-soft, #e2e8f0); }
+.dhb__coc-tab button.is-on { background: var(--charcoal, #1e293b); color: #fff; }

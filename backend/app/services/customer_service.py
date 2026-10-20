@@ -522,11 +522,18 @@ class CustomerService:
         discount_max_pct: float | None = None,
         markup_min_pct: float | None = None,
         markup_max_pct: float | None = None,
+        ke_thue_tndn_pct: float | None = None,
+        ke_min_pct: float | None = None,
+        ke_max_pct: float | None = None,
+        giu_ke: bool = False,
         commit: bool = True,
     ) -> Customer:
         """Ghi ĐẦY ĐỦ chính sách tài chính (hạn mức công nợ + số ngày công nợ tối đa + rào
         chiết khấu/markup) — redesign spec-06 v2. Router chỉ gọi khi caller có quyền
-        `set_credit_terms` (chặn 403 nếu thiếu). Ghi cả nhóm nên None = "chưa đặt"."""
+        `set_credit_terms` (chặn 403 nếu thiếu). Ghi cả nhóm nên None = "chưa đặt".
+
+        Kê giá (20/10/2026): `ke_thue_tndn_pct` None = giữ số cũ (cột không trống); `giu_ke=True`
+        (nhập Excel chưa có cột kê) giữ nguyên cả ba ô kê."""
         customer = self.get_customer(customer_id=customer_id, scope=scope, actor=actor)
         credit_limit = self._validate_credit_limit(credit_limit)
         credit_days = self._validate_credit_days(payment_term_days)
@@ -534,10 +541,23 @@ class CustomerService:
             discount_min_pct=discount_min_pct, discount_max_pct=discount_max_pct,
             markup_min_pct=markup_min_pct, markup_max_pct=markup_max_pct,
         )
+        if giu_ke:
+            ke = dict(ke_thue_tndn_pct=customer.ke_thue_tndn_pct,
+                      ke_min_pct=customer.ke_min_pct, ke_max_pct=customer.ke_max_pct)
+        else:
+            kmin = self._validate_pct(ke_min_pct, "Kê tối thiểu")
+            kmax = self._validate_pct(ke_max_pct, "Kê tối đa")
+            if kmin is not None and kmax is not None and kmin > kmax:
+                raise CustomerValidationError("Kê tối thiểu không được lớn hơn tối đa.")
+            thue = self._validate_pct(ke_thue_tndn_pct, "Thuế TNDN trên kê")
+            ke = dict(ke_thue_tndn_pct=customer.ke_thue_tndn_pct if thue is None else thue,
+                      ke_min_pct=kmin, ke_max_pct=kmax)
+        bounds.update(ke)
         old = (
             customer.credit_limit, customer.payment_term_days,
             customer.discount_min_pct, customer.discount_max_pct,
             customer.markup_min_pct, customer.markup_max_pct,
+            customer.ke_thue_tndn_pct, customer.ke_min_pct, customer.ke_max_pct,
         )
         self.customers.update(
             customer, commit=commit,
@@ -547,6 +567,7 @@ class CustomerService:
             credit_limit, credit_days,
             bounds["discount_min_pct"], bounds["discount_max_pct"],
             bounds["markup_min_pct"], bounds["markup_max_pct"],
+            ke["ke_thue_tndn_pct"], ke["ke_min_pct"], ke["ke_max_pct"],
         )
         if old != new:
             self.audit.create(

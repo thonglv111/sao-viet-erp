@@ -76,6 +76,7 @@ from .accounting import (
     PaymentVoucher,
     PaymentVoucherAttachment,
     PaymentVoucherLine,
+    PhieuChiCkKe,
     SalesInvoice,
     SupplierBankAccount,
 )
@@ -232,6 +233,7 @@ __all__ = [
     "SalesInvoice",
     "PaymentVoucherAttachment",
     "PaymentVoucherLine",
+    "PhieuChiCkKe",
     "PaymentReceiptAttachment",
     "Machine",
     "MachineRate",

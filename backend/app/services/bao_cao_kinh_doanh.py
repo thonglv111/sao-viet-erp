@@ -29,6 +29,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 
 from ..van_ban import bo_dau
+from .coc import coc_phai_thu
 
 _VN = timezone(timedelta(hours=7))
 
@@ -132,9 +133,9 @@ def lap_bao_cao(
         agg = tien.get(o.id, {})
         tong = int(agg.get("total") or 0)
         tong_vat = int(agg.get("total_with_vat") or 0)
-        pct = float(o.deposit_pct) if o.deposit_pct else 0.0
+        pct = float(o.deposit_pct) if o.deposit_pct and not o.deposit_amount else 0.0
         # Cùng công thức `OrderService._money` — xem đầu file.
-        coc_phai = int(round(pct * tong_vat / 100)) if pct else 0
+        coc_phai = coc_phai_thu(o.deposit_pct, o.deposit_amount, tong_vat)
         coc_da = int(coc_nhan.get(o.id, 0))
         # Tỷ lệ báo giá thành công = số mặt hàng khách ƯNG (`quote_items.accepted`) / số mặt hàng
         # trong bản báo giá hiện hành (báo 10 chốt 2 ⇒ 20%). 0 dòng ưng = báo giá chốt trước khi có

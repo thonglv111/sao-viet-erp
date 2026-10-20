@@ -166,6 +166,9 @@ class Order(Base):
     invoice_entity_tax_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # % cọc GHIM TỪ BÁO GIÁ (khóa trên đơn) — base cổng chốt.
     deposit_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Cọc phải thu gõ bằng SỐ TIỀN (mg 0428, 20/10/2026). Có số này thì thắng `deposit_pct` (lưu
+    # một cái là xoá cái kia); không vượt tổng đơn gồm VAT. Đọc qua `services.coc.coc_phai_thu`.
+    deposit_amount: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Nguồn/độ tin giá vốn: quote (có) / none (nhập tay → biên không xác định).
     cost_basis: Mapped[str] = mapped_column(String(16), nullable=False, default=COST_BASIS_QUOTE)
 
@@ -259,6 +262,9 @@ class OrderLine(Base):
     # chiết khấu + lợi nhuận) mà công ty sẽ hoàn lại khách. Chép từ `quote_items.discount_amount` lúc
     # chốt đơn. NULL = đơn cũ / nhập tay.
     chiet_khau: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Tiền KÊ GIÁ của dòng (mg 0428): NẰM TRONG `line_total` (giá bán sau kê), chép từ
+    # `quote_items.ke_gia`. NULL = đơn cũ / nhập tay.
+    ke_gia: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="lines")
 
@@ -274,6 +280,7 @@ EXC_BELOW_COST = "below_cost"
 EXC_NO_COST = "no_cost"            # nhập tay không giá vốn (luôn cần duyệt)
 EXC_DISCOUNT_OUT = "discount_out"
 EXC_MARKUP_OUT = "markup_out"    # markup (lợi nhuận/GIÁ VỐN) ngoài rào của khách — cổng BÁO GIÁ
+EXC_KE_OUT = "ke_out"            # kê giá (% trên giá bán) ngoài rào của khách — cổng BÁO GIÁ
 
 
 class OrderApproval(Base):

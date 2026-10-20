@@ -153,6 +153,8 @@ class QuoteVersion(Base):
     total_cost_snapshot: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
     subtotal_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     discount_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
+    # Σ kê giá của các dòng được cộng (mg 0428) — `subtotal_amount` đã GỒM khoản này.
+    ke_gia_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, server_default="0", default=0)
     vat_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     vat_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     final_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
@@ -226,6 +228,9 @@ class QuoteItem(Base):
     gia_go_tay: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false", default=False)
     unit_price: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     discount_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
+    # KÊ GIÁ (mg 0428, 20/10/2026): tiền cộng SAU giá bán, markup không nhân lên. Giá bán sau kê =
+    # `selling_price + ke_gia`; đơn giá, VAT, thành tiền tính trên số đó. Sửa markup giữ nguyên số tiền.
+    ke_gia: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, server_default="0", default=0)
     vat_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     vat_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)
     final_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False, default=0)

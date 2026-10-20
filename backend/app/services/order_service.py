@@ -53,6 +53,7 @@ from ..schemas.order import (
 )
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .accounting_service import AccountingService, AccountingValidationError
+from .coc import co_coc, coc_phai_thu
 
 
 class OrderError(Exception):
@@ -162,7 +163,7 @@ def _pct_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> float
 #: Trường sửa được ở đơn nháp → nhãn ghi nhật ký (#52: nhật ký nói đúng trường đã đổi).
 _NHAN_SUA_DON = {
     "customer_po_no": "PO khách", "delivery_committed_date": "ngày hẹn giao",
-    "deposit_pct": "% cọc", "delivery_address": "địa chỉ giao", "delivery_contact_name": "người nhận",
+    "deposit_pct": "% cọc", "deposit_amount": "tiền cọc", "delivery_address": "địa chỉ giao", "delivery_contact_name": "người nhận",
     "delivery_contact_phone": "điện thoại người nhận", "delivery_note": "ghi chú giao hàng",
     "production_note": "lưu ý sản xuất", "is_rush": "đơn gấp",
 }
@@ -228,8 +229,7 @@ class OrderService:
         # V5: cọc đọc từ phiếu thu THẬT (Kế toán) — Σ PaymentReceipt(order, source=đơn, received).
         if received is None:
             received = self.accounting_repo.received_deposit_sum(order.id)
-        pct = order.deposit_pct
-        required = int(round(float(pct) * total_with_vat / 100)) if pct else 0
+        required = coc_phai_thu(order.deposit_pct, order.deposit_amount, total_with_vat)
         # biên: chỉ khi có giá vốn (cost_basis=quote) + có total
         margin = None
         if order.cost_basis == COST_BASIS_QUOTE and order_cost is not None and total:
@@ -303,6 +303,7 @@ class OrderService:
             total=m["total"],
             total_with_vat=m["total_with_vat"],
             deposit_pct=order.deposit_pct,
+            deposit_amount=order.deposit_amount,
             deposit_required=m["deposit_required"],
             deposit_received=m["deposit_received"],
             deposit_ok=m["deposit_ok"],
@@ -513,8 +514,7 @@ class OrderService:
         awaiting = shortfall = ordered_value = 0
         for oid, r in rows.items():
             twv = r["total_with_vat"]
-            pct = r["deposit_pct"]
-            required = int(round(float(pct) * twv / 100)) if pct else 0
+            required = coc_phai_thu(r["deposit_pct"], r["deposit_amount"], twv)
             if r["status"] == STATUS_ORDERED:
                 ordered_value += twv
             elif r["status"] == STATUS_DRAFT and required > 0 and received.get(oid, 0) < required:
@@ -692,9 +692,20 @@ class OrderService:
                 continue                      # cờ gấp không có trạng thái "trống"
             if f == "deposit_pct" and val is not None and not 0 <= val <= 100:
                 raise OrderValidationError("% cọc phải trong khoảng 0–100")
+            if f == "deposit_amount" and val == 0:
+                val = None
             cu = getattr(order, f)
             if (float(cu) if f == "deposit_pct" and cu is not None else cu) != val:
                 fields[f] = val
+        # Cọc giữ MỘT cách (20/10/2026): lưu số tiền là xoá %, lưu % là xoá số tiền.
+        if fields.get("deposit_amount") is not None:
+            fields["deposit_pct"] = None
+            tong = self.repo.total_with_vat(order.id)
+            if fields["deposit_amount"] > tong:
+                raise OrderValidationError(
+                    f"Tiền cọc không được vượt giá trị đơn hàng ({tong:,} đ).".replace(",", "."))
+        elif fields.get("deposit_pct") is not None and order.deposit_amount is not None:
+            fields["deposit_amount"] = None
         if fields:
             self.repo.update(order, **fields)
             self.audit.create(
@@ -802,7 +813,7 @@ class OrderService:
         received = self.accounting_repo.received_deposit_sums(ids)
         for o in drafts:
             m = self._money(o, agg=sums.get(o.id, {}), received=received.get(o.id, 0))
-            if can_record_deposit and (o.deposit_pct or 0) > 0 and not m["deposit_ok"]:
+            if can_record_deposit and co_coc(o) and not m["deposit_ok"]:
                 deposit_pending += 1
             if can_chot and m["deposit_ok"]:
                 ready_to_confirm += 1

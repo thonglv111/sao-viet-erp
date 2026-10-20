@@ -309,7 +309,7 @@ def create_order(
     except Exception as exc:
         raise _map(exc)
     _order_changed(d.order_no)   # đơn nháp mới → Kế toán thấy 'chờ ghi cọc'
-    if (d.deposit_pct or 0) > 0:
+    if (d.deposit_pct or 0) > 0 or (d.deposit_amount or 0) > 0:
         # Chấm đỏ Đơn hàng cho người GHI CỌC trong phạm vi phòng của Sale đứng tên đơn.
         sale = db.get(User, d.sale_user_id) if d.sale_user_id else None
         bao(db, kenh="don_hang_ban", loai="don_cho_coc", actor_id=user.id, quyen="phieu_thu:create",

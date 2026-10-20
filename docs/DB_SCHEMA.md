@@ -308,6 +308,9 @@ and is read via SEAM-16, never stored here.
 | `discount_max_pct` | `Float` → `FLOAT` | — | yes | — | Trần chiết khấu cho phép (%). Thêm qua migration 0060. |
 | `markup_min_pct` | `Float` → `FLOAT` | — | yes | — | Sàn **MARKUP** yêu cầu (%) — markup = lợi nhuận / **giá vốn** (đúng ô "Markup %" trên báo giá), KHÔNG phải biên trên giá bán. Cổng đặc thù của báo giá soi rào này (`exception_gate.evaluate_quote`). Thêm qua migration 0060 (tên cũ `margin_min_pct`), đổi tên qua migration 0242. |
 | `markup_max_pct` | `Float` → `FLOAT` | — | yes | — | Trần **MARKUP** (%) — cùng trục với `markup_min_pct`. Thêm qua migration 0060 (tên cũ `margin_max_pct`), đổi tên qua migration 0242. |
+| `ke_thue_tndn_pct` | `Float` → `FLOAT` | — | no | `20` | Thuế TNDN trên kê (%): phần kê công ty giữ lại để nộp thuế TNDN; khi hóa đơn hết nợ chi lại kê × (100 − %) / 100. Chụp vào hóa đơn lúc ghi. Migration 0428. |
+| `ke_min_pct` | `Float` → `FLOAT` | — | yes | — | Sàn kê cho phép (% trên GIÁ BÁN, trước kê). Kê ngoài rào ⇒ báo giá vào diện đặc thù (`ke_out`). Migration 0428. |
+| `ke_max_pct` | `Float` → `FLOAT` | — | yes | — | Trần kê cho phép (% trên giá bán). Migration 0428. |
 | `created_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | now (UTC) | When the customer row was created. |
 
 **Keys & indexes**
@@ -643,6 +646,7 @@ copy-on-write: `internal_cost_snapshot_json` (phân rã giá vốn theo các dò
 | `total_cost_snapshot`           | `Numeric(15,2)` | —                                  | yes  | —       | Tổng giá vốn khóa của version.                                          |
 | `subtotal_amount`               | `Numeric(15,2)` | —                                  | no   | `0`     | Tổng giá bán trước VAT/chiết khấu.                                      |
 | `discount_amount`               | `Numeric(15,2)` | —                                  | no   | `0`     | Chiết khấu tổng.                                                        |
+| `ke_gia_amount` | `Numeric(15,2)` | — | no | `0` | Σ kê giá của các dòng được cộng; `subtotal_amount` đã gồm khoản này. Migration 0428. |
 | `vat_percent`                   | `Numeric(5,2)`  | —                                  | no   | `0`     | %VAT áp version.                                                        |
 | `vat_amount`                    | `Numeric(15,2)` | —                                  | no   | `0`     | Tiền VAT.                                                               |
 | `final_amount`                  | `Numeric(15,2)` | —                                  | no   | `0`     | Tổng cộng (đã VAT).                                                     |
@@ -682,6 +686,7 @@ Phiếu tính giá nguồn** (báo giá không soạn tay). Giá vốn đóng b�
 | `gia_go_tay` | `Boolean` | — | no | `false` | Giá bán do sale GÕ TAY, không theo markup (migration `0364`). Màn báo giá giữ trạng thái "Gõ tay" + nút "Về theo markup" sau khi tải lại; sửa markup dòng đó là về false. Tạo phiên bản mới chép theo. |
 | `unit_price` | `Numeric(15,2)` | — | no | `0` | Đơn giá bán /sp. |
 | `discount_amount` | `Numeric(15,2)` | — | no | `0` | Chiết khấu dòng. |
+| `ke_gia` | `Numeric(15,2)` | — | no | `0` | KÊ GIÁ của dòng (20/10/2026): tiền cộng SAU giá bán, markup không nhân lên. Giá bán sau kê = `selling_price + ke_gia`; `unit_price`, `vat_amount`, `final_amount` tính trên số đó. Migration 0428. |
 | `vat_percent` | `Numeric(5,2)` | — | no | `0` | %VAT dòng. |
 | `vat_amount` | `Numeric(15,2)` | — | no | `0` | Tiền VAT dòng. |
 | `final_amount` | `Numeric(15,2)` | — | no | `0` | Thành tiền dòng (đã VAT). |
@@ -768,6 +773,7 @@ data. Duyệt bản in + tiến độ SX = luồng NGOÀI hệ thống (không l
 | `invoice_entity_name` | `String(255)` → `VARCHAR(255)` | — | yes | — | Pháp nhân xuất HĐ (khi khách xin tên khác; mặc định = khách). |
 | `invoice_entity_tax_code` | `String(20)` → `VARCHAR(20)` | — | yes | — | MST pháp nhân xuất HĐ. |
 | `deposit_pct` | `Float` → `FLOAT` | — | yes | — | % cọc phải thu ĐẶT TẠI ĐƠN (Kế toán/`record_deposit`, khóa khỏi Sale) — base cổng chốt; NULL = chưa đặt. |
+| `deposit_amount` | `BigInteger` → `BIGINT` | — | yes | — | Cọc phải thu gõ bằng SỐ TIỀN (20/10/2026): có thì thắng `deposit_pct` (lưu cái này xoá cái kia), không vượt tổng đơn gồm VAT. Migration 0428. |
 | `cost_basis` | `String(16)` → `VARCHAR(16)` | — | no | `quote` | Nguồn giá vốn ∈ {quote, none}; none = nhập tay → biên "không xác định". |
 | `needs_approval` | `Boolean` → `BOOLEAN` | — | no | `false` | Đơn cần duyệt tại đơn (nhập tay / bổ sung tự đặt giá). |
 | `approval_state` | `String(16)` → `VARCHAR(16)` | — | no | `none` | Trình-duyệt ∈ {none, pending, approved, rejected}. |
@@ -840,6 +846,7 @@ ordered`) the lines are read-only (sửa → chặn; đổi phải change_order)
 | `line_total`          | `Integer` → `INTEGER`                 | —                        | yes  | —              | Thành tiền = qty × unit_price_snapshot (derived + stored; null khi chưa có giá).      |
 | `cost_snapshot`       | `BigInteger` → `BIGINT`               | —                        | yes  | —              | **Copy-on-write**: giá vốn đông cứng từ `QuoteItem.total_cost_snapshot` lúc tạo — CÙNG GRAIN với `line_total` (tổng cả SL), dùng soi biên lợi nhuận. NULL cho đơn cũ (trước A2). |
 | `chiet_khau`          | `BigInteger` → `BIGINT`               | —                        | yes  | —              | Tiền CHIẾT KHẤU của dòng (migration `0417`, 18/10/2026): phần NẰM TRONG `line_total` (giá bán = vốn + chiết khấu + lợi nhuận) mà công ty sẽ hoàn lại khách. Chép từ `quote_items.discount_amount` lúc chốt đơn. NULL = đơn cũ / nhập tay. |
+| `ke_gia` | `BigInteger` → `BIGINT` | — | yes | — | Tiền KÊ GIÁ của dòng: NẰM TRONG `line_total` (giá bán sau kê), chép từ `quote_items.ke_gia` lúc chốt đơn. NULL = đơn cũ / nhập tay. Migration 0428. |
 | `phieu_thanh_phan_id` | `Integer` → `INTEGER`                 | (soft)                   | yes  | —              | Pin truy vết ấn phẩm: `PhieuThanhPhan` của PTG mà dòng báo giá nguồn trỏ tới (song sinh `QuoteItem.phieu_thanh_phan_id`). Soft ref, KHÔNG FK cứng, copy lúc snapshot. NULL cho đơn nhập tay. Migration 0071. |
 | `thanh_pham_id`       | `Integer` → `INTEGER`                 | **IX** (soft)            | yes  | —              | Mã THÀNH PHẨM của cụm bán chứa dòng (soft → `vat_tu_in_an.id`, mg `0394`, 11/10/2026). Đóng dấu lúc chốt đơn (`thanh_pham_khai_bao.khai_cho_don`): ruột + bìa cùng cụm mang cùng mã; kho, giao hàng, tiến độ đọc mã ở đây chứ không tra lại theo tên. NULL = đơn chốt trước 11/10/2026 ⇒ đọc rơi về tìm theo (khách, tên). |
 
@@ -2537,6 +2544,10 @@ giá trị đơn đã chốt. One row = 1 hóa đơn bán.
 | `due_date`                   | `Date` → `DATE`                                        | —                                 | yes  | —          | Hạn thanh toán của hóa đơn.                                     |
 | `customer_name_snapshot`     | `String(255)` → `VARCHAR(255)`                         | —                                 | no   | —          | Tên khách hàng tại lúc phát hành.                               |
 | `delivery_trip_id`           | `Integer` → `INTEGER`                                  | **FK→delivery_trips.id**, **IX**  | yes  | —          | Lượt giao (khách đã nhận) mà hóa đơn lập cho; `ON DELETE RESTRICT`. Hóa đơn mới bắt buộc, giá trị không vượt hàng của lượt. Hóa đơn cũ để trống. Migration 0402. |
+| `chiet_khau` | `BigInteger` → `BIGINT` | — | no | `0` | Chiết khấu của đơn rơi vào hóa đơn (trước VAT), chia theo hàng của lượt giao; hóa đơn ghi đủ đơn nhận phần dư. Hết nợ ⇒ chờ chi đủ số này. Migration 0428 (hóa đơn cũ chia theo tỉ lệ giá trị). |
+| `ke_gia` | `BigInteger` → `BIGINT` | — | no | `0` | Kê giá của đơn rơi vào hóa đơn (trước VAT), cùng cách chia. Migration 0428. |
+| `ke_thue_tndn_pct` | `Float` → `FLOAT` | — | yes | — | % thuế TNDN trên kê chụp từ khách lúc ghi hóa đơn. Migration 0428. |
+| `ke_thue_tndn` | `BigInteger` → `BIGINT` | — | no | `0` | `round(ke_gia × ke_thue_tndn_pct / 100)` — phần kê công ty giữ lại; chi kê = `ke_gia − ke_thue_tndn`. Migration 0428. |
 | `status`                     | `String(16)` → `VARCHAR(16)`                           | **IX**                            | no   | `issued`   | `issued` hoặc `cancelled`.                                      |
 | `created_by_user_id`         | `Integer` → `INTEGER`                                  | **FK→users.id**                   | yes  | —          | Người ghi nhận hóa đơn; `ON DELETE CASCADE`.                   |
 | `created_at`                 | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —                                 | no   | now (UTC)  | Khi tạo.                                                        |
@@ -4130,6 +4141,22 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `amount_vnd` | `BigInteger` | — | no | — | Số tiền của dòng; tổng các dòng = `payment_vouchers.amount_vnd`. |
 
 **Tất cả cột:** `id`, `payment_voucher_id`, `purchase_request_id`, `delivery_id`, `amount_vnd`.
+
+---
+
+### `phieu_chi_ck_ke`
+
+**Purpose:** Dòng của phiếu chi CHIẾT KHẤU / KÊ GIÁ trả khách (20/10/2026, mg 0428): phiếu (nguồn `chi_chiet_khau` hoặc `chi_ke_gia`) trả bao nhiêu cho khoản `loai` của hóa đơn bán nào. Một phiếu gộp nhiều hóa đơn cùng khách, cùng loại. Dòng không có trạng thái riêng — huỷ phiếu là khoản quay lại hàng chờ "Chờ chi chiết khấu / kê". Bảng MỚI do `create_all` dựng; mg 0428 dựng cho DB cũ.
+
+| Column | Type | Key | Null | Default | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `Integer` | **PK** | no | auto-increment | Surrogate primary key. |
+| `payment_voucher_id` | `Integer` | **FK→payment_vouchers.id (CASCADE)**, **IX** | no | — | Phiếu chi chứa dòng. |
+| `sales_invoice_id` | `Integer` | **FK→sales_invoices.id (RESTRICT)**, **IX** | no | — | Hóa đơn bán được chi CK / kê. |
+| `loai` | `String(16)` | — | no | — | `chiet_khau` hoặc `ke_gia`; trùng loại của phiếu. |
+| `amount_vnd` | `BigInteger` | — | no | — | Số tiền chi cho khoản này; tổng các dòng = `payment_vouchers.amount_vnd`. |
+
+**Tất cả cột:** `id`, `payment_voucher_id`, `sales_invoice_id`, `loai`, `amount_vnd`.
 
 ---
 

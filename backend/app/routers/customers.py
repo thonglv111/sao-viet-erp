@@ -1129,6 +1129,9 @@ def update_customer_financial(
             discount_max_pct=payload.discount_max_pct,
             markup_min_pct=payload.markup_min_pct,
             markup_max_pct=payload.markup_max_pct,
+            ke_thue_tndn_pct=payload.ke_thue_tndn_pct,
+            ke_min_pct=payload.ke_min_pct,
+            ke_max_pct=payload.ke_max_pct,
         )
     except CustomerValidationError as e:
         raise HTTPException(

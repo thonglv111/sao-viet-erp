@@ -3955,6 +3955,10 @@ export interface CustomerRow {
   discount_max_pct?: number | null;
   markup_min_pct?: number | null;
   markup_max_pct?: number | null;
+  /** Rào kê (% trên giá bán) + % thuế TNDN trên kê (mặc định 20) — 20/10/2026. */
+  ke_min_pct?: number | null;
+  ke_max_pct?: number | null;
+  ke_thue_tndn_pct?: number;
   /** Nhãn thủ công (#7) — sales gán tay. */
   tags?: string[];
 }
@@ -4360,6 +4364,11 @@ export interface CustomerFinancialInput {
   discount_max_pct?: number | null;
   markup_min_pct?: number | null;
   markup_max_pct?: number | null;
+  /** Kê giá (20/10/2026): % trên giá bán. */
+  ke_min_pct?: number | null;
+  ke_max_pct?: number | null;
+  /** Thuế TNDN trên kê (%), mặc định 20. */
+  ke_thue_tndn_pct?: number;
 }
 
 /** Một ghi chú tự do của team về khách (tab Ghi chú). */
@@ -7962,7 +7971,9 @@ export interface CocChoThu {
   order_code: string;
   customer_id: number | null;
   customer_name: string | null;
-  deposit_pct: number;
+  /** Null khi đơn giữ cọc bằng số tiền (`deposit_amount`). */
+  deposit_pct: number | null;
+  deposit_amount?: number | null;
   can_thu: number;
   da_thu: number;
   con_thieu: number;
@@ -9402,6 +9413,8 @@ export interface OrderRow {
   total: number | null;
   total_with_vat: number;
   deposit_pct: number | null;
+  /** Cọc gõ bằng số tiền (20/10/2026) — có thì thắng `deposit_pct`. */
+  deposit_amount?: number | null;
   deposit_required: number;
   deposit_received: number;
   deposit_ok: boolean;
@@ -9541,6 +9554,7 @@ export interface OrderCreateInput {
 }
 export interface OrderUpdateInput {
   deposit_pct?: number | null;
+  deposit_amount?: number | null;
   customer_po_no?: string | null;
   delivery_committed_date?: string | null;
   delivery_address?: string | null;

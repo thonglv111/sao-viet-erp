@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from ..models.order import STATUS_CANCELLED, STATUS_ORDERED
 from ..repositories.order_repo import OrderRepository
+from .coc import co_coc, coc_phai_thu
 
 
 def coc_cho_thu(svc) -> list[dict]:
@@ -19,7 +20,7 @@ def coc_cho_thu(svc) -> list[dict]:
 def coc_cho_thu_cua(repo, order_id: int) -> list[dict]:
     """`coc_cho_thu` thu về một đơn — để biết đơn vừa chốt có vào hàng không."""
     o = repo.don_theo_ids([order_id]).get(order_id)
-    if o is None or o.status != STATUS_ORDERED or not (o.deposit_pct or 0) > 0:
+    if o is None or o.status != STATUS_ORDERED or not co_coc(o):
         return []
     return _coc_cho_thu(repo, [o])
 
@@ -32,7 +33,7 @@ def _coc_cho_thu(repo, don) -> list[dict]:
     ra = []
     for o in don:
         twv = tong.get(o.id, {}).get("total_with_vat", 0)
-        can = int(round(float(o.deposit_pct) * twv / 100))
+        can = coc_phai_thu(o.deposit_pct, o.deposit_amount, twv)
         da = thu.get(o.id, 0)
         if can <= da:
             continue
@@ -40,7 +41,8 @@ def _coc_cho_thu(repo, don) -> list[dict]:
         ra.append({
             "order_id": o.id, "order_code": o.order_no,
             "customer_id": o.customer_id, "customer_name": k.name if k else None,
-            "deposit_pct": float(o.deposit_pct), "can_thu": can, "da_thu": da, "con_thieu": can - da,
+            "deposit_pct": float(o.deposit_pct) if o.deposit_pct else None,
+            "deposit_amount": o.deposit_amount, "can_thu": can, "da_thu": da, "con_thieu": can - da,
             "ordered_at": o.ordered_at,
         })
     return ra

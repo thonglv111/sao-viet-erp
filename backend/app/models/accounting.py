@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -61,14 +62,25 @@ VOUCHER_SOURCE_SALARY_ADVANCE = "salary_advance"
 # Phiếu chi lập TỪ MỘT LẦN GIA CÔNG NGOÀI đã chốt (26/09/2026). Một lần ⇄ một phiếu chi còn sống.
 # CHỈ ghi tiền ra: không `supplier_id`, loại khỏi báo cáo 331 (chủ: "không dính 331").
 VOUCHER_SOURCE_GIA_CONG = "gia_cong_ngoai"
+# Phiếu chi CHIẾT KHẤU / KÊ GIÁ trả khách (20/10/2026): lập từ hàng chờ khi hóa đơn bán hết nợ, gắn
+# hóa đơn qua `phieu_chi_ck_ke`. KHÔNG đặt `order_id` / `customer_id` trên đầu phiếu — hai cột đó
+# kéo phiếu vào quỹ tiền của đơn và sổ 131 (tiền trả lại khách), còn khoản này là chi phí.
+VOUCHER_SOURCE_CHI_CK = "chi_chiet_khau"
+VOUCHER_SOURCE_CHI_KE = "chi_ke_gia"
 VOUCHER_SOURCES = (
     VOUCHER_SOURCE_SALARY_ADVANCE,
     VOUCHER_SOURCE_GIA_CONG,
     VOUCHER_SOURCE_PURCHASE,
     VOUCHER_SOURCE_INTERNAL,
     VOUCHER_SOURCE_CUSTOMER_REFUND,
+    VOUCHER_SOURCE_CHI_CK,
+    VOUCHER_SOURCE_CHI_KE,
     VOUCHER_SOURCE_OTHER,
 )
+#: Loại khoản chờ chi của một hóa đơn bán (dòng `phieu_chi_ck_ke.loai`) → nguồn phiếu chi.
+LOAI_CK = "chiet_khau"
+LOAI_KE = "ke_gia"
+NGUON_CK_KE = {LOAI_CK: VOUCHER_SOURCE_CHI_CK, LOAI_KE: VOUCHER_SOURCE_CHI_KE}
 
 BANK_FEE_PAYER = "payer"
 BANK_FEE_BENEFICIARY = "beneficiary"
@@ -311,6 +323,34 @@ class PaymentVoucher(Base):
         order_by="PaymentVoucherAttachment.id",
         cascade="all, delete-orphan",
     )
+    # Dòng chi CK / kê theo hóa đơn bán (20/10/2026) — chỉ phiếu nguồn `chi_chiet_khau`/`chi_ke_gia`.
+    dong_ck_ke: Mapped[list["PhieuChiCkKe"]] = relationship(
+        "PhieuChiCkKe",
+        back_populates="voucher",
+        order_by="PhieuChiCkKe.id",
+        cascade="all, delete-orphan",
+    )
+
+
+class PhieuChiCkKe(Base):
+    """Một dòng của phiếu chi chiết khấu / kê (20/10/2026): phiếu trả bao nhiêu cho khoản `loai` của
+    hóa đơn bán nào. Phiếu gộp nhiều hóa đơn cùng khách, cùng loại. Không có trạng thái riêng — huỷ
+    phiếu là khoản quay lại hàng chờ, nên mọi chỗ cộng "đã chi" lọc theo trạng thái của PHIẾU."""
+
+    __tablename__ = "phieu_chi_ck_ke"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    payment_voucher_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("payment_vouchers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sales_invoice_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sales_invoices.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    loai: Mapped[str] = mapped_column(String(16), nullable=False)
+    amount_vnd: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    voucher = relationship("PaymentVoucher", back_populates="dong_ck_ke")
+    sales_invoice = relationship("SalesInvoice")
 
 
 class SalesInvoice(Base):
@@ -343,6 +383,13 @@ class SalesInvoice(Base):
     delivery_trip_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("delivery_trips.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    # Chiết khấu / kê giá của đơn rơi vào hóa đơn này (mg 0428, 20/10/2026), TRƯỚC VAT: chia theo hàng
+    # của lượt giao lúc ghi, hóa đơn ghi đủ đơn nhận phần dư. Hết nợ thì sinh khoản chờ chi: CK chi đủ,
+    # kê chi `ke_gia − ke_thue_tndn`. `ke_thue_tndn_pct` chụp từ khách lúc ghi.
+    chiet_khau: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0", default=0)
+    ke_gia: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0", default=0)
+    ke_thue_tndn_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ke_thue_tndn: Mapped[int] = mapped_column(BigInteger, nullable=False, server_default="0", default=0)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default=SALES_INVOICE_ISSUED, index=True
     )

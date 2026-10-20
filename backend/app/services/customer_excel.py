@@ -552,7 +552,7 @@ def nhap(db: Session, svc: CustomerService, du_lieu: bytes, *, actor, scope: str
                 kq.tao_moi += 1
                 if b.tai_chinh:
                     svc.update_financial(customer_id=kh.id, scope=scope, actor=actor,
-                                         commit=False, **b.tai_chinh)
+                                         commit=False, giu_ke=True, **b.tai_chinh)
             else:
                 trung = []
                 if b.doi & set(KHOA_DINH_DANH):
@@ -566,7 +566,7 @@ def nhap(db: Session, svc: CustomerService, du_lieu: bytes, *, actor, scope: str
                     trung = [(tc, khac) for tc, khac in trung if tc in b.doi]
                 if b.tai_chinh:
                     svc.update_financial(customer_id=b.kh.id, scope=scope, actor=actor,
-                                         commit=False, **b.tai_chinh)
+                                         commit=False, giu_ke=True, **b.tai_chinh)
                 kq.cap_nhat += 1
             for tieu_chi, khac in trung:
                 kq.canh_bao.append(CanhBaoDong(

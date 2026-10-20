@@ -115,6 +115,12 @@ class Customer(Base):
     discount_max_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     markup_min_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     markup_max_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # --- KÊ GIÁ (mg 0428, 20/10/2026): khoản cộng SAU giá bán, chi lại người phía khách khi hóa đơn
+    # hết nợ. `ke_thue_tndn_pct` = phần kê công ty giữ lại để nộp thuế TNDN (doanh thu không giảm):
+    # chi = kê × (100 − %) / 100. Rào kê tính % trên GIÁ BÁN (trước kê), None = không chặn đầu đó.
+    ke_thue_tndn_pct: Mapped[float] = mapped_column(Float, nullable=False, server_default="20", default=20.0)
+    ke_min_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ke_max_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )

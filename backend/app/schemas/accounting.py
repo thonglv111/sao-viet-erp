@@ -247,7 +247,8 @@ class CocChoThuOut(BaseModel):
     order_code: str
     customer_id: int | None = None
     customer_name: str | None = None
-    deposit_pct: float
+    deposit_pct: float | None = None
+    deposit_amount: int | None = None
     can_thu: int
     da_thu: int
     con_thieu: int

@@ -260,7 +260,7 @@ function PopupKhoanThu({
         con={{ nhan: "Cọc còn phải thu", tien: c.con_thieu }}
         nut={onLap && <button type="button" className="kt-btn kt-btn--chinh" onClick={onLap}>Lập phiếu thu cọc</button>}
         thongTin={[
-          { nhan: "Tỷ lệ cọc", giaTri: `${vietSo(c.deposit_pct)}%` },
+          { nhan: "Tỷ lệ cọc", giaTri: c.deposit_pct != null ? `${vietSo(c.deposit_pct)}%` : null },
           { nhan: "Cọc phải thu", giaTri: tien(c.can_thu) },
           { nhan: "Đã thu cọc", giaTri: tien(c.da_thu) },
           { nhan: "Đơn bán", giaTri: maDon },

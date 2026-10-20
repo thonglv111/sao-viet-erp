@@ -18818,3 +18818,56 @@ def _migrate_bo_hoa_don_dieu_chinh(db: Session) -> None:
 
 
 MIGRATIONS.append(("0427_bo_hoa_don_dieu_chinh", _migrate_bo_hoa_don_dieu_chinh))
+
+
+def _migrate_ke_gia_chi_ck(db: Session) -> None:
+    """0428 (20/10/2026) — kê giá + chi chiết khấu / kê theo hóa đơn + cọc nhập số tiền.
+
+    - `customers`: `ke_thue_tndn_pct` (mặc định 20, khách cũ nhận 20), `ke_min_pct`, `ke_max_pct`.
+    - `quote_items.ke_gia`, `quote_versions.ke_gia_amount`, `order_lines.ke_gia`, `orders.deposit_amount`.
+    - `sales_invoices`: `chiet_khau`, `ke_gia`, `ke_thue_tndn_pct`, `ke_thue_tndn`. Hóa đơn cũ còn hiệu
+      lực nhận phần chiết khấu của đơn theo tỉ lệ giá trị hóa đơn / tổng đơn gồm VAT (kê cũ = 0).
+    - Bảng mới `phieu_chi_ck_ke` (DB trắng do `create_all` dựng).
+    Raw SQL đích danh cột, idempotent."""
+    from .models.accounting import PhieuChiCkKe
+
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    them = (
+        ("customers", "ke_thue_tndn_pct", "FLOAT NOT NULL DEFAULT 20"),
+        ("customers", "ke_min_pct", "FLOAT"),
+        ("customers", "ke_max_pct", "FLOAT"),
+        ("quote_items", "ke_gia", "NUMERIC(15, 2) NOT NULL DEFAULT 0"),
+        ("quote_versions", "ke_gia_amount", "NUMERIC(15, 2) NOT NULL DEFAULT 0"),
+        ("order_lines", "ke_gia", "BIGINT"),
+        ("orders", "deposit_amount", "BIGINT"),
+        ("sales_invoices", "chiet_khau", "BIGINT NOT NULL DEFAULT 0"),
+        ("sales_invoices", "ke_gia", "BIGINT NOT NULL DEFAULT 0"),
+        ("sales_invoices", "ke_thue_tndn_pct", "FLOAT"),
+        ("sales_invoices", "ke_thue_tndn", "BIGINT NOT NULL DEFAULT 0"),
+    )
+    co_san = {t: _existing_columns(insp, t) for t in {t for t, _, _ in them} if t in bang}
+    hd_moi = "sales_invoices" in co_san and "chiet_khau" not in co_san["sales_invoices"]
+    for t, cot, kieu in them:
+        if t in co_san and cot not in co_san[t]:
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN {cot} {kieu}"))
+    if "phieu_chi_ck_ke" not in bang and "payment_vouchers" in bang and "sales_invoices" in bang:
+        PhieuChiCkKe.__table__.create(bind=db.connection(), checkfirst=True)
+    if hd_moi and "order_lines" in bang:
+        ck: dict[int, tuple[int, int]] = {}
+        for oid, tien, vat, c in db.execute(text(
+                "SELECT order_id, line_total, vat_pct_estimate, chiet_khau FROM order_lines")):
+            tong_x100, ck_don = ck.get(int(oid), (0, 0))
+            ck[int(oid)] = (tong_x100 + int(tien or 0) * (100 + int(vat or 0)), ck_don + int(c or 0))
+        for iid, oid, tien in list(db.execute(text(
+                "SELECT id, order_id, amount_vnd FROM sales_invoices WHERE status = 'issued'"))):
+            tong_x100, ck_don = ck.get(int(oid), (0, 0))
+            if ck_don > 0 and tong_x100 > 0:
+                phan = min(ck_don, round(ck_don * int(tien) * 100 / tong_x100))
+                db.execute(text("UPDATE sales_invoices SET chiet_khau = :p WHERE id = :i"),
+                           {"p": phan, "i": int(iid)})
+    db.commit()
+
+
+MIGRATIONS.append(("0428_ke_gia_chi_ck", _migrate_ke_gia_chi_ck))
