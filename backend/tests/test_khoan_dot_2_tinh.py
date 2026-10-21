@@ -272,8 +272,47 @@ def test_chi_tiet_co_the_tuy_chon_va_ty_le(nen):
     assert d["ty_le"] == 0.75 and d["so_luong"] == 1000
 
 
+def test_ngan_soi_cong_dong_bang_dung_cot_luong(nen):
+    """Hai lần ghi 1.001đ chia đôi ⇒ mỗi dòng 500,5đ. Làm tròn từng dòng ra 500 + 500 nhưng cột
+    lương là 1.001 — dòng lớn nhất gánh phần lệch để ngăn soi cộng ra đúng số cột."""
+    to = nen.to("Tổ dán")
+    a, b = nen.nv(to, "A"), nen.nv(to, "B")
+    k = nen.khoan2("gia_co_dinh", gia_co_dinh=1001)
+    nen.ghi2(to, k, NGAY, 10, [a, b])
+    nen.ghi2(to, k, NGAY, 10, [a, b])
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((a, 5_000_000), (b, 5_000_000)))
+    for e in (a, b):
+        assert sum(d["tien"] for d in kq["theo_nguoi"][e.id]) == kq["khoan"][e.id] == 1001
+
+
+def test_chip_tien_ma_san_luong_khong_nhan_don_gia_canh_bao(nen):
+    """`gia_co_dinh + sl_ghi`: có chip tiền nên engine thôi nhân đơn giá ⇒ 1 tờ thành 1đ. Vẫn tính
+    đúng công thức người khai (không đoán), nhưng nói ra trước chốt."""
+    to = nen.to("Tổ dán")
+    a = nen.nv(to, "A")
+    k = nen.khoan2("gia_co_dinh + sl_ghi", gia_co_dinh=100_000, don_gia=50)
+    nen.ghi2(to, k, NGAY, 1000, [a])
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((a, 5_000_000)))
+    assert kq["khoan"][a.id] == 101_000
+    assert any("Đơn giá khoán" in c and k.cong_doan.ten in c for c in kq["canh_bao"])
+
+    k2 = nen.khoan2("gia_co_dinh + sl_ghi * don_gia_khoan", gia_co_dinh=100_000, don_gia=50)
+    nen.ghi2(to, k2, NGAY, 1000, [a])
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((a, 5_000_000)))
+    assert sum("Đơn giá khoán" in c for c in kq["canh_bao"]) == 1
+
+
+def test_the_tuy_chon_so_le_in_kieu_viet():
+    """Cùng chữ với thẻ ở bàn tổ (FE `num` = vi-VN): phẩy thập phân, chấm hàng nghìn."""
+    from app.services.khoan_ky import _nhan_tuy_chon
+
+    anh = [{"ma": "a", "ten": "Số lỗ", "kieu": "so", "gia_tri": 1.5},
+           {"ma": "b", "ten": "Tờ", "kieu": "so", "gia_tri": 1500}]
+    assert _nhan_tuy_chon(anh) == ["1,5 số lỗ", "1.500 tờ"]
+
+
 def test_muc_khoan_tu_ho_so(client):
-    from app.models.employee import STATUS_ACTIVE, STATUS_PROBATION
+    from app.models.employee import STATUS_ACTIVE, STATUS_PROBATION, STATUS_RESIGNED
     from app.models.payroll import (
         COMPONENT_KIND_THU as THU, COMPONENT_KIND_TRU as TRU, EmployeeSalary, EmployeeSalaryComponent,
         PayrollComponent,
@@ -289,8 +328,14 @@ def test_muc_khoan_tu_ho_so(client):
         to = n.to("Tổ in")
         ct, tv = n.nv(to, "Chính thức"), n.nv(to, "Thử việc")
         ct.status, tv.status = STATUS_ACTIVE, STATUS_PROBATION
+        # Nghỉ việc giữa kỳ khi CÒN trong hạn thử việc ⇒ tháng cuối vẫn là thử việc (luật `_compute`).
+        nghi = n.nv(to, "Nghỉ khi thử việc")
+        nghi.status, nghi.resign_date = STATUS_RESIGNED, date(NAM, THANG, 20)
+        nghi.probation_end_date = date(NAM, THANG, 28)
         tu = date(NAM, 1, 1)
         db.add_all([
+            EmployeeSalary(employee_id=nghi.id, effective_from=tu, luong_vi_tri=3_600_000,
+                           luong_trach_nhiem=2_700_000, allowance=0),
             EmployeeSalary(employee_id=ct.id, effective_from=tu, luong_vi_tri=6_600_000,
                            luong_trach_nhiem=3_300_000, allowance=0),
             EmployeeSalary(employee_id=tv.id, effective_from=tu, luong_vi_tri=3_600_000,
@@ -311,6 +356,7 @@ def test_muc_khoan_tu_ho_so(client):
         assert muc.luong_ca_may[ct.id] == 16_500_000
         assert muc.nen_gio[ct.id] == 9_900_000
         assert muc.luong_ca_may[tv.id] == pytest.approx(6_300_000 * ratio + 2_700_000)
+        assert muc.luong_ca_may[nghi.id] == pytest.approx(6_300_000 * ratio)
     finally:
         db.rollback()
         db.close()

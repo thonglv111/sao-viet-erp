@@ -317,7 +317,10 @@ def xoa_dung_may(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
 ) -> Response:
-    _chay(lambda: dung_may.xoa(db, user=user, dung_may_id=dung_may_id))
+    try:
+        _chay(lambda: dung_may.xoa(db, user=user, dung_may_id=dung_may_id))
+    except dung_may.KhongThayDungMay as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

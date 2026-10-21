@@ -54,6 +54,20 @@ from ..models.payroll import (
 )
 
 
+
+def la_thu_viec(employee, status: str | None) -> bool:
+    """Kỳ này người này ăn hệ số thử việc không — một luật cho `_compute` và lương ca máy khoán.
+
+    Thử việc + hết thử việc chờ HCNS xác nhận. Thử việc NGHỈ VIỆC giữa tháng (bản rà A3,
+    07/09/2026): tháng nghỉ trạng thái đã là `resigned` nên vế đầu hụt ⇒ trả 100% + đóng BH như
+    chính thức. Ngày nghỉ còn trong hạn thử việc thì tháng cuối vẫn là thử việc."""
+    if status in (STATUS_PROBATION, STATUS_PROBATION_ENDED):
+        return True
+    return (status == STATUS_RESIGNED
+            and getattr(employee, "probation_end_date", None) is not None
+            and getattr(employee, "resign_date", None) is not None
+            and employee.resign_date <= employee.probation_end_date)
+
 class PayrollError(Exception):
     """Base cho lỗi nghiệp vụ lương."""
 
@@ -1502,15 +1516,7 @@ class PayrollService:
         # ⚠️ Rủi ro đã ghi rõ cho chủ trước khi chốt: Điều 27 BLLĐ coi người làm tiếp sau thử việc
         # là ĐÃ chính thức, nên phần 20% giữ lại kể từ ngày hết hạn là trả thiếu. Chủ vẫn chọn
         # phương án này. ĐỪNG tự "sửa cho đúng luật" — hỏi chủ trước.
-        is_probation = effective_status in (STATUS_PROBATION, STATUS_PROBATION_ENDED)
-        # Thử việc NGHỈ VIỆC giữa tháng (bản rà A3, 07/09/2026): tháng nghỉ `effective_status` đã là
-        # `resigned` nên vế trên hụt ⇒ trả 100% + đóng BH như chính thức. Ngày nghỉ còn trong hạn thử
-        # việc thì tháng cuối vẫn là thử việc.
-        if (not is_probation and effective_status == STATUS_RESIGNED
-                and getattr(employee, "probation_end_date", None) is not None
-                and getattr(employee, "resign_date", None) is not None
-                and employee.resign_date <= employee.probation_end_date):
-            is_probation = True
+        is_probation = la_thu_viec(employee, effective_status)
         ratio = float(params.probation_ratio) if is_probation else 1.0
         dept_id = (getattr(employee, "department_id", None)
                    if department_id is None else department_id)
@@ -2537,7 +2543,7 @@ class PayrollService:
                 continue
             st, _ = trang_thai_tren_ngay(emp, su_kien.get(eid, []), pay_on)
             nen = float(self._resolve_monthly(emp, s, params, pay_on)["monthly"])
-            ratio = tv if st in (STATUS_PROBATION, STATUS_PROBATION_ENDED) else 1.0
+            ratio = tv if la_thu_viec(emp, st) else 1.0
             phu = float(s.allowance or 0) + sum(float(c["amount"]) for c in comp.get(eid, [])
                                                 if c.get("kind") != "tru")
             lcm[eid] = nen * ratio + phu

@@ -88,10 +88,33 @@ _TU_TRO = ("tu_tro", "tro_nhip")
 # bị nhân đơn giá 0 ⇒ 0đ im lặng.
 _RE_CHIP_TIEN = re.compile(r"\b(tien_gio|gia_co_dinh)\b")
 _RE_TIEN_GIO = re.compile(r"\btien_gio\b")
+_RE_CHIP_LUONG = re.compile(r"\b(sl_ghi|sl_vao|sl_ra|so_luot_chay)\b")
+_RE_DON_GIA = re.compile(r"\bdon_gia_khoan\b")
+
+
+def _luong_thanh_dong(ct: str | None) -> bool:
+    """Công thức có chip tiền (`gia_co_dinh` / `tien_gio`) + chip lượng mà KHÔNG gọi `don_gia_khoan`
+    ⇒ engine thôi nhân đơn giá nên lượng bị cộng như tiền đồng (1 tờ = 1đ). Không đoán ý người khai,
+    chỉ nói ra trước chốt."""
+    ct = ct or ""
+    return bool(_RE_CHIP_TIEN.search(ct) and _RE_CHIP_LUONG.search(ct) and not _RE_DON_GIA.search(ct))
 
 
 def _ra_tien(ct: str) -> bool:
     return cong_thuc_ra_tien(ct) or bool(_RE_CHIP_TIEN.search(ct))
+
+
+def _khop_lam_tron(ds: list[dict], tong: float) -> None:
+    lech = round(tong) - sum(x["tien"] for x in ds)
+    if lech and ds:
+        max(ds, key=lambda x: abs(x["tien"]))["tien"] += lech
+
+
+def _so_vn(v: float) -> str:
+    """Số kiểu Việt như FE `num` (vi-VN, tối đa 3 chữ số lẻ): 1500 → "1.500", 1.5 → "1,5"."""
+    nguyen, _, le = f"{v:.3f}".rstrip("0").rstrip(".").partition(".")
+    dau = "-" if nguyen.startswith("-") else ""
+    return f"{dau}{int(nguyen.lstrip('-')):,}".replace(",", ".") + (f",{le}" if le else "")
 
 
 def _nhan_tuy_chon(anh: list | None) -> list[str]:
@@ -102,7 +125,7 @@ def _nhan_tuy_chon(anh: list | None) -> list[str]:
         if v == 0:
             continue
         ten = str(t.get("ten") or t.get("ma") or "").lower()
-        ra.append(ten if t.get("kieu") == "co_khong" else f"{v:g} {ten}")
+        ra.append(ten if t.get("kieu") == "co_khong" else f"{_so_vn(v)} {ten}")
     return ra
 
 
@@ -200,6 +223,7 @@ class KhoanKyService:
 
         thieu: list[dict] = []
         canh_bao: list[str] = []
+        da_nhac_dong: set[int] = set()   # công đoạn khoán đã nhắc "lượng thành tiền đồng"
         # Phần của từng người từng lần ghi, ĐÃ áp luật ngày: [emp, tổ, ngày, batch_id, tiền].
         phan: list[list] = []
         chi_tiet: dict[int, list[dict]] = defaultdict(list)
@@ -245,6 +269,12 @@ class KhoanKyService:
                     "tien_gio": sum(_so(muc.nen_gio.get(e)) for e in w) / 26 / 8 * gio,
                     "tu_tro": 1.0 if qc.get("quy_cach_in") in _TU_TRO else 0.0,
                 }
+                if _luong_thanh_dong(khoan.cong_thuc_khoan) and int(khoan.id) not in da_nhac_dong:
+                    da_nhac_dong.add(int(khoan.id))
+                    canh_bao.append(f"Công đoạn {khoan.cong_doan.ten}: công thức khoán có chip Giá cố định / Tiền giờ "
+                                    f"nên máy không tự nhân Đơn giá khoán — sản lượng đang cộng như tiền "
+                                    f"đồng. Nhân sản lượng với Đơn giá khoán ở Danh mục → Công đoạn → tab "
+                                    f"Khoán nếu cần.")
                 try:
                     tien = self._tien_chinh(khoan, b, qc, them)
                 except ValueError as e:
@@ -406,6 +436,11 @@ class KhoanKyService:
             khoan[emp] += t
         for emp, t in them_dm.items():
             khoan[emp] += t
+        # Ngăn soi cộng các dòng ĐÃ làm tròn, cột lương làm tròn TỔNG ⇒ lệch ±1đ. Dòng lớn nhất gánh
+        # phần lệch để hai bên ra cùng một số.
+        for emp, ds in chi_tiet.items():
+            _khop_lam_tron([x for x in ds if x["loai"] != "tang_ca_khoan"], khoan.get(emp, 0.0))
+            _khop_lam_tron([x for x in ds if x["loai"] == "tang_ca_khoan"], tang_ca.get(emp, 0.0))
         return {
             "khoan": {e: round(v) for e, v in khoan.items() if round(v) != 0},
             "tang_ca_khoan": {e: round(v) for e, v in tang_ca.items() if round(v) != 0},

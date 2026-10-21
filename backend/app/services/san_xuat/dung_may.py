@@ -12,12 +12,18 @@ from __future__ import annotations
 import calendar as _cal
 from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ...models.payroll import LY_DO_DUNG_MAY, KhoanDungMay
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.dung_may_repo import DungMayRepository
 from ..quyen_to import VIEC_XAC_NHAN, gate_to_tron
+from .tinh_trang_nguoi import hom_nay
+
+
+class KhongThayDungMay(LookupError):
+    """Dòng dừng máy không còn (đã xoá ở máy khác) — route trả 404."""
 
 
 def _dong(r: KhoanDungMay, ten_nv: dict[int, str], ma_sc: dict[int, str]) -> dict:
@@ -62,23 +68,38 @@ def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -
 def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_chua_id: int | None,
         ghi_chu: str | None, nguoi_ids: list[int]) -> dict:
     repo = _gate(db, user, department_id)
+    if repo.co_to_con(department_id):
+        raise ValueError("Đây là tổ cha (chỉ là nhóm) — báo dừng máy ở từng tổ con.")
     if ly_do not in LY_DO_DUNG_MAY:
         raise ValueError("Lý do dừng máy chỉ là Máy hư hoặc Hết hàng.")
+    if ngay > hom_nay():
+        raise ValueError(f"Ngày {ngay.strftime('%d/%m')} chưa tới — chỉ báo dừng máy hôm nay hoặc ngày đã qua.")
     ids = list(dict.fromkeys(int(i) for i in (nguoi_ids or [])))
     if not ids:
         raise ValueError("Chọn người hưởng ngày dừng máy.")
-    ten = repo.ten_nhan_vien(ids)
-    if len(ten) != len(ids):
-        raise ValueError("Có người hưởng không còn trong danh sách nhân viên.")
+    # Người hưởng = người đang thuộc tổ — đúng bộ hộp tick sẵn, không nhận người tổ khác qua API.
+    ten = {int(e.id): e.full_name for e in repo.nhan_vien_to(department_id)}
+    ngoai = [i for i in ids if i not in ten]
+    if ngoai:
+        ten_ngoai = repo.ten_nhan_vien(ngoai)
+        raise ValueError("Người hưởng không thuộc tổ: "
+                         + ", ".join(ten_ngoai.get(i, f"#{i}") for i in ngoai) + ".")
+    ten = {i: ten[i] for i in ids}
     if sua_chua_id is not None and repo.sua_chua(int(sua_chua_id)) is None:
         raise ValueError("Không tìm thấy phiếu sửa máy đã chọn.")
+    trung = f"Tổ đã báo dừng máy ngày {ngay.strftime('%d/%m')}."
     if repo.cua_to_ngay(department_id, ngay) is not None:
-        raise ValueError(f"Tổ đã báo dừng máy ngày {ngay.strftime('%d/%m')}.")
+        raise ValueError(trung)
     r = KhoanDungMay(department_id=department_id, ngay=ngay, ly_do=ly_do,
                      sua_chua_id=int(sua_chua_id) if sua_chua_id is not None else None,
                      ghi_chu=(ghi_chu or "").strip() or None, nguoi_ids=ids,
                      created_by=getattr(user, "id", None))
-    repo.add(r)
+    try:
+        repo.add(r)
+    except IntegrityError:
+        # Hai lần Lưu đua nhau cùng qua bước kiểm trên — UNIQUE (tổ, ngày) ở DB chặn lần sau.
+        db.rollback()
+        raise ValueError(trung) from None
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_bao_dung_may",
         target=f"khoan_dung_may:{r.id}",
@@ -93,7 +114,7 @@ def xoa(db: Session, *, user, dung_may_id: int) -> None:
     repo = DungMayRepository(db)
     r = repo.get(dung_may_id)
     if r is None:
-        raise ValueError("Không tìm thấy ngày dừng máy.")
+        raise KhongThayDungMay("Không tìm thấy ngày dừng máy — có thể đã xoá ở máy khác.")
     _gate(db, user, int(r.department_id))
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_xoa_dung_may",

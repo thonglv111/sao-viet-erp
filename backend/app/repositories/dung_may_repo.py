@@ -20,6 +20,11 @@ class DungMayRepository:
     def to(self, department_id: int) -> Department | None:
         return self.db.get(Department, department_id)
 
+    def co_to_con(self, department_id: int) -> bool:
+        """Tổ cha (có tổ con) chỉ là nhóm — không có bàn tổ, không báo dừng máy."""
+        return self.db.scalar(select(Department.id).where(Department.parent_id == department_id)
+                              .limit(1)) is not None
+
     def get(self, dung_may_id: int) -> KhoanDungMay | None:
         return self.db.get(KhoanDungMay, dung_may_id)
 
