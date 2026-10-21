@@ -134,7 +134,7 @@ def danh_sach_cua_to(db: Session, *, department_id: int | None, tim: str | None 
 
 def chuan_hoa_khi_ghi(
     db: Session, *, khoan, ten_cong_doan: str | None, phat_sinh: list[dict] | None,
-    department_id: int | None = None,
+    department_id: int | None = None, tuy_chon: dict[str, float] | None = None,
 ) -> tuple[dict, list[SanXuatBatchPhatSinh]]:
     """Chụp cấu hình Khoán của công đoạn vào mẻ đang ghi — giá CỦA TỔ `department_id`.
 
@@ -142,8 +142,13 @@ def chuan_hoa_khi_ghi(
     cấu hình Khoán mới từ chối, vì không có danh mục nguồn để kiểm và chụp giá. Tổ chưa có dòng
     trong bảng giá theo tổ thì VẪN ghi được (sản xuất chỉ ghi số lượng) — giá chụp None, kỳ lương
     báo thiếu giá.
+
+    `tuy_chon` = giá trị thợ chọn cho các "tuỳ chọn khi ghi" của công đoạn (Đợt 2), chụp thành
+    `tuy_chon_khoan` — xem `anh_chup_tuy_chon`.
     """
     if khoan is None:
+        if tuy_chon:
+            raise ValueError("Công đoạn chưa cấu hình Khoán nên không có tuỳ chọn khi ghi.")
         if any(r.get("phat_sinh_id") for r in (phat_sinh or [])):
             raise ValueError("Công đoạn chưa cấu hình Khoán nên không thể ghi việc phát sinh.")
         return ({
@@ -153,6 +158,7 @@ def chuan_hoa_khi_ghi(
             "don_vi_khoan_snapshot": None,
             "don_gia_khoan_snapshot": None,
             "gia_co_dinh_khoan_snapshot": None,
+            "tuy_chon_khoan": None,
         }, [])
 
     gia_cd, don_gia = gia_cua_to(khoan, department_id)
@@ -163,6 +169,7 @@ def chuan_hoa_khi_ghi(
         "don_vi_khoan_snapshot": khoan.unit,
         "don_gia_khoan_snapshot": don_gia,
         "gia_co_dinh_khoan_snapshot": gia_cd,
+        "tuy_chon_khoan": anh_chup_tuy_chon(khoan, tuy_chon),
     }
 
     hop_le = {ps.id: ps for ps in khoan.viec_phat_sinh}
@@ -191,6 +198,33 @@ def chuan_hoa_khi_ghi(
             don_gia_snapshot=anh_ps["don_gia"],
         ))
     return o_snapshot, rows
+
+
+def anh_chup_tuy_chon(khoan, tuy_chon: dict[str, float] | None) -> list[dict] | None:
+    """Ảnh chụp tuỳ chọn khi ghi: mỗi tuỳ chọn KHAI ở công đoạn một phần tử `{ma, ten, kieu,
+    gia_tri}` — thiếu ⇒ 0, "Có / không" ép 0/1. Công đoạn không khai tuỳ chọn ⇒ None.
+
+    Mã gửi lên không có trong khai là lỗi: tuỳ chọn đó công thức không dùng, tiền ra khác điều thợ
+    tưởng."""
+    khai = list(khoan.tuy_chon or []) if khoan is not None else []
+    gui = dict(tuy_chon or {})
+    la = sorted(set(gui) - {t["ma"] for t in khai})
+    if la:
+        raise ValueError(f"Tuỳ chọn không có ở công đoạn: {', '.join(la)}")
+    if not khai:
+        return None
+    ra = []
+    for t in khai:
+        try:
+            v = float(gui.get(t["ma"]) or 0)
+        except (TypeError, ValueError):
+            raise ValueError(f'Giá trị của "{t["ten"]}" không hợp lệ.')
+        if t.get("kieu") == "co_khong":
+            v = 1.0 if v else 0.0
+        elif v < 0:
+            raise ValueError(f'"{t["ten"]}" không được âm.')
+        ra.append({"ma": t["ma"], "ten": t["ten"], "kieu": t.get("kieu") or "co_khong", "gia_tri": v})
+    return ra
 
 
 def _anh_khoan_cua_me(b) -> dict:

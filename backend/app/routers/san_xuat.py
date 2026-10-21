@@ -719,7 +719,7 @@ def tao_batch(
         mo_ta_loi=body.mo_ta_loi, ghi_chu=body.ghi_chu,
         lot_vao=[lot.model_dump() for lot in body.lot_vao],
         phat_sinh=[ps.model_dump() for ps in body.phat_sinh],
-        nguoi_ids=body.nguoi_ids,
+        nguoi_ids=body.nguoi_ids, tuy_chon=body.tuy_chon,
     ))
     _phat_sse(res)
     return res
@@ -751,7 +751,7 @@ def sua_so_me(
     đổi theo; khác tổ thì bên nhận xác nhận lại."""
     res = _chay(lambda: san_luong.sua_so_me(
         db, user=user, batch_id=batch_id, tot=body.tot, ly_do=body.ly_do,
-        expected_version=body.expected_version, nguoi_ids=body.nguoi_ids,
+        expected_version=body.expected_version, nguoi_ids=body.nguoi_ids, tuy_chon=body.tuy_chon,
     ))
     _phat_sse(res)
     bg = res.get("ban_giao")

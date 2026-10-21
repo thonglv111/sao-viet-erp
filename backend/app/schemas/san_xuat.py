@@ -688,6 +688,22 @@ class MePhatSinhOut(BaseModel):
     don_gia: float | None = None
 
 
+class TuyChonLanGhiOut(BaseModel):
+    ma: str
+    ten: str
+    kieu: str
+    gia_tri: float
+
+
+class TuyChonKhaiOut(BaseModel):
+    """Một "tuỳ chọn khi ghi" công đoạn khai — hộp Ghi sản lượng bày ô Có / không hoặc ô Số."""
+
+    ma: str
+    ten: str
+    kieu: str = "co_khong"
+    goi_y: str | None = None
+
+
 class BatchOut(BaseModel):
     id: int
     bat_dau: datetime
@@ -717,6 +733,9 @@ class BatchOut(BaseModel):
     viec_khoan_don_vi: str | None = None
     viec_khoan_don_vi_ten: str | None = None
     viec_khoan_don_gia: float | None = None
+    # Ảnh chụp tuỳ chọn khi ghi (Đợt 2): `[{ma, ten, kieu, gia_tri}]`; None = công đoạn không khai
+    # hoặc lần ghi trước Đợt 2.
+    tuy_chon_khoan: list[TuyChonLanGhiOut] | None = None
     phat_sinh: list[MePhatSinhOut] = []
     # Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = ảnh chụp còn khớp danh mục.
     danh_muc_doi: list[MeDanhMucDoiOut] = []
@@ -1058,6 +1077,8 @@ class BatchIn(BaseModel):
     phat_sinh: list[MePhatSinhIn] = []
     # Người làm lần này: tổ mình tick + người tổ khác tổ thêm; None = bộ tick sẵn của tổ.
     nguoi_ids: list[int] | None = None
+    # Giá trị tuỳ chọn khi ghi `{ma: giá trị}` (Đợt 2); thiếu mã ⇒ 0.
+    tuy_chon: dict[str, float] = {}
 
 
 class ThemLotIn(BaseModel):
@@ -1090,6 +1111,7 @@ class KhoanCongDoanThucThiOut(BaseModel):
     # Giá theo tổ (21/10/2026): giá cố định mỗi lần ghi + đơn giá của TỔ làm việc này.
     gia_co_dinh: float = 0.0
     thieu_gia: bool = False
+    tuy_chon: list[TuyChonKhaiOut] = []
 
 
 class KetQuaNhanhOut(BaseModel):
@@ -1130,6 +1152,7 @@ class SuaSoMeIn(BaseModel):
     ly_do: str | None = None            # tuỳ chọn — hiện ở Lịch sử cho cả bên nhận đọc
     expected_version: int | None = None
     nguoi_ids: list[int] | None = None  # người làm lần đó, kể cả tổ khác; None = không đổi
+    tuy_chon: dict[str, float] | None = None  # tuỳ chọn khi ghi (Đợt 2); None = không đổi
 
 
 class BanGiaoKetQuaOut(BaseModel):

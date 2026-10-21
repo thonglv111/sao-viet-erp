@@ -1398,6 +1398,7 @@ def chi_tiet_cong_viec(
             "don_gia": float(gia_to[1] or 0),
             "gia_co_dinh": float(gia_to[0] or 0),
             "thieu_gia": gia_to[1] is None,
+            "tuy_chon": list(khoan_hien_tai.tuy_chon or []),
             "don_vi": khoan_hien_tai.unit,
             "don_vi_ten": nhan_don_vi(dv_me_ten, khoan_hien_tai.unit),
             "phat_sinh": [
@@ -1498,6 +1499,7 @@ def chi_tiet_cong_viec(
                     if b.don_vi_khoan_snapshot else None,
                     "viec_khoan_don_gia": (float(b.don_gia_khoan_snapshot)
                                            if b.don_gia_khoan_snapshot is not None else None),
+                    "tuy_chon_khoan": b.tuy_chon_khoan,
                     "phat_sinh": [
                         {
                             "id": r.id,
