@@ -18,7 +18,7 @@ from app.models.san_xuat import SanXuatCongViec, SanXuatGoiPhatHanh
 from app.models.san_xuat_san_luong import SanXuatBatch, SanXuatBatchNguoi, SanXuatBatchPhatSinh
 from app.models.user import User
 from app.models.work_calendar import SpecialDay
-from app.services.khoan_ky import KhoanKyService
+from app.services.khoan_ky import KhoanKyService, MucKhoan
 from app.services.san_xuat import viec_khoan
 
 NAM, THANG = 2026, 10
@@ -102,11 +102,16 @@ class _Nen:
         return b
 
 
+def _muc_bang_nhau(db) -> MucKhoan:
+    """Mọi người cùng lương ca máy ⇒ tỷ lệ chia của Đợt 2 ra đúng chia đều — số của Đợt 1 giữ nguyên."""
+    return MucKhoan(luong_ca_may={int(i): 1.0 for (i,) in db.query(Employee.id)})
+
+
 GIA_IN = lambda *to_gia: [{"department_id": t.id, "gia_co_dinh": cd, "don_gia": dg}  # noqa: E731
                           for t, cd, dg in to_gia]
 
 
-def test_LAN_GHI_may_2_mau_ra_dung_so_va_chia_deu(client):
+def test_LAN_GHI_may_2_mau_ra_dung_so_cung_luong_ca_may_chia_bang_nhau(client):
     """6.340 tờ ở máy 2 màu (150.000 / 30) ⇒ 150.000 + 3.340 × 30 = 250.200, chia 2 người 125.100.
     Ghi 2 lần ⇒ ăn 2 lần giá bài. Tổ 5 màu cùng công đoạn ăn giá của tổ đó (144.000 / 20)."""
     client
@@ -121,7 +126,7 @@ def test_LAN_GHI_may_2_mau_ra_dung_so_va_chia_deu(client):
         n.ghi(m2, k, date(NAM, THANG, 6), 2_000, [a])
         n.ghi(m5, k, date(NAM, THANG, 6), 4_000, [c])
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert kq["khoan"][a.id] == 125_100 + 150_000
         assert kq["khoan"][b.id] == 125_100
         assert kq["khoan"][c.id] == 144_000 + 1_000 * 20
@@ -142,7 +147,7 @@ def test_TO_VANG_bang_gia_la_THIEU_GIA_khong_doan(client):
         lg = n.ghi(m4, k, date(NAM, THANG, 5), 5_000, [a])
         assert lg.don_gia_khoan_snapshot is None and lg.gia_co_dinh_khoan_snapshot is None
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert a.id not in kq["khoan"]
         assert [t["ly_do"] for t in kq["thieu_gia"]] == ["tổ chưa có giá ở bảng giá theo tổ"]
         assert kq["thieu_gia"][0]["ngay"] == "05/10"
@@ -165,7 +170,7 @@ def test_PHAT_SINH_gia_theo_to_va_khong_cong_thuc(client):
         ])
         n.ghi(m2, k, date(NAM, THANG, 5), 1_000, [a], phat_sinh={"Thay kẽm": 2, "Xuống bài": 1})
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert kq["khoan"][a.id] == 1_000 * 30 + 2 * 100_000 + 187_500
     finally:
         db.close()
@@ -184,7 +189,7 @@ def test_LUAT_NGAY_to_in_CN_bo_to_thuong_CN_trung_le_gap_doi(client):
         n.ghi(to_in, k, cn, 3_000, [a])
         n.ghi(dan, k, cn, 3_000, [b])
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert a.id not in kq["khoan"], "tổ in ngày CN / lễ: sản lượng không vào vế khoán"
         assert kq["khoan"][b.id] == 200_000, "tổ thường CN trùng lễ: ×2"
     finally:
@@ -207,7 +212,7 @@ def test_CHI_TIEU_NGAY_50_phan_tram_vuot_la_tang_ca_khoan(client):
         n.ghi(m2, k, date(NAM, THANG, 5), 2_000, [a])          # 200.000 → A
         n.ghi(m2, k, date(NAM, THANG, 6), 2_000, [a])          # ngày khác, dưới chỉ tiêu
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert kq["khoan"][a.id] == 500_000 and kq["khoan"][b.id] == 100_000
         assert kq["tang_ca_khoan"] == {a.id: 37_500, b.id: 12_500}
     finally:
@@ -230,7 +235,7 @@ def test_TO_TRUONG_an_chia_va_an_thuong(client):
         n.ghi(chia, k, date(NAM, THANG, 5), 10_000, [tt1, t1])
         n.ghi(thuong, k, date(NAM, THANG, 5), 10_000, [tt2, t2])
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)["khoan"]
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))["khoan"]
         assert kq[tt1.id] == 475_000 + 50_000 and kq[t1.id] == 475_000
         assert kq[tt1.id] + kq[t1.id] == 1_000_000, "ăn chia: quỹ chia hết, công ty không bù"
         assert kq[tt2.id] == 500_000 + 50_000 and kq[t2.id] == 500_000
@@ -248,7 +253,7 @@ def test_CONG_THUC_LOI_vao_thieu_gia_khong_500(client):
         k = n.khoan(gia_theo_to=GIA_IN((m2, 150_000, 30)), cong_thuc="gia_co_dinh / (sl_ghi - 3000)")
         n.ghi(m2, k, date(NAM, THANG, 5), 3_000, [a])
         db.commit()
-        kq = KhoanKyService(db).tinh(NAM, THANG)
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert a.id not in kq["khoan"]
         assert kq["thieu_gia"][0]["ly_do"].startswith("công thức khoán lỗi")
     finally:

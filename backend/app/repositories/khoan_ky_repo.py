@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.cong_doan import CongDoanKhoan
@@ -30,6 +30,31 @@ class KhoanKyRepository:
             .order_by(SanXuatBatch.bat_dau, SanXuatBatch.id)
         )
         return [(b, cv) for b, cv in self.db.execute(stmt).all()]
+
+    def lan_chay(self, den: datetime, khoan_ids: set[int], *, lsx_ids: set[int], bai_ids: set[int],
+                 cv_ids: set[int]) -> list[tuple[SanXuatBatch, SanXuatCongViec]]:
+        """Mọi lần ghi `bat_dau < den` của các cấu hình Khoán `khoan_ids` trên CÙNG lệnh / bài ghép /
+        công việc với lần ghi của kỳ — kể cả kỳ trước — để đếm `so_lan_chay`. Một truy vấn."""
+        if not khoan_ids:
+            return []
+        neo = [c for c in (
+            SanXuatCongViec.lsx_id.in_(lsx_ids) if lsx_ids else None,
+            SanXuatCongViec.bai_ghep_id.in_(bai_ids) if bai_ids else None,
+            SanXuatCongViec.id.in_(cv_ids) if cv_ids else None,
+        ) if c is not None]
+        stmt = (
+            select(SanXuatBatch, SanXuatCongViec)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBatch.cong_viec_id)
+            .where(SanXuatBatch.bat_dau < den, SanXuatBatch.khoan_cong_doan_id.in_(khoan_ids),
+                   or_(*neo))
+        )
+        return [(b, cv) for b, cv in self.db.execute(stmt).all()]
+
+    def ten_nhan_vien(self, ids: set[int]) -> dict[int, str]:
+        if not ids:
+            return {}
+        return {int(i): t for i, t in self.db.execute(
+            select(Employee.id, Employee.full_name).where(Employee.id.in_(ids)))}
 
     def nguoi_theo_lan_ghi(self, batch_ids: list[int]) -> dict[int, list[SanXuatBatchNguoi]]:
         ra: dict[int, list[SanXuatBatchNguoi]] = {}

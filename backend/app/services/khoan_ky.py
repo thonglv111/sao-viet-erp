@@ -5,16 +5,22 @@ khoán của phép so hai lương (`PayrollService._compute`).
 
 Mỗi lần ghi có cấu hình Khoán của công đoạn:
 
-    tiền lần ghi = công thức khoán (biến của lần ghi: `sl_ghi`, `sl_tot`, `gia_co_dinh`, …)
-                   — không khai công thức ⇒ `gia_co_dinh + sl_tot × don_gia`
+    tiền lần ghi = công thức khoán (biến của lần ghi: `sl_ghi`, `gia_co_dinh`, `so_lan_chay`,
+                   `tien_gio`, `tu_tro`, tuỳ chọn khi ghi của công đoạn, …)
+                   — không khai công thức ⇒ `gia_co_dinh + sl_ghi × don_gia`
                    — công thức không gọi chip `don_gia_khoan` ⇒ ra LƯỢNG, × đơn giá
                  + Σ việc phát sinh (số lượng × đơn giá của tổ)
 
 Giá là ẢNH CHỤP giá của TỔ lúc ghi (`viec_khoan.chuan_hoa_khi_ghi`); thiếu giá / công thức lỗi thì
 lần ghi vào `thieu_gia` kèm lý do — không đoán giá.
 
+`sl_ghi` = số TỐT của lần ghi — cột "Số lượng" thợ gõ ở bàn tổ (Đợt 2, chủ 21/10).
+
 Giả định (plan 21/10/2026, chờ chủ duyệt):
-  1. Tiền một lần ghi chia ĐỀU cho những người được tick ở lần ghi đó.
+  1. Tiền một lần ghi chia cho những người được tick ở lần ghi đó theo tỷ lệ LƯƠNG CA MÁY giữa
+     chính họ (Đợt 2, chủ 21/10 "áp cho mọi tổ") — mức do `PayrollService.muc_khoan` dựng, xem
+     `MucKhoan`. Người mức 0 ⇒ lần ghi vào `thieu_gia`, không chia đều. Người thử việc vẫn có
+     phần; `_compute` ép khoán thử việc về 0 nên phần đó tự bỏ, không dồn cho ai.
   2. Ngày của lần ghi = ngày giờ xưởng của giờ bắt đầu (`ngay_cua_me`).
   3. Chỉ tiêu ngày so với tiền GỐC của tổ trong ngày (trước nhân đôi CN trùng lễ); 50% phần vượt
      (= tăng ca khoán) chia theo tỷ lệ phần mỗi người hôm đó. Tổ chưa khai chỉ tiêu thì lấy mốc
@@ -29,7 +35,9 @@ ngày CN trùng lễ tính GẤP ĐÔI.
 from __future__ import annotations
 
 import calendar as _cal
+import re
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -58,6 +66,42 @@ def _so(v) -> float:
         return 0.0
 
 
+@dataclass(frozen=True)
+class MucKhoan:
+    """Mức lương của từng người cho tiền khoán kỳ (Đợt 2).
+
+    `luong_ca_may` = trọng số chia tiền một lần ghi: (lương vị trí + trách nhiệm) × hệ số thử việc
+    + phụ cấp tháng (ô Phụ cấp khác + khoản thu ở hồ sơ). `nen_gio` = lương vị trí + trách nhiệm —
+    gốc của chip `tien_gio` (÷ 26 ÷ 8 × giờ, không phụ cấp, không × thử việc)."""
+
+    luong_ca_may: dict[int, float] = field(default_factory=dict)
+    nen_gio: dict[int, float] = field(default_factory=dict)
+
+
+_TU_TRO = ("tu_tro", "tro_nhip")
+# Chip đã là TIỀN (đ): công thức gọi một trong số này là ra tiền, engine thôi nhân đơn giá — như
+# `don_gia_khoan` (`cong_thuc_ra_tien`). Thiếu luật này thì công thức `tien_gio` của tổ thành phẩm
+# bị nhân đơn giá 0 ⇒ 0đ im lặng.
+_RE_CHIP_TIEN = re.compile(r"\b(tien_gio|gia_co_dinh)\b")
+_RE_TIEN_GIO = re.compile(r"\btien_gio\b")
+
+
+def _ra_tien(ct: str) -> bool:
+    return cong_thuc_ra_tien(ct) or bool(_RE_CHIP_TIEN.search(ct))
+
+
+def _nhan_tuy_chon(anh: list | None) -> list[str]:
+    """Thẻ tuỳ chọn khác 0 của lần ghi cho ngăn soi: "trùng khuôn", "3 số lỗ đục"."""
+    ra = []
+    for t in anh or []:
+        v = _so(t.get("gia_tri"))
+        if v == 0:
+            continue
+        ten = str(t.get("ten") or t.get("ma") or "").lower()
+        ra.append(ten if t.get("kieu") == "co_khong" else f"{v:g} {ten}")
+    return ra
+
+
 class KhoanKyService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -72,27 +116,57 @@ class KhoanKyService:
             bid = int(cv.bai_ghep_id)
             if bid not in bai_cache:
                 bai = self.repo.bai_ghep(bid)
-                bai_cache[bid] = quy_cach_bien_bai(bai) if bai is not None else {}
+                # Thành viên cho quy cách CHUNG của bài (quy cách in ⇒ `tu_tro`, khổ nguyên, gsm).
+                tv = (self.repo.lenh_theo_id({int(t.lsx_id) for t in bai.thanh_viens}).values()
+                      if bai is not None else ())
+                bai_cache[bid] = quy_cach_bien_bai(bai, thanh_vien=list(tv)) if bai is not None else {}
             return bai_cache[bid]
         return {}
 
     @staticmethod
-    def _tien_chinh(khoan, b, qc: dict) -> float:
-        """Tiền phần chính của lần ghi; công thức lỗi ⇒ `ValueError` kèm câu lỗi."""
+    def _tien_chinh(khoan, b, qc: dict, them: dict[str, float]) -> float:
+        """Tiền phần chính của lần ghi; công thức lỗi ⇒ `ValueError` kèm câu lỗi.
+
+        `them` = chip Đợt 2 của lần ghi (`so_lan_chay`, `tien_gio`, `tu_tro`). Tuỳ chọn khi ghi:
+        mọi mã công đoạn đang khai mặc định 0 (lần ghi cũ chưa có ảnh chụp vẫn tính được), đè bằng
+        ảnh chụp của lần ghi."""
         don_gia = float(b.don_gia_khoan_snapshot)
         gia_cd = _so(b.gia_co_dinh_khoan_snapshot)
         tong, tot = _so(b.tong), _so(b.tot)
         ct = (khoan.cong_thuc_khoan or "").strip()
         if not ct:
             return gia_cd + tot * don_gia
-        ctx = {**ngu_canh_lenh(qc), **MAC_DINH_TANG_LENH,
-               "sl_vao": tong, "sl_ra": tot, "sl_ghi": tong, "sl_tot": tot,
+        tuy_chon = {t["ma"]: 0.0 for t in (khoan.tuy_chon or []) if t.get("ma")}
+        tuy_chon.update({t["ma"]: _so(t.get("gia_tri")) for t in (b.tuy_chon_khoan or []) if t.get("ma")})
+        ctx = {**ngu_canh_lenh(qc), **MAC_DINH_TANG_LENH, **tuy_chon, **them,
+               "sl_vao": tong, "sl_ra": tot, "sl_ghi": tot,
                "gia_co_dinh": gia_cd, "don_gia_khoan": don_gia}
         v = safe_eval(ct, ctx)
-        return v if cong_thuc_ra_tien(ct) else v * don_gia
+        return v if _ra_tien(ct) else v * don_gia
+
+    @staticmethod
+    def _khoa_chay(cv, b) -> tuple:
+        """CÙNG lệnh ở CÙNG công đoạn — lệnh hoặc bài ghép; việc không neo lệnh thì theo chính nó."""
+        if cv.lsx_id or cv.bai_ghep_id:
+            return (cv.lsx_id, cv.bai_ghep_id, int(b.khoan_cong_doan_id))
+        return ("cv", int(cv.id), int(b.khoan_cong_doan_id))
+
+    def _so_lan_chay(self, cap, den: datetime, cuoi: date) -> dict[tuple, int]:
+        """Số lần ghi của mỗi khoá tới HẾT NGÀY cuối kỳ (giờ xưởng) — kể cả lần ở kỳ trước."""
+        if not cap:
+            return {}
+        rows = self.repo.lan_chay(den, {int(b.khoan_cong_doan_id) for b, _ in cap},
+                                  lsx_ids={int(cv.lsx_id) for _, cv in cap if cv.lsx_id},
+                                  bai_ids={int(cv.bai_ghep_id) for _, cv in cap if cv.bai_ghep_id},
+                                  cv_ids={int(cv.id) for _, cv in cap})
+        dem: dict[tuple, int] = defaultdict(int)
+        for b, cv in rows:
+            if (dd := ngay_cua_me(b.bat_dau)) is not None and dd <= cuoi:
+                dem[self._khoa_chay(cv, b)] += 1
+        return dem
 
     # ------------------------------------------------------------------ cả kỳ
-    def tinh(self, year: int, month: int) -> dict:
+    def tinh(self, year: int, month: int, muc: MucKhoan) -> dict:
         dau = date(year, month, 1)
         cuoi = date(year, month, _cal.monthrange(year, month)[1])
         # Lấy rộng một ngày mỗi đầu rồi lọc lại theo ngày giờ xưởng.
@@ -109,6 +183,8 @@ class KhoanKyService:
         pb = self.repo.phong_ban()
         le = {s.day for s in self.cal.paid_holidays_in_month(year, month)}
         bai_cache: dict = {}
+        so_lan = self._so_lan_chay(cap, den, cuoi)
+        ten_nv = self.repo.ten_nhan_vien({int(r.employee_id) for rs in nguoi.values() for r in rs})
 
         def ten_to(dep_id) -> str:
             d = pb.get(int(dep_id)) if dep_id else None
@@ -140,12 +216,27 @@ class KhoanKyService:
             if not ds:
                 bao("chưa tick người làm")
                 continue
+            w = {int(r.employee_id): _so(muc.luong_ca_may.get(int(r.employee_id))) for r in ds}
+            chua = [ten_nv.get(e, f"#{e}") for e, v in w.items() if v <= 0]
+            if chua:
+                bao(f"{', '.join(chua)} chưa có lương ca máy")
+                continue
             if b.don_gia_khoan_snapshot is None:
                 bao("tổ chưa có giá ở bảng giá theo tổ")
                 tien = 0.0
+            elif _RE_TIEN_GIO.search(khoan.cong_thuc_khoan or "") and b.ket_thuc <= b.bat_dau:
+                bao("công thức tính theo giờ mà lần ghi chưa có giờ kết thúc")
+                continue
             else:
+                qc = self._quy_cach(cv, lenh, bai_cache)
+                gio = max(0.0, (b.ket_thuc - b.bat_dau).total_seconds() / 3600.0)
+                them = {
+                    "so_lan_chay": float(max(1, so_lan.get(self._khoa_chay(cv, b), 0))),
+                    "tien_gio": sum(_so(muc.nen_gio.get(e)) for e in w) / 26 / 8 * gio,
+                    "tu_tro": 1.0 if qc.get("quy_cach_in") in _TU_TRO else 0.0,
+                }
                 try:
-                    tien = self._tien_chinh(khoan, b, self._quy_cach(cv, lenh, bai_cache))
+                    tien = self._tien_chinh(khoan, b, qc, them)
                 except ValueError as e:
                     bao(f"công thức khoán lỗi — {e}")
                     tien = 0.0
@@ -165,14 +256,17 @@ class KhoanKyService:
                 he_so, ghi_chu = 2.0, "Chủ nhật trùng lễ — sản lượng ×2"
             else:
                 he_so, ghi_chu = 1.0, None
-            moi = tien / len(ds)
+            tong_w = sum(w.values())
+            the = _nhan_tuy_chon(b.tuy_chon_khoan)
             for r in ds:
                 emp = int(r.employee_id)
+                moi = tien * w[emp] / tong_w
                 phan.append([emp, to, d, int(b.id), moi * he_so])
                 chi_tiet[emp].append({
                     "loai": "lan_ghi", "batch_id": int(b.id), "ngay": d.isoformat(),
-                    "cong_doan": ten_cd, "to": ten_to(to), "so_luong": _so(b.tong),
+                    "cong_doan": ten_cd, "to": ten_to(to), "so_luong": _so(b.tot),
                     "tien_lan_ghi": round(tien), "so_nguoi": len(ds),
+                    "ty_le": round(w[emp] / tong_w, 3), "tuy_chon": the,
                     "tien": round(moi * he_so), "ghi_chu": ghi_chu,
                 })
                 if he_so > 0 and to is not None:

@@ -903,6 +903,9 @@ class KhoanKyDongOut(BaseModel):
     so_luong: float | None = None
     tien_lan_ghi: float | None = None
     so_nguoi: int | None = None
+    # Đợt 2: phần của người này theo lương ca máy (0..1) + thẻ tuỳ chọn khác 0 của lần ghi.
+    ty_le: float | None = None
+    tuy_chon: list[str] = []
     tien: float = 0
     ghi_chu: str | None = None
 

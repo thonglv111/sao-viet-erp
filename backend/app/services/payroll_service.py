@@ -2510,7 +2510,39 @@ class PayrollService:
         if self.components is None:
             return {"khoan": {}, "tang_ca_khoan": {}, "thieu_gia": [], "canh_bao": [], "theo_nguoi": {}}
         from .khoan_ky import KhoanKyService
-        return KhoanKyService(self.components.db).tinh(int(year), int(month))
+        return KhoanKyService(self.components.db).tinh(int(year), int(month),
+                                                       self.muc_khoan(int(year), int(month)))
+
+    def muc_khoan(self, year: int, month: int):
+        """Lương ca máy + nền giờ của mọi người có hồ sơ lương hiệu lực NGÀY CUỐI kỳ (Đợt 2).
+
+        Cùng mức nền với bù lỗ của `_compute`: (vị trí + trách nhiệm) × hệ số thử việc + phụ cấp
+        tháng (ô Phụ cấp khác + khoản thu ở hồ sơ, không × thử việc). Không cơm ca, không khoản
+        phát sinh kỳ, không chuyên cần. Nạp một lượt cho cả kỳ như vòng `generate`."""
+        from .khoan_ky import MucKhoan
+
+        pay_on = date(int(year), int(month), monthrange(int(year), int(month))[1])
+        params = self.get_params()
+        sal = self.payroll.latest_salaries_map(pay_on)
+        ids = list(sal)
+        emps = self.employees.get_many(ids)
+        su_kien = self.employees.events_map(ids)
+        comp = self._components_map(ids)
+        tv = float(params.probation_ratio)
+        lcm: dict[int, float] = {}
+        nen_gio: dict[int, float] = {}
+        for eid, s in sal.items():
+            emp = emps.get(eid)
+            if emp is None:
+                continue
+            st, _ = trang_thai_tren_ngay(emp, su_kien.get(eid, []), pay_on)
+            nen = float(self._resolve_monthly(emp, s, params, pay_on)["monthly"])
+            ratio = tv if st in (STATUS_PROBATION, STATUS_PROBATION_ENDED) else 1.0
+            phu = float(s.allowance or 0) + sum(float(c["amount"]) for c in comp.get(eid, [])
+                                                if c.get("kind") != "tru")
+            lcm[eid] = nen * ratio + phu
+            nen_gio[eid] = nen
+        return MucKhoan(luong_ca_may=lcm, nen_gio=nen_gio)
 
     def chi_tiet_khoan_ky(self, *, line_id: int, scope=None, actor=None) -> list[dict]:
         """Từng lần ghi / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của MỘT dòng lương."""
