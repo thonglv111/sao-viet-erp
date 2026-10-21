@@ -185,3 +185,9 @@
 
 /* Lịch của ô ngày (z 1000) phải nổi trên nền hộp (z 1200). */
 body:has(.thsx-hop-nen) .cn-hop { z-index: 1300; }
+
+/* Ngày tổ đã báo dừng máy trong tháng (hộp Báo dừng máy, Đợt 2). */
+.thsx-dm-ds { width: 100%; border-collapse: collapse; font-size: 13px; }
+.thsx-dm-ds td { padding: 6px 8px; border-bottom: 1px solid var(--rule-hair); }
+.thsx-dm-ds tr:last-child td { border-bottom: 0; }
+.thsx-dm-ds td:last-child { text-align: right; }

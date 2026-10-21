@@ -9,13 +9,18 @@ import {
 } from "../../../../api/client";
 import { money } from "../shared/helpers";
 import { EmptyState } from "../../../../components/EmptyState";
+import { ChipTT } from "../../../../components/LuoiDs";
 
 const NHAN: Record<KhoanKyDong["loai"], string> = {
   lan_ghi: "Lần ghi",
   tang_ca_khoan: "Tăng ca khoán",
   to_truong: "Tổ trưởng",
   to_truong_tru: "Trích cho tổ trưởng",
+  dung_may: "Dừng máy",
 };
+
+// Phần của người này trong lần ghi theo lương ca máy (Đợt 2): 0.6087 → "0,609".
+const tyLeVn = (x: number) => x.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 
 // "2026-10-21" → "21/10" (toLocaleDateString cho ra "21-10" trên Chrome).
 const ngayVn = (iso?: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—");
@@ -92,7 +97,7 @@ export function SoiKhoanKy({
                     <th>Công đoạn / tổ</th>
                     <th className="lg-num">Số lượng</th>
                     <th className="lg-num">Tiền lần ghi</th>
-                    <th className="lg-num">Số người</th>
+                    <th className="lg-num">Số người / tỷ lệ</th>
                     <th className="lg-num">Phần hưởng</th>
                   </tr>
                 </thead>
@@ -102,12 +107,36 @@ export function SoiKhoanKy({
                       <td>{ngayVn(d.ngay)}</td>
                       <td>{NHAN[d.loai]}</td>
                       <td>
-                        {[d.cong_doan, d.to].filter(Boolean).join(" — ")}
+                        {d.loai === "dung_may" ? (
+                          <>
+                            {d.to}
+                            <div className="lg-soikm__dm">
+                              <span>{d.ly_do}</span>
+                              {d.sua_chua && <ChipTT mau="vang" vuong>{d.sua_chua}</ChipTT>}
+                            </div>
+                          </>
+                        ) : (
+                          [d.cong_doan, d.to].filter(Boolean).join(" — ")
+                        )}
+                        {(d.tuy_chon?.length ?? 0) > 0 && (
+                          <div className="lg-soikm__the">
+                            {d.tuy_chon!.map((t) => <ChipTT key={t} mau="cyan" vuong>{t}</ChipTT>)}
+                          </div>
+                        )}
                         {d.ghi_chu && <div className="cc-note">{d.ghi_chu}</div>}
                       </td>
                       <td className="lg-num">{d.so_luong != null ? d.so_luong.toLocaleString("vi-VN") : ""}</td>
-                      <td className="lg-num">{d.tien_lan_ghi != null ? money(d.tien_lan_ghi) : ""}</td>
-                      <td className="lg-num">{d.so_nguoi ?? ""}</td>
+                      <td className="lg-num">
+                        {d.loai === "dung_may"
+                          ? (d.tien_ngay != null ? money(d.tien_ngay) : "")
+                          : (d.tien_lan_ghi != null ? money(d.tien_lan_ghi) : "")}
+                      </td>
+                      <td className="lg-num">
+                        {d.so_nguoi ?? ""}
+                        {d.ty_le != null && (
+                          <div className="cc-note" title="Phần của người này theo lương ca máy">{tyLeVn(d.ty_le)}</div>
+                        )}
+                      </td>
                       <td className="lg-num">{money(d.tien)}</td>
                     </tr>
                   ))}

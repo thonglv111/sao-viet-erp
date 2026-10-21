@@ -2218,12 +2218,6 @@ export function DepartmentsPage({
                           </div>
                         );
                       })}
-                      <div className="rdx-ov__item">
-                        <span className="rdx-ov__k">Lương khoán</span>
-                        <span className="rdx-ov__v">
-                          {currentDept.has_piece_work ? "Có" : "Không"}
-                        </span>
-                      </div>
                       <div className="rdx-ov__item rdx-ov__item--wide">
                         <span className="rdx-ov__k">Lương thử việc</span>
                         <span className="rdx-ov__v">

@@ -1531,6 +1531,31 @@ export interface SxTeam {
  *  riêng của ma trận vai (09/10/2026), kiểm được mọi tổ. */
 export type SxViecTo = "read" | "run_order" | "confirm_output" | "warehouse";
 
+/** Báo dừng máy (Đợt 2): một tổ một ngày một dòng; ngày đó tổ ăn chỉ tiêu ngày. */
+export type SxLyDoDungMay = "may_hu" | "het_hang";
+export interface SxDungMayIn {
+  ngay: string;
+  ly_do: SxLyDoDungMay;
+  sua_chua_id?: number | null;
+  ghi_chu?: string | null;
+  /** Người hưởng — tổ trưởng tick. */
+  nguoi_ids: number[];
+}
+export interface SxDungMayNguoi { employee_id: number; ho_ten: string }
+export interface SxDungMay {
+  id: number;
+  department_id: number;
+  ngay: string;
+  ly_do: SxLyDoDungMay;
+  ly_do_ten: string;
+  sua_chua_id: number | null;
+  sua_chua_ma: string | null;
+  ghi_chu: string | null;
+  nguoi: SxDungMayNguoi[];
+}
+export interface SxPhieuSuaChon { id: number; ma: string; may_ten: string | null; bo_phan_hong: string | null }
+export interface SxDungMayListOut { ds: SxDungMay[]; nguoi: SxDungMayNguoi[]; phieu_sua: SxPhieuSuaChon[] }
+
 export interface SxTeamsOut {
   teams: SxTeam[];
 }
@@ -6647,7 +6672,7 @@ export interface KhoanKmChiTiet {
 
 /** Một dòng làm nên tiền khoán của một người (21/10/2026). */
 export interface KhoanKyDong {
-  loai: "lan_ghi" | "tang_ca_khoan" | "to_truong" | "to_truong_tru";
+  loai: "lan_ghi" | "tang_ca_khoan" | "to_truong" | "to_truong_tru" | "dung_may";
   batch_id?: number | null;
   ngay?: string | null;
   cong_doan?: string | null;
@@ -6655,6 +6680,14 @@ export interface KhoanKyDong {
   so_luong?: number | null;
   tien_lan_ghi?: number | null;
   so_nguoi?: number | null;
+  /** Phần của người này theo lương ca máy (0..1, Đợt 2). */
+  ty_le?: number | null;
+  /** Thẻ tuỳ chọn khác 0 của lần ghi: "trùng khuôn", "3 số lỗ đục". */
+  tuy_chon?: string[];
+  /** Dòng `dung_may`: tên lý do, mã phiếu sửa máy, chỉ tiêu ngày của tổ. */
+  ly_do?: string | null;
+  sua_chua?: string | null;
+  tien_ngay?: number | null;
   tien: number;
   ghi_chu?: string | null;
 }
@@ -15131,6 +15164,19 @@ export const api = {
      *  ngoài phạm vi. */
     choXacNhan(token: string, teamId: number): Promise<SxChoXacNhan> {
       return authed<SxChoXacNhan>(`/api/san-xuat/teams/${teamId}/cho-xac-nhan`, token);
+    },
+    /** Ngày tổ đã báo dừng máy trong tháng + người của tổ + phiếu sửa máy báo trong tháng. */
+    dungMayDs(token: string, teamId: number, nam: number, thang: number): Promise<SxDungMayListOut> {
+      return authed<SxDungMayListOut>(`/api/san-xuat/teams/${teamId}/dung-may?nam=${nam}&thang=${thang}`, token);
+    },
+    baoDungMay(token: string, teamId: number, body: SxDungMayIn): Promise<SxDungMay> {
+      return authed<SxDungMay>(`/api/san-xuat/teams/${teamId}/dung-may`, token, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    xoaDungMay(token: string, id: number): Promise<void> {
+      return authed<void>(`/api/san-xuat/dung-may/${id}`, token, { method: "DELETE" });
     },
     /** Việc đã phát hành của MỘT tổ. 403 nếu tổ ngoài phạm vi.
      *

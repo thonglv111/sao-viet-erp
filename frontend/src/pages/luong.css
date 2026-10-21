@@ -2539,6 +2539,16 @@
   white-space: nowrap;
 }
 
+/* Khoán SP (Đợt 2): thẻ tuỳ chọn của lần ghi, lý do + phiếu sửa của ngày dừng máy. */
+.lg-soikm__the,
+.lg-soikm__dm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+
 /* ── Mức khoán km ───────────────────────────────────────────────────────── */
 .muc-km-add-row {
   display: flex;

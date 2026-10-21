@@ -21,6 +21,7 @@ import {
 import { kyThuatMay, type MayChon } from "../api/kyThuatMay";
 import { useAuth } from "../auth/useAuth";
 import { useDebounced } from "../utils/useDebounced";
+import { Button } from "../components/Button";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Icon } from "../components/Icons";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
@@ -38,6 +39,7 @@ import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import { ThsxTamDungHop } from "./thsx/ThsxTamDungHop";
 import { ThsxDrawer, type ThsxDrawerTab } from "./ThsxDrawer";
 import { type ThsxExec } from "./ThsxExecPanels";
+import { BaoDungMayModal, type DungMayExec } from "./BaoDungMayModal";
 import { ThsxChoNgoaiBan } from "./ThsxChoNgoaiBan";
 import { ThsxTuyenChuGiai } from "./ThsxTuyenNho";
 import { ThsxDemTrangThai } from "./thsx/ThsxDemTrangThai";
@@ -108,6 +110,7 @@ export function ThucHienSxPage({
   teamId,
   tenTo,
   laTho = false,
+  coBaoDungMay = false,
   eventTick,
   vatTuDeNghiDem,
   dinhKemDem,
@@ -119,6 +122,9 @@ export function ThucHienSxPage({
   /** Người đang xem vào tổ này ở mức "Của tôi" (cờ `la_tho` của `GET /teams`, máy chủ tính): danh
    *  sách chỉ có việc giao cho họ, nên khi trống phải nói đúng lý do đó. */
   laTho?: boolean;
+  /** Người xem giữ Xác nhận sản lượng TRỌN tổ (`quyen.confirm_output === "all"`) — luật máy chủ
+   *  của Báo dừng máy (`gate_to_tron`). */
+  coBaoDungMay?: boolean;
   eventTick?: number;
   /** Số lần đề nghị cấp vật tư đổi, ĐẾM THEO công việc (SSE, mắc ở AppShell). CỐ TÌNH không đi qua
    *  `eventTick`: sự kiện này broadcast TOÀN HỆ, nếu bump tick chung thì mỗi lần bất kỳ tổ nào
@@ -244,6 +250,12 @@ export function ThucHienSxPage({
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [reason, setReason] = useState<Reason | null>(null);
+  const [moDungMay, setMoDungMay] = useState(false);
+  const dungMayExec = useMemo<DungMayExec>(() => ({
+    ds: (nam, thang) => api.sanXuat.dungMayDs(token!, teamId, nam, thang),
+    bao: (body) => api.sanXuat.baoDungMay(token!, teamId, body),
+    xoa: (id) => api.sanXuat.xoaDungMay(token!, id),
+  }), [token, teamId]);
 
   // ---- nạp dữ liệu ----
   // Từ khoá chỉ gửi máy chủ ở view Bảng. View Lịch lọc trên máy nên gõ tìm KHÔNG được nạp lại:
@@ -856,6 +868,12 @@ export function ThucHienSxPage({
         <header className="lds-dau">
           <h1 className="lds-dau__ten">Bàn tổ<span className="thsx-top__to">{tenTo ?? `#${teamId}`}</span></h1>
           <div className="lds-dau__nut">
+            {coBaoDungMay && (
+              <Button variant="secondary" title="Ngày máy hư hoặc hết hàng, tổ ăn chỉ tiêu ngày"
+                onClick={() => setMoDungMay(true)}>
+                <Icon name="alert" size={13} /> Báo dừng máy
+              </Button>
+            )}
             <div className="thsx-seg" role="group" aria-label="Kiểu xem">
               <button type="button" className="thsx-seg__btn" title="Xem danh sách bản ghi (Bảng)"
                 aria-pressed={view === "danh_sach"} onClick={() => setView("danh_sach")}>
@@ -1018,6 +1036,9 @@ export function ThucHienSxPage({
           onDong={() => setReason(null)} onTamDung={confirmReason} />
       )}
 
+      {moDungMay && (
+        <BaoDungMayModal tenTo={tenTo} exec={dungMayExec} onDong={() => setMoDungMay(false)} onBao={setToast} />
+      )}
       {toast && <div className="thsx-toast" role="status">{toast}</div>}
     </div>
   );

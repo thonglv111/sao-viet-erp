@@ -619,8 +619,14 @@ export function demNguoiLam(ds: NguoiLam[], chon: Set<number>): number {
 /** Khối tick "Người làm lần này" — dùng chung hộp Ghi sản lượng và Sửa số sản lượng. Có `toKhac` thì
  *  kèm nút "Thêm người tổ khác" mở popup chọn tổ rồi chọn người (10/10/2026): người được chọn vào
  *  danh sách, tick sẵn; người nghỉ đúng `ngay` hoặc đã nghỉ việc thì mờ, không chọn được. */
-function NguoiLamChon({ ds, chon, onDoi, baoThieu = true, toKhac, ngay, onThem }: {
+export function NguoiLamChon({
+  ds, chon, onDoi, baoThieu = true, toKhac, ngay, onThem, tieuDe = "Người làm lần này",
+  cauThieu = "Chọn ít nhất một người làm lần này.",
+}: {
   ds: NguoiLam[]; chon: Set<number>; onDoi: (moi: Set<number>) => void;
+  /** Hộp Báo dừng máy dùng lại khối này với chữ "Người hưởng". */
+  tieuDe?: string;
+  cauThieu?: string;
   /** Báo "chọn ít nhất một người" khi không ai được tick. */
   baoThieu?: boolean;
   toKhac?: NguoiToKhac;
@@ -638,13 +644,13 @@ function NguoiLamChon({ ds, chon, onDoi, baoThieu = true, toKhac, ngay, onThem }
   return (
     <div className="thsx-f">
       <div className="thsx-ng__dau">
-        <span className="thsx-f__n">Người làm lần này</span>
+        <span className="thsx-f__n">{tieuDe}</span>
         <span className="thsx-gm-mo thsx-num">{so} người</span>
       </div>
       {ds.length === 0 ? (
         <span className="thsx-f__g">Chưa giao ai vào việc này.</span>
       ) : (
-        <ul className="thsx-ng" aria-label="Người làm lần này">
+        <ul className="thsx-ng" aria-label={tieuDe}>
           {ds.map((n) => (
             <li key={n.id}>
               <label className={`thsx-ng__o${n.mo ? " is-mo" : ""}`}>
@@ -668,7 +674,7 @@ function NguoiLamChon({ ds, chon, onDoi, baoThieu = true, toKhac, ngay, onThem }
           onChon={(hs) => { hs.forEach((h) => onThem(nguoiTuToKhac(h))); setMoChon(false); }} />
       )}
       {baoThieu && so === 0 && ds.length > 0 && (
-        <span className="thsx-f__g thsx-f__g--loi">Chọn ít nhất một người làm lần này.</span>
+        <span className="thsx-f__g thsx-f__g--loi">{cauThieu}</span>
       )}
     </div>
   );
