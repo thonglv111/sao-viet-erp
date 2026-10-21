@@ -5061,6 +5061,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `don_gia_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp đơn giá lúc ghi mẻ — để kế toán nhân SAU, tầng sản xuất KHÔNG nhân gì. Danh mục đổi sau đó thì màn mẻ hiện băng "Danh mục đã đổi" (so NỘI DUNG, không so `updated_at`) và chỉ cập nhật khi tổ bấm xác nhận (`POST /san-xuat/outputs/{id}/cap-nhat-danh-muc`). |
 | `gia_co_dinh_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp GIÁ CỐ ĐỊNH của tổ lúc ghi (mg `0429`) — vd giá bài in 150.000. Cùng luật ảnh chụp với `don_gia_khoan_snapshot` (cả hai là giá CỦA TỔ ghi). NULL = tổ chưa khai giá lúc ghi ⇒ lương báo thiếu giá. |
 | `tuy_chon_khoan` | `JSON` | — | yes | — | Ảnh chụp tuỳ chọn khi ghi (mg `0430`) `[{ma, ten, kieu, gia_tri}]` — mọi tuỳ chọn khai ở công đoạn lúc ghi, không tick = 0. NULL = lần ghi trước Đợt 2 (công thức coi mọi tuỳ chọn = 0). |
+| `cong_thuc_khoan_snapshot` | `Text` | — | yes | — | Ảnh chụp công thức khoán của công đoạn lúc ghi (mg `0431`) — sửa công thức ở danh mục không đổi tiền lần đã ghi; nút "Cập nhật theo danh mục" lấy công thức mới. `""` = công thức bỏ trống lúc ghi. NULL = lần ghi trước mg `0431` ⇒ dùng công thức hiện tại. |
 | `mo_ta_loi` | `String(500)` | — | yes | — | Mô tả lỗi bổ sung (không thay danh mục). |
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú. |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
@@ -5068,7 +5069,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now (UTC) | onupdate = now. |
 
-**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `tuy_chon_khoan`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `tuy_chon_khoan`, `cong_thuc_khoan_snapshot`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
 
 **MỘT CHỦ** — tổ của bước. Mẻ hiện ở tab Sản lượng của MỌI tổ có người trong mẻ, CÙNG MỘT CON SỐ, chia hai mục: "Mẻ của tổ" (cộng vào tổng) và "Người của tổ đi làm ở tổ khác" (không cộng). Tầng chia sản lượng cho từng người (`san_xuat_phan_bo*`) ĐÃ DROP (mg `0322`).
 

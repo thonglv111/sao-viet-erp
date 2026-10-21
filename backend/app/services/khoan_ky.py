@@ -92,6 +92,13 @@ _RE_CHIP_LUONG = re.compile(r"\b(sl_ghi|sl_vao|sl_ra|so_luot_chay)\b")
 _RE_DON_GIA = re.compile(r"\bdon_gia_khoan\b")
 
 
+def cong_thuc_cua_lan_ghi(khoan, b) -> str:
+    """Công thức tính tiền của lần ghi: ảnh chụp lúc ghi (mg 0431); lần ghi cũ chưa chụp (NULL) dùng
+    công thức hiện tại của công đoạn."""
+    ct = getattr(b, "cong_thuc_khoan_snapshot", None)
+    return (khoan.cong_thuc_khoan if ct is None else ct) or ""
+
+
 def _luong_thanh_dong(ct: str | None) -> bool:
     """Công thức có chip tiền (`gia_co_dinh` / `tien_gio`) + chip lượng mà KHÔNG gọi `don_gia_khoan`
     ⇒ engine thôi nhân đơn giá nên lượng bị cộng như tiền đồng (1 tờ = 1đ). Không đoán ý người khai,
@@ -164,7 +171,7 @@ class KhoanKyService:
         don_gia = float(b.don_gia_khoan_snapshot)
         gia_cd = _so(b.gia_co_dinh_khoan_snapshot)
         tong, tot = _so(b.tong), _so(b.tot)
-        ct = (khoan.cong_thuc_khoan or "").strip()
+        ct = cong_thuc_cua_lan_ghi(khoan, b).strip()
         if not ct:
             return gia_cd + tot * don_gia
         tuy_chon = {t["ma"]: 0.0 for t in (khoan.tuy_chon or []) if t.get("ma")}
@@ -258,7 +265,7 @@ class KhoanKyService:
             if b.don_gia_khoan_snapshot is None:
                 bao("tổ chưa có giá ở bảng giá theo tổ")
                 tien = 0.0
-            elif _RE_TIEN_GIO.search(khoan.cong_thuc_khoan or "") and b.ket_thuc <= b.bat_dau:
+            elif _RE_TIEN_GIO.search(cong_thuc_cua_lan_ghi(khoan, b)) and b.ket_thuc <= b.bat_dau:
                 bao("công thức tính theo giờ mà lần ghi chưa có giờ kết thúc", "lan_ghi")
                 continue
             else:
@@ -269,7 +276,7 @@ class KhoanKyService:
                     "tien_gio": sum(_so(muc.nen_gio.get(e)) for e in w) / 26 / 8 * gio,
                     "tu_tro": 1.0 if qc.get("quy_cach_in") in _TU_TRO else 0.0,
                 }
-                if _luong_thanh_dong(khoan.cong_thuc_khoan) and int(khoan.id) not in da_nhac_dong:
+                if _luong_thanh_dong(cong_thuc_cua_lan_ghi(khoan, b)) and int(khoan.id) not in da_nhac_dong:
                     da_nhac_dong.add(int(khoan.id))
                     canh_bao.append(f"Công đoạn {khoan.cong_doan.ten}: công thức khoán có chip Giá cố định / Tiền giờ "
                                     f"nên máy không tự nhân Đơn giá khoán — sản lượng đang cộng như tiền "

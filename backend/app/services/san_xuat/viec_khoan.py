@@ -30,8 +30,8 @@ from ..lsx_danh_muc_doi import o_lech
 
 #: Ba ô đem so của VIỆC KHOÁN và của MỖI việc phát sinh (§7.2b). Nhãn là câu người đọc trên băng.
 _O_SO = (("ten", "tên việc"), ("don_vi", "đơn vị"), ("don_gia", "đơn giá"))
-#: Cấu hình Khoán của công đoạn còn so thêm GIÁ CỐ ĐỊNH của tổ (21/10/2026).
-_O_SO_KHOAN = (*_O_SO, ("gia_co_dinh", "giá cố định"))
+#: Cấu hình Khoán của công đoạn còn so thêm GIÁ CỐ ĐỊNH của tổ và CÔNG THỨC (21/10/2026).
+_O_SO_KHOAN = (*_O_SO, ("gia_co_dinh", "giá cố định"), ("cong_thuc", "công thức"))
 
 
 def _anh_chup(ten, don_vi, don_gia, gia_co_dinh=None) -> dict:
@@ -73,7 +73,8 @@ def gia_ps_cua_to(ps, department_id: int | None) -> float | None:
 
 def _anh_khoan_cd_song(khoan, department_id: int | None) -> dict:
     gia_cd, don_gia = gia_cua_to(khoan, department_id)
-    return _anh_chup(khoan.cong_doan.ten, khoan.unit, don_gia, gia_cd)
+    return {**_anh_chup(khoan.cong_doan.ten, khoan.unit, don_gia, gia_cd),
+            "cong_thuc": (khoan.cong_thuc_khoan or "").strip()}
 
 
 def _anh_ps_cd_song(ps, department_id: int | None) -> dict:
@@ -159,6 +160,7 @@ def chuan_hoa_khi_ghi(
             "don_gia_khoan_snapshot": None,
             "gia_co_dinh_khoan_snapshot": None,
             "tuy_chon_khoan": None,
+            "cong_thuc_khoan_snapshot": None,
         }, [])
 
     gia_cd, don_gia = gia_cua_to(khoan, department_id)
@@ -170,6 +172,8 @@ def chuan_hoa_khi_ghi(
         "don_gia_khoan_snapshot": don_gia,
         "gia_co_dinh_khoan_snapshot": gia_cd,
         "tuy_chon_khoan": anh_chup_tuy_chon(khoan, tuy_chon),
+        # Công thức chụp như giá (chủ chốt 21/10/2026). Bỏ trống ⇒ "" (khác NULL của lần ghi cũ).
+        "cong_thuc_khoan_snapshot": (khoan.cong_thuc_khoan or "").strip(),
     }
 
     hop_le = {ps.id: ps for ps in khoan.viec_phat_sinh}
@@ -227,9 +231,14 @@ def anh_chup_tuy_chon(khoan, tuy_chon: dict[str, float] | None) -> list[dict] | 
     return ra
 
 
-def _anh_khoan_cua_me(b) -> dict:
-    return _anh_chup(b.ten_khoan_snapshot, b.don_vi_khoan_snapshot, b.don_gia_khoan_snapshot,
-                     getattr(b, "gia_co_dinh_khoan_snapshot", None))
+def _anh_khoan_cua_me(b, song: dict | None = None) -> dict:
+    """Ảnh chụp của lần ghi. `song` = ảnh danh mục đang so: lần ghi trước mg 0431 chưa chụp công
+    thức (NULL) vốn tính bằng công thức hiện tại, nên coi như khớp — không báo lệch giả."""
+    anh = _anh_chup(b.ten_khoan_snapshot, b.don_vi_khoan_snapshot, b.don_gia_khoan_snapshot,
+                    getattr(b, "gia_co_dinh_khoan_snapshot", None))
+    ct = getattr(b, "cong_thuc_khoan_snapshot", None)
+    anh["cong_thuc"] = (song or {}).get("cong_thuc") if ct is None else ct.strip()
+    return anh
 
 
 def _anh_ps_cua_me(r) -> dict:
@@ -274,7 +283,7 @@ def danh_muc_doi(
             }]
         ra: list[dict] = []
         anh_song = _anh_khoan_cd_song(khoan, department_id)
-        for o in o_lech(_anh_khoan_cua_me(b), anh_song, _O_SO_KHOAN):
+        for o in o_lech(_anh_khoan_cua_me(b, anh_song), anh_song, _O_SO_KHOAN):
             ra.append({**o, "nhan": f'{khoan.cong_doan.ten} · {o["nhan"]}', "mat": False})
         song = {int(ps.id): ps for ps in khoan.viec_phat_sinh}
         for r in ps_rows:
@@ -336,11 +345,17 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
             raise ValueError("Cấu hình Khoán của công đoạn không còn tồn tại.")
         doi: list[str] = []
         moi = _anh_khoan_cd_song(khoan, cv.department_id)
-        if o_lech(_anh_khoan_cua_me(b), moi, _O_SO_KHOAN):
+        if o_lech(_anh_khoan_cua_me(b, moi), moi, _O_SO_KHOAN):
             b.ten_khoan_snapshot = moi["ten"]
             b.don_vi_khoan_snapshot = moi["don_vi"]
             b.don_gia_khoan_snapshot = moi["don_gia"]
             b.gia_co_dinh_khoan_snapshot = moi["gia_co_dinh"]
+            b.cong_thuc_khoan_snapshot = moi["cong_thuc"]
+            # Công thức mới đọc bộ tuỳ chọn KHAI mới: giữ giá trị thợ đã chọn ở mã còn khai, mã mới = 0.
+            da_chon = {t["ma"]: t.get("gia_tri") for t in (b.tuy_chon_khoan or []) if t.get("ma")}
+            con_khai = {t["ma"] for t in (khoan.tuy_chon or []) if t.get("ma")}
+            b.tuy_chon_khoan = anh_chup_tuy_chon(
+                khoan, {ma: v for ma, v in da_chon.items() if ma in con_khai})
             doi.append(f"khoan_cong_doan={khoan.id}")
         ps_rows = sl.phat_sinh_cua_batch(b.id)
         song = {int(ps.id): ps for ps in khoan.viec_phat_sinh}

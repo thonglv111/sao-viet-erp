@@ -29,7 +29,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint,
+    JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
     false as sa_false,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -93,6 +93,10 @@ class SanXuatBatch(Base):
     # Ảnh chụp tuỳ chọn khi ghi (21/10/2026, mg 0430) `[{ma, ten, kieu, gia_tri}]` — mọi tuỳ chọn KHAI
     # ở công đoạn lúc ghi, không tick = 0. NULL = lần ghi trước đợt 2 (công thức coi mọi tuỳ chọn = 0).
     tuy_chon_khoan: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Ảnh chụp CÔNG THỨC khoán của công đoạn lúc ghi (21/10/2026, mg 0431) — chủ chốt công thức chụp
+    # như giá: sửa công thức ở danh mục không đổi tiền lần đã ghi. "" = công thức bỏ trống lúc ghi
+    # (tiền = giá cố định + SL × đơn giá). NULL = lần ghi trước mg 0431 ⇒ dùng công thức hiện tại.
+    cong_thuc_khoan_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     mo_ta_loi: Mapped[str | None] = mapped_column(String(500), nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

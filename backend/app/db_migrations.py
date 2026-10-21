@@ -18931,3 +18931,19 @@ def _migrate_khoan_dot_2(db: Session) -> None:
 
 
 MIGRATIONS.append(("0430_khoan_dot_2", _migrate_khoan_dot_2))
+
+
+def _migrate_chup_cong_thuc_khoan(db: Session) -> None:
+    """0431 (21/10/2026) — `san_xuat_batch.cong_thuc_khoan_snapshot`: công thức khoán chụp vào lần
+    ghi như giá. Lần ghi cũ để NULL (dùng công thức hiện tại của công đoạn) — không backfill: chụp
+    công thức HÔM NAY vào lần ghi tháng trước là đoán. Raw SQL đích danh cột, idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    if "san_xuat_batch" not in set(insp.get_table_names()):
+        return
+    if "cong_thuc_khoan_snapshot" not in _existing_columns(insp, "san_xuat_batch"):
+        db.execute(text("ALTER TABLE san_xuat_batch ADD COLUMN cong_thuc_khoan_snapshot TEXT"))
+    db.commit()
+
+
+MIGRATIONS.append(("0431_chup_cong_thuc_khoan", _migrate_chup_cong_thuc_khoan))
