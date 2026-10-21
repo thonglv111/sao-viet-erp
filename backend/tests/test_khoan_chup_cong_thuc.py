@@ -79,6 +79,8 @@ def test_bang_danh_muc_doi_nhan_cong_thuc_va_cap_nhat_lay_cong_thuc_moi(db, admi
     doi = doi_ct()
     assert len(doi) == 1
     assert doi[0]["cu"] == "sl_ghi * don_gia_khoan"
+    # Nhãn là câu, không nối tên với mục bằng dấu "·" (chủ chốt 21/10/2026).
+    assert doi[0]["nhan"] == f"Công thức của {k.cong_doan.ten}"
 
     # Lần ghi cũ chưa chụp công thức thì không báo lệch giả (nó vốn dùng công thức hiện tại).
     b.cong_thuc_khoan_snapshot = None

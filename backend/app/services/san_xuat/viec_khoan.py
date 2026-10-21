@@ -258,6 +258,12 @@ def nap_doi_chieu(
     )
 
 
+def _nhan_o(ten: str | None, o: dict) -> str:
+    """Nhãn một ô lệch trong băng: "Đơn giá của Bế máy nhỏ" — câu, không nối bằng dấu "·"."""
+    muc = o["nhan"]
+    return f"{muc[:1].upper()}{muc[1:]} của {ten}" if ten else muc[:1].upper() + muc[1:]
+
+
 def danh_muc_doi(
     db: Session, b, ps_rows: list[SanXuatBatchPhatSinh], *, department_id: int | None,
     nap: tuple[dict, dict] | None = None,
@@ -284,7 +290,7 @@ def danh_muc_doi(
         ra: list[dict] = []
         anh_song = _anh_khoan_cd_song(khoan, department_id)
         for o in o_lech(_anh_khoan_cua_me(b, anh_song), anh_song, _O_SO_KHOAN):
-            ra.append({**o, "nhan": f'{khoan.cong_doan.ten} · {o["nhan"]}', "mat": False})
+            ra.append({**o, "nhan": _nhan_o(khoan.cong_doan.ten, o), "mat": False})
         song = {int(ps.id): ps for ps in khoan.viec_phat_sinh}
         for r in ps_rows:
             ps = song.get(int(r.phat_sinh_id))
@@ -295,7 +301,7 @@ def danh_muc_doi(
                 })
                 continue
             for o in o_lech(_anh_ps_cua_me(r), _anh_ps_cd_song(ps, department_id), _O_SO):
-                ra.append({**o, "nhan": f'{ps.ten} · {o["nhan"]}', "mat": False})
+                ra.append({**o, "nhan": _nhan_o(ps.ten, o), "mat": False})
         return ra
     if not b.piece_rate_id:
         return []
@@ -307,7 +313,7 @@ def danh_muc_doi(
                    "truong": "piece_rate", "cu": None, "moi": None, "mat": True})
     else:
         for o in o_lech(_anh_khoan_cua_me(b), _anh_khoan_song(rate), _O_SO):
-            ra.append({**o, "nhan": f'{rate.ten} · {o["nhan"]}', "mat": False})
+            ra.append({**o, "nhan": _nhan_o(rate.ten, o), "mat": False})
 
     for r in ps_rows:
         ps = song.get(int(r.phat_sinh_id))
@@ -316,7 +322,7 @@ def danh_muc_doi(
                        "truong": "phat_sinh", "cu": None, "moi": None, "mat": True})
             continue
         for o in o_lech(_anh_ps_cua_me(r), _anh_ps_song(ps), _O_SO):
-            ra.append({**o, "nhan": f'{ps.ten} · {o["nhan"]}', "mat": False})
+            ra.append({**o, "nhan": _nhan_o(ps.ten, o), "mat": False})
     return ra
 
 
