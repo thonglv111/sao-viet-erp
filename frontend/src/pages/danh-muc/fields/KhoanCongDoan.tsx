@@ -105,6 +105,14 @@ function TuyChonKhiGhi({ value, onChange }: {
   );
 }
 
+/** Có chip tiền (Giá cố định / Tiền giờ) + chip lượng mà không gọi Đơn giá khoán ⇒ máy thôi nhân đơn
+ *  giá nên lượng bị cộng như tiền đồng. Cùng luật cảnh báo trước chốt (`khoan_ky._luong_thanh_dong`). */
+export function luongThanhDong(ct: string | null | undefined): boolean {
+  const s = ct ?? "";
+  return /\b(gia_co_dinh|tien_gio)\b/.test(s) && /\b(sl_ghi|sl_vao|sl_ra|so_luot_chay)\b/.test(s)
+    && !/\bdon_gia_khoan\b/.test(s);
+}
+
 export function KhoanCongDoanField({ value, donViOptions, toPhuTrach = [], onChange }: {
   value: KhoanCongDoanValue | null;
   donViOptions: Row[];
@@ -305,6 +313,12 @@ export function KhoanCongDoanField({ value, donViOptions, toPhuTrach = [], onCha
           nhanO="Công thức khoán"
           goY="vd: gia_co_dinh + max(0, sl_ghi - 3000) * don_gia_khoan"
         />
+        {luongThanhDong(v.cong_thuc_khoan) && (
+          <p className="rc-khoan__note rc-khoan__note--nhac" role="status">
+            Công thức có chip Giá cố định hoặc Tiền giờ nên máy không tự nhân đơn giá — sản lượng đang
+            cộng như tiền đồng (1 tờ = 1 đ). Nhân sản lượng với chip Đơn giá khoán nếu cần.
+          </p>
+        )}
       </section>
 
       <section className="rc-card-section rc-khoan__section">

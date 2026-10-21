@@ -54,6 +54,14 @@ describe("KhoanCongDoanField — Đợt 2", () => {
     expect(cuoi.gia_co_dinh).toBe(150000);
   });
 
+  it("chip tiền + sản lượng mà không nhân Đơn giá khoán thì nhắc ngay dưới ô công thức", () => {
+    const { unmount } = bay({ cong_thuc_khoan: "gia_co_dinh + sl_ghi" }, () => {});
+    expect(screen.getByText(/sản lượng đang cộng như tiền đồng/)).toBeInTheDocument();
+    unmount();
+    bay({ cong_thuc_khoan: "gia_co_dinh + sl_ghi * don_gia_khoan" }, () => {});
+    expect(screen.queryByText(/sản lượng đang cộng như tiền đồng/)).toBeNull();
+  });
+
   it("tuỳ chọn thành chip của ô Công thức khoán", () => {
     const b = tuyChonThanhBien([
       { ma: "trung_khuon", ten: "Trùng khuôn", kieu: "co_khong", goi_y: null },

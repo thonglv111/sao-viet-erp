@@ -1627,6 +1627,7 @@
 .rc-khoan__section { padding: 16px 20px; }
 .rc-khoan__price-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
 .rc-khoan__note { margin: -2px 0 12px; color: var(--ash, #6f756f); font-size: 12px; }
+.rc-khoan__note--nhac { margin: 6px 0 0; color: var(--tt-vang-fg, #b45309); }
 @media (max-width: 680px) {
   .rc-khoan__price-grid { grid-template-columns: 1fr; }
 }
