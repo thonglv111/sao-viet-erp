@@ -191,3 +191,5 @@ body:has(.thsx-hop-nen) .cn-hop { z-index: 1300; }
 .thsx-dm-ds td { padding: 6px 8px; border-bottom: 1px solid var(--rule-hair); }
 .thsx-dm-ds tr:last-child td { border-bottom: 0; }
 .thsx-dm-ds td:last-child { text-align: right; }
+/* Thẻ tuỳ chọn của một lần ghi trong chi tiết lần ghi (Đợt 2). */
+.thsx-b-the { display: flex; flex-wrap: wrap; gap: 4px 6px; }
