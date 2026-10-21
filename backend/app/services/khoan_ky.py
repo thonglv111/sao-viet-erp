@@ -51,7 +51,7 @@ from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.calendar_repo import CalendarRepository
 from ..repositories.khoan_ky_repo import KhoanKyRepository
 from .bien_cong_thuc import (
-    MAC_DINH_TANG_LENH, cong_thuc_ra_tien, ngu_canh_lenh, quy_cach_bien, quy_cach_bien_bai,
+    MAC_DINH_TANG_LENH, cong_thuc_ra_tien, ngu_canh_lenh, quy_cach_bien,
 )
 from .calendar_service import CalendarService
 from .san_xuat.nguoi_trong_me import ngay_cua_me
@@ -119,11 +119,15 @@ class KhoanKyService:
         if cv.bai_ghep_id:
             bid = int(cv.bai_ghep_id)
             if bid not in bai_cache:
+                # Cùng đường với lúc phát hành (`san_xuat/snapshot.py`): mực GỘP của mọi thành viên
+                # (`so_mau_pha`, `so_kem`) + ba số tờ ở cấp bài. Gọi thẳng `quy_cach_bien_bai` thiếu
+                # `muc` ⇒ bài ghép có Pantone vẫn ăn so_mau_pha = 0.
+                from ..repositories.bai_ghep_repo import BaiGhepRepository
+                from .bai_ghep_service import BaiGhepService
+
                 bai = self.repo.bai_ghep(bid)
-                # Thành viên cho quy cách CHUNG của bài (quy cách in ⇒ `tu_tro`, khổ nguyên, gsm).
-                tv = (self.repo.lenh_theo_id({int(t.lsx_id) for t in bai.thanh_viens}).values()
-                      if bai is not None else ())
-                bai_cache[bid] = quy_cach_bien_bai(bai, thanh_vien=list(tv)) if bai is not None else {}
+                svc = BaiGhepService(self.db, BaiGhepRepository(self.db), None, None)
+                bai_cache[bid] = svc.quy_cach_bien_cua_bai(bai) if bai is not None else {}
             return bai_cache[bid]
         return {}
 

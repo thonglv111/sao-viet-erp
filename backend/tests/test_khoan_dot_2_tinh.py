@@ -138,6 +138,42 @@ def test_in_chay_tiep_tu_tro_mau_pha(nen, monkeypatch):
     assert tien == [260_000, 240_000, 352_000]
 
 
+def test_in_bai_ghep_that_doc_mau_pha_gop_cua_thanh_vien(nen):
+    """Bước chạy chung của bài ghép: quy cách phải gộp mực của MỌI thành viên như lúc phát hành
+    (`BaiGhepService.quy_cach_bien_cua_bai`). Thiếu `muc` thì `so_mau_pha` = 0 ⇒ mất ×1,1 Pantone."""
+    from app.models.bai_ghep import BaiGhep, BaiGhepThanhVien
+    from app.models.lsx import Lsx
+    from app.models.order import Order, OrderLine
+
+    to = nen.to("Máy 4 màu")
+    e = nen.nv(to, "E")
+    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60,
+                   tuy_chon=_tc(("chay_tiep", "Chạy tiếp", "co_khong")))
+    lenh = []
+    for i, muc in enumerate((["C", "M", "Y", "K"], ["K", "185c"])):
+        don = Order(order_no=f"DH-BG-KK-{i}")
+        don.lines.append(OrderLine(description="Hộp", qty=1000))
+        nen.db.add(don)
+        nen.db.flush()
+        l = Lsx(ma=f"LSX-BG-KK-{i}", ten="Hộp", order_id=don.id, order_line_id=don.lines[0].id,
+                trang_thai="da_phat_hanh", so_luong_dat=1000,
+                quy_cach_json={"quy_cach_in": "mot_mat", "muc_a": muc, "muc_b": []})
+        nen.db.add(l)
+        lenh.append(l)
+    bg = BaiGhep(ma="GB-KK-1", ten="Bài ghép khoán")
+    nen.db.add(bg)
+    nen.db.flush()
+    for l in lenh:
+        nen.db.add(BaiGhepThanhVien(bai_ghep_id=bg.id, lsx_id=l.id, so_con_tren_to=2))
+    cv = nen.cv(to)
+    cv.bai_ghep_id = bg.id
+    nen.db.flush()
+    nen.ghi2(to, k, NGAY, 5000, [e], cv=cv)
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
+    tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
+    assert tien == [352_000]
+
+
 def test_dan_canh_may_chia_so_lan_chay(nen):
     to = nen.to("Tổ dán")
     e = nen.nv(to, "E")
