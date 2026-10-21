@@ -10,7 +10,7 @@ from ..models.cong_doan import CongDoanKhoan
 from ..models.department import Department
 from ..models.employee import Employee
 from ..models.lsx import Lsx
-from ..models.payroll import KhoanChiTieuNgay, KhoanToTruong
+from ..models.payroll import KhoanChiTieuNgay, KhoanDungMay, KhoanToTruong
 from ..models.san_xuat import SanXuatCongViec
 from ..models.san_xuat_san_luong import SanXuatBatch, SanXuatBatchNguoi, SanXuatBatchPhatSinh
 
@@ -49,6 +49,21 @@ class KhoanKyRepository:
                    or_(*neo))
         )
         return [(b, cv) for b, cv in self.db.execute(stmt).all()]
+
+    def dung_may_trong_khoang(self, tu: date, den: date) -> list[KhoanDungMay]:
+        """Ngày dừng máy (Đợt 2) có `ngay` trong [tu, den] — đã là ngày xưởng, không cần lọc lại."""
+        return list(self.db.scalars(select(KhoanDungMay)
+                                    .where(KhoanDungMay.ngay >= tu, KhoanDungMay.ngay <= den)
+                                    .order_by(KhoanDungMay.ngay, KhoanDungMay.id)))
+
+    def ma_sua_chua(self, ids) -> dict[int, str]:
+        from ..models.ky_thuat_may import SuaChuaMay
+
+        ids = {int(i) for i in ids or () if i}
+        if not ids:
+            return {}
+        return {int(i): m for i, m in self.db.execute(
+            select(SuaChuaMay.id, SuaChuaMay.ma).where(SuaChuaMay.id.in_(ids)))}
 
     def ten_nhan_vien(self, ids: set[int]) -> dict[int, str]:
         if not ids:

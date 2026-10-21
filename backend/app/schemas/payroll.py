@@ -895,7 +895,7 @@ class KhoanKmChiTietOut(BaseModel):
 class KhoanKyDongOut(BaseModel):
     """Một dòng làm nên tiền khoán của một người (21/10/2026): lần ghi · tăng ca khoán · tổ trưởng."""
 
-    loai: str                     # lan_ghi | tang_ca_khoan | to_truong | to_truong_tru
+    loai: str                     # lan_ghi | tang_ca_khoan | to_truong | to_truong_tru | dung_may
     batch_id: int | None = None
     ngay: str | None = None
     cong_doan: str | None = None
@@ -906,6 +906,10 @@ class KhoanKyDongOut(BaseModel):
     # Đợt 2: phần của người này theo lương ca máy (0..1) + thẻ tuỳ chọn khác 0 của lần ghi.
     ty_le: float | None = None
     tuy_chon: list[str] = []
+    # Dòng `dung_may`: lý do (tên), mã phiếu sửa máy, chỉ tiêu ngày của tổ.
+    ly_do: str | None = None
+    sua_chua: str | None = None
+    tien_ngay: float | None = None
     tien: float = 0
     ghi_chu: str | None = None
 

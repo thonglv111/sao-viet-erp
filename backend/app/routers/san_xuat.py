@@ -44,6 +44,9 @@ from ..storage import get_storage, make_key, url_from_key
 from ..tai_len import doc_gioi_han
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.san_xuat import (
+    DungMayIn,
+    DungMayListOut,
+    DungMayOut,
     BanGiaoDeXuatIn,
     BanGiaoKetQuaOut,
     BanGiaoSuaIn,
@@ -93,6 +96,7 @@ from ..services.san_xuat import (
     ban_giao,
     board,
     dong_lenh,
+    dung_may,
     kcs,
     kcs_bao_cao,
     kho,
@@ -277,6 +281,44 @@ def nhan_vien_cua_to(
         )
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+
+
+# --- Báo dừng máy (Đợt 2, 21/10/2026) — ngày dừng máy tổ ăn chỉ tiêu ngày ----------------------
+@router.get("/teams/{department_id}/dung-may", response_model=DungMayListOut)
+def dung_may_ds(
+    department_id: int,
+    nam: int,
+    thang: int,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+) -> dict:
+    """Ngày đã báo trong tháng + người của tổ + phiếu sửa máy báo trong tháng (hộp Báo dừng máy)."""
+    return _chay(lambda: dung_may.danh_sach(db, user=user, department_id=department_id,
+                                            year=nam, month=thang))
+
+
+@router.post("/teams/{department_id}/dung-may", response_model=DungMayOut)
+def bao_dung_may(
+    department_id: int,
+    body: DungMayIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+) -> dict:
+    """Tổ trưởng báo một ngày máy hư / hết hàng. Một tổ một ngày một lần."""
+    return _chay(lambda: dung_may.bao(db, user=user, department_id=department_id, ngay=body.ngay,
+                                      ly_do=body.ly_do, sua_chua_id=body.sua_chua_id,
+                                      ghi_chu=body.ghi_chu, nguoi_ids=body.nguoi_ids))
+
+
+@router.delete("/dung-may/{dung_may_id}", status_code=status.HTTP_204_NO_CONTENT,
+               response_class=Response)
+def xoa_dung_may(
+    dung_may_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+) -> Response:
+    _chay(lambda: dung_may.xoa(db, user=user, dung_may_id=dung_may_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/teams/{team_id}/ho-tro-ung-vien", response_model=HoTroUngVienListOut)

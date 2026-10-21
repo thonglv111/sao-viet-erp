@@ -1756,3 +1756,42 @@ class DongLenhKetQuaOut(BaseModel):
     da_dat: float = 0.0
     muc_tieu: float | None = None
     don_vi: str = ""
+
+
+# --- Báo dừng máy ở bàn tổ (Đợt 2, 21/10/2026) -------------------------------------------------
+class DungMayIn(BaseModel):
+    ngay: date
+    ly_do: str                          # may_hu | het_hang
+    sua_chua_id: int | None = None      # phiếu sửa máy, khi Máy hư
+    ghi_chu: str | None = None
+    nguoi_ids: list[int] = []           # người hưởng — tổ trưởng tick
+
+
+class DungMayNguoiOut(BaseModel):
+    employee_id: int
+    ho_ten: str = ""
+
+
+class DungMayOut(BaseModel):
+    id: int
+    department_id: int
+    ngay: date
+    ly_do: str
+    ly_do_ten: str
+    sua_chua_id: int | None = None
+    sua_chua_ma: str | None = None
+    ghi_chu: str | None = None
+    nguoi: list[DungMayNguoiOut] = []
+
+
+class PhieuSuaChonOut(BaseModel):
+    id: int
+    ma: str
+    may_ten: str | None = None
+    bo_phan_hong: str | None = None
+
+
+class DungMayListOut(BaseModel):
+    ds: list[DungMayOut] = []
+    nguoi: list[DungMayNguoiOut] = []
+    phieu_sua: list[PhieuSuaChonOut] = []

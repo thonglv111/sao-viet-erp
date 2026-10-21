@@ -29,6 +29,10 @@ Giả định (plan 21/10/2026, chờ chủ duyệt):
      tăng ca khoán) của tổ + mọi tổ con. Ăn chia: mọi phần × (1 − tỷ lệ), tổ trưởng + tỷ lệ × quỹ.
      Ăn thưởng: tổ trưởng + tỷ lệ × quỹ, không ai bị trừ.
 
+Ngày dừng máy (Đợt 2, `khoan_dung_may`): tổ ăn chỉ tiêu ngày, chia cho người tổ trưởng tick theo
+lương ca máy; cộng thêm nếu hôm đó vẫn có lần ghi. Tiền này KHÔNG vào quỹ ngày so chỉ tiêu (tăng
+ca khoán) và KHÔNG vào quỹ tổ trưởng.
+
 Luật ngày: tổ in (`la_to_in`) bỏ sản lượng ngày CN / lễ (ngày đó ăn công ngoài phép so); tổ khác
 ngày CN trùng lễ tính GẤP ĐÔI.
 """
@@ -42,7 +46,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from ..models.payroll import TO_TRUONG_CHIA, TO_TRUONG_THUONG
+from ..models.payroll import LY_DO_DUNG_MAY, TO_TRUONG_CHIA, TO_TRUONG_THUONG
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.calendar_repo import CalendarRepository
 from ..repositories.khoan_ky_repo import KhoanKyRepository
@@ -302,6 +306,39 @@ class KhoanKyService:
                     "ghi_chu": f"tổ làm {_vnd(quy)} đ, chỉ tiêu {_vnd(ct)} đ/ngày — 50% phần vượt",
                 })
 
+        # --- Ngày dừng máy: tổ ăn chỉ tiêu ngày ----------------------------------------
+        them_dm: dict[int, float] = defaultdict(float)
+        dm = self.repo.dung_may_trong_khoang(dau, cuoi)
+        ma_sc = self.repo.ma_sua_chua({r.sua_chua_id for r in dm})
+        ten_nv.update(self.repo.ten_nhan_vien(
+            {int(e) for r in dm for e in (r.nguoi_ids or [])} - set(ten_nv)))
+        for r in dm:
+            to, ngay_s = int(r.department_id), r.ngay.strftime("%d/%m")
+            muc_ngay = chi_tieu(to, r.ngay)
+            if muc_ngay <= 0:
+                canh_bao.append(f"Tổ {ten_to(to)} chưa khai chỉ tiêu ngày — ngày dừng máy {ngay_s} "
+                                f"chưa tính.")
+                continue
+            ds = [int(e) for e in (r.nguoi_ids or [])]
+            w = {e: _so(muc.luong_ca_may.get(e)) for e in ds}
+            chua = [ten_nv.get(e, f"#{e}") for e, v in w.items() if v <= 0]
+            if not ds or chua:
+                thieu.append({"batch_id": None, "cong_doan": "Dừng máy", "to": ten_to(to), "ngay": ngay_s,
+                              "ly_do": (f"{', '.join(chua)} chưa có lương ca máy" if chua
+                                        else "chưa chọn người hưởng")})
+                continue
+            tong_w = sum(w.values())
+            for e in ds:
+                t = muc_ngay * w[e] / tong_w
+                them_dm[e] += t
+                chi_tiet[e].append({
+                    "loai": "dung_may", "ngay": r.ngay.isoformat(), "to": ten_to(to),
+                    "ly_do": LY_DO_DUNG_MAY.get(r.ly_do, r.ly_do),
+                    "sua_chua": ma_sc.get(int(r.sua_chua_id)) if r.sua_chua_id else None,
+                    "ghi_chu": r.ghi_chu, "tien_ngay": round(muc_ngay), "so_nguoi": len(ds),
+                    "ty_le": round(w[e] / tong_w, 3), "tien": round(t),
+                })
+
         # --- Tổ trưởng ăn chia / ăn thưởng ---------------------------------------------
         con: dict[int, list[int]] = defaultdict(list)
         for dep in pb.values():
@@ -359,6 +396,8 @@ class KhoanKyService:
         for p in phan:
             khoan[p[0]] += p[4]
         for emp, t in them_tt.items():
+            khoan[emp] += t
+        for emp, t in them_dm.items():
             khoan[emp] += t
         return {
             "khoan": {e: round(v) for e, v in khoan.items() if round(v) != 0},
