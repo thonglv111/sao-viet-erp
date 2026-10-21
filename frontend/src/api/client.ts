@@ -2016,6 +2016,8 @@ export interface SxBatch {
   viec_khoan_don_vi: string | null;
   viec_khoan_don_vi_ten: string | null;
   viec_khoan_don_gia: number | null;
+  /** Tuỳ chọn khi ghi đã chọn (Đợt 2); null = công đoạn không khai / lần ghi trước Đợt 2. */
+  tuy_chon_khoan?: SxTuyChonLanGhi[] | null;
   /** Việc phát sinh đã ghi — KHÔNG cộng vào sản lượng. */
   phat_sinh: SxMePhatSinh[];
   /** Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = còn khớp. */
@@ -2045,6 +2047,10 @@ export interface SxViecPhatSinhChon {
   /** Tổ của việc vắng trong bảng giá theo tổ của việc phát sinh (21/10/2026). */
   thieu_gia?: boolean;
 }
+/** Một "tuỳ chọn khi ghi" công đoạn khai (Đợt 2): Có / không ⇒ ô tick, Số ⇒ ô số. */
+export interface SxTuyChonKhai { ma: string; ten: string; kieu: "co_khong" | "so"; goi_y: string | null }
+/** Ảnh chụp tuỳ chọn của MỘT lần ghi (giá trị thợ chọn lúc ghi / sửa số). */
+export interface SxTuyChonLanGhi { ma: string; ten: string; kieu: string; gia_tri: number }
 /** Cấu hình Khoán cố định của công đoạn. Không có thao tác chọn nguồn trong lúc ghi mẻ. */
 export interface SxKhoanCongDoan {
   id: number;
@@ -2056,6 +2062,7 @@ export interface SxKhoanCongDoan {
   /** Giá theo tổ (21/10/2026): `don_gia` + giá cố định là giá CỦA TỔ làm việc này. */
   gia_co_dinh?: number;
   thieu_gia?: boolean;
+  tuy_chon?: SxTuyChonKhai[];
 }
 export interface SxNguoiThamGiaBatch {
   employee_id: number;
@@ -2489,6 +2496,8 @@ export interface SxBatchIn {
   phat_sinh?: { phat_sinh_id: number; so_luong: number }[];
   /** Người TỔ MÌNH tick làm lần này; người hỗ trợ máy chủ tự thêm. */
   nguoi_ids?: number[];
+  /** Tuỳ chọn khi ghi `{ma: giá trị}` — thiếu mã là 0. */
+  tuy_chon?: Record<string, number>;
 }
 export interface SxBanGiaoDeXuatIn {
   dich_cong_viec_id: number;           // một trong các chặng sau theo routing
@@ -2503,6 +2512,8 @@ export interface SxSuaSoMeIn {
   tot: number; ly_do?: string | null; expected_version?: number | null;
   /** Người tổ mình làm lần đó; bỏ trống = không đổi. */
   nguoi_ids?: number[];
+  /** Tuỳ chọn khi ghi; bỏ trống = không đổi. */
+  tuy_chon?: Record<string, number>;
 }
 
 // ── KCS theo LỆNH (mg 0306, docs/design-kcs-theo-lenh.md) ─────────────────────

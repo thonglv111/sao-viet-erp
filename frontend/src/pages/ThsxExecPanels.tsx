@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import type {
   SxWorkItemChiTiet, SxBatch, SxBanGiao, SxBanGiaoChangSau, SxHoTroUngVien,
   SxBatchIn, SxBanGiaoDeXuatIn, SxBanGiaoSuaIn, SxSuaSoMeIn,
-  SxKhoanCongDoan, SxViecPhatSinhChon, SxNguoiGhi, SxViecNgan,
+  SxKhoanCongDoan, SxViecPhatSinhChon, SxNguoiGhi, SxViecNgan, SxTuyChonKhai, SxTuyChonLanGhi,
   SxKetQuaNhanh, SxSuCoIn, SxVatTuCap, SxVatTuCapLan, SxVatTuCapDoiChieu, SxVatTuNhapLai, SxPhieuXuatVatTu,
   SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxVatTuNhapLaiIn, SxVatTuCapKeHoach, SxWorkItem, HangLoai,
 } from "../api/client";
@@ -280,6 +280,7 @@ function SanLuongSection({
           <ul>
             {sl.batches.map((b) => (
               <BatchRow key={b.id} b={b} lan={lan.get(b.id)} dvt={chiTiet.cong_viec.don_vi_tinh} canAssign={canAssign} canSuaSo={canSuaSo} busy={busy} exec={exec}
+                tuyChon={chiTiet.khoan?.tuy_chon ?? []}
                 tranGhi={chiTiet.tran_ghi ?? null} nguoiGhi={chiTiet.nguoi_ghi ?? []} toKhac={toKhac}
                 banGiao={chiTiet.ban_giao_di.find((g) => g.batch_ids.includes(b.id)) ?? null} />
             ))}
@@ -305,6 +306,62 @@ function giaKhoan(v: {
   if (v.thieu_gia) return "tổ chưa có giá";
   const dv = `${num(v.don_gia)} đ một ${v.don_vi_ten ?? nhanDonVi(v.don_vi)}`;
   return v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi + ${dv}` : dv;
+}
+
+/** Thẻ tuỳ chọn khác 0 của lần ghi — cùng chữ ngăn soi lương (`khoan_ky._nhan_tuy_chon`):
+ *  "trùng khuôn", "3 số lỗ đục". */
+export function nhanTuyChon(ds: SxTuyChonLanGhi[] | null | undefined): string[] {
+  return (ds ?? []).filter((t) => t.gia_tri !== 0).map((t) => {
+    const ten = t.ten.toLowerCase();
+    return t.kieu === "co_khong" ? ten : `${num(t.gia_tri)} ${ten}`;
+  });
+}
+
+/** Giá trị đang chọn của từng tuỳ chọn → body `{ma: số}`. Có / không: "1" là tick. */
+export function tuyChonBody(ds: SxTuyChonKhai[], gt: Record<string, string>): Record<string, number> {
+  return Object.fromEntries(ds.map((t) => [t.ma, t.kieu === "co_khong" ? (gt[t.ma] ? 1 : 0) : toNum(gt[t.ma] ?? "")]));
+}
+
+/** Ảnh chụp của lần ghi → giá trị mở sẵn ở hộp Sửa số. */
+function tuyChonTuAnh(anh: SxTuyChonLanGhi[] | null | undefined): Record<string, string> {
+  return Object.fromEntries((anh ?? []).filter((t) => t.gia_tri !== 0)
+    .map((t) => [t.ma, t.kieu === "co_khong" ? "1" : String(t.gia_tri)]));
+}
+
+/** Khối "Tuỳ chọn lần này" (Đợt 2) — đặt trên việc phát sinh, cùng khuôn hàng với việc phát sinh. */
+function TuyChonGhi({ ds, gt, onDoi }: {
+  ds: SxTuyChonKhai[]; gt: Record<string, string>; onDoi: (gt: Record<string, string>) => void;
+}) {
+  return (
+    <div className="thsx-gm-ps">
+      <div className="thsx-gm-mo">Tuỳ chọn lần này</div>
+      <ul aria-label="Tuỳ chọn lần này">
+        {ds.map((t) => (
+          <li key={t.ma} className="thsx-gm-ps__dong">
+            <div className="thsx-gm-ps__hang">
+              {t.kieu === "co_khong" ? (
+                <label className="thsx-gm-ps__chon">
+                  <input type="checkbox" checked={!!gt[t.ma]}
+                    onChange={(e) => onDoi({ ...gt, [t.ma]: e.target.checked ? "1" : "" })} />
+                  <span>{t.ten}</span>
+                </label>
+              ) : (
+                <>
+                  <span className="thsx-gm-ps__chon">{t.ten}</span>
+                  <label className="thsx-gm-ps__o">
+                    <input type="number" min={0} step="any" inputMode="decimal" aria-label={t.ten}
+                      placeholder={t.goi_y ?? ""} value={gt[t.ma] ?? ""}
+                      onChange={(e) => onDoi({ ...gt, [t.ma]: e.target.value })} />
+                  </label>
+                </>
+              )}
+              {t.goi_y && t.kieu === "co_khong" && <span className="thsx-b-mo3">{t.goi_y}</span>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /** "đã nhận từ In 1.000 × 2 = 2.000, đã ghi 300" — CHỈ SỐ, không đơn vị (19/09/2026: mẻ chỉ ghi
@@ -355,6 +412,9 @@ export function BatchForm({
   const [ghiChu, setGhiChu] = useState("");
   // Việc phát sinh đã tick → số đang gõ. Có khoá = đã tick.
   const [psSl, setPsSl] = useState<Record<number, string>>({});
+  // Tuỳ chọn khi ghi của công đoạn (Đợt 2) → giá trị đang chọn.
+  const tuyChon = khoan?.tuy_chon ?? [];
+  const [tcGt, setTcGt] = useState<Record<string, string>>({});
   const nSoLuong = toNum(soLuong);
   // Mẻ 0 hợp lệ — ca chỉ làm việc phát sinh (thay kẽm, lên khuôn) vẫn cần mẻ để ghi nhận; nhưng ô
   // phải được GÕ (kể cả số 0), để trống thì chưa cho lưu.
@@ -388,6 +448,7 @@ export function BatchForm({
       ghi_chu: ghiChu.trim() || null,
       phat_sinh: psTick.map(([id, s]) => ({ phat_sinh_id: Number(id), so_luong: toNum(s) })),
       nguoi_ids: dsNguoi.filter((n) => !n.mo && chonNguoi.has(n.id)).map((n) => n.id),
+      ...(tuyChon.length ? { tuy_chon: tuyChonBody(tuyChon, tcGt) } : {}),
     };
     const ketQua = await exec.taoBatch(body);
     if (ketQua) onXong(ketQua);
@@ -480,6 +541,7 @@ export function BatchForm({
             <span>{khoan.ten}</span>
             <span className="thsx-gm-gia thsx-num">{giaKhoan(khoan)}</span>
           </div>
+          {tuyChon.length > 0 && <TuyChonGhi ds={tuyChon} gt={tcGt} onDoi={setTcGt} />}
           {khoan.phat_sinh.length > 0 && (
             <div className="thsx-gm-ps">
               <div className="thsx-gm-mo">Việc phát sinh, không cộng vào sản lượng</div>
@@ -750,8 +812,11 @@ const NGUOI_GON = 3;
 
 export function BatchRow({
   b, lan, canAssign, canSuaSo = false, busy, exec, tranGhi = null, banGiao = null, nguoiGhi = [], toKhac, dvt = null,
+  tuyChon = [],
 }: {
   b: SxBatch; canAssign: boolean; busy: boolean; exec: ThsxExec;
+  /** Tuỳ chọn khi ghi công đoạn đang khai — hộp Sửa số bày để sửa khi thợ tick nhầm. */
+  tuyChon?: SxTuyChonKhai[];
   /** ĐVT thành phẩm của lệnh — tên chặng "cai". */
   dvt?: string | null;
   /** Người tổ mình đang được giao — hộp Sửa số cho thêm họ vào lần ghi. */
@@ -772,7 +837,9 @@ export function BatchRow({
   // Nút chỉ gấp băng lại cho gọn trong lượt xem này; pill "danh mục đổi" ở đầu dòng vẫn treo, mở lại
   // màn thì băng hiện lại — hệ không bao giờ tự quên là số đang cũ.
   const [giuCu, setGiuCu] = useState(false);
+  const the = nhanTuyChon(b.tuy_chon_khoan);
   const coChiTiet = (b.viec_khoan_don_gia != null && !!b.viec_khoan_don_vi) || b.phat_sinh.length > 0 || !!b.ca_ten
+    || the.length > 0
     || (b.hong > 0 && !!b.mo_ta_loi) || b.su_co.length > 0 || b.lot_vao.length > 0 || !!b.ghi_chu;
   return (
     <li className={`thsx-b-me__dong${mo ? " is-mo" : ""}`}>
@@ -856,6 +923,12 @@ export function BatchRow({
                 </dd>
               </>
             )}
+            {the.length > 0 && (
+              <>
+                <dt>Tuỳ chọn</dt>
+                <dd className="thsx-b-the">{the.map((t) => <ChipTT key={t} mau="cyan" vuong>{t}</ChipTT>)}</dd>
+              </>
+            )}
             {b.phat_sinh.length > 0 && (
               <>
                 <dt>Việc phát sinh</dt>
@@ -903,7 +976,7 @@ export function BatchRow({
       )}
       {suaOpen && (
         <SuaSoMeForm b={b} lan={lan} dvt={dvt} tranGhi={tranGhi} banGiao={banGiao} busy={busy} nguoiGhi={nguoiGhi}
-          toKhac={toKhac} onXong={() => setSuaOpen(false)} exec={exec} />
+          toKhac={toKhac} tuyChon={tuyChon} onXong={() => setSuaOpen(false)} exec={exec} />
       )}
     </li>
   );
@@ -1306,7 +1379,7 @@ const LY_DO_SUA_SO = ["Đếm lại", "Gõ nhầm"];
  *  chiều giảm (dưới số KCS đã kiểm đạt, dưới số bước sau đã ghi) — câu chặn hiện nguyên văn.
  *  Cùng hộp đổi được người làm lần đó, kể cả thêm hoặc bỏ người tổ khác. */
 export function SuaSoMeForm({
-  b, lan, tranGhi, banGiao, busy, nguoiGhi = [], toKhac, onXong, exec, dvt = null,
+  b, lan, tranGhi, banGiao, busy, nguoiGhi = [], toKhac, onXong, exec, dvt = null, tuyChon = [],
 }: {
   b: SxBatch; tranGhi: SxTranGhi | null; banGiao: SxBanGiao | null; busy: boolean;
   dvt?: string | null;
@@ -1317,7 +1390,13 @@ export function SuaSoMeForm({
   nguoiGhi?: SxNguoiGhi[];
   /** Thợ tổ khác — thêm được vào lần ghi. */
   toKhac?: NguoiToKhac;
+  /** Tuỳ chọn khi ghi công đoạn đang khai; giá trị mở sẵn từ ảnh chụp của lần ghi. */
+  tuyChon?: SxTuyChonKhai[];
 }) {
+  const [tcGt, setTcGt] = useState<Record<string, string>>(() => tuyChonTuAnh(b.tuy_chon_khoan));
+  const tcCu = tuyChonBody(tuyChon, tuyChonTuAnh(b.tuy_chon_khoan));
+  const tcMoi = tuyChonBody(tuyChon, tcGt);
+  const tcDoi = tuyChon.some((t) => tcCu[t.ma] !== tcMoi[t.ma]);
   const nguoiCu = b.nguoi_tham_gia ?? [];
   const idCu = nguoiCu.map((n) => n.employee_id);
   const [themNguoi, setThemNguoi] = useState<NguoiLam[]>([]);
@@ -1342,7 +1421,7 @@ export function SuaSoMeForm({
   const vuotTran = toiDa != null && nSo > toiDa + 0.0005;
   const veKhong = banGiao != null && daGo && nSo <= 0.0005;
   // Lần ghi cũ chưa có ai (gia công ngoài, dữ liệu rỗng) vẫn sửa số được; chỉ chặn khi tổ bỏ tick hết.
-  const hopLe = daGo && nSo >= 0 && (Math.abs(chenhLech) > 0.0005 || nguoiDoi) && !vuotTran && !veKhong
+  const hopLe = daGo && nSo >= 0 && (Math.abs(chenhLech) > 0.0005 || nguoiDoi || tcDoi) && !vuotTran && !veKhong
     && (!nguoiDoi || soNguoi > 0);
   const sang = banGiao ? (banGiao.dich_cong_doan ?? banGiao.doi_tac_ten) : null;
   const benNhan = banGiao ? (banGiao.dich_to ?? banGiao.doi_tac_ten ?? "bên nhận") : "";
@@ -1352,6 +1431,7 @@ export function SuaSoMeForm({
     const body: SxSuaSoMeIn = {
       tot: nSo, ly_do: lyDo.trim() || null, expected_version: b.version,
       ...(nguoiDoi ? { nguoi_ids: [...chonNguoi] } : {}),
+      ...(tcDoi ? { tuy_chon: tcMoi } : {}),
     };
     if (await exec.suaSoMe(b.id, body)) onXong();
   }
@@ -1409,6 +1489,8 @@ export function SuaSoMeForm({
       <NguoiLamChon ds={dsNguoi} chon={chonNguoi} onDoi={setChonNguoi} baoThieu={nguoiDoi}
         toKhac={toKhac} ngay={toDtLocal(b.bat_dau).slice(0, 10)}
         onThem={(n) => { setThemNguoi((cu) => [...cu, n]); setChonNguoi((cu) => new Set(cu).add(n.id)); }} />
+
+      {tuyChon.length > 0 && <TuyChonGhi ds={tuyChon} gt={tcGt} onDoi={setTcGt} />}
 
       <div className="thsx-f">
         <label className="thsx-f__n" htmlFor={`ss-ld-${b.id}`}>Lý do sửa</label>

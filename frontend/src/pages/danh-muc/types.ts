@@ -257,10 +257,17 @@ export interface ViecPhatSinhRow {
 /** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). */
 export interface GiaTheoToRow { department_id: number; gia_co_dinh?: number | null; don_gia?: number | null }
 
+/** Một "tuỳ chọn khi ghi" của công đoạn (Đợt 2): thợ tick (Có / không = 1/0) hoặc gõ số ở từng lần
+ *  ghi; `ma` là chip trong ô Công thức khoán. */
+export interface TuyChonKhoanRow { ma: string; ten: string; kieu: "co_khong" | "so"; goi_y: string | null }
+
 export interface KhoanCongDoanValue {
   id?: number;
   unit?: string;
   unit_price?: number | null;
+  /** Giá cố định chung (Đợt 2) — bảng giá theo tổ rỗng thì mọi tổ dùng cả hai giá chung. */
+  gia_co_dinh?: number | null;
+  tuy_chon?: TuyChonKhoanRow[];
   cong_thuc_khoan?: string | null;
   /** Rỗng/null = mọi tổ dùng giá chung; có dòng thì tổ vắng mặt = thiếu giá. */
   gia_theo_to?: GiaTheoToRow[] | null;

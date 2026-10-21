@@ -1,8 +1,9 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SxWorkItemChiTiet } from "../api/client";
-import { BatchForm, type ThsxExec } from "./ThsxExecPanels";
+import { BatchForm, nhanTuyChon, type ThsxExec } from "./ThsxExecPanels";
 
 const cv = {
   id: 1, department_id: 7, ten_cong_doan: "Cắt thành phẩm", loai_buoc: "to",
@@ -68,3 +69,57 @@ describe("Ghi mẻ lấy Khoán cố định từ Công đoạn", () => {
   });
 });
 
+describe("Tuỳ chọn khi ghi (Đợt 2)", () => {
+  it("tick Có / không, gõ số rồi Ghi ⇒ body có tuy_chon", async () => {
+    const user = userEvent.setup();
+    const taoBatch = vi.fn().mockResolvedValue([]);
+    render(<BatchForm
+      cv={cv}
+      khoan={{
+        id: 9, ten: "Bế", don_gia: 25, don_vi: "to", don_vi_ten: "tờ", phat_sinh: [],
+        tuy_chon: [
+          { ma: "trung_khuon", ten: "Trùng khuôn", kieu: "co_khong", goi_y: null },
+          { ma: "so_lo", ten: "Số lỗ đục", kieu: "so", goi_y: "1 đến 4" },
+        ],
+      }}
+      busy={false}
+      tranGhi={null}
+      nguoiGhi={[{ employee_id: 5, ho_ten: "An", nghi: null, dang_o: [], tick_san: true }]}
+      onXong={vi.fn()}
+      exec={{ taoBatch } as unknown as ThsxExec}
+    />);
+    expect(screen.getByPlaceholderText("1 đến 4")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Số lượng làm được"), "500");
+    await user.click(screen.getByLabelText("Trùng khuôn"));
+    await user.type(screen.getByLabelText("Số lỗ đục"), "3");
+    await user.click(screen.getByRole("button", { name: "Ghi sản lượng" }));
+    expect(taoBatch).toHaveBeenCalledTimes(1);
+    expect(taoBatch.mock.calls[0][0].tuy_chon).toEqual({ trung_khuon: 1, so_lo: 3 });
+  });
+
+  it("công đoạn không khai tuỳ chọn ⇒ không có khối, body không có tuy_chon", async () => {
+    const user = userEvent.setup();
+    const taoBatch = vi.fn().mockResolvedValue([]);
+    render(<BatchForm
+      cv={cv}
+      khoan={{ id: 9, ten: "Bế", don_gia: 25, don_vi: "to", don_vi_ten: "tờ", phat_sinh: [] }}
+      busy={false}
+      tranGhi={null}
+      nguoiGhi={[{ employee_id: 5, ho_ten: "An", nghi: null, dang_o: [], tick_san: true }]}
+      onXong={vi.fn()}
+      exec={{ taoBatch } as unknown as ThsxExec}
+    />);
+    expect(screen.queryByText("Tuỳ chọn lần này")).toBeNull();
+    await user.type(screen.getByLabelText("Số lượng làm được"), "500");
+    await user.click(screen.getByRole("button", { name: "Ghi sản lượng" }));
+    expect(taoBatch.mock.calls[0][0]).not.toHaveProperty("tuy_chon");
+  });
+
+  it("thẻ ở lần ghi cùng chữ ngăn soi, bỏ mục bằng 0", () => {
+    expect(nhanTuyChon([
+      { ma: "trung_khuon", ten: "Trùng khuôn", kieu: "co_khong", gia_tri: 1 },
+      { ma: "so_lo", ten: "Số lỗ đục", kieu: "so", gia_tri: 3 },
+      { ma: "phu", ten: "Phủ", kieu: "co_khong", gia_tri: 0 },
+    ])).toEqual(["trùng khuôn", "3 số lỗ đục"]);
+  });
+});
