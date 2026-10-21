@@ -2910,12 +2910,12 @@ ca máy. Tiền này không vào quỹ so chỉ tiêu (tăng ca khoán) và khô
 | `sua_chua_id`   | `Integer`      | **FK→ky_thuat_sua_chua.id**           | yes  | —       | Phiếu sửa máy kèm theo (SET NULL khi phiếu bị xoá). |
 | `ghi_chu`       | `Text`         | —                                     | yes  | —       | Ghi chú tự do. |
 | `nguoi_ids`     | `JSON`         | —                                     | no   | `[]`    | Danh sách `employees.id` hưởng ngày dừng máy (tổ trưởng tick). |
-| `created_by`    | `Integer`      | **FK→users.id**                       | yes  | —       | Người báo (SET NULL). |
+| `created_by`    | `Integer`      | **FK→users.id**                       | yes  | —       | Người báo (CASCADE như mọi FK tới users, mg `0432`). |
 | `created_at`    | `DateTime(tz)` | —                                     | no   | now     | Lúc báo. |
 
 **Keys & indexes**
 
-- Primary key: `id`. Foreign keys: `department_id FK→departments.id` (CASCADE), `sua_chua_id FK→ky_thuat_sua_chua.id` (SET NULL), `created_by FK→users.id` (SET NULL).
+- Primary key: `id`. Foreign keys: `department_id FK→departments.id` (CASCADE), `sua_chua_id FK→ky_thuat_sua_chua.id` (SET NULL), `created_by FK→users.id` (CASCADE).
 - Unique: `(department_id, ngay)` — `uq_khoan_dung_may_to_ngay`.
 - Index: `ix_khoan_dung_may_department_id`.
 

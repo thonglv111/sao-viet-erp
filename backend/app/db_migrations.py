@@ -18947,3 +18947,6 @@ def _migrate_chup_cong_thuc_khoan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0431_chup_cong_thuc_khoan", _migrate_chup_cong_thuc_khoan))
+# 0432 (21/10/2026) — `khoan_dung_may.created_by` (mg 0430) lỡ tạo ON DELETE SET NULL, trái luật mg
+# 0327 "mọi FK tới users đều CASCADE". Chạy lại đúng hàm 0327: nó chỉ đổi FK chưa CASCADE, idempotent.
+MIGRATIONS.append(("0432_khoan_dung_may_fk_user_cascade", _migrate_user_fks_delete_cascade))

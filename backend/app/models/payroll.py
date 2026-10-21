@@ -632,7 +632,7 @@ class KhoanDungMay(Base):
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
     nguoi_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_by: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
