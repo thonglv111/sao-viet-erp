@@ -189,14 +189,22 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      (LOAI_QUY_DOI,)),
 )
 
-# Ba chip CHỈ ô Công thức khoán có — số của chính LẦN GHI, `khoan_ky` bơm lúc tính tiền kỳ lương.
+# Chip CHỈ ô Công thức khoán có — số của chính LẦN GHI, `khoan_ky` bơm lúc tính tiền kỳ lương.
+# Đợt 2 (21/10/2026): gỡ `sl_tot` (chủ: một chip số lượng duy nhất), thêm `so_lan_chay` / `tien_gio`
+# / `tu_tro`. Tuỳ chọn khi ghi của từng công đoạn là chip riêng, không nằm ở bảng này.
 _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
-    ("sl_ghi", "SL ghi", "Tổng số thợ ghi ở lần ghi (tốt + hỏng)", "đơn vị của lần ghi",
-     "ô Tổng của lần ghi sản lượng", (LOAI_KHOAN,)),
-    ("sl_tot", "SL tốt", "Số tốt của lần ghi", "đơn vị của lần ghi",
-     "ô Tốt của lần ghi sản lượng", (LOAI_KHOAN,)),
-    ("gia_co_dinh", "Giá cố định", "Giá cố định của TỔ ghi (vd giá một bài in)", "đ",
-     "bảng Giá theo tổ ở tab Khoán của công đoạn — ảnh chụp lúc ghi", (LOAI_KHOAN,)),
+    ("sl_ghi", "SL ghi", "Số lượng thợ ghi ở lần ghi — cột Số lượng của bàn tổ", "đơn vị của lần ghi",
+     "ô Số lượng của lần ghi sản lượng", (LOAI_KHOAN,)),
+    ("gia_co_dinh", "Giá cố định", "Giá cố định của tổ ghi (vd giá một bài in)", "đ",
+     "Giá cố định chung hoặc bảng Giá theo tổ — ảnh chụp lúc ghi", (LOAI_KHOAN,)),
+    ("so_lan_chay", "Số lần chạy",
+     "Số lần ghi của cùng lệnh ở cùng công đoạn tính tới cuối kỳ lương, tối thiểu 1", "lần",
+     "đếm lần ghi lúc tính lương", (LOAI_KHOAN,)),
+    ("tien_gio", "Tiền giờ",
+     "Σ người làm (lương vị trí + trách nhiệm) ÷ 26 ÷ 8 × số giờ lần ghi", "đ",
+     "hồ sơ lương + giờ bắt đầu / kết thúc của lần ghi", (LOAI_KHOAN,)),
+    ("tu_tro", "Tự trở", "1 khi quy cách in là tự trở hoặc trở nhíp, ngược lại 0", "0/1",
+     "quy cách in của lệnh (bài ghép lấy của bài)", (LOAI_KHOAN,)),
 )
 
 BIEN: tuple[dict, ...] = tuple(

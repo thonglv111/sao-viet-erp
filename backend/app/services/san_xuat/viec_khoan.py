@@ -48,11 +48,11 @@ def _anh_chup(ten, don_vi, don_gia, gia_co_dinh=None) -> dict:
 def gia_cua_to(khoan, department_id: int | None) -> tuple[float | None, float | None]:
     """(giá cố định, đơn giá) của MỘT tổ cho cấu hình Khoán của công đoạn.
 
-    Bảng giá theo tổ rỗng ⇒ mọi tổ dùng giá chung (giá cố định 0). Đã khai dòng nào thì tổ vắng
-    mặt là THIẾU GIÁ ⇒ `(None, None)` — không lấy giá chung đoán thay."""
+    Bảng giá theo tổ rỗng ⇒ mọi tổ dùng cả hai giá chung (giá cố định chung, Đợt 2). Đã khai dòng
+    nào thì tổ vắng mặt là THIẾU GIÁ ⇒ `(None, None)` — không lấy giá chung đoán thay."""
     bang = khoan.gia_theo_to or []
     if not bang:
-        return 0.0, float(khoan.unit_price)
+        return float(khoan.gia_co_dinh or 0), float(khoan.unit_price)
     for r in bang:
         if department_id is not None and int(r.get("department_id") or 0) == int(department_id):
             don_gia = r.get("don_gia")

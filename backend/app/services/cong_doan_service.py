@@ -4,12 +4,15 @@ Thân CRUD dùng chung ở `services/catalog_base.CatalogService`; ở đây ch�
 """
 from __future__ import annotations
 
+import keyword
+import re
+
 from ..models.cong_doan import (
     CHE_DO_TINH, DON_VI_BAC, KIEU_BU_HAO, NHOM, PRICING_BASIS, TOOLING_TYPE, CongDoan,
 )
 from ..models.don_vi_do import TRAM_DONG_GIAY, tram_chay_xuoi
 from ..repositories.cong_doan_repo import CongDoanRepository
-from .bien_cong_thuc import LOAI_CONG_DOAN, LOAI_KHOAN, LOAI_QUY_DOI
+from .bien_cong_thuc import BIEN, LOAI_CONG_DOAN, LOAI_KHOAN, LOAI_QUY_DOI, TEN_HAM_CAM
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogService, CatalogValidationError,
 )
@@ -76,6 +79,16 @@ class CongDoanService(CatalogService):
             k["unit"] = (str(k.get("unit") or "").strip().lower()) or None
             k["cong_thuc_khoan"] = (str(k.get("cong_thuc_khoan") or "").strip()) or None
             k["gia_theo_to"] = _gia_theo_to_sach(k.get("gia_theo_to"), co_dinh=True)
+            k["gia_co_dinh"] = float(k.get("gia_co_dinh") or 0)
+            k["tuy_chon"] = [
+                {
+                    "ma": str(t.get("ma") or "").strip().lower(),
+                    "ten": " ".join(str(t.get("ten") or "").split()),
+                    "kieu": t.get("kieu") or "co_khong",
+                    "goi_y": (" ".join(str(t.get("goi_y") or "").split())) or None,
+                }
+                for t in (k.get("tuy_chon") or [])
+            ]
             k["viec_phat_sinh"] = [
                 {
                     **dict(r),
@@ -97,6 +110,8 @@ class CongDoanService(CatalogService):
             "unit_price": float(goc.khoan.unit_price),
             "cong_thuc_khoan": goc.khoan.cong_thuc_khoan,
             "gia_theo_to": goc.khoan.gia_theo_to,
+            "gia_co_dinh": float(goc.khoan.gia_co_dinh or 0),
+            "tuy_chon": goc.khoan.tuy_chon or [],
             "viec_phat_sinh": [
                 {"ten": v.ten, "don_gia": float(v.don_gia), "don_vi": v.don_vi,
                  "gia_theo_to": v.gia_theo_to}
@@ -325,8 +340,35 @@ class CongDoanService(CatalogService):
                     f'Đơn vị tính của việc phát sinh "{ten}" không có trong danh mục Đơn vị & quy đổi.')
             self._kiem_gia_theo_to(r.get("gia_theo_to"), nhan=f'việc phát sinh "{ten}"')
         self._kiem_gia_theo_to(k.get("gia_theo_to"), nhan="công đoạn")
-        # Công thức chạy THẬT ở lần ghi sản lượng (`khoan_ky`, 21/10/2026) — soi bằng bộ chip ô khoán.
-        self._kiem_o(k.get("cong_thuc_khoan"), nhan="Công thức khoán", loai=LOAI_KHOAN)
+        if float(k.get("gia_co_dinh") or 0) < 0:
+            raise CongDoanValidationError("Giá cố định chung không được âm.")
+        tuy_chon = k.get("tuy_chon") or []
+        self._kiem_tuy_chon(tuy_chon)
+        # Công thức chạy THẬT ở lần ghi sản lượng (`khoan_ky`, 21/10/2026) — soi bằng bộ chip ô khoán
+        # cộng chip của tuỳ chọn khi ghi (Đợt 2).
+        self._kiem_o(k.get("cong_thuc_khoan"), nhan="Công thức khoán", loai=LOAI_KHOAN,
+                     bien_them=[t["ma"] for t in tuy_chon])
+
+    @staticmethod
+    def _kiem_tuy_chon(rows: list[dict]) -> None:
+        """Tuỳ chọn khi ghi (Đợt 2): tên không trống; mã là tên biến hợp lệ, không trùng chip hệ
+        thống / tên hàm / tuỳ chọn khác của cùng công đoạn — trùng là công thức hiểu sai biến."""
+        da_co: set[str] = set()
+        for i, t in enumerate(rows, start=1):
+            ten, ma = t.get("ten") or "", t.get("ma") or ""
+            if not ten:
+                raise CongDoanValidationError(f"Tên tuỳ chọn khi ghi (dòng {i}) không được trống.")
+            if ma in TEN_HAM_CAM or keyword.iskeyword(ma) or ma in {b["ma"] for b in BIEN}:
+                raise CongDoanValidationError(
+                    f'Mã tuỳ chọn "{ma}" trùng chip có sẵn hoặc tên hàm — đặt mã khác.')
+            if not re.fullmatch(r"[a-z][a-z0-9_]*", ma):
+                raise CongDoanValidationError(
+                    f'Mã tuỳ chọn "{ma or ten}" chỉ gồm chữ thường không dấu, số và dấu gạch dưới.')
+            if ma in da_co:
+                raise CongDoanValidationError(f'Mã tuỳ chọn "{ma}" bị trùng giữa hai tuỳ chọn.')
+            if t.get("kieu") not in ("co_khong", "so"):
+                raise CongDoanValidationError(f'Kiểu của tuỳ chọn "{ten}" không hợp lệ.')
+            da_co.add(ma)
 
     def _kiem_gia_theo_to(self, rows: list[dict] | None, *, nhan: str) -> None:
         """Bảng giá theo tổ: mỗi tổ một dòng, tổ phải có thật, giá không âm, phải có đơn giá."""
@@ -353,11 +395,11 @@ class CongDoanService(CatalogService):
                         f"Bảng giá theo tổ của {nhan}: {chu} của tổ {ten[dep]} không được âm.")
 
     @staticmethod
-    def _kiem_o(cong_thuc: str | None, *, nhan: str, loai: str) -> None:
+    def _kiem_o(cong_thuc: str | None, *, nhan: str, loai: str, bien_them=()) -> None:
         """Một ô công thức — xem `thanh_phan_engine.kiem_cong_thuc`. Đổi sang họ lỗi của màn này
         để `loi_http` trả 422 kèm câu chữ cho người khai, không lọt thành 500."""
         try:
-            kiem_cong_thuc(cong_thuc, nhan=nhan, loai=loai)
+            kiem_cong_thuc(cong_thuc, nhan=nhan, loai=loai, bien_them=bien_them)
         except ValueError as e:
             raise CongDoanValidationError(str(e)) from e
 

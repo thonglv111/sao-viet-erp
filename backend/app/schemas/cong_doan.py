@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .loc_danh_muc import DemDieuKien
 
@@ -64,11 +65,23 @@ class CongDoanKhoanPhatSinhRow(CongDoanKhoanPhatSinhIn):
     id: int
 
 
+class TuyChonKhoanIn(BaseModel):
+    """Một tuỳ chọn khi ghi (Đợt 2, 21/10/2026): thợ tick (`co_khong` ⇒ 1/0) hoặc gõ số (`so`) ở
+    từng lần ghi; `ma` là chip của ô Công thức khoán."""
+    ma: str = Field(default="", max_length=40)
+    ten: str = Field(default="", max_length=80)
+    kieu: Literal["co_khong", "so"] = "co_khong"
+    goi_y: str | None = Field(default=None, max_length=80)
+
+
 class CongDoanKhoanIn(BaseModel):
     unit: str | None = Field(default=None, max_length=24)
     unit_price: float | None = None
+    # Giá cố định CHUNG (Đợt 2) — bảng giá theo tổ trống thì mọi tổ dùng.
+    gia_co_dinh: float | None = None
     cong_thuc_khoan: str | None = None
     gia_theo_to: list[GiaTheoToIn] | None = None
+    tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)
     viec_phat_sinh: list[CongDoanKhoanPhatSinhIn] = Field(default_factory=list)
 
 
@@ -77,9 +90,16 @@ class CongDoanKhoanRow(BaseModel):
     id: int
     unit: str
     unit_price: float
+    gia_co_dinh: float = 0.0
     cong_thuc_khoan: str | None = None
     gia_theo_to: list[GiaTheoToIn] | None = None
+    tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)
     viec_phat_sinh: list[CongDoanKhoanPhatSinhRow] = Field(default_factory=list)
+
+    @field_validator("tuy_chon", mode="before")
+    @classmethod
+    def _tuy_chon_null(cls, v):
+        return v or []
 
 
 class CongDoanIn(BaseModel):
