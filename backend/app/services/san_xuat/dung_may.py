@@ -55,7 +55,8 @@ def _gate(db: Session, user, department_id: int) -> DungMayRepository:
 
 
 def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -> dict:
-    """Ngày đã báo trong tháng + người của tổ (bộ tick sẵn) + phiếu sửa máy báo trong tháng."""
+    """Ngày đã báo trong tháng + người của tổ (bộ tick sẵn) + phiếu sửa báo trong tháng của MÁY CỦA TỔ
+    (`repo.may_cua_to`) + kỳ lương đã chốt."""
     repo = _gate(db, user, department_id)
     dau = date(year, month, 1)
     cuoi = date(year, month, _cal.monthrange(year, month)[1])
@@ -72,7 +73,7 @@ def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -
         "ds": [_dong(r, ten, ma_sc) for r in ds],
         "nguoi": [{"employee_id": int(e.id), "ho_ten": e.full_name} for e in nguoi],
         "phieu_sua": [{"id": sc.id, "ma": sc.ma, "may_ten": may_ten, "bo_phan_hong": sc.bo_phan_hong}
-                      for sc, may_ten in repo.phieu_sua_trong_khoang(tu, den)],
+                      for sc, may_ten in repo.phieu_sua_trong_khoang(tu, den, repo.may_cua_to(department_id))],
     }
 
 
@@ -92,8 +93,12 @@ def _kiem(repo: DungMayRepository, department_id: int, *, ly_do: str, sua_chua_i
         raise ValueError("Người hưởng không thuộc tổ: "
                          + ", ".join(ten_ngoai.get(i, f"#{i}") for i in ngoai) + ".")
     ten = {i: ten[i] for i in ids}
-    if sua_chua_id is not None and repo.sua_chua(int(sua_chua_id)) is None:
-        raise ValueError("Không tìm thấy phiếu sửa máy đã chọn.")
+    if sua_chua_id is not None:
+        sc = repo.sua_chua(int(sua_chua_id))
+        if sc is None:
+            raise ValueError("Không tìm thấy phiếu sửa máy đã chọn.")
+        if int(sc.may_id) not in repo.may_cua_to(department_id):
+            raise ValueError(f"Phiếu {sc.ma} là của máy không phải máy của tổ.")
     return ids, ten
 
 

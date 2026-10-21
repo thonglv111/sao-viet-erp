@@ -10,6 +10,7 @@ from ..models.department import Department
 from ..models.employee import STATUS_RESIGNED, Employee
 from ..models.ky_thuat_may import SuaChuaMay
 from ..models.may_thiet_bi import MayThietBi
+from ..models.san_xuat import SanXuatCongViec
 from ..models.payroll import PERIOD_LOCKED, PERIOD_PAID, KhoanDungMay, PayrollPeriod
 
 
@@ -74,12 +75,24 @@ class DungMayRepository:
         return {int(i): m for i, m in self.db.execute(
             select(SuaChuaMay.id, SuaChuaMay.ma).where(SuaChuaMay.id.in_(ids)))}
 
-    def phieu_sua_trong_khoang(self, tu: datetime, den: datetime) -> list[tuple[SuaChuaMay, str | None]]:
-        """Phiếu sửa máy báo trong [tu, den) kèm tên máy — máy chưa gắn tổ nên lọc theo thời gian."""
+    def may_cua_to(self, department_id: int) -> set[int]:
+        """Máy của tổ. Danh mục máy không có cột tổ, nên suy từ việc: máy mà các việc tổ đã nhận gắn
+        (`san_xuat_cong_viec.may_id`, chép từ xếp lịch lúc phát hành) — tổ chạy việc trên máy đó thật.
+        Tổ chưa nhận việc nào có máy ⇒ rỗng."""
+        return {int(m) for m in self.db.scalars(
+            select(SanXuatCongViec.may_id).distinct()
+            .where(SanXuatCongViec.department_id == department_id, SanXuatCongViec.may_id.is_not(None)))}
+
+    def phieu_sua_trong_khoang(self, tu: datetime, den: datetime,
+                               may_ids: set[int]) -> list[tuple[SuaChuaMay, str | None]]:
+        """Phiếu sửa máy báo trong [tu, den) của các máy `may_ids`, kèm tên máy."""
+        if not may_ids:
+            return []
         stmt = (
             select(SuaChuaMay, MayThietBi.ten)
             .outerjoin(MayThietBi, MayThietBi.id == SuaChuaMay.may_id)
-            .where(SuaChuaMay.thoi_diem >= tu, SuaChuaMay.thoi_diem < den)
+            .where(SuaChuaMay.thoi_diem >= tu, SuaChuaMay.thoi_diem < den,
+                   SuaChuaMay.may_id.in_(may_ids))
             .order_by(SuaChuaMay.thoi_diem.desc(), SuaChuaMay.id.desc())
         )
         return [(sc, ten) for sc, ten in self.db.execute(stmt).all()]

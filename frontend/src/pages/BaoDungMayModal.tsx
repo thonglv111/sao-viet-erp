@@ -181,7 +181,7 @@ export function BaoDungMayModal({
               <option key={p.id} value={p.id}>{[p.ma, p.may_ten].filter(Boolean).join(" ")}</option>
             ))}
           </select>
-          <span className="thsx-f__g">Phiếu sửa chữa báo trong tháng; không có thì bỏ trống.</span>
+          <span className="thsx-f__g">Phiếu sửa báo trong tháng của máy tổ đã chạy việc; không có thì bỏ trống.</span>
         </div>
       )}
 

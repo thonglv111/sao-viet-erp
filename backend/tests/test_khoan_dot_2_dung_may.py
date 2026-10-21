@@ -310,3 +310,28 @@ def test_ky_luong_da_chot_khong_bao_sua_xoa(db, admin, trang_thai, chu):
     db.commit()
     assert dung_may.danh_sach(db, user=admin, department_id=to.id, year=NAM, month=THANG)["ky_da_chot"] == []
     dung_may.xoa(db, user=admin, dung_may_id=r["id"])
+
+
+def test_phieu_sua_chi_lay_may_cua_to(db, admin):
+    """Máy chưa gắn tổ ⇒ máy của tổ = máy các việc của tổ đã nhận (`san_xuat_cong_viec.may_id`)."""
+    from datetime import datetime, timezone
+
+    from app.models.ky_thuat_may import SuaChuaMay
+    from app.models.san_xuat import SanXuatCongViec
+
+    n, to, nhat, linh = _canh(db, admin, "TO-DM14")
+    _, to2, _, _ = _canh(db, admin, "TO-DM14B")
+    db.add_all([
+        SanXuatCongViec(goi_id=n.goi.id, department_id=to.id, ten_cong_doan="Bế", may_id=9_101),
+        SanXuatCongViec(goi_id=n.goi.id, department_id=to2.id, ten_cong_doan="In", may_id=9_102),
+    ])
+    luc = datetime(NAM, THANG, 4, 3, 0, tzinfo=timezone.utc)
+    db.add_all([SuaChuaMay(ma="SC-DM14-1", may_id=9_101, bo_phan_hong="Dao bế", thoi_diem=luc),
+                 SuaChuaMay(ma="SC-DM14-2", may_id=9_102, bo_phan_hong="Lô mực", thoi_diem=luc)])
+    db.commit()
+    ds = dung_may.danh_sach(db, user=admin, department_id=to.id, year=NAM, month=THANG)
+    assert [p["ma"] for p in ds["phieu_sua"]] == ["SC-DM14-1"]
+    khac = db.query(SuaChuaMay).filter_by(ma="SC-DM14-2").one()
+    with pytest.raises(ValueError, match="không phải máy của tổ"):
+        dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="may_hu", sua_chua_id=khac.id,
+                     ghi_chu=None, nguoi_ids=[nhat.id])

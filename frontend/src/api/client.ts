@@ -15173,7 +15173,7 @@ export const api = {
     choXacNhan(token: string, teamId: number): Promise<SxChoXacNhan> {
       return authed<SxChoXacNhan>(`/api/san-xuat/teams/${teamId}/cho-xac-nhan`, token);
     },
-    /** Ngày tổ đã báo dừng máy trong tháng + người của tổ + phiếu sửa máy báo trong tháng. */
+    /** Ngày tổ đã báo dừng máy trong tháng + người của tổ + phiếu sửa trong tháng của máy tổ + kỳ đã chốt. */
     dungMayDs(token: string, teamId: number, nam: number, thang: number): Promise<SxDungMayListOut> {
       return authed<SxDungMayListOut>(`/api/san-xuat/teams/${teamId}/dung-may?nam=${nam}&thang=${thang}`, token);
     },
