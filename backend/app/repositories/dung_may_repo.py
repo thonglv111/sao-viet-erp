@@ -10,7 +10,7 @@ from ..models.department import Department
 from ..models.employee import STATUS_RESIGNED, Employee
 from ..models.ky_thuat_may import SuaChuaMay
 from ..models.may_thiet_bi import MayThietBi
-from ..models.payroll import KhoanDungMay
+from ..models.payroll import PERIOD_LOCKED, PERIOD_PAID, KhoanDungMay, PayrollPeriod
 
 
 class DungMayRepository:
@@ -24,6 +24,17 @@ class DungMayRepository:
         """Tổ cha (có tổ con) chỉ là nhóm — không có bàn tổ, không báo dừng máy."""
         return self.db.scalar(select(Department.id).where(Department.parent_id == department_id)
                               .limit(1)) is not None
+
+    def trang_thai_ky(self, year: int, month: int) -> str | None:
+        return self.db.scalar(select(PayrollPeriod.status)
+                              .where(PayrollPeriod.year == year, PayrollPeriod.month == month))
+
+    def ky_da_chot(self) -> list[tuple[int, int]]:
+        """(năm, tháng) mọi kỳ lương đã chốt hoặc đã chi."""
+        return [(int(y), int(m)) for y, m in self.db.execute(
+            select(PayrollPeriod.year, PayrollPeriod.month)
+            .where(PayrollPeriod.status.in_((PERIOD_LOCKED, PERIOD_PAID)))
+            .order_by(PayrollPeriod.year, PayrollPeriod.month))]
 
     def get(self, dung_may_id: int) -> KhoanDungMay | None:
         return self.db.get(KhoanDungMay, dung_may_id)

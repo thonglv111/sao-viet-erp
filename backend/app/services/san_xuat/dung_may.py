@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ...models.payroll import LY_DO_DUNG_MAY, KhoanDungMay
+from ...models.payroll import LY_DO_DUNG_MAY, PERIOD_LOCKED, PERIOD_PAID, KhoanDungMay
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.dung_may_repo import DungMayRepository
 from ..quyen_to import VIEC_XAC_NHAN, gate_to_tron
@@ -34,6 +34,16 @@ def _dong(r: KhoanDungMay, ten_nv: dict[int, str], ma_sc: dict[int, str]) -> dic
         "ghi_chu": r.ghi_chu,
         "nguoi": [{"employee_id": int(e), "ho_ten": ten_nv.get(int(e), "")} for e in (r.nguoi_ids or [])],
     }
+
+
+def _chan_ky(repo: DungMayRepository, ngay: date) -> None:
+    """Kỳ lương của tháng đã chốt / đã chi ⇒ số khoán đã khoá, báo / sửa / xoá ngày dừng máy tháng đó
+    là đổi tiền dưới chân bảng lương đã chốt."""
+    tt = repo.trang_thai_ky(ngay.year, ngay.month)
+    if tt in (PERIOD_LOCKED, PERIOD_PAID):
+        chu = "đã chốt" if tt == PERIOD_LOCKED else "đã chi"
+        raise ValueError(f"Kỳ lương tháng {ngay.month:02d}/{ngay.year} {chu} — không báo, sửa hay xoá ngày "
+                         f"dừng máy của tháng đó được nữa.")
 
 
 def _gate(db: Session, user, department_id: int) -> DungMayRepository:
@@ -58,6 +68,7 @@ def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -
     tu = datetime.combine(dau - timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
     den = datetime.combine(cuoi + timedelta(days=2), datetime.min.time(), tzinfo=timezone.utc)
     return {
+        "ky_da_chot": [f"{y}-{m:02d}" for y, m in repo.ky_da_chot()],
         "ds": [_dong(r, ten, ma_sc) for r in ds],
         "nguoi": [{"employee_id": int(e.id), "ho_ten": e.full_name} for e in nguoi],
         "phieu_sua": [{"id": sc.id, "ma": sc.ma, "may_ten": may_ten, "bo_phan_hong": sc.bo_phan_hong}
@@ -93,6 +104,7 @@ def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_ch
         raise ValueError("Đây là tổ cha (chỉ là nhóm) — báo dừng máy ở từng tổ con.")
     if ngay > hom_nay():
         raise ValueError(f"Ngày {ngay.strftime('%d/%m')} chưa tới — chỉ báo dừng máy hôm nay hoặc ngày đã qua.")
+    _chan_ky(repo, ngay)
     ids, ten = _kiem(repo, department_id, ly_do=ly_do, sua_chua_id=sua_chua_id, nguoi_ids=nguoi_ids)
     trung = f"Tổ đã báo dừng máy ngày {ngay.strftime('%d/%m')}."
     if repo.cua_to_ngay(department_id, ngay) is not None:
@@ -126,6 +138,7 @@ def sua(db: Session, *, user, dung_may_id: int, ly_do: str, sua_chua_id: int | N
     if r is None:
         raise KhongThayDungMay("Không tìm thấy ngày dừng máy — có thể đã xoá ở máy khác.")
     _gate(db, user, int(r.department_id))
+    _chan_ky(repo, r.ngay)
     ids, ten = _kiem(repo, int(r.department_id), ly_do=ly_do, sua_chua_id=sua_chua_id, nguoi_ids=nguoi_ids)
     cu = f"ly_do={r.ly_do} nguoi={len(r.nguoi_ids or [])}"
     r.ly_do = ly_do
@@ -148,6 +161,7 @@ def xoa(db: Session, *, user, dung_may_id: int) -> None:
     if r is None:
         raise KhongThayDungMay("Không tìm thấy ngày dừng máy — có thể đã xoá ở máy khác.")
     _gate(db, user, int(r.department_id))
+    _chan_ky(repo, r.ngay)
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_xoa_dung_may",
         target=f"khoan_dung_may:{r.id}",

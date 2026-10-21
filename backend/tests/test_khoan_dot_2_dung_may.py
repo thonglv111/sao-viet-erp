@@ -142,6 +142,7 @@ def test_api_bao_xem_xoa_qua_schema(client):
     assert r2.status_code == 400 and "05/10" in r2.json()["detail"]
     ds = client.get(f"/api/san-xuat/teams/{to_id}/dung-may?nam=2026&thang=10", headers=h).json()
     assert [x["ngay"] for x in ds["ds"]] == ["2026-10-05"] and ds["nguoi"][0]["employee_id"] == e_id
+    assert ds["ky_da_chot"] == []
     assert client.delete(f"/api/san-xuat/dung-may/{r.json()['id']}", headers=h).status_code == 204
 
 
@@ -281,3 +282,31 @@ def test_api_sua_dung_may_qua_schema(client):
     assert r2.json()["ly_do_ten"] == "Hết hàng" and len(r2.json()["nguoi"]) == 2
     assert client.put("/api/san-xuat/dung-may/999999", headers=h,
                       json={"ly_do": "het_hang", "nguoi_ids": [a_id]}).status_code == 404
+
+
+@pytest.mark.parametrize("trang_thai, chu", [("locked", "đã chốt"), ("paid", "đã chi")])
+def test_ky_luong_da_chot_khong_bao_sua_xoa(db, admin, trang_thai, chu):
+    from app.models.payroll import PayrollPeriod
+
+    n, to, nhat, linh = _canh(db, admin, f"TO-DM13-{trang_thai}")
+    r = dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="may_hu", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id])
+    ky = PayrollPeriod(year=NAM, month=THANG, status=trang_thai)
+    db.add(ky)
+    db.commit()
+    cau = f"Kỳ lương tháng {THANG:02d}/{NAM} {chu}"
+    with pytest.raises(ValueError, match=cau):
+        dung_may.bao(db, user=admin, department_id=to.id, ngay=date(NAM, THANG, 6), ly_do="may_hu",
+                     sua_chua_id=None, ghi_chu=None, nguoi_ids=[nhat.id])
+    with pytest.raises(ValueError, match=cau):
+        dung_may.sua(db, user=admin, dung_may_id=r["id"], ly_do="het_hang", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id, linh.id])
+    with pytest.raises(ValueError, match=cau):
+        dung_may.xoa(db, user=admin, dung_may_id=r["id"])
+    assert db.get(KhoanDungMay, r["id"]).ly_do == "may_hu"
+    ds = dung_may.danh_sach(db, user=admin, department_id=to.id, year=NAM, month=THANG)
+    assert ds["ky_da_chot"] == [f"{NAM}-{THANG:02d}"]
+    ky.status = "draft"
+    db.commit()
+    assert dung_may.danh_sach(db, user=admin, department_id=to.id, year=NAM, month=THANG)["ky_da_chot"] == []
+    dung_may.xoa(db, user=admin, dung_may_id=r["id"])

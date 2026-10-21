@@ -1800,6 +1800,7 @@ class PhieuSuaChonOut(BaseModel):
 
 
 class DungMayListOut(BaseModel):
+    ky_da_chot: list[str] = []          # "YYYY-MM" kỳ lương đã chốt / đã chi — khoá ngày thuộc kỳ đó
     ds: list[DungMayOut] = []
     nguoi: list[DungMayNguoiOut] = []
     phieu_sua: list[PhieuSuaChonOut] = []

@@ -7,6 +7,7 @@ import type { SxDungMayListOut } from "../api/client";
 import { BaoDungMayModal, type DungMayExec } from "./BaoDungMayModal";
 
 const DS: SxDungMayListOut = {
+  ky_da_chot: [],
   ds: [{
     id: 4, department_id: 7, ngay: "2026-10-15", ly_do: "may_hu", ly_do_ten: "Máy hư",
     sua_chua_id: 7, sua_chua_ma: "SC-0014", ghi_chu: null,
@@ -16,9 +17,9 @@ const DS: SxDungMayListOut = {
   phieu_sua: [{ id: 7, ma: "SC-0014", may_ten: "Máy 4 màu", bo_phan_hong: null }],
 };
 
-function mo() {
+function mo(ds: SxDungMayListOut = DS) {
   const exec: DungMayExec = {
-    ds: vi.fn().mockResolvedValue(DS),
+    ds: vi.fn().mockResolvedValue(ds),
     bao: vi.fn().mockResolvedValue(DS.ds[0]),
     xoa: vi.fn().mockResolvedValue(undefined),
     sua: vi.fn().mockResolvedValue(DS.ds[0]),
@@ -92,5 +93,16 @@ describe("Báo dừng máy", () => {
     });
     expect(exec.bao).not.toHaveBeenCalled();
     expect(onBao).toHaveBeenCalledWith("Đã sửa ngày dừng máy 15/10.");
+  });
+
+  it("kỳ lương tháng đã chốt: dòng đã báo không còn Sửa / Xoá, ngày thuộc kỳ không Lưu được", async () => {
+    const user = userEvent.setup();
+    mo({ ...DS, ky_da_chot: ["2026-09", "2026-10"] });
+    expect(await screen.findByText("15/10")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sửa ngày 15/10" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Xoá ngày 15/10" })).toBeNull();
+    expect(screen.getAllByText(/Kỳ lương tháng 10\/2026 đã chốt/).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Hết hàng" }));
+    expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
   });
 });

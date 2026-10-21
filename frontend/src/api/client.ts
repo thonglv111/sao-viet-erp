@@ -1556,7 +1556,13 @@ export interface SxDungMay {
   nguoi: SxDungMayNguoi[];
 }
 export interface SxPhieuSuaChon { id: number; ma: string; may_ten: string | null; bo_phan_hong: string | null }
-export interface SxDungMayListOut { ds: SxDungMay[]; nguoi: SxDungMayNguoi[]; phieu_sua: SxPhieuSuaChon[] }
+export interface SxDungMayListOut {
+  /** "YYYY-MM" kỳ lương đã chốt / đã chi — ngày thuộc kỳ đó không báo / sửa / xoá được. */
+  ky_da_chot: string[];
+  ds: SxDungMay[];
+  nguoi: SxDungMayNguoi[];
+  phieu_sua: SxPhieuSuaChon[];
+}
 
 export interface SxTeamsOut {
   teams: SxTeam[];

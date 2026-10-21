@@ -23,6 +23,11 @@ const LY_DO: { ma: SxLyDoDungMay; ten: string }[] = [
 ];
 
 const ngayNgan = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+/** "2026-09" → "2026-10-01" — ngày sớm nhất còn báo được sau kỳ lương đã chốt muộn nhất. */
+const dauThangSau = (ym: string) => {
+  const [y, m] = ym.split("-").map(Number);
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
+};
 const loiCua = (e: unknown) => (e instanceof Error ? e.message : "Không lưu được, thử lại.");
 
 export function BaoDungMayModal({
@@ -67,7 +72,13 @@ export function BaoDungMayModal({
 
   const dsNguoi: NguoiLam[] = (data?.nguoi ?? []).map((n) => ({ id: n.employee_id, ten: n.ho_ten, the: [], mo: false }));
   const soNguoi = dsNguoi.filter((n) => chon.has(n.id)).length;
-  const hopLe = !!ngay && lyDo != null && soNguoi > 0;
+  // Kỳ lương đã chốt / đã chi khoá ngày thuộc kỳ (máy chủ chặn cùng luật, đây chỉ khoá trước cho rõ).
+  const chot = new Set(data?.ky_da_chot ?? []);
+  const thangKhoa = (iso: string) => chot.has(iso.slice(0, 7));
+  const chotMuon = [...chot].sort().slice(-1)[0];
+  const ngayDang = dangSua?.ngay ?? ngay;
+  const khoa = thangKhoa(ngayDang);
+  const hopLe = !!ngay && lyDo != null && soNguoi > 0 && !khoa;
 
   function moSua(d: SxDungMay) {
     setLoi(null);
@@ -139,9 +150,17 @@ export function BaoDungMayModal({
             <button type="button" className="thsx-b-lk" onClick={thoiSua}>Thôi sửa, báo ngày khác</button>
           </div>
         ) : (
-          <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay} required aria-label="Ngày dừng máy" />
+          <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay}
+            min={chotMuon ? dauThangSau(chotMuon) : undefined} required aria-label="Ngày dừng máy" />
         )}
       </div>
+
+      {khoa && (
+        <div className="thsx-bao thsx-bao--vang">
+          Kỳ lương tháng {ngayDang.slice(5, 7)}/{ngayDang.slice(0, 4)} đã chốt — ngày thuộc kỳ này không báo,
+          sửa hay xoá được nữa.
+        </div>
+      )}
 
       <div className="thsx-f">
         <span className="thsx-f__n">Lý do</span>
@@ -191,10 +210,16 @@ export function BaoDungMayModal({
                   <td>{d.sua_chua_ma ?? ""}</td>
                   <td className="thsx-num">{d.nguoi.length} người</td>
                   <td className="thsx-dm-ds__nut">
-                    <button type="button" className="thsx-b-lk" aria-label={`Sửa ngày ${ngayNgan(d.ngay)}`}
-                      onClick={() => moSua(d)}>Sửa</button>
-                    <button type="button" className="thsx-b-lk" aria-label={`Xoá ngày ${ngayNgan(d.ngay)}`}
-                      onClick={() => xoa(d)}>Xoá</button>
+                    {thangKhoa(d.ngay) ? (
+                      <span className="thsx-f__g">Kỳ đã chốt</span>
+                    ) : (
+                      <>
+                        <button type="button" className="thsx-b-lk" aria-label={`Sửa ngày ${ngayNgan(d.ngay)}`}
+                          onClick={() => moSua(d)}>Sửa</button>
+                        <button type="button" className="thsx-b-lk" aria-label={`Xoá ngày ${ngayNgan(d.ngay)}`}
+                          onClick={() => xoa(d)}>Xoá</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
