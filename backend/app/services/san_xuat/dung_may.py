@@ -65,15 +65,11 @@ def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -
     }
 
 
-def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_chua_id: int | None,
-        ghi_chu: str | None, nguoi_ids: list[int]) -> dict:
-    repo = _gate(db, user, department_id)
-    if repo.co_to_con(department_id):
-        raise ValueError("Đây là tổ cha (chỉ là nhóm) — báo dừng máy ở từng tổ con.")
+def _kiem(repo: DungMayRepository, department_id: int, *, ly_do: str, sua_chua_id: int | None,
+          nguoi_ids: list[int]) -> tuple[list[int], dict[int, str]]:
+    """Luật chung của báo và sửa: lý do, người hưởng thuộc tổ, phiếu sửa tồn tại ⇒ (ids, tên)."""
     if ly_do not in LY_DO_DUNG_MAY:
         raise ValueError("Lý do dừng máy chỉ là Máy hư hoặc Hết hàng.")
-    if ngay > hom_nay():
-        raise ValueError(f"Ngày {ngay.strftime('%d/%m')} chưa tới — chỉ báo dừng máy hôm nay hoặc ngày đã qua.")
     ids = list(dict.fromkeys(int(i) for i in (nguoi_ids or [])))
     if not ids:
         raise ValueError("Chọn người hưởng ngày dừng máy.")
@@ -87,6 +83,17 @@ def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_ch
     ten = {i: ten[i] for i in ids}
     if sua_chua_id is not None and repo.sua_chua(int(sua_chua_id)) is None:
         raise ValueError("Không tìm thấy phiếu sửa máy đã chọn.")
+    return ids, ten
+
+
+def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_chua_id: int | None,
+        ghi_chu: str | None, nguoi_ids: list[int]) -> dict:
+    repo = _gate(db, user, department_id)
+    if repo.co_to_con(department_id):
+        raise ValueError("Đây là tổ cha (chỉ là nhóm) — báo dừng máy ở từng tổ con.")
+    if ngay > hom_nay():
+        raise ValueError(f"Ngày {ngay.strftime('%d/%m')} chưa tới — chỉ báo dừng máy hôm nay hoặc ngày đã qua.")
+    ids, ten = _kiem(repo, department_id, ly_do=ly_do, sua_chua_id=sua_chua_id, nguoi_ids=nguoi_ids)
     trung = f"Tổ đã báo dừng máy ngày {ngay.strftime('%d/%m')}."
     if repo.cua_to_ngay(department_id, ngay) is not None:
         raise ValueError(trung)
@@ -104,6 +111,31 @@ def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_ch
         actor_user_id=getattr(user, "id", None), action="san_xuat_bao_dung_may",
         target=f"khoan_dung_may:{r.id}",
         detail=f"to={department_id} ngay={ngay.isoformat()} ly_do={ly_do} nguoi={len(ids)}",
+        commit=False,
+    )
+    db.commit()
+    return _dong(r, ten, repo.ma_sua_chua({r.sua_chua_id}))
+
+
+def sua(db: Session, *, user, dung_may_id: int, ly_do: str, sua_chua_id: int | None,
+        ghi_chu: str | None, nguoi_ids: list[int]) -> dict:
+    """Tổ trưởng tick nhầm thì sửa tại chỗ — người hưởng, lý do, phiếu sửa, ghi chú. Ngày GIỮ: đổi
+    ngày là báo một ngày khác (xoá rồi báo lại)."""
+    repo = DungMayRepository(db)
+    r = repo.get(dung_may_id)
+    if r is None:
+        raise KhongThayDungMay("Không tìm thấy ngày dừng máy — có thể đã xoá ở máy khác.")
+    _gate(db, user, int(r.department_id))
+    ids, ten = _kiem(repo, int(r.department_id), ly_do=ly_do, sua_chua_id=sua_chua_id, nguoi_ids=nguoi_ids)
+    cu = f"ly_do={r.ly_do} nguoi={len(r.nguoi_ids or [])}"
+    r.ly_do = ly_do
+    r.sua_chua_id = int(sua_chua_id) if sua_chua_id is not None else None
+    r.ghi_chu = (ghi_chu or "").strip() or None
+    r.nguoi_ids = ids
+    AuditLogRepository(db).create(
+        actor_user_id=getattr(user, "id", None), action="san_xuat_sua_dung_may",
+        target=f"khoan_dung_may:{r.id}",
+        detail=f"to={r.department_id} ngay={r.ngay.isoformat()} {cu} -> ly_do={ly_do} nguoi={len(ids)}",
         commit=False,
     )
     db.commit()

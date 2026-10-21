@@ -45,6 +45,7 @@ from ..tai_len import doc_gioi_han
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.san_xuat import (
     DungMayIn,
+    DungMaySuaIn,
     DungMayListOut,
     DungMayOut,
     BanGiaoDeXuatIn,
@@ -308,6 +309,22 @@ def bao_dung_may(
     return _chay(lambda: dung_may.bao(db, user=user, department_id=department_id, ngay=body.ngay,
                                       ly_do=body.ly_do, sua_chua_id=body.sua_chua_id,
                                       ghi_chu=body.ghi_chu, nguoi_ids=body.nguoi_ids))
+
+
+@router.put("/dung-may/{dung_may_id}", response_model=DungMayOut)
+def sua_dung_may(
+    dung_may_id: int,
+    body: DungMaySuaIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+) -> dict:
+    """Sửa ngày đã báo (người hưởng, lý do, phiếu sửa, ghi chú) — cùng quyền với báo."""
+    try:
+        return _chay(lambda: dung_may.sua(db, user=user, dung_may_id=dung_may_id, ly_do=body.ly_do,
+                                          sua_chua_id=body.sua_chua_id, ghi_chu=body.ghi_chu,
+                                          nguoi_ids=body.nguoi_ids))
+    except dung_may.KhongThayDungMay as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 @router.delete("/dung-may/{dung_may_id}", status_code=status.HTTP_204_NO_CONTENT,

@@ -254,6 +254,7 @@ export function ThucHienSxPage({
   const dungMayExec = useMemo<DungMayExec>(() => ({
     ds: (nam, thang) => api.sanXuat.dungMayDs(token!, teamId, nam, thang),
     bao: (body) => api.sanXuat.baoDungMay(token!, teamId, body),
+    sua: (id, body) => api.sanXuat.suaDungMay(token!, id, body),
     xoa: (id) => api.sanXuat.xoaDungMay(token!, id),
   }), [token, teamId]);
 

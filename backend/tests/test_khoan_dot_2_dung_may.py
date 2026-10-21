@@ -215,3 +215,69 @@ def test_api_xoa_dong_khong_ton_tai_404(client):
     r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     assert client.delete("/api/san-xuat/dung-may/999999", headers=h).status_code == 404
+
+
+def test_sua_dung_may_doi_nguoi_huong_ly_do_ghi_chu(db, admin):
+    """Tổ trưởng tick nhầm thì sửa tại chỗ — giữ ngày, đổi người hưởng / lý do / phiếu / ghi chú."""
+    n, to, nhat, linh = _canh(db, admin, "TO-DM11")
+    r = dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="may_hu", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id])
+    ra = dung_may.sua(db, user=admin, dung_may_id=r["id"], ly_do="het_hang", sua_chua_id=None,
+                      ghi_chu="hết giấy", nguoi_ids=[nhat.id, linh.id])
+    assert ra["id"] == r["id"] and ra["ngay"] == NGAY and ra["ly_do"] == "het_hang"
+    assert ra["ghi_chu"] == "hết giấy" and [x["employee_id"] for x in ra["nguoi"]] == [nhat.id, linh.id]
+    kq = KhoanKyService(db).tinh(NAM, THANG, _muc(nhat, linh))
+    assert kq["khoan"] == {nhat.id: 700_000, linh.id: 450_000}
+    with pytest.raises(ValueError, match="không thuộc tổ"):
+        _, to2, la, _ = _canh(db, admin, "TO-DM11B")
+        dung_may.sua(db, user=admin, dung_may_id=r["id"], ly_do="het_hang", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[la.id])
+    with pytest.raises(ValueError, match="Chọn người hưởng"):
+        dung_may.sua(db, user=admin, dung_may_id=r["id"], ly_do="het_hang", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[])
+
+
+def test_sua_dung_may_can_quyen_xac_nhan(db, admin):
+    n, to, nhat, linh = _canh(db, admin, "TO-DM12")
+    r = dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="may_hu", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id])
+    tho = tao_user(db, "tho_dm12")
+    cap_quyen_to(db, tho, to, viec=(VIEC_THUC_HIEN,))
+    db.commit()
+    with pytest.raises(PermissionError):
+        dung_may.sua(db, user=tho, dung_may_id=r["id"], ly_do="het_hang", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id])
+    with pytest.raises(dung_may.KhongThayDungMay):
+        dung_may.sua(db, user=admin, dung_may_id=999_999, ly_do="het_hang", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id])
+
+
+def test_api_sua_dung_may_qua_schema(client):
+    from app.db import SessionLocal
+    from app.models.department import Department
+    from app.models.employee import Employee
+    from app.models.user import User
+
+    s = SessionLocal()
+    try:
+        to = Department(name="Tổ DM sửa API", code="TO-DM-SUA", la_san_xuat=True)
+        s.add(to)
+        s.flush()
+        a = Employee(code="NV-DM-SUA-A", full_name="Thợ A", department_id=to.id)
+        b = Employee(code="NV-DM-SUA-B", full_name="Thợ B", department_id=to.id)
+        s.add_all([a, b])
+        cap_quyen_to(s, s.query(User).filter_by(username="admin").one(), to)
+        s.commit()
+        to_id, a_id, b_id = to.id, a.id, b.id
+    finally:
+        s.close()
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    r = client.post(f"/api/san-xuat/teams/{to_id}/dung-may", headers=h,
+                    json={"ngay": "2026-10-05", "ly_do": "may_hu", "nguoi_ids": [a_id]})
+    r2 = client.put(f"/api/san-xuat/dung-may/{r.json()['id']}", headers=h,
+                    json={"ly_do": "het_hang", "ghi_chu": "sửa", "nguoi_ids": [a_id, b_id]})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["ly_do_ten"] == "Hết hàng" and len(r2.json()["nguoi"]) == 2
+    assert client.put("/api/san-xuat/dung-may/999999", headers=h,
+                      json={"ly_do": "het_hang", "nguoi_ids": [a_id]}).status_code == 404

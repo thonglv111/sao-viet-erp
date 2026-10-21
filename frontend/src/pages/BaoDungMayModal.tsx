@@ -1,17 +1,19 @@
 // Hộp BÁO DỪNG MÁY ở bàn tổ (Đợt 2 công thức khoán, 21/10/2026, mockup `khoan-cong-thuc-bo-sung.html`
 // màn 4). Ngày máy hư / hết hàng tổ ăn chỉ tiêu ngày, chia cho người hưởng theo lương ca máy — người
 // hưởng do tổ trưởng tick, tick sẵn cả tổ. Một tổ một ngày một lần: báo trùng máy chủ trả câu lỗi.
+// Tick nhầm thì bấm Sửa ở dòng đã báo — hộp mở lại giá trị cũ, sửa tại chỗ (ngày giữ nguyên).
 import { useEffect, useId, useRef, useState } from "react";
 
-import type { SxDungMay, SxDungMayIn, SxDungMayListOut, SxLyDoDungMay } from "../api/client";
+import type { SxDungMay, SxDungMayIn, SxDungMayListOut, SxDungMaySuaIn, SxLyDoDungMay } from "../api/client";
 import { ChonNgay } from "../components/ChonNgay";
 import { NguoiLamChon, todayYmd, type NguoiLam } from "./ThsxExecPanels";
 import { ThsxHop } from "./thsx/ThsxHop";
 
-/** Ba lời gọi máy chủ của hộp — trang bàn tổ gắn token + tổ. */
+/** Bốn lời gọi máy chủ của hộp — trang bàn tổ gắn token + tổ. */
 export type DungMayExec = {
   ds: (nam: number, thang: number) => Promise<SxDungMayListOut>;
   bao: (body: SxDungMayIn) => Promise<SxDungMay>;
+  sua: (id: number, body: SxDungMaySuaIn) => Promise<SxDungMay>;
   xoa: (id: number) => Promise<void>;
 };
 
@@ -30,7 +32,7 @@ export function BaoDungMayModal({
   homNay?: string;
   exec: DungMayExec;
   onDong: () => void;
-  /** Lưu / xoá xong — trang bắn toast câu này. */
+  /** Lưu / sửa / xoá xong — trang bắn toast câu này. */
   onBao: (cau: string) => void;
 }) {
   const [ngay, setNgay] = useState(homNay);
@@ -42,6 +44,8 @@ export function BaoDungMayModal({
   const [loi, setLoi] = useState<string | null>(null);
   const [dangGui, setDangGui] = useState(false);
   const [nap, setNap] = useState(0);
+  // Dòng đang sửa — null = đang báo ngày mới.
+  const [dangSua, setDangSua] = useState<SxDungMay | null>(null);
   // Lần nạp đầu tick sẵn mọi người của tổ; nạp lại sau khi lưu / đổi tháng thì giữ người đang tick.
   const daTick = useRef(false);
   const idPhieu = useId();
@@ -65,20 +69,44 @@ export function BaoDungMayModal({
   const soNguoi = dsNguoi.filter((n) => chon.has(n.id)).length;
   const hopLe = !!ngay && lyDo != null && soNguoi > 0;
 
+  function moSua(d: SxDungMay) {
+    setLoi(null);
+    setDangSua(d);
+    setLyDo(d.ly_do);
+    setSuaChua(d.sua_chua_id != null ? String(d.sua_chua_id) : "");
+    setGhiChu(d.ghi_chu ?? "");
+    setChon(new Set(d.nguoi.map((n) => n.employee_id)));
+  }
+
+  function thoiSua() {
+    setDangSua(null);
+    setLyDo(null);
+    setSuaChua("");
+    setGhiChu("");
+    setChon(new Set(dsNguoi.map((n) => n.id)));
+  }
+
   async function luu() {
     if (!hopLe || dangGui || lyDo == null) return;
     setDangGui(true);
     setLoi(null);
+    const body = {
+      ly_do: lyDo,
+      sua_chua_id: lyDo === "may_hu" && suaChua ? Number(suaChua) : null,
+      ghi_chu: ghiChu.trim() || null,
+      nguoi_ids: dsNguoi.filter((n) => chon.has(n.id)).map((n) => n.id),
+    };
     try {
-      await exec.bao({
-        ngay, ly_do: lyDo,
-        sua_chua_id: lyDo === "may_hu" && suaChua ? Number(suaChua) : null,
-        ghi_chu: ghiChu.trim() || null,
-        nguoi_ids: dsNguoi.filter((n) => chon.has(n.id)).map((n) => n.id),
-      });
-      onBao(`Đã báo dừng máy ngày ${ngayNgan(ngay)}.`);
-      setGhiChu("");
-      setSuaChua("");
+      if (dangSua) {
+        await exec.sua(dangSua.id, body);
+        onBao(`Đã sửa ngày dừng máy ${ngayNgan(dangSua.ngay)}.`);
+        thoiSua();
+      } else {
+        await exec.bao({ ngay, ...body });
+        onBao(`Đã báo dừng máy ngày ${ngayNgan(ngay)}.`);
+        setGhiChu("");
+        setSuaChua("");
+      }
       setNap((n) => n + 1);
     } catch (e) {
       setLoi(loiCua(e));
@@ -92,6 +120,7 @@ export function BaoDungMayModal({
     try {
       await exec.xoa(d.id);
       onBao(`Đã xoá ngày dừng máy ${ngayNgan(d.ngay)}.`);
+      if (dangSua?.id === d.id) thoiSua();
       setNap((n) => n + 1);
     } catch (e) {
       setLoi(loiCua(e));
@@ -99,11 +128,19 @@ export function BaoDungMayModal({
   }
 
   return (
-    <ThsxHop tieuDe="Báo dừng máy" phuDe={tenTo} nutPhu="Đóng" nutChinh="Lưu" nutChinhKhoa={!hopLe}
+    <ThsxHop tieuDe={dangSua ? `Sửa ngày dừng máy ${ngayNgan(dangSua.ngay)}` : "Báo dừng máy"} phuDe={tenTo}
+      nutPhu="Đóng" nutChinh="Lưu" nutChinhKhoa={!hopLe}
       dangGui={dangGui} loi={loi} phimTat="Ctrl + Enter để lưu" onPhimTat={luu} onDong={onDong} onChinh={luu}>
       <div className="thsx-f">
         <span className="thsx-f__n">Ngày</span>
-        <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay} required aria-label="Ngày dừng máy" />
+        {dangSua ? (
+          <div className="thsx-dm-sua">
+            <span className="thsx-num">{ngayNgan(dangSua.ngay)}</span>
+            <button type="button" className="thsx-b-lk" onClick={thoiSua}>Thôi sửa, báo ngày khác</button>
+          </div>
+        ) : (
+          <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay} required aria-label="Ngày dừng máy" />
+        )}
       </div>
 
       <div className="thsx-f">
@@ -148,12 +185,14 @@ export function BaoDungMayModal({
           <table className="thsx-dm-ds">
             <tbody>
               {data.ds.map((d) => (
-                <tr key={d.id}>
+                <tr key={d.id} aria-current={dangSua?.id === d.id || undefined}>
                   <td className="thsx-num">{ngayNgan(d.ngay)}</td>
                   <td>{d.ly_do_ten}</td>
                   <td>{d.sua_chua_ma ?? ""}</td>
                   <td className="thsx-num">{d.nguoi.length} người</td>
-                  <td>
+                  <td className="thsx-dm-ds__nut">
+                    <button type="button" className="thsx-b-lk" aria-label={`Sửa ngày ${ngayNgan(d.ngay)}`}
+                      onClick={() => moSua(d)}>Sửa</button>
                     <button type="button" className="thsx-b-lk" aria-label={`Xoá ngày ${ngayNgan(d.ngay)}`}
                       onClick={() => xoa(d)}>Xoá</button>
                   </td>

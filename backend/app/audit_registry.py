@@ -167,6 +167,7 @@ _HD += _dong("san_xuat", None, {
     "san_xuat_sua_nguoi_batch": "Sửa người làm sản lượng",
     "san_xuat_bao_dung_may": "Báo dừng máy",
     "san_xuat_xoa_dung_may": "Xoá ngày dừng máy",
+    "san_xuat_sua_dung_may": "Sửa ngày dừng máy",
     "san_xuat_de_nghi_vat_tu": "Đề nghị cấp vật tư",
     "san_xuat_nhap_lai_vat_tu": "Yêu cầu nhập lại vật tư thừa vào kho",
     "san_xuat_sua_de_nghi_vat_tu": "Sửa đề nghị cấp vật tư",

@@ -21,6 +21,7 @@ function mo() {
     ds: vi.fn().mockResolvedValue(DS),
     bao: vi.fn().mockResolvedValue(DS.ds[0]),
     xoa: vi.fn().mockResolvedValue(undefined),
+    sua: vi.fn().mockResolvedValue(DS.ds[0]),
   };
   const onBao = vi.fn();
   render(<BaoDungMayModal tenTo="Tổ in 4 màu" homNay="2026-10-21" exec={exec} onDong={vi.fn()} onBao={onBao} />);
@@ -73,5 +74,23 @@ describe("Báo dừng máy", () => {
     await user.click(screen.getByRole("button", { name: "Máy hư" }));
     await user.click(screen.getByRole("button", { name: "Lưu" }));
     expect(await screen.findByText("Tổ đã báo dừng máy ngày 21/10.")).toBeInTheDocument();
+  });
+
+  it("Sửa ngày đã báo: mở sẵn giá trị cũ, đổi người hưởng, Lưu gọi sửa không đổi ngày", async () => {
+    const user = userEvent.setup();
+    const { exec, onBao } = mo();
+    await user.click(await screen.findByRole("button", { name: "Sửa ngày 15/10" }));
+    expect(screen.getByRole("button", { name: "Máy hư" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("Phiếu sửa máy")).toHaveValue("7");
+    expect(screen.getByLabelText("An")).toBeChecked();
+    expect(screen.getByLabelText("Bình")).not.toBeChecked();
+    expect(screen.queryByLabelText("Ngày dừng máy")).toBeNull();
+    await user.click(screen.getByLabelText("Bình"));
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(exec.sua).toHaveBeenCalledWith(4, {
+      ly_do: "may_hu", sua_chua_id: 7, ghi_chu: null, nguoi_ids: [1, 2],
+    });
+    expect(exec.bao).not.toHaveBeenCalled();
+    expect(onBao).toHaveBeenCalledWith("Đã sửa ngày dừng máy 15/10.");
   });
 });

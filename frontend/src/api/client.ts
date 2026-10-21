@@ -1541,6 +1541,8 @@ export interface SxDungMayIn {
   /** Người hưởng — tổ trưởng tick. */
   nguoi_ids: number[];
 }
+/** Sửa ngày đã báo — mọi thứ trừ ngày. */
+export type SxDungMaySuaIn = Omit<SxDungMayIn, "ngay">;
 export interface SxDungMayNguoi { employee_id: number; ho_ten: string }
 export interface SxDungMay {
   id: number;
@@ -15172,6 +15174,12 @@ export const api = {
     baoDungMay(token: string, teamId: number, body: SxDungMayIn): Promise<SxDungMay> {
       return authed<SxDungMay>(`/api/san-xuat/teams/${teamId}/dung-may`, token, {
         method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
+    suaDungMay(token: string, id: number, body: SxDungMaySuaIn): Promise<SxDungMay> {
+      return authed<SxDungMay>(`/api/san-xuat/dung-may/${id}`, token, {
+        method: "PUT",
         body: JSON.stringify(body),
       });
     },

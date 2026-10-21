@@ -1767,6 +1767,14 @@ class DungMayIn(BaseModel):
     nguoi_ids: list[int] = []           # người hưởng — tổ trưởng tick
 
 
+class DungMaySuaIn(BaseModel):
+    """Sửa ngày đã báo — mọi thứ trừ ngày (đổi ngày = xoá rồi báo lại)."""
+    ly_do: str
+    sua_chua_id: int | None = None
+    ghi_chu: str | None = None
+    nguoi_ids: list[int] = []
+
+
 class DungMayNguoiOut(BaseModel):
     employee_id: int
     ho_ten: str = ""
