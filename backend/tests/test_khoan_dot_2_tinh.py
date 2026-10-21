@@ -99,6 +99,23 @@ def test_thieu_luong_ca_may_bao_thieu(nen):
     assert "Linh" in kq["thieu_gia"][0]["ly_do"]
 
 
+def test_canh_bao_chot_chi_dung_cho_sua_theo_ly_do(nen):
+    """Câu cảnh báo trước chốt: thiếu lương ca máy chỉ sang hồ sơ lương, lần ghi chưa tick người
+    chỉ sang bàn tổ — không gom hết vào "khai giá ở tab Khoán"."""
+    from app.routers.payroll import _canh_bao_chot
+
+    to = nen.to("Tổ in")
+    nhat, linh = nen.nv(to, "Nhất"), nen.nv(to, "Linh")
+    k = nen.khoan2("", gia_co_dinh=1_000_000)
+    nen.ghi2(to, k, NGAY, 0, [nhat, linh])
+    nen.ghi2(to, k, NGAY, 0, [])
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((nhat, 14_000_000), (linh, 0)))
+    cb = _canh_bao_chot([], thieu_gia=kq["thieu_gia"])
+    assert "tab Khoán" not in cb
+    assert "Linh chưa có lương ca máy" in cb and "Lương nhân viên" in cb
+    assert "chưa tick người làm" in cb and "bàn tổ" in cb
+
+
 def test_nguoi_to_khac_dung_muc_cua_ho(nen):
     a, b = nen.to("Tổ A"), nen.to("Tổ B")
     x, y = nen.nv(a, "X"), nen.nv(b, "Y")

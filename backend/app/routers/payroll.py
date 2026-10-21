@@ -1142,12 +1142,35 @@ def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None =
         parts.append(f"{len(khong)} người thực lĩnh 0đ vì trừ tạm ứng/nợ kỳ trước ({ten(khong)})")
     if no:
         parts.append(f"{len(no)} người còn nợ tạm ứng chuyển sang kỳ sau ({ten(no)})")
-    if thieu:
-        vd = "; ".join(f'{t.get("cong_doan") or "?"} — {t.get("to") or "?"} ngày {t.get("ngay") or "?"}'
-                       for t in thieu[:3])
-        parts.append(f"{len(thieu)} lần ghi sản lượng chưa có tiền khoán vì thiếu giá / công thức lỗi "
-                     f"({vd}{' …' if len(thieu) > 3 else ''}) — khai giá theo tổ ở Danh mục → Công đoạn → "
+    # Dòng thiếu chia theo CHỖ SỬA (`sua`, engine gắn): mỗi nhóm một câu chỉ đúng màn phải mở.
+    # Dòng không có `sua` (nguồn cũ) coi là thiếu giá.
+    nhom: dict[str, list[dict]] = {}
+    for t in thieu:
+        nhom.setdefault(t.get("sua") or "gia", []).append(t)
+
+    def vd(xs: list[dict], ly_do: bool) -> str:
+        cau = "; ".join(f'{t.get("cong_doan") or "?"} — {t.get("to") or "?"} ngày {t.get("ngay") or "?"}'
+                        + (f' {t["ly_do"]}' if ly_do and t.get("ly_do") else "") for t in xs[:3])
+        return cau + (" …" if len(xs) > 3 else "")
+
+    if nhom.get("gia"):
+        xs = nhom["gia"]
+        parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán vì thiếu giá / công thức lỗi "
+                     f"({vd(xs, False)}) — khai giá theo tổ ở Danh mục → Công đoạn → "
                      "tab Khoán, rồi bấm “Cập nhật theo danh mục” ở lần ghi và Tính lại")
+    if nhom.get("luong"):
+        xs = nhom["luong"]
+        parts.append(f"{len(xs)} lần ghi / ngày dừng máy chưa chia được tiền khoán vì có người chưa có "
+                     f"lương ca máy ({vd(xs, True)}) — khai lương ở Lương → Lương nhân viên → Sửa lương, "
+                     "rồi Tính lại")
+    if nhom.get("lan_ghi"):
+        xs = nhom["lan_ghi"]
+        parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán ({vd(xs, True)}) — sửa lần ghi ở "
+                     "bàn tổ, rồi Tính lại")
+    if nhom.get("dung_may"):
+        xs = nhom["dung_may"]
+        parts.append(f"{len(xs)} ngày dừng máy chưa chọn người hưởng ({vd(xs, False)}) — xoá rồi báo "
+                     "lại ở bàn tổ (Báo dừng máy), rồi Tính lại")
     for c in kcb:
         parts.append(c.rstrip("."))
     if thieu_muc_bh:

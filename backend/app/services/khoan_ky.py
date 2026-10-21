@@ -213,27 +213,29 @@ class KhoanKyService:
             khoan = khoan_map.get(int(b.khoan_cong_doan_id))
             ten_cd = b.ten_khoan_snapshot or (khoan.cong_doan.ten if khoan is not None else "—")
 
-            def bao(ly_do: str) -> None:
+            def bao(ly_do: str, sua: str = "gia") -> None:
+                # `sua` = chỗ phải sửa, câu cảnh báo trước chốt chia nhóm theo nó: "gia" (tab Khoán
+                # của công đoạn), "luong" (hồ sơ lương), "lan_ghi" (bàn tổ).
                 thieu.append({"batch_id": int(b.id), "cong_doan": ten_cd, "to": ten_to(to),
-                              "ngay": d.strftime("%d/%m"), "ly_do": ly_do})
+                              "ngay": d.strftime("%d/%m"), "ly_do": ly_do, "sua": sua})
 
             ds = nguoi.get(int(b.id)) or []
             if khoan is None:
                 bao("cấu hình Khoán của công đoạn đã bị gỡ")
                 continue
             if not ds:
-                bao("chưa tick người làm")
+                bao("chưa tick người làm", "lan_ghi")
                 continue
             w = {int(r.employee_id): _so(muc.luong_ca_may.get(int(r.employee_id))) for r in ds}
             chua = [ten_nv.get(e, f"#{e}") for e, v in w.items() if v <= 0]
             if chua:
-                bao(f"{', '.join(chua)} chưa có lương ca máy")
+                bao(f"{', '.join(chua)} chưa có lương ca máy", "luong")
                 continue
             if b.don_gia_khoan_snapshot is None:
                 bao("tổ chưa có giá ở bảng giá theo tổ")
                 tien = 0.0
             elif _RE_TIEN_GIO.search(khoan.cong_thuc_khoan or "") and b.ket_thuc <= b.bat_dau:
-                bao("công thức tính theo giờ mà lần ghi chưa có giờ kết thúc")
+                bao("công thức tính theo giờ mà lần ghi chưa có giờ kết thúc", "lan_ghi")
                 continue
             else:
                 qc = self._quy_cach(cv, lenh, bai_cache)
@@ -329,7 +331,8 @@ class KhoanKyService:
             if not ds or chua:
                 thieu.append({"batch_id": None, "cong_doan": "Dừng máy", "to": ten_to(to), "ngay": ngay_s,
                               "ly_do": (f"{', '.join(chua)} chưa có lương ca máy" if chua
-                                        else "chưa chọn người hưởng")})
+                                        else "chưa chọn người hưởng"),
+                              "sua": "luong" if chua else "dung_may"})
                 continue
             tong_w = sum(w.values())
             for e in ds:
