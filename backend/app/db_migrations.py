@@ -18906,3 +18906,28 @@ def _migrate_hai_luong_khoan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0429_hai_luong_khoan", _migrate_hai_luong_khoan))
+
+
+def _migrate_khoan_dot_2(db: Session) -> None:
+    """0430 (21/10/2026) — công thức khoán Đợt 2.
+
+    - `cong_doan_khoan.gia_co_dinh`: giá cố định CHUNG (bảng giá theo tổ trống thì mọi tổ dùng).
+    - `cong_doan_khoan.tuy_chon`: tuỳ chọn khi ghi (JSON), mỗi tuỳ chọn là một chip công thức.
+    - `san_xuat_batch.tuy_chon_khoan`: ảnh chụp tuỳ chọn của lần ghi (JSON).
+    Bảng `khoan_dung_may` mới ⇒ `create_all` tạo. Raw SQL đích danh cột, idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    them = (
+        ("cong_doan_khoan", "gia_co_dinh", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
+        ("cong_doan_khoan", "tuy_chon", "JSON"),
+        ("san_xuat_batch", "tuy_chon_khoan", "JSON"),
+    )
+    co_san = {t: _existing_columns(insp, t) for t in {t for t, _, _ in them} if t in bang}
+    for t, cot, kieu in them:
+        if t in co_san and cot not in co_san[t]:
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN {cot} {kieu}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0430_khoan_dot_2", _migrate_khoan_dot_2))

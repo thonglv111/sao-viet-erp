@@ -237,6 +237,12 @@ class CongDoanKhoan(Base):
     unit_price: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     cong_thuc_khoan: Mapped[str | None] = mapped_column(Text, nullable=True)
     gia_theo_to: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Đợt 2 (21/10/2026, mg 0430): giá cố định CHUNG — bảng giá theo tổ để trống thì mọi tổ dùng cả
+    # hai giá chung (trước đây giá cố định chung luôn 0).
+    gia_co_dinh: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0, server_default="0")
+    # Tuỳ chọn khi ghi `[{ma, ten, kieu: "co_khong"|"so", goi_y}]` — thợ tick / gõ ở từng lần ghi, mỗi
+    # tuỳ chọn là một chip của ô Công thức khoán. NULL = không có.
+    tuy_chon: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False,

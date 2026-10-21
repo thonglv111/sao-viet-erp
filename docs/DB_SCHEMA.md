@@ -2894,6 +2894,33 @@ tiêu hiệu lực tại ngày D = mốc có `ap_dung_tu` lớn nhất ≤ D. **
 
 ---
 
+### `khoan_dung_may`
+
+**Purpose:** NGÀY DỪNG MÁY của một tổ (Đợt 2, chủ 21/10/2026) — tổ trưởng báo ở bàn tổ (máy hư / hết
+hàng). Ngày đó tổ ăn chỉ tiêu ngày (`khoan_chi_tieu_ngay`), chia cho người được tick theo tỷ lệ lương
+ca máy. Tiền này không vào quỹ so chỉ tiêu (tăng ca khoán) và không vào quỹ tổ trưởng. Bảng do
+`create_all` tạo.
+
+| Column          | Type           | Key                                   | Null | Default | Meaning |
+| --------------- | -------------- | ------------------------------------- | ---- | ------- | ------- |
+| `id`            | `Integer`      | **PK**                                | no   | auto    | PK. |
+| `department_id` | `Integer`      | **FK→departments.id**, **IX**         | no   | —       | Tổ dừng máy (CASCADE). |
+| `ngay`          | `Date`         | **U(department_id, ngay)**            | no   | —       | Ngày dừng máy — một tổ một ngày một dòng. |
+| `ly_do`         | `String(16)`   | —                                     | no   | —       | `may_hu` (Máy hư) / `het_hang` (Hết hàng). |
+| `sua_chua_id`   | `Integer`      | **FK→ky_thuat_sua_chua.id**           | yes  | —       | Phiếu sửa máy kèm theo (SET NULL khi phiếu bị xoá). |
+| `ghi_chu`       | `Text`         | —                                     | yes  | —       | Ghi chú tự do. |
+| `nguoi_ids`     | `JSON`         | —                                     | no   | `[]`    | Danh sách `employees.id` hưởng ngày dừng máy (tổ trưởng tick). |
+| `created_by`    | `Integer`      | **FK→users.id**                       | yes  | —       | Người báo (SET NULL). |
+| `created_at`    | `DateTime(tz)` | —                                     | no   | now     | Lúc báo. |
+
+**Keys & indexes**
+
+- Primary key: `id`. Foreign keys: `department_id FK→departments.id` (CASCADE), `sua_chua_id FK→ky_thuat_sua_chua.id` (SET NULL), `created_by FK→users.id` (SET NULL).
+- Unique: `(department_id, ngay)` — `uq_khoan_dung_may_to_ngay`.
+- Index: `ix_khoan_dung_may_department_id`.
+
+---
+
 ### `khoan_to_truong`
 
 **Purpose:** TỔ TRƯỞNG của tổ khoán ăn THƯỞNG hay ăn CHIA theo sản lượng tổ (chủ 19/09/2026). Ví dụ 5%, tổ
@@ -3439,7 +3466,13 @@ dùng cho bình bài.
 công đoạn chưa cấu hình; `unit_price = 0` vẫn là một cấu hình hợp lệ. Từ 21/10/2026 (mg `0429`)
 công thức được TÍNH THẬT ở màn lương (`services/khoan_ky.py`) cho từng lần ghi.
 
-**Tất cả cột:** `id`, `cong_doan_id`, `unit`, `unit_price`, `cong_thuc_khoan`, `gia_theo_to`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_doan_id`, `unit`, `unit_price`, `cong_thuc_khoan`, `gia_theo_to`, `gia_co_dinh`, `tuy_chon`, `created_at`, `updated_at`.
+
+`gia_co_dinh` (Numeric(14,2), NOT NULL, mặc định 0, mg `0430`): giá cố định CHUNG — bảng giá theo tổ
+để trống thì mọi tổ dùng cả `gia_co_dinh` lẫn `unit_price`.
+
+`tuy_chon` (JSON, nullable, mg `0430`): tuỳ chọn khi ghi `[{ma, ten, kieu: "co_khong"|"so", goi_y}]` —
+thợ tick / gõ ở từng lần ghi; mỗi `ma` là một chip của ô Công thức khoán (không trùng chip hệ thống).
 
 `gia_theo_to` (JSON, nullable, mg `0429`): bảng giá theo TỔ `[{department_id, gia_co_dinh, don_gia}]`
 — cùng công đoạn, mỗi tổ máy một giá (chủ chốt 21/10/2026). NULL / rỗng = mọi tổ dùng `unit_price`
@@ -5027,6 +5060,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `don_vi_khoan_snapshot` | `String(24)` | — | yes | — | Ảnh chụp ĐVT (mã `don_vi_do`) của công việc khoán lúc ghi mẻ. |
 | `don_gia_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp đơn giá lúc ghi mẻ — để kế toán nhân SAU, tầng sản xuất KHÔNG nhân gì. Danh mục đổi sau đó thì màn mẻ hiện băng "Danh mục đã đổi" (so NỘI DUNG, không so `updated_at`) và chỉ cập nhật khi tổ bấm xác nhận (`POST /san-xuat/outputs/{id}/cap-nhat-danh-muc`). |
 | `gia_co_dinh_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp GIÁ CỐ ĐỊNH của tổ lúc ghi (mg `0429`) — vd giá bài in 150.000. Cùng luật ảnh chụp với `don_gia_khoan_snapshot` (cả hai là giá CỦA TỔ ghi). NULL = tổ chưa khai giá lúc ghi ⇒ lương báo thiếu giá. |
+| `tuy_chon_khoan` | `JSON` | — | yes | — | Ảnh chụp tuỳ chọn khi ghi (mg `0430`) `[{ma, ten, kieu, gia_tri}]` — mọi tuỳ chọn khai ở công đoạn lúc ghi, không tick = 0. NULL = lần ghi trước Đợt 2 (công thức coi mọi tuỳ chọn = 0). |
 | `mo_ta_loi` | `String(500)` | — | yes | — | Mô tả lỗi bổ sung (không thay danh mục). |
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú. |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
@@ -5034,7 +5068,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now (UTC) | onupdate = now. |
 
-**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `tuy_chon_khoan`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
 
 **MỘT CHỦ** — tổ của bước. Mẻ hiện ở tab Sản lượng của MỌI tổ có người trong mẻ, CÙNG MỘT CON SỐ, chia hai mục: "Mẻ của tổ" (cộng vào tổng) và "Người của tổ đi làm ở tổ khác" (không cộng). Tầng chia sản lượng cho từng người (`san_xuat_phan_bo*`) ĐÃ DROP (mg `0322`).
 

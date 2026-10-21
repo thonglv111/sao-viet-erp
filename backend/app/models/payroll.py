@@ -22,7 +22,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint,
+    JSON, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
     false as sa_false, true as sa_true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -603,6 +603,38 @@ class KhoanChiTieuNgay(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+# Lý do dừng máy (21/10/2026) — mã lưu ở `khoan_dung_may.ly_do`, chữ hiện cho người dùng.
+LY_DO_DUNG_MAY = {"may_hu": "Máy hư", "het_hang": "Hết hàng"}
+
+
+class KhoanDungMay(Base):
+    """NGÀY DỪNG MÁY của một tổ (Đợt 2, chủ 21/10/2026): tổ trưởng báo ở bàn tổ — máy hư hoặc hết
+    hàng. Ngày đó tổ ăn CHỈ TIÊU NGÀY (`KhoanChiTieuNgay`), chia cho người tổ trưởng tick
+    (`nguoi_ids`) theo tỷ lệ lương ca máy. Tiền này không vào quỹ so chỉ tiêu (tăng ca khoán) và
+    không vào quỹ tổ trưởng. Một tổ một ngày một dòng. Bảng do `create_all` tạo."""
+
+    __tablename__ = "khoan_dung_may"
+    __table_args__ = (
+        UniqueConstraint("department_id", "ngay", name="uq_khoan_dung_may_to_ngay"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    department_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("departments.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    ngay: Mapped[date] = mapped_column(Date, nullable=False)
+    ly_do: Mapped[str] = mapped_column(String(16), nullable=False)
+    sua_chua_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("ky_thuat_sua_chua.id", ondelete="SET NULL"), nullable=True
+    )
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    nguoi_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    created_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 # Chế độ ăn của TỔ TRƯỞNG trên sản lượng tổ (chủ 19/09/2026).

@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khoán bổ sung</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss-soft:#dcfce7; --moss-deep:#166534;
+  --amber-soft:#fef3c7; --amber-deep:#92400e;
+  --signal:#b91c1c; --signal-soft:#fee2e2;
+  --sky-soft:#e0f2fe; --sky-deep:#075985;
+  --new:#16a34a; --new-soft:#f0fdf4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 16px;max-width:920px}
+.legend{display:flex;flex-wrap:wrap;gap:10px 18px;margin:0 0 18px;font-size:13px;color:var(--ash)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:14px;height:14px;border-radius:4px;border:2px solid var(--new);background:var(--new-soft)}
+.sw--co{border:1px solid var(--rule);background:var(--canvas)}
+.switch{display:flex;flex-wrap:wrap;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:22px;position:sticky;top:10px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08);width:fit-content;max-width:100%}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:500;color:var(--ash);padding:6px 14px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-head h2{font-size:19px;font-weight:500;margin:0 0 4px}
+.why{color:var(--ash);margin:0 0 16px;max-width:920px}
+.why ul{margin:6px 0 0;padding-left:18px}
+.cap{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);margin:26px 0 10px}
+
+.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mu{color:var(--ash-2)}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap;background:var(--rule-hair);color:var(--ash)}
+.tag--moi{background:var(--moss-soft);color:var(--moss-deep)}
+.tag--co{background:var(--rule-hair);color:var(--ash)}
+.tag--sky{background:var(--sky-soft);color:var(--sky-deep)}
+.tag--amb{background:var(--amber-soft);color:var(--amber-deep)}
+.tag--do{background:var(--signal-soft);color:var(--signal)}
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:500;color:var(--ink);cursor:pointer;white-space:nowrap}
+.btn--pri{background:var(--rust);border-color:var(--rust);color:#fff}
+.btn--sm{height:28px;padding:0 10px;font-size:12.5px}
+
+/* khung màn */
+.win{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.08);overflow:hidden}
+.win__bar{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--rule-soft)}
+.win__bar .t{font-size:16px;font-weight:500}
+.win__tabs{display:flex;gap:2px;padding:0 18px;border-bottom:1px solid var(--rule-soft)}
+.win__tabs span{padding:9px 12px;font-size:13.5px;color:var(--ash);border-bottom:2px solid transparent}
+.win__tabs span.on{color:var(--ink);border-color:var(--ink)}
+.win__body{padding:18px}
+
+.sec{border:1px solid var(--rule-soft);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.sec__t{font-size:13px;color:var(--ash);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.moi{border:2px solid var(--new);background:var(--new-soft);position:relative}
+.moi-lb{position:absolute;top:-11px;right:12px;background:var(--new);color:#fff;font-size:11px;font-weight:500;padding:1px 8px;border-radius:999px}
+.hl{outline:2px solid var(--new);outline-offset:2px;border-radius:6px;background:var(--new-soft)}
+.note{font-size:12.5px;color:var(--ash);margin:0 0 10px}
+.grid2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld>span{font-size:12.5px;color:var(--ash)}
+.in{height:34px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;font:inherit;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.in.num{justify-content:flex-end;font-variant-numeric:tabular-nums}
+.in i{font-style:normal;color:var(--ash-3);font-size:12.5px}
+input.in{width:100%}
+select.in{width:100%}
+
+table.t{width:100%;border-collapse:collapse;font-size:13.5px}
+table.t th{font-weight:400;color:var(--ash-2);font-size:12.5px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule)}
+table.t td{padding:6px 8px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+table.t th.n,table.t td.n{text-align:right}
+.code{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--rule-hair);border-radius:6px;padding:2px 6px;white-space:nowrap}
+.formula{font-family:ui-monospace,Consolas,monospace;font-size:13px;border:1px solid var(--rule);border-radius:8px;padding:10px 12px;background:#fff;line-height:1.7}
+.formula b{font-weight:500;background:var(--sky-soft);color:var(--sky-deep);border-radius:5px;padding:1px 5px}
+.formula b.nw{background:var(--moss-soft);color:var(--moss-deep);outline:1px solid var(--new)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:7px;border:1px solid var(--rule);background:#fff;font-size:12.5px}
+.chip.nw{border-color:var(--new);background:var(--new-soft);color:var(--moss-deep)}
+.chip small{color:var(--ash-2)}
+
+/* hộp ghi sản lượng */
+.stage{background:rgba(15,23,42,.25);border-radius:14px;padding:30px 16px;display:flex;justify-content:center;gap:20px;flex-wrap:wrap}
+.modal{background:var(--canvas);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.25);width:440px;max-width:100%}
+.modal__h{padding:14px 18px;border-bottom:1px solid var(--rule-soft);font-size:15px;font-weight:500}
+.modal__h small{display:block;font-weight:400;color:var(--ash);font-size:12.5px}
+.modal__b{padding:14px 18px;display:flex;flex-direction:column;gap:12px}
+.modal__f{padding:12px 18px;border-top:1px solid var(--rule-soft);display:flex;justify-content:flex-end;gap:8px}
+.big{height:44px;font-size:18px}
+.ppl{display:flex;flex-wrap:wrap;gap:6px}
+.ppl span{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:8px;padding:4px 10px;font-size:13px}
+.ppl span.on{border-color:var(--ink);background:var(--rule-hair)}
+.kh{border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.kh__dau{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13.5px}
+.kh__mo{font-size:12px;color:var(--ash-2)}
+.kh__gia{margin-left:auto;color:var(--ash);font-variant-numeric:tabular-nums;font-size:12.5px}
+.row{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.row label{display:inline-flex;align-items:center;gap:8px}
+.row .in{height:30px;width:90px}
+.row .gia{margin-left:auto;color:var(--ash);font-size:12.5px}
+.goi{font-size:12px;color:var(--ash-2)}
+
+.drawer{display:grid;grid-template-columns:1fr 520px;gap:0;min-height:420px}
+.drawer__bg{background:#f1f5f9;padding:16px;color:var(--ash-3);font-size:13px}
+.drawer__p{border-left:1px solid var(--rule-soft);background:#fff;padding:16px 18px}
+.sum{display:flex;justify-content:space-between;padding:10px 0 0;border-top:1px solid var(--rule);margin-top:6px;font-variant-numeric:tabular-nums}
+
+.calc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+.res{margin-top:12px;border-radius:8px;background:var(--rule-hair);padding:10px 12px;font-variant-numeric:tabular-nums}
+.res .big-n{font-size:20px;font-weight:500}
+.ask{border-left:0;background:var(--amber-soft);color:var(--amber-deep);border-radius:10px;padding:12px 14px;margin-top:14px;font-size:13.5px}
+.ask ul{margin:6px 0 0;padding-left:18px}
+
+@media (max-width:820px){
+  .grid2,.calc{grid-template-columns:1fr 1fr}
+  .drawer{grid-template-columns:1fr}
+  .drawer__bg{display:none}
+  .table-wrap{overflow-x:auto}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Công thức khoán: phần bổ sung để phủ mọi công đoạn</h1>
+  <p class="lead">Dựng trên đúng các màn phiên trước đã code: tab Khoán của công đoạn, hộp Ghi sản lượng ở bàn tổ, ngăn soi Khoán SP ở bảng lương. Các màn này đã có bảng giá theo tổ, biến <span class="code">sl_ghi</span> và việc phát sinh. Trang này chỉ tô các phần thêm hoặc chỉnh.</p>
+  <div class="legend">
+    <span><i class="sw"></i>Khung xanh, nhãn MỚI: phần thêm hoặc chỉnh</span>
+    <span><i class="sw sw--co"></i>Viền xám: đã có, giữ nguyên</span>
+  </div>
+
+  <div class="switch" role="tablist">
+    <button class="on" data-o="o1">1. Công thức từng tổ</button>
+    <button data-o="o2">2. Tab Khoán của công đoạn</button>
+    <button data-o="o3">3. Hộp Ghi sản lượng</button>
+    <button data-o="o4">4. Báo dừng máy</button>
+    <button data-o="o5">5. Ngăn soi Khoán SP</button>
+  </div>
+
+  <!-- ============ 1 ============ -->
+  <section class="opt on" id="o1">
+    <div class="opt-head"><h2>Mỗi tổ trong sổ T08 viết bằng công thức nào</h2></div>
+    <div class="why">Mỗi mã giá trong sổ (D1MEB, KDCC, C5L1…) thành <b style="font-weight:500">một công đoạn</b> trong danh mục, giá khai theo tổ. Chip xanh lá là biến mới, chip xanh dương là biến đã có.</div>
+    <div class="win"><div class="win__body table-wrap">
+      <table class="t">
+        <thead><tr><th style="width:150px">Tổ trong sổ</th><th>Ví dụ công đoạn</th><th>Công thức khoán</th><th>Cần thêm</th></tr></thead>
+        <tbody>
+          <tr><td>In 2/4/5/6/7 màu</td><td>Bài in 1–2 màu</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px">((1 - <b class="nw">chay_tiep</b>) * <b>gia_co_dinh</b> + max(0, <b>sl_ghi</b> * (1 + <b class="nw">tu_tro</b>) - (1 - <b class="nw">chay_tiep</b>) * 3000) * <b>don_gia_khoan</b>) * if(<b>so_mau_pha</b> &gt; 0, 1.1, 1)</span></td>
+            <td><span class="tag tag--moi">tuỳ chọn Chạy tiếp</span> <span class="tag tag--moi">chip Tự trở</span></td></tr>
+          <tr><td>In UV, metalize</td><td>Bài in UV (giá ×2), Bài in metalize (giá ×3)</td>
+            <td><span class="mu">giống bài in, chỉ khác giá khai</span></td><td><span class="tag tag--co">không</span></td></tr>
+          <tr><td>Bế (các kíp)</td><td>Bế khuôn cũ KDCC</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px">(1 - <b class="nw">trung_khuon</b>) * <b>gia_co_dinh</b> + <b>sl_ghi</b> * (1 + <b class="nw">xa_doi</b>) * (<b>don_gia_khoan</b> + if(<b class="nw">so_lo</b> &gt;= 7, 50, if(<b class="nw">so_lo</b> &gt;= 1, 20, 0)))</span></td>
+            <td><span class="tag tag--moi">3 tuỳ chọn</span> <span class="tag tag--moi">giá cố định chung</span></td></tr>
+          <tr><td>Cán màng, Bồi</td><td>Cán màng bóng CV</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px"><b>sl_ghi</b> * <b>dai_in</b> * <b>rong_in</b> * <b>don_gia_khoan</b></span></td>
+            <td><span class="tag tag--co">không</span> <span class="mu">chụp film là việc phát sinh</span></td></tr>
+          <tr><td>Cắt (Phương, Duy, Than)</td><td>Cắt tờ, Cắt TP, Xả cuộn</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px"><b>sl_ghi</b> * <b>dai_nguyen</b> * <b>rong_nguyen</b> * <b>dinh_luong</b> * <b>don_gia_khoan</b></span></td>
+            <td><span class="tag tag--co">không</span></td></tr>
+          <tr><td>Dán nhóm 1–5</td><td>Dán máy 1 mảnh EB</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px">(1 - <b class="nw">khong_canh</b>) * <b>gia_co_dinh</b> / <b class="nw">so_lan_chay</b> + <b>sl_ghi</b> * <b>don_gia_khoan</b></span></td>
+            <td><span class="tag tag--moi">biến Số lần chạy</span> <span class="tag tag--moi">tuỳ chọn Không canh máy</span> <span class="mu">canh máy 50.000 = giá cố định</span></td></tr>
+          <tr><td>Gỡ phôi, Thành phẩm, Cột dây, Đục lỗ tay</td><td>Gỡ hộp ivory 1–4 con</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px"><b>sl_ghi</b> * <b>don_gia_khoan</b></span></td>
+            <td><span class="tag tag--co">không</span></td></tr>
+          <tr><td>Thành phẩm trả theo giờ</td><td>Lau chùi từng cái, Đếm bỏ bọc</td>
+            <td><span class="formula" style="display:inline-block;padding:4px 8px"><b class="nw">tien_gio</b></span></td>
+            <td><span class="tag tag--moi">biến Tiền theo giờ</span></td></tr>
+          <tr><td>Ngày máy hư, hết hàng</td><td>không phải lần ghi</td>
+            <td><span class="mu">ngày đó tổ ăn chỉ tiêu ngày</span></td>
+            <td><span class="tag tag--moi">nút Báo dừng máy</span></td></tr>
+          <tr><td>Xe tải</td><td>không phải công đoạn</td>
+            <td><span class="mu">để mục riêng, đã có km khoán</span></td><td><span class="tag tag--co">ngoài đợt này</span></td></tr>
+        </tbody>
+      </table>
+    </div></div>
+    <div class="why" style="margin-top:14px">Tiền mỗi lần ghi chia cho những người được tick theo tỷ lệ <b style="font-weight:500">lương ca máy</b> = lương vị trí + lương trách nhiệm + phụ cấp (cùng mức với bù lỗ), áp cho mọi tổ. Người thử việc vẫn đứng trong tỷ lệ nhưng ăn bù lỗ, phần của họ không dồn sang người khác.</div>
+  </section>
+
+  <!-- ============ 2 ============ -->
+  <section class="opt" id="o2">
+    <div class="opt-head"><h2>Danh mục → Công đoạn → tab Khoán (ví dụ Bế khuôn cũ KDCC)</h2></div>
+    <div class="why">Thêm hai thứ: ô <b style="font-weight:500">Giá cố định chung</b> cho công đoạn mà mọi tổ cùng giá (bế, dán), và khối <b style="font-weight:500">Tuỳ chọn khi ghi</b>. Mỗi tuỳ chọn thành một chip dùng được trong công thức, và hiện ra ở hộp Ghi sản lượng cho thợ tick hoặc gõ số.</div>
+    <div class="win">
+      <div class="win__bar"><span class="t">Bế khuôn cũ KDCC</span><span class="tag">CD-0108</span></div>
+      <div class="win__tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Lịch sử</span></div>
+      <div class="win__body">
+        <div class="sec moi"><span class="moi-lb">CHỈNH</span>
+          <div class="sec__t">Đơn giá</div>
+          <div class="grid2">
+            <div class="fld"><span>Đơn vị tính khoán</span><div class="in">tờ <i>▾</i></div></div>
+            <div class="fld hl"><span>Giá cố định chung (MỚI)</span><div class="in num">50.000 <i>đ</i></div></div>
+            <div class="fld"><span>Đơn giá chung</span><div class="in num">60 <i>đ</i></div></div>
+          </div>
+          <p class="note" style="margin:10px 0 0">Hiện bảng giá theo tổ để trống thì giá cố định luôn là 0, nên bế 6 kíp cùng giá vẫn phải gõ 6 dòng. Có ô này thì bảng theo tổ chỉ dùng khi máy nào khác giá (in).</p>
+        </div>
+
+        <div class="sec">
+          <div class="sec__t">Giá theo tổ <span class="tag tag--co">đã có</span></div>
+          <p class="note">Bỏ trống cả bảng thì mọi tổ dùng giá chung ở trên.</p>
+          <table class="t" style="max-width:640px">
+            <thead><tr><th>Tổ</th><th class="n">Giá cố định</th><th class="n">Đơn giá</th></tr></thead>
+            <tbody>
+              <tr><td>Kíp bế 1</td><td class="n mu">—</td><td class="n mu">—</td></tr>
+              <tr><td>Kíp bế 2</td><td class="n mu">—</td><td class="n mu">—</td></tr>
+              <tr><td>Kíp bế Linh</td><td class="n mu">—</td><td class="n mu">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sec moi"><span class="moi-lb">MỚI</span>
+          <div class="sec__t">Tuỳ chọn khi ghi</div>
+          <p class="note">Thợ chọn ở từng lần ghi. Kiểu Có/không vào công thức là 1 hoặc 0, kiểu Số thì là số thợ gõ.</p>
+          <table class="t" style="max-width:760px">
+            <thead><tr><th>Tên hiện cho thợ</th><th>Mã trong công thức</th><th>Kiểu</th><th>Gợi ý cho thợ</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Trùng khuôn</td><td><span class="code">trung_khuon</span></td><td>Có/không</td><td class="mu">khuôn của lần trước, không lên lại</td><td>×</td></tr>
+              <tr><td>Xả đôi</td><td><span class="code">xa_doi</span></td><td>Có/không</td><td class="mu">một tờ ra hai</td><td>×</td></tr>
+              <tr><td>Số lỗ đục</td><td><span class="code">so_lo</span></td><td>Số</td><td class="mu">bỏ trống nếu không đục</td><td>×</td></tr>
+            </tbody>
+          </table>
+          <button class="btn btn--sm" style="margin-top:10px">+ Thêm tuỳ chọn</button>
+        </div>
+
+        <div class="sec">
+          <div class="sec__t">Công thức khoán <span class="tag tag--co">đã có</span> <span class="tag tag--moi">thêm chip</span></div>
+          <div class="formula">(1 - <b class="nw">trung_khuon</b>) * <b>gia_co_dinh</b> + <b>sl_ghi</b> * (1 + <b class="nw">xa_doi</b>) * (<b>don_gia_khoan</b> + if(<b class="nw">so_lo</b> &gt;= 7, 50, if(<b class="nw">so_lo</b> &gt;= 1, 20, 0)))</div>
+          <div class="chips">
+            <span class="chip">SL ghi <small>sl_ghi</small></span>
+            <span class="chip">SL tốt <small>sl_tot</small></span>
+            <span class="chip">Giá cố định <small>gia_co_dinh</small></span>
+            <span class="chip">Đơn giá khoán <small>don_gia_khoan</small></span>
+            <span class="chip">Dài tờ in <small>dai_in</small></span>
+            <span class="chip">Định lượng <small>dinh_luong</small></span>
+            <span class="chip">… các biến quy cách lệnh</span>
+            <span class="chip nw">Trùng khuôn <small>trung_khuon</small></span>
+            <span class="chip nw">Xả đôi <small>xa_doi</small></span>
+            <span class="chip nw">Số lỗ đục <small>so_lo</small></span>
+            <span class="chip nw">Số lần chạy của lệnh <small>so_lan_chay</small></span>
+            <span class="chip nw">Tiền theo giờ <small>tien_gio</small></span>
+            <span class="chip nw">Tự trở <small>tu_tro</small></span>
+          </div>
+          <p class="note" style="margin:10px 0 0">Ba chip đầu dòng xanh lá sinh ra từ khối Tuỳ chọn khi ghi của chính công đoạn này. Hai chip cuối có sẵn cho mọi công đoạn: <span class="code">so_lan_chay</span> = số lần ghi của cùng lệnh ở công đoạn này (Dán chia 50.000 canh máy cho số lần chạy); <span class="code">tien_gio</span> = lương giờ của từng người làm × số giờ của lần ghi, cộng lại.</p>
+        </div>
+
+        <div class="sec" style="border-style:dashed">
+          <div class="sec__t">Thử công thức <span class="mu">(chỉ để bạn xem trong mockup này chạy ra sao, không phải ô trên màn thật)</span></div>
+          <div class="calc">
+            <label class="fld"><span>SL ghi (tờ)</span><input class="in num" id="c-sl" type="number" value="2000"></label>
+            <label class="fld"><span>Số lỗ đục</span><input class="in num" id="c-lo" type="number" value="0"></label>
+            <label class="row" style="height:34px"><input type="checkbox" id="c-tk"> Trùng khuôn</label>
+            <label class="row" style="height:34px"><input type="checkbox" id="c-xd"> Xả đôi</label>
+          </div>
+          <div class="res" id="c-res"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3 ============ -->
+  <section class="opt" id="o3">
+    <div class="opt-head"><h2>Bàn tổ → Ghi sản lượng</h2></div>
+    <div class="why">Khối Khoán trong hộp đang hiện giá của tổ và việc phát sinh. Thêm các tuỳ chọn khai ở công đoạn, đặt ngay trên việc phát sinh. Hai ví dụ: kíp bế và máy in 4 màu.</div>
+    <div class="stage">
+      <div class="modal">
+        <div class="modal__h">Ghi sản lượng <small>LSX26-0031 Bế khuôn cũ KDCC, Kíp bế 2</small></div>
+        <div class="modal__b">
+          <div class="fld"><span>Số lượng lần này</span><div class="in num big">2.000 <i>tờ</i></div></div>
+          <div class="fld"><span>Người làm lần này</span><div class="ppl"><span class="on">☑ Nguyễn Văn Nhất</span><span class="on">☑ Trần Linh</span><span>☐ Lê Hòa</span></div></div>
+          <div class="kh">
+            <div class="kh__dau"><span class="kh__mo">Khoán</span><span>Bế khuôn cũ KDCC</span><span class="kh__gia">50.000 đ một lần ghi + 60 đ một tờ</span></div>
+            <div class="hl" style="padding:8px 10px;display:flex;flex-direction:column;gap:8px">
+              <div class="kh__mo">Tuỳ chọn lần này <span class="tag tag--moi" style="height:18px;font-size:11px">MỚI</span></div>
+              <div class="row"><label><input type="checkbox" checked> Trùng khuôn</label><span class="goi">khuôn của lần trước, không lên lại</span></div>
+              <div class="row"><label><input type="checkbox"> Xả đôi</label><span class="goi">một tờ ra hai</span></div>
+              <div class="row"><span style="width:110px">Số lỗ đục</span><span class="in num">3</span><span class="goi">bỏ trống nếu không đục</span></div>
+            </div>
+            <div class="kh__mo">Việc phát sinh, không cộng vào sản lượng</div>
+            <div class="row"><label><input type="checkbox"> Thay khuôn giữa chừng</label><span class="gia">40.000 đ</span></div>
+          </div>
+          <div class="fld"><span>Ghi chú</span><div class="in mu">Không bắt buộc</div></div>
+        </div>
+        <div class="modal__f"><button class="btn">Huỷ</button><button class="btn btn--pri">Ghi</button></div>
+      </div>
+
+      <div class="modal">
+        <div class="modal__h">Ghi sản lượng <small>LSX26-0023 Bài in 3–4 màu, Máy 4 màu</small></div>
+        <div class="modal__b">
+          <div class="fld"><span>Số lượng lần này</span><div class="in num big">1.800 <i>tờ</i></div></div>
+          <div class="fld"><span>Người làm lần này</span><div class="ppl"><span class="on">☑ Nguyễn Hoàng Huynh</span><span class="on">☑ Quyền</span></div></div>
+          <div class="kh">
+            <div class="kh__dau"><span class="kh__mo">Khoán</span><span>Bài in 3–4 màu</span><span class="kh__gia">250.000 đ một lần ghi + 30 đ một tờ</span></div>
+            <div class="hl" style="padding:8px 10px;display:flex;flex-direction:column;gap:8px">
+              <div class="kh__mo">Tuỳ chọn lần này <span class="tag tag--moi" style="height:18px;font-size:11px">MỚI</span></div>
+              <div class="row"><label><input type="checkbox" checked> Chạy tiếp</label><span class="goi">nối bài trước, không ăn giá bài, tờ rớt tính cả số</span></div>
+            </div>
+            <div class="kh__mo">Việc phát sinh, không cộng vào sản lượng</div>
+            <div class="row"><label><input type="checkbox" checked> Thay kẽm</label><span class="in num" style="width:70px">2</span><span class="goi">kẽm</span><span class="gia">120.000 đ</span></div>
+            <div class="row"><label><input type="checkbox"> Xuống bài do lỗi máy</label><span class="gia">150.000 đ</span></div>
+          </div>
+        </div>
+        <div class="modal__f"><button class="btn">Huỷ</button><button class="btn btn--pri">Ghi</button></div>
+      </div>
+    </div>
+    <p class="why" style="margin-top:14px">Hộp Sửa số của lần ghi cũng có đúng khối này, để sửa khi thợ tick nhầm. Dòng lần ghi trong bàn tổ, khi mở ra, hiện thêm "Trùng khuôn", "Số lỗ đục 3" cạnh việc phát sinh.</p>
+  </section>
+
+  <!-- ============ 4 ============ -->
+  <section class="opt" id="o4">
+    <div class="opt-head"><h2>Bàn tổ → Báo dừng máy</h2></div>
+    <div class="why">Sổ in tính ngày máy hư hoặc hết hàng bằng chỉ tiêu ngày của máy (2 màu 1.250.000, 6 màu 1.800.000…). Hiện máy chưa biết ngày nào dừng máy, nên cần chỗ ghi. Đặt cạnh nút Ghi sản lượng ở bàn tổ, tổ trưởng bấm.</div>
+    <div class="stage">
+      <div class="modal moi" style="border-radius:14px"><span class="moi-lb">MỚI</span>
+        <div class="modal__h">Báo dừng máy <small>Máy 4 màu</small></div>
+        <div class="modal__b">
+          <div class="fld"><span>Ngày</span><div class="in">22/10/2026 <i>▾</i></div></div>
+          <div class="fld"><span>Lý do</span>
+            <div class="ppl"><span class="on">◉ Máy hư</span><span>○ Hết hàng</span></div></div>
+          <div class="fld"><span>Phiếu sửa máy (nếu có)</span><div class="in">SC-0014 <i>▾</i></div></div>
+          <div class="fld"><span>Ghi chú</span><div class="in mu">Không bắt buộc</div></div>
+          <p class="note" style="margin:0">Ngày này tổ ăn chỉ tiêu ngày 500.000 đ, cộng thêm tiền các lần ghi trong ngày nếu có. Chia cho người có công hôm đó theo tỷ lệ lương ca máy.</p>
+        </div>
+        <div class="modal__f"><button class="btn">Huỷ</button><button class="btn btn--pri">Lưu</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5 ============ -->
+  <section class="opt" id="o5">
+    <div class="opt-head"><h2>Bảng lương → bấm Khoán SP → ngăn soi</h2></div>
+    <div class="why">Ngăn soi đang liệt kê từng lần ghi và số tiền. Thêm hai thứ: mỗi lần ghi nói rõ đã chọn tuỳ chọn gì, và có dòng ngày dừng máy.</div>
+    <div class="win">
+      <div class="drawer">
+        <div class="drawer__bg">Bảng lương tháng 10/2026<br><br>Nguyễn Văn Nhất<br>Trần Linh<br>…</div>
+        <div class="drawer__p">
+          <div style="font-size:15px;font-weight:500">Khoán SP của Nguyễn Văn Nhất</div>
+          <div class="mu" style="font-size:12.5px;margin-bottom:10px">Tháng 10/2026, Kíp bế 2</div>
+          <div class="hl" style="padding:8px 10px;font-size:12.5px;margin-bottom:10px">Chia theo lương ca máy: Nhất 14.000.000, Linh 9.000.000 ⇒ phần của Nhất 0,609</div>
+          <table class="t">
+            <thead><tr><th>Ngày</th><th>Lần ghi</th><th class="n">Phần của Nhất</th></tr></thead>
+            <tbody>
+              <tr><td>20/10</td><td>LSX26-0031 Bế khuôn cũ KDCC<br><span class="mu">1.500 tờ, 2 người, cả lần 140.000 đ</span></td><td class="n">85.217 đ</td></tr>
+              <tr class="hl"><td>21/10</td><td>LSX26-0031 Bế khuôn cũ KDCC<br><span class="mu">2.000 tờ, 2 người, cả lần 160.000 đ</span> <span class="tag tag--sky">trùng khuôn</span> <span class="tag tag--sky">3 lỗ</span></td><td class="n">97.391 đ</td></tr>
+              <tr class="hl"><td>22/10</td><td>Dừng máy, máy hư <span class="tag tag--amb">SC-0014</span><br><span class="mu">chỉ tiêu ngày 500.000 đ, 2 người có công</span></td><td class="n">304.348 đ</td></tr>
+              <tr><td>23/10</td><td>LSX26-0035 Bế carton KC5L<br><span class="mu">900 tờ, 2 người</span> <span class="tag tag--sky">xả đôi</span></td><td class="n">…</td></tr>
+            </tbody>
+          </table>
+          <div class="sum"><span>Cộng</span><span>…</span></div>
+          <p class="note" style="margin-top:12px">Lần ghi 21/10: (1 − 1) × 50.000 + 2.000 × (60 + 20) = 160.000 đ. Phần của Nhất 160.000 × 14 ÷ (14 + 9) = 97.391 đ.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+document.querySelectorAll('.switch button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.switch button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.opt').forEach(o => o.classList.toggle('on', o.id === b.dataset.o));
+});
+const f = n => Math.round(n).toLocaleString('vi-VN');
+function tinh(){
+  const sl = +document.getElementById('c-sl').value || 0;
+  const lo = +document.getElementById('c-lo').value || 0;
+  const tk = document.getElementById('c-tk').checked ? 1 : 0;
+  const xd = document.getElementById('c-xd').checked ? 1 : 0;
+  const phu = lo >= 7 ? 50 : (lo >= 1 ? 20 : 0);
+  const len = (1 - tk) * 50000, rot = sl * (1 + xd) * (60 + phu);
+  document.getElementById('c-res').innerHTML =
+    `<div class="big-n">${f(len + rot)} đ</div>` +
+    `<div class="mu">Lên khuôn ${f(len)} đ${tk ? ' (trùng khuôn nên 0)' : ''} + ` +
+    `${f(sl)}${xd ? ' × 2' : ''} tờ × (60${phu ? ' + ' + phu : ''}) đ = ${f(rot)} đ</div>`;
+}
+['c-sl','c-lo','c-tk','c-xd'].forEach(id => document.getElementById(id).addEventListener('input', tinh));
+tinh();
+</script>
+</body>
+</html>

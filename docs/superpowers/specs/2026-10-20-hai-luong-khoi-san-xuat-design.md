@@ -114,7 +114,7 @@ Sổ cán màng T08: tổng tổ 105.491.142 × 5% = 5.274.557 cho Phạm Gia Ph
 người; năm số thực nhận cộng lại đúng 105.491.142 (quỹ chia hết, không công ty bù). Cách chia phần
 còn lại xấp xỉ giờ × hệ số nhưng chưa ra khớp từng đồng — kiểm lại khi chốt cách chia quỹ.
 
-### Công thức khoán thợ in (chủ chốt 21/10, đang bàn)
+### Công thức khoán thợ in (chủ chốt 21/10; đã code ở cb054910)
 
 Tiền tính trên TỪNG LẦN GHI (không gom theo bài, không gom theo lệnh):
 `giá bài + max(0, số lượng lần ghi − 3000) × giá tờ rớt`, ví dụ máy 2 màu CMYK
@@ -141,3 +141,109 @@ chia 5% (trưởng máy). Sổ sản lượng bản cũ từng có "HH tổ trư
 (ăn thưởng ở TỔ CHA), nhưng bản 12.09 đã gỡ dòng đó, Nhất chuyển sang bù lỗ 14tr/26 × công. Khi bỏ
 công tắc vẫn nên gỡ điều kiện "tổ phải bật Lương khoán mới khai được" ở `khai_to_truong` và cho tổ cha
 khai được (tính trên tổng SL các tổ con), phòng khi chủ dùng lại ăn thưởng kiểu Bế.
+
+## Đợt 2 — công thức khoán phủ mọi công đoạn (chủ duyệt 21/10)
+
+Mockup: `docs/mockups/khoan-cong-thuc-bo-sung.html`. Nguồn: bảng lương T08 bản 12.09, đọc hết các
+sheet tổ (in 2/4/5/6/7, cán màng, bồi, các kíp bế, gỡ phôi, dán, thành phẩm, cột dây, cắt Phương /
+Duy / Than / giấy cắt MĐ, xe). Đợt 1 (cb054910) đã có: giá theo tổ (giá cố định + đơn giá), biến
+`sl_ghi` / `sl_tot` / `gia_co_dinh`, công thức tính thật có `if` / `max` / `min`, việc phát sinh giá
+theo tổ, báo thiếu giá. Đợt 2 chỉ thêm những gì sổ cần mà đợt 1 chưa có.
+
+**Mỗi mã giá trong sổ = một công đoạn** (D1MEB, KDCC, C5L1, …), giá khai theo tổ. In UV / metalize
+là công đoạn riêng, giá đã gồm ×2 / ×3 — không cần hệ số. Đây là nhập danh mục, không phải code.
+
+Công thức của từng tổ (biến mới của đợt 2: `chay_tiep`, `trung_khuon`, `xa_doi`, `so_lo`, `so_lan_chay`, `tien_gio`, `tu_tro`):
+
+| Tổ trong sổ | Công thức khoán |
+|---|---|
+| In | `((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000) * don_gia_khoan) * if(so_mau_pha > 0, 1.1, 1)` |
+| Bế | `(1 - trung_khuon) * gia_co_dinh + sl_ghi * (1 + xa_doi) * (don_gia_khoan + if(so_lo >= 7, 50, if(so_lo >= 1, 20, 0)))` |
+| Cán màng, Bồi | `sl_ghi * dai_in * rong_in * don_gia_khoan`; chụp film = việc phát sinh |
+| Cắt | `sl_ghi * dai_nguyen * rong_nguyen * dinh_luong * don_gia_khoan` (đ/kg) |
+| Dán | `gia_co_dinh / so_lan_chay + sl_ghi * don_gia_khoan` (canh máy 50.000/lệnh = giá cố định, chia đều số lần chạy như sổ) |
+| Gỡ, Thành phẩm, Cột dây, Đục lỗ tay | `sl_ghi * don_gia_khoan` |
+| Thành phẩm trả theo giờ (lau chùi, đếm bỏ bọc) | `tien_gio` |
+
+Số lượng trong công thức (chủ 21/10): CHỈ MỘT chip `sl_ghi` = cột "Số lượng" của lần ghi ở bàn tổ (tab
+Sản lượng) — đúng số thợ gõ. Không nói tốt / hỏng: gỡ chip `sl_tot` khỏi ô Công thức khoán; công đoạn
+bỏ trống công thức = `gia_co_dinh + sl_ghi × don_gia`.
+
+Màu pha (chủ 21/10): sổ in ghi "màu pha 10% tổng bài in" = lần ghi của bài có màu pha cộng 10% tiền.
+Viết trong công thức bằng chip có sẵn `so_mau_pha` (`if(so_mau_pha > 0, 1.1, 1)`), không code riêng.
+
+Phần thêm:
+
+1. **Giá cố định chung** — ô mới cạnh Đơn giá chung ở tab Khoán. Bảng giá theo tổ để trống thì mọi tổ
+   dùng cả hai giá chung (nay giá cố định chung luôn 0 ⇒ bế 6 kíp cùng giá phải gõ 6 dòng).
+2. **Tuỳ chọn khi ghi** — khối mới ở tab Khoán của công đoạn: tên hiện cho thợ, mã biến, kiểu
+   Có/không (vào công thức là 1/0) hoặc Số, gợi ý. Mỗi tuỳ chọn thành chip trong ô Công thức khoán,
+   hiện ở hộp Ghi sản lượng và Sửa số (đặt trên việc phát sinh), lưu theo lần ghi. Không tick / bỏ
+   trống = 0. Ví dụ: In có "Chạy tiếp"; Bế có "Trùng khuôn", "Xả đôi", "Số lỗ đục".
+3. **Chip `so_lan_chay`** cho mọi công đoạn (chủ 21/10, sổ DÁN cột "tiền canh máy" = `$O$119 / số lần
+   chạy`): số lần ghi của CÙNG lệnh ở CÙNG công đoạn, đếm tới cuối kỳ đang tính lương (tối thiểu 1).
+   Tiền khoán tính lại mỗi lần bấm Tính lại nên lần ghi sau làm số của lần trước đổi theo — đúng sổ.
+   Lệnh vắt hai kỳ: kỳ trước đã đếm 1 lần ⇒ 50.000; kỳ sau 2 lần ⇒ lần mới 25.000 (tổng 75.000, chấp
+   nhận). Dòng sổ ghi "phước canh" (người khác canh, nhóm không ăn) ⇒ tuỳ chọn khi ghi "Không canh
+   máy" `khong_canh`: công thức `(1 - khong_canh) * gia_co_dinh / so_lan_chay + …`.
+4. **Chip `tien_gio`** cho mọi công đoạn: Σ người làm (lương vị trí + lương trách nhiệm) ÷ 26 ÷ 8 × số
+   giờ của lần ghi (giờ kết thúc − giờ bắt đầu). Chủ 21/10 chỉ ảnh bảng lương T07: cột Ngoài giờ =
+   `(K + L) / 26 / 8 × 1,5 × giờ` ⇒ chia 26 cố định, KHÔNG cộng phụ cấp; `tien_gio` là cùng gốc đó, bỏ
+   × 1,5 (giờ làm thêm đi theo tăng ca theo giờ hiện có).
+5. **Báo dừng máy** — nút mới ở bàn tổ (tổ trưởng): ngày, lý do Máy hư / Hết hàng, phiếu sửa máy nếu
+   có, ghi chú. Ngày đó tổ ăn chỉ tiêu ngày (`khoan_chi_tieu_ngay`), chia cho người có công hôm đó.
+6. **Chip quy cách in cho ô Công thức khoán** — đã dùng được sẵn (thừa hưởng bộ quy đổi, `khoan_ky`
+   bơm `ngu_canh_lenh`): `so_mau`, `so_mau_pha`, `so_mau_phu`, `so_mat`, `so_kem`, khổ in, định lượng.
+   Thiếu: `so_mat` = 2 cho CẢ in AB lẫn tự trở / trở nhíp nên không tách được tự trở ⇒ thêm chip
+   **`tu_tro`** = 1 khi quy cách in của lệnh là tự trở hoặc trở nhíp, ngược lại 0. Bài ghép lấy quy
+   cách của bài.
+7. **Ngăn soi Khoán SP** — mỗi lần ghi hiện thẻ tuỳ chọn đã chọn ("trùng khuôn", "3 lỗ", "xả đôi");
+   thêm dòng ngày dừng máy kèm lý do và phiếu sửa.
+
+Ngoài đợt 2: xe tải (tính theo chuyến, bậc km — mục riêng); bế sô ×1,5 / ×2 CN (sheet đã ẩn).
+
+Còn phải chốt trước khi code:
+- Hệ số 0,7 ở sheet Duy / Than và 0,6 / 0,8 ở sheet xe — chủ 21/10: KHÔNG làm, bỏ qua.
+- Ngày dừng máy mà vẫn có ghi sản lượng — chủ 21/10: CỘNG CẢ HAI (chỉ tiêu ngày + tiền các lần ghi).
+- Việc trả theo giờ — chủ 21/10: `tien_gio` chỉ là lương giờ × số giờ, KHÔNG nhân 1,5; giờ làm thêm
+  đi theo tăng ca theo giờ hiện có của phần mềm (vế thời gian).
+- In tự trở — chủ 21/10: SL × 2, viết ngay trong công thức. Sổ nhân 2 ở chính ô SL rồi mới so 3.000
+  ⇒ ngưỡng so với số ĐÃ nhân đôi (công thức mẫu ở bảng trên); muốn khác thì sửa công thức, không phải
+  code.
+- Cách chia tiền trong tổ — ĐÃ CHỐT (chủ 21/10: "áp cho mọi tổ luôn"): MỌI tổ chia theo tỷ lệ LƯƠNG
+  CA MÁY = (lương vị trí + lương trách nhiệm + phụ cấp) của người, cùng mức nền với bù lỗ (sổ in: Tuấn
+  16,5tr / Huy 14,5tr ⇒ 0,532 / 0,468). Tiền MỖI LẦN GHI chia cho những người được tick ở lần ghi đó
+  theo tỷ lệ lương ca máy giữa chính họ ⇒ ai không làm lần đó không ăn, thử việc lương thấp tự ăn ít
+  (thay cho chia giờ × hệ số, tỷ lệ kíp gõ tay, 1/3 – 1/4 của sổ). Tăng ca khoán và trích tổ trưởng
+  giữ cách đợt 1 (theo phần mỗi người đã ra). Người lương ca máy = 0 ⇒ báo thiếu, không chia đều.
+  Đợt 1 (cb054910) đang chia ĐỀU (`khoan_ky.py`, giả định 1) ⇒ phải sửa.
+  "Lương ca máy" lấy ĐÚNG mức nền bù lỗ đang dùng (`payroll_service._compute`, `bu_lo_theo_cong =
+  (daily_rate + don_gia_phu_cap) × công`), không dựng mức mới:
+  - nền = `eff_monthly` = (lương vị trí + lương trách nhiệm) × hệ số thử việc (`probation_ratio`);
+  - phụ cấp = `phu_cap_thang` = ô Phụ cấp khác (`employee_salaries.allowance`) + các khoản thu nhập
+    gán ở HỒ SƠ (`employee_salary_components`, trừ khoản kind = trừ); KHÔNG nhân hệ số thử việc;
+  - KHÔNG gồm cơm ca / phụ cấp ca (`work_shifts`, trả theo ngày đi làm), cơm tăng ca, khoản phát sinh
+    riêng kỳ (`payroll_line_components`), chuyên cần.
+  Mức lấy theo hồ sơ lương hiệu lực của kỳ (như bù lỗ). Người tổ khác sang phụ dùng mức của chính họ.
+  Người THỬ VIỆC (chủ chốt 21/10): vẫn đứng trong tỷ lệ chia của lần ghi như mọi người, nhưng giữ luật
+  16/09 — tiền khoán về 0, luôn ăn bù lỗ do công ty trả. Phần chia của họ KHÔNG dồn sang người chính thức
+  (vd Tuấn + Linh thử việc: Tuấn ăn 0,647, phần 0,353 của Linh bỏ).
+### Giả định đã trình chủ 21/10 (chủ không gạch ⇒ coi là duyệt)
+
+- Mỗi mã giá trong sổ = một công đoạn (~150 công đoạn, nhập qua Excel danh mục).
+- Xả đôi, số lỗ đục, trùng khuôn, chạy tiếp, không canh máy do THỢ tick / gõ ở từng lần ghi (không lấy
+  từ quy cách lệnh). In UV / metalize là công đoạn riêng. Chụp film là việc phát sinh.
+- Cán màng / bồi tính m² theo khổ tờ in; cắt tính kg theo khổ tờ nguyên × định lượng (cắt thành phẩm
+  chưa đối chiếu sổ — khổ khác thì sửa công thức, không phải code).
+- Mức lương ca máy lấy theo hồ sơ hiệu lực của kỳ (như bù lỗ); người có mức = 0 ⇒ lần ghi báo thiếu.
+  Phụ cấp = mọi khoản thu ở hồ sơ (nhà ở, trang phục, đi lại, phụ cấp khác…), không gồm cơm ca.
+- Báo dừng máy: tổ trưởng bấm, tính cả ngày, không theo giờ.
+- Ngày của lần ghi = theo giờ bắt đầu (ca qua đêm tính vào ngày bắt đầu).
+- 50% vượt chỉ tiêu so trên tiền GỐC (trước nhân đôi CN trùng lễ); tổ chưa khai chỉ tiêu lấy của tổ cha.
+- Tổ trưởng: mốc tỷ lệ lấy tại ngày cuối kỳ; quỹ gồm tổ con; ăn chia trừ mỗi người theo phần họ làm ra
+  (thay chữ "chia đều" ở mục Tổ trưởng ĂN CHIA).
+- Giá áp lên lần ghi theo ẢNH CHỤP lúc ghi — khai giá mới không đổi lần ghi cũ.
+- Dòng gõ tay "+10", "+50" vào đơn giá ở sổ ⇒ khai việc phát sinh "Cộng đơn giá" (thợ tick + gõ số).
+- Sổ không trả khi thiếu NPL: phần mềm KHÔNG xử lý (vẫn tính tiền lần ghi).
+- Ví dụ tăng ca của Quí ở spec (432.692) gõ nhầm; công thức đúng ra 721.154 (10 giờ × 1,5).
+- Ô "Lương khoán: Có" ở màn Phòng ban là cờ cũ, gỡ khỏi màn.
