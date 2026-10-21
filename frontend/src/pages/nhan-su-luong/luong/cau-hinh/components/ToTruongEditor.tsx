@@ -179,7 +179,7 @@ export function ToTruongEditor({
         <div>
           <h3 className="cl-card__title">Tổ trưởng — {deptName}</h3>
           <p className="cl-card__desc">
-            Tổ trưởng ăn thưởng hay ăn chia trên sản lượng của tổ. Chưa áp vào tính lương.
+            Tổ trưởng ăn thưởng hay ăn chia trên tổng sản lượng của tổ (gồm các tổ con) mỗi kỳ lương — tiền cộng vào lương khoán của tổ trưởng.
           </p>
         </div>
         {!loading && (

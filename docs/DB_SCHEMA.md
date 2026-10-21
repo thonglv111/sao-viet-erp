@@ -3050,8 +3050,10 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `chuyen_can` | `Numeric(14,2)` | — | no | `0` | Thưởng chuyên cần. |
 | `allowance` | `Numeric(14,2)` | — | no | `0` | TỔNG phụ cấp tháng = phụ cấp KHÁC + khoản danh mục gán ở hồ sơ (+ thâm niên ở kỳ CŨ — cột dưới, ngưng 07/09/2026). Phụ cấp CA đi riêng ở `night_pay`. |
 | `phu_cap_tham_nien` | `Numeric(14,2)` | — | no | `0` | **TRONG ĐÓ** của `allowance` — chép từ `employee_salaries.phu_cap_tham_nien`. Như trên: không cộng thêm vào gross. Thêm qua migration 0089. **NGƯNG 07/09/2026**: kỳ mới engine luôn ghi 0, chỉ kỳ cũ còn số (phiếu in dòng riêng "(đã ngưng)"). |
-| `khoan` | `Numeric(14,2)` | — | no | `0` | Lương khoán (nhịp 2, từ sổ khoán). Thêm qua migration 0013. |
+| `khoan` | `Numeric(14,2)` | — | no | `0` | Lương khoán = tiền sản lượng từ lần ghi (gồm phần tổ trưởng ăn chia / ăn thưởng) — `services/khoan_ky.py` từ 21/10/2026. Thêm qua migration 0013. |
 | `khoan_km` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | `0` | **Khoán km giao hàng** (mg 0231; cột vá lại ở 0232 cho DB đã chạy 0231 trước khi phần này thêm vào) — tiền theo km chuyến giao trong kỳ, CỘNG THÊM lên lương chấm công (tài xế ăn cả hai). Là **CỘT** chứ không phải khoản danh mục: tiền engine tự tính thì đứng cùng nhà với `khoan`/`ot_pay`/`chuyen_can`. Nhét vào *Danh mục khoản thu nhập* là đặt công tắc hệ thống ngay cạnh nút xoá của HCNS — lỗi đã mắc với hoa hồng, sửa 24/08/2026. KHÔNG sửa tay được; sai km thì sửa ở chuyến giao rồi tính lại. |
+| `ve_thoi_gian` | `Numeric(14,2)` | — | yes | — | **CHỤP vế thời gian** đã đem so (mg 0429, 21/10/2026) = bù lỗ theo công + tiền giờ tăng ca + phụ cấp tăng ca đêm — để ngăn "so 2 lương" hiện cả bên không lấy. `NULL` như `bu_lo_theo_cong` (dòng không tính 2 lương, kỳ cũ). |
+| `tang_ca_khoan` | `Numeric(14,2)` | — | no | `0` | **Tăng ca khoán** (mg 0429, 21/10/2026) — 50% phần tiền sản lượng của TỔ vượt chỉ tiêu ngày, chia cho người làm hôm đó. Thuộc VẾ KHOÁN của phép so 2 lương, cộng vào gross. Cột riêng, không nhét vào `khoan` / `ot_pay`; người ăn vế thời gian = 0. |
 | `hoa_hong` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | `0` | **Hoa hồng kinh doanh** (mg 0269, 07/09/2026) — hệ tự tính theo hoá đơn bán trong kỳ (`HoaHongService`), % chụp trên đơn lúc chốt. Là CỘT (chủ: "nó là một dạng lương"), KHÔNG còn là dòng khoản danh mục nguồn `auto` (mg 0227): mg 0269 đã chuyển tiền dòng `auto` cũ vào đây rồi xoá dòng, xoá luôn dòng danh mục `hoa_hong_kd` và tàn dư `khoan_km_gh`. CỘNG THÊM vào `gross`, luôn chịu TNCN, không sửa tay (cần thêm/bớt thì dùng khoản "Thu nhập khác"). Cả `generate` lẫn `update_line` đều cộng cột này — trước 07/09 "Sửa 1 ô" bỏ sót nguồn `auto` nên hoa hồng bốc hơi. |
 | `ot_minutes` | `Integer` | — | no | `0` | Tổng phút tăng ca (từ Chấm công). Thêm qua migration 0043. |
 | `ot_pay` | `Numeric(14,2)` | — | no | `0` | Tiền tăng ca (hệ số phẳng). Thêm qua migration 0043. |
@@ -3434,10 +3436,14 @@ dùng cho bình bài.
 ### `cong_doan_khoan`
 
 **Purpose:** cấu hình Khoán tùy chọn quan hệ 1–1 với Công đoạn (mg `0326`). Không có dòng nghĩa là
-công đoạn chưa cấu hình; `unit_price = 0` vẫn là một cấu hình hợp lệ. Công thức chỉ được lưu, chưa
-có luồng nào thực thi.
+công đoạn chưa cấu hình; `unit_price = 0` vẫn là một cấu hình hợp lệ. Từ 21/10/2026 (mg `0429`)
+công thức được TÍNH THẬT ở màn lương (`services/khoan_ky.py`) cho từng lần ghi.
 
-**Tất cả cột:** `id`, `cong_doan_id`, `unit`, `unit_price`, `cong_thuc_khoan`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_doan_id`, `unit`, `unit_price`, `cong_thuc_khoan`, `gia_theo_to`, `created_at`, `updated_at`.
+
+`gia_theo_to` (JSON, nullable, mg `0429`): bảng giá theo TỔ `[{department_id, gia_co_dinh, don_gia}]`
+— cùng công đoạn, mỗi tổ máy một giá (chủ chốt 21/10/2026). NULL / rỗng = mọi tổ dùng `unit_price`
+chung, giá cố định 0. Đã có dòng tổ nào thì tổ vắng mặt là THIẾU GIÁ (không đoán).
 
 `cong_doan_id` là FK `cong_doan.id` ON DELETE CASCADE và UNIQUE. `unit` là mã trong danh mục
 `don_vi_do`; `unit_price` không âm. Không chép dữ liệu từ `piece_rates` vì mô hình cũ nhiều việc
@@ -3448,7 +3454,10 @@ theo nhiều tổ không có quan hệ 1–1 đáng tin cậy với Công đoạ
 **Purpose:** các việc phát sinh được chọn khi ghi mẻ của Công đoạn cha. Mỗi dòng gồm tên, đơn vị,
 đơn giá và thứ tự hiển thị.
 
-**Tất cả cột:** `id`, `cong_doan_khoan_id`, `ten`, `don_gia`, `don_vi`, `thu_tu`.
+**Tất cả cột:** `id`, `cong_doan_khoan_id`, `ten`, `don_gia`, `don_vi`, `thu_tu`, `gia_theo_to`.
+
+`gia_theo_to` (JSON, nullable, mg `0429`): giá theo TỔ `[{department_id, don_gia}]` — vd xuống bài do
+lỗi máy 2M 187.500, 4M 150.000. NULL / rỗng = mọi tổ dùng `don_gia`.
 
 `cong_doan_khoan_id` là FK `cong_doan_khoan.id` ON DELETE CASCADE. Tên không được trùng trong
 cùng cấu hình sau khi chuẩn hóa hoa/thường và khoảng trắng; service kiểm đơn vị có thật và giá
@@ -5017,6 +5026,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `ten_khoan_snapshot` | `String(150)` | — | yes | — | Ảnh chụp tên công việc khoán lúc ghi mẻ. |
 | `don_vi_khoan_snapshot` | `String(24)` | — | yes | — | Ảnh chụp ĐVT (mã `don_vi_do`) của công việc khoán lúc ghi mẻ. |
 | `don_gia_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp đơn giá lúc ghi mẻ — để kế toán nhân SAU, tầng sản xuất KHÔNG nhân gì. Danh mục đổi sau đó thì màn mẻ hiện băng "Danh mục đã đổi" (so NỘI DUNG, không so `updated_at`) và chỉ cập nhật khi tổ bấm xác nhận (`POST /san-xuat/outputs/{id}/cap-nhat-danh-muc`). |
+| `gia_co_dinh_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp GIÁ CỐ ĐỊNH của tổ lúc ghi (mg `0429`) — vd giá bài in 150.000. Cùng luật ảnh chụp với `don_gia_khoan_snapshot` (cả hai là giá CỦA TỔ ghi). NULL = tổ chưa khai giá lúc ghi ⇒ lương báo thiếu giá. |
 | `mo_ta_loi` | `String(500)` | — | yes | — | Mô tả lỗi bổ sung (không thay danh mục). |
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú. |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
@@ -5024,7 +5034,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now (UTC) | onupdate = now. |
 
-**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
 
 **MỘT CHỦ** — tổ của bước. Mẻ hiện ở tab Sản lượng của MỌI tổ có người trong mẻ, CÙNG MỘT CON SỐ, chia hai mục: "Mẻ của tổ" (cộng vào tổng) và "Người của tổ đi làm ở tổ khác" (không cộng). Tầng chia sản lượng cho từng người (`san_xuat_phan_bo*`) ĐÃ DROP (mg `0322`).
 

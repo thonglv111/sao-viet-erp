@@ -297,9 +297,14 @@ export function lanTheoId(batches: Pick<SxBatch, "id" | "bat_dau">[]): Map<numbe
   return new Map(xep.map((b, i) => [b.id, i + 1]));
 }
 
-/** Giá khoán kèm ĐVT — chỉ để TỔ NHÌN (§7.1): bàn tổ không nhân gì ra tiền. */
-function giaKhoan(v: { don_gia: number; don_vi: string; don_vi_ten: string | null }): string {
-  return `${num(v.don_gia)} đ một ${v.don_vi_ten ?? nhanDonVi(v.don_vi)}`;
+/** Giá khoán kèm ĐVT — chỉ để TỔ NHÌN (§7.1): bàn tổ không nhân gì ra tiền. Giá là giá CỦA TỔ
+ *  (bảng giá theo tổ, 21/10/2026): có giá cố định thì nêu trước, tổ chưa có giá thì nói thẳng. */
+function giaKhoan(v: {
+  don_gia: number; don_vi: string; don_vi_ten: string | null; gia_co_dinh?: number; thieu_gia?: boolean;
+}): string {
+  if (v.thieu_gia) return "tổ chưa có giá";
+  const dv = `${num(v.don_gia)} đ một ${v.don_vi_ten ?? nhanDonVi(v.don_vi)}`;
+  return v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi + ${dv}` : dv;
 }
 
 /** "đã nhận từ In 1.000 × 2 = 2.000, đã ghi 300" — CHỈ SỐ, không đơn vị (19/09/2026: mẻ chỉ ghi

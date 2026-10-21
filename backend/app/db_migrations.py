@@ -18871,3 +18871,38 @@ def _migrate_ke_gia_chi_ck(db: Session) -> None:
 
 
 MIGRATIONS.append(("0428_ke_gia_chi_ck", _migrate_ke_gia_chi_ck))
+
+
+def _migrate_hai_luong_khoan(db: Session) -> None:
+    """0429 (21/10/2026) — hai lương khối Sản xuất + tiền khoán từ lần ghi.
+
+    - `payroll_lines.tang_ca_khoan`: 50% phần tổ vượt chỉ tiêu ngày (vế khoán), cột riêng.
+    - `payroll_lines.ve_thoi_gian`: vế thời gian đã đem so (bù lỗ theo công + tăng ca theo giờ + TC đêm).
+    - `cong_doan_khoan.gia_theo_to` / `cong_doan_khoan_phat_sinh.gia_theo_to`: bảng giá theo TỔ
+      (JSON `[{department_id, gia_co_dinh, don_gia}]`), NULL = mọi tổ dùng giá chung.
+    - `san_xuat_batch.gia_co_dinh_khoan_snapshot`: giá cố định của tổ chụp lúc ghi.
+    Raw SQL đích danh cột, idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    them = (
+        ("payroll_lines", "tang_ca_khoan", "NUMERIC(14, 2) NOT NULL DEFAULT 0"),
+        ("payroll_lines", "ve_thoi_gian", "NUMERIC(14, 2)"),
+        ("cong_doan_khoan", "gia_theo_to", "JSON"),
+        ("cong_doan_khoan_phat_sinh", "gia_theo_to", "JSON"),
+        ("san_xuat_batch", "gia_co_dinh_khoan_snapshot", "NUMERIC(14, 2)"),
+    )
+    co_san = {t: _existing_columns(insp, t) for t in {t for t, _, _ in them} if t in bang}
+    for t, cot, kieu in them:
+        if t in co_san and cot not in co_san[t]:
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN {cot} {kieu}"))
+            if (t, cot) == ("san_xuat_batch", "gia_co_dinh_khoan_snapshot"):
+                # Lần ghi cũ chụp giá chung — giá cố định của giá chung là 0, đừng để băng
+                # "Danh mục đã đổi" réo oan "giá cố định — → 0".
+                db.execute(text(
+                    "UPDATE san_xuat_batch SET gia_co_dinh_khoan_snapshot = 0 "
+                    "WHERE khoan_cong_doan_id IS NOT NULL AND don_gia_khoan_snapshot IS NOT NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0429_hai_luong_khoan", _migrate_hai_luong_khoan))

@@ -218,7 +218,11 @@ class CongDoanTo(Base):
 
 
 class CongDoanKhoan(Base):
-    """Một cấu hình khoán chính của Công đoạn; công thức mới chỉ lưu, chưa được thực thi."""
+    """Một cấu hình khoán chính của Công đoạn — tiền một lần ghi tính từ đây (21/10/2026).
+
+    `gia_theo_to` = bảng giá theo TỔ `[{department_id, gia_co_dinh, don_gia}]`: cùng một công đoạn
+    tổ máy 2 màu và tổ máy 5 màu ăn giá khác nhau. NULL/rỗng = mọi tổ dùng giá chung `unit_price`
+    (giá cố định 0); có dòng thì tổ vắng mặt = THIẾU GIÁ, không lấy giá chung đoán."""
 
     __tablename__ = "cong_doan_khoan"
     __table_args__ = (
@@ -232,6 +236,7 @@ class CongDoanKhoan(Base):
     unit: Mapped[str] = mapped_column(String(24), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     cong_thuc_khoan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gia_theo_to: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False,
@@ -257,6 +262,8 @@ class CongDoanKhoanPhatSinh(Base):
     don_gia: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     don_vi: Mapped[str] = mapped_column(String(24), nullable=False)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # Giá theo tổ `[{department_id, don_gia}]` — cùng luật với `CongDoanKhoan.gia_theo_to`.
+    gia_theo_to: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     khoan: Mapped["CongDoanKhoan"] = relationship("CongDoanKhoan", back_populates="viec_phat_sinh")
 

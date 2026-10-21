@@ -60,6 +60,7 @@ import {
 } from "../shared/helpers";
 import { PayslipCard } from "../components/PayslipCard";
 import { SoiKhoanKm } from "../components/SoiKhoanKm";
+import { SoiKhoanKy } from "../components/SoiKhoanKy";
 import { LineEditModal } from "../modals/LineEditModal";
 import { laDienThoai } from "../../../../utils/dienThoai";
 
@@ -130,6 +131,7 @@ export function BangLuongTab({
   // Bảng đối chiếu khoán km — HCNS bấm vào cột "Khoán km" để soi từng chuyến. Bắt buộc phải có:
   // km là TÀI XẾ TỰ GÕ, khác hẳn hoa hồng (nguồn là hoá đơn kế toán đã xuất).
   const [soiKm, setSoiKm] = useState<PayrollLine | null>(null);
+  const [soiKhoan, setSoiKhoan] = useState<PayrollLine | null>(null);
   const [params, setParams] = useState<PayrollParams | null>(null);
   const [year, month] = ym.split("-").map(Number);
 
@@ -193,7 +195,9 @@ export function BangLuongTab({
   const shown = lines;
 
   // Helper tính giá trị từng cột số liệu (dùng chung cho hiển thị dòng, tóm tắt, và tfoot)
-  const getKhoanSpVal = (l: PayrollLine) => (l.lay_bu_lo ? 0 : (l.khoan ?? 0));
+  // Cột "Khoán SP" = lương khoán sản lượng + TĂNG CA KHOÁN (21/10/2026) — cả hai thuộc vế khoán.
+  const getKhoanSpVal = (l: PayrollLine) =>
+    (l.lay_bu_lo ? 0 : (l.khoan ?? 0) + (l.tang_ca_khoan ?? 0));
   const getKhoanKmVal = (l: PayrollLine) => (l.lay_bu_lo ? 0 : (l.khoan_km ?? 0));
   const getCaDemVal = (l: PayrollLine) => (l.night_pay ?? 0) + (l.night_premium_pay ?? 0);
   const getTamUngVal = (l: PayrollLine) =>
@@ -927,9 +931,9 @@ export function BangLuongTab({
                   <th className="lg-num">Tiền CN/Lễ</th>
                   <th className="lg-num lg-th-sub--income">Chuyên cần</th>
                   <th className="lg-num lg-th-sub--income">Phụ cấp</th>
-                  <th className="lg-num lg-th-sub--income">Khoán SP</th>
+                  <th className="lg-num lg-th-sub--income" title="Lương khoán sản lượng + tăng ca khoán (bấm số để xem từng lần ghi)">Khoán SP</th>
                   <th className="lg-num lg-th-sub--income">Khoán km</th>
-                  <th className="lg-num lg-th-sub--income" title="Tiền giờ làm thêm ngoài giờ (không gồm phụ trội làm nguyên ngày CN/lễ)">Tăng ca</th>
+                  <th className="lg-num lg-th-sub--income" title="Tiền giờ làm thêm ngoài giờ (không gồm phụ trội làm nguyên ngày CN/lễ) — thuộc lương thời gian">Tăng ca theo giờ</th>
                   <th className="lg-num lg-th-sub--income">Ca đêm</th>
                   <th className="lg-num lg-th-sub--income">Thưởng</th>
                   <th className="lg-num lg-th-sub--income lg-border-group-end">Hoa hồng</th>
@@ -1010,7 +1014,7 @@ export function BangLuongTab({
                                 ? `Thử việc — trả theo BÙ LỖ, KHÔNG trả theo sản lượng: bù lỗ theo công ${money(l.bu_lo_theo_cong)} (mức nền đã nhân % thử việc, phụ cấp đủ 100%). Sản lượng / km kỳ này vẫn được ghi nhận bên Sản xuất, chỉ không trả tiền theo.`
                                 : "",
                               l.bu_lo_theo_cong != null && !l.is_probation
-                                ? `${l.la_giao_hang ? "Tài xế / phụ xe" : "Tổ khoán"} — lấy số lớn hơn giữa ${l.la_giao_hang ? "tiền km" : "tiền khoán"} và ${l.la_giao_hang ? "vế thời gian (bù lỗ theo công gồm phụ cấp + tiền tăng ca)" : "bù lỗ theo công (gồm phụ cấp)"}. Bù lỗ ${money(l.bu_lo_theo_cong)}${l.la_giao_hang ? ` + tăng ca ${money(l.ot_pay)}` : ""} · ${l.la_giao_hang ? "km" : "khoán"} ${money(l.la_giao_hang ? (l.khoan_km ?? 0) : l.khoan)} → ${l.lay_bu_lo ? "lấy bù lỗ, ô này là phần bù thêm" : l.bu_lo_theo_cong || l.khoan || l.khoan_km ? "lấy khoán, không bù" : "chưa có ngày đi làm để so"}`
+                                ? `Tính 2 lương — lương thời gian ${money(l.ve_thoi_gian ?? l.bu_lo_theo_cong)} (theo công ${money(l.bu_lo_theo_cong)} + tăng ca theo giờ) so với lương khoán ${money((l.khoan ?? 0) + (l.khoan_km ?? 0) + (l.tang_ca_khoan ?? 0))} (${l.la_giao_hang ? "km" : "sản lượng"} + tăng ca khoán) → ${l.lay_bu_lo ? "ăn lương thời gian, ô này là phần bù thêm" : l.bu_lo_theo_cong || l.khoan || l.khoan_km ? "ăn lương khoán" : "chưa có ngày đi làm để so"}`
                                 : "",
                               !l.lay_bu_lo && (l.special_cong ?? 0) > 0
                                 ? `Lương công thường sau khi tách ${money(getTienCnLeVal(l))} tiền CN/lễ`
@@ -1022,7 +1026,7 @@ export function BangLuongTab({
                         >
                           {getTienCongThuongVal(l) ? money(getTienCongThuongVal(l)) : "—"}
                           {l.bu_lo_theo_cong != null && (l.lay_bu_lo || l.bu_lo_theo_cong || l.khoan) ? (
-                            <span className="lg-ot-khoan">{l.lay_bu_lo ? "bù lỗ" : "lấy khoán"}</span>
+                            <span className="lg-ot-khoan">{l.lay_bu_lo ? "ăn thời gian" : "ăn khoán"}</span>
                           ) : null}
                         </td>
                         {/* 3. Công CN/Lễ */}
@@ -1086,14 +1090,31 @@ export function BangLuongTab({
                           {phuCapTotal(l) ? money(phuCapTotal(l)) : "—"}
                         </td>
                         <td
-                          className={`lg-num ${l.khoan && !l.lay_bu_lo ? "" : "lg-zero"}`}
+                          className={`lg-num ${getKhoanSpVal(l) ? "" : "lg-zero"}`}
                           title={
                             l.lay_bu_lo && l.khoan
-                              ? `Tiền khoán kỳ này ${money(l.khoan)} — thấp hơn bù lỗ theo công nên KHÔNG lấy (đã trả theo bù lỗ ở cột Lương công)`
-                              : undefined
+                              ? `Tiền khoán kỳ này ${money(l.khoan)} — thấp hơn lương thời gian nên KHÔNG lấy (đã trả ở cột Lương thường)`
+                              : (l.tang_ca_khoan ?? 0) > 0
+                                ? `Sản lượng ${money(l.khoan)} + tăng ca khoán ${money(l.tang_ca_khoan)}`
+                                : undefined
                           }
                         >
-                          {l.khoan && !l.lay_bu_lo ? money(l.khoan) : "—"}
+                          {l.khoan || l.tang_ca_khoan ? (
+                            <button
+                              type="button"
+                              className={`lg-linkbtn${l.lay_bu_lo ? " lg-zero" : ""}`}
+                              title="Xem từng lần ghi sản lượng đã sinh ra số này"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSoiKhoan(l);
+                              }}
+                            >
+                              {l.lay_bu_lo ? "—" : money(getKhoanSpVal(l))}
+                            </button>
+                          ) : "—"}
+                          {!l.lay_bu_lo && (l.tang_ca_khoan ?? 0) > 0 && (
+                            <span className="lg-ot-khoan">gồm TC khoán {money(l.tang_ca_khoan)}</span>
+                          )}
                         </td>
                         <td className="lg-num">
                           {l.khoan_km && !l.lay_bu_lo ? (
@@ -1130,11 +1151,8 @@ export function BangLuongTab({
                             // §00.10): tài xế / phụ xe CÓ tiền giờ tăng ca, và tiền đó là một vế
                             // của phép so với khoán km — nói "khoán không có tiền tăng ca" ở đây
                             // là sai với đúng cái ô đang hiện tiền.
-                            l.che_do_khoan && !l.la_giao_hang
-                              ? "Chế độ khoán — không có tiền tăng ca (làm thêm giờ đã tính vào sản lượng)"
-                              : "",
-                            l.che_do_khoan && l.la_giao_hang
-                              ? "Tài xế / phụ xe: CÓ tiền giờ tăng ca (hệ số bình thường) — nằm trong vế thời gian đem so với khoán km, tháng lấy km thì không trả"
+                            l.che_do_khoan
+                              ? "Tính 2 lương: tăng ca theo giờ thuộc lương thời gian — tháng ăn lương khoán thì không trả (đã có tăng ca khoán)"
                               : "",
                             (l.off1x_pay ?? 0) > 0
                               ? `trong đó ngày nghỉ 1× phẳng: ${money(l.off1x_pay)}`
@@ -1267,7 +1285,7 @@ export function BangLuongTab({
                       phuCapTotal(l) > 0 ? chiTiet(phuCapRows(l), "") : "",
                       getKhoanSpVal(l) > 0 ? `Khoán SP: ${money(getKhoanSpVal(l))}` : "",
                       getKhoanKmVal(l) > 0 ? `Khoán km: ${money(getKhoanKmVal(l))}` : "",
-                      getTienTangCaVal(l) > 0 ? `Tăng ca: ${money(getTienTangCaVal(l))}` : "",
+                      getTienTangCaVal(l) > 0 ? `Tăng ca theo giờ: ${money(getTienTangCaVal(l))}` : "",
                       getCaDemVal(l) > 0 ? `Ca đêm: ${money(getCaDemVal(l))}` : "",
                       bonusTotal(l) > 0 ? `Thưởng: ${money(bonusTotal(l))}` : "",
                       hoaHongTotal(l) > 0 ? `Hoa hồng: ${money(hoaHongTotal(l))}` : "",
@@ -1450,6 +1468,14 @@ export function BangLuongTab({
         />
       )}
 
+      {soiKhoan && period && (
+        <SoiKhoanKy
+          token={token}
+          line={soiKhoan}
+          period={period}
+          onClose={() => setSoiKhoan(null)}
+        />
+      )}
       {soiKm && period && (
         <SoiKhoanKm
           token={token}

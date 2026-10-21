@@ -312,6 +312,7 @@ def tao_batch(
     khoan, ten_cong_doan = repo.khoan_cua_cong_viec(cv)
     o_khoan, cac_phat_sinh = chuan_hoa_khi_ghi(
         db, khoan=khoan, ten_cong_doan=ten_cong_doan, phat_sinh=phat_sinh,
+        department_id=cv.department_id,
     )
     nguoi = chot_nguoi(db, cv, nguoi_ids, ngay_cua_me(bat_dau))
 

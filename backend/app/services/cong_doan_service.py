@@ -9,11 +9,27 @@ from ..models.cong_doan import (
 )
 from ..models.don_vi_do import TRAM_DONG_GIAY, tram_chay_xuoi
 from ..repositories.cong_doan_repo import CongDoanRepository
-from .bien_cong_thuc import LOAI_CONG_DOAN, LOAI_QUY_DOI
+from .bien_cong_thuc import LOAI_CONG_DOAN, LOAI_KHOAN, LOAI_QUY_DOI
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogService, CatalogValidationError,
 )
 from .thanh_phan_engine import kiem_cong_thuc
+
+def _gia_theo_to_sach(rows, *, co_dinh: bool) -> list[dict] | None:
+    """Chuẩn hoá bảng giá theo tổ về `[{department_id, (gia_co_dinh), don_gia}]`; rỗng ⇒ None
+    (= mọi tổ dùng giá chung). Dòng không có tổ thì bỏ."""
+    ra: list[dict] = []
+    for r in rows or []:
+        r = dict(r)
+        if not r.get("department_id"):
+            continue
+        dong = {"department_id": int(r["department_id"]),
+                "don_gia": None if r.get("don_gia") is None else float(r["don_gia"])}
+        if co_dinh:
+            dong["gia_co_dinh"] = float(r.get("gia_co_dinh") or 0)
+        ra.append(dong)
+    return ra or None
+
 
 class CongDoanError(CatalogError):
     pass
@@ -59,11 +75,13 @@ class CongDoanService(CatalogService):
             k = dict(data["khoan"])
             k["unit"] = (str(k.get("unit") or "").strip().lower()) or None
             k["cong_thuc_khoan"] = (str(k.get("cong_thuc_khoan") or "").strip()) or None
+            k["gia_theo_to"] = _gia_theo_to_sach(k.get("gia_theo_to"), co_dinh=True)
             k["viec_phat_sinh"] = [
                 {
                     **dict(r),
                     "ten": " ".join(str(r.get("ten") or "").split()),
                     "don_vi": (str(r.get("don_vi") or "").strip().lower()) or None,
+                    "gia_theo_to": _gia_theo_to_sach(r.get("gia_theo_to"), co_dinh=False),
                 }
                 for r in (k.get("viec_phat_sinh") or [])
             ]
@@ -78,8 +96,10 @@ class CongDoanService(CatalogService):
             "unit": goc.khoan.unit,
             "unit_price": float(goc.khoan.unit_price),
             "cong_thuc_khoan": goc.khoan.cong_thuc_khoan,
+            "gia_theo_to": goc.khoan.gia_theo_to,
             "viec_phat_sinh": [
-                {"ten": v.ten, "don_gia": float(v.don_gia), "don_vi": v.don_vi}
+                {"ten": v.ten, "don_gia": float(v.don_gia), "don_vi": v.don_vi,
+                 "gia_theo_to": v.gia_theo_to}
                 for v in goc.khoan.viec_phat_sinh
             ],
         }
@@ -303,8 +323,34 @@ class CongDoanService(CatalogService):
             if not r.get("don_vi") or r["don_vi"] not in co:
                 raise CongDoanValidationError(
                     f'Đơn vị tính của việc phát sinh "{ten}" không có trong danh mục Đơn vị & quy đổi.')
-        # Chỉ soi cú pháp để không lưu rác; chưa có luồng nào thực thi công thức này.
-        self._kiem_o(k.get("cong_thuc_khoan"), nhan="Công thức khoán", loai=LOAI_QUY_DOI)
+            self._kiem_gia_theo_to(r.get("gia_theo_to"), nhan=f'việc phát sinh "{ten}"')
+        self._kiem_gia_theo_to(k.get("gia_theo_to"), nhan="công đoạn")
+        # Công thức chạy THẬT ở lần ghi sản lượng (`khoan_ky`, 21/10/2026) — soi bằng bộ chip ô khoán.
+        self._kiem_o(k.get("cong_thuc_khoan"), nhan="Công thức khoán", loai=LOAI_KHOAN)
+
+    def _kiem_gia_theo_to(self, rows: list[dict] | None, *, nhan: str) -> None:
+        """Bảng giá theo tổ: mỗi tổ một dòng, tổ phải có thật, giá không âm, phải có đơn giá."""
+        if not rows:
+            return
+        from ..models.department import Department
+
+        ids = [int(r["department_id"]) for r in rows]
+        if len(set(ids)) != len(ids):
+            raise CongDoanValidationError(f"Bảng giá theo tổ của {nhan} có tổ khai hai lần.")
+        ten = dict(self.repo.db.query(Department.id, Department.name)
+                   .filter(Department.id.in_(ids)).all())
+        for r in rows:
+            dep = int(r["department_id"])
+            if dep not in ten:
+                raise CongDoanValidationError(
+                    f"Bảng giá theo tổ của {nhan} có tổ không còn trong cây tổ chức (id {dep}).")
+            if r.get("don_gia") is None:
+                raise CongDoanValidationError(
+                    f"Bảng giá theo tổ của {nhan}: tổ {ten[dep]} chưa nhập đơn giá.")
+            for o, chu in (("don_gia", "đơn giá"), ("gia_co_dinh", "giá cố định")):
+                if r.get(o) is not None and float(r[o]) < 0:
+                    raise CongDoanValidationError(
+                        f"Bảng giá theo tổ của {nhan}: {chu} của tổ {ten[dep]} không được âm.")
 
     @staticmethod
     def _kiem_o(cong_thuc: str | None, *, nhan: str, loai: str) -> None:

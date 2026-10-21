@@ -75,6 +75,8 @@ from ..schemas.payroll import (
     LineComponentPatchIn,
     LineComponentsOut,
     KhoanKmChiTietOut,
+    KhoanKyChiTietOut,
+    KhoanKyDongOut,
     KhoanKmChuyenOut,
     ComponentsOut,
     AdvanceDecisionIn,
@@ -953,7 +955,9 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
         return TableOut(period=None, lines=[], chan_chot_ly_do=ly_do)
     lines_out = _lines_out(data["lines"], employees, departments, svc)
     # Cảnh báo chốt nói về CẢ kỳ — tính trước khi lọc, đổi bộ lọc không làm nó biến mất.
-    canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month))
+    kk = svc.khoan_ky(year, month)
+    canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
+                              thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
     hien, phong_loc = loc_bang_luong(lines_out, q=q, phong=phong, hd=hd)
     return TableOut(period=PeriodOut.model_validate(data["period"]), lines=hien,
                     chan_chot_ly_do=ly_do, canh_bao_chot=canh_bao, phong_loc=phong_loc)
@@ -980,8 +984,7 @@ def generate(body: GenerateIn, svc: Service, employees: Employees, departments: 
     lines_out = _lines_out(data["lines"], employees, departments, svc)
     return TableOut(period=PeriodOut.model_validate(data["period"]), lines=lines_out,
                     chan_chot_ly_do=svc.ly_do_chua_chot_duoc(body.year, body.month),
-                    canh_bao_chot=_canh_bao_chot(
-                        lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(body.year, body.month)))
+                    canh_bao_chot=_canh_bao_khoan(svc, lines_out, body.year, body.month))
 
 
 @router.put("/lines/{line_id}", response_model=LineOut)
@@ -1095,48 +1098,42 @@ def _hoa_hong_total(l: LineOut) -> float:
     return float(getattr(l, "hoa_hong", 0) or 0)
 
 
-def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None = None) -> str | None:
+def _canh_bao_khoan(svc, lines_out: list[LineOut], year: int, month: int) -> str | None:
+    kk = svc.khoan_ky(year, month)
+    return _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
+                          thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
+
+
+def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None = None,
+                   thieu_gia: list[dict] | None = None,
+                   khoan_canh_bao: list[str] | None = None) -> str | None:
     """Cảnh báo (KHÔNG chặn) trước khi chốt: ai thực lĩnh 0 vì bị trừ tạm ứng / nợ kỳ trước, ai còn nợ
     chuyển kỳ sau. Chủ chốt 07/09/2026: cho ứng vượt lương, dồn nợ, chỉ cảnh báo."""
     khong = [l for l in lines if float(l.net_pay or 0) <= 0
              and (float(l.advance_total or 0) + float(l.luong_dot_1_total or 0)
                   + float(getattr(l, "no_ung_ky_truoc", 0) or 0)) > 0]
     no = [l for l in lines if float(getattr(l, "no_ung_chuyen_ky_sau", 0) or 0) > 0]
-    # CHẾ ĐỘ KHOÁN có giờ tăng ca mà tiền khoán kỳ này = 0 (14/09/2026): giờ tăng ca của họ không
-    # nhân hệ số vì "đã trả qua tiền khoán" — khoán = 0 (chưa chốt phân bổ sản xuất, không có chuyến)
-    # thì phần làm thêm mất trắng mà không ai thấy. Chỉ NÓI, không chặn.
-    # LƯƠNG BÙ LỖ (14/09/2026): người tổ khoán có công mà tiền khoán kỳ này = 0 ⇒ đang trả TRỌN bù lỗ
-    # theo công. Hay gặp nhất là phân bổ sản xuất chưa chốt — chốt muộn thì Tính lại sẽ đổi số, nên
-    # phải nói trước khi chốt kỳ. Chỉ NÓI, không chặn.
-    # ⚠️ TRỪ NGƯỜI THỬ VIỆC: từ 16/09/2026 họ LUÔN ăn bù lỗ, tiền khoán để 0 vì LUẬT chứ không
-    # phải vì phân bổ chưa chốt (PRD §00.9) ⇒ réo tên họ mỗi kỳ là câu nhắc sai, HCNS đi tìm một
-    # phiếu phân bổ không bao giờ có.
-    bu_lo_khong_khoan = [l for l in lines if getattr(l, "bu_lo_theo_cong", None) is not None
-                         and float(l.bu_lo_theo_cong or 0) > 0 and float(l.khoan or 0) <= 0
-                         and not getattr(l, "la_giao_hang", False)
-                         and not getattr(l, "is_probation", False)]
+    # Hai câu cũ "người khoán có giờ tăng ca mà khoán = 0" và "tổ khoán có công mà khoán = 0" GỠ
+    # 20/10/2026: khối Sản xuất tính 2 lương nên khoán = 0 là ăn vế thời gian ĐỦ tăng ca theo giờ, và
+    # người công nhật trong khối tháng nào cũng khoán = 0 — réo tên họ là câu nhắc sai. Chỗ đáng nhắc
+    # thay vào là LẦN GHI THIẾU GIÁ (`thieu_gia`, từ `KhoanKyService`).
     # TÀI XẾ / PHỤ XE: có công mà tiền km = 0 ⇒ đang trả bù lỗ theo công (khách chốt 15/09/2026 chiều:
-    # tài xế CÓ bù lỗ). Hay gặp nhất là chuyến giao chưa ghi kết quả. Chỉ NÓI. Tách khỏi câu trên bằng
-    # cờ Giao hàng của tổ — không đọc ra được từ số tiền nữa vì hai bên nay cùng có bù lỗ.
+    # tài xế CÓ bù lỗ). Hay gặp nhất là chuyến giao chưa ghi kết quả. Chỉ NÓI.
     tai_xe_khong_km = [l for l in lines if getattr(l, "la_giao_hang", False)
                        and float(getattr(l, "actual_cong", 0) or 0) > 0
                        and float(l.khoan or 0) + float(getattr(l, "khoan_km", 0) or 0) <= 0
                        # Tài xế / phụ xe THỬ VIỆC: km = 0 vì luật bù lỗ, không phải chuyến chưa ghi.
                        and not getattr(l, "is_probation", False)]
-    # Ai đã có câu bù lỗ / tài xế ở trên thì không nhắc thêm câu giờ tăng ca — một người, một lời nhắc.
-    da_nhac = {id(l) for l in bu_lo_khong_khoan + tai_xe_khong_km}
-    khoan_trong = [l for l in lines if getattr(l, "che_do_khoan", False)
-                   and id(l) not in da_nhac
-                   and int(l.ot_minutes or 0) > 0
-                   and float(l.khoan or 0) + float(getattr(l, "khoan_km", 0) or 0) <= 0]
     # Ô "Mức đóng BHXH" BẮT BUỘC khai từ 16/09/2026 (chủ chốt) — mốc lương CŨ còn trống thì engine
     # tạm đóng theo cơ bản + trách nhiệm, nên phải réo tên trước khi chốt kỳ, không thì tháng sau
     # vẫn không ai khai. Chỉ NÓI, không chặn.
     thieu_muc_bh = [l for l in lines if getattr(l, "chua_khai_muc_bh", False)
                     and float(getattr(l, "insurance_base", 0) or 0) > 0]
     luot_mo = list(luot_chua_ve_kho or [])
-    if (not khong and not no and not khoan_trong and not bu_lo_khong_khoan and not tai_xe_khong_km
-            and not thieu_muc_bh and not luot_mo):
+    thieu = list(thieu_gia or [])
+    kcb = list(khoan_canh_bao or [])
+    if (not khong and not no and not tai_xe_khong_km
+            and not thieu_muc_bh and not luot_mo and not thieu and not kcb):
         return None
     ten = lambda xs: ", ".join((x.employee_name or f"NV #{x.employee_id}") for x in xs[:3]) + (
         f" và {len(xs) - 3} người nữa" if len(xs) > 3 else "")
@@ -1145,14 +1142,14 @@ def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None =
         parts.append(f"{len(khong)} người thực lĩnh 0đ vì trừ tạm ứng/nợ kỳ trước ({ten(khong)})")
     if no:
         parts.append(f"{len(no)} người còn nợ tạm ứng chuyển sang kỳ sau ({ten(no)})")
-    if khoan_trong:
-        parts.append(f"{len(khoan_trong)} người ăn khoán có giờ tăng ca nhưng tiền khoán kỳ này = 0 "
-                     f"({ten(khoan_trong)}) — giờ tăng ca của họ không có tiền (tính vào sản lượng), "
-                     "kiểm lại phân bổ sản xuất / chuyến giao")
-    if bu_lo_khong_khoan:
-        parts.append(f"{len(bu_lo_khong_khoan)} người tổ khoán có công nhưng tiền khoán kỳ này = 0 "
-                     f"({ten(bu_lo_khong_khoan)}) — đang trả bù lỗ theo công, kiểm lại phân bổ sản "
-                     "xuất đã chốt chưa")
+    if thieu:
+        vd = "; ".join(f'{t.get("cong_doan") or "?"} — {t.get("to") or "?"} ngày {t.get("ngay") or "?"}'
+                       for t in thieu[:3])
+        parts.append(f"{len(thieu)} lần ghi sản lượng chưa có tiền khoán vì thiếu giá / công thức lỗi "
+                     f"({vd}{' …' if len(thieu) > 3 else ''}) — khai giá theo tổ ở Danh mục → Công đoạn → "
+                     "tab Khoán, rồi bấm “Cập nhật theo danh mục” ở lần ghi và Tính lại")
+    for c in kcb:
+        parts.append(c.rstrip("."))
     if thieu_muc_bh:
         parts.append(f"{len(thieu_muc_bh)} người chưa khai Mức đóng BHXH ở hồ sơ lương "
                      f"({ten(thieu_muc_bh)}) — đang tạm đóng theo lương cơ bản + trách nhiệm, khai lại "
@@ -1460,6 +1457,20 @@ def chi_tiet_khoan_km(line_id: int, svc: Service, authz: Authz,
         _raise(exc)
     return KhoanKmChiTietOut(items=[KhoanKmChuyenOut(**r) for r in rows],
                              tong=round(sum(r["thanh_tien"] for r in rows), 2))
+
+
+@router.get("/lines/{line_id}/khoan-ky", response_model=KhoanKyChiTietOut)
+def chi_tiet_khoan_ky(line_id: int, svc: Service, authz: Authz,
+                      user: ConfigViewer) -> KhoanKyChiTietOut:
+    """Từng lần ghi sản lượng / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của MỘT dòng."""
+    try:
+        rows = svc.chi_tiet_khoan_ky(line_id=line_id,
+                                     scope=_emp_scope_for(authz, user), actor=user)
+    except PayrollError as exc:
+        _raise(exc)
+    tc = sum(r["tien"] for r in rows if r["loai"] == "tang_ca_khoan")
+    return KhoanKyChiTietOut(items=[KhoanKyDongOut(**r) for r in rows],
+                             tong_khoan=sum(r["tien"] for r in rows) - tc, tong_tang_ca_khoan=tc)
 
 
 @router.post("/lines/{line_id}/components", response_model=LineComponentOut,

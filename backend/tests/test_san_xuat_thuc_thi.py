@@ -75,7 +75,9 @@ def _to_khoan(db, admin, ma="TO-TT") -> Department:
 
 
 def _to_cong_nhat(db, ma="TO-CN") -> Department:
-    d = Department(name="Tổ Công Nhật", code=ma, la_san_xuat=True, has_piece_work=False)
+    """Tổ NGOÀI khối Sản xuất — từ 20/10/2026 "lương khoán" = thuộc khối SX (tính 2 lương), cờ
+    `has_piece_work` thôi đọc."""
+    d = Department(name="Tổ Công Nhật", code=ma, la_san_xuat=False, has_piece_work=False)
     db.add(d)
     db.flush()
     return d
@@ -525,13 +527,15 @@ def test_nhan_vien_chon_liet_ke_to_khoan_bo_nghi(db, orders, lsx_svc, admin, cus
     assert res["nhan_vien"][0]["co_tai_khoan"] is False    # thợ không tài khoản
 
 
-def test_nhan_vien_chon_to_cong_nhat_khong_khoan(db, orders, lsx_svc, admin, customer):
+def test_nhan_vien_chon_khoi_sx_deu_tinh_hai_luong(db, orders, lsx_svc, admin, customer):
+    """20/10/2026: công tắc Lương khoán gỡ — tổ thuộc khối SX thì mọi người tính 2 lương, kể cả khi
+    cờ cũ `has_piece_work` đang tắt."""
     to, _cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-TT-CN")
-    to.has_piece_work = False                              # biến tổ này thành công nhật
+    to.has_piece_work = False
     _emp(db, to, "NV-CN-2")
     db.commit()
     res = board.nhan_vien_chon(db, admin, _authz(db), team_id=to.id)
-    assert res["nhan_vien"] and all(r["la_luong_khoan"] is False for r in res["nhan_vien"])
+    assert res["nhan_vien"] and all(r["la_luong_khoan"] is True for r in res["nhan_vien"])
 
 
 def test_nhan_vien_chon_ngoai_pham_vi_bi_chan(db, orders, lsx_svc, admin, customer):

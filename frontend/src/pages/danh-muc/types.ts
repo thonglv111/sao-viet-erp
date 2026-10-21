@@ -248,13 +248,22 @@ export interface ChuanBiKhoanRow { ten?: string; phut?: number }
 
 /** Một VIỆC PHÁT SINH của công việc khoán (Thay kẽm · 100 đ · bản kẽm). `id` có khi dòng đã lưu —
  *  gửi ngược lên để server sửa đúng dòng đó thay vì đẻ dòng mới. `don_vi` là MÃ đơn vị. */
-export interface ViecPhatSinhRow { id?: number; ten?: string; don_gia?: number | null; don_vi?: string }
+export interface ViecPhatSinhRow {
+  id?: number; ten?: string; don_gia?: number | null; don_vi?: string;
+  /** Giá theo tổ của việc phát sinh (21/10/2026) — rỗng/null = mọi tổ dùng `don_gia`. */
+  gia_theo_to?: { department_id: number; don_gia?: number | null }[] | null;
+}
+
+/** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). */
+export interface GiaTheoToRow { department_id: number; gia_co_dinh?: number | null; don_gia?: number | null }
 
 export interface KhoanCongDoanValue {
   id?: number;
   unit?: string;
   unit_price?: number | null;
   cong_thuc_khoan?: string | null;
+  /** Rỗng/null = mọi tổ dùng giá chung; có dòng thì tổ vắng mặt = thiếu giá. */
+  gia_theo_to?: GiaTheoToRow[] | null;
   viec_phat_sinh?: ViecPhatSinhRow[];
 }
 

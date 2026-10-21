@@ -1,8 +1,8 @@
-// Phiếu lương của người CHẾ ĐỘ KHOÁN (14/09/2026) — "không có tiền tăng ca luôn".
+// Phiếu lương của khối Sản xuất / Giao hàng — HAI LƯƠNG (21/10/2026), ăn bên lớn.
 //
-// Engine để tiền GIỜ tăng ca của tổ khoán / tổ Giao hàng = 0đ, nên `ot_pay` của dòng khoán chỉ còn
-// phần thêm làm nguyên ngày Chủ nhật / lễ (+ tiền 1× ngày nghỉ off1x). Phiếu phải in dòng "Tăng ca"
-// đúng 0đ và tách số kia ra dòng riêng — in chung là người nhận đọc thành "khoán vẫn có tăng ca".
+// "Tăng ca theo giờ" thuộc lương thời gian (`tien_gio_tang_ca`), "Tăng ca khoán" thuộc lương khoán
+// (`tang_ca_khoan`) — không bao giờ nhận cả hai. Phần thêm làm nguyên ngày CN/lễ nằm trong `ot_pay`
+// nhưng không phải tiền giờ ⇒ in dòng riêng.
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -32,17 +32,12 @@ function dongThu(nhan: string): HTMLElement {
   return td.closest("tr") as HTMLElement;
 }
 
-describe("Phiếu lương — chế độ khoán không có tiền tăng ca", () => {
-  it("⭐ làm nguyên ngày Chủ nhật: dòng Tăng ca 0đ, số tách sang dòng 'Làm ngày Chủ nhật / lễ'", () => {
-    render(<PayslipCard period={KY} line={dong({ che_do_khoan: true, ot_pay: 384_615 })} />);
-
-    const tangCa = dongThu("Tăng ca (khoán — không có tiền tăng ca)");
-    expect(within(tangCa).getByText("—")).toBeInTheDocument();
-
-    const cn = dongThu("Làm ngày Chủ nhật / lễ");
-    expect(within(cn).getByText("384.615")).toBeInTheDocument();
-
-    // Không còn dòng "Tăng ca" trần mang số tiền nào.
+describe("Phiếu lương — hai lương, hai loại tăng ca", () => {
+  it("⭐ ăn khoán, làm nguyên ngày Chủ nhật: Tăng ca theo giờ 0đ, số CN tách dòng riêng", () => {
+    render(<PayslipCard period={KY}
+                        line={dong({ che_do_khoan: true, ot_pay: 384_615, tien_gio_tang_ca: 0 })} />);
+    expect(within(dongThu("Tăng ca theo giờ")).getByText("—")).toBeInTheDocument();
+    expect(within(dongThu("Làm ngày Chủ nhật / lễ")).getByText("384.615")).toBeInTheDocument();
     expect(screen.queryByText("Tăng ca")).not.toBeInTheDocument();
   });
 
@@ -52,24 +47,25 @@ describe("Phiếu lương — chế độ khoán không có tiền tăng ca", ()
     expect(dongThu("Làm ngày Chủ nhật / lễ / ngày nghỉ 1×")).toBeInTheDocument();
   });
 
-  it("khoán không làm ngày nghỉ nào: chỉ có dòng Tăng ca 0đ, không mọc dòng CN/lễ rỗng", () => {
-    render(<PayslipCard period={KY} line={dong({ che_do_khoan: true, ot_pay: 0 })} />);
-    expect(dongThu("Tăng ca (khoán — không có tiền tăng ca)")).toBeInTheDocument();
+  it("⭐ ăn khoán có tăng ca khoán: in dòng 'Tăng ca khoán', không mọc dòng CN/lễ rỗng", () => {
+    render(<PayslipCard period={KY}
+                        line={dong({ che_do_khoan: true, ot_pay: 0, khoan: 9_000_000,
+                                     tang_ca_khoan: 37_500, lay_bu_lo: false })} />);
+    expect(within(dongThu("Tăng ca khoán")).getByText("37.500")).toBeInTheDocument();
     expect(screen.queryByText(/Làm ngày Chủ nhật/)).not.toBeInTheDocument();
   });
 
-  it("⭐ tài xế / phụ xe (tổ Giao hàng): in dòng 'Tăng ca' thật, không còn nhãn khoán", () => {
-    // 16/09/2026 (PRD bù lỗ §00.10): tổ Giao hàng CÓ tiền giờ tăng ca, và tiền đó nằm trong vế thời
-    // gian đem so với khoán km. In nhãn "khoán — không có tiền tăng ca" cho họ là nói sai sự thật.
+  it("⭐ ăn lương thời gian: tiền giờ tăng ca in ở 'Tăng ca theo giờ', phần CN tách riêng", () => {
     render(
       <PayslipCard
         period={KY}
-        line={dong({ che_do_khoan: true, la_giao_hang: true, ot_pay: 5_490_865 })}
+        line={dong({ che_do_khoan: true, la_giao_hang: true, lay_bu_lo: true,
+                     ot_pay: 5_490_865, tien_gio_tang_ca: 5_000_000 })}
       />,
     );
-    const tangCa = dongThu("Tăng ca");
-    expect(within(tangCa).getByText("5.490.865")).toBeInTheDocument();
-    expect(screen.queryByText(/khoán — không có tiền tăng ca/)).not.toBeInTheDocument();
+    expect(within(dongThu("Tăng ca theo giờ")).getByText("5.000.000")).toBeInTheDocument();
+    expect(within(dongThu("Làm ngày Chủ nhật / lễ")).getByText("490.865")).toBeInTheDocument();
+    expect(screen.queryByText("Tăng ca khoán")).not.toBeInTheDocument();
   });
 
   it("người KHÔNG ăn khoán: vẫn một dòng 'Tăng ca' mang đủ tiền như cũ", () => {
@@ -101,7 +97,7 @@ describe("Phiếu lương — luật bù lỗ tổ khoán", () => {
     );
     expect(screen.queryByText("Lương theo công")).not.toBeInTheDocument();
     expect(within(dongThu("Lương khoán / sản lượng")).getByText("20.157.390")).toBeInTheDocument();
-    const so = dongThu("Đem so: bù lỗ theo công (gồm phụ cấp) — thấp hơn → lấy khoán");
+    const so = dongThu("Đem so: lương thời gian (theo công gồm phụ cấp + tăng ca theo giờ) — thấp hơn → ăn khoán");
     expect(within(so).getByText("7.338.462")).toBeInTheDocument();
     expect(screen.queryByText("Lương bù lỗ theo công")).not.toBeInTheDocument();
     expect(tongThu()).toBe("20.157.390");
@@ -123,7 +119,7 @@ describe("Phiếu lương — luật bù lỗ tổ khoán", () => {
     expect(within(dongThu("Lương bù lỗ theo công")).getByText("7.338.462")).toBeInTheDocument();
     expect(screen.queryByText("Lương khoán / sản lượng")).not.toBeInTheDocument();
     expect(screen.queryByText("Bù thêm cho đủ lương bù lỗ")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Đem so: bù lỗ theo công/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Đem so: lương thời gian/)).not.toBeInTheDocument();
     expect(tongThu()).toBe("7.338.462");
   });
 
@@ -152,7 +148,7 @@ describe("Phiếu lương — luật bù lỗ tổ khoán", () => {
     const lc = dongThu("Lương theo công (tài xế ăn theo km — không có)");
     expect(within(lc).getByText("—")).toBeInTheDocument();
     expect(within(dongThu("Khoán km giao hàng")).getByText("20.000.000")).toBeInTheDocument();
-    expect(screen.queryByText(/Đem so: bù lỗ theo công/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Đem so: lương thời gian/)).not.toBeInTheDocument();
     expect(screen.queryByText("Bù thêm cho đủ lương bù lỗ")).not.toBeInTheDocument();
     expect(tongThu()).toBe("20.000.000");
   });
@@ -181,7 +177,7 @@ describe("Phiếu lương — luật bù lỗ tổ khoán", () => {
         })}
       />,
     );
-    expect(screen.queryByText(/Đem so: bù lỗ theo công/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Đem so: lương thời gian/)).not.toBeInTheDocument();
     expect(within(dongThu("Công ngày lễ (ngoài khoán)")).getByText("500.000")).toBeInTheDocument();
     expect(tongThu()).toBe("500.000");
   });
@@ -229,6 +225,6 @@ describe("Phiếu lương — luật bù lỗ tổ khoán", () => {
     render(<PayslipCard period={KY} line={dong({ che_do_khoan: true, khoan: 500_000 })} />);
     expect(within(dongThu("Lương theo công")).getByText("10.000.000")).toBeInTheDocument();
     expect(screen.queryByText("Bù thêm cho đủ lương bù lỗ")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Đem so: bù lỗ theo công/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Đem so: lương thời gian/)).not.toBeInTheDocument();
   });
 });

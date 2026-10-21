@@ -7,8 +7,8 @@ QUYỀN (mg 0302): hỏi DÒNG QUYỀN THEO TỔ của tổ thực hiện (`serv
 cho lệnh ghi ở đây; các file khác truyền việc của mình qua `_gate(..., viec)`. Mức "Của tôi" chỉ qua
 khi công việc đang giao cho chính người bấm. Không còn luật cứng "phải đứng tên trưởng tổ".
 
-LƯƠNG KHOÁN (§6): chỉ nhân viên thuộc chế độ lương khoán (suy từ `departments.has_piece_work` của
-tổ nhân viên) mới được giao vào bước NỘI BỘ (`loai_buoc == 'to'`). Người không có tài khoản vẫn
+LƯƠNG KHOÁN (§6): `la_luong_khoan` của phân công = tổ của nhân viên thuộc KHỐI SẢN XUẤT (kế thừa
+cây, 20/10/2026 — thay cờ `has_piece_work`). Người không có tài khoản vẫn
 giao + tính lương được (chỉ neo `employee_id`).
 
 MỐC THỜI GIAN lấy từ máy chủ, không backdate, không sửa mốc đã phát sinh (§7.2). Phút thực tế cho
@@ -20,7 +20,6 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from ...models.department import Department
 from ...models.may_thiet_bi import MayThietBi
 from ...models.san_xuat import (
     BUOC_MAY,
@@ -84,13 +83,21 @@ def _kiem_version(cv: SanXuatCongViec, expected_version: int | None) -> None:
         raise ValueError("Phiên bản không khớp — công việc vừa được cập nhật, hãy tải lại.")
 
 
+def thuoc_khoi_san_xuat(db: Session, department_id: int | None) -> bool:
+    """Tổ thuộc KHỐI SẢN XUẤT (cờ `la_san_xuat` của chính tổ hoặc tổ tiên) — cùng định nghĩa lương
+    dùng cho "tính 2 lương" (`PayrollService._la_khoi_san_xuat`, chủ chốt 20/10/2026)."""
+    if department_id is None:
+        return False
+    from ...repositories.rbac_repo import DepartmentRepository
+
+    return int(department_id) in DepartmentRepository(db).dept_ids_khoi_san_xuat()
+
+
 def _la_luong_khoan(db: Session, emp) -> bool:
-    """Nhân viên thuộc chế độ lương khoán ⇔ tổ của họ bật `has_piece_work` (cùng cờ mà thành phần
-    lương `luong_khoan` soi). Không có tổ → không phải thợ khoán."""
+    """Nhân viên ăn lương khoán ⇔ tổ của họ thuộc khối Sản xuất. Không có tổ → không phải thợ khoán."""
     if emp is None or emp.department_id is None:
         return False
-    dept = db.get(Department, emp.department_id)
-    return bool(dept and dept.has_piece_work)
+    return thuoc_khoi_san_xuat(db, emp.department_id)
 
 
 def _audit(db: Session, user, action: str, cv: SanXuatCongViec, detail: str = "",
@@ -129,8 +136,7 @@ def giao_ca_to(db: Session, cv: SanXuatCongViec) -> None:
     if not cv.department_id or cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None:
         return
     repo = SanXuatThucThiRepository(db)
-    dept = db.get(Department, cv.department_id)
-    la_khoan = bool(dept and dept.has_piece_work)
+    la_khoan = thuoc_khoi_san_xuat(db, cv.department_id)
     for emp in repo.nhan_vien_cua_to(cv.department_id):
         if repo.phan_cong_hoat_dong_cua(cv.id, emp.id) is None:
             repo.add(SanXuatPhanCong(

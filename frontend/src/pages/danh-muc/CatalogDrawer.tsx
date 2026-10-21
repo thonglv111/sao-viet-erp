@@ -315,6 +315,12 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
               refData[f.refPrefix ?? ""] ?? [],
               [(form[f.key] as KhoanCongDoanValue | null)?.unit ?? ""],
             )}
+            // Bảng giá theo tổ vẽ theo đúng các tổ đang chọn ở ô "Tổ phụ trách" của drawer này.
+            toPhuTrach={(Array.isArray(form.department_ids) ? form.department_ids as number[] : [])
+              .map((id) => {
+                const r = (refData["/api/cong-doan/phong-ban"] ?? []).find((x) => Number(x.id) === Number(id));
+                return { id: Number(id), ten: String(r?.ten ?? r?.name ?? `Tổ #${id}`) };
+              })}
             onChange={(v) => set(f.key, v)}
           />
         ) : f.type === "viec-phat-sinh" ? (

@@ -257,6 +257,11 @@ class DepartmentRepository:
         self.db.refresh(dept)
         return dept
 
+    def dept_ids_khoi_san_xuat(self) -> set[int]:
+        """Id phòng/tổ thuộc KHỐI SẢN XUẤT — tự bật `la_san_xuat` hoặc có tổ tiên bật (kế thừa cây,
+        cả tổ cha lẫn tổ lá). Lương hỏi câu này để biết ai tính 2 lương (chủ chốt 20/10/2026)."""
+        return {d.id for d in self.production_departments(fallback_all=False)}
+
     def dept_ids_to_in(self) -> set[int]:
         """Id tổ bật cờ TỔ IN — CHỈ tổ TỰ bật, KHÔNG kế thừa cây (cùng luật `dept_ids_giao_hang`).
 

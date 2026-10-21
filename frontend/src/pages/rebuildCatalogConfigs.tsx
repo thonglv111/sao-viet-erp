@@ -567,6 +567,7 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     const coCauHinh = !!String(khoan.unit ?? "").trim()
       || (khoan.unit_price !== null && khoan.unit_price !== undefined && khoan.unit_price !== "")
       || !!String(khoan.cong_thuc_khoan ?? "").trim()
+      || (Array.isArray(khoan.gia_theo_to) && khoan.gia_theo_to.length > 0)
       || phatSinh.length > 0;
     body.khoan = coCauHinh ? { ...khoan, viec_phat_sinh: phatSinh } : null;
     // Bỏ tick "cần khuôn" thì ô Loại dụng cụ bị `showIf` ẩn ⇒ không nằm trong body ⇒ backend giữ

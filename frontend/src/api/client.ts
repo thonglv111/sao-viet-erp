@@ -2042,6 +2042,8 @@ export interface SxMeDanhMucDoi {
  *  thành tiền — bàn tổ không nhân gì. */
 export interface SxViecPhatSinhChon {
   id: number; ten: string; don_gia: number; don_vi: string; don_vi_ten: string | null;
+  /** Tổ của việc vắng trong bảng giá theo tổ của việc phát sinh (21/10/2026). */
+  thieu_gia?: boolean;
 }
 /** Cấu hình Khoán cố định của công đoạn. Không có thao tác chọn nguồn trong lúc ghi mẻ. */
 export interface SxKhoanCongDoan {
@@ -2051,6 +2053,9 @@ export interface SxKhoanCongDoan {
   don_vi: string;
   don_vi_ten: string | null;
   phat_sinh: SxViecPhatSinhChon[];
+  /** Giá theo tổ (21/10/2026): `don_gia` + giá cố định là giá CỦA TỔ làm việc này. */
+  gia_co_dinh?: number;
+  thieu_gia?: boolean;
 }
 export interface SxNguoiThamGiaBatch {
   employee_id: number;
@@ -6277,6 +6282,10 @@ export interface PayrollLine {
    *  Khi có số, `luong_cong` là PHẦN BÙ THÊM cho đủ bù lỗ (0 nếu khoán cao hơn) — đừng in nó là
    *  "lương theo công". */
   bu_lo_theo_cong?: number | null;
+  /** Vế THỜI GIAN đã đem so (21/10/2026) = bù lỗ theo công + tăng ca theo giờ + TC đêm. */
+  ve_thoi_gian?: number | null;
+  /** Tăng ca khoán (21/10/2026) — 50% phần tổ vượt chỉ tiêu ngày, thuộc vế khoán. */
+  tang_ca_khoan?: number;
   /** true = khoán thấp hơn bù lỗ theo công, tháng này đang trả bù lỗ. */
   lay_bu_lo?: boolean;
   /** Công ngày lễ nghỉ hưởng lương của người ăn khoán / tài xế — trả RIÊNG, ngoài khoán, CÓ trong
@@ -6623,6 +6632,26 @@ export interface KhoanKmChuyen {
 export interface KhoanKmChiTiet {
   items: KhoanKmChuyen[];
   tong: number;
+}
+
+/** Một dòng làm nên tiền khoán của một người (21/10/2026). */
+export interface KhoanKyDong {
+  loai: "lan_ghi" | "tang_ca_khoan" | "to_truong" | "to_truong_tru";
+  batch_id?: number | null;
+  ngay?: string | null;
+  cong_doan?: string | null;
+  to?: string | null;
+  so_luong?: number | null;
+  tien_lan_ghi?: number | null;
+  so_nguoi?: number | null;
+  tien: number;
+  ghi_chu?: string | null;
+}
+
+export interface KhoanKyChiTiet {
+  items: KhoanKyDong[];
+  tong_khoan: number;
+  tong_tang_ca_khoan: number;
 }
 
 export interface LineComponentInput {
@@ -8526,6 +8555,8 @@ export interface PurchaseDeliveryRow {
   da_nhap_kho: boolean;
   stock_request_id: number | null;
   stock_request_ma: string | null;
+  /** Kho đã lập phiếu cho yêu cầu nhập của đợt ⇒ khoá Sửa / Xoá đợt (20/10/2026). */
+  kho_da_lap_phieu: boolean;
   /** Nấc kho (11/10/2026): chưa gửi / kho chưa nhập xong / yêu cầu nhập Hoàn tất. */
   kho: NacKho;
   delivery_date: string;
@@ -13885,6 +13916,10 @@ export const api = {
      *  `tong` PHẢI khớp cột "Khoán km"; lệch là một trong hai bên tính sai. */
     chiTietKhoanKm(token: string, lineId: number): Promise<KhoanKmChiTiet> {
       return authed<KhoanKmChiTiet>(`/api/luong/lines/${lineId}/khoan-km`, token);
+    },
+    /** Từng lần ghi sản lượng / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của một dòng. */
+    chiTietKhoanKy(token: string, lineId: number): Promise<KhoanKyChiTiet> {
+      return authed<KhoanKyChiTiet>(`/api/luong/lines/${lineId}/khoan-ky`, token);
     },
     addLineComponent(token: string, lineId: number, input: LineComponentInput): Promise<LineComponent> {
       return authed<LineComponent>(`/api/luong/lines/${lineId}/components`, token, { method: "POST", body: JSON.stringify(input) });

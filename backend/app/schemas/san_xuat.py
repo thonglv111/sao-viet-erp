@@ -1074,6 +1074,8 @@ class ViecPhatSinhChonOut(BaseModel):
     don_gia: float
     don_vi: str
     don_vi_ten: str | None = None
+    # Giá lấy theo TỔ của việc (bảng giá theo tổ, 21/10/2026); tổ vắng trong bảng ⇒ thiếu giá.
+    thieu_gia: bool = False
 
 
 class KhoanCongDoanThucThiOut(BaseModel):
@@ -1085,6 +1087,9 @@ class KhoanCongDoanThucThiOut(BaseModel):
     don_vi: str
     don_vi_ten: str | None = None
     phat_sinh: list[ViecPhatSinhChonOut] = []
+    # Giá theo tổ (21/10/2026): giá cố định mỗi lần ghi + đơn giá của TỔ làm việc này.
+    gia_co_dinh: float = 0.0
+    thieu_gia: bool = False
 
 
 class KetQuaNhanhOut(BaseModel):

@@ -107,7 +107,7 @@ class ParamsOut(BaseModel):
 
 # --- thành phần lương theo BỘ PHẬN (Cấu hình lương, Tab 2) ------------------
 
-_COMPONENT_KEY = "^(chuyen_can|luong_khoan|tang_ca)$"   # `kpi` gỡ 29/07/2026
+_COMPONENT_KEY = "^(chuyen_can)$"   # `kpi` gỡ 29/07/2026; `luong_khoan` · `tang_ca` gỡ 20/10/2026
 
 
 class DeptComponentIn(BaseModel):
@@ -539,13 +539,14 @@ class LineOut(BaseModel):
     #: TRONG ĐÓ của `ot_pay` — tiền GIỜ tăng ca, tách khỏi phần thêm ngày CN / lễ (17/09/2026). File Excel
     #: bảng lương đọc để cột "Ngoài giờ/Tăng ca" chỉ là tiền giờ. None = kỳ tính trước mg 0305.
     tien_gio_tang_ca: float | None = None
-    #: CHẾ ĐỘ KHOÁN (14/09/2026) — giờ tăng ca của người này KHÔNG có tiền (tổ khoán sản lượng /
-    #: tổ Giao hàng). Màn hình dùng để nói vì sao có giờ tăng ca mà tiền tăng ca = 0.
+    #: Người này TÍNH 2 LƯƠNG (khối Sản xuất / Giao hàng, 20/10/2026) — ăn vế khoán thì tiền giờ tăng
+    #: ca = 0, ăn vế thời gian thì có. Màn hình dùng để giải thích vì sao.
     che_do_khoan: bool = False
     #: LƯƠNG BÙ LỖ (tổ khoán sản xuất, 14/09/2026) — số bù lỗ theo công đã đem so với tiền khoán.
     #: None = dòng không thuộc luật này. Khi có số, `luong_cong` là PHẦN BÙ THÊM cho đủ bù lỗ (0 nếu
     #: khoán cao hơn) — đừng đọc nó là "lương theo công".
     bu_lo_theo_cong: float | None = None
+    ve_thoi_gian: float | None = None
     #: True = khoán thấp hơn bù lỗ theo công, tháng này đang trả bù lỗ.
     lay_bu_lo: bool = False
     #: Công ngày lễ nghỉ hưởng lương của người ăn khoán / tài xế — trả RIÊNG, CỘNG vào gross (15/09/2026).
@@ -567,6 +568,8 @@ class LineOut(BaseModel):
     khoan: float = 0
     #: Khoán km giao hàng (mg 0231) — CỘNG THÊM vào gross, không phải "trong đó" của khoản nào.
     khoan_km: float = 0
+    #: TĂNG CA KHOÁN (mg 0429) — 50% phần tổ vượt chỉ tiêu ngày, thuộc vế khoán, CỘNG vào gross.
+    tang_ca_khoan: float = 0
     #: Hoa hồng KD (mg 0269, 07/09/2026) — cột riêng, hệ tự tính theo hoá đơn, CỘNG THÊM vào gross,
     #: chịu TNCN, không sửa tay.
     hoa_hong: float = 0
@@ -887,3 +890,27 @@ class KhoanKmChiTietOut(BaseModel):
 
     items: list[KhoanKmChuyenOut] = []
     tong: float = 0
+
+
+class KhoanKyDongOut(BaseModel):
+    """Một dòng làm nên tiền khoán của một người (21/10/2026): lần ghi · tăng ca khoán · tổ trưởng."""
+
+    loai: str                     # lan_ghi | tang_ca_khoan | to_truong | to_truong_tru
+    batch_id: int | None = None
+    ngay: str | None = None
+    cong_doan: str | None = None
+    to: str | None = None
+    so_luong: float | None = None
+    tien_lan_ghi: float | None = None
+    so_nguoi: int | None = None
+    tien: float = 0
+    ghi_chu: str | None = None
+
+
+class KhoanKyChiTietOut(BaseModel):
+    """`tong_khoan` khớp cột "Lương khoán" (trước khi lấy bên lớn), `tong_tang_ca_khoan` khớp
+    "Tăng ca khoán"."""
+
+    items: list[KhoanKyDongOut] = []
+    tong_khoan: float = 0
+    tong_tang_ca_khoan: float = 0

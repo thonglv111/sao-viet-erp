@@ -15,7 +15,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ...models.department import Department
 from ...models.may_thiet_bi import MayThietBi
 from ...models.san_xuat import CV_HOAN_THANH, CV_TAM_DUNG
 from ...models.san_xuat_thuc_thi import PHIEN_TAM_DUNG
@@ -689,10 +688,12 @@ def nhan_vien_chon(
     của module `san_xuat` để tổ trưởng KHÔNG cần quyền `nhan_su` mới đổ được danh chọn. `la_luong_khoan`
     suy từ `has_piece_work` của chính tổ (mọi người trong tổ cùng chế độ) — FE không lọc ai, cũng không
     gắn thẻ "công nhật" nữa (09/10/2026). `co_tai_khoan` để biết ai nhận được thông báo đẩy.
+    (`la_luong_khoan` = tổ thuộc khối Sản xuất từ 20/10/2026 — `thuc_thi.thuoc_khoi_san_xuat`.)
     """
     _pham_vi_doc(db, user, team_id)
-    dept = db.get(Department, team_id)
-    la_khoan = bool(dept and dept.has_piece_work)
+    from .thuc_thi import thuoc_khoi_san_xuat
+
+    la_khoan = thuoc_khoi_san_xuat(db, team_id)
     ds = SanXuatThucThiRepository(db).nhan_vien_cua_to(team_id)
     # Đang chạy việc nào / chờ mấy việc / nghỉ gì — xem `tinh_trang_nguoi`. Ngày là ngày XƯỞNG.
     ngay = hom_nay()
@@ -1389,21 +1390,27 @@ def chi_tiet_cong_viec(
         # vì hai lý do khác nhau — không được cấp, hoặc chỉ "Của tôi" mà việc chưa giao cho mình —
         # và drawer phải nói đúng lý do nào, không thì người đã bật quyền đọc thấy "cần quyền".
         "quyen_muc": {v: m for v in VIEC_CHI_TIET if (m := q.muc(v, cv.department_id))},
+        # Giá bày cho tổ là giá CỦA TỔ làm việc này (bảng giá theo tổ, 21/10/2026) — đúng số máy
+        # chủ sẽ chụp vào lần ghi; tổ vắng trong bảng ⇒ cờ thiếu giá, không bày giá chung.
         "khoan": ({
             "id": khoan_hien_tai.id,
             "ten": ten_cong_doan_khoan or cv.ten_cong_doan,
-            "don_gia": float(khoan_hien_tai.unit_price),
+            "don_gia": float(gia_to[1] or 0),
+            "gia_co_dinh": float(gia_to[0] or 0),
+            "thieu_gia": gia_to[1] is None,
             "don_vi": khoan_hien_tai.unit,
             "don_vi_ten": nhan_don_vi(dv_me_ten, khoan_hien_tai.unit),
             "phat_sinh": [
                 {
-                    "id": ps.id, "ten": ps.ten, "don_gia": float(ps.don_gia),
+                    "id": ps.id, "ten": ps.ten,
+                    "don_gia": float(viec_khoan.gia_ps_cua_to(ps, cv.department_id) or 0),
+                    "thieu_gia": viec_khoan.gia_ps_cua_to(ps, cv.department_id) is None,
                     "don_vi": ps.don_vi,
                     "don_vi_ten": nhan_don_vi(dv_me_ten, ps.don_vi),
                 }
                 for ps in khoan_hien_tai.viec_phat_sinh
             ],
-        } if khoan_hien_tai else None),
+        } if khoan_hien_tai and (gia_to := viec_khoan.gia_cua_to(khoan_hien_tai, cv.department_id)) else None),
         "phan_cong": [
             {
                 "id": pc.id,

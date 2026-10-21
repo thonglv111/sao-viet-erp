@@ -106,7 +106,7 @@ export function ChiTieuNgayEditor({
         <div>
           <h3 className="cl-card__title">Chỉ tiêu ngày — {deptName}</h3>
           <p className="cl-card__desc">
-            Tiền sản lượng một thợ phải làm ra trong một công. Chưa áp vào tính lương.
+            Tiền sản lượng CẢ TỔ phải làm ra trong một ngày. Tổ làm vượt thì 50% phần vượt là tăng ca khoán, chia cho người làm hôm đó.
           </p>
         </div>
         {!loading && (
@@ -115,7 +115,7 @@ export function ChiTieuNgayEditor({
               <>
                 <div className="cl-chitieu__now-val">
                   {money(hienHanh.so_tien)}
-                  <small>đ/công</small>
+                  <small>đ/ngày</small>
                 </div>
                 <div className="cl-chitieu__now-sub">
                   đang áp dụng từ {fmtYmd(hienHanh.ap_dung_tu)}
@@ -151,7 +151,7 @@ export function ChiTieuNgayEditor({
                     <NumInput
                       value={soTien}
                       onChange={setSoTien}
-                      suffix="đ/công"
+                      suffix="đ/ngày"
                       step={1000}
                       min={0}
                       placeholder="350000"
@@ -179,7 +179,7 @@ export function ChiTieuNgayEditor({
                 {/* Chỉ nhắc khi đã gõ số — vừa thêm mốc xong thì bảng ngay dưới đã có dòng đó, nhắc thêm là lặp. */}
                 {trungMoc && soTien != null && (
                   <p className="rc-field__hint cl-chitieu__trung">
-                    Ngày {fmtYmd(ngay)} đã có mốc {money(trungMoc.so_tien)} đ/công — lưu là ghi đè
+                    Ngày {fmtYmd(ngay)} đã có mốc {money(trungMoc.so_tien)} đ/ngày — lưu là ghi đè
                     số của mốc đó.
                   </p>
                 )}
@@ -193,7 +193,7 @@ export function ChiTieuNgayEditor({
                     <tr>
                       <th style={{ width: 210 }}>Áp dụng từ</th>
                       <th className="num" style={{ width: 170 }}>
-                        Chỉ tiêu (đ/công)
+                        Chỉ tiêu (đ/ngày)
                       </th>
                       <th>Ghi chú</th>
                       {!readOnly && <th className="act" style={{ width: 56 }} aria-label="Thao tác" />}
@@ -243,7 +243,7 @@ export function ChiTieuNgayEditor({
         title="Xoá mốc chỉ tiêu ngày?"
         message={
           xoa
-            ? `Xoá mốc ${money(xoa.so_tien)} đ/công áp dụng từ ${fmtYmd(xoa.ap_dung_tu)} của ${deptName}.`
+            ? `Xoá mốc ${money(xoa.so_tien)} đ/ngày áp dụng từ ${fmtYmd(xoa.ap_dung_tu)} của ${deptName}.`
             : undefined
         }
         confirmLabel="Xoá mốc"

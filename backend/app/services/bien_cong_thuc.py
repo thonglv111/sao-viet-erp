@@ -30,7 +30,10 @@ LOAI_GIAY = "giay"
 LOAI_VAT_TU = "vat_tu"
 LOAI_CONG_DOAN = "cong_doan"
 LOAI_QUY_DOI = "quy_doi"
-LOAI = (LOAI_GIAY, LOAI_VAT_TU, LOAI_CONG_DOAN, LOAI_QUY_DOI)
+# Ô "Công thức khoán" của Công đoạn (21/10/2026) — chạy THẬT ở lần ghi sản lượng: bộ `quy_doi` +
+# ba chip của lần ghi (`_RIENG_KHOAN`). Tách loại riêng để ba chip ấy không lọt vào ô quy đổi.
+LOAI_KHOAN = "khoan"
+LOAI = (LOAI_GIAY, LOAI_VAT_TU, LOAI_CONG_DOAN, LOAI_QUY_DOI, LOAI_KHOAN)
 
 _TIEN = (LOAI_GIAY, LOAI_VAT_TU, LOAI_CONG_DOAN)   # ba ô công thức tiền
 _MOI_O = (*_TIEN, LOAI_QUY_DOI)                    # bộ CHUNG — có mặt ở cả bốn ô
@@ -186,9 +189,21 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      (LOAI_QUY_DOI,)),
 )
 
+# Ba chip CHỈ ô Công thức khoán có — số của chính LẦN GHI, `khoan_ky` bơm lúc tính tiền kỳ lương.
+_RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
+    ("sl_ghi", "SL ghi", "Tổng số thợ ghi ở lần ghi (tốt + hỏng)", "đơn vị của lần ghi",
+     "ô Tổng của lần ghi sản lượng", (LOAI_KHOAN,)),
+    ("sl_tot", "SL tốt", "Số tốt của lần ghi", "đơn vị của lần ghi",
+     "ô Tốt của lần ghi sản lượng", (LOAI_KHOAN,)),
+    ("gia_co_dinh", "Giá cố định", "Giá cố định của TỔ ghi (vd giá một bài in)", "đ",
+     "bảng Giá theo tổ ở tab Khoán của công đoạn — ảnh chụp lúc ghi", (LOAI_KHOAN,)),
+)
+
 BIEN: tuple[dict, ...] = tuple(
-    {"ma": ma, "nhan": nhan, "mo_ta": mo_ta, "don_vi": don_vi, "nguon": nguon, "loai": list(loai)}
-    for ma, nhan, mo_ta, don_vi, nguon, loai in _BANG
+    {"ma": ma, "nhan": nhan, "mo_ta": mo_ta, "don_vi": don_vi, "nguon": nguon,
+     # Ô Công thức khoán thừa hưởng TRỌN bộ của ô quy đổi.
+     "loai": [*loai, LOAI_KHOAN] if LOAI_QUY_DOI in loai else list(loai)}
+    for ma, nhan, mo_ta, don_vi, nguon, loai in (*_BANG, *_RIENG_KHOAN)
 )
 
 _THEO_MA = {b["ma"]: b for b in BIEN}

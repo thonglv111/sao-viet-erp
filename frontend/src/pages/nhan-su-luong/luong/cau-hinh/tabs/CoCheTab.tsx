@@ -27,7 +27,6 @@ export function CoCheTab({
   loading,
   readOnly,
   busy,
-  khoanDaLuu = false,
 }: {
   token: string;
   p: PayrollParams;
@@ -40,9 +39,6 @@ export function CoCheTab({
   loading: boolean;
   readOnly: boolean;
   busy: boolean;
-  /** Công tắc Lương khoán của tổ đã BẬT VÀ ĐÃ LƯU — backend chỉ nhận chỉ tiêu ngày cho tổ đó.
-   *  Khác `khoanOn` (bản nháp): gạt bật mà chưa bấm Lưu thì chưa khai chỉ tiêu được. */
-  khoanDaLuu?: boolean;
 }) {
   const dept = depts.find((d) => d.id === deptId);
   const deptName = dept?.name ?? "";
@@ -62,8 +58,19 @@ export function CoCheTab({
         return c;
       }),
     );
-  const khoanOn =
-    comps.find((c) => c.component_key === "luong_khoan")?.is_enabled ?? false;
+  // KHỐI SẢN XUẤT (20/10/2026): tổ tự bật hoặc có tổ cha bật cờ Sản xuất — cùng luật với
+  // `dept_ids_khoi_san_xuat` ở BE. Người khối này tính 2 lương (khoán vs thời gian), ăn bên lớn.
+  const khoiSx = useMemo(() => {
+    const theoId = new Map(depts.map((d) => [d.id, d]));
+    const daQua = new Set<number>();
+    let d = deptId != null ? theoId.get(deptId) : undefined;
+    while (d && !daQua.has(d.id)) {
+      if (d.la_san_xuat) return true;
+      daQua.add(d.id);
+      d = d.parent_id != null ? theoId.get(d.parent_id) : undefined;
+    }
+    return false;
+  }, [depts, deptId]);
   // Cờ Giao hàng dùng TRỰC TIẾP (không kế thừa cây) — khớp `_chup_don_gia_km` ở BE đọc cờ RIÊNG
   // của phòng tài xế. Tài xế phải thuộc đúng phòng bật cờ thì mới có khoán km.
   const laGiaoHang = depts.find((d) => d.id === deptId)?.la_giao_hang ?? false;
@@ -327,14 +334,7 @@ export function CoCheTab({
                     <span>
                       <Switch
                         on={c.is_enabled}
-                        // Tổ Giao hàng KHÔNG bật được Lương khoán (chủ chốt 16/09/2026): hai cờ
-                        // là hai nguồn tiền đem so với bù lỗ, bật cả hai thì máy cộng chung một
-                        // vế. Backend cũng chặn — chỗ này chỉ để người khai hiểu ngay vì sao.
-                        disabled={
-                          readOnly
-                          || busy
-                          || (def.key === "luong_khoan" && laGiaoHang && !c.is_enabled)
-                        }
+                        disabled={readOnly || busy}
                         label={def.name}
                         onChange={(v) => patchComp(def.key, { is_enabled: v })}
                       />
@@ -343,34 +343,6 @@ export function CoCheTab({
                       <span className="cl-comp__name">{def.name}</span>
                       <span className="cl-comp__desc">
                         {def.desc}
-                        {def.key === "luong_khoan" && laGiaoHang && (
-                          <>
-                            {" "}
-                            <b>Tổ này có cờ Bộ phận Giao hàng nên không bật được.</b> Tài xế /
-                            phụ xe đã ăn khoán km theo chuyến giao; bật thêm khoán sản lượng là
-                            hai khoản cộng chung MỘT vế khi đem so với lương bù lỗ — ai gán nhầm
-                            một phiếu sản lượng cho tài xế là tháng đó họ mất tiền tăng ca. Muốn
-                            tổ này ăn sản lượng thì bỏ cờ Giao hàng ở màn Phòng ban trước.
-                          </>
-                        )}
-                        {def.key === "tang_ca" && laGiaoHang && (
-                          <>
-                            {" "}
-                            <b>Tổ Giao hàng: tài xế / phụ xe CÓ tiền giờ tăng ca</b> (hệ số bình
-                            thường) — tiền đó nằm trong vế thời gian (lương bù lỗ theo công + tăng
-                            ca) đem so với khoán km, tháng nào lấy km thì không trả. Tắt công tắc
-                            này là họ mất luôn tiền tăng ca, cơm tăng ca và phần thêm ngày Chủ
-                            nhật / lễ.
-                          </>
-                        )}
-                        {def.key === "tang_ca" && khoanOn && !laGiaoHang && (
-                          <>
-                            {" "}
-                            <b>Tổ này ăn khoán sản lượng: KHÔNG có tiền tăng ca</b> (làm thêm giờ
-                            đã trả qua tiền khoán) — công tắc này còn quyết cơm tăng ca và phần
-                            thêm khi làm nguyên ngày Chủ nhật / lễ.
-                          </>
-                        )}
                       </span>
                     </span>
                     <span>
@@ -407,9 +379,19 @@ export function CoCheTab({
         </div>
       </div>
 
-      {/* CHỈ TIÊU NGÀY (16/09/2026) — chỗ khai báo, CHƯA nối vào tính lương. Chỉ tổ đang ăn khoán
-          sản lượng mới có; gạt bật khoán mà chưa Lưu thì nhắc Lưu trước (backend đọc trạng thái đã lưu). */}
-      {khoanOn && deptId != null && (khoanDaLuu ? (
+      {/* KHỐI SẢN XUẤT (20/10/2026): mọi tổ trong khối khai được chỉ tiêu ngày (tăng ca khoán =
+          50% phần tổ vượt) và chế độ tổ trưởng — cả tổ cha (tính trên tổng sản lượng các tổ con). */}
+      {deptId != null && (khoiSx || laGiaoHang) && (
+        <div className="cl-override-note">
+          <Info size={14} />
+          <span>
+            <b>{laGiaoHang ? "Bộ phận Giao hàng" : "Khối Sản xuất"}: tính 2 lương, ăn bên lớn</b> — lương
+            khoán ({laGiaoHang ? "tiền km" : "sản lượng các lần ghi + tăng ca khoán"}) so với lương thời
+            gian (theo công + tăng ca theo giờ). Thử việc luôn ăn lương thời gian.
+          </span>
+        </div>
+      )}
+      {khoiSx && deptId != null && (
         <>
           <ChiTieuNgayEditor
             token={token}
@@ -417,8 +399,6 @@ export function CoCheTab({
             deptName={deptName}
             readOnly={readOnly}
           />
-          {/* TỔ TRƯỞNG ăn thưởng / ăn chia (19/09/2026) — cùng luật với Chỉ tiêu ngày: chỗ khai,
-              chưa nối lương; chỉ tổ ăn sản lượng mới có. */}
           <ToTruongEditor
             token={token}
             departmentId={deptId}
@@ -429,12 +409,7 @@ export function CoCheTab({
             readOnly={readOnly}
           />
         </>
-      ) : (
-        <div className="banner banner--info">
-          Bấm <b>Lưu thay đổi</b> để bật Lương khoán / sản lượng cho {deptName} trước, rồi khai{" "}
-          <b>chỉ tiêu ngày</b> và <b>chế độ tổ trưởng</b> của tổ ở ngay khối này.
-        </div>
-      ))}
+      )}
 
       {/* % chia tiền chuyến cho kíp xe — dữ liệu CỦA PHÒNG (`departments.pct_*`), nên ở lại màn
           theo bộ phận và chỉ hiện khi phòng bật cờ Giao hàng. Bảng GIÁ (Mức khoán km) là cấu hình

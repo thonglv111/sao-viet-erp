@@ -4256,3 +4256,9 @@ button.rc-formula__nhan--nut.is-chon {
   font-size: 11.5px;
   line-height: 1.4;
 }
+/* Bảng giá theo tổ của tab Khoán (21/10/2026) — mỗi tổ phụ trách một hàng, cột việc phát sinh kéo ngang. */
+.rc-bands--gia-to { overflow-x: auto; }
+.rc-bands--gia-to .rc-bands__table { min-width: 520px; }
+.rc-bands--gia-to td:first-child { white-space: nowrap; }
+.rc-bands--gia-to .rc-input-wrapper { min-width: 110px; }
+.rc-khoan__mat { color: var(--ash, #6f756f); font-style: italic; }

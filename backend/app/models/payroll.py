@@ -52,13 +52,16 @@ PERIOD_STATUSES = (PERIOD_DRAFT, PERIOD_LOCKED, PERIOD_PAID)
 
 # --- Thành phần lương bật/tắt theo BỘ PHẬN (màn Cấu hình lương, Tab 2) -------
 COMP_CHUYEN_CAN = "chuyen_can"                  # `value` = đ/tháng (trừ dần theo ngày nghỉ — C3)
-COMP_LUONG_KHOAN = "luong_khoan"                # bật/tắt — soi cờ departments.has_piece_work
-COMP_TANG_CA = "tang_ca"                        # bật/tắt tăng ca theo giờ
+# `luong_khoan` / `tang_ca` THÔI LÀ CÔNG TẮC (chủ chốt 20/10/2026): thuộc khối Sản xuất (kế thừa cây)
+# là tính 2 lương, mọi tổ đều có tăng ca. Dòng cũ trong `department_salary_components` để nguyên, thôi
+# đọc. Giữ hằng để mã cũ / migration còn tham chiếu được tên.
+COMP_LUONG_KHOAN = "luong_khoan"
+COMP_TANG_CA = "tang_ca"
 # Ba khoản phụ cấp (ca · trách nhiệm · thâm niên) ĐÃ CHUYỂN sang khai TAY theo TỪNG NGƯỜI ở
 # `employee_salaries` — chủ chốt 2026-07-20: "cho nó khai tay đi, hệ thống không cần tính toán".
 # `kpi` (thưởng năng suất) ĐÃ GỠ 29/07/2026 — chủ: "xưởng không chấm KPI, xóa đi".
 SALARY_COMPONENT_KEYS = (
-    COMP_CHUYEN_CAN, COMP_LUONG_KHOAN, COMP_TANG_CA,
+    COMP_CHUYEN_CAN,
 )
 
 _MONEY = Numeric(14, 2)
@@ -429,6 +432,9 @@ class PayrollLine(Base):
     # CHỈ tổ bật Lương khoán. NULL = dòng không thuộc luật bù lỗ (tổ thường, kỳ cũ trước mg 0300, và tổ
     # Giao hàng — tài xế không có bù lỗ, `luong_cong` của họ = 0, chủ chốt 15/09/2026).
     bu_lo_theo_cong: Mapped[float | None] = mapped_column(_MONEY, nullable=True)
+    # VẾ THỜI GIAN đã đem so (21/10/2026) = bù lỗ theo công + tiền giờ tăng ca + phụ cấp TC đêm — chụp
+    # để ngăn "so 2 lương" hiện được cả bên không lấy. NULL như `bu_lo_theo_cong`.
+    ve_thoi_gian: Mapped[float | None] = mapped_column(_MONEY, nullable=True)
     # True = tháng này khoán THẤP hơn bù lỗ theo công ⇒ đang trả bù lỗ (`luong_cong` > 0 là phần bù).
     lay_bu_lo: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=sa_false()
@@ -472,6 +478,10 @@ class PayrollLine(Base):
     # `ot_pay` / `chuyen_can`. Nhét vào "Danh mục khoản thu nhập" là đặt công tắc hệ thống cạnh nút
     # xoá của HCNS — lỗi đã mắc với hoa hồng và sửa ngày 24/08/2026.
     khoan_km: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
+    # TĂNG CA KHOÁN (mg 0429, 20/10/2026) — 50% phần tiền sản lượng của TỔ vượt chỉ tiêu ngày, chia
+    # cho người làm hôm đó. Thuộc VẾ KHOÁN của phép so 2 lương, cộng vào gross. Cột RIÊNG, KHÔNG nhét
+    # vào `khoan` hay `ot_pay` (chủ dặn hai loại tăng ca phải rạch ròi): người ăn vế thời gian = 0.
+    tang_ca_khoan: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
     # Hoa hồng kinh doanh (mg 0269, 07/09/2026) — hệ tự tính theo hoá đơn bán trong kỳ
     # (`HoaHongService`), % chụp trên đơn lúc chốt. Là CỘT (chủ: "nó là một dạng lương"), KHÔNG còn
     # là dòng khoản danh mục nguồn `auto` như 21/08–07/09: cách đó đặt công tắc toàn hệ thống cạnh

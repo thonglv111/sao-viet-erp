@@ -455,9 +455,6 @@ export function CauHinhLuongTab({
           loading={compsLoading}
           readOnly={readOnly}
           busy={saving}
-          khoanDaLuu={
-            comps.find((c) => c.component_key === "luong_khoan")?.is_enabled ?? false
-          }
         />
       )}
 

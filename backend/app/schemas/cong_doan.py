@@ -44,11 +44,19 @@ class CongDoanMayRow(CongDoanMayIn):
     id: int
 
 
+class GiaTheoToIn(BaseModel):
+    """Một dòng bảng giá theo tổ (21/10/2026). Việc phát sinh không có giá cố định."""
+    department_id: int
+    gia_co_dinh: float | None = None
+    don_gia: float | None = None
+
+
 class CongDoanKhoanPhatSinhIn(BaseModel):
     id: int | None = None
     ten: str = Field(default="", max_length=255)
     don_gia: float | None = None
     don_vi: str | None = Field(default=None, max_length=24)
+    gia_theo_to: list[GiaTheoToIn] | None = None
 
 
 class CongDoanKhoanPhatSinhRow(CongDoanKhoanPhatSinhIn):
@@ -60,6 +68,7 @@ class CongDoanKhoanIn(BaseModel):
     unit: str | None = Field(default=None, max_length=24)
     unit_price: float | None = None
     cong_thuc_khoan: str | None = None
+    gia_theo_to: list[GiaTheoToIn] | None = None
     viec_phat_sinh: list[CongDoanKhoanPhatSinhIn] = Field(default_factory=list)
 
 
@@ -69,6 +78,7 @@ class CongDoanKhoanRow(BaseModel):
     unit: str
     unit_price: float
     cong_thuc_khoan: str | None = None
+    gia_theo_to: list[GiaTheoToIn] | None = None
     viec_phat_sinh: list[CongDoanKhoanPhatSinhRow] = Field(default_factory=list)
 
 

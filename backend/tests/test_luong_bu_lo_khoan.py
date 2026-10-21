@@ -27,7 +27,7 @@ from types import SimpleNamespace
 from app.db import SessionLocal
 from app.services.piece_work_service import PieceWorkService
 from tests.test_com_tang_ca import _ca_hanh_chinh, _h, _lam_ngay, _ngay_lam_viec, _nv
-from tests.test_khoan_khong_tien_tang_ca import (
+from tests.test_hai_luong_khoi_sx import (
     _chinh_thuc, _chuyen_to, _dong, _khai_com_tc_va_tat_khop_ca, _svc, _tinh_lai, _to,
 )
 from tests.test_luong_api import _sal
@@ -348,17 +348,16 @@ def test_TO_IN_ngay_CN_le_KHONG_co_cong_goc_tra_het_o_phan_them(client):
         db.close()
 
 
-def test_PHEP_CO_LUONG_khong_tinh_cong_cho_nguoi_khoan(client):
-    """⭐ Khách chốt 15/09/2026 chiều: *"nghỉ phép có lương ấy bên khoán mình sẽ không cho dùng"*.
-    Đơn cũ đã duyệt vẫn còn thì Lương KHÔNG đếm công phép đó vào bù lỗ theo công: 26 công gồm 2 công
-    phép ⇒ bù lỗ chỉ 24 công. Người công nhật vẫn được trả đủ 26 công như cũ."""
+def test_PHEP_CO_LUONG_la_mot_cong_cua_ve_thoi_gian(client):
+    """⭐ Chủ chọn cách A 20/10/2026 (ĐẢO chốt khách 15/09/2026): ngày phép có lương là một CÔNG trong
+    vế thời gian ⇒ 26 công gồm 2 công phép ⇒ bù lỗ đủ 26 công = 7.200.000, như người công nhật."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         params = svc.get_params()
         v = _tinh(svc, params, actual_cong=26, restday_cong=0, paid_leave_cong=2, khoan=0)
-        assert v["bu_lo_theo_cong"] == 6_646_154 and v["luong_ngay_phep"] == 0
+        assert v["bu_lo_theo_cong"] == 7_200_000 and v["luong_ngay_phep"] == 0
         cn = _tinh(svc, params, bu_lo=False, actual_cong=26, restday_cong=0, paid_leave_cong=2)
         assert cn["luong_cong"] == 7_200_000
     finally:
@@ -374,7 +373,7 @@ def test_TINH_LAI_to_khoan_lay_MAX_chup_len_dong_luong_va_sua_1_o_khong_cong_doi
     "Sửa 1 ô" sau đó phải ra đúng tổng cũ — nó cộng `luong_cong + khoan` từ dòng lương đã ghi."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán bù lỗ", khoan=True)
+    to_khoan = _to("Tổ khoán bù lỗ", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
@@ -467,7 +466,7 @@ def test_TINH_LAI_NGAY_LE_nghi_nguoi_khoan_va_tai_xe_duoc_tra_rieng_chot_cong_kh
 
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán ngày lễ", khoan=True)
+    to_khoan = _to("Tổ khoán ngày lễ", san_xuat=True)
     to_gh = _to("Tổ giao hàng ngày lễ", giao_hang=True)
     ngay_lam = _ngay_lam_viec(client, h)
     ngay, le = ngay_lam[2:5], ngay_lam[10]
@@ -590,15 +589,16 @@ def test_GIAO_HANG_km_CAO_hon_ve_thoi_gian_thi_KHONG_co_tien_tang_ca(client):
         db.close()
 
 
-def test_TO_KHOAN_san_luong_KHONG_dinh_luat_moi_van_0d_tang_ca(client):
-    """Luật mới CHỈ cho tổ Giao hàng: thợ khoán sản lượng vẫn 0đ tiền giờ tăng ca (chốt 14/09/2026)."""
+def test_TO_KHOAN_san_luong_cung_luat_ve_thoi_gian_gom_tang_ca(client):
+    """Chủ chốt 20/10/2026 mở luật Giao hàng (16/09/2026) cho MỌI người tính 2 lương: thợ khoán sản lượng
+    ăn vế thời gian thì có đủ tiền giờ tăng ca."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), actual_cong=26, restday_cong=0, allowance=5_400_000,
                   ot_minutes=600, khoan=5_000_000)
-        assert v["ot_pay"] == 0, "tổ khoán sản lượng bỗng dưng có tiền giờ tăng ca"
+        assert v["ot_pay"] == TC_GH
         assert v["lay_bu_lo"] is True and v["luong_cong"] == BU_LO_GH - 5_000_000
     finally:
         db.close()
@@ -697,7 +697,7 @@ def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monke
     đúng bằng 0,80 bù lỗ của người chính thức (hệ số chỉ nhân vào nền). "Sửa 1 ô" không đổi tổng."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán thử việc", khoan=True)
+    to_khoan = _to("Tổ khoán thử việc", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
@@ -737,7 +737,7 @@ def test_CANH_BAO_truoc_chot_KHONG_reo_ten_nguoi_thu_viec(client):
     tên họ là bắt HCNS đi tìm một phiếu không bao giờ có, và tháng nào cũng réo."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán cảnh báo", khoan=True)
+    to_khoan = _to("Tổ khoán cảnh báo", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
@@ -751,17 +751,16 @@ def test_CANH_BAO_truoc_chot_KHONG_reo_ten_nguoi_thu_viec(client):
             _lam_ngay(client, h, eid, d)
         nguoi[vai] = eid
 
-    bang = _tinh_lai(client, h)      # chưa chốt phân bổ nào ⇒ tiền khoán = 0 cho cả hai
+    bang = _tinh_lai(client, h)      # chưa có lần ghi nào ⇒ tiền khoán = 0 cho cả hai
     cb = bang["canh_bao_chot"] or ""
-    assert "Cảnh báo chinh_thuc" in cb, cb
+    # 20/10/2026: khoán = 0 ở khối SX là ăn vế thời gian — không réo tên ai nữa.
+    assert "Cảnh báo chinh_thuc" not in cb, cb
     assert "Cảnh báo thu_viec" not in cb, cb
 
 
-def test_CHAN_nghi_phep_CO_LUONG_cua_nguoi_khoan_va_tai_xe(client):
-    """⭐ Khách chốt 15/09/2026 chiều: *"nghỉ phép có lương ấy bên khoán mình sẽ không cho dùng"*.
-
-    Chặn ngay ở CỬA GỬI ĐƠN cho người tổ Lương khoán và tổ Giao hàng; loại nghỉ KHÔNG lương vẫn
-    dùng bình thường; người tổ thường không bị đụng."""
+def test_NGHI_PHEP_CO_LUONG_cua_nguoi_khoan_va_tai_xe_DUOC_dung(client):
+    """⭐ Chủ chọn cách A 20/10/2026 — GỠ chặn của khách 15/09/2026: người khối Sản xuất / Giao hàng gửi
+    được đơn nghỉ CÓ LƯƠNG (ngày phép là một công của vế thời gian)."""
     h = _h(client)
     co_luong = client.post("/api/leaves/types",
                            json={"name": "Phép năm khoán", "is_paid": True, "annual_quota": 12},
@@ -779,12 +778,11 @@ def test_CHAN_nghi_phep_CO_LUONG_cua_nguoi_khoan_va_tai_xe(client):
                                                 "start_date": ngay, "end_date": ngay}, headers=h)
 
     ngay = iter(["2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17"])
-    for ten, kw in (("Tổ khoán chặn phép", dict(khoan=True)),
+    for ten, kw in (("Tổ khoán chặn phép", dict(san_xuat=True)),
                     ("Tổ giao hàng chặn phép", dict(giao_hang=True))):
         _chuyen_to(eid, _to(ten, **kw))
         r = xin(co_luong, next(ngay))
-        assert r.status_code == 400, (ten, r.status_code, r.text)
-        assert "không dùng nghỉ phép có lương" in r.text, r.text
+        assert r.status_code == 201, (ten, r.status_code, r.text)
         assert xin(khong_luong, next(ngay)).status_code == 201, ten
 
     _chuyen_to(eid, _to("Tổ thường chặn phép"))
@@ -798,22 +796,7 @@ def test_CHAN_to_GIAO_HANG_bat_LUONG_KHOAN_va_nguoc_lai(client):
     cộng chung hai khoản thành một vế: ai gán nhầm một phiếu sản lượng cho tài xế là tháng đó anh ta
     mất trắng tiền tăng ca. Chặn cả HAI CHIỀU + cả cửa tạo phòng ban."""
     h = _h(client)
-
-    # (1) tổ Giao hàng ⇒ Cấu hình lương không bật được Lương khoán
-    gh = client.post("/api/departments", json={"name": "Tổ giao hàng chặn khoán",
-                                               "la_giao_hang": True}, headers=h)
-    assert gh.status_code == 201, gh.text
-    pb = gh.json()["id"]
-    r = client.put(f"/api/luong/dept-components/{pb}",
-                   json={"items": [{"component_key": "luong_khoan", "is_enabled": True}]},
-                   headers=h)
-    assert r.status_code == 400, r.text
-    assert "Giao hàng" in r.text and "Lương khoán" in r.text, r.text
-    # Tắt thì vẫn ghi được (không khoá cứng cả ô).
-    r = client.put(f"/api/luong/dept-components/{pb}",
-                   json={"items": [{"component_key": "luong_khoan", "is_enabled": False}]},
-                   headers=h)
-    assert r.status_code == 200, r.text
+    # (1) cửa Cấu hình lương GỠ 20/10/2026 cùng công tắc Lương khoán — còn hai cửa Phòng ban dưới.
 
     # (2) chiều ngược lại: tổ đang ăn khoán sản lượng ⇒ không bật được cờ Giao hàng
     kh = client.post("/api/departments", json={"name": "Tổ khoán chặn giao hàng",

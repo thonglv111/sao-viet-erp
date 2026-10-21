@@ -51,9 +51,9 @@ describe("ChiTieuNgayEditor", () => {
     chiTieuNgay.mockResolvedValueOnce(ds([MOC_CU], MOC_CU));
     const { container } = render(<ChiTieuNgayEditor token="t" departmentId={9} deptName="Tổ Bồi" />);
     expect(await screen.findByText("đang áp dụng từ 01/01/2020")).toBeInTheDocument();
-    expect(container.querySelector(".cl-chitieu__now-val")).toHaveTextContent("350.000đ/công");
+    expect(container.querySelector(".cl-chitieu__now-val")).toHaveTextContent("350.000đ/ngày");
     expect(screen.getByText("đang áp dụng")).toBeInTheDocument();
-    expect(screen.getByText(/Chưa áp vào tính lương/)).toBeInTheDocument();
+    expect(screen.getByText(/50% phần vượt là tăng ca khoán/)).toBeInTheDocument();
   });
 
   it("tổ chưa có mốc nào: góc thẻ nói chưa có, không vẽ bảng", async () => {
@@ -76,10 +76,10 @@ describe("ChiTieuNgayEditor", () => {
     fireEvent.blur(ngay);
     expect(screen.getByRole("button", { name: "Sửa mốc" })).toBeInTheDocument();
     // Chưa gõ số thì chưa nhắc ghi đè (bảng mốc ngay dưới đã hiện mốc đó rồi).
-    expect(screen.queryByText(/đã có mốc 350.000 đ\/công/)).toBeNull();
+    expect(screen.queryByText(/đã có mốc 350.000 đ\/ngày/)).toBeNull();
 
     await user.type(screen.getByPlaceholderText("350000"), "360000");
-    expect(screen.getByText(/đã có mốc 350.000 đ\/công/)).toBeInTheDocument();
+    expect(screen.getByText(/đã có mốc 350.000 đ\/ngày/)).toBeInTheDocument();
     await user.type(screen.getByPlaceholderText("Không bắt buộc"), "  gõ nhầm  ");
     await user.click(screen.getByRole("button", { name: "Sửa mốc" }));
 
@@ -91,7 +91,7 @@ describe("ChiTieuNgayEditor", () => {
       }),
     );
     await waitFor(() =>
-      expect(container.querySelector(".cl-chitieu__now-val")).toHaveTextContent("360.000đ/công"),
+      expect(container.querySelector(".cl-chitieu__now-val")).toHaveTextContent("360.000đ/ngày"),
     );
     expect(screen.getByText("gõ nhầm")).toBeInTheDocument();
   });

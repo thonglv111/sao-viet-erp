@@ -141,6 +141,7 @@ class CongDoanRepository(CatalogRepo):
         k.unit = raw["unit"]
         k.unit_price = raw["unit_price"]
         k.cong_thuc_khoan = raw.get("cong_thuc_khoan")
+        k.gia_theo_to = raw.get("gia_theo_to") or None
         cu = {v.id: v for v in k.viec_phat_sinh if v.id is not None}
         moi: list[CongDoanKhoanPhatSinh] = []
         for i, dong in enumerate(raw.get("viec_phat_sinh") or []):
@@ -151,6 +152,7 @@ class CongDoanRepository(CatalogRepo):
             v.ten = dong["ten"]
             v.don_gia = dong["don_gia"]
             v.don_vi = dong["don_vi"]
+            v.gia_theo_to = dong.get("gia_theo_to") or None
             v.thu_tu = i
             moi.append(v)
         k.viec_phat_sinh = moi

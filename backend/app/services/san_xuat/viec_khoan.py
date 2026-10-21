@@ -13,7 +13,8 @@ Ba việc ở đây:
      DUNG với danh mục sống, và chỉ đổi ảnh chụp KHI NGƯỜI BẤM.
 
 **KHÔNG có phép nhân nào ở đây.** Ảnh chụp đơn giá chỉ trả lời "lúc ghi mẻ việc này treo giá bao
-nhiêu"; tiền tính ở màn Khoán theo kỳ của kế toán. Việc phát sinh KHÔNG BAO GIỜ cộng vào sản
+nhiêu" — giá CỦA TỔ ghi (bảng giá theo tổ, 21/10/2026); tiền tính ở `services/khoan_ky.py` lúc
+tính lương kỳ. Việc phát sinh KHÔNG BAO GIỜ cộng vào sản
 lượng — không tiến độ, không KCS, không bàn giao, không nhập kho (*"chỗ việc phát sinh như lên
 khuôn không cộng vào sản lượng"*).
 """
@@ -29,16 +30,54 @@ from ..lsx_danh_muc_doi import o_lech
 
 #: Ba ô đem so của VIỆC KHOÁN và của MỖI việc phát sinh (§7.2b). Nhãn là câu người đọc trên băng.
 _O_SO = (("ten", "tên việc"), ("don_vi", "đơn vị"), ("don_gia", "đơn giá"))
+#: Cấu hình Khoán của công đoạn còn so thêm GIÁ CỐ ĐỊNH của tổ (21/10/2026).
+_O_SO_KHOAN = (*_O_SO, ("gia_co_dinh", "giá cố định"))
 
 
-def _anh_chup(ten, don_vi, don_gia) -> dict:
+def _anh_chup(ten, don_vi, don_gia, gia_co_dinh=None) -> dict:
     """Ảnh chụp chuẩn hoá của một dòng — CÙNG hình dạng cho việc khoán và việc phát sinh, để `o_lech`
     so được cả hai bằng một bộ ô."""
     return {
         "ten": (ten or "").strip() or None,
         "don_vi": (don_vi or "").strip() or None,
         "don_gia": None if don_gia is None else float(don_gia),
+        "gia_co_dinh": None if gia_co_dinh is None else float(gia_co_dinh),
     }
+
+
+def gia_cua_to(khoan, department_id: int | None) -> tuple[float | None, float | None]:
+    """(giá cố định, đơn giá) của MỘT tổ cho cấu hình Khoán của công đoạn.
+
+    Bảng giá theo tổ rỗng ⇒ mọi tổ dùng giá chung (giá cố định 0). Đã khai dòng nào thì tổ vắng
+    mặt là THIẾU GIÁ ⇒ `(None, None)` — không lấy giá chung đoán thay."""
+    bang = khoan.gia_theo_to or []
+    if not bang:
+        return 0.0, float(khoan.unit_price)
+    for r in bang:
+        if department_id is not None and int(r.get("department_id") or 0) == int(department_id):
+            don_gia = r.get("don_gia")
+            return float(r.get("gia_co_dinh") or 0), (None if don_gia is None else float(don_gia))
+    return None, None
+
+
+def gia_ps_cua_to(ps, department_id: int | None) -> float | None:
+    """Đơn giá việc phát sinh của MỘT tổ — cùng luật với `gia_cua_to`."""
+    bang = ps.gia_theo_to or []
+    if not bang:
+        return float(ps.don_gia)
+    for r in bang:
+        if department_id is not None and int(r.get("department_id") or 0) == int(department_id):
+            return None if r.get("don_gia") is None else float(r["don_gia"])
+    return None
+
+
+def _anh_khoan_cd_song(khoan, department_id: int | None) -> dict:
+    gia_cd, don_gia = gia_cua_to(khoan, department_id)
+    return _anh_chup(khoan.cong_doan.ten, khoan.unit, don_gia, gia_cd)
+
+
+def _anh_ps_cd_song(ps, department_id: int | None) -> dict:
+    return _anh_chup(ps.ten, ps.don_vi, gia_ps_cua_to(ps, department_id))
 
 
 def _anh_khoan_song(rate) -> dict:
@@ -95,11 +134,14 @@ def danh_sach_cua_to(db: Session, *, department_id: int | None, tim: str | None 
 
 def chuan_hoa_khi_ghi(
     db: Session, *, khoan, ten_cong_doan: str | None, phat_sinh: list[dict] | None,
+    department_id: int | None = None,
 ) -> tuple[dict, list[SanXuatBatchPhatSinh]]:
-    """Chụp cấu hình Khoán của công đoạn vào mẻ đang ghi.
+    """Chụp cấu hình Khoán của công đoạn vào mẻ đang ghi — giá CỦA TỔ `department_id`.
 
     Không có cấu hình vẫn ghi sản lượng bình thường. Chỉ khi gửi việc phát sinh mà công đoạn chưa
-    cấu hình Khoán mới từ chối, vì không có danh mục nguồn để kiểm và chụp giá.
+    cấu hình Khoán mới từ chối, vì không có danh mục nguồn để kiểm và chụp giá. Tổ chưa có dòng
+    trong bảng giá theo tổ thì VẪN ghi được (sản xuất chỉ ghi số lượng) — giá chụp None, kỳ lương
+    báo thiếu giá.
     """
     if khoan is None:
         if any(r.get("phat_sinh_id") for r in (phat_sinh or [])):
@@ -110,14 +152,17 @@ def chuan_hoa_khi_ghi(
             "ten_khoan_snapshot": None,
             "don_vi_khoan_snapshot": None,
             "don_gia_khoan_snapshot": None,
+            "gia_co_dinh_khoan_snapshot": None,
         }, [])
 
+    gia_cd, don_gia = gia_cua_to(khoan, department_id)
     o_snapshot = {
         "piece_rate_id": None,
         "khoan_cong_doan_id": khoan.id,
         "ten_khoan_snapshot": (ten_cong_doan or "").strip() or None,
         "don_vi_khoan_snapshot": khoan.unit,
-        "don_gia_khoan_snapshot": float(khoan.unit_price),
+        "don_gia_khoan_snapshot": don_gia,
+        "gia_co_dinh_khoan_snapshot": gia_cd,
     }
 
     hop_le = {ps.id: ps for ps in khoan.viec_phat_sinh}
@@ -139,7 +184,7 @@ def chuan_hoa_khi_ghi(
         if sl <= 0:
             raise ValueError(f'Số lượng của "{ps.ten}" phải lớn hơn 0.')
         da_co.add(int(psid))
-        anh_ps = _anh_ps_song(ps)
+        anh_ps = _anh_ps_cd_song(ps, department_id)
         rows.append(SanXuatBatchPhatSinh(
             phat_sinh_id=ps.id, so_luong=sl,
             ten_snapshot=anh_ps["ten"], don_vi_snapshot=anh_ps["don_vi"],
@@ -149,7 +194,8 @@ def chuan_hoa_khi_ghi(
 
 
 def _anh_khoan_cua_me(b) -> dict:
-    return _anh_chup(b.ten_khoan_snapshot, b.don_vi_khoan_snapshot, b.don_gia_khoan_snapshot)
+    return _anh_chup(b.ten_khoan_snapshot, b.don_vi_khoan_snapshot, b.don_gia_khoan_snapshot,
+                     getattr(b, "gia_co_dinh_khoan_snapshot", None))
 
 
 def _anh_ps_cua_me(r) -> dict:
@@ -193,8 +239,8 @@ def danh_muc_doi(
                 "truong": "khoan_cong_doan", "cu": None, "moi": None, "mat": True,
             }]
         ra: list[dict] = []
-        anh_song = _anh_chup(khoan.cong_doan.ten, khoan.unit, khoan.unit_price)
-        for o in o_lech(_anh_khoan_cua_me(b), anh_song, _O_SO):
+        anh_song = _anh_khoan_cd_song(khoan, department_id)
+        for o in o_lech(_anh_khoan_cua_me(b), anh_song, _O_SO_KHOAN):
             ra.append({**o, "nhan": f'{khoan.cong_doan.ten} · {o["nhan"]}', "mat": False})
         song = {int(ps.id): ps for ps in khoan.viec_phat_sinh}
         for r in ps_rows:
@@ -205,7 +251,7 @@ def danh_muc_doi(
                     "truong": "phat_sinh", "cu": None, "moi": None, "mat": True,
                 })
                 continue
-            for o in o_lech(_anh_ps_cua_me(r), _anh_ps_song(ps), _O_SO):
+            for o in o_lech(_anh_ps_cua_me(r), _anh_ps_cd_song(ps, department_id), _O_SO):
                 ra.append({**o, "nhan": f'{ps.ten} · {o["nhan"]}', "mat": False})
         return ra
     if not b.piece_rate_id:
@@ -255,11 +301,12 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
         if khoan is None:
             raise ValueError("Cấu hình Khoán của công đoạn không còn tồn tại.")
         doi: list[str] = []
-        moi = _anh_chup(khoan.cong_doan.ten, khoan.unit, khoan.unit_price)
-        if o_lech(_anh_khoan_cua_me(b), moi, _O_SO):
+        moi = _anh_khoan_cd_song(khoan, cv.department_id)
+        if o_lech(_anh_khoan_cua_me(b), moi, _O_SO_KHOAN):
             b.ten_khoan_snapshot = moi["ten"]
             b.don_vi_khoan_snapshot = moi["don_vi"]
             b.don_gia_khoan_snapshot = moi["don_gia"]
+            b.gia_co_dinh_khoan_snapshot = moi["gia_co_dinh"]
             doi.append(f"khoan_cong_doan={khoan.id}")
         ps_rows = sl.phat_sinh_cua_batch(b.id)
         song = {int(ps.id): ps for ps in khoan.viec_phat_sinh}
@@ -267,7 +314,7 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
             ps = song.get(int(r.phat_sinh_id))
             if ps is None:
                 continue
-            anh_ps = _anh_ps_song(ps)
+            anh_ps = _anh_ps_cd_song(ps, cv.department_id)
             if o_lech(_anh_ps_cua_me(r), anh_ps, _O_SO):
                 r.ten_snapshot = anh_ps["ten"]
                 r.don_vi_snapshot = anh_ps["don_vi"]
