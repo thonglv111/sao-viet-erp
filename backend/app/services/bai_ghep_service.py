@@ -1628,10 +1628,10 @@ class BaiGhepService:
                 # hiện "— chọn tổ —".
                 "department_id": c.department_id, "to_ten": dept_names.get(c.department_id),
                 "may_id": c.may_id, "may_ten": may_names.get(c.may_id),
-                # T3: cảnh báo MỀM máy không hợp công đoạn (sai loại / vượt khổ-màu-gsm) + danh sách
-                # nhóm máy cho phép để FE lọc dropdown ("Bế" chỉ hiện máy Bế).
+                # T3: cảnh báo MỀM máy không hợp công đoạn (ngoài danh sách / vượt khổ-màu-gsm).
+                # `nhom_may_cho_phep` thôi lọc từ 22/10/2026 (máy đi theo tổ) — giữ khoá, luôn rỗng.
                 "may_khong_hop": self._may_hop_cong_doan(may_obj, cd_obj, qc_bai),
-                "nhom_may_cho_phep": (cd_obj.nhom_may_cho_phep or []) if cd_obj is not None else [],
+                "nhom_may_cho_phep": [],
                 # Tổ PHỤ TRÁCH công đoạn (mg `0312`) — ô chọn tổ của form chỉ bày các tổ này.
                 "to_chon_duoc": list(cd_obj.department_ids) if cd_obj is not None else [],
                 "nha_cung_cap": c.nha_cung_cap,
@@ -1774,24 +1774,19 @@ class BaiGhepService:
     def may_ngoai_cong_doan(cd, may) -> bool:
         """Máy này có bị công đoạn từ chối không?
 
-        HAI TẦNG, tầng dưới chỉ chạy khi tầng trên im (06/09/2026):
-          ① Công đoạn đã CHỌN MÁY cụ thể ⇒ chỉ máy trong danh sách được nhận. Danh sách này là chỗ
-             khai công thức giờ/giá theo máy, nên máy ngoài nó cũng không có công thức để chạy.
-          ② Chưa chọn máy nào ⇒ lùi về luật NHÓM (`nhom_may_cho_phep`) như trước.
-        Chưa khai cả hai ⇒ không ràng buộc gì, đúng lối "chưa khai = không chặn" của cả hệ.
+        Công đoạn có máy (qua tổ đã tick, `may_lam_duoc`) ⇒ chỉ máy trong danh sách được nhận — đó
+        là chỗ khai công thức giờ/giá theo máy. Chưa có máy nào ⇒ không ràng buộc, đúng lối "chưa
+        khai = không chặn". Luật NHÓM (`nhom_may_cho_phep`) GỠ 22/10/2026: máy nay đi theo tổ.
         """
         if cd is None or may is None:
             return False
         ds = [r.may_id for r in (getattr(cd, "may_lam_duoc", None) or [])]
-        if ds:
-            return int(getattr(may, "id", 0) or 0) not in ds
-        allowed = (getattr(cd, "nhom_may_cho_phep", None) or [])
-        return bool(allowed) and (getattr(may, "loai_may", None) not in allowed)
+        return bool(ds) and int(getattr(may, "id", 0) or 0) not in ds
 
     def _may_hop_cong_doan(self, may, cd, qc_bai: dict) -> list[str]:
         """Cảnh báo MỀM khi máy của bước chung không hợp công đoạn — máy chỉ ghi nhận, không chặn.
 
-        Hai kiểu: (a) CÔNG ĐOẠN TỪ CHỐI (danh sách máy của công đoạn, hoặc lùi về nhóm máy — xem
+        Hai kiểu: (a) CÔNG ĐOẠN TỪ CHỐI (máy ngoài danh sách máy của công đoạn — xem
         `may_ngoai_cong_doan`); (b) khổ/số màu/gsm vượt máy (tái dùng `_may_fit.kiem_kha_nang` với
         quy cách cả tờ ghép). Rỗng = hợp / chưa đủ dữ liệu để nghi.
         """
@@ -1799,13 +1794,8 @@ class BaiGhepService:
             return []
         out: list[str] = []
         if self.may_ngoai_cong_doan(cd, may):
-            # Hai câu khác nhau vì hai cách sửa khác nhau: ① sửa danh sách máy của công đoạn,
-            # ② sửa nhóm máy cho phép (hoặc gán máy khác).
-            if (getattr(cd, "may_lam_duoc", None) or []):
-                out.append(f"Máy '{may.ten}' không nằm trong danh sách máy của công đoạn "
-                           f"'{getattr(cd, 'ten', '')}'")
-            else:
-                out.append(f"Máy '{may.ten}' ({may.loai_may}) không làm được công đoạn này")
+            out.append(f"Máy '{may.ten}' không nằm trong danh sách máy của công đoạn "
+                       f"'{getattr(cd, 'ten', '')}'")
         out.extend(_LY_DO_MAY_VN.get(ld, ld) for ld in kiem_kha_nang(qc_bai, may))
         return out
 

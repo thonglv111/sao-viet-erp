@@ -435,9 +435,8 @@ def _giu_bac_bu_hao(obj, _ctx: NguCanh) -> list[dict]:
 
 
 def _giu_may_cong_doan(obj, _ctx: NguCanh) -> list[dict]:
-    """Máy của công đoạn ĐANG CÓ — cùng lý do với `_giu_vat_tu_cong_doan`: `_sau_gan` cũng thay
-    TRỌN bảng `cong_doan_may`, sheet vắng mà không gán lại là xoá sạch công thức giờ/giá của
-    mọi máy."""
+    """Máy của công đoạn ĐANG CÓ — ghi lại y nguyên khi sheet vắng (`_ghi_may` upsert, không xoá
+    dòng nào, nên đây chỉ giữ thứ tự)."""
     return [{"may_id": m.may_id, "cong_thuc_gio": m.cong_thuc_gio,
              "cong_thuc_gia": m.cong_thuc_gia}
             for m in (getattr(obj, "may_lam_duoc", None) or [])]
@@ -473,14 +472,8 @@ CONG_DOAN = CatalogExcelSpec(
         Cot("Loại dụng cụ", "tooling_type", doc=_DOC_DUNG_CU, ghi=_GHI_DUNG_CU, rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
-        # Cột đời cũ (một ô "Máy in, Bế") — nay là sheet con "Nhóm máy cho phép".
-        Cot("Nhóm máy cho phép", "nhom_may_cho_phep", chi_nhap=True, doc=_tach_danh_sach),
     ),
     sheets_con=(
-        SheetCon(
-            "Nhóm máy cho phép", field="nhom_may_cho_phep", rut_gon="ten",
-            cot=(Cot("Nhóm máy", "ten", rong=24),),
-        ),
         # Bậc bù hao: SHEET CON chứ không nén vào một ô JSON — đây chính là thứ người ta mở
         # file Excel ra để sửa. Mỗi bậc chỉ khai MỐC TRÊN; "Đến SL" để TRỐNG = bậc vô hạn, và nó
         # phải là dòng CUỐI (`cong_doan_service._kiem_bac_bu_hao` soi lại y như khi lưu ở màn).
@@ -503,6 +496,8 @@ CONG_DOAN = CatalogExcelSpec(
                      rong=22),),
             giu_khi_vang=_giu_vat_tu_cong_doan,
         ),
+        # Máy của công đoạn đi theo TỔ đã tick (mg `0434`) — sheet chỉ còn là chỗ sửa công thức
+        # giờ/giá theo máy. Dòng của máy ngoài phạm vi tổ bị bỏ qua khi nhập (`_ghi_may`).
         SheetCon(
             "Máy của công đoạn", field="may_lam_duoc",
             cot=(
@@ -521,6 +516,8 @@ CONG_DOAN = CatalogExcelSpec(
         "first_unit_floor", "inline_flag", "khoan_ghi_theo", "min_charge", "nang_suat",
         "rate_tiers", "run_rate", "setup_cost", "setup_time", "size_tiers", "spoilage_pct",
         "ten_hien_thi",
+        # Gỡ 22/10/2026: máy của công đoạn đi theo tổ, nhóm máy thôi lọc — cột còn, không ai đọc.
+        "nhom_may_cho_phep",
     }),
 )
 

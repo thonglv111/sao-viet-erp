@@ -126,7 +126,8 @@ class CongDoanRepository(CatalogRepo):
 
     def _sau_gan(self, cd: CongDoan, data: dict) -> None:
         self._replace_vat_tu(cd, data.get("vat_tus") or [])
-        self._replace_may(cd, data.get("may_lam_duoc") or [])
+        if data.get("may_lam_duoc") is not None:
+            self._ghi_may(cd, data["may_lam_duoc"])
         if "khoan" in data:
             self._replace_khoan(cd, data.get("khoan"))
 
@@ -161,22 +162,43 @@ class CongDoanRepository(CatalogRepo):
             moi.append(v)
         k.viec_phat_sinh = moi
 
-    def _replace_may(self, cd: CongDoan, rows: list[dict]) -> None:
-        """Thay TRỌN danh sách máy của công đoạn.
+    def _ghi_may(self, cd: CongDoan, rows: list[dict]) -> None:
+        """Ghi công thức theo máy — UPSERT theo `may_id`, KHÔNG xoá dòng nào (spec máy thuộc tổ §4.3).
 
-        `flush()` giữa xoá và thêm vì cùng lý do với `_replace_dinh_muc`: trong MỘT flush
-        SQLAlchemy phát INSERT trước DELETE cho cùng bảng, nên giữ lại đúng một máy cũ là đụng
-        `uq_cd_may` → 500.
+        Máy của công đoạn nay đi theo tổ đã tick; dòng của máy ra khỏi phạm vi tổ NẰM IM giữ công
+        thức để tick lại là có ngay. Form chỉ gửi dòng đang hiệu lực, nên thay trọn như trước là
+        xoá mất số của dòng nằm im. Dòng gửi lên cho máy ngoài phạm vi tổ thì bỏ qua — form không
+        bày dòng đó, ghi vào là sửa thứ không ai nhìn thấy.
         """
-        if cd.may_khai:
-            cd.may_khai.clear()
-            if cd.id is not None:
-                self.db.flush()
-        for i, r in enumerate(rows):
-            r = dict(r)
-            r.pop("id", None)          # khoá chỉ-đọc của schema Row, client có thể gửi ngược lên
-            r["thu_tu"] = i
-            cd.may_khai.append(CongDoanMay(**r))
+        from .may_to_repo import MayToRepository
+
+        tick = set(cd.department_ids)
+        to = MayToRepository(self.db).to_cua_may(int(r["may_id"]) for r in rows) if tick else {}
+        cu = {r.may_id: r for r in cd.may_khai}
+        i = 0
+        for r in rows:
+            mid = int(r["may_id"])
+            if tick and not tick & set(to.get(mid, [])):
+                continue
+            dong = cu.get(mid)
+            if dong is None:
+                dong = CongDoanMay(may_id=mid)
+                cd.may_khai.append(dong)
+                cu[mid] = dong
+            dong.cong_thuc_gio = r.get("cong_thuc_gio")
+            dong.cong_thuc_gia = r.get("cong_thuc_gia")
+            dong.thu_tu = i
+            i += 1
+        # Dòng không gửi lên (nằm im) xếp sau, giữ thứ tự cũ.
+        gui = {int(r["may_id"]) for r in rows}
+        for dong in sorted((d for d in cd.may_khai if d.may_id not in gui), key=lambda d: d.thu_tu):
+            dong.thu_tu = i
+            i += 1
+        # `may_lam_duoc` là quan hệ chỉ-đọc dựng trên bảng này — nạp lại sau khi ghi, không thì ảnh
+        # chụp nhật ký "sau" đọc bản cũ trong cùng phiên.
+        if cd.id is not None:
+            self.db.flush()
+            self.db.expire(cd, ["may_lam_duoc"])
 
     def _replace_vat_tu(self, cd: CongDoan, rows: list[dict]) -> None:
         """Thay TRỌN danh sách vật tư của công đoạn.

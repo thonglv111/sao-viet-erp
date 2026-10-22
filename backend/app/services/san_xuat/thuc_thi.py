@@ -497,7 +497,7 @@ def may_doi_duoc(db: Session, *, user, cong_viec_id: int) -> dict:
              **{k: tt.get(m.id, ranh)[k] for k in ("trang_thai", "nhan", "chi_tiet")}}
             for m in mays
         ],
-        "theo_cong_doan": cd is not None and bool(cd.may_lam_duoc or cd.nhom_may_cho_phep),
+        "theo_cong_doan": cd is not None and bool(cd.may_lam_duoc),
     }
 
 

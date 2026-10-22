@@ -95,3 +95,76 @@ def test_mot_vat_tu_khong_khai_hai_lan_trong_cung_cong_doan(db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+# ------------------------------------------------- máy theo tổ (spec 2026-10-22-may-thuoc-to §4.3–4.4)
+from sqlalchemy.orm import Session  # noqa: E402
+
+
+def _headers(client) -> dict[str, str]:
+    login = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert login.status_code == 200
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
+@pytest.fixture()
+def nen_to(client) -> dict:
+    """Tổ A, B; M1 thuộc A, M2 thuộc B (dòng có công thức, nằm im vì công đoạn chỉ tick A), M3 thuộc
+    B chưa có dòng."""
+    from app.db import engine
+    from app.models.department import Department
+    from app.models.may_thiet_bi import MayTo
+
+    with Session(engine) as s:
+        a = Department(name="Tổ A", code="PB-A", la_san_xuat=True)
+        b = Department(name="Tổ B", code="PB-B", la_san_xuat=True)
+        m1, m2, m3 = _may(s, "M1"), _may(s, "M2"), _may(s, "M3")
+        s.add_all([a, b])
+        s.flush()
+        s.add_all([MayTo(may_id=m1.id, department_id=a.id), MayTo(may_id=m2.id, department_id=b.id),
+                   MayTo(may_id=m3.id, department_id=b.id)])
+        cd = _cd(s, "CD-TO")
+        cd.department_ids = [a.id]
+        cd.may_khai.append(CongDoanMay(may_id=m1.id, thu_tu=0, cong_thuc_gio="sl_vao"))
+        cd.may_khai.append(CongDoanMay(may_id=m2.id, thu_tu=1, cong_thuc_gio="sl_vao * 2"))
+        s.commit()
+        ids = {"a": a.id, "b": b.id, "m1": m1.id, "m2": m2.id, "m3": m3.id, "cd": cd.id}
+    return {"h": _headers(client), **ids}
+
+
+def _put(client, n, **kw):
+    body = {"ma": "CD-TO", "ten": "In AB", "nhom": "print", "che_do_tinh": "theo_san_luong",
+            "pricing_basis": "per_finished_qty", "department_ids": [n["a"]],
+            "may_lam_duoc": [{"may_id": n["m1"], "cong_thuc_gio": "sl_vao / 2"}], **kw}
+    r = client.put(f"/api/cong-doan/{n['cd']}", json=body, headers=n["h"])
+    assert r.status_code == 200, r.text
+    return client.get(f"/api/cong-doan/{n['cd']}", headers=n["h"]).json()
+
+
+def test_luu_form_khong_xoa_dong_may_nam_im(client, nen_to):
+    n = nen_to
+    cd = _put(client, n, may_lam_duoc=[
+        {"may_id": n["m1"], "cong_thuc_gio": "sl_vao / 2"},
+        {"may_id": n["m2"], "cong_thuc_gio": "sl_vao * 9"},   # ngoài phạm vi tổ ⇒ bỏ qua
+    ])
+    assert [r["may_id"] for r in cd["may_lam_duoc"]] == [n["m1"]]
+    assert cd["may_lam_duoc"][0]["cong_thuc_gio"] == "sl_vao / 2"
+    khai = {r["may_id"]: r["cong_thuc_gio"] for r in cd["may_khai"]}
+    assert khai == {n["m1"]: "sl_vao / 2", n["m2"]: "sl_vao * 2"}
+
+
+def test_tick_them_to_co_ngay_may_cua_to(client, nen_to):
+    n = nen_to
+    cd = _put(client, n, department_ids=[n["a"], n["b"]])
+    assert [r["may_id"] for r in cd["may_lam_duoc"]] == [n["m1"], n["m2"], n["m3"]]
+    gio = {r["may_id"]: r["cong_thuc_gio"] for r in cd["may_lam_duoc"]}
+    assert gio[n["m2"]] == "sl_vao * 2" and gio[n["m3"]] is None
+
+
+def test_nhom_may_cho_phep_khong_con_loc_may(db):
+    from app.services.bai_ghep_service import BaiGhepService
+
+    cd, m = _cd(db), _may(db)
+    cd.nhom_may_cho_phep = ["Bế"]
+    db.commit()
+    assert BaiGhepService.may_ngoai_cong_doan(cd, m) is False

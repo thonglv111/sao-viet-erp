@@ -86,6 +86,21 @@ class CongDoanService(CatalogService):
     def __init__(self, repo: CongDoanRepository, audit=None) -> None:
         super().__init__(repo, audit)
 
+    def create(self, data: dict, actor_id: int | None = None):
+        return self._dong_bo_may(super().create(data, actor_id))
+
+    def update(self, item_id: int, data: dict, actor_id: int | None = None):
+        return self._dong_bo_may(super().update(item_id, data, actor_id))
+
+    def _dong_bo_may(self, cd: CongDoan) -> CongDoan:
+        """Tick thêm tổ ⇒ máy của tổ đó có ngay dòng (công thức trống) trong bảng "Máy chạy được
+        công đoạn này" — máy đi theo tổ, không ai chọn tay (spec máy thuộc tổ §4.4)."""
+        from .may_to import dong_bo_cong_doan_may
+
+        if dong_bo_cong_doan_may(self.repo.db, cong_doan_ids=[cd.id]):
+            self.repo.db.commit()
+        return cd
+
     def _chuan_hoa(self, data: dict) -> dict:
         """Khử trùng danh sách tổ phụ trách, GIỮ thứ tự chọn (tổ đầu là mặc định của bước lệnh).
 

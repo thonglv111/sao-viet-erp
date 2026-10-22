@@ -275,7 +275,9 @@ def test_cong_doan_da_chon_may_thi_luat_chan_doc_danh_sach_may(db):
     assert BaiGhepService.may_ngoai_cong_doan(cd, m_ok) is False
 
 
-def test_cong_doan_chua_chon_may_thi_lui_ve_luat_nhom(db):
+def test_cong_doan_chua_co_may_thi_khong_rang_buoc(db):
+    """Luật nhóm GỠ 22/10/2026 (máy đi theo tổ, mg `0434`): `nhom_may_cho_phep` còn trong DB nhưng
+    không chặn ai nữa."""
     from app.services.bai_ghep_service import BaiGhepService
 
     cd = CongDoan(ma="CD-R2", ten="Bế", nhom="finishing", nhom_may_cho_phep=["Bế"])
@@ -285,4 +287,4 @@ def test_cong_doan_chua_chon_may_thi_lui_ve_luat_nhom(db):
     db.commit()
 
     assert BaiGhepService.may_ngoai_cong_doan(cd, m_be) is False
-    assert BaiGhepService.may_ngoai_cong_doan(cd, m_in) is True
+    assert BaiGhepService.may_ngoai_cong_doan(cd, m_in) is False

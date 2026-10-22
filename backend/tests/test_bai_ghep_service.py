@@ -765,12 +765,18 @@ def test_ty_le_hao_va_breakdown_hao_theo_buoc(
 
 
 def test_may_hop_cong_doan_bat_may_sai_loai(db, bg_svc):
-    """T3: máy Bế gán cho công đoạn In (chỉ cho "Máy in"/"In ngoài") → cảnh báo mềm; máy đúng loại
-    thì không. Chưa khai `nhom_may_cho_phep` → không ràng buộc (không đẻ cảnh báo giả)."""
-    cd_in = CongDoan(ma="CD-T3", ten="In test", nhom="print",
-                     nhom_may_cho_phep=["Máy in", "In ngoài"])
+    """T3: máy ngoài danh sách máy của công đoạn In → cảnh báo mềm; máy trong danh sách thì không.
+    Công đoạn chưa có máy nào → không ràng buộc (không đẻ cảnh báo giả). Luật nhóm máy gỡ 22/10/2026."""
+    from app.models.cong_doan import CongDoanMay
+
+    cd_in = CongDoan(ma="CD-T3", ten="In test", nhom="print")
     may_be = MayThietBi(ma="BE-T3", ten="Máy bế test", loai_may="Bế")
     may_in = MayThietBi(ma="IN-T3", ten="Máy in test", loai_may="Máy in")
+    db.add_all([cd_in, may_be, may_in])
+    db.flush()
+    cd_in.may_khai.append(CongDoanMay(may_id=may_in.id, thu_tu=0))
+    db.commit()
+    db.expire(cd_in)
 
     assert bg_svc._may_hop_cong_doan(may_be, cd_in, {}), "máy Bế cho công đoạn In phải bị cảnh báo"
     assert bg_svc._may_hop_cong_doan(may_in, cd_in, {}) == [], "máy In hợp công đoạn In → im"
