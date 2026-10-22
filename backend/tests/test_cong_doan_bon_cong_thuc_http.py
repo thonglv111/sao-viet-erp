@@ -33,7 +33,7 @@ def nen(client) -> dict:
     """
     from app.db import engine
     from app.models.department import Department
-    from app.models.may_thiet_bi import MayThietBi
+    from app.models.may_thiet_bi import MayThietBi, MayTo
     from app.models.vat_lieu_kho import VatTuInAn
 
     with Session(engine) as db:
@@ -43,6 +43,8 @@ def nen(client) -> dict:
         vat_tu = VatTuInAn(ma="MUC-TEST", ten="Mực đen", don_vi_gia="kg", don_gia=180_000,
                            active=True)
         db.add_all([to, may, vat_tu])
+        db.flush()
+        db.add(MayTo(may_id=may.id, department_id=to.id))  # máy thuộc tổ (mg 0434)
         db.commit()
         ids = {"may_id": may.id, "vat_tu_id": vat_tu.id, "to_id": to.id}
     return {"headers": _headers(client), **ids}

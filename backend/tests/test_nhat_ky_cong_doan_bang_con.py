@@ -40,7 +40,7 @@ def _cong_doan(db) -> CongDoan:
     cd = CongDoan(ma="CD-NK", ten="In offset", nhom="print")
     db.add(cd)
     db.flush()
-    cd.may_lam_duoc.append(CongDoanMay(may_id=2, cong_thuc_gio="sl_vao / 8000",
+    cd.may_khai.append(CongDoanMay(may_id=2, cong_thuc_gio="sl_vao / 8000",
                                        cong_thuc_gia="sl_vao * 400", thu_tu=0))
     cd.vat_tus.append(CongDoanVatTu(vat_tu_id=9, thu_tu=0, cong_thuc_luong="sl_vao / 1000"))
     cd.vat_tus.append(CongDoanVatTu(vat_tu_id=11, thu_tu=1, cong_thuc_luong="so_mau * 2"))
@@ -53,7 +53,7 @@ def test_doi_cong_thuc_gia_cua_mot_may_de_lai_dung_mot_dong(db):
     cd = _cong_doan(db)
     truoc = nk.anh_chup(cd)
 
-    cd.may_lam_duoc[0].cong_thuc_gia = "sl_vao * 520"
+    cd.may_khai[0].cong_thuc_gia = "sl_vao * 520"
     db.commit()
     dong = nk.mo_ta_thay_doi(truoc, nk.anh_chup(cd))
 
@@ -92,7 +92,7 @@ def test_go_het_may_khong_bi_nuot_im_lang(db):
     cd = _cong_doan(db)
     truoc = nk.anh_chup(cd)
 
-    cd.may_lam_duoc.clear()
+    cd.may_khai.clear()
     db.commit()
     dong = nk.mo_ta_thay_doi(truoc, nk.anh_chup(cd))
 
@@ -107,11 +107,11 @@ def test_khong_doi_gi_thi_khong_de_ra_dong_ma(db):
 
 def test_may_da_xoa_khoi_danh_muc_van_goi_duoc_ten(db):
     cd = _cong_doan(db)
-    cd.may_lam_duoc.append(CongDoanMay(may_id=77, cong_thuc_gia="sl_vao", thu_tu=1))
+    cd.may_khai.append(CongDoanMay(may_id=77, cong_thuc_gia="sl_vao", thu_tu=1))
     db.commit()
     truoc = nk.anh_chup(cd)
 
-    cd.may_lam_duoc[1].cong_thuc_gia = "sl_vao * 2"
+    cd.may_khai[1].cong_thuc_gia = "sl_vao * 2"
     db.commit()
     dong = nk.mo_ta_thay_doi(truoc, nk.anh_chup(cd))
 
@@ -127,7 +127,7 @@ def test_moi_thay_doi_la_dung_mot_dong_tren_man(db):
     db.commit()
     truoc = nk.anh_chup(cd)
 
-    cd.may_lam_duoc[0].cong_thuc_gia = "sl_vao * 520"
+    cd.may_khai[0].cong_thuc_gia = "sl_vao * 520"
     cd.vat_tus.pop()
     db.commit()
     audit = AuditLogRepository(db)

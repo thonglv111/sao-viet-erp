@@ -26,7 +26,7 @@ from app.models.lsx import (
     TT_SAN_SANG,
     LsxCongDoan,
 )
-from app.models.may_thiet_bi import MayThietBi
+from app.models.may_thiet_bi import MayThietBi, MayTo
 from app.models.phieu_tinh_gia import (
     PhieuChiPhiKhac,
     PhieuThanhPhan,
@@ -1064,6 +1064,7 @@ def _ptg_mot_buoc_in(db, *, may_cua_phieu, may_lam_duoc) -> PhieuTinhGia:
     db.flush()
     for m in may_lam_duoc:
         db.add(CongDoanMay(cong_doan_id=cd_in.id, may_id=m.id, cong_thuc_gio="sl_vao"))
+        db.add(MayTo(may_id=m.id, department_id=to_id))  # máy thuộc tổ của công đoạn (mg 0434)
     db.flush()
 
     p = PhieuTinhGia(ma="PTG-MAYIN-0001", ten_san_pham="Thẻ nhân viên", so_luong=500)
@@ -3423,8 +3424,14 @@ def test_go_may_khoi_cong_doan_thi_bao_may_dang_gan_khong_con_thuoc(
 
     lsx, cd_be = _lenh_co_buoc_dan(db, orders, lsx_svc, admin, customer)
     may = db.query(MayThietBi).filter(MayThietBi.ma == "MAY-IN-T").one()
-    # Công đoạn CHỈ khai một máy khác ⇒ máy đang gán ở bước rơi ra ngoài danh sách.
-    db.add(CongDoanMay(cong_doan_id=cd_be.id, may_id=may.id + 999))
+    # Công đoạn CHỈ khai một máy khác (thuộc tổ của công đoạn, mg 0434) ⇒ máy đang gán ở bước rơi
+    # ra ngoài danh sách.
+    khac = MayThietBi(ma="MAY-KHAC-T", ten="Máy khác", loai_may="Dán hộp", active=True)
+    db.add(khac)
+    db.flush()
+    for d in cd_be.department_ids:
+        db.add(MayTo(may_id=khac.id, department_id=d))
+    db.add(CongDoanMay(cong_doan_id=cd_be.id, may_id=khac.id))
     buoc = next(c for c in lsx.cong_doans if c.ten == "Dán hộp")
     buoc.may_id = may.id
     db.commit()

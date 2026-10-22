@@ -152,12 +152,22 @@ class CongDoan(Base):
         "CongDoanVatTu", back_populates="cong_doan", order_by="CongDoanVatTu.thu_tu",
         cascade="all, delete-orphan",
     )
-    # MÁY chạy được công đoạn này, mỗi dòng mang cách đo GIỜ và cách tính GIÁ của riêng cặp
-    # (công đoạn, máy) — xem `CongDoanMay`. Hàng `nhom_may_cho_phep` ở trên nay chỉ còn là BỘ LỌC
-    # để chọn máy cho danh sách này.
-    may_lam_duoc: Mapped[list["CongDoanMay"]] = relationship(
+    # MÁY ĐÃ KHAI cho công đoạn, mỗi dòng mang cách đo GIỜ và cách tính GIÁ của riêng cặp
+    # (công đoạn, máy) — xem `CongDoanMay`. Đây là quan hệ GHI được, gồm cả dòng NẰM IM: máy ra khỏi
+    # phạm vi tổ (bỏ tick tổ / gỡ tổ khỏi máy) thì dòng ở lại giữ số, vào lại là thấy số cũ.
+    # Đọc "máy chạy được" thì dùng `may_lam_duoc` bên dưới, KHÔNG dùng quan hệ này.
+    may_khai: Mapped[list["CongDoanMay"]] = relationship(
         "CongDoanMay", back_populates="cong_doan", order_by="CongDoanMay.thu_tu",
         cascade="all, delete-orphan",
+    )
+    # MÁY CHẠY ĐƯỢC công đoạn (spec 2026-10-22-may-thuoc-to): dòng `may_khai` mà máy thuộc một tổ
+    # đang tick ở công đoạn. Công đoạn chưa tick tổ nào ⇒ nguyên các dòng đã khai, không ràng buộc
+    # tổ (cùng lối "không khai = không ràng buộc" của ô tổ). Chỉ đọc — mọi nơi đang đọc
+    # `may_lam_duoc` (lệnh, bài ghép, đổi máy, phiếu tính giá qua API) tự nhận phần đã lọc.
+    # Thay `nhom_may_cho_phep` (lọc theo nhóm máy) — cột đó không còn ai đọc.
+    may_lam_duoc: Mapped[list["CongDoanMay"]] = relationship(
+        "CongDoanMay", viewonly=True, order_by="CongDoanMay.thu_tu",
+        primaryjoin=lambda: _may_lam_duoc_join(),
     )
     # CÁC TỔ phụ trách công đoạn (18/09/2026) — "Cán màng mờ" do tổ Cán lẫn tổ Thành phẩm làm. Lệnh
     # sản xuất chép MỘT tổ xuống bước (`lsx_cong_doan.department_id`, người kế hoạch chọn trong danh
@@ -346,5 +356,22 @@ class CongDoanMay(Base):
     cong_thuc_gia: Mapped[str | None] = mapped_column(Text, nullable=True)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    cong_doan: Mapped["CongDoan"] = relationship("CongDoan", back_populates="may_lam_duoc")
+    cong_doan: Mapped["CongDoan"] = relationship("CongDoan", back_populates="may_khai")
 
+
+def _may_lam_duoc_join():
+    """Điều kiện của `CongDoan.may_lam_duoc` — dựng muộn vì `CongDoanMay`/`CongDoanTo`/`MayTo` khai
+    sau `CongDoan` (và `MayTo` ở module khác)."""
+    from sqlalchemy import and_, exists, or_
+    from sqlalchemy.orm import foreign
+
+    from .may_thiet_bi import MayTo
+
+    cd_may = foreign(CongDoanMay.cong_doan_id)
+    co_to = exists().where(CongDoanTo.cong_doan_id == CongDoanMay.cong_doan_id)
+    may_cua_to = exists().where(
+        CongDoanTo.cong_doan_id == CongDoanMay.cong_doan_id,
+        MayTo.department_id == CongDoanTo.department_id,
+        MayTo.may_id == CongDoanMay.may_id,
+    )
+    return and_(CongDoan.id == cd_may, or_(~co_to, may_cua_to))

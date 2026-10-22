@@ -38,6 +38,7 @@ class CongDoanRepository(CatalogRepo):
         return select(CongDoan).options(
             selectinload(CongDoan.vat_tus),
             selectinload(CongDoan.may_lam_duoc),
+            selectinload(CongDoan.may_khai),
             selectinload(CongDoan.to_phu_trach),
             selectinload(CongDoan.khoan).selectinload(CongDoanKhoan.viec_phat_sinh),
         )
@@ -167,15 +168,15 @@ class CongDoanRepository(CatalogRepo):
         SQLAlchemy phát INSERT trước DELETE cho cùng bảng, nên giữ lại đúng một máy cũ là đụng
         `uq_cd_may` → 500.
         """
-        if cd.may_lam_duoc:
-            cd.may_lam_duoc.clear()
+        if cd.may_khai:
+            cd.may_khai.clear()
             if cd.id is not None:
                 self.db.flush()
         for i, r in enumerate(rows):
             r = dict(r)
             r.pop("id", None)          # khoá chỉ-đọc của schema Row, client có thể gửi ngược lên
             r["thu_tu"] = i
-            cd.may_lam_duoc.append(CongDoanMay(**r))
+            cd.may_khai.append(CongDoanMay(**r))
 
     def _replace_vat_tu(self, cd: CongDoan, rows: list[dict]) -> None:
         """Thay TRỌN danh sách vật tư của công đoạn.

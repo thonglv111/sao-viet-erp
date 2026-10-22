@@ -22,7 +22,7 @@ def test_gio_chay_doc_cong_thuc_cua_cap_cong_doan_va_may(db, orders, lsx_svc, ad
                      toc_do=6000, don_vi_toc_do="to_gio")
     db.add_all([cd, may])
     db.flush()
-    cd.may_lam_duoc.append(CongDoanMay(may_id=may.id, cong_thuc_gio="sl_vao * so_mau / 2",
+    cd.may_khai.append(CongDoanMay(may_id=may.id, cong_thuc_gio="sl_vao * so_mau / 2",
                                        thu_tu=0))
     db.commit()
 
@@ -181,14 +181,14 @@ def test_may_mac_dinh_dien_cho_ca_buoc_ngoai_nhom_in(db, orders, lsx_svc, admin,
                     toc_do=1, don_vi_toc_do="tan_gio", active=True)
     db.add_all([cat, m1, m2])
     db.flush()
-    cat.may_lam_duoc.append(CongDoanMay(may_id=m1.id, cong_thuc_gio="sl_vao", thu_tu=0))
+    cat.may_khai.append(CongDoanMay(may_id=m1.id, cong_thuc_gio="sl_vao", thu_tu=0))
     db.commit()
 
     assert lsx_svc._may_mac_dinh(cat, None) == m1.id, "một máy ⇒ không có gì để đoán sai"
 
     # Hai máy ⇒ máy ĐẦU danh sách là mặc định (12/10/2026; trước đó để trống, Cắt tờ hai máy là
     # bước nào cũng phải chọn tay) — cùng luật tổ mặc định.
-    cat.may_lam_duoc.append(CongDoanMay(may_id=m2.id, cong_thuc_gio="sl_vao", thu_tu=1))
+    cat.may_khai.append(CongDoanMay(may_id=m2.id, cong_thuc_gio="sl_vao", thu_tu=1))
     db.commit()
     lsx_svc._mon_cache = None
     assert lsx_svc._may_mac_dinh(cat, None) == m1.id
@@ -267,7 +267,7 @@ def test_cong_doan_da_chon_may_thi_luat_chan_doc_danh_sach_may(db):
     m_cung_nhom = MayThietBi(ma="MAY-R2", ten="Heidelberg", loai_may="Máy in")
     db.add_all([cd, m_ok, m_cung_nhom])
     db.flush()
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m_ok.id, thu_tu=0))
+    cd.may_khai.append(CongDoanMay(may_id=m_ok.id, thu_tu=0))
     db.commit()
 
     # Máy CÙNG NHÓM nhưng KHÔNG nằm trong danh sách của công đoạn ⇒ vẫn bị chặn.

@@ -18973,3 +18973,17 @@ def _migrate_bac_gia_khoan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0433_bac_gia_khoan", _migrate_bac_gia_khoan))
+
+
+def _migrate_may_to(db: Session) -> None:
+    """0434 (22/10/2026) — bảng nối `may_to` (máy thuộc tổ, spec 2026-10-22-may-thuoc-to).
+
+    Chỉ TẠO bảng (thường `create_all` đã tạo trước): KHÔNG điền tổ cho máy, KHÔNG đụng
+    `cong_doan_may` hay lệnh/công việc — người dùng tự khai "Tổ đứng máy" ở danh mục Máy."""
+    from .models.may_thiet_bi import MayTo
+
+    MayTo.__table__.create(db.get_bind(), checkfirst=True)
+    db.commit()
+
+
+MIGRATIONS.append(("0434_may_to", _migrate_may_to))

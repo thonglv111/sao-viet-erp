@@ -381,7 +381,7 @@ def test_gop_dien_may_cho_luot_chung(db, orders, lsx_svc, admin, customer):
     """Lượt chạy chung không ra đời trống máy (12/10/2026): các bước gộp cùng một máy ⇒ giữ máy đó;
     khác máy ⇒ máy mặc định của công đoạn (máy còn dùng đứng đầu danh sách)."""
     from app.models.cong_doan import CongDoan, CongDoanMay
-    from app.models.may_thiet_bi import MayThietBi
+    from app.models.may_thiet_bi import MayThietBi, MayTo
 
     a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     svc = _bg2_svc(db)
@@ -396,10 +396,12 @@ def test_gop_dien_may_cho_luot_chung(db, orders, lsx_svc, admin, customer):
     db.add_all([m1, m2])
     db.flush()
     cd = db.get(CongDoan, sa.cong_doan_id)
-    cd.may_lam_duoc.clear()
+    for d in cd.department_ids:   # máy thuộc tổ của công đoạn (mg 0434)
+        db.add_all([MayTo(may_id=m1.id, department_id=d), MayTo(may_id=m2.id, department_id=d)])
+    cd.may_khai.clear()
     db.flush()
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m2.id, thu_tu=0))
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m1.id, thu_tu=1))
+    cd.may_khai.append(CongDoanMay(may_id=m2.id, thu_tu=0))
+    cd.may_khai.append(CongDoanMay(may_id=m1.id, thu_tu=1))
     sa.may_id, sb.may_id = m1.id, None
     db.commit()
 

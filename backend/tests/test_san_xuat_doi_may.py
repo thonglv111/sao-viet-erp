@@ -266,7 +266,7 @@ def test_may_doi_chi_moi_may_cua_cong_doan(db, cv_dang_chay, to_truong, cac_may)
     danh sách (dù còn dùng) không được mời — tổ đổi sang đó là chạy máy không có công thức giờ."""
     _may(db, "MAY-DM-NGOAI")
     cd = _gan_cong_doan(db, cv_dang_chay)
-    cd.may_lam_duoc.extend(CongDoanMay(may_id=m.id) for m in cac_may)
+    cd.may_khai.extend(CongDoanMay(may_id=m.id) for m in cac_may)
     cac_may[2].active = False
     db.commit()
 

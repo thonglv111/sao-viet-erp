@@ -3359,6 +3359,16 @@ Bảng MỚI → `create_all` tự dựng, **không cần migration cho bảng**
 
 ⚠️ **KHÔNG chiếm máy** — xem `cong_doan_dau_viec.cho_ky_thuat_gio` (vế TỔ).
 
+### `may_to`
+
+**Purpose:** **TỔ ĐỨNG MÁY** (mg `0434`, 22/10/2026, spec `2026-10-22-may-thuoc-to`) — bảng nối máy ↔ tổ. Một máy thuộc NHIỀU tổ, một tổ giữ nhiều máy. Khai ở ô "Tổ đứng máy" của form Máy (chọn nhiều, chỉ tổ LÁ Khối Sản xuất).
+
+Đọc ở đâu: `CongDoan.may_lam_duoc` (quan hệ CHỈ ĐỌC) = dòng `cong_doan_may` mà máy thuộc một tổ đang tick ở công đoạn; công đoạn chưa tick tổ nào ⇒ nguyên các dòng đã khai. Bước lệnh / bài ghép / Đổi máy ở bàn tổ chỉ mời máy thuộc tổ của bước (`services/may_to.py`). Tổ + máy của lệnh và công việc là ẢNH CHỤP — đổi bảng này không sửa lệnh/việc đang có.
+
+Migration chỉ TẠO bảng, không điền: ngay sau mg 0434 mọi máy chưa thuộc tổ nào.
+
+**Tất cả cột:** `may_id` (PK, FK `may_thiet_bi.id` ON DELETE CASCADE), `department_id` (PK, IX, FK `departments.id` ON DELETE CASCADE).
+
 ### `chung_loai_giay`
 
 > 🔴 **BẢNG ĐÃ GỠ 27/09/2026** (mg `0342_go_loai_san_pham_chung_loai_giay`, DROP TABLE) — danh mục phân loại giấy, không engine nào đọc; cột `giay_nguyen.chung_loai_giay_id` gỡ cùng lúc. Phần dưới chỉ còn làm tư liệu.
@@ -3458,7 +3468,7 @@ dùng cho bình bài.
 
 🔴 **GỠ 18/09/2026 (mg `0324`): `cong_thuc_san_luong` · `don_vi_san_luong` · `he_so_ngoai_dong`.** Ba cột của bước NGOÀI dòng giấy: công thức sản lượng RA (mg `0214`, vd Ghi kẽm CTP `so_kem` ⇒ 4 bản, rồi engine suy ngược vế VÀO qua cầu quy đổi + bù hao), đơn vị của số ấy (mg `0289`, `kem`) và hệ số vào→ra khai tay (mg `0196`, ngưng dùng từ 20/08/2026). Theo yêu cầu chủ xưởng: số bản kẽm đổi theo từng đơn nên bước ngoài dòng giấy nay chỉ có số khi người lập lệnh TỰ KHAI đơn vị + số ở bước (`lsx_service.tu_khai_don_vi`); không khai thì bước đứng ở 0. Migration xoá luôn dòng `cong_thuc_lich_su` của trường `cong_thuc_san_luong`. Không khôi phục được.
 
-`nhom_may_cho_phep` (JSON list, nullable, mg 0168): tên nhóm máy (`may_thiet_bi.loai_may`) làm được công đoạn này — chặn gán máy sai loại ở bước bài ghép (vd Ghi kẽm CTP không cho gán máy Bế). NULL/`[]` = chưa khai = không ràng buộc. Trục `loai_may` mịn hơn `nhom(3)` nên phân biệt được Bế với Cán màng.
+`nhom_may_cho_phep` (JSON list, nullable, mg 0168) — 🔴 **KHÔNG CÒN AI ĐỌC từ 22/10/2026** (mg `0434`, máy của công đoạn nay lấy qua tổ đã tick + `may_to`); cột nằm im. Nghĩa cũ: tên nhóm máy (`may_thiet_bi.loai_may`) làm được công đoạn này — chặn gán máy sai loại ở bước bài ghép (vd Ghi kẽm CTP không cho gán máy Bế). NULL/`[]` = chưa khai = không ràng buộc. Trục `loai_may` mịn hơn `nhom(3)` nên phân biệt được Bế với Cán màng.
 
 ### `cong_doan_khoan`
 
@@ -3644,7 +3654,7 @@ là mặc định lúc tạo lệnh / đổi công đoạn. Định mức đầu
 
 **KHÔNG backfill lúc tạo bảng:** `nhom_may_cho_phep` thường phủ hàng chục máy, sinh bằng ấy dòng rỗng chỉ để người dùng phải xoá bớt. Bảng ra đời RỖNG.
 
-**Quan hệ với `cong_doan.nhom_may_cho_phep`:** hàng tick nhóm nay chỉ là **BỘ LỌC** để chọn máy cho bảng này. Luật chặn gán máy ở bước (`BaiGhepService.may_ngoai_cong_doan`) đọc danh sách máy này TRƯỚC; công đoạn chưa khai máy nào thì mới lùi về luật nhóm.
+**Từ 22/10/2026 (mg `0434`, spec `2026-10-22-may-thuoc-to`):** dòng của bảng này KHÔNG còn chọn tay — máy chạy được công đoạn = máy thuộc (`may_to`) một tổ đang tick ở công đoạn. Quan hệ ghi được là `CongDoan.may_khai` (mọi dòng, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ — giữ số cách đo giờ / cách tính giá, vào lại là thấy số cũ); đọc thì dùng `CongDoan.may_lam_duoc` (chỉ đọc, đã lọc theo tổ). Máy vào phạm vi mà chưa có dòng ⇒ máy chủ tự tạo dòng (công thức trống, xếp cuối). Lọc theo nhóm máy (`cong_doan.nhom_may_cho_phep`) đã bỏ.
 
 ### `cong_doan_cho_ky_thuat`
 

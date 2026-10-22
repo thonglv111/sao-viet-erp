@@ -44,22 +44,22 @@ def _may(db, ma="MAY-1") -> MayThietBi:
 
 def test_mot_cong_doan_giu_nhieu_may_moi_may_mot_cap_cong_thuc(db):
     cd, m1, m2 = _cd(db), _may(db, "MAY-1"), _may(db, "MAY-2")
-    cd.may_lam_duoc.append(CongDoanMay(
+    cd.may_khai.append(CongDoanMay(
         may_id=m1.id, cong_thuc_gio="sl_vao * so_mau / 5", cong_thuc_gia="sl_vao * 180", thu_tu=0))
-    cd.may_lam_duoc.append(CongDoanMay(
+    cd.may_khai.append(CongDoanMay(
         may_id=m2.id, cong_thuc_gio="sl_vao * so_mau / 2", cong_thuc_gia="sl_vao * 90", thu_tu=1))
     db.commit()
     db.refresh(cd)
     assert [r.may_id for r in cd.may_lam_duoc] == [m1.id, m2.id]
-    assert cd.may_lam_duoc[0].cong_thuc_gio == "sl_vao * so_mau / 5"
-    assert cd.may_lam_duoc[1].cong_thuc_gia == "sl_vao * 90"
+    assert cd.may_khai[0].cong_thuc_gio == "sl_vao * so_mau / 5"
+    assert cd.may_khai[1].cong_thuc_gia == "sl_vao * 90"
 
 
 def test_mot_may_khong_khai_hai_lan_trong_cung_cong_doan(db):
     cd, m = _cd(db), _may(db)
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m.id, thu_tu=0))
+    cd.may_khai.append(CongDoanMay(may_id=m.id, thu_tu=0))
     db.commit()
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m.id, thu_tu=1))
+    cd.may_khai.append(CongDoanMay(may_id=m.id, thu_tu=1))
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
@@ -67,7 +67,7 @@ def test_mot_may_khong_khai_hai_lan_trong_cung_cong_doan(db):
 
 def test_xoa_cong_doan_keo_theo_dong_may(db):
     cd, m = _cd(db), _may(db)
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m.id, thu_tu=0))
+    cd.may_khai.append(CongDoanMay(may_id=m.id, thu_tu=0))
     db.commit()
     db.delete(cd)
     db.commit()
