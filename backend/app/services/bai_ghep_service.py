@@ -1569,6 +1569,8 @@ class BaiGhepService:
         Số ở đây tính bằng TỜ ghép — một lượt chạy thì đếm tờ, không đếm con. Con là chuyện của
         điểm toả: qua đó mới nhân `con/tờ` của từng lệnh, và đó cũng là khoá chia giấy.
         """
+        from .may_to import may_chon_duoc
+
         if not chungs:
             return []
         thanh_vien: dict[int, list[dict]] = {}
@@ -1649,6 +1651,9 @@ class BaiGhepService:
                 "nhom_may_cho_phep": [],
                 # Tổ PHỤ TRÁCH công đoạn (mg `0312`) — ô chọn tổ của form chỉ bày các tổ này.
                 "to_chon_duoc": list(cd_obj.department_ids) if cd_obj is not None else [],
+                # Máy CÒN DÙNG chạy được công đoạn, máy "Đặt mặc định" đứng đầu — form lượt chung lọc
+                # theo tổ trên danh sách này như ngăn bước lệnh (23/10/2026).
+                "may_chon_duoc": may_chon_duoc(self.db, cd_obj, None),
                 "nha_cung_cap": c.nha_cung_cap,
                 "tong_phut": t["tong_phut"], "chiem_may_phut": t["chiem_may_phut"],
                 "chiem_may_phut_min": t["chiem_may_phut_min"],

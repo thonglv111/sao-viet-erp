@@ -26,7 +26,7 @@ import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { CongThucTip, ketQuaDienGiai } from "../components/CongThucTip";
 import { num } from "./keHoachSxShared";
-import { heSoChu, nhanChang, nhanDonVi, phut, thoiLuongLive, type MayTinhGio } from "./lsxBuoc";
+import { heSoChu, mayChonDuoc, nhanChang, nhanDonVi, phut, thoiLuongLive, type MayTinhGio } from "./lsxBuoc";
 import "./ke-hoach-sx.css";
 import "./bai-ghep.css";
 
@@ -207,17 +207,14 @@ export function BuocChungForm({
     return items;
   })();
   const toDangGan = val("department_id", g.department_id) ?? null;
-  // Máy đi theo tổ (mg `0434`): công đoạn có tick tổ ⇒ chỉ mời máy THUỘC tổ đang chọn, cùng luật
-  // server chặn ở `lap_ke_hoach_buoc_chung`. Giữ máy ĐANG CHỌN dù lệch (hoặc đã ngừng dùng) để
-  // select không rơi về trống. Lọc theo NHÓM máy gỡ 22/10/2026.
+  // Máy đi theo tổ (mg `0434`): cùng luật ngăn bước lệnh (`mayChonDuoc`) và server chặn ở
+  // `lap_ke_hoach_buoc_chung` — chỉ máy CỦA CÔNG ĐOẠN (`may_chon_duoc`, máy "Đặt mặc định" đầu),
+  // công đoạn có tick tổ thì chỉ máy THUỘC tổ đang chọn. Giữ máy ĐANG CHỌN dù lệch (hoặc đã ngừng
+  // dùng) để select không rơi về trống. Lọc theo NHÓM máy gỡ 22/10/2026.
   const coRangBuocTo = (g.to_chon_duoc?.length ?? 0) > 0;
-  const mayCuaTo = (toId: number | null) => (mayRefs ?? []).filter((m) => m.active
-    && (!coRangBuocTo || toId == null || m.toIds.includes(toId)));
-  const mayMoi = (() => {
-    const ds = mayCuaTo(toDangGan);
-    const dangChon = (mayRefs ?? []).find((m) => m.id === mayId);
-    return dangChon && !ds.some((m) => m.id === dangChon.id) ? [...ds, dangChon] : ds;
-  })();
+  const cdMay = { mayChoPhep: g.may_chon_duoc ?? [], coRangBuocTo };
+  const mayCuaTo = (toId: number | null) => mayChonDuoc(mayRefs ?? [], cdMay, toId, null);
+  const mayMoi = mayChonDuoc(mayRefs ?? [], cdMay, toDangGan, mayId);
   // Đổi tổ: máy đang chọn không thuộc tổ mới ⇒ máy đầu của tổ mới (tổ chưa có máy ⇒ bỏ trống).
   const doiToLuot = (toId: number | null) => {
     const ds = mayCuaTo(toId);

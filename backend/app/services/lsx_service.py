@@ -55,7 +55,7 @@ from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from ..models.quotation import QuoteVersion
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, LOAI_GIAY, GiayNguyen, VatTuInAn
-from .may_to import cap_lech, loi_cap
+from .may_to import cap_lech, loi_cap, to_khong_may
 from .ptg_giay_buoc import bang_giay, id_giay_cua_rows, loi_tran_giay
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from .gia_cong_ngoai import lan_can_hoi_xuat_giay, tom_tat_theo_lenh as tom_tat_gcn_theo_lenh
@@ -1399,7 +1399,11 @@ class LsxService:
                 "tooling_type": cd.get("tooling_type"),
                 # Đặt loại bước NGAY TỪ ĐÂY để màn "lệnh dự kiến" và màn lệnh đã tạo nói cùng một
                 # thứ tiếng — trước đó preview chỉ có cờ thuê-ngoài nên hai màn hiển thị lệch nhau.
-                "loai_buoc": LB_THUE_NGOAI if row.get("nha_cung_cap") else LB_MAY,
+                # Công đoạn mà mọi tổ đã tick đều chưa có máy chạy nó ⇒ bước loại TỔ (23/10/2026).
+                "loai_buoc": (LB_THUE_NGOAI if row.get("nha_cung_cap")
+                              else LB_TO if to_khong_may(self.db, self.db.get(CongDoan, cd_id)
+                                                         if cd_id else None)
+                              else LB_MAY),
                 "nha_cung_cap": row.get("nha_cung_cap"),
                 # Ý ĐỊNH của sale về khuôn — chép nguyên si, KHÔNG diễn giải. Kế hoạch vẫn tự chốt
                 # con dao (`khuon_be_id`); hai thứ đứng cạnh nhau để so ra chỗ lệch.
@@ -2523,6 +2527,11 @@ class LsxService:
                                  moi.get(thu_tu_idx.get(id(cd), -1)), khuon_map)
             for cd in lsx.cong_doans
         ]
+        # Bước đã có việc chạy ở bàn tổ thì `replace_routing` không cho đổi tổ/máy — gửi cờ để ngăn
+        # bước khoá sẵn hai ô đó, khỏi để người lập chọn xong mới ăn lỗi lúc Lưu (23/10/2026).
+        bat_dau = self.repo.buoc_da_bat_dau({cd.id for cd in lsx.cong_doans if cd.id})
+        for d in buoc_dicts:
+            d["da_bat_dau"] = d["id"] in bat_dau
         return {
             "nhom": getattr(line, "nhom", None),
             "order_no": order.order_no if order else None,

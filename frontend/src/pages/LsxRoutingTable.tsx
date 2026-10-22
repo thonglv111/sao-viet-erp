@@ -35,6 +35,7 @@ import {
   emptyRow,
   heSoChu,
   loiDong,
+  congDoanKhongMay,
   mayChonDuoc,
   mayMacDinhCuaTo,
   n,
@@ -327,7 +328,11 @@ export function LsxRoutingTable({
         const cdMoi = congDoanRefs?.find((c) => c.id === m.cong_doan_id) ?? null;
         const mayCuHong = !!rowCu?.may_id && !!mayRefs
           && !mayChonDuoc(mayRefs, cdMoi, m.department_id, null).some((x) => x.id === rowCu.may_id);
-        const mayGoiY = rowCu?.loai_buoc === "to" ? {}
+        // Công đoạn mới mà mọi tổ đều chưa có máy ⇒ bước máy chuyển thành bước TỔ (23/10/2026),
+        // cùng luật lúc tạo lệnh (`may_to.to_khong_may`). Bước thuê ngoài giữ nguyên.
+        const sangTo = rowCu?.loai_buoc === "may" && !!mayRefs && congDoanKhongMay(mayRefs, cdMoi);
+        const mayGoiY = sangTo ? { loai_buoc: "to" as const, may_id: null }
+          : rowCu?.loai_buoc === "to" ? {}
           : m.may_id_goi_y != null && (!rowCu?.may_id || mayCuHong) ? { may_id: m.may_id_goi_y }
           : mayCuHong ? { may_id: null }
           : {};

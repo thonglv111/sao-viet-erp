@@ -27,6 +27,12 @@ def rang_buoc_to(cd: CongDoan | None) -> bool:
     return bool(cd is not None and cd.department_ids)
 
 
+def to_khong_may(db: Session, cd: CongDoan | None) -> bool:
+    """Công đoạn có tick tổ mà không tổ nào có máy CÒN DÙNG chạy nó ⇒ bước ở kế hoạch mặc định loại
+    TỔ (23/10/2026): bước máy ra đời không có máy nào để gán, chỉ chờ người lập đổi tay."""
+    return rang_buoc_to(cd) and not may_chon_duoc(db, cd, None)
+
+
 def may_chon_duoc(db: Session, cd: CongDoan | None, department_id: int | None) -> list[int]:
     """Máy CÒN DÙNG mời cho bước của tổ `department_id`, theo thứ tự bảng máy của công đoạn."""
     if cd is None:

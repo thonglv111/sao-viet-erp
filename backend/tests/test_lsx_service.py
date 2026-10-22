@@ -1050,6 +1050,12 @@ def test_buoc_bung_ra_luon_la_may_khong_doan_theo_ten(db, orders, lsx_svc, admin
     người sau đừng "tiện tay" khai lại một bảng từ khoá mới.
     """
     ptg = _ptg_2_san_pham(db)
+    # Công đoạn mà tổ chưa có máy thì bước ra loại Tổ (23/10/2026, `test_lsx_may_to`) — đó là luật
+    # theo MÁY, không theo tên. Cho Bế + Dán một máy của tổ để soi đúng hợp đồng "không đoán theo tên".
+    cd_be = db.query(CongDoan).filter(CongDoan.ma == "CD-BE-T").one()
+    cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
+    _may_vao_cong_doan(db, _may_cat_cuon(db), [cd_be, cd_dan], cd_dan.department_ids[0])
+    db.commit()
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
     hop = lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]
@@ -3266,6 +3272,9 @@ def test_xem_truoc_buoc_doi_LOAI_va_SO_GIO_thi_so_doi_theo_form(
     """
     ptg = _ptg_2_san_pham(db)
     cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
+    # Tổ của Dán phải có máy thì bước mới ra loại Máy (23/10/2026).
+    _may_vao_cong_doan(db, _may_cat_cuon(db), [cd_dan], cd_dan.department_ids[0])
+    db.commit()
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     line = lsx_svc.preview(d.id)["lines"][0]
     lsx = lsx_svc.get(lsx_svc.tao(order_id=d.id, order_line_ids=[line["order_line_id"]],
@@ -3603,6 +3612,8 @@ def test_xem_truoc_buoc_lay_SO_LUONG_RA_dang_go_lam_chip_sl_ra(
     ptg = _ptg_2_san_pham(db)
     cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
     may = _may_cat_cuon(db)
+    # Máy phải thuộc tổ của Dán thì bước mới ra loại Máy (23/10/2026).
+    _may_vao_cong_doan(db, may, [cd_dan], cd_dan.department_ids[0])
     _khai_ct_gio(db, lsx_svc, cd_dan.id, may.id, "sl_ra")
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     line = lsx_svc.preview(d.id)["lines"][0]

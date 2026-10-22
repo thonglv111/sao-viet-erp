@@ -962,6 +962,8 @@ export interface BaiGhepSoDoBuocChung {
   /** Tổ phụ trách khai ở danh mục Công đoạn — ô TỔ của lượt chung chỉ mời các tổ này (tổ đang
    *  gán lệch vẫn hiện để không mất dấu). [] = công đoạn chưa khai tổ, không giới hạn. */
   to_chon_duoc: number[];
+  /** Máy còn dùng của công đoạn, máy "Đặt mặc định" đầu (23/10/2026). [] = chưa khai máy. */
+  may_chon_duoc: number[];
   /** Đã khai gì đó cho lượt chung chưa → tách ra là mất. Cờ THẬT của server, đừng dò chuỗi `thieu`. */
   da_lap_ke_hoach: boolean;
   /** ID + TÊN: `<select>` cần id để chọn đúng, nhãn cần tên. Chỉ có tên là form phải lấy tên làm
@@ -3136,6 +3138,8 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
   ten: string; nhom: string | null; loai_buoc: LsxLoaiBuoc; bat_buoc: boolean;
   department_id: number | null; department_ten: string | null;
   may_id: number | null; may_ten: string | null;
+  /** Bước đã có việc chạy ở bàn tổ ⇒ không đổi tổ/máy ở lệnh nữa (đổi máy ở bàn tổ). */
+  da_bat_dau?: boolean;
   /** Hai CỜ đọc từ danh mục Công đoạn — quyết định bước có hỏi khuôn không; `tooling_type` còn là
    *  chiều lọc thứ hai của ô chọn dao. Năm field `khuon_be_*` là ẢNH CHỤP server ghép sẵn để bày
    *  cho thợ (mã · tên · SỐ KỆ · tình trạng · ngày về) — màn khỏi phải tra danh mục Khuôn. */

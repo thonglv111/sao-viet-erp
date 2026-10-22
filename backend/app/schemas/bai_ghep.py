@@ -346,6 +346,8 @@ class SoDoBuocChung(BaseModel):
     nhom_may_cho_phep: list[str] = Field(default_factory=list)
     # Tổ phụ trách công đoạn (mg `0312`) — ô chọn tổ chỉ bày các tổ này. [] = công đoạn chưa khai tổ.
     to_chon_duoc: list[int] = Field(default_factory=list)
+    # Máy còn dùng của công đoạn theo thứ tự bảng máy (máy mặc định đầu). [] = công đoạn chưa khai máy.
+    may_chon_duoc: list[int] = Field(default_factory=list)
     nha_cung_cap: str | None = None
     tong_phut: float = 0
     chiem_may_phut: float = 0

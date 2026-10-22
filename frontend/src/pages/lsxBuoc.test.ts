@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toChuaCoMay, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, congDoanKhongMay, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toChuaCoMay, toBody, toEdit, toKhacCuaMay, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -152,6 +152,29 @@ describe("mayChonDuoc — máy nào được mời cho một bước", () => {
     expect(toChuaCoMay(MAY, CD, TO_KHONG_MAY)).toBe(true);
     expect(toChuaCoMay(MAY, { mayChoPhep: [IN01], coRangBuocTo: false }, TO_KHONG_MAY)).toBe(false);
     expect(toChuaCoMay(MAY, CD, null)).toBe(false);
+  });
+
+  // Ngay sau mg 0434 mọi công đoạn có tick tổ mà chưa máy nào khai tổ ⇒ bảng máy rỗng. Máy chủ
+  // (`may_to.may_chon_duoc`) trả [] và lưu bất kỳ máy nào là 400 — ô máy KHÔNG được mời mọi máy.
+  const CD_TRONG = { mayChoPhep: [] as number[], coRangBuocTo: true };
+
+  it("công đoạn có tổ mà chưa có máy nào ⇒ không mời máy nào, chỉ giữ máy đang gán", () => {
+    expect(mayChonDuoc(MAY, CD_TRONG, TO_2MAU, null)).toEqual([]);
+    expect(mayChonDuoc(MAY, CD_TRONG, null, null)).toEqual([]);
+    expect(mayChonDuoc(MAY, CD_TRONG, TO_2MAU, IN02).map((m) => m.id)).toEqual([IN02]);
+  });
+
+  it("công đoạn có tổ mà chưa có máy nào ⇒ tổ đang chọn là tổ chưa có máy", () => {
+    expect(toChuaCoMay(MAY, CD_TRONG, TO_2MAU)).toBe(true);
+    expect(mayMacDinhCuaTo(MAY, CD_TRONG, TO_2MAU)).toBeNull();
+  });
+
+  it("công đoạn mà mọi tổ đều không có máy CÒN DÙNG ⇒ bước mặc định loại tổ", () => {
+    expect(congDoanKhongMay(MAY, CD_TRONG)).toBe(true);
+    expect(congDoanKhongMay(MAY, { mayChoPhep: [IN03], coRangBuocTo: true })).toBe(true); // ngừng dùng
+    expect(congDoanKhongMay(MAY, CD)).toBe(false);
+    expect(congDoanKhongMay(MAY, { mayChoPhep: [], coRangBuocTo: false })).toBe(false);
+    expect(congDoanKhongMay(MAY, null)).toBe(false);
   });
 });
 
@@ -386,5 +409,21 @@ describe("tickConLaCuaNguoiKhac · banner 'Có thay đổi mới' (#65)", () => 
   });
   it("tick không vượt mốc đã xem thì không báo", () => {
     expect(tickConLaCuaNguoiKhac(4, 4, 0, T0)).toBe(false);
+  });
+});
+
+describe("bước đã bắt đầu + tổ khác của máy (23/10/2026)", () => {
+  it("toEdit giữ cờ việc đã bắt đầu để ngăn bước khoá ô tổ/máy", () => {
+    const cd = { step_key: "b1", id: 5, ten: "In", loai_buoc: "may", vat_tus: [] } as never;
+    expect(toEdit({ ...(cd as object), da_bat_dau: true } as never).da_bat_dau).toBe(true);
+    expect(toEdit(cd).da_bat_dau).toBe(false);
+  });
+
+  it("máy thuộc tổ đang chọn thì tổ khác là 'cũng thuộc'; máy không thuộc tổ đang chọn thì lệch", () => {
+    expect(toKhacCuaMay([1, 2], 1)).toEqual({ khac: [2], lech: false });
+    expect(toKhacCuaMay([2, 3], 1)).toEqual({ khac: [2, 3], lech: true });
+    expect(toKhacCuaMay([1], 1)).toEqual({ khac: [], lech: false });
+    expect(toKhacCuaMay([2], null)).toEqual({ khac: [2], lech: false });
+    expect(toKhacCuaMay(null, 1)).toEqual({ khac: [], lech: false });
   });
 });

@@ -15,6 +15,7 @@ from app.models.vat_lieu_kho import GiayNguyen
 from app.schemas.lsx import LsxCongDoanIn
 from app.services.bai_ghep_service import BaiGhepValidationError
 from app.services.lsx_service import LsxValidationError
+from app.services.may_to import may_chon_duoc
 
 from tests.test_bai_ghep_service import (  # noqa: F401
     _don_da_chuyen_sx,
@@ -124,6 +125,28 @@ def test_phieu_khong_chon_may_thi_to_mac_dinh_va_may_cua_to(
     assert (b.department_id, b.may_id) == (nen["t2"], nen["in01"])
 
 
+def test_cong_doan_moi_to_deu_khong_co_may_thi_buoc_mac_dinh_la_to(
+    db, orders, lsx_svc, admin, customer, nen,
+):
+    """Bế tick tổ 2 màu mà tổ đó không có máy chạy Bế ⇒ bước ra đời loại TỔ, không máy (23/10/2026)."""
+    line, lsx = _lenh(db, orders, lsx_svc, admin, customer, nen)
+    be = next(c for c in lsx.cong_doans if c.ten == "Bế")
+    assert (be.loai_buoc, be.department_id, be.may_id) == ("to", nen["t2"], None)
+    assert next(r for r in line["routing"] if r["ten"] == "Bế")["loai_buoc"] == "to", \
+        "lệnh dự kiến nói cùng loại bước với lệnh tạo ra"
+    assert _buoc_in(lsx).loai_buoc == "may"
+
+
+def test_cong_doan_chi_con_may_ngung_dung_cung_tinh_la_khong_may(
+    db, orders, lsx_svc, admin, customer, nen,
+):
+    for may_id in (nen["in01"], nen["in02"]):
+        db.get(MayThietBi, may_id).active = False
+    db.commit()
+    _, lsx = _lenh(db, orders, lsx_svc, admin, customer, nen)
+    assert (_buoc_in(lsx).loai_buoc, _buoc_in(lsx).may_id) == ("to", None)
+
+
 def test_mac_dinh_buoc_cung_cap_voi_tao_lenh(db, orders, lsx_svc, admin, customer, nen):
     _, lsx = _lenh(db, orders, lsx_svc, admin, customer, nen, may_phieu=nen["in02"])
     md = lsx_svc.mac_dinh_buoc(lsx_id=lsx.id, cong_doan_id=nen["cd_in"])
@@ -176,6 +199,23 @@ def test_viec_da_bat_dau_khong_doi_to_may(db, orders, lsx_svc, admin, customer, 
     lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(lsx, ghi_chu="ok"), actor=admin)
 
 
+def test_chi_tiet_lenh_bao_buoc_da_bat_dau(db, orders, lsx_svc, admin, customer, nen):
+    """Ngăn bước khoá sẵn ô tổ/máy thay vì để người lập chọn rồi ăn lỗi lúc Lưu (23/10/2026)."""
+    from app.models.san_xuat import SanXuatCongViec, SanXuatGoiPhatHanh
+
+    _, lsx = _lenh(db, orders, lsx_svc, admin, customer, nen)
+    b = _buoc_in(lsx)
+    goi = SanXuatGoiPhatHanh(ma="GOI-BD")
+    db.add(goi)
+    db.flush()
+    db.add(SanXuatCongViec(goi_id=goi.id, lsx_id=lsx.id, lsx_cong_doan_id=b.id,
+                           step_key=b.step_key, trang_thai="running"))
+    db.commit()
+    co = {d["id"]: d["da_bat_dau"] for d in lsx_svc.detail_dict(lsx)["cong_doans"]}
+    assert co[b.id] is True
+    assert [v for k, v in co.items() if k != b.id] and not any(v for k, v in co.items() if k != b.id)
+
+
 # ------------------------------------------------------------------ bài ghép (§4.6–4.7)
 
 def _bai_hai_to(db, orders, lsx_svc, admin, customer, bg_svc):
@@ -204,6 +244,18 @@ def test_gop_buoc_chung_lay_to_theo_may(db, orders, lsx_svc, admin, customer, bg
     bg_svc.gop(bai_ghep_id=bg.id, step_keys=[sa.step_key, sb.step_key], actor=admin)
     chung = bg_svc._buoc_chungs(bg_svc._get(bg.id))[0]
     assert (chung.may_id, chung.department_id) == (mx, x)
+
+
+def test_so_do_buoc_chung_gui_may_cua_cong_doan_theo_thu_tu(
+        db, orders, lsx_svc, admin, customer, bg_svc):
+    """Form lượt chung lọc + xếp máy như ngăn bước lệnh: chỉ máy CÒN DÙNG của công đoạn, máy "Đặt mặc
+    định" đứng đầu (23/10/2026) — không còn mời máy ngoài công đoạn rồi để máy chủ chặn lúc lưu."""
+    bg, sa, sb, _, _, mx = _bai_hai_to(db, orders, lsx_svc, admin, customer, bg_svc)
+    bg_svc.gop(bai_ghep_id=bg.id, step_keys=[sa.step_key, sb.step_key], actor=admin)
+    node = bg_svc.so_do(bg_svc._get(bg.id))["gop"][0]
+    cd = db.get(CongDoan, sa.cong_doan_id)
+    assert node["may_chon_duoc"] == may_chon_duoc(db, cd, None)
+    assert node["may_chon_duoc"][-1] == mx   # MX khai thu_tu 99 ⇒ đứng cuối
 
 
 def test_ke_hoach_buoc_chung_cap_lech_bi_chan(db, orders, lsx_svc, admin, customer, bg_svc):

@@ -73,6 +73,7 @@ export function gop(
     may_khong_hop: [],
     nhom_may_cho_phep: [],
     to_chon_duoc: [],
+    may_chon_duoc: [],
     da_lap_ke_hoach: false,
     department_id: null,
     to_ten: null,

@@ -123,6 +123,11 @@ máy còn thuộc tổ khác thì dòng chữ phụ "cũng thuộc: <tên tổ>"
 - Còn lại (bước khác, hoặc máy phiếu không thuộc công đoạn) ⇒ tổ = tổ mặc định, máy = máy mặc định
   của tổ đó (§4.5).
 - `mac_dinh_buoc` (`lsx_service.py:1865`) trả `department_id` + `may_id_goi_y` theo cùng luật.
+- **Bổ sung 23/10/2026 (chủ dự án):** công đoạn có tick tổ mà KHÔNG tổ nào có máy còn dùng chạy nó
+  ⇒ bước ở kế hoạch mặc định loại **Tổ** (không phải Máy) — `may_to.to_khong_may`, áp ở routing
+  xem trước lúc tạo lệnh. Ở bảng bước, đổi bước máy sang công đoạn như vậy thì bước chuyển thành
+  bước tổ (`congDoanKhongMay`). Bước thuê ngoài giữ nguyên. Lượt chung bài ghép kế thừa loại của
+  bước lệnh nên đi theo.
 
 Gộp bước chung bài ghép (`bai_ghep_service.py:784`, hôm nay cố ý để trống tổ, điền máy bằng
 `_may_cho_luot_chung`): máy điền sẵn có tổ trong công đoạn ⇒ tổ chung = tổ đầu tiên có máy đó; không
@@ -131,7 +136,11 @@ thì để trống như hôm nay. *Quyết định của người viết.*
 ### 4.7 Kế hoạch sửa bước (lệnh và bài ghép)
 
 FE — `LsxBuocDrawer.tsx`, `LsxRoutingTable.tsx`, `BaiGhepBuocChungForm.tsx`:
-- Ô Máy chỉ mời "máy chọn được cho tổ đang chọn" (§4.5), kèm "cũng thuộc…".
+- Ô Máy chỉ mời "máy chọn được cho tổ đang chọn" (§4.5), kèm "cũng thuộc…". Máy đang gán mà KHÔNG
+  thuộc tổ đang chọn thì nói "— thuộc <tổ>" / "Máy này không thuộc tổ đang chọn, máy của <tổ>"
+  (23/10/2026: "cũng thuộc" nghe như máy thuộc cả tổ đang chọn).
+- Form lượt chung bài ghép lọc + xếp máy y như ngăn bước lệnh: sơ đồ trả `may_chon_duoc` (máy còn
+  dùng của công đoạn, máy "Đặt mặc định" đầu), không mời máy ngoài công đoạn (23/10/2026).
 - Đổi tổ (`doiTo`, `LsxRoutingTable.tsx:387`): máy đang gán không thuộc tổ mới ⇒ nhảy về máy mặc
   định của tổ mới (§4.5), không có thì trống.
 - Đổi công đoạn (`doiCongDoan`, `:308`): áp luật tạo lệnh §4.6.
@@ -146,7 +155,8 @@ BE — cổng thật:
 - Chỉ kiểm khi bước MỚI hoặc tổ/máy/công đoạn THAY ĐỔI so với bản đang lưu (cùng cách kiểm tổ ở
   `:3236-3242`) — lệnh cũ đang lệch vẫn lưu được các sửa khác.
 - Bước máy có công việc ĐÃ bắt đầu (đang chạy/tạm dừng/xong): từ chối đổi tổ hoặc máy, câu lỗi
-  "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ".
+  "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ". Chi tiết lệnh gửi cờ `da_bat_dau` từng bước để
+  ngăn bước khoá sẵn ô tổ/máy và hiện đúng câu đó (23/10/2026), khỏi chọn xong mới ăn lỗi lúc Lưu.
 
 ### 4.8 Phát hành và phát hành cập nhật
 

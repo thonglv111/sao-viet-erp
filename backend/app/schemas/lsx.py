@@ -238,6 +238,8 @@ class LsxCongDoanOut(BaseModel):
     department_ten: str | None = None
     may_id: int | None = None
     may_ten: str | None = None
+    #: Bước đã có việc chạy ở bàn tổ ⇒ ngăn bước khoá ô tổ/máy (đổi máy ở bàn tổ).
+    da_bat_dau: bool = False
     # Hai CỜ đọc từ danh mục Công đoạn — quyết định bước có hỏi khuôn không, và `tooling_type` là
     # chiều lọc thứ hai của ô chọn dao. Bốn field `khuon_be_*` là ẢNH CHỤP để bày cho thợ (mã · tên
     # · SỐ KỆ · tình trạng · ngày về), server ghép sẵn nên màn khỏi tra danh mục Khuôn.

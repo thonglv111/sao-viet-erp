@@ -30,6 +30,7 @@ import {
   mayMacDinh,
   mayMacDinhCuaTo,
   toChuaCoMay,
+  toKhacCuaMay,
   nhanChang,
   nhanDonVi,
   nhanGiayTheoDauVao,
@@ -281,11 +282,14 @@ export function LsxBuocDrawer({
     return (cdBuoc?.mayChoPhep?.length ?? 0) > 1 ? mayMacDinh(mayRefs, cdBuoc) : null;
   }, [mayRefs, cdBuoc, mayMoi, row.department_id, row.may_id]);
   // Máy thuộc nhiều tổ (mg `0434`): bày TÊN các tổ khác của máy — chọn máy không bị chặn, chỉ để
-  // người lập biết máy đang chia cho tổ nào nữa.
-  const toKhacCua = useCallback((m: RefRow): string[] =>
-    (m.toIds ?? []).filter((t) => t !== row.department_id)
-      .map((t) => toRefs?.find((x) => x.id === t)?.ten ?? `Tổ #${t}`),
-  [toRefs, row.department_id]);
+  // người lập biết máy đang chia cho tổ nào nữa. `lech` = máy đang gán KHÔNG thuộc tổ đang chọn ⇒
+  // nói "thuộc", không nói "cũng thuộc" (23/10/2026).
+  const toKhacCua = useCallback((m: RefRow): { ten: string[]; lech: boolean } => {
+    const { khac, lech } = toKhacCuaMay(m.toIds, row.department_id);
+    return { ten: khac.map((t) => toRefs?.find((x) => x.id === t)?.ten ?? `Tổ #${t}`), lech };
+  }, [toRefs, row.department_id]);
+  // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi tổ/máy ở lệnh: khoá sẵn hai ô.
+  const khoaToMay = !canUpdate || row.da_bat_dau;
   // Tổ của bước chưa có máy nào chạy được công đoạn ⇒ nói thẳng, đừng để ô máy trống không lời.
   const toHetMay = !!mayRefs && toChuaCoMay(mayRefs, cdBuoc, row.department_id);
   // Ô TỔ: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026), đúng thứ tự khai
@@ -817,7 +821,7 @@ export function LsxBuocDrawer({
                             <select
                               className="khsx-select-std"
                               value={toDangGanHienDuoc ? (row.department_id ?? "") : ""}
-                              disabled={!canUpdate}
+                              disabled={khoaToMay}
                               onChange={(e) => onDoiTo(e.target.value ? Number(e.target.value) : null)}
                             >
                               {!toDangGanHienDuoc && <option value="">— chọn tổ —</option>}
@@ -828,7 +832,8 @@ export function LsxBuocDrawer({
                               ))}
                             </select>
                             <span className="khsx-field__hint">
-                              {toChon.gioiHan
+                              {row.da_bat_dau ? "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ."
+                                : toChon.gioiHan
                                 ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi sản lượng, bàn tổ chọn trong công việc khoán của tổ này."
                                 : "Công đoạn chưa khai tổ phụ trách — đang mời mọi tổ."}
                             </span>
@@ -855,7 +860,7 @@ export function LsxBuocDrawer({
                             <select
                               className="khsx-select-std"
                               value={row.may_id ?? ""}
-                              disabled={!canUpdate}
+                              disabled={khoaToMay}
                               onChange={(e) =>
                                 onDoiMay(e.target.value ? Number(e.target.value) : null)
                               }
@@ -864,12 +869,12 @@ export function LsxBuocDrawer({
                               {nhomMay.map((g) => (
                                 <optgroup key={g.ten} label={g.ten}>
                                   {g.items.map((m) => {
-                                    const khac = toKhacCua(m);
+                                    const { ten: khac, lech } = toKhacCua(m);
                                     const nhan = m.active === false ? `${m.ten} (ngừng dùng)`
                                       : m.id === mayMd ? `${m.ten} (mặc định)` : m.ten;
                                     return (
                                       <option key={m.id} value={m.id}>
-                                        {khac.length ? `${nhan} — cũng thuộc ${DS_TEN.format(khac)}` : nhan}
+                                        {khac.length ? `${nhan} — ${lech ? "thuộc" : "cũng thuộc"} ${DS_TEN.format(khac)}` : nhan}
                                       </option>
                                     );
                                   })}
@@ -879,10 +884,10 @@ export function LsxBuocDrawer({
                           ) : (
                             <span className="khsx-val-text">—</span>
                           )}
-                          {!(buocGhep && deLen) && mayForm && toKhacCua(mayForm).length > 0 && (
+                          {!(buocGhep && deLen) && mayForm && toKhacCua(mayForm).ten.length > 0 && (
                             <span className="khsx-field__hint">
-                              Máy này cũng thuộc{" "}
-                              {toKhacCua(mayForm).map((t) => <span key={t} className="lds-tag">{t}</span>)}
+                              {toKhacCua(mayForm).lech ? "Máy này không thuộc tổ đang chọn, máy của" : "Máy này cũng thuộc"}{" "}
+                              {toKhacCua(mayForm).ten.map((t) => <span key={t} className="lds-tag">{t}</span>)}
                             </span>
                           )}
                           {!(buocGhep && deLen) && toHetMay && (

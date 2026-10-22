@@ -20,7 +20,11 @@ vi.mock("../api/rebuildCatalog", () => ({
           ]
         : prefix === "/api/may-thiet-bi"
           ? [{ id: 56, ten: "Máy 4 màu", active: true, toc_do: 6000,
-               don_vi_toc_do: "to_gio", don_vi_toc_do_ten: "tờ in" }]
+               don_vi_toc_do: "to_gio", don_vi_toc_do_ten: "tờ in" },
+             { id: 57, ten: "Máy A", active: true, to_ids: [3, 5] },
+             { id: 58, ten: "Máy B", active: true, to_ids: [3, 5] },
+             { id: 59, ten: "Máy C", active: true, to_ids: [3] },
+             { id: 60, ten: "Máy D", active: true, to_ids: [3] }]
           : [],
     }),
   }),
@@ -138,6 +142,30 @@ describe("form kế hoạch bước chung", () => {
     await userEvent.setup().click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
     expect(await screen.findByText(/Tốc độ 6\.000 tờ in\/h/)).toBeInTheDocument();
     expect(screen.queryByText(/to_gio/)).toBeNull();
+  });
+
+  // Review 23/10/2026: ô máy lượt chung lấy máy theo thứ tự id và mời cả máy ngoài công đoạn (máy
+  // chủ chặn lúc lưu). Nay cùng luật ngăn bước lệnh: chỉ máy của công đoạn, máy "Đặt mặc định" đầu.
+  it("ô máy chỉ mời máy của công đoạn thuộc tổ, theo thứ tự máy mặc định; đổi tổ lấy máy đầu", async () => {
+    const user = userEvent.setup();
+    render(<BuocChungForm g={gop({
+      step_key: "gang-in-4",
+      ten: "In chung",
+      to_chon_duoc: [3, 5],
+      may_chon_duoc: [58, 60, 57],
+      department_id: 3,
+      may_id: 60,
+      thanh_vien: [{ lsx_id: 1, lsx_ma: "LSX-1", lsx_step_key: "lsx-1-in", ghi_chu_ky_thuat: null }],
+    })} canUpdate onLuu={async () => true} onTach={async () => {}} />);
+
+    await user.click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
+    const may = await screen.findByLabelText(/MÁY CHẠY LƯỢT CHUNG/) as HTMLSelectElement;
+    await screen.findByRole("option", { name: "Máy B" });
+    expect([...may.options].map((o) => o.text)).toEqual(["— chọn máy —", "Máy B", "Máy D", "Máy A"]);
+
+    await user.selectOptions(screen.getByLabelText(/TỔ PHỤ TRÁCH/), "5");
+    expect(may.value).toBe("58");
+    expect([...may.options].map((o) => o.text)).toEqual(["— chọn máy —", "Máy B", "Máy A"]);
   });
 
   it("công đoạn chưa khai tổ thì mời mọi tổ, không có câu giới hạn", async () => {
