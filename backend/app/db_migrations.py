@@ -18973,3 +18973,18 @@ def _migrate_bac_gia_khoan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0433_bac_gia_khoan", _migrate_bac_gia_khoan))
+
+
+def _migrate_luong_an_cong_nhat(db: Session) -> None:
+    """0436 (22/10/2026) — `employee_salaries.an_cong_nhat`: người ở tổ sản xuất ăn công nhật (lương
+    theo công + tăng ca theo giờ, không hưởng tiền sản lượng). Mặc định FALSE ⇒ mọi mốc lương cũ giữ
+    nguyên cách tính. Raw SQL đích danh cột, idempotent."""
+    insp = inspect(db.get_bind())
+    if ("employee_salaries" in insp.get_table_names()
+            and "an_cong_nhat" not in _existing_columns(insp, "employee_salaries")):
+        db.execute(text(
+            "ALTER TABLE employee_salaries ADD COLUMN an_cong_nhat BOOLEAN NOT NULL DEFAULT FALSE"))
+    db.commit()
+
+
+MIGRATIONS.append(("0436_luong_an_cong_nhat", _migrate_luong_an_cong_nhat))

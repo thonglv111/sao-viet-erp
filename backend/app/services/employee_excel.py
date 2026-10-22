@@ -777,7 +777,7 @@ def _ke_hoach_luong(luong: dict, moc_cu, *, kq: KetQua, hang: int, sheet: str):
 #: Ô của mốc lương CHÉP NGUYÊN từ mốc cũ khi file chỉ đổi ba ô lương — y như Sửa lương lưu lại
 #: mọi ô đang hiện trên màn.
 _CHEP_TU_MOC_CU = ("allowance", "chuyen_can", "phu_cap_ca", "phu_cap_tham_nien",
-                   "insurance_elsewhere", "union_member", "luong_dot_1", "apply_self_deduction",
+                   "insurance_elsewhere", "union_member", "an_cong_nhat", "luong_dot_1", "apply_self_deduction",
                    "commission_pct")
 
 

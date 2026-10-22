@@ -34,8 +34,23 @@ Ví dụ sổ T08/2026 máy in 2 màu: Tuấn bù lỗ 16,5tr × 24/26 = 15.230.
 15.230.769 + tăng ca khoán. Huy bù lỗ 14,5tr × 11/26 = 6.134.615 < khoán 6.344.265 ⇒ ăn 6.344.265 +
 tăng ca khoán. Giờ tăng ca chấm công (Tuấn 2h, Huy 1,5h) không ra tiền.
 
-Hệ quả cần biết: ví dụ Hồng Châu bên dưới (công nhật trong khối, 71,5 giờ ⇒ 3.403.125 đ) KHÔNG còn
-đúng — theo luật mới người công nhật trong khối không có tiền giờ tăng ca.
+### Người THUẦN CÔNG NHẬT trong khối (chủ chốt 22/10/2026, cùng ngày)
+
+Trong tổ sản xuất có người ăn công nhật: vẫn ra phụ sản xuất, vẫn được tick vào lần ghi, nhưng không
+ăn lương sản lượng.
+
+- Đánh dấu bằng ô tích **"Ăn công nhật, không hưởng tiền sản lượng"** ở Lương → Lương nhân viên → Sửa
+  lương (cột `employee_salaries.an_cong_nhat`, mg 0436), theo mốc hiệu lực như mức lương.
+- Lương: KHÔNG tính 2 lương — lương theo công + đủ tăng ca theo giờ + phụ cấp tăng ca đêm, như người tổ
+  thường.
+- Sản lượng: tiền mỗi lần ghi vẫn chia như bình thường theo lương ca máy, kể cả phần của họ (ví dụ 100
+  sản phẩm chia 3 người thì họ vẫn "ra" phần mình). Phần đó KHÔNG trả và KHÔNG dồn sang người khác —
+  giống người thử việc. Tăng ca khoán, phần tổ trưởng, tiền dừng máy, tiền km của họ cũng về 0 (giả
+  định: không ăn khoán thì không ăn tăng ca khoán).
+- Không gánh trừ lỗi khoán (như thử việc).
+
+Ví dụ Hồng Châu bên dưới (71,5 giờ ⇒ 3.403.125 đ) đúng khi chị được tích "ăn công nhật"; không tích thì
+theo luật khối SX ở trên, giờ tăng ca không ra tiền.
 
 ## Cách tính mỗi người khối Sản xuất, mỗi tháng (bản 20/10 — tăng ca đã sửa ở mục trên)
 

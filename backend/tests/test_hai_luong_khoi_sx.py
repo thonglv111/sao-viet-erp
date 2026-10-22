@@ -398,6 +398,73 @@ def test_TINH_LAI_khoi_SX_lam_NGUYEN_NGAY_chu_nhat_van_bang_to_thuong(client):
 
 
 # =============================================================================================
+# Ăn công nhật — cờ ở hồ sơ lương (chủ chốt 22/10/2026)
+# =============================================================================================
+def test_AN_CONG_NHAT_khoi_SX_an_nhu_to_thuong_tien_khoan_ve_0(client):
+    """⭐ Người tích "ăn công nhật": lương theo công + đủ tăng ca theo giờ như tổ thường. Phần tiền
+    khoán / tăng ca khoán / km khoan_ky chia cho họ KHÔNG trả, dòng không tính 2 lương."""
+    client
+    db = SessionLocal()
+    try:
+        svc = _svc(db)
+        params = svc.get_params()
+        gio = dict(actual_cong=26, ot_minutes=240, ot_restday_minutes=60, ot_holiday_minutes=60,
+                   ot_night_normal_minutes=60, night_premium_minutes=60)
+        thuong = _tinh(svc, params, **gio, che_do_khoan=False)
+        cn = svc._compute(employee=_emp(), salary=_sal(luong_vi_tri=LUONG, an_cong_nhat=True),
+                          params=params, standard_cong=26, on=date(2026, 6, 1), **gio,
+                          khoan=20_000_000, khoan_km=3_000_000, tang_ca_khoan=5_000_000,
+                          khoan_defect=400_000, che_do_khoan=True)
+        assert cn["che_do_khoan"] is False and cn["lay_bu_lo"] is False
+        assert cn["bu_lo_theo_cong"] is None
+        assert cn["khoan"] == cn["khoan_km"] == cn["tang_ca_khoan"] == 0
+        assert cn["tien_gio_tang_ca"] == thuong["tien_gio_tang_ca"] == 1_000_000
+        assert cn["night_premium_pay"] == thuong["night_premium_pay"]
+        assert cn["gross"] == thuong["gross"]
+    finally:
+        db.close()
+
+
+def test_TINH_LAI_AN_CONG_NHAT_khai_o_Sua_luong_co_tang_ca_theo_gio(client):
+    """Hai người cùng tổ khối SX, cùng một ngày + 3h tăng ca có phiếu. Người tích "ăn công nhật" ở
+    Sửa lương có tăng ca theo giờ bằng người tổ thường; người không tích thì 0đ (luật 22/10)."""
+    h = _h(client)
+    _khai_com_tc_va_tat_khop_ca(client, h)
+    to_sx = _to("Tổ SX công nhật", san_xuat=True)
+    ngay = _ngay_lam_viec(client, h)[2]
+
+    nguoi = {}
+    for vai in ("thuong", "khoan", "cong_nhat"):
+        eid = _nv(client, h, ten=f"NV CN {vai}")
+        _chinh_thuc(client, h, eid)
+        if vai != "thuong":
+            _chuyen_to(eid, to_sx)
+        if vai == "cong_nhat":
+            r = client.post(f"/api/luong/salaries/{eid}",
+                            json={"effective_from": "2026-01-03", "luong_vi_tri": 10_000_000,
+                                  "insurance_base": 10_000_000, "an_cong_nhat": True}, headers=h)
+            assert r.status_code in (200, 201), r.text
+            assert r.json()["an_cong_nhat"] is True
+        _ca_hanh_chinh(client, h, eid)
+        _lam_ngay(client, h, eid, ngay, ot_gio=3)
+        _phieu_tang_ca(client, h, eid, ngay)
+        nguoi[vai] = eid
+
+    r = client.get(f"/api/luong/salaries/{nguoi['cong_nhat']}", headers=h)
+    assert r.status_code == 200, r.text
+    assert any(s["an_cong_nhat"] for s in r.json()["items"]), r.text
+
+    bang = _tinh_lai(client, h)
+    thuong, khoan, cn = (_dong(bang, nguoi[k]) for k in ("thuong", "khoan", "cong_nhat"))
+    assert thuong["ot_pay"] > 0
+    assert cn["che_do_khoan"] is False
+    assert abs(cn["ot_pay"] - thuong["ot_pay"]) <= 1, (cn["ot_pay"], thuong["ot_pay"])
+    assert khoan["che_do_khoan"] is True and khoan["ot_pay"] == 0
+    for d in (thuong, khoan, cn):
+        assert d["com_tang_ca_pay"] == MUC, d
+
+
+# =============================================================================================
 # Cảnh báo trước chốt — lần ghi thiếu giá
 # =============================================================================================
 def test_canh_bao_lan_ghi_thieu_gia(client):

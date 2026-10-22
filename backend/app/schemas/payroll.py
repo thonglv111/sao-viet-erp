@@ -258,6 +258,8 @@ class SalaryIn(BaseModel):
     insurance_elsewhere: bool = False
     # Đoàn viên công đoàn → mới bị trừ đoàn phí công đoàn (mặc định false = không đóng).
     union_member: bool = False
+    # Ăn công nhật ở tổ sản xuất: lương theo công + tăng ca theo giờ, không hưởng tiền sản lượng.
+    an_cong_nhat: bool = False
     # Có áp giảm trừ bản thân khi tính TNCN không. Mặc định BẬT; tắt khi người này đã đăng ký
     # giảm trừ bản thân ở nơi làm việc khác (chỉ được đăng ký ở MỘT nơi).
     apply_self_deduction: bool = True
@@ -286,6 +288,7 @@ class SalaryOut(BaseModel):
     chuyen_can: float = 0
     insurance_elsewhere: bool = False   # cờ "BH đóng ở nơi khác" — để modal prefill checkbox
     union_member: bool = False          # cờ "đoàn viên công đoàn" — để modal prefill checkbox
+    an_cong_nhat: bool = False          # cờ "ăn công nhật" — để modal prefill checkbox
     apply_self_deduction: bool = True   # cờ giảm trừ bản thân — modal prefill checkbox
     # ⚠️ Thiếu dòng này là API nuốt im lặng: service trả đúng, Pydantic vứt, không báo lỗi.
     commission_pct: float = 0           # % hoa hồng (phân số) — modal prefill

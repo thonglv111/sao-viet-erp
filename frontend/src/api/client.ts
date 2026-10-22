@@ -6168,6 +6168,8 @@ export interface EmployeeSalary {
   insurance_elsewhere?: boolean;
   /** Đoàn viên công đoàn → mới bị trừ đoàn phí (prefill checkbox Sửa lương). */
   union_member?: boolean;
+  /** Ăn công nhật ở tổ sản xuất: lương theo công + tăng ca theo giờ, không hưởng tiền sản lượng. */
+  an_cong_nhat?: boolean;
   /** Có áp giảm trừ bản thân khi tính TNCN không. Mặc định BẬT; tắt khi người này đã đăng ký
    *  giảm trừ bản thân ở nơi làm việc khác (luật cho đăng ký ở ĐÚNG MỘT nơi). */
   apply_self_deduction?: boolean;
@@ -6201,6 +6203,8 @@ export interface EmployeeSalaryInput {
   insurance_elsewhere?: boolean;
   /** Đoàn viên công đoàn → mới bị trừ đoàn phí công đoàn. */
   union_member?: boolean;
+  /** Ăn công nhật ở tổ sản xuất: lương theo công + tăng ca theo giờ, không hưởng tiền sản lượng. */
+  an_cong_nhat?: boolean;
   /** Áp giảm trừ bản thân khi tính TNCN (mặc định true). Bỏ tích khi người này đã đăng ký
    *  giảm trừ bản thân ở nơi làm việc khác. */
   apply_self_deduction?: boolean;

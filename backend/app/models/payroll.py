@@ -282,6 +282,10 @@ class EmployeeSalary(Base):
     # Cờ "đoàn viên công đoàn": CHỈ đoàn viên mới bị trừ đoàn phí công đoàn (`params.cong_doan_rate`).
     # Mặc định false (opt-in — chủ 2026-07-21): không ai đóng cho tới khi tích từng người. Xem `_compute`.
     union_member: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # Cờ "ăn công nhật" (chủ chốt 22/10/2026): người ở tổ khối Sản xuất / Giao hàng KHÔNG tính 2 lương
+    # — lương theo công + tăng ca theo giờ như tổ thường. Vẫn được tick vào lần ghi và đứng trong tỷ
+    # lệ chia, nhưng phần tiền khoán / tăng ca khoán / km của họ về 0 (không dồn sang người khác).
+    an_cong_nhat: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
     # Có áp GIẢM TRỪ BẢN THÂN khi tính TNCN không (chủ 2026-07-27). Người làm 2 nơi chỉ được đăng ký
     # giảm trừ bản thân ở MỘT nơi — bỏ tích ở nơi còn lại. Mặc định BẬT (đại đa số chỉ làm một nơi;
     # tắt là ngoại lệ). Giảm trừ NGƯỜI PHỤ THUỘC không đụng cờ này (theo `employees.dependents_count`).

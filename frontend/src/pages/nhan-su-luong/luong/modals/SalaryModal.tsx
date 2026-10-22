@@ -82,6 +82,7 @@ export function SalaryModal({
   // Insurance & Union flags
   const [insuranceElsewhere, setInsuranceElsewhere] = useState(false);
   const [unionMember, setUnionMember] = useState(false);
+  const [anCongNhat, setAnCongNhat] = useState(false);
   const [applySelfDeduction] = useState(true);
   const [params, setParams] = useState<PayrollParams | null>(null);
 
@@ -117,6 +118,7 @@ export function SalaryModal({
       );
       setInsuranceElsewhere(!!latest.insurance_elsewhere);
       setUnionMember(!!latest.union_member);
+      setAnCongNhat(!!latest.an_cong_nhat);
 
       const vt = latest.luong_vi_tri ?? 0;
       const tn = latest.luong_trach_nhiem ?? 0;
@@ -283,6 +285,7 @@ export function SalaryModal({
         phu_cap_tham_nien: phuCapThamNien,
         insurance_elsewhere: insuranceElsewhere,
         union_member: unionMember,
+        an_cong_nhat: anCongNhat,
         apply_self_deduction: applySelfDeduction,
         commission_pct: Math.min(commissionPct, 100) / 100,
       });
@@ -669,6 +672,23 @@ export function SalaryModal({
                     </span>
                   </label>
                 </div>
+
+                <label className="ns-check" style={{ marginTop: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={anCongNhat}
+                    onChange={(e) => setAnCongNhat(e.target.checked)}
+                  />
+                  <span>Ăn công nhật, không hưởng tiền sản lượng</span>
+                </label>
+                <p
+                  className="cc-card__hint"
+                  style={{ marginLeft: 22, marginTop: 2 }}
+                >
+                  Dành cho người ở tổ sản xuất. Lương tính theo công, có tăng
+                  ca theo giờ. Vẫn được tick vào lần ghi và vẫn có phần trong
+                  tiền chia, nhưng không nhận phần đó.
+                </p>
               </div>
 
               {/* Khoản thu nhập theo danh mục */}
