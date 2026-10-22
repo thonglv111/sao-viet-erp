@@ -6788,11 +6788,12 @@ export interface KttNguoi {
   tang_ca: number;
   to_truong: number;
   o_to_khac: number;
-  /** Tích "ăn công nhật" ở mốc lương: đứng trong tỷ lệ chia, không hưởng tiền khoán / tăng ca khoán. */
+  /** Ăn công nhật (mốc lương chưa chọn thì thử việc = công nhật): đứng trong tỷ lệ chia, không hưởng
+   *  tiền khoán / tăng ca khoán. */
   cong_nhat: boolean;
   /** null với người tổ khác — lương chính của họ tính ở tổ của họ. */
   luong_khoan: number | null;
-  thu_viec: boolean | null;
+  thu_viec: boolean;
   phan_bo_bu_lo: number | null;
   cong: number | null;
   chuan_cong: number | null;
@@ -6811,7 +6812,7 @@ export interface KhoanTheoTo {
   quy: { san_luong: number; dung_may: number; tang_ca: number; tong: number } | null;
   nguoi: KttNguoi[];
   doi_chieu: {
-    quy: number; tang_ca: number; to_truong_thuong: number; thu_viec: number; cong_nhat: number; nguoi_to_khac: number;
+    quy: number; tang_ca: number; to_truong_thuong: number; cong_nhat: number; nguoi_to_khac: number;
     o_to_khac: number; luong_khoan: number; bu_lo: number | null; luong_chinh: number | null;
   } | null;
   so: KttLanGhi[];

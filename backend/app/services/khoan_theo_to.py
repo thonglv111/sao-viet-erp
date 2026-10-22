@@ -7,12 +7,13 @@ Mockup đã duyệt: `docs/mockups/khoan-theo-to-a-chi-tiet.html`. Mọi con s�
 Luật đọc số (chủ chốt 22/10/2026):
   - Lương khoán đem so = sản lượng + dừng máy + tổ trưởng + ở tổ khác. Tăng ca khoán có cột riêng,
     nằm trong quỹ tổ nhưng KHÔNG cộng vào lương khoán — bảng lương cộng nó sau.
-  - Phân bổ lương bù lỗ + thử việc đọc ở dòng lương của kỳ; chưa tạo bảng lương thì để trống.
+  - Phân bổ lương bù lỗ đọc ở dòng lương của kỳ; chưa tạo bảng lương thì để trống.
   - Người tổ khác được tick ở lần ghi của tổ này: hiện phần họ ăn từ tổ này, lương chính tính ở tổ
     của họ.
-  - Người tích "ăn công nhật" ở mốc lương (`employee_salaries.an_cong_nhat`, chủ 22/10/2026) vẫn đứng
-    trong tỷ lệ chia nhưng không hưởng tiền khoán lẫn tăng ca khoán — phần đó không dồn cho ai; lương
-    của họ theo công + tăng ca giờ ở bảng lương. Đọc bằng `getattr` để màn chạy cả khi cột chưa có.
+  - Người ăn công nhật (`an_cong_nhat_hieu_luc` — cùng một luật với bảng lương; mốc lương chưa chọn
+    thì thử việc = công nhật) vẫn đứng trong tỷ lệ chia nhưng không hưởng tiền khoán lẫn tăng ca
+    khoán — phần đó không dồn cho ai; lương của họ theo công + tăng ca giờ ở bảng lương. Thử việc
+    HCNS chọn Lương khoán thì so hai lương như người chính thức.
 """
 from __future__ import annotations
 
@@ -23,9 +24,12 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from ..models.payroll import TO_TRUONG_THUONG
+from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.khoan_ky_repo import KhoanKyRepository
 from ..repositories.san_xuat_san_luong_to_repo import SanXuatSanLuongToRepository
+from .bien_che import trang_thai_tren_ngay
 from .khoan_ky import KhoanKyService
+from .payroll_service import an_cong_nhat_hieu_luc, la_thu_viec
 from .san_xuat.san_luong_to import _quy_cach_bang
 from .san_xuat.snapshot import the_quy_cach
 
@@ -90,8 +94,14 @@ def xem(db: Session, payroll_svc, year: int, month: int, to_id: int | None,
     nv = repo.nhan_vien(tat_ca)
     lbl = muc.luong_ca_may
     cuoi = date(year, month, _cal.monthrange(year, month)[1])
-    cong_nhat = {int(e) for e, s in payroll_svc.payroll.latest_salaries_map(cuoi).items()
-                 if getattr(s, "an_cong_nhat", False)}
+    # Thử việc: dòng lương của kỳ chốt sẵn; chưa có dòng thì xét trạng thái cuối kỳ như `_compute`.
+    luong = payroll_svc.payroll.latest_salaries_map(cuoi)
+    nv_repo = EmployeeRepository(db)
+    ho_so, su_kien = nv_repo.get_many(tat_ca), nv_repo.events_map(tat_ca)
+    thu_viec = {e for e in tat_ca
+                if (bool(dong[e].is_probation) if e in dong else e in ho_so and la_thu_viec(
+                    ho_so[e], trang_thai_tren_ngay(ho_so[e], su_kien.get(e, []), cuoi)[0]))}
+    cong_nhat = {e for e in tat_ca if an_cong_nhat_hieu_luc(luong.get(e), e in thu_viec)}
 
     def ten(e: int) -> str:
         return nv.get(e, (f"#{e}", None))[0]
@@ -109,24 +119,21 @@ def xem(db: Session, payroll_svc, year: int, month: int, to_id: int | None,
         h = {"emp_id": e, "ten": ten(e), "to_ten": to_cua(e, to_id), "la_thanh_vien": e in tv,
              "luong_bu_lo": _r(lbl.get(e)),
              **{x: _r(c[x]) for x in ("san_luong", "dung_may", "tang_ca", "to_truong", "o_to_khac")},
-             "cong_nhat": e in cong_nhat, "luong_khoan": None, "thu_viec": None, "phan_bo_bu_lo": None, "cong": None,
+             "cong_nhat": e in cong_nhat, "luong_khoan": None, "thu_viec": e in thu_viec, "phan_bo_bu_lo": None,
+             "cong": None,
              "chuan_cong": None, "an": None, "luong_chinh": None}
         if e in tv:
             ln = dong.get(e)
             h["luong_khoan"] = _r(k)
             if ln is not None and not h["cong_nhat"]:
-                h["thu_viec"] = bool(ln.is_probation)
                 h["chuan_cong"] = float(ln.standard_cong or 26)
                 if ln.bu_lo_theo_cong is not None:
                     pbl = _r(ln.bu_lo_theo_cong)
                     h["phan_bo_bu_lo"] = pbl
                     if lbl.get(e):
                         h["cong"] = round(pbl * h["chuan_cong"] / float(lbl[e]), 1)
-                    if h["thu_viec"]:
-                        h["an"], h["luong_chinh"] = "bu_lo", pbl
-                    else:
-                        h["an"] = "khoan" if h["luong_khoan"] >= pbl else "bu_lo"
-                        h["luong_chinh"] = max(h["luong_khoan"], pbl)
+                    h["an"] = "khoan" if h["luong_khoan"] >= pbl else "bu_lo"
+                    h["luong_chinh"] = max(h["luong_khoan"], pbl)
         hang.append(h)
 
     # --- Quỹ + dòng đối chiếu quỹ → lương chính ----------------------------------------------
@@ -136,15 +143,13 @@ def xem(db: Session, payroll_svc, year: int, month: int, to_id: int | None,
     ra["quy"] = {"san_luong": _r(q_sl), "dung_may": _r(q_dm), "tang_ca": _r(q_tc),
                  "tong": _r(q_sl + q_dm + q_tc)}
     tvien = [h for h in hang if h["la_thanh_vien"]]
-    khoan_nguoi = [h for h in tvien if not h["thu_viec"] and not h["cong_nhat"]]
-    an_hai_luong = [h for h in tvien if not h["cong_nhat"]]
-    co_du = all(h["luong_chinh"] is not None for h in an_hai_luong)
+    khoan_nguoi = [h for h in tvien if not h["cong_nhat"]]
+    co_du = all(h["luong_chinh"] is not None for h in khoan_nguoi)
     luong_khoan = sum(h["luong_khoan"] for h in khoan_nguoi)
-    luong_chinh = sum(h["luong_chinh"] for h in an_hai_luong) if co_du and an_hai_luong else None
+    luong_chinh = sum(h["luong_chinh"] for h in khoan_nguoi) if co_du and khoan_nguoi else None
     ra["doi_chieu"] = {
         "quy": ra["quy"]["tong"], "tang_ca": ra["quy"]["tang_ca"],
         "to_truong_thuong": _r(sum(t["tien"] for t in tt_to if t["che_do"] == TO_TRUONG_THUONG)),
-        "thu_viec": sum(h["san_luong"] + h["dung_may"] + h["to_truong"] for h in tvien if h["thu_viec"]),
         "cong_nhat": sum(h["san_luong"] + h["dung_may"] + h["to_truong"] for h in tvien if h["cong_nhat"]),
         "nguoi_to_khac": sum(h["san_luong"] + h["dung_may"] + h["to_truong"]
                              for h in hang if not h["la_thanh_vien"]),

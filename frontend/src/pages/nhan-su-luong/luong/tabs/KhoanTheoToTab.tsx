@@ -255,7 +255,7 @@ function BangChia({ data }: { data: KhoanTheoTo }) {
   ] as [CotChia, string][]).filter(([k]) => k === "san_luong" || data.nguoi.some((n) => n[k] !== 0));
   const soLanTt = data.so.filter((l) => l.to_truong.length && l.he_so > 0).length;
   const tong = (f: (n: KttNguoi) => number | null) => data.nguoi.reduce((s, n) => s + (f(n) ?? 0), 0);
-  const khoanTra = (n: KttNguoi) => (n.thu_viec || n.cong_nhat ? 0 : n.luong_khoan);
+  const khoanTra = (n: KttNguoi) => (n.cong_nhat ? 0 : n.luong_khoan);
 
   function oCot(n: KttNguoi, k: CotChia) {
     const v = n[k];
@@ -293,7 +293,6 @@ function BangChia({ data }: { data: KhoanTheoTo }) {
               .filter(([k]) => k !== "tang_ca" && n[k] !== 0)
               .map(([k, ten]) => [ten, money(n[k])]);
             gom.push(["Cộng", money(n.luong_khoan)]);
-            if (n.thu_viec) gom.push(["Thử việc", "khoán về 0, chỉ ăn phân bổ lương bù lỗ"]);
             if (n.cong_nhat) gom.push(["Công nhật", "không hưởng tiền khoán, phần này không dồn cho ai"]);
             const lech = khoan != null && n.phan_bo_bu_lo != null ? khoan - n.phan_bo_bu_lo : null;
             return (
@@ -323,7 +322,6 @@ function BangChia({ data }: { data: KhoanTheoTo }) {
                   <>
                     <td className={`r ktt-ke ${lopKhoan}`}>
                       <Hov neo={<span className="ktt-tien">{money(khoan)}</span>} rows={gom} rong={380} />
-                      {n.thu_viec && <div className="ktt-sub">thử việc về 0</div>}
                     </td>
                     <td className={`r ${lopBuLo}`}>
                       {n.phan_bo_bu_lo == null ? <span className="ktt-trong">—</span> : (
@@ -364,7 +362,6 @@ function DoiChieu({ dc }: { dc: NonNullable<KhoanTheoTo["doi_chieu"]> }) {
   const buoc: [string, string, number][] = [["", "Quỹ tổ", dc.quy]];
   if (dc.tang_ca) buoc.push(["−", "tăng ca khoán trả riêng", dc.tang_ca]);
   if (dc.to_truong_thuong) buoc.push(["+", "tổ trưởng thưởng công ty trả", dc.to_truong_thuong]);
-  if (dc.thu_viec) buoc.push(["−", "phần thử việc không hưởng", dc.thu_viec]);
   if (dc.cong_nhat) buoc.push(["−", "phần công nhật không hưởng", dc.cong_nhat]);
   if (dc.nguoi_to_khac) buoc.push(["−", "phần người tổ khác", dc.nguoi_to_khac]);
   if (dc.o_to_khac) buoc.push(["+", "làm ở tổ khác", dc.o_to_khac]);

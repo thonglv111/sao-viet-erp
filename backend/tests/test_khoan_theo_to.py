@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.db import SessionLocal
+from app.models.employee import STATUS_ACTIVE, STATUS_PROBATION
 from app.models.payroll import KhoanChiTieuNgay, KhoanToTruong
 from app.services.khoan_ky import KhoanKyService, MucKhoan
 from app.services.khoan_theo_to import KhoanTheoToForbidden, xem
@@ -24,6 +25,8 @@ def nen(client):
         dan, may = n.to("Dán"), n.to("Máy 4 màu")
         tt, a, b = n.nv(dan, "Quí", user=True), n.nv(dan, "Trang"), n.nv(dan, "Thảo")
         m = n.nv(may, "Hùng")
+        for e in (tt, a, b, m):
+            e.status = STATUS_ACTIVE   # hồ sơ mới mặc định thử việc ⇒ công nhật
         dan.head_user_id = tt.user_id
         db.add(KhoanToTruong(department_id=dan.id, ap_dung_tu=date(NAM, 1, 1), che_do="chia", ty_le=5))
         db.add(KhoanChiTieuNgay(department_id=dan.id, ap_dung_tu=date(NAM, 1, 1), so_tien=600_000))
@@ -38,9 +41,10 @@ def nen(client):
         db.close()
 
 
-def _svc(muc, cong_nhat=()):
-    """Đứng thay PayrollService: mức khoán + kỳ lương (chưa tạo kỳ) + mốc lương (cờ ăn công nhật)."""
-    sal = {e.id: SimpleNamespace(an_cong_nhat=True) for e in cong_nhat}
+def _svc(muc, cach_tra=None):
+    """Đứng thay PayrollService: mức khoán + kỳ lương (chưa tạo kỳ) + mốc lương. `cach_tra` =
+    {nhân viên: an_cong_nhat} — True/False HCNS chọn tay, None = theo trạng thái."""
+    sal = {e.id: SimpleNamespace(an_cong_nhat=v) for e, v in (cach_tra or {}).items()}
     return SimpleNamespace(muc_khoan=lambda y, m: muc,
                            payroll=SimpleNamespace(get_period_by_ym=lambda y, m: None,
                                                    latest_salaries_map=lambda on: sal))
@@ -90,13 +94,27 @@ def test_XEM_quy_chia_nguoi_va_doi_chieu(nen):
 def test_XEM_cong_nhat_dung_trong_ty_le_chia_nhung_khong_huong(nen):
     """Thảo ăn công nhật: sổ vẫn chia phần cho Thảo (Trang không ăn thêm), lương khoán của tổ bớt
     đúng phần đó và dòng đối chiếu nói ra."""
-    ra = xem(nen.db, _svc(nen.muc, cong_nhat=[nen.b]), NAM, THANG, nen.dan.id, None)
+    ra = xem(nen.db, _svc(nen.muc, {nen.b: True}), NAM, THANG, nen.dan.id, None)
     hang = {h["emp_id"]: h for h in ra["nguoi"]}
     assert hang[nen.b.id]["cong_nhat"] is True and hang[nen.b.id]["san_luong"] == 142_500
     assert hang[nen.a.id]["luong_khoan"] == 812_500, "phần công nhật không dồn sang người khác"
     dc = ra["doi_chieu"]
     assert dc["cong_nhat"] == 142_500
     assert dc["quy"] - dc["tang_ca"] - dc["cong_nhat"] + dc["o_to_khac"] == dc["luong_khoan"] == 1_357_500
+
+
+@pytest.mark.parametrize("cach_tra, cong_nhat", [(None, True), (False, False)])
+def test_XEM_thu_viec_mac_dinh_cong_nhat_tru_khi_chon_luong_khoan(nen, cach_tra, cong_nhat):
+    """Thử việc không còn luật riêng (chủ 22/10/2026): mốc chưa chọn ⇒ công nhật; HCNS chọn Lương
+    khoán ⇒ ăn khoán như người chính thức."""
+    nen.b.status = STATUS_PROBATION
+    nen.db.commit()
+    ra = xem(nen.db, _svc(nen.muc, {nen.b: cach_tra}), NAM, THANG, nen.dan.id, None)
+    hang = {h["emp_id"]: h for h in ra["nguoi"]}
+    assert hang[nen.b.id]["thu_viec"] is True
+    assert hang[nen.b.id]["cong_nhat"] is cong_nhat
+    assert ra["doi_chieu"]["cong_nhat"] == (142_500 if cong_nhat else 0)
+    assert ra["doi_chieu"]["luong_khoan"] == (1_357_500 if cong_nhat else 1_500_000)
 
 
 def test_XEM_pham_vi_thieu_nguoi_la_cam(nen):

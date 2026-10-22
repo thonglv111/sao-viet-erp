@@ -25,7 +25,7 @@ const data: KhoanTheoTo = {
       san_luong: 475_000, dung_may: 0, tang_ca: 100_000, to_truong: 70_000, o_to_khac: 0, cong_nhat: false, luong_khoan: 545_000,
       thu_viec: false, phan_bo_bu_lo: 400_000, cong: 1, chuan_cong: 26, an: "khoan", luong_chinh: 545_000 },
   ],
-  doi_chieu: { quy: 1_600_000, tang_ca: 200_000, to_truong_thuong: 0, thu_viec: 0, cong_nhat: 0, nguoi_to_khac: 0,
+  doi_chieu: { quy: 1_600_000, tang_ca: 200_000, to_truong_thuong: 0, cong_nhat: 0, nguoi_to_khac: 0,
     o_to_khac: 0, luong_khoan: 545_000, bu_lo: 0, luong_chinh: 545_000 },
   so: [lan(11, "2026-10-05", 1_000_000, [ng(1, "Phan Văn Quí", 475_000), ng(2, "Mai Bảo Trang", 475_000)], 50_000),
        lan(12, "2026-10-06", 400_000, [ng(2, "Mai Bảo Trang", 380_000)], 20_000)],

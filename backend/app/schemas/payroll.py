@@ -1029,10 +1029,10 @@ class KttNguoiOut(BaseModel):
     tang_ca: int = 0
     to_truong: int = 0
     o_to_khac: int = 0
-    # Tích "ăn công nhật" ở mốc lương: đứng trong tỷ lệ chia, không hưởng tiền khoán / tăng ca khoán.
+    # Ăn công nhật (`an_cong_nhat_hieu_luc`): đứng trong tỷ lệ chia, không hưởng khoán / tăng ca khoán.
     cong_nhat: bool = False
     luong_khoan: int | None = None
-    thu_viec: bool | None = None
+    thu_viec: bool = False
     phan_bo_bu_lo: int | None = None
     cong: float | None = None
     chuan_cong: float | None = None
@@ -1059,7 +1059,6 @@ class KttDoiChieuOut(BaseModel):
     quy: int = 0
     tang_ca: int = 0
     to_truong_thuong: int = 0
-    thu_viec: int = 0
     cong_nhat: int = 0
     nguoi_to_khac: int = 0
     o_to_khac: int = 0
