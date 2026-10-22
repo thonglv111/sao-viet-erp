@@ -254,7 +254,7 @@ def test_PHEP_CO_LUONG_la_mot_cong_cua_ve_thoi_gian(client):
         db.close()
 
 
-def test_THU_VIEC_khoi_SX_luon_an_ve_thoi_gian_co_tang_ca(client):
+def test_THU_VIEC_khoi_SX_mac_dinh_cong_nhat_co_tang_ca_theo_gio(client):
     client
     db = SessionLocal()
     try:
@@ -384,6 +384,7 @@ def test_TINH_LAI_khoi_SX_lam_NGUYEN_NGAY_chu_nhat_van_bang_to_thuong(client):
     nguoi = {}
     for vai, to in (("thuong", None), ("sx", to_sx)):
         eid = _nv(client, h, ten=f"NV CN {vai}")
+        _chinh_thuc(client, h, eid)      # thử việc mặc định công nhật (22/10/2026)
         if to is not None:
             _chuyen_to(eid, to)
         _ca_hanh_chinh(client, h, eid)

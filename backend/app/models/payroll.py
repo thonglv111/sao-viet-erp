@@ -285,7 +285,9 @@ class EmployeeSalary(Base):
     # Cờ "ăn công nhật" (chủ chốt 22/10/2026): người ở tổ khối Sản xuất / Giao hàng KHÔNG tính 2 lương
     # — lương theo công + tăng ca theo giờ như tổ thường. Vẫn được tick vào lần ghi và đứng trong tỷ
     # lệ chia, nhưng phần tiền khoán / tăng ca khoán / km của họ về 0 (không dồn sang người khác).
-    an_cong_nhat: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=sa_false())
+    # NULL = chưa chọn ⇒ theo trạng thái: thử việc = công nhật, chính thức = lương khoán
+    # (`an_cong_nhat_hieu_luc`). True / False = HCNS chọn tay ở Thiết lập lương.
+    an_cong_nhat: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     # Có áp GIẢM TRỪ BẢN THÂN khi tính TNCN không (chủ 2026-07-27). Người làm 2 nơi chỉ được đăng ký
     # giảm trừ bản thân ở MỘT nơi — bỏ tích ở nơi còn lại. Mặc định BẬT (đại đa số chỉ làm một nơi;
     # tắt là ngoại lệ). Giảm trừ NGƯỜI PHỤ THUỘC không đụng cờ này (theo `employees.dependents_count`).

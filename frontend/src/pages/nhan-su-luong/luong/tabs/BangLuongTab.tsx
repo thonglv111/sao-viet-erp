@@ -1007,14 +1007,9 @@ export function BangLuongTab({
                           className="lg-num"
                           title={
                             [
-                              // THỬ VIỆC ở tổ khoán KHÔNG đem so với sản lượng (chủ chốt 16/09/2026,
-                              // PRD §00.9) ⇒ câu "lấy số lớn hơn" bên dưới sai với họ: hai cột khoán
-                              // của dòng này luôn 0, nói "khoán 0 → lấy bù lỗ" là kế toán tưởng tổ
-                              // chưa nhập sản lượng.
-                              l.bu_lo_theo_cong != null && l.is_probation
-                                ? `Thử việc — trả theo BÙ LỖ, KHÔNG trả theo sản lượng: bù lỗ theo công ${money(l.bu_lo_theo_cong)} (mức nền đã nhân % thử việc, phụ cấp đủ 100%). Sản lượng / km kỳ này vẫn được ghi nhận bên Sản xuất, chỉ không trả tiền theo.`
-                                : "",
-                              l.bu_lo_theo_cong != null && !l.is_probation
+                              // Thử việc không còn luật riêng (22/10/2026): mặc định công nhật nên
+                              // không qua phép so; HCNS chọn Lương khoán thì so như người chính thức.
+                              l.bu_lo_theo_cong != null
                                 ? `Tính 2 lương — lương thời gian ${money(l.ve_thoi_gian ?? l.bu_lo_theo_cong)} (theo công ${money(l.bu_lo_theo_cong)}${l.la_giao_hang ? " + tăng ca theo giờ" : ""}) so với lương khoán ${money((l.khoan ?? 0) + (l.khoan_km ?? 0))} (${l.la_giao_hang ? "km" : "sản lượng"}) → ${l.lay_bu_lo ? "ăn lương thời gian, ô này là phần bù thêm" : l.bu_lo_theo_cong || l.khoan || l.khoan_km ? "ăn lương khoán" : "chưa có ngày đi làm để so"}${(l.tang_ca_khoan ?? 0) ? `; tăng ca khoán ${money(l.tang_ca_khoan)} cộng ngoài phép so` : ""}`
                                 : "",
                               !l.lay_bu_lo && (l.special_cong ?? 0) > 0

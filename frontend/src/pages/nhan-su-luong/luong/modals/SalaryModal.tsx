@@ -29,6 +29,19 @@ import { EmptyRow, EmptyState } from "../../../../components/EmptyState";
 import type { CompRow } from "../shared/types";
 import { errText, fmtYmd, money, todayYmd } from "../shared/helpers";
 
+const CACH_TRA = [
+  {
+    ten: "Lương khoán",
+    cong_nhat: false,
+    mo: "So lương theo công với tiền khoán, lấy bên cao hơn.",
+  },
+  {
+    ten: "Công nhật",
+    cong_nhat: true,
+    mo: "Lương theo công, tăng ca theo giờ. Vẫn được tick vào lần ghi nhưng không nhận tiền khoán.",
+  },
+] as const;
+
 export function SalaryModal({
   token,
   emp,
@@ -82,7 +95,9 @@ export function SalaryModal({
   // Insurance & Union flags
   const [insuranceElsewhere, setInsuranceElsewhere] = useState(false);
   const [unionMember, setUnionMember] = useState(false);
-  const [anCongNhat, setAnCongNhat] = useState(false);
+  // Cách trả lương: null = chưa chọn ⇒ theo trạng thái (thử việc = công nhật), máy chủ cũng hiểu vậy.
+  const [anCongNhat, setAnCongNhat] = useState<boolean | null>(null);
+  const congNhatHienThi = anCongNhat ?? !!preview?.thu_viec;
   const [applySelfDeduction] = useState(true);
   const [params, setParams] = useState<PayrollParams | null>(null);
 
@@ -118,7 +133,7 @@ export function SalaryModal({
       );
       setInsuranceElsewhere(!!latest.insurance_elsewhere);
       setUnionMember(!!latest.union_member);
-      setAnCongNhat(!!latest.an_cong_nhat);
+      setAnCongNhat(latest.an_cong_nhat ?? null);
 
       const vt = latest.luong_vi_tri ?? 0;
       const tn = latest.luong_trach_nhiem ?? 0;
@@ -674,8 +689,10 @@ export function SalaryModal({
                 </div>
 
                 {/* Chỉ người ở tổ tính hai lương mới phải chọn; đã chọn công nhật mà
-                    chuyển sang tổ thường thì vẫn hiện để còn bỏ được. */}
-                {(preview?.tinh_hai_luong || anCongNhat) && (
+                    chuyển sang tổ thường thì vẫn hiện để còn bỏ được. Chưa chọn thì
+                    theo trạng thái: thử việc = công nhật. Bắt cả onClick để bấm vào ô
+                    đang sáng theo mặc định cũng thành chọn tay. */}
+                {(preview?.tinh_hai_luong || anCongNhat === true) && (
                   <div
                     className="lg-cach-tra"
                     role="radiogroup"
@@ -683,40 +700,31 @@ export function SalaryModal({
                   >
                     <span className="ns-field__label">Cách trả lương</span>
                     <div className="lg-cach-tra__ds">
-                      <label
-                        className={`lg-cach-tra__o${!anCongNhat ? " is-chon" : ""}`}
-                      >
-                        <input
-                          type="radio"
-                          name="cach-tra-luong"
-                          checked={!anCongNhat}
-                          onChange={() => setAnCongNhat(false)}
-                        />
-                        <span className="lg-cach-tra__chu">
-                          <span>Lương khoán</span>
-                          <span className="cc-card__hint">
-                            So lương theo công với tiền khoán, lấy bên cao hơn.
+                      {CACH_TRA.map((c) => (
+                        <label
+                          key={c.ten}
+                          className={`lg-cach-tra__o${congNhatHienThi === c.cong_nhat ? " is-chon" : ""}`}
+                        >
+                          <input
+                            type="radio"
+                            name="cach-tra-luong"
+                            checked={congNhatHienThi === c.cong_nhat}
+                            onChange={() => setAnCongNhat(c.cong_nhat)}
+                            onClick={() => setAnCongNhat(c.cong_nhat)}
+                          />
+                          <span className="lg-cach-tra__chu">
+                            <span>{c.ten}</span>
+                            <span className="cc-card__hint">{c.mo}</span>
                           </span>
-                        </span>
-                      </label>
-                      <label
-                        className={`lg-cach-tra__o${anCongNhat ? " is-chon" : ""}`}
-                      >
-                        <input
-                          type="radio"
-                          name="cach-tra-luong"
-                          checked={anCongNhat}
-                          onChange={() => setAnCongNhat(true)}
-                        />
-                        <span className="lg-cach-tra__chu">
-                          <span>Công nhật</span>
-                          <span className="cc-card__hint">
-                            Lương theo công, tăng ca theo giờ. Vẫn được tick
-                            vào lần ghi nhưng không nhận tiền khoán.
-                          </span>
-                        </span>
-                      </label>
+                        </label>
+                      ))}
                     </div>
+                    {anCongNhat === null && preview?.thu_viec && (
+                      <span className="cc-card__hint">
+                        Đang thử việc nên mặc định Công nhật. Hết thử việc tự về
+                        Lương khoán, trừ khi bấm chọn ở đây.
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

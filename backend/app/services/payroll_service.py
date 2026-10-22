@@ -68,6 +68,16 @@ def la_thu_viec(employee, status: str | None) -> bool:
             and getattr(employee, "resign_date", None) is not None
             and employee.resign_date <= employee.probation_end_date)
 
+def an_cong_nhat_hieu_luc(salary, thu_viec: bool) -> bool:
+    """Kỳ này người này ăn công nhật không — cờ "Cách trả lương" ở hồ sơ lương (chủ chốt 22/10/2026).
+
+    Mốc lương chưa chọn (None) thì theo trạng thái: thử việc = công nhật, chính thức = lương khoán.
+    HCNS chọn tay ở Thiết lập lương thì theo đúng chỗ chọn, kể cả người thử việc chọn Lương khoán.
+    Một luật cho `_compute`, "Sửa 1 ô" và màn Khoán theo tổ."""
+    v = getattr(salary, "an_cong_nhat", None) if salary is not None else None
+    return bool(thu_viec) if v is None else bool(v)
+
+
 class PayrollError(Exception):
     """Base cho lỗi nghiệp vụ lương."""
 
@@ -954,7 +964,7 @@ class PayrollService:
                    chuyen_can=0, luong_vi_tri=0, luong_trach_nhiem=0,
                    phu_cap_ca=0, phu_cap_tham_nien=0, insurance_elsewhere=False,
                    union_member=False, luong_dot_1=0, apply_self_deduction=True,
-                   commission_pct=0, an_cong_nhat=False):
+                   commission_pct=0, an_cong_nhat=None):
         """Khai báo/điều chỉnh lương = LUÔN thêm MỘT bản ghi mới (không ghi đè), kể cả nhiều lần
         trong ngày → giữ NHẬT KÝ điều chỉnh đầy đủ (ai · lúc nào · số nào). "Hiện hành" cho 1 kỳ =
         bản `effective_from` lớn nhất ≤ kỳ, hòa ngày thì `id` lớn hơn (bản lưu SAU) thắng — xem
@@ -988,7 +998,7 @@ class PayrollService:
             phu_cap_ca=phu_cap_ca or 0, phu_cap_tham_nien=phu_cap_tham_nien or 0,
             insurance_elsewhere=bool(insurance_elsewhere),
             union_member=bool(union_member),
-            an_cong_nhat=bool(an_cong_nhat),
+            an_cong_nhat=None if an_cong_nhat is None else bool(an_cong_nhat),
             apply_self_deduction=bool(apply_self_deduction),
             luong_dot_1=float(luong_dot_1 or 0),
             # CHỈ KHAI: `_compute` không đọc cột này — khai bao nhiêu cũng không đổi tiền.
@@ -1041,6 +1051,7 @@ class PayrollService:
             "luong_trach_nhiem": float(getattr(salary, "luong_trach_nhiem", 0) or 0) if salary else 0.0,
             # Tổ tính hai lương (khối sản xuất, Giao hàng) — chỉ người ở đây mới cần ô "ăn công nhật".
             "tinh_hai_luong": self._tinh_hai_luong(emp.department_id),
+            "thu_viec": la_thu_viec(emp, emp.status),
         }
 
     # --- advances (tạm ứng) -------------------------------------------------
@@ -1629,8 +1640,10 @@ class PayrollService:
         # ĂN CÔNG NHẬT (cờ ở hồ sơ lương, chủ chốt 22/10/2026): người ở tổ khối SX / Giao hàng mà
         # thuần công nhật thì KHÔNG tính 2 lương — lương theo công + tăng ca theo giờ như tổ thường.
         # Họ vẫn được tick vào lần ghi, `khoan_ky` vẫn chia phần cho họ theo lương ca máy (để phần
-        # người khác không phình ra), nhưng phần đó KHÔNG trả và không dồn cho ai — như thử việc.
-        an_cong_nhat = bool(getattr(salary, "an_cong_nhat", False)) if salary is not None else False
+        # người khác không phình ra), nhưng phần đó KHÔNG trả và không dồn cho ai.
+        # THỬ VIỆC không còn luật riêng: mốc lương chưa chọn thì người thử việc mặc định công nhật
+        # (`an_cong_nhat_hieu_luc`), HCNS chọn Lương khoán thì họ so hai lương như người chính thức.
+        an_cong_nhat = an_cong_nhat_hieu_luc(salary, is_probation)
         if an_cong_nhat:
             bu_lo_mode = False
             che_do_khoan = False
@@ -1641,14 +1654,14 @@ class PayrollService:
         # KHỐI SẢN XUẤT CHỈ CÓ TĂNG CA KHOÁN (chủ chốt 22/10/2026, khớp sổ lương T08, ĐẢO chốt
         # 20/10/2026): giờ tăng ca chấm công KHÔNG ra tiền — không tiền giờ tăng ca, không phụ cấp tăng
         # ca đêm, kể cả tháng không có lần ghi nào (vế khoán = 0). Người THUẦN công nhật thì tích cờ
-        # `an_cong_nhat` ở hồ sơ lương ⇒ ra khỏi nhánh này (xem trên). Tăng ca khoán cộng SAU phép so (xem
-        # dưới). Người THỬ VIỆC giữ luật cũ (tăng ca khoán = 0, trả đủ tăng ca theo giờ) — chủ chưa chốt.
+        # `an_cong_nhat` ở hồ sơ lương ⇒ ra khỏi nhánh này (xem trên); thử việc mặc định công nhật.
+        # Tăng ca khoán cộng SAU phép so (xem dưới).
         # TỔ GIAO HÀNG giữ chốt 16/09/2026: vế thời gian gồm tiền giờ tăng ca + phụ cấp tăng ca đêm.
         # Mọi tổ đều có tăng ca — công tắc `tang_ca` theo tổ đã gỡ. Phải biết số này TRƯỚC phép so;
         # khối tăng ca bên dưới dùng lại qua `gio_tc_tra` / `tc_dem_tra`, không tính hai lần.
         tang_ca_bat = True
         la_gh_tinh = la_gh if chi_an_km is None else bool(chi_an_km)
-        chi_tang_ca_khoan = bool(bu_lo_mode and not la_gh_tinh and not is_probation)
+        chi_tang_ca_khoan = bool(bu_lo_mode and not la_gh_tinh)
         tinh_tc_gio = bu_lo_mode and not chi_tang_ca_khoan
         gio_tc_du = (_tien_gio_tang_ca(
             daily_rate=daily_rate, ot_minutes=ot_minutes, ot_restday_minutes=ot_restday_minutes,
@@ -1684,48 +1697,25 @@ class PayrollService:
                              - (min(special_cong, cong_theo_luong) if to_in_mode else 0.0))
             bu_lo_theo_cong = (daily_rate + don_gia_phu_cap) * cong_bu_lo
             ve_thoi_gian = bu_lo_theo_cong + gio_tc_du + tc_dem_du
-            if is_probation:
-                # THỬ VIỆC ở tổ khoán / tổ in / Giao hàng: KHÔNG đem so với sản lượng nữa — LUÔN trả
-                # bù lỗ theo công (chủ chốt 16/09/2026: *"nhân viên thử việc bên khoán ấy nó sẽ ăn
-                # theo lương bù lỗ, và mức tiền mình đã làm như phần hành chính ấy là số % của lương
-                # ấy"* — PRD §00.9). Phần nền đã ×`ratio` qua `daily_rate`, phụ cấp giữ 100%: y hệt
-                # cách khối hành chính đang ăn, đúng vế thứ hai của câu chốt.
-                # Tiền khoán / khoán km KHÔNG cộng vào lương — sản lượng vẫn ghi nhận bên phân hệ Sản
-                # xuất để theo dõi năng suất. Giữ `max(0, bù lỗ − khoán)` như người chính thức thì
-                # tháng sản lượng cao hơn sẽ thành "lấy khoán" và ăn trọn 100% tiền khoán, tức % thử
-                # việc mất tác dụng đúng vào tháng làm ra nhiều tiền nhất.
-                khoan = 0.0
-                khoan_km = 0.0
-                tang_ca_khoan = 0.0
-                # Không ăn khoán thì không gánh TRỪ LỖI khoán: `khoan_map` đã trừ lỗi vào tiền khoán
-                # (số vừa bị bỏ), để `khoan_defect` lại là bóp trần khấu trừ 30% vì một khoản họ
-                # không hề chịu.
-                khoan_defect = 0.0
-                luong_cong = bu_lo_theo_cong
-                lay_bu_lo = True
-                # Vế thời gian của người thử việc GỒM tiền tăng ca — không đem so với ai nên trả đủ.
-                gio_tc_tra = gio_tc_du
-                tc_dem_tra = tc_dem_du
+            # HAI VẾ, so MỘT lần cho cả tháng (chủ chốt 22/10/2026, đảo 20/10/2026):
+            #   vế thời gian = bù lỗ theo công (khối SX: CHỈ số này; Giao hàng: + tiền giờ tăng ca
+            #                  + phụ cấp tăng ca đêm);
+            #   vế khoán     = tiền sản lượng (gồm phần tổ trưởng) + khoán km.
+            # TĂNG CA KHOÁN KHÔNG vào phép so: cộng thẳng vào lương sau đó, ăn vế nào cũng có (sổ
+            # T08: cột P "Ngoài giờ" cộng riêng). Ăn vế thời gian ⇒ tiền khoán vẫn đứng ở cột
+            # `khoan`, `luong_cong` là phần bù thêm cho đủ vế thời gian; Giao hàng trả đủ tăng ca
+            # theo giờ trước để phiếu lương giữ được dòng "Tăng ca theo giờ".
+            ve_khoan = float(khoan) + float(khoan_km)
+            lay_bu_lo = _round(ve_thoi_gian - ve_khoan) > 0
+            if lay_bu_lo:
+                con = max(0.0, ve_thoi_gian - float(khoan) - float(khoan_km))
+                gio_tc_tra = min(gio_tc_du, con)
+                tc_dem_tra = min(tc_dem_du, con - gio_tc_tra)
+                luong_cong = max(0.0, con - gio_tc_tra - tc_dem_tra)
             else:
-                # HAI VẾ, so MỘT lần cho cả tháng (chủ chốt 22/10/2026, đảo 20/10/2026):
-                #   vế thời gian = bù lỗ theo công (khối SX: CHỈ số này; Giao hàng: + tiền giờ tăng ca
-                #                  + phụ cấp tăng ca đêm);
-                #   vế khoán     = tiền sản lượng (gồm phần tổ trưởng) + khoán km.
-                # TĂNG CA KHOÁN KHÔNG vào phép so: cộng thẳng vào lương sau đó, ăn vế nào cũng có (sổ
-                # T08: cột P "Ngoài giờ" cộng riêng). Ăn vế thời gian ⇒ tiền khoán vẫn đứng ở cột
-                # `khoan`, `luong_cong` là phần bù thêm cho đủ vế thời gian; Giao hàng trả đủ tăng ca
-                # theo giờ trước để phiếu lương giữ được dòng "Tăng ca theo giờ".
-                ve_khoan = float(khoan) + float(khoan_km)
-                lay_bu_lo = _round(ve_thoi_gian - ve_khoan) > 0
-                if lay_bu_lo:
-                    con = max(0.0, ve_thoi_gian - float(khoan) - float(khoan_km))
-                    gio_tc_tra = min(gio_tc_du, con)
-                    tc_dem_tra = min(tc_dem_du, con - gio_tc_tra)
-                    luong_cong = max(0.0, con - gio_tc_tra - tc_dem_tra)
-                else:
-                    gio_tc_tra = 0.0
-                    tc_dem_tra = 0.0
-                    luong_cong = 0.0
+                gio_tc_tra = 0.0
+                tc_dem_tra = 0.0
+                luong_cong = 0.0
             # "Trong đó: lương ngày phép" là phần của LƯƠNG THEO CÔNG — phần bù thêm không tách được
             # ngày phép ra nữa, in lên phiếu là nói sai. Người khoán cũng không còn công phép có lương.
             luong_ngay_phep = 0.0
@@ -2828,11 +2818,9 @@ class PayrollService:
                       + float(ln.phat_bien_ban) + float(ln.phat_5s_dong_phuc))
         phat_eff = _capped_penalty(
             gross_pre=gross_pre, bhxh=float(ln.bhxh), pit=float(ln.pit), phat_total=phat_total,
-            # Thử việc ăn bù lỗ (16/09/2026) ⇒ dòng không có tiền khoán, nên cũng không có trừ
-            # lỗi khoán để bóp trần 30% — phải khớp `_compute`, nếu không "Sửa 1 ô" ra số khác.
-            # Người ăn công nhật (22/10/2026) cũng không ăn khoán ⇒ không gánh trừ lỗi khoán.
-            khoan_defect=(0.0 if ((ln.is_probation and ln.lay_bu_lo)
-                                  or bool(getattr(sal_cd, "an_cong_nhat", False)))
+            # Người ăn công nhật (22/10/2026, thử việc mặc định công nhật) không ăn khoán ⇒ không
+            # gánh trừ lỗi khoán — phải khớp `_compute`, nếu không "Sửa 1 ô" ra số khác.
+            khoan_defect=(0.0 if an_cong_nhat_hieu_luc(sal_cd, ln.is_probation)
                           else self._khoan_defect_for(period, ln.employee_id)),
             # PHẢI truyền y hệt `_compute`, nếu không "Sửa 1 ô" và "Tính lại" ra hai số khác nhau.
             cap_pct=getattr(self.get_params(), "phat_cap_pct", 0.30),

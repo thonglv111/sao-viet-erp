@@ -141,11 +141,7 @@ export function PayslipCard({
     // Tháng LẤY KHOÁN thì ngược lại: in dòng khoán / km, không in dòng bù thêm (bằng 0).
     ...(l.lay_bu_lo
       ? ([[
-          // Thử việc ở tổ khoán ăn bù lỗ, không ăn sản lượng (chủ chốt 16/09/2026) — ghi ngay trên
-          // dòng để người nhận phiếu biết vì sao tháng làm nhiều hàng mà tiền vẫn là mức bù lỗ.
-          l.is_probation
-            ? "Lương bù lỗ theo công (thử việc — không trả theo sản lượng)"
-            : "Lương bù lỗ theo công",
+          "Lương bù lỗ theo công",
           l.khoan + (l.khoan_km ?? 0) + l.luong_cong,
         ]] as [string, number][])
       : ([
