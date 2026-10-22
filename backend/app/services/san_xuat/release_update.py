@@ -42,6 +42,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from ...models.san_xuat import (
+    BUOC_MAY,
     CV_PHAT_HANH,
     NHOM_DONG,
     GOI_DA_THU_HOI,
@@ -387,6 +388,17 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         # Việc GIA CÔNG NGOÀI không vào bàn tổ nào, không máy — giữ `may_id=None`, đừng gán đè.
         if may_id is not None and cv.gia_cong_ngoai_id is None:
             cv.may_id = may_id
+        # TỔ + MÁY của BƯỚC KẾ HOẠCH (spec máy thuộc tổ §4.8): lệnh xếp ở bàn cấp lệnh không có dòng
+        # lịch theo công đoạn nên `may_id` ở trên luôn None, còn tổ thì trước đây không dòng nào
+        # chép — người kế hoạch đổi bước sang tổ khác, bấm cập nhật mà bàn tổ y nguyên. Dòng lịch
+        # có máy (bàn xếp theo công đoạn cũ) vẫn thắng máy của bước. Việc đổi tổ rời bàn cũ sang
+        # bàn mới; `lsx_changed` của router nhích mọi bàn tổ nên cả hai bàn tự nạp.
+        buoc = cd_cua[cv.id]
+        if buoc is not None and cv.gia_cong_ngoai_id is None and cv.loai_buoc == BUOC_MAY:
+            if buoc.department_id is not None:
+                cv.department_id = buoc.department_id
+            if may_id is None:
+                cv.may_id = buoc.may_id
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish
         cv.phien_ban_so = new_ver
