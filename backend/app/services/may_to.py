@@ -59,10 +59,10 @@ def to_cho_may(db: Session, cd: CongDoan | None, may_id: int, uu_tien: int | Non
     return next((d for d in tick if d in tos), None)
 
 
-def loi_cap(db: Session, cd: CongDoan | None, department_id: int | None,
-            may_id: int | None) -> str | None:
-    """Câu lỗi khi cặp (tổ, máy) không hợp lệ; None = hợp lệ. Tổ hoặc máy trống, hoặc công đoạn
-    không ràng buộc tổ ⇒ hợp lệ (bản nháp chưa lập kế hoạch xong thì phát hành mới chặn)."""
+def cap_lech(db: Session, cd: CongDoan | None, department_id: int | None,
+             may_id: int | None) -> str | None:
+    """Câu NGẮN "Máy X không thuộc <tổ>" khi cặp (tổ, máy) không hợp lệ; None = hợp lệ. Tổ hoặc máy
+    trống, hoặc công đoạn không ràng buộc tổ ⇒ hợp lệ. Dùng cho cảnh báo (băng danh mục đổi)."""
     if not may_id or not department_id or not rang_buoc_to(cd):
         return None
     trong_cd = {int(r.may_id) for r in cd.may_lam_duoc}
@@ -71,9 +71,22 @@ def loi_cap(db: Session, cd: CongDoan | None, department_id: int | None,
         return None
     repo = MayToRepository(db)
     may = repo.may([may_id]).get(int(may_id))
-    ten = repo.ten_to([department_id]).get(int(department_id), f"tổ #{department_id}")
     ma = may.ma if may is not None else f"#{may_id}"
-    return f"Máy {ma} không thuộc {ten}. Chọn máy của {ten} hoặc đổi tổ."
+    return f"Máy {ma} không thuộc {_ten_to(repo, department_id)}"
+
+
+def _ten_to(repo: MayToRepository, department_id: int) -> str:
+    return repo.ten_to([department_id]).get(int(department_id), f"tổ #{department_id}")
+
+
+def loi_cap(db: Session, cd: CongDoan | None, department_id: int | None,
+            may_id: int | None) -> str | None:
+    """Câu LỖI khi cặp (tổ, máy) không hợp lệ — `cap_lech` kèm cách sửa; None = hợp lệ."""
+    lech = cap_lech(db, cd, department_id, may_id)
+    if lech is None:
+        return None
+    ten = _ten_to(MayToRepository(db), department_id)
+    return f"{lech}. Chọn máy của {ten} hoặc đổi tổ."
 
 
 def dong_bo_cong_doan_may(db: Session, *, cong_doan_ids: Iterable[int] | None = None,

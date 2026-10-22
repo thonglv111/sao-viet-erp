@@ -383,6 +383,18 @@ class LsxRepository:
                 lsx.cong_doans.append(row)
         self.db.flush()
 
+    def buoc_da_bat_dau(self, step_ids: set[int]) -> set[int]:
+        """Bước lệnh có công việc ĐÃ BẮT ĐẦU ở bàn tổ (đang chạy / tạm dừng / xong)."""
+        from ..models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
+
+        if not step_ids:
+            return set()
+        return {int(i) for i in self.db.execute(
+            select(SanXuatCongViec.lsx_cong_doan_id).where(
+                SanXuatCongViec.lsx_cong_doan_id.in_(step_ids),
+                SanXuatCongViec.trang_thai.in_((CV_DANG_CHAY, CV_TAM_DUNG, CV_HOAN_THANH)),
+            )).scalars()}
+
     def phu_thuoc_toi_buoc(self, step_ids: set[int]) -> list[LsxCongDoanPhuThuoc]:
         if not step_ids:
             return []

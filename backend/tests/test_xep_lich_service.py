@@ -81,6 +81,18 @@ def _may_in(db) -> MayThietBi:
     return may
 
 
+def _may_vao_cong_doan(db, may, cd) -> None:
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0434`): máy vào MỌI tổ của công đoạn rồi
+    đồng bộ bảng máy — đúng như khai "Tổ đứng máy" ở danh mục Thiết bị. Gọi lại không đụng gì."""
+    from app.models.may_thiet_bi import MayTo
+    from app.services.may_to import dong_bo_cong_doan_may
+
+    for to_id in cd.department_ids or []:
+        if db.get(MayTo, (may.id, to_id)) is None:
+            db.add(MayTo(may_id=may.id, department_id=to_id))
+    dong_bo_cong_doan_may(db, cong_doan_ids=[cd.id], may_ids=[may.id])
+
+
 def _quote_from_ptg(db, customer, ptg: PhieuTinhGia) -> Quote:
     # `quote_number` UNIQUE — đánh số tự tăng để gọi HÀM NÀY NHIỀU LẦN trong cùng một test không
     # đụng constraint (xem `_ptg_2_in`).
@@ -144,6 +156,7 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000) -> PhieuTinhGia:
     # mất luôn đường tính thời lượng theo máy (`to_gio`).
     cd_in.don_vi_vao = cd_in.don_vi_ra = "to"
     db.flush()
+    _may_vao_cong_doan(db, may, cd_in)
 
     def _sp(thu_tu, ten, sl, dai, rong):
         sp = PhieuThanhPhan(

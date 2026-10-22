@@ -73,6 +73,18 @@ def _may_in(db) -> MayThietBi:
     return may
 
 
+def _may_vao_cong_doan(db, may, cd) -> None:
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0434`): máy vào tổ ĐẦU của công đoạn
+    rồi đồng bộ bảng máy — đúng như khai "Tổ đứng máy" ở danh mục Thiết bị."""
+    from app.models.may_thiet_bi import MayTo
+    from app.services.may_to import dong_bo_cong_doan_may
+
+    to_id = cd.department_ids[0]
+    if db.get(MayTo, (may.id, to_id)) is None:
+        db.add(MayTo(may_id=may.id, department_id=to_id))
+    dong_bo_cong_doan_may(db, cong_doan_ids=[cd.id], may_ids=[may.id])
+
+
 def _quote_from_ptg(db, customer, ptg: PhieuTinhGia) -> Quote:
     q = Quote(quote_number="BG-BGHEP", customer_id=customer.id, status=STATUS_ACCEPTED,
               phieu_tinh_gia_id=ptg.id)
@@ -185,6 +197,7 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = ()) -> 
     cd_in.don_vi_ra = cd_in.don_vi_ra or "to"
     cd_in.setup_time = 45
     db.flush()
+    _may_vao_cong_doan(db, may, cd_in)
 
     def _sp(thu_tu, ten, sl, dai, rong):
         sp = PhieuThanhPhan(
@@ -336,8 +349,10 @@ def test_san_sang_ok_va_sua_thanh_vien_ha_ve_nhap(db, orders, lsx_svc, bg_svc, a
     # Chưa gộp gì thì đây là 2 lệnh rời, không phải bài ghép → chặn sẵn sàng.
     assert "thieu_buoc_chung" in bg_svc.thieu_cua(bg_svc._get(bg.id))
     _gop_buoc_in(bg_svc, lsx_svc, bg, created, admin)
-    # Gộp rồi mà chưa gán tổ/máy cho lượt chung → vẫn chặn.
-    assert "thieu_ke_hoach_buoc_chung" in bg_svc.thieu_cua(bg_svc._get(bg.id))
+    # Gộp rồi thì lượt chung nhận máy chung của các bước, TỔ đi theo máy (mg `0434`) — đủ kế hoạch.
+    chung = bg_svc._buoc_chungs(bg_svc._get(bg.id))[0]
+    assert chung.may_id is not None and chung.department_id == _to_san_xuat(db).id
+    assert "thieu_ke_hoach_buoc_chung" not in bg_svc.thieu_cua(bg_svc._get(bg.id))
     _lap_ke_hoach_moi_buoc_chung(db, bg_svc, bg, admin)
     # `so_con_tren_to` khởi tạo từ `lsx.so_con` — số con khi lệnh còn đứng RIÊNG, tự tính như thể
     # được cả tờ. Ghép 2 lệnh cùng tờ mà giữ nguyên cả hai số đó là chồng diện tích → gate mới

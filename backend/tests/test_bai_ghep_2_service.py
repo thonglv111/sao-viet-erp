@@ -153,8 +153,15 @@ def test_gop_bg2_chi_ke_thua_nhan_dien_danh_muc_don_vi_va_thu_tu(
     assert (chung.don_vi_vao, chung.don_vi_ra, chung.thu_tu) == (
         mau.don_vi_vao, mau.don_vi_ra, mau.thu_tu,
     )
-    assert chung.department_id is None
-    assert chung.may_id is None
+    # Tổ/máy KHÔNG bê của lệnh mẫu (123/456): lượt chung nhận máy mặc định của công đoạn, tổ đi
+    # theo máy (máy thuộc tổ, mg `0434`).
+    from app.models.cong_doan import CongDoan
+    from app.services.may_to import to_cho_may
+
+    cd = db.get(CongDoan, mau.cong_doan_id)
+    assert chung.may_id == cd.may_lam_duoc[0].may_id
+    assert chung.department_id == to_cho_may(db, cd, chung.may_id, uu_tien=None)
+    assert (chung.department_id, chung.may_id) != (123, 456)
     assert chung.nha_cung_cap is None
     # Số giờ kế hoạch là số của TỪNG lệnh — lượt chung khai lại từ 0, không bê của lệnh mẫu.
     assert float(chung.so_gio_ke_hoach) == 0

@@ -55,6 +55,7 @@ from ..models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from ..models.quotation import QuoteVersion
 from ..models.user import User
 from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, LOAI_GIAY, GiayNguyen, VatTuInAn
+from .may_to import cap_lech, loi_cap
 from .ptg_giay_buoc import bang_giay, id_giay_cua_rows, loi_tran_giay
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from .gia_cong_ngoai import lan_can_hoi_xuat_giay, tom_tat_theo_lenh as tom_tat_gcn_theo_lenh
@@ -652,6 +653,29 @@ class LsxService:
         if may_phieu and int(may_phieu) in cho_phep:
             return int(may_phieu)
         return self.may_dau_con_dung(cho_phep)
+
+    def _to_va_may_mac_dinh(self, cd_obj, may_phieu: int | None,
+                            nhom: str | None) -> tuple[int | None, int | None]:
+        """(TỔ, MÁY) điền sẵn cho một bước máy — máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.6).
+
+        Bước IN có máy phiếu nằm trong máy của công đoạn ⇒ máy = máy phiếu, tổ đi theo máy (tổ mặc
+        định nếu máy thuộc nó, không thì tổ đầu có máy đó) — ca LSX26-0003: phiếu chọn IN-02 mà bước
+        ra đời với tổ 2 màu. Còn lại ⇒ tổ mặc định + máy mặc định CỦA TỔ ĐÓ. Công đoạn chưa tick tổ
+        nào ⇒ không ràng buộc, giữ `_may_mac_dinh`.
+        """
+        from .may_to import may_mac_dinh, rang_buoc_to, to_cho_may
+
+        if cd_obj is None:
+            return None, None
+        phieu = may_phieu if nhom == "print" else None
+        if not rang_buoc_to(cd_obj):
+            return cd_obj.to_mac_dinh_id, self._may_mac_dinh(cd_obj, phieu)
+        if phieu and int(phieu) in {int(m.may_id) for m in cd_obj.may_lam_duoc}:
+            to = to_cho_may(self.db, cd_obj, int(phieu), uu_tien=cd_obj.to_mac_dinh_id)
+            if to is not None:
+                return to, int(phieu)
+        to = cd_obj.to_mac_dinh_id
+        return to, may_mac_dinh(self.db, cd_obj, to)
 
     def may_dau_con_dung(self, may_ids: list[int]) -> int | None:
         """Máy CÒN DÙNG đầu tiên theo đúng thứ tự truyền vào — máy mặc định của công đoạn."""
@@ -1338,6 +1362,8 @@ class LsxService:
             "so_manh_xa": comp.get("so_manh_xa"),
         })
 
+        # Máy in của phiếu — cùng nguồn với `lsx.may_id` lúc tạo lệnh — để tổ của bước In đi theo máy.
+        may_phieu = quy_cach.get("may_id") or getattr(tp, "may_id", None)
         routing: list[dict] = []
         for i, row in enumerate(resolved.get("thanh_phams") or []):
             cd = row.get("cong_doan") or {}
@@ -1345,7 +1371,8 @@ class LsxService:
             if not cd and cd_id:
                 obj = self.db.get(CongDoan, cd_id)
                 if obj is not None:
-                    cd = {"nhom": obj.nhom, "ten": obj.ten, "department_id": obj.to_mac_dinh_id,
+                    cd = {"nhom": obj.nhom, "ten": obj.ten,
+                          "department_id": self._to_va_may_mac_dinh(obj, may_phieu, obj.nhom)[0],
                           "requires_tooling": obj.requires_tooling,
                           "tooling_type": obj.tooling_type,
                           "don_vi_vao": obj.don_vi_vao, "don_vi_ra": obj.don_vi_ra}
@@ -1354,7 +1381,8 @@ class LsxService:
                 if cd_id:
                     obj = self.db.get(CongDoan, cd_id)
                     if obj is not None:
-                        cd = {**cd, "department_id": obj.to_mac_dinh_id,
+                        cd = {**cd,
+                              "department_id": self._to_va_may_mac_dinh(obj, may_phieu, obj.nhom)[0],
                               "requires_tooling": obj.requires_tooling,
                               "tooling_type": obj.tooling_type,
                               "don_vi_vao": obj.don_vi_vao, "don_vi_ra": obj.don_vi_ra}
@@ -1500,10 +1528,11 @@ class LsxService:
         # thể đưa gợi ý ban đầu; sau đó kế hoạch đổi tự do trong drawer.
         loai_buoc = (LB_THUE_NGOAI if r.get("nha_cung_cap") else
                      r.get("loai_buoc") or LB_MAY)
-        # Máy của PHIẾU chỉ mang xuống bước IN (ô đó là "Máy in"); bước khác vẫn được điền khi công
-        # đoạn khai đúng một máy còn dùng — xem `_may_mac_dinh`.
-        may_id = (self._may_mac_dinh(cd_obj, lsx_may_id if nhom == "print" else None)
-                  if loai_buoc == LB_MAY else None)
+        # Máy của PHIẾU chỉ mang xuống bước IN (ô đó là "Máy in"); tổ đi theo máy — xem
+        # `_to_va_may_mac_dinh`. Bước không phải máy giữ tổ của routing, không máy.
+        dept, may_id = r.get("department_id"), None
+        if loai_buoc == LB_MAY and cd_obj is not None:
+            dept, may_id = self._to_va_may_mac_dinh(cd_obj, lsx_may_id, nhom)
 
         con = max(int(comp.get("con") or 1), 1)
 
@@ -1543,6 +1572,7 @@ class LsxService:
             # · keo đông. Là GIÁ TRỊ KHỞI ĐIỂM, kế hoạch sửa đè được ở drawer bước; kế thừa nghĩa là
             # mặc định, không phải read-only.
             "may_id": may_id,
+            "department_id": dept,
         }
 
     def _bung_lai_vat_tu(self, lsx: Lsx, buocs: list[LsxCongDoan]) -> None:
@@ -1705,7 +1735,6 @@ class LsxService:
                     cong_doan_id=r.get("cong_doan_id"),
                     ten=r.get("ten") or "Công đoạn",
                     nhom=r.get("nhom"),
-                    department_id=r.get("department_id"),
                     nha_cung_cap=r.get("nha_cung_cap"),
                     khuon_nguon=r.get("khuon_nguon"),
                     khuon_phi=r.get("khuon_phi") or 0,
@@ -1880,13 +1909,15 @@ class LsxService:
 
         dv_vao, dv_ra, he_so = _don_vi_theo_buoc(
             cd, cau=self._he_so_cau(lsx), tram=self._tram())
+        to_md, may_md = self._to_va_may_mac_dinh(cd, lsx.may_id, cd.nhom)
         return {
             "cong_doan_id": cd.id,
             "ten": cd.ten,
             "nhom": cd.nhom,
             # Công đoạn NHIỀU tổ (mg `0312`): tổ đầu là mặc định, kèm cả danh sách để client biết
             # ô chọn tổ của bước được chọn những tổ nào.
-            "department_id": cd.to_mac_dinh_id,
+            # Tổ đi theo máy phiếu ở bước In (spec máy thuộc tổ §4.6) — cùng luật tạo lệnh.
+            "department_id": to_md,
             "department_ids": cd.department_ids,
             "don_vi_vao": dv_vao,
             "don_vi_ra": dv_ra,
@@ -1909,7 +1940,7 @@ class LsxService:
             # ta đã chọn vẫn bất khả xâm phạm — đó là ranh giới mà docstring trên vẫn giữ. Có nó vì
             # cách đo giờ và tốc độ đều treo ở cặp (công đoạn × máy): để trống thì bảng thời gian
             # của bước ra "—" cho tới khi có người vào chọn máy.
-            "may_id_goi_y": self._may_mac_dinh(cd, None),
+            "may_id_goi_y": may_md,
         }
 
     def _he_so_cau(self, lsx: Lsx, *, so_con: int | None = None) -> dict:
@@ -3114,6 +3145,9 @@ class LsxService:
             if cd.may_id and may_ids and cd.may_id not in may_ids:
                 muc["may_canh_bao"] = (
                     "Máy đang gán không còn nằm trong danh sách máy của công đoạn — chọn máy khác")
+            elif cd.loai_buoc == LB_MAY:
+                # Máy thuộc tổ (mg `0434`): tổ/máy là ảnh chụp, danh mục đổi sau thì chỉ NÓI.
+                muc["may_canh_bao"] = cap_lech(self.db, cd_obj, cd.department_id, cd.may_id)
             co_gi = (muc["vat_tu_them"] or muc["vat_tu_bo"] or muc["vat_tu_lech"]
                      or muc["may_canh_bao"])
             if co_gi:
@@ -3205,6 +3239,8 @@ class LsxService:
         # Bước MỚI gắn công đoạn hoặc bước vừa ĐỔI công đoạn — lưu xong phải bung lại vật tư theo
         # công đoạn của nó (`_bung_lai_vat_tu`). Drawer chỉ bỏ dòng máy bung của công đoạn cũ.
         doi_cd: list[LsxCongDoan] = []
+        # Bước có việc đã bắt đầu ở bàn tổ — tổ/máy của nó đổi ở bàn tổ (Đổi máy), không ở đây.
+        da_bat_dau = self.repo.buoc_da_bat_dau({c.id for c in lsx.cong_doans if c.id is not None})
         # ⚠️ Rổ `bo_dau_viec` (lưu ý "bước này mất đầu việc mồ côi") GỠ 18/09/2026 (mg `0320`):
         #    bước thôi ghim đầu việc nên không có gì mồ côi được nữa.
         for i, r in enumerate(rows_in):
@@ -3230,6 +3266,8 @@ class LsxService:
             old_cd_id = row.cong_doan_id if row is not None else None
             old_dept_id = row.department_id if row is not None else None
             old_loai = row.loai_buoc if row is not None else None
+            old_may_id = row.may_id if row is not None else None
+            buoc_moi = row is None
             # Tổ của bước phải là một TỔ PHỤ TRÁCH của công đoạn (mg `0312`) — chỉ soi khi bước mới,
             # đổi tổ hoặc đổi công đoạn. Bước giữ nguyên thì để yên snapshot cũ: danh mục đổi tổ sau
             # khi lên lệnh không được khoá đường lưu cả lệnh vì một bước chẳng ai đụng.
@@ -3302,6 +3340,15 @@ class LsxService:
             #    bàn tổ (`san_xuat_batch.piece_rate_id`), nơi thợ biết mình vừa làm gì. Cửa
             #    `source_changed` + `_ke_thua` đi theo luôn — chúng chỉ phục vụ khối này.
 
+            # Cặp TỔ × MÁY (spec máy thuộc tổ §4.7) — cùng lối soi tổ ở trên: chỉ khi bước mới hoặc
+            # tổ/máy/công đoạn đổi, để lệnh cũ đang lệch vẫn lưu được các sửa khác.
+            doi_cap = old_dept_id != row.department_id or old_may_id != row.may_id
+            if (not buoc_moi and doi_cap and row.id in da_bat_dau
+                    and LB_MAY in (old_loai, row.loai_buoc)):
+                raise LsxValidationError("Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ")
+            if row.loai_buoc == LB_MAY and (buoc_moi or doi_cap or old_cd_id != cd_id):
+                if loi := loi_cap(self.db, cd_obj, row.department_id, row.may_id):
+                    raise LsxValidationError(loi)
             if cd_id and old_cd_id != cd_id:
                 doi_cd.append(row)
             rows.append(row)

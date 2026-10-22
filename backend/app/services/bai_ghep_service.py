@@ -781,8 +781,8 @@ class BaiGhepService:
             bai_ghep_id=bg.id,
             cong_doan_id=mau.cong_doan_id, ten=mau.ten, nhom=mau.nhom,
             loai_buoc=mau.loai_buoc, bat_buoc=bool(mau.bat_buoc),
-            # CHƯA gán tổ: gộp xong là phải lập lại kế hoạch cho lượt chạy chung, không thừa kế mù
-            # của bất kỳ lệnh nào. MÁY thì điền ngay bên dưới (`_may_cho_luot_chung`).
+            # Tổ KHÔNG thừa kế mù của lệnh nào: chỉ đi theo MÁY điền ngay bên dưới
+            # (`_may_cho_luot_chung`) — máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.6).
             # SỐ GIỜ KẾ HOẠCH để 0 (mg `0319`): gộp xong là phải lập lại kế hoạch cho lượt chạy
             # chung, mà giờ của lượt chung không phải tổng giờ của các bước thành viên.
             so_gio_ke_hoach=0,
@@ -803,6 +803,11 @@ class BaiGhepService:
             chung.nha_cung_cap_id, chung.nha_cung_cap = mau.nha_cung_cap_id, mau.nha_cung_cap
         if mau.loai_buoc == LB_MAY:
             chung.may_id = self._may_cho_luot_chung(mau.cong_doan_id, cds)
+            if chung.may_id is not None and mau.cong_doan_id:
+                from .may_to import to_cho_may
+
+                chung.department_id = to_cho_may(
+                    self.db, self.db.get(CongDoan, mau.cong_doan_id), chung.may_id, uu_tien=None)
         self.db.add(chung)
         self.db.flush()
         for k in keys:
@@ -901,6 +906,16 @@ class BaiGhepService:
                 raise BaiGhepValidationError(
                     f'Tổ đã chọn không phụ trách công đoạn "{cd_obj.ten}" — chọn một trong các tổ '
                     f'khai ở danh mục Công đoạn.')
+        # Cặp TỔ × MÁY (spec máy thuộc tổ §4.7) — chỉ soi khi tổ hoặc máy ĐỔI, cùng lẽ soi tổ trên.
+        loai_moi = patch.get("loai_buoc", chung.loai_buoc)
+        to_sau = patch.get("department_id", chung.department_id)
+        may_sau = patch.get("may_id", chung.may_id)
+        if (loai_moi == LB_MAY and chung.cong_doan_id
+                and (to_sau != chung.department_id or may_sau != chung.may_id)):
+            from .may_to import loi_cap
+
+            if loi := loi_cap(self.db, self.db.get(CongDoan, chung.cong_doan_id), to_sau, may_sau):
+                raise BaiGhepValidationError(loi)
         for field in self._SUA_DUOC_BUOC_CHUNG:
             if field in patch:
                 setattr(chung, field, patch[field])
