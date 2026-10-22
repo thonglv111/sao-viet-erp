@@ -44,6 +44,7 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
 from ..bai_ghep_service import BaiGhepService
+from .. import may_to
 from ..may_trang_thai import NHAN as NHAN_TT_MAY
 from ..may_trang_thai import TT_RANH, trang_thai_may
 from ..quyen_to import VIEC_THUC_HIEN, gate_to
@@ -469,10 +470,11 @@ def ket_thuc(
 def may_doi_duoc(db: Session, *, user, cong_viec_id: int) -> dict:
     """Ô "Đổi máy" của bàn tổ: máy đổi sang được + TÌNH TRẠNG LÚC NÀY của từng máy.
 
-    Lọc cùng MỘT luật với gợi ý máy ở Xếp lịch (`BaiGhepService.may_ngoai_cong_doan`): công đoạn đã
-    chọn máy cụ thể thì chỉ các máy đó, chưa chọn thì lùi về nhóm máy, chưa khai gì thì mọi máy. Bàn
-    tổ phán khác bàn xếp lịch là tổ đổi sang một máy mà công đoạn không có công thức giờ để chạy.
-    Bỏ sẵn máy đã ngừng dùng và máy đang gán — hai thứ `doi_may` sẽ từ chối.
+    Máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.9): công đoạn ràng buộc tổ ⇒ chỉ máy của công đoạn
+    thuộc TỔ CỦA VIỆC (`may_to.may_chon_duoc`); máy hư thì việc chờ, tổ không đổi sang máy tổ khác.
+    Công đoạn chưa tick tổ ⇒ lọc như gợi ý máy ở Xếp lịch (`BaiGhepService.may_ngoai_cong_doan`).
+    Mỗi máy kèm `to_khac` — tên tổ khác máy cũng thuộc, để tổ biết máy đang dùng chung. Bỏ sẵn máy
+    đã ngừng dùng và máy đang gán — hai thứ `doi_may` sẽ từ chối.
 
     Tình trạng lấy ĐÚNG hàm của cột Trạng thái màn Thiết bị (`trang_thai_may`): hai màn tự tính là
     sớm muộn cùng một máy hiện hai chữ khác nhau. Chỉ để NHÌN, không chặn chọn — đúng lối "chỉ cảnh
@@ -487,17 +489,27 @@ def may_doi_duoc(db: Session, *, user, cong_viec_id: int) -> dict:
     if cv.loai_buoc not in (BUOC_MAY, BUOC_THUE_NGOAI) or cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
         return {"items": [], "theo_cong_doan": False}
     cd = repo.cong_doan_cua_viec(cv)
-    mays = [m for m in repo.may_con_dung()
-            if m.id != cv.may_id and not BaiGhepService.may_ngoai_cong_doan(cd, m)]
+    if may_to.rang_buoc_to(cd):
+        theo_to = may_to.may_chon_duoc(db, cd, cv.department_id)
+        con_dung = {m.id: m for m in repo.may_con_dung()}
+        mays = [con_dung[i] for i in theo_to if i in con_dung and i != cv.may_id]
+    else:
+        mays = [m for m in repo.may_con_dung()
+                if m.id != cv.may_id and not BaiGhepService.may_ngoai_cong_doan(cd, m)]
     tt = trang_thai_may(db, [m.id for m in mays])
+    to_cua = may_to.to_cua_may(db, [m.id for m in mays])
+    ten_to = may_to.ten_to(db, {t for ds in to_cua.values() for t in ds})
     ranh = {"trang_thai": TT_RANH, "nhan": NHAN_TT_MAY[TT_RANH], "chi_tiet": None}
     return {
         "items": [
             {"id": m.id, "ma": m.ma, "ten": m.ten, "loai_may": m.loai_may,
+             "to_khac": [ten_to[t] for t in to_cua.get(m.id, [])
+                         if t != cv.department_id and t in ten_to],
              **{k: tt.get(m.id, ranh)[k] for k in ("trang_thai", "nhan", "chi_tiet")}}
             for m in mays
         ],
         "theo_cong_doan": cd is not None and bool(cd.may_lam_duoc),
+        "theo_to": may_to.rang_buoc_to(cd),
     }
 
 
@@ -545,6 +557,9 @@ def doi_may(
     may_moi = db.get(MayThietBi, may_id_moi)
     if may_moi is None or not may_moi.active:
         raise ValueError("Máy mới không tồn tại hoặc đã ngừng dùng trong danh mục.")
+    # Máy thuộc tổ (spec §4.9): đổi máy chỉ trong máy của tổ — cổng thật, ô chọn chỉ che bớt.
+    if loi := may_to.loi_cap(db, repo.cong_doan_cua_viec(cv), cv.department_id, may_id_moi):
+        raise ValueError(loi)
 
     now = _moc()
     may_cu = cv.may_id

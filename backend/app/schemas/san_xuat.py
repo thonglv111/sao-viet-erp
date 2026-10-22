@@ -992,13 +992,17 @@ class MayDoiRow(BaseModel):
     trang_thai: str
     nhan: str
     chi_tiet: str | None = None
+    # Tên tổ KHÁC (ngoài tổ của việc) mà máy cũng thuộc — "cũng thuộc: …" (mg `0434`).
+    to_khac: list[str] = Field(default_factory=list)
 
 
 class MayDoiOut(BaseModel):
     """Ô "Đổi máy" của bàn tổ — máy làm được công đoạn của việc, kèm tình trạng từng máy."""
     items: list[MayDoiRow]
-    # True = danh sách đã bị công đoạn thu hẹp (khai máy hoặc nhóm máy); False = chưa khai, mọi máy.
+    # True = danh sách đã bị công đoạn thu hẹp (khai máy); False = chưa khai, mọi máy.
     theo_cong_doan: bool
+    # True = công đoạn có tick tổ ⇒ danh sách là máy THUỘC tổ của việc (mg `0434`).
+    theo_to: bool = False
 
 
 class BaoHongMayOut(BaseModel):
