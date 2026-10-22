@@ -162,10 +162,10 @@ export function PayslipCard({
     //   · "Làm ngày Chủ nhật / lễ · N công" — phần thêm khi đi làm nguyên ngày (`ot_pay`, `special_cong`)
     //   · "Công ngày lễ (ngoài khoán) · N ngày" — lễ NGHỈ hưởng lương, trả riêng ngoài phần so khoán /
     //     bù lỗ, CÓ trong `gross` (`luong_ngay_le`, `le_nghi_cong`). Bảng lương thật cũng cộng riêng.
-    // HAI LƯƠNG (21/10/2026): khối Sản xuất + Giao hàng tính cả vế thời gian lẫn vế khoán, ăn bên
-    // lớn. "Tăng ca theo giờ" thuộc vế thời gian (tháng ăn khoán thì 0đ), "Tăng ca khoán" thuộc vế
-    // khoán (tháng ăn thời gian thì 0đ) — không bao giờ nhận cả hai. Phần thêm làm nguyên ngày CN/lễ
-    // nằm trong `ot_pay` nhưng không phải tiền giờ ⇒ in dòng riêng.
+    // HAI LƯƠNG: khối Sản xuất + Giao hàng tính cả vế thời gian lẫn vế khoán, ăn bên lớn. Khối SX
+    // (chủ chốt 22/10/2026) chỉ có "Tăng ca khoán", cộng ngoài phép so nên ăn vế nào cũng in; "Tăng ca
+    // theo giờ" của họ luôn 0đ. Giao hàng: tiền giờ thuộc vế thời gian (tháng ăn km thì 0đ). Phần
+    // thêm làm nguyên ngày CN/lễ nằm trong `ot_pay` nhưng không phải tiền giờ ⇒ in dòng riêng.
     ...(l.che_do_khoan
       ? ([
           ["Tăng ca theo giờ", l.tien_gio_tang_ca ?? 0],
@@ -176,7 +176,7 @@ export function PayslipCard({
                 + ((l.special_cong ?? 0) > 0 ? ` (${soCong(l.special_cong ?? 0)} công)` : ""),
                 (l.ot_pay ?? 0) - (l.tien_gio_tang_ca ?? 0)]]
             : []),
-          ...(!l.lay_bu_lo && (l.tang_ca_khoan ?? 0) !== 0
+          ...((l.tang_ca_khoan ?? 0) !== 0
             ? [["Tăng ca khoán", l.tang_ca_khoan ?? 0]]
             : []),
           ...dongCongLe,

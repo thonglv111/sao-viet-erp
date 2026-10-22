@@ -589,16 +589,16 @@ def test_GIAO_HANG_km_CAO_hon_ve_thoi_gian_thi_KHONG_co_tien_tang_ca(client):
         db.close()
 
 
-def test_TO_KHOAN_san_luong_cung_luat_ve_thoi_gian_gom_tang_ca(client):
-    """Chủ chốt 20/10/2026 mở luật Giao hàng (16/09/2026) cho MỌI người tính 2 lương: thợ khoán sản lượng
-    ăn vế thời gian thì có đủ tiền giờ tăng ca."""
+def test_TO_KHOAN_san_luong_an_ve_thoi_gian_KHONG_co_tien_gio_tang_ca(client):
+    """Chủ chốt 22/10/2026 (đảo 20/10/2026): luật Giao hàng KHÔNG áp cho khối Sản xuất — thợ khoán sản
+    lượng ăn vế thời gian chỉ nhận bù lỗ theo công, giờ tăng ca chấm công không ra tiền."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), actual_cong=26, restday_cong=0, allowance=5_400_000,
                   ot_minutes=600, khoan=5_000_000)
-        assert v["ot_pay"] == TC_GH
+        assert v["ot_pay"] == 0 and v["tien_gio_tang_ca"] == 0
         assert v["lay_bu_lo"] is True and v["luong_cong"] == BU_LO_GH - 5_000_000
     finally:
         db.close()

@@ -55,7 +55,9 @@ export function SoiKhoanKy({
   }, [token, line.id]);
 
   const veThoiGian = line.ve_thoi_gian ?? null;
-  const veKhoan = (line.khoan ?? 0) + (line.khoan_km ?? 0) + (data?.tong_tang_ca_khoan ?? line.tang_ca_khoan ?? 0);
+  // Tăng ca khoán KHÔNG vào phép so (chủ chốt 22/10/2026) — cộng sau, ăn vế nào cũng có.
+  const veKhoan = (line.khoan ?? 0) + (line.khoan_km ?? 0);
+  const tangCaKhoan = data?.tong_tang_ca_khoan ?? line.tang_ca_khoan ?? 0;
 
   return (
     <div className="ns-modal" role="dialog" aria-modal="true">
@@ -76,9 +78,10 @@ export function SoiKhoanKy({
           {loi && <div className="banner banner--error">{loi}</div>}
           {veThoiGian != null && (
             <div className="banner banner--info" role="status">
-              So 2 lương: lương khoán {money(veKhoan)} (sản lượng + tăng ca khoán) — lương thời gian{" "}
-              {money(veThoiGian)} (theo công + tăng ca theo giờ) ⇒{" "}
-              <b>{line.lay_bu_lo ? "ăn lương thời gian" : "ăn lương khoán"}</b>.
+              So 2 lương: lương khoán {money(veKhoan)} (sản lượng) — lương thời gian{" "}
+              {money(veThoiGian)} (theo công) ⇒{" "}
+              <b>{line.lay_bu_lo ? "ăn lương thời gian" : "ăn lương khoán"}</b>
+              {tangCaKhoan !== 0 ? `, cộng thêm tăng ca khoán ${money(tangCaKhoan)}` : ""}.
             </div>
           )}
           {data == null && !loi && (

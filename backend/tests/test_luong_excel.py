@@ -322,7 +322,8 @@ def test_ENGINE_chup_tien_gio_tang_ca_tach_khoi_phan_them_chu_nhat(client):
 
     - Tổ thường: tiền giờ 125.000 × 4 × 1,5 = 750.000; `ot_pay` = 750.000 + phần thêm CN 1.000.000.
     - Người tính 2 lương ăn vế KHOÁN: tiền giờ 0, `ot_pay` chỉ còn phần thêm CN.
-    - Người tính 2 lương ăn vế THỜI GIAN (khoán thấp): trả đủ tiền giờ (20/10/2026 — như tài xế)."""
+    - Khối Sản xuất ăn vế THỜI GIAN (khoán thấp): vẫn 0 tiền giờ (22/10/2026 — chỉ có tăng ca khoán).
+    - Tài xế ăn vế thời gian: trả đủ tiền giờ (chốt 16/09/2026 giữ nguyên)."""
     client
     from tests.test_hai_luong_khoi_sx import _svc, _tinh
 
@@ -340,7 +341,8 @@ def test_ENGINE_chup_tien_gio_tang_ca_tach_khoi_phan_them_chu_nhat(client):
         assert khoan["tien_gio_tang_ca"] == 0 and khoan["ot_pay"] == 1_000_000
 
         thoi_gian = _tinh(svc, params, **cn, che_do_khoan=True, khoan=0)
-        assert thoi_gian["lay_bu_lo"] is True and thoi_gian["tien_gio_tang_ca"] == 750_000
+        assert thoi_gian["lay_bu_lo"] is True and thoi_gian["tien_gio_tang_ca"] == 0
+        assert thoi_gian["ot_pay"] == 1_000_000
 
         tai_xe = _tinh(svc, params, **cn, che_do_khoan=True, chi_an_km=True, khoan_km=0)
         assert tai_xe["lay_bu_lo"] is True and tai_xe["tien_gio_tang_ca"] == 750_000

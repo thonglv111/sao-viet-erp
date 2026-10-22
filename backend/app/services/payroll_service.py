@@ -462,7 +462,8 @@ class PayrollService:
         * tổ bật cờ Giao hàng (cờ RIÊNG, không kế thừa) — vế khoán = tiền km.
 
         Không còn công tắc "Lương khoán / sản lượng" theo tổ. Người công nhật trong khối có vế khoán
-        = 0 nên luôn ăn vế thời gian, đủ tiền tăng ca theo giờ."""
+        = 0 nên luôn ăn vế thời gian; từ 22/10/2026 khối Sản xuất không có tiền giờ tăng ca, chỉ có
+        tăng ca khoán (Giao hàng vẫn có)."""
         if department_id is None:
             return False
         return self._la_khoi_san_xuat(department_id) or self._la_to_giao_hang(department_id)
@@ -1625,22 +1626,26 @@ class PayrollService:
         # TỔ IN (khách chốt 15/09/2026 chiều): ngày CN / lễ đi làm KHÔNG có công gốc — cả 2 / 3 / 5 công
         # trả ở phần dôi ra, và bù lỗ theo công KHÔNG đếm ngày đó. Sản lượng ngày đó vẫn vào tiền khoán.
         to_in_mode = self._la_to_in(dept_id) if la_to_in is None else bool(la_to_in)
-        # VẾ THỜI GIAN GỒM TIỀN GIỜ TĂNG CA + PHỤ CẤP TĂNG CA ĐÊM — cho MỌI người tính 2 lương (chủ chốt
-        # 20/10/2026, mở rộng chốt 16/09/2026 vốn chỉ cho tổ Giao hàng): giờ làm thêm đã vào quỹ chia
-        # sản lượng, nên cộng ngoài phép so là người thắng vế khoán được trả giờ làm thêm hai lần.
-        # Người công nhật trong khối có vế khoán = 0 nên luôn ăn đủ. Mọi tổ đều có tăng ca — công tắc
-        # `tang_ca` theo tổ đã gỡ. Phải biết số này TRƯỚC phép so; khối tăng ca bên dưới dùng lại qua
-        # `gio_tc_tra` / `tc_dem_tra`, không tính hai lần.
+        # KHỐI SẢN XUẤT CHỈ CÓ TĂNG CA KHOÁN (chủ chốt 22/10/2026, khớp sổ lương T08, ĐẢO chốt
+        # 20/10/2026): giờ tăng ca chấm công KHÔNG ra tiền — không tiền giờ tăng ca, không phụ cấp tăng
+        # ca đêm, kể cả người công nhật trong khối (vế khoán = 0). Tăng ca khoán cộng SAU phép so (xem
+        # dưới). Người THỬ VIỆC giữ luật cũ (tăng ca khoán = 0, trả đủ tăng ca theo giờ) — chủ chưa chốt.
+        # TỔ GIAO HÀNG giữ chốt 16/09/2026: vế thời gian gồm tiền giờ tăng ca + phụ cấp tăng ca đêm.
+        # Mọi tổ đều có tăng ca — công tắc `tang_ca` theo tổ đã gỡ. Phải biết số này TRƯỚC phép so;
+        # khối tăng ca bên dưới dùng lại qua `gio_tc_tra` / `tc_dem_tra`, không tính hai lần.
         tang_ca_bat = True
+        la_gh_tinh = la_gh if chi_an_km is None else bool(chi_an_km)
+        chi_tang_ca_khoan = bool(bu_lo_mode and not la_gh_tinh and not is_probation)
+        tinh_tc_gio = bu_lo_mode and not chi_tang_ca_khoan
         gio_tc_du = (_tien_gio_tang_ca(
             daily_rate=daily_rate, ot_minutes=ot_minutes, ot_restday_minutes=ot_restday_minutes,
             ot_holiday_minutes=ot_holiday_minutes, params=params)
-            if bu_lo_mode else 0.0)
+            if tinh_tc_gio else 0.0)
         tc_dem_du = (_tien_tang_ca_dem(
             daily_rate=daily_rate, ot_night_normal_minutes=ot_night_normal_minutes,
             ot_night_restday_minutes=ot_night_restday_minutes,
             ot_night_holiday_minutes=ot_night_holiday_minutes, params=params)
-            if bu_lo_mode else 0.0)
+            if tinh_tc_gio else 0.0)
         tc_dem_tra = None
         # None = khối tăng ca bên dưới tự quyết như cũ (tổ thường / tổ khoán sản lượng).
         gio_tc_tra = None
@@ -1689,16 +1694,17 @@ class PayrollService:
                 gio_tc_tra = gio_tc_du
                 tc_dem_tra = tc_dem_du
             else:
-                # HAI VẾ, so MỘT lần cho cả tháng (chủ chốt 20/10/2026):
-                #   vế thời gian = bù lỗ theo công + tiền giờ tăng ca + phụ cấp tăng ca đêm;
-                #   vế khoán     = tiền sản lượng (gồm phần tổ trưởng) + khoán km + TĂNG CA KHOÁN.
-                # Ăn vế lớn hơn, KHÔNG BAO GIỜ nhận cả hai loại tăng ca. Ăn vế thời gian ⇒ tiền khoán
-                # vẫn đứng ở cột `khoan`, `luong_cong` là phần bù thêm cho đủ vế thời gian; trả đủ tăng
-                # ca theo giờ trước để phiếu lương giữ được dòng "Tăng ca theo giờ".
-                ve_khoan = float(khoan) + float(khoan_km) + float(tang_ca_khoan)
+                # HAI VẾ, so MỘT lần cho cả tháng (chủ chốt 22/10/2026, đảo 20/10/2026):
+                #   vế thời gian = bù lỗ theo công (khối SX: CHỈ số này; Giao hàng: + tiền giờ tăng ca
+                #                  + phụ cấp tăng ca đêm);
+                #   vế khoán     = tiền sản lượng (gồm phần tổ trưởng) + khoán km.
+                # TĂNG CA KHOÁN KHÔNG vào phép so: cộng thẳng vào lương sau đó, ăn vế nào cũng có (sổ
+                # T08: cột P "Ngoài giờ" cộng riêng). Ăn vế thời gian ⇒ tiền khoán vẫn đứng ở cột
+                # `khoan`, `luong_cong` là phần bù thêm cho đủ vế thời gian; Giao hàng trả đủ tăng ca
+                # theo giờ trước để phiếu lương giữ được dòng "Tăng ca theo giờ".
+                ve_khoan = float(khoan) + float(khoan_km)
                 lay_bu_lo = _round(ve_thoi_gian - ve_khoan) > 0
                 if lay_bu_lo:
-                    tang_ca_khoan = 0.0
                     con = max(0.0, ve_thoi_gian - float(khoan) - float(khoan_km))
                     gio_tc_tra = min(gio_tc_du, con)
                     tc_dem_tra = min(tc_dem_du, con - gio_tc_tra)
@@ -1752,10 +1758,10 @@ class PayrollService:
         # Tiền ngày off1x tách thành BIẾN RIÊNG: nó nằm trong `ot_pay` (để trả) nhưng CHỊU thuế
         # (kế toán chốt 17/08/2026), nên thuế phải cộng ngược lại qua `ot_taxable`.
         off1x_pay = daily_rate * float(plain_cong) * 1.0
-        # NGƯỜI TÍNH 2 LƯƠNG (khối Sản xuất / Giao hàng): tiền giờ tăng ca đã được phép so 2 lương ở
-        # trên quyết (`gio_tc_tra`) — ăn vế khoán thì 0, ăn vế thời gian thì đủ. Chốt cũ 14/09/2026
-        # "tổ khoán 0đ tăng ca" ĐÃ ĐẢO 20/10/2026. Vẫn giữ ngoài phép so: cơm tăng ca, phần THÊM khi
-        # làm NGUYÊN NGÀY nghỉ tuần / lễ, tiền 1× ngày off1x.
+        # NGƯỜI TÍNH 2 LƯƠNG: tiền giờ tăng ca đã quyết ở trên (`gio_tc_tra`) — khối Sản xuất luôn 0
+        # (chủ chốt 22/10/2026: chỉ có tăng ca khoán; thử việc còn treo, giữ luật cũ); Giao hàng ăn vế
+        # khoán thì 0, ăn vế thời gian thì đủ. Vẫn giữ ngoài phép so: cơm tăng ca, phần THÊM khi làm
+        # NGUYÊN NGÀY nghỉ tuần / lễ, tiền 1× ngày off1x.
         # `khoan_mode` chỉ còn là cờ chụp lên dòng lương ("người này tính 2 lương").
         khoan_mode = bool(bu_lo_mode) if che_do_khoan is None else bool(che_do_khoan)
         # TRONG ĐÓ của `ot_pay` — tiền GIỜ tăng ca, chụp riêng cho file Excel theo khuôn công ty (17/09/2026):
@@ -1891,8 +1897,9 @@ class PayrollService:
         #      OT gốc ĐÃ nằm trong `ot_pay` (ot_minutes gồm cả giờ OT đêm) → chỉ cộng phần chênh, KHÔNG double.
         night_pct = float(getattr(params, "night_pct", 0.3) or 0.3)
         ot_extra = float(getattr(params, "ot_night_extra_pct", 0.2) or 0.2)
-        # Phụ cấp TĂNG CA ĐÊM: người tính 2 lương ⇒ số phép so đã quyết (`tc_dem_tra`, thuộc vế thời
-        # gian, 20/10/2026); người khác ⇒ trả đủ. Giờ đêm TRONG ca không phải tăng ca, luôn trả.
+        # Phụ cấp TĂNG CA ĐÊM: người tính 2 lương ⇒ số đã quyết ở trên (`tc_dem_tra`: khối SX 0 từ
+        # 22/10/2026, Giao hàng theo phép so); người khác ⇒ trả đủ. Giờ đêm TRONG ca không phải tăng
+        # ca, luôn trả.
         tc_dem_pay = (tc_dem_tra if tc_dem_tra is not None else _tien_tang_ca_dem(
             daily_rate=daily_rate, ot_night_normal_minutes=ot_night_normal_minutes,
             ot_night_restday_minutes=ot_night_restday_minutes,
@@ -1911,8 +1918,8 @@ class PayrollService:
         # tài xế KHÔNG còn ăn lương chấm công cộng thêm: `luong_cong` của họ = 0 (xem khối tài xế ở trên).
         # Và nó CHỊU TNCN: không nằm trong `mien_ngoai_danh_muc` nên tự động vào thu nhập chịu thuế.
         # `luong_ngay_le` (công lễ nghỉ của người khoán / tài xế) cộng như `khoan` — xem khối bù lỗ ở trên.
-        # TĂNG CA KHOÁN (cột riêng, 20/10/2026) chỉ người ăn vế khoán mới còn số — phép so đã gạt về 0
-        # cho người ăn vế thời gian; người không tính 2 lương thì không có.
+        # TĂNG CA KHOÁN (cột riêng) cộng NGOÀI phép so, ăn vế nào cũng có (chủ chốt 22/10/2026, đảo
+        # 20/10/2026 "chỉ người ăn vế khoán"); thử việc đã về 0 ở trên; người không tính 2 lương không có.
         if not bu_lo_mode:
             tang_ca_khoan = 0.0
         gross_pre = (luong_cong + luong_ngay_le + chuyen_can + allowance + float(khoan) + float(khoan_km)

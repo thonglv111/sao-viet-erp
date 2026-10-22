@@ -13,7 +13,31 @@ Trạng thái: CHỐT THIẾT KẾ 20/10/2026, CHƯA CODE (chờ "làm đi").
    - Giữ **Chuyên cần**.
 3. Không có tổ "Xe nâng" trong Sản xuất (đã gỡ trên DB dev).
 
-## Cách tính mỗi người khối Sản xuất, mỗi tháng
+## SỬA 22/10/2026 — tăng ca khoán là tăng ca DUY NHẤT của khối Sản xuất
+
+Chủ chốt khi duyệt mockup "Khoán theo tổ", khớp sổ lương T08 thật (cột P "Ngoài giờ" cộng riêng, giờ
+tăng ca chấm công không trả). ĐẢO các mục ghi 20/10 bên dưới về tăng ca; phần nào mâu thuẫn thì mục
+này thắng.
+
+1. Khối Sản xuất KHÔNG có tiền giờ tăng ca theo chấm công (`tien_gio_tang_ca`) và KHÔNG có phụ cấp
+   tăng ca đêm — kể cả người công nhật trong khối (vế khoán = 0). Giờ tăng ca vẫn chấm, vẫn ra suất
+   cơm tăng ca; giờ đêm TRONG ca (ca đêm thường) vẫn trả.
+2. Phép so: **vế thời gian = CHỈ bù lỗ theo công** = (vị trí + trách nhiệm + phụ cấp) ÷ 26 × công.
+   **Vế khoán = tiền sản lượng (gồm phần tổ trưởng) + khoán km**, KHÔNG gồm tăng ca khoán.
+3. **Tăng ca khoán cộng thẳng vào lương SAU phép so**, ăn vế nào cũng có.
+4. Thử việc: GIỮ luật cũ — tăng ca khoán = 0, ăn bù lỗ theo công + trả đủ tiền giờ tăng ca. **CÂU TREO:**
+   chủ chưa chốt người thử việc khối SX có được tăng ca khoán không (nếu có thì đồng thời bỏ tiền giờ).
+5. Tổ Giao hàng (không thuộc khối SX) giữ chốt 16/09/2026: vế thời gian = bù lỗ + tiền giờ tăng ca +
+   phụ cấp tăng ca đêm, so với tiền km.
+
+Ví dụ sổ T08/2026 máy in 2 màu: Tuấn bù lỗ 16,5tr × 24/26 = 15.230.769 > khoán 14.147.394 ⇒ ăn
+15.230.769 + tăng ca khoán. Huy bù lỗ 14,5tr × 11/26 = 6.134.615 < khoán 6.344.265 ⇒ ăn 6.344.265 +
+tăng ca khoán. Giờ tăng ca chấm công (Tuấn 2h, Huy 1,5h) không ra tiền.
+
+Hệ quả cần biết: ví dụ Hồng Châu bên dưới (công nhật trong khối, 71,5 giờ ⇒ 3.403.125 đ) KHÔNG còn
+đúng — theo luật mới người công nhật trong khối không có tiền giờ tăng ca.
+
+## Cách tính mỗi người khối Sản xuất, mỗi tháng (bản 20/10 — tăng ca đã sửa ở mục trên)
 
 Hai vế, so MỘT lần cho cả tháng:
 
@@ -89,9 +113,13 @@ Câu còn phải trao đổi trước khi code: nguồn tiền sản lượng th
 Khoán theo kỳ chưa có (giờ chia "tính sau"); 50% vượt tính trên số gốc hay số đã nhân đôi.
 
 Chủ chốt 20/10: 50% phần vượt = **tiền tăng ca khoán**, CỘNG VÀO LƯƠNG KHOÁN rồi mới so với lương
-thời gian (khác sổ lk_2mau vốn cộng cột "Ngoài giờ" sau phép so).
+thời gian (khác sổ lk_2mau vốn cộng cột "Ngoài giờ" sau phép so). **ĐẢO 22/10:** cộng SAU phép so như
+sổ — xem mục "SỬA 22/10/2026".
 
 ### Hai loại tăng ca phải RẠCH RÒI (chủ dặn 20/10)
+
+> **ĐẢO 22/10:** khối Sản xuất chỉ còn tăng ca khoán (cộng sau phép so, ăn vế nào cũng có); tăng ca
+> theo giờ chỉ còn ở Giao hàng và người thử việc. Bảng dưới giữ để đọc lịch sử.
 
 | | Tăng ca khoán | Tăng ca theo giờ |
 |---|---|---|

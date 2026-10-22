@@ -1,11 +1,13 @@
 """Hai lương cho khối Sản xuất — `docs/superpowers/specs/2026-10-20-hai-luong-khoi-san-xuat-design.md`.
 
-Chủ chốt 20/10/2026 (ĐẢO chốt 14/09/2026 "người khoán 0đ tiền giờ tăng ca"):
+Chủ chốt 20/10/2026, sửa 22/10/2026 (khớp sổ lương T08):
 
 1. Thuộc khối Sản xuất (cờ `la_san_xuat` kế thừa cây) hoặc tổ Giao hàng ⇒ tính 2 lương, ăn bên lớn.
    Không còn công tắc "Lương khoán" / "Tăng ca" theo tổ.
-2. Vế thời gian = bù lỗ theo công + tiền giờ tăng ca + phụ cấp tăng ca đêm. Vế khoán = tiền sản lượng
-   + khoán km + TĂNG CA KHOÁN. Không bao giờ nhận cả hai loại tăng ca.
+2. Khối Sản xuất (22/10): vế thời gian = CHỈ bù lỗ theo công; vế khoán = tiền sản lượng + khoán km.
+   TĂNG CA KHOÁN là tiền tăng ca duy nhất, cộng SAU phép so (ăn vế nào cũng có). Giờ tăng ca chấm công
+   và phụ cấp tăng ca đêm KHÔNG ra tiền. Thử việc giữ luật cũ (chủ chưa chốt).
+   Giao hàng giữ chốt 16/09: vế thời gian gồm tiền giờ tăng ca + phụ cấp tăng ca đêm.
 3. Phép có lương là một công của vế thời gian.
 4. Ngoài phép so (giữ như cũ): phần thêm làm nguyên ngày CN / lễ, ngày off1x, cơm tăng ca.
 """
@@ -101,10 +103,11 @@ def _dong(bang: dict, eid: int) -> dict:
 # =============================================================================================
 # Engine — phép so 2 lương, số viết tay
 # =============================================================================================
-def test_CONG_NHAT_trong_khoi_SX_an_du_tien_gio_tang_ca_nhu_to_thuong(client):
-    """⭐ Vế khoán = 0 ⇒ ăn vế thời gian, có ĐỦ tiền giờ tăng ca cả ba loại ngày, gross = tổ thường.
+def test_CONG_NHAT_trong_khoi_SX_KHONG_co_tien_gio_tang_ca(client):
+    """⭐ 22/10/2026: vế khoán = 0 ⇒ ăn vế thời gian = bù lỗ theo công, giờ tăng ca KHÔNG ra tiền.
 
-    2h ngày thường + 1h nghỉ tuần + 1h lễ: 125.000 × (2 × 1,5 + 1 × 2 + 1 × 3) = 1.000.000."""
+    2h ngày thường + 1h nghỉ tuần + 1h lễ: tổ thường ăn 125.000 × (2 × 1,5 + 1 × 2 + 1 × 3) = 1.000.000,
+    khối SX ăn 0 — gross thấp hơn đúng số đó."""
     client
     db = SessionLocal()
     try:
@@ -113,9 +116,9 @@ def test_CONG_NHAT_trong_khoi_SX_an_du_tien_gio_tang_ca_nhu_to_thuong(client):
         gio = dict(actual_cong=26, ot_minutes=240, ot_restday_minutes=60, ot_holiday_minutes=60)
         thuong = _tinh(svc, params, **gio, che_do_khoan=False)
         hai = _tinh(svc, params, **gio, che_do_khoan=True)
-        assert thuong["ot_pay"] == hai["ot_pay"] == 1_000_000
-        assert hai["tien_gio_tang_ca"] == 1_000_000
-        assert hai["gross"] == thuong["gross"]
+        assert thuong["ot_pay"] == thuong["tien_gio_tang_ca"] == 1_000_000
+        assert hai["ot_pay"] == hai["tien_gio_tang_ca"] == 0
+        assert hai["gross"] == thuong["gross"] - 1_000_000 == 26_000_000
         assert hai["lay_bu_lo"] is True and hai["che_do_khoan"] is True
         assert hai["tang_ca_khoan"] == 0
     finally:
@@ -138,9 +141,9 @@ def test_AN_KHOAN_thi_tien_gio_tang_ca_bang_0(client):
         db.close()
 
 
-def test_AN_THOI_GIAN_thi_bu_them_cho_du_ve_thoi_gian_gom_tang_ca(client):
-    """Khoán 20tr < 27.875.000 ⇒ ăn vế thời gian: trả đủ tăng ca theo giờ trước, phần còn thiếu vào
-    lương theo công. luong_cong + khoan + tiền giờ tăng ca = đúng vế thời gian."""
+def test_AN_THOI_GIAN_thi_bu_them_cho_du_bu_lo_theo_cong(client):
+    """Khoán 20tr < bù lỗ 26tr ⇒ ăn vế thời gian: phần thiếu vào lương theo công, 10 giờ tăng ca không
+    ra tiền. luong_cong + khoan = đúng bù lỗ theo công."""
     client
     db = SessionLocal()
     try:
@@ -148,33 +151,64 @@ def test_AN_THOI_GIAN_thi_bu_them_cho_du_ve_thoi_gian_gom_tang_ca(client):
         params = svc.get_params()
         v = _tinh(svc, params, actual_cong=26, ot_minutes=600, khoan=20_000_000, che_do_khoan=True)
         assert v["lay_bu_lo"] is True
-        assert v["tien_gio_tang_ca"] == TC_10H
-        assert v["luong_cong"] == 26_000_000 + TC_10H - 20_000_000 - TC_10H == 6_000_000
-        assert v["luong_cong"] + v["khoan"] + v["tien_gio_tang_ca"] == 26_000_000 + TC_10H
-        assert v["gross"] == 26_000_000 + TC_10H
+        assert v["tien_gio_tang_ca"] == 0 and v["ot_pay"] == 0
+        assert v["luong_cong"] == 6_000_000
+        assert v["luong_cong"] + v["khoan"] == v["bu_lo_theo_cong"] == v["ve_thoi_gian"] == 26_000_000
+        assert v["gross"] == 26_000_000
     finally:
         db.close()
 
 
-def test_TANG_CA_KHOAN_thuoc_ve_khoan_va_khong_bao_gio_nhan_ca_hai(client):
-    """Khoán 20tr + tăng ca khoán 9tr = 29tr > 27.875.000 ⇒ ăn khoán, có tăng ca khoán, tăng ca theo
-    giờ = 0. Khoán 20tr + 5tr = 25tr < ⇒ ăn thời gian, tăng ca khoán = 0, tăng ca theo giờ có."""
+def test_TANG_CA_KHOAN_cong_SAU_phep_so_an_ve_nao_cung_co(client):
+    """22/10/2026: tăng ca khoán KHÔNG vào vế khoán. Khoán 20tr + tăng ca khoán 9tr: 20tr < bù lỗ 26tr
+    ⇒ ăn bù lỗ 26tr + 9tr (chốt 20/10 cũ: 29tr > 26tr ⇒ ăn khoán). Khoán 30tr ⇒ ăn khoán 30tr + 5tr.
+    Tiền giờ tăng ca luôn 0."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         params = svc.get_params()
-        an_khoan = _tinh(svc, params, actual_cong=26, ot_minutes=600, khoan=20_000_000,
-                         tang_ca_khoan=9_000_000, che_do_khoan=True)
-        assert an_khoan["lay_bu_lo"] is False
-        assert an_khoan["tang_ca_khoan"] == 9_000_000 and an_khoan["tien_gio_tang_ca"] == 0
-        assert an_khoan["gross"] == 29_000_000
-
         an_tg = _tinh(svc, params, actual_cong=26, ot_minutes=600, khoan=20_000_000,
-                      tang_ca_khoan=5_000_000, che_do_khoan=True)
+                      tang_ca_khoan=9_000_000, che_do_khoan=True)
         assert an_tg["lay_bu_lo"] is True
-        assert an_tg["tang_ca_khoan"] == 0 and an_tg["tien_gio_tang_ca"] == TC_10H
-        assert an_tg["gross"] == 26_000_000 + TC_10H
+        assert an_tg["tang_ca_khoan"] == 9_000_000 and an_tg["tien_gio_tang_ca"] == 0
+        assert an_tg["luong_cong"] + an_tg["khoan"] == 26_000_000
+        assert an_tg["gross"] == 26_000_000 + 9_000_000
+
+        an_khoan = _tinh(svc, params, actual_cong=26, ot_minutes=600, khoan=30_000_000,
+                         tang_ca_khoan=5_000_000, che_do_khoan=True)
+        assert an_khoan["lay_bu_lo"] is False
+        assert an_khoan["tang_ca_khoan"] == 5_000_000 and an_khoan["tien_gio_tang_ca"] == 0
+        assert an_khoan["gross"] == 30_000_000 + 5_000_000
+    finally:
+        db.close()
+
+
+def test_SO_T08_may_in_2_mau_Tuan_an_bu_lo_Huy_an_khoan_ca_hai_co_tang_ca_khoan(client):
+    """Sổ lương T08/2026 máy in 2 màu. Tuấn 16,5tr × 24/26 = 15.230.769 > khoán 14.147.394 ⇒ ăn bù lỗ.
+    Huy 14,5tr × 11/26 = 6.134.615 < khoán 6.344.265 ⇒ ăn khoán. Tăng ca khoán (số minh hoạ) cộng sau
+    cho cả hai; giờ tăng ca chấm công (Tuấn 2h, Huy 1,5h) không ra tiền."""
+    client
+    db = SessionLocal()
+    try:
+        svc = _svc(db)
+        params = svc.get_params()
+
+        def _so(muc, cong, phut, khoan, tck):
+            return svc._compute(employee=_emp(), salary=_sal(luong_vi_tri=muc), params=params,
+                                standard_cong=26, on=date(2026, 8, 1), actual_cong=cong,
+                                ot_minutes=phut, khoan=khoan, tang_ca_khoan=tck, che_do_khoan=True)
+
+        tuan = _so(16_500_000, 24, 120, 14_147_394, 500_000)
+        assert tuan["bu_lo_theo_cong"] == 15_230_769 and tuan["lay_bu_lo"] is True
+        assert tuan["luong_cong"] + tuan["khoan"] == 15_230_769
+        assert tuan["tang_ca_khoan"] == 500_000 and tuan["ot_pay"] == 0
+        assert tuan["gross"] == 15_230_769 + 500_000
+
+        huy = _so(14_500_000, 11, 90, 6_344_265, 300_000)
+        assert huy["bu_lo_theo_cong"] == 6_134_615 and huy["lay_bu_lo"] is False
+        assert huy["luong_cong"] == 0 and huy["ot_pay"] == 0
+        assert huy["gross"] == 6_344_265 + 300_000
 
         # Người KHÔNG tính 2 lương không bao giờ có tăng ca khoán.
         ngoai = _tinh(svc, params, actual_cong=26, tang_ca_khoan=5_000_000, che_do_khoan=False)
@@ -183,9 +217,9 @@ def test_TANG_CA_KHOAN_thuoc_ve_khoan_va_khong_bao_gio_nhan_ca_hai(client):
         db.close()
 
 
-def test_PHU_CAP_TANG_CA_DEM_nam_trong_ve_thoi_gian(client):
-    """Giờ đêm trong ca: 125.000 × 1h, luôn trả. Tăng ca đêm: 125.000 × 1h × (30% + 20%) = 62.500 —
-    ăn vế thời gian thì có, ăn khoán thì không."""
+def test_PHU_CAP_TANG_CA_DEM_khoi_SX_khong_co_gio_dem_trong_ca_van_tra(client):
+    """Giờ đêm trong ca: 125.000 × 1h, luôn trả (ca đêm thường, không phải tăng ca). Tăng ca đêm:
+    125.000 × 1h × (30% + 20%) = 62.500 — tổ thường có; khối SX (22/10/2026) ăn vế nào cũng không."""
     client
     db = SessionLocal()
     try:
@@ -195,8 +229,9 @@ def test_PHU_CAP_TANG_CA_DEM_nam_trong_ve_thoi_gian(client):
         tg = _tinh(svc, params, **dem, che_do_khoan=True)
         khoan = _tinh(svc, params, **dem, khoan=40_000_000, che_do_khoan=True)
         thuong = _tinh(svc, params, **dem, che_do_khoan=False)
-        assert thuong["night_premium_pay"] == tg["night_premium_pay"] == GIO + 62_500
-        assert khoan["night_premium_pay"] == GIO
+        assert thuong["night_premium_pay"] == GIO + 62_500
+        assert tg["lay_bu_lo"] is True
+        assert tg["night_premium_pay"] == khoan["night_premium_pay"] == GIO
     finally:
         db.close()
 
@@ -300,10 +335,11 @@ def test_CO_CHE_LUONG_chi_con_cong_tac_chuyen_can(client):
 # =============================================================================================
 # Chạy qua "Tính lại" thật — chấm công + phiếu tăng ca
 # =============================================================================================
-def test_TINH_LAI_cong_nhat_khoi_SX_va_tai_xe_an_tang_ca_nhu_to_thuong(client):
+def test_TINH_LAI_cong_nhat_khoi_SX_khong_tien_gio_tang_ca_tai_xe_van_co(client):
     """⭐ Ba người cùng làm một ngày thường + 3h tăng ca có phiếu: tổ thường · tổ khối SX (chưa có lần
-    ghi nào) · tổ Giao hàng (chưa có chuyến). Hai người sau ăn vế thời gian ⇒ tăng ca theo giờ bằng
-    đúng người tổ thường; ai cũng 1 suất cơm tăng ca. Không còn câu cảnh báo "khoán = 0" cho tổ SX."""
+    ghi nào) · tổ Giao hàng (chưa có chuyến). Hai người sau ăn vế thời gian. Tài xế có tăng ca theo giờ
+    bằng người tổ thường; người khối SX KHÔNG có (22/10/2026). Ai cũng 1 suất cơm tăng ca. Không còn câu
+    cảnh báo "khoán = 0" cho tổ SX."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
     khoi = _to("Khối SX tính lại", san_xuat=True)
@@ -330,8 +366,9 @@ def test_TINH_LAI_cong_nhat_khoi_SX_va_tai_xe_an_tang_ca_nhu_to_thuong(client):
     assert thuong["ot_pay"] > 0 and thuong["che_do_khoan"] is False
     for d in (sx, gh):
         assert d["che_do_khoan"] is True and d["lay_bu_lo"] is True
-        assert abs(d["ot_pay"] - thuong["ot_pay"]) <= 1, (d["ot_pay"], thuong["ot_pay"])
         assert d["tang_ca_khoan"] == 0
+    assert abs(gh["ot_pay"] - thuong["ot_pay"]) <= 1, (gh["ot_pay"], thuong["ot_pay"])
+    assert sx["ot_pay"] == 0 and sx["tien_gio_tang_ca"] == 0
     canh_bao = bang["canh_bao_chot"] or ""
     assert "tổ khoán có công nhưng tiền khoán" not in canh_bao, canh_bao
     assert "1 tài xế / phụ xe có công nhưng tiền km kỳ này = 0 (NV TC gh)" in canh_bao, canh_bao
