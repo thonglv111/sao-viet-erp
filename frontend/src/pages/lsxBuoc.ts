@@ -289,6 +289,18 @@ export function mayMacDinhCuaTo<T extends { id: number; toIds?: number[] | null;
   return mayChonDuoc(mayRefs, cd, toId, null)[0]?.id ?? null;
 }
 
+/** Tổ `toId` không có máy nào chạy được công đoạn (máy ĐANG gán cũng tính là máy của tổ nếu thuộc
+ *  tổ) — ô máy nói "Tổ này chưa có máy chạy công đoạn này". Công đoạn không ràng buộc tổ hoặc chưa
+ *  khai máy nào ⇒ false: không có gì để nói. */
+export function toChuaCoMay<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+  toId: number | null | undefined,
+): boolean {
+  if (!cd?.coRangBuocTo || toId == null || !(cd.mayChoPhep?.length)) return false;
+  return mayChonDuoc(mayRefs, cd, toId, null).length === 0;
+}
+
 export function emptyRow(): EditRow {
   return {
     key: newKey(), id: null, cong_doan_id: null, ten: "", nhom: null, loai_buoc: "may",

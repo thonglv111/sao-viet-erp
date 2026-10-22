@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toChuaCoMay, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -145,6 +145,13 @@ describe("mayChonDuoc — máy nào được mời cho một bước", () => {
     expect(mayMacDinhCuaTo(MAY, CD, TO_4MAU)).toBe(IN02);
     expect(mayMacDinhCuaTo(MAY, CD, TO_2MAU)).toBe(IN01);
     expect(mayMacDinhCuaTo(MAY, CD, TO_KHONG_MAY)).toBeNull();
+  });
+
+  it("tổ chỉ có ĐÚNG máy đang gán vẫn là tổ CÓ máy — câu 'chưa có máy' chỉ khi tổ trống hẳn", () => {
+    expect(toChuaCoMay(MAY, CD, TO_2MAU)).toBe(false);       // IN-01 là máy duy nhất, đang gán
+    expect(toChuaCoMay(MAY, CD, TO_KHONG_MAY)).toBe(true);
+    expect(toChuaCoMay(MAY, { mayChoPhep: [IN01], coRangBuocTo: false }, TO_KHONG_MAY)).toBe(false);
+    expect(toChuaCoMay(MAY, CD, null)).toBe(false);
   });
 });
 

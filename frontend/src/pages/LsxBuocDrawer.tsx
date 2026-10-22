@@ -29,6 +29,7 @@ import {
   mayChonDuoc,
   mayMacDinh,
   mayMacDinhCuaTo,
+  toChuaCoMay,
   nhanChang,
   nhanDonVi,
   nhanGiayTheoDauVao,
@@ -286,9 +287,7 @@ export function LsxBuocDrawer({
       .map((t) => toRefs?.find((x) => x.id === t)?.ten ?? `Tổ #${t}`),
   [toRefs, row.department_id]);
   // Tổ của bước chưa có máy nào chạy được công đoạn ⇒ nói thẳng, đừng để ô máy trống không lời.
-  const toHetMay = !!cdBuoc?.coRangBuocTo && row.department_id != null
-    && (cdBuoc.mayChoPhep?.length ?? 0) > 0
-    && !mayMoi.some((m) => m.id !== row.may_id);
+  const toHetMay = !!mayRefs && toChuaCoMay(mayRefs, cdBuoc, row.department_id);
   // Ô TỔ: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026), đúng thứ tự khai
   // (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn.
   // CHỈ nút lá (07/10/2026): `toRefs` là danh sách tổ = nút lá khối Sản xuất, id nào không nằm trong

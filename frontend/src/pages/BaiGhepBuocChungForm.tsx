@@ -545,7 +545,7 @@ export function BuocChungForm({
                         </option>
                       ))}
                     </select>
-                    {coRangBuocTo && toDangGan != null && !mayMoi.some((m) => m.id !== mayId) && (
+                    {coRangBuocTo && toDangGan != null && mayCuaTo(toDangGan).length === 0 && (
                       <span className="khsx-field__hint">Tổ này chưa có máy chạy công đoạn này.</span>
                     )}
                     {mayDaChon && (
