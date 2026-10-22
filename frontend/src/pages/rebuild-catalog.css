@@ -3336,6 +3336,17 @@ button.rc-formula__nhan--nut.is-chon {
 .rc-formula__phan-chu.m2 { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
 .rc-formula__phan-chu.m3 { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
 .rc-formula__phan-chu.is-sang { box-shadow: 0 0 0 2px currentColor; }
+/* Sửa ở dòng khung (22/10/2026): khoảng trống bấm được ⇒ con trỏ chữ; ô gõ đang đứng ở khung thì
+   nền khung nhạt đi một chút cho biết dấu / ngoặc gõ vào sẽ nằm giữa các phần. Phần đang chọn
+   (Shift + bấm) tô đặc, thanh bọc nằm cuối dòng khung — không thêm dòng. */
+.rc-formula__khung { cursor: text; border-radius: 6px; }
+.rc-formula__khung:has(> .rc-formula__inline-input-box) { background: #f8fafc; }
+.rc-formula__phan-chu.is-chon { color: #fff; background: #0369a1; border-color: #0369a1; }
+.rc-formula__phan-chu.m1.is-chon { background: #a16207; border-color: #a16207; }
+.rc-formula__phan-chu.m2.is-chon { background: #7e22ce; border-color: #7e22ce; }
+.rc-formula__phan-chu.m3.is-chon { background: #15803d; border-color: #15803d; }
+.rc-formula__boc { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; cursor: default; }
+.rc-formula__boc-nhan { font-family: var(--ff-sans); font-size: 12px; color: #64748b; }
 .rc-formula__phan {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -3438,8 +3449,7 @@ button.rc-formula__nhan--nut.is-chon {
   grid-column: 1 / -1;
   padding: 2px 6px;
 }
-.rc-formula__bang-them button,
-.rc-formula__them-phan button {
+.rc-formula__bang-them button {
   border: 0;
   background: none;
   padding: 3px 4px;
@@ -3448,23 +3458,7 @@ button.rc-formula__nhan--nut.is-chon {
   color: var(--rust, #c5400a);
   cursor: pointer;
 }
-.rc-formula__bang-them button:hover,
-.rc-formula__them-phan button:hover { text-decoration: underline; }
-.rc-formula__them-phan {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 0 0 4px;
-}
-.rc-formula__them-phan-nhan { font-family: var(--ff-sans); font-size: 12px; color: #64748b; margin-right: 2px; }
-.rc-formula__them-phan button {
-  min-width: 26px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-}
-.rc-formula__them-phan button:hover { text-decoration: none; background: #fff7ed; border-color: #fdba74; }
+.rc-formula__bang-them button:hover { text-decoration: underline; }
 
 /* Hai chế độ xem + nút Sao chép trên hàng tên ô. */
 .rc-formula__che-do {
@@ -4474,21 +4468,47 @@ button.rc-formula__nhan--nut.is-chon {
 /* Cột của từng lưới. Giá theo tổ: cột tiền 150px, cột tổ giãn; nhiều việc phát sinh thì kéo ngang. */
 .rc-bands--gia-to { overflow-x: auto; }
 .rc-khoan__luoi .rc-bands--gia-to th.so:nth-child(n) { width: 150px; }
-.rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(2) { width: 140px; }
+.rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(2) { width: 160px; }
+.rc-khoan__luoi .rc-bands__table td.rc-khoan__kieu:nth-child(n) { padding: 0 12px; }
 .rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(3) { width: 34%; }
 .rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(4),
 .rc-khoan__luoi .rc-bands--vps th:nth-child(4) { width: 40px; }
 .rc-khoan__luoi .rc-bands--vps th:nth-child(2) { width: 160px; text-align: right; padding-right: 40px; }
 .rc-khoan__luoi .rc-bands--vps th:nth-child(3) { width: 30%; }
 .rc-khoan__mat { color: var(--ash, #6f756f); font-style: italic; }
-/* Bậc giá (Bài in, 22/10/2026): khối khai bậc + lưới giá bậc × tổ, mỗi tổ hai cột. */
-.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(2),
-.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(3) { width: 84px; }
-.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(4) { width: 150px; }
-.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(6) { width: 110px; }
-.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(7) { width: 40px; }
+/* Bậc giá (Bài in, 22/10/2026): mỗi dòng bậc mang luôn giá từng tổ, mỗi tổ hai cột Cố định |
+   Đơn giá dưới tên tổ. Nhiều tổ thì kéo ngang (bảng này chỉ có ô chọn gốc, không menu thò ra). */
+.rc-khoan__luoi .rc-bands--bac-gia { overflow-x: auto; }
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child th:nth-child(2),
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child th:nth-child(3) { width: 84px; }
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child th:nth-child(4) { width: 120px; }
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child th:last-child { width: 40px; }
 .rc-khoan__luoi .rc-bands__table td.rc-khoan__chon:nth-child(n) { text-align: center; }
-.rc-khoan__luoi .rc-bands--gia-bac th.so:nth-child(n) { width: 120px; min-width: 120px; }
-.rc-khoan__luoi .rc-bands--gia-bac th.rc-khoan__dau-to:nth-child(n) { text-align: center; }
-.rc-khoan__luoi .rc-bands--gia-bac thead tr + tr th:first-child { border-left: 1px solid var(--rule-soft, #e8e3d3); }
-.rc-khoan__luoi .rc-bands--gia-bac + .rc-bands--gia-to { margin-top: 12px; }
+.rc-khoan__luoi .rc-bands--bac-gia th.so:nth-child(n) { width: 120px; min-width: 120px; }
+.rc-khoan__luoi .rc-bands--bac-gia th.rc-khoan__dau-to:nth-child(n) { text-align: center; }
+.rc-khoan__luoi .rc-bands--bac-gia thead tr + tr th:first-child { border-left: 1px solid var(--rule-soft, #e8e3d3); }
+/* Cột tổ chiếm bề ngang thì cột chữ không được bị bóp mất chữ: giữ đủ chỗ cho tên bậc, màu pha,
+   tuỳ chọn. Bảng bậc kéo ngang được nên cứ giữ rộng. */
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child th:first-child { min-width: 170px; }
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child th:nth-child(5) { width: 190px; min-width: 190px; }
+/* Việc phát sinh: giá riêng từng tổ là cột sau Đơn vị tính (cột thứ 4 trở đi, không còn là cột xoá).
+   Nhiều tổ thì kéo ngang như bảng bậc; lúc menu chọn đơn vị đang mở thì thôi cắt để menu thò ra. */
+.rc-khoan__luoi .rc-bands--vps:has(.rc-khoan__cot-to) { overflow-x: auto; }
+.rc-khoan__luoi .rc-bands--vps:has(.rc-ref-search-panel) { overflow: visible; }
+.rc-khoan__luoi .rc-bands--vps .rc-bands__table th:first-child { min-width: 220px; }
+.rc-khoan__luoi .rc-bands--vps .rc-bands__table th:nth-child(2) { width: 130px; min-width: 130px; }
+.rc-khoan__luoi .rc-bands--vps .rc-bands__table th:nth-child(3) { width: 150px; min-width: 150px; }
+.rc-khoan__luoi .rc-bands--vps .rc-bands__table th.rc-khoan__cot-to:nth-child(n) { width: 130px; min-width: 130px; }
+.rc-khoan__luoi .rc-bands--vps .rc-bands__table th:last-child { width: 40px; min-width: 40px; }
+/* Kéo ngang thì cột tên (tên bậc / tên việc) ghim bên trái — luôn biết đang khai dòng nào. */
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child > :first-child,
+.rc-khoan__luoi .rc-bands--bac-gia tbody tr > :first-child,
+.rc-khoan__luoi .rc-bands--vps tr > :first-child {
+  position: sticky; left: 0; z-index: 1; background: var(--canvas, #ffffff);
+  box-shadow: inset -1px 0 0 var(--rule-soft, #e8e3d3);
+}
+.rc-khoan__luoi .rc-bands--bac-gia thead tr:first-child > :first-child,
+.rc-khoan__luoi .rc-bands--vps thead tr > :first-child { background: #f6f7f9; z-index: 2; }
+/* Nút "＋ Thêm" rộng bằng khung nhìn, kéo ngang thì đứng yên (không trôi đi để lại dải trống). */
+.rc-khoan__luoi .rc-bands--bac-gia > .rc-bands__add,
+.rc-khoan__luoi .rc-bands--vps > .rc-bands__add { position: sticky; left: 0; }

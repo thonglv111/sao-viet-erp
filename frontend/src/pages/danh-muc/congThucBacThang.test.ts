@@ -141,6 +141,12 @@ describe("kiemCongThuc — chỉ báo, không tự sửa", () => {
     expect(kiemCongThuc(t("a * 1.5"), null, HAM).loi).toBeNull();
   });
 
+  it("hai mục đứng liền không có dấu ⇒ báo thiếu dấu, chỉ vào mục sau", () => {
+    expect(kiemCongThuc(t("a + 3 0"), null, HAM)).toEqual({ loi: 'Thiếu dấu giữa "3" và "0" — thêm + − × ÷ vào giữa', idx: 3 });
+    expect(kiemCongThuc(t("( a + b ) 3"), null, HAM).loi).toMatch(/Thiếu dấu giữa "\)" và "3"/);
+    expect(kiemCongThuc(t("max ( a , b ) * 2"), null, HAM).loi).toBeNull();
+  });
+
   it("if thiếu vế / max một tham số", () => {
     expect(kiemCongThuc(t("if ( a , b )"), null, HAM).loi).toMatch(/đủ 3 phần .* đang có 2/);
     expect(kiemCongThuc(t("max ( a )"), null, HAM).loi).toMatch(/ít nhất 2/);

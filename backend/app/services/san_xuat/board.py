@@ -481,7 +481,8 @@ def work_items(
     cho_loai: set[str] | None = None,
     toi: str | None = None,
     vuong: set[str] | None = None,
-    tre: str | None = None,
+    may: set[int] | None = None,
+    khach: set[int] | None = None,
     nguoi: set[int] | None = None,
     gap: str | None = None,
 ) -> dict:
@@ -514,7 +515,8 @@ def work_items(
     trên — xem repo. Ở `nhom="phang"`, `tu_ngay`/`den_ngay` vẫn là cửa sổ Gantt.
 
     Thanh lọc 6 điều kiện (09/10/2026, chỉ `nhom="lenh"`): `cho_loai` (loại việc chờ tổ bấm),
-    `toi` (hàng đang tới đâu), `vuong` (chưa bắt đầu được vì), `tre` (trễ giờ dự kiến), `nguoi`
+    `toi` (hàng đang tới đâu), `vuong` (chưa bắt đầu được vì), `may` / `khach` (22/10/2026, thay
+    `tre` trễ giờ dự kiến), `nguoi`
     (người đang được giao), `gap` (10/10/2026: `gap` lệnh gấp / `thuong` lệnh thường) — tính trên
     MỌI việc của bàn (`loc_ban_to`), giữ việc khớp TẤT CẢ điều kiện kể cả `trang_thai`, rồi đi
     đúng đường `chi_cong_viec_ids` trước khi cắt trang. Trong lệnh chỉ bày đúng các việc khớp.
@@ -524,7 +526,8 @@ def work_items(
     tron, rieng = q.pham_vi_ban(team_id)
     emp_id = _nhan_vien_id(db, user) if rieng else None
     chi_ids = _cv_cho_xac_nhan(db, q, team_id) if cho_xac_nhan else None
-    loc = {"toi": toi, "vuong": set(vuong or ()), "tre": tre, "nguoi": set(nguoi or ()),
+    loc = {"toi": toi, "vuong": set(vuong or ()), "may": set(may or ()), "khach": set(khach or ()),
+           "nguoi": set(nguoi or ()),
            "cho": set(cho_loai or ()), "gap": gap}
     can = loc_ban_to.can_cua(loc) if nhom == "lenh" else set()
     khop_ids: set[int] | None = None
@@ -668,14 +671,31 @@ def loc_dem(
             ten[e] = emp.full_name
     nguoi = sorted(({"id": e, "ten": n, "so": so_nguoi.get(e, 0)} for e, n in ten.items()),
                    key=lambda x: (-x["so"], x["ten"] or ""))
+    # Máy / khách: chỉ những giá trị có việc trên bàn (danh mục máy của xưởng dài, khách càng dài).
+    so_may: dict[int, int] = {}
+    so_khach: dict[int, int] = {}
+    ten_khach: dict[int, str] = {}
+    for t in tt.values():
+        for m in t["may"]:
+            so_may[m] = so_may.get(m, 0) + 1
+        for k, n in t["khach"].items():
+            so_khach[k] = so_khach.get(k, 0) + 1
+            ten_khach[k] = n
+    ten_may = repo.may_nhan(set(so_may))
+
+    def _ds(so: dict[int, int], ten_: dict[int, str]) -> list[dict]:
+        return sorted(({"id": i, "ten": ten_.get(i), "so": n} for i, n in so.items()),
+                      key=lambda x: (-x["so"], x["ten"] or ""))
+
     return {
         "trang_thai": trang_thai,
         "cho": _dem("cho", loc_ban_to.CHO),
         "toi": _dem("toi", loc_ban_to.TOI),
         "vuong": _dem("vuong", loc_ban_to.VUONG),
-        "tre": _dem("tre", loc_ban_to.TRE),
         "gap": _dem("gap", loc_ban_to.GAP),
         "nguoi": nguoi,
+        "may": _ds(so_may, ten_may),
+        "khach": _ds(so_khach, ten_khach),
     }
 
 
@@ -1509,7 +1529,9 @@ def chi_tiet_cong_viec(
                     "viec_khoan_don_gia": (float(b.don_gia_khoan_snapshot)
                                            if b.don_gia_khoan_snapshot is not None else None),
                     "tuy_chon_khoan": b.tuy_chon_khoan,
-                    "bac_khoan_ten": (b.bac_khoan_snapshot or {}).get("ten"),
+                    "bac_khoan_ten": ((b.bac_khoan_snapshot or {}).get("ten") or None) and (
+                        b.bac_khoan_snapshot["ten"] + {"a": " cho mặt A", "b": " cho mặt B"}.get(
+                            b.bac_khoan_snapshot.get("mat") or "", "")),
                     "phat_sinh": [
                         {
                             "id": r.id,

@@ -138,3 +138,31 @@ class KhoanKyRepository:
             return {}
         return {int(u): int(e) for e, u in self.db.execute(
             select(Employee.id, Employee.user_id).where(Employee.user_id.in_(user_ids)))}
+
+    # ------------------------------------------------------------------ màn Khoán theo tổ
+    def nhan_vien(self, ids: set[int]) -> dict[int, tuple[str, int | None]]:
+        """`{employee_id: (họ tên, tổ)}`."""
+        if not ids:
+            return {}
+        return {int(i): (t, d) for i, t, d in self.db.execute(
+            select(Employee.id, Employee.full_name, Employee.department_id).where(Employee.id.in_(ids)))}
+
+    def nhan_vien_cua_to(self, to_id: int) -> set[int]:
+        return {int(i) for (i,) in self.db.execute(select(Employee.id).where(Employee.department_id == to_id))}
+
+    def quy_cach_cong_viec(self, cv_ids: set[int]) -> dict[int, dict]:
+        """Ảnh chụp quy cách ở công việc — cái thợ thấy ở bàn tổ."""
+        if not cv_ids:
+            return {}
+        return {int(i): qc or {} for i, qc in self.db.execute(
+            select(SanXuatCongViec.id, SanXuatCongViec.quy_cach_json).where(SanXuatCongViec.id.in_(cv_ids)))}
+
+    def khach_theo_lenh(self, lsx_ids: set[int]) -> dict[int, str]:
+        from ..models.customer import Customer
+        from ..models.order import Order
+
+        if not lsx_ids:
+            return {}
+        return {int(i): t for i, t in self.db.execute(
+            select(Lsx.id, Customer.name).join(Order, Order.id == Lsx.order_id)
+            .join(Customer, Customer.id == Order.customer_id).where(Lsx.id.in_(lsx_ids)))}

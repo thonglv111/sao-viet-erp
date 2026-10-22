@@ -13,11 +13,12 @@ TIỀN — chỉ số lượng. Các mẩu phụ là danh sách `ct`, FE vẽ th
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from ... import audit_registry
+from ...models.san_xuat_thuc_thi import PHIEN_DOI_MAY, PHIEN_KET_THUC, PHIEN_TAM_DUNG
 from ...models.user import User
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.don_vi_do_repo import nhan_don_vi
@@ -53,6 +54,20 @@ def _ly_do(detail: str | None) -> str | None:
     """Lý do gõ kèm khi sửa số mẻ — phần sau " | " của `detail`."""
     _, sep, ly = (detail or "").partition(" | ")
     return ly.strip() or None if sep else None
+
+
+def _utc(t: datetime) -> datetime:
+    """SQLite trả mốc không nhãn múi giờ — coi là UTC như lúc ghi."""
+    return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+
+
+def _chay(bat_dau: datetime, ket_thuc: datetime) -> str:
+    """'chạy 28 phút' / 'chạy 1 giờ 5 phút' — phiên vừa đóng chạy bao lâu."""
+    phut = round((_utc(ket_thuc) - _utc(bat_dau)).total_seconds() / 60)
+    if phut < 1:
+        return "chạy chưa tới 1 phút"
+    g, p = divmod(phut, 60)
+    return "chạy " + (f"{g} giờ {p} phút" if g and p else f"{g} giờ" if g else f"{p} phút")
 
 
 def _dong(luc, nhom: str, cau: str, ct: list[str] | None = None, *, ly_do: str | None = None,
@@ -129,7 +144,8 @@ def cac_dong(db: Session, cv, *, gio=thuc_te_hien_thi) -> list[dict]:
     dv_bang = bang_dv_viec(db, cv)
     dv = lambda ma: nhan_don_vi(dv_bang, ma)  # noqa: E731
     emp_ids: set[int] = set()
-    may_ids: set[int] = {p.may_id for p in tt.cac_phien(cv.id) if p.may_id} | {y.may_id for y in su_co}
+    phien = tt.cac_phien(cv.id)
+    may_ids: set[int] = {p.may_id for p in phien if p.may_id} | {y.may_id for y in su_co}
     for l in logs:
         k = _kv(l.detail)
         if l.action in ("san_xuat_phan_cong", "san_xuat_go_phan_cong") and k.get("employee_id", "").isdigit():
@@ -138,7 +154,17 @@ def cac_dong(db: Session, cv, *, gio=thuc_te_hien_thi) -> list[dict]:
             may_ids |= {int(x) for x in re.findall(r"\d+", l.detail or "")}
     ten_nv = tt.ten_nhan_vien_nhieu(emp_ids)
     ten_may = _may_thiet_bi_nhan(db, may_ids)
-    phien_may = {p.so_thu_tu: ten_may.get(p.may_id) for p in tt.cac_phien(cv.id)}
+    phien_may = {p.so_thu_tu: ten_may.get(p.may_id) for p in phien}
+
+    def chay_bao_lau(l, loai: str) -> str | None:
+        """Dòng Tạm dừng / Kết thúc / Đổi máy kèm phiên vừa đóng chạy bao lâu (thay bảng Phiên chạy
+        đã gỡ khỏi ngăn, 22/10/2026). Audit không ghi số phiên ⇒ khớp theo loại đóng + mốc đóng gần
+        nhất: đóng phiên và ghi audit cùng một giao dịch. Kết thúc lúc đang tạm dừng thì không có
+        phiên nào đóng theo ⇒ không kèm."""
+        t = _utc(l.created_at)
+        lech = lambda p: abs((_utc(p.ket_thuc) - t).total_seconds())  # noqa: E731
+        p = min((p for p in phien if p.ket_thuc and p.loai_dong == loai), key=lech, default=None)
+        return _chay(p.bat_dau, p.ket_thuc) if p and lech(p) <= 120 else None
     doi_tac = kcs.cong_viec_nhieu(
         {b.nguon_cong_viec_id for b in bgs.values()} | {b.dich_cong_viec_id for b in bgs.values()}
         | {b.cong_viec_id for b in kcs_quy.values()}
@@ -162,14 +188,15 @@ def cac_dong(db: Session, cv, *, gio=thuc_te_hien_thi) -> list[dict]:
             n = int(k["phien"]) if k.get("phien", "").isdigit() else None
             return d("chay_may", f"Bắt đầu phiên {n}" if n else "Bắt đầu", [phien_may.get(n) if n else None, nguoi], mau="g")
         if a == "san_xuat_tam_dung":
-            return d("chay_may", "Tạm dừng", [nguoi], ly_do=l.detail)
+            return d("chay_may", "Tạm dừng", [chay_bao_lau(l, PHIEN_TAM_DUNG), nguoi], ly_do=l.detail)
         if a == "san_xuat_ket_thuc":
-            return d("chay_may", "Kết thúc việc", [nguoi], mau="g")
+            return d("chay_may", "Kết thúc việc", [chay_bao_lau(l, PHIEN_KET_THUC), nguoi], mau="g")
         if a == "san_xuat_doi_may":
             so = [int(x) for x in re.findall(r"\d+", l.detail or "")]
+            chay = chay_bao_lau(l, PHIEN_DOI_MAY)
             if len(so) == 2:
-                return d("chay_may", f"Đổi máy {ten_may.get(so[0], 'cũ')} sang {ten_may.get(so[1], 'mới')}", [nguoi])
-            return d("chay_may", "Đổi máy", [nguoi])
+                return d("chay_may", f"Đổi máy {ten_may.get(so[0], 'cũ')} sang {ten_may.get(so[1], 'mới')}", [chay, nguoi])
+            return d("chay_may", "Đổi máy", [chay, nguoi])
         # Người và khuôn
         if a in ("san_xuat_phan_cong", "san_xuat_go_phan_cong"):
             ten = ten_nv.get(int(k["employee_id"])) if k.get("employee_id", "").isdigit() else None

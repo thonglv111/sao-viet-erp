@@ -287,3 +287,20 @@ def test_danh_muc_doi_gia_bac_bao_lech_va_cap_nhat(db, orders, lsx_svc, admin, c
     db.refresh(b)
     assert float(b.don_gia_khoan_snapshot) == 45
     assert viec_khoan.danh_muc_doi(db, b, [], department_id=cv.department_id) == []
+
+
+def test_lenh_ab_ghi_theo_mat_chup_mat_vao_bac(db, orders, lsx_svc, admin, customer):
+    from app.schemas.san_xuat import BatchIn
+
+    assert BatchIn.model_validate({"tong": 1, "tot": 1, "mat_in": "b"}).mat_in == "b"
+    cv, _k = _canh(db, orders, lsx_svc, admin, customer, "TO-BAC-AB",
+                   {"muc_a": CMYK, "muc_b": ["K"], "quy_cach_in": "hai_mat"})
+    with pytest.raises(ValueError, match="chọn mặt A hay mặt B"):
+        _ghi(db, admin, cv)
+    db.rollback()
+    b = _ghi(db, admin, cv, mat_in="b")
+    assert (b.bac_khoan_snapshot["ma"], b.bac_khoan_snapshot["mat"]) == ("b1", "b")
+    # Sửa số giữ mặt đã chọn: bỏ tick UV vẫn là bậc của mặt B (1 màu), không quay về 5 màu.
+    san_luong.sua_so_me(db, user=admin, batch_id=b.id, tot=100, tuy_chon={"muc_uv": 1})
+    db.refresh(b)
+    assert b.bac_khoan_snapshot["mat"] == "b" and b.bac_khoan_snapshot["so_mau"] == 1

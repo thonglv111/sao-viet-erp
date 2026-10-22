@@ -1861,9 +1861,11 @@ export interface SxWorkItemsLocDem {
   cho: Record<string, number>;
   toi: Record<string, number>;
   vuong: Record<string, number>;
-  tre: Record<string, number>;
   gap?: Record<string, number>;   // "gap" lệnh gấp / "thuong" lệnh thường (10/10/2026)
   nguoi: { id: number; ten: string; so: number }[];
+  /** 22/10/2026 — thay `tre` (trễ giờ dự kiến): chỉ máy / khách đang có việc trên bàn. */
+  may?: LuaChonLoc[];
+  khach?: LuaChonLoc[];
 }
 
 export interface SxWorkItemsOut {
@@ -2089,6 +2091,8 @@ export interface SxTuyChonLanGhi { ma: string; ten: string; kieu: string; gia_tr
 /** Giá của tổ ứng với một tổ hợp tick (`chon` = {mã tuỳ chọn: 0/1}) — công đoạn chia bậc (Bài in). */
 export interface SxBacTheoChon {
   chon: Record<string, number>;
+  /** Lệnh in AB: tổ hợp của mặt nào; lệnh khác null. */
+  mat?: "a" | "b" | null;
   bac_ma: string | null;
   bac_ten: string | null;
   so_mau: number;
@@ -2548,6 +2552,8 @@ export interface SxBatchIn {
   nguoi_ids?: number[];
   /** Tuỳ chọn khi ghi `{ma: giá trị}` — thiếu mã là 0. */
   tuy_chon?: Record<string, number>;
+  /** Lệnh in AB: mặt máy chạy lần này — bậc giá theo số màu mặt đó. */
+  mat_in?: "a" | "b" | null;
 }
 export interface SxBanGiaoDeXuatIn {
   dich_cong_viec_id: number;           // một trong các chặng sau theo routing
@@ -6721,6 +6727,87 @@ export interface KhoanKyChiTiet {
   items: KhoanKyDong[];
   tong_khoan: number;
   tong_tang_ca_khoan: number;
+}
+
+/** Màn Lương → Khoán theo tổ (22/10/2026) — `GET /api/luong/khoan-theo-to`. Tiền là số nguyên đồng. */
+export interface KttNguoiLan {
+  emp_id: number;
+  ten: string;
+  /** Người không thuộc tổ đang xem — ghi tổ sau tên. */
+  to_ten: string | null;
+  luong_bu_lo: number;
+  tien: number;
+}
+export interface KttToTruongLan { ten: string; che_do: "chia" | "thuong"; ty_le: number; tien: number }
+export interface KttLanGhi {
+  batch_id: number;
+  ngay: string;
+  to_id: number | null;
+  to_ten: string | null;
+  nguon_loai: "lsx" | "bai_ghep";
+  nguon_id: number | null;
+  lenh_ma: string;
+  lenh_ten: string;
+  khach: string | null;
+  quy_cach: SxSlQuyCach | null;
+  cong_doan: string;
+  bac: string | null;
+  tuy_chon: string[];
+  phat_sinh: { ten: string | null; so_luong: number; don_vi: string | null; don_gia: number; tien: number }[];
+  so_luong: number;
+  don_vi: string | null;
+  tien_chinh: number;
+  /** Tiền gốc của lần ghi (trước luật ngày). */
+  tien: number;
+  /** 0 = tổ in ngày CN/lễ (bỏ), 2 = CN trùng lễ. */
+  he_so: number;
+  ghi_chu: string | null;
+  /** "chữ = thế số = kết quả" của phần chính. */
+  cong_thuc: string | null;
+  nguoi: KttNguoiLan[];
+  to_truong: KttToTruongLan[];
+}
+export interface KttNguoi {
+  emp_id: number;
+  ten: string;
+  to_ten: string | null;
+  la_thanh_vien: boolean;
+  luong_bu_lo: number;
+  san_luong: number;
+  dung_may: number;
+  tang_ca: number;
+  to_truong: number;
+  o_to_khac: number;
+  /** Tích "ăn công nhật" ở mốc lương: đứng trong tỷ lệ chia, không hưởng tiền khoán / tăng ca khoán. */
+  cong_nhat: boolean;
+  /** null với người tổ khác — lương chính của họ tính ở tổ của họ. */
+  luong_khoan: number | null;
+  thu_viec: boolean | null;
+  phan_bo_bu_lo: number | null;
+  cong: number | null;
+  chuan_cong: number | null;
+  an: "khoan" | "bu_lo" | null;
+  luong_chinh: number | null;
+}
+export interface KhoanTheoTo {
+  year: number;
+  month: number;
+  cac_to: { id: number; ten: string }[];
+  to_id: number | null;
+  to_ten: string | null;
+  la_to_in: boolean;
+  co_bang_luong: boolean;
+  to_truong: { emp_id: number; ten: string; che_do: "chia" | "thuong"; ty_le: number; tien: number } | null;
+  quy: { san_luong: number; dung_may: number; tang_ca: number; tong: number } | null;
+  nguoi: KttNguoi[];
+  doi_chieu: {
+    quy: number; tang_ca: number; to_truong_thuong: number; thu_viec: number; cong_nhat: number; nguoi_to_khac: number;
+    o_to_khac: number; luong_khoan: number; bu_lo: number | null; luong_chinh: number | null;
+  } | null;
+  so: KttLanGhi[];
+  khac: KttLanGhi[];
+  dung_may: { ngay: string; ly_do: string | null; sua_chua: string | null; ghi_chu: string | null; tien: number; nguoi: KttNguoiLan[] }[];
+  ngay: { ngay: string; quy: number; chi_tieu: number; tang_ca: number }[];
 }
 
 export interface LineComponentInput {
@@ -13992,6 +14079,12 @@ export const api = {
     chiTietKhoanKy(token: string, lineId: number): Promise<KhoanKyChiTiet> {
       return authed<KhoanKyChiTiet>(`/api/luong/lines/${lineId}/khoan-ky`, token);
     },
+    /** Màn Khoán theo tổ: quỹ, chia cho người, sổ sản lượng, dừng máy, tổ khác. Bỏ `toId` ⇒ tổ đầu. */
+    khoanTheoTo(token: string, year: number, month: number, toId?: number | null): Promise<KhoanTheoTo> {
+      const q = new URLSearchParams({ year: String(year), month: String(month) });
+      if (toId) q.set("to_id", String(toId));
+      return authed<KhoanTheoTo>(`/api/luong/khoan-theo-to?${q}`, token);
+    },
     addLineComponent(token: string, lineId: number, input: LineComponentInput): Promise<LineComponent> {
       return authed<LineComponent>(`/api/luong/lines/${lineId}/components`, token, { method: "POST", body: JSON.stringify(input) });
     },
@@ -15228,8 +15321,9 @@ export const api = {
       choXacNhan?: boolean;
       /** Thanh lọc view Bảng (06/10/2026) — `trang_thai` (mảng, lặp tham số), kỳ
        *  `tu_ngay`/`den_ngay`/`moc` (nhan · tao · du_kien). Máy chủ lọc TRƯỚC khi cắt trang.
-       *  09/10: thêm `cho_loai`, `vuong`, `nguoi` (mảng) và `toi`, `tre` (một giá trị).
-       *  10/10: thêm `gap` (`gap` lệnh gấp · `thuong` lệnh thường). */
+       *  09/10: thêm `cho_loai`, `vuong`, `nguoi` (mảng) và `toi` (một giá trị).
+       *  10/10: thêm `gap` (`gap` lệnh gấp · `thuong` lệnh thường).
+       *  22/10: gỡ `tre`, thêm `may`, `khach` (mảng id). */
       loc?: ThamSoLoc;
       sapXep?: "moi_nhan" | "cu_nhan" | "du_kien";
     }): Promise<SxWorkItemsOut> {

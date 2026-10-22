@@ -1,9 +1,10 @@
 # Gộp 8 công đoạn in thành một "Bài in" — giá khoán theo tổ × bậc màu
 
 Trạng thái: ĐÃ CODE 22/10/2026 (mg 0433, chưa commit), DB dev đã gộp 8 mã về id 17 "Bài in".
-Câu 1 ĐÃ CHỐT 22/10: số màu = số kẽm như Tính giá (AB 4/4 ra 8). Hai câu còn lại chạy theo GIẢ ĐỊNH: 3 màu
-có pha → bậc "3–4 màu có pha", metaline nhân 3 cả với Pantone. Chủ trả lời khác thì sửa bậc trong
-danh mục, không phải sửa code.
+Câu 1 ĐÃ CHỐT 22/10: số màu = số kẽm như Tính giá; AB chọn mặt mỗi lần ghi. Giả định: 3 màu có pha →
+bậc "3–4 màu có pha", metaline nhân 3 trên giá thường. Chủ trả lời khác thì sửa bậc trong danh mục.
+Bao quát sổ 5 máy (22/10 tối): bậc dò theo tổ có giá, AB chọn mặt, bậc Pantone metaline, chỉ tiêu
+ngày = máy hư — xem "Công thức khoán" và "Kiểm bằng ma trận".
 
 ## Vì sao gộp
 
@@ -63,14 +64,17 @@ tính giá để sau có sai thì sửa một chỗ). Cùng hàm `dem_mau_cong_t
 
 - 1 mặt: số mực mặt A.
 - Tự trở / trở nhíp: `|A ∪ B|`.
-- AB: `|A| + |B|` — AB 4/4 ra 8, không khớp bậc nào tới khi khai bậc cho AB.
+- AB: mỗi lần ghi là MỘT mặt (22/10, sổ tính mỗi mặt là một bài). Hộp ghi của lệnh AB bắt chọn
+  "Mặt A / Mặt B" (`mat_in`), bậc theo số kẽm của mặt đó, mặt chụp vào `bac_khoan_snapshot.mat`.
+  Không chọn mặt thì máy chủ từ chối. Bài ghép chỉ có số màu gộp nên không tách mặt.
 
-(Bản đầu dùng `dau_muc_can`, số mực một lượt máy, AB 4/4 ra 4 — đã bỏ.)
+(Bản đầu dùng `dau_muc_can`, số mực một lượt máy, AB 4/4 ra 4 — đã bỏ. Bản thứ hai cộng hai mặt,
+AB 4/4 ra 8 không khớp bậc nào — đã thay bằng chọn mặt.)
 
 "Có pha" = có ít nhất một mực không thuộc CMYK, tức `so_mau_pha > 0`.
 
-Giả định về vecni: sale nhập vecni như một mực trong tập mực của quy cách, nên nó tự được đếm vào
-cả số màu lẫn màu pha. Điều này khớp với tên mã cũ ("4 CMYK + 1 pha hoặc vecni").
+Vecni: TẠM GÁC (chủ chốt 22/10). Sổ trả vecni như in thêm một màu ("4 CMYK hoặc VECNI" ăn bậc 5
+màu), chủ coi phần vecni của sổ là sai; chưa có luật, máy không xét vecni.
 
 ### Khai bậc trong danh mục
 
@@ -85,8 +89,11 @@ Mỗi bậc gồm:
 - Mực UV: có / không / không xét.
 - Ô tick "Giá đã gồm UV".
 
-Bậc xét theo thứ tự từ trên xuống, bậc khớp đầu tiên thắng. Không bậc nào khớp (ví dụ 8 màu) thì
-báo "thiếu giá" kèm câu "lệnh 8 màu, chưa có bậc nào khớp".
+Bậc xét theo thứ tự từ trên xuống, bậc khớp đầu tiên MÀ TỔ CÓ GIÁ thắng (22/10): ô trống nghĩa là
+tổ đó không chia bậc ấy, máy dò tiếp xuống. Máy 4 màu gặp lệnh 2 màu có pha thì rơi qua hai bậc
+Pantone (chỉ 2M có giá) xuống "1–2 màu thường", đúng sổ 4M "1–2 màu" không phân pha. Không bậc nào
+tổ có giá thì giữ bậc khớp đầu để lương báo "tổ chưa có giá bậc …". Không bậc nào khớp (ví dụ 8
+màu) thì báo "thiếu giá" kèm câu "lệnh 8 màu, chưa có bậc nào khớp".
 
 ### Công thức khoán
 
@@ -95,11 +102,30 @@ Công thức giữ nguyên dáng. `gia_co_dinh` và `don_gia_khoan` lấy từ �
 nhân đôi thêm lần nữa:
 
 ```
-((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000) * don_gia_khoan)
+(gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - 3000) * don_gia_khoan)
   * if(metaline > 0, 3, if(muc_uv > 0, if(gia_gom_uv > 0, 1, 2), 1))
 ```
 
-Tuỳ chọn khi ghi vẫn là ba ô: Chạy tiếp, Mực UV, Mực UV cán metaline.
+Tuỳ chọn khi ghi có hai ô: Mực UV, Mực UV cán metaline.
+
+- Bài ghép in liên tục: mỗi lần ghi ăn đủ giá bài + tờ rớt quá 3.000, thay kẽm gõ ở việc phát sinh
+  (100.000/kẽm). Sổ 7M dòng 393A / 393C bỏ giá bài, không trừ 3.000 (474.500 / 331.000) — chủ chốt
+  22/10 sổ ghi SAI, bỏ ô tick "Bài ghép nối tiếp" đã thêm tạm. Máy ra 644.500 / 501.000.
+  Chạy lại cả 440 dòng sổ 5 máy thấy kiểu "chỉ trả tờ rớt" lặp ~17 dòng (chạy tiếp, in tiếp, bài
+  ghép chạy chung ở 2M, 6M, 7M); chủ chốt lại 22/10: vẫn ĂN ĐỦ GIÁ BÀI.
+- Metaline tính gấp 3 trên giá thường. Tick cả Mực UV lẫn metaline ở lệnh Pantone máy 2 màu thì
+  bậc "1–2 màu Pantone metaline" (đứng trên bậc Pantone UV, chỉ 2M có giá 225.000/30) chặn không
+  cho lấy giá Pantone UV 450.000 rồi nhân 3.
+
+Chỉ tiêu ngày của 5 tổ in = tiền "máy hư / hết hàng" của sổ: 2M 1.250.000, 4M và 5M 1.403.846,
+6M 1.800.000, 7M 1.923.077. Cùng số này là mốc tăng ca khoán (sổ 2M dùng đúng ô H9 cho cả hai).
+
+### Kiểm bằng ma trận
+
+`backend/tests/test_khoan_in_bao_quat.py`: đáp án viết thẳng từ bảng sổ (không đọc bậc / ô giá),
+quét 5 tổ × 24 bộ mực × 7 kiểu quy cách (1 mặt, tự trở, trở nhíp, AB từng mặt, bài
+ghép, ảnh chụp cũ) × 4 tổ hợp tick × 10 mốc số tờ = 34.400 ca, cộng 16 dòng thật của sổ và một
+tháng qua `KhoanKyService.tinh` (tăng ca + ngày máy hư). Thử gài 7 lỗi cố ý, ma trận bắt cả 7.
 
 ### Công đoạn không bật "chia bậc"
 
@@ -164,5 +190,10 @@ Liệt kê để ước lượng; thứ tự và chi tiết để plan chốt.
 1. ~~AB đếm bậc thế nào?~~ ĐÃ CHỐT 22/10: số màu = số kẽm như Tính giá, AB 4/4 ra 8.
 2. **3 màu có pha** (2 CMYK + 1 Pantone) có ăn bậc "3–4 màu có pha" (giá IN-4P) không? Hay ăn
    "3–4 màu thường"?
-3. **Metaline trên Pantone:** hiện IN-12P không cho chọn metaline. Sau gộp, tuỳ chọn là chung, nên
-   Pantone + metaline sẽ ra ×3 trên giá Pantone thường. Giữ vậy, hay cấm metaline ở bậc Pantone?
+3. ~~Metaline trên Pantone~~ 22/10 theo đề xuất: ×3 trên giá Pantone thường, tick kèm UV không đổi.
+4. ~~Vecni~~ 22/10 chủ: tạm gác, phần vecni của sổ coi là sai.
+5. ~~Chỗ sổ chưa đọc được~~ đọc lại 22/10: 4M dòng F không bị cắt, đủ câu là "thêm lượt in thì tính
+   theo bảng trên" (mỗi lượt một bài, khớp máy). "450k/350k" của 4M = lệnh 330AB "Thay 1k":
+   350.000 + 100.000 thay kẽm, không phải giá riêng. Ô "15.000" cạnh "10% tổng bài in" không ô nào
+   dùng, bỏ qua; "10% tổng bài in" là luật gốc có pha +10% (6M đúng: 27 → 29,7). Tờ rớt 6M có pha
+   GIỮ 29,7 — ô sổ định dạng không lẻ nên hiện 30, dòng lệnh 397 trả 12.000 × 29,7.

@@ -289,6 +289,14 @@ export function boDau(s: string): string {
  *
  *  Hai thói quen của Excel tiếng Việt — `;` ngăn tham số, `IF` viết hoa — CHỈ BÁO, không tự sửa
  *  (chủ chốt 29/09/2026): câu báo nói luôn cách sửa. */
+/** Hai token đứng liền mà thiếu dấu ở giữa: `3 0`, `( … ) 3`, `so_kem 2`. Tên hàm đứng trước ngoặc
+ *  của nó thì không tính. */
+export function lienNhau(a: string | undefined, b: string | undefined, ham: string[]): boolean {
+  if (a === undefined || b === undefined) return false;
+  const ketThuc = a === ")" || /^\d/.test(a) || (LA_TEN.test(a) && !ham.includes(a));
+  return ketThuc && (b === "(" || /^\d/.test(b) || LA_TEN.test(b));
+}
+
 export function kiemCongThuc(
   toks: string[], bienHopLe: string[] | null, ham: string[],
 ): { loi: string | null; idx: number | null } {
@@ -328,6 +336,11 @@ export function kiemCongThuc(
   if (thua >= 0) return { loi: "Thừa dấu đóng ngoặc", idx: thua };
   const thieu = toks.findIndex((t, i) => t === "(" && khop[i] < 0);
   if (thieu >= 0) return { loi: "Thiếu dấu đóng ngoặc", idx: thieu };
+
+  const lien = toks.findIndex((t, i) => lienNhau(t, toks[i + 1], ham));
+  if (lien >= 0) {
+    return { loi: `Thiếu dấu giữa "${toks[lien]}" và "${toks[lien + 1]}" — thêm + − × ÷ vào giữa`, idx: lien + 1 };
+  }
 
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];

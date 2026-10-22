@@ -596,11 +596,11 @@ describe("ThsxDrawer · nội dung các tab (ngăn B)", () => {
     expect(screen.getByText("Không có")).toBeTruthy();
   });
 
-  it("Sản lượng: Các mẻ đã ghi + nút Ghi mẻ, Phiên chạy; số tốt không lặp lại (đã ở cột phải)", () => {
+  it("Sản lượng: Các mẻ đã ghi + nút Ghi mẻ, không còn bảng Phiên chạy; số tốt không lặp lại (đã ở cột phải)", () => {
     moTab("sl", { ban_giao_chang_sau: chang });
     expect(screen.getByRole("heading", { name: "Sản lượng đã ghi" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Ghi sản lượng/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /Phiên chạy/ })).toBeTruthy();
+    expect(screen.queryByText(/Phiên chạy/)).toBeNull();
     expect(screen.getByText("Chưa ghi sản lượng lần nào.")).toBeTruthy();
     expect(document.querySelector(".thsx-batch-metric-strip")).toBeNull();
   });

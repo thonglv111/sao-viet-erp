@@ -1,8 +1,6 @@
-"""Thanh lọc 6 điều kiện của bàn tổ (09/10/2026): `cho_loai`, `toi`, `vuong`, `tre`, `nguoi` lọc
+"""Thanh lọc của bàn tổ (09/10/2026): `cho_loai`, `toi`, `vuong`, `may`, `khach`, `nguoi` lọc
 ở MÁY CHỦ trước khi cắt trang + `loc_dem` đếm theo công việc."""
 from __future__ import annotations
-
-from datetime import timedelta
 
 import pytest
 
@@ -11,7 +9,6 @@ from app.models.san_xuat import SanXuatCongViec
 from app.models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong
 from app.repositories.rbac_repo import RoleRepository
 from app.schemas.san_xuat import WorkItemsLocDemOut
-from app.services.gio_xuong import gio_xuong
 from app.services.rbac_service import AuthorizationService
 from app.services.san_xuat import board
 from tests.test_san_xuat_lenh_phan_trang import (  # noqa: F401
@@ -68,20 +65,37 @@ def test_hai_dieu_kien_la_va(db, admin, to_co_3_lenh_9_buoc, tho_chi_lam_lenh_th
     assert kq["trang"]["tong"] == 0
 
 
-def test_tre_xong_chi_viec_qua_gio_ket_thuc(db, admin, to_co_3_lenh_9_buoc):
+def test_loc_may_va_khach(db, admin, to_co_3_lenh_9_buoc):
+    """22/10/2026 — Máy / Khách hàng thay "Trễ giờ dự kiến": lọc + đếm ở máy chủ."""
+    from app.models.customer import Customer
+    from app.models.lsx import Lsx
+    from app.models.order import Order
+    from tests.test_san_xuat_su_co import _may
+
     to_id = to_co_3_lenh_9_buoc
     cvs = _cvs(db, to_id)
-    now = gio_xuong()
-    for cv in cvs:
-        cv.du_kien_bat_dau = now + timedelta(days=1)
-        cv.du_kien_ket_thuc = now + timedelta(days=1, hours=1)
-    tre = cvs[0]
-    tre.du_kien_bat_dau = now - timedelta(hours=3)
-    tre.du_kien_ket_thuc = now - timedelta(hours=2)
+    may = _may(db, "MAY-LOC-1")
+    cvs[0].may_id = may.id
+    khach_moi = Customer(code="KH-LOC-2", name="Khách Lọc Hai")
+    db.add(khach_moi)
+    db.flush()
+    lsx = db.get(Lsx, cvs[-1].lsx_id)
+    db.get(Order, lsx.order_id).customer_id = khach_moi.id
     db.commit()
-    assert _ids(_ban(db, admin, to_id, tre="xong")) == {tre.id}
-    # Chưa có phiên chạy nào + qua giờ bắt đầu ⇒ cũng là "quá giờ bắt đầu mà chưa chạy".
-    assert _ids(_ban(db, admin, to_id, tre="bat_dau")) == {tre.id}
+
+    assert _ids(_ban(db, admin, to_id, may={may.id})) == {cvs[0].id}
+    cung_lenh = {cv.id for cv in cvs if cv.lsx_id == lsx.id}
+    assert _ids(_ban(db, admin, to_id, khach={khach_moi.id}, co_trang=50)) == cung_lenh
+    assert _ids(_ban(db, admin, to_id, may={may.id}, khach={khach_moi.id})) == (
+        {cvs[0].id} & cung_lenh)
+
+    d = WorkItemsLocDemOut.model_validate(board.loc_dem(db, admin, _authz(db), team_id=to_id))
+    mays = {m.id: (m.ten, m.so) for m in d.may}
+    assert mays[may.id] == ("Máy MAY-LOC-1", 1)
+    assert sum(so for _t, so in mays.values()) == sum(1 for cv in cvs if cv.may_id)
+    kh = {k.id: (k.ten, k.so) for k in d.khach}
+    assert kh[khach_moi.id] == ("Khách Lọc Hai", len(cung_lenh))
+    assert sum(so for _t, so in kh.values()) == len(cvs)
 
 
 def test_trang_thai_gop_vao_dieu_kien_moi_cung_mot_viec(db, admin, to_co_3_lenh_9_buoc, tho_chi_lam_lenh_thu_3):

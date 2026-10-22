@@ -153,11 +153,11 @@ theo tổ, báo thiếu giá. Đợt 2 chỉ thêm những gì sổ cần mà đ
 **Mỗi mã giá trong sổ = một công đoạn** (D1MEB, KDCC, C5L1, …), giá khai theo tổ. In UV / metalize
 là công đoạn riêng, giá đã gồm ×2 / ×3 — không cần hệ số. Đây là nhập danh mục, không phải code.
 
-Công thức của từng tổ (biến mới của đợt 2: `chay_tiep`, `trung_khuon`, `xa_doi`, `so_lo`, `so_lan_chay`, `tien_gio`, `tu_tro`):
+Công thức của từng tổ (biến mới của đợt 2: `trung_khuon`, `xa_doi`, `so_lo`, `so_lan_chay`, `tien_gio`, `tu_tro`):
 
 | Tổ trong sổ | Công thức khoán |
 |---|---|
-| In | `((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000) * don_gia_khoan) * if(so_mau_pha > 0, 1.1, 1)` |
+| In | `(gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - 3000) * don_gia_khoan) * if(so_mau_pha > 0, 1.1, 1)` — ĐÃ THAY bằng công thức của "Bài in" (IN-12, `2026-10-22-gop-bai-in-khoan-design.md`): giá theo tổ × bậc màu. Mọi lần ghi ăn đủ giá bài kể cả bài ghép in liên tục và "chạy tiếp" (sổ 2M WIPRO 413 = 381.000); sổ 7M 393A / 393C bỏ giá bài là ghi sai (chủ chốt 22/10) |
 | Bế | `(1 - trung_khuon) * gia_co_dinh + sl_ghi * (1 + xa_doi) * (don_gia_khoan + if(so_lo >= 7, 50, if(so_lo >= 1, 20, 0)))` |
 | Cán màng, Bồi | `sl_ghi * dai_in * rong_in * don_gia_khoan`; chụp film = việc phát sinh |
 | Cắt | `sl_ghi * dai_nguyen * rong_nguyen * dinh_luong * don_gia_khoan` (đ/kg) |
@@ -166,8 +166,11 @@ Công thức của từng tổ (biến mới của đợt 2: `chay_tiep`, `trung
 | Thành phẩm trả theo giờ (lau chùi, đếm bỏ bọc) | `tien_gio` |
 
 Số lượng trong công thức (chủ 21/10): CHỈ MỘT chip `sl_ghi` = cột "Số lượng" của lần ghi ở bàn tổ (tab
-Sản lượng) — đúng số thợ gõ. Không nói tốt / hỏng: gỡ chip `sl_tot` khỏi ô Công thức khoán; công đoạn
-bỏ trống công thức = `gia_co_dinh + sl_ghi × don_gia`.
+Sản lượng) — đúng số thợ gõ. Không nói tốt / hỏng: gỡ chip `sl_tot` khỏi ô Công thức khoán. Công đoạn
+bỏ trống công thức = 0 đồng (chủ 22/10 ĐẢO luật cũ "trống = `gia_co_dinh + sl_ghi × don_gia`": tiền
+phải tường minh trên công thức). Mg 0434 chép công thức đó vào mọi ô đang trống để tiền giữ nguyên.
+Kết quả công thức LÀ tiền (chủ 22/10): bỏ luật ngầm "công thức không có chip tiền thì máy tự × đơn
+giá khoán". Công thức có sản lượng mà không có `don_gia_khoan` chỉ bị nhắc trước chốt, không tự nhân.
 
 Màu pha (chủ 21/10): sổ in ghi "màu pha 10% tổng bài in" = lần ghi của bài có màu pha cộng 10% tiền.
 Viết trong công thức bằng chip có sẵn `so_mau_pha` (`if(so_mau_pha > 0, 1.1, 1)`), không code riêng.
@@ -179,7 +182,7 @@ Phần thêm:
 2. **Tuỳ chọn khi ghi** — khối mới ở tab Khoán của công đoạn: tên hiện cho thợ, mã biến, kiểu
    Có/không (vào công thức là 1/0) hoặc Số, gợi ý. Mỗi tuỳ chọn thành chip trong ô Công thức khoán,
    hiện ở hộp Ghi sản lượng và Sửa số (đặt trên việc phát sinh), lưu theo lần ghi. Không tick / bỏ
-   trống = 0. Ví dụ: In có "Chạy tiếp"; Bế có "Trùng khuôn", "Xả đôi", "Số lỗ đục".
+   trống = 0. Ví dụ: Bế có "Trùng khuôn", "Xả đôi", "Số lỗ đục".
 3. **Chip `so_lan_chay`** cho mọi công đoạn (chủ 21/10, sổ DÁN cột "tiền canh máy" = `$O$119 / số lần
    chạy`): số lần ghi của CÙNG lệnh ở CÙNG công đoạn, đếm tới cuối kỳ đang tính lương (tối thiểu 1).
    Tiền khoán tính lại mỗi lần bấm Tính lại nên lần ghi sau làm số của lần trước đổi theo — đúng sổ.
@@ -231,7 +234,7 @@ Còn phải chốt trước khi code:
 ### Giả định đã trình chủ 21/10 (chủ không gạch ⇒ coi là duyệt)
 
 - Mỗi mã giá trong sổ = một công đoạn (~150 công đoạn, nhập qua Excel danh mục).
-- Xả đôi, số lỗ đục, trùng khuôn, chạy tiếp, không canh máy do THỢ tick / gõ ở từng lần ghi (không lấy
+- Xả đôi, số lỗ đục, trùng khuôn, không canh máy do THỢ tick / gõ ở từng lần ghi (không lấy
   từ quy cách lệnh). In UV / metalize là công đoạn riêng. Chụp film là việc phát sinh.
 - Cán màng / bồi tính m² theo khổ tờ in; cắt tính kg theo khổ tờ nguyên × định lượng (cắt thành phẩm
   chưa đối chiếu sổ — khổ khác thì sửa công thức, không phải code).

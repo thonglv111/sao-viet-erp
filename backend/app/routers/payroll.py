@@ -76,6 +76,7 @@ from ..schemas.payroll import (
     LineComponentsOut,
     KhoanKmChiTietOut,
     KhoanKyChiTietOut,
+    KhoanTheoToOut,
     KhoanKyDongOut,
     KhoanKmChuyenOut,
     ComponentsOut,
@@ -1494,6 +1495,25 @@ def chi_tiet_khoan_ky(line_id: int, svc: Service, authz: Authz,
     tc = sum(r["tien"] for r in rows if r["loai"] == "tang_ca_khoan")
     return KhoanKyChiTietOut(items=[KhoanKyDongOut(**r) for r in rows],
                              tong_khoan=sum(r["tien"] for r in rows) - tc, tong_tang_ca_khoan=tc)
+
+
+@router.get("/khoan-theo-to", response_model=KhoanTheoToOut)
+def khoan_theo_to(svc: Service, authz: Authz,
+                  # Cùng ô với Bảng lương tháng: màn bày tiền khoán của cả một tổ.
+                  user: Annotated[User, Depends(require_permission(MODULE, "view_payroll_table"))],
+                  year: int = Query(..., ge=2000, le=2100), month: int = Query(..., ge=1, le=12),
+                  to_id: int | None = Query(default=None)) -> KhoanTheoToOut:
+    """Màn Lương → Khoán theo tổ: quỹ tổ, chia cho người, sổ sản lượng, dừng máy, tổ khác."""
+    from ..services.khoan_theo_to import KhoanTheoToForbidden, xem
+
+    if svc.components is None:
+        return KhoanTheoToOut(year=year, month=month)
+    try:
+        data = xem(svc.components.db, svc, year, month, to_id,
+                   svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
+    except KhoanTheoToForbidden as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return KhoanTheoToOut(**data)
 
 
 @router.post("/lines/{line_id}/components", response_model=LineComponentOut,

@@ -18973,3 +18973,27 @@ def _migrate_bac_gia_khoan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0433_bac_gia_khoan", _migrate_bac_gia_khoan))
+
+
+def _migrate_cong_thuc_khoan_tuong_minh(db: Session) -> None:
+    """0434 (22/10/2026) — công thức khoán phải TƯỜNG MINH: ô trống nay ra 0 đồng (chủ chốt), không
+    còn ngầm `gia_co_dinh + sl_ghi × don_gia`. Chép đúng công thức ngầm đó vào mọi công đoạn khoán
+    và mọi ảnh chụp lần ghi đang để trống ('' — NULL là lần ghi cũ đọc công thức công đoạn) để tiền
+    giữ nguyên và người mở form thấy được. Raw SQL đích danh cột, idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    # Đọc cột TRƯỚC lệnh ghi đầu tiên — inspector sau UPDATE làm SQLite mất phần đã ghi.
+    co_chup = "san_xuat_batch" in bang and "cong_thuc_khoan_snapshot" in _existing_columns(insp, "san_xuat_batch")
+    ct = "gia_co_dinh + sl_ghi * don_gia_khoan"
+    if "cong_doan_khoan" in bang:
+        db.execute(text("UPDATE cong_doan_khoan SET cong_thuc_khoan = :ct "
+                        "WHERE cong_thuc_khoan IS NULL OR TRIM(cong_thuc_khoan) = ''"), {"ct": ct})
+    if co_chup:
+        db.execute(text("UPDATE san_xuat_batch SET cong_thuc_khoan_snapshot = :ct "
+                        "WHERE khoan_cong_doan_id IS NOT NULL AND cong_thuc_khoan_snapshot IS NOT NULL "
+                        "AND TRIM(cong_thuc_khoan_snapshot) = ''"), {"ct": ct})
+    db.commit()
+
+
+MIGRATIONS.append(("0434_cong_thuc_khoan_tuong_minh", _migrate_cong_thuc_khoan_tuong_minh))

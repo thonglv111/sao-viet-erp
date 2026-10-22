@@ -23,6 +23,7 @@ from app.services.san_xuat import viec_khoan
 
 NAM, THANG = 2026, 10
 CONG_THUC = "gia_co_dinh + max(0, sl_ghi - 3000) * don_gia_khoan"
+CT_THANG = "gia_co_dinh + sl_ghi * don_gia_khoan"     # công thức mg 0434 chép vào ô đang trống
 _dem = count(1)
 
 
@@ -155,16 +156,15 @@ def test_TO_VANG_bang_gia_la_THIEU_GIA_khong_doan(client):
         db.close()
 
 
-def test_PHAT_SINH_gia_theo_to_va_khong_cong_thuc(client):
-    """Không khai công thức ⇒ giá cố định + SL tốt × đơn giá. Thay kẽm 2 × 100.000 cộng thêm; xuống
-    bài theo tổ (2M 187.500)."""
+def test_PHAT_SINH_gia_theo_to_cong_thuc_thang(client):
+    """Giá cố định + SL × đơn giá. Thay kẽm 2 × 100.000 cộng thêm; xuống bài theo tổ (2M 187.500)."""
     client
     db = SessionLocal()
     try:
         n = _Nen(db)
         m2 = n.to("Máy 2 màu")
         a = n.nv(m2, "A")
-        k = n.khoan(gia_theo_to=GIA_IN((m2, 0, 30)), cong_thuc=None, phat_sinh=[
+        k = n.khoan(gia_theo_to=GIA_IN((m2, 0, 30)), cong_thuc=CT_THANG, phat_sinh=[
             ("Thay kẽm", 100_000, None),
             ("Xuống bài", 0, [{"department_id": m2.id, "don_gia": 187_500}]),
         ])
@@ -172,6 +172,25 @@ def test_PHAT_SINH_gia_theo_to_va_khong_cong_thuc(client):
         db.commit()
         kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
         assert kq["khoan"][a.id] == 1_000 * 30 + 2 * 100_000 + 187_500
+    finally:
+        db.close()
+
+
+def test_KHONG_CONG_THUC_ra_0_viec_phat_sinh_van_tinh(client):
+    """Chủ 22/10: tiền phải tường minh trên công thức — ô trống thì phần chính 0 đồng, không ngầm
+    giá cố định + SL × đơn giá. Việc phát sinh có giá riêng nên vẫn cộng."""
+    client
+    db = SessionLocal()
+    try:
+        n = _Nen(db)
+        m2 = n.to("Máy 2 màu")
+        a = n.nv(m2, "A")
+        k = n.khoan(gia_theo_to=GIA_IN((m2, 150_000, 30)), cong_thuc=None,
+                    phat_sinh=[("Thay kẽm", 100_000, None)])
+        n.ghi(m2, k, date(NAM, THANG, 5), 5_000, [a], phat_sinh={"Thay kẽm": 1})
+        db.commit()
+        kq = KhoanKyService(db).tinh(NAM, THANG, _muc_bang_nhau(db))
+        assert kq["khoan"][a.id] == 100_000
     finally:
         db.close()
 
@@ -207,7 +226,7 @@ def test_CHI_TIEU_NGAY_50_phan_tram_vuot_la_tang_ca_khoan(client):
         m2 = n.to("Máy 2 màu", cha=cha.id)
         a, b = n.nv(m2, "A"), n.nv(m2, "B")
         db.add(KhoanChiTieuNgay(department_id=cha.id, ap_dung_tu=date(NAM, 1, 1), so_tien=300_000))
-        k = n.khoan(gia_theo_to=GIA_IN((m2, 0, 100)), cong_thuc=None)
+        k = n.khoan(gia_theo_to=GIA_IN((m2, 0, 100)), cong_thuc=CT_THANG)
         n.ghi(m2, k, date(NAM, THANG, 5), 2_000, [a, b])       # 200.000 → 100k mỗi người
         n.ghi(m2, k, date(NAM, THANG, 5), 2_000, [a])          # 200.000 → A
         n.ghi(m2, k, date(NAM, THANG, 6), 2_000, [a])          # ngày khác, dưới chỉ tiêu
@@ -231,7 +250,7 @@ def test_TO_TRUONG_an_chia_va_an_thuong(client):
         chia.head_user_id, thuong.head_user_id = tt1.user_id, tt2.user_id
         for to, cd in ((chia, "chia"), (thuong, "thuong")):
             db.add(KhoanToTruong(department_id=to.id, ap_dung_tu=date(NAM, 1, 1), che_do=cd, ty_le=5))
-        k = n.khoan(gia_theo_to=GIA_IN((chia, 0, 100), (thuong, 0, 100)), cong_thuc=None)
+        k = n.khoan(gia_theo_to=GIA_IN((chia, 0, 100), (thuong, 0, 100)), cong_thuc=CT_THANG)
         n.ghi(chia, k, date(NAM, THANG, 5), 10_000, [tt1, t1])
         n.ghi(thuong, k, date(NAM, THANG, 5), 10_000, [tt2, t2])
         db.commit()

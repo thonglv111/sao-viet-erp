@@ -51,6 +51,25 @@ describe("tách công thức thành phần (phương án C)", () => {
     expect(tachPhan(IN02)).toBeNull();
   });
 
+  it("cả công thức bọc trong max ( …, ) ⇒ mở hàm ra như ngoặc, tham số còn trống là phần rỗng", () => {
+    const toks = ["max", "(", ...KHOAN, ",", ")"];
+    const r = tachPhan(toks)!;
+    expect(r.khung.map((m) => ("tok" in m ? toks[m.tok] : chuPhan(m.phan))).join(" "))
+      .toBe("max ( ( A + B ) * C , D )");
+    expect(r.phan[3]).toEqual({ start: toks.length - 1, end: toks.length - 1 });
+  });
+
+  it("tham số `( 4 + )` ngắn của max để nguyên một phần — không mở ra thành phần rỗng", () => {
+    const toks = ["max", "(", ...KHOAN, ",", "(", "4", "+", ")", ")"];
+    const r = tachPhan(toks)!;
+    expect(r.phan).toHaveLength(4);
+    expect(r.phan[3]).toEqual({ start: KHOAN.length + 3, end: toks.length - 1 });
+  });
+
+  it("if không mở như hàm — vẫn là một phần (đã có bảng Khi | Lấy)", () => {
+    expect(tachPhan(KHOAN)!.phan[2]).toEqual({ start: KHOAN.indexOf("if"), end: KHOAN.length });
+  });
+
   it("dấu trừ đơn không phải chỗ cắt", () => {
     const r = tachPhan(t("- a * ( b + c ) + d * e - f * g + h * k + 1"), 1)!;
     expect(r.phan.map((p) => p.start)).toEqual([0, 9, 13, 17, 21]);

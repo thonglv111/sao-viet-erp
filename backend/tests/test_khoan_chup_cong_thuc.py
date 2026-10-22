@@ -56,7 +56,9 @@ def test_cong_thuc_rong_chup_chuoi_rong_khong_phai_null(db, admin):
     assert b.cong_thuc_khoan_snapshot == ""
     k.cong_thuc_khoan = "sl_ghi * don_gia_khoan * 2"
     db.flush()
-    assert _tien(db, e) == [1_500]
+    # Ảnh chụp rỗng giữ rỗng (không lấy công thức mới 2.000), mà rỗng thì 0 đồng (chủ 22/10).
+    kq = KhoanKyService(db).tinh(NAM, THANG, _muc((e, 5_000_000)))
+    assert e.id not in kq["khoan"] and not kq["thieu_gia"]
 
 
 def test_bang_danh_muc_doi_nhan_cong_thuc_va_cap_nhat_lay_cong_thuc_moi(db, admin):
@@ -113,3 +115,30 @@ def test_mg_0431_them_cot_lan_ghi_cu_de_null():
     assert "cong_thuc_khoan_snapshot" in {c["name"] for c in inspect(engine).get_columns("san_xuat_batch")}
     with engine.begin() as cn:
         assert cn.execute(text("SELECT cong_thuc_khoan_snapshot FROM san_xuat_batch")).scalar() is None
+
+
+def test_mg_0434_chep_cong_thuc_tuong_minh_vao_o_trong():
+    """Ô công thức trống nay ra 0 ⇒ mg 0434 chép `gia_co_dinh + sl_ghi * don_gia_khoan` vào công đoạn
+    và ảnh chụp '' để tiền giữ nguyên; ảnh chụp NULL (lần ghi cũ đọc công thức công đoạn) và công
+    thức đã khai không đụng. Chạy hai lần không đổi gì thêm."""
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    from app.db_migrations import _migrate_cong_thuc_khoan_tuong_minh
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    with engine.begin() as cn:
+        cn.execute(text("CREATE TABLE cong_doan_khoan (id INTEGER PRIMARY KEY, cong_thuc_khoan TEXT)"))
+        cn.execute(text("CREATE TABLE san_xuat_batch (id INTEGER PRIMARY KEY, khoan_cong_doan_id INTEGER, "
+                        "cong_thuc_khoan_snapshot TEXT)"))
+        cn.execute(text("INSERT INTO cong_doan_khoan VALUES (1, NULL), (2, '  '), (3, 'sl_ghi * don_gia_khoan')"))
+        cn.execute(text("INSERT INTO san_xuat_batch VALUES (1, 1, ''), (2, 1, NULL), (3, 3, 'x'), (4, NULL, '')"))
+    for _ in range(2):
+        with Session(engine) as db:
+            _migrate_cong_thuc_khoan_tuong_minh(db)
+    ct = "gia_co_dinh + sl_ghi * don_gia_khoan"
+    with engine.begin() as cn:
+        assert [r[0] for r in cn.execute(text("SELECT cong_thuc_khoan FROM cong_doan_khoan ORDER BY id"))] == [
+            ct, ct, "sl_ghi * don_gia_khoan"]
+        assert [r[0] for r in cn.execute(text("SELECT cong_thuc_khoan_snapshot FROM san_xuat_batch ORDER BY id"))] == [
+            ct, None, "x", ""]

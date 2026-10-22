@@ -217,6 +217,8 @@ def tao_batch(
     phat_sinh: list[dict] | None = None,
     nguoi_ids: list[int] | None = None,
     tuy_chon: dict[str, float] | None = None,
+    mat_in: str | None = None,
+    tu_giao: bool = True,
 ) -> dict:
     """Ghi MỘT batch sản lượng (§11.1) + lot đầu vào (§10.3) + việc khoán & phát sinh (§7.1).
 
@@ -225,7 +227,10 @@ def tao_batch(
     `[{phat_sinh_id, so_luong}]`, cho phép rỗng. `nguoi_ids` = người làm lần này: người tổ mình tổ
     tick + người tổ khác tổ thêm thẳng (`nguoi_ghi.chot_nguoi`).
 
-    Không truyền giờ (hộp Ghi sản lượng từ 10/10/2026) ⇒ giờ theo lúc bấm, xem `_khoang_luc_bam`."""
+    Không truyền giờ (hộp Ghi sản lượng từ 10/10/2026) ⇒ giờ theo lúc bấm, xem `_khoang_luc_bam`.
+
+    `tu_giao` = ghi xong tự đề xuất giao lần ghi này sang chặng sau (`_tu_de_xuat_giao`); test dựng
+    sẵn mẻ để thử Đề xuất giao bằng tay thì tắt."""
     repo = SanXuatSanLuongRepository(db)
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
@@ -313,7 +318,7 @@ def tao_batch(
     khoan, ten_cong_doan = repo.khoan_cua_cong_viec(cv)
     o_khoan, cac_phat_sinh = chuan_hoa_khi_ghi(
         db, khoan=khoan, ten_cong_doan=ten_cong_doan, phat_sinh=phat_sinh,
-        department_id=cv.department_id, tuy_chon=tuy_chon,
+        department_id=cv.department_id, tuy_chon=tuy_chon, mat_in=mat_in,
         # Bậc giá (Bài in) chọn từ quy cách in của lệnh — chỉ đọc khi công đoạn chia bậc.
         qc=quy_cach_cua_viec(db, cv) if khoan is not None and khoan.bac_gia else None,
     )
@@ -352,8 +357,42 @@ def tao_batch(
                 f"phat_sinh={len(cac_phat_sinh)} nguoi={len(nguoi)}"),
     )
     ket_qua_lsx = _toa_san_luong(db, repo, cv=cv, batch=batch, tot=tot_f, actor=user)
+    giao = None if ket_qua_lsx or not tu_giao else _tu_de_xuat_giao(db, repo, cv=cv, batch=batch, user=user)
     db.commit()
-    return _ket_qua_batch(cv, batch, ket_qua_lsx)
+    ra = _ket_qua_batch(cv, batch, ket_qua_lsx)
+    ra["ban_giao"] = None
+    if giao is not None:
+        from .ban_giao import ket_qua_cho_ben_nhan
+
+        bg, dich_cv = giao
+        ra["ban_giao"] = ket_qua_cho_ben_nhan(db, user=user, bg=bg, nguon_cv=cv, dich_cv=dich_cv)
+    return ra
+
+
+def _tu_de_xuat_giao(db: Session, repo: SanXuatSanLuongRepository, *, cv, batch: SanXuatBatch, user):
+    """Ghi sản lượng xong thì TỰ đề xuất giao chính lần ghi đó sang chặng sau (22/10/2026, chủ xưởng:
+    *"lúc nhấn ghi sản lượng thì nó tự tạo đề xuất giao sang công đoạn tiếp theo"*).
+
+    Như bấm Đề xuất giao với đúng một mẻ: cùng tổ + cùng lệnh thì tự xác nhận, khác thì chờ bên nhận.
+    Không tự giao khi: lần ghi không có số tốt, bước cuối lệnh (thành phẩm qua KCS), NHIỀU chặng sau
+    (bước sau tách lần chạy / routing rẽ nhánh — tổ phải chọn, vẫn bấm tay), hoặc lệnh đã đóng (ghi
+    mẻ còn được cho việc đang chạy, giao thì không). Số không vượt phần còn chưa giao — bàn giao cũ
+    trước khi giao theo mẻ không gắn mẻ nào."""
+    from .ban_giao import lap_ban_giao
+    from .dong_lenh import nhom_da_dong
+
+    if float(batch.tot) <= _EPS:
+        return None
+    chang_sau = repo.cong_viec_chang_sau(cv)
+    if len(chang_sau) != 1 or nhom_da_dong(db, cv):
+        return None
+    sl = min(float(batch.tot), repo.tong_tot(cv.id) - repo.tong_da_giao(cv.id))
+    if sl <= _EPS:
+        return None
+    dich_cv = chang_sau[0]
+    bg = lap_ban_giao(db, user=user, nguon_cv=cv, dich_cv=dich_cv, so_luong=round(sl, 3),
+                      don_vi=batch.don_vi, batch_ids=[batch.id])
+    return bg, dich_cv
 
 
 def sua_so_me(

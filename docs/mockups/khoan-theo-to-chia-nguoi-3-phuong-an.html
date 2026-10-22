@@ -1,0 +1,247 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chia cho người</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+b{font-weight:500}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--rule-hair);padding:0 4px;border-radius:4px}
+.page{max-width:1440px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:1040px}
+.lead ul{margin:6px 0 0;padding-left:20px}
+.lead li{margin:3px 0}
+.ref{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0 24px}
+.ref figure{margin:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ref img{display:block;width:100%;height:220px;object-fit:cover;object-position:top left;border-bottom:1px solid var(--rule-soft)}
+.ref figcaption{padding:9px 11px;font-size:12.5px;color:var(--ash)}
+.ref figcaption span{display:block;color:var(--ink);margin-bottom:2px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:18px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:500;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-head h2{font-size:19px;font-weight:500;margin:0 0 4px}
+.why{color:var(--ash);margin:0 0 16px;max-width:1040px}
+
+/* vỏ màn app */
+.app{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(15,23,42,.08)}
+.app-h{padding:14px 20px 0;border-bottom:1px solid var(--rule-soft)}
+.crumb{font-size:12px;color:var(--ash-2)}
+.app-t{font-size:18px;font-weight:500;margin:1px 0 8px}
+.sub-tabs{display:flex;gap:22px;font-size:13.5px;color:var(--ash)}
+.sub-tabs span{padding:6px 0 9px;border-bottom:2px solid transparent}
+.sub-tabs span.on{color:var(--ink);border-bottom-color:var(--rust)}
+.bar{display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--rule-soft);background:#fbfcfd;flex-wrap:wrap}
+.sel{display:inline-flex;align-items:center;gap:6px;height:32px;border:1px solid var(--rule);border-radius:8px;background:#fff;padding:0 10px;font-size:13px}
+.sel .k{color:var(--ash-2)}
+.sel .car{color:var(--ash-3);font-size:10px}
+.sp{flex:1}
+.note-lech{font-size:12px;color:#92400e;background:#fef3c7;border-radius:6px;padding:4px 8px;max-width:520px}
+.btn{font:inherit;font-size:13px;border-radius:8px;padding:5px 12px;border:1px solid var(--rule);background:#fff;color:var(--ink)}
+.pad{padding:14px 20px 22px}
+.pad h3{font-size:14.5px;font-weight:500;margin:22px 0 2px}
+.hint{color:var(--ash-2);font-size:12.5px;margin:0 0 8px}
+
+/* dòng tóm tắt */
+.tt{display:flex;align-items:flex-end;gap:34px;padding:2px 0 4px}
+.tt .k{font-size:12px;color:var(--ash-2)}
+.tt .v{font-size:22px;font-variant-numeric:tabular-nums}
+.tt-c div:last-child{font-variant-numeric:tabular-nums}
+
+/* lưới đặc */
+table.g{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+table.g th{font-weight:400;color:var(--ash-2);font-size:12.5px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule);background:#f6f7f9;white-space:nowrap}
+table.g td{padding:0 8px;height:34px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+table.g .r{text-align:right}
+table.g tfoot td{border-top:1px solid var(--rule);background:#fafbfc}
+table.g.so{table-layout:fixed}
+table.g td.cat{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+tr.ngay td{background:#f3f5f8;height:30px;color:var(--ash)}
+tr.ngay td:first-child{color:var(--ink)}
+tr.cha td{background:#f3f5f8}
+tr.chon td{background:#eef4ff}
+.sub{font-size:12px;color:var(--ash-2)}
+.ngay .sub{margin:0 8px}
+.mo{color:var(--ash-3);text-decoration:line-through}
+.gach{color:var(--ash-3);text-decoration:line-through}
+.am{color:#b42318}.duong{color:#067647}
+.ng{display:inline-block;font-size:12px;background:var(--rule-hair);border-radius:5px;padding:1px 6px;margin-right:4px}
+
+/* chip trạng thái — mỗi trạng thái một sắc tươi */
+.chip{display:inline-block;font-size:12px;line-height:18px;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.c-la{background:#dcfce7;color:#166534}
+.c-xanh{background:#dbeafe;color:#1e40af}
+.c-vang{background:#fef3c7;color:#92400e}
+.c-cam{background:#ffedd5;color:#9a3412}
+.c-xam{background:#e2e8f0;color:#334155}
+.c-do{background:#fee2e2;color:#991b1b}
+.c-slate{background:#e2e8f0;color:#334155}
+
+/* B */
+.b-wrap{display:grid;grid-template-columns:minmax(0,1fr) 500px;min-height:560px}
+.b-list{padding:12px 16px 20px}
+.b-ngan{border-left:1px solid var(--rule);background:#fff;box-shadow:-10px 0 24px rgba(15,23,42,.06);padding:14px 18px 20px}
+.b-ngan-h{display:flex;justify-content:space-between;align-items:flex-start}
+.b-ngan-t{font-size:17px;font-weight:500}
+.x{color:var(--ash-3);font-size:20px;line-height:1}
+.b-so{display:flex;gap:26px;margin:12px 0 14px}
+.b-so .k{font-size:12px;color:var(--ash-2)}
+.b-so .v{font-size:19px}
+.tabs{display:flex;background:#f1f3f6;border:1px solid var(--rule-soft);border-radius:10px;padding:4px;margin-bottom:10px}
+.tabs span{flex:1;text-align:center;padding:5px 0;border-radius:7px;color:var(--ash);font-size:13px}
+.tabs span.on{background:#fff;color:var(--rust);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.b-lbl{font-size:12px;color:var(--ash-2);margin:18px 0 4px;border-top:1px dashed var(--rule);padding-top:10px}
+
+/* C */
+.c-scroll{overflow-x:auto;margin-top:12px;border:1px solid var(--rule);border-radius:8px}
+.c-g{border-collapse:separate;border-spacing:0;font-size:12.5px;font-variant-numeric:tabular-nums}
+.c-g th{font-weight:400;color:var(--ash-2);background:#f6f7f9;border-bottom:1px solid var(--rule);padding:4px 6px;white-space:nowrap}
+.c-g td{height:34px;border-bottom:1px solid var(--rule-hair);padding:0 6px;white-space:nowrap}
+.c-g .ten{position:sticky;left:0;z-index:2;background:#fff;min-width:200px;text-align:left;border-right:1px solid var(--rule)}
+.c-g th.ten{background:#f6f7f9;font-size:11.5px}
+.c-g .d{min-width:44px;text-align:right;border-left:1px solid var(--rule-hair)}
+.c-g th.d{text-align:center;line-height:1.2}
+.c-g .thu{font-size:10.5px;color:var(--ash-3)}
+.c-g .cn{background:#f5f3ff}
+.c-g th.cn{background:#ede9fe}
+.c-g .s{min-width:84px;text-align:right;border-left:1px solid var(--rule-soft);background:#fbfcfd}
+.c-g .s.an{text-align:left;min-width:110px}
+.c-g td.s.mo{text-decoration:line-through;color:var(--ash-3)}
+.c-g tr.to td{background:#f3f5f8}
+.c-g tr.to td.ten,.c-g tr.to2 td.ten{background:#f3f5f8}
+.c-g tr.to2 td{background:#fafbfc;color:#166534}
+.c-g td.vuot{color:#166534}
+.c-g .dm{font-size:11px;color:#9a3412}
+.c-g .dm.xam{color:var(--ash-2)}
+.c-g td.tv-mo{color:var(--ash-3)}
+.c-g td.pop{box-shadow:inset 0 0 0 2px #3b82f6}
+.pop-wrap{display:flex;gap:14px;align-items:flex-start;margin-top:14px}
+.pop-arrow{font-size:12.5px;color:var(--ash-2);padding-top:10px;white-space:nowrap}
+.pop-box{width:560px;background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.16);padding:10px 12px}
+.pop-h{font-size:13.5px;margin-bottom:6px}
+.pop-box .sub{margin-top:6px}
+
+@media (max-width:900px){
+  .ref{grid-template-columns:1fr}
+  .b-wrap{grid-template-columns:1fr}
+  .tt{flex-wrap:wrap;gap:16px}
+  .pad{overflow-x:auto}
+}
+
+.b-list table.g td:first-child,.b-ngan table.g td:first-child{white-space:nowrap}
+.b-ngan table.g td:last-child{white-space:nowrap}
+
+.sl-wrap{overflow:visible!important}
+.qc-g{display:flex;gap:8px;align-items:baseline}
+.qc dl{margin:2px 0 0;font-size:12px}
+.qc dl div{display:flex;justify-content:space-between;gap:10px;max-width:220px}
+.qc dt{color:var(--ash-2)}.qc dd{margin:0}
+.ps{display:flex;justify-content:space-between;gap:8px;white-space:nowrap}
+.ng-ds li span{white-space:nowrap}
+.ps span:last-child{color:var(--ash-2)}
+.trong{color:var(--ash-3)}
+.o-tien{position:relative;cursor:help}
+.o-tien .tien{border-bottom:1px dashed var(--ash-3)}
+.pop{display:none;position:absolute;right:0;top:calc(100% - 4px);z-index:20;width:460px;text-align:left;background:#fff;
+  border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 12px 30px rgba(15,23,42,.16);padding:12px 14px}
+.o-tien:hover .pop,.o-tien.mo-pop .pop{display:block}
+.pop-t{font-size:13.5px;margin-bottom:8px}
+.pop-r{display:grid;grid-template-columns:86px 1fr;gap:10px;align-items:start;font-size:13px;margin-top:6px}
+.pop-k{border:1px solid var(--rule);border-radius:999px;font-size:12px;padding:1px 8px;text-align:center;color:var(--ink)}
+
+.toswitch{display:flex;gap:8px;margin:0 0 12px}
+.toswitch button{font:inherit;font-size:13px;border:1px solid var(--rule);background:#fff;color:var(--ash);border-radius:8px;padding:5px 12px;cursor:pointer}
+.toswitch button.on{border-color:var(--ink);color:var(--ink)}
+.toswitch .sub{margin-left:4px}
+.tov{display:none}.tov.on{display:block}
+.ct{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px;margin:6px 0 4px;background:#fff}
+.ct-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+.ct-t{font-size:14px;font-weight:500}
+.lnk{font-size:13px;color:var(--rust);white-space:nowrap}
+.ct-g{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:22px}
+.ct-l{font-size:12px;color:var(--ash-2);margin:10px 0 4px}
+.ct-l:first-child{margin-top:0}
+.khung{font-size:15px;display:flex;align-items:center;gap:6px;margin:2px 0 8px}
+.op{color:var(--ash-2);margin:0 2px}
+.ph{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:6px;font-size:12px;padding:0 5px}
+.ph-a{background:#dbeafe;color:#1e40af}.ph-b{background:#fef3c7;color:#92400e}.ph-c{background:#ede9fe;color:#5b21b6}
+.ct-phan{border-collapse:collapse;font-size:13px}
+.ct-phan td{padding:4px 8px 4px 0;vertical-align:top}
+.sub2{color:var(--ash-2);font-size:12.5px}
+.ct-bang td{height:30px}
+.ct-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.ct-p{margin:0;font-size:13px}
+.sl-wrap{overflow-x:auto;border:1px solid var(--rule-soft);border-radius:10px}
+table.sl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;table-layout:fixed;min-width:1180px}
+table.sl th{font-weight:400;color:var(--ash-2);font-size:12px;text-align:left;padding:8px 10px;background:#f8f9fb;border-bottom:1px solid var(--rule-soft)}
+table.sl td{padding:7px 10px;vertical-align:top;border-bottom:1px solid var(--rule-hair)}
+table.sl .r{text-align:right}
+table.sl tbody.sl-khoi{border-top:1px solid var(--rule-soft)}
+table.sl tbody.sl-ngay td{background:#f3f5f8;padding:6px 10px;vertical-align:middle;border-top:1px solid var(--rule)}
+.sl-d{display:inline-block;min-width:76px;color:var(--ink)}
+.sl-ngay .sub{margin:0 8px}
+.ng-ds{list-style:none;margin:0;padding:0}
+.ng-ds li{display:flex;justify-content:space-between;gap:10px;max-width:260px}
+.ng-ds li span:last-child{color:var(--ash-2)}
+.ng-ngang li{max-width:none}
+.cach-o{white-space:normal}
+.cach{display:inline-flex;align-items:center;gap:4px;margin:0 8px 2px 0;white-space:nowrap}
+.cach .ph{min-width:18px;height:18px;font-size:11px;border-radius:5px}
+.so-lech{font-size:11.5px;color:#b45309;cursor:help}
+
+.tom{display:flex;align-items:flex-end;gap:22px;padding:4px 0 14px;flex-wrap:wrap}
+.tom .k{font-size:12px;color:var(--ash-2)}
+.tom .v{font-size:22px}
+.tom .pt{color:var(--ash-3);font-size:18px;padding-bottom:1px}
+.tom .sp{flex:1}
+.g .ke{border-left:1px solid var(--rule-soft)}
+.thang{background:#ecfdf3}
+.thua{color:var(--ash-3)}
+.chu{font-size:12px;color:var(--ash-2);margin:0 0 6px;display:flex;align-items:center;gap:6px}
+.chu .o{display:inline-block;width:14px;height:12px;border-radius:3px;border:1px solid var(--rule-soft)}
+.chu .o.thang{background:#ecfdf3}.chu .o.thua{background:#fff}
+.hov{position:relative;cursor:help;display:inline-block}
+.hov .tien{border-bottom:1px dashed var(--ash-3)}
+.hov .pop{right:0;top:calc(100% + 4px)}
+.hov .pop-r{grid-template-columns:116px 1fr}
+.hov .pop-k{white-space:nowrap}
+.hov:hover .pop,.hov.mo-pop .pop{display:block}
+.bars{display:grid;gap:3px;padding:6px 0}
+.bar-r{display:flex;align-items:center;gap:8px}
+.bk{width:62px;font-size:11.5px;color:var(--ash-2)}
+.bth{height:9px;border-radius:5px;display:inline-block}
+.b-thang{background:#22c55e}.b-thua{background:#cbd5e1}
+.c-g2{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+.doi{border:1px solid var(--rule-soft);border-radius:10px;padding:10px 14px;font-size:13px}
+.doi div{display:flex;justify-content:space-between;padding:3px 0;color:var(--ash)}
+.doi div span{color:var(--ink);font-variant-numeric:tabular-nums}
+.doi .doi-c{border-top:1px solid var(--rule-soft);margin-top:3px;padding-top:6px;color:var(--ink)}
+.mo-h{color:var(--ash-3)}
+</style></head><body><div class="page">
+<h1>Khoán theo tổ — khối Chia cho người, 3 phương án</h1>
+<div class="lead"><p>Chỉ làm lại phần đầu màn (dải tóm tắt + bảng chia), phần Sổ sản lượng giữ nguyên. Số là tổ máy in 2 màu tháng 08/2026 như bản chi tiết.</p>
+<ul>
+<li>Bản đang có lặp thông tin: chip Ăn và cột Lương chính nói cùng một điều; "thử việc" nói hai lần; Lương ca máy chỉ là căn cứ chia nhưng chiếm một cột; dải tóm tắt có Người và Lần ghi không dùng để làm gì.</li>
+<li>Thiếu điều kế toán cần: lương thời gian ra từ đâu (lương ca máy ÷ 26 × công), chênh lệch hai lương, công ty phải bù thêm bao nhiêu, phần của người thử việc đi đâu.</li>
+<li>Cả ba bỏ chip Ăn, bỏ cột Lương ca máy riêng, bỏ Người và Lần ghi ở dải tóm tắt.</li>
+</ul></div>
+<div class="ref"><figure><img src="tham-khao-khoan-theo-to/croptracker-3.png" alt=""><figcaption><span>CropTracker — Daily Piecework</span>Mỗi người một dòng đủ các khoản: tiền khoán, giờ, tiền giờ, chênh lệch; dòng Total. Khuôn của A.</figcaption></figure><figure><img src="tham-khao-khoan-theo-to/picktrace-labor-cost-summary.png" alt=""><figcaption><span>PickTrace — Labor Cost Summary</span>Phần trên chỉ tổng mỗi người, chi tiết để tầng dưới. Khuôn của B: ít cột, chi tiết vào ô nổi.</figcaption></figure><figure><img src="tham-khao-khoan-theo-to/croptracker-tuan-3.png" alt=""><figcaption><span>CropTracker — Weekly Piecework</span>Cột Top Up = tiền công ty bù cho đủ lương giờ. Khuôn của C: đi từ quỹ tổ tới tiền trả, có bù thêm.</figcaption></figure></div>
+<div class="switch"><button class="on" data-o="a">A. Đủ khoản</button><button data-o="b">B. Ít cột, rê chuột xem</button><button data-o="c">C. Từ quỹ tổ tới tiền trả</button></div>
+<section class="opt on" id="a"><div class="opt-head"><h2>A. Đủ khoản trên một dòng</h2>
+<div class="why">Theo CropTracker Daily: mỗi người đủ các khoản của lương khoán, rồi công, lương thời gian, chênh lệch, lương chính. Ô của bên được trả tô xanh nhạt,
+bên thua chữ xám — nhìn là biết ăn bên nào, khỏi chip. Dải trên viết thành phép cộng quỹ tổ, thêm Lương chính cả tổ và Công ty bù thêm. Nhiều cột nhất.</div></div><div class="app"><div class="bar"><span class="sel"><span class="k">Kỳ</span>Tháng 08/2026<span class="car">▾</span></span><span class="sel"><span class="k">Tổ</span>Tổ in › Nhóm thợ in máy 2 màu<span class="car">▾</span></span><span class="sp"></span><span class="note-lech">Bảng lương chưa Tính lại sau 4 lần ghi mới</span><button class="btn">Xuất Excel</button></div><div class="pad"><div class="tom"><div class="tom-q"><div class="k">Quỹ tổ</div><div class="v">25.700.300</div></div><div class="pt">=</div><div><div class="k">Sản lượng</div><div>22.320.600</div></div><div class="pt">+</div><div><div class="k">Dừng máy</div><div>1.250.000</div></div><div class="pt">+</div><div><div class="k">Tăng ca khoán</div><div>2.129.700</div></div><div class="sp"></div><div><div class="k">Lương chính cả tổ</div><div>29.004.164</div></div><div><div class="k">Công ty bù thêm</div><div>6.576.923</div></div></div><div class="chu"><span class="o thang"></span>bên được trả <span class="o thua"></span>bên thua, không trả. Chênh lệch = lương khoán − lương thời gian.</div><table class="g"><thead><tr><th>Người</th><th class="r">Sản lượng</th><th class="r">Dừng máy</th><th class="r">Tăng ca khoán</th><th class="r">Ở tổ khác</th><th class="r ke">Lương khoán</th><th class="r">Công</th><th class="r">Lương thời gian</th><th class="r">Chênh lệch</th><th class="r ke">Lương chính</th></tr></thead><tbody><tr><td><div>Nguyễn Văn Tuấn</div><div class="sub">lương ca máy 16.500.000</div></td><td class="r">12.885.630</td><td class="r">808.824</td><td class="r">1.196.690</td><td class="r">452.941</td><td class="r ke thang">15.344.085</td><td class="r">24</td><td class="r thua">15.230.769</td><td class="r duong">+113.315</td><td class="r ke">15.344.085</td></tr><tr><td><div>Phạm Huy Tuấn</div><div class="sub">lương ca máy 14.500.000</div></td><td class="r">6.344.265</td><td class="r"></td><td class="r">738.892</td><td class="r"></td><td class="r ke thang">7.083.156</td><td class="r">11</td><td class="r thua">6.134.615</td><td class="r duong">+948.541</td><td class="r ke">7.083.156</td></tr><tr><td><div>Trịnh Duy Linh <span class="chip c-vang">thử việc</span></div><div class="sub">lương ca máy 9.000.000</div></td><td class="r">3.090.706</td><td class="r">441.176</td><td class="r">194.118</td><td class="r">247.059</td><td class="r ke thua">0<div class="sub">thử việc về 0</div></td><td class="r">19</td><td class="r thang">6.576.923</td><td class="r am">−6.576.923</td><td class="r ke">6.576.923</td></tr></tbody><tfoot><tr><td>Cộng</td><td class="r">22.320.600</td><td class="r">1.250.000</td><td class="r">2.129.700</td><td class="r">700.000</td><td class="r ke">22.427.241</td><td class="r">54</td><td class="r">27.942.308</td><td></td><td class="r ke">29.004.164</td></tr></tfoot></table><h3 class="mo-h">Sổ sản lượng</h3><p class="hint">… giữ nguyên như bản chi tiết</p></div></div></section>
+<section class="opt" id="b"><div class="opt-head"><h2>B. Ít cột, rê chuột xem cấu thành</h2>
+<div class="why">Theo PickTrace: bảng chỉ còn Lương khoán, Lương thời gian, thanh so hai lương, Lương chính. Rê chuột vào lương khoán ra các khoản gộp; vào lương thời gian ra
+thế số (đang mở sẵn một ô). Rê chuột vào Quỹ tổ ra ba phần của quỹ. Gọn nhất, nhưng phải rê chuột mới thấy chi tiết.</div></div><div class="app"><div class="bar"><span class="sel"><span class="k">Kỳ</span>Tháng 08/2026<span class="car">▾</span></span><span class="sel"><span class="k">Tổ</span>Tổ in › Nhóm thợ in máy 2 màu<span class="car">▾</span></span><span class="sp"></span><span class="note-lech">Bảng lương chưa Tính lại sau 4 lần ghi mới</span><button class="btn">Xuất Excel</button></div><div class="pad"><div class="tom"><div class="tom-q"><div class="k">Quỹ tổ</div><div class="v"><span class="hov"><span class="tien">25.700.300</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>22.320.600</span></div><div class="pop-r"><span class="pop-k">Dừng máy</span><span>1.250.000</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>2.129.700</span></div></span></span></div></div><div class="sp"></div><div><div class="k">Lương chính cả tổ</div><div>29.004.164</div></div><div><div class="k">Ăn khoán</div><div>2 người</div></div><div><div class="k">Ăn thời gian</div><div>1 người</div></div></div><table class="g"><thead><tr><th>Người</th><th class="r">Lương khoán</th><th class="r">Lương thời gian</th><th style="width:300px">So hai lương</th><th class="r">Lương chính</th></tr></thead><tbody><tr><td><div>Nguyễn Văn Tuấn</div></td><td class="r"><span class="hov mo-pop"><span class="tien">15.344.085</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>12.885.630</span></div><div class="pop-r"><span class="pop-k">Dừng máy</span><span>808.824</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>1.196.690</span></div><div class="pop-r"><span class="pop-k">Ở tổ khác</span><span>452.941</span></div><div class="pop-r"><span class="pop-k">Cộng</span><span>15.344.085</span></div></span></span></td><td class="r"><span class="hov"><span class="tien">15.230.769</span><span class="pop" style="width:380px"><div class="pop-r"><span class="pop-k">Thế số</span><span>16.500.000 ÷ 26 × 24 công = 15.230.769</span></div></span></span></td><td><div class="bars"><div class="bar-r"><span class="bk">Khoán</span><span class="bth b-thang" style="width:200px"></span></div><div class="bar-r"><span class="bk">Thời gian</span><span class="bth b-thua" style="width:199px"></span></div></div></td><td class="r">15.344.085<div class="sub">ăn khoán</div></td></tr><tr><td><div>Phạm Huy Tuấn</div></td><td class="r"><span class="hov"><span class="tien">7.083.156</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>6.344.265</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>738.892</span></div><div class="pop-r"><span class="pop-k">Cộng</span><span>7.083.156</span></div></span></span></td><td class="r"><span class="hov"><span class="tien">6.134.615</span><span class="pop" style="width:380px"><div class="pop-r"><span class="pop-k">Thế số</span><span>14.500.000 ÷ 26 × 11 công = 6.134.615</span></div></span></span></td><td><div class="bars"><div class="bar-r"><span class="bk">Khoán</span><span class="bth b-thang" style="width:92px"></span></div><div class="bar-r"><span class="bk">Thời gian</span><span class="bth b-thua" style="width:80px"></span></div></div></td><td class="r">7.083.156<div class="sub">ăn khoán</div></td></tr><tr><td><div>Trịnh Duy Linh <span class="chip c-vang">thử việc</span></div></td><td class="r"><span class="hov"><span class="tien">0</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>3.090.706</span></div><div class="pop-r"><span class="pop-k">Dừng máy</span><span>441.176</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>194.118</span></div><div class="pop-r"><span class="pop-k">Ở tổ khác</span><span>247.059</span></div><div class="pop-r"><span class="pop-k">Cộng</span><span>3.973.059</span></div><div class="pop-r"><span class="pop-k">Thử việc</span><span>khoán về 0, chỉ ăn lương thời gian</span></div></span></span></td><td class="r"><span class="hov"><span class="tien">6.576.923</span><span class="pop" style="width:380px"><div class="pop-r"><span class="pop-k">Thế số</span><span>9.000.000 ÷ 26 × 19 công = 6.576.923</span></div></span></span></td><td><div class="bars"><div class="bar-r"><span class="bk">Khoán</span><span class="bth b-thua" style="width:0px"></span></div><div class="bar-r"><span class="bk">Thời gian</span><span class="bth b-thang" style="width:86px"></span></div></div></td><td class="r">6.576.923<div class="sub">ăn thời gian</div></td></tr></tbody><tfoot><tr><td>Cộng</td><td class="r">22.427.241</td><td class="r">27.942.308</td><td></td><td class="r">29.004.164</td></tr></tfoot></table><h3 class="mo-h">Sổ sản lượng</h3><p class="hint">… giữ nguyên như bản chi tiết</p></div></div></section>
+<section class="opt" id="c"><div class="opt-head"><h2>C. Từ quỹ tổ tới tiền trả</h2>
+<div class="why">Theo CropTracker Weekly (cột Top Up): mỗi người có Phần quỹ tổ (kèm % quỹ), Ở tổ khác, Lương khoán, Lương thời gian, Bù thêm, Lương chính. Khung bên phải đối
+chiếu quỹ tổ thành tiền trả: trừ phần thử việc không hưởng, cộng người làm ở tổ khác, cộng công ty bù. Không còn dải tóm tắt riêng.</div></div><div class="app"><div class="bar"><span class="sel"><span class="k">Kỳ</span>Tháng 08/2026<span class="car">▾</span></span><span class="sel"><span class="k">Tổ</span>Tổ in › Nhóm thợ in máy 2 màu<span class="car">▾</span></span><span class="sp"></span><span class="note-lech">Bảng lương chưa Tính lại sau 4 lần ghi mới</span><button class="btn">Xuất Excel</button></div><div class="pad"><div class="c-g2"><table class="g"><thead><tr><th>Người</th><th class="r">Phần quỹ tổ</th><th class="r">Ở tổ khác</th><th class="r ke">Lương khoán</th><th class="r">Lương thời gian</th><th class="r">Bù thêm</th><th class="r ke">Lương chính</th></tr></thead><tbody><tr><td><div>Nguyễn Văn Tuấn</div></td><td class="r"><span class="hov"><span class="tien">14.891.144</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>12.885.630</span></div><div class="pop-r"><span class="pop-k">Dừng máy</span><span>808.824</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>1.196.690</span></div></span></span><div class="sub">57,9% quỹ</div></td><td class="r">452.941</td><td class="r ke">15.344.085</td><td class="r"><span class="hov"><span class="tien">15.230.769</span><span class="pop" style="width:380px"><div class="pop-r"><span class="pop-k">Thế số</span><span>16.500.000 ÷ 26 × 24 công = 15.230.769</span></div></span></span></td><td class="r"></td><td class="r ke">15.344.085</td></tr><tr><td><div>Phạm Huy Tuấn</div></td><td class="r"><span class="hov"><span class="tien">7.083.156</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>6.344.265</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>738.892</span></div></span></span><div class="sub">27,6% quỹ</div></td><td class="r"></td><td class="r ke">7.083.156</td><td class="r"><span class="hov"><span class="tien">6.134.615</span><span class="pop" style="width:380px"><div class="pop-r"><span class="pop-k">Thế số</span><span>14.500.000 ÷ 26 × 11 công = 6.134.615</span></div></span></span></td><td class="r"></td><td class="r ke">7.083.156</td></tr><tr><td><div>Trịnh Duy Linh <span class="chip c-vang">thử việc</span></div></td><td class="r"><span class="hov"><span class="tien">3.726.000</span><span class="pop" style="width:360px"><div class="pop-r"><span class="pop-k">Sản lượng</span><span>3.090.706</span></div><div class="pop-r"><span class="pop-k">Dừng máy</span><span>441.176</span></div><div class="pop-r"><span class="pop-k">Tăng ca khoán</span><span>194.118</span></div></span></span><div class="sub">14,5% quỹ</div></td><td class="r">247.059</td><td class="r ke">0<div class="sub">thử việc về 0</div></td><td class="r"><span class="hov"><span class="tien">6.576.923</span><span class="pop" style="width:380px"><div class="pop-r"><span class="pop-k">Thế số</span><span>9.000.000 ÷ 26 × 19 công = 6.576.923</span></div></span></span></td><td class="r">6.576.923</td><td class="r ke">6.576.923</td></tr></tbody><tfoot><tr><td>Cộng</td><td class="r">25.700.300</td><td class="r">700.000</td><td class="r ke">22.427.241</td><td class="r">27.942.308</td><td class="r">6.576.923</td><td class="r ke">29.004.164</td></tr></tfoot></table><div class="doi"><div>Quỹ tổ <span>25.700.300</span></div><div>− phần thử việc không hưởng <span>3.726.000</span></div><div>+ người của tổ làm ở tổ khác <span>452.941</span></div><div class="doi-c">= lương khoán trả <span>22.427.241</span></div><div>+ công ty bù thêm <span>6.576.923</span></div><div class="doi-c">= lương chính cả tổ <span>29.004.164</span></div></div></div><h3 class="mo-h">Sổ sản lượng</h3><p class="hint">… giữ nguyên như bản chi tiết</p></div></div></section>
+</div><script>
+document.querySelectorAll('.switch button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.switch button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.opt').forEach(o => o.classList.toggle('on', o.id === b.dataset.o));
+});
+</script></body></html>
