@@ -679,6 +679,7 @@ def set_salary(employee_id: int, body: SalaryIn, svc: Service, authz: Authz,
                            phu_cap_ca=body.phu_cap_ca, phu_cap_tham_nien=body.phu_cap_tham_nien,
                            insurance_elsewhere=body.insurance_elsewhere,
                            union_member=body.union_member, luong_dot_1=body.luong_dot_1,
+                           an_cong_nhat=body.an_cong_nhat,
                            apply_self_deduction=body.apply_self_deduction,
                            commission_pct=body.commission_pct)
     except PayrollError as exc:

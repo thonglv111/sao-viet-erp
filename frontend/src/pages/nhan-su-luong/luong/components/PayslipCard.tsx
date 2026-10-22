@@ -141,11 +141,7 @@ export function PayslipCard({
     // Tháng LẤY KHOÁN thì ngược lại: in dòng khoán / km, không in dòng bù thêm (bằng 0).
     ...(l.lay_bu_lo
       ? ([[
-          // Thử việc ở tổ khoán ăn bù lỗ, không ăn sản lượng (chủ chốt 16/09/2026) — ghi ngay trên
-          // dòng để người nhận phiếu biết vì sao tháng làm nhiều hàng mà tiền vẫn là mức bù lỗ.
-          l.is_probation
-            ? "Lương bù lỗ theo công (thử việc — không trả theo sản lượng)"
-            : "Lương bù lỗ theo công",
+          "Lương bù lỗ theo công",
           l.khoan + (l.khoan_km ?? 0) + l.luong_cong,
         ]] as [string, number][])
       : ([
@@ -162,10 +158,10 @@ export function PayslipCard({
     //   · "Làm ngày Chủ nhật / lễ · N công" — phần thêm khi đi làm nguyên ngày (`ot_pay`, `special_cong`)
     //   · "Công ngày lễ (ngoài khoán) · N ngày" — lễ NGHỈ hưởng lương, trả riêng ngoài phần so khoán /
     //     bù lỗ, CÓ trong `gross` (`luong_ngay_le`, `le_nghi_cong`). Bảng lương thật cũng cộng riêng.
-    // HAI LƯƠNG (21/10/2026): khối Sản xuất + Giao hàng tính cả vế thời gian lẫn vế khoán, ăn bên
-    // lớn. "Tăng ca theo giờ" thuộc vế thời gian (tháng ăn khoán thì 0đ), "Tăng ca khoán" thuộc vế
-    // khoán (tháng ăn thời gian thì 0đ) — không bao giờ nhận cả hai. Phần thêm làm nguyên ngày CN/lễ
-    // nằm trong `ot_pay` nhưng không phải tiền giờ ⇒ in dòng riêng.
+    // HAI LƯƠNG: khối Sản xuất + Giao hàng tính cả vế thời gian lẫn vế khoán, ăn bên lớn. Khối SX
+    // (chủ chốt 22/10/2026) chỉ có "Tăng ca khoán", cộng ngoài phép so nên ăn vế nào cũng in; "Tăng ca
+    // theo giờ" của họ luôn 0đ. Giao hàng: tiền giờ thuộc vế thời gian (tháng ăn km thì 0đ). Phần
+    // thêm làm nguyên ngày CN/lễ nằm trong `ot_pay` nhưng không phải tiền giờ ⇒ in dòng riêng.
     ...(l.che_do_khoan
       ? ([
           ["Tăng ca theo giờ", l.tien_gio_tang_ca ?? 0],
@@ -176,7 +172,7 @@ export function PayslipCard({
                 + ((l.special_cong ?? 0) > 0 ? ` (${soCong(l.special_cong ?? 0)} công)` : ""),
                 (l.ot_pay ?? 0) - (l.tien_gio_tang_ca ?? 0)]]
             : []),
-          ...(!l.lay_bu_lo && (l.tang_ca_khoan ?? 0) !== 0
+          ...((l.tang_ca_khoan ?? 0) !== 0
             ? [["Tăng ca khoán", l.tang_ca_khoan ?? 0]]
             : []),
           ...dongCongLe,
