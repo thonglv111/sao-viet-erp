@@ -38,11 +38,14 @@ class MayThietBiRepository(CatalogRepo):
             data = {k: v for k, v in data.items() if k != "to_ids"}
         super()._gan(obj, data)
 
-    def to_san_xuat_ids(self) -> set[int]:
-        """Id các TỔ (nút lá khối Sản xuất) — cùng định nghĩa ô tổ của công đoạn."""
+    def to_san_xuat(self) -> list:
+        """Các TỔ (nút lá khối Sản xuất) — cùng định nghĩa ô tổ của công đoạn."""
         from .rbac_repo import DepartmentRepository
 
-        return {d.id for d in DepartmentRepository(self.db).to_san_xuat()}
+        return DepartmentRepository(self.db).to_san_xuat()
+
+    def to_san_xuat_ids(self) -> set[int]:
+        return {d.id for d in self.to_san_xuat()}
 
     def extra_conds(self, *, loai_may: str | None = None, **_) -> list:
         return [MayThietBi.loai_may == loai_may] if loai_may else []

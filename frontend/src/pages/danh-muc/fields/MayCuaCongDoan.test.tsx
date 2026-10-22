@@ -27,20 +27,63 @@ function bay(props: Parameters<typeof MayCuaCongDoanField>[0]) {
 }
 
 describe("MayCuaCongDoanField", () => {
-  it("chỉ bày máy thuộc nhóm đã tick", async () => {
-    const user = userEvent.setup();
-    bay({ value: [], options: MAY, nhomChoPhep: ["Máy in"], nhomCongDoan: "print",
+  // Máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.4): bảng dựng theo tổ đang tick, không chọn tay.
+  const MAY_TO = [
+    { id: 11, ma: "IN-01", ten: "Máy 2 màu", loai_may: "Máy in", to_ids: [1] },
+    { id: 12, ma: "IN-02", ten: "Máy 4 màu", loai_may: "Máy in", to_ids: [2] },
+    { id: 13, ma: "IN-03", ten: "Máy chung", loai_may: "Máy in", to_ids: [1, 2] },
+  ];
+  const TEN_TO = { 1: "Tổ A", 2: "Tổ B" };
+
+  it("tick tổ A chỉ hiện máy của tổ A", () => {
+    bay({ value: [], options: MAY_TO, toDangTick: [1], tenTo: TEN_TO, nhomCongDoan: "print",
           onChange: () => {} });
-    // Máy nay nằm trong ô chọn GÕ-TÌM (`5340acff`), không bày sẵn thành danh sách nữa ⇒ phải mở
-    // ô ra mới thấy tên. Danh sách lọc theo nhóm vẫn là thứ đang kiểm.
-    await user.click(screen.getByRole("button", { name: "Chọn máy cho công đoạn" }));
-    expect(screen.getByText(/Komori 5 màu/)).toBeInTheDocument();
-    expect(screen.queryByText(/Yawa 1050/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /IN-01/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /IN-02/ })).toBeNull();
+  });
+
+  it("tick thêm tổ B thì máy tổ B hiện kèm công thức đã khai lúc trước", () => {
+    bay({ value: [{ may_id: 11 }], options: MAY_TO, toDangTick: [1, 2], tenTo: TEN_TO,
+          mayKhai: [{ may_id: 12, cong_thuc_gio: "sl_vao * 2" }], nhomCongDoan: "print",
+          onChange: () => {} });
+    const o = screen.getAllByTitle("Sửa cách đo giờ chạy của máy này").map((b) => b.textContent);
+    expect(o).toEqual(["—", "sl_vao * 2", "—"]);
+  });
+
+  it("máy thuộc hai tổ đang tick là MỘT dòng, hai chip tổ", () => {
+    bay({ value: [], options: MAY_TO, toDangTick: [1, 2], tenTo: TEN_TO, nhomCongDoan: "print",
+          onChange: () => {} });
+    expect(screen.getAllByRole("button", { name: /IN-03/ })).toHaveLength(1);
+    const dong = screen.getByRole("button", { name: /IN-03/ }).closest("tr") as HTMLElement;
+    expect(dong.textContent).toContain("Tổ A");
+    expect(dong.textContent).toContain("Tổ B");
+  });
+
+  it("không còn ô chọn máy tay lẫn nút xoá dòng", () => {
+    bay({ value: [], options: MAY_TO, toDangTick: [1], tenTo: TEN_TO, nhomCongDoan: "print",
+          onChange: () => {} });
+    expect(screen.queryByRole("button", { name: "Chọn máy cho công đoạn" })).toBeNull();
+    expect(document.querySelector(".rc-bands__del")).toBeNull();
+    expect(screen.getByText(/Máy hiện theo tổ đã tick/)).toBeInTheDocument();
+  });
+
+  it("sửa công thức thì gửi lên mọi dòng đang hiện", async () => {
+    const user = userEvent.setup();
+    let gui: MayCongDoanRow[] = [];
+    function Bang() {
+      const [v, setV] = useState<MayCongDoanRow[]>([]);
+      return <MayCuaCongDoanField value={v} options={MAY_TO} toDangTick={[2]} tenTo={TEN_TO}
+        nhomCongDoan="print" onChange={(x) => { gui = x; setV(x); }} />;
+    }
+    render(<AuthContext.Provider value={AUTH}><Bang /></AuthContext.Provider>);
+    await user.click(screen.getAllByTitle("Sửa cách đo giờ chạy của máy này")[0]);
+    await user.click(screen.getByRole("button", { name: "×" }));
+    expect(gui.map((r) => r.may_id)).toEqual([12, 13]);
   });
 
   it("bấm tên máy mở Ô GIỜ, không kéo theo ô giá", async () => {
     const user = userEvent.setup();
-    bay({ value: [{ may_id: 1 }], options: MAY, nhomChoPhep: ["Máy in"], nhomCongDoan: "print",
+    bay({ value: [{ may_id: 1 }], options: MAY, nhomCongDoan: "print",
           onChange: () => {} });
     await user.click(screen.getByRole("button", { name: /Komori 5 màu/ }));
     // `nhanO` render ra `<span className="rc-formula__editor-label">`, KHÔNG phải `<label for>`
@@ -55,7 +98,7 @@ describe("MayCuaCongDoanField", () => {
     const user = userEvent.setup();
     bay({
       value: [{ may_id: 1, cong_thuc_gia: "sl_vao * 420" }, { may_id: 2, cong_thuc_gia: null }],
-      options: MAY, nhomChoPhep: [], nhomCongDoan: "print", onChange: () => {},
+      options: MAY, nhomCongDoan: "print", onChange: () => {},
     });
 
     await user.click(screen.getAllByTitle("Sửa cách tính giá của máy này")[1]);
@@ -74,7 +117,7 @@ describe("MayCuaCongDoanField", () => {
     const user = userEvent.setup();
     const { container } = bay({
       value: [{ may_id: 1, cong_thuc_gia: "sl_vao * 420" }],
-      options: MAY, nhomChoPhep: [], nhomCongDoan: "print", onChange: () => {},
+      options: MAY, nhomCongDoan: "print", onChange: () => {},
     });
 
     await user.click(screen.getByTitle("Sửa cách tính giá của máy này"));
@@ -94,7 +137,7 @@ describe("MayCuaCongDoanField", () => {
     const user = userEvent.setup();
     function Bang() {
       const [v, setV] = useState<MayCongDoanRow[]>([{ may_id: 1, cong_thuc_gia: "sl_vao * 420" }]);
-      return <MayCuaCongDoanField value={v} options={MAY} nhomChoPhep={[]}
+      return <MayCuaCongDoanField value={v} options={MAY}
         nhomCongDoan="print" onChange={setV} />;
     }
     render(<AuthContext.Provider value={AUTH}><Bang /></AuthContext.Provider>);
@@ -116,7 +159,7 @@ describe("MayCuaCongDoanField", () => {
 
   it("công đoạn KHÔNG thuộc nhóm In thì không có ô công thức giá", async () => {
     const user = userEvent.setup();
-    bay({ value: [{ may_id: 2 }], options: MAY, nhomChoPhep: ["Bế"], nhomCongDoan: "finishing",
+    bay({ value: [{ may_id: 2 }], options: MAY, nhomCongDoan: "finishing",
           onChange: () => {} });
     await user.click(screen.getByRole("button", { name: /Yawa 1050/ }));
     expect(screen.getByText(/^Công thức giờ chạy — /)).toBeInTheDocument();
@@ -128,7 +171,7 @@ describe("MayCuaCongDoanField", () => {
     function Bang() {
       const [v, setV] = useState<MayCongDoanRow[]>([
         { may_id: 1, cong_thuc_gia: "sl_vao * 420" }, { may_id: 2, cong_thuc_gia: null }]);
-      return <MayCuaCongDoanField value={v} options={MAY} nhomChoPhep={[]}
+      return <MayCuaCongDoanField value={v} options={MAY}
         nhomCongDoan="print" congThucChung="sl_vao * 999" onChange={setV} />;
     }
     render(<AuthContext.Provider value={AUTH}><Bang /></AuthContext.Provider>);

@@ -251,6 +251,9 @@ export const CFG_MAY: CatalogConfig = {
   widthTen: 200,
   columns: [
     { key: "loai_may", label: "Nhóm máy", w: 120, render: (r) => (r.loai_may ? String(r.loai_may) : "") },
+    // Máy thuộc tổ (mg `0434`) — một máy nhiều tổ, mỗi tổ một chip.
+    { key: "to_ids", label: "Tổ đứng máy", w: 200,
+      render: (r) => <ChipTen prefix="/api/may-thiet-bi/phong-ban" ids={r.to_ids} /> },
     // Nhận diện tài sản — ba ô đã khai ở tab Thông tin chung, trước đây chỉ thấy khi mở thẻ máy.
     // Một dòng của lưới: hãng, model, rồi seri chữ nhỏ mờ; đủ chữ ở `title`.
     { key: "hang_san_xuat", label: "Hãng & model", w: 230,
@@ -321,6 +324,10 @@ export const CFG_MAY: CatalogConfig = {
     // ── 1. Thông tin chung ──────────────────────────────────────────────────
     { key: "loai_may", label: "Nhóm máy", type: "nhom_may", required: true, group: "Thông tin chung",
       refPrefix: "/api/nhom-may" },
+    // Tổ đứng máy (mg `0434`): máy của công đoạn đi theo tổ này. Nguồn tổ là cửa riêng của màn Máy,
+    // cùng định nghĩa "tổ lá khối Sản xuất" với ô tổ của công đoạn.
+    { key: "to_ids", label: "Tổ đứng máy", type: "to-multi", group: "Thông tin chung",
+      refPrefix: "/api/may-thiet-bi/phong-ban" },
     // Nhận diện tài sản — cột đã có sẵn trong DB (chỉ chưa bày ra form).
     { key: "hang_san_xuat", label: "Hãng sản xuất", type: "text", group: "Thông tin chung" },
     { key: "model", label: "Model", type: "text", group: "Thông tin chung" },
@@ -511,11 +518,9 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // Bảng "Đầu việc và định mức của tổ" GỠ 18/09/2026 (mg `0320`) — công đoạn là CÔNG NGHỆ, việc
     // của tổ khai ở danh mục Công việc khoán. Vật tư (nền BOM) chuyển sang tab "Vật tư" bên dưới.
     { key: "vat_tus", label: "Vật tư công đoạn tiêu thụ", type: "vat-tu-cong-doan", group: "Vật tư" },
-    // Chặn gán máy SAI LOẠI ở bài ghép (vd Ghi kẽm CTP không cho máy Bế). Lưu mảng TÊN nhóm máy.
-    { key: "nhom_may_cho_phep", label: "Máy làm được công đoạn này", type: "nhom_may-multi",
-      refPrefix: "/api/nhom-may", group: "Lệnh sản xuất" },
-    // Máy CỤ THỂ + công thức của riêng từng cặp (06/09/2026). Hàng tick ngay trên chỉ còn là bộ
-    // lọc cho bảng này; luật chặn gán máy ở bước đọc DANH SÁCH này khi công đoạn có khai.
+    // Ô "Máy làm được công đoạn này" (nhóm máy) GỠ 22/10/2026: máy đi theo TỔ đã tick (mg `0434`).
+    // Máy CỤ THỂ + công thức của riêng từng cặp (06/09/2026) — bảng tự hiện máy của các tổ đang
+    // tick; luật chặn gán máy ở bước đọc DANH SÁCH này.
     { key: "may_lam_duoc", label: "Máy chạy được công đoạn này", type: "may-cua-cong-doan",
       // `size` phải ≤ 200: khung danh mục chung chặn trần ở `catalog_base.py` (`le=200`). Xin 500
       // thì router trả 422 và ô chọn máy rỗng IM LẶNG — không báo lỗi gì cho người dùng thấy.

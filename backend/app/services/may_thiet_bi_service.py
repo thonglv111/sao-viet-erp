@@ -102,6 +102,10 @@ class MayThietBiService(CatalogService):
             self.repo.db.commit()
         return obj
 
+    def phong_ban_options(self) -> list[dict]:
+        """TỔ cho ô "Tổ đứng máy" (`{id, ma, ten}`) — cùng định nghĩa ô tổ của công đoạn."""
+        return [{"id": d.id, "ma": d.code, "ten": d.name} for d in self.repo.to_san_xuat()]
+
     def _kiem_to(self, data: dict, obj: MayThietBi | None) -> None:
         """Tổ MỚI gán cho máy phải là tổ lá khối Sản xuất (cùng luật ô tổ của công đoạn). Tổ đang
         lưu mà nay đã thành nút cha thì để yên — chặn là khoá luôn đường sửa máy đó."""

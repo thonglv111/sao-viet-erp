@@ -92,3 +92,10 @@ def test_excel_may_co_cot_to_dung_may():
 
     nhan = [c.nhan for c in MAY_THIET_BI.cot]
     assert "Mã tổ đứng máy" in nhan and "Tổ đứng máy" in nhan
+
+
+def test_phong_ban_cua_man_may_chi_to_la(client, nen):
+    r = client.get("/api/may-thiet-bi/phong-ban", headers=nen["headers"])
+    assert r.status_code == 200, r.text
+    ids = {x["id"] for x in r.json()["items"]}
+    assert {nen["a"], nen["b"]} <= ids and nen["cha"] not in ids

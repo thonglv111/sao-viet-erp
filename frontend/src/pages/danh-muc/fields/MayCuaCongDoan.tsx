@@ -4,14 +4,15 @@
 // thì đo khác nhau — In khổ 79×109 và In khổ 11×11 không thể chung một công thức. Cùng lẽ đó,
 // đơn giá cũng theo máy: máy 5 màu khổ lớn và máy 2 màu khổ nhỏ có giá khác nhau.
 //
-// Hàng tick "Máy làm được công đoạn này" (nhóm máy) nay chỉ là BỘ LỌC cho bảng này.
+// MÁY ĐI THEO TỔ (22/10/2026, spec máy thuộc tổ §4.4): bảng tự hiện máy của các tổ đang tick ở ô
+// "Tổ phụ trách" (máy khai tổ ở danh mục Thiết bị & Máy móc) — không còn chọn tay, không xoá dòng.
+// Dòng của máy ra khỏi phạm vi tổ nằm im ở máy chủ (`may_khai`), tick lại là hiện lại số cũ.
+// Công đoạn chưa tick tổ nào ⇒ giữ bảng đã khai như cũ (không ràng buộc).
 //
 // Máy ĐẦU bảng là MÁY MẶC ĐỊNH (12/10/2026) — bước lệnh / lượt chạy chung mới ra đời tự điền máy này
 // (`LsxService._may_mac_dinh`), cùng luật tổ đầu = tổ mặc định. Thứ tự lưu xuống `cong_doan_may.thu_tu`.
 import { useMemo, useState } from "react";
 
-import { Select, type SelectOption } from "../../../components/Select";
-import { TrashIcon } from "../icons";
 import type { MayCongDoanRow, Row } from "../types";
 import { nhanDonViTocDo } from "./DonViTocDo";
 import { FormulaField } from "./FormulaField";
@@ -25,33 +26,50 @@ function so(v: unknown): string {
   return Number.isFinite(n) && n > 0 ? n.toLocaleString("vi-VN") : "";
 }
 
-export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan, congThucChung = "", onChange }: {
-  value: MayCongDoanRow[]; options: Row[]; nhomChoPhep: string[];
+/** Tổ (trong các tổ đang tick) mà máy thuộc. */
+function toCuaMay(may: Row | undefined, toDangTick: number[]): number[] {
+  const cua = Array.isArray(may?.to_ids) ? (may.to_ids as unknown[]).map(Number) : [];
+  return toDangTick.filter((t) => cua.includes(t));
+}
+
+export function MayCuaCongDoanField({
+  value, options, toDangTick = [], mayKhai = [], tenTo = {}, nhomCongDoan, congThucChung = "", onChange,
+}: {
+  value: MayCongDoanRow[]; options: Row[];
+  /** Tổ đang tick ở ô "Tổ phụ trách" của form — bảng hiện máy của các tổ này. */
+  toDangTick?: number[];
+  /** Mọi dòng máy đã khai ở máy chủ, kể cả dòng nằm im — lấy lại công thức khi tick lại tổ. */
+  mayKhai?: MayCongDoanRow[];
+  tenTo?: Record<number, string>;
   nhomCongDoan: string;
   /** Công thức giá CHUNG của công đoạn — popup giá riêng đang trống thì mời "lấy làm gốc". */
   congThucChung?: string;
   onChange: (v: MayCongDoanRow[]) => void;
 }) {
-  const chon = Array.isArray(value) ? value : [];
-  // Nhóm chưa tick ⇒ bày MỌI máy: "chưa khai = không ràng buộc", cùng luật với nơi gán máy ở bước.
-  const duocChon = useMemo(
-    () => (nhomChoPhep.length === 0
-      ? options
-      : options.filter((o) => nhomChoPhep.includes(String(o.loai_may)))),
-    [options, nhomChoPhep],
-  );
   const theoId = useMemo(() => new Map(options.map((o) => [Number(o.id), o])), [options]);
-  const daChon = new Set(chon.map((r) => r.may_id));
-  // Ô "＋ Chọn máy": nhãn CHỈ tên máy. Danh sách ~40 máy mà mã đứng trước thì cả cột chỉ thấy
-  // "BE-01 / BE-02 / BOI-01…", mắt phải đọc qua tiền tố mới tới tên. Mã chuyển sang `search` —
-  // vẫn gõ "be-07" ra được, chỉ là không chiếm chỗ.
-  const mayOpts = useMemo<SelectOption<string>[]>(
-    () => duocChon
-      .filter((o) => !daChon.has(Number(o.id)))
-      .map((o) => ({ value: String(o.id), label: String(o.ten), search: String(o.ma ?? "") })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [duocChon, chon],
-  );
+  // Dòng ĐANG HIỆN: chưa tick tổ ⇒ đúng bảng đã khai; có tổ ⇒ máy thuộc ít nhất một tổ đang tick,
+  // số lấy từ form (đang sửa) rồi tới bản đã lưu (kể cả dòng nằm im), không có thì trống. Thứ tự:
+  // theo form (giữ "Đặt mặc định"), rồi theo bản đã lưu, rồi máy mới vào theo mã.
+  const chon = useMemo<MayCongDoanRow[]>(() => {
+    const ds = Array.isArray(value) ? value : [];
+    if (toDangTick.length === 0) return ds;
+    const trongPhamVi = options.filter((o) => toCuaMay(o, toDangTick).length > 0);
+    const coMat = new Set(trongPhamVi.map((o) => Number(o.id)));
+    const theoForm = new Map(ds.map((r) => [r.may_id, r]));
+    const theoKhai = new Map(mayKhai.map((r) => [r.may_id, r]));
+    const thuTu = [
+      ...ds.map((r) => r.may_id),
+      ...mayKhai.map((r) => r.may_id),
+      ...[...trongPhamVi].sort((a, b) => String(a.ma).localeCompare(String(b.ma))).map((o) => Number(o.id)),
+    ];
+    const ra: MayCongDoanRow[] = [];
+    for (const id of new Set(thuTu)) {
+      if (!coMat.has(id)) continue;
+      const r = theoForm.get(id) ?? theoKhai.get(id);
+      ra.push({ may_id: id, cong_thuc_gio: r?.cong_thuc_gio ?? null, cong_thuc_gia: r?.cong_thuc_gia ?? null });
+    }
+    return ra;
+  }, [value, options, toDangTick, mayKhai]);
   // Panel đang mở khoá theo CẶP (máy, ô) chứ không theo dòng: bảng có hai ô công thức mỗi dòng,
   // khoá theo dòng thì bấm ô "Cách tính giá" của dòng 3 vẫn ra panel dòng đang mở, người khai
   // tưởng mình đang sửa dòng 3 mà thật ra đang sửa dòng 1.
@@ -101,7 +119,6 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
               title="Thời gian canh máy mặc định — Xếp lịch cộng thẳng vào thời gian chiếm máy. Khai ở danh mục Thiết bị & Máy móc.">Canh máy (phút)</th>
             <th rowSpan={2} className="rc-col--left">Cách đo giờ chạy</th>
             {coOGia && <th rowSpan={2} className="rc-col--left">Cách tính giá</th>}
-            <th rowSpan={2} className="rc-col--center" style={{ width: 36 }} />
           </tr>
           <tr className="rc-dinh-muc-table__sub-row">
             {/* Thứ tự tối thiểu → trung bình → tối đa: đọc thành một dải tăng dần, y bảng trên. */}
@@ -112,10 +129,10 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
           </tr>
         </thead>
         <tbody>
-          {chon.length === 0 && <tr><td colSpan={coOGia ? 9 : 8} className="rc-bands__empty">
-            {duocChon.length === 0
-              ? "Chưa có máy nào thuộc nhóm đã tick ở trên."
-              : "Chưa chọn máy nào cho công đoạn này."}
+          {chon.length === 0 && <tr><td colSpan={coOGia ? 8 : 7} className="rc-bands__empty">
+            {toDangTick.length === 0
+              ? "Chưa tick tổ nào ở ô Tổ phụ trách."
+              : "Các tổ đã tick chưa có máy nào."}
           </td></tr>}
           {chon.map((r, i) => {
             const may = theoId.get(r.may_id);
@@ -129,6 +146,8 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
                     onClick={(e) => bat(r.may_id, "gio", e.currentTarget, r.cong_thuc_gio ?? null)}>
                     {may ? `${String(may.ma)} · ${String(may.ten)}` : `#${r.may_id}`}
                   </button>
+                  {toCuaMay(may, toDangTick).map((t) =>
+                    <span key={t} className="lds-tag">{tenTo[t] ?? `Tổ #${t}`}</span>)}
                   {/* Một máy thì chẳng có gì để chọn — nhãn chỉ hiện khi có từ hai máy, như chip tổ. */}
                   {chon.length > 1 && (i === 0
                     ? <span className="rc-may-mac-dinh">mặc định</span>
@@ -162,10 +181,6 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
                     className={`rc-ct-cell ${moGia ? "is-open" : ""} ${r.cong_thuc_gia ? "" : "is-empty"}`}
                     onClick={(e) => bat(r.may_id, "gia", e.currentTarget, r.cong_thuc_gia ?? null)}>{r.cong_thuc_gia || "—"}</button>
                 </td>}
-                <td className="rc-col--center">
-                  <button type="button" className="rc-bands__del"
-                    onClick={() => onChange(chon.filter((_, j) => j !== i))}><TrashIcon /></button>
-                </td>
               </tr>
             );
           })}
@@ -173,9 +188,10 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
       </table>
     </div>
     {/* Nói thẳng bốn cột kia sửa ở đâu — không có dòng này thì người khai bấm mãi vào con số. */}
-    {chon.length > 0 && <div className="rc-dinh-muc-note">
-      Tốc độ và canh máy khai ở danh mục Thiết bị &amp; Máy móc — ở đây chỉ đọc.
-    </div>}
+    <div className="rc-dinh-muc-note">
+      Máy hiện theo tổ đã tick. Thêm máy vào tổ ở danh mục Thiết bị &amp; Máy móc.
+      {chon.length > 0 && " Tốc độ và canh máy cũng khai ở đó — ở đây chỉ đọc."}
+    </div>
     {mo && iMo >= 0 && <FormulaPopover neo={mo.neo} onClose={() => setMo(null)} onHuy={huy}
       nhan={mo.o === "gio" ? "Công thức giờ chạy" : "Công thức giá"}>
       {/* Popup TRỐNG có lối vào: 5 máy cùng công đoạn thường chung một khung công thức, chỉ khác vài
@@ -218,21 +234,5 @@ export function MayCuaCongDoanField({ value, options, nhomChoPhep, nhomCongDoan,
         value={chon[iMo].cong_thuc_gia ?? ""}
         onChange={(v) => patch(iMo, { cong_thuc_gia: v })} />}
     </FormulaPopover>}
-    <div className="rc-dinh-muc-add">
-      <Select
-        options={mayOpts}
-        value=""
-        placeholder="＋ Chọn máy cho công đoạn"
-        ariaLabel="Chọn máy cho công đoạn"
-        searchable
-        searchPlaceholder="Gõ tên hoặc mã máy…"
-        portal
-        className="rc-dinh-muc-add__select"
-        onChange={(v) => {
-          const id = Number(v);
-          if (id) onChange([...chon, { may_id: id, cong_thuc_gio: null, cong_thuc_gia: null }]);
-        }}
-      />
-    </div>
   </div>;
 }

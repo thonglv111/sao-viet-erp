@@ -2489,6 +2489,8 @@ export interface SxMayDoi {
   trang_thai: string;
   nhan: string;
   chi_tiet: string | null;
+  /** Tên các tổ KHÁC máy cũng thuộc (mg `0434`, một máy nhiều tổ) — chỉ để biết máy dùng chung. */
+  to_khac: string[];
 }
 /** Nhóm của một dòng tab Lịch sử — khớp `NHOM_LS` ở `services/san_xuat/lich_su_viec.py`. */
 export type SxNhomLichSu = "chay_may" | "nguoi_khuon" | "san_luong" | "ban_giao" | "vat_tu" | "kcs" | "khac";
@@ -2512,6 +2514,8 @@ export interface SxMayDoiOut {
   items: SxMayDoi[];
   /** true = danh sách đã bị công đoạn thu hẹp; false = công đoạn chưa khai máy, đang hiện mọi máy. */
   theo_cong_doan: boolean;
+  /** true = công đoạn có tick tổ ⇒ danh sách là máy THUỘC tổ của việc (máy hư thì việc chờ). */
+  theo_to: boolean;
 }
 export interface SxTamDungIn { ly_do: string; expected_version?: number | null }
 export interface SxKetThucIn { expected_version?: number | null }
@@ -6834,16 +6838,16 @@ export interface CongDoanLite {
    *  (`pages/keHoachSxShared.tsx`). Rỗng = công đoạn chưa khai giai đoạn. */
   nhom?: string | null;
   khoan_ghi_theo: string;
-  /** Nhóm máy (loai_may) làm được công đoạn — checkbox "Máy làm được công đoạn này" ở danh mục.
-   *  Drawer routing lệnh SX lọc dropdown MÁY theo đây; null/rỗng = không giới hạn (hiện tất cả).
-   *  `/api/cong-doan` (CongDoanRow) đã trả sẵn, không cần đổi backend. */
+  /** Nhóm máy — GỠ khỏi mọi luật 22/10/2026 (máy đi theo tổ, mg `0434`); cột còn, không ai đọc. */
   nhom_may_cho_phep?: string[] | null;
-  /** MÁY cụ thể chạy được công đoạn + công thức giờ/giá của riêng từng cặp (06/09/2026).
-   *  Hàng tick `nhom_may_cho_phep` ở trên nay chỉ là BỘ LỌC cho bảng này.
+  /** MÁY chạy được công đoạn = máy của các tổ đã tick (mg `0434`) + công thức giờ/giá từng cặp.
    *  Hình dạng viết thẳng ở đây, không import: file này cố ý không phụ thuộc module nào —
    *  bản đặt tên là `MayCongDoanRow` trong `pages/danh-muc/types.ts`. */
   may_lam_duoc?: { may_id: number; cong_thuc_gio?: string | null;
                    cong_thuc_gia?: string | null }[] | null;
+  /** Mọi dòng máy đã khai, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ — form tick lại tổ là thấy số cũ. */
+  may_khai?: { may_id: number; cong_thuc_gio?: string | null;
+               cong_thuc_gia?: string | null }[] | null;
   /** Các TỔ phụ trách công đoạn (nhiều tổ, 18/09/2026, mg `0312`) — tổ đầu là tổ mặc định. Ô tổ
    *  của bước lệnh chỉ mời các tổ này. Rỗng = công đoạn chưa khai tổ, không giới hạn. */
   department_ids?: number[] | null;

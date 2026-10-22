@@ -337,7 +337,11 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         ) : f.type === "may-cua-cong-doan" ? (
           <MayCuaCongDoanField value={Array.isArray(form[f.key]) ? form[f.key] as MayCongDoanRow[] : []}
             options={optsRef(f)}
-            nhomChoPhep={Array.isArray(form.nhom_may_cho_phep) ? form.nhom_may_cho_phep as string[] : []}
+            // Máy đi theo tổ (mg `0434`): bảng dựng theo tổ đang tick NGAY trên form, chưa cần lưu.
+            toDangTick={(Array.isArray(form.department_ids) ? form.department_ids as unknown[] : []).map(Number)}
+            mayKhai={Array.isArray(form.may_khai) ? form.may_khai as MayCongDoanRow[] : []}
+            tenTo={Object.fromEntries((refData["/api/cong-doan/phong-ban"] ?? [])
+              .map((r) => [Number(r.id), String(r.ten ?? r.name ?? `Tổ #${r.id}`)]))}
             nhomCongDoan={String(form.nhom ?? "")}
             congThucChung={String(form.cong_thuc_gia ?? "")}
             onChange={(v) => set(f.key, v)} />
