@@ -640,6 +640,8 @@ MAY_THIET_BI = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Loại máy", "loai_may", rong=18),
+        # Tổ đứng máy (mg `0434`): NHIỀU tổ, "PB012, PB013".
+        *_cot_nhieu_to(field="to_ids", nhan="Mã tổ đứng máy", nhan_ten="Tổ đứng máy"),
         Cot("Hãng sản xuất", "hang_san_xuat", rong=20),
         Cot("Model", "model", rong=18),
         Cot("Số seri", "so_seri", rong=18),

@@ -139,6 +139,7 @@ NHAN: dict[str, str] = {
     # gom thành chữ ở `_con_cua_cong_doan` (`to_phu_trach`).
     "department_id": "Tổ phụ trách",
     "to_phu_trach": "Tổ phụ trách",
+    "to_dung_may": "Tổ đứng máy",
     "khoan_ghi_theo": "Khoán ghi theo",
     "allowed_defect_pct": "Hỏng cho phép",
     "allowed_defect_abs": "Hỏng cho phép (số tuyệt đối)",
@@ -465,6 +466,7 @@ def anh_chup(obj: Any) -> dict[str, Any]:
     cols = sa_inspect(type(obj)).columns.keys()
     ra = {c: getattr(obj, c, None) for c in cols if c not in BO_QUA}
     ra.update(_con_cua_cong_doan(obj))
+    ra.update(_con_cua_may(obj))
     ra.update(_con_cua_vat_tu(obj))
     ra.update(_con_cua_cong_viec_khoan(obj))
     return ra
@@ -504,6 +506,18 @@ def _con_cua_vat_tu(obj: Any) -> dict[str, Any]:
     if getattr(obj, "__tablename__", "") != "vat_tu_in_an":
         return {}
     return {"chips": ", ".join(f"{c.ten} ({c.ma})" for c in (getattr(obj, "chips", None) or [])) or None}
+
+
+def _con_cua_may(obj: Any) -> dict[str, Any]:
+    """Tổ đứng máy (mg `0434`) là bảng nối — `columns` không thấy, gom thành chuỗi tên như tổ phụ
+    trách của công đoạn để thêm/gỡ một tổ đọc ra một dòng "trước → sau"."""
+    if getattr(obj, "__tablename__", "") != "may_thiet_bi":
+        return {}
+    s = sa_inspect(obj).session
+    ids = list(getattr(obj, "to_ids", None) or [])
+    to = CongViecKhoanRepository(s).to_theo_id(ids) if s is not None and ids else {}
+    return {"to_dung_may": ", ".join(to[i][1] if i in to else f"(tổ #{i} đã xoá)" for i in ids)
+            or None}
 
 
 def _con_cua_cong_doan(obj: Any) -> dict[str, dict[str, Any]]:

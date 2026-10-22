@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.don_vi_do import DonViDo
 from ..models.may_thiet_bi import MayThietBi, NhomMay
@@ -28,6 +28,20 @@ class MayThietBiRepository(CatalogRepo):
     commit_on_write = False   # `MayThietBiService` chốt sau khi ghi nhật ký — xem `catalog_base`
     # `active` (mg `0202`, 15/08/2026) = máy CÒN DÙNG hay đã thanh lý. Khác `machine_unavailable_
     # periods` — chỗ đó khai máy dừng TẠM theo khoảng thời gian, và Xếp lịch vẫn đọc nó như cũ.
+
+    def _base_select(self):
+        return select(MayThietBi).options(selectinload(MayThietBi.to_dung_may))
+
+    def _sau_gan(self, obj: MayThietBi, data: dict) -> None:
+        # Tổ đứng máy (mg `0434`): vắng / None = giữ nguyên danh sách đang lưu.
+        if data.get("to_ids") is not None:
+            obj.to_ids = data["to_ids"]
+
+    def to_san_xuat_ids(self) -> set[int]:
+        """Id các TỔ (nút lá khối Sản xuất) — cùng định nghĩa ô tổ của công đoạn."""
+        from .rbac_repo import DepartmentRepository
+
+        return {d.id for d in DepartmentRepository(self.db).to_san_xuat()}
 
     def extra_conds(self, *, loai_may: str | None = None, **_) -> list:
         return [MayThietBi.loai_may == loai_may] if loai_may else []

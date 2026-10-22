@@ -86,8 +86,36 @@ class MayThietBiService(CatalogService):
             goi_moi.append(g)
         return {**data, "fields_theo_loai": {**tui, "lich_bao_tri": goi_moi}}
 
+    # -- ghi: tổ đứng máy kéo theo dòng máy của công đoạn (spec 2026-10-22-may-thuoc-to) --
+    def create(self, data: dict, actor_id: int | None = None):
+        return self._dong_bo(super().create(data, actor_id))
+
+    def update(self, item_id: int, data: dict, actor_id: int | None = None):
+        return self._dong_bo(super().update(item_id, data, actor_id))
+
+    def _dong_bo(self, obj: MayThietBi) -> MayThietBi:
+        """Máy vừa vào tổ ⇒ công đoạn đang tick tổ đó có ngay dòng máy (công thức trống), để
+        bảng "Máy chạy được công đoạn này" hiện máy mà không ai phải chọn tay."""
+        from .may_to import dong_bo_cong_doan_may
+
+        if dong_bo_cong_doan_may(self.repo.db, may_ids=[obj.id]):
+            self.repo.db.commit()
+        return obj
+
+    def _kiem_to(self, data: dict, obj: MayThietBi | None) -> None:
+        """Tổ MỚI gán cho máy phải là tổ lá khối Sản xuất (cùng luật ô tổ của công đoạn). Tổ đang
+        lưu mà nay đã thành nút cha thì để yên — chặn là khoá luôn đường sửa máy đó."""
+        if data.get("to_ids") is None:
+            return
+        cu = set(obj.to_ids) if obj is not None else set()
+        moi = {int(i) for i in data["to_ids"]} - cu
+        if moi and moi - self.repo.to_san_xuat_ids():
+            raise MayThietBiValidationError(
+                "Tổ đứng máy phải là tổ cuối trong cây tổ chức, không chọn phòng ban có tổ con.")
+
     # -- validate (§8) --
     def _validate(self, data: dict, obj: MayThietBi | None = None) -> None:
+        self._kiem_to(data, obj)
         if not (data.get("ma") or "").strip():
             raise MayThietBiValidationError("Mã máy không được trống.")
         if not (data.get("ten") or "").strip():

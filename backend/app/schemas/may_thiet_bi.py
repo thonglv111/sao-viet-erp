@@ -46,6 +46,8 @@ class MayThietBiIn(BaseModel):
     # Máy còn dùng hay đã thanh lý (mg `0202`). Máy dừng TẠM thì vẫn `True` — khai ở
     # `machine_unavailable_periods`, xem `models/may_thiet_bi`.
     active: bool = True
+    # TỔ ĐỨNG MÁY (mg `0434`) — nhiều tổ, chỉ tổ LÁ khối Sản xuất. Vắng = giữ nguyên.
+    to_ids: list[int] | None = None
 
 
 class MayThietBiRow(BaseModel):
@@ -85,6 +87,7 @@ class MayThietBiRow(BaseModel):
     duoi_thang_mau_mm: int | None = None
     fields_theo_loai: dict | None = None
     active: bool = True
+    to_ids: list[int] = Field(default_factory=list)
     ghi_chu: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
