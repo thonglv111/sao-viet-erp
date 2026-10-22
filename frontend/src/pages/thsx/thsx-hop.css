@@ -101,6 +101,9 @@
 .thsx-gm-gia { margin-left: auto; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
 .thsx-gm-khoan { border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }
 .thsx-gm-khoan__dau { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
+/* Bậc giá (Bài in): bậc chọn theo màu lệnh + tick, đổi ngay khi tick Mực UV. */
+.thsx-gm-bac { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 14px;
+  border-top: 1px solid var(--rule-hair); font-size: 13.5px; }
 .thsx-gm-ps { border-top: 1px solid var(--rule-hair); padding: 8px 14px 10px; background: var(--paper); }
 .thsx-gm-ps ul { list-style: none; margin: 4px 0 0; padding: 0; }
 /* Hàng việc phát sinh: tick + tên giãn ra, ô số lượng (khi tick) đứng ngay trước đơn giá, cao bằng hàng. */

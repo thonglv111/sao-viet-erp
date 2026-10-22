@@ -321,6 +321,8 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
                 const r = (refData["/api/cong-doan/phong-ban"] ?? []).find((x) => Number(x.id) === Number(id));
                 return { id: Number(id), ten: String(r?.ten ?? r?.name ?? `Tổ #${id}`) };
               })}
+            tatCaTo={(refData["/api/cong-doan/phong-ban"] ?? [])
+              .map((r) => ({ id: Number(r.id), ten: String(r.ten ?? r.name ?? `Tổ #${r.id}`) }))}
             onChange={(v) => set(f.key, v)}
           />
         ) : f.type === "viec-phat-sinh" ? (
@@ -678,6 +680,10 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         {Array.from(sectionsMap.entries()).map(([gName, fields], idx) => {
           const isFirst = idx === 0;
           const colCount = gName === "Thông số chừa lề tờ in" && fields.length === 3 ? 3 : 2;
+          // Tab Khoán tự chia thẻ bên trong — bọc thêm thẻ "Khoán" là thẻ lồng thẻ, nhãn trùng tên tab.
+          if (fields.length === 1 && fields[0].type === "khoan-cong-doan") {
+            return <div key={gName}>{renderField(fields[0])}</div>;
+          }
           return (
             <section className="rc-card-section" style={{ padding: "16px 20px" }} key={gName}>
               <div className="rc-card-section__title">{gName}</div>

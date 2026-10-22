@@ -19,18 +19,43 @@ from .catalog_base import (
 from .thanh_phan_engine import kiem_cong_thuc
 
 def _gia_theo_to_sach(rows, *, co_dinh: bool) -> list[dict] | None:
-    """Chuẩn hoá bảng giá theo tổ về `[{department_id, (gia_co_dinh), don_gia}]`; rỗng ⇒ None
-    (= mọi tổ dùng giá chung). Dòng không có tổ thì bỏ."""
+    """Chuẩn hoá bảng giá theo tổ về `[{department_id, (bac), (gia_co_dinh), don_gia}]`; rỗng ⇒
+    None (= mọi tổ dùng giá chung). Dòng không có tổ thì bỏ. `bac` chỉ giữ khi có (công đoạn chia
+    bậc) — dòng của công đoạn thường giữ nguyên hình dạng cũ."""
     ra: list[dict] = []
     for r in rows or []:
         r = dict(r)
         if not r.get("department_id"):
             continue
-        dong = {"department_id": int(r["department_id"]),
-                "don_gia": None if r.get("don_gia") is None else float(r["don_gia"])}
+        dong = {"department_id": int(r["department_id"])}
+        if str(r.get("bac") or "").strip():
+            dong["bac"] = str(r["bac"]).strip()
+        dong["don_gia"] = None if r.get("don_gia") is None else float(r["don_gia"])
         if co_dinh:
             dong["gia_co_dinh"] = float(r.get("gia_co_dinh") or 0)
         ra.append(dong)
+    return ra or None
+
+
+def _bac_gia_sach(rows) -> list[dict] | None:
+    """Chuẩn hoá bậc giá `[{ma, ten, mau_tu, mau_den, pha, tuy_chon_ma, tuy_chon_co, gom_uv}]`;
+    rỗng ⇒ None (= không chia bậc). Ô điều kiện trống = không xét."""
+    def so(v):
+        return None if v is None or str(v).strip() == "" else float(v)
+
+    ra = []
+    for b in rows or []:
+        b = dict(b)
+        ra.append({
+            "ma": str(b.get("ma") or "").strip(),
+            "ten": " ".join(str(b.get("ten") or "").split()),
+            "mau_tu": so(b.get("mau_tu")),
+            "mau_den": so(b.get("mau_den")),
+            "pha": b.get("pha") or None,
+            "tuy_chon_ma": (str(b.get("tuy_chon_ma") or "").strip().lower()) or None,
+            "tuy_chon_co": b.get("tuy_chon_co") or None,
+            "gom_uv": bool(b.get("gom_uv")),
+        })
     return ra or None
 
 
@@ -79,6 +104,7 @@ class CongDoanService(CatalogService):
             k["unit"] = (str(k.get("unit") or "").strip().lower()) or None
             k["cong_thuc_khoan"] = (str(k.get("cong_thuc_khoan") or "").strip()) or None
             k["gia_theo_to"] = _gia_theo_to_sach(k.get("gia_theo_to"), co_dinh=True)
+            k["bac_gia"] = _bac_gia_sach(k.get("bac_gia"))
             k["gia_co_dinh"] = float(k.get("gia_co_dinh") or 0)
             k["tuy_chon"] = [
                 {
@@ -112,6 +138,7 @@ class CongDoanService(CatalogService):
             "gia_theo_to": goc.khoan.gia_theo_to,
             "gia_co_dinh": float(goc.khoan.gia_co_dinh or 0),
             "tuy_chon": goc.khoan.tuy_chon or [],
+            "bac_gia": goc.khoan.bac_gia,
             "viec_phat_sinh": [
                 {"ten": v.ten, "don_gia": float(v.don_gia), "don_vi": v.don_vi,
                  "gia_theo_to": v.gia_theo_to}
@@ -339,10 +366,13 @@ class CongDoanService(CatalogService):
                 raise CongDoanValidationError(
                     f'Đơn vị tính của việc phát sinh "{ten}" không có trong danh mục Đơn vị & quy đổi.')
             self._kiem_gia_theo_to(r.get("gia_theo_to"), nhan=f'việc phát sinh "{ten}"')
-        self._kiem_gia_theo_to(k.get("gia_theo_to"), nhan="công đoạn")
+        tuy_chon = k.get("tuy_chon") or []
+        bac = k.get("bac_gia") or []
+        self._kiem_bac_gia(bac, tuy_chon)
+        self._kiem_gia_theo_to(k.get("gia_theo_to"), nhan="công đoạn",
+                               bac={b["ma"]: b["ten"] for b in bac})
         if float(k.get("gia_co_dinh") or 0) < 0:
             raise CongDoanValidationError("Giá cố định chung không được âm.")
-        tuy_chon = k.get("tuy_chon") or []
         self._kiem_tuy_chon(tuy_chon)
         # Công thức chạy THẬT ở lần ghi sản lượng (`khoan_ky`, 21/10/2026) — soi bằng bộ chip ô khoán
         # cộng chip của tuỳ chọn khi ghi (Đợt 2).
@@ -370,14 +400,61 @@ class CongDoanService(CatalogService):
                 raise CongDoanValidationError(f'Kiểu của tuỳ chọn "{ten}" không hợp lệ.')
             da_co.add(ma)
 
-    def _kiem_gia_theo_to(self, rows: list[dict] | None, *, nhan: str) -> None:
-        """Bảng giá theo tổ: mỗi tổ một dòng, tổ phải có thật, giá không âm, phải có đơn giá."""
+    @staticmethod
+    def _kiem_bac_gia(rows: list[dict], tuy_chon: list[dict]) -> None:
+        """Bậc giá (22/10/2026): tên không trống, mã không trùng, khoảng màu không ngược, tuỳ chọn
+        làm điều kiện phải là tuỳ chọn Có / không của chính công đoạn."""
+        co_khong = {t["ma"] for t in tuy_chon if t.get("kieu") == "co_khong"}
+        da_co: set[str] = set()
+        for i, b in enumerate(rows, start=1):
+            ten = b["ten"] or f"dòng {i}"
+            if not b["ten"]:
+                raise CongDoanValidationError(f"Tên bậc giá (dòng {i}) không được trống.")
+            if not b["ma"]:
+                raise CongDoanValidationError(f'Bậc giá "{ten}" thiếu mã.')
+            if b["ma"] in da_co:
+                raise CongDoanValidationError(f'Mã bậc giá "{b["ma"]}" bị trùng giữa hai bậc.')
+            da_co.add(b["ma"])
+            tu, den = b["mau_tu"], b["mau_den"]
+            if (tu is not None and tu < 0) or (den is not None and den < 0):
+                raise CongDoanValidationError(f'Bậc giá "{ten}": số màu không được âm.')
+            if tu is not None and den is not None and tu > den:
+                raise CongDoanValidationError(
+                    f'Bậc giá "{ten}": Màu từ ({tu:g}) lớn hơn Màu đến ({den:g}).')
+            if b["pha"] not in (None, "co", "khong") or b["tuy_chon_co"] not in (None, "co", "khong"):
+                raise CongDoanValidationError(f'Bậc giá "{ten}": điều kiện không hợp lệ.')
+            if b["tuy_chon_ma"] and b["tuy_chon_ma"] not in co_khong:
+                raise CongDoanValidationError(
+                    f'Bậc giá "{ten}" xét tuỳ chọn "{b["tuy_chon_ma"]}" — công đoạn không có tuỳ '
+                    f"chọn Có / không mang mã đó.")
+            if bool(b["tuy_chon_ma"]) != bool(b["tuy_chon_co"]):
+                raise CongDoanValidationError(
+                    f'Bậc giá "{ten}": chọn tuỳ chọn thì phải chọn Có hoặc Không, và ngược lại.')
+
+    def _kiem_gia_theo_to(self, rows: list[dict] | None, *, nhan: str,
+                          bac: dict[str, str] | None = None) -> None:
+        """Bảng giá theo tổ: mỗi ô (tổ, bậc) một dòng, tổ phải có thật, giá không âm, phải có đơn
+        giá. Công đoạn chia bậc (`bac` = {mã: tên}) thì mọi dòng phải trỏ đúng một bậc đang khai;
+        không chia bậc thì không dòng nào được mang bậc."""
         if not rows:
             return
         from ..models.department import Department
 
+        bac = bac or {}
+        for r in rows:
+            mb = r.get("bac")
+            if bac and not mb:
+                raise CongDoanValidationError(
+                    f"Bảng giá theo tổ của {nhan}: công đoạn chia bậc thì mỗi dòng giá phải thuộc một bậc.")
+            if not bac and mb:
+                raise CongDoanValidationError(
+                    f"Bảng giá theo tổ của {nhan} có dòng mang bậc {mb} nhưng công đoạn chưa khai bậc giá.")
+            if mb and mb not in bac:
+                raise CongDoanValidationError(
+                    f"Bảng giá theo tổ của {nhan} trỏ tới bậc {mb} không có trong danh sách bậc.")
         ids = [int(r["department_id"]) for r in rows]
-        if len(set(ids)) != len(ids):
+        khoa = [(int(r["department_id"]), r.get("bac")) for r in rows]
+        if len(set(khoa)) != len(khoa):
             raise CongDoanValidationError(f"Bảng giá theo tổ của {nhan} có tổ khai hai lần.")
         ten = dict(self.repo.db.query(Department.id, Department.name)
                    .filter(Department.id.in_(ids)).all())
@@ -386,13 +463,14 @@ class CongDoanService(CatalogService):
             if dep not in ten:
                 raise CongDoanValidationError(
                     f"Bảng giá theo tổ của {nhan} có tổ không còn trong cây tổ chức (id {dep}).")
+            o_cua = f"tổ {ten[dep]}" + (f" bậc {bac[r['bac']]}" if r.get("bac") else "")
             if r.get("don_gia") is None:
                 raise CongDoanValidationError(
-                    f"Bảng giá theo tổ của {nhan}: tổ {ten[dep]} chưa nhập đơn giá.")
+                    f"Bảng giá theo tổ của {nhan}: {o_cua} chưa nhập đơn giá.")
             for o, chu in (("don_gia", "đơn giá"), ("gia_co_dinh", "giá cố định")):
                 if r.get(o) is not None and float(r[o]) < 0:
                     raise CongDoanValidationError(
-                        f"Bảng giá theo tổ của {nhan}: {chu} của tổ {ten[dep]} không được âm.")
+                        f"Bảng giá theo tổ của {nhan}: {chu} của {o_cua} không được âm.")
 
     @staticmethod
     def _kiem_o(cong_thuc: str | None, *, nhan: str, loai: str, bien_them=()) -> None:

@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tab Khoán công đoạn</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rust-deep:#8a2d07;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --moss-soft:#dcfce7; --moss-deep:#166534;
+  --amber-soft:#fef3c7; --amber-deep:#92400e;
+  --signal:#b91c1c; --signal-soft:#fee2e2;
+  --sky-soft:#e0f2fe; --sky-deep:#075985;
+  --chip-bien:#e7f0e8; --chip-bien-ink:#1f5130;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1240px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:960px}
+.lead ul{margin:6px 0 0;padding-left:20px}
+.lead li{margin:2px 0}
+.lead b{font-weight:500;color:var(--ink)}
+.ref{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:18px 0 10px}
+.ref figure{margin:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ref img{display:block;width:100%;height:170px;object-fit:cover;object-position:top;border-bottom:1px solid var(--rule-soft)}
+.ref figcaption{padding:9px 11px;font-size:12.5px;color:var(--ash)}
+.ref figcaption span{display:block;color:var(--ink);margin-bottom:2px}
+.bo{font-size:12.5px;color:var(--ash-2);margin:0 0 26px;max-width:960px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:22px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:500;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}
+.opt.on{display:block}
+.opt-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;margin-bottom:6px}
+.opt-head h2{font-size:19px;font-weight:500;margin:0}
+.src{font-size:12px;color:var(--ash);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;background:var(--canvas)}
+.why{color:var(--ash);margin:0 0 18px;max-width:960px}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+/* ===== vỏ popup giống app ===== */
+.stage{background:rgba(15,23,42,.28);border-radius:14px;padding:32px 16px;display:flex;justify-content:center}
+.modal{background:var(--canvas);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.25);width:100%;max-width:1000px;display:flex;flex-direction:column;max-height:none}
+.modal--rong{max-width:1180px}
+.m-head{padding:16px 24px 12px;border-bottom:1px solid var(--rule-soft);display:flex;justify-content:space-between;align-items:flex-start}
+.m-eyebrow{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--rust);font-weight:500}
+.m-title{font-size:19px;font-weight:500;margin-top:2px}
+.m-x{border:0;background:none;font-size:20px;color:var(--ash-2);cursor:pointer}
+.m-tabs{margin:14px 24px 0;display:grid;grid-template-columns:repeat(5,1fr);background:var(--rule-hair);border:1px solid var(--rule-soft);border-radius:10px;padding:4px}
+.m-tabs span{text-align:center;padding:6px 0;font-size:13px;color:var(--ash);border-radius:7px}
+.m-tabs span.on{background:var(--canvas);color:var(--rust);box-shadow:0 1px 3px rgba(15,23,42,.08)}
+.m-body{padding:16px 24px 20px;display:flex;flex-direction:column;gap:14px}
+.m-foot{border-top:1px solid var(--rule-soft);padding:12px 24px;display:flex;justify-content:flex-end;gap:8px}
+
+.card{border:1px solid var(--rule-soft);border-radius:12px;padding:14px 18px 16px;background:var(--canvas)}
+.card-t{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--rust);font-weight:500;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card-t small{text-transform:none;letter-spacing:0;color:var(--ash-2);font-size:12.5px;font-weight:400}
+.note{font-size:12.5px;color:var(--ash-2);margin:0 0 10px}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:500;color:var(--ink);white-space:nowrap;cursor:pointer}
+.btn:hover{background:var(--rule-hair)}
+.btn--dark{background:var(--ink);border-color:var(--ink);color:#fff}
+.btn--sm{height:28px;padding:0 10px;font-size:12.5px}
+.btn--dash{border-style:dashed;color:var(--ash)}
+.lk{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--ash);text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px;cursor:pointer}
+
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f > span{font-size:12.5px;color:var(--ash)}
+.inp{height:36px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;font:inherit;font-size:13.5px;color:var(--ink);background:var(--canvas);width:100%;min-width:0}
+.inp:focus{outline:2px solid #93c5fd;outline-offset:-1px;border-color:#93c5fd}
+.inp.n{text-align:right;font-variant-numeric:tabular-nums}
+.inp::placeholder{color:var(--ash-3)}
+.inp.thieu{border-color:#fca5a5;background:#fff}
+.inp.thieu::placeholder{color:var(--signal)}
+.w-dv{display:flex;align-items:center;gap:6px}
+.w-dv .inp{flex:1}
+.w-dv i{font-style:normal;font-size:12px;color:var(--ash-2);white-space:nowrap;min-width:52px}
+.sel{appearance:none;background:var(--canvas) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2364748b' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 10px center;padding-right:28px}
+.row{display:grid;gap:12px}
+.mu{color:var(--ash-2)}
+.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;font-size:12px;font-weight:500;white-space:nowrap}
+.tag--do{background:var(--signal-soft);color:var(--signal)}
+.tag--vang{background:var(--amber-soft);color:var(--amber-deep)}
+.tag--xam{background:var(--rule-hair);color:var(--ash)}
+
+/* bảng nhập */
+.tb{width:100%;border-collapse:collapse}
+.tb th{font-size:12px;font-weight:500;color:var(--ash-2);text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+.tb th.n{text-align:right}
+.tb td{padding:5px 8px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+.tb tr:last-child td{border-bottom:0}
+.tb td.ten{font-size:13.5px;white-space:nowrap}
+
+/* radio kiểu Saleor */
+.rd{display:flex;flex-direction:column;gap:2px;margin:0 0 10px}
+.rd label{display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;padding:3px 0}
+.rd input{accent-color:var(--ink);width:15px;height:15px;margin:0}
+.rd--ngang{flex-direction:row;gap:18px;flex-wrap:wrap}
+
+/* chip biến công thức */
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 9px;border-radius:7px;background:var(--chip-bien);color:var(--chip-bien-ink);font-size:12.5px;border:1px solid #cfe0d2;white-space:nowrap}
+.chip small{font-size:11px;color:#5d7f66;font-family:ui-monospace,monospace}
+.chip--tc{background:var(--sky-soft);color:var(--sky-deep);border-color:#bae6fd}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.ct{border:1px solid var(--rule);border-radius:10px;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:14px;min-height:52px}
+.ct .op{color:var(--rust);font-family:ui-monospace,monospace}
+.ct .so{font-variant-numeric:tabular-nums}
+.ct-bar{display:flex;justify-content:space-between;align-items:center;margin:0 0 8px;gap:10px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;padding:2px;background:var(--rule-hair)}
+.seg span{font-size:12.5px;padding:3px 10px;border-radius:6px;color:var(--ash)}
+.seg span.on{background:var(--ink);color:#fff}
+.doc{font-size:13.5px;background:var(--paper);border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.doc .so{font-variant-numeric:tabular-nums}
+.sub{font-size:12.5px;color:var(--ash);margin:12px 0 6px}
+
+/* ===== A ===== */
+.a-ps{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.a-ps-head{display:grid;grid-template-columns:minmax(0,1fr) 220px 32px;gap:10px;margin-bottom:10px;align-items:end}
+.xoa{width:32px;height:36px;border:0;background:none;color:var(--ash-3);cursor:pointer;font-size:16px}
+.xoa:hover{color:var(--ink)}
+.a-chung{display:grid;grid-template-columns:repeat(2,minmax(0,220px));gap:12px}
+
+/* ===== B ===== */
+.b-wrap{overflow-x:auto;border:1px solid var(--rule-soft);border-radius:10px}
+.b-tb{border-collapse:separate;border-spacing:0;min-width:100%}
+.b-tb th,.b-tb td{border-bottom:1px solid var(--rule-hair);padding:6px 8px;background:var(--canvas)}
+.b-tb th{font-size:12px;font-weight:500;color:var(--ash-2);text-align:left;vertical-align:bottom;white-space:nowrap;border-bottom:1px solid var(--rule-soft)}
+.b-tb th .dvi{display:block;font-weight:400;color:var(--ash-3);font-size:11.5px}
+.b-tb th.ps{cursor:pointer}
+.b-tb th.ps:hover .ten-cot{text-decoration:underline;text-decoration-color:var(--rule)}
+.b-tb .ghim{position:sticky;left:0;z-index:2;min-width:190px;box-shadow:1px 0 0 var(--rule-soft)}
+.b-tb td.ten{font-size:13.5px;white-space:nowrap}
+.b-tb tr.moi td{background:var(--paper)}
+.b-tb td{min-width:140px}
+.b-tb td.ghim{min-width:190px}
+.b-tb th.n{text-align:right}
+.b-tb .rieng{font-size:12.5px;color:var(--ash-2);display:flex;flex-direction:column;align-items:flex-end;justify-content:center;line-height:1.35;min-height:36px;padding:0 4px;white-space:nowrap}
+.b-tb th.them{vertical-align:middle}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--ash-2);margin-top:8px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px;border:1px solid var(--rule)}
+.legend i.ke{background:#fff}
+.legend i.do{border-color:#fca5a5}
+.pop{position:absolute;z-index:40;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 30px rgba(15,23,42,.16);padding:12px;width:280px;display:none}
+.pop.on{display:block}
+.pop .row{margin-bottom:10px}
+.b-top{display:grid;grid-template-columns:220px minmax(0,1fr);gap:12px;align-items:end}
+
+/* ===== C ===== */
+.c-grid{display:grid;grid-template-columns:240px minmax(0,1fr);gap:16px;align-items:start}
+.c-nav{border:1px solid var(--rule-soft);border-radius:12px;padding:6px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0}
+.c-nav button{border:0;background:none;font:inherit;text-align:left;padding:9px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--ink);font-size:13.5px}
+.c-nav button:hover{background:var(--rule-hair)}
+.c-nav button.on{background:var(--ink);color:#fff}
+.c-nav button.on .tag{background:#fff}
+.c-nav .nhom{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-3);padding:10px 10px 4px}
+.c-pane{display:flex;flex-direction:column;gap:14px;min-width:0}
+.c-two{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.c-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.c-fields .goi{font-size:12px;color:var(--ash-2);margin-top:2px}
+.c-fields .goi.do{color:var(--signal)}
+.thu{border:1px solid var(--rule-soft);border-radius:12px;background:var(--paper);padding:14px}
+.thu h4{margin:0 0 10px;font-size:13.5px;font-weight:500}
+.thu .row{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:12px}
+.dong{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 0;border-top:1px solid var(--rule-soft)}
+.dong .giai{color:var(--ash-2);font-size:12px;display:block}
+.dong.tong{font-size:15px;font-weight:500;border-top:1px solid var(--rule)}
+.dong.thieu{color:var(--signal)}
+
+/* tuỳ chọn khi ghi + xem trước hộp ghi của thợ */
+.tc-grid{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:start}
+.tc-tb td{padding:4px 6px}
+.tc-tb .inp{height:34px}
+.tho{border:1px dashed var(--rule);border-radius:10px;padding:10px 12px;background:var(--paper);font-size:13px}
+.tho-t{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-3);margin-bottom:6px}
+.tho-h{color:var(--ash);font-size:12.5px;margin-bottom:6px}
+.tho label{display:flex;align-items:center;gap:8px;padding:4px 0}
+.tho label input[type=checkbox]{width:16px;height:16px;margin:0}
+.tho .inp{height:30px;width:90px}
+.tho .mo{color:var(--ash-2);font-size:12px}
+.vd{text-transform:none;letter-spacing:0;font-weight:400;font-size:11px;color:var(--amber-deep);background:var(--amber-soft);border-radius:5px;padding:1px 6px;margin-left:6px;white-space:nowrap}
+
+@media (max-width:860px){
+  .tc-grid{grid-template-columns:1fr}
+  .ref{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .a-ps-head{grid-template-columns:minmax(0,1fr) 32px}
+  .a-ps-head .f:nth-child(2){grid-column:1/-1;grid-row:2}
+  .a-chung{grid-template-columns:1fr}
+  .b-top{grid-template-columns:1fr}
+  .c-grid,.c-two{grid-template-columns:1fr}
+  .c-nav{position:static;flex-direction:row;overflow-x:auto}
+  .c-nav .nhom{display:none}
+  .c-nav button{white-space:nowrap}
+  .c-fields{grid-template-columns:1fr}
+  .m-tabs{grid-template-columns:repeat(5,auto);overflow-x:auto}
+  .m-tabs span{padding:6px 10px;white-space:nowrap}
+  .m-head,.m-body,.m-foot{padding-left:14px;padding-right:14px}
+  .m-tabs{margin-left:14px;margin-right:14px}
+  .stage{padding:16px 8px}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>Tab Khoán của công đoạn: 3 phương án</h1>
+<div class="lead">
+  Dữ liệu thật của công đoạn "Bài in 3 màu 4 màu (CMYK)" trên DB dev, lấy từ ảnh bạn gửi.
+  <ul>
+    <li><b>Đã đọc FE:</b> <code>danh-muc/fields/KhoanCongDoan.tsx</code>, <code>ViecPhatSinh.tsx</code>, <code>types.ts</code>
+      (KhoanCongDoanValue), <code>FormulaField.tsx</code> (bảng chip lấy từ <code>/api/bien-cong-thuc</code> theo
+      <code>loaiO</code>; ô này DÙNG CHUNG với giá, vật tư, quy đổi nên mọi đổi cách bày chip phải đi qua prop riêng của ô khoán),
+      <code>CatalogDrawer.tsx</code> + <code>rebuild-catalog.css</code> (popup có ô công thức rộng <code>min(92vw, 1100px)</code>),
+      <code>ThsxExecPanels.tsx</code> (hộp ghi đọc <code>khoan.tuy_chon</code> để thợ tick).</li>
+    <li><b>Đã đọc BE:</b> <code>cong_doan_service._kiem_khoan</code> + <code>_kiem_gia_theo_to</code> (luật lưu),
+      <code>models/cong_doan.py</code>, <code>services/bien_cong_thuc.py</code> (bộ biến ô khoán),
+      <code>services/khoan_ky.py</code> (<code>_tien_chinh</code> + vòng tính một lần ghi), <code>san_xuat/viec_khoan.py</code>
+      (<code>gia_cua_to</code>, <code>gia_ps_cua_to</code>). Mockup cũ cùng chỗ <code>khoan-cong-thuc-bo-sung.html</code>
+      đã làm xong (commit e41a9593), không còn treo.</li>
+    <li><b>Logic giữ nguyên:</b> tiền mỗi lần ghi = công thức. Bỏ trống thì giá cố định + SL × đơn giá, giá theo tổ người ghi.
+      Mỗi khoản tiền (khoán chính và từng việc phát sinh) có hai cách khai: một giá cho mọi tổ, hoặc riêng từng tổ.
+      Đã khai riêng thì tổ để trống là thiếu giá, không lấy giá chung bù.</li>
+    <li><b>Chung cho cả 3 phương án:</b> giá của một khoản chỉ khai ở MỘT chỗ. Ô thiếu giá viền đỏ, còn ô lấy giá chung
+      hiện số xám. Số tiền có dấu chấm ngăn nghìn. Bỏ thẻ "KHOÁN" lặp tên tab. Đoạn chú thích dài rút còn một dòng.
+      Giữ dòng "Tổ #id, không còn phụ trách" kèm nút xoá như hiện nay (tổ có giá nhưng đã bỏ khỏi tổ phụ trách).</li>
+    <li><b>Biến công thức:</b> ô khoán có 26 chip. Đó là trọn bộ của ô quy đổi (khổ, số màu, số kẽm…), cộng 5 chip riêng của lần ghi.
+      Lúc tính lương, CẢ 26 chip đều có số, vì <code>khoan_ky</code> bơm quy cách của lệnh qua <code>ngu_canh_lenh</code>, nên không chip nào thừa.
+      Đề xuất chỉ đổi cách bày: 9 chip hay dùng trước, 17 chip còn lại gom vào "Biến khác".
+      Riêng ở ô này, "SL vào/SL ra của công đoạn" thực ra là tổng/tốt của LẦN GHI (<code>sl_vao = tong</code>, <code>sl_ra = sl_ghi = tot</code>),
+      nên nhãn hiện tại dễ hiểu sai. Đề xuất đặt nhãn riêng cho ô khoán.</li>
+    <li><b>Phải đổi ở máy chủ (cả 3):</b> <code>_kiem_khoan</code> đang báo lỗi "cần đủ đơn vị tính và đơn giá" khi trống đơn giá chung,
+      và "Chưa nhập đơn giá cho việc phát sinh" khi trống giá chung của việc. Hai cột <code>cong_doan_khoan.unit_price</code> và
+      <code>cong_doan_khoan_phat_sinh.don_gia</code> đều NOT NULL. Khai riêng từng tổ thì phải nới hai luật này và thêm migration cho phép NULL.
+      Không nên lưu 0 thay NULL: mai kia xoá bảng tổ thì số 0 đó âm thầm thành giá của mọi tổ.
+      Một dòng tổ vẫn bắt buộc có đơn giá (<code>_kiem_gia_theo_to</code>); giá cố định để trống thì tính là 0.</li>
+  </ul>
+</div>
+
+<div class="ref">
+  <figure><img src="tham-khao-khoan-cong-doan/saleor-gia-theo-kenh.png" alt="Saleor: một giá cho mọi SKU hoặc giá riêng">
+    <figcaption><span>Saleor Dashboard: Price</span>Hai nút radio "một giá cho tất cả / giá riêng từng cái" đặt ngay trên ô giá. Người khai chọn cách trước, rồi mới thấy ô cần điền. → A</figcaption></figure>
+  <figure><img src="tham-khao-khoan-cong-doan/pin-bac-gia-va-thu-tinh.jpg" alt="Pinterest: bảng bậc giá kiểu Stripe">
+    <figcaption><span>Pinterest: bảng giá kiểu Stripe</span>Một bảng phẳng gồm Per unit và Flat fee, mỗi hàng một bậc, nút + ở góc thêm cột/hàng. Ô kế thừa có chữ xám. → B</figcaption></figure>
+  <figure><img src="tham-khao-khoan-cong-doan/odoo-quy-tac-luong.png" alt="Odoo Payroll: quy tắc lương">
+    <figcaption><span>Odoo Payroll: Salary rule</span>Chọn "Amount Type" trước (Fixed hoặc Python Code), xong mới hiện đúng ô của kiểu đó. Công thức chỉ hiện khi cần. → B</figcaption></figure>
+  <figure><img src="tham-khao-khoan-cong-doan/pin-ngan-thu-tinh-ben-phai.jpg" alt="Pinterest: Moltin pricing calculator">
+    <figcaption><span>Pinterest: Moltin Plan &amp; Billing</span>Bên cạnh chỗ khai có khung "Pricing calculator": gõ một con số thật là thấy ngay ra bao nhiêu tiền. → C</figcaption></figure>
+  <figure><img src="tham-khao-khoan-cong-doan/pin-dieu-kien.jpg" alt="Pinterest: khối điều kiện If Else">
+    <figcaption><span>Pinterest: khối điều kiện</span>Nút gạt Prompt / Logic để chọn kiểu, bên dưới là luật viết thành câu có chip biến. Cách này dùng cho dòng "Cách tính". → A, C</figcaption></figure>
+</div>
+<p class="bo">Đã mở nhưng bỏ: Pinterest "pricing settings form" (toàn trang bảng giá marketing, không phải form khai giá),
+  Stripe Docs và Shopify Help (trang không có ảnh màn), trang tài liệu Odoo (chặn 403, nên ảnh Odoo lấy từ repo GitHub tài liệu của họ),
+  Notion Help (ảnh là bảng dữ liệu, không thấy ô công thức), ghim "Formula Builder" (ảnh quá nhỏ, không đọc được).</p>
+
+<div class="switch" role="tablist">
+  <button class="on" data-o="a">A. Mỗi khoản một thẻ</button>
+  <button data-o="b">B. Một bảng giá</button>
+  <button data-o="c">C. Theo từng tổ, thử tính bên cạnh</button>
+  <button data-o="d">Khi chưa khai gì (Cắt)</button>
+</div>
+
+<!-- ================================================================ A -->
+<section class="opt on" id="o-a">
+  <div class="opt-head"><h2>A. Mỗi khoản tiền một thẻ, chọn "một giá / riêng từng tổ" ngay trong thẻ</h2><span class="src">khuôn Saleor Price</span></div>
+  <div class="why">Đọc từ trên xuống, mỗi khoản tiền gom trọn một chỗ: tên việc, đơn vị, cách khai giá, rồi tới giá.
+    <ul><li>Hợp: người mới nhìn là hiểu, vì nút radio nói luôn ô trống nghĩa là gì.</li>
+    <li>Dở: có 4 tổ và 3 việc phát sinh thì thẻ dài, muốn so giá giữa các việc phải cuộn.</li></ul></div>
+
+  <div class="stage"><div class="modal">
+    <div class="m-head"><div><div class="m-eyebrow">Chỉnh sửa</div><div class="m-title">Bài in 3 màu 4 màu (CMYK)</div></div><button class="m-x">×</button></div>
+    <div class="m-tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Vật tư</span><span>Công thức tính giá</span><span>Nhật ký</span></div>
+    <div class="m-body">
+
+      <div class="card">
+        <div class="card-t">Tiền khoán chính</div>
+        <div class="row" style="grid-template-columns:220px;margin-bottom:12px">
+          <label class="f"><span>Đơn vị tính khoán *</span><input class="inp" value="tờ"></label>
+        </div>
+        <div class="rd" data-nhom="a-chinh">
+          <label><input type="radio" name="a-chinh" value="chung"> Một giá cho mọi tổ</label>
+          <label><input type="radio" name="a-chinh" value="rieng" checked> Riêng từng tổ</label>
+        </div>
+        <div data-che="a-chinh:chung" hidden>
+          <div class="a-chung">
+            <label class="f"><span>Giá cố định</span><div class="w-dv"><input class="inp n" value="0"><i>đ</i></div></label>
+            <label class="f"><span>Đơn giá</span><div class="w-dv"><input class="inp n" value="15.000"><i>đ/tờ</i></div></label>
+          </div>
+        </div>
+        <div data-che="a-chinh:rieng">
+          <table class="tb">
+            <thead><tr><th>Tổ</th><th class="n" style="width:190px">Giá cố định</th><th class="n" style="width:190px">Đơn giá</th></tr></thead>
+            <tbody>
+              <tr><td class="ten">Nhóm thợ in máy 4 màu</td><td><div class="w-dv"><input class="inp n" value="250.000"><i>đ</i></div></td><td><div class="w-dv"><input class="inp n" value="30"><i>đ/tờ</i></div></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 5 màu</td><td><div class="w-dv"><input class="inp n" value="144.000"><i>đ</i></div></td><td><div class="w-dv"><input class="inp n" value="20"><i>đ/tờ</i></div></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 6 màu</td><td><div class="w-dv"><input class="inp n" value="200.000"><i>đ</i></div></td><td><div class="w-dv"><input class="inp n" value="20"><i>đ/tờ</i></div></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 7 màu</td><td><div class="w-dv"><input class="inp n" value="200.000"><i>đ</i></div></td><td><div class="w-dv"><input class="inp n" value="20"><i>đ/tờ</i></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" data-tc="vd"></div>
+
+      <div class="card">
+        <div class="card-t">Cách tính mỗi lần ghi <small>tính trên từng lần ghi, giá theo tổ người ghi</small></div>
+        <div class="doc" id="a-doc">Tiền = <span class="chip">Giá cố định</span> + max(0, <span class="chip">SL ghi</span> − <span class="so">3.000</span>) × <span class="chip">Đơn giá khoán</span>
+          <button class="lk" style="margin-left:10px" onclick="document.getElementById('a-ct').hidden=!document.getElementById('a-ct').hidden">Sửa công thức</button></div>
+        <div id="a-ct" hidden style="margin-top:10px">
+          <div class="ct-bar"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span><span class="mu" style="font-size:12.5px">Bỏ trống: giá cố định + SL ghi × đơn giá</span></div>
+          <div class="ct"><span class="chip">Giá cố định</span><span class="op">+</span>max(0, <span class="chip">SL ghi</span><span class="op">−</span><span class="so">3000</span>)<span class="op">×</span><span class="chip">Đơn giá khoán</span></div>
+          <div class="sub">Biến hay dùng</div>
+          <div class="chips">
+            <span class="chip">SL ghi <small>sl_ghi</small></span><span class="chip">Giá cố định <small>gia_co_dinh</small></span><span class="chip">Đơn giá khoán <small>don_gia_khoan</small></span>
+            <span class="chip">Số lần chạy <small>so_lan_chay</small></span><span class="chip">Tiền giờ <small>tien_gio</small></span><span class="chip">Tự trở <small>tu_tro</small></span>
+            <span class="chip">Số màu in <small>so_mau</small></span><span class="chip">Số bản kẽm <small>so_kem</small></span><span class="chip">Số lượt qua máy <small>so_luot_chay</small></span>
+            <span class="chip chip--tc">Trùng khuôn <small>trung_khuon</small></span><span class="chip chip--tc">Số lỗ đục <small>so_lo_duc</small></span>
+            <button class="lk">Biến khác (17)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-t">Việc phát sinh <small>thợ ghi kèm lần ghi, tiền = đơn giá × số lần, không cộng sản lượng</small></div>
+
+        <div class="a-ps">
+          <div class="a-ps-head">
+            <label class="f"><span>Tên việc</span><input class="inp" value="thay kẽm"></label>
+            <label class="f"><span>Đơn vị tính</span><input class="inp" value="bản kẽm"></label>
+            <button class="xoa" title="Xoá việc phát sinh">🗑</button>
+          </div>
+          <div class="rd rd--ngang" data-nhom="a-kem">
+            <label><input type="radio" name="a-kem" value="chung"> Một giá cho mọi tổ</label>
+            <label><input type="radio" name="a-kem" value="rieng" checked> Riêng từng tổ</label>
+          </div>
+          <div data-che="a-kem:chung" hidden><div class="a-chung"><label class="f"><span>Đơn giá</span><div class="w-dv"><input class="inp n" value="100.000"><i>đ/bản kẽm</i></div></label></div></div>
+          <table class="tb" data-che="a-kem:rieng">
+            <tbody>
+              <tr><td class="ten">Nhóm thợ in máy 4 màu</td><td style="width:220px"><div class="w-dv"><input class="inp n" value="120.000"><i>đ/bản kẽm</i></div></td><td></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 5 màu</td><td><div class="w-dv"><input class="inp n thieu" placeholder="thiếu giá"><i>đ/bản kẽm</i></div></td><td><span class="tag tag--do">Lần ghi chưa ra tiền thay kẽm</span></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 6 màu</td><td><div class="w-dv"><input class="inp n thieu" placeholder="thiếu giá"><i>đ/bản kẽm</i></div></td><td><span class="tag tag--do">Lần ghi chưa ra tiền thay kẽm</span></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 7 màu</td><td><div class="w-dv"><input class="inp n thieu" placeholder="thiếu giá"><i>đ/bản kẽm</i></div></td><td><span class="tag tag--do">Lần ghi chưa ra tiền thay kẽm</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="a-ps">
+          <div class="a-ps-head">
+            <label class="f"><span>Tên việc</span><input class="inp" value="máy hư, xuống bài in"></label>
+            <label class="f"><span>Đơn vị tính</span><input class="inp" value="bài in"></label>
+            <button class="xoa" title="Xoá việc phát sinh">🗑</button>
+          </div>
+          <div class="rd rd--ngang" data-nhom="a-hu">
+            <label><input type="radio" name="a-hu" value="chung" checked> Một giá cho mọi tổ</label>
+            <label><input type="radio" name="a-hu" value="rieng"> Riêng từng tổ</label>
+          </div>
+          <div data-che="a-hu:chung"><div class="a-chung"><label class="f"><span>Đơn giá</span><div class="w-dv"><input class="inp n" value="1.500.000"><i>đ/bài in</i></div></label></div></div>
+          <table class="tb" data-che="a-hu:rieng" hidden>
+            <tbody>
+              <tr><td class="ten">Nhóm thợ in máy 4 màu</td><td style="width:220px"><div class="w-dv"><input class="inp n" placeholder=""><i>đ/bài in</i></div></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 5 màu</td><td><div class="w-dv"><input class="inp n"><i>đ/bài in</i></div></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 6 màu</td><td><div class="w-dv"><input class="inp n"><i>đ/bài in</i></div></td></tr>
+              <tr><td class="ten">Nhóm thợ in máy 7 màu</td><td><div class="w-dv"><input class="inp n"><i>đ/bài in</i></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <button class="btn btn--sm btn--dash">＋ Thêm việc phát sinh</button>
+      </div>
+
+    </div>
+    <div class="m-foot"><button class="btn">Hủy</button><button class="btn btn--dark">Lưu thay đổi</button></div>
+  </div></div>
+</section>
+
+<!-- ================================================================ B -->
+<section class="opt" id="o-b">
+  <div class="opt-head"><h2>B. Một bảng giá: hàng là tổ, cột là từng khoản tiền</h2><span class="src">khuôn bảng giá Stripe + Amount Type của Odoo</span></div>
+  <div class="why">Mọi con số nằm trong một lưới, hàng trên cùng là "Mọi tổ". Một cột hoặc dùng giá ở hàng Mọi tổ, hoặc riêng từng tổ, và lưới tự cho thấy cột đó đang theo cách nào.
+    Việc phát sinh là một cột, bấm tên cột để sửa tên hoặc đơn vị. Chọn "Tự viết công thức" thì mới hiện ô công thức.
+    <ul><li>Hợp: gọn nhất, liếc một lần là thấy tổ nào thiếu giá; công đoạn chỉ dùng cách tính mặc định thì không phải thấy ô công thức.</li>
+    <li>Dở: nhiều việc phát sinh thì lưới phải cuộn ngang (cột Tổ được ghim). Trên điện thoại khó nhập.</li></ul></div>
+
+  <div class="stage"><div class="modal">
+    <div class="m-head"><div><div class="m-eyebrow">Chỉnh sửa</div><div class="m-title">Bài in 3 màu 4 màu (CMYK)</div></div><button class="m-x">×</button></div>
+    <div class="m-tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Vật tư</span><span>Công thức tính giá</span><span>Nhật ký</span></div>
+    <div class="m-body">
+
+      <div class="b-top">
+        <label class="f"><span>Đơn vị tính khoán *</span><input class="inp" value="tờ"></label>
+        <label class="f"><span>Cách tính mỗi lần ghi</span>
+          <select class="inp sel" id="b-kieu">
+            <option value="mac">Giá cố định + SL ghi × đơn giá</option>
+            <option value="tu" selected>Tự viết công thức</option>
+          </select></label>
+      </div>
+
+      <div style="position:relative">
+        <div class="b-wrap">
+          <table class="b-tb">
+            <thead><tr>
+              <th class="ghim">Tổ</th>
+              <th class="n">Giá cố định<span class="dvi">đ</span></th>
+              <th class="n">Đơn giá<span class="dvi">đ/tờ</span></th>
+              <th class="n ps" data-pop="kem"><span class="ten-cot">thay kẽm ✎</span><span class="dvi">đ/bản kẽm</span></th>
+              <th class="n ps" data-pop="hu"><span class="ten-cot">máy hư, xuống bài in ✎</span><span class="dvi">đ/bài in</span></th>
+              <th class="them"><button class="btn btn--sm btn--dash" title="Thêm việc phát sinh">＋ Việc phát sinh</button></th>
+            </tr></thead>
+            <tbody>
+              <tr class="moi">
+                <td class="ghim ten">Mọi tổ</td>
+                <td colspan="2"><div class="rieng"><span>Riêng từng tổ</span><button class="lk">Dùng một giá</button></div></td>
+                <td><div class="rieng"><span>Riêng từng tổ</span><button class="lk">Dùng một giá</button></div></td>
+                <td><input class="inp n" value="1.500.000"></td>
+                <td></td>
+              </tr>
+              <tr><td class="ghim ten">Nhóm thợ in máy 4 màu</td><td><input class="inp n" value="250.000"></td><td><input class="inp n" value="30"></td><td><input class="inp n" value="120.000"></td><td><input class="inp n" placeholder="1.500.000"></td><td></td></tr>
+              <tr><td class="ghim ten">Nhóm thợ in máy 5 màu</td><td><input class="inp n" value="144.000"></td><td><input class="inp n" value="20"></td><td><input class="inp n thieu" placeholder="thiếu giá"></td><td><input class="inp n" placeholder="1.500.000"></td><td></td></tr>
+              <tr><td class="ghim ten">Nhóm thợ in máy 6 màu</td><td><input class="inp n" value="200.000"></td><td><input class="inp n" value="20"></td><td><input class="inp n thieu" placeholder="thiếu giá"></td><td><input class="inp n" placeholder="1.500.000"></td><td></td></tr>
+              <tr><td class="ghim ten">Nhóm thợ in máy 7 màu</td><td><input class="inp n" value="200.000"></td><td><input class="inp n" value="20"></td><td><input class="inp n thieu" placeholder="thiếu giá"></td><td><input class="inp n" placeholder="1.500.000"></td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="legend">
+          <span><i class="ke"></i>chữ xám: lấy giá ở hàng Mọi tổ</span>
+          <span><i class="do"></i>viền đỏ: tổ thiếu giá, lần ghi chưa ra tiền khoản này</span>
+          <span>Điền giá cho một tổ thì cả cột chuyển sang riêng từng tổ.</span>
+        </div>
+        <div class="pop" id="pop-kem" style="top:52px;right:180px">
+          <div class="row" style="grid-template-columns:1fr"><label class="f"><span>Tên việc phát sinh</span><input class="inp" value="thay kẽm"></label></div>
+          <div class="row" style="grid-template-columns:1fr"><label class="f"><span>Đơn vị tính</span><input class="inp" value="bản kẽm"></label></div>
+          <div style="display:flex;justify-content:space-between"><button class="lk">Xoá việc này</button><button class="btn btn--sm btn--dark" data-dong>Xong</button></div>
+        </div>
+        <div class="pop" id="pop-hu" style="top:52px;right:20px">
+          <div class="row" style="grid-template-columns:1fr"><label class="f"><span>Tên việc phát sinh</span><input class="inp" value="máy hư, xuống bài in"></label></div>
+          <div class="row" style="grid-template-columns:1fr"><label class="f"><span>Đơn vị tính</span><input class="inp" value="bài in"></label></div>
+          <div style="display:flex;justify-content:space-between"><button class="lk">Xoá việc này</button><button class="btn btn--sm btn--dark" data-dong>Xong</button></div>
+        </div>
+      </div>
+
+      <div class="card" data-tc="vd"></div>
+
+      <div class="card" id="b-ct">
+        <div class="card-t">Công thức <small>tính trên từng lần ghi, giá theo tổ người ghi</small></div>
+        <div class="ct-bar"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span><span><button class="btn btn--sm">Sao chép</button> <button class="btn btn--sm">Cú pháp</button></span></div>
+        <div class="ct"><span class="chip">Giá cố định</span><span class="op">+</span>max(0, <span class="chip">SL ghi</span><span class="op">−</span><span class="so">3000</span>)<span class="op">×</span><span class="chip">Đơn giá khoán</span></div>
+        <div class="sub">Biến hay dùng</div>
+        <div class="chips">
+          <span class="chip">SL ghi <small>sl_ghi</small></span><span class="chip">Giá cố định <small>gia_co_dinh</small></span><span class="chip">Đơn giá khoán <small>don_gia_khoan</small></span>
+          <span class="chip">Số lần chạy <small>so_lan_chay</small></span><span class="chip">Tiền giờ <small>tien_gio</small></span><span class="chip">Tự trở <small>tu_tro</small></span>
+          <span class="chip">Số màu in <small>so_mau</small></span><span class="chip">Số bản kẽm <small>so_kem</small></span><span class="chip">Số lượt qua máy <small>so_luot_chay</small></span>
+          <span class="chip chip--tc">Trùng khuôn <small>trung_khuon</small></span><span class="chip chip--tc">Số lỗ đục <small>so_lo_duc</small></span>
+            <button class="lk">Biến khác (17)</button>
+        </div>
+      </div>
+
+    </div>
+    <div class="m-foot"><button class="btn">Hủy</button><button class="btn btn--dark">Lưu thay đổi</button></div>
+  </div></div>
+</section>
+
+<!-- ================================================================ C -->
+<section class="opt" id="o-c">
+  <div class="opt-head"><h2>C. Khai theo từng tổ, bên cạnh có ô thử tính một lần ghi</h2><span class="src">khuôn Moltin Pricing calculator</span></div>
+  <div class="why">Bên trái là danh sách "Chung cho mọi tổ" rồi tới từng tổ. Tổ nào thiếu giá thì có chip báo ngay trong danh sách. Chọn một tổ sẽ thấy đủ mọi giá của tổ đó,
+    kèm khung "Thử một lần ghi": gõ số tờ, số lần thay kẽm là thấy tiền ra bao nhiêu, cộng từng dòng.
+    <ul><li>Hợp: xưởng vốn nghĩ theo tổ ("tổ 4 màu ăn bao nhiêu"), và thử tính bắt được ngay công thức sai hay giá thiếu trước khi lưu.</li>
+    <li>Dở: muốn so giá giữa các tổ phải bấm qua từng tổ. Popup hiện rộng tối đa 1100px, mockup vẽ 1180px. Giữ 1100px thì khung thử phải xuống dưới.
+      Thử tính cần thêm một API gọi đúng <code>KhoanKyService._tien_chinh</code>, vì công thức tự viết không tính lại được bằng JS.
+      Đã có tiền lệ <code>POST /api/don-vi-do/thu</code> (thử quy đổi). Công thức dùng biến quy cách (số màu, tự trở…) thì khung thử phải
+      cho gõ thêm mấy số đó, hoặc chọn một lệnh có sẵn. Khung thử trong mockup chỉ tính theo công thức của chính công đoạn này.</li></ul></div>
+
+  <div class="stage"><div class="modal modal--rong">
+    <div class="m-head"><div><div class="m-eyebrow">Chỉnh sửa</div><div class="m-title">Bài in 3 màu 4 màu (CMYK)</div></div><button class="m-x">×</button></div>
+    <div class="m-tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Vật tư</span><span>Công thức tính giá</span><span>Nhật ký</span></div>
+    <div class="m-body">
+      <div class="c-grid">
+        <nav class="c-nav" id="c-nav"></nav>
+        <div class="c-pane" id="c-pane"></div>
+      </div>
+    </div>
+    <div class="m-foot"><button class="btn">Hủy</button><button class="btn btn--dark">Lưu thay đổi</button></div>
+  </div></div>
+</section>
+
+<!-- ================================================================ D: trạng thái trống -->
+<section class="opt" id="o-d">
+  <div class="opt-head"><h2>Khi chưa khai gì: công đoạn mới, tổ phụ trách Cắt 2 và Cắt 1</h2></div>
+  <div class="why">Ảnh màn hiện tại lúc trống cho thấy ba chỗ vướng mà 3 phương án phải xử lý:
+    <ul>
+      <li>Hai chỗ giá cùng trống, ô "Đơn giá chung *" lại bắt buộc, nên người khai không biết điền chỗ nào trước.
+        Cả 3 phương án đều mặc định là "một giá cho mọi tổ", nên lúc đầu chỉ cần điền 2 ô.</li>
+      <li>Ô công thức gợi ý "max(0, sl_ghi − 3000)". Đó là luật của tổ in, hiện ra ở công đoạn Cắt thì gây hiểu nhầm.
+        Cả 3 phương án đều thay ô trống bằng câu "Tiền = giá cố định + SL ghi × đơn giá", và chỉ khi bấm "Viết công thức riêng" mới mở ô công thức.</li>
+      <li>Ba dòng tuỳ chọn trống (do bấm Thêm) đang được gửi nguyên lên máy chủ, nên bấm lưu sẽ bị <code>_kiem_tuy_chon</code> báo
+        "Tên tuỳ chọn khi ghi (dòng 1) không được trống". Mình chọn cách xử lý: dòng chưa có tên thì bị bỏ khi lưu, không chặn lưu.
+        Khối tuỳ chọn vẫn giữ là một khối riêng, luôn hiện như hiện nay.</li>
+    </ul></div>
+
+  <div class="cap" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);margin:18px 0 8px">A. Mỗi khoản một thẻ</div>
+  <div class="stage"><div class="modal"><div class="m-body">
+    <div class="card">
+      <div class="card-t">Tiền khoán chính</div>
+      <div class="row" style="grid-template-columns:220px;margin-bottom:12px"><label class="f"><span>Đơn vị tính khoán *</span><input class="inp" placeholder="Gõ để tìm đơn vị…"></label></div>
+      <div class="rd"><label><input type="radio" name="d-a" checked> Một giá cho mọi tổ</label><label><input type="radio" name="d-a"> Riêng từng tổ</label></div>
+      <div class="a-chung">
+        <label class="f"><span>Giá cố định</span><div class="w-dv"><input class="inp n" placeholder="0"><i>đ</i></div></label>
+        <label class="f"><span>Đơn giá *</span><div class="w-dv"><input class="inp n"><i>đ/đơn vị</i></div></label>
+      </div>
+    </div>
+    <div class="card" data-tc="trong3"></div>
+    <div class="card">
+      <div class="card-t">Cách tính mỗi lần ghi</div>
+      <div class="doc">Tiền = <span class="chip">Giá cố định</span> + <span class="chip">SL ghi</span> × <span class="chip">Đơn giá khoán</span>
+        <button class="lk" style="margin-left:10px">Viết công thức riêng</button></div>
+    </div>
+    <div class="card">
+      <div class="card-t">Việc phát sinh</div>
+      <p class="note" style="margin:0 0 8px">Chưa có. Ví dụ: thay kẽm, máy hư phải xuống bài.</p>
+      <button class="btn btn--sm btn--dash">＋ Thêm việc phát sinh</button>
+    </div>
+  </div></div></div>
+
+  <div class="cap" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);margin:24px 0 8px">B. Một bảng giá</div>
+  <div class="stage"><div class="modal"><div class="m-body">
+    <div class="b-top">
+      <label class="f"><span>Đơn vị tính khoán *</span><input class="inp" placeholder="Gõ để tìm đơn vị…"></label>
+      <label class="f"><span>Cách tính mỗi lần ghi</span><select class="inp sel"><option selected>Giá cố định + SL ghi × đơn giá</option><option>Tự viết công thức</option></select></label>
+    </div>
+    <div class="b-wrap">
+      <table class="b-tb">
+        <thead><tr><th class="ghim">Tổ</th><th class="n">Giá cố định<span class="dvi">đ</span></th><th class="n">Đơn giá *<span class="dvi">đ/đơn vị</span></th>
+          <th class="them"><button class="btn btn--sm btn--dash">＋ Việc phát sinh</button></th></tr></thead>
+        <tbody>
+          <tr class="moi"><td class="ghim ten">Mọi tổ</td><td><input class="inp n" placeholder="0"></td><td><input class="inp n"></td><td></td></tr>
+          <tr><td class="ghim ten">Cắt 2</td><td><input class="inp n" placeholder="theo Mọi tổ"></td><td><input class="inp n" placeholder="theo Mọi tổ"></td><td></td></tr>
+          <tr><td class="ghim ten">Cắt 1</td><td><input class="inp n" placeholder="theo Mọi tổ"></td><td><input class="inp n" placeholder="theo Mọi tổ"></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend"><span>Điền hàng Mọi tổ là đủ. Chỉ điền dòng tổ khi tổ đó ăn giá khác.</span></div>
+    <div class="card" data-tc="trong3"></div>
+  </div></div></div>
+
+  <div class="cap" style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ash-2);margin:24px 0 8px">C. Theo từng tổ</div>
+  <div class="stage"><div class="modal modal--rong"><div class="m-body">
+    <div class="c-grid">
+      <nav class="c-nav"><button class="on"><span>Chung cho mọi tổ</span></button><div class="nhom">Tổ phụ trách</div>
+        <button><span>Cắt 2</span></button><button><span>Cắt 1</span></button></nav>
+      <div class="c-pane">
+        <div class="card"><div class="card-t">Đơn vị và giá chung</div>
+          <div class="c-fields">
+            <label class="f"><span>Đơn vị tính khoán *</span><input class="inp" placeholder="Gõ để tìm đơn vị…"></label><span></span>
+            <label class="f"><span>Giá cố định chung</span><div class="w-dv"><input class="inp n" placeholder="0"><i>đ</i></div><span class="goi" style="font-size:12px;color:var(--ash-2)">Tổ nào không điền riêng thì dùng giá này</span></label>
+            <label class="f"><span>Đơn giá chung *</span><div class="w-dv"><input class="inp n"><i>đ/đơn vị</i></div></label>
+          </div></div>
+        <div class="card" data-tc="trong3"></div>
+        <div class="card"><div class="card-t">Việc phát sinh</div><p class="note" style="margin:0 0 8px">Chưa có.</p><button class="btn btn--sm btn--dash">＋ Thêm việc phát sinh</button></div>
+        <div class="card"><div class="card-t">Cách tính mỗi lần ghi</div>
+          <div class="doc">Tiền = <span class="chip">Giá cố định</span> + <span class="chip">SL ghi</span> × <span class="chip">Đơn giá khoán</span> <button class="lk" style="margin-left:10px">Viết công thức riêng</button></div></div>
+      </div>
+    </div>
+  </div></div></div>
+</section>
+
+</div>
+
+<script>
+// đổi phương án
+document.querySelectorAll('.switch button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.switch button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.opt').forEach(o => o.classList.toggle('on', o.id === 'o-' + b.dataset.o));
+});
+
+// A: radio một giá / riêng từng tổ
+document.querySelectorAll('[data-nhom] input[type=radio]').forEach(r => r.onchange = () => {
+  const nhom = r.name;
+  document.querySelectorAll('[data-che^="' + nhom + ':"]').forEach(el => { el.hidden = el.dataset.che !== nhom + ':' + r.value; });
+});
+
+// B: cách tính, popup sửa cột
+const bKieu = document.getElementById('b-kieu');
+bKieu.onchange = () => { document.getElementById('b-ct').hidden = bKieu.value !== 'tu'; };
+document.querySelectorAll('th[data-pop]').forEach(th => th.onclick = () => {
+  document.querySelectorAll('.pop').forEach(p => p.classList.toggle('on', p.id === 'pop-' + th.dataset.pop && !p.classList.contains('on')));
+});
+document.querySelectorAll('[data-dong]').forEach(b => b.onclick = () => b.closest('.pop').classList.remove('on'));
+
+// C: dữ liệu thật của công đoạn
+const fmt = n => n.toLocaleString('vi-VN');
+const hoa = s => s[0].toUpperCase() + s.slice(1);
+const docSo = s => { const t = String(s).replace(/\./g, '').trim(); return t === '' ? null : Number(t); };
+const C = {
+  chung: { gcd: 0, dg: 15000 },
+  ps: [
+    { k: 'kem', ten: 'thay kẽm', dv: 'bản kẽm', chung: 100000 },
+    { k: 'hu', ten: 'máy hư, xuống bài in', dv: 'bài in', chung: 1500000 },
+  ],
+  to: [
+    { id: 4, ten: 'Nhóm thợ in máy 4 màu', gcd: 250000, dg: 30, ps: { kem: 120000 } },
+    { id: 5, ten: 'Nhóm thợ in máy 5 màu', gcd: 144000, dg: 20, ps: {} },
+    { id: 6, ten: 'Nhóm thợ in máy 6 màu', gcd: 200000, dg: 20, ps: {} },
+    { id: 7, ten: 'Nhóm thợ in máy 7 màu', gcd: 200000, dg: 20, ps: {} },
+  ],
+  chon: 4, sl: 6340, lan: { kem: 1, hu: 0 },
+};
+const chinhRieng = () => C.to.some(t => t.gcd != null || t.dg != null);
+const psRieng = k => C.to.some(t => t.ps[k] != null);
+const thieuCua = t => {
+  const ra = [];
+  if (chinhRieng() && t.dg == null) ra.push('đơn giá');
+  C.ps.forEach(p => { if (psRieng(p.k) && t.ps[p.k] == null) ra.push(p.ten); });
+  return ra;
+};
+
+function veNav() {
+  const nav = document.getElementById('c-nav');
+  let h = `<button data-c="chung" class="${C.chon === 'chung' ? 'on' : ''}"><span>Chung cho mọi tổ</span></button><div class="nhom">Tổ phụ trách</div>`;
+  C.to.forEach(t => {
+    const th = thieuCua(t);
+    h += `<button data-c="${t.id}" class="${C.chon === t.id ? 'on' : ''}"><span>${t.ten}</span>${th.length ? `<span class="tag tag--do">thiếu ${th.length} giá</span>` : ''}</button>`;
+  });
+  nav.innerHTML = h;
+  nav.querySelectorAll('button').forEach(b => b.onclick = () => { C.chon = b.dataset.c === 'chung' ? 'chung' : Number(b.dataset.c); veNav(); vePane(); });
+}
+
+function oTien(nhan, dv, val, ph, key, goi, goiDo) {
+  return `<label class="f"><span>${nhan}</span><div class="w-dv"><input class="inp n${goiDo ? ' thieu' : ''}" data-k="${key}" value="${val == null ? '' : fmt(val)}" placeholder="${ph}"><i>${dv}</i></div>${goi ? `<span class="goi${goiDo ? ' do' : ''}">${goi}</span>` : ''}</label>`;
+}
+
+function vePane() {
+  const pane = document.getElementById('c-pane');
+  if (C.chon === 'chung') {
+    const rieng = chinhRieng();
+    pane.innerHTML = `
+      <div class="card"><div class="card-t">Đơn vị và giá chung</div>
+        <div class="c-fields">
+          <label class="f"><span>Đơn vị tính khoán *</span><input class="inp" value="tờ"></label><span></span>
+          ${oTien('Giá cố định chung', 'đ', C.chung.gcd, '', 'c-gcd', rieng ? 'Đang không dùng: cả 4 tổ đã có giá riêng' : 'Tổ nào không điền thì dùng giá này')}
+          ${oTien('Đơn giá chung', 'đ/tờ', C.chung.dg, '', 'c-dg', rieng ? 'Đang không dùng: cả 4 tổ đã có giá riêng' : '')}
+        </div></div>
+      <div class="card" data-tc="vd"></div>
+      <div class="card"><div class="card-t">Việc phát sinh <small>tiền = đơn giá × số lần, không cộng sản lượng</small></div>
+        <table class="tb"><thead><tr><th>Tên việc</th><th style="width:170px">Đơn vị tính</th><th class="n" style="width:200px">Giá chung</th><th style="width:40px"></th></tr></thead><tbody>
+        ${C.ps.map(p => `<tr><td><input class="inp" value="${p.ten}"></td><td><input class="inp" value="${p.dv}"></td>
+          <td><div class="w-dv"><input class="inp n" value="${fmt(p.chung)}"><i>đ</i></div>${psRieng(p.k) ? '<span class="goi mu" style="font-size:12px">Không dùng: đã có tổ khai riêng</span>' : ''}</td>
+          <td><button class="xoa" title="Xoá">🗑</button></td></tr>`).join('')}
+        </tbody></table>
+        <button class="btn btn--sm btn--dash" style="margin-top:8px">＋ Thêm việc phát sinh</button></div>
+      <div class="card"><div class="card-t">Cách tính mỗi lần ghi</div>
+        <div class="doc">Tiền = <span class="chip">Giá cố định</span> + max(0, <span class="chip">SL ghi</span> − <span class="so">3.000</span>) × <span class="chip">Đơn giá khoán</span> <button class="lk" style="margin-left:10px">Sửa công thức</button></div></div>`;
+    veTC(pane);
+    return;
+  }
+  const t = C.to.find(x => x.id === C.chon);
+  const cr = chinhRieng();
+  let fields = '';
+  fields += oTien('Giá cố định', 'đ', t.gcd, cr ? '0' : fmt(C.chung.gcd), 'gcd', '', false);
+  fields += oTien('Đơn giá', 'đ/tờ', t.dg, cr ? 'thiếu giá' : fmt(C.chung.dg), 'dg', cr && t.dg == null ? 'Thiếu giá, lần ghi của tổ chưa ra tiền khoán' : '', cr && t.dg == null);
+  C.ps.forEach(p => {
+    const r = psRieng(p.k), v = t.ps[p.k];
+    const thieu = r && v == null;
+    const khac = C.to.filter(x => x.id !== t.id && x.ps[p.k] != null).map(x => x.ten.replace('Nhóm thợ in máy ', 'máy '));
+    const goi = thieu ? `Thiếu giá: tổ ${khac.join(', ')} đã khai riêng nên tổ này không lấy giá chung ${fmt(p.chung)}`
+      : (!r ? 'Đang theo giá chung. Điền ở đây thì các tổ khác thành thiếu giá' : '');
+    fields += oTien(p.ten[0].toUpperCase() + p.ten.slice(1), 'đ/' + p.dv, v, thieu ? 'thiếu giá' : fmt(p.chung), 'ps-' + p.k, goi, thieu);
+  });
+  // thử tính
+  const gcd = t.gcd ?? (cr ? 0 : C.chung.gcd), dg = t.dg ?? (cr ? null : C.chung.dg);
+  const vuot = Math.max(0, C.sl - 3000);
+  let dong = `<div class="dong"><span>Giá cố định</span><span class="n">${fmt(gcd)}</span></div>`;
+  let tong = gcd;
+  if (dg == null) dong += `<div class="dong thieu"><span>Tờ vượt 3.000<span class="giai">thiếu đơn giá</span></span><span class="n">chưa ra tiền</span></div>`;
+  else { dong += `<div class="dong"><span>Tờ vượt 3.000<span class="giai">(${fmt(C.sl)} − 3.000) × ${fmt(dg)}</span></span><span class="n">${fmt(vuot * dg)}</span></div>`; tong += vuot * dg; }
+  C.ps.forEach(p => {
+    const lan = C.lan[p.k] || 0; if (!lan) return;
+    const gia = psRieng(p.k) ? t.ps[p.k] : p.chung;
+    if (gia == null) dong += `<div class="dong thieu"><span>${hoa(p.ten)}<span class="giai">${lan} ${p.dv}, tổ chưa có giá</span></span><span class="n">chưa ra tiền</span></div>`;
+    else { dong += `<div class="dong"><span>${hoa(p.ten)}<span class="giai">${lan} × ${fmt(gia)}</span></span><span class="n">${fmt(lan * gia)}</span></div>`; tong += lan * gia; }
+  });
+  dong += `<div class="dong tong"><span>Tiền lần ghi</span><span class="n">${fmt(tong)} đ</span></div>`;
+  pane.innerHTML = `
+    <div class="c-two">
+      <div class="card"><div class="card-t">${t.ten}</div><div class="c-fields">${fields}</div></div>
+      <div class="thu"><h4>Thử một lần ghi của tổ này</h4>
+        <div class="row">
+          <label class="f"><span>SL ghi</span><div class="w-dv"><input class="inp n" data-thu="sl" value="${fmt(C.sl)}"><i>tờ</i></div></label>
+          ${C.ps.map(p => `<label class="f"><span>${hoa(p.ten)}</span><div class="w-dv"><input class="inp n" data-thu="${p.k}" value="${C.lan[p.k]}"><i>lần</i></div></label>`).join('')}
+        </div>
+        ${dong}
+      </div>
+    </div>`;
+  pane.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => {
+    const v = docSo(i.value), k = i.dataset.k;
+    if (k === 'gcd') t.gcd = v; else if (k === 'dg') t.dg = v;
+    else { const pk = k.slice(3); if (v == null) delete t.ps[pk]; else t.ps[pk] = v; }
+    veNav(); vePane();
+  });
+  pane.querySelectorAll('input[data-thu]').forEach(i => i.onchange = () => {
+    const v = docSo(i.value) ?? 0;
+    if (i.dataset.thu === 'sl') C.sl = v; else C.lan[i.dataset.thu] = v;
+    vePane();
+  });
+}
+// Khối "Tuỳ chọn khi ghi" — dùng chung cho mọi phương án. `vd` = hai dòng VÍ DỤ (lấy từ chú thích code
+// `nhanTuyChon`: "trùng khuôn", "3 số lỗ đục"; công đoạn Bài in thật chưa khai tuỳ chọn nào);
+// `trong3` = đúng ảnh màn Cắt: ba dòng vừa bấm Thêm, chưa gõ gì.
+function veTC(goc) {
+  goc.querySelectorAll('[data-tc]').forEach(el => {
+    const vd = el.dataset.tc === 'vd';
+    const ds = vd
+      ? [{ ten: 'Trùng khuôn', ma: 'trung_khuon', kieu: 'co_khong', goi_y: 'tick khi chạy lại khuôn cũ' },
+         { ten: 'Số lỗ đục', ma: 'so_lo_duc', kieu: 'so', goi_y: 'vd: 3' }]
+      : [{ ten: '', ma: '', kieu: 'co_khong', goi_y: '' }, { ten: '', ma: '', kieu: 'co_khong', goi_y: '' }, { ten: '', ma: '', kieu: 'co_khong', goi_y: '' }];
+    const hang = ds.map((t, i) => `<tr>
+      <td><input class="inp" value="${t.ten}" placeholder="vd: Trùng khuôn">${vd && i === 0 ? '' : ''}</td>
+      <td><input class="inp" value="${t.ma}" placeholder="tự gợi từ tên" style="font-family:ui-monospace,monospace;font-size:12.5px"></td>
+      <td><select class="inp sel"><option ${t.kieu === 'co_khong' ? 'selected' : ''}>Có / không</option><option ${t.kieu === 'so' ? 'selected' : ''}>Số</option></select></td>
+      <td><input class="inp" value="${t.goi_y}"></td>
+      <td><button class="xoa" title="Bỏ tuỳ chọn này">×</button></td></tr>`).join('');
+    const coTen = ds.filter(t => t.ten);
+    const tho = coTen.length
+      ? coTen.map(t => t.kieu === 'co_khong'
+          ? `<label><input type="checkbox"> ${t.ten}${t.goi_y ? ` <span class="mo">${t.goi_y}</span>` : ''}</label>`
+          : `<label>${t.ten} <input class="inp n" placeholder="${t.goi_y}"></label>`).join('')
+      : '<div class="mo">Chưa có tuỳ chọn nào có tên, nên hộp ghi của thợ chưa hiện khối này.</div>';
+    el.innerHTML = `
+      <div class="card-t">Tuỳ chọn khi ghi${vd ? '<span class="vd">2 dòng ví dụ, công đoạn này chưa khai</span>' : ''}
+        <small>thợ tick hoặc gõ số ở từng lần ghi</small></div>
+      <p class="note">Mỗi lần ghi đều lưu lại tuỳ chọn thợ đã chọn, và kế toán thấy chúng trong ngăn soi lương. Tuỳ chọn chỉ vào tiền khi công thức gọi tới mã của nó: kiểu Có / không là 1 hoặc 0, kiểu Số là số thợ gõ.</p>
+      <div class="tc-grid">
+        <div>
+          <table class="tb tc-tb">
+            <thead><tr><th>Tên hiện cho thợ</th><th style="width:150px">Mã trong công thức</th><th style="width:136px">Kiểu</th><th>Gợi ý cho thợ</th><th style="width:36px"></th></tr></thead>
+            <tbody>${hang}</tbody>
+          </table>
+          ${vd ? '' : '<p class="note" style="margin:6px 0 0">Dòng chưa có tên thì bị bỏ khi lưu, không chặn lưu như hiện nay.</p>'}
+          <button class="btn btn--sm btn--dash" style="margin-top:8px">＋ Thêm tuỳ chọn</button>
+        </div>
+        <div class="tho"><div class="tho-t">Thợ thấy ở hộp ghi</div><div class="tho-h">Tuỳ chọn lần này</div>${tho}</div>
+      </div>`;
+  });
+}
+veTC(document);
+veNav(); vePane();
+</script>
+</body>
+</html>

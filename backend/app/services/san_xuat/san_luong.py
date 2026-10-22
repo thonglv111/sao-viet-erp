@@ -35,7 +35,7 @@ from .dau_vao import _so, bang_dv_viec, kiem_giam_buoc_sau, kiem_tran_ghi, tran_
 from .nguoi_ghi import chot_nguoi, ghi_nguoi, sua_nguoi
 from .nguoi_trong_me import ngay_cua_me
 from .thuc_thi import _gate, _kiem_version, _moc
-from .viec_khoan import anh_chup_tuy_chon, chuan_hoa_khi_ghi
+from .viec_khoan import anh_chup_tuy_chon, chuan_hoa_khi_ghi, chup_lai_bac, quy_cach_cua_viec
 
 # Dung sai làm tròn cho ràng buộc tong = tot + hong: cột Numeric(18,3) nên nửa bậc số lẻ cuối là
 # 0.0005 — quá ngưỡng này coi như nhập lệch chứ không phải sai số làm tròn.
@@ -314,6 +314,8 @@ def tao_batch(
     o_khoan, cac_phat_sinh = chuan_hoa_khi_ghi(
         db, khoan=khoan, ten_cong_doan=ten_cong_doan, phat_sinh=phat_sinh,
         department_id=cv.department_id, tuy_chon=tuy_chon,
+        # Bậc giá (Bài in) chọn từ quy cách in của lệnh — chỉ đọc khi công đoạn chia bậc.
+        qc=quy_cach_cua_viec(db, cv) if khoan is not None and khoan.bac_gia else None,
     )
     nguoi = chot_nguoi(db, cv, nguoi_ids, ngay_cua_me(bat_dau))
 
@@ -446,6 +448,7 @@ def sua_so_me(
     batch.tong = moi + float(batch.hong or 0)
     if tc_moi is not None:
         batch.tuy_chon_khoan = tc_moi
+        chup_lai_bac(db, batch, khoan, cv)
     batch.version += 1
     cho_nhan_lai = False
     dich_cv = None
@@ -549,6 +552,8 @@ def _sua_nguoi_me(db: Session, user, batch: SanXuatBatch, cv, nguoi_ids: list[in
             commit=False,
         )
         batch.tuy_chon_khoan = tc_moi
+        # Tuỳ chọn đổi (bỏ tick Mực UV) có thể đổi bậc giá ⇒ chụp lại bậc + giá của bậc mới.
+        chup_lai_bac(db, batch, SanXuatSanLuongRepository(db).khoan_cua_cong_viec(cv)[0], cv)
     batch.version += 1
     db.commit()
     ra = _ket_qua_batch(cv, batch)

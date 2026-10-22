@@ -661,6 +661,8 @@ class PurchaseDeliveryOut(BaseModel):
     da_nhap_kho: bool = False
     stock_request_id: int | None = None
     stock_request_ma: str | None = None
+    # Kho đã lập phiếu cho yêu cầu nhập của đợt ⇒ đợt khoá sửa / xoá (20/10/2026).
+    kho_da_lap_phieu: bool = False
     # Nấc kho (11/10/2026): cho_gui_kho | kho_chua_nhap | da_nhap_kho — yêu cầu nhập Hoàn tất mới là
     # đã nhập; `da_nhap_kho` ở trên chỉ nghĩa là ĐÃ GỬI yêu cầu.
     kho: str = "cho_gui_kho"

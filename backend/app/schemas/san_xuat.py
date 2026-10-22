@@ -736,6 +736,8 @@ class BatchOut(BaseModel):
     # Ảnh chụp tuỳ chọn khi ghi (Đợt 2): `[{ma, ten, kieu, gia_tri}]`; None = công đoạn không khai
     # hoặc lần ghi trước Đợt 2.
     tuy_chon_khoan: list[TuyChonLanGhiOut] | None = None
+    # Tên bậc giá chụp lúc ghi (Bài in) — None = công đoạn không chia bậc hoặc lệnh không khớp bậc.
+    bac_khoan_ten: str | None = None
     phat_sinh: list[MePhatSinhOut] = []
     # Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = ảnh chụp còn khớp danh mục.
     danh_muc_doi: list[MeDanhMucDoiOut] = []
@@ -1099,6 +1101,19 @@ class ViecPhatSinhChonOut(BaseModel):
     thieu_gia: bool = False
 
 
+class BacTheoChonOut(BaseModel):
+    """Giá của tổ ứng với một tổ hợp tick (`chon` = {mã tuỳ chọn: 0/1}) — công đoạn chia bậc."""
+
+    chon: dict[str, float] = {}
+    bac_ma: str | None = None
+    bac_ten: str | None = None
+    so_mau: float = 0
+    so_mau_pha: float = 0
+    gia_co_dinh: float = 0.0
+    don_gia: float = 0.0
+    thieu_gia: bool = False
+
+
 class KhoanCongDoanThucThiOut(BaseModel):
     """Cấu hình cố định của công đoạn bày trong form Ghi mẻ — không có thao tác chọn nguồn."""
 
@@ -1112,6 +1127,10 @@ class KhoanCongDoanThucThiOut(BaseModel):
     gia_co_dinh: float = 0.0
     thieu_gia: bool = False
     tuy_chon: list[TuyChonKhaiOut] = []
+    # Bậc giá (Bài in, 22/10/2026): rỗng = công đoạn không chia bậc. Số màu là màu MỘT lượt máy.
+    bac_theo_chon: list[BacTheoChonOut] = []
+    so_mau: float | None = None
+    so_mau_pha: float | None = None
 
 
 class KetQuaNhanhOut(BaseModel):

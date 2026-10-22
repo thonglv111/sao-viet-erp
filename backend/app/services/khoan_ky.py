@@ -54,6 +54,7 @@ from .bien_cong_thuc import (
     MAC_DINH_TANG_LENH, cong_thuc_ra_tien, ngu_canh_lenh, quy_cach_bien,
 )
 from .calendar_service import CalendarService
+from .san_xuat import viec_khoan
 from .san_xuat.nguoi_trong_me import ngay_cua_me
 from .thanh_phan_engine import safe_eval
 
@@ -262,8 +263,14 @@ class KhoanKyService:
             if chua:
                 bao(f"{', '.join(chua)} chưa có lương ca máy", "luong")
                 continue
+            bac = b.bac_khoan_snapshot or None
             if b.don_gia_khoan_snapshot is None:
-                bao("tổ chưa có giá ở bảng giá theo tổ")
+                if bac and not bac.get("ma"):
+                    bao(f"{viec_khoan.mo_ta_mau(bac)} chưa khớp bậc giá nào")
+                elif bac:
+                    bao(f"tổ chưa có giá bậc {bac.get('ten')} ({viec_khoan.mo_ta_mau(bac)})")
+                else:
+                    bao("tổ chưa có giá ở bảng giá theo tổ")
                 tien = 0.0
             elif _RE_TIEN_GIO.search(cong_thuc_cua_lan_ghi(khoan, b)) and b.ket_thuc <= b.bat_dau:
                 bao("công thức tính theo giờ mà lần ghi chưa có giờ kết thúc", "lan_ghi")
@@ -275,6 +282,8 @@ class KhoanKyService:
                     "so_lan_chay": float(max(1, so_lan.get(self._khoa_chay(cv, b), 0))),
                     "tien_gio": sum(_so(muc.nen_gio.get(e)) for e in w) / 26 / 8 * gio,
                     "tu_tro": 1.0 if qc.get("quy_cach_in") in _TU_TRO else 0.0,
+                    # Bậc giá đã gồm mực UV (Pantone UV) ⇒ công thức thôi nhân đôi (22/10/2026).
+                    "gia_gom_uv": 1.0 if (bac or {}).get("gom_uv") else 0.0,
                 }
                 if _luong_thanh_dong(cong_thuc_cua_lan_ghi(khoan, b)) and int(khoan.id) not in da_nhac_dong:
                     da_nhac_dong.add(int(khoan.id))

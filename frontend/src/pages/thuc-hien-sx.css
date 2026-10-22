@@ -2454,6 +2454,19 @@
 
 .thsx-b.is-hep .thsx-b-split { grid-template-columns: minmax(0, 1fr); }
 .thsx-b.is-hep .thsx-b-trai { border-right: 0; }
+/* Dải tab điện thoại: mỗi tab ô chạm rộng (đệm hai bên thay khe), gạch chân chỉ dưới chữ; mép nào
+   còn tab khuất thì mờ dần (lớp khuat-* do ThsxDrawer đo lúc cuộn). Ghi đè khe 6px của mobile/chung.css. */
+.thsx-b.is-hep .thsx-b-tabs { position: relative; gap: 0 !important; padding: 0 4px; }
+.thsx-b.is-hep .thsx-b-tab { position: relative; padding: 0 12px; min-height: 44px; border-bottom: 0; }
+.thsx-b.is-hep .thsx-b-tab.is-on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0;
+  height: 2px; border-radius: 2px 2px 0 0; background: var(--ink); }
+.thsx-b.is-hep .thsx-b-tabs.khuat-phai { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); }
+.thsx-b.is-hep .thsx-b-tabs.khuat-trai { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent); }
+.thsx-b.is-hep .thsx-b-tabs.khuat-trai.khuat-phai {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
 @container (max-width: 640px) {
   .thsx-b-hd { padding: 10px 14px 8px; gap: 10px; }
   .thsx-b-hd__ttl { gap: 8px; }

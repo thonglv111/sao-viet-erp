@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import type {
   SxWorkItemChiTiet, SxBatch, SxBanGiao, SxBanGiaoChangSau, SxHoTroUngVien,
   SxBatchIn, SxBanGiaoDeXuatIn, SxBanGiaoSuaIn, SxSuaSoMeIn,
-  SxKhoanCongDoan, SxViecPhatSinhChon, SxNguoiGhi, SxViecNgan, SxTuyChonKhai, SxTuyChonLanGhi,
+  SxBacTheoChon, SxKhoanCongDoan, SxViecPhatSinhChon, SxNguoiGhi, SxViecNgan, SxTuyChonKhai, SxTuyChonLanGhi,
   SxKetQuaNhanh, SxSuCoIn, SxVatTuCap, SxVatTuCapLan, SxVatTuCapDoiChieu, SxVatTuNhapLai, SxPhieuXuatVatTu,
   SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxVatTuNhapLaiIn, SxVatTuCapKeHoach, SxWorkItem, HangLoai,
 } from "../api/client";
@@ -308,6 +308,23 @@ function giaKhoan(v: {
   return v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi + ${dv}` : dv;
 }
 
+/** "lệnh 4 màu, 1 màu pha" — cùng chữ lương báo thiếu giá (`viec_khoan.mo_ta_mau`). */
+export function moTaMau(soMau: number, pha: number): string {
+  if (soMau <= 0) return "lệnh chưa có số màu in";
+  return `lệnh ${num(soMau)} màu` + (pha > 0 ? `, ${num(pha)} màu pha` : "");
+}
+
+/** Công đoạn chia bậc (Bài in): bậc + giá ứng với tick đang chọn — đổi ngay khi thợ tick Mực UV.
+ *  Không chia bậc ⇒ null. */
+export function bacTheoTick(
+  khoan: Pick<SxKhoanCongDoan, "bac_theo_chon" | "tuy_chon">, gt: Record<string, string>,
+): SxBacTheoChon | null {
+  const ds = khoan.bac_theo_chon ?? [];
+  if (!ds.length) return null;
+  const chon = tuyChonBody(khoan.tuy_chon ?? [], gt);
+  return ds.find((x) => Object.entries(x.chon).every(([ma, v]) => (chon[ma] ? 1 : 0) === v)) ?? ds[0];
+}
+
 /** Thẻ tuỳ chọn khác 0 của lần ghi — cùng chữ ngăn soi lương (`khoan_ky._nhan_tuy_chon`):
  *  "trùng khuôn", "3 số lỗ đục". */
 export function nhanTuyChon(ds: SxTuyChonLanGhi[] | null | undefined): string[] {
@@ -415,6 +432,7 @@ export function BatchForm({
   // Tuỳ chọn khi ghi của công đoạn (Đợt 2) → giá trị đang chọn.
   const tuyChon = khoan?.tuy_chon ?? [];
   const [tcGt, setTcGt] = useState<Record<string, string>>({});
+  const bac = khoan ? bacTheoTick(khoan, tcGt) : null;
   const nSoLuong = toNum(soLuong);
   // Mẻ 0 hợp lệ — ca chỉ làm việc phát sinh (thay kẽm, lên khuôn) vẫn cần mẻ để ghi nhận; nhưng ô
   // phải được GÕ (kể cả số 0), để trống thì chưa cho lưu.
@@ -539,8 +557,15 @@ export function BatchForm({
           <div className="thsx-gm-khoan__dau">
             <span className="thsx-gm-mo">Khoán</span>
             <span>{khoan.ten}</span>
-            <span className="thsx-gm-gia thsx-num">{giaKhoan(khoan)}</span>
+            <span className="thsx-gm-gia thsx-num">{giaKhoan(bac ? { ...khoan, ...bac } : khoan)}</span>
           </div>
+          {bac && (
+            <div className="thsx-gm-bac">
+              <span className="thsx-gm-mo">Bậc giá</span>
+              <span>{bac.bac_ten ?? "chưa khớp bậc nào"}</span>
+              <span className="thsx-gm-mo">{moTaMau(bac.so_mau, bac.so_mau_pha)}</span>
+            </div>
+          )}
           {tuyChon.length > 0 && <TuyChonGhi ds={tuyChon} gt={tcGt} onDoi={setTcGt} />}
           {khoan.phat_sinh.length > 0 && (
             <div className="thsx-gm-ps">
@@ -845,7 +870,7 @@ export function BatchRow({
   const [giuCu, setGiuCu] = useState(false);
   const the = nhanTuyChon(b.tuy_chon_khoan);
   const coChiTiet = (b.viec_khoan_don_gia != null && !!b.viec_khoan_don_vi) || b.phat_sinh.length > 0 || !!b.ca_ten
-    || the.length > 0
+    || the.length > 0 || !!b.bac_khoan_ten
     || (b.hong > 0 && !!b.mo_ta_loi) || b.su_co.length > 0 || b.lot_vao.length > 0 || !!b.ghi_chu;
   return (
     <li className={`thsx-b-me__dong${mo ? " is-mo" : ""}`}>
@@ -927,6 +952,12 @@ export function BatchRow({
                 <dd className="thsx-num">
                   {num(b.viec_khoan_don_gia)} đ / {b.viec_khoan_don_vi_ten ?? nhanDonVi(b.viec_khoan_don_vi)}
                 </dd>
+              </>
+            )}
+            {b.bac_khoan_ten && (
+              <>
+                <dt>Bậc giá</dt>
+                <dd>{b.bac_khoan_ten}</dd>
               </>
             )}
             {the.length > 0 && (

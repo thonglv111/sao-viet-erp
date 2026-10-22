@@ -3466,7 +3466,7 @@ dùng cho bình bài.
 công đoạn chưa cấu hình; `unit_price = 0` vẫn là một cấu hình hợp lệ. Từ 21/10/2026 (mg `0429`)
 công thức được TÍNH THẬT ở màn lương (`services/khoan_ky.py`) cho từng lần ghi.
 
-**Tất cả cột:** `id`, `cong_doan_id`, `unit`, `unit_price`, `cong_thuc_khoan`, `gia_theo_to`, `gia_co_dinh`, `tuy_chon`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_doan_id`, `unit`, `unit_price`, `cong_thuc_khoan`, `gia_theo_to`, `gia_co_dinh`, `tuy_chon`, `bac_gia`, `created_at`, `updated_at`.
 
 `gia_co_dinh` (Numeric(14,2), NOT NULL, mặc định 0, mg `0430`): giá cố định CHUNG — bảng giá theo tổ
 để trống thì mọi tổ dùng cả `gia_co_dinh` lẫn `unit_price`.
@@ -3477,6 +3477,12 @@ thợ tick / gõ ở từng lần ghi; mỗi `ma` là một chip của ô Công 
 `gia_theo_to` (JSON, nullable, mg `0429`): bảng giá theo TỔ `[{department_id, gia_co_dinh, don_gia}]`
 — cùng công đoạn, mỗi tổ máy một giá (chủ chốt 21/10/2026). NULL / rỗng = mọi tổ dùng `unit_price`
 chung, giá cố định 0. Đã có dòng tổ nào thì tổ vắng mặt là THIẾU GIÁ (không đoán).
+
+`bac_gia` (JSON, nullable, mg `0433`): bậc giá theo số màu `[{ma, ten, mau_tu, mau_den, pha:
+"co"|"khong"|null, tuy_chon_ma, tuy_chon_co: "co"|"khong"|null, gom_uv}]` — gộp 8 công đoạn in thành
+"Bài in" (22/10/2026). Lúc ghi chọn bậc khớp ĐẦU TIÊN theo số màu = số kẽm một tay như Tính giá (`so_mau`),
+có màu pha hay không và tuỳ chọn khi ghi (`viec_khoan.anh_bac`). Có bậc thì mỗi dòng `gia_theo_to`
+mang khoá `bac` (mã bậc) — giá là ô (tổ, bậc); ô vắng = thiếu giá. NULL = không chia bậc.
 
 `cong_doan_id` là FK `cong_doan.id` ON DELETE CASCADE và UNIQUE. `unit` là mã trong danh mục
 `don_vi_do`; `unit_price` không âm. Không chép dữ liệu từ `piece_rates` vì mô hình cũ nhiều việc
@@ -5062,6 +5068,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `gia_co_dinh_khoan_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp GIÁ CỐ ĐỊNH của tổ lúc ghi (mg `0429`) — vd giá bài in 150.000. Cùng luật ảnh chụp với `don_gia_khoan_snapshot` (cả hai là giá CỦA TỔ ghi). NULL = tổ chưa khai giá lúc ghi ⇒ lương báo thiếu giá. |
 | `tuy_chon_khoan` | `JSON` | — | yes | — | Ảnh chụp tuỳ chọn khi ghi (mg `0430`) `[{ma, ten, kieu, gia_tri}]` — mọi tuỳ chọn khai ở công đoạn lúc ghi, không tick = 0. NULL = lần ghi trước Đợt 2 (công thức coi mọi tuỳ chọn = 0). |
 | `cong_thuc_khoan_snapshot` | `Text` | — | yes | — | Ảnh chụp công thức khoán của công đoạn lúc ghi (mg `0431`) — sửa công thức ở danh mục không đổi tiền lần đã ghi; nút "Cập nhật theo danh mục" lấy công thức mới. `""` = công thức bỏ trống lúc ghi. NULL = lần ghi trước mg `0431` ⇒ dùng công thức hiện tại. |
+| `bac_khoan_snapshot` | `JSON` | — | yes | — | Ảnh chụp bậc giá lúc ghi (mg `0433`) `{ma, ten, gom_uv, so_mau, so_mau_pha}` — công đoạn chia bậc (Bài in). `ma` null = quy cách lệnh không khớp bậc nào (lương báo thiếu giá). `gom_uv` thành chip `gia_gom_uv` của công thức. Sửa tuỳ chọn ở lần ghi thì chọn lại bậc. NULL = công đoạn không chia bậc. |
 | `mo_ta_loi` | `String(500)` | — | yes | — | Mô tả lỗi bổ sung (không thay danh mục). |
 | `ghi_chu` | `String(500)` | — | yes | — | Ghi chú. |
 | `version` | `Integer` | — | no | `1` | Chống bấm trùng. |
@@ -5069,7 +5076,7 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now (UTC) | onupdate = now. |
 
-**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `tuy_chon_khoan`, `cong_thuc_khoan_snapshot`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `cong_viec_id`, `bat_dau`, `ket_thuc`, `tong`, `tot`, `hong`, `don_vi`, `piece_rate_id`, `khoan_cong_doan_id`, `ten_khoan_snapshot`, `don_vi_khoan_snapshot`, `don_gia_khoan_snapshot`, `gia_co_dinh_khoan_snapshot`, `tuy_chon_khoan`, `cong_thuc_khoan_snapshot`, `bac_khoan_snapshot`, `mo_ta_loi`, `ghi_chu`, `version`, `created_by`, `created_at`, `updated_at`.
 
 **MỘT CHỦ** — tổ của bước. Mẻ hiện ở tab Sản lượng của MỌI tổ có người trong mẻ, CÙNG MỘT CON SỐ, chia hai mục: "Mẻ của tổ" (cộng vào tổng) và "Người của tổ đi làm ở tổ khác" (không cộng). Tầng chia sản lượng cho từng người (`san_xuat_phan_bo*`) ĐÃ DROP (mg `0322`).
 

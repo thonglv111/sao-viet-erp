@@ -619,10 +619,16 @@ function OrderDrawer({
   const [acts, setActs] = useState<{ at: string; actor_name: string | null; action: string; detail: string }[]>([]);
   const isDraft = order.status === "draft";
   const [drawerTab, setDrawerTab] = useState<"overview" | "commercial" | "files" | "history">("overview");
-  // Tiền chiết khấu nằm trong thành tiền (hoàn lại khách): tổng đơn, và ô từng dòng / cụm ("—" khi không có).
+  // Tiền chiết khấu (hoàn lại khách) và kê (cộng sau giá bán, chi lại sau khi khách trả đủ) đều nằm
+  // trong thành tiền: tổng đơn, và ô từng dòng / cụm ("—" khi không có).
   const tongCk = order.lines.reduce((t, l) => t + (l.chiet_khau ?? 0), 0);
+  const tongKe = order.lines.reduce((t, l) => t + (l.ke_gia ?? 0), 0);
   const ckDong = (ds: { chiet_khau?: number | null }[]) => {
     const t = ds.reduce((x, l) => x + (l.chiet_khau ?? 0), 0);
+    return t > 0 ? soVN(t) : "—";
+  };
+  const keDong = (ds: { ke_gia?: number | null }[]) => {
+    const t = ds.reduce((x, l) => x + (l.ke_gia ?? 0), 0);
     return t > 0 ? soVN(t) : "—";
   };
 
@@ -1089,7 +1095,10 @@ function OrderDrawer({
                         <th>Đơn vị</th>
                         <th className="dhb__text-right">Đơn giá</th>
                         <th className="dhb__text-right">VAT</th>
-                        <th className="dhb__text-right" title="Nằm trong thành tiền — công ty hoàn lại khách">Chiết khấu</th>
+                        <th className="dhb__text-right" title="Đã nằm trong đơn giá — chi lại cho khách khi hóa đơn thu đủ">Chiết khấu</th>
+                        {tongKe > 0 && (
+                          <th className="dhb__text-right" title="Đã cộng vào đơn giá — chi lại cho người bên khách, trừ thuế TNDN, khi hóa đơn thu đủ">Kê</th>
+                        )}
                         <th className="dhb__text-right">Thành tiền</th>
                       </tr>
                     </thead>
@@ -1118,6 +1127,7 @@ function OrderDrawer({
                             <td className="dhb__mono dhb__text-right">{g.donGia == null ? "—" : soVN(g.donGia)}</td>
                             <td className="dhb__mono dhb__text-right">{g.vatPct === null ? "—" : `${g.vatPct}%`}</td>
                             <td className="dhb__mono dhb__text-right">{ckDong(g.goc)}</td>
+                            {tongKe > 0 && <td className="dhb__mono dhb__text-right">{keDong(g.goc)}</td>}
                             <td className="dhb__mono dhb__text-right">{soVN(g.thanhTien)}</td>
                           </tr>,
                           ...(dongLe ? [] : g.goc.map((l, k) => (
@@ -1129,6 +1139,7 @@ function OrderDrawer({
                               <td className="dhb__mono dhb__text-right">{l.unit_price_snapshot == null ? "—" : soVN(l.unit_price_snapshot)}</td>
                               <td className="dhb__mono dhb__text-right">{l.vat_pct_estimate}%</td>
                               <td className="dhb__mono dhb__text-right">{ckDong([l])}</td>
+                              {tongKe > 0 && <td className="dhb__mono dhb__text-right">{keDong([l])}</td>}
                               <td className="dhb__mono dhb__text-right">{l.line_total == null ? "—" : soVN(l.line_total)}</td>
                             </tr>
                           ))),
@@ -1138,9 +1149,20 @@ function OrderDrawer({
                   </table>
                 </div>
                 <div className="dhb__hh-tong">
+                  {/* Khoảng trống bên trái khối tổng: nói một lần chiết khấu / kê là gì, ai nhận, bao giờ chi. */}
+                  {(tongCk > 0 || tongKe > 0) && (
+                    <p className="dhb__hh-ghi">
+                      {tongCk > 0 && tongKe > 0 ? "Chiết khấu và kê đã nằm trong đơn giá" : tongCk > 0 ? "Chiết khấu đã nằm trong đơn giá" : "Kê đã nằm trong đơn giá"}
+                      . Khách trả đủ hóa đơn nào thì kế toán chi lại phần của hóa đơn đó
+                      {tongCk > 0 ? ": chiết khấu trả lại cho khách" : ""}
+                      {tongCk > 0 && tongKe > 0 ? "; " : tongKe > 0 ? ": " : ""}
+                      {tongKe > 0 ? "kê trả cho người bên khách sau khi trừ thuế TNDN" : ""}.
+                    </p>
+                  )}
                   <TomTat d={[
                     { nhan: "Cộng trước VAT", so: order.total == null ? "—" : soVN(order.total) },
-                    ...(tongCk > 0 ? [{ nhan: "Trong đó chiết khấu (hoàn lại khách)", so: soVN(tongCk) }] : []),
+                    ...(tongCk > 0 ? [{ nhan: "Trong đó chiết khấu", so: soVN(tongCk) }] : []),
+                    ...(tongKe > 0 ? [{ nhan: "Trong đó kê", so: soVN(tongKe) }] : []),
                     { nhan: "Thuế VAT", so: order.total == null ? "—" : soVN(order.total_with_vat - order.total) },
                     { nhan: "Tổng gồm VAT", so: soVN(order.total_with_vat), tong: true },
                   ]} />

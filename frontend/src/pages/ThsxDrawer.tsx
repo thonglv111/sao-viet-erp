@@ -199,6 +199,30 @@ export function ThsxDrawer({
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [activeTab]);
+  // Điện thoại: 7 tab không vừa bề ngang — tab đang chọn luôn cuộn vào giữa dải, mép nào còn tab
+  // khuất thì mờ dần để biết vuốt được (19/10/2026: dải dừng ở "ng quan … Lịch", không thấy còn gì).
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [mepKhuat, setMepKhuat] = useState({ trai: false, phai: false });
+  const doMepKhuat = () => {
+    const el = tabsRef.current;
+    if (!el) return;
+    const trai = el.scrollLeft > 2;
+    const phai = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setMepKhuat((cu) => (cu.trai === trai && cu.phai === phai ? cu : { trai, phai }));
+  };
+  useLayoutEffect(() => {
+    const el = tabsRef.current;
+    const nut = el?.querySelector<HTMLElement>(".thsx-b-tab.is-on");
+    if (el && nut) el.scrollLeft = nut.offsetLeft - (el.clientWidth - nut.offsetWidth) / 2;
+    doMepKhuat();
+  }, [activeTab, hep, chiTiet?.cong_viec?.id]);
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(doMepKhuat);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [chiTiet?.cong_viec?.id]);
   // Phiên chạy là vết máy ghi — ít khi cần đọc, mặc định gập (10/10/2026).
   const [moPhien, setMoPhien] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -374,7 +398,8 @@ export function ThsxDrawer({
       <div className="thsx-b-split">
         <div className="thsx-b-trai">
           {cv && (
-            <div className="thsx-b-tabs" role="tablist">
+            <div ref={tabsRef} onScroll={doMepKhuat} role="tablist"
+              className={`thsx-b-tabs${mepKhuat.trai ? " khuat-trai" : ""}${mepKhuat.phai ? " khuat-phai" : ""}`}>
               {tabs.map((t) => (
                 <button key={t.k} type="button" role="tab" aria-selected={activeTab === t.k}
                   className={`thsx-b-tab${activeTab === t.k ? " is-on" : ""}`} onClick={() => setTabChon(t.k)}>

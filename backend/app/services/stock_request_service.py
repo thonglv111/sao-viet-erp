@@ -232,6 +232,43 @@ class StockRequestService:
         số chờ cấp không đổi nên FE không toast. Gọi SAU commit."""
         self._notify(req, "Yêu cầu đã đổi giờ hẹn", targeted=False)
 
+    # --- ĐỒNG BỘ TỪ ĐỢT GIAO MUA HÀNG (20/10/2026) --------------------------------------------
+    # Lưu đợt giao là tạo luôn yêu cầu NHẬP của đợt (`purchase_service.ghi_dot_giao`), nên sửa / xoá
+    # đợt phải kéo yêu cầu theo. Cùng luật với đường của sản xuất: kho đã lập phiếu (kể cả nháp,
+    # kể cả đã huỷ) thì thôi — số đã vào tay người soạn. Cả hai CHỈ `flush()`: người gọi đang ôm
+    # giao dịch của đơn mua, tự commit rồi mới gọi `thong_bao_da_doi` / `thong_bao_da_huy`.
+
+    def kho_da_lap_phieu(self, req: StockRequest) -> bool:
+        return self.requests.co_voucher(req.id)
+
+    def dong_bo_tu_dot_giao(self, req: StockRequest, lines: list[dict], *, ngay_can) -> StockRequest:
+        self.requests.lock_for_update(req.id)
+        if self.requests.co_voucher(req.id):
+            raise StockRequestConflict(
+                f"Kho đã lập phiếu cho yêu cầu nhập {req.ma}, không sửa được đợt giao nữa."
+            )
+        dang_co = {(ln.hang_loai, int(ln.hang_id))
+                   for ln in (req.lines or []) if ln.hang_loai and ln.hang_id}
+        self._validate_lines(lines, dang_co, kho_to_bat_buoc=True)
+        self.requests.replace_lines(req, lines)
+        # `sl_duyet` mặc định 0 ⇒ phải đặt lại, nếu không yêu cầu tự thành "Hoàn tất" (xem
+        # `dong_bo_tu_san_xuat`). Kho đã tiếp nhận thì về lại "chờ cấp" để họ xem số mới.
+        for ln in req.lines:
+            ln.sl_duyet = ln.sl_de_nghi
+        req.ngay_can = ngay_can
+        req.trang_thai = REQ_APPROVED
+        return self.requests.save(req, commit=False)
+
+    def huy_tu_dot_giao(self, req: StockRequest) -> StockRequest:
+        self.requests.lock_for_update(req.id)
+        if self.requests.co_voucher(req.id):
+            raise StockRequestConflict(
+                f"Kho đã lập phiếu cho yêu cầu nhập {req.ma}, không xoá được đợt giao nữa."
+            )
+        req.trang_thai = REQ_CANCELLED
+        req.ly_do_huy = "Đợt giao đã bị xoá ở đơn mua"
+        return self.requests.save(req, commit=False)
+
     def create_dieu_chuyen(self, *, user, loai: str, kho_id: int, lines: list[dict],
                            dieu_chuyen: bool = True, kho_nguon_id: int | None = None,
                            xuat_voucher_id: int | None = None, ghi_chu: str | None = None,

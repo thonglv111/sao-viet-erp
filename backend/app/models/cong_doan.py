@@ -243,6 +243,10 @@ class CongDoanKhoan(Base):
     # Tuỳ chọn khi ghi `[{ma, ten, kieu: "co_khong"|"so", goi_y}]` — thợ tick / gõ ở từng lần ghi, mỗi
     # tuỳ chọn là một chip của ô Công thức khoán. NULL = không có.
     tuy_chon: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Bậc giá (22/10/2026, mg 0433) `[{ma, ten, mau_tu, mau_den, pha, tuy_chon_ma, tuy_chon_co,
+    # gom_uv}]` — xét từ trên xuống, bậc khớp đầu tiên thắng (`viec_khoan.anh_bac`). Có bậc thì mỗi
+    # dòng `gia_theo_to` mang khoá `bac` = mã bậc: giá là ô (tổ, bậc). NULL = không chia bậc.
+    bac_gia: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False,

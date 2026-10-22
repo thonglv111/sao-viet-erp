@@ -97,6 +97,10 @@ class SanXuatBatch(Base):
     # như giá: sửa công thức ở danh mục không đổi tiền lần đã ghi. "" = công thức bỏ trống lúc ghi
     # (tiền = giá cố định + SL × đơn giá). NULL = lần ghi trước mg 0431 ⇒ dùng công thức hiện tại.
     cong_thuc_khoan_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ảnh chụp BẬC GIÁ lúc ghi (22/10/2026, mg 0433) `{ma, ten, gom_uv, so_mau, so_mau_pha}` — chỉ
+    # công đoạn chia bậc (Bài in). `ma` None = quy cách lệnh không khớp bậc nào (thiếu giá). NULL =
+    # công đoạn không chia bậc / lần ghi trước mg 0433.
+    bac_khoan_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     mo_ta_loi: Mapped[str | None] = mapped_column(String(500), nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)

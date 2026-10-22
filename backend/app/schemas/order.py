@@ -19,6 +19,7 @@ class OrderLineOut(BaseModel):
     vat_pct_estimate: int
     line_total: int | None
     chiet_khau: int | None = None            # tiền chiết khấu nằm trong line_total (hoàn lại khách)
+    ke_gia: int | None = None                # tiền kê nằm trong line_total (giá bán sau kê)
     cost_snapshot: int | None
     phieu_thanh_phan_id: int | None = None   # pin truy vết ấn phẩm (từ dòng báo giá nguồn)
     nhom: str | None = None                  # nhãn gộp dòng khi IN xác nhận đơn (khớp báo giá)

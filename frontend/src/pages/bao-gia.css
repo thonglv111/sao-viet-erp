@@ -1952,6 +1952,10 @@ select.input {
 /* Bảng dòng báo giá: có chiết khấu là 7 cột — tiêu đề cột số được xuống dòng, ô số bớt đệm cho vừa
    khung; khung quá hẹp thì cuộn ngang thay vì cắt mất cột cuối. */
 .rdx-quote .bg-dong-cuon { overflow-x: auto; overscroll-behavior-x: contain; }
+/* Bảng dòng trải hết bề ngang hai cột của `.g2` (21/10/2026) — cột phải (tổng tiền, hoạt động) xuống
+   ngang hàng Điều khoản. Một cột (≤900px) thì cột phải vẫn lên đầu nhờ `order:-1`. */
+.rdx-quote .g2 > .bg-dong-panel { grid-column: 1 / -1; }
+.rdx-quote .bg-dong-panel table.bg-dong { width: 100%; }
 .rdx-quote table.bg-dong thead th.num { white-space: normal; padding-left: 10px; padding-right: 10px; }
 .rdx-quote table.bg-dong tbody td.num { padding-left: 10px; padding-right: 10px; }
 .rdx-quote table.bg-dong tr.qgrouphd > td.num { white-space: nowrap; }
@@ -2145,3 +2149,7 @@ select.input {
 .rdx-quote .o2tab__tab button + button { border-left: 1px solid var(--rule-soft, #e2e8f0); }
 .rdx-quote .o2tab__tab button.is-on { background: var(--charcoal, #1e293b); color: #fff; }
 .rdx-quote .o2tab__tab button:disabled { cursor: default; opacity: 0.6; }
+
+/* Ô số chỉ xem hai tầng (Chiết khấu / Markup / Kê): % trên, số tiền dưới, không gãy dòng. */
+.rdx-quote .so2 { display: inline-flex; flex-direction: column; align-items: flex-end; white-space: nowrap; line-height: 1.35; }
+.rdx-quote .so2__phu { font-size: 11px; color: var(--ash-2); }

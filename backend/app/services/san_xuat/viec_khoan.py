@@ -30,8 +30,9 @@ from ..lsx_danh_muc_doi import o_lech
 
 #: Ba ô đem so của VIỆC KHOÁN và của MỖI việc phát sinh (§7.2b). Nhãn là câu người đọc trên băng.
 _O_SO = (("ten", "tên việc"), ("don_vi", "đơn vị"), ("don_gia", "đơn giá"))
-#: Cấu hình Khoán của công đoạn còn so thêm GIÁ CỐ ĐỊNH của tổ và CÔNG THỨC (21/10/2026).
-_O_SO_KHOAN = (*_O_SO, ("gia_co_dinh", "giá cố định"), ("cong_thuc", "công thức"))
+#: Cấu hình Khoán của công đoạn còn so thêm GIÁ CỐ ĐỊNH của tổ và CÔNG THỨC (21/10/2026), BẬC GIÁ
+#: (22/10/2026).
+_O_SO_KHOAN = (*_O_SO, ("gia_co_dinh", "giá cố định"), ("cong_thuc", "công thức"), ("bac", "bậc giá"))
 
 
 def _anh_chup(ten, don_vi, don_gia, gia_co_dinh=None) -> dict:
@@ -45,19 +46,111 @@ def _anh_chup(ten, don_vi, don_gia, gia_co_dinh=None) -> dict:
     }
 
 
-def gia_cua_to(khoan, department_id: int | None) -> tuple[float | None, float | None]:
+def gia_cua_to(khoan, department_id: int | None,
+               bac: str | None = None) -> tuple[float | None, float | None]:
     """(giá cố định, đơn giá) của MỘT tổ cho cấu hình Khoán của công đoạn.
 
     Bảng giá theo tổ rỗng ⇒ mọi tổ dùng cả hai giá chung (giá cố định chung, Đợt 2). Đã khai dòng
-    nào thì tổ vắng mặt là THIẾU GIÁ ⇒ `(None, None)` — không lấy giá chung đoán thay."""
+    nào thì tổ vắng mặt là THIẾU GIÁ ⇒ `(None, None)` — không lấy giá chung đoán thay.
+
+    Công đoạn CHIA BẬC (22/10/2026): giá là ô (tổ, `bac`). Không có bậc (lệnh không khớp bậc nào)
+    hoặc ô trống ⇒ thiếu giá; giá chung không dùng."""
     bang = khoan.gia_theo_to or []
-    if not bang:
+    if khoan.bac_gia:
+        if not bac:
+            return None, None
+        bang = [r for r in bang if r.get("bac") == bac]
+    elif not bang:
         return float(khoan.gia_co_dinh or 0), float(khoan.unit_price)
     for r in bang:
         if department_id is not None and int(r.get("department_id") or 0) == int(department_id):
             don_gia = r.get("don_gia")
             return float(r.get("gia_co_dinh") or 0), (None if don_gia is None else float(don_gia))
     return None, None
+
+
+def _mau_lenh(qc: dict | None) -> tuple[float, float]:
+    """(số màu, số màu pha) của quy cách lệnh / bài để chọn bậc.
+
+    Số màu = SỐ KẼM MỘT TAY, đúng chip `so_mau` bên Tính giá (chủ chốt 22/10/2026: "phải giống số
+    kẽm như tính giá, sau này sai sửa cho dễ") — cùng hàm `dem_mau_cong_thuc` qua `ngu_canh_lenh`:
+    1 mặt và tự trở / trở nhíp đếm hợp mực, AB đếm hai mặt cộng lại (AB 4/4 ra 8)."""
+    from ..bien_cong_thuc import ngu_canh_lenh
+
+    ctx = ngu_canh_lenh(qc or {})
+    return float(ctx.get("so_mau") or 0), float(ctx.get("so_mau_pha") or 0)
+
+
+def _khop_bac(b: dict, so_mau: float, pha: float, tuy_chon: dict) -> bool:
+    if so_mau <= 0:
+        return False
+    if b.get("mau_tu") is not None and so_mau < float(b["mau_tu"]):
+        return False
+    if b.get("mau_den") is not None and so_mau > float(b["mau_den"]):
+        return False
+    if b.get("pha") and (pha > 0) != (b["pha"] == "co"):
+        return False
+    if b.get("tuy_chon_ma") and b.get("tuy_chon_co"):
+        bat = float(tuy_chon.get(b["tuy_chon_ma"]) or 0) != 0
+        if bat != (b["tuy_chon_co"] == "co"):
+            return False
+    return True
+
+
+def anh_bac(khoan, qc: dict | None, tuy_chon: dict | None) -> dict | None:
+    """Bậc giá của một lần ghi — ảnh chụp `{ma, ten, gom_uv, so_mau, so_mau_pha}`.
+
+    Bậc xét từ trên xuống, bậc khớp ĐẦU TIÊN thắng. Không bậc nào khớp (8 màu, việc không neo lệnh)
+    ⇒ `ma`/`ten` None: vẫn ghi được sản lượng, lương báo thiếu giá kèm số màu. Công đoạn không chia
+    bậc ⇒ None."""
+    if khoan is None or not khoan.bac_gia:
+        return None
+    so_mau, pha = _mau_lenh(qc)
+    tc = dict(tuy_chon or {})
+    for b in khoan.bac_gia:
+        if _khop_bac(b, so_mau, pha, tc):
+            return {"ma": b["ma"], "ten": b.get("ten"), "gom_uv": bool(b.get("gom_uv")),
+                    "so_mau": so_mau, "so_mau_pha": pha}
+    return {"ma": None, "ten": None, "gom_uv": False, "so_mau": so_mau, "so_mau_pha": pha}
+
+
+def bac_theo_chon(khoan, qc: dict | None, department_id: int | None) -> list[dict]:
+    """Giá của tổ ứng với MỌI tổ hợp bật/tắt của các tuỳ chọn mà bậc giá xét tới — hộp ghi đổi giá
+    ngay khi thợ tick (Mực UV ⇒ bậc Pantone UV), khỏi gọi lại máy chủ. Phần tử đầu = mọi tuỳ chọn
+    tắt. Công đoạn không chia bậc ⇒ []."""
+    if khoan is None or not khoan.bac_gia:
+        return []
+    mas = list(dict.fromkeys(b["tuy_chon_ma"] for b in khoan.bac_gia if b.get("tuy_chon_ma")))
+    ra = []
+    for n in range(2 ** len(mas)):
+        chon = {ma: float((n >> i) & 1) for i, ma in enumerate(mas)}
+        bac = anh_bac(khoan, qc, chon)
+        gia_cd, don_gia = gia_cua_to(khoan, department_id, bac["ma"])
+        ra.append({"chon": chon, "bac_ma": bac["ma"], "bac_ten": bac["ten"],
+                   "so_mau": bac["so_mau"], "so_mau_pha": bac["so_mau_pha"],
+                   "gia_co_dinh": float(gia_cd or 0), "don_gia": float(don_gia or 0),
+                   "thieu_gia": don_gia is None})
+    return ra
+
+
+def mo_ta_mau(bac: dict | None) -> str:
+    """"lệnh 4 màu, 1 màu pha" — câu cho thợ / kế toán, số màu là màu MỘT lượt máy."""
+    if not bac:
+        return ""
+    so_mau, pha = float(bac.get("so_mau") or 0), float(bac.get("so_mau_pha") or 0)
+    if so_mau <= 0:
+        return "lệnh chưa có số màu in"
+    return f"lệnh {so_mau:g} màu" + (f", {pha:g} màu pha" if pha > 0 else "")
+
+
+def quy_cach_cua_viec(db: Session, cv) -> dict:
+    """Bộ biến quy cách của lệnh / bài ghép mà công việc chạy — đúng đường tính lương dùng
+    (`KhoanKyService._quy_cach`), để bậc chọn lúc ghi và lúc tính là một."""
+    from ...repositories.khoan_ky_repo import KhoanKyRepository
+    from ..khoan_ky import KhoanKyService
+
+    lenh = KhoanKyRepository(db).lenh_theo_id({int(cv.lsx_id)} if cv.lsx_id else set())
+    return KhoanKyService(db)._quy_cach(cv, lenh, {})
 
 
 def gia_ps_cua_to(ps, department_id: int | None) -> float | None:
@@ -71,10 +164,27 @@ def gia_ps_cua_to(ps, department_id: int | None) -> float | None:
     return None
 
 
-def _anh_khoan_cd_song(khoan, department_id: int | None) -> dict:
-    gia_cd, don_gia = gia_cua_to(khoan, department_id)
+def _anh_khoan_cd_song(khoan, department_id: int | None, bac: dict | None = None) -> dict:
+    gia_cd, don_gia = gia_cua_to(khoan, department_id, (bac or {}).get("ma"))
     return {**_anh_chup(khoan.cong_doan.ten, khoan.unit, don_gia, gia_cd),
-            "cong_thuc": (khoan.cong_thuc_khoan or "").strip()}
+            "cong_thuc": (khoan.cong_thuc_khoan or "").strip(),
+            "bac": (bac or {}).get("ten")}
+
+
+def _tuy_chon_cua_me(b) -> dict[str, float]:
+    return {t["ma"]: t.get("gia_tri") or 0 for t in (b.tuy_chon_khoan or []) if t.get("ma")}
+
+
+def _bac_song(db: Session, khoan, b, cv=None) -> dict | None:
+    """Bậc "nếu ghi bây giờ" của một lần ghi: quy cách hiện tại của lệnh + tuỳ chọn đã chọn."""
+    if not khoan.bac_gia:
+        return None
+    if cv is None:
+        from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
+
+        cv = SanXuatSanLuongRepository(db).cong_viec(b.cong_viec_id)
+    qc = quy_cach_cua_viec(db, cv) if cv is not None else {}
+    return anh_bac(khoan, qc, _tuy_chon_cua_me(b))
 
 
 def _anh_ps_cd_song(ps, department_id: int | None) -> dict:
@@ -136,6 +246,7 @@ def danh_sach_cua_to(db: Session, *, department_id: int | None, tim: str | None 
 def chuan_hoa_khi_ghi(
     db: Session, *, khoan, ten_cong_doan: str | None, phat_sinh: list[dict] | None,
     department_id: int | None = None, tuy_chon: dict[str, float] | None = None,
+    qc: dict | None = None,
 ) -> tuple[dict, list[SanXuatBatchPhatSinh]]:
     """Chụp cấu hình Khoán của công đoạn vào mẻ đang ghi — giá CỦA TỔ `department_id`.
 
@@ -146,6 +257,9 @@ def chuan_hoa_khi_ghi(
 
     `tuy_chon` = giá trị thợ chọn cho các "tuỳ chọn khi ghi" của công đoạn (Đợt 2), chụp thành
     `tuy_chon_khoan` — xem `anh_chup_tuy_chon`.
+
+    `qc` = quy cách của lệnh / bài (`quy_cach_cua_viec`) — công đoạn chia bậc chọn bậc từ đây cộng
+    tuỳ chọn, chụp vào `bac_khoan_snapshot`, giá là ô (tổ, bậc).
     """
     if khoan is None:
         if tuy_chon:
@@ -161,9 +275,12 @@ def chuan_hoa_khi_ghi(
             "gia_co_dinh_khoan_snapshot": None,
             "tuy_chon_khoan": None,
             "cong_thuc_khoan_snapshot": None,
+            "bac_khoan_snapshot": None,
         }, [])
 
-    gia_cd, don_gia = gia_cua_to(khoan, department_id)
+    tc_anh = anh_chup_tuy_chon(khoan, tuy_chon)
+    bac = anh_bac(khoan, qc, {t["ma"]: t["gia_tri"] for t in (tc_anh or [])})
+    gia_cd, don_gia = gia_cua_to(khoan, department_id, (bac or {}).get("ma"))
     o_snapshot = {
         "piece_rate_id": None,
         "khoan_cong_doan_id": khoan.id,
@@ -171,9 +288,10 @@ def chuan_hoa_khi_ghi(
         "don_vi_khoan_snapshot": khoan.unit,
         "don_gia_khoan_snapshot": don_gia,
         "gia_co_dinh_khoan_snapshot": gia_cd,
-        "tuy_chon_khoan": anh_chup_tuy_chon(khoan, tuy_chon),
+        "tuy_chon_khoan": tc_anh,
         # Công thức chụp như giá (chủ chốt 21/10/2026). Bỏ trống ⇒ "" (khác NULL của lần ghi cũ).
         "cong_thuc_khoan_snapshot": (khoan.cong_thuc_khoan or "").strip(),
+        "bac_khoan_snapshot": bac,
     }
 
     hop_le = {ps.id: ps for ps in khoan.viec_phat_sinh}
@@ -238,7 +356,22 @@ def _anh_khoan_cua_me(b, song: dict | None = None) -> dict:
                     getattr(b, "gia_co_dinh_khoan_snapshot", None))
     ct = getattr(b, "cong_thuc_khoan_snapshot", None)
     anh["cong_thuc"] = (song or {}).get("cong_thuc") if ct is None else ct.strip()
+    anh["bac"] = (getattr(b, "bac_khoan_snapshot", None) or {}).get("ten")
     return anh
+
+
+def chup_lai_bac(db: Session, b, khoan, cv) -> bool:
+    """Tuỳ chọn của lần ghi vừa đổi (Sửa số) ⇒ chọn lại bậc. Bậc đổi thì giá lấy ô (tổ, bậc MỚI)
+    ở danh mục hiện tại — bậc cũ không còn đúng việc thợ đã làm. Trả True nếu bậc đổi."""
+    if khoan is None or not khoan.bac_gia:
+        return False
+    moi = _bac_song(db, khoan, b, cv)
+    if (moi or {}).get("ma") == (b.bac_khoan_snapshot or {}).get("ma"):
+        return False
+    b.bac_khoan_snapshot = moi
+    b.gia_co_dinh_khoan_snapshot, b.don_gia_khoan_snapshot = gia_cua_to(
+        khoan, cv.department_id, (moi or {}).get("ma"))
+    return True
 
 
 def _anh_ps_cua_me(r) -> dict:
@@ -288,7 +421,7 @@ def danh_muc_doi(
                 "truong": "khoan_cong_doan", "cu": None, "moi": None, "mat": True,
             }]
         ra: list[dict] = []
-        anh_song = _anh_khoan_cd_song(khoan, department_id)
+        anh_song = _anh_khoan_cd_song(khoan, department_id, _bac_song(db, khoan, b))
         for o in o_lech(_anh_khoan_cua_me(b, anh_song), anh_song, _O_SO_KHOAN):
             ra.append({**o, "nhan": _nhan_o(khoan.cong_doan.ten, o), "mat": False})
         song = {int(ps.id): ps for ps in khoan.viec_phat_sinh}
@@ -350,8 +483,10 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
         if khoan is None:
             raise ValueError("Cấu hình Khoán của công đoạn không còn tồn tại.")
         doi: list[str] = []
-        moi = _anh_khoan_cd_song(khoan, cv.department_id)
+        bac = _bac_song(db, khoan, b, cv)
+        moi = _anh_khoan_cd_song(khoan, cv.department_id, bac)
         if o_lech(_anh_khoan_cua_me(b, moi), moi, _O_SO_KHOAN):
+            b.bac_khoan_snapshot = bac
             b.ten_khoan_snapshot = moi["ten"]
             b.don_vi_khoan_snapshot = moi["don_vi"]
             b.don_gia_khoan_snapshot = moi["don_gia"]

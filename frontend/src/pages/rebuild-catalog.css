@@ -1626,7 +1626,7 @@
 .rc-khoan { display: flex; flex-direction: column; gap: 16px; }
 .rc-khoan__section { padding: 16px 20px; }
 .rc-khoan__price-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px; }
-.rc-khoan__note { margin: -2px 0 12px; color: var(--ash, #6f756f); font-size: 12px; }
+.rc-khoan__note { margin: 0; color: var(--ash, #6f756f); font-size: 12px; line-height: 1.5; }
 .rc-khoan__note--nhac { margin: 6px 0 0; color: var(--tt-vang-fg, #b45309); }
 @media (max-width: 680px) {
   .rc-khoan__price-grid { grid-template-columns: 1fr; }
@@ -3304,6 +3304,168 @@ button.rc-formula__nhan--nut.is-chon {
 .rc-formula__bac-btn--xoa { border-color: #fecaca; color: #b91c1c; }
 .rc-formula__bac-btn--xoa:hover { background: #fef2f2; }
 
+/* PHƯƠNG ÁN C (22/10/2026 — docs/mockups/o-cong-thuc-de-doc-3-phuong-an.html): dòng khung
+   "Kết quả = ( A + B ) × C", mỗi phần một khối có chữ, chuỗi if thành bảng Khi | Lấy, các bậc giống
+   nhau gom thành phần chung P. Chỉ đổi cách VẼ — token và con trỏ y như cũ. */
+.rc-formula__khung {
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.rc-formula__khung-nhan {
+  font-family: var(--ff-sans);
+  font-size: 12.5px;
+  color: #64748b;
+  margin-right: 2px;
+}
+.rc-formula__phan-chu {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-family: var(--ff-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd;
+}
+.rc-formula__phan-chu.m1 { background: #fefce8; color: #a16207; border-color: #fde68a; }
+.rc-formula__phan-chu.m2 { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
+.rc-formula__phan-chu.m3 { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.rc-formula__phan-chu.is-sang { box-shadow: 0 0 0 2px currentColor; }
+.rc-formula__phan {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  padding: 6px 4px;
+  border-bottom: 1px solid #f1f5f9;
+  border-radius: 6px;
+}
+.rc-formula__phan:last-child { border-bottom: 0; }
+.rc-formula__phan.is-sang { background: #f8fafc; }
+.rc-formula__phan > .rc-formula__phan-chu { margin-top: 1px; }
+.rc-formula__phan-than {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Bảng Khi | Lấy — một lưới chung để cột Khi thẳng hàng giữa các bậc. Không `overflow:hidden`:
+   danh sách gợi ý biến không nằm trong này nhưng nút bậc nở ra thì vẫn phải thấy. */
+.rc-formula__bang {
+  display: grid;
+  grid-template-columns: fit-content(45%) minmax(0, 1fr) auto;
+  border: 1px solid #e9d5ff;
+  border-radius: 8px;
+  margin: 2px 0;
+}
+.rc-formula__bang > div { padding: 4px 10px; border-top: 1px solid #f1f5f9; min-width: 0; }
+.rc-formula__bang > .rc-formula__bang-hd {
+  border-top: 0;
+  background: #faf5ff;
+  color: #7e22ce;
+  font-family: var(--ff-sans);
+  font-size: 11.5px;
+  padding: 5px 10px;
+}
+.rc-formula__bang > .rc-formula__bang-hd:first-child { border-radius: 8px 0 0 0; }
+.rc-formula__bang > .rc-formula__bang-hd:nth-child(3) { border-radius: 0 8px 0 0; }
+.rc-formula__bang-khi .rc-formula__row.is-dieu-kien { background: none; }
+.rc-formula__bang-con-lai {
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  color: #7e22ce;
+  display: flex;
+  align-items: center;
+}
+.rc-formula__bang-nut { display: flex; align-items: center; justify-content: flex-end; }
+.rc-formula__bang-nut .rc-formula__nhan-cum { padding-left: 0; }
+
+/* Phần chung P */
+.rc-formula__p {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.rc-formula__bang > .rc-formula__bang-p {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  background: #f8fbff;
+}
+.rc-formula__bang-p .rc-formula__p { cursor: default; }
+.rc-formula__bang-p-nhan { font-family: var(--ff-sans); font-size: 12px; color: #0369a1; }
+.rc-formula__bang-p-ct { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.rc-formula__bang-p-o {
+  flex: 1 1 320px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  font: 12.5px ui-monospace, Consolas, monospace;
+}
+.rc-formula__bang-p-loi { flex-basis: 100%; font-family: var(--ff-sans); font-size: 12px; color: #b91c1c; }
+/* Bậc đang sửa: phần trùng với P in mờ, mắt chỉ còn bám phần riêng của bậc. */
+.rc-formula__chip-token.is-chung { opacity: 0.4; }
+/* Chữ `if`, ngoặc và dấu phẩy của bảng Khi | Lấy — cột đã nói thay, không vẽ (vẫn là token thật). */
+.rc-formula__chip-token.is-an { display: none; }
+/* Bảng nằm trong ô Lấy của bảng khác: không hàng tiêu đề, viền nhạt, cột Khi co theo chữ. */
+.rc-formula__bang.is-con {
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  border-color: #f3e8ff;
+  margin: 0;
+}
+.rc-formula__bang.is-con > div:nth-child(-n+3) { border-top: 0; }
+.rc-formula__bang > .rc-formula__bang-them {
+  grid-column: 1 / -1;
+  padding: 2px 6px;
+}
+.rc-formula__bang-them button,
+.rc-formula__them-phan button {
+  border: 0;
+  background: none;
+  padding: 3px 4px;
+  font-family: var(--ff-sans);
+  font-size: 12px;
+  color: var(--rust, #c5400a);
+  cursor: pointer;
+}
+.rc-formula__bang-them button:hover,
+.rc-formula__them-phan button:hover { text-decoration: underline; }
+.rc-formula__them-phan {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 0 4px;
+}
+.rc-formula__them-phan-nhan { font-family: var(--ff-sans); font-size: 12px; color: #64748b; margin-right: 2px; }
+.rc-formula__them-phan button {
+  min-width: 26px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.rc-formula__them-phan button:hover { text-decoration: none; background: #fff7ed; border-color: #fdba74; }
+
 /* Hai chế độ xem + nút Sao chép trên hàng tên ô. */
 .rc-formula__che-do {
   display: inline-flex;
@@ -4257,9 +4419,76 @@ button.rc-formula__nhan--nut.is-chon {
   font-size: 11.5px;
   line-height: 1.4;
 }
-/* Bảng giá theo tổ của tab Khoán (21/10/2026) — mỗi tổ phụ trách một hàng, cột việc phát sinh kéo ngang. */
+/* ── Tab Khoán: bốn khối khai giá dạng LƯỚI ô liền (phương án C, 22/10/2026) ──
+   Mỗi bảng là một lưới như Excel: ô nhập không viền riêng, ô đang gõ viền xanh trong ô, nút
+   "＋ Thêm" là hàng cuối dính vào lưới. Không `overflow: hidden` ở lưới: menu chọn đơn vị phải thò
+   ra ngoài. `:nth-child(n)` chỉ để thắng luật căn cột của `.rc-bands--vps` (cùng độ đặc hiệu). */
+.rc-khoan__luoi { padding: 16px 18px; }
+.rc-khoan__dau { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.rc-khoan__ten { font-size: 14.5px; font-weight: 500; color: var(--ink, #14130f); }
+.rc-khoan__goi { font-size: 12.5px; color: var(--ash, #6f756f); }
+.rc-khoan__luoi .rc-bands { gap: 0; }
+.rc-khoan__luoi .rc-bands__table {
+  width: 100%; border: 1px solid var(--rule, #d8d2c0); border-radius: 8px;
+  border-collapse: separate; border-spacing: 0; table-layout: auto;
+}
+.rc-khoan__luoi .rc-bands:has(> .rc-bands__add) > .rc-bands__table { border-radius: 8px 8px 0 0; }
+.rc-khoan__luoi .rc-bands__table th:nth-child(n) {
+  background: #f6f7f9; color: var(--ash, #6f756f); font-size: 12.5px; font-weight: 400;
+  text-transform: none; letter-spacing: 0; white-space: nowrap; text-align: left; width: auto;
+  padding: 8px 12px; border-bottom: 1px solid var(--rule, #d8d2c0);
+  border-left: 1px solid var(--rule-soft, #e8e3d3);
+}
+.rc-khoan__luoi .rc-bands__table th:first-child { border-left: 0; border-top-left-radius: 8px; }
+.rc-khoan__luoi .rc-bands__table th:last-child { border-top-right-radius: 8px; }
+.rc-khoan__luoi .rc-bands__table th.so:nth-child(n) { text-align: right; padding-right: 40px; }
+.rc-khoan__luoi .rc-bands__table td:nth-child(n) {
+  padding: 0; height: 38px; border-top: 1px solid var(--rule-soft, #e8e3d3);
+  border-left: 1px solid var(--rule-soft, #e8e3d3);
+}
+.rc-khoan__luoi .rc-bands__table td:first-child { border-left: 0; }
+.rc-khoan__luoi .rc-bands__table tbody tr:first-child td { border-top: 0; }
+.rc-khoan__luoi .rc-bands__table tbody tr:hover { background: transparent; }
+/* Ô nhập trong lưới: bỏ viền + bo, cao bằng ô. Lề phải để nguyên (luật ô có hậu tố "đ" chừa 40px). */
+.rc-khoan__luoi .rc-bands__table .rc-input {
+  border: 0; border-radius: 0; background-color: transparent; box-shadow: none;
+  height: 38px; padding-top: 0; padding-bottom: 0; padding-left: 12px; font-size: 13.5px;
+}
+.rc-khoan__luoi .rc-bands__table .rc-input:focus {
+  background-color: #fff; box-shadow: inset 0 0 0 2px var(--focus, #3b82f6);
+}
+.rc-khoan__luoi .rc-bands__table .rc-input::placeholder { color: var(--ash-3, #94a3b8); }
+.rc-khoan__luoi .rc-input-suffix { font-weight: 400; color: var(--ash-3, #94a3b8); }
+.rc-khoan__luoi .rc-bands__table span.rc-input { font-weight: 400 !important; }
+.rc-khoan__o-3 { width: 33.33%; }
+.rc-khoan__luoi .rc-bands__table td.rc-khoan__to:nth-child(n) { padding: 0 12px; white-space: nowrap; background: #fbfbfc; }
+.rc-khoan__luoi .rc-bands__table .rc-khoan__xoa:nth-child(n) { width: 40px; text-align: center; }
+.rc-khoan__luoi .rc-bands__del { padding: 6px; }
+.rc-khoan__luoi .rc-bands__empty { font-style: normal; text-align: left; padding: 10px 12px; height: auto; }
+.rc-khoan__luoi .rc-bands__add {
+  align-self: stretch; justify-content: flex-start; margin: 0; padding: 9px 12px;
+  border: 1px solid var(--rule, #d8d2c0); border-top: 0; border-radius: 0 0 8px 8px;
+  background: #fbfbfc; color: var(--rust, #c5400a); font-weight: 400; font-size: 13px;
+}
+.rc-khoan__luoi .rc-bands__add:hover { background: #f6f7f9; border-color: var(--rule, #d8d2c0); }
+/* Cột của từng lưới. Giá theo tổ: cột tiền 150px, cột tổ giãn; nhiều việc phát sinh thì kéo ngang. */
 .rc-bands--gia-to { overflow-x: auto; }
-.rc-bands--gia-to .rc-bands__table { min-width: 520px; }
-.rc-bands--gia-to td:first-child { white-space: nowrap; }
-.rc-bands--gia-to .rc-input-wrapper { min-width: 110px; }
+.rc-khoan__luoi .rc-bands--gia-to th.so:nth-child(n) { width: 150px; }
+.rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(2) { width: 140px; }
+.rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(3) { width: 34%; }
+.rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(4),
+.rc-khoan__luoi .rc-bands--vps th:nth-child(4) { width: 40px; }
+.rc-khoan__luoi .rc-bands--vps th:nth-child(2) { width: 160px; text-align: right; padding-right: 40px; }
+.rc-khoan__luoi .rc-bands--vps th:nth-child(3) { width: 30%; }
 .rc-khoan__mat { color: var(--ash, #6f756f); font-style: italic; }
+/* Bậc giá (Bài in, 22/10/2026): khối khai bậc + lưới giá bậc × tổ, mỗi tổ hai cột. */
+.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(2),
+.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(3) { width: 84px; }
+.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(4) { width: 150px; }
+.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(6) { width: 110px; }
+.rc-khoan__luoi .rc-bands--bac-gia th:nth-child(7) { width: 40px; }
+.rc-khoan__luoi .rc-bands__table td.rc-khoan__chon:nth-child(n) { text-align: center; }
+.rc-khoan__luoi .rc-bands--gia-bac th.so:nth-child(n) { width: 120px; min-width: 120px; }
+.rc-khoan__luoi .rc-bands--gia-bac th.rc-khoan__dau-to:nth-child(n) { text-align: center; }
+.rc-khoan__luoi .rc-bands--gia-bac thead tr + tr th:first-child { border-left: 1px solid var(--rule-soft, #e8e3d3); }
+.rc-khoan__luoi .rc-bands--gia-bac + .rc-bands--gia-to { margin-top: 12px; }

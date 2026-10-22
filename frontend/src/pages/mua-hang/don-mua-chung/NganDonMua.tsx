@@ -76,7 +76,10 @@ const LOAI_TEP: Record<PurchaseAttachmentKind, string> = {
 
 /** Các việc của Thu mua trên đợt giao — thiếu cả khối ⇒ ngăn chỉ xem (Kế toán). */
 export type ViecDot = {
+  /** Ghi / sửa / xoá đợt — đòi cả ô tạo yêu cầu kho, vì lưu đợt là gửi kho luôn (20/10/2026). */
   ghiDuoc: boolean;
+  /** Gán hoá đơn cho nhiều đợt — chỉ đổi số hoá đơn, không đụng kho nên không đòi ô kho. */
+  ganHoaDonDuoc: boolean;
   nhapKhoDuoc: boolean;
   onSua: (dot: PurchaseDeliveryRow) => void;
   onXoa: (dot: PurchaseDeliveryRow) => void;
@@ -682,7 +685,7 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
   }
   return (
     <>
-      {viecDot?.ghiDuoc && dots.length > 1 && (
+      {viecDot?.ganHoaDonDuoc && dots.length > 1 && (
         <div className="mh-thanh">
           <span className="mh-gian" />
           <button type="button" className="mh-nut" onClick={viecDot.onGanHoaDon}>Gán một hoá đơn cho nhiều đợt</button>
@@ -721,6 +724,8 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
               const moRa = mo === d.id;
               const anh = row.attachments.filter((a) => a.delivery_id === d.id && a.kind === "hoa_don");
               const khoa = d.paid_amount > 0;
+              // Kho đã lập phiếu cho yêu cầu nhập của đợt ⇒ số đã vào tay thủ kho, sửa đợt là lệch.
+              const khoaKho = !khoa && d.kho_da_lap_phieu;
               return (
                 <Fragment key={d.id}>
                   <tr className={`lds-dong${moRa ? " is-tick" : ""}`} onClick={() => setMo(moRa ? null : d.id)}
@@ -766,7 +771,7 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                           )}
                         </span>
                       )}
-                      {viecDot?.ghiDuoc && !khoa && (
+                      {viecDot?.ghiDuoc && !khoa && !khoaKho && (
                         <>
                           <button type="button" className="mh-lk" style={{ marginLeft: 12 }} onClick={() => viecDot.onSua(d)}>Sửa</button>
                           <button type="button" className="mh-lk" style={{ marginLeft: 10 }} onClick={() => viecDot.onXoa(d)}>Xoá</button>
@@ -776,6 +781,12 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                         <span className="mh-mo3" style={{ marginLeft: 12 }}
                           title="Đợt đã có phiếu chi, huỷ phiếu chi trước rồi mới sửa hoặc xoá được.">
                           Đã chi, khoá sửa
+                        </span>
+                      )}
+                      {viecDot?.ghiDuoc && khoaKho && (
+                        <span className="mh-mo3" style={{ marginLeft: 12 }}
+                          title="Kho đã lập phiếu nhập cho đợt này, huỷ phiếu bên kho trước rồi mới sửa hoặc xoá được.">
+                          Kho đã lập phiếu, khoá sửa
                         </span>
                       )}
                     </td>

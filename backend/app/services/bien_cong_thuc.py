@@ -205,6 +205,11 @@ _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      "hồ sơ lương + giờ bắt đầu / kết thúc của lần ghi", (LOAI_KHOAN,)),
     ("tu_tro", "Tự trở", "1 khi quy cách in là tự trở hoặc trở nhíp, ngược lại 0", "0/1",
      "quy cách in của lệnh (bài ghép lấy của bài)", (LOAI_KHOAN,)),
+    # 22/10/2026 — bậc giá (Bài in): bậc Pantone UV có giá riêng đã gồm mực UV, công thức đọc chip này
+    # để khỏi nhân đôi lần nữa.
+    ("gia_gom_uv", "Giá đã gồm UV",
+     "1 khi bậc giá của lần ghi đã gồm mực UV (vd bậc Pantone UV), ngược lại 0", "0/1",
+     "bậc giá chụp lúc ghi", (LOAI_KHOAN,)),
 )
 
 BIEN: tuple[dict, ...] = tuple(

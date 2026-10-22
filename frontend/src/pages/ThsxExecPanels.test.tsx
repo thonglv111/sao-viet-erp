@@ -115,6 +115,26 @@ describe("Tuỳ chọn khi ghi (Đợt 2)", () => {
     expect(taoBatch.mock.calls[0][0]).not.toHaveProperty("tuy_chon");
   });
 
+  it("công đoạn chia bậc: tick Mực UV đổi bậc và giá ngay trong hộp", async () => {
+    const user = userEvent.setup();
+    const bacChon = (uv: number, ten: string, cd: number, dg: number) => ({
+      chon: { muc_uv: uv }, bac_ma: uv ? "b3" : "b2", bac_ten: ten, so_mau: 2, so_mau_pha: 1,
+      gia_co_dinh: cd, don_gia: dg, thieu_gia: false,
+    });
+    mo({
+      id: 9, ten: "Bài in", don_gia: 30, gia_co_dinh: 225000, don_vi: "to", don_vi_ten: "tờ", phat_sinh: [],
+      tuy_chon: [{ ma: "muc_uv", ten: "Mực UV", kieu: "co_khong", goi_y: null }],
+      bac_theo_chon: [bacChon(0, "1–2 màu Pantone", 225000, 30), bacChon(1, "1–2 màu Pantone UV", 450000, 40)],
+      so_mau: 2, so_mau_pha: 1,
+    });
+    expect(screen.getByText("1–2 màu Pantone")).toBeInTheDocument();
+    expect(screen.getByText("lệnh 2 màu, 1 màu pha")).toBeInTheDocument();
+    expect(screen.getByText("225.000 đ một lần ghi + 30 đ một tờ")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Mực UV"));
+    expect(screen.getByText("1–2 màu Pantone UV")).toBeInTheDocument();
+    expect(screen.getByText("450.000 đ một lần ghi + 40 đ một tờ")).toBeInTheDocument();
+  });
+
   it("thẻ ở lần ghi cùng chữ ngăn soi, bỏ mục bằng 0", () => {
     expect(nhanTuyChon([
       { ma: "trung_khuon", ten: "Trùng khuôn", kieu: "co_khong", gia_tri: 1 },

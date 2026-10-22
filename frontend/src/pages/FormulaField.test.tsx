@@ -267,15 +267,16 @@ describe("bậc thang, hai chế độ, dán, hoàn tác", () => {
     expect(ct()).toBe("* dai_in");
   });
 
-  it("bấm nhãn điều kiện ⇒ chọn bậc; Nhân đôi bậc rồi Xoá bậc — IF lồng vẫn hợp lệ", async () => {
+  it("chuỗi if thành bảng Khi | Lấy; bấm nút bậc ⇒ chọn bậc; Nhân đôi bậc rồi Xoá bậc — IF lồng vẫn hợp lệ", async () => {
     const user = userEvent.setup();
     render(<Harness dau={BAC} />);
-    expect(screen.getByText("còn lại")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "điều kiện 2" }));
+    expect(screen.getByText("Khi")).toBeInTheDocument();
+    expect(screen.getByText("Còn lại")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "bậc 2" }));
     await user.click(screen.getByRole("button", { name: "Nhân đôi bậc" }));
     expect(ct()).toBe(
       "if ( dai_in <= 3000 , 1 , if ( dai_in <= 10000 , 2 , if ( dai_in <= 10000 , 2 , 3 ) ) )");
-    await user.click(screen.getByRole("button", { name: "điều kiện 1" }));
+    await user.click(screen.getByRole("button", { name: "bậc 1" }));
     await user.click(screen.getByRole("button", { name: "Xoá bậc" }));
     expect(ct()).toBe("if ( dai_in <= 10000 , 2 , if ( dai_in <= 10000 , 2 , 3 ) )");
   });
@@ -293,5 +294,70 @@ describe("bậc thang, hai chế độ, dán, hoàn tác", () => {
     render(<Harness dau="dai_in * 700000" />);
     expect(document.querySelector(".rc-formula__chip-token--num")?.textContent).toBe("700 000");
     expect(ct()).toBe("dai_in * 700000");
+  });
+});
+
+// PHƯƠNG ÁN C (22/10/2026 — docs/mockups/o-cong-thuc-de-doc-3-phuong-an.html).
+describe("tách phần và phần chung", () => {
+  afterEach(() => { localStorage.clear(); });
+
+  const BIEN_C = ["chay_tiep", "gia_co_dinh", "sl_ghi", "tu_tro", "don_gia_khoan", "metaline", "muc_uv",
+    "sl_vao", "so_mau_in", "so_mau_pha", "so_kem"];
+  const KHOAN = "( ( 1 - chay_tiep ) * gia_co_dinh + max ( 0 , sl_ghi * ( 1 + tu_tro ) - ( 1 - chay_tiep ) * 3000 ) "
+    + "* don_gia_khoan ) * if ( metaline > 0 , 3 , if ( muc_uv > 0 , 2 , 1 ) )";
+  const bac = (a: string, b: string) => "490000 * ( so_mau_in - so_mau_pha ) + ( sl_vao - 3000 ) * "
+    + `( ${a} * ( so_mau_in - so_mau_pha ) + so_mau_pha * ${b} ) + so_mau_pha * 950000 + so_kem * 150000`;
+  const IN02 = "if ( sl_vao <= 3000 , 490000 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 950000 + 150000 * so_kem , "
+    + `if ( sl_vao <= 10000 , ${bac("130", "260")} , if ( sl_vao <= 20000 , ${bac("123", "250")} , ${bac("113", "230")} ) ) )`;
+
+  it("công thức dài ⇒ dòng khung Kết quả = ( A + B ) × C; bấm chữ B rồi gõ ⇒ chèn vào ĐẦU phần B", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+    expect(screen.getAllByText("B")).toHaveLength(2);       // ở dòng khung + đầu khối phần B
+    fireEvent.mouseDown(screen.getAllByText("B")[0]);
+    await user.type(o(), "2");
+    await user.keyboard("*");
+    expect(ct()).toContain("gia_co_dinh + 2 * max ( 0");
+  });
+
+  it("các bậc giống nhau ⇒ dòng P; Sửa phần chung áp cho mọi bậc", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={IN02} bien={BIEN_C} />);
+    expect(screen.getByText("phần chung, có ở mọi bậc")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sửa phần chung" }));
+    const oP = screen.getByRole("textbox", { name: "Sửa phần chung" }) as HTMLInputElement;
+    expect(oP.value).toBe("490000 * (so_mau_in - so_mau_pha) + so_mau_pha * 950000 + 150000 * so_kem");
+    await user.clear(oP);
+    await user.type(oP, "490000 * (so_mau_in - so_mau_pha) + so_mau_pha * 960000 + 150000 * so_kem{Enter}");
+    expect(ct()?.match(/960000/g)).toHaveLength(4);
+    expect(ct()).not.toContain("950000");
+  });
+
+  it("bảng giấu chữ if / ngoặc / dấu phẩy; ← đi qua chúng không dừng, Backspace không xoá chúng", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau="if ( dai_in <= 3000 , 1 , 2 )" />);
+    expect(document.querySelectorAll(".rc-formula__chip-token.is-an")).toHaveLength(5);
+    await user.click(o());
+    await user.keyboard("{Home}{Delete}");                  // Home ⇒ trước `if`; Delete chỉ bước qua khung
+    expect(ct()).toBe("if ( dai_in <= 3000 , 1 , 2 )");
+    await user.keyboard("{Home}{ArrowRight}");              // qua `if (` giấu + đúng một chip `dai_in`
+    await user.type(o(), "9");
+    await user.tab();
+    expect(ct()).toBe("if ( dai_in 9 <= 3000 , 1 , 2 )");
+    await user.click(o());
+    await user.keyboard("{End}{Backspace}{Backspace}");     // lần đầu chỉ bước qua `)`, lần hai xoá số 2
+    expect(ct()).toBe("if ( dai_in 9 <= 3000 , 1 , )");
+  });
+
+  it("Thêm phần (−) ⇒ hiện phần D rỗng, gõ vào là thành D", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    await user.click(screen.getByTitle("Trừ đi phần D ở cuối công thức"));
+    expect(screen.getAllByText("D")).toHaveLength(2);
+    await user.type(o(), "500");
+    await user.tab();
+    expect(ct()).toBe(`${KHOAN} - 500`);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
   });
 });

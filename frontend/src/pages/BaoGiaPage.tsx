@@ -1104,21 +1104,26 @@ export function QuotationDetailView({
       return n;
     });
   }
+  /** Ô số CHỈ XEM của Chiết khấu / Markup / Kê: % ở trên, số tiền nhỏ ở dưới, không xuống dòng
+   *  (21/10/2026 — viết liền "200.000 đ (5,1 %)" trong cột hẹp bị gãy giữa số). */
+  const haiTang = (pct: number, tien: number) => (
+    <span className="so2"><span>{pctf(pct)} %</span><span className="so2__phu">{numf(tien)}</span></span>
+  );
   /** Ô CHIẾT KHẤU của MỘT sản phẩm khách thấy (dòng đứng riêng hoặc cả nhóm): hai tab "%" và "Số". */
   function oChietKhau(dong: QuoteItemDetail[], ten: string) {
     const von = dong.reduce((s, it) => s + calcItem(it).cost, 0);
     const ck = dong.reduce((s, it) => s + calcItem(it).ck, 0);
     const pct = von > 0 ? (ck / von) * 100 : 0;
     const ids = dong.map((it) => it.id);
-    if (!editable) return ck > 0 ? `${numf(ck)} đ (${pctf(pct)} %)` : "—";
+    if (!editable) return ck > 0 ? haiTang(pct, ck) : "—";
     return (
       <OHaiTab
         pct={Math.round(pct * 10) / 10}
         so={ck}
         disabled={busy}
         ariaLabel={`Chiết khấu ${ten}`}
-        titlePct="Chiết khấu (%) trên giá vốn — cộng vào giá bán, hoàn lại khách sau"
-        titleSo="Tiền chiết khấu — cộng vào giá bán, hoàn lại khách sau"
+        titlePct="Chiết khấu (%) trên giá vốn — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
+        titleSo="Tiền chiết khấu — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
         onNhap={(k, v) => datNhap(ids, "ck", { k, v })}
         onHuy={() => datNhap(ids, "ck", null)}
         onChot={(k, v) => commitChietKhau(dong, k, v)}
@@ -1131,15 +1136,15 @@ export function QuotationDetailView({
     const ke = dong.reduce((s, it) => s + calcItem(it).ke, 0);
     const pct = ban > 0 ? (ke / ban) * 100 : 0;
     const ids = dong.map((it) => it.id);
-    if (!editable) return ke > 0 ? `${numf(ke)} đ (${pctf(pct)} %)` : "—";
+    if (!editable) return ke > 0 ? haiTang(pct, ke) : "—";
     return (
       <OHaiTab
         pct={Math.round(pct * 10) / 10}
         so={ke}
         disabled={busy}
         ariaLabel={`Kê ${ten}`}
-        titlePct="Kê (%) trên giá bán — cộng sau giá bán, chi lại khách khi hoá đơn thu đủ"
-        titleSo="Tiền kê — cộng sau giá bán, chi lại khách khi hoá đơn thu đủ"
+        titlePct="Kê (%) trên giá bán — cộng thêm vào giá khách trả, chi lại cho người bên khách (đã trừ thuế TNDN) khi hóa đơn thu đủ"
+        titleSo="Tiền kê — cộng thêm vào giá khách trả, chi lại cho người bên khách (đã trừ thuế TNDN) khi hóa đơn thu đủ"
         onNhap={(k, v) => datNhap(ids, "ke", { k, v })}
         onHuy={() => datNhap(ids, "ke", null)}
         onChot={(k, v) => commitKe(dong, k, v)}
@@ -1441,10 +1446,10 @@ export function QuotationDetailView({
       />
 
       <div className="g2">
-        {/* ================= LEFT: bảng + điều khoản ================= */}
-        <div className="stack">
-          {/* Báo giá nhiều dòng — giá vốn khóa, markup + chiết khấu chỉnh tại chỗ */}
-          <div className="panel">
+          {/* Báo giá nhiều dòng — giá vốn khóa, markup + chiết khấu chỉnh tại chỗ. Trải HẾT bề ngang
+              hai cột (21/10/2026): 8 cột cần ~900px, nhét vào cột trái ~650px là luôn phải cuộn ngang,
+              mất cột Sản phẩm hoặc Giá bán sau kê. */}
+          <div className="panel bg-dong-panel">
             <div className="panel__hd">
               <h3><Table size={16} /> {multi ? "Báo giá nhiều dòng" : "Giá vốn"}</h3>
               {/* Đếm DÒNG, không phải phiếu — 1 phiếu tính giá đẻ nhiều dòng là chuyện thường. */}
@@ -1578,24 +1583,25 @@ export function QuotationDetailView({
                               onChot={(k, v) => { datNhap([it.id], "gia", null); commitLoiNhuan(it, k, v); }}
                             />
                           ) : (
-                            <span>{pctf(c.m)} %<span className="meta"> {numf(c.ln)} đ</span></span>
+                            haiTang(c.m, c.ln)
                           )}
                           {priceOverridden && <span className="meta">suy ra từ giá gõ tay</span>}
                         </div>
                       </td>
                       <td className="num">
                         <div className="pricecell">
-                          <ONhapSo
+                          {/* Chỉ xem thì in số trơn — ô nhập bị khoá trông như còn sửa được. */}
+                          {!editable ? numf(priceVal) : <ONhapSo
                             className={`money ${priceOverridden ? "manual" : "auto"}`}
                             giaTri={Math.round(priceVal)}
                             donVi="đ"
-                            disabled={!editable || busy}
+                            disabled={busy}
                             ariaLabel={`Giá bán ${it.product_name}`}
                             title="Gõ tay giá bán dòng này — chiết khấu giữ nguyên, lợi nhuận là phần còn lại. Sửa lại Markup sẽ bỏ giá gõ tay."
                             onNhap={(v) => datNhap([it.id], "gia", v)}
                             onChot={(v) => commitGia(it, v)}
                             onHuy={() => datNhap([it.id], "gia", null)}
-                          />
+                          />}
                           {priceOverridden && (
                             <span className="meta">
                               <span className="tag">Gõ tay</span>
@@ -1650,6 +1656,8 @@ export function QuotationDetailView({
             </div>
           </div>
 
+        {/* ================= LEFT: điều khoản ================= */}
+        <div className="stack">
           {/* Điều khoản & hiệu lực (Redesigned Modern WOW UI) */}
           <div className="panel terms-redesign-panel">
             <div className="panel__hd">
@@ -1834,7 +1842,7 @@ export function QuotationDetailView({
               <div className="drow">
                 {/* Chỉ cộng tổng — gõ riêng từng sản phẩm ở cột Chiết khấu trong bảng. Khoản này nằm TRONG
                     giá bán và sẽ hoàn lại khách. */}
-                <span className="k">Chiết khấu (hoàn lại khách)</span>
+                <span className="k">Chiết khấu (chi lại khách)</span>
                 <span className="v">{discountT > 0 ? `+${numf(discountT)} đ` : "0 đ"}</span>
               </div>
               <div className="drow profit"><span className="k">Lợi nhuận</span><span className="v">{profitT >= 0 ? "+" : ""}{numf(profitT)} đ</span></div>
@@ -1842,7 +1850,7 @@ export function QuotationDetailView({
               {/* Kê giá (20/10/2026): cộng sau giá bán, VAT tính trên cả kê. Gõ ở cột Kê trong bảng. */}
               {keT > 0 && (
                 <>
-                  <div className="drow"><span className="k">Kê</span><span className="v">+{numf(keT)} đ</span></div>
+                  <div className="drow"><span className="k">Kê (chi lại người bên khách)</span><span className="v">+{numf(keT)} đ</span></div>
                   <div className="drow"><span className="k">Giá bán sau kê (chưa VAT)</span><span className="v">{numf(sauKeT)} đ</span></div>
                 </>
               )}

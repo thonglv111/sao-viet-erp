@@ -1917,6 +1917,10 @@
 .dhb__hh-dau { padding-bottom: 10px; }
 .dhb__hh-tong { display: flex; justify-content: flex-end; padding-bottom: 6px; }
 .dhb__hh-tong .dhb__tt { width: 360px; }
+/* Câu giải thích chiết khấu / kê nằm ở khoảng trống bên trái khối tổng — không làm thẻ cao thêm. */
+.dhb__hh-tong { gap: 24px; align-items: flex-start; }
+.dhb__hh-ghi { flex: 1 1 auto; max-width: 460px; margin: 12px 0 0 20px; color: var(--ash-2); font-size: 13px; line-height: 1.5; }
+@media (max-width: 720px) { .dhb__hh-tong { flex-direction: column-reverse; align-items: stretch; } .dhb__hh-tong .dhb__tt { width: auto; } .dhb__hh-ghi { max-width: none; margin: 0 20px; } }
 .dhb__hh-tong .dhb__tt-r { grid-template-columns: minmax(0, 1fr) 0 auto; gap: 0 16px; }
 .dhb__nk { display: grid; grid-template-columns: 130px 140px minmax(0, 1fr); gap: 12px; font-size: 13px; padding: 7px 0; border-top: 1px solid var(--rule-hair); }
 .dhb__nk:first-of-type { border-top: 0; }

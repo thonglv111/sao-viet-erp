@@ -254,8 +254,22 @@ export interface ViecPhatSinhRow {
   gia_theo_to?: { department_id: number; don_gia?: number | null }[] | null;
 }
 
-/** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). */
-export interface GiaTheoToRow { department_id: number; gia_co_dinh?: number | null; don_gia?: number | null }
+/** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). `bac` = mã bậc giá khi công đoạn
+ *  chia bậc (22/10/2026) — mỗi ô (tổ, bậc) một dòng. */
+export interface GiaTheoToRow {
+  department_id: number; bac?: string | null; gia_co_dinh?: number | null; don_gia?: number | null;
+}
+
+/** Một bậc giá (Bài in, 22/10/2026): điều kiện theo số màu (= số kẽm như Tính giá), màu pha, một tuỳ chọn Có /
+ *  không. Ô điều kiện để trống (null) = không xét. Bậc đầu tiên khớp được dùng. */
+export interface BacGiaRow {
+  ma: string; ten: string;
+  mau_tu?: number | null; mau_den?: number | null;
+  pha?: "co" | "khong" | null;
+  tuy_chon_ma?: string | null; tuy_chon_co?: "co" | "khong" | null;
+  /** Giá của bậc đã gồm mực UV ⇒ chip "Giá đã gồm UV" = 1. */
+  gom_uv?: boolean;
+}
 
 /** Một "tuỳ chọn khi ghi" của công đoạn (Đợt 2): thợ tick (Có / không = 1/0) hoặc gõ số ở từng lần
  *  ghi; `ma` là chip trong ô Công thức khoán. */
@@ -271,6 +285,8 @@ export interface KhoanCongDoanValue {
   cong_thuc_khoan?: string | null;
   /** Rỗng/null = mọi tổ dùng giá chung; có dòng thì tổ vắng mặt = thiếu giá. */
   gia_theo_to?: GiaTheoToRow[] | null;
+  /** Bậc giá theo số màu (22/10/2026); rỗng/null = không chia bậc. Có bậc thì giá chung không dùng. */
+  bac_gia?: BacGiaRow[] | null;
   viec_phat_sinh?: ViecPhatSinhRow[];
 }
 

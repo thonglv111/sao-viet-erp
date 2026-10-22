@@ -144,6 +144,7 @@ class CongDoanRepository(CatalogRepo):
         k.gia_theo_to = raw.get("gia_theo_to") or None
         k.gia_co_dinh = float(raw.get("gia_co_dinh") or 0)
         k.tuy_chon = raw.get("tuy_chon") or None
+        k.bac_gia = raw.get("bac_gia") or None
         cu = {v.id: v for v in k.viec_phat_sinh if v.id is not None}
         moi: list[CongDoanKhoanPhatSinh] = []
         for i, dong in enumerate(raw.get("viec_phat_sinh") or []):

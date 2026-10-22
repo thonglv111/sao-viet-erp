@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ô công thức dễ đọc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --chip:#eaf2ff; --chip-bd:#bcd3f5; --chip-ink:#1d4ed8;
+  --op:#9a3412; --num:#166534; --fn:#7e22ce;
+  --a:#0369a1; --a-bg:#f0f9ff; --b:#a16207; --b-bg:#fefce8; --c:#7e22ce; --c-bg:#faf5ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1180px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:980px}
+.lead ul{margin:6px 0 0;padding-left:20px}
+.lead li{margin:3px 0}
+.lead code,.why code{font:12.5px ui-monospace,Consolas,monospace;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+.ref{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 24px}
+.ref figure{margin:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ref img{display:block;width:100%;height:170px;object-fit:cover;object-position:top left;border-bottom:1px solid var(--rule-soft)}
+.ref figcaption{padding:9px 11px;font-size:12.5px;color:var(--ash)}
+.ref figcaption span{display:block;color:var(--ink);margin-bottom:2px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:18px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:500;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt h2{font-size:19px;font-weight:500;margin:0 0 4px}
+.why{color:var(--ash);margin:0 0 16px;max-width:980px}
+.why ul{margin:6px 0 0;padding-left:18px}
+.why li{margin:2px 0}
+
+/* khung ô công thức giống app */
+.stage{background:#f6f7f9;border-radius:14px;padding:24px;border:1px solid var(--rule-soft)}
+.ff{background:#fff;border:1px solid var(--rule);border-radius:12px}
+.ff-h{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--rule-soft)}
+.ff-h .t{font-weight:500}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:7px;overflow:hidden;font-size:13px}
+.seg span{padding:4px 10px;color:var(--ash)}
+.seg span.on{background:var(--ink);color:#fff}
+.btns{display:flex;gap:8px;align-items:center}
+.btn{font-size:13px;border:1px solid var(--rule);border-radius:7px;padding:4px 10px;color:var(--ink);background:#fff}
+.ops{display:flex;gap:6px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--rule-soft);font-size:12px;color:var(--ash-2)}
+.ops span.k{border:1px solid var(--rule);border-radius:5px;padding:1px 8px;color:var(--ink);font-size:12.5px}
+.ff-b{padding:16px 18px 18px;font-size:14.5px;line-height:1}
+
+/* token */
+.ch{display:inline-flex;align-items:center;background:var(--chip);border:1px solid var(--chip-bd);color:var(--chip-ink);border-radius:6px;padding:5px 9px;margin:2px 1px;font-size:14px;line-height:1.2;white-space:nowrap}
+.ch small{color:var(--ash-3);margin-left:6px;font-size:11.5px}
+.o{color:var(--op);margin:0 6px;font-weight:500}
+.n{color:var(--num);font-weight:500;margin:0 2px}
+.p{color:var(--ash-3);margin:0 2px}
+.line{display:flex;flex-wrap:wrap;align-items:center;gap:2px 0;min-height:36px}
+.cmt{color:var(--ash-3);font-size:12.5px;margin-left:auto;font-style:italic}
+
+/* ===== A. Khối lồng ===== */
+.blk{display:inline-flex;flex-wrap:wrap;align-items:center;border-radius:9px;padding:3px 6px;margin:2px 2px;border:1px solid transparent}
+.blk.l1{background:#f5f7fa;border-color:#e3e8ef}
+.blk.l2{background:#eef2f7;border-color:#dbe2ec}
+.blk.l3{background:#fff;border-color:#dbe2ec}
+.blk .fnlab{font-size:12px;color:var(--fn);margin:0 6px 0 2px}
+.ifb{display:inline-grid;grid-template-columns:auto auto;align-items:center;gap:2px 8px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:6px 10px;margin:2px}
+.ifb .k{font-size:12px;color:var(--fn);text-align:right}
+.ifb .v{display:flex;flex-wrap:wrap;align-items:center}
+
+/* ===== B. Bảng điều kiện ===== */
+.cond{margin:8px 0 2px 0;border:1px solid #e9d5ff;border-radius:10px;overflow:hidden;max-width:720px}
+.cond .hd{display:flex;align-items:center;gap:8px;background:#faf5ff;padding:7px 12px;font-size:12.5px;color:var(--fn);border-bottom:1px solid #e9d5ff}
+.cond table{border-collapse:collapse;width:100%}
+.cond td{padding:4px 12px;border-top:1px solid var(--rule-hair);font-size:14px;line-height:1.2;vertical-align:middle}
+.cond tr:first-child td{border-top:0}
+.cond td.k{width:70px;color:var(--ash-2);font-size:12.5px}
+.cond td.v{width:120px;border-left:1px solid var(--rule-hair)}
+.cond td.v .lay{color:var(--ash-3);font-size:12px;margin-right:6px}
+.cond .add{color:var(--rust);font-size:12.5px;padding:7px 12px;border-top:1px solid var(--rule-hair)}
+.tag{display:inline-flex;align-items:center;border:1px dashed #c4b5fd;color:var(--fn);border-radius:6px;padding:4px 8px;font-size:13px;background:#fff;margin:2px}
+
+/* ===== C. Tách phần ===== */
+.sk{display:flex;flex-wrap:wrap;align-items:center;font-size:15px;padding-bottom:12px;border-bottom:1px solid var(--rule-soft);margin-bottom:6px}
+.sk .eq{color:var(--ash);margin-right:8px}
+.L{display:inline-grid;place-items:center;min-width:26px;height:26px;border-radius:7px;font-size:13.5px;font-weight:500;margin:0 2px;padding:0 6px}
+.L.a{background:var(--a-bg);color:var(--a);border:1px solid #bae6fd}
+.L.b{background:var(--b-bg);color:var(--b);border:1px solid #fde68a}
+.L.c{background:var(--c-bg);color:var(--c);border:1px solid #e9d5ff}
+.part{display:grid;grid-template-columns:44px 1fr;align-items:start;padding:8px 0;border-bottom:1px solid var(--rule-hair)}
+.part:last-child{border-bottom:0}
+.part .lhs{padding-top:5px}
+.part .ten{font-size:12px;color:var(--ash-2);margin:0 0 2px 2px;line-height:1.3}
+.rule{margin:10px 0 0;font-size:12.5px;color:var(--ash);border-left:2px solid var(--rule);padding-left:10px;max-width:900px}
+.note{font-size:12.5px;color:var(--ash);margin-top:14px;max-width:980px}
+.now{margin:0 0 24px}
+.now img{display:block;max-width:100%;border-radius:10px;border:1px solid var(--rule-soft)}
+
+.vd2-h{font-size:15px;font-weight:500;margin:28px 0 4px}
+.nhan{font-size:12.5px;color:var(--ash-2);margin:12px 0 6px}
+.truoc img{display:block;max-width:100%;border:1px solid var(--rule-soft);border-radius:10px}
+.vd2 .same{opacity:.38}
+.vd2 .diff{background:#fef3c7;border-radius:4px;box-shadow:0 0 0 2px #fef3c7}
+.vd2 .ch.diff{background:#fef3c7;border-color:#fcd34d}
+.tier{display:grid;grid-template-columns:240px 1fr;gap:4px 10px;align-items:start;padding:6px 0;border-top:1px solid var(--rule-hair)}
+.tier:first-child{border-top:0}
+.tier .k{font-size:13px;color:var(--fn);padding-top:4px;line-height:1.3;display:flex;flex-wrap:wrap;align-items:center;gap:0 2px}
+.tier .k .ch{font-size:12.5px;padding:3px 6px}
+.ptbl{border:1px solid #e9d5ff;border-radius:10px;overflow:hidden}
+.ptbl .hd{background:#faf5ff;color:var(--fn);font-size:12.5px;padding:7px 12px;border-bottom:1px solid #e9d5ff;display:grid;grid-template-columns:240px 1fr;gap:10px}
+.ptbl .tier{padding:6px 12px}
+.pchung{display:grid;grid-template-columns:240px 1fr;gap:10px;align-items:start;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;margin-bottom:10px}
+.pchung .k{color:var(--a);font-size:13px;padding-top:8px}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Ô công thức khoán: cách vẽ cho dễ đọc</h1>
+<div class="lead">
+  Công thức thật của công đoạn trong ảnh bạn gửi: <code>((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000) * don_gia_khoan) * if(metaline &gt; 0, 3, if(muc_uv &gt; 0, 2, 1))</code>
+  <ul>
+    <li>Đã đọc: <code>FormulaField.tsx</code> (chế độ Trực quan, chip, con trỏ là chỉ số trên dãy token phẳng), <code>congThucBacThang.ts</code> (cắt dòng, làm phẳng chuỗi else-if, nhãn mờ "điều kiện 1 / nếu đúng / còn lại"), spec <code>2026-09-29-o-cong-thuc-bac-thang-hai-che-do-design.md</code>. Ô này dùng chung ở 5 chỗ (Công thức tính giá, khoán, giờ chạy + giá của máy, vật tư), nên phương án chọn sẽ áp cho cả 5.</li>
+    <li>Giữ đúng bất biến của spec 29/09: chuỗi lưu KHÔNG đổi (vẫn IF lồng kiểu Excel), không thêm trường hay bảng mới, mọi token vẫn bấm vào được để đặt con trỏ, chế độ Dạng chữ giữ nguyên. Cả ba phương án chỉ đổi cách VẼ ở chế độ Trực quan.</li>
+    <li>Không đưa "ô thử tính" vào: spec 29/09 mục 9 ghi chủ đã nói không cần. Nếu giờ muốn thì nói, tôi ghép thêm vào phương án được chọn.</li>
+    <li>Chung cho cả ba: chip tuỳ chọn tên dài chỉ hiện phần trước dấu ngoặc ("Chạy tiếp", "Mực UV cán metaline"), rê chuột thấy tên đủ.</li>
+  </ul>
+</div>
+
+
+<div class="ref">
+  <figure><img src="tham-khao-o-cong-thuc/blockly.png" alt="">
+    <figcaption><span>Google Blockly (demo chính thức, mở 22/10)</span>Tôi nạp thử một biểu thức có max và if. Không có dấu ngoặc nào: mỗi cụm là một khối nền khác màu lồng trong khối cha; if là khối có nhãn "test / if true / if false". → A</figcaption></figure>
+  <figure><img src="tham-khao-o-cong-thuc/tulip-trigger-if-then.png" alt="">
+    <figcaption><span>Tulip (phần mềm MES, trang Triggers, mở 22/10)</span>Cùng nghiệp vụ xưởng. Điều kiện viết thành khối "If … / Then …" có viền riêng, đọc từ trên xuống như câu; nút "+ Add new condition" ngay trong khối. → B</figcaption></figure>
+  <figure><img src="tham-khao-o-cong-thuc/excel-let.png" alt="">
+    <figcaption><span>Excel: hàm LET (Microsoft Support, mở 22/10)</span>Đặt tên cho từng phần tính (x, y) rồi công thức cuối chỉ ghép các tên đó. Hình minh hoạ tô màu từng phần và chú thích tên ngay dưới. → C</figcaption></figure>
+  <figure><img src="tham-khao-o-cong-thuc/hien-tai.png" alt="">
+    <figcaption><span>Hiện tại (ảnh bạn gửi)</span>Chuỗi token vẽ phẳng, phải dò cặp ngoặc; hai if lồng vẽ thành "điều kiện / nếu đúng / còn lại" nằm tít mép phải; chip "Chạy tiếp (…)" dài lặp hai lần.</figcaption></figure>
+</div>
+
+<div class="switch">
+  <button class="on" data-o="a">A. Khối lồng</button>
+  <button data-o="b">B. Bảng điều kiện</button>
+  <button data-o="c">C. Tách phần</button>
+</div>
+
+<!-- ================= A ================= -->
+<section class="opt on" id="o-a">
+  <h2>A. Ngoặc thành khối lồng, if thành khối "nếu … thì …"</h2>
+  <div class="why">Bám Blockly.
+    <ul>
+      <li>Không vẽ dấu ngoặc nữa: mỗi cặp ngoặc là một khối nền nhạt, lồng sâu thì nền đậm dần. Hai mép khối chính là chỗ bấm đặt con trỏ trước/sau ngoặc (token ngoặc vẫn còn, chỉ không in ra).</li>
+      <li><code>max(0, …)</code> vẽ thành khối có nhãn nhỏ "lớn hơn của"; chuỗi <code>if</code> thành khối tím mỗi bậc một hàng "nếu … thì …", cuối là "còn lại", nhãn nằm sát vế chứ không tít mép phải.</li>
+      <li>Vẫn một khối liền như công thức, nên công thức ngắn không bị kéo dài.</li>
+    </ul>
+  </div>
+  <h3 class="vd2-h">Hình 1: công thức khoán</h3><div class="nhan">Hiện tại</div><div class="truoc"><img src="tham-khao-o-cong-thuc/hinh-1-hien-tai.png" alt="Hình 1 hiện tại"></div><div class="nhan">Sau khi chỉnh</div>
+  <div class="stage"><div class="ff">
+    <div class="ff-h"><span class="t">Công thức khoán</span><div class="btns"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span><span class="btn">Sao chép</span><span class="btn">Cú pháp</span></div></div>
+    <div class="ops">Chèn toán tử: <span class="k">+</span><span class="k">−</span><span class="k">×</span><span class="k">÷</span><span class="k">(</span><span class="k">)</span><span class="k">&gt;</span><span class="k">&lt;</span><span class="k">max</span><span class="k">min</span><span class="k">round</span><span class="k">if</span></div>
+    <div class="ff-b">
+      <div class="line">
+        <span class="blk l1">
+          <span class="blk l2"><span class="n">1</span><span class="o">−</span><span class="ch" title="Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)">Chạy tiếp</span></span>
+          <span class="o">×</span><span class="ch">Giá cố định</span>
+          <span class="o">+</span>
+          <span class="blk l2"><span class="fnlab">lớn hơn của</span><span class="n">0</span><span class="p">và</span>
+            <span class="ch">SL ghi</span><span class="o">×</span><span class="blk l3"><span class="n">1</span><span class="o">+</span><span class="ch">Tự trở</span></span>
+            <span class="o">−</span><span class="blk l3"><span class="n">1</span><span class="o">−</span><span class="ch" title="Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)">Chạy tiếp</span></span><span class="o">×</span><span class="n">3 000</span>
+          </span>
+          <span class="o">×</span><span class="ch">Đơn giá khoán</span>
+        </span>
+      </div>
+      <div class="line" style="margin-top:6px">
+        <span class="o" style="margin-left:2px">×</span>
+        <span class="ifb">
+          <span class="k">nếu</span><span class="v"><span class="ch" title="Mực UV cán metaline (tính gấp 3)">Mực UV cán metaline</span><span class="o">&gt;</span><span class="n">0</span><span class="k" style="margin:0 8px 0 14px">thì</span><span class="n">3</span></span>
+          <span class="k">nếu</span><span class="v"><span class="ch" title="Mực UV (tính gấp 2)">Mực UV</span><span class="o">&gt;</span><span class="n">0</span><span class="k" style="margin:0 8px 0 14px">thì</span><span class="n">2</span></span>
+          <span class="k">còn lại</span><span class="v" style="min-height:30px"><span class="n">1</span></span>
+        </span>
+      </div>
+    </div>
+  </div></div>
+  <p class="note">Chuỗi else-if làm phẳng như luật 29/09: "nếu … thì …" các bậc cùng cấp trong một khối, "còn lại" ở cuối. Đánh đổi: if ở vế "thì" hay if giữa phép tính vẫn thành khối lồng khối, công thức lồng sâu sẽ thụt dần sang phải.</p>
+  <h3 class="vd2-h">Hình 2: công thức giá riêng máy IN-02, 3 ngưỡng SL vào</h3>
+  <p class="why">Mỗi bậc là một hàng "nếu SL vào ≤ … thì …" trong cùng một khối tím. Giá trị dài tự xuống dòng nhưng thụt treo dưới chính nó. Mỗi cặp ngoặc thành khối nhạt nên "(Số màu in − Số màu pha)" đọc thành một cụm. <b>Thêm cho công thức bậc</b>: phần nào giống hệt bậc trên thì in mờ, chỉ số khác bậc trên được tô vàng, mắt chỉ phải nhìn 130 → 123 → 113 và 260 → 250 → 230.</p>
+  <div class="nhan">Hiện tại</div><div class="truoc"><img src="tham-khao-o-cong-thuc/hinh-2-hien-tai.png" alt="Hình 2 hiện tại"></div><div class="nhan">Sau khi chỉnh</div>
+  <div class="stage"><div class="ff"><div class="ff-h"><span class="t">Công thức giá riêng — IN-02 · Máy in 4 màu Mitsubishi 79×109</span><div class="btns"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span></div></div><div class="ff-b vd2" data-kieu="a"></div></div></div>
+</section>
+
+<!-- ================= B ================= -->
+<section class="opt" id="o-b">
+  <h2>B. Phép tính giữ một dòng, chuỗi if thành bảng điều kiện bên dưới</h2>
+  <div class="why">Bám khối If/Then của Tulip.
+    <ul>
+      <li>Phần phép tính vẽ như hiện nay nhưng ngoặc in nhạt, ngoặc cùng cặp sáng lên khi con trỏ đứng cạnh (đã có).</li>
+      <li>Chỗ có <code>if</code> trong dòng chỉ hiện một thẻ "theo điều kiện ↓"; cả chuỗi if vẽ thành bảng ngay bên dưới: cột "Khi", cột "Lấy", hàng cuối "Còn lại". Đọc là hiểu ngay ×3 / ×2 / ×1.</li>
+      <li>Mỗi ô trong bảng vẫn là các token thật (bấm đặt con trỏ, Backspace xoá như cũ). Nút "+ Thêm điều kiện" = thao tác "Nhân đôi bậc" đã có trong spec 29/09.</li>
+    </ul>
+  </div>
+  <h3 class="vd2-h">Hình 1: công thức khoán</h3><div class="nhan">Hiện tại</div><div class="truoc"><img src="tham-khao-o-cong-thuc/hinh-1-hien-tai.png" alt="Hình 1 hiện tại"></div><div class="nhan">Sau khi chỉnh</div>
+  <div class="stage"><div class="ff">
+    <div class="ff-h"><span class="t">Công thức khoán</span><div class="btns"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span><span class="btn">Sao chép</span><span class="btn">Cú pháp</span></div></div>
+    <div class="ops">Chèn toán tử: <span class="k">+</span><span class="k">−</span><span class="k">×</span><span class="k">÷</span><span class="k">(</span><span class="k">)</span><span class="k">&gt;</span><span class="k">&lt;</span><span class="k">max</span><span class="k">min</span><span class="k">round</span><span class="k">if</span></div>
+    <div class="ff-b">
+      <div class="line">
+        <span class="p">(</span><span class="p">(</span><span class="n">1</span><span class="o">−</span><span class="ch" title="Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)">Chạy tiếp</span><span class="p">)</span>
+        <span class="o">×</span><span class="ch">Giá cố định</span><span class="o">+</span>
+        <span style="color:var(--fn);font-weight:500">max</span><span class="p">(</span><span class="n">0</span><span class="p">,</span>
+        <span class="ch">SL ghi</span><span class="o">×</span><span class="p">(</span><span class="n">1</span><span class="o">+</span><span class="ch">Tự trở</span><span class="p">)</span>
+        <span class="o">−</span><span class="p">(</span><span class="n">1</span><span class="o">−</span><span class="ch" title="Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)">Chạy tiếp</span><span class="p">)</span><span class="o">×</span><span class="n">3 000</span><span class="p">)</span>
+        <span class="o">×</span><span class="ch">Đơn giá khoán</span><span class="p">)</span>
+        <span class="o">×</span><span class="tag">theo điều kiện ↓</span>
+      </div>
+      <div class="cond">
+        <div class="hd">Theo điều kiện, xét từ trên xuống, gặp dòng đúng đầu tiên thì lấy</div>
+        <table>
+          <tr><td class="k">Khi</td><td><span class="ch" title="Mực UV cán metaline (tính gấp 3)">Mực UV cán metaline</span><span class="o">&gt;</span><span class="n">0</span></td><td class="v"><span class="lay">lấy</span><span class="n">3</span></td></tr>
+          <tr><td class="k">Khi</td><td><span class="ch" title="Mực UV (tính gấp 2)">Mực UV</span><span class="o">&gt;</span><span class="n">0</span></td><td class="v"><span class="lay">lấy</span><span class="n">2</span></td></tr>
+          <tr><td class="k">Còn lại</td><td></td><td class="v"><span class="lay">lấy</span><span class="n">1</span></td></tr>
+        </table>
+        <div class="add">＋ Thêm điều kiện</div>
+      </div>
+    </div>
+  </div></div>
+  <p class="note">Đánh đổi: chỉ cứu phần if. Phần phép tính có max và ngoặc lồng vẫn phải dò ngoặc như cũ (nhẹ hơn vì ngoặc in nhạt). if nằm ở vế "nếu đúng" hoặc if không đủ ba vế thì không thành bảng, vẽ như hiện nay.</p>
+  <h3 class="vd2-h">Hình 2: công thức giá riêng máy IN-02, 3 ngưỡng SL vào</h3>
+  <p class="why">Bảng điều kiện gánh trọn: cột Khi là ngưỡng SL vào thẳng một cột, cột Lấy chứa giá trị dài (ngoặc in nhạt). Cùng luật mờ phần trùng bậc trên, tô vàng chỗ khác.</p>
+  <div class="nhan">Hiện tại</div><div class="truoc"><img src="tham-khao-o-cong-thuc/hinh-2-hien-tai.png" alt="Hình 2 hiện tại"></div><div class="nhan">Sau khi chỉnh</div>
+  <div class="stage"><div class="ff"><div class="ff-h"><span class="t">Công thức giá riêng — IN-02 · Máy in 4 màu Mitsubishi 79×109</span><div class="btns"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span></div></div><div class="ff-b vd2" data-kieu="b"></div></div></div>
+</section>
+
+<!-- ================= C ================= -->
+<section class="opt" id="o-c">
+  <h2>C. Tách công thức thành các phần có tên, dòng đầu là khung ghép</h2>
+  <div class="why">Bám hàm LET của Excel.
+    <ul>
+      <li>Máy tự cắt công thức ở các phép + và × ngoài cùng: dòng đầu là khung "Tiền = (A + B) × C", mỗi phần A, B, C một dòng riêng bên dưới. Tên A/B/C chỉ để vẽ, không lưu.</li>
+      <li>Mỗi dòng ngắn, ít ngoặc. Phần là chuỗi if thì vẽ thành các dòng "nếu … lấy …" thẳng cột.</li>
+      <li>Rê chuột vào A ở dòng khung thì dòng A sáng lên và ngược lại. Sửa trong từng dòng như sửa công thức bây giờ; Dạng chữ vẫn ra đúng một chuỗi như cũ.</li>
+    </ul>
+  </div>
+  <h3 class="vd2-h">Hình 1: công thức khoán</h3><div class="nhan">Hiện tại</div><div class="truoc"><img src="tham-khao-o-cong-thuc/hinh-1-hien-tai.png" alt="Hình 1 hiện tại"></div><div class="nhan">Sau khi chỉnh</div>
+  <div class="stage"><div class="ff">
+    <div class="ff-h"><span class="t">Công thức khoán</span><div class="btns"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span><span class="btn">Sao chép</span><span class="btn">Cú pháp</span></div></div>
+    <div class="ops">Chèn toán tử: <span class="k">+</span><span class="k">−</span><span class="k">×</span><span class="k">÷</span><span class="k">(</span><span class="k">)</span><span class="k">&gt;</span><span class="k">&lt;</span><span class="k">max</span><span class="k">min</span><span class="k">round</span><span class="k">if</span></div>
+    <div class="ff-b">
+      <div class="sk"><span class="eq">Tiền =</span><span class="p">(</span><span class="L a">A</span><span class="o">+</span><span class="L b">B</span><span class="p">)</span><span class="o">×</span><span class="L c">C</span></div>
+      <div class="part"><div class="lhs"><span class="L a">A</span></div><div><div class="line"><span class="p">(</span><span class="n">1</span><span class="o">−</span><span class="ch" title="Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)">Chạy tiếp</span><span class="p">)</span><span class="o">×</span><span class="ch">Giá cố định</span></div></div></div>
+      <div class="part"><div class="lhs"><span class="L b">B</span></div><div>
+        <div class="line"><span style="color:var(--fn);font-weight:500">max</span><span class="p">(</span><span class="n">0</span><span class="p">,</span><span class="ch">SL ghi</span><span class="o">×</span><span class="p">(</span><span class="n">1</span><span class="o">+</span><span class="ch">Tự trở</span><span class="p">)</span><span class="o">−</span><span class="p">(</span><span class="n">1</span><span class="o">−</span><span class="ch" title="Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)">Chạy tiếp</span><span class="p">)</span><span class="o">×</span><span class="n">3 000</span><span class="p">)</span><span class="o">×</span><span class="ch">Đơn giá khoán</span></div>
+      </div></div>
+      <div class="part"><div class="lhs"><span class="L c">C</span></div><div>
+        <div class="line"><span style="color:var(--fn);font-weight:500;width:58px">nếu</span><span class="ch" title="Mực UV cán metaline (tính gấp 3)">Mực UV cán metaline</span><span class="o">&gt;</span><span class="n">0</span><span class="cmt" style="font-style:normal;color:var(--ash-2);margin-left:18px">lấy</span><span class="n" style="margin-left:8px">3</span></div>
+        <div class="line"><span style="color:var(--fn);font-weight:500;width:58px">nếu</span><span class="ch" title="Mực UV (tính gấp 2)">Mực UV</span><span class="o">&gt;</span><span class="n">0</span><span class="cmt" style="font-style:normal;color:var(--ash-2);margin-left:18px">lấy</span><span class="n" style="margin-left:8px">2</span></div>
+        <div class="line"><span style="color:var(--fn);font-weight:500;width:58px">còn lại</span><span class="n">1</span></div>
+      </div></div>
+    </div>
+  </div></div>
+  <p class="note">Đánh đổi: công thức ngắn (một hai chip) không cắt phần, vẽ một dòng như nay. Công thức chỉ có một phần lớn (vd cả công thức là một chuỗi if của giá máy in) thì C giống bản hiện tại. Thêm phép + hay × mới ở khung thì phải chọn đúng dòng để gõ, đổi cách thao tác nhiều nhất trong ba phương án.</p>
+  <h3 class="vd2-h">Hình 2: công thức giá riêng máy IN-02, 3 ngưỡng SL vào</h3>
+  <p class="why">Cả công thức là MỘT chuỗi if, cắt ở +/× ngoài cùng không ra gì. Muốn C có ích ở đây thì máy phải tự gom PHẦN CHUNG của các bậc thành một dòng P (chỉ để xem), rồi mỗi bậc chỉ còn phần riêng. Sửa P là sửa cả 4 bậc cùng lúc. Lưu ý: bậc 1 viết "150 000 × Số bản kẽm", ba bậc sau viết "Số bản kẽm × 150 000", máy phải hiểu hai cách viết là một mới gom được.</p>
+  <div class="nhan">Hiện tại</div><div class="truoc"><img src="tham-khao-o-cong-thuc/hinh-2-hien-tai.png" alt="Hình 2 hiện tại"></div><div class="nhan">Sau khi chỉnh</div>
+  <div class="stage"><div class="ff"><div class="ff-h"><span class="t">Công thức giá riêng — IN-02 · Máy in 4 màu Mitsubishi 79×109</span><div class="btns"><span class="seg"><span class="on">Trực quan</span><span>Dạng chữ</span></span></div></div><div class="ff-b vd2" data-kieu="c"></div></div></div>
+</section>
+</div>
+<script>
+document.querySelectorAll('.switch button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.switch button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o.id==='o-'+b.dataset.o));
+});
+</script>
+
+<script>
+(function(){
+const NHAN={sl_vao:'SL vào của công đoạn',so_mau_in:'Số màu in',so_mau_pha:'Số màu pha',so_kem:'Số bản kẽm',P:'P'};
+const T=s=>s.trim().split(/\s+/);
+const chung='490000 * ( so_mau_in - so_mau_pha ) +';
+const bac=[
+ {dk:'sl_vao <= 3000', v:'490000 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 950000 + 150000 * so_kem'},
+ {dk:'sl_vao <= 10000', v:'490000 * ( so_mau_in - so_mau_pha ) + ( sl_vao - 3000 ) * ( 130 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 260 ) + so_mau_pha * 950000 + so_kem * 150000'},
+ {dk:'sl_vao <= 20000', v:'490000 * ( so_mau_in - so_mau_pha ) + ( sl_vao - 3000 ) * ( 123 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 250 ) + so_mau_pha * 950000 + so_kem * 150000'},
+ {dk:null, v:'490000 * ( so_mau_in - so_mau_pha ) + ( sl_vao - 3000 ) * ( 113 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 230 ) + so_mau_pha * 950000 + so_kem * 150000'},
+];
+// LCS: token nào của b nằm trong dãy chung với a
+function chungVoi(a,b){const n=a.length,m=b.length,d=[...Array(n+1)].map(()=>Array(m+1).fill(0));
+ for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)d[i][j]=a[i]===b[j]?d[i+1][j+1]+1:Math.max(d[i+1][j],d[i][j+1]);
+ const ra=Array(m).fill(false);let i=0,j=0;while(i<n&&j<m){if(a[i]===b[j]){ra[j]=true;i++;j++}else if(d[i+1][j]>=d[i][j+1])i++;else j++}return ra}
+const so=t=>/^\d+(\.\d+)?$/.test(t)?t.replace(/\B(?=(\d{3})+(?!\d))/g,' '):t;
+const OP={'*':'×','-':'−','+':'+','<=':'≤','>=':'≥'};
+function leaf(t,cls){cls=cls?' '+cls:'';
+ if(NHAN[t])return `<span class="ch${cls}">${NHAN[t]}</span>`;
+ if(/^\d/.test(t))return `<span class="n${cls}">${so(t)}</span>`;
+ if(t==='('||t===')'||t===',')return `<span class="p${cls}">${t}</span>`;
+ return `<span class="o${cls}">${OP[t]||t}</span>`}
+function phang(toks,mark){return toks.map((t,i)=>leaf(t,mark?mark[i]:'')).join('')}
+// A: ngoặc thành khối lồng
+function khoi(toks,mark){let h='',cap=1;toks.forEach((t,i)=>{const c=mark?mark[i]:'';
+ if(t==='('){cap++;h+=`<span class="blk l${Math.min(cap,3)}">`}else if(t===')'){h+='</span>';cap--}else h+=leaf(t,c)});return h}
+// So với bậc GIỐNG NHẤT (không phải bậc ngay trên): bậc 2 so bậc 3 thì chỉ lệch 130/260
+function danhDau(i,toks){if(i===0)return null;let tot=null,it=1e9;
+ bac.forEach((b,j)=>{if(j===0||j===i)return;const ok=chungVoi(T(b.v),toks),lech=ok.filter(x=>!x).length;if(lech<it){it=lech;tot=ok}});
+ return tot.map(x=>x?'same':'diff')}
+function dk(b){return b.dk?`nếu ${phang(T(b.dk))} thì`:'còn lại'}
+document.querySelectorAll('.vd2').forEach(el=>{const k=el.dataset.kieu;let h='';
+ if(k==='a'){h='<div class="ifb" style="display:block;padding:6px 12px">'+bac.map((b,i)=>{const t=T(b.v);
+   return `<div class="tier"><div class="k">${dk(b)}</div><div class="line">${khoi(t,danhDau(i,t))}</div></div>`}).join('')+'</div>'}
+ if(k==='b'){h='<div class="ptbl"><div class="hd"><span>Khi</span><span>Lấy</span></div>'+bac.map((b,i)=>{const t=T(b.v);
+   return `<div class="tier"><div class="k">${b.dk?phang(T(b.dk)):'Còn lại'}</div><div class="line">${phang(t,danhDau(i,t))}</div></div>`}).join('')+'<div class="add" style="color:var(--rust);font-size:12.5px;padding:7px 12px;border-top:1px solid var(--rule-hair)">＋ Thêm điều kiện</div></div>'}
+ if(k==='c'){const rieng=['','( sl_vao - 3000 ) * ( 130 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 260 )','( sl_vao - 3000 ) * ( 123 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 250 )','( sl_vao - 3000 ) * ( 113 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 230 )'];
+  h=`<div class="pchung"><div class="k"><span class="L a">P</span> phần chung<br><span style="color:var(--ash-2);font-size:12px">cả 4 bậc</span></div><div class="line">${phang(T('490000 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 950000 + so_kem * 150000'))}</div></div>`+
+  '<div class="ptbl"><div class="hd"><span>Khi</span><span>Lấy</span></div>'+bac.map((b,i)=>{const r=T(rieng[i]);
+   const mark=i?chungVoi(T(rieng[i===1?2:i-1]),r).map(x=>x?'same':'diff'):null;
+   return `<div class="tier"><div class="k">${b.dk?phang(T(b.dk)):'Còn lại'}</div><div class="line"><span class="L a">P</span>${i?'<span class="o">+</span>'+phang(r,mark):''}</div></div>`}).join('')+'</div>'}
+ el.innerHTML=h});
+})();
+</script>
+</body>
+</html>

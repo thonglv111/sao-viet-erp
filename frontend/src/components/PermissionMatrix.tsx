@@ -515,6 +515,16 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       label: "Thấy yêu cầu mua của mọi phòng",
       hint: "Cho phép thấy yêu cầu mua của mọi phòng ở tab Yêu cầu chờ xử lý để lập đơn. Lưu ý: bật ô này là bật Xem và chọn phạm vi Tất cả ở Yêu cầu mua hàng; tắt thì phạm vi về Của tôi.",
     },
+    // Lưu đợt giao = tạo luôn yêu cầu NHẬP kho của đợt (20/10/2026) ⇒ ghi / sửa / xoá đợt hỏi thêm
+    // ô Thao tác của Yêu cầu nhập xuất (`kho:request`, máy chủ gác `require_all_permissions`). Soi
+    // lên đây để người cấp quyền Mua hàng thấy ngay vì sao nút Ghi đợt giao không hiện.
+    {
+      key: "can_request",
+      mod: "kho",
+      chung: "chung ô Yêu cầu nhập xuất",
+      label: "Ghi đợt giao",
+      hint: "Cho phép ghi, sửa, xoá đợt giao. Lưu đợt là tự tạo yêu cầu nhập kho cho đợt đó; kho chưa lập phiếu thì sửa hoặc xoá đợt sẽ sửa hoặc huỷ yêu cầu theo. Lưu ý: thiếu ô này thì không ghi được đợt giao; bật ô này là bật luôn Thao tác ở Yêu cầu nhập xuất, tắt cũng vậy.",
+    },
     // ĐÃ BỎ 12/08/2026 (chủ chốt test rồi quyết) — hai ô này không đáng tồn tại:
     //   • "Sửa / đảo trạng thái đơn sau khi nhận hàng" (`can_manage_status`): ba việc nó gác
     //     (sửa số nhận · mở lại đơn · đóng đơn) là việc thường ngày của chính người lập phiếu,
@@ -627,7 +637,7 @@ const MODULE_HINTS: Record<string, string> = {
   tai_san:
     "Xem: tài sản và công cụ dụng cụ, khấu hao từng tháng. Thao tác: thêm (cả nhập Excel tài sản đang dùng), sửa, chuyển bộ phận, sửa chữa lớn, thôi dùng, xoá cái nhập nhầm; xuất Excel khấu hao tháng.",
   kho:
-    "Xem: yêu cầu và phiếu nhập / xuất kho. Thao tác: tạo, sửa, gửi, huỷ yêu cầu nhập / xuất của mình. Lưu ý: việc của thủ kho (tiếp nhận yêu cầu, lập phiếu) là ô chi tiết riêng; phiếu đã lập không sửa được, sai thì huỷ.",
+    "Xem: yêu cầu và phiếu nhập / xuất kho. Thao tác: tạo, sửa, gửi, huỷ yêu cầu nhập / xuất của mình. Lưu ý: việc của thủ kho (tiếp nhận yêu cầu, lập phiếu) là ô chi tiết riêng; phiếu đã lập không sửa được, sai thì huỷ. Bật Thao tác là bật luôn Ghi đợt giao ở Mua hàng, tắt cũng vậy.",
   bao_cao_kho:
     "Xem: sổ kho, Nhập-Xuất-Tồn và xuất Excel.",
   dm_thiet_bi:

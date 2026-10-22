@@ -1261,6 +1261,9 @@ def chi_tiet_cong_viec(
     # --- Sản lượng · bàn giao · vật tư (Giai đoạn 3) -----------------------------------------
     sl = SanXuatSanLuongRepository(db)
     khoan_hien_tai, ten_cong_doan_khoan = sl.khoan_cua_cong_viec(cv)
+    bac_chon = (viec_khoan.bac_theo_chon(khoan_hien_tai, viec_khoan.quy_cach_cua_viec(db, cv),
+                                         cv.department_id)
+                if khoan_hien_tai is not None and khoan_hien_tai.bac_gia else [])
     batches = sl.cac_batch(cv.id)
     _tong_tot_cv = sl.tong_tot(cv.id)
     # Lượng tổ này THẬT SỰ nhận được (bàn giao đã xác nhận về đây) — mốc chấm rút theo nó, xem
@@ -1398,6 +1401,10 @@ def chi_tiet_cong_viec(
             "don_gia": float(gia_to[1] or 0),
             "gia_co_dinh": float(gia_to[0] or 0),
             "thieu_gia": gia_to[1] is None,
+            # Bậc giá (Bài in, 22/10/2026): giá theo từng trạng thái tick — hộp ghi chọn theo tick.
+            "bac_theo_chon": bac_chon,
+            "so_mau": bac_chon[0]["so_mau"] if bac_chon else None,
+            "so_mau_pha": bac_chon[0]["so_mau_pha"] if bac_chon else None,
             "tuy_chon": list(khoan_hien_tai.tuy_chon or []),
             "don_vi": khoan_hien_tai.unit,
             "don_vi_ten": nhan_don_vi(dv_me_ten, khoan_hien_tai.unit),
@@ -1411,7 +1418,9 @@ def chi_tiet_cong_viec(
                 }
                 for ps in khoan_hien_tai.viec_phat_sinh
             ],
-        } if khoan_hien_tai and (gia_to := viec_khoan.gia_cua_to(khoan_hien_tai, cv.department_id)) else None),
+        } if khoan_hien_tai and (gia_to := (
+            (bac_chon[0]["gia_co_dinh"], None if bac_chon[0]["thieu_gia"] else bac_chon[0]["don_gia"])
+            if bac_chon else viec_khoan.gia_cua_to(khoan_hien_tai, cv.department_id))) else None),
         "phan_cong": [
             {
                 "id": pc.id,
@@ -1500,6 +1509,7 @@ def chi_tiet_cong_viec(
                     "viec_khoan_don_gia": (float(b.don_gia_khoan_snapshot)
                                            if b.don_gia_khoan_snapshot is not None else None),
                     "tuy_chon_khoan": b.tuy_chon_khoan,
+                    "bac_khoan_ten": (b.bac_khoan_snapshot or {}).get("ten"),
                     "phat_sinh": [
                         {
                             "id": r.id,

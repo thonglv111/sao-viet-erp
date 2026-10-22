@@ -18950,3 +18950,26 @@ MIGRATIONS.append(("0431_chup_cong_thuc_khoan", _migrate_chup_cong_thuc_khoan))
 # 0432 (21/10/2026) — `khoan_dung_may.created_by` (mg 0430) lỡ tạo ON DELETE SET NULL, trái luật mg
 # 0327 "mọi FK tới users đều CASCADE". Chạy lại đúng hàm 0327: nó chỉ đổi FK chưa CASCADE, idempotent.
 MIGRATIONS.append(("0432_khoan_dung_may_fk_user_cascade", _migrate_user_fks_delete_cascade))
+
+
+def _migrate_bac_gia_khoan(db: Session) -> None:
+    """0433 (22/10/2026) — bậc giá khoán theo số màu (gộp 8 công đoạn in thành "Bài in").
+
+    - `cong_doan_khoan.bac_gia`: danh sách bậc (JSON); dòng `gia_theo_to` mang thêm khoá `bac`.
+    - `san_xuat_batch.bac_khoan_snapshot`: bậc chụp lúc ghi (JSON).
+    Raw SQL đích danh cột, idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    them = (
+        ("cong_doan_khoan", "bac_gia", "JSON"),
+        ("san_xuat_batch", "bac_khoan_snapshot", "JSON"),
+    )
+    co_san = {t: _existing_columns(insp, t) for t in {t for t, _, _ in them} if t in bang}
+    for t, cot, kieu in them:
+        if t in co_san and cot not in co_san[t]:
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN {cot} {kieu}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0433_bac_gia_khoan", _migrate_bac_gia_khoan))

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
 
 from .loc_danh_muc import DemDieuKien
 
@@ -46,10 +46,35 @@ class CongDoanMayRow(CongDoanMayIn):
 
 
 class GiaTheoToIn(BaseModel):
-    """Một dòng bảng giá theo tổ (21/10/2026). Việc phát sinh không có giá cố định."""
+    """Một dòng bảng giá theo tổ (21/10/2026). Việc phát sinh không có giá cố định.
+
+    `bac` = mã bậc giá (22/10/2026) — chỉ có khi công đoạn chia bậc; vắng thì không trả khoá này để
+    dòng của công đoạn thường giữ nguyên hình dạng cũ."""
     department_id: int
+    bac: str | None = Field(default=None, max_length=20)
     gia_co_dinh: float | None = None
     don_gia: float | None = None
+
+    @model_serializer(mode="wrap")
+    def _bo_bac_rong(self, handler):
+        d = handler(self)
+        if d.get("bac") is None:
+            d.pop("bac", None)
+        return d
+
+
+class BacGiaIn(BaseModel):
+    """Một bậc giá (22/10/2026): điều kiện theo số màu (= số kẽm một tay như Tính giá), màu pha, một tuỳ chọn khi ghi.
+    `None` ở điều kiện nào = không xét điều kiện đó. Xem `viec_khoan.anh_bac`."""
+    ma: str = Field(default="", max_length=20)
+    ten: str = Field(default="", max_length=80)
+    mau_tu: float | None = None
+    mau_den: float | None = None
+    pha: Literal["co", "khong"] | None = None
+    tuy_chon_ma: str | None = Field(default=None, max_length=40)
+    tuy_chon_co: Literal["co", "khong"] | None = None
+    # Giá của bậc đã gồm mực UV (bậc Pantone UV) ⇒ chip `gia_gom_uv` = 1, công thức thôi nhân đôi.
+    gom_uv: bool = False
 
 
 class CongDoanKhoanPhatSinhIn(BaseModel):
@@ -82,6 +107,7 @@ class CongDoanKhoanIn(BaseModel):
     cong_thuc_khoan: str | None = None
     gia_theo_to: list[GiaTheoToIn] | None = None
     tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)
+    bac_gia: list[BacGiaIn] | None = None
     viec_phat_sinh: list[CongDoanKhoanPhatSinhIn] = Field(default_factory=list)
 
 
@@ -94,6 +120,7 @@ class CongDoanKhoanRow(BaseModel):
     cong_thuc_khoan: str | None = None
     gia_theo_to: list[GiaTheoToIn] | None = None
     tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)
+    bac_gia: list[BacGiaIn] | None = None
     viec_phat_sinh: list[CongDoanKhoanPhatSinhRow] = Field(default_factory=list)
 
     @field_validator("tuy_chon", mode="before")

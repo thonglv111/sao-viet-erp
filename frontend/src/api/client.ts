@@ -2051,6 +2051,8 @@ export interface SxBatch {
   viec_khoan_don_gia: number | null;
   /** Tuỳ chọn khi ghi đã chọn (Đợt 2); null = công đoạn không khai / lần ghi trước Đợt 2. */
   tuy_chon_khoan?: SxTuyChonLanGhi[] | null;
+  /** Bậc giá chụp lúc ghi (Bài in, 22/10/2026); null = công đoạn không chia bậc / không khớp bậc. */
+  bac_khoan_ten?: string | null;
   /** Việc phát sinh đã ghi — KHÔNG cộng vào sản lượng. */
   phat_sinh: SxMePhatSinh[];
   /** Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = còn khớp. */
@@ -2084,6 +2086,17 @@ export interface SxViecPhatSinhChon {
 export interface SxTuyChonKhai { ma: string; ten: string; kieu: "co_khong" | "so"; goi_y: string | null }
 /** Ảnh chụp tuỳ chọn của MỘT lần ghi (giá trị thợ chọn lúc ghi / sửa số). */
 export interface SxTuyChonLanGhi { ma: string; ten: string; kieu: string; gia_tri: number }
+/** Giá của tổ ứng với một tổ hợp tick (`chon` = {mã tuỳ chọn: 0/1}) — công đoạn chia bậc (Bài in). */
+export interface SxBacTheoChon {
+  chon: Record<string, number>;
+  bac_ma: string | null;
+  bac_ten: string | null;
+  so_mau: number;
+  so_mau_pha: number;
+  gia_co_dinh: number;
+  don_gia: number;
+  thieu_gia: boolean;
+}
 /** Cấu hình Khoán cố định của công đoạn. Không có thao tác chọn nguồn trong lúc ghi mẻ. */
 export interface SxKhoanCongDoan {
   id: number;
@@ -2096,6 +2109,10 @@ export interface SxKhoanCongDoan {
   gia_co_dinh?: number;
   thieu_gia?: boolean;
   tuy_chon?: SxTuyChonKhai[];
+  /** Bậc giá (Bài in): giá theo từng trạng thái tick; rỗng = không chia bậc. Số màu = số kẽm như Tính giá. */
+  bac_theo_chon?: SxBacTheoChon[];
+  so_mau?: number | null;
+  so_mau_pha?: number | null;
 }
 export interface SxNguoiThamGiaBatch {
   employee_id: number;
@@ -9456,6 +9473,8 @@ export interface OrderLineOut {
   line_total: number | null;
   /** Tiền chiết khấu nằm trong `line_total` — công ty sẽ hoàn lại khách. null = đơn cũ / nhập tay. */
   chiet_khau?: number | null;
+  /** Tiền kê nằm trong `line_total` (giá bán sau kê) — chi lại sau khi khách trả đủ. null = đơn cũ. */
+  ke_gia?: number | null;
   cost_snapshot: number | null;
   phieu_thanh_phan_id: number | null;
   /** Nhãn nhóm gộp KHI IN xác nhận đơn — copy từ dòng báo giá, khớp bản khách đã nhận. */
