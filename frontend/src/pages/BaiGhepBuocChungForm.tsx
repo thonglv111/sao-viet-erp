@@ -40,6 +40,8 @@ interface MayRef extends MayTinhGio {
   id: number;
   ten: string;
   loaiMay: string | null;
+  /** Tổ đứng máy (mg `0434`) — lượt chung chỉ mời máy thuộc tổ đang chọn. */
+  toIds: number[];
   /** Cờ NGỪNG DÙNG của danh mục Máy. Vẫn nạp về để đọc được tên máy bài cũ đang đeo; dropdown
    *  ở dưới mới là chỗ quyết định có mời máy đó nữa hay không. */
   active: boolean;
@@ -122,6 +124,7 @@ export function BuocChungForm({
           id: m.id,
           ten: String(m.ten),
           loaiMay: (m as { loai_may?: string | null }).loai_may ?? null,
+          toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
           active: m.active !== false,
           tocDo: m.toc_do == null ? null : Number(m.toc_do),
           tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
@@ -204,6 +207,24 @@ export function BuocChungForm({
     return items;
   })();
   const toDangGan = val("department_id", g.department_id) ?? null;
+  // Máy đi theo tổ (mg `0434`): công đoạn có tick tổ ⇒ chỉ mời máy THUỘC tổ đang chọn, cùng luật
+  // server chặn ở `lap_ke_hoach_buoc_chung`. Giữ máy ĐANG CHỌN dù lệch (hoặc đã ngừng dùng) để
+  // select không rơi về trống. Lọc theo NHÓM máy gỡ 22/10/2026.
+  const coRangBuocTo = (g.to_chon_duoc?.length ?? 0) > 0;
+  const mayCuaTo = (toId: number | null) => (mayRefs ?? []).filter((m) => m.active
+    && (!coRangBuocTo || toId == null || m.toIds.includes(toId)));
+  const mayMoi = (() => {
+    const ds = mayCuaTo(toDangGan);
+    const dangChon = (mayRefs ?? []).find((m) => m.id === mayId);
+    return dangChon && !ds.some((m) => m.id === dangChon.id) ? [...ds, dangChon] : ds;
+  })();
+  // Đổi tổ: máy đang chọn không thuộc tổ mới ⇒ máy đầu của tổ mới (tổ chưa có máy ⇒ bỏ trống).
+  const doiToLuot = (toId: number | null) => {
+    const ds = mayCuaTo(toId);
+    const giu = mayId != null && ds.some((m) => m.id === mayId);
+    setF({ ...f, department_id: toId,
+      ...(loai === "may" && coRangBuocTo && toId != null && !giu ? { may_id: ds[0]?.id ?? null } : {}) });
+  };
   const mayDaChon = (mayRefs ?? []).find((m) => m.id === mayId) ?? null;
 
   // Thời lượng tính LẠI TẠI CHỖ bằng đúng công thức của bước lệnh: đổi máy / số lượt / thời gian
@@ -494,7 +515,7 @@ export function BuocChungForm({
                     className="khsx-select-std"
                     value={toDangGan != null && toChon.some((t) => t.id === toDangGan) ? toDangGan : ""}
                     disabled={!canUpdate || !toRefs}
-                    onChange={(e) => setF({ ...f, department_id: e.target.value ? Number(e.target.value) : null })}
+                    onChange={(e) => doiToLuot(e.target.value ? Number(e.target.value) : null)}
                   >
                     <option value="">— chọn tổ —</option>
                     {toChon.map((t) => (
@@ -518,25 +539,14 @@ export function BuocChungForm({
                       onChange={(e) => setF({ ...f, may_id: e.target.value ? Number(e.target.value) : null })}
                     >
                       <option value="">— chọn máy —</option>
-                      {(mayRefs ?? [])
-                        .filter((m) => {
-                          // Lọc máy theo NHÓM công đoạn (bước Bế chỉ thấy máy Bế). Chưa khai ràng
-                          // buộc → hiện tất cả. Giữ máy ĐANG CHỌN dù sai loại (hoặc đã ngừng dùng),
-                          // để select không rơi về trống.
-                          if (m.id === mayId) return true;
-                          if (!m.active) return false;   // ngừng dùng ở danh mục ⇒ thôi mời
-                          const allow = g.nhom_may_cho_phep ?? [];
-                          if (allow.length === 0) return true;
-                          return m.loaiMay != null && allow.includes(m.loaiMay);
-                        })
-                        .map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.active ? m.ten : `${m.ten} (ngừng dùng)`}
-                          </option>
-                        ))}
+                      {mayMoi.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.active ? m.ten : `${m.ten} (ngừng dùng)`}
+                        </option>
+                      ))}
                     </select>
-                    {(g.nhom_may_cho_phep?.length ?? 0) > 0 && (
-                      <span className="khsx-field__hint">Chỉ máy nhóm: {g.nhom_may_cho_phep.join(", ")}</span>
+                    {coRangBuocTo && toDangGan != null && !mayMoi.some((m) => m.id !== mayId) && (
+                      <span className="khsx-field__hint">Tổ này chưa có máy chạy công đoạn này.</span>
                     )}
                     {mayDaChon && (
                       <span className="khsx-field__hint">

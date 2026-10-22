@@ -236,24 +236,18 @@ export function tenBuoc(
   return r.ten;
 }
 
-/** MÁY chọn được cho một bước — cùng MỘT luật với `BaiGhepService.may_ngoai_cong_doan` ở backend,
- *  nơi bài ghép và engine xếp lịch (`_may_lam_duoc`) phán quyết. HAI TẦNG, tầng dưới chỉ chạy khi
- *  tầng trên im:
- *    ① công đoạn đã khai bảng "Máy chạy được công đoạn này" ⇒ CHỈ những máy đó. Bảng ấy cũng là
- *       chỗ khai công thức giờ/giá của từng cặp (công đoạn, máy), nên máy ngoài nó không có công
- *       thức nào để chạy;
- *    ② chưa khai máy nào ⇒ lùi về hàng tick NHÓM máy (`nhomMayChoPhep`);
- *    chưa khai cả hai ⇒ mọi máy, đúng lối "chưa khai = không chặn" của cả hệ.
+/** Máy MỜI cho một bước — cùng luật server (`may_to.may_chon_duoc`, spec máy thuộc tổ 22/10/2026):
+ *    • công đoạn có bảng "Máy chạy được công đoạn này" (`mayChoPhep` = máy của các tổ đã tick) ⇒
+ *      CHỈ những máy đó; chưa khai máy nào ⇒ mọi máy ("chưa khai = không chặn");
+ *    • công đoạn có tick tổ (`coRangBuocTo`) và bước đã chọn tổ ⇒ chỉ máy THUỘC tổ đó.
+ *  Hàng tick NHÓM máy gỡ khỏi luật — máy đi theo tổ.
  *
- *  Trước 07/09/2026 drawer bước chỉ có tầng ②: công đoạn In offset khai đúng 4 máy trong bảng mà
- *  dropdown vẫn mời cả 10 máy của hai nhóm "Máy in" + "In ngoài" — người lên kế hoạch gán được
- *  máy rồi xếp lịch mới từ chối, hai màn nói hai kiểu về cùng một ràng buộc.
- *
- *  Máy ĐANG gán luôn giữ lại dù rớt bộ lọc (dữ liệu cũ, hoặc công đoạn siết danh sách sau khi lệnh
- *  đã gán) — không thì mở lệnh cũ ra là ô máy trống trơn, người xếp lịch tưởng chưa ai gán. */
-export function mayChonDuoc<T extends { id: number; nhom?: string | null; active?: boolean | null }>(
+ *  Máy ĐANG gán luôn giữ lại dù rớt bộ lọc (dữ liệu cũ, hoặc vừa đổi tổ) — không thì mở lệnh cũ ra
+ *  là ô máy trống trơn, người xếp lịch tưởng chưa ai gán. */
+export function mayChonDuoc<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
   mayRefs: T[],
-  cd: { nhomMayChoPhep?: string[] | null; mayChoPhep?: number[] | null } | null | undefined,
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+  toId: number | null | undefined,
   mayDangGan: number | null | undefined,
 ): T[] {
   // Máy đã NGỪNG DÙNG ở danh mục thì không mời cho bước nữa — cùng lời hứa của hộp thoại
@@ -261,12 +255,15 @@ export function mayChonDuoc<T extends { id: number; nhom?: string | null; active
   // rơi về trống, người dùng tưởng chưa gán rồi lưu đè mất máy cũ.
   const con = mayRefs.filter((m) => m.active !== false || m.id === mayDangGan);
   const ds = cd?.mayChoPhep ?? null;
-  if (ds && ds.length > 0) {
-    return con.filter((m) => ds.includes(m.id) || m.id === mayDangGan);
-  }
-  const nhom = cd?.nhomMayChoPhep ?? null;
-  if (!nhom || nhom.length === 0) return con;
-  return con.filter((m) => (m.nhom != null && nhom.includes(m.nhom)) || m.id === mayDangGan);
+  if (!ds || ds.length === 0) return con;
+  const theoId = new Map(con.map((m) => [m.id, m]));
+  const loc = cd?.coRangBuocTo && toId != null;
+  // Thứ tự theo bảng máy của công đoạn — máy "Đặt mặc định" đứng đầu.
+  const ra = ds.map((id) => theoId.get(id)).filter((m): m is T =>
+    m != null && (!loc || (m.toIds ?? []).includes(toId as number)));
+  const dangGan = mayDangGan != null && !ra.some((m) => m.id === mayDangGan)
+    ? theoId.get(mayDangGan) : undefined;
+  return dangGan ? [...ra, dangGan] : ra;
 }
 
 /** MÁY MẶC ĐỊNH của công đoạn = máy còn dùng đứng ĐẦU bảng "Máy chạy được công đoạn này" — cùng luật
@@ -279,6 +276,17 @@ export function mayMacDinh<T extends { id: number; active?: boolean | null }>(
     if (mayRefs.some((m) => m.id === id && m.active !== false)) return id;
   }
   return null;
+}
+
+/** Máy điền sẵn khi bước đổi sang tổ `toId`: máy đầu bảng thuộc tổ đó (`may_to.may_mac_dinh`).
+ *  Tổ chưa có máy chạy công đoạn này ⇒ null — bước trống máy, ô máy nói rõ vì sao. */
+export function mayMacDinhCuaTo<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+  toId: number | null | undefined,
+): number | null {
+  if (!(cd?.mayChoPhep?.length)) return null;
+  return mayChonDuoc(mayRefs, cd, toId, null)[0]?.id ?? null;
 }
 
 export function emptyRow(): EditRow {

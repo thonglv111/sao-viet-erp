@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toBody, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -99,50 +99,52 @@ describe("loiDong — các kiểm còn lại giữ nguyên", () => {
   });
 });
 
-// Máy chọn được trong drawer bước — phải khớp ĐÚNG luật `BaiGhepService.may_ngoai_cong_doan` của
-// backend. Không khớp thì kế hoạch gán được một máy mà xếp lịch / bài ghép sẽ từ chối, và người
-// dùng chỉ biết ở khâu sau cùng.
+// Máy chọn được trong drawer bước — phải khớp ĐÚNG luật `may_to.may_chon_duoc` của backend (máy
+// thuộc tổ, spec 2026-10-22-may-thuoc-to). Không khớp thì kế hoạch gán được một máy mà lưu lệnh /
+// bài ghép sẽ từ chối, và người dùng chỉ biết ở khâu sau cùng.
 describe("mayChonDuoc — máy nào được mời cho một bước", () => {
-  // Đúng dữ liệu DB dev: nhóm "Máy in" có 6 máy, "In ngoài" 4 máy, còn công đoạn In offset chỉ
-  // khai 4 máy cụ thể (IN-01, IN-02, IN-03, IN-06).
+  const TO_2MAU = 1, TO_4MAU = 2, TO_KHONG_MAY = 3;
+  const IN01 = 11, IN02 = 12, IN03 = 13;
   const MAY = [
-    { id: 1, ten: "IN-01", nhom: "Máy in" },
-    { id: 2, ten: "IN-02", nhom: "Máy in" },
-    { id: 3, ten: "IN-03", nhom: "Máy in" },
-    { id: 4, ten: "IN-04", nhom: "Máy in" },
-    { id: 5, ten: "IN-05", nhom: "Máy in" },
-    { id: 6, ten: "IN-06", nhom: "Máy in" },
-    { id: 7, ten: "IN-07", nhom: "In ngoài" },
-    { id: 27, ten: "TB-0001", nhom: "CTP" },
+    { id: IN01, ten: "IN-01", toIds: [TO_2MAU] },
+    { id: IN02, ten: "IN-02", toIds: [TO_4MAU] },
+    { id: IN03, ten: "IN-03", toIds: [TO_4MAU], active: false },
+    { id: 27, ten: "TB-0001", toIds: [] },
   ];
   const ten = (ds: { ten: string }[]) => ds.map((m) => m.ten);
-  const IN_OFFSET = { nhomMayChoPhep: ["In ngoài", "Máy in"], mayChoPhep: [1, 2, 3, 6] };
+  const CD = { mayChoPhep: [IN01, IN02, IN03], coRangBuocTo: true };
 
-  it("① bảng máy của công đoạn THẮNG hàng tick nhóm máy", () => {
-    expect(ten(mayChonDuoc(MAY, IN_OFFSET, null)))
-      .toEqual(["IN-01", "IN-02", "IN-03", "IN-06"]);
+  it("công đoạn có tổ ⇒ chỉ máy của tổ đang chọn", () => {
+    expect(mayChonDuoc(MAY, CD, TO_2MAU, null).map((m) => m.id)).toEqual([IN01]);
   });
 
-  it("② chưa khai máy nào thì lùi về nhóm máy", () => {
-    const cd = { nhomMayChoPhep: ["CTP"], mayChoPhep: [] };
-    expect(ten(mayChonDuoc(MAY, cd, null))).toEqual(["TB-0001"]);
+  it("máy ĐANG gán luôn còn trong danh sách dù không thuộc tổ", () => {
+    // Lệnh cũ gán IN-02 rồi đổi tổ. Loại nó đi là ô máy về trống trơn, người lập tưởng chưa gán.
+    expect(mayChonDuoc(MAY, CD, TO_2MAU, IN02).map((m) => m.id)).toEqual([IN01, IN02]);
   });
 
-  it("chưa khai cả hai ⇒ mọi máy", () => {
-    expect(mayChonDuoc(MAY, { nhomMayChoPhep: null, mayChoPhep: null }, null)).toHaveLength(MAY.length);
-    expect(mayChonDuoc(MAY, null, null)).toHaveLength(MAY.length);
+  it("công đoạn chưa tick tổ ⇒ không ràng buộc tổ, mời cả bảng máy", () => {
+    expect(mayChonDuoc(MAY, { mayChoPhep: [IN01, IN02], coRangBuocTo: false }, TO_2MAU, null))
+      .toHaveLength(2);
   });
 
-  it("máy ĐANG gán luôn còn trong danh sách dù rớt cả hai tầng", () => {
-    // Lệnh cũ gán IN-07 rồi công đoạn mới siết bảng máy lại. Loại nó đi là ô máy về trống trơn.
-    expect(ten(mayChonDuoc(MAY, IN_OFFSET, 7)))
-      .toEqual(["IN-01", "IN-02", "IN-03", "IN-06", "IN-07"]);
+  it("chưa chọn tổ ⇒ cả bảng máy còn dùng của công đoạn", () => {
+    expect(ten(mayChonDuoc(MAY, CD, null, null))).toEqual(["IN-01", "IN-02"]);
   });
 
-  it("máy chưa khai nhóm KHÔNG lọt bộ lọc nhóm", () => {
-    const cd = { nhomMayChoPhep: ["Máy in"], mayChoPhep: null };
-    const ds = [...MAY, { id: 99, ten: "MAY-LA", nhom: null }];
-    expect(ten(mayChonDuoc(ds, cd, null))).not.toContain("MAY-LA");
+  it("công đoạn chưa khai máy nào và không tổ ⇒ mọi máy", () => {
+    expect(mayChonDuoc(MAY, { mayChoPhep: null, coRangBuocTo: false }, null, null)).toHaveLength(3);
+    expect(mayChonDuoc(MAY, null, null, null)).toHaveLength(3);
+  });
+
+  it("máy ngừng dùng không được mời", () => {
+    expect(mayChonDuoc(MAY, CD, TO_4MAU, null).map((m) => m.id)).toEqual([IN02]);
+  });
+
+  it("máy mặc định của tổ = máy đầu bảng thuộc tổ, tổ không có máy ⇒ null", () => {
+    expect(mayMacDinhCuaTo(MAY, CD, TO_4MAU)).toBe(IN02);
+    expect(mayMacDinhCuaTo(MAY, CD, TO_2MAU)).toBe(IN01);
+    expect(mayMacDinhCuaTo(MAY, CD, TO_KHONG_MAY)).toBeNull();
   });
 });
 

@@ -429,9 +429,10 @@ export function LsxDetailView({
     // drawer bước lọc dropdown MÁY đúng như bài ghép và engine xếp lịch đang chặn (`RefRow`).
     api.congDoan.list(token).then((r) => setCongDoanRefs(r.items.map((c) => ({
       // `ma` chỉ để GÕ TÌM trong drawer bước (không hiện ra) — người khai quen gõ "CD-0003".
-      id: c.id, ten: c.ten, ma: c.ma, nhomMayChoPhep: c.nhom_may_cho_phep,
+      id: c.id, ten: c.ten, ma: c.ma,
       mayChoPhep: (c.may_lam_duoc ?? []).map((m) => m.may_id),
       toChoPhep: c.department_ids ?? [],
+      coRangBuocTo: (c.department_ids ?? []).length > 0,
     })))).catch(() => setCongDoanRefs(null));
     crud("/api/cong-doan/phong-ban").list(token).then((r) => setToRefs(r.items.map((t) => ({ id: t.id, ten: t.ten })))).catch(() => setToRefs(null));
     // Giữ luôn TỐC ĐỘ + CHUẨN BỊ của máy: form phải tính lại thời lượng ngay khi đổi máy, chứ
@@ -442,6 +443,7 @@ export function LsxDetailView({
       return {
         id: m.id, ten: m.ten, nhom: m.loai_may ? String(m.loai_may) : null,
         active: m.active !== false,
+        toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
         tocDo: m.toc_do == null ? null : Number(m.toc_do),
         tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
         tocDoMax: m.toc_do_max == null ? null : Number(m.toc_do_max),
