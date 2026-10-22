@@ -1039,6 +1039,8 @@ class PayrollService:
                      or bool(getattr(salary, "insurance_elsewhere", False)))),
             "luong_vi_tri": vi_tri,
             "luong_trach_nhiem": float(getattr(salary, "luong_trach_nhiem", 0) or 0) if salary else 0.0,
+            # Tổ tính hai lương (khối sản xuất, Giao hàng) — chỉ người ở đây mới cần ô "ăn công nhật".
+            "tinh_hai_luong": self._tinh_hai_luong(emp.department_id),
         }
 
     # --- advances (tạm ứng) -------------------------------------------------

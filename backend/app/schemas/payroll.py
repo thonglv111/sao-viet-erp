@@ -318,6 +318,8 @@ class SalaryPreviewOut(BaseModel):
     chua_khai_muc_bh: bool = False
     luong_vi_tri: float = 0
     luong_trach_nhiem: float = 0
+    # Tổ tính hai lương (khối SX, Giao hàng) — form hồ sơ lương chỉ hiện ô "ăn công nhật" khi đúng.
+    tinh_hai_luong: bool = False
 
 
 # --- advances ---------------------------------------------------------------

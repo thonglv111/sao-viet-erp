@@ -453,6 +453,11 @@ def test_TINH_LAI_AN_CONG_NHAT_khai_o_Sua_luong_co_tang_ca_theo_gio(client):
     r = client.get(f"/api/luong/salaries/{nguoi['cong_nhat']}", headers=h)
     assert r.status_code == 200, r.text
     assert any(s["an_cong_nhat"] for s in r.json()["items"]), r.text
+    # Form hồ sơ lương chỉ hiện ô "Cách trả lương" cho người ở tổ tính hai lương.
+    for vai, mong in (("thuong", False), ("khoan", True), ("cong_nhat", True)):
+        prev = client.get(f"/api/luong/salaries/{nguoi[vai]}/preview", headers=h)
+        assert prev.status_code == 200, prev.text
+        assert prev.json()["tinh_hai_luong"] is mong, (vai, prev.json())
 
     bang = _tinh_lai(client, h)
     thuong, khoan, cn = (_dong(bang, nguoi[k]) for k in ("thuong", "khoan", "cong_nhat"))

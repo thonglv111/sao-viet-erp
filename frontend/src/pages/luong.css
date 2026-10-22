@@ -3516,6 +3516,47 @@
   justify-content: space-between;
 }
 
+/* Cách trả lương (tổ tính hai lương): hai ô chọn Lương khoán / Công nhật */
+.lg-cach-tra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.lg-cach-tra__ds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.lg-cach-tra__o {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: var(--r-3, 8px);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.lg-cach-tra__o.is-chon {
+  border-color: var(--rust);
+}
+
+.lg-cach-tra__o input {
+  margin-top: 3px;
+  accent-color: var(--rust);
+  cursor: pointer;
+}
+
+.lg-cach-tra__chu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* Insurance Simulation Card */
 .lg-sim-container {
   display: flex;

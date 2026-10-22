@@ -38,7 +38,7 @@ export function SalaryModal({
   emp: EmployeeRow;
   onClose: () => void;
 }) {
-  const [, setPreview] = useState<SalaryPreview | null>(null);
+  const [preview, setPreview] = useState<SalaryPreview | null>(null);
   const [history, setHistory] = useState<EmployeeSalary[] | null>(null);
   const [histErr, setHistErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -673,22 +673,52 @@ export function SalaryModal({
                   </label>
                 </div>
 
-                <label className="ns-check" style={{ marginTop: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={anCongNhat}
-                    onChange={(e) => setAnCongNhat(e.target.checked)}
-                  />
-                  <span>Ăn công nhật, không hưởng tiền sản lượng</span>
-                </label>
-                <p
-                  className="cc-card__hint"
-                  style={{ marginLeft: 22, marginTop: 2 }}
-                >
-                  Dành cho người ở tổ sản xuất. Lương tính theo công, có tăng
-                  ca theo giờ. Vẫn được tick vào lần ghi và vẫn có phần trong
-                  tiền chia, nhưng không nhận phần đó.
-                </p>
+                {/* Chỉ người ở tổ tính hai lương mới phải chọn; đã chọn công nhật mà
+                    chuyển sang tổ thường thì vẫn hiện để còn bỏ được. */}
+                {(preview?.tinh_hai_luong || anCongNhat) && (
+                  <div
+                    className="lg-cach-tra"
+                    role="radiogroup"
+                    aria-label="Cách trả lương"
+                  >
+                    <span className="ns-field__label">Cách trả lương</span>
+                    <div className="lg-cach-tra__ds">
+                      <label
+                        className={`lg-cach-tra__o${!anCongNhat ? " is-chon" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cach-tra-luong"
+                          checked={!anCongNhat}
+                          onChange={() => setAnCongNhat(false)}
+                        />
+                        <span className="lg-cach-tra__chu">
+                          <span>Lương khoán</span>
+                          <span className="cc-card__hint">
+                            So lương theo công với tiền khoán, lấy bên cao hơn.
+                          </span>
+                        </span>
+                      </label>
+                      <label
+                        className={`lg-cach-tra__o${anCongNhat ? " is-chon" : ""}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cach-tra-luong"
+                          checked={anCongNhat}
+                          onChange={() => setAnCongNhat(true)}
+                        />
+                        <span className="lg-cach-tra__chu">
+                          <span>Công nhật</span>
+                          <span className="cc-card__hint">
+                            Lương theo công, tăng ca theo giờ. Vẫn được tick
+                            vào lần ghi nhưng không nhận tiền khoán.
+                          </span>
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Khoản thu nhập theo danh mục */}

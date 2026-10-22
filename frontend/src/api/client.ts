@@ -6229,6 +6229,8 @@ export interface SalaryPreview {
   insurance_base: number;
   luong_vi_tri: number;
   luong_trach_nhiem: number;
+  /** Tổ tính hai lương (khối SX, Giao hàng) — form hồ sơ lương mới hiện ô "Cách trả lương". */
+  tinh_hai_luong?: boolean;
 }
 export interface SalaryAdvance {
   id: number;
