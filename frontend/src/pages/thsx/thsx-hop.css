@@ -106,7 +106,11 @@
   border-top: 1px solid var(--rule-hair); font-size: 13.5px; }
 .thsx-gm-ps { border-top: 1px solid var(--rule-hair); padding: 8px 14px 10px; background: var(--paper); }
 .thsx-gm-ps ul { list-style: none; margin: 4px 0 0; padding: 0; }
-/* Hàng việc phát sinh: tick + tên giãn ra, ô số lượng (khi tick) đứng ngay trước đơn giá, cao bằng hàng. */
+/* Đầu nhóm (Tuỳ chọn / Việc phát sinh): tên nhóm chữ thường màu mực, dòng dưới nói nhóm làm gì với tiền. */
+.thsx-gm-ps__dau { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.thsx-gm-ps__ten { font-size: 14px; color: var(--ink); }
+.thsx-gm-ps + .thsx-gm-ps { border-top-color: var(--rule-soft); }
+/* Hàng việc phát sinh: tên giãn ra, ô số lượng (luôn hiện) đứng ngay trước đơn giá, cao bằng hàng. */
 .thsx-gm-ps__hang { display: flex; align-items: center; gap: 12px; min-height: 36px; }
 .thsx-gm-ps__chon { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; cursor: pointer;
   flex: 1 1 auto; min-width: 0; }
@@ -121,7 +125,13 @@
 .thsx-gm-ps__o input::-webkit-outer-spin-button,
 .thsx-gm-ps__o input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .thsx-gm-ps__o span { flex: none; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
-.thsx-gm-ps__loi { display: block; padding: 0 0 4px 24px; }
+.thsx-gm-ps__loi { display: block; padding: 0 0 4px; }
+/* Việc phát sinh: một lưới chung cho mọi hàng ⇒ ô số lượng và đơn giá thẳng cột dù tên dài ngắn. */
+.thsx-gm-ps__luoi { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; align-items: center; }
+.thsx-gm-ps__luoi > li, .thsx-gm-ps__luoi .thsx-gm-ps__hang { display: contents; }
+.thsx-gm-ps__luoi .thsx-gm-ps__chon { min-height: 36px; }
+.thsx-gm-ps__luoi .thsx-gm-gia { text-align: right; }
+.thsx-gm-ps__luoi .thsx-gm-ps__loi { grid-column: 1 / -1; }
 .thsx-gm-so { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 10px;
   padding: 0 12px; background: var(--canvas); }
 .thsx-gm-so:focus-within { border-color: var(--ash); }

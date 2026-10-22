@@ -1,4 +1,4 @@
-"""Truy vấn của "máy thuộc tổ" (`may_to`, mg 0434) — luật nằm ở `services/may_to.py`."""
+"""Truy vấn của "máy thuộc tổ" (`may_to`, mg 0435) — luật nằm ở `services/may_to.py`."""
 from __future__ import annotations
 
 from collections.abc import Iterable

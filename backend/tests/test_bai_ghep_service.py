@@ -74,7 +74,7 @@ def _may_in(db) -> MayThietBi:
 
 
 def _may_vao_cong_doan(db, may, cd) -> None:
-    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0434`): máy vào tổ ĐẦU của công đoạn
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0435`): máy vào tổ ĐẦU của công đoạn
     rồi đồng bộ bảng máy — đúng như khai "Tổ đứng máy" ở danh mục Thiết bị."""
     from app.models.may_thiet_bi import MayTo
     from app.services.may_to import dong_bo_cong_doan_may
@@ -349,7 +349,7 @@ def test_san_sang_ok_va_sua_thanh_vien_ha_ve_nhap(db, orders, lsx_svc, bg_svc, a
     # Chưa gộp gì thì đây là 2 lệnh rời, không phải bài ghép → chặn sẵn sàng.
     assert "thieu_buoc_chung" in bg_svc.thieu_cua(bg_svc._get(bg.id))
     _gop_buoc_in(bg_svc, lsx_svc, bg, created, admin)
-    # Gộp rồi thì lượt chung nhận máy chung của các bước, TỔ đi theo máy (mg `0434`) — đủ kế hoạch.
+    # Gộp rồi thì lượt chung nhận máy chung của các bước, TỔ đi theo máy (mg `0435`) — đủ kế hoạch.
     chung = bg_svc._buoc_chungs(bg_svc._get(bg.id))[0]
     assert chung.may_id is not None and chung.department_id == _to_san_xuat(db).id
     assert "thieu_ke_hoach_buoc_chung" not in bg_svc.thieu_cua(bg_svc._get(bg.id))

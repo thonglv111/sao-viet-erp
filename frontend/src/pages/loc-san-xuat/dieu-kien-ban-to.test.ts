@@ -14,8 +14,9 @@ const DEM: SxWorkItemsLocDem = {
   cho: { ban_giao: 1, kcs: 3 },
   toi: { toi: 4, qua: 1 },
   vuong: { chua_giao_tho: 5 },
-  tre: { xong: 2 },
   nguoi: [{ id: 12, ten: "Đào Văn Hoan", so: 3 }, { id: 4, ten: "Lê Thị Mai", so: 0 }],
+  may: [{ id: 5, ten: "Máy in 4 màu", so: 6 }],
+  khach: [{ id: 9, ten: "Công ty An Phát", so: 2 }],
 };
 
 describe("thanh lọc bàn tổ", () => {
@@ -23,26 +24,27 @@ describe("thanh lọc bàn tổ", () => {
     expect(Object.values(locBanToLenUrl(LOC_MAN_BAN_TO_TRONG)).filter(Boolean)).toEqual([]);
     expect(locBanToTuUrl(new URLSearchParams()).ky.moc).toBe("nhan");
     expect(thamSoLocBanTo(LOC_BAN_TO_TRONG)).toEqual({
-      trang_thai: undefined, cho_loai: undefined, toi: undefined, vuong: undefined, tre: undefined, nguoi: undefined,
+      trang_thai: undefined, cho_loai: undefined, toi: undefined, vuong: undefined, may: undefined, khach: undefined,
+      nguoi: undefined,
     });
   });
 
-  it("đi về qua URL giữ đủ 6 điều kiện, rác thì bỏ", () => {
+  it("đi về qua URL giữ đủ điều kiện, rác thì bỏ", () => {
     const t: LocManBanTo = {
       ky: { loai: "thang", moc: "tao" },
       loc: {
         trangThai: ["running", "paused"], cho: ["ban_giao", "kcs"], toi: "con_2_3",
-        vuong: ["chua_giao_tho", "chua_nhan_khuon"], tre: "xong", nguoi: [12, 4],
+        vuong: ["chua_giao_tho", "chua_nhan_khuon"], may: [5, 3], khach: [9], nguoi: [12, 4],
       },
       sapXep: "du_kien",
     };
     const url = locBanToLenUrl(t);
-    expect(url).toMatchObject({ cho: "ban_giao.kcs", toi: "con_2_3", vg: "chua_giao_tho.chua_nhan_khuon", tre: "xong", ng: "12.4" });
+    expect(url).toMatchObject({ cho: "ban_giao.kcs", toi: "con_2_3", vg: "chua_giao_tho.chua_nhan_khuon", may: "5.3", kh: "9", ng: "12.4" });
     expect(locBanToTuUrl(quaUrl(url))).toEqual(t);
-    const rac = locBanToTuUrl(new URLSearchParams("tt=chay.running&sap=la&moc=x&cho=2&toi=xa&vg=la.chua_nhan_khuon&tre=som&ng=a.7"));
+    const rac = locBanToTuUrl(new URLSearchParams("tt=chay.running&sap=la&moc=x&cho=2&toi=xa&vg=la.chua_nhan_khuon&tre=xong&may=x.5&kh=&ng=a.7"));
     expect(rac).toEqual({
       ...LOC_MAN_BAN_TO_TRONG,
-      loc: { trangThai: ["running"], cho: [], toi: undefined, vuong: ["chua_nhan_khuon"], tre: undefined, nguoi: [7] },
+      loc: { trangThai: ["running"], cho: [], toi: undefined, vuong: ["chua_nhan_khuon"], may: [5], khach: [], nguoi: [7] },
     });
   });
 
@@ -53,17 +55,18 @@ describe("thanh lọc bàn tổ", () => {
 
   it("tham số máy chủ: mảng lặp, một giá trị đi thẳng, người gửi chuỗi số", () => {
     expect(thamSoLocBanTo({
-      trangThai: ["released"], cho: ["kcs"], toi: "toi", vuong: ["chua_nhan_khuon"], tre: "bat_dau", nguoi: [12],
+      trangThai: ["released"], cho: ["kcs"], toi: "toi", vuong: ["chua_nhan_khuon"], may: [5], khach: [9], nguoi: [12],
     })).toEqual({
-      trang_thai: ["released"], cho_loai: ["kcs"], toi: "toi", vuong: ["chua_nhan_khuon"], tre: "bat_dau", nguoi: ["12"],
+      trang_thai: ["released"], cho_loai: ["kcs"], toi: "toi", vuong: ["chua_nhan_khuon"], may: ["5"], khach: ["9"],
+      nguoi: ["12"],
     });
   });
 
   it("số đếm máy chủ gắn đúng giá trị; Trạng thái không vẽ khối cạnh nút Lọc", () => {
     const dk = dieuKienBanTo(DEM);
     expect(dk.map((d) => d.nhan)).toEqual([
-      "Trạng thái", "Lệnh gấp", "Việc chờ tổ bấm", "Hàng đang tới đâu", "Chưa bắt đầu được vì", "Trễ giờ dự kiến",
-      "Người làm",
+      "Trạng thái", "Lệnh gấp", "Việc chờ tổ bấm", "Hàng đang tới đâu", "Chưa bắt đầu được vì", "Máy",
+      "Khách hàng", "Người làm",
     ]);
     const so = (khoa: string, v: string) => {
       const d = dk.find((x) => x.khoa === khoa);
@@ -74,10 +77,11 @@ describe("thanh lọc bàn tổ", () => {
     expect(so("cho", "kcs")).toBe(3);
     expect(so("toi", "toi")).toBe(4);
     expect(so("vg", "chua_giao_tho")).toBe(5);
-    expect(so("tre", "xong")).toBe(2);
+    expect(so("may", "5")).toBe(6);
+    expect(so("kh", "9")).toBe(2);
     expect(so("ng", "12")).toBe(3);
     expect(dk.find((d) => d.khoa === "tt")?.anKhoi).toBe(true);
-    expect(dk.find((d) => d.khoa === "ng")?.tim).toBe(true);
+    expect(dk.filter((d) => d.tim).map((d) => d.khoa)).toEqual(["may", "kh", "ng"]);
   });
 
   it("Lệnh gấp: một giá trị, đi về qua URL, gửi máy chủ khoá gap, số đếm từ dem.gap", () => {

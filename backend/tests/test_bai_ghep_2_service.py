@@ -154,7 +154,7 @@ def test_gop_bg2_chi_ke_thua_nhan_dien_danh_muc_don_vi_va_thu_tu(
         mau.don_vi_vao, mau.don_vi_ra, mau.thu_tu,
     )
     # Tổ/máy KHÔNG bê của lệnh mẫu (123/456): lượt chung nhận máy mặc định của công đoạn, tổ đi
-    # theo máy (máy thuộc tổ, mg `0434`).
+    # theo máy (máy thuộc tổ, mg `0435`).
     from app.models.cong_doan import CongDoan
     from app.services.may_to import to_cho_may
 
@@ -403,7 +403,7 @@ def test_gop_dien_may_cho_luot_chung(db, orders, lsx_svc, admin, customer):
     db.add_all([m1, m2])
     db.flush()
     cd = db.get(CongDoan, sa.cong_doan_id)
-    for d in cd.department_ids:   # máy thuộc tổ của công đoạn (mg 0434)
+    for d in cd.department_ids:   # máy thuộc tổ của công đoạn (mg 0435)
         db.add_all([MayTo(may_id=m1.id, department_id=d), MayTo(may_id=m2.id, department_id=d)])
     cd.may_khai.clear()
     db.flush()

@@ -44,7 +44,7 @@ def nen(client) -> dict:
                            active=True)
         db.add_all([to, may, vat_tu])
         db.flush()
-        db.add(MayTo(may_id=may.id, department_id=to.id))  # máy thuộc tổ (mg 0434)
+        db.add(MayTo(may_id=may.id, department_id=to.id))  # máy thuộc tổ (mg 0435)
         db.commit()
         ids = {"may_id": may.id, "vat_tu_id": vat_tu.id, "to_id": to.id}
     return {"headers": _headers(client), **ids}

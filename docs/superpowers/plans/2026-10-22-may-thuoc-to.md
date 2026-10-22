@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Làm trong WORKTREE riêng cắt từ `dev` HEAD (dev đang bẩn bởi phiên song song). Chạy UI worktree: BE cổng 8010, FE 5174, env INLINE (xem memory `run-ui-worktree`).
-- Không Alembic: bảng mới phải có migration `0434_may_to` (`MIGRATIONS.append`) trong `backend/app/db_migrations.py`; cập nhật `docs/DB_SCHEMA.md` cùng commit (guard test).
+- Không Alembic: bảng mới phải có migration `0435_may_to` (`MIGRATIONS.append`) trong `backend/app/db_migrations.py`; cập nhật `docs/DB_SCHEMA.md` cùng commit (guard test).
 - Migration chỉ TẠO bảng: không điền tổ cho máy, không sửa lệnh/công việc, không xoá `cong_doan_may`.
 - Tổ/máy của lệnh và công việc là ẢNH CHỤP: đổi danh mục KHÔNG sửa lệnh/việc đang có, chỉ cảnh báo.
 - Công đoạn không tick tổ nào ⇒ giữ hành vi hôm nay (dùng nguyên dòng `cong_doan_may`, không kiểm cặp).
@@ -39,7 +39,7 @@
 - Modify: `backend/app/models/may_thiet_bi.py` (thêm `MayTo`, quan hệ `MayThietBi.to_dung_may`, property `to_ids`)
 - Modify: `backend/app/models/cong_doan.py:158` (đổi tên quan hệ ghi được → `may_khai`; `may_lam_duoc` viewonly), `:349`
 - Modify: `backend/app/repositories/cong_doan_repo.py:40,128,170-178` (ghi qua `may_khai`; selectinload cả hai)
-- Modify: `backend/app/db_migrations.py` (cuối file, `0434_may_to`)
+- Modify: `backend/app/db_migrations.py` (cuối file, `0435_may_to`)
 - Modify: `docs/DB_SCHEMA.md` (mục mới `may_to`, ghi chú `cong_doan.nhom_may_cho_phep` "không còn đọc")
 - Test: `backend/tests/test_may_to.py` (mới)
 
@@ -68,9 +68,9 @@ def test_bo_tick_roi_tick_lai_giu_cong_thuc(db):
 def test_selectinload_may_lam_duoc(db):  # nạp nhiều cd bằng selectinload không lỗi, kết quả đúng như trên
 ```
 - [ ] **Step 2:** `cd backend && python -m pytest tests/test_may_to.py -q` → FAIL (ImportError `MayTo`).
-- [ ] **Step 3: Cài model + quan hệ + migration `0434_may_to` (CREATE TABLE IF NOT EXISTS, cả SQLite lẫn Postgres) + DB_SCHEMA.** `may_lam_duoc` viết bằng `relationship(..., viewonly=True, primaryjoin=and_(CongDoan.id == CongDoanMay.cong_doan_id, or_(~exists(cong_doan_to của cd), exists(may_to ⨝ cong_doan_to))))` — nếu selectinload không chạy với primaryjoin có EXISTS thì đổi sang `lazy="selectin"` cùng primaryjoin, hoặc chú thích rõ và dùng `secondary`; giữ nguyên tên/kiểu trả.
+- [ ] **Step 3: Cài model + quan hệ + migration `0435_may_to` (CREATE TABLE IF NOT EXISTS, cả SQLite lẫn Postgres) + DB_SCHEMA.** `may_lam_duoc` viết bằng `relationship(..., viewonly=True, primaryjoin=and_(CongDoan.id == CongDoanMay.cong_doan_id, or_(~exists(cong_doan_to của cd), exists(may_to ⨝ cong_doan_to))))` — nếu selectinload không chạy với primaryjoin có EXISTS thì đổi sang `lazy="selectin"` cùng primaryjoin, hoặc chú thích rõ và dùng `secondary`; giữ nguyên tên/kiểu trả.
 - [ ] **Step 4:** Chạy lại test mới → PASS. Chạy các file test đang dựng máy cho công đoạn: `python -m pytest tests/test_cong_doan.py tests/test_cong_doan_may.py tests/test_cong_doan_bon_cong_thuc_http.py tests/test_cong_thuc_ve_cong_doan.py tests/test_danh_muc_so_truy_van.py tests/test_import_excel.py tests/test_lsx_service.py tests/test_nhat_ky_cong_doan_bang_con.py tests/test_san_xuat_doi_may.py tests/test_xep_lich_lenh_service.py tests/test_bai_ghep_2_service.py tests/test_schema_documented.py -q`. Test hỏng vì ghi qua `cd.may_lam_duoc.append(...)` ⇒ đổi sang `may_khai`; test có tick tổ mà máy không thuộc tổ ⇒ thêm `MayTo` vào dữ liệu test (không sửa kỳ vọng).
-- [ ] **Step 5: Commit** `feat(may-to): bảng máy thuộc tổ, máy của công đoạn lọc theo tổ đã tick (mg 0434)`
+- [ ] **Step 5: Commit** `feat(may-to): bảng máy thuộc tổ, máy của công đoạn lọc theo tổ đã tick (mg 0435)`
 
 ### Task 2: Module luật tổ × máy
 

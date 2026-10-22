@@ -38,9 +38,15 @@ function dauTangNgoai(toks: string[], khop: number[], from: number, to: number, 
 const CONG = ["+", "-"];
 const NHAN = ["*", "/"];
 
+/** Công thức có phép + / − ở tầng ngoài cùng — nối "× F" vào đuôi nó thì F chỉ nhân số hạng cuối. */
+export function congNgoai(toks: string[]): boolean {
+  return dauTangNgoai(toks, khopNgoac(toks), 0, toks.length, CONG).length > 0;
+}
+
 /** Thừa số `( tổng )` ngắn hơn ngần này token bên trong thì để nguyên trong phần — `( 1 - chay_tiep )`
  *  mà cũng mở ra thì phần nào cũng vụn thành ba bốn mẩu. */
 const MO_NGOAC_TU = 8;
+const HAM_MO = ["max", "min", "round", "ceil", "floor"];
 
 /** Cắt công thức ở các phép + − × ÷ NGOÀI CÙNG thành các phần A, B, C…:
  *  - có phép +/− ở tầng ngoài ⇒ mỗi số hạng một phần;
@@ -63,6 +69,25 @@ export function tachPhan(toks: string[], toiThieu = TACH_PHAN_TU): TachPhan | nu
   const boc = (s: number, e: number) => e - s >= 2 && toks[s] === "(" && khop[s] === e - 1;
   const moDuoc = (a: number, b: number) =>
     boc(a, b) && b - a - 2 >= MO_NGOAC_TU && dauTangNgoai(toks, khop, a + 1, b - 1, CONG).length > 0;
+  /** [a, b) là trọn một lời gọi max / min / round / ceil / floor đủ dài ⇒ mở ra như một cặp ngoặc:
+   *  `max ( ( A + B ) × C , D )`. `if` không mở — chuỗi if đã có bảng Khi | Lấy riêng. */
+  const laHam = (a: number, b: number) =>
+    HAM_MO.includes(toks[a]) && toks[a + 1] === "(" && khop[a + 1] === b - 1 && b - a - 3 >= MO_NGOAC_TU;
+  // Tham số rỗng của hàm vừa bọc (`max ( X , )`) là một phần rỗng hợp lệ — chỗ trống chờ gõ.
+  const rongDuoc = new Set<number>();
+  const moHam = (a: number, b: number) => {
+    khung.push({ tok: a }, { tok: a + 1 });
+    const phay = dauTangNgoai(toks, khop, a + 2, b - 1, [","]);
+    [...phay, b - 1].forEach((p, x) => {
+      const u = x ? phay[x - 1] + 1 : a + 2;
+      if (x) khung.push({ tok: phay[x - 1] });
+      // Tham số `( tổng )` ngắn để nguyên một phần như thừa số — gõ "4 +" ở phần D của `max ( X , D )`
+      // thì ô bọc thành `( 4 + )` để giữ trong D; mở ngoặc đó ra là D vỡ đôi.
+      if (u === p) { rongDuoc.add(phan.length); themPhan(u, p); } else if (boc(u, p) && !moDuoc(u, p)) themPhan(u, p);
+      else cat(u, p);
+    });
+    khung.push({ tok: b - 1 });
+  };
 
   /** Các thừa số [a, b) của tích [s, e) cắt tại `nhan`. */
   const thuaSo = (s: number, e: number, nhan: number[]) =>
@@ -74,7 +99,8 @@ export function tachPhan(toks: string[], toiThieu = TACH_PHAN_TU): TachPhan | nu
         khung.push({ tok: a });
         cat(a + 1, b - 1);
         khung.push({ tok: b - 1 });
-      } else themPhan(a, b);
+      } else if (laHam(a, b)) moHam(a, b);
+      else themPhan(a, b);
     });
   };
   const cat = (s: number, e: number) => {
@@ -85,6 +111,7 @@ export function tachPhan(toks: string[], toiThieu = TACH_PHAN_TU): TachPhan | nu
         if (x) khung.push({ tok: cong[x - 1] });
         const nhan = dauTangNgoai(toks, khop, a, p, NHAN);
         if (nhan.length && thuaSo(a, p, nhan).some(({ a: u, b: v }) => moDuoc(u, v))) tich(a, p, nhan);
+        else if (!nhan.length && laHam(a, p)) moHam(a, p);
         else themPhan(a, p);
       });
       return;
@@ -97,13 +124,14 @@ export function tachPhan(toks: string[], toiThieu = TACH_PHAN_TU): TachPhan | nu
       khung.push({ tok: e - 1 });
       return;
     }
+    if (laHam(s, e)) { moHam(s, e); return; }
     themPhan(s, e);
   };
 
   cat(0, toks.length);
   const n = toks.length;
-  if (phan.length < 2
-    || phan.some((p, k) => p.end <= p.start && !(k === phan.length - 1 && p.start === n))) return null;
+  if (phan.length < 2 || phan.some((p, k) => p.end <= p.start
+    && !rongDuoc.has(k) && !(k === phan.length - 1 && p.start === n))) return null;
   return { khung, phan };
 }
 

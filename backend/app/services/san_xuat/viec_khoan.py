@@ -69,14 +69,42 @@ def gia_cua_to(khoan, department_id: int | None,
     return None, None
 
 
-def _mau_lenh(qc: dict | None) -> tuple[float, float]:
+def _muc_hai_mat(qc: dict | None) -> tuple[list[str], list[str]] | None:
+    """Tập mực mặt A, mặt B của lệnh in AB (`hai_mat`) — None nếu lệnh không in AB hoặc không biết
+    từng mặt (bài ghép chỉ có số màu gộp)."""
+    from ..thanh_phan_engine import tap_muc, tap_muc_tu_so
+
+    qc = qc or {}
+    if qc.get("quy_cach_in") != "hai_mat" or "bien_so_mau" in qc:
+        return None
+    a, b = tap_muc(qc.get("muc_a")), tap_muc(qc.get("muc_b"))
+    if not a and not b:
+        a, b = tap_muc_tu_so(qc.get("so_mau_a"), qc.get("so_mau_b"), qc.get("so_mau_pha"))
+    return (a, b) if a or b else None
+
+
+def mat_cua_lenh(qc: dict | None) -> list[str]:
+    """Các mặt thợ phải chọn khi ghi lệnh in AB: `["a", "b"]`; lệnh khác ⇒ `[]`.
+
+    AB hai mặt hai bộ kẽm, máy chạy từng mặt một ⇒ mỗi lần ghi là MỘT mặt, giá theo số màu của mặt
+    đó (sổ khoán in tính mỗi mặt là một bài)."""
+    return ["a", "b"] if _muc_hai_mat(qc) else []
+
+
+def _mau_lenh(qc: dict | None, mat: str | None = None) -> tuple[float, float]:
     """(số màu, số màu pha) của quy cách lệnh / bài để chọn bậc.
 
     Số màu = SỐ KẼM MỘT TAY, đúng chip `so_mau` bên Tính giá (chủ chốt 22/10/2026: "phải giống số
     kẽm như tính giá, sau này sai sửa cho dễ") — cùng hàm `dem_mau_cong_thuc` qua `ngu_canh_lenh`:
-    1 mặt và tự trở / trở nhíp đếm hợp mực, AB đếm hai mặt cộng lại (AB 4/4 ra 8)."""
+    1 mặt và tự trở / trở nhíp đếm hợp mực. Lệnh AB có `mat` ⇒ chỉ đếm kẽm mặt đó; không có thì
+    hai mặt cộng lại (AB 4/4 ra 8, không khớp bậc nào)."""
     from ..bien_cong_thuc import ngu_canh_lenh
+    from ..thanh_phan_engine import MUC_PROCESS
 
+    hai = _muc_hai_mat(qc) if mat in ("a", "b") else None
+    if hai:
+        mat_muc = hai[0] if mat == "a" else hai[1]
+        return float(len(mat_muc)), float(sum(1 for m in mat_muc if m not in MUC_PROCESS))
     ctx = ngu_canh_lenh(qc or {})
     return float(ctx.get("so_mau") or 0), float(ctx.get("so_mau_pha") or 0)
 
@@ -97,21 +125,34 @@ def _khop_bac(b: dict, so_mau: float, pha: float, tuy_chon: dict) -> bool:
     return True
 
 
-def anh_bac(khoan, qc: dict | None, tuy_chon: dict | None) -> dict | None:
-    """Bậc giá của một lần ghi — ảnh chụp `{ma, ten, gom_uv, so_mau, so_mau_pha}`.
+def _to_co_gia(khoan, department_id: int | None, ma: str) -> bool:
+    return department_id is not None and any(
+        r.get("bac") == ma and int(r.get("department_id") or 0) == int(department_id)
+        and r.get("don_gia") is not None for r in (khoan.gia_theo_to or []))
 
-    Bậc xét từ trên xuống, bậc khớp ĐẦU TIÊN thắng. Không bậc nào khớp (8 màu, việc không neo lệnh)
-    ⇒ `ma`/`ten` None: vẫn ghi được sản lượng, lương báo thiếu giá kèm số màu. Công đoạn không chia
-    bậc ⇒ None."""
+
+def anh_bac(khoan, qc: dict | None, tuy_chon: dict | None, department_id: int | None = None,
+            mat: str | None = None) -> dict | None:
+    """Bậc giá của một lần ghi — ảnh chụp `{ma, ten, gom_uv, so_mau, so_mau_pha}` (+ `mat` khi lệnh
+    in AB).
+
+    Bậc xét từ trên xuống, bậc khớp ĐẦU TIÊN thắng. Có `department_id` thì bậc mà TỔ đó để trống ô
+    giá bị bỏ qua, dò tiếp xuống: tổ không chia bậc ấy (máy 4 màu không tách 1–2 màu Pantone khỏi
+    1–2 màu thường — sổ khoán 22/10/2026). Không bậc nào tổ có giá ⇒ trả bậc khớp đầu tiên để lương
+    báo "tổ chưa có giá bậc …". Không bậc nào khớp (8 màu, việc không neo lệnh) ⇒ `ma`/`ten` None:
+    vẫn ghi được sản lượng, lương báo thiếu giá kèm số màu. Công đoạn không chia bậc ⇒ None."""
     if khoan is None or not khoan.bac_gia:
         return None
-    so_mau, pha = _mau_lenh(qc)
+    so_mau, pha = _mau_lenh(qc, mat)
     tc = dict(tuy_chon or {})
-    for b in khoan.bac_gia:
-        if _khop_bac(b, so_mau, pha, tc):
-            return {"ma": b["ma"], "ten": b.get("ten"), "gom_uv": bool(b.get("gom_uv")),
-                    "so_mau": so_mau, "so_mau_pha": pha}
-    return {"ma": None, "ten": None, "gom_uv": False, "so_mau": so_mau, "so_mau_pha": pha}
+    khop = [b for b in khoan.bac_gia if _khop_bac(b, so_mau, pha, tc)]
+    b = next((b for b in khop if _to_co_gia(khoan, department_id, b["ma"])), None)
+    b = b or (khop[0] if khop else None)
+    ra = {"ma": b["ma"] if b else None, "ten": b.get("ten") if b else None,
+          "gom_uv": bool(b and b.get("gom_uv")), "so_mau": so_mau, "so_mau_pha": pha}
+    if mat in mat_cua_lenh(qc):
+        ra["mat"] = mat
+    return ra
 
 
 def bac_theo_chon(khoan, qc: dict | None, department_id: int | None) -> list[dict]:
@@ -122,14 +163,16 @@ def bac_theo_chon(khoan, qc: dict | None, department_id: int | None) -> list[dic
         return []
     mas = list(dict.fromkeys(b["tuy_chon_ma"] for b in khoan.bac_gia if b.get("tuy_chon_ma")))
     ra = []
-    for n in range(2 ** len(mas)):
-        chon = {ma: float((n >> i) & 1) for i, ma in enumerate(mas)}
-        bac = anh_bac(khoan, qc, chon)
-        gia_cd, don_gia = gia_cua_to(khoan, department_id, bac["ma"])
-        ra.append({"chon": chon, "bac_ma": bac["ma"], "bac_ten": bac["ten"],
-                   "so_mau": bac["so_mau"], "so_mau_pha": bac["so_mau_pha"],
-                   "gia_co_dinh": float(gia_cd or 0), "don_gia": float(don_gia or 0),
-                   "thieu_gia": don_gia is None})
+    # Lệnh in AB: mỗi mặt một bộ tổ hợp, hộp ghi bắt thợ chọn mặt rồi mới ra giá.
+    for mat in mat_cua_lenh(qc) or [None]:
+        for n in range(2 ** len(mas)):
+            chon = {ma: float((n >> i) & 1) for i, ma in enumerate(mas)}
+            bac = anh_bac(khoan, qc, chon, department_id, mat)
+            gia_cd, don_gia = gia_cua_to(khoan, department_id, bac["ma"])
+            ra.append({"chon": chon, "mat": mat, "bac_ma": bac["ma"], "bac_ten": bac["ten"],
+                       "so_mau": bac["so_mau"], "so_mau_pha": bac["so_mau_pha"],
+                       "gia_co_dinh": float(gia_cd or 0), "don_gia": float(don_gia or 0),
+                       "thieu_gia": don_gia is None})
     return ra
 
 
@@ -140,7 +183,8 @@ def mo_ta_mau(bac: dict | None) -> str:
     so_mau, pha = float(bac.get("so_mau") or 0), float(bac.get("so_mau_pha") or 0)
     if so_mau <= 0:
         return "lệnh chưa có số màu in"
-    return f"lệnh {so_mau:g} màu" + (f", {pha:g} màu pha" if pha > 0 else "")
+    mat = {"a": "mặt A ", "b": "mặt B "}.get(bac.get("mat") or "", "")
+    return f"lệnh {mat}{so_mau:g} màu" + (f", {pha:g} màu pha" if pha > 0 else "")
 
 
 def quy_cach_cua_viec(db: Session, cv) -> dict:
@@ -184,7 +228,8 @@ def _bac_song(db: Session, khoan, b, cv=None) -> dict | None:
 
         cv = SanXuatSanLuongRepository(db).cong_viec(b.cong_viec_id)
     qc = quy_cach_cua_viec(db, cv) if cv is not None else {}
-    return anh_bac(khoan, qc, _tuy_chon_cua_me(b))
+    return anh_bac(khoan, qc, _tuy_chon_cua_me(b), getattr(cv, "department_id", None),
+                   (b.bac_khoan_snapshot or {}).get("mat"))
 
 
 def _anh_ps_cd_song(ps, department_id: int | None) -> dict:
@@ -246,7 +291,7 @@ def danh_sach_cua_to(db: Session, *, department_id: int | None, tim: str | None 
 def chuan_hoa_khi_ghi(
     db: Session, *, khoan, ten_cong_doan: str | None, phat_sinh: list[dict] | None,
     department_id: int | None = None, tuy_chon: dict[str, float] | None = None,
-    qc: dict | None = None,
+    qc: dict | None = None, mat_in: str | None = None,
 ) -> tuple[dict, list[SanXuatBatchPhatSinh]]:
     """Chụp cấu hình Khoán của công đoạn vào mẻ đang ghi — giá CỦA TỔ `department_id`.
 
@@ -259,7 +304,8 @@ def chuan_hoa_khi_ghi(
     `tuy_chon_khoan` — xem `anh_chup_tuy_chon`.
 
     `qc` = quy cách của lệnh / bài (`quy_cach_cua_viec`) — công đoạn chia bậc chọn bậc từ đây cộng
-    tuỳ chọn, chụp vào `bac_khoan_snapshot`, giá là ô (tổ, bậc).
+    tuỳ chọn, chụp vào `bac_khoan_snapshot`, giá là ô (tổ, bậc). Lệnh in AB thì `mat_in` ("a"/"b")
+    BẮT BUỘC: mỗi lần ghi là một mặt, bậc theo số màu mặt đó.
     """
     if khoan is None:
         if tuy_chon:
@@ -279,7 +325,12 @@ def chuan_hoa_khi_ghi(
         }, [])
 
     tc_anh = anh_chup_tuy_chon(khoan, tuy_chon)
-    bac = anh_bac(khoan, qc, {t["ma"]: t["gia_tri"] for t in (tc_anh or [])})
+    mats = mat_cua_lenh(qc) if khoan.bac_gia else []
+    if mats and mat_in not in mats:
+        raise ValueError("Lệnh in hai mặt khác nhau (AB): chọn mặt A hay mặt B cho lần ghi này.")
+    if mat_in and not mats:
+        raise ValueError("Lệnh này không in AB nên không chọn mặt in.")
+    bac = anh_bac(khoan, qc, {t["ma"]: t["gia_tri"] for t in (tc_anh or [])}, department_id, mat_in)
     gia_cd, don_gia = gia_cua_to(khoan, department_id, (bac or {}).get("ma"))
     o_snapshot = {
         "piece_rate_id": None,

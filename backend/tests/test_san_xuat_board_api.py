@@ -169,11 +169,11 @@ def test_work_items_loc_dem_qua_http(client):
     h = _admin_h(client)
     r = client.get("/api/san-xuat/work-items/loc-dem", params={"team_id": to_id}, headers=h)
     assert r.status_code == 200
-    assert set(r.json()) == {"trang_thai", "cho", "toi", "vuong", "tre", "nguoi", "gap"}
+    assert set(r.json()) == {"trang_thai", "cho", "toi", "vuong", "nguoi", "gap", "may", "khach"}
     r = client.get("/api/san-xuat/work-items/loc-dem", params={"team_id": 999_999}, headers=h)
     assert r.status_code == 403
     r = client.get("/api/san-xuat/work-items",
-                   params={"team_id": to_id, "vuong": ["chua_giao_tho"], "toi": "toi", "tre": "xong",
+                   params={"team_id": to_id, "vuong": ["chua_giao_tho"], "toi": "toi", "may": [1], "khach": [1],
                            "nguoi": [1], "cho_loai": ["kcs"]}, headers=h)
     assert r.status_code == 200
     r = client.get("/api/san-xuat/work-items", params={"team_id": to_id, "toi": "xa_lam"}, headers=h)

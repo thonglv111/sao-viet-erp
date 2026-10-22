@@ -192,9 +192,8 @@ def test_ot_and_night_pay(client):
 
 
 def test_hai_luong_tien_gio_tang_ca_theo_ve_thang(client):
-    """20/10/2026 (spec hai lương khối Sản xuất): tiền giờ tăng ca thuộc VẾ THỜI GIAN. Người tính 2
-    lương ăn vế khoán ⇒ 0đ tiền giờ ("làm thêm giờ thì thêm sản lượng"); ăn vế thời gian ⇒ đủ tiền giờ.
-    Xem `test_hai_luong_khoi_sx.py`."""
+    """22/10/2026 (spec hai lương khối Sản xuất): khối Sản xuất KHÔNG có tiền giờ tăng ca, ăn vế nào
+    cũng vậy — tăng ca của họ chỉ là tăng ca khoán. Xem `test_hai_luong_khoi_sx.py`."""
     client
     db = SessionLocal()
     try:
@@ -211,7 +210,8 @@ def test_hai_luong_tien_gio_tang_ca_theo_ve_thang(client):
                             standard_cong=26, ot_minutes=120, on=date(2026, 6, 1), che_do_khoan=True)
         assert v_norm["ot_pay"] == 375_000          # tổ thường
         assert v_piece["ot_pay"] == 0               # ăn khoán — giờ tăng ca không có tiền
-        assert v_tg["ot_pay"] == 375_000 and v_tg["gross"] == v_norm["gross"]   # ăn vế thời gian
+        assert v_tg["lay_bu_lo"] is True and v_tg["ot_pay"] == 0                 # ăn vế thời gian
+        assert v_tg["gross"] == v_norm["gross"] - 375_000
     finally:
         db.close()
 

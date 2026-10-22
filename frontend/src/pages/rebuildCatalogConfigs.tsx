@@ -251,7 +251,7 @@ export const CFG_MAY: CatalogConfig = {
   widthTen: 200,
   columns: [
     { key: "loai_may", label: "Nhóm máy", w: 120, render: (r) => (r.loai_may ? String(r.loai_may) : "") },
-    // Máy thuộc tổ (mg `0434`) — một máy nhiều tổ, mỗi tổ một chip.
+    // Máy thuộc tổ (mg `0435`) — một máy nhiều tổ, mỗi tổ một chip.
     { key: "to_ids", label: "Tổ đứng máy", w: 200,
       render: (r) => <ChipTen prefix="/api/may-thiet-bi/phong-ban" ids={r.to_ids} /> },
     // Nhận diện tài sản — ba ô đã khai ở tab Thông tin chung, trước đây chỉ thấy khi mở thẻ máy.
@@ -324,7 +324,7 @@ export const CFG_MAY: CatalogConfig = {
     // ── 1. Thông tin chung ──────────────────────────────────────────────────
     { key: "loai_may", label: "Nhóm máy", type: "nhom_may", required: true, group: "Thông tin chung",
       refPrefix: "/api/nhom-may" },
-    // Tổ đứng máy (mg `0434`): máy của công đoạn đi theo tổ này. Nguồn tổ là cửa riêng của màn Máy,
+    // Tổ đứng máy (mg `0435`): máy của công đoạn đi theo tổ này. Nguồn tổ là cửa riêng của màn Máy,
     // cùng định nghĩa "tổ lá khối Sản xuất" với ô tổ của công đoạn.
     { key: "to_ids", label: "Tổ đứng máy", type: "to-multi", group: "Thông tin chung",
       refPrefix: "/api/may-thiet-bi/phong-ban" },
@@ -518,7 +518,7 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // Bảng "Đầu việc và định mức của tổ" GỠ 18/09/2026 (mg `0320`) — công đoạn là CÔNG NGHỆ, việc
     // của tổ khai ở danh mục Công việc khoán. Vật tư (nền BOM) chuyển sang tab "Vật tư" bên dưới.
     { key: "vat_tus", label: "Vật tư công đoạn tiêu thụ", type: "vat-tu-cong-doan", group: "Vật tư" },
-    // Ô "Máy làm được công đoạn này" (nhóm máy) GỠ 22/10/2026: máy đi theo TỔ đã tick (mg `0434`).
+    // Ô "Máy làm được công đoạn này" (nhóm máy) GỠ 22/10/2026: máy đi theo TỔ đã tick (mg `0435`).
     // Máy CỤ THỂ + công thức của riêng từng cặp (06/09/2026) — bảng tự hiện máy của các tổ đang
     // tick; luật chặn gán máy ở bước đọc DANH SÁCH này.
     { key: "may_lam_duoc", label: "Máy chạy được công đoạn này", type: "may-cua-cong-doan",

@@ -258,6 +258,9 @@ class SalaryIn(BaseModel):
     insurance_elsewhere: bool = False
     # Đoàn viên công đoàn → mới bị trừ đoàn phí công đoàn (mặc định false = không đóng).
     union_member: bool = False
+    # Cách trả lương ở tổ tính hai lương: True = công nhật, False = lương khoán, None = theo trạng
+    # thái (thử việc = công nhật, chính thức = lương khoán).
+    an_cong_nhat: bool | None = None
     # Có áp giảm trừ bản thân khi tính TNCN không. Mặc định BẬT; tắt khi người này đã đăng ký
     # giảm trừ bản thân ở nơi làm việc khác (chỉ được đăng ký ở MỘT nơi).
     apply_self_deduction: bool = True
@@ -286,6 +289,7 @@ class SalaryOut(BaseModel):
     chuyen_can: float = 0
     insurance_elsewhere: bool = False   # cờ "BH đóng ở nơi khác" — để modal prefill checkbox
     union_member: bool = False          # cờ "đoàn viên công đoàn" — để modal prefill checkbox
+    an_cong_nhat: bool | None = None    # cách trả lương (None = theo trạng thái) — modal prefill
     apply_self_deduction: bool = True   # cờ giảm trừ bản thân — modal prefill checkbox
     # ⚠️ Thiếu dòng này là API nuốt im lặng: service trả đúng, Pydantic vứt, không báo lỗi.
     commission_pct: float = 0           # % hoa hồng (phân số) — modal prefill
@@ -315,6 +319,10 @@ class SalaryPreviewOut(BaseModel):
     chua_khai_muc_bh: bool = False
     luong_vi_tri: float = 0
     luong_trach_nhiem: float = 0
+    # Tổ tính hai lương (khối SX, Giao hàng) — form hồ sơ lương chỉ hiện ô "ăn công nhật" khi đúng.
+    tinh_hai_luong: bool = False
+    # Đang thử việc (hôm nay) — mốc lương chưa chọn cách trả thì mặc định Công nhật.
+    thu_viec: bool = False
 
 
 # --- advances ---------------------------------------------------------------
@@ -921,3 +929,157 @@ class KhoanKyChiTietOut(BaseModel):
     items: list[KhoanKyDongOut] = []
     tong_khoan: float = 0
     tong_tang_ca_khoan: float = 0
+
+
+# --- Khoán theo tổ (22/10/2026) ------------------------------------------------
+# Màn Lương → Khoán theo tổ — `services/khoan_theo_to.py`. Tiền là số nguyên đồng.
+
+
+class KttToOut(BaseModel):
+    id: int
+    ten: str
+
+
+class KttNguoiLanOut(BaseModel):
+    emp_id: int
+    ten: str
+    to_ten: str | None = None      # có khi người không thuộc tổ của lần ghi
+    luong_bu_lo: int = 0
+    tien: int = 0
+
+
+class KttToTruongLanOut(BaseModel):
+    ten: str
+    che_do: str
+    ty_le: float
+    tien: int
+
+
+class KttPhatSinhOut(BaseModel):
+    ten: str | None = None
+    so_luong: float = 0
+    don_vi: str | None = None
+    don_gia: float = 0
+    tien: int = 0
+
+
+class KttSxKhoOut(BaseModel):
+    dai: float
+    rong: float
+
+
+class KttQuyCachOut(BaseModel):
+    giay: str | list[str] | None = None
+    dinh_luong: float | str | None = None
+    to_nguyen: KttSxKhoOut | None = None
+    to_in: KttSxKhoOut | None = None
+    con: KttSxKhoOut | None = None
+
+
+class KttLanGhiOut(BaseModel):
+    batch_id: int
+    ngay: date
+    to_id: int | None = None
+    to_ten: str | None = None
+    nguon_loai: str
+    nguon_id: int | None = None
+    lenh_ma: str = ""
+    lenh_ten: str = ""
+    khach: str | None = None
+    quy_cach: KttQuyCachOut | None = None
+    cong_doan: str
+    bac: str | None = None
+    tuy_chon: list[str] = []
+    phat_sinh: list[KttPhatSinhOut] = []
+    so_luong: float = 0
+    don_vi: str | None = None
+    tien_chinh: int = 0
+    tien: int = 0
+    he_so: float = 1
+    ghi_chu: str | None = None
+    cong_thuc: str | None = None   # "chữ = thế số = kết quả"
+    nguoi: list[KttNguoiLanOut] = []
+    to_truong: list[KttToTruongLanOut] = []
+
+
+class KttDungMayOut(BaseModel):
+    ngay: date
+    ly_do: str | None = None
+    sua_chua: str | None = None
+    ghi_chu: str | None = None
+    tien: int = 0
+    nguoi: list[KttNguoiLanOut] = []
+
+
+class KttNgayOut(BaseModel):
+    ngay: date
+    quy: int = 0
+    chi_tieu: int = 0
+    tang_ca: int = 0
+
+
+class KttNguoiOut(BaseModel):
+    emp_id: int
+    ten: str
+    to_ten: str | None = None
+    la_thanh_vien: bool = True
+    luong_bu_lo: int = 0
+    san_luong: int = 0
+    dung_may: int = 0
+    tang_ca: int = 0
+    to_truong: int = 0
+    o_to_khac: int = 0
+    # Ăn công nhật (`an_cong_nhat_hieu_luc`): đứng trong tỷ lệ chia, không hưởng khoán / tăng ca khoán.
+    cong_nhat: bool = False
+    luong_khoan: int | None = None
+    thu_viec: bool = False
+    phan_bo_bu_lo: int | None = None
+    cong: float | None = None
+    chuan_cong: float | None = None
+    an: Literal["khoan", "bu_lo"] | None = None
+    luong_chinh: int | None = None
+
+
+class KttQuyOut(BaseModel):
+    san_luong: int = 0
+    dung_may: int = 0
+    tang_ca: int = 0
+    tong: int = 0
+
+
+class KttToTruongOut(BaseModel):
+    emp_id: int
+    ten: str
+    che_do: str
+    ty_le: float
+    tien: int
+
+
+class KttDoiChieuOut(BaseModel):
+    quy: int = 0
+    tang_ca: int = 0
+    to_truong_thuong: int = 0
+    cong_nhat: int = 0
+    nguoi_to_khac: int = 0
+    o_to_khac: int = 0
+    luong_khoan: int = 0
+    bu_lo: int | None = None
+    luong_chinh: int | None = None
+
+
+class KhoanTheoToOut(BaseModel):
+    year: int
+    month: int
+    cac_to: list[KttToOut] = []
+    to_id: int | None = None
+    to_ten: str | None = None
+    la_to_in: bool = False
+    co_bang_luong: bool = False
+    to_truong: KttToTruongOut | None = None
+    quy: KttQuyOut | None = None
+    nguoi: list[KttNguoiOut] = []
+    doi_chieu: KttDoiChieuOut | None = None
+    so: list[KttLanGhiOut] = []
+    khac: list[KttLanGhiOut] = []
+    dung_may: list[KttDungMayOut] = []
+    ngay: list[KttNgayOut] = []

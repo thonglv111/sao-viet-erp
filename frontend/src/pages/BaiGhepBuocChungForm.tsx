@@ -40,7 +40,7 @@ interface MayRef extends MayTinhGio {
   id: number;
   ten: string;
   loaiMay: string | null;
-  /** Tổ đứng máy (mg `0434`) — lượt chung chỉ mời máy thuộc tổ đang chọn. */
+  /** Tổ đứng máy (mg `0435`) — lượt chung chỉ mời máy thuộc tổ đang chọn. */
   toIds: number[];
   /** Cờ NGỪNG DÙNG của danh mục Máy. Vẫn nạp về để đọc được tên máy bài cũ đang đeo; dropdown
    *  ở dưới mới là chỗ quyết định có mời máy đó nữa hay không. */
@@ -207,7 +207,7 @@ export function BuocChungForm({
     return items;
   })();
   const toDangGan = val("department_id", g.department_id) ?? null;
-  // Máy đi theo tổ (mg `0434`): cùng luật ngăn bước lệnh (`mayChonDuoc`) và server chặn ở
+  // Máy đi theo tổ (mg `0435`): cùng luật ngăn bước lệnh (`mayChonDuoc`) và server chặn ở
   // `lap_ke_hoach_buoc_chung` — chỉ máy CỦA CÔNG ĐOẠN (`may_chon_duoc`, máy "Đặt mặc định" đầu),
   // công đoạn có tick tổ thì chỉ máy THUỘC tổ đang chọn. Giữ máy ĐANG CHỌN dù lệch (hoặc đã ngừng
   // dùng) để select không rơi về trống. Lọc theo NHÓM máy gỡ 22/10/2026.

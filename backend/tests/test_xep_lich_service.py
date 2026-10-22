@@ -82,7 +82,7 @@ def _may_in(db) -> MayThietBi:
 
 
 def _may_vao_cong_doan(db, may, cd) -> None:
-    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0434`): máy vào MỌI tổ của công đoạn rồi
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0435`): máy vào MỌI tổ của công đoạn rồi
     đồng bộ bảng máy — đúng như khai "Tổ đứng máy" ở danh mục Thiết bị. Gọi lại không đụng gì."""
     from app.models.may_thiet_bi import MayTo
     from app.services.may_to import dong_bo_cong_doan_may

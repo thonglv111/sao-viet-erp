@@ -46,7 +46,7 @@ class MayThietBiIn(BaseModel):
     # Máy còn dùng hay đã thanh lý (mg `0202`). Máy dừng TẠM thì vẫn `True` — khai ở
     # `machine_unavailable_periods`, xem `models/may_thiet_bi`.
     active: bool = True
-    # TỔ ĐỨNG MÁY (mg `0434`) — nhiều tổ, chỉ tổ LÁ khối Sản xuất. Vắng = giữ nguyên.
+    # TỔ ĐỨNG MÁY (mg `0435`) — nhiều tổ, chỉ tổ LÁ khối Sản xuất. Vắng = giữ nguyên.
     to_ids: list[int] | None = None
 
 

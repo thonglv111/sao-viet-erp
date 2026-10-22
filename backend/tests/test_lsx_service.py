@@ -418,7 +418,7 @@ def _may_in(db) -> MayThietBi:
 
 
 def _may_vao_cong_doan(db, may, cds, to_id: int) -> None:
-    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0434`): cho máy vào tổ rồi đồng bộ bảng
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0435`): cho máy vào tổ rồi đồng bộ bảng
     máy của các công đoạn đó — đúng như người dùng khai "Tổ đứng máy" ở danh mục Thiết bị."""
     from app.services.may_to import dong_bo_cong_doan_may
 
@@ -1086,7 +1086,7 @@ def _ptg_mot_buoc_in(db, *, may_cua_phieu, may_lam_duoc) -> PhieuTinhGia:
     db.flush()
     for m in may_lam_duoc:
         db.add(CongDoanMay(cong_doan_id=cd_in.id, may_id=m.id, cong_thuc_gio="sl_vao"))
-        db.add(MayTo(may_id=m.id, department_id=to_id))  # máy thuộc tổ của công đoạn (mg 0434)
+        db.add(MayTo(may_id=m.id, department_id=to_id))  # máy thuộc tổ của công đoạn (mg 0435)
     db.flush()
 
     p = PhieuTinhGia(ma="PTG-MAYIN-0001", ten_san_pham="Thẻ nhân viên", so_luong=500)
@@ -3454,7 +3454,7 @@ def test_go_may_khoi_cong_doan_thi_bao_may_dang_gan_khong_con_thuoc(
 
     lsx, cd_be = _lenh_co_buoc_dan(db, orders, lsx_svc, admin, customer)
     may = db.query(MayThietBi).filter(MayThietBi.ma == "MAY-IN-T").one()
-    # Công đoạn CHỈ khai một máy khác (thuộc tổ của công đoạn, mg 0434) ⇒ máy đang gán ở bước rơi
+    # Công đoạn CHỈ khai một máy khác (thuộc tổ của công đoạn, mg 0435) ⇒ máy đang gán ở bước rơi
     # ra ngoài danh sách.
     khac = MayThietBi(ma="MAY-KHAC-T", ten="Máy khác", loai_may="Dán hộp", active=True)
     db.add(khac)

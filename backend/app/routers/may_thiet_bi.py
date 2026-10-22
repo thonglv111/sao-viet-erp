@@ -85,7 +85,7 @@ def trang_thai(
 
 @router.get("/phong-ban", response_model=RefOptionListOut)
 def phong_ban(svc: Service, _: Annotated[User, Depends(_DOC)]) -> RefOptionListOut:
-    """TỔ cho ô "Tổ đứng máy" (mg `0434`) — cửa riêng của màn Máy, không mượn quyền màn Công đoạn."""
+    """TỔ cho ô "Tổ đứng máy" (mg `0435`) — cửa riêng của màn Máy, không mượn quyền màn Công đoạn."""
     return RefOptionListOut(items=[RefOption(**r) for r in svc.phong_ban_options()])
 
 

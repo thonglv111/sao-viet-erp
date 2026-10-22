@@ -281,7 +281,7 @@ export function LsxBuocDrawer({
     }
     return (cdBuoc?.mayChoPhep?.length ?? 0) > 1 ? mayMacDinh(mayRefs, cdBuoc) : null;
   }, [mayRefs, cdBuoc, mayMoi, row.department_id, row.may_id]);
-  // Máy thuộc nhiều tổ (mg `0434`): bày TÊN các tổ khác của máy — chọn máy không bị chặn, chỉ để
+  // Máy thuộc nhiều tổ (mg `0435`): bày TÊN các tổ khác của máy — chọn máy không bị chặn, chỉ để
   // người lập biết máy đang chia cho tổ nào nữa. `lech` = máy đang gán KHÔNG thuộc tổ đang chọn ⇒
   // nói "thuộc", không nói "cũng thuộc" (23/10/2026).
   const toKhacCua = useCallback((m: RefRow): { ten: string[]; lech: boolean } => {

@@ -221,7 +221,7 @@ class CongDoanRow(BaseModel):
     active: bool
     vat_tus: list[CongDoanVatTuRow] = Field(default_factory=list)
     may_lam_duoc: list[CongDoanMayRow] = Field(default_factory=list)
-    # Mọi dòng đã khai, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ (mg `0434`) — form cần số của
+    # Mọi dòng đã khai, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ (mg `0435`) — form cần số của
     # chúng để tick lại tổ là hiện ngay công thức cũ, chưa cần lưu.
     may_khai: list[CongDoanMayRow] = Field(default_factory=list)
     khoan: CongDoanKhoanRow | None = None

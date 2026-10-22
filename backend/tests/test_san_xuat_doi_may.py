@@ -93,7 +93,7 @@ def _mot_cv_dang_chay(
     cv.du_kien_bat_dau = None
     cv.du_kien_ket_thuc = None
     cv.may_id = may_id
-    # Máy thuộc tổ (mg `0434`): mọi máy dàn cảnh đứng ở tổ này, công đoạn của việc có dòng máy —
+    # Máy thuộc tổ (mg `0435`): mọi máy dàn cảnh đứng ở tổ này, công đoạn của việc có dòng máy —
     # không thì luật "đổi máy chỉ trong máy của tổ" chặn hết.
     from app.models.may_thiet_bi import MayTo
     from app.services.may_to import dong_bo_cong_doan_may

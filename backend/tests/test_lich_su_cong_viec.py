@@ -44,6 +44,30 @@ def test_chay_may_va_giao_tho_moi_nhat_tren(db, orders, lsx_svc, admin, customer
     assert all("·" not in d["cau"] and all("·" not in c for c in d["ct"]) for d in ra["items"])
 
 
+def test_tam_dung_va_ket_thuc_kem_phien_chay_bao_lau(db, orders, lsx_svc, admin, customer):
+    """Bảng Phiên chạy gỡ khỏi ngăn (22/10/2026) — số phút từng phiên dời sang dòng đóng phiên."""
+    from datetime import timedelta
+
+    from app.repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
+
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer)
+    tho = _emp(db, to, "NV-LS-PH")
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=tho.id)
+    tt = SanXuatThucThiRepository(db)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    tt.cac_phien(cv.id)[0].bat_dau -= timedelta(minutes=88)
+    db.commit()
+    thuc_thi.tam_dung(db, user=admin, cong_viec_id=cv.id, ly_do="Chờ giấy")
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    tt.cac_phien(cv.id)[1].bat_dau -= timedelta(minutes=28)
+    db.commit()
+    thuc_thi.ket_thuc(db, user=admin, cong_viec_id=cv.id)
+
+    dong = {d["cau"]: d["ct"] for d in lich_su_viec.lich_su(db, admin, cong_viec_id=cv.id)["items"]}
+    assert "chạy 1 giờ 28 phút" in dong["Tạm dừng"]
+    assert "chạy 28 phút" in dong["Kết thúc việc"]
+
+
 def test_san_luong_va_ban_giao_hai_phia(db, orders, lsx_svc, admin, customer):
     _to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-LS-BG")
     b = _batch(db, admin, cv1, tot=80)

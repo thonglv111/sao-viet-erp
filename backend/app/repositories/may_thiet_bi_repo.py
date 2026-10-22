@@ -33,7 +33,7 @@ class MayThietBiRepository(CatalogRepo):
         return select(MayThietBi).options(selectinload(MayThietBi.to_dung_may))
 
     def _gan(self, obj: MayThietBi, data: dict) -> None:
-        # Tổ đứng máy (mg `0434`): vắng / None = giữ nguyên danh sách đang lưu.
+        # Tổ đứng máy (mg `0435`): vắng / None = giữ nguyên danh sách đang lưu.
         if "to_ids" in data and data["to_ids"] is None:
             data = {k: v for k, v in data.items() if k != "to_ids"}
         super()._gan(obj, data)

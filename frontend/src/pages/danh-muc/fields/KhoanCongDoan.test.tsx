@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { doiMaTrongCongThuc, doiTuyChonTrongBac, KhoanCongDoanField, maBacMoi, tuyChonThanhBien } from "./KhoanCongDoan";
+import { chuanHoaBac, doiMaTrongCongThuc, doiTuyChonTrongBac, KhoanCongDoanField, maBacMoi, tuyChonThanhBien } from "./KhoanCongDoan";
 import type { KhoanCongDoanValue } from "../types";
 import { AuthContext, type AuthState } from "../../../auth/AuthContext";
 
@@ -40,7 +40,7 @@ describe("KhoanCongDoanField — Đợt 2", () => {
     await user.clear(screen.getByLabelText("Tên tuỳ chọn 2"));
     await user.type(screen.getByLabelText("Tên tuỳ chọn 2"), "Max");
     expect(cuoi.tuy_chon?.[1].ma).toBe("max_2");
-    await user.selectOptions(screen.getByLabelText("Kiểu tuỳ chọn 2"), "so");
+    await user.click(within(screen.getByLabelText("Kiểu tuỳ chọn 2")).getByRole("radio", { name: "Gõ số" }));
     expect(cuoi.tuy_chon?.[1]).toEqual({ ma: "max_2", ten: "Max", kieu: "so", goi_y: null });
 
     await user.click(screen.getAllByTitle("Bỏ tuỳ chọn này")[0]);
@@ -73,7 +73,7 @@ describe("KhoanCongDoanField — Đợt 2", () => {
     expect(cuoi.gia_co_dinh).toBe(150000);
   });
 
-  it("tổ có giá mà không còn phụ trách: gọi đúng tên, không bày giá chung mờ, xoá được", async () => {
+  it("tổ có giá mà không còn phụ trách: gọi đúng tên một lần, không bày giá chung mờ, xoá được", async () => {
     const user = userEvent.setup();
     let cuoi: KhoanCongDoanValue = {};
     const dau: KhoanCongDoanValue = {
@@ -92,8 +92,10 @@ describe("KhoanCongDoanField — Đợt 2", () => {
     }
     render(<AuthContext.Provider value={AUTH}><Vo /></AuthContext.Provider>);
     expect(screen.getByText("Máy 4 màu — không còn phụ trách")).toBeInTheDocument();
-    expect(screen.getByLabelText("Đơn giá Máy 2 màu")).toHaveAttribute("placeholder", "40");
-    expect(screen.getByLabelText("Đơn giá Máy 4 màu")).toHaveAttribute("placeholder", "");
+    // Ô tổ trống không in lại giá chung; giá việc phát sinh nằm trên dòng việc, tổ mất chỉ in nghiêng tên.
+    expect(screen.getByLabelText("Đơn giá Máy 2 màu")).not.toHaveAttribute("placeholder");
+    expect(screen.getByLabelText("Xuống bài Máy 4 màu")).toHaveValue(150000);
+    expect(screen.getByTitle("Không còn phụ trách")).toHaveTextContent("Máy 4 màu");
     await user.click(screen.getByTitle("Bỏ giá của tổ này"));
     expect(cuoi.viec_phat_sinh?.[0].gia_theo_to).toEqual([{ department_id: 11, don_gia: 187500 }]);
   });
@@ -133,6 +135,32 @@ describe("KhoanCongDoanField — Đợt 2", () => {
     await user.click(screen.getByTitle("Bỏ bậc này"));
     expect(cuoi.bac_gia).toBeNull();
     expect(cuoi.gia_theo_to).toEqual([{ department_id: 11, gia_co_dinh: 150000, don_gia: 30 }]);
+  });
+
+  it("bậc khai gọn: tự xếp, giữ Từ màu, bỏ điều kiện 'không', đòi tick ⇒ giá đã gồm", () => {
+    // Đúng 8 bậc Bài in trên dev (khai kiểu cũ, thường đứng TRÊN Pantone).
+    const cu = [
+      { ma: "b1", ten: "1–2 thường", mau_tu: 1, mau_den: 2, pha: "khong" as const },
+      { ma: "b2", ten: "1–2 Pantone", mau_tu: 1, mau_den: 2, pha: "co" as const, tuy_chon_ma: "muc_uv", tuy_chon_co: "khong" as const },
+      { ma: "b3", ten: "1–2 Pantone UV", mau_tu: 1, mau_den: 2, pha: "co" as const, tuy_chon_ma: "muc_uv", tuy_chon_co: "co" as const, gom_uv: true },
+      { ma: "b4", ten: "3–4 thường", mau_tu: 3, mau_den: 4, pha: "khong" as const },
+      { ma: "b5", ten: "3–4 có pha", mau_tu: 3, mau_den: 4, pha: "co" as const },
+      { ma: "b6", ten: "5", mau_tu: 5, mau_den: 5 },
+      { ma: "b8", ten: "7", mau_tu: 7, mau_den: 7 },
+      { ma: "b7", ten: "6", mau_tu: 6, mau_den: 6 },
+    ];
+    const moi = chuanHoaBac(cu);
+    expect(moi.map((b) => [b.ma, b.mau_tu, b.mau_den, b.pha, b.tuy_chon_ma, b.tuy_chon_co, b.gom_uv])).toEqual([
+      ["b3", 1, 2, "co", "muc_uv", "co", true],
+      ["b2", 1, 2, "co", null, null, false],
+      ["b1", 1, 2, null, null, null, false],
+      ["b5", 3, 4, "co", null, null, false],
+      ["b4", 3, 4, null, null, null, false],
+      ["b6", 5, 5, null, null, null, false],
+      ["b7", 6, 6, null, null, null, false],
+      ["b8", 7, 7, null, null, null, false],
+    ]);
+    expect(chuanHoaBac(moi)).toEqual(moi);
   });
 
   it("mã bậc không trùng; tuỳ chọn đổi mã hay bị xoá thì bậc đổi theo", () => {

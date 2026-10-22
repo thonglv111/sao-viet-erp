@@ -12,18 +12,24 @@
 // bị menu đơn vị của dòng cuối trùm lên đúng lúc người ta đang khai.
 import { useState } from "react";
 
+import type { ReactNode } from "react";
 import type { Row, ViecPhatSinhRow } from "../types";
 import { RefSearchField } from "./RefFields";
-import { RowEditor } from "./RowEditor";
+import { RowEditor, type CotThem } from "./RowEditor";
 
 export function ViecPhatSinhField({
   value,
   donViOptions,
+  cotThem,
+  veThem,
   onChange,
 }: {
   value: ViecPhatSinhRow[];
   /** Danh mục Đơn vị & quy đổi (đã bỏ mục ngừng dùng, trừ mục đang chọn). */
   donViOptions: Row[];
+  /** Cột vẽ thêm sau Đơn vị tính (tab Khoán: giá riêng từng tổ) + ô của chúng trên mỗi dòng. */
+  cotThem?: CotThem[];
+  veThem?: (r: ViecPhatSinhRow, i: number) => ReactNode;
   onChange: (v: ViecPhatSinhRow[]) => void;
 }) {
   const rows = value ?? [];
@@ -37,6 +43,7 @@ export function ViecPhatSinhField({
       khoa="rc-bands--vps"
       rows={rows}
       cot={["Tên việc", "Đơn giá", "Đơn vị tính"]}
+      cotThem={cotThem}
       trong="Chưa có việc phát sinh"
       themNhan="＋ Thêm việc phát sinh"
       onThem={() => {
@@ -83,6 +90,7 @@ export function ViecPhatSinhField({
               onChange={(v) => setRow(i, { don_vi: v == null ? "" : String(v) })}
             />
           </td>
+          {veThem?.(r, i)}
         </>
       )}
     />

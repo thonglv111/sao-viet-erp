@@ -41,7 +41,7 @@ def _emp():
 
 
 def _tinh(svc, params, *, bu_lo=True, chi_an_km=None, allowance=0, la_to_in=None,
-          thu_viec=False, **kw) -> dict:
+          thu_viec=False, an_cong_nhat=None, **kw) -> dict:
     """Kiệt tháng 5: 21,5 ngày thường + 2 ngày lễ có lương + 3 Chủ nhật ⇒ 26,5 công, 3 công CN."""
     goc = dict(actual_cong=26.5, restday_cong=3)
     goc.update(kw)
@@ -50,7 +50,7 @@ def _tinh(svc, params, *, bu_lo=True, chi_an_km=None, allowance=0, la_to_in=None
         nv.status = "probation"
     return svc._compute(employee=nv,
                         salary=_sal(luong_vi_tri=CO_BAN, luong_trach_nhiem=TRACH_NHIEM,
-                                    allowance=allowance),
+                                    allowance=allowance, an_cong_nhat=an_cong_nhat),
                         params=params, standard_cong=26, on=date(2026, 5, 1), bu_lo=bu_lo,
                         chi_an_km=chi_an_km, la_to_in=la_to_in, **goc)
 
@@ -589,87 +589,71 @@ def test_GIAO_HANG_km_CAO_hon_ve_thoi_gian_thi_KHONG_co_tien_tang_ca(client):
         db.close()
 
 
-def test_TO_KHOAN_san_luong_cung_luat_ve_thoi_gian_gom_tang_ca(client):
-    """Chủ chốt 20/10/2026 mở luật Giao hàng (16/09/2026) cho MỌI người tính 2 lương: thợ khoán sản lượng
-    ăn vế thời gian thì có đủ tiền giờ tăng ca."""
+def test_TO_KHOAN_san_luong_an_ve_thoi_gian_KHONG_co_tien_gio_tang_ca(client):
+    """Chủ chốt 22/10/2026 (đảo 20/10/2026): luật Giao hàng KHÔNG áp cho khối Sản xuất — thợ khoán sản
+    lượng ăn vế thời gian chỉ nhận bù lỗ theo công, giờ tăng ca chấm công không ra tiền."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), actual_cong=26, restday_cong=0, allowance=5_400_000,
                   ot_minutes=600, khoan=5_000_000)
-        assert v["ot_pay"] == TC_GH
+        assert v["ot_pay"] == 0 and v["tien_gio_tang_ca"] == 0
         assert v["lay_bu_lo"] is True and v["luong_cong"] == BU_LO_GH - 5_000_000
     finally:
         db.close()
 
 
 # =============================================================================================
-# THỬ VIỆC ở tổ khoán — LUÔN ăn bù lỗ, không đem so sản lượng (chủ chốt 16/09/2026, PRD §00.9)
+# THỬ VIỆC ở tổ tính hai lương — KHÔNG còn luật riêng (chủ chốt 22/10/2026, thay chốt 16/09/2026)
 #
-# Chủ: *"nhân viên thử việc bên khoán ấy nó sẽ ăn theo lương bù lỗ, và mức tiền mình đã làm như phần
-# hành chính ấy là số % của lương ấy"*. Hai vế: (1) không so với khoán nữa; (2) % thử việc chỉ nhân
-# vào MỨC NỀN, phụ cấp giữ 100% — y hệt khối hành chính.
+# Thử việc đi qua ô "Cách trả lương" ở hồ sơ lương: mốc lương chưa chọn thì thử việc MẶC ĐỊNH công
+# nhật (lương theo công × % thử việc, phụ cấp đủ, tăng ca theo giờ, không tiền khoán / km). HCNS chọn
+# "Lương khoán" thì người thử việc so hai lương như người chính thức.
 # Số viết tay: nền 7.200.000 × 0,80 = 5.760.000 ⇒ 221.538,46 đ/công × 26,5 công = 5.870.769.
 # =============================================================================================
-BU_LO_TV = 5_870_769
+LUONG_CONG_TV = 5_870_769
 
 
-def test_THU_VIEC_to_khoan_LUON_an_bu_lo_du_san_luong_CAO_hon(client):
-    """⭐ Cùng số của Kiệt nhưng là người thử việc: khoán 20.157.390 vẫn KHÔNG được lấy.
-
-    Người chính thức tháng này lấy khoán 20.157.390 (test đầu file). Thử việc: 5.870.769.
-    Không zero tiền khoán thì `max(0, bù lỗ − khoán)` ra 0 ⇒ thành "lấy khoán", ăn trọn 100% tiền
-    sản lượng và % thử việc mất tác dụng đúng vào tháng làm ra nhiều tiền nhất."""
+def test_THU_VIEC_mac_dinh_CONG_NHAT_khong_an_san_luong(client):
+    """⭐ Cùng số của Kiệt nhưng là người thử việc, mốc lương chưa chọn cách trả: khoán 20.157.390
+    KHÔNG được lấy — ăn lương theo công như tổ thường."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), thu_viec=True, khoan=20_157_390)
         assert v["is_probation"] is True
-        assert v["bu_lo_theo_cong"] == BU_LO_TV
-        assert v["lay_bu_lo"] is True
-        assert v["luong_cong"] == BU_LO_TV, "thử việc phải nhận trọn bù lỗ, không phải phần bù thêm"
-        assert v["khoan"] == 0, "tiền sản lượng vẫn cộng cho thử việc = không so nữa mà vẫn trả khoán"
+        assert v["che_do_khoan"] is False and v["bu_lo_theo_cong"] is None
+        assert v["khoan"] == 0, "thử việc mặc định công nhật mà vẫn trả tiền sản lượng"
+        assert v["luong_cong"] == LUONG_CONG_TV
     finally:
         db.close()
 
 
-def test_THU_VIEC_khoan_THAP_hon_cung_chi_an_bu_lo_khong_cong_don(client):
-    """Khoán 3tr < bù lỗ: vẫn đúng 5.870.769, KHÔNG phải bù lỗ + khoán."""
-    client
-    db = SessionLocal()
-    try:
-        svc = _svc(db)
-        v = _tinh(svc, svc.get_params(), thu_viec=True, khoan=3_000_000)
-        assert v["khoan"] == 0 and v["luong_cong"] == BU_LO_TV and v["lay_bu_lo"] is True
-    finally:
-        db.close()
-
-
-def test_THU_VIEC_tai_xe_km_CAO_hon_cung_an_bu_lo(client):
-    """Tài xế / phụ xe thử việc: chạy ra 20tr tiền km vẫn ăn bù lỗ theo công."""
+def test_THU_VIEC_tai_xe_mac_dinh_CONG_NHAT_khong_an_km(client):
+    """Tài xế / phụ xe thử việc: chạy ra 20tr tiền km vẫn ăn lương theo công."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), thu_viec=True, chi_an_km=True, khoan_km=20_000_000)
-        assert v["khoan_km"] == 0 and v["luong_cong"] == BU_LO_TV and v["lay_bu_lo"] is True
+        assert v["khoan_km"] == 0 and v["luong_cong"] == LUONG_CONG_TV
     finally:
         db.close()
 
 
 def test_THU_VIEC_he_so_chi_nhan_vao_NEN_phu_cap_van_du_100(client):
-    """⭐ Vế 2 của câu chốt: phụ cấp 2,6tr KHÔNG bị nhân 0,80 — y như khối hành chính.
-
-    (5.760.000 + 2.600.000) ÷ 26 × 26,5 = 8.520.769. Nhân cả phụ cấp thì ra 7.990.769."""
+    """Công nhật thử việc y như khối hành chính: phụ cấp KHÔNG bị nhân 0,80."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
-        v = _tinh(svc, svc.get_params(), thu_viec=True, allowance=2_600_000, khoan=50_000_000)
-        assert v["bu_lo_theo_cong"] == 8_520_769
-        assert v["bu_lo_theo_cong"] != 7_990_769, "phụ cấp bị nhân hệ số thử việc"
+        p = svc.get_params()
+        co = _tinh(svc, p, thu_viec=True, allowance=2_600_000, khoan=50_000_000)
+        ct = _tinh(svc, p, allowance=2_600_000, an_cong_nhat=True)
+        assert co["luong_cong"] == LUONG_CONG_TV
+        assert co["allowance"] == ct["allowance"] > 0, "phụ cấp bị nhân hệ số thử việc"
     finally:
         db.close()
 
@@ -690,21 +674,62 @@ def test_THU_VIEC_khong_ganh_TRU_LOI_khoan_vi_da_khong_an_khoan(client):
         db.close()
 
 
-def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monkeypatch):
-    """⭐ Qua API thật: hai thợ cùng tổ khoán, cùng 3 ngày công, cùng làm ra 50 triệu sản lượng.
+def test_THU_VIEC_chon_LUONG_KHOAN_so_hai_luong_nhu_chinh_thuc(client):
+    """HCNS chọn "Lương khoán" cho người thử việc ⇒ so hai lương: khoán 20.157.390 > vế thời gian
+    5.870.769 (nền đã × 0,80) ⇒ ăn khoán. Khoán thấp hơn ⇒ ăn vế thời gian, tiền khoán vẫn đứng ở cột."""
+    client
+    db = SessionLocal()
+    try:
+        svc = _svc(db)
+        p = svc.get_params()
+        cao = _tinh(svc, p, thu_viec=True, an_cong_nhat=False, khoan=20_157_390)
+        assert cao["che_do_khoan"] is True and cao["lay_bu_lo"] is False
+        assert cao["khoan"] == 20_157_390 and cao["luong_cong"] == 0
+        assert cao["bu_lo_theo_cong"] == LUONG_CONG_TV
+        thap = _tinh(svc, p, thu_viec=True, an_cong_nhat=False, khoan=3_000_000)
+        assert thap["lay_bu_lo"] is True and thap["khoan"] == 3_000_000
+        assert thap["khoan"] + thap["luong_cong"] == LUONG_CONG_TV
+    finally:
+        db.close()
 
-    Chính thức ⇒ lấy khoán 50tr. Thử việc ⇒ bù lỗ theo công, hai cột khoán = 0, và bù lỗ của họ
-    đúng bằng 0,80 bù lỗ của người chính thức (hệ số chỉ nhân vào nền). "Sửa 1 ô" không đổi tổng."""
+
+def test_CHINH_THUC_chon_CONG_NHAT_va_mac_dinh_LUONG_KHOAN(client):
+    """Chính thức, mốc chưa chọn ⇒ lương khoán; chọn Công nhật ⇒ bỏ tiền khoán."""
+    client
+    db = SessionLocal()
+    try:
+        svc = _svc(db)
+        p = svc.get_params()
+        mac_dinh = _tinh(svc, p, khoan=20_157_390)
+        assert mac_dinh["che_do_khoan"] is True and mac_dinh["khoan"] == 20_157_390
+        cn = _tinh(svc, p, an_cong_nhat=True, khoan=20_157_390)
+        assert cn["che_do_khoan"] is False and cn["khoan"] == 0
+    finally:
+        db.close()
+
+
+def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monkeypatch):
+    """⭐ Qua API thật: ba thợ cùng tổ khoán, cùng 3 ngày công, cùng làm ra 50 triệu sản lượng.
+
+    Chính thức ⇒ lấy khoán 50tr. Thử việc chưa chọn cách trả ⇒ công nhật, khoán = 0, lương theo công
+    đúng bằng 0,80 bù lỗ của người chính thức. Thử việc được HCNS chọn Lương khoán ⇒ lấy khoán 50tr.
+    "Sửa 1 ô" không đổi tổng."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
     to_khoan = _to("Tổ khoán thử việc", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
-    for vai in ("chinh_thuc", "thu_viec"):
+    for vai in ("chinh_thuc", "thu_viec", "thu_viec_khoan"):
         eid = _nv(client, h, ten=f"Khoán {vai}")
         if vai == "chinh_thuc":
             _chinh_thuc(client, h, eid)
+        if vai == "thu_viec_khoan":
+            r = client.post(f"/api/luong/salaries/{eid}",
+                            json={"effective_from": "2026-01-03", "luong_vi_tri": 10_000_000,
+                                  "insurance_base": 10_000_000, "an_cong_nhat": False}, headers=h)
+            assert r.status_code in (200, 201), r.text
+            assert r.json()["an_cong_nhat"] is False
         _chuyen_to(eid, to_khoan)
         _ca_hanh_chinh(client, h, eid)
         for d in ngay:
@@ -713,17 +738,24 @@ def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monke
     monkeypatch.setattr(PieceWorkService, "khoan_map",
                         lambda self, y, m: {e: 50_000_000 for e in nguoi.values()})
 
+    # Form hồ sơ lương biết người đang thử việc để sáng sẵn ô Công nhật khi mốc chưa chọn.
+    for vai, mong in (("chinh_thuc", False), ("thu_viec", True)):
+        prev = client.get(f"/api/luong/salaries/{nguoi[vai]}/preview", headers=h).json()
+        assert prev["thu_viec"] is mong and prev["tinh_hai_luong"] is True, (vai, prev)
+
     bang = _tinh_lai(client, h)
-    ct, tv = _dong(bang, nguoi["chinh_thuc"]), _dong(bang, nguoi["thu_viec"])
+    ct, tv, tvk =(_dong(bang, nguoi[k]) for k in ("chinh_thuc", "thu_viec", "thu_viec_khoan"))
 
     assert ct["is_probation"] is False and ct["lay_bu_lo"] is False
     assert ct["khoan"] == 50_000_000 and ct["luong_cong"] == 0
 
-    assert tv["is_probation"] is True and tv["lay_bu_lo"] is True
-    assert tv["khoan"] == 0, "thử việc vẫn ăn sản lượng"
-    assert tv["luong_cong"] == tv["bu_lo_theo_cong"] > 0
-    assert abs(tv["bu_lo_theo_cong"] - 0.80 * ct["bu_lo_theo_cong"]) <= 1, (
-        tv["bu_lo_theo_cong"], ct["bu_lo_theo_cong"])
+    assert tv["is_probation"] is True and tv["che_do_khoan"] is False
+    assert tv["khoan"] == 0, "thử việc mặc định công nhật mà vẫn ăn sản lượng"
+    assert abs(tv["luong_cong"] - 0.80 * ct["bu_lo_theo_cong"]) <= 1, (
+        tv["luong_cong"], ct["bu_lo_theo_cong"])
+
+    assert tvk["is_probation"] is True and tvk["che_do_khoan"] is True
+    assert tvk["khoan"] == 50_000_000 and tvk["lay_bu_lo"] is False
 
     r = client.put(f"/api/luong/lines/{tv['id']}", json={"note": "soát thử việc"}, headers=h)
     assert r.status_code == 200, r.text

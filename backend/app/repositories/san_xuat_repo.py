@@ -975,6 +975,31 @@ class SanXuatRepository:
             ra.update({("bai_ghep", bid): " · ".join(ds) for bid, ds in gom.items() if ds})
         return ra
 
+    def khach_cua_lenh(self, lsx_ids: set[int], bg_ids: set[int]) -> dict[tuple[str, int], dict[int, str]]:
+        """{("lsx", id) | ("bai_ghep", id): {customer_id: tên khách}} — cho ô lọc Khách hàng của bàn
+        tổ (22/10/2026). Như `khach_nhan` nhưng giữ id; bài ghép có thể mang nhiều khách."""
+        ra: dict[tuple[str, int], dict[int, str]] = {}
+        if lsx_ids:
+            rows = self.db.execute(
+                select(Lsx.id, Customer.id, Customer.name)
+                .join(Order, Lsx.order_id == Order.id)
+                .join(Customer, Order.customer_id == Customer.id)
+                .where(Lsx.id.in_(lsx_ids))
+            ).all()
+            for lid, kid, ten in rows:
+                ra.setdefault(("lsx", lid), {})[kid] = ten
+        if bg_ids:
+            rows = self.db.execute(
+                select(BaiGhepThanhVien.bai_ghep_id, Customer.id, Customer.name)
+                .join(Lsx, BaiGhepThanhVien.lsx_id == Lsx.id)
+                .join(Order, Lsx.order_id == Order.id)
+                .join(Customer, Order.customer_id == Customer.id)
+                .where(BaiGhepThanhVien.bai_ghep_id.in_(bg_ids))
+            ).all()
+            for bid, kid, ten in rows:
+                ra.setdefault(("bai_ghep", bid), {})[kid] = ten
+        return ra
+
     def may_nhan(self, may_ids: set[int]) -> dict[int, str]:
         """{may_id: tên máy} cho bàn tổ.
 

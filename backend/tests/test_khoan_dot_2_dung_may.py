@@ -54,7 +54,7 @@ def test_bao_dung_may_va_tinh_chi_tieu(db, admin):
 
 def test_dung_may_cong_ca_lan_ghi(db, admin):
     n, to, nhat, linh = _canh(db, admin, "TO-DM2")
-    k = n.khoan2("", gia_co_dinh=1_150_000)
+    k = n.khoan2("gia_co_dinh + sl_ghi * don_gia_khoan", gia_co_dinh=1_150_000)
     n.ghi2(to, k, NGAY, 0, [nhat, linh])
     db.commit()
     dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="het_hang", sua_chua_id=None,

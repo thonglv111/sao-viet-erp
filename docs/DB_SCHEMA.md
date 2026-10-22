@@ -2983,6 +2983,7 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `chuyen_can`     | `Numeric(14,2)` | —                           | no   | `0`     | Chuyên cần của riêng NV (all-or-nothing, chỉ khi đủ công). |
 | `insurance_elsewhere` | `Boolean`  | —                           | no   | `false` | Cờ **"BH đóng ở nơi khác"** — NV được nơi khác đóng BHXH/BHYT/BHTN → công ty KHÔNG trừ 3 khoản này của NV, chỉ chịu TNLĐ-BNN (`payroll_params.tnld_bnn_rate`). Đoàn phí CĐ theo `union_member`. Thêm qua migration 0096. |
 | `union_member` | `Boolean` | —                           | no   | `false` | Cờ **"đoàn viên công đoàn"** — CHỈ đoàn viên mới bị trừ đoàn phí công đoàn (`payroll_params.cong_doan_rate`). Mặc định false = opt-in. Thêm qua migration 0097. |
+| `an_cong_nhat` | `Boolean` | —                           | yes  | —       | **"Cách trả lương"** (22/10/2026) — `true` = công nhật: người ở tổ khối Sản xuất / Giao hàng KHÔNG tính 2 lương, lương theo công + tăng ca theo giờ như tổ thường; vẫn được tick vào lần ghi, đứng trong tỷ lệ chia, nhưng phần tiền khoán / tăng ca khoán / km về 0 (không dồn sang người khác). `false` = lương khoán (so hai lương), kể cả người thử việc. NULL = chưa chọn ⇒ theo trạng thái: thử việc = công nhật, chính thức = lương khoán. Theo mốc hiệu lực. Thêm qua migration 0436. |
 | `apply_self_deduction` | `Boolean` | —                  | no   | `true`  | Có áp **GIẢM TRỪ BẢN THÂN** khi tính TNCN không. Người làm 2 nơi chỉ được đăng ký giảm trừ bản thân ở MỘT nơi — bỏ tích ở nơi còn lại. Mặc định BẬT (đại đa số chỉ làm một nơi; tắt là ngoại lệ). Giảm trừ NGƯỜI PHỤ THUỘC không đụng cờ này (theo `employees.dependents_count`). Thêm qua migration 0119. |
 | `commission_pct` | `Numeric(6,4)` | —                  | no   | `0`     | **% HOA HỒNG** của nhân viên kinh doanh. PHÂN SỐ: `0.05` = 5%, đúng quy ước `cong_doan_rate`/`phat_cap_pct`. `0` = không hưởng (mặc định). Để ở bảng NÀY chứ không ở `employees` là có chủ đích: bảng này versioned theo `effective_from` ⇒ đổi % từ tháng sau thì kỳ tháng trước tính lại vẫn ra số cũ. Cột này là NGUỒN CHỤP: lúc CHỐT đơn, `_pct_hoa_hong_cua_sale` đọc mức đang hiệu lực rồi ghi vào `orders.commission_pct`; engine lương KHÔNG đọc thẳng cột này nữa (mg 0227). Đổi % ở đây chỉ ăn vào đơn chốt TỪ ĐÓ TRỞ ĐI. Thêm qua migration 0128. |
 | `note`           | `String(255)`   | —                           | yes  | —       | Ghi chú.                             |
@@ -3361,11 +3362,11 @@ Bảng MỚI → `create_all` tự dựng, **không cần migration cho bảng**
 
 ### `may_to`
 
-**Purpose:** **TỔ ĐỨNG MÁY** (mg `0434`, 22/10/2026, spec `2026-10-22-may-thuoc-to`) — bảng nối máy ↔ tổ. Một máy thuộc NHIỀU tổ, một tổ giữ nhiều máy. Khai ở ô "Tổ đứng máy" của form Máy (chọn nhiều, chỉ tổ LÁ Khối Sản xuất).
+**Purpose:** **TỔ ĐỨNG MÁY** (mg `0435`, 22/10/2026, spec `2026-10-22-may-thuoc-to`) — bảng nối máy ↔ tổ. Một máy thuộc NHIỀU tổ, một tổ giữ nhiều máy. Khai ở ô "Tổ đứng máy" của form Máy (chọn nhiều, chỉ tổ LÁ Khối Sản xuất).
 
 Đọc ở đâu: `CongDoan.may_lam_duoc` (quan hệ CHỈ ĐỌC) = dòng `cong_doan_may` mà máy thuộc một tổ đang tick ở công đoạn; công đoạn chưa tick tổ nào ⇒ nguyên các dòng đã khai. Bước lệnh / bài ghép / Đổi máy ở bàn tổ chỉ mời máy thuộc tổ của bước (`services/may_to.py`). Tổ + máy của lệnh và công việc là ẢNH CHỤP — đổi bảng này không sửa lệnh/việc đang có.
 
-Migration chỉ TẠO bảng, không điền: ngay sau mg 0434 mọi máy chưa thuộc tổ nào.
+Migration chỉ TẠO bảng, không điền: ngay sau mg 0435 mọi máy chưa thuộc tổ nào.
 
 **Tất cả cột:** `may_id` (PK, FK `may_thiet_bi.id` ON DELETE CASCADE), `department_id` (PK, IX, FK `departments.id` ON DELETE CASCADE).
 
@@ -3468,7 +3469,7 @@ dùng cho bình bài.
 
 🔴 **GỠ 18/09/2026 (mg `0324`): `cong_thuc_san_luong` · `don_vi_san_luong` · `he_so_ngoai_dong`.** Ba cột của bước NGOÀI dòng giấy: công thức sản lượng RA (mg `0214`, vd Ghi kẽm CTP `so_kem` ⇒ 4 bản, rồi engine suy ngược vế VÀO qua cầu quy đổi + bù hao), đơn vị của số ấy (mg `0289`, `kem`) và hệ số vào→ra khai tay (mg `0196`, ngưng dùng từ 20/08/2026). Theo yêu cầu chủ xưởng: số bản kẽm đổi theo từng đơn nên bước ngoài dòng giấy nay chỉ có số khi người lập lệnh TỰ KHAI đơn vị + số ở bước (`lsx_service.tu_khai_don_vi`); không khai thì bước đứng ở 0. Migration xoá luôn dòng `cong_thuc_lich_su` của trường `cong_thuc_san_luong`. Không khôi phục được.
 
-`nhom_may_cho_phep` (JSON list, nullable, mg 0168) — 🔴 **KHÔNG CÒN AI ĐỌC từ 22/10/2026** (mg `0434`, máy của công đoạn nay lấy qua tổ đã tick + `may_to`); cột nằm im. Nghĩa cũ: tên nhóm máy (`may_thiet_bi.loai_may`) làm được công đoạn này — chặn gán máy sai loại ở bước bài ghép (vd Ghi kẽm CTP không cho gán máy Bế). NULL/`[]` = chưa khai = không ràng buộc. Trục `loai_may` mịn hơn `nhom(3)` nên phân biệt được Bế với Cán màng.
+`nhom_may_cho_phep` (JSON list, nullable, mg 0168) — 🔴 **KHÔNG CÒN AI ĐỌC từ 22/10/2026** (mg `0435`, máy của công đoạn nay lấy qua tổ đã tick + `may_to`); cột nằm im. Nghĩa cũ: tên nhóm máy (`may_thiet_bi.loai_may`) làm được công đoạn này — chặn gán máy sai loại ở bước bài ghép (vd Ghi kẽm CTP không cho gán máy Bế). NULL/`[]` = chưa khai = không ràng buộc. Trục `loai_may` mịn hơn `nhom(3)` nên phân biệt được Bế với Cán màng.
 
 ### `cong_doan_khoan`
 
@@ -3654,7 +3655,7 @@ là mặc định lúc tạo lệnh / đổi công đoạn. Định mức đầu
 
 **KHÔNG backfill lúc tạo bảng:** `nhom_may_cho_phep` thường phủ hàng chục máy, sinh bằng ấy dòng rỗng chỉ để người dùng phải xoá bớt. Bảng ra đời RỖNG.
 
-**Từ 22/10/2026 (mg `0434`, spec `2026-10-22-may-thuoc-to`):** dòng của bảng này KHÔNG còn chọn tay — máy chạy được công đoạn = máy thuộc (`may_to`) một tổ đang tick ở công đoạn. Quan hệ ghi được là `CongDoan.may_khai` (mọi dòng, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ — giữ số cách đo giờ / cách tính giá, vào lại là thấy số cũ); đọc thì dùng `CongDoan.may_lam_duoc` (chỉ đọc, đã lọc theo tổ). Máy vào phạm vi mà chưa có dòng ⇒ máy chủ tự tạo dòng (công thức trống, xếp cuối). Lọc theo nhóm máy (`cong_doan.nhom_may_cho_phep`) đã bỏ.
+**Từ 22/10/2026 (mg `0435`, spec `2026-10-22-may-thuoc-to`):** dòng của bảng này KHÔNG còn chọn tay — máy chạy được công đoạn = máy thuộc (`may_to`) một tổ đang tick ở công đoạn. Quan hệ ghi được là `CongDoan.may_khai` (mọi dòng, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ — giữ số cách đo giờ / cách tính giá, vào lại là thấy số cũ); đọc thì dùng `CongDoan.may_lam_duoc` (chỉ đọc, đã lọc theo tổ). Máy vào phạm vi mà chưa có dòng ⇒ máy chủ tự tạo dòng (công thức trống, xếp cuối). Lọc theo nhóm máy (`cong_doan.nhom_may_cho_phep`) đã bỏ.
 
 ### `cong_doan_cho_ky_thuat`
 

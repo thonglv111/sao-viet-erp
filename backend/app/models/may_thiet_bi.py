@@ -143,7 +143,7 @@ class MayThietBi(Base):
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
 
-    # TỔ ĐỨNG MÁY (spec 2026-10-22-may-thuoc-to, mg `0434`): một máy thuộc NHIỀU tổ, một tổ giữ nhiều
+    # TỔ ĐỨNG MÁY (spec 2026-10-22-may-thuoc-to, mg `0435`): một máy thuộc NHIỀU tổ, một tổ giữ nhiều
     # máy. Công đoạn lấy máy qua các tổ đã tick (`CongDoan.may_lam_duoc`), bước lệnh chọn tổ thì
     # chỉ chọn được máy của tổ đó. Trống = máy chưa vào tổ nào ⇒ không hiện ở công đoạn có tick tổ.
     to_dung_may: Mapped[list["MayTo"]] = relationship(
@@ -164,7 +164,7 @@ class MayThietBi(Base):
 
 
 class MayTo(Base):
-    """Một máy thuộc một tổ — bảng nối `may_thiet_bi` ↔ `departments` (mg `0434`)."""
+    """Một máy thuộc một tổ — bảng nối `may_thiet_bi` ↔ `departments` (mg `0435`)."""
 
     __tablename__ = "may_to"
 

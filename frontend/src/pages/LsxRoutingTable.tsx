@@ -67,7 +67,7 @@ export interface RefRow {
   donViTocDo?: string | null;
   chuanBiPhut?: number | null;
   chuanBiKhoan?: { ten?: string; phut?: number }[];
-  /** MÁY — các tổ đứng máy (mg `0434`, một máy nhiều tổ). Drawer bước chỉ mời máy thuộc tổ của
+  /** MÁY — các tổ đứng máy (mg `0435`, một máy nhiều tổ). Drawer bước chỉ mời máy thuộc tổ của
    *  bước khi công đoạn có tick tổ. */
   toIds?: number[] | null;
   /** CÔNG ĐOẠN — id các máy ở bảng "Máy chạy được công đoạn này" = máy của các tổ đã tick.
@@ -323,7 +323,7 @@ export function LsxRoutingTable({
         // tốc độ đều treo ở cặp (công đoạn × máy), nên bước trống máy thì bảng bóc tách thời gian
         // ra "—" mãi. Máy gợi ý là máy mặc định của công đoạn (máy còn dùng đứng đầu danh sách) —
         // server quyết (`may_id_goi_y`), client không tự dò danh mục. KHÔNG đè máy người ta đã chọn.
-        // Máy thuộc tổ (mg `0434`): máy cũ không chạy được ở (công đoạn mới, tổ mới) cũng thay —
+        // Máy thuộc tổ (mg `0435`): máy cũ không chạy được ở (công đoạn mới, tổ mới) cũng thay —
         // giữ lại là bước đeo cặp tổ/máy lệch, server từ chối lúc lưu.
         const cdMoi = congDoanRefs?.find((c) => c.id === m.cong_doan_id) ?? null;
         const mayCuHong = !!rowCu?.may_id && !!mayRefs
@@ -400,7 +400,7 @@ export function LsxRoutingTable({
    *  18/09/2026). Server chặn lại nếu tổ không thuộc danh sách (`replace_routing`). Việc khoán
    *  của tổ KHÔNG nạp ở đây nữa: thợ chọn lúc ghi mẻ ở bàn tổ (mg `0320`). */
   const doiTo = useCallback((key: string, deptId: number | null) => {
-    // Máy đi theo tổ (mg `0434`): máy đang gán không thuộc tổ mới ⇒ máy mặc định của tổ mới
+    // Máy đi theo tổ (mg `0435`): máy đang gán không thuộc tổ mới ⇒ máy mặc định của tổ mới
     // (máy đầu bảng thuộc tổ), tổ chưa có máy ⇒ bỏ trống. Máy còn thuộc tổ mới thì giữ.
     const row = rowsRef.current.find((r) => r.key === key);
     const cd = congDoanRefs?.find((c) => c.id === row?.cong_doan_id) ?? null;

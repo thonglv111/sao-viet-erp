@@ -36,6 +36,31 @@ describe("Ghi mẻ lấy Khoán cố định từ Công đoạn", () => {
     expect(screen.getByText("Thay kẽm")).toBeInTheDocument();
   });
 
+  it("việc phát sinh: ô số lượng hiện sẵn, không ô tick; gõ số > 0 mới gửi", async () => {
+    const user = userEvent.setup();
+    const taoBatch = vi.fn().mockResolvedValue([]);
+    render(<BatchForm
+      cv={cv}
+      khoan={{ id: 9, ten: "Cắt thành phẩm", don_gia: 25, don_vi: "to", don_vi_ten: "tờ",
+        phat_sinh: [
+          { id: 3, ten: "Thay kẽm", don_gia: 100000, don_vi: "kem", don_vi_ten: "bản kẽm" },
+          { id: 4, ten: "Xuống bài", don_gia: 187500, don_vi: "bai", don_vi_ten: "bài in" },
+        ] }}
+      busy={false}
+      tranGhi={null}
+      nguoiGhi={[{ employee_id: 5, ho_ten: "An", nghi: null, dang_o: [], tick_san: true }]}
+      onXong={vi.fn()}
+      exec={{ taoBatch } as unknown as ThsxExec}
+    />);
+    expect(screen.queryByRole("checkbox", { name: /Thay kẽm/ })).toBeNull();
+    expect(screen.getByLabelText("Số lượng Thay kẽm")).toBeInTheDocument();
+    expect(screen.getByText(/Có làm thì gõ số, không làm thì để trống/)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Số lượng làm được"), "100");
+    await user.type(screen.getByLabelText("Số lượng Thay kẽm"), "2");
+    await user.click(screen.getByRole("button", { name: "Ghi sản lượng" }));
+    expect(taoBatch.mock.calls[0][0].phat_sinh).toEqual([{ phat_sinh_id: 3, so_luong: 2 }]);
+  });
+
   it("chưa cấu hình vẫn mở form ghi mẻ bình thường, không câu báo chưa cấu hình", () => {
     mo(null);
     expect(screen.queryByText(/chưa cấu hình Khoán/)).toBeNull();
@@ -133,6 +158,35 @@ describe("Tuỳ chọn khi ghi (Đợt 2)", () => {
     await user.click(screen.getByLabelText("Mực UV"));
     expect(screen.getByText("1–2 màu Pantone UV")).toBeInTheDocument();
     expect(screen.getByText("450.000 đ một lần ghi + 40 đ một tờ")).toBeInTheDocument();
+  });
+
+  it("lệnh in AB: phải chọn mặt mới ghi được, giá theo mặt, body có mat_in", async () => {
+    const user = userEvent.setup();
+    const taoBatch = vi.fn().mockResolvedValue([]);
+    const bacChon = (mat: "a" | "b", ten: string, soMau: number, cd: number, dg: number) => ({
+      chon: {}, mat, bac_ma: ten, bac_ten: ten, so_mau: soMau, so_mau_pha: 0,
+      gia_co_dinh: cd, don_gia: dg, thieu_gia: false,
+    });
+    render(<BatchForm
+      cv={cv}
+      khoan={{
+        id: 9, ten: "In", don_gia: 40, gia_co_dinh: 300000, don_vi: "to", don_vi_ten: "tờ", phat_sinh: [],
+        bac_theo_chon: [bacChon("a", "3–4 màu thường", 4, 300000, 40), bacChon("b", "1–2 màu thường", 1, 250000, 30)],
+      }}
+      busy={false}
+      tranGhi={null}
+      nguoiGhi={[{ employee_id: 5, ho_ten: "An", nghi: null, dang_o: [], tick_san: true }]}
+      onXong={vi.fn()}
+      exec={{ taoBatch } as unknown as ThsxExec}
+    />);
+    expect(screen.getByText("chọn mặt in để ra giá")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Số lượng làm được"), "5000");
+    expect(screen.getByRole("button", { name: "Ghi sản lượng" })).toBeDisabled();
+    expect(screen.getByText("1 màu")).toBeInTheDocument();
+    await user.click(screen.getByLabelText("Mặt B"));
+    expect(screen.getByText("250.000 đ một lần ghi + 30 đ một tờ")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Ghi sản lượng" }));
+    expect(taoBatch.mock.calls[0][0].mat_in).toBe("b");
   });
 
   it("thẻ ở lần ghi cùng chữ ngăn soi, bỏ mục bằng 0", () => {

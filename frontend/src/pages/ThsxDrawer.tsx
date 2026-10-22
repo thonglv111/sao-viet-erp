@@ -89,30 +89,6 @@ export function tabTuCu(t: string): ThsxDrawerTab {
   return "qc";
 }
 
-const DONG_LABEL: Record<string, string> = {
-  tam_dung: "tạm dừng",
-  ket_thuc: "kết thúc",
-  // Đổi máy giữa chừng KHÔNG phải tạm dừng thật (§7.2 mở rộng 31/08/2026, review vòng 1) — nhãn
-  // riêng để người xem lịch sử phiên không hiểu lầm công việc đã dừng.
-  doi_may: "đổi máy",
-};
-
-const hai = (n: number) => String(n).padStart(2, "0");
-/** "09/10 11:41"; có `cungNgayVoi` mà trùng ngày thì chỉ "11:58" (cột Đến của bảng Phiên chạy). */
-function mocNgayGio(v: string | null | undefined, cungNgayVoi?: string | null): string {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  const gio = `${hai(d.getHours())}:${hai(d.getMinutes())}`;
-  if (cungNgayVoi && new Date(cungNgayVoi).toDateString() === d.toDateString()) return gio;
-  return `${hai(d.getDate())}/${hai(d.getMonth() + 1)} ${gio}`;
-}
-function soPhut(batDau: string | null | undefined, ketThuc: string | null | undefined): number | null {
-  if (!batDau || !ketThuc) return null;
-  const p = Math.round((new Date(ketThuc).getTime() - new Date(batDau).getTime()) / 60000);
-  return Number.isFinite(p) && p > 0 ? p : null;
-}
-
 /** Ngăn hẹp (điện thoại) — đo CHÍNH khung ngăn, không đo cửa sổ: ngăn kéo hẹp trên máy tính cũng
  *  về một cột. Không có ResizeObserver (jsdom) ⇒ coi như máy tính. */
 const NGAN_HEP = 640;
@@ -223,8 +199,6 @@ export function ThsxDrawer({
     ro.observe(el);
     return () => ro.disconnect();
   }, [chiTiet?.cong_viec?.id]);
-  // Phiên chạy là vết máy ghi — ít khi cần đọc, mặc định gập (10/10/2026).
-  const [moPhien, setMoPhien] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [doiMayOpen, setDoiMayOpen] = useState(false);
   // Báo sự cố (§7.2 mở rộng 31/08/2026) — ô nhập nằm trong ngăn kéo `ThsxBaoSuCoDialog`.
@@ -452,57 +426,6 @@ export function ThsxDrawer({
                   <>
                     <ThsxExecPanels phan="sl" chiTiet={chiTiet} busy={busy} hoTroUngVien={hoTroUngVien}
                       ungVienHomNay={ungVienHomNay} onMoChonNguoi={onMoChonNguoi} exec={exec} tenTo={tenTo} />
-                    <section className="thsx-b-sec">
-                      <h3 className="thsx-b-sec__h">
-                        <button type="button" className="thsx-b-gap" onClick={() => setMoPhien((o) => !o)} aria-expanded={moPhien}>
-                          <Icon name="chevron" size={13} /> Phiên chạy <span className="thsx-b-mo3">{phien.length}</span>
-                        </button>
-                      </h3>
-                      {!moPhien ? null : phien.length === 0 ? (
-                        <p className="thsx-note">Chưa có phiên chạy nào.</p>
-                      ) : (
-                        // Bảng theo mockup ban-to-ngan-A-tinh-chinh: Phiên | Từ | Đến | Máy | Người tham gia.
-                        // Đến = chip Đang chạy, hoặc giờ kèm số phút và cách đóng phiên ở dòng chữ nhỏ.
-                        <div className="thsx-b-tw">
-                          <table className="thsx-b-t thsx-b-phien">
-                            <thead>
-                              <tr><th>Phiên</th><th>Từ</th><th>Đến</th><th>Máy</th><th>Người tham gia</th></tr>
-                            </thead>
-                            <tbody>
-                              {phien.map((ph) => {
-                                const nguoi = [...new Map(chiTiet.khoang_tham_gia
-                                  .filter((k) => k.phien_chay_id === ph.id)
-                                  .map((k) => [k.employee_id, k.ho_ten])).values()];
-                                const phut = soPhut(ph.bat_dau, ph.ket_thuc);
-                                return (
-                                  <tr key={ph.id}>
-                                    <td className="thsx-num">{ph.so_thu_tu}</td>
-                                    <td className="thsx-num">{mocNgayGio(ph.bat_dau)}</td>
-                                    <td>
-                                      {ph.ket_thuc == null ? <ChipTT mau={MAU_TT.running}>Đang chạy</ChipTT> : (
-                                        <>
-                                          <span className="thsx-num">{mocNgayGio(ph.ket_thuc, ph.bat_dau)}</span>
-                                          <small className="thsx-b-phien__phu">
-                                            {phut != null && <span className="thsx-num">{phut} phút</span>}
-                                            {ph.loai_dong && <span>{DONG_LABEL[ph.loai_dong] ?? ph.loai_dong}</span>}
-                                          </small>
-                                        </>
-                                      )}
-                                    </td>
-                                    <td>{ph.may_ten ?? <span className="thsx-b-mo3">—</span>}</td>
-                                    <td>
-                                      {nguoi.length === 0 ? <span className="thsx-b-mo3">—</span> : (
-                                        <span className="thsx-b-phien__nguoi">{nguoi.map((t, i) => <span key={i}>{t}</span>)}</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </section>
                   </>
                 )}
 

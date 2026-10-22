@@ -442,6 +442,39 @@ def test_chang_sau_theo_canh_roi_theo_thu_tu(db, orders, lsx_svc, admin, custome
     assert [c.id for c in repo.cong_viec_chang_sau(cvx)] == [z1.id, z2.id]  # cạnh thắng thu_tu
 
 
+# --- Ghi sản lượng tự đề xuất giao (22/10/2026) ---------------------------------------------
+def test_ghi_san_luong_tu_de_xuat_giao_sang_chang_sau(db, orders, lsx_svc, admin, customer):
+    """Ghi xong là có đề xuất giao đúng lần ghi đó sang chặng sau, báo tổ nhận như bấm tay. Lần ghi
+    số 0 (chỉ làm việc phát sinh) không đẻ lần giao."""
+    to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer)
+    to_b, ub = _to_dich(db)
+    cv2.department_id = to_b.id
+    db.commit()
+    kw = dict(user=admin, cong_viec_id=cv1.id, tu_giao=True)
+
+    r = tao_me(db, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1), tong=80, tot=80, **kw)
+    bg = r["ban_giao"]
+    assert bg["trang_thai_ban_giao"] == BG_DE_XUAT and bg["so_luong"] == 80
+    assert bg["dich_cong_viec_id"] == cv2.id and bg["notify_user_ids"] == [ub.id]
+    assert [lk.batch_id for lk in db.query(SanXuatBanGiaoBatch).filter_by(
+        ban_giao_id=bg["ban_giao_id"])] == [r["batch_id"]]
+
+    t1 = _T0 + timedelta(hours=2)
+    r0 = tao_me(db, bat_dau=t1, ket_thuc=t1 + timedelta(hours=1), tong=0, tot=0, **kw)
+    assert r0["ban_giao"] is None
+    assert db.query(SanXuatBanGiao).filter_by(nguon_cong_viec_id=cv1.id).count() == 1
+
+
+def test_ghi_san_luong_cung_to_tu_giao_da_xac_nhan(db, orders, lsx_svc, admin, customer):
+    to, cv1, cv2, lsx = _hai_cv(db, orders, lsx_svc, admin, customer)
+    cv1.lsx_id = cv2.lsx_id = lsx
+    db.commit()
+    r = tao_me(db, user=admin, cong_viec_id=cv1.id, bat_dau=_T0, ket_thuc=_T0 + timedelta(hours=1),
+               tong=50, tot=50, tu_giao=True)
+    assert r["ban_giao"]["trang_thai_ban_giao"] == BG_XAC_NHAN
+    assert r["ban_giao"]["notify_user_ids"] == []
+
+
 # --- Giao theo mẻ (14/09/2026) --------------------------------------------------------------
 def test_giao_theo_me(db, orders, lsx_svc, admin, customer):
     to, cv1, cv2, lsx = _hai_cv(db, orders, lsx_svc, admin, customer)

@@ -3155,7 +3155,7 @@ class LsxService:
                 muc["may_canh_bao"] = (
                     "Máy đang gán không còn nằm trong danh sách máy của công đoạn — chọn máy khác")
             elif cd.loai_buoc == LB_MAY:
-                # Máy thuộc tổ (mg `0434`): tổ/máy là ảnh chụp, danh mục đổi sau thì chỉ NÓI.
+                # Máy thuộc tổ (mg `0435`): tổ/máy là ảnh chụp, danh mục đổi sau thì chỉ NÓI.
                 muc["may_canh_bao"] = cap_lech(self.db, cd_obj, cd.department_id, cd.may_id)
             co_gi = (muc["vat_tu_them"] or muc["vat_tu_bo"] or muc["vat_tu_lech"]
                      or muc["may_canh_bao"])

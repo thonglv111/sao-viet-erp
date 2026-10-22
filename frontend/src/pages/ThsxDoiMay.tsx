@@ -1,5 +1,5 @@
 // Hộp "Đổi máy" của ngăn bàn tổ (mockup `ban-to-hop-thoai-B.html#doi-may`, mở từ nút ⋯). Danh sách máy do máy chủ dựng (`/work-items/{id}/may-doi`):
-// công đoạn có tick tổ ⇒ chỉ máy THUỘC tổ của việc (máy thuộc tổ, mg `0434`) — máy hư thì việc chờ,
+// công đoạn có tick tổ ⇒ chỉ máy THUỘC tổ của việc (máy thuộc tổ, mg `0435`) — máy hư thì việc chờ,
 // thợ sang phụ tổ khác chứ việc không đi theo; chưa tick tổ ⇒ máy làm được công đoạn như Xếp lịch.
 // Mỗi máy kèm TÌNH TRẠNG lúc này (cùng nguồn cột Trạng thái màn Thiết bị) và các tổ khác cùng dùng máy.
 //

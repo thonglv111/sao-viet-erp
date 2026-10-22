@@ -276,7 +276,7 @@ def test_cong_doan_da_chon_may_thi_luat_chan_doc_danh_sach_may(db):
 
 
 def test_cong_doan_chua_co_may_thi_khong_rang_buoc(db):
-    """Luật nhóm GỠ 22/10/2026 (máy đi theo tổ, mg `0434`): `nhom_may_cho_phep` còn trong DB nhưng
+    """Luật nhóm GỠ 22/10/2026 (máy đi theo tổ, mg `0435`): `nhom_may_cho_phep` còn trong DB nhưng
     không chặn ai nữa."""
     from app.services.bai_ghep_service import BaiGhepService
 

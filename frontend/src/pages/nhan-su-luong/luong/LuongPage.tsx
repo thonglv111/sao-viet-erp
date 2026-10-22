@@ -1,5 +1,6 @@
-// Lương (module `luong`, Phase 1 — lương thời gian). 5 tab:
+// Lương (module `luong`, Phase 1 — lương thời gian). 6 tab:
 //   • Bảng lương tháng — Tạo → soát ô vàng → Chốt → xuất Excel + file chuyển khoản.
+//   • Khoán theo tổ — quỹ tổ, chia cho người, sổ sản lượng (22/10/2026), cùng ô với Bảng lương tháng.
 //   • Lương nhân viên — khai báo mức riêng từng người & điều chỉnh (lịch sử).
 //   • Tạm ứng — ghi nhiều lần → duyệt → tự trừ.
 //   • Cấu hình lương — 3 tab con: cơ chế theo bộ phận · danh mục khoản thu nhập · bảo hiểm & thuế.
@@ -12,6 +13,7 @@ import {
   Wallet,
   Receipt,
   HandCoins,
+  Factory,
 } from "lucide-react";
 import type { NavigateFn } from "../../../components/AppShell";
 import { useAuth } from "../../../auth/useAuth";
@@ -21,6 +23,7 @@ import { DiscardChangesDialog } from "../../../components/DiscardChangesDialog";
 import { docThamSoMan } from "../../ke-toan/shared/urlMan";
 import type { Tab } from "./shared/types";
 import { BangLuongTab } from "./tabs/BangLuongTab";
+import { KhoanTheoToTab } from "./tabs/KhoanTheoToTab";
 import { NhanVienTab } from "./tabs/NhanVienTab";
 import { TamUngTab } from "./tabs/TamUngTab";
 import { TamUngCuaToiTab } from "./tabs/TamUngCuaToiTab";
@@ -127,6 +130,16 @@ export function LuongPage({
               <span>Bảng lương tháng</span>
             </button>
           )}
+          {canOpenBangLuong && (
+            <button
+              className={`lg-tab-btn ${tab === "khoanto" ? "is-active" : ""}`}
+              onClick={() => go("khoanto")}
+              title="Quỹ khoán của tổ và chia cho từng người"
+            >
+              <Factory className="lg-tab-btn__icon" />
+              <span>Khoán theo tổ</span>
+            </button>
+          )}
           {canLuongNhanVien && (
             <button
               className={`lg-tab-btn ${tab === "nhanvien" ? "is-active" : ""}`}
@@ -197,6 +210,7 @@ export function LuongPage({
           canExportPayroll={canExportPayroll}
         />
       )}
+      {tab === "khoanto" && canOpenBangLuong && <KhoanTheoToTab token={token!} />}
       {tab === "nhanvien" && canLuongNhanVien && (
         <NhanVienTab token={token!} focusEmployeeId={focusEmployeeId} />
       )}

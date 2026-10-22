@@ -1,8 +1,8 @@
 // Phiếu lương của khối Sản xuất / Giao hàng — HAI LƯƠNG (21/10/2026), ăn bên lớn.
 //
-// "Tăng ca theo giờ" thuộc lương thời gian (`tien_gio_tang_ca`), "Tăng ca khoán" thuộc lương khoán
-// (`tang_ca_khoan`) — không bao giờ nhận cả hai. Phần thêm làm nguyên ngày CN/lễ nằm trong `ot_pay`
-// nhưng không phải tiền giờ ⇒ in dòng riêng.
+// Khối SX (22/10/2026) chỉ có "Tăng ca khoán" (`tang_ca_khoan`), cộng ngoài phép so; Giao hàng có
+// "Tăng ca theo giờ" (`tien_gio_tang_ca`) thuộc lương thời gian. Phần thêm làm nguyên ngày CN/lễ nằm
+// trong `ot_pay` nhưng không phải tiền giờ ⇒ in dòng riêng.
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -53,6 +53,15 @@ describe("Phiếu lương — hai lương, hai loại tăng ca", () => {
                                      tang_ca_khoan: 37_500, lay_bu_lo: false })} />);
     expect(within(dongThu("Tăng ca khoán")).getByText("37.500")).toBeInTheDocument();
     expect(screen.queryByText(/Làm ngày Chủ nhật/)).not.toBeInTheDocument();
+  });
+
+  it("⭐ khối SX ăn lương thời gian vẫn in 'Tăng ca khoán' — cộng ngoài phép so (22/10/2026)", () => {
+    render(<PayslipCard period={KY}
+                        line={dong({ che_do_khoan: true, ot_pay: 0, tien_gio_tang_ca: 0,
+                                     khoan: 14_147_394, luong_cong: 1_083_375,
+                                     bu_lo_theo_cong: 15_230_769, tang_ca_khoan: 500_000,
+                                     lay_bu_lo: true })} />);
+    expect(within(dongThu("Tăng ca khoán")).getByText("500.000")).toBeInTheDocument();
   });
 
   it("⭐ ăn lương thời gian: tiền giờ tăng ca in ở 'Tăng ca theo giờ', phần CN tách riêng", () => {

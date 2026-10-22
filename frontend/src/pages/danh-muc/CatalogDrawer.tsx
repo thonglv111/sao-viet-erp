@@ -337,7 +337,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         ) : f.type === "may-cua-cong-doan" ? (
           <MayCuaCongDoanField value={Array.isArray(form[f.key]) ? form[f.key] as MayCongDoanRow[] : []}
             options={optsRef(f)}
-            // Máy đi theo tổ (mg `0434`): bảng dựng theo tổ đang tick NGAY trên form, chưa cần lưu.
+            // Máy đi theo tổ (mg `0435`): bảng dựng theo tổ đang tick NGAY trên form, chưa cần lưu.
             toDangTick={(Array.isArray(form.department_ids) ? form.department_ids as unknown[] : []).map(Number)}
             mayKhai={Array.isArray(form.may_khai) ? form.may_khai as MayCongDoanRow[] : []}
             tenTo={Object.fromEntries((refData["/api/cong-doan/phong-ban"] ?? [])

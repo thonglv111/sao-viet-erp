@@ -21,7 +21,7 @@ from app.db import Base
 
 
 # Bảng NỐI của chính danh mục đang chạy được FK cứng tới `may_thiet_bi.id` — mìn chỉ nằm ở FK trỏ
-# `machines` (lệch dải id). `may_to` (máy thuộc tổ, mg `0434`) cần CASCADE: xoá máy là rụng cặp.
+# `machines` (lệch dải id). `may_to` (máy thuộc tổ, mg `0435`) cần CASCADE: xoá máy là rụng cặp.
 _FK_DUOC_PHEP = {"may_thiet_bi.id"}
 
 

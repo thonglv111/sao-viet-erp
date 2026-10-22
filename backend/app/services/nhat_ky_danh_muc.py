@@ -509,7 +509,7 @@ def _con_cua_vat_tu(obj: Any) -> dict[str, Any]:
 
 
 def _con_cua_may(obj: Any) -> dict[str, Any]:
-    """Tổ đứng máy (mg `0434`) là bảng nối — `columns` không thấy, gom thành chuỗi tên như tổ phụ
+    """Tổ đứng máy (mg `0435`) là bảng nối — `columns` không thấy, gom thành chuỗi tên như tổ phụ
     trách của công đoạn để thêm/gỡ một tổ đọc ra một dòng "trước → sau"."""
     if getattr(obj, "__tablename__", "") != "may_thiet_bi":
         return {}

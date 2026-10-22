@@ -48,7 +48,7 @@ Cấm (làm vậy là hỏng dù chạy được):
 ### 4.1 Danh mục Máy — ô "Tổ đứng máy" (chọn nhiều)
 
 - Bảng nối mới `may_to (may_id, department_id)`, PK kép, FK `may_thiet_bi.id` ON DELETE CASCADE và
-  `departments.id` ON DELETE CASCADE, cột `thu_tu` không cần. Migration `0434`. Cập nhật
+  `departments.id` ON DELETE CASCADE, cột `thu_tu` không cần. Migration `0435`. Cập nhật
   `docs/DB_SCHEMA.md` cùng lúc.
 - Chỉ nhận tổ LÁ của Khối Sản xuất (cùng luật `cong_doan_service._kiem_to`, `:212`).
 - Form máy (`CFG_MAY`, `rebuildCatalogConfigs.tsx:238`), nhóm "Thông tin chung", cạnh "Nhóm máy":

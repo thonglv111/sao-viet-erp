@@ -260,9 +260,10 @@ class WorkItemsLocDemOut(BaseModel):
     cho: dict[str, int]
     toi: dict[str, int]
     vuong: dict[str, int]
-    tre: dict[str, int]
     gap: dict[str, int] = {}   # `gap` lệnh gấp / `thuong` lệnh thường (10/10/2026)
     nguoi: list[NguoiLocDemOut]
+    may: list[NguoiLocDemOut] = []     # 22/10/2026 — thay `tre` (trễ giờ dự kiến) đã gỡ
+    khach: list[NguoiLocDemOut] = []
 
 
 class LichSuDongOut(BaseModel):
@@ -992,7 +993,7 @@ class MayDoiRow(BaseModel):
     trang_thai: str
     nhan: str
     chi_tiet: str | None = None
-    # Tên tổ KHÁC (ngoài tổ của việc) mà máy cũng thuộc — "cũng thuộc: …" (mg `0434`).
+    # Tên tổ KHÁC (ngoài tổ của việc) mà máy cũng thuộc — "cũng thuộc: …" (mg `0435`).
     to_khac: list[str] = Field(default_factory=list)
 
 
@@ -1001,7 +1002,7 @@ class MayDoiOut(BaseModel):
     items: list[MayDoiRow]
     # True = danh sách đã bị công đoạn thu hẹp (khai máy); False = chưa khai, mọi máy.
     theo_cong_doan: bool
-    # True = công đoạn có tick tổ ⇒ danh sách là máy THUỘC tổ của việc (mg `0434`).
+    # True = công đoạn có tick tổ ⇒ danh sách là máy THUỘC tổ của việc (mg `0435`).
     theo_to: bool = False
 
 
@@ -1085,6 +1086,8 @@ class BatchIn(BaseModel):
     nguoi_ids: list[int] | None = None
     # Giá trị tuỳ chọn khi ghi `{ma: giá trị}` (Đợt 2); thiếu mã ⇒ 0.
     tuy_chon: dict[str, float] = {}
+    # Lệnh in AB: mặt máy chạy ở lần ghi này ("a" / "b") — bậc giá theo số màu mặt đó.
+    mat_in: Literal["a", "b"] | None = None
 
 
 class ThemLotIn(BaseModel):
@@ -1109,6 +1112,7 @@ class BacTheoChonOut(BaseModel):
     """Giá của tổ ứng với một tổ hợp tick (`chon` = {mã tuỳ chọn: 0/1}) — công đoạn chia bậc."""
 
     chon: dict[str, float] = {}
+    mat: Literal["a", "b"] | None = None   # lệnh in AB: tổ hợp của mặt nào
     bac_ma: str | None = None
     bac_ten: str | None = None
     so_mau: float = 0

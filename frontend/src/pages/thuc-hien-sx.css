@@ -2515,11 +2515,6 @@
 .thsx-b-me__than { display: flex; align-items: flex-start; gap: 16px; font-size: 13px; }
 .thsx-b-me__than > :first-child { flex: 1 1 auto; min-width: 0; }
 .thsx-b-me__than > .btn { flex: none; margin-left: auto; }
-/* Gập/mở khối (Phiên chạy): mũi tên xoay theo trạng thái. */
-.thsx-b-gap { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0;
-  font: inherit; color: inherit; cursor: pointer; }
-.thsx-b-gap svg { color: var(--ash-2); transition: transform .15s; transform: rotate(-90deg); }
-.thsx-b-gap[aria-expanded="true"] svg { transform: none; }
 .thsx-b-dong-ps { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* Giao và nhận: mỗi lần giao/nhận một dòng bảng — số lượng, đầu kia, bên giao, bên nhận, trạng thái. */
@@ -2564,9 +2559,6 @@
    không vạch giữa các món của cùng một lần. */
 .thsx-b-t__nut { text-align: right; white-space: nowrap; width: 1%; }
 .thsx-b-t__nut .btn + .btn { margin-left: 6px; }
-/* Bảng Phiên chạy: dòng chữ nhỏ dưới giờ Đến (số phút, cách đóng); tên người tách ô, không nối dấu. */
-.thsx-b-phien__phu { display: flex; gap: 10px; flex-wrap: wrap; color: var(--ash-2); font-size: 11.5px; }
-.thsx-b-phien__nguoi { display: inline-flex; flex-wrap: wrap; gap: 2px 12px; }
 
 /* Thẻ quy cách trong ngăn: các ô nhãn trên giá trị dưới, viền chung. */
 .thsx-b-qc .thsx-flat-spec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -2579,8 +2571,10 @@
 /* Nhãn "Mực in" mượn khung `.khsx-kv` của màn lệnh (in hoa, đậm) — trong ngăn về cùng kiểu nhãn ô. */
 .thsx-b-qc .khsx-kv__key { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12px; color: var(--ash-2); }
 
-@container (max-width: 640px) {
-  /* Ngăn hẹp: dòng mẻ thành thẻ nhiều hàng — không giấu cột nào, Tốt / Hỏng tự kèm nhãn. */
+/* Dòng mẻ thành thẻ nhiều hàng — không giấu cột nào, Tốt / Hỏng tự kèm nhãn. Bảng nằm ở CỘT TRÁI
+   (ngăn trừ cột phải 340px) mà truy vấn đo cả ngăn: ngăn 640–1000px vẫn chia hai cột, cột trái còn
+   300–660px, sáu cột ép Người / Máy còn vài px và chữ dựng đứng từng ký tự (22/10/2026). */
+@container (max-width: 1000px) {
   .thsx-b-me__cot { display: none; }
   .thsx-b-me__h { grid-template-columns: minmax(0, 1fr) auto 14px; gap: 4px 12px;
     grid-template-areas: "luc tot mui" "nguoi hong mui" "may may mui"; }
@@ -2588,6 +2582,8 @@
   .thsx-b-me__may { grid-area: may; color: var(--ash-2); } .thsx-b-me__tot { grid-area: tot; }
   .thsx-b-me__hong { grid-area: hong; } .thsx-b-me__mui { grid-area: mui; }
   .thsx-b-me__tot::before, .thsx-b-me__hong::before { content: attr(data-nhan) " "; color: var(--ash-2); font-size: 11.5px; }
+}
+@container (max-width: 640px) {
   .thsx-b-an { display: none; }
   .thsx-b-sec__phai { margin-left: 0; width: 100%; }
 }

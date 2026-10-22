@@ -14,7 +14,7 @@ from app.models.san_xuat import SanXuatCongViec
 from app.models.san_xuat_san_luong import SanXuatBatch, SanXuatBatchNguoi
 from app.services.khoan_ky import KhoanKyService, MucKhoan
 from app.services.san_xuat import viec_khoan
-from tests.test_khoan_ky import NAM, THANG, _Nen
+from tests.test_khoan_ky import CT_THANG, NAM, THANG, _Nen
 
 CT_IN = ("((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000)"
          " * don_gia_khoan) * if(so_mau_pha > 0, 1.1, 1)")
@@ -82,7 +82,7 @@ NGAY = date(NAM, THANG, 5)
 def test_chia_theo_luong_ca_may(nen):
     to = nen.to("Tổ in")
     nhat, linh = nen.nv(to, "Nhất"), nen.nv(to, "Linh")
-    k = nen.khoan2("", gia_co_dinh=1_000_000)
+    k = nen.khoan2(CT_THANG, gia_co_dinh=1_000_000)
     nen.ghi2(to, k, NGAY, 0, [nhat, linh])
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((nhat, 14_000_000), (linh, 9_000_000)))
     assert kq["khoan"] == {nhat.id: 608_696, linh.id: 391_304}
@@ -91,7 +91,7 @@ def test_chia_theo_luong_ca_may(nen):
 def test_thieu_luong_ca_may_bao_thieu(nen):
     to = nen.to("Tổ in")
     nhat, linh = nen.nv(to, "Nhất"), nen.nv(to, "Linh")
-    k = nen.khoan2("", gia_co_dinh=1_000_000)
+    k = nen.khoan2(CT_THANG, gia_co_dinh=1_000_000)
     nen.ghi2(to, k, NGAY, 0, [nhat, linh])
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((nhat, 14_000_000), (linh, 0)))
     assert kq["khoan"] == {}
@@ -106,7 +106,7 @@ def test_canh_bao_chot_chi_dung_cho_sua_theo_ly_do(nen):
 
     to = nen.to("Tổ in")
     nhat, linh = nen.nv(to, "Nhất"), nen.nv(to, "Linh")
-    k = nen.khoan2("", gia_co_dinh=1_000_000)
+    k = nen.khoan2(CT_THANG, gia_co_dinh=1_000_000)
     nen.ghi2(to, k, NGAY, 0, [nhat, linh])
     nen.ghi2(to, k, NGAY, 0, [])
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((nhat, 14_000_000), (linh, 0)))
@@ -119,7 +119,7 @@ def test_canh_bao_chot_chi_dung_cho_sua_theo_ly_do(nen):
 def test_nguoi_to_khac_dung_muc_cua_ho(nen):
     a, b = nen.to("Tổ A"), nen.to("Tổ B")
     x, y = nen.nv(a, "X"), nen.nv(b, "Y")
-    k = nen.khoan2("", gia_co_dinh=900_000)
+    k = nen.khoan2(CT_THANG, gia_co_dinh=900_000)
     nen.ghi2(a, k, NGAY, 0, [x, y])
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((x, 12_000_000), (y, 6_000_000)))
     assert kq["khoan"] == {x.id: 600_000, y.id: 300_000}
@@ -250,11 +250,15 @@ def test_lan_ghi_cu_chua_co_tuy_chon_mac_dinh_0(nen):
     assert kq["thieu_gia"] == [] and kq["khoan"] == {e.id: 150_000 + 120_000}
 
 
-def test_cong_thuc_rong_dung_sl_ghi_la_tot(nen):
+def test_sl_ghi_la_tot_cong_thuc_rong_ra_0(nen):
+    """`sl_ghi` = số tốt (100), không phải số vào (120). Công đoạn để trống công thức ⇒ 0 đồng (chủ
+    22/10: tiền phải tường minh trên công thức)."""
     to = nen.to("Tổ gỡ")
     e = nen.nv(to, "E")
-    k = nen.khoan2("", don_gia=10)
+    k = nen.khoan2(CT_THANG, don_gia=10)
     nen.ghi2(to, k, NGAY, 100, [e], tong=120)
+    trong = nen.khoan2("", gia_co_dinh=500, don_gia=10)
+    nen.ghi2(to, trong, NGAY, 100, [e])
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
     assert kq["khoan"] == {e.id: 1000}
 
@@ -286,7 +290,7 @@ def test_ngan_soi_cong_dong_bang_dung_cot_luong(nen):
 
 
 def test_chip_tien_ma_san_luong_khong_nhan_don_gia_canh_bao(nen):
-    """`gia_co_dinh + sl_ghi`: có chip tiền nên engine thôi nhân đơn giá ⇒ 1 tờ thành 1đ. Vẫn tính
+    """`gia_co_dinh + sl_ghi`: kết quả công thức là tiền ⇒ 1 tờ thành 1đ. Vẫn tính
     đúng công thức người khai (không đoán), nhưng nói ra trước chốt."""
     to = nen.to("Tổ dán")
     a = nen.nv(to, "A")
@@ -300,6 +304,18 @@ def test_chip_tien_ma_san_luong_khong_nhan_don_gia_canh_bao(nen):
     nen.ghi2(to, k2, NGAY, 1000, [a])
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((a, 5_000_000)))
     assert sum("Đơn giá khoán" in c for c in kq["canh_bao"]) == 1
+
+
+def test_khong_tu_nhan_don_gia_cong_thuc_luong_ra_dung_so_do(nen):
+    """Chủ 22/10: kết quả công thức LÀ tiền — `sl_ghi * dai_in * rong_in` (không chip tiền nào) ra
+    đúng số m², máy không ngầm × đơn giá 150; vẫn nhắc trước chốt."""
+    to = nen.to("Tổ cán màng")
+    a = nen.nv(to, "A")
+    k = nen.khoan2("sl_ghi * 2", don_gia=150)
+    nen.ghi2(to, k, NGAY, 1000, [a])
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((a, 5_000_000)))
+    assert kq["khoan"][a.id] == 2000
+    assert any("Đơn giá khoán" in c and k.cong_doan.ten in c for c in kq["canh_bao"])
 
 
 def test_the_tuy_chon_so_le_in_kieu_viet():

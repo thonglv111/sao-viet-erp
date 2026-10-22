@@ -18975,8 +18975,32 @@ def _migrate_bac_gia_khoan(db: Session) -> None:
 MIGRATIONS.append(("0433_bac_gia_khoan", _migrate_bac_gia_khoan))
 
 
+def _migrate_cong_thuc_khoan_tuong_minh(db: Session) -> None:
+    """0434 (22/10/2026) — công thức khoán phải TƯỜNG MINH: ô trống nay ra 0 đồng (chủ chốt), không
+    còn ngầm `gia_co_dinh + sl_ghi × don_gia`. Chép đúng công thức ngầm đó vào mọi công đoạn khoán
+    và mọi ảnh chụp lần ghi đang để trống ('' — NULL là lần ghi cũ đọc công thức công đoạn) để tiền
+    giữ nguyên và người mở form thấy được. Raw SQL đích danh cột, idempotent."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    # Đọc cột TRƯỚC lệnh ghi đầu tiên — inspector sau UPDATE làm SQLite mất phần đã ghi.
+    co_chup = "san_xuat_batch" in bang and "cong_thuc_khoan_snapshot" in _existing_columns(insp, "san_xuat_batch")
+    ct = "gia_co_dinh + sl_ghi * don_gia_khoan"
+    if "cong_doan_khoan" in bang:
+        db.execute(text("UPDATE cong_doan_khoan SET cong_thuc_khoan = :ct "
+                        "WHERE cong_thuc_khoan IS NULL OR TRIM(cong_thuc_khoan) = ''"), {"ct": ct})
+    if co_chup:
+        db.execute(text("UPDATE san_xuat_batch SET cong_thuc_khoan_snapshot = :ct "
+                        "WHERE khoan_cong_doan_id IS NOT NULL AND cong_thuc_khoan_snapshot IS NOT NULL "
+                        "AND TRIM(cong_thuc_khoan_snapshot) = ''"), {"ct": ct})
+    db.commit()
+
+
+MIGRATIONS.append(("0434_cong_thuc_khoan_tuong_minh", _migrate_cong_thuc_khoan_tuong_minh))
+
+
 def _migrate_may_to(db: Session) -> None:
-    """0434 (22/10/2026) — bảng nối `may_to` (máy thuộc tổ, spec 2026-10-22-may-thuoc-to).
+    """0435 (22/10/2026) — bảng nối `may_to` (máy thuộc tổ, spec 2026-10-22-may-thuoc-to).
 
     Chỉ TẠO bảng (thường `create_all` đã tạo trước): KHÔNG điền tổ cho máy, KHÔNG đụng
     `cong_doan_may` hay lệnh/công việc — người dùng tự khai "Tổ đứng máy" ở danh mục Máy."""
@@ -18986,4 +19010,20 @@ def _migrate_may_to(db: Session) -> None:
     db.commit()
 
 
-MIGRATIONS.append(("0434_may_to", _migrate_may_to))
+MIGRATIONS.append(("0435_may_to", _migrate_may_to))
+
+
+def _migrate_luong_an_cong_nhat(db: Session) -> None:
+    """0436 (22/10/2026) — `employee_salaries.an_cong_nhat`: người ở tổ sản xuất ăn công nhật (lương
+    theo công + tăng ca theo giờ, không hưởng tiền sản lượng). NULL = chưa chọn ⇒ theo trạng thái
+    (thử việc = công nhật, chính thức = lương khoán), đúng cách mọi mốc lương cũ đang tính.
+    Raw SQL đích danh cột, idempotent."""
+    insp = inspect(db.get_bind())
+    if ("employee_salaries" in insp.get_table_names()
+            and "an_cong_nhat" not in _existing_columns(insp, "employee_salaries")):
+        db.execute(text(
+            "ALTER TABLE employee_salaries ADD COLUMN an_cong_nhat BOOLEAN"))
+    db.commit()
+
+
+MIGRATIONS.append(("0436_luong_an_cong_nhat", _migrate_luong_an_cong_nhat))

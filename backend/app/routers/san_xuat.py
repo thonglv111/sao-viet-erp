@@ -381,7 +381,8 @@ def work_items(
     toi: Literal["toi", "con_1", "con_2_3", "con_4", "qua"] | None = Query(None),
     vuong: list[Literal["chua_giao_tho", "chua_nhan_khuon", "chua_nhan_buoc_truoc", "chua_san_sang_vat_tu"]]
     | None = Query(None),
-    tre: Literal["bat_dau", "xong"] | None = Query(None),
+    may: list[int] | None = Query(None),
+    khach: list[int] | None = Query(None),
     nguoi: list[int] | None = Query(None),
     gap: Literal["gap", "thuong"] | None = Query(None),
 ) -> WorkItemsOut:
@@ -410,7 +411,9 @@ def work_items(
                              trang=trang, co_trang=co_trang, tu_ngay=tu_ngay, den_ngay=den_ngay,
                              cho_xac_nhan=cho_xac_nhan, trang_thai=set(trang_thai or ()) or None,
                              moc=moc, sap_xep=sap_xep, cho_loai=set(cho_loai or ()) or None,
-                             toi=toi, vuong=set(vuong or ()) or None, tre=tre,
+                             toi=toi, vuong=set(vuong or ()) or None,
+                             may={m for m in (may or ()) if m > 0} or None,
+                             khach={k for k in (khach or ()) if k > 0} or None,
                              nguoi={n for n in (nguoi or ()) if n > 0} or None, gap=gap)
         )
     except PermissionError as exc:
@@ -781,9 +784,14 @@ def tao_batch(
         mo_ta_loi=body.mo_ta_loi, ghi_chu=body.ghi_chu,
         lot_vao=[lot.model_dump() for lot in body.lot_vao],
         phat_sinh=[ps.model_dump() for ps in body.phat_sinh],
-        nguoi_ids=body.nguoi_ids, tuy_chon=body.tuy_chon,
+        nguoi_ids=body.nguoi_ids, tuy_chon=body.tuy_chon, mat_in=body.mat_in,
     ))
     _phat_sse(res)
+    # Ghi xong tự đề xuất giao sang chặng sau — báo bên nhận như bấm Đề xuất giao.
+    bg = res.get("ban_giao")
+    if bg:
+        phat_ban_giao(bg)
+        _cham_to(db, bg.get("dich_department_id"), "ban_giao_den", user.id)
     return res
 
 

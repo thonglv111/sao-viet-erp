@@ -496,7 +496,7 @@ CONG_DOAN = CatalogExcelSpec(
                      rong=22),),
             giu_khi_vang=_giu_vat_tu_cong_doan,
         ),
-        # Máy của công đoạn đi theo TỔ đã tick (mg `0434`) — sheet chỉ còn là chỗ sửa công thức
+        # Máy của công đoạn đi theo TỔ đã tick (mg `0435`) — sheet chỉ còn là chỗ sửa công thức
         # giờ/giá theo máy. Dòng của máy ngoài phạm vi tổ bị bỏ qua khi nhập (`_ghi_may`).
         SheetCon(
             "Máy của công đoạn", field="may_lam_duoc",
@@ -637,7 +637,7 @@ MAY_THIET_BI = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Loại máy", "loai_may", rong=18),
-        # Tổ đứng máy (mg `0434`): NHIỀU tổ, "PB012, PB013".
+        # Tổ đứng máy (mg `0435`): NHIỀU tổ, "PB012, PB013".
         *_cot_nhieu_to(field="to_ids", nhan="Mã tổ đứng máy", nhan_ten="Tổ đứng máy"),
         Cot("Hãng sản xuất", "hang_san_xuat", rong=20),
         Cot("Model", "model", rong=18),

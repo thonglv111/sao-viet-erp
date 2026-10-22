@@ -154,7 +154,7 @@ describe("mayChonDuoc — máy nào được mời cho một bước", () => {
     expect(toChuaCoMay(MAY, CD, null)).toBe(false);
   });
 
-  // Ngay sau mg 0434 mọi công đoạn có tick tổ mà chưa máy nào khai tổ ⇒ bảng máy rỗng. Máy chủ
+  // Ngay sau mg 0435 mọi công đoạn có tick tổ mà chưa máy nào khai tổ ⇒ bảng máy rỗng. Máy chủ
   // (`may_to.may_chon_duoc`) trả [] và lưu bất kỳ máy nào là 400 — ô máy KHÔNG được mời mọi máy.
   const CD_TRONG = { mayChoPhep: [] as number[], coRangBuocTo: true };
 
