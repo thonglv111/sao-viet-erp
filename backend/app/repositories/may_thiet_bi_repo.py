@@ -18,7 +18,7 @@ ASSIGNABLE = (
     "kho_max_dai", "kho_max_rong", "kho_min_dai", "kho_min_rong",
     "kho_kem_dai", "kho_kem_rong", "vung_in_dai", "vung_in_rong", "nhip_giay_mm",
     "le_hong_mm", "duoi_thang_mau_mm",
-    "fields_theo_loai", "active",
+    "fields_theo_loai", "active", "to_ids",
 )
 
 
@@ -32,10 +32,11 @@ class MayThietBiRepository(CatalogRepo):
     def _base_select(self):
         return select(MayThietBi).options(selectinload(MayThietBi.to_dung_may))
 
-    def _sau_gan(self, obj: MayThietBi, data: dict) -> None:
+    def _gan(self, obj: MayThietBi, data: dict) -> None:
         # Tổ đứng máy (mg `0434`): vắng / None = giữ nguyên danh sách đang lưu.
-        if data.get("to_ids") is not None:
-            obj.to_ids = data["to_ids"]
+        if "to_ids" in data and data["to_ids"] is None:
+            data = {k: v for k, v in data.items() if k != "to_ids"}
+        super()._gan(obj, data)
 
     def to_san_xuat_ids(self) -> set[int]:
         """Id các TỔ (nút lá khối Sản xuất) — cùng định nghĩa ô tổ của công đoạn."""
