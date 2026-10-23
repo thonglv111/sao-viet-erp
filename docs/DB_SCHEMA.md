@@ -2908,6 +2908,7 @@ ca máy. Tiền này không vào quỹ so chỉ tiêu (tăng ca khoán) và khô
 | `ngay`          | `Date`         | **U(department_id, ngay)**            | no   | —       | Ngày dừng máy — một tổ một ngày một dòng. |
 | `ly_do`         | `String(16)`   | —                                     | no   | —       | `may_hu` (Máy hư) / `het_hang` (Hết hàng). |
 | `sua_chua_id`   | `Integer`      | **FK→ky_thuat_sua_chua.id**           | yes  | —       | Phiếu sửa máy kèm theo (SET NULL khi phiếu bị xoá). |
+| `yeu_cau_id`    | `Integer`      | soft→ky_thuat_yeu_cau_sua.id          | yes  | —       | Yêu cầu "Báo máy hỏng" gửi cùng lúc báo Máy hư (mg `0437`, hộp Báo dừng máy gộp Báo sự cố 23/10/2026). |
 | `ghi_chu`       | `Text`         | —                                     | yes  | —       | Ghi chú tự do. |
 | `nguoi_ids`     | `JSON`         | —                                     | no   | `[]`    | Danh sách `employees.id` hưởng ngày dừng máy (tổ trưởng tick). |
 | `created_by`    | `Integer`      | **FK→users.id**                       | yes  | —       | Người báo (CASCADE như mọi FK tới users, mg `0432`). |

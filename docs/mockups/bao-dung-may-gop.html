@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo dừng máy gộp Báo sự cố</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f8fafc; --canvas: #fff; --ink: #0f172a; --ash: #475569; --ash-2: #64748b;
+    --rule: #cbd5e1; --rule-soft: #e2e8f0; --rule-hair: #f1f5f9;
+    --rust: #c5400a; --rust-deep: #8a2d07;
+    --vang-bg: #fef3c7; --vang-fg: #b45309; --do-bg: #fee2e2; --do-fg: #b91c1c; --do-dot: #ef4444;
+    --xanh-bg: #dbeafe; --xanh-fg: #1d4ed8; --la-bg: #dcfce7; --la-fg: #15803d; --cam-dot: #f97316; --vang-dot: #f59e0b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Be Vietnam Pro", system-ui, sans-serif; font-size: 14px; color: var(--ink);
+    background: #e9edf2; padding: 28px 20px 60px; }
+  .wrap { max-width: 1760px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 500; margin: 0 0 6px; }
+  .lead { color: var(--ash); max-width: 980px; line-height: 1.6; margin: 0 0 8px; }
+  .doc { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 12px; padding: 14px 18px;
+    margin: 14px 0 26px; color: var(--ash); line-height: 1.6; font-size: 13.5px; max-width: 1200px; }
+  .doc h2 { font-size: 14px; font-weight: 500; color: var(--ink); margin: 0 0 6px; }
+  .doc ul { margin: 0; padding-left: 18px; }
+  .doc code { font-size: 12.5px; background: var(--rule-hair); padding: 0 4px; border-radius: 4px; }
+
+  .hang { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; align-items: start; }
+  @media (max-width: 1400px) { .hang { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .hang { grid-template-columns: 1fr; } }
+  .canh { display: flex; flex-direction: column; gap: 10px; }
+  .canh__ten { font-size: 15px; color: var(--ink); }
+  .canh__phu { font-size: 13px; color: var(--ash); line-height: 1.5; }
+
+  /* Khuôn hộp bàn tổ (thsx-hop.css) */
+  .hop { background: var(--canvas); border-radius: 16px; box-shadow: 0 30px 70px -24px rgba(15,23,42,.45);
+    display: flex; flex-direction: column; overflow: hidden; }
+  .hop__dau { padding: 18px 22px 4px; display: flex; gap: 12px; }
+  .hop__td { font-size: 17px; font-weight: 500; margin: 0; }
+  .hop__pd { font-size: 12.5px; color: var(--ash-2); margin-top: 2px; }
+  .hop__x { margin-left: auto; color: var(--ash-2); font-size: 20px; line-height: 1; }
+  .hop__than { padding: 14px 22px 6px; display: flex; flex-direction: column; gap: 16px; }
+  .hop__chan { padding: 14px 22px 18px; display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+    border-top: 1px solid var(--rule-hair); margin-top: 10px; }
+  .hop__phim { font-size: 12px; color: var(--ash-2); margin-right: auto; }
+  .btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid transparent; font: inherit; font-size: 13.5px;
+    display: inline-flex; align-items: center; cursor: pointer; }
+  .btn--ghost { background: none; color: var(--ash); }
+  .btn--accent { background: var(--rust); color: #fff; }
+  .btn--sec { background: var(--canvas); border-color: var(--rule); color: var(--ink); gap: 6px; }
+
+  .f { display: flex; flex-direction: column; gap: 6px; }
+  .f__n { font-size: 12.5px; color: var(--ash-2); }
+  .f__g { font-size: 12px; color: var(--ash-2); line-height: 1.45; }
+  .in { width: 100%; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); padding: 7px 9px;
+    font: inherit; font-size: 13.5px; color: var(--ink); }
+  .in--sel { display: flex; justify-content: space-between; align-items: center; }
+  .in--sel::after { content: "▾"; color: var(--ash-2); font-size: 11px; }
+  .ta { min-height: 56px; color: var(--ash-2); }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--rule); border-radius: 999px; background: var(--paper); align-self: flex-start; }
+  .seg span { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; color: var(--ash); }
+  .seg .on { background: var(--canvas); color: var(--rust-deep); box-shadow: 0 1px 0 var(--rule-soft); }
+  .muc { display: flex; gap: 6px; flex-wrap: wrap; }
+  .muc span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--rule-soft);
+    border-radius: 999px; font-size: 12.5px; }
+  .muc .on { border-color: var(--ash); }
+  .muc i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* Danh sách máy chọn một */
+  .may { border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }
+  .may__o { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; padding: 9px 14px; font-size: 13.5px;
+    border-bottom: 1px solid var(--rule-hair); align-items: start; }
+  .may__o:last-child { border-bottom: 0; }
+  .may__o small { display: block; font-size: 12px; color: var(--ash-2); margin-top: 1px; }
+  .may__o.on { background: var(--paper); }
+  .r { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--rule); margin-top: 3px; }
+  .on .r { border: 4px solid var(--ink); }
+
+  /* Ô tick có khung (khuôn ktm-emergency-card của Báo sự cố cũ) */
+  .tick { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; border: 1px solid var(--rule-soft);
+    border-radius: 12px; padding: 10px 14px; }
+  .tick.on { border-color: #fecaca; background: #fff7f7; }
+  .tick.on-xanh { border-color: #bbf7d0; background: #f6fef9; }
+  .cb { width: 15px; height: 15px; border: 1.5px solid var(--rule); border-radius: 4px; margin-top: 2px; position: relative; }
+  .on .cb, .on-xanh .cb, .cb.on { background: var(--ink); border-color: var(--ink); }
+  .on .cb::after, .on-xanh .cb::after, .cb.on::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px;
+    border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  .tick__ten { font-size: 13.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tick__mo { font-size: 12.5px; color: var(--ash); line-height: 1.5; margin-top: 2px; }
+  .the { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--do-bg); color: var(--do-fg); }
+
+  .ng { border: 1px solid var(--rule-soft); border-radius: 12px; padding: 2px 12px; }
+  .ng__o { display: flex; gap: 8px; align-items: center; padding: 7px 0; font-size: 13.5px; }
+  .ng__o + .ng__o { border-top: 1px solid var(--rule-hair); }
+  .ng__tien { margin-left: auto; color: var(--ash-2); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+  .bao { border-radius: 10px; padding: 9px 12px; font-size: 13px; line-height: 1.5; }
+  .bao--xam { background: var(--paper); color: var(--ash); }
+  .bao--xanh { border: 1px solid #bfdbfe; background: var(--xanh-bg); color: var(--xanh-fg); }
+
+  .khoi { border-top: 1px dashed var(--rule); padding-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .khoi__ten { font-size: 13.5px; color: var(--ink); }
+
+  .ds { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ds td { padding: 6px 8px; border-bottom: 1px solid var(--rule-hair); }
+  .ds tr:last-child td { border-bottom: 0; }
+  .ds td:last-child { text-align: right; color: var(--rust-deep); }
+  .mo { color: var(--ash-2); }
+
+  .ghi { font-size: 12.5px; color: var(--ash); background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 12px; line-height: 1.5; }
+
+  /* Menu ⋯ sau khi bỏ */
+  .menu-hang { display: grid; grid-template-columns: repeat(2, minmax(0, 340px)); gap: 22px; margin: 6px 0 30px; }
+  .menu { background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 12px; box-shadow: 0 12px 30px -16px rgba(15,23,42,.35);
+    padding: 6px; width: 220px; }
+  .menu div { padding: 9px 12px; border-radius: 8px; font-size: 14px; }
+  .menu .bo { color: var(--ash-2); text-decoration: line-through; }
+  h3 { font-size: 15px; font-weight: 500; margin: 26px 0 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Báo dừng máy gộp Báo sự cố</h1>
+  <p class="lead">Bàn tổ chỉ còn MỘT nút "Báo dừng máy" ở đầu trang. Một hộp lo hai việc: báo tổ sửa chữa (lúc máy hư) và
+    tính ngày dừng cho lương (dòng G "Máy hư / hết hàng" của sổ khoán). Ba khung dưới là cùng một hộp, khác người mở và lý do chọn.
+    Dữ liệu lấy từ DB dev: tổ Nhóm thợ in máy 2 màu (Nguyễn Văn Tuấn, Trịnh Duy Linh), máy IN-01 / IN-02, việc LSX26-0003 đang chạy.</p>
+
+  <div class="doc">
+    <h2>Đã đọc trước khi vẽ</h2>
+    <ul>
+      <li><code>BaoDungMayModal.tsx</code>: hộp hiện tại (Ngày, Lý do Máy hư / Hết hàng, Phiếu sửa máy khi Máy hư, Ghi chú, Người hưởng, bảng "Đã báo tháng"). Nút chỉ hiện khi giữ Xác nhận sản lượng trọn tổ (<code>coBaoDungMay</code>, luật máy chủ <code>gate_to_tron</code>).</li>
+      <li><code>ThsxBaoSuCoDialog.tsx</code>: Báo sự cố trong nút ⋯ của việc (Máy khoá theo việc, ô tick "Máy đang dừng, không chạy được" thì tạm dừng việc, Mức độ Nhẹ / Trung bình / Nghiêm trọng, Triệu chứng). Gửi vào hộp thư "Báo máy hỏng" của tổ sửa chữa.</li>
+      <li><code>khoan_ky.py</code>: ngày dừng = trọn chỉ tiêu ngày của tổ, chia người hưởng theo lương ca máy, cộng thêm lần ghi trong ngày; một tổ một ngày một dòng.</li>
+      <li>Máy của tổ lấy từ bảng <code>may_to</code> vừa merge (đang trống trên DB dev ⇒ mẫu giả định IN-01 thuộc tổ 2 màu).</li>
+    </ul>
+  </div>
+
+  <div class="hang">
+
+    <!-- ===== 1. Thợ đứng máy, Máy hư ===== -->
+    <div class="canh">
+      <div class="canh__ten">1. Thợ đứng máy bấm, máy vừa hư</div>
+      <div class="canh__phu">Thợ không giữ quyền trọn tổ nên KHÔNG thấy phần lương. Hộp chỉ còn báo tổ sửa chữa. Nút chính nói đúng việc sẽ xảy ra.</div>
+      <div class="hop">
+        <div class="hop__dau"><div><h2 class="hop__td">Báo dừng máy</h2><div class="hop__pd">Nhóm thợ in máy 2 màu</div></div><span class="hop__x">×</span></div>
+        <div class="hop__than">
+          <div class="f"><span class="f__n">Lý do</span>
+            <div class="seg"><span class="on">Máy hư</span><span>Hết hàng</span></div></div>
+
+          <div class="f"><span class="f__n">Máy hư</span>
+            <div class="may">
+              <div class="may__o on"><span class="r"></span><div>IN-02 Máy in 4 màu Mitsubishi 79×109<small>Đang chạy LSX26-0003 Bài in 1–2 màu (CMYK)</small></div></div>
+              <div class="may__o"><span class="r"></span><div>IN-01 Máy in 2 màu Mitsubishi 72×102<small>Rảnh</small></div></div>
+            </div>
+            <span class="f__g">Máy của tổ, cộng máy đang chạy việc của tổ. Máy có việc đang chạy đứng đầu và chọn sẵn.</span>
+          </div>
+
+          <label class="tick on"><span class="cb"></span><div>
+            <div class="tick__ten">Máy đang dừng, không chạy được <span class="the">Ưu tiên cao và tạm dừng việc</span></div>
+            <div class="tick__mo">Việc Bài in 1–2 màu (CMYK) sẽ tạm dừng, giờ máy ngừng tính từ lúc gửi.</div>
+          </div></label>
+
+          <div class="f"><span class="f__n">Mức độ theo bạn thấy</span>
+            <div class="muc"><span><i style="background:var(--la-fg)"></i>Nhẹ</span><span><i style="background:var(--vang-dot)"></i>Trung bình</span><span class="on"><i style="background:var(--do-dot)"></i>Nghiêm trọng</span></div>
+            <span class="f__g">Tổ sửa chữa sẽ đánh giá lại khi nhận.</span></div>
+
+          <div class="f"><span class="f__n">Triệu chứng</span>
+            <div class="in ta">Kể đúng cái mình thấy, ví dụ máy kêu to ở tốc độ cao</div></div>
+        </div>
+        <div class="hop__chan"><span class="hop__phim">Ctrl + Enter để gửi</span><button class="btn btn--ghost">Huỷ</button><button class="btn btn--accent">Gửi tổ sửa chữa</button></div>
+      </div>
+    </div>
+
+    <!-- ===== 2. Tổ trưởng, Máy hư, tick lương ===== -->
+    <div class="canh">
+      <div class="canh__ten">2. Tổ trưởng bấm, máy hư và tính luôn ngày dừng</div>
+      <div class="canh__phu">Có thêm khối "Tính ngày dừng cho lương" (ô tick, mặc định TẮT vì hư vài chục phút rồi chạy lại thì không ăn chỉ tiêu ngày). Tick xong mới hiện Người hưởng.</div>
+      <div class="hop">
+        <div class="hop__dau"><div><h2 class="hop__td">Báo dừng máy</h2><div class="hop__pd">Nhóm thợ in máy 2 màu</div></div><span class="hop__x">×</span></div>
+        <div class="hop__than">
+          <div class="f"><span class="f__n">Lý do</span>
+            <div class="seg"><span class="on">Máy hư</span><span>Hết hàng</span></div></div>
+
+          <div class="f"><span class="f__n">Máy hư</span>
+            <div class="may">
+              <div class="may__o on"><span class="r"></span><div>IN-02 Máy in 4 màu Mitsubishi 79×109<small>Đang chạy LSX26-0003 Bài in 1–2 màu (CMYK)</small></div></div>
+              <div class="may__o"><span class="r"></span><div>IN-01 Máy in 2 màu Mitsubishi 72×102<small>Rảnh</small></div></div>
+            </div>
+          </div>
+
+          <label class="tick on"><span class="cb"></span><div>
+            <div class="tick__ten">Máy đang dừng, không chạy được <span class="the">Ưu tiên cao và tạm dừng việc</span></div>
+            <div class="tick__mo">Việc Bài in 1–2 màu (CMYK) sẽ tạm dừng, giờ máy ngừng tính từ lúc gửi.</div>
+          </div></label>
+
+          <div class="f"><span class="f__n">Mức độ theo bạn thấy</span>
+            <div class="muc"><span><i style="background:var(--la-fg)"></i>Nhẹ</span><span><i style="background:var(--vang-dot)"></i>Trung bình</span><span class="on"><i style="background:var(--do-dot)"></i>Nghiêm trọng</span></div></div>
+
+          <div class="f"><span class="f__n">Triệu chứng</span>
+            <div class="in ta">Kể đúng cái mình thấy, ví dụ máy kêu to ở tốc độ cao</div></div>
+
+          <div class="khoi">
+            <label class="tick on-xanh"><span class="cb"></span><div>
+              <div class="tick__ten">Tính ngày dừng cho lương</div>
+              <div class="tick__mo">Ngày 23/10 tổ ăn trọn chỉ tiêu ngày 1.250.000, cộng thêm tiền các lần ghi trong ngày nếu có. Thành dòng G "Máy hư / hết hàng" của sổ khoán.</div>
+            </div></label>
+            <div class="f"><span class="f__n">Người hưởng</span>
+              <div class="ng">
+                <div class="ng__o"><span class="cb on"></span>Nguyễn Văn Tuấn<span class="ng__tien">chia theo lương ca máy</span></div>
+                <div class="ng__o"><span class="cb on"></span>Trịnh Duy Linh</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hop__chan"><span class="hop__phim">Ctrl + Enter để gửi</span><button class="btn btn--ghost">Huỷ</button><button class="btn btn--accent">Gửi tổ sửa chữa và lưu ngày dừng</button></div>
+      </div>
+    </div>
+
+    <!-- ===== 3. Tổ trưởng, Hết hàng / ngày cũ ===== -->
+    <div class="canh">
+      <div class="canh__ten">3. Tổ trưởng bấm, Hết hàng (hoặc báo bù ngày cũ)</div>
+      <div class="canh__phu">Hết hàng không có máy, không báo ai, chỉ còn phần lương nên ô tick bật sẵn và khoá. Ngày chọn được lùi lại như hộp hiện nay; bảng "Đã báo tháng" giữ nguyên ở đáy.</div>
+      <div class="hop">
+        <div class="hop__dau"><div><h2 class="hop__td">Báo dừng máy</h2><div class="hop__pd">Nhóm thợ in máy 2 màu</div></div><span class="hop__x">×</span></div>
+        <div class="hop__than">
+          <div class="f"><span class="f__n">Lý do</span>
+            <div class="seg"><span>Máy hư</span><span class="on">Hết hàng</span></div></div>
+
+          <div class="khoi" style="border-top:0;padding-top:0">
+            <div class="f"><span class="f__n">Ngày dừng</span><div class="in in--sel">21/10/2026</div></div>
+            <div class="f"><span class="f__n">Ghi chú</span><div class="in mo">Không bắt buộc</div></div>
+            <div class="f"><span class="f__n">Người hưởng</span>
+              <div class="ng">
+                <div class="ng__o"><span class="cb on"></span>Nguyễn Văn Tuấn<span class="ng__tien">chia theo lương ca máy</span></div>
+                <div class="ng__o"><span class="cb on"></span>Trịnh Duy Linh</div>
+              </div>
+            </div>
+            <div class="bao bao--xam">Ngày này tổ ăn trọn chỉ tiêu ngày 1.250.000, cộng thêm tiền các lần ghi trong ngày nếu có. Chia cho người hưởng theo tỷ lệ lương ca máy.</div>
+          </div>
+
+          <div class="f"><span class="f__n">Đã báo tháng 10/2026</span>
+            <table class="ds">
+              <tr><td>16/10</td><td>Máy hư</td><td class="mo">SC-0012</td><td>2 người</td><td>Sửa&nbsp;&nbsp;&nbsp;Xoá</td></tr>
+              <tr><td>09/10</td><td>Hết hàng</td><td></td><td>2 người</td><td>Sửa&nbsp;&nbsp;&nbsp;Xoá</td></tr>
+            </table>
+            <span class="f__g">Hai dòng mẫu là giả định để thấy bảng; DB dev chưa có ngày dừng nào.</span>
+          </div>
+        </div>
+        <div class="hop__chan"><span class="hop__phim">Ctrl + Enter để lưu</span><button class="btn btn--ghost">Đóng</button><button class="btn btn--accent">Lưu ngày dừng</button></div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Nút ⋯ trong ngăn việc: trước và sau</h3>
+  <div class="menu-hang">
+    <div><div class="canh__phu" style="margin-bottom:8px">Hiện nay</div><div class="menu"><div>Đổi máy</div><div>Báo sự cố</div></div></div>
+    <div><div class="canh__phu" style="margin-bottom:8px">Sau khi gộp</div><div class="menu"><div>Đổi máy</div><div class="bo">Báo sự cố</div></div></div>
+  </div>
+
+  <div class="ghi">
+    Còn để ngỏ: Máy hư mà chọn ngày CŨ (báo bù) thì không gửi tổ sửa chữa nữa, hộp trở lại ô "Phiếu sửa máy" chọn phiếu đã có như hiện nay.
+    Máy đã có phiếu sửa đang mở thì gửi lần nữa sẽ gắn vào phiếu cũ, không tạo phiếu trùng.
+  </div>
+</div>
+</body>
+</html>

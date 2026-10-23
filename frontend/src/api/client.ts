@@ -1553,17 +1553,57 @@ export interface SxDungMay {
   ly_do: SxLyDoDungMay;
   ly_do_ten: string;
   sua_chua_id: number | null;
+  /** Mã phiếu sửa — phiếu gắn tay, hoặc phiếu tổ sửa chữa lập từ yêu cầu đã gửi. */
   sua_chua_ma: string | null;
+  /** Yêu cầu "Báo máy hỏng" gửi cùng lúc báo Máy hư (23/10/2026). */
+  yeu_cau_id?: number | null;
+  yeu_cau_ma?: string | null;
   ghi_chu: string | null;
   nguoi: SxDungMayNguoi[];
 }
 export interface SxPhieuSuaChon { id: number; ma: string; may_ten: string | null; bo_phan_hong: string | null }
+/** Máy báo hư được: máy có việc mở của tổ (đang chạy đứng đầu), rồi máy thuộc tổ. */
+export interface SxMayHuChon {
+  id: number;
+  ma: string;
+  ten: string;
+  /** "LSX26-0003 Bài in 1–2 màu" — việc đang chạy / tạm dừng trên máy. */
+  viec: string | null;
+  viec_dang_chay: boolean;
+  /** Mã yêu cầu / phiếu sửa còn mở của máy — báo nữa thì gắn vào cái này. */
+  dang_mo: string | null;
+}
 export interface SxDungMayListOut {
   /** "YYYY-MM" kỳ lương đã chốt / đã chi — ngày thuộc kỳ đó không báo / sửa / xoá được. */
   ky_da_chot: string[];
   ds: SxDungMay[];
   nguoi: SxDungMayNguoi[];
   phieu_sua: SxPhieuSuaChon[];
+  may?: SxMayHuChon[];
+  /** Ngày xưởng (máy chủ) — Máy hư báo tổ sửa chữa chỉ cho hôm nay. */
+  hom_nay?: string | null;
+}
+/** Báo máy hư hôm nay (hộp Báo dừng máy gộp Báo sự cố, 23/10/2026). */
+export interface SxMayHuIn {
+  may_id: number;
+  /** nhe | trung_binh | nghiem_trong (`NHAN_MUC_DO` của kyThuatMay). */
+  muc_do: string;
+  mo_ta?: string | null;
+  /** Tick "Máy đang dừng" — tạm dừng việc đang chạy trên máy. */
+  dung_san_xuat: boolean;
+  /** Tick "Tính ngày dừng cho lương". */
+  tinh_luong: boolean;
+  ghi_chu?: string | null;
+  nguoi_ids: number[];
+}
+export interface SxMayHuOut {
+  yeu_cau_ma: string | null;
+  /** Phiếu sửa đang mở của máy — khi đó không gửi yêu cầu nữa. */
+  phieu_ma: string | null;
+  /** Yêu cầu MỚI gửi; false = gắn vào yêu cầu / phiếu đang mở. */
+  moi: boolean;
+  tam_dung: number[];
+  dung_may: SxDungMay | null;
 }
 
 export interface SxTeamsOut {
@@ -1977,13 +2017,6 @@ export interface SxLenhKetQua {
   department_id: number | null;
   trang_thai: string;
   version: number;
-}
-
-/** Như `SxLenhKetQua` + con trỏ sang yêu cầu sửa chữa vừa gửi — để toast nói được
- *  "đã gửi YC-0042 tới tổ sửa chữa" thay vì một câu chung chung. */
-export interface SxSuCoKetQua extends SxLenhKetQua {
-  yeu_cau_id: number;
-  yeu_cau_ma: string;
 }
 
 export interface SxPhanCongItem {
@@ -2525,15 +2558,6 @@ export interface SxMayDoiOut {
 }
 export interface SxTamDungIn { ly_do: string; expected_version?: number | null }
 export interface SxKetThucIn { expected_version?: number | null }
-/** Báo sự cố tại tổ (31/08/2026) → ghi thẳng vào hộp thư "Báo máy hỏng" của tổ sửa chữa.
- *  KHÔNG có ô "máy": server lấy đúng máy của công việc đang chạy. Không hỏi bộ phận hỏng, `mo_ta`
- *  không bắt buộc (11/10/2026). `muc_do` lấy từ `NHAN_MUC_DO` của kyThuatMay. */
-export interface SxSuCoIn {
-  mo_ta?: string | null;
-  muc_do: string;
-  dung_san_xuat: boolean;
-  expected_version?: number | null;
-}
 
 // Body G3/G4
 export interface SxLotVaoIn {
@@ -15319,6 +15343,14 @@ export const api = {
         body: JSON.stringify(body),
       });
     },
+    /** Máy hư hôm nay (23/10/2026, gộp Báo sự cố): báo tổ sửa chữa, tuỳ chọn tạm dừng việc trên
+     *  máy, tuỳ chọn ghi ngày dừng cho lương — một giao dịch. */
+    baoMayHu(token: string, teamId: number, body: SxMayHuIn): Promise<SxMayHuOut> {
+      return authed<SxMayHuOut>(`/api/san-xuat/teams/${teamId}/may-hu`, token, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+    },
     suaDungMay(token: string, id: number, body: SxDungMaySuaIn): Promise<SxDungMay> {
       return authed<SxDungMay>(`/api/san-xuat/dung-may/${id}`, token, {
         method: "PUT",
@@ -15439,14 +15471,6 @@ export const api = {
     /** Tạm dừng: đóng phiên + khoảng tham gia. `ly_do` BẮT BUỘC. */
     tamDung(token: string, congViecId: number, body: SxTamDungIn): Promise<SxLenhKetQua> {
       return authed<SxLenhKetQua>(`/api/san-xuat/work-items/${congViecId}/tam-dung`, token, {
-        method: "POST", body: JSON.stringify(body),
-      });
-    },
-    /** Báo sự cố máy ngay tại tổ (31/08/2026): ghi vào hộp thư "Báo máy hỏng" của tổ sửa chữa,
-     *  kèm neo về công việc/lệnh. `dung_san_xuat` → công việc chuyển Tạm dừng + đóng phiên máy
-     *  trong CÙNG một giao dịch; "Vẫn chạy" → chỉ gửi yêu cầu, đồng hồ máy không dừng. */
-    baoSuCo(token: string, congViecId: number, body: SxSuCoIn): Promise<SxSuCoKetQua> {
-      return authed<SxSuCoKetQua>(`/api/san-xuat/work-items/${congViecId}/su-co`, token, {
         method: "POST", body: JSON.stringify(body),
       });
     },

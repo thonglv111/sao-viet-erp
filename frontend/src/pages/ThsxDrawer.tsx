@@ -2,7 +2,7 @@
 // (09/10/2026, mockup `ban-to-ngan-B-day-du.html`).
 //
 // Bố cục máy tính: đầu ngăn (lệnh › khách, công đoạn + loại bước + trạng thái có giờ, nút chạy máy,
-// ⋯ Đổi máy / Báo sự cố, ✕); thân hai cột — trái là tab làm việc (Quy cách, Sản lượng, Giao và nhận,
+// ⋯ Đổi máy, ✕); thân hai cột — trái là tab làm việc (Quy cách, Sản lượng, Giao và nhận,
 // Vật tư, KCS, Lịch sử) cuộn riêng, phải là cột ghim thông tin việc (`ThsxCotPhai`) cuộn riêng.
 // Điện thoại (ngăn hẹp ≤ 640px): một cột, cột phải thành tab đầu "Tổng quan", nút chạy máy xuống
 // chân cố định ở đáy.
@@ -24,7 +24,6 @@ import { nhanChangLenh } from "./lsxBuoc";
 import { batTatRongHet, docDoRong, doRongToiDa, DO_RONG_MIN, ghiDoRong } from "./ke-toan/shared/doRongNgan";
 import { MAU_TT, NHAN_TT } from "./ThsxDanhSach";
 import { phutChayText, slText } from "./thsxShared";
-import { ThsxBaoSuCoDialog } from "./ThsxBaoSuCoDialog";
 import { ThsxDoiMay } from "./ThsxDoiMay";
 import { ThsxExecPanels, type ThsxExec } from "./ThsxExecPanels";
 import type { SxChoCuaViec } from "./thsxChoXacNhan";
@@ -46,7 +45,7 @@ interface Props {
   /** Mở ô chọn người (Giao người / Đề xuất hỗ trợ) — trang nạp lại tình trạng cho tươi. */
   onMoChonNguoi?: () => void;
   /** Danh mục máy (`may-chon` — không đòi quyền `dm_thiet_bi`), chỉ để dựng nhãn máy hiện tại cho
-   *  Báo sự cố. Ô "Đổi máy" KHÔNG dùng: nó tự nạp danh sách theo công đoạn + tình trạng (`ThsxDoiMay`). */
+   *  ô "Đổi máy" — danh sách máy đổi được thì `ThsxDoiMay` tự nạp theo công đoạn + tình trạng. */
   mayOptions: MayChon[];
   /** Hợp đồng các mặt GHI của Giai đoạn 3+4+5. */
   exec: ThsxExec;
@@ -201,8 +200,6 @@ export function ThsxDrawer({
   }, [chiTiet?.cong_viec?.id]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [doiMayOpen, setDoiMayOpen] = useState(false);
-  // Báo sự cố (§7.2 mở rộng 31/08/2026) — ô nhập nằm trong ngăn kéo `ThsxBaoSuCoDialog`.
-  const [suCoOpen, setSuCoOpen] = useState(false);
 
   const cv = chiTiet?.cong_viec ?? null;
   // Quyền TRÊN CHÍNH công việc này (máy chủ tính theo dòng quyền của tổ; mức "Của tôi" chỉ bật khi
@@ -215,11 +212,10 @@ export function ThsxDrawer({
   const tt = chiTiet?.trang_thai ?? cv?.trang_thai ?? "released";
   const isMay = cv?.loai_buoc === "may" || cv?.loai_buoc === "thue_ngoai";
   const canDoiMay = canAssign && !busy && (tt === "running" || tt === "paused") && isMay;
-  const canBaoSuCo = canDoiMay;
 
   const rosterActive = (chiTiet?.phan_cong ?? []).filter((p) => p.trang_thai === "active");
   const mayHienTai = mayOptions.find((m) => m.id === cv?.may_id);
-  const mayNhanSuCo = mayHienTai ? `${mayHienTai.ma} ${mayHienTai.ten}` : (cv?.may ?? "—");
+  const mayNhan = mayHienTai ? `${mayHienTai.ma} ${mayHienTai.ten}` : (cv?.may ?? "—");
   const phuDeViec = cv ? (cv.nguon_ma ? `${cv.ten_cong_doan} của ${cv.nguon_ma}` : cv.ten_cong_doan) : undefined;
   const phutChay = cv ? phutChayText(cv) : null;
 
@@ -349,8 +345,6 @@ export function ThsxDrawer({
                 <span className="thsx-b-menu__pop" role="menu" onMouseLeave={() => setMenuOpen(false)}>
                   <button type="button" role="menuitem" disabled={!canDoiMay}
                     onClick={() => { setMenuOpen(false); setDoiMayOpen(true); }}>Đổi máy</button>
-                  <button type="button" role="menuitem" disabled={!canBaoSuCo}
-                    onClick={() => { setMenuOpen(false); setSuCoOpen(true); }}>Báo sự cố</button>
                 </span>
               )}
             </span>
@@ -364,7 +358,7 @@ export function ThsxDrawer({
       </header>
 
       {doiMayOpen && cv && (
-        <ThsxDoiMay congViecId={cv.id} mayHienTaiId={cv.may_id} mayHienTai={mayNhanSuCo}
+        <ThsxDoiMay congViecId={cv.id} mayHienTaiId={cv.may_id} mayHienTai={mayNhan}
           tenCongDoan={cv.ten_cong_doan} phuDe={phuDeViec} busy={busy}
           onDoi={exec.doiMay} onClose={() => setDoiMayOpen(false)} />
       )}
@@ -464,17 +458,6 @@ export function ThsxDrawer({
       </div>
 
       {hep && nutChay && <div className="thsx-b-chan">{nutChay}</div>}
-
-      {suCoOpen && cv && (
-        <ThsxBaoSuCoDialog
-          mayNhan={mayNhanSuCo}
-          tenCongDoan={cv.ten_cong_doan}
-          dangChay={tt === "running"}
-          busy={busy}
-          onGui={exec.baoSuCo}
-          onClose={() => setSuCoOpen(false)}
-        />
-      )}
     </div>
   );
 }

@@ -207,5 +207,21 @@ body:has(.thsx-hop-nen) .cn-hop { z-index: 1300; }
 .thsx-dm-ds__nut { display: flex; gap: 12px; justify-content: flex-end; }
 .thsx-dm-ds tr[aria-current] td { background: var(--paper); }
 .thsx-dm-sua { display: flex; align-items: center; gap: 12px; }
+/* Hộp Báo dừng máy gộp Báo sự cố (23/10/2026, mockup bao-dung-may-gop.html): ô tick có khung
+   (Máy đang dừng, Tính ngày dừng cho lương), chấm màu mức độ, khối lương ngăn bằng gạch đứt. */
+.thsx-tick { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; border: 1px solid var(--rule-soft);
+  border-radius: 12px; padding: 10px 14px; cursor: pointer; }
+.thsx-tick input { margin: 3px 0 0; }
+.thsx-tick:has(input:disabled) { cursor: default; }
+.thsx-tick.is-do { border-color: #fecaca; background: #fff7f7; }
+.thsx-tick.is-xanh { border-color: #bbf7d0; background: #f6fef9; }
+.thsx-tick__ten { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+.thsx-tick__mo { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.5; color: var(--ash); }
+.thsx-tick__the { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.thsx-chip__cham { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex: none; }
+.thsx-dm-khoi { display: flex; flex-direction: column; gap: 12px; border-top: 1px dashed var(--rule); padding-top: 14px; }
+.thsx-dm-khoi--tron { border-top: 0; padding-top: 0; gap: 16px; }
+.thsx-hop-ta--thap { min-height: 56px; }
+
 /* Thẻ tuỳ chọn của một lần ghi trong chi tiết lần ghi (Đợt 2). */
 .thsx-b-the { display: flex; flex-wrap: wrap; gap: 4px 6px; }

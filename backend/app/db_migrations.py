@@ -19027,3 +19027,16 @@ def _migrate_luong_an_cong_nhat(db: Session) -> None:
 
 
 MIGRATIONS.append(("0436_luong_an_cong_nhat", _migrate_luong_an_cong_nhat))
+
+
+def _migrate_khoan_dung_may_yeu_cau(db: Session) -> None:
+    """0437 (23/10/2026) — `khoan_dung_may.yeu_cau_id`: ngày dừng máy báo cùng lúc gửi "Báo máy hỏng"
+    (hộp Báo dừng máy gộp Báo sự cố) nhớ yêu cầu đã gửi. Soft-ref, nullable. Raw SQL, idempotent."""
+    insp = inspect(db.get_bind())
+    if ("khoan_dung_may" in insp.get_table_names()
+            and "yeu_cau_id" not in _existing_columns(insp, "khoan_dung_may")):
+        db.execute(text("ALTER TABLE khoan_dung_may ADD COLUMN yeu_cau_id INTEGER"))
+    db.commit()
+
+
+MIGRATIONS.append(("0437_khoan_dung_may_yeu_cau", _migrate_khoan_dung_may_yeu_cau))

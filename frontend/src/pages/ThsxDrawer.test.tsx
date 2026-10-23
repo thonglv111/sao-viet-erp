@@ -541,7 +541,7 @@ describe("ThsxDrawer · khung ngăn B", () => {
     expect(within(cotPhai()).queryByText("Hàng đang tới đâu")).toBeNull();
   });
 
-  it("đang chạy: chip trạng thái kèm giờ phiên cuối; Đổi máy và Báo sự cố nằm trong nút ⋯", () => {
+  it("đang chạy: chip trạng thái kèm giờ phiên cuối; nút ⋯ chỉ còn Đổi máy (Báo sự cố gộp vào Báo dừng máy)", () => {
     moB(
       { trang_thai: "running", phan_cong: [{ id: 1, employee_id: 100, ho_ten: "Thợ 1", trang_thai: "active" }],
         phien_chay: [{ id: 1, so_thu_tu: 1, may_id: 3, may_ten: "Máy bế", bat_dau: "2026-10-09T11:41:00",
@@ -552,7 +552,7 @@ describe("ThsxDrawer · khung ngăn B", () => {
     expect(screen.queryByRole("menuitem", { name: "Đổi máy" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
     expect((screen.getByRole("menuitem", { name: "Đổi máy" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.getByRole("menuitem", { name: "Báo sự cố" })).toBeTruthy();
+    expect(screen.getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Đổi máy"]);
   });
 
   it("tạm dừng: cột phải ghi giờ dừng và lý do của phiên", () => {

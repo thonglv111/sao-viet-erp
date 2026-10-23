@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session
 
 from ..models.department import Department
 from ..models.employee import STATUS_RESIGNED, Employee
-from ..models.ky_thuat_may import SuaChuaMay
-from ..models.may_thiet_bi import MayThietBi
-from ..models.san_xuat import SanXuatCongViec
+from ..models.ky_thuat_may import TT_SC_DANG_MO, TT_YC_DANG_MO, SuaChuaMay, YeuCauSuaChua
+from ..models.lsx import Lsx
+from ..models.may_thiet_bi import MayThietBi, MayTo
+from ..models.san_xuat import CV_DANG_CHAY, CV_TAM_DUNG, SanXuatCongViec
 from ..models.payroll import PERIOD_LOCKED, PERIOD_PAID, KhoanDungMay, PayrollPeriod
 
 
@@ -96,6 +97,59 @@ class DungMayRepository:
             .order_by(SuaChuaMay.thoi_diem.desc(), SuaChuaMay.id.desc())
         )
         return [(sc, ten) for sc, ten in self.db.execute(stmt).all()]
+
+    # --- Máy hư (hộp Báo dừng máy gộp Báo sự cố, 23/10/2026) -------------------------------------
+    def may_thuoc_to(self, department_id: int) -> list[int]:
+        """Máy khai "Tổ đứng máy" là tổ này (`may_to`, mg 0435)."""
+        return [int(m) for m in self.db.scalars(
+            select(MayTo.may_id).where(MayTo.department_id == department_id).order_by(MayTo.may_id))]
+
+    def viec_mo_co_may(self, department_id: int) -> list[tuple[SanXuatCongViec, str | None]]:
+        """Việc đang chạy / tạm dừng của tổ có gắn máy, kèm mã lệnh — đang chạy đứng trước."""
+        rows = self.db.execute(
+            select(SanXuatCongViec, Lsx.ma)
+            .outerjoin(Lsx, Lsx.id == SanXuatCongViec.lsx_id)
+            .where(SanXuatCongViec.department_id == department_id,
+                   SanXuatCongViec.may_id.is_not(None),
+                   SanXuatCongViec.trang_thai.in_((CV_DANG_CHAY, CV_TAM_DUNG)))
+            .order_by(SanXuatCongViec.id)).all()
+        return sorted(((cv, ma) for cv, ma in rows), key=lambda x: x[0].trang_thai != CV_DANG_CHAY)
+
+    def may(self, may_ids) -> dict[int, MayThietBi]:
+        ids = {int(i) for i in may_ids or ()}
+        if not ids:
+            return {}
+        return {m.id: m for m in self.db.scalars(select(MayThietBi).where(MayThietBi.id.in_(ids)))}
+
+    def yeu_cau_mo(self, may_ids) -> dict[int, YeuCauSuaChua]:
+        """Yêu cầu "Báo máy hỏng" còn chờ tổ sửa chữa tiếp nhận, mới nhất mỗi máy."""
+        ids = {int(i) for i in may_ids or ()}
+        ra: dict[int, YeuCauSuaChua] = {}
+        if ids:
+            for yc in self.db.scalars(select(YeuCauSuaChua)
+                                      .where(YeuCauSuaChua.may_id.in_(ids),
+                                             YeuCauSuaChua.trang_thai.in_(TT_YC_DANG_MO))
+                                      .order_by(YeuCauSuaChua.id.desc())):
+                ra.setdefault(int(yc.may_id), yc)
+        return ra
+
+    def phieu_mo(self, may_ids) -> dict[int, SuaChuaMay]:
+        """Phiếu sửa máy còn chờ sửa, mới nhất mỗi máy."""
+        ids = {int(i) for i in may_ids or ()}
+        ra: dict[int, SuaChuaMay] = {}
+        if ids:
+            for sc in self.db.scalars(select(SuaChuaMay)
+                                      .where(SuaChuaMay.may_id.in_(ids),
+                                             SuaChuaMay.trang_thai.in_(TT_SC_DANG_MO))
+                                      .order_by(SuaChuaMay.id.desc())):
+                ra.setdefault(int(sc.may_id), sc)
+        return ra
+
+    def yeu_cau(self, ids) -> dict[int, YeuCauSuaChua]:
+        ids = {int(i) for i in ids or () if i}
+        if not ids:
+            return {}
+        return {yc.id: yc for yc in self.db.scalars(select(YeuCauSuaChua).where(YeuCauSuaChua.id.in_(ids)))}
 
     def add(self, r: KhoanDungMay) -> None:
         self.db.add(r)

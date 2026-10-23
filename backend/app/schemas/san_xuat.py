@@ -1815,6 +1815,8 @@ class DungMayOut(BaseModel):
     ly_do_ten: str
     sua_chua_id: int | None = None
     sua_chua_ma: str | None = None
+    yeu_cau_id: int | None = None
+    yeu_cau_ma: str | None = None
     ghi_chu: str | None = None
     nguoi: list[DungMayNguoiOut] = []
 
@@ -1826,8 +1828,39 @@ class PhieuSuaChonOut(BaseModel):
     bo_phan_hong: str | None = None
 
 
+class MayHuChonOut(BaseModel):
+    """Máy báo hư được ở hộp Báo dừng máy: máy có việc mở của tổ, rồi máy thuộc tổ."""
+    id: int
+    ma: str
+    ten: str
+    viec: str | None = None             # "LSX26-0003 Bài in 1–2 màu" — việc đang chạy / tạm dừng trên máy
+    viec_dang_chay: bool = False
+    dang_mo: str | None = None          # mã yêu cầu / phiếu sửa còn mở của máy
+
+
 class DungMayListOut(BaseModel):
     ky_da_chot: list[str] = []          # "YYYY-MM" kỳ lương đã chốt / đã chi — khoá ngày thuộc kỳ đó
     ds: list[DungMayOut] = []
     nguoi: list[DungMayNguoiOut] = []
     phieu_sua: list[PhieuSuaChonOut] = []
+    may: list[MayHuChonOut] = []
+    hom_nay: date | None = None         # ngày xưởng — Máy hư báo tổ sửa chữa chỉ cho hôm nay
+
+
+class MayHuIn(BaseModel):
+    """Báo máy hư hôm nay (hộp Báo dừng máy gộp Báo sự cố, 23/10/2026)."""
+    may_id: int
+    muc_do: str = Field(min_length=1)   # nhe | trung_binh | nghiem_trong
+    mo_ta: str | None = None
+    dung_san_xuat: bool = False         # tick "Máy đang dừng" ⇒ tạm dừng việc đang chạy trên máy
+    tinh_luong: bool = False            # tick "Tính ngày dừng cho lương"
+    ghi_chu: str | None = None
+    nguoi_ids: list[int] = []
+
+
+class MayHuOut(BaseModel):
+    yeu_cau_ma: str | None = None       # yêu cầu vừa gửi / đang chờ tiếp nhận
+    phieu_ma: str | None = None         # phiếu sửa đang mở (khi đó không gửi yêu cầu)
+    moi: bool = False                   # yêu cầu MỚI gửi (False = gắn vào cái đang mở)
+    tam_dung: list[int] = []            # công việc vừa tạm dừng
+    dung_may: DungMayOut | None = None

@@ -70,6 +70,8 @@ from ..schemas.san_xuat import (
     KcsSoDoNhomOut,
     KetThucIn,
     MayDoiOut,
+    MayHuIn,
+    MayHuOut,
     LenhKetQuaOut,
     HoTroUngVienListOut,
     ChoXacNhanOut,
@@ -309,6 +311,21 @@ def bao_dung_may(
     return _chay(lambda: dung_may.bao(db, user=user, department_id=department_id, ngay=body.ngay,
                                       ly_do=body.ly_do, sua_chua_id=body.sua_chua_id,
                                       ghi_chu=body.ghi_chu, nguoi_ids=body.nguoi_ids))
+
+
+@router.post("/teams/{department_id}/may-hu", response_model=MayHuOut)
+def bao_may_hu(
+    department_id: int,
+    body: MayHuIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+) -> dict:
+    """Máy hư hôm nay (23/10/2026, gộp Báo sự cố): báo tổ sửa chữa, tuỳ chọn tạm dừng việc trên máy,
+    tuỳ chọn ghi ngày dừng cho lương — một giao dịch. Service tự bắn SSE sau commit."""
+    return _chay(lambda: dung_may.bao_may_hu(
+        db, user=user, department_id=department_id, may_id=body.may_id, muc_do=body.muc_do,
+        mo_ta=body.mo_ta, dung_san_xuat=body.dung_san_xuat, tinh_luong=body.tinh_luong,
+        ghi_chu=body.ghi_chu, nguoi_ids=body.nguoi_ids))
 
 
 @router.put("/dung-may/{dung_may_id}", response_model=DungMayOut)

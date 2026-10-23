@@ -15,7 +15,7 @@ import type {
   SxWorkItemChiTiet, SxBatch, SxBanGiao, SxBanGiaoChangSau, SxHoTroUngVien,
   SxBatchIn, SxBanGiaoDeXuatIn, SxBanGiaoSuaIn, SxSuaSoMeIn,
   SxBacTheoChon, SxKhoanCongDoan, SxNguoiGhi, SxViecNgan, SxTuyChonKhai, SxTuyChonLanGhi,
-  SxKetQuaNhanh, SxSuCoIn, SxVatTuCap, SxVatTuCapLan, SxVatTuCapDoiChieu, SxVatTuNhapLai, SxPhieuXuatVatTu,
+  SxKetQuaNhanh, SxVatTuCap, SxVatTuCapLan, SxVatTuCapDoiChieu, SxVatTuNhapLai, SxPhieuXuatVatTu,
   SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxVatTuNhapLaiIn, SxVatTuCapKeHoach, SxWorkItem, HangLoai,
 } from "../api/client";
 import { ApiError } from "../api/client";
@@ -36,9 +36,6 @@ export interface ThsxExec {
   // Đổi máy giữa chừng (§7.2 mở rộng 31/08/2026) — CHẠY thì đóng phiên máy cũ + mở phiên mới
   // CÙNG mốc (giờ máy cũ không mất); TẠM DỪNG thì chỉ đổi máy phân công, không mở phiên.
   doiMay: (mayId: number, lyDo?: string | null) => Promise<boolean>;
-  // Báo sự cố tại tổ (31/08/2026) — KHÔNG có bảng sự cố riêng: ghi thẳng vào hộp thư "Báo máy
-  // hỏng" của tổ sửa chữa, kèm neo về công việc/lệnh. Nhánh "Dừng sản xuất" gộp luôn cú tạm dừng.
-  baoSuCo: (body: SxSuCoIn) => Promise<boolean>;
   taoBatch: (body: SxBatchIn) => Promise<SxKetQuaNhanh[] | null>;
   deXuatBanGiao: (body: SxBanGiaoDeXuatIn) => Promise<boolean>;
   suaBanGiao: (banGiaoId: number, body: SxBanGiaoSuaIn) => Promise<boolean>;

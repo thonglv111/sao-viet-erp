@@ -635,6 +635,9 @@ class KhoanDungMay(Base):
     sua_chua_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("ky_thuat_sua_chua.id", ondelete="SET NULL"), nullable=True
     )
+    # Yêu cầu "Báo máy hỏng" gửi cùng lúc báo (mg 0437, 23/10/2026) — soft → ky_thuat_yeu_cau_sua.id.
+    # Tổ sửa chữa tiếp nhận thì yêu cầu trỏ sang phiếu (`phieu_id`), nên mã phiếu đọc qua đây được.
+    yeu_cau_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
     nguoi_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     created_by: Mapped[int | None] = mapped_column(

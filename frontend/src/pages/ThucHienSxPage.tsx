@@ -16,7 +16,7 @@ import {
   ApiError, api,
   type SxWorkItem, type SxWorkItemChiTiet, type SxNhanVienChon, type SxLenhNhom,
   type SxHoTroUngVien,
-  type SxSuCoIn, type SxChoXacNhan, type SxWorkItemsLocDem, type SxWorkItemsOut,
+  type SxChoXacNhan, type SxWorkItemsLocDem, type SxWorkItemsOut,
 } from "../api/client";
 import { kyThuatMay, type MayChon } from "../api/kyThuatMay";
 import { useAuth } from "../auth/useAuth";
@@ -256,6 +256,7 @@ export function ThucHienSxPage({
     bao: (body) => api.sanXuat.baoDungMay(token!, teamId, body),
     sua: (id, body) => api.sanXuat.suaDungMay(token!, id, body),
     xoa: (id) => api.sanXuat.xoaDungMay(token!, id),
+    mayHu: (body) => api.sanXuat.baoMayHu(token!, teamId, body),
   }), [token, teamId]);
 
   // ---- nạp dữ liệu ----
@@ -633,17 +634,6 @@ export function ThucHienSxPage({
     may_id: mayId, ly_do: lyDo ?? null, expected_version: ver(),
   }), "Đã đổi máy.").then((r) => r != null), [mutate, token, selectedId, chiTiet]);
 
-  // Báo sự cố §7.2 mở rộng — cùng lý do tách riêng như `onDoiMay`: cần `chiTiet` tươi cho `ver()`.
-  // Toast gọi tên MÃ YÊU CẦU vừa sinh để tổ trưởng bám theo được ở màn Sửa chữa máy; `mutate` chỉ
-  // nhận chuỗi cố định nên tự đặt toast sau khi có kết quả.
-  const onBaoSuCo = useCallback((body: SxSuCoIn) => mutate(
-    () => api.sanXuat.baoSuCo(token!, selectedId!, { ...body, expected_version: ver() }),
-    "Đã gửi báo sự cố tới tổ sửa chữa.",
-  ).then((r) => {
-    if (r) setToast(`Đã gửi ${r.yeu_cau_ma} tới tổ sửa chữa${body.dung_san_xuat ? ", việc đã tạm dừng" : ""}.`);
-    return r != null;
-  }), [mutate, token, selectedId, chiTiet]);
-
   // Bắt đầu / Tiếp tục: thẳng, không hỏi gì — kíp chuẩn đã gỡ (mg `0321`) nên không còn "số người
   // khác dự kiến"; sớm hay trễ so với giờ dự kiến cũng không hỏi.
   const onBatDau = useCallback(() => {
@@ -688,7 +678,6 @@ export function ThucHienSxPage({
     const ok = (p: Promise<unknown | null>) => p.then((r) => r != null);
     return {
       doiMay: onDoiMay,
-      baoSuCo: onBaoSuCo,
       taoBatch: (b) => mutate(() => api.sanXuat.taoBatch(token!, selectedId!, b), "Đã ghi sản lượng.")
         .then((r) => (r ? r.ket_qua_lsx ?? [] : null)),
       deXuatBanGiao: (b) => ok(mutate(() => api.sanXuat.deXuatBanGiao(token!, selectedId!, b), "Đã đề xuất bàn giao.")),
@@ -702,7 +691,7 @@ export function ThucHienSxPage({
       suaDeNghiVatTu: (cvId, dnId, b) => ok(mutate(() => api.sanXuat.suaDeNghiVatTu(token!, cvId, dnId, b), "Đã lưu đề nghị cấp vật tư.")),
       capNhatDanhMucMe: (batchId) => ok(mutate(() => api.sanXuat.capNhatDanhMucMe(token!, batchId), "Đã cập nhật sản lượng theo danh mục.")),
     };
-  }, [mutate, token, selectedId, toCuaViec, onDoiMay, onBaoSuCo]);
+  }, [mutate, token, selectedId, toCuaViec, onDoiMay]);
 
   const panelOpen = selectedId != null;
 

@@ -1,4 +1,4 @@
-// Hộp Báo dừng máy ở bàn tổ (Đợt 2 công thức khoán, 21/10/2026).
+// Hộp Báo dừng máy ở bàn tổ (Đợt 2 công thức khoán, 21/10/2026; gộp Báo sự cố 23/10/2026).
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -15,7 +15,14 @@ const DS: SxDungMayListOut = {
   }],
   nguoi: [{ employee_id: 1, ho_ten: "An" }, { employee_id: 2, ho_ten: "Bình" }],
   phieu_sua: [{ id: 7, ma: "SC-0014", may_ten: "Máy 4 màu", bo_phan_hong: null }],
+  may: [
+    { id: 2, ma: "IN-02", ten: "Máy in 4 màu", viec: "LSX26-0003 Bài in", viec_dang_chay: true, dang_mo: null },
+    { id: 1, ma: "IN-01", ten: "Máy in 2 màu", viec: null, viec_dang_chay: false, dang_mo: "YC-0009" },
+  ],
+  hom_nay: "2026-10-21",
 };
+/** Ngày xưởng đã sang 22/10 mà hộp mở ở 21/10 ⇒ Máy hư là báo bù ngày đã qua, chỉ còn phần lương. */
+const DS_NGAY_QUA: SxDungMayListOut = { ...DS, hom_nay: "2026-10-22" };
 
 function mo(ds: SxDungMayListOut = DS) {
   const exec: DungMayExec = {
@@ -23,10 +30,14 @@ function mo(ds: SxDungMayListOut = DS) {
     bao: vi.fn().mockResolvedValue(DS.ds[0]),
     xoa: vi.fn().mockResolvedValue(undefined),
     sua: vi.fn().mockResolvedValue(DS.ds[0]),
+    mayHu: vi.fn().mockResolvedValue({
+      yeu_cau_ma: "YC-0010", phieu_ma: null, moi: true, tam_dung: [55], dung_may: null,
+    }),
   };
   const onBao = vi.fn();
-  render(<BaoDungMayModal tenTo="Tổ in 4 màu" homNay="2026-10-21" exec={exec} onDong={vi.fn()} onBao={onBao} />);
-  return { exec, onBao };
+  const onDong = vi.fn();
+  render(<BaoDungMayModal tenTo="Tổ in 4 màu" homNay="2026-10-21" exec={exec} onDong={onDong} onBao={onBao} />);
+  return { exec, onBao, onDong };
 }
 
 describe("Báo dừng máy", () => {
@@ -46,9 +57,9 @@ describe("Báo dừng máy", () => {
     expect(exec.ds).toHaveBeenCalledTimes(2);
   });
 
-  it("chỉ Máy hư mới có ô Phiếu sửa máy", async () => {
+  it("Máy hư ngày đã qua: chỉ còn phần lương, có ô Phiếu sửa máy", async () => {
     const user = userEvent.setup();
-    mo();
+    mo(DS_NGAY_QUA);
     await screen.findByLabelText("Bình");
     expect(screen.queryByLabelText("Phiếu sửa máy")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Máy hư" }));
@@ -72,7 +83,7 @@ describe("Báo dừng máy", () => {
     expect(exec.xoa).toHaveBeenCalledWith(4);
 
     (exec.bao as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Tổ đã báo dừng máy ngày 21/10."));
-    await user.click(screen.getByRole("button", { name: "Máy hư" }));
+    await user.click(screen.getByRole("button", { name: "Hết hàng" }));
     await user.click(screen.getByRole("button", { name: "Lưu" }));
     expect(await screen.findByText("Tổ đã báo dừng máy ngày 21/10.")).toBeInTheDocument();
   });
@@ -104,5 +115,64 @@ describe("Báo dừng máy", () => {
     expect(screen.getAllByText(/Kỳ lương tháng 10\/2026 đã chốt/).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Hết hàng" }));
     expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
+  });
+
+  it("Máy hư hôm nay: máy đang chạy chọn sẵn, gửi tổ sửa chữa không kèm lương", async () => {
+    const user = userEvent.setup();
+    const { exec, onBao, onDong } = mo();
+    await screen.findByLabelText("Bình");
+    await user.click(screen.getByRole("button", { name: "Máy hư" }));
+    expect(screen.getByLabelText("IN-02 Máy in 4 màu")).toBeChecked();
+    expect(screen.getByText("Đang chạy LSX26-0003 Bài in")).toBeInTheDocument();
+    expect(screen.getByText("Đã báo YC-0009, gửi nữa sẽ gắn vào đây")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Phiếu sửa máy")).toBeNull();
+    // Chưa tick lương thì không hỏi người hưởng.
+    expect(screen.queryByLabelText("Bình")).toBeNull();
+    await user.click(screen.getByLabelText(/Máy đang dừng/));
+    expect(screen.getByText("Ưu tiên cao và tạm dừng việc")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Nghiêm trọng/ }));
+    await user.type(screen.getByLabelText("Triệu chứng"), "Kêu to");
+    await user.click(screen.getByRole("button", { name: "Gửi tổ sửa chữa" }));
+    expect(exec.mayHu).toHaveBeenCalledWith({
+      may_id: 2, muc_do: "nghiem_trong", mo_ta: "Kêu to", dung_san_xuat: true,
+      tinh_luong: false, ghi_chu: null, nguoi_ids: [],
+    });
+    expect(exec.bao).not.toHaveBeenCalled();
+    expect(onBao).toHaveBeenCalledWith("Đã gửi YC-0010 tới tổ sửa chữa, việc trên máy đã tạm dừng.");
+    expect(onDong).toHaveBeenCalled();
+  });
+
+  it("Máy hư hôm nay tick Tính ngày dừng cho lương: hỏi người hưởng, gửi cả hai trong một lần", async () => {
+    const user = userEvent.setup();
+    const { exec } = mo();
+    await screen.findByText("15/10");
+    await user.click(screen.getByRole("button", { name: "Máy hư" }));
+    await user.click(screen.getByLabelText("IN-01 Máy in 2 màu"));
+    await user.click(screen.getByLabelText(/Tính ngày dừng cho lương/));
+    await user.click(screen.getByLabelText("Bình"));
+    await user.click(screen.getByRole("button", { name: "Gửi tổ sửa chữa và lưu ngày dừng" }));
+    expect(exec.mayHu).toHaveBeenCalledWith({
+      may_id: 1, muc_do: "trung_binh", mo_ta: null, dung_san_xuat: false,
+      tinh_luong: true, ghi_chu: null, nguoi_ids: [1],
+    });
+  });
+
+  it("tổ đã có ngày dừng hôm nay: ô tính lương khoá, vẫn gửi tổ sửa chữa được", async () => {
+    const user = userEvent.setup();
+    mo({ ...DS, ds: [{ ...DS.ds[0], id: 5, ngay: "2026-10-21" }] });
+    await screen.findByText("21/10");
+    await user.click(screen.getByRole("button", { name: "Máy hư" }));
+    expect(screen.getByLabelText(/Tính ngày dừng cho lương/)).toBeDisabled();
+    expect(screen.getByText("Tổ đã báo dừng máy ngày 21/10, sửa ở bảng dưới nếu cần.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi tổ sửa chữa" })).toBeEnabled();
+  });
+
+  it("tổ chưa có máy: nói cách khai, chưa gửi được", async () => {
+    const user = userEvent.setup();
+    mo({ ...DS, may: [] });
+    await screen.findByLabelText("Bình");
+    await user.click(screen.getByRole("button", { name: "Máy hư" }));
+    expect(screen.getByText(/Tổ chưa có máy nào/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gửi tổ sửa chữa" })).toBeDisabled();
   });
 });
