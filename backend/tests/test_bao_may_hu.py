@@ -104,6 +104,30 @@ def test_may_da_co_yeu_cau_cho_tiep_nhan_thi_khong_tao_trung(db, admin, cv):
     assert yc.may_dung is True and cv.trang_thai == CV_TAM_DUNG
 
 
+def test_bao_lai_nang_muc_do_va_noi_trieu_chung(db, admin, cv):
+    """Báo lại máy đang có yêu cầu chờ: mức độ chỉ NÂNG (không hạ), triệu chứng mới nối thêm — tổ
+    sửa chữa phải thấy cái tổ vừa kể, không chỉ cái kể lần đầu."""
+    _bao(db, admin, cv, muc_do=MUC_DO_NHE, mo_ta="Kêu nhẹ")
+    _bao(db, admin, cv, mo_ta="Gãy răng bánh xích")
+    _bao(db, admin, cv, muc_do=MUC_DO_NHE, mo_ta="Gãy răng bánh xích")
+    yc = db.query(YeuCauSuaChua).one()
+    assert yc.muc_do == MUC_DO_NGHIEM_TRONG
+    assert yc.mo_ta == "Kêu nhẹ\nGãy răng bánh xích"
+
+
+def test_bao_lai_co_thay_doi_thi_bao_to_sua_chua(db, admin, cv, monkeypatch):
+    """Nâng cờ máy dừng / mức độ cho yêu cầu đang chờ ⇒ đẩy lại tổ sửa chữa NGAY (toast "đang dừng"
+    + danh sách tự nạp). Báo lại y hệt thì im — không ting lần hai cho cùng một tin."""
+    import app.services.ky_thuat_may_service as ktm
+
+    goi: list[str] = []
+    monkeypatch.setattr(ktm.KyThuatMayService, "bao_to_sua_chua", lambda self, yc: goi.append(yc.ma))
+    dau = _bao(db, admin, cv, muc_do=MUC_DO_NHE)
+    _bao(db, admin, cv, muc_do=MUC_DO_NHE)
+    _bao(db, admin, cv, muc_do=MUC_DO_NHE, dung_san_xuat=True)
+    assert goi == [dau["yeu_cau_ma"], dau["yeu_cau_ma"]]
+
+
 def test_may_dang_co_phieu_cho_sua_thi_gan_phieu_khong_gui_yeu_cau(db, admin, cv):
     sc = SuaChuaMay(ma="SC-MHU-1", may_id=cv.may_id, bo_phan_hong="Lô mực",
                     thoi_diem=datetime.now(timezone.utc))

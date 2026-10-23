@@ -191,7 +191,7 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
     ngày dừng cho lương — MỘT giao dịch.
 
     Máy đang có phiếu sửa chờ sửa ⇒ không gửi yêu cầu nữa, ngày dừng gắn phiếu đó. Có yêu cầu còn chờ
-    tiếp nhận ⇒ dùng lại yêu cầu đó (tick "Máy đang dừng" thì nâng cờ `may_dung` cho nó lên ưu tiên).
+    tiếp nhận ⇒ dùng lại yêu cầu đó, nâng cờ máy dừng / mức độ và nối triệu chứng mới (`_nang_yeu_cau`).
     Mọi luật của ngày dừng (kỳ chốt, người hưởng, trùng ngày) kiểm TRƯỚC khi ghi gì: lỗi giữa chừng
     không được để lại một yêu cầu đã gửi mà ngày dừng không ghi."""
     repo = _gate(db, user, department_id)
@@ -216,7 +216,7 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
     neo = cvs[0] if cvs else None
     phieu = repo.phieu_mo([may_id]).get(may_id)
     yc = None if phieu is not None else repo.yeu_cau_mo([may_id]).get(may_id)
-    moi = False
+    moi = nang = False
     trieu_chung = (mo_ta or "").strip() or None
     svc = KyThuatMayService(db, KyThuatMayRepository(db), AuditLogRepository(db))
     tam_dung: list = []
@@ -233,9 +233,9 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
                 commit=False,
             )
             moi = True
-        elif yc is not None and dung_san_xuat and not yc.may_dung:
-            yc.may_dung = True
-        ma = yc.ma if yc is not None else phieu.ma
+        elif yc is not None:
+            nang = _nang_yeu_cau(yc, muc_do=muc_do, trieu_chung=trieu_chung, may_dung=dung_san_xuat)
+        ma =yc.ma if yc is not None else phieu.ma
         if dung_san_xuat:
             for cv in cvs:
                 if cv.trang_thai == CV_DANG_CHAY:
@@ -277,8 +277,25 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
         "tam_dung": [cv.id for cv in tam_dung],
         "dung_may": _dong(r, ten, _ma(repo, [r])) if r is not None else None,
     }
-    _bao_tin(db, svc, yc if moi else None, tam_dung)
+    _bao_tin(db, svc, yc if (moi or nang) else None, tam_dung)
     return ket
+
+
+def _nang_yeu_cau(yc, *, muc_do: str, trieu_chung: str | None, may_dung: bool) -> bool:
+    """Báo lại máy đang có yêu cầu chờ tiếp nhận: chỉ NÂNG (cờ máy dừng, mức độ), triệu chứng mới thì
+    nối thêm dòng. Trả True nếu có đổi — khi đó tổ sửa chữa phải được báo lại ngay."""
+    doi = False
+    if may_dung and not yc.may_dung:
+        yc.may_dung = True
+        doi = True
+    if yc.muc_do not in MUC_DO or MUC_DO.index(muc_do) > MUC_DO.index(yc.muc_do):
+        yc.muc_do = muc_do
+        doi = True
+    cu = (yc.mo_ta or "").strip()
+    if trieu_chung and trieu_chung not in cu.splitlines():
+        yc.mo_ta = f"{cu}\n{trieu_chung}" if cu else trieu_chung
+        doi = True
+    return doi
 
 
 def _bao_tin(db: Session, svc: KyThuatMayService, yc, tam_dung: list) -> None:

@@ -49,7 +49,7 @@ const loiCua = (e: unknown) => (e instanceof Error ? e.message : "Không lưu đ
 function cauMayHu(r: SxMayHuOut): string {
   const dau = r.moi ? `Đã gửi ${r.yeu_cau_ma} tới tổ sửa chữa`
     : r.phieu_ma ? `Máy đang có phiếu sửa ${r.phieu_ma}, không gửi thêm yêu cầu`
-      : `Máy đã có ${r.yeu_cau_ma} chờ tổ sửa chữa nhận, không gửi trùng`;
+      : `Đã gắn vào ${r.yeu_cau_ma} đang chờ tổ sửa chữa nhận`;
   const them = [
     r.tam_dung.length > 0 ? "việc trên máy đã tạm dừng" : null,
     r.dung_may ? `đã lưu ngày dừng ${ngayNgan(r.dung_may.ngay)}` : null,
