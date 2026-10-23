@@ -205,8 +205,8 @@ export function bonusTitle(l: PayrollLine): string {
 }
 
 /** Cột "Hoa hồng kinh doanh" — cột riêng `hoa_hong` trên dòng lương (07/09/2026), máy tự tính
- *  theo hoá đơn bán trong kỳ, HCNS không gõ tay. Số 0 nghĩa là chưa khai `commission_pct` ở hồ sơ
- *  lương của người kinh doanh: không khai % thì lúc chốt đơn chụp về rỗng. */
+ *  theo tiền thu về trong kỳ (23/10/2026), HCNS không gõ tay. Số 0 nghĩa là không có tiền thu,
+ *  hoặc chưa khai biểu `bac_hoa_hong` ở hồ sơ lương lúc chốt đơn (đơn chụp về rỗng). */
 export function hoaHongTotal(l: PayrollLine): number {
   return l.hoa_hong ?? 0;
 }

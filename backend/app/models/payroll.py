@@ -303,6 +303,12 @@ class EmployeeSalary(Base):
     commission_pct: Mapped[float] = mapped_column(
         Numeric(6, 4), nullable=False, default=0, server_default="0"
     )
+    # BIỂU BẬC hoa hồng theo SỐ NGÀY THU TIỀN (mg 0439, 23/10/2026) — thay `commission_pct` (nay
+    # DORMANT: engine không đọc, chỉ còn shim `create_salary` đổi % phẳng gửi tới thành biểu một bậc).
+    # `[{"den_ngay": 45, "pct": 0.03}, …, {"den_ngay": null, "pct": 0}]`, bậc cuối vô hạn — xem
+    # `services/bac_hoa_hong.py`. NULL = không hưởng — SQL NULL thật (`none_as_null`, mg 0441), không
+    # phải JSON 'null'. Chụp sang `orders.bac_hoa_hong` lúc chốt đơn.
+    bac_hoa_hong: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     note: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
@@ -488,12 +494,19 @@ class PayrollLine(Base):
     # cho người làm hôm đó. Thuộc VẾ KHOÁN của phép so 2 lương, cộng vào gross. Cột RIÊNG, KHÔNG nhét
     # vào `khoan` hay `ot_pay` (chủ dặn hai loại tăng ca phải rạch ròi): người ăn vế thời gian = 0.
     tang_ca_khoan: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
+    # CỘNG THÊM KHOÁN (mg 0438, 23/10/2026) — tổng cột Cộng thêm kế toán gõ ở màn Khoán theo tổ
+    # (`khoan_cong_them`), cộng vào gross NGOÀI phép so 2 lương, ăn vế nào cũng có.
+    khoan_cong_them: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
     # Hoa hồng kinh doanh (mg 0269, 07/09/2026) — hệ tự tính theo hoá đơn bán trong kỳ
     # (`HoaHongService`), % chụp trên đơn lúc chốt. Là CỘT (chủ: "nó là một dạng lương"), KHÔNG còn
     # là dòng khoản danh mục nguồn `auto` như 21/08–07/09: cách đó đặt công tắc toàn hệ thống cạnh
     # nút Xoá của HCNS, và "Sửa 1 ô" không cộng nguồn `auto` nên hoa hồng bốc hơi khỏi gross.
     # LUÔN chịu TNCN. Không sửa tay — cần trả thêm/bớt thì dùng khoản "Thu nhập khác".
     hoa_hong: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
+    # Kỳ này người này CÓ lần thu làm nên hoa hồng (mg 0442, 24/10/2026) — kể cả khi tổng âm (CK lớn
+    # hơn tiền về) nên cột kẹp 0. Màn bảng lương dựa cờ này cho bấm ô Hoa hồng mở ngăn soi vì sao ra 0.
+    co_hoa_hong: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False,
+                                              server_default=sa_false())
     ot_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")      # tổng phút tăng ca (Pha 4a)
     ot_pay: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")          # tiền tăng ca (Pha 4a)
     night_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")      # số ngày ca đêm (từ Chấm công)
@@ -644,6 +657,76 @@ class KhoanDungMay(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# KẾ TOÁN SỬA TAY KHOÁN kiểu Excel (chủ chốt 23/10/2026, mockup
+# `docs/mockups/ke-toan-dieu-chinh-khoan-excel.html`): ba chỗ gõ được ở màn Khoán theo tổ — Tiền một lần
+# ghi, dòng tay chèn thêm vào sổ, Cộng thêm từng người — mỗi dòng một ghi chú. `sua_boi_id` là soft-ref
+# tới users (KHÔNG FK): xoá cứng tài khoản kế toán không được cuốn theo tiền lương đã sửa (FK users là
+# CASCADE, mg 0327). Ba bảng do `create_all` tạo.
+# ---------------------------------------------------------------------------
+class KhoanLanGhiTay(Base):
+    """Tiền gõ tay + ghi chú của MỘT lần ghi sản lượng. `tien` NULL = không đè (chỉ có ghi chú); có
+    số thì số đó thay tiền máy (gồm phát sinh) rồi chạy tiếp luật ngày / tổ trưởng / tăng ca khoán."""
+
+    __tablename__ = "khoan_lan_ghi_tay"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    batch_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("san_xuat_batch.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    tien: Mapped[float | None] = mapped_column(_MONEY, nullable=True)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sua_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sua_luc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class KhoanDongTay(Base):
+    """DÒNG TAY trong sổ sản lượng của một tổ một kỳ — không gắn lệnh (vd việc trả theo giờ tổ Thành
+    phẩm). Chia theo lương ca máy của `nguoi_ids`, có trích tổ trưởng; KHÔNG áp hệ số ngày CN/lễ và
+    KHÔNG vào quỹ so chỉ tiêu ngày — tiền kế toán gõ là tiền chốt."""
+
+    __tablename__ = "khoan_dong_tay"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nam: Mapped[int] = mapped_column(Integer, nullable=False)
+    thang: Mapped[int] = mapped_column(Integer, nullable=False)
+    department_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("departments.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    ngay: Mapped[date] = mapped_column(Date, nullable=False)
+    noi_dung: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    tien: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0)
+    nguoi_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sua_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sua_luc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class KhoanCongThem(Base):
+    """CỘNG THÊM ± của một người ở một tổ một kỳ — cộng THẲNG vào lương ngoài phép so 2 lương, không
+    vào quỹ tổ, không trích tổ trưởng (như cột "Cộng bổ sung tiền canh máy" sổ T08). `tien` NULL = chỉ
+    có ghi chú."""
+
+    __tablename__ = "khoan_cong_them"
+    __table_args__ = (
+        UniqueConstraint("nam", "thang", "department_id", "employee_id", name="uq_khoan_cong_them"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nam: Mapped[int] = mapped_column(Integer, nullable=False)
+    thang: Mapped[int] = mapped_column(Integer, nullable=False)
+    department_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=False
+    )
+    employee_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("employees.id", ondelete="CASCADE"), nullable=False
+    )
+    tien: Mapped[float | None] = mapped_column(_MONEY, nullable=True)
+    ghi_chu: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sua_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sua_luc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
 # Chế độ ăn của TỔ TRƯỞNG trên sản lượng tổ (chủ 19/09/2026).

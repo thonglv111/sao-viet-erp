@@ -209,9 +209,9 @@ Công thức của từng tổ (biến mới của đợt 2: `trung_khuon`, `xa_
 | Bế | `(1 - trung_khuon) * gia_co_dinh + sl_ghi * (1 + xa_doi) * (don_gia_khoan + if(so_lo >= 7, 50, if(so_lo >= 1, 20, 0)))` |
 | Cán màng, Bồi | `sl_ghi * dai_in * rong_in * don_gia_khoan`; chụp film = việc phát sinh |
 | Cắt | `sl_ghi * dai_nguyen * rong_nguyen * dinh_luong * don_gia_khoan` (đ/kg) |
-| Dán | `gia_co_dinh / so_lan_chay + sl_ghi * don_gia_khoan` (canh máy 50.000/lệnh = giá cố định, chia đều số lần chạy như sổ) |
+| Dán | `gia_co_dinh / so_lan_chay + sl_ghi * don_gia_khoan` (canh máy 50.000/lệnh = giá cố định, chia đều số lần chạy như sổ; chip `so_lan_chay` nay hiện tên "Số lần ghi sản lượng" — 23/10/2026. Thử việc ghi riêng lượt máy chung với nhóm vẫn được đếm một lần (làm loãng canh) — chủ chốt giữ vậy, kế toán lương điều chỉnh tay. Lệnh vắt hai kỳ lương — kỳ trước chốt với ít lần hơn nên tổng canh vượt 50.000 (sổ T08 có cột "bổ sung canh T6/T7" dán tay) — chủ chốt 23/10 KHÔNG tự quyết toán chéo kỳ, kế toán sửa tay ở kỳ đang làm) |
 | Gỡ, Thành phẩm, Cột dây, Đục lỗ tay | `sl_ghi * don_gia_khoan` |
-| Thành phẩm trả theo giờ (lau chùi, đếm bỏ bọc) | `tien_gio` |
+| Thành phẩm trả theo giờ (lau chùi, đếm bỏ bọc) | KHÔNG làm công đoạn — chủ chốt 23/10 kế toán lương gõ một **dòng tay** cuối Sổ sản lượng ở Lương → Khoán theo tổ (ngày, nội dung, tiền, người tham gia; vào quỹ tổ, trích tổ trưởng, không sinh tăng ca khoán — `khoan_dong_tay`, plan `2026-10-23-ke-toan-dieu-chinh-khoan.md`). Sổ T08 có 9 dòng (~2,8 triệu: lao bột, gấp hộp, kiểm lựa) tính TỔNG LƯƠNG ÷ 26 ÷ 8 × giờ hành chính + (vị trí + trách nhiệm) ÷ 26 ÷ 8 × giờ tăng ca × 1,5 — khác chip `tien_gio` (vị trí + trách nhiệm, không × 1,5). Chip `tien_gio` vẫn giữ cho công đoạn nào cần |
 
 Số lượng trong công thức (chủ 21/10): CHỈ MỘT chip `sl_ghi` = cột "Số lượng" của lần ghi ở bàn tổ (tab
 Sản lượng) — đúng số thợ gõ. Không nói tốt / hỏng: gỡ chip `sl_tot` khỏi ô Công thức khoán. Công đoạn

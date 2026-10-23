@@ -10,6 +10,7 @@ Chủ gom 22/10 — mã sổ chạy trên công đoạn gộp (`MA_SO`):
 - DL1 / DL7 → DL, DLM1 / DLM7 → DLM: thợ nhập "Số lỗ đục", từ 7 lỗ cộng phần chênh. DL gộp luôn DL30
   của bảng giá Thành phẩm: từ 30 lỗ 200 đ/con. G3L 25 / G5L 40 bản không chia số con (bảng giá Thành phẩm,
   cột dây; T08 không dòng nào dùng — cột dây gỡ phôi ăn G3L1 30) gộp vào GCT.
+- KVN5L → KVN (gộp KVN3L + KVN5L 23/10): tick "Sóng 5 lớp" +5.
 Dòng sổ chạy với số con / số lỗ thấp nhất của khoảng mã (G3L2 ⇒ 2 con, DL7 ⇒ 7 lỗ).
 
 Sáu dòng không theo luật sổ:
@@ -42,7 +43,7 @@ CFG = [
     {'id': 109, 'ma': 'GCT', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_con >= 5, 0, if(so_con >= 2, 5, 15)) + 10 * lop_5_7)', 'gcd': 0.0, 'dg': 15.0, 'tc': [{'ma': 'lop_5_7', 'ten': 'Carton 5-7 lớp (+10 đ/con)', 'kieu': 'co_khong', 'goi_y': None}]},
     {'id': 77, 'ma': 'GID', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_con >= 5, 0, 5))', 'gcd': 0.0, 'dg': 5.0, 'tc': None},
     {'id': 115, 'ma': 'GNTM', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * don_gia_khoan', 'gcd': 0.0, 'dg': 5.0, 'tc': None},
-    {'id': 157, 'ma': 'KVN5L', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * don_gia_khoan', 'gcd': 0.0, 'dg': 15.0, 'tc': None}
+    {'id': 156, 'ma': 'KVN', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * (don_gia_khoan + 5 * lop_5)', 'gcd': 0.0, 'dg': 10.0, 'tc': [{'ma': 'lop_5', 'ten': 'Sóng 5 lớp (+5 đ/con)', 'kieu': 'co_khong', 'goi_y': None}]}
 ]
 
 
@@ -62,6 +63,7 @@ MA_SO = {
     "G5L1": ("GCT", 1, {"lop_5_7": 1}), "G5L2": ("GCT", 2, {"lop_5_7": 1}), "G5L5": ("GCT", 5, {"lop_5_7": 1}),
     "DL1": ("DL", 1, {"so_lo": 1}), "DL7": ("DL", 1, {"so_lo": 7}),
     "DLM1": ("DLM", 1, {"so_lo": 1}), "DLM7": ("DLM", 1, {"so_lo": 7}),
+    "KVN5L": ("KVN", 1, {"lop_5": 1}),
 }
 
 

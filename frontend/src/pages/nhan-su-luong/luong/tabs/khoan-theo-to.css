@@ -68,3 +68,35 @@ table.ktt-so td { vertical-align: top; }
 .ktt-ng li.ktt-ng__tt > span { border-top: 1px dashed var(--rule-soft); margin-top: 2px; padding-top: 2px; color: var(--ash-2); }
 .ktt-pt { font-size: 12px; color: var(--ash-2); }
 .ktt-pt .ktt-neo { border-bottom: 1px dashed var(--ash-2); }
+
+/* kế toán gõ tay kiểu Excel (23/10/2026) — mockup `docs/mockups/ke-toan-dieu-chinh-khoan-excel.html` */
+.ktt-luoi { outline: none; }
+table.ktt-g td.ktt-nhap { cursor: cell; position: relative; outline-offset: -2px; }
+table.ktt-g td.ktt-nhap:hover { background: var(--rule-hair); }
+table.ktt-g td.ktt-nhap.ktt-chon-o { outline: 2px solid #2563eb; background: var(--canvas); }
+td.ktt-nhap input {
+  width: 100%; border: 0; outline: 0; font: inherit; background: transparent; padding: 0; margin: 0;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+td.r.ktt-nhap input { text-align: right; }
+td.ktt-tay { position: relative; }
+td.ktt-tay::after {
+  content: ""; position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 7px 7px 0;
+  border-color: transparent var(--rust) transparent transparent;
+}
+.ktt-may { display: block; font-size: 11.5px; color: var(--ash-2); text-decoration: line-through; }
+td.ktt-gc { white-space: normal; font-size: 12.5px; color: var(--ash); }
+tr.ktt-so__moi td { color: var(--ash-2); height: 34px; }
+.ktt-menu, .ktt-dsng {
+  position: fixed; z-index: 60; background: var(--canvas); border: 1px solid var(--rule); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14); padding: 4px;
+}
+.ktt-menu { min-width: 170px; display: flex; flex-direction: column; }
+.ktt-menu button {
+  font: inherit; font-size: 13px; text-align: left; border: 0; background: transparent; color: var(--ink);
+  padding: 6px 10px; border-radius: 5px; cursor: pointer;
+}
+.ktt-menu button:hover { background: var(--rule-hair); }
+.ktt-dsng { padding: 6px 4px; min-width: 220px; }
+.ktt-dsng label { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; font-size: 13px; cursor: pointer; }
+.ktt-dsng label:hover { background: var(--rule-hair); }

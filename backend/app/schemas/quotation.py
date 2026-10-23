@@ -176,6 +176,7 @@ class QuoteItemOut(BaseModel):
     gia_go_tay: bool = False       # giá bán gõ tay, không theo markup
     unit_price: float
     discount_amount: float
+    discount_percent: float = 0.0   # % CK (trên giá bán trước kê); 0 = gõ số tiền. Dòng cũ (NULL) suy % — `pct_ck_dong`
     # Kê giá (20/10/2026): `gia_sau_ke = selling_price + ke_gia`; đơn giá / VAT / thành tiền trên số này.
     ke_gia: float = 0
     gia_sau_ke: float = 0

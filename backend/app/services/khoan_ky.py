@@ -122,22 +122,30 @@ def _so_vn(v: float) -> str:
 _RE_TEN = re.compile(r"\b[a-z_][a-z0-9_]*\b")
 
 
-def dien_giai(ct: str, ctx: dict, ten: dict[str, str], ket_qua: float) -> str:
-    """Công thức → "chữ = thế số = kết quả" cho bong bóng tiền ở màn Khoán theo tổ. Tên chip lấy từ
-    từ điển chung, tuỳ chọn khi ghi lấy tên công đoạn khai (`ten`); hàm (`max`, `if`…) giữ nguyên."""
+def _lam_dep(s: str) -> str:
+    # Hằng số gõ trong công thức ("80000") chấm ngăn nghìn như số thế vào.
+    s = re.sub(r"(?<![\d.,])\d{4,}(?![\d.,])", lambda m: _so_vn(float(m.group(0))), s)
+    return s.replace("*", "×").replace("/", "÷").replace(" - ", " − ")
+
+
+def _dien_giai_chu(ct: str, ten: dict[str, str]) -> str:
+    """Vế chữ của diễn giải — chỉ phụ thuộc công thức + tên tuỳ chọn, nơi gọi cache được."""
     def chu(m: re.Match) -> str:
         ma = m.group(0)
         return ma if ma in TEN_HAM_CAM else ten.get(ma) or nhan(ma)
+    return _lam_dep(_RE_TEN.sub(chu, ct))
 
+
+def dien_giai(ct: str, ctx: dict, ten: dict[str, str], ket_qua: float, *, ve_chu: str | None = None) -> str:
+    """Công thức → "chữ = thế số = kết quả" cho bong bóng tiền ở màn Khoán theo tổ. Tên chip lấy từ
+    từ điển chung, tuỳ chọn khi ghi lấy tên công đoạn khai (`ten`); hàm (`max`, `if`…) giữ nguyên.
+    `ve_chu` = `_dien_giai_chu(ct, ten)` tính sẵn."""
     def so(m: re.Match) -> str:
         ma = m.group(0)
         return _so_vn(_so(ctx[ma])) if ma in ctx and ma not in TEN_HAM_CAM else ma
 
-    def lam_dep(s: str) -> str:
-        # Hằng số gõ trong công thức ("80000") chấm ngăn nghìn như số thế vào.
-        s = re.sub(r"(?<![\d.,])\d{4,}(?![\d.,])", lambda m: _so_vn(float(m.group(0))), s)
-        return s.replace("*", "×").replace("/", "÷").replace(" - ", " − ")
-    return f"{lam_dep(_RE_TEN.sub(chu, ct))} = {lam_dep(_RE_TEN.sub(so, ct))} = {_vnd(ket_qua)}"
+    chu = _dien_giai_chu(ct, ten) if ve_chu is None else ve_chu
+    return f"{chu} = {_lam_dep(_RE_TEN.sub(so, ct))} = {_vnd(ket_qua)}"
 
 
 def _nhan_tuy_chon(anh: list | None) -> list[str]:
@@ -152,6 +160,14 @@ def _nhan_tuy_chon(anh: list | None) -> list[str]:
     return ra
 
 
+def cong_thuc_cua_ban_ghi(r: dict) -> str | None:
+    """Diễn giải công thức của một bản ghi sổ (`tinh(so=True)`) — dựng lúc cần nếu đã hoãn."""
+    if r.get("cong_thuc") is None and r.get("_dien_giai"):
+        ct, ctx, ten, tien, chu = r["_dien_giai"]
+        return dien_giai(ct, ctx, ten, tien, ve_chu=chu)
+    return r.get("cong_thuc")
+
+
 class KhoanKyService:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -160,8 +176,12 @@ class KhoanKyService:
 
     # ------------------------------------------------------------------ tiền MỘT lần ghi
     def _quy_cach(self, cv, lenh: dict, bai_cache: dict) -> dict:
+        # `bai_cache` giữ luôn quy cách lệnh (khoá ("lsx", id)) — một lệnh có hàng chục lần ghi.
         if cv.lsx_id and int(cv.lsx_id) in lenh:
-            return quy_cach_bien(lenh[int(cv.lsx_id)])
+            k = ("lsx", int(cv.lsx_id))
+            if k not in bai_cache:
+                bai_cache[k] = quy_cach_bien(lenh[int(cv.lsx_id)])
+            return bai_cache[k]
         if cv.bai_ghep_id:
             bid = int(cv.bai_ghep_id)
             if bid not in bai_cache:
@@ -178,27 +198,29 @@ class KhoanKyService:
         return {}
 
     @staticmethod
-    def _ngu_canh(khoan, b, qc: dict, them: dict[str, float]) -> dict:
+    def _ngu_canh(khoan, b, qc: dict, them: dict[str, float], lenh_ctx: dict | None = None) -> dict:
         """Biến của lần ghi cho công thức khoán.
 
         `them` = chip Đợt 2 của lần ghi (`so_lan_chay`, `tien_gio`, `tu_tro`). Tuỳ chọn khi ghi:
         mọi mã công đoạn đang khai mặc định 0 (lần ghi cũ chưa có ảnh chụp vẫn tính được), đè bằng
-        ảnh chụp của lần ghi."""
+        ảnh chụp của lần ghi. `lenh_ctx` = `ngu_canh_lenh(qc)` tính sẵn (nơi gọi cache theo lệnh)."""
         tuy_chon = {t["ma"]: 0.0 for t in (khoan.tuy_chon or []) if t.get("ma")}
         tuy_chon.update({t["ma"]: _so(t.get("gia_tri")) for t in (b.tuy_chon_khoan or []) if t.get("ma")})
-        return {**ngu_canh_lenh(qc), **MAC_DINH_TANG_LENH, **tuy_chon, **them,
+        return {**(ngu_canh_lenh(qc) if lenh_ctx is None else lenh_ctx), **MAC_DINH_TANG_LENH,
+                **tuy_chon, **them,
                 "sl_vao": _so(b.tong), "sl_ra": _so(b.tot), "sl_ghi": _so(b.tot),
                 "gia_co_dinh": _so(b.gia_co_dinh_khoan_snapshot),
                 "don_gia_khoan": float(b.don_gia_khoan_snapshot)}
 
     @classmethod
-    def _tien_chinh(cls, khoan, b, qc: dict, them: dict[str, float]) -> float:
-        """Tiền phần chính của lần ghi; công thức lỗi ⇒ `ValueError` kèm câu lỗi."""
+    def _tien_chinh(cls, khoan, b, qc: dict, them: dict[str, float], ctx: dict | None = None) -> float:
+        """Tiền phần chính của lần ghi; công thức lỗi ⇒ `ValueError` kèm câu lỗi. `ctx` = ngữ cảnh
+        `_ngu_canh` dựng sẵn (nơi gọi dùng lại cho diễn giải)."""
         ct = cong_thuc_cua_lan_ghi(khoan, b).strip()
         if not ct:
             return 0.0                    # không có trên công thức thì không tính (chủ 22/10)
         # Kết quả công thức LÀ tiền, không nhân thêm gì (chủ 22/10).
-        return safe_eval(ct, cls._ngu_canh(khoan, b, qc, them))
+        return safe_eval(ct, cls._ngu_canh(khoan, b, qc, them) if ctx is None else ctx)
 
     @staticmethod
     def chip_lenh(qc: dict, bac: dict | None) -> dict[str, float]:
@@ -208,6 +230,14 @@ class KhoanKyService:
             # Bậc giá đã gồm mực UV (Pantone UV) ⇒ công thức thôi nhân đôi (22/10/2026).
             "gia_gom_uv": 1.0 if (bac or {}).get("gom_uv") else 0.0,
         }
+
+    @staticmethod
+    def _tay_ra(tay, tien_may: float, da_de: bool) -> dict:
+        """Trường sửa tay của một lần ghi trong sổ (`so=True`)."""
+        return {"loai": "lan_ghi", "tien_may": tien_may if da_de else None, "tay": da_de,
+                "ghi_chu_tay": tay.ghi_chu if tay is not None else None,
+                "sua_boi_id": tay.sua_boi_id if tay is not None else None,
+                "sua_luc": tay.sua_luc if tay is not None else None}
 
     @staticmethod
     def _khoa_chay(cv, b) -> tuple:
@@ -220,39 +250,65 @@ class KhoanKyService:
         """Số lần ghi của mỗi khoá tới HẾT NGÀY cuối kỳ (giờ xưởng) — kể cả lần ở kỳ trước."""
         if not cap:
             return {}
-        rows = self.repo.lan_chay(den, {int(b.khoan_cong_doan_id) for b, _ in cap},
-                                  lsx_ids={int(cv.lsx_id) for _, cv in cap if cv.lsx_id},
-                                  bai_ids={int(cv.bai_ghep_id) for _, cv in cap if cv.bai_ghep_id},
-                                  cv_ids={int(cv.id) for _, cv in cap})
+        # Lần ghi trước 00:00 UTC của ngày áp chót chắc chắn rơi vào ngày xưởng ≤ ngày cuối kỳ (lệch
+        # múi giờ ≤ 14 giờ) ⇒ để CSDL đếm gộp; chỉ khúc đuôi mới cần lọc từng dòng theo giờ xưởng.
+        gom_truoc = datetime.combine(cuoi - timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
+        gop, dong = self.repo.lan_chay(den, {int(b.khoan_cong_doan_id) for b, _ in cap},
+                                       lsx_ids={int(cv.lsx_id) for _, cv in cap if cv.lsx_id},
+                                       bai_ids={int(cv.bai_ghep_id) for _, cv in cap if cv.bai_ghep_id},
+                                       cv_ids={int(cv.id) for _, cv in cap}, gom_truoc=gom_truoc)
+
+        def khoa(r) -> tuple:
+            # Cùng khoá với `_khoa_chay` — dòng ở đây chỉ có cột, không có đối tượng.
+            return ((r.lsx_id, r.bai_ghep_id, int(r.khoan_cong_doan_id)) if r.lsx_id or r.bai_ghep_id
+                    else ("cv", int(r.cv_id), int(r.khoan_cong_doan_id)))
+
         dem: dict[tuple, int] = defaultdict(int)
-        for b, cv in rows:
-            if (dd := ngay_cua_me(b.bat_dau)) is not None and dd <= cuoi:
-                dem[self._khoa_chay(cv, b)] += 1
+        for r in gop:
+            dem[khoa(r)] += int(r.so)
+        for r in dong:
+            if (dd := ngay_cua_me(r.bat_dau)) is not None and dd <= cuoi:
+                dem[khoa(r)] += 1
         return dem
 
     # ------------------------------------------------------------------ cả kỳ
-    def tinh(self, year: int, month: int, muc: MucKhoan, *, so: bool = False) -> dict:
+    def tinh(self, year: int, month: int, muc: MucKhoan, *, so: bool = False,
+             dien_giai_ngay: bool = True, theo_nguoi: bool = True) -> dict:
         """`so=True` ⇒ thêm `"so"`: bản ghi theo LẦN GHI / ngày dừng máy / ngày của tổ / mốc tổ
         trưởng, số đã áp luật ngày và đã trích tổ trưởng — nguồn của màn Khoán theo tổ
-        (`services/khoan_theo_to.py`), để màn đó không tự tính lại."""
+        (`services/khoan_theo_to.py`), để màn đó không tự tính lại.
+
+        `dien_giai_ngay=False` ⇒ `cong_thuc` của bản ghi để None, đọc bằng `cong_thuc_cua_ban_ghi`
+        lúc cần — màn Khoán theo tổ chỉ bày một tổ, diễn giải cả nghìn lần ghi của cả xưởng là phí.
+        `theo_nguoi=False` ⇒ không dựng ngăn soi từng người (`"theo_nguoi"` rỗng) — chỉ ngăn soi một
+        dòng lương đọc nó; tiền, thiếu giá, cảnh báo, sổ không đổi."""
         dau = date(year, month, 1)
         cuoi = date(year, month, _cal.monthrange(year, month)[1])
         # Lấy rộng một ngày mỗi đầu rồi lọc lại theo ngày giờ xưởng.
         tu = datetime.combine(dau - timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
         den = datetime.combine(cuoi + timedelta(days=2), datetime.min.time(), tzinfo=timezone.utc)
-        cap = [(b, cv) for b, cv in self.repo.lan_ghi_trong_khoang(tu, den)
-               if (dd := ngay_cua_me(b.bat_dau)) is not None and dau <= dd <= cuoi]
+        ngay_lan: dict[int, date] = {}   # batch_id → ngày giờ xưởng, tính một lần
+        cap = []
+        for b, cv in self.repo.lan_ghi_trong_khoang(tu, den):
+            if (dd := ngay_cua_me(b.bat_dau)) is not None and dau <= dd <= cuoi:
+                cap.append((b, cv))
+                ngay_lan[int(b.id)] = dd
 
         ids = [int(b.id) for b, _ in cap]
         nguoi = self.repo.nguoi_theo_lan_ghi(ids)
         phat_sinh = self.repo.phat_sinh_theo_lan_ghi(ids)
         khoan_map = self.repo.khoan_theo_id({int(b.khoan_cong_doan_id) for b, _ in cap})
-        lenh = self.repo.lenh_theo_id({int(cv.lsx_id) for _, cv in cap if cv.lsx_id})
+        lenh = self.repo.lenh_cho_quy_cach({int(cv.lsx_id) for _, cv in cap if cv.lsx_id})
         pb = self.repo.phong_ban()
         le = {s.day for s in self.cal.paid_holidays_in_month(year, month)}
         bai_cache: dict = {}
+        nc_cache: dict = {}    # ("lsx"|"bai", id) → ngu_canh_lenh(quy cách) — một lệnh nhiều lần ghi
+        chu_cache: dict = {}   # (công thức, cấu hình khoán) → vế chữ của diễn giải
         so_lan = self._so_lan_chay(cap, den, cuoi)
         ten_nv = self.repo.ten_nhan_vien({int(r.employee_id) for rs in nguoi.values() for r in rs})
+        # Kế toán sửa tay (23/10/2026): tiền gõ đè + ghi chú theo lần ghi.
+        tay_lan = self.repo.lan_ghi_tay(ids)
+        da_tay: set[int] = set()   # lần ghi đã đè tiền ⇒ cảnh báo thiếu giá của nó rụng
 
         def ten_to(dep_id) -> str:
             d = pb.get(int(dep_id)) if dep_id else None
@@ -274,7 +330,8 @@ class KhoanKyService:
         so_tt: list[dict] = []
 
         for b, cv in cap:
-            d = ngay_cua_me(b.bat_dau)
+            d = ngay_lan[int(b.id)]
+            n_thieu = len(thieu)
             to = int(cv.department_id) if cv.department_id else None
             khoan = khoan_map.get(int(b.khoan_cong_doan_id))
             ten_cd = b.ten_khoan_snapshot or (khoan.cong_doan.ten if khoan is not None else "—")
@@ -299,6 +356,7 @@ class KhoanKyService:
                 continue
             bac = b.bac_khoan_snapshot or None
             cong_thuc = None
+            hoan_dg = None
             if b.don_gia_khoan_snapshot is None:
                 if bac and not bac.get("ma"):
                     bao(f"{viec_khoan.mo_ta_mau(bac)} chưa khớp bậc giá nào")
@@ -312,6 +370,14 @@ class KhoanKyService:
                 continue
             else:
                 qc = self._quy_cach(cv, lenh, bai_cache)
+                k_qc = ("lsx", int(cv.lsx_id)) if cv.lsx_id and int(cv.lsx_id) in lenh else (
+                    ("bai", int(cv.bai_ghep_id)) if cv.bai_ghep_id else None)
+                if k_qc is None:
+                    nc = ngu_canh_lenh(qc)
+                elif k_qc in nc_cache:
+                    nc = nc_cache[k_qc]
+                else:
+                    nc = nc_cache[k_qc] = ngu_canh_lenh(qc)
                 gio = max(0.0, (b.ket_thuc - b.bat_dau).total_seconds() / 3600.0)
                 them = {
                     "so_lan_chay": float(max(1, so_lan.get(self._khoa_chay(cv, b), 0))),
@@ -323,18 +389,22 @@ class KhoanKyService:
                     canh_bao.append(f"Công đoạn {khoan.cong_doan.ten}: công thức khoán có sản lượng mà không "
                                     f"nhân Đơn giá khoán — sản lượng đang cộng như tiền đồng. Nhân sản "
                                     f"lượng với Đơn giá khoán ở Danh mục → Công đoạn → tab Khoán nếu cần.")
+                ctx = self._ngu_canh(khoan, b, qc, them, nc)
                 try:
-                    tien = self._tien_chinh(khoan, b, qc, them)
+                    tien = self._tien_chinh(khoan, b, qc, them, ctx)
                 except ValueError as e:
                     bao(f"công thức khoán lỗi — {e}")
                     tien = 0.0
                 else:
                     ct = cong_thuc_cua_lan_ghi(khoan, b).strip()
                     if so and ct:
-                        cong_thuc = dien_giai(
-                            ct, self._ngu_canh(khoan, b, qc, them),
-                            {t["ma"]: t.get("ten") or t["ma"] for t in (khoan.tuy_chon or []) if t.get("ma")},
-                            tien)
+                        k_chu = (ct, int(khoan.id))
+                        ten_tc = {t["ma"]: t.get("ten") or t["ma"] for t in (khoan.tuy_chon or []) if t.get("ma")}
+                        if k_chu not in chu_cache:
+                            chu_cache[k_chu] = _dien_giai_chu(ct, ten_tc)
+                        hoan_dg = (ct, ctx, ten_tc, tien, chu_cache[k_chu])
+                        if dien_giai_ngay:
+                            cong_thuc = dien_giai(*hoan_dg[:4], ve_chu=hoan_dg[4])
             tien_chinh = tien
             ps_so: list[dict] = []
             for r in phat_sinh.get(int(b.id)) or []:
@@ -346,7 +416,14 @@ class KhoanKyService:
                               "don_vi": getattr(r, "don_vi_snapshot", None),
                               "don_gia": float(r.don_gia_snapshot),
                               "tien": _so(r.so_luong) * float(r.don_gia_snapshot)})
-            if tien == 0:
+            tien_may = tien
+            tay = tay_lan.get(int(b.id))
+            if tay is not None and tay.tien is not None:
+                tien = _so(tay.tien)
+                da_tay.add(int(b.id))
+            # Lần ghi máy chưa tính được (thiếu giá, công thức lỗi) vẫn vào SỔ với tiền 0 để kế toán gõ
+            # tay; lần ghi ra 0 vì công thức không tính thì bỏ như cũ.
+            if tien == 0 and int(b.id) not in da_tay and not (so and len(thieu) > n_thieu):
                 continue
 
             la_cn, la_le = self.cal.la_ngay_nghi_tuan(d), d in le
@@ -365,14 +442,15 @@ class KhoanKyService:
                 phan.append([emp, to, d, int(b.id), moi * he_so])
                 # `tien` là số SAU khi trích tổ trưởng (khối tổ trưởng bên dưới điền lại + ghi % trích
                 # vào `to_truong`) — ngăn soi không còn dòng trừ riêng (chủ chốt 22/10/2026).
-                ct_lan[(emp, int(b.id))] = {
-                    "loai": "lan_ghi", "batch_id": int(b.id), "ngay": d.isoformat(),
-                    "cong_doan": ten_cd, "to": ten_to(to), "so_luong": _so(b.tot),
-                    "tien_lan_ghi": round(tien), "so_nguoi": len(ds),
-                    "ty_le": w[emp] / tong_w, "luong_bu_lo": w[emp], "tong_luong_bu_lo": tong_w,
-                    "to_truong": [], "tuy_chon": the, "tien": round(moi * he_so), "ghi_chu": ghi_chu,
-                }
-                chi_tiet[emp].append(ct_lan[(emp, int(b.id))])
+                if theo_nguoi:
+                    ct_lan[(emp, int(b.id))] = {
+                        "loai": "lan_ghi", "batch_id": int(b.id), "ngay": d.isoformat(),
+                        "cong_doan": ten_cd, "to": ten_to(to), "so_luong": _so(b.tot),
+                        "tien_lan_ghi": round(tien), "so_nguoi": len(ds),
+                        "ty_le": w[emp] / tong_w, "luong_bu_lo": w[emp], "tong_luong_bu_lo": tong_w,
+                        "to_truong": [], "tuy_chon": the, "tien": round(moi * he_so), "ghi_chu": ghi_chu,
+                    }
+                    chi_tiet[emp].append(ct_lan[(emp, int(b.id))])
                 if he_so > 0 and to is not None:
                     phan_ngay[(to, d)][emp] += moi
             if he_so > 0 and to is not None:
@@ -384,11 +462,60 @@ class KhoanKyService:
                     "cong_doan": ten_cd, "bac": (bac or {}).get("ten"), "tuy_chon": the,
                     "phat_sinh": ps_so, "so_luong": _so(b.tot), "don_vi": b.don_vi,
                     "tien_chinh": tien_chinh, "tien": tien, "he_so": he_so, "ghi_chu": ghi_chu,
-                    "cong_thuc": cong_thuc,
+                    "cong_thuc": cong_thuc, "_dien_giai": hoan_dg,
                     # Điền lại SAU khi trích tổ trưởng — đây mới là số người đó nhận.
                     "nguoi": {int(r.employee_id): tien * w[int(r.employee_id)] / tong_w * he_so for r in ds},
                     "to_truong": [],
+                    **self._tay_ra(tay, tien_may, int(b.id) in da_tay),
                 }
+
+        # --- Dòng tay kế toán chèn vào sổ (23/10/2026) ------------------------------------
+        # Vào quỹ tổ và `phan` (tổ trưởng trích như lần ghi), hệ số ngày 1, KHÔNG vào `quy_ngay`
+        # (không sinh tăng ca khoán) — tiền kế toán gõ là tiền chốt.
+        dong_tay = self.repo.dong_tay(year, month)
+        ten_nv.update(self.repo.ten_nhan_vien(
+            {int(e) for r in dong_tay for e in (r.nguoi_ids or [])} - set(ten_nv)))
+        for r in dong_tay:
+            to, d, key = int(r.department_id), r.ngay, f"tay:{r.id}"
+            tien = _so(r.tien)
+            ds = [int(e) for e in (r.nguoi_ids or [])]
+            w = {e: _so(muc.luong_ca_may.get(e)) for e in ds}
+            chua = [ten_nv.get(e, f"#{e}") for e, v in w.items() if v <= 0]
+            loi = (f"{', '.join(chua)} chưa có lương ca máy" if chua
+                   else None if ds else "chưa chọn người tham gia")
+            if loi:
+                thieu.append({"batch_id": None, "cong_doan": r.noi_dung or "Dòng tay", "to": ten_to(to),
+                              "ngay": d.strftime("%d/%m"), "ly_do": loi,
+                              "sua": "luong" if chua else "dong_tay"})
+            else:
+                tong_w = sum(w.values())
+                for e in ds:
+                    moi = tien * w[e] / tong_w
+                    phan.append([e, to, d, key, moi])
+                    if not theo_nguoi:
+                        continue
+                    ct_lan[(e, key)] = {
+                        "loai": "lan_ghi", "batch_id": None, "ngay": d.isoformat(),
+                        "cong_doan": r.noi_dung or "Dòng tay", "to": ten_to(to), "so_luong": 0.0,
+                        "tien_lan_ghi": round(tien), "so_nguoi": len(ds),
+                        "ty_le": w[e] / tong_w, "luong_bu_lo": w[e], "tong_luong_bu_lo": tong_w,
+                        "to_truong": [], "tuy_chon": [], "tien": round(moi),
+                        "ghi_chu": "dòng tay kế toán thêm",
+                    }
+                    chi_tiet[e].append(ct_lan[(e, key)])
+            if so:
+                so_ban_ghi[key] = {
+                    "batch_id": None, "loai": "dong_tay", "dong_tay_id": int(r.id), "noi_dung": r.noi_dung,
+                    "nguoi_ids": ds, "loi": loi,
+                    "ngay": d, "bat_dau": datetime.combine(d, datetime.max.time(), tzinfo=timezone.utc),
+                    "to_id": to, "cong_viec_id": None, "lsx_id": None, "bai_ghep_id": None,
+                    "cong_doan": r.noi_dung or "", "bac": None, "tuy_chon": [], "phat_sinh": [],
+                    "so_luong": 0.0, "don_vi": None, "tien_chinh": tien, "tien": tien, "he_so": 1.0,
+                    "ghi_chu": None, "cong_thuc": None, "nguoi": {e: 0.0 for e in ds} if loi else {},
+                    "to_truong": [], "tien_may": None, "tay": True, "ghi_chu_tay": r.ghi_chu,
+                    "sua_boi_id": r.sua_boi_id, "sua_luc": r.sua_luc,
+                }
+        thieu = [t for t in thieu if t["batch_id"] is None or t["batch_id"] not in da_tay]
 
         # --- Tăng ca khoán: 50% phần tổ vượt chỉ tiêu ngày ------------------------------
         moc_chi_tieu = self.repo.chi_tieu_ngay(cuoi)
@@ -484,12 +611,18 @@ class KhoanKyService:
         emp_cua_tk = self.repo.nhan_vien_theo_tai_khoan(
             {int(pb[k].head_user_id) for k in moc_tt if k in pb and pb[k].head_user_id})
         them_tt: dict[int, float] = defaultdict(float)
+        # Vị trí trong `phan` theo tổ — mỗi mốc chỉ duyệt phần của nhánh mình (giữ NGUYÊN thứ tự của
+        # `phan` để phép cộng ra đúng từng bit như duyệt cả danh sách).
+        vt_theo_to: dict = defaultdict(list)
+        for i, p in enumerate(phan):
+            vt_theo_to[p[1]].append(i)
         for dep_id, moc in moc_tt.items():
             dep = pb.get(dep_id)
             if dep is None:
                 continue
             nhanh = cay(dep_id)
-            quy = sum(p[4] for p in phan if p[1] in nhanh)
+            phan_nhanh = [phan[i] for i in sorted(i for t in nhanh for i in vt_theo_to.get(t, ()))]
+            quy = sum(p[4] for p in phan_nhanh)
             if quy <= 0:
                 continue
             ty_le = _so(moc.ty_le) / 100.0
@@ -502,9 +635,8 @@ class KhoanKyService:
             if so:
                 # Phần tổ trưởng của TỪNG lần ghi — tính trên số TRƯỚC khi trích ở mốc này.
                 theo_lan: dict[int, float] = defaultdict(float)
-                for p in phan:
-                    if p[1] in nhanh:
-                        theo_lan[p[3]] += p[4] * ty_le
+                for p in phan_nhanh:
+                    theo_lan[p[3]] += p[4] * ty_le
                 for bid, t in theo_lan.items():
                     if bid in so_ban_ghi:
                         so_ban_ghi[bid]["to_truong"].append({"dep_id": dep_id, "emp": head, "che_do": moc.che_do,
@@ -512,13 +644,12 @@ class KhoanKyService:
                 so_tt.append({"dep_id": dep_id, "emp": head, "che_do": moc.che_do,
                               "ty_le": _so(moc.ty_le), "quy": quy, "tien": ty_le * quy})
             if moc.che_do == TO_TRUONG_CHIA:
-                for p in phan:
-                    if p[1] in nhanh:
-                        p[4] *= (1 - ty_le)
-                        lan = ct_lan.get((p[0], p[3]))
-                        if lan is not None:
-                            lan["tien"] = round(p[4])
-                            lan["to_truong"].append(_so(moc.ty_le))
+                for p in phan_nhanh:
+                    p[4] *= (1 - ty_le)
+                    lan = ct_lan.get((p[0], p[3]))
+                    if lan is not None:
+                        lan["tien"] = round(p[4])
+                        lan["to_truong"].append(_so(moc.ty_le))
             them_tt[head] += ty_le * quy
             chi_tiet[head].append({
                 "loai": "to_truong", "to": dep.name, "tien_lan_ghi": round(quy), "ty_le": ty_le,
@@ -534,20 +665,30 @@ class KhoanKyService:
             khoan[emp] += t
         # Ngăn soi cộng các dòng ĐÃ làm tròn, cột lương làm tròn TỔNG ⇒ lệch ±1đ. Dòng lớn nhất gánh
         # phần lệch để hai bên ra cùng một số.
-        for emp, ds in chi_tiet.items():
+        for emp, ds in (chi_tiet.items() if theo_nguoi else ()):
             _khop_lam_tron([x for x in ds if x["loai"] != "tang_ca_khoan"], khoan.get(emp, 0.0))
             _khop_lam_tron([x for x in ds if x["loai"] == "tang_ca_khoan"], tang_ca.get(emp, 0.0))
+        # --- Cộng thêm từng người: cộng thẳng vào lương, ngoài quỹ tổ và phép so ---------------
+        ct_rows = self.repo.cong_them(year, month)
+        cong_them: dict[int, float] = defaultdict(float)
+        for r in ct_rows:
+            if r.tien is not None:
+                cong_them[int(r.employee_id)] += _so(r.tien)
         ra = {
             "khoan": {e: round(v) for e, v in khoan.items() if round(v) != 0},
+            "cong_them": {e: round(v) for e, v in cong_them.items() if round(v) != 0},
             "tang_ca_khoan": {e: round(v) for e, v in tang_ca.items() if round(v) != 0},
             "thieu_gia": thieu,
             "canh_bao": canh_bao,
-            "theo_nguoi": dict(chi_tiet),
+            "theo_nguoi": dict(chi_tiet) if theo_nguoi else {},
         }
         if so:
             for p in phan:
                 if p[3] in so_ban_ghi:
                     so_ban_ghi[p[3]]["nguoi"][p[0]] = p[4]
             ra["so"] = {"lan_ghi": list(so_ban_ghi.values()), "dung_may": so_dm, "ngay": so_ngay,
-                        "to_truong": so_tt}
+                        "to_truong": so_tt,
+                        "cong_them": [{"to_id": int(r.department_id), "emp": int(r.employee_id),
+                                       "tien": None if r.tien is None else _so(r.tien), "ghi_chu": r.ghi_chu,
+                                       "sua_boi_id": r.sua_boi_id, "sua_luc": r.sua_luc} for r in ct_rows]}
         return ra

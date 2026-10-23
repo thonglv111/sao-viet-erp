@@ -86,7 +86,8 @@ def test_NGAN_SOI_lan_ghi_la_so_sau_trich_to_truong(nen):
 
 def test_XEM_quy_chia_nguoi_va_doi_chieu(nen):
     ra = xem(nen.db, _svc(nen.muc), NAM, THANG, nen.dan.id, None)
-    assert ra["quy"] == {"san_luong": 1_400_000, "dung_may": 0, "tang_ca": 200_000, "tong": 1_600_000}
+    assert ra["quy"] == {"san_luong": 1_400_000, "dong_tay": 0, "dung_may": 0, "tang_ca": 200_000,
+                         "tong": 1_600_000}
     hang = {h["emp_id"]: h for h in ra["nguoi"]}
     assert set(hang) == {nen.tt.id, nen.a.id, nen.b.id}
     assert (hang[nen.tt.id]["san_luong"], hang[nen.tt.id]["to_truong"], hang[nen.tt.id]["tang_ca"]) == \

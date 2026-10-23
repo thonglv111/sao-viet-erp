@@ -123,10 +123,12 @@ def evaluate_quote(
             if below or above:
                 triggers.append({"key": EXC_MARKUP_OUT, "label": _LABELS[EXC_MARKUP_OUT]})
 
-    def _ngoai_rao(disc: float, gross: float) -> bool:
-        d100 = float(disc) * 100
-        return (discount_min_pct is not None and d100 < discount_min_pct * gross) or (
-            discount_max_pct is not None and d100 > discount_max_pct * gross)
+    def _ngoai_rao(disc: float, gross: float, n: int = 1) -> bool:
+        # Tiền CK làm tròn tới đồng từng dòng (3% × 12.448.133 = 373.443,99 ⇒ 373.444) ⇒ chừa 1 đ mỗi
+        # dòng, không thì gõ đúng trần vẫn bị bắt trình duyệt.
+        d100, tol = float(disc) * 100, 100 * max(1, n)
+        return (discount_min_pct is not None and d100 < discount_min_pct * gross - tol) or (
+            discount_max_pct is not None and d100 > discount_max_pct * gross + tol)
 
     disc_pct = None
     if subtotal_gross and subtotal_gross > 0:
@@ -135,7 +137,7 @@ def evaluate_quote(
         # Chiết khấu gõ RIÊNG từng sản phẩm → rào soi từng sản phẩm: một dòng 40% không được lọt
         # chỉ vì bình quân cả đơn thấp. Nhãn nêu tên sản phẩm lệch rào.
         lech = [ln["ten"] for ln in discount_lines
-                if ln["gross"] > 0 and _ngoai_rao(ln["discount"], ln["gross"])]
+                if ln["gross"] > 0 and _ngoai_rao(ln["discount"], ln["gross"], ln.get("n", 1))]
         if lech:
             triggers.append({"key": EXC_DISCOUNT_OUT,
                              "label": f"{_LABELS[EXC_DISCOUNT_OUT]}: {', '.join(lech)}"})

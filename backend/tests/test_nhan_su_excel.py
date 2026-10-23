@@ -466,3 +466,25 @@ def test_nhap_can_quyen_them_va_sua(client):
         files={"file": ("x.xlsx", b"x", "application/octet-stream")},
     )
     assert r.status_code == 403
+
+
+def test_nhap_doi_luong_giu_bieu_hoa_hong_cua_moc_cu(client):
+    """File chỉ đổi lương ⇒ mốc mới CHÉP biểu hoa hồng của mốc cũ. Biểu khai ở modal có
+    `commission_pct = 0` nên shim % phẳng không cứu — thiếu là từ đó mọi đơn chụp biểu rỗng, hoa hồng 0."""
+    token = _token(client)
+    nv = _tao_nv(client, token, full_name="Có Biểu", phone="0900000077")
+    bieu = [{"den_ngay": 45, "pct": 0.03}, {"den_ngay": None, "pct": 0}]
+    r = client.post(f"/api/luong/salaries/{nv['id']}", headers=_h(token),
+                    json={"effective_from": "2026-01-01", "luong_vi_tri": 5_000_000, "bac_hoa_hong": bieu})
+    assert r.status_code == 201, r.text
+    wb = _tai_xuat(client, token)
+    ws = wb[SHEET]
+    cot = _cot(ws)
+    dong = next(r[0].row for r in ws.iter_rows(min_row=2) if r[cot["Mã"] - 1].value == nv["code"])
+    _dat(ws, dong, cot, "Lương cơ bản", 6_000_000)
+    kq = _nhap(client, token, wb, "commit").json()
+    assert kq["hop_le"] is True, kq["loi"]
+    ds = client.get(f"/api/luong/salaries/{nv['id']}", headers=_h(token)).json()["items"]
+    moi = max(ds, key=lambda s: (s["effective_from"], s["id"]))
+    assert float(moi["luong_vi_tri"]) == 6_000_000
+    assert moi["bac_hoa_hong"] == bieu

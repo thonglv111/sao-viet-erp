@@ -239,6 +239,7 @@ def _detail(
                     gia_go_tay=bool(item.gia_go_tay),
                     unit_price=float(item.unit_price),
                     discount_amount=float(item.discount_amount),
+                    discount_percent=QuotationService.pct_ck_dong(item),
                     ke_gia=float(item.ke_gia or 0),
                     gia_sau_ke=float(item.selling_price) + float(item.ke_gia or 0),
                     vat_percent=float(item.vat_percent),

@@ -686,6 +686,7 @@ Phiếu tính giá nguồn** (báo giá không soạn tay). Giá vốn đóng b�
 | `gia_go_tay` | `Boolean` | — | no | `false` | Giá bán do sale GÕ TAY, không theo markup (migration `0364`). Màn báo giá giữ trạng thái "Gõ tay" + nút "Về theo markup" sau khi tải lại; sửa markup dòng đó là về false. Tạo phiên bản mới chép theo. |
 | `unit_price` | `Numeric(15,2)` | — | no | `0` | Đơn giá bán /sp. |
 | `discount_amount` | `Numeric(15,2)` | — | no | `0` | Chiết khấu dòng. |
+| `discount_percent` | `Numeric(7,4)` | — | yes | — | % chiết khấu người soạn GÕ, trên giá bán trước kê (migration `0440`, 23/10/2026). > 0 ⇒ gõ tay giá bán, đổi markup, đổi vốn/SL thì CK chạy theo %; 0 ⇒ CK gõ số tiền, giữ nguyên tiền; NULL = dòng trước 0440, suy % từ `discount_amount ÷ selling_price`. Tạo phiên bản mới chép theo. |
 | `ke_gia` | `Numeric(15,2)` | — | no | `0` | KÊ GIÁ của dòng (20/10/2026): tiền cộng SAU giá bán, markup không nhân lên. Giá bán sau kê = `selling_price + ke_gia`; `unit_price`, `vat_amount`, `final_amount` tính trên số đó. Migration 0428. |
 | `vat_percent` | `Numeric(5,2)` | — | no | `0` | %VAT dòng. |
 | `vat_amount` | `Numeric(15,2)` | — | no | `0` | Tiền VAT dòng. |
@@ -757,7 +758,10 @@ data. Duyệt bản in + tiến độ SX = luồng NGOÀI hệ thống (không l
 | `is_rush` | `Boolean` → `BOOLEAN` | — | no | `false` | Đơn GẤP/ưu tiên — Sale bật để xưởng làm trước (chip đỏ + chảy xuống LSX). Migration 0076. |
 | `has_customer_paper` | `Boolean` → `BOOLEAN` | — | no | `false` | **DORMANT** (P1 thay bằng `order_nature` {hang_hoa, gia_cong}). |
 | `vat_pct_estimate` | `Integer` → `INTEGER` | — | no | `0` | VAT DỰ KIẾN (%) để ước tổng — chân lý ở InvoiceLine (⑬). |
-| `commission_pct` | `Numeric(6,4)` → `NUMERIC(6,4)` | — | no | `0` | **% HOA HỒNG của ĐƠN NÀY**. PHÂN SỐ (`0.05` = 5%), cùng quy ước `employee_salaries.commission_pct`. **CHỤP ẢNH lúc CHỐT đơn** từ mức đang hiệu lực của chính người sales (`_pct_hoa_hong_cua_sale`) — chụp chứ không đọc-sống, vì đổi % cho người ta từ tháng sau KHÔNG được sửa ngược hoa hồng đơn đã chốt tháng trước. `0` = đơn không có hoa hồng (mặc định). ⚠️ **KHÔNG phơi ra API/giao diện** — chỉ hệ thống ghi lúc chốt đơn. Cố ý: cho sale gõ % trên chính đơn mình bán là để người ta tự viết phiếu lương của mình; % chỉ khai được ở HỒ SƠ LƯƠNG do nhân sự đặt. Ra tiền ở `hoa_hong_service.py`: Σ hoá đơn `issued` trong kỳ × tỷ lệ TRƯỚC VAT × cột này. Thêm qua migration 0227. |
+| `commission_pct` | `Numeric(6,4)` → `NUMERIC(6,4)` | — | no | `0` | ⚠️ **DORMANT từ 23/10/2026 (mg 0439)** — engine thôi đọc, `confirm` thôi ghi; số cũ đã chuyển sang `bac_hoa_hong`. Trước đó: % hoa hồng phẳng chụp lúc chốt đơn. Thêm qua migration 0227. |
+| `bac_hoa_hong` | `JSON` | — | yes | — | **BIỂU BẬC hoa hồng theo SỐ NGÀY THU TIỀN** chụp lúc CHỐT đơn từ `employee_salaries.bac_hoa_hong` của người phụ trách (`_bac_hoa_hong_cua_sale`) — tiền đã hứa thì không sửa ngược. `[{"den_ngay": 45, "pct": 0.03}, …, {"den_ngay": null, "pct": 0}]`, bậc cuối vô hạn. NULL = đơn không có hoa hồng. ⚠️ KHÔNG phơi ra API đơn hàng. Engine: `hoa_hong_service.py` (mốc = dòng phiếu thu). Migration 0439 (backfill từ `commission_pct > 0`). Rỗng = SQL NULL thật (mg 0441). |
+| `hh_rieng_pct` | `Numeric(6,4)` → `NUMERIC(6,4)` | — | yes | — | **% HOA HỒNG RIÊNG của đơn** (đơn Wipro 1%; `0` = loại tay) — THẮNG biểu. PHÂN SỐ. Chỉ người có ô `luong:update` đặt qua `PUT /api/luong/don/{id}/hoa-hong-rieng`, ghi nhật ký. NULL = theo biểu. Migration 0439. |
+| `hh_rieng_ly_do` | `String(255)` → `VARCHAR(255)` | — | yes | — | Lý do đặt `hh_rieng_pct` (bắt buộc khi có %). Migration 0439. |
 | `cancel_reason` | `String(500)` → `VARCHAR(500)` | — | yes | — | Set only when status=cancelled (F8). |
 | `cancelled_at_state` | `String(16)` → `VARCHAR(16)` | — | yes | — | **DORMANT** (P1 dùng `cancel_fault` + lý do hủy). |
 | `created_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | no | now (UTC) | When the order row was created. |
@@ -2922,6 +2926,77 @@ ca máy. Tiền này không vào quỹ so chỉ tiêu (tăng ca khoán) và khô
 
 ---
 
+### `khoan_lan_ghi_tay`
+
+**Purpose:** Kế toán lương sửa tay MỘT lần ghi sản lượng ở màn Khoán theo tổ (23/10/2026, mockup
+`docs/mockups/ke-toan-dieu-chinh-khoan-excel.html`): tiền gõ tay thay tiền máy + ghi chú. Bảng do `create_all` tạo.
+
+| Column       | Type            | Key                               | Null | Default | Meaning |
+| ------------ | --------------- | --------------------------------- | ---- | ------- | ------- |
+| `id`         | `Integer`       | **PK**                            | no   | auto    | PK. |
+| `batch_id`   | `Integer`       | **FK→san_xuat_batch.id**, **U**   | no   | —       | Lần ghi được sửa (CASCADE) — một lần ghi tối đa một dòng. |
+| `tien`       | `Numeric(14,2)` | —                                 | yes  | —       | Tiền kế toán gõ, thay tiền máy (gồm phát sinh) rồi chạy tiếp luật ngày / tổ trưởng / tăng ca khoán. NULL = không đè, chỉ có ghi chú. |
+| `ghi_chu`    | `Text`          | —                                 | yes  | —       | Ghi chú của kế toán cho dòng. |
+| `sua_boi_id` | `Integer`       | soft→users.id                     | yes  | —       | Người gõ. KHÔNG FK: xoá tài khoản không cuốn theo tiền lương đã sửa. |
+| `sua_luc`    | `DateTime(tz)`  | —                                 | no   | now     | Lúc gõ gần nhất. |
+
+**Keys & indexes**
+
+- Primary key: `id`. Foreign key: `batch_id FK→san_xuat_batch.id` (CASCADE). Unique: `batch_id`.
+
+---
+
+### `khoan_dong_tay`
+
+**Purpose:** DÒNG TAY kế toán chèn vào sổ sản lượng của một tổ một kỳ, không gắn lệnh (vd việc trả theo giờ tổ
+Thành phẩm, 23/10/2026). Vào quỹ tổ, chia theo lương ca máy của `nguoi_ids`, có trích tổ trưởng; không áp hệ số
+ngày CN/lễ, không vào quỹ so chỉ tiêu ngày. Bảng do `create_all` tạo.
+
+| Column          | Type            | Key                           | Null | Default | Meaning |
+| --------------- | --------------- | ----------------------------- | ---- | ------- | ------- |
+| `id`            | `Integer`       | **PK**                        | no   | auto    | PK. |
+| `nam`           | `Integer`       | —                             | no   | —       | Năm kỳ lương. |
+| `thang`         | `Integer`       | —                             | no   | —       | Tháng kỳ lương. |
+| `department_id` | `Integer`       | **FK→departments.id**, **IX** | no   | —       | Tổ có dòng (CASCADE). |
+| `ngay`          | `Date`          | —                             | no   | —       | Ngày của dòng (trong kỳ). |
+| `noi_dung`      | `Text`          | —                             | no   | `""`    | Nội dung kế toán gõ. |
+| `tien`          | `Numeric(14,2)` | —                             | no   | `0`     | Tiền của dòng. |
+| `nguoi_ids`     | `JSON`          | —                             | no   | `[]`    | `employees.id` tham gia (mặc định cả tổ). |
+| `ghi_chu`       | `Text`          | —                             | yes  | —       | Ghi chú của kế toán. |
+| `sua_boi_id`    | `Integer`       | soft→users.id                 | yes  | —       | Người gõ (không FK, như `khoan_lan_ghi_tay`). |
+| `sua_luc`       | `DateTime(tz)`  | —                             | no   | now     | Lúc gõ gần nhất. |
+
+**Keys & indexes**
+
+- Primary key: `id`. Foreign key: `department_id FK→departments.id` (CASCADE). Index: `ix_khoan_dong_tay_department_id`.
+
+---
+
+### `khoan_cong_them`
+
+**Purpose:** CỘNG THÊM ± của một người ở một tổ một kỳ, kế toán gõ ở bảng Chia cho người màn Khoán theo tổ
+(23/10/2026). Cộng thẳng vào lương ngoài phép so 2 lương (`payroll_lines.khoan_cong_them`), không vào quỹ tổ,
+không trích tổ trưởng. Bảng do `create_all` tạo.
+
+| Column          | Type            | Key                                              | Null | Default | Meaning |
+| --------------- | --------------- | ------------------------------------------------ | ---- | ------- | ------- |
+| `id`            | `Integer`       | **PK**                                           | no   | auto    | PK. |
+| `nam`           | `Integer`       | **U(nam, thang, department_id, employee_id)**    | no   | —       | Năm kỳ lương. |
+| `thang`         | `Integer`       | —                                                | no   | —       | Tháng kỳ lương. |
+| `department_id` | `Integer`       | **FK→departments.id**                            | no   | —       | Tổ (CASCADE). |
+| `employee_id`   | `Integer`       | **FK→employees.id**                              | no   | —       | Người được cộng/trừ (CASCADE). |
+| `tien`          | `Numeric(14,2)` | —                                                | yes  | —       | Tiền ± . NULL = chỉ có ghi chú. |
+| `ghi_chu`       | `Text`          | —                                                | yes  | —       | Ghi chú của kế toán. |
+| `sua_boi_id`    | `Integer`       | soft→users.id                                    | yes  | —       | Người gõ (không FK). |
+| `sua_luc`       | `DateTime(tz)`  | —                                                | no   | now     | Lúc gõ gần nhất. |
+
+**Keys & indexes**
+
+- Primary key: `id`. Foreign keys: `department_id FK→departments.id` (CASCADE), `employee_id FK→employees.id` (CASCADE).
+- Unique: `(nam, thang, department_id, employee_id)` — `uq_khoan_cong_them`.
+
+---
+
 ### `khoan_to_truong`
 
 **Purpose:** TỔ TRƯỞNG của tổ khoán ăn THƯỞNG hay ăn CHIA theo sản lượng tổ (chủ 19/09/2026). Ví dụ 5%, tổ
@@ -2986,7 +3061,8 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `union_member` | `Boolean` | —                           | no   | `false` | Cờ **"đoàn viên công đoàn"** — CHỈ đoàn viên mới bị trừ đoàn phí công đoàn (`payroll_params.cong_doan_rate`). Mặc định false = opt-in. Thêm qua migration 0097. |
 | `an_cong_nhat` | `Boolean` | —                           | yes  | —       | **"Cách trả lương"** (22/10/2026) — `true` = công nhật: người ở tổ khối Sản xuất / Giao hàng KHÔNG tính 2 lương, lương theo công + tăng ca theo giờ như tổ thường; vẫn được tick vào lần ghi, đứng trong tỷ lệ chia, nhưng phần tiền khoán / tăng ca khoán / km về 0 (không dồn sang người khác). `false` = lương khoán (so hai lương), kể cả người thử việc. NULL = chưa chọn ⇒ theo trạng thái: thử việc = công nhật, chính thức = lương khoán. Theo mốc hiệu lực. Thêm qua migration 0436. |
 | `apply_self_deduction` | `Boolean` | —                  | no   | `true`  | Có áp **GIẢM TRỪ BẢN THÂN** khi tính TNCN không. Người làm 2 nơi chỉ được đăng ký giảm trừ bản thân ở MỘT nơi — bỏ tích ở nơi còn lại. Mặc định BẬT (đại đa số chỉ làm một nơi; tắt là ngoại lệ). Giảm trừ NGƯỜI PHỤ THUỘC không đụng cờ này (theo `employees.dependents_count`). Thêm qua migration 0119. |
-| `commission_pct` | `Numeric(6,4)` | —                  | no   | `0`     | **% HOA HỒNG** của nhân viên kinh doanh. PHÂN SỐ: `0.05` = 5%, đúng quy ước `cong_doan_rate`/`phat_cap_pct`. `0` = không hưởng (mặc định). Để ở bảng NÀY chứ không ở `employees` là có chủ đích: bảng này versioned theo `effective_from` ⇒ đổi % từ tháng sau thì kỳ tháng trước tính lại vẫn ra số cũ. Cột này là NGUỒN CHỤP: lúc CHỐT đơn, `_pct_hoa_hong_cua_sale` đọc mức đang hiệu lực rồi ghi vào `orders.commission_pct`; engine lương KHÔNG đọc thẳng cột này nữa (mg 0227). Đổi % ở đây chỉ ăn vào đơn chốt TỪ ĐÓ TRỞ ĐI. Thêm qua migration 0128. |
+| `commission_pct` | `Numeric(6,4)` | —                  | no   | `0`     | ⚠️ **DORMANT từ 23/10/2026 (mg 0439)** — thay bằng `bac_hoa_hong`; engine không đọc. API vẫn nhận/lưu cho tương thích, và `create_salary` còn đọc nó làm shim: % phẳng gửi tới mà không kèm biểu thì đổi thành biểu một bậc vô hạn (EmployeeWizard, nhập Excel lương). Trước đó: % hoa hồng phẳng, nguồn chụp sang `orders.commission_pct`. Thêm qua migration 0128. |
+| `bac_hoa_hong` | `JSON` | —                  | yes  | —       | **BIỂU BẬC hoa hồng theo SỐ NGÀY THU TIỀN** (mg 0439, 23/10/2026): `[{"den_ngay": 45, "pct": 0.03}, …, {"den_ngay": null, "pct": 0}]`, `den_ngay` tăng dần, bậc cuối vô hạn, `pct` PHÂN SỐ (kiểm ở `bac_hoa_hong.chuan_hoa_bac`). NULL = không hưởng. Versioned theo `effective_from`; lúc CHỐT đơn chụp sang `orders.bac_hoa_hong`. Backfill từ `commission_pct > 0`. Rỗng = SQL NULL thật (`JSON(none_as_null=True)`, mg 0441 dọn JSON `'null'` cũ). |
 | `note`           | `String(255)`   | —                           | yes  | —       | Ghi chú.                             |
 | `created_by`     | `Integer`       | **FK→users.id**             | yes  | —       | Người khai/điều chỉnh.               |
 | `created_at`     | `DateTime(tz)`  | —                           | no   | now     | Khi tạo.                             |
@@ -3083,7 +3159,9 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `khoan_km` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | `0` | **Khoán km giao hàng** (mg 0231; cột vá lại ở 0232 cho DB đã chạy 0231 trước khi phần này thêm vào) — tiền theo km chuyến giao trong kỳ, CỘNG THÊM lên lương chấm công (tài xế ăn cả hai). Là **CỘT** chứ không phải khoản danh mục: tiền engine tự tính thì đứng cùng nhà với `khoan`/`ot_pay`/`chuyen_can`. Nhét vào *Danh mục khoản thu nhập* là đặt công tắc hệ thống ngay cạnh nút xoá của HCNS — lỗi đã mắc với hoa hồng, sửa 24/08/2026. KHÔNG sửa tay được; sai km thì sửa ở chuyến giao rồi tính lại. |
 | `ve_thoi_gian` | `Numeric(14,2)` | — | yes | — | **CHỤP vế thời gian** đã đem so (mg 0429, 21/10/2026) = bù lỗ theo công + tiền giờ tăng ca + phụ cấp tăng ca đêm — để ngăn "so 2 lương" hiện cả bên không lấy. `NULL` như `bu_lo_theo_cong` (dòng không tính 2 lương, kỳ cũ). |
 | `tang_ca_khoan` | `Numeric(14,2)` | — | no | `0` | **Tăng ca khoán** (mg 0429, 21/10/2026) — 50% phần tiền sản lượng của TỔ vượt chỉ tiêu ngày, chia cho người làm hôm đó. Thuộc VẾ KHOÁN của phép so 2 lương, cộng vào gross. Cột riêng, không nhét vào `khoan` / `ot_pay`; người ăn vế thời gian = 0. |
+| `khoan_cong_them` | `Numeric(14,2)` | — | no | `0` | **Cộng thêm khoán** (mg 0438, 23/10/2026) — tổng cột Cộng thêm kế toán gõ ở màn Khoán theo tổ (`khoan_cong_them`), cộng vào gross NGOÀI phép so 2 lương, ăn vế nào cũng có. |
 | `hoa_hong` | `Numeric(14,2)` → `NUMERIC(14,2)` | — | no | `0` | **Hoa hồng kinh doanh** (mg 0269, 07/09/2026) — hệ tự tính theo hoá đơn bán trong kỳ (`HoaHongService`), % chụp trên đơn lúc chốt. Là CỘT (chủ: "nó là một dạng lương"), KHÔNG còn là dòng khoản danh mục nguồn `auto` (mg 0227): mg 0269 đã chuyển tiền dòng `auto` cũ vào đây rồi xoá dòng, xoá luôn dòng danh mục `hoa_hong_kd` và tàn dư `khoan_km_gh`. CỘNG THÊM vào `gross`, luôn chịu TNCN, không sửa tay (cần thêm/bớt thì dùng khoản "Thu nhập khác"). Cả `generate` lẫn `update_line` đều cộng cột này — trước 07/09 "Sửa 1 ô" bỏ sót nguồn `auto` nên hoa hồng bốc hơi. |
+| `co_hoa_hong` | `Boolean` → `BOOLEAN` | — | no | `false` | Kỳ này người này CÓ lần thu làm nên hoa hồng (migration `0442`, 24/10/2026) — kể cả khi tổng âm (CK lớn hơn tiền về) nên `hoa_hong` kẹp 0. `generate` ghi theo `HoaHongService.tong_ky_map`; màn bảng lương dựa cờ này cho bấm ô Hoa hồng mở ngăn soi. |
 | `ot_minutes` | `Integer` | — | no | `0` | Tổng phút tăng ca (từ Chấm công). Thêm qua migration 0043. |
 | `ot_pay` | `Numeric(14,2)` | — | no | `0` | Tiền tăng ca (hệ số phẳng). Thêm qua migration 0043. |
 | `night_days` | `Integer` | — | no | `0` | Số ngày làm ca đêm (từ Chấm công) — chỉ để tham khảo, KHÔNG ra tiền. Thêm qua migration 0043. |

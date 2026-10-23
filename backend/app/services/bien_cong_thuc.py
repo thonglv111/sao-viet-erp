@@ -197,7 +197,9 @@ _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      "ô Số lượng của lần ghi sản lượng", (LOAI_KHOAN,)),
     ("gia_co_dinh", "Giá cố định", "Giá cố định của tổ ghi (vd giá một bài in)", "đ",
      "Giá cố định chung hoặc bảng Giá theo tổ — ảnh chụp lúc ghi", (LOAI_KHOAN,)),
-    ("so_lan_chay", "Số lần chạy",
+    # 23/10/2026 chủ đổi tên "Số lần chạy" → "Số lần ghi sản lượng" (đúng cái máy đếm); mã giữ nguyên
+    # vì công thức đã chụp vào lần ghi (mg 0431) đang trỏ `so_lan_chay`.
+    ("so_lan_chay", "Số lần ghi sản lượng",
      "Số lần ghi của cùng lệnh ở cùng công đoạn tính tới cuối kỳ lương, tối thiểu 1", "lần",
      "đếm lần ghi lúc tính lương", (LOAI_KHOAN,)),
     ("tien_gio", "Tiền giờ",

@@ -252,6 +252,7 @@ def cot_bang_luong(lines, nhan_vien: dict, *, bh_tach, ty_le_thu_viec: float = 1
         # Hai loại tăng ca RẠCH RÒI (chủ dặn 20/10/2026) — không bao giờ cùng có số trên một người.
         Cot("Tăng ca theo giờ", "thu", lambda ln, nv, ctx: _tien_gio_tang_ca(ln)),
         Cot("Tăng ca khoán", "thu", lambda ln, nv, ctx: _f(getattr(ln, "tang_ca_khoan", 0))),
+        Cot("Cộng thêm khoán", "thu", lambda ln, nv, ctx: _f(getattr(ln, "khoan_cong_them", 0))),
         # Bảng công ty gộp lương kinh doanh (hoa hồng) và sản lượng vào một cột. Tháng lấy bù lỗ thì tiền
         # khoán / km đã nằm trong "Lương thời gian".
         Cot("Lương kinh doanh/Sản lượng", "thu", lambda ln, nv, ctx: _f(getattr(ln, "hoa_hong", 0)) + (

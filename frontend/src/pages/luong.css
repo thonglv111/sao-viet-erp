@@ -2526,6 +2526,37 @@
 
 /* ── Bảng đối chiếu khoán km (mg 0231) ────────────────────────────────────────────────────
    Popup HCNS bấm vào cột "Khoán km" để soi từng chuyến. Chỉ xem, không sửa. */
+/* Ô đặt % hoa hồng riêng của đơn trong ngăn soi hoa hồng (23/10/2026). */
+/* `.ns__tablewrap` gốc là overflow:hidden — bảng soi hoa hồng 11 cột rộng hơn ngăn nên phải cho cuộn
+   ngang, không thì cột "Đặt % riêng" bị cắt mất, không ai bấm tới. */
+.ns__tablewrap.lg-soihh {
+  overflow-x: auto;
+}
+.lg-hhrieng {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin: 4px 0;
+  /* Bảng rộng hơn ngăn ⇒ phải cuộn ngang mới tới nút "Đặt % riêng" ở cột cuối; ô bám mép trái
+     KHUNG NHÌN chứ không bám mép trái bảng, không thì mở ra nằm khuất bên trái. */
+  position: sticky;
+  left: 8px;
+  max-width: 680px;
+}
+.lg-hhrieng > .cc-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.lg-hhrieng label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.lg-hhrieng .rc-input--num {
+  width: 90px;
+}
 .lg-soikm__ky {
   font-weight: 400;
   font-size: 13px;

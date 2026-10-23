@@ -5110,6 +5110,9 @@ export interface QuoteItemDetail {
   gia_go_tay: boolean;
   unit_price: number;
   discount_amount: number;
+  /** % chiết khấu người soạn GÕ (trên giá bán trước kê). > 0 ⇒ gõ tay giá / đổi markup thì CK chạy theo %;
+   *  0 ⇒ CK gõ số tiền, giữ tiền. Dòng cũ (trước 23/10/2026) máy chủ suy % từ tiền ÷ giá bán. */
+  discount_percent?: number | null;
   /** Kê giá (20/10/2026): cộng SAU giá bán; `gia_sau_ke = selling_price + ke_gia`, VAT tính trên số này. */
   ke_gia: number;
   gia_sau_ke: number;
@@ -6221,8 +6224,10 @@ export interface EmployeeSalary {
   /** Có áp giảm trừ bản thân khi tính TNCN không. Mặc định BẬT; tắt khi người này đã đăng ký
    *  giảm trừ bản thân ở nơi làm việc khác (luật cho đăng ký ở ĐÚNG MỘT nơi). */
   apply_self_deduction?: boolean;
-  /** % hoa hồng NV kinh doanh — PHÂN SỐ (0.05 = 5%). Chỉ để khai, engine không tự cộng. */
+  /** % hoa hồng phẳng cũ — DORMANT từ 23/10/2026, thay bằng `bac_hoa_hong`. */
   commission_pct?: number;
+  /** Biểu bậc hoa hồng theo số ngày thu tiền; `pct` PHÂN SỐ, bậc cuối `den_ngay: null`. */
+  bac_hoa_hong?: { den_ngay: number | null; pct: number }[] | null;
   note: string | null;
   created_at: string;
   created_by?: number | null;
@@ -6257,8 +6262,10 @@ export interface EmployeeSalaryInput {
   /** Áp giảm trừ bản thân khi tính TNCN (mặc định true). Bỏ tích khi người này đã đăng ký
    *  giảm trừ bản thân ở nơi làm việc khác. */
   apply_self_deduction?: boolean;
-  /** % hoa hồng NV kinh doanh — PHÂN SỐ (0.05 = 5%), backend chặn `le=1`. */
+  /** % hoa hồng phẳng cũ — DORMANT từ 23/10/2026, thay bằng `bac_hoa_hong`. */
   commission_pct?: number;
+  /** Biểu bậc hoa hồng theo số ngày thu tiền; `pct` PHÂN SỐ, bậc cuối `den_ngay: null`. Rỗng = null. */
+  bac_hoa_hong?: { den_ngay: number | null; pct: number }[] | null;
   note?: string | null;
 }
 export interface EmployeeSalaries {
@@ -6404,6 +6411,8 @@ export interface PayrollLine {
   ve_thoi_gian?: number | null;
   /** Tăng ca khoán (21/10/2026) — 50% phần tổ vượt chỉ tiêu ngày, thuộc vế khoán. */
   tang_ca_khoan?: number;
+  /** Cộng thêm khoán kế toán gõ ở Khoán theo tổ (23/10/2026) — cộng thẳng vào lương, ngoài phép so. */
+  khoan_cong_them?: number;
   /** true = khoán thấp hơn bù lỗ theo công, tháng này đang trả bù lỗ. */
   lay_bu_lo?: boolean;
   /** Công ngày lễ nghỉ hưởng lương của người ăn khoán / tài xế — trả RIÊNG, ngoài khoán, CÓ trong
@@ -6435,6 +6444,8 @@ export interface PayrollLine {
   khoan_km?: number;
   /** Hoa hồng KD — cột riêng (07/09/2026), máy tự tính theo hoá đơn, cộng thẳng vào gross, chịu thuế. */
   hoa_hong?: number;
+  /** Kỳ này có lần thu tiền nào làm nên hoa hồng (kể cả khi tổng âm, kẹp về 0) ⇒ ô bấm soi được. */
+  co_hoa_hong?: boolean;
   ot_minutes: number;
   ot_pay: number;
   night_days: number;
@@ -6752,6 +6763,36 @@ export interface KhoanKmChiTiet {
   tong: number;
 }
 
+/** Một lần thu tiền làm nên hoa hồng của một dòng lương (23/10/2026). */
+export interface HoaHongKhoan {
+  receipt_id: number;
+  so_phieu: string | null;
+  order_id: number;
+  order_no: string | null;
+  invoice_no: string | null;
+  /** Hoá đơn đã huỷ (khách trả rồi mới huỷ) ⇒ gốc tính như cọc, theo tỷ lệ của đơn. */
+  hoa_don_huy?: boolean;
+  /** null = tiền cọc chưa có hoá đơn (số ngày = 0). */
+  ngay_hoa_don: string | null;
+  ngay_thu: string;
+  so_ngay: number;
+  tien_thu: number;
+  /** Trước VAT, đã trừ CK + kê theo tỷ lệ tiền thu. */
+  goc: number;
+  /** PHÂN SỐ (0,03 = 3%). */
+  pct: number;
+  /** % riêng của đơn thắng biểu. */
+  pct_rieng: boolean;
+  /** Lý do của % riêng — điền sẵn khi mở ô sửa. */
+  ly_do_rieng?: string | null;
+  tien: number;
+}
+
+export interface HoaHongChiTiet {
+  items: HoaHongKhoan[];
+  tong: number;
+}
+
 /** Một dòng làm nên tiền khoán của một người (21/10/2026). */
 export interface KhoanKyDong {
   loai: "lan_ghi" | "tang_ca_khoan" | "to_truong" | "dung_may";
@@ -6796,11 +6837,26 @@ export interface KttNguoiLan {
 }
 export interface KttToTruongLan { ten: string; che_do: "chia" | "thuong"; ty_le: number; tien: number }
 export interface KttLanGhi {
-  batch_id: number;
+  /** null với dòng tay. */
+  batch_id: number | null;
+  /** "dong_tay" = dòng kế toán chèn vào sổ, không gắn lệnh (23/10/2026). */
+  loai: "lan_ghi" | "dong_tay";
+  dong_tay_id: number | null;
+  noi_dung: string | null;
+  nguoi_ids: number[];
+  /** Dòng tay chưa chia được (người chưa có lương ca máy…). */
+  loi: string | null;
+  /** Số máy tính khi kế toán đã gõ đè tiền; null = chưa đè. */
+  tien_may: number | null;
+  /** true = tiền do kế toán gõ (đè số máy, hoặc dòng tay). */
+  tay: boolean;
+  ghi_chu_tay: string | null;
+  sua_boi: string | null;
+  sua_luc: string | null;
   ngay: string;
   to_id: number | null;
   to_ten: string | null;
-  nguon_loai: "lsx" | "bai_ghep";
+  nguon_loai: "lsx" | "bai_ghep" | "dong_tay";
   nguon_id: number | null;
   lenh_ma: string;
   lenh_ten: string;
@@ -6845,6 +6901,11 @@ export interface KttNguoi {
   chuan_cong: number | null;
   an: "khoan" | "bu_lo" | null;
   luong_chinh: number | null;
+  /** Cộng thêm kế toán gõ — ngoài phép so, không vào quỹ tổ. */
+  cong_them: number | null;
+  cong_them_ghi_chu: string | null;
+  cong_them_sua_boi: string | null;
+  cong_them_sua_luc: string | null;
 }
 export interface KhoanTheoTo {
   year: number;
@@ -6855,7 +6916,7 @@ export interface KhoanTheoTo {
   la_to_in: boolean;
   co_bang_luong: boolean;
   to_truong: { emp_id: number; ten: string; che_do: "chia" | "thuong"; ty_le: number; tien: number } | null;
-  quy: { san_luong: number; dung_may: number; tang_ca: number; tong: number } | null;
+  quy: { san_luong: number; dong_tay: number; dung_may: number; tang_ca: number; tong: number } | null;
   nguoi: KttNguoi[];
   doi_chieu: {
     quy: number; tang_ca: number; to_truong_thuong: number; cong_nhat: number; nguoi_to_khac: number;
@@ -6865,6 +6926,22 @@ export interface KhoanTheoTo {
   khac: KttLanGhi[];
   dung_may: { ngay: string; ly_do: string | null; sua_chua: string | null; ghi_chu: string | null; tien: number; nguoi: KttNguoiLan[] }[];
   ngay: { ngay: string; quy: number; chi_tieu: number; tang_ca: number }[];
+  /** Người của tổ (có lương ca máy) cho ô chọn người tham gia dòng tay. */
+  thanh_vien: { emp_id: number; ten: string }[];
+  /** Kỳ lương đã chốt / đã chi. */
+  khoa: boolean;
+  /** Có quyền sửa lương và kỳ chưa chốt ⇒ gõ tay được. */
+  sua_duoc: boolean;
+}
+export interface KttDongTayIn {
+  year: number;
+  month: number;
+  to_id: number;
+  ngay: string;
+  noi_dung?: string | null;
+  tien?: number;
+  nguoi_ids: number[];
+  ghi_chu?: string | null;
 }
 
 export interface LineComponentInput {
@@ -14026,6 +14103,11 @@ export const api = {
     salaryPreview(token: string, employeeId: number): Promise<SalaryPreview> {
       return authed<SalaryPreview>(`/api/luong/salaries/${employeeId}/preview`, token);
     },
+    /** Xem trước lương của nhiều NV một request — NV không có / ngoài phạm vi thì vắng trong items. */
+    salaryPreviews(token: string, employeeIds: number[]): Promise<{ items: SalaryPreview[] }> {
+      return authed<{ items: SalaryPreview[] }>(
+        `/api/luong/salaries/previews?ids=${employeeIds.join(",")}`, token);
+    },
     setSalary(token: string, employeeId: number, input: EmployeeSalaryInput): Promise<EmployeeSalary> {
       return authed<EmployeeSalary>(`/api/luong/salaries/${employeeId}`, token, { method: "POST", body: JSON.stringify(input) });
     },
@@ -14132,6 +14214,21 @@ export const api = {
     chiTietKhoanKm(token: string, lineId: number): Promise<KhoanKmChiTiet> {
       return authed<KhoanKmChiTiet>(`/api/luong/lines/${lineId}/khoan-km`, token);
     },
+    /** Từng lần thu tiền làm nên hoa hồng của một dòng lương. `tong` PHẢI khớp cột "Hoa hồng". */
+    chiTietHoaHong(token: string, lineId: number): Promise<HoaHongChiTiet> {
+      return authed<HoaHongChiTiet>(`/api/luong/lines/${lineId}/hoa-hong`, token);
+    },
+    /** % hoa hồng riêng của đơn (phân số), thắng biểu. `pct = null` = bỏ, quay về biểu. */
+    datHoaHongRieng(
+      token: string,
+      orderId: number,
+      body: { pct: number | null; ly_do: string | null },
+    ): Promise<{ order_id: number; pct: number | null; ly_do: string | null }> {
+      return authed(`/api/luong/don/${orderId}/hoa-hong-rieng`, token, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+    },
     /** Từng lần ghi sản lượng / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của một dòng. */
     chiTietKhoanKy(token: string, lineId: number): Promise<KhoanKyChiTiet> {
       return authed<KhoanKyChiTiet>(`/api/luong/lines/${lineId}/khoan-ky`, token);
@@ -14141,6 +14238,24 @@ export const api = {
       const q = new URLSearchParams({ year: String(year), month: String(month) });
       if (toId) q.set("to_id", String(toId));
       return authed<KhoanTheoTo>(`/api/luong/khoan-theo-to?${q}`, token);
+    },
+    /** Kế toán gõ tay tiền / ghi chú một lần ghi. `tien: null` = trả về số máy. Trường không gửi = giữ. */
+    suaLanGhiKhoan(token: string, batchId: number, body: { tien?: number | null; ghi_chu?: string | null }): Promise<void> {
+      return authed<void>(`/api/luong/khoan-theo-to/lan-ghi/${batchId}`, token, { method: "PUT", body: JSON.stringify(body) });
+    },
+    themDongTayKhoan(token: string, body: KttDongTayIn): Promise<{ id: number }> {
+      return authed<{ id: number }>("/api/luong/khoan-theo-to/dong-tay", token, { method: "POST", body: JSON.stringify(body) });
+    },
+    suaDongTayKhoan(token: string, id: number, body: Partial<Omit<KttDongTayIn, "year" | "month" | "to_id">>): Promise<void> {
+      return authed<void>(`/api/luong/khoan-theo-to/dong-tay/${id}`, token, { method: "PATCH", body: JSON.stringify(body) });
+    },
+    xoaDongTayKhoan(token: string, id: number): Promise<void> {
+      return authed<void>(`/api/luong/khoan-theo-to/dong-tay/${id}`, token, { method: "DELETE" });
+    },
+    /** Cộng thêm một người ở một tổ. `tien: null` hoặc 0 = bỏ số. */
+    suaCongThemKhoan(token: string, body: { year: number; month: number; to_id: number; emp_id: number;
+      tien?: number | null; ghi_chu?: string | null }): Promise<void> {
+      return authed<void>("/api/luong/khoan-theo-to/cong-them", token, { method: "PUT", body: JSON.stringify(body) });
     },
     addLineComponent(token: string, lineId: number, input: LineComponentInput): Promise<LineComponent> {
       return authed<LineComponent>(`/api/luong/lines/${lineId}/components`, token, { method: "POST", body: JSON.stringify(input) });

@@ -343,16 +343,28 @@ class QuotationService:
             for tp in tps
         )
 
+    @staticmethod
+    def pct_ck_dong(it) -> float:
+        """% chiết khấu của một dòng (trên giá bán trước kê); 0 = chiết khấu gõ số tiền. MỘT chỗ hiểu
+        cho cả API trả ra màn và `_gia_dong`: dòng trước mg 0440 (NULL) không biết gõ % hay tiền ⇒ suy %
+        từ tiền ÷ giá bán."""
+        luu = getattr(it, "discount_percent", None)
+        if luu is not None:
+            return float(luu)
+        cu = float(it.selling_price or 0)
+        return (float(it.discount_amount or 0) / cu * 100) if cu > 0 else 0.0
+
     def _gia_dong(self, it: QuoteItem, *, cost: float, qty: int) -> None:
-        """Tính lại tiền một dòng với giá vốn / SL mới, GIỮ ý người soạn: % chiết khấu (trên giá vốn),
+        """Tính lại tiền một dòng với giá vốn / SL mới, GIỮ ý người soạn: % chiết khấu (trên giá bán trước kê),
         % lợi nhuận (trên vốn + chiết khấu), giá bán GÕ TAY (giữ nguyên số đã gõ), VAT, SỐ TIỀN kê."""
         cu = float(it.selling_price or 0)
-        von_cu = float(it.total_cost_snapshot or 0)
-        pct_ck = (float(it.discount_amount or 0) / von_cu * 100) if von_cu > 0 else 0.0
+        pct_ck = QuotationService.pct_ck_dong(it)
+        tien_ck = float(it.discount_amount or 0) if pct_ck <= 0 else 0.0   # gõ số tiền ⇒ giữ tiền
         p = self.calculate_pricing(
             total_cost=cost, margin_percent=float(it.margin_percent or 0),
             manual_selling_price=cu if it.gia_go_tay else None,
-            discount_percent=pct_ck, vat_percent=float(it.vat_percent or 0), quantity=qty,
+            discount_amount=tien_ck, discount_percent=pct_ck,
+            vat_percent=float(it.vat_percent or 0), quantity=qty,
             ke_gia=float(it.ke_gia or 0),
         )
         it.quantity = qty
@@ -475,6 +487,7 @@ class QuotationService:
                 gia_go_tay=item.gia_go_tay,
                 unit_price=item.unit_price,
                 discount_amount=item.discount_amount,
+                discount_percent=item.discount_percent,
                 ke_gia=item.ke_gia,
                 vat_percent=item.vat_percent,
                 vat_amount=item.vat_amount,
@@ -500,44 +513,62 @@ class QuotationService:
     ) -> dict[str, Any]:
         """Giá bán = giá vốn + tiền chiết khấu + tiền lợi nhuận (chủ chốt 18/10/2026).
 
-        - Tiền chiết khấu = `discount_percent` × giá vốn, hoặc số tiền `discount_amount` gõ thẳng
-          (số tiền > 0 thắng). CỘNG vào giá bán — khách trả đủ, khoản này sau đó hoàn lại cho khách.
+        - Tiền chiết khấu = `discount_percent` × GIÁ BÁN TRƯỚC KÊ (chủ chốt 23/10/2026, đúng sổ DS BÁN
+          RA cột T `=(O−Q)*N*R`), hoặc số tiền `discount_amount` gõ thẳng (số tiền > 0 thắng). CỘNG vào
+          giá bán — khách trả đủ, khoản này sau đó hoàn lại cho khách.
         - Tiền lợi nhuận = `margin_percent` × (giá vốn + chiết khấu), hoặc `profit_amount` gõ thẳng.
-        - Giá bán gõ tay (`manual_*`) thắng cả hai: chiết khấu giữ nguyên, lợi nhuận là phần còn lại.
+          CK theo % mà giá bán lại gồm CK ⇒ giải kín: giá bán = vốn × (1 + m) ÷ (1 − p × (1 + m))
+          (lợi nhuận số tiền: (vốn + LN) ÷ (1 − p)). Mẫu số ≤ 0 ⇒ không có giá bán nào thoả, chặn.
+        - Giá bán gõ tay (`manual_*`) thắng cả hai: CK = % × giá gõ (hoặc số tiền gõ), lợi nhuận là
+          phần còn lại. Làm tròn áp lên giá bán TRƯỚC, CK % tính trên giá đã tròn.
         - Giá bán chính là số tiền trước VAT khách phải trả; VAT tính trên nó. `discount_amount` trả
           ra là phần chiết khấu NẰM TRONG giá bán (không còn là khoản trừ).
         - KÊ GIÁ (20/10/2026): tiền `ke_gia` cộng SAU giá bán, markup không nhân lên. Giá bán sau kê =
           giá bán + kê; đơn giá, VAT, thành tiền tính trên số đó. `selling_price` trả ra KHÔNG gồm kê."""
         quantity = max(1, quantity)
         total_cost = float(total_cost)
+        p_ck = max(0.0, float(discount_percent)) / 100.0
+        ck_so_tien = float(discount_amount) > 0
+        if ck_so_tien:
+            p_ck = 0.0
 
-        # 1. Chiết khấu (tiền) — cộng vào giá bán
-        if float(discount_amount) > 0:
-            chiet_khau = float(discount_amount)
-        else:
-            chiet_khau = total_cost * max(0.0, float(discount_percent)) / 100.0
-        chiet_khau = float(round(max(0.0, chiet_khau)))
-        goc = total_cost + chiet_khau
-
-        # 2. Giá bán
+        # 1. Giá bán
         if manual_selling_price is not None and manual_selling_price > 0:
             selling_price = float(manual_selling_price)
         elif manual_unit_price is not None and manual_unit_price > 0:
             selling_price = float(manual_unit_price) * quantity
-        else:
+        elif ck_so_tien:
+            goc = total_cost + float(round(float(discount_amount)))
             if profit_amount is not None:
                 loi_nhuan = float(profit_amount)
             else:
                 loi_nhuan = goc * max(0.0, float(margin_percent)) / 100.0
             selling_price = goc + float(round(loi_nhuan))
+        else:
+            m = max(0.0, float(margin_percent)) / 100.0
+            if profit_amount is not None:
+                tu, mau = total_cost + float(profit_amount), 1.0 - p_ck
+            else:
+                tu, mau = total_cost * (1.0 + m), 1.0 - p_ck * (1.0 + m)
+            if mau <= 0:
+                raise QuotationValidationError(
+                    "Chiết khấu quá lớn so với lợi nhuận — không có giá bán nào chừa đủ phần chiết khấu")
+            selling_price = float(round(tu / mau))
 
-        # 3. Rounding
+        # 2. Rounding
         if rounding == "round_up_1000":
             selling_price = float(math.ceil(selling_price / 1000.0) * 1000)
         elif rounding == "round_up_5000":
             selling_price = float(math.ceil(selling_price / 5000.0) * 5000)
         elif rounding == "round_up_10000":
             selling_price = float(math.ceil(selling_price / 10000.0) * 10000)
+
+        # 3. Chiết khấu (tiền) — nằm trong giá bán
+        if ck_so_tien:
+            chiet_khau = float(round(float(discount_amount)))
+        else:
+            chiet_khau = float(round(selling_price * p_ck))
+        goc = total_cost + chiet_khau
 
         # 4. Lợi nhuận thực = phần còn lại sau vốn và chiết khấu; % trên (vốn + chiết khấu)
         loi_nhuan = selling_price - goc
@@ -996,13 +1027,14 @@ class QuotationService:
         for it in version.items:
             nh = (it.nhom or "").strip()
             ln = sp.setdefault(nh or f"#{it.id}", {"ten": nh or it.product_name, "gross": 0.0, "discount": 0.0})
-            ln["gross"] += float(it.total_cost_snapshot or 0)      # % chiết khấu tính trên GIÁ VỐN
+            ln["gross"] += float(it.selling_price or 0)    # % chiết khấu trên GIÁ BÁN trước kê (23/10/2026)
             ln["discount"] += float(it.discount_amount or 0)
+            ln["n"] = ln.get("n", 0) + 1                    # số dòng ⇒ biên làm tròn của rào CK
             ln["ban"] = ln.get("ban", 0.0) + float(it.selling_price or 0)   # rào kê: % trên GIÁ BÁN
             ln["ke"] = ln.get("ke", 0.0) + float(it.ke_gia or 0)
         return _exc_evaluate_quote(
             subtotal=subtotal_net, total_gross=total_gross, cost=cost,
-            discount_amount=discount, subtotal_gross=von,
+            discount_amount=discount, subtotal_gross=subtotal_net,   # gốc %CK = giá bán trước kê
             discount_lines=list(sp.values()),
             discount_min_pct=(cust.discount_min_pct if cust else None),
             discount_max_pct=(cust.discount_max_pct if cust else None),
@@ -1310,6 +1342,10 @@ class QuotationService:
                     )
                     db_item.unit_price = pricing["unit_price"]
                     db_item.discount_amount = pricing["discount_amount"]
+                    # Nhớ người soạn gõ % hay số tiền (số tiền > 0 thắng, như `calculate_pricing`).
+                    db_item.discount_percent = (
+                        0.0 if float(ip.get("discount_amount", 0.0)) > 0
+                        else max(0.0, float(ip.get("discount_percent", 0.0))))
                     db_item.vat_percent = ip.get("vat_percent", db_item.vat_percent)
                     db_item.vat_amount = pricing["vat_amount"]
                     db_item.final_amount = pricing["final_amount"]

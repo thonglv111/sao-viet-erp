@@ -3080,3 +3080,22 @@ def test_lines_out_derive_cong_thuong_va_cn_le():
     assert ok.tien_cong_thuong == 0.0
     assert ok.tien_cn_le == 2_500_000  # 2tr phụ trội + 500k lễ
 
+
+
+def test_xem_truoc_luong_theo_lo_khop_tung_nguoi(client):
+    """Tab Lương nhân viên hỏi cả trang MỘT request (`/salaries/previews`) — số phải y hệt hỏi
+    từng người; NV chưa khai lương vẫn có dòng (monthly 0), id không tồn tại thì vắng mặt."""
+    token = _admin_token(client)
+    a = _make_emp(client, token, name="Lô A")
+    b = _make_emp(client, token, name="Lô B")
+    client.post(f"/api/luong/salaries/{a}", json={
+        "effective_from": "2026-01-01", "luong_vi_tri": 9_000_000, "luong_trach_nhiem": 1_000_000,
+    }, headers=_h(token))
+    r = client.get(f"/api/luong/salaries/previews?ids={a},{b},999999", headers=_h(token))
+    assert r.status_code == 200
+    lo = {p["employee_id"]: p for p in r.json()["items"]}
+    assert set(lo) == {a, b}
+    for eid in (a, b):
+        assert lo[eid] == client.get(f"/api/luong/salaries/{eid}/preview", headers=_h(token)).json()
+    assert lo[a]["monthly"] == 10_000_000 and lo[b]["monthly"] == 0
+    assert client.get("/api/luong/salaries/previews?ids=1,x", headers=_h(token)).status_code == 422

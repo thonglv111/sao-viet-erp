@@ -850,21 +850,33 @@ export function QuotationDetailView({
   const multi = d.items.length > 1;
 
   // ---- Tính toán sống (áp số đang gõ nếu có) -------------------------------
-  // Giá bán = giá vốn + tiền chiết khấu + tiền lợi nhuận. Chiết khấu % tính trên giá vốn; lợi nhuận %
-  // tính trên (giá vốn + chiết khấu). Khớp backend `calculate_pricing`.
+  // Giá bán = giá vốn + tiền chiết khấu + tiền lợi nhuận. Chiết khấu % tính trên GIÁ BÁN TRƯỚC KÊ
+  // (chủ chốt 23/10/2026, đúng sổ DS BÁN RA cột T); lợi nhuận % tính trên (giá vốn + chiết khấu). Giá bán
+  // lại gồm CK ⇒ giải kín vốn × (1 + m) ÷ (1 − p × (1 + m)). Khớp backend `calculate_pricing`.
   function calcItem(it: QuoteItemDetail) {
     const cost = it.total_cost_snapshot;
     const n = nhap[it.id];
     const lam = Math.round;
-    const ck = n?.ck
-      ? lam(n.ck.k === "pct" ? (cost * Math.max(0, n.ck.v)) / 100 : Math.max(0, n.ck.v))
-      : it.discount_amount;
-    const goc = cost + ck;
+    // CK theo %: đang gõ %, hoặc dòng đã LƯU % (gõ tay giá / sửa markup thì CK chạy theo % đó).
+    const pctLuu = it.discount_percent && it.discount_percent > 0 ? it.discount_percent / 100 : null;
+    const ckPct = n?.ck?.k === "pct" ? Math.max(0, n.ck.v) / 100 : n && !n.ck ? pctLuu : null;
+    const ckSo = n?.ck && n.ck.k !== "pct" ? lam(Math.max(0, n.ck.v)) : null;
+    const ckLuu = ckPct == null && ckSo == null ? it.discount_amount : null;  // không gõ: tiền đã lưu
+    const lnPct = n?.ln ? (n.ln.k === "pct" ? Math.max(0, n.ln.v) / 100 : null) : it.margin_percent / 100;
+    const lnSo = n?.ln && n.ln.k !== "pct" ? Math.max(0, n.ln.v) : null;
     let selling: number;
     if (n?.gia != null) selling = n.gia;                                   // giá gõ tay: lợi nhuận là phần còn lại
-    else if (n?.ln) selling = goc + lam(n.ln.k === "pct" ? (goc * Math.max(0, n.ln.v)) / 100 : Math.max(0, n.ln.v));
-    else if (n?.ck && !it.gia_go_tay) selling = goc + lam((goc * it.margin_percent) / 100);   // đổi chiết khấu: lợi nhuận giữ %
-    else selling = it.selling_price;                                       // số đã lưu (dòng gõ tay giữ giá)
+    else if (ckPct != null && !(it.gia_go_tay && !n?.ln)) {
+      // CK theo %: giải kín; mẫu số ≤ 0 thì giữ giá đang có (máy chủ sẽ báo lỗi lúc lưu)
+      const mau = lnSo != null ? 1 - ckPct : 1 - ckPct * (1 + (lnPct ?? 0));
+      const tu = lnSo != null ? cost + lnSo : cost * (1 + (lnPct ?? 0));
+      selling = mau > 0 ? lam(tu / mau) : it.selling_price;
+    } else if (ckPct == null && (n?.ln || (ckSo != null && !it.gia_go_tay))) {
+      const g = cost + (ckSo ?? ckLuu ?? 0);
+      selling = g + lam(lnSo ?? g * (lnPct ?? 0));                         // CK số tiền: lợi nhuận trên (vốn + CK)
+    } else selling = it.selling_price;                                     // số đã lưu (dòng gõ tay giữ giá)
+    const ck = ckPct != null ? lam(selling * ckPct) : (ckSo ?? ckLuu ?? 0);
+    const goc = cost + ck;
     const ln = selling - goc;
     // Kê giá (20/10/2026) cộng SAU giá bán: % tính trên giá bán; không gõ thì giữ số tiền đã lưu.
     const ke = n?.ke
@@ -921,9 +933,15 @@ export function QuotationDetailView({
                   : it.gia_go_tay
                     ? it.selling_price
                     : undefined,
-            // Chiết khấu gõ theo % thì gửi % (tiền = 0 để % thắng); còn lại gửi tiền đã lưu.
-            discount_amount: patch?.discount_percent !== undefined ? 0 : (patch?.discount_amount ?? it.discount_amount),
-            discount_percent: patch?.discount_percent ?? 0,
+            // Chiết khấu gõ theo % thì gửi % (tiền = 0 để % thắng); gõ số tiền thì gửi tiền. Không đụng tới
+            // thì gửi lại đúng cách đã lưu: dòng lưu % gửi % — gửi tiền cũ là % thành số tiền cứng.
+            ...(patch?.discount_percent !== undefined
+              ? { discount_amount: 0, discount_percent: patch.discount_percent }
+              : patch?.discount_amount !== undefined
+                ? { discount_amount: patch.discount_amount, discount_percent: 0 }
+                : it.discount_percent && it.discount_percent > 0
+                  ? { discount_amount: 0, discount_percent: it.discount_percent }
+                  : { discount_amount: it.discount_amount, discount_percent: 0 }),
             profit_amount: patch?.profit_amount,
             vat_percent: patch?.vat_percent ?? it.vat_percent,
             rounding: patch?.rounding ?? "no_rounding",
@@ -963,7 +981,7 @@ export function QuotationDetailView({
       const p = Math.max(0, Math.min(100, v));
       persistItems(dong.map((it) => ({ id: it.id, discount_percent: p })));
     } else {
-      const phan = chiaTheoTyLe(dong, Math.max(0, v), (it) => it.total_cost_snapshot);
+      const phan = chiaTheoTyLe(dong, Math.max(0, v), (it) => calcItem(it).selling);
       persistItems(dong.map((it, i) => ({ id: it.id, discount_amount: phan[i] })));
     }
   }
@@ -986,7 +1004,7 @@ export function QuotationDetailView({
       ? { id: it.id, margin_percent: Math.max(0, Math.min(1000, v)) }
       : { id: it.id, margin_percent: it.margin_percent, profit_amount: Math.max(0, Math.round(v)) }]);
   }
-  /** Giá bán GÕ TAY — làm gốc; chiết khấu giữ nguyên, lợi nhuận là phần còn lại. */
+  /** Giá bán GÕ TAY — làm gốc; chiết khấu theo % đã lưu (hoặc giữ số tiền), lợi nhuận là phần còn lại. */
   function commitGia(it: QuoteItemDetail, val: number) {
     if (!editable || !d) return;
     persistItems([{ id: it.id, manual_selling_price: Math.max(0, val) }]);
@@ -1111,9 +1129,9 @@ export function QuotationDetailView({
   );
   /** Ô CHIẾT KHẤU của MỘT sản phẩm khách thấy (dòng đứng riêng hoặc cả nhóm): hai tab "%" và "Số". */
   function oChietKhau(dong: QuoteItemDetail[], ten: string) {
-    const von = dong.reduce((s, it) => s + calcItem(it).cost, 0);
+    const ban = dong.reduce((s, it) => s + calcItem(it).selling, 0);     // % trên giá bán trước kê
     const ck = dong.reduce((s, it) => s + calcItem(it).ck, 0);
-    const pct = von > 0 ? (ck / von) * 100 : 0;
+    const pct = ban > 0 ? (ck / ban) * 100 : 0;
     const ids = dong.map((it) => it.id);
     if (!editable) return ck > 0 ? haiTang(pct, ck) : "—";
     return (
@@ -1122,7 +1140,7 @@ export function QuotationDetailView({
         so={ck}
         disabled={busy}
         ariaLabel={`Chiết khấu ${ten}`}
-        titlePct="Chiết khấu (%) trên giá vốn — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
+        titlePct="Chiết khấu (%) trên giá bán trước kê — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
         titleSo="Tiền chiết khấu — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
         onNhap={(k, v) => datNhap(ids, "ck", { k, v })}
         onHuy={() => datNhap(ids, "ck", null)}
@@ -1597,7 +1615,7 @@ export function QuotationDetailView({
                             donVi="đ"
                             disabled={busy}
                             ariaLabel={`Giá bán ${it.product_name}`}
-                            title="Gõ tay giá bán dòng này — chiết khấu giữ nguyên, lợi nhuận là phần còn lại. Sửa lại Markup sẽ bỏ giá gõ tay."
+                            title="Gõ tay giá bán dòng này — chiết khấu theo % đã đặt (gõ số tiền thì giữ số tiền), lợi nhuận là phần còn lại. Sửa lại Markup sẽ bỏ giá gõ tay."
                             onNhap={(v) => datNhap([it.id], "gia", v)}
                             onChot={(v) => commitGia(it, v)}
                             onHuy={() => datNhap([it.id], "gia", null)}

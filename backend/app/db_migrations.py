@@ -19040,3 +19040,102 @@ def _migrate_khoan_dung_may_yeu_cau(db: Session) -> None:
 
 
 MIGRATIONS.append(("0437_khoan_dung_may_yeu_cau", _migrate_khoan_dung_may_yeu_cau))
+
+
+def _migrate_khoan_cong_them(db: Session) -> None:
+    """0438 (23/10/2026) — `payroll_lines.khoan_cong_them`: tổng cột Cộng thêm kế toán gõ ở màn Khoán
+    theo tổ, cộng vào gross ngoài phép so 2 lương. Ba bảng sửa tay (`khoan_lan_ghi_tay`,
+    `khoan_dong_tay`, `khoan_cong_them`) là bảng mới — `create_all` tạo. Raw SQL, idempotent."""
+    insp = inspect(db.get_bind())
+    if ("payroll_lines" in insp.get_table_names()
+            and "khoan_cong_them" not in _existing_columns(insp, "payroll_lines")):
+        db.execute(text(
+            "ALTER TABLE payroll_lines ADD COLUMN khoan_cong_them NUMERIC(14, 2) NOT NULL DEFAULT 0"))
+    db.commit()
+
+
+MIGRATIONS.append(("0438_khoan_cong_them", _migrate_khoan_cong_them))
+
+
+def _migrate_bac_hoa_hong(db: Session) -> None:
+    """0439 (23/10/2026) — hoa hồng theo tiền thu, % theo BIỂU BẬC số ngày thu tiền (spec
+    2026-10-23-hoa-hong-theo-tien-thu-design.md). Thêm `employee_salaries.bac_hoa_hong`,
+    `orders.bac_hoa_hong`, `orders.hh_rieng_pct`, `orders.hh_rieng_ly_do`. Backfill: `commission_pct > 0`
+    cũ ⇒ biểu một bậc vô hạn cùng %. Hai cột `commission_pct` để lại DORMANT. Raw SQL, idempotent —
+    đọc cột/bảng TRƯỚC lệnh ghi đầu tiên (inspector sau UPDATE mất dữ liệu trên SQLite)."""
+    import json
+
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    cot_luong = _existing_columns(insp, "employee_salaries") if "employee_salaries" in bang else None
+    cot_don = _existing_columns(insp, "orders") if "orders" in bang else None
+    them: list[tuple[str, str]] = []
+    if cot_luong is not None and "bac_hoa_hong" not in cot_luong:
+        them.append(("employee_salaries", "ALTER TABLE employee_salaries ADD COLUMN bac_hoa_hong JSON"))
+    if cot_don is not None:
+        for ten, kieu in (("bac_hoa_hong", "JSON"), ("hh_rieng_pct", "NUMERIC(6, 4)"),
+                          ("hh_rieng_ly_do", "VARCHAR(255)")):
+            if ten not in cot_don:
+                them.append(("orders", f"ALTER TABLE orders ADD COLUMN {ten} {kieu}"))
+    for _bang, sql in them:
+        db.execute(text(sql))
+    for ten_bang in ("employee_salaries", "orders"):
+        if ten_bang not in bang:
+            continue
+        rows = db.execute(text(
+            f"SELECT id, commission_pct FROM {ten_bang} WHERE commission_pct > 0 AND bac_hoa_hong IS NULL"
+        )).all()
+        for rid, pct in rows:
+            db.execute(text(f"UPDATE {ten_bang} SET bac_hoa_hong = :b WHERE id = :id"),
+                       {"b": json.dumps([{"den_ngay": None, "pct": float(pct)}]), "id": int(rid)})
+    db.commit()
+
+
+MIGRATIONS.append(("0439_bac_hoa_hong", _migrate_bac_hoa_hong))
+
+
+def _migrate_quote_item_discount_percent(db: Session) -> None:
+    """0440 (23/10/2026) — `quote_items.discount_percent`: nhớ % chiết khấu người soạn gõ (trên giá bán
+    trước kê). Thiếu cột này thì lưu 3% xong thành số tiền cứng — gõ tay giá bán CK không theo giá gõ
+    như spec 2026-10-23-hoa-hong-theo-tien-thu. Không backfill: NULL = dòng cũ, suy % như trước."""
+    insp = inspect(db.get_bind())
+    if "quote_items" not in insp.get_table_names():
+        return
+    if "discount_percent" not in _existing_columns(insp, "quote_items"):
+        db.execute(text("ALTER TABLE quote_items ADD COLUMN discount_percent NUMERIC(7, 4)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0440_quote_item_discount_percent", _migrate_quote_item_discount_percent))
+
+
+def _migrate_bac_hoa_hong_json_null(db: Session) -> None:
+    """0441 (24/10/2026) — biểu hoa hồng rỗng từng lưu JSON 'null' thay vì SQL NULL (cột `JSON` mặc định
+    của SQLAlchemy). Model đã đổi sang `JSON(none_as_null=True)`; dọn số cũ để `IS NULL` đúng nghĩa
+    "không hưởng"."""
+    bind = db.get_bind()
+    insp = inspect(bind)
+    bang = [t for t in ("employee_salaries", "orders")
+            if t in insp.get_table_names() and "bac_hoa_hong" in _existing_columns(insp, t)]
+    la_pg = (bind.dialect.name or "").startswith("postgres")
+    for t in bang:
+        dk = "bac_hoa_hong::text = 'null'" if la_pg else "bac_hoa_hong = 'null'"
+        db.execute(text(f"UPDATE {t} SET bac_hoa_hong = NULL WHERE {dk}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0441_bac_hoa_hong_json_null", _migrate_bac_hoa_hong_json_null))
+
+
+def _migrate_payroll_line_co_hoa_hong(db: Session) -> None:
+    """0442 (24/10/2026) — `payroll_lines.co_hoa_hong`: người có lần thu nhưng tổng hoa hồng âm (cột kẹp
+    0) vẫn phải bấm mở được ngăn soi. Dòng cũ để false — bấm Tính lại kỳ là cờ đúng lại."""
+    insp = inspect(db.get_bind())
+    if "payroll_lines" not in insp.get_table_names():
+        return
+    if "co_hoa_hong" not in _existing_columns(insp, "payroll_lines"):
+        db.execute(text("ALTER TABLE payroll_lines ADD COLUMN co_hoa_hong BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0442_payroll_line_co_hoa_hong", _migrate_payroll_line_co_hoa_hong))

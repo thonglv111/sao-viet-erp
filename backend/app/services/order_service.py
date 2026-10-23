@@ -132,32 +132,38 @@ def _unlink_attachment(url: str) -> None:
         get_storage().delete(key)
 
 
-def _pct_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> float:
-    """% hoa hồng ĐANG hiệu lực của người sales tại ngày `on` (mặc định hôm nay), để chụp vào đơn.
+def _bac_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> list[dict] | None:
+    """BIỂU BẬC hoa hồng ĐANG hiệu lực của người phụ trách đơn tại ngày `on` (mặc định hôm nay), để
+    chụp vào đơn (thay % phẳng từ 23/10/2026 — xem `services/bac_hoa_hong.py`).
 
     Đọc `employee_salaries` (bảng versioned) qua `employees.user_id` — đơn ghi USER, mức lương thì
-    treo ở EMPLOYEE. Không tìm được người / chưa khai mức nào ⇒ 0, tức đơn không có hoa hồng.
+    treo ở EMPLOYEE. Không tìm được người / chưa khai biểu ⇒ None, tức đơn không có hoa hồng.
 
-    ⚠️ PHẢI chặn `effective_from <= on`. Nhân sự khai trước "từ 01/12 lên 20%" là chuyện thường;
-    không chặn thì đơn chốt HÔM NAY chụp luôn mức của tháng sau, tức trả theo lời hứa CHƯA tới
-    hạn. Engine lương tra mức đúng kiểu này (`latest_salaries_map(on)`) — giữ CÙNG một nếp.
-
-    Hoà ngày thì bản lưu SAU thắng (`id` lớn hơn), y như chỗ tra mức lương.
+    ⚠️ PHẢI chặn `effective_from <= on`: nhân sự khai trước "từ 01/12 đổi biểu" là chuyện thường;
+    không chặn thì đơn chốt HÔM NAY chụp luôn biểu của tháng sau. Engine lương tra mức đúng kiểu này
+    (`latest_salaries_map(on)`). Hoà ngày thì bản lưu SAU thắng (`id` lớn hơn).
     """
     if not sale_user_id:
-        return 0.0
+        return None
     from ..models.employee import Employee
     from ..models.payroll import EmployeeSalary
 
     emp = db.query(Employee).filter(Employee.user_id == int(sale_user_id)).first()
     if emp is None:
-        return 0.0
+        return None
     ms = (db.query(EmployeeSalary)
             .filter(EmployeeSalary.employee_id == emp.id,
                     EmployeeSalary.effective_from <= (on or date.today()))
             .order_by(EmployeeSalary.effective_from.desc(), EmployeeSalary.id.desc())
             .first())
-    return float(getattr(ms, "commission_pct", 0) or 0)
+    return getattr(ms, "bac_hoa_hong", None) or None
+
+
+def _chup_hoa_hong(order, db) -> None:
+    """Chụp biểu hoa hồng của người phụ trách vào đơn lúc CHỐT. Đơn đã có biểu thì giữ nguyên —
+    `confirm` chạy lại cũng không đổi số đã chụp."""
+    if order.bac_hoa_hong is None:
+        order.bac_hoa_hong = _bac_hoa_hong_cua_sale(db, order.sale_user_id)
 
 
 #: Trường sửa được ở đơn nháp → nhãn ghi nhật ký (#52: nhật ký nói đúng trường đã đổi).
@@ -930,16 +936,14 @@ class OrderService:
         except ThanhPhamKhacKhach as exc:
             self.db.rollback()
             raise OrderValidationError(str(exc)) from exc
-        # CHỤP ẢNH % hoa hồng của người sales vào đơn (mg 0227 · §4.6). Chụp lúc CHỐT chứ không
-        # đọc-sống: đổi % cho người ta từ tháng sau KHÔNG được làm đổi hoa hồng của đơn đã chốt
-        # tháng trước.
+        # CHỤP ẢNH biểu hoa hồng của người phụ trách vào đơn (mg 0439, 23/10/2026; trước đó % phẳng
+        # `commission_pct`, nay DORMANT). Chụp lúc CHỐT chứ không đọc-sống: đổi biểu cho người ta từ
+        # tháng sau KHÔNG được làm đổi hoa hồng của đơn đã chốt tháng trước.
         #
-        # KHÔNG phơi `commission_pct` ra API/giao diện, cố ý (chủ chốt 21/08/2026): cho sale gõ %
-        # trên chính đơn mình bán là để người ta tự viết phiếu lương của mình. % chỉ khai được ở
-        # HỒ SƠ LƯƠNG (Lương → Thiết lập lương), tức do nhân sự đặt, không do người hưởng đặt.
-        # Điều kiện `còn để 0` giữ lại để `confirm` chạy lại cũng không đổi số đã chụp.
-        if not float(order.commission_pct or 0):
-            order.commission_pct = _pct_hoa_hong_cua_sale(self.db, order.sale_user_id)
+        # KHÔNG phơi biểu ra API/giao diện đơn hàng, cố ý (chủ chốt 21/08/2026): cho sale gõ % trên
+        # chính đơn mình bán là để người ta tự viết phiếu lương của mình. Biểu chỉ khai được ở HỒ SƠ
+        # LƯƠNG; % riêng của đơn chỉ đặt được qua API lương (ô `luong:update`).
+        _chup_hoa_hong(order, self.db)
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="confirm_order",
             target=f"order:{order.id}", detail=f"Chốt đơn {order.order_no}")

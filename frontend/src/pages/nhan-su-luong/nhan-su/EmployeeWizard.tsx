@@ -486,8 +486,8 @@ export function EmployeeWizard({
                     />
                   </Field>
                   <Field
-                    label="% hoa hồng (NV kinh doanh)"
-                    hint="Bỏ trống / 0 nếu không phải nhân viên kinh doanh."
+                    label="% hoa hồng (mọi số ngày thu)"
+                    hint="Bỏ trống / 0 nếu không hưởng hoa hồng. Chia bậc theo số ngày thu tiền ở Lương → Lương nhân viên."
                   >
                     <input
                       type="number"
@@ -870,7 +870,7 @@ export function EmployeeWizard({
                   </p>
                 )}
                 {canSalary && commissionPct > 0 && (
-                  <p>Hoa hồng {commissionPct}% (chỉ khai)</p>
+                  <p>Hoa hồng {commissionPct}% mọi số ngày thu</p>
                 )}
                 <p>
                   Ngày vào {fmtDate(form.hire_date)} · {files.length} tệp đính

@@ -107,24 +107,21 @@ export function NhanVienTab({
     const missing = emps.filter((e) => !(e.id in previews));
     if (!missing.length) return;
 
-    Promise.all(
-      missing.map(async (e) => {
-        try {
-          const prev = await api.luong.salaryPreview(token, e.id);
-          return { id: e.id, prev };
-        } catch {
-          return { id: e.id, prev: null };
-        }
-      }),
-    ).then((results) => {
-      setPreviews((curr) => {
-        const next = { ...curr };
-        for (const r of results) {
-          next[r.id] = r.prev;
-        }
-        return next;
+    // Cả trang trong MỘT request (trước đây mỗi dòng một request nối đuôi nhau).
+    api.luong
+      .salaryPreviews(token, missing.map((e) => e.id))
+      .then((r) => r.items)
+      .catch(() => [] as SalaryPreview[])
+      .then((items) => {
+        const theoId = new Map(items.map((p) => [p.employee_id, p]));
+        setPreviews((curr) => {
+          const next = { ...curr };
+          for (const e of missing) {
+            next[e.id] = theoId.get(e.id) ?? null;
+          }
+          return next;
+        });
       });
-    });
   }, [token, emps, previews]);
 
   // Liên thông: khi mở từ Hồ sơ NV, tự bật modal lương của NV đó một lần

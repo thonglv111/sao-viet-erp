@@ -27,6 +27,7 @@ import ast
 import operator
 import re
 from collections.abc import Iterable
+from functools import lru_cache
 from math import ceil, floor
 
 from .routing_engine import basis_qty, compute_step_cost
@@ -305,12 +306,95 @@ def _chuan_hoa(expr_str: str) -> str:
     return _CHUYEN_TU_IF.sub('if_(', expr_str).strip()
 
 
+def _loi(msg: str):
+    def ham(variables):
+        raise ValueError(msg)
+    return ham
+
+
+def _bien_dich(node):
+    """Cây → hàm `(variables) → số`, ra ĐÚNG số và ĐÚNG câu lỗi như `_eval_node` — lỗi nổ lúc CHẠY,
+    cùng thứ tự duyệt (vế trái trước, đối số trước toán tử). Kỳ lương chạy một công thức cho hàng
+    nghìn lần ghi: duyệt cây bằng chuỗi `isinstance` mỗi lần là phần đắt của `safe_eval`."""
+    if isinstance(node, ast.Num):
+        n = node.n
+        return lambda variables: float(n)
+    if isinstance(node, ast.Constant):
+        val = node.value
+        if isinstance(val, (int, float)):
+            return lambda variables: float(val)
+        return _loi(f"Hằng số không hợp lệ: {val}")
+    if isinstance(node, ast.Name):
+        name = node.id
+
+        def bien(variables):
+            if name in variables:
+                return float(variables[name] or 0.0)
+            raise ValueError(f"Biến không xác định: {name}")
+        return bien
+    if isinstance(node, ast.BinOp):
+        trai, phai, op_type = _bien_dich(node.left), _bien_dich(node.right), type(node.op)
+
+        def hai_ngoi(variables):
+            left = trai(variables)
+            right = phai(variables)
+            if op_type in OPERATORS:
+                return OPERATORS[op_type](left, right)
+            raise ValueError(f"Toán tử không được hỗ trợ: {op_type}")
+        return hai_ngoi
+    if isinstance(node, ast.UnaryOp):
+        con, op_type = _bien_dich(node.operand), type(node.op)
+
+        def mot_ngoi(variables):
+            operand = con(variables)
+            if op_type in OPERATORS:
+                return OPERATORS[op_type](operand)
+            raise ValueError(f"Toán tử một ngôi không được hỗ trợ: {op_type}")
+        return mot_ngoi
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            return _loi("Gọi hàm không hợp lệ")
+        func_name = node.func.id
+        if func_name == 'if_':  # xem `_eval_node`
+            func_name = 'if'
+        if func_name not in FUNCTIONS:
+            return _loi(f"Hàm không được hỗ trợ: {func_name}")
+        doi = [_bien_dich(arg) for arg in node.args]
+
+        def goi(variables):
+            args = [d(variables) for d in doi]
+            if func_name == 'if':
+                return FUNCTIONS['if'](*args)
+            return float(FUNCTIONS[func_name](*args))
+        return goi
+    if isinstance(node, ast.Compare):
+        if len(node.ops) != 1:
+            return _loi("Chỉ so sánh 1 điều kiện (vd a > b), không so chuỗi kiểu a > b > c")
+        op_type = type(node.ops[0])
+        if op_type not in COMPARATORS:
+            return _loi(f"Toán tử so sánh không được hỗ trợ: {op_type}")
+        trai, phai = _bien_dich(node.left), _bien_dich(node.comparators[0])
+
+        def so_sanh(variables):
+            left = trai(variables)
+            right = phai(variables)
+            return COMPARATORS[op_type](left, right)
+        return so_sanh
+    return _loi(f"Cú pháp không được hỗ trợ: {type(node)}")
+
+
+@lru_cache(maxsize=2048)
+def _ham_cong_thuc(expr_str: str):
+    """Hàm tính của một công thức (`_bien_dich` cây của nó) — kỳ lương chạy cùng một công thức hàng
+    nghìn lần ghi. Câu lỗi cú pháp không vào cache (ngoại lệ không được nhớ)."""
+    return _bien_dich(ast.parse(_chuan_hoa(expr_str), mode='eval').body)
+
+
 def safe_eval(expr_str: str, variables: dict) -> float:
     if not expr_str or not expr_str.strip():
         return 0.0
     try:
-        node = ast.parse(_chuan_hoa(expr_str), mode='eval').body
-        result = _eval_node(node, variables)
+        result = _ham_cong_thuc(expr_str)(variables)
         if isinstance(result, bool):
             raise ValueError("Kết quả là điều kiện đúng/sai — cần bọc trong if(dieu_kien, dung, sai)")
         return float(result)

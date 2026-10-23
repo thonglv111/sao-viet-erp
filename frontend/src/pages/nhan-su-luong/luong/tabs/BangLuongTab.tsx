@@ -60,6 +60,7 @@ import {
 } from "../shared/helpers";
 import { PayslipCard } from "../components/PayslipCard";
 import { SoiKhoanKm } from "../components/SoiKhoanKm";
+import { SoiHoaHong } from "../components/SoiHoaHong";
 import { SoiKhoanKy } from "../components/SoiKhoanKy";
 import { LineEditModal } from "../modals/LineEditModal";
 import { laDienThoai } from "../../../../utils/dienThoai";
@@ -132,6 +133,7 @@ export function BangLuongTab({
   // km là TÀI XẾ TỰ GÕ, khác hẳn hoa hồng (nguồn là hoá đơn kế toán đã xuất).
   const [soiKm, setSoiKm] = useState<PayrollLine | null>(null);
   const [soiKhoan, setSoiKhoan] = useState<PayrollLine | null>(null);
+  const [soiHoaHong, setSoiHoaHong] = useState<PayrollLine | null>(null);
   const [params, setParams] = useState<PayrollParams | null>(null);
   const [year, month] = ym.split("-").map(Number);
 
@@ -1185,12 +1187,26 @@ export function BangLuongTab({
                         <td
                           className={`lg-num ${hoaHongTotal(l) ? "" : "lg-zero"}`}
                           title={
-                            hoaHongTotal(l)
-                              ? "Hoa hồng kinh doanh — máy tự tính theo hoá đơn bán trong kỳ"
-                              : "Chưa khai % hoa hồng ở hồ sơ lương của nhân viên kinh doanh"
+                            hoaHongTotal(l) || l.co_hoa_hong
+                              ? undefined
+                              : "Không có tiền thu về trong kỳ, hoặc chưa khai biểu hoa hồng ở hồ sơ lương"
                           }
                         >
-                          {hoaHongTotal(l) ? money(hoaHongTotal(l)) : "—"}
+                          {/* `co_hoa_hong`: có lần thu nhưng tổng âm (CK lớn hơn tiền về) ⇒ cột kẹp 0,
+                              vẫn phải mở được ngăn soi để thấy vì sao ra 0. */}
+                          {hoaHongTotal(l) || l.co_hoa_hong ? (
+                            <button
+                              type="button"
+                              className="lg-linkbtn"
+                              title="Hoa hồng kinh doanh — máy tự tính theo tiền thu về trong kỳ. Bấm xem từng lần thu"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSoiHoaHong(l);
+                              }}
+                            >
+                              {money(hoaHongTotal(l))}
+                            </button>
+                          ) : "—"}
                         </td>
                         {/* Nhóm Giảm trừ & Tạm ứng */}
                         <td
@@ -1480,6 +1496,18 @@ export function BangLuongTab({
           line={soiKm}
           period={period}
           onClose={() => setSoiKm(null)}
+        />
+      )}
+      {soiHoaHong && period && (
+        <SoiHoaHong
+          token={token}
+          // Dòng MỚI NHẤT sau Tính lại — giữ bản lúc mở thì đặt % riêng xong ngăn báo lệch oan.
+          line={lines.find((x) => x.id === soiHoaHong.id) ?? soiHoaHong}
+          period={period}
+          coQuyenSua={canManage && isDraft}
+          dangTinh={busy || listLoading}
+          onClose={() => setSoiHoaHong(null)}
+          onDaDoi={() => run(() => api.luong.generate(token, year, month))}
         />
       )}
 

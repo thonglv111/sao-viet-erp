@@ -1,8 +1,10 @@
 # Gộp 8 công đoạn in thành một "Bài in" — giá khoán theo tổ × bậc màu
 
 Trạng thái: ĐÃ CODE 22/10/2026 (mg 0433, chưa commit), DB dev đã gộp 8 mã về id 17 "Bài in".
-Câu 1 ĐÃ CHỐT 22/10: số màu = số kẽm như Tính giá; AB chọn mặt mỗi lần ghi. Giả định: 3 màu có pha →
-bậc "3–4 màu có pha", metaline nhân 3 trên giá thường. Chủ trả lời khác thì sửa bậc trong danh mục.
+Câu 1 ĐÃ CHỐT 22/10: số màu = số kẽm như Tính giá; AB chọn mặt mỗi lần ghi. 3 màu có pha → bậc
+"3–4 màu có pha" — kiểm 23/10: bảng giá sổ 4M/5M/6M/7M ghi bài C là "bài in TRONG 4 màu có màu pha" tức
+≤ 4 kẽm có pha (sổ T08 không dòng nào ghi quy cách mực để đối chiếu thẳng). Giả định còn lại: metaline nhân 3
+trên giá thường. Chủ trả lời khác thì sửa bậc trong danh mục.
 Bao quát sổ 5 máy (22/10 tối): bậc dò theo tổ có giá, AB chọn mặt, bậc Pantone metaline, chỉ tiêu
 ngày = máy hư — xem "Công thức khoán" và "Kiểm bằng ma trận".
 

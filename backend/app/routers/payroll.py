@@ -74,9 +74,18 @@ from ..schemas.payroll import (
     LineComponentOut,
     LineComponentPatchIn,
     LineComponentsOut,
+    HoaHongChiTietOut,
+    HoaHongKhoanOut,
+    HoaHongRiengIn,
+    HoaHongRiengOut,
     KhoanKmChiTietOut,
     KhoanKyChiTietOut,
     KhoanTheoToOut,
+    KttCongThemIn,
+    KttDongTayIn,
+    KttDongTayOut,
+    KttDongTayPatchIn,
+    KttSuaLanGhiIn,
     KhoanKyDongOut,
     KhoanKmChuyenOut,
     ComponentsOut,
@@ -112,6 +121,7 @@ from ..schemas.payroll import (
     SalaryIn,
     SalaryOut,
     SalaryPreviewOut,
+    SalaryPreviewsOut,
     TableOut,
 )
 from ..services.payroll_service import (
@@ -628,6 +638,25 @@ def delete_late_penalty_bracket(bracket_id: int, svc: Service,
 # --- lương nhân viên (khai báo + điều chỉnh) --------------------------------
 
 
+# Đứng TRƯỚC `/salaries/{employee_id}` — không thì "previews" bị bắt làm employee_id.
+@router.get("/salaries/previews", response_model=SalaryPreviewsOut)
+def preview_salaries(svc: Service, authz: Authz, user: SalaryProfileViewer,
+                     ids: str = Query(..., max_length=4000)) -> SalaryPreviewsOut:
+    """Xem trước mức lương của nhiều NV một lượt (`ids` = "1,2,3") — tab Lương nhân viên hỏi cả
+    trang trong một request. NV không có / ngoài phạm vi thì vắng mặt trong `items`."""
+    try:
+        so = [int(x) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ids phải là các số cách nhau bằng dấu phẩy.")
+    if len(so) > 500:
+        raise HTTPException(status_code=422, detail="Tối đa 500 nhân viên mỗi lượt.")
+    try:
+        return SalaryPreviewsOut(items=[SalaryPreviewOut(**d) for d in svc.salary_previews(
+            so, scope=_emp_scope_for(authz, user), actor=user)])
+    except PayrollError as exc:
+        _raise(exc)
+
+
 @router.get("/salaries/{employee_id}", response_model=SalariesOut)
 def list_salaries(employee_id: int, svc: Service, employees: Employees,
                   users: Users, authz: Authz, user: SalaryProfileViewer) -> SalariesOut:
@@ -681,7 +710,9 @@ def set_salary(employee_id: int, body: SalaryIn, svc: Service, authz: Authz,
                            union_member=body.union_member, luong_dot_1=body.luong_dot_1,
                            an_cong_nhat=body.an_cong_nhat,
                            apply_self_deduction=body.apply_self_deduction,
-                           commission_pct=body.commission_pct)
+                           commission_pct=body.commission_pct,
+                           bac_hoa_hong=None if body.bac_hoa_hong is None
+                           else [b.model_dump() for b in body.bac_hoa_hong])
     except PayrollError as exc:
         _raise(exc)
     return SalaryOut.model_validate(s)
@@ -957,7 +988,7 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
         return TableOut(period=None, lines=[], chan_chot_ly_do=ly_do)
     lines_out = _lines_out(data["lines"], employees, departments, svc)
     # Cảnh báo chốt nói về CẢ kỳ — tính trước khi lọc, đổi bộ lọc không làm nó biến mất.
-    kk = svc.khoan_ky(year, month)
+    kk = svc.khoan_ky(year, month, theo_nguoi=False)
     canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
                               thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
     hien, phong_loc = loc_bang_luong(lines_out, q=q, phong=phong, hd=hd)
@@ -1101,7 +1132,7 @@ def _hoa_hong_total(l: LineOut) -> float:
 
 
 def _canh_bao_khoan(svc, lines_out: list[LineOut], year: int, month: int) -> str | None:
-    kk = svc.khoan_ky(year, month)
+    kk = svc.khoan_ky(year, month, theo_nguoi=False)
     return _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
                           thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
 
@@ -1484,6 +1515,32 @@ def chi_tiet_khoan_km(line_id: int, svc: Service, authz: Authz,
                              tong=round(sum(r["thanh_tien"] for r in rows), 2))
 
 
+@router.get("/lines/{line_id}/hoa-hong", response_model=HoaHongChiTietOut)
+def chi_tiet_hoa_hong(line_id: int, svc: Service, authz: Authz,
+                      user: ConfigViewer) -> HoaHongChiTietOut:
+    """Từng lần thu tiền làm nên hoa hồng của MỘT dòng lương — bấm ô "Hoa hồng" để mở."""
+    try:
+        rows = svc.chi_tiet_hoa_hong(line_id=line_id, scope=_emp_scope_for(authz, user), actor=user)
+    except PayrollError as exc:
+        _raise(exc)
+    # Kẹp 0 như cột "Hoa hồng" của dòng lương (`hoa_hong_ky_map`) — từng khoản vẫn giữ số âm.
+    return HoaHongChiTietOut(items=[HoaHongKhoanOut(**r) for r in rows],
+                             tong=max(0, round(sum(r["tien"] for r in rows))))
+
+
+@router.put("/don/{order_id}/hoa-hong-rieng", response_model=HoaHongRiengOut)
+def dat_hoa_hong_rieng(order_id: int, body: HoaHongRiengIn, svc: Service, authz: Authz,
+                       user: Annotated[User, Depends(require_permission(MODULE, "update"))]
+                       ) -> HoaHongRiengOut:
+    """% hoa hồng riêng của đơn (thắng biểu). Chỉ ô `luong:update` — sale không tự đặt được."""
+    try:
+        return HoaHongRiengOut(**svc.dat_hoa_hong_rieng(order_id=order_id, pct=body.pct,
+                                                        ly_do=body.ly_do, actor=user,
+                                                        scope=_emp_scope_for(authz, user)))
+    except PayrollError as exc:
+        _raise(exc)
+
+
 @router.get("/lines/{line_id}/khoan-ky", response_model=KhoanKyChiTietOut)
 def chi_tiet_khoan_ky(line_id: int, svc: Service, authz: Authz,
                       user: ConfigViewer) -> KhoanKyChiTietOut:
@@ -1511,10 +1568,80 @@ def khoan_theo_to(svc: Service, authz: Authz,
         return KhoanTheoToOut(year=year, month=month)
     try:
         data = xem(svc.components.db, svc, year, month, to_id,
-                   svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
+                   svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user),
+                   co_quyen_sua=authz.can(user, MODULE, "update"))
     except KhoanTheoToForbidden as exc:
         raise HTTPException(status_code=403, detail=str(exc))
     return KhoanTheoToOut(**data)
+
+
+# --- Kế toán sửa tay khoán kiểu Excel (23/10/2026) — `services/khoan_sua_tay.py` ------------------
+# Cùng ô với Sửa dòng lương: gõ tay là đổi tiền lương. Trường không gửi lên = giữ nguyên.
+def _sua_tay(svc: PayrollService):
+    from ..services.khoan_sua_tay import KhoanSuaTayService
+
+    if svc.components is None:
+        raise HTTPException(status_code=503, detail="Phân hệ lương chưa sẵn sàng.")
+    return KhoanSuaTayService(svc.components.db, svc)
+
+
+@router.put("/khoan-theo-to/lan-ghi/{batch_id}", status_code=204)
+def khoan_sua_lan_ghi(batch_id: int, body: KttSuaLanGhiIn, svc: Service, authz: Authz,
+                      user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    """Tiền gõ tay + ghi chú của một lần ghi; `tien` null = trả về số máy."""
+    try:
+        _sua_tay(svc).sua_lan_ghi(batch_id, actor=user,
+                                  duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user),
+                                  **body.model_dump(include=body.model_fields_set))
+    except PayrollError as exc:
+        _raise(exc)
+
+
+@router.post("/khoan-theo-to/dong-tay", response_model=KttDongTayOut, status_code=status.HTTP_201_CREATED)
+def khoan_them_dong_tay(body: KttDongTayIn, svc: Service, authz: Authz,
+                        user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    """Chèn một dòng tay (không gắn lệnh) vào sổ sản lượng của một tổ."""
+    try:
+        moi = _sua_tay(svc).them_dong_tay(
+            **body.model_dump(), actor=user,
+            duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
+    except PayrollError as exc:
+        _raise(exc)
+    return KttDongTayOut(id=moi)
+
+
+@router.patch("/khoan-theo-to/dong-tay/{dong_id}", status_code=204)
+def khoan_sua_dong_tay(dong_id: int, body: KttDongTayPatchIn, svc: Service, authz: Authz,
+                       user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    try:
+        _sua_tay(svc).sua_dong_tay(dong_id, actor=user,
+                                   duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user),
+                                   **body.model_dump(include=body.model_fields_set))
+    except PayrollError as exc:
+        _raise(exc)
+
+
+@router.delete("/khoan-theo-to/dong-tay/{dong_id}", status_code=204)
+def khoan_xoa_dong_tay(dong_id: int, svc: Service, authz: Authz,
+                       user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    try:
+        _sua_tay(svc).xoa_dong_tay(dong_id, actor=user,
+                                   duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
+    except PayrollError as exc:
+        _raise(exc)
+
+
+@router.put("/khoan-theo-to/cong-them", status_code=204)
+def khoan_cong_them(body: KttCongThemIn, svc: Service, authz: Authz,
+                    user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    """Cộng thêm ± của một người ở một tổ một kỳ; `tien` null / 0 = bỏ số."""
+    gui = body.model_dump(include=body.model_fields_set)
+    try:
+        _sua_tay(svc).sua_cong_them(
+            year=gui.pop("year"), month=gui.pop("month"), to_id=gui.pop("to_id"), emp_id=gui.pop("emp_id"),
+            actor=user, duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user), **gui)
+    except PayrollError as exc:
+        _raise(exc)
 
 
 @router.post("/lines/{line_id}/components", response_model=LineComponentOut,

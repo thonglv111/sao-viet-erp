@@ -11,7 +11,8 @@ Ma trận quét mọi tổ × bộ mực × quy cách in (1 mặt, tự trở, t
 cũ) × tuỳ chọn × số tờ quanh mốc 3.000. Cấu hình `BAC` / `GIA` / `CT` chép từ IN-12 trên DB dev
 22/10/2026; DB đổi thì chép lại.
 
-Giả định ngoài sổ (sổ không nói, máy tính theo luật chung): 3 màu có pha ăn giá "4 màu có pha".
+3 màu có pha ăn giá bài C: bảng giá 4M/5M/6M/7M ghi C là "bài in TRONG 4 màu có màu pha" (≤ 4 kẽm, có pha);
+sổ T08 không có dòng nào ghi quy cách mực để đối chiếu thẳng (kiểm 23/10/2026).
 Vecni KHÔNG xét: chủ chốt 22/10 phần vecni trong sổ coi là sai, tạm gác.
 
 Sổ 7M dòng 393A / 393C (bài ghép nối tiếp: bỏ giá bài, không trừ 3.000) chủ chốt 22/10 là GHI SAI —

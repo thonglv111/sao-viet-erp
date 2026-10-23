@@ -778,7 +778,7 @@ def _ke_hoach_luong(luong: dict, moc_cu, *, kq: KetQua, hang: int, sheet: str):
 #: mọi ô đang hiện trên màn.
 _CHEP_TU_MOC_CU = ("allowance", "chuyen_can", "phu_cap_ca", "phu_cap_tham_nien",
                    "insurance_elsewhere", "union_member", "an_cong_nhat", "luong_dot_1", "apply_self_deduction",
-                   "commission_pct")
+                   "commission_pct", "bac_hoa_hong")
 
 
 def _ghi_luong(payroll, emp, moi: dict | None, *, moc_cu, actor) -> bool:

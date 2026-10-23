@@ -192,6 +192,14 @@ class PayrollRepository:
             ).scalars()
         )
 
+    def all_dept_components(self) -> list[DepartmentSalaryComponent]:
+        """Mọi dòng thành phần lương theo bộ phận — một câu cho cả lượt tính bảng (bảng nhỏ)."""
+        return list(
+            self.db.execute(
+                select(DepartmentSalaryComponent).order_by(DepartmentSalaryComponent.id)
+            ).scalars()
+        )
+
     def get_dept_component(self, department_id: int, key: str) -> DepartmentSalaryComponent | None:
         return self.db.execute(
             select(DepartmentSalaryComponent).where(
@@ -249,6 +257,20 @@ class PayrollRepository:
             ).scalars().first()
         )
 
+    def current_salaries_map(self, employee_ids, on: date) -> dict[int, EmployeeSalary]:
+        """Như `current_salary` cho nhiều NV trong MỘT truy vấn; NV chưa có bản nào thì vắng mặt."""
+        ids = sorted({int(i) for i in (employee_ids or []) if i is not None})
+        if not ids:
+            return {}
+        out: dict[int, EmployeeSalary] = {}
+        for s in self.db.execute(
+                select(EmployeeSalary)
+                .where(EmployeeSalary.employee_id.in_(ids), EmployeeSalary.effective_from <= on)
+                .order_by(EmployeeSalary.employee_id, EmployeeSalary.effective_from.asc(),
+                          EmployeeSalary.id.asc())).scalars():
+            out[s.employee_id] = s   # asc ⇒ cái sau ghi đè = hiện hành
+        return out
+
     def latest_salaries_map(self, on: date) -> dict[int, EmployeeSalary]:
         """{employee_id → bản lương hiện hành ≤ on} cho toàn bộ NV (1 query, để tính cả bảng)."""
         rows = list(
@@ -275,6 +297,10 @@ class PayrollRepository:
         ).scalars().first()
 
     def create_salary(self, **fields) -> EmployeeSalary:
+        # Đường cũ chỉ gửi % phẳng (`commission_pct`: tạo nhân viên, nhập Excel) ⇒ lưu thành biểu MỘT
+        # bậc vô hạn (mg 0439). Engine chỉ đọc biểu; bỏ dòng này là ô % đó khai bao nhiêu cũng ra 0.
+        if fields.get("bac_hoa_hong") is None and float(fields.get("commission_pct") or 0) > 0:
+            fields["bac_hoa_hong"] = [{"den_ngay": None, "pct": float(fields["commission_pct"])}]
         s = EmployeeSalary(**fields)
         self.db.add(s)
         self.db.commit()
@@ -529,7 +555,8 @@ class PayrollRepository:
             self.db.flush()      # cần `ln.id` ngay để ghi snapshot khoản của dòng
         return ln
 
-    def update_line(self, ln: PayrollLine, *, commit: bool = True, **fields) -> PayrollLine:
+    def update_line(self, ln: PayrollLine, *, commit: bool = True, flush: bool = True,
+                    **fields) -> PayrollLine:
         """Sửa một dòng lương.
 
         `commit=False` (09/09/2026) để `PayrollService.generate` chốt MỘT lần cho cả kỳ:
@@ -537,13 +564,15 @@ class PayrollRepository:
           · nặng hơn nữa, mỗi commit làm SQLAlchemy HẾT HẠN mọi đối tượng đang giữ, nên vòng sau
             phải nạp lại thứ đã nạp sẵn (đo được: `employee_events` bị đọc lại 2,2 lần/người);
           · và nếu đứt giữa chừng thì bảng lương nằm lại NỬA MỚI NỬA CŨ, không dấu vết.
-        Đường sửa một ô (`update_line` của service) vẫn dùng mặc định `commit=True`."""
+        Đường sửa một ô (`update_line` của service) vẫn dùng mặc định `commit=True`.
+        `flush=False` (cùng `commit=False`): để lần commit cuối gộp mọi UPDATE — vòng tính cả kỳ không
+        đọc lại dòng từ CSDL, flush từng dòng là mỗi người thêm vài lượt khứ hồi CSDL."""
         for k, v in fields.items():
             setattr(ln, k, v)
         if commit:
             self.db.commit()
             self.db.refresh(ln)
-        else:
+        elif flush:
             self.db.flush()
         return ln
 

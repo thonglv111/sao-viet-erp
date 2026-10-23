@@ -125,7 +125,7 @@ export function KpiStrip({
 export type HoaHongState =
   | { kind: "loading" }
   | { kind: "forbidden" }
-  | { kind: "ok"; pct: number | null }
+  | { kind: "ok"; pct: string | null }
   | { kind: "error" };
 
 /** Tải % hoa hồng MỘT lần cho mỗi hồ sơ — gọi ở KHAY (EmployeeDetailPanel), không ở thẻ.
@@ -153,7 +153,10 @@ export function useHoaHong(token: string, employeeId: number, enabled: boolean):
               b.effective_from.localeCompare(a.effective_from),
             )[0]
           : null;
-        const pct = latest?.commission_pct ? latest.commission_pct * 100 : null;
+        // Biểu bậc theo số ngày thu (23/10/2026): một bậc thì hiện %, nhiều bậc thì nói số bậc.
+        const bac = latest?.bac_hoa_hong ?? [];
+        const pct = bac.length === 1 ? `${+(bac[0].pct * 100).toFixed(4)}% mọi số ngày thu`
+          : bac.length > 1 ? `Theo ${bac.length} bậc số ngày thu` : null;
         setState({ kind: "ok", pct });
       })
       .catch((e) => {
@@ -182,11 +185,11 @@ export function CommissionCard({ state }: { state: HoaHongState }) {
   return (
     <InfoCard title="Hoa hồng kinh doanh" icon={TrendingUp}>
       <InfoField
-        label="% hoa hồng"
-        value={state.kind === "loading" ? "Đang tải…" : pct != null ? `${pct}%` : null}
+        label="Biểu hoa hồng"
+        value={state.kind === "loading" ? "Đang tải…" : pct}
         icon={TrendingUp}
         hint={
-          "Máy tự tính hoa hồng theo hoá đơn bán trong kỳ với % này (chụp vào đơn lúc chốt) — ĐỪNG thêm tay khoản hoa hồng ở bảng lương, là trả hai lần. Đổi % ở Lương → Lương nhân viên." +
+          "Máy tự tính hoa hồng theo tiền thu về trong kỳ, % theo số ngày thu (biểu chụp vào đơn lúc chốt) — ĐỪNG thêm tay khoản hoa hồng ở bảng lương, là trả hai lần. Đổi biểu ở Lương → Lương nhân viên." +
           (state.kind === "error" ? " Không đọc được số hoa hồng." : "")
         }
       />

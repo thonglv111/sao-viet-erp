@@ -180,6 +180,11 @@ export function PayslipCard({
       // `luong_ngay_le` chỉ engine chế độ khoán mới ghi — vẫn nối vào nhánh này để tổng thu không
       // bao giờ thiếu nếu dòng cũ lệch cờ.
       : ([["Tăng ca", l.ot_pay], ...dongCongLe] as [string, number][])),
+    // Cộng thêm khoán kế toán gõ ở Khoán theo tổ (23/10/2026) — cộng thẳng vào lương, người công nhật
+    // cũng có thể có nên đứng ngoài nhánh chế độ khoán.
+    ...((l.khoan_cong_them ?? 0) !== 0
+      ? ([["Cộng thêm khoán", l.khoan_cong_them ?? 0]] as [string, number][])
+      : []),
     // Hoa hồng KD — cột riêng (07/09/2026). Trước đó là khoản nguồn `auto` mà phiếu không in ⇒ TỔNG
     // THU thiếu đúng phần hoa hồng (bản rà E5). Chỉ in khi có số.
     ...((l.hoa_hong ?? 0) !== 0
