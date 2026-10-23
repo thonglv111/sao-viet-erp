@@ -287,13 +287,16 @@ def nhan_vien_cua_to(
 
 
 # --- Báo dừng máy (Đợt 2, 21/10/2026) — ngày dừng máy tổ ăn chỉ tiêu ngày ----------------------
+# Người chỉ có ô Báo hỏng của Sửa chữa máy vẫn mở hộp và gửi máy hư được (chủ 23/10/2026); ĐÚNG tổ
+# nào, phần lương hay không — service tự kiểm (`dung_may._quyen`).
+BAO_HONG = ("ky_thuat_may", "request")
 @router.get("/teams/{department_id}/dung-may", response_model=DungMayListOut)
 def dung_may_ds(
     department_id: int,
     nam: int,
     thang: int,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output", BAO_HONG))],
 ) -> dict:
     """Ngày đã báo trong tháng + người của tổ + phiếu sửa máy báo trong tháng (hộp Báo dừng máy)."""
     return _chay(lambda: dung_may.danh_sach(db, user=user, department_id=department_id,
@@ -318,7 +321,7 @@ def bao_may_hu(
     department_id: int,
     body: MayHuIn,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(require_quyen_to("confirm_output"))],
+    user: Annotated[User, Depends(require_quyen_to("confirm_output", BAO_HONG))],
 ) -> dict:
     """Máy hư hôm nay (23/10/2026, gộp Báo sự cố): báo tổ sửa chữa, tuỳ chọn tạm dừng việc trên máy,
     tuỳ chọn ghi ngày dừng cho lương — một giao dịch. Service tự bắn SSE sau commit."""

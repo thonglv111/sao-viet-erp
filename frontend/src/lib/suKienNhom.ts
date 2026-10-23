@@ -128,6 +128,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
 
   // Kỹ thuật máy.
   ky_thuat_yeu_cau_moi: ["ky_thuat"],
+  ky_thuat_phieu_bao_lai: ["ky_thuat"],
   ky_thuat_yeu_cau_ket_qua: ["ky_thuat"],
   bao_tri_due: ["ky_thuat"],
 

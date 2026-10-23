@@ -10,8 +10,12 @@ không đọc chấm công. Quyền: Xác nhận sản lượng TRỌN tổ — 
 GỘP BÁO SỰ CỐ (23/10/2026, mockup `docs/mockups/bao-dung-may-gop.html`): bàn tổ bỏ "Báo sự cố" trong
 ngăn việc, chỉ còn hộp này. Máy hư HÔM NAY đi `bao_may_hu`: gửi "Báo máy hỏng" cho tổ sửa chữa, tuỳ
 chọn tạm dừng việc đang chạy trên máy, tuỳ chọn ghi luôn ngày dừng cho lương — MỘT giao dịch, cùng
-khuôn `su_co.bao_su_co`. Báo bù ngày cũ / Hết hàng vẫn đi `bao`. Quyền giữ nguyên (chủ: "tổ trưởng có
-quyền mới bấm được cho nó đơn giản").
+khuôn `su_co.bao_su_co`. Báo bù ngày cũ / Hết hàng vẫn đi `bao`.
+
+QUYỀN (chủ chốt 23/10: "có quyền mới bấm được báo máy hư, chứ không phải hardcode tổ trưởng"): gửi
+báo hỏng = ô Báo hỏng của Sửa chữa máy (`ky_thuat_may:request`) + Xem tổ; tạm dừng việc trên máy đi
+cổng Thực hiện lệnh của chính việc đó (`thuc_thi._tam_dung_lo`); mọi thứ đụng lương (ngày dừng, Hết
+hàng, ngày đã qua, sửa, xoá) vẫn là Xác nhận sản lượng TRỌN tổ.
 """
 from __future__ import annotations
 
@@ -29,8 +33,10 @@ from ...realtime import hub
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.dung_may_repo import DungMayRepository
 from ...repositories.ky_thuat_may_repo import KyThuatMayRepository
-from ..ky_thuat_may_service import KyThuatMayError, KyThuatMayService
-from ..quyen_to import VIEC_XAC_NHAN, gate_to_tron
+from ...repositories.rbac_repo import RoleRepository
+from ..ky_thuat_may_service import MODULE_SUA_CHUA, KyThuatMayError, KyThuatMayService
+from ..quyen_to import VIEC_XAC_NHAN, VIEC_XEM, gate_to_tron, quyen_cua_uid
+from ..rbac_service import AuthorizationService
 from . import thuc_thi
 from .su_co import MAX_LY_DO_PHIEN
 from .tinh_trang_nguoi import hom_nay
@@ -95,18 +101,44 @@ def _chan_ky(repo: DungMayRepository, ngay: date) -> None:
                          f"dừng máy của tháng đó được nữa.")
 
 
-def _gate(db: Session, user, department_id: int) -> DungMayRepository:
+def _repo_to(db: Session, department_id: int) -> DungMayRepository:
     repo = DungMayRepository(db)
     if repo.to(department_id) is None:
         raise ValueError("Không tìm thấy tổ.")
+    return repo
+
+
+def _gate(db: Session, user, department_id: int) -> DungMayRepository:
+    """Phần LƯƠNG (ngày dừng, Hết hàng, ngày đã qua, sửa, xoá): Xác nhận sản lượng trọn tổ."""
+    repo = _repo_to(db, department_id)
     gate_to_tron(db, getattr(user, "id", None), department_id, VIEC_XAC_NHAN)
     return repo
+
+
+_THIEU_BAO_HONG = "Bạn không có quyền Báo hỏng (Sửa chữa máy) ở tổ này"
+
+
+def _quyen(db: Session, user, department_id: int) -> tuple[bool, bool]:
+    """(gửi báo hỏng được, đụng phần lương được) của `user` trên tổ."""
+    q = quyen_cua_uid(db, getattr(user, "id", None))
+    luong = q is not None and q.co_tron(VIEC_XAC_NHAN, department_id)
+    bao_hong = (q is not None and q.muc(VIEC_XEM, department_id) is not None
+                and AuthorizationService(RoleRepository(db)).can(user, MODULE_SUA_CHUA, "request"))
+    return bao_hong, luong
 
 
 def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -> dict:
     """Ngày đã báo trong tháng + người của tổ (bộ tick sẵn) + phiếu sửa báo trong tháng của MÁY CỦA TỔ
     (`repo.may_cua_to`) + kỳ lương đã chốt."""
-    repo = _gate(db, user, department_id)
+    repo = _repo_to(db, department_id)
+    bao_hong, luong = _quyen(db, user, department_id)
+    if not (bao_hong or luong):
+        raise PermissionError(_THIEU_BAO_HONG)
+    may = _may_chon(repo, department_id)
+    if not luong:
+        # Chỉ được báo hỏng: hộp chỉ còn phần gửi tổ sửa chữa, không lộ ngày dừng / người hưởng.
+        return {"ky_da_chot": [], "ds": [], "nguoi": [], "phieu_sua": [], "may": may,
+                "hom_nay": hom_nay(), "quyen_bao_hong": True, "quyen_luong": False}
     dau = date(year, month, 1)
     cuoi = date(year, month, _cal.monthrange(year, month)[1])
     ds = repo.cua_to_trong_khoang(department_id, dau, cuoi)
@@ -123,8 +155,10 @@ def danh_sach(db: Session, *, user, department_id: int, year: int, month: int) -
         "nguoi": [{"employee_id": int(e.id), "ho_ten": e.full_name} for e in nguoi],
         "phieu_sua": [{"id": sc.id, "ma": sc.ma, "may_ten": may_ten, "bo_phan_hong": sc.bo_phan_hong}
                       for sc, may_ten in repo.phieu_sua_trong_khoang(tu, den, repo.may_cua_to(department_id))],
-        "may": _may_chon(repo, department_id),
+        "may": may,
         "hom_nay": hom_nay(),
+        "quyen_bao_hong": bao_hong,
+        "quyen_luong": True,
     }
 
 
@@ -190,11 +224,16 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
     """Máy hư HÔM NAY: báo tổ sửa chữa + (tuỳ chọn) tạm dừng việc đang chạy trên máy + (tuỳ chọn) ghi
     ngày dừng cho lương — MỘT giao dịch.
 
-    Máy đang có phiếu sửa chờ sửa ⇒ không gửi yêu cầu nữa, ngày dừng gắn phiếu đó. Có yêu cầu còn chờ
+    Máy đang có phiếu sửa chờ sửa ⇒ không gửi yêu cầu nữa, ngày dừng gắn phiếu đó; máy dừng hoặc
+    có triệu chứng mới thì vẫn báo tổ sửa chữa ngay (`bao_lai_phieu`). Có yêu cầu còn chờ
     tiếp nhận ⇒ dùng lại yêu cầu đó, nâng cờ máy dừng / mức độ và nối triệu chứng mới (`_nang_yeu_cau`).
     Mọi luật của ngày dừng (kỳ chốt, người hưởng, trùng ngày) kiểm TRƯỚC khi ghi gì: lỗi giữa chừng
     không được để lại một yêu cầu đã gửi mà ngày dừng không ghi."""
-    repo = _gate(db, user, department_id)
+    repo = _repo_to(db, department_id)
+    if not _quyen(db, user, department_id)[0]:
+        raise PermissionError(_THIEU_BAO_HONG)
+    if tinh_luong:
+        gate_to_tron(db, getattr(user, "id", None), department_id, VIEC_XAC_NHAN)
     if repo.co_to_con(department_id):
         raise ValueError("Đây là tổ cha (chỉ là nhóm) — báo dừng máy ở từng tổ con.")
     if muc_do not in MUC_DO:
@@ -216,7 +255,7 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
     neo = cvs[0] if cvs else None
     phieu = repo.phieu_mo([may_id]).get(may_id)
     yc = None if phieu is not None else repo.yeu_cau_mo([may_id]).get(may_id)
-    moi = nang = False
+    moi = nang = bao_phieu = False
     trieu_chung = (mo_ta or "").strip() or None
     svc = KyThuatMayService(db, KyThuatMayRepository(db), AuditLogRepository(db))
     tam_dung: list = []
@@ -235,7 +274,10 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
             moi = True
         elif yc is not None:
             nang = _nang_yeu_cau(yc, muc_do=muc_do, trieu_chung=trieu_chung, may_dung=dung_san_xuat)
-        ma =yc.ma if yc is not None else phieu.ma
+        else:
+            # Phiếu đã lập: mức độ do tổ sửa chữa đánh giá, không đè; triệu chứng mới thì nối.
+            bao_phieu = _noi_trieu_chung(phieu, trieu_chung) or bool(dung_san_xuat)
+        ma = yc.ma if yc is not None else phieu.ma
         if dung_san_xuat:
             for cv in cvs:
                 if cv.trang_thai == CV_DANG_CHAY:
@@ -277,8 +319,18 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
         "tam_dung": [cv.id for cv in tam_dung],
         "dung_may": _dong(r, ten, _ma(repo, [r])) if r is not None else None,
     }
-    _bao_tin(db, svc, yc if (moi or nang) else None, tam_dung)
+    _bao_tin(db, svc, yc if (moi or nang) else None, tam_dung,
+             phieu=phieu if bao_phieu else None, user=user, may_dung=bool(dung_san_xuat))
     return ket
+
+
+def _noi_trieu_chung(ban, trieu_chung: str | None) -> bool:
+    """Nối triệu chứng mới vào `mo_ta` của yêu cầu / phiếu; đã có dòng y hệt thì thôi."""
+    cu = (ban.mo_ta or "").strip()
+    if not trieu_chung or trieu_chung in cu.splitlines():
+        return False
+    ban.mo_ta = f"{cu}\n{trieu_chung}" if cu else trieu_chung
+    return True
 
 
 def _nang_yeu_cau(yc, *, muc_do: str, trieu_chung: str | None, may_dung: bool) -> bool:
@@ -291,19 +343,18 @@ def _nang_yeu_cau(yc, *, muc_do: str, trieu_chung: str | None, may_dung: bool) -
     if yc.muc_do not in MUC_DO or MUC_DO.index(muc_do) > MUC_DO.index(yc.muc_do):
         yc.muc_do = muc_do
         doi = True
-    cu = (yc.mo_ta or "").strip()
-    if trieu_chung and trieu_chung not in cu.splitlines():
-        yc.mo_ta = f"{cu}\n{trieu_chung}" if cu else trieu_chung
-        doi = True
-    return doi
+    return _noi_trieu_chung(yc, trieu_chung) or doi
 
 
-def _bao_tin(db: Session, svc: KyThuatMayService, yc, tam_dung: list) -> None:
+def _bao_tin(db: Session, svc: KyThuatMayService, yc, tam_dung: list, *, phieu=None, user=None,
+             may_dung: bool = False) -> None:
     """Báo tin SAU commit, hỏng thì nuốt — cùng lý do `su_co._bao_tin`: thao tác chính đã chốt,
     khâu báo tin hỏng không được hoá 500 để người ta bấm lại đẻ yêu cầu thứ hai."""
     try:
         if yc is not None:
             svc.bao_to_sua_chua(yc)
+        if phieu is not None:
+            svc.bao_lai_phieu(phieu, nguoi_bao=svc._ten_user(getattr(user, "id", None)), may_dung=may_dung)
         for cv in tam_dung:
             hub.gui({"type": "san_xuat_cong_viec_changed", "team_id": cv.department_id,
                      "cong_viec_id": cv.id, "trang_thai": cv.trang_thai},

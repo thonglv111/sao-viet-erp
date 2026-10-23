@@ -812,6 +812,14 @@ export function AppShell() {
         e.may_dung ? "warn" : "info",
       );
       napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("ky_thuat_may") && e.type === "ky_thuat_phieu_bao_lai") {
+      // Máy ĐÃ có phiếu sửa mở mà tổ báo lại (máy dừng / triệu chứng mới, 23/10/2026).
+      pushToast(
+        e.may_dung
+          ? `⚠️ ${e.may} đang dừng vì hỏng${e.nguoi_bao ? ` (${e.nguoi_bao} báo)` : ""}, phiếu ${e.ma}`
+          : `🔔 ${e.nguoi_bao ?? "Có người"} báo thêm triệu chứng ${e.may}, phiếu ${e.ma}`,
+        e.may_dung ? "warn" : "info",
+      );
     } else if (e.type === "ky_thuat_yeu_cau_ket_qua") {
       // Kết quả đẩy riêng về ĐÚNG người đã báo (không broadcast) ⇒ KHÔNG gác quyền: nhận được
       // sự kiện này nghĩa là mình chính là người gửi lời báo đó.
@@ -1248,7 +1256,8 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
-          coBaoDungMay={t?.quyen?.confirm_output === "all"}
+          coBaoDungMay={t?.quyen?.confirm_output === "all"
+            || (t?.quyen?.read != null && Boolean(caps.get("ky_thuat_may")?.can_request))}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}

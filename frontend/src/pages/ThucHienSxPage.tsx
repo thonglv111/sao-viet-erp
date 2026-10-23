@@ -122,8 +122,8 @@ export function ThucHienSxPage({
   /** Người đang xem vào tổ này ở mức "Của tôi" (cờ `la_tho` của `GET /teams`, máy chủ tính): danh
    *  sách chỉ có việc giao cho họ, nên khi trống phải nói đúng lý do đó. */
   laTho?: boolean;
-  /** Người xem giữ Xác nhận sản lượng TRỌN tổ (`quyen.confirm_output === "all"`) — luật máy chủ
-   *  của Báo dừng máy (`gate_to_tron`). */
+  /** Người xem giữ Xác nhận sản lượng TRỌN tổ (phần lương) HOẶC ô Báo hỏng của Sửa chữa máy + Xem
+   *  tổ (gửi máy hư) — cùng luật máy chủ `dung_may._quyen`. Hộp tự ẩn phần không có quyền. */
   coBaoDungMay?: boolean;
   eventTick?: number;
   /** Số lần đề nghị cấp vật tư đổi, ĐẾM THEO công việc (SSE, mắc ở AppShell). CỐ TÌNH không đi qua

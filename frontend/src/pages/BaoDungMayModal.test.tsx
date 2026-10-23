@@ -20,6 +20,8 @@ const DS: SxDungMayListOut = {
     { id: 1, ma: "IN-01", ten: "Máy in 2 màu", viec: null, viec_dang_chay: false, dang_mo: "YC-0009" },
   ],
   hom_nay: "2026-10-21",
+  quyen_bao_hong: true,
+  quyen_luong: true,
 };
 /** Ngày xưởng đã sang 22/10 mà hộp mở ở 21/10 ⇒ Máy hư là báo bù ngày đã qua, chỉ còn phần lương. */
 const DS_NGAY_QUA: SxDungMayListOut = { ...DS, hom_nay: "2026-10-22" };
@@ -80,6 +82,12 @@ describe("Báo dừng máy", () => {
     expect(await screen.findByText("15/10")).toBeInTheDocument();
     expect(screen.getByText("SC-0014")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Xoá ngày 15/10" }));
+    // Xoá ngày dừng là đổi lương cả tổ ⇒ hỏi lại ngay trên dòng, Thôi thì không xoá.
+    expect(screen.getByText("Xoá hẳn ngày 15/10?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Thôi" }));
+    expect(exec.xoa).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Xoá ngày 15/10" }));
+    await user.click(screen.getByRole("button", { name: "Xoá" }));
     expect(exec.xoa).toHaveBeenCalledWith(4);
 
     (exec.bao as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("Tổ đã báo dừng máy ngày 21/10."));
@@ -174,5 +182,32 @@ describe("Báo dừng máy", () => {
     await user.click(screen.getByRole("button", { name: "Máy hư" }));
     expect(screen.getByText(/Tổ chưa có máy nào/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gửi tổ sửa chữa" })).toBeDisabled();
+  });
+
+  it("chỉ có ô Báo hỏng: hộp chỉ còn máy hư hôm nay, không ngày, lý do, lương, bảng đã báo", async () => {
+    const user = userEvent.setup();
+    const { exec, onBao } = mo({
+      ky_da_chot: [], ds: [], nguoi: [], phieu_sua: [], may: DS.may, hom_nay: "2026-10-21",
+      quyen_bao_hong: true, quyen_luong: false,
+    });
+    await screen.findByLabelText("IN-02 Máy in 4 màu");
+    expect(screen.queryByLabelText("Ngày dừng máy")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hết hàng" })).toBeNull();
+    expect(screen.queryByLabelText(/Tính ngày dừng cho lương/)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Gửi tổ sửa chữa" }));
+    expect(exec.mayHu).toHaveBeenCalledWith(expect.objectContaining({ may_id: 2, tinh_luong: false, nguoi_ids: [] }));
+    expect(onBao).toHaveBeenCalled();
+  });
+
+  it("có lương mà không có ô Báo hỏng: máy hư hôm nay chỉ lưu ngày dừng, không gửi tổ sửa chữa", async () => {
+    const user = userEvent.setup();
+    const { exec } = mo({ ...DS, quyen_bao_hong: false });
+    await screen.findByLabelText("Bình");
+    await user.click(screen.getByRole("button", { name: "Máy hư" }));
+    expect(screen.queryByRole("radiogroup", { name: "Máy hư" })).toBeNull();
+    expect(screen.getByLabelText("Phiếu sửa máy")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(exec.bao).toHaveBeenCalledTimes(1);
+    expect(exec.mayHu).not.toHaveBeenCalled();
   });
 });

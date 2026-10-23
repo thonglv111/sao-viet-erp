@@ -519,6 +519,19 @@ class KyThuatMayService:
             nguoi_nhan=nhan, ma=yc.ma)
         self.bao_ban_to_may(yc.may_id)
 
+    def bao_lai_phieu(self, sc: SuaChuaMay, *, nguoi_bao: str | None, may_dung: bool) -> None:
+        """Tổ báo lại cái máy ĐÃ có phiếu sửa mở (máy dừng / triệu chứng mới) ⇒ đẩy ngay tới tổ sửa
+        chữa, cùng lý do `bao_to_sua_chua`. Gọi SAU commit."""
+        may = self._may(sc.may_id)
+        su_kien = {
+            "type": "ky_thuat_phieu_bao_lai",
+            "id": sc.id, "ma": sc.ma, "may": may.ma, "may_ten": may.ten,
+            "may_dung": may_dung, "nguoi_bao": nguoi_bao,
+        }
+        for uid in self._nguoi_to_sua_chua():
+            hub.publish(uid, su_kien)
+        self.bao_ban_to_may(sc.may_id)
+
     def _bao_nguoi_bao(self, yc: YeuCauSuaChua, ket_qua: str, *,
                        phieu_ma: str | None = None) -> None:
         """Đẩy kết quả ngược về ĐÚNG người đã báo — không broadcast.

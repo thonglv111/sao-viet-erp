@@ -7,6 +7,10 @@
 // luôn. Máy hư HÔM NAY ⇒ chọn máy, tick "Máy đang dừng" (tạm dừng việc trên máy), mức độ, triệu chứng
 // rồi gửi tổ sửa chữa; phần lương thành ô tick "Tính ngày dừng cho lương" (máy hư vài chục phút rồi
 // chạy lại thì không ăn chỉ tiêu ngày). Máy hư ngày đã qua / Hết hàng / Sửa: chỉ còn phần lương như cũ.
+//
+// Quyền do máy chủ trả trong `ds` (chủ 23/10: "có quyền mới bấm được báo máy hư, chứ không phải
+// hardcode tổ trưởng"): `quyen_bao_hong` (ô Báo hỏng) mở phần gửi tổ sửa chữa, `quyen_luong` (Xác nhận
+// sản lượng trọn tổ) mở ngày, Hết hàng, ngày dừng, sửa, xoá. Chỉ có Báo hỏng thì hộp chỉ còn máy hư hôm nay.
 import { useEffect, useId, useRef, useState } from "react";
 
 import type {
@@ -48,7 +52,7 @@ const loiCua = (e: unknown) => (e instanceof Error ? e.message : "Không lưu đ
 /** Câu toast sau khi báo máy hư — nói đúng đã gửi mới, gắn vào cái đang mở, hay chỉ có phiếu sửa. */
 function cauMayHu(r: SxMayHuOut): string {
   const dau = r.moi ? `Đã gửi ${r.yeu_cau_ma} tới tổ sửa chữa`
-    : r.phieu_ma ? `Máy đang có phiếu sửa ${r.phieu_ma}, không gửi thêm yêu cầu`
+    : r.phieu_ma ? `Đã gắn vào phiếu sửa ${r.phieu_ma} đang mở`
       : `Đã gắn vào ${r.yeu_cau_ma} đang chờ tổ sửa chữa nhận`;
   const them = [
     r.tam_dung.length > 0 ? "việc trên máy đã tạm dừng" : null,
@@ -76,6 +80,8 @@ export function BaoDungMayModal({
   const [loi, setLoi] = useState<string | null>(null);
   const [dangGui, setDangGui] = useState(false);
   const [nap, setNap] = useState(0);
+  // Dòng đang hỏi "Xoá hẳn?" ngay tại chỗ — xoá ngày dừng là đổi tiền lương của cả tổ.
+  const [hoiXoa, setHoiXoa] = useState<number | null>(null);
   // Dòng đang sửa — null = đang báo ngày mới.
   const [dangSua, setDangSua] = useState<SxDungMay | null>(null);
   // Phần báo tổ sửa chữa (Máy hư hôm nay).
@@ -96,6 +102,11 @@ export function BaoDungMayModal({
     exec.ds(nam, thang).then((r) => {
       if (huy) return;
       setData(r);
+      // Chỉ được báo hỏng: không chọn ngày / lý do, luôn là máy hư hôm nay (ngày xưởng).
+      if (!r.quyen_luong) {
+        setLyDo("may_hu");
+        if (r.hom_nay) setNgay(r.hom_nay);
+      }
       if (!daTick.current) {
         daTick.current = true;
         setChon(new Set(r.nguoi.map((n) => n.employee_id)));
@@ -117,7 +128,8 @@ export function BaoDungMayModal({
 
   // Máy hư HÔM NAY (theo ngày xưởng máy chủ) ⇒ báo tổ sửa chữa; ngày đã qua thì chỉ còn phần lương.
   const homNayXuong = data?.hom_nay ?? homNay;
-  const baoHong = !dangSua && lyDo === "may_hu" && ngay === homNayXuong;
+  const luongDuoc = data?.quyen_luong ?? false;
+  const baoHong = (data?.quyen_bao_hong ?? false) && !dangSua && lyDo === "may_hu" && ngay === homNayXuong;
   const dsMay = data?.may ?? [];
   const may = dsMay.find((m) => m.id === mayId) ?? null;
   const daCoNgayNay = (data?.ds ?? []).some((d) => d.ngay === ngay);
@@ -191,6 +203,7 @@ export function BaoDungMayModal({
 
   async function xoa(d: SxDungMay) {
     setLoi(null);
+    setHoiXoa(null);
     try {
       await exec.xoa(d.id);
       onBao(`Đã xoá ngày dừng máy ${ngayNgan(d.ngay)}.`);
@@ -208,18 +221,20 @@ export function BaoDungMayModal({
       nutPhu="Đóng" nutChinh={nutChinh} nutChinhKhoa={!hopLe}
       dangGui={dangGui} loi={loi} phimTat={baoHong ? "Ctrl + Enter để gửi" : "Ctrl + Enter để lưu"}
       onPhimTat={luu} onDong={onDong} onChinh={luu}>
-      <div className="thsx-f">
-        <span className="thsx-f__n">Ngày</span>
-        {dangSua ? (
-          <div className="thsx-dm-sua">
-            <span className="thsx-num">{ngayNgan(dangSua.ngay)}</span>
-            <button type="button" className="thsx-b-lk" onClick={thoiSua}>Thôi sửa, báo ngày khác</button>
-          </div>
-        ) : (
-          <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay}
-            min={chotMuon ? dauThangSau(chotMuon) : undefined} required aria-label="Ngày dừng máy" />
-        )}
-      </div>
+      {luongDuoc && (
+        <div className="thsx-f">
+          <span className="thsx-f__n">Ngày</span>
+          {dangSua ? (
+            <div className="thsx-dm-sua">
+              <span className="thsx-num">{ngayNgan(dangSua.ngay)}</span>
+              <button type="button" className="thsx-b-lk" onClick={thoiSua}>Thôi sửa, báo ngày khác</button>
+            </div>
+          ) : (
+            <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay}
+              min={chotMuon ? dauThangSau(chotMuon) : undefined} required aria-label="Ngày dừng máy" />
+          )}
+        </div>
+      )}
 
       {khoa && coLuong && (
         <div className="thsx-bao thsx-bao--vang">
@@ -228,15 +243,17 @@ export function BaoDungMayModal({
         </div>
       )}
 
-      <div className="thsx-f">
-        <span className="thsx-f__n">Lý do</span>
-        <div className="thsx-seg" role="group" aria-label="Lý do">
-          {LY_DO.map((l) => (
-            <button key={l.ma} type="button" className="thsx-seg__btn" aria-pressed={lyDo === l.ma}
-              onClick={() => setLyDo(l.ma)}>{l.ten}</button>
-          ))}
+      {luongDuoc && (
+        <div className="thsx-f">
+          <span className="thsx-f__n">Lý do</span>
+          <div className="thsx-seg" role="group" aria-label="Lý do">
+            {LY_DO.map((l) => (
+              <button key={l.ma} type="button" className="thsx-seg__btn" aria-pressed={lyDo === l.ma}
+                onClick={() => setLyDo(l.ma)}>{l.ten}</button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {baoHong && (
         <>
@@ -244,7 +261,7 @@ export function BaoDungMayModal({
             <span className="thsx-f__n">Máy hư</span>
             {dsMay.length === 0 ? (
               <div className="thsx-bao thsx-bao--vang">
-                Tổ chưa có máy nào. Khai "Tổ đứng máy" ở danh mục Máy, hoặc chọn ngày đã qua để chỉ tính ngày dừng.
+                Tổ chưa có máy nào. Khai "Tổ đứng máy" ở danh mục Máy{luongDuoc ? ", hoặc chọn ngày đã qua để chỉ tính ngày dừng" : ""}.
               </div>
             ) : (
               <div className="thsx-hop-ds">
@@ -320,7 +337,7 @@ export function BaoDungMayModal({
       )}
 
       <div className={baoHong ? "thsx-dm-khoi" : "thsx-dm-khoi thsx-dm-khoi--tron"}>
-        {baoHong && (
+        {baoHong && luongDuoc && (
           <label className={`thsx-tick${tinhLuong ? " is-xanh" : ""}`}>
             <input type="checkbox" checked={tinhLuong} disabled={daCoNgayNay}
               onChange={(e) => setTinhLuong(e.target.checked)} />
@@ -369,12 +386,18 @@ export function BaoDungMayModal({
                   <td className="thsx-dm-ds__nut">
                     {thangKhoa(d.ngay) ? (
                       <span className="thsx-f__g">Kỳ đã chốt</span>
+                    ) : hoiXoa === d.id ? (
+                      <>
+                        <span className="thsx-f__g">Xoá hẳn ngày {ngayNgan(d.ngay)}?</span>
+                        <button type="button" className="thsx-b-lk" onClick={() => xoa(d)}>Xoá</button>
+                        <button type="button" className="thsx-b-lk" onClick={() => setHoiXoa(null)}>Thôi</button>
+                      </>
                     ) : (
                       <>
                         <button type="button" className="thsx-b-lk" aria-label={`Sửa ngày ${ngayNgan(d.ngay)}`}
                           onClick={() => moSua(d)}>Sửa</button>
                         <button type="button" className="thsx-b-lk" aria-label={`Xoá ngày ${ngayNgan(d.ngay)}`}
-                          onClick={() => xoa(d)}>Xoá</button>
+                          onClick={() => setHoiXoa(d.id)}>Xoá</button>
                       </>
                     )}
                   </td>

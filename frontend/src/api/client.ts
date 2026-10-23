@@ -495,6 +495,11 @@ export type QuoteEvent =
       muc_do: string; may_dung: boolean;
       nguoi_bao: string | null; bo_phan: string | null;
     }
+  // Tổ báo lại cái máy ĐÃ có phiếu sửa mở (máy dừng / triệu chứng mới) → tổ sửa chữa (23/10/2026).
+  | {
+      type: "ky_thuat_phieu_bao_lai"; id: number; ma: string;
+      may: string; may_ten: string | null; may_dung: boolean; nguoi_bao: string | null;
+    }
   | {
       type: "ky_thuat_yeu_cau_ket_qua"; id: number; ma: string;
       ket_qua: "da_tao_phieu" | "tu_choi";
@@ -1582,6 +1587,10 @@ export interface SxDungMayListOut {
   may?: SxMayHuChon[];
   /** Ngày xưởng (máy chủ) — Máy hư báo tổ sửa chữa chỉ cho hôm nay. */
   hom_nay?: string | null;
+  /** Ô Báo hỏng (`ky_thuat_may:request`) + Xem tổ ⇒ gửi tổ sửa chữa được. */
+  quyen_bao_hong?: boolean;
+  /** Xác nhận sản lượng trọn tổ ⇒ ngày dừng, Hết hàng, ngày đã qua, sửa, xoá. */
+  quyen_luong?: boolean;
 }
 /** Báo máy hư hôm nay (hộp Báo dừng máy gộp Báo sự cố, 23/10/2026). */
 export interface SxMayHuIn {

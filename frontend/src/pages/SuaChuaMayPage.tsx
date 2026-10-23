@@ -284,6 +284,7 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
         may={may} loiMay={loiMay} onCanMay={onCanMay}
         moId={moPhieuId} onDaMo={() => setMoPhieuId(null)}
         locMan={locMan} onLocMan={setLocMan}
+        eventTick={eventTick}
       />
     );
   }
@@ -302,7 +303,7 @@ export function SuaChuaMayPage({ eventTick = 0, onBadgeStale }: {
 
 // ==================== Khung 1: phiếu sửa chữa ====================
 
-function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLocMan }: {
+function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLocMan, eventTick }: {
   chuyen: ReactNode;
   may: MayChon[];
   loiMay: string | null;
@@ -311,6 +312,8 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
   onDaMo: () => void;
   locMan: LocMan;
   onLocMan: (t: LocMan) => void;
+  /** Tổ báo lại máy đang có phiếu (máy dừng / triệu chứng mới, 23/10/2026) ⇒ danh sách tự nạp. */
+  eventTick: number;
 }) {
   const { token } = useAuth();
   const can = useCan();
@@ -356,7 +359,7 @@ function KhungPhieu({ chuyen, may, loiMay, onCanMay, moId, onDaMo, locMan, onLoc
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Không tải được danh sách."))
       .finally(() => setLoading(false));
-  }, [token, qTre, tab, khoaLoc, page, size]);
+  }, [token, qTre, tab, khoaLoc, page, size, eventTick]);
 
   useEffect(load, [load]);
 

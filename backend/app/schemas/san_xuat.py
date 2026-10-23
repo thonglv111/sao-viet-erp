@@ -1845,6 +1845,8 @@ class DungMayListOut(BaseModel):
     phieu_sua: list[PhieuSuaChonOut] = []
     may: list[MayHuChonOut] = []
     hom_nay: date | None = None         # ngày xưởng — Máy hư báo tổ sửa chữa chỉ cho hôm nay
+    quyen_bao_hong: bool = False        # ô Báo hỏng (ky_thuat_may:request) + Xem tổ ⇒ gửi tổ sửa chữa
+    quyen_luong: bool = False           # Xác nhận sản lượng trọn tổ ⇒ ngày dừng, Hết hàng, sửa, xoá
 
 
 class MayHuIn(BaseModel):

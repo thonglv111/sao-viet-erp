@@ -19,7 +19,7 @@ from app.models.ky_thuat_may import (
 from app.models.may_thiet_bi import MayTo
 from app.models.payroll import KhoanDungMay
 from app.models.san_xuat import CV_DANG_CHAY, CV_TAM_DUNG, SanXuatCongViec
-from app.services.quyen_to import VIEC_THUC_HIEN
+from app.services.quyen_to import VIEC_THUC_HIEN, VIEC_XAC_NHAN
 from app.services.san_xuat import dung_may
 from app.services.san_xuat.tinh_trang_nguoi import hom_nay
 from tests.quyen_to_fixtures import cap_quyen_to
@@ -152,15 +152,87 @@ def test_may_hu_chi_nhan_may_cua_to(db, admin, cv):
     assert kq["tam_dung"] == [] and (yc.cong_viec_id, yc.lsx_id) == (None, None)
 
 
-def test_may_hu_can_quyen_xac_nhan_tron_to(db, admin, cv):
-    tho = tao_user(db, "tho_mhu")
+def _tho(db, cv, ten: str, *, bao_hong: bool, viec=(VIEC_THUC_HIEN,), xem: bool = True):
+    """Người của tổ có `viec` trên dòng tổ; `bao_hong` = ô Báo hỏng (`ky_thuat_may:request`)."""
     from app.models.department import Department
+    from app.models.role import SCOPE_OWN
+    from app.repositories.rbac_repo import RoleRepository
 
-    cap_quyen_to(db, tho, db.get(Department, cv.department_id), viec=(VIEC_THUC_HIEN,))
+    u = tao_user(db, ten)
+    cap_quyen_to(db, u, db.get(Department, cv.department_id), viec=viec, xem=xem)
+    if bao_hong:
+        RoleRepository(db).set_permission(role_id=u.role_id, module_key="ky_thuat_may",
+                                          can_request=True, scope=SCOPE_OWN)
     db.commit()
+    return u
+
+
+def test_may_hu_can_o_bao_hong_khong_phai_to_truong(db, cv):
+    """Chủ chốt 23/10: "có quyền mới bấm được báo máy hư, chứ không phải hardcode tổ trưởng" — gửi
+    báo hỏng đi theo ô Báo hỏng của Sửa chữa máy; thợ có ô đó là báo được."""
+    tho = _tho(db, cv, "tho_mhu", bao_hong=True)
+    kq = _bao(db, tho, cv, mo_ta="Kẹt giấy")
+    assert kq["moi"] is True and db.query(YeuCauSuaChua).one().mo_ta == "Kẹt giấy"
+
+
+def test_may_hu_thieu_o_bao_hong_thi_chan(db, cv):
+    tho = _tho(db, cv, "tt_khong_bh", bao_hong=False, viec=(VIEC_THUC_HIEN, VIEC_XAC_NHAN))
+    with pytest.raises(PermissionError, match="Báo hỏng"):
+        _bao(db, tho, cv)
+    assert db.query(YeuCauSuaChua).count() == 0
+
+
+def test_may_hu_co_o_bao_hong_nhung_khong_xem_to_thi_chan(db, cv):
+    tho = _tho(db, cv, "bh_to_khac", bao_hong=True, viec=(), xem=False)
     with pytest.raises(PermissionError):
         _bao(db, tho, cv)
     assert db.query(YeuCauSuaChua).count() == 0
+
+
+def test_tinh_ngay_dung_cho_luong_van_can_xac_nhan_tron_to(db, cv):
+    tho = _tho(db, cv, "tho_luong", bao_hong=True)
+    with pytest.raises(PermissionError):
+        _bao(db, tho, cv, tinh_luong=True, nguoi_ids=_nguoi(db, cv))
+    assert db.query(YeuCauSuaChua).count() == 0 and db.query(KhoanDungMay).count() == 0
+
+
+def test_danh_sach_nguoi_chi_bao_hong_khong_thay_phan_luong(db, admin, cv):
+    _bao(db, admin, cv, tinh_luong=True, nguoi_ids=_nguoi(db, cv))
+    tho = _tho(db, cv, "tho_ds", bao_hong=True)
+    ds = dung_may.danh_sach(db, user=tho, department_id=cv.department_id,
+                            year=hom_nay().year, month=hom_nay().month)
+    assert (ds["quyen_bao_hong"], ds["quyen_luong"]) == (True, False)
+    assert ds["ds"] == [] and ds["nguoi"] == [] and ds["phieu_sua"] == []
+    assert ds["may"][0]["id"] == cv.may_id
+    ad = dung_may.danh_sach(db, user=admin, department_id=cv.department_id,
+                            year=hom_nay().year, month=hom_nay().month)
+    assert (ad["quyen_bao_hong"], ad["quyen_luong"]) == (True, True) and len(ad["ds"]) == 1
+
+
+def test_danh_sach_khong_quyen_nao_thi_chan(db, cv):
+    tho = _tho(db, cv, "tho_tron_khong", bao_hong=False)
+    with pytest.raises(PermissionError):
+        dung_may.danh_sach(db, user=tho, department_id=cv.department_id,
+                           year=hom_nay().year, month=hom_nay().month)
+
+
+def test_gan_phieu_dang_mo_noi_trieu_chung_va_bao_to_sua_chua(db, admin, cv, monkeypatch):
+    """Máy đã có phiếu sửa mở mà tổ báo lại: triệu chứng mới nối vào phiếu, tổ sửa chữa được báo
+    NGAY khi máy dừng hoặc có triệu chứng mới. Báo y hệt, máy vẫn chạy ⇒ im."""
+    import app.services.ky_thuat_may_service as ktm
+
+    goi: list[tuple] = []
+    monkeypatch.setattr(ktm.KyThuatMayService, "bao_lai_phieu",
+                        lambda self, sc, *, nguoi_bao, may_dung: goi.append((sc.ma, may_dung)))
+    sc = SuaChuaMay(ma="SC-MHU-2", may_id=cv.may_id, bo_phan_hong="Lô mực", mo_ta="Mực lem",
+                    thoi_diem=datetime.now(timezone.utc))
+    db.add(sc)
+    db.commit()
+    _bao(db, admin, cv, mo_ta="Mực lem")
+    _bao(db, admin, cv, mo_ta="Kêu lạch cạch")
+    _bao(db, admin, cv, dung_san_xuat=True)
+    assert sc.mo_ta == "Mực lem\nKêu lạch cạch"
+    assert goi == [("SC-MHU-2", False), ("SC-MHU-2", True)]
 
 
 def test_danh_sach_tra_may_cua_to_kem_viec_va_phieu_dang_mo(db, admin, cv):
@@ -215,3 +287,4 @@ def test_api_may_hu_qua_schema(client):
     ds = client.get(f"/api/san-xuat/teams/{to_id}/dung-may?nam={hom_nay().year}&thang={hom_nay().month}",
                     headers=h).json()
     assert ds["may"][0]["id"] == m_id and ds["may"][0]["dang_mo"] == kq["yeu_cau_ma"]
+    assert ds["quyen_bao_hong"] is True and ds["quyen_luong"] is True
