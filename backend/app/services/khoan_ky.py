@@ -264,6 +264,7 @@ class KhoanKyService:
         # Phần của từng người từng lần ghi, ĐÃ áp luật ngày: [emp, tổ, ngày, batch_id, tiền].
         phan: list[list] = []
         chi_tiet: dict[int, list[dict]] = defaultdict(list)
+        ct_lan: dict[tuple[int, int], dict] = {}   # (người, lần ghi) → dòng ngăn soi
         # Quỹ GỐC của tổ trong ngày và phần gốc của mỗi người — cho chỉ tiêu ngày.
         quy_ngay: dict[tuple[int, date], float] = defaultdict(float)
         phan_ngay: dict[tuple[int, date], dict[int, float]] = defaultdict(lambda: defaultdict(float))
@@ -362,13 +363,16 @@ class KhoanKyService:
                 emp = int(r.employee_id)
                 moi = tien * w[emp] / tong_w
                 phan.append([emp, to, d, int(b.id), moi * he_so])
-                chi_tiet[emp].append({
+                # `tien` là số SAU khi trích tổ trưởng (khối tổ trưởng bên dưới điền lại + ghi % trích
+                # vào `to_truong`) — ngăn soi không còn dòng trừ riêng (chủ chốt 22/10/2026).
+                ct_lan[(emp, int(b.id))] = {
                     "loai": "lan_ghi", "batch_id": int(b.id), "ngay": d.isoformat(),
                     "cong_doan": ten_cd, "to": ten_to(to), "so_luong": _so(b.tot),
                     "tien_lan_ghi": round(tien), "so_nguoi": len(ds),
-                    "ty_le": round(w[emp] / tong_w, 3), "tuy_chon": the,
-                    "tien": round(moi * he_so), "ghi_chu": ghi_chu,
-                })
+                    "ty_le": w[emp] / tong_w, "luong_bu_lo": w[emp], "tong_luong_bu_lo": tong_w,
+                    "to_truong": [], "tuy_chon": the, "tien": round(moi * he_so), "ghi_chu": ghi_chu,
+                }
+                chi_tiet[emp].append(ct_lan[(emp, int(b.id))])
                 if he_so > 0 and to is not None:
                     phan_ngay[(to, d)][emp] += moi
             if he_so > 0 and to is not None:
@@ -415,7 +419,7 @@ class KhoanKyService:
                 ngay_so["nguoi"][emp] = t
                 chi_tiet[emp].append({
                     "loai": "tang_ca_khoan", "ngay": d.isoformat(), "to": ten_to(to),
-                    "tien": round(t),
+                    "tien_lan_ghi": round(them), "ty_le": p / quy, "tien": round(t),
                     "ghi_chu": f"tổ làm {_vnd(quy)} đ, chỉ tiêu {_vnd(ct)} đ/ngày — 50% phần vượt",
                 })
 
@@ -455,7 +459,8 @@ class KhoanKyService:
                     "ly_do": LY_DO_DUNG_MAY.get(r.ly_do, r.ly_do),
                     "sua_chua": ma_sc.get(int(r.sua_chua_id)) if r.sua_chua_id else None,
                     "ghi_chu": r.ghi_chu, "tien_ngay": round(muc_ngay), "so_nguoi": len(ds),
-                    "ty_le": round(w[e] / tong_w, 3), "tien": round(t),
+                    "ty_le": w[e] / tong_w, "luong_bu_lo": w[e], "tong_luong_bu_lo": tong_w,
+                    "tien": round(t),
                 })
 
         # --- Tổ trưởng ăn chia / ăn thưởng ---------------------------------------------
@@ -507,20 +512,17 @@ class KhoanKyService:
                 so_tt.append({"dep_id": dep_id, "emp": head, "che_do": moc.che_do,
                               "ty_le": _so(moc.ty_le), "quy": quy, "tien": ty_le * quy})
             if moc.che_do == TO_TRUONG_CHIA:
-                tru: dict[int, float] = defaultdict(float)
                 for p in phan:
                     if p[1] in nhanh:
-                        tru[p[0]] += p[4] * ty_le
                         p[4] *= (1 - ty_le)
-                for emp, t in tru.items():
-                    chi_tiet[emp].append({
-                        "loai": "to_truong_tru", "to": dep.name, "tien": -round(t),
-                        "ghi_chu": f"trích {_so(moc.ty_le):g}% sản lượng cho tổ trưởng (ăn chia)",
-                    })
+                        lan = ct_lan.get((p[0], p[3]))
+                        if lan is not None:
+                            lan["tien"] = round(p[4])
+                            lan["to_truong"].append(_so(moc.ty_le))
             them_tt[head] += ty_le * quy
             chi_tiet[head].append({
-                "loai": "to_truong", "to": dep.name, "tien": round(ty_le * quy),
-                "ghi_chu": f"tổ trưởng {kieu} {_so(moc.ty_le):g}% × quỹ tổ {_vnd(quy)} đ",
+                "loai": "to_truong", "to": dep.name, "tien_lan_ghi": round(quy), "ty_le": ty_le,
+                "tien": round(ty_le * quy), "ghi_chu": kieu,
             })
 
         khoan: dict[int, float] = defaultdict(float)

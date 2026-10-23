@@ -903,16 +903,21 @@ class KhoanKmChiTietOut(BaseModel):
 class KhoanKyDongOut(BaseModel):
     """Một dòng làm nên tiền khoán của một người (21/10/2026): lần ghi · tăng ca khoán · tổ trưởng."""
 
-    loai: str                     # lan_ghi | tang_ca_khoan | to_truong | to_truong_tru | dung_may
+    loai: str                     # lan_ghi | tang_ca_khoan | to_truong | dung_may
     batch_id: int | None = None
     ngay: str | None = None
     cong_doan: str | None = None
     to: str | None = None
     so_luong: float | None = None
+    # Tiền cả tổ của dòng: tiền lần ghi / phần tăng ca khoán của tổ hôm đó / quỹ tổ (dòng tổ trưởng).
     tien_lan_ghi: float | None = None
     so_nguoi: int | None = None
-    # Đợt 2: phần của người này theo lương ca máy (0..1) + thẻ tuỳ chọn khác 0 của lần ghi.
+    # Phần của người này (0..1) TRƯỚC khi trích tổ trưởng: lương bù lỗ của họ ÷ tổng người được tick.
     ty_le: float | None = None
+    luong_bu_lo: float | None = None
+    tong_luong_bu_lo: float | None = None
+    # % tổ trưởng ăn chia đã trích ở lần ghi này (`tien` là số SAU trích) — mỗi mốc một số.
+    to_truong: list[float] = []
     tuy_chon: list[str] = []
     # Dòng `dung_may`: lý do (tên), mã phiếu sửa máy, chỉ tiêu ngày của tổ.
     ly_do: str | None = None

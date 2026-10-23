@@ -69,6 +69,21 @@ def test_SO_tru_to_truong_moi_lan_ghi_ke_ca_khong_tick(nen):
     assert {e: round(v) for e, v in tong.items()} == kq["khoan"]
 
 
+def test_NGAN_SOI_lan_ghi_la_so_sau_trich_to_truong(nen):
+    """Ngăn soi khoán SP của từng người: tiền lần ghi đã trích tổ trưởng, ghi % trích; không còn dòng
+    trừ riêng; cộng dòng (trừ tăng ca khoán) ra đúng cột lương khoán."""
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, nen.muc)
+    ds = kq["theo_nguoi"][nen.b.id]
+    d = next(x for x in ds if x["loai"] == "lan_ghi" and x["batch_id"] == nen.l2.id)
+    assert (d["tien"], d["to_truong"], d["tien_lan_ghi"]) == (142_500, [5.0], 400_000)
+    assert (d["luong_bu_lo"], d["tong_luong_bu_lo"], d["ty_le"]) == (6e6, 16e6, 0.375)
+    for e in (nen.tt.id, nen.a.id, nen.b.id):
+        assert all(x["loai"] != "to_truong_tru" for x in kq["theo_nguoi"][e])
+        assert sum(x["tien"] for x in kq["theo_nguoi"][e] if x["loai"] != "tang_ca_khoan") == kq["khoan"][e]
+    tt = next(x for x in kq["theo_nguoi"][nen.tt.id] if x["loai"] == "to_truong")
+    assert (tt["tien_lan_ghi"], tt["ty_le"], tt["tien"], tt["ghi_chu"]) == (1_400_000, 0.05, 70_000, "ăn chia")
+
+
 def test_XEM_quy_chia_nguoi_va_doi_chieu(nen):
     ra = xem(nen.db, _svc(nen.muc), NAM, THANG, nen.dan.id, None)
     assert ra["quy"] == {"san_luong": 1_400_000, "dung_may": 0, "tang_ca": 200_000, "tong": 1_600_000}

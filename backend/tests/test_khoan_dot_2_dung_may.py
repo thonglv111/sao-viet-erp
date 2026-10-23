@@ -46,7 +46,7 @@ def test_bao_dung_may_va_tinh_chi_tieu(db, admin):
     assert kq["tang_ca_khoan"] == {}
     d = next(x for x in kq["theo_nguoi"][nhat.id] if x["loai"] == "dung_may")
     assert d["ly_do"] == "Máy hư" and d["tien_ngay"] == 1_150_000 and d["ghi_chu"] == "Gãy trục"
-    assert d["ty_le"] == 0.609 and d["so_nguoi"] == 2
+    assert round(d["ty_le"], 3) == 0.609 and d["so_nguoi"] == 2
     ds = dung_may.danh_sach(db, user=admin, department_id=to.id, year=NAM, month=THANG)
     assert [x["ngay"] for x in ds["ds"]] == [NGAY]
     assert {x["employee_id"] for x in ds["nguoi"]} == {nhat.id, linh.id}

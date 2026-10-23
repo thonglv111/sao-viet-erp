@@ -2549,6 +2549,22 @@
   margin-top: 4px;
 }
 
+/* Khoán SP: hai bên đem so + tăng ca khoán cộng thêm, bên được trả tô xanh như màn Khoán theo tổ. */
+.lg-soiky__so {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.lg-soiky__so > div {
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-2);
+}
+.lg-soiky__so dt { font-size: 12px; color: var(--ash-2); }
+.lg-soiky__so dd { margin: 2px 0 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+
 /* ── Mức khoán km ───────────────────────────────────────────────────────── */
 .muc-km-add-row {
   display: flex;

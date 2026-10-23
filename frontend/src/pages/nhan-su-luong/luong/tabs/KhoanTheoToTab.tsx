@@ -13,10 +13,10 @@ import {
 } from "../../../../api/client";
 import { CongThucTip } from "../../../../components/CongThucTip";
 import { EmptyState } from "../../../../components/EmptyState";
-import { HoverTip } from "../../../../components/HoverTip";
 import { ChipTT } from "../../../../components/LuoiDs";
 import { MonthPicker } from "../../../../components/MonthPicker";
 import { curYm, errText, money } from "../shared/helpers";
+import { Hov, pt } from "../components/HovDong";
 import "./khoan-theo-to.css";
 
 const THU = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -27,11 +27,6 @@ export function nhanNgay(iso: string): string {
   return `${THU[new Date(y, m - 1, d).getDay()]} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}`;
 }
 
-/** Phần trăm kiểu Việt, một chữ số lẻ: 36.42 → "36,4%". */
-function pt(x: number): string {
-  return `${(Math.round(x * 10) / 10).toLocaleString("vi-VN")}%`;
-}
-
 /** Sổ ghi tên ngắn (hai chữ cuối) như sổ Excel của tổ. */
 function tenNgan(ten: string): string {
   return ten.trim().split(/\s+/).slice(-2).join(" ");
@@ -39,22 +34,6 @@ function tenNgan(ten: string): string {
 
 function cm(mm: number): string {
   return (Math.round(mm) / 10).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
-}
-
-/** Bong bóng nhiều dòng "nhãn viên thuốc — nội dung". */
-function Hov({ neo, rows, tieuDe, rong = 440 }: { neo: ReactNode; rows: [string, ReactNode][]; tieuDe?: string; rong?: number }) {
-  return (
-    <HoverTip tieuDe={tieuDe} rong={rong} lopNeo="ktt-neo" neo={neo}>
-      <dl className="hover-tip__dong">
-        {rows.map(([k, v]) => (
-          <div className="hover-tip__hang" key={k}>
-            <dt>{k}</dt>
-            <dd>{v}</dd>
-          </div>
-        ))}
-      </dl>
-    </HoverTip>
-  );
 }
 
 function QuyCach({ qc }: { qc: SxSlQuyCach | null }) {
@@ -491,11 +470,6 @@ export function KhoanTheoToTab({ token }: { token: string }) {
           )}
 
           <h3>Chia cho người</h3>
-          <p className="ktt-hint">
-            Mỗi lần ghi chia cho người được tick theo lương bù lỗ tháng: phần của một người = lương bù lỗ của họ ÷
-            tổng lương bù lỗ những người cùng được tick. Cả tháng so lương khoán với phân bổ lương bù lỗ, ăn bên
-            cao hơn. Lương khoán không gồm tăng ca khoán: cột tăng ca để xem, bảng lương cộng sau.
-          </p>
           <div className="ktt-chu">
             <span className="ktt-o ktt-thang" />bên được trả<span className="ktt-o" />bên thua. Chênh lệch = lương
             khoán − phân bổ lương bù lỗ. Rê chuột vào tiền để xem thế số.
@@ -504,10 +478,6 @@ export function KhoanTheoToTab({ token }: { token: string }) {
           {data.doi_chieu && <DoiChieu dc={data.doi_chieu} />}
 
           <h3>Sổ sản lượng</h3>
-          <p className="ktt-hint">
-            Gom theo ngày, trong ngày gộp ô theo lệnh như bảng Sản lượng của tổ. Rê chuột vào số tiền để xem công
-            thức và thế số, vào % cạnh tên để xem lần ghi đó chia thế nào.
-          </p>
           {data.so.length === 0 ? <p className="ktt-trong">Tổ không có lần ghi nào ra tiền trong kỳ.</p> : (
             <BangSo ds={data.so} nhanTong="Tổ làm" nhanNgayPhu={(d) => {
               const x = ngay.get(d);

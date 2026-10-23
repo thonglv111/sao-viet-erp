@@ -1,5 +1,7 @@
-// Bảng đối chiếu tiền khoán sản lượng của một dòng lương (21/10/2026) — cùng khuôn `SoiKhoanKm`.
-import { useEffect, useState } from "react";
+// Ngăn soi tiền khoán sản lượng của một dòng lương (21/10/2026, làm lại 23/10/2026 theo màn Khoán theo
+// tổ): tiền mỗi lần ghi là số SAU khi trích tổ trưởng, % là phần trên tổng tiền lần ghi, rê chuột ra
+// thế số. Tăng ca khoán tách khúc riêng vì không đem so hai lương.
+import { useEffect, useState, type ReactNode } from "react";
 import {
   api,
   type KhoanKyChiTiet,
@@ -10,23 +12,76 @@ import {
 import { money } from "../shared/helpers";
 import { EmptyState } from "../../../../components/EmptyState";
 import { ChipTT } from "../../../../components/LuoiDs";
-
-const NHAN: Record<KhoanKyDong["loai"], string> = {
-  lan_ghi: "Lần ghi",
-  tang_ca_khoan: "Tăng ca khoán",
-  to_truong: "Tổ trưởng",
-  to_truong_tru: "Trích cho tổ trưởng",
-  dung_may: "Dừng máy",
-};
-
-// Phần của người này trong lần ghi theo lương ca máy (Đợt 2): 0.6087 → "0,609".
-const tyLeVn = (x: number) => x.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
+import { Hov, pt } from "./HovDong";
 
 // "2026-10-21" → "21/10" (toLocaleDateString cho ra "21-10" trên Chrome).
-const ngayVn = (iso?: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "—");
+const ngayVn = (iso?: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "cả tháng");
 
-/** Từng lần ghi sản lượng, tăng ca khoán và phần tổ trưởng làm nên cột "Khoán SP". CHỈ XEM: sai số
- *  thì sửa ở lần ghi (bàn tổ) hoặc giá ở Danh mục → Công đoạn → tab Khoán, rồi Tính lại. */
+/** Phần của người này trên TỔNG tiền dòng (%, sau khi trích tổ trưởng) + bong bóng thế số. */
+function Phan({ d }: { d: KhoanKyDong }) {
+  if (d.ty_le == null) return null;
+  const cach = d.ty_le * 100;
+  if (d.loai === "to_truong") return <>{pt(cach)}</>;
+  if (d.loai === "tang_ca_khoan") {
+    return <Hov neo={pt(cach)} rong={420} rows={[
+      ["Cách chia", "theo phần sản lượng của người này trong ngày"],
+      ["Tiền", `${money(d.tien_lan_ghi ?? 0)} × ${pt(cach)} = ${money(d.tien)}`],
+    ]} />;
+  }
+  const tt = d.to_truong ?? [];
+  const conLai = tt.reduce((x, t) => x * (1 - t / 100), 1) * 100;
+  const phan = (conLai * cach) / 100;
+  const rows: [string, ReactNode][] = [];
+  if (tt.length) rows.push(["Còn lại", `100% − ${tt.map(pt).join(" − ")} tổ trưởng chia = ${pt(conLai)}`]);
+  rows.push(["Cách chia", d.luong_bu_lo != null && d.tong_luong_bu_lo != null
+    ? `lương bù lỗ ${money(d.luong_bu_lo)} ÷ tổng ${money(d.tong_luong_bu_lo)} của ${d.so_nguoi ?? "?"} người = ${pt(cach)}`
+    : pt(cach)]);
+  if (tt.length) rows.push(["Phần người này", `${pt(conLai)} × ${pt(cach)} = ${pt(phan)}`]);
+  // Lần ghi có ghi chú = ngày ×2 / ngày tổ in ra 0: tiền không còn bằng gốc × %, khỏi bày phép nhân.
+  if (!(d.loai === "lan_ghi" && d.ghi_chu)) {
+    const goc = d.loai === "dung_may" ? d.tien_ngay : d.tien_lan_ghi;
+    rows.push(["Tiền", `${money(goc ?? 0)} × ${pt(phan)} = ${money(d.tien)}`]);
+  }
+  return <span className="ktt-pt"><Hov neo={pt(phan)} rong={460} rows={rows} /></span>;
+}
+
+function Viec({ d }: { d: KhoanKyDong }) {
+  const ten =
+    d.loai === "dung_may" ? "Dừng máy" :
+    d.loai === "to_truong" ? `Tổ trưởng ${d.ghi_chu ?? ""}` :
+    d.loai === "tang_ca_khoan" ? "Tăng ca khoán" : d.cong_doan;
+  return (
+    <>
+      <div>{ten}</div>
+      <div className="ktt-sub">{d.to}</div>
+      {(d.tuy_chon?.length || d.sua_chua || d.ly_do) ? (
+        <div className="lg-soikm__the">
+          {d.ly_do && <span>{d.ly_do}</span>}
+          {d.sua_chua && <ChipTT mau="vang" vuong>{d.sua_chua}</ChipTT>}
+          {d.tuy_chon?.map((t) => <ChipTT key={t} mau="cyan" vuong>{t}</ChipTT>)}
+        </div>
+      ) : null}
+      {d.ghi_chu && d.loai !== "to_truong" && <div className="ktt-sub">{d.ghi_chu}</div>}
+    </>
+  );
+}
+
+function Dong({ d }: { d: KhoanKyDong }) {
+  const goc = d.loai === "dung_may" ? d.tien_ngay : d.tien_lan_ghi;
+  return (
+    <tr>
+      <td>{ngayVn(d.ngay)}</td>
+      <td><Viec d={d} /></td>
+      <td className="lg-num">{d.so_luong != null ? d.so_luong.toLocaleString("vi-VN") : ""}</td>
+      <td className="lg-num">{goc != null ? money(goc) : ""}</td>
+      <td className="lg-num"><Phan d={d} /></td>
+      <td className="lg-num">{money(d.tien)}</td>
+    </tr>
+  );
+}
+
+/** Từng lần ghi sản lượng, ngày dừng máy, phần tổ trưởng và tăng ca khoán làm nên tiền khoán. CHỈ
+ *  XEM: sai số thì sửa ở lần ghi (bàn tổ) hoặc giá ở Danh mục → Công đoạn → tab Khoán, rồi Tính lại. */
 export function SoiKhoanKy({
   token,
   line,
@@ -54,10 +109,12 @@ export function SoiKhoanKy({
     };
   }, [token, line.id]);
 
-  const veThoiGian = line.ve_thoi_gian ?? null;
-  // Tăng ca khoán KHÔNG vào phép so (chủ chốt 22/10/2026) — cộng sau, ăn vế nào cũng có.
+  // Tăng ca khoán KHÔNG vào phép so (chủ chốt 22/10/2026) — cộng sau, ăn bên nào cũng có.
+  const buLo = line.bu_lo_theo_cong ?? line.ve_thoi_gian ?? null;
   const veKhoan = (line.khoan ?? 0) + (line.khoan_km ?? 0);
   const tangCaKhoan = data?.tong_tang_ca_khoan ?? line.tang_ca_khoan ?? 0;
+  const chinh = (data?.items ?? []).filter((d) => d.loai !== "tang_ca_khoan");
+  const tangCa = (data?.items ?? []).filter((d) => d.loai === "tang_ca_khoan");
 
   return (
     <div className="ns-modal" role="dialog" aria-modal="true">
@@ -76,13 +133,23 @@ export function SoiKhoanKy({
         </header>
         <div className="ns-modal__body">
           {loi && <div className="banner banner--error">{loi}</div>}
-          {veThoiGian != null && (
-            <div className="banner banner--info" role="status">
-              So 2 lương: lương khoán {money(veKhoan)} (sản lượng) — lương thời gian{" "}
-              {money(veThoiGian)} (theo công) ⇒{" "}
-              <b>{line.lay_bu_lo ? "ăn lương thời gian" : "ăn lương khoán"}</b>
-              {tangCaKhoan !== 0 ? `, cộng thêm tăng ca khoán ${money(tangCaKhoan)}` : ""}.
-            </div>
+          {buLo != null && (
+            <dl className="lg-soiky__so">
+              <div className={line.lay_bu_lo ? "" : "ktt-thang"}>
+                <dt>Lương khoán</dt>
+                <dd>{money(veKhoan)}</dd>
+              </div>
+              <div className={line.lay_bu_lo ? "ktt-thang" : ""}>
+                <dt>Phân bổ lương bù lỗ</dt>
+                <dd>{money(buLo)}</dd>
+              </div>
+              {tangCaKhoan !== 0 && (
+                <div>
+                  <dt>Tăng ca khoán cộng thêm</dt>
+                  <dd>{money(tangCaKhoan)}</dd>
+                </div>
+              )}
+            </dl>
           )}
           {data == null && !loi && (
             <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải chi tiết…" />
@@ -96,73 +163,33 @@ export function SoiKhoanKy({
                 <thead>
                   <tr>
                     <th>Ngày</th>
-                    <th>Khoản</th>
-                    <th>Công đoạn / tổ</th>
+                    <th>Việc</th>
                     <th className="lg-num">Số lượng</th>
-                    <th className="lg-num">Tiền lần ghi</th>
-                    <th className="lg-num">Số người / tỷ lệ</th>
-                    <th className="lg-num">Phần hưởng</th>
+                    <th className="lg-num">Tiền cả tổ</th>
+                    <th className="lg-num">Phần</th>
+                    <th className="lg-num">Tiền</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((d, i) => (
-                    <tr key={i}>
-                      <td>{ngayVn(d.ngay)}</td>
-                      <td>{NHAN[d.loai]}</td>
-                      <td>
-                        {d.loai === "dung_may" ? (
-                          <>
-                            {d.to}
-                            <div className="lg-soikm__dm">
-                              <span>{d.ly_do}</span>
-                              {d.sua_chua && <ChipTT mau="vang" vuong>{d.sua_chua}</ChipTT>}
-                            </div>
-                          </>
-                        ) : (
-                          [d.cong_doan, d.to].filter(Boolean).join(" — ")
-                        )}
-                        {(d.tuy_chon?.length ?? 0) > 0 && (
-                          <div className="lg-soikm__the">
-                            {d.tuy_chon!.map((t) => <ChipTT key={t} mau="cyan" vuong>{t}</ChipTT>)}
-                          </div>
-                        )}
-                        {d.ghi_chu && <div className="cc-note">{d.ghi_chu}</div>}
-                      </td>
-                      <td className="lg-num">{d.so_luong != null ? d.so_luong.toLocaleString("vi-VN") : ""}</td>
-                      <td className="lg-num">
-                        {d.loai === "dung_may"
-                          ? (d.tien_ngay != null ? money(d.tien_ngay) : "")
-                          : (d.tien_lan_ghi != null ? money(d.tien_lan_ghi) : "")}
-                      </td>
-                      <td className="lg-num">
-                        {d.so_nguoi ?? ""}
-                        {d.ty_le != null && (
-                          <div className="cc-note" title="Phần của người này theo lương ca máy">{tyLeVn(d.ty_le)}</div>
-                        )}
-                      </td>
-                      <td className="lg-num">{money(d.tien)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
+                  {chinh.map((d, i) => <Dong key={i} d={d} />)}
                   <tr className="lg-foot">
-                    <td colSpan={6}>Lương khoán sản lượng</td>
+                    <td colSpan={5}>Lương khoán</td>
                     <td className="lg-num">{money(data.tong_khoan)}</td>
                   </tr>
-                  {data.tong_tang_ca_khoan !== 0 && (
+                  {tangCa.map((d, i) => <Dong key={`tc${i}`} d={d} />)}
+                  {tangCa.length > 0 && (
                     <tr className="lg-foot">
-                      <td colSpan={6}>Tăng ca khoán</td>
+                      <td colSpan={5}>Tăng ca khoán</td>
                       <td className="lg-num">{money(data.tong_tang_ca_khoan)}</td>
                     </tr>
                   )}
-                </tfoot>
+                </tbody>
               </table>
             </div>
           )}
           <p className="cc-note">
-            Số này <b>máy tự tính</b> từ các lần ghi sản lượng, giá lấy theo tổ của lần ghi. Sai số
-            lượng thì sửa ở bàn tổ; sai giá thì sửa ở <b>Danh mục → Công đoạn → tab Khoán</b> rồi bấm{" "}
-            <b>Tính lại</b>.
+            Sai số lượng thì sửa ở bàn tổ, sai giá thì sửa ở Danh mục → Công đoạn → tab Khoán, rồi bấm
+            Tính lại.
           </p>
         </div>
         <footer className="ns-modal__foot">

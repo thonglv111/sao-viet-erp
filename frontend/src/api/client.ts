@@ -6721,16 +6721,21 @@ export interface KhoanKmChiTiet {
 
 /** Một dòng làm nên tiền khoán của một người (21/10/2026). */
 export interface KhoanKyDong {
-  loai: "lan_ghi" | "tang_ca_khoan" | "to_truong" | "to_truong_tru" | "dung_may";
+  loai: "lan_ghi" | "tang_ca_khoan" | "to_truong" | "dung_may";
   batch_id?: number | null;
   ngay?: string | null;
   cong_doan?: string | null;
   to?: string | null;
   so_luong?: number | null;
+  /** Tiền cả tổ: tiền lần ghi / phần tăng ca khoán của tổ hôm đó / quỹ tổ (dòng tổ trưởng). */
   tien_lan_ghi?: number | null;
   so_nguoi?: number | null;
-  /** Phần của người này theo lương ca máy (0..1, Đợt 2). */
+  /** Phần của người này (0..1) TRƯỚC khi trích tổ trưởng: lương bù lỗ ÷ tổng người được tick. */
   ty_le?: number | null;
+  luong_bu_lo?: number | null;
+  tong_luong_bu_lo?: number | null;
+  /** % tổ trưởng ăn chia đã trích ở lần ghi này — `tien` là số sau trích. */
+  to_truong?: number[];
   /** Thẻ tuỳ chọn khác 0 của lần ghi: "trùng khuôn", "3 số lỗ đục". */
   tuy_chon?: string[];
   /** Dòng `dung_may`: tên lý do, mã phiếu sửa máy, chỉ tiêu ngày của tổ. */
