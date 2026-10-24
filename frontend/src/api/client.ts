@@ -10959,6 +10959,8 @@ export interface DeNghiMuaXemTruoc {
     /** Khổ CẦN của dòng giấy (0 · 0 với vật tư khác). */
     kho_rong: number;
     kho_dai: number;
+    /** gsm danh mục của giấy — cột Định lượng chỉ đọc của form; hàng khác null. */
+    dinh_luong?: number | null;
   }[];
   /** Khoá các dòng đã tick — form gửi nguyên văn vào `nguon_lenh` lúc Lưu. */
   nguon: CanDoiKhoaDong[];

@@ -1684,6 +1684,8 @@ class KeHoachVatTuService:
                 "hang_id": hang[1],
                 "hang_ma": getattr(obj, "ma", None),
                 "hang_ten": getattr(obj, "ten", None),
+                # gsm danh mục của giấy — đề nghị mua đổ vào cột Định lượng chỉ đọc của form.
+                "dinh_luong": (getattr(obj, "gsm", None) or None) if hang[0] == HANG_GIAY else None,
                 # Nhóm = (mã, khổ, đơn vị gốc): giấy hai khổ là hai nhóm, cùng khổ mà một bên đếm tờ
                 # một bên đếm kg cũng là hai nhóm; tồn của nhóm chỉ là lô đúng khoá.
                 "kho_rong": hang[2],
@@ -1907,6 +1909,7 @@ class KeHoachVatTuService:
                 "kho_dai": kd,
                 "item_name": g["hang_ten"],
                 "unit": g["don_vi_goc"] or "",
+                "dinh_luong": g.get("dinh_luong"),
                 # Làm tròn LÊN tới 0,01: cột `quantity` là Numeric(14,2) và ô số lượng trên form
                 # YCMH đi bước 0,01 — số 3 lẻ (vd 79,475) bị trình duyệt chặn Lưu. Mua dư một chút
                 # thì còn phủ đủ chỗ thiếu; làm tròn xuống là mua hụt.

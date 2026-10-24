@@ -635,6 +635,7 @@ export function KhoTonKhoPage({
         // Giấy tờ: nhóm tồn đã tách theo khổ ⇒ khổ cần = khổ của nhóm.
         kho_rong: g.khoRong,
         kho_dai: g.khoDai,
+        dinh_luong: g.muc?.dinh_luong ?? null,
       })),
       purchaseSeedPurpose: `Bổ sung tồn ${ten} dưới mức tối thiểu`,
       purchaseSeedHeader: { source_type: "kho", loai_mua: "mua_ton", needed_date: ngayCan },

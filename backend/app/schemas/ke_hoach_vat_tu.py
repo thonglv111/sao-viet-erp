@@ -336,6 +336,8 @@ class DeNghiMuaDongOut(BaseModel):
     item_name: str
     unit: str
     quantity: float
+    #: gsm danh mục (giấy) — cột Định lượng CHỈ ĐỌC của form; hàng khác None.
+    dinh_luong: int | None = None
 
 
 class DeNghiMuaXemTruocOut(BaseModel):

@@ -33,6 +33,15 @@ có test đỏ→xanh, restart BE, bấm lại đúng bước đó. Báo cáo gh
 | 11 | Bài ghép hai lệnh cùng giấy → gộp In | Lệnh dựng khâu theo nguồn bài; có Tề giấy in chung đứng trước In chung; tách bước khâu chung bị chặn; Kế hoạch vật tư một dòng giấy của bài; bỏ một lệnh ra thì lệnh đó dựng lại khâu riêng |
 | 12 | Kế hoạch vật tư + giữ chỗ + phát hành (lệnh nguồn Cuộn) | Nhu cầu đúng khoá (kg cuộn 870); bật giữ chỗ được; phát hành tự lập yêu cầu xuất giấy ở Cắt giấy cuộn; In không chờ giấy |
 
+### Bổ sung 24/10 (hồi quy các module nhánh có sửa)
+
+| # | Tình huống | Kết quả mong đợi |
+|---|---|---|
+| 13 | Mua hàng: yêu cầu mua giấy tờ + cuộn → đơn mua → đợt giao | Cột "Định lượng" chỉ đọc lấy từ danh mục, cột "Khổ" riêng, không nhét vào tên hàng; lưu được |
+| 14 | Nhập kho giấy: dòng tờ khai kg (đủ khổ) / dòng kg quá nhỏ / cuộn kg | Tờ: quy ra tờ làm tròn xuống, lô lưu tờ; quá nhỏ: báo "quy ra 0 tờ", không tạo lô; cuộn: lô kg |
+| 15 | Tồn kho + xuất kho theo đề nghị DNX00003–00006 | Tồn: tờ có "Quy kg" + "Định lượng", cuộn trống "Quy kg"; lập phiếu xuất trừ đúng lô cuộn kg / lô tờ |
+| 16 | Báo giá từ phiếu có sóng | Dòng tiền giấy + tiền sóng khớp phiếu tính giá |
+
 ## Sau khi bấm xong
 
 Gỡ BE/FE thử, xoá DB clone và container Redis riêng; ghi kết quả + các sửa lỗi vào ledger; chạy
