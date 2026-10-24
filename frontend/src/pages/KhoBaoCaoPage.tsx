@@ -1154,7 +1154,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
     switch (key) {
       case "ma": return <td key={key}>{r.ma_hang ?? "—"}</td>;
       case "ten": return <td key={key} title={r.ten_hang ?? undefined}>{r.ten_hang ?? "—"}</td>;
-      case "kho_giay": return <td key={key}>{r.kho_rong && r.kho_dai ? nhanKho(r.kho_rong, r.kho_dai) : "—"}</td>;
+      case "kho_giay": return <td key={key}>{r.kho_rong ? nhanKho(r.kho_rong, r.kho_dai) : "—"}</td>;
       case "dvt": return <td key={key}>{r.dvt ?? ""}</td>;
       case "dau_sl": return <td key={key} className="n">{fmtQty(r.dau_sl)}</td>;
       case "dau_gt": return <td key={key} className="n">{fmtMoney(r.dau_gt)}</td>;

@@ -192,8 +192,12 @@ def _report_rows(
         if v.loai == VOUCHER_NHAP:
             so = float(ln.so_luong or 0)
             price = round(float(ln.don_gia) * so / qty) if (qty and ln.don_gia is not None) else None
+            # Tiền NHẬP là tiền thật của dòng (khớp NXT + hoá đơn), không phải đơn giá/ĐV gốc đã làm
+            # tròn nhân lại: 500 kg quy ra 1.033 tờ thì 5.174 × 1.033 lệch vài trăm đồng.
+            tien = round(float(ln.don_gia) * so) if ln.don_gia is not None else None
         else:
             price = int(lot.don_gia_nhap) if (lot is not None and lot.don_gia_nhap is not None) else None
+            tien = round(price * qty) if price is not None else None
         row = BaoCaoKhoRow(
             voucher_id=v.id,
             ngay_ghi_so=_ngay_ghi_so_vn(v.ghi_so_luc),   # vai KIỂM TOÁN (ai bấm lúc nào)
@@ -211,7 +215,7 @@ def _report_rows(
             don_vi_goc=ln.don_vi_goc or "", kho_rong=int(ln.kho_rong or 0), kho_dai=int(ln.kho_dai or 0),
             so_luong=qty,
             don_gia=price,
-            thanh_tien=round(price * qty) if price is not None else None,
+            thanh_tien=tien,
             kho_id=v.kho_id,
             kho_ten=getattr(kho, "ten", None),
             han_su_dung=getattr(lot, "hsd", None),  # NHẬP: lô vừa tạo · XUẤT: lô bị xuất

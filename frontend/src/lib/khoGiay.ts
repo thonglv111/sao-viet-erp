@@ -25,6 +25,18 @@ export function toTuKg(kg: number, rong: number, dai: number, gsm: number): numb
   return Math.floor(kg / ((rong / 1000) * (dai / 1000) * (gsm / 1000)) + 1e-9);
 }
 
+/** Gốc + số gốc của một dòng xin: giấy KHỔ HAI CẠNH xin theo họ kg ⇒ TỜ (`toTuKg`), như máy chủ quy
+ *  lúc lưu đề nghị — lô giấy hai cạnh luôn đếm tờ. `sl` null = chưa quy được (thiếu gsm). Dòng khác
+ *  giữ nguyên `donViGoc` + `slGoc`. */
+export function gocDongXin(x: {
+  hangLoai: string | null; donViGoc: string | null; rong: unknown; dai: unknown; slGoc: number;
+  gsm: number | null | undefined;
+}): { goc: string | null; sl: number | null } {
+  const [r, d] = chuanKho(x.rong, x.dai);
+  if (x.hangLoai !== "giay" || x.donViGoc !== "kg" || !(r && d)) return { goc: x.donViGoc, sl: x.slGoc };
+  return { goc: "to", sl: x.gsm ? toTuKg(x.slGoc, r, d, x.gsm) : null };
+}
+
 /** "780 × 905 mm" · chỉ rộng "khổ 1000 mm" · không có ⇒ "chưa có khổ". */
 export function nhanKho(khoRong: number | null | undefined, khoDai: number | null | undefined): string {
   const r = khoRong ?? 0;

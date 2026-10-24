@@ -37,7 +37,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
-import { chuanKho, coDonViGoc, tenGoc } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, gocDongXin, tenGoc } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO, fmtDateTime } from "../utils/format";
 import { congNgay } from "../utils/ky";
 import {
@@ -886,6 +886,8 @@ export interface DraftLine extends SeedLine {
   kho_chi_doc?: boolean;
   /** Câu cam dưới tên khi dòng chưa có đơn vị tính — tắt ngay khi ô đơn vị có chữ. */
   canh?: string | null;
+  /** UI-only: gsm của giấy (danh mục) — quy kg ra tờ cho giấy khổ hai cạnh (`gocDongXin`). */
+  dinh_luong?: number | null;
 }
 
 let lineSeq = 0;
@@ -981,8 +983,10 @@ function tonCuaDong(l: DraftLine, rows: TonKhoaRow[] | undefined): number | null
   // (tờ, kg) thì khớp, là đơn vị quy đổi (ram) thì không khớp dòng nào ⇒ coi như chưa biết.
   if (laGiay && !r) return null;
   if (rows.length === 0) return 0; // mã này chưa tồn ở đâu: khổ nào, đơn vị nào cũng là 0
-  const goc = l.don_vi_goc || (rows.some((x) => x.don_vi_goc === l.dvt) ? l.dvt : null);
-  if (!goc) return null;
+  const goc0 = l.don_vi_goc || (rows.some((x) => x.don_vi_goc === l.dvt) ? l.dvt : null);
+  if (!goc0) return null;
+  // Giấy khổ hai cạnh xin theo kg: lô đếm tờ.
+  const goc = gocDongXin({ hangLoai: l.hang_loai, donViGoc: goc0, rong: r, dai: d, slGoc: 0, gsm: null }).goc;
   return rows.find((x) => (!laGiay || (x.kho_rong === r && x.kho_dai === d)) && x.don_vi_goc === goc)?.ton ?? 0;
 }
 
@@ -1185,7 +1189,18 @@ export function TaoYeuCauP2({
 
   const mon = lines.filter((l) => l.hang_id);
   const tonDong = (l: DraftLine) => tonCuaDong(l, ton[`${l.hang_loai}:${l.hang_id}`] ?? undefined);
-  const slGoc = (l: DraftLine) => (Number(l.sl_de_nghi) || 0) * (l.he_so_ve_goc ?? 1);
+  /** Gốc + số gốc của dòng: giấy khổ hai cạnh xin kg đọc thành tờ, như máy chủ lưu đề nghị. */
+  const gocXin = (l: DraftLine) => gocDongXin({
+    hangLoai: l.hang_loai, donViGoc: l.don_vi_goc ?? null, rong: l.kho_rong, dai: l.kho_dai,
+    slGoc: (Number(l.sl_de_nghi) || 0) * (l.he_so_ve_goc ?? 1),
+    gsm: l.dinh_luong ?? ton[`${l.hang_loai}:${l.hang_id}`]?.find((x) => x.dinh_luong)?.dinh_luong,
+  });
+  const slGoc = (l: DraftLine) => gocXin(l).sl ?? (Number(l.sl_de_nghi) || 0) * (l.he_so_ve_goc ?? 1);
+  /** Số tờ khi dòng xin kg được quy ra tờ (giấy khổ hai cạnh); dòng khác null. */
+  const toQuy = (l: DraftLine) => {
+    const g = gocXin(l);
+    return g.goc !== (l.don_vi_goc ?? null) ? g.sl : null;
+  };
   // Xin quá tồn: CHỈ cảnh báo, không chặn gửi — kho trả lời cấp được bao nhiêu.
   const quaTon = loai === "XUAT" ? mon.filter((l) => { const t = tonDong(l); return t != null && slGoc(l) > t; }) : [];
   // Tổ nhập lại vật tư thừa không khai đơn giá — đơn giá chỉ ở form Kho.
@@ -1221,6 +1236,7 @@ export function TaoYeuCauP2({
       lsx_ma: lenhMoi.lsx_id ? lenhMoi.ma : null,
       bai_ghep_ma: lenhMoi.bai_ghep_id ? lenhMoi.ma : null,
     });
+    moi.dinh_luong = m.dinh_luong ?? null;
     setLines((prev) => [...prev, moi]);
     return moi.key;
   }
@@ -1239,7 +1255,7 @@ export function TaoYeuCauP2({
   const chuThieu = (l: DraftLine) =>
     `Thiếu ${fmtQty(thieuCua(l))} ${
       coDonViGoc(l.hang_loai) && l.don_vi_goc
-        ? tenGoc(l.don_vi_goc)
+        ? tenGoc(gocXin(l).goc ?? l.don_vi_goc)
         : ton[`${l.hang_loai}:${l.hang_id}`]?.[0]?.don_vi_goc_ten ?? (tenDonVi(l.dvt) || l.dvt)
     }`;
   // Dòng kế hoạch / dòng "Đã xin" của bổ sung: khổ đã chốt, chỉ đọc.
@@ -1855,7 +1871,7 @@ export function TaoYeuCauP2({
                                   <><span className="kna-so kna-mo">{fmtQty(t)}</span> <span className="kna-mo">đến</span> <b className="kna-so">{fmtQty(t + slGoc(l))}</b></>
                                 )
                               ) : (
-                                <span className="kna-so">{fmtQty(t)}</span>
+                                <><span className="kna-so">{fmtQty(t)}</span>{toQuy(l) != null && <span className="kna-dv"> tờ</span>}</>
                               )}
                             </td>
                           )}
@@ -1865,6 +1881,7 @@ export function TaoYeuCauP2({
                             ) : (
                               oSoLuong(l)
                             )}
+                            {toQuy(l) != null && Number(l.sl_de_nghi) > 0 && <div className="dfa-duoi">≈ {fmtQty(toQuy(l)!)} tờ</div>}
                             {thieu > 0 && <div className="dfa-duoi ycd-vang">{chuThieu(l)}</div>}
                           </td>
                           {coDonGia && (

@@ -42,6 +42,38 @@ có test đỏ→xanh, restart BE, bấm lại đúng bước đó. Báo cáo gh
 | 15 | Tồn kho + xuất kho theo đề nghị DNX00003–00006 | Tồn: tờ có "Quy kg" + "Định lượng", cuộn trống "Quy kg"; lập phiếu xuất trừ đúng lô cuộn kg / lô tờ |
 | 16 | Báo giá từ phiếu có sóng | Dòng tiền giấy + tiền sóng khớp phiếu tính giá |
 
+### Bổ sung 25/10: use case đa trường hợp cho các module dùng chung
+
+Nhánh đổi ba chỗ dùng chung: quy đổi lúc ghi sổ phiếu kho nhận khổ (`stock_voucher_service._quy_doi`,
+áp cả phiếu xuất), cột chỉ đọc Định lượng/Quy kg trên tồn, giấy/sóng của báo giá đọc ở sản phẩm. Sửa
+chữa máy và Tài sản/khấu hao không gọi kho hay mua hàng (đã soi code) ⇒ chỉ mở màn một lượt.
+
+| # | Module | Trường hợp | Kết quả mong đợi |
+|---|---|---|---|
+| MH1 | Mua hàng | Giấy tờ, NCC bán theo tờ | Đơn mua tờ, đợt giao nhận tờ, lô tờ đúng số |
+| MH2 | Mua hàng | Giấy tờ, NCC bán theo kg (TH13–14) | Lô quy ra tờ làm tròn xuống |
+| MH3 | Mua hàng | Giấy cuộn mua kg (khổ chỉ rộng) | Lô kg khổ (rộng, 0), không quy tờ |
+| MH4 | Mua hàng | Đợt giao nhận khổ khác khổ đặt | Lô theo khổ nhận, đơn ghi "Vào tồn theo khổ nhận" |
+| MH5 | Mua hàng | Giao hai đợt (thiếu rồi bù) | Hai yêu cầu nhập, tổng nhận = đặt, công nợ theo từng đợt |
+| MH6 | Mua hàng | Vật tư khác (mực/keo) | Không cột Định lượng, không quy tờ, nhập như cũ |
+| K1 | Kho | Nhập giấy tờ khai ram | 1 ram = 500 tờ, không đi đường kg |
+| K2 | Kho | Nhập tờ khai kg, sửa khổ thực nhận | "Vào tồn" tính lại theo khổ nhận, lô đúng số (đã bấm) |
+| K3 | Kho | Nhập kg quá nhỏ | Chặn "quy ra 0 tờ" (đã bấm) |
+| K4 | Kho | Xuất giấy tờ, đề nghị theo kg | Trừ lô tờ đúng số quy đổi, giá vốn đúng |
+| K5 | Kho | Xuất thiếu tồn / xuất một phần | Báo hết tồn; cấp một phần bắt lý do, yêu cầu còn "đang cấp" |
+| K6 | Kho | Điều chuyển giấy tờ sang kho khác | Lô đích giữ khổ + gốc tờ, tồn hai kho đúng |
+| K7 | Kho | Nhập/xuất vật tư khác | Như cũ (hồi quy phần quy đổi) |
+| BC1 | Báo cáo kho | Sổ kho / chi tiết phiếu trong kỳ | Mỗi phiếu đúng đơn vị gốc (tờ cho lô tờ, kg cho cuộn), số khớp phiếu |
+| BC2 | Báo cáo kho | Nhập–xuất–tồn | Đầu kỳ + nhập − xuất = cuối kỳ theo từng dòng khổ + đơn vị; không cộng tờ với kg |
+| BC3 | Báo cáo kho | Tính giá kỳ | Giá trị xuất/tồn khớp giá lô, lệch làm tròn ghi rõ |
+| BC4 | Báo cáo kho | Chuyển kho | Dòng điều chuyển K6 hiện đúng hai kho |
+| BH1 | Bán hàng | Báo giá phiếu có sóng (TH16) | Giấy + sóng, giá vốn khoá khớp |
+| BH2 | Bán hàng | Báo giá tờ rơi không sóng / sách nhiều thành phần | Giấy từng thành phần đúng |
+| BH3 | Bán hàng | Nhân bản phiếu có sóng → báo giá mới | Bản sao giữ giấy + sóng |
+| BH4 | Bán hàng | Đơn → giao hàng xuất kho thành phẩm | Phiếu xuất KHO-TP như cũ |
+| SC1 | Sửa chữa | Mở phiếu sửa chữa / bảo trì | Không lỗi (không dính kho) |
+| TS1 | Tài sản | Mở Tài sản & CCDC, xem khấu hao | Không lỗi (không dính kho) |
+
 ## Sau khi bấm xong
 
 Gỡ BE/FE thử, xoá DB clone và container Redis riêng; ghi kết quả + các sửa lỗi vào ledger; chạy

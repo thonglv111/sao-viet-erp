@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { khoaNguong, khoaTon, nhanDongTon, toTuKg } from "./khoGiay";
+import { gocDongXin, khoaNguong, khoaTon, nhanDongTon, toTuKg } from "./khoGiay";
 
 // Danh mục Đơn vị chưa nạp trong test ⇒ tên đơn vị rơi về mã trần (`to`, `kg`).
 describe("nhanDongTon", () => {
@@ -58,5 +58,22 @@ describe("toTuKg", () => {
   it("thiếu cạnh hoặc gsm ⇒ null", () => {
     expect(toTuKg(10, 860, 0, 300)).toBeNull();
     expect(toTuKg(10, 650, 860, 0)).toBeNull();
+  });
+});
+
+describe("gocDongXin — dòng xin giấy khổ hai cạnh theo kg đọc thành tờ như máy chủ", () => {
+  it("kg khổ hai cạnh ⇒ tờ, làm tròn xuống", () => {
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "kg", rong: 430, dai: 650, slGoc: 20, gsm: 150 }))
+      .toEqual({ goc: "to", sl: 477 });
+  });
+  it("cuộn, tờ sẵn, hàng khác, thiếu gsm ⇒ giữ nguyên", () => {
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "kg", rong: 870, dai: 0, slGoc: 20, gsm: 150 }))
+      .toEqual({ goc: "kg", sl: 20 });
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "to", rong: 430, dai: 650, slGoc: 20, gsm: 150 }))
+      .toEqual({ goc: "to", sl: 20 });
+    expect(gocDongXin({ hangLoai: "vat_tu", donViGoc: "kg", rong: 0, dai: 0, slGoc: 5, gsm: null }))
+      .toEqual({ goc: "kg", sl: 5 });
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "kg", rong: 430, dai: 650, slGoc: 20, gsm: null }))
+      .toEqual({ goc: "to", sl: null });
   });
 });

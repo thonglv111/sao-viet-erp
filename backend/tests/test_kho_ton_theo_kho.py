@@ -191,6 +191,25 @@ def test_bao_cao_nxt_tach_dong_giay_theo_kho_va_don_vi_goc(client):
     assert to["nhap_sl"] == 1000 and to["nhap_gt"] is None and to["don_gia_bq"] is None
 
 
+def test_so_dong_nhap_kg_quy_to_thanh_tien_khop_nxt(client):
+    """Nhập 500 kg tờ 650×860 ⇒ N tờ, đơn giá/tờ làm tròn. Thành tiền dòng sổ phải là tiền thật của
+    dòng phiếu (500 × 20.000) như NXT — lấy đơn giá/tờ đã làm tròn nhân lại số tờ là lệch vài trăm đồng."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=500, kr=650, kd=860, gia=20_000))
+    q = {"tu": "2026-01-01", "den": date.today().isoformat()}
+
+    r = client.get("/api/kho/bao-cao/dong", headers=_admin(client), params=q)
+    assert r.status_code == 200, r.text
+    (so,) = r.json()["items"]
+    assert so["don_vi_goc"] == "to" and so["thanh_tien"] == 10_000_000
+
+    r = client.get("/api/kho/bao-cao/nxt", headers=_admin(client), params=q)
+    (nxt,) = [x for x in r.json()["items"] if x["hang_id"] == g and x["hang_loai"] == "giay"]
+    assert nxt["nhap_gt"] == so["thanh_tien"]
+
+
 def test_tinh_gia_ky_snapshot_tach_kho_va_don_vi_goc(client):
     kho_id, _ = _setup(client)
     _don_vi()

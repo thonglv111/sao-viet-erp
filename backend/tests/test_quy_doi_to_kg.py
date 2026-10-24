@@ -10,7 +10,7 @@ import math
 import pytest
 
 from app.services.kho_giay import kg_tu_to, la_kho_to, to_tu_kg
-from tests.test_kho_de_nghi import _setup
+from tests.test_kho_de_nghi import _login, _setup
 from tests.test_kho_lo_giay import _de_nghi, _don_vi, _dong, _giay, _lo, _nhap
 
 GSM = 300          # `_giay()` của test_kho_lo_giay khai 300 gsm
@@ -113,11 +113,21 @@ def test_phan_hoi_dong_cuon_khong_tra_kg_moi_dvt(client):
     assert (ln["kg_moi_dvt"], ln["gsm"]) == (None, None)
 
 
-def test_de_nghi_xuat_kg_kho_hai_canh_giu_kg(client):
-    """Spec §5 chỉ quy lúc NHẬP. Đề nghị xuất của xưởng mang khổ thành phẩm kèm kg — giữ nguyên kg."""
+def test_de_nghi_xuat_kg_kho_hai_canh_quy_ra_to_va_tru_lo_to(client):
+    """Lô giấy khổ hai cạnh luôn lưu tờ ⇒ đề nghị XUẤT kg khổ hai cạnh giữ kg thì không bao giờ khớp
+    lô nào (kho báo "còn 0 kg" dù có hàng nghìn tờ). Quy ra tờ như lúc nhập, phiếu trừ lô tờ."""
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
-    r = _de_nghi(client, kho_id, "XUAT", [_dong(g, dvt="kg", sl=40, kr=300, kd=400)])
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=500, kr=650, kd=860, gia=20_000))
+    (lo,) = _lo(g)
+    r = _de_nghi(client, kho_id, "XUAT", [_dong(g, dvt="kg", sl=40, kr=650, kd=860)])
     assert r.status_code == 201, r.text
-    assert r.json()["lines"][0]["don_vi_goc"] == "kg"
+    req = r.json()
+    so_to = math.floor(40 / KG_MOT_TO)
+    assert (req["lines"][0]["don_vi_goc"], req["lines"][0]["sl_quy_doi"]) == ("to", so_to)
+    r = client.post("/api/kho/phieu", headers=_login(client, "t_thukho"), json={
+        "request_id": req["id"], "kho_id": kho_id,
+        "lines": [{"request_line_id": req["lines"][0]["id"], "so_luong": 40, "lot_id": lo.id}]})
+    assert r.status_code == 201, r.text
+    assert r.json()["lines"][0]["sl_goc"] == so_to
