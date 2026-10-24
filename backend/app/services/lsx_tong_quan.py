@@ -177,6 +177,10 @@ def _den_danh_muc(db: Session, ids: list[int]) -> dict[int, dict]:
             selectinload(CongDoan.vat_tus),
             selectinload(CongDoan.may_lam_duoc))
     ).scalars().all() if cd_ids else []
+    # Tổ của mọi máy đang gán trên trang — một câu thay cho một câu `may_to` mỗi bước (`cap_lech`).
+    from .may_to import to_cua_may
+    svc._to_cua_may_nap = to_cua_may(
+        db, {cd.may_id for lsx in rows for cd in lsx.cong_doans if cd.may_id})
     for lsx in rows:
         try:
             buocs = svc._soi_danh_muc(lsx)

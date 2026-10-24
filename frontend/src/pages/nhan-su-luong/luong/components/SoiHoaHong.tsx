@@ -200,7 +200,7 @@ export function SoiHoaHong({
                               <label>
                                 % hoa hồng riêng
                                 <input
-                                  className="rc-input rc-input--num"
+                                  className="rc-input lg-hhrieng__pct"
                                   inputMode="decimal"
                                   value={sua.pct}
                                   onChange={(e) => setSua({ ...sua, pct: e.target.value })}

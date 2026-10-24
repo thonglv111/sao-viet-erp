@@ -66,13 +66,16 @@ def to_cho_may(db: Session, cd: CongDoan | None, may_id: int, uu_tien: int | Non
 
 
 def cap_lech(db: Session, cd: CongDoan | None, department_id: int | None,
-             may_id: int | None) -> str | None:
+             may_id: int | None, *, to_map: dict[int, list[int]] | None = None) -> str | None:
     """Câu NGẮN "Máy X không thuộc <tổ>" khi cặp (tổ, máy) không hợp lệ; None = hợp lệ. Tổ hoặc máy
-    trống, hoặc công đoạn không ràng buộc tổ ⇒ hợp lệ. Dùng cho cảnh báo (băng danh mục đổi)."""
+    trống, hoặc công đoạn không ràng buộc tổ ⇒ hợp lệ. Dùng cho cảnh báo (băng danh mục đổi).
+
+    `to_map`: tổ của máy đã nạp sẵn cho CẢ trang (`to_cua_may`) — gọi theo từng bước mà không có nó
+    là mỗi bước một câu hỏi bảng `may_to` (N+1 ở hàng ba đèn Kế hoạch SX)."""
     if not may_id or not department_id or not rang_buoc_to(cd):
         return None
     trong_cd = {int(r.may_id) for r in cd.may_lam_duoc}
-    tos = to_cua_may(db, [may_id]).get(int(may_id), [])
+    tos = (to_map if to_map is not None else to_cua_may(db, [may_id])).get(int(may_id), [])
     if int(may_id) in trong_cd and int(department_id) in tos:
         return None
     repo = MayToRepository(db)

@@ -505,6 +505,9 @@ class LsxService:
         self._mon_cache: dict | None = None     # giấy + vật tư đang dùng (xem `_mon_active`)
         self._vt_theo_id_cache: dict | None = None
         self._loai_giay_cache: dict[int, str] | None = None   # id giấy → loại (xem `_loai_giay`)
+        # Tổ của máy nạp sẵn cho cả trang (`lsx_tong_quan._den_danh_muc`) — `_soi_danh_muc` đọc
+        # thay cho một câu `may_to` mỗi bước. None = tự hỏi theo bước (mở một lệnh).
+        self._to_cua_may_nap: dict[int, list[int]] | None = None
         self._vt_theo_id_nguon: dict | None = None
         self._cd_giu: list = []                 # công đoạn đã nạp sẵn (xem `_nap_cd`)
 
@@ -3156,7 +3159,8 @@ class LsxService:
                     "Máy đang gán không còn nằm trong danh sách máy của công đoạn — chọn máy khác")
             elif cd.loai_buoc == LB_MAY:
                 # Máy thuộc tổ (mg `0435`): tổ/máy là ảnh chụp, danh mục đổi sau thì chỉ NÓI.
-                muc["may_canh_bao"] = cap_lech(self.db, cd_obj, cd.department_id, cd.may_id)
+                muc["may_canh_bao"] = cap_lech(self.db, cd_obj, cd.department_id, cd.may_id,
+                                               to_map=self._to_cua_may_nap)
             co_gi = (muc["vat_tu_them"] or muc["vat_tu_bo"] or muc["vat_tu_lech"]
                      or muc["may_canh_bao"])
             if co_gi:
