@@ -42,6 +42,7 @@ import {
   AN_DIEU_CHUYEN,
   DEFAULT_PAGE_SIZE,
   ChipTrangThaiPhieu,
+  fmtKg,
   fmtQty,
   todayISO,
 } from "./khoShared";
@@ -153,19 +154,21 @@ const NHOM_TON_TRONG: Record<NhomTon, number> = { all: 0, can_mua: 0, du_ton: 0,
 // ── Lưới danh sách (khuôn chung 08/10/2026) ──────────────────────────────────
 interface CotKho extends CotLuoi { w?: number; n?: boolean; tip?: string }
 
-/** Tồn kho: [chọn] Vật tư, Khổ, ĐVT, Nhập gần nhất, Vị trí, Hạn sử dụng (khi có), Đang có, Sắp xuất, Sắp về, Dự kiến
+/** Tồn kho: [chọn] Vật tư, Khổ, Định lượng, ĐVT, Nhập gần nhất, Vị trí, Hạn sử dụng (khi có), Đang có, Sắp xuất, Sắp về, Dự kiến
  *  còn, Giá trị (khi thấy giá), Mức tồn, Tình trạng. */
-const COT_TON: CotKho[] = [
+export const COT_TON: CotKho[] = [
   { key: "chon", label: "Chọn", coDinh: true, w: 40 },
   { key: "vattu", label: "Vật tư", coDinh: true, w: 260 },
   // Khổ và ĐVT là hai cột riêng như Báo cáo kho (10/10/2026): cùng mã cùng khổ mà khác đơn vị là
   // hai dòng, đọc theo cột ĐVT là phân biệt được.
   { key: "kho", label: "Khổ", w: 130 },
+  { key: "dl", label: "Định lượng", w: 100, n: true, tip: "Định lượng (gsm) khai ở danh mục giấy" },
   { key: "dvt", label: "ĐVT", w: 70 },
   { key: "nhap", label: "Nhập gần nhất", w: 120 },
   { key: "vitri", label: "Vị trí", w: 150 },
   { key: "hsd", label: "Hạn sử dụng", w: 150, tip: "Hạn SỚM NHẤT của lô còn tồn" },
   { key: "co", label: "Đang có", w: 130, n: true },
+  { key: "quykg", label: "Quy kg", w: 110, n: true, tip: "Số tờ đang có quy ra kg theo khổ và định lượng" },
   { key: "sapxuat", label: "Sắp xuất", w: 100, n: true, tip: "Lệnh còn phải lấy hàng này (theo bảng cân đối vật tư) cộng đề nghị xuất chưa ghi sổ (giao hàng, gia công ngoài)" },
   { key: "sapve", label: "Sắp về", w: 100, n: true, tip: "Đơn mua đã hẹn ngày về" },
   { key: "dukien", label: "Dự kiến còn", w: 120, n: true, tip: "Đang có trừ Sắp xuất cộng Sắp về" },
@@ -1106,7 +1109,7 @@ async function printMaterialQr(
   }
 }
 
-function MaterialRow({
+export function MaterialRow({
   g,
   cot,
   hienMa = false,
@@ -1178,6 +1181,8 @@ function MaterialRow({
             {g.hang_loai === "giay" ? nhanKho(g.khoRong, g.khoDai) : <span className="lds-mu3">–</span>}
           </td>
         );
+      case "dl":
+        return <td key={c.key} className="n">{muc?.dinh_luong ?? <span className="lds-mu3">–</span>}</td>;
       case "dvt":
         return <td key={c.key}>{g.dvt ?? <span className="lds-mu3">–</span>}</td>;
       case "nhap":
@@ -1224,6 +1229,9 @@ function MaterialRow({
             {fmtQty(g.total)}
           </td>
         );
+      case "quykg":
+        // Cuộn đã đếm kg ⇒ máy chủ trả null, để trống.
+        return <td key={c.key} className="n">{muc?.quy_kg == null ? <span className="lds-mu3">–</span> : fmtKg(muc.quy_kg)}</td>;
       // Phép tính: Đang có − Sắp xuất + Sắp về = Dự kiến còn.
       case "sapxuat":
         return <td key={c.key} className="n">{soPhu(muc?.can_lenh)}</td>;
@@ -1607,12 +1615,13 @@ function MaterialHistoryDrawer({
             ) : (
               <div className="lds-bang">
                 {/* minWidth = cột cố định + 140 cho Vị trí: chật hơn thân ngăn thì khung cuộn ngang chứ không ép Vị trí về 0. */}
-                <table className="lds-g" style={{ minWidth: 120 + 100 + (coNguon ? 170 : 0) + 120 + (material.hang_loai === "giay" ? 150 : 0) + 100 + (canViewCost ? 110 : 0) + (coGiaBan ? 110 : 0) + (canViewCost ? 110 : 0) + 140 }}>
+                <table className="lds-g" style={{ minWidth: 120 + 100 + (coNguon ? 170 : 0) + 120 + (material.hang_loai === "giay" ? 110 + 150 : 0) + 100 + (canViewCost ? 110 : 0) + (coGiaBan ? 110 : 0) + (canViewCost ? 110 : 0) + 140 }}>
                   <colgroup>
                     <col style={{ width: 120 }} />
                     <col style={{ width: 100 }} />
                     {coNguon && <col style={{ width: 170 }} />}
                     <col style={{ width: 120 }} />
+                    {material.hang_loai === "giay" && <col style={{ width: 110 }} />}
                     {material.hang_loai === "giay" && <col style={{ width: 150 }} />}
                     <col />
                     <col style={{ width: 100 }} />
@@ -1626,6 +1635,7 @@ function MaterialHistoryDrawer({
                       <th>Ngày nhập</th>
                       {coNguon && <th>Đơn và khách</th>}
                       <th className="n">Còn lại</th>
+                      {material.hang_loai === "giay" && <th className="n">Quy kg</th>}
                       {material.hang_loai === "giay" && <th>Dạng / khổ</th>}
                       <th>Vị trí</th>
                       <th>HSD</th>
@@ -1650,6 +1660,9 @@ function MaterialHistoryDrawer({
                         <td>{fmtDateISO(lot.ngay_nhap)}</td>
                         {coNguon && <NguonLoCell lot={lot} />}
                         <td className="n">{`${fmtQty(lot.sl_con_lai)} ${dvtGoc}`.trim()}</td>
+                        {material.hang_loai === "giay" && (
+                          <td className="n">{lot.quy_kg == null ? "—" : fmtKg(lot.quy_kg)}</td>
+                        )}
                         {material.hang_loai === "giay" && (
                           <td>
                             {nhanKho(lot.kho_rong, lot.kho_dai)}

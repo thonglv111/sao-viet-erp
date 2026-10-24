@@ -292,6 +292,12 @@ export function fmtQty(value: number | null | undefined): string {
   return value.toLocaleString("vi-VN", { maximumFractionDigits: 3 });
 }
 
+/** Số kg quy đổi: đúng 2 số lẻ (299,34) — số suy ra, không phải số đếm. */
+export function fmtKg(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "";
+  return value.toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** Chuỗi ISO của hôm nay theo giờ xưởng, không theo múi giờ máy (dùng để so hạn + mặc định ngày phiếu). */
 export function todayISO(): string {
   return homNayVN();

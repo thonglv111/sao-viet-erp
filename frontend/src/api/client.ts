@@ -10781,6 +10781,9 @@ export interface TonKhoaRow {
   ton: number;
   don_vi_goc: string | null;
   don_vi_goc_ten: string | null;
+  /** Giấy: gsm của danh mục; giấy tờ: tồn quy kg (cuộn ⇒ null). Chỉ hiển thị. */
+  dinh_luong?: number | null;
+  quy_kg?: number | null;
 }
 
 /** Nhóm lọc của màn Tồn kho — máy chủ đếm trên tập đã lọc bởi ô tìm, kỳ Nhập và các khoảng; bỏ riêng bộ lọc nhóm (`GET /api/kho/phieu/lo/ton-nhom`). */
@@ -10824,6 +10827,9 @@ export interface TonNhomMuc {
   dang_ve: number | null;
   du_kien: number | null;
   duoi_cuoi: boolean;
+  /** Giấy: gsm của danh mục; giấy tờ: tồn quy kg (cuộn ⇒ null). Chỉ hiển thị. */
+  dinh_luong?: number | null;
+  quy_kg?: number | null;
   /** Dòng dự báo đầy đủ (lệnh, đơn về) cho ngăn chi tiết; null khi dự báo hỏng. */
   du_bao: DuBaoTonRow | null;
 }
@@ -12087,6 +12093,9 @@ export interface StockLot {
   ncc: string | null;
   sl_ban_dau: number;
   sl_con_lai: number;
+  /** Giấy: gsm của danh mục; lô giấy tờ: `sl_con_lai` quy kg (cuộn ⇒ null). Chỉ hiển thị. */
+  dinh_luong?: number | null;
+  quy_kg?: number | null;
   hsd: string | null;
   trang_thai: string;
   /** Phiếu NHẬP đã tạo ra lô — hiển thị lô THEO MÃ PHIẾU (link mở phiếu). Null với tồn đầu kỳ. */

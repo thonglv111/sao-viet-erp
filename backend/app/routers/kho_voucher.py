@@ -78,7 +78,9 @@ from ..schemas.stock import (
     StockVoucherPage,
 )
 from ..services import kho_gia_goc_service
-from ..services.kho_giay import co_don_vi_goc, don_vi_khai, khoa_ton, khoa_ton_cua
+from ..services.kho_giay import (
+    co_don_vi_goc, dinh_luong_va_quy_kg, don_vi_khai, khoa_ton, khoa_ton_cua,
+)
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
@@ -992,6 +994,8 @@ def _dong_lo_danh_sach(svc, lots, gia_kho) -> list[StockLotOut]:
         can_view_cost = gia_kho(lot.kho_id)
         row.don_gia_nhap = int(lot.don_gia_nhap or 0) if can_view_cost else None
         _gan_nguon_lo(row, nguon.get(lot.id), can_view_cost)
+        row.dinh_luong, row.quy_kg = dinh_luong_va_quy_kg(
+            lot.hang_loai, m, lot.sl_con_lai, lot.kho_rong, lot.kho_dai, lot.don_vi_goc)
         out.append(row)
     return out
 
@@ -1062,8 +1066,10 @@ def ton_theo_khoa(
     for goc, kr, kd, sl in svc.lots.ton_theo_khoa((hang_loai, hang_id)):
         dv = (goc or None) if co_don_vi_goc(hang_loai) else None
         dv = dv or getattr(m, "don_vi_gia", None)
+        dl, qkg = dinh_luong_va_quy_kg(hang_loai, m, sl, kr, kd, goc)
         out.append(TonKhoaRow(kho_rong=kr, kho_dai=kd, ton=sl,
-                              don_vi_goc=dv, don_vi_goc_ten=dv_ten.get(dv, dv)))
+                              don_vi_goc=dv, don_vi_goc_ten=dv_ten.get(dv, dv),
+                              dinh_luong=dl, quy_kg=qkg))
     return out
 
 
@@ -1129,6 +1135,8 @@ def _dong_lo_lich_su(svc, lots, m, dvt, can_view_cost: bool) -> list[StockLotOut
         row.dvt_yeu_cau = sl_dvt[1] if sl_dvt else None
         row.dieu_chuyen = lot.voucher_id in dc_voucher_ids if lot.voucher_id else False
         _gan_nguon_lo(row, nguon.get(lot.id), can_view_cost)
+        row.dinh_luong, row.quy_kg = dinh_luong_va_quy_kg(
+            lot.hang_loai, m, lot.sl_con_lai, lot.kho_rong, lot.kho_dai, lot.don_vi_goc)
         out.append(row)
     return out
 

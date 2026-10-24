@@ -834,6 +834,9 @@ class StockLotOut(BaseModel):
     ncc: str | None = None
     sl_ban_dau: float
     sl_con_lai: float
+    #: Giấy: gsm của danh mục; tờ: số kg quy từ `sl_con_lai` (cuộn ⇒ None) — chỉ hiển thị (spec §6).
+    dinh_luong: int | None = None
+    quy_kg: float | None = None
     hsd: date | None = None
     trang_thai: str
     # Phiếu NHẬP đã tạo ra lô này — màn Tồn kho hiển thị lô THEO MÃ PHIẾU (link mở phiếu). Null = đầu kỳ.
@@ -1102,6 +1105,8 @@ class TonKhoaRow(BaseModel):
     ton: float = 0
     don_vi_goc: str | None = None
     don_vi_goc_ten: str | None = None
+    dinh_luong: int | None = None
+    quy_kg: float | None = None
 
 
 class DuBaoTonRow(BaseModel):
@@ -1150,6 +1155,9 @@ class TonNhomMuc(BaseModel):
     dang_ve: float | None = None
     du_kien: float | None = None
     duoi_cuoi: bool = False
+    #: Giấy: gsm của danh mục; giấy tờ: tồn quy kg (cuộn ⇒ None). Chỉ hiển thị (spec 2026-10-24 §6).
+    dinh_luong: int | None = None
+    quy_kg: float | None = None
     #: Dòng dự báo đầy đủ (lệnh, đơn về) cho ngăn chi tiết — chỉ dòng trong trang; None khi dự báo hỏng.
     du_bao: DuBaoTonRow | None = None
 
