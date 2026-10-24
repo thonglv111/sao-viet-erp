@@ -160,8 +160,8 @@ export function TronGoiDialog({
             <span className="gcn__tick-goi-y">
               {capGiay
                 ? congTyLoGiay
-                  ? "Theo phiếu tính giá, giấy công ty lo. Đặt xong, chọn khổ và số tờ ở khối Gia công ngoài trên lệnh để kho xuất."
-                  : "Đặt xong, chọn khổ và số tờ ở khối Gia công ngoài trên lệnh để kho xuất."
+                  ? "Theo phiếu tính giá, giấy công ty lo. Đặt xong, chọn khổ và số lượng ở khối Gia công ngoài trên lệnh để kho xuất."
+                  : "Đặt xong, chọn khổ và số lượng ở khối Gia công ngoài trên lệnh để kho xuất."
                 : "Nhà gia công tự lo giấy — kho không xuất gì cho lần này."}
             </span>
           </span>
