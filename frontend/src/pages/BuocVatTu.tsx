@@ -6,15 +6,14 @@ import { HoverTip } from "../components/HoverTip";
 import { Select } from "../components/Select";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 
-/** Một dòng vật tư của bước. `hang_loai = "giay"` (18/10/2026): giấy chọn ngay ở bước như mọi vật
- *  tư, `vat_tu_id` khi đó trỏ danh mục Giấy — hai danh mục đánh id riêng nên mọi chỗ tra/ghép phải
- *  đi theo CẶP (`khoaVatTu`), không theo id trần. */
+/** Một dòng vật tư của bước. Giấy + sóng chọn ở SẢN PHẨM (mục Giấy nguyên, 24/10/2026) nên bước
+ *  chỉ còn `vat_tu`; khoá vẫn đi theo CẶP (`khoaVatTu`) để khớp định mức engine trả. */
 export interface BuocVatTuDong {
   uid: string; hang_loai: HangLoaiBuoc; vat_tu_id: number; gia_tri_chip: Record<string, number>;
 }
 export interface Chip { ma: string; ten: string; don_vi?: string | null }
 
-/** Khoá ghép một dòng với danh mục / định mức: "giay:12", "vat_tu:12". */
+/** Khoá ghép một dòng với danh mục / định mức: "vat_tu:12". */
 export const khoaVatTu = (hang: HangLoaiBuoc, id: number) => `${hang}:${id}`;
 export const chipsCua = (vt: Row | undefined): Chip[] =>
   Array.isArray(vt?.chips) ? (vt!.chips as Chip[]) : [];
@@ -47,7 +46,6 @@ export function nhanNgan(tenChip: string, tenVatTu: string): string {
 export function soOChipTrong(dong: BuocVatTuDong[], vatTuDm: Row[]): number {
   let n = 0;
   for (const d of dong) {
-    if (d.hang_loai !== "vat_tu") continue;   // giấy không có chip
     const vt = vatTuDm.find((v) => v.id === d.vat_tu_id);
     for (const c of chipsCua(vt)) if (d.gia_tri_chip[c.ma] === undefined) n++;
   }
@@ -105,17 +103,6 @@ export interface DinhMuc {
    *  bằng từ điển biến + chip của vật tư, cùng cách dòng tiền ở bảng giá vốn. Rỗng = không có. */
   dienGiai?: string;
   thaySo?: string;
-  /** Khổ giấy của dòng (18/10/2026): tờ in ⇒ khổ in, tờ nguyên ⇒ khổ nguyên, con/cái ⇒ khổ thành
-   *  phẩm; bước đầu vào "—" không có. Dạng "430 × 650 mm". */
-  kho?: string;
-}
-
-/** "430 × 650 mm" từ hai cạnh mm (cạnh ngắn trước); thiếu cạnh ⇒ rỗng. */
-export function nhanKhoGiay(a: unknown, b: unknown): string {
-  const x = Math.round(Number(a) || 0);
-  const y = Math.round(Number(b) || 0);
-  if (x <= 0 || y <= 0) return "";
-  return `${Math.min(x, y).toLocaleString("vi-VN")} × ${Math.max(x, y).toLocaleString("vi-VN")} mm`;
 }
 
 /** Số định mức kiểu Việt: lượng dưới 1 giữ 4 chữ số lẻ để không thành 0 (0,0012 kg), còn lại 2
@@ -176,53 +163,20 @@ interface Props {
   vatTuDm: Row[];
   onChange: (next: BuocVatTuDong[]) => void;
   taoUid: () => string;
-  /** Danh mục Giấy — giấy thêm vào bước được như vật tư (engine tính tiền theo công thức của giấy,
-   *  lệnh sản xuất nhận đúng số tờ của bước). */
-  giayDm?: Row[];
-  /** Id mọi dòng giấy (cả Giấy lẫn Sóng) ở MỌI bước của sản phẩm — để khoá mã thứ hai cùng loại. */
-  giayCuaSanPham?: number[];
   /** Định mức theo `khoaVatTu` của CHÍNH bước này. Vắng (chưa có kết quả tính) ⇒ hiện gạch. */
   dinhMuc?: Map<string, DinhMuc>;
 }
 
-export default function BuocVatTu({
-  tenBuoc, dong, vatTuDm, giayDm = [], giayCuaSanPham = [], onChange, taoUid, dinhMuc,
-}: Props) {
+export default function BuocVatTu({ tenBuoc, dong, vatTuDm, onChange, taoUid, dinhMuc }: Props) {
   useNapTenDonVi();   // đơn vị hiện bằng TÊN trong danh mục, không in mã trần
   // Dựng một lần theo danh mục — danh mục đứng yên trong khi người dùng gõ chip, mỗi nhịp gõ chỉ `dong` đổi.
-  const tra = useMemo(() => new Map<string, Row>([
-    ...giayDm.map((g) => [khoaVatTu("giay", g.id), g] as const),
-    ...vatTuDm.map((v) => [khoaVatTu("vat_tu", v.id), v] as const),
-  ]), [vatTuDm, giayDm]);
+  const tra = useMemo(() => new Map<string, Row>(
+    vatTuDm.map((v) => [khoaVatTu("vat_tu", v.id), v] as const),
+  ), [vatTuDm]);
   const daCo = new Set(dong.map((d) => khoaVatTu(d.hang_loai, d.vat_tu_id)));
-  // Mỗi sản phẩm tối đa MỘT mã Giấy + MỘT mã Sóng (mg 0426, máy chủ chặn khi lưu). Sản phẩm đã có mã
-  // của một loại ở bất kỳ bước nào ⇒ mã KHÁC cùng loại hiện mờ, kèm lý do; mã đang dùng vẫn chọn
-  // được ở bước khác. Muốn đổi thì xoá dòng cũ trước.
-  const loaiCua = (g: Row) => (g.loai === "song" ? "song" : "giay");
-  const dangDung = (loai: "giay" | "song") => {
-    const id = giayCuaSanPham.find((i) => {
-      const g = giayDm.find((x) => x.id === i);
-      return (g ? loaiCua(g) : "giay") === loai;
-    });
-    return id == null ? null : (giayDm.find((x) => x.id === id) ?? null);
-  };
-  const dangDungTheoLoai = { giay: dangDung("giay"), song: dangDung("song") };
-  const moGiay = (g: Row) => {
-    const loai = loaiCua(g);
-    const co = dangDungTheoLoai[loai];
-    if (co == null || co.id === g.id) return {};
-    return { disabled: true, sub: `Sản phẩm đã có ${loai === "song" ? "sóng" : "giấy"} ${String(co.ten)}` };
-  };
-  // Ô thêm chia nhóm: Giấy, Sóng (bước nào cũng chọn được), sau là vật tư. Mã ngừng dùng không mời
-  // thêm; dòng đang dùng thì vẫn hiện tên ở danh sách bên trên.
-  const giayMoi = giayDm.filter((g) => g.active !== false && !daCo.has(khoaVatTu("giay", g.id)));
-  const luaChon = [
-    ...(["giay", "song"] as const).flatMap((loai) => giayMoi.filter((g) => loaiCua(g) === loai)
-      .map((g) => ({ value: khoaVatTu("giay", g.id), label: String(g.ten),
-                     group: loai === "song" ? "Sóng" : "Giấy", ...moGiay(g) }))),
-    ...vatTuDm.filter((v) => !daCo.has(khoaVatTu("vat_tu", v.id)))
-      .map((v) => ({ value: khoaVatTu("vat_tu", v.id), label: String(v.ten), group: "Vật tư" })),
-  ];
+  // Ô thêm chỉ mời vật tư (giấy/sóng chọn ở sản phẩm). Mã đang dùng không mời lại.
+  const luaChon = vatTuDm.filter((v) => !daCo.has(khoaVatTu("vat_tu", v.id)))
+    .map((v) => ({ value: String(v.id), label: String(v.ten) }));
 
   const setChip = (i: number, ma: string, raw: string) =>
     onChange(dong.map((d, j) => {
@@ -256,11 +210,9 @@ export default function BuocVatTu({
   const ds = dong.map((d, i) => {
     const khoa = khoaVatTu(d.hang_loai, d.vat_tu_id);
     const vt = tra.get(khoa);
-    const loai = d.hang_loai === "giay" ? "Giấy" : "Vật tư";
-    const ten = vt ? String(vt.ten) : `${loai} #${d.vat_tu_id} (đã ngừng dùng)`;
+    const ten = vt ? String(vt.ten) : `Vật tư #${d.vat_tu_id} (đã ngừng dùng)`;
     const dv = vt?.don_vi_gia ? (tenDonVi(String(vt.don_vi_gia)) ?? "") : "";
-    const kho = d.hang_loai === "giay" ? (dinhMuc?.get(khoa)?.kho ?? "") : "";
-    return { d, i, khoa, ten, dv, kho, chips: d.hang_loai === "giay" ? [] : chipsCua(vt) };
+    return { d, i, khoa, ten, dv, chips: chipsCua(vt) };
   });
   const sapXep = [...ds.filter((x) => x.chips.length > 0), ...ds.filter((x) => x.chips.length === 0)];
 
@@ -270,7 +222,7 @@ export default function BuocVatTu({
         <p className="tg-bvt__rong">Chưa có vật tư.</p>
       ) : (
         <ul className="tg-bvt__ds">
-          {sapXep.map(({ d, i, khoa, ten, dv, kho, chips }) =>
+          {sapXep.map(({ d, i, khoa, ten, dv, chips }) =>
             chips.length > 0 ? (
               <li className="tg-bvt__dong tg-bvt__dong--chip" key={d.uid}>
                 <span className="tg-bvt__ten" title={ten}>{ten}</span>
@@ -291,11 +243,7 @@ export default function BuocVatTu({
               </li>
             ) : (
               <li className="tg-bvt__dong" key={d.uid}>
-                <span className="tg-bvt__ten" title={kho ? `${ten}
-Khổ ${kho}` : ten}>
-                  {ten}
-                  {kho ? <span className="tg-bvt__kho">{kho}</span> : null}
-                </span>
+                <span className="tg-bvt__ten" title={ten}>{ten}</span>
                 {oLuong(khoa, dv, ten)}
                 {nutXoa(i, ten)}
               </li>
@@ -309,10 +257,8 @@ Khổ ${kho}` : ten}>
           value=""
           placeholder="+ Thêm vật tư — gõ tên…"
           onChange={(v) => {
-            const [hang, so] = String(v).split(":");
-            const id = Number(so);
-            if (id && (hang === "giay" || hang === "vat_tu"))
-              onChange([...dong, { uid: taoUid(), hang_loai: hang, vat_tu_id: id, gia_tri_chip: {} }]);
+            const id = Number(v);
+            if (id) onChange([...dong, { uid: taoUid(), hang_loai: "vat_tu", vat_tu_id: id, gia_tri_chip: {} }]);
           }}
           ariaLabel={`Thêm vật tư vào bước ${tenBuoc}`}
           searchable

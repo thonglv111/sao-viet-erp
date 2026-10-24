@@ -4736,12 +4736,12 @@ export interface ThanhPhamOut {
 }
 
 /** 1 vật tư gắn vào 1 bước của phiếu — `gia_tri_chip` khoá theo mã chip của vật tư. */
-/** `giay` = giấy chọn ở bước (18/10/2026, id trỏ danh mục Giấy) — cùng ô "Thêm vật tư"; vắng = `vat_tu`. */
-export type HangLoaiBuoc = "vat_tu" | "giay";
+/** Bước phiếu chỉ mang vật tư — giấy/sóng chọn ở sản phẩm (`giay_id`/`song_id`, 24/10/2026). */
+export type HangLoaiBuoc = "vat_tu";
 export interface BuocVatTuOut {
   id: number;
   thu_tu: number;
-  hang_loai?: HangLoaiBuoc;
+  hang_loai?: string;   // dòng `giay` sót từ trước mg 0445 — màn bỏ qua
   vat_tu_id: number;
   gia_tri_chip: Record<string, number>;
 }
@@ -4773,6 +4773,7 @@ export interface ThanhPhanOut {
   don_vi_tinh: string; // ĐVT sản phẩm (text tự do, mặc định "cái") → chảy sang Báo giá
   // Giấy in
   giay_id: number | null;
+  song_id?: number | null;
   kho_nguyen: string | null; // ① nhãn hiển thị
   kho_nguyen_dai: number; // ① khổ giấy nguyên dài (mm) — đè danh mục khi > 0
   kho_nguyen_rong: number; // ①
@@ -4901,6 +4902,7 @@ export interface ThanhPhanIn {
   so_luong?: number; // SL đặt của sản phẩm này (0 = SL mặc định phiếu)
   don_vi_tinh?: string | null; // ĐVT sản phẩm (text tự do)
   giay_id?: number | null;
+  song_id?: number | null;   // sóng của sản phẩm (mã loại song)
   kho_nguyen?: string | null;
   kho_nguyen_dai?: number;
   kho_nguyen_rong?: number;
