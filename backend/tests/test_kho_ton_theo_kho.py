@@ -162,7 +162,7 @@ def test_bao_cao_nxt_tach_dong_giay_theo_kho_va_don_vi_goc(client):
     _nhap(client, kho_id, _dong(g, dvt="ram", sl=2, kr=780, kd=905, gia=1_000_000))
     _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, kr=800, kd=1090, gia=600_000))
     _nhap(client, kho_id, _dong(g, dvt="kg", sl=300, kr=1000, gia=20_000))
-    _nhap(client, kho_id, _dong(g, dvt="kg", sl=50, kr=780, kd=905, gia=20_000))
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=50, kr=780, gia=20_000))   # cuộn 780: kg (khổ hai cạnh thì quy ra tờ)
     hom_nay = date.today().isoformat()
     q = {"tu": "2026-01-01", "den": hom_nay}
 
@@ -170,9 +170,9 @@ def test_bao_cao_nxt_tach_dong_giay_theo_kho_va_don_vi_goc(client):
     assert r.status_code == 200, r.text
     dong = {(x["kho_rong"], x["kho_dai"], x["don_vi_goc"]): x for x in r.json()["items"]
             if x["hang_id"] == g and x["hang_loai"] == "giay"}
-    assert set(dong) == {(780, 905, "to"), (800, 1090, "to"), (1000, 0, "kg"), (780, 905, "kg")}
+    assert set(dong) == {(780, 905, "to"), (800, 1090, "to"), (1000, 0, "kg"), (780, 0, "kg")}
     assert dong[(780, 905, "to")]["nhap_sl"] == 1000 and dong[(800, 1090, "to")]["nhap_sl"] == 500
-    assert dong[(1000, 0, "kg")]["nhap_sl"] == 300 and dong[(780, 905, "kg")]["nhap_sl"] == 50
+    assert dong[(1000, 0, "kg")]["nhap_sl"] == 300 and dong[(780, 0, "kg")]["nhap_sl"] == 50
     assert dong[(780, 905, "to")]["dvt"] == "tờ" and dong[(1000, 0, "kg")]["dvt"] == "kg"
     assert dong[(780, 905, "to")]["nhap_gt"] == 2_000_000
 
@@ -180,7 +180,7 @@ def test_bao_cao_nxt_tach_dong_giay_theo_kho_va_don_vi_goc(client):
     r = client.get("/api/kho/bao-cao/dong", headers=_admin(client), params=q)
     assert r.status_code == 200, r.text
     so = [(x["don_vi_goc"], x["kho_rong"], x["kho_dai"], x["dvt"]) for x in r.json()["items"]]
-    assert ("to", 780, 905, "tờ") in so and ("kg", 1000, 0, "kg") in so and ("kg", 780, 905, "kg") in so
+    assert ("to", 780, 905, "tờ") in so and ("kg", 1000, 0, "kg") in so and ("kg", 780, 0, "kg") in so
 
     # Không có `kho:view_cost` ⇒ vẫn thấy số lượng, không thấy tiền.
     _nguoi_xem_bao_cao("t_xem_bc")
@@ -197,7 +197,7 @@ def test_tinh_gia_ky_snapshot_tach_kho_va_don_vi_goc(client):
     g = _giay()
     _nhap(client, kho_id, _dong(g, dvt="ram", sl=2, kr=780, kd=905, gia=1_000_000))
     _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, kr=800, kd=1090, gia=600_000))
-    _nhap(client, kho_id, _dong(g, dvt="kg", sl=70, kr=780, kd=905, gia=20_000))
+    _nhap(client, kho_id, _dong(g, dvt="kg", sl=70, kr=780, gia=20_000))
     hom_nay = date.today()
     ad = _admin(client)
     # Khóa sổ trước rồi mới tính giá (13/10/2026).
@@ -213,7 +213,7 @@ def test_tinh_gia_ky_snapshot_tach_kho_va_don_vi_goc(client):
     assert r.status_code == 200, r.text
     dau = {(x["kho_rong"], x["kho_dai"], x["don_vi_goc"]): x["dau_sl"]
            for x in r.json()["items"] if x["hang_id"] == g}
-    assert dau == {(780, 905, "to"): 1000, (800, 1090, "to"): 500, (780, 905, "kg"): 70}
+    assert dau == {(780, 905, "to"): 1000, (800, 1090, "to"): 500, (780, 0, "kg"): 70}
 
 
 def test_tinh_gia_ky_chi_tren_khoang_da_khoa(client):

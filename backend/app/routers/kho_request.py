@@ -44,7 +44,7 @@ from ..schemas.stock import (
     StockRequestUpdate,
 )
 from ..services.delivery_notify import kho_huy_hang_giao
-from ..services.kho_giay import co_don_vi_goc, khoa_ton_cua
+from ..services.kho_giay import DON_VI_TO_KHO, co_don_vi_goc, khoa_ton_cua, la_kho_to, to_tu_kg
 from ..services.kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
 from ..services.quyen_kho import xem_ton_kho
@@ -233,7 +233,16 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             dv = don_vi_map.get(key)
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
             # Giấy / vật tư: gốc theo ĐƠN VỊ GỐC của dòng (đơn vị đã khai), không phải ĐVT chính.
-            if co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
+            if (ln.hang_loai == "giay" and ln.don_vi_goc == DON_VI_TO_KHO and dv is not None
+                    and la_kho_to(ln.kho_rong, ln.kho_dai)
+                    and (hang_svc.quy_tu_don_vi(dv, ln.dvt, 1)["don_vi_goc"] or "").lower() == "kg"):
+                # Giấy khổ hai cạnh khai kg: gốc tờ, quy theo khổ + gsm (spec 2026-10-24 §5) — cùng
+                # số với lúc ghi sổ (`quy_ve_goc`), không thêm lượt đọc danh mục.
+                kg = hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi))
+                so_to = to_tu_kg(kg["sl_goc"], ln.kho_rong, ln.kho_dai, getattr(m, "gsm", 0))
+                qd = {**kg, "sl_goc": float(so_to), "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
+                      "he_so_ve_goc": so_to / float(ln.sl_de_nghi)}
+            elif co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
                 dvg = don_vi_goc_map.get((ln.hang_loai, ln.hang_id, ln.don_vi_goc))
                 qd = (hang_svc.quy_tu_don_vi(dvg, ln.dvt, float(ln.sl_de_nghi)) if dvg is not None
                       else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
@@ -242,7 +251,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                 qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
                       else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
                                                float(ln.sl_de_nghi)))
-        except VatLieuKhoError as e:
+        except (VatLieuKhoError, ValueError) as e:
             canh_bao = str(e)
         mc = mua_cho_cua_dong(mc_hang, ln.hang_loai, ln.hang_id, ln.kho_rong, ln.kho_dai)
         lines.append(StockRequestLineOut(

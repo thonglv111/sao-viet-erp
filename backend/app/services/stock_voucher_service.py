@@ -116,7 +116,7 @@ class StockVoucherService:
                 f"số đã tính, xong thì tính giá lại.{them}"
             )
 
-    def _quy_doi(self, rl, qty: float) -> dict:
+    def _quy_doi(self, rl, qty: float, kho_rong=0, kho_dai=0) -> dict:
         """Số trên phiếu (theo `dvt` của dòng đề nghị) → số theo ĐƠN VỊ GỐC để ghi vào lô.
         Giấy + vật tư: gốc của CHÍNH dòng đề nghị (`rl.don_vi_goc` — một đơn vị đã khai ở danh mục);
         dòng cũ chưa có thì suy từ ĐVT (`don_vi_goc` trong kết quả nói gốc nào)."""
@@ -124,7 +124,8 @@ class StockVoucherService:
 
         goc = (rl.don_vi_goc or None) if co_don_vi_goc(rl.hang_loai) else None
         try:
-            return self.hang.quy_ve_goc(rl.hang_loai, rl.hang_id, rl.dvt, qty, goc=goc)
+            return self.hang.quy_ve_goc(rl.hang_loai, rl.hang_id, rl.dvt, qty, goc=goc,
+                                        kho_rong=kho_rong, kho_dai=kho_dai)
         except VatLieuKhoError as e:
             raise StockVoucherError(str(e)) from None
 
@@ -213,7 +214,7 @@ class StockVoucherService:
             # cầu (ĐVT dòng đã chốt ở yêu cầu — phiếu không đổi được đơn vị).
             kr, kd = self._kho_cua_dong(rl, ln, loai)
             # Chốt hệ số quy đổi NGAY LÚC NÀY (xem `StockVoucherLine.sl_goc`).
-            qd = self._quy_doi(rl, qty)
+            qd = self._quy_doi(rl, qty, kr, kd)
             dv_goc = (qd.get("don_vi_goc") or "").lower() if co_don_vi_goc(rl.hang_loai) else ""
 
             item = {

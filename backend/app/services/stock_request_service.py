@@ -151,7 +151,7 @@ class StockRequestService:
         """
         if loai not in REQUEST_KINDS:
             raise StockRequestError("Loại yêu cầu không hợp lệ (chỉ NHAP hoặc XUAT).")
-        self._validate_lines(lines, kho_to_bat_buoc=kho_to_bat_buoc)
+        self._validate_lines(lines, kho_to_bat_buoc=kho_to_bat_buoc, nhap=loai == REQ_NHAP)
         if header.get("uu_tien") and header["uu_tien"] not in PRIORITIES:
             raise StockRequestError("Mức ưu tiên không hợp lệ.")
         header.setdefault("uu_tien", PRIORITY_NORMAL)
@@ -249,7 +249,7 @@ class StockRequestService:
             )
         dang_co = {(ln.hang_loai, int(ln.hang_id))
                    for ln in (req.lines or []) if ln.hang_loai and ln.hang_id}
-        self._validate_lines(lines, dang_co, kho_to_bat_buoc=True)
+        self._validate_lines(lines, dang_co, kho_to_bat_buoc=True, nhap=True)
         self.requests.replace_lines(req, lines)
         # `sl_duyet` mặc định 0 ⇒ phải đặt lại, nếu không yêu cầu tự thành "Hoàn tất" (xem
         # `dong_bo_tu_san_xuat`). Kho đã tiếp nhận thì về lại "chờ cấp" để họ xem số mới.
@@ -279,7 +279,7 @@ class StockRequestService:
         nguồn (nội bộ, `notify=False`) và vế NHẬP ở kho đích (yêu cầu điều chuyển thấy được,
         `notify=True`). Tạo là DUYỆT LUÔN (giống `create`): `sl_duyet = sl_de_nghi`, trạng thái
         `approved` để lập phiếu được ngay. `_validate_lines` vẫn chạy (mặt hàng có thật + đơn vị
-        quy được về gốc + không trùng mặt hàng)."""
+        quy được về gốc + không trùng mặt hàng). Không quy kg ra tờ: lô đích mang đúng đơn vị lô nguồn."""
         if loai not in REQUEST_KINDS:
             raise StockRequestError("Loại yêu cầu không hợp lệ (chỉ NHAP hoặc XUAT).")
         self._validate_lines(lines)
@@ -315,13 +315,14 @@ class StockRequestService:
             # Mặt hàng vốn đã có trên đề nghị thì giữ lại được kể cả khi danh mục đã ngừng nó.
             dang_co = {(ln.hang_loai, int(ln.hang_id))
                        for ln in (req.lines or []) if ln.hang_loai and ln.hang_id}
-            self._validate_lines(lines, dang_co, kho_to_bat_buoc=kho_to_bat_buoc)
+            self._validate_lines(lines, dang_co, kho_to_bat_buoc=kho_to_bat_buoc,
+                                 nhap=req.loai == REQ_NHAP)
             self.requests.replace_lines(req, lines)
         self.requests.update_header(req, header)
         return self.requests.save(req)
 
     def _validate_lines(self, lines: list[dict], dang_co: set[tuple] | None = None, *,
-                        kho_to_bat_buoc: bool = False) -> None:
+                        kho_to_bat_buoc: bool = False, nhap: bool = False) -> None:
         """SIẾT (chủ chốt 2026-08-08): mỗi dòng phải trỏ một mặt hàng CÓ THẬT trong danh mục gốc,
         và đơn vị phải đổi được về đơn vị gốc của chính mặt hàng đó.
 
@@ -331,6 +332,9 @@ class StockRequestService:
         GIẤY + VẬT TƯ: ghi `don_vi_goc` vào CHÍNH dict dòng — suy từ ĐVT (`quy_ve_goc`: đơn vị đã khai
         ở danh mục mà nhóm của nó chứa ĐVT dòng; chưa khai ⇒ lỗi) để repo ghi xuống dòng; người gọi
         gửi gì ở khoá này cũng bị đè.
+
+        `nhap` (yêu cầu NHẬP, trừ điều chuyển): giấy khổ hai cạnh khai kg ⇒ gốc TỜ (spec 2026-10-24-
+        chuan-bi-giay §5). Đề nghị XUẤT của xưởng mang khổ thành phẩm kèm kg — không quy.
 
         `kho_to_bat_buoc` (cửa người gõ trên màn kho): giấy đếm TỜ phải đủ khổ hai cạnh — tờ không
         khổ thì không biết lấy lô nào, không ghép được với bảng cân đối. Luồng nội bộ (điều chuyển lô
@@ -351,7 +355,9 @@ class StockRequestService:
             # là hai dòng hợp lệ — gộp lại thì mất luôn thông tin "phần nào cho lệnh nào", mà đó
             # đúng là thứ bảng cân đối cần để trừ đã-cấp vào đúng chỗ.
             goc = self._kiem_hang_va_don_vi(loai, int(hid), ln.get("dvt"), ln["sl_de_nghi"],
-                                            giu_duoc=(loai, int(hid)) in (dang_co or set()))
+                                            giu_duoc=(loai, int(hid)) in (dang_co or set()),
+                                            kho_rong=ln.get("kho_rong") if nhap else 0,
+                                            kho_dai=ln.get("kho_dai") if nhap else 0)
             ln["don_vi_goc"] = goc if co_don_vi_goc(loai) else ""
             if kho_to_bat_buoc and loai == "giay" and goc == DON_VI_TO_KHO:
                 kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
@@ -384,7 +390,7 @@ class StockRequestService:
             raise StockRequestError(f"Bài ghép #{bai_ghep_id} không tồn tại — chọn lại.")
 
     def _kiem_hang_va_don_vi(self, hang_loai: str, hang_id: int, dvt, so_luong,
-                             *, giu_duoc: bool = False) -> str:
+                             *, giu_duoc: bool = False, kho_rong=0, kho_dai=0) -> str:
         """Mặt hàng còn dùng được + đơn vị quy được về gốc; trả MÃ đơn vị gốc của dòng (giấy: gốc của
         họ ĐVT — "to" hoặc đơn vị giá). Lỗi trả nguyên văn lý do của danh mục
         (vd "chưa chọn đơn vị tính", "không đổi được từ tờ về kg") để người khai biết sửa ở đâu.
@@ -401,7 +407,10 @@ class StockRequestService:
             obj = self.hang.get(hang_loai, hang_id)
             if not getattr(obj, "active", True) and not giu_duoc:
                 raise StockRequestError(f"“{obj.ten}” đã ngừng dùng — chọn mặt hàng khác.")
-            return (self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong)["don_vi_goc"] or "").lower()
+            # Giấy khổ hai cạnh khai kg ⇒ gốc tờ (spec 2026-10-24-chuan-bi-giay §5).
+            return (self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong,
+                                         kho_rong=kho_rong or 0, kho_dai=kho_dai or 0)["don_vi_goc"]
+                    or "").lower()
         except VatLieuKhoError as e:
             raise StockRequestError(str(e)) from None
 
@@ -445,7 +454,7 @@ class StockRequestService:
         # `update()` áp cho cửa kho thường.
         dang_co = {(ln.hang_loai, int(ln.hang_id))
                    for ln in (req.lines or []) if ln.hang_loai and ln.hang_id}
-        self._validate_lines(lines, dang_co)
+        self._validate_lines(lines, dang_co, nhap=req.loai == REQ_NHAP)
         self.requests.replace_lines(req, lines)
         # Đặt lại `sl_duyet` cho MỌI dòng mới: bỏ bước này là `sl_duyet = 0` (giá trị mặc định của
         # cột), và `refresh_fulfillment` sẽ thấy `sl_da_ung (=0) >= sl_duyet (=0)` đúng ngay lập

@@ -19,7 +19,9 @@ from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
-from .kho_giay import DON_VI_TO_KHO, GIAY_DON_VI_BAT_BUOC, GocMatHang, don_vi_khai, la_ma_to_giay
+from .kho_giay import (
+    DON_VI_TO_KHO, GIAY_DON_VI_BAT_BUOC, GocMatHang, don_vi_khai, la_kho_to, la_ma_to_giay, to_tu_kg,
+)
 from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU, ma_chip_hop_le, ma_tu_ten_chip
 from .catalog_base import (
     CatalogDuplicate, CatalogError, CatalogNotFound, CatalogValidationError, ma_ban_sao,
@@ -533,7 +535,7 @@ class VatLieuKhoService:
         return None, []
 
     def quy_ve_goc(self, hang_loai: str, hang_id: int, dvt: str, so_luong: float,
-                   *, goc: str | None = None) -> dict:
+                   *, goc: str | None = None, kho_rong=0, kho_dai=0) -> dict:
         """Quy `so_luong` từ đơn vị `dvt` về ĐƠN VỊ GỐC của mặt hàng.
 
         MỘT cửa duy nhất cho cả đề nghị (kiểm lúc khai) lẫn phiếu (chốt lúc ghi sổ) — hai nơi tự
@@ -547,8 +549,35 @@ class VatLieuKhoService:
         `dvt` theo các nhóm đơn vị đã khai (`don_vi_goc` trong kết quả nói gốc nào). Xem
         `don_vi_cua_mat_hang`.
         """
+        if hang_loai == "giay" and la_kho_to(kho_rong, kho_dai) and (goc or DON_VI_TO_KHO) == DON_VI_TO_KHO:
+            ra = self._quy_kg_ra_to(hang_id, dvt, so_luong, kho_rong, kho_dai)
+            if ra is not None:
+                return ra
         return self.quy_tu_don_vi(
             self.don_vi_cua_mat_hang(hang_loai, hang_id, goc=goc), dvt, so_luong)
+
+    def _quy_kg_ra_to(self, giay_id: int, dvt: str, so_luong: float, kho_rong, kho_dai) -> dict | None:
+        """Giấy KHỔ HAI CẠNH khai theo họ kg (kg, tấn…) ⇒ quy ra TỜ: số tờ là gốc của giấy tờ (spec
+        2026-10-24-chuan-bi-giay §5), gsm của danh mục, làm tròn xuống. ĐVT thuộc họ khác (tờ, ram) ⇒
+        None, để đường chung xử lý. Ra 0 tờ ⇒ lỗi — lô 0 tờ không có nghĩa."""
+        ra = self.quy_tu_don_vi(self.don_vi_cua_mat_hang("giay", giay_id), dvt, so_luong)
+        if (ra["don_vi_goc"] or "").lower() != "kg":
+            return None
+        obj = self.get("giay", giay_id)
+        try:
+            so_to = to_tu_kg(ra["sl_goc"], kho_rong, kho_dai, obj.gsm)
+        except ValueError:
+            raise VatLieuKhoValidationError(
+                f"“{obj.ten}” chưa khai định lượng nên không quy được kg ra tờ.") from None
+        if so_to <= 0:
+            raise VatLieuKhoValidationError(
+                f"“{obj.ten}”: {float(so_luong):g} {dvt} khổ {kho_rong}×{kho_dai} quy ra 0 tờ.")
+        return {
+            "ma_don_vi": ra["ma_don_vi"], "sl_goc": float(so_to),
+            "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
+            "he_so_ve_goc": so_to / float(so_luong),
+            "dien_giai": f"{float(so_luong):g} {dvt} ≈ {so_to} tờ (khổ {kho_rong}×{kho_dai}, {obj.gsm} gsm)",
+        }
 
     def quy_tu_don_vi(self, ra: dict, dvt: str, so_luong: float) -> dict:
         """Phần tính của `quy_ve_goc` trên kết quả `don_vi_cua_mat_hang` đã có sẵn. Nơi chỉ cần
