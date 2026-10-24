@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 
 from ..models.cong_doan import (
     CongDoan, CongDoanKhoan, CongDoanKhoanPhatSinh, CongDoanMay, CongDoanTo, CongDoanVatTu,
+    la_cong_doan_he_thong,
 )
 from ..models.don_vi_do import DonViDo
 from ..models.may_thiet_bi import MayThietBi
@@ -21,6 +22,18 @@ ASSIGNABLE = (
     "run_rate", "rate_tiers", "size_tiers", "first_unit_floor", "min_charge", "requires_tooling",
     "tooling_type", "spoilage_pct", "inline_flag", "ghi_chu", "active", "cong_thuc_gia",
 )
+
+
+def id_cong_doan_he_thong(db, ma: str) -> int | None:
+    """id của công đoạn HỆ THỐNG theo mã (CGC, TGI, TS, mã bồi) — máy tự chèn bước chuẩn bị giấy
+    gọi nhiều lần trong một lần lập lệnh, nên nhớ trong `db.info` theo phiên. Mã thường ⇒ None:
+    hàm này không phải đường tra công đoạn chung."""
+    if not la_cong_doan_he_thong(ma):
+        return None
+    nho = db.info.setdefault("id_cong_doan_he_thong", {})
+    if ma not in nho:
+        nho[ma] = db.scalar(select(CongDoan.id).where(CongDoan.ma == ma))
+    return nho[ma]
 
 
 class CongDoanRepository(CatalogRepo):

@@ -171,6 +171,9 @@ export interface CatalogConfig {
   /** Dòng khoá VẪN mở form được (vd Kho thành phẩm: khai vị trí cất) — chỉ ổ khoá + mất nút Xoá;
    *  phần nào không sửa được do máy chủ chặn. */
   dongKhoaMoDuoc?: boolean;
+  /** Ô KHOÁ khi đang sửa dòng `co_dinh` (vd công đoạn hệ thống: tên, nhóm, đơn vị vào/ra) — ô vẫn
+   *  gửi lên nguyên giá trị; máy chủ chặn song song. Ô Mã vốn đã khoá khi sửa. */
+  oKhoaKhiCoDinh?: string[];
   /** Bỏ cột Ngày tạo (màn có dòng không ngày tạo, vd mục cố định). */
   anNgayTao?: boolean;
   softDelete?: boolean;         // "Xóa" = ẩn mềm (active=false), giữ dữ liệu; list chỉ hiện active

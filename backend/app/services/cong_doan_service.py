@@ -8,7 +8,8 @@ import keyword
 import re
 
 from ..models.cong_doan import (
-    CHE_DO_TINH, DON_VI_BAC, KIEU_BU_HAO, NHOM, PRICING_BASIS, TOOLING_TYPE, CongDoan,
+    CD_HE_THONG, CHE_DO_TINH, DON_VI_BAC, KIEU_BU_HAO, NHOM, O_KHOA_HE_THONG, PRICING_BASIS,
+    TOOLING_TYPE, CongDoan, la_cong_doan_he_thong,
 )
 from ..models.don_vi_do import TRAM_DONG_GIAY, tram_chay_xuoi
 from ..repositories.cong_doan_repo import CongDoanRepository
@@ -73,6 +74,10 @@ class CongDoanDuplicate(CongDoanError, CatalogDuplicate):
 
 class CongDoanNotFound(CongDoanError, CatalogNotFound):
     pass
+
+
+_NHAN_O_KHOA = {"ma": "mã", "ten": "tên", "nhom": "nhóm", "don_vi_vao": "đơn vị đầu vào",
+                "don_vi_ra": "đơn vị đầu ra"}
 
 
 class CongDoanService(CatalogService):
@@ -238,7 +243,34 @@ class CongDoanService(CatalogService):
                 "Tổ phụ trách phải là tổ cuối trong cây tổ chức, không chọn phòng ban có tổ con.")
         return ids
 
+    def _kiem_he_thong(self, data: dict, obj: CongDoan | None) -> None:
+        """Công đoạn hệ thống (spec 2026-10-24-chuan-bi-giay §3): mã/tên/nhóm/đơn vị vào–ra đúng
+        bảng `CD_HE_THONG`, không ngừng dùng — kể cả qua Excel (nhập Excel cũng đi `update`)."""
+        if obj is None or not la_cong_doan_he_thong(obj.ma):
+            return
+        chuan = {"ma": obj.ma, **CD_HE_THONG[obj.ma]}
+        for o in O_KHOA_HE_THONG:
+            if o in data and ((data.get(o) or "").strip() or None) != chuan[o]:
+                raise CongDoanValidationError(
+                    f"Công đoạn hệ thống «{chuan['ten']}»: không đổi {_NHAN_O_KHOA[o]}.")
+        if data.get("active") is False:
+            raise CongDoanValidationError(
+                f"Công đoạn hệ thống «{chuan['ten']}»: không ngừng dùng được.")
+
+    def dat_active(self, item_id: int, active: bool, actor_id: int | None = None):
+        cd = self.get(item_id)
+        if not active and la_cong_doan_he_thong(cd.ma):
+            raise CongDoanValidationError(
+                f"Công đoạn hệ thống «{cd.ten}»: không ngừng dùng được.")
+        return super().dat_active(item_id, active, actor_id)
+
+    def _blockers(self, obj) -> list[str]:
+        if la_cong_doan_he_thong(obj.ma):
+            return ["công đoạn của hệ thống"]
+        return super()._blockers(obj)
+
     def _validate(self, data: dict, obj: CongDoan | None = None) -> None:
+        self._kiem_he_thong(data, obj)
         if not (data.get("ma") or "").strip():
             raise CongDoanValidationError("Mã công đoạn không được trống.")
         if not (data.get("ten") or "").strip():

@@ -4,7 +4,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
+
+from ..models.cong_doan import la_cong_doan_he_thong
 
 from .loc_danh_muc import DemDieuKien
 
@@ -227,6 +229,14 @@ class CongDoanRow(BaseModel):
     khoan: CongDoanKhoanRow | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    #: Công đoạn HỆ THỐNG (Cắt giấy cuộn, Tề giấy in, Tề sóng, bốn mã bồi) — màn khoá mã/tên/
+    #: nhóm/đơn vị, không nút xoá/ngừng. Suy từ mã, không phải cột.
+    co_dinh: bool = False
+
+    @model_validator(mode="after")
+    def _co_dinh(self) -> "CongDoanRow":
+        self.co_dinh = la_cong_doan_he_thong(self.ma)
+        return self
 
 
 class CongDoanListOut(BaseModel):

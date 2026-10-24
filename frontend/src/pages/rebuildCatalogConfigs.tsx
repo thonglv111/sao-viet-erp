@@ -432,6 +432,12 @@ export const CFG_CONG_DOAN: CatalogConfig = {
   // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
   // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
   softDelete: true,
+  // Bảy công đoạn HỆ THỐNG (spec 2026-10-24-chuan-bi-giay §3): máy tự chèn Cắt giấy cuộn / Tề giấy
+  // in / Tề sóng và nhận bước bồi bằng MÃ ⇒ khoá tên, nhóm, đơn vị; vẫn mở để khai tổ, năng suất,
+  // khoán. Máy chủ chặn song song (`CongDoanService._kiem_he_thong`).
+  dongKhoa: (r) => (r.co_dinh ? "Công đoạn của hệ thống: không xoá, không ngừng dùng, không đổi tên, nhóm, đơn vị." : null),
+  dongKhoaMoDuoc: true,
+  oKhoaKhiCoDinh: ["ten", "nhom", "don_vi_vao", "don_vi_ra"],
   // Drawer chỉ còn MỘT ô công thức (`cong_thuc_gia`) — ô "Công thức sản lượng ra" GỠ 18/09/2026
   // (mg `0324`). Ô còn lại tự khai `nhanTab` nên KHÔNG cần nhãn tab gộp `nhanTabCongThuc`.
   // Thanh lọc (06/10/2026): Giai đoạn · Tổ phụ trách (tên tổ do máy chủ gắn) · Cần khuôn.

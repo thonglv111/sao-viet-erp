@@ -289,8 +289,13 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     locConDung(refData[f.refPrefix ?? ""] ?? [], form[f.key],
                f.type !== "nhom_may" && f.type !== "nhom_may-multi");
 
+  /** Ô khoá của dòng hệ thống (`co_dinh`) khi đang sửa — xem `CatalogConfig.oKhoaKhiCoDinh`. */
+  const khoaO = (key: string) =>
+    isEdit && !!existing?.co_dinh && !!config.oKhoaKhiCoDinh?.includes(key);
+
   const renderField = (f: FieldDef) => {
     const { cleanLabel, suffix } = parseLabelAndSuffix(f.label);
+    const khoa = khoaO(f.key);
     const hint = typeof f.hint === "function" ? f.hint(form) : f.hint;
     const laDonVi = config.prefix.includes("don-vi");
     const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
@@ -356,7 +361,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             onChange={(v) => set(f.key, v)} />
         ) : f.type === "select" ? (
           <div className="rc-input-wrapper">
-            <select className="rc-input" value={String(form[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value)}>
+            <select className="rc-input" value={String(form[f.key] ?? "")} disabled={khoa} onChange={(e) => set(f.key, e.target.value)}>
               <option value="">—</option>
               {/* Menu RỖNG = bảng nhãn chưa về (ô chặng dòng giấy đọc `/api/don-vi/tram`), KHÔNG
                   phải "không có lựa chọn nào". Nói thẳng ra, đừng để lại mỗi dòng "—" rồi người
@@ -489,7 +494,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
           <div className="rc-input-wrapper">
             <input className={`rc-input${f.type === "number" ? " rc-input--num" : ""}`}
               type={f.type === "number" ? "number" : "text"} step="any" inputMode={f.type === "number" ? "decimal" : undefined}
-              value={String(form[f.key] ?? "")} onChange={(e) => set(f.key, e.target.value)} />
+              value={String(form[f.key] ?? "")} disabled={khoa} onChange={(e) => set(f.key, e.target.value)} />
             {suffix && <span className="rc-input-suffix">{suffix}</span>}
           </div>
         )}
@@ -641,7 +646,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         <label className="rc-field">
           <span className="rc-field__label">Tên <em>*</em></span>
           <div className="rc-input-wrapper">
-            <input className="rc-input" value={String(form.ten ?? "")} onChange={(e) => set("ten", e.target.value)} required />
+            <input className="rc-input" value={String(form.ten ?? "")} disabled={khoaO("ten")} onChange={(e) => set("ten", e.target.value)} required />
           </div>
         </label>
       </>

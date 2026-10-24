@@ -237,6 +237,42 @@ describe("CatalogDrawer — form của màn danh mục dùng chung", () => {
     expect(ghi.body?.ma).toBe("CD-007");            // ô khoá nhưng VẪN gửi lên
   });
 
+  it("`oKhoaKhiCoDinh`: dòng hệ thống khoá tên + ô liệt kê, ô khác vẫn sửa được và vẫn gửi đủ", async () => {
+    const user = userEvent.setup();
+    const rows: Row[] = [
+      { id: 7, ma: "TGI", ten: "Tề giấy in", nhom: "prepress", ghi_chu: "", co_dinh: true },
+      { id: 8, ma: "CD-008", ten: "Bế", nhom: "finishing", ghi_chu: "" },
+    ];
+    const goi = moMan({
+      ...CO_BAN, oKhoaKhiCoDinh: ["ten", "nhom"],
+      fields: [
+        { key: "nhom", label: "Giai đoạn", type: "select",
+          options: [{ value: "prepress", label: "Trước in" }, { value: "finishing", label: "Sau in" }] },
+        { key: "ghi_chu", label: "Ghi chú", type: "text" },
+      ],
+    }, rows);
+
+    await user.click(await screen.findByText("Tề giấy in"));
+    await screen.findByRole("dialog");
+    expect(drawer().getByLabelText(/^Tên/)).toBeDisabled();
+    expect(drawer().getByLabelText(/Giai đoạn/)).toBeDisabled();
+    const oGhiChu = drawer().getByLabelText(/Ghi chú/);
+    expect(oGhiChu).not.toBeDisabled();
+    await user.type(oGhiChu, "máy tề 2");
+    await user.click(drawer().getByRole("button", { name: "Lưu thay đổi" }));
+    await waitFor(() => expect(soLanGhi(goi)).toBe(1));
+    expect(bodyGhi(goi).body).toMatchObject({ ten: "Tề giấy in", nhom: "prepress", ghi_chu: "máy tề 2" });
+  });
+
+  it("`oKhoaKhiCoDinh` không đụng dòng thường", async () => {
+    const user = userEvent.setup();
+    const rows: Row[] = [{ id: 8, ma: "CD-008", ten: "Bế", ghi_chu: "" }];
+    moMan({ ...CO_BAN, oKhoaKhiCoDinh: ["ten"], fields: [] }, rows);
+    await user.click(await screen.findByText("Bế"));
+    await screen.findByRole("dialog");
+    expect(drawer().getByLabelText(/^Tên/)).not.toBeDisabled();
+  });
+
   it("`tabsKhai`: tab không còn ô nào để hiện thì BỎ HẲN, không bày ra rồi mở ra trắng", async () => {
     const user = userEvent.setup();
     moMan({

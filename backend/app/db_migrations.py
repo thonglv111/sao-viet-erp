@@ -19139,3 +19139,34 @@ def _migrate_payroll_line_co_hoa_hong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0442_payroll_line_co_hoa_hong", _migrate_payroll_line_co_hoa_hong))
+
+
+def _migrate_cong_doan_he_thong(db: Session) -> None:
+    """0443 (24/10/2026, spec 2026-10-24-chuan-bi-giay §3) — bảy công đoạn HỆ THỐNG: Cắt giấy cuộn,
+    Tề giấy in, Tề sóng + bốn mã bồi. Cùng khuôn `KHO-TP` (mg 0398): không phải seed — DB nào cũng cần
+    đủ bảy dòng này và chúng không xoá được nên không có chuyện "xoá rồi mọc lại".
+      · Thiếu mã ⇒ tạo dòng với tên/nhóm/đơn vị chuẩn, tính theo tờ (`per_sheet`) để qua validate.
+      · Đã có ⇒ ép lại tên/nhóm/đơn vị vào–ra + bật lại; tổ, máy, năng suất, khoán giữ nguyên.
+    Đọc inspector TRƯỚC lệnh ghi đầu; raw SQL đích danh cột; idempotent."""
+    from .models.cong_doan import CD_HE_THONG
+
+    insp = inspect(db.get_bind())
+    if "cong_doan" not in set(insp.get_table_names()):
+        return
+    now = datetime.now(timezone.utc)
+    for ma, d in CD_HE_THONG.items():
+        tham = {"m": ma, "t": d["ten"], "n": d["nhom"], "v": d["don_vi_vao"], "r": d["don_vi_ra"],
+                "a": True, "now": now}
+        if db.execute(text("SELECT 1 FROM cong_doan WHERE ma = :m"), {"m": ma}).first() is None:
+            db.execute(text(
+                "INSERT INTO cong_doan (ma, ten, nhom, don_vi_vao, don_vi_ra, active, pricing_basis, "
+                "created_at, updated_at) VALUES (:m, :t, :n, :v, :r, :a, 'per_sheet', :now, :now)"),
+                tham)
+        else:
+            db.execute(text(
+                "UPDATE cong_doan SET ten = :t, nhom = :n, don_vi_vao = :v, don_vi_ra = :r, "
+                "active = :a, pricing_basis = COALESCE(pricing_basis, 'per_sheet') WHERE ma = :m"), tham)
+    db.commit()
+
+
+MIGRATIONS.append(("0443_cong_doan_he_thong", _migrate_cong_doan_he_thong))

@@ -54,6 +54,29 @@ TOOLING_TYPE_DA_GO = ("khuon_ep", "khung_lua")
 KIEU_BU_HAO = ("khong", "theo_bac", "co_dinh")
 DON_VI_BAC = ("to", "pct")            # giá trị một bậc = số tờ | % trên sản lượng ra của bước
 
+# CÔNG ĐOẠN HỆ THỐNG (24/10/2026, spec 2026-10-24-chuan-bi-giay §3) — khuôn `KHO-TP`: dòng DB có
+# MÃ cố định, máy nhận ra bằng mã chứ không dò tên. Lập lệnh tự chèn Cắt giấy cuộn / Tề giấy in /
+# Tề sóng; bốn mã bồi là "bước nhận sóng". Mã/tên/nhóm/đơn vị khoá, không xoá, không ngừng — tổ,
+# máy, năng suất, khoán, công thức giá vẫn sửa. Bồi kiểu mới = thêm mã vào `CD_BOI`.
+CD_CAT_CUON = "CGC"
+CD_TE_GIAY_IN = "TGI"
+CD_TE_SONG = "TS"
+CD_BOI = ("BCT3LEB", "BCT5LBEC", "BTĐ", "BBTĐ")
+CD_HE_THONG: dict[str, dict] = {
+    CD_CAT_CUON: dict(ten="Cắt giấy cuộn", nhom="prepress", don_vi_vao="to_nguyen", don_vi_ra="to_nguyen"),
+    CD_TE_GIAY_IN: dict(ten="Tề giấy in", nhom="prepress", don_vi_vao="to_nguyen", don_vi_ra="to"),
+    CD_TE_SONG: dict(ten="Tề sóng", nhom="prepress", don_vi_vao="to", don_vi_ra="to"),
+    "BCT3LEB": dict(ten="Bồi carton 2, 3 lớp E,B", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+    "BCT5LBEC": dict(ten="Bồi carton 4,5 lớp BE, BC", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+    "BTĐ": dict(ten="Bồi Duplex với Krap TĐ", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+    "BBTĐ": dict(ten="Bồi Duplex với Krap bán TĐ", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+}
+O_KHOA_HE_THONG = ("ma", "ten", "nhom", "don_vi_vao", "don_vi_ra")
+
+
+def la_cong_doan_he_thong(ma: str | None) -> bool:
+    return (ma or "").strip() in CD_HE_THONG
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)

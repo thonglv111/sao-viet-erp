@@ -190,6 +190,17 @@ describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/
   });
 });
 
+describe("Công đoạn hệ thống (Cắt giấy cuộn, Tề giấy in, Tề sóng, bốn mã bồi)", () => {
+  it("dòng `co_dinh` có ổ khoá nhưng vẫn mở để sửa tổ, năng suất, khoán", () => {
+    expect(CFG_CONG_DOAN.dongKhoa?.({ id: 1, ma: "TGI", ten: "Tề giấy in", co_dinh: true })).toMatch(/hệ thống/);
+    expect(CFG_CONG_DOAN.dongKhoa?.({ id: 2, ma: "CD-0002", ten: "Bế" })).toBeNull();
+    expect(CFG_CONG_DOAN.dongKhoaMoDuoc).toBe(true);
+  });
+  it("khoá đúng ô tên, nhóm, đơn vị vào/ra (mã vốn đã khoá khi sửa)", () => {
+    expect(new Set(CFG_CONG_DOAN.oKhoaKhiCoDinh)).toEqual(new Set(["ten", "nhom", "don_vi_vao", "don_vi_ra"]));
+  });
+});
+
 describe("Thành phẩm — hàng đặt riêng của MỘT khách (docs/prd-thanh-pham.md)", () => {
   it("bảng hiện ĐỦ thứ đang lưu: đơn + khách đặt lần đầu (chỉ đọc)", () => {
     // Chủ 17/09/2026: "hiển thị hơi thiếu thông tin so với những gì nó lưu, hiển thị hết đi".
