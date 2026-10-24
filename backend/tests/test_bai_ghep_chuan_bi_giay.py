@@ -193,3 +193,17 @@ def test_khvt_bai_cuon_ra_kg_theo_rong_cuon(db, orders, lsx_svc, bg_svc, svc, ad
 
     assert kq == {("giay", g.id, 870, 0): pytest.approx(kg_tu_to(chung[0].so_luong_vao, 870, 650, 350),
                                                        abs=1e-2)}
+
+
+def test_doi_nguon_lenh_trong_bai_bi_chan(db, orders, lsx_svc, bg_svc, admin, customer):
+    """Lệnh trong bài dựng khâu theo nguồn của BÀI; đổi nguồn riêng một lệnh sẽ xoá bước Tề mà bước
+    chung của bài đang đè (map mồ côi) ⇒ chặn, như sửa routing."""
+    from app.services.lsx_service import LsxConflict
+
+    a, b = _hai_lenh(db, orders, lsx_svc, admin, customer)
+    bg = bg_svc.tao(lsx_ids=[a.id, b.id], actor=admin)
+    _gop_in(db, bg_svc, lsx_svc, admin, bg, a, b)
+    with pytest.raises(LsxConflict, match="bài ghép"):
+        lsx_svc.doi_nguon_giay(lsx_id=a.id, nguon="to_in", rong_cuon=None, actor=admin)
+    keys = {c.step_key for c in lsx_svc.get(a.id).cong_doans} | {c.step_key for c in lsx_svc.get(b.id).cong_doans}
+    assert {m.lsx_step_key for m in db.query(BaiGhepCongDoanMap).all()} <= keys

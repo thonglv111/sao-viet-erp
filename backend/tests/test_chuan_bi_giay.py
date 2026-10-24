@@ -122,3 +122,23 @@ def test_chon_nguon_chi_hoi_khoa_ung_vien(kw):
     dv, da_hoi = _dv(**kw), []
     chon_nguon(dv, lambda k: da_hoi.append(k) or 0.0)
     assert da_hoi and set(da_hoi) <= set(khoa_ung_vien(dv))
+
+
+def test_kho_nguyen_khong_chua_duoc_kho_in_coi_nhu_thieu():
+    """Khổ nguyên 400×500 nhỏ hơn khổ in 430×650: engine ép xả ≥ 1 nên số mảnh không bắt được — phải
+    xét độ lọt thật. Không được chọn cuộn 400 (cắt ra tờ nhỏ hơn khổ in)."""
+    dv = _dv(kho_nguyen=(400, 500), so_manh_xa=1)
+    n = chon_nguon(dv, _ton(((400, 0), "kg", 9999), ((400, 500), "to", 9999)))
+    assert (n.nguon, n.ly_do) == ("mua", "thiếu khổ nguyên")
+    assert ma_buoc_giay(n.nguon, dv) == []
+
+
+def test_mot_manh_kho_nguyen_lon_hon_kho_in_van_te_va_lay_to_nguyen():
+    """Khổ nguyên 700×700 chỉ ra một tờ in 430×650 vẫn phải Tề — spec §7 bỏ Tề khi khổ nguyên = khổ in,
+    không phải khi một mảnh. Tồn tờ 700×700 phải được dùng, không đòi mua tờ khổ in."""
+    dv = _dv(kho_nguyen=(700, 700), so_manh_xa=1)
+    assert can_tgi(dv)
+    n = chon_nguon(dv, _ton(((700, 700), "to", 3000)))
+    assert n.nguon == "to_nguyen" and ma_buoc_giay(n.nguon, dv) == ["TGI"]
+    d = dong_giay_buoc_dau(n, dv, 3060)
+    assert (d["so_luong"], d["kho_rong"], d["kho_dai"]) == (3060, 700, 700)

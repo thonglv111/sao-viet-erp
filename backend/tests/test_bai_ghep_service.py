@@ -172,7 +172,11 @@ def bg_svc(db):
 
 
 # --- dựng nguồn: 2 sản phẩm CÙNG GIẤY, mỗi cái chỉ có bước In ------------------
-def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = ()) -> PhieuTinhGia:
+def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = (),
+              kho_nguyen=(650, 900)) -> PhieuTinhGia:
+    # Khổ nguyên mặc định = khổ in: lệnh In thuần, máy không chèn Tề giấy in (spec chuẩn bị giấy §7 —
+    # khổ nguyên khác khổ in thì có Tề, bước hệ thống chưa gán tổ chặn "sẵn sàng"). Test cần tờ
+    # nguyên khác tờ in truyền `kho_nguyen=(790, 1090)`.
     """PTG 2 thành phần in cùng giấy. `sl_them` nối thêm thành phần — cần khi test tầm ngắm của
     `_do_thi_cua`: phải có lệnh CÙNG ĐƠN nhưng NGOÀI bài để đồ thị còn chỗ mà lan tới."""
     giay = GiayNguyen(don_vi_them=["to"], 
@@ -203,7 +207,7 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = ()) -> 
         sp = PhieuThanhPhan(
             thu_tu=thu_tu, ten=ten, so_luong=sl, don_vi_tinh="cái",
             dai_thanh_pham=dai, rong_thanh_pham=rong, giay_id=giay.id,
-            kho_nguyen_dai=790, kho_nguyen_rong=1090, kho_in_dai=650, kho_in_rong=900,
+            kho_nguyen_dai=kho_nguyen[0], kho_nguyen_rong=kho_nguyen[1], kho_in_dai=650, kho_in_rong=900,
             so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat", may_id=may.id,
         )
         sp.thanh_phams.append(

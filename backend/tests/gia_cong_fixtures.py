@@ -24,12 +24,12 @@ def ncc(sess, ten: str = "Cán màng Minh Long", *, nhan: bool = True) -> Suppli
     return s
 
 
-def lenh_chua_phat(sess, orders, lsx_svc, admin, customer) -> Lsx:
+def lenh_chua_phat(sess, orders, lsx_svc, admin, customer, *, kho_nguyen=(790, 1090)) -> Lsx:
     """MỘT lệnh vừa tạo từ đơn (nháp, CHƯA giữ chỗ vật tư) — sửa routing / đặt trọn gói được.
 
     Không dùng `_hai_lsx_san_sang`: hàm đó bật giữ chỗ, mà lệnh đang giữ chỗ thì `replace_routing`
     chặn (`_chan_dang_giu_cho`)."""
-    ptg = _ptg_2_in(sess)
+    ptg = _ptg_2_in(sess, kho_nguyen=kho_nguyen)   # mặc định tờ nguyên ≠ tờ in: chọn giấy cấp khổ nguyên
     d = _don_da_chuyen_sx(sess, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
     return lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]

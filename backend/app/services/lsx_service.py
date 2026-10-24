@@ -59,7 +59,7 @@ from .may_to import cap_lech, loi_cap, to_khong_may
 from .ptg_giay_buoc import bang_giay, id_giay_cua_rows, loi_tran_giay
 from .chuan_bi_giay import (
     CUON_DU_TOI_DA_MM, NGUON_GIAY, DauVaoGiay, NguonChon, chon_nguon, dong_giay_buoc_dau, dong_song,
-    khoa_ung_vien, ma_buoc_giay,
+    kho_nguyen_dung_duoc, khoa_ung_vien, ma_buoc_giay,
 )
 from ..repositories.cong_doan_repo import id_cong_doan_he_thong
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
@@ -1844,8 +1844,9 @@ class LsxService:
             # Lệnh có nguồn giấy mà thiếu khổ nguyên / mảnh xả (24/10/2026): máy không dựng được khâu
             # Tề/Cắt cuộn, chỉ dò được tờ khổ in — báo để người lập lệnh khai.
             if lsx.nguon_giay and qc.get("giay_id") and not (
-                    _f(qc.get("kho_nguyen_dai")) > 0 and _f(qc.get("kho_nguyen_rong")) > 0
-                    and _f(qc.get("so_manh_xa")) > 0):
+                    _f(qc.get("so_manh_xa")) > 0 and kho_nguyen_dung_duoc(
+                        (_f(qc.get("kho_nguyen_rong")), _f(qc.get("kho_nguyen_dai"))),
+                        (_f(qc.get("kho_in_rong")), _f(qc.get("kho_in_dai"))))):
                 thieu.append("thieu_kho_nguyen")
             if not routing:
                 thieu.append("thieu_routing")
@@ -2482,6 +2483,12 @@ class LsxService:
         elif tu_khai and dv is not None and not any(
                 v.hang_loai == HANG_GIAY and v.vat_tu_id == dv.giay_id for v in dong_giay[0].vat_tus):
             self._gan_giay(dong_giay[0], dv.giay_id, {"don_vi_goc": "", "kho_rong": 0, "kho_dai": 0})
+        elif in_ is None and qc.get("giay_id") and buoc:
+            # Không có bước In thì không chọn được nguồn — vẫn giữ giấy ở bước đầu dòng giấy (luật cũ),
+            # mất dòng này là mất nhu cầu ở Kế hoạch vật tư.
+            dau = dong_giay[0] if dong_giay else buoc[0]
+            if not any(v.hang_loai == HANG_GIAY and v.vat_tu_id == int(qc["giay_id"]) for v in dau.vat_tus):
+                self._gan_giay(dau, int(qc["giay_id"]), {"don_vi_goc": "", "kho_rong": 0, "kho_dai": 0})
         if ts_moi is not None:
             kho_in = (int(_f(qc.get("kho_in_rong"))), int(_f(qc.get("kho_in_dai"))))
             self._gan_giay(ts_moi, int(qc["song_id"]), dong_song(int(qc["song_id"]), kho_in, 0))
@@ -2529,6 +2536,8 @@ class LsxService:
         if (loi := self._ly_do_khong_cap_nhat(lsx)) is not None:
             raise LsxConflict(loi.replace("lấy số mới của danh mục", "đổi nguồn giấy")
                               .replace("lấy số mới", "đổi nguồn giấy"))
+        if self._ghep_cua(lsx) is not None:   # bước chung của bài trỏ vào step_key của lệnh ⇒ gỡ là mồ côi
+            raise LsxConflict("Lệnh đang nằm trong bài ghép — bỏ lệnh khỏi bài trước khi đổi nguồn giấy.")
         if nguon not in NGUON_GIAY:
             raise LsxValidationError("Nguồn giấy chỉ nhận: tờ đúng khổ in, tờ khổ nguyên, cuộn, mua mới.")
         in_ = self._buoc_in(sorted(lsx.cong_doans, key=lambda c: c.thu_tu))

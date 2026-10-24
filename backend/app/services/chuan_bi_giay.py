@@ -38,13 +38,22 @@ class BuocChuanBi(NamedTuple):
     dong_giay: dict | None
 
 
+def kho_nguyen_dung_duoc(kho_nguyen, kho_in) -> bool:
+    """Khổ nguyên đủ hai cạnh và CHỨA ĐƯỢC khổ in (xoay được). Số mảnh xả không đủ để xét: engine ép
+    tối thiểu 1 mảnh cả khi khổ nguyên nhỏ hơn khổ in."""
+    ngan, dai = chuan_kho(*(kho_nguyen or (0, 0)))
+    in_ngan, in_dai = chuan_kho(*(kho_in or (0, 0)))
+    return bool(ngan and dai and in_ngan and in_dai and ngan >= in_ngan and dai >= in_dai)
+
+
 def _co_kho_nguyen(dv: DauVaoGiay) -> bool:
-    return bool(dv.kho_nguyen and all(dv.kho_nguyen) and dv.so_manh_xa and dv.so_manh_xa > 0)
+    return bool(dv.so_manh_xa and dv.so_manh_xa > 0 and kho_nguyen_dung_duoc(dv.kho_nguyen, dv.kho_in))
 
 
 def can_tgi(dv: DauVaoGiay) -> bool:
-    """Có khổ nguyên và xả ra hơn một mảnh ⇒ cần Tề giấy in từ tờ nguyên xuống khổ in."""
-    return _co_kho_nguyen(dv) and dv.so_manh_xa > 1
+    """Có khổ nguyên khác khổ in ⇒ cần Tề giấy in từ tờ nguyên xuống khổ in (spec §7: bỏ Tề chỉ khi
+    khổ nguyên = khổ in — một mảnh mà khổ lớn hơn vẫn phải Tề)."""
+    return _co_kho_nguyen(dv) and chuan_kho(*dv.kho_nguyen) != chuan_kho(*dv.kho_in)
 
 
 def _to_nguyen_can(dv: DauVaoGiay) -> int:

@@ -29,7 +29,8 @@ def _cd_he_thong(db, ma: str) -> CongDoan:
     return db.query(CongDoan).filter(CongDoan.ma == ma).one()
 
 
-def _ptg(db, *, song: bool = False, kho_nguyen: tuple[int, int] | None = (650, 860)) -> PhieuTinhGia:
+def _ptg(db, *, song: bool = False, kho_nguyen: tuple[int, int] | None = (650, 860),
+         co_in: bool = True) -> PhieuTinhGia:
     """In → (Bồi Duplex với Krap TĐ nếu có sóng) → Cán màng. Giấy + sóng chọn ở sản phẩm."""
     giay = GiayNguyen(ma="G-DUP350", ten="Duplex 350", loai="giay", gsm=350, don_gia=3_000,
                       don_vi_gia="to", don_vi_them=["to", "kg"])
@@ -47,8 +48,8 @@ def _ptg(db, *, song: bool = False, kho_nguyen: tuple[int, int] | None = (650, 8
                    department_ids=[to_id], don_vi_vao="to", don_vi_ra="to")
     db.add_all([in_, can])
     db.flush()
-    chuoi = [in_, *([_cd_he_thong(db, "BTĐ")] if song else []), can]
-    p = PhieuTinhGia(ma=f"PTG-CB-{int(song)}-{kho_nguyen}", ten_san_pham="Hộp", so_luong=5_000)
+    chuoi = [*([in_] if co_in else []), *([_cd_he_thong(db, "BTĐ")] if song else []), can]
+    p = PhieuTinhGia(ma=f"PTG-CB-{int(song)}-{kho_nguyen}-{int(co_in)}", ten_san_pham="Hộp", so_luong=5_000)
     tp = PhieuThanhPhan(
         thu_tu=0, ten="Hộp Duplex", so_luong=5_000, dai_thanh_pham=200, rong_thanh_pham=150,
         kho_nguyen_dai=kho_nguyen[1] if kho_nguyen else None,
@@ -195,6 +196,25 @@ def test_thieu_kho_nguyen_kiem_thieu_bao(db, orders, lsx_svc, admin, customer):
     assert lsx.nguon_giay == "mua"
     assert _ma(db, lsx) == ["CD-IN-CB", "CD-CAN-CB"]
     assert "thieu_kho_nguyen" in lsx_svc.thieu_cua(lsx)
+
+
+def test_kho_nguyen_nho_hon_kho_in_khong_chon_cuon_va_bao_thieu(db, orders, lsx_svc, admin, customer):
+    """Khổ nguyên 400×500 không chứa được khổ in 430×650 ⇒ không dựng Cắt cuộn từ cuộn 400, báo thiếu."""
+    ptg = _ptg(db, kho_nguyen=(400, 500))
+    _ton(db, "G-DUP350", 400, 0, "kg", 9999)
+    lsx = _tao(db, orders, lsx_svc, admin, customer, ptg)
+    assert lsx.nguon_giay == "mua"
+    assert _ma(db, lsx) == ["CD-IN-CB", "CD-CAN-CB"]
+    assert "thieu_kho_nguyen" in lsx_svc.thieu_cua(lsx)
+
+
+def test_lenh_khong_buoc_in_van_giu_giay_o_buoc_dau(db, orders, lsx_svc, admin, customer):
+    """Phiếu không có In (chỉ Cán): không chọn nguồn được, nhưng giấy của sản phẩm vẫn phải nằm ở một
+    bước — mất dòng giấy là mất luôn nhu cầu ở Kế hoạch vật tư và yêu cầu xuất kho."""
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, co_in=False))
+    assert lsx.nguon_giay is None
+    assert _ma(db, lsx) == ["CD-CAN-CB"]
+    assert [v.hang_loai for cd in lsx.cong_doans for v in cd.vat_tus] == ["giay"]
 
 
 def test_lenh_cu_nguon_null_giu_nguyen_khi_ap_chuoi_nguoc(db, orders, lsx_svc, admin, customer):

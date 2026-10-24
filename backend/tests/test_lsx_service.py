@@ -480,7 +480,8 @@ def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
     hop = PhieuThanhPhan(
         thu_tu=0, ten="Hộp bánh 500g", so_luong=sl_hop, don_vi_tinh="cái",
         dai_thanh_pham=200, rong_thanh_pham=150,
-        giay_id=giay.id, kho_nguyen_dai=790, kho_nguyen_rong=1090,
+        # Khổ nguyên = khổ in ⇒ không chèn Tề giấy in (chuẩn bị giấy §7), routing giữ đúng chuỗi PTG.
+        giay_id=giay.id, kho_nguyen_dai=650, kho_nguyen_rong=900,
         kho_in_dai=650, kho_in_rong=900, so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat",
         ghi_chu_ky_thuat="Canh màu như mẫu", may_id=may.id,
     )
@@ -491,7 +492,7 @@ def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
     tem = PhieuThanhPhan(
         thu_tu=1, ten="Tem nhãn", so_luong=sl_tem, don_vi_tinh="cái",
         dai_thanh_pham=60, rong_thanh_pham=40,
-        giay_id=giay.id, kho_nguyen_dai=790, kho_nguyen_rong=1090,
+        giay_id=giay.id, kho_nguyen_dai=650, kho_nguyen_rong=900,
         kho_in_dai=650, kho_in_rong=900, so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat",
     )
     tem.thanh_phams.append(PhieuThanhPham(thu_tu=0, cong_doan_id=cd_be.id, ten="Bế", don_gia=30))

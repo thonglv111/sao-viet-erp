@@ -132,9 +132,14 @@ describe("chọn giấy", () => {
     expect(nhanKhoCap(870, 0)).toBe("cuộn rộng 870 mm");
     expect(nhanKhoCap(790, 1090)).toBe("khổ 790 × 1090 mm");
   });
-  it("ô số kg nhận phần lẻ (phẩy hay chấm), ô tờ chỉ nhận số nguyên", () => {
+  it("ô số kg: phẩy là dấu lẻ, chấm chia nghìn; ô tờ chỉ nhận số nguyên", () => {
     expect(chuanSoGo("395,85", true)).toBe("395.85");
-    expect(chuanSoGo("395.857", true)).toBe("395.85");
+    expect(chuanSoGo("395,857", true)).toBe("395.85");
+    expect(chuanSoGo("1.500", true)).toBe("1500");
+    expect(chuanSoGo("1.500,5", true)).toBe("1500.5");
+    expect(chuanSoGo("395,", true)).toBe("395.");
+    expect(hienSoGo("1500.5", true)).toBe("1.500,5");
+    expect(hienSoGo("395.", true)).toBe("395,");
     expect(chuanSoGo("1.112", false)).toBe("1112");
     expect(hienSoGo("395.85", true)).toBe("395,85");
     expect(hienSoGo("1112", false)).toBe("1.112");
