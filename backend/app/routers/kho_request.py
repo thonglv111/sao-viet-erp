@@ -228,7 +228,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         # Quy đổi để FE hiện "10 ram ≈ 419,25 kg" ngay dưới ô SL — người khai thấy TRƯỚC con số
         # sẽ vào tồn, thay vì bấm Lưu rồi mới biết. Không đổi được thì trả `canh_bao_dv` nguyên
         # văn lý do chứ không im lặng.
-        qd, canh_bao = None, None
+        qd, canh_bao, quy_to = None, None, {}
         try:
             dv = don_vi_map.get(key)
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
@@ -242,6 +242,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                 so_to = to_tu_kg(kg["sl_goc"], ln.kho_rong, ln.kho_dai, getattr(m, "gsm", 0))
                 qd = {**kg, "sl_goc": float(so_to), "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
                       "he_so_ve_goc": so_to / float(ln.sl_de_nghi)}
+                quy_to = {"kg_moi_dvt": kg["sl_goc"] / float(ln.sl_de_nghi), "gsm": int(m.gsm)}
             elif co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
                 dvg = don_vi_goc_map.get((ln.hang_loai, ln.hang_id, ln.don_vi_goc))
                 qd = (hang_svc.quy_tu_don_vi(dvg, ln.dvt, float(ln.sl_de_nghi)) if dvg is not None
@@ -276,6 +277,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             or (((ln.don_vi_goc or None) if co_don_vi_goc(ln.hang_loai) else None)),
             sl_quy_doi=(qd or {}).get("sl_goc"),
             quy_doi_dien_giai=(qd or {}).get("dien_giai"),
+            **quy_to,
             canh_bao_dv=canh_bao,
             sl_de_nghi=float(ln.sl_de_nghi),
             sl_duyet=float(ln.sl_duyet),

@@ -63,7 +63,7 @@ def test_nhap_kg_qua_nho_ra_0_to_bi_chan(client):
     g = _giay()
     r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="kg", sl=0.01, kr=650, kd=860)])
     assert r.status_code == 400, r.text
-    assert "quy ra 0 tờ" in r.json()["detail"]
+    assert "0,01 kg khổ 650×860 quy ra 0 tờ" in r.json()["detail"]   # dấu phẩy thập phân kiểu Việt
 
 
 def test_kg_va_ram_cung_kho_la_mot_mon(client):
@@ -89,6 +89,28 @@ def test_phan_hoi_dong_kg_kho_hai_canh_quy_ra_to(client):
     ln = r.json()["lines"][0]
     assert ln["don_vi_goc"] == "to" and ln["canh_bao_dv"] is None
     assert ln["sl_quy_doi"] == math.floor(500 / KG_MOT_TO)
+
+
+def test_phan_hoi_dong_kg_kho_hai_canh_tra_kg_moi_dvt_va_gsm(client):
+    """Phiếu nhập gõ số khác số đề nghị (hoặc sửa khổ thực nhận) ⇒ FE tự tính lại số tờ làm tròn
+    xuống, nên cần kg của MỘT ĐVT và gsm — nhân hệ số đã làm tròn (N tờ / 500 kg) là lệch tờ."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="kg", sl=500, kr=650, kd=860)])
+    assert r.status_code == 201, r.text
+    ln = r.json()["lines"][0]
+    assert (ln["kg_moi_dvt"], ln["gsm"]) == (1.0, GSM)
+
+
+def test_phan_hoi_dong_cuon_khong_tra_kg_moi_dvt(client):
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    r = _de_nghi(client, kho_id, "NHAP", [_dong(g, dvt="kg", sl=300, kr=860)])
+    assert r.status_code == 201, r.text
+    ln = r.json()["lines"][0]
+    assert (ln["kg_moi_dvt"], ln["gsm"]) == (None, None)
 
 
 def test_de_nghi_xuat_kg_kho_hai_canh_giu_kg(client):

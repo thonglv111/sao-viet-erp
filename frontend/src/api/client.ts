@@ -10208,6 +10208,10 @@ export interface StockRequestLine {
   don_vi_goc: string | null;
   sl_quy_doi: number | null;
   quy_doi_dien_giai: string | null;
+  /** Giấy khổ hai cạnh khai kg (gốc tờ): kg của một ĐVT + gsm — phiếu nhập tự tính lại số tờ
+   *  (làm tròn xuống) theo số gõ và khổ thực nhận. Dòng khác: null. */
+  kg_moi_dvt?: number | null;
+  gsm?: number | null;
   canh_bao_dv: string | null;
   sl_de_nghi: number;
   sl_duyet: number;

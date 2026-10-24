@@ -66,7 +66,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
-import { chuanKho, coDonViGoc, nhanKhoGiay } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, nhanKhoGiay, toTuKg } from "../lib/khoGiay";
 import { khoaTonKho } from "../auth/quyenKho";
 import {
   LOC_MAN_YCK_TRONG,
@@ -2409,11 +2409,22 @@ function AllocRow({
   const slChuaGia = isNhap ? 0 : block.lots.reduce((s, x) => s + (x.chua_gia_goc ? x.so_luong : 0), 0);
 
   // Con số THẬT SỰ vào tồn — nhập "10 ram" mà lô ghi 419,25 kg thì phải nói ra ngay đây.
+  // Giấy tờ khai kg: tính lại theo số gõ + khổ thực nhận, làm tròn xuống như lúc ghi sổ — nhân hệ số
+  // của số đề nghị (đã làm tròn) là ra tờ lẻ / lệch 1 tờ.
+  const [rNhan, dNhan] = chuanKho(block.khoRong, block.khoDai);
+  const toNhan = l.kg_moi_dvt != null && l.gsm != null
+    ? toTuKg(block.cap * l.kg_moi_dvt, rNhan, dNhan, l.gsm) : undefined;
   const quyDoiHint =
-    isNhap && block.heSoVeGoc !== 1 && block.cap > 0 && l.don_vi_goc ? (
+    isNhap && block.heSoVeGoc !== 1 && block.cap > 0 && l.don_vi_goc && toNhan !== null ? (
       <div className="kna-phu__goi">
-        Vào tồn {fmtQty(block.cap * block.heSoVeGoc)} {tenDv(l.don_vi_goc)}
-        {l.quy_doi_dien_giai ? <> ({l.quy_doi_dien_giai})</> : null}
+        {toNhan === undefined ? (
+          <>
+            Vào tồn {fmtQty(block.cap * block.heSoVeGoc)} {tenDv(l.don_vi_goc)}
+            {l.quy_doi_dien_giai ? <> ({l.quy_doi_dien_giai})</> : null}
+          </>
+        ) : (
+          <>Vào tồn {fmtQty(toNhan)} {tenDv(l.don_vi_goc)} (làm tròn xuống theo khổ thực nhận)</>
+        )}
       </div>
     ) : null;
   // Cấp/nhập ÍT HƠN còn phải cấp → BẮT BUỘC nhập lý do; hiện ở ngăn yêu cầu.

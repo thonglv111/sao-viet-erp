@@ -571,14 +571,15 @@ class VatLieuKhoService:
         except ValueError:
             raise VatLieuKhoValidationError(
                 f"“{obj.ten}” chưa khai định lượng nên không quy được kg ra tờ.") from None
+        sl = f"{float(so_luong):g}".replace(".", ",")          # dấu phẩy thập phân kiểu Việt
         if so_to <= 0:
             raise VatLieuKhoValidationError(
-                f"“{obj.ten}”: {float(so_luong):g} {dvt} khổ {kho_rong}×{kho_dai} quy ra 0 tờ.")
+                f"“{obj.ten}”: {sl} {dvt} khổ {kho_rong}×{kho_dai} quy ra 0 tờ.")
         return {
             "ma_don_vi": ra["ma_don_vi"], "sl_goc": float(so_to),
             "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
             "he_so_ve_goc": so_to / float(so_luong),
-            "dien_giai": f"{float(so_luong):g} {dvt} ≈ {so_to} tờ (khổ {kho_rong}×{kho_dai}, {obj.gsm} gsm)",
+            "dien_giai": f"{sl} {dvt} ≈ {so_to} tờ (khổ {kho_rong}×{kho_dai}, {obj.gsm} gsm)",
         }
 
     def quy_tu_don_vi(self, ra: dict, dvt: str, so_luong: float) -> dict:

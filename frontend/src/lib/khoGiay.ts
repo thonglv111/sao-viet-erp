@@ -18,6 +18,13 @@ export function chuanKho(a: unknown, b: unknown): [number, number] {
   return [x || y, 0];
 }
 
+/** Số tờ từ kg, LÀM TRÒN XUỐNG — phản chiếu `kho_giay.to_tu_kg` (cùng +1e-9 chống sai số dấu
+ *  phẩy động). Thiếu một cạnh khổ hoặc gsm ⇒ null. */
+export function toTuKg(kg: number, rong: number, dai: number, gsm: number): number | null {
+  if (!(rong > 0 && dai > 0 && gsm > 0)) return null;
+  return Math.floor(kg / ((rong / 1000) * (dai / 1000) * (gsm / 1000)) + 1e-9);
+}
+
 /** "780 × 905 mm" · chỉ rộng "khổ 1000 mm" · không có ⇒ "chưa có khổ". */
 export function nhanKho(khoRong: number | null | undefined, khoDai: number | null | undefined): string {
   const r = khoRong ?? 0;
