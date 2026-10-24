@@ -27,7 +27,7 @@ import "../components/don-form-a.css";
 import { tenDonVi } from "../../../tenDonVi";
 import { hanTraDot } from "../../don-mua-chung/hanTra";
 import { ATTACHMENT_IMAGE_TYPES } from "../shared/constants";
-import { daGiaoKhac, nhanKhoMua, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
+import { daGiaoKhac, khoNhanThieuCanh, nhanKhoMua, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
 import type { AnhCho } from "../shared/types";
 
 /**
@@ -278,7 +278,12 @@ export function DeliveryDialog({
       setError("Có ký hiệu thì phải có số hoá đơn.");
       return;
     }
-    const thieuCanh = lines.find((l) => "kho_rong" in l && !l.kho_rong !== !l.kho_dai);
+    // Chỉ giấy TỜ mới cần đủ hai cạnh — cuộn đặt theo rộng thì nhận chỉ rộng là đúng.
+    const thieuCanh = row.lines.find((line) => {
+      const kho = khoNhan[line.id];
+      return kho != null && lines.some((l) => l.purchase_request_line_id === line.id)
+        && khoNhanThieuCanh(line, kho);
+    });
     if (thieuCanh) {
       setError("Khổ nhận của giấy tờ cần đủ hai cạnh.");
       return;

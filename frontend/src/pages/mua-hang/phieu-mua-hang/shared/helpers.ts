@@ -38,6 +38,17 @@ export function nhanKhoMua(
   return d ? `Khổ ${r} × ${d} mm` : `Khổ ${r} mm`;
 }
 
+/** Khổ NHẬN của một dòng giấy ở đợt giao thiếu cạnh: đơn đặt giấy tờ (hai cạnh) mà nhận thiếu một
+ *  cạnh, hoặc có dài mà không có rộng. Cuộn đặt theo rộng ⇒ nhận chỉ rộng là đúng. */
+export function khoNhanThieuCanh(
+  dat: { kho_rong: number; kho_dai: number },
+  nhan: { rong: number; dai: number },
+): boolean {
+  const [r, d] = chuanKho(dat.kho_rong, dat.kho_dai);
+  const datTo = !!(r && d);
+  return (!nhan.rong && !!nhan.dai) || (datTo && !(nhan.rong && nhan.dai));
+}
+
 export function emptyLine(): FormLine {
   return {
     item_name: "",
