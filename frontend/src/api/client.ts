@@ -799,6 +799,8 @@ export const LSX_THIEU_LABELS: Record<string, NhanMa> = {
   khong_co_ptg: "Chưa có bài tính giá",
   thieu_giay: "Thiếu loại giấy",
   thieu_kho: "Thiếu kích thước",
+  // Máy chỉ dò được tờ khổ in, không dựng được khâu Tề giấy in / Cắt giấy cuộn (24/10/2026).
+  thieu_kho_nguyen: "Thiếu khổ nguyên của giấy",
   thieu_routing: "Chưa có công đoạn",
   thieu_ngay_giao: "Thiếu ngày giao",
   thieu_to_may: "Có công đoạn chưa gán tổ / máy",

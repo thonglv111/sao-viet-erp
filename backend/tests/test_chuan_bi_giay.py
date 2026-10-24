@@ -103,3 +103,13 @@ def test_dong_song_tinh_to_kho_in():
     d = dong_song(9, (650, 430), 1020)
     assert d == {"hang_loai": "giay", "vat_tu_id": 9, "so_luong": 1020, "don_vi_goc": "to",
                  "kho_rong": 430, "kho_dai": 650}
+
+
+@pytest.mark.parametrize("kw", [dict(), dict(kho_nguyen=None), dict(kho_nguyen=(650, 430), so_manh_xa=1)])
+def test_chon_nguon_chi_hoi_khoa_ung_vien(kw):
+    """Bên gọi đọc tồn MỘT lượt cho cả danh sách khoá — chon_nguon không được hỏi khoá ngoài danh sách."""
+    from app.services.chuan_bi_giay import khoa_ung_vien
+
+    dv, da_hoi = _dv(**kw), []
+    chon_nguon(dv, lambda k: da_hoi.append(k) or 0.0)
+    assert da_hoi and set(da_hoi) <= set(khoa_ung_vien(dv))

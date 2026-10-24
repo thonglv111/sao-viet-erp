@@ -1,11 +1,12 @@
-"""Giấy chọn ở bước phiếu tính giá chảy xuống ĐÚNG bước lệnh sản xuất (18/10/2026).
+"""Giấy của lệnh sản xuất (24/10/2026): phiếu chọn giấy ở SẢN PHẨM, lập lệnh tự gắn vào bước đầu
+của khâu chuẩn bị giấy (spec 2026-10-24-chuan-bi-giay §7).
 
-"Thiếu giấy" của lệnh = không công đoạn nào có dòng giấy — bước nào cũng được, không riêng In.
+"Thiếu giấy" của lệnh = không công đoạn nào có dòng giấy và quy cách không có giấy.
 """
 from __future__ import annotations
 
 from app.models.cong_doan import CongDoan
-from app.models.phieu_tinh_gia import PhieuBuocVatTu, PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
+from app.models.phieu_tinh_gia import PhieuThanhPhan, PhieuThanhPham, PhieuTinhGia
 from app.models.vat_lieu_kho import GiayNguyen
 from tests.test_lsx_service import (  # noqa: F401 — fixture dùng chung
     _don_da_chuyen_sx, _may_in, _to_san_xuat, admin, customer, db, lsx_svc, orders,
@@ -13,7 +14,7 @@ from tests.test_lsx_service import (  # noqa: F401 — fixture dùng chung
 
 
 def _ptg(db, *, giay_o: str | None) -> PhieuTinhGia:
-    """Tờ rơi: In → Cán (đều nhận tờ in). `giay_o` = tên bước mang dòng giấy, None = không giấy."""
+    """Tờ rơi: In → Cán (đều nhận tờ in). `giay_o` khác None ⇒ sản phẩm chọn giấy, None = không giấy."""
     giay = GiayNguyen(don_vi_them=["to"], ma=f"G-{giay_o}", ten="Couche 150", gsm=150,
                       don_gia=2_000, don_vi_gia="to")
     db.add(giay)
@@ -34,14 +35,10 @@ def _ptg(db, *, giay_o: str | None) -> PhieuTinhGia:
         thu_tu=0, ten="Tờ rơi A4", so_luong=5_000, dai_thanh_pham=210, rong_thanh_pham=297,
         kho_nguyen_dai=1090, kho_nguyen_rong=790, kho_in_dai=545, kho_in_rong=790,
         so_mau_a=4, so_mau_b=4, quy_cach_in="hai_mat", may_id=may.id,
-        # Bỏ trống `giay_id` để lệnh chỉ còn dòng giấy ở bước làm bằng chứng "có giấy".
-        giay_id=None,
+        giay_id=giay.id if giay_o else None,
     )
     for i, cd in enumerate(cds):
-        b = PhieuThanhPham(thu_tu=i, cong_doan_id=cd.id, ten=cd.ten, don_gia=50)
-        if giay_o and cd.ten.startswith(giay_o):
-            b.vat_tus.append(PhieuBuocVatTu(thu_tu=0, hang_loai="giay", vat_tu_id=giay.id))
-        tp.thanh_phams.append(b)
+        tp.thanh_phams.append(PhieuThanhPham(thu_tu=i, cong_doan_id=cd.id, ten=cd.ten, don_gia=50))
     p.thanh_phans.append(tp)
     db.add(p)
     db.commit()
@@ -58,19 +55,22 @@ def _giay_cua(lsx) -> dict[str, list]:
             for cd in sorted(lsx.cong_doans, key=lambda c: c.thu_tu)}
 
 
-def test_giay_o_buoc_in_xuong_buoc_in_cua_lenh_kem_so_to(db, orders, lsx_svc, admin, customer):
+def test_giay_cua_san_pham_xuong_buoc_dau_khau_chuan_bi_kem_so_to(db, orders, lsx_svc, admin, customer):
+    """Kho trống ⇒ nguồn Mua; khổ nguyên 1090×790 xả 2 tờ in ⇒ chèn Tề giấy in, giấy ở đó."""
     lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
     giay = _giay_cua(lsx)
-    assert giay["Cán màng"] == []
-    (g,) = giay["In offset"]
-    assert float(g.so_luong) > 0 and g.tu_dong is False
+    assert list(giay) == ["Tề giấy in", "In offset", "Cán màng"]
+    assert giay["In offset"] == [] and giay["Cán màng"] == []
+    (g,) = giay["Tề giấy in"]
+    assert float(g.so_luong) > 0 and g.tu_dong is False and g.don_vi_goc == "to"
     assert "thieu_giay" not in lsx_svc.thieu_cua(lsx)
 
 
-def test_giay_chi_o_buoc_can_van_khong_thieu_giay(db, orders, lsx_svc, admin, customer):
-    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="Cán"))
-    assert len(_giay_cua(lsx)["Cán màng"]) == 1
-    assert "thieu_giay" not in lsx_svc.thieu_cua(lsx)
+def test_san_pham_khong_chon_giay_lenh_bao_thieu_giay(db, orders, lsx_svc, admin, customer):
+    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o=None))
+    assert lsx.nguon_giay is None
+    assert all(v == [] for v in _giay_cua(lsx).values())
+    assert "thieu_giay" in lsx_svc.thieu_cua(lsx)
 
 
 def test_quy_cach_lenh_khong_xep_giay_vao_vat_tu_khac(db, orders, lsx_svc, admin, customer):

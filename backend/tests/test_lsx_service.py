@@ -1334,8 +1334,9 @@ def test_doi_cong_doan_cua_buoc_thi_luu_xong_bung_lai_vat_tu_theo_cong_doan_moi(
             cong_doan_id=cd_may.id if cd.step_key == buoc.step_key else cd.cong_doan_id,
             ten="Dán hộp máy" if cd.step_key == buoc.step_key else cd.ten,
             nhom=cd.nhom, department_id=cd.department_id, loai_buoc=cd.loai_buoc,
-            vat_tus=([{"vat_tu_id": bang.id, "so_luong": 3, "tu_dong": False}]
-                     if cd.step_key == buoc.step_key else None),
+            # Bước khác KHÔNG gửi `vat_tus` (gửi None = xoá sạch) — Tề giấy in mang giấy máy gắn.
+            **({"vat_tus": [{"vat_tu_id": bang.id, "so_luong": 3, "tu_dong": False}]}
+               if cd.step_key == buoc.step_key else {}),
         )
         for cd in sorted(lsx.cong_doans, key=lambda c: c.thu_tu)
     ]

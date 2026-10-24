@@ -19221,3 +19221,17 @@ def _migrate_ptg_song_id_giay_len_san_pham(db: Session) -> None:
 
 
 MIGRATIONS.append(("0445_ptg_song_id_giay_len_san_pham", _migrate_ptg_song_id_giay_len_san_pham))
+
+
+def _migrate_lsx_nguon_giay(db: Session) -> None:
+    """0446 (24/10/2026, spec 2026-10-24-chuan-bi-giay §7) — `lsx.nguon_giay`: nguồn giấy máy chọn lúc
+    lập lệnh (to_in | to_nguyen | cuon | mua). Lệnh cũ để NULL, không dựng lại khâu. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "lsx" not in set(insp.get_table_names()):
+        return
+    if "nguon_giay" not in {c["name"] for c in insp.get_columns("lsx")}:
+        db.execute(text("ALTER TABLE lsx ADD COLUMN nguon_giay VARCHAR(12)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0446_lsx_nguon_giay", _migrate_lsx_nguon_giay))
