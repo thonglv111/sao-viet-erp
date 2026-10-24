@@ -136,6 +136,7 @@ class CongDoanService(CatalogService):
                     "ten": " ".join(str(r.get("ten") or "").split()),
                     "don_vi": (str(r.get("don_vi") or "").strip().lower()) or None,
                     "gia_theo_to": _gia_theo_to_sach(r.get("gia_theo_to"), co_dinh=False),
+                    "cong_thuc": (str(r.get("cong_thuc") or "").strip()) or None,
                 }
                 for r in (k.get("viec_phat_sinh") or [])
             ]
@@ -156,7 +157,7 @@ class CongDoanService(CatalogService):
             "bac_gia": goc.khoan.bac_gia,
             "viec_phat_sinh": [
                 {"ten": v.ten, "don_gia": float(v.don_gia), "don_vi": v.don_vi,
-                 "gia_theo_to": v.gia_theo_to}
+                 "gia_theo_to": v.gia_theo_to, "cong_thuc": v.cong_thuc}
                 for v in goc.khoan.viec_phat_sinh
             ],
         }
@@ -373,6 +374,8 @@ class CongDoanService(CatalogService):
             if khoa in da_co:
                 raise CongDoanValidationError(f'Việc phát sinh "{ten}" bị trùng tên.')
             da_co.add(khoa)
+            if r.get("don_gia") is None and r.get("cong_thuc"):
+                r["don_gia"] = 0          # có Cách tính giá thì đơn giá không dùng
             if r.get("don_gia") is None:
                 raise CongDoanValidationError(f'Chưa nhập đơn giá cho việc phát sinh "{ten}".')
             if float(r["don_gia"]) < 0:
@@ -393,6 +396,9 @@ class CongDoanService(CatalogService):
         # cộng chip của tuỳ chọn khi ghi (Đợt 2).
         self._kiem_o(k.get("cong_thuc_khoan"), nhan="Công thức khoán", loai=LOAI_KHOAN,
                      bien_them=[t["ma"] for t in tuy_chon])
+        for r in rows:
+            self._kiem_o(r.get("cong_thuc"), nhan=f'Cách tính giá của việc phát sinh "{r.get("ten")}"',
+                         loai=LOAI_KHOAN, bien_them=[t["ma"] for t in tuy_chon])
 
     @staticmethod
     def _kiem_tuy_chon(rows: list[dict]) -> None:

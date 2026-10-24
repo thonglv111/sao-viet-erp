@@ -37,10 +37,12 @@ class _Nen2(_Nen):
         return cv
 
     def ghi2(self, to, khoan, ngay: date, sl: float, nguoi, *, cv=None, tuy_chon=None,
-             gio=(10, 10), tong=None) -> SanXuatBatch:
+             gio=(10, 10), tong=None, phat_sinh: dict | None = None) -> SanXuatBatch:
         cv = cv or self.cv(to)
-        o, _ = viec_khoan.chuan_hoa_khi_ghi(self.db, khoan=khoan, ten_cong_doan="Bước", phat_sinh=[],
-                                            department_id=to.id, tuy_chon=tuy_chon)
+        o, ps_rows = viec_khoan.chuan_hoa_khi_ghi(
+            self.db, khoan=khoan, ten_cong_doan="Bước", department_id=to.id, tuy_chon=tuy_chon,
+            phat_sinh=[{"phat_sinh_id": ps.id, "so_luong": (phat_sinh or {})[ps.ten]}
+                       for ps in khoan.viec_phat_sinh if ps.ten in (phat_sinh or {})])
         # Giờ xưởng VN − 7 ⇒ UTC; cùng ngày ở cả máy giờ VN lẫn máy CI giờ UTC khi giờ ≥ 7.
         bd = datetime(ngay.year, ngay.month, ngay.day, gio[0] - 7, 0, tzinfo=timezone.utc)
         kt = datetime(ngay.year, ngay.month, ngay.day, gio[1] - 7, 0, tzinfo=timezone.utc)
@@ -48,6 +50,9 @@ class _Nen2(_Nen):
                          tot=sl, hong=(tong - sl) if tong is not None else 0, don_vi="to", **o)
         self.db.add(b)
         self.db.flush()
+        for r in ps_rows:
+            r.batch_id = b.id
+            self.db.add(r)
         for e in nguoi:
             self.db.add(SanXuatBatchNguoi(batch_id=b.id, employee_id=e.id, department_id=e.department_id))
         self.db.flush()
@@ -139,20 +144,60 @@ def test_be_trung_khuon_xa_doi_so_lo(nen):
 
 
 def test_in_chay_tiep_tu_tro_mau_pha(nen, monkeypatch):
+    """`chay_tiep` là chip MÁY tự dò (24/10/2026): lần ghi liền trước trên cùng máy — việc không gắn
+    máy thì cùng tổ — là chính dòng công việc này ⇒ 1. Không ai tick."""
     to = nen.to("Máy 4 màu")
     e = nen.nv(to, "E")
-    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60,
-                   tuy_chon=_tc(("chay_tiep", "Chạy tiếp", "co_khong")))
+    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60)
     tu_tro, mot_mat = nen.cv(to), nen.cv(to)
     qc = {tu_tro.id: {"quy_cach_in": "tu_tro", "bien_so_mau": 4},
           mot_mat.id: {"quy_cach_in": "mot_mat", "bien_so_mau": 4, "bien_so_mau_pha": 1}}
     monkeypatch.setattr(KhoanKyService, "_quy_cach", lambda self, cv, lenh, bai: qc[cv.id])
-    nen.ghi2(to, k, NGAY, 2000, [e], cv=tu_tro)
-    nen.ghi2(to, k, NGAY, 2000, [e], cv=tu_tro, tuy_chon={"chay_tiep": 1})
-    nen.ghi2(to, k, NGAY, 5000, [e], cv=mot_mat)
+    nen.ghi2(to, k, NGAY, 2000, [e], cv=tu_tro, gio=(8, 9))
+    nen.ghi2(to, k, NGAY, 2000, [e], cv=tu_tro, gio=(9, 10))
+    nen.ghi2(to, k, NGAY, 5000, [e], cv=mot_mat, gio=(10, 11))
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
     tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
     assert tien == [260_000, 240_000, 352_000]
+
+
+def test_in_chay_tiep_theo_may_khong_theo_to(nen, monkeypatch):
+    """Cùng tổ, hai máy: lần ghi liền trước TRÊN CÙNG MÁY quyết định. In lại lệnh sau một lệnh khác
+    ⇒ lên bài lại (sổ T08: 36/37 dòng). Lần trước ở NGÀY khác (kể cả kỳ trước) ⇒ lên bài lại."""
+    to = nen.to("Máy 4 màu")
+    e = nen.nv(to, "E")
+    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60)
+    a, b, c = nen.cv(to), nen.cv(to), nen.cv(to)
+    a.may_id, b.may_id, c.may_id = 901, 902, 901
+    nen.db.flush()
+    monkeypatch.setattr(KhoanKyService, "_quy_cach", lambda self, cv, lenh, bai: {"quy_cach_in": "mot_mat"})
+    nen.ghi2(to, k, date(NAM, THANG - 1, 28), 1000, [e], cv=a, gio=(8, 9))   # kỳ trước
+    nen.ghi2(to, k, NGAY, 4000, [e], cv=a, gio=(8, 9))       # liền sau lần kỳ trước nhưng khác ngày ⇒ 0
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=b, gio=(9, 10))      # máy khác chen giữa không tính
+    nen.ghi2(to, k, NGAY, 4000, [e], cv=a, gio=(10, 11))     # vẫn liền sau a trên máy 901 ⇒ 1
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=c, gio=(11, 12))     # lệnh khác trên 901 ⇒ 0
+    nen.ghi2(to, k, NGAY, 4000, [e], cv=a, gio=(12, 13))     # in lại a sau c ⇒ lên bài lại
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
+    tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
+    assert tien == [260_000, 200_000, 240_000, 200_000, 260_000]
+
+
+def test_in_chay_tiep_qua_dem_la_len_bai_lai(nen, monkeypatch):
+    """Sổ T08 (24/10/2026): in tiếp cùng lệnh sang NGÀY hôm sau vẫn trả lên bài — qua đêm máy rửa
+    mực, sáng canh lại. Chạy tiếp chỉ khi lần liền trước trên máy là chính việc này và CÙNG ngày."""
+    to = nen.to("Máy 4 màu")
+    e = nen.nv(to, "E")
+    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60)
+    a = nen.cv(to)
+    a.may_id = 901
+    nen.db.flush()
+    monkeypatch.setattr(KhoanKyService, "_quy_cach", lambda self, cv, lenh, bai: {"quy_cach_in": "mot_mat"})
+    nen.ghi2(to, k, NGAY, 4000, [e], cv=a, gio=(8, 9))
+    nen.ghi2(to, k, NGAY, 4000, [e], cv=a, gio=(14, 15))                      # cùng ngày ⇒ 1
+    nen.ghi2(to, k, date(NAM, THANG, 6), 4000, [e], cv=a, gio=(8, 9))         # sáng hôm sau ⇒ 0
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
+    tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
+    assert tien == [260_000, 240_000, 260_000]
 
 
 def test_in_bai_ghep_that_doc_mau_pha_gop_cua_thanh_vien(nen):
@@ -164,8 +209,7 @@ def test_in_bai_ghep_that_doc_mau_pha_gop_cua_thanh_vien(nen):
 
     to = nen.to("Máy 4 màu")
     e = nen.nv(to, "E")
-    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60,
-                   tuy_chon=_tc(("chay_tiep", "Chạy tiếp", "co_khong")))
+    k = nen.khoan2(CT_IN, gia_co_dinh=200_000, don_gia=60)
     lenh = []
     for i, muc in enumerate((["C", "M", "Y", "K"], ["K", "185c"])):
         don = Order(order_no=f"DH-BG-KK-{i}")
@@ -203,6 +247,75 @@ def test_dan_canh_may_chia_so_lan_chay(nen):
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
     tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
     assert tien == [35_000, 35_000]
+
+
+CT_DAN_TV = ("(1 - khong_canh) * gia_co_dinh / max(1, so_lan_chay - so_lan_thu_viec)"
+             " + sl_ghi * don_gia_khoan")
+
+
+def test_dan_tien_canh_tru_lan_ghi_co_thu_viec(nen):
+    """Sổ T08 tổ dán (24/10/2026): tiền canh chia cho số lần ghi TRỪ lần có người thử việc làm —
+    thử việc đọc ở hồ sơ tại NGÀY ghi, không tick tay. Lần thử việc tự tick "Không canh máy"."""
+    from app.models.employee import EmployeeEvent
+
+    to = nen.to("Tổ dán")
+    e, tv = nen.nv(to, "E"), nen.nv(to, "Tùng")
+    e.status = "active"               # hồ sơ mới mặc định là thử việc
+    tv.status, tv.probation_end_date = "probation", date(NAM, THANG, 28)
+    k = nen.khoan2(CT_DAN_TV, gia_co_dinh=50_000, don_gia=100,
+                   tuy_chon=_tc(("khong_canh", "Không canh máy", "co_khong")))
+    cv = nen.cv(to)
+    nen.ghi2(to, k, NGAY, 100, [e], cv=cv)
+    nen.ghi2(to, k, NGAY, 100, [tv], cv=cv, tuy_chon={"khong_canh": 1})
+    nen.ghi2(to, k, NGAY + timedelta(days=1), 100, [e], cv=cv)
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000), (tv, 5_000_000)))
+    tien = sorted(d["tien_lan_ghi"] for rs in kq["theo_nguoi"].values() for d in rs
+                  if d["loai"] == "lan_ghi")
+    assert tien == [10_000, 35_000, 35_000]
+
+    # Hết thử việc TRƯỚC ngày ghi (sự kiện có ngày hiệu lực) ⇒ lần đó không còn là lần thử việc.
+    tv.status = "active"
+    nen.db.add(EmployeeEvent(employee_id=tv.id, event_type="status_change", field="status",
+                             from_value="probation", to_value="active", effective_date=NGAY))
+    nen.db.flush()
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000), (tv, 5_000_000)))
+    tien = sorted(d["tien_lan_ghi"] for rs in kq["theo_nguoi"].values() for d in rs
+                  if d["loai"] == "lan_ghi")
+    assert tien == [10_000, 26_667, 26_667]
+
+
+def test_dan_moi_lan_deu_thu_viec_mau_so_toi_thieu_1(nen):
+    to = nen.to("Tổ dán")
+    tv = nen.nv(to, "Tùng")
+    tv.status, tv.probation_end_date = "probation", date(NAM, THANG, 28)
+    k = nen.khoan2(CT_DAN_TV, gia_co_dinh=50_000, don_gia=100,
+                   tuy_chon=_tc(("khong_canh", "Không canh máy", "co_khong")))
+    nen.ghi2(to, k, NGAY, 100, [tv])
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((tv, 5_000_000)))
+    assert kq["khoan"] == {tv.id: 60_000}
+
+
+def test_viec_phat_sinh_tinh_gia_theo_cong_thuc(nen):
+    """Xuống bài do lỗi = 50% bài in (24/10/2026): việc phát sinh có "Cách tính giá" thì đơn giá là
+    công thức trên chính lần ghi (giá cố định của bậc / tổ); bỏ trống thì vẫn đơn giá. Công thức chụp
+    vào lần ghi như công thức khoán."""
+    from app.models.cong_doan import CongDoanKhoanPhatSinh
+
+    to = nen.to("Máy 5 màu")
+    e = nen.nv(to, "E")
+    k = nen.khoan2("gia_co_dinh", gia_co_dinh=180_000)
+    k.viec_phat_sinh.append(CongDoanKhoanPhatSinh(ten="Xuống bài", don_gia=0, don_vi="bai", thu_tu=0,
+                                                  cong_thuc="0.5 * gia_co_dinh"))
+    k.viec_phat_sinh.append(CongDoanKhoanPhatSinh(ten="Thay kẽm", don_gia=100_000, don_vi="kem", thu_tu=1))
+    nen.db.flush()
+    b = nen.ghi2(to, k, NGAY, 0, [e], phat_sinh={"Xuống bài": 1, "Thay kẽm": 2})
+    k.viec_phat_sinh[0].cong_thuc = "gia_co_dinh"            # sửa danh mục sau khi ghi
+    nen.db.flush()
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)), so=True)
+    assert kq["khoan"] == {e.id: 180_000 + 90_000 + 200_000}
+    ps = {p["ten"]: p for p in kq["so"]["lan_ghi"][0]["phat_sinh"]}
+    assert ps["Xuống bài"]["don_gia"] == 90_000 and ps["Thay kẽm"]["don_gia"] == 100_000
+    assert kq["so"]["lan_ghi"][0]["batch_id"] == b.id
 
 
 def test_dan_khong_canh(nen):

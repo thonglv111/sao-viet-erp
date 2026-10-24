@@ -657,7 +657,7 @@ export function BatchForm({
 
 /** Một dòng trong danh sách Người làm: `mo` = nghỉ hôm đó (mờ, không tick được), `the` = các thẻ ghi
  *  chú cạnh tên (tổ gốc của người tổ khác, việc đang ở). */
-export type NguoiLam = { id: number; ten: string; the: string[]; mo: boolean };
+export type NguoiLam = { id: number; ten: string; the: (string | { chu: string; goi: string })[]; mo: boolean };
 
 /** Thợ tổ SX khác (`/teams/{id}/ho-tro-ung-vien`) — nguồn của ô "Thêm người tổ khác". `onMo` = nạp lại
  *  tình trạng cho tươi lúc mở hộp. */
@@ -672,7 +672,12 @@ function tenViec(v: SxViecNgan): string {
 export function nguoiLamGhi(nguoiGhi: SxNguoiGhi[]): NguoiLam[] {
   return nguoiGhi.map((n) => ({
     id: n.employee_id, ten: n.ho_ten, mo: n.nghi != null,
-    the: [...(n.nghi ? [n.nghi] : []), ...n.dang_o.map((v) => `đang ở ${tenViec(v)}`)],
+    // Đang ở nhiều việc ⇒ MỘT thẻ "đang ở X và N việc khác", đủ danh sách ở chú thích: dàn mỗi việc một
+    // thẻ thì tổ có lệnh chạy dở dài cả màn, đẩy ô tuỳ chọn khi ghi xuống tận đáy (24/10/2026).
+    the: [...(n.nghi ? [n.nghi] : []), ...(n.dang_o.length === 0 ? [] : n.dang_o.length === 1
+      ? [`đang ở ${tenViec(n.dang_o[0])}`]
+      : [{ chu: `đang ở ${tenViec(n.dang_o[0])} và ${n.dang_o.length - 1} việc khác`,
+           goi: n.dang_o.map(tenViec).join("\n") }])],
   }));
 }
 
@@ -726,7 +731,9 @@ export function NguoiLamChon({
                 <input type="checkbox" checked={!n.mo && chon.has(n.id)} disabled={n.mo}
                   onChange={() => doi(n.id)} />
                 <span className="thsx-ng__ten">{n.ten}</span>
-                {n.the.map((t) => <span key={t} className="thsx-ng__the">{t}</span>)}
+                {n.the.map((t) => typeof t === "string"
+                  ? <span key={t} className="thsx-ng__the">{t}</span>
+                  : <span key={t.chu} className="thsx-ng__the" title={t.goi}>{t.chu}</span>)}
               </label>
             </li>
           ))}

@@ -158,6 +158,7 @@ class CongDoanRepository(CatalogRepo):
             v.don_gia = dong["don_gia"]
             v.don_vi = dong["don_vi"]
             v.gia_theo_to = dong.get("gia_theo_to") or None
+            v.cong_thuc = dong.get("cong_thuc") or None
             v.thu_tu = i
             moi.append(v)
         k.viec_phat_sinh = moi

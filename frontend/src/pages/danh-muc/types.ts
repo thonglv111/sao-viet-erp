@@ -256,6 +256,8 @@ export interface ViecPhatSinhRow {
 
 /** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). `bac` = mã bậc giá khi công đoạn
  *  chia bậc (22/10/2026) — mỗi ô (tổ, bậc) một dòng. */
+  /** "Cách tính giá" (24/10/2026): công thức ra đơn giá trên lần ghi — có thì đơn giá / giá tổ không dùng. */
+  cong_thuc?: string | null;
 export interface GiaTheoToRow {
   department_id: number; bac?: string | null; gia_co_dinh?: number | null; don_gia?: number | null;
 }

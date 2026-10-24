@@ -142,3 +142,47 @@ def test_mg_0434_chep_cong_thuc_tuong_minh_vao_o_trong():
             ct, ct, "sl_ghi * don_gia_khoan"]
         assert [r[0] for r in cn.execute(text("SELECT cong_thuc_khoan_snapshot FROM san_xuat_batch ORDER BY id"))] == [
             ct, None, "x", ""]
+
+
+def test_bang_danh_muc_doi_nhan_cach_tinh_gia_viec_phat_sinh_va_cap_nhat_lay_moi(db, admin):
+    """Cách tính giá của việc phát sinh (24/10/2026) chụp vào lần ghi như công thức khoán: sửa ở danh
+    mục thì băng báo, bấm "Cập nhật theo danh mục" thì lần ghi lấy cách tính mới."""
+    from app.models.cong_doan import CongDoanKhoanPhatSinh
+    from app.repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
+
+    n = _Nen2(db)
+    to = _to_khoan(db, admin, ma="TO-CT5")
+    e = n.nv(to, "E")
+    k = n.khoan2("gia_co_dinh", gia_co_dinh=180_000)
+    k.viec_phat_sinh.append(CongDoanKhoanPhatSinh(ten="Xuống bài", don_gia=90_000, don_vi="bai",
+                                                  thu_tu=0))
+    db.flush()
+    b = n.ghi2(to, k, NGAY, 0, [e], phat_sinh={"Xuống bài": 1})
+    db.commit()
+    sl = SanXuatSanLuongRepository(db)
+
+    def doi_ps():
+        return [o for o in viec_khoan.danh_muc_doi(db, b, sl.phat_sinh_cua_batch(b.id), department_id=to.id)
+                if o["truong"] == "cong_thuc" and "Xuống bài" in o["nhan"]]
+
+    assert doi_ps() == []
+    k.viec_phat_sinh[0].cong_thuc = "0.5 * gia_co_dinh"
+    k.viec_phat_sinh[0].don_gia = 0
+    db.commit()
+    doi = doi_ps()
+    assert len(doi) == 1 and doi[0]["nhan"] == "Cách tính giá của Xuống bài"
+    assert doi[0]["moi"] == "0.5 * gia_co_dinh"
+
+    # Lần ghi trước khi có cột (NULL) vốn tính bằng cách tính hiện tại ⇒ không báo lệch giả.
+    r = sl.phat_sinh_cua_batch(b.id)[0]
+    r.cong_thuc_snapshot = None
+    assert doi_ps() == []
+    r.cong_thuc_snapshot = ""
+    db.commit()
+
+    viec_khoan.cap_nhat_theo_danh_muc(db, user=admin, batch_id=b.id)
+    r = sl.phat_sinh_cua_batch(b.id)[0]
+    db.refresh(r)
+    assert r.cong_thuc_snapshot == "0.5 * gia_co_dinh"
+    assert viec_khoan.danh_muc_doi(db, b, sl.phat_sinh_cua_batch(b.id), department_id=to.id) == []
+    assert _tien(db, e) == [270_000]

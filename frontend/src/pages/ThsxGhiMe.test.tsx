@@ -124,6 +124,15 @@ describe("Người làm lần này", () => {
     expect(within(hop).getByText("1 người")).toBeInTheDocument();
   });
 
+  it("người đang ở nhiều việc: một thẻ gọn, đủ danh sách ở chú thích — không dàn hàng chục thẻ", () => {
+    const viec = (i: number) => ({ cong_viec_id: i, ma: `T08-${i}`, ten_cong_doan: "Dán" });
+    const { hop } = mo(null, [nguoi(1, "Trần Tùng", { dang_o: [viec(1), viec(2), viec(3)] })]);
+    const ds = within(hop).getByRole("list", { name: "Người làm lần này" });
+    const the = within(ds).getByText("đang ở T08-1 Dán và 2 việc khác");
+    expect(the).toHaveAttribute("title", "T08-1 Dán\nT08-2 Dán\nT08-3 Dán");
+    expect(within(ds).queryByText(/T08-2/)).toBeNull();
+  });
+
   it("popup chọn tổ rồi chọn người: người nghỉ hôm đó hoặc đã nghỉ việc không tick được; thêm vào danh sách kèm tên tổ, tick sẵn, gửi cùng", () => {
     const { hop, taoBatch } = mo(null, [nguoi(1, "Đào Văn Hoan")], {
       ds: [

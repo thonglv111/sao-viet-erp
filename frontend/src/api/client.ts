@@ -5505,6 +5505,7 @@ export interface EmployeeTransitionInput {
   new_department_id?: number | null;
   new_position?: string | null;
   resign_reason?: string | null;
+  probation_end_date?: string | null;
 }
 
 export interface EmployeeListParams {

@@ -65,6 +65,29 @@ describe("KhoanCongDoanField — Đợt 2", () => {
     expect(cuoi.cong_thuc_khoan).toBe("(1 - chay_tiep) * gia_co_dinh");
   });
 
+  it("việc phát sinh có cột Cách tính giá: bấm ô mở popup công thức của đúng dòng, Huỷ trả về cũ", async () => {
+    const user = userEvent.setup();
+    let cuoi: KhoanCongDoanValue = {};
+    bay({
+      unit: "to", unit_price: 30,
+      viec_phat_sinh: [
+        { id: 3, ten: "Thay kẽm", don_gia: 100000, don_vi: "kem" },
+        { id: 4, ten: "Xuống bài", don_gia: 0, don_vi: "bai", cong_thuc: "0.5 * gia_co_dinh" },
+      ],
+    }, (v) => (cuoi = v));
+    expect(screen.getByRole("columnheader", { name: "Cách tính giá" })).toBeInTheDocument();
+    const o = screen.getAllByTitle("Sửa cách tính giá của việc phát sinh này");
+    expect(o[0]).toHaveTextContent("—");
+    expect(o[1]).toHaveTextContent("0.5 * gia_co_dinh");
+    await user.click(o[1]);
+    expect(screen.getByRole("dialog", { name: "Cách tính giá" })).toBeInTheDocument();
+    expect(document.querySelector("#ct-ps-1")).not.toBeNull();
+    expect(screen.getByText("Cách tính giá — Xuống bài")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Huỷ" }));
+    expect(screen.queryByRole("dialog", { name: "Cách tính giá" })).toBeNull();
+    expect(cuoi.viec_phat_sinh?.[1]?.cong_thuc ?? "0.5 * gia_co_dinh").toBe("0.5 * gia_co_dinh");
+  });
+
   it("gõ Giá cố định chung", async () => {
     const user = userEvent.setup();
     let cuoi: KhoanCongDoanValue = {};

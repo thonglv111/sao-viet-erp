@@ -75,6 +75,7 @@ EVENT_RESIGNED = "resigned"         # nghỉ việc
 EVENT_REINSTATED = "reinstated"     # tuyển lại (resigned → active)
 EVENT_UNSUSPENDED = "unsuspended"   # gỡ đình chỉ (suspended → trạng thái TRƯỚC khi đình chỉ) — 08/09/2026
 EVENT_UNSUSPENDED = "unsuspended"   # gỡ đình chỉ (suspended → trạng thái TRƯỚC khi đình chỉ) — 08/09/2026
+EVENT_PROBATION_RESTARTED = "probation_restarted"   # chuyển về thử việc (active/probation_ended → probation) — 24/10/2026
 EMPLOYEE_EVENT_TYPES = (
     EVENT_HIRED,
     EVENT_PROBATION_ENDED,
@@ -87,6 +88,7 @@ EMPLOYEE_EVENT_TYPES = (
     EVENT_RESIGNED,
     EVENT_REINSTATED,
     EVENT_UNSUSPENDED,
+    EVENT_PROBATION_RESTARTED,
 )
 
 # --- Loại file đính kèm hồ sơ -----------------------------------------------

@@ -41,6 +41,22 @@ def test_luu_gia_co_dinh_chung_va_tuy_chon(client):
     assert r.json()["khoan"]["tuy_chon"][0]["ma"] == "trung_khuon"
 
 
+def test_viec_phat_sinh_luu_cach_tinh_gia_va_kiem_cong_thuc(client):
+    """Cột "Cách tính giá" của việc phát sinh (24/10/2026): công thức chip ô khoán; có công thức
+    thì bỏ trống đơn giá được (lưu 0); công thức sai chặn kèm tên việc."""
+    h = _h(client)
+    xb = {"ten": "Xuống bài", "don_gia": None, "don_vi": "to", "cong_thuc": " 0.5 * gia_co_dinh "}
+    r = client.post("/api/cong-doan", json=_body(tuy_chon=[TRUNG_KHUON], viec_phat_sinh=[xb]), headers=h)
+    assert r.status_code == 201, r.text
+    ps = r.json()["khoan"]["viec_phat_sinh"][0]
+    assert ps["cong_thuc"] == "0.5 * gia_co_dinh" and ps["don_gia"] == 0
+    r = client.post("/api/cong-doan", json=_body(tuy_chon=[TRUNG_KHUON], viec_phat_sinh=[{**xb, "cong_thuc": "0.5 * gia_bai"}]),
+                    headers=h)
+    assert r.status_code == 422 and "Xuống bài" in r.text, r.text
+    r = client.post("/api/cong-doan", json=_body(tuy_chon=[TRUNG_KHUON], viec_phat_sinh=[{**xb, "cong_thuc": ""}]), headers=h)
+    assert r.status_code == 422 and "đơn giá" in r.text, r.text
+
+
 def test_cong_thuc_goi_tuy_chon_chua_khai_bao_loi(client):
     r = client.post("/api/cong-doan", json=_body(tuy_chon=[]), headers=_h(client))
     assert r.status_code == 422 and "trung_khuon" in r.text, r.text

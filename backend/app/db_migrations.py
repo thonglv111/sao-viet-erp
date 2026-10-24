@@ -19139,3 +19139,18 @@ def _migrate_payroll_line_co_hoa_hong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0442_payroll_line_co_hoa_hong", _migrate_payroll_line_co_hoa_hong))
+
+
+def _migrate_phat_sinh_cach_tinh_gia(db: Session) -> None:
+    """0443 (24/10/2026) — "Cách tính giá" của việc phát sinh: `cong_doan_khoan_phat_sinh.cong_thuc`
+    + ảnh chụp `san_xuat_batch_phat_sinh.cong_thuc_snapshot`. Dòng cũ để NULL (= dùng đơn giá / đọc
+    công thức hiện tại của danh mục)."""
+    insp = inspect(db.get_bind())
+    for bang, cot in (("cong_doan_khoan_phat_sinh", "cong_thuc"),
+                      ("san_xuat_batch_phat_sinh", "cong_thuc_snapshot")):
+        if bang in insp.get_table_names() and cot not in _existing_columns(insp, bang):
+            db.execute(text(f"ALTER TABLE {bang} ADD COLUMN {cot} TEXT"))
+    db.commit()
+
+
+MIGRATIONS.append(("0443_phat_sinh_cach_tinh_gia", _migrate_phat_sinh_cach_tinh_gia))

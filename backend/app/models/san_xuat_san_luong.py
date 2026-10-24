@@ -139,6 +139,9 @@ class SanXuatBatchPhatSinh(Base):
     ten_snapshot: Mapped[str | None] = mapped_column(String(150), nullable=True)
     don_vi_snapshot: Mapped[str | None] = mapped_column(String(24), nullable=True)
     don_gia_snapshot: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Ảnh chụp "Cách tính giá" của việc phát sinh lúc ghi (mg 0443). "" = việc không có công thức
+    # (dùng `don_gia_snapshot`); NULL = dòng ghi trước mg 0443 ⇒ đọc công thức hiện tại của danh mục.
+    cong_thuc_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 

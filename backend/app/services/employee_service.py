@@ -25,6 +25,7 @@ from ..models.employee import (
     EVENT_LEAVE_END,
     EVENT_LEAVE_START,
     EVENT_PROBATION_ENDED,
+    EVENT_PROBATION_RESTARTED,
     EVENT_PROMOTED,
     EVENT_REINSTATED,
     EVENT_RESIGNED,
@@ -92,6 +93,10 @@ _STATUS_TRANSITIONS: dict[str, tuple[set[str], str, str]] = {
     # đây chỉ là MẶC ĐỊNH — `_apply_status` thay bằng trạng thái TRƯỚC khi đình chỉ (thử việc vẫn
     # là thử việc: tiền 85%, chưa BHXH), xem `_trang_thai_truoc_dinh_chi`.
     "unsuspend": ({STATUS_SUSPENDED}, STATUS_ACTIVE, EVENT_UNSUSPENDED),
+    # Chuyển về thử việc (24/10/2026): khai nhầm "Đang làm việc" lúc vào làm, hoặc cho thử việc lại.
+    # Trước đây không có đường nào về Thử việc. Bắt khai Ngày hết thử việc mới như lúc tạo hồ sơ.
+    "probation_restart": ({STATUS_ACTIVE, STATUS_PROBATION_ENDED}, STATUS_PROBATION,
+                          EVENT_PROBATION_RESTARTED),
 }
 # Fields the plain edit (PUT) may set — deliberately EXCLUDES status/department_id
 # and resign_*, which only a transition may change.
@@ -855,6 +860,7 @@ class EmployeeService:
         new_department_id: int | None = None,
         new_position: str | None = None,
         resign_reason: str | None = None,
+        probation_end_date: date | None = None,
     ) -> Employee:
         employee = self.get_employee(employee_id=employee_id, scope=scope, actor=actor)
         note = _clean(note)
@@ -869,7 +875,8 @@ class EmployeeService:
                 "ngay lúc bấm, tới ngày đó hãy bấm.")
 
         if kind in _STATUS_TRANSITIONS:
-            return self._apply_status(employee, actor, kind, effective_date, note, resign_reason)
+            return self._apply_status(employee, actor, kind, effective_date, note, resign_reason,
+                                      probation_end_date=probation_end_date)
         if kind == "transfer":
             return self._apply_transfer(employee, actor, effective_date, note, new_department_id)
         if kind == "promote":
@@ -877,7 +884,7 @@ class EmployeeService:
         raise EmployeeValidationError(f"Loại thao tác không hợp lệ: {kind!r}")
 
     def _apply_status(self, employee, actor, kind, effective_date, note, resign_reason,
-                      *, commit: bool = True) -> Employee:
+                      *, commit: bool = True, probation_end_date: date | None = None) -> Employee:
         """Mọi bước ghi đi `commit=False`; chốt MỘT lần ở `audit.create` (bản cũ 3–5 commit).
         `commit=False` (lượt máy quét cả lô): dòng nhật ký cũng chỉ flush, người gọi tự chốt."""
         allowed_from, to_status, event_type = _STATUS_TRANSITIONS[kind]
@@ -903,6 +910,12 @@ class EmployeeService:
                 raise EmployeeValidationError("Cần nhập lý do nghỉ việc.")
             updates["resign_date"] = effective_date
             updates["resign_reason"] = resign_reason
+        elif kind == "probation_restart":
+            self._bat_buoc_ngay_het_thu_viec(to_status, probation_end_date)
+            if probation_end_date < effective_date:
+                raise EmployeeValidationError(
+                    "Ngày hết thử việc không được trước ngày hiệu lực chuyển về thử việc.")
+            updates["probation_end_date"] = probation_end_date
         elif kind == "reinstate":
             # Reopening: clear the resignation stamp.
             updates["resign_date"] = None
