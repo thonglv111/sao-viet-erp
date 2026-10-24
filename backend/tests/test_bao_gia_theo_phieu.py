@@ -62,11 +62,11 @@ def test_luu_phieu_thi_bao_gia_nhap_theo_sl_va_gia_von(client):
     assert _version_count(q["id"]) == 1
 
 
-def test_dien_giai_ke_moi_giay_cua_cac_buoc(client):
-    """E2E 19/10/2026: hộp có bước Cắt tờ mang COUCHE + giấy sóng, báo giá gửi khách chỉ ghi
-    "COUCHE 150GSM 150g" — giấy nay là vật tư của bước nên mô tả phải kể mọi giấy theo thứ tự bước,
-    và không lặp định lượng khi tên giấy đã có."""
+def test_dien_giai_ke_giay_roi_song(client):
+    """Báo giá gửi khách kể giấy rồi sóng của sản phẩm (chọn ở sản phẩm từ 24/10/2026), không lặp
+    định lượng khi tên giấy đã có."""
     from app.db import SessionLocal
+    from app.models.cong_doan import CongDoan
     from app.models.vat_lieu_kho import GiayNguyen
 
     t = _token(client)
@@ -80,12 +80,11 @@ def test_dien_giai_ke_moi_giay_cua_cac_buoc(client):
         db.add_all([cou, song])
         db.commit()
         cou_id, song_id = cou.id, song.id
+        boi_id = db.query(CongDoan).filter(CongDoan.ma == "BTĐ").one().id
     finally:
         db.close()
-    comp = _component(giay, cd)
-    # Sóng khai TRƯỚC couche: diễn giải vẫn ghi giấy trước, sóng sau (19/10/2026 loại Giấy/Sóng).
-    comp["thanh_phams"][0]["vat_tus"] = [
-        {"hang_loai": "giay", "vat_tu_id": song_id}, {"hang_loai": "giay", "vat_tu_id": cou_id}]
+    comp = {**_component(cou_id, cd), "song_id": song_id}
+    comp["thanh_phams"].append({"ten": "Bồi", "cong_doan_id": boi_id})
     pid = _phieu(client, t, comps=[comp])
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(t)).json()
     dg = q["items"][0]["dien_giai"]

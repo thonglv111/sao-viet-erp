@@ -19170,3 +19170,54 @@ def _migrate_cong_doan_he_thong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0443_cong_doan_he_thong", _migrate_cong_doan_he_thong))
+
+
+def _migrate_ptg_song_id_giay_len_san_pham(db: Session) -> None:
+    """0445 (24/10/2026, spec 2026-10-24-chuan-bi-giay §4) — Giấy và Sóng chọn ở SẢN PHẨM phiếu tính giá.
+      · Thêm `phieu_thanh_phan.song_id`.
+      · Dòng giấy của bước (`phieu_buoc_vat_tu.hang_loai='giay'`) lên sản phẩm theo LOẠI của mã: mã loại
+        `giay` đầu tiên (thứ tự bước rồi dòng) ⇒ `giay_id`, mã `song` đầu tiên ⇒ `song_id`, rồi xoá dòng
+        bước. Luật trần 1 Giấy + 1 Sóng (mg 0426) bảo đảm không mất mã nào. Mã đã xoá khỏi danh mục coi
+        là loại giấy (như `ptg_giay_buoc.loai_cua`).
+      · Sản phẩm không dòng giấy nào mà `giay_id` trỏ mã sóng (giấy chính cũ khi chỉ có sóng) ⇒ chuyển
+        sang `song_id`.
+    Đọc inspector TRƯỚC lệnh ghi đầu; raw SQL đích danh cột; idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "phieu_thanh_phan" not in bang:
+        return
+    co_song = "song_id" in {c["name"] for c in insp.get_columns("phieu_thanh_phan")}
+    co_buoc = {"phieu_buoc_vat_tu", "phieu_thanh_pham"} <= bang and "hang_loai" in {
+        c["name"] for c in insp.get_columns("phieu_buoc_vat_tu")}
+    co_loai = "giay_nguyen" in bang and "loai" in {c["name"] for c in insp.get_columns("giay_nguyen")}
+    if not co_song:
+        db.execute(text("ALTER TABLE phieu_thanh_phan ADD COLUMN song_id INTEGER"))
+    loai = (dict(db.execute(text("SELECT id, loai FROM giay_nguyen")).all()) if co_loai else {})
+
+    def _la_song(gid) -> bool:
+        return loai.get(gid) == "song"
+
+    if co_buoc:
+        dong = db.execute(text(
+            "SELECT tp.thanh_phan_id, v.id, v.vat_tu_id FROM phieu_buoc_vat_tu v "
+            "JOIN phieu_thanh_pham tp ON tp.id = v.thanh_pham_id WHERE v.hang_loai = 'giay' "
+            "ORDER BY tp.thanh_phan_id, tp.thu_tu, tp.id, v.thu_tu, v.id")).all()
+        theo_tp: dict[int, list[int]] = {}
+        for tp_id, _vid, gid in dong:
+            theo_tp.setdefault(tp_id, []).append(gid)
+        for tp_id, gids in theo_tp.items():
+            giay = next((g for g in gids if not _la_song(g)), None)
+            song = next((g for g in gids if _la_song(g)), None)
+            db.execute(text("UPDATE phieu_thanh_phan SET giay_id = :g, song_id = :s WHERE id = :i"),
+                       {"g": giay, "s": song, "i": tp_id})
+        if dong:
+            db.execute(text("DELETE FROM phieu_buoc_vat_tu WHERE hang_loai = 'giay'"))
+    for tp_id, gid in db.execute(text(
+            "SELECT id, giay_id FROM phieu_thanh_phan WHERE giay_id IS NOT NULL AND song_id IS NULL")).all():
+        if _la_song(gid):
+            db.execute(text("UPDATE phieu_thanh_phan SET giay_id = NULL, song_id = :s WHERE id = :i"),
+                       {"s": gid, "i": tp_id})
+    db.commit()
+
+
+MIGRATIONS.append(("0445_ptg_song_id_giay_len_san_pham", _migrate_ptg_song_id_giay_len_san_pham))

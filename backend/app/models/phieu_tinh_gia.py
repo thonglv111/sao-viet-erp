@@ -131,6 +131,9 @@ class PhieuThanhPhan(Base):
 
     # --- Giấy ---
     giay_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)  # → giay_nguyen.id (soft)
+    # Sóng của sản phẩm (24/10/2026, mg 0445): mã loại `song` của `giay_nguyen`, chọn MỘT lần cạnh
+    # Giấy. Có sóng thì chuỗi phải có bước bồi hệ thống (`CD_BOI`) — số tờ sóng là SL vào của bước đó.
+    song_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → giay_nguyen.id (soft)
     kho_nguyen: Mapped[str | None] = mapped_column(String(100), nullable=True)      # nhãn hiển thị "rộng×dài" (giay_ten fallback)
     kho_nguyen_dai: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)   # mm — khổ giấy nguyên ① dài (ĐÈ danh mục khi > 0) · số lẻ được
     kho_nguyen_rong: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)  # mm — rộng ①
@@ -364,9 +367,8 @@ class PhieuBuocVatTu(Base):
         Integer, ForeignKey("phieu_thanh_pham.id", ondelete="CASCADE"), index=True, nullable=False
     )
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Món thuộc danh mục nào (18/10/2026, mg 0419): `vat_tu` → vat_tu_in_an, `giay` → giay_nguyen.
-    # Khoá CẶP như `lsx_cong_doan_vat_tu`: Giấy #7 và Vật tư #7 là hai món khác nhau. Giấy nay chọn
-    # ở bước như mọi vật tư; `phieu_thanh_phan.giay_id` thành giấy chính DẪN XUẤT từ các dòng này.
+    # Món thuộc danh mục nào (18/10/2026, mg 0419). Từ 24/10/2026 (mg 0445) giấy/sóng chọn ở SẢN PHẨM
+    # (`phieu_thanh_phan.giay_id`/`song_id`), bước chỉ còn `vat_tu` — máy chủ chặn `giay` ở bước.
     hang_loai: Mapped[str] = mapped_column(
         String(10), nullable=False, default="vat_tu", server_default="vat_tu")
     vat_tu_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)  # → vat_tu_in_an.id | giay_nguyen.id (soft)

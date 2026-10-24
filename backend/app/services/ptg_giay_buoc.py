@@ -1,16 +1,14 @@
-"""Giấy là vật tư của BƯỚC trong phiếu tính giá (18/10/2026).
+"""Giấy và Sóng của phiếu tính giá chọn ở SẢN PHẨM (24/10/2026, spec 2026-10-24-chuan-bi-giay §4).
 
-Giấy chọn ở ô "Thêm vật tư" của công đoạn như mọi vật tư (`phieu_buoc_vat_tu.hang_loai = 'giay'`).
-`phieu_thanh_phan.giay_id` thôi là ô nhập: máy chủ chốt nó thành GIẤY CHÍNH lúc lưu — giấy ở bước In
-(nhóm `print`), không có thì giấy ở công đoạn đầu tiên có giấy. Mọi nơi đang đọc `giay_id` (bài ghép,
-quy cách lệnh, báo giá, kiểm gsm máy, biến `dinh_luong`) vì thế giữ nguyên.
+`phieu_thanh_phan.giay_id` = mã loại Giấy, `song_id` = mã loại Sóng — mỗi thứ MỘT lần, cạnh khổ nguyên.
+Chuỗi bước chỉ còn In + sau in, không bước nào mang giấy (`kiem_giay_song`). Có sóng thì chuỗi phải có
+bước bồi hệ thống (`CD_BOI`): số tờ sóng là SL vào của bước bồi đầu tiên.
 
-Payload cũ (API, test, cấu hình tái bản chụp trước 18/10) gửi `giay_id` mà không dòng giấy nào ⇒
-chuyển thành một dòng giấy ở bước In, đúng luật migration `0419` — không để giấy rơi mất.
+Dữ liệu cũ (giấy là vật tư của bước, 18/10–24/10/2026): mg 0445 đưa dòng giấy của bước lên sản phẩm
+theo loại; cấu hình tái bản chụp hồi đó đổi lúc nạp (`chuyen_giay_buoc_len_san_pham`).
 
-LOẠI Giấy / Sóng (19/10/2026, mg 0426): một sản phẩm có TỐI ĐA 1 mã loại Giấy + 1 mã loại Sóng
-(`loi_tran_giay`, cùng mã lặp ở nhiều bước vẫn là một mã). Giấy chính là mã loại Giấy; chỉ có Sóng
-thì là mã Sóng — để bình bài/khổ/định lượng vẫn có số. Thiếu giấy KHÔNG chặn.
+Lệnh sản xuất VẪN mang giấy ở bước (bước đầu của khâu chuẩn bị giấy) — `bang_giay`, `id_giay_cua_rows`,
+`loi_tran_giay` phục vụ luật trần 1 Giấy + 1 Sóng của lệnh (19/10/2026, mg 0426).
 """
 from __future__ import annotations
 
@@ -19,13 +17,10 @@ from typing import Callable, Iterable, NamedTuple
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models.cong_doan import CongDoan
+from ..models.cong_doan import CD_BOI, CongDoan
 from ..models.vat_lieu_kho import LOAI_GIAY, LOAI_SONG, GiayNguyen
 
 HANG_GIAY = "giay"
-NHOM_IN = "print"
-
-NhomCua = Callable[[int | None], str | None]
 
 
 class ThongTinGiay(NamedTuple):
@@ -89,51 +84,60 @@ def _vat_tus(r) -> list:
     return (r.get("vat_tus") if isinstance(r, dict) else getattr(r, "vat_tus", None)) or []
 
 
-def giay_chinh(rows: list, nhom_cua: NhomCua, bang: BangGiay | None = None) -> int | None:
-    """Giấy chính của chuỗi `rows` (dict payload hoặc ORM `PhieuThanhPham`, đã xếp đúng thứ tự).
+NhomVaMa = Callable[[int | None], tuple[str | None, str | None]]
 
-    Ứng viên là các dòng loại Giấy; không có thì các dòng loại Sóng. Trong ứng viên: dòng đầu tiên ở
-    bước In đầu tiên có ứng viên; không bước In nào có thì dòng đầu tiên ở bước đầu tiên có. Chuỗi
-    không giấy ⇒ None. `bang=None` ⇒ mọi mã coi là loại Giấy (hành vi trước khi có loại)."""
-    for loai in (LOAI_GIAY, LOAI_SONG):
-        dau_tien = None
-        for r in rows:
-            ung_vien = [v for v in _vat_tus(r) if _la_giay(v) and loai_cua(bang, _gid(v)) == loai]
-            if not ung_vien:
-                continue
-            if nhom_cua(_cd_id(r)) == NHOM_IN:
-                return _gid(ung_vien[0])
-            if dau_tien is None:
-                dau_tien = _gid(ung_vien[0])
-        if dau_tien is not None:
-            return dau_tien
+
+def nhom_va_ma_cong_doan(db: Session, cd_ids) -> NhomVaMa:
+    """Bản tra `cong_doan_id → (nhóm, mã)` dựng bằng MỘT câu cho cả lượt lưu."""
+    ids = {int(i) for i in cd_ids if i}
+    bang: dict[int, tuple[str | None, str | None]] = {}
+    if ids:
+        bang = {int(i): (n, m) for i, n, m in db.execute(
+            select(CongDoan.id, CongDoan.nhom, CongDoan.ma).where(CongDoan.id.in_(ids)))}
+    return lambda cid: bang.get(int(cid), (None, None)) if cid else (None, None)
+
+
+def _ten(bang: BangGiay, gid: int) -> str:
+    tt = bang.get(int(gid))
+    return tt.ten if tt and tt.ten else f"#{gid}"
+
+
+def kiem_giay_song(db: Session, tp: dict, nhom_va_ma_cua: NhomVaMa, *,
+                   bang: BangGiay | None = None) -> str | None:
+    """Câu lỗi 422 cho một sản phẩm (`ThanhPhanIn.model_dump()`), None = hợp lệ.
+
+    `giay_id` phải là mã loại Giấy, `song_id` mã loại Sóng (mã vắng khỏi danh mục: không chặn — FK mềm,
+    phiếu cũ lưu lại được); có sóng thì chuỗi phải có bước mã thuộc `CD_BOI`; bước không mang giấy.
+    `bang` nạp sẵn cho cả phiếu thì khỏi hỏi lại mỗi sản phẩm."""
+    ten_sp = tp.get("ten") or "chưa đặt tên"
+    rows = tp.get("thanh_phams") or []
+    if any(_la_giay(v) for r in rows for v in _vat_tus(r)):
+        return f"Sản phẩm «{ten_sp}»: giấy và sóng chọn ở sản phẩm, bước không mang giấy."
+    gid, sid = tp.get("giay_id"), tp.get("song_id")
+    if bang is None:
+        bang = bang_giay(db, (gid, sid))
+    if gid and int(gid) in bang and bang[int(gid)].loai != LOAI_GIAY:
+        return f"Sản phẩm «{ten_sp}»: «{_ten(bang, gid)}» là sóng, chọn ở ô Sóng."
+    if sid and int(sid) in bang and bang[int(sid)].loai != LOAI_SONG:
+        return f"Sản phẩm «{ten_sp}»: «{_ten(bang, sid)}» là giấy, chọn ở ô Giấy."
+    if sid and not any(nhom_va_ma_cua(_cd_id(r))[1] in CD_BOI for r in rows):
+        return "Sản phẩm có sóng nhưng chuỗi chưa có bước bồi."
     return None
 
 
-def chuan_hoa_giay(data: dict, nhom_cua: NhomCua, bang: BangGiay | None = None) -> dict:
-    """Chuẩn hoá `ThanhPhanIn.model_dump()` tại chỗ rồi trả lại chính nó.
+def chuyen_giay_buoc_len_san_pham(data: dict, bang: BangGiay) -> dict:
+    """Cấu hình cũ (giấy là vật tư của bước) → giấy/sóng cấp sản phẩm, sửa TẠI CHỖ rồi trả lại.
 
-    1. Có `giay_id` mà chưa bước nào có dòng giấy ⇒ thêm dòng giấy vào bước In đầu tiên (không có
-       thì bước đầu chuỗi).
-    2. Chuỗi có bước ⇒ `giay_id` = giấy chính dẫn xuất (None khi không bước nào có giấy — người dùng
-       đã xoá giấy thì giấy chính cũng đi theo). Chuỗi rỗng ⇒ giữ `giay_id` như gửi lên.
-    """
+    Có dòng giấy ở bước ⇒ mã loại Giấy đầu tiên thành `giay_id`, mã Sóng đầu tiên thành `song_id`, xoá
+    các dòng đó khỏi bước — cùng luật mg 0445. Không dòng nào mà `giay_id` là mã sóng ⇒ sang `song_id`."""
     rows = data.get("thanh_phams") or []
-    if not rows:
-        return data
-    gid = data.get("giay_id")
-    if gid and not any(_la_giay(v) for r in rows for v in _vat_tus(r)):
-        dich = next((r for r in rows if nhom_cua(_cd_id(r)) == NHOM_IN), rows[0])
-        dich["vat_tus"] = [*_vat_tus(dich), {"hang_loai": HANG_GIAY, "vat_tu_id": int(gid),
-                                             "gia_tri_chip": None}]
-    data["giay_id"] = giay_chinh(rows, nhom_cua, bang)
+    gids = id_giay_cua_rows(rows)
+    if gids:
+        data["giay_id"] = next((g for g in gids if loai_cua(bang, g) == LOAI_GIAY), None)
+        data["song_id"] = next((g for g in gids if loai_cua(bang, g) == LOAI_SONG), None)
+        for r in rows:
+            if isinstance(r, dict) and r.get("vat_tus"):
+                r["vat_tus"] = [v for v in r["vat_tus"] if not _la_giay(v)]
+    elif data.get("giay_id") and loai_cua(bang, data["giay_id"]) == LOAI_SONG and not data.get("song_id"):
+        data["song_id"], data["giay_id"] = data["giay_id"], None
     return data
-
-
-def nhom_cong_doan(db: Session, cd_ids) -> NhomCua:
-    """Bản tra `cong_doan_id → nhóm` dựng bằng MỘT câu cho cả lượt lưu."""
-    ids = {int(i) for i in cd_ids if i}
-    nhom: dict[int, str | None] = {}
-    if ids:
-        nhom = dict(db.execute(select(CongDoan.id, CongDoan.nhom).where(CongDoan.id.in_(ids))).all())
-    return lambda cid: nhom.get(int(cid)) if cid else None

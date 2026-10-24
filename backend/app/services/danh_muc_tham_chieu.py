@@ -188,12 +188,12 @@ def _mat_hang(db: Session, obj, hang_loai: str) -> ThamChieu:
     )
     if hang_loai == "giay":
         from ..models.bai_ghep import BaiGhep
-        from ..models.phieu_tinh_gia import PhieuBuocVatTu, PhieuThanhPhan
+        from ..models.phieu_tinh_gia import PhieuThanhPhan
+        # Giấy/sóng chọn ở SẢN PHẨM (mg 0445) — bước phiếu không mang giấy nữa.
         chan += _gom(
-            _cau(_dem(db, PhieuThanhPhan, PhieuThanhPhan.giay_id == obj.id),
+            _cau(_dem(db, PhieuThanhPhan, or_(PhieuThanhPhan.giay_id == obj.id,
+                                              PhieuThanhPhan.song_id == obj.id)),
                  "thành phần phiếu tính giá"),
-            _cau(_dem(db, PhieuBuocVatTu, PhieuBuocVatTu.hang_loai == "giay",
-                      PhieuBuocVatTu.vat_tu_id == obj.id), "dòng giấy của bước phiếu tính giá"),
             _cau(_dem(db, BaiGhep, BaiGhep.giay_id == obj.id), "bài ghép"),
         )
     else:

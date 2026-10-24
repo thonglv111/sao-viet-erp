@@ -371,7 +371,7 @@ def test_snapshot_chep_du_moi_o_nhap(db):
         phieu_id=p.id, thu_tu=0, loai_thanh_phan="hop", ten="Hộp đủ ô",
         dai_thanh_pham=90.5, rong_thanh_pham=54.5, so_trang=4, trang_moi_tay=2, so_luong=1000,
         don_vi_tinh="hộp", nhom_bao_gia="Bộ hộp", dvt_nhom="bộ",
-        giay_id=101, kho_nguyen="65x86", kho_nguyen_dai=650, kho_nguyen_rong=860,
+        giay_id=101, song_id=102, kho_nguyen="65x86", kho_nguyen_dai=650, kho_nguyen_rong=860,
         don_gia_giay=25000, don_gia_don_vi="kg", nguon_giay="khach", chua_nhip=12,
         bleed_mm=3, khe_cat_mm=2, co_in=False, che_ban_loai="ctp", che_ban_don_gia=150_000,
         quy_cach_in="tu_tro", kho_in_dai=430, kho_in_rong=650, so_con=8, con_auto=False,

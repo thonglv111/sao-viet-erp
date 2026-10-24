@@ -73,11 +73,10 @@ def he_so_gia_giay(ma: str | None, nap: DanhMucNapSan) -> float | None:
 
 
 def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
-    # Dòng vật tư của bước khoá CẶP (18/10/2026): `hang_loai='giay'` trỏ `giay_nguyen`, còn lại
-    # trỏ `vat_tu_in_an` — Giấy #7 và Vật tư #7 là hai món, gom chung một bộ id là nạp nhầm bảng.
+    # Giấy + sóng chọn ở SẢN PHẨM (24/10/2026). Dòng vật tư của bước chỉ còn trỏ `vat_tu_in_an`; dòng
+    # `hang_loai='giay'` sót lại (trước mg 0445) bỏ qua — Giấy #7 và Vật tư #7 là hai món khác nhau.
     dong = [v for tp in tps for r in tp.thanh_phams for v in r.vat_tus if v.vat_tu_id is not None]
-    giay_ids = ({int(tp.giay_id) for tp in tps if tp.giay_id is not None}
-                | {int(v.vat_tu_id) for v in dong if v.hang_loai == "giay"})
+    giay_ids = {int(g) for tp in tps for g in (tp.giay_id, getattr(tp, "song_id", None)) if g is not None}
     may_ids = {int(tp.may_id) for tp in tps if tp.may_id is not None}
     cd_ids = {int(r.cong_doan_id) for tp in tps for r in tp.thanh_phams if r.cong_doan_id is not None}
     vt_ids = {int(v.vat_tu_id) for v in dong if v.hang_loai != "giay"}
@@ -112,21 +111,11 @@ def nap_danh_muc_phieu(db: Session, tps) -> DanhMucNapSan:
 def _vat_tus_cua_buoc(db: Session, buoc: PhieuThanhPham, nap: DanhMucNapSan) -> list[dict]:
     """Vật tư của MỘT bước kèm công thức giá + chip của vật tư (engine không tự tra DB).
 
-    Dòng GIẤY (18/10/2026) mang định lượng + công thức + đơn giá của chính mã giấy, kèm hệ số quy
-    đơn giá về một tờ / một kg — engine tính tiền mỗi dòng giấy theo đầu vào của bước.
-    Món đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống."""
+    Món đã xoá khỏi danh mục thì bỏ im lặng — danh mục là nguồn sống. Dòng giấy sót lại ở bước (trước
+    mg 0445) cũng bỏ: giấy/sóng tính ở cấp sản phẩm."""
     out: list[dict] = []
     for vt in sorted(buoc.vat_tus or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
         if vt.hang_loai == "giay":
-            g = nap.giay.get(int(vt.vat_tu_id))
-            if g is None:
-                continue
-            he_so, goc = quy_gia_giay(g.don_vi_gia, nap)
-            out.append({
-                "hang_loai": "giay", "vat_tu_id": g.id, "ten": g.ten, "gsm": g.gsm,
-                "don_gia": _f(g.don_gia), "don_vi_gia": g.don_vi_gia,
-                "he_so": he_so, "goc": goc, "cong_thuc_gia": g.cong_thuc_gia,
-            })
             continue
         m = nap.vat_tu.get(vt.vat_tu_id)
         if m is None:
@@ -195,7 +184,7 @@ _TP_SCALAR_FIELDS = (
     # `don_vi_tinh` đi qua engine như mọi trường khác → lệnh sản xuất kế thừa được ĐVT từ PHIẾU,
     # thôi cảnh mỗi tầng tự lấy một đường rồi không ai kiểm chúng có khớp nhau không.
     "don_vi_tinh", "so_to_per_sp", "so_trang", "trang_moi_tay", "so_luong",
-    "giay_id", "kho_nguyen", "kho_nguyen_dai", "kho_nguyen_rong", "don_gia_giay",
+    "giay_id", "song_id", "kho_nguyen", "kho_nguyen_dai", "kho_nguyen_rong", "don_gia_giay",
     "don_gia_don_vi", "nguon_giay",
     "chua_nhip", "bleed_mm", "khe_cat_mm",
     "co_in", "che_ban_loai", "che_ban_don_gia", "quy_cach_in",
@@ -238,21 +227,27 @@ def _resolve_thanh_phan(db: Session, tp, nap: DanhMucNapSan | None = None) -> di
         else:
             d[k] = _f(v)  # Decimal → float
 
-    # Giấy CHÍNH (`giay_id`, máy chủ dẫn xuất từ dòng giấy của bước — `ptg_giay_buoc`): nuôi định
-    # lượng (`dinh_luong`) + tên giấy của quy cách. TIỀN giấy thì tính theo từng dòng giấy ở bước;
-    # chỉ chuỗi RỖNG (phiếu/test cũ chưa có bước) mới còn tính giấy cấp sản phẩm như trước. Cột
-    # `don_gia_giay` trong DB có thể còn số cũ từ thời chọn giấy ở mục 2 — không cho nó đẻ dòng giấy ma.
+    # GIẤY của sản phẩm (`giay_id`, 24/10/2026): định lượng + tên + giá đều từ danh mục — dòng tiền giấy
+    # cấp sản phẩm của engine. Cột `don_gia_giay` trong DB có thể còn số cũ từ thời chọn giấy ở mục 2 —
+    # không cho nó đẻ dòng giấy ma khi chưa chọn giấy.
     d["don_gia_giay"] = 0.0
     d["cong_thuc_gia"] = None
     giay = nap.giay.get(int(tp.giay_id)) if tp.giay_id is not None else None
     if giay is not None:
         d["gsm"] = giay.gsm
         d["giay_ten"] = giay.ten
-        if not tp.thanh_phams:
-            d["cong_thuc_gia"] = giay.cong_thuc_gia   # G1: công thức cấu hình từ danh mục Giấy
-            d["don_gia_giay"] = _f(giay.don_gia)      # chốt cứng: đơn giá theo danh mục
-            d["don_gia_don_vi"] = giay.don_vi_gia
-            d["don_gia_giay_he_so"] = he_so_gia_giay(giay.don_vi_gia, nap)
+        d["cong_thuc_gia"] = giay.cong_thuc_gia   # G1: công thức cấu hình từ danh mục Giấy
+        d["don_gia_giay"] = _f(giay.don_gia)      # chốt cứng: đơn giá theo danh mục
+        d["don_gia_don_vi"] = giay.don_vi_gia
+        d["don_gia_giay_he_so"] = he_so_gia_giay(giay.don_vi_gia, nap)
+    # SÓNG của sản phẩm: engine tính tiền theo SL vào của bước bồi hệ thống đầu tiên, khổ = khổ in.
+    sid = getattr(tp, "song_id", None)
+    song = nap.giay.get(int(sid)) if sid is not None else None
+    d["song"] = None if song is None else {
+        "vat_tu_id": song.id, "ten": song.ten, "gsm": song.gsm, "don_gia": _f(song.don_gia),
+        "don_vi_gia": song.don_vi_gia, "he_so": he_so_gia_giay(song.don_vi_gia, nap),
+        "cong_thuc_gia": song.cong_thuc_gia,
+    }
 
     # Khổ giấy nguyên ①: nhập tay ở phiếu (kho_nguyen_dai/rong). Áp cả khi khách cấp giấy.
     if _f(d.get("kho_nguyen_dai")):

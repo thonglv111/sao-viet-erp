@@ -101,16 +101,8 @@ def _dvt_nhom_dong(tp) -> str | None:
 
 
 def _giay_cac_buoc(tp) -> list[int]:
-    """Id giấy của sản phẩm theo thứ tự bước rồi thứ tự vật tư, không lặp. Chưa bước nào mang
-    giấy (phiếu trước mg 0419) ⇒ giấy chính `giay_id`."""
-    ids: list[int] = []
-    for r in sorted(getattr(tp, "thanh_phams", []) or [], key=lambda r: (r.thu_tu or 0, r.id or 0)):
-        for v in getattr(r, "vat_tus", []) or []:
-            if v.hang_loai == "giay" and v.vat_tu_id not in ids:
-                ids.append(v.vat_tu_id)
-    if not ids and getattr(tp, "giay_id", None) is not None:
-        ids.append(tp.giay_id)
-    return ids
+    """Id giấy rồi sóng của sản phẩm (chọn ở sản phẩm từ 24/10/2026, mg 0445), bỏ ô trống."""
+    return [g for g in (getattr(tp, "giay_id", None), getattr(tp, "song_id", None)) if g is not None]
 
 
 def markup_binh_quan(items, status: str) -> float | None:

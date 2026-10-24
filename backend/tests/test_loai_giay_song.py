@@ -43,12 +43,9 @@ def test_loc_va_dem_theo_loai():
     assert dem == {"giay": ("Giấy", 1), "song": ("Sóng", 1)}
 
 
-# ---- Luật trần + giấy chính theo loại (hàm thuần) ------------------------------------------------
-from app.services.ptg_giay_buoc import (  # noqa: E402
-    ThongTinGiay, giay_chinh, id_giay_cua_rows, loi_tran_giay,
-)
+# ---- Luật trần theo loại (hàm thuần — lệnh vẫn mang giấy ở bước) --------------------------------------
+from app.services.ptg_giay_buoc import ThongTinGiay, id_giay_cua_rows, loi_tran_giay  # noqa: E402
 
-_NHOM = {1: "finishing", 2: "print"}.get
 _BANG = {10: ThongTinGiay("giay", "COUCHE 150"), 11: ThongTinGiay("giay", "IVORY 300"),
          20: ThongTinGiay("song", "SÓNG E"), 21: ThongTinGiay("song", "SÓNG B")}
 
@@ -57,23 +54,7 @@ def _g(gid):
     return {"hang_loai": "giay", "vat_tu_id": gid}
 
 
-def test_giay_chinh_la_ma_loai_giay_du_song_dung_truoc():
-    # Cắt tờ (finishing) mang sóng, In mang couche ⇒ couche.
-    rows = [{"cong_doan_id": 1, "vat_tus": [_g(20)]}, {"cong_doan_id": 2, "vat_tus": [_g(10)]}]
-    assert giay_chinh(rows, _NHOM, _BANG) == 10
-    # Cùng một bước Cắt tờ, sóng khai trước couche ⇒ vẫn couche.
-    rows = [{"cong_doan_id": 1, "vat_tus": [_g(20), _g(10)]}, {"cong_doan_id": 2, "vat_tus": []}]
-    assert giay_chinh(rows, _NHOM, _BANG) == 10
-
-
-def test_chi_song_thi_song_la_giay_chinh():
-    rows = [{"cong_doan_id": 2, "vat_tus": [_g(20)]}]
-    assert giay_chinh(rows, _NHOM, _BANG) == 20
-
-
 def test_bang_thieu_ma_coi_la_giay():
-    rows = [{"cong_doan_id": 1, "vat_tus": [_g(20), _g(99)]}]
-    assert giay_chinh(rows, _NHOM, _BANG) == 99
     assert loi_tran_giay("Hộp", [10, 99], _BANG) is not None
 
 
@@ -94,53 +75,18 @@ def test_cung_ma_hai_buoc_khong_loi_va_mot_giay_mot_song_duoc():
     assert loi_tran_giay("Hộp", [], _BANG) is None
 
 
-# ---- Lưu phiếu tính giá ----------------------------------------------------------------------------
-from app.db import SessionLocal  # noqa: E402
-from app.models.vat_lieu_kho import GiayNguyen  # noqa: E402
-from tests.test_giay_vat_tu_buoc import _giay, _luu, _seed, _tp, h  # noqa: E402,F401
-
-
-def _doi_loai(gid: int, loai: str) -> None:
-    db = SessionLocal()
-    try:
-        db.get(GiayNguyen, gid).loai = loai
-        db.commit()
-    finally:
-        db.close()
-
-
-def test_luu_phieu_hai_giay_422(client, h):
-    ids = _seed()
-    r = client.post("/api/phieu-tinh-gia", json={"so_luong": 1000, "thanh_phans": [
-        _tp(ids, vt_in=[_giay(ids["a"])], vt_can=[_giay(ids["b"])])]}, headers=h)
-    assert r.status_code == 422, r.text
-    assert "chỉ một giấy" in r.json()["detail"]
-
-
-def test_luu_phieu_giay_va_song_duoc(client, h):
-    ids = _seed()
-    _doi_loai(ids["a"], "song")
-    # Sóng ở bước In, giấy ở bước Cán: giấy chính vẫn là mã loại Giấy.
-    out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])], vt_can=[_giay(ids["b"])]))["thanh_phans"][0]
-    assert out["giay_id"] == ids["b"]
-
-
-def test_sua_phieu_thanh_hai_giay_422(client, h):
-    ids = _seed()
-    p = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])]))
-    r = client.put(f"/api/phieu-tinh-gia/{p['id']}", json={"thanh_phans": [
-        _tp(ids, vt_in=[_giay(ids["a"]), _giay(ids["b"])])]}, headers=h)
-    assert r.status_code == 422, r.text
-
-
+# ---- Phiếu tính giá: cấu hình tái bản cũ quá một giấy vẫn nạp được ----------------------------------
 def test_nap_tai_ban_hai_giay_khong_chan():
-    from app.services.ptg_giay_buoc import chuan_hoa_giay
+    """Đường ĐỌC không chặn: giấy loại Giấy đầu tiên lên `giay_id`, lần lưu phiếu mới là chỗ chặn."""
+    from app.services.ptg_giay_buoc import chuyen_giay_buoc_len_san_pham
 
     cfg = {"thanh_phams": [{"cong_doan_id": 2, "vat_tus": [_g(10), _g(11)]}]}
-    assert chuan_hoa_giay(cfg, _NHOM, _BANG)["giay_id"] == 10
+    out = chuyen_giay_buoc_len_san_pham(cfg, _BANG)
+    assert (out["giay_id"], out["song_id"]) == (10, None) and out["thanh_phams"][0]["vat_tus"] == []
 
 
 # ---- Lệnh sản xuất ---------------------------------------------------------------------------------
+from app.models.vat_lieu_kho import GiayNguyen  # noqa: E402
 from app.services.lsx_service import LsxValidationError  # noqa: E402
 from tests.test_giay_vat_tu_buoc_lsx import _ptg, _tao_lenh  # noqa: E402
 from tests.test_lsx_service import (  # noqa: E402,F401 — fixture dùng chung
@@ -171,8 +117,18 @@ def _ma_giay(db, lsx_svc, ma: str, loai: str) -> int:
     return g.id
 
 
+def _lenh_co_couche(db, orders, lsx_svc, admin, customer):
+    """Lệnh In → Cán, bước In mang COUCHE-150 (gắn qua routing: phiếu không còn giấy ở bước)."""
+    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o=None))
+    cou = _ma_giay(db, lsx_svc, "COUCHE-150", "giay")
+    lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_routing(
+        lsx, {0: [{"hang_loai": "giay", "vat_tu_id": cou}]}))
+    db.commit()
+    return lsx, cou
+
+
 def test_luu_lenh_hai_giay_bi_chan_ke_ca_buoc_khong_gui_vat_tus(db, orders, lsx_svc, admin, customer):
-    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    lsx, _ = _lenh_co_couche(db, orders, lsx_svc, admin, customer)
     ivory = _ma_giay(db, lsx_svc, "IVORY-300", "giay")
     # Bước In (0) giữ COUCHE vì không gửi `vat_tus`; bước Cán (1) thêm IVORY ⇒ lệnh có 2 giấy.
     with pytest.raises(LsxValidationError, match="Mỗi lệnh chỉ một giấy"):
@@ -181,14 +137,14 @@ def test_luu_lenh_hai_giay_bi_chan_ke_ca_buoc_khong_gui_vat_tus(db, orders, lsx_
 
 
 def test_luu_lenh_giay_va_song_duoc_va_dong_mang_loai(db, orders, lsx_svc, admin, customer):
-    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    lsx, _ = _lenh_co_couche(db, orders, lsx_svc, admin, customer)
     song = _ma_giay(db, lsx_svc, "SONG-E", "song")
     lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_routing(
         lsx, {1: [{"hang_loai": "giay", "vat_tu_id": song}]}))
     db.commit()
     d = lsx_svc.detail_dict(lsx)
     loai = {v["vat_tu_ten"]: v["giay_loai"] for cd in d["cong_doans"] for v in cd["vat_tus"]}
-    assert loai == {"Couche 150": "giay", "SONG-E": "song"}
+    assert loai == {"COUCHE-150": "giay", "SONG-E": "song"}
 
 
 # ---- Thẻ quy cách tách Giấy / Sóng -----------------------------------------------------------------
@@ -209,11 +165,9 @@ def test_the_quy_cach_khong_song_khong_khoa():
 def test_giay_song_cac_buoc_tach_loai(db, orders, lsx_svc, admin, customer):
     from app.repositories.lsx_repo import LsxRepository
 
-    lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    lsx, cou = _lenh_co_couche(db, orders, lsx_svc, admin, customer)
     song = _ma_giay(db, lsx_svc, "SONG-E", "song")
     lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=_routing(
-        lsx, {0: [{"hang_loai": "giay", "vat_tu_id": song},
-                  {"hang_loai": "giay", "vat_tu_id": next(
-                      v.vat_tu_id for cd in lsx.cong_doans for v in cd.vat_tus if v.hang_loai == "giay")}]}))
+        lsx, {0: [{"hang_loai": "giay", "vat_tu_id": song}, {"hang_loai": "giay", "vat_tu_id": cou}]}))
     db.commit()
-    assert LsxRepository(db).giay_song_cac_buoc(lsx.id) == (["Couche 150"], ["SONG-E"])
+    assert LsxRepository(db).giay_song_cac_buoc(lsx.id) == (["COUCHE-150"], ["SONG-E"])
