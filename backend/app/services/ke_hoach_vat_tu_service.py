@@ -1167,7 +1167,8 @@ class KeHoachVatTuService:
             qc_bai = quy_cach_bien_bai(bg, thanh_vien=lsx_map.values(), so_to=so_to_dict)
             buoc = sorted(self._buoc_chung(bg.id), key=lambda c: c.thu_tu)
             neo = neo_bai.get(bg.id)
-            gy = self._giay_bai_theo_buoc_dau(neo, qc_bai, so_to_dict)
+            gy = self._giay_bai_cuon(bg, neo, lsx_map, so_to_dict) or self._giay_bai_theo_buoc_dau(
+                neo, qc_bai, so_to_dict)
             if gy is None:
                 gy = goi_y_dong_giay(qc_bai)
             neo = neo or (buoc[0] if buoc else None)
@@ -1311,6 +1312,27 @@ class KeHoachVatTuService:
             if k not in dau or moc < dau[k][0]:
                 dau[k] = (moc, cd.id)
         return {k: v[1] for k, v in dau.items()}
+
+    def _giay_bai_cuon(self, bg, neo, lsx_map: dict, so_to: dict) -> dict | None:
+        """Bài lấy giấy từ CUỘN (`bai_ghep.nguon_giay='cuon'`) mà bước lấy giấy là Cắt giấy cuộn chung ⇒
+        kg theo rộng cuộn của dòng giấy ở bước thành viên nó phủ, số tờ nguyên = SL vào của bước đó
+        (spec 2026-10-24-chuan-bi-giay §8). Không phải ca đó ⇒ None, đi luật bước đầu như cũ."""
+        from ..models.cong_doan import CD_CAT_CUON
+        from ..repositories.cong_doan_repo import id_cong_doan_he_thong
+        from .chuan_bi_giay import NguonChon, dong_giay_buoc_dau
+
+        if getattr(bg, "nguon_giay", None) != "cuon" or neo is None or not neo.cong_doan_id:
+            return None
+        if neo.cong_doan_id != id_cong_doan_he_thong(self.db, CD_CAT_CUON):
+            return None
+        rong = self.repo.rong_cuon_cua_buoc_chung(neo.id, bg.giay_id)
+        dv = self._bg().dau_vao_giay_bai(bg, lsx_map, so_to)
+        if not rong or dv is None or dv.kho_nguyen is None:
+            return None
+        vao = _f(neo.so_luong_vao) or _f(so_to.get("to_nguyen_can"))
+        d = dong_giay_buoc_dau(NguonChon("cuon", int(rong), None), dv, vao)
+        return {"so_luong": _f(d["so_luong"]) or None, "don_vi": "kg",
+                "kho_rong": d["kho_rong"], "kho_dai": 0, "ly_do": None}
 
     def _giay_bai_theo_buoc_dau(self, neo, qc_bai: dict, so_to: dict) -> dict | None:
         """Dòng giấy của BÀI theo đầu vào của bước chung ĐẦU (kể cả bước cắt tổ chèn). Số lượng lấy từ

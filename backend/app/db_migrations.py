@@ -19235,3 +19235,17 @@ def _migrate_lsx_nguon_giay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0446_lsx_nguon_giay", _migrate_lsx_nguon_giay))
+
+
+def _migrate_bai_ghep_nguon_giay(db: Session) -> None:
+    """0447 (24/10/2026, spec 2026-10-24-chuan-bi-giay §8) — `bai_ghep.nguon_giay`: nguồn giấy của bài
+    (to_in | to_nguyen | cuon | mua). Bài cũ để NULL, không dựng lại khâu. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "bai_ghep" not in set(insp.get_table_names()):
+        return
+    if "nguon_giay" not in {c["name"] for c in insp.get_columns("bai_ghep")}:
+        db.execute(text("ALTER TABLE bai_ghep ADD COLUMN nguon_giay VARCHAR(12)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0447_bai_ghep_nguon_giay", _migrate_bai_ghep_nguon_giay))

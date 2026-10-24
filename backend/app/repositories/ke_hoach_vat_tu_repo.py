@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..models.bai_ghep_cong_doan import (
     BaiGhepCongDoan, BaiGhepCongDoanMap, BaiGhepCongDoanVatTu,
 )
-from ..models.lsx import LsxCongDoanVatTu
+from ..models.lsx import LsxCongDoan, LsxCongDoanVatTu
 from ..models.may_thiet_bi import MayThietBi
 from ..models.san_xuat import CV_HOAN_THANH, SanXuatCongViec
 from ..models.stock_lot import LOT_ISSUABLE, StockLot
@@ -88,6 +88,19 @@ class KeHoachVatTuRepository:
             )
             .where(BaiGhepCongDoan.bai_ghep_id.in_(ids))
         ).scalars())
+
+    def rong_cuon_cua_buoc_chung(self, buoc_chung_id: int, giay_id: int) -> int | None:
+        """Rộng cuộn (mm) trên dòng giấy của một bước thành viên mà bước chung này phủ — Cắt giấy cuộn
+        chung của bài lấy rộng cuộn ở đó (spec 2026-10-24-chuan-bi-giay §8)."""
+        return self.db.scalar(
+            select(LsxCongDoanVatTu.kho_rong)
+            .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+            .join(BaiGhepCongDoanMap, BaiGhepCongDoanMap.lsx_step_key == LsxCongDoan.step_key)
+            .where(BaiGhepCongDoanMap.bai_ghep_cong_doan_id == int(buoc_chung_id),
+                   LsxCongDoanVatTu.hang_loai == "giay", LsxCongDoanVatTu.vat_tu_id == int(giay_id),
+                   LsxCongDoanVatTu.kho_rong > 0)
+            .limit(1)
+        )
 
     def may_theo_ids(self, ids: set[int]) -> dict[int, MayThietBi]:
         """Máy của các bước — nạp LÔ để suy thời lượng, tra từng cái là N+1 theo số bước."""

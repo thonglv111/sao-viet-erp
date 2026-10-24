@@ -2388,15 +2388,17 @@ class LsxService:
     def _chon_nguon_giay(self, lsx: Lsx) -> NguonChon | None:
         """Nguồn giấy theo TỒN TỰ DO (tồn − đang giữ), đọc MỘT lượt cho mọi khoá ứng viên. Chọn sau
         chuỗi ngược lần đầu: cần SL vào In."""
+        in_ = self._buoc_in(sorted(lsx.cong_doans, key=lambda c: c.thu_tu))
+        dv = self._dau_vao_giay(lsx, in_.so_luong_vao) if in_ is not None else None
+        return self._chon_nguon_theo_ton(dv) if dv is not None else None
+
+    def _chon_nguon_theo_ton(self, dv: DauVaoGiay) -> NguonChon:
+        """`chon_nguon` trên tồn tự do của mọi khoá ứng viên — dùng chung cho lệnh và bài ghép."""
         from types import SimpleNamespace
 
         from ..repositories.stock_lot_repo import StockLotRepository
         from .giu_cho_service import GiuChoService
 
-        in_ = self._buoc_in(sorted(lsx.cong_doans, key=lambda c: c.thu_tu))
-        dv = self._dau_vao_giay(lsx, in_.so_luong_vao) if in_ is not None else None
-        if dv is None:
-            return None
         ton = GiuChoService(self.db, SimpleNamespace(lots=StockLotRepository(self.db))).ton_tu_do(
             khoa_ung_vien(dv))
         return chon_nguon(dv, lambda k: ton.get(k, 0.0))

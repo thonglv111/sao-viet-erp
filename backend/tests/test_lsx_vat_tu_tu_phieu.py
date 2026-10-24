@@ -67,7 +67,8 @@ def test_tao_lenh_bung_vat_tu_cua_buoc_voi_chip_tu_phieu(db, orders, lsx_svc, ad
     assert v.gia_tri_chip == {"dai_support": 500, "rong_support": 400}
     assert float(v.so_luong) == pytest.approx(0.2)            # 500 × 400 / 1_000_000
     assert v.tu_dong is True
-    assert all(not c.vat_tus for c in lsx.cong_doans if c.ten != "Dán hộp")
+    # Bước khác chỉ còn dòng GIẤY máy gắn ở bước đầu khâu chuẩn bị (spec 2026-10-24-chuan-bi-giay §7).
+    assert all(v.hang_loai == "giay" for c in lsx.cong_doans if c.ten != "Dán hộp" for v in c.vat_tus)
 
 
 def test_phieu_khong_gan_vat_tu_thi_lenh_khong_bung_tu_danh_muc_cong_doan(

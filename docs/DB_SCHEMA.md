@@ -4609,6 +4609,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `giay_chot_cach` | `String(12)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
 | `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
 | `giay_chot_boi_id` | `Integer` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Soft → `users.id` — người chốt (mg 0356). |
+| `nguon_giay` | `String(12)` | — | yes | — | Nguồn giấy của BÀI (mg 0447, spec 2026-10-24-chuan-bi-giay §8), cùng bốn giá trị `lsx.nguon_giay`; chọn theo tồn tự do trên giấy + khổ in + khổ nguyên của bài lúc tạo bài / thêm / bỏ thành viên. Lệnh thành viên dựng Cắt giấy cuộn / Tề giấy in theo nguồn này; bài gộp In thì các bước đó gộp thành bước chung đứng trước In chung. NULL = bài cũ / bài chưa chọn giấy. |
 
 > **Derived, KHÔNG lưu cột** (engine `bai_ghep_service` tính lúc đọc): số tờ tốt = `max_i(ceil(lsx.so_luong_dat / so_con_tren_to))` · sản lượng dự kiến/dư mỗi thành viên · tổng tờ cấp = số tờ tốt + hao hụt · hạn in muộn nhất = `min(han_hoan_thanh_sx)` · % tờ dùng (fill).
 
@@ -4620,7 +4621,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 
 - Một `bai_ghep` có nhiều `bai_ghep_thanh_vien` (cascade delete). Các FK danh mục (`giay_id`, `may_id`) là MỀM.
 
-**Tất cả cột:** `id`, `ma`, `ten`, `han_hoan_thanh_sx`, `is_rush`, `nguoi_phu_trach_id`, `trang_thai`, `giu_cho_bat`, `giay_id`, `kho_in_dai`, `kho_in_rong`, `may_id`, `hao_hut_setup`, `hao_hut_chay`, `ghi_chu`, `created_by`, `created_at`, `updated_at`, `giay_chot_cach`, `giay_chot_luc`, `giay_chot_boi_id`.
+**Tất cả cột:** `id`, `ma`, `ten`, `han_hoan_thanh_sx`, `is_rush`, `nguoi_phu_trach_id`, `trang_thai`, `giu_cho_bat`, `giay_id`, `kho_in_dai`, `kho_in_rong`, `may_id`, `hao_hut_setup`, `hao_hut_chay`, `ghi_chu`, `created_by`, `created_at`, `updated_at`, `giay_chot_cach`, `giay_chot_luc`, `giay_chot_boi_id`, `nguon_giay`.
 
 ---
 

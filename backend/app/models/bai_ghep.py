@@ -85,6 +85,9 @@ class BaiGhep(Base):
     giay_chot_cach: Mapped[str | None] = mapped_column(String(12), nullable=True)
     giay_chot_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     giay_chot_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id (mềm)
+    # Nguồn giấy của BÀI (mg 0447, spec 2026-10-24-chuan-bi-giay §8): cùng bốn giá trị `lsx.nguon_giay`,
+    # chọn theo tồn trên giấy + khổ của bài; lệnh thành viên dựng khâu chuẩn bị theo nguồn này.
+    nguon_giay: Mapped[str | None] = mapped_column(String(12), nullable=True)
 
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id
     created_at: Mapped[datetime] = mapped_column(

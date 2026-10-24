@@ -21,7 +21,7 @@ from ..models.bai_ghep_cong_doan import (
     BaiGhepCongDoan, BaiGhepCongDoanMap, BaiGhepCongDoanVatTu,
     NGUON_SL_DINH_MUC, NGUON_SL_THU_CONG,
 )
-from ..models.cong_doan import CongDoan
+from ..models.cong_doan import CD_CAT_CUON, CD_TE_GIAY_IN, CongDoan
 from ..models.customer import Customer
 from ..models.lsx import (
     LB_MAY, LB_THUE_NGOAI, LB_TO,
@@ -35,7 +35,9 @@ from .bai_ghep_graph import (
     Buoc as GBuoc, CanhGoc as GCanh, co_do_thi, kiem_gop,
     ung_vien_gop as _ung_vien_gop,
 )
+from ..repositories.cong_doan_repo import id_cong_doan_he_thong
 from .bien_cong_thuc import quy_cach_bien_bai
+from .chuan_bi_giay import DauVaoGiay, NguonChon
 from ._may_fit import LY_DO_GSM, LY_DO_KHO, LY_DO_SO_MAU, kiem_kha_nang
 from .bu_hao_engine import chuoi_nguoc_dv, hao_buoc
 from ..models.don_vi_do import TRAM_CAI, TRAM_TAY, TRAM_TO, TRAM_TO_NGUYEN
@@ -381,6 +383,7 @@ class BaiGhepService:
         self._goi_y_giay_kho(bg, lsx_map)
         try:
             self.repo.add(bg)
+            self._dung_khau_chuan_bi_bai(bg, chon_lai=True)
             self.audit.create(
                 actor_user_id=getattr(actor, "id", None), action="tao_bai_ghep",
                 target=f"bai_ghep:{bg.id}", detail=f"Tạo bài ghép {bg.ma} ({len(ids)} LSX)",
@@ -432,6 +435,8 @@ class BaiGhepService:
             raise BaiGhepConflict(
                 "Có LSX đã thuộc bài ghép khác — tải lại danh sách rồi thử lại"
             ) from exc
+        self._dung_khau_chuan_bi_bai(bg, chon_lai=True)
+        self._sap_lai_thu_tu(bg)
         # Thêm lệnh → `so_to_tot` (max nhu cầu) và tổng con trên tờ đổi → số của bước chung đổi.
         self._tinh_lai(bg)
         self._mark_nhap(bg)
@@ -458,6 +463,11 @@ class BaiGhepService:
         self._go_lop_de(bg, lsx_id_bo)
         # Gỡ khỏi bài → thông số in trả về bài tính giá gốc (bố cục in riêng), không giữ số của bài.
         self._tinh_lai(bg, [lsx_id_bo])
+        self._tra_khau_rieng([lsx_id_bo])
+        if bg.thanh_viens:
+            self._dung_khau_chuan_bi_bai(bg, chon_lai=True)
+            self._sap_lai_thu_tu(bg)
+            self._tinh_lai(bg)
         self._mark_nhap(bg)
         self.audit.create(
             actor_user_id=getattr(actor, "id", None), action="bo_thanh_vien",
@@ -510,7 +520,10 @@ class BaiGhepService:
             if field in patch:
                 setattr(bg, field, patch[field])
         # Khổ tờ in đổi → số mảnh xả của thành viên đổi theo. Hao khai tay đổi → số tờ cấp đổi.
-        if {"kho_in_dai", "kho_in_rong", "hao_hut_setup", "hao_hut_chay"} & set(patch):
+        if {"giay_id", "kho_in_dai", "kho_in_rong"} & set(patch):
+            self._dung_khau_chuan_bi_bai(bg, chon_lai=True)
+            self._sap_lai_thu_tu(bg)
+        if {"giay_id", "kho_in_dai", "kho_in_rong", "hao_hut_setup", "hao_hut_chay"} & set(patch):
             self._tinh_lai(bg)
         self.audit.create(
             actor_user_id=getattr(actor, "id", None), action="sua_bai_ghep",
@@ -567,6 +580,119 @@ class BaiGhepService:
         svc = self._lsx_svc()
         for lsx in self.repo.lsx_by_ids(ids).values():
             svc._ap_chuoi_nguoc(lsx)
+
+    # ================= KHÂU CHUẨN BỊ GIẤY CỦA BÀI (spec 2026-10-24-chuan-bi-giay §8) =================
+    # Bước chung là lớp ĐÈ lên bước của lệnh, nên khâu chuẩn bị của bài cũng đi đường đó: lệnh vào bài
+    # dựng lại Cắt giấy cuộn / Tề giấy in theo nguồn của BÀI; bài gộp In thì các bước ấy gộp thành
+    # bước chung đứng trước In chung, giấy của bài lấy ở bước chung đầu (`buoc_lay_giay_bai_lo`).
+
+    def _id_khau(self) -> set[int]:
+        return {i for ma in (CD_CAT_CUON, CD_TE_GIAY_IN) if (i := id_cong_doan_he_thong(self.db, ma))}
+
+    def dau_vao_giay_bai(self, bg: BaiGhep, lsx_map: dict[int, Lsx],
+                         so_to: dict | None = None) -> DauVaoGiay | None:
+        """Đầu vào chọn nguồn của BÀI: giấy + khổ in của bài, khổ nguyên của thành viên, tờ in cấp
+        (`tong_to`), số mảnh xả theo cầu `to_nguyen → to` của bài. Bài chưa chọn giấy ⇒ None."""
+        if not bg.giay_id or not lsx_map:
+            return None
+        so_to = so_to if so_to is not None else self.tinh_so_to(bg, lsx_map)
+        qc = quy_cach_bien_bai(bg, thanh_vien=lsx_map.values(), so_to=so_to)
+        giay = self.db.get(GiayNguyen, int(bg.giay_id))
+        kn = (int(_f(qc.get("kho_nguyen_rong"))), int(_f(qc.get("kho_nguyen_dai"))))
+        xa = int(round(_f(self._cau_quy_doi(bg, lsx_map).get((TRAM_TO_NGUYEN, TRAM_TO)))))
+        return DauVaoGiay(
+            giay_id=int(bg.giay_id), gsm=_f(getattr(giay, "gsm", None)),
+            kho_in=(int(_f(bg.kho_in_rong)), int(_f(bg.kho_in_dai))),
+            kho_nguyen=kn if all(kn) else None,
+            so_to_in=int(_f(so_to.get("tong_to"))), so_manh_xa=xa or None)
+
+    def _dung_lai_khau_lenh(self, lsx: Lsx, nguon: NguonChon | None) -> None:
+        """Gỡ khâu chuẩn bị đang có của lệnh rồi dựng lại theo `nguon`. KHÔNG commit."""
+        svc = self._lsx_svc()
+        svc._go_khau_chuan_bi_giay(lsx)
+        moi = svc._dung_khau_chuan_bi(lsx, nguon)
+        svc._ap_chuoi_nguoc(lsx)
+        svc._bung_lai_vat_tu(lsx, moi)
+
+    def _rong_cuon_lenh(self, lsx: Lsx) -> int | None:
+        """Rộng cuộn trên dòng giấy ở bước Cắt giấy cuộn của lệnh; không có bước đó ⇒ None."""
+        id_cgc = id_cong_doan_he_thong(self.db, CD_CAT_CUON)
+        return next((int(v.kho_rong) for cd in lsx.cong_doans if id_cgc and cd.cong_doan_id == id_cgc
+                     for v in cd.vat_tus if v.hang_loai == "giay" and v.kho_rong), None)
+
+    def _tra_khau_rieng(self, lsx_ids: list[int]) -> None:
+        """Lệnh rời bài (bỏ thành viên / phá bài) ⇒ chọn lại nguồn theo tồn của CHÍNH lệnh (§7). Lệnh cũ
+        (`nguon_giay` NULL) không dựng. KHÔNG commit."""
+        svc = self._lsx_svc()
+        for lsx in self.repo.lsx_by_ids(lsx_ids).values():
+            if lsx.nguon_giay:
+                svc._ap_chuoi_nguoc(lsx)
+                self._dung_lai_khau_lenh(lsx, svc._chon_nguon_giay(lsx))
+
+    def _dung_khau_chuan_bi_bai(self, bg: BaiGhep, *, chon_lai: bool = False) -> None:
+        """Đồng bộ khâu chuẩn bị giấy của bài. KHÔNG commit; bên gọi sắp thứ tự + tính lại số.
+
+        `chon_lai` (tạo bài, thêm/bỏ thành viên, đổi giấy/khổ in): chọn lại `bg.nguon_giay` theo tồn
+        rồi dựng lại khâu của mọi thành viên có nguồn giấy. Bài chưa có giấy chung ⇒ để khâu riêng.
+        Sau đó: bài có In chung ⇒ mỗi công đoạn khâu có ≥ 2 lệnh (trong In chung) gộp thành một bước
+        chung; không In chung ⇒ không có khâu chung."""
+        ids = self._id_khau()
+        if chon_lai:
+            lsx_map = self._lsx_map(bg)
+            dv = self.dau_vao_giay_bai(bg, lsx_map)
+            nguon = self._lsx_svc()._chon_nguon_theo_ton(dv) if dv is not None else None
+            bg.nguon_giay = nguon.nguon if nguon is not None else None
+            if nguon is not None:
+                # Lệnh đã đúng nguồn (cùng rộng cuộn) thì để yên: giữ tổ/máy người đã khai ở bước khâu.
+                # Khâu chung trỏ bước cũ của lệnh dựng lại tự rụng ở vòng đối chiếu bên dưới.
+                for lsx in lsx_map.values():
+                    if lsx.nguon_giay and (lsx.nguon_giay, self._rong_cuon_lenh(lsx)) != (
+                            nguon.nguon, nguon.rong_cuon if nguon.nguon == "cuon" else None):
+                        self._dung_lai_khau_lenh(lsx, nguon)
+        chungs = self._buoc_chungs(bg)
+        de = self._de_len(chungs)
+        in_chung = next((c for c in chungs if c.nhom == NHOM_PRINT and c.cong_doan_id not in ids), None)
+        muon: dict[int, list[LsxCongDoan]] = {}
+        if in_chung is not None:
+            for lsx in self._lsx_map(bg).values():
+                if any(de.get(cd.step_key) is in_chung for cd in lsx.cong_doans):
+                    for cd in lsx.cong_doans:
+                        if cd.cong_doan_id in ids:
+                            muon.setdefault(cd.cong_doan_id, []).append(cd)
+        muon = {k: v for k, v in muon.items() if len(v) >= 2}
+        for c in chungs:
+            if c.cong_doan_id not in ids:
+                continue
+            keys = {k for k, x in de.items() if x is c}
+            if keys and keys == {cd.step_key for cd in muon.get(c.cong_doan_id, [])}:
+                muon.pop(c.cong_doan_id)
+            else:
+                self.db.delete(c)
+        self.db.flush()
+        for cd_id, cds in muon.items():
+            mau = cds[0]
+            chung = BaiGhepCongDoan(
+                bai_ghep_id=bg.id, cong_doan_id=cd_id, ten=mau.ten, nhom=mau.nhom,
+                loai_buoc=mau.loai_buoc, bat_buoc=bool(mau.bat_buoc), so_gio_ke_hoach=0,
+                don_vi_vao=mau.don_vi_vao, don_vi_ra=mau.don_vi_ra, thu_tu=int(mau.thu_tu or 0),
+            )
+            # Tổ/máy như `gop`: máy chung của các bước (hoặc máy mặc định), tổ theo máy; bước tổ
+            # không máy thì giữ tổ nếu mọi lệnh cùng một tổ.
+            if mau.loai_buoc == LB_MAY:
+                chung.may_id = self._may_cho_luot_chung(cd_id, cds)
+            if chung.may_id is not None:
+                from .may_to import to_cho_may
+
+                chung.department_id = to_cho_may(
+                    self.db, self.db.get(CongDoan, cd_id), chung.may_id, uu_tien=None)
+            elif len({cd.department_id for cd in cds}) == 1:
+                chung.department_id = mau.department_id
+            self.db.add(chung)
+            self.db.flush()
+            for cd in cds:
+                self.db.add(BaiGhepCongDoanMap(
+                    bai_ghep_cong_doan_id=chung.id, lsx_id=cd.lsx_id, lsx_step_key=cd.step_key))
+        self.db.flush()
 
     # ================= BƯỚC CHUNG (lớp ghi đè do NGƯỜI khai) =================
 
@@ -815,6 +941,7 @@ class BaiGhepService:
                 bai_ghep_cong_doan_id=chung.id, lsx_id=theo_key[k][1].id, lsx_step_key=k,
             ))
         self.db.flush()
+        self._dung_khau_chuan_bi_bai(bg)    # gộp In ⇒ khâu chuẩn bị của các lệnh thành bước chung
         self._sap_lai_thu_tu(bg)
         self._tinh_lai(bg)               # hao bước bị đè chuyển tầng → ghi lại số của bài lẫn lệnh
         self._mark_nhap(bg)
@@ -854,9 +981,13 @@ class BaiGhepService:
         chung = next((c for c in self._buoc_chungs(bg) if c.step_key == gang_step_key), None)
         if chung is None:
             raise BaiGhepNotFound("Không tìm thấy bước chung")
+        if chung.cong_doan_id in self._id_khau():
+            raise BaiGhepValidationError(
+                "Khâu chuẩn bị giấy đi theo In chung — tách In chung thì khâu này tự tách theo.")
         ten = chung.ten
         self.db.delete(chung)            # cascade gỡ map + vật tư
         self.db.flush()
+        self._dung_khau_chuan_bi_bai(bg)    # tách In chung ⇒ khâu chung tách theo
         self._sap_lai_thu_tu(bg)
         self._tinh_lai(bg)
         self._mark_nhap(bg)
@@ -2019,7 +2150,10 @@ class BaiGhepService:
         for g in lans:
             self.db.delete(g)
         self.db.flush()
+        lsx_ids = [tv.lsx_id for tv in bg.thanh_viens]
         self.repo.delete(bg)  # cascade xoá thành viên → LSX tự do lại
+        self.db.flush()
+        self._tra_khau_rieng(lsx_ids)    # phá bài ⇒ mỗi lệnh dựng lại khâu theo tồn của chính nó
         self.audit.create(
             actor_user_id=getattr(actor, "id", None), action="xoa_bai_ghep",
             target=f"bai_ghep:{bai_ghep_id}", detail=f"Xoá bài ghép {ma}",
