@@ -31,6 +31,7 @@ from ..repositories.org_scope import chu_cua
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.lsx import (
     BuocMacDinhOut,
+    DoiNguonGiayIn,
     HangChoOut,
     LsxActivityItem,
     LsxActivityOut,
@@ -576,6 +577,29 @@ def dong_bo_danh_muc(
     try:
         _guard_scope(db, svc.get(lsx_id), user, authz)
         lsx = svc.dong_bo_danh_muc(lsx_id=lsx_id, actor=user)
+    except Exception as exc:
+        raise _map(exc)
+    xoa_cache_can_doi()
+    hub.gui({"type": "lsx_changed", "order_id": lsx.order_id}, quyen=NGHE_LENH)
+    return _out(svc, lsx)
+
+
+@router.put("/{lsx_id}/nguon-giay", response_model=LsxOut)
+def doi_nguon_giay(
+    lsx_id: int,
+    payload: DoiNguonGiayIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> LsxOut:
+    """Người kế hoạch đổi nguồn giấy của lệnh (spec 2026-10-24-chuan-bi-giay §7): dựng lại Cắt giấy cuộn /
+    Tề giấy in trước In, giấy chuyển sang bước đầu mới. Chặn đúng ba cửa của sửa routing (đã lập kế
+    hoạch · đơn hủy · đang giữ chỗ). Nhu cầu vật tư đổi ⇒ xoá cache cân đối."""
+    svc = _svc(db)
+    try:
+        _guard_scope(db, svc.get(lsx_id), user, authz)
+        lsx = svc.doi_nguon_giay(lsx_id=lsx_id, nguon=payload.nguon, rong_cuon=payload.rong_cuon,
+                                 actor=user)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()

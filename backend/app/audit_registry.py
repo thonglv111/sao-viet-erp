@@ -114,6 +114,7 @@ _HD += _dong("san_xuat", "san_xuat", {
     "lsx_trang_thai": "Đổi trạng thái lệnh sản xuất",
     "update_lsx_routing": "Sửa chuỗi công đoạn của lệnh",
     "update_lsx_danh_muc": "Cập nhật lệnh theo danh mục",
+    "doi_nguon_giay": "Đổi nguồn giấy của lệnh",
     "lsx_dinh_kem_them": "Đính kèm tệp vào lệnh",
     "lsx_dinh_kem_xoa": "Xoá tệp đính kèm lệnh",
     "gia_cong_ngoai_dat": "Đặt gia công ngoài",

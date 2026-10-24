@@ -38,6 +38,7 @@ import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
+import { ONguonGiay, type DoiNguonGiay } from "./ONguonGiay";
 import { donViChuoi, nhanDonVi, tickConLaCuaNguoiKhac } from "./lsxBuoc";
 import { bangKeVatTu, giayVaVatTuQuyCach } from "./lsxVatTu";
 import { useNapTenDonVi } from "./tenDonVi";
@@ -399,6 +400,16 @@ export function LsxDetailView({
     } finally {
       setDongBo(false);
     }
+  }, [token, lsxId, onChanged]);
+
+  /** Đổi nguồn giấy ⇒ máy chủ dựng lại khâu chuẩn bị giấy; nạp lại cả lệnh để bảng routing có bước mới.
+   *  Lỗi ném lên cho ô tự hiện, ô lùi về nguồn cũ. */
+  const doiNguonGiay = useCallback(async (body: DoiNguonGiay) => {
+    if (!token) return;
+    const r = await api.lsx.doiNguonGiay(token, lsxId, body);
+    setD(r);
+    setForm(toForm(r));
+    onChanged();
   }, [token, lsxId, onChanged]);
 
   /** Tạo dao mới cho một bước → dòng mới trong danh mục Khuôn ở tình trạng "đang đặt làm".
@@ -1627,6 +1638,17 @@ export function LsxDetailView({
                   <h4 className="khsx-spec__title">Công đoạn sản xuất (Routing)</h4>
                 </div>
                 <div className="khsx-spec__card-body">
+                  {(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
+                    <ONguonGiay
+                      key={`${d.id}-${d.nguon_giay ?? ""}`}
+                      nguon={d.nguon_giay}
+                      khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
+                        : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
+                        : routingDirty ? "Lưu hoặc huỷ thay đổi routing trước khi đổi nguồn giấy"
+                        : null}
+                      onDoi={doiNguonGiay}
+                    />
+                  )}
                   <LsxRoutingTable
                     congDoans={d.cong_doans}
                     soLuongDat={d.so_luong_dat}

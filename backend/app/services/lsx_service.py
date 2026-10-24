@@ -58,7 +58,8 @@ from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, LOAI_GIAY, GiayNguyen,
 from .may_to import cap_lech, loi_cap, to_khong_may
 from .ptg_giay_buoc import bang_giay, id_giay_cua_rows, loi_tran_giay
 from .chuan_bi_giay import (
-    DauVaoGiay, NguonChon, chon_nguon, dong_giay_buoc_dau, dong_song, khoa_ung_vien, ma_buoc_giay,
+    CUON_DU_TOI_DA_MM, NGUON_GIAY, DauVaoGiay, NguonChon, chon_nguon, dong_giay_buoc_dau, dong_song,
+    khoa_ung_vien, ma_buoc_giay,
 )
 from ..repositories.cong_doan_repo import id_cong_doan_he_thong
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
@@ -462,6 +463,10 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
         "tong_phut": round(tong, 2),
         "dien_giai": dien_giai,
     }
+
+
+# Nhãn nguồn giấy cho nhật ký (spec 2026-10-24-chuan-bi-giay §7) — cùng chữ với ô "Nguồn giấy" màn lệnh.
+_NHAN_NGUON = {"to_in": "Tờ đúng khổ in", "to_nguyen": "Tờ khổ nguyên", "cuon": "Cuộn", "mua": "Mua mới"}
 
 
 class LsxError(Exception):
@@ -2509,6 +2514,44 @@ class LsxService:
         for i, c in enumerate(c for c in buoc if c not in bo):
             c.thu_tu = i
         self.db.flush()
+
+    def doi_nguon_giay(self, *, lsx_id: int, nguon: str, rong_cuon: int | None, actor) -> Lsx:
+        """Người kế hoạch đổi nguồn giấy: gỡ Cắt giấy cuộn / Tề giấy in hiện có rồi dựng lại theo nguồn
+        mới, không đụng bước khác (Tề sóng giữ nguyên). Chặn đúng ba cửa của sửa routing."""
+        lsx = self.get(lsx_id)
+        if (loi := self._ly_do_khong_cap_nhat(lsx)) is not None:
+            raise LsxConflict(loi.replace("lấy số mới của danh mục", "đổi nguồn giấy")
+                              .replace("lấy số mới", "đổi nguồn giấy"))
+        if nguon not in NGUON_GIAY:
+            raise LsxValidationError("Nguồn giấy chỉ nhận: tờ đúng khổ in, tờ khổ nguyên, cuộn, mua mới.")
+        in_ = self._buoc_in(sorted(lsx.cong_doans, key=lambda c: c.thu_tu))
+        dv = self._dau_vao_giay(lsx, in_.so_luong_vao) if in_ is not None else None
+        if dv is None:
+            raise LsxValidationError("Lệnh chưa có giấy hoặc chưa có bước In — không có gì để đổi nguồn.")
+        if nguon == "cuon":
+            if dv.kho_nguyen is None:
+                raise LsxValidationError("Lệnh thiếu khổ nguyên — chưa dựng được Cắt giấy cuộn theo rộng cuộn.")
+            if not rong_cuon or not any(c <= rong_cuon <= c + CUON_DU_TOI_DA_MM for c in dv.kho_nguyen):
+                raise LsxValidationError(
+                    f"Rộng cuộn phải bằng một cạnh khổ nguyên ({dv.kho_nguyen[0]} hoặc {dv.kho_nguyen[1]} mm), "
+                    f"dư tối đa {CUON_DU_TOI_DA_MM} mm.")
+        cu = lsx.nguon_giay
+        self._go_khau_chuan_bi_giay(lsx)
+        moi = self._dung_khau_chuan_bi(
+            lsx, NguonChon(nguon, int(rong_cuon) if nguon == "cuon" else None, None))
+        self._ap_chuoi_nguoc(lsx)
+        self._bung_lai_vat_tu(lsx, moi)
+        thieu = self.thieu_cua(lsx)
+        if thieu and lsx.trang_thai != TT_CHO_BO_SUNG:
+            lsx.trang_thai = TT_CHO_BO_SUNG
+        elif not thieu and lsx.trang_thai == TT_CHO_BO_SUNG:
+            lsx.trang_thai = TT_NHAP
+        self.audit.create(
+            actor_user_id=actor.id, action="doi_nguon_giay", target=f"lsx:{lsx.id}",
+            detail=f"Đổi nguồn giấy lệnh {lsx.ma}: {_NHAN_NGUON.get(cu, 'chưa có')} → {_NHAN_NGUON[nguon]}"
+                   + (f" rộng {rong_cuon} mm" if nguon == "cuon" else ""))
+        self.repo.commit()
+        return self.get(lsx_id)
 
     def _dong_giay_khau_chuan_bi(self, cd, qc: dict, giay_id: int) -> dict | None:
         """Dòng giấy/sóng của lệnh CÓ nguồn giấy (`lsx.nguon_giay`): Cắt giấy cuộn ⇒ kg theo rộng cuộn,

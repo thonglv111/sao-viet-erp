@@ -530,6 +530,8 @@ class LsxOut(BaseModel):
     # kế hoạch sửa xong cả routing mới ăn 409 lúc bấm Lưu, mà mỗi lần đổi công đoạn thì xem-trước
     # 409 im lặng nên số trên bảng đứng im không ai giải thích.
     giu_cho_bat: bool = False
+    # Nguồn giấy máy chọn lúc lập lệnh (spec 2026-10-24-chuan-bi-giay §7). None = lệnh cũ / không giấy.
+    nguon_giay: str | None = None
     # Lệnh chưa phát hành mà KHÔNG giao trọn gói được (đi chung lệnh khác / bài ghép) — câu nêu đích
     # danh lệnh đang dính. Màn lệnh thay nút "Gia công trọn gói" bằng chip nói lý do (câu ngắn trên
     # mặt chip, câu đầy đủ ở chú thích), khỏi để người kế hoạch điền xong hộp thoại mới biết.
@@ -568,6 +570,13 @@ class LsxBaiGhepOut(BaseModel):
     # gộp duy nhất — sai, bài còn gộp CTP/cán/bế). Quên sửa model này một lần rồi: service trả
     # `buoc_bi_de` mà pydantic lọc mất, badge + hai số phía lệnh thành code chết mà không ai báo.
     buoc_bi_de: dict[str, BuocBiDeOut] = Field(default_factory=dict)
+
+
+class DoiNguonGiayIn(BaseModel):
+    """`PUT /lsx/{id}/nguon-giay` — người kế hoạch đổi nguồn giấy; Cuộn phải kèm rộng cuộn (mm)."""
+
+    nguon: Literal["to_in", "to_nguyen", "cuon", "mua"]
+    rong_cuon: int | None = None
 
 
 class LsxQuyCachIn(BaseModel):

@@ -3451,6 +3451,8 @@ export interface LsxDetail {
    *  CẢ bản xem trước. Màn lệnh phải khoá bảng routing và nói đường lùi ngay từ đầu — không thì
    *  sửa xong mới ăn 409 lúc bấm Lưu, còn xem-trước 409 im lặng làm số trên bảng đứng im. */
   giu_cho_bat: boolean;
+  /** Nguồn giấy máy chọn lúc lập lệnh (spec 2026-10-24-chuan-bi-giay §7); null = lệnh cũ / không giấy. */
+  nguon_giay?: "to_in" | "to_nguyen" | "cuon" | "mua" | null;
   /** Lệnh chưa phát hành mà không giao trọn gói được (đi chung lệnh khác / bài ghép) — câu nêu đích
    *  danh lệnh đang dính. null = giao được, hoặc lệnh đã qua bước đặt trọn gói. */
   tron_goi_chan?: string | null;
@@ -14975,6 +14977,14 @@ export const api = {
      *  Không xoá dòng vật tư nào và không đụng số nhân công đã sắp — xem `dong_bo_danh_muc`. */
     dongBoDanhMuc(token: string, id: number): Promise<LsxDetail> {
       return authed<LsxDetail>(`/api/lsx/${id}/dong-bo-danh-muc`, token, { method: "POST" });
+    },
+    /** Đổi nguồn giấy: máy chủ dựng lại Cắt giấy cuộn / Tề giấy in, giấy chuyển sang bước đầu mới. */
+    doiNguonGiay(
+      token: string, id: number, body: { nguon: string; rong_cuon: number | null },
+    ): Promise<LsxDetail> {
+      return authed<LsxDetail>(`/api/lsx/${id}/nguon-giay`, token, {
+        method: "PUT", body: JSON.stringify(body),
+      });
     },
     /** Nút "Cập nhật tiêu chí" của băng "Tiêu chí KCS đã đổi": thẻ việc lấy bộ tiêu chí mới. */
     capNhatTieuChiKcs(token: string, id: number): Promise<LsxDetail> {
