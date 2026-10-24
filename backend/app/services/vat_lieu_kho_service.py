@@ -158,6 +158,7 @@ class VatLieuKhoService:
         if kind == "giay":
             if _f(data.get("gsm")) <= 0:
                 raise VatLieuKhoValidationError("GSM phải > 0.")
+            self._chot_don_vi_giay(data, obj)
             self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính",
                               dang_co=getattr(obj, "don_vi_gia", None))
             if data.get("tho") not in (None, "") and data["tho"] not in THO:
@@ -210,8 +211,6 @@ class VatLieuKhoService:
                     raise VatLieuKhoValidationError(
                         f"“{nhan_don_vi(ten, b)}” đã nằm trong nhóm của “{nhan_don_vi(ten, a)}” — "
                         "không cần khai thêm.")
-        if kind == "giay":
-            khai = self._bu_to_kg_giay(data, khai, gm)
         if obj is None:
             return
         cu_khai = don_vi_khai(obj)
@@ -236,22 +235,37 @@ class VatLieuKhoService:
                 raise VatLieuKhoValidationError(
                     f"Chưa bỏ được đơn vị “{nhan_don_vi(ten, u)}”: {ke}.")
 
-    def _bu_to_kg_giay(self, data: dict, khai: list[str], gm) -> list[str]:
-        """Mã giấy LUÔN có nhóm tờ và nhóm kg (chốt 18/10/2026): bước nhận tờ xin kho bằng tờ, bước
-        ra kg xin kho bằng kg. Thiếu nhóm nào thì tự thêm đơn vị gốc của nhóm (`to` / `kg`) — người
-        dùng không bỏ được. Nhóm đã có qua đơn vị khác (ram ∈ nhóm tờ, tấn ∈ nhóm kg) thì thôi, khai
-        thêm là thừa. Danh mục Đơn vị chưa có mã đó (DB trắng) thì bỏ qua, không tự tạo."""
+    def _chot_don_vi_giay(self, data: dict, obj=None) -> None:
+        """Giấy có ĐÚNG hai đơn vị kg và tờ (chốt 24/10/2026) — không thêm, không bỏ. Bước nhận tờ xin
+        kho bằng tờ, bước ra kg xin bằng kg (18/10/2026); ram / tấn vẫn nhập được vì nằm trong nhóm quy
+        đổi của tờ / kg, chỉ không được khai thành đơn vị riêng của mã. Người dùng chỉ chọn ĐVT CHÍNH
+        (đơn giá tính theo kg hay theo tờ, mặc định kg); đơn vị còn lại máy chủ tự điền vào
+        `don_vi_them`. Gửi đơn vị nào khác ⇒ báo lỗi, không lặng lẽ đổi: đơn giá gõ theo ram mà bị đổi
+        sang kg là sai tiền. Danh mục Đơn vị chưa có kg / tờ (DB trắng) thì bỏ qua, không tự tạo."""
         co = {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}
-        ra = list(khai)
-        for bat_buoc in GIAY_DON_VI_BAT_BUOC:
-            if bat_buoc in co and not any(gm.cung_nhom(u, bat_buoc) for u in ra):
-                ra.append(bat_buoc)
-        if ra == khai:
-            return khai
-        if not khai:
-            data["don_vi_gia"] = ra[0]
-        data["don_vi_them"] = ra[1:]
-        return ra
+        hai = [u for u in GIAY_DON_VI_BAT_BUOC if u in co]
+        if not hai:
+            return
+        theo_ten = self.don_vi.ma_theo_ten()
+
+        def ma(u) -> str:
+            m = (u or "").strip().lower()
+            return m if m in co else (theo_ten.get(m) or m).strip().lower()
+
+        ten = self.don_vi.ten_theo_ma()
+        ds = " và ".join(nhan_don_vi(ten, u) for u in GIAY_DON_VI_BAT_BUOC)
+        chinh = ma(data["don_vi_gia"] if "don_vi_gia" in data else getattr(obj, "don_vi_gia", None))
+        if chinh and chinh not in hai:
+            raise VatLieuKhoValidationError(
+                f"Giấy chỉ có hai đơn vị {ds} — ĐVT chính chọn một trong hai, "
+                f"không dùng “{nhan_don_vi(ten, chinh)}”.")
+        for u in data.get("don_vi_them") or []:
+            if ma(u) and ma(u) not in hai:
+                raise VatLieuKhoValidationError(
+                    f"Giấy chỉ có hai đơn vị {ds} — không thêm “{nhan_don_vi(ten, ma(u))}”.")
+        chinh = chinh or ("kg" if "kg" in hai else hai[0])
+        data["don_vi_gia"] = chinh
+        data["don_vi_them"] = [u for u in hai if u != chinh]
 
     def _kiem_chip_va_cong_thuc(self, kind: str, data: dict, obj=None) -> None:
         """Vật tư: chuẩn hoá chip rồi kiểm công thức với tập biến = hệ thống ∪ chip của chính vật tư.
@@ -730,6 +744,7 @@ class VatLieuKhoService:
         giay = self.get("giay", giay_id)
         if _f(data.get("gsm")) <= 0:
             raise VatLieuKhoValidationError("GSM phải > 0.")
+        self._chot_don_vi_giay(data, giay)
         self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính")
         self._ensure_v1(giay)
         truoc = nk.anh_chup(giay)
@@ -741,6 +756,9 @@ class VatLieuKhoService:
         for k in VERSION_SNAPSHOT:
             if k in data and data[k] is not None:
                 setattr(giay, k, data[k])
+        # Đổi ĐVT chính kg ↔ tờ thì đơn vị còn lại đổi theo — `don_vi_them` không nằm trong ảnh chụp.
+        if "don_vi_them" in data:
+            giay.don_vi_them = data["don_vi_them"]
         giay.version_no = v.version_no
         self.repo.chot_giao_dich()      # trước 15/08/2026 service gọi thẳng `self.repo.db.commit()`
         # Nhập đơn giá mới là thao tác đáng soi nhất của màn Giấy → phải có trong nhật ký, và ghi

@@ -627,7 +627,8 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         <label className="rc-field">
           <span className="rc-field__label">{config.nhanMa ?? "Mã"} <em>*</em></span>
           <div className={`rc-input-wrapper${isEdit ? " rc-input-wrapper--ro" : ""}`}>
-            <input className="rc-input rc-mono" value={String(form.ma ?? "")}
+            <input className="rc-input rc-mono"
+              value={config.maHienHoa ? String(form.ma ?? "").toUpperCase() : String(form.ma ?? "")}
               disabled={isEdit} onChange={(e) => set("ma", e.target.value.toUpperCase())} required placeholder={`${config.nhanMa ?? "Mã"}...`} />
           </div>
           {!isEdit && typedMa && (

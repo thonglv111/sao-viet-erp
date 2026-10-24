@@ -73,15 +73,19 @@ describe("form Vật tư khác KHÔNG còn quy cách đóng gói", () => {
 
 describe("ô ĐVT lấy từ danh mục Đơn vị", () => {
   it("chọn từ /api/don-vi, lưu MÃ, và KHÔNG lọc ngừng-dùng ở query", () => {
-    for (const cfg of [CFG_GIAY, CFG_VAT_TU]) {
-      const f = truong(cfg, "don_vi_gia");
-      expect(f.type).toBe("ref-search-ma");     // lưu mã `kg`, không lưu id
-      expect(f.refPrefix).toBe("/api/don-vi");  // nguồn duy nhất, không còn list cứng
-      // Việc gạt đơn vị đã ngừng dùng là của `locConDung` trong CatalogDrawer, KHÔNG phải của
-      // query: lọc từ server thì hàng cũ đang trỏ vào đơn vị vừa ngừng mở ra thấy ô TRỐNG,
-      // bấm Lưu là xoá mất mã đang đúng.
-      expect(f.refParams?.active).toBeUndefined();
-    }
+    const f = truong(CFG_VAT_TU, "don_vi_gia");
+    expect(f.type).toBe("ref-search-ma");     // lưu mã `kg`, không lưu id
+    expect(f.refPrefix).toBe("/api/don-vi");  // nguồn duy nhất, không còn list cứng
+    // Việc gạt đơn vị đã ngừng dùng là của `locConDung` trong CatalogDrawer, KHÔNG phải của
+    // query: lọc từ server thì hàng cũ đang trỏ vào đơn vị vừa ngừng mở ra thấy ô TRỐNG,
+    // bấm Lưu là xoá mất mã đang đúng.
+    expect(f.refParams?.active).toBeUndefined();
+  });
+
+  it("giấy không có ô đơn vị nào — máy chủ tự điền kg + tờ (24/10/2026)", () => {
+    const keys = CFG_GIAY.fields.map((x) => x.key);
+    expect(keys).not.toContain("don_vi_gia");
+    expect(keys).not.toContain("don_vi_them");
   });
 });
 

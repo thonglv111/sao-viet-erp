@@ -329,8 +329,10 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   /** Một ô của dòng `r` ở cột `cot`. Chữ dài cắt "…", đủ chữ ở `title`. */
   function oDong(cot: CotDM, r: Row) {
     switch (cot.key) {
-      case "ma":
-        return <td key={cot.key} title={String(r.ma)}>{String(r.ma)}</td>;
+      case "ma": {
+        const ma = config.maHienHoa ? String(r.ma).toUpperCase() : String(r.ma);
+        return <td key={cot.key} title={ma}>{ma}</td>;
+      }
       case "ten":
         return (
           <td key={cot.key} title={String(r.ten)}>

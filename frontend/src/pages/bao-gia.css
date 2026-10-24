@@ -1960,6 +1960,12 @@ select.input {
 .rdx-quote table.bg-dong tbody td.num { padding-left: 10px; padding-right: 10px; }
 .rdx-quote table.bg-dong tr.qgrouphd > td.num { white-space: nowrap; }
 .rdx-quote table.bg-dong .qgrouphd__sub { flex-wrap: wrap; }
+/* Cả dòng đọc trên MỘT hàng ngang: mọi ô bám đỉnh, chữ trơn hạ xuống ngang giữa ô nhập cao 34px
+   (ô nhập có thêm dòng số quy đổi bên dưới nên căn giữa dọc là các ô nhập lệch nhau). */
+.rdx-quote table.bg-dong tbody td { vertical-align: top; padding-top: 20px; }
+.rdx-quote table.bg-dong tbody td:has(.o2tab, .pricecell, .markcell) { padding-top: 12px; }
+/* Số kết quả (giá bán, giá sau kê) nổi nhờ màu mực cạnh giá vốn xám — không cần chữ đậm. */
+.rdx-quote table.bg-dong td.strong { font-weight: 500; color: var(--ink); }
 .rdx-quote tr.qrow--con > td:first-child {
   padding-left: 22px;
   /* Ray dọc suốt các dòng thuộc nhóm + kẻ đóng ở dòng cuối → thấy rõ nhóm hết ở đâu. */
@@ -2113,14 +2119,13 @@ select.input {
 .rdx-quote .nf:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18); }
 .rdx-quote .nf input {
   width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: none;
-  font: inherit; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; color: var(--ink);
+  font: inherit; font-variant-numeric: tabular-nums; font-weight: 500; text-align: right; color: var(--ink);
 }
 .rdx-quote .nf input:disabled { color: var(--ash); cursor: default; }
-.rdx-quote .nf .u { font-size: 12px; font-weight: 600; color: var(--ash-2); }
+.rdx-quote .nf .u { font-size: 12px; color: var(--ash-2); }
 .rdx-quote .nf.pct { width: 76px; }
 .rdx-quote .nf.money { width: 132px; }
-.rdx-quote .nf.auto { background: var(--paper); }
-.rdx-quote .nf.auto input { font-weight: 500; color: var(--ash); }
+/* Giá bán tự tính: nền trắng như mọi ô gõ được (nền xám trông như ô bị khoá); gõ tay thì viền đậm + thẻ. */
 .rdx-quote .nf.manual { border-color: var(--ink); }
 .rdx-quote .markcell,
 .rdx-quote .pricecell { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -2140,15 +2145,37 @@ select.input {
   letter-spacing: 0; font-weight: 700;
 }
 
-/* Ô hai tab "%" | "Số" (Markup, Chiết khấu) — tab nhỏ phía trên ô nhập, căn phải như cột số. */
-.rdx-quote .o2tab { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.rdx-quote .o2tab__tab { display: inline-flex; border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 6px; overflow: hidden; }
-.rdx-quote .o2tab__tab button {
-  border: 0; background: transparent; padding: 1px 9px; font-size: 11px; line-height: 18px; cursor: pointer; color: var(--ash-2);
+/* Ô hai tab "%" | "Số" (Chiết khấu, Markup, Kê) — ô nhập và hai tab CHUNG một khung, một hàng;
+   dưới là số quy đổi nhỏ, căn phải như cột số.
+   Tab đang chọn = nền trắng viền đủ bốn cạnh, không tô đen. */
+.rdx-quote .o2tab { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.rdx-quote .o2tab__o {
+  display: inline-flex; align-items: center; height: 34px; padding-right: 3px;
+  border: 1px solid var(--rule); border-radius: var(--r-3); background: var(--canvas);
 }
-.rdx-quote .o2tab__tab button + button { border-left: 1px solid var(--rule-soft, #e2e8f0); }
-.rdx-quote .o2tab__tab button.is-on { background: var(--charcoal, #1e293b); color: #fff; }
+.rdx-quote .o2tab__o:hover { border-color: var(--ash-2); }
+.rdx-quote .o2tab__o:focus-within { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.18); }
+.rdx-quote .o2tab__o .nf,
+.rdx-quote .o2tab__o .nf:hover,
+.rdx-quote .o2tab__o .nf:focus-within { height: 32px; border: 0; box-shadow: none; background: none; }
+.rdx-quote .o2tab__o .nf.pct { width: 62px; }
+.rdx-quote .o2tab__o .nf.money { width: 108px; }
+.rdx-quote .o2tab__tab { display: inline-flex; padding: 2px; gap: 2px; border-radius: 6px; background: var(--paper); }
+.rdx-quote .o2tab__tab button {
+  border: 1px solid transparent; border-radius: 4px; background: transparent; padding: 0 7px;
+  font-size: 11px; line-height: 20px; cursor: pointer; color: var(--ash-2);
+}
+.rdx-quote .o2tab__tab button:hover:not(:disabled):not(.is-on) { color: var(--ink); }
+.rdx-quote .o2tab__tab button.is-on { border-color: var(--rule); background: var(--canvas); color: var(--ink); }
 .rdx-quote .o2tab__tab button:disabled { cursor: default; opacity: 0.6; }
+/* Điện thoại: nút trong bảng bị nới 44px cho dễ chạm (styles/responsive.css) — khung nới theo. */
+@media screen and (max-width: 768px) {
+  .rdx-quote .o2tab__o { height: 44px; }
+  .rdx-quote .o2tab__o .nf.pct { width: 76px; }
+  .rdx-quote .o2tab__o .nf.money { width: 140px; }
+  .rdx-quote .o2tab__tab button { min-height: 38px; }
+}
+.rdx-quote .o2tab__phu { font-size: 11px; color: var(--ash-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 /* Ô số chỉ xem hai tầng (Chiết khấu / Markup / Kê): % trên, số tiền dưới, không gãy dòng. */
 .rdx-quote .so2 { display: inline-flex; flex-direction: column; align-items: flex-end; white-space: nowrap; line-height: 1.35; }

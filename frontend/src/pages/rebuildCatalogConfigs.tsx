@@ -644,15 +644,11 @@ export const CFG_GIAY: CatalogConfig = {
     { key: "loai", label: "Loại", type: "select", required: true, group: "Thông số", default: "giay",
       options: LOAI_GIAY_OPT },
     { key: "gsm", label: "Định lượng (g/m²)", type: "number", required: true, group: "Thông số" },
-    // Đơn vị GỐC: tồn kho cộng dồn theo đơn vị này. Giấy để `kg` thì kho đếm theo cân; muốn đếm
-    // theo tờ thì chọn `tờ` — cặp cố định "1 ram = 500 tờ" chạy sẵn, không cần khai khổ.
-    { key: "don_vi_gia", label: "ĐVT", ...F_DON_VI, group: "Thông số" },
-    // Đơn vị THÊM (10/10/2026): cùng loại giấy lúc mua theo tờ lúc mua theo kg — hai nhóm không quy
-    // đổi lẫn nhau, mỗi nhóm một dòng tồn. Từ 18/10/2026 mọi mã giấy BẮT BUỘC có nhóm tờ + nhóm kg
-    // (bước nhận tờ xin kho bằng tờ, bước ra kg xin bằng kg): chip tờ/kg không bỏ được.
-    { ...F_DON_VI_THEM, donViBatBuoc: DON_VI_KHOA },
+    // KHÔNG có ô đơn vị (24/10/2026): giấy có ĐÚNG hai đơn vị kg + tờ, ĐVT chính kg — máy chủ tự
+    // điền khi tạo (`VatLieuKhoService._chot_don_vi_giay`). Ẩn hẳn cho khỏi hiểu nhầm là chọn được;
+    // cột ĐVT của bảng vẫn hiện "kg tờ". Ram / tấn vẫn nhập kho được qua quy đổi của tờ / kg.
     // Đơn giá theo ĐVT chính — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
-    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một ĐVT chính (đ/kg, đ/tờ, đ/ram…). Tính giá tự quy về giá một tờ hoặc một kg." },
+    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một kg. Tính giá tự quy về giá một tờ hoặc một kg." },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
       nhanTab: "Công thức tính giá",
       // ĐIỀN SẴN khi thêm mới (11/09/2026), sửa/xoá được. Trước đó ô này để trống và engine âm
@@ -1094,6 +1090,10 @@ export const CFG_DON_VI: CatalogConfig = {
   prefix: "/api/don-vi",
   nhatKyLoai: "don_vi_do",
   softDelete: true,
+  // Mã hiện HOA (KG, M2, TAN) dù máy chủ lưu thường; mã là ký hiệu có thật nên không điền sẵn MA-0001
+  // (dòng «ma-0001 abc» đẻ ra từ đúng gợi ý đó).
+  maHienHoa: true,
+  khongGoiYMa: true,
   // Thanh lọc (06/10/2026): Loại đo (họ đơn vị — nhãn do máy chủ gắn từ `HO_NHAN`).
   man: "don-vi",
   dieuKien: [{ key: "ho", nhan: "Loại đo", icon: "don-vi" }],
