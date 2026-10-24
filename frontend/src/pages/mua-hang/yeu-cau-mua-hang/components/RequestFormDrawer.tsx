@@ -150,10 +150,11 @@ export function RequestFormDrawer({
     return [...theoKho.values()].map((g) => ({ rong: g.rong, dai: g.dai, ghiChu: `Tồn ${g.chu.join("  ")}` }));
   }
 
-  function themMon(m: { hang_loai: "giay" | "vat_tu"; hang_id: number; ten: string }) {
+  function themMon(m: { hang_loai: "giay" | "vat_tu"; hang_id: number; ten: string; dinh_luong?: number | null }) {
     setForm((c) => {
       const dong: DepartmentPurchaseRequestLineInput = {
         ...emptyLine(), hang_loai: m.hang_loai, hang_id: m.hang_id, item_name: m.ten,
+        dinh_luong: m.dinh_luong ?? null,
       };
       // Dòng trống mồi sẵn (form mới) thì thay luôn, khỏi để một hàng rác.
       const lines = c.lines.filter((l) => l.hang_loai || l.item_name.trim());
@@ -178,7 +179,7 @@ export function RequestFormDrawer({
     </>
   );
 
-  const soCot = coQuyenTon ? 6 : 5;
+  const soCot = coQuyenTon ? 7 : 6;
 
   return (
     <NganPhai
@@ -272,10 +273,11 @@ export function RequestFormDrawer({
 
         <div className="ycf3-muc">Vật tư cần mua<span className="mh-tag">{mon.length} món</span></div>
         <div className="lds-bang lds-bang--nhap ycf3-khung">
-          <table className="lds-g ycf3-bang" style={{ minWidth: coQuyenTon ? 890 : 794 }}>
+          <table className="lds-g ycf3-bang" style={{ minWidth: coQuyenTon ? 986 : 890 }}>
             <colgroup>
               <col />
               <col style={{ width: 230 }} />
+              <col style={{ width: 96 }} />
               {coQuyenTon && <col style={{ width: 96 }} />}
               <col style={{ width: 160 }} />
               <col style={{ width: 160 }} />
@@ -285,6 +287,7 @@ export function RequestFormDrawer({
               <tr>
                 <th>Vật tư</th>
                 <th>Khổ</th>
+                <th className="n">Định lượng</th>
                 {coQuyenTon && <th className="n">Tồn khổ này</th>}
                 <th className="n">Số lượng mua</th>
                 <th>Ghi chú</th>
@@ -305,7 +308,7 @@ export function RequestFormDrawer({
                           chiCoNhaCungCap
                           onPick={(m) => setLine(index, {
                             hang_loai: m.hang_loai, hang_id: m.hang_id, item_name: m.ten, unit: "",
-                            kho_rong: 0, kho_dai: 0,
+                            kho_rong: 0, kho_dai: 0, dinh_luong: m.dinh_luong ?? null,
                           })}
                         />
                       </td>
@@ -341,6 +344,8 @@ export function RequestFormDrawer({
                         <span className="mh-mo3">Không theo khổ</span>
                       )}
                     </td>
+                    {/* Định lượng CHỈ ĐỌC — gsm khai ở danh mục giấy, không ai gõ ở chứng từ mua. */}
+                    <td className="n">{laGiay ? (line.dinh_luong ?? <span className="mh-mo3">–</span>) : ""}</td>
                     {coQuyenTon && (
                       <td className="n">
                         {t == null ? (

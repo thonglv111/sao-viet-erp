@@ -465,6 +465,8 @@ class VatLieuKhoService:
             "ma": obj.ma,
             "ten": obj.ten,
             "don_vi_goc": obj.don_vi_gia or None,
+            # Định lượng (gsm) chỉ có ở giấy — form mua hiện ngay khi chọn, chỉ đọc (spec 2026-10-24 §6).
+            "dinh_luong": getattr(obj, "gsm", None) if loai == "giay" else None,
         }
 
     def map_theo_cap(self, hangs) -> dict[tuple, object]:

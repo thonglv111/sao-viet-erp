@@ -312,6 +312,7 @@ export function DepartmentPurchaseRequestsPage({
           note: line.note,
           kho_rong: line.kho_rong,
           kho_dai: line.kho_dai,
+          dinh_luong: line.dinh_luong ?? null,
         })),
     });
     setFormError(null);

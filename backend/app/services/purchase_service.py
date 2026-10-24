@@ -167,6 +167,19 @@ _BAC_SANG_TRANG_THAI = {
 }
 
 
+def _cap_hang(line) -> tuple:
+    """`(hang_loai, hang_id)` của một dòng đơn (None ⇒ dòng đã xoá)."""
+    return (getattr(line, "hang_loai", None), getattr(line, "hang_id", None))
+
+
+def _gsm(hmap: dict, hang_loai, hang_id) -> int | None:
+    """Định lượng của dòng giấy — gsm danh mục trong map mặt hàng đã nạp; hàng khác None. Chỉ đọc
+    (spec 2026-10-24-chuan-bi-giay §6)."""
+    if hang_loai != "giay" or not hang_id:
+        return None
+    return getattr(hmap.get((hang_loai, hang_id)), "gsm", None) or None
+
+
 class PurchaseError(Exception):
     pass
 
@@ -1581,6 +1594,10 @@ class PurchaseService:
             }
 
         mua_cho = nap_mua_cho(self.requests.db, [ln.id for r in rows for ln in r.lines])
+        # Định lượng dòng giấy — gsm danh mục, một lượt cho cả trang.
+        _giay = list({(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines
+                      if ln.hang_loai == "giay" and ln.hang_id})
+        _hmap = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         mon: list[dict] = []
         for r in rows:
             khop_phieu = bool(tu_khoa) and any(
@@ -1682,6 +1699,7 @@ class PurchaseService:
                         "hang_id": line.hang_id,
                         "kho_rong": int(line.kho_rong or 0),
                         "kho_dai": int(line.kho_dai or 0),
+                        "dinh_luong": _gsm(_hmap, line.hang_loai, line.hang_id),
                         "item_name": line.item_name,
                         "unit": line.unit,
                         "quantity": float(line.quantity),
@@ -4284,6 +4302,7 @@ class PurchaseService:
                     "hang_ten": getattr(_hmap.get((line.hang_loai, line.hang_id)), "ten", None),
                     "kho_rong": int(line.kho_rong or 0),
                     "kho_dai": int(line.kho_dai or 0),
+                    "dinh_luong": _gsm(_hmap, line.hang_loai, line.hang_id),
                     "loai_mua": mc["loai_mua"] if mc else None,
                     "yeu_cau_ma": mc["yeu_cau_ma"] if mc else None,
                     "mua_cho": mc["lenh"] if mc else [],
@@ -4428,6 +4447,7 @@ class PurchaseService:
                             chia_dot.get(d.id, {}).get("lines", {}).get(dl.id, {}).get("thanh_tien", 0)
                         ),
                         **self._kho_nhan_ra(dl, line_by_id.get(dl.purchase_request_line_id)),
+                        "dinh_luong": _gsm(_hmap, *_cap_hang(line_by_id.get(dl.purchase_request_line_id))),
                         "note": dl.note,
                     }
                     for dl in d.lines
@@ -4591,6 +4611,9 @@ class PurchaseService:
             else nap_mua_cho(self.requests.db, [ln.id for ln in row.lines])
         )
         so_dong_huy = 0
+        # Định lượng của dòng giấy đọc từ danh mục — một lượt cho cả yêu cầu.
+        _giay = [(ln.hang_loai, ln.hang_id) for ln in row.lines if ln.hang_loai == "giay" and ln.hang_id]
+        _hmap = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         for line in row.lines:
             qty = float(line.quantity)
             unit_price = int(line.expected_unit_price)
@@ -4609,6 +4632,7 @@ class PurchaseService:
                     "hang_id": line.hang_id,
                     "kho_rong": int(line.kho_rong or 0),
                     "kho_dai": int(line.kho_dai or 0),
+                    "dinh_luong": _gsm(_hmap, line.hang_loai, line.hang_id),
                     "item_name": line.item_name,
                     "unit": line.unit,
                     "quantity": qty,

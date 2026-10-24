@@ -101,6 +101,7 @@ export function fromRequest(row: PurchaseRequestRow): FormState {
       hang_id: line.hang_id,
       kho_rong: line.kho_rong,
       kho_dai: line.kho_dai,
+      dinh_luong: line.dinh_luong ?? null,
       yeu_cau_ma: line.yeu_cau_ma,
       loai_mua: line.loai_mua,
       mua_cho: line.mua_cho,

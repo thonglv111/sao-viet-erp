@@ -216,6 +216,7 @@ class MatHangRow(BaseModel):
     ma: str
     ten: str
     don_vi_goc: str | None = None
+    dinh_luong: int | None = None   # gsm — chỉ giấy
 
 
 class DonViDungDuocRow(BaseModel):

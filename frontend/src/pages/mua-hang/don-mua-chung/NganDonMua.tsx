@@ -544,7 +544,9 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
   // Cột "Mua cho" từng dòng chỉ khi các dòng NÓI KHÁC NHAU (loại hoặc lệnh). Cả đơn cùng một ý thì
   // đầu ngăn đã nói (mỗi thông tin nói một lần).
   const cotMuaCho = new Set(row.lines.map((l) => khoaMuaCho(l.loai_mua ? [l.loai_mua] : [], l.mua_cho))).size > 1;
-  const soCot = (coHangVe ? 8 : 6) + (cotMuaCho ? 1 : 0);
+  // Định lượng (gsm danh mục, chỉ đọc) ngay sau Khổ đặt — chỉ khi đơn có dòng giấy (spec 2026-10-24 §6).
+  const coGiay = row.lines.some((l) => l.hang_loai === "giay");
+  const soCot = (coHangVe ? 8 : 6) + (cotMuaCho ? 1 : 0) + (coGiay ? 1 : 0);
 
   return (
     <>
@@ -575,6 +577,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
             <col />
             {cotMuaCho && <col style={{ width: 150 }} />}
             <col style={{ width: 122 }} />
+            {coGiay && <col style={{ width: 96 }} />}
             <col style={{ width: 96 }} />
             {coHangVe && <col style={{ width: 76 }} />}
             {coHangVe && <col style={{ width: 84 }} />}
@@ -587,6 +590,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
               <th>Vật tư</th>
               {cotMuaCho && <th>Mua cho</th>}
               <th>Khổ đặt</th>
+              {coGiay && <th className="n">Định lượng</th>}
               <th className="n">Đặt</th>
               {coHangVe && <th className="n">Đã về</th>}
               {coHangVe && <th className="n">Còn thiếu</th>}
@@ -628,6 +632,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
                       {khoChu(l.hang_loai, l.kho_rong, l.kho_dai)}
                       {dot.some(({ x }) => x.khac_kho_dat) && <span className="mh-tag mh-tag--canh">khác khổ</span>}
                     </td>
+                    {coGiay && <td className="n">{l.hang_loai === "giay" ? (l.dinh_luong ?? "–") : ""}</td>}
                     <td className="n">{so(l.quantity)}<span className="mh-u">{dv(l.unit)}</span></td>
                     {coHangVe && <td className="n">{ve > 0 ? so(ve) : <span className="mh-mo3">0</span>}</td>}
                     {coHangVe && (

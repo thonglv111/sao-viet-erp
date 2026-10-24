@@ -8593,6 +8593,8 @@ export interface DepartmentPurchaseRequestLineInput {
   /** Khổ CẦN (mm) của giấy tờ; vật tư khác 0 · 0 (server ép). */
   kho_rong?: number;
   kho_dai?: number;
+  /** UI-only (KHÔNG gửi API): gsm danh mục của giấy, hiện ở cột Định lượng chỉ đọc. */
+  dinh_luong?: number | null;
   /** UI-only (KHÔNG gửi API): dòng lấy từ mặt hàng Kho đã có → khoá Tên + ĐVT, bỏ qua canh danh
    *  mục NCC. Payload gửi đi pick field tường minh nên cờ này không lọt lên backend. */
   locked?: boolean;
@@ -8669,6 +8671,8 @@ export interface PurchaseRequestLineOut {
   /** Khổ MUA (mm) — giấy tờ; vật tư khác 0 · 0. */
   kho_rong: number;
   kho_dai: number;
+  /** Định lượng (gsm) danh mục — chỉ giấy, chỉ đọc. */
+  dinh_luong?: number | null;
   /** Loại mua + mã của yêu cầu dòng này lập từ; null = dòng không nối yêu cầu. */
   loai_mua: LoaiMua | null;
   yeu_cau_ma: string | null;
@@ -8694,6 +8698,8 @@ export interface DepartmentPurchaseRequestLineOut {
   /** Khổ CẦN (mm) — giấy tờ; vật tư khác 0 · 0. */
   kho_rong: number;
   kho_dai: number;
+  /** Định lượng (gsm) danh mục — chỉ giấy, chỉ đọc. */
+  dinh_luong?: number | null;
   item_name: string;
   unit: string;
   quantity: number;
@@ -8834,6 +8840,8 @@ export interface PurchaseDeliveryLineRow {
   kho_dai: number;
   /** NCC giao khác khổ đặt — hàng vào tồn theo khổ nhận. */
   khac_kho_dat: boolean;
+  /** Định lượng (gsm) danh mục của dòng đơn — chỉ giấy, chỉ đọc. */
+  dinh_luong?: number | null;
   note: string | null;
 }
 
@@ -9059,6 +9067,8 @@ export interface YeuCauMonRow {
   hang_id: number | null;
   kho_rong: number;
   kho_dai: number;
+  /** Định lượng (gsm) danh mục — chỉ giấy, chỉ đọc. */
+  dinh_luong?: number | null;
   item_name: string;
   unit: string;
   quantity: number;
@@ -11858,6 +11868,8 @@ export interface MatHangOption {
   ma: string;
   ten: string;
   don_vi_goc: string | null;
+  /** gsm — chỉ giấy. */
+  dinh_luong?: number | null;
 }
 
 /** 1 đơn vị dùng được cho mặt hàng đang chọn. `he_so_ve_goc` = 1 đơn vị này bằng bao nhiêu

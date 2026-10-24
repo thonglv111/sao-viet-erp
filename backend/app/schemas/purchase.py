@@ -441,6 +441,8 @@ class PurchaseRequestLineOut(BaseModel):
     #: Khổ MUA (mm) — giấy tờ; vật tư khác 0 · 0. Nhập kho từ đợt giao chép sang yêu cầu nhập.
     kho_rong: int = 0
     kho_dai: int = 0
+    #: Định lượng (gsm) của danh mục giấy — CHỈ ĐỌC, không có ở schema vào. Hàng khác None.
+    dinh_luong: int | None = None
     #: Mua cho: loại mua + yêu cầu của món mà dòng trỏ tới, và các lệnh. None = dòng không nối món.
     loai_mua: str | None = None
     yeu_cau_ma: str | None = None
@@ -469,6 +471,8 @@ class DepartmentPurchaseRequestLineOut(BaseModel):
     #: Khổ CẦN (mm) — giấy tờ; vật tư khác 0 · 0.
     kho_rong: int = 0
     kho_dai: int = 0
+    #: Định lượng (gsm) của danh mục giấy — CHỈ ĐỌC, không có ở schema vào. Hàng khác None.
+    dinh_luong: int | None = None
     item_name: str
     unit: str
     quantity: float
@@ -567,6 +571,8 @@ class YeuCauMonOut(BaseModel):
     hang_id: int | None = None
     kho_rong: int = 0
     kho_dai: int = 0
+    #: Định lượng (gsm) danh mục — chỉ giấy, chỉ đọc.
+    dinh_luong: int | None = None
     item_name: str
     unit: str
     quantity: float
@@ -639,6 +645,8 @@ class PurchaseDeliveryLineOut(BaseModel):
     kho_dai: int = 0
     #: NCC giao khác khổ đặt — hàng vào tồn theo khổ nhận.
     khac_kho_dat: bool = False
+    #: Định lượng (gsm) của danh mục giấy của dòng đơn — chỉ đọc. Hàng khác None.
+    dinh_luong: int | None = None
     note: str | None = None
 
 
