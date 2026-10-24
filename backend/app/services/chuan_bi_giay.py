@@ -113,6 +113,9 @@ def dong_giay_buoc_dau(nguon: NguonChon, dv: DauVaoGiay, so_to_vao_buoc_dau: int
     dong = {"hang_loai": "giay", "vat_tu_id": dv.giay_id}
     if nguon.nguon == "cuon":
         kg = kg_tu_to(so_to_vao_buoc_dau, nguon.rong_cuon, _canh_con_lai(dv.kho_nguyen, nguon.rong_cuon), dv.gsm)
+        # Đề nghị kho lưu 2 số lẻ ⇒ làm tròn LÊN tới 0,01 kg, cấp đủ đề nghị là đủ nhu cầu (không treo
+        # vài gam "còn phải lấy" ở bảng cân đối). 1e-9 để số tròn sẵn không nhảy thêm 0,01.
+        kg = math.ceil(kg * 100 - 1e-9) / 100
         return {**dong, "so_luong": kg, "don_vi_goc": "kg", "kho_rong": nguon.rong_cuon, "kho_dai": 0}
     kr, kd = chuan_kho(*(dv.kho_nguyen if CD_TE_GIAY_IN in ma_buoc_giay(nguon.nguon, dv) else dv.kho_in))
     return {**dong, "so_luong": so_to_vao_buoc_dau, "don_vi_goc": "to", "kho_rong": kr, "kho_dai": kd}

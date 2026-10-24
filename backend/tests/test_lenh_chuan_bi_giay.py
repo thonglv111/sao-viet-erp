@@ -8,6 +8,8 @@ from __future__ import annotations
 from datetime import date
 from math import ceil
 
+import math
+
 import pytest
 
 from app.models.cong_doan import CongDoan
@@ -111,7 +113,8 @@ def test_kho_co_cuon_lenh_co_cat_cuon_te_in(db, orders, lsx_svc, admin, customer
     assert list(co_giay) == [cgc.ten]
     (g,) = co_giay[cgc.ten]
     assert (g.don_vi_goc, g.kho_rong, g.kho_dai) == ("kg", 870, 0)
-    assert float(g.so_luong) == pytest.approx(kg_tu_to(cgc.so_luong_vao, 870, 650, 350), abs=1e-3)
+    # Làm tròn LÊN 0,01 kg — đề nghị kho lưu 2 số lẻ.
+    assert float(g.so_luong) == pytest.approx(math.ceil(kg_tu_to(cgc.so_luong_vao, 870, 650, 350) * 100) / 100)
 
 
 def test_kho_co_to_kho_in_khong_them_buoc_giay_o_in(db, orders, lsx_svc, admin, customer):

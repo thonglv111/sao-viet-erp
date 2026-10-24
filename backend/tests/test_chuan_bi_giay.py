@@ -4,6 +4,8 @@ Ví dụ chuẩn: Duplex 350 gsm, khổ in 650×430, khổ nguyên 650×860 (x�
 """
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from app.services.chuan_bi_giay import (
@@ -85,8 +87,15 @@ def test_thieu_kho_nguyen_khong_chia_0(kw):
 def test_dong_giay_cat_cuon_tinh_kg_theo_rong_cuon():
     d = dong_giay_buoc_dau(NguonChon("cuon", 870, None), _dv(), 1530)
     assert d["hang_loai"] == "giay" and d["vat_tu_id"] == G
-    assert d["so_luong"] == pytest.approx(kg_tu_to(1530, 870, 650, 350))
+    assert d["so_luong"] == math.ceil(kg_tu_to(1530, 870, 650, 350) * 100) / 100   # 302,83
     assert (d["kho_rong"], d["kho_dai"], d["don_vi_goc"]) == (870, 0, "kg")
+
+
+def test_dong_giay_cat_cuon_kg_lam_tron_len_hai_so_le():
+    """Đề nghị kho lưu 2 số lẻ; nhu cầu 19,7925 kg mà đề nghị 19,79 thì cấp đủ đề nghị vẫn treo
+    0,0025 kg "còn phải lấy" ở bảng cân đối. Làm tròn LÊN để cấp đủ đề nghị là đủ nhu cầu."""
+    d = dong_giay_buoc_dau(NguonChon("cuon", 870, None), _dv(), 100)   # 19,7925 kg
+    assert d["so_luong"] == 19.80
 
 
 def test_dong_giay_te_tinh_to_nguyen():
