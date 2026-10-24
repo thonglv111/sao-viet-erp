@@ -7745,19 +7745,22 @@ export interface GiaCongNgoaiLan {
 export interface GiaCongCapGiayKho {
   kho_rong: number;
   kho_dai: number;
-  /** Tồn tờ khả dụng của khổ này (đơn vị = `GiaCongCapGiay.don_vi`). */
+  /** Tồn khả dụng của khổ này, theo `don_vi`. */
   ton: number;
+  /** Đơn vị gốc của dòng: tờ (khổ hai cạnh) hoặc `kg` (cuộn, `kho_dai` = 0). */
+  don_vi: string;
   dung_de_xuat: boolean;
 }
 export interface GiaCongCapGiay {
   giay_id: number | null;
   giay_ma: string | null;
   giay_ten: string | null;
-  /** Mã đơn vị tờ nguyên — in qua `nhanDonVi`. */
+  /** Đơn vị của giấy đề xuất (tờ, hoặc `kg` khi lệnh lấy cuộn) — in qua `nhanDonVi`. */
   don_vi: string;
-  /** Khổ + số tờ đề xuất lấy từ đâu: "phiếu tính giá" | "lệnh". */
+  /** Khổ + số lượng đề xuất lấy từ đâu: "phiếu tính giá" | "lệnh". */
   nguon: string;
-  de_xuat: { kho_rong: number; kho_dai: number; so_to: number | null } | null;
+  /** `so_to` là số lượng theo `don_vi` (kg khi cuộn). */
+  de_xuat: { kho_rong: number; kho_dai: number; so_to: number | null; don_vi: string } | null;
   kho: GiaCongCapGiayKho[];
   /** Không chọn được giấy (lệnh chưa chọn loại giấy…). */
   ly_do: string | null;

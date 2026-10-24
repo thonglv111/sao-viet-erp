@@ -241,19 +241,24 @@ def huy_tron_goi(db: Session, *, user, gcn_id: int, expected_version: int | None
 
 
 def _de_xuat_giay(db: Session, lsx) -> dict:
-    """Giấy nên cấp cho nhà gia công: mã giấy + khổ + số tờ. Dòng giấy TỜ khai ở bước đầu tiên của
-    lệnh thắng (người kế hoạch đã sửa tay); không có thì đọc quy cách lệnh — ảnh chụp từ phiếu tính
-    giá (`goi_y_dong_giay`, cùng luật điền sẵn dòng giấy của bước). Mã giấy luôn lấy ở máy chủ."""
+    """Giấy nên cấp cho nhà gia công: mã giấy + khổ + số lượng (`so_to`, theo `don_vi`). Dòng giấy
+    khai ở bước đầu tiên của lệnh thắng (người kế hoạch đã sửa tay): tờ đủ hai cạnh, hoặc CUỘN của
+    Cắt giấy cuộn — khổ `(rộng cuộn, 0)`, đếm kg (24/10/2026). Không có thì đọc quy cách lệnh — ảnh
+    chụp từ phiếu tính giá (`goi_y_dong_giay`, cùng luật điền sẵn dòng giấy của bước). Mã giấy luôn
+    lấy ở máy chủ."""
     for vt in GiaCongNgoaiRepository(db).giay_cua_lenh(lsx.id):
         kr, kd = chuan_kho(vt.kho_rong, vt.kho_dai)
+        goc = vt.don_vi_goc or ""
         # Dòng đếm tờ (đơn vị gốc `to`; dòng cũ chưa ghi gốc thì nhìn mã chặng của ĐVT).
-        dem_to = ((vt.don_vi_goc or "") == don_vi_goc_to()
-                  or (not vt.don_vi_goc and la_ma_to_giay(vt.don_vi_snapshot)))
+        dem_to = goc == don_vi_goc_to() or (not goc and la_ma_to_giay(vt.don_vi_snapshot))
         if dem_to and kr and kd:
             # Dòng giấy lệnh mang MÃ CHẶNG (`to_nguyen` / `to`); qua cửa kho mọi mã tờ là một "tờ".
             so = float(vt.so_luong) if la_ma_to_giay(vt.don_vi_snapshot) else None
             return {"giay_id": int(vt.vat_tu_id), "kho_rong": kr, "kho_dai": kd, "so_to": so,
-                    "nguon": "lệnh"}
+                    "don_vi": don_vi_goc_to(), "nguon": "lệnh"}
+        if goc == "kg" and kr and not kd:
+            return {"giay_id": int(vt.vat_tu_id), "kho_rong": kr, "kho_dai": 0,
+                    "so_to": float(vt.so_luong), "don_vi": "kg", "nguon": "lệnh"}
     return de_xuat_tu_quy_cach(lsx)
 
 
@@ -267,7 +272,7 @@ def de_xuat_tu_quy_cach(lsx) -> dict:
         giay_id = None
     gy = goi_y_dong_giay(qc)
     return {"giay_id": giay_id, "kho_rong": gy["kho_rong"], "kho_dai": gy["kho_dai"],
-            "so_to": gy["so_luong"], "nguon": "phiếu tính giá"}
+            "so_to": gy["so_luong"], "don_vi": don_vi_goc_to(), "nguon": "phiếu tính giá"}
 
 
 def cho_cap_giay(gcn, *, co_xuat: bool) -> bool:
@@ -296,47 +301,51 @@ def ly_do_khong_nhan_ve(repo: GiaCongNgoaiRepository, gcn, xuat: list | None = N
 
 def goi_y_cap_giay(db: Session, gcn, *, co_xuat: bool) -> dict | None:
     """Phần "Chọn giấy" của khối Gia công ngoài (C1, mockup tron-goi-cap-giay-C): mã giấy, đề xuất
-    khổ + số tờ, và tồn TỜ của mã đó chia theo khổ. Nằm sẵn trong dict lần — bấm "Chọn giấy" mở
-    ngay, khỏi gọi thêm API. None khi lần không chờ cấp giấy."""
+    khổ + số lượng, và tồn của mã đó chia theo khổ — tờ theo khổ, cuộn theo rộng (kg); mỗi dòng
+    mang đơn vị của nó. Nằm sẵn trong dict lần — bấm "Chọn giấy" mở ngay, khỏi gọi thêm API. None
+    khi lần không chờ cấp giấy."""
     if not cho_cap_giay(gcn, co_xuat=co_xuat):
         return None
     lsx = SanXuatRepository(db).lsx(gcn.lsx_id)
     dx = _de_xuat_giay(db, lsx)
-    out = {"giay_id": dx["giay_id"], "giay_ma": None, "giay_ten": None, "don_vi": don_vi_goc_to(),
+    out = {"giay_id": dx["giay_id"], "giay_ma": None, "giay_ten": None, "don_vi": dx["don_vi"],
            "nguon": dx["nguon"], "de_xuat": None, "kho": [], "ly_do": None}
     if dx["giay_id"] is None:
         out["ly_do"] = "Lệnh chưa chọn loại giấy — chọn giấy ở Quy cách của lệnh rồi quay lại."
         return out
     g = db.get(GiayNguyen, dx["giay_id"])
     out["giay_ma"], out["giay_ten"] = getattr(g, "ma", None), getattr(g, "ten", None)
-    co_kho = bool(dx["kho_rong"] and dx["kho_dai"])
+    khoa_dx = (dx["kho_rong"], dx["kho_dai"], dx["don_vi"])
+    co_kho = bool(dx["kho_rong"] and (dx["kho_dai"] or dx["don_vi"] == "kg"))
     if co_kho:
         out["de_xuat"] = {"kho_rong": dx["kho_rong"], "kho_dai": dx["kho_dai"],
-                          "so_to": dx["so_to"]}
-    ton = {(r, d): t for r, d, t in StockLotRepository(db).ton_to_theo_kho(dx["giay_id"])}
+                          "so_to": dx["so_to"], "don_vi": dx["don_vi"]}
+    ton = {(r, d, g): t for r, d, g, t in StockLotRepository(db).ton_giay_theo_kho(dx["giay_id"])}
     if co_kho:
         # Khổ đề xuất luôn có mặt, kể cả kho hết — người kế hoạch thấy "hết" thay vì mất dòng.
-        ton.setdefault((dx["kho_rong"], dx["kho_dai"]), 0.0)
+        ton.setdefault(khoa_dx, 0.0)
     out["kho"] = [
-        {"kho_rong": r, "kho_dai": d, "ton": t,
-         "dung_de_xuat": co_kho and (r, d) == (dx["kho_rong"], dx["kho_dai"])}
-        for (r, d), t in sorted(ton.items(), key=lambda x: (
-            not (co_kho and x[0] == (dx["kho_rong"], dx["kho_dai"])), -x[1], x[0]))
+        {"kho_rong": r, "kho_dai": d, "ton": t, "don_vi": g,
+         "dung_de_xuat": co_kho and (r, d, g) == khoa_dx}
+        for (r, d, g), t in sorted(ton.items(), key=lambda x: (
+            not (co_kho and x[0] == khoa_dx), -x[1], x[0]))
     ]
     return out
 
 
 def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int | None,
                       kho_rong: int, kho_dai: int, so_to: float):
-    """Xưởng cấp giấy cho nhà gia công: MỘT đề nghị XUẤT, MỘT dòng giấy TỜ đúng khổ người kế hoạch
-    chọn (kho soạn + lập phiếu xuất như mọi đề nghị khác). Mã giấy lấy ở máy chủ theo lệnh; dòng
-    mang `lsx_id` nên KHVT tự trừ "đã cấp". Kho thiếu tờ vẫn cho gửi — kho tự báo thiếu / mua thêm."""
+    """Xưởng cấp giấy cho nhà gia công: MỘT đề nghị XUẤT, MỘT dòng giấy đúng khổ người kế hoạch chọn
+    (kho soạn + lập phiếu xuất như mọi đề nghị khác) — tờ đủ hai cạnh, hoặc cuộn `(rộng, 0)` xin
+    theo kg (`so_to` là số kg). Mã giấy lấy ở máy chủ theo lệnh; dòng mang `lsx_id` nên KHVT tự trừ
+    "đã cấp". Kho thiếu vẫn cho gửi — kho tự báo thiếu / mua thêm."""
     kr, kd = chuan_kho(kho_rong, kho_dai)
-    if not (kr and kd):
+    if not kr:
         raise ValueError("Chọn khổ giấy cần xuất.")
+    dvt = don_vi_goc_to() if kd else "kg"
     so_to = round(float(so_to or 0), 2)
     if so_to <= 0:
-        raise ValueError("Số tờ xin xuất phải lớn hơn 0.")
+        raise ValueError("Số lượng xin xuất phải lớn hơn 0.")
     gc_repo = GiaCongNgoaiRepository(db)
     gcn = _lay_tron_goi(gc_repo, gcn_id, expected_version)
     if not gcn.xuong_cap_giay:
@@ -349,7 +358,7 @@ def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int |
         raise ValueError("Lệnh chưa chọn loại giấy — chọn giấy ở Quy cách của lệnh rồi quay lại.")
 
     # Đơn vị gốc của dòng máy chủ kho tự suy từ `dvt` (tờ ⇒ `to`) — không gửi.
-    lines = [{"hang_loai": "giay", "hang_id": giay_id, "dvt": don_vi_goc_to(),
+    lines = [{"hang_loai": "giay", "hang_id": giay_id, "dvt": dvt,
               "kho_rong": kr, "kho_dai": kd,
               "sl_de_nghi": so_to, "lsx_id": gcn.lsx_id}]
     req_svc = _req_service(db, _hang_service(db))
@@ -367,7 +376,7 @@ def de_nghi_xuat_giay(db: Session, *, user, gcn_id: int, expected_version: int |
         actor_user_id=getattr(user, "id", None), action="gia_cong_ngoai_xuat_giay",
         target=f"gia_cong_ngoai:{gcn.id}",
         detail=(f"Đề nghị xuất giấy {req.ma}: {so_vi(so_to)} "
-                f"{nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), don_vi_goc_to())} "
+                f"{nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), dvt)} "
                 f"khổ {nhan_kho(kr, kd)}"), commit=False,
     )
     db.commit()

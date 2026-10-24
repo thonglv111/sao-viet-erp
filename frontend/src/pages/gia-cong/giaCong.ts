@@ -185,7 +185,28 @@ export function chonGiayBanDau(cg: GiaCongCapGiay): { kho: string | null; so: st
   return { kho: `${dx.kho_rong}x${dx.kho_dai}`, so: dx.so_to != null ? String(dx.so_to) : "" };
 }
 
-/** Kho thiếu bao nhiêu tờ so với số xin — null khi đủ / chưa chọn. Thiếu vẫn cho gửi. */
+/** Nhãn một dòng "Khổ trong kho": cuộn (khổ `(rộng, 0)`, đếm kg) đọc theo rộng, tờ đọc hai cạnh. */
+export function nhanKhoCap(r: number, d: number): string {
+  return d ? `khổ ${r} × ${d} mm` : `cuộn rộng ${r} mm`;
+}
+
+/** Chữ người gõ ở ô số xin xuất → chuỗi số máy đọc được. Tờ: chỉ số nguyên. Kg (`thapPhan`): nhận
+ *  phẩy hoặc chấm làm dấu lẻ, tối đa 2 chữ số lẻ như máy chủ làm tròn. */
+export function chuanSoGo(v: string, thapPhan: boolean): string {
+  if (!thapPhan) return v.replace(/\D/g, "");
+  const [nguyen, ...le] = v.replace(/[^\d.,]/g, "").replace(/,/g, ".").split(".");
+  return le.length ? `${nguyen}.${le.join("").slice(0, 2)}` : nguyen;
+}
+
+/** Hiện lại số đang gõ: tờ chia nghìn, kg giữ nguyên chữ với dấu phẩy lẻ (để gõ dở "395," không
+ *  bị nuốt dấu). */
+export function hienSoGo(so: string, thapPhan: boolean): string {
+  if (so === "") return "";
+  return thapPhan ? so.replace(".", ",") : Number(so).toLocaleString("vi-VN");
+}
+
+/** Kho thiếu bao nhiêu so với số xin (đơn vị của dòng khổ đang chọn) — null khi đủ / chưa chọn.
+ *  Thiếu vẫn cho gửi. */
 export function thieuTo(cg: GiaCongCapGiay, kho: string | null, so: number): number | null {
   const k = cg.kho.find((x) => `${x.kho_rong}x${x.kho_dai}` === kho);
   if (!k || !(so > 0) || k.ton >= so) return null;
