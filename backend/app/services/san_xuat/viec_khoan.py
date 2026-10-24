@@ -33,6 +33,8 @@ _O_SO = (("ten", "tên việc"), ("don_vi", "đơn vị"), ("don_gia", "đơn gi
 #: Cấu hình Khoán của công đoạn còn so thêm GIÁ CỐ ĐỊNH của tổ và CÔNG THỨC (21/10/2026), BẬC GIÁ
 #: (22/10/2026).
 _O_SO_KHOAN = (*_O_SO, ("gia_co_dinh", "giá cố định"), ("cong_thuc", "công thức"), ("bac", "bậc giá"))
+#: Việc phát sinh của Khoán công đoạn so thêm CÁCH TÍNH GIÁ (24/10/2026).
+_O_SO_PS = (*_O_SO, ("cong_thuc", "cách tính giá"))
 
 
 def _anh_chup(ten, don_vi, don_gia, gia_co_dinh=None) -> dict:
@@ -233,7 +235,9 @@ def _bac_song(db: Session, khoan, b, cv=None) -> dict | None:
 
 
 def _anh_ps_cd_song(ps, department_id: int | None) -> dict:
-    return _anh_chup(ps.ten, ps.don_vi, gia_ps_cua_to(ps, department_id))
+    anh = _anh_chup(ps.ten, ps.don_vi, gia_ps_cua_to(ps, department_id))
+    anh["cong_thuc"] = (getattr(ps, "cong_thuc", None) or "").strip()
+    return anh
 
 
 def _anh_khoan_song(rate) -> dict:
@@ -369,6 +373,7 @@ def chuan_hoa_khi_ghi(
             phat_sinh_id=ps.id, so_luong=sl,
             ten_snapshot=anh_ps["ten"], don_vi_snapshot=anh_ps["don_vi"],
             don_gia_snapshot=anh_ps["don_gia"],
+            cong_thuc_snapshot=anh_ps["cong_thuc"],
         ))
     return o_snapshot, rows
 
@@ -425,8 +430,13 @@ def chup_lai_bac(db: Session, b, khoan, cv) -> bool:
     return True
 
 
-def _anh_ps_cua_me(r) -> dict:
-    return _anh_chup(r.ten_snapshot, r.don_vi_snapshot, r.don_gia_snapshot)
+def _anh_ps_cua_me(r, song: dict | None = None) -> dict:
+    """`song` = ảnh danh mục đang so: lần ghi trước khi có cột cách tính giá (NULL) vốn tính bằng
+    cách tính hiện tại ⇒ coi như khớp, không báo lệch giả."""
+    anh = _anh_chup(r.ten_snapshot, r.don_vi_snapshot, r.don_gia_snapshot)
+    ct = getattr(r, "cong_thuc_snapshot", None)
+    anh["cong_thuc"] = (song or {}).get("cong_thuc") if ct is None else ct.strip()
+    return anh
 
 
 def nap_doi_chieu(
@@ -484,7 +494,8 @@ def danh_muc_doi(
                     "truong": "phat_sinh", "cu": None, "moi": None, "mat": True,
                 })
                 continue
-            for o in o_lech(_anh_ps_cua_me(r), _anh_ps_cd_song(ps, department_id), _O_SO):
+            anh_ps = _anh_ps_cd_song(ps, department_id)
+            for o in o_lech(_anh_ps_cua_me(r, anh_ps), anh_ps, _O_SO_PS):
                 ra.append({**o, "nhan": _nhan_o(ps.ten, o), "mat": False})
         return ra
     if not b.piece_rate_id:
@@ -556,10 +567,11 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
             if ps is None:
                 continue
             anh_ps = _anh_ps_cd_song(ps, cv.department_id)
-            if o_lech(_anh_ps_cua_me(r), anh_ps, _O_SO):
+            if o_lech(_anh_ps_cua_me(r, anh_ps), anh_ps, _O_SO_PS):
                 r.ten_snapshot = anh_ps["ten"]
                 r.don_vi_snapshot = anh_ps["don_vi"]
                 r.don_gia_snapshot = anh_ps["don_gia"]
+                r.cong_thuc_snapshot = anh_ps["cong_thuc"]
                 doi.append(f"phat_sinh={ps.id}")
         AuditLogRepository(db).create(
             actor_user_id=getattr(user, "id", None),

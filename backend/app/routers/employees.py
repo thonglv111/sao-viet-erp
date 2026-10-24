@@ -858,6 +858,7 @@ def apply_transition(
             kind=body.kind, effective_date=body.effective_date, note=body.note,
             new_department_id=body.new_department_id,
             new_position=body.new_position, resign_reason=body.resign_reason,
+            probation_end_date=body.probation_end_date,
         )
     except EmployeeError as exc:
         _raise(exc)

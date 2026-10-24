@@ -30,8 +30,8 @@ from tests.test_san_xuat_thuc_thi import (  # noqa: F401
 CMYK = ["C", "M", "Y", "K"]
 CT_IN = ("((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000)"
          " * don_gia_khoan) * if(metaline > 0, 3, if(muc_uv > 0, if(gia_gom_uv > 0, 1, 2), 1))")
-TC_IN = _tc(("chay_tiep", "Chạy tiếp", "co_khong"), ("muc_uv", "Mực UV", "co_khong"),
-            ("metaline", "Metaline", "co_khong"))
+# `chay_tiep` là chip máy tự dò (24/10/2026), không còn là tuỳ chọn tick.
+TC_IN = _tc(("muc_uv", "Mực UV", "co_khong"), ("metaline", "Metaline", "co_khong"))
 BAC = [
     {"ma": "b1", "ten": "1–2 màu thường", "mau_tu": 1, "mau_den": 2, "pha": "khong"},
     {"ma": "b2", "ten": "1–2 màu Pantone", "mau_tu": 1, "mau_den": 2, "pha": "co",

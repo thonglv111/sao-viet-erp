@@ -4472,9 +4472,13 @@ button.rc-formula__nhan--nut.is-chon {
 .rc-khoan__luoi .rc-bands__table td.rc-khoan__kieu:nth-child(n) { padding: 0 12px; }
 .rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(3) { width: 34%; }
 .rc-khoan__luoi .rc-bands--tuy-chon th:nth-child(4),
-.rc-khoan__luoi .rc-bands--vps th:nth-child(4) { width: 40px; }
+.rc-khoan__luoi .rc-bands--vps th:last-child { width: 40px; }
 .rc-khoan__luoi .rc-bands--vps th:nth-child(2) { width: 160px; text-align: right; padding-right: 40px; }
 .rc-khoan__luoi .rc-bands--vps th:nth-child(3) { width: 30%; }
+/* Cột "Cách tính giá" của việc phát sinh (24/10/2026): ô là nút mở popup công thức, chữ dài thành "…". */
+.rc-khoan__luoi .rc-bands--vps th.rc-khoan__cot-ct:nth-child(n) { width: 200px; }
+.rc-khoan__luoi .rc-bands--vps td.rc-ct-td { max-width: 0; }
+.rc-khoan__luoi .rc-bands--vps td.rc-ct-td .rc-ct-cell { height: 38px; padding: 0 12px; border-radius: 0; }
 .rc-khoan__mat { color: var(--ash, #6f756f); font-style: italic; }
 /* Bậc giá (Bài in, 22/10/2026): mỗi dòng bậc mang luôn giá từng tổ, mỗi tổ hai cột Cố định |
    Đơn giá dưới tên tổ. Nhiều tổ thì kéo ngang (bảng này chỉ có ô chọn gốc, không menu thò ra). */

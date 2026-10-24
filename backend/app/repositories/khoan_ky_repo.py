@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from types import SimpleNamespace
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Bundle, Session, selectinload
 
 from ..models.cong_doan import CongDoanKhoan
@@ -77,6 +77,54 @@ class KhoanKyRepository:
             .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBatch.cong_viec_id)
             .where(SanXuatBatch.bat_dau < den, *tu, *dk)).all())
         return gop, dong
+
+    def nguoi_lan_chay(self, den: datetime, khoan_ids: set[int], *, lsx_ids: set[int],
+                       bai_ids: set[int], cv_ids: set[int]) -> list:
+        """Mọi lần ghi `bat_dau < den` cùng neo như `lan_chay`, mỗi dòng một người tick:
+        `batch_id, bat_dau, employee_id, khoan_cong_doan_id, cv_id, lsx_id, bai_ghep_id` — để đếm
+        `so_lan_thu_viec`. Chỉ gọi cho cấu hình có công thức dùng chip đó."""
+        if not khoan_ids:
+            return []
+        neo = [c for c in (
+            SanXuatCongViec.lsx_id.in_(lsx_ids) if lsx_ids else None,
+            SanXuatCongViec.bai_ghep_id.in_(bai_ids) if bai_ids else None,
+            SanXuatCongViec.id.in_(cv_ids) if cv_ids else None,
+        ) if c is not None]
+        return list(self.db.execute(
+            select(SanXuatBatch.id.label("batch_id"), SanXuatBatch.bat_dau, SanXuatBatchNguoi.employee_id,
+                   SanXuatBatch.khoan_cong_doan_id, SanXuatCongViec.id.label("cv_id"),
+                   SanXuatCongViec.lsx_id, SanXuatCongViec.bai_ghep_id)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBatch.cong_viec_id)
+            .join(SanXuatBatchNguoi, SanXuatBatchNguoi.batch_id == SanXuatBatch.id)
+            .where(SanXuatBatch.bat_dau < den, SanXuatBatch.khoan_cong_doan_id.in_(khoan_ids), or_(*neo))
+        ).all())
+
+    def viec_lien_truoc(self, batch_ids: set[int], den: datetime) -> dict[int, tuple[int, datetime]]:
+        """`{batch_id: (cong_viec_id, bat_dau) của lần ghi liền trước}` trên CÙNG máy
+        (`cong_viec.may_id`); việc không gắn máy thì cùng tổ. Xếp theo `bat_dau`, cùng giờ theo id;
+        mọi lần ghi (kể cả công đoạn không khoán, kể cả kỳ trước) đều là một lần trên máy. Không có
+        lần trước ⇒ vắng khỏi dict."""
+        if not batch_ids:
+            return {}
+        nhom = (SanXuatCongViec.may_id,
+                case((SanXuatCongViec.may_id.is_(None), SanXuatCongViec.department_id), else_=None))
+        may_ids = select(SanXuatCongViec.may_id).join(SanXuatBatch, SanXuatBatch.cong_viec_id == SanXuatCongViec.id) \
+            .where(SanXuatBatch.id.in_(batch_ids), SanXuatCongViec.may_id.is_not(None))
+        to_ids = select(SanXuatCongViec.department_id).join(SanXuatBatch, SanXuatBatch.cong_viec_id == SanXuatCongViec.id) \
+            .where(SanXuatBatch.id.in_(batch_ids), SanXuatCongViec.may_id.is_(None))
+        thu_tu = (SanXuatBatch.bat_dau, SanXuatBatch.id)
+        lag = (select(SanXuatBatch.id.label("batch_id"),
+                      func.lag(SanXuatBatch.cong_viec_id).over(partition_by=nhom, order_by=thu_tu).label("truoc"),
+                      func.lag(SanXuatBatch.bat_dau, type_=SanXuatBatch.bat_dau.type).over(partition_by=nhom, order_by=thu_tu).label("luc"))
+               .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBatch.cong_viec_id)
+               .where(SanXuatBatch.bat_dau < den,
+                      or_(SanXuatCongViec.may_id.in_(may_ids),
+                          and_(SanXuatCongViec.may_id.is_(None), SanXuatCongViec.department_id.in_(to_ids))))
+               .subquery())
+        return {int(r.batch_id): (int(r.truoc), r.luc)
+                for r in self.db.execute(select(lag.c.batch_id, lag.c.truoc, lag.c.luc)
+                                         .where(lag.c.batch_id.in_(batch_ids)))
+                if r.truoc is not None}
 
     def dung_may_trong_khoang(self, tu: date, den: date) -> list[KhoanDungMay]:
         """Ngày dừng máy (Đợt 2) có `ngay` trong [tu, den] — đã là ngày xưởng, không cần lọc lại."""

@@ -32,6 +32,7 @@ export const DOC_KIND_LABEL: Record<string, string> = {
 };
 export const EVENT_LABEL: Record<string, string> = {
   hired: "Vào làm",
+  probation_ended: "Hết thử việc",
   confirmed: "Chuyển chính thức",
   transferred: "Điều chuyển",
   promoted: "Đổi chức danh",
@@ -39,6 +40,7 @@ export const EVENT_LABEL: Record<string, string> = {
   leave_end: "Đi làm lại",
   suspended: "Đình chỉ",
   unsuspended: "Gỡ đình chỉ",
+  probation_restarted: "Chuyển về thử việc",
   resigned: "Nghỉ việc",
   reinstated: "Tuyển lại",
 };
@@ -70,6 +72,7 @@ export const ACTION_TITLE: Record<string, string> = {
   leave_end: "Đi làm lại",
   suspend: "Đình chỉ",
   unsuspend: "Gỡ đình chỉ · đi làm lại",
+  probation_restart: "Chuyển về thử việc",
   resign: "Cho nghỉ việc",
   reinstate: "Tuyển lại",
   transfer: "Điều chuyển phòng/tổ",

@@ -173,6 +173,8 @@ def nhan_kho(kho_rong: int, kho_dai: int) -> str:
 DON_VI_TO_KHO = "to"
 
 #: Hai đơn vị mọi mã giấy BẮT BUỘC có (chốt 18/10/2026): bước nhận tờ đếm tờ, bước ra kg đếm kg.
+#: Từ 24/10/2026 đây cũng là hai đơn vị DUY NHẤT của giấy — không thêm ram, tấn, cuộn…
+#: (`VatLieuKhoService._chot_don_vi_giay`). Ram / tấn vẫn nhập được qua nhóm quy đổi của tờ / kg.
 #: Ở module Đơn vị & quy đổi hai mã này bị KHOÁ — không xoá, không ngừng dùng, không đổi mã.
 GIAY_DON_VI_BAT_BUOC = (DON_VI_TO_KHO, "kg")
 

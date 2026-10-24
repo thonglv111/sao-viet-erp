@@ -350,6 +350,7 @@ _HD += _dong("nhan_su", "nhan_su", {
     "employee_leave_end": "Kết thúc nghỉ dài hạn",
     "employee_suspended": "Đình chỉ",
     "employee_unsuspended": "Gỡ đình chỉ",
+    "employee_probation_restarted": "Chuyển về thử việc",
     "employee_resigned": "Nghỉ việc",
     "employee_reinstated": "Tuyển lại",
 })

@@ -36,36 +36,45 @@ export function OHaiTab({
   buoc?: number;
 }) {
   const [kieu, setKieu] = useState<Kieu>("pct");
+  // Ô nhập và hai tab chung một khung, một hàng; dưới là số của tab KIA (gõ % thì thấy ra bao nhiêu tiền).
+  const phu = Math.round(so) === 0
+    ? null
+    : kieu === "pct"
+      ? `${Math.round(so).toLocaleString("vi-VN")} đ`
+      : `${pct.toLocaleString("vi-VN", { maximumFractionDigits: 1 })} %`;
   return (
     <div className="o2tab">
-      <div className="o2tab__tab" role="tablist" aria-label={`${ariaLabel} — cách nhập`}>
-        {(["pct", "so"] as const).map((k) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={kieu === k}
-            className={kieu === k ? "is-on" : undefined}
-            disabled={disabled}
-            onClick={() => { if (k !== kieu) { onHuy?.(); setKieu(k); } }}
-          >
-            {k === "pct" ? "%" : "Số"}
-          </button>
-        ))}
+      <div className="o2tab__o">
+        <ONhapSo
+          className={kieu === "pct" ? "pct" : "money"}
+          giaTri={kieu === "pct" ? pct : Math.round(so)}
+          donVi={kieu === "pct" ? "%" : "đ"}
+          soLe={kieu === "pct" ? 1 : 0}
+          buoc={kieu === "pct" ? buoc : undefined}
+          disabled={disabled}
+          ariaLabel={`${ariaLabel} (${kieu === "pct" ? "%" : "số tiền"})`}
+          title={kieu === "pct" ? titlePct : titleSo}
+          onNhap={(v) => onNhap?.(kieu, v)}
+          onHuy={onHuy}
+          onChot={(v) => onChot(kieu, v)}
+        />
+        <div className="o2tab__tab" role="tablist" aria-label={`${ariaLabel} — cách nhập`}>
+          {(["pct", "so"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kieu === k}
+              className={kieu === k ? "is-on" : undefined}
+              disabled={disabled}
+              onClick={() => { if (k !== kieu) { onHuy?.(); setKieu(k); } }}
+            >
+              {k === "pct" ? "%" : "Số"}
+            </button>
+          ))}
+        </div>
       </div>
-      <ONhapSo
-        className={kieu === "pct" ? "pct" : "money"}
-        giaTri={kieu === "pct" ? pct : Math.round(so)}
-        donVi={kieu === "pct" ? "%" : "đ"}
-        soLe={kieu === "pct" ? 1 : 0}
-        buoc={kieu === "pct" ? buoc : undefined}
-        disabled={disabled}
-        ariaLabel={`${ariaLabel} (${kieu === "pct" ? "%" : "số tiền"})`}
-        title={kieu === "pct" ? titlePct : titleSo}
-        onNhap={(v) => onNhap?.(kieu, v)}
-        onHuy={onHuy}
-        onChot={(v) => onChot(kieu, v)}
-      />
+      {phu && <span className="o2tab__phu">{phu}</span>}
     </div>
   );
 }

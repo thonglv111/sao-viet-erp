@@ -211,6 +211,10 @@ export interface CatalogConfig {
    *  danh mục có mã chạy số, SAI cho danh mục mà mã là một thứ có thật ngoài đời (biển số): điền
    *  sẵn là mời người ta bấm Lưu với cái mã vô nghĩa đó. */
   khongGoiYMa?: boolean;
+  /** Mã máy chủ lưu chữ THƯỜNG (Đơn vị: `kg`, `m2` — xem `don_vi_do_repo.ma_case`) nhưng bày ra
+   *  chữ HOA như mọi danh mục khác. Chỉ đổi chữ hiện ra ở lưới + ô Mã; giá trị gửi đi vẫn được
+   *  máy chủ `lower()`, nên đừng đổi dữ liệu sống sang HOA để "cho khớp". */
+  maHienHoa?: boolean;
   /** Tạo xong thì GIỮ drawer mở ở bản ghi vừa tạo. Dùng cho màn có khối con phải gắn vào id (vd
    *  Đơn vị: tạo "tấn" xong khai ngay quy đổi) — đóng phắt là bắt người ta đi tìm lại dòng. */
   moLaiSauKhiTao?: boolean;
@@ -255,6 +259,8 @@ export interface ViecPhatSinhRow {
   id?: number; ten?: string; don_gia?: number | null; don_vi?: string;
   /** Giá theo tổ của việc phát sinh (21/10/2026) — rỗng/null = mọi tổ dùng `don_gia`. */
   gia_theo_to?: { department_id: number; don_gia?: number | null }[] | null;
+  /** "Cách tính giá" (24/10/2026): công thức ra đơn giá trên lần ghi — có thì đơn giá / giá tổ không dùng. */
+  cong_thuc?: string | null;
 }
 
 /** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). `bac` = mã bậc giá khi công đoạn

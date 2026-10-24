@@ -4,6 +4,7 @@ import { useBienCongThuc, type BienCongThuc } from "../bienCongThuc";
 import { TrashIcon } from "../icons";
 import type { BacGiaRow, GiaTheoToRow, KhoanCongDoanValue, Row, TuyChonKhoanRow, ViecPhatSinhRow } from "../types";
 import { FormulaField } from "./FormulaField";
+import { FormulaPopover } from "./FormulaPopover";
 import { RefSearchField } from "./RefFields";
 import { RowEditor, type CotThem } from "./RowEditor";
 import { maTuTenChip } from "./VatTuChips";
@@ -266,6 +267,10 @@ export function KhoanCongDoanField({ value, donViOptions, toPhuTrach = [], tatCa
   const v = value ?? {};
   const set = (patch: Partial<KhoanCongDoanValue>) => onChange({ ...v, ...patch });
   const ps = v.viec_phat_sinh ?? [];
+  // Popup "Cách tính giá" của việc phát sinh đang mở: dòng + ô vừa bấm + công thức lúc mở (cho Huỷ).
+  const [moPs, setMoPs] = useState<{ i: number; neo: HTMLElement; banDau: string | null } | null>(null);
+  const datCtPs = (i: number, cong_thuc: string | null) =>
+    set({ viec_phat_sinh: ps.map((r, j) => (j === i ? { ...r, cong_thuc } : r)) });
   const gtt = v.gia_theo_to ?? [];
   const tc = v.tuy_chon ?? [];
   // Luôn làm việc trên bản ĐÃ chuẩn hoá — thứ tự hiện ra cũng là thứ tự máy dò (xem `chuanHoaBac`).
@@ -346,9 +351,10 @@ export function KhoanCongDoanField({ value, donViOptions, toPhuTrach = [], tatCa
   const cotToBac: CotThem[] = toIds.map((id) => ({
     khoa: id, nhan: dauTo(id, true), lop: "rc-khoan__dau-to", con: ["Cố định", "Đơn giá"],
   }));
-  const cotToPs: CotThem[] = toIds.map((id) => ({
-    khoa: id, nhan: dauTo(id, false), lop: "so rc-khoan__cot-to",
-  }));
+  const cotToPs: CotThem[] = [
+    { khoa: "cach-tinh", nhan: "Cách tính giá", lop: "rc-khoan__cot-ct" },
+    ...toIds.map((id) => ({ khoa: id, nhan: dauTo(id, false), lop: "so rc-khoan__cot-to" })),
+  ];
 
   return (
     <div className="rc-khoan">
@@ -489,14 +495,34 @@ export function KhoanCongDoanField({ value, donViOptions, toPhuTrach = [], tatCa
           value={ps}
           donViOptions={donViOptions}
           cotThem={cotToPs}
-          veThem={(r, i) => toIds.map((id) => (
-            <td key={id}>
-              <OTien nhan={`${r.ten || `Việc phát sinh ${i + 1}`} ${tenHien(id)}`} value={giaPs(r, id)}
-                onChange={(don_gia) => datGiaPs(i, id, don_gia)} />
-            </td>
-          ))}
-          onChange={(viec_phat_sinh) => set({ viec_phat_sinh })}
+          veThem={(r, i) => [
+            <td key="cach-tinh" className="rc-ct-td">
+              {/* Có công thức thì đơn giá ra từ chính lần ghi (vd xuống bài = 50% giá cố định). */}
+              <button type="button" title="Sửa cách tính giá của việc phát sinh này"
+                className={`rc-ct-cell ${moPs?.i === i ? "is-open" : ""} ${r.cong_thuc ? "" : "is-empty"}`}
+                onClick={(e) => setMoPs(moPs?.i === i ? null
+                  : { i, neo: e.currentTarget, banDau: r.cong_thuc ?? null })}>{r.cong_thuc || "—"}</button>
+            </td>,
+            ...toIds.map((id) => (
+              <td key={id}>
+                <OTien nhan={`${r.ten || `Việc phát sinh ${i + 1}`} ${tenHien(id)}`} value={giaPs(r, id)}
+                  onChange={(don_gia) => datGiaPs(i, id, don_gia)} />
+              </td>
+            )),
+          ]}
+          onChange={(viec_phat_sinh) => { setMoPs(null); set({ viec_phat_sinh }); }}
         />
+        {moPs && ps[moPs.i] && <FormulaPopover neo={moPs.neo} nhan="Cách tính giá"
+          onClose={() => setMoPs(null)}
+          onHuy={() => { datCtPs(moPs.i, moPs.banDau); setMoPs(null); }}>
+          <FormulaField
+            id={`ct-ps-${moPs.i}`} configPrefix="/api/cong-doan" loaiO="khoan"
+            hien={["don_gia_khoan"]} bienThem={tuyChonThanhBien(tc)}
+            nhanO={`Cách tính giá — ${ps[moPs.i].ten || `Việc phát sinh ${moPs.i + 1}`}`}
+            goY="Ra ĐƠN GIÁ của việc phát sinh trên lần ghi. Bỏ trống = dùng Đơn giá. vd xuống bài 50% bài in: 0.5 * gia_co_dinh"
+            value={ps[moPs.i].cong_thuc ?? ""}
+            onChange={(ct) => datCtPs(moPs.i, ct.trim() ? ct : null)} />
+        </FormulaPopover>}
       </section>
 
       <section className="rc-card-section rc-khoan__section">

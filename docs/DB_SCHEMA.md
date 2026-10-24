@@ -3583,7 +3583,12 @@ theo nhiều tổ không có quan hệ 1–1 đáng tin cậy với Công đoạ
 **Purpose:** các việc phát sinh được chọn khi ghi mẻ của Công đoạn cha. Mỗi dòng gồm tên, đơn vị,
 đơn giá và thứ tự hiển thị.
 
-**Tất cả cột:** `id`, `cong_doan_khoan_id`, `ten`, `don_gia`, `don_vi`, `thu_tu`, `gia_theo_to`.
+**Tất cả cột:** `id`, `cong_doan_khoan_id`, `ten`, `don_gia`, `don_vi`, `thu_tu`, `gia_theo_to`,
+`cong_thuc`.
+
+`cong_thuc` (Text, nullable, mg `0443`, 24/10/2026): cột "Cách tính giá" — công thức ra ĐƠN GIÁ trên
+chính lần ghi, cùng bộ chip ô Công thức khoán (vd xuống bài do lỗi = `0.5 * gia_co_dinh`, 50% bài in).
+Có công thức thì `don_gia` / `gia_theo_to` không dùng (lưu `don_gia` = 0 nếu bỏ trống). NULL = dùng giá.
 
 `gia_theo_to` (JSON, nullable, mg `0429`): giá theo TỔ `[{department_id, don_gia}]` — vd xuống bài do
 lỗi máy 2M 187.500, 4M 150.000. NULL / rỗng = mọi tổ dùng `don_gia`.
@@ -5187,9 +5192,10 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `ten_snapshot` | `String(150)` | — | yes | — | Ảnh chụp tên việc phát sinh lúc ghi mẻ. |
 | `don_vi_snapshot` | `String(24)` | — | yes | — | Ảnh chụp ĐVT (mã `don_vi_do`). |
 | `don_gia_snapshot` | `Numeric(14,2)` | — | yes | — | Ảnh chụp đơn giá — cùng luật băng "Danh mục đã đổi" với ba ô snapshot của mẻ. |
+| `cong_thuc_snapshot` | `Text` | — | yes | — | Mg `0443` (24/10/2026): ảnh chụp "Cách tính giá" của việc phát sinh lúc ghi. `""` = việc không có công thức (dùng `don_gia_snapshot`); NULL = dòng ghi trước mg `0443` ⇒ kỳ lương đọc công thức hiện tại của danh mục. |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 
-**Tất cả cột:** `id`, `batch_id`, `phat_sinh_id`, `so_luong`, `ten_snapshot`, `don_vi_snapshot`, `don_gia_snapshot`, `created_at`.
+**Tất cả cột:** `id`, `batch_id`, `phat_sinh_id`, `so_luong`, `ten_snapshot`, `don_vi_snapshot`, `don_gia_snapshot`, `cong_thuc_snapshot`, `created_at`.
 
 ---
 

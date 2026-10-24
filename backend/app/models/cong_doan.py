@@ -307,6 +307,9 @@ class CongDoanKhoanPhatSinh(Base):
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
     # Giá theo tổ `[{department_id, don_gia}]` — cùng luật với `CongDoanKhoan.gia_theo_to`.
     gia_theo_to: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # "Cách tính giá" (mg 0443, 24/10/2026): công thức ra ĐƠN GIÁ trên chính lần ghi, cùng bộ chip ô
+    # Công thức khoán — vd Xuống bài do lỗi = `0.5 * gia_co_dinh` (50% bài in). NULL = dùng đơn giá.
+    cong_thuc: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     khoan: Mapped["CongDoanKhoan"] = relationship("CongDoanKhoan", back_populates="viec_phat_sinh")
 

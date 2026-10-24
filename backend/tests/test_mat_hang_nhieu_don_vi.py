@@ -108,22 +108,28 @@ def test_chan_bo_don_vi_con_ton(client):
     assert r.status_code == 200, r.text
 
 
-def test_giay_luon_co_to_va_kg(client):
-    """18/10/2026: mã giấy luôn có nhóm tờ + nhóm kg — thiếu thì máy chủ tự thêm, bỏ đi cũng mọc lại;
-    nhóm đã có qua đơn vị khác (ram ∈ tờ, tấn ∈ kg) thì không thêm trùng nhóm."""
+def test_giay_chi_co_kg_va_to(client):
+    """24/10/2026: giấy có ĐÚNG hai đơn vị kg + tờ — bỏ đi thì mọc lại, đổi ĐVT chính thì đơn vị kia
+    đổi theo, khai đơn vị khác (ram, tấn) bị chặn. Không gửi ĐVT ⇒ mặc định kg."""
     h = _admin(client)
     _don_vi()
-    r = client.post(GIAY, json={"ma": "ZZIV", "ten": "Ivory ZZ", "gsm": 300, "don_vi_gia": "kg"},
-                    headers=h)
+    r = client.post(GIAY, json={"ma": "ZZIV", "ten": "Ivory ZZ", "gsm": 300}, headers=h)
     assert r.status_code in (200, 201), r.text
     g = r.json()
-    assert g["don_vi_them"] == ["to"]
+    assert (g["don_vi_gia"], g["don_vi_them"]) == ("kg", ["to"])
     r = client.put(f"{GIAY}/{g['id']}", json={"ma": g["ma"], "ten": g["ten"], "gsm": 300,
                                               "don_vi_gia": "kg", "don_vi_them": []}, headers=h)
     assert r.status_code == 200 and r.json()["don_vi_them"] == ["to"], r.text
-    r = client.post(GIAY, json={"ma": "ZZRAM", "ten": "Couche ram", "gsm": 150, "don_vi_gia": "ram",
+    r = client.put(f"{GIAY}/{g['id']}", json={"ma": g["ma"], "ten": g["ten"], "gsm": 300,
+                                              "don_vi_gia": "to", "don_vi_them": ["to"]}, headers=h)
+    assert r.status_code == 200, r.text
+    assert (r.json()["don_vi_gia"], r.json()["don_vi_them"]) == ("to", ["kg"])
+    r = client.post(GIAY, json={"ma": "ZZRAM", "ten": "Couche ram", "gsm": 150, "don_vi_gia": "ram"},
+                    headers=h)
+    assert r.status_code == 422 and "Giấy chỉ có hai đơn vị" in r.text, r.text
+    r = client.post(GIAY, json={"ma": "ZZTAN", "ten": "Couche tấn", "gsm": 150, "don_vi_gia": "kg",
                                 "don_vi_them": ["tan"]}, headers=h)
-    assert r.status_code in (200, 201) and r.json()["don_vi_them"] == ["tan"], r.text
+    assert r.status_code == 422 and "không thêm" in r.text, r.text
 
 
 def test_chua_co_dvt_chinh_khong_khai_them(client):

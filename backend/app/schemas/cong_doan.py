@@ -85,6 +85,8 @@ class CongDoanKhoanPhatSinhIn(BaseModel):
     don_gia: float | None = None
     don_vi: str | None = Field(default=None, max_length=24)
     gia_theo_to: list[GiaTheoToIn] | None = None
+    # "Cách tính giá" (24/10/2026) — công thức ra đơn giá; trống = dùng đơn giá.
+    cong_thuc: str | None = None
 
 
 class CongDoanKhoanPhatSinhRow(CongDoanKhoanPhatSinhIn):

@@ -202,6 +202,15 @@ _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     ("so_lan_chay", "Số lần ghi sản lượng",
      "Số lần ghi của cùng lệnh ở cùng công đoạn tính tới cuối kỳ lương, tối thiểu 1", "lần",
      "đếm lần ghi lúc tính lương", (LOAI_KHOAN,)),
+    # 24/10/2026 — sổ T08 tổ dán: tiền canh chia cho số lần ghi TRỪ lần có thợ thử việc làm.
+    ("so_lan_thu_viec", "Số lần ghi có thử việc",
+     "Trong số lần ghi sản lượng, số lần có ít nhất một người làm đang thử việc ngày ghi", "lần",
+     "trạng thái hồ sơ nhân sự tại ngày ghi", (LOAI_KHOAN,)),
+    # 24/10/2026 — sổ T08 tổ in: in tiếp ngay lần trước thì không lên bài lại, không miễn 3.000 tờ.
+    ("chay_tiep", "Chạy tiếp",
+     "1 khi lần ghi liền trước trên cùng máy (việc không gắn máy thì cùng tổ) là chính dòng công "
+     "việc này và cùng ngày, ngược lại 0 (qua đêm là canh lại)", "0/1", "thứ tự lần ghi trên máy",
+     (LOAI_KHOAN,)),
     ("tien_gio", "Tiền giờ",
      "Σ người làm (lương vị trí + trách nhiệm) ÷ 26 ÷ 8 × số giờ lần ghi", "đ",
      "hồ sơ lương + giờ bắt đầu / kết thúc của lần ghi", (LOAI_KHOAN,)),
