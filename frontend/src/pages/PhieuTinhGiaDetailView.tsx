@@ -42,6 +42,7 @@ import { heSoChu, nhanChang } from "./lsxBuoc";
 import { NHOM_CONG_DOAN } from "./keHoachSxShared";
 import { donViDangDung, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
+import { chonDuocTrongPhieu } from "./congDoanPhieuTinhGia";
 // Nhãn ĐƠN VỊ của biến công thức lấy từ TỪ ĐIỂN BIẾN (`/api/bien-cong-thuc`), không khai lại ở đây —
 // xem ghi chú chỗ `humanizeFormula`.
 import { traBien, useBienCongThuc, type TraBien } from "./RebuildCatalogPage";
@@ -504,9 +505,12 @@ function dinhMucTheoBuoc(
   return out;
 }
 
-/** Dòng NVL tách theo cờ `loai` engine gắn — giấy đứng riêng, mực/màng/keo gom lại. */
-function nvlTheoLoai(groups: PhieuTinhGiaGroupOut[] | null): { giay: DongTien[]; vatTu: DongTien[] } {
-  const ra: { giay: DongTien[]; vatTu: DongTien[] } = { giay: [], vatTu: [] };
+/** Dòng NVL tách theo cờ `loai` engine gắn — giấy và sóng (cấp sản phẩm) đứng riêng, mực/màng/keo
+ * gom lại. Bỏ sót một loại thì panel giá vốn báo "lệch" bằng đúng tiền loại đó. */
+export function nvlTheoLoai(
+  groups: PhieuTinhGiaGroupOut[] | null,
+): { giay: DongTien[]; song: DongTien[]; vatTu: DongTien[] } {
+  const ra: { giay: DongTien[]; song: DongTien[]; vatTu: DongTien[] } = { giay: [], song: [], vatTu: [] };
   const grp = groups?.find((g) => g.idx === "nvl");
   for (const r of grp?.rows ?? []) {
     const tien = _so(r.thanh_tien);
@@ -517,6 +521,7 @@ function nvlTheoLoai(groups: PhieuTinhGiaGroupOut[] | null): { giay: DongTien[];
       vatTuId: _so(r.vat_tu_id),
     };
     if (r.loai === "giay") ra.giay.push(dong);
+    else if (r.loai === "song") ra.song.push(dong);
     else if (r.loai === "vat_tu") ra.vatTu.push(dong);
   }
   return ra;
@@ -2844,7 +2849,7 @@ function ComponentModal({
   const tienCongDoan = useMemo(
     () => [...mapTien.values()].reduce((s, d) => s + d.tien, 0), [mapTien],
   );
-  const tienNvl = [...nvl.giay, ...nvl.vatTu].reduce((s, d) => s + d.tien, 0);
+  const tienNvl = [...nvl.giay, ...nvl.song, ...nvl.vatTu].reduce((s, d) => s + d.tien, 0);
   // Tổng LẤY TỪ ENGINE (`gia_von_tp`), không tự cộng lại — cộng ở client là đẻ nguồn sự thật thứ
   // hai, rồi hai màn ra hai con số trên cùng một phiếu. Nhưng CÓ đối chiếu: lệch quá 1đ nghĩa là
   // có dòng engine tính mà panel chưa hiện ⇒ nói thẳng ra thay vì để người xem tự cộng rồi ngờ.
@@ -2854,7 +2859,7 @@ function ComponentModal({
     : 0;
   // Chưa có số (chưa nhập đủ) hoặc backend đời cũ chưa gửi nhóm tiền ⇒ không dựng khối rỗng.
   const coTien = !!liveMeta
-    && (nvl.giay.length > 0 || nvl.vatTu.length > 0
+    && (nvl.giay.length > 0 || nvl.song.length > 0 || nvl.vatTu.length > 0
         || dsCongDoan.length > 0 || dsKhuon.length > 0 || dsGiaoHang.length > 0
         || dsChiPhiKhac.length > 0);
   // ĐƠN VỊ CỦA CHÍNH CHUỖI NÀY (12/08/2026) — trước đó khối này gọi cứng "tờ" và "con/tờ", trong
@@ -2930,7 +2935,7 @@ function ComponentModal({
   // danh mục Công đoạn. Bước tự nhập đã lưu ở phiếu cũ vẫn hiện bình thường, chỉ không tạo thêm.
   const cdOpts = useMemo<SelectOption<string>[]>(
     () => congDoans
-      .filter((cd) => cd.active !== false)
+      .filter(chonDuocTrongPhieu)
       .map((cd) => ({ value: String(cd.id), label: cdName(cd) })),
     [congDoans],
   );
@@ -3024,8 +3029,8 @@ function ComponentModal({
   // Sau in), tối đa 3 — bấm một phát là có bước đầu, không thành bảng chọn thứ hai.
   const goiYNhanh = useMemo(() => {
     const ds: SelectOption<string>[] = [];
-    for (const nhom of ["prepress", "print", "finishing"]) {
-      const cd = congDoans.find((x) => x.active !== false && String(x.nhom) === nhom);
+    for (const nhom of ["print", "finishing"]) {
+      const cd = congDoans.find((x) => chonDuocTrongPhieu(x) && String(x.nhom) === nhom);
       if (cd) ds.push({ value: String(cd.id), label: cdName(cd) });
     }
     return ds;
@@ -4130,6 +4135,14 @@ function ComponentModal({
                         d={d}
                         tra={tra}
                       />
+                    </span>
+                    <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
+                  </div>
+                ))}
+                {nvl.song.map((d, i) => (
+                  <div className="tg-sheetrow" key={`s${i}`}>
+                    <span className="tg-sheetrow__stack">
+                      <HaiDongCongThuc ten="Sóng" d={d} tra={tra} />
                     </span>
                     <SoDv so={fmt(Math.round(d.tien))} dv="đ" />
                   </div>

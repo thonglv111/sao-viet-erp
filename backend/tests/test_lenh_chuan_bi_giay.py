@@ -139,7 +139,7 @@ def test_kho_trong_nguon_mua_co_te_giay_in(db, orders, lsx_svc, admin, customer)
 
 def test_co_song_them_te_song_noi_vao_boi(db, orders, lsx_svc, admin, customer):
     lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, song=True))
-    assert _ma(db, lsx) == ["TS", "TGI", "CD-IN-CB", "BTĐ", "CD-CAN-CB"]
+    assert _ma(db, lsx) == ["TGI", "CD-IN-CB", "TS", "BTĐ", "CD-CAN-CB"]
     ts, boi = _theo_ma(db, lsx, "TS"), _theo_ma(db, lsx, "BTĐ")
     assert ts.phu_thuoc == []
     sau_ts = [c for c in lsx.cong_doans if any(e.buoc_truoc_id == ts.id for e in c.phu_thuoc)]

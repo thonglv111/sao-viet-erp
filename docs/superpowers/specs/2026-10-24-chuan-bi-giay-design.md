@@ -82,7 +82,8 @@ Theo khuôn `KHO-TP` (dòng DB có mã cố định). Máy nhận ra bằng MÃ,
 - Khổ nguyên = khổ in (một tờ nguyên ra một tờ in) ⇒ bỏ `TGI` (`to_nguyen`/`mua` thành không thêm bước;
   `cuon` chỉ còn `CGC`).
 - Có sóng ⇒ thêm `TS`, nối thẳng vào bước bồi hệ thống đầu tiên (cạnh phụ thuộc `TS → Bồi`), chạy song song
-  nhánh giấy. `TS` đứng đầu thứ tự nhưng KHÔNG nối vào bước nào khác.
+  nhánh giấy. `TS` đứng ngay trước bước bồi trong thứ tự (24/10 e2e: để đầu thứ tự thì dải tên đọc thành
+  sóng chảy vào nhánh giấy) và KHÔNG nối vào bước nào khác.
 - Tính ngược số: nhánh giấy là dòng giấy như cũ. `TS` tính riêng: ra = SL vào của bước bồi; vào = ra + hao
   của `TS`.
 - Giấy/sóng gắn vào bước đầu, số lượng:

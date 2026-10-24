@@ -2427,7 +2427,7 @@ class LsxService:
             don_vi_goc=dong["don_vi_goc"]))
 
     def _dung_khau_chuan_bi(self, lsx: Lsx, nguon: NguonChon | None) -> list[LsxCongDoan]:
-        """Chèn Cắt giấy cuộn / Tề giấy in ngay trước In (theo `nguon`) và Tề sóng ở đầu thứ tự (có sóng
+        """Chèn Cắt giấy cuộn / Tề giấy in ngay trước In (theo `nguon`) và Tề sóng ngay trước bước bồi (có sóng
         + có bước bồi), gắn giấy vào bước đầu khâu, sóng vào Tề sóng, ghi `lsx.nguon_giay`. KHÔNG commit.
 
         Lệnh phải có id (cạnh trỏ id bước). Cạnh: bước trước In chuyển sang trỏ bước chuẩn bị đầu, khâu
@@ -2456,7 +2456,12 @@ class LsxService:
             ts = ts_moi = self._them_buoc_he_thong(lsx, CD_TE_SONG)
         con_lai = [c for c in buoc if c is not ts]
         vt = con_lai.index(in_) if in_ in con_lai else len(con_lai)
-        for i, c in enumerate(([ts] if ts else []) + con_lai[:vt] + khau + con_lai[vt:]):
+        thu_tu = con_lai[:vt] + khau + con_lai[vt:]
+        # Tề sóng đứng NGAY TRƯỚC bước bồi nó nối vào (e2e 24/10/2026): để đầu danh sách thì dải tên
+        # và bảng đọc thành "Tề sóng › Cắt giấy cuộn › Tề giấy in", như thể sóng chảy vào nhánh giấy.
+        if ts is not None:
+            thu_tu.insert(thu_tu.index(boi) if boi in thu_tu else 0, ts)
+        for i, c in enumerate(thu_tu):
             c.thu_tu = i
         self.db.flush()
         if khau:
@@ -3755,7 +3760,11 @@ class LsxService:
                                      if cap[0] == HANG_GIAY else
                                      (getattr(mon, "don_vi_gia", None)
                                       or getattr(cu, "don_vi_snapshot", None) or "")),
-                    kho_rong=0, kho_dai=0,
+                    # Giấy giữ khổ của dòng cũ cùng mã: Cắt giấy cuộn đọc RỘNG CUỘN người kế hoạch
+                    # chọn từ chính dòng này (`_dong_giay_khau_chuan_bi`); về 0 là mất cuộn, 0 kg.
+                    # Bước khác thì `_dong_bo_dong_giay` ghi đè khổ theo đầu vào ngay sau.
+                    kho_rong=(int(getattr(cu, "kho_rong", 0) or 0) if cap[0] == HANG_GIAY else 0),
+                    kho_dai=(int(getattr(cu, "kho_dai", 0) or 0) if cap[0] == HANG_GIAY else 0),
                     # Giấy: số tạm 0 (cùng đơn vị, dạng, khổ) — `_dong_bo_dong_giay` ghi đè ngay sau.
                     so_luong=(0 if cap[0] == HANG_GIAY else tinh_lai[cap]),
                     gia_tri_chip=(None if cap[0] == HANG_GIAY

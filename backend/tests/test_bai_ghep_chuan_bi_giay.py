@@ -96,7 +96,7 @@ def test_lenh_vao_bai_dung_khau_theo_nguon_bai_giu_te_song(db, orders, lsx_svc, 
     assert bg.nguon_giay == "mua"
     a, b = lsx_svc.get(a.id), lsx_svc.get(b.id)
     assert a.nguon_giay == b.nguon_giay == "mua"
-    assert _ma(db, a) == ["TS", "TGI", "CD-IN-BG", "BTĐ", "CD-CAN-BG"]
+    assert _ma(db, a) == ["TGI", "CD-IN-BG", "TS", "BTĐ", "CD-CAN-BG"]
     assert _ma(db, b) == ["TGI", "CD-IN-BG", "CD-CAN-BG"]
 
 

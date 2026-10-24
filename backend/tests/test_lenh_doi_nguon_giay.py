@@ -76,8 +76,27 @@ def test_doi_khong_dung_buoc_khac(db, orders, lsx_svc, admin, customer):
     lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer, song=True)
     giu = {c.step_key for c in _buoc(lsx) if _ma(db, lsx)[_buoc(lsx).index(c)] not in ("CGC", "TGI")}
     lsx = lsx_svc.doi_nguon_giay(lsx_id=lsx.id, nguon="to_in", rong_cuon=None, actor=admin)
-    assert _ma(db, lsx) == ["TS", "CD-IN-CB", "BTĐ", "CD-CAN-CB"]
+    assert _ma(db, lsx) == ["CD-IN-CB", "TS", "BTĐ", "CD-CAN-CB"]
     assert {c.step_key for c in _buoc(lsx)} == giu
     (g,) = _giay(lsx)[_in(lsx).ten]
     assert (g.don_vi_goc, g.kho_rong, g.kho_dai) == ("to", 430, 650)
     assert len(_giay(lsx)[_theo_ma(db, lsx, "TS").ten]) == 1
+
+
+def test_luu_routing_kem_vat_tu_giu_rong_cuon(db, orders, lsx_svc, admin, customer):
+    """E2E 24/10: màn lệnh lưu routing gửi kèm dòng vật tư mọi bước — Cắt giấy cuộn phải giữ rộng cuộn
+    người kế hoạch đã chọn (dòng giấy là nơi duy nhất ghi nó), không về 0 kg."""
+    from app.schemas.lsx import LsxBuocVatTuIn, LsxCongDoanIn
+
+    lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
+    (truoc,) = _giay(lsx)[_theo_ma(db, lsx, "CGC").ten]
+    kg_truoc = float(truoc.so_luong)
+    rows = [LsxCongDoanIn(step_key=c.step_key, cong_doan_id=c.cong_doan_id, ten=c.ten, nhom=c.nhom,
+                          department_id=c.department_id, may_id=c.may_id,
+                          vat_tus=[LsxBuocVatTuIn(hang_loai=v.hang_loai, vat_tu_id=v.vat_tu_id)
+                                   for v in c.vat_tus])
+            for c in _buoc(lsx)]
+    lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=rows, actor=admin)
+    (g,) = _giay(lsx)[_theo_ma(db, lsx, "CGC").ten]
+    assert (g.don_vi_goc, g.kho_rong, g.kho_dai) == ("kg", 870, 0)
+    assert float(g.so_luong) == pytest.approx(kg_truoc) and kg_truoc > 0

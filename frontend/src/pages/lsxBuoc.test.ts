@@ -67,6 +67,24 @@ describe("loiDong — đứt đơn vị", () => {
   it("bước ĐẦU chuỗi không có gì phía trước để đứt", () => {
     expect(loiDong([dong({ don_vi_vao: "to", don_vi_ra: "to" })], 0)).toEqual([]);
   });
+
+  it("tuyến rẽ nhánh so với TIỀN NHIỆM THẬT, không với dòng liền trên (e2e chuẩn bị giấy 24/10)", () => {
+    // Hộp sóng nguồn cuộn: Tề sóng là nhánh riêng chỉ nối vào Bồi, đứng ngay trên Cắt giấy cuộn
+    // trong bảng. Bản cũ so `tờ in` (ra của Tề sóng) với `tờ nguyên` (vào của Cắt giấy cuộn).
+    const rows = [
+      dong({ ten: "Tề sóng", key: "ts", don_vi_vao: "to", don_vi_ra: "to" }),
+      dong({ ten: "Cắt giấy cuộn", key: "cgc", don_vi_vao: "to_nguyen", don_vi_ra: "to_nguyen" }),
+      dong({ ten: "Tề giấy in", key: "tgi", don_vi_vao: "to_nguyen", don_vi_ra: "to",
+             phu_thuoc_step_keys: ["cgc"] }),
+      dong({ ten: "In", key: "in", don_vi_vao: "to", don_vi_ra: "to", phu_thuoc_step_keys: ["tgi"] }),
+      dong({ ten: "Bồi", key: "boi", don_vi_vao: "to", don_vi_ra: "to",
+             phu_thuoc_step_keys: ["in", "ts"] }),
+    ];
+    expect(loiCua(rows).flat()).toEqual([]);
+    // Đứt thật trên một nhánh vẫn bắt: Bồi nhận `cái` mà tiền nhiệm ra `tờ in`.
+    const dut = rows.map((r) => (r.key === "boi" ? { ...r, don_vi_vao: "cai" } : r));
+    expect(loiDong(dut, 4)).toContain("đứt đơn vị");
+  });
 });
 
 describe("loiDong — các kiểm còn lại giữ nguyên", () => {

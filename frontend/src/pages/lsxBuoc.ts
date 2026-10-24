@@ -540,14 +540,35 @@ export function loiDong(rows: EditRow[], i: number): string[] {
     if (r.nha_cung_cap_id == null) out.push("chưa chọn nhà gia công");
   } else if (r.department_id == null && r.may_id == null) out.push("chưa gán tổ / máy");
   if (r.tren_dong_giay && r.don_vi_vao) {
-    const truoc = rows
-      .slice(0, i)
-      .reverse()
-      .find((x) => x.tren_dong_giay && x.don_vi_vao && x.don_vi_ra);
-    if (truoc && truoc.don_vi_ra !== r.don_vi_vao) out.push("đứt đơn vị");
+    if (tienNhiemGiay(rows, i).some((x) => x.don_vi_ra !== r.don_vi_vao)) out.push("đứt đơn vị");
   }
   if (i > 0 && r.ten && rows[i - 1].ten === r.ten) out.push("trùng bước trước");
   return out;
+}
+
+/** Bước trên dòng giấy đổ giấy vào dòng `i`. Tuyến đã nối dây (`phu_thuoc_step_keys`) thì đi theo
+ *  dây — hộp sóng có Tề sóng là nhánh riêng nối thẳng vào Bồi, đứng liền trên Cắt giấy cuộn trong
+ *  bảng mà không đổ giấy cho nó; bước ngoài dòng giấy ở giữa thì đi xuyên qua tới tiền nhiệm của nó.
+ *  Bảng chưa nối dây nào thì coi là tuyến thẳng: lấy bước dòng giấy gần nhất phía trên. */
+function tienNhiemGiay(rows: EditRow[], i: number): EditRow[] {
+  const theoKey = new Map(rows.map((x) => [x.key, x]));
+  const coDay = rows.some((x) => x.phu_thuoc_step_keys.some((k) => theoKey.has(k)));
+  const laGiay = (x: EditRow) => x.tren_dong_giay && !!x.don_vi_vao && !!x.don_vi_ra;
+  if (!coDay) {
+    const truoc = rows.slice(0, i).reverse().find(laGiay);
+    return truoc ? [truoc] : [];
+  }
+  const ra: EditRow[] = [];
+  const daXet = new Set<string>([rows[i].key]);
+  const cho = [...rows[i].phu_thuoc_step_keys];
+  while (cho.length) {
+    const x = theoKey.get(cho.pop()!);
+    if (!x || daXet.has(x.key)) continue;
+    daXet.add(x.key);
+    if (laGiay(x)) ra.push(x);
+    else cho.push(...x.phu_thuoc_step_keys);
+  }
+  return ra;
 }
 
 /** Preview tức thời trong drawer trước khi lưu.
