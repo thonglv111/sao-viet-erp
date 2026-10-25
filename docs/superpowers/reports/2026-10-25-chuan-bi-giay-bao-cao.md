@@ -25,15 +25,13 @@ Lượt cuối gồm 59 file backend liên quan (830 + 340 + 123 + 12 pass), gia
 ## Ca chưa bấm UI được (nói rõ)
 
 - **I4** (chặn đổi nguồn giấy khi lệnh trong bài ghép) và **TH11 bài ghép**: màn Bài ghép bị ẩn bằng cờ `BAI_GHEP_ENABLED=false` từ 10/09/2026; DB clone không có bài nào. Chỉ phủ bằng unit test.
-- **Minor 4** (ô kg trọn gói đọc "1.500" là 1.500 kg): hai lệnh trọn gói trên DB clone đã gửi đề nghị xuất nên không còn nút "Chọn giấy". Chỉ phủ bằng vitest.
-- **BH4** giao hàng xuất KHO-TP: DB clone không có lô thành phẩm nào. Muốn có phải chạy trọn một lệnh tới nhập thành phẩm. Nhánh không đổi code giao hàng/kho thành phẩm. Thay bằng pytest 6 file, 97/97.
 - **K6/BC4** điều chuyển kho: không áp dụng, FE tắt có chủ đích (`AN_DIEU_CHUYEN = true`).
 - **BH2**: không bấm lại, đã phủ bởi TH5 (tờ rơi không sóng) và TH7 (sách ruột + bìa).
 
 ## Những lần dùng JavaScript
 
 - Một lần dùng JS `.click()`: mở tab Công đoạn của LSX26-0008 vì nút tab không nhận click theo toạ độ. Ngoài lần đó, mọi thao tác đều là chuột/phím thật.
-- Các lần còn lại chỉ ĐỌC: lấy giá trị và toạ độ các ô input trong hộp Ghi đợt giao; `get_page_text` để đọc số ở NXT và Chi tiết phiếu.
+- Các lần còn lại chỉ ĐỌC: lấy giá trị và toạ độ các ô input trong hộp Ghi đợt giao; `get_page_text` để đọc số ở NXT và Chi tiết phiếu; đọc `value` ô kg trọn gói (ảnh chụp nhỏ không phân biệt được chấm/phẩy) và các ô form điểm giao khách (ảnh chụp trễ khi pane ẩn).
 - Nút "Tính giá" ở dòng kỳ nằm ngoài khung nhìn: cuộn tới bằng ref rồi bấm chuột thật, không phải JS.
 
 ## Bấm thử từng bước — các ca phiên cuối (25/10)
@@ -70,6 +68,18 @@ Tính giá → PTG-2026-0005 → "Nhân bản" → PTG-2026-0008 giữ Duplex 35
 - "Tính giá" → hộp bình quân cuối kỳ → "Tính giá kỳ" → "Đã chốt giá", giá trị cuối kỳ 97.502.513 = nhập 112.406.400 − xuất 14.903.887.
 - "Xem số liệu": Ivory 650×860 BQ 3.058, xuất 1.529.067 + cuối 3.058.133 = 4.587.200 (không rò làm tròn). Đạt.
 - Chi tiết phiếu sau tính giá: PXK00006 xuất hết lô Ivory 640×860 605 tờ = 3.080.055, trong khi lô nhập 3.080.000. Cùng gốc với minor đã hoãn (giá lô lưu nguyên đồng).
+
+**Chuỗi trọn gói → KHO-TP → giao hàng (Minor 4 + BH4)**
+Dựng bằng UI: DNN00002 nhập 3.000 kg cuộn Duplex 300 khổ 870 × 18.100 → PTG-2026-0005 (3K, 3.000 cái, khổ nguyên 860×650) → BG26-0005 gửi khách, khách chốt → DH001 (PO-E2E-01, giao 30/10/2026) chốt đơn → Kế hoạch SX "Xác nhận tạo 1 lệnh" → LSX26-0004 nguồn Cuộn, chuỗi Cắt giấy cuộn → Tề giấy in → In.
+1. LSX26-0004 → "Gia công trọn gói" → Nhà gia công chọn "Xưởng Gia công Bế hộp Minh Phát", Số đặt 3.000, giữ tick "Xưởng cấp giấy" → "Đặt gia công trọn gói" → lệnh "Đã phát hành", khối Gia công ngoài "Đang ở nhà gia công", "Chưa cấp giấy cho nhà gia công".
+2. Minor 4: "Chọn giấy" → khổ "cuộn rộng 870 mm, đúng lệnh, tồn 3.000 kg", ô "Số kg xin xuất" điền sẵn "63,62" → bôi đen, gõ "1.500" → ô hiện "1.500" → gõ thêm ",5" → "1.500,5" → "Gửi đề nghị xuất giấy" → khối hiện "cuộn rộng 870 mm 1.500,5 kg", Kho "Chờ kho soạn DNX00003". DB: dòng đề nghị 1500.50 kg, khổ 870×0, đvt kg. Đạt.
+3. Kho → Phiếu từ yêu cầu → DNX00003 (Gia công LSX26-0004, 0/1.500,5 kg) → "Lập phiếu xuất" → cấp 1500,5 lấy từ PNK00002, giá vốn 27.159.050 (= 1.500,5 × 18.100) → "Tạo và ghi sổ" → "Ghi sổ" → "Hoàn tất yêu cầu". DB: lô cuộn còn 1.499,5 kg.
+4. LSX26-0004 → Kho "Đã xuất đủ DNX00003 PXK00003" → "Nhận hàng về" → Số nhận về 3000, "Nhập kho thành phẩm" → "Chốt số nhận về" → "Đã nhận về 3.000 cái, Nhập kho thành phẩm", Chi tiền "Chờ kế toán chi". DB: DNN00003 loại NHAP, kho 2 (KHO-TP), TP-00004 3.000 cái.
+5. Kho → DNN00003 (Kho tiếp nhận "Kho thành phẩm", nguồn "Nhà gia công giao thành phẩm", giá gốc "Chưa có") → "Lập phiếu nhập" → nhập 3000 → "Tạo và ghi sổ" → "Ghi sổ". DB: lô LOT-TP-00004-261025-01 3.000 cái ở kho 2.
+6. BH4: Đơn hàng bán → DH001 → "Giao được ngay 3.000 cái Kho thành phẩm" → "Tạo yêu cầu giao hàng" → báo khách 3K chưa có địa chỉ giao, nút Gửi khoá → "Mở hồ sơ khách hàng" → tab Giao hàng → "Thêm điểm giao ngay" → tên "Kho 3K Bac Ninh", địa chỉ "KCN Que Vo, Bac Ninh", tick "Điểm giao mặc định" → "Lưu".
+7. Quay lại DH001 → "Tạo yêu cầu giao hàng" → Giao tới tự chọn "Kho 3K Bac Ninh (Mặc định)" → số lượng sửa 3000 → 1200 → "Gửi yêu cầu" → YCGH-261025-KJEV 1.200 cái "Chờ lên đơn"; đơn hiện Đang chờ giao 1.200, Còn phải giao 1.800, Giao được ngay 1.800.
+8. Giao hàng → tick YCGH-261025-KJEV → "Lên lượt xe (1)" → chọn xe 51C-62318, tài xế Trần Văn Thạch Sang → "Lên lượt xe cho 1 đơn" → "Đã lên lượt LX-261025-7VC6… Kho thành phẩm đã nhận 1 đề nghị", DNX00004: TP-00004 1.200 cái, Xuất từ kho "Kho thành phẩm" → "Lưu cho kho".
+9. Kho → DNX00004 → "Lập phiếu xuất" → Xuất từ kho "Kho thành phẩm", tồn 3.000, cấp 1200 lấy từ PNK00003, khối Giao hàng ghi 3K/DH001/YCGH-261025-KJEV/LX-261025-7VC6/51C-62318 → "Tạo và ghi sổ" → "Ghi sổ" → "Hoàn tất yêu cầu". DB: lô LOT-TP-00004 còn 1.800 cái, DNX00004 done gắn lượt xe 623. Đạt.
 
 ## Follow-up
 
