@@ -1133,8 +1133,7 @@ export function DepartmentsPage({
         currentDept?.level_id ?? null, // cấp đơn vị đã gỡ khỏi UI; giữ nguyên giá trị cũ
         editParentId,
         {
-          // `has_piece_work` KHÔNG gửi từ đây (backend: không gửi = giữ nguyên) — cửa sửa
-          // duy nhất là công tắc "Lương khoán / sản lượng" ở Cấu hình lương.
+          // `has_piece_work` KHÔNG gửi từ đây (backend: không gửi = giữ nguyên).
         },
         editLaSanXuat,
         editLaKinhDoanh,
@@ -3007,12 +3006,6 @@ export function DepartmentsPage({
                 <div className="rdx-toggle-switch" aria-hidden="true" />
               </div>
             </div>
-
-            {/* Nút gạt "Tổ hưởng lương khoán" ĐÃ ẨN 04/09/2026 — cờ
-                `departments.has_piece_work` nay chỉ còn MỘT cửa sửa: Lương → Cấu hình lương →
-                công tắc "Lương khoán / sản lượng" (chiều đó ghi ngược về cờ này). Bật/tắt ở đây
-                KHÔNG đụng `department_salary_components` nên hai màn lệch nhau khi tổ đã khai
-                dòng lương. Trạng thái vẫn xem được ở khối Tổng quan. */}
 
             {/* Thuộc tính lương thử việc */}
             <div className="field depts__field--full">
