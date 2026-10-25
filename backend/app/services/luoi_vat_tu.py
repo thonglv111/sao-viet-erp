@@ -15,6 +15,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from ..models.purchase import LOAI_MUA_CHO_LSX
+from .dinh_dang import _f, so_vn
 from .giu_cho_service import EPS_GIU, GiuChoService, _k_dong, _k_nhom
 from .kho_giay import nhan_kho
 from .mach_mua import BUOC_DAT, BUOC_MOI, BUOC_NHAP, BUOC_TRA, tom_tat
@@ -38,22 +39,6 @@ _NHAN_BUOC = {
     BUOC_MOI: "Mới đề nghị", BUOC_TRA: "Đơn bị trả, chờ lập lại", "dang_lap_don": "Đang lập đơn",
     "cho_duyet": "Chờ duyệt", BUOC_DAT: "Đã đặt hàng", BUOC_NHAP: "Đã nhập kho",
 }
-
-
-def _f(v) -> float:
-    try:
-        return float(v or 0)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def so_vn(x: float) -> str:
-    """12345,5 → "12.345,5" — số trong câu ghi chú, cùng kiểu FE in số."""
-    x = round(_f(x), 2)
-    nguyen, _, le = f"{abs(x):,.2f}".partition(".")
-    le = le.rstrip("0")
-    s = nguyen.replace(",", ".") + ("," + le if le else "")
-    return ("-" if x < 0 else "") + s
 
 
 def khoa_chu(lsx_id, bai_ghep_id) -> str:
