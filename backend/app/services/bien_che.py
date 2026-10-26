@@ -69,6 +69,8 @@ def _moc(events, field: str):
 
 
 def _moc_nho(events, field: str):
+    if not events:
+        return None      # phần lớn nhân viên không có sự kiện nào — khỏi lọc + xếp danh sách rỗng
     # Danh sách nạp gộp (`DsSuKien`) nhớ sẵn mốc đã dựng: bảng công hỏi 31 ngày × mỗi người.
     nho = getattr(events, "nho", None)
     return nho(("bien_che_moc", field), lambda: _moc(events, field)) if nho else _moc(events, field)
