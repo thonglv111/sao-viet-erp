@@ -118,3 +118,96 @@ def test_danh_sach_nhan_su_khong_hoi_db_tung_dong(client, h):
     print("\nSO CAU SQL nhan su (it -> nhieu):", {u: (it[u], nhieu[u]) for u in DANH_SACH})
     for u in DANH_SACH:
         assert nhieu[u] <= it[u] + 2, f"{u}: {it[u]} -> {nhieu[u]} câu khi tăng số dòng"
+
+
+# --- Đợt 2 (26/10/2026): lưới phân ca, lịch nghỉ, ngày đặc biệt ---------------------------------
+#
+# Đo bản sao: `/api/attendance/shift-plan` 215 câu — mỗi NV một câu `employee_shift_assignments`;
+# `/api/leaves/calendar` tra tên từng NV có đơn bằng `get_by_id`; bảng công đọc `special_days` 3 lần
+# (tháng lễ hưởng lương, tháng off1x, cả năm cho công chuẩn) dù cùng một năm.
+
+THANG = (2026, 10)
+
+
+def _dung_ca(n: int, tt: str) -> None:
+    """Mỗi i: một NV vào làm từ đầu năm, có một mốc ca nền + một đơn nghỉ đã duyệt trong tháng."""
+    from app.models.attendance import WorkShift
+    from app.models.employee import EmployeeShiftAssignment
+
+    db = SessionLocal()
+    try:
+        ca = WorkShift(name=f"Ca {tt}", start_minute=480, end_minute=1020)
+        db.add(ca)
+        db.flush()
+        for i in range(n):
+            nv = Employee(code=f"{tt}{i}", full_name=f"NV {tt}{i}", hire_date=date(2026, 1, 1))
+            db.add(nv)
+            db.flush()
+            db.add(EmployeeShiftAssignment(employee_id=nv.id, shift_id=ca.id,
+                                           effective_from=date(2026, 10, 10)))
+            db.add(LeaveRequest(employee_id=nv.id, start_date=date(2026, 10, 5),
+                                end_date=date(2026, 10, 6), days=2, status=LEAVE_APPROVED))
+        db.commit()
+    finally:
+        db.close()
+
+
+LICH = [
+    f"/api/attendance/shift-plan?year={THANG[0]}&month={THANG[1]}",
+    f"/api/leaves/calendar?year={THANG[0]}&month={THANG[1]}",
+]
+
+
+def test_luoi_phan_ca_va_lich_nghi_khong_hoi_db_tung_nguoi(client, h):
+    _dung_ca(2, "C")
+    for u in LICH:          # lượt đầu tạo cấu hình lịch tuần (commit ⇒ nạp lại NV) — không tính
+        _so_cau(client, h, u)
+    it = {u: _so_cau(client, h, u) for u in LICH}
+    _dung_ca(8, "D")
+    nhieu = {u: _so_cau(client, h, u) for u in LICH}
+
+    luoi = client.get(LICH[0], headers=h).json()
+    dong = next(r for r in luoi["rows"] if r["employee_name"] == "NV D3")
+    assert dong["days"]["9"]["source"] == "none"          # trước mốc đầu tiên: chưa có ca
+    assert dong["days"]["10"]["source"] == "assign"
+    assert dong["days"]["10"]["shift_id"] is not None
+    assert dong["days"]["5"]["leave_name"]                  # lớp phủ nghỉ phép vẫn dán
+
+    lich = client.get(LICH[1], headers=h).json()["employees"]
+    mot = next(e for e in lich if e["employee_name"] == "NV D3")
+    assert set(mot["days"]) == {"5", "6"}
+    assert [e["employee_name"] for e in lich] == sorted(e["employee_name"] for e in lich)
+
+    print("\nSO CAU SQL lich (it -> nhieu):", {u: (it[u], nhieu[u]) for u in LICH})
+    for u in LICH:
+        assert nhieu[u] <= it[u] + 2, f"{u}: {it[u]} -> {nhieu[u]} câu khi tăng số người"
+
+
+def test_bang_cong_doc_ngay_dac_biet_mot_lan(client, h):
+    """Ngày đặc biệt của cả năm đọc MỘT lần rồi lọc theo tháng — trước đọc 3 lần cùng một năm."""
+    from app.models.work_calendar import KIND_OFF, KIND_OFF1X, SpecialDay
+
+    db = SessionLocal()
+    try:
+        db.add_all([SpecialDay(day=date(2026, 10, 20), kind=KIND_OFF, name="Lễ A", is_paid=True),
+                    SpecialDay(day=date(2026, 10, 21), kind=KIND_OFF1X, name="Nghỉ B", is_paid=False)])
+        db.commit()
+    finally:
+        db.close()
+    _dung_ca(2, "E")
+    url = f"/api/attendance/timesheet?year={THANG[0]}&month={THANG[1]}"
+    client.get(url, headers=h)   # lượt đầu tạo cấu hình lịch tuần (commit ⇒ nạp lại) — không tính
+
+    dem = {"n": 0}
+
+    def _nghe(_c, _cur, stmt, *_a):
+        if "FROM special_days" in stmt:
+            dem["n"] += 1
+
+    event.listen(engine, "before_cursor_execute", _nghe)
+    try:
+        r = client.get(url, headers=h)
+    finally:
+        event.remove(engine, "before_cursor_execute", _nghe)
+    assert r.status_code == 200, r.text
+    assert dem["n"] == 1, f"special_days đọc {dem['n']} lần"

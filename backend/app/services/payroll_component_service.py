@@ -120,6 +120,11 @@ class PayrollComponentService:
         khai (thêm/xoá theo một luật, xem `delete_component`)."""
         return self.components.list_components(active_only=active_only)
 
+    def dem_su_dung(self, component_ids) -> tuple[dict[int, int], dict[int, int]]:
+        """(số NV đang gán, số kỳ đã chốt có khoản) cho cả danh mục — mỗi vế MỘT truy vấn."""
+        ids = list(component_ids)
+        return self.components.employee_count_map(ids), self.components.period_count_map(ids)
+
     def _unique_code(self, name: str) -> str:
         base = _slug(name)
         code, n = base, 2

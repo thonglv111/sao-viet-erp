@@ -116,11 +116,18 @@ class CalendarService:
 
     # --- tra cứu lõi -------------------------------------------------------
 
-    def _special_for(self, d: date) -> SpecialDay | None:
-        year = d.year
+    def _special_nam(self, year: int) -> dict[date, SpecialDay]:
+        """Ngày đặc biệt của CẢ NĂM (theo thứ tự ngày), đọc MỘT lần cho mỗi service — mọi tra cứu
+        theo tháng/ngày lọc từ đây. Ghi (thêm/sửa/xoá) thì `_invalidate` bỏ bản nhớ."""
         if year not in self._special_by_year:
             self._special_by_year[year] = {s.day: s for s in self.calendar.list_by_year(year)}
-        return self._special_by_year[year].get(d)
+        return self._special_by_year[year]
+
+    def _special_thang(self, year: int, month: int) -> list[SpecialDay]:
+        return [s for d, s in self._special_nam(year).items() if d.month == month]
+
+    def _special_for(self, d: date) -> SpecialDay | None:
+        return self._special_nam(d.year).get(d)
 
     def _weekday_works(self, d: date) -> bool:
         return bool(getattr(self.get_config(), _WEEKDAY_COL[d.weekday()]))
@@ -192,23 +199,19 @@ class CalendarService:
 
     def paid_holidays_in_month(self, year: int, month: int) -> list[SpecialDay]:
         """Ngày nghỉ lễ HƯỞNG LƯƠNG trong tháng — Chấm công cộng công lễ (nhịp 2)."""
-        last = _cal.monthrange(year, month)[1]
-        return [s for s in self.calendar.list_in_range(date(year, month, 1), date(year, month, last))
-                if s.kind == KIND_OFF and s.is_paid]
+        return [s for s in self._special_thang(year, month) if s.kind == KIND_OFF and s.is_paid]
 
     def plain_days_in_month(self, year: int, month: int) -> list[SpecialDay]:
         """Ngày nghỉ 'off1x' trong tháng — nghỉ KHÔNG lương; ai đi làm được trả 1× (không hệ số)."""
-        last = _cal.monthrange(year, month)[1]
-        return [s for s in self.calendar.list_in_range(date(year, month, 1), date(year, month, last))
-                if s.kind == KIND_OFF1X]
+        return [s for s in self._special_thang(year, month) if s.kind == KIND_OFF1X]
 
     # --- CRUD ngày đặc biệt ------------------------------------------------
 
     def list_special_days(self, year: int) -> list[SpecialDay]:
-        return self.calendar.list_by_year(year)
+        return list(self._special_nam(year).values())
 
     def paid_off_count(self, year: int) -> int:
-        return sum(1 for s in self.calendar.list_by_year(year) if s.kind == KIND_OFF and s.is_paid)
+        return sum(1 for s in self._special_nam(year).values() if s.kind == KIND_OFF and s.is_paid)
 
     @staticmethod
     def _validate_special(day, kind, name):
