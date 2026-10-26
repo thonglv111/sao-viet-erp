@@ -673,7 +673,18 @@ def approve_request(request_id: int, body: RequestDecisionIn, svc: Service, auth
                                         can_edit_salary=authz.can(user, MODULE, "edit_salary"))
     except EmployeeError as exc:
         _raise(exc)
+    _bao_quyet_de_nghi(svc, req, "approved")
     return _req_out(req, {}, _actor_names(users, {req.decided_by}))
+
+
+def _bao_quyet_de_nghi(svc: EmployeeService, req, decision: str) -> None:
+    """Sau commit: đẩy ĐÍCH DANH người gửi đề nghị hồ sơ (L-VAI-21), khuôn `leaves._notify_decision`.
+    Không kèm nội dung đề nghị."""
+    from ..realtime import hub
+
+    emp = svc.employees.get_by_id(req.employee_id)
+    if emp is not None and emp.user_id is not None:
+        hub.publish(emp.user_id, {"type": "profile_request_decision", "decision": decision})
 
 
 @router.post("/update-requests/{request_id}/reject", response_model=UpdateRequestOut)
@@ -684,6 +695,7 @@ def reject_request(request_id: int, body: RequestDecisionIn, svc: Service, authz
                                         note=body.note, scope=_scope_for(authz, user))
     except EmployeeError as exc:
         _raise(exc)
+    _bao_quyet_de_nghi(svc, req, "rejected")
     return _req_out(req, {}, _actor_names(users, {req.decided_by}))
 
 

@@ -527,6 +527,8 @@ export type QuoteEvent =
       code?: string;
       decision: "approved" | "rejected" | "cancelled" | "huy_dong_y" | "huy_rut_ngan" | "huy_giu_nguyen";
     }
+  // HCNS duyệt / từ chối đề nghị cập nhật hồ sơ ⇒ đẩy riêng người gửi (L-VAI-21).
+  | { type: "profile_request_decision"; decision: "approved" | "rejected" }
   // Phiếu đi muộn / về sớm / nghỉ nửa buổi: cùng luồng với tăng ca (tổ trưởng duyệt), bảng riêng.
   | { type: "el_pending_changed"; code?: string }
   // Yêu cầu chỉnh công (E7, 08/09/2026): gửi/huỷ → người duyệt refetch; duyệt/từ chối → đẩy đúng NV.
@@ -637,6 +639,8 @@ export type QuoteEvent =
   | { type: "giao_hang_changed" }
   // `notification_new` = có thông báo mới vào chuông → FE refetch list + badge chuông.
   | { type: "notification_new" }
+  // Cây tổ đổi (thêm / sửa tên, cấp trên / xoá phòng ban) ⇒ thanh bên nạp lại danh sách bàn tổ (L-VAI-49).
+  | { type: "cay_to_doi" }
   // Thực hiện sản xuất (module `san_xuat`): `san_xuat_cong_viec_changed` = tín hiệu bàn tổ đổi
   // (badge tổ nhảy + bàn đang mở refetch); `san_xuat_duoc_giao_viec` = đẩy đích danh tới người vừa
   // được giao (toast cá nhân, nếu có tài khoản).

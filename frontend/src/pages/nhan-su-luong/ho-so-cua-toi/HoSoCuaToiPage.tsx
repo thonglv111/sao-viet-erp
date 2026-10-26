@@ -213,9 +213,10 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
     napLuong();
   }, [emp, napPhep, napCong, napLuong]);
 
-  // Công bố / thu hồi phiếu tới thì thẻ "Phiếu lương gần nhất" tự đổi, không chờ mở lại màn.
+  // Công bố / thu hồi phiếu tới thì thẻ "Phiếu lương gần nhất" tự đổi, không chờ mở lại màn. HCNS
+  // duyệt / từ chối đề nghị thì khối Đề nghị cập nhật cũng tự đổi (L-VAI-21).
   useEffect(() => {
-    if (emp && eventTick) napLuong();
+    if (emp && eventTick) { napLuong(); loadReqs(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventTick]);
 
