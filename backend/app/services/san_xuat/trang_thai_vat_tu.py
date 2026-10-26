@@ -23,7 +23,7 @@ _MUC_KHO = {
 _THU_TU = {m: i for i, m in enumerate(MUC_VT)}
 
 _LY_DO = {
-    "chua_yeu_cau": "Chưa yêu cầu vật tư. Bấm Yêu cầu cấp vật tư trước.",
+    "chua_yeu_cau": "Chưa có yêu cầu vật tư còn hiệu lực. Gửi yêu cầu ở tab Vật tư trước.",
     "cho_kho": "Vật tư chưa sẵn sàng: đang chờ kho. Đợi kho xuất xong mới bắt đầu được.",
     "kho_dang_soan": "Vật tư chưa sẵn sàng: kho đang soạn. Đợi kho xuất xong mới bắt đầu được.",
     "cap_thieu": "Vật tư chưa sẵn sàng: kho mới cấp một phần. Đợi kho xuất nốt mới bắt đầu được.",

@@ -1760,6 +1760,25 @@ def test_kho_huy_thi_khoa_sua_nhung_bo_sung_phai_chay_that(db, orders, lsx_svc, 
     assert ra["lan_so"] == 2
 
 
+def test_doi_chieu_bo_so_cua_yeu_cau_kho_huy(db, orders, lsx_svc, admin, customer):
+    """L-SX-16: kho huỷ yêu cầu ⇒ lần đó không còn là số "đã xin" — đối chiếu không cộng nó (khỏi
+    báo "kho xuất thiếu"), nhưng lần vẫn nằm trong `cac_de_nghi` kèm lý do của kho."""
+    from app.models.stock_request import StockRequest
+    from app.services.san_xuat import board
+
+    dn_id, req_id, _ma, kh = _tao_de_nghi(db, orders, lsx_svc, admin, customer, "TO-VA16")
+    cv_id = _cv_id(db, dn_id)
+    _req_svc(db).cancel_by_kho(db.get(StockRequest, req_id), "Kho hết hàng, không cấp")
+
+    vt = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv_id)["vat_tu_cap"]
+    for r in vt["doi_chieu"]:
+        assert r["sl_yeu_cau_goc"] == pytest.approx(0)
+        assert r["lech_thuc_te"] == pytest.approx(0)
+    lan = next(d for d in vt["cac_de_nghi"] if d["id"] == dn_id)
+    assert lan["stock_request_trang_thai"] == "cancelled"
+    assert lan["stock_request_ly_do_huy"] == "Kho hết hàng, không cấp"
+
+
 def test_doi_chieu_so_lech_bang_thang_goc_khong_phai_thang_to_khai(
     db, orders, lsx_svc, admin, customer,
 ):

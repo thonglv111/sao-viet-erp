@@ -273,7 +273,8 @@ export function XlNgan({
   const daDong = ct.trang_thai === "da_dong";
   const soDaBatDau = goi?.co_goi ? (goi.so_da_bat_dau ?? 0) : 0;
   const khoaThuHoi = !!goi?.co_goi && goi.cho_phep_thu_hoi === false;
-  const capNhatDuoc = !!goi?.co_goi && goi.cho_phep_cap_nhat === true && soDaBatDau > 0;
+  // Chưa việc nào chạy vẫn dời lịch được bằng cập nhật — máy chủ chỉ đòi còn việc chưa bắt đầu (L-SX-12).
+  const capNhatDuoc = !!goi?.co_goi && goi.cho_phep_cap_nhat === true;
   const daChayDo = ct.co_thuc_te && !!ct.thuc_bat_dau_lenh;
   const daXongHet = ct.co_thuc_te && ct.so_buoc > 0 && ct.so_buoc_xong >= ct.so_buoc && !!ct.ket_thuc_thuc_te;
   const ketThuc = ct.ket_thuc_thuc_te ?? ct.ket_thuc;

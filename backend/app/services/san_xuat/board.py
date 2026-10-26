@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models.may_thiet_bi import MayThietBi
+from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
 from ...models.san_xuat import CV_HOAN_THANH, CV_TAM_DUNG
 from ...models.san_xuat_thuc_thi import PHIEN_TAM_DUNG
 from ...models.user import User
@@ -1050,6 +1051,9 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     dongs_theo_lan: dict[int, list[dict]] = {}
     for dn in cac_dn:
         dongs_theo_lan[dn.id] = []
+        # Kho huỷ / từ chối yêu cầu ⇒ lần đó không còn là số "đã xin": không cộng vào đối chiếu
+        # (khỏi báo "kho xuất thiếu"), nhưng vẫn giữ trong `cac_de_nghi` kèm lý do (L-SX-16).
+        lan_huy = tom_tat.get(dn.stock_request_id, {}).get("trang_thai") in (REQ_CANCELLED, REQ_REJECTED)
         for d in dn.dongs:
             key = khoa_dong(d.hang_loai, d.hang_id, _goc_dn(d), d.kho_rong, d.kho_dai)
             ten = ten_map.get((d.hang_loai, d.hang_id)) or f"#{d.hang_id}"
@@ -1061,8 +1065,9 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
                 "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
                 "sl_thuc_xuat": 0.0, "_cac_dvt": set(),
             })
-            row["sl_yeu_cau"] += float(d.sl_yeu_cau)
-            row["sl_yeu_cau_goc"] += float(d.sl_yeu_cau_goc)
+            if not lan_huy:
+                row["sl_yeu_cau"] += float(d.sl_yeu_cau)
+                row["sl_yeu_cau_goc"] += float(d.sl_yeu_cau_goc)
             row["_cac_dvt"].add(d.dvt)
             dongs_theo_lan[dn.id].append({
                 "hang_loai": d.hang_loai, "hang_id": d.hang_id,
@@ -1202,6 +1207,7 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
             "stock_request_id": d.stock_request_id,
             "stock_request_ma": tom_tat.get(d.stock_request_id, {}).get("ma"),
             "stock_request_trang_thai": tom_tat.get(d.stock_request_id, {}).get("trang_thai"),
+            "stock_request_ly_do_huy": tom_tat.get(d.stock_request_id, {}).get("ly_do_huy"),
             "created_by_id": d.created_by_id, "updated_by_id": d.updated_by_id,
             "created_by_ten": ten_tk.get(d.created_by_id), "updated_by_ten": ten_tk.get(d.updated_by_id),
             "created_at": thuc_te_hien_thi(d.created_at),

@@ -108,7 +108,7 @@ def test_kho_huy_thi_ve_chua_yeu_cau(db, svc3, lenh, admin):
     _req(db, cv).trang_thai = "cancelled"
     db.commit()
     assert _muc(db, cv) == "chua_yeu_cau"
-    assert ly_do_vat_tu("chua_yeu_cau") == "Chưa yêu cầu vật tư. Bấm Yêu cầu cấp vật tư trước."
+    assert ly_do_vat_tu("chua_yeu_cau") == "Chưa có yêu cầu vật tư còn hiệu lực. Gửi yêu cầu ở tab Vật tư trước."
 
 
 def test_lan_bo_sung_dang_cho_keo_buoc_ve_cho_kho(db, svc3, lenh, admin):
@@ -189,7 +189,7 @@ def test_bat_dau_bi_chan_khi_chua_san_sang(db, orders, lsx_svc, admin, customer)
     cv = _cv_co_tho(db, orders, lsx_svc, admin, customer, "TO-VTS1")
     cv.can_vat_tu = True
     db.commit()
-    with pytest.raises(ValueError, match="Chưa yêu cầu vật tư. Bấm Yêu cầu cấp vật tư trước."):
+    with pytest.raises(ValueError, match="Chưa có yêu cầu vật tư còn hiệu lực. Gửi yêu cầu ở tab Vật tư trước."):
         thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id, expected_version=cv.version)
 
 

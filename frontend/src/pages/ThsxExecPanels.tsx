@@ -123,6 +123,12 @@ const VT_EPS = 0.0005;
  *  `vtPayloadLines`), nới là đổi luôn luật dòng nào được gửi. */
 const VT_EPS_KHO = 0.005;
 
+/** Lần mà kho đã huỷ / từ chối yêu cầu không còn là số "đã xin" — máy chủ cũng không cộng nó vào
+ *  đối chiếu (L-SX-16). */
+const VT_LAN_HUY = new Set(["cancelled", "rejected"]);
+const vtLanConHieuLuc = (l: { stock_request_trang_thai?: string | null }) =>
+  !VT_LAN_HUY.has(l.stock_request_trang_thai ?? "");
+
 /** Số LẦN đề nghị CÓ XIN món này — nhân tử của dung sai `VT_EPS_KHO` (xem `vtCoLechThucTe`).
  *  Khớp theo cặp `hang_loai` + `hang_id`, đúng khoá mà `board.py::_vat_tu_cap` dùng để gom.
  *
@@ -132,13 +138,13 @@ const VT_EPS_KHO = 0.005;
  *  lần không đóng góp sai số nào, tức bịt bớt cờ lệch THẬT. Xét ở thang GỐC (`sl_yeu_cau_goc`),
  *  đúng thang mà `board.py` cộng dồn để ra `lech_thuc_te`. */
 export function vtSoLanCoMon(
-  cacDeNghi: { dongs: (VtKhoaVao & { sl_yeu_cau_goc: number })[] }[],
+  cacDeNghi: { stock_request_trang_thai?: string | null; dongs: (VtKhoaVao & { sl_yeu_cau_goc: number })[] }[],
   d: VtKhoaVao,
 ): number {
   // Cùng khoá với hàng đối chiếu (`vtKhoa`): giấy khác dạng/khổ là món khác.
   const k = vtKhoa(d);
   return cacDeNghi.filter(
-    (l) => l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0),
+    (l) => vtLanConHieuLuc(l) && l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0),
   ).length;
 }
 
@@ -1887,7 +1893,8 @@ export function vtTinhTrang(d: SxVatTuCapDoiChieu, cacDeNghi: SxVatTuCapLan[]): 
     : ngoaiKh ? "ngoài kế hoạch"
     : soKh > 0 ? `vượt kế hoạch ${num(soKh)} ${dv}` : `ít hơn kế hoạch ${num(-soKh)} ${dv}`;
   const k = vtKhoa(d);
-  const lanCoMon = cacDeNghi.filter((l) => l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0));
+  const lanCoMon = cacDeNghi.filter((l) => vtLanConHieuLuc(l)
+    && l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0));
   const soYc = d.lech_thuc_te;
   if (vtCoLechThucTe(d, lanCoMon.length)) {
     if (soYc > 0) return { loai: "kho_lech", mau: "tim", txt: `Kho xuất dư ${num(soYc)} ${dvGoc}`, phu: chuKh };
@@ -2084,6 +2091,9 @@ function VtDeNghiLanRow({ d, phieu, onMoPhieu, onMoDeNghi }: {
           {d.stock_request_ma
             ? <ChipTT mau={st?.mau ?? "vang"}>{st?.txt ?? d.stock_request_trang_thai}</ChipTT>
             : <ChipTT mau="slate">Không cần cấp</ChipTT>}
+          {!vtLanConHieuLuc(d) && d.stock_request_ly_do_huy && (
+            <span className="thsx-b-mo3 thsx-b-ct__phu">Kho đã huỷ yêu cầu: {d.stock_request_ly_do_huy}</span>
+          )}
         </td>
         <td>
           {d.stock_request_ma && (

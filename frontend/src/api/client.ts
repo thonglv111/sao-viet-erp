@@ -2350,6 +2350,8 @@ export interface SxVatTuCapLan {
   stock_request_id: number | null;
   stock_request_ma: string | null;
   stock_request_trang_thai: string | null;
+  /** Lý do kho huỷ / từ chối yêu cầu của lần này (L-SX-16). */
+  stock_request_ly_do_huy?: string | null;
   created_by_id: number | null;
   updated_by_id: number | null;
   /** Tên tài khoản gửi / sửa — máy chủ tra sẵn (`*_by_id` là mã tài khoản, không phải mã thợ). */

@@ -922,6 +922,7 @@ class VatTuCapLanOut(BaseModel):
     stock_request_id: int | None = None
     stock_request_ma: str | None = None
     stock_request_trang_thai: str | None = None
+    stock_request_ly_do_huy: str | None = None  # kho huỷ / từ chối thì ghi lý do (L-SX-16)
     created_by_id: int | None = None
     updated_by_id: int | None = None
     # Tên TÀI KHOẢN gửi / sửa — `*_by_id` là users.id, không tra được bằng danh sách thợ của việc.
