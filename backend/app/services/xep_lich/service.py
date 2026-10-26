@@ -393,6 +393,7 @@ class XepLichLenhService:
         if not tat_ca:
             return r
         r.lsx = self.repo.lsx_theo_ids(tat_ca)
+        self._nap_don_khach(r.lsx.values())
         r.routing = self.repo.routing_theo_lo(tat_ca)
         r.moc = self.repo.theo_nhieu_lsx(tat_ca)
         self._nap_may(tat_ca)
@@ -1581,6 +1582,30 @@ class XepLichLenhService:
 
             self._nho_don[oid] = self.db.get(Order, oid)
         return self._nho_don[oid]
+
+    def _nap_don_khach(self, lsxs) -> None:
+        """Nạp sẵn đơn + khách của cả lô lệnh vào bộ nhớ `_don_cua`/`_ten_khach` — HAI câu cho cả bàn.
+
+        Bộ nhớ theo id không đỡ được khi mỗi lệnh một đơn (DB đo tải 26/10/2026: 124 câu orders +
+        93 câu customers trên bàn tháng)."""
+        from sqlalchemy import select
+
+        from ...models.customer import Customer
+        from ...models.order import Order
+
+        oids = {getattr(l, "order_id", None) for l in lsxs} - {None, 0} - set(self._nho_don)
+        if oids:
+            for o in self.db.execute(select(Order).where(Order.id.in_(oids))).scalars():
+                self._nho_don[o.id] = o
+            for oid in oids:
+                self._nho_don.setdefault(oid, None)
+        cids = {getattr(o, "customer_id", None) for o in self._nho_don.values() if o is not None}
+        cids -= {None, 0} | set(self._nho_kh)
+        if cids:
+            for c in self.db.execute(select(Customer).where(Customer.id.in_(cids))).scalars():
+                self._nho_kh[c.id] = c
+            for cid in cids:
+                self._nho_kh.setdefault(cid, None)
 
     def _ten_khach(self, l) -> str | None:
         cid = getattr(self._don_cua(l), "customer_id", None)
