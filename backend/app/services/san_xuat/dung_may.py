@@ -355,7 +355,8 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
 
 def _ten_may(repo: DungMayRepository, may_id: int) -> str:
     may = repo.may([may_id]).get(may_id)
-    return may.ten if may is not None else f"#{may_id}"
+    # Mã máy (BE-01): tên máy đã mở đầu bằng "Máy …", ghép vào câu "máy …" là lặp chữ.
+    return may.ma if may is not None else f"#{may_id}"
 
 
 def _bao_to_khac(repo: DungMayRepository, khac: list, *, department_id: int, may_id: int,
@@ -366,8 +367,7 @@ def _bao_to_khac(repo: DungMayRepository, khac: list, *, department_id: int, may
         return
     try:
         to = repo.to(department_id)
-        may = repo.may([may_id]).get(may_id)
-        ten_may = may.ten if may is not None else f"#{may_id}"
+        ten_may = _ten_may(repo, may_id)
         for cv, ma_lsx in khac:
             viec = " ".join(x for x in (ma_lsx, cv.ten_cong_doan) if x)
             hub.gui({"type": "san_xuat_may_hu_to_khac", "team_id": cv.department_id,
