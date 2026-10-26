@@ -1300,7 +1300,7 @@ export function AppShell() {
       case "nhan-su":
         return <NhanSuPage navigate={navigate} />;
       case "ho-so-cua-toi":
-        return <HoSoCuaToiPage navigate={navigate} />;
+        return <HoSoCuaToiPage navigate={navigate} eventTick={tickCua("nhan_su")} />;
       case "noi-quy":
         return <NoiQuyPage />;
       case "cham-cong":
