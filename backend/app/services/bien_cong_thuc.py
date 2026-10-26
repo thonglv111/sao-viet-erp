@@ -211,6 +211,15 @@ _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      "1 khi lần ghi liền trước trên cùng máy (việc không gắn máy thì cùng tổ) là chính dòng công "
      "việc này và cùng ngày, ngược lại 0 (qua đêm là canh lại)", "0/1", "thứ tự lần ghi trên máy",
      (LOAI_KHOAN,)),
+    # 26/10/2026 — chủ: khuôn là CHIP máy dò từ dao của bước lệnh (danh mục Khuôn), không còn là tuỳ
+    # chọn bắt thợ tick. Mã giữ đúng tên tuỳ chọn cũ nên công thức Bế đang khai không phải sửa.
+    ("trung_khuon", "Trùng khuôn",
+     "1 khi lần ghi liền trước trên cùng máy (việc không gắn máy thì cùng tổ) dùng cùng con dao — "
+     "dao còn trên máy, khỏi lên khuôn; ngược lại 0", "0/1", "dao của bước lệnh + thứ tự lần ghi trên máy",
+     (LOAI_KHOAN,)),
+    ("khuon_moi", "Khuôn mới",
+     "1 khi đây là lần ghi đầu tiên từng dùng con dao của bước, ngược lại 0 (bước không dao cũng 0)",
+     "0/1", "dao của bước lệnh + lịch sử lần ghi", (LOAI_KHOAN,)),
     ("tien_gio", "Tiền giờ",
      "Σ người làm (lương vị trí + trách nhiệm) ÷ 26 ÷ 8 × số giờ lần ghi", "đ",
      "hồ sơ lương + giờ bắt đầu / kết thúc của lần ghi", (LOAI_KHOAN,)),

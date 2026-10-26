@@ -5,6 +5,7 @@ Spec: `docs/superpowers/specs/2026-10-20-hai-luong-khoi-san-xuat-design.md` mụ
 In / Bế / Dán lấy đúng bảng của spec."""
 from __future__ import annotations
 
+import itertools
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -18,7 +19,7 @@ from tests.test_khoan_ky import CT_THANG, NAM, THANG, _Nen
 
 CT_IN = ("((1 - chay_tiep) * gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - (1 - chay_tiep) * 3000)"
          " * don_gia_khoan) * if(so_mau_pha > 0, 1.1, 1)")
-CT_BE = ("(1 - trung_khuon) * gia_co_dinh + sl_ghi * (1 + xa_doi) * (don_gia_khoan"
+CT_BE = ("(1 - kem_be_noi) * gia_co_dinh + sl_ghi * (1 + xa_doi) * (don_gia_khoan"
          " + if(so_lo >= 7, 50, if(so_lo >= 1, 20, 0)))")
 CT_DAN = "(1 - khong_canh) * gia_co_dinh / so_lan_chay + sl_ghi * don_gia_khoan"
 
@@ -82,6 +83,7 @@ def nen(client):
 
 
 NGAY = date(NAM, THANG, 5)
+_dem_lenh = itertools.count(1)
 
 
 def test_chia_theo_luong_ca_may(nen):
@@ -130,13 +132,13 @@ def test_nguoi_to_khac_dung_muc_cua_ho(nen):
     assert kq["khoan"] == {x.id: 600_000, y.id: 300_000}
 
 
-def test_be_trung_khuon_xa_doi_so_lo(nen):
+def test_be_kem_be_noi_xa_doi_so_lo(nen):
     to = nen.to("Tổ bế")
     e = nen.nv(to, "E")
     k = nen.khoan2(CT_BE, gia_co_dinh=150_000, don_gia=120,
-                   tuy_chon=_tc(("trung_khuon", "Trùng khuôn", "co_khong"),
+                   tuy_chon=_tc(("kem_be_noi", "Kèm bế nổi", "co_khong"),
                                 ("xa_doi", "Xả đôi", "co_khong"), ("so_lo", "Số lỗ đục", "so")))
-    nen.ghi2(to, k, NGAY, 1000, [e], tuy_chon={"trung_khuon": 1, "xa_doi": 1, "so_lo": 3})
+    nen.ghi2(to, k, NGAY, 1000, [e], tuy_chon={"kem_be_noi": 1, "xa_doi": 1, "so_lo": 3})
     nen.ghi2(to, k, NGAY, 1000, [e], tuy_chon={"so_lo": 7})
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
     tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
@@ -198,6 +200,49 @@ def test_in_chay_tiep_qua_dem_la_len_bai_lai(nen, monkeypatch):
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
     tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
     assert tien == [260_000, 240_000, 260_000]
+
+
+CT_BE_KHUON = "(1 - trung_khuon) * if(khuon_moi > 0, 80000, gia_co_dinh) + sl_ghi * don_gia_khoan"
+
+
+def _viec_dao(nen, to, may_id, khuon_be_id):
+    """Công việc của một bước lệnh trỏ dao `khuon_be_id` (None = bước không có dao)."""
+    from app.models.lsx import Lsx, LsxCongDoan
+
+    i = next(_dem_lenh)
+    l = Lsx(ma=f"LSX-KHUON-{i}", ten="Hộp", order_id=1, order_line_id=1, so_luong_dat=1000)
+    nen.db.add(l)
+    nen.db.flush()
+    buoc = LsxCongDoan(lsx_id=l.id, ten="Bế", khuon_be_id=khuon_be_id)
+    nen.db.add(buoc)
+    nen.db.flush()
+    cv = nen.cv(to)
+    cv.may_id, cv.lsx_cong_doan_id = may_id, buoc.id
+    nen.db.flush()
+    return cv
+
+
+def test_be_trung_khuon_khuon_moi_la_chip_may_tu_do(nen, monkeypatch):
+    """26/10/2026 chủ: "Trùng khuôn" / "Khuôn mới" là CHIP máy tự dò từ dao của bước lệnh (danh mục
+    Khuôn), không còn tuỳ chọn bắt thợ tick. Trùng khuôn = lần ghi liền trước trên cùng máy dùng
+    cùng dao (dao còn trên máy, kể cả qua đêm). Khuôn mới = lần ghi ĐẦU TIÊN từng dùng con dao đó."""
+    to = nen.to("Tổ bế")
+    e = nen.nv(to, "E")
+    k = nen.khoan2(CT_BE_KHUON, gia_co_dinh=50_000, don_gia=10)
+    monkeypatch.setattr(KhoanKyService, "_quy_cach", lambda self, cv, lenh, bai: {})
+    x = _viec_dao(nen, to, 901, 501)
+    a, b, c, d = (_viec_dao(nen, to, 901, 501), _viec_dao(nen, to, 901, 502),
+                  _viec_dao(nen, to, 901, None), _viec_dao(nen, to, 901, 502))
+    nen.ghi2(to, k, date(NAM, THANG - 1, 28), 1000, [e], cv=x, gio=(8, 9))   # kỳ trước, dao 501
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=a, gio=(8, 9))     # dao 501 còn trên máy từ hôm trước ⇒ trùng
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=b, gio=(9, 10))    # dao 502 lần đầu ⇒ khuôn mới
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=c, gio=(10, 11))   # bước không dao ⇒ lên khuôn thường
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=a, gio=(11, 12))   # 501 sau bước không dao ⇒ lên lại
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=d, gio=(12, 13))   # 502 lệnh khác, đã dùng trước ⇒ thường
+    nen.ghi2(to, k, NGAY, 1000, [e], cv=d, gio=(13, 14))   # 502 ngay sau 502 ⇒ trùng
+    kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
+    tien = [d["tien_lan_ghi"] for d in kq["theo_nguoi"][e.id] if d["loai"] == "lan_ghi"]
+    assert tien == [10_000, 90_000, 60_000, 60_000, 60_000, 10_000]
 
 
 def test_in_bai_ghep_that_doc_mau_pha_gop_cua_thanh_vien(nen):
@@ -356,7 +401,7 @@ def test_lan_ghi_cu_chua_co_tuy_chon_mac_dinh_0(nen):
     k = nen.khoan2(CT_BE, gia_co_dinh=150_000, don_gia=120)
     b = nen.ghi2(to, k, NGAY, 1000, [e])
     assert b.tuy_chon_khoan is None
-    k.tuy_chon = _tc(("trung_khuon", "Trùng khuôn", "co_khong"), ("xa_doi", "Xả đôi", "co_khong"),
+    k.tuy_chon = _tc(("kem_be_noi", "Kèm bế nổi", "co_khong"), ("xa_doi", "Xả đôi", "co_khong"),
                      ("so_lo", "Số lỗ đục", "so"))
     nen.db.flush()
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((e, 10_000_000)))
@@ -380,12 +425,12 @@ def test_chi_tiet_co_the_tuy_chon_va_ty_le(nen):
     to = nen.to("Tổ bế")
     a, b = nen.nv(to, "A"), nen.nv(to, "B")
     k = nen.khoan2(CT_BE, gia_co_dinh=150_000, don_gia=120,
-                   tuy_chon=_tc(("trung_khuon", "Trùng khuôn", "co_khong"),
+                   tuy_chon=_tc(("kem_be_noi", "Kèm bế nổi", "co_khong"),
                                 ("xa_doi", "Xả đôi", "co_khong"), ("so_lo", "Số lỗ đục", "so")))
-    nen.ghi2(to, k, NGAY, 1000, [a, b], tuy_chon={"trung_khuon": 1, "so_lo": 3})
+    nen.ghi2(to, k, NGAY, 1000, [a, b], tuy_chon={"kem_be_noi": 1, "so_lo": 3})
     kq = KhoanKyService(nen.db).tinh(NAM, THANG, _muc((a, 3_000_000), (b, 1_000_000)))
     d = next(x for x in kq["theo_nguoi"][a.id] if x["loai"] == "lan_ghi")
-    assert d["tuy_chon"] == ["trùng khuôn", "3 số lỗ đục"]
+    assert d["tuy_chon"] == ["kèm bế nổi", "3 số lỗ đục"]
     assert d["ty_le"] == 0.75 and d["so_luong"] == 1000
 
 

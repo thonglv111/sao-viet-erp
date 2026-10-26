@@ -19264,3 +19264,28 @@ def _migrate_bai_ghep_nguon_giay(db: Session) -> None:
 
 
 MIGRATIONS.append(("0447_bai_ghep_nguon_giay", _migrate_bai_ghep_nguon_giay))
+
+
+def _migrate_khuon_thoi_la_tuy_chon(db: Session) -> None:
+    """0449 (26/10/2026) — "Trùng khuôn" / "Khuôn mới" thành CHIP máy dò từ dao của bước lệnh
+    (`bien_cong_thuc._RIENG_KHOAN`), chủ: không khai tuỳ chọn rồi bắt thợ tick. Gỡ hai tuỳ chọn mã
+    `trung_khuon` / `khuon_moi` khỏi `cong_doan_khoan.tuy_chon` — để nguyên thì form Ghi sản lượng
+    còn bày ô tick và lưu lại cấu hình bị chặn vì mã trùng chip. Công thức không đổi chữ (chip cùng
+    mã). Ảnh chụp tuỳ chọn ở lần ghi cũ để nguyên: chip máy đè lên lúc tính. Raw SQL, idempotent."""
+    from sqlalchemy import JSON, bindparam
+
+    if "cong_doan_khoan" not in set(inspect(db.get_bind()).get_table_names()):
+        return
+    bo = {"trung_khuon", "khuon_moi"}
+    ghi = text("UPDATE cong_doan_khoan SET tuy_chon = :t WHERE id = :i").bindparams(bindparam("t", type_=JSON))
+    for kid, tc in db.execute(text("SELECT id, tuy_chon FROM cong_doan_khoan WHERE tuy_chon IS NOT NULL")).all():
+        ds = json.loads(tc) if isinstance(tc, str) else tc
+        if not isinstance(ds, list):
+            continue
+        con = [t for t in ds if not (isinstance(t, dict) and t.get("ma") in bo)]
+        if len(con) != len(ds):
+            db.execute(ghi, {"t": con or None, "i": kid})
+    db.commit()
+
+
+MIGRATIONS.append(("0449_khuon_thoi_la_tuy_chon", _migrate_khuon_thoi_la_tuy_chon))

@@ -126,6 +126,29 @@ class KhoanKyRepository:
                                          .where(lag.c.batch_id.in_(batch_ids)))
                 if r.truoc is not None}
 
+    def dao_cua_viec(self, cv_ids: set[int]) -> dict[int, int]:
+        """`{cong_viec_id: khuon_be_id}` — dao mà bước lệnh của công việc trỏ tới (danh mục Khuôn).
+        Việc không trỏ dao (bài ghép, việc tay, bước không dụng cụ) vắng khỏi dict."""
+        if not cv_ids:
+            return {}
+        return {int(i): int(k) for i, k in self.db.execute(
+            select(SanXuatCongViec.id, LsxCongDoan.khuon_be_id)
+            .join(LsxCongDoan, LsxCongDoan.id == SanXuatCongViec.lsx_cong_doan_id)
+            .where(SanXuatCongViec.id.in_(cv_ids), LsxCongDoan.khuon_be_id.is_not(None)))}
+
+    def lan_dau_cua_dao(self, khuon_ids: set[int]) -> set[int]:
+        """batch_id của lần ghi ĐẦU TIÊN từng dùng mỗi dao (xếp `bat_dau`, cùng giờ theo id)."""
+        if not khuon_ids:
+            return set()
+        hang = (select(SanXuatBatch.id.label("batch_id"),
+                       func.row_number().over(partition_by=LsxCongDoan.khuon_be_id,
+                                              order_by=(SanXuatBatch.bat_dau, SanXuatBatch.id)).label("rn"))
+                .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBatch.cong_viec_id)
+                .join(LsxCongDoan, LsxCongDoan.id == SanXuatCongViec.lsx_cong_doan_id)
+                .where(LsxCongDoan.khuon_be_id.in_(khuon_ids))
+                .subquery())
+        return {int(i) for i in self.db.scalars(select(hang.c.batch_id).where(hang.c.rn == 1))}
+
     def dung_may_trong_khoang(self, tu: date, den: date) -> list[KhoanDungMay]:
         """Ngày dừng máy (Đợt 2) có `ngay` trong [tu, den] — đã là ngày xưởng, không cần lọc lại."""
         return list(self.db.scalars(select(KhoanDungMay)

@@ -10,7 +10,7 @@ from app.services.bien_cong_thuc import ma_hop_le
 from app.services.san_xuat import viec_khoan
 
 _dem = count(1)
-CT_BE = "(1 - trung_khuon) * gia_co_dinh + sl_ghi * don_gia_khoan"
+CT_BE = "(1 - kem_be_noi) * gia_co_dinh + sl_ghi * don_gia_khoan"
 
 
 def _h(client) -> dict:
@@ -26,19 +26,19 @@ def _body(**khoan) -> dict:
                       "viec_phat_sinh": [], **khoan}}
 
 
-TRUNG_KHUON = {"ma": "trung_khuon", "ten": "Trùng khuôn", "kieu": "co_khong"}
+BE_NOI = {"ma": "kem_be_noi", "ten": "Kèm bế nổi", "kieu": "co_khong"}
 
 
 def test_luu_gia_co_dinh_chung_va_tuy_chon(client):
     h = _h(client)
-    r = client.post("/api/cong-doan", json=_body(gia_co_dinh=150_000, tuy_chon=[TRUNG_KHUON]),
+    r = client.post("/api/cong-doan", json=_body(gia_co_dinh=150_000, tuy_chon=[BE_NOI]),
                     headers=h)
     assert r.status_code == 201, r.text
     k = r.json()["khoan"]
     assert k["gia_co_dinh"] == 150_000
-    assert k["tuy_chon"] == [{**TRUNG_KHUON, "goi_y": None}]
+    assert k["tuy_chon"] == [{**BE_NOI, "goi_y": None}]
     r = client.get(f"/api/cong-doan/{r.json()['id']}", headers=h)
-    assert r.json()["khoan"]["tuy_chon"][0]["ma"] == "trung_khuon"
+    assert r.json()["khoan"]["tuy_chon"][0]["ma"] == "kem_be_noi"
 
 
 def test_viec_phat_sinh_luu_cach_tinh_gia_va_kiem_cong_thuc(client):
@@ -46,26 +46,26 @@ def test_viec_phat_sinh_luu_cach_tinh_gia_va_kiem_cong_thuc(client):
     thì bỏ trống đơn giá được (lưu 0); công thức sai chặn kèm tên việc."""
     h = _h(client)
     xb = {"ten": "Xuống bài", "don_gia": None, "don_vi": "to", "cong_thuc": " 0.5 * gia_co_dinh "}
-    r = client.post("/api/cong-doan", json=_body(tuy_chon=[TRUNG_KHUON], viec_phat_sinh=[xb]), headers=h)
+    r = client.post("/api/cong-doan", json=_body(tuy_chon=[BE_NOI], viec_phat_sinh=[xb]), headers=h)
     assert r.status_code == 201, r.text
     ps = r.json()["khoan"]["viec_phat_sinh"][0]
     assert ps["cong_thuc"] == "0.5 * gia_co_dinh" and ps["don_gia"] == 0
-    r = client.post("/api/cong-doan", json=_body(tuy_chon=[TRUNG_KHUON], viec_phat_sinh=[{**xb, "cong_thuc": "0.5 * gia_bai"}]),
+    r = client.post("/api/cong-doan", json=_body(tuy_chon=[BE_NOI], viec_phat_sinh=[{**xb, "cong_thuc": "0.5 * gia_bai"}]),
                     headers=h)
     assert r.status_code == 422 and "Xuống bài" in r.text, r.text
-    r = client.post("/api/cong-doan", json=_body(tuy_chon=[TRUNG_KHUON], viec_phat_sinh=[{**xb, "cong_thuc": ""}]), headers=h)
+    r = client.post("/api/cong-doan", json=_body(tuy_chon=[BE_NOI], viec_phat_sinh=[{**xb, "cong_thuc": ""}]), headers=h)
     assert r.status_code == 422 and "đơn giá" in r.text, r.text
 
 
 def test_cong_thuc_goi_tuy_chon_chua_khai_bao_loi(client):
     r = client.post("/api/cong-doan", json=_body(tuy_chon=[]), headers=_h(client))
-    assert r.status_code == 422 and "trung_khuon" in r.text, r.text
+    assert r.status_code == 422 and "kem_be_noi" in r.text, r.text
 
 
 def test_tuy_chon_trung_chip_he_thong_bi_chan(client):
     h = _h(client)
     for tc in ([{"ma": "sl_ghi", "ten": "SL"}], [{"ma": "max", "ten": "Lớn nhất"}],
-               [TRUNG_KHUON, {**TRUNG_KHUON, "ten": "Trùng khuôn 2"}]):
+               [BE_NOI, {**BE_NOI, "ten": "Kèm bế nổi 2"}]):
         r = client.post("/api/cong-doan", json=_body(cong_thuc_khoan="sl_ghi * don_gia_khoan",
                                                      tuy_chon=tc), headers=h)
         assert r.status_code == 422 and "trùng" in r.text, (tc, r.text)

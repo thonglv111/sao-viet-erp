@@ -326,6 +326,23 @@ class KhoanKyService:
                 ra.add(int(b.id))
         return ra
 
+    def _chip_khuon(self, cap, den: datetime, khoan_map: dict) -> tuple[set[int], set[int]]:
+        """(lần ghi trùng khuôn, lần ghi khuôn mới) — đọc dao của bước lệnh, không ai tick (26/10/2026).
+
+        Trùng khuôn: lần liền trước trên cùng máy (không máy ⇒ cùng tổ) dùng CÙNG dao — dao còn nằm
+        trên máy, kể cả qua đêm. Khuôn mới: lần ghi đầu tiên từng dùng con dao đó. Bước không trỏ
+        dao thì cả hai 0 (lên khuôn thường)."""
+        cap = {int(b.id): (b, cv) for c in ("trung_khuon", "khuon_moi")
+               for b, cv in self._cap_dung_chip(cap, khoan_map, c)}
+        if not cap:
+            return set(), set()
+        truoc = self.repo.viec_lien_truoc(set(cap), den)
+        dao = self.repo.dao_cua_viec({int(cv.id) for _, cv in cap.values()} | {t[0] for t in truoc.values()})
+        trung = {bid for bid, (_, cv) in cap.items()
+                 if (k := dao.get(int(cv.id))) and bid in truoc and dao.get(truoc[bid][0]) == k}
+        dau = self.repo.lan_dau_cua_dao({dao[int(cv.id)] for _, cv in cap.values() if int(cv.id) in dao})
+        return trung, {bid for bid in cap if bid in dau}
+
     # ------------------------------------------------------------------ cả kỳ
     def tinh(self, year: int, month: int, muc: MucKhoan, *, so: bool = False,
              dien_giai_ngay: bool = True, theo_nguoi: bool = True) -> dict:
@@ -362,6 +379,7 @@ class KhoanKyService:
         so_lan = self._so_lan_chay(cap, den, cuoi)
         so_lan_tv = self._so_lan_thu_viec(cap, den, cuoi, khoan_map)
         chay_tiep = self._chay_tiep(cap, den, khoan_map)
+        trung_khuon, khuon_moi = self._chip_khuon(cap, den, khoan_map)
         ten_nv = self.repo.ten_nhan_vien({int(r.employee_id) for rs in nguoi.values() for r in rs})
         # Kế toán sửa tay (23/10/2026): tiền gõ đè + ghi chú theo lần ghi.
         tay_lan = self.repo.lan_ghi_tay(ids)
@@ -441,6 +459,8 @@ class KhoanKyService:
                     "so_lan_chay": float(max(1, so_lan.get(self._khoa_chay(cv, b), 0))),
                     "so_lan_thu_viec": float(so_lan_tv.get(self._khoa_chay(cv, b), 0)),
                     "chay_tiep": 1.0 if int(b.id) in chay_tiep else 0.0,
+                    "trung_khuon": 1.0 if int(b.id) in trung_khuon else 0.0,
+                    "khuon_moi": 1.0 if int(b.id) in khuon_moi else 0.0,
                     "tien_gio": sum(_so(muc.nen_gio.get(e)) for e in w) / 26 / 8 * gio,
                     **self.chip_lenh(qc, bac),
                 }

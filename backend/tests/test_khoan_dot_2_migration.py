@@ -55,3 +55,25 @@ def test_khoan_dung_may_unique_to_ngay(client):
     finally:
         db.rollback()
         db.close()
+
+
+def test_mg_0449_go_tuy_chon_khuon_giu_tuy_chon_khac():
+    """26/10/2026: trung_khuon / khuon_moi thành chip máy dò ⇒ gỡ khỏi tuỳ chọn tick, giữ phần còn lại."""
+    import json
+
+    from app.db_migrations import _migrate_khuon_thoi_la_tuy_chon
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    tc = [{"ma": "trung_khuon", "ten": "Trùng khuôn", "kieu": "co_khong"},
+          {"ma": "so_lo", "ten": "Số lỗ đục", "kieu": "so"},
+          {"ma": "khuon_moi", "ten": "Khuôn mới", "kieu": "co_khong"}]
+    with engine.begin() as cn:
+        cn.execute(text("CREATE TABLE cong_doan_khoan (id INTEGER PRIMARY KEY, tuy_chon JSON)"))
+        cn.execute(text("INSERT INTO cong_doan_khoan (tuy_chon) VALUES (:a), (:b), (NULL)"),
+                   {"a": json.dumps(tc), "b": json.dumps(tc[::2])})
+    for _ in range(2):
+        with Session(engine) as db:
+            _migrate_khuon_thoi_la_tuy_chon(db)
+    with engine.begin() as cn:
+        hang = [r[0] for r in cn.execute(text("SELECT tuy_chon FROM cong_doan_khoan ORDER BY id"))]
+    assert [json.loads(h) if h else None for h in hang] == [[tc[1]], None, None]
