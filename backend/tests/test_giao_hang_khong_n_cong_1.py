@@ -120,3 +120,51 @@ def test_muc_khoan_km_khong_hoi_db_tung_muc(client):
                                       {"up_to_km": None, "don_gia": 3000.0}]
     print("\nSO CAU SQL muc khoan km (2 -> 8 muc):", it, nhieu)
     assert nhieu <= it, f"{url}: {it} -> {nhieu} câu khi tăng số mức"
+
+
+def test_tab_nhan_vien_chi_nap_chuyen_dang_chay_va_trong_khung(client):
+    """Tab Nhân viên giao hàng không nạp cả lịch sử chuyến (DB đo tải 26/10/2026: 18 nghìn chuyến,
+    7,7 s). Chỉ chuyến đang chạy + chuyến kết thúc quanh khung ngày/tháng đang xem — kết quả y cũ."""
+    from datetime import datetime, timezone
+
+    from app.models.delivery import LG_THANH_CONG, DeliveryTrip
+    from app.repositories.delivery_repo import DeliveryRepository
+
+    h = _admin(client)
+    _bat_co_giao_hang()
+    oid, lid = _don_da_chot(suffix="N1KHUNG")
+    nv = _nhan_vien("TXN1KHUNG", "Tai xe khung", "Sản xuất")
+    trips = []
+    for _ in range(4):
+        yc = _tao_yc(client, h, oid, lid, qty=5)
+        r = _len_kh(client, h, yc["id"], nv)
+        assert r.status_code == 201, r.text
+        trips.append(r.json()["trip"]["id"])
+    hom = date(2026, 10, 20)
+    xong = {
+        trips[0]: datetime(2025, 3, 10, 9, tzinfo=timezone.utc),   # cũ — ngoài khung
+        trips[1]: datetime(2026, 10, 5, 9, tzinfo=timezone.utc),   # trong tháng
+        trips[2]: datetime(2026, 10, 20, 9, tzinfo=timezone.utc),  # hôm nay
+    }  # trips[3] vẫn đang chạy
+    db = SessionLocal()
+    try:
+        for tid, luc in xong.items():
+            t = db.get(DeliveryTrip, tid)
+            t.trang_thai, t.thoi_gian_ket_thuc, t.km = LG_THANH_CONG, luc, 10
+        db.commit()
+        lo = datetime(2026, 9, 30, tzinfo=timezone.utc)
+        hi = datetime(2026, 11, 2, tzinfo=timezone.utc)
+        co = {t.id for t in DeliveryRepository(db).chuyen_cua_nhieu_kip(
+            [nv], ket_thuc_tu=lo, ket_thuc_den=hi)[nv]}
+        assert co == {trips[1], trips[2], trips[3]}
+    finally:
+        db.close()
+    body = client.get(f"/api/giao-hang/nhan-vien?ngay={hom}&thang=2026-10", headers=h).json()
+    dong = next(d for d in body["items"] if d["employee_id"] == nv)
+    assert (dong["so_chuyen_xong"], dong["tong_km"]) == (1, 10)
+    assert (dong["so_chuyen_thang"], dong["tong_km_thang"]) == (2, 20)
+    assert dong["trang_thai"] != "ranh" and dong["chuyen_dang_thuc_hien"] is not None
+    # Tháng trước khi chuyến cũ còn trong khung: vẫn đếm được.
+    body = client.get("/api/giao-hang/nhan-vien?ngay=2025-03-10&thang=2025-03", headers=h).json()
+    dong = next(d for d in body["items"] if d["employee_id"] == nv)
+    assert (dong["so_chuyen_xong"], dong["so_chuyen_thang"]) == (1, 1)
