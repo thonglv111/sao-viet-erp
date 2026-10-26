@@ -706,14 +706,18 @@ class DeliveryRepository:
             # Gộp theo yêu cầu — chỉ lấy chuyến MỚI NHẤT (lan_thu lớn nhất) của mỗi yêu cầu, khớp
             # `gopTheoYeuCau()` phía FE. Từ 22/08/2026 mỗi yêu cầu chỉ còn 1 chuyến sống nên đây
             # chủ yếu chừa cho dữ liệu cũ (nhiều `lan_thu` một yêu cầu) trước mốc đó.
+            # Viết "không có lần giao SAU nó" (NOT EXISTS) chứ đừng `lan_thu = (SELECT max …)`:
+            # Postgres ước sai số dòng của dạng max tương quan (90 thay vì 18 nghìn trên DB đo tải
+            # 26/10/2026) rồi nối lồng với lượt xe — bảng Đơn giao hàng 0,6 s mỗi câu. `lan_thu`
+            # NOT NULL nên hai cách cùng nghĩa.
             t2 = aliased(DeliveryTrip)
-            max_lan_thu = (
-                select(func.max(t2.lan_thu))
-                .where(t2.request_id == DeliveryTrip.request_id)
+            co_lan_sau = (
+                select(t2.id)
+                .where(t2.request_id == DeliveryTrip.request_id, t2.lan_thu > DeliveryTrip.lan_thu)
                 .correlate(DeliveryTrip)
-                .scalar_subquery()
+                .exists()
             )
-            q = q.where(DeliveryTrip.lan_thu == max_lan_thu)
+            q = q.where(~co_lan_sau)
         return q
 
     def list_trips(

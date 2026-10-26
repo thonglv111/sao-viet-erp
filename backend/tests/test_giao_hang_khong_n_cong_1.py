@@ -168,3 +168,31 @@ def test_tab_nhan_vien_chi_nap_chuyen_dang_chay_va_trong_khung(client):
     body = client.get("/api/giao-hang/nhan-vien?ngay=2025-03-10&thang=2025-03", headers=h).json()
     dong = next(d for d in body["items"] if d["employee_id"] == nv)
     assert (dong["so_chuyen_xong"], dong["so_chuyen_thang"]) == (1, 1)
+
+
+def test_chuyen_moi_nhat_moi_yeu_cau_dung_not_exists(client):
+    """"Chuyến mới nhất của yêu cầu" viết bằng NOT EXISTS (không có lần giao sau), KHÔNG bằng
+    `lan_thu = (SELECT max …)` tương quan: Postgres ước sai số dòng của dạng max (90 thay vì 18
+    nghìn) rồi nối lồng — bảng Đơn giao hàng 0,6 s mỗi câu trên DB đo tải 26/10/2026."""
+    from sqlalchemy import select
+
+    from app.models.delivery import DeliveryTrip
+    from app.repositories.delivery_repo import DeliveryRepository
+
+    h = _admin(client)
+    _bat_co_giao_hang()
+    oid, lid = _don_da_chot(suffix="N1LAN")
+    nv = _nhan_vien("TXN1LAN", "Tai xe lan", "Sản xuất")
+    yc = _tao_yc(client, h, oid, lid, qty=5)
+    goc = _len_kh(client, h, yc["id"], nv).json()["trip"]["id"]
+    db = SessionLocal()
+    try:
+        # Mô hình mới khoá một chuyến mỗi yêu cầu (request_id unique, 22/08/2026) — điều kiện chỉ
+        # còn cho dữ liệu cũ nhiều `lan_thu`; ở đây kiểm nó không đánh rơi chuyến duy nhất.
+        repo = DeliveryRepository(db)
+        assert goc in {x.id for x in repo.list_trips(latest_per_request=True)}
+        sql = str(repo._loc_chuyen(select(DeliveryTrip.id), employee_ids=None, department_ids=None,
+                                   trang_thai=None, latest_per_request=True))
+        assert "NOT (EXISTS" in sql and "max(" not in sql, sql
+    finally:
+        db.close()
