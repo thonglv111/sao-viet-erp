@@ -165,6 +165,19 @@ def _khach_no(client, h, n: int, tt: str) -> None:
         r = client.post("/api/accounting/sales-invoices",
                         json=_invoice_payload(order_id, number=f"{tt.upper()}{i:05d}"), headers=h)
         assert r.status_code == 201, r.text
+        # Khách trả một phần; phiếu thu do một người lập riêng.
+        pt = client.post(f"/api/accounting/sales-invoices/{r.json()['id']}/receipts", json={
+            "payer_name": f"Khach {tt}{i}", "receipt_method": "cash",
+            "receipt_date": date.today().isoformat(), "amount": 1000, "content": "tra mot phan",
+        }, headers=h)
+        assert pt.status_code == 201, pt.text
+        db = SessionLocal()
+        try:
+            phieu = db.get(PaymentReceipt, pt.json()["id"])
+            phieu.created_by_user_id = _nguoi(db, f"pt_kh_{tt}{i}").id
+            db.commit()
+        finally:
+            db.close()
 
 
 def test_cong_no_phai_thu_khong_hoi_db_tung_dong(client, h):

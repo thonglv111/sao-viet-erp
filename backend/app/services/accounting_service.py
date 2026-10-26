@@ -2203,6 +2203,8 @@ class AccountingService:
         )
         if until is not None:
             receipts = [r for r in receipts if r.receipt_date <= until]
+        # Tên người lập: một lượt cho mọi phiếu (trước 26/10/2026 mỗi phiếu một SELECT users).
+        self._nap_ten_nguoi(r.created_by_user_id for r in receipts)
         return [
             {
                 "receipt_id": row.receipt_id,
