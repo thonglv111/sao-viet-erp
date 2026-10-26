@@ -709,15 +709,21 @@ class DeliveryService:
         ta gõ — đó là khác biệt lớn nhất so với sửa bảng giá của riêng một chiếc.
         """
         ra = []
-        for m in self._muc_repo().list():
+        muc_repo = self._muc_repo()
+        cac_muc = muc_repo.list()
+        # Bậc + số xe của mọi mức nạp GỘP (trước 26/10/2026: mỗi mức hai câu).
+        bac = muc_repo.bac_theo_muc(m.id for m in cac_muc)
+        so_xe = self.xe.dem_theo_cac_muc(m.id for m in cac_muc) if self.xe is not None else {}
+        for m in cac_muc:
             ra.append({
                 "id": m.id, "ten": m.ten,
                 # `ma` RỖNG, cố ý: ô chọn dùng chung của nền danh mục (`RefSearchField`) vẽ
                 # "mã · tên" nhưng tự giấu phần mã khi rỗng — mức chỉ có TÊN, và cái tên đã đủ.
                 "ma": "",
                 "ghi_chu": m.ghi_chu, "active": bool(m.active),
-                "items": self.km_brackets_muc(m.id),
-                "so_xe": self.xe.dem_theo_muc(m.id) if self.xe is not None else 0,
+                "items": [{"up_to_km": b.up_to_km, "don_gia": float(b.don_gia)}
+                          for b in bac.get(m.id, [])],
+                "so_xe": so_xe.get(m.id, 0),
             })
         return ra
 
