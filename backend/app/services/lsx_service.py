@@ -1670,7 +1670,14 @@ class LsxService:
                 if nguon is not None else None)
             # Giấy/sóng KHÔNG chép từ bước phiếu (24/10/2026): phiếu chọn ở sản phẩm, lệnh tự gắn vào
             # bước đầu của khâu chuẩn bị giấy — xem `_dung_khau_chuan_bi`.
-            rows, _canh_bao = self._vat_tu_bung(cd_obj, cd, quy_cach, dong_nguon=dong_nguon)
+            rows, canh_bao = self._vat_tu_bung(cd_obj, cd, quy_cach, dong_nguon=dong_nguon)
+            # Món chưa chọn ĐVT bị bỏ khỏi lệnh trong im lặng ⇒ kế hoạch vật tư không thấy để mua
+            # (L-SX-03, chủ chốt 26/10/2026: chặn lúc tạo lệnh, nêu tên món — cùng luật danh mục Công đoạn).
+            thieu_dvt = [c.split(":", 1)[0] for c in canh_bao if "chưa chọn đơn vị tính" in c]
+            if thieu_dvt:
+                raise LsxValidationError(
+                    f"Bước “{cd.ten}”: vật tư {', '.join(f'“{t}”' for t in thieu_dvt)} chưa chọn đơn vị "
+                    f"tính — khai đơn vị tính ở danh mục Vật tư khác rồi tạo lệnh lại.")
             for pos, v in enumerate(rows):
                 cd.vat_tus.append(LsxCongDoanVatTu(
                     hang_loai=v.get("hang_loai") or HANG_VAT_TU,
@@ -1836,8 +1843,10 @@ class LsxService:
             # Thiếu giấy = KHÔNG công đoạn nào có dòng giấy (18/10/2026) — giấy chọn ở bước, bước
             # nào cũng được, không riêng bước In. `qc.giay_id` là giấy chính phiếu dẫn xuất từ chính
             # các bước đó; vẫn đọc nó cho lệnh lập trước 18/10 (giấy chỉ nằm ở quy cách).
-            if not qc.get("giay_id") and not any(
-                    v.hang_loai == HANG_GIAY for cd in lsx.cong_doans for v in cd.vat_tus):
+            # Lệnh có Nguồn giấy: giấy chỉ gắn ở bước đầu khâu — phải đếm dòng giấy THẬT trên bước,
+            # `qc.giay_id` còn đó không có nghĩa bước nào còn mang dòng giấy (L-SX-04).
+            co_dong_giay = any(v.hang_loai == HANG_GIAY for cd in lsx.cong_doans for v in cd.vat_tus)
+            if not co_dong_giay and (lsx.nguon_giay or not qc.get("giay_id")):
                 thieu.append("thieu_giay")
             if not (qc.get("dai_thanh_pham") and qc.get("rong_thanh_pham")):
                 thieu.append("thieu_kho")
@@ -1854,11 +1863,7 @@ class LsxService:
             thieu.append("thieu_ngay_giao")
 
         # --- Điều kiện "sẵn sàng xếp lịch" của từng bước (§12) ---
-        from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
-        tron_goi = self.db.query(GiaCongNgoai.id).filter(
-            GiaCongNgoai.lsx_id == lsx.id, GiaCongNgoai.kieu == KIEU_TRON_GOI,
-            GiaCongNgoai.huy_luc.is_(None),
-        ).first() is not None
+        tron_goi = self._co_tron_goi(lsx.id)
         buoc: dict[str, list[int]] = {}
         for cd in lsx.cong_doans:
             # Bước MÁY/TỔ phải biết ai/máy nào làm thì Gantt mới có chỗ đặt. Bước THUÊ NGOÀI không
@@ -2536,6 +2541,10 @@ class LsxService:
         if (loi := self._ly_do_khong_cap_nhat(lsx)) is not None:
             raise LsxConflict(loi.replace("lấy số mới của danh mục", "đổi nguồn giấy")
                               .replace("lấy số mới", "đổi nguồn giấy"))
+        self._chan_da_xuong_xuong(lsx, "đổi nguồn giấy")
+        if self._co_tron_goi(lsx.id):
+            raise LsxConflict("Lệnh đang gia công trọn gói — nhà gia công tự lo giấy, không đổi nguồn giấy. "
+                              "Huỷ gia công trọn gói trước nếu cần.")
         if self._ghep_cua(lsx) is not None:   # bước chung của bài trỏ vào step_key của lệnh ⇒ gỡ là mồ côi
             raise LsxConflict("Lệnh đang nằm trong bài ghép — bỏ lệnh khỏi bài trước khi đổi nguồn giấy.")
         if nguon not in NGUON_GIAY:
@@ -2556,6 +2565,8 @@ class LsxService:
         moi = self._dung_khau_chuan_bi(
             lsx, NguonChon(nguon, int(rong_cuon) if nguon == "cuon" else None, None))
         self._ap_chuoi_nguoc(lsx)
+        # Lưới cuối (L-SX-21): đổi nguồn không được lưu một tuyến mà `replace_routing` sau đó từ chối.
+        self._kiem_tuyen_luu(lsx, sorted(lsx.cong_doans, key=lambda c: (c.thu_tu, c.id or 0)))
         self._bung_lai_vat_tu(lsx, moi)
         thieu = self.thieu_cua(lsx)
         if thieu and lsx.trang_thai != TT_CHO_BO_SUNG:
@@ -3366,6 +3377,24 @@ class LsxService:
 
     # --- Danh mục đổi dưới chân lệnh -----------------------------------------
 
+    def _co_tron_goi(self, lsx_id: int) -> bool:
+        """Lệnh có gia công trọn gói đang sống (chưa huỷ) — nhà gia công tự lo giấy, xưởng không chạy."""
+        from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+        return self.db.query(GiaCongNgoai.id).filter(
+            GiaCongNgoai.lsx_id == lsx_id, GiaCongNgoai.kieu == KIEU_TRON_GOI,
+            GiaCongNgoai.huy_luc.is_(None),
+        ).first() is not None
+
+    @staticmethod
+    def _chan_da_xuong_xuong(lsx: Lsx, viec: str) -> None:
+        """Lệnh đã phát hành / đã đóng: gói công việc đã đóng băng ở xưởng, sửa tuyến hay nguồn giấy là
+        việc xưởng đang cầm một đằng, lệnh nói một nẻo (L-SX-19, 26/10/2026). Câu theo khuôn `doi_trang_thai`."""
+        if lsx.trang_thai == TT_DA_PHAT_HANH:
+            raise LsxConflict(f"Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) "
+                              f"trước khi {viec}.")
+        if lsx.trang_thai == TT_DA_DONG:
+            raise LsxConflict(f"Lệnh đã đóng — không {viec} được nữa.")
+
     def _ly_do_khong_cap_nhat(self, lsx: Lsx) -> str | None:
         """Vì sao lệnh này KHÔNG lấy được số mới của danh mục. `None` = lấy được.
 
@@ -3517,15 +3546,36 @@ class LsxService:
         self.repo.commit()
         return self.get(lsx_id)
 
+    def _chan_bo_khau_chuan_bi_giay(self, lsx: Lsx, rows_in) -> None:
+        """Lệnh có Nguồn giấy: bước Cắt giấy cuộn / Tề giấy in do máy dựng theo nguồn, giấy xin kho chỉ
+        gắn ở bước đầu khâu. Bỏ tay hay đổi công đoạn của bước đó là mất dòng giấy duy nhất trong khi
+        `nguon_giay` vẫn ghi "Cuộn" (L-SX-04, chủ chốt 26/10/2026: chặn, bảo đổi Nguồn giấy)."""
+        if not lsx.nguon_giay:
+            return
+        ids = {i for ma in (CD_CAT_CUON, CD_TE_GIAY_IN) if (i := id_cong_doan_he_thong(self.db, ma))}
+        khau = {c.step_key: c for c in lsx.cong_doans if c.cong_doan_id in ids and c.step_key}
+        if not khau:
+            return
+        moi = {}
+        for r in rows_in:
+            d = r.model_dump(exclude_unset=True)
+            if (k := (d.get("step_key") or "").strip()):
+                moi[k] = d.get("cong_doan_id")
+        for k, c in khau.items():
+            if k not in moi or moi[k] != c.cong_doan_id:
+                raise LsxConflict(f'Bước "{c.ten}" do Nguồn giấy dựng — đổi Nguồn giấy thay vì bỏ hay đổi bước này.')
+
     def replace_routing(self, *, lsx_id: int, rows_in, actor, ly_do: str | None = None,
                         commit: bool = True) -> Lsx:
         lsx = self.get(lsx_id)
         if lsx.trang_thai == TT_DA_LAP_KE_HOACH:
             raise LsxConflict("Lệnh đã lập kế hoạch — gỡ kế hoạch trước khi sửa routing")
+        self._chan_da_xuong_xuong(lsx, "sửa routing")
         order = self.db.get(Order, lsx.order_id)
         if order is not None and order.status == STATUS_CANCELLED:
             raise LsxConflict("Đơn đã hủy — không thể sửa routing")
         self._chan_dang_giu_cho(lsx)
+        self._chan_bo_khau_chuan_bi_giay(lsx, rows_in)
         truoc = len(lsx.cong_doans)
         di_kem_cu = self._lenh_nguon_cheo(lsx.id)
         old_by_key = {r.step_key: r for r in lsx.cong_doans}

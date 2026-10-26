@@ -192,6 +192,8 @@ export function XepLichPage({
   const [chonId, setChonId] = useState<number | null>(null);
   const [ct, setCt] = useState<XlChiTiet | null>(null);
   const [taiCt, setTaiCt] = useState(false);
+  // Lượt nạp chi tiết lệnh hỏng thật — ngăn chỉ nói "Không mở được lệnh" theo cờ này (L-SX-13).
+  const [loiCt, setLoiCt] = useState(false);
   const [goi, setGoi] = useState<XlGoiPhatHanh | null>(null);
   const [dangGhi, setDangGhi] = useState(false);
   const [chePrompt, setChePrompt] = useState<"thu_hoi" | "cap_nhat" | null>(null);
@@ -284,13 +286,17 @@ export function XepLichPage({
   useEffect(() => setTrang(1), [timCho, khoaLocCho]);
 
   useEffect(() => {
-    if (!token || chonId === null) { setCt(null); return; }
+    if (!token || chonId === null) { setCt(null); setLoiCt(false); return; }
     let huy = false;
     setTaiCt(true);
     api.xepLich
       .chiTiet(token, chonId)
-      .then((r) => !huy && setCt(r))
-      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh.", loi: true }))
+      .then((r) => { if (!huy) { setCt(r); setLoiCt(false); } })
+      .catch((e) => {
+        if (huy) return;
+        setLoiCt(true);
+        setBao({ chu: e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh.", loi: true });
+      })
       .finally(() => !huy && setTaiCt(false));
     return () => { huy = true; };
   }, [token, chonId, eventTick, nhip]);
@@ -732,7 +738,7 @@ export function XepLichPage({
       {chonId !== null && (
         <XlNgan
           ct={ct && ct.lsx_id === chonId ? ct : null}
-          dangTai={taiCt}
+          dangTai={taiCt || (!(ct && ct.lsx_id === chonId) && !loiCt)}
           suaDuoc={suaDuoc}
           duyetDuoc={duyetDuoc}
           dangGhi={dangGhi}

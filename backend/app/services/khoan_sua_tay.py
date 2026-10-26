@@ -23,6 +23,7 @@ from ..models.payroll import PERIOD_DRAFT, KhoanCongThem, KhoanDongTay, KhoanLan
 from ..models.san_xuat_san_luong import SanXuatBatch
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.khoan_ky_repo import KhoanKyRepository
+from .dinh_dang import so_vn
 from .payroll_service import PayrollForbidden, PayrollLocked, PayrollNotFound, PayrollValidationError
 from .san_xuat.nguoi_trong_me import ngay_cua_me
 
@@ -101,7 +102,9 @@ class KhoanSuaTayService:
             self._dau(row, actor)
             self.db.add(row)
         self._ghi(actor, "payroll_khoan_sua_lan_ghi", f"san_xuat_batch:{b.id}",
-                  f"tien={'máy' if row.tien is None else round(row.tien)} ghi_chu={row.ghi_chu or ''}")
+                  f"Tiền khoán lần ghi ngày {d.strftime('%d/%m/%Y')}: "
+                  f"{'về số máy tính' if row.tien is None else f'gõ tay {so_vn(row.tien)} đ'}"
+                  f"{f'. Ghi chú: {row.ghi_chu}' if row.ghi_chu else ''}.")
         self.db.commit()
 
     # ------------------------------------------------------------------ dòng tay
@@ -128,7 +131,8 @@ class KhoanSuaTayService:
         self.db.add(row)
         self.db.flush()
         self._ghi(actor, "payroll_khoan_them_dong_tay", f"khoan_dong_tay:{row.id}",
-                  f"to={to_id} ngay={ngay.isoformat()} tien={round(row.tien)} nguoi={len(ids)}")
+                  f"Thêm dòng tay sổ khoán {self._to(to_id).name} ngày {ngay.strftime('%d/%m/%Y')}: "
+                  f"{row.noi_dung or 'không ghi nội dung'}, {so_vn(row.tien)} đ chia {len(ids)} người.")
         self.db.commit()
         return int(row.id)
 
@@ -143,6 +147,7 @@ class KhoanSuaTayService:
                      nguoi_ids=_CHUA, ghi_chu=_CHUA) -> None:
         row = self._dong(dong_id)
         self._pham_vi(row.nguoi_ids or [], duoc_xem)
+        cu = (row.ngay, float(row.tien or 0), len(row.nguoi_ids or []), row.noi_dung)
         ids = self._kiem_dong(row.nam, row.thang, row.department_id,
                               row.ngay if ngay is _CHUA else ngay,
                               row.nguoi_ids if nguoi_ids is _CHUA else nguoi_ids, duoc_xem)
@@ -157,16 +162,24 @@ class KhoanSuaTayService:
         if ghi_chu is not _CHUA:
             row.ghi_chu = _chu(ghi_chu)
         self._dau(row, actor)
+        doi = [f"{nhan} {a} → {b}" for nhan, a, b in (
+            ("ngày", cu[0].strftime('%d/%m/%Y'), row.ngay.strftime('%d/%m/%Y')),
+            ("nội dung", cu[3] or "trống", row.noi_dung or "trống"),
+            ("tiền", f"{so_vn(cu[1])} đ", f"{so_vn(row.tien)} đ"),
+            ("số người", cu[2], len(ids)),
+        ) if a != b]
         self._ghi(actor, "payroll_khoan_sua_dong_tay", f"khoan_dong_tay:{row.id}",
-                  f"ngay={row.ngay.isoformat()} tien={round(row.tien)} nguoi={len(ids)}")
+                  f"Sửa dòng tay sổ khoán {self._to(row.department_id).name}: "
+                  f"{', '.join(doi) if doi else 'không đổi số'}.")
         self.db.commit()
 
     def xoa_dong_tay(self, dong_id: int, *, actor, duoc_xem) -> None:
         row = self._dong(dong_id)
         self._pham_vi(row.nguoi_ids or [], duoc_xem)
         self._ghi(actor, "payroll_khoan_xoa_dong_tay", f"khoan_dong_tay:{row.id}",
-                  f"to={row.department_id} ngay={row.ngay.isoformat()} tien={round(row.tien)} "
-                  f"noi_dung={row.noi_dung}")
+                  f"Xoá dòng tay sổ khoán {self._to(row.department_id).name} ngày "
+                  f"{row.ngay.strftime('%d/%m/%Y')}: {row.noi_dung or 'không ghi nội dung'}, "
+                  f"{so_vn(row.tien)} đ.")
         self.db.delete(row)
         self.db.commit()
 
@@ -192,6 +205,7 @@ class KhoanSuaTayService:
             self._dau(row, actor)
             self.db.add(row)
         self._ghi(actor, "payroll_khoan_cong_them", f"employee:{emp_id}",
-                  f"ky={month:02d}/{year} to={to_id} tien={'' if row.tien is None else round(row.tien)} "
-                  f"ghi_chu={row.ghi_chu or ''}")
+                  f"Cộng thêm sổ khoán {self._to(to_id).name} kỳ {month:02d}/{year}: "
+                  f"{'bỏ số' if row.tien is None else f'{so_vn(row.tien)} đ'}"
+                  f"{f'. Ghi chú: {row.ghi_chu}' if row.ghi_chu else ''}.")
         self.db.commit()

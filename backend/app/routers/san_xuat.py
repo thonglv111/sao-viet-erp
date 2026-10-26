@@ -371,7 +371,8 @@ def ho_tro_ung_vien_cua_to(
     """Người TỔ KHÁC thêm được vào lần ghi sản lượng của tổ (10/10/2026: không còn thỏa thuận hỗ
     trợ hai bên xác nhận — tổ ghi thêm thẳng). Thợ ở các tổ SX khác. 403 nếu tổ ngoài phạm vi.
 
-    Cùng gác Xem như ô "Giao người". Ghi thật do route ghi sản lượng gác quyền ở service.
+    Cổng cùng việc dùng nó (L-VAI-11): ai ghi được sản lượng ở tổ (Thực hiện, kể cả "Của tôi") —
+    service chặn người chỉ Xem. Ghi thật do route ghi sản lượng gác quyền ở service.
     """
     try:
         return HoTroUngVienListOut.model_validate(

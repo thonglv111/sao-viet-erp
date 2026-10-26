@@ -288,3 +288,64 @@ def test_api_may_hu_qua_schema(client):
                     headers=h).json()
     assert ds["may"][0]["id"] == m_id and ds["may"][0]["dang_mo"] == kq["yeu_cau_ma"]
     assert ds["quyen_bao_hong"] is True and ds["quyen_luong"] is True
+
+
+# --- Vá E2E 25/10 (L-SX-10, L-SX-18) -------------------------------------------------------------
+def _to_dung_cung_may(db, admin, cv, ma="TO-MHU-B"):
+    """Tổ B khai "Tổ đứng máy" trên máy tổ A (cv) đang chạy, B chưa nhận việc nào trên máy đó."""
+    from tests.test_san_xuat_su_co import _to_khoan
+
+    to_b = _to_khoan(db, admin, ma=ma)
+    db.add(MayTo(may_id=cv.may_id, department_id=to_b.id))
+    db.commit()
+    return to_b
+
+
+def test_may_cua_to_gom_may_to_dung(db, admin, cv):
+    """L-SX-10: máy tổ chỉ ĐỨNG (chưa có việc) vẫn là máy của tổ ⇒ phiếu sửa máy đó gắn / sửa được."""
+    from app.repositories.dung_may_repo import DungMayRepository
+
+    to_b = _to_dung_cung_may(db, admin, cv)
+    assert cv.may_id in DungMayRepository(db).may_cua_to(to_b.id)
+
+
+def test_to_b_bao_hu_may_to_a_dang_chay_chi_bao_tin_khong_dung(db, admin, cv, monkeypatch):
+    """L-SX-18 (phương án B): hộp của tổ B nói máy đang chạy việc tổ A; báo hư kể cả tick "Máy đang
+    dừng" KHÔNG tạm dừng việc tổ A, chỉ đẩy toast tới bàn tổ A."""
+    to_b = _to_dung_cung_may(db, admin, cv)
+    ds = dung_may.danh_sach(db, user=admin, department_id=to_b.id,
+                            year=hom_nay().year, month=hom_nay().month)
+    m = next(x for x in ds["may"] if x["id"] == cv.may_id)
+    assert m["viec_dang_chay"] is True and cv.ten_cong_doan in m["viec"]
+    from app.models.department import Department
+
+    assert m["viec_cua_to"] == db.get(Department, cv.department_id).name
+
+    gui: list = []
+    monkeypatch.setattr(dung_may.hub, "gui", lambda ev, **kw: gui.append((ev, kw)))
+    kq = dung_may.bao_may_hu(db, user=admin, department_id=to_b.id, may_id=cv.may_id,
+                             muc_do=MUC_DO_NGHIEM_TRONG, mo_ta=None, dung_san_xuat=True,
+                             tinh_luong=False, ghi_chu=None, nguoi_ids=[])
+    db.refresh(cv)
+    assert cv.trang_thai == CV_DANG_CHAY and kq["tam_dung"] == []
+    toast = [(ev, kw) for ev, kw in gui if ev["type"] == "san_xuat_may_hu_to_khac"]
+    assert len(toast) == 1 and toast[0][1] == {"to": [cv.department_id]}
+    assert toast[0][0]["cong_viec_id"] == cv.id and "của tổ bạn đang chạy" in toast[0][0]["message"]
+
+
+def test_ho_tro_ung_vien_chi_xem_403_ghi_duoc_thi_200(db, cv):
+    """L-VAI-11: danh sách người tổ khác chỉ cho ai ghi được sản lượng ở tổ (kể cả "Của tôi")."""
+    from app.models.role import SCOPE_OWN
+    from app.services.san_xuat import board
+
+    chi_xem = _tho(db, cv, "va11-xem", bao_hong=False, viec=())
+    with pytest.raises(PermissionError, match="ghi sản lượng"):
+        board.ho_tro_ung_vien(db, chi_xem, None, team_id=cv.department_id)
+
+    from app.models.department import Department
+
+    cua_toi = tao_user(db, "va11-cua-toi")
+    cap_quyen_to(db, cua_toi, db.get(Department, cv.department_id), viec=(VIEC_THUC_HIEN,), scope=SCOPE_OWN)
+    db.commit()
+    out = board.ho_tro_ung_vien(db, cua_toi, None, team_id=cv.department_id)
+    assert out["team_id"] == cv.department_id and isinstance(out["nhan_vien"], list)

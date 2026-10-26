@@ -62,6 +62,7 @@ function Viec({ d }: { d: KhoanKyDong }) {
         </div>
       ) : null}
       {d.ghi_chu && d.loai !== "to_truong" && <div className="ktt-sub">{d.ghi_chu}</div>}
+      {(d.chua_tinh ?? []).map((x) => <div key={x}><ChipTT mau="cam">{x}</ChipTT></div>)}
     </>
   );
 }

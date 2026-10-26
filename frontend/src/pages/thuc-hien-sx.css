@@ -2621,3 +2621,6 @@
 
 /* Thẻ quy cách lệnh nhiều giấy (19/10/2026): mỗi giấy một dòng trong cùng ô "Giấy". */
 .thsx-flat-spec-dong { display: block; }
+
+/* Nút Lý do ở hộp Báo dừng máy (L-SX-26): chip cao 44 px cho ngón tay ở xưởng. */
+.thsx-chip.thsx-chip--cao { min-height: 44px; padding: 0 16px; }

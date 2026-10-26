@@ -982,6 +982,8 @@ class KhoanKyDongOut(BaseModel):
     tien_ngay: float | None = None
     tien: float = 0
     ghi_chu: str | None = None
+    # Lần ghi máy chưa tính được tiền: từng lý do (công thức lỗi, thiếu giá…) — L-SX-29.
+    chua_tinh: list[str] = []
 
 
 class KhoanKyChiTietOut(BaseModel):
@@ -1073,6 +1075,10 @@ class KttLanGhiOut(BaseModel):
     ghi_chu_tay: str | None = None
     sua_boi: str | None = None
     sua_luc: datetime | None = None
+    # Lý do máy chưa tính được tiền lần ghi (L-SX-29); `khong_khoan` = công đoạn chưa có cấu hình
+    # Khoán — dòng 0 đ, ô Tiền khoá (L-SX-27).
+    chua_tinh: list[str] = []
+    khong_khoan: bool = False
 
 
 class KttDungMayOut(BaseModel):

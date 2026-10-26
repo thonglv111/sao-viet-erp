@@ -687,6 +687,8 @@ class MePhatSinhOut(BaseModel):
     don_vi: str | None = None
     don_vi_ten: str | None = None
     don_gia: float | None = None
+    # Cách tính giá chụp lúc ghi, ra chữ (L-SX-30) — có thì tiền KHÔNG phải đơn giá × số lượng.
+    cong_thuc_chu: str | None = None
 
 
 class TuyChonLanGhiOut(BaseModel):
@@ -742,6 +744,8 @@ class BatchOut(BaseModel):
     phat_sinh: list[MePhatSinhOut] = []
     # Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = ảnh chụp còn khớp danh mục.
     danh_muc_doi: list[MeDanhMucDoiOut] = []
+    # Câu chặn khi lần ghi thuộc tháng đã chốt / đã chi lương (L-SX-47); None = sửa được.
+    ky_khoa: str | None = None
 
 
 class SanLuongOut(BaseModel):
@@ -918,6 +922,7 @@ class VatTuCapLanOut(BaseModel):
     stock_request_id: int | None = None
     stock_request_ma: str | None = None
     stock_request_trang_thai: str | None = None
+    stock_request_ly_do_huy: str | None = None  # kho huỷ / từ chối thì ghi lý do (L-SX-16)
     created_by_id: int | None = None
     updated_by_id: int | None = None
     # Tên TÀI KHOẢN gửi / sửa — `*_by_id` là users.id, không tra được bằng danh sách thợ của việc.
@@ -1106,6 +1111,8 @@ class ViecPhatSinhChonOut(BaseModel):
     don_vi_ten: str | None = None
     # Giá lấy theo TỔ của việc (bảng giá theo tổ, 21/10/2026); tổ vắng trong bảng ⇒ thiếu giá.
     thieu_gia: bool = False
+    # "Cách tính giá" của việc phát sinh ra chữ (L-SX-30); có thì hộp ghi nói cách tính, không in đơn giá.
+    cong_thuc_chu: str | None = None
 
 
 class BacTheoChonOut(BaseModel):
@@ -1139,6 +1146,13 @@ class KhoanCongDoanThucThiOut(BaseModel):
     bac_theo_chon: list[BacTheoChonOut] = []
     so_mau: float | None = None
     so_mau_pha: float | None = None
+    # Công thức khoán (L-SX-40): hộp ghi chỉ in phần giá công thức có dùng. `cong_thuc_chu` = công
+    # thức ra chữ ("" = ô trống ⇒ 0 đ); `chi_gia` = công thức chỉ dùng giá cố định / đơn giá / chip
+    # lượng ⇒ in giá; còn chip khác thì in "tính theo công thức: …".
+    cong_thuc_chu: str | None = None
+    dung_gia_co_dinh: bool = True
+    dung_don_gia: bool = True
+    chi_gia: bool = True
 
 
 class KetQuaNhanhOut(BaseModel):
@@ -1835,6 +1849,7 @@ class MayHuChonOut(BaseModel):
     ten: str
     viec: str | None = None             # "LSX26-0003 Bài in 1–2 màu" — việc đang chạy / tạm dừng trên máy
     viec_dang_chay: bool = False
+    viec_cua_to: str | None = None      # việc trên máy là của tổ KHÁC ⇒ tên tổ đó (L-SX-18)
     dang_mo: str | None = None          # mã yêu cầu / phiếu sửa còn mở của máy
 
 

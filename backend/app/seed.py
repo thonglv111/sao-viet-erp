@@ -302,6 +302,8 @@ def _dm_full() -> dict:
     """
     return dict(
         can_read=True, can_create=True, can_update=True, can_delete=True, scope=SCOPE_ALL,
+        # Ô "Xem giá" của Giấy / Công đoạn (L-SX-39, mg 0450): người khai giá phải thấy giá.
+        can_view_cost=True,
     )
 
 

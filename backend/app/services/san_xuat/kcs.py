@@ -27,7 +27,9 @@ Luật cứng:
 """
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from sqlalchemy.orm import Session
 
@@ -898,6 +900,43 @@ def _dong_danh_sach(db: Session, repo: SanXuatKcsRepository, ids: list[int]) -> 
     return items
 
 
+def _tinh_trang_nhieu(db: Session, ids: list[int]) -> dict[int, str]:
+    """Chỉ TÌNH TRẠNG của các lệnh `ids` — đúng những gì `_tinh_trang_lenh` cần (bối cảnh + tóm bước
+    cuối), không nạp thứ tự routing, lỗi gây, cạnh lệnh phụ. Dùng để đếm nút / lọc ba nút tình trạng
+    cho MỌI lệnh nhóm còn mở; dòng lưới đầy đủ chỉ dựng cho lệnh của trang (L-VAI-13, 26/10/2026)."""
+    if not ids:
+        return {}
+    from .kho import dong_nhap_kho_cua_cong_viec
+
+    nen = SanXuatKcsRepository(db).tinh_trang_nen(ids)
+    # Dòng nhập kho của công đoạn cuối — phát cho mọi lệnh cùng nhóm, đúng như `boi_canh.nap` câu 12.
+    dong_theo_cv = dong_nhap_kho_cua_cong_viec(db, [r[0] for r in nen["cv_cuoi"]])
+    nhap: dict[int, list] = {i: [] for i in ids}
+    for cv_id, nhom_id_cv, lsx_id in nen["cv_cuoi"]:
+        dich = set(nen["lsx_theo_nhom"].get(nhom_id_cv, ())) if nhom_id_cv else set()
+        if lsx_id in nhap:
+            dich.add(lsx_id)
+        for i in dich:
+            if i in nhap:
+                nhap[i].extend(dong_theo_cv.get(cv_id, []))
+    # Bối cảnh RÚT GỌN cùng hình với `BoiCanh` cho `_tom_cuoi` / `_da_gui_kho`: mỗi công việc một
+    # "mẻ" mang Σ tốt và một "lần kiểm" mang Σ đạt / lỗi — tổng như cộng từng dòng.
+    bc = SimpleNamespace(
+        batch=defaultdict(list, {c: [SimpleNamespace(tot=t)] for c, t in nen["tot"].items()}),
+        kcs=defaultdict(list, {c: [SimpleNamespace(so_luong_dat=d, so_luong_khong_dat=k)]
+                               for c, (d, k) in nen["kiem"].items()}),
+        nhap_kho_tp=nhap,
+    )
+    out: dict[int, str] = {}
+    for lid in ids:
+        if lid not in nen["lenh"]:
+            continue
+        cvs = nen["cv"][lid]
+        nhom = next((nen["nhom"][cv.nhom_id] for cv in cvs if cv.nhom_id in nen["nhom"]), None)
+        out[lid] = _tinh_trang_lenh(nhom, cvs, _tom_cuoi(bc, cvs))
+    return out
+
+
 def danh_sach_lenh_kcs(
     db: Session, user, *, tim: str | None = None, trang: int = 1, nhanh: str = "tat_ca",
     co_trang: int = _CO_TRANG, **loc,
@@ -907,8 +946,8 @@ def danh_sach_lenh_kcs(
 
     `nhanh` = nút lọc nhanh (09/10/2026): `tat_ca` mọi lệnh, `da_dong` nhóm đã đóng — hai nút này
     lọc + cắt trang thẳng bằng SQL. Ba nút còn lại theo TÌNH TRẠNG (`_tinh_trang_lenh`), chỉ tính
-    được trên số liệu: tính cho mọi lệnh nhóm còn mở khớp các điều kiện khác rồi mới cắt trang. Tập
-    đó vốn phải tính để đếm số trên các nút, nên lọc không tốn thêm lượt nào."""
+    được trên số liệu: tính cho mọi lệnh nhóm còn mở khớp các điều kiện khác rồi mới cắt trang. Chỉ tính
+    TÌNH TRẠNG (`_tinh_trang_nhieu`) cho tập đó; dòng lưới đầy đủ chỉ dựng cho lệnh của trang."""
     gate_xem_kcs(db, user)
     repo = SanXuatKcsRepository(db)
     nhanh = nhanh if nhanh in LOC_NHANH else "tat_ca"
@@ -917,10 +956,10 @@ def danh_sach_lenh_kcs(
     offset = (trang - 1) * co_trang
     # `loc` = thanh lọc (06/10/2026): `khach_id`, `tu_ngay`/`den_ngay`/`moc`.
     ids_mo, so_mo = repo.trang_lenh(tim=tim, gom_da_dong=False, offset=0, limit=None, **loc)
-    mo = _dong_danh_sach(db, repo, ids_mo)
+    tt_mo = _tinh_trang_nhieu(db, ids_mo)
     _ids, so_dong = repo.trang_lenh(
         tim=tim, gom_da_dong=False, chi_da_dong=True, offset=0, limit=0, **loc)
-    dem = {k: sum(1 for i in mo if i["tinh_trang"] == k)
+    dem = {k: sum(1 for t in tt_mo.values() if t == k)
            for k in (TT_CHO_KIEM, TT_CHUA_GUI_KHO, TT_CHO_DONG)}
     dem.update(tat_ca=so_mo + so_dong, da_dong=so_dong)
 
@@ -929,14 +968,12 @@ def danh_sach_lenh_kcs(
             tim=tim, gom_da_dong=True, chi_da_dong=nhanh == TT_DA_DONG, offset=offset,
             limit=co_trang, **loc,
         )
-        theo_id = {i["lsx_id"]: i for i in mo}
-        thieu = [i for i in ids if i not in theo_id]
-        theo_id.update({i["lsx_id"]: i for i in _dong_danh_sach(db, repo, thieu)})
-        items = [theo_id[i] for i in ids if i in theo_id]
     else:
-        khop = [i for i in mo if i["tinh_trang"] == nhanh]
+        # Giữ thứ tự `ids_mo` (thứ tự repo) như khi còn dựng dòng cho cả tập.
+        khop = [i for i in ids_mo if tt_mo.get(i) == nhanh]
         tong = len(khop)
-        items = khop[offset:offset + co_trang]
+        ids = khop[offset:offset + co_trang]
+    items = _dong_danh_sach(db, repo, ids)
     return {"items": items, "tong": tong, "trang": trang, "co_trang": co_trang, "dem": dem}
 
 

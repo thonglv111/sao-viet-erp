@@ -2996,7 +2996,7 @@ export function DepartmentsPage({
                   <div className="rdx-switch-card__main">
                     <span className="rdx-switch-card__title">
                       Tổ in
-                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ máy in — KHÔNG kế thừa cho cây con. Chỉ đổi tiền khi tổ bật Lương khoán: ngày Chủ nhật / lễ đi làm không có công gốc, cả 2 / 3 / 5 công trả ở phần thêm và bù lỗ theo công không đếm ngày đó. Sản lượng ngày đó vẫn vào tiền khoán." />
+                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ máy in — KHÔNG kế thừa cho cây con. Chỉ đổi tiền của người tổ này ăn khoán: ngày Chủ nhật / lễ đi làm không tính sản lượng mà ăn công — không có công gốc, cả 2 / 3 / 5 công trả ở phần thêm và bù lỗ theo công không đếm ngày đó." />
                     </span>
                     <span className="rdx-switch-card__desc">
                       Ngày Chủ nhật / lễ của thợ in trả hết ở phần thêm, không nằm trong phần so với tiền khoán

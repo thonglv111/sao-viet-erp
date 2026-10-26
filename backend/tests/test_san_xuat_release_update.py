@@ -327,6 +327,21 @@ def test_viec_da_bat_dau_giu_nguyen_va_van_cap_nhat_phan_con_lai(
     assert da_chay.phien_ban_so == 1  # việc đã bắt đầu KHÔNG bị tái chụp
 
 
+def test_cap_nhat_khi_chua_viec_nao_bat_dau(db, orders, lsx_svc, xl_svc, admin, customer):
+    """L-SX-12: lệnh đã phát hành, CHƯA việc nào chạy ⇒ vẫn cho Phát hành cập nhật để dời lịch."""
+    a, goi = _lsx_da_phat_hanh(db, orders, lsx_svc, xl_svc, admin, customer)
+    tt = release_update.thong_tin_goi(db, nguon="lsx", id=a.id)
+    assert tt["so_da_bat_dau"] == 0 and tt["cho_phep_cap_nhat"] is True
+
+    kq = release_update.phat_hanh_cap_nhat(
+        db, nguon="lsx", id=a.id, ly_do="Dời lịch trước khi xưởng bắt đầu", actor=admin,
+    )
+    assert kq["so_giu_nguyen"] == 0
+    assert kq["so_cong_viec_cap_nhat"] == len(_cvs(db, goi.id))
+    db.refresh(goi)
+    assert goi.version_hien_tai == 2
+
+
 def test_het_viec_chua_bat_dau_thi_chan_cap_nhat(db, orders, lsx_svc, xl_svc, admin, customer):
     a, goi = _lsx_da_phat_hanh(db, orders, lsx_svc, xl_svc, admin, customer)
     for cv in _cvs(db, goi.id):

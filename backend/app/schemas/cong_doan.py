@@ -119,8 +119,9 @@ class CongDoanKhoanRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     unit: str
-    unit_price: float
-    gia_co_dinh: float = 0.0
+    # None = người xem không có ô Xem giá của Công đoạn (máy chủ che, L-SX-39).
+    unit_price: float | None = None
+    gia_co_dinh: float | None = 0.0
     cong_thuc_khoan: str | None = None
     gia_theo_to: list[GiaTheoToIn] | None = None
     tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)

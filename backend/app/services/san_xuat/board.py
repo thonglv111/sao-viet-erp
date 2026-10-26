@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models.may_thiet_bi import MayThietBi
+from ...models.stock_request import REQ_CANCELLED, REQ_REJECTED
 from ...models.san_xuat import CV_HOAN_THANH, CV_TAM_DUNG
 from ...models.san_xuat_thuc_thi import PHIEN_TAM_DUNG
 from ...models.user import User
@@ -834,10 +835,13 @@ def cho_xac_nhan(db: Session, user: User, *, team_id: int) -> dict:
 def ho_tro_ung_vien(
     db: Session, user: User, authz: AuthorizationService, *, team_id: int
 ) -> dict:
-    """Người TỔ KHÁC tổ thêm được vào lần ghi sản lượng: thợ ở các tổ SX KHÁC. Cùng phạm vi ĐỌC
-    như `work_items` (tổ phải trong quyền user). Mỗi người kèm nhãn tổ gốc để tổ biết đang thêm ai
-    từ đâu."""
-    _pham_vi_doc(db, user, team_id)
+    """Người TỔ KHÁC tổ thêm được vào lần ghi sản lượng: thợ ở các tổ SX KHÁC. Mỗi người kèm nhãn
+    tổ gốc để tổ biết đang thêm ai từ đâu.
+
+    Cùng cổng với việc dùng nó (L-VAI-11, chủ chốt 26/10/2026): ai GHI được sản lượng ở tổ (Thực
+    hiện, kể cả "Của tôi") mới lấy được — thợ chỉ Xem tổ thì không."""
+    if quyen_to_cua(db, user).muc(VIEC_THUC_HIEN, team_id) is None:
+        raise PermissionError("Cần quyền ghi sản lượng ở tổ này mới thêm được người tổ khác.")
     # Ứng viên = thợ mọi tổ SX (kể cả tổ user không quản), trừ tổ đang thực hiện.
     moi_to = DepartmentRepository(db).to_san_xuat()
     to_ten = {d.id: d.name for d in moi_to}
@@ -1047,6 +1051,9 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
     dongs_theo_lan: dict[int, list[dict]] = {}
     for dn in cac_dn:
         dongs_theo_lan[dn.id] = []
+        # Kho huỷ / từ chối yêu cầu ⇒ lần đó không còn là số "đã xin": không cộng vào đối chiếu
+        # (khỏi báo "kho xuất thiếu"), nhưng vẫn giữ trong `cac_de_nghi` kèm lý do (L-SX-16).
+        lan_huy = tom_tat.get(dn.stock_request_id, {}).get("trang_thai") in (REQ_CANCELLED, REQ_REJECTED)
         for d in dn.dongs:
             key = khoa_dong(d.hang_loai, d.hang_id, _goc_dn(d), d.kho_rong, d.kho_dai)
             ten = ten_map.get((d.hang_loai, d.hang_id)) or f"#{d.hang_id}"
@@ -1058,8 +1065,9 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
                 "sl_yeu_cau": 0.0, "sl_yeu_cau_goc": 0.0,
                 "sl_thuc_xuat": 0.0, "_cac_dvt": set(),
             })
-            row["sl_yeu_cau"] += float(d.sl_yeu_cau)
-            row["sl_yeu_cau_goc"] += float(d.sl_yeu_cau_goc)
+            if not lan_huy:
+                row["sl_yeu_cau"] += float(d.sl_yeu_cau)
+                row["sl_yeu_cau_goc"] += float(d.sl_yeu_cau_goc)
             row["_cac_dvt"].add(d.dvt)
             dongs_theo_lan[dn.id].append({
                 "hang_loai": d.hang_loai, "hang_id": d.hang_id,
@@ -1199,6 +1207,7 @@ def _vat_tu_cap(db: Session, sl, kh_svc, cv, cac_dn, du_lieu_cu: bool) -> dict:
             "stock_request_id": d.stock_request_id,
             "stock_request_ma": tom_tat.get(d.stock_request_id, {}).get("ma"),
             "stock_request_trang_thai": tom_tat.get(d.stock_request_id, {}).get("trang_thai"),
+            "stock_request_ly_do_huy": tom_tat.get(d.stock_request_id, {}).get("ly_do_huy"),
             "created_by_id": d.created_by_id, "updated_by_id": d.updated_by_id,
             "created_by_ten": ten_tk.get(d.created_by_id), "updated_by_ten": ten_tk.get(d.updated_by_id),
             "created_at": thuc_te_hien_thi(d.created_at),
@@ -1238,6 +1247,36 @@ def _vat_tu_chua_san_sang(db: Session, cv) -> str | None:
         return None
     tt = trang_thai_vat_tu(db, [cv])[cv.id]
     return ly_do_vat_tu(tt["muc"]) if tt and chan_bat_dau(tt["muc"]) else None
+
+
+_CHIP_GIA = frozenset({"gia_co_dinh", "don_gia_khoan", "sl_ghi", "sl_vao", "sl_ra"})
+
+
+def _chu_cong_thuc(ct: str | None, tuy_chon: list | None) -> str | None:
+    """Công thức → chữ đọc được (cùng chữ ngăn soi khoán dùng); trống ⇒ None."""
+    from ..khoan_ky import _dien_giai_chu
+
+    ct = (ct or "").strip()
+    if not ct:
+        return None
+    ten = {t["ma"]: t.get("ten") or t["ma"] for t in (tuy_chon or []) if t.get("ma")}
+    return _dien_giai_chu(ct, ten)
+
+
+def _mo_ta_cong_thuc_khoan(ct: str | None, tuy_chon: list | None) -> dict:
+    """Hộp ghi nói giá theo CÔNG THỨC khoán (L-SX-40): tiền thật = công thức, nên chỉ in phần giá mà
+    công thức có dùng; công thức có chip khác (tuỳ chọn, giờ…) thì in cả công thức ra chữ."""
+    from ..bien_cong_thuc import TEN_HAM_CAM
+    from ..khoan_ky import _RE_TEN
+
+    ct = (ct or "").strip()
+    ten = set(_RE_TEN.findall(ct)) - TEN_HAM_CAM
+    return {
+        "cong_thuc_chu": _chu_cong_thuc(ct, tuy_chon) or "",
+        "dung_gia_co_dinh": "gia_co_dinh" in ten,
+        "dung_don_gia": "don_gia_khoan" in ten,
+        "chi_gia": ten <= _CHIP_GIA,
+    }
 
 
 def chi_tiet_cong_viec(
@@ -1306,6 +1345,21 @@ def chi_tiet_cong_viec(
         db, department_id=cv.department_id,
         ps_rows=[r for rows in ps_map.values() for r in rows],
     ) if any(b.piece_rate_id for b in batches) else ({}, {})
+    # Câu "kỳ lương đã chốt" theo THÁNG của mẻ — mỗi tháng hỏi một lần cho cả tab.
+    from ..ky_luong_guard import ly_do_ky_luong_da_khoa
+    from .nguoi_trong_me import ngay_cua_me
+
+    _ky_khoa: dict[tuple[int, int], str | None] = {}
+
+    def ky_khoa_me(bat_dau) -> str | None:
+        ngay = ngay_cua_me(bat_dau)
+        if ngay is None:
+            return None
+        k = (ngay.year, ngay.month)
+        if k not in _ky_khoa:
+            _ky_khoa[k] = ly_do_ky_luong_da_khoa(db, ngay, viec="sửa lần ghi sản lượng")
+        return _ky_khoa[k]
+
     # Tên đơn vị cho ảnh chụp của mẻ + của việc phát sinh — cột giữ MÃ (`kem`), tổ đọc TÊN.
     dv_me_ten = DonViDoRepository(db).ten_theo_ma()
     # AI LÀM từng lần ghi — CÙNG một hàm với tab Sản lượng và màn thợ (ảnh chụp tổ tick lúc ghi),
@@ -1428,6 +1482,8 @@ def chi_tiet_cong_viec(
             "tuy_chon": list(khoan_hien_tai.tuy_chon or []),
             "don_vi": khoan_hien_tai.unit,
             "don_vi_ten": nhan_don_vi(dv_me_ten, khoan_hien_tai.unit),
+            **_mo_ta_cong_thuc_khoan(getattr(khoan_hien_tai, "cong_thuc_khoan", None),
+                                     getattr(khoan_hien_tai, "tuy_chon", None)),
             "phat_sinh": [
                 {
                     "id": ps.id, "ten": ps.ten,
@@ -1435,6 +1491,8 @@ def chi_tiet_cong_viec(
                     "thieu_gia": viec_khoan.gia_ps_cua_to(ps, cv.department_id) is None,
                     "don_vi": ps.don_vi,
                     "don_vi_ten": nhan_don_vi(dv_me_ten, ps.don_vi),
+                    "cong_thuc_chu": _chu_cong_thuc(getattr(ps, "cong_thuc", None),
+                                                    getattr(khoan_hien_tai, "tuy_chon", None)),
                 }
                 for ps in khoan_hien_tai.viec_phat_sinh
             ],
@@ -1543,12 +1601,16 @@ def chi_tiet_cong_viec(
                             if r.don_vi_snapshot else None,
                             "don_gia": (float(r.don_gia_snapshot)
                                         if r.don_gia_snapshot is not None else None),
+                            "cong_thuc_chu": _chu_cong_thuc(getattr(r, "cong_thuc_snapshot", None), None),
                         }
                         for r in ps_map.get(b.id, [])
                     ],
                     "danh_muc_doi": viec_khoan.danh_muc_doi(
                         db, b, ps_map.get(b.id, []), department_id=cv.department_id,
                         nap=nap_dmd),
+                    # Lần ghi thuộc tháng đã chốt / đã chi lương: máy chủ chặn sửa (L-SX-47) — FE mờ
+                    # nút "Cập nhật theo danh mục" kèm đúng câu này thay vì để bấm rồi ăn lỗi.
+                    "ky_khoa": ky_khoa_me(b.bat_dau),
                     "lot_vao": [
                         {
                             "id": lot.id,

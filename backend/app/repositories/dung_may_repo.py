@@ -27,6 +27,12 @@ class DungMayRepository:
         return self.db.scalar(select(Department.id).where(Department.parent_id == department_id)
                               .limit(1)) is not None
 
+    def khoa_may(self, may_id: int) -> None:
+        """Khoá dòng máy tới hết transaction: hai người cùng báo hư MỘT máy xếp hàng — lượt sau đọc
+        lại thấy yêu cầu lượt trước vừa lập, không đẻ yêu cầu thứ hai (L-SX-22). Cùng khuôn
+        `SanXuatSanLuongRepository.khoa_cong_viec`; SQLite (test) tự bỏ FOR UPDATE."""
+        self.db.execute(select(MayThietBi.id).where(MayThietBi.id == may_id).with_for_update())
+
     def trang_thai_ky(self, year: int, month: int) -> str | None:
         return self.db.scalar(select(PayrollPeriod.status)
                               .where(PayrollPeriod.year == year, PayrollPeriod.month == month))
@@ -77,12 +83,13 @@ class DungMayRepository:
             select(SuaChuaMay.id, SuaChuaMay.ma).where(SuaChuaMay.id.in_(ids)))}
 
     def may_cua_to(self, department_id: int) -> set[int]:
-        """Máy của tổ. Danh mục máy không có cột tổ, nên suy từ việc: máy mà các việc tổ đã nhận gắn
-        (`san_xuat_cong_viec.may_id`, chép từ xếp lịch lúc phát hành) — tổ chạy việc trên máy đó thật.
-        Tổ chưa nhận việc nào có máy ⇒ rỗng."""
-        return {int(m) for m in self.db.scalars(
+        """Máy của tổ: máy mà các việc tổ đã nhận gắn (`san_xuat_cong_viec.may_id`, chép từ xếp lịch
+        lúc phát hành) CỘNG máy khai "Tổ đứng máy" là tổ này (`may_thuoc_to`) — cùng tập máy hộp báo
+        hư cho chọn (`_may_chon`), để phiếu sửa của máy tổ đứng gắn / sửa được (L-SX-10)."""
+        tu_viec = {int(m) for m in self.db.scalars(
             select(SanXuatCongViec.may_id).distinct()
             .where(SanXuatCongViec.department_id == department_id, SanXuatCongViec.may_id.is_not(None)))}
+        return tu_viec | set(self.may_thuoc_to(department_id))
 
     def phieu_sua_trong_khoang(self, tu: datetime, den: datetime,
                                may_ids: set[int]) -> list[tuple[SuaChuaMay, str | None]]:
@@ -114,6 +121,21 @@ class DungMayRepository:
                    SanXuatCongViec.trang_thai.in_((CV_DANG_CHAY, CV_TAM_DUNG)))
             .order_by(SanXuatCongViec.id)).all()
         return sorted(((cv, ma) for cv, ma in rows), key=lambda x: x[0].trang_thai != CV_DANG_CHAY)
+
+    def viec_mo_tren_may(self, may_ids) -> list[tuple[SanXuatCongViec, str | None, str | None]]:
+        """Việc đang chạy / tạm dừng trên các máy `may_ids` của MỌI tổ, kèm mã lệnh + tên tổ — đang
+        chạy đứng trước. Hộp báo hư cần biết máy đang chạy việc của tổ khác (L-SX-18)."""
+        ids = {int(i) for i in may_ids or ()}
+        if not ids:
+            return []
+        rows = self.db.execute(
+            select(SanXuatCongViec, Lsx.ma, Department.name)
+            .outerjoin(Lsx, Lsx.id == SanXuatCongViec.lsx_id)
+            .outerjoin(Department, Department.id == SanXuatCongViec.department_id)
+            .where(SanXuatCongViec.may_id.in_(ids),
+                   SanXuatCongViec.trang_thai.in_((CV_DANG_CHAY, CV_TAM_DUNG)))
+            .order_by(SanXuatCongViec.id)).all()
+        return sorted(((cv, ma, ten) for cv, ma, ten in rows), key=lambda x: x[0].trang_thai != CV_DANG_CHAY)
 
     def may(self, may_ids) -> dict[int, MayThietBi]:
         ids = {int(i) for i in may_ids or ()}

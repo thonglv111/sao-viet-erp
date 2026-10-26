@@ -412,12 +412,6 @@ class DepartmentService:
         actor_id: int | None,
     ) -> Department:
         name = name.strip()
-        if la_giao_hang and has_piece_work:
-            raise GiaoHangKemKhoanSanLuong(
-                "Một tổ không vừa là Bộ phận Giao hàng vừa ăn Lương khoán / sản lượng: hai bên là "
-                "hai nguồn tiền khác nhau (tiền km và tiền sản lượng), bật cả hai thì máy cộng "
-                "chung rồi mới so với lương bù lỗ. Chọn một."
-            )
         if self.departments.get_by_name(name) is not None:
             raise DepartmentNameTaken("Tên phòng ban đã tồn tại")
         if parent_id is not None and self.departments.get_by_id(parent_id) is None:
@@ -498,17 +492,9 @@ class DepartmentService:
             raise DepartmentNotFound("Không tìm thấy phòng cha")
         # No cycle (parent ∉ this unit's subtree) + child level ranks below parent (PBI-4007).
         self._validate_hierarchy(dept_id=dept_id, parent_id=parent_id, level_id=level_id)
-        # Cờ Giao hàng ⟷ Lương khoán loại trừ nhau (chủ chốt 16/09/2026) — soi TRẠNG THÁI SAU
-        # lượt sửa này, vì hai ô có thể gửi lên trong cùng một lượt hoặc chỉ gửi một ô.
-        gh_sau = bool(la_giao_hang) if la_giao_hang is not _KEEP else bool(dept.la_giao_hang)
-        khoan_sau = bool(has_piece_work) if has_piece_work is not None else bool(dept.has_piece_work)
-        if gh_sau and khoan_sau:
-            raise GiaoHangKemKhoanSanLuong(
-                "Tổ này đang ăn Lương khoán / sản lượng nên không bật được cờ Bộ phận Giao hàng "
-                "(và ngược lại): hai bên là hai nguồn tiền khác nhau, bật cả hai thì máy cộng "
-                "chung rồi mới so với lương bù lỗ. Tắt bớt một bên ở Lương → Cấu hình lương → Cơ "
-                "chế lương theo bộ phận."
-            )
+        # Luật "Giao hàng ⟷ Lương khoán loại trừ nhau" (16/09/2026) GỠ 26/10/2026 (L-SX-42): cờ
+        # `has_piece_work` không còn ảnh hưởng tiền từ khi gỡ công tắc lương khoán theo tổ (20/10) —
+        # vế khoán của tổ giao hàng là tiền km (`_tinh_hai_luong`), chặn theo cờ chết chỉ khoá tổ cũ.
         # Tắt cờ Giao hàng: kiểm TRƯỚC mọi thao tác ghi, chặn là chặn cả lượt sửa.
         if (la_giao_hang is not _KEEP and not bool(la_giao_hang) and dept.la_giao_hang
                 and self.deliveries is not None):
@@ -518,6 +504,9 @@ class DepartmentService:
                     f"Còn {n} chuyến đang chạy của tài xế phòng này — đóng hoặc huỷ hết rồi mới "
                     "tắt được cờ Giao hàng."
                 )
+        # Cờ trước khi sửa — để nhật ký ghi "Tổ in: tắt → bật" (L-SX-38).
+        co_cu = {"Tổ in": bool(dept.la_to_in), "Giao hàng": bool(dept.la_giao_hang)}
+        o_cu = (dept.name, dept.head_user_id, dept.level_id, dept.parent_id)
         # The code is system-owned and never edited here (spec-05).
         self.departments.rename(dept, name)
         self.departments.set_description(dept, (description or "").strip() or None)
@@ -557,9 +546,35 @@ class DepartmentService:
             actor_user_id=actor_id,
             action="update_department",
             target=f"dept:{dept_id}",
-            detail=f"{name} (head={head_user_id}, level={level_id}, parent={parent_id})",
+            detail=self._chu_sua(o_cu, (name, head_user_id, level_id, parent_id)) + "".join(
+                f". {nhan}: {'bật' if cu else 'tắt'} → {'bật' if moi else 'tắt'}"
+                for (nhan, cu), moi in zip(co_cu.items(), (bool(dept.la_to_in), bool(dept.la_giao_hang)))
+                if cu != moi),
         )
         return dept
+
+    def _chu_sua(self, cu: tuple, moi: tuple) -> str:
+        """Câu nhật ký sửa phòng: tên phòng rồi các ô ĐÃ đổi, bằng tên chứ không bằng mã số
+        (L-SX-38: trước ghi `(head=None, level=None, parent=28)` cho mọi lần sửa)."""
+        def ten_nguoi(i):
+            u = self.users.get_by_id(i) if i is not None else None
+            return (u.name or u.username) if u is not None else "không có"
+
+        def ten_cap(i):
+            lv = self.levels.get_by_id(i) if i is not None else None
+            return lv.name if lv is not None else "không có"
+
+        def ten_phong(i):
+            d = self.departments.get_by_id(i) if i is not None else None
+            return d.name if d is not None else "không có (phòng gốc)"
+
+        doi = [f"{nhan} {f(a)} → {f(b)}" for nhan, f, a, b in (
+            ("tên", str, cu[0], moi[0]),
+            ("trưởng phòng", ten_nguoi, cu[1], moi[1]),
+            ("cấp đơn vị", ten_cap, cu[2], moi[2]),
+            ("cấp trên", ten_phong, cu[3], moi[3]),
+        ) if a != b]
+        return f"Sửa phòng {moi[0]}" + (f": {', '.join(doi)}" if doi else "")
 
     def _dat_khoan_km(self, dept, don_gia_km, pct_tai_xe, pct_phu_xe) -> None:
         """Ghi ba ô khoán km, sau khi kiểm hai tỷ lệ cộng đúng 100 (mg 0231).

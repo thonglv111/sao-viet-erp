@@ -52,6 +52,7 @@ from ..models.payroll import (
     TO_TRUONG_KHONG,
     TO_TRUONG_THUONG,
 )
+from .dinh_dang import so_vn
 
 
 
@@ -322,6 +323,10 @@ def _late_penalty_amount(minutes, brackets) -> float:
         if b.up_to_minute is None or m <= int(b.up_to_minute):
             return float(b.amount)
     return float(brackets[-1].amount)
+
+
+#: Tên loại phiếu ứng cho câu nhật ký — cột `kind` giữ mã (L-VAI-25).
+_TEN_LOAI_UNG = {ADV_KIND_TAM_UNG: "Tạm ứng", ADV_KIND_LUONG_DOT_1: "Lương đợt 1"}
 
 
 class PayrollService:
@@ -1232,7 +1237,7 @@ class PayrollService:
             status=ADV_PENDING, created_by=getattr(actor, "id", None),
         )
         self._audit(actor, "payroll_create_advance", f"salary_advance:{row.id}",
-                    f"{row.code or row.id} · {kind} · {float(amount):,.0f}đ")
+                    f"{row.code or row.id} · {_TEN_LOAI_UNG.get(kind, kind)} · {so_vn(amount)}đ")
         return row
 
     def ung_vien_tam_ung(self, *, period_year: int, period_month: int, advance_date: date,
@@ -1317,7 +1322,7 @@ class PayrollService:
             self.audit.create_many([
                 {"actor_user_id": actor_id, "action": "payroll_create_advance",
                  "target": f"salary_advance:{r.id}",
-                 "detail": f"{r.code} · {kind} · {float(r.amount):,.0f}đ (lập hàng loạt)"}
+                 "detail": f"{r.code} · {_TEN_LOAI_UNG.get(kind, kind)} · {so_vn(r.amount)}đ (lập hàng loạt)"}
                 for r in rows
             ])
         ids = [r.id for r in rows]
@@ -1494,7 +1499,7 @@ class PayrollService:
                 {"actor_user_id": actor_id, "action": "payroll_decide_advance",
                  "target": f"salary_advance:{a.id}",
                  "detail": f"{'DUYỆT' if approve else 'TỪ CHỐI'} {a.code or a.id} · "
-                           f"{float(a.amount):,.0f}đ" + (f" · {note}" if note else "")
+                           f"{so_vn(a.amount)}đ" + (f" · {note}" if note else "")
                            + " (duyệt nhiều phiếu)"}
                 for a in ok
             ])
@@ -1512,7 +1517,7 @@ class PayrollService:
         # dòng nhật ký nào, nên không trả lời được "ai duyệt phiếu ứng 5 triệu này, lúc nào".
         self._audit(actor, "payroll_decide_advance", f"salary_advance:{a.id}",
                     f"{'DUYỆT' if approve else 'TỪ CHỐI'} {a.code or a.id} · "
-                    f"{float(a.amount):,.0f}đ" + (f" · {note}" if note else ""))
+                    f"{so_vn(a.amount)}đ" + (f" · {note}" if note else ""))
         return out
 
     def cancel_advance(self, *, advance_id, actor, scope=None):
@@ -1539,7 +1544,7 @@ class PayrollService:
         out = self.payroll.update_advance(a, status=ADV_CANCELLED,
                                           decided_at=datetime.now(timezone.utc))
         self._audit(actor, "payroll_cancel_advance", f"salary_advance:{a.id}",
-                    f"{a.code or a.id} · {float(a.amount):,.0f}đ")
+                    f"{a.code or a.id} · {so_vn(a.amount)}đ")
         return out
 
     # --- engine tính 1 dòng -------------------------------------------------
@@ -2294,6 +2299,20 @@ class PayrollService:
             return has_work or trong_bien_che_thang(emp, su_kien.get(emp.id, []), period.year, period.month)
 
         xu_ly = [emp for emp in employees if co_dong(emp)]
+        # Người TRONG phạm vi bấm mà rơi khỏi `xu_ly` (ngoài biên chế cả tháng, không còn tiền thật)
+        # vẫn giữ dòng của lần Tính lại trước ⇒ ảnh chụp kỳ công không có họ, Chốt bị chặn mãi
+        # (L-SX-45). Xoá dòng đó; `co_dong` đã giữ mọi dòng có sửa tay / hoa hồng / khoán / km.
+        trong_xu_ly = {e.id for e in xu_ly}
+        bo = [(e, dong_theo_nv[e.id]) for e in employees
+              if e.id not in trong_xu_ly and e.id in dong_theo_nv]
+        if bo:
+            self.payroll.delete_lines([ln.id for _, ln in bo])
+            for e, _ in bo:
+                dong_theo_nv.pop(e.id, None)
+        # Nhật ký ghi SAU commit cuối (audit tự commit — ghi ở đây là cắt đôi giao dịch Tính lại).
+        ghi_bo = (f"{int(month)}/{int(year)}: xoá dòng lương của "
+                  + ", ".join(f"{e.code} {e.full_name}" for e, _ in bo)
+                  + " — ngoài biên chế cả tháng, không còn khoản nào phải trả") if bo else None
         # Khoản hồ sơ cũ của mọi dòng sắp ghi lại: XOÁ MỘT CÂU trước vòng (trước đây mỗi người một câu
         # DELETE). Phải xoá TRƯỚC mọi lần ghi khoản mới — `create_line` flush giữa vòng.
         if self.components is not None:
@@ -2453,6 +2472,8 @@ class PayrollService:
         # Đặt Ở CUỐI, sau khi mọi dòng đã ghi: đặt ở đầu mà giữa chừng vỡ là dấu nói dối.
         self.payroll.update_period(period, generated_at=datetime.now(timezone.utc))
         self._audit(actor, "payroll_generate", f"payroll_period:{period.id}", f"{int(month)}/{int(year)}")
+        if ghi_bo:
+            self._audit(actor, "payroll_xoa_dong_ngoai_bien_che", f"payroll_period:{period.id}", ghi_bo)
         return period
 
     def nv_duoc_xem(self, *, scope, actor) -> set[int] | None:
@@ -2664,6 +2685,7 @@ class PayrollService:
         tv = float(params.probation_ratio)
         lcm: dict[int, float] = {}
         nen_gio: dict[int, float] = {}
+        an_khoan: set[int] = set()
         for eid, s in sal.items():
             emp = emps.get(eid)
             if emp is None:
@@ -2675,7 +2697,9 @@ class PayrollService:
                                                 if c.get("kind") != "tru")
             lcm[eid] = nen * ratio + phu
             nen_gio[eid] = nen
-        return MucKhoan(luong_ca_may=lcm, nen_gio=nen_gio)
+            if self._che_do_khoan(emp.department_id) and not an_cong_nhat_hieu_luc(s, la_thu_viec(emp, st)):
+                an_khoan.add(eid)
+        return MucKhoan(luong_ca_may=lcm, nen_gio=nen_gio, an_khoan=frozenset(an_khoan))
 
     def chi_tiet_khoan_ky(self, *, line_id: int, scope=None, actor=None) -> list[dict]:
         """Từng lần ghi / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của MỘT dòng lương."""
@@ -2839,6 +2863,14 @@ class PayrollService:
         # kỳ ai, kể cả giám đốc (bản rà C2).
         ln = self._line_for_edit(line_id, scope=scope, actor=actor)
         period = self.payroll.get_period(ln.period_id)
+        # Tên ô đã sửa cho nhật ký (L-SX-38) — KHÔNG ghi số tiền (xem `_audit`).
+        o_sua = [nhan for nhan, val in (
+            ("Vi phạm", vi_pham), ("Điều chỉnh lương", dieu_chinh_luong), ("Đi trễ", di_tre),
+            ("Điện thoại vượt trội", dt_vuot_troi), ("Phạt biên bản", phat_bien_ban),
+            ("Đồng phục / phạt 5S", phat_5s_dong_phuc), ("Thuế TNCN", pit), ("Ghi chú", note),
+        ) if val is not None]
+        if di_tre_manual is False:
+            o_sua.append("Đi trễ về tự tính")
 
         if vi_pham is not None:
             ln.vi_pham = _round(vi_pham)
@@ -2956,7 +2988,10 @@ class PayrollService:
         ln.no_ung_chuyen_ky_sau = no_ky_sau
         ln.updated_at = datetime.now(timezone.utc)
         saved = self.payroll.update_line(ln)
-        self._audit(actor, "payroll_update_line", f"payroll_line:{ln.id}", "sửa ô tay")
+        nv = self.employees.get_by_id(ln.employee_id) if self.employees is not None else None
+        self._audit(actor, "payroll_update_line", f"payroll_line:{ln.id}",
+                    f"Sửa tay dòng lương {f'của {nv.full_name} ' if nv is not None else ''}"
+                    f"kỳ {period.month:02d}/{period.year}: {', '.join(o_sua) or 'không đổi ô nào'}.")
         return saved
 
     def ly_do_chua_chot_duoc(self, year: int, month: int) -> str | None:

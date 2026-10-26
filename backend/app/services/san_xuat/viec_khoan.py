@@ -540,6 +540,13 @@ def cap_nhat_theo_danh_muc(db: Session, *, user, batch_id: int) -> dict:
     if cv is None:
         raise ValueError("Không tìm thấy công việc của lần ghi sản lượng.")
     _gate(db, user, cv)
+    from ..ky_luong_guard import ly_do_ky_luong_da_khoa
+    from .nguoi_trong_me import ngay_cua_me
+
+    # L-SX-47: lấy số mới cho lần ghi tháng đã chốt lương là đổi tiền của bảng lương đã chốt.
+    loi = ly_do_ky_luong_da_khoa(db, ngay_cua_me(b.bat_dau), viec="cập nhật lần ghi sản lượng")
+    if loi:
+        raise ValueError(loi)
     if b.khoan_cong_doan_id:
         khoan = sl.khoan_cong_doan(b.khoan_cong_doan_id)
         if khoan is None:

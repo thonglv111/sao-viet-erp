@@ -180,3 +180,10 @@ def test_tra_danh_muc_lay_nhan_va_quyen_theo_target():
     assert reg.tra("dm_tao", "machine:3").module == "dm_thiet_bi"
     # Không có target thì vẫn trả nhãn chung, không gác.
     assert reg.module_cua("dm_xoa") is None
+
+
+def test_department_payroll_line_khoan_dong_tay_co_nhan_doi_tuong():
+    """L-SX-38: ba loại đối tượng này từng hiện mã thô ở cột Đối tượng của Nhật ký."""
+    assert reg.nhan_doi_tuong("department:7") == "Phòng ban #7"
+    assert reg.nhan_doi_tuong("payroll_line:12") == "Dòng lương #12"
+    assert reg.nhan_doi_tuong("khoan_dong_tay:3") == "Dòng tay sổ khoán #3"

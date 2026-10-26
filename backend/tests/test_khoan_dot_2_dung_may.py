@@ -335,3 +335,21 @@ def test_phieu_sua_chi_lay_may_cua_to(db, admin):
     with pytest.raises(ValueError, match="không phải máy của tổ"):
         dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="may_hu", sua_chua_id=khac.id,
                      ghi_chu=None, nguoi_ids=[nhat.id])
+
+
+def test_nhat_ky_dung_may_ghi_ten_to_va_nhan_ly_do(db, admin):
+    """L-SX-38: câu nhật ký dừng máy đọc được — tên tổ, ngày kiểu Việt, nhãn lý do; không còn
+    `to=84 ly_do=het_hang`. Sửa ghi "từ → sang"."""
+    from app.models.audit import AuditLog
+
+    n, to, nhat, linh = _canh(db, admin, "TO-DM38")
+    r = dung_may.bao(db, user=admin, department_id=to.id, ngay=NGAY, ly_do="het_hang", sua_chua_id=None,
+                     ghi_chu=None, nguoi_ids=[nhat.id])
+    dung_may.sua(db, user=admin, dung_may_id=r["id"], ly_do="may_hu", sua_chua_id=None, ghi_chu=None,
+                 nguoi_ids=[nhat.id, linh.id])
+    ds = [a.detail for a in db.query(AuditLog).filter(AuditLog.target == f"khoan_dung_may:{r['id']}")
+          .order_by(AuditLog.id)]
+    ngay = NGAY.strftime("%d/%m/%Y")
+    assert ds[0] == f"{to.name} ngày {ngay} dừng máy vì Hết hàng, 1 người hưởng chỉ tiêu ngày."
+    assert ds[1] == f"{to.name} ngày {ngay}: lý do Hết hàng → Máy hư, người hưởng 1 → 2."
+    assert all("to=" not in d and "ly_do=" not in d for d in ds)

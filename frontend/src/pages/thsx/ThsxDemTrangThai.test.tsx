@@ -5,6 +5,13 @@ import { ThsxDemTrangThai } from "./ThsxDemTrangThai";
 const DEM = { tong: 7, running: 2, paused: 0, released: 3, completed: 2 };
 
 describe("ThsxDemTrangThai", () => {
+  it("chưa có số (đang tải / máy chủ lỗi) thì in — chứ không in Tất cả 0", () => {
+    render(<ThsxDemTrangThai dem={null} chon={[]} onChon={() => {}} />);
+    expect(screen.getByRole("button", { name: "Tất cả —" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Đang chạy —" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Tất cả 0" })).toBeNull();
+  });
+
   it("chưa lọc thì Tất cả đang chọn, mỗi chip kèm số", () => {
     render(<ThsxDemTrangThai dem={DEM} chon={[]} onChon={() => {}} />);
     expect(screen.getByRole("button", { name: "Tất cả 7" })).toHaveAttribute("aria-pressed", "true");

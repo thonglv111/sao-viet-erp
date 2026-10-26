@@ -246,6 +246,8 @@ export function ThucHienSxPage({
   const [moLan, setMoLan] = useState(0);
   const [chiTiet, setChiTiet] = useState<SxWorkItemChiTiet | null>(null);
   const [ctLoading, setCtLoading] = useState(false);
+  // Lượt nạp chi tiết hỏng thật — ngăn chỉ báo "Không tải được…" theo cờ này (L-SX-09).
+  const [ctLoi, setCtLoi] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -269,7 +271,8 @@ export function ThucHienSxPage({
     // Tab Sản lượng tự nạp dữ liệu riêng — khỏi kéo trang lệnh về cho một bảng không hiện.
     if (!token || view === "san_luong") return;
     const luot = ++luotItems.current;
-    setErr(null);
+    // KHÔNG xoá lỗi ở đầu lượt (L-VAI-45): mỗi nhịp SSE nạp lại, xoá ở đây làm khung lỗi nhấp nháy
+    // về khung xương. Lỗi chỉ rụng khi lượt nạp thành công (`.then`).
     const phang = view === "lich";
     api.sanXuat.workItems(token, {
       teamId,
@@ -315,7 +318,7 @@ export function ThucHienSxPage({
     let alive = true;
     api.sanXuat.workItemsLocDem(token, { teamId, tim: timMayChu || undefined, loc: JSON.parse(khoaKy) })
       .then((r) => { if (alive) setLocDem(r); })
-      .catch(() => { if (alive) setLocDem(null); });
+      .catch(() => { /* giữ số cũ đã đúng — lỗi một lượt không xoá về 0 (L-VAI-45) */ });
     return () => { alive = false; };
   }, [token, teamId, view, timMayChu, khoaKy, eventTick, g5Tick]);
 
@@ -356,11 +359,17 @@ export function ThucHienSxPage({
   const luotCt = useRef(0);
   const loadChiTiet = useCallback((id: number | null) => {
     const luot = ++luotCt.current;
-    if (!token || id == null) { setChiTiet(null); setCtLoading(false); return Promise.resolve(); }
+    if (!token || id == null) { setChiTiet(null); setCtLoading(false); setCtLoi(false); return Promise.resolve(); }
     setCtLoading(true);
     return api.sanXuat.chiTiet(token, id)
-      .then((r) => { if (luot === luotCt.current) setChiTiet(r); })
-      .catch(() => { if (luot === luotCt.current) setChiTiet(null); })
+      .then((r) => { if (luot === luotCt.current) { setChiTiet(r); setCtLoi(false); } })
+      // Lượt nạp lại hỏng giữa chừng (sau Bắt đầu / Ghi…) ⇒ GIỮ bản đang hiện của chính việc này,
+      // không xoá trắng ngăn; chỉ bật cờ lỗi (L-SX-09).
+      .catch(() => {
+        if (luot !== luotCt.current) return;
+        setChiTiet((cu) => (cu?.cong_viec?.id === id ? cu : null));
+        setCtLoi(true);
+      })
       .finally(() => { if (luot === luotCt.current) setCtLoading(false); });
   }, [token]);
 
@@ -519,13 +528,15 @@ export function ThucHienSxPage({
     return () => document.removeEventListener("keydown", phim);
   }, [view]);
 
-  // Hàng chip trạng thái: số của `loc-dem` (chưa về thì tạm đếm trên trang đang xem).
+  // Hàng chip trạng thái: số của `loc-dem` (chưa về thì tạm đếm trên trang đang xem). Chưa có số
+  // nào (chưa tải được trang, hoặc máy chủ lỗi) ⇒ null, chip in "—" thay vì "Tất cả 0" (L-VAI-45).
   const demTT = useMemo(() => {
     const tt = locDem?.trang_thai;
+    if (!tt && (err || (lenh == null && items == null))) return null;
     const d = tt ? { released: tt.released ?? 0, running: tt.running ?? 0, paused: tt.paused ?? 0, completed: tt.completed ?? 0 }
       : { released: digest.released, running: digest.running, paused: digest.paused, completed: digest.completed };
     return { ...d, tong: d.released + d.running + d.paused + d.completed };
-  }, [locDem, digest]);
+  }, [locDem, digest, err, lenh, items]);
   const datTrangThai = (trangThai: ThsxTrangThaiLoc[]) => setLocMan({ ...locMan, loc: { ...locMan.loc, trangThai } });
 
   // ---- chọn việc: mở drawer + (nếu ngoài cửa sổ) dời cửa sổ tới tuần của việc ----
@@ -992,6 +1003,7 @@ export function ThucHienSxPage({
               onXemKcs={onXemKcs}
               chiTiet={chiTiet}
               loading={ctLoading}
+              loi={ctLoi}
               candidates={candidates}
               hoTroUngVien={hoTroUngVien}
               ungVienHomNay={ungVienHomNay}

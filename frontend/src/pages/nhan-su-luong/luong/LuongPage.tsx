@@ -208,9 +208,10 @@ export function LuongPage({
           canLockPeriod={canLockPeriod}
           canMarkPaid={canMarkPaid}
           canExportPayroll={canExportPayroll}
+          canSoiChiTiet={can("luong", "view_salary") || canManage}
         />
       )}
-      {tab === "khoanto" && canOpenBangLuong && <KhoanTheoToTab token={token!} />}
+      {tab === "khoanto" && canOpenBangLuong && <KhoanTheoToTab token={token!} eventTick={eventTick} />}
       {tab === "nhanvien" && canLuongNhanVien && (
         <NhanVienTab token={token!} focusEmployeeId={focusEmployeeId} />
       )}

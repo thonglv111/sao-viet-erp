@@ -209,3 +209,31 @@ def test_huy_phieu_chi_lo_ca_lo_ve_cho_chi_va_khong_huy_le(client):
     [pc2] = r.json()["vouchers"]
     assert pc2["amount"] == 200_000 and pc2["code"] != pc["code"]
     assert _trang_thai(ids[2]) == "approved"
+
+
+# ── Đợt vá 26/10/2026 (L-VAI-24, L-VAI-25) ──────────────────────────────────────────────────────
+
+def test_su_kien_tam_ung_cho_duyet_khong_kem_ten(client, monkeypatch):
+    from app.routers import payroll as payroll_router
+
+    gui: list[dict] = []
+    monkeypatch.setattr(payroll_router.hub, "gui", lambda ev, **kw: gui.append(ev))
+    h = _headers(client)
+    eid = _nv_tam_ung(client, h, ten="NV Sự Kiện Ứng")
+    _tam_ung(client, h, eid, duyet=False)
+    ev = [e for e in gui if e.get("type") == "advance_pending_changed"]
+    assert ev and all("code" not in e for e in ev)
+
+
+def test_nhat_ky_tam_ung_nhan_viet_va_dau_cham(client):
+    from app.audit_registry import nhan_doi_tuong
+    from app.models.audit import AuditLog
+
+    h = _headers(client)
+    eid = _nv_tam_ung(client, h, ten="NV Nhật Ký Ứng")
+    aid = _tam_ung(client, h, eid, amount=1_234_000, duyet=False)
+    with SessionLocal() as db:
+        log = db.query(AuditLog).filter_by(action="payroll_create_advance",
+                                           target=f"salary_advance:{aid}").one()
+    assert "Tạm ứng" in log.detail and "1.234.000đ" in log.detail and "tam_ung" not in log.detail
+    assert nhan_doi_tuong(f"salary_advance:{aid}")

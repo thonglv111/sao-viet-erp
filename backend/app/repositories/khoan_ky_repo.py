@@ -45,6 +45,22 @@ class KhoanKyRepository:
         )
         return [(r.b, r.cv) for r in self.db.execute(stmt)]
 
+    def lan_ghi_khong_khoan(self, tu: datetime, den: datetime) -> list[tuple]:
+        """Lần ghi ở công đoạn CHƯA có cấu hình Khoán (`khoan_cong_doan_id` trống), `bat_dau` trong
+        [tu, den) — để sổ hiện dòng 0 đ kèm câu "chưa có cấu hình Khoán" (L-SX-27). Dòng cột như
+        `lan_ghi_trong_khoang`, thêm tên công đoạn của công việc (lần ghi không có ảnh chụp tên)."""
+        b = Bundle("b", SanXuatBatch.id, SanXuatBatch.bat_dau, SanXuatBatch.tot, SanXuatBatch.don_vi)
+        cv = Bundle("cv", SanXuatCongViec.id, SanXuatCongViec.lsx_id, SanXuatCongViec.bai_ghep_id,
+                    SanXuatCongViec.department_id, SanXuatCongViec.ten_cong_doan)
+        stmt = (
+            select(b, cv)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatBatch.cong_viec_id)
+            .where(SanXuatBatch.bat_dau >= tu, SanXuatBatch.bat_dau < den,
+                   SanXuatBatch.khoan_cong_doan_id.is_(None))
+            .order_by(SanXuatBatch.bat_dau, SanXuatBatch.id)
+        )
+        return [(r.b, r.cv) for r in self.db.execute(stmt)]
+
     def lan_chay(self, den: datetime, khoan_ids: set[int], *, lsx_ids: set[int], bai_ids: set[int],
                  cv_ids: set[int], gom_truoc: datetime | None = None) -> tuple[list, list]:
         """Mọi lần ghi `bat_dau < den` của các cấu hình Khoán `khoan_ids` trên CÙNG lệnh / bài ghép /

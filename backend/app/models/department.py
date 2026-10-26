@@ -80,9 +80,9 @@ class Department(Base):
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
     # TỔ IN (mg 0304, khách chốt 15/09/2026). Thợ in ăn khoán thì ngày CN / lễ đi làm KHÔNG có công
-    # gốc: cả 2 / 3 / 5 công trả ở phần THÊM, và bù lỗ theo công không đếm ngày đó (sản lượng ngày
-    # đó vẫn vào tiền khoán). KHÔNG kế thừa xuống cây con — đặt đích danh từng tổ, như
-    # `la_giao_hang`. Cờ chỉ đổi tiền khi tổ bật Lương khoán.
+    # gốc: cả 2 / 3 / 5 công trả ở phần THÊM, và bù lỗ theo công không đếm ngày đó; sản lượng ngày
+    # đó KHÔNG tính (luật engine 21/10/2026, `khoan_ky.py` hệ số 0). KHÔNG kế thừa xuống cây con —
+    # đặt đích danh từng tổ, như `la_giao_hang`. Cờ chỉ đổi tiền của người tổ này ăn khoán.
     la_to_in: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )

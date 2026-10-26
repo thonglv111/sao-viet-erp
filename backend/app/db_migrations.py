@@ -19289,3 +19289,31 @@ def _migrate_khuon_thoi_la_tuy_chon(db: Session) -> None:
 
 
 MIGRATIONS.append(("0449_khuon_thoi_la_tuy_chon", _migrate_khuon_thoi_la_tuy_chon))
+
+
+def _migrate_xem_gia_giay_cong_doan(db: Session) -> None:
+    """0450 (26/10/2026, L-SX-39) — ô "Xem giá" mới ở danh mục Giấy và Công đoạn: máy chủ che đơn
+    giá giấy và tiền khoán công đoạn với người thiếu ô này. Vai đang SỬA được hai danh mục (`can_update`)
+    được bật sẵn ⇒ người đang khai giá không mất số đang thấy. Vai đọc được Giấy mà đang thấy giá vốn
+    kho (`kho.can_view_cost`, vd Kế toán kho) cũng được bật — cùng loại tiền. Vai chỉ Xem còn lại thì
+    thôi thấy giá. Raw SQL đích danh cột. Chạy lại vô hại."""
+    insp = inspect(db.get_bind())
+    if "role_permissions" not in set(insp.get_table_names()):
+        return
+    if "can_view_cost" not in set(_existing_columns(insp, "role_permissions")):
+        return
+    db.execute(text(
+        "UPDATE role_permissions SET can_view_cost = true "
+        "WHERE can_update = true AND can_view_cost = false "
+        "AND module_key IN ('dm_giay', 'dm_cong_doan')"
+    ))
+    db.execute(text(
+        "UPDATE role_permissions SET can_view_cost = true "
+        "WHERE can_read = true AND can_view_cost = false AND module_key = 'dm_giay' "
+        "AND role_id IN (SELECT x.role_id FROM role_permissions x "
+        "                WHERE x.module_key = 'kho' AND x.can_view_cost = true)"
+    ))
+    db.commit()
+
+
+MIGRATIONS.append(("0450_xem_gia_giay_cong_doan", _migrate_xem_gia_giay_cong_doan))

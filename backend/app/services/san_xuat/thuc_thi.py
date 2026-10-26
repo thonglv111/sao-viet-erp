@@ -61,8 +61,10 @@ def _moc() -> datetime:
 
 
 # --- Trợ giúp chung -------------------------------------------------------------------------
-def _lay_cong_viec(repo: SanXuatThucThiRepository, cong_viec_id: int) -> SanXuatCongViec:
-    cv = repo.cong_viec(cong_viec_id)
+def _lay_cong_viec(repo: SanXuatThucThiRepository, cong_viec_id: int, *,
+                   khoa: bool = False) -> SanXuatCongViec:
+    """`khoa=True` ở các hàm GHI trạng thái việc (bắt đầu, tạm dừng, kết thúc, đổi máy)."""
+    cv = repo.cong_viec(cong_viec_id, khoa=khoa)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
     # Công việc gia công ngoài không phân công / bắt đầu / đổi máy / tạm dừng (spec gia công §10).
@@ -258,7 +260,7 @@ def bat_dau(
     cảnh báo — đúng chủ trương "máy chỉ ghi nhận". Luật ≥1 thợ thì Ở LẠI: đó là luật về NGƯỜI
     CÓ MẶT, không phải về cỡ kíp."""
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     from .dong_lenh import chan_neu_da_dong
 
     chan_neu_da_dong(db, cv)
@@ -359,7 +361,7 @@ def _tam_dung_lo(
     if not (ly_do or "").strip():
         raise ValueError("Tạm dừng bắt buộc có lý do.")
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai != CV_DANG_CHAY:
@@ -430,7 +432,7 @@ def ket_thuc(
     """Kết thúc: đóng phiên đang mở (nếu có) + khoảng tham gia, đánh dấu hoàn thành. Sớm hay trễ
     so với dự kiến đều không hỏi lý do (gỡ 16/09/2026)."""
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
@@ -542,7 +544,7 @@ def doi_may(
     này nếu không kiểm ở đây); router dùng `_chay()` nên `ValueError` ở đây dịch thẳng ra 400.
     """
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     from .dong_lenh import chan_neu_da_dong
 
     chan_neu_da_dong(db, cv)

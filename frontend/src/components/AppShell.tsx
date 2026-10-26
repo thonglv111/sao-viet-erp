@@ -647,6 +647,13 @@ export function AppShell() {
       pushToast(String(e.message ?? "Phiếu lương của bạn vừa đổi."), "info");
       return;
     }
+    // Tổ khác vừa báo hư máy mà việc của tổ này đang chạy trên đó (L-SX-18). Máy chủ gửi đích danh
+    // tổ đang chạy việc nên không lọc quyền nữa; nhích nhóm `san_xuat` để bàn tổ thấy máy dừng.
+    if (e.type === "san_xuat_may_hu_to_khac") {
+      boGop.danhDau(nhomCua(e.type));
+      pushToast(String(e.message ?? "Tổ khác vừa báo hư máy đang chạy việc của tổ bạn."), "warn");
+      return;
+    }
     // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. Máy chủ gửi đích danh tổ của bước, nên chỉ
     // bàn tổ đó nhận: đẩy `cong_viec_id` xuống để drawer đang mở việc đó nạp lại, và nhích nhóm
     // `san_xuat` để cột Vật tư của lưới đổi theo (18/10/2026). Toast vẫn gác quyền Xem bàn tổ.

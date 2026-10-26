@@ -123,6 +123,12 @@ const VT_EPS = 0.0005;
  *  `vtPayloadLines`), nới là đổi luôn luật dòng nào được gửi. */
 const VT_EPS_KHO = 0.005;
 
+/** Lần mà kho đã huỷ / từ chối yêu cầu không còn là số "đã xin" — máy chủ cũng không cộng nó vào
+ *  đối chiếu (L-SX-16). */
+const VT_LAN_HUY = new Set(["cancelled", "rejected"]);
+const vtLanConHieuLuc = (l: { stock_request_trang_thai?: string | null }) =>
+  !VT_LAN_HUY.has(l.stock_request_trang_thai ?? "");
+
 /** Số LẦN đề nghị CÓ XIN món này — nhân tử của dung sai `VT_EPS_KHO` (xem `vtCoLechThucTe`).
  *  Khớp theo cặp `hang_loai` + `hang_id`, đúng khoá mà `board.py::_vat_tu_cap` dùng để gom.
  *
@@ -132,13 +138,13 @@ const VT_EPS_KHO = 0.005;
  *  lần không đóng góp sai số nào, tức bịt bớt cờ lệch THẬT. Xét ở thang GỐC (`sl_yeu_cau_goc`),
  *  đúng thang mà `board.py` cộng dồn để ra `lech_thuc_te`. */
 export function vtSoLanCoMon(
-  cacDeNghi: { dongs: (VtKhoaVao & { sl_yeu_cau_goc: number })[] }[],
+  cacDeNghi: { stock_request_trang_thai?: string | null; dongs: (VtKhoaVao & { sl_yeu_cau_goc: number })[] }[],
   d: VtKhoaVao,
 ): number {
   // Cùng khoá với hàng đối chiếu (`vtKhoa`): giấy khác dạng/khổ là món khác.
   const k = vtKhoa(d);
   return cacDeNghi.filter(
-    (l) => l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0),
+    (l) => vtLanConHieuLuc(l) && l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0),
   ).length;
 }
 
@@ -297,13 +303,26 @@ export function lanTheoId(batches: Pick<SxBatch, "id" | "bat_dau">[]): Map<numbe
 }
 
 /** Giá khoán kèm ĐVT — chỉ để TỔ NHÌN (§7.1): bàn tổ không nhân gì ra tiền. Giá là giá CỦA TỔ
- *  (bảng giá theo tổ, 21/10/2026): có giá cố định thì nêu trước, tổ chưa có giá thì nói thẳng. */
-function giaKhoan(v: {
+ *  (bảng giá theo tổ, 21/10/2026): có giá cố định thì nêu trước, tổ chưa có giá thì nói thẳng.
+ *  Tiền thật tính theo CÔNG THỨC (L-SX-30/40): chỉ in phần giá công thức có dùng; công thức có chip
+ *  khác thì nói cả công thức; việc phát sinh có cách tính giá thì nói cách tính, không in đơn giá. */
+export function giaKhoan(v: {
   don_gia: number; don_vi: string; don_vi_ten: string | null; gia_co_dinh?: number; thieu_gia?: boolean;
+  cong_thuc_chu?: string | null; dung_gia_co_dinh?: boolean; dung_don_gia?: boolean; chi_gia?: boolean;
 }): string {
+  // Phát sinh có "Cách tính giá" — không phụ thuộc bảng giá theo tổ của nó.
+  if (v.cong_thuc_chu && v.chi_gia === undefined) return `tính theo cách tính giá: ${v.cong_thuc_chu}`;
+  if (v.cong_thuc_chu === "") return "công đoạn chưa có công thức khoán";
+  if (v.chi_gia === false) return `tính theo công thức: ${v.cong_thuc_chu}`;
   if (v.thieu_gia) return "tổ chưa có giá";
   const dv = `${num(v.don_gia)} đ một ${v.don_vi_ten ?? nhanDonVi(v.don_vi)}`;
-  return v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi + ${dv}` : dv;
+  const coDinh = v.dung_gia_co_dinh ?? true;
+  const donGia = v.dung_don_gia ?? true;
+  const phan = [
+    coDinh && v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi` : null,
+    donGia ? dv : null,
+  ].filter(Boolean);
+  return phan.length ? phan.join(" + ") : dv;
 }
 
 /** "lệnh 4 màu, 1 màu pha" — cùng chữ lương báo thiếu giá (`viec_khoan.mo_ta_mau`). */
@@ -983,8 +1002,9 @@ export function BatchRow({
               <div>Không bấm Cập nhật thì lần này giữ nguyên số lúc ghi.</div>
               <div className="thsx-b-hang-nut">
                 {canAssign && (
-                  <button type="button" className="thsx-b-lk" disabled={busy || b.danh_muc_doi.every((d) => d.mat)}
-                    title={b.danh_muc_doi.every((d) => d.mat) ? "Việc đã gỡ khỏi danh mục — không có số mới để lấy" : undefined}
+                  <button type="button" className="thsx-b-lk"
+                    disabled={busy || !!b.ky_khoa || b.danh_muc_doi.every((d) => d.mat)}
+                    title={b.ky_khoa ?? (b.danh_muc_doi.every((d) => d.mat) ? "Việc đã gỡ khỏi danh mục — không có số mới để lấy" : undefined)}
                     onClick={() => void exec.capNhatDanhMucMe(b.id)}>
                     Cập nhật theo danh mục
                   </button>
@@ -1025,7 +1045,9 @@ export function BatchRow({
                     <div key={ps.id} className="thsx-b-dong-ps">
                       <span>{ps.ten ?? "—"}</span>
                       <span className="thsx-num">{num(ps.so_luong)}{ps.don_vi ? ` ${ps.don_vi_ten ?? nhanDonVi(ps.don_vi)}` : ""}</span>
-                      {ps.don_gia != null && ps.don_vi && (
+                      {ps.cong_thuc_chu ? (
+                        <span className="thsx-b-mo3">tính theo cách tính giá: {ps.cong_thuc_chu}</span>
+                      ) : ps.don_gia != null && ps.don_vi && (
                         <span className="thsx-b-mo3 thsx-num">{num(ps.don_gia)} đ / {ps.don_vi_ten ?? nhanDonVi(ps.don_vi)}</span>
                       )}
                     </div>
@@ -1871,7 +1893,8 @@ export function vtTinhTrang(d: SxVatTuCapDoiChieu, cacDeNghi: SxVatTuCapLan[]): 
     : ngoaiKh ? "ngoài kế hoạch"
     : soKh > 0 ? `vượt kế hoạch ${num(soKh)} ${dv}` : `ít hơn kế hoạch ${num(-soKh)} ${dv}`;
   const k = vtKhoa(d);
-  const lanCoMon = cacDeNghi.filter((l) => l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0));
+  const lanCoMon = cacDeNghi.filter((l) => vtLanConHieuLuc(l)
+    && l.dongs.some((x) => vtKhoa(x) === k && x.sl_yeu_cau_goc > 0));
   const soYc = d.lech_thuc_te;
   if (vtCoLechThucTe(d, lanCoMon.length)) {
     if (soYc > 0) return { loai: "kho_lech", mau: "tim", txt: `Kho xuất dư ${num(soYc)} ${dvGoc}`, phu: chuKh };
@@ -2068,6 +2091,9 @@ function VtDeNghiLanRow({ d, phieu, onMoPhieu, onMoDeNghi }: {
           {d.stock_request_ma
             ? <ChipTT mau={st?.mau ?? "vang"}>{st?.txt ?? d.stock_request_trang_thai}</ChipTT>
             : <ChipTT mau="slate">Không cần cấp</ChipTT>}
+          {!vtLanConHieuLuc(d) && d.stock_request_ly_do_huy && (
+            <span className="thsx-b-mo3 thsx-b-ct__phu">Kho đã huỷ yêu cầu: {d.stock_request_ly_do_huy}</span>
+          )}
         </td>
         <td>
           {d.stock_request_ma && (

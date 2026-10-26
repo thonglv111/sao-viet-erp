@@ -509,6 +509,7 @@ export type QuoteEvent =
   // Tạm ứng lương: NV gửi đề nghị → 'pending_changed' (người duyệt refetch badge); kế toán
   // duyệt/từ chối → 'decision' gửi riêng nhân viên đề nghị.
   | { type: "advance_pending_changed"; code?: string }
+  | { type: "khoan_theo_to_changed" }
   | { type: "advance_decision"; code?: string; decision: "approved" | "rejected" }
   // Phiếu tăng ca: NV gửi/hủy → 'ot_pending_changed' (người duyệt refetch badge); tổ trưởng
   // duyệt/từ chối → 'ot_decision' đẩy riêng cho nhân viên nộp phiếu.
@@ -647,6 +648,9 @@ export type QuoteEvent =
       trang_thai?: string | null;
     }
   | { type: "san_xuat_duoc_giao_viec"; cong_viec_id?: number | null }
+  // Tổ khác vừa báo hư máy mà việc của tổ này đang chạy trên đó (L-SX-18) — toast cho tổ này.
+  | { type: "san_xuat_may_hu_to_khac"; team_id?: number | null; cong_viec_id?: number | null;
+      may_id?: number | null; message?: string }
   // Việc GIỮA HAI TỔ (bàn giao §11): `*_changed` broadcast để bàn đang mở + badge tươi;
   // `san_xuat_ban_giao` đẩy ĐÍCH DANH tới người cần biết (trừ người bấm), mang sẵn nhãn để toast
   // nói được việc gì. `su_kien`: de_xuat | sua | sua_me | xac_nhan | huy.
@@ -1577,6 +1581,7 @@ export interface SxMayHuChon {
   /** "LSX26-0003 Bài in 1–2 màu" — việc đang chạy / tạm dừng trên máy. */
   viec: string | null;
   viec_dang_chay: boolean;
+  viec_cua_to?: string | null;
   /** Mã yêu cầu / phiếu sửa còn mở của máy — báo nữa thì gắn vào cái này. */
   dang_mo: string | null;
 }
@@ -2105,6 +2110,8 @@ export interface SxBatch {
   phat_sinh: SxMePhatSinh[];
   /** Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = còn khớp. */
   danh_muc_doi: SxMeDanhMucDoi[];
+  /** Câu chặn khi lần ghi thuộc tháng đã chốt / đã chi lương (L-SX-47); null = sửa được. */
+  ky_khoa?: string | null;
 }
 export interface SxMePhatSinh {
   id: number;
@@ -2114,6 +2121,8 @@ export interface SxMePhatSinh {
   don_vi: string | null;
   don_vi_ten: string | null;
   don_gia: number | null;
+  /** Cách tính giá chụp lúc ghi, ra chữ (L-SX-30) — có thì không in đơn giá. */
+  cong_thuc_chu?: string | null;
 }
 /** Một ô lệch của băng mẻ. `mat` = dòng đã bị xoá khỏi danh mục — mẻ GIỮ ảnh chụp. */
 export interface SxMeDanhMucDoi {
@@ -2129,6 +2138,8 @@ export interface SxViecPhatSinhChon {
   id: number; ten: string; don_gia: number; don_vi: string; don_vi_ten: string | null;
   /** Tổ của việc vắng trong bảng giá theo tổ của việc phát sinh (21/10/2026). */
   thieu_gia?: boolean;
+  /** "Cách tính giá" ra chữ (L-SX-30) — có thì hộp ghi nói cách tính thay đơn giá. */
+  cong_thuc_chu?: string | null;
 }
 /** Một "tuỳ chọn khi ghi" công đoạn khai (Đợt 2): Có / không ⇒ ô tick, Số ⇒ ô số. */
 export interface SxTuyChonKhai { ma: string; ten: string; kieu: "co_khong" | "so"; goi_y: string | null }
@@ -2163,6 +2174,12 @@ export interface SxKhoanCongDoan {
   bac_theo_chon?: SxBacTheoChon[];
   so_mau?: number | null;
   so_mau_pha?: number | null;
+  /** Công thức khoán (L-SX-40): chữ ("" = ô trống ⇒ 0 đ), phần giá có dùng, `chi_gia` = chỉ dùng giá
+   *  cố định / đơn giá / chip lượng. */
+  cong_thuc_chu?: string | null;
+  dung_gia_co_dinh?: boolean;
+  dung_don_gia?: boolean;
+  chi_gia?: boolean;
 }
 export interface SxNguoiThamGiaBatch {
   employee_id: number;
@@ -2333,6 +2350,8 @@ export interface SxVatTuCapLan {
   stock_request_id: number | null;
   stock_request_ma: string | null;
   stock_request_trang_thai: string | null;
+  /** Lý do kho huỷ / từ chối yêu cầu của lần này (L-SX-16). */
+  stock_request_ly_do_huy?: string | null;
   created_by_id: number | null;
   updated_by_id: number | null;
   /** Tên tài khoản gửi / sửa — máy chủ tra sẵn (`*_by_id` là mã tài khoản, không phải mã thợ). */
@@ -6825,6 +6844,8 @@ export interface KhoanKyDong {
   tien_ngay?: number | null;
   tien: number;
   ghi_chu?: string | null;
+  /** Lần ghi máy chưa tính được tiền: từng lý do (công thức lỗi, thiếu giá…) — L-SX-29. */
+  chua_tinh?: string[];
 }
 
 export interface KhoanKyChiTiet {
@@ -6885,6 +6906,10 @@ export interface KttLanGhi {
   cong_thuc: string | null;
   nguoi: KttNguoiLan[];
   to_truong: KttToTruongLan[];
+  /** Lý do máy chưa tính được tiền lần ghi (L-SX-29). */
+  chua_tinh?: string[];
+  /** Công đoạn chưa có cấu hình Khoán: dòng 0 đ, ô Tiền khoá (L-SX-27). */
+  khong_khoan?: boolean;
 }
 export interface KttNguoi {
   emp_id: number;

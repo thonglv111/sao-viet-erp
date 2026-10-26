@@ -46,7 +46,7 @@ describe("Báo dừng máy", () => {
   it("Hết hàng, bỏ tick một người, Lưu ⇒ gửi đúng người còn lại", async () => {
     const user = userEvent.setup();
     const { exec, onBao } = mo();
-    await screen.findByLabelText("Bình");
+    await screen.findByText("15/10");
     expect(exec.ds).toHaveBeenCalledWith(2026, 10);
     await user.click(screen.getByRole("button", { name: "Hết hàng" }));
     await user.click(screen.getByLabelText("Bình"));
@@ -59,21 +59,32 @@ describe("Báo dừng máy", () => {
     expect(exec.ds).toHaveBeenCalledTimes(2);
   });
 
-  it("Máy hư ngày đã qua: chỉ còn phần lương, có ô Phiếu sửa máy", async () => {
+  it("L-SX-25: ngày xưởng 22/10 mà đồng hồ máy khách 21/10 ⇒ ô ngày theo ngày xưởng, Máy hư là báo hôm nay", async () => {
     const user = userEvent.setup();
-    mo(DS_NGAY_QUA);
-    await screen.findByLabelText("Bình");
+    const { exec } = mo(DS_NGAY_QUA);
+    expect(await screen.findByRole("radiogroup", { name: "Máy hư" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Phiếu sửa máy")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Máy hư" }));
-    await user.selectOptions(screen.getByLabelText("Phiếu sửa máy"), "7");
-    await user.click(screen.getByRole("button", { name: "Hết hàng" }));
-    expect(screen.queryByLabelText("Phiếu sửa máy")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Gửi tổ sửa chữa" }));
+    expect(exec.mayHu).toHaveBeenCalledTimes(1);
+    expect(exec.bao).not.toHaveBeenCalled();
   });
 
-  it("chưa chọn lý do thì chưa Lưu được", async () => {
+  it("L-SX-26: mở hộp là chọn sẵn Máy hư — đúng một nút Lý do đang bật", async () => {
     mo();
-    await screen.findByLabelText("Bình");
-    expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
+    await screen.findByText("15/10");
+    const lyDo = screen.getByRole("group", { name: "Lý do" });
+    const bat = [...lyDo.querySelectorAll("button")].filter((b) => b.getAttribute("aria-pressed") === "true");
+    expect(bat.map((b) => b.textContent)).toEqual(["Máy hư"]);
+    expect(screen.getByRole("button", { name: "Máy hư" })).toHaveClass("thsx-chip--cao");
+  });
+
+  it("L-SX-18: máy đang chạy việc của tổ khác ⇒ nói tên tổ, không hứa tạm dừng việc", async () => {
+    const user = userEvent.setup();
+    mo({ ...DS, may: [{ ...DS.may![0], viec_cua_to: "SX-In A" }] });
+    expect(await screen.findByText("Đang chạy LSX26-0003 Bài in của SX-In A")).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Máy đang dừng/));
+    expect(screen.queryByText("Ưu tiên cao và tạm dừng việc")).toBeNull();
+    expect(screen.getByText(/là của SX-In A — không tự dừng/)).toBeInTheDocument();
   });
 
   it("ngày đã báo trong tháng có nút xoá; máy chủ trả lỗi thì hiện câu lỗi", async () => {
@@ -120,17 +131,15 @@ describe("Báo dừng máy", () => {
     expect(await screen.findByText("15/10")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Sửa ngày 15/10" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Xoá ngày 15/10" })).toBeNull();
-    expect(screen.getAllByText(/Kỳ lương tháng 10\/2026 đã chốt/).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "Hết hàng" }));
+    expect(screen.getAllByText(/Kỳ lương tháng 10\/2026 đã chốt/).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
   });
 
   it("Máy hư hôm nay: máy đang chạy chọn sẵn, gửi tổ sửa chữa không kèm lương", async () => {
     const user = userEvent.setup();
     const { exec, onBao, onDong } = mo();
-    await screen.findByLabelText("Bình");
-    await user.click(screen.getByRole("button", { name: "Máy hư" }));
-    expect(screen.getByLabelText("IN-02 Máy in 4 màu")).toBeChecked();
+    expect(await screen.findByLabelText("IN-02 Máy in 4 màu")).toBeChecked();
     expect(screen.getByText("Đang chạy LSX26-0003 Bài in")).toBeInTheDocument();
     expect(screen.getByText("Đã báo YC-0009, gửi nữa sẽ gắn vào đây")).toBeInTheDocument();
     expect(screen.queryByLabelText("Phiếu sửa máy")).toBeNull();
@@ -176,11 +185,8 @@ describe("Báo dừng máy", () => {
   });
 
   it("tổ chưa có máy: nói cách khai, chưa gửi được", async () => {
-    const user = userEvent.setup();
     mo({ ...DS, may: [] });
-    await screen.findByLabelText("Bình");
-    await user.click(screen.getByRole("button", { name: "Máy hư" }));
-    expect(screen.getByText(/Tổ chưa có máy nào/)).toBeInTheDocument();
+    expect(await screen.findByText(/Tổ chưa có máy nào/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gửi tổ sửa chữa" })).toBeDisabled();
   });
 

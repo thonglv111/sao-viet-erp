@@ -410,6 +410,7 @@ _HD += _dong("nhan_su", "noi_quy", {
 # --- Lương ----------------------------------------------------------------------------------
 _HD += _dong("luong", "luong", {
     "payroll_generate": "Tính bảng lương",
+    "payroll_xoa_dong_ngoai_bien_che": "Xoá dòng lương người ngoài biên chế cả tháng",
     "payroll_lock": "Chốt kỳ lương",
     "payroll_reopen": "Mở lại kỳ lương",
     "payroll_cong_bo": "Công bố phiếu lương",
@@ -595,6 +596,7 @@ TEN_DOI_TUONG: dict[str, str] = {
     "user": "Tài khoản", "role": "Vai trò", "customer": "Khách hàng", "order": "Đơn hàng bán",
     "gia_cong_ngoai": "Gia công ngoài", "overtime_request": "Đơn tăng ca", "leave_request": "Đơn nghỉ",
     "late_early_request": "Đơn đi muộn về sớm", "payroll_component": "Khoản lương",
+    "salary_advance": "Phiếu tạm ứng",
     "san_xuat_batch": "Lần ghi sản lượng", "khoan_dung_may": "Ngày dừng máy", "san_xuat_cong_viec": "Công việc sản xuất",
     "san_xuat_ban_giao": "Lần bàn giao", "san_xuat_goi": "Gói sản xuất", "san_xuat_nhom": "Nhóm lệnh",
     "san_xuat_kcs_batch": "Lần kiểm KCS", "san_xuat_kcs_loi": "Lỗi KCS",
@@ -612,6 +614,8 @@ TEN_DOI_TUONG: dict[str, str] = {
     "cong_no_khoa_so": "Kỳ công nợ", "nhom_dung_chung": "Nhóm dùng chung", "xep_lich": "Xếp lịch",
     "xep_lich_van_de": "Vấn đề xếp lịch", "ky_thuat_sua_chua": "Phiếu sửa chữa",
     "ky_thuat_yeu_cau": "Yêu cầu báo hỏng",
+    # L-SX-38: ba loại đối tượng nhật ký còn hiện mã thô.
+    "department": "Phòng ban", "payroll_line": "Dòng lương", "khoan_dong_tay": "Dòng tay sổ khoán",
 }
 
 

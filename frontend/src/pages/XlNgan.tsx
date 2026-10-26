@@ -23,6 +23,7 @@ import {
   congPhut, gio, gioChu, moc, quangDongHo, soNgayDu, thuNgay, thuNgayGio, type XlPhanTachNghi,
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
+import { nhanChang } from "./lsxBuoc";
 import { cauChuaTinhGio, goiDaThuHoi, soBuocChuaGio } from "./xlNganSo";
 
 /** Bộ màu + biểu tượng theo loại bước — cùng bộ của lưới (`.xa-m-*`). */
@@ -259,7 +260,10 @@ export function XlNgan({
   if (!ct) {
     return (
       <NganPhai tieuDe={dangTai ? "Đang tải lệnh" : "Không mở được lệnh"} onDong={onDong} len={len} xuong={xuong}>
-        <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
+        {dangTai
+          ? <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
+          : <EmptyState trangThai="loi" inline tieuDeLoi="Không tải được lệnh sản xuất"
+              loi="Đóng ngăn rồi mở lại lệnh." />}
       </NganPhai>
     );
   }
@@ -269,7 +273,8 @@ export function XlNgan({
   const daDong = ct.trang_thai === "da_dong";
   const soDaBatDau = goi?.co_goi ? (goi.so_da_bat_dau ?? 0) : 0;
   const khoaThuHoi = !!goi?.co_goi && goi.cho_phep_thu_hoi === false;
-  const capNhatDuoc = !!goi?.co_goi && goi.cho_phep_cap_nhat === true && soDaBatDau > 0;
+  // Chưa việc nào chạy vẫn dời lịch được bằng cập nhật — máy chủ chỉ đòi còn việc chưa bắt đầu (L-SX-12).
+  const capNhatDuoc = !!goi?.co_goi && goi.cho_phep_cap_nhat === true;
   const daChayDo = ct.co_thuc_te && !!ct.thuc_bat_dau_lenh;
   const daXongHet = ct.co_thuc_te && ct.so_buoc > 0 && ct.so_buoc_xong >= ct.so_buoc && !!ct.ket_thuc_thuc_te;
   const ketThuc = ct.ket_thuc_thuc_te ?? ct.ket_thuc;
@@ -461,7 +466,7 @@ export function XlNgan({
           </span>
         </div>
         <div className="xa-b-sl">
-          {sl ? <><span>{sl}</span><span className="xa-b-dv">{c.don_vi_vao_ten ?? c.don_vi_vao ?? ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
+          {sl ? <><span>{sl}</span><span className="xa-b-dv">{nhanChang(c.don_vi_vao) || c.don_vi_vao_ten || ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
         </div>
         <div className="xa-b-gio">{nhanGio}</div>
         <div className="xa-b-truc">{truCot}</div>

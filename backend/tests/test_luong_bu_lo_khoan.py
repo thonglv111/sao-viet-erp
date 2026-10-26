@@ -821,29 +821,23 @@ def test_NGHI_PHEP_CO_LUONG_cua_nguoi_khoan_va_tai_xe_DUOC_dung(client):
     assert xin(co_luong, next(ngay)).status_code == 201
 
 
-def test_CHAN_to_GIAO_HANG_bat_LUONG_KHOAN_va_nguoc_lai(client):
-    """⭐ Một tổ không vừa có cờ Giao hàng vừa ăn Lương khoán / sản lượng (chủ chốt 16/09/2026).
-
-    Hai cờ là hai NGUỒN TIỀN đem so với bù lỗ (tiền km ⟷ tiền sản lượng). Bật cả hai thì phép so
-    cộng chung hai khoản thành một vế: ai gán nhầm một phiếu sản lượng cho tài xế là tháng đó anh ta
-    mất trắng tiền tăng ca. Chặn cả HAI CHIỀU + cả cửa tạo phòng ban."""
+def test_to_con_co_luong_khoan_cu_van_bat_duoc_GIAO_HANG(client):
+    """Luật "Giao hàng ⟷ Lương khoán loại trừ nhau" (16/09/2026) GỠ 26/10/2026 (L-SX-42): cờ
+    `has_piece_work` không còn đọc ở tiền từ 20/10 — tổ còn cờ cũ phải bật được Giao hàng, cả cửa
+    sửa lẫn cửa tạo phòng ban."""
     h = _h(client)
-    # (1) cửa Cấu hình lương GỠ 20/10/2026 cùng công tắc Lương khoán — còn hai cửa Phòng ban dưới.
-
-    # (2) chiều ngược lại: tổ đang ăn khoán sản lượng ⇒ không bật được cờ Giao hàng
-    kh = client.post("/api/departments", json={"name": "Tổ khoán chặn giao hàng",
+    kh = client.post("/api/departments", json={"name": "Tổ khoán cũ bật giao hàng",
                                                "has_piece_work": True}, headers=h)
     assert kh.status_code == 201, kh.text
     r = client.put(f"/api/departments/{kh.json()['id']}",
-                   json={"name": "Tổ khoán chặn giao hàng", "la_giao_hang": True}, headers=h)
-    assert r.status_code == 400, r.text
-    assert "Giao hàng" in r.text, r.text
+                   json={"name": "Tổ khoán cũ bật giao hàng", "la_giao_hang": True}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["la_giao_hang"] is True
 
-    # (3) cửa TẠO phòng ban cũng chặn, không để lọt trạng thái sai ngay từ đầu
-    r = client.post("/api/departments", json={"name": "Tổ vừa km vừa sản lượng",
+    r = client.post("/api/departments", json={"name": "Tổ vừa km vừa cờ cũ",
                                               "la_giao_hang": True, "has_piece_work": True},
                     headers=h)
-    assert r.status_code == 400, r.text
+    assert r.status_code == 201, r.text
 
 
 def test_CO_TO_IN_khai_o_phong_ban_qua_API(client):
@@ -864,3 +858,15 @@ def test_CO_TO_IN_khai_o_phong_ban_qua_API(client):
     tat = client.put(f"/api/departments/{pb['id']}",
                      json={"name": "Tổ in offset 2", "la_to_in": False}, headers=h)
     assert tat.status_code == 200 and tat.json()["la_to_in"] is False
+
+    # L-SX-38: tắt cờ Tổ in phải hiện trong nhật ký "từ → sang"; sửa không đổi cờ thì không ghi cờ.
+    from app.models.audit import AuditLog
+    db = SessionLocal()
+    try:
+        ds = [a.detail for a in db.query(AuditLog).filter(
+            AuditLog.action == "update_department", AuditLog.target == f"dept:{pb['id']}").order_by(AuditLog.id)]
+    finally:
+        db.close()
+    assert "Tổ in:" not in ds[0]
+    assert ds[0] == "Sửa phòng Tổ in offset 2: tên Tổ in offset → Tổ in offset 2"
+    assert ds[-1].endswith(". Tổ in: bật → tắt")

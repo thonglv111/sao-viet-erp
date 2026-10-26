@@ -16,6 +16,7 @@ from ...models.san_xuat_vat_tu import (
 )
 from ...models.stock_request import REQ_CANCELLED, REQ_XUAT
 from ...repositories.audit_repo import AuditLogRepository
+from ...repositories.employee_repo import EmployeeRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
@@ -444,6 +445,14 @@ def _lap_lan(db: Session, *, cv, nguoi, bo_phan_id: int | None, can_luc: datetim
     return dn, req
 
 
+
+def _to_nguoi_bam(db: Session, user) -> int | None:
+    """Tổ của người bấm gửi = tổ trên HỒ SƠ NHÂN VIÊN của họ (L-VAI-47, giữ luật 11/10/2026). Tài
+    khoản có thể trỏ phòng / tổ cha (một nhóm, không nhận việc) — hồ sơ mới nói người đó ở tổ nào.
+    Không có hồ sơ (hoặc hồ sơ chưa có tổ) thì dùng phòng của tài khoản như trước."""
+    emp = EmployeeRepository(db).get_by_user_id(user.id) if getattr(user, "id", None) else None
+    return emp.department_id if emp is not None and emp.department_id else user.department_id
+
 def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
         lines: list[dict], ghi_chu: str | None = None, kh_svc=None, req_svc=None) -> dict:
     """Tạo một LẦN đề nghị. Lần 1 = `lan_dau`, từ lần 2 trở đi = `bo_sung`.
@@ -505,7 +514,7 @@ def tao(db: Session, *, user, cong_viec_id: int, can_luc: datetime,
         db, cv=cv, nguoi=user,
         # Bộ phận = của NGƯỜI bấm gửi (11/10/2026 — chủ xưởng: yêu cầu "phải theo người và tổ của
         # người yêu cầu"). Tổ của công đoạn đọc ở công việc, không mượn ô bộ phận.
-        bo_phan_id=user.department_id,
+        bo_phan_id=_to_nguoi_bam(db, user),
         can_luc=can_luc, dongs=dongs, ghi_chu=ghi_chu, tu_lap=False, req_svc=req_svc, hang=hang,
     )
     lan_so = dn.lan_so
@@ -586,7 +595,7 @@ def sua(db: Session, *, user, cong_viec_id: int, de_nghi_id: int,
         if kho_lines:
             req_moi = req_svc.create(
                 user=user, loai=REQ_XUAT, lines=kho_lines, commit=False,
-                bo_phan_id=user.department_id,      # phòng của người bấm — xem `tao()`
+                bo_phan_id=_to_nguoi_bam(db, user),  # tổ của người bấm — xem `tao()`
                 ngay_can=_ngay_vn(can_luc), can_luc=_can_luc_luu(can_luc),
                 ghi_chu=(ghi_chu_tay
                          or f"Cấp vật tư công đoạn «{cv.ten_cong_doan}» (lần {dn.lan_so})."),

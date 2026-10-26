@@ -13,7 +13,7 @@ TIỀN — chỉ số lượng. Các mẩu phụ là danh sách `ct`, FE vẽ th
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
@@ -138,7 +138,21 @@ def cac_dong(db: Session, cv, *, gio=thuc_te_hien_thi) -> list[dict]:
         + [f"san_xuat_kcs_loi:{l.id}" for l in lois]
     )
     theo_target = AuditLogRepository(db).list_by_targets(targets)
-    logs = [l for ds in theo_target.values() for l in ds]
+    # Id có thể bị CẤP LẠI (xoá dữ liệu tay rồi đặt lại sequence): nhật ký của đối tượng cũ cùng id
+    # nằm chung target. Bỏ dòng ghi TRƯỚC lúc đối tượng hiện tại ra đời (L-SX-24), nới 1 phút cho
+    # dòng audit ghi cùng giao dịch tạo.
+    sinh = {f"san_xuat_cong_viec:{cv.id}": cv.created_at}
+    for ten, bang in (("san_xuat_batch", batches), ("san_xuat_ban_giao", bgs),
+                      ("san_xuat_vat_tu_de_nghi", dns),
+                      ("san_xuat_kcs_batch", {**kcs_tai, **kcs_quy}),
+                      ("san_xuat_kcs_loi", {l.id: l for l in lois})):
+        for i, obj in bang.items():
+            sinh[f"{ten}:{i}"] = getattr(obj, "created_at", None)
+    logs = [
+        l for tg, ds in theo_target.items() for l in ds
+        if sinh.get(tg) is None or l.created_at is None
+        or _utc(l.created_at) >= _utc(sinh[tg]) - timedelta(minutes=1)
+    ]
 
     # --- Bảng tra theo lô (một truy vấn mỗi loại) -----------------------------------------------
     dv_bang = bang_dv_viec(db, cv)

@@ -46,6 +46,16 @@ class KhongThayDungMay(LookupError):
     """Dòng dừng máy không còn (đã xoá ở máy khác) — route trả 404."""
 
 
+def _chu_to_ngay(repo: DungMayRepository, department_id: int, ngay: date) -> str:
+    """"Bế TD - long ngày 26/10/2026" — đầu câu nhật ký dừng máy (L-SX-38: trước ghi `to=84`)."""
+    to = repo.to(int(department_id))
+    return f"{to.name if to is not None else f'Tổ #{department_id}'} ngày {ngay.strftime('%d/%m/%Y')}"
+
+
+def _nhan_ly_do(ly_do: str | None) -> str:
+    return LY_DO_DUNG_MAY.get(ly_do or "", ly_do or "")
+
+
 def _dong(r: KhoanDungMay, ten_nv: dict[int, str], ma: tuple[dict[int, str], dict]) -> dict:
     """`ma` = (mã phiếu sửa theo id, yêu cầu theo id) — `_ma` dựng. Yêu cầu đã thành phiếu thì
     "Phiếu sửa máy" đọc qua `phieu_id` của yêu cầu."""
@@ -74,6 +84,12 @@ def _may_chon(repo: DungMayRepository, department_id: int) -> list[dict]:
     for cv, ma_lsx in repo.viec_mo_co_may(department_id):
         viec.setdefault(int(cv.may_id), (cv, ma_lsx))
     ids = list(dict.fromkeys([*viec, *repo.may_thuoc_to(department_id)]))
+    # Máy tổ đứng mà tổ chưa có việc mở: việc của tổ KHÁC đang trên máy đó (L-SX-18) — hộp nói
+    # "Đang chạy LSX… của tổ X" thay vì "Rảnh". Việc của chính tổ vẫn đứng trước.
+    to_khac: dict[int, tuple] = {}
+    for cv, ma_lsx, ten_to in repo.viec_mo_tren_may([i for i in ids if i not in viec]):
+        if cv.department_id != department_id:
+            to_khac.setdefault(int(cv.may_id), (cv, ma_lsx, ten_to))
     may = repo.may(ids)
     yc, sc = repo.yeu_cau_mo(ids), repo.phieu_mo(ids)
     ra = []
@@ -81,11 +97,17 @@ def _may_chon(repo: DungMayRepository, department_id: int) -> list[dict]:
         if i not in may:
             continue
         cv, ma_lsx = viec.get(i, (None, None))
+        ten_to = None
+        if cv is None and i in to_khac:
+            cv, ma_lsx, ten_to = to_khac[i]
         mo = sc.get(i) or yc.get(i)
         ra.append({
             "id": i, "ma": may[i].ma, "ten": may[i].ten,
             "viec": " ".join(x for x in (ma_lsx, cv.ten_cong_doan) if x) if cv is not None else None,
             "viec_dang_chay": cv is not None and cv.trang_thai == CV_DANG_CHAY,
+            # Việc trên máy là của tổ khác ⇒ tên tổ đó; báo hư KHÔNG tạm dừng việc tổ khác (không
+            # có quyền theo tổ của việc), chỉ báo tin cho tổ đó.
+            "viec_cua_to": ten_to,
             "dang_mo": mo.ma if mo is not None else None,
         })
     return ra
@@ -212,7 +234,8 @@ def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_ch
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_bao_dung_may",
         target=f"khoan_dung_may:{r.id}",
-        detail=f"to={department_id} ngay={ngay.isoformat()} ly_do={ly_do} nguoi={len(ids)}",
+        detail=f"{_chu_to_ngay(repo, department_id, ngay)} dừng máy vì {_nhan_ly_do(ly_do)}, "
+               f"{len(ids)} người hưởng chỉ tiêu ngày.",
         commit=False,
     )
     db.commit()
@@ -252,7 +275,12 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
             raise ValueError(trung)
 
     cvs = [cv for cv, _ in repo.viec_mo_co_may(department_id) if int(cv.may_id) == may_id]
+    # Việc tổ KHÁC đang chạy trên máy này (L-SX-18, chủ chốt phương án B): không tạm dừng — chỉ báo
+    # tin cho tổ đó sau commit.
+    khac = [(cv, ma_lsx) for cv, ma_lsx, _t in repo.viec_mo_tren_may([may_id])
+            if cv.department_id != department_id and cv.trang_thai == CV_DANG_CHAY]
     neo = cvs[0] if cvs else None
+    repo.khoa_may(may_id)   # giữ khoá rồi mới hỏi "máy đã có yêu cầu / phiếu mở chưa"
     phieu = repo.phieu_mo([may_id]).get(may_id)
     yc = None if phieu is not None else repo.yeu_cau_mo([may_id]).get(may_id)
     moi = nang = bao_phieu = False
@@ -296,8 +324,8 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
             AuditLogRepository(db).create(
                 actor_user_id=getattr(user, "id", None), action="san_xuat_bao_dung_may",
                 target=f"khoan_dung_may:{r.id}",
-                detail=f"to={department_id} ngay={ngay.isoformat()} ly_do=may_hu may={may_id} "
-                       f"bao={ma} nguoi={len(ids)}",
+                detail=f"{_chu_to_ngay(repo, department_id, ngay)} dừng máy vì máy "
+                       f"{_ten_may(repo, may_id)} hư (phiếu {ma}), {len(ids)} người hưởng chỉ tiêu ngày.",
                 commit=False,
             )
         db.commit()
@@ -321,7 +349,34 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
     }
     _bao_tin(db, svc, yc if (moi or nang) else None, tam_dung,
              phieu=phieu if bao_phieu else None, user=user, may_dung=bool(dung_san_xuat))
+    _bao_to_khac(repo, khac, department_id=department_id, may_id=may_id, ma=ket["yeu_cau_ma"] or ket["phieu_ma"])
     return ket
+
+
+def _ten_may(repo: DungMayRepository, may_id: int) -> str:
+    may = repo.may([may_id]).get(may_id)
+    # Mã máy (BE-01): tên máy đã mở đầu bằng "Máy …", ghép vào câu "máy …" là lặp chữ.
+    return may.ma if may is not None else f"#{may_id}"
+
+
+def _bao_to_khac(repo: DungMayRepository, khac: list, *, department_id: int, may_id: int,
+                 ma: str | None) -> None:
+    """Toast cho tổ đang chạy việc trên máy mà tổ khác vừa báo hư (L-SX-18). Sau commit, hỏng thì
+    nuốt — cùng lý do `_bao_tin`."""
+    if not khac:
+        return
+    try:
+        to = repo.to(department_id)
+        ten_may = _ten_may(repo, may_id)
+        for cv, ma_lsx in khac:
+            viec = " ".join(x for x in (ma_lsx, cv.ten_cong_doan) if x)
+            hub.gui({"type": "san_xuat_may_hu_to_khac", "team_id": cv.department_id,
+                     "cong_viec_id": cv.id, "may_id": may_id,
+                     "message": f"{to.name if to else 'Tổ khác'} vừa báo máy {ten_may} hư"
+                                f"{f' ({ma})' if ma else ''} — việc {viec} của tổ bạn đang chạy trên máy này."},
+                    to=[cv.department_id])   # chỉ người xem được bàn tổ đó — câu nói "tổ bạn"
+    except Exception:
+        pass
 
 
 def _noi_trieu_chung(ban, trieu_chung: str | None) -> bool:
@@ -374,7 +429,7 @@ def sua(db: Session, *, user, dung_may_id: int, ly_do: str, sua_chua_id: int | N
     _gate(db, user, int(r.department_id))
     _chan_ky(repo, r.ngay)
     ids, ten = _kiem(repo, int(r.department_id), ly_do=ly_do, sua_chua_id=sua_chua_id, nguoi_ids=nguoi_ids)
-    cu = f"ly_do={r.ly_do} nguoi={len(r.nguoi_ids or [])}"
+    ly_do_cu, so_cu = r.ly_do, len(r.nguoi_ids or [])
     r.ly_do = ly_do
     r.sua_chua_id = int(sua_chua_id) if sua_chua_id is not None else None
     r.ghi_chu = (ghi_chu or "").strip() or None
@@ -382,7 +437,8 @@ def sua(db: Session, *, user, dung_may_id: int, ly_do: str, sua_chua_id: int | N
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_sua_dung_may",
         target=f"khoan_dung_may:{r.id}",
-        detail=f"to={r.department_id} ngay={r.ngay.isoformat()} {cu} -> ly_do={ly_do} nguoi={len(ids)}",
+        detail=f"{_chu_to_ngay(repo, r.department_id, r.ngay)}: lý do {_nhan_ly_do(ly_do_cu)} → "
+               f"{_nhan_ly_do(ly_do)}, người hưởng {so_cu} → {len(ids)}.",
         commit=False,
     )
     db.commit()
@@ -399,7 +455,8 @@ def xoa(db: Session, *, user, dung_may_id: int) -> None:
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_xoa_dung_may",
         target=f"khoan_dung_may:{r.id}",
-        detail=f"to={r.department_id} ngay={r.ngay.isoformat()} ly_do={r.ly_do}",
+        detail=f"Xoá ngày dừng máy của {_chu_to_ngay(repo, r.department_id, r.ngay)} "
+               f"(lý do {_nhan_ly_do(r.ly_do)}).",
         commit=False,
     )
     repo.delete(r)

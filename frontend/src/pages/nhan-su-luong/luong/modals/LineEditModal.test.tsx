@@ -43,4 +43,24 @@ describe("LineEditModal — điều chỉnh lương", () => {
     await vi.waitFor(() => expect(updateLine).toHaveBeenCalled());
     expect(updateLine.mock.calls[0][2]).toMatchObject({ note: "" });
   });
+  it("gõ dấu trừ trước rồi mới gõ số: ô giữ \"-\", gửi số âm (L-SX-35)", async () => {
+    updateLine.mockReset().mockResolvedValue({});
+    render(<LineEditModal token="t" line={DONG} readOnly={false} onClose={() => {}} onSaved={() => {}} />);
+    const o = screen.getByLabelText(/Điều chỉnh lương/) as HTMLInputElement;
+    fireEvent.change(o, { target: { value: "-" } });
+    expect(o.value).toBe("-");
+    fireEvent.change(o, { target: { value: "-310552" } });
+    expect(o.value).toBe("-310.552");
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    await vi.waitFor(() => expect(updateLine).toHaveBeenCalled());
+    expect(updateLine.mock.calls[0][2]).toMatchObject({ dieu_chinh_luong: -310552 });
+  });
+
+  it("xoá trắng ô số thì ô để trống, không tự điền 0 (L-SX-35)", () => {
+    render(<LineEditModal token="t" line={{ ...DONG, vi_pham: 5000 }} readOnly={false}
+      onClose={() => {}} onSaved={() => {}} />);
+    const o = screen.getByDisplayValue("5.000") as HTMLInputElement;
+    fireEvent.change(o, { target: { value: "" } });
+    expect(o.value).toBe("");
+  });
 });

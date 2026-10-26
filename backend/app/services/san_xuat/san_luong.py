@@ -30,7 +30,8 @@ from ...models.san_xuat_san_luong import (
 )
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
-from ..gio_xuong import moc_tu_client
+from ..gio_xuong import moc_tu_client, ve_utc_that
+from ..ky_luong_guard import ly_do_ky_luong_da_khoa
 from .dau_vao import _so, bang_dv_viec, kiem_giam_buoc_sau, kiem_tran_ghi, tran_buoc_sau
 from .nguoi_ghi import chot_nguoi, ghi_nguoi, sua_nguoi
 from .nguoi_trong_me import ngay_cua_me
@@ -191,13 +192,38 @@ def _khoang_luc_bam(db: Session, repo: SanXuatSanLuongRepository, cv) -> tuple[d
     from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
 
     bay_gio = _moc()
+    tt = SanXuatThucThiRepository(db)
     cuoi_me = [_aware(b.ket_thuc) for b in repo.cac_batch(cv.id)
                if b.ket_thuc is not None and _aware(b.ket_thuc) <= bay_gio]
     if cuoi_me:
-        return max(cuoi_me), bay_gio
-    dau_phien = [_aware(p.bat_dau) for p in SanXuatThucThiRepository(db).cac_phien(cv.id)
-                 if p.bat_dau is not None and _aware(p.bat_dau) <= bay_gio]
-    return (min(dau_phien) if dau_phien else bay_gio), bay_gio
+        bat_dau = max(cuoi_me)
+        # Không lùi quá đầu phiên ĐANG MỞ (L-SX-43): tạm dừng từ tháng trước rồi chạy lại hôm nay thì
+        # lần ghi mới bắt đầu từ phiên mới, không nối đuôi lần ghi tháng trước.
+        mo = tt.phien_dang_mo(cv.id)
+        if mo is not None and mo.bat_dau is not None and _aware(mo.bat_dau) <= bay_gio:
+            bat_dau = max(bat_dau, _aware(mo.bat_dau))
+    else:
+        dau_phien = [_aware(p.bat_dau) for p in tt.cac_phien(cv.id)
+                     if p.bat_dau is not None and _aware(p.bat_dau) <= bay_gio]
+        bat_dau = min(dau_phien) if dau_phien else bay_gio
+    return _keo_khoi_ky_khoa(db, bat_dau, bay_gio), bay_gio
+
+
+def _keo_khoi_ky_khoa(db: Session, bat_dau: datetime, ket_thuc: datetime) -> datetime:
+    """Kỳ khoán xếp lần ghi theo NGÀY của `bat_dau` (`ngay_cua_me`). Phiên chạy liền từ tháng đã chốt
+    lương mà để `bat_dau` lùi vào đó là đổi số dưới chân bảng lương đã chốt (L-SX-43, chủ chốt
+    26/10/2026: không lùi vào kỳ lương đã chốt / đã chi) ⇒ kẹp về 00:00 giờ xưởng đầu tháng mở kế
+    tiếp, không vượt quá `ket_thuc`. Tháng của `ket_thuc` cũng đã khoá thì để nguyên — cửa
+    `ly_do_ky_luong_da_khoa` ở `tao_batch` chặn."""
+    ngay = ngay_cua_me(bat_dau)
+    het = ngay_cua_me(ket_thuc)
+    while ngay is not None and het is not None and ngay <= het             and ly_do_ky_luong_da_khoa(db, ngay, viec="ghi sản lượng"):
+        nam, thang = (ngay.year + 1, 1) if ngay.month == 12 else (ngay.year, ngay.month + 1)
+        dau = ve_utc_that(datetime(nam, thang, 1, tzinfo=timezone.utc))
+        if dau > ket_thuc:
+            break
+        bat_dau, ngay = dau, ngay_cua_me(dau)
+    return bat_dau
 
 
 def tao_batch(
@@ -288,6 +314,10 @@ def tao_batch(
     if tu_lay_gio:
         # Sau khoá việc: hai lượt ghi liền nhau nối đúng vào nhau, không chồng cửa sổ.
         bat_dau, ket_thuc = _khoang_luc_bam(db, repo, cv)
+    # Lần ghi rơi vào kỳ lương đã chốt / đã chi (giờ gõ tay, hoặc tháng hiện tại đã khoá) ⇒ chặn.
+    loi = ly_do_ky_luong_da_khoa(db, ngay_cua_me(bat_dau), viec="ghi sản lượng")
+    if loi:
+        raise ValueError(loi)
 
     don_vi_batch = (don_vi or cv.don_vi_ra or "").strip()
     if not don_vi_batch:
@@ -446,6 +476,11 @@ def sua_so_me(
     from .dong_lenh import chan_neu_da_dong
 
     chan_neu_da_dong(db, cv)
+    # Khoán xếp kỳ theo ngày `bat_dau` — sửa số / người / tuỳ chọn lần ghi tháng đã chốt lương là đổi
+    # tiền dưới chân bảng lương đã chốt (L-SX-47).
+    loi = ly_do_ky_luong_da_khoa(db, ngay_cua_me(batch.bat_dau), viec="sửa lần ghi sản lượng")
+    if loi:
+        raise ValueError(loi)
     _kiem_version(batch, expected_version)
 
     moi = _so_khong_am(tot, "Số lượng làm được")

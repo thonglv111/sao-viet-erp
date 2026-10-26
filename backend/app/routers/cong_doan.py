@@ -19,8 +19,10 @@ from ..deps import require_any_permission
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.cong_doan_repo import CongDoanRepository
+from ..repositories.rbac_repo import RoleRepository
 from ..schemas.cong_doan import CongDoanIn, CongDoanListOut, CongDoanRow, RefOption, RefOptionListOut
 from ..services.cong_doan_service import CongDoanService
+from ..services.rbac_service import AuthorizationService
 from ..services.catalog_excel_specs import CONG_DOAN
 from .catalog_base import make_catalog_router
 
@@ -41,6 +43,45 @@ def get_service(db: Annotated[Session, Depends(get_db)]) -> CongDoanService:
 
 
 Service = Annotated[CongDoanService, Depends(get_service)]
+
+
+def _thay_gia(svc: CongDoanService, user: User) -> bool:
+    """Tiền khoán của công đoạn (đơn giá, giá cố định, giá theo tổ, việc phát sinh) là tiền lương —
+    chỉ ô "Xem giá" của danh mục Công đoạn mới thấy (L-SX-39)."""
+    return AuthorizationService(RoleRepository(svc.audit.db)).can(user, MODULE, "view_cost")
+
+
+def _che_tien_khoan(svc: CongDoanService, user: User, rows: list) -> None:
+    if _thay_gia(svc, user):
+        return
+    for r in rows:
+        k = r.khoan
+        if k is None:
+            continue
+        k.unit_price = None
+        k.gia_co_dinh = None
+        k.gia_theo_to = None
+        for v in k.viec_phat_sinh:
+            v.don_gia = None
+            v.gia_theo_to = None
+
+
+def _giu_tien_khoan(svc: CongDoanService, user: User, item_id: int | None, data: dict) -> None:
+    """Người không thấy giá vẫn sửa được công đoạn: ô tiền bị che gửi lên rỗng thì GIỮ số cũ của
+    khoán (theo id việc phát sinh), không để lưu form là xoá trắng tiền lương. Tạo mới / việc phát
+    sinh mới thì tiền về 0 — người có ô Xem giá điền sau."""
+    k = data.get("khoan")
+    if not k or _thay_gia(svc, user):
+        return
+    cu = svc.get(item_id).khoan if item_id is not None else None
+    k["unit_price"] = float(cu.unit_price) if cu is not None else 0.0
+    k["gia_co_dinh"] = float(cu.gia_co_dinh or 0) if cu is not None else 0.0
+    k["gia_theo_to"] = cu.gia_theo_to if cu is not None else None
+    ps_cu = {v.id: v for v in cu.viec_phat_sinh} if cu is not None else {}
+    for v in k.get("viec_phat_sinh") or []:
+        goc = ps_cu.get(v.get("id"))
+        v["don_gia"] = float(goc.don_gia) if goc is not None else 0.0
+        v["gia_theo_to"] = goc.gia_theo_to if goc is not None else None
 
 
 # GỠ 08/09/2026: `_dung_rows` — nó chỉ tồn tại để gọi `gan_ten_don_vi` trước khi dựng dòng. Hàm ấy
@@ -77,4 +118,6 @@ make_catalog_router(
     # `cong_thuc_truong="cong_thuc_san_luong"` GỠ 18/09/2026 (mg `0324`) cùng cột ấy — công đoạn
     # không còn ô công thức nào có lịch sử "lần trước".
     excel_spec=CONG_DOAN,
+    che_tien=_che_tien_khoan,
+    giu_tien=_giu_tien_khoan,
 )

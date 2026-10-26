@@ -309,10 +309,26 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // Giấy · Vật tư khác · Máy thiết bị · Công đoạn — nên RIÊNG 4 khoá này bày ô
   // "Nhân bản". Không gộp vào `can_create`: vai được TẠO MỚI (gõ tay) chưa chắc nên NHÂN BẢN hàng
   // cũ (nhân đôi cả giá/công thức đang chạy mà không soát lại từng ô).
-  dm_giay: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
+  // Ô "Xem giá" (L-SX-39): giá mua giấy là giá vốn, tiền khoán công đoạn là tiền lương — máy chủ
+  // xoá các ô đó khỏi phản hồi khi thiếu ô này (`routers/vat_lieu_kho.py`, `routers/cong_doan.py`).
+  dm_giay: [
+    { key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT },
+    {
+      key: "can_view_cost",
+      label: "Xem giá",
+      hint: "Cho phép xem đơn giá mua giấy và lịch sử giá. Không bật thì cột Đơn giá để trống; sửa dòng giấy vẫn giữ nguyên giá cũ.",
+    },
+  ],
   dm_vat_tu: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
   dm_thiet_bi: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
-  dm_cong_doan: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
+  dm_cong_doan: [
+    { key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT },
+    {
+      key: "can_view_cost",
+      label: "Xem giá",
+      hint: "Cho phép xem tiền khoán của công đoạn: đơn giá, giá cố định, giá theo tổ, đơn giá việc phát sinh. Không bật thì các ô này để trống; sửa công đoạn vẫn giữ nguyên tiền cũ.",
+    },
+  ],
   nhan_su: [
     {
       key: "can_view_salary",

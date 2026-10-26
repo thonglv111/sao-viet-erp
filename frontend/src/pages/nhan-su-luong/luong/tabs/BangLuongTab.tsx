@@ -73,12 +73,16 @@ export function BangLuongTab({
   canLockPeriod,
   canMarkPaid,
   canExportPayroll,
+  canSoiChiTiet = true,
 }: {
   token: string;
   canManage: boolean;
   canLockPeriod: boolean;
   canMarkPaid: boolean;
   canExportPayroll: boolean;
+  /** Ngăn soi Hoa hồng / Khoán km gác "Xem cấu hình lương" hoặc "Sửa" ở máy chủ. Người chỉ có ô Bảng
+   *  lương thấy số nhưng ô không bấm được — bấm vào là ăn 403 (L-VAI-41, chủ chốt 26/10/2026). */
+  canSoiChiTiet?: boolean;
 }) {
   const [ym, setYm] = useState(curYm);
   const [period, setPeriod] = useState<PayrollPeriod | null>(null);
@@ -197,10 +201,11 @@ export function BangLuongTab({
   const shown = lines;
 
   // Helper tính giá trị từng cột số liệu (dùng chung cho hiển thị dòng, tóm tắt, và tfoot)
-  // Cột "Khoán SP" = lương khoán sản lượng (chỉ khi ăn khoán) + TĂNG CA KHOÁN. Tăng ca khoán cộng
-  // ngoài phép so (chủ chốt 22/10/2026) nên ăn lương thời gian vẫn có ở cột này.
+  // Cột "Khoán SP" = lương khoán sản lượng (chỉ khi ăn khoán) + TĂNG CA KHOÁN + CỘNG THÊM KHOÁN.
+  // Tăng ca khoán và cộng thêm khoán cộng ngoài phép so (chủ chốt 22/10/2026, "ăn vế nào cũng có")
+  // nên ăn lương thời gian vẫn có ở cột này. Thiếu cộng thêm là cộng ngang không ra thực lĩnh (L-SX-31).
   const getKhoanSpVal = (l: PayrollLine) =>
-    (l.lay_bu_lo ? 0 : (l.khoan ?? 0)) + (l.tang_ca_khoan ?? 0);
+    (l.lay_bu_lo ? 0 : (l.khoan ?? 0)) + (l.tang_ca_khoan ?? 0) + (l.khoan_cong_them ?? 0);
   const getKhoanKmVal = (l: PayrollLine) => (l.lay_bu_lo ? 0 : (l.khoan_km ?? 0));
   const getCaDemVal = (l: PayrollLine) => (l.night_pay ?? 0) + (l.night_premium_pay ?? 0);
   const getTamUngVal = (l: PayrollLine) =>
@@ -934,7 +939,7 @@ export function BangLuongTab({
                   <th className="lg-num">Tiền CN/Lễ</th>
                   <th className="lg-num lg-th-sub--income">Chuyên cần</th>
                   <th className="lg-num lg-th-sub--income">Phụ cấp</th>
-                  <th className="lg-num lg-th-sub--income" title="Lương khoán sản lượng + tăng ca khoán (bấm số để xem từng lần ghi)">Khoán SP</th>
+                  <th className="lg-num lg-th-sub--income" title="Lương khoán sản lượng + tăng ca khoán + cộng thêm khoán (bấm số để xem từng lần ghi)">Khoán SP</th>
                   <th className="lg-num lg-th-sub--income">Khoán km</th>
                   <th className="lg-num lg-th-sub--income" title="Tiền giờ làm thêm ngoài giờ (không gồm phụ trội làm nguyên ngày CN/lễ) — thuộc lương thời gian">Tăng ca theo giờ</th>
                   <th className="lg-num lg-th-sub--income">Ca đêm</th>
@@ -1117,7 +1122,9 @@ export function BangLuongTab({
                           )}
                         </td>
                         <td className="lg-num">
-                          {l.khoan_km && !l.lay_bu_lo ? (
+                          {l.khoan_km && !l.lay_bu_lo && !canSoiChiTiet ? (
+                            money(l.khoan_km)
+                          ) : l.khoan_km && !l.lay_bu_lo ? (
                             <button
                               type="button"
                               className="lg-linkbtn"
@@ -1194,7 +1201,9 @@ export function BangLuongTab({
                         >
                           {/* `co_hoa_hong`: có lần thu nhưng tổng âm (CK lớn hơn tiền về) ⇒ cột kẹp 0,
                               vẫn phải mở được ngăn soi để thấy vì sao ra 0. */}
-                          {hoaHongTotal(l) || l.co_hoa_hong ? (
+                          {(hoaHongTotal(l) || l.co_hoa_hong) && !canSoiChiTiet ? (
+                            money(hoaHongTotal(l))
+                          ) : hoaHongTotal(l) || l.co_hoa_hong ? (
                             <button
                               type="button"
                               className="lg-linkbtn"

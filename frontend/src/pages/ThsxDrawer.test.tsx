@@ -708,3 +708,22 @@ describe("ThsxDrawer · Giao người ở cột phải", () => {
     expect(onGiao).toHaveBeenCalledWith(1);
   });
 });
+
+describe("ThsxDrawer · nạp chi tiết (L-SX-09)", () => {
+  const mo = (loi: boolean) => render(
+    <ThsxDrawer chiTiet={null} loading={false} loi={loi} candidates={[]} hoTroUngVien={[]}
+      mayOptions={[]} exec={{} as ThsxExec} busy={false} onGiao={vi.fn()} onRut={vi.fn()}
+      onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
+      onKetThuc={vi.fn()} onClose={vi.fn()} />,
+  );
+
+  it("chưa có chi tiết mà cờ tải chưa bật thì là đang tải, không hiện câu lỗi", () => {
+    mo(false);
+    expect(screen.queryByText("Không tải được chi tiết công việc.")).toBeNull();
+  });
+
+  it("lượt nạp hỏng thật mới hiện câu lỗi", () => {
+    mo(true);
+    expect(screen.getByText("Không tải được chi tiết công việc.")).toBeTruthy();
+  });
+});

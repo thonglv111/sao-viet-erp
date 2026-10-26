@@ -111,7 +111,7 @@ export function TamUngBang({
                 <td>
                   <span className={`ns-badge ${kCls}`}>{kLabel}</span>
                 </td>
-                <td>{a.advance_date}</td>
+                <td>{fmtDate(a.advance_date)}</td>
                 <td title={fmtDateTime(a.created_at)}>{fmtDate(a.created_at)}</td>
                 <td className="lg-num">{money(a.amount)}đ</td>
                 <td>{a.reason ?? "—"}</td>

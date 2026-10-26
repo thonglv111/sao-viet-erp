@@ -72,7 +72,8 @@ export function BaoDungMayModal({
   onBao: (cau: string) => void;
 }) {
   const [ngay, setNgay] = useState(homNay);
-  const [lyDo, setLyDo] = useState<SxLyDoDungMay | null>(null);
+  // Mở hộp là chọn sẵn "Máy hư" (L-SX-26, chủ chốt phương án A) — khớp nhánh báo hỏng hiện ngay.
+  const [lyDo, setLyDo] = useState<SxLyDoDungMay | null>("may_hu");
   const [suaChua, setSuaChua] = useState("");
   const [ghiChu, setGhiChu] = useState("");
   const [data, setData] = useState<SxDungMayListOut | null>(null);
@@ -92,6 +93,8 @@ export function BaoDungMayModal({
   const [tinhLuong, setTinhLuong] = useState(false);
   // Lần nạp đầu tick sẵn mọi người của tổ; nạp lại sau khi lưu / đổi tháng thì giữ người đang tick.
   const daTick = useRef(false);
+  // Người đã tự chọn ngày ⇒ lần nạp sau không kéo ô ngày về ngày xưởng nữa (L-SX-25).
+  const daChonNgay = useRef(false);
   const idPhieu = useId();
   const idMoTa = useId();
 
@@ -106,6 +109,10 @@ export function BaoDungMayModal({
       if (!r.quyen_luong) {
         setLyDo("may_hu");
         if (r.hom_nay) setNgay(r.hom_nay);
+      } else if (r.hom_nay && !daChonNgay.current) {
+        // Ô ngày mặc định theo NGÀY XƯỞNG của máy chủ, không theo đồng hồ máy khách (L-SX-25).
+        daChonNgay.current = true;
+        setNgay((cu) => (cu === homNay ? r.hom_nay! : cu));
       }
       if (!daTick.current) {
         daTick.current = true;
@@ -149,7 +156,7 @@ export function BaoDungMayModal({
 
   function thoiSua() {
     setDangSua(null);
-    setLyDo(null);
+    setLyDo("may_hu");
     setSuaChua("");
     setGhiChu("");
     setChon(new Set(dsNguoi.map((n) => n.id)));
@@ -230,7 +237,7 @@ export function BaoDungMayModal({
               <button type="button" className="thsx-b-lk" onClick={thoiSua}>Thôi sửa, báo ngày khác</button>
             </div>
           ) : (
-            <ChonNgay value={ngay} onChange={(v) => v && setNgay(v)} max={homNay}
+            <ChonNgay value={ngay} onChange={(v) => { if (v) { daChonNgay.current = true; setNgay(v); } }} max={homNayXuong}
               min={chotMuon ? dauThangSau(chotMuon) : undefined} required aria-label="Ngày dừng máy" />
           )}
         </div>
@@ -246,9 +253,9 @@ export function BaoDungMayModal({
       {luongDuoc && (
         <div className="thsx-f">
           <span className="thsx-f__n">Lý do</span>
-          <div className="thsx-seg" role="group" aria-label="Lý do">
+          <div className="thsx-chips" role="group" aria-label="Lý do">
             {LY_DO.map((l) => (
-              <button key={l.ma} type="button" className="thsx-seg__btn" aria-pressed={lyDo === l.ma}
+              <button key={l.ma} type="button" className="thsx-chip thsx-chip--cao" aria-pressed={lyDo === l.ma}
                 onClick={() => setLyDo(l.ma)}>{l.ten}</button>
             ))}
           </div>
@@ -271,7 +278,9 @@ export function BaoDungMayModal({
                       aria-label={`${m.ma} ${m.ten}`} />
                     <span>
                       {m.ma} {m.ten}
-                      <small>{m.viec ? `${m.viec_dang_chay ? "Đang chạy" : "Tạm dừng"} ${m.viec}` : "Rảnh"}</small>
+                      <small>{m.viec
+                        ? `${m.viec_dang_chay ? "Đang chạy" : "Tạm dừng"} ${m.viec}${m.viec_cua_to ? ` của ${m.viec_cua_to}` : ""}`
+                        : "Rảnh"}</small>
                       {m.dang_mo && <small>Đã báo {m.dang_mo}, gửi nữa sẽ gắn vào đây</small>}
                     </span>
                     <span />
@@ -288,14 +297,16 @@ export function BaoDungMayModal({
                 Máy đang dừng, không chạy được
                 {mayDung && (
                   <span className="thsx-tick__the">
-                    {may?.viec_dang_chay ? "Ưu tiên cao và tạm dừng việc" : "Ưu tiên cao"}
+                    {may?.viec_dang_chay && !may.viec_cua_to ? "Ưu tiên cao và tạm dừng việc" : "Ưu tiên cao"}
                   </span>
                 )}
               </span>
               <span className="thsx-tick__mo">
-                {may?.viec_dang_chay
-                  ? `Việc ${may.viec} sẽ tạm dừng, giờ máy ngừng tính từ lúc gửi.`
-                  : "Yêu cầu lên đầu hàng chờ của tổ sửa chữa."}
+                {may?.viec_dang_chay && may.viec_cua_to
+                  ? `Việc ${may.viec} là của ${may.viec_cua_to} — không tự dừng, ${may.viec_cua_to} sẽ được báo ngay.`
+                  : may?.viec_dang_chay
+                    ? `Việc ${may.viec} sẽ tạm dừng, giờ máy ngừng tính từ lúc gửi.`
+                    : "Yêu cầu lên đầu hàng chờ của tổ sửa chữa."}
               </span>
             </span>
           </label>
