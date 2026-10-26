@@ -204,3 +204,15 @@ def test_dien_giai_dinh_muc_doc_nhan_chip_va_thay_so_chip_rieng(db, orders, lsx_
     dg = rows[0]["dien_giai"]
     assert "dai_support" not in dg and "rong_support" not in dg, dg
     assert dg.startswith("Dài support × Rộng support ÷ 1000000 = 500 × 400 ÷ 1000000 = 0,2")
+
+
+def test_tao_lenh_vat_tu_chua_chon_dvt_thi_422_neu_ten_mon(db, orders, lsx_svc, admin, customer):
+    """L-SX-03: món chưa chọn ĐVT không được bỏ khỏi lệnh trong im lặng — chặn và nêu tên món."""
+    from app.services.lsx_service import LsxValidationError
+
+    ptg = _ptg_2_san_pham(db)
+    vt = _support(db)
+    vt.don_vi_gia = ""
+    _gan_vao_buoc_phieu(db, ptg, "Dán hộp", vt, {"dai_support": 500, "rong_support": 400})
+    with pytest.raises(LsxValidationError, match="“Support” chưa chọn đơn vị tính"):
+        _tao_lenh_hop(db, orders, lsx_svc, admin, customer, ptg)

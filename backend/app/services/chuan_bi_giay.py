@@ -108,7 +108,9 @@ def ma_buoc_giay(nguon: str, dv: DauVaoGiay) -> list[str]:
     """Mã công đoạn chuẩn bị chèn trước bước đầu của chuỗi, theo thứ tự."""
     te = [CD_TE_GIAY_IN] if can_tgi(dv) else []
     if nguon == "cuon":
-        return [CD_CAT_CUON, *te]
+        # Cuộn LUÔN qua Tề (L-SX-21, chủ chốt 26/10/2026): Cắt giấy cuộn khoá `to_nguyen → to_nguyen`
+        # còn In nhận `to`, nên cuộn cắt đúng khổ in mà bỏ Tề là chuỗi đứt đơn vị, lưu không được.
+        return [CD_CAT_CUON, CD_TE_GIAY_IN]
     if nguon in ("to_nguyen", "mua"):
         return te
     return []

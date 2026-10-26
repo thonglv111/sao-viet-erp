@@ -201,6 +201,9 @@ export function LsxRoutingTable({
   // CŨ mà nhìn y như vừa cập nhật. Nuốt im lặng là để màn nói dối: đúng cách lỗi 500 của
   // `mac-dinh-buoc` và 409 của `xem-truoc-routing` sống được lâu đến thế.
   const [loiDoiCd, setLoiDoiCd] = useState<string | null>(null);
+  // Câu "tổ chưa có máy" của lần đổi công đoạn / tổ gần nhất — trước chỉ đọc cho trình đọc màn hình
+  // (`live`), người nhìn màn không biết vì sao bước mất máy (L-SX-17).
+  const [goiY, setGoiY] = useState<string | null>(null);
   const [moBuoc, setMoBuoc] = useState<number | null>(null);
   const [tabDau, setTabDau] = useState<DrawerTabKey | undefined>(undefined);
   const [keo, setKeo] = useState<number | null>(null);
@@ -227,6 +230,12 @@ export function LsxRoutingTable({
   const dirty = JSON.stringify(toBody(rows)) !== goc.current;
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
+
+  useEffect(() => {
+    if (!goiY) return;
+    const t = setTimeout(() => setGoiY(null), 8000);
+    return () => clearTimeout(t);
+  }, [goiY]);
 
   // Dải "hoàn tác" tự tắt sau 6s — xoá dòng chưa lưu không cần hỏi han.
   useEffect(() => {
@@ -363,6 +372,9 @@ export function LsxRoutingTable({
           // Thời gian chuẩn bị + chạy KHÔNG còn nằm ở bước: kế thừa sống từ máy đang gán.
         };
         patch(key, applied);
+        setGoiY(sangTo ? "Tổ chưa có máy chạy công đoạn này, bước chuyển sang làm theo Tổ."
+          : "may_id" in mayGoiY && mayGoiY.may_id == null ? "Tổ chưa có máy chạy công đoạn này."
+          : null);
         setLive(`Đã đổi sang ${m.ten} và lấy lại đơn vị, tổ phụ trách`
           + ("may_id" in mayGoiY
             ? (mayGoiY.may_id != null ? " và máy mặc định của tổ" : ". Tổ chưa có máy chạy công đoạn này")
@@ -414,6 +426,7 @@ export function LsxRoutingTable({
       department_ten: toRefs?.find((t) => t.id === deptId)?.ten ?? null,
       ...(doiMayTheo ? { may_id: mayMoi ?? null } : {}),
     });
+    setGoiY(doiMayTheo && mayMoi == null ? `${tenTo} chưa có máy chạy công đoạn này.` : null);
     setLive(deptId == null ? "Đã bỏ tổ khỏi bước"
       : !doiMayTheo ? `Đã chọn ${tenTo}`
       : mayMoi != null
@@ -717,6 +730,13 @@ export function LsxRoutingTable({
         <div className="khsx-ghep-bang khsx-ghep-bang--loi">
           <Icon name="alert" size={14} />
           <span>{loiDoiCd}</span>
+        </div>
+      )}
+
+      {goiY && (
+        <div className="khsx-ghep-bang" role="status">
+          <Icon name="info" size={14} />
+          <span>{goiY}</span>
         </div>
       )}
 

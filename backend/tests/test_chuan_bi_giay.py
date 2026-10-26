@@ -66,10 +66,12 @@ def test_khong_du_nguon_nao_la_mua():
 
 
 def test_kho_nguyen_bang_kho_in_khong_them_te():
+    """Tờ nguyên / mua đúng khổ in thì khỏi Tề. Cuộn thì VẪN Tề (L-SX-21): Cắt giấy cuộn ra tờ nguyên,
+    In nhận tờ in — bỏ Tề là chuỗi đứt đơn vị."""
     dv = _dv(kho_nguyen=(650, 430), so_manh_xa=1)
     assert not can_tgi(dv)
     n = chon_nguon(dv, _ton(((650, 0), "kg", 400)))
-    assert n.nguon == "cuon" and ma_buoc_giay("cuon", dv) == ["CGC"]
+    assert n.nguon == "cuon" and ma_buoc_giay("cuon", dv) == ["CGC", "TGI"]
     assert ma_buoc_giay("to_nguyen", dv) == [] and ma_buoc_giay("mua", dv) == []
 
 

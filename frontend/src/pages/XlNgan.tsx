@@ -23,6 +23,7 @@ import {
   congPhut, gio, gioChu, moc, quangDongHo, soNgayDu, thuNgay, thuNgayGio, type XlPhanTachNghi,
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
+import { nhanChang } from "./lsxBuoc";
 import { cauChuaTinhGio, goiDaThuHoi, soBuocChuaGio } from "./xlNganSo";
 
 /** Bộ màu + biểu tượng theo loại bước — cùng bộ của lưới (`.xa-m-*`). */
@@ -461,7 +462,7 @@ export function XlNgan({
           </span>
         </div>
         <div className="xa-b-sl">
-          {sl ? <><span>{sl}</span><span className="xa-b-dv">{c.don_vi_vao_ten ?? c.don_vi_vao ?? ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
+          {sl ? <><span>{sl}</span><span className="xa-b-dv">{nhanChang(c.don_vi_vao) || c.don_vi_vao_ten || ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
         </div>
         <div className="xa-b-gio">{nhanGio}</div>
         <div className="xa-b-truc">{truCot}</div>

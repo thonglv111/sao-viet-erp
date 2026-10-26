@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.models.lsx import TT_DA_LAP_KE_HOACH
+from app.models.lsx import TT_DA_DONG, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH
 from app.services.lsx_service import LsxConflict, LsxValidationError
 from tests.test_lenh_chuan_bi_giay import _buoc, _giay, _in, _ma, _ptg, _tao, _theo_ma, _ton
 from tests.test_lsx_service import (  # noqa: F401 — fixture dùng chung
@@ -100,3 +100,79 @@ def test_luu_routing_kem_vat_tu_giu_rong_cuon(db, orders, lsx_svc, admin, custom
     (g,) = _giay(lsx)[_theo_ma(db, lsx, "CGC").ten]
     assert (g.don_vi_goc, g.kho_rong, g.kho_dai) == ("kg", 870, 0)
     assert float(g.so_luong) == pytest.approx(kg_truoc) and kg_truoc > 0
+
+
+# ── Đợt vá 26/10/2026 ────────────────────────────────────────────────────────────────────────────
+
+def _rows(lsx, bo_ma: set[str] = frozenset(), db=None):
+    from app.schemas.lsx import LsxBuocVatTuIn, LsxCongDoanIn
+
+    return [LsxCongDoanIn(step_key=c.step_key, cong_doan_id=c.cong_doan_id, ten=c.ten, nhom=c.nhom,
+                          department_id=c.department_id, may_id=c.may_id,
+                          vat_tus=[LsxBuocVatTuIn(hang_loai=v.hang_loai, vat_tu_id=v.vat_tu_id)
+                                   for v in c.vat_tus])
+            for c, ma in zip(_buoc(lsx), _ma(db, lsx)) if ma not in bo_ma]
+
+
+@pytest.mark.parametrize("tt, cau", [(TT_DA_PHAT_HANH, "đã phát hành"), (TT_DA_DONG, "đã đóng")])
+def test_doi_nguon_lenh_da_xuong_xuong_409(db, orders, lsx_svc, admin, customer, tt, cau):
+    """L-SX-19: lệnh đã phát hành / đã đóng — xưởng đã cầm gói việc, không đổi nguồn giấy được."""
+    lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
+    lsx.trang_thai = tt
+    db.commit()
+    with pytest.raises(LsxConflict, match=cau):
+        lsx_svc.doi_nguon_giay(lsx_id=lsx.id, nguon="to_in", rong_cuon=None, actor=admin)
+    assert _ma(db, lsx_svc.get(lsx.id))[:2] == ["CGC", "TGI"]
+
+
+def test_doi_nguon_lenh_tron_goi_409(db, orders, lsx_svc, admin, customer):
+    from app.models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+    from app.models.purchase import Supplier
+
+    lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
+    s = Supplier(name="In ngoài", nhan_gia_cong=True)
+    db.add(s)
+    db.flush()
+    db.add(GiaCongNgoai(kieu=KIEU_TRON_GOI, nha_cung_cap_id=s.id, lsx_id=lsx.id))
+    db.commit()
+    with pytest.raises(LsxConflict, match="trọn gói"):
+        lsx_svc.doi_nguon_giay(lsx_id=lsx.id, nguon="to_in", rong_cuon=None, actor=admin)
+    assert _ma(db, lsx_svc.get(lsx.id))[:2] == ["CGC", "TGI"]
+
+
+@pytest.mark.parametrize("tt", [TT_DA_PHAT_HANH, TT_DA_DONG])
+def test_sua_routing_lenh_da_xuong_xuong_409(db, orders, lsx_svc, admin, customer, tt):
+    lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
+    rows = _rows(lsx, db=db)
+    lsx.trang_thai = tt
+    db.commit()
+    with pytest.raises(LsxConflict, match="sửa routing"):
+        lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=rows, actor=admin)
+
+
+def test_bo_cat_cuon_bang_tay_409_giay_con_nguyen(db, orders, lsx_svc, admin, customer):
+    """L-SX-04: bỏ tay bước Cắt giấy cuộn là mất dòng giấy duy nhất — bảo đổi Nguồn giấy."""
+    lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
+    with pytest.raises(LsxConflict, match="đổi Nguồn giấy"):
+        lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(lsx, {"CGC"}, db=db), actor=admin)
+    lsx = lsx_svc.get(lsx.id)
+    assert _ma(db, lsx)[:2] == ["CGC", "TGI"]
+    assert len(_giay(lsx)[_theo_ma(db, lsx, "CGC").ten]) == 1
+
+
+def test_lenh_co_nguon_giay_mat_dong_giay_thi_thieu_giay(db, orders, lsx_svc, admin, customer):
+    lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
+    assert "thieu_giay" not in lsx_svc.thieu_cua(lsx)
+    for c in lsx.cong_doans:
+        c.vat_tus[:] = [v for v in c.vat_tus if v.hang_loai != "giay"]
+    db.commit()
+    assert "thieu_giay" in lsx_svc.thieu_cua(lsx_svc.get(lsx.id))
+
+
+def test_doi_sang_cuon_kho_nguyen_bang_kho_in_van_luu_routing_duoc(db, orders, lsx_svc, admin, customer):
+    """L-SX-21: lệnh 650×430, khổ nguyên = khổ in, đổi sang cuộn 650 — có Tề, chuỗi không đứt."""
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, kho_nguyen=(430, 650)))
+    lsx = lsx_svc.doi_nguon_giay(lsx_id=lsx.id, nguon="cuon", rong_cuon=650, actor=admin)
+    assert _ma(db, lsx)[:3] == ["CGC", "TGI", "CD-IN-CB"]
+    lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(lsx, db=db), actor=admin)
+    assert _ma(db, lsx)[:2] == ["CGC", "TGI"]
