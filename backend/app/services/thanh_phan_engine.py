@@ -27,6 +27,7 @@ import ast
 import operator
 import re
 from collections.abc import Iterable
+from functools import lru_cache
 from math import ceil, floor
 
 from .routing_engine import basis_qty, compute_step_cost
@@ -305,12 +306,95 @@ def _chuan_hoa(expr_str: str) -> str:
     return _CHUYEN_TU_IF.sub('if_(', expr_str).strip()
 
 
+def _loi(msg: str):
+    def ham(variables):
+        raise ValueError(msg)
+    return ham
+
+
+def _bien_dich(node):
+    """Cây → hàm `(variables) → số`, ra ĐÚNG số và ĐÚNG câu lỗi như `_eval_node` — lỗi nổ lúc CHẠY,
+    cùng thứ tự duyệt (vế trái trước, đối số trước toán tử). Kỳ lương chạy một công thức cho hàng
+    nghìn lần ghi: duyệt cây bằng chuỗi `isinstance` mỗi lần là phần đắt của `safe_eval`."""
+    if isinstance(node, ast.Num):
+        n = node.n
+        return lambda variables: float(n)
+    if isinstance(node, ast.Constant):
+        val = node.value
+        if isinstance(val, (int, float)):
+            return lambda variables: float(val)
+        return _loi(f"Hằng số không hợp lệ: {val}")
+    if isinstance(node, ast.Name):
+        name = node.id
+
+        def bien(variables):
+            if name in variables:
+                return float(variables[name] or 0.0)
+            raise ValueError(f"Biến không xác định: {name}")
+        return bien
+    if isinstance(node, ast.BinOp):
+        trai, phai, op_type = _bien_dich(node.left), _bien_dich(node.right), type(node.op)
+
+        def hai_ngoi(variables):
+            left = trai(variables)
+            right = phai(variables)
+            if op_type in OPERATORS:
+                return OPERATORS[op_type](left, right)
+            raise ValueError(f"Toán tử không được hỗ trợ: {op_type}")
+        return hai_ngoi
+    if isinstance(node, ast.UnaryOp):
+        con, op_type = _bien_dich(node.operand), type(node.op)
+
+        def mot_ngoi(variables):
+            operand = con(variables)
+            if op_type in OPERATORS:
+                return OPERATORS[op_type](operand)
+            raise ValueError(f"Toán tử một ngôi không được hỗ trợ: {op_type}")
+        return mot_ngoi
+    if isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            return _loi("Gọi hàm không hợp lệ")
+        func_name = node.func.id
+        if func_name == 'if_':  # xem `_eval_node`
+            func_name = 'if'
+        if func_name not in FUNCTIONS:
+            return _loi(f"Hàm không được hỗ trợ: {func_name}")
+        doi = [_bien_dich(arg) for arg in node.args]
+
+        def goi(variables):
+            args = [d(variables) for d in doi]
+            if func_name == 'if':
+                return FUNCTIONS['if'](*args)
+            return float(FUNCTIONS[func_name](*args))
+        return goi
+    if isinstance(node, ast.Compare):
+        if len(node.ops) != 1:
+            return _loi("Chỉ so sánh 1 điều kiện (vd a > b), không so chuỗi kiểu a > b > c")
+        op_type = type(node.ops[0])
+        if op_type not in COMPARATORS:
+            return _loi(f"Toán tử so sánh không được hỗ trợ: {op_type}")
+        trai, phai = _bien_dich(node.left), _bien_dich(node.comparators[0])
+
+        def so_sanh(variables):
+            left = trai(variables)
+            right = phai(variables)
+            return COMPARATORS[op_type](left, right)
+        return so_sanh
+    return _loi(f"Cú pháp không được hỗ trợ: {type(node)}")
+
+
+@lru_cache(maxsize=2048)
+def _ham_cong_thuc(expr_str: str):
+    """Hàm tính của một công thức (`_bien_dich` cây của nó) — kỳ lương chạy cùng một công thức hàng
+    nghìn lần ghi. Câu lỗi cú pháp không vào cache (ngoại lệ không được nhớ)."""
+    return _bien_dich(ast.parse(_chuan_hoa(expr_str), mode='eval').body)
+
+
 def safe_eval(expr_str: str, variables: dict) -> float:
     if not expr_str or not expr_str.strip():
         return 0.0
     try:
-        node = ast.parse(_chuan_hoa(expr_str), mode='eval').body
-        result = _eval_node(node, variables)
+        result = _ham_cong_thuc(expr_str)(variables)
         if isinstance(result, bool):
             raise ValueError("Kết quả là điều kiện đúng/sai — cần bọc trong if(dieu_kien, dung, sai)")
         return float(result)
@@ -789,96 +873,45 @@ def _step_cost_safe(cd: dict, ctx: dict, warnings: list[str], ten: str) -> tuple
     return _f(res.get("total")), ghi
 
 
-def _dong_giay_buoc(vt: dict, *, buoc_idx: int, ten_buoc: str, ten_tp: str, sl: int,
-                    tram_vao: str | None, vao: float, sl_ra: float, tram_ra: str | None, xa: int,
-                    kho_mm: dict, ctx_vars: dict, warnings: list[str]) -> dict:
-    """Dòng tiền của MỘT dòng giấy ở bước (18/10/2026, spec 2026-10-18-luong-giay-theo-dau-vao-buoc).
+def _dong_song(song: dict, *, chain: list[dict], buoc: dict, to_sau_in: float, ten_tp: str, sl: int,
+               dai_in_m: float, rong_in_m: float, ctx_vars: dict, warnings: list[str]) -> dict:
+    """Dòng tiền SÓNG của sản phẩm (spec 2026-10-24-chuan-bi-giay §4). `buoc` = phân rã dòng giấy theo
+    chỉ số bước gốc; bước bồi ngoài dòng giấy (thiếu đơn vị) thì lấy tờ sau in."""
+    from ..models.cong_doan import CD_BOI
 
-    LƯỢNG theo đầu vào của chính bước — cùng hàm với lệnh (`kho_giay.dong_giay_theo_dau_vao`): nhận tờ
-    in / tờ nguyên ⇒ SL vào, đếm tờ; nhận con/cái/tay ⇒ kg theo khổ của thứ đó × SL vào; đầu vào "—"
-    ⇒ kg theo khổ tờ ra × SL ra (`sl_ra` = SL vào của bước kế tiếp, bên gọi tìm). TIỀN chạy CÔNG THỨC
-    GIÁ của chính mã giấy như cũ; ở bước ra kg, `to_nguyen`/`dai_nguyen`/`rong_nguyen` nhận số và khổ
-    của chính bước để công thức kg ra đúng kg × đơn giá."""
-    from .kho_giay import dong_giay_theo_dau_vao
-
-    ten = vt.get("ten") or "Giấy"
-    gsm = _f(vt.get("gsm"))
-    # Đếm nguyên chiếc như mọi chỗ khác của phiếu (bù hao ngược ra số lẻ).
-    vao, sl_ra = float(ceil(vao)), float(ceil(sl_ra))
-    d = dong_giay_theo_dau_vao(don_vi_vao=tram_vao, so_luong_vao=vao, so_luong_ra=sl_ra,
-                               quy_cach=kho_mm, gsm=gsm or None, tram_ra=tram_ra)
-    la_to = tram_vao in (TRAM_TO, TRAM_TO_NGUYEN)
-    don_gia = _f(vt.get("don_gia"))
-    don_vi = vt.get("don_vi_gia") or "to"
-    he_so = vt.get("he_so")
-    goc = vt.get("goc") or ("kg" if don_vi in ("kg", "tan") else "to")
-    formula = (vt.get("cong_thuc_gia") or "").strip() or (
-        "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen" if goc == "kg"
-        else "don_gia_giay * to_nguyen")
-    ctx = {**ctx_vars, "dinh_luong": gsm / 1000.0, "sl_vao": ceil(vao), "sl_ra": ceil(sl_ra),
-           "don_gia_giay": don_gia * float(he_so) if he_so is not None else _don_gia_co_so(don_gia, don_vi)}
-    ly_do: str | None = None
-    if la_to:
-        to_ng = ceil(vao) if tram_vao == TRAM_TO_NGUYEN else (ceil(ceil(vao) / xa) if vao > 0 else 0)
-        ctx.update(to_nguyen=to_ng, to_dau_vao=ceil(vao) if tram_vao == TRAM_TO else to_ng * xa)
-        ct_luong = "sl_vao"
-        luong = float(ceil(vao)) if vao > 0 else None
-        if luong is None:
-            ly_do = "bước này chưa có tờ giấy nào (số lượng sản phẩm = 0?)"
+    ten = song.get("ten") or "Sóng"
+    i_boi = next((i for i, r in enumerate(chain) if (r.get("cong_doan") or {}).get("ma") in CD_BOI), None)
+    if i_boi is None:
+        warnings.append(f"Thành phần '{ten_tp}': có sóng nhưng chuỗi chưa có bước bồi — chưa tính tiền sóng.")
+        so_to = 0
     else:
-        # Bước ra kg: khổ đã dùng tính kg + số của bước thế vào ba biến tờ nguyên của công thức giá.
-        # Thiếu khổ thì giữ khổ của phiếu — công thức giá theo tờ vẫn ra tiền, chỉ lượng kg để trống.
-        kr, kd = d["kho_tinh"]
-        so = ceil(sl_ra) if tram_vao not in (TRAM_CON, TRAM_CAI, TRAM_TAY) else ceil(vao)
-        to_ng = so
-        ctx["to_nguyen"] = so
-        if kr and kd:
-            ctx.update(dai_nguyen=kd / 1000.0, rong_nguyen=kr / 1000.0)
-        if tram_vao in (TRAM_CON, TRAM_CAI):
-            ct_luong = "dinh_luong * dai_tp * rong_tp * sl_vao"
-        elif tram_vao == TRAM_TAY:
-            ct_luong = "dinh_luong * dai_in * rong_in * sl_vao"
-        elif tram_ra == TRAM_TO and kho_mm.get("kho_in_dai") and kho_mm.get("kho_in_rong"):
-            ct_luong = "dinh_luong * dai_in * rong_in * sl_ra"
-        else:
-            ct_luong = "dinh_luong * dai_nguyen * rong_nguyen * sl_ra"
-        luong = d["so_luong"]
-        if luong is not None and luong <= 0:
-            luong, d["ly_do"] = None, "bước này chưa có số lượng (số lượng sản phẩm = 0?)"
-        ly_do = None if luong is not None else (d["ly_do"] or "chưa tính được lượng giấy")
-    if ly_do:
-        warnings.append(f"Thành phần '{ten_tp}': giấy '{ten}' ở công đoạn '{ten_buoc}' — "
-                        f"chưa tính được lượng giấy: {ly_do}.")
+        b = buoc.get(i_boi)
+        so_to = ceil(b["vao"]) if b else ceil(to_sau_in)
+    don_gia = _f(song.get("don_gia"))
+    don_vi = song.get("don_vi_gia") or "to"
+    he_so = song.get("he_so")
+    formula = (song.get("cong_thuc_gia") or "").strip() or (
+        "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen" if don_vi in ("kg", "tan")
+        else "don_gia_giay * to_nguyen")
+    ctx = {**ctx_vars, "dinh_luong": _f(song.get("gsm")) / 1000.0, "dai_nguyen": dai_in_m,
+           "rong_nguyen": rong_in_m, "to_nguyen": so_to,
+           "don_gia_giay": don_gia * float(he_so) if he_so is not None else _don_gia_co_so(don_gia, don_vi)}
     try:
         tien = safe_eval(formula, ctx)
         dan = _ct(format_substituted_formula(formula, ctx), tien, sl)
     except Exception as e:  # noqa: BLE001 — công thức người khai, lỗi gì cũng chỉ báo
-        warnings.append(f"Thành phần '{ten_tp}': lỗi công thức giấy '{ten}' ({e}) — tính 0đ.")
+        warnings.append(f"Thành phần '{ten_tp}': lỗi công thức sóng '{ten}' ({e}) — tính 0đ.")
         tien, dan = 0.0, "lỗi công thức — 0đ"
-    don_vi_luong = "to" if la_to else "kg"
     return {
-        "loai": "giay",
-        "hang_loai": "giay",
+        "loai": "song",
         "cong_thuc_goc": formula,
         "ten": _pre(ten_tp, ten),
-        "so_to": to_ng or 0,
+        "so_to": so_to,
         "don_gia": _r(don_gia),
         "thanh_tien": _r(tien),
         "gia_don_sp": _r(tien / sl) if sl > 0 else 0.0,
         "cong_thuc": dan,
-        "luong": round(luong, 4) if luong is not None else None,
-        "luong_don_vi": don_vi_luong if luong is not None else None,
-        "vat_tu_id": vt.get("vat_tu_id"),
-        "buoc_idx": buoc_idx,
-        "dinh_muc": round(luong, 4) if luong is not None else None,
-        "dinh_muc_don_vi": don_vi_luong,
-        "dinh_muc_ly_do": ly_do,
-        "dinh_muc_cong_thuc_goc": ct_luong,
-        "dinh_muc_cong_thuc": format_substituted_formula(ct_luong, ctx) if luong is not None else "",
-        # Khổ cạnh tên giấy: tờ in ⇒ khổ in, tờ nguyên ⇒ khổ nguyên, con/cái ⇒ khổ thành phẩm;
-        # bước đầu vào "—" KHÔNG hiện khổ (chốt 18/10/2026).
-        "kho_rong": d["kho_rong"] if d["hien_kho"] else 0,
-        "kho_dai": d["kho_dai"] if d["hien_kho"] else 0,
+        "vat_tu_id": song.get("vat_tu_id"),
     }
 
 
@@ -1164,16 +1197,13 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     rows: dict[str, list[dict]] = {k: [] for k in _NHOM}
 
     # --- Giấy (Nguyên vật liệu) ---
-    # 18/10/2026: giấy là VẬT TƯ CỦA BƯỚC (`vat_tus[].hang_loai == "giay"`) — mỗi dòng giấy một dòng
-    # tiền, tính trong vòng vật tư theo bước ngay dưới. Dòng giấy CẤP SẢN PHẨM ở đây chỉ còn cho
-    # dict không có dòng giấy nào ở bước mà vẫn mang giá giấy (chuỗi rỗng, test/script dựng tay).
+    # 24/10/2026 (spec 2026-10-24-chuan-bi-giay §4): giấy chọn MỘT lần ở SẢN PHẨM — một dòng tiền theo
+    # tờ nguyên của cả chuỗi. Bước không mang giấy nữa (khâu chuẩn bị giấy do lệnh tự dựng).
     # GỠ 2026-08-09 (Đợt 4 · K): nhánh "khách cấp giấy → 0đ". Cột `nguon_giay` còn trong DB nhưng
     # engine KHÔNG đọc nữa — mọi thành phần đều tính tiền giấy theo công thức.
-    co_giay_buoc = any(v.get("hang_loai") == "giay" for r in chain for v in (r.get("vat_tus") or []))
-    giay_cap_sp = not co_giay_buoc and (
-        _f(tp.get("don_gia_giay")) > 0 or bool((tp.get("cong_thuc_gia") or "").strip()))
-    if not co_giay_buoc and not giay_cap_sp:
-        warnings.append(f"Thành phần '{name}': chưa chọn giấy ở công đoạn nào — chưa tính tiền giấy.")
+    giay_cap_sp = _f(tp.get("don_gia_giay")) > 0 or bool((tp.get("cong_thuc_gia") or "").strip())
+    if not giay_cap_sp:
+        warnings.append(f"Thành phần '{name}': chưa chọn giấy — chưa tính tiền giấy.")
     don_gia_giay = _f(tp.get("don_gia_giay"))
     don_vi = tp.get("don_gia_don_vi", "to")
     giay_ten = tp.get("giay_ten") or tp.get("kho_nguyen") or "Giấy"
@@ -1216,6 +1246,15 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         "cong_thuc": _ct(format_substituted_formula(formula, eval_ctx), gia_giay, sl),
     }])
 
+    # --- Sóng (24/10/2026): dòng cấp sản phẩm. Số tờ = SL VÀO của bước bồi hệ thống ĐẦU TIÊN (tấm sóng
+    # bồi vào từng tờ in), khổ sóng = khổ in. Công thức giá của mã sóng chạy với `to_nguyen` = số tờ
+    # sóng và khổ in ở chỗ khổ nguyên; trống thì theo đơn vị giá: tờ ⇒ đơn giá × tờ, kg ⇒ kg × đơn giá.
+    song = tp.get("song")
+    if song:
+        rows["nvl"].append(_dong_song(song, chain=chain, buoc=buoc, to_sau_in=to_sau_in, ten_tp=name,
+                                      sl=sl, dai_in_m=dai_in_m, rong_in_m=rong_in_m,
+                                      ctx_vars=ctx_vars, warnings=warnings))
+
     # --- Vật tư THEO BƯỚC (01/10/2026): mỗi bước mang danh sách vật tư riêng + số chip nhập ở phiếu.
     # Vật tư → Nguyên vật liệu: thế biến vào CÔNG THỨC của vật tư
     # (HỆT giấy — công thức nằm ở danh mục vật tư, engine chỉ thế số). ---
@@ -1223,9 +1262,6 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     # 03/10/2026: công thức giá dùng ĐỦ bộ chip của công thức định mức, kể cả số của CHÍNH bước
     # (`sl_vao`/`sl_ra`/`so_luot_chay`/`so_mat`) — vật tư nay đứng ở bước nên có số đó, bơm y như
     # vòng công đoạn dưới đây. Kết quả công thức LÀ tiền — máy không tự nhân thêm gì.
-    # Khổ (mm) cho lượng giấy theo bước — cùng khoá `quy_cach` của lệnh để một hàm phục vụ cả hai.
-    _kho_mm = {"kho_nguyen_dai": kho_ng_d, "kho_nguyen_rong": kho_ng_r, "kho_in_dai": kho_in_d,
-               "kho_in_rong": kho_in_r, "dai_thanh_pham": dai_tp, "rong_thanh_pham": rong_tp}
     for idx_vt, r_buoc in enumerate(chain):
         _b_vt = buoc.get(idx_vt)
         _cd_vt = r_buoc.get("cong_doan") or {}
@@ -1241,21 +1277,6 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
             "so_mat": _so_mat_vt,
         }
         for vt in (r_buoc.get("vat_tus") or []):
-            if vt.get("hang_loai") == "giay":
-                if _b_vt:
-                    _g_vao, _g_ra, _g_tv, _g_tr = _b_vt["vao"], _b_vt["ra"], _b_vt["tram_vao"], _b_vt["tram_ra"]
-                else:
-                    # Bước đầu vào "—" (vd cắt từ cuộn): SL ra theo chuỗi bù hao ngược = SL vào của
-                    # bước KẾ TIẾP trên dòng giấy; không có thì tờ nguyên của cả chuỗi.
-                    _sau = next((buoc[j] for j in idx_giay if j > idx_vt), None)
-                    _g_vao, _g_tv = 0.0, None
-                    _g_ra, _g_tr = ((_sau["vao"], _sau["tram_vao"]) if _sau
-                                    else (float(to_nguyen), TRAM_TO_NGUYEN))
-                rows["nvl"].append(_dong_giay_buoc(
-                    vt, buoc_idx=idx_vt, ten_buoc=_ten_buoc(r_buoc), ten_tp=name, sl=sl,
-                    tram_vao=_g_tv, vao=_g_vao, sl_ra=_g_ra, tram_ra=_g_tr, xa=xa,
-                    kho_mm=_kho_mm, ctx_vars=ctx_vars, warnings=warnings))
-                continue
             vt_ten = vt.get("ten") or "Vật tư"
             vt_formula = vt.get("cong_thuc_gia")
             vt_don_gia = _f(vt.get("don_gia"))

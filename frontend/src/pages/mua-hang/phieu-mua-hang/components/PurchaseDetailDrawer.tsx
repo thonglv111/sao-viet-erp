@@ -91,6 +91,10 @@ export function PurchaseDetailDrawer({
   // "Nhập kho" nhảy sang màn Kho, tab Đề nghị nhập với form điền sẵn ⇒ hỏi đúng ô mở tab đó
   // (`kho:request`), KHÔNG phải `kho:create` — bộ phận mua hàng có `request` mà không có `create`.
   const coQuyenNhapKho = can("kho", "request");
+  // Lưu đợt giao = tạo luôn yêu cầu NHẬP kho (20/10/2026) ⇒ ghi / sửa / xoá đợt đòi cả ô đó — ma
+  // trận bày nó dưới dòng Mua hàng thành ô "Ghi đợt giao". Máy chủ gác y hệt.
+  const ghiDotDuoc = (row: PurchaseRequestRow) =>
+    canUpdate && coQuyenNhapKho && GHI_DOT_DUOC.includes(row.status);
 
   // Hạn mức và tiền đang nợ NCC (15/10/2026): trước đây chỉ ngăn Kế toán nạp, người lập đơn và đặt
   // cọc không biết NCC đã vượt hạn mức.
@@ -170,7 +174,7 @@ export function PurchaseDetailDrawer({
         )}
         {/* GHI ĐỢT GIAO — đường CHÍNH để hàng về vào hệ từ 06/08/2026. Hàng về tới đâu nợ tới đó;
             giao đủ thì phiếu tự lên "Đã nhận", không ai phải bấm. */}
-        {canUpdate && GHI_DOT_DUOC.includes(row.status) && (
+        {ghiDotDuoc(row) && (
           <Button
             variant="accent"
             onClick={() => setDeliveryModal({ row, delivery: null })}
@@ -209,7 +213,8 @@ export function PurchaseDetailDrawer({
       onMoLenh={onMoLenh}
       credit={credit}
       viecDot={{
-        ghiDuoc: canUpdate && GHI_DOT_DUOC.includes(selected.status),
+        ghiDuoc: ghiDotDuoc(selected),
+        ganHoaDonDuoc: canUpdate && GHI_DOT_DUOC.includes(selected.status),
         nhapKhoDuoc: canUpdate && coQuyenNhapKho,
         onSua: (delivery) => setDeliveryModal({ row: selected, delivery }),
         onXoa: (delivery) => setDeletingDelivery({ row: selected, delivery }),

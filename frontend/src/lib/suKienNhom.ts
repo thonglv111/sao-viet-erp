@@ -44,7 +44,9 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // Chấm đỏ thanh bên: AppShell hỏi lại tóm tắt, không màn nào phải nạp lại.
   thong_bao_man: [],
   notification_new: [],
-  san_xuat_vat_tu_de_nghi_changed: [],
+  cay_to_doi: [],
+  // Máy chủ gửi đích danh tổ của bước (`kem_ban_to`) ⇒ chỉ bàn tổ đó nạp lại cột Vật tư.
+  san_xuat_vat_tu_de_nghi_changed: ["san_xuat"],
   lsx_dinh_kem_changed: [],
 
   // Bán hàng: báo giá · đơn · chăm sóc khách.
@@ -62,11 +64,13 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
 
   // Nhân sự: nghỉ phép · tăng ca · chấm công · tạm ứng lương.
   advance_pending_changed: ["nhan_su"],
+  khoan_theo_to_changed: ["nhan_su"],
   advance_decision: ["nhan_su"],
   ot_pending_changed: ["nhan_su"],
   ot_decision: ["nhan_su"],
   leave_pending_changed: ["nhan_su"],
   leave_decision: ["nhan_su"],
+  profile_request_decision: ["nhan_su"],
   el_pending_changed: ["nhan_su"],
   el_decision: ["nhan_su"],
   adjust_pending_changed: ["nhan_su"],
@@ -89,6 +93,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   san_xuat_changed: ["san_xuat"],
   san_xuat_cong_viec_changed: ["san_xuat"],
   san_xuat_duoc_giao_viec: ["san_xuat"],
+  san_xuat_may_hu_to_khac: ["san_xuat"],
   san_xuat_ban_giao_changed: ["san_xuat"],
   san_xuat_ban_giao: ["san_xuat"],
   san_xuat_kcs_changed: ["san_xuat"],
@@ -105,9 +110,6 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   department_purchase_request_created: ["mua_ke_toan", "khvt"],
   sales_invoice_created: ["mua_ke_toan", "ban_hang"],
   sales_invoice_cancelled: ["mua_ke_toan", "ban_hang"],
-  // Hóa đơn điều chỉnh giảm (hoàn chiết khấu): ngăn đơn + Công nợ phải thu + Phiếu chi (chờ trả lại).
-  sales_invoice_adjusted: ["mua_ke_toan", "ban_hang"],
-  sales_invoice_adjustment_cancelled: ["mua_ke_toan", "ban_hang"],
   sales_invoice_receipt_created: ["mua_ke_toan", "ban_hang"],
   purchase_pending_approval: ["mua_ke_toan", "khvt"],
   purchase_decision: ["mua_ke_toan", "khvt"],
@@ -130,6 +132,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
 
   // Kỹ thuật máy.
   ky_thuat_yeu_cau_moi: ["ky_thuat"],
+  ky_thuat_phieu_bao_lai: ["ky_thuat"],
   ky_thuat_yeu_cau_ket_qua: ["ky_thuat"],
   bao_tri_due: ["ky_thuat"],
 

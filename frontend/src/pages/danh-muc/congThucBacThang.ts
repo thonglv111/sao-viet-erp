@@ -12,9 +12,17 @@ export const HAM_TACH_DONG = ["if", "max", "min"];
 /** Một bậc = một lệnh `if` đủ bộ: `if ( điều kiện , nếu đúng , nếu sai )`. Chỉ số là vị trí token. */
 export type Bac = { ifIdx: number; open: number; phay1: number; phay2: number; close: number };
 
+/** Vai của một dòng trong BẢNG Khi | Lấy (phương án C, 22/10/2026): dòng ĐẦU của điều kiện bậc
+ *  `bac`, của vế lấy, của vế "còn lại", và dòng ngoặc đóng cả chuỗi. `chuoi` = vị trí chữ `if` đầu
+ *  chuỗi. Một dòng mang được nhiều vai (vế lấy của chuỗi ngoài mở đầu bằng điều kiện chuỗi trong). */
+export type VaiDong = { chuoi: number; vai: "khi" | "lay" | "con_lai" | "dong"; bac?: number };
+
 /** Một DÒNG hiển thị = đoạn token liên tục [start, end) ở cấp thụt `cap`. `nhan` là nhãn mờ bên
- *  phải (không phải token, không lưu). `bac` chỉ có ở dòng điều kiện của một `if` đủ bộ. */
-export type Dong = { start: number; end: number; cap: number; nhan?: string; dieuKien?: boolean; bac?: Bac };
+ *  phải (không phải token, không lưu). `bac` chỉ có ở dòng điều kiện của một `if` đủ bộ. `vai` chỉ
+ *  có khi cả chuỗi if đủ bộ và đứng đầu dòng — đủ điều kiện vẽ thành bảng. */
+export type Dong = {
+  start: number; end: number; cap: number; nhan?: string; dieuKien?: boolean; bac?: Bac; vai?: VaiDong[];
+};
 
 /** Vị trí ngoặc khớp của từng token `(`/`)`; `-1` = không có cặp (hoặc không phải ngoặc). */
 export function khopNgoac(toks: string[]): number[] {
@@ -64,14 +72,26 @@ const laGoi = (toks: string[], i: number, to: number, ds: string[]) =>
  *  Mọi trường hợp khác (`if` ở vế đúng, `if` giữa phép tính, `max/min`) giữ đúng cách thụt cũ. Các
  *  dòng phủ kín dãy token theo đúng thứ tự — con trỏ vẫn là một chỉ số trên mảng phẳng. */
 export function tinhDong(toks: string[]): Dong[] {
+  return tinhDongDoan(toks, 0, toks.length);
+}
+
+/** Như `tinhDong` nhưng chỉ cắt đoạn [from, to) — mỗi PHẦN của phương án C tự bậc thang riêng.
+ *  `ham` = hàm nào được tách dòng theo tham số (trong một phần đã ngắn thì chỉ cần `if`). */
+export function tinhDongDoan(toks: string[], from: number, to: number, ham: string[] = HAM_TACH_DONG): Dong[] {
   const khop = khopNgoac(toks);
   const out: Dong[] = [];
   // Nhãn của THAM SỐ đang vẽ ("nếu đúng", "còn lại"…) — gắn vào dòng ĐẦU TIÊN tham số đó sinh ra.
   let nhanCho: string | undefined;
+  // Vai trong bảng Khi | Lấy — cũng gắn vào dòng đầu tiên sinh ra, cộng dồn với vai riêng của dòng.
+  let vaiCho: VaiDong[] = [];
   const day = (d: Dong) => {
     if (nhanCho !== undefined) {
       d.nhan = nhanCho;
       nhanCho = undefined;
+    }
+    if (vaiCho.length) {
+      d.vai = [...vaiCho, ...(d.vai ?? [])];
+      vaiCho = [];
     }
     out.push(d);
   };
@@ -82,15 +102,17 @@ export function tinhDong(toks: string[]): Dong[] {
       if (end > dau) day({ start: dau, end, cap, ...them });
       dau = end;
     };
-    const veThamSo = (a: ThamSo, capCon: number, nhan?: string) => {
+    const veThamSo = (a: ThamSo, capCon: number, nhan?: string, vai?: VaiDong) => {
       nhanCho = nhan;
+      if (vai) vaiCho.push(vai);
       ve(a.start, a.end, capCon);
       nhanCho = undefined;
+      vaiCho = [];
     };
 
     let i = from;
     while (i < to) {
-      if (!laGoi(toks, i, to, HAM_TACH_DONG)) { i++; continue; }
+      if (!laGoi(toks, i, to, ham)) { i++; continue; }
       const open = i + 1;
       const close = khop[open] > open && khop[open] < to ? khop[open] : -1;
       const het = close >= 0 ? close : to;
@@ -119,24 +141,36 @@ export function tinhDong(toks: string[]): Dong[] {
       }
 
       const n = chuoi.length;
+      const id = chuoi[0].ifIdx;
+      // Bảng chỉ khi MỌI bậc đủ bộ, bậc cuối có vế còn lại, và chữ `if` đứng đầu dòng (`700000 + if(…)`
+      // thì phần trước if ở chung dòng điều kiện, kẻ bảng sẽ xé nó ra).
+      const bang = dau === i && chuoi.every((m) => m.close >= 0 && m.ts.length === 3
+        && m.ts[0].phay >= 0 && m.ts[1].phay >= 0);
+      const vai = (v: VaiDong["vai"], bac?: number): VaiDong | undefined =>
+        bang ? { chuoi: id, vai: v, bac } : undefined;
       chuoi.forEach((m, j) => {
         const [dk, dung, sai, ...thua] = m.ts;
         const bac = dk && dung && sai && dk.phay >= 0 && dung.phay >= 0 && m.close >= 0
           ? { ifIdx: m.ifIdx, open: m.open, phay1: dk.phay, phay2: dung.phay, close: m.close }
           : undefined;
         const nhanDk = n > 1 ? `điều kiện ${j + 1}` : "điều kiện";
+        const vaiKhi = vai("khi", j);
+        const them: Partial<Dong> = { dieuKien: true, nhan: nhanDk, bac, ...(vaiKhi ? { vai: [vaiKhi] } : {}) };
         if (dk && dk.phay >= 0
-          && !toks.slice(dk.start, dk.end).some((_, x) => laGoi(toks, dk.start + x, dk.end, HAM_TACH_DONG))) {
-          chot(dk.end, { dieuKien: true, nhan: nhanDk, bac });
+          && !toks.slice(dk.start, dk.end).some((_, x) => laGoi(toks, dk.start + x, dk.end, ham))) {
+          chot(dk.end, them);
         } else {
-          chot(m.open + 1, { dieuKien: true, nhan: nhanDk, bac });
+          chot(m.open + 1, them);
           if (dk) veThamSo(dk, cap + 1);
         }
         dau = Math.max(dau, dk ? dk.end : m.open + 1);
-        if (dung) { veThamSo(dung, cap + 1, "nếu đúng"); dau = Math.max(dau, dung.end); }
+        if (dung) { veThamSo(dung, cap + 1, "nếu đúng", vai("lay", j)); dau = Math.max(dau, dung.end); }
         // Bậc không phải bậc cuối: tham số thứ ba chính là `if` kế tiếp, vẽ ở vòng sau cùng cấp.
         if (j === n - 1) {
-          if (sai) { veThamSo(sai, cap + 1, n > 1 ? "còn lại" : "nếu sai"); dau = Math.max(dau, sai.end); }
+          if (sai) {
+            veThamSo(sai, cap + 1, n > 1 ? "còn lại" : "nếu sai", vai("con_lai"));
+            dau = Math.max(dau, sai.end);
+          }
           for (const a of thua) { veThamSo(a, cap + 1); dau = Math.max(dau, a.end); }
         }
       });
@@ -146,6 +180,8 @@ export function tinhDong(toks: string[]): Dong[] {
       if (trong >= 0 && ngoai >= 0) {
         dau = trong;        // dòng `) ) )` bắt đầu ở ngoặc đóng TRONG CÙNG
         i = ngoai + 1;
+        const vaiDong = vai("dong");
+        if (vaiDong) vaiCho.push(vaiDong);
       } else {
         dau = Math.max(dau, to);
         i = to;
@@ -154,7 +190,7 @@ export function tinhDong(toks: string[]): Dong[] {
     chot(to);
   };
 
-  ve(0, toks.length, 0);
+  ve(from, to, 0);
   return out;
 }
 
@@ -253,6 +289,14 @@ export function boDau(s: string): string {
  *
  *  Hai thói quen của Excel tiếng Việt — `;` ngăn tham số, `IF` viết hoa — CHỈ BÁO, không tự sửa
  *  (chủ chốt 29/09/2026): câu báo nói luôn cách sửa. */
+/** Hai token đứng liền mà thiếu dấu ở giữa: `3 0`, `( … ) 3`, `so_kem 2`. Tên hàm đứng trước ngoặc
+ *  của nó thì không tính. */
+export function lienNhau(a: string | undefined, b: string | undefined, ham: string[]): boolean {
+  if (a === undefined || b === undefined) return false;
+  const ketThuc = a === ")" || /^\d/.test(a) || (LA_TEN.test(a) && !ham.includes(a));
+  return ketThuc && (b === "(" || /^\d/.test(b) || LA_TEN.test(b));
+}
+
 export function kiemCongThuc(
   toks: string[], bienHopLe: string[] | null, ham: string[],
 ): { loi: string | null; idx: number | null } {
@@ -282,11 +326,21 @@ export function kiemCongThuc(
     return { loi: `Ký tự "${t}" không đọc được`, idx: i };
   }
 
+  const cuoi = toks[toks.length - 1];
+  if (cuoi && ["+", "-", "*", "/"].includes(cuoi)) {
+    return { loi: `Công thức đang dừng ở dấu "${cuoi}" — gõ tiếp phần đứng sau`, idx: toks.length - 1 };
+  }
+
   const khop = khopNgoac(toks);
   const thua = toks.findIndex((t, i) => t === ")" && khop[i] < 0);
   if (thua >= 0) return { loi: "Thừa dấu đóng ngoặc", idx: thua };
   const thieu = toks.findIndex((t, i) => t === "(" && khop[i] < 0);
   if (thieu >= 0) return { loi: "Thiếu dấu đóng ngoặc", idx: thieu };
+
+  const lien = toks.findIndex((t, i) => lienNhau(t, toks[i + 1], ham));
+  if (lien >= 0) {
+    return { loi: `Thiếu dấu giữa "${toks[lien]}" và "${toks[lien + 1]}" — thêm + − × ÷ vào giữa`, idx: lien + 1 };
+  }
 
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];

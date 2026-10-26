@@ -153,8 +153,15 @@ def test_gop_bg2_chi_ke_thua_nhan_dien_danh_muc_don_vi_va_thu_tu(
     assert (chung.don_vi_vao, chung.don_vi_ra, chung.thu_tu) == (
         mau.don_vi_vao, mau.don_vi_ra, mau.thu_tu,
     )
-    assert chung.department_id is None
-    assert chung.may_id is None
+    # Tổ/máy KHÔNG bê của lệnh mẫu (123/456): lượt chung nhận máy mặc định của công đoạn, tổ đi
+    # theo máy (máy thuộc tổ, mg `0435`).
+    from app.models.cong_doan import CongDoan
+    from app.services.may_to import to_cho_may
+
+    cd = db.get(CongDoan, mau.cong_doan_id)
+    assert chung.may_id == cd.may_lam_duoc[0].may_id
+    assert chung.department_id == to_cho_may(db, cd, chung.may_id, uu_tien=None)
+    assert (chung.department_id, chung.may_id) != (123, 456)
     assert chung.nha_cung_cap is None
     # Số giờ kế hoạch là số của TỪNG lệnh — lượt chung khai lại từ 0, không bê của lệnh mẫu.
     assert float(chung.so_gio_ke_hoach) == 0
@@ -381,7 +388,7 @@ def test_gop_dien_may_cho_luot_chung(db, orders, lsx_svc, admin, customer):
     """Lượt chạy chung không ra đời trống máy (12/10/2026): các bước gộp cùng một máy ⇒ giữ máy đó;
     khác máy ⇒ máy mặc định của công đoạn (máy còn dùng đứng đầu danh sách)."""
     from app.models.cong_doan import CongDoan, CongDoanMay
-    from app.models.may_thiet_bi import MayThietBi
+    from app.models.may_thiet_bi import MayThietBi, MayTo
 
     a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
     svc = _bg2_svc(db)
@@ -396,10 +403,12 @@ def test_gop_dien_may_cho_luot_chung(db, orders, lsx_svc, admin, customer):
     db.add_all([m1, m2])
     db.flush()
     cd = db.get(CongDoan, sa.cong_doan_id)
-    cd.may_lam_duoc.clear()
+    for d in cd.department_ids:   # máy thuộc tổ của công đoạn (mg 0435)
+        db.add_all([MayTo(may_id=m1.id, department_id=d), MayTo(may_id=m2.id, department_id=d)])
+    cd.may_khai.clear()
     db.flush()
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m2.id, thu_tu=0))
-    cd.may_lam_duoc.append(CongDoanMay(may_id=m1.id, thu_tu=1))
+    cd.may_khai.append(CongDoanMay(may_id=m2.id, thu_tu=0))
+    cd.may_khai.append(CongDoanMay(may_id=m1.id, thu_tu=1))
     sa.may_id, sb.may_id = m1.id, None
     db.commit()
 

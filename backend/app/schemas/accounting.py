@@ -247,7 +247,8 @@ class CocChoThuOut(BaseModel):
     order_code: str
     customer_id: int | None = None
     customer_name: str | None = None
-    deposit_pct: float
+    deposit_pct: float | None = None
+    deposit_amount: int | None = None
     can_thu: int
     da_thu: int
     con_thieu: int
@@ -279,16 +280,6 @@ class DonHangChoThuOut(BaseModel):
     hoa_don: list[HoaDonChoThuOut]
 
 
-class HoaDonDieuChinhRefOut(BaseModel):
-    """Hóa đơn điều chỉnh giảm — chứng từ gốc của khoản hoàn chiết khấu (18/10/2026)."""
-    id: int
-    so_hoa_don: str
-    ngay: date
-    so_tien: int
-    ly_do: str | None = None
-    hoa_don_goc: str
-
-
 class TraLaiKhachChoChiOut(BaseModel):
     """Một dòng "Chờ trả lại khách" của màn Phiếu chi — đơn hết chỗ ghi hoá đơn mà tiền khách còn dư."""
     order_id: int
@@ -297,9 +288,9 @@ class TraLaiKhachChoChiOut(BaseModel):
     customer_id: int | None = None
     customer_name: str | None = None
     hoa_don_huy: list[str] = []
-    hoa_don_dieu_chinh: list[HoaDonDieuChinhRefOut] = []
     da_tra_lai: int
     con_lai: int
+    tinh_trang: str | None = None
 
 
 class GiaCongChoChiDemOut(BaseModel):
@@ -328,6 +319,59 @@ class PhieuChiGopIn(BaseModel):
     contract_number: str | None = Field(default=None, max_length=64)
     company_bank_account_id: int | None = Field(default=None, gt=0)
     supplier_bank_account_id: int | None = Field(default=None, gt=0)
+    cash_recipient_name: str | None = Field(default=None, max_length=255)
+    cash_recipient_address: str | None = Field(default=None, max_length=500)
+    cash_recipient_identity: str | None = Field(default=None, max_length=64)
+    beneficiary_account_holder: str | None = Field(default=None, max_length=255)
+    beneficiary_account_number: str | None = Field(default=None, max_length=64)
+    beneficiary_bank_name: str | None = Field(default=None, max_length=255)
+    beneficiary_bank_branch: str | None = Field(default=None, max_length=255)
+    bank_fee_bearer: str | None = Field(default=None, max_length=16)
+    debit_account: str | None = Field(default=None, max_length=64)
+    credit_account: str | None = Field(default=None, max_length=64)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+# --- Chi chiết khấu / kê theo hóa đơn đã thu đủ (20/10/2026) ---
+
+
+class CkKeChoChiRow(BaseModel):
+    sales_invoice_id: int
+    invoice_symbol: str | None = None
+    invoice_number: str
+    invoice_date: date
+    order_id: int
+    order_code: str
+    customer_id: int | None = None
+    customer_name: str
+    #: `chiet_khau` | `ke_gia`.
+    loai: str
+    #: Tiền CK / kê của hóa đơn (trước VAT); `thue_tndn` chỉ có ở kê.
+    tien: int
+    thue_tndn: int = 0
+    phai_chi: int
+    da_chi: int
+    con: int
+
+
+class CkKeChoChiOut(BaseModel):
+    items: list[CkKeChoChiRow]
+
+
+class PhieuChiCkKeDongIn(BaseModel):
+    sales_invoice_id: int = Field(gt=0)
+    amount: int = Field(gt=0)
+
+
+class PhieuChiCkKeIn(BaseModel):
+    loai: str = Field(pattern="^(chiet_khau|ke_gia)$")
+    dong: list[PhieuChiCkKeDongIn] = Field(min_length=1, max_length=50)
+    voucher_type: str = Field(min_length=1, max_length=24)
+    voucher_date: date
+    #: Bỏ trống thì máy đặt "Chi chiết khấu hóa đơn …".
+    content: str | None = Field(default=None, max_length=500)
+    company_bank_account_id: int | None = Field(default=None, gt=0)
+    #: Chiết khấu: máy khoá theo tên khách. Kê: bắt buộc gõ.
     cash_recipient_name: str | None = Field(default=None, max_length=255)
     cash_recipient_address: str | None = Field(default=None, max_length=500)
     cash_recipient_identity: str | None = Field(default=None, max_length=64)
@@ -622,33 +666,6 @@ class CancelSalesInvoiceIn(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
-class DieuChinhIn(BaseModel):
-    """Ghi nhận hóa đơn điều chỉnh GIẢM của một hóa đơn bán (18/10/2026). Số / ký hiệu do phần mềm
-    hóa đơn điện tử cấp. `amount_vnd` bỏ trống = phần chiết khấu gợi ý còn chưa điều chỉnh."""
-
-    adj_symbol: str = Field(min_length=1, max_length=64)
-    adj_number: str = Field(min_length=1, max_length=64)
-    adj_date: date
-    amount_vnd: int | None = Field(default=None, gt=0)
-    reason: str | None = Field(default=None, max_length=500)
-
-
-class DieuChinhOut(BaseModel):
-    id: int
-    sales_invoice_id: int
-    order_id: int
-    adj_symbol: str
-    adj_number: str
-    adj_date: date
-    amount_vnd: int
-    reason: str | None = None
-    status: str
-    created_by_name: str | None = None
-    created_at: datetime
-    cancelled_at: datetime | None = None
-    cancel_reason: str | None = None
-
-
 class SalesInvoiceOut(BaseModel):
     id: int
     order_id: int
@@ -668,11 +685,6 @@ class SalesInvoiceOut(BaseModel):
     remaining_amount: int = 0
     #: Tiền trả lại khách không gắn đơn cộng nợ lại vào hoá đơn này (17/10/2026).
     hoan_khong_don: int = 0
-    #: Tổng hóa đơn điều chỉnh giảm còn hiệu lực (18/10/2026); phải thu = `amount_vnd` − số này.
-    dieu_chinh_amount: int = 0
-    #: Phần chiết khấu của đơn rơi vào hóa đơn này mà chưa điều chỉnh — số điền sẵn khi lập điều chỉnh.
-    ck_goi_y: int = 0
-    dieu_chinh: list[DieuChinhOut] = []
     created_by_user_id: int | None = None
     created_by_name: str | None = None
     created_at: datetime
@@ -682,6 +694,13 @@ class SalesInvoiceOut(BaseModel):
     cancel_reason: str | None = None
     delivery_trip_id: int | None = None
     luot_giao_ma: str | None = None
+    # Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT; kê chi lại sau khi trừ thuế TNDN.
+    chiet_khau: int = 0
+    ke_gia: int = 0
+    ke_thue_tndn_pct: float | None = None
+    ke_thue_tndn: int = 0
+    ck_da_chi: int = 0
+    ke_da_chi: int = 0
 
 
 class LuotGiaoHoaDonOut(BaseModel):
@@ -1094,7 +1113,7 @@ class ReceivableReceiptOut(BaseModel):
 class TienDangDeOut(BaseModel):
     """Một đơn còn đang để tiền khách (cọc + tiền hoá đơn đã huỷ − đã trả lại − đã trừ vào hoá
     đơn, 17/10/2026) — khối "Tiền khách đang để" của ngăn Công nợ phải thu. `con_lai` > 0 thì
-    lập phiếu trả lại theo đơn; `tinh_trang`: don_huy / ghi_du / cho_tru."""
+    lập phiếu trả lại theo đơn; `tinh_trang`: don_huy / ghi_du / coc_vuot / cho_tru."""
 
     order_id: int
     order_code: str

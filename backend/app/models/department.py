@@ -80,14 +80,14 @@ class Department(Base):
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
     # TỔ IN (mg 0304, khách chốt 15/09/2026). Thợ in ăn khoán thì ngày CN / lễ đi làm KHÔNG có công
-    # gốc: cả 2 / 3 / 5 công trả ở phần THÊM, và bù lỗ theo công không đếm ngày đó (sản lượng ngày
-    # đó vẫn vào tiền khoán). KHÔNG kế thừa xuống cây con — đặt đích danh từng tổ, như
-    # `la_giao_hang`. Cờ chỉ đổi tiền khi tổ bật Lương khoán.
+    # gốc: cả 2 / 3 / 5 công trả ở phần THÊM, và bù lỗ theo công không đếm ngày đó; sản lượng ngày
+    # đó KHÔNG tính (luật engine 21/10/2026, `khoan_ky.py` hệ số 0). KHÔNG kế thừa xuống cây con —
+    # đặt đích danh từng tổ, như `la_giao_hang`. Cờ chỉ đổi tiền của người tổ này ăn khoán.
     la_to_in: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
-    # TỔ CẮT (mg 0355, spec giấy theo khổ §4.6). Lệnh có giấy sau phát hành tới tổ này để chốt chèn
-    # bước cắt đầu tuyến hay không cắt. Đích danh — KHÔNG kế thừa cây con, như `la_to_in`.
+    # TỔ CẮT (mg 0355). KHÔNG CÒN DÙNG từ 18/10/2026: khâu tổ Cắt chốt giấy sau phát hành đã gỡ,
+    # giấy nằm ở bước nào thì bước đó lấy. Giữ cột để DB cũ khỏi phải DROP; không đọc, không ghi.
     la_to_cat: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )

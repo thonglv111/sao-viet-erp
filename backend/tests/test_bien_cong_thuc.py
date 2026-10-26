@@ -97,7 +97,13 @@ def test_bon_o_dung_chung_bo_bien_va_hai_chip_rieng_cua_buoc():
     RIENG_QUY_DOI = {"dinh_luong", "don_gia_khoan"}
     dem = {loai: len(bien_cho(loai)) for loai in LOAI}
     # 16/10/2026: +1 mọi ô — `so_mau_phu` (Số màu phủ giấy) giữ nghĩa cũ của `so_mau`, nay là số kẽm.
-    assert dem == {LOAI_GIAY: 20, LOAI_VAT_TU: 23, LOAI_CONG_DOAN: 20, LOAI_QUY_DOI: 23}, dem
+    # 21/10/2026: ô Công thức khoán = bộ quy đổi + chip của lần ghi. Đợt 2 gỡ sl_tot (sl_ghi đã là
+    # số tốt), thêm so_lan_chay · tien_gio · tu_tro ⇒ sl_ghi · gia_co_dinh · ba chip mới.
+    # 22/10/2026: + gia_gom_uv (bậc giá Pantone UV đã gồm UV).
+    # 24/10/2026: + so_lan_thu_viec, chay_tiep (máy tự dò, không tick).
+    # 26/10/2026: + trung_khuon, khuon_moi (dò từ dao của bước lệnh, thôi là tuỳ chọn tick).
+    assert dem == {LOAI_GIAY: 20, LOAI_VAT_TU: 23, LOAI_CONG_DOAN: 20, LOAI_QUY_DOI: 23,
+                   "khoan": 33}, dem
 
     chung = ma_hop_le(LOAI_CONG_DOAN) - CUA_BUOC    # 17 biến ai cũng có
     assert {"so_trang", "trang_moi_tay"} <= chung, "hai chip quy cách sách phải có ở MỌI ô"

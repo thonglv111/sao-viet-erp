@@ -19,7 +19,7 @@ from ..models.user import User
 from ..schemas.phieu_tinh_gia import PhieuTinhGiaCreate
 from ..services.thanh_phan_engine import binh_bai_layout, chua_theo_chieu
 from ..services.tinh_gia_service import compute_phieu_snapshot
-from .phieu_tinh_gia import _build_thanh_phan, nhom_cua_payload
+from .phieu_tinh_gia import _build_thanh_phan
 
 router = APIRouter(prefix="/api/tinh-gia", tags=["tinh-gia"])
 MODULE = "tinh_gia_thanh"
@@ -85,9 +85,8 @@ def preview(
     An toàn: KHÔNG `db.add` phiếu (transient), session autoflush=False → không insert; `rollback` cuối
     dọn sạch mọi thao tác đọc/resolve. Chỉ đọc danh mục (giấy/công đoạn/vật tư/bù hao)."""
     phieu = PhieuTinhGia(ma="__preview__", so_luong=int(payload.so_luong or 0))
-    nhom_cua = nhom_cua_payload(db, payload.thanh_phans)
     for i, tp_in in enumerate(payload.thanh_phans or []):
-        phieu.thanh_phans.append(_build_thanh_phan(tp_in, i, nhom_cua))
+        phieu.thanh_phans.append(_build_thanh_phan(tp_in, i))
     result = compute_phieu_snapshot(db, phieu)
     db.rollback()
     return result

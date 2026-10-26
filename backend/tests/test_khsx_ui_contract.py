@@ -363,7 +363,8 @@ def test_o_giay_o_lenh_da_go_han_khong_con_cua_doi() -> None:
     """
     source = DETAIL.read_text(encoding="utf-8")
 
-    assert '<KV k="Giấy" v={s("giay_ten")} />' in source
+    # [19/10/2026] Ô Giấy kể MỌI giấy khai ở các bước (`giays`), vẫn chỉ-xem — không ô chọn.
+    assert 'k="Giấy"' in source and "giays.map(" in source
     assert "giayChonDuoc" not in source
     assert "giayNeoId" not in source
     assert "thay_the_ids" not in source

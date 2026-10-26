@@ -474,11 +474,10 @@ def test_dept_components_default_view_and_rbac(client):
     res = client.get(f"/api/luong/dept-components/{dept_id}", headers=_h(token))
     assert res.status_code == 200
     items = {c["component_key"]: c for c in res.json()["items"]}
-    # Bậc lương gỡ hẳn (luong_bac) + 3 phụ cấp chuyển sang KHAI TAY theo NV + KPI xoá 29/07/2026
-    # (chủ: xưởng không chấm KPI) → còn 3 khoản.
-    assert set(items) == {"chuyen_can", "luong_khoan", "tang_ca"}
+    # Bậc lương gỡ hẳn (luong_bac) + 3 phụ cấp chuyển sang KHAI TAY theo NV + KPI xoá 29/07/2026;
+    # công tắc Lương khoán / Tăng ca gỡ 20/10/2026 (khối SX tính 2 lương) → còn chuyên cần.
+    assert set(items) == {"chuyen_can"}
     assert items["chuyen_can"]["is_set"] is False
-    assert items["luong_khoan"]["is_enabled"] is False   # soi cờ departments.has_piece_work
     assert client.get(f"/api/luong/dept-components/{dept_id}",
                       headers=_h(_sales_token())).status_code == 403
     assert client.put(f"/api/luong/dept-components/{dept_id}",
@@ -586,53 +585,8 @@ def test_late_penalty_brackets_rbac(client):
     client.delete(f"/api/luong/late-penalty-brackets/{created.json()['id']}", headers=_h(updater))
 
 
-def test_luong_khoan_component_mirrors_department_flag(client):
-    """`luong_khoan` chỉ phơi lại cờ `departments.has_piece_work` — không dựng nguồn thứ 2."""
-    token = _admin_token(client)
-    dept_id = _dept_id("Kinh doanh")
-    client.put(f"/api/luong/dept-components/{dept_id}", json={
-        "items": [{"component_key": "luong_khoan", "is_enabled": True}]}, headers=_h(token))
-    db = SessionLocal()
-    try:
-        assert DepartmentRepository(db).get_by_id(dept_id).has_piece_work is True
-    finally:
-        db.close()
-    client.put(f"/api/luong/dept-components/{dept_id}", json={
-        "items": [{"component_key": "luong_khoan", "is_enabled": False}]}, headers=_h(token))
-    db = SessionLocal()
-    try:
-        assert DepartmentRepository(db).get_by_id(dept_id).has_piece_work is False
-    finally:
-        db.close()
-
-
-def test_khoan_va_tang_ca_DOC_LAP(client):
-    """Khoán ⟷ Tăng ca KHÔNG loại trừ nhau ở CẤU HÌNH — bật CẢ HAI được (đảo 17/08/2026, giữ nguyên).
-
-    14/09/2026 chủ chốt thêm: người ăn khoán KHÔNG có tiền GIỜ tăng ca (engine, `_che_do_khoan`) —
-    nhưng công tắc Tăng ca của tổ khoán VẪN có nghĩa: nó quyết cơm tăng ca và phần thêm làm nguyên
-    ngày CN/lễ. Nên bật khoán KHÔNG được tự tắt Tăng ca. Test này canh không ai dựng lại luật loại trừ."""
-    token = _admin_token(client)
-    dept_id = _dept_id("Kinh doanh")
-
-    def _state():
-        items = {c["component_key"]: c for c in client.get(
-            f"/api/luong/dept-components/{dept_id}", headers=_h(token)).json()["items"]}
-        return items["luong_khoan"]["is_enabled"], items["tang_ca"]["is_enabled"]
-
-    # Bật CẢ hai → GIỮ NGUYÊN cả hai, backend KHÔNG ép tắt cái nào.
-    client.put(f"/api/luong/dept-components/{dept_id}", json={"items": [
-        {"component_key": "luong_khoan", "is_enabled": True},
-        {"component_key": "tang_ca", "is_enabled": True},
-    ]}, headers=_h(token))
-    assert _state() == (True, True)
-
-    # Tắt khoán + bật tăng ca → vẫn đúng như khai.
-    client.put(f"/api/luong/dept-components/{dept_id}", json={"items": [
-        {"component_key": "luong_khoan", "is_enabled": False},
-        {"component_key": "tang_ca", "is_enabled": True},
-    ]}, headers=_h(token))
-    assert _state() == (False, True)
+# `test_luong_khoan_component_mirrors_department_flag` + `test_khoan_va_tang_ca_DOC_LAP` GỠ 20/10/2026:
+# hai công tắc không còn (xem `tests/test_hai_luong_khoi_sx.py::test_CO_CHE_LUONG_chi_con_cong_tac_chuyen_can`).
 
 
 # --- migration 0076 (DB CŨ → có cột mới, idempotent) -------------------------

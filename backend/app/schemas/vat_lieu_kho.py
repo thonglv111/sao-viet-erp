@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Generic, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,6 +49,8 @@ class GiayIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)
     ten: str = Field(min_length=1, max_length=150)
     gsm: int = Field(gt=0)
+    # Loại Giấy / Sóng (mg 0426) — luật "tối đa 1 mỗi loại" ở tính giá + lệnh bám vào đây.
+    loai: Literal["giay", "song"] = "giay"
     caliper_micron: int | None = None
     tho: str | None = None
     # Mã đơn vị trong `don_vi_do`. None/"" = chưa chọn — KHÔNG mặc định "kg" nữa: đơn vị gốc quyết
@@ -56,7 +58,8 @@ class GiayIn(BaseModel):
     don_vi_gia: str | None = None
     # Đơn vị khai thêm ngoài ĐVT chính (mg 0390). Vắng = không đụng; [] / None = chỉ ĐVT chính.
     don_vi_them: list[str] | None = None
-    don_gia: float = Field(default=0, ge=0)
+    # None = ô giá bị che (người sửa không có ô Xem giá) — router giữ giá cũ (L-SX-39).
+    don_gia: float | None = Field(default=0, ge=0)
     gia_thi_truong: float | None = None
     kho_tinh_gia: bool = True
     ghi_chu: str | None = None
@@ -70,6 +73,7 @@ class GiayRow(BaseModel):
     ma: str
     ten: str
     gsm: int
+    loai: str = "giay"
     caliper_micron: int | None = None
     tho: str | None = None
     don_vi_gia: str | None = None
@@ -77,7 +81,8 @@ class GiayRow(BaseModel):
     don_vi_them: list[str] | None = None
     # Tên đơn vị để BẢNG đọc được ("bản kẽm" thay vì mã `kem`) — router gán, không có trong DB.
     don_vi_ten: str | None = None
-    don_gia: float
+    # None = người xem không có ô Xem giá (máy chủ che, L-SX-39).
+    don_gia: float | None = None
     gia_thi_truong: float | None = None
     kho_tinh_gia: bool
     ghi_chu: str | None = None
@@ -213,6 +218,7 @@ class MatHangRow(BaseModel):
     ma: str
     ten: str
     don_vi_goc: str | None = None
+    dinh_luong: int | None = None   # gsm — chỉ giấy
 
 
 class DonViDungDuocRow(BaseModel):

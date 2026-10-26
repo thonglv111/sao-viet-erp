@@ -1,7 +1,7 @@
 """Giấy trong kho mang KHỔ + ĐƠN VỊ GỐC — giấy KHÔNG còn dạng cuộn/tờ (10/10/2026).
 
 Đơn vị gốc dòng giấy máy chủ SUY từ ĐVT: họ tờ (tờ, ram, mã chặng `to_nguyen`) ⇒ "to"; họ đơn vị giá
-của mã (kg, tấn…) ⇒ đơn vị giá. Tồn tách theo mã + khổ + đơn vị gốc; tờ và kg không quy đổi.
+của mã (kg, tấn…) ⇒ đơn vị giá. Tồn tách theo mã + khổ + đơn vị gốc. Khổ hai cạnh khai kg ⇒ quy ra tờ (spec 2026-10-24 §5).
 
 Đi bằng HTTP thật: đề nghị → phiếu → ghi sổ → lô, như kho dùng.
 """
@@ -116,14 +116,15 @@ def test_nhap_giay_kg_kho_chi_rong_dem_kg(client):
     assert float(lo.sl_ban_dau) == 500
 
 
-def test_nhap_giay_kg_kho_hai_canh_van_dem_kg(client):
-    """Không còn luật "dòng tờ cấm kg": khổ hai cạnh nhập theo kg vẫn là kg, không đổi ra tờ."""
+def test_nhap_giay_kg_kho_hai_canh_quy_ra_to(client):
+    """Khổ hai cạnh nhập theo kg ⇒ quy ra TỜ theo khổ + gsm, làm tròn xuống (spec 2026-10-24-chuan-bi-giay
+    §5, đảo luật 10/10 "vẫn là kg"): 120 kg ÷ (0,79 × 1,09 × 0,3) = 464,5 ⇒ 464 tờ."""
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
     _nhap(client, kho_id, _dong(g, dvt="kg", sl=120, kr=790, kd=1090, gia=20_000))
     (lo,) = _lo(g)
-    assert (lo.don_vi_goc, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau)) == ("kg", 790, 1090, 120.0)
+    assert (lo.don_vi_goc, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau)) == ("to", 790, 1090, 464.0)
 
 
 def test_dang_giay_gui_thua_bi_bo_qua(client):
@@ -186,7 +187,7 @@ def test_cung_kho_khac_don_vi_goc_la_hai_dong_hop_le(client):
     g = _giay()
     r = _de_nghi(client, kho_id, "NHAP", [
         _dong(g, dvt="ram", sl=1, kr=780, kd=905),
-        _dong(g, dvt="kg", sl=50, kr=780, kd=905),
+        _dong(g, dvt="kg", sl=50, kr=780),          # cuộn khổ 780: gốc kg (khổ hai cạnh thì quy ra tờ)
     ])
     assert r.status_code == 201, r.text
     assert sorted(ln["don_vi_goc"] for ln in r.json()["lines"]) == ["kg", "to"]
@@ -356,5 +357,5 @@ def test_ton_theo_khoa_tach_tung_kho_va_don_vi_giay(client):
                    params={"hang_loai": "giay", "hang_id": g})
     assert r.status_code == 200, r.text
     got = {(x["don_vi_goc"], x["kho_rong"], x["kho_dai"]): x["ton"] for x in r.json()}
-    assert got == {("to", 780, 905): 1000, ("to", 790, 1090): 300,
-                   ("kg", 1000, 0): 500, ("kg", 790, 1090): 60}
+    # 60 kg khổ 790×1090 quy ra 232 tờ (spec 2026-10-24 §5) ⇒ cộng vào ô tờ cùng khổ.
+    assert got == {("to", 780, 905): 1000, ("to", 790, 1090): 532, ("kg", 1000, 0): 500}

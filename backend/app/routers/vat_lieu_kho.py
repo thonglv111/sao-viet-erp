@@ -24,6 +24,7 @@ from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.purchase_repo import SupplierRepository
+from ..repositories.rbac_repo import RoleRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..schemas.vat_lieu_kho import (
     DonViCuaMatHangOut, DonViNhieuMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
@@ -72,6 +73,32 @@ def get_service(db: Annotated[Session, Depends(get_db)]) -> VatLieuKhoService:
 Service = Annotated[VatLieuKhoService, Depends(get_service)]
 
 
+def thay_gia_giay(db: Session, user: User) -> bool:
+    """Giá mua giấy là giá vốn (L-SX-39): chỉ ô "Xem giá" của danh mục Giấy, hoặc ô xem chi tiết
+    giá vốn của Tính giá (thẻ sản phẩm chọn giấy hiện giá từng loại), mới thấy."""
+    authz = AuthorizationService(RoleRepository(db))
+    return authz.can(user, MODULE, "view_cost") or authz.can(user, "tinh_gia_thanh", "view_cost")
+
+
+def _che_gia_giay(svc: MotDanhMucVatLieu, user: User, rows: list) -> None:
+    if not thay_gia_giay(svc.audit.db, user):
+        for r in rows:
+            r.don_gia = None
+
+
+def _giu_gia_giay(svc: MotDanhMucVatLieu, user: User, item_id: int | None, data: dict) -> None:
+    """Người không thấy giá vẫn sửa được dòng giấy: ô giá bị che gửi lên rỗng thì GIỮ giá cũ
+    (tạo mới thì 0), không cho gõ đè giá mình không được xem."""
+    if thay_gia_giay(svc.audit.db, user):
+        if "don_gia" in data and data["don_gia"] is None:
+            data["don_gia"] = 0
+        return
+    if item_id is None:
+        data["don_gia"] = 0
+    else:
+        data["don_gia"] = float(svc.get(item_id).don_gia or 0)
+
+
 def _mot(kind: str):
     """Provider cho MỘT trong ba danh mục — ghim sẵn `kind` (xem `MotDanhMucVatLieu`)."""
     def provider(db: Annotated[Session, Depends(get_db)]) -> MotDanhMucVatLieu:
@@ -96,7 +123,8 @@ def _rows_thanh_pham(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
 
 
 def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_clone: bool = False,
-          excel_spec=None, loc_them: dict | None = None, dem_them: dict | None = None):
+          excel_spec=None, loc_them: dict | None = None, dem_them: dict | None = None,
+          che_tien=None, giu_tien=None):
     mod = MODULE_BY_KIND[kind]
     make_catalog_router(
         router, goc=f"/{path}", ten=kind, ServiceDep=_mot(kind), module=mod,
@@ -119,13 +147,18 @@ def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_c
         co_ky=True,
         loc_them=loc_them,
         dem_them=dem_them,
+        che_tien=che_tien,
+        giu_tien=giu_tien,
     )
 
 
 # Đơn vị giá: lọc + đếm theo mã đơn vị, nhãn = tên đơn vị (repo tra danh mục Đơn vị).
 _DON_VI_GIA = {"loc_them": {"don_vi_gia": str}, "dem_them": {"don_vi_gia": "don_vi_gia"}}
+# Giấy lọc thêm theo LOẠI Giấy/Sóng (mg 0426) — nhãn do repo (`nhan_cot`).
 _khai("giay", GiayIn, GiayRow, "giay", kem_don_vi=True, enable_clone=True, excel_spec=GIAY,
-      **_DON_VI_GIA)
+      loc_them={**_DON_VI_GIA["loc_them"], "loai": str},
+      dem_them={**_DON_VI_GIA["dem_them"], "loai": "loai"},
+      che_tien=_che_gia_giay, giu_tien=_giu_gia_giay)
 _khai("vat_tu", VatTuIn, VatTuRow, "vat-tu-in-an", kem_don_vi=True, enable_clone=True,
       excel_spec=VAT_TU, **_DON_VI_GIA)
 # Thành phẩm: CÙNG nền CRUD, nhưng `VatLieuKhoService._chan_tao_tay` / `_chan_go_tay` chặn tạo/xoá — dòng ở
@@ -217,7 +250,8 @@ def don_vi_nhieu_mat_hang(
 def list_giay_versions(
     giay_id: int,
     svc: Service,
-    _: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    # Lịch sử giá chỉ có giá — đọc được danh mục mà không có ô Xem giá thì không mở (L-SX-39).
+    _: Annotated[User, Depends(require_permission(MODULE, "view_cost"))],
 ) -> list[GiayGiaVersionRow]:
     try:
         rows = svc.list_giay_versions(giay_id)

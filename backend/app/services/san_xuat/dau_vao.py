@@ -25,6 +25,7 @@ import math
 
 from sqlalchemy.orm import Session
 
+from ...models.san_xuat import CV_PHAT_HANH
 from ...models.san_xuat_san_luong import BG_DE_XUAT, BG_XAC_NHAN
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.san_xuat_kcs_repo import SanXuatKcsRepository
@@ -162,7 +163,8 @@ def tran_nhan(
         return None
     da_nhan, g, cung_to = min(muc, key=lambda t: t[0])
     return {
-        "toi_da": round(da_nhan * he_so, 3),
+        # Làm tròn XUỐNG như `quy_ra`: 4.150 tay ÷ 4 tay/cuốn không thành 1.037,5 cuốn.
+        "toi_da": float(math.floor(da_nhan * he_so + 1e-6)),
         "da_nhan": da_nhan,
         "he_so": he_so,
         "don_vi_nhan": dv_vao,
@@ -185,6 +187,17 @@ def tran_ghi(
     loi = SanXuatKcsRepository(db).tong_loi(cv.id)
     return {**t, "toi_da_nhan": t["toi_da"], "loi_kcs": loi,
             "toi_da": round(max(0.0, t["toi_da"] - loi), 3)}
+
+
+def bang_dv_viec(db: Session, cv) -> dict[str, str]:
+    """Bảng mã → tên đơn vị cho câu báo của `cv`: chặng thành phẩm ("cai") gọi bằng ĐVT của lệnh
+    ("cuốn") như KCS và kho — không thì cùng một hàng tổ đọc "cái", kho đọc "cuốn"."""
+    bang = DonViDoRepository(db).ten_theo_ma()
+    if cv.lsx_id and not cv.bai_ghep_id:
+        dvt = SanXuatRepository(db).lsx_dvt({cv.lsx_id}).get(cv.lsx_id)
+        if dvt:
+            bang = {**bang, "cai": dvt}
+    return bang
 
 
 def _cau_tran(dv_ten: dict[str, str], cv, t: dict) -> str:
@@ -214,7 +227,7 @@ def kiem_tran_ghi(db: Session, repo: SanXuatSanLuongRepository, cv, them: float,
     da_ghi = repo.tong_tot(cv.id) - bo_qua
     if da_ghi + them <= t["toi_da"] + _EPS:
         return
-    dv_ten = DonViDoRepository(db).ten_theo_ma()
+    dv_ten = bang_dv_viec(db, cv)
     dv_ra = nhan_don_vi(dv_ten, cv.don_vi_ra) if cv.don_vi_ra else ""
     con = max(0.0, t["toi_da"] - da_ghi)
     if con > _EPS:
@@ -263,7 +276,7 @@ def kiem_giam_buoc_sau(db: Session, repo: SanXuatSanLuongRepository, cv,
         cu = truoc.get(d.id)
         if t["toi_da"] + _EPS >= da_ghi or (cu is not None and t["toi_da"] >= cu - _EPS):
             continue
-        dv_ten = DonViDoRepository(db).ten_theo_ma()
+        dv_ten = bang_dv_viec(db, d)
         dv_ra = nhan_don_vi(dv_ten, d.don_vi_ra) if d.don_vi_ra else ""
         raise ValueError(
             f"Không giảm được: {d.ten_cong_doan} đã ghi {_so(da_ghi)} {dv_ra}, "
@@ -313,13 +326,15 @@ def thieu_dau_vao(repo: SanXuatSanLuongRepository, cv) -> list[str]:
 
 
 def kiem_bat_dau(repo: SanXuatSanLuongRepository, cv) -> None:
-    # Cổng "chờ tổ Cắt" (spec giấy theo khổ §4.7) đứng TRƯỚC cổng đầu vào: chưa chốt thì chưa biết
-    # bước này còn chặng trước là Cắt hay không.
-    from .chot_giay import ly_do_cho_chot
+    # Cổng VẬT TƯ (spec 2026-10-18 §5.3, chủ dự án chốt "để bắt đầu thì vật tư phải sẵn sàng"):
+    # chỉ lần bắt đầu ĐẦU — việc tạm dừng đã từng đủ vật tư, lần bổ sung đang chờ kho không giữ
+    # chân thợ đang làm dở.
+    if cv.trang_thai == CV_PHAT_HANH:
+        from .trang_thai_vat_tu import chan_bat_dau, ly_do_vat_tu, trang_thai_vat_tu
 
-    ly_do = ly_do_cho_chot(repo.db, cv)
-    if ly_do:
-        raise ValueError(ly_do)
+        tt = trang_thai_vat_tu(repo.db, [cv])[cv.id]
+        if tt and chan_bat_dau(tt["muc"]):
+            raise ValueError(ly_do_vat_tu(tt["muc"]))
     thieu = thieu_dau_vao(repo, cv)
     if thieu:
         raise ValueError(

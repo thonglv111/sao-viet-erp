@@ -40,6 +40,9 @@ export interface EditRow {
    *  công đoạn). CHỈ ĐỌC — tổ khai ở danh mục Công đoạn, drawer chỉ bày lại, không cho đổi. */
   department_ten: string | null;
   may_id: number | null;
+  /** Việc của bước đã chạy ở bàn tổ — CHỈ ĐỌC. Máy chủ không cho đổi tổ/máy nữa nên ngăn bước khoá
+   *  sẵn hai ô đó (23/10/2026). */
+  da_bat_dau: boolean;
   /** Hai cờ dụng cụ đọc từ danh mục Công đoạn — CHỈ ĐỌC, không gửi lên. Chúng quyết định bước có
    *  hỏi khuôn không, và `tooling_type` là chiều lọc thứ hai của ô chọn dao.
    *  `khuon_be_id` là thứ người cấu hình lệnh chọn; bốn field còn lại là ảnh chụp để bày cho thợ. */
@@ -175,6 +178,7 @@ export function toEdit(cd: LsxCongDoan): EditRow {
     department_id: cd.department_id,
     department_ten: cd.department_ten ?? null,
     may_id: cd.may_id,
+    da_bat_dau: !!cd.da_bat_dau,
     requires_tooling: !!cd.requires_tooling,
     tooling_type: cd.tooling_type ?? null,
     khuon_be_id: cd.khuon_be_id ?? null,
@@ -236,24 +240,19 @@ export function tenBuoc(
   return r.ten;
 }
 
-/** MÁY chọn được cho một bước — cùng MỘT luật với `BaiGhepService.may_ngoai_cong_doan` ở backend,
- *  nơi bài ghép và engine xếp lịch (`_may_lam_duoc`) phán quyết. HAI TẦNG, tầng dưới chỉ chạy khi
- *  tầng trên im:
- *    ① công đoạn đã khai bảng "Máy chạy được công đoạn này" ⇒ CHỈ những máy đó. Bảng ấy cũng là
- *       chỗ khai công thức giờ/giá của từng cặp (công đoạn, máy), nên máy ngoài nó không có công
- *       thức nào để chạy;
- *    ② chưa khai máy nào ⇒ lùi về hàng tick NHÓM máy (`nhomMayChoPhep`);
- *    chưa khai cả hai ⇒ mọi máy, đúng lối "chưa khai = không chặn" của cả hệ.
+/** Máy MỜI cho một bước — cùng luật server (`may_to.may_chon_duoc`, spec máy thuộc tổ 22/10/2026):
+ *    • công đoạn có bảng "Máy chạy được công đoạn này" (`mayChoPhep` = máy của các tổ đã tick) ⇒
+ *      CHỈ những máy đó; bảng rỗng ⇒ công đoạn KHÔNG tick tổ thì mọi máy ("chưa khai = không
+ *      chặn"), có tick tổ thì KHÔNG máy nào (tổ chưa có máy — máy chủ cũng không nhận);
+ *    • công đoạn có tick tổ (`coRangBuocTo`) và bước đã chọn tổ ⇒ chỉ máy THUỘC tổ đó.
+ *  Hàng tick NHÓM máy gỡ khỏi luật — máy đi theo tổ.
  *
- *  Trước 07/09/2026 drawer bước chỉ có tầng ②: công đoạn In offset khai đúng 4 máy trong bảng mà
- *  dropdown vẫn mời cả 10 máy của hai nhóm "Máy in" + "In ngoài" — người lên kế hoạch gán được
- *  máy rồi xếp lịch mới từ chối, hai màn nói hai kiểu về cùng một ràng buộc.
- *
- *  Máy ĐANG gán luôn giữ lại dù rớt bộ lọc (dữ liệu cũ, hoặc công đoạn siết danh sách sau khi lệnh
- *  đã gán) — không thì mở lệnh cũ ra là ô máy trống trơn, người xếp lịch tưởng chưa ai gán. */
-export function mayChonDuoc<T extends { id: number; nhom?: string | null; active?: boolean | null }>(
+ *  Máy ĐANG gán luôn giữ lại dù rớt bộ lọc (dữ liệu cũ, hoặc vừa đổi tổ) — không thì mở lệnh cũ ra
+ *  là ô máy trống trơn, người xếp lịch tưởng chưa ai gán. */
+export function mayChonDuoc<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
   mayRefs: T[],
-  cd: { nhomMayChoPhep?: string[] | null; mayChoPhep?: number[] | null } | null | undefined,
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+  toId: number | null | undefined,
   mayDangGan: number | null | undefined,
 ): T[] {
   // Máy đã NGỪNG DÙNG ở danh mục thì không mời cho bước nữa — cùng lời hứa của hộp thoại
@@ -261,12 +260,20 @@ export function mayChonDuoc<T extends { id: number; nhom?: string | null; active
   // rơi về trống, người dùng tưởng chưa gán rồi lưu đè mất máy cũ.
   const con = mayRefs.filter((m) => m.active !== false || m.id === mayDangGan);
   const ds = cd?.mayChoPhep ?? null;
-  if (ds && ds.length > 0) {
-    return con.filter((m) => ds.includes(m.id) || m.id === mayDangGan);
+  if (!ds || ds.length === 0) {
+    // Công đoạn có tick tổ mà chưa tổ nào có máy ⇒ máy chủ không nhận máy nào (`may_chon_duoc` = []);
+    // mời mọi máy là để người lập chọn rồi ăn 400 lúc lưu. Chỉ giữ máy đang gán (dữ liệu cũ).
+    if (cd?.coRangBuocTo) return con.filter((m) => m.id === mayDangGan);
+    return con;
   }
-  const nhom = cd?.nhomMayChoPhep ?? null;
-  if (!nhom || nhom.length === 0) return con;
-  return con.filter((m) => (m.nhom != null && nhom.includes(m.nhom)) || m.id === mayDangGan);
+  const theoId = new Map(con.map((m) => [m.id, m]));
+  const loc = cd?.coRangBuocTo && toId != null;
+  // Thứ tự theo bảng máy của công đoạn — máy "Đặt mặc định" đứng đầu.
+  const ra = ds.map((id) => theoId.get(id)).filter((m): m is T =>
+    m != null && (!loc || (m.toIds ?? []).includes(toId as number)));
+  const dangGan = mayDangGan != null && !ra.some((m) => m.id === mayDangGan)
+    ? theoId.get(mayDangGan) : undefined;
+  return dangGan ? [...ra, dangGan] : ra;
 }
 
 /** MÁY MẶC ĐỊNH của công đoạn = máy còn dùng đứng ĐẦU bảng "Máy chạy được công đoạn này" — cùng luật
@@ -281,10 +288,50 @@ export function mayMacDinh<T extends { id: number; active?: boolean | null }>(
   return null;
 }
 
+/** Máy điền sẵn khi bước đổi sang tổ `toId`: máy đầu bảng thuộc tổ đó (`may_to.may_mac_dinh`).
+ *  Tổ chưa có máy chạy công đoạn này ⇒ null — bước trống máy, ô máy nói rõ vì sao. */
+export function mayMacDinhCuaTo<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+  toId: number | null | undefined,
+): number | null {
+  if (!(cd?.mayChoPhep?.length)) return null;
+  return mayChonDuoc(mayRefs, cd, toId, null)[0]?.id ?? null;
+}
+
+/** Tổ `toId` không có máy nào chạy được công đoạn (máy ĐANG gán cũng tính là máy của tổ nếu thuộc
+ *  tổ) — ô máy nói "Tổ này chưa có máy chạy công đoạn này". Công đoạn không ràng buộc tổ ⇒ false:
+ *  không có gì để nói. */
+export function toChuaCoMay<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+  toId: number | null | undefined,
+): boolean {
+  if (!cd?.coRangBuocTo || toId == null) return false;
+  return mayChonDuoc(mayRefs, cd, toId, null).length === 0;
+}
+
+/** Tổ khác của máy so với tổ đang chọn. `lech` = máy KHÔNG thuộc tổ đang chọn (chỉ gặp ở máy đang
+ *  gán từ trước) ⇒ nhãn phải nói "thuộc", nói "cũng thuộc" là nghe như máy thuộc cả tổ đang chọn. */
+export function toKhacCuaMay(toIds: number[] | null | undefined, toId: number | null): { khac: number[]; lech: boolean } {
+  const ds = toIds ?? [];
+  const khac = ds.filter((t) => t !== toId);
+  return { khac, lech: toId != null && khac.length > 0 && !ds.includes(toId) };
+}
+
+/** Công đoạn có tick tổ mà không tổ nào có máy CÒN DÙNG chạy nó ⇒ bước ở kế hoạch mặc định loại TỔ
+ *  (23/10/2026) — cùng luật server (`may_to.to_khong_may`). */
+export function congDoanKhongMay<T extends { id: number; toIds?: number[] | null; active?: boolean | null }>(
+  mayRefs: T[],
+  cd: { mayChoPhep?: number[] | null; coRangBuocTo?: boolean } | null | undefined,
+): boolean {
+  return !!cd?.coRangBuocTo && mayChonDuoc(mayRefs, cd, null, null).length === 0;
+}
+
 export function emptyRow(): EditRow {
   return {
     key: newKey(), id: null, cong_doan_id: null, ten: "", nhom: null, loai_buoc: "may",
-    department_id: null, department_ten: null, may_id: null,
+    department_id: null, department_ten: null, may_id: null, da_bat_dau: false,
     requires_tooling: false, tooling_type: null, khuon_be_id: null, khuon_be_ma: null,
     khuon_be_ten: null, khuon_be_so_ke: null, khuon_be_tinh_trang: null,
     khuon_nguon: null, khuon_phi: 0, khuon_lech: null,
@@ -493,14 +540,35 @@ export function loiDong(rows: EditRow[], i: number): string[] {
     if (r.nha_cung_cap_id == null) out.push("chưa chọn nhà gia công");
   } else if (r.department_id == null && r.may_id == null) out.push("chưa gán tổ / máy");
   if (r.tren_dong_giay && r.don_vi_vao) {
-    const truoc = rows
-      .slice(0, i)
-      .reverse()
-      .find((x) => x.tren_dong_giay && x.don_vi_vao && x.don_vi_ra);
-    if (truoc && truoc.don_vi_ra !== r.don_vi_vao) out.push("đứt đơn vị");
+    if (tienNhiemGiay(rows, i).some((x) => x.don_vi_ra !== r.don_vi_vao)) out.push("đứt đơn vị");
   }
   if (i > 0 && r.ten && rows[i - 1].ten === r.ten) out.push("trùng bước trước");
   return out;
+}
+
+/** Bước trên dòng giấy đổ giấy vào dòng `i`. Tuyến đã nối dây (`phu_thuoc_step_keys`) thì đi theo
+ *  dây — hộp sóng có Tề sóng là nhánh riêng nối thẳng vào Bồi, đứng liền trên Cắt giấy cuộn trong
+ *  bảng mà không đổ giấy cho nó; bước ngoài dòng giấy ở giữa thì đi xuyên qua tới tiền nhiệm của nó.
+ *  Bảng chưa nối dây nào thì coi là tuyến thẳng: lấy bước dòng giấy gần nhất phía trên. */
+function tienNhiemGiay(rows: EditRow[], i: number): EditRow[] {
+  const theoKey = new Map(rows.map((x) => [x.key, x]));
+  const coDay = rows.some((x) => x.phu_thuoc_step_keys.some((k) => theoKey.has(k)));
+  const laGiay = (x: EditRow) => x.tren_dong_giay && !!x.don_vi_vao && !!x.don_vi_ra;
+  if (!coDay) {
+    const truoc = rows.slice(0, i).reverse().find(laGiay);
+    return truoc ? [truoc] : [];
+  }
+  const ra: EditRow[] = [];
+  const daXet = new Set<string>([rows[i].key]);
+  const cho = [...rows[i].phu_thuoc_step_keys];
+  while (cho.length) {
+    const x = theoKey.get(cho.pop()!);
+    if (!x || daXet.has(x.key)) continue;
+    daXet.add(x.key);
+    if (laGiay(x)) ra.push(x);
+    else cho.push(...x.phu_thuoc_step_keys);
+  }
+  return ra;
 }
 
 /** Preview tức thời trong drawer trước khi lưu.

@@ -351,6 +351,28 @@ def test_ten_khach_xuong_ban_to_va_tim_duoc_theo_khach(db, admin, to_co_3_lenh_9
     assert [l["lsx_id"] for l in tim["lenh"]] == [lsx_rieng]
 
 
+def test_the_viec_mang_dvt_cua_lenh(db, admin, to_co_3_lenh_9_buoc):
+    """Chặng thành phẩm phải gọi bằng ĐVT của lệnh ("cuốn") như KCS và kho — bàn tổ cần ĐVT trên
+    từng thẻ việc lẫn ngăn chi tiết, đi qua được schema."""
+    from app.models.lsx import Lsx
+    from app.schemas.san_xuat import WorkItemChiTietOut, WorkItemsOut
+    from app.services.san_xuat import board
+
+    to_id = to_co_3_lenh_9_buoc
+    ban = board.work_items(db, admin, _authz(db), team_id=to_id)
+    lsx_id = ban["lenh"][0]["lsx_id"]
+    db.get(Lsx, lsx_id).don_vi_tinh = "cuốn"
+    db.commit()
+
+    ban = board.work_items(db, admin, _authz(db), team_id=to_id)
+    out = WorkItemsOut.model_validate(ban)
+    for l in out.lenh:
+        assert {w.don_vi_tinh for w in l.cong_viec} == {db.get(Lsx, l.lsx_id).don_vi_tinh}
+    cv_id = next(l for l in ban["lenh"] if l["lsx_id"] == lsx_id)["cong_viec"][0]["id"]
+    ct = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv_id)
+    assert WorkItemChiTietOut.model_validate(ct).cong_viec.don_vi_tinh == "cuốn"
+
+
 def test_bai_ghep_mang_ten_khach_cac_lenh_thanh_vien(db, admin, to_co_bai_ghep_2_lenh):
     """Bài ghép chạy chung nhiều lệnh: khách lấy từ lệnh thành viên, trùng khách thì chỉ ghi một
     lần; tìm theo tên khách ra được bài ghép."""

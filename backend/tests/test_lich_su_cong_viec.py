@@ -44,6 +44,30 @@ def test_chay_may_va_giao_tho_moi_nhat_tren(db, orders, lsx_svc, admin, customer
     assert all("·" not in d["cau"] and all("·" not in c for c in d["ct"]) for d in ra["items"])
 
 
+def test_tam_dung_va_ket_thuc_kem_phien_chay_bao_lau(db, orders, lsx_svc, admin, customer):
+    """Bảng Phiên chạy gỡ khỏi ngăn (22/10/2026) — số phút từng phiên dời sang dòng đóng phiên."""
+    from datetime import timedelta
+
+    from app.repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
+
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer)
+    tho = _emp(db, to, "NV-LS-PH")
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=tho.id)
+    tt = SanXuatThucThiRepository(db)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    tt.cac_phien(cv.id)[0].bat_dau -= timedelta(minutes=88)
+    db.commit()
+    thuc_thi.tam_dung(db, user=admin, cong_viec_id=cv.id, ly_do="Chờ giấy")
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    tt.cac_phien(cv.id)[1].bat_dau -= timedelta(minutes=28)
+    db.commit()
+    thuc_thi.ket_thuc(db, user=admin, cong_viec_id=cv.id)
+
+    dong = {d["cau"]: d["ct"] for d in lich_su_viec.lich_su(db, admin, cong_viec_id=cv.id)["items"]}
+    assert "chạy 1 giờ 28 phút" in dong["Tạm dừng"]
+    assert "chạy 28 phút" in dong["Kết thúc việc"]
+
+
 def test_san_luong_va_ban_giao_hai_phia(db, orders, lsx_svc, admin, customer):
     _to, cv1, cv2, _lsx = _hai_cv(db, orders, lsx_svc, admin, customer, ma="TO-LS-BG")
     b = _batch(db, admin, cv1, tot=80)
@@ -102,3 +126,19 @@ def test_api_404_khi_khong_co_cong_viec(client):
     _to_la_sx("Tổ Lịch sử", "TO-LS-API")  # có quyền ở ít nhất một tổ mới qua cổng `require_quyen_to`
     r = client.get("/api/san-xuat/work-items/999999/lich-su", headers=_admin_h(client))
     assert r.status_code == 404
+
+
+def test_nhat_ky_cua_id_cu_bi_cap_lai_khong_lan_vao(db, orders, lsx_svc, admin, customer):
+    """L-SX-24: id bị cấp lại sau đợt xoá dữ liệu tay — dòng audit ghi TRƯỚC khi việc hiện tại ra đời
+    là của đối tượng cũ, không hiện trong lịch sử việc mới."""
+    from datetime import timedelta
+
+    from app.models.audit import AuditLog
+
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-LS-CU")
+    db.add(AuditLog(action="san_xuat_tam_dung", target=f"san_xuat_cong_viec:{cv.id}",
+                    detail="ly_do=Việc cũ đã xoá", created_at=cv.created_at - timedelta(days=3)))
+    db.commit()
+    ra = lich_su_viec.lich_su(db, admin, cong_viec_id=cv.id)
+    assert "Tạm dừng" not in _caus(ra)
+    assert all("Việc cũ đã xoá" not in (d.get("ly_do") or "") for d in ra["items"])

@@ -188,13 +188,26 @@ class PayrollComponentRepository:
         # ⚠️ CHỪA RA dòng ĐÃ ĐÈ TAY (`da_de_tay`): HCNS sửa số cho riêng kỳ này thì "Tính lại"
         # KHÔNG được ghi đè, nếu không sửa xong bấm Tính lại là mất số âm thầm — đúng lý do trước
         # 12/08/2026 phải chặn hẳn đường sửa.
+        self.xoa_khoan_ho_so([line_id])
+        self.them_khoan_ho_so(line_id, rows)
+
+    def xoa_khoan_ho_so(self, line_ids) -> None:
+        """Vế XOÁ của `replace_employee_line_components` cho NHIỀU dòng trong một câu — vòng tính cả
+        kỳ xoá một lượt trước khi ghi, thay vì mỗi người một câu DELETE. Cùng điều kiện: chỉ dòng
+        `source='employee'` chưa đè tay."""
+        ids = [int(i) for i in line_ids]
+        if not ids:
+            return
         self.db.execute(
             delete(PayrollLineComponent).where(
-                PayrollLineComponent.line_id == line_id,
+                PayrollLineComponent.line_id.in_(ids),
                 PayrollLineComponent.source == COMPONENT_SOURCE_EMPLOYEE,
                 PayrollLineComponent.da_de_tay.is_(False),
             )
         )
+
+    def them_khoan_ho_so(self, line_id: int, rows: list[dict]) -> None:
+        """Vế GHI của `replace_employee_line_components` — nơi gọi đã xoá trước (`xoa_khoan_ho_so`)."""
         for r in rows:
             self.db.add(PayrollLineComponent(
                 line_id=line_id, source=COMPONENT_SOURCE_EMPLOYEE, **r))

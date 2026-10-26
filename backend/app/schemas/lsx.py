@@ -142,6 +142,8 @@ class LsxBuocVatTuIn(BaseModel):
 class LsxBuocVatTuOut(BaseModel):
     id: int
     hang_loai: str = "vat_tu"
+    # Dòng giấy: `giay` | `song` (loại của mã, mg 0426). Vật tư khác: "".
+    giay_loai: str = ""
     vat_tu_id: int
     vat_tu_ma: str
     vat_tu_ten: str
@@ -236,6 +238,8 @@ class LsxCongDoanOut(BaseModel):
     department_ten: str | None = None
     may_id: int | None = None
     may_ten: str | None = None
+    #: Bước đã có việc chạy ở bàn tổ ⇒ ngăn bước khoá ô tổ/máy (đổi máy ở bàn tổ).
+    da_bat_dau: bool = False
     # Hai CỜ đọc từ danh mục Công đoạn — quyết định bước có hỏi khuôn không, và `tooling_type` là
     # chiều lọc thứ hai của ô chọn dao. Bốn field `khuon_be_*` là ẢNH CHỤP để bày cho thợ (mã · tên
     # · SỐ KỆ · tình trạng · ngày về), server ghép sẵn nên màn khỏi tra danh mục Khuôn.
@@ -526,6 +530,8 @@ class LsxOut(BaseModel):
     # kế hoạch sửa xong cả routing mới ăn 409 lúc bấm Lưu, mà mỗi lần đổi công đoạn thì xem-trước
     # 409 im lặng nên số trên bảng đứng im không ai giải thích.
     giu_cho_bat: bool = False
+    # Nguồn giấy máy chọn lúc lập lệnh (spec 2026-10-24-chuan-bi-giay §7). None = lệnh cũ / không giấy.
+    nguon_giay: str | None = None
     # Lệnh chưa phát hành mà KHÔNG giao trọn gói được (đi chung lệnh khác / bài ghép) — câu nêu đích
     # danh lệnh đang dính. Màn lệnh thay nút "Gia công trọn gói" bằng chip nói lý do (câu ngắn trên
     # mặt chip, câu đầy đủ ở chú thích), khỏi để người kế hoạch điền xong hộp thoại mới biết.
@@ -564,6 +570,13 @@ class LsxBaiGhepOut(BaseModel):
     # gộp duy nhất — sai, bài còn gộp CTP/cán/bế). Quên sửa model này một lần rồi: service trả
     # `buoc_bi_de` mà pydantic lọc mất, badge + hai số phía lệnh thành code chết mà không ai báo.
     buoc_bi_de: dict[str, BuocBiDeOut] = Field(default_factory=dict)
+
+
+class DoiNguonGiayIn(BaseModel):
+    """`PUT /lsx/{id}/nguon-giay` — người kế hoạch đổi nguồn giấy; Cuộn phải kèm rộng cuộn (mm)."""
+
+    nguon: Literal["to_in", "to_nguyen", "cuon", "mua"]
+    rong_cuon: int | None = None
 
 
 class LsxQuyCachIn(BaseModel):

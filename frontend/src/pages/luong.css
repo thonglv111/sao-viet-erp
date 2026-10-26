@@ -2526,6 +2526,37 @@
 
 /* ── Bảng đối chiếu khoán km (mg 0231) ────────────────────────────────────────────────────
    Popup HCNS bấm vào cột "Khoán km" để soi từng chuyến. Chỉ xem, không sửa. */
+/* Ô đặt % hoa hồng riêng của đơn trong ngăn soi hoa hồng (23/10/2026). */
+/* `.ns__tablewrap` gốc là overflow:hidden — bảng soi hoa hồng 11 cột rộng hơn ngăn nên phải cho cuộn
+   ngang, không thì cột "Đặt % riêng" bị cắt mất, không ai bấm tới. */
+.ns__tablewrap.lg-soihh {
+  overflow-x: auto;
+}
+.lg-hhrieng {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+  margin: 4px 0;
+  /* Bảng rộng hơn ngăn ⇒ phải cuộn ngang mới tới nút "Đặt % riêng" ở cột cuối; ô bám mép trái
+     KHUNG NHÌN chứ không bám mép trái bảng, không thì mở ra nằm khuất bên trái. */
+  position: sticky;
+  left: 8px;
+  max-width: 680px;
+}
+.lg-hhrieng > .cc-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.lg-hhrieng label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.lg-hhrieng__pct {
+  width: 90px;
+}
 .lg-soikm__ky {
   font-weight: 400;
   font-size: 13px;
@@ -2538,6 +2569,32 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Khoán SP (Đợt 2): thẻ tuỳ chọn của lần ghi, lý do + phiếu sửa của ngày dừng máy. */
+.lg-soikm__the,
+.lg-soikm__dm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 4px;
+}
+
+/* Khoán SP: hai bên đem so + tăng ca khoán cộng thêm, bên được trả tô xanh như màn Khoán theo tổ. */
+.lg-soiky__so {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.lg-soiky__so > div {
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-2);
+}
+.lg-soiky__so dt { font-size: 12px; color: var(--ash-2); }
+.lg-soiky__so dd { margin: 2px 0 0; font-size: 17px; font-variant-numeric: tabular-nums; }
 
 /* ── Mức khoán km ───────────────────────────────────────────────────────── */
 .muc-km-add-row {
@@ -3504,6 +3561,47 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Cách trả lương (tổ tính hai lương): hai ô chọn Lương khoán / Công nhật */
+.lg-cach-tra {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.lg-cach-tra__ds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.lg-cach-tra__o {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: var(--r-3, 8px);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.lg-cach-tra__o.is-chon {
+  border-color: var(--rust);
+}
+
+.lg-cach-tra__o input {
+  margin-top: 3px;
+  accent-color: var(--rust);
+  cursor: pointer;
+}
+
+.lg-cach-tra__chu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 /* Insurance Simulation Card */

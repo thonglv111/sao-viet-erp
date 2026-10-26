@@ -2,6 +2,8 @@
 MỘT nơi chuẩn hoá — đừng tự min/max."""
 from __future__ import annotations
 
+import math
+
 #: Khoá so tồn / giữ chỗ / nhu cầu: (hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc).
 #: Giấy KHÔNG còn DẠNG cuộn/tờ (chủ chốt 10/10/2026): một mã giấy tách theo KHỔ + ĐƠN VỊ GỐC của dòng.
 #: Vật tư khác (cả thành phẩm — kho mang `vat_tu`) tách theo ĐƠN VỊ GỐC, khổ 0 · 0 (mg 0390). Đơn vị
@@ -30,6 +32,37 @@ def chuan_kho(a, b) -> tuple[int, int]:
     if x and y:
         return (min(x, y), max(x, y))
     return (x or y, 0)
+
+
+def la_kho_to(rong_mm, dai_mm) -> bool:
+    """Khổ ĐỦ hai cạnh ⇒ giấy tờ (số tờ là gốc). Một cạnh ⇒ cuộn, đếm kg."""
+    return bool(_mm(rong_mm) and _mm(dai_mm))
+
+
+def kg_tu_to(so_to: float, rong_mm: float, dai_mm: float, gsm: float) -> float:
+    """kg = số tờ × rộng/1000 × dài/1000 × gsm/1000 (spec 2026-10-24-chuan-bi-giay §5)."""
+    return float(so_to) * float(rong_mm) / 1000 * float(dai_mm) / 1000 * float(gsm) / 1000
+
+
+def to_tu_kg(kg: float, rong_mm: float, dai_mm: float, gsm: float) -> int:
+    """Số tờ từ kg, LÀM TRÒN XUỐNG — tờ lẻ không có thật. Thiếu khổ hai cạnh / gsm ⇒ ValueError."""
+    if not la_kho_to(rong_mm, dai_mm) or not gsm or float(gsm) <= 0:
+        raise ValueError("Cần đủ khổ hai cạnh và định lượng để quy kg ra tờ.")
+    # Cộng 1e-9 để 299.35 kg đúng bằng N tờ không rơi xuống N−1 vì sai số dấu phẩy động.
+    return math.floor(float(kg) / kg_tu_to(1, rong_mm, dai_mm, gsm) + 1e-9)
+
+
+def dinh_luong_va_quy_kg(hang_loai: str, mat_hang, so_luong, kho_rong, kho_dai,
+                         don_vi_goc: str | None) -> tuple[int | None, float | None]:
+    """Hai ô chỉ đọc của dòng tồn (spec 2026-10-24-chuan-bi-giay §6): `(định lượng, quy kg)`.
+    Định lượng = gsm của danh mục, chỉ giấy. Quy kg chỉ cho giấy TỜ (gốc tờ, khổ hai cạnh, có gsm);
+    cuộn đã đếm kg ⇒ None."""
+    if hang_loai != "giay":
+        return None, None
+    gsm = getattr(mat_hang, "gsm", None) or None
+    if not gsm or _goc(don_vi_goc) != DON_VI_TO_KHO or not la_kho_to(kho_rong, kho_dai):
+        return gsm, None
+    return gsm, round(kg_tu_to(float(so_luong or 0), kho_rong, kho_dai, gsm), 2)
 
 
 def _goc(goc) -> str:
@@ -140,6 +173,8 @@ def nhan_kho(kho_rong: int, kho_dai: int) -> str:
 DON_VI_TO_KHO = "to"
 
 #: Hai đơn vị mọi mã giấy BẮT BUỘC có (chốt 18/10/2026): bước nhận tờ đếm tờ, bước ra kg đếm kg.
+#: Từ 24/10/2026 đây cũng là hai đơn vị DUY NHẤT của giấy — không thêm ram, tấn, cuộn…
+#: (`VatLieuKhoService._chot_don_vi_giay`). Ram / tấn vẫn nhập được qua nhóm quy đổi của tờ / kg.
 #: Ở module Đơn vị & quy đổi hai mã này bị KHOÁ — không xoá, không ngừng dùng, không đổi mã.
 GIAY_DON_VI_BAT_BUOC = (DON_VI_TO_KHO, "kg")
 

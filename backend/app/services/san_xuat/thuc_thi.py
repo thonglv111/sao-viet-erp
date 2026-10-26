@@ -7,8 +7,8 @@ QUYỀN (mg 0302): hỏi DÒNG QUYỀN THEO TỔ của tổ thực hiện (`serv
 cho lệnh ghi ở đây; các file khác truyền việc của mình qua `_gate(..., viec)`. Mức "Của tôi" chỉ qua
 khi công việc đang giao cho chính người bấm. Không còn luật cứng "phải đứng tên trưởng tổ".
 
-LƯƠNG KHOÁN (§6): chỉ nhân viên thuộc chế độ lương khoán (suy từ `departments.has_piece_work` của
-tổ nhân viên) mới được giao vào bước NỘI BỘ (`loai_buoc == 'to'`). Người không có tài khoản vẫn
+LƯƠNG KHOÁN (§6): `la_luong_khoan` của phân công = tổ của nhân viên thuộc KHỐI SẢN XUẤT (kế thừa
+cây, 20/10/2026 — thay cờ `has_piece_work`). Người không có tài khoản vẫn
 giao + tính lương được (chỉ neo `employee_id`).
 
 MỐC THỜI GIAN lấy từ máy chủ, không backdate, không sửa mốc đã phát sinh (§7.2). Phút thực tế cho
@@ -20,7 +20,6 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from ...models.department import Department
 from ...models.may_thiet_bi import MayThietBi
 from ...models.san_xuat import (
     BUOC_MAY,
@@ -45,10 +44,11 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.san_xuat_thuc_thi_repo import SanXuatThucThiRepository
 from ..bai_ghep_service import BaiGhepService
+from .. import may_to
 from ..may_trang_thai import NHAN as NHAN_TT_MAY
 from ..may_trang_thai import TT_RANH, trang_thai_may
 from ..quyen_to import VIEC_THUC_HIEN, gate_to
-from .dau_vao import kiem_bat_dau
+from .dau_vao import bang_dv_viec, kiem_bat_dau
 from .tinh_trang_nguoi import di_lam_nhieu, hom_nay, kiem_di_lam
 
 # Sai số làm tròn cột Numeric(18,3) — dưới ngưỡng này coi như đã giao hết.
@@ -61,8 +61,10 @@ def _moc() -> datetime:
 
 
 # --- Trợ giúp chung -------------------------------------------------------------------------
-def _lay_cong_viec(repo: SanXuatThucThiRepository, cong_viec_id: int) -> SanXuatCongViec:
-    cv = repo.cong_viec(cong_viec_id)
+def _lay_cong_viec(repo: SanXuatThucThiRepository, cong_viec_id: int, *,
+                   khoa: bool = False) -> SanXuatCongViec:
+    """`khoa=True` ở các hàm GHI trạng thái việc (bắt đầu, tạm dừng, kết thúc, đổi máy)."""
+    cv = repo.cong_viec(cong_viec_id, khoa=khoa)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
     # Công việc gia công ngoài không phân công / bắt đầu / đổi máy / tạm dừng (spec gia công §10).
@@ -84,13 +86,21 @@ def _kiem_version(cv: SanXuatCongViec, expected_version: int | None) -> None:
         raise ValueError("Phiên bản không khớp — công việc vừa được cập nhật, hãy tải lại.")
 
 
+def thuoc_khoi_san_xuat(db: Session, department_id: int | None) -> bool:
+    """Tổ thuộc KHỐI SẢN XUẤT (cờ `la_san_xuat` của chính tổ hoặc tổ tiên) — cùng định nghĩa lương
+    dùng cho "tính 2 lương" (`PayrollService._la_khoi_san_xuat`, chủ chốt 20/10/2026)."""
+    if department_id is None:
+        return False
+    from ...repositories.rbac_repo import DepartmentRepository
+
+    return int(department_id) in DepartmentRepository(db).dept_ids_khoi_san_xuat()
+
+
 def _la_luong_khoan(db: Session, emp) -> bool:
-    """Nhân viên thuộc chế độ lương khoán ⇔ tổ của họ bật `has_piece_work` (cùng cờ mà thành phần
-    lương `luong_khoan` soi). Không có tổ → không phải thợ khoán."""
+    """Nhân viên ăn lương khoán ⇔ tổ của họ thuộc khối Sản xuất. Không có tổ → không phải thợ khoán."""
     if emp is None or emp.department_id is None:
         return False
-    dept = db.get(Department, emp.department_id)
-    return bool(dept and dept.has_piece_work)
+    return thuoc_khoi_san_xuat(db, emp.department_id)
 
 
 def _audit(db: Session, user, action: str, cv: SanXuatCongViec, detail: str = "",
@@ -129,8 +139,7 @@ def giao_ca_to(db: Session, cv: SanXuatCongViec) -> None:
     if not cv.department_id or cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None:
         return
     repo = SanXuatThucThiRepository(db)
-    dept = db.get(Department, cv.department_id)
-    la_khoan = bool(dept and dept.has_piece_work)
+    la_khoan = thuoc_khoi_san_xuat(db, cv.department_id)
     for emp in repo.nhan_vien_cua_to(cv.department_id):
         if repo.phan_cong_hoat_dong_cua(cv.id, emp.id) is None:
             repo.add(SanXuatPhanCong(
@@ -251,7 +260,7 @@ def bat_dau(
     cảnh báo — đúng chủ trương "máy chỉ ghi nhận". Luật ≥1 thợ thì Ở LẠI: đó là luật về NGƯỜI
     CÓ MẶT, không phải về cỡ kíp."""
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     from .dong_lenh import chan_neu_da_dong
 
     chan_neu_da_dong(db, cv)
@@ -352,7 +361,7 @@ def _tam_dung_lo(
     if not (ly_do or "").strip():
         raise ValueError("Tạm dừng bắt buộc có lý do.")
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai != CV_DANG_CHAY:
@@ -405,7 +414,7 @@ def _kiem_giao_het(db: Session, cv) -> None:
     if con <= _EPS_GIAO:
         return
     ten = ", ".join(dict.fromkeys(c.ten_cong_doan for c in chang_sau if c.ten_cong_doan)) or "công đoạn sau"
-    dv = nhan_don_vi(DonViDoRepository(db).ten_theo_ma(), cv.don_vi_ra or cv.don_vi_vao)
+    dv = nhan_don_vi(bang_dv_viec(db, cv), cv.don_vi_ra or cv.don_vi_vao)
     so = f"{con:,.3f}".rstrip("0").rstrip(".").replace(",", ".")
     raise ValueError(
         f"Còn {so}{f' {dv}' if dv else ''} chưa đề xuất giao sang {ten}. "
@@ -423,7 +432,7 @@ def ket_thuc(
     """Kết thúc: đóng phiên đang mở (nếu có) + khoảng tham gia, đánh dấu hoàn thành. Sớm hay trễ
     so với dự kiến đều không hỏi lý do (gỡ 16/09/2026)."""
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     _gate(db, user, cv)
     _kiem_version(cv, expected_version)
     if cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
@@ -463,10 +472,11 @@ def ket_thuc(
 def may_doi_duoc(db: Session, *, user, cong_viec_id: int) -> dict:
     """Ô "Đổi máy" của bàn tổ: máy đổi sang được + TÌNH TRẠNG LÚC NÀY của từng máy.
 
-    Lọc cùng MỘT luật với gợi ý máy ở Xếp lịch (`BaiGhepService.may_ngoai_cong_doan`): công đoạn đã
-    chọn máy cụ thể thì chỉ các máy đó, chưa chọn thì lùi về nhóm máy, chưa khai gì thì mọi máy. Bàn
-    tổ phán khác bàn xếp lịch là tổ đổi sang một máy mà công đoạn không có công thức giờ để chạy.
-    Bỏ sẵn máy đã ngừng dùng và máy đang gán — hai thứ `doi_may` sẽ từ chối.
+    Máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.9): công đoạn ràng buộc tổ ⇒ chỉ máy của công đoạn
+    thuộc TỔ CỦA VIỆC (`may_to.may_chon_duoc`); máy hư thì việc chờ, tổ không đổi sang máy tổ khác.
+    Công đoạn chưa tick tổ ⇒ lọc như gợi ý máy ở Xếp lịch (`BaiGhepService.may_ngoai_cong_doan`).
+    Mỗi máy kèm `to_khac` — tên tổ khác máy cũng thuộc, để tổ biết máy đang dùng chung. Bỏ sẵn máy
+    đã ngừng dùng và máy đang gán — hai thứ `doi_may` sẽ từ chối.
 
     Tình trạng lấy ĐÚNG hàm của cột Trạng thái màn Thiết bị (`trang_thai_may`): hai màn tự tính là
     sớm muộn cùng một máy hiện hai chữ khác nhau. Chỉ để NHÌN, không chặn chọn — đúng lối "chỉ cảnh
@@ -481,17 +491,27 @@ def may_doi_duoc(db: Session, *, user, cong_viec_id: int) -> dict:
     if cv.loai_buoc not in (BUOC_MAY, BUOC_THUE_NGOAI) or cv.trang_thai not in (CV_DANG_CHAY, CV_TAM_DUNG):
         return {"items": [], "theo_cong_doan": False}
     cd = repo.cong_doan_cua_viec(cv)
-    mays = [m for m in repo.may_con_dung()
-            if m.id != cv.may_id and not BaiGhepService.may_ngoai_cong_doan(cd, m)]
+    if may_to.rang_buoc_to(cd):
+        theo_to = may_to.may_chon_duoc(db, cd, cv.department_id)
+        con_dung = {m.id: m for m in repo.may_con_dung()}
+        mays = [con_dung[i] for i in theo_to if i in con_dung and i != cv.may_id]
+    else:
+        mays = [m for m in repo.may_con_dung()
+                if m.id != cv.may_id and not BaiGhepService.may_ngoai_cong_doan(cd, m)]
     tt = trang_thai_may(db, [m.id for m in mays])
+    to_cua = may_to.to_cua_may(db, [m.id for m in mays])
+    ten_to = may_to.ten_to(db, {t for ds in to_cua.values() for t in ds})
     ranh = {"trang_thai": TT_RANH, "nhan": NHAN_TT_MAY[TT_RANH], "chi_tiet": None}
     return {
         "items": [
             {"id": m.id, "ma": m.ma, "ten": m.ten, "loai_may": m.loai_may,
+             "to_khac": [ten_to[t] for t in to_cua.get(m.id, [])
+                         if t != cv.department_id and t in ten_to],
              **{k: tt.get(m.id, ranh)[k] for k in ("trang_thai", "nhan", "chi_tiet")}}
             for m in mays
         ],
-        "theo_cong_doan": cd is not None and bool(cd.may_lam_duoc or cd.nhom_may_cho_phep),
+        "theo_cong_doan": cd is not None and bool(cd.may_lam_duoc),
+        "theo_to": may_to.rang_buoc_to(cd),
     }
 
 
@@ -524,7 +544,7 @@ def doi_may(
     này nếu không kiểm ở đây); router dùng `_chay()` nên `ValueError` ở đây dịch thẳng ra 400.
     """
     repo = SanXuatThucThiRepository(db)
-    cv = _lay_cong_viec(repo, cong_viec_id)
+    cv = _lay_cong_viec(repo, cong_viec_id, khoa=True)
     from .dong_lenh import chan_neu_da_dong
 
     chan_neu_da_dong(db, cv)
@@ -539,6 +559,9 @@ def doi_may(
     may_moi = db.get(MayThietBi, may_id_moi)
     if may_moi is None or not may_moi.active:
         raise ValueError("Máy mới không tồn tại hoặc đã ngừng dùng trong danh mục.")
+    # Máy thuộc tổ (spec §4.9): đổi máy chỉ trong máy của tổ — cổng thật, ô chọn chỉ che bớt.
+    if loi := may_to.loi_cap(db, repo.cong_doan_cua_viec(cv), cv.department_id, may_id_moi):
+        raise ValueError(loi)
 
     now = _moc()
     may_cu = cv.may_id

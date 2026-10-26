@@ -29,7 +29,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint,
+    JSON, Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint,
     false as sa_false,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -83,11 +83,24 @@ class SanXuatBatch(Base):
     # danh mục lên giá thì mẻ vẫn đọc lại được đúng bối cảnh của nó, và mẻ hiện băng "Danh mục đã
     # đổi" kèm nút đồng ý — hệ KHÔNG tự đổi số dưới chân mẻ đã ghi.
     #
-    # Ảnh chụp này KHÔNG sinh tiền: bàn tổ không có ô thành tiền, không phép nhân nào.
-    # *"SẢN XUẤT CHỈ GHI NHẬN SỐ LƯỢNG."* Tiền tính ở màn Khoán theo kỳ của kế toán.
+    # Bàn tổ không có ô thành tiền: *"SẢN XUẤT CHỈ GHI NHẬN SỐ LƯỢNG."* Tiền tính từ ảnh chụp này
+    # lúc tính lương kỳ (`services/khoan_ky.py`, 21/10/2026) — giá là giá CỦA TỔ ghi.
     ten_khoan_snapshot: Mapped[str | None] = mapped_column(String(150), nullable=True)
     don_vi_khoan_snapshot: Mapped[str | None] = mapped_column(String(24), nullable=True)
     don_gia_khoan_snapshot: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Giá cố định của TỔ lần ghi, chụp cùng đơn giá (21/10/2026). NULL ở cả hai = thiếu giá.
+    gia_co_dinh_khoan_snapshot: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Ảnh chụp tuỳ chọn khi ghi (21/10/2026, mg 0430) `[{ma, ten, kieu, gia_tri}]` — mọi tuỳ chọn KHAI
+    # ở công đoạn lúc ghi, không tick = 0. NULL = lần ghi trước đợt 2 (công thức coi mọi tuỳ chọn = 0).
+    tuy_chon_khoan: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Ảnh chụp CÔNG THỨC khoán của công đoạn lúc ghi (21/10/2026, mg 0431) — chủ chốt công thức chụp
+    # như giá: sửa công thức ở danh mục không đổi tiền lần đã ghi. "" = công thức bỏ trống lúc ghi
+    # (tiền = giá cố định + SL × đơn giá). NULL = lần ghi trước mg 0431 ⇒ dùng công thức hiện tại.
+    cong_thuc_khoan_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ảnh chụp BẬC GIÁ lúc ghi (22/10/2026, mg 0433) `{ma, ten, gom_uv, so_mau, so_mau_pha}` — chỉ
+    # công đoạn chia bậc (Bài in). `ma` None = quy cách lệnh không khớp bậc nào (thiếu giá). NULL =
+    # công đoạn không chia bậc / lần ghi trước mg 0433.
+    bac_khoan_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     mo_ta_loi: Mapped[str | None] = mapped_column(String(500), nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -126,6 +139,9 @@ class SanXuatBatchPhatSinh(Base):
     ten_snapshot: Mapped[str | None] = mapped_column(String(150), nullable=True)
     don_vi_snapshot: Mapped[str | None] = mapped_column(String(24), nullable=True)
     don_gia_snapshot: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    # Ảnh chụp "Cách tính giá" của việc phát sinh lúc ghi (mg 0443). "" = việc không có công thức
+    # (dùng `don_gia_snapshot`); NULL = dòng ghi trước mg 0443 ⇒ đọc công thức hiện tại của danh mục.
+    cong_thuc_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 

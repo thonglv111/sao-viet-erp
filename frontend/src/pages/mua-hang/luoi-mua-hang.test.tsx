@@ -226,6 +226,16 @@ describe("lưới Từng món", () => {
     render(<ManMon khoa="t-mon2" rows={[mon(2, false)]} />);
     expect(tieuDe()[0]).toBe("Vật tư");
   });
+
+  it("giấy có cột Định lượng ngay sau Khổ, số đọc từ dòng; thiếu thì gạch", () => {
+    render(<ManMon khoa="t-mon3" rows={[{ ...mon(1, false), dinh_luong: 350 }, mon(2, false)]} />);
+    const cot = tieuDe();
+    expect(cot.indexOf("Định lượng")).toBe(cot.indexOf("Khổ") + 1);
+    const [d1, d2] = screen.getAllByRole("row").slice(1);
+    const o = (d: HTMLElement) => d.querySelectorAll("td")[cot.indexOf("Định lượng")].textContent;
+    expect(o(d1)).toBe("350");
+    expect(o(d2)).toBe("–");
+  });
 });
 
 describe("lưới Đơn mua", () => {

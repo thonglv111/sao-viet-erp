@@ -12,6 +12,7 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -43,7 +44,7 @@ from ..schemas.stock import (
     StockRequestUpdate,
 )
 from ..services.delivery_notify import kho_huy_hang_giao
-from ..services.kho_giay import co_don_vi_goc, khoa_ton_cua
+from ..services.kho_giay import DON_VI_TO_KHO, co_don_vi_goc, khoa_ton_cua, la_kho_to, to_tu_kg
 from ..services.kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
 from ..services.quyen_kho import xem_ton_kho
@@ -227,12 +228,22 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         # Quy đổi để FE hiện "10 ram ≈ 419,25 kg" ngay dưới ô SL — người khai thấy TRƯỚC con số
         # sẽ vào tồn, thay vì bấm Lưu rồi mới biết. Không đổi được thì trả `canh_bao_dv` nguyên
         # văn lý do chứ không im lặng.
-        qd, canh_bao = None, None
+        qd, canh_bao, quy_to = None, None, {}
         try:
             dv = don_vi_map.get(key)
             # Món vắng trong map (không tồn tại / loại sai) đi đường lẻ cũ để giữ ĐÚNG câu lỗi.
             # Giấy / vật tư: gốc theo ĐƠN VỊ GỐC của dòng (đơn vị đã khai), không phải ĐVT chính.
-            if co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
+            if (ln.hang_loai == "giay" and ln.don_vi_goc == DON_VI_TO_KHO and dv is not None
+                    and la_kho_to(ln.kho_rong, ln.kho_dai)
+                    and (hang_svc.quy_tu_don_vi(dv, ln.dvt, 1)["don_vi_goc"] or "").lower() == "kg"):
+                # Giấy khổ hai cạnh khai kg: gốc tờ, quy theo khổ + gsm (spec 2026-10-24 §5) — cùng
+                # số với lúc ghi sổ (`quy_ve_goc`), không thêm lượt đọc danh mục.
+                kg = hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi))
+                so_to = to_tu_kg(kg["sl_goc"], ln.kho_rong, ln.kho_dai, getattr(m, "gsm", 0))
+                qd = {**kg, "sl_goc": float(so_to), "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
+                      "he_so_ve_goc": so_to / float(ln.sl_de_nghi)}
+                quy_to = {"kg_moi_dvt": kg["sl_goc"] / float(ln.sl_de_nghi), "gsm": int(m.gsm)}
+            elif co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
                 dvg = don_vi_goc_map.get((ln.hang_loai, ln.hang_id, ln.don_vi_goc))
                 qd = (hang_svc.quy_tu_don_vi(dvg, ln.dvt, float(ln.sl_de_nghi)) if dvg is not None
                       else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
@@ -241,7 +252,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                 qd = (hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi)) if dv is not None
                       else hang_svc.quy_ve_goc(ln.hang_loai, ln.hang_id, ln.dvt,
                                                float(ln.sl_de_nghi)))
-        except VatLieuKhoError as e:
+        except (VatLieuKhoError, ValueError) as e:
             canh_bao = str(e)
         mc = mua_cho_cua_dong(mc_hang, ln.hang_loai, ln.hang_id, ln.kho_rong, ln.kho_dai)
         lines.append(StockRequestLineOut(
@@ -266,6 +277,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
             or (((ln.don_vi_goc or None) if co_don_vi_goc(ln.hang_loai) else None)),
             sl_quy_doi=(qd or {}).get("sl_goc"),
             quy_doi_dien_giai=(qd or {}).get("dien_giai"),
+            **quy_to,
             canh_bao_dv=canh_bao,
             sl_de_nghi=float(ln.sl_de_nghi),
             sl_duyet=float(ln.sl_duyet),
@@ -327,6 +339,8 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         can_luc=can_luc_hien_thi(getattr(req, "can_luc", None) or bc.get("can_luc")),
         san_xuat_cong_viec_id=bc.get("cong_viec_id"),
         san_xuat_cong_doan_ten=bc.get("cong_doan_ten"),
+        san_xuat_tu_lap=bool(bc.get("tu_lap")),
+        san_xuat_lenh_thu_hoi=bool(bc.get("lenh_thu_hoi")),
         gia_cong_ngoai_id=getattr(req, "gia_cong_ngoai_id", None),
         created_at=req.created_at, updated_at=req.updated_at, lines=lines,
     )
@@ -395,17 +409,21 @@ def list_requests(
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern=_MOC),
     bo_phan: int | None = Query(default=None, description="Điều kiện Phòng ban yêu cầu"),
+    to: int | None = Query(
+        default=None, description="Điều kiện Tổ: tổ của công việc gắn yêu cầu, hoặc phòng đứng tên"),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None, description="Điều kiện Kho: gắn kho hoặc có phiếu ở kho"),
     nguon: list[str] | None = Query(default=None, description="Điều kiện Nguồn (NGUON_YEU_CAU)"),
+    lenh: int | None = Query(default=None, description="Điều kiện Lệnh: dòng gắn lệnh hoặc bài chứa lệnh"),
+    vat_tu: list[str] | None = Query(default=None, description='Điều kiện Vật tư: "giay:12", "vat_tu:5"'),
     order: str = Query(default="id", pattern="^(id|updated)$"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> StockRequestPage:
     rows, total = svc.requests.list(
         loai=loai, trang_thai=trang_thai, q=q, kho_id=kho_id, dieu_chuyen=dieu_chuyen,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
-        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan, to_loc=to,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon, lenh_loc=lenh, vat_tu_loc=vat_tu,
         order=order, page=page, size=size,
         **_scoped_filters(db, user, authz),
     )
@@ -481,16 +499,19 @@ def request_counts_by_status(
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern=_MOC),
     bo_phan: int | None = Query(default=None),
+    to: int | None = Query(default=None),
     nguoi_yeu_cau: list[int] | None = Query(default=None),
     kho: int | None = Query(default=None),
     nguon: list[str] | None = Query(default=None),
+    lenh: int | None = Query(default=None),
+    vat_tu: list[str] | None = Query(default=None),
 ) -> dict[str, int]:
     """Đếm yêu cầu theo TỪNG trạng thái (áp cùng bộ lọc list, TRỪ tab) → FE cộng theo tab cho badge.
     Trả {trang_thai: số}. Áp SCOPE như list để badge khớp đúng danh sách người dùng thấy."""
     return svc.requests.count_by_status(
         loai=loai, base_trang_thai=trang_thai, kho_id=kho_id, dieu_chuyen=dieu_chuyen, q=q,
-        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan,
-        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon,
+        tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, bo_phan_id=bo_phan, to_loc=to,
+        nguoi_tao_ids=nguoi_yeu_cau, kho_loc=kho, nguon=nguon, lenh_loc=lenh, vat_tu_loc=vat_tu,
         **_scoped_filters(db, user, authz),
     )
 
@@ -512,6 +533,21 @@ def loc_bo_phan(
     dem = svc.requests.dem_theo_cot("bo_phan_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
     phong = DepartmentRepository(db)
     ra = [{"id": i, "ten": getattr(phong.get_by_id(i), "name", None) or f"#{i}", "so": n} for i, n in dem]
+    return sorted(ra, key=lambda d: d["ten"])
+
+
+@router.get("/loc-to")
+def loc_to(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Tổ": CHỈ tổ sản xuất (spec 2026-10-18 §5.4), số đếm theo tổ của công
+    việc gắn yêu cầu cộng phòng đứng tên — cùng luật với lọc `to`."""
+    to = {d.id: d.name for d in DepartmentRepository(db).to_san_xuat()}
+    dem = svc.requests.dem_theo_to(**_loc_nen(db, user, authz, loai, dieu_chuyen))
+    ra = [{"id": i, "ten": to[i], "so": n} for i, n in dem if i in to]
     return sorted(ra, key=lambda d: d["ten"])
 
 
@@ -546,6 +582,44 @@ def loc_kho(
         if n:
             ra.append({"id": kid, "ten": ten, "so": n})
     return ra
+
+
+@router.get("/loc-lenh")
+def loc_lenh(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Lệnh": lệnh có yêu cầu trong tầm nhìn (dòng gắn lệnh, hay gắn bài ghép
+    chứa lệnh), kèm số. Mới nhất lên đầu — kho thường tìm lệnh đang chạy."""
+    from ..models.lsx import Lsx
+
+    dem = dict(svc.requests.dem_theo_lenh(**_loc_nen(db, user, authz, loai, dieu_chuyen)))
+    if not dem:
+        return []
+    rows = db.execute(select(Lsx.id, Lsx.ma, Lsx.ten).where(Lsx.id.in_(dem))).all()
+    ra = [{"id": i, "ten": ma or f"#{i}", "phu": ten or None, "so": dem[i]} for i, ma, ten in rows]
+    return sorted(ra, key=lambda d: -d["id"])
+
+
+@router.get("/loc-vat-tu")
+def loc_vat_tu(
+    svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    loai: str | None = Query(default=None),
+    dieu_chuyen: bool | None = Query(default=None),
+) -> list[dict]:
+    """Giá trị điều kiện "Vật tư": mã hàng xuất hiện ở dòng yêu cầu trong tầm nhìn, kèm số. Khoá
+    `"<hang_loai>:<hang_id>"` — hai danh mục có hai dãy id riêng."""
+    dem = svc.requests.dem_theo_vat_tu(**_loc_nen(db, user, authz, loai, dieu_chuyen))
+    hang_map = _hang_service(db).map_theo_cap([cap for cap, _n in dem])
+    ra = []
+    for (l, i), n in dem:
+        m = hang_map.get((l, i))
+        ra.append({"id": f"{l}:{i}", "ten": getattr(m, "ten", None) or f"#{i}",
+                   "phu": getattr(m, "ma", None), "so": n})
+    return sorted(ra, key=lambda d: d["ten"])
 
 
 #: Nhãn điều kiện "Nguồn" — trùng chữ ô Nguồn trên danh sách.

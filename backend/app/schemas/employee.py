@@ -100,12 +100,13 @@ class EmployeeUpdate(EmployeeBase):
 
 
 class TransitionIn(BaseModel):
-    kind: str = Field(description="confirm|leave_start|leave_end|suspend|unsuspend|resign|reinstate|transfer|promote")
+    kind: str = Field(description="confirm|leave_start|leave_end|suspend|unsuspend|resign|reinstate|probation_restart|transfer|promote")
     effective_date: date | None = None
     note: str | None = Field(default=None, max_length=500)
     new_department_id: int | None = None      # transfer
     new_position: str | None = Field(default=None, max_length=255)   # promote
     resign_reason: str | None = Field(default=None, max_length=255)  # resign
+    probation_end_date: date | None = None    # probation_restart
 
 
 class AccountIn(BaseModel):

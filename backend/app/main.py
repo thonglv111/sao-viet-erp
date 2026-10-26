@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from . import khoi_dong
+from .bat_loi_chung import BatLoiChung
 from .config import assert_secure_config, settings
 from .cong_dong_thoi import CongDongThoi, gioi_han_mac_dinh
 from .db import SessionLocal
@@ -150,6 +151,8 @@ app.add_middleware(
     gioi_han=gioi_han_mac_dinh(),
     cho_toi_da=settings.cho_hang_doi_giay,
 )
+# Lỗi 500 chưa bắt trả JSON từ trong CORS — xem `app/bat_loi_chung.py`. Cũng khai TRƯỚC CORS.
+app.add_middleware(BatLoiChung)
 
 app.add_middleware(
     CORSMiddleware,

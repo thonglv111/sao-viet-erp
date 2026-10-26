@@ -19,6 +19,7 @@ from ..deps import require_any_permission, require_permission
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.may_thiet_bi_repo import MayThietBiRepository, NhomMayRepository
+from ..schemas.cong_doan import RefOption, RefOptionListOut
 from ..schemas.may_thiet_bi import (
     MayThietBiIn,
     MayThietBiListOut,
@@ -80,6 +81,13 @@ def trang_thai(
     return TrangThaiMayOut(
         items={k: TrangThaiMayRow(**v) for k, v in trang_thai_may(db, may_ids).items()}
     )
+
+
+@router.get("/phong-ban", response_model=RefOptionListOut)
+def phong_ban(svc: Service, _: Annotated[User, Depends(_DOC)]) -> RefOptionListOut:
+    """TỔ cho ô "Tổ đứng máy" (mg `0435`) — cửa riêng của màn Máy, không mượn quyền màn Công đoạn."""
+    return RefOptionListOut(items=[RefOption(**r) for r in svc.phong_ban_options()])
+
 
 make_catalog_router(
     router, ten="may_thiet_bi", ServiceDep=Service, module=MODULE, doc=_DOC,

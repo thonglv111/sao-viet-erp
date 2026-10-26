@@ -119,6 +119,10 @@ class StockRequestLineOut(BaseModel):
     don_vi_goc_ten: str | None = None
     sl_quy_doi: float | None = None
     quy_doi_dien_giai: str | None = None
+    # Giấy khổ hai cạnh khai kg (gốc tờ): kg của MỘT ĐVT + gsm, để phiếu nhập tính lại số tờ làm
+    # tròn xuống khi kho gõ số khác hoặc sửa khổ thực nhận. Dòng khác: None.
+    kg_moi_dvt: float | None = None
+    gsm: int | None = None
     canh_bao_dv: str | None = None
     sl_de_nghi: float
     sl_duyet: float
@@ -218,6 +222,10 @@ class StockRequestOut(BaseModel):
     # NGUỒN GIA CÔNG NGOÀI (mg 0339) — ô Nguồn hiện thẻ "Gia công", khớp điều kiện lọc Nguồn.
     gia_cong_ngoai_id: int | None = None
     san_xuat_cong_doan_ten: str | None = None
+    # Hệ thống tự lập lúc phát hành lệnh (spec 2026-10-18) — ô Nguồn ghi "Tự lập khi phát hành".
+    san_xuat_tu_lap: bool = False
+    # Lệnh của việc đã thu hồi phát hành (L-SX-14) — kho không lập / ghi sổ phiếu tiếp được.
+    san_xuat_lenh_thu_hoi: bool = False
     lines: list[StockRequestLineOut] = []
 
 
@@ -832,6 +840,9 @@ class StockLotOut(BaseModel):
     ncc: str | None = None
     sl_ban_dau: float
     sl_con_lai: float
+    #: Giấy: gsm của danh mục; tờ: số kg quy từ `sl_con_lai` (cuộn ⇒ None) — chỉ hiển thị (spec §6).
+    dinh_luong: int | None = None
+    quy_kg: float | None = None
     hsd: date | None = None
     trang_thai: str
     # Phiếu NHẬP đã tạo ra lô này — màn Tồn kho hiển thị lô THEO MÃ PHIẾU (link mở phiếu). Null = đầu kỳ.
@@ -1100,6 +1111,8 @@ class TonKhoaRow(BaseModel):
     ton: float = 0
     don_vi_goc: str | None = None
     don_vi_goc_ten: str | None = None
+    dinh_luong: int | None = None
+    quy_kg: float | None = None
 
 
 class DuBaoTonRow(BaseModel):
@@ -1148,6 +1161,9 @@ class TonNhomMuc(BaseModel):
     dang_ve: float | None = None
     du_kien: float | None = None
     duoi_cuoi: bool = False
+    #: Giấy: gsm của danh mục; giấy tờ: tồn quy kg (cuộn ⇒ None). Chỉ hiển thị (spec 2026-10-24 §6).
+    dinh_luong: int | None = None
+    quy_kg: float | None = None
     #: Dòng dự báo đầy đủ (lệnh, đơn về) cho ngăn chi tiết — chỉ dòng trong trang; None khi dự báo hỏng.
     du_bao: DuBaoTonRow | None = None
 

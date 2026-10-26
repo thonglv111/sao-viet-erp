@@ -13,7 +13,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint,
+    Boolean, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint,
+    false as sa_false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,6 +49,11 @@ class SanXuatVatTuDeNghi(Base):
     # việc gì cho kho làm, nên không đẻ chứng từ rỗng.
     stock_request_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("stock_requests.id", ondelete="SET NULL"), nullable=True
+    )
+    # Hệ thống tự lập lúc phát hành lệnh (mg 0420), không phải tổ bấm. Kho báo lại thì báo về bàn
+    # tổ của công việc, vì người tạo là người phát hành chứ không phải người cần hàng.
+    tu_lap: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
     )
     created_by_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True

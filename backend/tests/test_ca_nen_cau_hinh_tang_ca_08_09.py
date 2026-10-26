@@ -128,34 +128,8 @@ def test_doi_co_co_luong_loai_nghi_bao_so_don_bi_anh_huong(client):
 # --- 7.1 D1/D2 ------------------------------------------------------------------------------------
 
 
-def _tat_tang_ca(client, h, phong: str) -> None:
-    r = client.put(f"/api/luong/dept-components/{_dept_id(phong)}",
-                   json={"items": [{"component_key": "tang_ca", "is_enabled": False}]}, headers=h)
-    assert r.status_code == 200, r.text
-
-
-def test_to_tat_tang_ca_khong_tra_phu_cap_tang_ca_dem_nhung_van_tra_cong_off1x(client):
-    h = _h(client)
-    _tat_tang_ca(client, h, "Kinh doanh")
-    e = _nv(client, h, "D1", "Kinh doanh")
-    _khai_luong(client, h, e)
-    _bam_du_thang(client, h, e, thang=8, den=31)
-    # Ngày 10/08 (T2): phiếu TC 16:30–23:30 duyệt + bấm TC 16:30 → 23:30 (đêm từ 22:00).
-    r = client.post("/api/overtime", json={"employee_id": e, "work_date": f"{NAM}-08-10", "from_minute": 990,
-                    "to_minute": 1410, "reason": "x"}, headers=h)
-    assert r.status_code == 201, r.text
-    _bam(e, NAM, 8, 10, 16, 30, "in")
-    _bam(e, NAM, 8, 10, 23, 30, "out")
-    # Ngày nghỉ 1× (off1x) 15/08 (T7 làm việc) có đi làm.
-    r = client.post("/api/calendar/special-days", json={"day": f"{NAM}-08-15", "kind": "off1x",
-                    "name": "Nghỉ 1×", "is_paid": False}, headers=h)
-    assert r.status_code == 201, r.text
-    ln = _line(_gen(client, h, month=8), e)
-    # Tắt tăng ca: không hệ số OT, không phụ cấp TC đêm; `ot_pay` chỉ còn đúng 1× lương ngày off1x (D1/D2).
-    assert ln["night_premium_pay"] == 0, ln
-    # Tháng 8 có 1 ngày off1x (không lương khi nghỉ) ⇒ công chuẩn 25 ⇒ đơn giá ngày 416.000.
-    assert ln["ot_pay"] == 416_000, ln
-    assert ln["ot_minutes"] > 0                             # phút tăng ca vẫn ghi nhận, chỉ không ra tiền
+# `_tat_tang_ca` + test "tổ tắt tăng ca không trả phụ cấp TC đêm" GỠ 20/10/2026 cùng công tắc Tăng ca
+# của Cơ chế lương (spec hai lương khối Sản xuất): tăng ca luôn bật cho mọi bộ phận.
 
 
 # --- 7.2 D5 ---------------------------------------------------------------------------------------
@@ -233,5 +207,5 @@ def test_excel_co_cot_gio_tang_ca(client):
     assert r.status_code == 200, r.text
     ws = load_workbook(BytesIO(r.content)).active
     head = [c.value for c in ws[4]]      # khuôn `BL CT` 17/09/2026: tiêu đề ở dòng 4
-    # "Tăng ca" = số GIỜ (tiền giờ tăng ca là cột "Ngoài giờ/Tăng ca"), như bảng lương công ty.
-    assert "Tăng ca" in head and "Ngoài giờ/Tăng ca" in head and "Ngày ca đêm" in head
+    # "Tăng ca" = số GIỜ (tiền giờ tăng ca là cột "Tăng ca theo giờ"), như bảng lương công ty.
+    assert "Tăng ca" in head and "Tăng ca theo giờ" in head and "Ngày ca đêm" in head

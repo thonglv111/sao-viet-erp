@@ -22,6 +22,7 @@ import {
   type Capabilities,
 } from "../auth/permissions";
 import { nhanChang, nhanDonVi } from "../pages/lsxBuoc";
+import { toastKhoNhapThanhPham } from "../pages/kcs/kcsNhan";
 import { num } from "../pages/keHoachSxShared";
 import { kenhCuaNav, loiNhacCua, navCuaKenh } from "../lib/thongBaoMan";
 import { toLaDauTien } from "../lib/banToLa";
@@ -646,14 +647,19 @@ export function AppShell() {
       pushToast(String(e.message ?? "Phiếu lương của bạn vừa đổi."), "info");
       return;
     }
-    // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. `hub.broadcast` gửi cho MỌI kết nối chứ
-    // không theo phạm vi, nên cả hai cổng lọc nằm ở đây:
-    //   1) toast gác quyền Xem bàn tổ — không thì kế toán, lái xe cũng ăn toast của tổ in;
-    //   2) KHÔNG bump tick nhóm — chỉ đẩy đích danh `cong_viec_id`
-    //      xuống bàn tổ để đúng drawer đang mở việc đó nạp lại. Bump tick chung ở đây là biến
-    //      một lần tổ gửi đề nghị thành một lượt gọi API cho MỌI màn đang mở của cả nhà máy.
+    // Tổ khác vừa báo hư máy mà việc của tổ này đang chạy trên đó (L-SX-18). Máy chủ gửi đích danh
+    // tổ đang chạy việc nên không lọc quyền nữa; nhích nhóm `san_xuat` để bàn tổ thấy máy dừng.
+    if (e.type === "san_xuat_may_hu_to_khac") {
+      boGop.danhDau(nhomCua(e.type));
+      pushToast(String(e.message ?? "Tổ khác vừa báo hư máy đang chạy việc của tổ bạn."), "warn");
+      return;
+    }
+    // Đề nghị cấp vật tư của MỘT công đoạn vừa đổi. Máy chủ gửi đích danh tổ của bước, nên chỉ
+    // bàn tổ đó nhận: đẩy `cong_viec_id` xuống để drawer đang mở việc đó nạp lại, và nhích nhóm
+    // `san_xuat` để cột Vật tư của lưới đổi theo (18/10/2026). Toast vẫn gác quyền Xem bàn tổ.
     if (e.type === "san_xuat_vat_tu_de_nghi_changed") {
       if (coQuyenBanTo(readable)) {
+        boGop.danhDau(nhomCua(e.type));
         const cv = e.cong_viec_id;
         setVatTuDeNghiDem((m) => ({ ...m, [cv]: (m[cv] ?? 0) + 1 }));
         // Cổng thứ 3: KHÔNG toast cho việc người này đang mở (drawer vừa tươi, và nếu chính họ
@@ -731,6 +737,9 @@ export function AppShell() {
       // bị báo lỗi đổi NGAY; nhóm sự kiện đã được đánh dấu ở đầu handler nên màn KCS, hộp "KCS báo lỗi" và
       // mục "Kết quả KCS" đang mở tự nạp lại (không refresh).
       napBadge("to_sx", reloadTeams);
+    } else if (e.type === "cay_to_doi") {
+      // Phòng ban đổi cấp trên / tên / bị xoá ⇒ cây bàn tổ ở thanh bên nạp lại ngay (L-VAI-49).
+      napBadge("to_sx", reloadTeams);
     } else if (coQuyenBanTo(readable) && e.type === "san_xuat_ban_giao_changed") {
       // Bàn giao giữa hai tổ đổi → badge "chờ xác nhận" của tổ nhảy NGAY;
       // nhóm sự kiện đã được đánh dấu nên hộp "Chờ tổ bạn xác nhận" của bàn đang mở tự nạp lại.
@@ -788,13 +797,8 @@ export function AppShell() {
     } else if (e.type === "san_xuat_kho") {
       // Nhập kho thành phẩm là tương tác GIỮA KCS và kho — kho ghi sổ phiếu nhập thì đẩy ĐÍCH DANH
       // tới người tạo yêu cầu (kho đã nhận tới đâu). `trang_thai` = trạng thái yêu cầu kho.
-      const ma = e.ma ? ` ${e.ma}` : "";
-      pushToast(
-        e.trang_thai === "partial"
-          ? `📦 Kho đã nhận MỘT PHẦN yêu cầu nhập kho${ma} — phần còn lại vẫn chờ nhập`
-          : `📦 Kho đã nhận đủ yêu cầu nhập kho${ma}`,
-        "ok",
-      );
+      const t = toastKhoNhapThanhPham(e.trang_thai, e.ma);
+      if (t) pushToast(t.chu, t.kieu);
     } else if (
       (readable.has("san_xuat") || readable.has("don_hang_ban")) &&
       e.type === "san_xuat_lenh_dong"
@@ -818,6 +822,14 @@ export function AppShell() {
         e.may_dung ? "warn" : "info",
       );
       napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("ky_thuat_may") && e.type === "ky_thuat_phieu_bao_lai") {
+      // Máy ĐÃ có phiếu sửa mở mà tổ báo lại (máy dừng / triệu chứng mới, 23/10/2026).
+      pushToast(
+        e.may_dung
+          ? `⚠️ ${e.may} đang dừng vì hỏng${e.nguoi_bao ? ` (${e.nguoi_bao} báo)` : ""}, phiếu ${e.ma}`
+          : `🔔 ${e.nguoi_bao ?? "Có người"} báo thêm triệu chứng ${e.may}, phiếu ${e.ma}`,
+        e.may_dung ? "warn" : "info",
+      );
     } else if (e.type === "ky_thuat_yeu_cau_ket_qua") {
       // Kết quả đẩy riêng về ĐÚNG người đã báo (không broadcast) ⇒ KHÔNG gác quyền: nhận được
       // sự kiện này nghĩa là mình chính là người gửi lời báo đó.
@@ -870,6 +882,12 @@ export function AppShell() {
         e.decision === "approved" || e.decision === "huy_dong_y" ? "ok" : "warn",
       );
       napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "profile_request_decision") {
+      // L-VAI-21: người gửi đề nghị cập nhật hồ sơ biết kết quả ngay; Hồ sơ của tôi tự nạp theo eventTick.
+      pushToast(e.decision === "approved"
+        ? "✓ Đề nghị cập nhật hồ sơ của bạn đã được duyệt"
+        : "✕ Đề nghị cập nhật hồ sơ của bạn bị từ chối — xem lý do ở Hồ sơ của tôi",
+      e.decision === "approved" ? "ok" : "warn");
     } else if (e.type === "leave_decision") {
       // Nghỉ phép (23/09/2026): quyết định về đơn đẩy riêng tới người đứng tên đơn.
       const msg: Record<string, string> = {
@@ -1254,8 +1272,8 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
-          laToCat={t?.la_to_cat ?? false}
-          ghiChotGiay={t?.quyen?.run_order === "all"}
+          coBaoDungMay={t?.quyen?.confirm_output === "all"
+            || (t?.quyen?.read != null && Boolean(caps.get("ky_thuat_may")?.can_request))}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
           dinhKemDem={lsxDinhKemDem}
@@ -1298,7 +1316,7 @@ export function AppShell() {
       case "nhan-su":
         return <NhanSuPage navigate={navigate} />;
       case "ho-so-cua-toi":
-        return <HoSoCuaToiPage navigate={navigate} />;
+        return <HoSoCuaToiPage navigate={navigate} eventTick={tickCua("nhan_su")} />;
       case "noi-quy":
         return <NoiQuyPage />;
       case "cham-cong":

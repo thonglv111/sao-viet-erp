@@ -12,8 +12,9 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.customer import Customer
-from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
+from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.order import STATUS_ORDERED, Order, OrderLine
+from ..models.vat_lieu_kho import LOAI_SONG, GiayNguyen
 from .catalog_base import SIZE_TRAN
 from .loc_danh_sach import dk_khoang_ngay
 from .org_scope import chu_theo_khach
@@ -47,6 +48,38 @@ class LsxRepository:
         self.db = db
 
     # --- reads ---------------------------------------------------------------
+
+    def co_vat_tu_buoc(self, lsx_ids: list[int], trang_thais: tuple[str, ...]) -> set[int]:
+        """Lệnh (trong `lsx_ids`, đang ở một trong `trang_thais`) có ít nhất một dòng vật tư khai ở
+        bước — MỘT câu cho cả trang."""
+        if not lsx_ids:
+            return set()
+        return set(self.db.execute(
+            select(LsxCongDoan.lsx_id).distinct()
+            .join(LsxCongDoanVatTu, LsxCongDoanVatTu.lsx_cong_doan_id == LsxCongDoan.id)
+            .join(Lsx, Lsx.id == LsxCongDoan.lsx_id)
+            .where(LsxCongDoan.lsx_id.in_(lsx_ids), Lsx.trang_thai.in_(trang_thais))
+        ).scalars())
+
+    def giay_song_cac_buoc(self, lsx_id: int) -> tuple[list[str], list[str]]:
+        """`(tên Giấy, tên Sóng)` khai ở các bước của lệnh, theo thứ tự bước rồi thứ tự khai, không
+        lặp. Hộp bồi couche lên sóng có hai mã ở bước Cắt tờ — `giay_ten` của quy cách chỉ biết giấy
+        chính. Loại tra `giay_nguyen` theo `vat_tu_id` (mg 0426); mã đã xoá cứng coi là Giấy."""
+        rows = self.db.execute(
+            select(LsxCongDoanVatTu.vat_tu_ten_snapshot, GiayNguyen.loai)
+            .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+            .outerjoin(GiayNguyen, GiayNguyen.id == LsxCongDoanVatTu.vat_tu_id)
+            .where(LsxCongDoan.lsx_id == lsx_id, LsxCongDoanVatTu.hang_loai == "giay")
+            .order_by(LsxCongDoan.thu_tu, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
+        ).all()
+        giays: list[str] = []
+        songs: list[str] = []
+        for ten, loai in rows:
+            t = (ten or "").strip()
+            ds = songs if loai == LOAI_SONG else giays
+            if t and t not in ds:
+                ds.append(t)
+        return giays, songs
 
     def get(self, lsx_id: int) -> Lsx | None:
         return self.db.execute(
@@ -349,6 +382,18 @@ class LsxRepository:
             if row not in lsx.cong_doans:
                 lsx.cong_doans.append(row)
         self.db.flush()
+
+    def buoc_da_bat_dau(self, step_ids: set[int]) -> set[int]:
+        """Bước lệnh có công việc ĐÃ BẮT ĐẦU ở bàn tổ (đang chạy / tạm dừng / xong)."""
+        from ..models.san_xuat import CV_DANG_CHAY, CV_HOAN_THANH, CV_TAM_DUNG, SanXuatCongViec
+
+        if not step_ids:
+            return set()
+        return {int(i) for i in self.db.execute(
+            select(SanXuatCongViec.lsx_cong_doan_id).where(
+                SanXuatCongViec.lsx_cong_doan_id.in_(step_ids),
+                SanXuatCongViec.trang_thai.in_((CV_DANG_CHAY, CV_TAM_DUNG, CV_HOAN_THANH)),
+            )).scalars()}
 
     def phu_thuoc_toi_buoc(self, step_ids: set[int]) -> list[LsxCongDoanPhuThuoc]:
         if not step_ids:

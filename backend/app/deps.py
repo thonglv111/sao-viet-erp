@@ -839,9 +839,18 @@ def get_purchase_service(
         suppliers=suppliers,
         don_vi=DonViDoRepository(db),
     )
+    # Lưu đợt giao = tạo yêu cầu NHẬP kho của đợt (20/10/2026) — dựng đúng như
+    # `routers/kho_request.py::get_service()`, dùng chung `hang` để luật mặt hàng / đơn vị y hệt.
+    from .repositories.stock_lot_repo import StockThresholdRepository
+    from .services.stock_request_service import StockRequestService
+
+    yeu_cau_kho = StockRequestService(
+        StockRequestRepository(db), StockLotRepository(db), StockThresholdRepository(db),
+        SequenceService(DocumentSequenceRepository(db)), hang=hang,
+    )
     return PurchaseService(
         suppliers, department_requests, requests, users, departments, audit, authz, lich_su,
-        hang=hang, giu_cho=GiuChoService(db, kh_vt),
+        hang=hang, giu_cho=GiuChoService(db, kh_vt), stock_requests=yeu_cau_kho,
     )
 
 

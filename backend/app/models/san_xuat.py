@@ -29,7 +29,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    DateTime, ForeignKey, Index, Integer, JSON, Numeric, String, Text, UniqueConstraint,
+    Boolean, DateTime, ForeignKey, Index, Integer, JSON, Numeric, String, Text, UniqueConstraint,
     false as sa_false, text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -289,6 +289,11 @@ class SanXuatCongViec(Base):
     #    khoán LÚC GHI MẺ và mẻ tự chụp tên/đơn vị/đơn giá (`san_xuat_batch.*_khoan_snapshot`) —
     #    ảnh chụp ở đó ĐÚNG hơn, vì nó chụp đúng lúc biết việc gì.
     vat_tu_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Lúc phát hành bước có nhu cầu vật tư (mg 0420). Có cờ mà chưa có yêu cầu nào còn tính thì
+    # bàn tổ ghi "Chưa yêu cầu" và chặn Bắt đầu. Lệnh phát hành trước 18/10/2026 để false.
+    can_vat_tu: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     # DẶN DÒ của người lập kế hoạch — ảnh chụp ô "Ghi chú kỹ thuật cho thợ" của bước
     # (`lsx_cong_doan.ghi_chu` / `bai_ghep_cong_doan.ghi_chu`), mg `0290`. Trước 10/09/2026 câu này
     # viết cho thợ nhưng dừng lại ở màn Kế hoạch: snapshot không chụp nên bàn tổ không có gì để bày.

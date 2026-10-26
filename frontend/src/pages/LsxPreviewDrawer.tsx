@@ -116,7 +116,9 @@ export function LsxPreviewDrawer({
               <span className="khsx-badge-kicker">Lệnh dự kiến, chưa lưu</span>
             </p>
             <h2 className="khsx-drawer__title" id="khsx-drawer-title" tabIndex={-1} ref={titleRef}>
-              {data ? `${data.order_no} · ${data.customer_name ?? "—"}` : "Đang tải…"}
+              {data ? (
+                <>{data.order_no}<span className="khsx-drawer__khach">{data.customer_name ?? "—"}</span></>
+              ) : "Đang tải…"}
             </h2>
             {data && (
               <div className="khsx-drawer__meta">

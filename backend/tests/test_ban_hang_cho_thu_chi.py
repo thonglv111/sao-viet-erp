@@ -163,7 +163,7 @@ def test_don_huy_sau_khi_huy_hoa_don_da_thu_vao_hang_tra_lai(client):
 
     # Trần trả lại = cọc + tiền hoá đơn đã huỷ.
     r = _tra_lai(client, h, kh=kh, don=don, tien=1_000_001)
-    assert r.status_code == 422 and "1,000,000" in r.text
+    assert r.status_code == 422 and "1.000.000 đ" in r.text
     assert _tra_lai(client, h, kh=kh, don=don, tien=400_000).status_code == 201
     assert _dong_tra(client, h, don)["con_lai"] == 600_000
     assert _tra_lai(client, h, kh=kh, don=don, tien=600_000).status_code == 201

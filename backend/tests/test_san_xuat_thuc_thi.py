@@ -75,7 +75,9 @@ def _to_khoan(db, admin, ma="TO-TT") -> Department:
 
 
 def _to_cong_nhat(db, ma="TO-CN") -> Department:
-    d = Department(name="Tổ Công Nhật", code=ma, la_san_xuat=True, has_piece_work=False)
+    """Tổ NGOÀI khối Sản xuất — từ 20/10/2026 "lương khoán" = thuộc khối SX (tính 2 lương), cờ
+    `has_piece_work` thôi đọc."""
+    d = Department(name="Tổ Công Nhật", code=ma, la_san_xuat=False, has_piece_work=False)
     db.add(d)
     db.flush()
     return d
@@ -525,13 +527,15 @@ def test_nhan_vien_chon_liet_ke_to_khoan_bo_nghi(db, orders, lsx_svc, admin, cus
     assert res["nhan_vien"][0]["co_tai_khoan"] is False    # thợ không tài khoản
 
 
-def test_nhan_vien_chon_to_cong_nhat_khong_khoan(db, orders, lsx_svc, admin, customer):
+def test_nhan_vien_chon_khoi_sx_deu_tinh_hai_luong(db, orders, lsx_svc, admin, customer):
+    """20/10/2026: công tắc Lương khoán gỡ — tổ thuộc khối SX thì mọi người tính 2 lương, kể cả khi
+    cờ cũ `has_piece_work` đang tắt."""
     to, _cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-TT-CN")
-    to.has_piece_work = False                              # biến tổ này thành công nhật
+    to.has_piece_work = False
     _emp(db, to, "NV-CN-2")
     db.commit()
     res = board.nhan_vien_chon(db, admin, _authz(db), team_id=to.id)
-    assert res["nhan_vien"] and all(r["la_luong_khoan"] is False for r in res["nhan_vien"])
+    assert res["nhan_vien"] and all(r["la_luong_khoan"] is True for r in res["nhan_vien"])
 
 
 def test_nhan_vien_chon_ngoai_pham_vi_bi_chan(db, orders, lsx_svc, admin, customer):
@@ -816,3 +820,16 @@ def test_nhan_vien_chon_kem_tinh_trang(db, orders, lsx_svc, admin, customer):
     assert [(v["cong_viec_id"], v["trang_thai"]) for v in theo[chay.id]["viec_cho"]] == [
         (cv1.id, "paused"), (cv2.id, "released"),
     ]
+
+
+def test_bat_dau_hai_lan_lan_sau_bi_chan_chi_mot_phien(db, orders, lsx_svc, admin, customer):
+    """L-SX-23: hai người cùng bấm Bắt đầu — lượt sau (đọc lại sau khoá dòng việc) gặp việc đã chạy,
+    không đẻ phiên thứ hai cùng số thứ tự."""
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-BD2")
+    tho = _emp(db, to, "NV-BD2")
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=tho.id)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    with pytest.raises(ValueError):
+        thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    phien = db.query(SanXuatPhienChay).filter_by(cong_viec_id=cv.id).all()
+    assert [p.so_thu_tu for p in phien] == [1]

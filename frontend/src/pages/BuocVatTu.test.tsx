@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import BuocVatTu, { nhanKhoGiay, nhanNgan, soOChipTrong } from "./BuocVatTu";
+import BuocVatTu, { nhanNgan, soOChipTrong } from "./BuocVatTu";
 
 vi.mock("./tenDonVi", () => ({
   useNapTenDonVi: () => 1,
@@ -125,57 +125,16 @@ describe("BuocVatTu", () => {
   });
 });
 
-describe("BuocVatTu — giấy là vật tư của bước", () => {
-  const GIAY = [{ id: 1, ma: "C150", ten: "Couche 150", don_vi_gia: "kg" },
-                { id: 7, ma: "OLD", ten: "Giấy ngừng", active: false }];
-
-  it("ô thêm có nhóm Giấy đứng trước nhóm Vật tư, giấy ngừng dùng không mời", () => {
-    const { container } = render(<BuocVatTu {...props({ giayDm: GIAY as never })} />);
+describe("BuocVatTu — bước không mang giấy", () => {
+  // Giấy + sóng chọn ở SẢN PHẨM (mục Giấy nguyên, 24/10/2026): ô "Thêm vật tư" chỉ còn vật tư.
+  it("ô thêm không có nhóm Giấy/Sóng dù được đưa danh mục giấy", () => {
+    const GIAY = [{ id: 9, ma: "C150", ten: "Couche 150", loai: "giay" }, { id: 8, ma: "SE", ten: "Sóng E", loai: "song" }];
+    render(<BuocVatTu {...props({ giayDm: GIAY as never })} />);
     fireEvent.click(screen.getByRole("button", { name: /Thêm vật tư vào bước/ }));
     const nhom = Array.from(document.querySelectorAll(".sel__group")).map((e) => e.textContent);
-    expect(nhom).toEqual(["Giấy", "Vật tư"]);
-    expect(screen.queryByRole("option", { name: /Giấy ngừng/ })).toBeNull();
-    expect(container).toBeTruthy();
-  });
-
-  it("chọn giấy thêm dòng hang_loai giay; giấy và vật tư cùng id không lẫn nhau", () => {
-    const onChange = vi.fn();
-    const dong = [{ uid: "a", hang_loai: "vat_tu", vat_tu_id: 1, gia_tri_chip: {} }];
-    render(<BuocVatTu {...props({ onChange, giayDm: GIAY as never, dong })} />);
-    // Vật tư #1 (Support) đã có, giấy #1 (Couche 150) vẫn được mời.
-    fireEvent.click(screen.getByRole("button", { name: /Thêm vật tư vào bước/ }));
-    expect(screen.queryByRole("option", { name: /^Support/ })).toBeNull();
-    fireEvent.mouseDown(screen.getByRole("option", { name: /Couche 150/ }));
-    expect(onChange).toHaveBeenLastCalledWith([...dong,
-      { uid: expect.any(String), hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }]);
-  });
-
-  it("dòng giấy hiện tên giấy, không ô chip, lượng tra theo khoá giay:id", () => {
-    const dinhMuc = new Map([["giay:1", { so: 2_600, donVi: "to", lyDo: null }],
-                             ["vat_tu:1", { so: 3, donVi: "mm", lyDo: null }]]);
-    const { container } = render(<BuocVatTu {...props({ giayDm: GIAY as never, dinhMuc, dong: [
-      { uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
-    expect(container.querySelector(".tg-bvt__ten")?.textContent).toBe("Couche 150");
-    expect(container.querySelector(".tg-bvt__luoi")).toBeNull();
-    expect(container.querySelector(".tg-bvt__luong-so")?.textContent).toBe("2.600");
-  });
-
-  it("dòng giấy hiện khổ engine trả ngay sau tên; không có khổ (bước đầu vào —) thì thôi", () => {
-    const dinhMuc = new Map([["giay:1", { so: 2_600, donVi: "to", lyDo: null, kho: nhanKhoGiay(650, 430) }]]);
-    const { container, rerender } = render(<BuocVatTu {...props({ giayDm: GIAY as never, dinhMuc, dong: [
-      { uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
-    expect(container.querySelector(".tg-bvt__kho")?.textContent).toBe("430 × 650 mm");
-    const khongKho = new Map([["giay:1", { so: 21.2, donVi: "kg", lyDo: null, kho: "" }]]);
-    rerender(<BuocVatTu {...props({ giayDm: GIAY as never, dinhMuc: khongKho, dong: [
-      { uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }] })} />);
-    expect(container.querySelector(".tg-bvt__kho")).toBeNull();
-  });
-});
-
-describe("nhanKhoGiay", () => {
-  it("cạnh ngắn trước, thiếu cạnh thì rỗng", () => {
-    expect(nhanKhoGiay(1090, 790)).toBe("790 × 1.090 mm");
-    expect(nhanKhoGiay(790, 0)).toBe("");
+    expect(nhom.filter((t) => t === "Giấy" || t === "Sóng")).toEqual([]);
+    expect(screen.queryByRole("option", { name: /Couche 150|Sóng E/ })).toBeNull();
+    expect(screen.getByRole("option", { name: /Keo dán/ })).toBeTruthy();
   });
 });
 
@@ -186,8 +145,6 @@ describe("soOChipTrong", () => {
       { uid: "b", hang_loai: "vat_tu", vat_tu_id: 2, gia_tri_chip: {} },
     ], DM as never)).toBe(1);
     expect(soOChipTrong([], DM as never)).toBe(0);
-    // Dòng giấy cùng id với vật tư có chip KHÔNG bị đếm chip.
-    expect(soOChipTrong([{ uid: "g", hang_loai: "giay", vat_tu_id: 1, gia_tri_chip: {} }], DM as never)).toBe(0);
   });
 });
 

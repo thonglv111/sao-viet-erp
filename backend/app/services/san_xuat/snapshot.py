@@ -69,8 +69,15 @@ class _SoPhatHanh:
             from ..bien_cong_thuc import quy_cach_bien
 
             lsx = self.db.get(Lsx, lsx_id)
-            self._qc_lsx[lsx_id] = quy_cach_bien(lsx) if lsx is not None else {}
+            self._qc_lsx[lsx_id] = (
+                {**quy_cach_bien(lsx), **self._giay_song_cac_buoc(lsx_id)} if lsx is not None else {})
         return self._qc_lsx[lsx_id]
+
+    def _giay_song_cac_buoc(self, lsx_id: int) -> dict:
+        from ...repositories.lsx_repo import LsxRepository
+
+        giays, songs = LsxRepository(self.db).giay_song_cac_buoc(lsx_id)
+        return {"giays": giays, "songs": songs}
 
     def _quy_cach_bai(self, bg_id: int) -> dict:
         if bg_id not in self._qc_bai:
@@ -157,10 +164,18 @@ def the_quy_cach(qc: dict | None) -> dict | None:
     if not muc_a and not muc_b:
         muc_a, muc_b = tap_muc_tu_so(qc.get("so_mau_a"), qc.get("so_mau_b"), qc.get("so_mau_pha"))
 
+    # Giấy và Sóng tách ô (mg 0426; `giays`/`songs` do `_SoPhatHanh` gắn). Bình thường mỗi loại một
+    # mã; lệnh cũ (trước luật) hoặc mã bị đổi loại sau khi lập lệnh mà có nhiều mã cùng loại thì ô là
+    # DANH SÁCH, và nhiều GIẤY thì bỏ định lượng — ảnh chụp chỉ có gsm của giấy chính.
+    giays = [t for t in (qc.get("giays") or []) if t]
+    songs = [t for t in (qc.get("songs") or []) if t]
+    nhieu_giay = len(giays) > 1
     the = {
-        "giay": (qc.get("giay_ten") or "").strip() or None,
+        "giay": (giays if nhieu_giay else
+                 giays[0] if giays else (qc.get("giay_ten") or "").strip() or None),
         # gsm là số xưởng nói ("giấy 150"), `ngu_canh_lenh` thì trả kg/m² cho công thức.
-        "dinh_luong": _so(ctx["dinh_luong"] * 1000.0),
+        "dinh_luong": None if nhieu_giay else _so(ctx["dinh_luong"] * 1000.0),
+        "song": songs if len(songs) > 1 else (songs[0] if songs else None),
         "kho_nguyen": _kho(ctx["dai_nguyen"], ctx["rong_nguyen"]),
         "kho_in": _kho(ctx["dai_in"], ctx["rong_in"]),
         "kho_tp": _kho(ctx["dai_tp"], ctx["rong_tp"]),
@@ -444,7 +459,7 @@ def cong_viec_buoc_bai(
     tieu_chi_theo_cd: dict,
 ) -> list[SanXuatCongViec]:
     """Công việc (theo phân đoạn) của MỘT bước chạy chung của bài ghép. Phát hành gọi cho mọi bước
-    chung; tổ Cắt gọi cho bước cắt vừa chèn sau phát hành (`chot_giay`)."""
+    chung."""
     return _cong_viec_theo_phan_doan(
         repo, lich=repo.lich_bg_step(cd.id), cd=cd,
         tieu_chi_theo_cd=tieu_chi_theo_cd,

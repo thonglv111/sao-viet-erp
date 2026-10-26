@@ -10,8 +10,7 @@ If the service rules change, change this table with them.
 - ``requires_reason`` (cancel) needs a cancel_reason.
 - ``expired`` is reached from a time guard (past valid_until) inside the service,
   listed here so the UI can render the "Đánh dấu hết hạn" state.
-- Re-quote (new version) is NOT a status transition — it is ``POST /requote``
-  (legal from sent/accepted/rejected, see service).
+- Re-quote (new version) is NOT a status transition — it is ``POST /requote``.
 """
 from __future__ import annotations
 
@@ -39,7 +38,7 @@ class Transition:
 
 
 # (from, to) → Transition. Only these are legal (mirror of QuotationService.transition).
-# LƯU Ý: cửa DUYỆT đặc thù (pending_approval → sent / → draft) do endpoint POST /approval
+# LƯU Ý: cửa DUYỆT đặc thù do endpoint POST /approval
 # (record_approval) lái, KHÔNG qua /transition — nên KHÔNG liệt kê ở đây (xem redesign-bao-gia §3).
 TRANSITIONS: dict[tuple[str, str], Transition] = {
     # Gửi khách: khóa phiên bản + freeze snapshot. draft → sent (báo giá THƯỜNG; đặc thù phải qua duyệt).

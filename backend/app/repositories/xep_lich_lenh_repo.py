@@ -15,7 +15,7 @@ from ..models.bai_ghep import BaiGhepThanhVien
 from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import DonViDo
-from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
+from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.may_thiet_bi import MayThietBi
 from ..models.san_xuat import (
     GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatCongViecLichSu, SanXuatGoiPhatHanh,
@@ -269,6 +269,14 @@ class XepLichLenhRepository:
         for r in rows:
             out.setdefault(r.lsx_id, []).append(r)
         return out
+
+    def giay_cac_buoc(self, lsx_id: int) -> list[str]:
+        """Tên mọi giấy khai ở các bước của lệnh, GIẤY trước SÓNG sau (mg 0426), trong mỗi loại theo
+        thứ tự bước rồi thứ tự dòng, không lặp — MỘT truy vấn (xem `LsxRepository.giay_song_cac_buoc`)."""
+        from .lsx_repo import LsxRepository
+
+        giays, songs = LsxRepository(self.db).giay_song_cac_buoc(lsx_id)
+        return [*giays, *songs]
 
     def cum_lien_thong(self, lsx_ids) -> list[set[int]]:
         """Chia lệnh thành CỤM liên thông, mỗi cụm một tập — cùng ba quan hệ của

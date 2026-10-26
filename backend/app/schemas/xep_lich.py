@@ -349,6 +349,7 @@ class ChiTietOut(_LichChung):
     # Quy cách đọc từ `quy_cach_json` — ẢNH CHỤP lúc tạo lệnh, khoá có thể trống. Trống thì FE BỎ
     # ô, đừng in `null` hay bịa nhãn.
     giay: str | None = None
+    giays: list[str] = Field(default_factory=list)   # mọi giấy khai ở các bước
     kho_in: str | None = None
     so_mau: str | None = None
     so_kem: str | None = None

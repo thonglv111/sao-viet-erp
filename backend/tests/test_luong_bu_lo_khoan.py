@@ -27,7 +27,7 @@ from types import SimpleNamespace
 from app.db import SessionLocal
 from app.services.piece_work_service import PieceWorkService
 from tests.test_com_tang_ca import _ca_hanh_chinh, _h, _lam_ngay, _ngay_lam_viec, _nv
-from tests.test_khoan_khong_tien_tang_ca import (
+from tests.test_hai_luong_khoi_sx import (
     _chinh_thuc, _chuyen_to, _dong, _khai_com_tc_va_tat_khop_ca, _svc, _tinh_lai, _to,
 )
 from tests.test_luong_api import _sal
@@ -41,7 +41,7 @@ def _emp():
 
 
 def _tinh(svc, params, *, bu_lo=True, chi_an_km=None, allowance=0, la_to_in=None,
-          thu_viec=False, **kw) -> dict:
+          thu_viec=False, an_cong_nhat=None, **kw) -> dict:
     """Kiệt tháng 5: 21,5 ngày thường + 2 ngày lễ có lương + 3 Chủ nhật ⇒ 26,5 công, 3 công CN."""
     goc = dict(actual_cong=26.5, restday_cong=3)
     goc.update(kw)
@@ -50,7 +50,7 @@ def _tinh(svc, params, *, bu_lo=True, chi_an_km=None, allowance=0, la_to_in=None
         nv.status = "probation"
     return svc._compute(employee=nv,
                         salary=_sal(luong_vi_tri=CO_BAN, luong_trach_nhiem=TRACH_NHIEM,
-                                    allowance=allowance),
+                                    allowance=allowance, an_cong_nhat=an_cong_nhat),
                         params=params, standard_cong=26, on=date(2026, 5, 1), bu_lo=bu_lo,
                         chi_an_km=chi_an_km, la_to_in=la_to_in, **goc)
 
@@ -348,17 +348,16 @@ def test_TO_IN_ngay_CN_le_KHONG_co_cong_goc_tra_het_o_phan_them(client):
         db.close()
 
 
-def test_PHEP_CO_LUONG_khong_tinh_cong_cho_nguoi_khoan(client):
-    """⭐ Khách chốt 15/09/2026 chiều: *"nghỉ phép có lương ấy bên khoán mình sẽ không cho dùng"*.
-    Đơn cũ đã duyệt vẫn còn thì Lương KHÔNG đếm công phép đó vào bù lỗ theo công: 26 công gồm 2 công
-    phép ⇒ bù lỗ chỉ 24 công. Người công nhật vẫn được trả đủ 26 công như cũ."""
+def test_PHEP_CO_LUONG_la_mot_cong_cua_ve_thoi_gian(client):
+    """⭐ Chủ chọn cách A 20/10/2026 (ĐẢO chốt khách 15/09/2026): ngày phép có lương là một CÔNG trong
+    vế thời gian ⇒ 26 công gồm 2 công phép ⇒ bù lỗ đủ 26 công = 7.200.000, như người công nhật."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         params = svc.get_params()
         v = _tinh(svc, params, actual_cong=26, restday_cong=0, paid_leave_cong=2, khoan=0)
-        assert v["bu_lo_theo_cong"] == 6_646_154 and v["luong_ngay_phep"] == 0
+        assert v["bu_lo_theo_cong"] == 7_200_000 and v["luong_ngay_phep"] == 0
         cn = _tinh(svc, params, bu_lo=False, actual_cong=26, restday_cong=0, paid_leave_cong=2)
         assert cn["luong_cong"] == 7_200_000
     finally:
@@ -374,7 +373,7 @@ def test_TINH_LAI_to_khoan_lay_MAX_chup_len_dong_luong_va_sua_1_o_khong_cong_doi
     "Sửa 1 ô" sau đó phải ra đúng tổng cũ — nó cộng `luong_cong + khoan` từ dòng lương đã ghi."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán bù lỗ", khoan=True)
+    to_khoan = _to("Tổ khoán bù lỗ", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
@@ -467,7 +466,7 @@ def test_TINH_LAI_NGAY_LE_nghi_nguoi_khoan_va_tai_xe_duoc_tra_rieng_chot_cong_kh
 
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán ngày lễ", khoan=True)
+    to_khoan = _to("Tổ khoán ngày lễ", san_xuat=True)
     to_gh = _to("Tổ giao hàng ngày lễ", giao_hang=True)
     ngay_lam = _ngay_lam_viec(client, h)
     ngay, le = ngay_lam[2:5], ngay_lam[10]
@@ -590,86 +589,71 @@ def test_GIAO_HANG_km_CAO_hon_ve_thoi_gian_thi_KHONG_co_tien_tang_ca(client):
         db.close()
 
 
-def test_TO_KHOAN_san_luong_KHONG_dinh_luat_moi_van_0d_tang_ca(client):
-    """Luật mới CHỈ cho tổ Giao hàng: thợ khoán sản lượng vẫn 0đ tiền giờ tăng ca (chốt 14/09/2026)."""
+def test_TO_KHOAN_san_luong_an_ve_thoi_gian_KHONG_co_tien_gio_tang_ca(client):
+    """Chủ chốt 22/10/2026 (đảo 20/10/2026): luật Giao hàng KHÔNG áp cho khối Sản xuất — thợ khoán sản
+    lượng ăn vế thời gian chỉ nhận bù lỗ theo công, giờ tăng ca chấm công không ra tiền."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), actual_cong=26, restday_cong=0, allowance=5_400_000,
                   ot_minutes=600, khoan=5_000_000)
-        assert v["ot_pay"] == 0, "tổ khoán sản lượng bỗng dưng có tiền giờ tăng ca"
+        assert v["ot_pay"] == 0 and v["tien_gio_tang_ca"] == 0
         assert v["lay_bu_lo"] is True and v["luong_cong"] == BU_LO_GH - 5_000_000
     finally:
         db.close()
 
 
 # =============================================================================================
-# THỬ VIỆC ở tổ khoán — LUÔN ăn bù lỗ, không đem so sản lượng (chủ chốt 16/09/2026, PRD §00.9)
+# THỬ VIỆC ở tổ tính hai lương — KHÔNG còn luật riêng (chủ chốt 22/10/2026, thay chốt 16/09/2026)
 #
-# Chủ: *"nhân viên thử việc bên khoán ấy nó sẽ ăn theo lương bù lỗ, và mức tiền mình đã làm như phần
-# hành chính ấy là số % của lương ấy"*. Hai vế: (1) không so với khoán nữa; (2) % thử việc chỉ nhân
-# vào MỨC NỀN, phụ cấp giữ 100% — y hệt khối hành chính.
+# Thử việc đi qua ô "Cách trả lương" ở hồ sơ lương: mốc lương chưa chọn thì thử việc MẶC ĐỊNH công
+# nhật (lương theo công × % thử việc, phụ cấp đủ, tăng ca theo giờ, không tiền khoán / km). HCNS chọn
+# "Lương khoán" thì người thử việc so hai lương như người chính thức.
 # Số viết tay: nền 7.200.000 × 0,80 = 5.760.000 ⇒ 221.538,46 đ/công × 26,5 công = 5.870.769.
 # =============================================================================================
-BU_LO_TV = 5_870_769
+LUONG_CONG_TV = 5_870_769
 
 
-def test_THU_VIEC_to_khoan_LUON_an_bu_lo_du_san_luong_CAO_hon(client):
-    """⭐ Cùng số của Kiệt nhưng là người thử việc: khoán 20.157.390 vẫn KHÔNG được lấy.
-
-    Người chính thức tháng này lấy khoán 20.157.390 (test đầu file). Thử việc: 5.870.769.
-    Không zero tiền khoán thì `max(0, bù lỗ − khoán)` ra 0 ⇒ thành "lấy khoán", ăn trọn 100% tiền
-    sản lượng và % thử việc mất tác dụng đúng vào tháng làm ra nhiều tiền nhất."""
+def test_THU_VIEC_mac_dinh_CONG_NHAT_khong_an_san_luong(client):
+    """⭐ Cùng số của Kiệt nhưng là người thử việc, mốc lương chưa chọn cách trả: khoán 20.157.390
+    KHÔNG được lấy — ăn lương theo công như tổ thường."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), thu_viec=True, khoan=20_157_390)
         assert v["is_probation"] is True
-        assert v["bu_lo_theo_cong"] == BU_LO_TV
-        assert v["lay_bu_lo"] is True
-        assert v["luong_cong"] == BU_LO_TV, "thử việc phải nhận trọn bù lỗ, không phải phần bù thêm"
-        assert v["khoan"] == 0, "tiền sản lượng vẫn cộng cho thử việc = không so nữa mà vẫn trả khoán"
+        assert v["che_do_khoan"] is False and v["bu_lo_theo_cong"] is None
+        assert v["khoan"] == 0, "thử việc mặc định công nhật mà vẫn trả tiền sản lượng"
+        assert v["luong_cong"] == LUONG_CONG_TV
     finally:
         db.close()
 
 
-def test_THU_VIEC_khoan_THAP_hon_cung_chi_an_bu_lo_khong_cong_don(client):
-    """Khoán 3tr < bù lỗ: vẫn đúng 5.870.769, KHÔNG phải bù lỗ + khoán."""
-    client
-    db = SessionLocal()
-    try:
-        svc = _svc(db)
-        v = _tinh(svc, svc.get_params(), thu_viec=True, khoan=3_000_000)
-        assert v["khoan"] == 0 and v["luong_cong"] == BU_LO_TV and v["lay_bu_lo"] is True
-    finally:
-        db.close()
-
-
-def test_THU_VIEC_tai_xe_km_CAO_hon_cung_an_bu_lo(client):
-    """Tài xế / phụ xe thử việc: chạy ra 20tr tiền km vẫn ăn bù lỗ theo công."""
+def test_THU_VIEC_tai_xe_mac_dinh_CONG_NHAT_khong_an_km(client):
+    """Tài xế / phụ xe thử việc: chạy ra 20tr tiền km vẫn ăn lương theo công."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
         v = _tinh(svc, svc.get_params(), thu_viec=True, chi_an_km=True, khoan_km=20_000_000)
-        assert v["khoan_km"] == 0 and v["luong_cong"] == BU_LO_TV and v["lay_bu_lo"] is True
+        assert v["khoan_km"] == 0 and v["luong_cong"] == LUONG_CONG_TV
     finally:
         db.close()
 
 
 def test_THU_VIEC_he_so_chi_nhan_vao_NEN_phu_cap_van_du_100(client):
-    """⭐ Vế 2 của câu chốt: phụ cấp 2,6tr KHÔNG bị nhân 0,80 — y như khối hành chính.
-
-    (5.760.000 + 2.600.000) ÷ 26 × 26,5 = 8.520.769. Nhân cả phụ cấp thì ra 7.990.769."""
+    """Công nhật thử việc y như khối hành chính: phụ cấp KHÔNG bị nhân 0,80."""
     client
     db = SessionLocal()
     try:
         svc = _svc(db)
-        v = _tinh(svc, svc.get_params(), thu_viec=True, allowance=2_600_000, khoan=50_000_000)
-        assert v["bu_lo_theo_cong"] == 8_520_769
-        assert v["bu_lo_theo_cong"] != 7_990_769, "phụ cấp bị nhân hệ số thử việc"
+        p = svc.get_params()
+        co = _tinh(svc, p, thu_viec=True, allowance=2_600_000, khoan=50_000_000)
+        ct = _tinh(svc, p, allowance=2_600_000, an_cong_nhat=True)
+        assert co["luong_cong"] == LUONG_CONG_TV
+        assert co["allowance"] == ct["allowance"] > 0, "phụ cấp bị nhân hệ số thử việc"
     finally:
         db.close()
 
@@ -690,21 +674,62 @@ def test_THU_VIEC_khong_ganh_TRU_LOI_khoan_vi_da_khong_an_khoan(client):
         db.close()
 
 
-def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monkeypatch):
-    """⭐ Qua API thật: hai thợ cùng tổ khoán, cùng 3 ngày công, cùng làm ra 50 triệu sản lượng.
+def test_THU_VIEC_chon_LUONG_KHOAN_so_hai_luong_nhu_chinh_thuc(client):
+    """HCNS chọn "Lương khoán" cho người thử việc ⇒ so hai lương: khoán 20.157.390 > vế thời gian
+    5.870.769 (nền đã × 0,80) ⇒ ăn khoán. Khoán thấp hơn ⇒ ăn vế thời gian, tiền khoán vẫn đứng ở cột."""
+    client
+    db = SessionLocal()
+    try:
+        svc = _svc(db)
+        p = svc.get_params()
+        cao = _tinh(svc, p, thu_viec=True, an_cong_nhat=False, khoan=20_157_390)
+        assert cao["che_do_khoan"] is True and cao["lay_bu_lo"] is False
+        assert cao["khoan"] == 20_157_390 and cao["luong_cong"] == 0
+        assert cao["bu_lo_theo_cong"] == LUONG_CONG_TV
+        thap = _tinh(svc, p, thu_viec=True, an_cong_nhat=False, khoan=3_000_000)
+        assert thap["lay_bu_lo"] is True and thap["khoan"] == 3_000_000
+        assert thap["khoan"] + thap["luong_cong"] == LUONG_CONG_TV
+    finally:
+        db.close()
 
-    Chính thức ⇒ lấy khoán 50tr. Thử việc ⇒ bù lỗ theo công, hai cột khoán = 0, và bù lỗ của họ
-    đúng bằng 0,80 bù lỗ của người chính thức (hệ số chỉ nhân vào nền). "Sửa 1 ô" không đổi tổng."""
+
+def test_CHINH_THUC_chon_CONG_NHAT_va_mac_dinh_LUONG_KHOAN(client):
+    """Chính thức, mốc chưa chọn ⇒ lương khoán; chọn Công nhật ⇒ bỏ tiền khoán."""
+    client
+    db = SessionLocal()
+    try:
+        svc = _svc(db)
+        p = svc.get_params()
+        mac_dinh = _tinh(svc, p, khoan=20_157_390)
+        assert mac_dinh["che_do_khoan"] is True and mac_dinh["khoan"] == 20_157_390
+        cn = _tinh(svc, p, an_cong_nhat=True, khoan=20_157_390)
+        assert cn["che_do_khoan"] is False and cn["khoan"] == 0
+    finally:
+        db.close()
+
+
+def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monkeypatch):
+    """⭐ Qua API thật: ba thợ cùng tổ khoán, cùng 3 ngày công, cùng làm ra 50 triệu sản lượng.
+
+    Chính thức ⇒ lấy khoán 50tr. Thử việc chưa chọn cách trả ⇒ công nhật, khoán = 0, lương theo công
+    đúng bằng 0,80 bù lỗ của người chính thức. Thử việc được HCNS chọn Lương khoán ⇒ lấy khoán 50tr.
+    "Sửa 1 ô" không đổi tổng."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán thử việc", khoan=True)
+    to_khoan = _to("Tổ khoán thử việc", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
-    for vai in ("chinh_thuc", "thu_viec"):
+    for vai in ("chinh_thuc", "thu_viec", "thu_viec_khoan"):
         eid = _nv(client, h, ten=f"Khoán {vai}")
         if vai == "chinh_thuc":
             _chinh_thuc(client, h, eid)
+        if vai == "thu_viec_khoan":
+            r = client.post(f"/api/luong/salaries/{eid}",
+                            json={"effective_from": "2026-01-03", "luong_vi_tri": 10_000_000,
+                                  "insurance_base": 10_000_000, "an_cong_nhat": False}, headers=h)
+            assert r.status_code in (200, 201), r.text
+            assert r.json()["an_cong_nhat"] is False
         _chuyen_to(eid, to_khoan)
         _ca_hanh_chinh(client, h, eid)
         for d in ngay:
@@ -713,17 +738,24 @@ def test_TINH_LAI_THU_VIEC_va_CHINH_THUC_cung_to_khoan_an_hai_kieu(client, monke
     monkeypatch.setattr(PieceWorkService, "khoan_map",
                         lambda self, y, m: {e: 50_000_000 for e in nguoi.values()})
 
+    # Form hồ sơ lương biết người đang thử việc để sáng sẵn ô Công nhật khi mốc chưa chọn.
+    for vai, mong in (("chinh_thuc", False), ("thu_viec", True)):
+        prev = client.get(f"/api/luong/salaries/{nguoi[vai]}/preview", headers=h).json()
+        assert prev["thu_viec"] is mong and prev["tinh_hai_luong"] is True, (vai, prev)
+
     bang = _tinh_lai(client, h)
-    ct, tv = _dong(bang, nguoi["chinh_thuc"]), _dong(bang, nguoi["thu_viec"])
+    ct, tv, tvk =(_dong(bang, nguoi[k]) for k in ("chinh_thuc", "thu_viec", "thu_viec_khoan"))
 
     assert ct["is_probation"] is False and ct["lay_bu_lo"] is False
     assert ct["khoan"] == 50_000_000 and ct["luong_cong"] == 0
 
-    assert tv["is_probation"] is True and tv["lay_bu_lo"] is True
-    assert tv["khoan"] == 0, "thử việc vẫn ăn sản lượng"
-    assert tv["luong_cong"] == tv["bu_lo_theo_cong"] > 0
-    assert abs(tv["bu_lo_theo_cong"] - 0.80 * ct["bu_lo_theo_cong"]) <= 1, (
-        tv["bu_lo_theo_cong"], ct["bu_lo_theo_cong"])
+    assert tv["is_probation"] is True and tv["che_do_khoan"] is False
+    assert tv["khoan"] == 0, "thử việc mặc định công nhật mà vẫn ăn sản lượng"
+    assert abs(tv["luong_cong"] - 0.80 * ct["bu_lo_theo_cong"]) <= 1, (
+        tv["luong_cong"], ct["bu_lo_theo_cong"])
+
+    assert tvk["is_probation"] is True and tvk["che_do_khoan"] is True
+    assert tvk["khoan"] == 50_000_000 and tvk["lay_bu_lo"] is False
 
     r = client.put(f"/api/luong/lines/{tv['id']}", json={"note": "soát thử việc"}, headers=h)
     assert r.status_code == 200, r.text
@@ -737,7 +769,7 @@ def test_CANH_BAO_truoc_chot_KHONG_reo_ten_nguoi_thu_viec(client):
     tên họ là bắt HCNS đi tìm một phiếu không bao giờ có, và tháng nào cũng réo."""
     h = _h(client)
     _khai_com_tc_va_tat_khop_ca(client, h)
-    to_khoan = _to("Tổ khoán cảnh báo", khoan=True)
+    to_khoan = _to("Tổ khoán cảnh báo", san_xuat=True)
     ngay = _ngay_lam_viec(client, h)[2:5]
 
     nguoi = {}
@@ -751,17 +783,16 @@ def test_CANH_BAO_truoc_chot_KHONG_reo_ten_nguoi_thu_viec(client):
             _lam_ngay(client, h, eid, d)
         nguoi[vai] = eid
 
-    bang = _tinh_lai(client, h)      # chưa chốt phân bổ nào ⇒ tiền khoán = 0 cho cả hai
+    bang = _tinh_lai(client, h)      # chưa có lần ghi nào ⇒ tiền khoán = 0 cho cả hai
     cb = bang["canh_bao_chot"] or ""
-    assert "Cảnh báo chinh_thuc" in cb, cb
+    # 20/10/2026: khoán = 0 ở khối SX là ăn vế thời gian — không réo tên ai nữa.
+    assert "Cảnh báo chinh_thuc" not in cb, cb
     assert "Cảnh báo thu_viec" not in cb, cb
 
 
-def test_CHAN_nghi_phep_CO_LUONG_cua_nguoi_khoan_va_tai_xe(client):
-    """⭐ Khách chốt 15/09/2026 chiều: *"nghỉ phép có lương ấy bên khoán mình sẽ không cho dùng"*.
-
-    Chặn ngay ở CỬA GỬI ĐƠN cho người tổ Lương khoán và tổ Giao hàng; loại nghỉ KHÔNG lương vẫn
-    dùng bình thường; người tổ thường không bị đụng."""
+def test_NGHI_PHEP_CO_LUONG_cua_nguoi_khoan_va_tai_xe_DUOC_dung(client):
+    """⭐ Chủ chọn cách A 20/10/2026 — GỠ chặn của khách 15/09/2026: người khối Sản xuất / Giao hàng gửi
+    được đơn nghỉ CÓ LƯƠNG (ngày phép là một công của vế thời gian)."""
     h = _h(client)
     co_luong = client.post("/api/leaves/types",
                            json={"name": "Phép năm khoán", "is_paid": True, "annual_quota": 12},
@@ -779,56 +810,34 @@ def test_CHAN_nghi_phep_CO_LUONG_cua_nguoi_khoan_va_tai_xe(client):
                                                 "start_date": ngay, "end_date": ngay}, headers=h)
 
     ngay = iter(["2026-06-10", "2026-06-11", "2026-06-12", "2026-06-15", "2026-06-16", "2026-06-17"])
-    for ten, kw in (("Tổ khoán chặn phép", dict(khoan=True)),
+    for ten, kw in (("Tổ khoán chặn phép", dict(san_xuat=True)),
                     ("Tổ giao hàng chặn phép", dict(giao_hang=True))):
         _chuyen_to(eid, _to(ten, **kw))
         r = xin(co_luong, next(ngay))
-        assert r.status_code == 400, (ten, r.status_code, r.text)
-        assert "không dùng nghỉ phép có lương" in r.text, r.text
+        assert r.status_code == 201, (ten, r.status_code, r.text)
         assert xin(khong_luong, next(ngay)).status_code == 201, ten
 
     _chuyen_to(eid, _to("Tổ thường chặn phép"))
     assert xin(co_luong, next(ngay)).status_code == 201
 
 
-def test_CHAN_to_GIAO_HANG_bat_LUONG_KHOAN_va_nguoc_lai(client):
-    """⭐ Một tổ không vừa có cờ Giao hàng vừa ăn Lương khoán / sản lượng (chủ chốt 16/09/2026).
-
-    Hai cờ là hai NGUỒN TIỀN đem so với bù lỗ (tiền km ⟷ tiền sản lượng). Bật cả hai thì phép so
-    cộng chung hai khoản thành một vế: ai gán nhầm một phiếu sản lượng cho tài xế là tháng đó anh ta
-    mất trắng tiền tăng ca. Chặn cả HAI CHIỀU + cả cửa tạo phòng ban."""
+def test_to_con_co_luong_khoan_cu_van_bat_duoc_GIAO_HANG(client):
+    """Luật "Giao hàng ⟷ Lương khoán loại trừ nhau" (16/09/2026) GỠ 26/10/2026 (L-SX-42): cờ
+    `has_piece_work` không còn đọc ở tiền từ 20/10 — tổ còn cờ cũ phải bật được Giao hàng, cả cửa
+    sửa lẫn cửa tạo phòng ban."""
     h = _h(client)
-
-    # (1) tổ Giao hàng ⇒ Cấu hình lương không bật được Lương khoán
-    gh = client.post("/api/departments", json={"name": "Tổ giao hàng chặn khoán",
-                                               "la_giao_hang": True}, headers=h)
-    assert gh.status_code == 201, gh.text
-    pb = gh.json()["id"]
-    r = client.put(f"/api/luong/dept-components/{pb}",
-                   json={"items": [{"component_key": "luong_khoan", "is_enabled": True}]},
-                   headers=h)
-    assert r.status_code == 400, r.text
-    assert "Giao hàng" in r.text and "Lương khoán" in r.text, r.text
-    # Tắt thì vẫn ghi được (không khoá cứng cả ô).
-    r = client.put(f"/api/luong/dept-components/{pb}",
-                   json={"items": [{"component_key": "luong_khoan", "is_enabled": False}]},
-                   headers=h)
-    assert r.status_code == 200, r.text
-
-    # (2) chiều ngược lại: tổ đang ăn khoán sản lượng ⇒ không bật được cờ Giao hàng
-    kh = client.post("/api/departments", json={"name": "Tổ khoán chặn giao hàng",
+    kh = client.post("/api/departments", json={"name": "Tổ khoán cũ bật giao hàng",
                                                "has_piece_work": True}, headers=h)
     assert kh.status_code == 201, kh.text
     r = client.put(f"/api/departments/{kh.json()['id']}",
-                   json={"name": "Tổ khoán chặn giao hàng", "la_giao_hang": True}, headers=h)
-    assert r.status_code == 400, r.text
-    assert "Giao hàng" in r.text, r.text
+                   json={"name": "Tổ khoán cũ bật giao hàng", "la_giao_hang": True}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["la_giao_hang"] is True
 
-    # (3) cửa TẠO phòng ban cũng chặn, không để lọt trạng thái sai ngay từ đầu
-    r = client.post("/api/departments", json={"name": "Tổ vừa km vừa sản lượng",
+    r = client.post("/api/departments", json={"name": "Tổ vừa km vừa cờ cũ",
                                               "la_giao_hang": True, "has_piece_work": True},
                     headers=h)
-    assert r.status_code == 400, r.text
+    assert r.status_code == 201, r.text
 
 
 def test_CO_TO_IN_khai_o_phong_ban_qua_API(client):
@@ -849,3 +858,15 @@ def test_CO_TO_IN_khai_o_phong_ban_qua_API(client):
     tat = client.put(f"/api/departments/{pb['id']}",
                      json={"name": "Tổ in offset 2", "la_to_in": False}, headers=h)
     assert tat.status_code == 200 and tat.json()["la_to_in"] is False
+
+    # L-SX-38: tắt cờ Tổ in phải hiện trong nhật ký "từ → sang"; sửa không đổi cờ thì không ghi cờ.
+    from app.models.audit import AuditLog
+    db = SessionLocal()
+    try:
+        ds = [a.detail for a in db.query(AuditLog).filter(
+            AuditLog.action == "update_department", AuditLog.target == f"dept:{pb['id']}").order_by(AuditLog.id)]
+    finally:
+        db.close()
+    assert "Tổ in:" not in ds[0]
+    assert ds[0] == "Sửa phòng Tổ in offset 2: tên Tổ in offset → Tổ in offset 2"
+    assert ds[-1].endswith(". Tổ in: bật → tắt")

@@ -124,8 +124,8 @@ def test_lenh_tron_goi_khong_len_man_kcs(sess, admin, lenh):
     assert kcs.khach_loc_kcs(sess, nguoi) == []
 
 
-def _lo_to(sess, giay_id, rong, dai, so_to, *, ma):
-    """Một lô giấy TỜ đúng khổ trong một kho riêng của test."""
+def _lo(sess, giay_id, rong, dai, sl, *, ma, goc):
+    """Một lô giấy trong một kho riêng của test: tờ đúng khổ (`to`) hoặc cuộn `(rộng, 0)` (`kg`)."""
     from datetime import date
 
     from app.models.kho_hang import KhoHang
@@ -137,8 +137,22 @@ def _lo_to(sess, giay_id, rong, dai, so_to, *, ma):
         sess.add(kho)
         sess.flush()
     sess.add(StockLot(ma_lo=ma, hang_loai="giay", hang_id=giay_id, kho_id=kho.id,
-                      don_vi_goc="to", kho_rong=rong, kho_dai=dai, ngay_nhap=date(2026, 10, 1),
-                      sl_ban_dau=so_to, sl_con_lai=so_to))
+                      don_vi_goc=goc, kho_rong=rong, kho_dai=dai, ngay_nhap=date(2026, 10, 1),
+                      sl_ban_dau=sl, sl_con_lai=sl))
+    sess.commit()
+
+
+def _lo_to(sess, giay_id, rong, dai, so_to, *, ma):
+    _lo(sess, giay_id, rong, dai, so_to, ma=ma, goc="to")
+
+
+def _bo_giay_buoc(sess, lenh):
+    """Lệnh cũ chưa khai giấy ở bước (trước khâu chuẩn bị giấy 24/10/2026) — gỡ dòng giấy mà lập
+    lệnh nay tự gắn, để thử đường đọc quy cách."""
+    for c in lenh.cong_doans:
+        for vt in list(c.vat_tus):
+            if vt.hang_loai == "giay":
+                sess.delete(vt)
     sess.commit()
 
 
@@ -152,13 +166,16 @@ def test_cho_cap_giay_goi_y_theo_phieu_va_ton_theo_kho(sess, admin, lenh):
     """C1: lần trọn gói xưởng cấp giấy chưa gửi đề nghị ⇒ dict lần mang sẵn phần "Chọn giấy":
     khổ + số tờ theo phiếu tính giá, và tồn tờ của mã giấy chia theo khổ (khổ đúng phiếu đứng đầu,
     kể cả khi kho hết)."""
+    _bo_giay_buoc(sess, lenh)
     lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
     giay_id = int(lenh.quy_cach_json["giay_id"])
     (d,) = lan_cua_lenh(sess, lenh.id)
     cg = d["cap_giay"]
     assert cg["giay_id"] == giay_id and cg["nguon"] == "phiếu tính giá"
-    assert cg["de_xuat"] == {"kho_rong": 790, "kho_dai": 1090, "so_to": float(lenh.so_to_nguyen)}
-    assert cg["kho"] == [{"kho_rong": 790, "kho_dai": 1090, "ton": 0.0, "dung_de_xuat": True}]
+    assert cg["de_xuat"] == {"kho_rong": 790, "kho_dai": 1090, "so_to": float(lenh.so_to_nguyen),
+                             "don_vi": "to"}
+    assert cg["kho"] == [{"kho_rong": 790, "kho_dai": 1090, "ton": 0.0, "don_vi": "to",
+                          "dung_de_xuat": True}]
 
     _lo_to(sess, giay_id, 650, 860, 2000, ma="LOT-T1")
     _lo_to(sess, giay_id, 790, 1090, 300, ma="LOT-T2")
@@ -185,6 +202,46 @@ def test_xuong_cap_giay_lap_de_nghi_xuat_mot_lan(sess, admin, lenh):
         790, 1090, 1200.0)
     with pytest.raises(ValueError, match="đã có đề nghị"):
         _xuat(sess, admin, lan)
+
+
+def _lo_cuon(sess, giay_id, rong, kg, *, ma):
+    _lo(sess, giay_id, rong, 0, kg, ma=ma, goc="kg")
+
+
+def _giay_cuon(sess, lenh, *, rong=870, kg=395.85):
+    """Lệnh nguồn cuộn: bước đầu (Cắt giấy cuộn) mang giấy kg khổ `(rộng cuộn, 0)`."""
+    vt = them_giay(sess, lenh, so_luong=kg, don_vi="kg")
+    vt.don_vi_goc, vt.kho_rong, vt.kho_dai = "kg", rong, 0
+    sess.commit()
+    return vt
+
+
+def test_cho_cap_giay_nguon_cuon_de_xuat_kg_theo_rong(sess, admin, lenh):
+    """Lệnh lấy giấy từ cuộn (24/10/2026 e2e): "Chọn giấy" đề xuất đúng cuộn của lệnh tính kg, và
+    liệt kê cả cuộn (theo rộng, kg) lẫn tờ (theo khổ) của mã giấy — mỗi dòng mang đơn vị của nó."""
+    vt = _giay_cuon(sess, lenh)
+    _dat(sess, admin, lenh, xuong_cap_giay=True)
+    _lo_cuon(sess, vt.vat_tu_id, 870, 5000, ma="LOT-C1")
+    _lo_to(sess, vt.vat_tu_id, 650, 860, 2000, ma="LOT-T1")
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    cg = d["cap_giay"]
+    assert cg["nguon"] == "lệnh" and cg["don_vi"] == "kg"
+    assert cg["de_xuat"] == {"kho_rong": 870, "kho_dai": 0, "so_to": 395.85, "don_vi": "kg"}
+    assert [(k["kho_rong"], k["kho_dai"], k["ton"], k["don_vi"], k["dung_de_xuat"])
+            for k in cg["kho"]] == [(870, 0, 5000.0, "kg", True), (650, 860, 2000.0, "to", False)]
+
+
+def test_xuong_cap_cuon_lap_dong_kg(sess, admin, lenh):
+    vt = _giay_cuon(sess, lenh)
+    lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
+    _xuat(sess, admin, lan, kho=(870, 0), so_to=395.85)
+    req = sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id, loai=REQ_XUAT).one()
+    (ln,) = req.lines
+    assert (ln.hang_id, ln.dvt, ln.kho_rong, ln.kho_dai) == (vt.vat_tu_id, "kg", 870, 0)
+    assert float(ln.sl_de_nghi) == 395.85
+    (d,) = lan_cua_lenh(sess, lenh.id)
+    assert (d["xuat_giay"]["kho_rong"], d["xuat_giay"]["kho_dai"], d["xuat_giay"]["don_vi"]) == (
+        870, 0, "kg")
 
 
 def test_o_giay_liet_ke_phieu_xuat_kho_cua_de_nghi(sess, admin, lenh):
@@ -230,8 +287,8 @@ def test_kho_tu_choi_thi_chon_giay_lai(sess, admin, lenh):
 def test_xuat_giay_kiem_kho_va_so_to(sess, admin, lenh):
     lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
     with pytest.raises(ValueError, match="khổ"):
-        _xuat(sess, admin, lan, kho=(790, 0))
-    with pytest.raises(ValueError, match="Số tờ"):
+        _xuat(sess, admin, lan, kho=(0, 0))
+    with pytest.raises(ValueError, match="Số lượng"):
         _xuat(sess, admin, lan, so_to=0)
 
 
@@ -646,7 +703,8 @@ def _giay_can(sess, lsx_id):
 def test_xuong_cap_giay_nhu_cau_theo_quy_cach_roi_theo_de_nghi(sess, admin, lenh):
     """Bước chưa khai giấy: nhu cầu giấy theo quy cách lệnh (khổ nguyên + số tờ nguyên). Gửi đề
     nghị khác khổ / số tờ thì nhu cầu đi theo đúng dòng đề nghị, khổ cũ rụng."""
-    assert _giay_can(sess, lenh.id) == []  # lệnh thường chưa khai giấy ở bước: không có
+    _bo_giay_buoc(sess, lenh)
+    assert _giay_can(sess, lenh.id) == []  # lệnh cũ chưa khai giấy ở bước: không có
     lan = _dat(sess, admin, lenh, xuong_cap_giay=True)
     assert _giay_can(sess, lenh.id) == [(790, 1090, float(lenh.so_to_nguyen))]
     _xuat(sess, admin, lan, kho=(860, 650), so_to=1000)
@@ -713,6 +771,7 @@ def test_bat_giu_cho_giu_duoc_giay_tron_goi(sess, admin, lenh):
     from app.models.vat_tu_giu_cho import VatTuGiuCho
     from app.services.xep_lich.release import _giu_cho_service
 
+    _bo_giay_buoc(sess, lenh)
     giay_id = int(lenh.quy_cach_json["giay_id"])
     _lo_to(sess, giay_id, 790, 1090, 5000, ma="LOT-G1")
     _lo_to(sess, giay_id, 650, 860, 5000, ma="LOT-G2")

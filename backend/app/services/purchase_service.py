@@ -15,7 +15,8 @@ from sqlalchemy import select
 
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
 # Soft ref (đọc-only) sang module Kho: biết đợt giao nào ĐÃ sinh yêu cầu NHẬP để chặn nhập trùng.
-from ..models.stock_request import REQ_CANCELLED, REQ_DONE, StockRequest
+from ..models.stock_request import REQ_CANCELLED, REQ_DONE, REQ_REJECTED, StockRequest
+from ..models.stock_voucher import StockVoucher
 from ..models.purchase import (
     DEPARTMENT_PURCHASE_SOURCE_TYPES,
     DPR_CANCELLED,
@@ -83,8 +84,10 @@ from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .danh_gia_ncc import DanhGiaNcc, tu_tong_hop
+from .dinh_dang import so_vn
 from .kho_giay import chuan_kho, co_don_vi_goc, don_vi_khai
 from .rbac_service import AuthorizationService
+from .stock_request_service import StockRequestConflict, StockRequestError
 
 
 # Kho file của mua hàng. ⚠️ Tiền tố này PHẢI có trong `_PREFIX_PERMISSION` (`routers/files.py`) —
@@ -163,6 +166,19 @@ _BAC_SANG_TRANG_THAI = {
     2: DPR_IN_PURCHASE,
     3: DPR_DONE,
 }
+
+
+def _cap_hang(line) -> tuple:
+    """`(hang_loai, hang_id)` của một dòng đơn (None ⇒ dòng đã xoá)."""
+    return (getattr(line, "hang_loai", None), getattr(line, "hang_id", None))
+
+
+def _gsm(hmap: dict, hang_loai, hang_id) -> int | None:
+    """Định lượng của dòng giấy — gsm danh mục trong map mặt hàng đã nạp; hàng khác None. Chỉ đọc
+    (spec 2026-10-24-chuan-bi-giay §6)."""
+    if hang_loai != "giay" or not hang_id:
+        return None
+    return getattr(hmap.get((hang_loai, hang_id)), "gsm", None) or None
 
 
 class PurchaseError(Exception):
@@ -770,6 +786,7 @@ class PurchaseService:
         lich_su: PurchaseStatusHistoryRepository,
         hang=None,
         giu_cho=None,
+        stock_requests=None,
     ) -> None:
         self.lich_su = lich_su
         self.suppliers = suppliers
@@ -787,6 +804,9 @@ class PurchaseService:
         # đóng đơn / mở lại đơn tự đối lại phần giữ HỨA đã bám đúng dòng phiếu — xem
         # `_doi_soat_giu_cho`.
         self.giu_cho = giu_cho
+        # `StockRequestService` — TUỲ CHỌN (20/10/2026), cùng nếp. Có mặt thì lưu đợt giao là tạo
+        # luôn yêu cầu NHẬP kho của đợt, sửa / xoá đợt kéo yêu cầu theo (`_dong_bo_yeu_cau_nhap`).
+        self.stock_requests = stock_requests
 
     # --- suppliers ---------------------------------------------------------
 
@@ -1158,10 +1178,10 @@ class PurchaseService:
         Bịt mỗi đầu trên thì chỉ cần khai cọc lúc đơn còn to rồi sửa đơn nhỏ lại là lách được."""
         if coc > tong:
             raise PurchaseValidationError(
-                f"Cọc dự kiến ({coc:,}đ) đang lớn hơn tổng dự kiến của đơn ({tong:,}đ) {khi}. "
+                f"Cọc dự kiến ({so_vn(coc)}đ) đang lớn hơn tổng dự kiến của đơn ({so_vn(tong)}đ) {khi}. "
                 "Cọc là ứng trước một phần của chính đơn này nên không thể vượt giá trị đơn."
                 if tong > 0 else
-                f"Chưa khai được cọc ({coc:,}đ): đơn chưa có dòng hàng nào nên tổng dự kiến đang "
+                f"Chưa khai được cọc ({so_vn(coc)}đ): đơn chưa có dòng hàng nào nên tổng dự kiến đang "
                 "là 0đ. Khai hàng trước rồi mới đặt cọc."
             )
 
@@ -1575,6 +1595,10 @@ class PurchaseService:
             }
 
         mua_cho = nap_mua_cho(self.requests.db, [ln.id for r in rows for ln in r.lines])
+        # Định lượng dòng giấy — gsm danh mục, một lượt cho cả trang.
+        _giay = list({(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines
+                      if ln.hang_loai == "giay" and ln.hang_id})
+        _hmap = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         mon: list[dict] = []
         for r in rows:
             khop_phieu = bool(tu_khoa) and any(
@@ -1676,6 +1700,7 @@ class PurchaseService:
                         "hang_id": line.hang_id,
                         "kho_rong": int(line.kho_rong or 0),
                         "kho_dai": int(line.kho_dai or 0),
+                        "dinh_luong": _gsm(_hmap, line.hang_loai, line.hang_id),
                         "item_name": line.item_name,
                         "unit": line.unit,
                         "quantity": float(line.quantity),
@@ -3047,7 +3072,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="submit_purchase_request",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — cọc {int(row.deposit_expected or 0):,}đ" if row.deposit_expected else row.code,
+            detail=f"{row.code} — cọc {so_vn(int(row.deposit_expected or 0))}đ" if row.deposit_expected else row.code,
         )
         return self._to_request_out(saved)
 
@@ -3452,6 +3477,9 @@ class PurchaseService:
         dot.lines = [PurchaseDeliveryLine(**c) for c in cleaned]
         row.deliveries.append(dot)
         self._chot_han_dot(dot, row)
+        # Lưu đợt = gửi kho luôn (20/10/2026). Tạo TRƯỚC `_sau_khi_doi_dot`: đối soát giữ chỗ trong đó
+        # tự commit, kho từ chối dòng sau mốc đó là đợt đã nằm sổ mà không có yêu cầu.
+        yc = self._tao_yeu_cau_nhap(row, dot, actor)
         self._sau_khi_doi_dot(row)
         saved = self.requests.save(row)
         self.audit.create(
@@ -3460,6 +3488,8 @@ class PurchaseService:
             target=f"purchase_request:{row.id}",
             detail=f"{row.code} — {self._tom_tat_dot_giao(dot, row)}",
         )
+        if yc is not None:
+            self.stock_requests.thong_bao_yeu_cau_moi(yc)
         return self._to_request_out(saved)
 
     def sua_dot_giao(self, request_id: int, delivery_id: int, *, lines: list[dict] | None, actor, **values) -> dict:
@@ -3490,6 +3520,7 @@ class PurchaseService:
                 if existing.purchase_request_line_id not in incoming_ids:
                     dot.lines.remove(existing)
         self._chot_han_dot(dot, row)
+        yc = self._sua_yeu_cau_nhap(row, dot)
         self._sau_khi_doi_dot(row)
         saved = self.requests.save(row)
         self.audit.create(
@@ -3498,6 +3529,8 @@ class PurchaseService:
             target=f"purchase_request:{row.id}",
             detail=f"{row.code} — {self._tom_tat_dot_giao(dot, row)}",
         )
+        if yc is not None:
+            self.stock_requests.thong_bao_da_doi(yc)
         return self._to_request_out(saved)
 
     def xoa_dot_giao(self, request_id: int, delivery_id: int, *, actor) -> dict:
@@ -3506,6 +3539,7 @@ class PurchaseService:
         self._chan_neu_dot_da_co_phieu_chi(row, delivery_id)
         seq = dot.seq_no
         tom_tat = self._tom_tat_dot_giao(dot, row)
+        yc = self._huy_yeu_cau_nhap(dot)
         row.deliveries.remove(dot)
         self._sau_khi_doi_dot(row)
         saved = self.requests.save(row)
@@ -3515,7 +3549,124 @@ class PurchaseService:
             target=f"purchase_request:{row.id}",
             detail=f"{row.code} — {tom_tat}",
         )
+        if yc is not None:
+            self.stock_requests.thong_bao_da_huy(yc)
         return self._to_request_out(saved)
+
+    # --- đợt giao ↔ yêu cầu NHẬP kho (20/10/2026) -------------------------------------------------
+    # Đợt giao và yêu cầu nhập là CÙNG một lần hàng về: lưu đợt là tạo yêu cầu, sửa đợt là sửa yêu
+    # cầu, xoá đợt là huỷ yêu cầu — tới khi kho lập phiếu thì khoá. Router đòi thêm ô "Thao tác" của
+    # Yêu cầu nhập xuất (`kho:request`) cho cả ba cửa. Vắng `stock_requests` (test dựng service
+    # trần) thì đợt giao chạy như trước 20/10/2026.
+
+    def _dong_yeu_cau_nhap(self, row: PurchaseRequest, dot: PurchaseDelivery) -> list[dict] | None:
+        """Dòng yêu cầu NHẬP dựng từ đợt giao — đúng như form "Gửi kho" vẫn điền sẵn: mặt hàng gốc
+        của dòng đơn mua, số + ĐVT của đợt, đơn giá đặt, khổ thực nhận, lệnh khi dòng mua cho đúng
+        MỘT lệnh. None khi có dòng đơn mua chưa gắn mã danh mục (dữ liệu cũ): kho đòi mã cho mọi
+        dòng, đợt khi đó nằm "Chờ gửi kho" để người mua chọn mặt hàng ở form Gửi kho."""
+        theo_id = {ln.id: ln for ln in row.lines}
+        mua_cho = nap_mua_cho(
+            self.requests.db, [ln.department_request_line_id for ln in row.lines]
+        )
+        out: list[dict] = []
+        for dl in dot.lines:
+            pl = theo_id.get(dl.purchase_request_line_id)
+            if pl is None or not pl.hang_loai or not pl.hang_id:
+                return None
+            mc = mua_cho.get(pl.department_request_line_id) if pl.department_request_line_id else None
+            lenh = (mc or {}).get("lenh") or []
+            mot = lenh[0] if len(lenh) == 1 else None
+            kho = self._kho_nhan_ra(dl, pl)
+            ghi_chu = " — ".join(s for s in (pl.item_name, dl.note) if s)
+            out.append({
+                "hang_loai": pl.hang_loai,
+                "hang_id": int(pl.hang_id),
+                "lsx_id": mot["id"] if mot and mot["loai"] == "lsx" else None,
+                "bai_ghep_id": mot["id"] if mot and mot["loai"] == "bai" else None,
+                "dvt": pl.unit,
+                "sl_de_nghi": float(dl.quantity),
+                "don_gia": int(pl.expected_unit_price or 0),
+                "ghi_chu": ghi_chu[:500] or None,
+                "kho_rong": kho["kho_rong"],
+                "kho_dai": kho["kho_dai"],
+            })
+        return out
+
+    def _loi_kho(self, exc: Exception) -> PurchaseError:
+        """Kho từ chối ⇒ bỏ cả đợt (đợt và yêu cầu đi chung một giao dịch), nói rõ lỗi từ đâu."""
+        self.requests.db.rollback()
+        cls = PurchaseConflict if isinstance(exc, StockRequestConflict) else PurchaseValidationError
+        return cls(f"Yêu cầu nhập kho: {exc}")
+
+    def _tao_yeu_cau_nhap(self, row: PurchaseRequest, dot: PurchaseDelivery, actor):
+        if self.stock_requests is None:
+            return None
+        self.requests.db.flush()  # cần `dot.id` để gắn nguồn
+        lines = self._dong_yeu_cau_nhap(row, dot)
+        if lines is None:
+            return None
+        try:
+            return self.stock_requests.create(
+                user=actor, loai="NHAP", lines=lines,
+                ngay_can=dot.delivery_date,
+                ghi_chu=f"Nhập từ đơn mua {row.code} — đợt {dot.seq_no}",
+                purchase_delivery_id=dot.id,
+                kho_to_bat_buoc=True, commit=False,
+            )
+        except StockRequestError as exc:
+            raise self._loi_kho(exc) from None
+
+    def _sua_yeu_cau_nhap(self, row: PurchaseRequest, dot: PurchaseDelivery):
+        """Đợt đã có yêu cầu còn sống thì yêu cầu đổi theo. Chưa có (đợt ghi trước 20/10/2026, kho đã
+        huỷ / từ chối) thì thôi — đợt nằm "Chờ gửi kho", nút Gửi kho vẫn ở đó."""
+        if self.stock_requests is None:
+            return None
+        req = self.stock_requests.requests.tim_theo_purchase_delivery(dot.id, khoa=True)
+        if req is None:
+            return None
+        self.requests.db.flush()
+        lines = self._dong_yeu_cau_nhap(row, dot)
+        try:
+            if lines is None:
+                raise StockRequestError(
+                    "Mỗi dòng phải chọn một mặt hàng trong danh mục Giấy / Vật tư khác."
+                )
+            return self.stock_requests.dong_bo_tu_dot_giao(req, lines, ngay_can=dot.delivery_date)
+        except StockRequestError as exc:
+            raise self._loi_kho(exc) from None
+
+    def _yeu_cau_nhap_theo_dot(self, dot_ids: list[int]) -> dict[int, tuple[int, str, str, bool]]:
+        """`{id đợt: (id yêu cầu, mã, trạng thái, kho đã lập phiếu)}` — yêu cầu NHẬP còn sống của mỗi
+        đợt, cùng luật `tim_theo_purchase_delivery`: kho huỷ hay TỪ CHỐI thì đợt về "Chờ gửi kho",
+        gửi lại được. Hai câu cho cả trang."""
+        if not dot_ids:
+            return {}
+        rows = self.requests.db.execute(
+            select(
+                StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id,
+                StockRequest.trang_thai,
+            ).where(
+                StockRequest.purchase_delivery_id.in_(dot_ids),
+                StockRequest.trang_thai.notin_([REQ_CANCELLED, REQ_REJECTED]),
+            )
+        ).all()
+        co_phieu = set(self.requests.db.scalars(
+            select(StockVoucher.request_id).where(
+                StockVoucher.request_id.in_([r.id for r in rows])
+            ).distinct()
+        )) if rows else set()
+        return {r.purchase_delivery_id: (r.id, r.ma, r.trang_thai, r.id in co_phieu) for r in rows}
+
+    def _huy_yeu_cau_nhap(self, dot: PurchaseDelivery):
+        if self.stock_requests is None:
+            return None
+        req = self.stock_requests.requests.tim_theo_purchase_delivery(dot.id, khoa=True)
+        if req is None:
+            return None
+        try:
+            return self.stock_requests.huy_tu_dot_giao(req)
+        except StockRequestError as exc:
+            raise self._loi_kho(exc) from None
 
     def gan_hoa_don(
         self,
@@ -3645,7 +3796,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="update_purchase_contract",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — HĐ {so_hd or '(trống)'} · cọc dự kiến {coc:,}đ",
+            detail=f"{row.code} — HĐ {so_hd or '(trống)'} · cọc dự kiến {so_vn(coc)}đ",
         )
         return self._to_request_out(saved)
 
@@ -3738,8 +3889,8 @@ class PurchaseService:
         tong = sum(gia_tri_cac_dot(row).values())
         if tong > money_total:
             raise PurchaseValidationError(
-                f"Tổng tiền các đợt giao ({tong:,}đ) vượt giá trị đơn đã duyệt "
-                f"({money_total:,}đ). Hóa đơn cao hơn đơn thì sửa đơn rồi duyệt lại, "
+                f"Tổng tiền các đợt giao ({so_vn(tong)}đ) vượt giá trị đơn đã duyệt "
+                f"({so_vn(money_total)}đ). Hóa đơn cao hơn đơn thì sửa đơn rồi duyệt lại, "
                 "đừng nhét chênh lệch vào đợt giao."
             )
 
@@ -3860,8 +4011,8 @@ class PurchaseService:
         money = purchase_money(row)
         if money["received_total"] < money["net_paid"]:
             raise PurchaseConflict(
-                f"Giá trị thực nhận ({money['received_total']:,}đ) thấp hơn số đã chi "
-                f"({money['net_paid']:,}đ). Huỷ bớt phiếu chi trước rồi sửa lại."
+                f"Giá trị thực nhận ({so_vn(money['received_total'])}đ) thấp hơn số đã chi "
+                f"({so_vn(money['net_paid'])}đ). Huỷ bớt phiếu chi trước rồi sửa lại."
             )
         saved = self.requests.save(row)
         self._doi_soat_giu_cho(row)
@@ -3869,7 +4020,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="update_purchase_request_received_quantities",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — thực nhận {money['received_total']:,}đ / đặt {money['total']:,}đ",
+            detail=f"{row.code} — thực nhận {so_vn(money['received_total'])}đ / đặt {so_vn(money['total'])}đ",
         )
         return self._to_request_out(saved)
 
@@ -4074,18 +4225,7 @@ class PurchaseService:
         cap = [
             (l.hang_loai, l.hang_id) for r in rows for l in r.lines if l.hang_loai and l.hang_id
         ]
-        nhap: dict[int, tuple[int, str, str]] = {}
-        if dot_ids:
-            for sr in self.requests.db.execute(
-                select(
-                    StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id,
-                    StockRequest.trang_thai,
-                ).where(
-                    StockRequest.purchase_delivery_id.in_(dot_ids),
-                    StockRequest.trang_thai != REQ_CANCELLED,
-                )
-            ).all():
-                nhap[sr.purchase_delivery_id] = (sr.id, sr.ma, sr.trang_thai)
+        nhap = self._yeu_cau_nhap_theo_dot(dot_ids)
         nap = {
             "lich_su": self.lich_su.cua_nhieu(DOC_PMH, ids),
             "audit": self.audit.list_by_targets(
@@ -4163,6 +4303,7 @@ class PurchaseService:
                     "hang_ten": getattr(_hmap.get((line.hang_loai, line.hang_id)), "ten", None),
                     "kho_rong": int(line.kho_rong or 0),
                     "kho_dai": int(line.kho_dai or 0),
+                    "dinh_luong": _gsm(_hmap, line.hang_loai, line.hang_id),
                     "loai_mua": mc["loai_mua"] if mc else None,
                     "yeu_cau_ma": mc["yeu_cau_ma"] if mc else None,
                     "mua_cho": mc["lenh"] if mc else [],
@@ -4227,21 +4368,10 @@ class PurchaseService:
             elif v.delivery_id is not None:
                 chi_theo_dot.setdefault(v.delivery_id, []).append(muc)
         # Đợt giao nào ĐÃ sinh yêu cầu NHẬP (chưa hủy) → chặn nhập kho trùng (nút đổi "Đã nhập kho").
-        _dot_ids = [d.id for d in getattr(row, "deliveries", []) or []]
-        _nhap_map: dict[int, tuple[int, str, str]] = {}
-        if nap is not None:
-            _nhap_map = nap["nhap"]
-        elif _dot_ids:
-            for sr in self.requests.db.execute(
-                select(
-                    StockRequest.id, StockRequest.ma, StockRequest.purchase_delivery_id,
-                    StockRequest.trang_thai,
-                ).where(
-                    StockRequest.purchase_delivery_id.in_(_dot_ids),
-                    StockRequest.trang_thai != REQ_CANCELLED,
-                )
-            ).all():
-                _nhap_map[sr.purchase_delivery_id] = (sr.id, sr.ma, sr.trang_thai)
+        _nhap_map = (
+            nap["nhap"] if nap is not None
+            else self._yeu_cau_nhap_theo_dot([d.id for d in getattr(row, "deliveries", []) or []])
+        )
         deliveries = [
             {
                 "id": d.id,
@@ -4250,6 +4380,8 @@ class PurchaseService:
                 "da_nhap_kho": d.id in _nhap_map,
                 "stock_request_id": _nhap_map.get(d.id, (None, None))[0],
                 "stock_request_ma": _nhap_map.get(d.id, (None, None))[1],
+                # Kho đã lập phiếu cho yêu cầu của đợt ⇒ khoá sửa / xoá đợt (20/10/2026).
+                "kho_da_lap_phieu": bool(_nhap_map.get(d.id, (None, None, None, False))[3]),
                 # Nấc kho của đợt (11/10/2026): chưa gửi / kho chưa nhập xong / đã vào tồn.
                 "kho": (
                     KHO_CHO_GUI if d.id not in _nhap_map
@@ -4316,6 +4448,7 @@ class PurchaseService:
                             chia_dot.get(d.id, {}).get("lines", {}).get(dl.id, {}).get("thanh_tien", 0)
                         ),
                         **self._kho_nhan_ra(dl, line_by_id.get(dl.purchase_request_line_id)),
+                        "dinh_luong": _gsm(_hmap, *_cap_hang(line_by_id.get(dl.purchase_request_line_id))),
                         "note": dl.note,
                     }
                     for dl in d.lines
@@ -4461,6 +4594,10 @@ class PurchaseService:
             "lich_su": self.lich_su.cua_nhieu(DOC_YCMH, [r.id for r in rows]),
             "mua_cho": nap_mua_cho(self.requests.db, [ln.id for r in rows for ln in r.lines]),
         }
+        # Định lượng dòng giấy — một lượt cho cả trang, không nạp lại theo từng yêu cầu (N+1).
+        _giay = list({(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines
+                      if ln.hang_loai == "giay" and ln.hang_id})
+        nap["hang"] = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         self._nap_ten_nguoi(
             [ln.cancelled_by_user_id for r in rows for ln in r.lines]
             + [h.changed_by_user_id for ds in nap["lich_su"].values() for h in ds]
@@ -4479,6 +4616,12 @@ class PurchaseService:
             else nap_mua_cho(self.requests.db, [ln.id for ln in row.lines])
         )
         so_dong_huy = 0
+        # Định lượng của dòng giấy đọc từ danh mục — một lượt cho cả yêu cầu.
+        if nap is not None and "hang" in nap:
+            _hmap = nap["hang"]
+        else:
+            _giay = [(ln.hang_loai, ln.hang_id) for ln in row.lines if ln.hang_loai == "giay" and ln.hang_id]
+            _hmap = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         for line in row.lines:
             qty = float(line.quantity)
             unit_price = int(line.expected_unit_price)
@@ -4497,6 +4640,7 @@ class PurchaseService:
                     "hang_id": line.hang_id,
                     "kho_rong": int(line.kho_rong or 0),
                     "kho_dai": int(line.kho_dai or 0),
+                    "dinh_luong": _gsm(_hmap, line.hang_loai, line.hang_id),
                     "item_name": line.item_name,
                     "unit": line.unit,
                     "quantity": qty,

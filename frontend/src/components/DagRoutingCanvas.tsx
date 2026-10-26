@@ -55,7 +55,7 @@ const GHOST_GAP_X = 16;
  * hàng với chuỗi: dây tới bước cuối chạy ngang khuất sau mọi thẻ, đọc thành "lệnh kia chảy vào
  * bước đầu".
  */
-function computeAutoLayout(rows: EditRow[]): Record<string, Point> {
+export function computeAutoLayout(rows: EditRow[]): Record<string, Point> {
   const rowMap = new Map<string, EditRow>();
   rows.forEach((r) => rowMap.set(r.key, r));
 
@@ -87,9 +87,38 @@ function computeAutoLayout(rows: EditRow[]): Record<string, Point> {
 
   rows.forEach((r) => getLevel(r.key));
 
+  // Hàng trên cùng của mỗi cột dành cho bước nằm trên CHUỖI DÀI NHẤT (tầng trước + số bước còn
+  // phía sau). Xếp theo thứ tự lưu thì Tề sóng (đứng đầu thứ tự, chỉ nối vào bước bồi) chiếm hàng
+  // chính: dây của nó chạy ngang khuất sau Tề giấy in, In… đọc thành "Tề sóng chảy vào Tề giấy in",
+  // còn Cắt giấy cuộn bị đẩy xuống như nhánh phụ (e2e chuẩn bị giấy 24/10/2026).
+  const sau = new Map<string, string[]>();
+  rows.forEach((r) =>
+    (r.phu_thuoc_step_keys || []).forEach((k) => {
+      if (rowMap.has(k)) sau.set(k, [...(sau.get(k) ?? []), r.key]);
+    }),
+  );
+  const conLai = new Map<string, number>();
+  function soBuocSau(key: string, visited = new Set<string>()): number {
+    if (conLai.has(key)) return conLai.get(key)!;
+    if (visited.has(key)) return 0;
+    visited.add(key);
+    const n = Math.max(0, ...(sau.get(key) ?? []).map((k) => soBuocSau(k, new Set(visited)) + 1));
+    conLai.set(key, n);
+    return n;
+  }
+  const doDai = new Map(rows.map((r) => [r.key, (levels.get(r.key) ?? 0) + soBuocSau(r.key)]));
+  // Bước GỐC (không tiền nhiệm) dời sang sát trước bước sớm nhất nó nối vào: dây ngắn, không băng
+  // ngang dưới các thẻ của hàng chính. Gốc của hàng chính đứng yên vì bước sau nó ở ngay cột kế.
+  rows.forEach((r) => {
+    const ke = sau.get(r.key);
+    if ((levels.get(r.key) ?? 0) === 0 && ke?.length) {
+      levels.set(r.key, Math.min(...ke.map((k) => levels.get(k) ?? 1)) - 1);
+    }
+  });
+
   // Nhóm node theo level
   const levelGroups = new Map<number, string[]>();
-  rows.forEach(({ key }) => {
+  [...rows].sort((a, b) => (doDai.get(b.key) ?? 0) - (doDai.get(a.key) ?? 0)).forEach(({ key }) => {
     const lvl = levels.get(key) ?? 0;
     if (!levelGroups.has(lvl)) levelGroups.set(lvl, []);
     levelGroups.get(lvl)!.push(key);

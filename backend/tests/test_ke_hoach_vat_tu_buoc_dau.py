@@ -208,18 +208,23 @@ def test_bai_in_chua_khai_don_vi_mua_kho_in(db, svc, customer):
 
 
 def test_bai_cuon_thieu_gsm_bo_so_kem_ly_do(db, svc, customer):
-    """I1 — bước chung đầu nhận cuộn mà giấy thiếu gsm ⇒ không lấy số tờ dán nhãn kg: nhu cầu 0,
-    có lý do cảnh báo."""
-    from app.models.department import Department
+    """I1 — bước chung lấy giấy nhận cuộn mà giấy thiếu gsm ⇒ không lấy số tờ dán nhãn kg: nhu cầu
+    0, có lý do cảnh báo. Bước cắt cuộn là bước lấy giấy vì bước thành viên nó phủ mang dòng giấy
+    (khâu tổ Cắt chốt giấy đã gỡ 18/10/2026, cờ Tổ Cắt không còn kéo bước nào thành bước lấy giấy)."""
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 
     g = _giay(db, gsm=0)
-    _a, _b, bg = _bai_tuyen(db, customer, g, [("Cắt cuộn", "prepress", "kg"),
-                                              ("In offset", "print", "to")])
-    to_cat = Department(name="Tổ Cắt KH", code="TO-CAT-KH", la_san_xuat=True, la_to_cat=True)
-    db.add(to_cat)
-    db.flush()
+    a, _b, bg = _bai_tuyen(db, customer, g, [("Cắt cuộn", "prepress", "kg"),
+                                             ("In offset", "print", "to")])
     cat = db.query(BaiGhepCongDoan).filter_by(bai_ghep_id=bg.id, thu_tu=1).one()
-    cat.department_id = to_cat.id
+    tv = LsxCongDoan(lsx_id=a.id, thu_tu=9, ten="Cắt cuộn", loai_buoc="may", step_key="tv-cat",
+                     don_vi_vao="kg", don_vi_ra="to")
+    db.add(tv)
+    db.flush()
+    db.add(LsxCongDoanVatTu(lsx_cong_doan_id=tv.id, hang_loai="giay", vat_tu_id=g.id,
+                            vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten,
+                            don_vi_snapshot="kg", so_luong=0, thu_tu=0))
+    db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=cat.id, lsx_id=a.id, lsx_step_key="tv-cat"))
     db.commit()
     items = [i for i in svc.can_doi()["items"] if i["hang_loai"] == "giay" and i["hang_id"] == g.id]
     dong = [d for i in items for d in i["dong"]]

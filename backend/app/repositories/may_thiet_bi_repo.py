@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.don_vi_do import DonViDo
 from ..models.may_thiet_bi import MayThietBi, NhomMay
@@ -18,7 +18,7 @@ ASSIGNABLE = (
     "kho_max_dai", "kho_max_rong", "kho_min_dai", "kho_min_rong",
     "kho_kem_dai", "kho_kem_rong", "vung_in_dai", "vung_in_rong", "nhip_giay_mm",
     "le_hong_mm", "duoi_thang_mau_mm",
-    "fields_theo_loai", "active",
+    "fields_theo_loai", "active", "to_ids",
 )
 
 
@@ -28,6 +28,24 @@ class MayThietBiRepository(CatalogRepo):
     commit_on_write = False   # `MayThietBiService` chốt sau khi ghi nhật ký — xem `catalog_base`
     # `active` (mg `0202`, 15/08/2026) = máy CÒN DÙNG hay đã thanh lý. Khác `machine_unavailable_
     # periods` — chỗ đó khai máy dừng TẠM theo khoảng thời gian, và Xếp lịch vẫn đọc nó như cũ.
+
+    def _base_select(self):
+        return select(MayThietBi).options(selectinload(MayThietBi.to_dung_may))
+
+    def _gan(self, obj: MayThietBi, data: dict) -> None:
+        # Tổ đứng máy (mg `0435`): vắng / None = giữ nguyên danh sách đang lưu.
+        if "to_ids" in data and data["to_ids"] is None:
+            data = {k: v for k, v in data.items() if k != "to_ids"}
+        super()._gan(obj, data)
+
+    def to_san_xuat(self) -> list:
+        """Các TỔ (nút lá khối Sản xuất) — cùng định nghĩa ô tổ của công đoạn."""
+        from .rbac_repo import DepartmentRepository
+
+        return DepartmentRepository(self.db).to_san_xuat()
+
+    def to_san_xuat_ids(self) -> set[int]:
+        return {d.id for d in self.to_san_xuat()}
 
     def extra_conds(self, *, loai_may: str | None = None, **_) -> list:
         return [MayThietBi.loai_may == loai_may] if loai_may else []

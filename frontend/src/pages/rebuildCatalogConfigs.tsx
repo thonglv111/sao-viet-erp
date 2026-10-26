@@ -251,6 +251,9 @@ export const CFG_MAY: CatalogConfig = {
   widthTen: 200,
   columns: [
     { key: "loai_may", label: "Nhóm máy", w: 120, render: (r) => (r.loai_may ? String(r.loai_may) : "") },
+    // Máy thuộc tổ (mg `0435`) — một máy nhiều tổ, mỗi tổ một chip.
+    { key: "to_ids", label: "Tổ đứng máy", w: 200,
+      render: (r) => <ChipTen prefix="/api/may-thiet-bi/phong-ban" ids={r.to_ids} /> },
     // Nhận diện tài sản — ba ô đã khai ở tab Thông tin chung, trước đây chỉ thấy khi mở thẻ máy.
     // Một dòng của lưới: hãng, model, rồi seri chữ nhỏ mờ; đủ chữ ở `title`.
     { key: "hang_san_xuat", label: "Hãng & model", w: 230,
@@ -321,6 +324,10 @@ export const CFG_MAY: CatalogConfig = {
     // ── 1. Thông tin chung ──────────────────────────────────────────────────
     { key: "loai_may", label: "Nhóm máy", type: "nhom_may", required: true, group: "Thông tin chung",
       refPrefix: "/api/nhom-may" },
+    // Tổ đứng máy (mg `0435`): máy của công đoạn đi theo tổ này. Nguồn tổ là cửa riêng của màn Máy,
+    // cùng định nghĩa "tổ lá khối Sản xuất" với ô tổ của công đoạn.
+    { key: "to_ids", label: "Tổ đứng máy", type: "to-multi", group: "Thông tin chung",
+      refPrefix: "/api/may-thiet-bi/phong-ban" },
     // Nhận diện tài sản — cột đã có sẵn trong DB (chỉ chưa bày ra form).
     { key: "hang_san_xuat", label: "Hãng sản xuất", type: "text", group: "Thông tin chung" },
     { key: "model", label: "Model", type: "text", group: "Thông tin chung" },
@@ -425,6 +432,12 @@ export const CFG_CONG_DOAN: CatalogConfig = {
   // Xoá MỀM: nút "Xóa" hỏi server "còn ai dùng không" rồi tự chọn kết cục — chưa ai dùng thì
   // xoá hẳn, còn nơi dùng thì chỉ ngừng dùng. Mục đã ngừng xem lại ở công tắc trên dải lọc.
   softDelete: true,
+  // Bảy công đoạn HỆ THỐNG (spec 2026-10-24-chuan-bi-giay §3): máy tự chèn Cắt giấy cuộn / Tề giấy
+  // in / Tề sóng và nhận bước bồi bằng MÃ ⇒ khoá tên, nhóm, đơn vị; vẫn mở để khai tổ, năng suất,
+  // khoán. Máy chủ chặn song song (`CongDoanService._kiem_he_thong`).
+  dongKhoa: (r) => (r.co_dinh ? "Công đoạn của hệ thống: không xoá, không ngừng dùng, không đổi tên, nhóm, đơn vị." : null),
+  dongKhoaMoDuoc: true,
+  oKhoaKhiCoDinh: ["ten", "nhom", "don_vi_vao", "don_vi_ra"],
   // Drawer chỉ còn MỘT ô công thức (`cong_thuc_gia`) — ô "Công thức sản lượng ra" GỠ 18/09/2026
   // (mg `0324`). Ô còn lại tự khai `nhanTab` nên KHÔNG cần nhãn tab gộp `nhanTabCongThuc`.
   // Thanh lọc (06/10/2026): Giai đoạn · Tổ phụ trách (tên tổ do máy chủ gắn) · Cần khuôn.
@@ -511,11 +524,9 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     // Bảng "Đầu việc và định mức của tổ" GỠ 18/09/2026 (mg `0320`) — công đoạn là CÔNG NGHỆ, việc
     // của tổ khai ở danh mục Công việc khoán. Vật tư (nền BOM) chuyển sang tab "Vật tư" bên dưới.
     { key: "vat_tus", label: "Vật tư công đoạn tiêu thụ", type: "vat-tu-cong-doan", group: "Vật tư" },
-    // Chặn gán máy SAI LOẠI ở bài ghép (vd Ghi kẽm CTP không cho máy Bế). Lưu mảng TÊN nhóm máy.
-    { key: "nhom_may_cho_phep", label: "Máy làm được công đoạn này", type: "nhom_may-multi",
-      refPrefix: "/api/nhom-may", group: "Lệnh sản xuất" },
-    // Máy CỤ THỂ + công thức của riêng từng cặp (06/09/2026). Hàng tick ngay trên chỉ còn là bộ
-    // lọc cho bảng này; luật chặn gán máy ở bước đọc DANH SÁCH này khi công đoạn có khai.
+    // Ô "Máy làm được công đoạn này" (nhóm máy) GỠ 22/10/2026: máy đi theo TỔ đã tick (mg `0435`).
+    // Máy CỤ THỂ + công thức của riêng từng cặp (06/09/2026) — bảng tự hiện máy của các tổ đang
+    // tick; luật chặn gán máy ở bước đọc DANH SÁCH này.
     { key: "may_lam_duoc", label: "Máy chạy được công đoạn này", type: "may-cua-cong-doan",
       // `size` phải ≤ 200: khung danh mục chung chặn trần ở `catalog_base.py` (`le=200`). Xin 500
       // thì router trả 422 và ô chọn máy rỗng IM LẶNG — không báo lỗi gì cho người dùng thấy.
@@ -567,6 +578,7 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     const coCauHinh = !!String(khoan.unit ?? "").trim()
       || (khoan.unit_price !== null && khoan.unit_price !== undefined && khoan.unit_price !== "")
       || !!String(khoan.cong_thuc_khoan ?? "").trim()
+      || (Array.isArray(khoan.gia_theo_to) && khoan.gia_theo_to.length > 0)
       || phatSinh.length > 0;
     body.khoan = coCauHinh ? { ...khoan, viec_phat_sinh: phatSinh } : null;
     // Bỏ tick "cần khuôn" thì ô Loại dụng cụ bị `showIf` ẩn ⇒ không nằm trong body ⇒ backend giữ
@@ -604,6 +616,9 @@ const congThucGiaGiay = (donViGia: unknown): string =>
     ? "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay"
     : "don_gia_giay * to_nguyen");
 
+/** Loại mã giấy — `giay` = tờ để in, `song` = tấm sóng để bồi (mg 0426). */
+const LOAI_GIAY_OPT = [{ value: "giay", label: "Giấy" }, { value: "song", label: "Sóng" }];
+
 export const CFG_GIAY: CatalogConfig = {
   title: "Giấy",
   moduleQuyen: "dm_giay",
@@ -614,12 +629,16 @@ export const CFG_GIAY: CatalogConfig = {
   softDelete: true,
   // Thanh lọc (06/10/2026): Đơn vị giá — giá trị + tên đơn vị do máy chủ đếm/tra.
   man: "giay",
-  dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
+  dieuKien: [
+    { key: "loai", nhan: "Loại", icon: "nhom", giaTri: LOAI_GIAY_OPT },
+    { key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" },
+  ],
   // Bề rộng px của lưới (08/10/2026): khai đủ cho Mã/Tên (`widthMa`/`widthTen`) và mọi cột trừ cột
   // CUỐI (Ghi chú) — cột không khai ăn phần còn lại; chữ dài cắt "…", rê chuột xem đủ.
   widthMa: 130,
   widthTen: 230,
   columns: [
+    { key: "loai", label: "Loại", w: 80, render: (r) => (r.loai === "song" ? "Sóng" : "Giấy") },
     { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
     { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
     { key: "don_gia", label: "Đơn giá", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
@@ -627,16 +646,15 @@ export const CFG_GIAY: CatalogConfig = {
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
+    // Loại (mg 0426, 19/10/2026): một sản phẩm tính giá / một lệnh có tối đa 1 Giấy + 1 Sóng.
+    { key: "loai", label: "Loại", type: "select", required: true, group: "Thông số", default: "giay",
+      options: LOAI_GIAY_OPT },
     { key: "gsm", label: "Định lượng (g/m²)", type: "number", required: true, group: "Thông số" },
-    // Đơn vị GỐC: tồn kho cộng dồn theo đơn vị này. Giấy để `kg` thì kho đếm theo cân; muốn đếm
-    // theo tờ thì chọn `tờ` — cặp cố định "1 ram = 500 tờ" chạy sẵn, không cần khai khổ.
-    { key: "don_vi_gia", label: "ĐVT", ...F_DON_VI, group: "Thông số" },
-    // Đơn vị THÊM (10/10/2026): cùng loại giấy lúc mua theo tờ lúc mua theo kg — hai nhóm không quy
-    // đổi lẫn nhau, mỗi nhóm một dòng tồn. Từ 18/10/2026 mọi mã giấy BẮT BUỘC có nhóm tờ + nhóm kg
-    // (bước nhận tờ xin kho bằng tờ, bước ra kg xin bằng kg): chip tờ/kg không bỏ được.
-    { ...F_DON_VI_THEM, donViBatBuoc: DON_VI_KHOA },
+    // KHÔNG có ô đơn vị (24/10/2026): giấy có ĐÚNG hai đơn vị kg + tờ, ĐVT chính kg — máy chủ tự
+    // điền khi tạo (`VatLieuKhoService._chot_don_vi_giay`). Ẩn hẳn cho khỏi hiểu nhầm là chọn được;
+    // cột ĐVT của bảng vẫn hiện "kg tờ". Ram / tấn vẫn nhập kho được qua quy đổi của tờ / kg.
     // Đơn giá theo ĐVT chính — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
-    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một ĐVT chính (đ/kg, đ/tờ, đ/ram…). Tính giá tự quy về giá một tờ hoặc một kg." },
+    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một kg. Tính giá tự quy về giá một tờ hoặc một kg." },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
       nhanTab: "Công thức tính giá",
       // ĐIỀN SẴN khi thêm mới (11/09/2026), sửa/xoá được. Trước đó ô này để trống và engine âm
@@ -1078,6 +1096,10 @@ export const CFG_DON_VI: CatalogConfig = {
   prefix: "/api/don-vi",
   nhatKyLoai: "don_vi_do",
   softDelete: true,
+  // Mã hiện HOA (KG, M2, TAN) dù máy chủ lưu thường; mã là ký hiệu có thật nên không điền sẵn MA-0001
+  // (dòng «ma-0001 abc» đẻ ra từ đúng gợi ý đó).
+  maHienHoa: true,
+  khongGoiYMa: true,
   // Thanh lọc (06/10/2026): Loại đo (họ đơn vị — nhãn do máy chủ gắn từ `HO_NHAN`).
   man: "don-vi",
   dieuKien: [{ key: "ho", nhan: "Loại đo", icon: "don-vi" }],

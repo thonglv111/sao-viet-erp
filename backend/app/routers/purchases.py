@@ -19,6 +19,7 @@ from ..deps import (
     CurrentUser,
     get_module_notification_repository,
     get_purchase_service,
+    require_all_permissions,
     require_any_permission,
     require_permission,
     require_xem_kho_nao,
@@ -992,7 +993,9 @@ def cancel_purchase_request(
 
 # --- đợt giao ---------------------------------------------------------------
 #
-# Cổng ở router là `thu_mua:update` cho mọi thao tác ghi đợt giao. Riêng "Đóng đơn" service tự thu
+# Cổng ở router là `thu_mua:update` cho mọi thao tác ghi đợt giao, cộng ô Thao tác của Yêu cầu nhập
+# xuất (`kho:request`) cho ghi / sửa / xoá đợt — lưu đợt là tạo luôn yêu cầu NHẬP kho (20/10/2026),
+# ma trận bày ô này dưới dòng Mua hàng thành "Ghi đợt giao". Riêng "Đóng đơn" service tự thu
 # về `thu_mua:approve` — nó cắt phần hàng chưa về ra khỏi công nợ nên là quyết định về TIỀN, cùng
 # lằn ranh đã áp cho `undo-received` và `cancel`.
 
@@ -1003,7 +1006,7 @@ def create_purchase_delivery(
     payload: PurchaseDeliveryIn,
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     notifications: NotificationRepo,
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+    user: Annotated[User, Depends(require_all_permissions((MODULE, "update"), ("kho", "request")))],
 ) -> PurchaseRequestOut:
     body = payload.model_dump()
     lines = body.pop("lines") or []
@@ -1029,7 +1032,7 @@ def update_purchase_delivery(
     payload: PurchaseDeliveryIn,
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     notifications: NotificationRepo,
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+    user: Annotated[User, Depends(require_all_permissions((MODULE, "update"), ("kho", "request")))],
 ) -> PurchaseRequestOut:
     body = payload.model_dump()
     lines = body.pop("lines")
@@ -1053,7 +1056,7 @@ def delete_purchase_delivery(
     delivery_id: int,
     svc: Annotated[PurchaseService, Depends(get_purchase_service)],
     notifications: NotificationRepo,
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+    user: Annotated[User, Depends(require_all_permissions((MODULE, "update"), ("kho", "request")))],
 ) -> PurchaseRequestOut:
     try:
         row = svc.xoa_dot_giao(request_id, delivery_id, actor=user)

@@ -81,6 +81,18 @@ def _may_in(db) -> MayThietBi:
     return may
 
 
+def _may_vao_cong_doan(db, may, cd) -> None:
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0435`): máy vào MỌI tổ của công đoạn rồi
+    đồng bộ bảng máy — đúng như khai "Tổ đứng máy" ở danh mục Thiết bị. Gọi lại không đụng gì."""
+    from app.models.may_thiet_bi import MayTo
+    from app.services.may_to import dong_bo_cong_doan_may
+
+    for to_id in cd.department_ids or []:
+        if db.get(MayTo, (may.id, to_id)) is None:
+            db.add(MayTo(may_id=may.id, department_id=to_id))
+    dong_bo_cong_doan_may(db, cong_doan_ids=[cd.id], may_ids=[may.id])
+
+
 def _quote_from_ptg(db, customer, ptg: PhieuTinhGia) -> Quote:
     # `quote_number` UNIQUE — đánh số tự tăng để gọi HÀM NÀY NHIỀU LẦN trong cùng một test không
     # đụng constraint (xem `_ptg_2_in`).
@@ -120,7 +132,10 @@ def _don_da_chuyen_sx(db, orders, admin, customer, ptg):
     return orders.release_production(order_id=d.id, actor=admin, scope="all")
 
 
-def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000) -> PhieuTinhGia:
+def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, kho_nguyen=(650, 900)) -> PhieuTinhGia:
+    # Khổ nguyên mặc định = khổ in: lệnh In thuần, máy không chèn Tề giấy in (spec chuẩn bị giấy §7 —
+    # khổ nguyên khác khổ in thì có Tề, bước hệ thống chưa gán tổ chặn "sẵn sàng"). Test cần tờ
+    # nguyên khác tờ in truyền `kho_nguyen=(790, 1090)`.
     # `ma` UNIQUE — query-or-create để gọi HAI LẦN trong cùng một test (2 tổ/2 lô) không đụng
     # constraint, giống `cd_in` ngay dưới.
     giay = db.query(GiayNguyen).filter(GiayNguyen.ma == "G-IV350X").first()
@@ -144,12 +159,13 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000) -> PhieuTinhGia:
     # mất luôn đường tính thời lượng theo máy (`to_gio`).
     cd_in.don_vi_vao = cd_in.don_vi_ra = "to"
     db.flush()
+    _may_vao_cong_doan(db, may, cd_in)
 
     def _sp(thu_tu, ten, sl, dai, rong):
         sp = PhieuThanhPhan(
             thu_tu=thu_tu, ten=ten, so_luong=sl, don_vi_tinh="cái",
             dai_thanh_pham=dai, rong_thanh_pham=rong, giay_id=giay.id,
-            kho_nguyen_dai=790, kho_nguyen_rong=1090, kho_in_dai=650, kho_in_rong=900,
+            kho_nguyen_dai=kho_nguyen[0], kho_nguyen_rong=kho_nguyen[1], kho_in_dai=650, kho_in_rong=900,
             so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat", may_id=may.id,
         )
         sp.thanh_phams.append(

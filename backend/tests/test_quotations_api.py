@@ -385,3 +385,18 @@ def test_cat_ten_dai_khong_de_len_cot_so():
     assert len(cat) < len(dai)
     assert stringWidth(cat, THUONG, 10) <= rong
     assert dai.startswith(cat[:-1])  # cắt từ đuôi, không xáo chữ
+
+
+def test_tong_phien_ban_lam_tron_khong_cat_cut(client):
+    """Giá vốn phiếu có phần lẻ (9.159.770,4 đ) ⇒ tổng sau VAT lẻ ,84 đ. Lịch sử phiên bản và
+    danh sách phải LÀM TRÒN như thẻ giá bán trên màn — cắt cụt bằng int() làm hai chỗ lệch 1 đ."""
+    token = _admin_token(client)
+    q = _create(client, token, _mk_ptg(products=(("Hộp bánh", 2000, 9_159_770.4),)))
+    body = client.get(f"/api/quotations/{q['id']}", headers=_h(token)).json()
+    du = body["total"]
+    # Từ 26/10/2026 (L-VAI-32) tổng lúc tạo đi `_cong_tong` nên đã là số tròn; vẫn giữ để chặn
+    # lịch sử phiên bản / danh sách cắt cụt khác thẻ giá bán.
+    assert du == round(du)
+    assert body["versions"][0]["total"] == round(du)
+    row = client.get("/api/quotations", headers=_h(token)).json()["items"][0]
+    assert row["total"] == round(du)

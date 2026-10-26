@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { khoaNguong, khoaTon, nhanDongTon } from "./khoGiay";
+import { gocDongXin, khoaNguong, khoaTon, nhanDongTon, toTuKg } from "./khoGiay";
 
 // Danh mục Đơn vị chưa nạp trong test ⇒ tên đơn vị rơi về mã trần (`to`, `kg`).
 describe("nhanDongTon", () => {
@@ -42,5 +42,38 @@ describe("khoaTon / khoaNguong — khớp khoá 5 phần của máy chủ", () =
       .toBe("giay:12:780:905:to");
     expect(khoaNguong({ hang_loai: "vat_tu", hang_id: 5, kho_rong: 0, kho_dai: 0, don_vi_goc: "thung" }))
       .toBe("vat_tu:5:0:0:thung");
+  });
+});
+
+// Phản chiếu `kho_giay.to_tu_kg`: tờ lẻ không có thật ⇒ làm tròn xuống; thiếu khổ/gsm ⇒ null.
+describe("toTuKg", () => {
+  it("làm tròn xuống theo khổ + gsm, không theo hệ số đã làm tròn", () => {
+    expect(toTuKg(84, 650, 860, 300)).toBe(500);
+    expect(toTuKg(50, 650, 860, 300)).toBe(298);   // 50 × (500/84) = 297,6 sẽ lệch 1 tờ
+    expect(toTuKg(299.35, 650, 860, 350)).toBe(1530);
+  });
+  it("kg quá nhỏ ra 0 tờ", () => {
+    expect(toTuKg(0.1, 650, 860, 300)).toBe(0);
+  });
+  it("thiếu cạnh hoặc gsm ⇒ null", () => {
+    expect(toTuKg(10, 860, 0, 300)).toBeNull();
+    expect(toTuKg(10, 650, 860, 0)).toBeNull();
+  });
+});
+
+describe("gocDongXin — dòng xin giấy khổ hai cạnh theo kg đọc thành tờ như máy chủ", () => {
+  it("kg khổ hai cạnh ⇒ tờ, làm tròn xuống", () => {
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "kg", rong: 430, dai: 650, slGoc: 20, gsm: 150 }))
+      .toEqual({ goc: "to", sl: 477 });
+  });
+  it("cuộn, tờ sẵn, hàng khác, thiếu gsm ⇒ giữ nguyên", () => {
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "kg", rong: 870, dai: 0, slGoc: 20, gsm: 150 }))
+      .toEqual({ goc: "kg", sl: 20 });
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "to", rong: 430, dai: 650, slGoc: 20, gsm: 150 }))
+      .toEqual({ goc: "to", sl: 20 });
+    expect(gocDongXin({ hangLoai: "vat_tu", donViGoc: "kg", rong: 0, dai: 0, slGoc: 5, gsm: null }))
+      .toEqual({ goc: "kg", sl: 5 });
+    expect(gocDongXin({ hangLoai: "giay", donViGoc: "kg", rong: 430, dai: 650, slGoc: 20, gsm: null }))
+      .toEqual({ goc: "to", sl: null });
   });
 });

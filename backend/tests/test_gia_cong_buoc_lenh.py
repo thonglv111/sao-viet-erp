@@ -57,7 +57,8 @@ def test_doi_ve_buoc_may_thi_xoa_nha_gia_cong(sess, orders, lsx_svc, admin, cust
 
 
 def test_thieu_nha_gia_cong_chan_san_sang(sess, orders, lsx_svc, admin, customer):
-    lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
+    # Khổ nguyên = khổ in: không có bước Tề giấy in (bước máy tự chèn, chưa gán tổ) chen vào đếm thiếu.
+    lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer, kho_nguyen=(650, 900))
     lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(
         lsx, loai_buoc=LB_THUE_NGOAI), actor=admin)
     thieu = lsx_svc.thieu_cua(lsx)

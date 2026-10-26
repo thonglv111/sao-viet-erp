@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Boolean,
     DateTime,
+    ForeignKey,
     Integer,
     JSON,
     Numeric,
@@ -19,7 +20,7 @@ from sqlalchemy import (
     Text,
     true as sa_true,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
 
@@ -140,6 +141,38 @@ class MayThietBi(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
+    )
+
+    # TỔ ĐỨNG MÁY (spec 2026-10-22-may-thuoc-to, mg `0435`): một máy thuộc NHIỀU tổ, một tổ giữ nhiều
+    # máy. Công đoạn lấy máy qua các tổ đã tick (`CongDoan.may_lam_duoc`), bước lệnh chọn tổ thì
+    # chỉ chọn được máy của tổ đó. Trống = máy chưa vào tổ nào ⇒ không hiện ở công đoạn có tick tổ.
+    to_dung_may: Mapped[list["MayTo"]] = relationship(
+        "MayTo", cascade="all, delete-orphan", order_by="MayTo.department_id",
+    )
+
+    @property
+    def to_ids(self) -> list[int]:
+        return [t.department_id for t in self.to_dung_may]
+
+    @to_ids.setter
+    def to_ids(self, ids: list[int]) -> None:
+        """Thay TRỌN danh sách tổ, giữ dòng nối của tổ còn lại (cùng lý do `CongDoan.department_ids`:
+        xoá rồi chèn lại cùng khoá chính trong một lần flush là vấp thứ tự unit-of-work)."""
+        cu = {t.department_id: t for t in self.to_dung_may}
+        self.to_dung_may = [cu.get(d) or MayTo(department_id=d)
+                            for d in dict.fromkeys(int(x) for x in ids)]
+
+
+class MayTo(Base):
+    """Một máy thuộc một tổ — bảng nối `may_thiet_bi` ↔ `departments` (mg `0435`)."""
+
+    __tablename__ = "may_to"
+
+    may_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("may_thiet_bi.id", ondelete="CASCADE"), primary_key=True
+    )
+    department_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("departments.id", ondelete="CASCADE"), primary_key=True, index=True
     )
 
 

@@ -38,8 +38,9 @@ import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
+import { ONguonGiay, type DoiNguonGiay } from "./ONguonGiay";
 import { donViChuoi, nhanDonVi, tickConLaCuaNguoiKhac } from "./lsxBuoc";
-import { bangKeVatTu } from "./lsxVatTu";
+import { bangKeVatTu, giayVaVatTuQuyCach } from "./lsxVatTu";
 import { useNapTenDonVi } from "./tenDonVi";
 import {
   BangLoi,
@@ -401,6 +402,16 @@ export function LsxDetailView({
     }
   }, [token, lsxId, onChanged]);
 
+  /** Đổi nguồn giấy ⇒ máy chủ dựng lại khâu chuẩn bị giấy; nạp lại cả lệnh để bảng routing có bước mới.
+   *  Lỗi ném lên cho ô tự hiện, ô lùi về nguồn cũ. */
+  const doiNguonGiay = useCallback(async (body: DoiNguonGiay) => {
+    if (!token) return;
+    const r = await api.lsx.doiNguonGiay(token, lsxId, body);
+    setD(r);
+    setForm(toForm(r));
+    onChanged();
+  }, [token, lsxId, onChanged]);
+
   /** Tạo dao mới cho một bước → dòng mới trong danh mục Khuôn ở tình trạng "đang đặt làm".
    *
    *  Khách + loại lấy từ chính lệnh và bước, không hỏi lại: người cấu hình lệnh không nên phải gõ
@@ -429,9 +440,10 @@ export function LsxDetailView({
     // drawer bước lọc dropdown MÁY đúng như bài ghép và engine xếp lịch đang chặn (`RefRow`).
     api.congDoan.list(token).then((r) => setCongDoanRefs(r.items.map((c) => ({
       // `ma` chỉ để GÕ TÌM trong drawer bước (không hiện ra) — người khai quen gõ "CD-0003".
-      id: c.id, ten: c.ten, ma: c.ma, nhomMayChoPhep: c.nhom_may_cho_phep,
+      id: c.id, ten: c.ten, ma: c.ma,
       mayChoPhep: (c.may_lam_duoc ?? []).map((m) => m.may_id),
       toChoPhep: c.department_ids ?? [],
+      coRangBuocTo: (c.department_ids ?? []).length > 0,
     })))).catch(() => setCongDoanRefs(null));
     crud("/api/cong-doan/phong-ban").list(token).then((r) => setToRefs(r.items.map((t) => ({ id: t.id, ten: t.ten })))).catch(() => setToRefs(null));
     // Giữ luôn TỐC ĐỘ + CHUẨN BỊ của máy: form phải tính lại thời lượng ngay khi đổi máy, chứ
@@ -442,6 +454,7 @@ export function LsxDetailView({
       return {
         id: m.id, ten: m.ten, nhom: m.loai_may ? String(m.loai_may) : null,
         active: m.active !== false,
+        toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
         tocDo: m.toc_do == null ? null : Number(m.toc_do),
         tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
         tocDoMax: m.toc_do_max == null ? null : Number(m.toc_do_max),
@@ -733,6 +746,9 @@ export function LsxDetailView({
   // Bảng kê vật tư — tính MỘT lần cho cả ô tóm tắt trên đầu màn lẫn tab "Vật tư". Hàm thuần chạy
   // trên ≤ vài chục bước nên gọi thẳng trong render, không cần memo.
   const keVatTu = bangKeVatTu({ congDoans: d.cong_doans });
+  // Giấy là NVL chính: ô "Giấy" kể MỌI giấy khai ở các bước (hộp bồi couche lên sóng có hai),
+  // khối "Vật tư khác" chỉ còn mực/màng/keo.
+  const { giays, songs, vatTuKhac } = giayVaVatTuQuyCach(keVatTu, qc.giay_ten as string | null, vatTus);
 
   // SÁCH GẤP TAY vs CẮT RỜI — cùng tiêu chí backend dùng để chọn nhánh hệ số (`la_gap_tay`).
   // Sách: tờ in gấp NGUYÊN VẸN thành một tay, một cuốn cần `soTay` TỜ → giấy nhân lên theo số tay,
@@ -1423,10 +1439,26 @@ export function LsxDetailView({
                         nguyên" cố tình KHÔNG lấy `dvToNguyen`: routing không có bước xả thì
                         `dvToNguyen === dvTo`, hai ô cạnh nhau sẽ cùng một chữ. */}
                     <div className="khsx-giayrow khsx-kv--span">
-                      <KV k="Giấy" v={s("giay_ten")} />
+                      <KV
+                        k="Giấy"
+                        v={giays.length === 0 ? "—" : giays.map((t) => (
+                          <span key={t} className="khsx-kv__dong">{t}</span>
+                        ))}
+                      />
                       {/* Định lượng đọc thẳng từ ảnh chụp, không tra lại danh mục: giấy ở lệnh
-                          không đổi được nữa nên `gsm` đã lưu luôn là gsm của giấy đang hiện. */}
-                      <KV k="Định lượng (gsm)" v={qc.gsm ? num(n("gsm")) : "—"} mono />
+                          không đổi được nữa nên `gsm` đã lưu luôn là gsm của giấy đang hiện.
+                          Ảnh chụp chỉ có gsm của MỘT giấy ⇒ lệnh nhiều giấy thì bỏ ô này, để
+                          một số đứng cạnh hai tên giấy là nói sai cho giấy còn lại. */}
+                      {giays.length <= 1 && (
+                        <KV k="Định lượng (gsm)" v={qc.gsm ? num(n("gsm")) : "—"} mono />
+                      )}
+                      {/* Sóng (mg 0426) — ô riêng, chỉ khi lệnh bồi sóng. */}
+                      {songs.length > 0 && (
+                        <KV
+                          k="Sóng"
+                          v={songs.map((t) => <span key={t} className="khsx-kv__dong">{t}</span>)}
+                        />
+                      )}
                       <KV k="Cách in" v={nhanCachIn(form.qc.quy_cach_in ?? "mot_mat")} />
                       <KVKho k="Khổ tờ nguyên" dai={form.qc.kho_nguyen_dai} rong={form.qc.kho_nguyen_rong} />
                       <KVKho k={`Khổ ${dvTo}`} dai={form.qc.kho_in_dai} rong={form.qc.kho_in_rong} />
@@ -1527,7 +1559,7 @@ export function LsxDetailView({
                 </div>
               </div>
 
-              {vatTus.length > 0 && (
+              {vatTuKhac.length > 0 && (
                 <div className="khsx-spec__card">
                   <div className="khsx-spec__card-head">
                     <div className="khsx-spec__card-icon">
@@ -1537,7 +1569,7 @@ export function LsxDetailView({
                   </div>
                   <div className="khsx-spec__card-body">
                     <div className="khsx-kvgrid">
-                      {vatTus.map((vt, i) => (
+                      {vatTuKhac.map((vt, i) => (
                         <KV
                           key={i}
                           k={vt.ten || `Vật tư ${i + 1}`}
@@ -1606,6 +1638,20 @@ export function LsxDetailView({
                   <h4 className="khsx-spec__title">Công đoạn sản xuất (Routing)</h4>
                 </div>
                 <div className="khsx-spec__card-body">
+                  {(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
+                    <ONguonGiay
+                      key={`${d.id}-${d.nguon_giay ?? ""}`}
+                      nguon={d.nguon_giay}
+                      khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
+                        : d.trang_thai === "da_phat_hanh" ? "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi đổi nguồn giấy"
+                        : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không đổi nguồn giấy được nữa"
+                        : tronGoi ? "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy"
+                        : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
+                        : routingDirty ? "Lưu hoặc huỷ thay đổi routing trước khi đổi nguồn giấy"
+                        : null}
+                      onDoi={doiNguonGiay}
+                    />
+                  )}
                   <LsxRoutingTable
                     congDoans={d.cong_doans}
                     soLuongDat={d.so_luong_dat}

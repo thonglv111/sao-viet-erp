@@ -73,6 +73,8 @@ export function RequestDetailDrawer({
   const coDon = song.filter(coDonSong).length;
   const chuaDon = song.length - coDon;
   // Món chưa có đơn lên đầu, món đã vào đơn xếp theo mã đơn, món đã bỏ xuống cuối.
+  // Khổ + Định lượng là cột riêng, chỉ bày khi yêu cầu có dòng giấy (spec 2026-10-24 §6).
+  const coGiay = selected.lines.some((l) => l.hang_loai === "giay");
   const dong = [...selected.lines].sort((a, b) => {
     const hang = (l: DepartmentPurchaseRequestLineOut) => (l.cancelled_at ? 2 : l.fulfilment ? 1 : 0);
     return hang(a) - hang(b) || (a.fulfilment?.purchase_code ?? "").localeCompare(b.fulfilment?.purchase_code ?? "");
@@ -181,6 +183,8 @@ export function RequestDetailDrawer({
             <table className="lds-g">
               <colgroup>
                 <col />
+                {coGiay && <col style={{ width: 120 }} />}
+                {coGiay && <col style={{ width: 96 }} />}
                 <col style={{ width: 130 }} />
                 <col style={{ width: 230 }} />
                 <col style={{ width: 120 }} />
@@ -191,6 +195,8 @@ export function RequestDetailDrawer({
               <thead>
                 <tr>
                   <th>Vật tư</th>
+                  {coGiay && <th>Khổ</th>}
+                  {coGiay && <th className="n">Định lượng</th>}
                   <th className="n">Yêu cầu</th>
                   <th>Đơn mua</th>
                   <th className="n">Đã đặt</th>
@@ -203,18 +209,14 @@ export function RequestDetailDrawer({
                 {dong.map((line) => {
                   const f = line.fulfilment;
                   const kho = khoDong(line);
-                  // Dấu loại hàng (trước là ô biểu tượng): dòng giấy không ghi khổ thì thẻ khổ không hiện, nên gắn thẻ "Giấy".
-                  const giayKhongKho = line.hang_loai === "giay" && !kho;
                   const nhan = f ? (f.received_quantity ?? (f.purchase_status === "received" ? f.ordered_quantity : 0)) : 0;
                   const dv = (ma: string) => tenDonVi(ma) ?? ma;
                   return (
                     <tr key={line.id} className={line.cancelled_at ? "ycd-bo" : undefined}>
                       <td>
                         <div>{line.item_name}</div>
-                        {(kho || giayKhongKho || line.note || line.cancelled_at || (lenhTungMon && line.mua_cho.length > 0)) && (
+                        {(line.note || line.cancelled_at || (lenhTungMon && line.mua_cho.length > 0)) && (
                           <div className="ycd-phu">
-                            {kho && <span className="ycd-tag">{kho}</span>}
-                            {giayKhongKho && <span className="lds-tag" style={{ marginLeft: 0 }}>Giấy</span>}
                             {lenhTungMon && line.mua_cho.length > 0 && (
                               <OMuaCho loai={["cho_lsx"]} lenh={line.mua_cho} donVi={dv(line.unit)} onMoLenh={onMoLenh} />
                             )}
@@ -229,6 +231,10 @@ export function RequestDetailDrawer({
                           </div>
                         )}
                       </td>
+                      {coGiay && <td>{kho || <span className="lds-mu">–</span>}</td>}
+                      {coGiay && (
+                        <td className="n">{line.hang_loai === "giay" ? (line.dinh_luong ?? "–") : ""}</td>
+                      )}
                       <td className="n">
                         {so(line.quantity)}<span className="lds-u">{dv(line.unit)}</span>
                       </td>

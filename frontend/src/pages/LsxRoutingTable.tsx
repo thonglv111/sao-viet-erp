@@ -35,6 +35,9 @@ import {
   emptyRow,
   heSoChu,
   loiDong,
+  congDoanKhongMay,
+  mayChonDuoc,
+  mayMacDinhCuaTo,
   n,
   phut,
   tenBuoc,
@@ -64,13 +67,14 @@ export interface RefRow {
   donViTocDo?: string | null;
   chuanBiPhut?: number | null;
   chuanBiKhoan?: { ten?: string; phut?: number }[];
-  /** CÔNG ĐOẠN — nhóm máy (loai_may) làm được công đoạn này, để drawer LỌC dropdown máy. Chỉ có
-   *  trên ref CÔNG ĐOẠN (congDoanRefs), không phải ref máy. null/rỗng = không giới hạn.
-   *  Nay chỉ là tầng LÙI: `mayChoPhep` ngay dưới thắng khi công đoạn đã khai máy cụ thể. */
-  nhomMayChoPhep?: string[] | null;
-  /** CÔNG ĐOẠN — id các máy ở bảng "Máy chạy được công đoạn này" của danh mục Công đoạn.
-   *  null/rỗng = công đoạn chưa khai máy nào, lùi về `nhomMayChoPhep`. */
+  /** MÁY — các tổ đứng máy (mg `0435`, một máy nhiều tổ). Drawer bước chỉ mời máy thuộc tổ của
+   *  bước khi công đoạn có tick tổ. */
+  toIds?: number[] | null;
+  /** CÔNG ĐOẠN — id các máy ở bảng "Máy chạy được công đoạn này" = máy của các tổ đã tick.
+   *  null/rỗng = công đoạn chưa khai máy nào. (Hàng tick nhóm máy gỡ 22/10/2026.) */
   mayChoPhep?: number[] | null;
+  /** CÔNG ĐOẠN — có tick tổ ⇒ máy của bước phải thuộc tổ của bước (`may_to.rang_buoc_to`). */
+  coRangBuocTo?: boolean;
   /** CÔNG ĐOẠN — các tổ phụ trách khai ở danh mục (nhiều tổ, 18/09/2026). Ô TỔ của bước chỉ mời
    *  các tổ này; null/rỗng = công đoạn chưa khai tổ, mời mọi tổ. */
   toChoPhep?: number[] | null;
@@ -197,6 +201,9 @@ export function LsxRoutingTable({
   // CŨ mà nhìn y như vừa cập nhật. Nuốt im lặng là để màn nói dối: đúng cách lỗi 500 của
   // `mac-dinh-buoc` và 409 của `xem-truoc-routing` sống được lâu đến thế.
   const [loiDoiCd, setLoiDoiCd] = useState<string | null>(null);
+  // Câu "tổ chưa có máy" của lần đổi công đoạn / tổ gần nhất — trước chỉ đọc cho trình đọc màn hình
+  // (`live`), người nhìn màn không biết vì sao bước mất máy (L-SX-17).
+  const [goiY, setGoiY] = useState<string | null>(null);
   const [moBuoc, setMoBuoc] = useState<number | null>(null);
   const [tabDau, setTabDau] = useState<DrawerTabKey | undefined>(undefined);
   const [keo, setKeo] = useState<number | null>(null);
@@ -223,6 +230,12 @@ export function LsxRoutingTable({
   const dirty = JSON.stringify(toBody(rows)) !== goc.current;
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
+
+  useEffect(() => {
+    if (!goiY) return;
+    const t = setTimeout(() => setGoiY(null), 8000);
+    return () => clearTimeout(t);
+  }, [goiY]);
 
   // Dải "hoàn tác" tự tắt sau 6s — xoá dòng chưa lưu không cần hỏi han.
   useEffect(() => {
@@ -319,10 +332,19 @@ export function LsxRoutingTable({
         // tốc độ đều treo ở cặp (công đoạn × máy), nên bước trống máy thì bảng bóc tách thời gian
         // ra "—" mãi. Máy gợi ý là máy mặc định của công đoạn (máy còn dùng đứng đầu danh sách) —
         // server quyết (`may_id_goi_y`), client không tự dò danh mục. KHÔNG đè máy người ta đã chọn.
-        const mayGoiY =
-          m.may_id_goi_y != null && rowCu?.loai_buoc !== "to" && !rowCu?.may_id
-            ? { may_id: m.may_id_goi_y }
-            : {};
+        // Máy thuộc tổ (mg `0435`): máy cũ không chạy được ở (công đoạn mới, tổ mới) cũng thay —
+        // giữ lại là bước đeo cặp tổ/máy lệch, server từ chối lúc lưu.
+        const cdMoi = congDoanRefs?.find((c) => c.id === m.cong_doan_id) ?? null;
+        const mayCuHong = !!rowCu?.may_id && !!mayRefs
+          && !mayChonDuoc(mayRefs, cdMoi, m.department_id, null).some((x) => x.id === rowCu.may_id);
+        // Công đoạn mới mà mọi tổ đều chưa có máy ⇒ bước máy chuyển thành bước TỔ (23/10/2026),
+        // cùng luật lúc tạo lệnh (`may_to.to_khong_may`). Bước thuê ngoài giữ nguyên.
+        const sangTo = rowCu?.loai_buoc === "may" && !!mayRefs && congDoanKhongMay(mayRefs, cdMoi);
+        const mayGoiY = sangTo ? { loai_buoc: "to" as const, may_id: null }
+          : rowCu?.loai_buoc === "to" ? {}
+          : m.may_id_goi_y != null && (!rowCu?.may_id || mayCuHong) ? { may_id: m.may_id_goi_y }
+          : mayCuHong ? { may_id: null }
+          : {};
         const applied: Partial<EditRow> = {
           ...mayGoiY,
           cong_doan_id: m.cong_doan_id, ten: m.ten, nhom: m.nhom,
@@ -350,8 +372,13 @@ export function LsxRoutingTable({
           // Thời gian chuẩn bị + chạy KHÔNG còn nằm ở bước: kế thừa sống từ máy đang gán.
         };
         patch(key, applied);
+        setGoiY(sangTo ? "Tổ chưa có máy chạy công đoạn này, bước chuyển sang làm theo Tổ."
+          : "may_id" in mayGoiY && mayGoiY.may_id == null ? "Tổ chưa có máy chạy công đoạn này."
+          : null);
         setLive(`Đã đổi sang ${m.ten} và lấy lại đơn vị, tổ phụ trách`
-          + ("may_id" in mayGoiY ? ", điền sẵn máy duy nhất của công đoạn" : ""));
+          + ("may_id" in mayGoiY
+            ? (mayGoiY.may_id != null ? " và máy mặc định của tổ" : ". Tổ chưa có máy chạy công đoạn này")
+            : ""));
         // Số vào–ra + đơn vị cả chuỗi phải nhảy NGAY (chủ 20/08/2026). Dựng ảnh chụp từ `rowsRef`
         // (đã cộng patch vừa áp) vì closure `rows` ở nhịp này còn CŨ, chưa thấy bước vừa đổi.
         const snapshot = rowsRef.current.map(
@@ -374,7 +401,7 @@ export function LsxRoutingTable({
           + " — bước mới chỉ đổi được TÊN, đơn vị và tổ phụ trách chưa lấy lại.");
       }
     },
-    [onMacDinhBuoc, patch, xemTruocChuoi, congDoanRefs],
+    [onMacDinhBuoc, patch, xemTruocChuoi, congDoanRefs, mayRefs],
   );
 
   /** Đổi máy là LẤY SỐ NGAY, không đợi bấm "Lưu công đoạn" (chủ 20/08/2026: *"khi chọn máy là
@@ -385,14 +412,27 @@ export function LsxRoutingTable({
    *  18/09/2026). Server chặn lại nếu tổ không thuộc danh sách (`replace_routing`). Việc khoán
    *  của tổ KHÔNG nạp ở đây nữa: thợ chọn lúc ghi mẻ ở bàn tổ (mg `0320`). */
   const doiTo = useCallback((key: string, deptId: number | null) => {
+    // Máy đi theo tổ (mg `0435`): máy đang gán không thuộc tổ mới ⇒ máy mặc định của tổ mới
+    // (máy đầu bảng thuộc tổ), tổ chưa có máy ⇒ bỏ trống. Máy còn thuộc tổ mới thì giữ.
+    const row = rowsRef.current.find((r) => r.key === key);
+    const cd = congDoanRefs?.find((c) => c.id === row?.cong_doan_id) ?? null;
+    const doiMayTheo = !!row && row.loai_buoc !== "to" && !!mayRefs && !!cd?.coRangBuocTo
+      && deptId != null
+      && !mayChonDuoc(mayRefs, cd, deptId, null).some((m) => m.id === row.may_id);
+    const mayMoi = doiMayTheo ? mayMacDinhCuaTo(mayRefs ?? [], cd, deptId) : undefined;
+    const tenTo = toRefs?.find((t) => t.id === deptId)?.ten ?? "tổ";
     patch(key, {
       department_id: deptId,
       department_ten: toRefs?.find((t) => t.id === deptId)?.ten ?? null,
+      ...(doiMayTheo ? { may_id: mayMoi ?? null } : {}),
     });
-    setLive(deptId != null
-      ? `Đã chọn ${toRefs?.find((t) => t.id === deptId)?.ten ?? "tổ"}`
-      : "Đã bỏ tổ khỏi bước");
-  }, [toRefs, patch]);
+    setGoiY(doiMayTheo && mayMoi == null ? `${tenTo} chưa có máy chạy công đoạn này.` : null);
+    setLive(deptId == null ? "Đã bỏ tổ khỏi bước"
+      : !doiMayTheo ? `Đã chọn ${tenTo}`
+      : mayMoi != null
+        ? `Đã chọn ${tenTo} và máy ${mayRefs?.find((m) => m.id === mayMoi)?.ten ?? ""} của tổ`
+        : `Đã chọn ${tenTo}. Tổ chưa có máy chạy công đoạn này`);
+  }, [toRefs, mayRefs, congDoanRefs, patch]);
 
   const doiMay = useCallback((key: string, mayId: number | null) => {
     const may = mayRefs?.find((m) => m.id === mayId) ?? null;
@@ -690,6 +730,13 @@ export function LsxRoutingTable({
         <div className="khsx-ghep-bang khsx-ghep-bang--loi">
           <Icon name="alert" size={14} />
           <span>{loiDoiCd}</span>
+        </div>
+      )}
+
+      {goiY && (
+        <div className="khsx-ghep-bang" role="status">
+          <Icon name="info" size={14} />
+          <span>{goiY}</span>
         </div>
       )}
 

@@ -475,3 +475,25 @@ def test_font_nhung_co_dau(client, seed_credentials, lenh_that):
     r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
     assert b"DejaVuSans" in r.content
+
+
+def test_lenh_hai_giay_ke_du_o_giay_bo_dinh_luong(client, seed_credentials, lenh_that, sess, monkeypatch):
+    """Hộp bồi couche lên sóng: bước Cắt tờ khai HAI giấy. Ô Giấy của phiếu phải kể đủ cả hai (mỗi
+    giấy một dòng), và bỏ ô Định lượng — gsm trong thông số chỉ là của giấy chính (19/10/2026)."""
+    from app.models.lsx import LsxCongDoan, LsxCongDoanVatTu
+
+    buoc = (sess.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh_that)
+            .order_by(LsxCongDoan.thu_tu).first())
+    for i, (ma, ten) in enumerate((("COUCHE150", "COUCHE 150GSM"), ("SONG-E", "GIẤY SÓNG E 300GSM"))):
+        sess.add(LsxCongDoanVatTu(
+            lsx_cong_doan_id=buoc.id, hang_loai="giay", vat_tu_id=900 + i, vat_tu_ma_snapshot=ma,
+            vat_tu_ten_snapshot=ten, don_vi_snapshot="to", so_luong=100, thu_tu=i))
+    sess.commit()
+
+    giay = _bat_chu(monkeypatch)
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
+    assert r.status_code == 200, r.text
+
+    assert "COUCHE 150GSM<br/>GIẤY SÓNG E 300GSM" in giay.o, f"ô Giấy không kể đủ hai giấy — các ô: {giay.o}"
+    assert "Định lượng" not in giay.o

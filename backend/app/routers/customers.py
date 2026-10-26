@@ -43,7 +43,7 @@ from ..models.customer import Customer
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.loc_danh_sach import trong_khoang_ngay
-from ..repositories.org_scope import dept_subtree_ids
+from ..repositories.org_scope import dept_subtree_ids, nhom_dung_chung_user_ids
 from ..repositories.rbac_repo import DepartmentRepository, RoleRepository
 from ..repositories.user_repo import UserRepository
 from ..schemas.customer import (
@@ -344,7 +344,8 @@ def list_sale_options(
             else {user.id}
         )
     else:
-        trong_pham_vi = {user.id}
+        # "Của tôi" = mình + người cùng nhóm dùng chung — đúng như bảng khách (`_scope_condition`).
+        trong_pham_vi = nhom_dung_chung_user_ids(svc.customers.db, user.id)
 
     # 2) Ai đang thực sự giữ khách trong tầm nhìn (kèm số khách — hộp Điều chuyển cần con số này).
     book = svc.list_scoped_all(scope=scope, actor=user)
@@ -363,7 +364,9 @@ def list_sale_options(
     for u in users.list_all():
         if trong_pham_vi is not None and u.id not in trong_pham_vi:
             continue
-        gan_duoc[u.id] = u.id in du_tu_cach_ids
+        # Người cùng nhóm chỉ để LỌC: sale "Của tôi" không gán khách sang người khác (chủ chốt
+        # 26/10/2026) — gán chủ khách đi đường Điều chuyển của trưởng phòng.
+        gan_duoc[u.id] = u.id in du_tu_cach_ids and (scope != "own" or u.id == user.id)
         if gan_duoc[u.id] or u.id in so_kh:
             ung_vien[u.id] = u
     # Người xem luôn có mặt: sale scope `own` phải chọn được chính mình dù chưa có khách nào.
@@ -416,13 +419,13 @@ def reassign_customers(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy nhân viên đích."
         )
-    # Ở scope `department`, nhân viên đích phải cùng phòng với người thực hiện.
-    if scope == "department" and (
-        user.department_id is None or to_u.department_id != user.department_id
-    ):
+    # Ở scope `department`, nhân viên đích phải thuộc phòng của người thực hiện HOẶC phòng con —
+    # cùng luật cây con với danh sách khách và hộp NV phụ trách.
+    cay_phong = set(dept_subtree_ids(svc.customers.db, user.department_id)) if scope == "department" else set()
+    if scope == "department" and to_u.department_id not in cay_phong:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nhân viên đích phải thuộc phòng của bạn.",
+            detail="Nhân viên đích phải thuộc phòng của bạn hoặc phòng con.",
         )
 
     try:
@@ -441,10 +444,10 @@ def reassign_customers(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Không tìm thấy nhân viên nguồn.",
                 )
-            if scope == "department" and from_u.department_id != user.department_id:
+            if scope == "department" and from_u.department_id not in cay_phong:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Nhân viên nguồn phải thuộc phòng của bạn.",
+                    detail="Nhân viên nguồn phải thuộc phòng của bạn hoặc phòng con.",
                 )
             moved = svc.reassign_customers(
                 from_sale_user_id=payload.from_sale_user_id,
@@ -1129,6 +1132,9 @@ def update_customer_financial(
             discount_max_pct=payload.discount_max_pct,
             markup_min_pct=payload.markup_min_pct,
             markup_max_pct=payload.markup_max_pct,
+            ke_thue_tndn_pct=payload.ke_thue_tndn_pct,
+            ke_min_pct=payload.ke_min_pct,
+            ke_max_pct=payload.ke_max_pct,
         )
     except CustomerValidationError as e:
         raise HTTPException(

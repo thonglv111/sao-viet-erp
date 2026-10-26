@@ -232,6 +232,43 @@ class StockRequestService:
         số chờ cấp không đổi nên FE không toast. Gọi SAU commit."""
         self._notify(req, "Yêu cầu đã đổi giờ hẹn", targeted=False)
 
+    # --- ĐỒNG BỘ TỪ ĐỢT GIAO MUA HÀNG (20/10/2026) --------------------------------------------
+    # Lưu đợt giao là tạo luôn yêu cầu NHẬP của đợt (`purchase_service.ghi_dot_giao`), nên sửa / xoá
+    # đợt phải kéo yêu cầu theo. Cùng luật với đường của sản xuất: kho đã lập phiếu (kể cả nháp,
+    # kể cả đã huỷ) thì thôi — số đã vào tay người soạn. Cả hai CHỈ `flush()`: người gọi đang ôm
+    # giao dịch của đơn mua, tự commit rồi mới gọi `thong_bao_da_doi` / `thong_bao_da_huy`.
+
+    def kho_da_lap_phieu(self, req: StockRequest) -> bool:
+        return self.requests.co_voucher(req.id)
+
+    def dong_bo_tu_dot_giao(self, req: StockRequest, lines: list[dict], *, ngay_can) -> StockRequest:
+        self.requests.lock_for_update(req.id)
+        if self.requests.co_voucher(req.id):
+            raise StockRequestConflict(
+                f"Kho đã lập phiếu cho yêu cầu nhập {req.ma}, không sửa được đợt giao nữa."
+            )
+        dang_co = {(ln.hang_loai, int(ln.hang_id))
+                   for ln in (req.lines or []) if ln.hang_loai and ln.hang_id}
+        self._validate_lines(lines, dang_co, kho_to_bat_buoc=True)
+        self.requests.replace_lines(req, lines)
+        # `sl_duyet` mặc định 0 ⇒ phải đặt lại, nếu không yêu cầu tự thành "Hoàn tất" (xem
+        # `dong_bo_tu_san_xuat`). Kho đã tiếp nhận thì về lại "chờ cấp" để họ xem số mới.
+        for ln in req.lines:
+            ln.sl_duyet = ln.sl_de_nghi
+        req.ngay_can = ngay_can
+        req.trang_thai = REQ_APPROVED
+        return self.requests.save(req, commit=False)
+
+    def huy_tu_dot_giao(self, req: StockRequest) -> StockRequest:
+        self.requests.lock_for_update(req.id)
+        if self.requests.co_voucher(req.id):
+            raise StockRequestConflict(
+                f"Kho đã lập phiếu cho yêu cầu nhập {req.ma}, không xoá được đợt giao nữa."
+            )
+        req.trang_thai = REQ_CANCELLED
+        req.ly_do_huy = "Đợt giao đã bị xoá ở đơn mua"
+        return self.requests.save(req, commit=False)
+
     def create_dieu_chuyen(self, *, user, loai: str, kho_id: int, lines: list[dict],
                            dieu_chuyen: bool = True, kho_nguon_id: int | None = None,
                            xuat_voucher_id: int | None = None, ghi_chu: str | None = None,
@@ -242,7 +279,7 @@ class StockRequestService:
         nguồn (nội bộ, `notify=False`) và vế NHẬP ở kho đích (yêu cầu điều chuyển thấy được,
         `notify=True`). Tạo là DUYỆT LUÔN (giống `create`): `sl_duyet = sl_de_nghi`, trạng thái
         `approved` để lập phiếu được ngay. `_validate_lines` vẫn chạy (mặt hàng có thật + đơn vị
-        quy được về gốc + không trùng mặt hàng)."""
+        quy được về gốc + không trùng mặt hàng). Không quy kg ra tờ: lô đích mang đúng đơn vị lô nguồn."""
         if loai not in REQUEST_KINDS:
             raise StockRequestError("Loại yêu cầu không hợp lệ (chỉ NHAP hoặc XUAT).")
         self._validate_lines(lines)
@@ -295,6 +332,9 @@ class StockRequestService:
         ở danh mục mà nhóm của nó chứa ĐVT dòng; chưa khai ⇒ lỗi) để repo ghi xuống dòng; người gọi
         gửi gì ở khoá này cũng bị đè.
 
+        Giấy khổ hai cạnh khai kg ⇒ gốc TỜ (spec 2026-10-24-chuan-bi-giay §5), cả NHẬP lẫn XUẤT: lô
+        giấy hai cạnh luôn lưu tờ nên dòng xuất giữ kg không bao giờ khớp lô nào.
+
         `kho_to_bat_buoc` (cửa người gõ trên màn kho): giấy đếm TỜ phải đủ khổ hai cạnh — tờ không
         khổ thì không biết lấy lô nào, không ghép được với bảng cân đối. Luồng nội bộ (điều chuyển lô
         cũ chưa có khổ, đề nghị của xưởng) không bật để không chặn hàng đã nằm sẵn trong kho.
@@ -314,7 +354,8 @@ class StockRequestService:
             # là hai dòng hợp lệ — gộp lại thì mất luôn thông tin "phần nào cho lệnh nào", mà đó
             # đúng là thứ bảng cân đối cần để trừ đã-cấp vào đúng chỗ.
             goc = self._kiem_hang_va_don_vi(loai, int(hid), ln.get("dvt"), ln["sl_de_nghi"],
-                                            giu_duoc=(loai, int(hid)) in (dang_co or set()))
+                                            giu_duoc=(loai, int(hid)) in (dang_co or set()),
+                                            kho_rong=ln.get("kho_rong"), kho_dai=ln.get("kho_dai"))
             ln["don_vi_goc"] = goc if co_don_vi_goc(loai) else ""
             if kho_to_bat_buoc and loai == "giay" and goc == DON_VI_TO_KHO:
                 kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
@@ -347,7 +388,7 @@ class StockRequestService:
             raise StockRequestError(f"Bài ghép #{bai_ghep_id} không tồn tại — chọn lại.")
 
     def _kiem_hang_va_don_vi(self, hang_loai: str, hang_id: int, dvt, so_luong,
-                             *, giu_duoc: bool = False) -> str:
+                             *, giu_duoc: bool = False, kho_rong=0, kho_dai=0) -> str:
         """Mặt hàng còn dùng được + đơn vị quy được về gốc; trả MÃ đơn vị gốc của dòng (giấy: gốc của
         họ ĐVT — "to" hoặc đơn vị giá). Lỗi trả nguyên văn lý do của danh mục
         (vd "chưa chọn đơn vị tính", "không đổi được từ tờ về kg") để người khai biết sửa ở đâu.
@@ -364,7 +405,10 @@ class StockRequestService:
             obj = self.hang.get(hang_loai, hang_id)
             if not getattr(obj, "active", True) and not giu_duoc:
                 raise StockRequestError(f"“{obj.ten}” đã ngừng dùng — chọn mặt hàng khác.")
-            return (self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong)["don_vi_goc"] or "").lower()
+            # Giấy khổ hai cạnh khai kg ⇒ gốc tờ (spec 2026-10-24-chuan-bi-giay §5).
+            return (self.hang.quy_ve_goc(hang_loai, hang_id, dvt, so_luong,
+                                         kho_rong=kho_rong or 0, kho_dai=kho_dai or 0)["don_vi_goc"]
+                    or "").lower()
         except VatLieuKhoError as e:
             raise StockRequestError(str(e)) from None
 
@@ -646,7 +690,9 @@ class StockRequestService:
         "có việc mới"; người tạo (cũng là kho) không nhận thêm toast đích danh → tránh 2 toast trùng.
         `targeted=True` (duyệt/từ chối/hủy/cấp…): thêm tin ĐÍCH DANH cho người tạo + người duyệt.
         Các bước này KHÔNG làm tăng số 'chờ cấp' nên broadcast không toast lại → vẫn 1 toast."""
-        if targeted:
+        # Yêu cầu tự lập lúc phát hành: người bấm phát hành chỉ đứng tên (tạo lẫn duyệt), không chờ
+        # kho trả lời — tổ nghe tin qua bàn tổ (`phat_su_kien_kho`) và chuông tổ (`_notif_nguoi_tao`).
+        if targeted and self._to_tu_lap(req) is None:
             event = {
                 "type": "stock_request",
                 "request_id": req.id,
@@ -721,9 +767,33 @@ class StockRequestService:
         for uid in uids:
             hub.publish(uid, {"type": "notification_new"})
 
+    def _to_tu_lap(self, req: StockRequest) -> int | None:
+        """Tổ của bước nếu yêu cầu là lần đề nghị TỰ LẬP lúc phát hành lệnh, không thì None."""
+        from ..models.san_xuat import SanXuatCongViec
+        from ..models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+
+        if req.id is None:
+            return None
+        return self.requests.db.query(SanXuatCongViec.department_id).join(
+            SanXuatVatTuDeNghi, SanXuatVatTuDeNghi.cong_viec_id == SanXuatCongViec.id,
+        ).filter(SanXuatVatTuDeNghi.stock_request_id == req.id,
+                 SanXuatVatTuDeNghi.tu_lap.is_(True)).scalar()
+
     def _notif_nguoi_tao(self, req: StockRequest, *, loai: str, tieu_de: str) -> None:
         """Lưu thông báo phản hồi kho cho NGƯỜI TẠO (hoàn tất/hủy/từ chối) + đẩy SSE. Bấm → mở màn
-        Yêu cầu tại đúng yêu cầu (link_loai='kho_mine')."""
+        Yêu cầu tại đúng yêu cầu (link_loai='kho_mine').
+
+        Yêu cầu tự lập lúc phát hành thì người đợi là TỔ của bước, không phải người bấm phát hành:
+        chấm vào kênh của tổ (spec 2026-10-18 §6)."""
+        to_id = self._to_tu_lap(req)
+        if to_id is not None:
+            from .thong_bao_man import kenh_to
+
+            # Tự commit như nhánh người tạo (`NotificationRepository.add`): caller đã `save()` xong,
+            # sau đây không còn ai commit nữa.
+            bao(self.requests.db, kenh=kenh_to(to_id), loai="kho_phan_hoi", actor_id=None,
+                ma=req.ma, commit=True)
+            return
         if not req.nguoi_tao_id:
             return
         # Chấm đỏ mục Kho của người tạo (phản hồi kho) — đi chung commit của chuông bên dưới.

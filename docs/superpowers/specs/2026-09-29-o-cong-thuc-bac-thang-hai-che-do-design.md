@@ -165,3 +165,19 @@ trên mảng token, kết quả luôn là IF lồng hợp lệ:
 - Thao tác lại bằng chuột/bàn phím thật trên dev-browser: mở Công đoạn → máy → ô Cách tính giá, đọc
   bậc thang, chuyển Dạng chữ, copy sang máy khác và paste, nhân đôi/xoá bậc, Huỷ/Xong, Lưu thay đổi,
   mở lại kiểm chuỗi đã lưu.
+
+## 11. Cập nhật 22/10/2026 — phương án C (tách phần + bảng Khi | Lấy + phần chung P)
+
+Chủ chọn C trong `docs/mockups/o-cong-thuc-de-doc-3-phuong-an.html` (hình 1 công thức khoán, hình 2
+giá riêng máy IN-02). Bất biến mục trên giữ nguyên: chuỗi lưu không đổi dạng, mọi token vẫn bấm được,
+con trỏ vẫn là một chỉ số trên dãy phẳng, Dạng chữ không đổi.
+
+- Công thức từ 15 token, cắt được ở + − × ÷ ngoài cùng thành ≥ 2 phần (`congThucTachPhan.tachPhan`)
+  ⇒ dòng khung "Kết quả = ( A + B ) × C" (ngoặc và dấu nối là token thật), mỗi phần một khối có chữ.
+  Bấm chữ = đặt con trỏ vào đầu phần đó.
+- Chuỗi if đủ bộ, chữ `if` đứng đầu dòng ⇒ bảng Khi | Lấy | bậc k (thay cột nhãn mờ "điều kiện k /
+  nếu đúng / còn lại" của mục 8.1 — chỉ trong bảng; dòng không kẻ bảng được vẫn giữ nhãn mờ).
+- Các vế lấy (mỗi vế một dòng) có số hạng giống nhau ở MỌI bậc (`150000 × kẽm` ≡ `kẽm × 150000`)
+  ⇒ dòng P "phần chung, có ở mọi bậc"; bậc nào không giữ con trỏ thì hiện "P + phần riêng", bậc đang
+  sửa bung đủ token, phần chung in mờ. "Sửa phần chung" là ô chữ một dòng: Enter viết lại mọi bậc
+  thành `P mới + phần riêng` (thứ tự số hạng đổi, tổng không đổi).

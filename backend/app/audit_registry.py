@@ -114,6 +114,7 @@ _HD += _dong("san_xuat", "san_xuat", {
     "lsx_trang_thai": "Đổi trạng thái lệnh sản xuất",
     "update_lsx_routing": "Sửa chuỗi công đoạn của lệnh",
     "update_lsx_danh_muc": "Cập nhật lệnh theo danh mục",
+    "doi_nguon_giay": "Đổi nguồn giấy của lệnh",
     "lsx_dinh_kem_them": "Đính kèm tệp vào lệnh",
     "lsx_dinh_kem_xoa": "Xoá tệp đính kèm lệnh",
     "gia_cong_ngoai_dat": "Đặt gia công ngoài",
@@ -165,6 +166,9 @@ _HD += _dong("san_xuat", None, {
     "san_xuat_me_cap_nhat_danh_muc": "Cập nhật sản lượng theo danh mục",
     "san_xuat_sua_batch": "Sửa số sản lượng",
     "san_xuat_sua_nguoi_batch": "Sửa người làm sản lượng",
+    "san_xuat_bao_dung_may": "Báo dừng máy",
+    "san_xuat_xoa_dung_may": "Xoá ngày dừng máy",
+    "san_xuat_sua_dung_may": "Sửa ngày dừng máy",
     "san_xuat_de_nghi_vat_tu": "Đề nghị cấp vật tư",
     "san_xuat_nhap_lai_vat_tu": "Yêu cầu nhập lại vật tư thừa vào kho",
     "san_xuat_sua_de_nghi_vat_tu": "Sửa đề nghị cấp vật tư",
@@ -346,6 +350,7 @@ _HD += _dong("nhan_su", "nhan_su", {
     "employee_leave_end": "Kết thúc nghỉ dài hạn",
     "employee_suspended": "Đình chỉ",
     "employee_unsuspended": "Gỡ đình chỉ",
+    "employee_probation_restarted": "Chuyển về thử việc",
     "employee_resigned": "Nghỉ việc",
     "employee_reinstated": "Tuyển lại",
 })
@@ -405,6 +410,7 @@ _HD += _dong("nhan_su", "noi_quy", {
 # --- Lương ----------------------------------------------------------------------------------
 _HD += _dong("luong", "luong", {
     "payroll_generate": "Tính bảng lương",
+    "payroll_xoa_dong_ngoai_bien_che": "Xoá dòng lương người ngoài biên chế cả tháng",
     "payroll_lock": "Chốt kỳ lương",
     "payroll_reopen": "Mở lại kỳ lương",
     "payroll_cong_bo": "Công bố phiếu lương",
@@ -413,6 +419,7 @@ _HD += _dong("luong", "luong", {
     "payroll_unpaid": "Bỏ đánh dấu đã trả lương",
     "payroll_update_line": "Sửa dòng lương",
     "payroll_set_salary": "Đặt mốc lương của nhân sự",
+    "payroll_set_hh_rieng": "Đặt % hoa hồng riêng của đơn",
     "payroll_delete_salary": "Xoá mốc lương của nhân sự",
     "payroll_create_advance": "Tạo đề nghị tạm ứng",
     "payroll_decide_advance": "Duyệt / từ chối tạm ứng",
@@ -422,6 +429,11 @@ _HD += _dong("luong", "luong", {
     "payroll_late_bracket_changed": "Sửa bậc phạt đi muộn",
     "payroll_chi_tieu_ngay_changed": "Sửa chỉ tiêu ngày công",
     "payroll_to_truong_changed": "Sửa cấu hình tổ trưởng",
+    "payroll_khoan_sua_lan_ghi": "Sửa tay tiền khoán lần ghi",
+    "payroll_khoan_them_dong_tay": "Thêm dòng tay vào sổ khoán",
+    "payroll_khoan_sua_dong_tay": "Sửa dòng tay sổ khoán",
+    "payroll_khoan_xoa_dong_tay": "Xoá dòng tay sổ khoán",
+    "payroll_khoan_cong_them": "Sửa cộng thêm khoán",
     "payroll_component_taxable_changed": "Đổi tính chất chịu thuế của khoản lương",
     "payroll_set_dept_components": "Đặt khoản lương cho phòng ban",
     "create_payroll_component": "Tạo khoản lương",
@@ -584,7 +596,8 @@ TEN_DOI_TUONG: dict[str, str] = {
     "user": "Tài khoản", "role": "Vai trò", "customer": "Khách hàng", "order": "Đơn hàng bán",
     "gia_cong_ngoai": "Gia công ngoài", "overtime_request": "Đơn tăng ca", "leave_request": "Đơn nghỉ",
     "late_early_request": "Đơn đi muộn về sớm", "payroll_component": "Khoản lương",
-    "san_xuat_batch": "Lần ghi sản lượng", "san_xuat_cong_viec": "Công việc sản xuất",
+    "salary_advance": "Phiếu tạm ứng",
+    "san_xuat_batch": "Lần ghi sản lượng", "khoan_dung_may": "Ngày dừng máy", "san_xuat_cong_viec": "Công việc sản xuất",
     "san_xuat_ban_giao": "Lần bàn giao", "san_xuat_goi": "Gói sản xuất", "san_xuat_nhom": "Nhóm lệnh",
     "san_xuat_kcs_batch": "Lần kiểm KCS", "san_xuat_kcs_loi": "Lỗi KCS",
     "san_xuat_vat_tu_de_nghi": "Đề nghị vật tư", "phieu_tinh_gia": "Phiếu tính giá",
@@ -601,6 +614,8 @@ TEN_DOI_TUONG: dict[str, str] = {
     "cong_no_khoa_so": "Kỳ công nợ", "nhom_dung_chung": "Nhóm dùng chung", "xep_lich": "Xếp lịch",
     "xep_lich_van_de": "Vấn đề xếp lịch", "ky_thuat_sua_chua": "Phiếu sửa chữa",
     "ky_thuat_yeu_cau": "Yêu cầu báo hỏng",
+    # L-SX-38: ba loại đối tượng nhật ký còn hiện mã thô.
+    "department": "Phòng ban", "payroll_line": "Dòng lương", "khoan_dong_tay": "Dòng tay sổ khoán",
 }
 
 

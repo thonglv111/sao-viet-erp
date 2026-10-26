@@ -267,15 +267,16 @@ describe("bậc thang, hai chế độ, dán, hoàn tác", () => {
     expect(ct()).toBe("* dai_in");
   });
 
-  it("bấm nhãn điều kiện ⇒ chọn bậc; Nhân đôi bậc rồi Xoá bậc — IF lồng vẫn hợp lệ", async () => {
+  it("chuỗi if thành bảng Khi | Lấy; bấm nút bậc ⇒ chọn bậc; Nhân đôi bậc rồi Xoá bậc — IF lồng vẫn hợp lệ", async () => {
     const user = userEvent.setup();
     render(<Harness dau={BAC} />);
-    expect(screen.getByText("còn lại")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "điều kiện 2" }));
+    expect(screen.getByText("Khi")).toBeInTheDocument();
+    expect(screen.getByText("Còn lại")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "bậc 2" }));
     await user.click(screen.getByRole("button", { name: "Nhân đôi bậc" }));
     expect(ct()).toBe(
       "if ( dai_in <= 3000 , 1 , if ( dai_in <= 10000 , 2 , if ( dai_in <= 10000 , 2 , 3 ) ) )");
-    await user.click(screen.getByRole("button", { name: "điều kiện 1" }));
+    await user.click(screen.getByRole("button", { name: "bậc 1" }));
     await user.click(screen.getByRole("button", { name: "Xoá bậc" }));
     expect(ct()).toBe("if ( dai_in <= 10000 , 2 , if ( dai_in <= 10000 , 2 , 3 ) )");
   });
@@ -293,5 +294,188 @@ describe("bậc thang, hai chế độ, dán, hoàn tác", () => {
     render(<Harness dau="dai_in * 700000" />);
     expect(document.querySelector(".rc-formula__chip-token--num")?.textContent).toBe("700 000");
     expect(ct()).toBe("dai_in * 700000");
+  });
+});
+
+// PHƯƠNG ÁN C (22/10/2026 — docs/mockups/o-cong-thuc-de-doc-3-phuong-an.html).
+describe("tách phần và phần chung", () => {
+  afterEach(() => { localStorage.clear(); });
+
+  const BIEN_C = ["chay_tiep", "gia_co_dinh", "sl_ghi", "tu_tro", "don_gia_khoan", "metaline", "muc_uv",
+    "sl_vao", "so_mau_in", "so_mau_pha", "so_kem"];
+  const KHOAN = "( ( 1 - chay_tiep ) * gia_co_dinh + max ( 0 , sl_ghi * ( 1 + tu_tro ) - ( 1 - chay_tiep ) * 3000 ) "
+    + "* don_gia_khoan ) * if ( metaline > 0 , 3 , if ( muc_uv > 0 , 2 , 1 ) )";
+  const bac = (a: string, b: string) => "490000 * ( so_mau_in - so_mau_pha ) + ( sl_vao - 3000 ) * "
+    + `( ${a} * ( so_mau_in - so_mau_pha ) + so_mau_pha * ${b} ) + so_mau_pha * 950000 + so_kem * 150000`;
+  const IN02 = "if ( sl_vao <= 3000 , 490000 * ( so_mau_in - so_mau_pha ) + so_mau_pha * 950000 + 150000 * so_kem , "
+    + `if ( sl_vao <= 10000 , ${bac("130", "260")} , if ( sl_vao <= 20000 , ${bac("123", "250")} , ${bac("113", "230")} ) ) )`;
+
+  it("công thức dài ⇒ dòng khung Kết quả = ( A + B ) × C; bấm chữ B rồi gõ ⇒ chèn vào ĐẦU phần B", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+    expect(screen.getAllByText("B")).toHaveLength(2);       // ở dòng khung + đầu khối phần B
+    fireEvent.mouseDown(screen.getAllByText("B")[0]);
+    await user.type(o(), "2");
+    await user.keyboard("*");
+    expect(ct()).toContain("gia_co_dinh + 2 * max ( 0");
+  });
+
+  it("các bậc giống nhau ⇒ dòng P; Sửa phần chung áp cho mọi bậc", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={IN02} bien={BIEN_C} />);
+    expect(screen.getByText("phần chung, có ở mọi bậc")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sửa phần chung" }));
+    const oP = screen.getByRole("textbox", { name: "Sửa phần chung" }) as HTMLInputElement;
+    expect(oP.value).toBe("490000 * (so_mau_in - so_mau_pha) + so_mau_pha * 950000 + 150000 * so_kem");
+    await user.clear(oP);
+    await user.type(oP, "490000 * (so_mau_in - so_mau_pha) + so_mau_pha * 960000 + 150000 * so_kem{Enter}");
+    expect(ct()?.match(/960000/g)).toHaveLength(4);
+    expect(ct()).not.toContain("950000");
+  });
+
+  it("bảng giấu chữ if / ngoặc / dấu phẩy; ← đi qua chúng không dừng, Backspace không xoá chúng", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau="if ( dai_in <= 3000 , 1 , 2 )" />);
+    expect(document.querySelectorAll(".rc-formula__chip-token.is-an")).toHaveLength(5);
+    await user.click(o());
+    await user.keyboard("{Home}{Delete}");                  // Home ⇒ trước `if`; Delete chỉ bước qua khung
+    expect(ct()).toBe("if ( dai_in <= 3000 , 1 , 2 )");
+    await user.keyboard("{Home}{ArrowRight}");              // qua `if (` giấu + đúng một chip `dai_in`
+    await user.type(o(), "9");
+    await user.tab();
+    expect(ct()).toBe("if ( dai_in 9 <= 3000 , 1 , 2 )");
+    await user.click(o());
+    await user.keyboard("{End}{Backspace}{Backspace}");     // lần đầu chỉ bước qua `)`, lần hai xoá số 2
+    expect(ct()).toBe("if ( dai_in 9 <= 3000 , 1 , )");
+  });
+
+  // Dòng khung sửa được (22/10/2026): jsdom không có toạ độ ⇒ bấm chip × của khung (nửa phải) để
+  // vào khung, rồi End về khe cuối.
+  const vaoCuoiKhung = async (user: ReturnType<typeof userEvent.setup>) => {
+    const chip = document.querySelectorAll(".rc-formula__khung > .rc-formula__chip-token");
+    fireEvent.mouseDown(chip[chip.length - 1]);
+    await user.keyboard("{End}");
+  };
+
+  it("ở cuối dòng khung gõ − ⇒ hiện phần D rỗng, gõ vào là thành D", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.keyboard("-");
+    expect(screen.getAllByText("D")).toHaveLength(2);
+    await user.type(o(), "500");
+    await user.tab();
+    expect(ct()).toBe(`${KHOAN} - 500`);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+  });
+
+  it("ở cuối dòng khung bấm × lên công thức có phép + ngoài cùng ⇒ bọc cả công thức rồi mới nhân", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={`${KHOAN} + 5`} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.click(screen.getByTitle("Nhân"));
+    await user.type(o(), "2");
+    await user.tab();
+    expect(ct()).toBe(`( ${KHOAN} + 5 ) * 2`);
+  });
+
+  it("đầu dòng khung bấm max ⇒ bọc cả công thức, khung không vỡ, ô gõ chờ ở tham số thứ hai", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.keyboard("{Home}");
+    await user.click(screen.getByTitle("Hàm max"));
+    expect(ct()).toBe(`max ( ${KHOAN} , )`);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+    await user.type(o(), "0");
+    await user.tab();
+    expect(ct()).toBe(`max ( ${KHOAN} , 0 )`);
+  });
+
+  it("bấm max lần nữa khi đang ở phần rỗng ⇒ chèn đủ cặp max ( ), khung không sụp", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.keyboard("{Home}");
+    await user.click(screen.getByTitle("Hàm max"));
+    await user.click(screen.getByTitle("Hàm max"));
+    expect(ct()).toBe(`max ( ${KHOAN} , max ( ) )`);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+    await user.type(o(), "5");
+    await user.keyboard(")");                                // gõ ")" chỉ bước qua ngoặc có sẵn
+    await user.tab();
+    expect(ct()).toBe(`max ( ${KHOAN} , max ( 5 ) )`);
+  });
+
+  it("cuối dòng phần D gõ + ⇒ vẫn là D (bọc ngoặc cả phần), không mọc chữ E", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={`${KHOAN} + max ( 3 , 8 )`} bien={BIEN_C} />);
+    await user.click(o());                                   // ô gõ đứng cuối dòng phần D
+    await user.keyboard("+");
+    expect(screen.queryByText("E")).not.toBeInTheDocument();
+    await user.type(o(), "5");
+    await user.keyboard("*");
+    await user.type(o(), "2");
+    await user.tab();
+    expect(ct()).toBe(`${KHOAN} + ( max ( 3 , 8 ) + 5 * 2 )`);
+    expect(screen.queryByText("E")).not.toBeInTheDocument();
+  });
+
+  it("phần D rỗng vừa mở, gõ “4+” liền một mạch ⇒ dấu vẫn ở D, không mọc E", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.keyboard("+");                                // mở phần D rỗng
+    await user.type(o(), "4+");                              // "4" chưa chốt, chốt cùng dấu +
+    expect(screen.queryByText("E")).not.toBeInTheDocument();
+    await user.type(o(), "5");
+    await user.tab();
+    expect(ct()).toBe(`${KHOAN} + ( 4 + 5 )`);
+  });
+
+  it("tham số rỗng của max, gõ “4+” ⇒ vẫn là D, khung không sụp", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.keyboard("{Home}");
+    await user.click(screen.getByTitle("Hàm max"));
+    await user.type(o(), "4+");
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+    expect(screen.queryByText("E")).not.toBeInTheDocument();
+    await user.type(o(), "5");
+    await user.tab();
+    expect(ct()).toBe(`max ( ${KHOAN} , ( 4 + 5 ) )`);
+  });
+
+  it("đứng sau chip số gõ tiếp số ⇒ nối thành một số (3 rồi 0 là 30)", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={`${KHOAN} + 3`} bien={BIEN_C} />);
+    await user.click(o());                                   // ô gõ đứng sau chip 3
+    await user.type(o(), "0");
+    await user.tab();
+    expect(ct()).toBe(`${KHOAN} + 30`);
+  });
+
+  it("dòng khung: Backspace dấu nối hai phần ⇒ không xoá, nhắc; gõ + cạnh nó ⇒ đổi × thành +", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={`${KHOAN} * 3`} bien={BIEN_C} />);
+    await vaoCuoiKhung(user);
+    await user.keyboard("{ArrowLeft}{Backspace}");          // khe trước phần cuối, xoá lùi dấu ×
+    expect(ct()).toBe(`${KHOAN} * 3`);
+    expect(screen.getByText(/gõ \+ − × ÷ để đổi/)).toBeInTheDocument();
+    await user.keyboard("+");
+    expect(ct()).toBe(`${KHOAN} + 3`);
+    expect(screen.getByText("Kết quả =")).toBeInTheDocument();
+  });
+
+  it("Shift + bấm chữ A rồi B ⇒ bọc round quanh A–B thay luôn cặp ngoặc cũ", async () => {
+    const user = userEvent.setup();
+    render(<Harness dau={KHOAN} bien={BIEN_C} />);
+    fireEvent.mouseDown(screen.getAllByText("A")[0], { shiftKey: true });
+    fireEvent.mouseDown(screen.getAllByText("B")[0], { shiftKey: true });
+    expect(screen.getByText(/Bọc A–B trong/)).toBeInTheDocument();
+    await user.click(screen.getByTitle("Làm tròn"));
+    expect(ct()).toBe(`round ${KHOAN}`);
   });
 });

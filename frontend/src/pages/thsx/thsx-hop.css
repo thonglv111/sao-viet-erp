@@ -101,9 +101,16 @@
 .thsx-gm-gia { margin-left: auto; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
 .thsx-gm-khoan { border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }
 .thsx-gm-khoan__dau { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
+/* Bậc giá (Bài in): bậc chọn theo màu lệnh + tick, đổi ngay khi tick Mực UV. */
+.thsx-gm-bac { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding: 8px 14px;
+  border-top: 1px solid var(--rule-hair); font-size: 13.5px; }
 .thsx-gm-ps { border-top: 1px solid var(--rule-hair); padding: 8px 14px 10px; background: var(--paper); }
 .thsx-gm-ps ul { list-style: none; margin: 4px 0 0; padding: 0; }
-/* Hàng việc phát sinh: tick + tên giãn ra, ô số lượng (khi tick) đứng ngay trước đơn giá, cao bằng hàng. */
+/* Đầu nhóm (Tuỳ chọn / Việc phát sinh): tên nhóm chữ thường màu mực, dòng dưới nói nhóm làm gì với tiền. */
+.thsx-gm-ps__dau { display: flex; flex-direction: column; gap: 1px; padding-top: 2px; }
+.thsx-gm-ps__ten { font-size: 14px; color: var(--ink); }
+.thsx-gm-ps + .thsx-gm-ps { border-top-color: var(--rule-soft); }
+/* Hàng việc phát sinh: tên giãn ra, ô số lượng (luôn hiện) đứng ngay trước đơn giá, cao bằng hàng. */
 .thsx-gm-ps__hang { display: flex; align-items: center; gap: 12px; min-height: 36px; }
 .thsx-gm-ps__chon { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; cursor: pointer;
   flex: 1 1 auto; min-width: 0; }
@@ -118,7 +125,13 @@
 .thsx-gm-ps__o input::-webkit-outer-spin-button,
 .thsx-gm-ps__o input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .thsx-gm-ps__o span { flex: none; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
-.thsx-gm-ps__loi { display: block; padding: 0 0 4px 24px; }
+.thsx-gm-ps__loi { display: block; padding: 0 0 4px; }
+/* Việc phát sinh: một lưới chung cho mọi hàng ⇒ ô số lượng và đơn giá thẳng cột dù tên dài ngắn. */
+.thsx-gm-ps__luoi { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; align-items: center; }
+.thsx-gm-ps__luoi > li, .thsx-gm-ps__luoi .thsx-gm-ps__hang { display: contents; }
+.thsx-gm-ps__luoi .thsx-gm-ps__chon { min-height: 36px; }
+.thsx-gm-ps__luoi .thsx-gm-gia { text-align: right; }
+.thsx-gm-ps__luoi .thsx-gm-ps__loi { grid-column: 1 / -1; }
 .thsx-gm-so { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 10px;
   padding: 0 12px; background: var(--canvas); }
 .thsx-gm-so:focus-within { border-color: var(--ash); }
@@ -185,3 +198,30 @@
 
 /* Lịch của ô ngày (z 1000) phải nổi trên nền hộp (z 1200). */
 body:has(.thsx-hop-nen) .cn-hop { z-index: 1300; }
+
+/* Ngày tổ đã báo dừng máy trong tháng (hộp Báo dừng máy, Đợt 2). */
+.thsx-dm-ds { width: 100%; border-collapse: collapse; font-size: 13px; }
+.thsx-dm-ds td { padding: 6px 8px; border-bottom: 1px solid var(--rule-hair); }
+.thsx-dm-ds tr:last-child td { border-bottom: 0; }
+.thsx-dm-ds td:last-child { text-align: right; }
+.thsx-dm-ds__nut { display: flex; gap: 12px; justify-content: flex-end; }
+.thsx-dm-ds tr[aria-current] td { background: var(--paper); }
+.thsx-dm-sua { display: flex; align-items: center; gap: 12px; }
+/* Hộp Báo dừng máy gộp Báo sự cố (23/10/2026, mockup bao-dung-may-gop.html): ô tick có khung
+   (Máy đang dừng, Tính ngày dừng cho lương), chấm màu mức độ, khối lương ngăn bằng gạch đứt. */
+.thsx-tick { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; border: 1px solid var(--rule-soft);
+  border-radius: 12px; padding: 10px 14px; cursor: pointer; }
+.thsx-tick input { margin: 3px 0 0; }
+.thsx-tick:has(input:disabled) { cursor: default; }
+.thsx-tick.is-do { border-color: #fecaca; background: #fff7f7; }
+.thsx-tick.is-xanh { border-color: #bbf7d0; background: #f6fef9; }
+.thsx-tick__ten { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; }
+.thsx-tick__mo { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.5; color: var(--ash); }
+.thsx-tick__the { font-size: 11.5px; padding: 1px 8px; border-radius: 999px; background: var(--tt-do-bg); color: var(--tt-do-fg); }
+.thsx-chip__cham { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex: none; }
+.thsx-dm-khoi { display: flex; flex-direction: column; gap: 12px; border-top: 1px dashed var(--rule); padding-top: 14px; }
+.thsx-dm-khoi--tron { border-top: 0; padding-top: 0; gap: 16px; }
+.thsx-hop-ta--thap { min-height: 56px; }
+
+/* Thẻ tuỳ chọn của một lần ghi trong chi tiết lần ghi (Đợt 2). */
+.thsx-b-the { display: flex; flex-wrap: wrap; gap: 4px 6px; }

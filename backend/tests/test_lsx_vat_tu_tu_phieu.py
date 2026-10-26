@@ -67,7 +67,8 @@ def test_tao_lenh_bung_vat_tu_cua_buoc_voi_chip_tu_phieu(db, orders, lsx_svc, ad
     assert v.gia_tri_chip == {"dai_support": 500, "rong_support": 400}
     assert float(v.so_luong) == pytest.approx(0.2)            # 500 × 400 / 1_000_000
     assert v.tu_dong is True
-    assert all(not c.vat_tus for c in lsx.cong_doans if c.ten != "Dán hộp")
+    # Bước khác chỉ còn dòng GIẤY máy gắn ở bước đầu khâu chuẩn bị (spec 2026-10-24-chuan-bi-giay §7).
+    assert all(v.hang_loai == "giay" for c in lsx.cong_doans if c.ten != "Dán hộp" for v in c.vat_tus)
 
 
 def test_phieu_khong_gan_vat_tu_thi_lenh_khong_bung_tu_danh_muc_cong_doan(
@@ -203,3 +204,15 @@ def test_dien_giai_dinh_muc_doc_nhan_chip_va_thay_so_chip_rieng(db, orders, lsx_
     dg = rows[0]["dien_giai"]
     assert "dai_support" not in dg and "rong_support" not in dg, dg
     assert dg.startswith("Dài support × Rộng support ÷ 1000000 = 500 × 400 ÷ 1000000 = 0,2")
+
+
+def test_tao_lenh_vat_tu_chua_chon_dvt_thi_422_neu_ten_mon(db, orders, lsx_svc, admin, customer):
+    """L-SX-03: món chưa chọn ĐVT không được bỏ khỏi lệnh trong im lặng — chặn và nêu tên món."""
+    from app.services.lsx_service import LsxValidationError
+
+    ptg = _ptg_2_san_pham(db)
+    vt = _support(db)
+    vt.don_vi_gia = ""
+    _gan_vao_buoc_phieu(db, ptg, "Dán hộp", vt, {"dai_support": 500, "rong_support": 400})
+    with pytest.raises(LsxValidationError, match="“Support” chưa chọn đơn vị tính"):
+        _tao_lenh_hop(db, orders, lsx_svc, admin, customer, ptg)

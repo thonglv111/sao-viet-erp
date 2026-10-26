@@ -1,6 +1,7 @@
 // Hộp "Đổi máy" của ngăn bàn tổ (mockup `ban-to-hop-thoai-B.html#doi-may`, mở từ nút ⋯). Danh sách máy do máy chủ dựng (`/work-items/{id}/may-doi`):
-// chỉ máy làm được công đoạn của việc (luật chung với Xếp lịch — `may_ngoai_cong_doan`), kèm TÌNH
-// TRẠNG lúc này của từng máy, cùng nguồn cột Trạng thái màn Thiết bị & Máy móc.
+// công đoạn có tick tổ ⇒ chỉ máy THUỘC tổ của việc (máy thuộc tổ, mg `0435`) — máy hư thì việc chờ,
+// thợ sang phụ tổ khác chứ việc không đi theo; chưa tick tổ ⇒ máy làm được công đoạn như Xếp lịch.
+// Mỗi máy kèm TÌNH TRẠNG lúc này (cùng nguồn cột Trạng thái màn Thiết bị) và các tổ khác cùng dùng máy.
 //
 // Tách khỏi `ThsxDrawer` vì tự gọi API: chỉ mount khi mở hộp, nên danh sách luôn nạp lại mỗi lần mở
 // (máy vừa hỏng/vừa nhận lệnh khác phải hiện đúng lúc chọn), và ngăn kéo vẫn không cần phiên đăng nhập.
@@ -12,6 +13,7 @@ import { ThsxHop } from "./thsx/ThsxHop";
 
 // Thứ tự nhóm: máy nhận việc được lên đầu; có phiếu sửa vẫn chạy được nên đứng ngay sau; máy hỏng
 // cuối cùng. Mã lạ (máy chủ thêm trạng thái mới) xếp trước nhóm hỏng để không bị giấu.
+const DS_TEN = new Intl.ListFormat("vi", { style: "long", type: "conjunction" });
 const THU_TU_TT = ["ranh", "co_phieu_sua", "dang_chay", "bao_tri", "khoa", "may_dung"];
 function thuTu(tt: string): number {
   const i = THU_TU_TT.indexOf(tt);
@@ -60,7 +62,9 @@ export function ThsxDoiMay({ congViecId, mayHienTaiId, mayHienTai, tenCongDoan, 
         value: m.id,
         label: m.ten ? `${m.ma} ${m.ten}` : m.ma,
         group: m.nhan,
-        sub: m.chi_tiet ?? undefined,
+        // Tình trạng chi tiết + tổ khác cùng dùng máy — hai câu, không nối mẩu bằng dấu.
+        sub: [m.chi_tiet, m.to_khac?.length ? `Cũng thuộc ${DS_TEN.format(m.to_khac)}` : null]
+          .filter(Boolean).join(". ") || undefined,
         search: `${m.nhan} ${m.loai_may ?? ""}`,
       })),
     [ds],
@@ -85,13 +89,23 @@ export function ThsxDoiMay({ congViecId, mayHienTaiId, mayHienTai, tenCongDoan, 
           disabled={!ds || opts.length === 0} ariaLabel="Đổi sang máy"
           placeholder={loi ? "Không chọn được" : !ds ? "Đang nạp máy…" : opts.length === 0 ? "Không có máy đổi được" : "Chọn máy"}
           searchPlaceholder="Gõ mã, tên hoặc tình trạng máy" className="thsx-x-seltrig" />
+        {chon && (chon.to_khac?.length ?? 0) > 0 && (
+          <span className="thsx-f__g">
+            Máy này cũng thuộc{" "}
+            {chon.to_khac.map((t) => <span key={t} className="lds-tag">{t}</span>)}
+          </span>
+        )}
         {loi ? (
           <span className="thsx-f__g thsx-f__g--loi">{loi}</span>
         ) : ds && (
           <span className="thsx-f__g">
-            {ds.theo_cong_doan
-              ? `Chỉ hiện máy khai cho công đoạn ${tenCongDoan}.`
-              : `Công đoạn ${tenCongDoan} chưa khai máy, đang hiện mọi máy còn dùng.`}
+            {ds.theo_to
+              ? (opts.length === 0
+                ? "Tổ không còn máy khác chạy công đoạn này. Việc chờ máy sửa xong."
+                : `Chỉ hiện máy của tổ chạy được công đoạn ${tenCongDoan}.`)
+              : ds.theo_cong_doan
+                ? `Chỉ hiện máy khai cho công đoạn ${tenCongDoan}.`
+                : `Công đoạn ${tenCongDoan} chưa khai máy, đang hiện mọi máy còn dùng.`}
           </span>
         )}
       </div>

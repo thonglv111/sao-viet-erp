@@ -47,6 +47,10 @@ class CustomerFinancialIn(BaseModel):
     discount_max_pct: float | None = Field(default=None, ge=0, le=100)
     markup_min_pct: float | None = Field(default=None, ge=0, le=100)
     markup_max_pct: float | None = Field(default=None, ge=0, le=100)
+    # Kê giá (20/10/2026): % kê công ty giữ lại nộp thuế TNDN (mặc định 20) + rào kê (% trên giá bán).
+    ke_thue_tndn_pct: float = Field(default=20, ge=0, le=100)
+    ke_min_pct: float | None = Field(default=None, ge=0, le=100)
+    ke_max_pct: float | None = Field(default=None, ge=0, le=100)
 
 
 class DuplicateRef(BaseModel):
@@ -108,6 +112,10 @@ class CustomerRow(BaseModel):
     discount_max_pct: float | None = None
     markup_min_pct: float | None = None
     markup_max_pct: float | None = None
+    # --- Kê giá (20/10/2026): thuế TNDN trên kê (%) + rào kê (% trên giá bán) ---
+    ke_thue_tndn_pct: float = 20
+    ke_min_pct: float | None = None
+    ke_max_pct: float | None = None
     # --- Nhãn thủ công (#7) — sales gán tay, chips trên danh bạ ---
     tags: list[str] = []
 

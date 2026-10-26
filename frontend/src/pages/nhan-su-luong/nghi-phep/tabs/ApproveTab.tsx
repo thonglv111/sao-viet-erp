@@ -109,7 +109,7 @@ export function ApproveTab({ token, dau, onChanged, focusEmployeeId, eventTick }
   const shown = items;
   // ⚠ CHỈ id chờ duyệt CỦA TRANG ĐANG XEM. "Chọn tất cả" và các nút hàng loạt vì thế cũng chỉ
   // tác động trong phạm vi trang này — chân bảng nói rõ điều đó cho người duyệt biết.
-  const pendingIds = shown.filter((i) => i.status === "pending").map((i) => i.id);
+  const pendingIds = shown.filter((i) => i.status === "pending" && i.duyet_duoc !== false).map((i) => i.id);
   const selArr = [...sel];
   function toggle(id: number) { setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
   function toggleAll() { setSel((s) => (s.size === pendingIds.length && pendingIds.length > 0 ? new Set() : new Set(pendingIds))); }

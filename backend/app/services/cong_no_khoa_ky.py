@@ -7,7 +7,7 @@ Mọi lần ghi chứng từ công nợ trong `AccountingService` đều đi qua
 hỏi một chỗ ngay trước mỗi lần lưu. Phân hệ suy từ chính chứng từ:
 
 * Phải thu (131): hoá đơn bán, hoá đơn điều chỉnh, phiếu thu của khách (cọc đơn, thu hoá đơn, gộp),
-  phiếu chi trả lại khách.
+  phiếu chi trả lại khách, phiếu chi chiết khấu / kê.
 * Phải trả (331): phiếu chi cho NCC (đơn mua, gia công ngoài), phiếu thu NCC hoàn tiền.
 * Thu/chi khác, tạm ứng lương: không thuộc sổ công nợ nào ⇒ không chặn.
 
@@ -23,13 +23,14 @@ from ..models.accounting import (
     RECEIPT_SOURCE_ORDER,
     RECEIPT_SOURCE_PURCHASE,
     RECEIPT_SOURCE_SALES_INVOICE,
+    VOUCHER_SOURCE_CHI_CK,
+    VOUCHER_SOURCE_CHI_KE,
     VOUCHER_SOURCE_CUSTOMER_REFUND,
     VOUCHER_SOURCE_GIA_CONG,
     VOUCHER_SOURCE_PURCHASE,
     PaymentReceipt,
     PaymentVoucher,
     SalesInvoice,
-    SalesInvoiceAdjustment,
 )
 from ..models.cong_no_khoa_so import PHAN_HE_PHAI_THU, PHAN_HE_PHAI_TRA
 from ..repositories.cong_no_khoa_so_repo import CongNoKhoaSoRepository
@@ -39,6 +40,10 @@ _TEN_SO = {PHAN_HE_PHAI_THU: "phải thu", PHAN_HE_PHAI_TRA: "phải trả"}
 
 def _phan_he_phieu_chi(v: PaymentVoucher) -> str | None:
     if v.source_type == VOUCHER_SOURCE_CUSTOMER_REFUND or v.customer_id or v.order_id:
+        return PHAN_HE_PHAI_THU
+    # Chi CK / kê trả khách thuộc sổ phải thu, xét theo ngày phiếu chi (L-SX-49). Phiếu này không
+    # mang khách / đơn — hoá đơn nằm ở `dong_ck_ke`.
+    if v.source_type in (VOUCHER_SOURCE_CHI_CK, VOUCHER_SOURCE_CHI_KE) or v.dong_ck_ke:
         return PHAN_HE_PHAI_THU
     if (v.source_type in (VOUCHER_SOURCE_PURCHASE, VOUCHER_SOURCE_GIA_CONG) or v.purchase_request_id
             or v.supplier_id or v.gia_cong_ngoai_id
@@ -64,15 +69,13 @@ def _xep(obj) -> tuple[str | None, str, str]:
         return _phan_he_phieu_chi(obj), "phiếu chi", "voucher_date"
     if isinstance(obj, PaymentReceipt):
         return _phan_he_phieu_thu(obj), "phiếu thu", "receipt_date"
-    if isinstance(obj, SalesInvoiceAdjustment):
-        return PHAN_HE_PHAI_THU, "hoá đơn điều chỉnh", "adj_date"
     if isinstance(obj, SalesInvoice):
         return PHAN_HE_PHAI_THU, "hoá đơn bán", "invoice_date"
     return None, "", ""
 
 
 _COT_NGAY = {PaymentVoucher: "voucher_date", PaymentReceipt: "receipt_date",
-             SalesInvoiceAdjustment: "adj_date", SalesInvoice: "invoice_date"}
+             SalesInvoice: "invoice_date"}
 
 
 def loi_ky_khoa(db, obj) -> str | None:

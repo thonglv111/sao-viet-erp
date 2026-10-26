@@ -148,6 +148,15 @@ class Order(Base):
     commission_pct: Mapped[float] = mapped_column(
         Numeric(6, 4), nullable=False, default=0, server_default="0"
     )
+    # ⚠️ `commission_pct` DORMANT từ 23/10/2026 (mg 0439): engine đọc biểu bậc dưới đây.
+    # BIỂU BẬC hoa hồng chụp lúc CHỐT đơn từ `employee_salaries.bac_hoa_hong` của người phụ trách —
+    # cùng nguyên tắc "tiền đã hứa thì không sửa ngược". NULL = đơn không có hoa hồng (SQL NULL thật,
+    # `none_as_null`, mg 0441).
+    bac_hoa_hong: Mapped[list | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    # % RIÊNG của đơn (đơn Wipro 1%, hoặc 0 để loại tay) — THẮNG biểu. Chỉ người có ô `luong:update`
+    # đặt được, qua API lương; KHÔNG phơi ra API đơn hàng (sale không tự đặt hoa hồng của mình).
+    hh_rieng_pct: Mapped[float | None] = mapped_column(Numeric(6, 4), nullable=True)
+    hh_rieng_ly_do: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # --- P1: thông tin đặt hàng (Sale nhập khi nháp) ----------------------------
     customer_po_no: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -166,6 +175,9 @@ class Order(Base):
     invoice_entity_tax_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # % cọc GHIM TỪ BÁO GIÁ (khóa trên đơn) — base cổng chốt.
     deposit_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Cọc phải thu gõ bằng SỐ TIỀN (mg 0428, 20/10/2026). Có số này thì thắng `deposit_pct` (lưu
+    # một cái là xoá cái kia); không vượt tổng đơn gồm VAT. Đọc qua `services.coc.coc_phai_thu`.
+    deposit_amount: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # Nguồn/độ tin giá vốn: quote (có) / none (nhập tay → biên không xác định).
     cost_basis: Mapped[str] = mapped_column(String(16), nullable=False, default=COST_BASIS_QUOTE)
 
@@ -259,6 +271,9 @@ class OrderLine(Base):
     # chiết khấu + lợi nhuận) mà công ty sẽ hoàn lại khách. Chép từ `quote_items.discount_amount` lúc
     # chốt đơn. NULL = đơn cũ / nhập tay.
     chiet_khau: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # Tiền KÊ GIÁ của dòng (mg 0428): NẰM TRONG `line_total` (giá bán sau kê), chép từ
+    # `quote_items.ke_gia`. NULL = đơn cũ / nhập tay.
+    ke_gia: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="lines")
 
@@ -274,6 +289,7 @@ EXC_BELOW_COST = "below_cost"
 EXC_NO_COST = "no_cost"            # nhập tay không giá vốn (luôn cần duyệt)
 EXC_DISCOUNT_OUT = "discount_out"
 EXC_MARKUP_OUT = "markup_out"    # markup (lợi nhuận/GIÁ VỐN) ngoài rào của khách — cổng BÁO GIÁ
+EXC_KE_OUT = "ke_out"            # kê giá (% trên giá bán) ngoài rào của khách — cổng BÁO GIÁ
 
 
 class OrderApproval(Base):

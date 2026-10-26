@@ -60,6 +60,21 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(screen.getByText(/Couche 300gsm/i)).toBeInTheDocument();
   });
 
+  it("tên giấy đã mang định lượng thì không nối thêm lần nữa", () => {
+    // Bấm thử 19/10: cột Quy cách in "COUCHE 150GSM 150gsm".
+    const item = mockViec({ quy_cach: { giay: "COUCHE 150GSM", dinh_luong: 150, kho_in: "1090 × 790", so_mau: 4, so_kem: 4 } });
+    render(<ThsxDanhSach lenh={mockLenh([item])} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByText("COUCHE 150GSM")).toBeInTheDocument();
+    expect(screen.queryByText(/150GSM 150gsm/i)).toBeNull();
+  });
+
+  it("lệnh hai giấy: mỗi giấy một thẻ quy cách", () => {
+    const item = mockViec({ quy_cach: { giay: ["COUCHE 150GSM", "GIẤY SÓNG E 300GSM"], kho_in: "790 × 545", so_mau: 4, so_kem: 4 } });
+    render(<ThsxDanhSach lenh={mockLenh([item])} selectedId={null} onPick={vi.fn()} />);
+    expect(screen.getByText("COUCHE 150GSM")).toBeInTheDocument();
+    expect(screen.getByText("GIẤY SÓNG E 300GSM")).toBeInTheDocument();
+  });
+
   // 28/09/2026: cột cuối CHỈ còn nhãn trạng thái — nút chạy nhanh đứng cạnh nhãn đọc ra thành nhiều
   // trạng thái. Kể cả người giữ quyền Thực hiện lệnh cũng không thấy nút ở dòng; thao tác ở drawer.
   it("cột trạng thái chỉ có nhãn, không còn nút Bắt đầu / Tạm dừng / Kết thúc", () => {
@@ -100,7 +115,7 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(screen.getByText("Công đoạn")).toBeInTheDocument();
   });
 
-  it("lưới phẳng: mỗi việc một dòng, đủ 9 cột, lệnh thành cột Lệnh + Sản phẩm", () => {
+  it("lưới phẳng: mỗi việc một dòng, đủ 10 cột, lệnh thành cột Lệnh + Sản phẩm", () => {
     const a = mockViec({ id: 1, nguon_ma: "LSX26-0004", nguon_ten: "Bìa sách A5", khach_hang: "Bibica" });
     const b = mockViec({ id: 2, nguon_ma: "LSX26-0005", nguon_ten: "Ruột sách", ten_cong_doan: "Xén 3 mặt" });
     const c = mockViec({ id: 3, nguon_ma: "LSX26-0005", nguon_ten: "Ruột sách", ten_cong_doan: "Cắt tờ" });
@@ -108,7 +123,8 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     const { container } = render(<ThsxDanhSach lenh={lenh} selectedId={null} onPick={vi.fn()} />);
     expect(container.querySelectorAll("tbody tr.lds-dong")).toHaveLength(3);
     expect([...container.querySelectorAll("thead th")].map((t) => t.textContent)).toEqual([
-      "Lệnh", "Sản phẩm", "Công đoạn", "Trạng thái", "Tốt / cần", "Hàng đang tới đâu",
+      // Vật tư ngay sau Trạng thái: nó chặn nút Bắt đầu, để cuối là khuất ở màn 1440px.
+      "Lệnh", "Sản phẩm", "Công đoạn", "Trạng thái", "Vật tư", "Tốt / cần", "Hàng đang tới đâu",
       "Máy và thời gian", "Quy cách", "Định mức vật tư",
     ]);
     expect(screen.getByText("Bìa sách A5")).toBeInTheDocument();
@@ -178,5 +194,36 @@ describe("ThsxDanhSach — Workstation Studio Modern Table View", () => {
     expect(dongPhuTrangThai(mockViec({
       trang_thai: "completed", thuc_te: [{ bat_dau: "2026-10-05T08:00:00", ket_thuc: "2026-10-05T16:20:00" }],
     }))).toMatch(/^xong 05\/10(\/2026)? 16:20$/);
+  });
+});
+
+describe("ThsxDanhSach — cột Vật tư (tự lập yêu cầu xuất khi phát hành)", () => {
+  const mon = [
+    { ten: "Couche 300", dvt: "tờ", sl_xin: 2700, sl_da_xuat: 0, chot_thieu: false, lan_so: 1, muc: "kho_dang_soan" },
+    { ten: "Mực đen", dvt: "kg", sl_xin: 2, sl_da_xuat: 1.5, chot_thieu: true, lan_so: 1, muc: "kho_dang_soan" },
+  ] as const;
+
+  function ve(p: Partial<SxWorkItem>) {
+    render(<ThsxDanhSach lenh={mockLenh([mockViec({ id: 301, ...p })])} selectedId={null} onPick={vi.fn()} />);
+  }
+
+  it("cột Vật tư hiện chip Kho đang soạn", () => {
+    ve({ trang_thai_vat_tu: { muc: "kho_dang_soan", mon: [...mon] } });
+    expect(screen.getByRole("columnheader", { name: /^Vật tư/ })).toBeInTheDocument();
+    expect(screen.getByText("Kho đang soạn")).toBeInTheDocument();
+  });
+
+  it("bước không cần vật tư thì ô Vật tư trống", () => {
+    ve({ trang_thai_vat_tu: null });
+    for (const nhan of ["Chưa yêu cầu", "Chờ kho", "Kho đang soạn", "Cấp thiếu", "Sẵn sàng"]) {
+      expect(screen.queryByText(nhan)).toBeNull();
+    }
+  });
+
+  it("rê chuột chip thấy từng món và số đã xuất", () => {
+    ve({ trang_thai_vat_tu: { muc: "kho_dang_soan", mon: [...mon] } });
+    const title = screen.getByText("Kho đang soạn").getAttribute("title") ?? "";
+    expect(title).toContain("Couche 300 xin 2.700 tờ và đã xuất 0");
+    expect(title).toContain("Mực đen xin 2 kg và đã xuất 1,5 (kho chốt thiếu)");
   });
 });

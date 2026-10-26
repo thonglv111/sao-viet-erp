@@ -68,7 +68,7 @@ describe("ToTruongEditor", () => {
     expect(await screen.findByText("đang áp dụng từ 01/01/2020")).toBeInTheDocument();
     expect(container.querySelector(".cl-chitieu__now-val")).toHaveTextContent("Ăn thưởng 5%");
     expect(container.querySelector(".cl-totruong__nguoi")).toHaveTextContent("Tổ trưởng: Nguyễn Văn A");
-    expect(screen.getByText(/Chưa áp vào tính lương/)).toBeInTheDocument();
+    expect(screen.getByText(/cộng vào lương khoán của tổ trưởng/)).toBeInTheDocument();
   });
 
   it("tổ chưa có mốc + chưa có người đứng đầu: nói rõ cả hai, không vẽ bảng", async () => {

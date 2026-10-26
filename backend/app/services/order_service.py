@@ -53,6 +53,7 @@ from ..schemas.order import (
 )
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .accounting_service import AccountingService, AccountingValidationError
+from .coc import co_coc, coc_phai_thu
 
 
 class OrderError(Exception):
@@ -131,38 +132,44 @@ def _unlink_attachment(url: str) -> None:
         get_storage().delete(key)
 
 
-def _pct_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> float:
-    """% hoa hồng ĐANG hiệu lực của người sales tại ngày `on` (mặc định hôm nay), để chụp vào đơn.
+def _bac_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> list[dict] | None:
+    """BIỂU BẬC hoa hồng ĐANG hiệu lực của người phụ trách đơn tại ngày `on` (mặc định hôm nay), để
+    chụp vào đơn (thay % phẳng từ 23/10/2026 — xem `services/bac_hoa_hong.py`).
 
     Đọc `employee_salaries` (bảng versioned) qua `employees.user_id` — đơn ghi USER, mức lương thì
-    treo ở EMPLOYEE. Không tìm được người / chưa khai mức nào ⇒ 0, tức đơn không có hoa hồng.
+    treo ở EMPLOYEE. Không tìm được người / chưa khai biểu ⇒ None, tức đơn không có hoa hồng.
 
-    ⚠️ PHẢI chặn `effective_from <= on`. Nhân sự khai trước "từ 01/12 lên 20%" là chuyện thường;
-    không chặn thì đơn chốt HÔM NAY chụp luôn mức của tháng sau, tức trả theo lời hứa CHƯA tới
-    hạn. Engine lương tra mức đúng kiểu này (`latest_salaries_map(on)`) — giữ CÙNG một nếp.
-
-    Hoà ngày thì bản lưu SAU thắng (`id` lớn hơn), y như chỗ tra mức lương.
+    ⚠️ PHẢI chặn `effective_from <= on`: nhân sự khai trước "từ 01/12 đổi biểu" là chuyện thường;
+    không chặn thì đơn chốt HÔM NAY chụp luôn biểu của tháng sau. Engine lương tra mức đúng kiểu này
+    (`latest_salaries_map(on)`). Hoà ngày thì bản lưu SAU thắng (`id` lớn hơn).
     """
     if not sale_user_id:
-        return 0.0
+        return None
     from ..models.employee import Employee
     from ..models.payroll import EmployeeSalary
 
     emp = db.query(Employee).filter(Employee.user_id == int(sale_user_id)).first()
     if emp is None:
-        return 0.0
+        return None
     ms = (db.query(EmployeeSalary)
             .filter(EmployeeSalary.employee_id == emp.id,
                     EmployeeSalary.effective_from <= (on or date.today()))
             .order_by(EmployeeSalary.effective_from.desc(), EmployeeSalary.id.desc())
             .first())
-    return float(getattr(ms, "commission_pct", 0) or 0)
+    return getattr(ms, "bac_hoa_hong", None) or None
+
+
+def _chup_hoa_hong(order, db) -> None:
+    """Chụp biểu hoa hồng của người phụ trách vào đơn lúc CHỐT. Đơn đã có biểu thì giữ nguyên —
+    `confirm` chạy lại cũng không đổi số đã chụp."""
+    if order.bac_hoa_hong is None:
+        order.bac_hoa_hong = _bac_hoa_hong_cua_sale(db, order.sale_user_id)
 
 
 #: Trường sửa được ở đơn nháp → nhãn ghi nhật ký (#52: nhật ký nói đúng trường đã đổi).
 _NHAN_SUA_DON = {
     "customer_po_no": "PO khách", "delivery_committed_date": "ngày hẹn giao",
-    "deposit_pct": "% cọc", "delivery_address": "địa chỉ giao", "delivery_contact_name": "người nhận",
+    "deposit_pct": "% cọc", "deposit_amount": "tiền cọc", "delivery_address": "địa chỉ giao", "delivery_contact_name": "người nhận",
     "delivery_contact_phone": "điện thoại người nhận", "delivery_note": "ghi chú giao hàng",
     "production_note": "lưu ý sản xuất", "is_rush": "đơn gấp",
 }
@@ -228,8 +235,7 @@ class OrderService:
         # V5: cọc đọc từ phiếu thu THẬT (Kế toán) — Σ PaymentReceipt(order, source=đơn, received).
         if received is None:
             received = self.accounting_repo.received_deposit_sum(order.id)
-        pct = order.deposit_pct
-        required = int(round(float(pct) * total_with_vat / 100)) if pct else 0
+        required = coc_phai_thu(order.deposit_pct, order.deposit_amount, total_with_vat)
         # biên: chỉ khi có giá vốn (cost_basis=quote) + có total
         margin = None
         if order.cost_basis == COST_BASIS_QUOTE and order_cost is not None and total:
@@ -303,6 +309,7 @@ class OrderService:
             total=m["total"],
             total_with_vat=m["total_with_vat"],
             deposit_pct=order.deposit_pct,
+            deposit_amount=order.deposit_amount,
             deposit_required=m["deposit_required"],
             deposit_received=m["deposit_received"],
             deposit_ok=m["deposit_ok"],
@@ -513,8 +520,7 @@ class OrderService:
         awaiting = shortfall = ordered_value = 0
         for oid, r in rows.items():
             twv = r["total_with_vat"]
-            pct = r["deposit_pct"]
-            required = int(round(float(pct) * twv / 100)) if pct else 0
+            required = coc_phai_thu(r["deposit_pct"], r["deposit_amount"], twv)
             if r["status"] == STATUS_ORDERED:
                 ordered_value += twv
             elif r["status"] == STATUS_DRAFT and required > 0 and received.get(oid, 0) < required:
@@ -590,7 +596,7 @@ class OrderService:
         if payload.deposit_pct is not None and not 0 <= payload.deposit_pct <= 100:
             raise OrderValidationError("% cọc phải trong khoảng 0–100")
 
-        order = self._create_from_quotation(actor=actor, payload=payload)
+        order = self._create_from_quotation(actor=actor, scope=scope, payload=payload)
 
         self.audit.create(
             actor_user_id=actor.id,
@@ -600,12 +606,16 @@ class OrderService:
         )
         return self._detail(order)
 
-    def _create_from_quotation(self, *, actor, payload) -> Order:
+    def _create_from_quotation(self, *, actor, scope: str, payload) -> Order:
         if not payload.quotation_id:
             raise OrderValidationError("Thiếu báo giá nguồn")
         quote: Quote | None = self.quotations.get_by_id(payload.quotation_id)
         if quote is None:
             raise OrderValidationError("Không tìm thấy báo giá")
+        # Báo giá nguồn phải trong phạm vi người bấm — cùng cổng đọc báo giá (chủ khách + nhóm dùng
+        # chung + cây phòng). Ngoài phạm vi = 404 như các đường đọc, không lộ tên khách / giá trị.
+        if not self.quotations.can_access(quote=quote, scope=scope, actor=actor):
+            raise OrderNotFound("Không tìm thấy báo giá")
         if quote.status != STATUS_ACCEPTED:
             raise OrderValidationError("Báo giá chưa được khách đồng ý (accepted)")
         if self.repo.active_order_for_quotation(quote.id) is not None:
@@ -634,6 +644,8 @@ class OrderService:
                 unit_price_snapshot=unit,
                 line_total=net_line,
                 chiet_khau=int(round(float(it.discount_amount or 0))),
+                # Kê giá (20/10/2026) nằm trong line_total (giá bán sau kê) — chép riêng để chia vào hoá đơn.
+                ke_gia=int(round(float(it.ke_gia or 0))),
                 vat_pct_estimate=_i(it.vat_percent),
                 cost_snapshot=(_i(it.total_cost_snapshot) if it.total_cost_snapshot else None),
                 phieu_thanh_phan_id=it.phieu_thanh_phan_id,   # pin truy vết ấn phẩm (soft) từ dòng báo giá
@@ -692,9 +704,26 @@ class OrderService:
                 continue                      # cờ gấp không có trạng thái "trống"
             if f == "deposit_pct" and val is not None and not 0 <= val <= 100:
                 raise OrderValidationError("% cọc phải trong khoảng 0–100")
+            if f == "deposit_amount" and val == 0:
+                val = None
             cu = getattr(order, f)
             if (float(cu) if f == "deposit_pct" and cu is not None else cu) != val:
                 fields[f] = val
+        # Cọc giữ MỘT cách (20/10/2026): lưu số tiền là xoá %, lưu % là xoá số tiền.
+        if fields.get("deposit_amount") is not None:
+            fields["deposit_pct"] = None
+            tong = self.repo.total_with_vat(order.id)
+            if fields["deposit_amount"] > tong:
+                raise OrderValidationError(
+                    f"Tiền cọc không được vượt giá trị đơn hàng ({tong:,} đ).".replace(",", "."))
+        elif fields.get("deposit_pct") is not None and order.deposit_amount is not None:
+            fields["deposit_amount"] = None
+        # Gửi tiền cọc = 0 là "không cọc" (L-VAI-34): đơn đang cọc theo % thì % cũng về 0, không thì
+        # hộp đóng êm mà cọc 30 % vẫn nằm đó. Cùng lúc gửi % > 0 thì % thắng như cũ.
+        if ("deposit_amount" in gui and not payload.deposit_amount
+                and not ("deposit_pct" in gui and payload.deposit_pct)
+                and (order.deposit_pct or 0) > 0):
+            fields["deposit_pct"] = 0
         if fields:
             self.repo.update(order, **fields)
             self.audit.create(
@@ -802,7 +831,7 @@ class OrderService:
         received = self.accounting_repo.received_deposit_sums(ids)
         for o in drafts:
             m = self._money(o, agg=sums.get(o.id, {}), received=received.get(o.id, 0))
-            if can_record_deposit and (o.deposit_pct or 0) > 0 and not m["deposit_ok"]:
+            if can_record_deposit and co_coc(o) and not m["deposit_ok"]:
                 deposit_pending += 1
             if can_chot and m["deposit_ok"]:
                 ready_to_confirm += 1
@@ -917,16 +946,14 @@ class OrderService:
         except ThanhPhamKhacKhach as exc:
             self.db.rollback()
             raise OrderValidationError(str(exc)) from exc
-        # CHỤP ẢNH % hoa hồng của người sales vào đơn (mg 0227 · §4.6). Chụp lúc CHỐT chứ không
-        # đọc-sống: đổi % cho người ta từ tháng sau KHÔNG được làm đổi hoa hồng của đơn đã chốt
-        # tháng trước.
+        # CHỤP ẢNH biểu hoa hồng của người phụ trách vào đơn (mg 0439, 23/10/2026; trước đó % phẳng
+        # `commission_pct`, nay DORMANT). Chụp lúc CHỐT chứ không đọc-sống: đổi biểu cho người ta từ
+        # tháng sau KHÔNG được làm đổi hoa hồng của đơn đã chốt tháng trước.
         #
-        # KHÔNG phơi `commission_pct` ra API/giao diện, cố ý (chủ chốt 21/08/2026): cho sale gõ %
-        # trên chính đơn mình bán là để người ta tự viết phiếu lương của mình. % chỉ khai được ở
-        # HỒ SƠ LƯƠNG (Lương → Thiết lập lương), tức do nhân sự đặt, không do người hưởng đặt.
-        # Điều kiện `còn để 0` giữ lại để `confirm` chạy lại cũng không đổi số đã chụp.
-        if not float(order.commission_pct or 0):
-            order.commission_pct = _pct_hoa_hong_cua_sale(self.db, order.sale_user_id)
+        # KHÔNG phơi biểu ra API/giao diện đơn hàng, cố ý (chủ chốt 21/08/2026): cho sale gõ % trên
+        # chính đơn mình bán là để người ta tự viết phiếu lương của mình. Biểu chỉ khai được ở HỒ SƠ
+        # LƯƠNG; % riêng của đơn chỉ đặt được qua API lương (ô `luong:update`).
+        _chup_hoa_hong(order, self.db)
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="confirm_order",
             target=f"order:{order.id}", detail=f"Chốt đơn {order.order_no}")

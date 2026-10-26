@@ -6,6 +6,7 @@ import type { ComponentKind } from "../../../../api/client";
 // Không có nó, `tabTuUrl` rơi về tab mặc định — người dùng thấy màn Lương bình thường.
 export type Tab =
   | "bang"
+  | "khoanto"
   | "nhanvien"
   | "tamung"
   | "cauhinh"

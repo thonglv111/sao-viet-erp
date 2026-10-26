@@ -93,6 +93,17 @@ def _mot_cv_dang_chay(
     cv.du_kien_bat_dau = None
     cv.du_kien_ket_thuc = None
     cv.may_id = may_id
+    # Máy thuộc tổ (mg `0435`): mọi máy dàn cảnh đứng ở tổ này, công đoạn của việc có dòng máy —
+    # không thì luật "đổi máy chỉ trong máy của tổ" chặn hết.
+    from app.models.may_thiet_bi import MayTo
+    from app.services.may_to import dong_bo_cong_doan_may
+
+    db.add_all(MayTo(may_id=m.id, department_id=to.id) for m in db.query(MayThietBi)
+               if db.get(MayTo, (m.id, to.id)) is None)
+    db.flush()
+    cd_id = db.get(LsxCongDoan, cv.lsx_cong_doan_id).cong_doan_id
+    if cd_id:
+        dong_bo_cong_doan_may(db, cong_doan_ids=[cd_id])
     db.commit()
     for i in range(so_nguoi):
         e = _emp(db, to, f"NV-{ma}-{i}")
@@ -266,7 +277,7 @@ def test_may_doi_chi_moi_may_cua_cong_doan(db, cv_dang_chay, to_truong, cac_may)
     danh sách (dù còn dùng) không được mời — tổ đổi sang đó là chạy máy không có công thức giờ."""
     _may(db, "MAY-DM-NGOAI")
     cd = _gan_cong_doan(db, cv_dang_chay)
-    cd.may_lam_duoc.extend(CongDoanMay(may_id=m.id) for m in cac_may)
+    cd.may_khai.extend(CongDoanMay(may_id=m.id) for m in cac_may)
     cac_may[2].active = False
     db.commit()
 
@@ -336,3 +347,40 @@ def test_api_doi_may_gate_quyen(client, seed_credentials):
     assert (r_ds.status_code == 403) == (r_doi_may.status_code == 403), (
         r_ds.status_code, r_ds.text, r_doi_may.status_code, r_doi_may.text,
     )
+
+
+# --- Máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.9): đổi máy chỉ trong máy của tổ ----------------
+def _hai_to_ba_may(db, cv, cac_may):
+    """Công đoạn tick [tổ của việc, 5 màu]. Máy 0 (đang chạy) thuộc tổ việc; máy 1 thuộc cả hai tổ;
+    máy 2 chỉ thuộc 5 màu."""
+    from app.models.may_thiet_bi import MayTo
+
+    t5 = Department(name="Nhóm thợ in máy 5 màu", code="T5M-DM", la_san_xuat=True)
+    db.add(t5)
+    db.flush()
+    cd = _gan_cong_doan(db, cv, department_ids=[cv.department_id, t5.id])
+    db.query(MayTo).filter(MayTo.may_id.in_([m.id for m in cac_may])).delete()
+    db.add_all([MayTo(may_id=cac_may[0].id, department_id=cv.department_id),
+                MayTo(may_id=cac_may[1].id, department_id=cv.department_id),
+                MayTo(may_id=cac_may[1].id, department_id=t5.id),
+                MayTo(may_id=cac_may[2].id, department_id=t5.id)])
+    cd.may_khai.extend(CongDoanMay(may_id=m.id, thu_tu=i) for i, m in enumerate(cac_may))
+    db.commit()
+    db.expire_all()
+    return t5
+
+
+def test_may_doi_chi_moi_may_cua_to_kem_to_khac(db, cv_dang_chay, to_truong, cac_may):
+    _hai_to_ba_may(db, cv_dang_chay, cac_may)
+    out = MayDoiOut.model_validate(
+        thuc_thi.may_doi_duoc(db, user=to_truong, cong_viec_id=cv_dang_chay.id))
+    assert [m.id for m in out.items] == [cac_may[1].id]
+    assert out.items[0].to_khac == ["Nhóm thợ in máy 5 màu"]
+    assert out.theo_to is True       # hộp nói "máy của tổ", không phải "máy khai cho công đoạn"
+
+
+def test_doi_may_sang_may_to_khac_bi_chan(db, cv_dang_chay, to_truong, cac_may):
+    _hai_to_ba_may(db, cv_dang_chay, cac_may)
+    with pytest.raises(ValueError, match="không thuộc"):
+        thuc_thi.doi_may(db, user=to_truong, cong_viec_id=cv_dang_chay.id, may_id_moi=cac_may[2].id)
+    thuc_thi.doi_may(db, user=to_truong, cong_viec_id=cv_dang_chay.id, may_id_moi=cac_may[1].id)

@@ -36,6 +36,8 @@ export interface DongKe {
   /** Câu phụ dưới tên: khổ giấy, tình trạng khuôn… Nhóm đã có dòng tiêu đề riêng ở bảng nên
    *  đừng nhắc lại "NVL chính" ở đây. */
   chu_thich: string | null;
+  /** Dòng giấy (`nvl`): mã là Giấy hay Sóng (mg 0426). Hàng khác vắng. */
+  loai_giay?: "giay" | "song";
 }
 
 export interface BuocKe {
@@ -110,6 +112,7 @@ export function bangKeVatTu(args: {
       const kd = giay ? v.kho_dai ?? 0 : 0;
       dong.push({
         nhom: giay ? "nvl" : "vat_tu",
+        ...(giay ? { loai_giay: v.giay_loai === "song" ? "song" as const : "giay" as const } : {}),
         khoa: giay ? `giay:${v.vat_tu_id}:${kr}:${kd}` : `vat_tu:${v.vat_tu_id}`,
         ma: v.vat_tu_ma ?? null,
         ten: v.vat_tu_ten ?? "",
@@ -180,4 +183,30 @@ function gomTong(buocs: BuocKe[]): TongKe[] {
   return [...bang.values()].sort(
     (a, b) => hang[a.nhom] - hang[b.nhom] || a.ten.localeCompare(b.ten, "vi"),
   );
+}
+
+/** Thẻ quy cách của lệnh: GIẤY là NVL chính nên kể ở ô "Giấy", khối "Vật tư khác" chỉ còn
+ *  mực/màng/keo. Hộp bồi couche lên sóng có HAI giấy ở bước Cắt tờ — chỉ đọc `giay_ten` của quy
+ *  cách là mất giấy thứ hai, còn `vat_tus` của ảnh chụp lệnh cũ (trước 19/10/2026) chép cả giấy.
+ *  Tên giấy lấy theo thứ tự bước rồi thứ tự khai; lệnh chưa khai giấy ở bước nào thì về
+ *  `giay_ten` của quy cách. */
+export function giayVaVatTuQuyCach<T extends { ten?: string }>(
+  ke: BangKeVatTu,
+  giayTen: string | null | undefined,
+  vatTus: T[],
+): { giays: string[]; songs: string[]; vatTuKhac: T[] } {
+  // Giấy và Sóng tách ô theo loại của mã (mg 0426) — sóng không bao giờ nằm ở ô Giấy.
+  const giays: string[] = [];
+  const songs: string[] = [];
+  for (const b of ke.buocs) {
+    for (const d of b.dong) {
+      if (d.nhom !== "nvl" || !d.ten) continue;
+      const ds = d.loai_giay === "song" ? songs : giays;
+      if (!ds.includes(d.ten)) ds.push(d.ten);
+    }
+  }
+  const tenQc = (giayTen ?? "").trim();
+  if (giays.length === 0 && tenQc && !songs.includes(tenQc)) giays.push(tenQc);
+  const nvl = [...giays, ...songs];
+  return { giays, songs, vatTuKhac: vatTus.filter((v) => !nvl.includes((v.ten ?? "").trim())) };
 }

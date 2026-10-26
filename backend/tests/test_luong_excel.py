@@ -8,7 +8,7 @@ trừ, mình tự xếp) · Thực nhận. Bộ test khoá ba điều:
 2. File TỰ CỘNG RA: Tổng lương = Σ khối thu; Thực nhận = Tổng lương − Σ khối trừ (bài học 09/09/2026: thiếu
    cột đoàn phí / khoản trừ / lương đợt 1 là kế toán không dò được chênh ở đâu).
 3. Nghĩa từng cột y file công ty: mức lương tháng chỉ tham chiếu; "Lương thời gian" gồm phụ cấp theo công +
-   phần thêm CN / lễ (`X = (vị trí + trách nhiệm + phụ cấp) ÷ 26 × Tổng NC`); "Ngoài giờ/Tăng ca" chỉ là
+   phần thêm CN / lễ (`X = (vị trí + trách nhiệm + phụ cấp) ÷ 26 × Tổng NC`); "Tăng ca theo giờ" chỉ là
    tiền GIỜ tăng ca (`payroll_lines.tien_gio_tang_ca`, mg 0305).
 
 Số viết tay: mức nền 10.400.000 (cơ bản 7.800.000 + trách nhiệm 2.600.000) ⇒ 400.000 đ/công; phụ cấp khác
@@ -103,7 +103,7 @@ def test_thu_tu_cot_dung_nhu_chu_dat():
                 "Phạt biên bản vi phạm", "ĐT vượt trội", "Đồng phục, phạt 5S", "Khoản trừ khác"):
         assert i("Tổng lương") < i(tru) < i("Thực nhận"), tru
     # Thu nhập nằm giữa phụ cấp và Chuyên cần, như file công ty (O → V).
-    for thu in ("Phép năm", "Ngoài giờ/Tăng ca", "Lương kinh doanh/Sản lượng", "Cơm/Phụ cấp ca đêm",
+    for thu in ("Phép năm", "Tăng ca theo giờ", "Lương kinh doanh/Sản lượng", "Cơm/Phụ cấp ca đêm",
                 "Thưởng/khoản phát sinh", "Điều chỉnh lương"):
         assert i("Phụ cấp khác") < i(thu) < i("Chuyên cần"), thu
     # Không ai bị phạt vượt trần / nợ ứng ⇒ không đẻ cột thừa.
@@ -118,7 +118,7 @@ def test_dong_cong_nhat_so_viet_tay_va_luong_thoi_gian_nhu_cong_thuc_file():
     assert (so["NCT"], so["CN/Lễ"], so["Tổng NC"], so["Tăng ca"]) == (26, 1, 28, 8)
     assert (so["Lương BHXH"], so["Lương cơ bản"], so["Lương trách nhiệm"], so["Phụ cấp khác"]) == \
         (7_800_000, 7_800_000, 2_600_000, 520_000)
-    assert so["Ngoài giờ/Tăng ca"] == 600_000, "cột tăng ca chỉ là tiền GIỜ"
+    assert so["Tăng ca theo giờ"] == 600_000, "cột tăng ca chỉ là tiền GIỜ"
     assert so["Cơm/Phụ cấp ca đêm"] == 330_000 and so["Chuyên cần"] == 500_000
     # ⭐ Lương thời gian gồm phụ cấp theo công + phần thêm Chủ nhật — đúng `X = SUM(K:N) ÷ 26 × Tổng NC`.
     assert so["Lương thời gian"] == 11_760_000
@@ -132,12 +132,12 @@ def test_ky_tinh_truoc_mg_0305_chua_tach_tien_gio_van_cong_dung():
     chế độ khoán thì giờ tăng ca vốn 0đ nên `ot_pay` toàn là phần thêm CN — về Lương thời gian. Kỳ trước
     15/09 chưa chụp `cong_phu_cap` ⇒ Tổng NC = tổng công."""
     cu = _so(_dong(tien_gio_tang_ca=None, cong_phu_cap=None))
-    assert cu["Ngoài giờ/Tăng ca"] == 1_000_000 and cu["Lương thời gian"] == 11_360_000
+    assert cu["Tăng ca theo giờ"] == 1_000_000 and cu["Lương thời gian"] == 11_360_000
     assert cu["Tổng lương"] == 13_190_000 and cu["Tổng NC"] == 27
 
     khoan = _so(_dong(tien_gio_tang_ca=None, che_do_khoan=True, ot_pay=400_000, gross=12_590_000,
                       net_pay=11_671_000))
-    assert khoan["Ngoài giờ/Tăng ca"] == 0 and khoan["Lương thời gian"] == 11_760_000
+    assert khoan["Tăng ca theo giờ"] == 0 and khoan["Lương thời gian"] == 11_760_000
 
 
 def test_LAY_BU_LO_tien_khoan_nam_trong_luong_thoi_gian_tong_nc_gom_cong_bu_lo():
@@ -321,10 +321,11 @@ def test_ENGINE_chup_tien_gio_tang_ca_tach_khoi_phan_them_chu_nhat(client):
     """Lương 26tr ⇒ 1.000.000 đ/công · 125.000 đ/giờ. Đi làm 1 Chủ nhật + 4 giờ tăng ca ngày thường:
 
     - Tổ thường: tiền giờ 125.000 × 4 × 1,5 = 750.000; `ot_pay` = 750.000 + phần thêm CN 1.000.000.
-    - Chế độ khoán: tiền giờ 0, `ot_pay` chỉ còn phần thêm CN.
-    - Tài xế tháng lấy vế thời gian: trả đủ tiền giờ (PRD bù lỗ §00.10)."""
+    - Người tính 2 lương ăn vế KHOÁN: tiền giờ 0, `ot_pay` chỉ còn phần thêm CN.
+    - Khối Sản xuất ăn vế THỜI GIAN (khoán thấp): vẫn 0 tiền giờ (22/10/2026 — chỉ có tăng ca khoán).
+    - Tài xế ăn vế thời gian: trả đủ tiền giờ (chốt 16/09/2026 giữ nguyên)."""
     client
-    from tests.test_khoan_khong_tien_tang_ca import _svc, _tinh
+    from tests.test_hai_luong_khoi_sx import _svc, _tinh
 
     db = SessionLocal()
     try:
@@ -335,8 +336,13 @@ def test_ENGINE_chup_tien_gio_tang_ca_tach_khoi_phan_them_chu_nhat(client):
         assert thuong["tien_gio_tang_ca"] == 750_000
         assert thuong["ot_pay"] - thuong["tien_gio_tang_ca"] == 1_000_000
 
-        khoan = _tinh(svc, params, **cn, che_do_khoan=True)
+        khoan = _tinh(svc, params, **cn, che_do_khoan=True, khoan=50_000_000)
+        assert khoan["lay_bu_lo"] is False
         assert khoan["tien_gio_tang_ca"] == 0 and khoan["ot_pay"] == 1_000_000
+
+        thoi_gian = _tinh(svc, params, **cn, che_do_khoan=True, khoan=0)
+        assert thoi_gian["lay_bu_lo"] is True and thoi_gian["tien_gio_tang_ca"] == 0
+        assert thoi_gian["ot_pay"] == 1_000_000
 
         tai_xe = _tinh(svc, params, **cn, che_do_khoan=True, chi_an_km=True, khoan_km=0)
         assert tai_xe["lay_bu_lo"] is True and tai_xe["tien_gio_tang_ca"] == 750_000
@@ -351,7 +357,7 @@ def test_XUAT_EXCEL_qua_API_theo_khuon_cong_ty(client):
     from tests.test_com_tang_ca import (
         NAM, THANG, _ca_hanh_chinh, _h, _lam_ngay, _ngay_lam_viec, _ngay_nghi, _nv, _phieu_tang_ca,
     )
-    from tests.test_khoan_khong_tien_tang_ca import (
+    from tests.test_hai_luong_khoi_sx import (
         _chinh_thuc, _dong as _dong_bang, _khai_com_tc_va_tat_khop_ca, _tinh_lai,
     )
 
@@ -389,7 +395,7 @@ def test_XUAT_EXCEL_qua_API_theo_khuon_cong_ty(client):
         (7_800_000, 2_600_000, 520_000)
     assert lay("Phụ cấp xăng thử Excel") == 260_000
     assert lay("CN/Lễ") == d["special_cong"] and lay("Tổng NC") == d["cong_phu_cap"]
-    assert lay("Ngoài giờ/Tăng ca") == d["tien_gio_tang_ca"]
+    assert lay("Tăng ca theo giờ") == d["tien_gio_tang_ca"]
     # Lệch làm tròn (≤ 10đ) được dồn vào cột này — xem `LECH_LAM_TRON`.
     assert abs(lay("Lương thời gian") - (d["luong_cong"] + d["luong_ngay_le"] + d["allowance"]
                                          + d["ot_pay"] - d["tien_gio_tang_ca"])) <= 10

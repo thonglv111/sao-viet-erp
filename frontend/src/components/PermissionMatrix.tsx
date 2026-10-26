@@ -309,10 +309,26 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // Giấy · Vật tư khác · Máy thiết bị · Công đoạn — nên RIÊNG 4 khoá này bày ô
   // "Nhân bản". Không gộp vào `can_create`: vai được TẠO MỚI (gõ tay) chưa chắc nên NHÂN BẢN hàng
   // cũ (nhân đôi cả giá/công thức đang chạy mà không soát lại từng ô).
-  dm_giay: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
+  // Ô "Xem giá" (L-SX-39): giá mua giấy là giá vốn, tiền khoán công đoạn là tiền lương — máy chủ
+  // xoá các ô đó khỏi phản hồi khi thiếu ô này (`routers/vat_lieu_kho.py`, `routers/cong_doan.py`).
+  dm_giay: [
+    { key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT },
+    {
+      key: "can_view_cost",
+      label: "Xem giá",
+      hint: "Cho phép xem đơn giá mua giấy và lịch sử giá. Không bật thì cột Đơn giá để trống; sửa dòng giấy vẫn giữ nguyên giá cũ.",
+    },
+  ],
   dm_vat_tu: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
   dm_thiet_bi: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
-  dm_cong_doan: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
+  dm_cong_doan: [
+    { key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT },
+    {
+      key: "can_view_cost",
+      label: "Xem giá",
+      hint: "Cho phép xem tiền khoán của công đoạn: đơn giá, giá cố định, giá theo tổ, đơn giá việc phát sinh. Không bật thì các ô này để trống; sửa công đoạn vẫn giữ nguyên tiền cũ.",
+    },
+  ],
   nhan_su: [
     {
       key: "can_view_salary",
@@ -515,6 +531,16 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       label: "Thấy yêu cầu mua của mọi phòng",
       hint: "Cho phép thấy yêu cầu mua của mọi phòng ở tab Yêu cầu chờ xử lý để lập đơn. Lưu ý: bật ô này là bật Xem và chọn phạm vi Tất cả ở Yêu cầu mua hàng; tắt thì phạm vi về Của tôi.",
     },
+    // Lưu đợt giao = tạo luôn yêu cầu NHẬP kho của đợt (20/10/2026) ⇒ ghi / sửa / xoá đợt hỏi thêm
+    // ô Thao tác của Yêu cầu nhập xuất (`kho:request`, máy chủ gác `require_all_permissions`). Soi
+    // lên đây để người cấp quyền Mua hàng thấy ngay vì sao nút Ghi đợt giao không hiện.
+    {
+      key: "can_request",
+      mod: "kho",
+      chung: "chung ô Yêu cầu nhập xuất",
+      label: "Ghi đợt giao",
+      hint: "Cho phép ghi, sửa, xoá đợt giao. Lưu đợt là tự tạo yêu cầu nhập kho cho đợt đó; kho chưa lập phiếu thì sửa hoặc xoá đợt sẽ sửa hoặc huỷ yêu cầu theo. Lưu ý: thiếu ô này thì không ghi được đợt giao; bật ô này là bật luôn Thao tác ở Yêu cầu nhập xuất, tắt cũng vậy.",
+    },
     // ĐÃ BỎ 12/08/2026 (chủ chốt test rồi quyết) — hai ô này không đáng tồn tại:
     //   • "Sửa / đảo trạng thái đơn sau khi nhận hàng" (`can_manage_status`): ba việc nó gác
     //     (sửa số nhận · mở lại đơn · đóng đơn) là việc thường ngày của chính người lập phiếu,
@@ -536,7 +562,8 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // chính màn đó, không còn núp dưới tên `can_approve` — nên ở đây chỉ còn các quyền phụ.
   phieu_chi: [
     { key: "can_cancel", label: "Hủy phiếu chi", hint: "Cho phép huỷ phiếu chi đã lập." },
-    { key: "can_export", label: "In phiếu chi", hint: "Cho phép in phiếu chi / UNC và in bảng kê tạm ứng." },
+    // L-VAI-18: ô này chỉ bày nút In; bản in dựng từ chính dữ liệu ô Xem đã cho thấy.
+    { key: "can_export", label: "Nút In phiếu chi", hint: "Chỉ hiện nút In phiếu chi / UNC và bảng kê tạm ứng. Ai có ô Xem đã thấy đủ nội dung phiếu." },
   ],
   // Ô "Xác nhận đã thu tiền" (`can_manage_status`) ĐÃ GỠ 27/08/2026: phiếu thu nay lập ra là ĐÃ
   // THU, không còn trạng thái chờ nên không còn gì để xác nhận. Khoá quyền vẫn tồn tại ở server
@@ -544,7 +571,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // nữa — bày một ô cho cái nút không bao giờ hiện chỉ tổ làm người cấp quyền đoán mò.
   phieu_thu: [
     { key: "can_cancel", label: "Hủy phiếu thu / hoá đơn bán", hint: "Cho phép huỷ phiếu thu và hoá đơn bán. Lưu ý: bật ô này là bật luôn Huỷ hoá đơn ở Đơn hàng bán, tắt cũng vậy." },
-    { key: "can_export", label: "In phiếu thu", hint: "Cho phép in phiếu thu." },
+    { key: "can_export", label: "Nút In phiếu thu", hint: "Chỉ hiện nút In phiếu thu. Ai có ô Xem đã thấy đủ nội dung phiếu." },
   ],
 };
 
@@ -627,7 +654,7 @@ const MODULE_HINTS: Record<string, string> = {
   tai_san:
     "Xem: tài sản và công cụ dụng cụ, khấu hao từng tháng. Thao tác: thêm (cả nhập Excel tài sản đang dùng), sửa, chuyển bộ phận, sửa chữa lớn, thôi dùng, xoá cái nhập nhầm; xuất Excel khấu hao tháng.",
   kho:
-    "Xem: yêu cầu và phiếu nhập / xuất kho. Thao tác: tạo, sửa, gửi, huỷ yêu cầu nhập / xuất của mình. Lưu ý: việc của thủ kho (tiếp nhận yêu cầu, lập phiếu) là ô chi tiết riêng; phiếu đã lập không sửa được, sai thì huỷ.",
+    "Xem: yêu cầu và phiếu nhập / xuất kho. Thao tác: tạo, sửa, gửi, huỷ yêu cầu nhập / xuất của mình. Lưu ý: việc của thủ kho (tiếp nhận yêu cầu, lập phiếu) là ô chi tiết riêng; phiếu đã lập không sửa được, sai thì huỷ. Bật Thao tác là bật luôn Ghi đợt giao ở Mua hàng, tắt cũng vậy.",
   bao_cao_kho:
     "Xem: sổ kho, Nhập-Xuất-Tồn và xuất Excel.",
   dm_thiet_bi:

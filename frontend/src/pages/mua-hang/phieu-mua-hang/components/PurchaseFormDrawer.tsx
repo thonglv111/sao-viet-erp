@@ -170,7 +170,9 @@ export function PurchaseFormDrawer({
   const nhieuYeuCau = new Set(form.lines.map((l) => l.yeu_cau_ma).filter(Boolean)).size > 1;
   const boPhanCua = new Map(nguon.map((n) => [n.code, n.bo_phan]));
   const nhieuBoPhan = new Set(nguon.map((n) => n.bo_phan).filter(Boolean)).size > 1;
-  const soCot = taoMoi ? 7 : 6;
+  // Khổ + Định lượng là cột riêng, chỉ bày khi đơn có dòng giấy (spec 2026-10-24 §6).
+  const coGiay = form.lines.some((l) => l.hang_loai === "giay");
+  const soCot = (taoMoi ? 7 : 6) + (coGiay ? 2 : 0);
 
   const batTuyChon = (index: number) =>
     setMoTuyChon((s) => {
@@ -224,10 +226,6 @@ export function PurchaseFormDrawer({
                   <span>Không vào đơn này, dòng yêu cầu vẫn mở</span>
                 ) : (
                   <>
-                    {khoChu && (
-                      <button type="button" className="dfa-the-nho dfa-the-nho--bam" title="Sửa khổ mua"
-                        onClick={() => batTuyChon(index)}>{khoChu}</button>
-                    )}
                     {nhieuYeuCau && line.yeu_cau_ma && <span className="dfa-the-nho">{line.yeu_cau_ma}</span>}
                     {nhieuBoPhan && boPhan && <span className="dfa-the-nho">{boPhan}</span>}
                     {coMuaCho && <OMuaCho loai={line.loai_mua ? [line.loai_mua] : []} lenh={line.mua_cho} donVi={dv} />}
@@ -237,6 +235,15 @@ export function PurchaseFormDrawer({
             </div>
           </div>
         </td>
+        {coGiay && (
+          <td>
+            {khoChu && chon && (
+              <button type="button" className="dfa-the-nho dfa-the-nho--bam" title="Sửa khổ mua"
+                onClick={() => batTuyChon(index)}>{khoChu}</button>
+            )}
+          </td>
+        )}
+        {coGiay && <td className="n">{laGiay ? (line.dinh_luong ?? <span className="kna-mo">–</span>) : ""}</td>}
         {taoMoi && (
           <td>
             {chon && (
@@ -541,9 +548,11 @@ export function PurchaseFormDrawer({
         </div>
 
         <div className="lds-bang lds-bang--nhap dfa-bang">
-          <table className="lds-g dfa-g" style={{ minWidth: taoMoi ? 900 : 700 }}>
+          <table className="lds-g dfa-g" style={{ minWidth: (taoMoi ? 900 : 700) + (coGiay ? 220 : 0) }}>
             <colgroup>
               <col />
+              {coGiay && <col style={{ width: 124 }} />}
+              {coGiay && <col style={{ width: 96 }} />}
               {taoMoi && <col style={{ width: 230 }} />}
               <col style={{ width: 128 }} />
               <col style={{ width: 156 }} />
@@ -554,6 +563,8 @@ export function PurchaseFormDrawer({
             <thead>
               <tr>
                 <th>Vật tư</th>
+                {coGiay && <th>Khổ</th>}
+                {coGiay && <th className="n">Định lượng</th>}
                 {taoMoi && <th>Nhà cung cấp</th>}
                 <th className="n">Số lượng</th>
                 <th className="n">Đơn giá</th>

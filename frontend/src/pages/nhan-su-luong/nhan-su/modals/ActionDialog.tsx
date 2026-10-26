@@ -36,6 +36,7 @@ export function ActionDialog({
   const [newDept, setNewDept] = useState<number | "">("");
   const [newPos, setNewPos] = useState("");
   const [resignReason, setResignReason] = useState("");
+  const [hetThuViec, setHetThuViec] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,10 @@ export function ActionDialog({
   async function submit() {
     if (kind === "promote" && !newPos.trim()) {
       setError("Nhập chức danh mới.");
+      return;
+    }
+    if (kind === "probation_restart" && !hetThuViec) {
+      setError("Chọn ngày hết thử việc.");
       return;
     }
     setBusy(true);
@@ -61,6 +66,7 @@ export function ActionDialog({
         input.new_position = newPos.trim();
       }
       if (kind === "resign") input.resign_reason = resignReason;
+      if (kind === "probation_restart") input.probation_end_date = hetThuViec;
       await api.employees.transition(token, emp.id, input);
       onDone();
     } catch (e) {
@@ -88,6 +94,7 @@ export function ActionDialog({
             >
               <ChonNgay
                 value={effective}
+                min={emp.hire_date ?? undefined}
                 max={today}
                 onChange={setEffective}
               />
@@ -112,6 +119,12 @@ export function ActionDialog({
                     ))}
                 </select>
               </Field>
+              {emp.user_id && emp.role_name && (
+                <div className="banner banner--warn">
+                  Tài khoản sẽ mất vai «{emp.role_name}» (vai thuộc phòng cũ). Sau khi chuyển, cần gán
+                  vai của phòng mới ở tab Tài khoản & Quyền.
+                </div>
+              )}
             </>
           )}
           {kind === "promote" && (
@@ -130,6 +143,14 @@ export function ActionDialog({
                 Lương → Lương nhân viên → Sửa lương.
               </div>
             </>
+          )}
+          {kind === "probation_restart" && (
+            <Field
+              label="Ngày hết thử việc *"
+              hint="Khai nhầm lúc vào làm thì chọn Ngày hiệu lực là ngày vào làm. Tới ngày hết thử việc máy tự đánh dấu, HCNS bấm Chuyển chính thức."
+            >
+              <ChonNgay value={hetThuViec} min={effective} onChange={setHetThuViec} />
+            </Field>
           )}
           {kind === "resign" && (
             <Field label="Lý do nghỉ *">

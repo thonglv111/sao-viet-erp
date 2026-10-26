@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
+
+from ..models.cong_doan import la_cong_doan_he_thong
 
 from .loc_danh_muc import DemDieuKien
 
@@ -44,11 +47,46 @@ class CongDoanMayRow(CongDoanMayIn):
     id: int
 
 
+class GiaTheoToIn(BaseModel):
+    """Một dòng bảng giá theo tổ (21/10/2026). Việc phát sinh không có giá cố định.
+
+    `bac` = mã bậc giá (22/10/2026) — chỉ có khi công đoạn chia bậc; vắng thì không trả khoá này để
+    dòng của công đoạn thường giữ nguyên hình dạng cũ."""
+    department_id: int
+    bac: str | None = Field(default=None, max_length=20)
+    gia_co_dinh: float | None = None
+    don_gia: float | None = None
+
+    @model_serializer(mode="wrap")
+    def _bo_bac_rong(self, handler):
+        d = handler(self)
+        if d.get("bac") is None:
+            d.pop("bac", None)
+        return d
+
+
+class BacGiaIn(BaseModel):
+    """Một bậc giá (22/10/2026): điều kiện theo số màu (= số kẽm một tay như Tính giá), màu pha, một tuỳ chọn khi ghi.
+    `None` ở điều kiện nào = không xét điều kiện đó. Xem `viec_khoan.anh_bac`."""
+    ma: str = Field(default="", max_length=20)
+    ten: str = Field(default="", max_length=80)
+    mau_tu: float | None = None
+    mau_den: float | None = None
+    pha: Literal["co", "khong"] | None = None
+    tuy_chon_ma: str | None = Field(default=None, max_length=40)
+    tuy_chon_co: Literal["co", "khong"] | None = None
+    # Giá của bậc đã gồm mực UV (bậc Pantone UV) ⇒ chip `gia_gom_uv` = 1, công thức thôi nhân đôi.
+    gom_uv: bool = False
+
+
 class CongDoanKhoanPhatSinhIn(BaseModel):
     id: int | None = None
     ten: str = Field(default="", max_length=255)
     don_gia: float | None = None
     don_vi: str | None = Field(default=None, max_length=24)
+    gia_theo_to: list[GiaTheoToIn] | None = None
+    # "Cách tính giá" (24/10/2026) — công thức ra đơn giá; trống = dùng đơn giá.
+    cong_thuc: str | None = None
 
 
 class CongDoanKhoanPhatSinhRow(CongDoanKhoanPhatSinhIn):
@@ -56,10 +94,24 @@ class CongDoanKhoanPhatSinhRow(CongDoanKhoanPhatSinhIn):
     id: int
 
 
+class TuyChonKhoanIn(BaseModel):
+    """Một tuỳ chọn khi ghi (Đợt 2, 21/10/2026): thợ tick (`co_khong` ⇒ 1/0) hoặc gõ số (`so`) ở
+    từng lần ghi; `ma` là chip của ô Công thức khoán."""
+    ma: str = Field(default="", max_length=40)
+    ten: str = Field(default="", max_length=80)
+    kieu: Literal["co_khong", "so"] = "co_khong"
+    goi_y: str | None = Field(default=None, max_length=80)
+
+
 class CongDoanKhoanIn(BaseModel):
     unit: str | None = Field(default=None, max_length=24)
     unit_price: float | None = None
+    # Giá cố định CHUNG (Đợt 2) — bảng giá theo tổ trống thì mọi tổ dùng.
+    gia_co_dinh: float | None = None
     cong_thuc_khoan: str | None = None
+    gia_theo_to: list[GiaTheoToIn] | None = None
+    tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)
+    bac_gia: list[BacGiaIn] | None = None
     viec_phat_sinh: list[CongDoanKhoanPhatSinhIn] = Field(default_factory=list)
 
 
@@ -67,9 +119,19 @@ class CongDoanKhoanRow(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     unit: str
-    unit_price: float
+    # None = người xem không có ô Xem giá của Công đoạn (máy chủ che, L-SX-39).
+    unit_price: float | None = None
+    gia_co_dinh: float | None = 0.0
     cong_thuc_khoan: str | None = None
+    gia_theo_to: list[GiaTheoToIn] | None = None
+    tuy_chon: list[TuyChonKhoanIn] = Field(default_factory=list)
+    bac_gia: list[BacGiaIn] | None = None
     viec_phat_sinh: list[CongDoanKhoanPhatSinhRow] = Field(default_factory=list)
+
+    @field_validator("tuy_chon", mode="before")
+    @classmethod
+    def _tuy_chon_null(cls, v):
+        return v or []
 
 
 class CongDoanIn(BaseModel):
@@ -164,9 +226,20 @@ class CongDoanRow(BaseModel):
     active: bool
     vat_tus: list[CongDoanVatTuRow] = Field(default_factory=list)
     may_lam_duoc: list[CongDoanMayRow] = Field(default_factory=list)
+    # Mọi dòng đã khai, kể cả dòng NẰM IM vì máy ra khỏi phạm vi tổ (mg `0435`) — form cần số của
+    # chúng để tick lại tổ là hiện ngay công thức cũ, chưa cần lưu.
+    may_khai: list[CongDoanMayRow] = Field(default_factory=list)
     khoan: CongDoanKhoanRow | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    #: Công đoạn HỆ THỐNG (Cắt giấy cuộn, Tề giấy in, Tề sóng, bốn mã bồi) — màn khoá mã/tên/
+    #: nhóm/đơn vị, không nút xoá/ngừng. Suy từ mã, không phải cột.
+    co_dinh: bool = False
+
+    @model_validator(mode="after")
+    def _co_dinh(self) -> "CongDoanRow":
+        self.co_dinh = la_cong_doan_he_thong(self.ma)
+        return self
 
 
 class CongDoanListOut(BaseModel):

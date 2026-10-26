@@ -96,8 +96,8 @@ export function PayslipCard({
     ...(buLo !== null && !l.lay_bu_lo && (buLo > 0 || l.khoan > 0 || (l.khoan_km ?? 0) > 0)
       ? {
           [(l.khoan_km ?? 0) > 0 ? "Khoán km giao hàng" : "Lương khoán / sản lượng"]: [
-            "Đem so: bù lỗ theo công (gồm phụ cấp) — thấp hơn → lấy khoán",
-            buLo,
+            "Đem so: lương thời gian (theo công gồm phụ cấp + tăng ca theo giờ) — thấp hơn → ăn khoán",
+            l.ve_thoi_gian ?? buLo,
           ] as [string, number],
         }
       : {}),
@@ -141,11 +141,7 @@ export function PayslipCard({
     // Tháng LẤY KHOÁN thì ngược lại: in dòng khoán / km, không in dòng bù thêm (bằng 0).
     ...(l.lay_bu_lo
       ? ([[
-          // Thử việc ở tổ khoán ăn bù lỗ, không ăn sản lượng (chủ chốt 16/09/2026) — ghi ngay trên
-          // dòng để người nhận phiếu biết vì sao tháng làm nhiều hàng mà tiền vẫn là mức bù lỗ.
-          l.is_probation
-            ? "Lương bù lỗ theo công (thử việc — không trả theo sản lượng)"
-            : "Lương bù lỗ theo công",
+          "Lương bù lỗ theo công",
           l.khoan + (l.khoan_km ?? 0) + l.luong_cong,
         ]] as [string, number][])
       : ([
@@ -157,34 +153,38 @@ export function PayslipCard({
             ? [["Khoán km giao hàng", l.khoan_km ?? 0] as [string, number]]
             : []),
         ] as [string, number][])),
-    // CHẾ ĐỘ KHOÁN (14/09/2026): KHÔNG có tiền tăng ca — chủ nhắc: "không có tiền tăng ca luôn,
-    // tăng ca thì làm nhiều sản lượng hơn, ăn ở sản lượng rồi". Engine để tiền GIỜ tăng ca = 0 nên
-    // `ot_pay` của dòng khoán CHỈ còn phần thêm làm nguyên ngày CN/lễ + tiền 1× ngày nghỉ off1x ⇒
-    // in TÁCH ra dòng riêng, dòng "Tăng ca" đúng 0đ. Để chung một dòng "Tăng ca" là người nhận đọc
-    // thành "khoán vẫn có tiền tăng ca".
-    //
     // Tiền NGÀY LỄ / CHỦ NHẬT của người khoán đứng liền nhau, có SỐ NGÀY (chủ 15/09/2026: "biết nó ăn
     // lương khoán rồi cũng phải thể hiện ra tiền ngày lễ hay chủ nhật để người ta còn biết"):
     //   · "Làm ngày Chủ nhật / lễ · N công" — phần thêm khi đi làm nguyên ngày (`ot_pay`, `special_cong`)
     //   · "Công ngày lễ (ngoài khoán) · N ngày" — lễ NGHỈ hưởng lương, trả riêng ngoài phần so khoán /
     //     bù lỗ, CÓ trong `gross` (`luong_ngay_le`, `le_nghi_cong`). Bảng lương thật cũng cộng riêng.
-    // TỔ GIAO HÀNG tách khỏi nhánh khoán từ 16/09/2026 (PRD §00.10): tài xế / phụ xe CÓ tiền giờ
-    // tăng ca, nên in như người công nhật — một dòng "Tăng ca" gồm giờ tăng ca + phần thêm ngày
-    // CN / lễ, y hệt cách phiếu của tổ thường đang in.
-    ...(l.che_do_khoan && !l.la_giao_hang
+    // HAI LƯƠNG: khối Sản xuất + Giao hàng tính cả vế thời gian lẫn vế khoán, ăn bên lớn. Khối SX
+    // (chủ chốt 22/10/2026) chỉ có "Tăng ca khoán", cộng ngoài phép so nên ăn vế nào cũng in; "Tăng ca
+    // theo giờ" của họ luôn 0đ. Giao hàng: tiền giờ thuộc vế thời gian (tháng ăn km thì 0đ). Phần
+    // thêm làm nguyên ngày CN/lễ nằm trong `ot_pay` nhưng không phải tiền giờ ⇒ in dòng riêng.
+    ...(l.che_do_khoan
       ? ([
-          ["Tăng ca (khoán — không có tiền tăng ca)", 0],
-          ...(l.ot_pay
+          ["Tăng ca theo giờ", l.tien_gio_tang_ca ?? 0],
+          ...((l.ot_pay ?? 0) - (l.tien_gio_tang_ca ?? 0) > 0
             ? [[((l.off1x_pay ?? 0) > 0
                 ? "Làm ngày Chủ nhật / lễ / ngày nghỉ 1×"
                 : "Làm ngày Chủ nhật / lễ")
-                + ((l.special_cong ?? 0) > 0 ? ` (${soCong(l.special_cong ?? 0)} công)` : ""), l.ot_pay]]
+                + ((l.special_cong ?? 0) > 0 ? ` (${soCong(l.special_cong ?? 0)} công)` : ""),
+                (l.ot_pay ?? 0) - (l.tien_gio_tang_ca ?? 0)]]
+            : []),
+          ...((l.tang_ca_khoan ?? 0) !== 0
+            ? [["Tăng ca khoán", l.tang_ca_khoan ?? 0]]
             : []),
           ...dongCongLe,
         ] as [string, number][])
       // `luong_ngay_le` chỉ engine chế độ khoán mới ghi — vẫn nối vào nhánh này để tổng thu không
       // bao giờ thiếu nếu dòng cũ lệch cờ.
       : ([["Tăng ca", l.ot_pay], ...dongCongLe] as [string, number][])),
+    // Cộng thêm khoán kế toán gõ ở Khoán theo tổ (23/10/2026) — cộng thẳng vào lương, người công nhật
+    // cũng có thể có nên đứng ngoài nhánh chế độ khoán.
+    ...((l.khoan_cong_them ?? 0) !== 0
+      ? ([["Cộng thêm khoán", l.khoan_cong_them ?? 0]] as [string, number][])
+      : []),
     // Hoa hồng KD — cột riêng (07/09/2026). Trước đó là khoản nguồn `auto` mà phiếu không in ⇒ TỔNG
     // THU thiếu đúng phần hoa hồng (bản rà E5). Chỉ in khi có số.
     ...((l.hoa_hong ?? 0) !== 0

@@ -38,6 +38,11 @@ HANG_LOAI = (HANG_GIAY, HANG_VAT_TU)
 # đơn vị là việc khai ở màn Đơn vị & quy đổi, không phải sửa code.
 
 
+LOAI_GIAY = "giay"
+LOAI_SONG = "song"
+NHAN_LOAI_GIAY = {LOAI_GIAY: "Giấy", LOAI_SONG: "Sóng"}
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -53,6 +58,9 @@ class GiayNguyen(Base):
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)   # mm; 0 = cuộn/khổ mở
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)  # mm; 0 = cuộn/khổ mở
     gsm: Mapped[int] = mapped_column(Integer, nullable=False)       # định lượng
+    # LOẠI (mg 0426, 19/10/2026): `giay` (tờ để in) | `song` (tấm sóng để bồi). Một sản phẩm tính
+    # giá / một lệnh có tối đa 1 mã mỗi loại; giấy chính lấy mã loại `giay` (ptg_giay_buoc).
+    loai: Mapped[str] = mapped_column(String(8), nullable=False, server_default=LOAI_GIAY, default=LOAI_GIAY)
     caliper_micron: Mapped[int | None] = mapped_column(Integer, nullable=True)  # độ dày (spine/creep; ≠ gsm)
     tho: Mapped[str | None] = mapped_column(String(12), nullable=True)          # canh_dai|canh_ngan
     # ĐƠN VỊ GỐC của mặt hàng — mã trong `don_vi_do`, KHÔNG còn là enum cứng ở frontend. Tồn kho

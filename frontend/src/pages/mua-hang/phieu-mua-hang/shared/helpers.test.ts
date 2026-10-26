@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DonViDungDuoc, SupplierItemRow, SupplierRow } from "../../../../api/client";
-import { chaoGiaChoMatHang, khoNhapTuDongMua, nhanKhoMua, supplierItemForLine } from "./helpers";
+import { chaoGiaChoMatHang, khoNhanThieuCanh, khoNhapTuDongMua, nhanKhoMua, supplierItemForLine } from "./helpers";
 
 describe("nhanKhoMua", () => {
   it("giấy có khổ mua ⇒ ghi khổ, chỉ rộng ⇒ một cạnh", () => {
@@ -11,6 +11,23 @@ describe("nhanKhoMua", () => {
   it("giấy không khổ hoặc hàng khác ⇒ rỗng", () => {
     expect(nhanKhoMua({ hang_loai: "giay", kho_rong: 0, kho_dai: 0 })).toBe("");
     expect(nhanKhoMua({ hang_loai: "vat_tu", kho_rong: 0, kho_dai: 0 })).toBe("");
+  });
+});
+
+/** Đợt giao: khổ nhận chỉ bị chặn "thiếu cạnh" khi đơn đặt giấy TỜ (hai cạnh) mà nhận thiếu một
+ *  cạnh, hoặc có dài mà không có rộng. Cuộn đặt theo rộng thì nhận chỉ rộng là đúng (e2e MH3 25/10). */
+describe("khoNhanThieuCanh", () => {
+  it("cuộn đặt theo rộng, nhận chỉ rộng ⇒ không thiếu", () => {
+    expect(khoNhanThieuCanh({ kho_rong: 860, kho_dai: 0 }, { rong: 860, dai: 0 })).toBe(false);
+    expect(khoNhanThieuCanh({ kho_rong: 860, kho_dai: 0 }, { rong: 870, dai: 0 })).toBe(false);
+  });
+  it("tờ đặt hai cạnh, nhận thiếu một cạnh ⇒ thiếu", () => {
+    expect(khoNhanThieuCanh({ kho_rong: 650, kho_dai: 860 }, { rong: 650, dai: 0 })).toBe(true);
+    expect(khoNhanThieuCanh({ kho_rong: 650, kho_dai: 860 }, { rong: 640, dai: 860 })).toBe(false);
+  });
+  it("có dài mà không rộng ⇒ thiếu, đơn chưa ghi khổ nhận chỉ rộng ⇒ không thiếu", () => {
+    expect(khoNhanThieuCanh({ kho_rong: 0, kho_dai: 0 }, { rong: 0, dai: 860 })).toBe(true);
+    expect(khoNhanThieuCanh({ kho_rong: 0, kho_dai: 0 }, { rong: 900, dai: 0 })).toBe(false);
   });
 });
 

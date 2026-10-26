@@ -22,6 +22,8 @@ from ..deps import (
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
+from ..repositories.org_scope import chu_cua
+from ..services.chi_ck_ke import bao_ck_ke
 from ..services.thong_bao_man import bao
 from ..models.user import User
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
@@ -45,8 +47,6 @@ from ..schemas.accounting import (
     DonHangChoThuOut,
     TraLaiKhachChoChiOut,
     CancelSalesInvoiceIn,
-    DieuChinhIn,
-    DieuChinhOut,
     CancelPaymentReceiptIn,
     CancelPaymentVoucherIn,
     CompanyBankAccountIn,
@@ -63,6 +63,9 @@ from ..schemas.accounting import (
     PaymentVoucherListOut,
     PaymentVoucherOut,
     PhieuChiGopIn,
+    PhieuChiCkKeIn,
+    CkKeChoChiOut,
+    CkKeChoChiRow,
     PhieuThuGopIn,
     ChiTietKhoanThuOut,
     VoucherBatchOut,
@@ -149,15 +152,22 @@ def _notify_accounting_changed(
     # Nhóm `mua_ke_toan` (mọi màn Thu mua / Kế toán); hoá đơn bán còn nhích nhóm `ban_hang` (Công
     # nợ phải thu, Phiếu thu, Đơn hàng bán). Người đứng tên phiếu mua (`recipient_user_id`) nhận
     # đích danh — tin "kế toán đã lập / huỷ chứng từ cho đơn của bạn" là việc của chính họ.
-    quyen = (hop(MAN_MUA_KE_TOAN, MAN_BAN_HANG) if event_type.startswith("sales_invoice")
-             else MAN_MUA_KE_TOAN)
-    hub.gui({
+    su_kien = {
         "type": event_type,
         "code": code,
         "actor_user_id": actor_user_id,
         "recipient_user_id": recipient_user_id,
         **extra,
-    }, quyen=quyen, nguoi=[recipient_user_id] if recipient_user_id else None)
+    }
+    if event_type.startswith("sales_invoice"):
+        # Hoá đơn bán đi tới cả nhóm bán hàng — gồm sale chỉ "Của tôi" — nên nhóm chỉ nhận TÍN HIỆU
+        # nạp lại, không mã đơn / phiếu (các màn không đọc mã từ sự kiện, tự hỏi lại máy chủ theo
+        # phạm vi). Người đứng tên vẫn nhận đủ.
+        hub.gui({"type": event_type}, quyen=hop(MAN_MUA_KE_TOAN, MAN_BAN_HANG))
+        if recipient_user_id:
+            hub.publish(recipient_user_id, su_kien)
+        return
+    hub.gui(su_kien, quyen=MAN_MUA_KE_TOAN, nguoi=[recipient_user_id] if recipient_user_id else None)
 
 
 def _phat_gia_cong_chi_doi(svc: AccountingService, gia_cong_ngoai_id: int | None) -> None:
@@ -880,6 +890,8 @@ def create_sales_invoice(
         svc.repo.db, svc.repo, actor_id=user.id, order_id=row.get("order_id"),
         order_code=row.get("order_code"), hoa_don_moi=row.get("invoice_number"),
     )
+    # Cọc phủ trọn hóa đơn ⇒ hóa đơn vào hàng chờ chi CK / kê ngay lúc ghi.
+    bao_ck_ke(svc.repo.db, svc.repo, actor_id=user.id, order_ids=[row.get("order_id")])
     return SalesInvoiceOut(**row)
 
 
@@ -908,57 +920,6 @@ def cancel_sales_invoice(
         order_code=row.get("order_code"),
     )
     return SalesInvoiceOut(**row)
-
-
-@router.post(
-    "/api/accounting/sales-invoices/{invoice_id}/dieu-chinh",
-    response_model=DieuChinhOut,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_dieu_chinh(
-    invoice_id: int,
-    payload: DieuChinhIn,
-    svc: Annotated[AccountingService, Depends(get_accounting_service)],
-    user: Annotated[User, Depends(require_permission(MODULE_PT, "create"))],
-) -> DieuChinhOut:
-    """Ghi nhận hóa đơn điều chỉnh giảm (hoàn tiền chiết khấu) — 18/10/2026."""
-    try:
-        row = svc.create_dieu_chinh(invoice_id, actor=user, **payload.model_dump())
-    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
-        raise _map_error(exc) from None
-    _thong_bao_dieu_chinh(svc, row, user, event_type="sales_invoice_adjusted")
-    return DieuChinhOut(**row)
-
-
-@router.post(
-    "/api/accounting/sales-invoice-adjustments/{adj_id}/cancel",
-    response_model=DieuChinhOut,
-)
-def cancel_dieu_chinh(
-    adj_id: int,
-    payload: CancelSalesInvoiceIn,
-    svc: Annotated[AccountingService, Depends(get_accounting_service)],
-    user: Annotated[User, Depends(require_permission(MODULE_PT, "cancel"))],
-) -> DieuChinhOut:
-    try:
-        row = svc.cancel_dieu_chinh(adj_id, actor=user, reason=payload.reason)
-    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
-        raise _map_error(exc) from None
-    _thong_bao_dieu_chinh(svc, row, user, event_type="sales_invoice_adjustment_cancelled")
-    return DieuChinhOut(**row)
-
-
-def _thong_bao_dieu_chinh(svc: AccountingService, row: dict, user: User, *, event_type: str) -> None:
-    """Báo ngăn đơn + chấm đỏ Phiếu chi (nếu có tiền phải trả lại) sau khi ghi / hủy điều chỉnh."""
-    order = svc.repo.get_sales_order(row["order_id"])
-    ma = order.order_no if order else None
-    _notify_accounting_changed(
-        ma, event_type=event_type, invoice_id=row["sales_invoice_id"],
-        invoice_number=f'{row["adj_symbol"]} {row["adj_number"]}',
-    )
-    ban_hang_cho_thu_chi.bao_hang_cho(
-        svc.repo.db, svc.repo, actor_id=user.id, order_id=row["order_id"], order_code=ma,
-    )
 
 
 @router.get("/api/accounting/company-bank-accounts", response_model=list[CompanyBankAccountOut])
@@ -1282,6 +1243,38 @@ def create_payment_voucher_gop(
     return PaymentVoucherOut(**row)
 
 
+@router.get("/api/accounting/ck-ke-cho-chi", response_model=CkKeChoChiOut)
+def ck_ke_cho_chi(
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
+    customer_id: int | None = None,
+) -> CkKeChoChiOut:
+    """Hàng "Chờ chi chiết khấu / kê" — hóa đơn đã thu đủ còn khoản chưa chi (20/10/2026)."""
+    return CkKeChoChiOut(items=[CkKeChoChiRow(**r) for r in svc.ck_ke_cho_chi(customer_id=customer_id)])
+
+
+@router.post(
+    "/api/accounting/payment-vouchers/ck-ke",
+    response_model=PaymentVoucherOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_payment_voucher_ck_ke(
+    payload: PhieuChiCkKeIn,
+    svc: Annotated[AccountingService, Depends(get_accounting_service)],
+    user: Annotated[User, Depends(require_permission(MODULE_PC, "create"))],
+) -> PaymentVoucherOut:
+    """MỘT phiếu chi trả chiết khấu HOẶC kê của nhiều hóa đơn cùng một khách (20/10/2026)."""
+    body = payload.model_dump()
+    loai = body.pop("loai")
+    dong = body.pop("dong")
+    try:
+        row = svc.create_voucher_ck_ke(actor=user, loai=loai, dong=dong, shared=body)
+    except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
+        raise _map_error(exc) from None
+    _notify_accounting_changed(row.get("code"), voucher_code=row.get("code"), actor_user_id=user.id)
+    return PaymentVoucherOut(**row)
+
+
 def _bao_cac_don_cua_phieu_chi(row: dict, event_type: str, notifications, actor_user_id: int) -> None:
     """Phiếu chi gộp đụng nhiều đơn mua ⇒ báo từng đơn (mỗi người lập đơn một lần)."""
     da_bao: set[str] = set()
@@ -1584,6 +1577,7 @@ def create_sales_invoice_receipt(
         invoice_id=row.get("sales_invoice_id"),
         receipt_code=row.get("code"),
     )
+    bao_ck_ke(svc.repo.db, svc.repo, actor_id=user.id, order_ids=[row.get("order_id")])
     return PaymentReceiptOut(**row)
 
 
@@ -1609,13 +1603,16 @@ def create_payment_receipt_gop(
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
     _bao_cac_don_cua_phieu_thu(row, "sales_invoice_receipt_created")
+    bao_ck_ke(db, svc.repo, actor_id=user.id,
+              order_ids=sorted({d.get("order_id") for d in row.get("lines") or [] if d.get("order_id")}))
     # Dòng cọc = thu cọc thật: đủ cọc ⇒ báo Sale + tự xuống SX, đúng như thu cọc lẻ trên đơn.
     don_coc = [d["order_id"] for d in row.get("lines") or [] if d.get("sales_invoice_id") is None]
     for d, moi in orders.sau_thu_coc_ngoai(order_ids=don_coc, actor=user):
-        if d.deposit_ok and d.sale_user_id:
-            hub.publish(d.sale_user_id, {"type": "order_deposit_ok", "code": d.order_no})
+        nhan = chu_cua(db, d.customer_id, d.sale_user_id)   # sale đang phụ trách khách
+        if d.deposit_ok and nhan:
+            hub.publish(nhan, {"type": "order_deposit_ok", "code": d.order_no})
             bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
-                nguoi_nhan=d.sale_user_id, ma=d.order_no)
+                nguoi_nhan=nhan, ma=d.order_no)
         _order_changed(d.order_no)
         if moi:
             _bao_xuong_sx(db, d, user)
@@ -1703,6 +1700,9 @@ def mark_payment_receipt_received(
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
     _notify_accounting_changed(row.get("code"))
+    bao_ck_ke(svc.repo.db, svc.repo, actor_id=user.id,
+              order_ids=sorted({d.get("order_id") for d in row.get("lines") or [] if d.get("order_id")}
+                               | ({row["order_id"]} if row.get("order_id") else set())))
     return PaymentReceiptOut(**row)
 
 

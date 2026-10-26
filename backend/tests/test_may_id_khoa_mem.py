@@ -20,13 +20,21 @@ import app.models  # noqa: F401  -- import để đăng ký mọi bảng lên Ba
 from app.db import Base
 
 
+# Bảng NỐI của chính danh mục đang chạy được FK cứng tới `may_thiet_bi.id` — mìn chỉ nằm ở FK trỏ
+# `machines` (lệch dải id). `may_to` (máy thuộc tổ, mg `0435`) cần CASCADE: xoá máy là rụng cặp.
+_FK_DUOC_PHEP = {"may_thiet_bi.id"}
+
+
 def test_may_id_luon_la_khoa_mem():
     pham = []
     for bang in Base.metadata.tables.values():
         cot = bang.columns.get("may_id")
-        if cot is not None and cot.foreign_keys:
-            dich = ", ".join(sorted(fk.target_fullname for fk in cot.foreign_keys))
-            pham.append(f"`{bang.name}.may_id` đang FK cứng → {dich}")
+        if cot is None or not cot.foreign_keys:
+            continue
+        dich = sorted(fk.target_fullname for fk in cot.foreign_keys)
+        if bang.name == "may_to" and set(dich) <= _FK_DUOC_PHEP:
+            continue
+        pham.append(f"`{bang.name}.may_id` đang FK cứng → {', '.join(dich)}")
 
     assert not pham, (
         "may_id phải neo MỀM (Integer trần + ghi chú `# → may_thiet_bi.id`) vì hệ có hai danh "

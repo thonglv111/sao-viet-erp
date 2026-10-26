@@ -2,7 +2,7 @@
 // (09/10/2026, mockup `ban-to-ngan-B-day-du.html`).
 //
 // Bố cục máy tính: đầu ngăn (lệnh › khách, công đoạn + loại bước + trạng thái có giờ, nút chạy máy,
-// ⋯ Đổi máy / Báo sự cố, ✕); thân hai cột — trái là tab làm việc (Quy cách, Sản lượng, Giao và nhận,
+// ⋯ Đổi máy, ✕); thân hai cột — trái là tab làm việc (Quy cách, Sản lượng, Giao và nhận,
 // Vật tư, KCS, Lịch sử) cuộn riêng, phải là cột ghim thông tin việc (`ThsxCotPhai`) cuộn riêng.
 // Điện thoại (ngăn hẹp ≤ 640px): một cột, cột phải thành tab đầu "Tổng quan", nút chạy máy xuống
 // chân cố định ở đáy.
@@ -20,11 +20,10 @@ import { EmptyState } from "../components/EmptyState";
 import { Icon } from "../components/Icons";
 import { ChipTT } from "../components/LuoiDs";
 import { gioNgan, ngayGio, num } from "./keHoachSxShared";
-import { nhanChang } from "./lsxBuoc";
+import { nhanChangLenh } from "./lsxBuoc";
 import { batTatRongHet, docDoRong, doRongToiDa, DO_RONG_MIN, ghiDoRong } from "./ke-toan/shared/doRongNgan";
 import { MAU_TT, NHAN_TT } from "./ThsxDanhSach";
 import { phutChayText, slText } from "./thsxShared";
-import { ThsxBaoSuCoDialog } from "./ThsxBaoSuCoDialog";
 import { ThsxDoiMay } from "./ThsxDoiMay";
 import { ThsxExecPanels, type ThsxExec } from "./ThsxExecPanels";
 import type { SxChoCuaViec } from "./thsxChoXacNhan";
@@ -36,7 +35,11 @@ import "./thsx/thsx-hop.css";
 
 interface Props {
   chiTiet: SxWorkItemChiTiet | null;
+  /** Đang nạp — ngăn không cần đọc nữa: chưa có chi tiết mà chưa có lỗi thì luôn là đang tải. */
   loading: boolean;
+  /** Lượt nạp chi tiết HỎNG thật (L-SX-09). Chỉ cờ này mới hiện "Không tải được…" — chưa có dữ
+   *  liệu mà cờ tải chưa kịp bật (khung hình đầu sau khi mở việc) là đang tải, không phải lỗi. */
+  loi?: boolean;
   /** Người chọn được cho ô "Giao người" (endpoint riêng của module, gác `san_xuat:read`). */
   candidates: SxNhanVienChon[];
   /** Ứng viên HỖ TRỢ CHÉO (§9) — thợ tổ SX khác đang làm (endpoint riêng module). */
@@ -46,7 +49,7 @@ interface Props {
   /** Mở ô chọn người (Giao người / Đề xuất hỗ trợ) — trang nạp lại tình trạng cho tươi. */
   onMoChonNguoi?: () => void;
   /** Danh mục máy (`may-chon` — không đòi quyền `dm_thiet_bi`), chỉ để dựng nhãn máy hiện tại cho
-   *  Báo sự cố. Ô "Đổi máy" KHÔNG dùng: nó tự nạp danh sách theo công đoạn + tình trạng (`ThsxDoiMay`). */
+   *  ô "Đổi máy" — danh sách máy đổi được thì `ThsxDoiMay` tự nạp theo công đoạn + tình trạng. */
   mayOptions: MayChon[];
   /** Hợp đồng các mặt GHI của Giai đoạn 3+4+5. */
   exec: ThsxExec;
@@ -87,30 +90,6 @@ export function tabTuCu(t: string): ThsxDrawerTab {
   if (t === "kcs") return "kcs";
   if (["tq", "qc", "sl", "gn", "vt", "ls"].includes(t)) return t as ThsxDrawerTab;
   return "qc";
-}
-
-const DONG_LABEL: Record<string, string> = {
-  tam_dung: "tạm dừng",
-  ket_thuc: "kết thúc",
-  // Đổi máy giữa chừng KHÔNG phải tạm dừng thật (§7.2 mở rộng 31/08/2026, review vòng 1) — nhãn
-  // riêng để người xem lịch sử phiên không hiểu lầm công việc đã dừng.
-  doi_may: "đổi máy",
-};
-
-const hai = (n: number) => String(n).padStart(2, "0");
-/** "09/10 11:41"; có `cungNgayVoi` mà trùng ngày thì chỉ "11:58" (cột Đến của bảng Phiên chạy). */
-function mocNgayGio(v: string | null | undefined, cungNgayVoi?: string | null): string {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  const gio = `${hai(d.getHours())}:${hai(d.getMinutes())}`;
-  if (cungNgayVoi && new Date(cungNgayVoi).toDateString() === d.toDateString()) return gio;
-  return `${hai(d.getDate())}/${hai(d.getMonth() + 1)} ${gio}`;
-}
-function soPhut(batDau: string | null | undefined, ketThuc: string | null | undefined): number | null {
-  if (!batDau || !ketThuc) return null;
-  const p = Math.round((new Date(ketThuc).getTime() - new Date(batDau).getTime()) / 60000);
-  return Number.isFinite(p) && p > 0 ? p : null;
 }
 
 /** Ngăn hẹp (điện thoại) — đo CHÍNH khung ngăn, không đo cửa sổ: ngăn kéo hẹp trên máy tính cũng
@@ -182,7 +161,7 @@ function ThanhKeoNgan() {
 }
 
 export function ThsxDrawer({
-  chiTiet, loading, candidates, hoTroUngVien, ungVienHomNay = null, onMoChonNguoi, mayOptions, exec, busy,
+  chiTiet, loi = false, candidates, hoTroUngVien, ungVienHomNay = null, onMoChonNguoi, mayOptions, exec, busy,
   onGiao, onRut, onBatDau, onNhanKhuon, onTraKhuon, onTamDung, onKetThuc, onClose, tabDau, dinhKemDem,
   kcsTick, kcsLoiChoXem, cho, onXemKcs, tenTo,
 }: Props) {
@@ -199,12 +178,32 @@ export function ThsxDrawer({
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
   }, [activeTab]);
-  // Phiên chạy là vết máy ghi — ít khi cần đọc, mặc định gập (10/10/2026).
-  const [moPhien, setMoPhien] = useState(false);
+  // Điện thoại: 7 tab không vừa bề ngang — tab đang chọn luôn cuộn vào giữa dải, mép nào còn tab
+  // khuất thì mờ dần để biết vuốt được (19/10/2026: dải dừng ở "ng quan … Lịch", không thấy còn gì).
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [mepKhuat, setMepKhuat] = useState({ trai: false, phai: false });
+  const doMepKhuat = () => {
+    const el = tabsRef.current;
+    if (!el) return;
+    const trai = el.scrollLeft > 2;
+    const phai = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setMepKhuat((cu) => (cu.trai === trai && cu.phai === phai ? cu : { trai, phai }));
+  };
+  useLayoutEffect(() => {
+    const el = tabsRef.current;
+    const nut = el?.querySelector<HTMLElement>(".thsx-b-tab.is-on");
+    if (el && nut) el.scrollLeft = nut.offsetLeft - (el.clientWidth - nut.offsetWidth) / 2;
+    doMepKhuat();
+  }, [activeTab, hep, chiTiet?.cong_viec?.id]);
+  useEffect(() => {
+    const el = tabsRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(doMepKhuat);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [chiTiet?.cong_viec?.id]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [doiMayOpen, setDoiMayOpen] = useState(false);
-  // Báo sự cố (§7.2 mở rộng 31/08/2026) — ô nhập nằm trong ngăn kéo `ThsxBaoSuCoDialog`.
-  const [suCoOpen, setSuCoOpen] = useState(false);
 
   const cv = chiTiet?.cong_viec ?? null;
   // Quyền TRÊN CHÍNH công việc này (máy chủ tính theo dòng quyền của tổ; mức "Của tôi" chỉ bật khi
@@ -217,11 +216,10 @@ export function ThsxDrawer({
   const tt = chiTiet?.trang_thai ?? cv?.trang_thai ?? "released";
   const isMay = cv?.loai_buoc === "may" || cv?.loai_buoc === "thue_ngoai";
   const canDoiMay = canAssign && !busy && (tt === "running" || tt === "paused") && isMay;
-  const canBaoSuCo = canDoiMay;
 
   const rosterActive = (chiTiet?.phan_cong ?? []).filter((p) => p.trang_thai === "active");
   const mayHienTai = mayOptions.find((m) => m.id === cv?.may_id);
-  const mayNhanSuCo = mayHienTai ? `${mayHienTai.ma} ${mayHienTai.ten}` : (cv?.may ?? "—");
+  const mayNhan = mayHienTai ? `${mayHienTai.ma} ${mayHienTai.ten}` : (cv?.may ?? "—");
   const phuDeViec = cv ? (cv.nguon_ma ? `${cv.ten_cong_doan} của ${cv.nguon_ma}` : cv.ten_cong_doan) : undefined;
   const phutChay = cv ? phutChayText(cv) : null;
 
@@ -231,13 +229,13 @@ export function ThsxDrawer({
   const khuonChoNhan = !!cv?.khuon && !cv?.khuon_da_nhan;
   // Cổng routing (`dau_vao.kiem_bat_dau`): công đoạn trước chưa giao sang + mình chưa xác nhận nhận.
   const thieuDauVao = chiTiet?.thieu_dau_vao ?? [];
-  // Cổng "chờ tổ Cắt" (`chot_giay.ly_do_cho_chot`) — đứng trước cổng đầu vào.
-  const choChotGiay = chiTiet?.cho_chot_giay ?? null;
+  // Cổng vật tư (`dau_vao.kiem_bat_dau`): chỉ chặn lần bắt đầu đầu, máy chủ đã tính sẵn câu.
+  const vatTu = chiTiet?.vat_tu_chua_san_sang ?? null;
   // Cổng máy dừng (`thuc_thi.bat_dau`, lỗi #27): báo hỏng ghi "máy dừng" chưa sửa xong.
   const mayDung = chiTiet?.bao_hong_may?.find((b) => b.may_dung)?.ma ?? null;
   const canBatDau =
     canAssign && !busy && (tt === "released" || tt === "paused") && coNguoi && !khuonChoNhan &&
-    thieuDauVao.length === 0 && !choChotGiay && !mayDung;
+    thieuDauVao.length === 0 && !vatTu && !mayDung;
   const canTamDung = canAssign && !busy && tt === "running";
   const canKetThuc = canAssign && !busy && (tt === "running" || tt === "paused");
   // Kết thúc phải giao hết (10/10/2026, chủ xưởng: *"phải đề xuất giao hết thì mới kết thúc được"*):
@@ -308,7 +306,7 @@ export function ThsxDrawer({
   const cotPhai = cv && chiTiet && (
     <ThsxCotPhai chiTiet={chiTiet} candidates={candidates} ungVienHomNay={ungVienHomNay}
       onMoChonNguoi={onMoChonNguoi} busy={busy} canAssign={canAssign} chuaGiaoChoToi={chuaGiaoChoToi}
-      vuong={{ coNguoi, khuonChoNhan, choChotGiay, thieuDauVao, mayDung }}
+      vuong={{ coNguoi, khuonChoNhan, thieuDauVao, vatTu, mayDung }}
       onGiao={onGiao} onRut={onRut} onNhanKhuon={onNhanKhuon} onTraKhuon={onTraKhuon} dinhKemDem={dinhKemDem} hep={hep} />
   );
 
@@ -351,8 +349,6 @@ export function ThsxDrawer({
                 <span className="thsx-b-menu__pop" role="menu" onMouseLeave={() => setMenuOpen(false)}>
                   <button type="button" role="menuitem" disabled={!canDoiMay}
                     onClick={() => { setMenuOpen(false); setDoiMayOpen(true); }}>Đổi máy</button>
-                  <button type="button" role="menuitem" disabled={!canBaoSuCo}
-                    onClick={() => { setMenuOpen(false); setSuCoOpen(true); }}>Báo sự cố</button>
                 </span>
               )}
             </span>
@@ -366,7 +362,7 @@ export function ThsxDrawer({
       </header>
 
       {doiMayOpen && cv && (
-        <ThsxDoiMay congViecId={cv.id} mayHienTaiId={cv.may_id} mayHienTai={mayNhanSuCo}
+        <ThsxDoiMay congViecId={cv.id} mayHienTaiId={cv.may_id} mayHienTai={mayNhan}
           tenCongDoan={cv.ten_cong_doan} phuDe={phuDeViec} busy={busy}
           onDoi={exec.doiMay} onClose={() => setDoiMayOpen(false)} />
       )}
@@ -374,7 +370,8 @@ export function ThsxDrawer({
       <div className="thsx-b-split">
         <div className="thsx-b-trai">
           {cv && (
-            <div className="thsx-b-tabs" role="tablist">
+            <div ref={tabsRef} onScroll={doMepKhuat} role="tablist"
+              className={`thsx-b-tabs${mepKhuat.trai ? " khuat-trai" : ""}${mepKhuat.phai ? " khuat-phai" : ""}`}>
               {tabs.map((t) => (
                 <button key={t.k} type="button" role="tab" aria-selected={activeTab === t.k}
                   className={`thsx-b-tab${activeTab === t.k ? " is-on" : ""}`} onClick={() => setTabChon(t.k)}>
@@ -387,9 +384,11 @@ export function ThsxDrawer({
           )}
 
           <div className="thsx-panel__body thsx-b-body" ref={bodyRef}>
-            {loading && !chiTiet ? (
+            {loi && !chiTiet ? (
+              <div className="thsx-panel__empty">Không tải được chi tiết công việc.</div>
+            ) : !chiTiet ? (
               <EmptyState trangThai="dang-tai" inline />
-            ) : !cv || !chiTiet ? (
+            ) : !cv ? (
               <div className="thsx-panel__empty">Không tải được chi tiết công việc.</div>
             ) : (
               <>
@@ -427,64 +426,13 @@ export function ThsxDrawer({
                   <>
                     <ThsxExecPanels phan="sl" chiTiet={chiTiet} busy={busy} hoTroUngVien={hoTroUngVien}
                       ungVienHomNay={ungVienHomNay} onMoChonNguoi={onMoChonNguoi} exec={exec} tenTo={tenTo} />
-                    <section className="thsx-b-sec">
-                      <h3 className="thsx-b-sec__h">
-                        <button type="button" className="thsx-b-gap" onClick={() => setMoPhien((o) => !o)} aria-expanded={moPhien}>
-                          <Icon name="chevron" size={13} /> Phiên chạy <span className="thsx-b-mo3">{phien.length}</span>
-                        </button>
-                      </h3>
-                      {!moPhien ? null : phien.length === 0 ? (
-                        <p className="thsx-note">Chưa có phiên chạy nào.</p>
-                      ) : (
-                        // Bảng theo mockup ban-to-ngan-A-tinh-chinh: Phiên | Từ | Đến | Máy | Người tham gia.
-                        // Đến = chip Đang chạy, hoặc giờ kèm số phút và cách đóng phiên ở dòng chữ nhỏ.
-                        <div className="thsx-b-tw">
-                          <table className="thsx-b-t thsx-b-phien">
-                            <thead>
-                              <tr><th>Phiên</th><th>Từ</th><th>Đến</th><th>Máy</th><th>Người tham gia</th></tr>
-                            </thead>
-                            <tbody>
-                              {phien.map((ph) => {
-                                const nguoi = [...new Map(chiTiet.khoang_tham_gia
-                                  .filter((k) => k.phien_chay_id === ph.id)
-                                  .map((k) => [k.employee_id, k.ho_ten])).values()];
-                                const phut = soPhut(ph.bat_dau, ph.ket_thuc);
-                                return (
-                                  <tr key={ph.id}>
-                                    <td className="thsx-num">{ph.so_thu_tu}</td>
-                                    <td className="thsx-num">{mocNgayGio(ph.bat_dau)}</td>
-                                    <td>
-                                      {ph.ket_thuc == null ? <ChipTT mau={MAU_TT.running}>Đang chạy</ChipTT> : (
-                                        <>
-                                          <span className="thsx-num">{mocNgayGio(ph.ket_thuc, ph.bat_dau)}</span>
-                                          <small className="thsx-b-phien__phu">
-                                            {phut != null && <span className="thsx-num">{phut} phút</span>}
-                                            {ph.loai_dong && <span>{DONG_LABEL[ph.loai_dong] ?? ph.loai_dong}</span>}
-                                          </small>
-                                        </>
-                                      )}
-                                    </td>
-                                    <td>{ph.may_ten ?? <span className="thsx-b-mo3">—</span>}</td>
-                                    <td>
-                                      {nguoi.length === 0 ? <span className="thsx-b-mo3">—</span> : (
-                                        <span className="thsx-b-phien__nguoi">{nguoi.map((t, i) => <span key={i}>{t}</span>)}</span>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </section>
                   </>
                 )}
 
                 {/* Nhận vào | Giao đi, Các lần giao. */}
                 {activeTab === "gn" && nhacGiao && conChuaGiao > 0.0005 && cv && (
                   <div className="thsx-bao thsx-bao--vang thsx-b-bao" role="alert">
-                    Còn {num(conChuaGiao)} {nhanChang(cv.don_vi_ra || cv.don_vi_vao)} chưa đề xuất giao sang{" "}
+                    Còn {num(conChuaGiao)} {nhanChangLenh(cv.don_vi_ra || cv.don_vi_vao, cv.don_vi_tinh)} chưa đề xuất giao sang{" "}
                     {[...new Set(changSau.map((c) => c.ten_cong_doan).filter(Boolean))].join(", ") || "công đoạn sau"}.
                     Đề xuất giao hết rồi mới bấm Kết thúc.
                   </div>
@@ -516,17 +464,6 @@ export function ThsxDrawer({
       </div>
 
       {hep && nutChay && <div className="thsx-b-chan">{nutChay}</div>}
-
-      {suCoOpen && cv && (
-        <ThsxBaoSuCoDialog
-          mayNhan={mayNhanSuCo}
-          tenCongDoan={cv.ten_cong_doan}
-          dangChay={tt === "running"}
-          busy={busy}
-          onGui={exec.baoSuCo}
-          onClose={() => setSuCoOpen(false)}
-        />
-      )}
     </div>
   );
 }

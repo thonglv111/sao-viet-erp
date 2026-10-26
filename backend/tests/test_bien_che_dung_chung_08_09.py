@@ -189,3 +189,23 @@ def test_hire_date_sua_duoc_qua_put(client):
     assert client.get(f"/api/employees/{e}", headers=h).json()["hire_date"] == "2021-05-05"
     r = client.put(f"/api/employees/{e}", json={"full_name": "A11", "hire_date": None}, headers=h)
     assert r.status_code in (400, 422)
+
+
+# --- L-SX-45 (đợt vá 26/10/2026): dòng cũ của người ra khỏi biên chế cả tháng ------------------
+
+
+def test_tinh_lai_xoa_dong_cu_cua_nguoi_ngoai_bien_che_ca_thang(client):
+    """Đã có dòng tháng 7 (lần Tính lại trước), sau đó ghi nghỉ việc lùi về 10/6 ⇒ tháng 7 ngoài biên
+    chế cả tháng. Tính lại phải xoá dòng cũ — giữ lại là ảnh chụp kỳ công không có người đó và Chốt bị
+    chặn mãi."""
+    h = _h(client)
+    e = _nv(client, h, "SX45", "Kinh doanh")
+    _khai_luong(client, h, e)
+    assert any(l["employee_id"] == e for l in _gen(client, h, month=7))
+    assert _chuyen(client, h, e, "resign", f"{NAM}-06-10", resign_reason="x").status_code == 200
+    assert all(l["employee_id"] != e for l in _gen(client, h, month=7))
+    from app.models.audit import AuditLog
+
+    with SessionLocal() as db:
+        nk = db.query(AuditLog).filter_by(action="payroll_xoa_dong_ngoai_bien_che").all()
+    assert any("SX45" in x.detail for x in nk)

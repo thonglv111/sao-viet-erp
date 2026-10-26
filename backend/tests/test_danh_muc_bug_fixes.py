@@ -161,8 +161,9 @@ def test_kiem_xoa_tra_du_thu_hop_thoai_can(client):
     assert r.status_code == 200, r.text
     assert r.json() == {"xoa_han_duoc": True, "chan": [], "keo_theo": []}
 
-    # Đơn vị đang là đơn vị gốc của một loại giấy ⇒ hết xoá hẳn được, và câu trả lời nêu SỐ.
-    # (Trước 27/09/2026 vế này dùng Chủng loại giấy — danh mục đó gỡ ở mg 0342.)
+    # Đơn vị đang là đơn vị gốc của một vật tư ⇒ hết xoá hẳn được, và câu trả lời nêu SỐ.
+    # (Trước 27/09/2026 vế này dùng Chủng loại giấy — gỡ ở mg 0342; sau đó dùng loại giấy — từ
+    # f30b5633 giấy chỉ nhận tờ/kg, công đoạn chỉ nhận chặng giấy, nên dùng vật tư.)
     dv = client.post("/api/don-vi", json={"ma": "zzdv9", "ten": "ZZ Đơn vị 9"}, headers=h)
     assert dv.status_code == 201, dv.text
     dv_id = dv.json()["id"]
@@ -170,14 +171,16 @@ def test_kiem_xoa_tra_du_thu_hop_thoai_can(client):
     truoc = client.get(f"/api/danh-muc/don_vi_do/{dv_id}/kiem-xoa", headers=h).json()
     assert truoc["xoa_han_duoc"] is True and truoc["chan"] == [], truoc
 
-    giay = client.post("/api/vat-lieu-kho/giay",
-                       json={"ma": "ZZG9", "ten": "ZZ Giấy 9", "gsm": 250, "don_vi_gia": "zzdv9",
-                             "don_gia": 28000}, headers=h)
-    assert giay.status_code == 201, giay.text
+    from app.db import SessionLocal
+    from app.models.vat_lieu_kho import VatTuInAn
+
+    with SessionLocal() as db:
+        db.add(VatTuInAn(ma="ZZVT9", ten="ZZ Vật tư 9", don_vi_gia="zzdv9", don_gia=28000))
+        db.commit()
 
     sau = client.get(f"/api/danh-muc/don_vi_do/{dv_id}/kiem-xoa", headers=h).json()
     assert sau["xoa_han_duoc"] is False
-    assert "1 loại giấy lấy làm đơn vị gốc" in sau["chan"], sau
+    assert "1 vật tư lấy làm đơn vị gốc" in sau["chan"], sau
 
 
 @pytest.mark.parametrize("prefix,payload", [

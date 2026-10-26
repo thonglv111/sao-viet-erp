@@ -27,7 +27,21 @@ import { fmtDateTime } from "../../../../utils/format";
 import { ConfirmDialog } from "../../../../components/ConfirmDialog";
 import { EmptyRow, EmptyState } from "../../../../components/EmptyState";
 import type { CompRow } from "../shared/types";
+import { BacHoaHongField, type BacHoaHong } from "../components/BacHoaHongField";
 import { errText, fmtYmd, money, todayYmd } from "../shared/helpers";
+
+const CACH_TRA = [
+  {
+    ten: "Lương khoán",
+    cong_nhat: false,
+    mo: "So lương theo công với tiền khoán, lấy bên cao hơn.",
+  },
+  {
+    ten: "Công nhật",
+    cong_nhat: true,
+    mo: "Lương theo công, tăng ca theo giờ. Vẫn được tick vào lần ghi nhưng không nhận tiền khoán.",
+  },
+] as const;
 
 export function SalaryModal({
   token,
@@ -38,7 +52,7 @@ export function SalaryModal({
   emp: EmployeeRow;
   onClose: () => void;
 }) {
-  const [, setPreview] = useState<SalaryPreview | null>(null);
+  const [preview, setPreview] = useState<SalaryPreview | null>(null);
   const [history, setHistory] = useState<EmployeeSalary[] | null>(null);
   const [histErr, setHistErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -62,7 +76,8 @@ export function SalaryModal({
   const [luongTrachNhiem, setLuongTrachNhiem] = useState(0);
   const [mucDongBh, setMucDongBh] = useState<number | null>(null);
   const [luongDot1, setLuongDot1] = useState(0);
-  const [commissionPct, setCommissionPct] = useState(0);
+  // Biểu hoa hồng theo số ngày thu tiền — % HIỂN THỊ (3 = 3%), lưu phân số.
+  const [bacHoaHong, setBacHoaHong] = useState<BacHoaHong[]>([]);
   const [allowance, setAllowance] = useState(0);
   const [chuyenCan, setChuyenCan] = useState(0);
   const [phuCapCa, setPhuCapCa] = useState(0);
@@ -82,6 +97,9 @@ export function SalaryModal({
   // Insurance & Union flags
   const [insuranceElsewhere, setInsuranceElsewhere] = useState(false);
   const [unionMember, setUnionMember] = useState(false);
+  // Cách trả lương: null = chưa chọn ⇒ theo trạng thái (thử việc = công nhật), máy chủ cũng hiểu vậy.
+  const [anCongNhat, setAnCongNhat] = useState<boolean | null>(null);
+  const congNhatHienThi = anCongNhat ?? !!preview?.thu_viec;
   const [applySelfDeduction] = useState(true);
   const [params, setParams] = useState<PayrollParams | null>(null);
 
@@ -109,7 +127,8 @@ export function SalaryModal({
       setPhuCapCa(latest.phu_cap_ca ?? 0);
       setPhuCapThamNien(latest.phu_cap_tham_nien ?? 0);
       setLuongDot1(latest.luong_dot_1 ?? 0);
-      setCommissionPct((latest.commission_pct ?? 0) * 100);
+      // Mốc mới điền sẵn biểu của mốc trước — lưu mốc lương mà không đụng bảng bậc thì biểu giữ nguyên.
+      setBacHoaHong((latest.bac_hoa_hong ?? []).map((b) => ({ den_ngay: b.den_ngay, pct: +(b.pct * 100).toFixed(4) })));
       setMucDongBh(
         latest.insurance_base && latest.insurance_base > 0
           ? latest.insurance_base
@@ -117,6 +136,7 @@ export function SalaryModal({
       );
       setInsuranceElsewhere(!!latest.insurance_elsewhere);
       setUnionMember(!!latest.union_member);
+      setAnCongNhat(latest.an_cong_nhat ?? null);
 
       const vt = latest.luong_vi_tri ?? 0;
       const tn = latest.luong_trach_nhiem ?? 0;
@@ -283,8 +303,11 @@ export function SalaryModal({
         phu_cap_tham_nien: phuCapThamNien,
         insurance_elsewhere: insuranceElsewhere,
         union_member: unionMember,
+        an_cong_nhat: anCongNhat,
         apply_self_deduction: applySelfDeduction,
-        commission_pct: Math.min(commissionPct, 100) / 100,
+        bac_hoa_hong: bacHoaHong.length
+          ? bacHoaHong.map((b) => ({ den_ngay: b.den_ngay, pct: Math.min(Math.max(b.pct, 0), 100) / 100 }))
+          : null,
       });
 
       if (compChanged.length) {
@@ -669,6 +692,46 @@ export function SalaryModal({
                     </span>
                   </label>
                 </div>
+
+                {/* Chỉ người ở tổ tính hai lương mới phải chọn; đã chọn công nhật mà
+                    chuyển sang tổ thường thì vẫn hiện để còn bỏ được. Chưa chọn thì
+                    theo trạng thái: thử việc = công nhật. Bắt cả onClick để bấm vào ô
+                    đang sáng theo mặc định cũng thành chọn tay. */}
+                {(preview?.tinh_hai_luong || anCongNhat === true) && (
+                  <div
+                    className="lg-cach-tra"
+                    role="radiogroup"
+                    aria-label="Cách trả lương"
+                  >
+                    <span className="ns-field__label">Cách trả lương</span>
+                    <div className="lg-cach-tra__ds">
+                      {CACH_TRA.map((c) => (
+                        <label
+                          key={c.ten}
+                          className={`lg-cach-tra__o${congNhatHienThi === c.cong_nhat ? " is-chon" : ""}`}
+                        >
+                          <input
+                            type="radio"
+                            name="cach-tra-luong"
+                            checked={congNhatHienThi === c.cong_nhat}
+                            onChange={() => setAnCongNhat(c.cong_nhat)}
+                            onClick={() => setAnCongNhat(c.cong_nhat)}
+                          />
+                          <span className="lg-cach-tra__chu">
+                            <span>{c.ten}</span>
+                            <span className="cc-card__hint">{c.mo}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                    {anCongNhat === null && preview?.thu_viec && (
+                      <span className="cc-card__hint">
+                        Đang thử việc nên mặc định Công nhật. Hết thử việc tự về
+                        Lương khoán, trừ khi bấm chọn ở đây.
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Khoản thu nhập theo danh mục */}
@@ -880,27 +943,22 @@ export function SalaryModal({
                       là số điền sẵn khi lập phiếu tạm ứng đợt 1.
                     </span>
                   </label>
-                  <label className="ns-field">
-                    <span className="ns-field__label">
-                      % hoa hồng (NV kinh doanh)
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      placeholder="0"
-                      value={commissionPct || ""}
-                      onChange={(e) =>
-                        setCommissionPct(
-                          e.target.value === "" ? 0 : Number(e.target.value),
-                        )
-                      }
-                    />
-                    <span className="cc-card__hint">
-                      Bỏ trống / 0 nếu không phải nhân viên kinh doanh.
-                    </span>
-                  </label>
+                </div>
+                {/* Biểu bậc theo số ngày thu tiền (23/10/2026) — y khuôn ô bù hao của công đoạn. */}
+                <div className="ns-field">
+                  <span className="ns-field__label">
+                    Hoa hồng kinh doanh theo số ngày thu tiền
+                  </span>
+                  {/* Lịch sử chưa về thì biểu chưa điền sẵn — hiện "Không hưởng" lúc đó là báo sai. */}
+                  {history == null && !histErr ? (
+                    <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải biểu hoa hồng…" />
+                  ) : (
+                    <BacHoaHongField value={bacHoaHong} onChange={setBacHoaHong} />
+                  )}
+                  <span className="cc-card__hint">
+                    Tính trên tiền thu về trước VAT, đã trừ chiết khấu và kê; số ngày = ngày thu − ngày
+                    hoá đơn. Để trống nếu người này không hưởng hoa hồng.
+                  </span>
                 </div>
 
                 {/* Legacy allowance if > 0 */}

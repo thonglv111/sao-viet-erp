@@ -29,6 +29,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 
 from ..van_ban import bo_dau
+from .coc import coc_phai_thu
 
 _VN = timezone(timedelta(hours=7))
 
@@ -110,11 +111,14 @@ def lap_bao_cao(
     da_giao = orders_repo.da_giao_theo_dong_nhieu(
         ids, truoc=_moc_utc(den_ngay + timedelta(days=1)) if den_ngay else None)
     hoa_don, da_thu = accounting_repo.hoa_don_va_da_thu_toi_ngay(ids, den_ngay=den_ngay)
-    giam_hd = accounting_repo.dieu_chinh_tong_theo_don(ids, den_ngay=den_ngay)
     from .accounting_service import hoan_khong_don_theo_don
 
     hoan_hd = hoan_khong_don_theo_don(accounting_repo, {o.customer_id for o in don},
                                       den_ngay=den_ngay)
+    from .chi_ck_ke import ck_ke_theo_don
+
+    # Chiết khấu / kê (20/10/2026): số hiện tại của hóa đơn và phiếu chi, không cắt theo `den_ngay`.
+    ck_ke = ck_ke_theo_don(accounting_repo, ids)
     khach = orders_repo.khach_theo_ids({o.customer_id for o in don if o.customer_id})
     sale = orders_repo.ten_nguoi_dung({o.sale_user_id for o in don if o.sale_user_id})
     so_dong_bg = orders_repo.so_dong_bao_gia({o.quotation_id for o in don if o.quotation_id})
@@ -133,9 +137,9 @@ def lap_bao_cao(
         agg = tien.get(o.id, {})
         tong = int(agg.get("total") or 0)
         tong_vat = int(agg.get("total_with_vat") or 0)
-        pct = float(o.deposit_pct) if o.deposit_pct else 0.0
+        pct = float(o.deposit_pct) if o.deposit_pct and not o.deposit_amount else 0.0
         # Cùng công thức `OrderService._money` — xem đầu file.
-        coc_phai = int(round(pct * tong_vat / 100)) if pct else 0
+        coc_phai = coc_phai_thu(o.deposit_pct, o.deposit_amount, tong_vat)
         coc_da = int(coc_nhan.get(o.id, 0))
         # Tỷ lệ báo giá thành công = số mặt hàng khách ƯNG (`quote_items.accepted`) / số mặt hàng
         # trong bản báo giá hiện hành (báo 10 chốt 2 ⇒ 20%). 0 dòng ưng = báo giá chốt trước khi có
@@ -167,11 +171,10 @@ def lap_bao_cao(
                 (x["thanh_tien"] or 0) * (100 + x["vat_pct"]) * min(x["da_giao"], x["so_luong"])
                 / x["so_luong"] for x in dong if x["so_luong"]) / 100))
         thu_o = int(da_thu.get(o.id, 0))
-        # Hoá đơn điều chỉnh giảm (hoàn chiết khấu) bớt phần khách phải trả; hoá đơn gốc vẫn 100%.
-        giam = int(giam_hd.get(o.id, 0))
         # Trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn này — khách lại phải trả phần đó.
         hoan_o = int(hoan_hd.get(o.id, 0))
-        phai_tra = max(0, tong_vat - giam) + hoan_o
+        phai_tra = tong_vat + hoan_o
+        ck_ke_o = ck_ke.get(o.id, {})
         muc["don"].append({
             "order_id": o.id,
             "order_no": o.order_no,
@@ -188,10 +191,16 @@ def lap_bao_cao(
             "ty_le_bao_gia": ty_le_bg,
             "gia_tri_giao": gt_giao,
             "da_xuat_hd": int(hoa_don.get(o.id, 0)),
-            "dieu_chinh": giam,
             "da_thu": thu_o,
             "hoan_khong_don": hoan_o,
             "con_phai_thu": max(0, phai_tra - thu_o),
+            # Chiết khấu chi lại khách (100%) và kê (trừ thuế TNDN trên kê) — phải chi chỉ hóa đơn thu đủ.
+            "ck_phai_chi": ck_ke_o.get("ck_phai_chi", 0),
+            "ck_da_chi": ck_ke_o.get("ck_da_chi", 0),
+            "ke_tien": sum(int(ln.ke_gia or 0) for ln in o.lines),
+            "ke_thue_tndn": ck_ke_o.get("ke_thue_tndn", 0),
+            "ke_phai_chi": ck_ke_o.get("ke_phai_chi", 0),
+            "ke_da_chi": ck_ke_o.get("ke_da_chi", 0),
             "giao": giao_d,
             "thu": _tinh_trang(thu_o, phai_tra),
             "dong": dong,
@@ -217,7 +226,8 @@ def lap_bao_cao(
         muc["don"] = giu
 
     _cot = ("tong", "tong_vat", "coc_phai_thu", "coc_da_nhan", "coc_con_thieu",
-            "gia_tri_giao", "da_xuat_hd", "dieu_chinh", "da_thu", "hoan_khong_don", "con_phai_thu")
+            "gia_tri_giao", "da_xuat_hd", "da_thu", "hoan_khong_don", "con_phai_thu",
+            "ck_phai_chi", "ck_da_chi", "ke_tien", "ke_thue_tndn", "ke_phai_chi", "ke_da_chi")
     ds = []
     for muc in theo_khach.values():
         if not muc["don"]:

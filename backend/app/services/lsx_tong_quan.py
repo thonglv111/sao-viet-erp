@@ -92,6 +92,10 @@ def _den_vat_tu(tt: dict, lsx_id: int) -> dict:
     """
     if tt.get("du"):
         return _den(MUC_OK)
+    if tt.get("da_dung_xong"):
+        # Lệnh đã phát hành có khai vật tư mà không còn dòng nào trên bảng cân đối ⇒ các bước ăn vật
+        # tư đã chạy xong (`_bo_buoc_da_xong`). Không còn gì để giữ chỗ hay để khai.
+        return _den(MUC_OK, "Vật tư của các bước đã dùng xong")
     if not tt.get("bat"):
         # Lệnh không ra được nhu cầu nào cũng rơi vào đây (`du` cần `bool(can)`).
         return _den(MUC_DO, "Chưa giữ chỗ vật tư", MAN_VAT_TU, lsx_id)
@@ -173,6 +177,10 @@ def _den_danh_muc(db: Session, ids: list[int]) -> dict[int, dict]:
             selectinload(CongDoan.vat_tus),
             selectinload(CongDoan.may_lam_duoc))
     ).scalars().all() if cd_ids else []
+    # Tổ của mọi máy đang gán trên trang — một câu thay cho một câu `may_to` mỗi bước (`cap_lech`).
+    from .may_to import to_cua_may
+    svc._to_cua_may_nap = to_cua_may(
+        db, {cd.may_id for lsx in rows for cd in lsx.cong_doans if cd.may_id})
     for lsx in rows:
         try:
             buocs = svc._soi_danh_muc(lsx)
@@ -254,6 +262,11 @@ def den_vat_tu_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, dict]
     # vật tư" đỏ đẩy lệnh vào tab Cảnh báo mãi, kể cả khi hàng đã về kho chờ giao.
     from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
     ncc_lo = {i for i, cap in GiaCongNgoaiRepository(db).tron_goi_dang_chay(ids).items() if not cap}
+    # Bước chạy xong thì dòng vật tư của nó rụng khỏi bảng cân đối — lệnh đã phát hành có khai vật
+    # tư mà ra "không còn nhu cầu" là đã dùng xong, không phải chưa khai hay chưa giữ chỗ.
+    from ..models.lsx import TT_DA_DONG, TT_DA_PHAT_HANH
+    from ..repositories.lsx_repo import LsxRepository
+    co_khai = LsxRepository(db).co_vat_tu_buoc(ids, (TT_DA_PHAT_HANH, TT_DA_DONG))
 
     ra: dict[int, dict] = {}
     for i in ids:
@@ -264,10 +277,11 @@ def den_vat_tu_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, dict]
             ra[i] = _den(MUC_OK, loi_vt)
             continue
         try:
-            ra[i] = _den_vat_tu(
-                giu.trang_thai(lsx_id=i, bang=bang, dang_theo_chu_the=giu_theo_lsx,
-                               bat_theo_chu_the=bat_theo_lsx), i
-            )
+            tt = giu.trang_thai(lsx_id=i, bang=bang, dang_theo_chu_the=giu_theo_lsx,
+                                bat_theo_chu_the=bat_theo_lsx)
+            if tt.get("chua_co_nhu_cau") and i in co_khai:
+                tt = {**tt, "da_dung_xong": True}
+            ra[i] = _den_vat_tu(tt, i)
         except Exception as exc:                                        # noqa: BLE001
             ra[i] = _den(MUC_OK, f"Chưa đọc được vật tư ({type(exc).__name__})")
     return ra, bang

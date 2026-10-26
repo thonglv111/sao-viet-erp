@@ -87,6 +87,17 @@ describe("LsxPreviewDrawer", () => {
     expect(screen.queryByText(/chưa ghi DB/)).toBeNull();
   });
 
+  it("tiêu đề tách mã đơn và khách thành hai mẩu, không nối bằng dấu ·", async () => {
+    // Bấm thử 19/10: tiêu đề in "DH013 · CÔNG TY…".
+    goi.preview.mockResolvedValue(dung([dong()]));
+    ve();
+    await screen.findByText("Hộp E2E");
+    const tieuDe = screen.getByRole("heading", { level: 2 });
+    expect(tieuDe.textContent).not.toContain("·");
+    expect(tieuDe).toHaveTextContent("DH011");
+    expect(tieuDe).toHaveTextContent("Khách E2E");
+  });
+
   it("#17 tạo lệnh xong báo cả MÃ đơn cho màn Kế hoạch SX để thẻ lọc không phải đoán nhãn", async () => {
     goi.preview.mockResolvedValue(dung([dong()]));
     goi.tao.mockResolvedValue({ items: [{ ma: "LSX26-0001" }] });

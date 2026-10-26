@@ -263,35 +263,27 @@ def _cham_viec_moi(db: Session, lsx_id: int, actor_id: int) -> None:
         bao(db, kenh=kenh_to(to_id), loai="viec_moi", actor_id=actor_id)
 
 
-def _bao_to_cat(db: Session, lsx_id: int, actor_id: int) -> None:
-    """Phát hành lệnh có giấy chưa chốt ⇒ tổ Cắt có dòng mới ở "Chờ chốt giấy" (spec giấy theo khổ
-    §4.6): chấm đỏ + toast tức thì, bàn tổ Cắt tự nạp lại."""
-    from ..services.san_xuat.chot_giay import to_cat_can_bao
-
-    to_cat = to_cat_can_bao(db, lsx_id)
-    for to_id in to_cat:
-        bao(db, kenh=kenh_to(to_id), loai="cho_chot_giay", actor_id=actor_id)
-    if to_cat:
-        hub.gui({"type": "san_xuat_cong_viec_changed", "team_id": to_cat[0]},
-                **kem_ban_to(MAN_THEO_LENH, to_cat))
-
-
 @router.post("/phat-hanh/{lsx_id}", response_model=None)
 def phat_hanh(
     lsx_id: int,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
 ) -> dict:
-    """Phát hành xuống xưởng — BẤM LÀ ĐI, không hộp thoại, không cửa gác (spec §1)."""
+    """Phát hành xuống xưởng — BẤM LÀ ĐI, không hộp thoại, không cửa gác (spec §1).
+
+    Trả kèm `vat_tu` = số yêu cầu xuất vừa tự lập + các món chưa tự lập được (spec 2026-10-18 §4)
+    để toast nói cho người phát hành biết."""
+    from ..services.san_xuat.vat_tu_tu_lap import bao_sau_phat_hanh
+
     try:
-        _svc(db).phat_hanh(lsx_id, actor=user)
+        kq = _svc(db).phat_hanh(lsx_id, actor=user)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()
     _phat_goi_xuong_xuong(lsx_id)
     _cham_viec_moi(db, lsx_id, user.id)
-    _bao_to_cat(db, lsx_id, user.id)
-    return {"ok": True}
+    bao_sau_phat_hanh(db, kq["_tu_lap"], ma_lenh=kq["ma"], actor_id=user.id)
+    return {"ok": True, "vat_tu": kq["vat_tu"]}
 
 
 @router.get("/phat-hanh/{lsx_id}/goi", response_model=None)
@@ -324,7 +316,10 @@ def phat_hanh_cap_nhat(
         kq = _svc(db).phat_hanh_cap_nhat(lsx_id, actor=user, ly_do=payload.ly_do)
     except Exception as exc:
         raise _map(exc)
+    from ..services.san_xuat.vat_tu_tu_lap import bao_doi_gio
+
     xoa_cache_can_doi()
+    bao_doi_gio(db, kq.get("yeu_cau_doi_gio") or [])
     _cham_viec_moi(db, lsx_id, user.id)
     # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
     # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
@@ -344,7 +339,10 @@ def thu_hoi(
         kq = _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
         raise _map(exc)
+    from ..services.san_xuat.vat_tu_tu_lap import bao_da_huy
+
     xoa_cache_can_doi()
+    bao_da_huy(db, kq.get("yeu_cau_da_huy") or [])
     _phat_goi_xuong_xuong(lsx_id)
     for i in kq["cum_lsx"]:
         _cham_cho_xep(db, i, user.id)

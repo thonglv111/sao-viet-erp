@@ -16,10 +16,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 class BuocVatTuIn(BaseModel):
     """1 vật tư của một bước (đầu vào). `gia_tri_chip` = {mã chip riêng của vật tư: số}.
 
-    `hang_loai` (18/10/2026): `giay` ⇒ `vat_tu_id` trỏ `giay_nguyen` — giấy chọn ở bước như mọi vật
-    tư, không chip. Vắng = `vat_tu` (payload cũ)."""
+    `hang_loai` chỉ còn `vat_tu` (24/10/2026, spec 2026-10-24-chuan-bi-giay §4): giấy và sóng chọn ở
+    SẢN PHẨM (`ThanhPhanIn.giay_id`/`song_id`), gửi `giay` ở bước là 422."""
     thu_tu: int | None = None
-    hang_loai: Literal["vat_tu", "giay"] = "vat_tu"
+    hang_loai: Literal["vat_tu"] = "vat_tu"
     vat_tu_id: int
     gia_tri_chip: dict[str, float] | None = None
 
@@ -147,8 +147,9 @@ class ThanhPhanIn(BaseModel):
     nhom_bao_gia: str | None = Field(default=None, max_length=120)
     # ĐVT của cả nhóm gộp khi in cho khách (trống = lấy ĐVT dòng đầu nhóm như cũ).
     dvt_nhom: str | None = Field(default=None, max_length=30)
-    # Giấy
+    # Giấy + sóng của sản phẩm (mã loại `giay` / `song` — sai loại là 422)
     giay_id: int | None = None
+    song_id: int | None = None
     kho_nguyen: str | None = None
     kho_nguyen_dai: float | None = None
     kho_nguyen_rong: float | None = None
@@ -209,6 +210,7 @@ class ThanhPhanOut(BaseModel):
     dvt_nhom: str | None = None
     # Giấy
     giay_id: int | None = None
+    song_id: int | None = None
     kho_nguyen: str | None = None
     kho_nguyen_dai: float = 0
     kho_nguyen_rong: float = 0

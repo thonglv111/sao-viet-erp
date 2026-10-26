@@ -27,6 +27,19 @@ class SanXuatVatTuRepository:
             .order_by(SanXuatVatTuDeNghi.lan_so)
         ))
 
+    def yeu_cau_cua_lenh_thu_hoi(self, request_id: int) -> bool:
+        """Yêu cầu kho thuộc đề nghị của công việc mà gói phát hành đã thu hồi. Phát hành lại thì
+        `chuyen_de_nghi_cu` nối đề nghị sang việc của gói mới ⇒ tự hết."""
+        from ..models.san_xuat import GOI_DA_THU_HOI, SanXuatGoiPhatHanh
+
+        return self.db.scalar(
+            select(func.count()).select_from(SanXuatVatTuDeNghi)
+            .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatVatTuDeNghi.cong_viec_id)
+            .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
+            .where(SanXuatVatTuDeNghi.stock_request_id == request_id,
+                   SanXuatGoiPhatHanh.trang_thai == GOI_DA_THU_HOI)
+        ) > 0
+
     def stock_request_ids_cung_lenh(self, *, lsx_id: int | None,
                                     bai_ghep_id: int | None) -> list[int]:
         """Yêu cầu kho của MỌI đề nghị cấp thuộc các công việc cùng lệnh (hoặc cùng bài ghép) — để
@@ -48,7 +61,7 @@ class SanXuatVatTuRepository:
         return int(cao or 0) + 1
 
     def boi_canh_san_xuat(self, request_ids: list[int]) -> dict[int, dict]:
-        """`{request_id: {"can_luc", "cong_viec_id", "cong_doan_ten"}}` — MỘT truy vấn join
+        """`{request_id: {"can_luc", "cong_viec_id", "cong_doan_ten", "tu_lap", "lenh_thu_hoi"}}` — MỘT truy vấn join
         `san_xuat_vat_tu_de_nghi` → `san_xuat_cong_viec` cho cả danh sách.
 
         Hộp yêu cầu kho hiện HÀNG TRĂM dòng một trang; hỏi từng yêu cầu là N+1 ngay trên đường mở
@@ -56,13 +69,17 @@ class SanXuatVatTuRepository:
         không chạm DB. Yêu cầu kho THƯỜNG (không sinh từ sản xuất) đơn giản không có dòng nào khớp
         `stock_request_id` — router đọc `.get(id)` ra `None`, tự lấy `{}` mà không phải phân nhánh.
         """
+        from ..models.san_xuat import GOI_DA_THU_HOI, SanXuatGoiPhatHanh
+
         ids = [i for i in set(request_ids) if i]
         if not ids:
             return {}
         rows = self.db.execute(
             select(SanXuatVatTuDeNghi.stock_request_id, SanXuatVatTuDeNghi.can_luc,
-                   SanXuatVatTuDeNghi.cong_viec_id, SanXuatCongViec.ten_cong_doan)
+                   SanXuatVatTuDeNghi.cong_viec_id, SanXuatCongViec.ten_cong_doan,
+                   SanXuatVatTuDeNghi.tu_lap, SanXuatGoiPhatHanh.trang_thai)
             .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatVatTuDeNghi.cong_viec_id)
+            .outerjoin(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
             .where(SanXuatVatTuDeNghi.stock_request_id.in_(ids))
         )
         # Dict comprehension lấy dòng CUỐI nếu trùng `rid` — an toàn vì KHÔNG THỂ trùng: có
@@ -70,11 +87,54 @@ class SanXuatVatTuRepository:
         # `SanXuatVatTuDeNghi` cùng trỏ một `stock_request_id` ngay ở tầng DB. Ai gỡ ràng buộc đó
         # sau này phải quay lại đây: dict sẽ âm thầm mất một dòng theo thứ tự DB trả, không lỗi.
         return {
-            rid: {"can_luc": can_luc, "cong_viec_id": cv_id, "cong_doan_ten": ten}
-            for rid, can_luc, cv_id, ten in rows
+            rid: {"can_luc": can_luc, "cong_viec_id": cv_id, "cong_doan_ten": ten, "tu_lap": bool(tu_lap),
+                  "lenh_thu_hoi": goi_tt == GOI_DA_THU_HOI}
+            for rid, can_luc, cv_id, ten, tu_lap, goi_tt in rows
         }
 
     # `co_voucher` KHÔNG ở đây: "yêu cầu này đã có phiếu chưa" là câu hỏi của phía KHO, và bản duy
     # nhất nằm ở `StockRequestRepository.co_voucher` (ruling task-4-fix-1 minor-7). Trước đây hai
     # repo tự viết CÙNG một câu SELECT; một facade uỷ quyền cũng vẫn là hai cửa để hai bên trôi
     # khỏi nhau, nên bỏ hẳn — mọi chỗ gọi thẳng repo kho.
+
+    def yeu_cau_cua_cong_viec(self, cv_ids: list[int]) -> dict[int, list[tuple[int, int, str]]]:
+        """`{cv_id: [(lan_so, stock_request_id, trang_thai kho)]}` theo `lan_so` — MỘT truy vấn cho
+        cả bàn. Lần đề nghị không đẻ yêu cầu kho (mọi dòng xin 0) không có mặt."""
+        from ..models.stock_request import StockRequest
+
+        ra: dict[int, list[tuple[int, int, str]]] = {}
+        if not cv_ids:
+            return ra
+        rows = self.db.execute(
+            select(SanXuatVatTuDeNghi.cong_viec_id, SanXuatVatTuDeNghi.lan_so, StockRequest.id,
+                   StockRequest.trang_thai)
+            .join(StockRequest, StockRequest.id == SanXuatVatTuDeNghi.stock_request_id)
+            .where(SanXuatVatTuDeNghi.cong_viec_id.in_(sorted(set(cv_ids))))
+            .order_by(SanXuatVatTuDeNghi.cong_viec_id, SanXuatVatTuDeNghi.lan_so)
+        )
+        for cid, lan, rid, tt in rows:
+            ra.setdefault(cid, []).append((lan, rid, tt))
+        return ra
+
+    def dong_yeu_cau(self, request_ids: list[int]) -> dict[int, list[dict]]:
+        """`{request_id: [dòng]}` — MỘT truy vấn. Mỗi dòng: hàng, đơn vị, số xin, đã ứng, chốt
+        thực xuất."""
+        from ..models.stock_request import StockRequestLine
+
+        ra: dict[int, list[dict]] = {}
+        ids = sorted({i for i in request_ids if i})
+        if not ids:
+            return ra
+        rows = self.db.execute(
+            select(StockRequestLine.request_id, StockRequestLine.hang_loai, StockRequestLine.hang_id,
+                   StockRequestLine.dvt, StockRequestLine.sl_de_nghi, StockRequestLine.sl_da_ung,
+                   StockRequestLine.sl_chot_thuc_xuat)
+            .where(StockRequestLine.request_id.in_(ids))
+            .order_by(StockRequestLine.request_id, StockRequestLine.id)
+        )
+        for rid, loai, hid, dvt, xin, ung, chot in rows:
+            ra.setdefault(rid, []).append({
+                "hang_loai": loai, "hang_id": hid, "dvt": dvt, "sl_de_nghi": xin,
+                "sl_da_ung": ung, "sl_chot_thuc_xuat": chot,
+            })
+        return ra

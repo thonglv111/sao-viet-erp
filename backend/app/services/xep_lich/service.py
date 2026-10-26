@@ -21,7 +21,7 @@ from datetime import date, datetime, time, timedelta
 from sqlalchemy.orm import Session
 
 from ...models.lsx import (
-    LB_MAY, LB_THUE_NGOAI, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH, TT_SAN_SANG,
+    LB_MAY, LB_THUE_NGOAI, TT_DA_DONG, TT_DA_LAP_KE_HOACH, TT_DA_PHAT_HANH, TT_SAN_SANG,
 )
 from ...models.san_xuat import CV_HOAN_THANH, CV_PHAT_HANH
 from ...models.xep_lich_lenh import XepLichLenh
@@ -699,12 +699,12 @@ class XepLichLenhService:
     @staticmethod
     def _nhanh(d: dict, k: str) -> bool:
         """Ba nút lọc nhanh của đầu màn. `tre`: xong (thực tế nếu đã chạy) sau hết ngày hạn SX — không
-        có hạn SX thì so hạn giao. `muon`: có bước chưa tính được giờ nên ngày xong đang lạc quan.
-        `chua`: có lịch nhưng chưa phát hành."""
+        có hạn SX thì so hạn giao. `muon`: có bước chưa tính được giờ nên ngày xong đang lạc quan —
+        lệnh đã đóng thì ngày xong là số thật, không tính. `chua`: có lịch nhưng chưa phát hành."""
         if k == "chua":
             return d["trang_thai"] in TT_XEP_DUOC
         if k == "muon":
-            return d.get("so_buoc_chua_gio", 0) > 0
+            return d["trang_thai"] != TT_DA_DONG and d.get("so_buoc_chua_gio", 0) > 0
         han = d.get("han_hoan_thanh_sx") or d.get("han_giao_khach")
         xong = d.get("ket_thuc_thuc_te") or d.get("ket_thuc")
         return bool(han and xong and xong > datetime.combine(han, time.max))
@@ -834,6 +834,9 @@ class XepLichLenhService:
             "nguoi_phu_trach_ten": self._ten_nguoi(l.nguoi_phu_trach_id),
             "luu_y_gui_xuong": l.ghi_chu,
             "giay": _chu(qc.get("giay_ten") or qc.get("giay")),
+            # Mọi giấy khai ở các bước, giấy trước sóng sau (hộp bồi couche + sóng là HAI mã). `giay` của
+            # quy cách chỉ là giấy chính chụp lúc tạo lệnh.
+            "giays": self.repo.giay_cac_buoc(l.id),
             "kho_in": _chu(qc.get("kho_in") or qc.get("kho")),
             "so_mau": _chu(qc.get("so_mau") or qc.get("mau")),
             "so_kem": _chu(qc.get("so_kem")),
@@ -1059,6 +1062,7 @@ class XepLichLenhService:
         from ...repositories.san_xuat_repo import SanXuatRepository
         from ..san_xuat.component import thanh_phan_lien_thong
         from ..san_xuat.release import phat_hanh as _sx_phat_hanh
+        from ..san_xuat.vat_tu_tu_lap import lap_khi_phat_hanh
 
         l = self.repo.lsx_theo_ids([lsx_id]).get(lsx_id)
         if l is None:
@@ -1080,11 +1084,15 @@ class XepLichLenhService:
             if bg.trang_thai != BG_PHAT_HANH:
                 bg.trang_thai = BG_PHAT_HANH
         try:
-            _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids, actor=actor)
+            goi = _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids,
+                                actor=actor)
         except ValueError as exc:
             # Gom lần gia công ngoài từ chối (bước thuê ngoài chưa chọn nhà gia công) — trả 400.
             self.db.rollback()
             raise XepLichLenhError(str(exc)) from None
+        # Tự lập yêu cầu xuất vật tư cho từng bước, CÙNG giao dịch (spec 2026-10-18 §4.1) và
+        # TRƯỚC dòng audit (audit tự commit). Lỗi từng dòng không chặn, nằm ở `bo_qua`.
+        tu_lap = lap_khi_phat_hanh(self.db, goi_id=goi.id, nguoi=actor)
         if self.audit is not None:
             self.audit.create(
                 actor_user_id=getattr(actor, "id", None), action="xep_lich_phat_hanh",
@@ -1093,8 +1101,10 @@ class XepLichLenhService:
                        f"{len(tp.bai_ghep_ids)} bài ghép) — màn Xếp lịch, không cửa gác",
             )
         self.db.commit()
-        return {"lsx_id": l.id, "trang_thai": l.trang_thai,
-                "cum_lsx": sorted(tp.lsx_ids), "cum_bai_ghep": sorted(tp.bai_ghep_ids)}
+        return {"lsx_id": l.id, "ma": l.ma, "trang_thai": l.trang_thai,
+                "cum_lsx": sorted(tp.lsx_ids), "cum_bai_ghep": sorted(tp.bai_ghep_ids),
+                "vat_tu": {"so_yeu_cau": len(tu_lap["request_ids"]), "bo_qua": tu_lap["bo_qua"]},
+                "_tu_lap": tu_lap}
 
     def thu_hoi(self, lsx_id: int, *, actor=None, ly_do: str | None = None) -> dict:
         """Thu hồi phát hành. Đi ĐƯỜNG CHUNG `go_phat_hanh_lsx` — hai điều kiện của nó KHÔNG phải
@@ -1157,19 +1167,23 @@ class XepLichLenhService:
                         detail=f"Thu hồi phát hành bài ghép {bg.ma} cùng cụm với lệnh {l.ma} — {ly_do}",
                         commit=False,
                     )
+        from ..san_xuat.vat_tu_tu_lap import KHOA_YC_HUY
+
         try:
             XepLichVanDeService(self.db, self.audit).go_phat_hanh_lsx(
                 lsx_id=lsx_id, actor=actor, ly_do=ly_do,
             )
         except Exception:
             self.db.rollback()
+            self.db.info.pop(KHOA_YC_HUY, None)
             raise
         # Lệnh được bấm mà vốn không ở `da_phat_hanh` thì đường chung không commit gì — chốt nốt.
         self.db.commit()
+        yc_huy = self.db.info.pop(KHOA_YC_HUY, [])
         for x in [l, *khac]:
             self._ve_san_sang(x, actor=actor)
         return {"lsx_id": lsx_id, "trang_thai": l.trang_thai,
-                "cum_lsx": sorted({lsx_id, *(x.id for x in khac)})}
+                "cum_lsx": sorted({lsx_id, *(x.id for x in khac)}), "yeu_cau_da_huy": yc_huy}
 
     def _cum_cua_goi(self, lsx_id: int) -> tuple[set[int], set[int]]:
         """(lsx_ids, bai_ghep_ids) của gói ĐANG hiệu lực chứa lệnh này. Không có gói ⇒ chỉ lệnh này.
@@ -1584,7 +1598,9 @@ class XepLichLenhService:
         from ...models.user import User
 
         u = self.db.get(User, user_id)
-        return getattr(u, "full_name", None) or getattr(u, "username", None)
+        # Họ tên nằm ở `User.name` — `full_name` là cột của HỒ SƠ nhân sự, User không có; đọc nhầm thì
+        # ngăn luôn in tên đăng nhập ("admin", "nguyenthihuyen").
+        return (getattr(u, "name", None) or "").strip() or getattr(u, "username", None)
 
     def _nap_to(self, dept_ids: list[int | None]) -> None:
         """Tên tổ của cả bảng công đoạn — MỘT truy vấn. Trước 14/09/2026 mỗi bước một `db.get`:

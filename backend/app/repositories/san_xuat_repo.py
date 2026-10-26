@@ -908,6 +908,13 @@ class SanXuatRepository:
         ).all()
         return {lid: (ma, ten) for lid, ma, ten in rows}
 
+    def lsx_dvt(self, lsx_ids: set[int]) -> dict[int, str]:
+        """{lsx_id: ĐVT thành phẩm} — chặng "cai" trên bàn tổ gọi bằng tên này ("cuốn"), như KCS/kho."""
+        if not lsx_ids:
+            return {}
+        rows = self.db.execute(select(Lsx.id, Lsx.don_vi_tinh).where(Lsx.id.in_(lsx_ids))).all()
+        return {lid: dvt for lid, dvt in rows}
+
     def bai_ghep_nhan(self, bg_ids: set[int]) -> dict[int, tuple[str, str]]:
         if not bg_ids:
             return {}
@@ -966,6 +973,31 @@ class SanXuatRepository:
                 if ten and ten not in gom.setdefault(bid, []):
                     gom[bid].append(ten)
             ra.update({("bai_ghep", bid): " · ".join(ds) for bid, ds in gom.items() if ds})
+        return ra
+
+    def khach_cua_lenh(self, lsx_ids: set[int], bg_ids: set[int]) -> dict[tuple[str, int], dict[int, str]]:
+        """{("lsx", id) | ("bai_ghep", id): {customer_id: tên khách}} — cho ô lọc Khách hàng của bàn
+        tổ (22/10/2026). Như `khach_nhan` nhưng giữ id; bài ghép có thể mang nhiều khách."""
+        ra: dict[tuple[str, int], dict[int, str]] = {}
+        if lsx_ids:
+            rows = self.db.execute(
+                select(Lsx.id, Customer.id, Customer.name)
+                .join(Order, Lsx.order_id == Order.id)
+                .join(Customer, Order.customer_id == Customer.id)
+                .where(Lsx.id.in_(lsx_ids))
+            ).all()
+            for lid, kid, ten in rows:
+                ra.setdefault(("lsx", lid), {})[kid] = ten
+        if bg_ids:
+            rows = self.db.execute(
+                select(BaiGhepThanhVien.bai_ghep_id, Customer.id, Customer.name)
+                .join(Lsx, BaiGhepThanhVien.lsx_id == Lsx.id)
+                .join(Order, Lsx.order_id == Order.id)
+                .join(Customer, Order.customer_id == Customer.id)
+                .where(BaiGhepThanhVien.bai_ghep_id.in_(bg_ids))
+            ).all()
+            for bid, kid, ten in rows:
+                ra.setdefault(("bai_ghep", bid), {})[kid] = ten
         return ra
 
     def may_nhan(self, may_ids: set[int]) -> dict[int, str]:

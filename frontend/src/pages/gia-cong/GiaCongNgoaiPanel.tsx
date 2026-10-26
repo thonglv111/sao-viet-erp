@@ -31,10 +31,9 @@ import { Icon } from "../../components/Icons";
 import { nhanDonVi } from "../lsxBuoc";
 import { useNapTenDonVi } from "../tenDonVi";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
-import { nhanKho } from "../../lib/khoGiay";
 import {
-  NHAN_NOI_VE, NHAN_TRANG_THAI, NHAN_XUAT_GIAY, chonGiayBanDau, goiYChot, mocCuaLan, nutCuaLan,
-  soNhanChia, thieuTo,
+  NHAN_NOI_VE, NHAN_TRANG_THAI, NHAN_XUAT_GIAY, chonGiayBanDau, chuanSoGo, goiYChot, hienSoGo,
+  mocCuaLan, nhanKhoCap, nutCuaLan, soNhanChia, thieuTo,
 } from "./giaCong";
 import "./giaCong.css";
 
@@ -430,7 +429,7 @@ export function GiaCongNgoaiPanel({
                   <dd>
                     <span className="gcn__gt">{l.xuong_cap_giay ? "Xưởng cấp" : "Nhà gia công tự lo"}</span>
                     {l.xuong_cap_giay && xg?.kho_rong ? (
-                      <span className="gcn__the">{nhanKho(xg.kho_rong, xg.kho_dai)}</span>
+                      <span className="gcn__the">{nhanKhoCap(xg.kho_rong, xg.kho_dai ?? 0)}</span>
                     ) : null}
                     {l.xuong_cap_giay && xg && xg.so_to != null && xg.so_to !== daHien?.toNguyen && (
                       <span className="gcn__the">{so(xg.so_to)} {dvTen(xg.don_vi ?? null)}</span>
@@ -655,9 +654,9 @@ export function GiaCongNgoaiPanel({
   );
 }
 
-/** Phần "Chọn giấy" mở tại chỗ (C1): khổ trong kho kèm tồn (radio), số tờ xin xuất, cảnh báo khi
- *  kho thiếu (vẫn cho gửi), hai nút "Để sau" / "Gửi đề nghị xuất giấy". Mỗi lần gia công một đề
- *  nghị, một khổ. */
+/** Phần "Chọn giấy" mở tại chỗ (C1): khổ trong kho kèm tồn (radio) — tờ theo khổ, cuộn theo rộng
+ *  tính kg (24/10/2026) —, số xin xuất theo đơn vị của khổ đang chọn, cảnh báo khi kho thiếu (vẫn
+ *  cho gửi), hai nút "Để sau" / "Gửi đề nghị xuất giấy". Mỗi lần gia công một đề nghị, một khổ. */
 function PhanChonGiay({
   lanId, cg, f, dangBan, onDoi, onDeSau, onGui,
 }: {
@@ -670,16 +669,21 @@ function PhanChonGiay({
   onGui: () => void;
 }) {
   const dx = cg.de_xuat;
-  const dv = nhanDonVi(cg.don_vi);
   const keyDx = dx ? `${dx.kho_rong}x${dx.kho_dai}` : null;
   const soTo = Number(f.so);
   const thieu = thieuTo(cg, f.kho, soTo);
   const dang = cg.kho.find((k) => `${k.kho_rong}x${k.kho_dai}` === f.kho);
-  // Khổ khác còn đủ tờ — gợi ý đổi khi khổ đang chọn thiếu.
+  // Đơn vị theo khổ đang chọn: cuộn ⇒ kg (gõ được phần lẻ), tờ ⇒ tờ.
+  const dvChon = dang?.don_vi ?? dx?.don_vi ?? cg.don_vi;
+  const dv = nhanDonVi(dvChon);
+  const kg = dvChon === "kg";
+  // Khổ khác CÙNG đơn vị còn đủ — gợi ý đổi khi khổ đang chọn thiếu (tờ và kg không so được).
   const khoDu = thieu != null
-    ? cg.kho.find((k) => `${k.kho_rong}x${k.kho_dai}` !== f.kho && k.ton >= soTo) : undefined;
+    ? cg.kho.find((k) => `${k.kho_rong}x${k.kho_dai}` !== f.kho && k.don_vi === dvChon
+      && k.ton >= soTo) : undefined;
   const theoDeXuat = dx != null && f.kho === keyDx && dx.so_to != null && soTo === dx.so_to;
-  const nguonHoa = cg.nguon.charAt(0).toUpperCase() + cg.nguon.slice(1);
+  const hoaDau = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const nguonHoa = hoaDau(cg.nguon);
 
   return (
     <div className="gcn__cap-mo">
@@ -687,7 +691,7 @@ function PhanChonGiay({
         <b>Cấp giấy {cg.giay_ten ?? cg.giay_ma ?? ""}</b>
         {dx && dx.so_to != null && (
           <span className="gcn__phu">
-            {nguonHoa} cần {so(dx.so_to)} {dv} khổ {nhanKho(dx.kho_rong, dx.kho_dai)}
+            {nguonHoa} cần {so(dx.so_to)} {nhanDonVi(dx.don_vi)} {nhanKhoCap(dx.kho_rong, dx.kho_dai)}
           </span>
         )}
       </div>
@@ -698,7 +702,7 @@ function PhanChonGiay({
           <div className="gcn__cap-cot" role="radiogroup" aria-label="Khổ trong kho">
             <span className="gcn__chot-nhan">Khổ trong kho</span>
             {cg.kho.length === 0 ? (
-              <p className="gcn__phu">Kho chưa có tờ nào của giấy này.</p>
+              <p className="gcn__phu">Kho chưa có giấy này.</p>
             ) : (
               <div className="gcn__kho-ds">
                 {cg.kho.map((k) => {
@@ -719,12 +723,12 @@ function PhanChonGiay({
                       />
                       <span className="gcn__kho-ra" aria-hidden="true" />
                       <span className="gcn__kho-ten">
-                        <b>{nhanKho(k.kho_rong, k.kho_dai)}</b>
+                        <b>{nhanKhoCap(k.kho_rong, k.kho_dai)}</b>
                         {k.dung_de_xuat && <span className="gcn__the">đúng {cg.nguon}</span>}
                         {het && <span className="gcn__the">hết</span>}
                       </span>
                       <span className="gcn__kho-ton">
-                        <b>{so(k.ton)} {dv}</b>
+                        <b>{so(k.ton)} {nhanDonVi(k.don_vi)}</b>
                         <small>tồn</small>
                       </span>
                     </label>
@@ -734,14 +738,14 @@ function PhanChonGiay({
             )}
           </div>
           <label className="gcn__cap-cot">
-            <span className="gcn__chot-nhan">Số tờ xin xuất</span>
+            <span className="gcn__chot-nhan">Số {dv} xin xuất</span>
             <span className="gcn__cap-o">
               <OGoDinhDang
-                inputMode="numeric"
-                value={f.so === "" ? "" : Number(f.so).toLocaleString("vi-VN")}
-                onChange={(e) => onDoi({ ...f, so: e.target.value.replace(/\D/g, "") })}
-                placeholder="Nhập số tờ"
-                aria-label="Số tờ xin xuất"
+                inputMode={kg ? "decimal" : "numeric"}
+                value={hienSoGo(f.so, kg)}
+                onChange={(e) => onDoi({ ...f, so: chuanSoGo(e.target.value, kg) })}
+                placeholder={`Nhập số ${dv}`}
+                aria-label={`Số ${dv} xin xuất`}
               />
               <small>{dv}</small>
             </span>
@@ -753,9 +757,9 @@ function PhanChonGiay({
         <div className="gcn__cap-bao" role="note">
           <span className="gcn__cap-dau" aria-hidden="true">!</span>
           <span>
-            Khổ {nhanKho(dang.kho_rong, dang.kho_dai)} còn <b>{so(dang.ton)} {dv}</b>, thiếu{" "}
+            {hoaDau(nhanKhoCap(dang.kho_rong, dang.kho_dai))} còn <b>{so(dang.ton)} {dv}</b>, thiếu{" "}
             <b>{so(thieu)} {dv}</b>. Vẫn gửi được — kho xuất trước phần đang có.
-            {khoDu && <> Hoặc chọn khổ {nhanKho(khoDu.kho_rong, khoDu.kho_dai)}.</>}
+            {khoDu && <> Hoặc chọn {nhanKhoCap(khoDu.kho_rong, khoDu.kho_dai)}.</>}
           </span>
         </div>
       )}

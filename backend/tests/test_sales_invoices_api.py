@@ -526,7 +526,7 @@ def test_hoa_don_theo_so_da_giao_tung_luot(client):
     r = client.post("/api/accounting/sales-invoices",
                     json={**goc, "invoice_number": "GL-3", "delivery_trip_id": l1, "amount_vnd": 1_000_001},
                     headers=headers)
-    assert r.status_code == 422 and "1,000,000" in r.json()["detail"], r.text
+    assert r.status_code == 422 and "1.000.000 đ" in r.json()["detail"], r.text
 
     # Không gõ số thì điền sẵn phần chưa ghi của lượt.
     r = client.post("/api/accounting/sales-invoices",

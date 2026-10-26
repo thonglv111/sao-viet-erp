@@ -38,6 +38,20 @@ export const KCS_YC_KHO_TRANG_THAI: Record<string, { nhan: string; cls: string }
   cancelled: { nhan: "Đã hủy", cls: "badge-sem--gray" },
 };
 
+/** Toast cho người KCS khi kho động vào yêu cầu nhập thành phẩm của họ. Máy chủ đẩy cả lúc kho mới
+ *  LẬP phiếu (chưa ghi sổ) — trạng thái khi đó chưa nói kho nhận được gì nên im. */
+export function toastKhoNhapThanhPham(
+  trangThai: string | null | undefined, ma: string | null | undefined,
+): { chu: string; kieu: "ok" | "warn" } | null {
+  const m = ma ? ` ${ma}` : "";
+  if (trangThai === "done") return { chu: `📦 Kho đã nhận đủ yêu cầu nhập kho${m}`, kieu: "ok" };
+  if (trangThai === "partial") {
+    return { chu: `📦 Kho đã nhận MỘT PHẦN yêu cầu nhập kho${m} — phần còn lại vẫn chờ nhập`, kieu: "ok" };
+  }
+  if (trangThai === "cancelled") return { chu: `Kho đã huỷ yêu cầu nhập kho${m}`, kieu: "warn" };
+  return null;
+}
+
 /** Máy chủ chỉ nhận lần kiểm khi công đoạn đã bắt đầu (đang chạy / tạm dừng / đã xong). */
 export function kiemDuoc(trangThai: string): boolean {
   return trangThai === "running" || trangThai === "paused" || trangThai === "completed";

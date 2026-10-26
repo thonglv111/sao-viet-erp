@@ -54,6 +54,29 @@ TOOLING_TYPE_DA_GO = ("khuon_ep", "khung_lua")
 KIEU_BU_HAO = ("khong", "theo_bac", "co_dinh")
 DON_VI_BAC = ("to", "pct")            # giá trị một bậc = số tờ | % trên sản lượng ra của bước
 
+# CÔNG ĐOẠN HỆ THỐNG (24/10/2026, spec 2026-10-24-chuan-bi-giay §3) — khuôn `KHO-TP`: dòng DB có
+# MÃ cố định, máy nhận ra bằng mã chứ không dò tên. Lập lệnh tự chèn Cắt giấy cuộn / Tề giấy in /
+# Tề sóng; bốn mã bồi là "bước nhận sóng". Mã/tên/nhóm/đơn vị khoá, không xoá, không ngừng — tổ,
+# máy, năng suất, khoán, công thức giá vẫn sửa. Bồi kiểu mới = thêm mã vào `CD_BOI`.
+CD_CAT_CUON = "CGC"
+CD_TE_GIAY_IN = "TGI"
+CD_TE_SONG = "TS"
+CD_BOI = ("BCT3LEB", "BCT5LBEC", "BTĐ", "BBTĐ")
+CD_HE_THONG: dict[str, dict] = {
+    CD_CAT_CUON: dict(ten="Cắt giấy cuộn", nhom="prepress", don_vi_vao="to_nguyen", don_vi_ra="to_nguyen"),
+    CD_TE_GIAY_IN: dict(ten="Tề giấy in", nhom="prepress", don_vi_vao="to_nguyen", don_vi_ra="to"),
+    CD_TE_SONG: dict(ten="Tề sóng", nhom="prepress", don_vi_vao="to", don_vi_ra="to"),
+    "BCT3LEB": dict(ten="Bồi carton 2, 3 lớp E,B", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+    "BCT5LBEC": dict(ten="Bồi carton 4,5 lớp BE, BC", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+    "BTĐ": dict(ten="Bồi Duplex với Krap TĐ", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+    "BBTĐ": dict(ten="Bồi Duplex với Krap bán TĐ", nhom="finishing", don_vi_vao="to", don_vi_ra="to"),
+}
+O_KHOA_HE_THONG = ("ma", "ten", "nhom", "don_vi_vao", "don_vi_ra")
+
+
+def la_cong_doan_he_thong(ma: str | None) -> bool:
+    return (ma or "").strip() in CD_HE_THONG
+
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -152,12 +175,22 @@ class CongDoan(Base):
         "CongDoanVatTu", back_populates="cong_doan", order_by="CongDoanVatTu.thu_tu",
         cascade="all, delete-orphan",
     )
-    # MÁY chạy được công đoạn này, mỗi dòng mang cách đo GIỜ và cách tính GIÁ của riêng cặp
-    # (công đoạn, máy) — xem `CongDoanMay`. Hàng `nhom_may_cho_phep` ở trên nay chỉ còn là BỘ LỌC
-    # để chọn máy cho danh sách này.
-    may_lam_duoc: Mapped[list["CongDoanMay"]] = relationship(
+    # MÁY ĐÃ KHAI cho công đoạn, mỗi dòng mang cách đo GIỜ và cách tính GIÁ của riêng cặp
+    # (công đoạn, máy) — xem `CongDoanMay`. Đây là quan hệ GHI được, gồm cả dòng NẰM IM: máy ra khỏi
+    # phạm vi tổ (bỏ tick tổ / gỡ tổ khỏi máy) thì dòng ở lại giữ số, vào lại là thấy số cũ.
+    # Đọc "máy chạy được" thì dùng `may_lam_duoc` bên dưới, KHÔNG dùng quan hệ này.
+    may_khai: Mapped[list["CongDoanMay"]] = relationship(
         "CongDoanMay", back_populates="cong_doan", order_by="CongDoanMay.thu_tu",
         cascade="all, delete-orphan",
+    )
+    # MÁY CHẠY ĐƯỢC công đoạn (spec 2026-10-22-may-thuoc-to): dòng `may_khai` mà máy thuộc một tổ
+    # đang tick ở công đoạn. Công đoạn chưa tick tổ nào ⇒ nguyên các dòng đã khai, không ràng buộc
+    # tổ (cùng lối "không khai = không ràng buộc" của ô tổ). Chỉ đọc — mọi nơi đang đọc
+    # `may_lam_duoc` (lệnh, bài ghép, đổi máy, phiếu tính giá qua API) tự nhận phần đã lọc.
+    # Thay `nhom_may_cho_phep` (lọc theo nhóm máy) — cột đó không còn ai đọc.
+    may_lam_duoc: Mapped[list["CongDoanMay"]] = relationship(
+        "CongDoanMay", viewonly=True, order_by="CongDoanMay.thu_tu",
+        primaryjoin=lambda: _may_lam_duoc_join(),
     )
     # CÁC TỔ phụ trách công đoạn (18/09/2026) — "Cán màng mờ" do tổ Cán lẫn tổ Thành phẩm làm. Lệnh
     # sản xuất chép MỘT tổ xuống bước (`lsx_cong_doan.department_id`, người kế hoạch chọn trong danh
@@ -218,7 +251,11 @@ class CongDoanTo(Base):
 
 
 class CongDoanKhoan(Base):
-    """Một cấu hình khoán chính của Công đoạn; công thức mới chỉ lưu, chưa được thực thi."""
+    """Một cấu hình khoán chính của Công đoạn — tiền một lần ghi tính từ đây (21/10/2026).
+
+    `gia_theo_to` = bảng giá theo TỔ `[{department_id, gia_co_dinh, don_gia}]`: cùng một công đoạn
+    tổ máy 2 màu và tổ máy 5 màu ăn giá khác nhau. NULL/rỗng = mọi tổ dùng giá chung `unit_price`
+    (giá cố định 0); có dòng thì tổ vắng mặt = THIẾU GIÁ, không lấy giá chung đoán."""
 
     __tablename__ = "cong_doan_khoan"
     __table_args__ = (
@@ -232,6 +269,17 @@ class CongDoanKhoan(Base):
     unit: Mapped[str] = mapped_column(String(24), nullable=False)
     unit_price: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     cong_thuc_khoan: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gia_theo_to: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Đợt 2 (21/10/2026, mg 0430): giá cố định CHUNG — bảng giá theo tổ để trống thì mọi tổ dùng cả
+    # hai giá chung (trước đây giá cố định chung luôn 0).
+    gia_co_dinh: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0, server_default="0")
+    # Tuỳ chọn khi ghi `[{ma, ten, kieu: "co_khong"|"so", goi_y}]` — thợ tick / gõ ở từng lần ghi, mỗi
+    # tuỳ chọn là một chip của ô Công thức khoán. NULL = không có.
+    tuy_chon: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Bậc giá (22/10/2026, mg 0433) `[{ma, ten, mau_tu, mau_den, pha, tuy_chon_ma, tuy_chon_co,
+    # gom_uv}]` — xét từ trên xuống, bậc khớp đầu tiên thắng (`viec_khoan.anh_bac`). Có bậc thì mỗi
+    # dòng `gia_theo_to` mang khoá `bac` = mã bậc: giá là ô (tổ, bậc). NULL = không chia bậc.
+    bac_gia: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False,
@@ -257,6 +305,11 @@ class CongDoanKhoanPhatSinh(Base):
     don_gia: Mapped[float] = mapped_column(Numeric(18, 2), nullable=False)
     don_vi: Mapped[str] = mapped_column(String(24), nullable=False)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)
+    # Giá theo tổ `[{department_id, don_gia}]` — cùng luật với `CongDoanKhoan.gia_theo_to`.
+    gia_theo_to: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # "Cách tính giá" (mg 0443, 24/10/2026): công thức ra ĐƠN GIÁ trên chính lần ghi, cùng bộ chip ô
+    # Công thức khoán — vd Xuống bài do lỗi = `0.5 * gia_co_dinh` (50% bài in). NULL = dùng đơn giá.
+    cong_thuc: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     khoan: Mapped["CongDoanKhoan"] = relationship("CongDoanKhoan", back_populates="viec_phat_sinh")
 
@@ -329,5 +382,22 @@ class CongDoanMay(Base):
     cong_thuc_gia: Mapped[str | None] = mapped_column(Text, nullable=True)
     thu_tu: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    cong_doan: Mapped["CongDoan"] = relationship("CongDoan", back_populates="may_lam_duoc")
+    cong_doan: Mapped["CongDoan"] = relationship("CongDoan", back_populates="may_khai")
 
+
+def _may_lam_duoc_join():
+    """Điều kiện của `CongDoan.may_lam_duoc` — dựng muộn vì `CongDoanMay`/`CongDoanTo`/`MayTo` khai
+    sau `CongDoan` (và `MayTo` ở module khác)."""
+    from sqlalchemy import and_, exists, or_
+    from sqlalchemy.orm import foreign
+
+    from .may_thiet_bi import MayTo
+
+    cd_may = foreign(CongDoanMay.cong_doan_id)
+    co_to = exists().where(CongDoanTo.cong_doan_id == CongDoanMay.cong_doan_id)
+    may_cua_to = exists().where(
+        CongDoanTo.cong_doan_id == CongDoanMay.cong_doan_id,
+        MayTo.department_id == CongDoanTo.department_id,
+        MayTo.may_id == CongDoanMay.may_id,
+    )
+    return and_(CongDoan.id == cd_may, or_(~co_to, may_cua_to))

@@ -257,18 +257,10 @@ class DepartmentRepository:
         self.db.refresh(dept)
         return dept
 
-    def set_la_to_cat(self, dept: Department, value: bool) -> Department:
-        """Đánh dấu / bỏ dấu TỔ CẮT (mg 0355). Đích danh — KHÔNG cascade cây con, như `la_to_in`."""
-        dept.la_to_cat = bool(value)
-        self.db.commit()
-        self.db.refresh(dept)
-        return dept
-
-    def dept_ids_to_cat(self) -> set[int]:
-        """Id tổ bật cờ TỔ CẮT — chỉ tổ TỰ bật, không kế thừa cây. Chốt giấy sau phát hành hỏi câu này."""
-        return set(self.db.execute(
-            select(Department.id).where(Department.la_to_cat.is_(True))
-        ).scalars().all())
+    def dept_ids_khoi_san_xuat(self) -> set[int]:
+        """Id phòng/tổ thuộc KHỐI SẢN XUẤT — tự bật `la_san_xuat` hoặc có tổ tiên bật (kế thừa cây,
+        cả tổ cha lẫn tổ lá). Lương hỏi câu này để biết ai tính 2 lương (chủ chốt 20/10/2026)."""
+        return {d.id for d in self.production_departments(fallback_all=False)}
 
     def dept_ids_to_in(self) -> set[int]:
         """Id tổ bật cờ TỔ IN — CHỈ tổ TỰ bật, KHÔNG kế thừa cây (cùng luật `dept_ids_giao_hang`).

@@ -293,20 +293,6 @@ def _chung_tu_phai_thu(
             "net": int(hd.amount_vnd),
             "tk_doi_ung": "",
         })
-        # Hoá đơn điều chỉnh giảm (18/10/2026) → CÓ: khách nợ bớt, như phiếu thu nhưng là chứng từ thuế.
-        for a in _dieu_chinh_hieu_luc(hd, den_ngay):
-            ra.append({
-                **_dt(hd.customer_id, hd.customer_name_snapshot),
-                "ngay": a.adj_date,
-                "loai": "dieu_chinh_giam",
-                "so_ct": f"{a.adj_symbol} {a.adj_number}".strip(),
-                "ky_hieu": (a.adj_symbol or "").strip() or None,
-                "don_id": getattr(hd, "order_id", None),
-                "dien_giai": f"Điều chỉnh giảm hoá đơn {hd.invoice_symbol} {hd.invoice_number}".strip(),
-                "luc": getattr(a, "created_at", None),
-                "net": -int(a.amount_vnd),
-                "tk_doi_ung": "",
-            })
     for p in phieu:
         if p.source_type == RECEIPT_SOURCE_PURCHASE:
             continue  # tiền NCC trả lại — thuộc 331, không phải 131.
@@ -508,14 +494,6 @@ def phan_bo_hoan_khong_don(khoan: list[dict], hoan: dict) -> dict:
     return them
 
 
-def _dieu_chinh_hieu_luc(hd, den_ngay: date | None = None) -> list:
-    """Hoá đơn điều chỉnh giảm còn hiệu lực của một hoá đơn bán, lập tới hết `den_ngay` (18/10/2026)."""
-    return [
-        a for a in getattr(hd, "dieu_chinh", None) or []
-        if a.status == SALES_INVOICE_ISSUED and (den_ngay is None or a.adj_date <= den_ngay)
-    ]
-
-
 def _khoan_phai_thu(hoa_don, phieu, hoan_khach=(), den_ngay: date | None = None) -> list[dict]:
     """Phần CÒN LẠI của từng hoá đơn bán tính tới `den_ngay` (phiếu đã nạp sẵn tới mốc đó).
 
@@ -557,16 +535,9 @@ def _khoan_phai_thu(hoa_don, phieu, hoan_khach=(), den_ngay: date | None = None)
 
     ra: list[dict] = []
     for don_id, ds in theo_don.items():
-        # Hoá đơn điều chỉnh giảm (18/10/2026): phần phải thu của hoá đơn là gốc − điều chỉnh; khách
-        # đã trả vượt phần đó thì khoản vượt về quỹ của đơn (cùng luật `quy_tien_don`).
-        giam = {hd.id: sum(int(a.amount_vnd) for a in _dieu_chinh_hieu_luc(hd, den_ngay)) for hd in ds}
-        thua = sum(
-            max(0, thu_dich_danh.get(hd.id, 0) - max(0, int(hd.amount_vnd) - giam[hd.id]))
-            for hd in ds if giam[hd.id]
-        )
-        con_coc = max(0, coc_theo_don.get(don_id, 0) + thua - tra_theo_don.get(don_id, 0))
+        con_coc = max(0, coc_theo_don.get(don_id, 0) - tra_theo_don.get(don_id, 0))
         for hd in sorted(ds, key=lambda x: (x.invoice_date, x.id)):
-            tien = max(0, int(hd.amount_vnd) - giam[hd.id])
+            tien = int(hd.amount_vnd)
             truc_tiep = min(tien, thu_dich_danh.get(hd.id, 0))
             bu_coc = min(con_coc, max(0, tien - truc_tiep))
             con_coc -= bu_coc
@@ -898,8 +869,8 @@ def tong_hop_phai_thu(
 
     # --- PS Nợ (hoá đơn bán) + PS Có (phiếu thu) ---
     # Đi qua ĐÚNG luồng chứng từ mà sổ chi tiết dùng, không tự lặp lại luật ngày/dấu ở đây.
-    # `ban_ky`: phần PS Nợ là HOÁ ĐƠN trừ hoá đơn điều chỉnh giảm — cột "Bán trong kỳ" của màn Công nợ
-    # đọc số này; PS Nợ còn gồm phiếu hoàn tiền khách, không phải bán.
+    # `ban_ky`: phần PS Nợ là HOÁ ĐƠN — cột "Bán trong kỳ" của màn Công nợ đọc số này; PS Nợ còn gồm
+    # phiếu hoàn tiền khách, không phải bán.
     ban_ky: dict[int | None, int] = {}
     chung_tu = _chung_tu_phai_thu(hoa_don, phieu, khach_don, ma_khach, hoan_khach, den_ngay)
     for ct in chung_tu:
@@ -907,8 +878,7 @@ def tong_hop_phai_thu(
             gom.muc(ct["doi_tuong_id"], ct["ten"], ct["ma"]), ct["ngay"], ct["net"],
             hoan=ct["loai"] in LOAI_HOAN,
         )
-        # Hoá đơn điều chỉnh giảm trừ vào "bán trong kỳ" của kỳ nó phát hành: cùng kỳ kê khai thuế.
-        if ct["loai"] in ("hoa_don", "dieu_chinh_giam") and tu_ngay <= ct["ngay"] <= den_ngay:
+        if ct["loai"] == "hoa_don" and tu_ngay <= ct["ngay"] <= den_ngay:
             ban_ky[ct["doi_tuong_id"]] = ban_ky.get(ct["doi_tuong_id"], 0) + ct["net"]
 
     # ── PHÂN TUỔI NỢ tại `den_ngay` (§5.3) ────────────────────────────────────────────────

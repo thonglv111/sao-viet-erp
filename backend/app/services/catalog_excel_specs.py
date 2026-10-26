@@ -24,7 +24,7 @@ from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import TRAM_NHAN, TRAM_NHAN_NGAN
 from ..models.may_thiet_bi import MayThietBi
-from ..models.vat_lieu_kho import VatTuInAn
+from ..models.vat_lieu_kho import LOAI_GIAY, NHAN_LOAI_GIAY, VatTuInAn
 from ..models.xe import MucKhoanKm
 from ..repositories.cong_doan_repo import CongDoanRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
@@ -348,12 +348,21 @@ DON_VI_DO = CatalogExcelSpec(
 # ======================================================================================
 
 
+_DOC_LOAI_ENUM, _GHI_LOAI_GIAY = _enum_viet(NHAN_LOAI_GIAY, "Loại")
+
+
+def _DOC_LOAI_GIAY(gt: Any, ctx: NguCanh) -> str:
+    """Ô Loại trống = Giấy (file cũ chưa có cột vẫn nhập được)."""
+    return _DOC_LOAI_ENUM(gt, ctx) if str(gt or "").strip() else LOAI_GIAY
+
+
 GIAY = CatalogExcelSpec(
     loai="giay", tieu_de="Giấy", repo_cls=_GiayRepo,
     cot=(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Định lượng (gsm)", "gsm", kieu="nguyen", rong=16),
+        Cot("Loại", "loai", rong=10, doc=_DOC_LOAI_GIAY, ghi=_GHI_LOAI_GIAY),
         Cot("Đơn vị giá", "don_vi_gia", rong=14),
         Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_doc_dvt_them, ghi=_ghi_dvt_them),
         Cot("Đơn giá", "don_gia", kieu="so", rong=16),
@@ -426,9 +435,8 @@ def _giu_bac_bu_hao(obj, _ctx: NguCanh) -> list[dict]:
 
 
 def _giu_may_cong_doan(obj, _ctx: NguCanh) -> list[dict]:
-    """Máy của công đoạn ĐANG CÓ — cùng lý do với `_giu_vat_tu_cong_doan`: `_sau_gan` cũng thay
-    TRỌN bảng `cong_doan_may`, sheet vắng mà không gán lại là xoá sạch công thức giờ/giá của
-    mọi máy."""
+    """Máy của công đoạn ĐANG CÓ — ghi lại y nguyên khi sheet vắng (`_ghi_may` upsert, không xoá
+    dòng nào, nên đây chỉ giữ thứ tự)."""
     return [{"may_id": m.may_id, "cong_thuc_gio": m.cong_thuc_gio,
              "cong_thuc_gia": m.cong_thuc_gia}
             for m in (getattr(obj, "may_lam_duoc", None) or [])]
@@ -464,14 +472,8 @@ CONG_DOAN = CatalogExcelSpec(
         Cot("Loại dụng cụ", "tooling_type", doc=_DOC_DUNG_CU, ghi=_GHI_DUNG_CU, rong=16),
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
-        # Cột đời cũ (một ô "Máy in, Bế") — nay là sheet con "Nhóm máy cho phép".
-        Cot("Nhóm máy cho phép", "nhom_may_cho_phep", chi_nhap=True, doc=_tach_danh_sach),
     ),
     sheets_con=(
-        SheetCon(
-            "Nhóm máy cho phép", field="nhom_may_cho_phep", rut_gon="ten",
-            cot=(Cot("Nhóm máy", "ten", rong=24),),
-        ),
         # Bậc bù hao: SHEET CON chứ không nén vào một ô JSON — đây chính là thứ người ta mở
         # file Excel ra để sửa. Mỗi bậc chỉ khai MỐC TRÊN; "Đến SL" để TRỐNG = bậc vô hạn, và nó
         # phải là dòng CUỐI (`cong_doan_service._kiem_bac_bu_hao` soi lại y như khi lưu ở màn).
@@ -494,6 +496,8 @@ CONG_DOAN = CatalogExcelSpec(
                      rong=22),),
             giu_khi_vang=_giu_vat_tu_cong_doan,
         ),
+        # Máy của công đoạn đi theo TỔ đã tick (mg `0435`) — sheet chỉ còn là chỗ sửa công thức
+        # giờ/giá theo máy. Dòng của máy ngoài phạm vi tổ bị bỏ qua khi nhập (`_ghi_may`).
         SheetCon(
             "Máy của công đoạn", field="may_lam_duoc",
             cot=(
@@ -512,6 +516,8 @@ CONG_DOAN = CatalogExcelSpec(
         "first_unit_floor", "inline_flag", "khoan_ghi_theo", "min_charge", "nang_suat",
         "rate_tiers", "run_rate", "setup_cost", "setup_time", "size_tiers", "spoilage_pct",
         "ten_hien_thi",
+        # Gỡ 22/10/2026: máy của công đoạn đi theo tổ, nhóm máy thôi lọc — cột còn, không ai đọc.
+        "nhom_may_cho_phep",
     }),
 )
 
@@ -631,6 +637,8 @@ MAY_THIET_BI = CatalogExcelSpec(
         Cot("Mã", "ma"),
         Cot("Tên", "ten", rong=32),
         Cot("Loại máy", "loai_may", rong=18),
+        # Tổ đứng máy (mg `0435`): NHIỀU tổ, "PB012, PB013".
+        *_cot_nhieu_to(field="to_ids", nhan="Mã tổ đứng máy", nhan_ten="Tổ đứng máy"),
         Cot("Hãng sản xuất", "hang_san_xuat", rong=20),
         Cot("Model", "model", rong=18),
         Cot("Số seri", "so_seri", rong=18),

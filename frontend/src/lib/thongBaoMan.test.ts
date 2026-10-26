@@ -16,5 +16,7 @@ describe("thongBaoMan", () => {
     expect(loiNhacCua("bao_gia_cho_duyet", "BG26-0001")).toBe("🔔 Báo giá BG26-0001 chờ bạn duyệt");
     expect(loiNhacCua("bao_gia_quyet_dinh", "BG26-0001")).toBeNull();
     expect(loiNhacCua("khong_biet", null)).toBeNull();
+    expect(loiNhacCua("kho_yeu_cau_phat_hanh", "LSX26-0007: 3 yêu cầu xuất mới"))
+      .toBe("🔔 LSX26-0007: 3 yêu cầu xuất mới chờ lập phiếu");
   });
 });

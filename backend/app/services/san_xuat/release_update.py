@@ -42,6 +42,8 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from ...models.san_xuat import (
+    BUOC_MAY,
+    BUOC_THUE_NGOAI,
     CV_PHAT_HANH,
     NHOM_DONG,
     GOI_DA_THU_HOI,
@@ -387,6 +389,18 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         # Việc GIA CÔNG NGOÀI không vào bàn tổ nào, không máy — giữ `may_id=None`, đừng gán đè.
         if may_id is not None and cv.gia_cong_ngoai_id is None:
             cv.may_id = may_id
+        # TỔ + MÁY của BƯỚC KẾ HOẠCH (spec máy thuộc tổ §4.8): lệnh xếp ở bàn cấp lệnh không có dòng
+        # lịch theo công đoạn nên `may_id` ở trên luôn None, còn tổ thì trước đây không dòng nào
+        # chép — người kế hoạch đổi bước sang tổ khác, bấm cập nhật mà bàn tổ y nguyên. Dòng lịch
+        # có máy (bàn xếp theo công đoạn cũ) vẫn thắng máy của bước. Việc đổi tổ rời bàn cũ sang
+        # bàn mới; `lsx_changed` của router nhích mọi bàn tổ nên cả hai bàn tự nạp.
+        buoc = cd_cua[cv.id]
+        # Bước loại Tổ cũng đổi tổ (như lần phát hành đầu ở `snapshot`); máy chỉ cho bước Máy.
+        if buoc is not None and cv.gia_cong_ngoai_id is None and cv.loai_buoc != BUOC_THUE_NGOAI:
+            if buoc.department_id is not None:
+                cv.department_id = buoc.department_id
+            if may_id is None and cv.loai_buoc == BUOC_MAY:
+                cv.may_id = buoc.may_id
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish
         cv.phien_ban_so = new_ver
@@ -401,6 +415,11 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
     dong_bo_lan_khi_cap_nhat(db, lsx_ids=lsx_ids, actor=actor)
     # Lần của bước CHUNG bài ghép (spec 2026-09-27) — cùng luật, nguồn là bài.
     dong_bo_lan_bai_ghep_khi_cap_nhat(db, bai_ghep_ids=bg_ids, actor=actor)
+    # Giờ cần của yêu cầu vật tư tự lập đi theo lịch mới (tổ đã sửa thì giữ) — trước audit, vì
+    # audit tự commit.
+    from .vat_tu_tu_lap import doi_can_luc_theo_lich
+
+    yeu_cau_doi_gio = doi_can_luc_theo_lich(db, goi_id=goi.id)
 
     AuditLogRepository(db).create(
         actor_user_id=actor_uid,
@@ -422,6 +441,7 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         "so_huy_phan_cong": so_huy_pc,
         # >0 ⇒ số lần chạy đã đổi sau phát hành; những việc đó KHÔNG được cập nhật, UI phải nói ra.
         "so_lech_phan_doan": so_lech_phan_doan,
+        "yeu_cau_doi_gio": yeu_cau_doi_gio,
     }
 
 
@@ -460,6 +480,11 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor, ly_do: str | None = 
     from ..gia_cong_ngoai.lan import huy_lan_cua_goi
 
     huy_lan_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
+    # Yêu cầu xuất vật tư kho chưa xuất thì huỷ (spec 2026-10-18 §4.5); id đi lên tầng gọi qua
+    # `db.info` để báo kho sau commit.
+    from .vat_tu_tu_lap import KHOA_YC_HUY, huy_khi_thu_hoi
+
+    db.info.setdefault(KHOA_YC_HUY, []).extend(huy_khi_thu_hoi(db, goi_id=goi.id, actor_id=actor_uid))
     goi.trang_thai = GOI_DA_THU_HOI
     goi.thu_hoi_ly_do = (ly_do or "").strip()[:500] or None
     goi.thu_hoi_at = datetime.now(timezone.utc)

@@ -404,7 +404,7 @@ def test_xuat_bang_con_ra_sheet_doc_duoc_khong_phai_json(client, seed_credential
 
     # Bậc đơn giá / Bậc theo khổ KHÔNG có ô nhập trên form (UI ép `size_tiers=[]`) ⇒ không ra file.
     assert "Bậc theo khổ" not in wb.sheetnames and "Bậc đơn giá" not in wb.sheetnames
-    assert [d[2] for d in _bang(wb["Nhóm máy cho phép"])[1]] == ["Bế"]
+    assert "Nhóm máy cho phép" not in wb.sheetnames, "máy đi theo tổ từ 22/10/2026 (mg `0435`)"
     assert [d[2:] for d in _bang(wb["Vật tư công đoạn"])[1]] == [[nen["vat_tu"]["ma"]]]
     assert "Đầu việc định mức" not in wb.sheetnames, "sheet của tầng đã gỡ (mg `0320`)"
 
@@ -934,7 +934,8 @@ def test_nhan_file_doi_cu_khong_co_meta_va_ten_cot_cu(client, seed_credentials):
                     headers=h).json()["items"][0]
     assert cd["ten"] == "Công đoạn đời cũ"
     assert cd["nhom"] == "finishing", "nhãn tiếng Việt của dropdown phải dịch được về mã"
-    assert cd["nhom_may_cho_phep"] == ["Bế", "Máy in"]
+    # Cột "Nhóm máy cho phép" đời cũ nay bị bỏ qua (máy đi theo tổ, mg `0435`) — file vẫn nhận.
+    assert cd["nhom_may_cho_phep"] != ["Bế", "Máy in"]
 
 
 def test_nhan_file_doi_cu_cua_may_voi_cot_json_tho(client, seed_credentials):

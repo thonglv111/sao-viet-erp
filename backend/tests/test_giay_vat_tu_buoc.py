@@ -1,7 +1,7 @@
-"""Giấy là vật tư của BƯỚC (18/10/2026, plan docs/superpowers/plans/2026-10-18-giay-la-vat-tu-cua-buoc.md).
+"""Giấy là vật tư của BƯỚC (18/10/2026) — nay chỉ còn migration 0419 và khung dựng phiếu dùng chung.
 
-Phiếu tính giá thôi chọn giấy ở mục "Giấy nguyên": giấy thêm vào công đoạn qua ô "Thêm vật tư"
-(`phieu_buoc_vat_tu.hang_loai = 'giay'`), `phieu_thanh_phan.giay_id` thành giấy chính dẫn xuất.
+Từ 24/10/2026 (spec 2026-10-24-chuan-bi-giay §4) giấy/sóng chọn lại ở SẢN PHẨM: mg 0445 đưa dòng giấy của
+bước lên `giay_id`/`song_id`, bước không mang giấy nữa — xem `test_giay_song_cap_san_pham.py`.
 """
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
@@ -71,7 +71,7 @@ def test_mg_0419_khong_buoc_in_thi_vao_buoc_dau_khong_buoc_thi_bo_qua():
     assert db.execute(text("SELECT giay_id FROM phieu_thanh_phan WHERE id = 11")).scalar() == 6
 
 
-# ============================ Lưu phiếu: máy chủ chốt giấy chính ============================
+# ============================ Lưu phiếu ============================
 import pytest  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
@@ -138,63 +138,24 @@ def _dong_buoc(tp_out) -> list[list[tuple]]:
     return [[(v["hang_loai"], v["vat_tu_id"]) for v in b["vat_tus"]] for b in tp_out["thanh_phams"]]
 
 
-def test_payload_cu_giay_id_thanh_dong_giay_o_buoc_in(client, h):
+def test_payload_giay_id_o_san_pham_buoc_khong_mang_giay(client, h):
     ids = _seed()
     out = _luu(client, h, _tp(ids, giay_id=ids["a"]))["thanh_phans"][0]
-    assert _dong_buoc(out) == [[("giay", ids["a"])], []]
+    assert _dong_buoc(out) == [[], []]
     assert out["giay_id"] == ids["a"]
-
-
-def test_giay_chi_o_buoc_can_la_giay_chinh(client, h):
-    ids = _seed()
-    out = _luu(client, h, _tp(ids, vt_can=[_giay(ids["b"])]))["thanh_phans"][0]
-    assert out["giay_id"] == ids["b"]
-
-
-def test_giay_o_buoc_in_thang_giay_buoc_sau(client, h):
-    ids = _seed()
-    out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])], vt_can=[_giay(ids["b"])]))["thanh_phans"][0]
-    assert out["giay_id"] == ids["a"]
-    assert _dong_buoc(out) == [[("giay", ids["a"])], [("giay", ids["b"])]]
-
-
-def test_xoa_dong_giay_thi_giay_chinh_ve_null(client, h):
-    ids = _seed()
-    p = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"])]))
-    r = client.put(f"/api/phieu-tinh-gia/{p['id']}",
-                   json={"thanh_phans": [_tp(ids)]}, headers=h)
-    assert r.status_code == 200, r.text
-    assert r.json()["thanh_phans"][0]["giay_id"] is None
 
 
 def test_giay_va_vat_tu_trung_id_khong_lan(client, h):
     ids = _seed()
     assert ids["vt"] == ids["a"]
-    out = _luu(client, h, _tp(ids, vt_in=[_giay(ids["a"]), {"vat_tu_id": ids["vt"]}]))
-    assert _dong_buoc(out["thanh_phans"][0])[0] == [("giay", ids["a"]), ("vat_tu", ids["vt"])]
+    out = _luu(client, h, _tp(ids, giay_id=ids["a"], vt_in=[{"vat_tu_id": ids["vt"]}]))
+    assert _dong_buoc(out["thanh_phans"][0])[0] == [("vat_tu", ids["vt"])]
     nvl = next(g for g in out["result"]["groups"] if g["idx"] == "nvl")["rows"]
-    ten = {r["loai"]: r["ten"] for r in nvl if r.get("buoc_idx") == 0}
+    ten = {r["loai"]: r["ten"] for r in nvl}
     assert "Ivory 300" in ten["giay"] and "Keo X" in ten["vat_tu"]
 
 
-def test_cau_hinh_tai_ban_cu_chuyen_giay_vao_buoc_in():
-    """Cấu hình tái bản chụp trước 18/10 (JSON trên mã thành phẩm) — `giay_id` không kèm dòng giấy."""
-    from app.services.ptg_giay_buoc import chuan_hoa_giay
-
-    nhom = {1: "finishing", 2: "print"}.get
-    cfg = {"giay_id": 9, "thanh_phams": [{"cong_doan_id": 1, "vat_tus": []},
-                                         {"cong_doan_id": 2, "vat_tus": [{"vat_tu_id": 4}]}]}
-    out = chuan_hoa_giay(cfg, nhom)
-    assert out["thanh_phams"][1]["vat_tus"][-1]["hang_loai"] == "giay"
-    assert out["thanh_phams"][1]["vat_tus"][-1]["vat_tu_id"] == 9
-    assert out["giay_id"] == 9
-    # Chuỗi rỗng: không có chỗ đặt, giữ nguyên giấy cấp sản phẩm.
-    assert chuan_hoa_giay({"giay_id": 9, "thanh_phams": []}, nhom)["giay_id"] == 9
-
-
-# ============================ Engine: tiền giấy theo bước ============================
-from math import ceil  # noqa: E402
-
+# ============================ Engine ============================
 from app.services.thanh_phan_engine import compute_phieu  # noqa: E402
 
 
@@ -212,74 +173,9 @@ def _tp_e(*buocs, **kw) -> dict:
             "thanh_phams": list(buocs), **kw}
 
 
-def _gy(gid, ten, *, gsm, don_gia, dv) -> dict:
-    return {"hang_loai": "giay", "vat_tu_id": gid, "ten": ten, "gsm": gsm, "don_gia": don_gia,
-            "don_vi_gia": dv, "he_so": 1.0, "goc": "kg" if dv == "kg" else "to"}
-
-
 def _dong_giay(res) -> list[dict]:
     return [r for r in next(g for g in res["groups"] if g["idx"] == "nvl")["rows"]
             if r.get("loai") == "giay"]
-
-
-def test_engine_giay_o_buoc_in_tinh_bang_giay_cap_san_pham_cu():
-    to = _gy(1, "Couche 300", gsm=300, don_gia=5000, dv="to")
-    moi = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
-        _buoc_e("In", "to", "to", nhom="print", hao=150, vat_tus=[to]),
-        _buoc_e("Cán", "to", "to", hao=50))])
-    cu = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
-        _buoc_e("In", "to", "to", nhom="print", hao=150), _buoc_e("Cán", "to", "to", hao=50),
-        don_gia_giay=5000, don_gia_don_vi="to", gsm=300, giay_ten="Couche 300")])
-    (g,) = _dong_giay(moi)
-    assert g["thanh_tien"] == _dong_giay(cu)[0]["thanh_tien"] > 0
-    assert g["buoc_idx"] == 0 and g["vat_tu_id"] == 1
-    # Lượng = SL vào của In, đếm tờ (in); khổ tờ in hiện cạnh tên giấy.
-    assert g["dinh_muc"] == moi["meta"]["components"][0]["to_dau_vao"] and g["dinh_muc_don_vi"] == "to"
-    assert (g["kho_rong"], g["kho_dai"]) == (430, 650)
-
-
-def test_engine_hai_loai_giay_hai_buoc_tinh_doc_lap():
-    a = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
-    b = _gy(2, "Carton 500", gsm=500, don_gia=10000, dv="kg")
-    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
-        _buoc_e("In", "to", "to", nhom="print", hao=150, vat_tus=[a]),
-        _buoc_e("Bồi", "to", "to", hao=50, vat_tus=[b]))])
-    m = res["meta"]["components"][0]
-    vao_boi = next(x["vao"] for x in m["bu_hao_chi_tiet"] if x["ten"] == "Bồi")
-    ga, gb = _dong_giay(res)
-    assert ga["thanh_tien"] == round(0.3 * 0.86 * 0.65 * 20000 * m["to_nguyen"], 2)
-    assert gb["thanh_tien"] == round(0.5 * 0.86 * 0.65 * 10000 * ceil(vao_boi / 2), 2)
-    # Tiền theo công thức giá kg của mã; LƯỢNG theo đầu vào của bước (Bồi nhận tờ in ⇒ tờ).
-    assert gb["dinh_muc"] == vao_boi and gb["dinh_muc_don_vi"] == "to" and gb["buoc_idx"] == 1
-
-
-def test_engine_giay_o_buoc_vao_cai_tinh_kg_theo_kho_cai():
-    """Bước nhận cái: kg = định lượng × khổ thành phẩm × SL vào; tiền = kg × đơn giá kg."""
-    g = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
-    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
-        _buoc_e("In", "to", "to", nhom="print"), _buoc_e("Bế", "to", "cai"),
-        _buoc_e("Đóng gói", "cai", "cai", vat_tus=[g]))])
-    (d,) = _dong_giay(res)
-    vao = next(x["vao"] for x in res["meta"]["components"][0]["bu_hao_chi_tiet"] if x["ten"] == "Đóng gói")
-    kg = 0.3 * 0.09 * 0.054 * vao
-    assert d["dinh_muc_don_vi"] == "kg" and d["dinh_muc"] == round(kg, 4)
-    assert d["thanh_tien"] == round(kg * 20000, 2)
-    assert (d["kho_rong"], d["kho_dai"]) == (54, 90)
-
-
-def test_engine_giay_o_buoc_dau_vao_trong_tinh_kg_theo_buoc_ke_tiep():
-    """Cắt cuộn ("—") → In: SL ra của Cắt cuộn = tờ in In nhận ⇒ kg theo khổ tờ in, không hiện khổ."""
-    g = _gy(1, "Ivory 300", gsm=300, don_gia=20000, dv="kg")
-    res = compute_phieu(so_luong=5000, thanh_phans=[_tp_e(
-        _buoc_e("Cắt cuộn", None, None, vat_tus=[g]),
-        _buoc_e("In", "to", "to", nhom="print", hao=150))])
-    (d,) = _dong_giay(res)
-    to_in = res["meta"]["components"][0]["to_dau_vao"]
-    kg = 0.3 * 0.65 * 0.43 * to_in
-    assert d["dinh_muc_don_vi"] == "kg" and d["dinh_muc"] == round(kg, 4)
-    assert d["thanh_tien"] == round(kg * 20000, 2)
-    assert (d["kho_rong"], d["kho_dai"]) == (0, 0)
-    assert "sl_ra" in d["dinh_muc_cong_thuc_goc"]
 
 
 def test_engine_chuoi_khong_giay_thi_khong_dong_giay_va_nhac():

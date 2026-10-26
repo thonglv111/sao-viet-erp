@@ -23,6 +23,7 @@ import {
   congPhut, gio, gioChu, moc, quangDongHo, soNgayDu, thuNgay, thuNgayGio, type XlPhanTachNghi,
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
+import { nhanChang } from "./lsxBuoc";
 import { cauChuaTinhGio, goiDaThuHoi, soBuocChuaGio } from "./xlNganSo";
 
 /** Bộ màu + biểu tượng theo loại bước — cùng bộ của lưới (`.xa-m-*`). */
@@ -259,7 +260,10 @@ export function XlNgan({
   if (!ct) {
     return (
       <NganPhai tieuDe={dangTai ? "Đang tải lệnh" : "Không mở được lệnh"} onDong={onDong} len={len} xuong={xuong}>
-        <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
+        {dangTai
+          ? <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
+          : <EmptyState trangThai="loi" inline tieuDeLoi="Không tải được lệnh sản xuất"
+              loi="Đóng ngăn rồi mở lại lệnh." />}
       </NganPhai>
     );
   }
@@ -269,7 +273,8 @@ export function XlNgan({
   const daDong = ct.trang_thai === "da_dong";
   const soDaBatDau = goi?.co_goi ? (goi.so_da_bat_dau ?? 0) : 0;
   const khoaThuHoi = !!goi?.co_goi && goi.cho_phep_thu_hoi === false;
-  const capNhatDuoc = !!goi?.co_goi && goi.cho_phep_cap_nhat === true && soDaBatDau > 0;
+  // Chưa việc nào chạy vẫn dời lịch được bằng cập nhật — máy chủ chỉ đòi còn việc chưa bắt đầu (L-SX-12).
+  const capNhatDuoc = !!goi?.co_goi && goi.cho_phep_cap_nhat === true;
   const daChayDo = ct.co_thuc_te && !!ct.thuc_bat_dau_lenh;
   const daXongHet = ct.co_thuc_te && ct.so_buoc > 0 && ct.so_buoc_xong >= ct.so_buoc && !!ct.ket_thuc_thuc_te;
   const ketThuc = ct.ket_thuc_thuc_te ?? ct.ket_thuc;
@@ -284,13 +289,16 @@ export function XlNgan({
   const doi = (phut: number) => { if (ct.bat_dau_at) onDoiGio(congPhut(ct.bat_dau_at, phut)); };
 
   // ---------------------------------------------------------------- số tổng
+  // `chay`/`cho` là phút của KẾ HOẠCH ⇒ chia phần trăm theo khung kế hoạch. Lệnh đã xong mà chia
+  // cho quãng thực tế là đem hai hệ đo khác nhau ra chia (xưởng làm nhanh 12 phút ⇒ "máy chạy 1608%").
+  const tongKh = daXep ? Math.max(0, ((moc(ct.ket_thuc) ?? 0) - (moc(ct.bat_dau_at) ?? 0)) / 60_000) : 0;
   const tong = daXongHet
     ? Math.max(0, ((moc(ct.ket_thuc_thuc_te) ?? 0) - (moc(ct.thuc_bat_dau_lenh) ?? 0)) / 60_000)
-    : daXep ? Math.max(0, ((moc(ct.ket_thuc) ?? 0) - (moc(ct.bat_dau_at) ?? 0)) / 60_000) : 0;
+    : tongKh;
   const chay = ct.chay_phut || 0;
   const cho = ct.cho_phut || 0;
-  const nghi = Math.max(0, tong - chay - cho);
-  const pt = (v: number) => (tong > 0 ? Math.round((v / tong) * 100) : 0);
+  const nghi = Math.max(0, tongKh - chay - cho);
+  const pt = (v: number) => (tongKh > 0 ? Math.min(100, Math.round((v / tongKh) * 100)) : 0);
   const dem = soDem(ct.bat_dau_at, ct.ket_thuc);
   // Bước 0 phút vì thiếu dữ kiện ⇒ ngày xong chỉ là mốc sớm nhất, đừng tô nó như số chắc (#24).
   const cauThieuGio = daXongHet || !daXep ? null : cauChuaTinhGio(soBuocChuaGio(ct.cong_doans));
@@ -342,7 +350,7 @@ export function XlNgan({
       <div className="xa-b-o"><div className="xa-b-o__n"><Clock size={13} />Từ đầu tới xong</div>
         <div className="xa-b-o__g">{tong > 0 ? quangDongHo(tong) : "—"}</div></div>
       <div className="xa-b-o"><div className="xa-b-o__n"><PlayCircle size={13} />Máy chạy</div>
-        <div className="xa-b-o__g">{chay > 0 ? gioChu(chay) : "—"}{tong > 0 && chay > 0 && <span className="xa-mo2 xa-b-pt">{pt(chay)}%</span>}</div></div>
+        <div className="xa-b-o__g">{chay > 0 ? gioChu(chay) : "—"}{tongKh > 0 && chay > 0 && <span className="xa-mo2 xa-b-pt">{pt(chay)}%</span>}</div></div>
       {ct.han_hoan_thanh_sx && oHan("Hạn xong sản xuất", ct.han_hoan_thanh_sx, <Target size={13} />)}
       {oHan("Hạn giao khách", ct.han_giao_khach, <Truck size={13} />)}
     </div>
@@ -442,7 +450,8 @@ export function XlNgan({
     return (
       <div key={c.id} className={`xa-b-hang${choPhut > 0 ? " xa-b-hang--cho" : ""}`}>
         <div className="xa-b-ten">
-          <span className="xa-b-stt">{c.thu_tu}</span>
+          {/* `thu_tu` của bước lệnh đếm từ 0 — người đọc đếm từ 1 như bàn tổ ("bước 4 trên 5"). */}
+          <span className="xa-b-stt">{c.thu_tu + 1}</span>
           <span className={`xa-oic xa-b-oic ${t.mau}`}>{t.ic}</span>
           <span className="xa-b-cot">
             <span className="xa-b-t" title={c.ten}>{c.ten}
@@ -457,7 +466,7 @@ export function XlNgan({
           </span>
         </div>
         <div className="xa-b-sl">
-          {sl ? <><span>{sl}</span><span className="xa-b-dv">{c.don_vi_vao_ten ?? c.don_vi_vao ?? ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
+          {sl ? <><span>{sl}</span><span className="xa-b-dv">{nhanChang(c.don_vi_vao) || c.don_vi_vao_ten || ""}</span></> : <span className="xa-mo2" title="Chưa khai số lượng vào">—</span>}
         </div>
         <div className="xa-b-gio">{nhanGio}</div>
         <div className="xa-b-truc">{truCot}</div>
@@ -494,12 +503,12 @@ export function XlNgan({
         : ct.cong_doans.map(dongBuoc)}
       {truc && (
         <div className="xa-b-chu">
-          <span><i className="xa-b-ct xa-b-ct--chay" />Máy chạy {chay > 0 ? gioChu(chay) : "0 phút"}{tong > 0 && <span className="xa-mo2"> {pt(chay)}%</span>}</span>
+          <span><i className="xa-b-ct xa-b-ct--chay" />Máy chạy {chay > 0 ? gioChu(chay) : "0 phút"}{tongKh > 0 && <span className="xa-mo2"> {pt(chay)}%</span>}</span>
           {coTo && <span><i className="xa-b-ct xa-b-ct--to" />Tổ làm</span>}
-          {(coCho || cho > 0) && <span><i className="xa-b-ct xa-b-ct--cho" />Chờ lệnh khác {quangDongHo(cho)}{tong > 0 && <span className="xa-mo2"> {pt(cho)}%</span>}</span>}
+          {(coCho || cho > 0) && <span><i className="xa-b-ct xa-b-ct--cho" />Chờ lệnh khác {quangDongHo(cho)}{tongKh > 0 && <span className="xa-mo2"> {pt(cho)}%</span>}</span>}
           {nghi > 0 && (
             <span><i className="xa-b-ct xa-b-ct--gach" />{dem > 0 && !(phanTach?.ngay_nghi_phut) ? `Ngoài ca ${dem} đêm` : "Nghỉ và ngoài ca"} {quangDongHo(nghi)}
-              {tong > 0 && <span className="xa-mo2"> {Math.max(0, 100 - pt(chay) - pt(cho))}%</span>}</span>
+              {tongKh > 0 && <span className="xa-mo2"> {Math.max(0, 100 - pt(chay) - pt(cho))}%</span>}</span>
           )}
           {phanTach && phanTach.nghi_giua_ca_phut > 0 && <span className="xa-mo">nghỉ giữa ca {gioChu(phanTach.nghi_giua_ca_phut)}</span>}
           {soNghiTuan > 0 && <span className="xa-mo">{soNghiTuan} ngày nghỉ tuần</span>}
@@ -543,7 +552,9 @@ export function XlNgan({
         <span className="xa-chip-dau"><FileText size={13} />{ct.so_to_ke_hoach.toLocaleString("vi-VN")} tờ in</span>
         {ct.so_con > 1 && <span className="xa-chip-dau">{ct.so_con} con một tờ</span>}
         {ct.so_kem && <span className="xa-chip-dau"><Layers size={13} />{ct.so_kem} tấm kẽm</span>}
-        {ct.giay ? <span className="xa-chip-dau">{ct.giay}</span> : <span className="xa-chip-dau xa-mo">Chưa chọn giấy</span>}
+        {/* Mỗi giấy khai ở bước một chip; lệnh cũ chưa khai giấy ở bước thì rơi về giấy của quy cách. */}
+        {(ct.giays?.length ? ct.giays : ct.giay ? [ct.giay] : []).map((g) => <span key={g} className="xa-chip-dau">{g}</span>)}
+        {!ct.giays?.length && !ct.giay && <span className="xa-chip-dau xa-mo">Chưa chọn giấy</span>}
         {ct.kho_in && <span className="xa-chip-dau">khổ {ct.kho_in}</span>}
         {ct.so_mau && <span className="xa-chip-dau">{ct.so_mau} màu</span>}
         {vatTu && vatTu.muc !== "ok" && <span className={`xa-nho ${vatTu.muc === "do" ? "xa-nho--do" : "xa-nho--vang"}`}>{vatTu.chu}</span>}

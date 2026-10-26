@@ -18,6 +18,7 @@ from ..models.order import (
     EXC_BELOW_COST,
     EXC_DISCOUNT_OUT,
     EXC_HIGH_VALUE,
+    EXC_KE_OUT,
     EXC_LOW_MARGIN,
     EXC_MARKUP_OUT,
 )
@@ -34,6 +35,7 @@ _LABELS = {
     EXC_BELOW_COST: "Bán dưới giá vốn",
     EXC_DISCOUNT_OUT: "Chiết khấu ngoài mức cho phép của khách",
     EXC_MARKUP_OUT: "Markup ngoài mức cho phép của khách",
+    EXC_KE_OUT: "Kê ngoài mức cho phép của khách",
 }
 
 
@@ -77,6 +79,10 @@ def evaluate_quote(
     markup_min_pct: float | None = None,
     markup_max_pct: float | None = None,
     discount_lines: list[dict] | None = None,
+    ke_amount: float = 0.0,
+    ke_lines: list[dict] | None = None,
+    ke_min_pct: float | None = None,
+    ke_max_pct: float | None = None,
     high_value_threshold: int = DEFAULT_HIGH_VALUE_THRESHOLD,
 ) -> dict:
     """Cổng đặc thù cho **BÁO GIÁ** — rào theo TỪNG KHÁCH HÀNG (Đơn hàng vẫn dùng `evaluate` ngưỡng chung).
@@ -94,9 +100,14 @@ def evaluate_quote(
 
     `subtotal` = NET (sau CK, trước VAT); `subtotal_gross` = tổng giá bán TRƯỚC CK (base %CK);
     `discount_amount` = tổng chiết khấu; `total_gross` = gồm VAT (mốc quy mô); `cost` = giá vốn
-    (base markup — cost ≤ 0 thì KHÔNG soi được markup, bỏ qua cổng đó)."""
+    (base markup — cost ≤ 0 thì KHÔNG soi được markup, bỏ qua cổng đó).
+
+    KÊ GIÁ (20/10/2026): `subtotal` KHÔNG gồm kê (markup soi trên giá bán), `ke_amount` = Σ kê. Giá
+    trị cao soi `subtotal + ke_amount` (số lên hoá đơn). **Kê ngoài rào** của khách (% trên GIÁ BÁN)
+    soi TỪNG sản phẩm trong `ke_lines` ([{ten, ban, ke}]); rào None bỏ chiều đó."""
     triggers: list[dict] = []
-    if subtotal > 0 and subtotal >= high_value_threshold:
+    tong_hd = subtotal + float(ke_amount or 0)
+    if tong_hd > 0 and tong_hd >= high_value_threshold:
         triggers.append({"key": EXC_HIGH_VALUE, "label": _LABELS[EXC_HIGH_VALUE]})
 
     markup_pct = None
@@ -112,10 +123,12 @@ def evaluate_quote(
             if below or above:
                 triggers.append({"key": EXC_MARKUP_OUT, "label": _LABELS[EXC_MARKUP_OUT]})
 
-    def _ngoai_rao(disc: float, gross: float) -> bool:
-        d100 = float(disc) * 100
-        return (discount_min_pct is not None and d100 < discount_min_pct * gross) or (
-            discount_max_pct is not None and d100 > discount_max_pct * gross)
+    def _ngoai_rao(disc: float, gross: float, n: int = 1) -> bool:
+        # Tiền CK làm tròn tới đồng từng dòng (3% × 12.448.133 = 373.443,99 ⇒ 373.444) ⇒ chừa 1 đ mỗi
+        # dòng, không thì gõ đúng trần vẫn bị bắt trình duyệt.
+        d100, tol = float(disc) * 100, 100 * max(1, n)
+        return (discount_min_pct is not None and d100 < discount_min_pct * gross - tol) or (
+            discount_max_pct is not None and d100 > discount_max_pct * gross + tol)
 
     disc_pct = None
     if subtotal_gross and subtotal_gross > 0:
@@ -124,12 +137,23 @@ def evaluate_quote(
         # Chiết khấu gõ RIÊNG từng sản phẩm → rào soi từng sản phẩm: một dòng 40% không được lọt
         # chỉ vì bình quân cả đơn thấp. Nhãn nêu tên sản phẩm lệch rào.
         lech = [ln["ten"] for ln in discount_lines
-                if ln["gross"] > 0 and _ngoai_rao(ln["discount"], ln["gross"])]
+                if ln["gross"] > 0 and _ngoai_rao(ln["discount"], ln["gross"], ln.get("n", 1))]
         if lech:
             triggers.append({"key": EXC_DISCOUNT_OUT,
                              "label": f"{_LABELS[EXC_DISCOUNT_OUT]}: {', '.join(lech)}"})
     elif subtotal_gross and subtotal_gross > 0 and _ngoai_rao(discount_amount, subtotal_gross):
         triggers.append({"key": EXC_DISCOUNT_OUT, "label": _LABELS[EXC_DISCOUNT_OUT]})
+
+    if ke_min_pct is not None or ke_max_pct is not None:
+        def _ke_ngoai(ke: float, ban: float, n: int = 1) -> bool:
+            # Tiền kê làm tròn tới đồng từng dòng như CK ⇒ cùng biên 1 đ mỗi dòng (L-VAI-30).
+            k100, tol = float(ke) * 100, 100 * max(1, n)
+            return (ke_min_pct is not None and k100 < ke_min_pct * ban - tol) or (
+                ke_max_pct is not None and k100 > ke_max_pct * ban + tol)
+        lech = [ln["ten"] for ln in (ke_lines or [])
+                if ln["ban"] > 0 and _ke_ngoai(ln["ke"], ln["ban"], ln.get("n", 1))]
+        if lech:
+            triggers.append({"key": EXC_KE_OUT, "label": f"{_LABELS[EXC_KE_OUT]}: {', '.join(lech)}"})
 
     return {
         "subtotal": subtotal,
@@ -142,6 +166,9 @@ def evaluate_quote(
         "disc_pct": disc_pct,
         "discount_min_pct": discount_min_pct,
         "discount_max_pct": discount_max_pct,
+        "ke_amount": float(ke_amount or 0),
+        "ke_min_pct": ke_min_pct,
+        "ke_max_pct": ke_max_pct,
         "triggers": triggers,
     }
 

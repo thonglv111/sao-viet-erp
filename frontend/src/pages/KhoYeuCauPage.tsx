@@ -66,7 +66,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
-import { chuanKho, coDonViGoc, nhanKhoGiay } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, nhanKhoGiay, toTuKg } from "../lib/khoGiay";
 import { khoaTonKho } from "../auth/quyenKho";
 import {
   LOC_MAN_YCK_TRONG,
@@ -577,7 +577,7 @@ function OYeuCauKho({ cot, r, onLapPhieu }: { cot: string; r: StockRequest; onLa
       const daCo = r.lines.some((l) => l.sl_da_ung > 0);
       return (
         <td className="lds-nut" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-          {FULFILLABLE.includes(r.trang_thai) && (
+          {FULFILLABLE.includes(r.trang_thai) && !(r.san_xuat_lenh_thu_hoi && r.open_voucher_id == null) && (
             <button type="button" className={r.open_voucher_id != null || daCo ? "lds-btn" : "btn btn--accent"}
               onClick={() => onLapPhieu(r)}>
               {r.open_voucher_id != null ? "Xem phiếu" : daCo ? "Lập phiếu tiếp" : "Lập phiếu"}
@@ -1143,6 +1143,8 @@ export function InboxRequestDrawer({
   }, [taiLai, reload]);
 
   const canFulfill = canCreate && req != null && FULFILLABLE.includes(req.trang_thai);
+  // Lệnh đã thu hồi phát hành (L-SX-14): máy chủ chặn lập / ghi sổ phiếu tiếp tới khi phát hành lại.
+  const lapDuoc = canFulfill && !(req.san_xuat_lenh_thu_hoi && req.open_voucher_id == null);
   const nhap = req?.loai === "NHAP";
   const dongYc = req?.lines ?? [];
   // Giá bán (tham khảo) — CỘT RIÊNG, chỉ dựng khi có dòng thành phẩm mang giá bán.
@@ -1192,7 +1194,7 @@ export function InboxRequestDrawer({
               )}
               {thaoTac?.(req)}
               {/* Kho đi thẳng "Chờ xử lý → Lập phiếu"; phiếu tự chuyển yêu cầu sang "đang chuẩn bị". */}
-              {canFulfill && (
+              {lapDuoc && (
                 <button type="button" className={`kna-nut${req.open_voucher_id != null ? "" : " kna-nut--chinh"}`}
                   onClick={() => onCreateVoucher(req)}>
                   {req.open_voucher_id != null ? (
@@ -2409,11 +2411,22 @@ function AllocRow({
   const slChuaGia = isNhap ? 0 : block.lots.reduce((s, x) => s + (x.chua_gia_goc ? x.so_luong : 0), 0);
 
   // Con số THẬT SỰ vào tồn — nhập "10 ram" mà lô ghi 419,25 kg thì phải nói ra ngay đây.
+  // Giấy tờ khai kg: tính lại theo số gõ + khổ thực nhận, làm tròn xuống như lúc ghi sổ — nhân hệ số
+  // của số đề nghị (đã làm tròn) là ra tờ lẻ / lệch 1 tờ.
+  const [rNhan, dNhan] = chuanKho(block.khoRong, block.khoDai);
+  const toNhan = l.kg_moi_dvt != null && l.gsm != null
+    ? toTuKg(block.cap * l.kg_moi_dvt, rNhan, dNhan, l.gsm) : undefined;
   const quyDoiHint =
-    isNhap && block.heSoVeGoc !== 1 && block.cap > 0 && l.don_vi_goc ? (
+    isNhap && block.heSoVeGoc !== 1 && block.cap > 0 && l.don_vi_goc && toNhan !== null ? (
       <div className="kna-phu__goi">
-        Vào tồn {fmtQty(block.cap * block.heSoVeGoc)} {tenDv(l.don_vi_goc)}
-        {l.quy_doi_dien_giai ? <> ({l.quy_doi_dien_giai})</> : null}
+        {toNhan === undefined ? (
+          <>
+            Vào tồn {fmtQty(block.cap * block.heSoVeGoc)} {tenDv(l.don_vi_goc)}
+            {l.quy_doi_dien_giai ? <> ({l.quy_doi_dien_giai})</> : null}
+          </>
+        ) : (
+          <>Vào tồn {fmtQty(toNhan)} {tenDv(l.don_vi_goc)} (làm tròn xuống theo khổ thực nhận)</>
+        )}
       </div>
     ) : null;
   // Cấp/nhập ÍT HƠN còn phải cấp → BẮT BUỘC nhập lý do; hiện ở ngăn yêu cầu.

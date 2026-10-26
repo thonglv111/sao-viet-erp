@@ -26,7 +26,7 @@ from app.models.lsx import (
     TT_SAN_SANG,
     LsxCongDoan,
 )
-from app.models.may_thiet_bi import MayThietBi
+from app.models.may_thiet_bi import MayThietBi, MayTo
 from app.models.phieu_tinh_gia import (
     PhieuChiPhiKhac,
     PhieuThanhPhan,
@@ -115,6 +115,7 @@ def _ptg_sach(db, *, so_cuon=2_000, so_trang=160, trang_moi_tay=16) -> PhieuTinh
     ]
     db.add_all(cds)
     db.flush()
+    _may_vao_cong_doan(db, may, cds[:1], to_id)
 
     p = PhieuTinhGia(ma="PTG-SACH-0001", ten_san_pham="Sách A5", so_luong=so_cuon)
     ruot = PhieuThanhPhan(
@@ -416,6 +417,16 @@ def _may_in(db) -> MayThietBi:
     return may
 
 
+def _may_vao_cong_doan(db, may, cds, to_id: int) -> None:
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0435`): cho máy vào tổ rồi đồng bộ bảng
+    máy của các công đoạn đó — đúng như người dùng khai "Tổ đứng máy" ở danh mục Thiết bị."""
+    from app.services.may_to import dong_bo_cong_doan_may
+
+    if db.get(MayTo, (may.id, to_id)) is None:
+        db.add(MayTo(may_id=may.id, department_id=to_id))
+    dong_bo_cong_doan_may(db, cong_doan_ids=[c.id for c in cds], may_ids=[may.id])
+
+
 def _khai(db, cd, vt, ct, *, ptg=None, ten_buoc="Dán hộp", chip=None):
     """Khai định mức của vật tư (công thức nằm ở CHÍNH vật tư, 01/10/2026) + vật tư thuộc công đoạn
     trong danh mục; có `ptg` thì gắn luôn vào bước tương ứng của PHIẾU (nguồn BOM lúc tạo lệnh)."""
@@ -449,6 +460,7 @@ def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
     # Đơn vị KHAI ở danh mục — lệnh chỉ kế thừa. Không khai = bước không chạm giấy (chế bản).
     cd_in.don_vi_vao = cd_in.don_vi_ra = "to"
     db.flush()
+    _may_vao_cong_doan(db, may, [cd_in], to_id)
     # Đơn vị vào/ra là KHAI BÁO, không suy từ tên: bế = ranh giới tờ in → con, dán hộp đếm con.
     # `requires_tooling` cũng vậy — checklist "thiếu khuôn" đọc CỜ này, không dò chữ "bế" trong tên
     # (công đoạn do người dùng khai lúc chạy, tên gì cũng có thể).
@@ -468,7 +480,8 @@ def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
     hop = PhieuThanhPhan(
         thu_tu=0, ten="Hộp bánh 500g", so_luong=sl_hop, don_vi_tinh="cái",
         dai_thanh_pham=200, rong_thanh_pham=150,
-        giay_id=giay.id, kho_nguyen_dai=790, kho_nguyen_rong=1090,
+        # Khổ nguyên = khổ in ⇒ không chèn Tề giấy in (chuẩn bị giấy §7), routing giữ đúng chuỗi PTG.
+        giay_id=giay.id, kho_nguyen_dai=650, kho_nguyen_rong=900,
         kho_in_dai=650, kho_in_rong=900, so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat",
         ghi_chu_ky_thuat="Canh màu như mẫu", may_id=may.id,
     )
@@ -479,7 +492,7 @@ def _ptg_2_san_pham(db, *, sl_hop=20_000, sl_tem=35_000) -> PhieuTinhGia:
     tem = PhieuThanhPhan(
         thu_tu=1, ten="Tem nhãn", so_luong=sl_tem, don_vi_tinh="cái",
         dai_thanh_pham=60, rong_thanh_pham=40,
-        giay_id=giay.id, kho_nguyen_dai=790, kho_nguyen_rong=1090,
+        giay_id=giay.id, kho_nguyen_dai=650, kho_nguyen_rong=900,
         kho_in_dai=650, kho_in_rong=900, so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat",
     )
     tem.thanh_phams.append(PhieuThanhPham(thu_tu=0, cong_doan_id=cd_be.id, ten="Bế", don_gia=30))
@@ -858,7 +871,11 @@ def _khai_ct_gio(db, lsx_svc, cong_doan_id, may_id, ct: str) -> None:
     """
     from app.models.cong_doan import CongDoanMay
 
-    db.add(CongDoanMay(cong_doan_id=cong_doan_id, may_id=may_id, cong_thuc_gio=ct))
+    dong = db.query(CongDoanMay).filter_by(cong_doan_id=cong_doan_id, may_id=may_id).one_or_none()
+    if dong is None:
+        db.add(CongDoanMay(cong_doan_id=cong_doan_id, may_id=may_id, cong_thuc_gio=ct))
+    else:
+        dong.cong_thuc_gio = ct
     db.commit()
     getattr(lsx_svc, "_ct_gio_cache", {}).clear()
 
@@ -1034,6 +1051,12 @@ def test_buoc_bung_ra_luon_la_may_khong_doan_theo_ten(db, orders, lsx_svc, admin
     người sau đừng "tiện tay" khai lại một bảng từ khoá mới.
     """
     ptg = _ptg_2_san_pham(db)
+    # Công đoạn mà tổ chưa có máy thì bước ra loại Tổ (23/10/2026, `test_lsx_may_to`) — đó là luật
+    # theo MÁY, không theo tên. Cho Bế + Dán một máy của tổ để soi đúng hợp đồng "không đoán theo tên".
+    cd_be = db.query(CongDoan).filter(CongDoan.ma == "CD-BE-T").one()
+    cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
+    _may_vao_cong_doan(db, _may_cat_cuon(db), [cd_be, cd_dan], cd_dan.department_ids[0])
+    db.commit()
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
     hop = lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]
@@ -1064,6 +1087,7 @@ def _ptg_mot_buoc_in(db, *, may_cua_phieu, may_lam_duoc) -> PhieuTinhGia:
     db.flush()
     for m in may_lam_duoc:
         db.add(CongDoanMay(cong_doan_id=cd_in.id, may_id=m.id, cong_thuc_gio="sl_vao"))
+        db.add(MayTo(may_id=m.id, department_id=to_id))  # máy thuộc tổ của công đoạn (mg 0435)
     db.flush()
 
     p = PhieuTinhGia(ma="PTG-MAYIN-0001", ten_san_pham="Thẻ nhân viên", so_luong=500)
@@ -1137,17 +1161,20 @@ def test_may_in_phieu_bo_trong_thi_dien_may_mac_dinh_cua_cong_doan(
     assert buoc_in.may_id == mays[0].id
 
 
-def test_may_in_cong_doan_chua_khai_may_nao_thi_tin_phieu(
+def test_may_in_cong_doan_co_to_ma_to_chua_co_may_thi_buoc_trong_may(
     db, orders, lsx_svc, admin, customer
 ):
-    """Công đoạn In chưa khai bảng máy ⇒ không có gì đối chiếu, máy của phiếu xuống thẳng bước In."""
+    """Công đoạn In tick tổ mà tổ chưa có máy nào ⇒ bước In TRỐNG máy, kể cả phiếu có chọn máy.
+
+    Máy đi theo tổ (spec máy thuộc tổ §4.10): nhánh cũ "công đoạn chưa khai máy ⇒ tin phiếu" gỡ khi
+    công đoạn có tổ — chép máy không thuộc tổ xuống là đẻ ra cặp tổ/máy lệch ngay lúc tạo lệnh."""
     phieu_chon = _may_in(db)
     ptg = _ptg_mot_buoc_in(db, may_cua_phieu=phieu_chon, may_lam_duoc=[])
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     line = lsx_svc.preview(d.id)["lines"][0]
     lsx = lsx_svc.get(lsx_svc.tao(order_id=d.id, order_line_ids=[line["order_line_id"]],
                                   actor=admin)[0].id)
-    assert {c.ten: c for c in lsx.cong_doans}["In AB"].may_id == phieu_chon.id
+    assert {c.ten: c for c in lsx.cong_doans}["In AB"].may_id is None
 
 
 def test_danh_sach_va_preview_gui_kem_don_vi_theo_tung_dong(
@@ -1308,8 +1335,9 @@ def test_doi_cong_doan_cua_buoc_thi_luu_xong_bung_lai_vat_tu_theo_cong_doan_moi(
             cong_doan_id=cd_may.id if cd.step_key == buoc.step_key else cd.cong_doan_id,
             ten="Dán hộp máy" if cd.step_key == buoc.step_key else cd.ten,
             nhom=cd.nhom, department_id=cd.department_id, loai_buoc=cd.loai_buoc,
-            vat_tus=([{"vat_tu_id": bang.id, "so_luong": 3, "tu_dong": False}]
-                     if cd.step_key == buoc.step_key else None),
+            # Bước khác KHÔNG gửi `vat_tus` (gửi None = xoá sạch) — Tề giấy in mang giấy máy gắn.
+            **({"vat_tus": [{"vat_tu_id": bang.id, "so_luong": 3, "tu_dong": False}]}
+               if cd.step_key == buoc.step_key else {}),
         )
         for cd in sorted(lsx.cong_doans, key=lambda c: c.thu_tu)
     ]
@@ -2715,8 +2743,10 @@ def test_doi_may_thi_thoi_luong_theo_may_moi(
         don_vi_toc_do="to_gio",
     )
     db.add(may_moi)
-    db.commit()
+    db.flush()
     muc_tieu = next(x for x in hop.cong_doans if x.loai_buoc == "may")
+    _may_vao_cong_doan(db, may_moi, [db.get(CongDoan, muc_tieu.cong_doan_id)], muc_tieu.department_id)
+    db.commit()
 
     lsx_svc.replace_routing(lsx_id=hop.id, actor=admin, rows_in=[
         LsxCongDoanIn(
@@ -3244,6 +3274,9 @@ def test_xem_truoc_buoc_doi_LOAI_va_SO_GIO_thi_so_doi_theo_form(
     """
     ptg = _ptg_2_san_pham(db)
     cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
+    # Tổ của Dán phải có máy thì bước mới ra loại Máy (23/10/2026).
+    _may_vao_cong_doan(db, _may_cat_cuon(db), [cd_dan], cd_dan.department_ids[0])
+    db.commit()
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     line = lsx_svc.preview(d.id)["lines"][0]
     lsx = lsx_svc.get(lsx_svc.tao(order_id=d.id, order_line_ids=[line["order_line_id"]],
@@ -3423,8 +3456,14 @@ def test_go_may_khoi_cong_doan_thi_bao_may_dang_gan_khong_con_thuoc(
 
     lsx, cd_be = _lenh_co_buoc_dan(db, orders, lsx_svc, admin, customer)
     may = db.query(MayThietBi).filter(MayThietBi.ma == "MAY-IN-T").one()
-    # Công đoạn CHỈ khai một máy khác ⇒ máy đang gán ở bước rơi ra ngoài danh sách.
-    db.add(CongDoanMay(cong_doan_id=cd_be.id, may_id=may.id + 999))
+    # Công đoạn CHỈ khai một máy khác (thuộc tổ của công đoạn, mg 0435) ⇒ máy đang gán ở bước rơi
+    # ra ngoài danh sách.
+    khac = MayThietBi(ma="MAY-KHAC-T", ten="Máy khác", loai_may="Dán hộp", active=True)
+    db.add(khac)
+    db.flush()
+    for d in cd_be.department_ids:
+        db.add(MayTo(may_id=khac.id, department_id=d))
+    db.add(CongDoanMay(cong_doan_id=cd_be.id, may_id=khac.id))
     buoc = next(c for c in lsx.cong_doans if c.ten == "Dán hộp")
     buoc.may_id = may.id
     db.commit()
@@ -3575,6 +3614,8 @@ def test_xem_truoc_buoc_lay_SO_LUONG_RA_dang_go_lam_chip_sl_ra(
     ptg = _ptg_2_san_pham(db)
     cd_dan = db.query(CongDoan).filter(CongDoan.ma == "CD-DAN-T").one()
     may = _may_cat_cuon(db)
+    # Máy phải thuộc tổ của Dán thì bước mới ra loại Máy (23/10/2026).
+    _may_vao_cong_doan(db, may, [cd_dan], cd_dan.department_ids[0])
     _khai_ct_gio(db, lsx_svc, cd_dan.id, may.id, "sl_ra")
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     line = lsx_svc.preview(d.id)["lines"][0]

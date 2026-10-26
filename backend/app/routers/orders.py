@@ -53,6 +53,7 @@ from ..services.rbac_service import AuthorizationService
 from ..tai_len import doc_gioi_han
 from ..doi_tuong_nhan import MAN_BAN_HANG, NGHE_LENH
 from ..realtime import hub
+from ..repositories.org_scope import chu_cua
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -309,7 +310,7 @@ def create_order(
     except Exception as exc:
         raise _map(exc)
     _order_changed(d.order_no)   # đơn nháp mới → Kế toán thấy 'chờ ghi cọc'
-    if (d.deposit_pct or 0) > 0:
+    if (d.deposit_pct or 0) > 0 or (d.deposit_amount or 0) > 0:
         # Chấm đỏ Đơn hàng cho người GHI CỌC trong phạm vi phòng của Sale đứng tên đơn.
         sale = db.get(User, d.sale_user_id) if d.sale_user_id else None
         bao(db, kenh="don_hang_ban", loai="don_cho_coc", actor_id=user.id, quyen="phieu_thu:create",
@@ -472,13 +473,19 @@ def add_deposit_receipt(
         d = svc.add_deposit_receipt(order_id=order_id, actor=user, scope=_scope_for(authz, user), payload=payload)
     except Exception as exc:
         raise _map(exc)
-    if d.deposit_ok and d.sale_user_id:   # Kế toán thu ĐỦ cọc → báo Sale 'chốt được rồi' (Việc 3)
-        hub.publish(d.sale_user_id, {"type": "order_deposit_ok", "code": d.order_no})
+    # Kế toán thu ĐỦ cọc → báo sale ĐANG phụ trách khách 'chốt được rồi' (Việc 3). Không báo theo
+    # `sale_user_id` chụp lúc tạo đơn: khách đã điều chuyển thì sale cũ không còn thấy đơn.
+    nhan = chu_cua(db, d.customer_id, d.sale_user_id)
+    if d.deposit_ok and nhan:
+        hub.publish(nhan, {"type": "order_deposit_ok", "code": d.order_no})
         bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
-            nguoi_nhan=d.sale_user_id, ma=d.order_no)
+            nguoi_nhan=nhan, ma=d.order_no)
     _order_changed(d.order_no)
     if svc.vua_chuyen_sx:   # đủ cọc → đơn TỰ xuống hàng chờ Kế hoạch
         _bao_xuong_sx(db, d, user)
+    # Cọc thu sau khi đã ghi hóa đơn có thể làm hóa đơn thu đủ ⇒ vào hàng chờ chi CK / kê.
+    from ..services.chi_ck_ke import bao_ck_ke
+    bao_ck_ke(db, svc.accounting_repo, actor_id=user.id, order_ids=[d.id])
     return d
 
 

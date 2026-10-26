@@ -594,6 +594,7 @@ export function PurchaseRequestsPage({
         // Khổ MUA mặc định = khổ CẦN; thu mua sửa được (vd mua 80×109 thay 79×109 rồi tề).
         kho_rong: line.kho_rong,
         kho_dai: line.kho_dai,
+        dinh_luong: line.dinh_luong ?? null,
         item_name: line.item_name,
         unit: line.unit,
         quantity: line.quantity,

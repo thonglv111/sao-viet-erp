@@ -304,6 +304,34 @@ def test_tao_co_dong_duong_thi_de_yeu_cau_kho_approved(db, orders, lsx_svc, admi
     assert all(float(l.sl_de_nghi) > 0 for l in req.lines)
 
 
+def test_de_nghi_mang_to_ho_so_nhan_vien(db, orders, lsx_svc, admin, customer):
+    """L-VAI-47 (giữ luật 11/10, phương án A): tổ của đề nghị = tổ trên HỒ SƠ NHÂN VIÊN người bấm,
+    không phải phòng của tài khoản (tài khoản có thể trỏ tổ cha)."""
+    from app.models.department import Department
+    from app.models.stock_request import StockRequest
+    from app.services.san_xuat import vat_tu_de_nghi as V
+    from tests.test_san_xuat_thuc_thi import _emp, _mot_cv  # noqa
+
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-VA47")
+    to_ho_so = Department(name="Tổ hồ sơ VA47", code="TO-HS-VA47")
+    db.add(to_ho_so)
+    db.flush()
+    from app.repositories.employee_repo import EmployeeRepository
+
+    emp = EmployeeRepository(db).get_by_user_id(admin.id)
+    if emp is None:
+        _emp(db, to_ho_so, "NV-VA47", user_id=admin.id)
+    else:
+        emp.department_id = to_ho_so.id
+    db.commit()
+    assert admin.department_id != to_ho_so.id
+    kh = _kh_service(db).nhu_cau_cua_cong_viec(cv)
+    lines = [{"hang_loai": k["hang_loai"], "hang_id": k["hang_id"], **_dang_kho(k),
+              "dvt": k["dvt"], "sl_yeu_cau": k["sl"]} for k in kh]
+    ra = V.tao(db, user=admin, cong_viec_id=cv.id, can_luc=_T0, lines=lines)
+    assert db.get(StockRequest, ra["stock_request_id"]).bo_phan_id == to_ho_so.id
+
+
 def test_ngay_can_tinh_theo_gio_vn_khong_phai_utc(db, orders, lsx_svc, admin, customer):
     """`ngay_can` phải là ngày CỦA GIỜ VIỆT NAM mà `can_luc` rơi vào, không phải ngày UTC.
 
@@ -1730,6 +1758,25 @@ def test_kho_huy_thi_khoa_sua_nhung_bo_sung_phai_chay_that(db, orders, lsx_svc, 
     ra = V.tao(db, user=admin, cong_viec_id=cv_id, can_luc=_T0, lines=lines2)  # KHÔNG được ném
     assert ra["de_nghi_id"] is not None
     assert ra["lan_so"] == 2
+
+
+def test_doi_chieu_bo_so_cua_yeu_cau_kho_huy(db, orders, lsx_svc, admin, customer):
+    """L-SX-16: kho huỷ yêu cầu ⇒ lần đó không còn là số "đã xin" — đối chiếu không cộng nó (khỏi
+    báo "kho xuất thiếu"), nhưng lần vẫn nằm trong `cac_de_nghi` kèm lý do của kho."""
+    from app.models.stock_request import StockRequest
+    from app.services.san_xuat import board
+
+    dn_id, req_id, _ma, kh = _tao_de_nghi(db, orders, lsx_svc, admin, customer, "TO-VA16")
+    cv_id = _cv_id(db, dn_id)
+    _req_svc(db).cancel_by_kho(db.get(StockRequest, req_id), "Kho hết hàng, không cấp")
+
+    vt = board.chi_tiet_cong_viec(db, admin, _authz(db), cong_viec_id=cv_id)["vat_tu_cap"]
+    for r in vt["doi_chieu"]:
+        assert r["sl_yeu_cau_goc"] == pytest.approx(0)
+        assert r["lech_thuc_te"] == pytest.approx(0)
+    lan = next(d for d in vt["cac_de_nghi"] if d["id"] == dn_id)
+    assert lan["stock_request_trang_thai"] == "cancelled"
+    assert lan["stock_request_ly_do_huy"] == "Kho hết hàng, không cấp"
 
 
 def test_doi_chieu_so_lech_bang_thang_goc_khong_phai_thang_to_khai(

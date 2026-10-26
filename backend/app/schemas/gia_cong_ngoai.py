@@ -36,10 +36,11 @@ class HuyTronGoiIn(BaseModel):
 
 
 class XuatGiayIn(BaseModel):
-    """Khổ + số tờ người kế hoạch chọn. Mã giấy KHÔNG nhận từ client — máy chủ đọc theo lệnh."""
+    """Khổ + số lượng người kế hoạch chọn. Mã giấy KHÔNG nhận từ client — máy chủ đọc theo lệnh.
+    `kho_dai` = 0 là cuộn (theo rộng), khi đó `so_to` là số kg."""
     version: int
     kho_rong: int = Field(gt=0)
-    kho_dai: int = Field(gt=0)
+    kho_dai: int = Field(ge=0)
     so_to: float = Field(gt=0)
 
 
@@ -66,6 +67,7 @@ class CapGiayKhoOut(BaseModel):
     kho_rong: int
     kho_dai: int
     ton: float
+    don_vi: str
     dung_de_xuat: bool
 
 
@@ -73,6 +75,7 @@ class CapGiayDeXuatOut(BaseModel):
     kho_rong: int
     kho_dai: int
     so_to: float | None = None
+    don_vi: str
 
 
 class CapGiayOut(BaseModel):

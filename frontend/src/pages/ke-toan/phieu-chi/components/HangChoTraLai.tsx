@@ -109,10 +109,8 @@ function lyDo(r: TraLaiKhachChoChi): string {
     ? `Hóa đơn ${r.hoa_don_huy.join(" và ")} đã hủy`
     : "";
   if (r.don_huy) return hd ? `Đơn đã hủy. ${hd}` : "Đơn đã hủy";
-  // Hoàn chiết khấu: khách đã trả đủ hóa đơn gốc, hóa đơn điều chỉnh giảm là chứng từ của khoản trả lại.
-  const dc = r.hoa_don_dieu_chinh ?? [];
-  if (dc.length && !hd) return `Hoàn chiết khấu theo hóa đơn điều chỉnh ${dc.map((x) => x.so_hoa_don).join(" và ")}`;
-  return hd || "Đã ghi đủ hóa đơn";
+  if (hd) return hd;
+  return r.tinh_trang === "coc_vuot" ? "Cọc thu vượt tổng đơn" : "Đã ghi đủ hóa đơn";
 }
 
 /** Popup một khoản chờ trả lại khách (`ChiTietKhoan`, không có thẻ Hàng): tiền dư = đã trả lại + còn phải
@@ -147,11 +145,6 @@ function PopupTraLai({
       nut={onLap && <button type="button" className="kt-btn kt-btn--chinh" onClick={onLap}>Lập phiếu chi</button>}
       thongTin={[
         { nhan: "Lý do", giaTri: lyDo(r) },
-        // Chứng từ gốc của khoản hoàn chiết khấu: mỗi hóa đơn điều chỉnh một dòng, kèm hóa đơn gốc.
-        ...(r.hoa_don_dieu_chinh ?? []).map((x, i) => ({
-          nhan: i === 0 ? "Chứng từ gốc" : "",
-          giaTri: `Hóa đơn điều chỉnh ${x.so_hoa_don} giảm ${tien(x.so_tien)} cho hóa đơn ${x.hoa_don_goc}`,
-        })),
         { nhan: "Đã trả lại", giaTri: r.da_tra_lai > 0 ? tien(r.da_tra_lai) : null },
         { nhan: "Đơn bán", giaTri: maDon },
       ]}

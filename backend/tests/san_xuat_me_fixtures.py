@@ -47,6 +47,9 @@ def viec_phat_sinh(db, rate: PieceRate, *, ten="Lên khuôn", don_gia=5000, don_
 
 
 def tao_me(db, *, user, cong_viec_id: int, **kw) -> dict:
+    """Dàn mẻ KHÔNG tự đề xuất giao — test bàn giao tự chọn mẻ rồi bấm Đề xuất giao. Thử luồng tự
+    giao thì truyền `tu_giao=True`."""
+    kw.setdefault("tu_giao", False)
     return san_luong.tao_batch(db, user=user, cong_viec_id=cong_viec_id, **kw)
 
 

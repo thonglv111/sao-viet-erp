@@ -800,17 +800,17 @@ class SanXuatSanLuongRepository:
         return {k: (s, tong_tien[k] / s) for k, s in tong_sl.items() if s > 0}
 
     def yeu_cau_tom_tat(self, request_ids: list[int]) -> dict[int, dict]:
-        """`{request_id: {"ma", "trang_thai"}}` — MỘT truy vấn cho cả danh sách. Drawer công đoạn
+        """`{request_id: {"ma", "trang_thai", "ly_do_huy"}}` — MỘT truy vấn cho cả danh sách. Drawer công đoạn
         cần mã + trạng thái của mọi lần đề nghị; hỏi từng cái là N+1 ngay trên đường mở drawer
         (ruling task-7 25). Danh sách rỗng trả `{}` mà KHÔNG chạm DB."""
         ids = [i for i in set(request_ids) if i]
         if not ids:
             return {}
         rows = self.db.execute(
-            select(StockRequest.id, StockRequest.ma, StockRequest.trang_thai)
+            select(StockRequest.id, StockRequest.ma, StockRequest.trang_thai, StockRequest.ly_do_huy)
             .where(StockRequest.id.in_(ids))
         )
-        return {rid: {"ma": ma, "trang_thai": tt} for rid, ma, tt in rows}
+        return {rid: {"ma": ma, "trang_thai": tt, "ly_do_huy": ly} for rid, ma, tt, ly in rows}
 
     def ten_hang_nhieu(self, keys: set[tuple[str, int]]) -> dict[tuple[str, int], str]:
         """`{(hang_loai, hang_id): tên}` — MỘT truy vấn MỖI `hang_loai`, không phải mỗi mặt hàng

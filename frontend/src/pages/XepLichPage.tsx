@@ -41,6 +41,7 @@ import {
   dauTuan, gioChu, moc, phutChayTrongCuaSo, soNgayGiua, themNgay, thuNgayGio, ymd,
 } from "./xlShared";
 import { CO_NHIN, NhanKhoang, khoangTheoCo, laCoNhin, soTuan, type CoNhin } from "./xlKhoang";
+import { cauBaoPhatHanh } from "./cauBaoPhatHanh";
 import "./ke-toan/ke-toan.css";
 import "./xep-lich-a.css";
 
@@ -60,7 +61,7 @@ const TT_NHOM: Record<string, string[]> = {
 
 type Nhanh = "tre" | "muon" | "chua";
 type BuocLui = { lsxId: number; ma: string; truoc: string | null };
-type Bao = { chu: string; loi?: boolean; hoanTac?: boolean };
+type Bao = { chu: string; loi?: boolean; hoanTac?: boolean; giai?: string };
 
 function docHien(): HienThi {
   try {
@@ -191,6 +192,8 @@ export function XepLichPage({
   const [chonId, setChonId] = useState<number | null>(null);
   const [ct, setCt] = useState<XlChiTiet | null>(null);
   const [taiCt, setTaiCt] = useState(false);
+  // Lượt nạp chi tiết lệnh hỏng thật — ngăn chỉ nói "Không mở được lệnh" theo cờ này (L-SX-13).
+  const [loiCt, setLoiCt] = useState(false);
   const [goi, setGoi] = useState<XlGoiPhatHanh | null>(null);
   const [dangGhi, setDangGhi] = useState(false);
   const [chePrompt, setChePrompt] = useState<"thu_hoi" | "cap_nhat" | null>(null);
@@ -283,13 +286,17 @@ export function XepLichPage({
   useEffect(() => setTrang(1), [timCho, khoaLocCho]);
 
   useEffect(() => {
-    if (!token || chonId === null) { setCt(null); return; }
+    if (!token || chonId === null) { setCt(null); setLoiCt(false); return; }
     let huy = false;
     setTaiCt(true);
     api.xepLich
       .chiTiet(token, chonId)
-      .then((r) => !huy && setCt(r))
-      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh.", loi: true }))
+      .then((r) => { if (!huy) { setCt(r); setLoiCt(false); } })
+      .catch((e) => {
+        if (huy) return;
+        setLoiCt(true);
+        setBao({ chu: e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh.", loi: true });
+      })
       .finally(() => !huy && setTaiCt(false));
     return () => { huy = true; };
   }, [token, chonId, eventTick, nhip]);
@@ -399,8 +406,8 @@ export function XepLichPage({
     setDangGhi(true);
     const n = ct?.cum?.lsx.length ?? 1;
     try {
-      await api.xepLich.phatHanh(token, chonId);
-      setBao({ chu: n > 1 ? `Đã phát hành ${n} lệnh xuống xưởng.` : "Đã phát hành xuống xưởng." });
+      const r = await api.xepLich.phatHanh(token, chonId);
+      setBao(cauBaoPhatHanh(n, r.vat_tu));
       sau(chonId);
     } catch (e) {
       setBao({ chu: e instanceof ApiError ? e.message : "Không phát hành được.", loi: true });
@@ -481,7 +488,9 @@ export function XepLichPage({
     [dong, hienLuoi.hienXong],
   );
   const viTri = chonId === null ? -1 : dongThay.findIndex((d) => d.lsx_id === chonId);
-  const phutChay = useMemo(() => phutChayTrongCuaSo(dong, tu, soNgay), [dong, tu, soNgay]);
+  // Đếm đúng các lệnh lưới đang vẽ — lệnh đã xong bị ẩn mà vẫn cộng giờ thì đầu màn ghi "máy chạy
+  // 3 giờ" cạnh "0 lệnh trong khoảng".
+  const phutChay = useMemo(() => phutChayTrongCuaSo(dongThay, tu, soNgay), [dongThay, tu, soNgay]);
   const caPhut = useMemo(() => phutCa(cacCa), [cacCa]);
   const caDau = useMemo(() => cacCa.map((c) => c.tu.slice(0, 5)).sort()[0] ?? "00:00", [cacCa]);
   const truocDo = useMemo(() => {
@@ -718,7 +727,7 @@ export function XepLichPage({
 
       {bao && (
         <div className={`xa-toast${bao.loi ? " xa-toast--loi" : ""}`} role={bao.loi ? "alert" : "status"}>
-          <span>{bao.chu}</span>
+          <span title={bao.giai}>{bao.chu}</span>
           {bao.hoanTac && lui.length > 0 && (
             <button type="button" onClick={() => { setBao(null); void hoanTac(); }}><RotateCcw size={14} />Hoàn tác<kbd>Ctrl Z</kbd></button>
           )}
@@ -729,7 +738,7 @@ export function XepLichPage({
       {chonId !== null && (
         <XlNgan
           ct={ct && ct.lsx_id === chonId ? ct : null}
-          dangTai={taiCt}
+          dangTai={taiCt || (!(ct && ct.lsx_id === chonId) && !loiCt)}
           suaDuoc={suaDuoc}
           duyetDuoc={duyetDuoc}
           dangGhi={dangGhi}

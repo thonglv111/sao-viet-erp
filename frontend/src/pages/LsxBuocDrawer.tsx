@@ -9,7 +9,7 @@
 // công đoạn" duy nhất ở bảng, nên người dùng không phải nhớ mình đang ở tầng lưu nào.
 //
 // Năng suất là snapshot chỉ đọc từ máy hoặc định mức đầu việc; người dùng chỉ nhập đè thời gian.
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ApiError, api, LSX_LOAI_BUOC_META, type LsxLoaiBuoc, type NhaGiaCong } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
@@ -28,6 +28,9 @@ import {
   heSoChu,
   mayChonDuoc,
   mayMacDinh,
+  mayMacDinhCuaTo,
+  toChuaCoMay,
+  toKhacCuaMay,
   nhanChang,
   nhanDonVi,
   nhanGiayTheoDauVao,
@@ -45,6 +48,8 @@ const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"];
 /** Gom máy theo `loai_may`.
  *  Xưởng có ~24 máy đủ loại (bế, bồi, UV, cán, in) — đổ phẳng thì gán máy bế cho bước ghi kẽm
  *  cũng trôi. Nhóm KHÔNG chặn: vẫn chọn được máy bất kỳ, chỉ là mắt phải đi qua nhãn loại. */
+const DS_TEN = new Intl.ListFormat("vi", { style: "long", type: "conjunction" });
+
 function nhomMayTheoLoai(mayRefs: RefRow[]): { ten: string; items: RefRow[] }[] {
   const groups = new Map<string, RefRow[]>();
   for (const m of mayRefs) {
@@ -260,18 +265,33 @@ export function LsxBuocDrawer({
   const t = useMemo(() => thoiLuong(row, mayForm), [row, mayForm]);
   const tg = useMemo(() => thoiLuongLive(row, mayForm), [row, mayForm]);
   // Luật lọc nằm ở `mayChonDuoc` (xem `lsxBuoc.ts`) — cùng một luật với backend, và tách ra khỏi
-  // JSX để test được: bảng máy của công đoạn thắng, chưa khai thì lùi về nhóm máy.
-  const nhomMay = useMemo(() => {
-    if (!mayRefs) return [];
-    const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
-    return nhomMayTheoLoai(mayChonDuoc(mayRefs, cd, row.may_id));
-  }, [mayRefs, congDoanRefs, row.cong_doan_id, row.may_id]);
-  // Máy đầu danh sách của công đoạn — ô chọn máy ghi "(mặc định)" như ô tổ.
+  // JSX để test được: máy của bảng công đoạn, công đoạn có tổ thì chỉ máy THUỘC tổ của bước.
+  const cdBuoc = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
+  const mayMoi = useMemo(
+    () => (mayRefs ? mayChonDuoc(mayRefs, cdBuoc, row.department_id, row.may_id) : []),
+    [mayRefs, cdBuoc, row.department_id, row.may_id],
+  );
+  const nhomMay = useMemo(() => nhomMayTheoLoai(mayMoi), [mayMoi]);
+  // Máy đầu danh sách (của tổ, khi công đoạn có tổ) — ô chọn máy ghi "(mặc định)" như ô tổ.
   const mayMd = useMemo(() => {
     if (!mayRefs) return null;
-    const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
-    return (cd?.mayChoPhep?.length ?? 0) > 1 ? mayMacDinh(mayRefs, cd) : null;
-  }, [mayRefs, congDoanRefs, row.cong_doan_id]);
+    if (cdBuoc?.coRangBuocTo) {
+      return mayMoi.filter((m) => m.id !== row.may_id || m.active !== false).length > 1
+        ? mayMacDinhCuaTo(mayRefs, cdBuoc, row.department_id) : null;
+    }
+    return (cdBuoc?.mayChoPhep?.length ?? 0) > 1 ? mayMacDinh(mayRefs, cdBuoc) : null;
+  }, [mayRefs, cdBuoc, mayMoi, row.department_id, row.may_id]);
+  // Máy thuộc nhiều tổ (mg `0435`): bày TÊN các tổ khác của máy — chọn máy không bị chặn, chỉ để
+  // người lập biết máy đang chia cho tổ nào nữa. `lech` = máy đang gán KHÔNG thuộc tổ đang chọn ⇒
+  // nói "thuộc", không nói "cũng thuộc" (23/10/2026).
+  const toKhacCua = useCallback((m: RefRow): { ten: string[]; lech: boolean } => {
+    const { khac, lech } = toKhacCuaMay(m.toIds, row.department_id);
+    return { ten: khac.map((t) => toRefs?.find((x) => x.id === t)?.ten ?? `Tổ #${t}`), lech };
+  }, [toRefs, row.department_id]);
+  // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi tổ/máy ở lệnh: khoá sẵn hai ô.
+  const khoaToMay = !canUpdate || row.da_bat_dau;
+  // Tổ của bước chưa có máy nào chạy được công đoạn ⇒ nói thẳng, đừng để ô máy trống không lời.
+  const toHetMay = !!mayRefs && toChuaCoMay(mayRefs, cdBuoc, row.department_id);
   // Ô TỔ: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026), đúng thứ tự khai
   // (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn.
   // CHỈ nút lá (07/10/2026): `toRefs` là danh sách tổ = nút lá khối Sản xuất, id nào không nằm trong
@@ -801,7 +821,7 @@ export function LsxBuocDrawer({
                             <select
                               className="khsx-select-std"
                               value={toDangGanHienDuoc ? (row.department_id ?? "") : ""}
-                              disabled={!canUpdate}
+                              disabled={khoaToMay}
                               onChange={(e) => onDoiTo(e.target.value ? Number(e.target.value) : null)}
                             >
                               {!toDangGanHienDuoc && <option value="">— chọn tổ —</option>}
@@ -812,7 +832,8 @@ export function LsxBuocDrawer({
                               ))}
                             </select>
                             <span className="khsx-field__hint">
-                              {toChon.gioiHan
+                              {row.da_bat_dau ? "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ."
+                                : toChon.gioiHan
                                 ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi sản lượng, bàn tổ chọn trong công việc khoán của tổ này."
                                 : "Công đoạn chưa khai tổ phụ trách — đang mời mọi tổ."}
                             </span>
@@ -839,7 +860,7 @@ export function LsxBuocDrawer({
                             <select
                               className="khsx-select-std"
                               value={row.may_id ?? ""}
-                              disabled={!canUpdate}
+                              disabled={khoaToMay}
                               onChange={(e) =>
                                 onDoiMay(e.target.value ? Number(e.target.value) : null)
                               }
@@ -847,17 +868,30 @@ export function LsxBuocDrawer({
                               <option value="">— chưa gán máy —</option>
                               {nhomMay.map((g) => (
                                 <optgroup key={g.ten} label={g.ten}>
-                                  {g.items.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.active === false ? `${m.ten} (ngừng dùng)`
-                                        : m.id === mayMd ? `${m.ten} (mặc định)` : m.ten}
-                                    </option>
-                                  ))}
+                                  {g.items.map((m) => {
+                                    const { ten: khac, lech } = toKhacCua(m);
+                                    const nhan = m.active === false ? `${m.ten} (ngừng dùng)`
+                                      : m.id === mayMd ? `${m.ten} (mặc định)` : m.ten;
+                                    return (
+                                      <option key={m.id} value={m.id}>
+                                        {khac.length ? `${nhan} — ${lech ? "thuộc" : "cũng thuộc"} ${DS_TEN.format(khac)}` : nhan}
+                                      </option>
+                                    );
+                                  })}
                                 </optgroup>
                               ))}
                             </select>
                           ) : (
                             <span className="khsx-val-text">—</span>
+                          )}
+                          {!(buocGhep && deLen) && mayForm && toKhacCua(mayForm).ten.length > 0 && (
+                            <span className="khsx-field__hint">
+                              {toKhacCua(mayForm).lech ? "Máy này không thuộc tổ đang chọn, máy của" : "Máy này cũng thuộc"}{" "}
+                              {toKhacCua(mayForm).ten.map((t) => <span key={t} className="lds-tag">{t}</span>)}
+                            </span>
+                          )}
+                          {!(buocGhep && deLen) && toHetMay && (
+                            <span className="khsx-field__hint">Tổ này chưa có máy chạy công đoạn này.</span>
                           )}
                         </label>
                       )}

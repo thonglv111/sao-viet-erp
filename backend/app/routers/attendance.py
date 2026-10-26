@@ -597,16 +597,13 @@ def loc_logs(
 
 
 def _timesheet_rows(svc: AttendanceService, depts: DepartmentRepository, data: dict) -> list[TimesheetRow]:
-    dept_names: dict[int, str] = {}
+    # Tên tổ: MỘT truy vấn cho mọi tổ có mặt trên bảng (trước đây mỗi tổ một câu).
+    dept_names = depts.names_by_ids({r["department_id"] for r in data["rows"]
+                                     if r["department_id"] is not None})
     rows: list[TimesheetRow] = []
     for r in data["rows"]:
-        dn = None
         did = r["department_id"]
-        if did is not None:
-            if did not in dept_names:
-                d = depts.get_by_id(did)
-                dept_names[did] = d.name if d is not None else ""
-            dn = dept_names[did] or None
+        dn = (dept_names.get(did) or None) if did is not None else None
         rows.append(TimesheetRow(
             employee_id=r["employee_id"], employee_code=r["employee_code"],
             employee_name=r["employee_name"], department_id=did, department_name=dn,

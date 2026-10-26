@@ -7,19 +7,20 @@
 // nhỏ ở cột "Hàng đang tới đâu" (rê chuột lên chấm đọc số liệu từng bước như dải to cũ). Máy chủ vẫn
 // cắt trang theo LỆNH — một lệnh không bị xé qua hai trang.
 import { Icon } from "../components/Icons";
-import type { SxChoXacNhanBanGiao, SxLenhNhom, SxWorkItem } from "../api/client";
+import type { SxChoXacNhanBanGiao, SxLenhNhom, SxMucVatTu, SxTrangThaiVatTu, SxWorkItem } from "../api/client";
 import { ChipKcs, ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import {
   ChipTT, CuonLuoi, rongLuoi, soCotGhim, xepCot, apLuoi, type CauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { gioNgan, num, ngayGio, thoiLuong } from "./keHoachSxShared";
 import { ngayGioDayDu, ngayNgan } from "./loc-san-xuat/ngay";
-import { nhanChang, nhanDonVi } from "./lsxBuoc";
+import { nhanChang, nhanChangLenh, nhanDonVi } from "./lsxBuoc";
 import { TheGap } from "./lsxKhau";
 import { ChamCho, type SxChoCuaViec } from "./thsxChoXacNhan";
 import { slTot, sxNguonIcon, tienDoThucTe } from "./thsxShared";
 import { cauViTri, daiCuaViec, viTriHang } from "./thsxTuyen";
 import { ThsxTuyenNho } from "./ThsxTuyenNho";
+import { tenGiays } from "./ThsxQuyCach";
 import "./lenh-sx-chung.css"; // thẻ GẤP (`lsc-gap`) của lsxKhau
 
 interface CotThsx extends CotLuoi { w?: number; n?: boolean }
@@ -33,12 +34,33 @@ export const COT_THSX: CotThsx[] = [
   { key: "sp", label: "Sản phẩm", coDinh: true, w: 200 },
   { key: "cd", label: "Công đoạn", w: 230 },
   { key: "tt", label: "Trạng thái", w: 190 },
+  // Ngay sau Trạng thái: chip này quyết định bấm Bắt đầu được chưa, để cuối là khuất khỏi màn.
+  { key: "vtt", label: "Vật tư", w: 130 },
   { key: "sl", label: "Tốt / cần", w: 150, n: true },
   { key: "tuyen", label: "Hàng đang tới đâu", w: 260 },
   { key: "may", label: "Máy và thời gian", w: 190 },
   { key: "qc", label: "Quy cách", w: 290 },
   { key: "vt", label: "Định mức vật tư", w: 220 },
 ];
+
+/** Chip cột Vật tư — mỗi mức một sắc. Máy chủ chốt mức (cùng hàm với cổng Bắt đầu). */
+export const NHAN_VAT_TU: Record<SxMucVatTu, { nhan: string; mau: MauTT }> = {
+  chua_yeu_cau: { nhan: "Chưa yêu cầu", mau: "do" },
+  cho_kho: { nhan: "Chờ kho", mau: "vang" },
+  kho_dang_soan: { nhan: "Kho đang soạn", mau: "cyan" },
+  cap_thieu: { nhan: "Cấp thiếu", mau: "cam" },
+  san_sang: { nhan: "Sẵn sàng", mau: "la" },
+};
+
+/** Title của chip: mỗi món một dòng, số xin và số kho đã xuất. */
+export function dienGiaiVatTu(tt: SxTrangThaiVatTu): string {
+  return tt.mon
+    .map((m) => {
+      const dv = m.dvt ? ` ${nhanDonVi(m.dvt)}` : "";
+      return `${m.ten} xin ${num(m.sl_xin)}${dv} và đã xuất ${num(m.sl_da_xuat)}${m.chot_thieu ? " (kho chốt thiếu)" : ""}`;
+    })
+    .join("\n");
+}
 
 /** Cùng sắc với chip đếm ở thanh lọc của bàn (chờ làm xanh dương, đang chạy xanh lá, tạm dừng vàng,
  *  hoàn thành xám) — mỗi trạng thái một sắc. */
@@ -73,8 +95,14 @@ interface Props {
 function mauQuyCach(qc: SxWorkItem["quy_cach"]): string[] {
   if (!qc) return [];
   const parts: string[] = [];
-  if (qc.giay) parts.push(`${qc.giay}${qc.dinh_luong ? ` ${qc.dinh_luong}gsm` : ""}`);
-  else if (qc.dinh_luong) parts.push(`${qc.dinh_luong}gsm`);
+  // Tên giấy hay mang sẵn định lượng ("COUCHE 150GSM") — nối thêm là in hai lần. Lệnh nhiều giấy
+  // thì mỗi giấy một thẻ, và server đã bỏ `dinh_luong` (chỉ biết gsm của một giấy).
+  const giays = tenGiays(qc.giay);
+  for (const g of giays) {
+    const coSan = qc.dinh_luong && new RegExp(`\\b${qc.dinh_luong}\\s*g`, "i").test(g);
+    parts.push(`${g}${qc.dinh_luong && !coSan ? ` ${qc.dinh_luong}gsm` : ""}`);
+  }
+  if (!giays.length && qc.dinh_luong) parts.push(`${qc.dinh_luong}gsm`);
   if (qc.kho_in) parts.push(`Khổ ${qc.kho_in}`);
   if (qc.so_mau != null) parts.push(`${qc.so_mat ? `${qc.so_mat} mặt ` : ""}${qc.so_mau} màu`);
   if (qc.so_kem != null && qc.so_kem > 0) parts.push(`${qc.so_kem} kẽm`);
@@ -245,7 +273,7 @@ function OThsx({ cot, l, w, cho }: { cot: string; l: SxLenhNhom; w: SxWorkItem; 
     }
     case "sl": {
       const can = w.muc_tieu ?? w.so_luong_ra;
-      const dv = nhanDonVi(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null) || "");
+      const dv = nhanChangLenh(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null), w.don_vi_tinh);
       const td = tienDoThucTe(w);
       const pct = td ? td.pct : can ? Math.min(100, Math.round(((w.da_lam ?? 0) / can) * 100)) : null;
       return (
@@ -303,6 +331,16 @@ function OThsx({ cot, l, w, cho }: { cot: string; l: SxLenhNhom; w: SxWorkItem; 
             )}
           </span>
           {rest > 0 && <span className="thsx-l2">+{rest} khác</span>}
+        </td>
+      );
+    }
+    case "vtt": {
+      const tt = w.trang_thai_vat_tu;
+      if (!tt) return <td />;
+      const c = NHAN_VAT_TU[tt.muc];
+      return (
+        <td>
+          <ChipTT mau={c?.mau ?? "xam"} title={dienGiaiVatTu(tt) || undefined}>{c?.nhan ?? tt.muc}</ChipTT>
         </td>
       );
     }

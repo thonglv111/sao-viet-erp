@@ -62,7 +62,6 @@ import {
   Move,
   ShieldCheck,
   Printer,
-  Scissors,
   AlertCircle,
   ArrowRightLeft,
 } from "lucide-react";
@@ -366,8 +365,6 @@ export function DepartmentsPage({
   // (chủ chốt 24/08/2026). Ở đây chỉ còn CỜ bật/tắt Bộ phận Giao hàng.
   // Cờ TỔ IN (mg 0304, khách chốt 15/09/2026) — đích danh từng tổ, không kế thừa cây con.
   const [editLaToIn, setEditLaToIn] = useState(false);
-  // Cờ TỔ CẮT (mg 0355) — đích danh, không kế thừa cây con: tổ chốt giấy sau phát hành.
-  const [editLaToCat, setEditLaToCat] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -855,7 +852,6 @@ export function DepartmentsPage({
     setEditLaKinhDoanh(dept?.la_kinh_doanh ?? false);
     setEditLaGiaoHang(dept?.la_giao_hang ?? false);
     setEditLaToIn(dept?.la_to_in ?? false);
-    setEditLaToCat(dept?.la_to_cat ?? false);
     if (!token || selectedId == null) {
       setMembers([]);
       setRoles([]);
@@ -959,7 +955,6 @@ export function DepartmentsPage({
     setEditLaKinhDoanh(currentDept?.la_kinh_doanh ?? false);
     setEditLaGiaoHang(currentDept?.la_giao_hang ?? false);
     setEditLaToIn(currentDept?.la_to_in ?? false);
-    setEditLaToCat(currentDept?.la_to_cat ?? false);
     setSaveError(null);
     setDirty(false);
     setInfoOpen(true);
@@ -1138,8 +1133,7 @@ export function DepartmentsPage({
         currentDept?.level_id ?? null, // cấp đơn vị đã gỡ khỏi UI; giữ nguyên giá trị cũ
         editParentId,
         {
-          // `has_piece_work` KHÔNG gửi từ đây (backend: không gửi = giữ nguyên) — cửa sửa
-          // duy nhất là công tắc "Lương khoán / sản lượng" ở Cấu hình lương.
+          // `has_piece_work` KHÔNG gửi từ đây (backend: không gửi = giữ nguyên).
         },
         editLaSanXuat,
         editLaKinhDoanh,
@@ -1147,7 +1141,6 @@ export function DepartmentsPage({
         // Khoán km (đơn giá + %) ĐÃ DỜI sang Cấu hình lương — không gửi từ đây nữa.
         undefined,
         editLaToIn,
-        editLaToCat,
       );
       await refresh(selectedId);
       setDirty(false);
@@ -2090,9 +2083,6 @@ export function DepartmentsPage({
                       {currentDept.la_giao_hang && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Giao hàng</span>
                       )}
-                      {currentDept.la_to_cat && (
-                        <span className="rdx-drawer__pill rdx-drawer__pill--gh">Tổ Cắt</span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -2227,12 +2217,6 @@ export function DepartmentsPage({
                           </div>
                         );
                       })}
-                      <div className="rdx-ov__item">
-                        <span className="rdx-ov__k">Lương khoán</span>
-                        <span className="rdx-ov__v">
-                          {currentDept.has_piece_work ? "Có" : "Không"}
-                        </span>
-                      </div>
                       <div className="rdx-ov__item rdx-ov__item--wide">
                         <span className="rdx-ov__k">Lương thử việc</span>
                         <span className="rdx-ov__v">
@@ -3012,7 +2996,7 @@ export function DepartmentsPage({
                   <div className="rdx-switch-card__main">
                     <span className="rdx-switch-card__title">
                       Tổ in
-                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ máy in — KHÔNG kế thừa cho cây con. Chỉ đổi tiền khi tổ bật Lương khoán: ngày Chủ nhật / lễ đi làm không có công gốc, cả 2 / 3 / 5 công trả ở phần thêm và bù lỗ theo công không đếm ngày đó. Sản lượng ngày đó vẫn vào tiền khoán." />
+                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ máy in — KHÔNG kế thừa cho cây con. Chỉ đổi tiền của người tổ này ăn khoán: ngày Chủ nhật / lễ đi làm không tính sản lượng mà ăn công — không có công gốc, cả 2 / 3 / 5 công trả ở phần thêm và bù lỗ theo công không đếm ngày đó." />
                     </span>
                     <span className="rdx-switch-card__desc">
                       Ngày Chủ nhật / lễ của thợ in trả hết ở phần thêm, không nằm trong phần so với tiền khoán
@@ -3022,40 +3006,6 @@ export function DepartmentsPage({
                 <div className="rdx-toggle-switch" aria-hidden="true" />
               </div>
             </div>
-
-            {/* Switch Card "Tổ Cắt" — đích danh, KHÔNG kế thừa cây con (như "Tổ in"). Spec giấy
-                theo khổ §4.6: lệnh có giấy sau phát hành tới tổ này chốt chèn bước cắt hay không. */}
-            <div className="field depts__field--full">
-              <div
-                className={`rdx-switch-card${editLaToCat ? " is-checked" : ""}`}
-                onClick={() => {
-                  setEditLaToCat(!editLaToCat);
-                  setDirty(true);
-                }}
-              >
-                <div className="rdx-switch-card__left">
-                  <div className="rdx-switch-card__icon">
-                    <Scissors size={20} />
-                  </div>
-                  <div className="rdx-switch-card__main">
-                    <span className="rdx-switch-card__title">
-                      Tổ Cắt
-                      <InfoHint label="Đánh dấu ĐÍCH DANH tổ cắt giấy — KHÔNG kế thừa cho cây con. Khi có ít nhất một tổ bật, bước đầu tiên dùng giấy của lệnh chỉ bắt đầu được sau khi tổ Cắt chốt: chèn bước cắt hoặc bấm Không cần cắt." />
-                    </span>
-                    <span className="rdx-switch-card__desc">
-                      Lệnh có giấy sau phát hành tới tổ này để chốt cắt hay không cắt.
-                    </span>
-                  </div>
-                </div>
-                <div className="rdx-toggle-switch" aria-hidden="true" />
-              </div>
-            </div>
-
-            {/* Nút gạt "Tổ hưởng lương khoán" ĐÃ ẨN 04/09/2026 — cờ
-                `departments.has_piece_work` nay chỉ còn MỘT cửa sửa: Lương → Cấu hình lương →
-                công tắc "Lương khoán / sản lượng" (chiều đó ghi ngược về cờ này). Bật/tắt ở đây
-                KHÔNG đụng `department_salary_components` nên hai màn lệch nhau khi tổ đã khai
-                dòng lương. Trạng thái vẫn xem được ở khối Tổng quan. */}
 
             {/* Thuộc tính lương thử việc */}
             <div className="field depts__field--full">

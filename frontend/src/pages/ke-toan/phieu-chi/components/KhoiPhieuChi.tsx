@@ -144,11 +144,14 @@ export function KhoiNguoiNhan({
   loi,
   luonCoTen,
   goiY = [],
+  khoaTen,
   children,
 }: {
   form: PaymentVoucherBaseInput;
   set: DatO;
   loi: LoiForm;
+  /** Có = tên người nhận do máy khoá (vd. chi chiết khấu trả đúng khách) — câu này hiện dưới ô. */
+  khoaTen?: string;
   /** Có ô Người nhận tiền cả khi chuyển khoản (phiếu chi rời / gia công). Không có thì ô tên chỉ ở tiền mặt. */
   luonCoTen: boolean;
   goiY?: GoiYNguoi[];
@@ -162,14 +165,16 @@ export function KhoiNguoiNhan({
       {coTen && (
         <>
           <OF khoa="cash_recipient_name" nhan="Người nhận tiền" batBuoc rong loi={loi.cash_recipient_name}
-            goi={ck ? undefined : "Người ký nhận trên phiếu chi"}>
+            goi={khoaTen ?? (ck ? undefined : "Người ký nhận trên phiếu chi")}>
             <input id={idO("cash_recipient_name")} value={form.cash_recipient_name ?? ""}
-              placeholder="Người hoặc đơn vị nhận tiền"
+              placeholder="Người hoặc đơn vị nhận tiền" readOnly={!!khoaTen}
               aria-invalid={loi.cash_recipient_name ? true : undefined}
               onChange={(e) => set("cash_recipient_name", e.target.value)} />
           </OF>
-          <GoiYTen goiY={goiY} dangChon={form.cash_recipient_name ?? ""} onChon={(t) => set("cash_recipient_name", t)}
-            nhan="Gợi ý người nhận tiền" />
+          {!khoaTen && (
+            <GoiYTen goiY={goiY} dangChon={form.cash_recipient_name ?? ""} onChon={(t) => set("cash_recipient_name", t)}
+              nhan="Gợi ý người nhận tiền" />
+          )}
         </>
       )}
       {ck ? (

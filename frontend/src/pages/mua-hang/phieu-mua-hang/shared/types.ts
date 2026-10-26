@@ -37,6 +37,8 @@ export type FormLine = PurchaseRequestLineInput & {
   /** Liên kết mặt hàng gốc (mg 0174) — form SỬA phải đọc lại từ phiếu, không thì lưu đè thành rỗng. */
   hang_loai?: HangLoai | null;
   hang_id?: number | null;
+  /** Chỉ để HIỆN (không gửi): định lượng gsm của danh mục giấy, cột Định lượng chỉ đọc. */
+  dinh_luong?: number | null;
   /** Lúc TẠO đơn từ yêu cầu: dòng có được đưa vào đơn này không. `false` = bỏ tick ⇒ không gửi,
    *  dòng yêu cầu vẫn mở (muốn đóng hẳn thì huỷ dòng ở phiếu yêu cầu). Vắng = có. */
   chon?: boolean;

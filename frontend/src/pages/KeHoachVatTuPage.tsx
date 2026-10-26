@@ -55,6 +55,7 @@ export function KeHoachVatTuPage({
           quantity: d.quantity,
           kho_rong: d.kho_rong,
           kho_dai: d.kho_dai,
+          dinh_luong: d.dinh_luong ?? null,
         })),
         purchaseSeedPurpose: nhap.noi_dung,
         purchaseSeedHeader: {

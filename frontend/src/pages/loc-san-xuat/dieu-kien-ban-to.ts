@@ -7,9 +7,12 @@
  *
  *  10/10/2026: thêm điều kiện thứ 7 "Lệnh gấp" (cờ `is_rush` của lệnh / bài ghép).
  *
+ *  22/10/2026: gỡ "Trễ giờ dự kiến", thêm "Máy" và "Khách hàng" — giá trị chỉ gồm máy / khách đang
+ *  có việc trên bàn, máy chủ trả kèm số.
+ *
  *  Mốc mặc định của kỳ là `nhan` (ngày tổ nhận lệnh) — giữ hành vi của ô "Ngày tổ nhận" cũ; cách
  *  sắp không phải điều kiện lọc nên nằm riêng bên phải thanh công cụ. */
-import { BellRing, CircleAlert, CircleDot, Clock, Flame, Route, Users } from "lucide-react";
+import { BellRing, Building2, CircleAlert, CircleDot, Cog, Flame, Route, Users } from "lucide-react";
 
 import type { SxWorkItemsLocDem, ThamSoLoc } from "../../api/client";
 import type { GiaTriUrl } from "../ke-toan/shared/urlMan";
@@ -28,8 +31,7 @@ export type ThsxSapXep = "moi_nhan" | "cu_nhan" | "du_kien";
 
 export type ThsxChoLoai = "ban_giao" | "kcs";
 export type ThsxToiLoc = "toi" | "con_1" | "con_2_3" | "con_4" | "qua";
-export type ThsxVuongLoc = "chua_giao_tho" | "chua_nhan_khuon" | "cho_chot_giay" | "chua_nhan_buoc_truoc";
-export type ThsxTreLoc = "bat_dau" | "xong";
+export type ThsxVuongLoc = "chua_giao_tho" | "chua_nhan_khuon" | "chua_nhan_buoc_truoc" | "chua_san_sang_vat_tu";
 export type ThsxGapLoc = "gap" | "thuong";
 
 export type LocBanTo = {
@@ -38,11 +40,12 @@ export type LocBanTo = {
   cho: ThsxChoLoai[];
   toi?: ThsxToiLoc;
   vuong: ThsxVuongLoc[];
-  tre?: ThsxTreLoc;
+  may: number[];
+  khach: number[];
   nguoi: number[];
 };
 
-export const LOC_BAN_TO_TRONG: LocBanTo = { trangThai: [], cho: [], vuong: [], nguoi: [] };
+export const LOC_BAN_TO_TRONG: LocBanTo = { trangThai: [], cho: [], vuong: [], may: [], khach: [], nguoi: [] };
 
 /** Nút chờ của view Lịch bật = mọi loại việc chờ. */
 export const CHO_MOI_LOAI: ThsxChoLoai[] = ["ban_giao", "kcs"];
@@ -75,13 +78,8 @@ const TOI: GiaTriDK[] = [
 const VUONG: GiaTriDK[] = [
   { value: "chua_giao_tho", nhan: "Chưa giao thợ" },
   { value: "chua_nhan_khuon", nhan: "Chưa nhận khuôn" },
-  { value: "cho_chot_giay", nhan: "Chờ chốt giấy" },
   { value: "chua_nhan_buoc_truoc", nhan: "Chưa nhận hàng bước trước" },
-];
-
-const TRE: GiaTriDK[] = [
-  { value: "bat_dau", nhan: "Quá giờ bắt đầu mà chưa chạy" },
-  { value: "xong", nhan: "Quá giờ xong mà chưa xong" },
+  { value: "chua_san_sang_vat_tu", nhan: "Chưa sẵn sàng vật tư" },
 ];
 
 export const SAP_XEP_BAN_TO: [ThsxSapXep, string][] = [
@@ -96,9 +94,9 @@ const trong = (ds: GiaTriDK[]) => (v: string | null | undefined): boolean => ds.
 const laCho = trong(CHO) as (v: string) => v is ThsxChoLoai;
 const laToi = trong(TOI) as (v: string | null | undefined) => v is ThsxToiLoc;
 const laVuong = trong(VUONG) as (v: string) => v is ThsxVuongLoc;
-const laTre = trong(TRE) as (v: string | null | undefined) => v is ThsxTreLoc;
 const laGap = trong(GAP) as (v: string | null | undefined) => v is ThsxGapLoc;
 const mang = <T,>(ds: T[]) => (ds.length ? ds : undefined);
+const soId = (v: string | null) => (v ?? "").split(".").filter((x) => /^\d+$/.test(x)).map(Number);
 
 /** Tham số máy chủ của điều kiện. Mảng rỗng / không chọn thì không gửi khoá. */
 export function thamSoLocBanTo(loc: LocBanTo): ThamSoLoc {
@@ -107,7 +105,8 @@ export function thamSoLocBanTo(loc: LocBanTo): ThamSoLoc {
     cho_loai: mang(loc.cho),
     toi: loc.toi,
     vuong: mang(loc.vuong),
-    tre: loc.tre,
+    may: mang(loc.may.map(String)),
+    khach: mang(loc.khach.map(String)),
     nguoi: mang(loc.nguoi.map(String)),
     gap: loc.gap,
   };
@@ -133,8 +132,9 @@ export function locBanToTuUrl(p: URLSearchParams): LocManBanTo {
       cho: p.get("cho") === "1" ? [...CHO_MOI_LOAI] : (p.get("cho") ?? "").split(".").filter(laCho),
       toi: laToi(p.get("toi")) ? (p.get("toi") as ThsxToiLoc) : undefined,
       vuong: (p.get("vg") ?? "").split(".").filter(laVuong),
-      tre: laTre(p.get("tre")) ? (p.get("tre") as ThsxTreLoc) : undefined,
-      nguoi: (p.get("ng") ?? "").split(".").filter((x) => /^\d+$/.test(x)).map(Number),
+      may: soId(p.get("may")),
+      khach: soId(p.get("kh")),
+      nguoi: soId(p.get("ng")),
     },
     sapXep: laSapXep(sx) ? sx : "moi_nhan",
   };
@@ -148,7 +148,8 @@ export function locBanToLenUrl(t: LocManBanTo): GiaTriUrl {
     cho: t.loc.cho.length ? t.loc.cho.join(".") : undefined,
     toi: t.loc.toi,
     vg: t.loc.vuong.length ? t.loc.vuong.join(".") : undefined,
-    tre: t.loc.tre,
+    may: t.loc.may.length ? t.loc.may.join(".") : undefined,
+    kh: t.loc.khach.length ? t.loc.khach.join(".") : undefined,
     ng: t.loc.nguoi.length ? t.loc.nguoi.join(".") : undefined,
     sap: t.sapXep === "moi_nhan" ? undefined : t.sapXep,
   };
@@ -157,8 +158,12 @@ export function locBanToLenUrl(t: LocManBanTo): GiaTriUrl {
 const kemSo = (ds: GiaTriDK[], dem?: Record<string, number>): GiaTriDK[] =>
   ds.map((g) => (dem ? { ...g, so: dem[g.value] ?? 0 } : g));
 
-/** `dem` = số đếm máy chủ (`/work-items/loc-dem`); chưa về thì giá trị không kèm số. "Người làm"
- *  lấy giá trị từ chính `dem.nguoi` — chưa về thì chưa có ai để chọn. */
+const laId = (v: string[]) => v.filter((x) => /^\d+$/.test(x)).map(Number);
+const luaChon = (ds?: { id: number; ten: string | null; so: number }[]): GiaTriDK[] =>
+  (ds ?? []).map((n) => ({ value: String(n.id), nhan: n.ten ?? `#${n.id}`, so: n.so }));
+
+/** `dem` = số đếm máy chủ (`/work-items/loc-dem`); chưa về thì giá trị không kèm số. "Máy",
+ *  "Khách hàng", "Người làm" lấy giá trị từ chính `dem` — chưa về thì chưa có gì để chọn. */
 export function dieuKienBanTo(dem: SxWorkItemsLocDem | null): DieuKien<LocBanTo>[] {
   return [
     {
@@ -193,16 +198,22 @@ export function dieuKienBanTo(dem: SxWorkItemsLocDem | null): DieuKien<LocBanTo>
       ghi: (l, v) => ({ ...l, vuong: v.filter(laVuong) }),
     },
     {
-      khoa: "tre", nhan: "Trễ giờ dự kiến", icon: Clock, kieu: "mot",
-      giaTri: kemSo(TRE, dem?.tre),
-      doc: (l) => l.tre,
-      ghi: (l, v) => ({ ...l, tre: laTre(v) ? v : undefined }),
+      khoa: "may", nhan: "Máy", icon: Cog, kieu: "nhieu", tim: true,
+      giaTri: luaChon(dem?.may),
+      doc: (l) => l.may.map(String),
+      ghi: (l, v) => ({ ...l, may: laId(v) }),
+    },
+    {
+      khoa: "kh", nhan: "Khách hàng", icon: Building2, kieu: "nhieu", tim: true,
+      giaTri: luaChon(dem?.khach),
+      doc: (l) => l.khach.map(String),
+      ghi: (l, v) => ({ ...l, khach: laId(v) }),
     },
     {
       khoa: "ng", nhan: "Người làm", icon: Users, kieu: "nhieu", tim: true,
-      giaTri: (dem?.nguoi ?? []).map((n) => ({ value: String(n.id), nhan: n.ten, so: n.so })),
+      giaTri: luaChon(dem?.nguoi),
       doc: (l) => l.nguoi.map(String),
-      ghi: (l, v) => ({ ...l, nguoi: v.filter((x) => /^\d+$/.test(x)).map(Number) }),
+      ghi: (l, v) => ({ ...l, nguoi: laId(v) }),
     },
   ];
 }

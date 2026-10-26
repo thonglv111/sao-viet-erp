@@ -5,6 +5,7 @@ import { ApiError, api, type MyAdvances } from "../../../../api/client";
 import { EmptyState } from "../../../../components/EmptyState";
 import { printAdvanceRequest } from "../../../../utils/printAdvanceRequest";
 import { RowActionButton } from "../../../../components/RowActionButton";
+import { fmtDate } from "../../../../utils/format";
 import { advPrintData, money } from "../shared/helpers";
 import { MyAdvanceModal } from "../modals/MyAdvanceModal";
 // Nhãn trạng thái / loại DÙNG CHUNG với tab Tạm ứng — bản riêng cũ thiếu "Đã chi" nên hiện mã "paid".
@@ -136,7 +137,7 @@ export function TamUngCuaToiTab({
                     <td>
                       {String(a.period_month).padStart(2, "0")}/{a.period_year}
                     </td>
-                    <td>{a.advance_date}</td>
+                    <td>{fmtDate(a.advance_date)}</td>
                     <td className="lg-num">{money(a.amount)}đ</td>
                     <td>{a.reason ?? "—"}</td>
                     <td>

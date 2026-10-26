@@ -326,17 +326,15 @@ describe("ThsxDrawer · công đoạn trước", () => {
   });
 });
 
-// Cổng "chờ tổ Cắt" (spec giấy theo khổ §4.7): bước mang giấy chưa được tổ Cắt chốt.
-describe("ThsxDrawer · chờ tổ Cắt chốt giấy", () => {
-  it("bày câu máy chủ trả, khoá Bắt đầu, che câu thiếu đầu vào", () => {
+describe("ThsxDrawer · vật tư chưa sẵn sàng", () => {
+  function mo(vatTu: string | null) {
     const base = chiTiet(true, true);
-    const cau = "Chờ tổ Cắt chốt giấy cho LSX26-0001 — tổ Cắt chèn bước cắt hoặc bấm \"Không cần cắt\" rồi mới bắt đầu được.";
     const ct = {
       ...base,
       cong_viec: { ...base.cong_viec, khuon: null },
       phan_cong: [{ id: 1, employee_id: 100, ho_ten: "Thợ 1", la_luong_khoan: true, trang_thai: "active" }],
-      thieu_dau_vao: ["Cắt tờ"],
-      cho_chot_giay: cau,
+      thieu_dau_vao: [],
+      vat_tu_chua_san_sang: vatTu,
     } as unknown as SxWorkItemChiTiet;
     render(
       <ThsxDrawer chiTiet={ct} loading={false} candidates={[]} hoTroUngVien={[]}
@@ -344,9 +342,20 @@ describe("ThsxDrawer · chờ tổ Cắt chốt giấy", () => {
         onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
         onKetThuc={vi.fn()} onClose={vi.fn()} />,
     );
+  }
+
+  it("máy chủ báo chưa sẵn sàng: Bắt đầu khoá, cột phải nói đúng câu máy chủ", () => {
+    mo("Vật tư chưa sẵn sàng: kho đang soạn. Đợi kho xuất xong mới bắt đầu được.");
     expect((screen.getByRole("button", { name: "Bắt đầu" }) as HTMLButtonElement).disabled).toBe(true);
-    expect(document.body.textContent).toContain(cau);
-    expect(document.body.textContent).not.toContain("Chưa nhận hàng từ");
+    expect(cotPhai().textContent).toContain(
+      "Vật tư chưa sẵn sàng: kho đang soạn. Đợi kho xuất xong mới bắt đầu được.",
+    );
+  });
+
+  it("sẵn sàng: Bắt đầu mở, không có câu vật tư", () => {
+    mo(null);
+    expect((screen.getByRole("button", { name: "Bắt đầu" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(document.body.textContent).not.toContain("Vật tư chưa sẵn sàng");
   });
 });
 
@@ -532,7 +541,7 @@ describe("ThsxDrawer · khung ngăn B", () => {
     expect(within(cotPhai()).queryByText("Hàng đang tới đâu")).toBeNull();
   });
 
-  it("đang chạy: chip trạng thái kèm giờ phiên cuối; Đổi máy và Báo sự cố nằm trong nút ⋯", () => {
+  it("đang chạy: chip trạng thái kèm giờ phiên cuối; nút ⋯ chỉ còn Đổi máy (Báo sự cố gộp vào Báo dừng máy)", () => {
     moB(
       { trang_thai: "running", phan_cong: [{ id: 1, employee_id: 100, ho_ten: "Thợ 1", trang_thai: "active" }],
         phien_chay: [{ id: 1, so_thu_tu: 1, may_id: 3, may_ten: "Máy bế", bat_dau: "2026-10-09T11:41:00",
@@ -543,7 +552,7 @@ describe("ThsxDrawer · khung ngăn B", () => {
     expect(screen.queryByRole("menuitem", { name: "Đổi máy" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Thêm thao tác" }));
     expect((screen.getByRole("menuitem", { name: "Đổi máy" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.getByRole("menuitem", { name: "Báo sự cố" })).toBeTruthy();
+    expect(screen.getAllByRole("menuitem").map((b) => b.textContent)).toEqual(["Đổi máy"]);
   });
 
   it("tạm dừng: cột phải ghi giờ dừng và lý do của phiên", () => {
@@ -587,11 +596,11 @@ describe("ThsxDrawer · nội dung các tab (ngăn B)", () => {
     expect(screen.getByText("Không có")).toBeTruthy();
   });
 
-  it("Sản lượng: Các mẻ đã ghi + nút Ghi mẻ, Phiên chạy; số tốt không lặp lại (đã ở cột phải)", () => {
+  it("Sản lượng: Các mẻ đã ghi + nút Ghi mẻ, không còn bảng Phiên chạy; số tốt không lặp lại (đã ở cột phải)", () => {
     moTab("sl", { ban_giao_chang_sau: chang });
     expect(screen.getByRole("heading", { name: "Sản lượng đã ghi" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Ghi sản lượng/ })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: /Phiên chạy/ })).toBeTruthy();
+    expect(screen.queryByText(/Phiên chạy/)).toBeNull();
     expect(screen.getByText("Chưa ghi sản lượng lần nào.")).toBeTruthy();
     expect(document.querySelector(".thsx-batch-metric-strip")).toBeNull();
   });
@@ -657,6 +666,21 @@ describe("ThsxDrawer · nội dung các tab (ngăn B)", () => {
     expect(screen.getByRole("button", { name: "Yêu cầu cấp vật tư" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Yêu cầu nhập kho" })).toBeTruthy();
   });
+
+  it("Vật tư: lần hệ thống tự lập lúc phát hành ghi Tự lập khi phát hành thay tên người phát hành", () => {
+    const lan = (id: number, tuLap: boolean) => ({
+      id, lan_so: id, loai: id === 1 ? "lan_dau" : "bo_sung", tu_lap: tuLap, can_luc: "2026-09-11T08:00:00",
+      stock_request_id: 50 + id, stock_request_ma: `DNX0000${id}`, stock_request_trang_thai: "approved",
+      created_by_id: 1, updated_by_id: tuLap ? null : 1, created_by_ten: "Kế hoạch Lan", updated_by_ten: null,
+      created_at: "2026-09-10T09:00:00", updated_at: "2026-09-10T09:00:00", dongs: [],
+    });
+    moTab("vt", { vat_tu_cap: {
+      doi_chieu: [], cac_de_nghi: [lan(1, true), lan(2, false)], de_nghi_co_the_sua_id: null,
+      co_the_tao_bo_sung: false, du_lieu_cu: false,
+    } });
+    expect(screen.getAllByText("Tự lập khi phát hành")).toHaveLength(1);
+    expect(screen.getAllByText("Kế hoạch Lan")).toHaveLength(1);
+  });
 });
 
 describe("ThsxDrawer · Giao người ở cột phải", () => {
@@ -682,5 +706,24 @@ describe("ThsxDrawer · Giao người ở cột phải", () => {
     fireEvent.click(within(cotPhai()).getByRole("button", { name: "+ Giao người" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Chọn người để giao" })).getByRole("button", { name: /Phạm Văn Long/ }));
     expect(onGiao).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("ThsxDrawer · nạp chi tiết (L-SX-09)", () => {
+  const mo = (loi: boolean) => render(
+    <ThsxDrawer chiTiet={null} loading={false} loi={loi} candidates={[]} hoTroUngVien={[]}
+      mayOptions={[]} exec={{} as ThsxExec} busy={false} onGiao={vi.fn()} onRut={vi.fn()}
+      onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
+      onKetThuc={vi.fn()} onClose={vi.fn()} />,
+  );
+
+  it("chưa có chi tiết mà cờ tải chưa bật thì là đang tải, không hiện câu lỗi", () => {
+    mo(false);
+    expect(screen.queryByText("Không tải được chi tiết công việc.")).toBeNull();
+  });
+
+  it("lượt nạp hỏng thật mới hiện câu lỗi", () => {
+    mo(true);
+    expect(screen.getByText("Không tải được chi tiết công việc.")).toBeTruthy();
   });
 });

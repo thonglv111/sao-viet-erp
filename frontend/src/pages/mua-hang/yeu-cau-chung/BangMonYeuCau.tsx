@@ -24,6 +24,7 @@ export const COT_MON: CotMH[] = [
   { key: "nv", label: "NV yêu cầu", w: 160 },
   { key: "can", label: "Cần hàng", w: 200 },
   { key: "kho", label: "Khổ", w: 120 },
+  { key: "dl", label: "Định lượng", w: 100, n: true },
   { key: "sl", label: "Số lượng", w: 110, n: true },
   { key: "mua_cho", label: "Mua cho", w: 160 },
   { key: "don", label: "Đơn mua", w: 150 },
@@ -223,6 +224,9 @@ export function BangMonYeuCau({
                           );
                         case "kho":
                           return <td key={c.key}>{khoMon(r)}</td>;
+                        case "dl":
+                          // gsm khai ở danh mục giấy — chỉ đọc (spec 2026-10-24 §6).
+                          return <td key={c.key} className="n">{r.hang_loai === "giay" ? (r.dinh_luong ?? <span className="lds-mu3">–</span>) : ""}</td>;
                         case "sl":
                           return (
                             <td key={c.key} className="n">

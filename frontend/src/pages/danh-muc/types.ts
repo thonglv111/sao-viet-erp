@@ -171,6 +171,9 @@ export interface CatalogConfig {
   /** Dòng khoá VẪN mở form được (vd Kho thành phẩm: khai vị trí cất) — chỉ ổ khoá + mất nút Xoá;
    *  phần nào không sửa được do máy chủ chặn. */
   dongKhoaMoDuoc?: boolean;
+  /** Ô KHOÁ khi đang sửa dòng `co_dinh` (vd công đoạn hệ thống: tên, nhóm, đơn vị vào/ra) — ô vẫn
+   *  gửi lên nguyên giá trị; máy chủ chặn song song. Ô Mã vốn đã khoá khi sửa. */
+  oKhoaKhiCoDinh?: string[];
   /** Bỏ cột Ngày tạo (màn có dòng không ngày tạo, vd mục cố định). */
   anNgayTao?: boolean;
   softDelete?: boolean;         // "Xóa" = ẩn mềm (active=false), giữ dữ liệu; list chỉ hiện active
@@ -208,6 +211,10 @@ export interface CatalogConfig {
    *  danh mục có mã chạy số, SAI cho danh mục mà mã là một thứ có thật ngoài đời (biển số): điền
    *  sẵn là mời người ta bấm Lưu với cái mã vô nghĩa đó. */
   khongGoiYMa?: boolean;
+  /** Mã máy chủ lưu chữ THƯỜNG (Đơn vị: `kg`, `m2` — xem `don_vi_do_repo.ma_case`) nhưng bày ra
+   *  chữ HOA như mọi danh mục khác. Chỉ đổi chữ hiện ra ở lưới + ô Mã; giá trị gửi đi vẫn được
+   *  máy chủ `lower()`, nên đừng đổi dữ liệu sống sang HOA để "cho khớp". */
+  maHienHoa?: boolean;
   /** Tạo xong thì GIỮ drawer mở ở bản ghi vừa tạo. Dùng cho màn có khối con phải gắn vào id (vd
    *  Đơn vị: tạo "tấn" xong khai ngay quy đổi) — đóng phắt là bắt người ta đi tìm lại dòng. */
   moLaiSauKhiTao?: boolean;
@@ -248,13 +255,47 @@ export interface ChuanBiKhoanRow { ten?: string; phut?: number }
 
 /** Một VIỆC PHÁT SINH của công việc khoán (Thay kẽm · 100 đ · bản kẽm). `id` có khi dòng đã lưu —
  *  gửi ngược lên để server sửa đúng dòng đó thay vì đẻ dòng mới. `don_vi` là MÃ đơn vị. */
-export interface ViecPhatSinhRow { id?: number; ten?: string; don_gia?: number | null; don_vi?: string }
+export interface ViecPhatSinhRow {
+  id?: number; ten?: string; don_gia?: number | null; don_vi?: string;
+  /** Giá theo tổ của việc phát sinh (21/10/2026) — rỗng/null = mọi tổ dùng `don_gia`. */
+  gia_theo_to?: { department_id: number; don_gia?: number | null }[] | null;
+  /** "Cách tính giá" (24/10/2026): công thức ra đơn giá trên lần ghi — có thì đơn giá / giá tổ không dùng. */
+  cong_thuc?: string | null;
+}
+
+/** Một dòng bảng giá theo tổ của cấu hình Khoán (21/10/2026). `bac` = mã bậc giá khi công đoạn
+ *  chia bậc (22/10/2026) — mỗi ô (tổ, bậc) một dòng. */
+export interface GiaTheoToRow {
+  department_id: number; bac?: string | null; gia_co_dinh?: number | null; don_gia?: number | null;
+}
+
+/** Một bậc giá (Bài in, 22/10/2026): điều kiện theo số màu (= số kẽm như Tính giá), màu pha, một tuỳ chọn Có /
+ *  không. Ô điều kiện để trống (null) = không xét. Bậc đầu tiên khớp được dùng. */
+export interface BacGiaRow {
+  ma: string; ten: string;
+  mau_tu?: number | null; mau_den?: number | null;
+  pha?: "co" | "khong" | null;
+  tuy_chon_ma?: string | null; tuy_chon_co?: "co" | "khong" | null;
+  /** Giá của bậc đã gồm mực UV ⇒ chip "Giá đã gồm UV" = 1. */
+  gom_uv?: boolean;
+}
+
+/** Một "tuỳ chọn khi ghi" của công đoạn (Đợt 2): thợ tick (Có / không = 1/0) hoặc gõ số ở từng lần
+ *  ghi; `ma` là chip trong ô Công thức khoán. */
+export interface TuyChonKhoanRow { ma: string; ten: string; kieu: "co_khong" | "so"; goi_y: string | null }
 
 export interface KhoanCongDoanValue {
   id?: number;
   unit?: string;
   unit_price?: number | null;
+  /** Giá cố định chung (Đợt 2) — bảng giá theo tổ rỗng thì mọi tổ dùng cả hai giá chung. */
+  gia_co_dinh?: number | null;
+  tuy_chon?: TuyChonKhoanRow[];
   cong_thuc_khoan?: string | null;
+  /** Rỗng/null = mọi tổ dùng giá chung; có dòng thì tổ vắng mặt = thiếu giá. */
+  gia_theo_to?: GiaTheoToRow[] | null;
+  /** Bậc giá theo số màu (22/10/2026); rỗng/null = không chia bậc. Có bậc thì giá chung không dùng. */
+  bac_gia?: BacGiaRow[] | null;
   viec_phat_sinh?: ViecPhatSinhRow[];
 }
 

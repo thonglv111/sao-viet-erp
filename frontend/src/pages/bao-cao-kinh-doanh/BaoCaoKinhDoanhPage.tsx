@@ -65,19 +65,25 @@ const COT: Cot[] = [
   { key: "tt", label: "Thành tiền", w: 130, n: true },
   { key: "vat", label: "Tổng có VAT", w: 140, n: true },
   { key: "hd", label: "Đã xuất HĐ", w: 130, n: true },
-  { key: "dc", label: "Điều chỉnh giảm", w: 130, n: true },
   { key: "thu", label: "Đã thu", w: 130, n: true },
   // Tiền trả lại khách ngoài đơn cộng nợ lại vào hoá đơn của đơn (#47) — cùng luật Công nợ phải thu.
   { key: "hk", label: "Trả lại ngoài đơn", w: 130, n: true },
   { key: "cthu", label: "Còn phải thu", w: 130, n: true },
+  // Chiết khấu / kê chi lại khách (20/10/2026) — phải chi chỉ tính hóa đơn đã thu đủ.
+  { key: "ckp", label: "Chiết khấu phải chi", w: 140, n: true },
+  { key: "ckd", label: "Chiết khấu đã chi", w: 140, n: true },
+  { key: "ke", label: "Tiền kê", w: 130, n: true },
+  { key: "ket", label: "Thuế TNDN trên kê", w: 140, n: true },
+  { key: "kep", label: "Kê phải chi", w: 130, n: true },
+  { key: "ked", label: "Kê đã chi", w: 130, n: true },
   { key: "hen", label: "Hẹn giao", w: 110 },
   { key: "coc", label: "Cọc", w: 150 },
   { key: "tl", label: "Tỷ lệ báo giá", w: 110, n: true },
 ];
 
-/** Khoá cấu hình lưới của màn. Đổi khoá ở phương án C vì bộ cột đổi hẳn — cấu hình cũ (ẩn / thứ tự)
- *  của bộ cột trước không còn nghĩa. */
-const MAN = "bao-cao-kinh-doanh-c";
+/** Khoá cấu hình lưới của màn. Đổi khoá khi bộ cột đổi hẳn (phương án C; 20/10/2026 gỡ Điều chỉnh,
+ *  thêm sáu cột chiết khấu / kê) — cấu hình cũ (ẩn / thứ tự) của bộ cột trước không còn nghĩa. */
+const MAN = "bao-cao-kinh-doanh-d";
 
 /** Mặc định của người xem chưa chỉnh lần nào: ẩn Tỷ lệ báo giá, ghim Đơn hàng (Khách hàng là cột cố
  *  định). Ghi vào chỗ `useCauHinhLuoi` đọc TRƯỚC khi hook đọc; người xem đã chỉnh thì không đụng. */
@@ -157,10 +163,15 @@ function tienCot(key: string, m: BaoCaoKinhDoanhTien): number | undefined {
     case "tt": return m.tong;
     case "vat": return m.tong_vat;
     case "hd": return m.da_xuat_hd;
-    case "dc": return m.dieu_chinh;
     case "thu": return m.da_thu;
     case "hk": return m.hoan_khong_don;
     case "cthu": return m.con_phai_thu;
+    case "ckp": return m.ck_phai_chi;
+    case "ckd": return m.ck_da_chi;
+    case "ke": return m.ke_tien;
+    case "ket": return m.ke_thue_tndn;
+    case "kep": return m.ke_phai_chi;
+    case "ked": return m.ke_da_chi;
     default: return undefined;
   }
 }
@@ -223,10 +234,15 @@ function KhoiKhach({ k, cot, soGhim, hl }: { k: BaoCaoKinhDoanhKhach; cot: Cot[]
                 return <td key={c.key} {...g} className={so_}>{ln && <Tien v={ln.thanh_tien} />}</td>;
               case "vat":
               case "hd":
-              case "dc":
               case "thu":
               case "hk":
               case "cthu":
+              case "ckp":
+              case "ckd":
+              case "ke":
+              case "ket":
+              case "kep":
+              case "ked":
                 return dauDon && <td key={c.key} {...gop} className={so_}><TienKhong v={tienCot(c.key, d) ?? 0} /></td>;
               case "hen":
                 return dauDon && <td key={c.key} {...gop}>{d.ngay_giao ? fmtDate(d.ngay_giao) : <Khong />}</td>;

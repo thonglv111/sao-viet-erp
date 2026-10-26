@@ -115,6 +115,7 @@ from sqlalchemy.orm import Session
 
 from ...config import settings
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
+from ...repositories.lsx_repo import LsxRepository
 from ..gio_xuong import gio_xuong
 from ..pdf_font import THUONG, cat_vua, dang_ky_font as _dang_ky_font
 from . import ho_so
@@ -399,9 +400,19 @@ def render_pdf(
 
     so_trang = ts.get("so_trang")
     nhieu_trang = bool(so_trang) and float(so_trang) > 1
+    # Hộp bồi couche lên sóng: ô Giấy + ô Sóng tách theo loại (mg 0426). Lệnh cũ nhiều mã cùng loại thì
+    # ô kể đủ, mỗi mã một dòng; nhiều GIẤY thì bỏ định lượng — `dinh_luong` chỉ là gsm của giấy chính.
+    giays, songs = LsxRepository(db).giay_song_cac_buoc(lsx_id)
+    nhieu_giay = len(giays) > 1
+
+    def _o_ten(ds: list[str]):
+        return Paragraph("<br/>".join(_xml_escape(g) for g in ds), s_gt) if len(ds) > 1 else ds[0]
+
     o_ts = [
-        ("Giấy", ts.get("giay_ten")),
-        ("Định lượng", f"{_so(ts['dinh_luong'])} g/m²" if ts.get("dinh_luong") else ""),
+        ("Giấy", _o_ten(giays) if giays else ts.get("giay_ten")),
+        ("Định lượng", f"{_so(ts['dinh_luong'])} g/m²" if ts.get("dinh_luong") and not nhieu_giay else ""),
+        # Sóng (mg 0426) — ô riêng ngay sau định lượng của giấy, chỉ khi lệnh có sóng.
+        *([("Sóng", _o_ten(songs))] if songs else []),
         ("Khổ nguyên", kho(ts.get("kho_nguyen_dai"), ts.get("kho_nguyen_rong"))),
         ("Khổ in", kho(ts.get("kho_in_dai"), ts.get("kho_in_rong"))),
         ("Thành phẩm", kho(ts.get("dai_thanh_pham"), ts.get("rong_thanh_pham"))),
@@ -419,7 +430,7 @@ def render_pdf(
     ]
     o_ts = [(n, v) for n, v in o_ts if v not in (None, "")]
     if o_ts:
-        o_luoi = [[p(n, s_nhan), v if isinstance(v, Table) else p(v, s_gt)] for n, v in o_ts]
+        o_luoi = [[p(n, s_nhan), v if isinstance(v, (Table, Paragraph)) else p(v, s_gt)] for n, v in o_ts]
         o_luoi += [""] * (-len(o_luoi) % 4)
         luoi = Table(
             [o_luoi[i:i + 4] for i in range(0, len(o_luoi), 4)],

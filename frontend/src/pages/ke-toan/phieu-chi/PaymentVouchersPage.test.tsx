@@ -8,6 +8,7 @@ import { khoangSo } from "../shared/kyKeToan";
 const vouchers = vi.fn();
 const choChi = vi.fn();
 const traLai = vi.fn();
+const ckKe = vi.fn();
 const muaHangChoChi = vi.fn();
 
 vi.mock("../../../auth/useAuth", () => ({ useAuth: () => ({ token: "token-test" }) }));
@@ -23,6 +24,7 @@ vi.mock("../../../api/client", async (goc) => ({
       vouchers: (...a: unknown[]) => vouchers(...a),
       companyAccounts: vi.fn().mockResolvedValue([]),
       traLaiKhachChoChi: (...a: unknown[]) => traLai(...a),
+      ckKeChoChi: (...a: unknown[]) => ckKe(...a),
       muaHangChoChi: (...a: unknown[]) => muaHangChoChi(...a),
     },
     giaCongNgoai: { choChi: (...a: unknown[]) => choChi(...a) },
@@ -40,6 +42,8 @@ beforeEach(() => {
   choChi.mockResolvedValue([]);
   traLai.mockReset();
   traLai.mockResolvedValue([]);
+  ckKe.mockReset();
+  ckKe.mockResolvedValue([]);
   muaHangChoChi.mockReset();
   muaHangChoChi.mockResolvedValue([]);
   vouchers.mockImplementation(async () => traVe());
@@ -142,6 +146,25 @@ describe("PaymentVouchersPage — nối dây", () => {
     expect(await screen.findByRole("button", { name: "DH009" })).toBeInTheDocument();
     expect(screen.getByText("Đơn đã hủy. Hóa đơn 12 đã hủy")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Lập phiếu chi" })).toHaveLength(2);
+  });
+
+  it("hóa đơn thu đủ còn CK / kê thì có tab Chờ chi CK / kê; tick khác khách bị khoá", async () => {
+    const dong = (id: number, loai: "chiet_khau" | "ke_gia", khach: number) => ({
+      sales_invoice_id: id, invoice_symbol: "1C26T", invoice_number: `000${id}`, invoice_date: "2026-10-20",
+      order_id: id, order_code: `DH0${id}`, customer_id: khach, customer_name: `Khách ${khach}`, loai,
+      tien: 5_000_000, thue_tndn: loai === "ke_gia" ? 1_000_000 : 0, phai_chi: 4_000_000, da_chi: 0, con: 4_000_000,
+    });
+    ckKe.mockResolvedValue([dong(1, "ke_gia", 3), dong(2, "ke_gia", 4)]);
+    window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=tat_ca");
+    render(<PaymentVouchersPage navigate={vi.fn()} />);
+    const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });
+    const tab = await within(dai).findByRole("button", { name: /Chờ chi CK \/ kê/ });
+    await waitFor(() => expect(tab).toHaveTextContent("2"));
+    act(() => tab.click());
+    const o1 = await screen.findByRole("checkbox", { name: "Chọn Kê hóa đơn 0001" });
+    act(() => o1.click());
+    expect(screen.getByRole("checkbox", { name: "Chọn Kê hóa đơn 0002" })).toBeDisabled();
+    expect(screen.getByRole("region", { name: "Khoản đã chọn" })).toHaveTextContent("Đã chọn 1 khoản kê của Khách 3");
   });
 
   it("tab Mua hàng chờ chi: mỗi khoản một dòng (cọc, từng đợt còn nợ) kèm nút lập phiếu; bấm dòng mở chi tiết khoản", async () => {

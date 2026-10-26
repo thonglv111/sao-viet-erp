@@ -77,7 +77,7 @@ def test_tra_lai_coc_chi_don_da_huy_va_khong_vuot_coc_con_lai(client):
 
     # Còn 100.000 — trả 150.000 nữa thì bị chặn.
     r = _tra_lai(client, h, so_tien=150_000, customer_id=kh, order_id=order_id)
-    assert r.status_code == 422 and "100,000" in r.text
+    assert r.status_code == 422 and "100.000 đ" in r.text
 
     don = client.get(f"/api/orders/{order_id}", headers=h)
     assert don.status_code == 200, don.text

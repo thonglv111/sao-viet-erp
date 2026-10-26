@@ -27,7 +27,7 @@ import "../components/don-form-a.css";
 import { tenDonVi } from "../../../tenDonVi";
 import { hanTraDot } from "../../don-mua-chung/hanTra";
 import { ATTACHMENT_IMAGE_TYPES } from "../shared/constants";
-import { daGiaoKhac, nhanKhoMua, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
+import { daGiaoKhac, khoNhanThieuCanh, nhanKhoMua, tienTheoSoLuong, todayInputValue } from "../shared/helpers";
 import type { AnhCho } from "../shared/types";
 
 /**
@@ -278,7 +278,12 @@ export function DeliveryDialog({
       setError("Có ký hiệu thì phải có số hoá đơn.");
       return;
     }
-    const thieuCanh = lines.find((l) => "kho_rong" in l && !l.kho_rong !== !l.kho_dai);
+    // Chỉ giấy TỜ mới cần đủ hai cạnh — cuộn đặt theo rộng thì nhận chỉ rộng là đúng.
+    const thieuCanh = row.lines.find((line) => {
+      const kho = khoNhan[line.id];
+      return kho != null && lines.some((l) => l.purchase_request_line_id === line.id)
+        && khoNhanThieuCanh(line, kho);
+    });
     if (thieuCanh) {
       setError("Khổ nhận của giấy tờ cần đủ hai cạnh.");
       return;
@@ -428,9 +433,11 @@ export function DeliveryDialog({
             </div>
             <section className="kna-the kna-the--cat">
               <div className="lds-bang lds-bang--nhap dfa-bang">
-                <table className="lds-g kna-tren" style={{ minWidth: 558 }}>
+                <table className="lds-g kna-tren" style={{ minWidth: 558 + (coGiay ? 296 : 0) }}>
                   <colgroup>
                     <col />
+                    {coGiay && <col style={{ width: 200 }} />}
+                    {coGiay && <col style={{ width: 96 }} />}
                     <col style={{ width: 104 }} />
                     <col style={{ width: 104 }} />
                     <col style={{ width: 150 }} />
@@ -438,6 +445,8 @@ export function DeliveryDialog({
                   <thead>
                     <tr>
                       <th>Vật tư</th>
+                      {coGiay && <th>Khổ nhận</th>}
+                      {coGiay && <th className="n">Định lượng</th>}
                       <th className="n">Đặt</th>
                       <th className="n">Đã nhận</th>
                       <th className="n">Đợt này</th>
@@ -458,8 +467,10 @@ export function DeliveryDialog({
                         <tr key={line.id}>
                           <td>
                             <div className="kna-hang__ten">{line.item_name}</div>
-                            {coGiay && line.hang_loai === "giay" && (
-                              <div className="ycf-phu">
+                          </td>
+                          {coGiay && (
+                            <td>
+                              {line.hang_loai === "giay" && (
                                 <KhungKho
                                   ariaLabel={`Khổ nhận ${line.item_name}`}
                                   canh={khacKho}
@@ -468,14 +479,15 @@ export function DeliveryDialog({
                                   goiY={line.kho_rong ? [{ rong: line.kho_rong, dai: line.kho_dai, ghiChu: "Khổ đặt" }] : []}
                                   onChange={(v) => setKhoNhan((c) => ({ ...c, [line.id]: { rong: v.rong, dai: v.dai } }))}
                                 />
-                              </div>
-                            )}
-                            {khacKho && (
-                              <div className="ycd-phu ycd-vang">
-                                {khoDat ? `Khác khổ đặt ${khoDat.replace(/^Khổ /, "")}` : "Đơn chưa ghi khổ"}, hàng vào tồn theo khổ nhận
-                              </div>
-                            )}
-                          </td>
+                              )}
+                              {khacKho && (
+                                <div className="ycd-phu ycd-vang">
+                                  {khoDat ? `Khác khổ đặt ${khoDat.replace(/^Khổ /, "")}` : "Đơn chưa ghi khổ"}, hàng vào tồn theo khổ nhận
+                                </div>
+                              )}
+                            </td>
+                          )}
+                          {coGiay && <td className="n">{line.hang_loai === "giay" ? (line.dinh_luong ?? "–") : ""}</td>}
                           <td className="n"><span className="kna-so">{so(line.quantity)}</span> <span className="kna-dv">{dvt}</span></td>
                           <td className="n">
                             <span className={`kna-so${daNhan > 0 ? "" : " kna-mo"}`}>{so(daNhan)}</span> <span className="kna-dv">{dvt}</span>

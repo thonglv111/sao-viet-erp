@@ -1,0 +1,102 @@
+/* Lương → Khoán theo tổ (22/10/2026) — khuôn mockup `docs/mockups/khoan-theo-to-a-chi-tiet.html`. */
+.ktt-pad { padding: 4px 0 24px; }
+.ktt-pad h3 { font-size: 14.5px; font-weight: 500; margin: 22px 0 2px; }
+.ktt-hint { color: var(--ash-2); font-size: 12.5px; margin: 0 0 8px; max-width: 1040px; }
+.ktt-sub { font-size: 12px; color: var(--ash-2); }
+.ktt-trong { color: var(--ash-2); opacity: 0.7; }
+.ktt-gach { color: var(--ash-2); text-decoration: line-through; }
+
+.ktt-chon { display: inline-flex; align-items: center; gap: 6px; }
+.ktt-chon select {
+  height: 32px; border: 1px solid var(--rule); border-radius: 8px; background: var(--canvas);
+  color: var(--ink); font: inherit; font-size: 13px; padding: 0 8px; max-width: 280px;
+}
+
+/* tóm tắt quỹ + dòng đối chiếu */
+.ktt-tom { display: flex; align-items: flex-end; gap: 20px; padding: 4px 0 6px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.ktt-tom__lon { font-size: 22px; }
+.ktt-tom__dau { color: var(--ash-2); font-size: 18px; padding-bottom: 1px; }
+.ktt-doi { margin-top: 10px; padding: 10px 12px; border: 1px solid var(--rule-soft); border-radius: 10px; gap: 16px; }
+.ktt-dai { margin: 8px 0 2px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+
+.ktt-chu { font-size: 12px; color: var(--ash-2); margin: 0 0 6px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ktt-o { display: inline-block; width: 14px; height: 12px; border-radius: 3px; border: 1px solid var(--rule-soft); margin-left: 6px; }
+.ktt-o:first-child { margin-left: 0; }
+
+/* lưới đặc kiểu Excel */
+.ktt-cuon { overflow-x: auto; }
+table.ktt-g { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.ktt-g th {
+  font-weight: 400; color: var(--ash-2); font-size: 12.5px; text-align: left; padding: 6px 8px;
+  border-bottom: 1px solid var(--rule); background: var(--paper); white-space: nowrap;
+}
+table.ktt-g td { padding: 6px 8px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
+table.ktt-g .r { text-align: right; }
+table.ktt-g tfoot td { border-top: 1px solid var(--rule); background: var(--paper); }
+table.ktt-g .ktt-ke { border-left: 1px solid var(--rule-soft); }
+.ktt-ten { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ktt-thang { background: #ecfdf3; }
+.ktt-thua, .ktt-thua .ktt-tien { color: var(--ash-2); }
+.ktt-am { color: #b42318; }
+.ktt-duong { color: #067647; }
+.ktt-neo { cursor: help; }
+.ktt-tien { border-bottom: 1px dashed var(--ash-2); }
+
+/* sổ sản lượng */
+table.ktt-so { table-layout: fixed; min-width: 1240px; }
+table.ktt-so td { vertical-align: top; }
+.ktt-so__ngay td { background: var(--paper); color: var(--ash); vertical-align: middle; }
+.ktt-so__ngay td:first-child { color: var(--ink); }
+.ktt-so__ngay td:first-child > * { margin-right: 8px; }
+.ktt-so__d { color: var(--ink); }
+.ktt-qc__giay { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.ktt-qc dl { margin: 2px 0 0; font-size: 12px; }
+.ktt-qc dl div { display: flex; justify-content: space-between; gap: 10px; max-width: 200px; }
+.ktt-qc dt { color: var(--ash-2); }
+.ktt-qc dd { margin: 0; }
+.ktt-ps { display: flex; justify-content: space-between; gap: 8px; }
+.ktt-the { display: flex; flex-wrap: wrap; gap: 4px; }
+
+/* người tham gia: tên | % | tiền — lưới chung cho cả danh sách để cột thẳng hàng */
+.ktt-ng {
+  list-style: none; margin: 0; padding: 0; display: grid;
+  grid-template-columns: max-content 52px 80px; column-gap: 8px; justify-content: start;
+}
+.ktt-ng li { display: contents; }
+.ktt-ng li > span { white-space: nowrap; text-align: right; }
+.ktt-ng li > span:first-child { text-align: left; }
+.ktt-ng li.ktt-ng__tt > span { border-top: 1px dashed var(--rule-soft); margin-top: 2px; padding-top: 2px; color: var(--ash-2); }
+.ktt-pt { font-size: 12px; color: var(--ash-2); }
+.ktt-pt .ktt-neo { border-bottom: 1px dashed var(--ash-2); }
+
+/* kế toán gõ tay kiểu Excel (23/10/2026) — mockup `docs/mockups/ke-toan-dieu-chinh-khoan-excel.html` */
+.ktt-luoi { outline: none; }
+table.ktt-g td.ktt-nhap { cursor: cell; position: relative; outline-offset: -2px; }
+table.ktt-g td.ktt-nhap:hover { background: var(--rule-hair); }
+table.ktt-g td.ktt-nhap.ktt-chon-o { outline: 2px solid #2563eb; background: var(--canvas); }
+td.ktt-nhap input {
+  width: 100%; border: 0; outline: 0; font: inherit; background: transparent; padding: 0; margin: 0;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+td.r.ktt-nhap input { text-align: right; }
+td.ktt-tay { position: relative; }
+td.ktt-tay::after {
+  content: ""; position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 7px 7px 0;
+  border-color: transparent var(--rust) transparent transparent;
+}
+.ktt-may { display: block; font-size: 11.5px; color: var(--ash-2); text-decoration: line-through; }
+td.ktt-gc { white-space: normal; font-size: 12.5px; color: var(--ash); }
+tr.ktt-so__moi td { color: var(--ash-2); height: 34px; }
+.ktt-menu, .ktt-dsng {
+  position: fixed; z-index: 60; background: var(--canvas); border: 1px solid var(--rule); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14); padding: 4px;
+}
+.ktt-menu { min-width: 170px; display: flex; flex-direction: column; }
+.ktt-menu button {
+  font: inherit; font-size: 13px; text-align: left; border: 0; background: transparent; color: var(--ink);
+  padding: 6px 10px; border-radius: 5px; cursor: pointer;
+}
+.ktt-menu button:hover { background: var(--rule-hair); }
+.ktt-dsng { padding: 6px 4px; min-width: 220px; }
+.ktt-dsng label { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; font-size: 13px; cursor: pointer; }
+.ktt-dsng label:hover { background: var(--rule-hair); }

@@ -30,7 +30,11 @@ class SanXuatThucThiRepository:
         self.db = db
 
     # --- Đọc công việc + nhân viên ----------------------------------------------------------
-    def cong_viec(self, cong_viec_id: int) -> SanXuatCongViec | None:
+    def cong_viec(self, cong_viec_id: int, *, khoa: bool = False) -> SanXuatCongViec | None:
+        """`khoa=True`: giữ khoá dòng việc tới hết transaction và đọc LẠI trạng thái sau khi giữ
+        khoá — hai người cùng bấm Bắt đầu thì lượt sau thấy việc đã chạy (L-SX-23)."""
+        if khoa:
+            return self.db.get(SanXuatCongViec, cong_viec_id, with_for_update=True, populate_existing=True)
         return self.db.get(SanXuatCongViec, cong_viec_id)
 
     def cong_viec_mo_theo_khuon(self, khuon_id: int) -> list[SanXuatCongViec]:

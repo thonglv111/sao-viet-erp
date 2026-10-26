@@ -73,6 +73,18 @@ def _may_in(db) -> MayThietBi:
     return may
 
 
+def _may_vao_cong_doan(db, may, cd) -> None:
+    """Máy chạy được công đoạn = máy thuộc tổ đã tick (mg `0435`): máy vào tổ ĐẦU của công đoạn
+    rồi đồng bộ bảng máy — đúng như khai "Tổ đứng máy" ở danh mục Thiết bị."""
+    from app.models.may_thiet_bi import MayTo
+    from app.services.may_to import dong_bo_cong_doan_may
+
+    to_id = cd.department_ids[0]
+    if db.get(MayTo, (may.id, to_id)) is None:
+        db.add(MayTo(may_id=may.id, department_id=to_id))
+    dong_bo_cong_doan_may(db, cong_doan_ids=[cd.id], may_ids=[may.id])
+
+
 def _quote_from_ptg(db, customer, ptg: PhieuTinhGia) -> Quote:
     q = Quote(quote_number="BG-BGHEP", customer_id=customer.id, status=STATUS_ACCEPTED,
               phieu_tinh_gia_id=ptg.id)
@@ -160,7 +172,11 @@ def bg_svc(db):
 
 
 # --- dựng nguồn: 2 sản phẩm CÙNG GIẤY, mỗi cái chỉ có bước In ------------------
-def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = ()) -> PhieuTinhGia:
+def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = (),
+              kho_nguyen=(650, 900)) -> PhieuTinhGia:
+    # Khổ nguyên mặc định = khổ in: lệnh In thuần, máy không chèn Tề giấy in (spec chuẩn bị giấy §7 —
+    # khổ nguyên khác khổ in thì có Tề, bước hệ thống chưa gán tổ chặn "sẵn sàng"). Test cần tờ
+    # nguyên khác tờ in truyền `kho_nguyen=(790, 1090)`.
     """PTG 2 thành phần in cùng giấy. `sl_them` nối thêm thành phần — cần khi test tầm ngắm của
     `_do_thi_cua`: phải có lệnh CÙNG ĐƠN nhưng NGOÀI bài để đồ thị còn chỗ mà lan tới."""
     giay = GiayNguyen(don_vi_them=["to"], 
@@ -185,12 +201,13 @@ def _ptg_2_in(db, *, sl_a=20_000, sl_b=8_000, sl_them: tuple[int, ...] = ()) -> 
     cd_in.don_vi_ra = cd_in.don_vi_ra or "to"
     cd_in.setup_time = 45
     db.flush()
+    _may_vao_cong_doan(db, may, cd_in)
 
     def _sp(thu_tu, ten, sl, dai, rong):
         sp = PhieuThanhPhan(
             thu_tu=thu_tu, ten=ten, so_luong=sl, don_vi_tinh="cái",
             dai_thanh_pham=dai, rong_thanh_pham=rong, giay_id=giay.id,
-            kho_nguyen_dai=790, kho_nguyen_rong=1090, kho_in_dai=650, kho_in_rong=900,
+            kho_nguyen_dai=kho_nguyen[0], kho_nguyen_rong=kho_nguyen[1], kho_in_dai=650, kho_in_rong=900,
             so_mau_a=4, so_mau_b=0, quy_cach_in="mot_mat", may_id=may.id,
         )
         sp.thanh_phams.append(
@@ -336,8 +353,10 @@ def test_san_sang_ok_va_sua_thanh_vien_ha_ve_nhap(db, orders, lsx_svc, bg_svc, a
     # Chưa gộp gì thì đây là 2 lệnh rời, không phải bài ghép → chặn sẵn sàng.
     assert "thieu_buoc_chung" in bg_svc.thieu_cua(bg_svc._get(bg.id))
     _gop_buoc_in(bg_svc, lsx_svc, bg, created, admin)
-    # Gộp rồi mà chưa gán tổ/máy cho lượt chung → vẫn chặn.
-    assert "thieu_ke_hoach_buoc_chung" in bg_svc.thieu_cua(bg_svc._get(bg.id))
+    # Gộp rồi thì lượt chung nhận máy chung của các bước, TỔ đi theo máy (mg `0435`) — đủ kế hoạch.
+    chung = bg_svc._buoc_chungs(bg_svc._get(bg.id))[0]
+    assert chung.may_id is not None and chung.department_id == _to_san_xuat(db).id
+    assert "thieu_ke_hoach_buoc_chung" not in bg_svc.thieu_cua(bg_svc._get(bg.id))
     _lap_ke_hoach_moi_buoc_chung(db, bg_svc, bg, admin)
     # `so_con_tren_to` khởi tạo từ `lsx.so_con` — số con khi lệnh còn đứng RIÊNG, tự tính như thể
     # được cả tờ. Ghép 2 lệnh cùng tờ mà giữ nguyên cả hai số đó là chồng diện tích → gate mới
@@ -765,12 +784,18 @@ def test_ty_le_hao_va_breakdown_hao_theo_buoc(
 
 
 def test_may_hop_cong_doan_bat_may_sai_loai(db, bg_svc):
-    """T3: máy Bế gán cho công đoạn In (chỉ cho "Máy in"/"In ngoài") → cảnh báo mềm; máy đúng loại
-    thì không. Chưa khai `nhom_may_cho_phep` → không ràng buộc (không đẻ cảnh báo giả)."""
-    cd_in = CongDoan(ma="CD-T3", ten="In test", nhom="print",
-                     nhom_may_cho_phep=["Máy in", "In ngoài"])
+    """T3: máy ngoài danh sách máy của công đoạn In → cảnh báo mềm; máy trong danh sách thì không.
+    Công đoạn chưa có máy nào → không ràng buộc (không đẻ cảnh báo giả). Luật nhóm máy gỡ 22/10/2026."""
+    from app.models.cong_doan import CongDoanMay
+
+    cd_in = CongDoan(ma="CD-T3", ten="In test", nhom="print")
     may_be = MayThietBi(ma="BE-T3", ten="Máy bế test", loai_may="Bế")
     may_in = MayThietBi(ma="IN-T3", ten="Máy in test", loai_may="Máy in")
+    db.add_all([cd_in, may_be, may_in])
+    db.flush()
+    cd_in.may_khai.append(CongDoanMay(may_id=may_in.id, thu_tu=0))
+    db.commit()
+    db.expire(cd_in)
 
     assert bg_svc._may_hop_cong_doan(may_be, cd_in, {}), "máy Bế cho công đoạn In phải bị cảnh báo"
     assert bg_svc._may_hop_cong_doan(may_in, cd_in, {}) == [], "máy In hợp công đoạn In → im"

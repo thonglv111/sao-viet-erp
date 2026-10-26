@@ -21,9 +21,10 @@ export type DemTrangThai = Record<ThsxTrangThaiLoc, number> & { tong: number };
 /** `dem` đếm TRƯỚC lọc trạng thái (máy chủ `loc-dem`) nên chip chưa chọn vẫn nói còn bao nhiêu việc.
  *  Bấm chip = thêm/bớt trạng thái đó; "Tất cả" = bỏ lọc trạng thái.
  *  `cho` = chip việc chờ tổ bấm cuối hàng, mỗi loại một chip: bấm bật/tắt điều kiện "Việc chờ tổ bấm"
- *  của loại đó. Chip chỉ hiện khi loại đó còn việc chờ hoặc đang lọc theo nó — hết việc thì rụng. */
+ *  của loại đó. Chip chỉ hiện khi loại đó còn việc chờ hoặc đang lọc theo nó — hết việc thì rụng.
+ *  `dem` null = chưa có số (đang tải / máy chủ lỗi): chip in "—", không in "0" giả (L-VAI-45). */
 export function ThsxDemTrangThai({ dem, chon, onChon, cho }: {
-  dem: DemTrangThai;
+  dem: DemTrangThai | null;
   chon: ThsxTrangThaiLoc[];
   onChon: (v: ThsxTrangThaiLoc[]) => void;
   cho?: { so: Record<ThsxChoLoai, number>; chon: ThsxChoLoai[]; onChon: (v: ThsxChoLoai[]) => void };
@@ -31,7 +32,7 @@ export function ThsxDemTrangThai({ dem, chon, onChon, cho }: {
   return (
     <div className="thsx-dem" role="group" aria-label="Lọc theo trạng thái">
       <button type="button" className="thsx-dem__chip" aria-pressed={chon.length === 0} onClick={() => onChon([])}>
-        Tất cả <span className="thsx-num">{dem.tong}</span>
+        Tất cả <span className="thsx-num">{dem?.tong ?? "—"}</span>
       </button>
       {DEM_TT.map(([v, chu, mau]) => {
         const on = chon.includes(v);
@@ -39,7 +40,7 @@ export function ThsxDemTrangThai({ dem, chon, onChon, cho }: {
           <button key={v} type="button" className="thsx-dem__chip" aria-pressed={on}
             onClick={() => onChon(on ? chon.filter((t) => t !== v) : [...chon, v])}>
             <i className={`thsx-dem__cham thsx-dem__cham--${mau}`} aria-hidden="true" />
-            {chu} <span className="thsx-num">{dem[v]}</span>
+            {chu} <span className="thsx-num">{dem?.[v] ?? "—"}</span>
           </button>
         );
       })}

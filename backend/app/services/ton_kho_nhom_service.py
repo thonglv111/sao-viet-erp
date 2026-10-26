@@ -32,7 +32,7 @@ from typing import Callable
 from ..models.stock_lot import STOCK_CRITICAL, STOCK_OUT, STOCK_OVER
 from ..van_ban import bo_dau
 from .can_doi_cache import NGAN_PHU, lay_hoac_tinh
-from .kho_giay import khoa_ton_cua
+from .kho_giay import dinh_luong_va_quy_kg, khoa_ton_cua
 from .stock_request_service import stock_level
 
 NHOM_TON = ("all", "can_mua", "du_ton", "chuakhai", "sap_het_han")
@@ -163,6 +163,8 @@ class _Nhom:
     la_thanh_pham: bool = False
     can_mua: bool = False
     tinh_trang: str | None = None
+    dinh_luong: int | None = None    # gsm của danh mục (chỉ giấy)
+    quy_kg: float | None = None      # giấy tờ: tồn quy kg; cuộn / hàng khác None
     d: dict | None = None            # kết quả `tinh_du_bao_gon` khi dự báo dùng được
     du_bao_row: dict | None = None   # dòng dự báo thô (lệnh/đơn về) cho ngăn chi tiết
 
@@ -234,6 +236,8 @@ class TonKhoNhomService:
             m = hang.get((n.hang_loai, n.hang_id))
             n.ma, n.ten = getattr(m, "ma", None) or "", getattr(m, "ten", None) or ""
             n.la_thanh_pham = bool(getattr(m, "la_thanh_pham", False))
+            n.dinh_luong, n.quy_kg = dinh_luong_va_quy_kg(
+                n.hang_loai, m, n.tong, n.khoa[2], n.khoa[3], n.khoa[4])
             th = nguong.get(n.khoa)
             n.co_nguong = th is not None
             muc = stock_level(n.tong, th)
@@ -323,6 +327,7 @@ class TonKhoNhomService:
                     "kho_rong": n.khoa[2], "kho_dai": n.khoa[3], "don_vi_goc": n.khoa[4],
                     "can_mua": n.can_mua, "co_nguong": n.co_nguong, "tinh_trang": n.tinh_trang,
                     "la_thanh_pham": n.la_thanh_pham,
+                    "dinh_luong": n.dinh_luong, "quy_kg": n.quy_kg,
                     "can_lenh": n.d["can_lenh"] if n.d else None,
                     "dang_ve": n.d["dang_ve"] if n.d else None,
                     "du_kien": n.d["du_kien"] if n.d else None,

@@ -74,7 +74,19 @@ from ..schemas.payroll import (
     LineComponentOut,
     LineComponentPatchIn,
     LineComponentsOut,
+    HoaHongChiTietOut,
+    HoaHongKhoanOut,
+    HoaHongRiengIn,
+    HoaHongRiengOut,
     KhoanKmChiTietOut,
+    KhoanKyChiTietOut,
+    KhoanTheoToOut,
+    KttCongThemIn,
+    KttDongTayIn,
+    KttDongTayOut,
+    KttDongTayPatchIn,
+    KttSuaLanGhiIn,
+    KhoanKyDongOut,
     KhoanKmChuyenOut,
     ComponentsOut,
     AdvanceDecisionIn,
@@ -109,6 +121,7 @@ from ..schemas.payroll import (
     SalaryIn,
     SalaryOut,
     SalaryPreviewOut,
+    SalaryPreviewsOut,
     TableOut,
 )
 from ..services.payroll_service import (
@@ -374,10 +387,19 @@ def _adv_out(advs, employees: EmployeeRepository,
 # --- real-time: đề nghị/duyệt tạm ứng đẩy tức thì (bám hub SSE) -------------
 
 
-def _notify_advance_pending(name: str | None) -> None:
+def _notify_advance_pending() -> None:
     """Có đề nghị tạm ứng mới/đổi → người xem màn nhân sự refetch badge (người duyệt nhận).
-    Nhóm `nhan_su`: badge Lương + tab Tạm ứng; người đề nghị nhận kết quả qua `advance_decision`."""
-    hub.gui({"type": "advance_pending_changed", "code": name}, quyen=MAN_NHAN_SU)
+    Nhóm `nhan_su`: badge Lương + tab Tạm ứng; người đề nghị nhận kết quả qua `advance_decision`.
+
+    KHÔNG kèm tên/mã người đề nghị (L-VAI-24, 26/10/2026): `MAN_NHAN_SU` gửi tới gần cả khối nhân sự
+    (chấm công, nghỉ phép, tăng ca…), FE chỉ cần tín hiệu để nạp lại badge."""
+    hub.gui({"type": "advance_pending_changed"}, quyen=MAN_NHAN_SU)
+
+
+def _bao_khoan_doi() -> None:
+    """Sổ Khoán theo tổ vừa bị sửa tay (lần ghi, dòng tay, cộng thêm) ⇒ màn kế toán khác đang mở sổ
+    tự nạp lại (L-SX-37). Chỉ là tín hiệu, không kèm số."""
+    hub.gui({"type": "khoan_theo_to_changed"}, quyen=MAN_NHAN_SU)
 
 
 def _cham_tam_ung_moi(employees: EmployeeRepository, outs, actor_id: int) -> None:
@@ -625,6 +647,25 @@ def delete_late_penalty_bracket(bracket_id: int, svc: Service,
 # --- lương nhân viên (khai báo + điều chỉnh) --------------------------------
 
 
+# Đứng TRƯỚC `/salaries/{employee_id}` — không thì "previews" bị bắt làm employee_id.
+@router.get("/salaries/previews", response_model=SalaryPreviewsOut)
+def preview_salaries(svc: Service, authz: Authz, user: SalaryProfileViewer,
+                     ids: str = Query(..., max_length=4000)) -> SalaryPreviewsOut:
+    """Xem trước mức lương của nhiều NV một lượt (`ids` = "1,2,3") — tab Lương nhân viên hỏi cả
+    trang trong một request. NV không có / ngoài phạm vi thì vắng mặt trong `items`."""
+    try:
+        so = [int(x) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        raise HTTPException(status_code=422, detail="ids phải là các số cách nhau bằng dấu phẩy.")
+    if len(so) > 500:
+        raise HTTPException(status_code=422, detail="Tối đa 500 nhân viên mỗi lượt.")
+    try:
+        return SalaryPreviewsOut(items=[SalaryPreviewOut(**d) for d in svc.salary_previews(
+            so, scope=_emp_scope_for(authz, user), actor=user)])
+    except PayrollError as exc:
+        _raise(exc)
+
+
 @router.get("/salaries/{employee_id}", response_model=SalariesOut)
 def list_salaries(employee_id: int, svc: Service, employees: Employees,
                   users: Users, authz: Authz, user: SalaryProfileViewer) -> SalariesOut:
@@ -676,8 +717,11 @@ def set_salary(employee_id: int, body: SalaryIn, svc: Service, authz: Authz,
                            phu_cap_ca=body.phu_cap_ca, phu_cap_tham_nien=body.phu_cap_tham_nien,
                            insurance_elsewhere=body.insurance_elsewhere,
                            union_member=body.union_member, luong_dot_1=body.luong_dot_1,
+                           an_cong_nhat=body.an_cong_nhat,
                            apply_self_deduction=body.apply_self_deduction,
-                           commission_pct=body.commission_pct)
+                           commission_pct=body.commission_pct,
+                           bac_hoa_hong=None if body.bac_hoa_hong is None
+                           else [b.model_dump() for b in body.bac_hoa_hong])
     except PayrollError as exc:
         _raise(exc)
     return SalaryOut.model_validate(s)
@@ -747,7 +791,7 @@ def create_advance(body: AdvanceIn, svc: Service, employees: Employees, departme
     except PayrollError as exc:
         _raise(exc)
     out = _adv_out([a], employees, departments)[0]
-    _notify_advance_pending(out.employee_name)
+    _notify_advance_pending()
     _cham_tam_ung_moi(employees, [out], user.id)
     return out
 
@@ -786,7 +830,7 @@ def create_advances_bulk(body: AdvanceBulkIn, svc: Service, employees: Employees
     except PayrollError as exc:
         _raise(exc)
     out = _adv_out(rows, employees, departments)
-    _notify_advance_pending(f"{len(out)} người")
+    _notify_advance_pending()
     _cham_tam_ung_moi(employees, out, user.id)
     return AdvancesOut(items=out)
 
@@ -826,7 +870,7 @@ def decide_advances_bulk(body: AdvanceBulkDecisionIn, svc: Service, employees: E
     # Mỗi người nhận ĐÚNG thông báo của phiếu mình (real-time), như duyệt lẻ.
     _notify_advance_decisions(rows, employees, "approved" if body.approve else "rejected",
                               user.id)
-    _notify_advance_pending(f"{len(rows)} phiếu")
+    _notify_advance_pending()
     return AdvancesOut(items=_adv_out(rows, employees, departments))
 
 
@@ -892,7 +936,7 @@ def create_my_advance(body: MyAdvanceIn, svc: Service, employees: Employees,
     except PayrollError as exc:
         _raise(exc)
     out = _adv_out([a], employees, departments)[0]
-    _notify_advance_pending(out.employee_name)
+    _notify_advance_pending()
     _cham_tam_ung_moi(employees, [out], user.id)
     return out
 
@@ -953,7 +997,9 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
         return TableOut(period=None, lines=[], chan_chot_ly_do=ly_do)
     lines_out = _lines_out(data["lines"], employees, departments, svc)
     # Cảnh báo chốt nói về CẢ kỳ — tính trước khi lọc, đổi bộ lọc không làm nó biến mất.
-    canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month))
+    kk = svc.khoan_ky(year, month, theo_nguoi=False)
+    canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
+                              thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
     hien, phong_loc = loc_bang_luong(lines_out, q=q, phong=phong, hd=hd)
     return TableOut(period=PeriodOut.model_validate(data["period"]), lines=hien,
                     chan_chot_ly_do=ly_do, canh_bao_chot=canh_bao, phong_loc=phong_loc)
@@ -980,8 +1026,7 @@ def generate(body: GenerateIn, svc: Service, employees: Employees, departments: 
     lines_out = _lines_out(data["lines"], employees, departments, svc)
     return TableOut(period=PeriodOut.model_validate(data["period"]), lines=lines_out,
                     chan_chot_ly_do=svc.ly_do_chua_chot_duoc(body.year, body.month),
-                    canh_bao_chot=_canh_bao_chot(
-                        lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(body.year, body.month)))
+                    canh_bao_chot=_canh_bao_khoan(svc, lines_out, body.year, body.month))
 
 
 @router.put("/lines/{line_id}", response_model=LineOut)
@@ -1095,48 +1140,42 @@ def _hoa_hong_total(l: LineOut) -> float:
     return float(getattr(l, "hoa_hong", 0) or 0)
 
 
-def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None = None) -> str | None:
+def _canh_bao_khoan(svc, lines_out: list[LineOut], year: int, month: int) -> str | None:
+    kk = svc.khoan_ky(year, month, theo_nguoi=False)
+    return _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
+                          thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
+
+
+def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None = None,
+                   thieu_gia: list[dict] | None = None,
+                   khoan_canh_bao: list[str] | None = None) -> str | None:
     """Cảnh báo (KHÔNG chặn) trước khi chốt: ai thực lĩnh 0 vì bị trừ tạm ứng / nợ kỳ trước, ai còn nợ
     chuyển kỳ sau. Chủ chốt 07/09/2026: cho ứng vượt lương, dồn nợ, chỉ cảnh báo."""
     khong = [l for l in lines if float(l.net_pay or 0) <= 0
              and (float(l.advance_total or 0) + float(l.luong_dot_1_total or 0)
                   + float(getattr(l, "no_ung_ky_truoc", 0) or 0)) > 0]
     no = [l for l in lines if float(getattr(l, "no_ung_chuyen_ky_sau", 0) or 0) > 0]
-    # CHẾ ĐỘ KHOÁN có giờ tăng ca mà tiền khoán kỳ này = 0 (14/09/2026): giờ tăng ca của họ không
-    # nhân hệ số vì "đã trả qua tiền khoán" — khoán = 0 (chưa chốt phân bổ sản xuất, không có chuyến)
-    # thì phần làm thêm mất trắng mà không ai thấy. Chỉ NÓI, không chặn.
-    # LƯƠNG BÙ LỖ (14/09/2026): người tổ khoán có công mà tiền khoán kỳ này = 0 ⇒ đang trả TRỌN bù lỗ
-    # theo công. Hay gặp nhất là phân bổ sản xuất chưa chốt — chốt muộn thì Tính lại sẽ đổi số, nên
-    # phải nói trước khi chốt kỳ. Chỉ NÓI, không chặn.
-    # ⚠️ TRỪ NGƯỜI THỬ VIỆC: từ 16/09/2026 họ LUÔN ăn bù lỗ, tiền khoán để 0 vì LUẬT chứ không
-    # phải vì phân bổ chưa chốt (PRD §00.9) ⇒ réo tên họ mỗi kỳ là câu nhắc sai, HCNS đi tìm một
-    # phiếu phân bổ không bao giờ có.
-    bu_lo_khong_khoan = [l for l in lines if getattr(l, "bu_lo_theo_cong", None) is not None
-                         and float(l.bu_lo_theo_cong or 0) > 0 and float(l.khoan or 0) <= 0
-                         and not getattr(l, "la_giao_hang", False)
-                         and not getattr(l, "is_probation", False)]
+    # Hai câu cũ "người khoán có giờ tăng ca mà khoán = 0" và "tổ khoán có công mà khoán = 0" GỠ
+    # 20/10/2026: khối Sản xuất tính 2 lương nên khoán = 0 là ăn vế thời gian ĐỦ tăng ca theo giờ, và
+    # người công nhật trong khối tháng nào cũng khoán = 0 — réo tên họ là câu nhắc sai. Chỗ đáng nhắc
+    # thay vào là LẦN GHI THIẾU GIÁ (`thieu_gia`, từ `KhoanKyService`).
     # TÀI XẾ / PHỤ XE: có công mà tiền km = 0 ⇒ đang trả bù lỗ theo công (khách chốt 15/09/2026 chiều:
-    # tài xế CÓ bù lỗ). Hay gặp nhất là chuyến giao chưa ghi kết quả. Chỉ NÓI. Tách khỏi câu trên bằng
-    # cờ Giao hàng của tổ — không đọc ra được từ số tiền nữa vì hai bên nay cùng có bù lỗ.
+    # tài xế CÓ bù lỗ). Hay gặp nhất là chuyến giao chưa ghi kết quả. Chỉ NÓI.
     tai_xe_khong_km = [l for l in lines if getattr(l, "la_giao_hang", False)
                        and float(getattr(l, "actual_cong", 0) or 0) > 0
                        and float(l.khoan or 0) + float(getattr(l, "khoan_km", 0) or 0) <= 0
                        # Tài xế / phụ xe THỬ VIỆC: km = 0 vì luật bù lỗ, không phải chuyến chưa ghi.
                        and not getattr(l, "is_probation", False)]
-    # Ai đã có câu bù lỗ / tài xế ở trên thì không nhắc thêm câu giờ tăng ca — một người, một lời nhắc.
-    da_nhac = {id(l) for l in bu_lo_khong_khoan + tai_xe_khong_km}
-    khoan_trong = [l for l in lines if getattr(l, "che_do_khoan", False)
-                   and id(l) not in da_nhac
-                   and int(l.ot_minutes or 0) > 0
-                   and float(l.khoan or 0) + float(getattr(l, "khoan_km", 0) or 0) <= 0]
     # Ô "Mức đóng BHXH" BẮT BUỘC khai từ 16/09/2026 (chủ chốt) — mốc lương CŨ còn trống thì engine
     # tạm đóng theo cơ bản + trách nhiệm, nên phải réo tên trước khi chốt kỳ, không thì tháng sau
     # vẫn không ai khai. Chỉ NÓI, không chặn.
     thieu_muc_bh = [l for l in lines if getattr(l, "chua_khai_muc_bh", False)
                     and float(getattr(l, "insurance_base", 0) or 0) > 0]
     luot_mo = list(luot_chua_ve_kho or [])
-    if (not khong and not no and not khoan_trong and not bu_lo_khong_khoan and not tai_xe_khong_km
-            and not thieu_muc_bh and not luot_mo):
+    thieu = list(thieu_gia or [])
+    kcb = list(khoan_canh_bao or [])
+    if (not khong and not no and not tai_xe_khong_km
+            and not thieu_muc_bh and not luot_mo and not thieu and not kcb):
         return None
     ten = lambda xs: ", ".join((x.employee_name or f"NV #{x.employee_id}") for x in xs[:3]) + (
         f" và {len(xs) - 3} người nữa" if len(xs) > 3 else "")
@@ -1145,14 +1184,45 @@ def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None =
         parts.append(f"{len(khong)} người thực lĩnh 0đ vì trừ tạm ứng/nợ kỳ trước ({ten(khong)})")
     if no:
         parts.append(f"{len(no)} người còn nợ tạm ứng chuyển sang kỳ sau ({ten(no)})")
-    if khoan_trong:
-        parts.append(f"{len(khoan_trong)} người ăn khoán có giờ tăng ca nhưng tiền khoán kỳ này = 0 "
-                     f"({ten(khoan_trong)}) — giờ tăng ca của họ không có tiền (tính vào sản lượng), "
-                     "kiểm lại phân bổ sản xuất / chuyến giao")
-    if bu_lo_khong_khoan:
-        parts.append(f"{len(bu_lo_khong_khoan)} người tổ khoán có công nhưng tiền khoán kỳ này = 0 "
-                     f"({ten(bu_lo_khong_khoan)}) — đang trả bù lỗ theo công, kiểm lại phân bổ sản "
-                     "xuất đã chốt chưa")
+    # Dòng thiếu chia theo CHỖ SỬA (`sua`, engine gắn): mỗi nhóm một câu chỉ đúng màn phải mở.
+    # Dòng không có `sua` (nguồn cũ) coi là thiếu giá.
+    nhom: dict[str, list[dict]] = {}
+    for t in thieu:
+        nhom.setdefault(t.get("sua") or "gia", []).append(t)
+
+    def vd(xs: list[dict], ly_do: bool) -> str:
+        cau = "; ".join(f'{t.get("cong_doan") or "?"} — {t.get("to") or "?"} ngày {t.get("ngay") or "?"}'
+                        + (f' {t["ly_do"]}' if ly_do and t.get("ly_do") else "") for t in xs[:3])
+        return cau + (" …" if len(xs) > 3 else "")
+
+    if nhom.get("gia"):
+        xs = nhom["gia"]
+        parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán vì thiếu giá / công thức lỗi "
+                     f"({vd(xs, True)}) — khai giá theo tổ ở Danh mục → Công đoạn → "
+                     "tab Khoán, rồi bấm “Cập nhật theo danh mục” ở lần ghi và Tính lại")
+    if nhom.get("cau_hinh"):
+        xs = nhom["cau_hinh"]
+        parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán vì cấu hình Khoán của công đoạn đã "
+                     f"bị gỡ ({vd(xs, False)}) — gõ tay tiền ở Lương → Khoán theo tổ")
+    if nhom.get("chua_khoan"):
+        xs = nhom["chua_khoan"]
+        parts.append(f"{len(xs)} lần ghi sản lượng ở công đoạn chưa có cấu hình Khoán ({vd(xs, False)}) "
+                     "— khai Khoán ở Danh mục → Công đoạn → tab Khoán")
+    if nhom.get("luong"):
+        xs = nhom["luong"]
+        parts.append(f"{len(xs)} lần ghi / ngày dừng máy chưa chia được tiền khoán vì có người chưa có "
+                     f"lương ca máy ({vd(xs, True)}) — khai lương ở Lương → Lương nhân viên → Sửa lương, "
+                     "rồi Tính lại")
+    if nhom.get("lan_ghi"):
+        xs = nhom["lan_ghi"]
+        parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán ({vd(xs, True)}) — sửa lần ghi ở "
+                     "bàn tổ, rồi Tính lại")
+    if nhom.get("dung_may"):
+        xs = nhom["dung_may"]
+        parts.append(f"{len(xs)} ngày dừng máy chưa chọn người hưởng ({vd(xs, False)}) — xoá rồi báo "
+                     "lại ở bàn tổ (Báo dừng máy), rồi Tính lại")
+    for c in kcb:
+        parts.append(c.rstrip("."))
     if thieu_muc_bh:
         parts.append(f"{len(thieu_muc_bh)} người chưa khai Mức đóng BHXH ở hồ sơ lương "
                      f"({ten(thieu_muc_bh)}) — đang tạm đóng theo lương cơ bản + trách nhiệm, khai lại "
@@ -1460,6 +1530,140 @@ def chi_tiet_khoan_km(line_id: int, svc: Service, authz: Authz,
         _raise(exc)
     return KhoanKmChiTietOut(items=[KhoanKmChuyenOut(**r) for r in rows],
                              tong=round(sum(r["thanh_tien"] for r in rows), 2))
+
+
+@router.get("/lines/{line_id}/hoa-hong", response_model=HoaHongChiTietOut)
+def chi_tiet_hoa_hong(line_id: int, svc: Service, authz: Authz,
+                      user: ConfigViewer) -> HoaHongChiTietOut:
+    """Từng lần thu tiền làm nên hoa hồng của MỘT dòng lương — bấm ô "Hoa hồng" để mở."""
+    try:
+        rows = svc.chi_tiet_hoa_hong(line_id=line_id, scope=_emp_scope_for(authz, user), actor=user)
+    except PayrollError as exc:
+        _raise(exc)
+    # Kẹp 0 như cột "Hoa hồng" của dòng lương (`hoa_hong_ky_map`) — từng khoản vẫn giữ số âm.
+    return HoaHongChiTietOut(items=[HoaHongKhoanOut(**r) for r in rows],
+                             tong=max(0, round(sum(r["tien"] for r in rows))))
+
+
+@router.put("/don/{order_id}/hoa-hong-rieng", response_model=HoaHongRiengOut)
+def dat_hoa_hong_rieng(order_id: int, body: HoaHongRiengIn, svc: Service, authz: Authz,
+                       user: Annotated[User, Depends(require_permission(MODULE, "update"))]
+                       ) -> HoaHongRiengOut:
+    """% hoa hồng riêng của đơn (thắng biểu). Chỉ ô `luong:update` — sale không tự đặt được."""
+    try:
+        return HoaHongRiengOut(**svc.dat_hoa_hong_rieng(order_id=order_id, pct=body.pct,
+                                                        ly_do=body.ly_do, actor=user,
+                                                        scope=_emp_scope_for(authz, user)))
+    except PayrollError as exc:
+        _raise(exc)
+
+
+@router.get("/lines/{line_id}/khoan-ky", response_model=KhoanKyChiTietOut)
+def chi_tiet_khoan_ky(line_id: int, svc: Service, authz: Authz,
+                      user: ConfigViewer) -> KhoanKyChiTietOut:
+    """Từng lần ghi sản lượng / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của MỘT dòng."""
+    try:
+        rows = svc.chi_tiet_khoan_ky(line_id=line_id,
+                                     scope=_emp_scope_for(authz, user), actor=user)
+    except PayrollError as exc:
+        _raise(exc)
+    tc = sum(r["tien"] for r in rows if r["loai"] == "tang_ca_khoan")
+    return KhoanKyChiTietOut(items=[KhoanKyDongOut(**r) for r in rows],
+                             tong_khoan=sum(r["tien"] for r in rows) - tc, tong_tang_ca_khoan=tc)
+
+
+@router.get("/khoan-theo-to", response_model=KhoanTheoToOut)
+def khoan_theo_to(svc: Service, authz: Authz,
+                  # Cùng ô với Bảng lương tháng: màn bày tiền khoán của cả một tổ.
+                  user: Annotated[User, Depends(require_permission(MODULE, "view_payroll_table"))],
+                  year: int = Query(..., ge=2000, le=2100), month: int = Query(..., ge=1, le=12),
+                  to_id: int | None = Query(default=None)) -> KhoanTheoToOut:
+    """Màn Lương → Khoán theo tổ: quỹ tổ, chia cho người, sổ sản lượng, dừng máy, tổ khác."""
+    from ..services.khoan_theo_to import KhoanTheoToForbidden, xem
+
+    if svc.components is None:
+        return KhoanTheoToOut(year=year, month=month)
+    try:
+        data = xem(svc.components.db, svc, year, month, to_id,
+                   svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user),
+                   co_quyen_sua=authz.can(user, MODULE, "update"))
+    except KhoanTheoToForbidden as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return KhoanTheoToOut(**data)
+
+
+# --- Kế toán sửa tay khoán kiểu Excel (23/10/2026) — `services/khoan_sua_tay.py` ------------------
+# Cùng ô với Sửa dòng lương: gõ tay là đổi tiền lương. Trường không gửi lên = giữ nguyên.
+def _sua_tay(svc: PayrollService):
+    from ..services.khoan_sua_tay import KhoanSuaTayService
+
+    if svc.components is None:
+        raise HTTPException(status_code=503, detail="Phân hệ lương chưa sẵn sàng.")
+    return KhoanSuaTayService(svc.components.db, svc)
+
+
+@router.put("/khoan-theo-to/lan-ghi/{batch_id}", status_code=204)
+def khoan_sua_lan_ghi(batch_id: int, body: KttSuaLanGhiIn, svc: Service, authz: Authz,
+                      user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    """Tiền gõ tay + ghi chú của một lần ghi; `tien` null = trả về số máy."""
+    try:
+        _sua_tay(svc).sua_lan_ghi(batch_id, actor=user,
+                                  duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user),
+                                  **body.model_dump(include=body.model_fields_set))
+    except PayrollError as exc:
+        _raise(exc)
+    _bao_khoan_doi()
+
+
+@router.post("/khoan-theo-to/dong-tay", response_model=KttDongTayOut, status_code=status.HTTP_201_CREATED)
+def khoan_them_dong_tay(body: KttDongTayIn, svc: Service, authz: Authz,
+                        user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    """Chèn một dòng tay (không gắn lệnh) vào sổ sản lượng của một tổ."""
+    try:
+        moi = _sua_tay(svc).them_dong_tay(
+            **body.model_dump(), actor=user,
+            duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
+    except PayrollError as exc:
+        _raise(exc)
+    _bao_khoan_doi()
+    return KttDongTayOut(id=moi)
+
+
+@router.patch("/khoan-theo-to/dong-tay/{dong_id}", status_code=204)
+def khoan_sua_dong_tay(dong_id: int, body: KttDongTayPatchIn, svc: Service, authz: Authz,
+                       user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    try:
+        _sua_tay(svc).sua_dong_tay(dong_id, actor=user,
+                                   duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user),
+                                   **body.model_dump(include=body.model_fields_set))
+    except PayrollError as exc:
+        _raise(exc)
+    _bao_khoan_doi()
+
+
+@router.delete("/khoan-theo-to/dong-tay/{dong_id}", status_code=204)
+def khoan_xoa_dong_tay(dong_id: int, svc: Service, authz: Authz,
+                       user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    try:
+        _sua_tay(svc).xoa_dong_tay(dong_id, actor=user,
+                                   duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
+    except PayrollError as exc:
+        _raise(exc)
+    _bao_khoan_doi()
+
+
+@router.put("/khoan-theo-to/cong-them", status_code=204)
+def khoan_cong_them(body: KttCongThemIn, svc: Service, authz: Authz,
+                    user: Annotated[User, Depends(require_permission(MODULE, "update"))]):
+    """Cộng thêm ± của một người ở một tổ một kỳ; `tien` null / 0 = bỏ số."""
+    gui = body.model_dump(include=body.model_fields_set)
+    try:
+        _sua_tay(svc).sua_cong_them(
+            year=gui.pop("year"), month=gui.pop("month"), to_id=gui.pop("to_id"), emp_id=gui.pop("emp_id"),
+            actor=user, duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user), **gui)
+    except PayrollError as exc:
+        _raise(exc)
+    _bao_khoan_doi()
 
 
 @router.post("/lines/{line_id}/components", response_model=LineComponentOut,

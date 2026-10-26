@@ -15,7 +15,7 @@ và để phần trừ cho mình tự xếp. Bản 09/09/2026 (60 cột tự đ�
 - **Lương thời gian** = lương theo công (tháng lấy bù lỗ: trọn bù lỗ, đã gồm tiền khoán / km) + công lễ
   nghỉ + phụ cấp trả theo công + phần thêm làm nguyên ngày CN / lễ + tiền ngày off1x. Bảng công ty:
   `X = (vị trí + trách nhiệm + phụ cấp) ÷ 26 × Tổng NC` — "Tổng NC" ở đây là đúng số công đó.
-- **Ngoài giờ/Tăng ca** chỉ là tiền GIỜ tăng ca (`payroll_lines.tien_gio_tang_ca`, mg 0305).
+- **Tăng ca theo giờ** (tên cũ "Ngoài giờ/Tăng ca") chỉ là tiền GIỜ tăng ca (`payroll_lines.tien_gio_tang_ca`, mg 0305).
 
 ⚠️ LUẬT SỐ HỌC — có test khoá (`test_luong_excel.py`), đừng phá:
 
@@ -249,7 +249,10 @@ def cot_bang_luong(lines, nhan_vien: dict, *, bh_tach, ty_le_thu_viec: float = 1
 
     cot += [
         Cot("Phép năm", "thu", lambda ln, nv, ctx: _f(getattr(ln, "phep_nam", 0))),
-        Cot("Ngoài giờ/Tăng ca", "thu", lambda ln, nv, ctx: _tien_gio_tang_ca(ln)),
+        # Hai loại tăng ca RẠCH RÒI (chủ dặn 20/10/2026) — không bao giờ cùng có số trên một người.
+        Cot("Tăng ca theo giờ", "thu", lambda ln, nv, ctx: _tien_gio_tang_ca(ln)),
+        Cot("Tăng ca khoán", "thu", lambda ln, nv, ctx: _f(getattr(ln, "tang_ca_khoan", 0))),
+        Cot("Cộng thêm khoán", "thu", lambda ln, nv, ctx: _f(getattr(ln, "khoan_cong_them", 0))),
         # Bảng công ty gộp lương kinh doanh (hoa hồng) và sản lượng vào một cột. Tháng lấy bù lỗ thì tiền
         # khoán / km đã nằm trong "Lương thời gian".
         Cot("Lương kinh doanh/Sản lượng", "thu", lambda ln, nv, ctx: _f(getattr(ln, "hoa_hong", 0)) + (
@@ -429,7 +432,8 @@ def _sheet_bang_luong(wb, lines, nam, thang, nhan_vien, bh_tach, ty_le_thu_viec)
             "Lương thời gian = lương theo công (tháng lấy bù lỗ: trọn bù lỗ, đã gồm tiền khoán) + công lễ "
             "nghỉ + phụ cấp theo công + phần thêm ngày Chủ nhật / lễ ≈ ((cơ bản + trách nhiệm) × tỉ lệ + "
             "phụ cấp) ÷ công chuẩn × Tổng NC.",
-            "Ngoài giờ/Tăng ca chỉ là tiền giờ tăng ca. Tổng lương = các khoản thu nhập + chuyên cần + lương "
+            "Tăng ca theo giờ chỉ là tiền giờ tăng ca; Tăng ca khoán là 50% phần sản lượng tổ vượt chỉ "
+            "tiêu ngày (chỉ người ăn lương khoán). Tổng lương = các khoản thu nhập + chuyên cần + lương "
             "thời gian. Thực nhận = Tổng lương − các khoản trừ.",
         ]
         if co_thu_viec:

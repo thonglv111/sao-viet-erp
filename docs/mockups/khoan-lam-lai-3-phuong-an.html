@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tab Khoán làm lại</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rust:#c5400a; --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --chip:#e0ecff; --chip-ink:#1e3a8a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1240px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 14px;max-width:980px}
+.lead ul{margin:6px 0 0;padding-left:20px}
+.lead li{margin:2px 0}
+.ref{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0 24px}
+.ref figure{margin:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;overflow:hidden}
+.ref img{display:block;width:100%;height:220px;object-fit:cover;object-position:top;border-bottom:1px solid var(--rule-soft)}
+.ref figcaption{padding:9px 11px;font-size:12.5px;color:var(--ash)}
+.ref figcaption span{display:block;color:var(--ink);margin-bottom:2px}
+.switch{display:inline-flex;background:var(--canvas);border:1px solid var(--rule);border-radius:10px;padding:3px;margin-bottom:18px;position:sticky;top:12px;z-index:30;box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.switch button{border:0;background:transparent;font:inherit;font-size:13.5px;font-weight:500;color:var(--ash);padding:6px 16px;border-radius:7px;cursor:pointer}
+.switch button.on{background:var(--ink);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-head h2{font-size:19px;font-weight:500;margin:0 0 4px}
+.why{color:var(--ash);margin:0 0 16px;max-width:980px}
+.why ul{margin:6px 0 0;padding-left:18px}
+
+/* ===== vỏ drawer giống app ===== */
+.stage{background:rgba(15,23,42,.28);border-radius:14px;padding:28px 16px;display:flex;justify-content:center}
+.drawer{background:var(--canvas);border-radius:14px;box-shadow:0 20px 50px rgba(15,23,42,.25);width:100%;max-width:1100px}
+.d-head{padding:18px 26px 14px;border-bottom:1px solid var(--rule-soft)}
+.d-kick{font-size:11.5px;letter-spacing:.06em;color:var(--rust);text-transform:uppercase}
+.d-title{font-size:20px;font-weight:500;margin-top:2px}
+.d-body{padding:18px 26px 26px;background:#fafbfc}
+.tabs{display:flex;background:#f1f3f6;border:1px solid var(--rule-soft);border-radius:10px;padding:4px;margin-bottom:20px}
+.tabs span{flex:1;text-align:center;padding:7px 0;border-radius:7px;color:var(--ash);font-size:13.5px}
+.tabs span.on{background:#fff;color:var(--rust);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.d-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 26px;border-top:1px solid var(--rule-soft)}
+.btn{font:inherit;font-size:13.5px;border-radius:8px;padding:7px 14px;border:1px solid var(--rule);background:#fff;color:var(--ink)}
+.btn--pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.lnk{font:inherit;font-size:13px;color:var(--rust);background:none;border:0;padding:0;cursor:pointer;white-space:nowrap}
+
+/* ô nhập chung */
+.in{display:flex;align-items:center;height:36px;border:1px solid var(--rule);border-radius:8px;background:#fff;padding:0 10px;font-size:13.5px}
+.in .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.in .v.num{text-align:right}
+.in .v.mo{color:var(--ash-3)}
+.in .u{color:var(--ash-2);margin-left:8px;font-size:12.5px}
+.in .x{color:var(--ash-3);margin-left:8px}
+.in .car{color:var(--ash-3);margin-left:8px;font-size:11px}
+.trash{color:var(--ash-3);font-size:14px;text-align:center}
+.lbl{font-size:13px;color:var(--ink);margin-bottom:6px}
+.mo{color:var(--ash-3)}
+.goi{color:var(--ash-2);font-size:12.5px}
+
+/* khối công thức giữ nguyên (chỉ để chỉ chỗ đứng) */
+.ct-giu{border:1px dashed var(--rule);border-radius:12px;padding:14px 18px;background:#fff;color:var(--ash)}
+.ct-giu .t{color:var(--ink);margin-bottom:6px}
+.ct-giu code{display:block;font:12.5px/1.6 ui-monospace,Consolas,monospace;color:var(--ash);background:var(--rule-hair);border-radius:8px;padding:8px 10px}
+
+/* ===== A. Shopify Settings ===== */
+.a-sec{margin-bottom:22px}
+.a-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.a-h h3{font-size:14.5px;font-weight:500;margin:0}
+.a-sub{color:var(--ash-2);font-size:12.5px;margin:2px 0 10px;max-width:760px}
+.a-card{background:#fff;border:1px solid var(--rule-soft);border-radius:12px;padding:16px 18px}
+.a-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.a-tb{width:100%;border-collapse:collapse}
+.a-tb th{white-space:nowrap;font-weight:400;color:var(--ash-2);font-size:12.5px;text-align:left;padding:0 8px 8px}
+.a-tb th.r{text-align:right;padding-right:30px}
+.a-tb td{padding:5px 8px;border-top:1px solid var(--rule-hair)}
+.a-tb tr:first-child td{border-top:0}
+.a-tb .w140{width:150px}
+.a-tb .w40{width:36px}
+.a-tb .ten{white-space:nowrap}
+.a-empty{color:var(--ash-2);font-size:13px;display:flex;justify-content:space-between;align-items:center}
+
+/* ===== B. Odoo phẳng ===== */
+.b-wrap{background:#fff;border:1px solid var(--rule-soft);border-radius:12px;padding:6px 22px 20px}
+.b-sec{padding-top:18px}
+.b-h{display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--rule-soft);padding-bottom:6px;margin-bottom:10px}
+.b-h h3{font-size:12px;font-weight:500;letter-spacing:.05em;text-transform:uppercase;color:var(--ash);margin:0}
+.b-h .q{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;background:var(--rule-hair);color:var(--ash-2);font-size:10.5px;cursor:help;position:relative}
+.b-h .q:hover::after{content:attr(data-tip);position:absolute;left:20px;top:-6px;width:420px;background:var(--ink);color:#fff;font-size:12px;line-height:1.5;padding:8px 10px;border-radius:8px;z-index:5;text-transform:none;letter-spacing:0}
+.b-h .lnk{margin-left:auto}
+.b-rows{display:grid;grid-template-columns:170px 260px;row-gap:8px;align-items:center}
+.b-rows .k{color:var(--ink);font-size:13px}
+.b-rows .k i{font-style:normal;color:var(--ash-3);margin-left:3px;font-size:11px}
+.b-rows-3 .lbl{white-space:nowrap}
+.b-rows-3{display:grid;grid-template-columns:repeat(3,max-content minmax(0,1fr));column-gap:14px;row-gap:8px;align-items:center;justify-content:start}
+.b-tb{border-collapse:collapse;width:100%}
+.b-tb th{white-space:nowrap;font-weight:400;color:var(--ash-2);font-size:12.5px;text-align:left;padding:4px 6px}
+.b-tb th.r{text-align:right;padding-right:16px}
+.b-tb td{padding:2px 6px;border-bottom:1px solid var(--rule-hair)}
+.b-in{display:flex;align-items:center;height:32px;border:1px solid transparent;border-radius:6px;padding:0 8px;font-size:13.5px}
+.b-in:hover{border-color:var(--rule)}
+.b-in .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-in .v.num{text-align:right}
+.b-in .u{color:var(--ash-3);margin-left:6px;font-size:12px}
+.b-in.cur{border-color:var(--rule)}
+.b-add{color:var(--rust);font-size:13px;padding:8px 6px 0;display:inline-block}
+
+/* ===== C. Lưới ô liền kiểu Stripe ===== */
+.c-sec{background:#fff;border:1px solid var(--rule-soft);border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.c-h{display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.c-h h3{font-size:14.5px;font-weight:500;margin:0}
+.c-h .goi{flex:1}
+.grid{border:1px solid var(--rule);border-radius:8px;overflow:hidden;width:100%;border-collapse:separate;border-spacing:0}
+.grid th{white-space:nowrap;background:#f6f7f9;font-weight:400;color:var(--ash-2);font-size:12.5px;text-align:left;padding:8px 12px;border-bottom:1px solid var(--rule);border-left:1px solid var(--rule-soft)}
+.grid th:first-child,.grid td:first-child{border-left:0}
+.grid th.r{text-align:right}
+.grid td{padding:0;border-top:1px solid var(--rule-soft);border-left:1px solid var(--rule-soft);height:38px;font-size:13.5px}
+.grid tr:nth-child(1) td{border-top:0}
+.grid td .c{display:flex;align-items:center;height:38px;padding:0 12px}
+.grid td .c.r{justify-content:flex-end}
+.grid td .c .u{color:var(--ash-3);margin-left:6px;font-size:12px}
+.grid td.nhan{background:#fbfbfc;color:var(--ink);white-space:nowrap}
+.grid td.act{width:40px;text-align:center;color:var(--ash-3)}
+.grid th.act{width:40px;text-align:center;color:var(--ash-2);font-size:15px}
+.grid td.focus{box-shadow:inset 0 0 0 2px #3b82f6}
+.grid tr.add td{background:#fbfbfc}
+.grid tr.add td .c{color:var(--rust);font-size:13px}
+.c-g3 td{width:33.3%}
+.note{font-size:12.5px;color:var(--ash);border-left:2px solid var(--rule);padding:2px 0 2px 10px;margin:12px 0 0}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Tab Khoán của công đoạn — làm lại phần khai giá</h1>
+<div class="lead">
+  Dữ liệu thật của công đoạn IN-12P "Bài in 1–2 màu Pantone" trên DB dev. Làm lại bốn khối Đơn giá, Giá theo tổ, Tuỳ chọn khi ghi, Việc phát sinh. Công thức khoán chuyển xuống CUỐI CÙNG và giữ nguyên như hiện tại (ở mockup chỉ vẽ khung để chỉ chỗ đứng).
+  <ul>
+    <li>Đã đọc: <code>KhoanCongDoan.tsx</code> (bốn khối + bảng giá theo tổ), <code>ViecPhatSinh.tsx</code> và khung bảng dùng chung <code>RowEditor.tsx</code>, khung tab ở <code>CatalogDrawer.tsx</code> (drawer rộng tối đa 1100px khi có ô công thức), hộp ghi sản lượng của thợ <code>ThsxExecPanels.tsx</code> (nơi hiện "Tuỳ chọn lần này" với tên + gợi ý, và việc phát sinh với tên + đơn vị + giá của tổ), luật lưu <code>cong_doan_service._kiem_khoan / _kiem_tuy_chon / _kiem_gia_theo_to</code>, cách lấy giá <code>viec_khoan.gia_cua_to / gia_ps_cua_to</code>.</li>
+    <li>Luật giữ nguyên, không đổi: đơn vị tính và đơn giá chung bắt buộc; việc phát sinh phải có tên không trùng, đơn giá, đơn vị trong danh mục; tuỳ chọn có tên, mã chữ thường không dấu, kiểu Có / không hoặc Số; giá theo tổ: bảng chính trống thì mọi tổ dùng giá chung, đã khai tổ nào thì tổ vắng là thiếu giá, mỗi cột việc phát sinh tính riêng.</li>
+    <li>Không bớt ô nào. Cả ba phương án vẫn đủ: đơn vị, giá cố định chung, đơn giá chung, bảng giá theo tổ (cột giá cố định, đơn giá, mỗi việc phát sinh một cột), tuỳ chọn (tên, mã, kiểu, gợi ý), việc phát sinh (tên, đơn giá, đơn vị).</li>
+  </ul>
+</div>
+
+<div class="ref">
+  <figure><img src="tham-khao-khoan-lam-lai/shopify-settings-vidu.png" alt="">
+    <figcaption><span>Shopify App Home: mẫu trang Settings (mở 22/10)</span>Tiêu đề nhóm và một dòng giải thích nằm NGOÀI thẻ, thẻ chỉ chứa ô. Trang hướng dẫn nói rõ: giải thích bằng subheading chứ không bằng đoạn văn trong thân thẻ; nút của nhóm đặt cùng hàng tiêu đề. → A</figcaption></figure>
+  <figure><img src="tham-khao-khoan-lam-lai/odoo-quy-tac-luong.png" alt="">
+    <figcaption><span>Odoo Payroll: Salary rule (chụp 21/10)</span>Cùng nghiệp vụ (quy tắc lương). Không có thẻ, các nhóm ngăn bằng tiêu đề nhỏ có vạch dưới; nhãn trái giá trị phải; giải thích giấu vào dấu "?" cạnh nhãn. → B</figcaption></figure>
+  <figure><img src="tham-khao-khoan-lam-lai/pin-bac-gia-va-thu-tinh.jpg" alt="">
+    <figcaption><span>Bảng giá bậc kiểu Stripe (Pinterest, chụp 21/10)</span>Bảng là lưới ô liền như Excel: ô nhập không có viền riêng, số kế thừa chữ xám, nút + ở góc tiêu đề, × cuối hàng. Một câu chọn kiểu ngay trên bảng. → C</figcaption></figure>
+</div>
+
+<div class="switch">
+  <button class="on" data-o="a">A. Tiêu đề ngoài thẻ</button>
+  <button data-o="b">B. Phẳng như Odoo</button>
+  <button data-o="c">C. Lưới ô liền</button>
+</div>
+
+<!-- ================= A ================= -->
+<section class="opt on" id="o-a">
+  <div class="opt-head"><h2>A. Mỗi khối: tiêu đề + một dòng giải thích ở ngoài, thẻ chỉ chứa ô</h2></div>
+  <div class="why">Bám đúng mẫu Settings của Shopify.
+    <ul>
+      <li>Bỏ tiêu đề IN HOA màu đỏ và vạch kẻ trong thẻ; tiêu đề thường, chữ đen, nằm trên thẻ.</li>
+      <li>Đoạn giải thích hai ba dòng rút về một dòng phụ đề dưới tiêu đề. Nút "＋ Thêm" lên cùng hàng tiêu đề, thay nút viền gạch to ở đáy thẻ.</li>
+      <li>Tiêu đề cột viết thường. Ô giá rộng cố định 150px, ô số căn phải, đơn vị "đ" trong ô.</li>
+    </ul>
+  </div>
+  <div class="stage"><div class="drawer">
+    <div class="d-head"><div class="d-kick">Chỉnh sửa</div><div class="d-title">Bài in 1–2 màu Pantone</div></div>
+    <div class="d-body">
+      <div class="tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Vật tư</span><span>Công thức tính giá</span><span>Nhật ký</span></div>
+
+      <div class="a-sec">
+        <div class="a-h"><h3>Đơn giá</h3></div>
+        <div class="a-sub">Giá chung cho mọi tổ, trừ tổ có giá riêng ở bảng dưới.</div>
+        <div class="a-card"><div class="a-g3">
+          <div><div class="lbl">Đơn vị tính khoán *</div><div class="in"><span class="v">tờ</span><span class="x">✕</span></div></div>
+          <div><div class="lbl">Giá cố định chung</div><div class="in"><span class="v">225000</span><span class="u">đ</span></div></div>
+          <div><div class="lbl">Đơn giá chung *</div><div class="in"><span class="v">30</span><span class="u">đ</span></div></div>
+        </div></div>
+      </div>
+
+      <div class="a-sec">
+        <div class="a-h"><h3>Giá theo tổ</h3></div>
+        <div class="a-sub">Ô trống dùng giá chung (số mờ). Đã điền cho một tổ thì tổ còn trống là thiếu giá.</div>
+        <div class="a-card">
+          <table class="a-tb">
+            <tr><th>Tổ</th><th class="r">Giá cố định</th><th class="r">Đơn giá</th><th class="r">Thay kẽm</th><th class="r">Xuống bài do lỗi máy…</th><th class="w40"></th></tr>
+            <tr>
+              <td class="ten">Nhóm thợ in máy 2 màu</td>
+              <td class="w140"><div class="in"><span class="v num mo">225000</span><span class="u">đ</span></div></td>
+              <td class="w140"><div class="in"><span class="v num mo">30</span><span class="u">đ</span></div></td>
+              <td class="w140"><div class="in"><span class="v num mo">100000</span><span class="u">đ</span></div></td>
+              <td class="w140"><div class="in"><span class="v num">187500</span><span class="u">đ</span></div></td>
+              <td></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="a-sec">
+        <div class="a-h"><h3>Tuỳ chọn khi ghi</h3><button class="lnk">＋ Thêm tuỳ chọn</button></div>
+        <div class="a-sub">Thợ tick hoặc gõ số ở mỗi lần ghi. Có / không vào công thức là 1 hoặc 0, bỏ trống là 0.</div>
+        <div class="a-card">
+          <table class="a-tb">
+            <tr><th>Tên hiện cho thợ</th><th style="width:190px">Mã trong công thức</th><th style="width:140px">Kiểu</th><th style="width:200px">Gợi ý cho thợ</th><th class="w40"></th></tr>
+            <tr>
+              <td><div class="in"><span class="v">Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)</span></div></td>
+              <td><div class="in"><span class="v">chay_tiep</span></div></td>
+              <td><div class="in"><span class="v">Có / không</span><span class="car">▾</span></div></td>
+              <td><div class="in"><span class="v mo"></span></div></td>
+              <td class="trash">🗑</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="a-sec">
+        <div class="a-h"><h3>Việc phát sinh</h3><button class="lnk">＋ Thêm việc phát sinh</button></div>
+        <div class="a-sub">Thợ tick kèm số lượng ở lần ghi, không cộng vào sản lượng. Mỗi việc thành một cột ở bảng Giá theo tổ.</div>
+        <div class="a-card">
+          <table class="a-tb">
+            <tr><th>Tên việc</th><th class="r" style="width:170px">Đơn giá</th><th style="width:220px">Đơn vị tính</th><th class="w40"></th></tr>
+            <tr>
+              <td><div class="in"><span class="v">Thay kẽm</span></div></td>
+              <td><div class="in"><span class="v num">100000</span><span class="u">đ</span></div></td>
+              <td><div class="in"><span class="v">bản kẽm</span><span class="x">✕</span></div></td>
+              <td class="trash">🗑</td>
+            </tr>
+            <tr>
+              <td><div class="in"><span class="v">Xuống bài do lỗi máy hoặc bộ phận khác</span></div></td>
+              <td><div class="in"><span class="v num">0</span><span class="u">đ</span></div></td>
+              <td><div class="in"><span class="v">bài in</span><span class="x">✕</span></div></td>
+              <td class="trash">🗑</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="a-sec">
+        <div class="a-h"><h3>Công thức khoán</h3></div>
+        <div class="a-sub">Giữ nguyên như hiện tại, chỉ chuyển xuống cuối.</div>
+        <div class="ct-giu"><code>(1 − Chạy tiếp) × Giá cố định + max(0, SL ghi × (1 + Tự trở) − (1 − Chạy tiếp) × 3000) × Đơn giá khoán</code></div>
+      </div>
+    </div>
+    <div class="d-foot"><button class="btn">Hủy</button><button class="btn btn--pri">Lưu thay đổi</button></div>
+  </div></div>
+  <p class="why" style="margin-top:14px">Khi chưa có tuỳ chọn hay việc phát sinh nào: thẻ chỉ còn một dòng chữ xám "Chưa có tuỳ chọn" cao 40px, nút thêm vẫn ở hàng tiêu đề.</p>
+</section>
+
+<!-- ================= B ================= -->
+<section class="opt" id="o-b">
+  <div class="opt-head"><h2>B. Phẳng như Odoo: một tấm nền, các nhóm ngăn bằng tiêu đề nhỏ</h2></div>
+  <div class="why">Bám màn quy tắc lương của Odoo.
+    <ul>
+      <li>Bỏ hết thẻ lồng: cả tab là một tấm trắng, mỗi nhóm là tiêu đề nhỏ chữ xám có vạch mảnh dưới.</li>
+      <li>Đoạn giải thích chuyển vào dấu "?" cạnh tiêu đề (rê chuột vào để đọc, thử ở "Giá theo tổ"). Màn thấp hẳn.</li>
+      <li>Ô trong bảng không viền, chỉ hiện viền khi rê hoặc đang gõ, bảng đọc như danh sách. Đơn giá xếp nhãn trái ô phải trên một hàng.</li>
+    </ul>
+  </div>
+  <div class="stage"><div class="drawer">
+    <div class="d-head"><div class="d-kick">Chỉnh sửa</div><div class="d-title">Bài in 1–2 màu Pantone</div></div>
+    <div class="d-body">
+      <div class="tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Vật tư</span><span>Công thức tính giá</span><span>Nhật ký</span></div>
+      <div class="b-wrap">
+        <div class="b-sec">
+          <div class="b-h"><h3>Đơn giá</h3><span class="q" data-tip="Giá chung cho mọi tổ, trừ tổ có giá riêng ở Giá theo tổ.">?</span></div>
+          <div class="b-rows-3">
+            <span class="lbl" style="margin:0">Đơn vị tính *</span><div class="in"><span class="v">tờ</span><span class="x">✕</span></div>
+            <span class="lbl" style="margin:0">Giá cố định chung</span><div class="in"><span class="v num">225000</span><span class="u">đ</span></div>
+            <span class="lbl" style="margin:0">Đơn giá chung *</span><div class="in"><span class="v num">30</span><span class="u">đ</span></div>
+          </div>
+        </div>
+
+        <div class="b-sec">
+          <div class="b-h"><h3>Giá theo tổ</h3><span class="q" data-tip="Ô trống dùng giá chung (số mờ). Đã điền cho tổ nào thì tổ còn trống là thiếu giá, lần ghi của tổ đó chưa ra tiền khoán. Mỗi cột việc phát sinh tính riêng.">?</span></div>
+          <table class="b-tb">
+            <tr><th>Tổ</th><th class="r" style="width:150px">Giá cố định</th><th class="r" style="width:150px">Đơn giá</th><th class="r" style="width:150px">Thay kẽm</th><th class="r" style="width:170px">Xuống bài do lỗi máy…</th></tr>
+            <tr>
+              <td>Nhóm thợ in máy 2 màu</td>
+              <td><div class="b-in"><span class="v num mo">225000</span><span class="u">đ</span></div></td>
+              <td><div class="b-in"><span class="v num mo">30</span><span class="u">đ</span></div></td>
+              <td><div class="b-in"><span class="v num mo">100000</span><span class="u">đ</span></div></td>
+              <td><div class="b-in cur"><span class="v num">187500</span><span class="u">đ</span></div></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="b-sec">
+          <div class="b-h"><h3>Tuỳ chọn khi ghi</h3><span class="q" data-tip="Thợ tick hoặc gõ số ở mỗi lần ghi. Có / không vào công thức là 1 hoặc 0, Số là số thợ gõ, bỏ trống là 0.">?</span></div>
+          <table class="b-tb">
+            <tr><th>Tên hiện cho thợ</th><th style="width:180px">Mã</th><th style="width:130px">Kiểu</th><th style="width:200px">Gợi ý cho thợ</th><th style="width:36px"></th></tr>
+            <tr>
+              <td><div class="b-in"><span class="v">Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)</span></div></td>
+              <td><div class="b-in"><span class="v">chay_tiep</span></div></td>
+              <td><div class="b-in"><span class="v">Có / không</span><span class="u">▾</span></div></td>
+              <td><div class="b-in"><span class="v mo">—</span></div></td>
+              <td class="trash">🗑</td>
+            </tr>
+          </table>
+          <span class="b-add">＋ Thêm tuỳ chọn</span>
+        </div>
+
+        <div class="b-sec">
+          <div class="b-h"><h3>Việc phát sinh</h3><span class="q" data-tip="Thợ tick kèm số lượng ở lần ghi, không cộng vào sản lượng. Mỗi việc thành một cột ở Giá theo tổ.">?</span></div>
+          <table class="b-tb">
+            <tr><th>Tên việc</th><th class="r" style="width:150px">Đơn giá</th><th style="width:200px">Đơn vị tính</th><th style="width:36px"></th></tr>
+            <tr>
+              <td><div class="b-in"><span class="v">Thay kẽm</span></div></td>
+              <td><div class="b-in"><span class="v num">100000</span><span class="u">đ</span></div></td>
+              <td><div class="b-in"><span class="v">bản kẽm</span><span class="u">▾</span></div></td>
+              <td class="trash">🗑</td>
+            </tr>
+            <tr>
+              <td><div class="b-in"><span class="v">Xuống bài do lỗi máy hoặc bộ phận khác</span></div></td>
+              <td><div class="b-in"><span class="v num">0</span><span class="u">đ</span></div></td>
+              <td><div class="b-in"><span class="v">bài in</span><span class="u">▾</span></div></td>
+              <td class="trash">🗑</td>
+            </tr>
+          </table>
+          <span class="b-add">＋ Thêm việc phát sinh</span>
+        </div>
+
+        <div class="b-sec">
+          <div class="b-h"><h3>Công thức khoán</h3></div>
+          <div class="ct-giu"><div class="t">Giữ nguyên như hiện tại, chỉ chuyển xuống cuối.</div><code>(1 − Chạy tiếp) × Giá cố định + max(0, SL ghi × (1 + Tự trở) − (1 − Chạy tiếp) × 3000) × Đơn giá khoán</code></div>
+        </div>
+      </div>
+    </div>
+    <div class="d-foot"><button class="btn">Hủy</button><button class="btn btn--pri">Lưu thay đổi</button></div>
+  </div></div>
+  <p class="why" style="margin-top:14px">Đánh đổi: giải thích nằm trong dấu "?", người mới phải rê chuột mới đọc được luật "tổ còn trống là thiếu giá".</p>
+</section>
+
+<!-- ================= C ================= -->
+<section class="opt" id="o-c">
+  <div class="opt-head"><h2>C. Mỗi bảng là một lưới ô liền như Excel</h2></div>
+  <div class="why">Bám bảng giá bậc kiểu Stripe.
+    <ul>
+      <li>Giữ mỗi khối một thẻ, tiêu đề thường chữ đen, giải thích một dòng xám ngay cạnh tiêu đề.</li>
+      <li>Bảng không còn ô nhập rời có viền: cả bảng là một lưới, ô nào bấm vào là gõ (ô đang gõ có viền xanh). Số kế thừa giá chung là chữ xám.</li>
+      <li>Hàng "＋ Thêm" là hàng cuối của lưới, không phải nút rời. Đơn giá cũng là lưới một hàng ba ô cho cùng nhịp.</li>
+    </ul>
+  </div>
+  <div class="stage"><div class="drawer">
+    <div class="d-head"><div class="d-kick">Chỉnh sửa</div><div class="d-title">Bài in 1–2 màu Pantone</div></div>
+    <div class="d-body">
+      <div class="tabs"><span>Thông tin</span><span class="on">Khoán</span><span>Vật tư</span><span>Công thức tính giá</span><span>Nhật ký</span></div>
+
+      <div class="c-sec">
+        <div class="c-h"><h3>Đơn giá</h3><span class="goi">Giá chung cho mọi tổ, trừ tổ có giá riêng.</span></div>
+        <table class="grid c-g3">
+          <tr><th>Đơn vị tính khoán *</th><th class="r">Giá cố định chung</th><th class="r">Đơn giá chung *</th></tr>
+          <tr><td><div class="c">tờ<span class="u" style="margin-left:auto">▾</span></div></td><td><div class="c r">225000<span class="u">đ</span></div></td><td><div class="c r">30<span class="u">đ</span></div></td></tr>
+        </table>
+      </div>
+
+      <div class="c-sec">
+        <div class="c-h"><h3>Giá theo tổ</h3><span class="goi">Ô xám là giá chung. Đã điền cho một tổ thì tổ còn trống là thiếu giá.</span></div>
+        <table class="grid">
+          <tr><th>Tổ</th><th class="r" style="width:150px">Giá cố định</th><th class="r" style="width:150px">Đơn giá</th><th class="r" style="width:150px">Thay kẽm</th><th class="r" style="width:180px">Xuống bài do lỗi máy…</th></tr>
+          <tr>
+            <td class="nhan"><div class="c">Nhóm thợ in máy 2 màu</div></td>
+            <td><div class="c r mo">225000<span class="u">đ</span></div></td>
+            <td><div class="c r mo">30<span class="u">đ</span></div></td>
+            <td><div class="c r mo">100000<span class="u">đ</span></div></td>
+            <td class="focus"><div class="c r">187500<span class="u">đ</span></div></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="c-sec">
+        <div class="c-h"><h3>Tuỳ chọn khi ghi</h3><span class="goi">Thợ tick hoặc gõ số mỗi lần ghi. Có / không là 1 hoặc 0, bỏ trống là 0.</span></div>
+        <table class="grid">
+          <tr><th>Tên hiện cho thợ</th><th style="width:180px">Mã trong công thức</th><th style="width:130px">Kiểu</th><th style="width:200px">Gợi ý cho thợ</th><th class="act"></th></tr>
+          <tr>
+            <td><div class="c">Chạy tiếp (bài ghép liên tục, chỉ tính thay kẽm)</div></td>
+            <td><div class="c">chay_tiep</div></td>
+            <td><div class="c">Có / không<span class="u" style="margin-left:auto">▾</span></div></td>
+            <td><div class="c mo"></div></td>
+            <td class="act">✕</td>
+          </tr>
+          <tr class="add"><td colspan="5"><div class="c">＋ Thêm tuỳ chọn</div></td></tr>
+        </table>
+      </div>
+
+      <div class="c-sec">
+        <div class="c-h"><h3>Việc phát sinh</h3><span class="goi">Không cộng vào sản lượng. Mỗi việc thành một cột ở Giá theo tổ.</span></div>
+        <table class="grid">
+          <tr><th>Tên việc</th><th class="r" style="width:150px">Đơn giá</th><th style="width:200px">Đơn vị tính</th><th class="act"></th></tr>
+          <tr>
+            <td><div class="c">Thay kẽm</div></td>
+            <td><div class="c r">100000<span class="u">đ</span></div></td>
+            <td><div class="c">bản kẽm<span class="u" style="margin-left:auto">▾</span></div></td>
+            <td class="act">✕</td>
+          </tr>
+          <tr>
+            <td><div class="c">Xuống bài do lỗi máy hoặc bộ phận khác</div></td>
+            <td><div class="c r">0<span class="u">đ</span></div></td>
+            <td><div class="c">bài in<span class="u" style="margin-left:auto">▾</span></div></td>
+            <td class="act">✕</td>
+          </tr>
+          <tr class="add"><td colspan="4"><div class="c">＋ Thêm việc phát sinh</div></td></tr>
+        </table>
+      </div>
+
+      <div class="c-sec">
+        <div class="c-h"><h3>Công thức khoán</h3><span class="goi">Giữ nguyên như hiện tại, chỉ chuyển xuống cuối.</span></div>
+        <div class="ct-giu"><code>(1 − Chạy tiếp) × Giá cố định + max(0, SL ghi × (1 + Tự trở) − (1 − Chạy tiếp) × 3000) × Đơn giá khoán</code></div>
+      </div>
+    </div>
+    <div class="d-foot"><button class="btn">Hủy</button><button class="btn btn--pri">Lưu thay đổi</button></div>
+  </div></div>
+  <p class="why" style="margin-top:14px">Đánh đổi: ô chọn đơn vị (tìm theo gõ) phải bày danh sách thả xuống từ trong ô lưới; phần code cần một lớp CSS lưới riêng cho bốn bảng, ô nhập vẫn là ô nhập thật chỉ bỏ viền.</p>
+</section>
+</div>
+<script>
+document.querySelectorAll('.switch button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.switch button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.opt').forEach(o=>o.classList.toggle('on',o.id==='o-'+b.dataset.o));
+});
+</script>
+</body>
+</html>

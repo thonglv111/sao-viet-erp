@@ -12,13 +12,18 @@ import type { ReactNode } from "react";
 
 import { TrashIcon } from "../icons";
 
+/** Cột thêm sau `cot` — vd giá từng tổ. Có `con` thì tiêu đề hai tầng: nhãn trùm các cột con. */
+export interface CotThem { khoa: string | number; nhan: ReactNode; lop?: string; con?: string[] }
+
 export function RowEditor<T>({
-  rows, cot, trong, themNhan, onThem, onXoa, xoaTitle = "Xoá dòng",
-  lopHang, khoaXoa, khoa, chan, veHang,
+  rows, cot, cotThem = [], trong, themNhan, onThem, onXoa, xoaTitle = "Xoá dòng",
+  lopHang, khoaXoa, khoa, chan, veHang, khoaHang,
 }: {
   rows: T[];
   /** Nhãn các cột DỮ LIỆU. Cột nút xoá tự mọc thêm ở cuối, đừng khai. */
   cot: string[];
+  /** Cột vẽ sau `cot`; ô của chúng nằm trong `veHang` như mọi ô khác. */
+  cotThem?: CotThem[];
   /** Câu hiện khi chưa có dòng nào — nói luôn phải bấm nút gì. */
   trong: string;
   themNhan: string;
@@ -35,19 +40,37 @@ export function RowEditor<T>({
   chan?: ReactNode;
   /** Các `<td>` của một hàng, KHÔNG gồm ô nút xoá. */
   veHang: (r: T, i: number) => ReactNode;
+  /** React key của hàng — bảng TỰ XẾP lại khi sửa (bậc giá) phải khai, không thì ô đang gõ nhảy
+   *  sang hàng khác. Mặc định là vị trí. */
+  khoaHang?: (r: T, i: number) => string | number;
 }) {
+  const haiTang = cotThem.some((c) => c.con?.length);
+  const tang = haiTang ? 2 : undefined;
+  const soCot = cot.length + cotThem.reduce((n, c) => n + (c.con?.length || 1), 0) + 1;
   return (
     <div className={`rc-bands${khoa ? ` ${khoa}` : ""}`}>
       <table className="rc-bands__table">
         <thead>
-          <tr>{cot.map((c) => <th key={c}>{c}</th>)}<th /></tr>
+          <tr>
+            {cot.map((c) => <th key={c} rowSpan={tang}>{c}</th>)}
+            {cotThem.map((c) => (
+              <th key={c.khoa} className={c.lop} colSpan={c.con?.length || undefined}
+                rowSpan={c.con?.length ? undefined : tang}>{c.nhan}</th>
+            ))}
+            <th rowSpan={tang} />
+          </tr>
+          {haiTang && (
+            <tr>
+              {cotThem.flatMap((c) => (c.con ?? []).map((n) => <th key={`${c.khoa}-${n}`} className="so">{n}</th>))}
+            </tr>
+          )}
         </thead>
         <tbody>
           {rows.length === 0 && (
-            <tr><td colSpan={cot.length + 1} className="rc-bands__empty">{trong}</td></tr>
+            <tr><td colSpan={soCot} className="rc-bands__empty">{trong}</td></tr>
           )}
           {rows.map((r, i) => (
-            <tr key={i} className={lopHang?.(r, i) || undefined}>
+            <tr key={khoaHang ? khoaHang(r, i) : i} className={lopHang?.(r, i) || undefined}>
               {veHang(r, i)}
               <td style={{ textAlign: "center" }}>
                 {!khoaXoa?.(r, i) && (

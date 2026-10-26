@@ -335,6 +335,20 @@ export function EmployeeDetailPanel({
                         <UserCheck size={14} /> Chuyển chính thức
                       </button>
                     )}
+                    {/* Khai nhầm "Đang làm việc" lúc vào làm, hoặc cho thử việc lại (24/10/2026). */}
+                    {canManageStatus
+                      && (emp.status === "active" || emp.status === "probation_ended") && (
+                      <button
+                        type="button"
+                        className="ns-dropdown-item"
+                        onClick={() => {
+                          setAction("probation_restart");
+                          setDropdownOpen(false);
+                        }}
+                      >
+                        <UserMinus size={14} /> Chuyển về thử việc
+                      </button>
+                    )}
                     {canManageStatus && emp.status === "active" && (
                       <button
                         type="button"
@@ -530,6 +544,9 @@ export function EmployeeDetailPanel({
           onDone={() => {
             setAction(null);
             reload();
+            // Nghỉ việc / tuyển lại đổi khoá tài khoản — tab Tài khoản phải tải lại (L-VAI-22).
+            taiKhoan.loadRow();
+            taiKhoan.loadActivity();
             onChanged();
           }}
         />

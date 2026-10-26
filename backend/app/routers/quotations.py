@@ -160,7 +160,7 @@ def _row(
         version=active_version.version_number if active_version else 1,
         customer_id=q.customer_id,
         customer_name=customer_name or q.customer_name_snapshot,
-        total=int(active_version.final_amount) if active_version else 0,
+        total=round(active_version.final_amount) if active_version else 0,
         status=q.status,
         valid_until=q.valid_until,
         version_count=len(q.versions),
@@ -239,6 +239,9 @@ def _detail(
                     gia_go_tay=bool(item.gia_go_tay),
                     unit_price=float(item.unit_price),
                     discount_amount=float(item.discount_amount),
+                    discount_percent=QuotationService.pct_ck_dong(item),
+                    ke_gia=float(item.ke_gia or 0),
+                    gia_sau_ke=float(item.selling_price) + float(item.ke_gia or 0),
                     vat_percent=float(item.vat_percent),
                     vat_amount=float(item.vat_amount),
                     final_amount=float(item.final_amount),
@@ -254,10 +257,11 @@ def _detail(
                 id=v.id,
                 version=v.version_number,
                 status=v.status,
-                total=int(v.final_amount),
-                total_cost=int(v.total_cost_snapshot) if v.total_cost_snapshot is not None else None,
-                subtotal=int(v.subtotal_amount) if v.subtotal_amount is not None else None,
-                discount=int(v.discount_amount) if v.discount_amount is not None else None,
+                total=round(v.final_amount),   # làm tròn như thẻ giá bán — int() cắt cụt lệch 1 đ
+                total_cost=round(v.total_cost_snapshot) if v.total_cost_snapshot is not None else None,
+                subtotal=round(v.subtotal_amount) if v.subtotal_amount is not None else None,
+                discount=round(v.discount_amount) if v.discount_amount is not None else None,
+                ke_gia=round(v.ke_gia_amount or 0),
                 created_at=v.created_at,
                 change_reason=v.change_reason,
             )
@@ -301,6 +305,7 @@ def _detail(
         total_cost=total_cost,
         subtotal_amount=subtotal_amount,
         discount_amount=discount_amount,
+        ke_gia_amount=float(active_version.ke_gia_amount or 0) if active_version else 0.0,
         vat_amount=vat_amount,
         total=total,
         versions=versions_out,
@@ -481,9 +486,9 @@ def mark_decisions_seen(
     return {"ok": True}
 
 
-def _authenticate_sse(token: str | None) -> int:
+def _authenticate_sse(token: str | None) -> tuple[int, int]:
     """Xác thực bearer token cho SSE mà KHÔNG giữ session request-scoped (stream sống lâu — 200 kết
-    nối giữ session sẽ cạn pool). Mở session ngắn, validate, đóng ngay; trả user_id."""
+    nối giữ session sẽ cạn pool). Mở session ngắn, validate, đóng ngay; trả (user_id, token_version)."""
     unauth = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated",
                            headers={"WWW-Authenticate": "Bearer"})
     if not token:
@@ -500,7 +505,18 @@ def _authenticate_sse(token: str | None) -> int:
         db.close()
     if claims.get("tv") != user.token_version or not user.is_active:
         raise unauth
-    return user.id
+    return user.id, user.token_version
+
+
+def _sse_con_hieu_luc(user_id: int, tv: int) -> bool:
+    """Kênh đã nối còn được sống không: tài khoản chưa khoá, phiên chưa bị thu hồi (L-VAI-23).
+    Hỏi lúc nhận `quyen_doi` — khoá / thu hồi / nghỉ việc đều đẩy sự kiện đó."""
+    db = SessionLocal()
+    try:
+        user = UserRepository(db).get_by_id(user_id)
+        return user is not None and user.is_active and user.token_version == tv
+    finally:
+        db.close()
 
 
 @router.get("/events")
@@ -518,7 +534,7 @@ async def quote_events(
         token = authorization[7:]
     # Xác thực đụng DB (đồng bộ) — chạy thẳng trong hàm async là chặn event loop của CẢ worker
     # trong lúc chờ DB; 200 người nối lại cùng lúc là mọi request khác đứng theo.
-    user_id = await chay_ngoai_cong(_authenticate_sse, token)
+    user_id, tv = await chay_ngoai_cong(_authenticate_sse, token)
     # Bộ quyền nhận tin — hub chỉ giao sự kiện `gui(quyen=…, to=…)` cho kết nối có quyền khớp.
     queue = hub.subscribe(user_id, quyen=await chay_ngoai_cong(nap_quyen_nhan, user_id))
 
@@ -530,6 +546,11 @@ async def quote_events(
                     break
                 if hub.can_nap_lai_quyen(queue):
                     # Vừa nhận `quyen_doi`: nạp lại bộ quyền trước khi nhận tin kế tiếp.
+                    try:
+                        if not await chay_ngoai_cong(_sse_con_hieu_luc, user_id, tv):
+                            break
+                    except Exception:  # noqa: BLE001 — DB chớp: giữ kênh, lần sau xét lại
+                        pass
                     try:
                         hub.cap_nhat_quyen(queue, await chay_ngoai_cong(nap_quyen_nhan, user_id))
                     except Exception:  # noqa: BLE001 — DB chớp: tạm nhận hết còn hơn lọt tin
@@ -556,6 +577,21 @@ async def quote_events(
 
 # --- create / read / update ---------------------------------------------------
 
+def _thay_phieu(db: Session, phieu_id: int, user: User, authz: AuthorizationService) -> bool:
+    """Phiếu tính giá có trong phạm vi Tính giá của `user` không — cùng luật cửa xem chi tiết
+    (`phieu_tinh_gia._fetch_in_scope`): chủ phiếu = sale phụ trách khách, thiếu thì người lập.
+    Phiếu không tồn tại coi như thấy (đường gọi tự báo lỗi riêng)."""
+    from ..models.phieu_tinh_gia import PhieuTinhGia
+    from ..repositories.org_scope import chu_cua
+    from .phieu_tinh_gia import _owner_ids_for_scope as _ptg_owner_ids
+
+    ptg = db.get(PhieuTinhGia, phieu_id)
+    if ptg is None:
+        return True
+    owner_ids = _ptg_owner_ids(db, user, authz)
+    return owner_ids is None or chu_cua(db, ptg.customer_id, ptg.created_by) in owner_ids
+
+
 @router.post("", response_model=QuotationDetailOut, status_code=status.HTTP_201_CREATED)
 def create_quotation(
     payload: QuotationCreate,
@@ -566,14 +602,9 @@ def create_quotation(
     scope = _scope_for(authz, user)
     # Phải THẤY được phiếu nguồn (phạm vi Tính giá) mới lập được báo giá từ nó — không thì ai có
     # quyền Tạo báo giá cũng chép được giá vốn phiếu người khác bằng cách gọi thẳng API. Ẩn = 404.
-    from ..models.phieu_tinh_gia import PhieuTinhGia
-    from .phieu_tinh_gia import _owner_ids_for_scope as _ptg_owner_ids
-
-    if payload.phieu_tinh_gia_id is not None:
-        ptg = svc.quotations.db.get(PhieuTinhGia, payload.phieu_tinh_gia_id)
-        owner_ids = _ptg_owner_ids(svc.quotations.db, user, authz)
-        if ptg is not None and owner_ids is not None and ptg.created_by not in owner_ids:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy phiếu tính giá.")
+    if payload.phieu_tinh_gia_id is not None and not _thay_phieu(
+            svc.quotations.db, payload.phieu_tinh_gia_id, user, authz):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy phiếu tính giá.")
     try:
         q = svc.create_quotation(
             customer_id=payload.customer_id,
@@ -597,12 +628,14 @@ def create_quotation(
 def quote_id_for_phieu(
     phieu_tinh_gia_id: int,
     svc: Service,
-    _: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> dict:
     """Báo giá (duy nhất, mọi trạng thái) của 1 Phiếu tính giá — để màn phiếu quyết 'Lập báo giá'
-    hay 'Mở báo giá có sẵn'. Trả `{quote_id, quote_number}` hoặc `{quote_id: null}` nếu chưa có."""
+    hay 'Mở báo giá có sẵn'. Trả `{quote_id, quote_number}` hoặc `{quote_id: null}` nếu chưa có.
+    Phiếu ngoài phạm vi xem cũng trả null — không lộ mã báo giá của khách người khác."""
     existing = svc.quotations.cua_phieu(phieu_tinh_gia_id)
-    if existing is None:
+    if existing is None or not _thay_phieu(svc.quotations.db, phieu_tinh_gia_id, user, authz):
         return {"quote_id": None, "quote_number": None}
     return {"quote_id": existing.id, "quote_number": existing.quote_number}
 

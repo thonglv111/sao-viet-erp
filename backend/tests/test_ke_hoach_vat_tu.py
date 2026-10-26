@@ -915,6 +915,9 @@ def test_gom_de_nghi_KHONG_suy_ngay_can_va_tra_lenh_nguon(db, svc, customer):
         {**c, "don_vi_goc": "to"} for c in chon]
     assert [n["so_luong"] for n in gom["nguon"]] == [500, 500], "liên kết mang số đề nghị của ô"
     assert len(gom["lines"]) == 1
+    # Định lượng đi theo dòng để form "Tạo yêu cầu mua hàng" điền sẵn hiện đúng cột chỉ đọc
+    # (e2e 24/10/2026: form ra "–" trong khi danh sách sau khi lưu ra 150).
+    assert gom["lines"][0]["dinh_luong"] == 150
 
 
 def test_router_tao_thang_chuyen_NGAY_NGUOI_GUI_va_lenh_nguon_sang_thu_mua(client):
@@ -1057,7 +1060,8 @@ def test_xem_truoc_de_nghi_mua_TRA_DU_DE_DIEN_FORM_va_KHONG_ghi_gi(client):
     assert body["nguon"] == [{**n, "kho_rong": 0, "kho_dai": 0, "don_vi_goc": "", "so_luong": None}
                              for n in nguon]
     assert body["lines"] == [{"hang_loai": "vat_tu", "hang_id": 7, "kho_rong": 0, "kho_dai": 0,
-                              "item_name": "Kẽm CTP", "unit": "kem", "quantity": 15}]
+                              "item_name": "Kẽm CTP", "unit": "kem", "quantity": 15,
+                              "dinh_luong": None}]
 
 
 def test_xem_truoc_de_nghi_mua_CHAN_nguoi_khong_duoc_lap_yeu_cau(client):

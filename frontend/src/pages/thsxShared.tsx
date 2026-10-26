@@ -10,7 +10,7 @@
 import { Icon, type IconName } from "../components/Icons";
 import type { SxLenhNhom, SxWorkItem, SxWorkItemsOut } from "../api/client";
 import { num } from "./keHoachSxShared";
-import { nhanChang } from "./lsxBuoc";
+import { nhanChangLenh } from "./lsxBuoc";
 
 // ============================ TRẠNG THÁI CÔNG VIỆC ==========================
 /** 4 trạng thái enum backend (`models/san_xuat.py`): released / running / paused / completed. */
@@ -68,11 +68,11 @@ export function sxNguonIcon(nguonLoai: string): IconName {
  *  nhau chỉ là nhiễu. Cờ `ngoai_dong` là ảnh chụp của server; đừng suy lại từ mã đơn vị. */
 export function slText(w: SxWorkItem): string {
   if (w.ngoai_dong) {
-    const dv = nhanChang(w.don_vi_ra || w.don_vi_vao);
+    const dv = nhanChangLenh(w.don_vi_ra || w.don_vi_vao, w.don_vi_tinh);
     return `${num(w.so_luong_ra)}${dv ? ` ${dv}` : ""}`;
   }
-  const vao = `${num(w.so_luong_vao)}${w.don_vi_vao ? ` ${nhanChang(w.don_vi_vao)}` : ""}`;
-  const ra = `${num(w.so_luong_ra)}${w.don_vi_ra ? ` ${nhanChang(w.don_vi_ra)}` : ""}`;
+  const vao = `${num(w.so_luong_vao)}${w.don_vi_vao ? ` ${nhanChangLenh(w.don_vi_vao, w.don_vi_tinh)}` : ""}`;
+  const ra = `${num(w.so_luong_ra)}${w.don_vi_ra ? ` ${nhanChangLenh(w.don_vi_ra, w.don_vi_tinh)}` : ""}`;
   return `${vao} → ${ra}`;
 }
 
@@ -82,17 +82,17 @@ export function slText(w: SxWorkItem): string {
  *  ngoài dòng giấy chỉ một đơn vị ⇒ chỉ số tốt. Drawer mục "Thông tin kế hoạch" vẫn dùng `slText`. */
 export function slThucTe(w: SxWorkItem): string[] {
   // Trả từng MẨU (Nhận / Tốt / Lỗi) để nơi vẽ tách bằng khoảng trống — không nối bằng dấu.
-  const dvRa = nhanChang(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null));
+  const dvRa = nhanChangLenh(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null), w.don_vi_tinh);
   const tot = `Tốt ${num(w.da_lam ?? 0)}${dvRa ? ` ${dvRa}` : ""}`;
   const loi = w.loi != null ? [`Lỗi ${num(w.loi)}`] : [];
   if (w.ngoai_dong || w.nhan == null) return [tot, ...loi];
-  const dvVao = w.don_vi_vao ? ` ${nhanChang(w.don_vi_vao)}` : "";
+  const dvVao = w.don_vi_vao ? ` ${nhanChangLenh(w.don_vi_vao, w.don_vi_tinh)}` : "";
   return [`Nhận ${num(w.nhan)}${dvVao}`, tot, ...loi];
 }
 
 /** Cột "Sản lượng tốt" của bảng bàn tổ: CHỈ số tốt kèm đơn vị ra ("1.200 tờ in"). */
 export function slTot(w: SxWorkItem): string {
-  const dv = nhanChang(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null));
+  const dv = nhanChangLenh(w.don_vi_ra || (w.ngoai_dong ? w.don_vi_vao : null), w.don_vi_tinh);
   return `${num(w.da_lam ?? 0)}${dv ? ` ${dv}` : ""}`;
 }
 

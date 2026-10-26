@@ -19,7 +19,6 @@ class TeamOut(BaseModel):
     id: int
     ten: str
     ma: str
-    la_to_cat: bool = False
     # Vai của NGƯỜI ĐANG XEM ở tổ này, không phải thuộc tính của tổ: cùng một tổ, tổ trưởng thấy
     # `false` còn thợ trong tổ thấy `true`.
     la_tho: bool = False
@@ -66,6 +65,22 @@ class KhuonChipOut(BaseModel):
     tinh_trang: str | None = None
 
 
+class MonVatTuOut(BaseModel):
+    ten: str
+    dvt: str | None = None
+    sl_xin: float
+    sl_da_xuat: float
+    chot_thieu: bool = False
+    lan_so: int | None = None
+    muc: str
+
+
+class TrangThaiVatTuOut(BaseModel):
+    """Chip cột Vật tư của lưới bàn tổ (spec 2026-10-18 §5.1) — cùng hàm với cổng Bắt đầu."""
+    muc: str            # chua_yeu_cau | cho_kho | kho_dang_soan | cap_thieu | san_sang
+    mon: list[MonVatTuOut] = []
+
+
 class WorkItemOut(BaseModel):
     id: int
     department_id: int | None = None  # tổ thật của việc (bàn nút cha gộp nhiều tổ con)
@@ -75,6 +90,7 @@ class WorkItemOut(BaseModel):
     nguon_ma: str
     nguon_ten: str
     khach_hang: str | None = None  # khách của lệnh; bài ghép = khách các lệnh thành viên nối " · "
+    don_vi_tinh: str | None = None  # ĐVT thành phẩm của lệnh — tên chặng "cai" ("cuốn")
     nhom_id: int | None = None   # id nhóm thành phẩm (khoá cho panel Kho §14 + checklist đóng §16)
     nhom: str                # nhãn nhóm thành phẩm
     ten_cong_doan: str
@@ -141,6 +157,8 @@ class WorkItemOut(BaseModel):
     # tổ. Rỗng = chưa giao thợ. Drawer không điền (đã có roster riêng).
     nguoi_lam: list[str] = []
     step_key: str | None = None
+    # Mức vật tư của bước — None = bước không cần vật tư (ô trống). Drawer không điền.
+    trang_thai_vat_tu: TrangThaiVatTuOut | None = None
 
 
 class TrangOut(BaseModel):
@@ -242,9 +260,10 @@ class WorkItemsLocDemOut(BaseModel):
     cho: dict[str, int]
     toi: dict[str, int]
     vuong: dict[str, int]
-    tre: dict[str, int]
     gap: dict[str, int] = {}   # `gap` lệnh gấp / `thuong` lệnh thường (10/10/2026)
     nguoi: list[NguoiLocDemOut]
+    may: list[NguoiLocDemOut] = []     # 22/10/2026 — thay `tre` (trễ giờ dự kiến) đã gỡ
+    khach: list[NguoiLocDemOut] = []
 
 
 class LichSuDongOut(BaseModel):
@@ -668,6 +687,24 @@ class MePhatSinhOut(BaseModel):
     don_vi: str | None = None
     don_vi_ten: str | None = None
     don_gia: float | None = None
+    # Cách tính giá chụp lúc ghi, ra chữ (L-SX-30) — có thì tiền KHÔNG phải đơn giá × số lượng.
+    cong_thuc_chu: str | None = None
+
+
+class TuyChonLanGhiOut(BaseModel):
+    ma: str
+    ten: str
+    kieu: str
+    gia_tri: float
+
+
+class TuyChonKhaiOut(BaseModel):
+    """Một "tuỳ chọn khi ghi" công đoạn khai — hộp Ghi sản lượng bày ô Có / không hoặc ô Số."""
+
+    ma: str
+    ten: str
+    kieu: str = "co_khong"
+    goi_y: str | None = None
 
 
 class BatchOut(BaseModel):
@@ -699,9 +736,16 @@ class BatchOut(BaseModel):
     viec_khoan_don_vi: str | None = None
     viec_khoan_don_vi_ten: str | None = None
     viec_khoan_don_gia: float | None = None
+    # Ảnh chụp tuỳ chọn khi ghi (Đợt 2): `[{ma, ten, kieu, gia_tri}]`; None = công đoạn không khai
+    # hoặc lần ghi trước Đợt 2.
+    tuy_chon_khoan: list[TuyChonLanGhiOut] | None = None
+    # Tên bậc giá chụp lúc ghi (Bài in) — None = công đoạn không chia bậc hoặc lệnh không khớp bậc.
+    bac_khoan_ten: str | None = None
     phat_sinh: list[MePhatSinhOut] = []
     # Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = ảnh chụp còn khớp danh mục.
     danh_muc_doi: list[MeDanhMucDoiOut] = []
+    # Câu chặn khi lần ghi thuộc tháng đã chốt / đã chi lương (L-SX-47); None = sửa được.
+    ky_khoa: str | None = None
 
 
 class SanLuongOut(BaseModel):
@@ -873,10 +917,12 @@ class VatTuCapLanOut(BaseModel):
     id: int
     lan_so: int
     loai: str
+    tu_lap: bool = False        # lần hệ thống tự lập lúc phát hành lệnh (spec 2026-10-18)
     can_luc: datetime
     stock_request_id: int | None = None
     stock_request_ma: str | None = None
     stock_request_trang_thai: str | None = None
+    stock_request_ly_do_huy: str | None = None  # kho huỷ / từ chối thì ghi lý do (L-SX-16)
     created_by_id: int | None = None
     updated_by_id: int | None = None
     # Tên TÀI KHOẢN gửi / sửa — `*_by_id` là users.id, không tra được bằng danh sách thợ của việc.
@@ -952,13 +998,17 @@ class MayDoiRow(BaseModel):
     trang_thai: str
     nhan: str
     chi_tiet: str | None = None
+    # Tên tổ KHÁC (ngoài tổ của việc) mà máy cũng thuộc — "cũng thuộc: …" (mg `0435`).
+    to_khac: list[str] = Field(default_factory=list)
 
 
 class MayDoiOut(BaseModel):
     """Ô "Đổi máy" của bàn tổ — máy làm được công đoạn của việc, kèm tình trạng từng máy."""
     items: list[MayDoiRow]
-    # True = danh sách đã bị công đoạn thu hẹp (khai máy hoặc nhóm máy); False = chưa khai, mọi máy.
+    # True = danh sách đã bị công đoạn thu hẹp (khai máy); False = chưa khai, mọi máy.
     theo_cong_doan: bool
+    # True = công đoạn có tick tổ ⇒ danh sách là máy THUỘC tổ của việc (mg `0435`).
+    theo_to: bool = False
 
 
 class BaoHongMayOut(BaseModel):
@@ -1002,8 +1052,8 @@ class WorkItemChiTietOut(BaseModel):
     cong_doan_truoc: list[CongDoanTruocOut] = []
     tran_ghi: TranGhiOut | None = None
     thieu_dau_vao: list[str] = []
-    #: Câu "Chờ tổ Cắt chốt giấy…" khi bước mang giấy chưa được tổ Cắt chốt; None = không chặn.
-    cho_chot_giay: str | None = None
+    # Câu chặn Bắt đầu vì vật tư chưa sẵn sàng (spec 2026-10-18 §5.3); None = không chặn.
+    vat_tu_chua_san_sang: str | None = None
     ban_giao_chang_sau: list[BanGiaoChangSauOut]
     vat_tu: list[PhieuXuatVatTuOut]
     vat_tu_cap: VatTuCapOut = VatTuCapOut()
@@ -1039,6 +1089,10 @@ class BatchIn(BaseModel):
     phat_sinh: list[MePhatSinhIn] = []
     # Người làm lần này: tổ mình tick + người tổ khác tổ thêm; None = bộ tick sẵn của tổ.
     nguoi_ids: list[int] | None = None
+    # Giá trị tuỳ chọn khi ghi `{ma: giá trị}` (Đợt 2); thiếu mã ⇒ 0.
+    tuy_chon: dict[str, float] = {}
+    # Lệnh in AB: mặt máy chạy ở lần ghi này ("a" / "b") — bậc giá theo số màu mặt đó.
+    mat_in: Literal["a", "b"] | None = None
 
 
 class ThemLotIn(BaseModel):
@@ -1055,6 +1109,24 @@ class ViecPhatSinhChonOut(BaseModel):
     don_gia: float
     don_vi: str
     don_vi_ten: str | None = None
+    # Giá lấy theo TỔ của việc (bảng giá theo tổ, 21/10/2026); tổ vắng trong bảng ⇒ thiếu giá.
+    thieu_gia: bool = False
+    # "Cách tính giá" của việc phát sinh ra chữ (L-SX-30); có thì hộp ghi nói cách tính, không in đơn giá.
+    cong_thuc_chu: str | None = None
+
+
+class BacTheoChonOut(BaseModel):
+    """Giá của tổ ứng với một tổ hợp tick (`chon` = {mã tuỳ chọn: 0/1}) — công đoạn chia bậc."""
+
+    chon: dict[str, float] = {}
+    mat: Literal["a", "b"] | None = None   # lệnh in AB: tổ hợp của mặt nào
+    bac_ma: str | None = None
+    bac_ten: str | None = None
+    so_mau: float = 0
+    so_mau_pha: float = 0
+    gia_co_dinh: float = 0.0
+    don_gia: float = 0.0
+    thieu_gia: bool = False
 
 
 class KhoanCongDoanThucThiOut(BaseModel):
@@ -1066,6 +1138,21 @@ class KhoanCongDoanThucThiOut(BaseModel):
     don_vi: str
     don_vi_ten: str | None = None
     phat_sinh: list[ViecPhatSinhChonOut] = []
+    # Giá theo tổ (21/10/2026): giá cố định mỗi lần ghi + đơn giá của TỔ làm việc này.
+    gia_co_dinh: float = 0.0
+    thieu_gia: bool = False
+    tuy_chon: list[TuyChonKhaiOut] = []
+    # Bậc giá (Bài in, 22/10/2026): rỗng = công đoạn không chia bậc. Số màu là màu MỘT lượt máy.
+    bac_theo_chon: list[BacTheoChonOut] = []
+    so_mau: float | None = None
+    so_mau_pha: float | None = None
+    # Công thức khoán (L-SX-40): hộp ghi chỉ in phần giá công thức có dùng. `cong_thuc_chu` = công
+    # thức ra chữ ("" = ô trống ⇒ 0 đ); `chi_gia` = công thức chỉ dùng giá cố định / đơn giá / chip
+    # lượng ⇒ in giá; còn chip khác thì in "tính theo công thức: …".
+    cong_thuc_chu: str | None = None
+    dung_gia_co_dinh: bool = True
+    dung_don_gia: bool = True
+    chi_gia: bool = True
 
 
 class KetQuaNhanhOut(BaseModel):
@@ -1106,6 +1193,7 @@ class SuaSoMeIn(BaseModel):
     ly_do: str | None = None            # tuỳ chọn — hiện ở Lịch sử cho cả bên nhận đọc
     expected_version: int | None = None
     nguoi_ids: list[int] | None = None  # người làm lần đó, kể cả tổ khác; None = không đổi
+    tuy_chon: dict[str, float] | None = None  # tuỳ chọn khi ghi (Đợt 2); None = không đổi
 
 
 class BanGiaoKetQuaOut(BaseModel):
@@ -1711,99 +1799,85 @@ class DongLenhKetQuaOut(BaseModel):
     don_vi: str = ""
 
 
-# --- Tổ Cắt chốt giấy sau phát hành (spec giấy theo khổ §4.6) ---------------------------------
-class ChotGiayGiayOut(BaseModel):
-    giay_id: int
+# --- Báo dừng máy ở bàn tổ (Đợt 2, 21/10/2026) -------------------------------------------------
+class DungMayIn(BaseModel):
+    ngay: date
+    ly_do: str                          # may_hu | het_hang
+    sua_chua_id: int | None = None      # phiếu sửa máy, khi Máy hư
+    ghi_chu: str | None = None
+    nguoi_ids: list[int] = []           # người hưởng — tổ trưởng tick
+
+
+class DungMaySuaIn(BaseModel):
+    """Sửa ngày đã báo — mọi thứ trừ ngày (đổi ngày = xoá rồi báo lại)."""
+    ly_do: str
+    sua_chua_id: int | None = None
+    ghi_chu: str | None = None
+    nguoi_ids: list[int] = []
+
+
+class DungMayNguoiOut(BaseModel):
+    employee_id: int
+    ho_ten: str = ""
+
+
+class DungMayOut(BaseModel):
+    id: int
+    department_id: int
+    ngay: date
+    ly_do: str
+    ly_do_ten: str
+    sua_chua_id: int | None = None
+    sua_chua_ma: str | None = None
+    yeu_cau_id: int | None = None
+    yeu_cau_ma: str | None = None
+    ghi_chu: str | None = None
+    nguoi: list[DungMayNguoiOut] = []
+
+
+class PhieuSuaChonOut(BaseModel):
+    id: int
     ma: str
-    ten: str
-    kho_rong: int
-    kho_dai: int
-    nhan_kho: str
-    so_to: float
-    don_vi: str | None = None
-    #: Đơn vị gốc của dòng (`to` khi đếm tờ; đơn vị giá của mã khi giấy khổ rộng tính kg…).
-    don_vi_goc: str = ""
-    #: Tồn lô ĐÚNG khoá (mã + khổ + đơn vị gốc), theo đơn vị gốc; None khi dòng chưa đủ khổ.
-    ton_to_dung_kho: float | None = None
+    may_ten: str | None = None
+    bo_phan_hong: str | None = None
 
 
-class ChotGiayLoCungMaOut(BaseModel):
-    """Lô CÙNG MÃ nhưng khác khổ / khác đơn vị gốc với mọi dòng giấy — chỉ để tổ Cắt tự xem."""
-    ma_lo: str
-    giay_ma: str
-    kho_rong: int
-    kho_dai: int = 0
-    sl_con_lai: float
-    #: MÃ đơn vị gốc của lô (`to`, `kg`…).
-    don_vi: str | None = None
-    kho_ten: str
-
-
-class ChotGiayDaChotOut(BaseModel):
-    cach: Literal["cat", "khong_cat"]
-    luc: datetime | None = None
-    boi_ten: str | None = None
-    cong_doan: list[str] = []
-
-
-class ChotGiayCongDoanOut(BaseModel):
+class MayHuChonOut(BaseModel):
+    """Máy báo hư được ở hộp Báo dừng máy: máy có việc mở của tổ, rồi máy thuộc tổ."""
     id: int
     ma: str
     ten: str
+    viec: str | None = None             # "LSX26-0003 Bài in 1–2 màu" — việc đang chạy / tạm dừng trên máy
+    viec_dang_chay: bool = False
+    viec_cua_to: str | None = None      # việc trên máy là của tổ KHÁC ⇒ tên tổ đó (L-SX-18)
+    dang_mo: str | None = None          # mã yêu cầu / phiếu sửa còn mở của máy
 
 
-class ChotGiayBuocOut(BaseModel):
-    buoc_id: int
-    cong_doan_id: int | None = None
-    ma: str
-    ten: str
-    xoa_duoc: bool
+class DungMayListOut(BaseModel):
+    ky_da_chot: list[str] = []          # "YYYY-MM" kỳ lương đã chốt / đã chi — khoá ngày thuộc kỳ đó
+    ds: list[DungMayOut] = []
+    nguoi: list[DungMayNguoiOut] = []
+    phieu_sua: list[PhieuSuaChonOut] = []
+    may: list[MayHuChonOut] = []
+    hom_nay: date | None = None         # ngày xưởng — Máy hư báo tổ sửa chữa chỉ cho hôm nay
+    quyen_bao_hong: bool = False        # ô Báo hỏng (ky_thuat_may:request) + Xem tổ ⇒ gửi tổ sửa chữa
+    quyen_luong: bool = False           # Xác nhận sản lượng trọn tổ ⇒ ngày dừng, Hết hàng, sửa, xoá
 
 
-class ChotGiayDongOut(BaseModel):
-    chu_the: Literal["lsx", "bai"]
-    id: int
-    ma: str
-    ten: str
-    han: str | None = None
-    giay: list[ChotGiayGiayOut]
-    #: Thay `cuon_cung_ma` (10/10/2026, giấy bỏ dạng cuộn/tờ).
-    lo_cung_ma: list[ChotGiayLoCungMaOut] = []
-    chot: ChotGiayDaChotOut | None = None
-    sua_duoc: bool
-    #: Bước trong phạm vi (công đoạn Trước In của tổ Cắt) theo thứ tự tuyến — kể cả bước đặt sẵn.
-    buoc_truoc_in: list[ChotGiayBuocOut] = []
-    #: Người lập lệnh đã đặt sẵn bước cắt trước In ⇒ coi là đã xác nhận, không khoá gì.
-    cau_hinh_san: bool = False
-    #: Công đoạn tổ THÊM được: Giai đoạn Trước In, có tổ này trong tổ phụ trách.
-    cong_doan_chen_duoc: list[ChotGiayCongDoanOut]
+class MayHuIn(BaseModel):
+    """Báo máy hư hôm nay (hộp Báo dừng máy gộp Báo sự cố, 23/10/2026)."""
+    may_id: int
+    muc_do: str = Field(min_length=1)   # nhe | trung_binh | nghiem_trong
+    mo_ta: str | None = None
+    dung_san_xuat: bool = False         # tick "Máy đang dừng" ⇒ tạm dừng việc đang chạy trên máy
+    tinh_luong: bool = False            # tick "Tính ngày dừng cho lương"
+    ghi_chu: str | None = None
+    nguoi_ids: list[int] = []
 
 
-class ChotGiayIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-    #: Chỉ còn "không cắt" — thêm bước cắt đi qua `POST /chot-giay/them`.
-    cach: Literal["cat", "khong_cat"]
-    cong_doan_ids: list[int] = []
-
-
-class GoChotGiayIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-
-
-class ThemBuocCatIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-    #: Công đoạn thêm, ĐÚNG thứ tự tổ Cắt sắp — chèn ngay trước bước In.
-    cong_doan_ids: list[int] = Field(min_length=1)
-
-
-class XoaBuocCatIn(BaseModel):
-    team_id: int = Field(ge=1)
-    lsx_id: int | None = Field(default=None, ge=1)
-    bai_ghep_id: int | None = Field(default=None, ge=1)
-    buoc_id: int = Field(ge=1)
+class MayHuOut(BaseModel):
+    yeu_cau_ma: str | None = None       # yêu cầu vừa gửi / đang chờ tiếp nhận
+    phieu_ma: str | None = None         # phiếu sửa đang mở (khi đó không gửi yêu cầu)
+    moi: bool = False                   # yêu cầu MỚI gửi (False = gắn vào cái đang mở)
+    tam_dung: list[int] = []            # công việc vừa tạm dừng
+    dung_may: DungMayOut | None = None

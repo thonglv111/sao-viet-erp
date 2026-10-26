@@ -182,6 +182,9 @@ class Lsx(Base):
     giay_chot_cach: Mapped[str | None] = mapped_column(String(12), nullable=True)
     giay_chot_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     giay_chot_boi_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # → users.id (mềm)
+    # NGUỒN GIẤY máy chọn lúc lập lệnh (mg 0446, spec 2026-10-24-chuan-bi-giay §7): to_in | to_nguyen |
+    # cuon | mua — quyết khâu chuẩn bị (Cắt giấy cuộn / Tề giấy in) chèn trước In. NULL = lệnh cũ / không giấy.
+    nguon_giay: Mapped[str | None] = mapped_column(String(12), nullable=True)
 
     created_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

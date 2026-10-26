@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { GiaCongCapGiay, GiaCongNgoaiLan } from "../../api/client";
 import {
-  chonGiayBanDau, goiYChot, mocCuaLan, nutCuaLan, soNhanChia, thieuTo, viTriTrongDai, type BuocDai,
+  chonGiayBanDau, chuanSoGo, goiYChot, hienSoGo, mocCuaLan, nhanKhoCap, nutCuaLan, soNhanChia,
+  thieuTo, viTriTrongDai, type BuocDai,
 } from "./giaCong";
 
 const b = (
@@ -109,10 +110,10 @@ describe("nutCuaLan", () => {
 
 const capGiay: GiaCongCapGiay = {
   giay_id: 8, giay_ma: "C150", giay_ten: "COUCHE 150GSM", don_vi: "to_nguyen",
-  nguon: "phiếu tính giá", de_xuat: { kho_rong: 790, kho_dai: 1090, so_to: 425 },
+  nguon: "phiếu tính giá", de_xuat: { kho_rong: 790, kho_dai: 1090, so_to: 425, don_vi: "to" },
   kho: [
-    { kho_rong: 790, kho_dai: 1090, ton: 300, dung_de_xuat: true },
-    { kho_rong: 650, kho_dai: 860, ton: 1000, dung_de_xuat: false },
+    { kho_rong: 790, kho_dai: 1090, ton: 300, don_vi: "to", dung_de_xuat: true },
+    { kho_rong: 650, kho_dai: 860, ton: 1000, don_vi: "to", dung_de_xuat: false },
   ],
   ly_do: null,
 };
@@ -126,6 +127,23 @@ describe("chọn giấy", () => {
     expect(thieuTo(capGiay, "790x1090", 425)).toBe(125);
     expect(thieuTo(capGiay, "650x860", 425)).toBeNull();
     expect(thieuTo(capGiay, null, 425)).toBeNull();
+  });
+  it("cuộn hiện theo rộng, khổ tờ hiện hai cạnh", () => {
+    expect(nhanKhoCap(870, 0)).toBe("cuộn rộng 870 mm");
+    expect(nhanKhoCap(790, 1090)).toBe("khổ 790 × 1090 mm");
+  });
+  it("ô số kg: phẩy là dấu lẻ, chấm chia nghìn; ô tờ chỉ nhận số nguyên", () => {
+    expect(chuanSoGo("395,85", true)).toBe("395.85");
+    expect(chuanSoGo("395,857", true)).toBe("395.85");
+    expect(chuanSoGo("1.500", true)).toBe("1500");
+    expect(chuanSoGo("1.500,5", true)).toBe("1500.5");
+    expect(chuanSoGo("395,", true)).toBe("395.");
+    expect(hienSoGo("1500.5", true)).toBe("1.500,5");
+    expect(hienSoGo("395.", true)).toBe("395,");
+    expect(chuanSoGo("1.112", false)).toBe("1112");
+    expect(hienSoGo("395.85", true)).toBe("395,85");
+    expect(hienSoGo("1112", false)).toBe("1.112");
+    expect(hienSoGo("", true)).toBe("");
   });
 });
 

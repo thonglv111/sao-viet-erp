@@ -48,6 +48,7 @@ function monTuDong(row: DepartmentPurchaseRequestRow, l: DepartmentPurchaseReque
     hang_id: l.hang_id,
     kho_rong: l.kho_rong,
     kho_dai: l.kho_dai,
+    dinh_luong: l.dinh_luong ?? null,
     item_name: l.item_name,
     unit: l.unit,
     quantity: l.quantity,

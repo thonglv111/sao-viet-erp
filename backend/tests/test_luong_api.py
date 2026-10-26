@@ -191,13 +191,9 @@ def test_ot_and_night_pay(client):
         db.close()
 
 
-def test_piece_work_dept_KHONG_co_tien_gio_tang_ca(client):
-    """⚠️ ĐẢO LẦN HAI 14/09/2026 — người ăn khoán KHÔNG có tiền GIỜ tăng ca (0đ, không phải 1×).
-
-    17/08/2026 chủ đảo sang "tổ khoán VẪN CÓ tăng ca" vì cột `khoan` khi đó LUÔN = 0. Nay tiền khoán
-    chảy thật và khách phản hồi: "làm thêm giờ thì thêm sản lượng, đã ăn tiền sản lượng rồi". Chế độ
-    khoán giữ cơm tăng ca + phần thêm làm nguyên ngày CN/lễ — xem `test_khoan_khong_tien_tang_ca.py`
-    và `docs/prd-khoan-khong-tien-tang-ca.md`."""
+def test_hai_luong_tien_gio_tang_ca_theo_ve_thang(client):
+    """22/10/2026 (spec hai lương khối Sản xuất): khối Sản xuất KHÔNG có tiền giờ tăng ca, ăn vế nào
+    cũng vậy — tăng ca của họ chỉ là tăng ca khoán. Xem `test_hai_luong_khoi_sx.py`."""
     client
     db = SessionLocal()
     try:
@@ -208,10 +204,14 @@ def test_piece_work_dept_KHONG_co_tien_gio_tang_ca(client):
         v_norm = svc._compute(employee=emp, salary=_sal(luong_vi_tri=26_000_000), params=params, actual_cong=26,
                               standard_cong=26, ot_minutes=120, on=date(2026, 6, 1), che_do_khoan=False)
         v_piece = svc._compute(employee=emp, salary=_sal(luong_vi_tri=26_000_000), params=params, actual_cong=26,
-                               standard_cong=26, ot_minutes=120, on=date(2026, 6, 1), che_do_khoan=True)
+                               standard_cong=26, ot_minutes=120, on=date(2026, 6, 1), che_do_khoan=True,
+                               khoan=50_000_000)
+        v_tg = svc._compute(employee=emp, salary=_sal(luong_vi_tri=26_000_000), params=params, actual_cong=26,
+                            standard_cong=26, ot_minutes=120, on=date(2026, 6, 1), che_do_khoan=True)
         assert v_norm["ot_pay"] == 375_000          # tổ thường
-        assert v_piece["ot_pay"] == 0               # tổ khoán — giờ tăng ca không có tiền
-        assert v_norm["gross"] - v_piece["gross"] == 375_000
+        assert v_piece["ot_pay"] == 0               # ăn khoán — giờ tăng ca không có tiền
+        assert v_tg["lay_bu_lo"] is True and v_tg["ot_pay"] == 0                 # ăn vế thời gian
+        assert v_tg["gross"] == v_norm["gross"] - 375_000
     finally:
         db.close()
 
@@ -431,7 +431,7 @@ def test_night_premium_engine(client):
         db.close()
 
 
-def test_to_khoan_KHONG_tien_gio_tang_ca_nhung_GIU_premium_le_va_off1x(client):
+def test_an_khoan_KHONG_tien_gio_tang_ca_nhung_GIU_premium_le_va_off1x(client):
     """Chủ chốt 14/09/2026 (đảo lần hai quyết định 17/08 "Tổ khoán VẪN CÓ tăng ca").
 
     Người ăn khoán: giờ tăng ca KHÔNG có tiền — "làm thêm giờ thì thêm sản lượng, đã ăn tiền sản
@@ -447,15 +447,15 @@ def test_to_khoan_KHONG_tien_gio_tang_ca_nhung_GIU_premium_le_va_off1x(client):
                     standard_cong=26, on=date(2026, 6, 1))   # 1.000.000 đ/công · 125.000 đ/giờ
 
         thuong = svc._compute(**base, actual_cong=26, ot_minutes=120, che_do_khoan=False)
-        khoan = svc._compute(**base, actual_cong=26, ot_minutes=120, che_do_khoan=True)
-        # 2h tăng ca thường × 1,5 × 125.000 = 375.000 — tổ khoán: 0.
+        khoan = svc._compute(**base, actual_cong=26, ot_minutes=120, che_do_khoan=True, khoan=50_000_000)
+        # 2h tăng ca thường × 1,5 × 125.000 = 375.000 — người ăn vế khoán: 0.
         assert thuong["ot_pay"] == 375_000
         assert khoan["ot_pay"] == 0
 
-        # Premium làm nguyên ngày lễ và tiền ngày off1x: tổ khoán VẪN có.
-        k2 = svc._compute(**base, actual_cong=27, holiday_cong=1, che_do_khoan=True)
+        # Premium làm nguyên ngày lễ và tiền ngày off1x: người ăn khoán VẪN có (ngoài phép so).
+        k2 = svc._compute(**base, actual_cong=27, holiday_cong=1, che_do_khoan=True, khoan=50_000_000)
         assert k2["ot_pay"] == 2_000_000                      # phần thêm (3−1) ⇒ lễ tổng 300%
-        k3 = svc._compute(**base, actual_cong=26, plain_cong=1, che_do_khoan=True)
+        k3 = svc._compute(**base, actual_cong=26, plain_cong=1, che_do_khoan=True, khoan=50_000_000)
         assert k3["off1x_pay"] == 1_000_000 and k3["ot_pay"] == 1_000_000
     finally:
         db.close()
@@ -3080,3 +3080,22 @@ def test_lines_out_derive_cong_thuong_va_cn_le():
     assert ok.tien_cong_thuong == 0.0
     assert ok.tien_cn_le == 2_500_000  # 2tr phụ trội + 500k lễ
 
+
+
+def test_xem_truoc_luong_theo_lo_khop_tung_nguoi(client):
+    """Tab Lương nhân viên hỏi cả trang MỘT request (`/salaries/previews`) — số phải y hệt hỏi
+    từng người; NV chưa khai lương vẫn có dòng (monthly 0), id không tồn tại thì vắng mặt."""
+    token = _admin_token(client)
+    a = _make_emp(client, token, name="Lô A")
+    b = _make_emp(client, token, name="Lô B")
+    client.post(f"/api/luong/salaries/{a}", json={
+        "effective_from": "2026-01-01", "luong_vi_tri": 9_000_000, "luong_trach_nhiem": 1_000_000,
+    }, headers=_h(token))
+    r = client.get(f"/api/luong/salaries/previews?ids={a},{b},999999", headers=_h(token))
+    assert r.status_code == 200
+    lo = {p["employee_id"]: p for p in r.json()["items"]}
+    assert set(lo) == {a, b}
+    for eid in (a, b):
+        assert lo[eid] == client.get(f"/api/luong/salaries/{eid}/preview", headers=_h(token)).json()
+    assert lo[a]["monthly"] == 10_000_000 and lo[b]["monthly"] == 0
+    assert client.get("/api/luong/salaries/previews?ids=1,x", headers=_h(token)).status_code == 422

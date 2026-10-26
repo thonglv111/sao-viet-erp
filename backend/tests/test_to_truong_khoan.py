@@ -16,7 +16,7 @@ GOC = "/api/luong/khoan/to-truong"
 
 
 def _to(client, h, ten: str, *, khoan: bool) -> int:
-    r = client.post("/api/departments", json={"name": ten, "has_piece_work": khoan}, headers=h)
+    r = client.post("/api/departments", json={"name": ten, "la_san_xuat": khoan}, headers=h)
     assert r.status_code == 201, r.text
     return r.json()["id"]
 
@@ -75,7 +75,7 @@ def test_CHAN_khai_che_do_to_truong_cho_to_khong_an_khoan(client):
     r = client.put(f"{GOC}/{thuong}", json={"ap_dung_tu": "2020-01-01", "che_do": "thuong",
                                             "ty_le": 5}, headers=h)
     assert r.status_code == 400, r.text
-    assert "chưa bật Lương khoán" in r.text, r.text
+    assert "không thuộc khối Sản xuất" in r.text, r.text
 
     gh = client.post("/api/departments", json={"name": "Tổ xe tổ trưởng", "la_giao_hang": True},
                      headers=h)

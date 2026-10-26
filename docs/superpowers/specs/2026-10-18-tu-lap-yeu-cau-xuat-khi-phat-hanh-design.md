@@ -1,6 +1,6 @@
 # Phát hành lệnh tự lập yêu cầu xuất vật tư, Bàn tổ có trạng thái vật tư
 
-Ngày 18/10/2026. Trạng thái: thiết kế, CHƯA code.
+Ngày 18/10/2026. Trạng thái: chủ dự án duyệt 18/10/2026 ("làm đi").
 
 ## 1. Mục đích
 
@@ -27,8 +27,8 @@ vật tư gì và bao nhiêu, giấy cũng vậy.
 ## 3. Không làm
 
 - Không thêm bước duyệt yêu cầu. Yêu cầu kho hiện đã tự `approved`, giữ nguyên.
-- Thiếu vật tư KHÔNG chặn phát hành và KHÔNG chặn tổ bấm Bắt đầu. Từ 01/10/2026 vật tư chỉ cảnh
-  báo, luật đó giữ nguyên. Trạng thái vật tư trên Bàn tổ chỉ để nhìn và để lọc.
+- Thiếu vật tư KHÔNG chặn phát hành (luật 01/10/2026 giữ nguyên). Nhưng tổ chỉ bấm Bắt đầu được
+  khi vật tư của bước đã Sẵn sàng, xem §5.3 (chủ dự án chốt 18/10/2026).
 - Không đổi luật giữ chỗ vật tư (`vat_tu_giu_cho`). Nó vẫn bật tay ở Kế hoạch vật tư như hiện nay,
   và vẫn được tiêu khi kho ghi phiếu xuất.
 - Không đổi luật cấp thiếu, cấp bổ sung, trả vật tư thừa của tổ.
@@ -41,8 +41,15 @@ Trong CÙNG giao dịch phát hành (`XepLichLenhService.phat_hanh` → `san_xua
 ngay sau khi các công việc (`san_xuat_cong_viec`) của gói được tạo. Phát hành cả cụm thì lập cho
 mọi công việc của mọi lệnh và bài ghép trong cụm.
 
-Lập yêu cầu lỗi thì phát hành lỗi theo (rollback cả hai). Không có chuyện lệnh đã xuống xưởng mà
-yêu cầu kho mất một nửa.
+Lỗi hệ thống (DB, ràng buộc) khi lập yêu cầu thì phát hành lỗi theo (rollback cả hai). Không có
+chuyện lệnh đã xuống xưởng mà yêu cầu kho mất một nửa.
+
+Lỗi nghiệp vụ của TỪNG DÒNG thì KHÔNG chặn phát hành. Các lỗi này đang ném ở `_chuan_hoa`,
+`_lines_kho`, `_ve_goc_dong` và `_validate_lines` của kho: mã hàng thiếu đơn vị tính, số về 0,00
+sau khi đổi sang đơn vị kho, không quy được về đơn vị gốc… Dòng lỗi bị bỏ ra, các dòng còn lại vẫn
+lập. Bước mất hết dòng thì không lập. Đây là cùng luật "vật tư không chặn phát hành" ở §3. Toast
+phát hành ghi thêm "N món chưa tự lập được, tổ xin tay", rê chuột thấy món nào và vì sao. *(Quyết
+định của người viết.)*
 
 ### 4.2 Lập cho bước nào
 
@@ -58,16 +65,28 @@ Bỏ qua:
 
 Giấy: với mỗi mã giấy, chỉ bước ĐẦU TIÊN theo thứ tự tuyến mang mã đó mới lấy từ kho. Các bước sau
 mang cùng mã (ví dụ lệnh cũ có giấy ở cả Cắt tờ lẫn In) là nhận tay từ bước trước, không xin kho.
-Giấy khác mã ở bước khác (ví dụ carton ở bước Bồi) là một món riêng, bước đó tự lấy.
+Giấy khác mã ở bước khác (ví dụ carton ở bước Bồi) là một món riêng, bước đó tự lấy. Kế hoạch vật
+tư đã làm đúng luật này cho lệnh (`_buoc_dau_giay`), dùng lại hàm đó.
+
+Bài ghép: giấy nằm ở `bai_ghep.giay_id`, không phải dòng của bước. Bước lấy giấy của bài là bước
+CHUNG đầu tiên có bước thành viên mang dòng giấy CÙNG mã `giay_id`. Lệnh lập từ phiếu tính giá luôn
+có dòng giấy ở bước (cửa "Sẵn sàng" đã chặn nếu thiếu), nên ca này là ca thường. Không bước chung
+nào khớp thì KHÔNG đoán: không tự lập yêu cầu giấy cho bài, bước In của bài hiện "Chưa yêu cầu" và
+tổ xin tay. Bỏ các nhánh đoán theo đầu vào tờ, nhóm In và tổ Cắt trong `buoc_lay_giay_bai_lo`.
+*(Quyết định của người viết.)*
 
 ### 4.3 Nội dung yêu cầu
 
 - Số lượng: đúng nhu cầu kế hoạch của bước, lấy từ `KeHoachVatTuService.nhu_cau_cua_cong_viec(cv)`.
   Đây cũng là số ô "Yêu cầu cấp vật tư" đang điền sẵn cho tổ.
 - Bộ phận yêu cầu: tổ giữ công việc (`cv.department_id`). Không lấy phòng ban của người bấm phát
-  hành.
+  hành. Tổ tự bấm thì vẫn ghi phòng ban của người bấm như luật 11/10; người đó thường chính là
+  người của tổ, nên hai đường cho cùng kết quả.
 - Cần lúc: giờ bắt đầu dự kiến của bước theo lịch lúc phát hành.
 - Người lập: người bấm phát hành. Tên lấy từ tài khoản, không gõ tay.
+- Tin phản hồi của kho cho yêu cầu tự lập (huỷ, từ chối, xuất xong) gửi tới Bàn tổ của tổ giữ công
+  việc, không gửi người bấm phát hành. Người điều độ không cần chuông của từng món. *(Quyết định
+  của người viết.)*
 - Đánh dấu nguồn để phân biệt với yêu cầu tổ tự lập. UI ghi "Tự lập khi phát hành".
 - Dòng kho mang `lsx_id` / `bai_ghep_id` như hiện nay.
 
@@ -91,31 +110,55 @@ Dùng đường đã có (`thong_bao_man.bao`, `hub.gui`, `kem_ban_to`). Loại 
 - **Tổ sửa đề nghị:** yêu cầu tự lập là một lần đề nghị bình thường. Kho chưa lập phiếu thì tổ vẫn
   "Sửa đề nghị" được. Kho lập phiếu rồi thì tổ "Yêu cầu bổ sung" như hiện nay.
 - **Phát hành cập nhật** (đổi giờ hoặc máy của việc chưa bắt đầu): định mức vẫn đóng băng như luật
-  hiện tại. Chỉ cập nhật "cần lúc" của các yêu cầu tự lập mà kho chưa xuất, theo giờ mới.
-- **Thu hồi phát hành:** huỷ các yêu cầu tự lập mà kho chưa ghi phiếu xuất. Phiếu nháp kho đang soạn
-  cho yêu cầu đó thì huỷ theo, và báo kho real-time. Nếu kho ĐÃ ghi phiếu xuất cho bất kỳ yêu cầu
-  nào của gói thì CHẶN thu hồi: "Kho đã xuất vật tư cho <bước> của <lệnh>. Tổ trả lại kho trước
-  rồi mới thu hồi." Lý do: thu hồi xoá công việc, mà đường trả vật tư của tổ bám vào công việc.
+  hiện tại. Chỉ cập nhật "cần lúc" của các yêu cầu tự lập mà kho chưa xuất, theo giờ mới. Tổ đã tự
+  sửa "cần lúc" qua "Sửa đề nghị" thì giữ giờ của tổ. *(Quyết định của người viết.)*
+- **Thu hồi phát hành:** thu hồi không xoá công việc, chỉ đánh gói `da_thu_hoi`. Công việc biến
+  khỏi Bàn tổ, và phát hành lại sẽ đẻ công việc mới kèm yêu cầu tự lập mới. Vì vậy, lúc thu hồi,
+  huỷ MỌI yêu cầu chưa có phiếu xuất đã ghi sổ của các công việc trong gói, cả yêu cầu tự lập lẫn
+  yêu cầu tổ tự bấm. Phiếu nháp kho đang soạn thì huỷ theo, và báo kho real-time. Không huỷ thì kho
+  soạn trùng sau lần phát hành lại. *(Quyết định của người viết.)*
+- **Thu hồi khi kho đã ghi phiếu xuất cho gói:** chủ dự án chốt 18/10/2026: "thu hồi những công đoạn
+  chưa bắt đầu thôi". Vật tư đã xuất KHÔNG chặn thu hồi; chỉ việc đã bắt đầu mới chặn, đúng luật
+  thu hồi đang có (gói có việc đã bắt đầu thì không thu hồi được). Vì muốn bắt đầu thì vật tư phải
+  sẵn sàng (§5.3), nên mọi việc thu hồi được đều là việc chưa chạy, vật tư đã xuất còn nguyên ở tổ.
+  Đề nghị đã có phiếu ghi sổ của công việc bị thu hồi giữ nguyên, không huỷ. Khi lệnh được phát
+  hành lại, các đề nghị đó CHUYỂN sang công việc mới của cùng bước (khớp `lsx_cong_doan_id` hoặc
+  `bai_ghep_cong_doan_id`, rồi `phan_doan_so`; số phân đoạn đổi thì gắn vào phân đoạn đầu). Bước
+  đã có đề nghị chuyển sang thì KHÔNG tự lập lần đầu nữa; thiếu thì tổ xin bổ sung. *(Cách xử lý vật
+  tư đã xuất là quyết định của người viết.)*
+  Người viết hiểu câu của chủ dự án là giữ luật thu hồi cả gói như hiện nay. Nếu ý là thu hồi lẻ
+  từng công đoạn trong một lệnh đang chạy thì đó là việc riêng, lớn hơn, chưa nằm trong tài liệu
+  này.
 
 ## 5. Trạng thái vật tư của từng bước
 
 ### 5.1 Các mức
 
-Tính cho MỘT công việc, gộp mọi lần đề nghị của nó (lần đầu và các lần bổ sung):
+Mỗi yêu cầu kho của bước (lần đầu và các lần bổ sung) được xếp một mức theo trạng thái kho của nó:
 
-| Mức | Khi nào |
+| Trạng thái kho của yêu cầu | Mức |
 |---|---|
-| (trống) | Bước không có định mức vật tư |
-| Chưa yêu cầu | Có định mức nhưng chưa có lần đề nghị nào (ví dụ lệnh phát hành trước ngày có tính năng này, hoặc mọi dòng thiếu số) |
-| Chờ kho | Có yêu cầu còn mở, kho chưa lập phiếu |
-| Kho đang soạn | Kho đã lập phiếu nháp, chưa ghi sổ |
-| Cấp thiếu | Kho đã ghi phiếu nhưng thiếu so với yêu cầu, và chưa có lần bổ sung nào lấp đủ |
-| Sẵn sàng | Mọi yêu cầu của bước đã được kho ghi phiếu xuất đủ |
+| `approved`, `received`, chưa có phiếu | Chờ kho |
+| `preparing` (có phiếu nháp, chưa ghi sổ) | Kho đang soạn |
+| `partial` (đã ghi sổ một phần, kho còn xuất tiếp) | Cấp thiếu |
+| `done`, kể cả khi kho chốt thực xuất ít hơn số xin | Sẵn sàng |
+| `cancelled`, `rejected` | Không tính, coi như không có yêu cầu đó |
 
-Bước có nhiều lần đề nghị thì hiện mức của lần chưa xong sớm nhất theo thứ tự trên. Ví dụ lần đầu
-đã Sẵn sàng, lần bổ sung đang Chờ kho thì bước hiện Chờ kho.
+Kho chốt thực xuất thiếu (`sl_chot_thuc_xuat`) nghĩa là kho đã quyết xong phần của mình, nên tính là
+Sẵn sàng. Rê chuột lên chip thì thấy món nào kho chốt thiếu và thiếu bao nhiêu, để tổ quyết có xin bổ
+sung không.
 
-"Sẵn sàng" đo theo YÊU CẦU, không đo theo định mức. Kho xuất đủ số tổ xin là sẵn sàng.
+Mức của BƯỚC là mức chưa xong sớm nhất trong các yêu cầu còn tính, theo thứ tự Chờ kho → Kho đang
+soạn → Cấp thiếu → Sẵn sàng. Ví dụ lần đầu đã Sẵn sàng, lần bổ sung đang Chờ kho thì bước hiện Chờ
+kho. Mỗi lần đề nghị xét riêng, không cộng dồn số giữa các lần.
+
+Bước có định mức mà không còn yêu cầu nào được tính thì hiện "Chưa yêu cầu". Ví dụ: lệnh phát hành
+trước ngày có tính năng này, mọi dòng thiếu số, hoặc kho đã huỷ yêu cầu. Bước không có định mức thì
+để trống.
+
+"Sẵn sàng" đo theo YÊU CẦU, không đo theo định mức. Bước có món thiếu số (tổ phải tự xin) mà phần
+tự lập đã xuất xong vẫn là Sẵn sàng. Rê chuột thấy dòng "Chưa xin: <món>". *(Bảng này là quyết định
+của người viết.)*
 
 ### 5.2 Bàn tổ
 
@@ -125,13 +168,29 @@ Bước có nhiều lần đề nghị thì hiện mức của lần chưa xong 
 - Ngăn chi tiết giữ phần "Cấp vật tư" như cũ. Lần đề nghị tự lập ghi rõ "Tự lập khi phát hành".
 - Chip phải tự đổi khi kho lập phiếu, ghi sổ hoặc huỷ, không bắt tổ tải lại trang.
 
-### 5.3 Kho
+### 5.3 Bắt đầu phải có vật tư sẵn sàng
+
+Chủ dự án chốt 18/10/2026: "để bắt đầu thì vật tư phải sẵn sàng".
+
+- Nút Bắt đầu của một công việc bị chặn khi mức vật tư của bước KHÁC "Sẵn sàng" và khác "trống"
+  (bước không có định mức thì không chặn). Chặn ở MÁY CHỦ (cổng bắt đầu, cùng chỗ các cổng
+  `dau_vao`), giao diện chỉ hiện lý do.
+- Câu báo nói đúng mức và cách gỡ, ví dụ "Vật tư chưa sẵn sàng: kho đang soạn. Đợi kho xuất xong
+  mới bắt đầu được." hoặc "Chưa yêu cầu vật tư. Bấm Yêu cầu cấp vật tư trước."
+- Mục vướng "Chưa sẵn sàng vật tư" ở §5.2 vì vậy là một cổng thật, đứng cạnh các cổng
+  `chua_giao_tho`, `chua_nhan_khuon`, `chua_nhan_buoc_truoc`.
+- Bước thuê ngoài không qua Bàn tổ nên không áp.
+
+### 5.4 Kho
 
 Màn hộp thư yêu cầu của kho (`KhoYeuCauPage`, API `/api/kho/de-nghi`) thêm ba bộ lọc, lọc ở máy
 chủ:
 
 - **Lệnh sản xuất:** yêu cầu có dòng thuộc lệnh đó, hoặc thuộc bài ghép chứa lệnh đó.
-- **Tổ:** bộ phận yêu cầu. API đã có `bo_phan`; cần đưa ra UI dưới chữ "Tổ" và chỉ liệt kê các tổ.
+- **Tổ:** yêu cầu sản xuất (có đề nghị gắn công việc) lọc theo tổ của CÔNG VIỆC, đi qua
+  `san_xuat_vat_tu_de_nghi` → `san_xuat_cong_viec.department_id`. Như vậy yêu cầu do quản đốc hay
+  người phòng khác bấm thay vẫn hiện dưới đúng tổ. Yêu cầu không gắn công việc thì lọc theo
+  `bo_phan_id`. Danh sách chọn chỉ liệt kê các tổ sản xuất. *(Quyết định của người viết.)*
 - **Vật tư:** yêu cầu có ít nhất một dòng là mã hàng đó, giấy hoặc vật tư khác.
 
 Ba bộ lọc kết hợp với nhau và với bộ lọc kỳ, trạng thái đang có.
@@ -167,3 +226,6 @@ như cũ.
 - Cách tính trạng thái 5.1 trong một truy vấn lô cho cả trang Bàn tổ, không truy vấn theo từng dòng.
 - Có giữ cờ `departments.la_to_cat` và ô bật cờ ở màn Phòng ban hay không, sau khi soát chỗ nào
   khác còn dùng nó. Không còn ai dùng thì gỡ.
+- Tách phần tự commit của `tao()` (`AuditLogRepository.create` tự commit) để đường tự lập chạy chung
+  giao dịch phát hành, và gom lô `nhu_cau_cua_cong_viec` cho cả gói.
+

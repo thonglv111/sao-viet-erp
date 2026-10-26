@@ -176,9 +176,7 @@ class CongNoKhoaSoService:
                             tu_ngay=tu_ngay,
                             den_ngay=den_ngay,
                             ten_ky=ten_ky,
-                            # Hoá đơn đã điều chỉnh giảm: tổng = phần khách còn phải trả sau điều
-                            # chỉnh, để Tổng − Đã trả = Còn nợ vẫn đúng (18/10/2026).
-                            tong_tien=r.get("amount", 0) - r.get("dieu_chinh_amount", 0),
+                            tong_tien=r.get("amount", 0),
                             da_thanh_toan=r.get("received_amount", 0),
                             con_no=con_no,
                             is_settled=(con_no <= 0),

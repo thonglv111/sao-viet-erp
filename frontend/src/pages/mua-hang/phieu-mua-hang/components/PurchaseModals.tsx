@@ -164,7 +164,11 @@ export function PurchaseModals({
           deletingDelivery
             ? `Đợt ${deletingDelivery.delivery.seq_no} ngày ${fmtDate(
                 deletingDelivery.delivery.delivery_date,
-              )} — trị giá ${money(deletingDelivery.delivery.amount)}. Công nợ của đơn sẽ giảm đúng số này.`
+              )} — trị giá ${money(deletingDelivery.delivery.amount)}. Công nợ của đơn sẽ giảm đúng số này.${
+                deletingDelivery.delivery.stock_request_ma
+                  ? ` Yêu cầu nhập kho ${deletingDelivery.delivery.stock_request_ma} cũng bị huỷ theo.`
+                  : ""
+              }`
             : undefined
         }
         danger

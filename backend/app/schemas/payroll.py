@@ -107,7 +107,7 @@ class ParamsOut(BaseModel):
 
 # --- thành phần lương theo BỘ PHẬN (Cấu hình lương, Tab 2) ------------------
 
-_COMPONENT_KEY = "^(chuyen_can|luong_khoan|tang_ca)$"   # `kpi` gỡ 29/07/2026
+_COMPONENT_KEY = "^(chuyen_can)$"   # `kpi` gỡ 29/07/2026; `luong_khoan` · `tang_ca` gỡ 20/10/2026
 
 
 class DeptComponentIn(BaseModel):
@@ -238,6 +238,13 @@ class ToTruongListOut(BaseModel):
     items: list[ToTruongOut]             # mới nhất trước
 
 
+class BacHoaHongIn(BaseModel):
+    """Một bậc của biểu hoa hồng theo số ngày thu tiền. `den_ngay` None = bậc cuối vô hạn."""
+
+    den_ngay: int | None = Field(default=None, ge=0)
+    pct: float = Field(ge=0, le=1)          # PHÂN SỐ: 0.03 = 3%
+
+
 class SalaryIn(BaseModel):
     effective_from: date
     base_amount: float | None = Field(default=None, ge=0)
@@ -258,11 +265,16 @@ class SalaryIn(BaseModel):
     insurance_elsewhere: bool = False
     # Đoàn viên công đoàn → mới bị trừ đoàn phí công đoàn (mặc định false = không đóng).
     union_member: bool = False
+    # Cách trả lương ở tổ tính hai lương: True = công nhật, False = lương khoán, None = theo trạng
+    # thái (thử việc = công nhật, chính thức = lương khoán).
+    an_cong_nhat: bool | None = None
     # Có áp giảm trừ bản thân khi tính TNCN không. Mặc định BẬT; tắt khi người này đã đăng ký
     # giảm trừ bản thân ở nơi làm việc khác (chỉ được đăng ký ở MỘT nơi).
     apply_self_deduction: bool = True
     # % hoa hồng NV kinh doanh — PHÂN SỐ (0.05 = 5%). Chặn trên 1 để khỏi ai gõ "5" ra 500%.
-    commission_pct: float = Field(default=0, ge=0, le=1)
+    commission_pct: float = Field(default=0, ge=0, le=1)   # DORMANT 23/10/2026 — xem `bac_hoa_hong`
+    # Biểu bậc hoa hồng theo số ngày thu tiền (mg 0439). None/rỗng = không hưởng hoa hồng.
+    bac_hoa_hong: list[BacHoaHongIn] | None = None
     # "Lương trả 1 lần" — mức cố định điền sẵn khi tạo phiếu thanh toán lương đợt 1.
     luong_dot_1: float = Field(default=0, ge=0)
     note: str | None = Field(default=None, max_length=255)
@@ -286,9 +298,11 @@ class SalaryOut(BaseModel):
     chuyen_can: float = 0
     insurance_elsewhere: bool = False   # cờ "BH đóng ở nơi khác" — để modal prefill checkbox
     union_member: bool = False          # cờ "đoàn viên công đoàn" — để modal prefill checkbox
+    an_cong_nhat: bool | None = None    # cách trả lương (None = theo trạng thái) — modal prefill
     apply_self_deduction: bool = True   # cờ giảm trừ bản thân — modal prefill checkbox
     # ⚠️ Thiếu dòng này là API nuốt im lặng: service trả đúng, Pydantic vứt, không báo lỗi.
-    commission_pct: float = 0           # % hoa hồng (phân số) — modal prefill
+    commission_pct: float = 0           # % hoa hồng (phân số) — DORMANT 23/10/2026
+    bac_hoa_hong: list[dict] | None = None   # biểu bậc hoa hồng — modal prefill
     luong_dot_1: float = 0              # "lương trả 1 lần" — prefill khi tạo phiếu đợt 1
     note: str | None = None
     created_at: datetime
@@ -315,6 +329,14 @@ class SalaryPreviewOut(BaseModel):
     chua_khai_muc_bh: bool = False
     luong_vi_tri: float = 0
     luong_trach_nhiem: float = 0
+    # Tổ tính hai lương (khối SX, Giao hàng) — form hồ sơ lương chỉ hiện ô "ăn công nhật" khi đúng.
+    tinh_hai_luong: bool = False
+    # Đang thử việc (hôm nay) — mốc lương chưa chọn cách trả thì mặc định Công nhật.
+    thu_viec: bool = False
+
+
+class SalaryPreviewsOut(BaseModel):
+    items: list[SalaryPreviewOut]
 
 
 # --- advances ---------------------------------------------------------------
@@ -539,13 +561,14 @@ class LineOut(BaseModel):
     #: TRONG ĐÓ của `ot_pay` — tiền GIỜ tăng ca, tách khỏi phần thêm ngày CN / lễ (17/09/2026). File Excel
     #: bảng lương đọc để cột "Ngoài giờ/Tăng ca" chỉ là tiền giờ. None = kỳ tính trước mg 0305.
     tien_gio_tang_ca: float | None = None
-    #: CHẾ ĐỘ KHOÁN (14/09/2026) — giờ tăng ca của người này KHÔNG có tiền (tổ khoán sản lượng /
-    #: tổ Giao hàng). Màn hình dùng để nói vì sao có giờ tăng ca mà tiền tăng ca = 0.
+    #: Người này TÍNH 2 LƯƠNG (khối Sản xuất / Giao hàng, 20/10/2026) — ăn vế khoán thì tiền giờ tăng
+    #: ca = 0, ăn vế thời gian thì có. Màn hình dùng để giải thích vì sao.
     che_do_khoan: bool = False
     #: LƯƠNG BÙ LỖ (tổ khoán sản xuất, 14/09/2026) — số bù lỗ theo công đã đem so với tiền khoán.
     #: None = dòng không thuộc luật này. Khi có số, `luong_cong` là PHẦN BÙ THÊM cho đủ bù lỗ (0 nếu
     #: khoán cao hơn) — đừng đọc nó là "lương theo công".
     bu_lo_theo_cong: float | None = None
+    ve_thoi_gian: float | None = None
     #: True = khoán thấp hơn bù lỗ theo công, tháng này đang trả bù lỗ.
     lay_bu_lo: bool = False
     #: Công ngày lễ nghỉ hưởng lương của người ăn khoán / tài xế — trả RIÊNG, CỘNG vào gross (15/09/2026).
@@ -567,9 +590,14 @@ class LineOut(BaseModel):
     khoan: float = 0
     #: Khoán km giao hàng (mg 0231) — CỘNG THÊM vào gross, không phải "trong đó" của khoản nào.
     khoan_km: float = 0
+    #: TĂNG CA KHOÁN (mg 0429) — 50% phần tổ vượt chỉ tiêu ngày, thuộc vế khoán, CỘNG vào gross.
+    tang_ca_khoan: float = 0
+    khoan_cong_them: float = 0     # Cộng thêm khoán kế toán gõ ở Khoán theo tổ (23/10/2026)
     #: Hoa hồng KD (mg 0269, 07/09/2026) — cột riêng, hệ tự tính theo hoá đơn, CỘNG THÊM vào gross,
     #: chịu TNCN, không sửa tay.
     hoa_hong: float = 0
+    #: Có lần thu làm nên hoa hồng (kể cả tổng âm kẹp 0) ⇒ màn cho bấm soi.
+    co_hoa_hong: bool = False
     ot_minutes: int = 0
     ot_pay: float = 0
     night_days: int = 0
@@ -887,3 +915,307 @@ class KhoanKmChiTietOut(BaseModel):
 
     items: list[KhoanKmChuyenOut] = []
     tong: float = 0
+
+
+class HoaHongKhoanOut(BaseModel):
+    """MỘT lần thu tiền làm nên hoa hồng của một dòng lương (23/10/2026)."""
+
+    receipt_id: int
+    so_phieu: str | None = None
+    order_id: int
+    order_no: str | None = None
+    invoice_no: str | None = None
+    hoa_don_huy: bool = False            # hoá đơn đã huỷ ⇒ gốc tính như cọc
+    ngay_hoa_don: date | None = None     # None = tiền cọc chưa có hoá đơn
+    ngay_thu: date
+    so_ngay: int = 0
+    tien_thu: int = 0
+    goc: float = 0
+    pct: float = 0                      # PHÂN SỐ
+    pct_rieng: bool = False             # % riêng của đơn thắng biểu
+    ly_do_rieng: str | None = None      # lý do của % riêng — ngăn soi điền sẵn khi sửa
+    tien: float = 0
+
+
+class HoaHongChiTietOut(BaseModel):
+    """Ngăn soi hoa hồng. `tong` PHẢI khớp cột "Hoa hồng" của dòng lương."""
+
+    items: list[HoaHongKhoanOut] = []
+    tong: float = 0
+
+
+class HoaHongRiengIn(BaseModel):
+    """% hoa hồng RIÊNG của một đơn — thắng biểu. `pct = None` = bỏ, quay về biểu."""
+
+    pct: float | None = Field(default=None, ge=0, le=1)
+    ly_do: str | None = Field(default=None, max_length=255)
+
+
+class HoaHongRiengOut(BaseModel):
+    order_id: int
+    pct: float | None = None
+    ly_do: str | None = None
+
+
+class KhoanKyDongOut(BaseModel):
+    """Một dòng làm nên tiền khoán của một người (21/10/2026): lần ghi · tăng ca khoán · tổ trưởng."""
+
+    loai: str                     # lan_ghi | tang_ca_khoan | to_truong | dung_may
+    batch_id: int | None = None
+    ngay: str | None = None
+    cong_doan: str | None = None
+    to: str | None = None
+    so_luong: float | None = None
+    # Tiền cả tổ của dòng: tiền lần ghi / phần tăng ca khoán của tổ hôm đó / quỹ tổ (dòng tổ trưởng).
+    tien_lan_ghi: float | None = None
+    so_nguoi: int | None = None
+    # Phần của người này (0..1) TRƯỚC khi trích tổ trưởng: lương bù lỗ của họ ÷ tổng người được tick.
+    ty_le: float | None = None
+    luong_bu_lo: float | None = None
+    tong_luong_bu_lo: float | None = None
+    # % tổ trưởng ăn chia đã trích ở lần ghi này (`tien` là số SAU trích) — mỗi mốc một số.
+    to_truong: list[float] = []
+    tuy_chon: list[str] = []
+    # Dòng `dung_may`: lý do (tên), mã phiếu sửa máy, chỉ tiêu ngày của tổ.
+    ly_do: str | None = None
+    sua_chua: str | None = None
+    tien_ngay: float | None = None
+    tien: float = 0
+    ghi_chu: str | None = None
+    # Lần ghi máy chưa tính được tiền: từng lý do (công thức lỗi, thiếu giá…) — L-SX-29.
+    chua_tinh: list[str] = []
+
+
+class KhoanKyChiTietOut(BaseModel):
+    """`tong_khoan` khớp cột "Lương khoán" (trước khi lấy bên lớn), `tong_tang_ca_khoan` khớp
+    "Tăng ca khoán"."""
+
+    items: list[KhoanKyDongOut] = []
+    tong_khoan: float = 0
+    tong_tang_ca_khoan: float = 0
+
+
+# --- Khoán theo tổ (22/10/2026) ------------------------------------------------
+# Màn Lương → Khoán theo tổ — `services/khoan_theo_to.py`. Tiền là số nguyên đồng.
+
+
+class KttToOut(BaseModel):
+    id: int
+    ten: str
+
+
+class KttNguoiLanOut(BaseModel):
+    emp_id: int
+    ten: str
+    to_ten: str | None = None      # có khi người không thuộc tổ của lần ghi
+    luong_bu_lo: int = 0
+    tien: int = 0
+
+
+class KttToTruongLanOut(BaseModel):
+    ten: str
+    che_do: str
+    ty_le: float
+    tien: int
+
+
+class KttPhatSinhOut(BaseModel):
+    ten: str | None = None
+    so_luong: float = 0
+    don_vi: str | None = None
+    don_gia: float = 0
+    tien: int = 0
+
+
+class KttSxKhoOut(BaseModel):
+    dai: float
+    rong: float
+
+
+class KttQuyCachOut(BaseModel):
+    giay: str | list[str] | None = None
+    dinh_luong: float | str | None = None
+    to_nguyen: KttSxKhoOut | None = None
+    to_in: KttSxKhoOut | None = None
+    con: KttSxKhoOut | None = None
+
+
+class KttLanGhiOut(BaseModel):
+    batch_id: int | None = None        # None = dòng tay (`dong_tay_id`)
+    ngay: date
+    to_id: int | None = None
+    to_ten: str | None = None
+    nguon_loai: str
+    nguon_id: int | None = None
+    lenh_ma: str = ""
+    lenh_ten: str = ""
+    khach: str | None = None
+    quy_cach: KttQuyCachOut | None = None
+    cong_doan: str
+    bac: str | None = None
+    tuy_chon: list[str] = []
+    phat_sinh: list[KttPhatSinhOut] = []
+    so_luong: float = 0
+    don_vi: str | None = None
+    tien_chinh: int = 0
+    tien: int = 0
+    he_so: float = 1
+    ghi_chu: str | None = None
+    cong_thuc: str | None = None   # "chữ = thế số = kết quả"
+    nguoi: list[KttNguoiLanOut] = []
+    to_truong: list[KttToTruongLanOut] = []
+    # Kế toán sửa tay (23/10/2026): `lan_ghi` hay `dong_tay`; `tien_may` = số máy khi `tien` bị đè.
+    loai: Literal["lan_ghi", "dong_tay"] = "lan_ghi"
+    dong_tay_id: int | None = None
+    noi_dung: str | None = None
+    nguoi_ids: list[int] = []
+    loi: str | None = None             # dòng tay chưa chia được (thiếu lương ca máy…)
+    tien_may: int | None = None
+    tay: bool = False
+    ghi_chu_tay: str | None = None
+    sua_boi: str | None = None
+    sua_luc: datetime | None = None
+    # Lý do máy chưa tính được tiền lần ghi (L-SX-29); `khong_khoan` = công đoạn chưa có cấu hình
+    # Khoán — dòng 0 đ, ô Tiền khoá (L-SX-27).
+    chua_tinh: list[str] = []
+    khong_khoan: bool = False
+
+
+class KttDungMayOut(BaseModel):
+    ngay: date
+    ly_do: str | None = None
+    sua_chua: str | None = None
+    ghi_chu: str | None = None
+    tien: int = 0
+    nguoi: list[KttNguoiLanOut] = []
+
+
+class KttNgayOut(BaseModel):
+    ngay: date
+    quy: int = 0
+    chi_tieu: int = 0
+    tang_ca: int = 0
+
+
+class KttNguoiOut(BaseModel):
+    emp_id: int
+    ten: str
+    to_ten: str | None = None
+    la_thanh_vien: bool = True
+    luong_bu_lo: int = 0
+    san_luong: int = 0
+    dung_may: int = 0
+    tang_ca: int = 0
+    to_truong: int = 0
+    o_to_khac: int = 0
+    # Ăn công nhật (`an_cong_nhat_hieu_luc`): đứng trong tỷ lệ chia, không hưởng khoán / tăng ca khoán.
+    cong_nhat: bool = False
+    luong_khoan: int | None = None
+    thu_viec: bool = False
+    phan_bo_bu_lo: int | None = None
+    cong: float | None = None
+    chuan_cong: float | None = None
+    an: Literal["khoan", "bu_lo"] | None = None
+    luong_chinh: int | None = None
+    # Cột Cộng thêm kế toán gõ (23/10/2026) — cộng thẳng vào lương, ngoài phép so.
+    cong_them: int | None = None
+    cong_them_ghi_chu: str | None = None
+    cong_them_sua_boi: str | None = None
+    cong_them_sua_luc: datetime | None = None
+
+
+class KttQuyOut(BaseModel):
+    san_luong: int = 0
+    dong_tay: int = 0
+    dung_may: int = 0
+    tang_ca: int = 0
+    tong: int = 0
+
+
+class KttToTruongOut(BaseModel):
+    emp_id: int
+    ten: str
+    che_do: str
+    ty_le: float
+    tien: int
+
+
+class KttDoiChieuOut(BaseModel):
+    quy: int = 0
+    tang_ca: int = 0
+    to_truong_thuong: int = 0
+    cong_nhat: int = 0
+    nguoi_to_khac: int = 0
+    o_to_khac: int = 0
+    luong_khoan: int = 0
+    bu_lo: int | None = None
+    luong_chinh: int | None = None
+
+
+class KttThanhVienOut(BaseModel):
+    emp_id: int
+    ten: str
+
+
+class KhoanTheoToOut(BaseModel):
+    year: int
+    month: int
+    cac_to: list[KttToOut] = []
+    to_id: int | None = None
+    to_ten: str | None = None
+    la_to_in: bool = False
+    co_bang_luong: bool = False
+    to_truong: KttToTruongOut | None = None
+    quy: KttQuyOut | None = None
+    nguoi: list[KttNguoiOut] = []
+    doi_chieu: KttDoiChieuOut | None = None
+    so: list[KttLanGhiOut] = []
+    khac: list[KttLanGhiOut] = []
+    dung_may: list[KttDungMayOut] = []
+    ngay: list[KttNgayOut] = []
+    thanh_vien: list[KttThanhVienOut] = []
+    khoa: bool = False                 # kỳ lương đã chốt / đã chi
+    sua_duoc: bool = False             # có ô Sửa lương và kỳ chưa chốt
+
+
+class KttSuaLanGhiIn(BaseModel):
+    """Trường không gửi = giữ nguyên. `tien` null = trả về số máy."""
+
+    tien: float | None = Field(default=None, ge=0)
+    ghi_chu: str | None = Field(default=None, max_length=2000)
+
+
+class KttDongTayIn(BaseModel):
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    to_id: int
+    ngay: date
+    noi_dung: str = Field(default="", max_length=500)
+    tien: float = Field(default=0, ge=0)
+    nguoi_ids: list[int] = Field(..., min_length=1)
+    ghi_chu: str | None = Field(default=None, max_length=2000)
+
+
+class KttDongTayPatchIn(BaseModel):
+    """Trường không gửi = giữ nguyên."""
+
+    ngay: date | None = None
+    noi_dung: str | None = Field(default=None, max_length=500)
+    tien: float | None = Field(default=None, ge=0)
+    nguoi_ids: list[int] | None = Field(default=None, min_length=1)
+    ghi_chu: str | None = Field(default=None, max_length=2000)
+
+
+class KttCongThemIn(BaseModel):
+    """Trường không gửi = giữ nguyên. `tien` null / 0 = bỏ số."""
+
+    year: int = Field(..., ge=2000, le=2100)
+    month: int = Field(..., ge=1, le=12)
+    to_id: int
+    emp_id: int
+    tien: float | None = None
+    ghi_chu: str | None = Field(default=None, max_length=2000)
+
+
+class KttDongTayOut(BaseModel):
+    id: int

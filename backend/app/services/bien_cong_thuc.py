@@ -30,7 +30,10 @@ LOAI_GIAY = "giay"
 LOAI_VAT_TU = "vat_tu"
 LOAI_CONG_DOAN = "cong_doan"
 LOAI_QUY_DOI = "quy_doi"
-LOAI = (LOAI_GIAY, LOAI_VAT_TU, LOAI_CONG_DOAN, LOAI_QUY_DOI)
+# Ô "Công thức khoán" của Công đoạn (21/10/2026) — chạy THẬT ở lần ghi sản lượng: bộ `quy_doi` +
+# ba chip của lần ghi (`_RIENG_KHOAN`). Tách loại riêng để ba chip ấy không lọt vào ô quy đổi.
+LOAI_KHOAN = "khoan"
+LOAI = (LOAI_GIAY, LOAI_VAT_TU, LOAI_CONG_DOAN, LOAI_QUY_DOI, LOAI_KHOAN)
 
 _TIEN = (LOAI_GIAY, LOAI_VAT_TU, LOAI_CONG_DOAN)   # ba ô công thức tiền
 _MOI_O = (*_TIEN, LOAI_QUY_DOI)                    # bộ CHUNG — có mặt ở cả bốn ô
@@ -186,9 +189,54 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
      (LOAI_QUY_DOI,)),
 )
 
+# Chip CHỈ ô Công thức khoán có — số của chính LẦN GHI, `khoan_ky` bơm lúc tính tiền kỳ lương.
+# Đợt 2 (21/10/2026): gỡ `sl_tot` (chủ: một chip số lượng duy nhất), thêm `so_lan_chay` / `tien_gio`
+# / `tu_tro`. Tuỳ chọn khi ghi của từng công đoạn là chip riêng, không nằm ở bảng này.
+_RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
+    ("sl_ghi", "SL ghi", "Số lượng thợ ghi ở lần ghi — cột Số lượng của bàn tổ", "đơn vị của lần ghi",
+     "ô Số lượng của lần ghi sản lượng", (LOAI_KHOAN,)),
+    ("gia_co_dinh", "Giá cố định", "Giá cố định của tổ ghi (vd giá một bài in)", "đ",
+     "Giá cố định chung hoặc bảng Giá theo tổ — ảnh chụp lúc ghi", (LOAI_KHOAN,)),
+    # 23/10/2026 chủ đổi tên "Số lần chạy" → "Số lần ghi sản lượng" (đúng cái máy đếm); mã giữ nguyên
+    # vì công thức đã chụp vào lần ghi (mg 0431) đang trỏ `so_lan_chay`.
+    ("so_lan_chay", "Số lần ghi sản lượng",
+     "Số lần ghi của cùng lệnh ở cùng công đoạn tính tới cuối kỳ lương, tối thiểu 1", "lần",
+     "đếm lần ghi lúc tính lương", (LOAI_KHOAN,)),
+    # 24/10/2026 — sổ T08 tổ dán: tiền canh chia cho số lần ghi TRỪ lần có thợ thử việc làm.
+    ("so_lan_thu_viec", "Số lần ghi có thử việc",
+     "Trong số lần ghi sản lượng, số lần có ít nhất một người làm đang thử việc ngày ghi", "lần",
+     "trạng thái hồ sơ nhân sự tại ngày ghi", (LOAI_KHOAN,)),
+    # 24/10/2026 — sổ T08 tổ in: in tiếp ngay lần trước thì không lên bài lại, không miễn 3.000 tờ.
+    ("chay_tiep", "Chạy tiếp",
+     "1 khi lần ghi liền trước trên cùng máy (việc không gắn máy thì cùng tổ) là chính dòng công "
+     "việc này và cùng ngày, ngược lại 0 (qua đêm là canh lại)", "0/1", "thứ tự lần ghi trên máy",
+     (LOAI_KHOAN,)),
+    # 26/10/2026 — chủ: khuôn là CHIP máy dò từ dao của bước lệnh (danh mục Khuôn), không còn là tuỳ
+    # chọn bắt thợ tick. Mã giữ đúng tên tuỳ chọn cũ nên công thức Bế đang khai không phải sửa.
+    ("trung_khuon", "Trùng khuôn",
+     "1 khi lần ghi liền trước trên cùng máy (việc không gắn máy thì cùng tổ) dùng cùng con dao — "
+     "dao còn trên máy, khỏi lên khuôn; ngược lại 0", "0/1", "dao của bước lệnh + thứ tự lần ghi trên máy",
+     (LOAI_KHOAN,)),
+    ("khuon_moi", "Khuôn mới",
+     "1 khi đây là lần ghi đầu tiên từng dùng con dao của bước, ngược lại 0 (bước không dao cũng 0)",
+     "0/1", "dao của bước lệnh + lịch sử lần ghi", (LOAI_KHOAN,)),
+    ("tien_gio", "Tiền giờ",
+     "Σ người làm (lương vị trí + trách nhiệm) ÷ 26 ÷ 8 × số giờ lần ghi", "đ",
+     "hồ sơ lương + giờ bắt đầu / kết thúc của lần ghi", (LOAI_KHOAN,)),
+    ("tu_tro", "Tự trở", "1 khi quy cách in là tự trở hoặc trở nhíp, ngược lại 0", "0/1",
+     "quy cách in của lệnh (bài ghép lấy của bài)", (LOAI_KHOAN,)),
+    # 22/10/2026 — bậc giá (Bài in): bậc Pantone UV có giá riêng đã gồm mực UV, công thức đọc chip này
+    # để khỏi nhân đôi lần nữa.
+    ("gia_gom_uv", "Giá đã gồm UV",
+     "1 khi bậc giá của lần ghi đã gồm mực UV (vd bậc Pantone UV), ngược lại 0", "0/1",
+     "bậc giá chụp lúc ghi", (LOAI_KHOAN,)),
+)
+
 BIEN: tuple[dict, ...] = tuple(
-    {"ma": ma, "nhan": nhan, "mo_ta": mo_ta, "don_vi": don_vi, "nguon": nguon, "loai": list(loai)}
-    for ma, nhan, mo_ta, don_vi, nguon, loai in _BANG
+    {"ma": ma, "nhan": nhan, "mo_ta": mo_ta, "don_vi": don_vi, "nguon": nguon,
+     # Ô Công thức khoán thừa hưởng TRỌN bộ của ô quy đổi.
+     "loai": [*loai, LOAI_KHOAN] if LOAI_QUY_DOI in loai else list(loai)}
+    for ma, nhan, mo_ta, don_vi, nguon, loai in (*_BANG, *_RIENG_KHOAN)
 )
 
 _THEO_MA = {b["ma"]: b for b in BIEN}

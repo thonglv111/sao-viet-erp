@@ -164,13 +164,13 @@ class DeliveryService:
         if scope is None or scope == SCOPE_ALL:
             return
         if scope == SCOPE_OWN:
-            # Bán hàng: yêu cầu mình lập. Tài xế: yêu cầu có chuyến của mình.
+            # Bán hàng: yêu cầu mình lập. Tài xế / phụ xe: yêu cầu có chuyến của mình.
             if request.created_by == getattr(actor, "id", None):
                 return
             eid = self._employee_cua_user(actor)
             if eid is not None:
                 for t in self.deliveries.trips_cua_yeu_cau(request.id):
-                    if t.employee_id == eid:
+                    if eid in (t.employee_id, t.phu_xe_employee_id):
                         return
             raise DeliveryForbidden("Bạn không có quyền xem yêu cầu giao hàng này")
         phong = self._phong_duoc_xem(scope=scope, actor=actor)
@@ -192,7 +192,7 @@ class DeliveryService:
         không hỏi lại nhân viên của người gọi cho từng chuyến."""
         if scope is None or scope == SCOPE_ALL:
             return True
-        if scope == SCOPE_OWN and eid is not None and trip.employee_id == eid:
+        if scope == SCOPE_OWN and eid is not None and eid in (trip.employee_id, trip.phu_xe_employee_id):
             return True
         req = trip.request
         if scope == SCOPE_OWN:
@@ -459,10 +459,12 @@ class DeliveryService:
                 "Khách chưa có địa chỉ giao — thêm địa chỉ ở hồ sơ khách hàng rồi chọn lại")
         return dia_chi, nguoi, sdt
 
-    def tao_yeu_cau(self, *, order_id, ngay_can_giao, lines, actor,
+    def tao_yeu_cau(self, *, order_id, ngay_can_giao, lines, actor, scope: str,
                     dia_chi_id=None, lien_he_id=None) -> dict:
         order = self.orders.get_by_id(order_id)
-        if order is None:
+        # Đơn phải trong phạm vi người lập — cùng cổng xem đơn bán (chủ khách + nhóm dùng chung +
+        # cây phòng); ngoài phạm vi = 404 như màn đơn, không để tài xế "Của tôi" lập cho đơn người khác.
+        if order is None or not self.orders.can_access(order=order, scope=scope, actor=actor):
             raise DeliveryNotFound("Không tìm thấy đơn hàng bán")
         if order.status != STATUS_ORDERED:
             raise DeliveryError("Chỉ tạo yêu cầu giao từ đơn hàng ĐÃ CHỐT")

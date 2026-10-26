@@ -62,13 +62,43 @@ def test_luu_phieu_thi_bao_gia_nhap_theo_sl_va_gia_von(client):
     assert _version_count(q["id"]) == 1
 
 
+def test_dien_giai_ke_giay_roi_song(client):
+    """Báo giá gửi khách kể giấy rồi sóng của sản phẩm (chọn ở sản phẩm từ 24/10/2026), không lặp
+    định lượng khi tên giấy đã có."""
+    from app.db import SessionLocal
+    from app.models.cong_doan import CongDoan
+    from app.models.vat_lieu_kho import GiayNguyen
+
+    t = _token(client)
+    giay, cd = _seed_catalog()
+    db = SessionLocal()
+    try:
+        cou = GiayNguyen(don_vi_them=["to"], ma="COU-150", ten="COUCHE 150GSM", gsm=150,
+                         kho_dai=1090, kho_rong=790, don_vi_gia="kg", don_gia=19500)
+        song = GiayNguyen(ma="SONG-E", ten="Giấy sóng E 3 lớp", gsm=400, loai="song",
+                          kho_dai=1090, kho_rong=790, don_vi_gia="kg", don_gia=12000)
+        db.add_all([cou, song])
+        db.commit()
+        cou_id, song_id = cou.id, song.id
+        boi_id = db.query(CongDoan).filter(CongDoan.ma == "BTĐ").one().id
+    finally:
+        db.close()
+    comp = {**_component(cou_id, cd), "song_id": song_id}
+    comp["thanh_phams"].append({"ten": "Bồi", "cong_doan_id": boi_id})
+    pid = _phieu(client, t, comps=[comp])
+    q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(t)).json()
+    dg = q["items"][0]["dien_giai"]
+    assert "COUCHE 150GSM" in dg and "Giấy sóng E 3 lớp 400g" in dg
+    assert dg.index("COUCHE 150GSM") < dg.index("Giấy sóng E 3 lớp")
+    assert "150GSM 150g" not in dg
+
+
 def test_dong_go_tay_giu_gia_go_tay_va_chiet_khau(client):
     t = _token(client)
     giay, cd = _seed_catalog()
     pid = _phieu(client, t, comps=[_component(giay, cd)])
     q = client.post("/api/quotations", json={"phieu_tinh_gia_id": pid}, headers=_h(t)).json()
     iid = q["items"][0]["id"]
-    von_cu = q["items"][0]["total_cost_snapshot"]
     r = client.put(f"/api/quotations/{q['id']}", json={"items": [{
         "id": iid, "manual_selling_price": 9_000_000, "discount_amount": 450_000, "dien_giai": "Sửa tay",
     }]}, headers=_h(t))
@@ -78,8 +108,9 @@ def test_dong_go_tay_giu_gia_go_tay_va_chiet_khau(client):
     assert it["quantity"] == 20000
     assert it["gia_go_tay"] is True
     assert round(it["selling_price"]) == 9_000_000       # giữ giá gõ tay
-    # % chiết khấu TRÊN GIÁ VỐN giữ nguyên khi giá vốn đổi (chiết khấu cộng vào giá bán).
-    assert abs(it["discount_amount"] - 450_000 / von_cu * it["total_cost_snapshot"]) <= 1
+    # % chiết khấu TRÊN GIÁ BÁN TRƯỚC KÊ giữ nguyên khi giá vốn đổi (chủ chốt 23/10/2026); giá gõ tay
+    # đứng yên nên tiền chiết khấu cũng đứng yên.
+    assert abs(it["discount_amount"] - 450_000) <= 1
     assert it["dien_giai"] == "Sửa tay"                  # giữ diễn giải đã sửa
     goc = it["total_cost_snapshot"] + it["discount_amount"]
     expect = round((9_000_000 / goc - 1) * 100, 2)
