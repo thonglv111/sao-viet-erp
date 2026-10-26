@@ -71,6 +71,33 @@ def test_clone_khong_MA_TU_SINH_dung_hau_to_COPY():
     assert ban_sao_2.ma == "IN-COPY2"
 
 
+def test_clone_cong_doan_co_may_va_vat_tu():
+    """L-SX-02: công đoạn có tổ có máy và có vật tư — ảnh chụp nhật ký giữ máy / vật tư dạng chữ,
+    nhân bản phải dựng lại thân POST chứ không vỡ 500; bản sao mang đúng máy, công thức, vật tư."""
+    from app.models.may_thiet_bi import MayThietBi, MayTo
+    from app.models.vat_lieu_kho import VatTuInAn
+
+    db, svc = _svc()
+    to = Department(name="Tổ VA02", code="PB-VA02", la_san_xuat=True)
+    may = MayThietBi(ma="M-VA02", ten="Máy in VA02", loai_may="Máy in")
+    muc = VatTuInAn(ma="MUC-VA02", ten="Mực VA02", don_vi_gia="kg", don_gia=180_000)
+    db.add_all([to, may, muc])
+    db.flush()
+    db.add(MayTo(may_id=may.id, department_id=to.id))
+    db.commit()
+    cd = svc.create(dict(ma="IN-VA02", ten="In VA02", nhom="print", pricing_basis="per_finished_qty",
+                         department_ids=[to.id], vat_tus=[{"vat_tu_id": muc.id}],
+                         may_lam_duoc=[{"may_id": may.id, "cong_thuc_gio": "sl_vao / 2",
+                                        "cong_thuc_gia": "sl_vao * 10"}]))
+
+    ban_sao = svc.clone(cd.id)
+    assert ban_sao.ma == "IN-VA02-COPY"
+    assert list(ban_sao.department_ids) == [to.id]
+    assert [(m.may_id, m.cong_thuc_gio, m.cong_thuc_gia) for m in ban_sao.may_lam_duoc] == [
+        (may.id, "sl_vao / 2", "sl_vao * 10")]
+    assert [v.vat_tu_id for v in ban_sao.vat_tus] == [muc.id]
+
+
 def test_validate_basis():
     db, svc = _svc()
     with pytest.raises(CongDoanValidationError):          # E-CD-BASIS

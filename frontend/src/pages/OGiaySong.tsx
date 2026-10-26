@@ -28,7 +28,8 @@ function luaChon(rows: Row[], dangDung: number | null, rong: string): SelectOpti
 
 /** "29.700 đ / tờ" — đơn giá theo danh mục, tên đơn vị đọc từ danh mục Đơn vị. */
 function nhanGia(g: Row | undefined): string {
-  if (!g) return "";
+  // Máy chủ che giá (`don_gia` null) khi người xem không có ô Xem giá của Giấy (L-SX-39).
+  if (!g || g.don_gia == null) return "";
   const dv = tenDonVi(String(g.don_vi_gia ?? "")) ?? String(g.don_vi_gia ?? "");
   return `${(Number(g.don_gia) || 0).toLocaleString("vi-VN")} đ / ${dv || "—"}`;
 }

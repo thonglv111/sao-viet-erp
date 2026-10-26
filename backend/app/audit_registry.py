@@ -614,6 +614,8 @@ TEN_DOI_TUONG: dict[str, str] = {
     "cong_no_khoa_so": "Kỳ công nợ", "nhom_dung_chung": "Nhóm dùng chung", "xep_lich": "Xếp lịch",
     "xep_lich_van_de": "Vấn đề xếp lịch", "ky_thuat_sua_chua": "Phiếu sửa chữa",
     "ky_thuat_yeu_cau": "Yêu cầu báo hỏng",
+    # L-SX-38: ba loại đối tượng nhật ký còn hiện mã thô.
+    "department": "Phòng ban", "payroll_line": "Dòng lương", "khoan_dong_tay": "Dòng tay sổ khoán",
 }
 
 

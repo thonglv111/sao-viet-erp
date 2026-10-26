@@ -152,6 +152,14 @@ class CongDoanService(CatalogService):
         """Bản sao mang theo danh sách tổ — ảnh chụp nhật ký chỉ có chúng dưới dạng chữ."""
         data = super()._anh_chup_nhan_ban(goc)
         data["department_ids"] = list(goc.department_ids)
+        # Ảnh chụp giữ máy / vật tư dạng {nhãn: giá trị} để đọc — dựng lại đúng thân POST, không thì
+        # `_validate` lặp qua khoá chữ và vỡ 500 (L-SX-02). `to_phu_trach` là chữ, không phải ô ghi.
+        data["may_lam_duoc"] = [
+            {"may_id": m.may_id, "cong_thuc_gio": m.cong_thuc_gio, "cong_thuc_gia": m.cong_thuc_gia}
+            for m in goc.may_lam_duoc
+        ]
+        data["vat_tus"] = [{"vat_tu_id": v.vat_tu_id} for v in goc.vat_tus]
+        data.pop("to_phu_trach", None)
         data["khoan"] = None if goc.khoan is None else {
             "unit": goc.khoan.unit,
             "unit_price": float(goc.khoan.unit_price),

@@ -46,6 +46,16 @@ class KhongThayDungMay(LookupError):
     """Dòng dừng máy không còn (đã xoá ở máy khác) — route trả 404."""
 
 
+def _chu_to_ngay(repo: DungMayRepository, department_id: int, ngay: date) -> str:
+    """"Bế TD - long ngày 26/10/2026" — đầu câu nhật ký dừng máy (L-SX-38: trước ghi `to=84`)."""
+    to = repo.to(int(department_id))
+    return f"{to.name if to is not None else f'Tổ #{department_id}'} ngày {ngay.strftime('%d/%m/%Y')}"
+
+
+def _nhan_ly_do(ly_do: str | None) -> str:
+    return LY_DO_DUNG_MAY.get(ly_do or "", ly_do or "")
+
+
 def _dong(r: KhoanDungMay, ten_nv: dict[int, str], ma: tuple[dict[int, str], dict]) -> dict:
     """`ma` = (mã phiếu sửa theo id, yêu cầu theo id) — `_ma` dựng. Yêu cầu đã thành phiếu thì
     "Phiếu sửa máy" đọc qua `phieu_id` của yêu cầu."""
@@ -224,7 +234,8 @@ def bao(db: Session, *, user, department_id: int, ngay: date, ly_do: str, sua_ch
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_bao_dung_may",
         target=f"khoan_dung_may:{r.id}",
-        detail=f"to={department_id} ngay={ngay.isoformat()} ly_do={ly_do} nguoi={len(ids)}",
+        detail=f"{_chu_to_ngay(repo, department_id, ngay)} dừng máy vì {_nhan_ly_do(ly_do)}, "
+               f"{len(ids)} người hưởng chỉ tiêu ngày.",
         commit=False,
     )
     db.commit()
@@ -313,8 +324,8 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
             AuditLogRepository(db).create(
                 actor_user_id=getattr(user, "id", None), action="san_xuat_bao_dung_may",
                 target=f"khoan_dung_may:{r.id}",
-                detail=f"to={department_id} ngay={ngay.isoformat()} ly_do=may_hu may={may_id} "
-                       f"bao={ma} nguoi={len(ids)}",
+                detail=f"{_chu_to_ngay(repo, department_id, ngay)} dừng máy vì máy "
+                       f"{_ten_may(repo, may_id)} hư (phiếu {ma}), {len(ids)} người hưởng chỉ tiêu ngày.",
                 commit=False,
             )
         db.commit()
@@ -340,6 +351,11 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
              phieu=phieu if bao_phieu else None, user=user, may_dung=bool(dung_san_xuat))
     _bao_to_khac(repo, khac, department_id=department_id, may_id=may_id, ma=ket["yeu_cau_ma"] or ket["phieu_ma"])
     return ket
+
+
+def _ten_may(repo: DungMayRepository, may_id: int) -> str:
+    may = repo.may([may_id]).get(may_id)
+    return may.ten if may is not None else f"#{may_id}"
 
 
 def _bao_to_khac(repo: DungMayRepository, khac: list, *, department_id: int, may_id: int,
@@ -413,7 +429,7 @@ def sua(db: Session, *, user, dung_may_id: int, ly_do: str, sua_chua_id: int | N
     _gate(db, user, int(r.department_id))
     _chan_ky(repo, r.ngay)
     ids, ten = _kiem(repo, int(r.department_id), ly_do=ly_do, sua_chua_id=sua_chua_id, nguoi_ids=nguoi_ids)
-    cu = f"ly_do={r.ly_do} nguoi={len(r.nguoi_ids or [])}"
+    ly_do_cu, so_cu = r.ly_do, len(r.nguoi_ids or [])
     r.ly_do = ly_do
     r.sua_chua_id = int(sua_chua_id) if sua_chua_id is not None else None
     r.ghi_chu = (ghi_chu or "").strip() or None
@@ -421,7 +437,8 @@ def sua(db: Session, *, user, dung_may_id: int, ly_do: str, sua_chua_id: int | N
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_sua_dung_may",
         target=f"khoan_dung_may:{r.id}",
-        detail=f"to={r.department_id} ngay={r.ngay.isoformat()} {cu} -> ly_do={ly_do} nguoi={len(ids)}",
+        detail=f"{_chu_to_ngay(repo, r.department_id, r.ngay)}: lý do {_nhan_ly_do(ly_do_cu)} → "
+               f"{_nhan_ly_do(ly_do)}, người hưởng {so_cu} → {len(ids)}.",
         commit=False,
     )
     db.commit()
@@ -438,7 +455,8 @@ def xoa(db: Session, *, user, dung_may_id: int) -> None:
     AuditLogRepository(db).create(
         actor_user_id=getattr(user, "id", None), action="san_xuat_xoa_dung_may",
         target=f"khoan_dung_may:{r.id}",
-        detail=f"to={r.department_id} ngay={r.ngay.isoformat()} ly_do={r.ly_do}",
+        detail=f"Xoá ngày dừng máy của {_chu_to_ngay(repo, r.department_id, r.ngay)} "
+               f"(lý do {_nhan_ly_do(r.ly_do)}).",
         commit=False,
     )
     repo.delete(r)

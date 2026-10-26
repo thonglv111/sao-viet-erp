@@ -58,7 +58,8 @@ class GiayIn(BaseModel):
     don_vi_gia: str | None = None
     # Đơn vị khai thêm ngoài ĐVT chính (mg 0390). Vắng = không đụng; [] / None = chỉ ĐVT chính.
     don_vi_them: list[str] | None = None
-    don_gia: float = Field(default=0, ge=0)
+    # None = ô giá bị che (người sửa không có ô Xem giá) — router giữ giá cũ (L-SX-39).
+    don_gia: float | None = Field(default=0, ge=0)
     gia_thi_truong: float | None = None
     kho_tinh_gia: bool = True
     ghi_chu: str | None = None
@@ -80,7 +81,8 @@ class GiayRow(BaseModel):
     don_vi_them: list[str] | None = None
     # Tên đơn vị để BẢNG đọc được ("bản kẽm" thay vì mã `kem`) — router gán, không có trong DB.
     don_vi_ten: str | None = None
-    don_gia: float
+    # None = người xem không có ô Xem giá (máy chủ che, L-SX-39).
+    don_gia: float | None = None
     gia_thi_truong: float | None = None
     kho_tinh_gia: bool
     ghi_chu: str | None = None

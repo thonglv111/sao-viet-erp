@@ -858,3 +858,15 @@ def test_CO_TO_IN_khai_o_phong_ban_qua_API(client):
     tat = client.put(f"/api/departments/{pb['id']}",
                      json={"name": "Tổ in offset 2", "la_to_in": False}, headers=h)
     assert tat.status_code == 200 and tat.json()["la_to_in"] is False
+
+    # L-SX-38: tắt cờ Tổ in phải hiện trong nhật ký "từ → sang"; sửa không đổi cờ thì không ghi cờ.
+    from app.models.audit import AuditLog
+    db = SessionLocal()
+    try:
+        ds = [a.detail for a in db.query(AuditLog).filter(
+            AuditLog.action == "update_department", AuditLog.target == f"dept:{pb['id']}").order_by(AuditLog.id)]
+    finally:
+        db.close()
+    assert "Tổ in:" not in ds[0]
+    assert ds[0] == "Sửa phòng Tổ in offset 2: tên Tổ in offset → Tổ in offset 2"
+    assert ds[-1].endswith(". Tổ in: bật → tắt")

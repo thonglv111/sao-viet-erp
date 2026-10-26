@@ -2863,6 +2863,14 @@ class PayrollService:
         # kỳ ai, kể cả giám đốc (bản rà C2).
         ln = self._line_for_edit(line_id, scope=scope, actor=actor)
         period = self.payroll.get_period(ln.period_id)
+        # Tên ô đã sửa cho nhật ký (L-SX-38) — KHÔNG ghi số tiền (xem `_audit`).
+        o_sua = [nhan for nhan, val in (
+            ("Vi phạm", vi_pham), ("Điều chỉnh lương", dieu_chinh_luong), ("Đi trễ", di_tre),
+            ("Điện thoại vượt trội", dt_vuot_troi), ("Phạt biên bản", phat_bien_ban),
+            ("Đồng phục / phạt 5S", phat_5s_dong_phuc), ("Thuế TNCN", pit), ("Ghi chú", note),
+        ) if val is not None]
+        if di_tre_manual is False:
+            o_sua.append("Đi trễ về tự tính")
 
         if vi_pham is not None:
             ln.vi_pham = _round(vi_pham)
@@ -2980,7 +2988,10 @@ class PayrollService:
         ln.no_ung_chuyen_ky_sau = no_ky_sau
         ln.updated_at = datetime.now(timezone.utc)
         saved = self.payroll.update_line(ln)
-        self._audit(actor, "payroll_update_line", f"payroll_line:{ln.id}", "sửa ô tay")
+        nv = self.employees.get_by_id(ln.employee_id) if self.employees is not None else None
+        self._audit(actor, "payroll_update_line", f"payroll_line:{ln.id}",
+                    f"Sửa tay dòng lương {f'của {nv.full_name} ' if nv is not None else ''}"
+                    f"kỳ {period.month:02d}/{period.year}: {', '.join(o_sua) or 'không đổi ô nào'}.")
         return saved
 
     def ly_do_chua_chot_duoc(self, year: int, month: int) -> str | None:

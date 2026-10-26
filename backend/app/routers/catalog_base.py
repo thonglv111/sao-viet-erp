@@ -165,6 +165,8 @@ def make_catalog_router(
     loi_khac: tuple[type[Exception], ...] = (),
     enable_clone: bool = False,
     excel_spec: Any = None,
+    che_tien: Callable[[Any, User, list], None] | None = None,
+    giu_tien: Callable[[Any, User, int | None, dict], None] | None = None,
 ) -> APIRouter:
     """GẮN trọn bộ CRUD của một danh mục vào `router` của màn. Trả lại chính `router` đó.
 
@@ -199,6 +201,10 @@ def make_catalog_router(
     * `dung_rows(svc, objs) -> list[RowModel]` — cách dựng dòng trả về. Mặc định
       `RowModel.model_validate`. Màn nào cần điền thêm (tên đơn vị, chip quy đổi) thì truyền hàm
       riêng — dùng cho CẢ list, get, create, update nên không có chỗ nào lệch nhau.
+    * `che_tien(svc, user, rows)` — xoá ô TIỀN khỏi dòng trả về khi người gọi không có ô Xem giá
+      của màn (L-SX-39). Chạy ở MỌI cửa trả dòng (list, get, create, update, bật/tắt, nhân bản).
+    * `giu_tien(svc, user, item_id, data)` — lúc tạo / sửa: người không thấy giá thì giữ số tiền
+      cũ (sửa) hoặc để mặc định (tạo), không để ô bị che gửi lên rỗng rồi xoá trắng giá.
     * `ma_goi_y` — mở `GET /ma-goi-y`. Chỉ bật cho danh mục có `ma_prefix` ở repo.
     * `loi_khac` — lớp exception NGOÀI họ `Catalog*` mà handler cũng phải bắt.
     * `enable_clone` — mở `POST /{item_id}/clone`, gác bằng quyền `clone` riêng (không dùng chung
@@ -234,17 +240,19 @@ def make_catalog_router(
     # trình (AttributeError, TypeError) cũng hoá 422 và nằm im.
     BAT = (CatalogError, *loi_khac)
 
-    def _rows(svc, objs) -> list:
+    def _rows(svc, objs, user=None) -> list:
         rows = dung_rows(svc, objs) if dung_rows else [RowModel.model_validate(o) for o in objs]
+        if che_tien is not None and user is not None:
+            che_tien(svc, user, rows)
         return rows
 
-    def _mot(svc, obj):
-        return _rows(svc, [obj])[0]
+    def _mot(svc, obj, user=None):
+        return _rows(svc, [obj], user)[0]
 
     # -- GET "" : danh sách -------------------------------------------------------------
     def _list(**kw):
         svc = kw.pop("svc")
-        kw.pop("_", None)
+        nguoi = kw.pop("_", None)
         kem_dem = kw.pop("kem_dem", False)
         page, size = kw["page"], kw["size"]
         rows, total = svc.list(**kw)
@@ -257,7 +265,7 @@ def make_catalog_router(
             them["tong_theo_tim"] = tong_theo_tim(svc, kw_tab)
         if kem_dem:
             them["dem"] = _dem(svc, kw, them.get("facets"))
-        return ListModel(items=_rows(svc, rows), total=total, page=page, size=size, **them)
+        return ListModel(items=_rows(svc, rows, nguoi), total=total, page=page, size=size, **them)
 
     def _dem(svc, kw: dict, so_facets: dict | None) -> dict:
         """Số đếm cho từng điều kiện của thanh lọc — mỗi điều kiện đếm dưới mọi bộ lọc KHÁC nó."""
@@ -346,7 +354,7 @@ def make_catalog_router(
             obj = svc.get(item_id)
         except BAT as e:
             raise loi_http(e) from None
-        return _mot(svc, obj)
+        return _mot(svc, obj, _)
     _get.__annotations__["svc"] = ServiceDep
     _get.__annotations__["_"] = User
     _get.__name__ = f"get_{ten}"
@@ -354,11 +362,14 @@ def make_catalog_router(
 
     # -- POST "" ------------------------------------------------------------------------
     def _create(payload, svc, user=Depends(req_create)):
+        data = payload.model_dump(exclude_unset=True)
         try:
-            obj = svc.create(payload.model_dump(exclude_unset=True), actor_id=user.id)
+            if giu_tien is not None:
+                giu_tien(svc, user, None, data)
+            obj = svc.create(data, actor_id=user.id)
         except BAT as e:
             raise loi_http(e) from None
-        return _mot(svc, obj)
+        return _mot(svc, obj, user)
     _create.__annotations__["payload"] = InModel
     _create.__annotations__["svc"] = ServiceDep
     _create.__annotations__["user"] = User
@@ -368,11 +379,14 @@ def make_catalog_router(
 
     # -- PUT "/{item_id}" ---------------------------------------------------------------
     def _update(item_id: int, payload, svc, user=Depends(req_update)):
+        data = payload.model_dump(exclude_unset=True)
         try:
-            obj = svc.update(item_id, payload.model_dump(exclude_unset=True), actor_id=user.id)
+            if giu_tien is not None:
+                giu_tien(svc, user, item_id, data)
+            obj = svc.update(item_id, data, actor_id=user.id)
         except BAT as e:
             raise loi_http(e) from None
-        return _mot(svc, obj)
+        return _mot(svc, obj, user)
     _update.__annotations__["payload"] = InModel
     _update.__annotations__["svc"] = ServiceDep
     _update.__annotations__["user"] = User
@@ -399,7 +413,7 @@ def make_catalog_router(
                 obj = svc.dat_active(item_id, payload.active, actor_id=user.id)
             except BAT as e:
                 raise loi_http(e) from None
-            return _mot(svc, obj)
+            return _mot(svc, obj, user)
         _dat_active.__annotations__["svc"] = ServiceDep
         _dat_active.__annotations__["user"] = User
         _dat_active.__name__ = f"dat_active_{ten}"
@@ -415,7 +429,7 @@ def make_catalog_router(
                 obj = svc.clone(item_id, actor_id=user.id)
             except BAT as e:
                 raise loi_http(e) from None
-            return _mot(svc, obj)
+            return _mot(svc, obj, user)
         _clone.__annotations__["svc"] = ServiceDep
         _clone.__annotations__["user"] = User
         _clone.__name__ = f"clone_{ten}"
