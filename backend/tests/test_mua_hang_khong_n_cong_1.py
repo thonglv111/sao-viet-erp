@@ -130,3 +130,71 @@ def test_tong_quan_ncc_dem_toan_danh_muc(client, h):
     nhom = {n["supplier_group"]: n["so_ncc"] for n in sau["nhom"]}
     nhom_truoc = {n["supplier_group"]: n["so_ncc"] for n in truoc["nhom"]}
     assert nhom["paper"] == nhom_truoc.get("paper", 0) + 1
+
+
+def _duyet_boi_nguoi_rieng(tien_to: str) -> None:
+    """Mỗi phiếu mua mang tiền tố `tien_to` do một người KHÁC lập + duyệt, và đã duyệt — dữ liệu
+    thật có nhiều người, còn fixture chỉ có admin (đã nằm sẵn trong phiên nên tra tên không tốn câu
+    nào, che mất lỗi)."""
+    from datetime import datetime
+
+    from app.models.purchase import PR_APPROVED, PurchaseRequest
+    from app.models.user import User
+
+    db = SessionLocal()
+    try:
+        phieu = [p for p in db.query(PurchaseRequest).all()
+                 if any((l.item_name or "").startswith(f"Giay {tien_to} ") for l in p.lines)]
+        for i, p in enumerate(phieu):
+            u = User(username=f"nl_{tien_to.lower()}_{i}", name=f"Nguoi lap {tien_to}{i}", password_hash="x")
+            d = User(username=f"nd_{tien_to.lower()}_{i}", name=f"Nguoi duyet {tien_to}{i}", password_hash="x")
+            db.add_all([u, d])
+            db.flush()
+            p.created_by_user_id = u.id
+            p.approved_by_user_id = d.id
+            p.status = PR_APPROVED
+            p.approved_at = datetime.now()
+            p.deposit_expected = 50000  # còn cọc chưa chi ⇒ đơn vào tab "Mua hàng chờ chi"
+        db.commit()
+    finally:
+        db.close()
+
+
+DANH_SACH_DON = [
+    "/api/purchase-requests?size=50",
+    "/api/accounting/inbox?size=50",
+]
+
+
+def test_danh_sach_don_mua_tra_ten_nguoi_mot_luot(client, h):
+    """Tên người lập / người duyệt / người ghi đợt: nạp MỘT lượt cho cả trang. Trước 26/10/2026
+    `_nap_ten_nguoi` nạp rồi bỏ kết quả — identity map chỉ giữ tham chiếu YẾU nên mỗi lần tra tên
+    lại SELECT users (đo bản sao: 40 câu users cho 4 đơn)."""
+    _dung(client, h, 2, "N")
+    _duyet_boi_nguoi_rieng("N")
+    it = {u: _so_cau(client, h, u) for u in DANH_SACH_DON}
+    _dung(client, h, 8, "M")
+    _duyet_boi_nguoi_rieng("M")
+    nhieu = {u: _so_cau(client, h, u) for u in DANH_SACH_DON}
+    r = client.get("/api/purchase-requests?size=50", headers=h).json()["items"]
+    assert any((x["created_by_name"] or "").startswith("Nguoi lap M") for x in r)
+    assert any((x["approved_by_name"] or "").startswith("Nguoi duyet M") for x in r)
+    print("\nSO CAU SQL don mua (it -> nhieu):", {u: (it[u], nhieu[u]) for u in DANH_SACH_DON})
+    for u in DANH_SACH_DON:
+        assert nhieu[u] <= it[u] + 2, f"{u}: {it[u]} -> {nhieu[u]} câu khi tăng số dòng"
+
+
+def test_mua_hang_cho_chi_tra_ten_nguoi_mot_luot(client, h):
+    """Tab "Mua hàng chờ chi" dựng dòng bằng cùng `_to_request_out` — cùng lỗi tra tên từng dòng."""
+    url = "/api/accounting/mua-hang-cho-chi"
+    _dung(client, h, 2, "P")
+    _duyet_boi_nguoi_rieng("P")
+    it = _so_cau(client, h, url)
+    so_it = len(client.get(url, headers=h).json())
+    _dung(client, h, 8, "Q")
+    _duyet_boi_nguoi_rieng("Q")
+    nhieu = _so_cau(client, h, url)
+    so_nhieu = len(client.get(url, headers=h).json())
+    print("\nSO CAU SQL mua-hang-cho-chi (it -> nhieu):", it, nhieu, "dong:", so_it, so_nhieu)
+    assert so_nhieu > so_it
+    assert nhieu <= it + 2, f"{url}: {it} -> {nhieu} câu khi tăng số dòng"
