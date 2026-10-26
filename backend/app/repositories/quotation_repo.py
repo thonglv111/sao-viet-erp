@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import and_, asc, desc, exists, func, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from ..models.audit import AuditLog
 from ..models.customer import Customer
@@ -242,6 +242,45 @@ class QuotationRepository:
             return owner.department_id in dept_subtree_ids(self.db, actor.department_id)
         raise ValueError(f"Unknown scope: {scope!r}")
 
+    def _xem_duoc_nhieu(self, quotes: list[Quote]):
+        """Bản lô của `can_access` cho nhiều báo giá × nhiều người: trả hàm `(quote, scope, actor) ->
+        bool` cùng luật, nhưng chủ của mọi báo giá, phòng của mọi chủ đọc MỘT lần; nhóm dùng chung và
+        cây phòng nhớ theo người duyệt. Gọi `can_access` từng cặp là 2–3 câu mỗi cặp (26/10/2026)."""
+        cids = {q.customer_id for q in quotes if q.customer_id is not None}
+        sale = dict(self.db.execute(
+            select(Customer.id, Customer.sale_user_id).where(Customer.id.in_(cids))).all()) if cids else {}
+        chu = {}
+        for q in quotes:
+            s = sale.get(q.customer_id) if q.customer_id is not None else None
+            chu[q.id] = s if s is not None else q.salesperson_id
+        chu_ids = {c for c in chu.values() if c is not None}
+        phong_chu = dict(self.db.execute(
+            select(User.id, User.department_id).where(User.id.in_(chu_ids))).all()) if chu_ids else {}
+        nhom: dict[int, set[int]] = {}
+        cay: dict[int | None, list[int]] = {}
+
+        def xem(quote: Quote, scope: str, actor) -> bool:
+            if scope == SCOPE_ALL:
+                return True
+            c = chu[quote.id]
+            if scope == SCOPE_OWN:
+                if actor.id not in nhom:
+                    nhom[actor.id] = nhom_dung_chung_user_ids(self.db, actor.id)
+                return c in nhom[actor.id]
+            if scope == SCOPE_DEPARTMENT:
+                if c is None:
+                    return False
+                if c == actor.id:
+                    return True
+                if phong_chu.get(c) is None:
+                    return False
+                if actor.department_id not in cay:
+                    cay[actor.department_id] = dept_subtree_ids(self.db, actor.department_id)
+                return phong_chu[c] in cay[actor.department_id]
+            raise ValueError(f"Unknown scope: {scope!r}")
+
+        return xem
+
     def _dk_loc(self, *, q: str | None, nguoi: int | None, loc: LocBaoGia | None) -> list:
         """Mọi điều kiện của bảng TRỪ phạm vi và tab trạng thái — thanh tab đếm bằng đúng bộ này."""
         conditions = []
@@ -365,6 +404,9 @@ class QuotationRepository:
         page = max(1, page)
         size = max(1, min(size, 200))
         base = base.offset((page - 1) * size).limit(size)
+        # Phiên bản + dòng hàng nạp gộp cho cả trang — dòng danh sách đọc phiên bản hiện hành và các
+        # dòng của nó; để lazy là 2 câu mỗi báo giá (26/10/2026).
+        base = base.options(selectinload(Quote.versions).selectinload(QuoteVersion.items))
 
         rows = list(self.db.execute(base).scalars())
 
@@ -491,10 +533,11 @@ class QuotationRepository:
                 )
                 .order_by(User.name)
             ).all())
+            xem = self._xem_duoc_nhieu(cho)
             for r in cho:
                 ung_vien[r.id] = [
                     u.id for u, pham_vi in nguoi_duyet
-                    if pham_vi and self.can_access(quote=r, scope=pham_vi, actor=u)
+                    if pham_vi and xem(r, pham_vi, u)
                 ]
 
         user_ids = {a.decided_by for a in cuoi.values() if a.decided_by}
