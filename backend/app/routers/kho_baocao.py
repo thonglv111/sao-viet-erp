@@ -747,8 +747,9 @@ def _nxt_rows(
     hang_svc = VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db))
     hang_map = hang_svc.map_theo_cap(list({(k[1], k[2]) for k in comp}))
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
-    kho_repo = KhoHangRepository(db)
-    kho_ten = {kid: getattr(kho_repo.get(kid), "ten", None) for kid in {k[0] for k in comp}}
+    kho_ids_comp = {k[0] for k in comp}
+    ten_kho = KhoHangRepository(db).ten_theo_ids(kho_ids_comp)   # một câu cho mọi kho
+    kho_ten = {kid: ten_kho.get(kid) for kid in kho_ids_comp}
 
     rows: list[BaoCaoNXTRow] = []
     for (kid, hloai, hid, kr, kd, goc), c in comp.items():
@@ -894,17 +895,21 @@ def get_ky_da_tinh(db: Db, _: XemBaoCaoUser) -> list[KyDaTinhRow]:
 
 # --- Khóa kỳ (chốt sổ) ---------------------------------------------------------
 
-def _khoa_row(db: Session, row) -> KhoKhoaSoRow:
-    kho = KhoHangRepository(db).get(row.kho_id) if row.kho_id else None
-    nguoi = UserRepository(db).get_by_id(row.nguoi_khoa_id) if row.nguoi_khoa_id else None
+def _khoa_row(db: Session, row, *, ten_kho: dict[int, str] | None = None,
+              nguoi: dict[int, User] | None = None) -> KhoKhoaSoRow:
+    """`ten_kho` / `nguoi` = bản nạp gộp của cả danh sách (lịch sử khoá sổ); vắng thì tự tra."""
+    if ten_kho is None:
+        ten_kho = KhoHangRepository(db).ten_theo_ids([row.kho_id])
+    if nguoi is None:
+        nguoi = UserRepository(db).get_many([row.nguoi_khoa_id])
     return KhoKhoaSoRow(
         id=row.id,
         kho_id=row.kho_id,
-        kho_ten=getattr(kho, "ten", None),
+        kho_ten=ten_kho.get(row.kho_id) if row.kho_id else None,
         tu_ngay=row.tu_ngay,
         den_ngay=row.den_ngay,
         hanh_dong=row.hanh_dong,
-        nguoi_khoa_ten=getattr(nguoi, "name", None),
+        nguoi_khoa_ten=getattr(nguoi.get(row.nguoi_khoa_id), "name", None) if row.nguoi_khoa_id else None,
         khoa_luc=row.khoa_luc,
         ten=row.ten,
     )
@@ -912,8 +917,12 @@ def _khoa_row(db: Session, row) -> KhoKhoaSoRow:
 
 @router.get("/khoa-so", response_model=list[KhoKhoaSoRow])
 def get_khoa_so(db: Db, _: XemBaoCaoUser) -> list[KhoKhoaSoRow]:
-    """Lịch sử thao tác khóa/mở kỳ (mới nhất trước) — dùng cho tab Lịch sử + đối chiếu đang khóa."""
-    return [_khoa_row(db, r) for r in KhoKhoaSoRepository(db).history()]
+    """Lịch sử thao tác khóa/mở kỳ (mới nhất trước) — dùng cho tab Lịch sử + đối chiếu đang khóa.
+    Tên kho + người khoá nạp GỘP một lượt cho cả lịch sử (trước 26/10/2026: mỗi dòng hai câu)."""
+    rows = KhoKhoaSoRepository(db).history()
+    ten_kho = KhoHangRepository(db).ten_theo_ids(r.kho_id for r in rows)
+    nguoi = UserRepository(db).get_many(r.nguoi_khoa_id for r in rows)
+    return [_khoa_row(db, r, ten_kho=ten_kho, nguoi=nguoi) for r in rows]
 
 
 @router.get("/khoa-so/ky", response_model=list[KhoaSoKyRow])

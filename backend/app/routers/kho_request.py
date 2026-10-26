@@ -531,8 +531,8 @@ def loc_bo_phan(
 ) -> list[dict]:
     """Giá trị điều kiện "Phòng ban yêu cầu": phòng ban có yêu cầu trong tầm nhìn, kèm số."""
     dem = svc.requests.dem_theo_cot("bo_phan_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
-    phong = DepartmentRepository(db)
-    ra = [{"id": i, "ten": getattr(phong.get_by_id(i), "name", None) or f"#{i}", "so": n} for i, n in dem]
+    ten = DepartmentRepository(db).names_by_ids(i for i, _ in dem)   # một câu cho cả ô lọc
+    ra = [{"id": i, "ten": ten.get(i) or f"#{i}", "so": n} for i, n in dem]
     return sorted(ra, key=lambda d: d["ten"])
 
 
@@ -560,8 +560,8 @@ def loc_nguoi_yeu_cau(
 ) -> list[dict]:
     """Giá trị điều kiện "Người yêu cầu": người đã tạo yêu cầu trong tầm nhìn, kèm số."""
     dem = svc.requests.dem_theo_cot("nguoi_tao_id", **_loc_nen(db, user, authz, loai, dieu_chuyen))
-    users = UserRepository(db)
-    ra = [{"id": i, "ten": getattr(users.get_by_id(i), "name", None) or f"#{i}", "so": n}
+    nguoi = UserRepository(db).get_many(i for i, _ in dem)   # một câu cho cả ô lọc
+    ra = [{"id": i, "ten": getattr(nguoi.get(i), "name", None) or f"#{i}", "so": n}
           for i, n in dem]
     return sorted(ra, key=lambda d: d["ten"])
 
@@ -575,10 +575,11 @@ def loc_kho(
 ) -> list[dict]:
     """Giá trị điều kiện "Kho": mọi kho đang dùng, kèm số yêu cầu gắn kho đó hoặc có phiếu ở đó.
     Kho không có yêu cầu nào thì bỏ (chọn vào chỉ ra danh sách trống)."""
-    nen = _loc_nen(db, user, authz, loai, dieu_chuyen)
+    # Đếm GỘP mọi kho một câu (trước 26/10/2026: mỗi kho một câu COUNT).
+    dem = svc.requests.dem_theo_kho(**_loc_nen(db, user, authz, loai, dieu_chuyen))
     ra = []
     for kid, ten in KhoHangRepository(db).dang_dung():
-        n = svc.requests.dem(kho_loc=kid, **nen)
+        n = dem.get(kid, 0)
         if n:
             ra.append({"id": kid, "ten": ten, "so": n})
     return ra

@@ -568,6 +568,16 @@ class StockRequestRepository:
         )
         return [(int(v), n) for v, n in self._dem_theo_cap(cap, **loc)]
 
+    def dem_theo_kho(self, **loc) -> dict[int, int]:
+        """`{kho_id: số yêu cầu}` của điều kiện "Kho" — cùng luật `kho_loc` (kho đích, kho nguồn
+        điều chuyển, hoặc đã có phiếu lập ở kho đó), một câu cho mọi kho."""
+        cap = union(
+            select(StockRequest.id.label("rid"), StockRequest.kho_id.label("gia_tri")),
+            select(StockRequest.id, StockRequest.kho_nguon_id),
+            select(StockVoucher.request_id, StockVoucher.kho_id),
+        )
+        return {int(v): n for v, n in self._dem_theo_cap(cap, **loc)}
+
     def dem_theo_lenh(self, **loc) -> list[tuple[int, int]]:
         """Giá trị điều kiện "Lệnh": lệnh trên dòng, cộng mọi lệnh của bài ghép trên dòng."""
         from ..models.bai_ghep import BaiGhepThanhVien

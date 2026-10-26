@@ -41,6 +41,23 @@ class NhomDungChungRepository:
         ).all()
         return [(uid, ten or username, username) for uid, ten, username in rows]
 
+    def thanh_viens_theo_nhom(self, nhom_ids) -> dict[int, list[tuple[int, str, str]]]:
+        """`{nhom_id: thanh_viens(nhom_id)}` của nhiều nhóm trong MỘT truy vấn (danh sách nhóm).
+        Nhóm chưa có ai thì vắng mặt."""
+        ids = sorted({int(i) for i in (nhom_ids or []) if i is not None})
+        if not ids:
+            return {}
+        ra: dict[int, list[tuple[int, str, str]]] = {}
+        for nid, uid, ten, username in self.db.execute(
+            select(NhomDungChungThanhVien.nhom_id, NhomDungChungThanhVien.user_id, User.name,
+                   User.username)
+            .join(User, User.id == NhomDungChungThanhVien.user_id)
+            .where(NhomDungChungThanhVien.nhom_id.in_(ids))
+            .order_by(NhomDungChungThanhVien.id)
+        ).all():
+            ra.setdefault(nid, []).append((uid, ten or username, username))
+        return ra
+
     def nhom_cua_user(self, user_id: int) -> list[NhomDungChung]:
         return list(
             self.db.execute(

@@ -460,6 +460,17 @@ class RoleRepository:
             )
         ).scalar_one_or_none()
 
+    def permission_by_roles(self, role_ids, module_key: str) -> dict[int, RolePermission]:
+        """`{role_id: dòng quyền của module}` cho nhiều vai trong MỘT truy vấn — `get_permission`
+        của cả danh sách người. Vai chưa có dòng quyền thì vắng mặt."""
+        ids = sorted({int(i) for i in (role_ids or []) if i is not None})
+        if not ids:
+            return {}
+        return {p.role_id: p for p in self.db.execute(
+            select(RolePermission).where(
+                RolePermission.role_id.in_(ids), RolePermission.module_key == module_key)
+        ).scalars()}
+
     def permissions_for(self, role_id: int) -> list[RolePermission]:
         return list(
             self.db.execute(
