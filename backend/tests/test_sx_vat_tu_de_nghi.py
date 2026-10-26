@@ -304,6 +304,34 @@ def test_tao_co_dong_duong_thi_de_yeu_cau_kho_approved(db, orders, lsx_svc, admi
     assert all(float(l.sl_de_nghi) > 0 for l in req.lines)
 
 
+def test_de_nghi_mang_to_ho_so_nhan_vien(db, orders, lsx_svc, admin, customer):
+    """L-VAI-47 (giữ luật 11/10, phương án A): tổ của đề nghị = tổ trên HỒ SƠ NHÂN VIÊN người bấm,
+    không phải phòng của tài khoản (tài khoản có thể trỏ tổ cha)."""
+    from app.models.department import Department
+    from app.models.stock_request import StockRequest
+    from app.services.san_xuat import vat_tu_de_nghi as V
+    from tests.test_san_xuat_thuc_thi import _emp, _mot_cv  # noqa
+
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-VA47")
+    to_ho_so = Department(name="Tổ hồ sơ VA47", code="TO-HS-VA47")
+    db.add(to_ho_so)
+    db.flush()
+    from app.repositories.employee_repo import EmployeeRepository
+
+    emp = EmployeeRepository(db).get_by_user_id(admin.id)
+    if emp is None:
+        _emp(db, to_ho_so, "NV-VA47", user_id=admin.id)
+    else:
+        emp.department_id = to_ho_so.id
+    db.commit()
+    assert admin.department_id != to_ho_so.id
+    kh = _kh_service(db).nhu_cau_cua_cong_viec(cv)
+    lines = [{"hang_loai": k["hang_loai"], "hang_id": k["hang_id"], **_dang_kho(k),
+              "dvt": k["dvt"], "sl_yeu_cau": k["sl"]} for k in kh]
+    ra = V.tao(db, user=admin, cong_viec_id=cv.id, can_luc=_T0, lines=lines)
+    assert db.get(StockRequest, ra["stock_request_id"]).bo_phan_id == to_ho_so.id
+
+
 def test_ngay_can_tinh_theo_gio_vn_khong_phai_utc(db, orders, lsx_svc, admin, customer):
     """`ngay_can` phải là ngày CỦA GIỜ VIỆT NAM mà `can_luc` rơi vào, không phải ngày UTC.
 

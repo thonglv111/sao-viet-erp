@@ -834,10 +834,13 @@ def cho_xac_nhan(db: Session, user: User, *, team_id: int) -> dict:
 def ho_tro_ung_vien(
     db: Session, user: User, authz: AuthorizationService, *, team_id: int
 ) -> dict:
-    """Người TỔ KHÁC tổ thêm được vào lần ghi sản lượng: thợ ở các tổ SX KHÁC. Cùng phạm vi ĐỌC
-    như `work_items` (tổ phải trong quyền user). Mỗi người kèm nhãn tổ gốc để tổ biết đang thêm ai
-    từ đâu."""
-    _pham_vi_doc(db, user, team_id)
+    """Người TỔ KHÁC tổ thêm được vào lần ghi sản lượng: thợ ở các tổ SX KHÁC. Mỗi người kèm nhãn
+    tổ gốc để tổ biết đang thêm ai từ đâu.
+
+    Cùng cổng với việc dùng nó (L-VAI-11, chủ chốt 26/10/2026): ai GHI được sản lượng ở tổ (Thực
+    hiện, kể cả "Của tôi") mới lấy được — thợ chỉ Xem tổ thì không."""
+    if quyen_to_cua(db, user).muc(VIEC_THUC_HIEN, team_id) is None:
+        raise PermissionError("Cần quyền ghi sản lượng ở tổ này mới thêm được người tổ khác.")
     # Ứng viên = thợ mọi tổ SX (kể cả tổ user không quản), trừ tổ đang thực hiện.
     moi_to = DepartmentRepository(db).to_san_xuat()
     to_ten = {d.id: d.name for d in moi_to}
@@ -1240,6 +1243,36 @@ def _vat_tu_chua_san_sang(db: Session, cv) -> str | None:
     return ly_do_vat_tu(tt["muc"]) if tt and chan_bat_dau(tt["muc"]) else None
 
 
+_CHIP_GIA = frozenset({"gia_co_dinh", "don_gia_khoan", "sl_ghi", "sl_vao", "sl_ra"})
+
+
+def _chu_cong_thuc(ct: str | None, tuy_chon: list | None) -> str | None:
+    """Công thức → chữ đọc được (cùng chữ ngăn soi khoán dùng); trống ⇒ None."""
+    from ..khoan_ky import _dien_giai_chu
+
+    ct = (ct or "").strip()
+    if not ct:
+        return None
+    ten = {t["ma"]: t.get("ten") or t["ma"] for t in (tuy_chon or []) if t.get("ma")}
+    return _dien_giai_chu(ct, ten)
+
+
+def _mo_ta_cong_thuc_khoan(ct: str | None, tuy_chon: list | None) -> dict:
+    """Hộp ghi nói giá theo CÔNG THỨC khoán (L-SX-40): tiền thật = công thức, nên chỉ in phần giá mà
+    công thức có dùng; công thức có chip khác (tuỳ chọn, giờ…) thì in cả công thức ra chữ."""
+    from ..bien_cong_thuc import TEN_HAM_CAM
+    from ..khoan_ky import _RE_TEN
+
+    ct = (ct or "").strip()
+    ten = set(_RE_TEN.findall(ct)) - TEN_HAM_CAM
+    return {
+        "cong_thuc_chu": _chu_cong_thuc(ct, tuy_chon) or "",
+        "dung_gia_co_dinh": "gia_co_dinh" in ten,
+        "dung_don_gia": "don_gia_khoan" in ten,
+        "chi_gia": ten <= _CHIP_GIA,
+    }
+
+
 def chi_tiet_cong_viec(
     db: Session, user: User, authz: AuthorizationService, *, cong_viec_id: int
 ) -> dict:
@@ -1443,6 +1476,8 @@ def chi_tiet_cong_viec(
             "tuy_chon": list(khoan_hien_tai.tuy_chon or []),
             "don_vi": khoan_hien_tai.unit,
             "don_vi_ten": nhan_don_vi(dv_me_ten, khoan_hien_tai.unit),
+            **_mo_ta_cong_thuc_khoan(getattr(khoan_hien_tai, "cong_thuc_khoan", None),
+                                     getattr(khoan_hien_tai, "tuy_chon", None)),
             "phat_sinh": [
                 {
                     "id": ps.id, "ten": ps.ten,
@@ -1450,6 +1485,8 @@ def chi_tiet_cong_viec(
                     "thieu_gia": viec_khoan.gia_ps_cua_to(ps, cv.department_id) is None,
                     "don_vi": ps.don_vi,
                     "don_vi_ten": nhan_don_vi(dv_me_ten, ps.don_vi),
+                    "cong_thuc_chu": _chu_cong_thuc(getattr(ps, "cong_thuc", None),
+                                                    getattr(khoan_hien_tai, "tuy_chon", None)),
                 }
                 for ps in khoan_hien_tai.viec_phat_sinh
             ],
@@ -1558,6 +1595,7 @@ def chi_tiet_cong_viec(
                             if r.don_vi_snapshot else None,
                             "don_gia": (float(r.don_gia_snapshot)
                                         if r.don_gia_snapshot is not None else None),
+                            "cong_thuc_chu": _chu_cong_thuc(getattr(r, "cong_thuc_snapshot", None), None),
                         }
                         for r in ps_map.get(b.id, [])
                     ],

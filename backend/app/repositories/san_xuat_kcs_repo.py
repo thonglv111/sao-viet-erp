@@ -19,8 +19,10 @@ from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
 from ..models.lsx import Lsx, LsxCongDoan
 from ..models.order import Order
 from ..models.san_xuat import (
-    NHOM_DANG_SX, SanXuatCongViec, SanXuatNhom, SanXuatNhomLsx, SanXuatPhuThuoc,
+    GOI_DA_THU_HOI, NHOM_DANG_SX, SanXuatCongViec, SanXuatGoiPhatHanh, SanXuatNhom, SanXuatNhomLsx,
+    SanXuatPhuThuoc,
 )
+from ..models.san_xuat_san_luong import SanXuatBatch
 from ..models.san_xuat_kcs import SanXuatKcsBatch, SanXuatKcsLoi, SanXuatKcsLoiAnh
 from ..models.user import User
 from .loc_danh_sach import dk_khoang_ngay
@@ -176,6 +178,57 @@ class SanXuatKcsRepository:
             .correlate(Lsx)
             .exists()
         )
+
+    def tinh_trang_nen(self, ids: list[int]) -> dict:
+        """Số liệu TỐI THIỂU để tính tình trạng KCS của MỌI lệnh nhóm còn mở (L-VAI-13): công việc
+        của lệnh (riêng + bài ghép phủ, trừ gói đã thu hồi — đúng tập `boi_canh.cong_viec_du`), nhóm,
+        Σ tốt của mẻ và Σ đạt / lỗi của lần kiểm theo công việc (cộng ở SQL, không kéo từng dòng),
+        thành viên nhóm + công việc KCS cuối để dò dòng nhập kho. Số câu không đổi theo số lệnh."""
+        ids = list(dict.fromkeys(int(i) for i in ids))
+        if not ids:
+            return {"lenh": set(), "cv": {}, "nhom": {}, "tot": {}, "kiem": {}, "lsx_theo_nhom": {},
+                    "cv_cuoi": []}
+        con = (
+            select(SanXuatCongViec)
+            .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
+            .where(SanXuatGoiPhatHanh.trang_thai != GOI_DA_THU_HOI)
+        )
+        co_lenh = set(self.db.scalars(select(Lsx.id).where(Lsx.id.in_(ids))))
+        cv: dict[int, list[SanXuatCongViec]] = {i: [] for i in ids}
+        for c in self.db.scalars(con.where(SanXuatCongViec.lsx_id.in_(ids))):
+            cv[c.lsx_id].append(c)
+        phu = list(self.db.execute(
+            select(BaiGhepCongDoanMap.lsx_id, BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+            .where(BaiGhepCongDoanMap.lsx_id.in_(ids))).all())
+        ghep: dict[int, list[SanXuatCongViec]] = {}
+        if phu:
+            for c in self.db.scalars(con.where(
+                    SanXuatCongViec.bai_ghep_cong_doan_id.in_({b for _l, b in phu}))):
+                ghep.setdefault(c.bai_ghep_cong_doan_id, []).append(c)
+        for lid, bgcd in phu:
+            for c in ghep.get(bgcd, []):
+                if all(x.id != c.id for x in cv[lid]):
+                    cv[lid].append(c)
+        cv_ids = {c.id for ds in cv.values() for c in ds}
+        nhom_ids = {c.nhom_id for ds in cv.values() for c in ds if c.nhom_id is not None}
+        nhom = {n.id: n for n in self.db.scalars(select(SanXuatNhom).where(SanXuatNhom.id.in_(nhom_ids)))}
+        tot = {int(c): float(t or 0) for c, t in self.db.execute(
+            select(SanXuatBatch.cong_viec_id, func.sum(SanXuatBatch.tot))
+            .where(SanXuatBatch.cong_viec_id.in_(cv_ids)).group_by(SanXuatBatch.cong_viec_id))}
+        kiem = {int(c): (float(d or 0), float(k or 0)) for c, d, k in self.db.execute(
+            select(SanXuatKcsBatch.cong_viec_id, func.sum(SanXuatKcsBatch.so_luong_dat),
+                   func.sum(SanXuatKcsBatch.so_luong_khong_dat))
+            .where(SanXuatKcsBatch.cong_viec_id.in_(cv_ids)).group_by(SanXuatKcsBatch.cong_viec_id))}
+        lsx_theo_nhom: dict[int, list[int]] = {}
+        for n_id, l_id in self.db.execute(
+                select(SanXuatNhomLsx.nhom_id, SanXuatNhomLsx.lsx_id).where(SanXuatNhomLsx.lsx_id.in_(ids))):
+            lsx_theo_nhom.setdefault(int(n_id), []).append(int(l_id))
+        cv_cuoi = [(int(a), b, c) for a, b, c in self.db.execute(
+            select(SanXuatCongViec.id, SanXuatCongViec.nhom_id, SanXuatCongViec.lsx_id).where(
+                SanXuatCongViec.la_kcs_cuoi.is_(True),
+                or_(SanXuatCongViec.nhom_id.in_(set(lsx_theo_nhom)), SanXuatCongViec.lsx_id.in_(ids))))]
+        return {"lenh": co_lenh, "cv": cv, "nhom": nhom, "tot": tot, "kiem": kiem,
+                "lsx_theo_nhom": lsx_theo_nhom, "cv_cuoi": cv_cuoi}
 
     def trang_lenh(
         self, *, tim: str | None, gom_da_dong: bool, offset: int, limit: int | None,

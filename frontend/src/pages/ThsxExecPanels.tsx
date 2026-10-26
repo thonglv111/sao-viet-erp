@@ -297,13 +297,26 @@ export function lanTheoId(batches: Pick<SxBatch, "id" | "bat_dau">[]): Map<numbe
 }
 
 /** Giá khoán kèm ĐVT — chỉ để TỔ NHÌN (§7.1): bàn tổ không nhân gì ra tiền. Giá là giá CỦA TỔ
- *  (bảng giá theo tổ, 21/10/2026): có giá cố định thì nêu trước, tổ chưa có giá thì nói thẳng. */
-function giaKhoan(v: {
+ *  (bảng giá theo tổ, 21/10/2026): có giá cố định thì nêu trước, tổ chưa có giá thì nói thẳng.
+ *  Tiền thật tính theo CÔNG THỨC (L-SX-30/40): chỉ in phần giá công thức có dùng; công thức có chip
+ *  khác thì nói cả công thức; việc phát sinh có cách tính giá thì nói cách tính, không in đơn giá. */
+export function giaKhoan(v: {
   don_gia: number; don_vi: string; don_vi_ten: string | null; gia_co_dinh?: number; thieu_gia?: boolean;
+  cong_thuc_chu?: string | null; dung_gia_co_dinh?: boolean; dung_don_gia?: boolean; chi_gia?: boolean;
 }): string {
+  // Phát sinh có "Cách tính giá" — không phụ thuộc bảng giá theo tổ của nó.
+  if (v.cong_thuc_chu && v.chi_gia === undefined) return `tính theo cách tính giá: ${v.cong_thuc_chu}`;
+  if (v.cong_thuc_chu === "") return "công đoạn chưa có công thức khoán";
+  if (v.chi_gia === false) return `tính theo công thức: ${v.cong_thuc_chu}`;
   if (v.thieu_gia) return "tổ chưa có giá";
   const dv = `${num(v.don_gia)} đ một ${v.don_vi_ten ?? nhanDonVi(v.don_vi)}`;
-  return v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi + ${dv}` : dv;
+  const coDinh = v.dung_gia_co_dinh ?? true;
+  const donGia = v.dung_don_gia ?? true;
+  const phan = [
+    coDinh && v.gia_co_dinh ? `${num(v.gia_co_dinh)} đ một lần ghi` : null,
+    donGia ? dv : null,
+  ].filter(Boolean);
+  return phan.length ? phan.join(" + ") : dv;
 }
 
 /** "lệnh 4 màu, 1 màu pha" — cùng chữ lương báo thiếu giá (`viec_khoan.mo_ta_mau`). */
@@ -1026,7 +1039,9 @@ export function BatchRow({
                     <div key={ps.id} className="thsx-b-dong-ps">
                       <span>{ps.ten ?? "—"}</span>
                       <span className="thsx-num">{num(ps.so_luong)}{ps.don_vi ? ` ${ps.don_vi_ten ?? nhanDonVi(ps.don_vi)}` : ""}</span>
-                      {ps.don_gia != null && ps.don_vi && (
+                      {ps.cong_thuc_chu ? (
+                        <span className="thsx-b-mo3">tính theo cách tính giá: {ps.cong_thuc_chu}</span>
+                      ) : ps.don_gia != null && ps.don_vi && (
                         <span className="thsx-b-mo3 thsx-num">{num(ps.don_gia)} đ / {ps.don_vi_ten ?? nhanDonVi(ps.don_vi)}</span>
                       )}
                     </div>

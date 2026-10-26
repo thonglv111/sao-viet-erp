@@ -74,6 +74,12 @@ def _may_chon(repo: DungMayRepository, department_id: int) -> list[dict]:
     for cv, ma_lsx in repo.viec_mo_co_may(department_id):
         viec.setdefault(int(cv.may_id), (cv, ma_lsx))
     ids = list(dict.fromkeys([*viec, *repo.may_thuoc_to(department_id)]))
+    # Máy tổ đứng mà tổ chưa có việc mở: việc của tổ KHÁC đang trên máy đó (L-SX-18) — hộp nói
+    # "Đang chạy LSX… của tổ X" thay vì "Rảnh". Việc của chính tổ vẫn đứng trước.
+    to_khac: dict[int, tuple] = {}
+    for cv, ma_lsx, ten_to in repo.viec_mo_tren_may([i for i in ids if i not in viec]):
+        if cv.department_id != department_id:
+            to_khac.setdefault(int(cv.may_id), (cv, ma_lsx, ten_to))
     may = repo.may(ids)
     yc, sc = repo.yeu_cau_mo(ids), repo.phieu_mo(ids)
     ra = []
@@ -81,11 +87,17 @@ def _may_chon(repo: DungMayRepository, department_id: int) -> list[dict]:
         if i not in may:
             continue
         cv, ma_lsx = viec.get(i, (None, None))
+        ten_to = None
+        if cv is None and i in to_khac:
+            cv, ma_lsx, ten_to = to_khac[i]
         mo = sc.get(i) or yc.get(i)
         ra.append({
             "id": i, "ma": may[i].ma, "ten": may[i].ten,
             "viec": " ".join(x for x in (ma_lsx, cv.ten_cong_doan) if x) if cv is not None else None,
             "viec_dang_chay": cv is not None and cv.trang_thai == CV_DANG_CHAY,
+            # Việc trên máy là của tổ khác ⇒ tên tổ đó; báo hư KHÔNG tạm dừng việc tổ khác (không
+            # có quyền theo tổ của việc), chỉ báo tin cho tổ đó.
+            "viec_cua_to": ten_to,
             "dang_mo": mo.ma if mo is not None else None,
         })
     return ra
@@ -252,6 +264,10 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
             raise ValueError(trung)
 
     cvs = [cv for cv, _ in repo.viec_mo_co_may(department_id) if int(cv.may_id) == may_id]
+    # Việc tổ KHÁC đang chạy trên máy này (L-SX-18, chủ chốt phương án B): không tạm dừng — chỉ báo
+    # tin cho tổ đó sau commit.
+    khac = [(cv, ma_lsx) for cv, ma_lsx, _t in repo.viec_mo_tren_may([may_id])
+            if cv.department_id != department_id and cv.trang_thai == CV_DANG_CHAY]
     neo = cvs[0] if cvs else None
     repo.khoa_may(may_id)   # giữ khoá rồi mới hỏi "máy đã có yêu cầu / phiếu mở chưa"
     phieu = repo.phieu_mo([may_id]).get(may_id)
@@ -322,7 +338,29 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
     }
     _bao_tin(db, svc, yc if (moi or nang) else None, tam_dung,
              phieu=phieu if bao_phieu else None, user=user, may_dung=bool(dung_san_xuat))
+    _bao_to_khac(repo, khac, department_id=department_id, may_id=may_id, ma=ket["yeu_cau_ma"] or ket["phieu_ma"])
     return ket
+
+
+def _bao_to_khac(repo: DungMayRepository, khac: list, *, department_id: int, may_id: int,
+                 ma: str | None) -> None:
+    """Toast cho tổ đang chạy việc trên máy mà tổ khác vừa báo hư (L-SX-18). Sau commit, hỏng thì
+    nuốt — cùng lý do `_bao_tin`."""
+    if not khac:
+        return
+    try:
+        to = repo.to(department_id)
+        may = repo.may([may_id]).get(may_id)
+        ten_may = may.ten if may is not None else f"#{may_id}"
+        for cv, ma_lsx in khac:
+            viec = " ".join(x for x in (ma_lsx, cv.ten_cong_doan) if x)
+            hub.gui({"type": "san_xuat_may_hu_to_khac", "team_id": cv.department_id,
+                     "cong_viec_id": cv.id, "may_id": may_id,
+                     "message": f"{to.name if to else 'Tổ khác'} vừa báo máy {ten_may} hư"
+                                f"{f' ({ma})' if ma else ''} — việc {viec} của tổ bạn đang chạy trên máy này."},
+                    to=[cv.department_id])   # chỉ người xem được bàn tổ đó — câu nói "tổ bạn"
+    except Exception:
+        pass
 
 
 def _noi_trieu_chung(ban, trieu_chung: str | None) -> bool:

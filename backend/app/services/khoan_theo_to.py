@@ -24,6 +24,7 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from ..models.payroll import PERIOD_DRAFT, TO_TRUONG_THUONG
+from ..repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.khoan_ky_repo import KhoanKyRepository
 from ..repositories.san_xuat_san_luong_to_repo import SanXuatSanLuongToRepository
@@ -232,6 +233,8 @@ def _mot_to(db: Session, payroll_svc, year: int, month: int, to_id: int, duoc_xe
     for h in hang:
         h["cong_them_sua_boi"] = ten_tk.get(h.pop("cong_them_sua_boi_id"))
     khach = repo.khach_theo_lenh(lsx_ids)
+    # Đơn vị việc phát sinh lưu MÃ ("to") — sổ in tên ("tờ"), L-SX-30.
+    bang_dv = DonViDoRepository(db).ten_theo_ma()
 
     def nguoi_ra(r: dict) -> list[dict]:
         # Tổ ghi sau tên là so với tổ ĐANG XEM — kể cả ở khối tổ khác (mockup "Văn Hùng máy 4 màu").
@@ -262,7 +265,9 @@ def _mot_to(db: Session, payroll_svc, year: int, month: int, to_id: int, duoc_xe
             "khach": khach.get(r["lsx_id"]) if r["lsx_id"] else None,
             "quy_cach": _quy_cach_bang(qc or None),
             "cong_doan": r["cong_doan"], "bac": r["bac"], "tuy_chon": r["tuy_chon"],
-            "phat_sinh": [{**p, "tien": _r(p["tien"])} for p in r["phat_sinh"]],
+            "phat_sinh": [{**p, "tien": _r(p["tien"]),
+                           "don_vi": nhan_don_vi(bang_dv, p["don_vi"]) if p.get("don_vi") else p.get("don_vi")}
+                          for p in r["phat_sinh"]],
             "so_luong": r["so_luong"], "don_vi": r["don_vi"],
             "tien_chinh": _r(r["tien_chinh"]), "tien": _r(r["tien"]), "he_so": r["he_so"],
             "ghi_chu": r["ghi_chu"], "cong_thuc": cong_thuc_cua_ban_ghi(r),

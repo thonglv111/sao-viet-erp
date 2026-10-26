@@ -30,15 +30,14 @@ describe("tinhTrangChon", () => {
     expect(t).toMatchObject({ muc: "canh", ghiChu: "Có tên ở LSX26-0001 · Bế (Tổ bế) — chưa bắt đầu" });
   });
 
-  it("đang chạy việc khác: cảnh báo, chỉ chặn khi việc đích cũng đang chạy", () => {
+  it("đang chạy việc khác: chỉ cảnh báo, kể cả khi việc đích cũng đang chạy (L-VAI-46, theo máy chủ)", () => {
     const tt = { ...RANH, dang_chay: VIEC };
     expect(tinhTrangChon(tt, HOM_NAY)).toMatchObject({
       tomTat: "Đang chạy LSX26-0004 · Bế (Tổ bế)", muc: "canh", chan: null, hang: 2,
     });
-    const chan = tinhTrangChon(tt, { ...HOM_NAY, viecDangChay: true });
-    expect(chan.muc).toBe("chan");
-    expect(chan.tomTat).toBe(chan.chan);
-    expect(chan.hang).toBe(3);
+    expect(tinhTrangChon(tt, { ...HOM_NAY, viecDangChay: true })).toMatchObject({
+      tomTat: "Đang chạy LSX26-0004 · Bế (Tổ bế)", muc: "canh", chan: null, hang: 2,
+    });
   });
 
   it("nghỉ phép theo đúng ngày xét: hôm nay bị chặn, ngày khác thì rảnh", () => {

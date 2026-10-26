@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SxWorkItemChiTiet } from "../api/client";
-import { BatchForm, nhanTuyChon, type ThsxExec } from "./ThsxExecPanels";
+import { BatchForm, giaKhoan, nhanTuyChon, type ThsxExec } from "./ThsxExecPanels";
 
 const cv = {
   id: 1, department_id: 7, ten_cong_doan: "Cắt thành phẩm", loai_buoc: "to",
@@ -187,6 +187,20 @@ describe("Tuỳ chọn khi ghi (Đợt 2)", () => {
     expect(screen.getByText("250.000 đ một lần ghi + 30 đ một tờ")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Ghi sản lượng" }));
     expect(taoBatch.mock.calls[0][0].mat_in).toBe("b");
+  });
+
+  it("L-SX-30/40: giá in theo công thức khoán, không in phần công thức không dùng", () => {
+    const g = { don_gia: 30, gia_co_dinh: 225000, don_vi: "to", don_vi_ten: "tờ" };
+    expect(giaKhoan({ ...g, cong_thuc_chu: "Số lượng ghi × Đơn giá khoán", chi_gia: true,
+      dung_gia_co_dinh: false, dung_don_gia: true })).toBe("30 đ một tờ");
+    expect(giaKhoan({ ...g, cong_thuc_chu: "Giá cố định", chi_gia: true,
+      dung_gia_co_dinh: true, dung_don_gia: false })).toBe("225.000 đ một lần ghi");
+    expect(giaKhoan({ ...g, cong_thuc_chu: "Tiền giờ × 2", chi_gia: false,
+      dung_gia_co_dinh: false, dung_don_gia: false })).toBe("tính theo công thức: Tiền giờ × 2");
+    expect(giaKhoan({ ...g, cong_thuc_chu: "", chi_gia: true })).toBe("công đoạn chưa có công thức khoán");
+    // Việc phát sinh có cách tính giá: nói cách tính, không in đơn giá thô.
+    expect(giaKhoan({ ...g, gia_co_dinh: undefined, cong_thuc_chu: "0.5 × Giá cố định" }))
+      .toBe("tính theo cách tính giá: 0.5 × Giá cố định");
   });
 
   it("thẻ ở lần ghi cùng chữ ngăn soi, bỏ mục bằng 0", () => {

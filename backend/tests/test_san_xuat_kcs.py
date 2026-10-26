@@ -642,6 +642,34 @@ def test_danh_sach_lenh_kcs_co_trang(db, orders, lsx_svc, admin, customer):
     assert out["co_trang"] == 1 and len(out["items"]) <= 1
 
 
+def test_danh_sach_kcs_dem_nut_khop_khi_chi_dung_dong_trang(
+        db, orders, lsx_svc, admin, customer, monkeypatch):
+    """L-VAI-13: số trên nút tình trạng tính bằng `_tinh_trang_nhieu` phải khớp tình trạng của dòng
+    lưới đầy đủ; dòng lưới chỉ dựng cho lệnh của TRANG, không dựng cho mọi lệnh nhóm còn mở."""
+    truoc, sau, _to_chiu, _tt, nguoi = _chuoi_hai_to(db, orders, lsx_svc, admin, customer, "KCS-V13")
+    _to, _cv, _res = _batch(db, orders, lsx_svc, admin, customer)
+    du = kcs._dong_danh_sach(db, kcs.SanXuatKcsRepository(db), [truoc.lsx_id, _cv.lsx_id])
+    assert {i["lsx_id"]: i["tinh_trang"] for i in du} == kcs._tinh_trang_nhieu(
+        db, [truoc.lsx_id, _cv.lsx_id])
+
+    goi: list[list[int]] = []
+    goc = kcs._dong_danh_sach
+
+    def dem_goi(db_, repo, ids):
+        goi.append(list(ids))
+        return goc(db_, repo, ids)
+
+    monkeypatch.setattr(kcs, "_dong_danh_sach", dem_goi)
+    out = kcs.danh_sach_lenh_kcs(db, nguoi, co_trang=1)
+    assert len(out["items"]) == 1 and goi == [[out["items"][0]["lsx_id"]]]
+    tong_tt = sum(out["dem"][k] for k in ("cho_kiem", "chua_gui_kho", "cho_dong"))
+    assert out["dem"]["cho_kiem"] >= 1 and tong_tt <= out["dem"]["tat_ca"]
+    goi.clear()
+    loc = kcs.danh_sach_lenh_kcs(db, nguoi, nhanh="cho_kiem", co_trang=1)
+    assert loc["tong"] == out["dem"]["cho_kiem"] and len(goi) == 1 and len(goi[0]) == 1
+    assert loc["items"][0]["tinh_trang"] == "cho_kiem"
+
+
 # --- Nhập kho từ công đoạn cuối -------------------------------------------------------------
 def test_nhap_kho_chi_cong_doan_cuoi_va_chi_nguoi_kcs(db, orders, lsx_svc, admin, customer):
     _to, cv, res = _batch(db, orders, lsx_svc, admin, customer)

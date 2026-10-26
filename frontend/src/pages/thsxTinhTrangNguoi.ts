@@ -52,12 +52,13 @@ export interface TinhTrangChon {
 /**
  * @param ngay       ngày xét nghỉ phép ("YYYY-MM-DD"): hôm nay khi giao việc, ngày làm việc của thỏa thuận khi hỗ trợ.
  * @param homNay     ngày XƯỞNG máy chủ trả về — để nói "hôm nay" thay vì ngày tháng.
- * @param viecDangChay việc đích đang chạy ⇒ giao là mở khoảng tham gia ngay ⇒ người đang chạy việc khác bị chặn.
+ * @param viecDangChay việc đích đang chạy. KHÔNG chặn nữa (L-VAI-46, chủ chốt 26/10/2026 theo luật máy
+ *                   chủ 10/10): người đang chạy việc khác chỉ được cảnh báo, giao được. Giữ tham số cho nơi gọi.
  * @param chanThem   lý do chặn riêng của ô gọi (vd công nhật ở bước nội bộ), ưu tiên nói trước.
  */
 export function tinhTrangChon(
   t: SxTinhTrangNguoi,
-  { ngay, homNay, viecDangChay = false, chanThem = null }: {
+  { ngay, homNay, chanThem = null }: {
     ngay: string; homNay: string | null; viecDangChay?: boolean; chanThem?: string | null;
   },
 ): TinhTrangChon {
@@ -70,7 +71,6 @@ export function tinhTrangChon(
       ? `Nghỉ phép ${khi}`
       : `Nghỉ phép ${khi} (${ngayNgan(phep.tu)}–${ngayNgan(phep.den)})`;
   }
-  if (!chan && chay && viecDangChay) chan = `Đang chạy ${chay} — việc này cũng đang chạy, không giao chồng được`;
   const canhBao = !chan && chay ? `Đang chạy ${chay}` : null;
   const cho = moTaViecCho(t.viec_cho);
   if (chan) return { tomTat: chan, muc: "chan", chan, canhBao, ghiChu: cho, hang: 3 };

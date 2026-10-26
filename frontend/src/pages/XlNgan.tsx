@@ -260,7 +260,10 @@ export function XlNgan({
   if (!ct) {
     return (
       <NganPhai tieuDe={dangTai ? "Đang tải lệnh" : "Không mở được lệnh"} onDong={onDong} len={len} xuong={xuong}>
-        <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
+        {dangTai
+          ? <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải dữ liệu lệnh sản xuất…" />
+          : <EmptyState trangThai="loi" inline tieuDeLoi="Không tải được lệnh sản xuất"
+              loi="Đóng ngăn rồi mở lại lệnh." />}
       </NganPhai>
     );
   }

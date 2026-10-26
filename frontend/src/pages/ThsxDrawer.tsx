@@ -35,7 +35,11 @@ import "./thsx/thsx-hop.css";
 
 interface Props {
   chiTiet: SxWorkItemChiTiet | null;
+  /** Đang nạp — ngăn không cần đọc nữa: chưa có chi tiết mà chưa có lỗi thì luôn là đang tải. */
   loading: boolean;
+  /** Lượt nạp chi tiết HỎNG thật (L-SX-09). Chỉ cờ này mới hiện "Không tải được…" — chưa có dữ
+   *  liệu mà cờ tải chưa kịp bật (khung hình đầu sau khi mở việc) là đang tải, không phải lỗi. */
+  loi?: boolean;
   /** Người chọn được cho ô "Giao người" (endpoint riêng của module, gác `san_xuat:read`). */
   candidates: SxNhanVienChon[];
   /** Ứng viên HỖ TRỢ CHÉO (§9) — thợ tổ SX khác đang làm (endpoint riêng module). */
@@ -157,7 +161,7 @@ function ThanhKeoNgan() {
 }
 
 export function ThsxDrawer({
-  chiTiet, loading, candidates, hoTroUngVien, ungVienHomNay = null, onMoChonNguoi, mayOptions, exec, busy,
+  chiTiet, loi = false, candidates, hoTroUngVien, ungVienHomNay = null, onMoChonNguoi, mayOptions, exec, busy,
   onGiao, onRut, onBatDau, onNhanKhuon, onTraKhuon, onTamDung, onKetThuc, onClose, tabDau, dinhKemDem,
   kcsTick, kcsLoiChoXem, cho, onXemKcs, tenTo,
 }: Props) {
@@ -380,9 +384,11 @@ export function ThsxDrawer({
           )}
 
           <div className="thsx-panel__body thsx-b-body" ref={bodyRef}>
-            {loading && !chiTiet ? (
+            {loi && !chiTiet ? (
+              <div className="thsx-panel__empty">Không tải được chi tiết công việc.</div>
+            ) : !chiTiet ? (
               <EmptyState trangThai="dang-tai" inline />
-            ) : !cv || !chiTiet ? (
+            ) : !cv ? (
               <div className="thsx-panel__empty">Không tải được chi tiết công việc.</div>
             ) : (
               <>
