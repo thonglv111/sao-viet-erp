@@ -129,7 +129,12 @@ def _mot_to(db: Session, payroll_svc, year: int, month: int, to_id: int, duoc_xe
         cot[t["emp"]]["o_to_khac"] += t["tien"]
 
     ky = payroll_svc.payroll.get_period_by_ym(year, month)
-    dong = {int(ln.employee_id): ln for ln in payroll_svc.payroll.list_lines(ky.id)} if ky else {}
+    # Dòng lương CHỈ của những người màn này tra tới (thành viên tổ + người có tiền ở tổ) — nạp cả
+    # bảng lương công ty để đọc vài chục dòng là hàng nghìn object thừa (26/10/2026).
+    can_dong = (tv | set(cot) | set(ct_to) | {e for r in lan_to + lan_khac + dm_to for e in r["nguoi"]}
+                | {t["emp"] for t in tt_to})
+    dong = ({int(ln.employee_id): ln for ln in payroll_svc.payroll.lines_cua_nv(ky.id, can_dong)}
+            if ky else {})
     thanh_vien = {e for e in tv if e in cot or e in dong or e in ct_to}
     # Người chỉ còn Cộng thêm ở tổ này (chuyển tổ giữa kỳ) vẫn có dòng — Cộng thêm hiện và sửa ở tổ
     # đã gõ (L-SX-33).

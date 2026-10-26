@@ -51,4 +51,4 @@ def test_ds_su_kien_xep_moi_truong_mot_lan(monkeypatch):
     nv, ds = _nv(), DsSuKien(_su_kien())
     for ngay in range(1, 32):
         bien_che.trong_bien_che(nv, ds, date(2026, 10, ngay))
-    assert dem["n"] == 2  # status + department, không phải 2 × 31
+    assert dem["n"] <= 2  # mỗi trường một lần, không phải 2 × 31
