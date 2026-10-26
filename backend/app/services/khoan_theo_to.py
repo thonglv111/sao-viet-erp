@@ -63,14 +63,45 @@ def xem(db: Session, payroll_svc, year: int, month: int, to_id: int | None,
     pb = repo.phong_ban()
     co_to = {r["to_id"] for r in so["lan_ghi"] + so["dung_may"] if r["to_id"] in pb}
     cac_to = sorted(({"id": i, "ten": pb[i].name} for i in co_to), key=lambda x: x["ten"])
+    if duoc_xem is not None:
+        # Phạm vi hẹp (vd Cả phòng): ô Tổ chỉ liệt kê tổ MỞ ĐƯỢC (có người trong phạm vi, không dính
+        # người ngoài phạm vi), mở màn lấy tổ đầu của danh sách đó thay vì 403 cả màn (L-SX-32). Chọn
+        # đích danh tổ có người ngoài phạm vi vẫn 403 — tiền một người là dữ liệu của người đó.
+        to_pv = {d for _, d in repo.nhan_vien(duoc_xem).values() if d is not None}
+        mo: dict[int, dict] = {}
+        for t in cac_to:
+            if t["id"] not in to_pv:
+                continue
+            try:
+                mo[t["id"]] = _mot_to(db, payroll_svc, year, month, t["id"], duoc_xem, co_quyen_sua,
+                                      muc, so, repo, pb)
+            except KhoanTheoToForbidden:
+                continue
+        cac_to = [t for t in cac_to if t["id"] in mo]
+        if to_id is None and cac_to:
+            to_id = cac_to[0]["id"]
+        if to_id in mo:
+            return {**mo[to_id], "cac_to": cac_to}
     if to_id is None and cac_to:
         to_id = cac_to[0]["id"]
-    ra: dict = {"year": year, "month": month, "cac_to": cac_to, "to_id": to_id, "to_ten": None,
-                "la_to_in": False, "to_truong": None, "quy": None, "nguoi": [], "doi_chieu": None,
-                "so": [], "khac": [], "dung_may": [], "ngay": [], "co_bang_luong": False,
-                "thanh_vien": [], "khoa": False, "sua_duoc": False}
     if to_id is None or to_id not in pb:
-        return ra
+        return _rong(year, month, cac_to, to_id)
+    return {**_mot_to(db, payroll_svc, year, month, to_id, duoc_xem, co_quyen_sua, muc, so, repo, pb),
+            "cac_to": cac_to}
+
+
+def _rong(year: int, month: int, cac_to: list[dict], to_id: int | None) -> dict:
+    return {"year": year, "month": month, "cac_to": cac_to, "to_id": to_id, "to_ten": None,
+            "la_to_in": False, "to_truong": None, "quy": None, "nguoi": [], "doi_chieu": None,
+            "so": [], "khac": [], "dung_may": [], "ngay": [], "co_bang_luong": False,
+            "thanh_vien": [], "khoa": False, "sua_duoc": False}
+
+
+def _mot_to(db: Session, payroll_svc, year: int, month: int, to_id: int, duoc_xem: set[int] | None,
+            co_quyen_sua: bool, muc, so: dict, repo: KhoanKyRepository, pb: dict) -> dict:
+    """Payload một tổ của màn Khoán theo tổ (`cac_to` nơi gọi điền) — tổ có người ngoài `duoc_xem`
+    ⇒ `KhoanTheoToForbidden`."""
+    ra = _rong(year, month, [], to_id)
 
     lan_to = [r for r in so["lan_ghi"] if r["to_id"] == to_id]
     dm_to = [r for r in so["dung_may"] if r["to_id"] == to_id]
@@ -99,7 +130,9 @@ def xem(db: Session, payroll_svc, year: int, month: int, to_id: int | None,
     ky = payroll_svc.payroll.get_period_by_ym(year, month)
     dong = {int(ln.employee_id): ln for ln in payroll_svc.payroll.list_lines(ky.id)} if ky else {}
     thanh_vien = {e for e in tv if e in cot or e in dong or e in ct_to}
-    ngoai = set(cot) - tv
+    # Người chỉ còn Cộng thêm ở tổ này (chuyển tổ giữa kỳ) vẫn có dòng — Cộng thêm hiện và sửa ở tổ
+    # đã gõ (L-SX-33).
+    ngoai = (set(cot) | set(ct_to)) - tv
     nguoi_so = {e for r in lan_to + lan_khac + dm_to for e in r["nguoi"]}
     tat_ca = thanh_vien | ngoai | nguoi_so | {t["emp"] for t in tt_to}
     if duoc_xem is not None and not tat_ca <= duoc_xem:
@@ -209,7 +242,8 @@ def xem(db: Session, payroll_svc, year: int, month: int, to_id: int | None,
         tay = {"loai": r["loai"], "dong_tay_id": r.get("dong_tay_id"), "noi_dung": r.get("noi_dung"),
                "nguoi_ids": r.get("nguoi_ids") or [], "loi": r.get("loi"),
                "tien_may": None if r["tien_may"] is None else _r(r["tien_may"]), "tay": r["tay"],
-               "ghi_chu_tay": r["ghi_chu_tay"], "sua_boi": ten_tk.get(r["sua_boi_id"]), "sua_luc": r["sua_luc"]}
+               "ghi_chu_tay": r["ghi_chu_tay"], "sua_boi": ten_tk.get(r["sua_boi_id"]), "sua_luc": r["sua_luc"],
+               "chua_tinh": r.get("chua_tinh") or [], "khong_khoan": bool(r.get("khong_khoan"))}
         tt = [{"ten": ten(t["emp"]), "che_do": t["che_do"], "ty_le": t["ty_le"], "tien": _r(t["tien"])}
               for t in r["to_truong"]]
         if r["loai"] == "dong_tay":

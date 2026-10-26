@@ -129,4 +129,30 @@ describe("Khoán theo tổ", () => {
     expect(container.querySelector("td.ktt-nhap")).toBeNull();
     expect(screen.queryByText("Gõ vào dòng này để thêm một dòng tay")).toBeNull();
   });
+  it("lần ghi gạch (tổ in ngày CN / lễ) không in số chia từng người (L-SX-36)", async () => {
+    data = { ...goc, so: [{ ...lan(14, "2026-10-04", 500_000, [ng(2, "Mai Bảo Trang", 0)], 0), he_so: 0 }] };
+    const { container } = render(<KhoanTheoToTab token="t" />);
+    await screen.findByText("Sổ sản lượng");
+    const li = container.querySelector(".ktt-ng li")!;
+    expect(li.textContent).toContain("—");
+    expect(li.textContent).not.toContain("500.000");
+  });
+
+  it("lần ghi chưa có cấu hình Khoán: chip lý do, ô Tiền khoá (L-SX-27, L-SX-29)", async () => {
+    data = { ...goc, so: [{ ...lan(15, "2026-10-07", 0, [], 0), to_truong: [], khong_khoan: true,
+      chua_tinh: ["công đoạn chưa có cấu hình Khoán"] }] };
+    const { container } = render(<KhoanTheoToTab token="t" />);
+    await screen.findByText("Sổ sản lượng");
+    expect(screen.getByText("công đoạn chưa có cấu hình Khoán")).toBeTruthy();
+    expect(container.querySelector('td[data-k="b15|tien"]')).toBeNull();
+    expect(container.querySelector('td[data-k="b15|gc"]')).not.toBeNull();
+  });
+
+  it("người đã chuyển tổ còn Cộng thêm ở tổ này: ô hiện và sửa được (L-SX-33)", async () => {
+    data = { ...goc, nguoi: [...goc.nguoi, { ...goc.nguoi[0], emp_id: 3, ten: "Lê Thị Cúc", to_ten: "Cắt 1",
+      la_thanh_vien: false, cong_them: -50_000 }] };
+    const { container } = render(<KhoanTheoToTab token="t" />);
+    await screen.findByText("Sổ sản lượng");
+    expect(container.querySelector('td[data-k="c3|cong"]')!.textContent).toContain("-50.000");
+  });
 });

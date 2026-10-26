@@ -102,12 +102,13 @@ function NguoiLan({ lan }: { lan: KttLanGhi }) {
           ? "làm một mình, ăn trọn phần chia của lần ghi"
           : `lương bù lỗ ${money(n.luong_bu_lo)} ÷ (${[money(n.luong_bu_lo), ...khac].join(" + ")}) = ${pt(cach)}`]);
         if (ptTt > 0) rows.push(["Phần người", `${pt(conLai)} × ${pt(cach)} = ${pt(phan)}`]);
-        rows.push(["Tiền", `${money(goc)} × ${pt(phan)} = ${money(tien)}`]);
+        // Lần ghi gạch (tổ in ngày CN / lễ): không ai được chia ⇒ không in số chia (L-SX-36).
+        rows.push(["Tiền", bo ? "tổ in ngày Chủ nhật / lễ không tính sản lượng" : `${money(goc)} × ${pt(phan)} = ${money(tien)}`]);
         return (
           <li key={n.emp_id}>
             <TenNguoi n={n} />
             <span className="ktt-pt"><Hov neo={pt(phan)} rows={rows} rong={460} /></span>
-            <span className={bo ? "ktt-gach" : ""}>{money(tien)}</span>
+            <span>{bo ? "—" : money(tien)}</span>
           </li>
         );
       })}
@@ -118,12 +119,12 @@ function NguoiLan({ lan }: { lan: KttLanGhi }) {
             <span>{chia ? "Tổ trưởng chia" : "Tổ trưởng thưởng"}</span>
             <span className="ktt-pt">
               <Hov neo={pt(t.ty_le)} rong={440} rows={[
-                ["Thế số", `${money(goc)} × ${pt(t.ty_le)} = ${money(t.tien)}`],
+                ["Thế số", bo ? "tổ in ngày Chủ nhật / lễ không tính sản lượng" : `${money(goc)} × ${pt(t.ty_le)} = ${money(t.tien)}`],
                 ["Người nhận", `${t.ten} dù có làm lần này hay không`],
                 ["Nguồn", chia ? "trích trước khi chia cho người làm" : "công ty trả thêm, không trừ ai"],
               ]} />
             </span>
-            <span className={bo ? "ktt-gach" : ""}>{money(t.tien)}</span>
+            <span>{bo ? "—" : money(t.tien)}</span>
           </li>
         );
       })}
@@ -146,11 +147,12 @@ function TienLan({ lan }: { lan: KttLanGhi }) {
 const khoaLenh = (l: KttLanGhi) =>
   l.loai === "dong_tay" ? `tay:${l.dong_tay_id}` : `${l.nguon_loai}:${l.nguon_id ?? `b${l.batch_id}`}`;
 
-/** Ô Tiền một lần ghi: số kế toán gõ thì kèm số máy gạch ngang, rê ra ai gõ lúc nào. */
+/** Ô Tiền một lần ghi: số kế toán gõ thì kèm số máy gạch ngang, rê ra ai gõ lúc nào. Công đoạn chưa có
+ *  cấu hình Khoán thì ô khoá — máy chủ không nhận tiền gõ tay cho lần ghi đó (L-SX-27). */
 function OTienLan({ l, duoc }: { l: KttLanGhi; duoc: boolean }) {
   const hien = l.tien * (l.he_so || 1);
   return (
-    <OGo k={`b${l.batch_id}|tien`} giaTri={money(l.tien)} tay={l.tay} lop="r" duoc={duoc}>
+    <OGo k={`b${l.batch_id}|tien`} giaTri={money(l.tien)} tay={l.tay} lop="r" duoc={duoc && !l.khong_khoan}>
       {l.tay ? (
         <>
           <Hov neo={<span className={`ktt-tien${l.he_so === 0 ? " ktt-gach" : ""}`}>{money(hien)}</span>} rong={320} rows={[
@@ -235,6 +237,7 @@ function BangSo({ ds, nhanNgayPhu, nhanTong, coGhiChu = false, duoc = false, moi
                       {l.cong_doan}
                       {l.bac && <div className="ktt-sub">{l.bac}</div>}
                       {l.ghi_chu && <div className="ktt-sub">{l.ghi_chu}</div>}
+                      {(l.chua_tinh ?? []).map((x) => <div key={x}><ChipTT mau="cam">{x}</ChipTT></div>)}
                     </td>
                     <td>
                       {l.tuy_chon.length
@@ -402,7 +405,8 @@ function BangChia({ data, duoc }: { data: KhoanTheoTo; duoc: boolean }) {
                     <td className="r ktt-ke">{n.luong_chinh == null ? <span className="ktt-trong">—</span> : money(n.luong_chinh)}</td>
                   </>
                 )}
-                {n.la_thanh_vien ? (
+                {/* Người đã chuyển tổ mà còn Cộng thêm gõ ở tổ này: hiện và sửa ở đây (L-SX-33). */}
+                {n.la_thanh_vien || n.cong_them != null ? (
                   <>
                     <OGo k={`c${n.emp_id}|cong`} giaTri={n.cong_them == null ? "" : money(n.cong_them)}
                       tay={n.cong_them != null} lop="r ktt-ke" duoc={duoc}>

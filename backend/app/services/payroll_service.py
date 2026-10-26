@@ -2685,6 +2685,7 @@ class PayrollService:
         tv = float(params.probation_ratio)
         lcm: dict[int, float] = {}
         nen_gio: dict[int, float] = {}
+        an_khoan: set[int] = set()
         for eid, s in sal.items():
             emp = emps.get(eid)
             if emp is None:
@@ -2696,7 +2697,9 @@ class PayrollService:
                                                 if c.get("kind") != "tru")
             lcm[eid] = nen * ratio + phu
             nen_gio[eid] = nen
-        return MucKhoan(luong_ca_may=lcm, nen_gio=nen_gio)
+            if self._che_do_khoan(emp.department_id) and not an_cong_nhat_hieu_luc(s, la_thu_viec(emp, st)):
+                an_khoan.add(eid)
+        return MucKhoan(luong_ca_may=lcm, nen_gio=nen_gio, an_khoan=frozenset(an_khoan))
 
     def chi_tiet_khoan_ky(self, *, line_id: int, scope=None, actor=None) -> list[dict]:
         """Từng lần ghi / tăng ca khoán / phần tổ trưởng làm nên tiền khoán của MỘT dòng lương."""

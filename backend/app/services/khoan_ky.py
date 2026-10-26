@@ -84,6 +84,10 @@ class MucKhoan:
 
     luong_ca_may: dict[int, float] = field(default_factory=dict)
     nen_gio: dict[int, float] = field(default_factory=dict)
+    # Người ĂN LƯƠNG KHOÁN cuối kỳ (tổ tính hai lương, không ăn công nhật) — lần ghi ở công đoạn chưa
+    # có cấu hình Khoán chỉ cảnh báo khi có họ hoặc khi tổ đã có lần ghi có Khoán (L-SX-27). None =
+    # nơi gọi không biết ⇒ chỉ xét tổ.
+    an_khoan: frozenset[int] | None = None
 
 
 _TU_TRO = ("tu_tro", "tro_nhip")
@@ -392,40 +396,48 @@ class KhoanKyService:
             to = int(cv.department_id) if cv.department_id else None
             khoan = khoan_map.get(int(b.khoan_cong_doan_id))
             ten_cd = b.ten_khoan_snapshot or (khoan.cong_doan.ten if khoan is not None else "—")
+            ds = nguoi.get(int(b.id)) or []
+            w = {int(r.employee_id): _so(muc.luong_ca_may.get(int(r.employee_id))) for r in ds}
+            chua = [ten_nv.get(e, f"#{e}") for e, v in w.items() if v <= 0]
+            # Có người + ai cũng có lương ca máy ⇒ tiền lần ghi (kể cả số kế toán gõ tay) chia được.
+            chia_duoc = bool(ds) and not chua
 
             def bao(ly_do: str, sua: str = "gia") -> None:
                 # `sua` = chỗ phải sửa, câu cảnh báo trước chốt chia nhóm theo nó: "gia" (tab Khoán
-                # của công đoạn), "luong" (hồ sơ lương), "lan_ghi" (bàn tổ).
+                # của công đoạn), "cau_hinh" (cấu hình Khoán đã gỡ), "luong" (hồ sơ lương), "lan_ghi"
+                # (bàn tổ). `chia_duoc` = kế toán gõ tay thì câu rụng (tiền đã có chỗ đi).
                 thieu.append({"batch_id": int(b.id), "cong_doan": ten_cd, "to": ten_to(to),
-                              "ngay": d.strftime("%d/%m"), "ly_do": ly_do, "sua": sua})
+                              "ngay": d.strftime("%d/%m"), "ly_do": ly_do, "sua": sua,
+                              "chia_duoc": chia_duoc})
 
-            ds = nguoi.get(int(b.id)) or []
+            # Nhánh chặn (L-SX-41): máy không tính tiền nhưng lần ghi VẪN vào sổ 0 đ — số kế toán gõ
+            # tay vẫn ăn, câu cảnh báo nói đúng chỗ phải sửa.
+            chan = True
             if khoan is None:
-                bao("cấu hình Khoán của công đoạn đã bị gỡ")
-                continue
-            if not ds:
+                bao("cấu hình Khoán của công đoạn đã bị gỡ", "cau_hinh")
+            elif not ds:
                 bao("chưa tick người làm", "lan_ghi")
-                continue
-            w = {int(r.employee_id): _so(muc.luong_ca_may.get(int(r.employee_id))) for r in ds}
-            chua = [ten_nv.get(e, f"#{e}") for e, v in w.items() if v <= 0]
-            if chua:
+            elif chua:
                 bao(f"{', '.join(chua)} chưa có lương ca máy", "luong")
-                continue
+            else:
+                chan = False
             bac = b.bac_khoan_snapshot or None
             cong_thuc = None
             hoan_dg = None
             ctx = None
-            if b.don_gia_khoan_snapshot is None:
+            tien = 0.0
+            if chan:
+                pass
+            elif b.don_gia_khoan_snapshot is None:
                 if bac and not bac.get("ma"):
                     bao(f"{viec_khoan.mo_ta_mau(bac)} chưa khớp bậc giá nào")
                 elif bac:
                     bao(f"tổ chưa có giá bậc {bac.get('ten')} ({viec_khoan.mo_ta_mau(bac)})")
                 else:
                     bao("tổ chưa có giá ở bảng giá theo tổ")
-                tien = 0.0
             elif _RE_TIEN_GIO.search(cong_thuc_cua_lan_ghi(khoan, b)) and b.ket_thuc <= b.bat_dau:
                 bao("công thức tính theo giờ mà lần ghi chưa có giờ kết thúc", "lan_ghi")
-                continue
+                chan = True
             else:
                 qc = self._quy_cach(cv, lenh, bai_cache)
                 k_qc = ("lsx", int(cv.lsx_id)) if cv.lsx_id and int(cv.lsx_id) in lenh else (
@@ -467,8 +479,9 @@ class KhoanKyService:
                             cong_thuc = dien_giai(*hoan_dg[:4], ve_chu=hoan_dg[4])
             tien_chinh = tien
             ps_so: list[dict] = []
-            ct_ps_song = {int(v.id): v.cong_thuc for v in khoan.viec_phat_sinh}
-            for r in phat_sinh.get(int(b.id)) or []:
+            # Nhánh chặn không đọc việc phát sinh (cấu hình Khoán có thể đã gỡ).
+            ct_ps_song = {} if chan else {int(v.id): v.cong_thuc for v in khoan.viec_phat_sinh}
+            for r in () if chan else (phat_sinh.get(int(b.id)) or []):
                 # "Cách tính giá" (24/10/2026): công thức ra đơn giá trên chính lần ghi — ảnh chụp lúc
                 # ghi; dòng ghi trước mg 0443 (NULL) đọc công thức hiện tại của danh mục.
                 ct_ps = (r.cong_thuc_snapshot if r.cong_thuc_snapshot is not None
@@ -496,9 +509,17 @@ class KhoanKyService:
             if tay is not None and tay.tien is not None:
                 tien = _so(tay.tien)
                 da_tay.add(int(b.id))
-            # Lần ghi máy chưa tính được (thiếu giá, công thức lỗi) vẫn vào SỔ với tiền 0 để kế toán gõ
-            # tay; lần ghi ra 0 vì công thức không tính thì bỏ như cũ.
-            if tien == 0 and int(b.id) not in da_tay and not (so and len(thieu) > n_thieu):
+            # Tiền khoán ra âm (L-SX-34): giữ đúng số công thức — luật "công thức tường minh" — chỉ nói
+            # ra trước chốt để người khai xem lại.
+            if tien < 0:
+                canh_bao.append(f"Lần ghi {ten_cd} — {ten_to(to)} ngày {d.strftime('%d/%m')}: tiền khoán "
+                                f"ra âm {_vnd(tien)} đ — xem lại công thức ở Danh mục → Công đoạn → tab "
+                                f"Khoán, hoặc gõ tay tiền ở Khoán theo tổ.")
+            # Lý do máy chưa tính được của CHÍNH lần ghi — sổ và ngăn soi in ra (L-SX-29).
+            ly_do = [t["ly_do"] for t in thieu[n_thieu:]]
+            # Lần ghi máy chưa tính được (thiếu giá, công thức lỗi, nhánh chặn) vẫn vào sổ + ngăn soi
+            # với tiền 0 để kế toán gõ tay; lần ghi ra 0 vì công thức không tính thì bỏ như cũ.
+            if tien == 0 and int(b.id) not in da_tay and not ly_do:
                 continue
 
             la_cn, la_le = self.cal.la_ngay_nghi_tuan(d), d in le
@@ -511,7 +532,8 @@ class KhoanKyService:
                 he_so, ghi_chu = 1.0, None
             tong_w = sum(w.values())
             the = _nhan_tuy_chon(b.tuy_chon_khoan)
-            for r in ds:
+            # Không người / có người chưa có lương ca máy ⇒ không chia (câu cảnh báo còn đứng).
+            for r in ds if chia_duoc else ():
                 emp = int(r.employee_id)
                 moi = tien * w[emp] / tong_w
                 phan.append([emp, to, d, int(b.id), moi * he_so])
@@ -524,11 +546,12 @@ class KhoanKyService:
                         "tien_lan_ghi": round(tien), "so_nguoi": len(ds),
                         "ty_le": w[emp] / tong_w, "luong_bu_lo": w[emp], "tong_luong_bu_lo": tong_w,
                         "to_truong": [], "tuy_chon": the, "tien": round(moi * he_so), "ghi_chu": ghi_chu,
+                        "chua_tinh": ly_do,
                     }
                     chi_tiet[emp].append(ct_lan[(emp, int(b.id))])
                 if he_so > 0 and to is not None:
                     phan_ngay[(to, d)][emp] += moi
-            if he_so > 0 and to is not None:
+            if chia_duoc and he_so > 0 and to is not None:
                 quy_ngay[(to, d)] += tien
             if so:
                 so_ban_ghi[int(b.id)] = {
@@ -537,11 +560,40 @@ class KhoanKyService:
                     "cong_doan": ten_cd, "bac": (bac or {}).get("ten"), "tuy_chon": the,
                     "phat_sinh": ps_so, "so_luong": _so(b.tot), "don_vi": b.don_vi,
                     "tien_chinh": tien_chinh, "tien": tien, "he_so": he_so, "ghi_chu": ghi_chu,
-                    "cong_thuc": cong_thuc, "_dien_giai": hoan_dg,
+                    "cong_thuc": cong_thuc, "_dien_giai": hoan_dg, "chua_tinh": ly_do, "khong_khoan": False,
                     # Điền lại SAU khi trích tổ trưởng — đây mới là số người đó nhận.
-                    "nguoi": {int(r.employee_id): tien * w[int(r.employee_id)] / tong_w * he_so for r in ds},
+                    "nguoi": ({int(r.employee_id): tien * w[int(r.employee_id)] / tong_w * he_so for r in ds}
+                              if chia_duoc else {}),
                     "to_truong": [],
                     **self._tay_ra(tay, tien_may, int(b.id) in da_tay),
+                }
+
+        # --- Lần ghi ở công đoạn CHƯA có cấu hình Khoán (L-SX-27) ------------------------------
+        # Dòng 0 đ + câu "chưa có cấu hình Khoán", KHÔNG vào `cap` (đếm lần chạy đọc mã Khoán). Chỉ
+        # nói ở tổ đã có lần ghi có Khoán trong kỳ hoặc khi có người ăn lương khoán được tick — tổ ăn
+        # lương thời gian cũng ghi sản lượng, réo hết là ngập câu trước chốt. Ô Tiền khoá: không có
+        # cấu hình Khoán thì không gõ tay được (`khoan_sua_tay`).
+        to_co_khoan = {int(cv.department_id) for _, cv in cap if cv.department_id}
+        cap0 = [(b, cv, dd) for b, cv in self.repo.lan_ghi_khong_khoan(tu, den)
+                if (dd := ngay_cua_me(b.bat_dau)) is not None and dau <= dd <= cuoi]
+        nguoi0 = self.repo.nguoi_theo_lan_ghi([int(b.id) for b, _, _ in cap0]) if cap0 else {}
+        for b, cv, d in cap0:
+            to = int(cv.department_id) if cv.department_id else None
+            tick = {int(r.employee_id) for r in nguoi0.get(int(b.id)) or []}
+            if not ((to is not None and to in to_co_khoan) or (muc.an_khoan and tick & muc.an_khoan)):
+                continue
+            ly = "công đoạn chưa có cấu hình Khoán"
+            thieu.append({"batch_id": int(b.id), "cong_doan": cv.ten_cong_doan or "—", "to": ten_to(to),
+                          "ngay": d.strftime("%d/%m"), "ly_do": ly, "sua": "chua_khoan", "chia_duoc": False})
+            if so:
+                so_ban_ghi[int(b.id)] = {
+                    "batch_id": int(b.id), "ngay": d, "bat_dau": b.bat_dau, "to_id": to,
+                    "cong_viec_id": int(cv.id), "lsx_id": cv.lsx_id, "bai_ghep_id": cv.bai_ghep_id,
+                    "cong_doan": cv.ten_cong_doan or "—", "bac": None, "tuy_chon": [], "phat_sinh": [],
+                    "so_luong": _so(b.tot), "don_vi": b.don_vi, "tien_chinh": 0.0, "tien": 0.0,
+                    "he_so": 1.0, "ghi_chu": None, "cong_thuc": None, "_dien_giai": None,
+                    "chua_tinh": [ly], "khong_khoan": True, "nguoi": {}, "to_truong": [],
+                    **self._tay_ra(None, 0.0, False),
                 }
 
         # --- Dòng tay kế toán chèn vào sổ (23/10/2026) ------------------------------------
@@ -590,7 +642,10 @@ class KhoanKyService:
                     "to_truong": [], "tien_may": None, "tay": True, "ghi_chu_tay": r.ghi_chu,
                     "sua_boi_id": r.sua_boi_id, "sua_luc": r.sua_luc,
                 }
-        thieu = [t for t in thieu if t["batch_id"] is None or t["batch_id"] not in da_tay]
+        # Kế toán đã gõ tay tiền lần ghi ⇒ câu thiếu giá / công thức của lần đó rụng; câu "không chia
+        # được" (không người, thiếu lương ca máy) vẫn đứng — số gõ tay chưa có ai nhận.
+        thieu = [t for t in thieu if t["batch_id"] is None or t["batch_id"] not in da_tay
+                 or not t.get("chia_duoc", True)]
 
         # --- Tăng ca khoán: 50% phần tổ vượt chỉ tiêu ngày ------------------------------
         moc_chi_tieu = self.repo.chi_tieu_ngay(cuoi)

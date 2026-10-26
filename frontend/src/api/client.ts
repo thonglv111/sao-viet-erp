@@ -6828,6 +6828,8 @@ export interface KhoanKyDong {
   tien_ngay?: number | null;
   tien: number;
   ghi_chu?: string | null;
+  /** Lần ghi máy chưa tính được tiền: từng lý do (công thức lỗi, thiếu giá…) — L-SX-29. */
+  chua_tinh?: string[];
 }
 
 export interface KhoanKyChiTiet {
@@ -6888,6 +6890,10 @@ export interface KttLanGhi {
   cong_thuc: string | null;
   nguoi: KttNguoiLan[];
   to_truong: KttToTruongLan[];
+  /** Lý do máy chưa tính được tiền lần ghi (L-SX-29). */
+  chua_tinh?: string[];
+  /** Công đoạn chưa có cấu hình Khoán: dòng 0 đ, ô Tiền khoá (L-SX-27). */
+  khong_khoan?: boolean;
 }
 export interface KttNguoi {
   emp_id: number;

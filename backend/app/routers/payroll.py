@@ -1198,8 +1198,16 @@ def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None =
     if nhom.get("gia"):
         xs = nhom["gia"]
         parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán vì thiếu giá / công thức lỗi "
-                     f"({vd(xs, False)}) — khai giá theo tổ ở Danh mục → Công đoạn → "
+                     f"({vd(xs, True)}) — khai giá theo tổ ở Danh mục → Công đoạn → "
                      "tab Khoán, rồi bấm “Cập nhật theo danh mục” ở lần ghi và Tính lại")
+    if nhom.get("cau_hinh"):
+        xs = nhom["cau_hinh"]
+        parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán vì cấu hình Khoán của công đoạn đã "
+                     f"bị gỡ ({vd(xs, False)}) — gõ tay tiền ở Lương → Khoán theo tổ")
+    if nhom.get("chua_khoan"):
+        xs = nhom["chua_khoan"]
+        parts.append(f"{len(xs)} lần ghi sản lượng ở công đoạn chưa có cấu hình Khoán ({vd(xs, False)}) "
+                     "— khai Khoán ở Danh mục → Công đoạn → tab Khoán")
     if nhom.get("luong"):
         xs = nhom["luong"]
         parts.append(f"{len(xs)} lần ghi / ngày dừng máy chưa chia được tiền khoán vì có người chưa có "

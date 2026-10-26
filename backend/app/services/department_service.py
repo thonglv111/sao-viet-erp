@@ -412,12 +412,6 @@ class DepartmentService:
         actor_id: int | None,
     ) -> Department:
         name = name.strip()
-        if la_giao_hang and has_piece_work:
-            raise GiaoHangKemKhoanSanLuong(
-                "Một tổ không vừa là Bộ phận Giao hàng vừa ăn Lương khoán / sản lượng: hai bên là "
-                "hai nguồn tiền khác nhau (tiền km và tiền sản lượng), bật cả hai thì máy cộng "
-                "chung rồi mới so với lương bù lỗ. Chọn một."
-            )
         if self.departments.get_by_name(name) is not None:
             raise DepartmentNameTaken("Tên phòng ban đã tồn tại")
         if parent_id is not None and self.departments.get_by_id(parent_id) is None:
@@ -498,17 +492,9 @@ class DepartmentService:
             raise DepartmentNotFound("Không tìm thấy phòng cha")
         # No cycle (parent ∉ this unit's subtree) + child level ranks below parent (PBI-4007).
         self._validate_hierarchy(dept_id=dept_id, parent_id=parent_id, level_id=level_id)
-        # Cờ Giao hàng ⟷ Lương khoán loại trừ nhau (chủ chốt 16/09/2026) — soi TRẠNG THÁI SAU
-        # lượt sửa này, vì hai ô có thể gửi lên trong cùng một lượt hoặc chỉ gửi một ô.
-        gh_sau = bool(la_giao_hang) if la_giao_hang is not _KEEP else bool(dept.la_giao_hang)
-        khoan_sau = bool(has_piece_work) if has_piece_work is not None else bool(dept.has_piece_work)
-        if gh_sau and khoan_sau:
-            raise GiaoHangKemKhoanSanLuong(
-                "Tổ này đang ăn Lương khoán / sản lượng nên không bật được cờ Bộ phận Giao hàng "
-                "(và ngược lại): hai bên là hai nguồn tiền khác nhau, bật cả hai thì máy cộng "
-                "chung rồi mới so với lương bù lỗ. Tắt bớt một bên ở Lương → Cấu hình lương → Cơ "
-                "chế lương theo bộ phận."
-            )
+        # Luật "Giao hàng ⟷ Lương khoán loại trừ nhau" (16/09/2026) GỠ 26/10/2026 (L-SX-42): cờ
+        # `has_piece_work` không còn ảnh hưởng tiền từ khi gỡ công tắc lương khoán theo tổ (20/10) —
+        # vế khoán của tổ giao hàng là tiền km (`_tinh_hai_luong`), chặn theo cờ chết chỉ khoá tổ cũ.
         # Tắt cờ Giao hàng: kiểm TRƯỚC mọi thao tác ghi, chặn là chặn cả lượt sửa.
         if (la_giao_hang is not _KEEP and not bool(la_giao_hang) and dept.la_giao_hang
                 and self.deliveries is not None):
