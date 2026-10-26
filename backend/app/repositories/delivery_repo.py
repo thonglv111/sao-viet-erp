@@ -253,6 +253,20 @@ class DeliveryRepository:
                    DeliveryRequest.trang_thai != YC_DA_HUY)
         ).scalars().all())
 
+    def requests_mo_cua_nhieu_don(self, order_ids) -> dict[int, list[DeliveryRequest]]:
+        """Bản lô của `requests_mo_cua_don` — `{order_id: [yêu cầu chưa huỷ]}` một lượt nạp."""
+        ids = {int(i) for i in order_ids if i is not None}
+        ra: dict[int, list[DeliveryRequest]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        for r in self.db.execute(
+            select(DeliveryRequest)
+            .options(selectinload(DeliveryRequest.lines))
+            .where(DeliveryRequest.order_id.in_(ids), DeliveryRequest.trang_thai != YC_DA_HUY)
+        ).scalars().all():
+            ra[int(r.order_id)].append(r)
+        return ra
+
     def requests_cua_don_ca_huy(self, order_id: int) -> list[DeliveryRequest]:
         """MỌI yêu cầu của đơn, kể cả đã huỷ — Kinh doanh xem lại lịch sử giao của đơn."""
         return list(self.db.execute(
@@ -300,6 +314,22 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
             .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
             .where(DeliveryRequest.order_id == order_id,
+                   DeliveryTrip.gia_cong_ngoai_id.is_not(None),
+                   DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+            .group_by(DeliveryTripLine.order_line_id)
+        ).all()
+        return {int(r[0]): int(r[1] or 0) for r in rows}
+
+    def giao_thang_theo_dong_nhieu_don(self, order_ids) -> dict[int, int]:
+        """Bản lô của `giao_thang_theo_dong` cho nhiều đơn — MỘT câu: {order_line_id: đã giao thẳng}."""
+        ids = {int(i) for i in order_ids if i is not None}
+        if not ids:
+            return {}
+        rows = self.db.execute(
+            select(DeliveryTripLine.order_line_id, func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+            .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+            .where(DeliveryRequest.order_id.in_(ids),
                    DeliveryTrip.gia_cong_ngoai_id.is_not(None),
                    DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
             .group_by(DeliveryTripLine.order_line_id)
@@ -390,6 +420,34 @@ class DeliveryRepository:
             select(Lsx.order_line_id, Lsx.id).where(Lsx.order_id == order_id).order_by(Lsx.id)
         ).all():
             out.setdefault(int(lid), []).append(int(sid))
+        return out
+
+    def lenh_theo_dong_nhieu_don(self, order_ids) -> dict[int, dict[int, list[int]]]:
+        """Bản lô của `lenh_theo_dong_don` — `{order_id: {order_line_id: [lsx_id]}}` một câu."""
+        from ..models.lsx import Lsx
+
+        ids = {int(i) for i in order_ids if i is not None}
+        out: dict[int, dict[int, list[int]]] = {i: {} for i in ids}
+        if not ids:
+            return out
+        for oid, lid, sid in self.db.execute(
+            select(Lsx.order_id, Lsx.order_line_id, Lsx.id).where(Lsx.order_id.in_(ids)).order_by(Lsx.id)
+        ).all():
+            out[int(oid)].setdefault(int(lid), []).append(int(sid))
+        return out
+
+    def dong_don_theo_don(self, order_ids) -> dict[int, list]:
+        """`{order_id: [dòng đơn theo id]}` một câu — như `order.lines` (quan hệ xếp theo id)."""
+        from ..models.order import OrderLine
+
+        ids = {int(i) for i in order_ids if i is not None}
+        out: dict[int, list] = {i: [] for i in ids}
+        if not ids:
+            return out
+        for ln in self.db.execute(
+            select(OrderLine).where(OrderLine.order_id.in_(ids)).order_by(OrderLine.id)
+        ).scalars().all():
+            out[int(ln.order_id)].append(ln)
         return out
 
     def dong_nhap_tp_cua_lenh(self, lsx_ids) -> list:

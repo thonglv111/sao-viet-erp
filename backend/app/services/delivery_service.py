@@ -314,70 +314,117 @@ class DeliveryService:
         `kho_de_nghi` / `kho_da_nhan` vẫn đếm theo lệnh CỦA ĐƠN — đó là tiến độ sản xuất, không
         phải nguồn giao.
         """
+        return self.nguon_giao_theo_cum_nhieu([order])[order.id]
+
+    def nguon_giao_theo_cum_nhieu(self, orders) -> dict[int, list[dict]]:
+        """Bản lô của `nguon_giao_theo_cum` — `{order_id: [cụm]}`, CÙNG luật, nhưng mỗi nguồn (đã giao,
+        yêu cầu đang giữ, giao thẳng, lệnh, thành phẩm, tồn của mã, yêu cầu nhập từ KCS) đọc MỘT lần
+        cho cả tập đơn. Danh sách đơn bán + badge "Đang chờ" từng dựng từng đơn (~16 câu SQL mỗi
+        đơn, 26/10/2026). `nguon_giao_theo_cum` một đơn đi qua đây — một luật, không hai bản chép."""
+        from types import SimpleNamespace
+
+        from sqlalchemy import inspect as _inspect
+
         from ..models.stock_request import REQ_CANCELLED, REQ_REJECTED
         from ..repositories.kho_hang_repo import KhoHangRepository
+        from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
         from .thanh_pham_khai_bao import thanh_pham_cua_cum
 
+        orders = [o for o in orders if o is not None]
+        if not orders:
+            return {}
         db = self.deliveries.db
-        cums = cum_ban(order)
-        dat, da_giao, dang_giu = self._so_giao(order)
+        ids = [o.id for o in orders]
+        # Dòng đơn: dùng `order.lines` khi đã nạp (đường một đơn trong luồng ghi), còn lại nạp gộp.
+        chua_nap = [o.id for o in orders if "lines" in _inspect(o).unloaded]
+        dong_nap = self.deliveries.dong_don_theo_don(chua_nap) if chua_nap else {}
+        dong = {o.id: (dong_nap[o.id] if o.id in dong_nap else list(o.lines)) for o in orders}
+        cums = {o.id: cum_ban(SimpleNamespace(lines=dong[o.id])) for o in orders}
+
+        # --- `_so_giao` gộp: đặt · đã giao · đang giữ theo order_line_id (id dòng là duy nhất) ---
+        da_giao = self.deliveries.da_giao_theo_dong_nhieu_don(ids)
+        reqs = self.deliveries.requests_mo_cua_nhieu_don(ids)
+        giu = self.yeu_cau_dang_giu([r for ds in reqs.values() for r in ds])
+        da_giao_req = self.deliveries.da_giao_cua_nhieu_yeu_cau(sorted(giu))
+        dang_giu: dict[int, int] = {}
+        for ds in reqs.values():
+            for req in ds:
+                if req.id not in giu:
+                    continue
+                for ln in req.lines:
+                    chua_giao = int(ln.qty) - int(da_giao_req[req.id].get(ln.order_line_id, 0))
+                    if chua_giao > 0:
+                        dang_giu[ln.order_line_id] = dang_giu.get(ln.order_line_id, 0) + chua_giao
         # Phần nhà gia công GIAO THẲNG cho khách: đã tới tay khách nhưng không qua KCS trên phần mềm,
         # không qua kho ⇒ là hàng ĐÃ CÓ của cụm.
-        giao_thang = self.deliveries.giao_thang_theo_dong(order.id)
-        lenh = self.deliveries.lenh_theo_dong_don(order.id)
+        giao_thang = self.deliveries.giao_thang_theo_dong_nhieu_don(ids)
+        lenh_don = self.deliveries.lenh_theo_dong_nhieu_don(ids)
 
-        tp_cua_cum = {c.khoa: thanh_pham_cua_cum(db, order, c) for c in cums}
-        kd = self.kha_dung_theo_ma({tp.id for tp in tp_cua_cum.values() if tp is not None})
+        # Thành phẩm đóng dấu trên dòng nạp sẵn một lượt (giữ tham chiếu để `db.get` trong
+        # `thanh_pham_cua_cum` tra trúng identity map, không SELECT từng cụm).
+        _tp_nap = VatLieuKhoRepository(db).by_ids(
+            "vat_tu", {getattr(ln, "thanh_pham_id", None) for ds in dong.values() for ln in ds})
+        tp_cua_cum = {o.id: {c.khoa: thanh_pham_cua_cum(db, o, c) for c in cums[o.id]} for o in orders}
+        kd = self.kha_dung_theo_ma({tp.id for m in tp_cua_cum.values() for tp in m.values() if tp is not None})
         ten_kho = KhoHangRepository(db).ten_theo_ids({k for v in kd.values() for k in v["ton_kho"]})
 
-        lsx_ids = [s for ds in lenh.values() for s in ds]
-        de_nghi: dict[int, float] = {}
-        da_nhan: dict[int, float] = {}
-        for req, ln in self.deliveries.dong_nhap_tp_cua_lenh(lsx_ids):
+        # Yêu cầu NHẬP thành phẩm từ KCS: đếm theo lệnh CỦA TỪNG ĐƠN (tiến độ sản xuất).
+        don_cua_lenh = {s: oid for oid, m in lenh_don.items() for ds in m.values() for s in ds}
+        de_nghi: dict[int, dict[int, float]] = {i: {} for i in ids}
+        da_nhan: dict[int, dict[int, float]] = {i: {} for i in ids}
+        for req, ln in self.deliveries.dong_nhap_tp_cua_lenh(list(don_cua_lenh)):
+            oid = don_cua_lenh[int(ln.lsx_id)]
             nhan = float(ln.sl_da_ung or 0)
             song = req.trang_thai not in (REQ_CANCELLED, REQ_REJECTED)
-            de_nghi[ln.hang_id] = de_nghi.get(ln.hang_id, 0.0) + (
+            de_nghi[oid][ln.hang_id] = de_nghi[oid].get(ln.hang_id, 0.0) + (
                 StockRequestService.muc_tieu_hieu_luc(ln) if song else nhan)
-            da_nhan[ln.hang_id] = da_nhan.get(ln.hang_id, 0.0) + nhan
+            da_nhan[oid][ln.hang_id] = da_nhan[oid].get(ln.hang_id, 0.0) + nhan
 
         con_kho = {i: max(0.0, v["ton"] - sum(v["giu"].values())) for i, v in kd.items()}
 
-        ra: list[dict] = []
-        for c in cums:
-            tp = tp_cua_cum[c.khoa]
-            d = c.dong_dau.id
-            v = kd.get(tp.id) if tp is not None else None
-            con = min(max(0, dat[od.id] - da_giao.get(od.id, 0) - dang_giu.get(od.id, 0))
-                      for od in c.dong)
-            ton_kho = sorted(
-                ({"kho_id": k, "kho_ten": ten_kho.get(k, f"Kho #{k}"), "so_luong": round(sl, 3)}
-                 for k, sl in (v["ton_kho"].items() if v else []) if sl > 1e-9),
-                key=lambda r: r["kho_ten"])
-            ra.append({
-                "cum": c,
-                "tp_id": tp.id if tp is not None else None,
-                "co_lenh": any(lenh.get(od.id) for od in c.dong),
-                "ton_kho": ton_kho,
-                "lsx_ids": sorted({s for od in c.dong for s in lenh.get(od.id, [])}),
-                "dat": int(c.so_luong),
-                "da_giao": int(da_giao.get(d, 0)),
-                "giao_thang": int(giao_thang.get(d, 0)),
-                "dang_giu": int(dang_giu.get(d, 0)),
-                "con_phai_giao": int(con),
-                # Khách đã THỰC NHẬN đủ mọi dòng của cụm. KHÁC `con_phai_giao` = 0: số đó còn trừ
-                # phần yêu cầu giao đang giữ (= "còn phải LẬP yêu cầu"), nên lập yêu cầu xong mà chưa
-                # giao thì nó đã về 0 — từng làm danh sách đơn báo "Hoàn tất" oan (07/10/2026).
-                "khach_nhan_du": all(da_giao.get(od.id, 0) >= dat[od.id] for od in c.dong),
-                "kho_de_nghi": de_nghi.get(tp.id, 0.0) if tp is not None else 0.0,
-                "kho_da_nhan": da_nhan.get(tp.id, 0.0) if tp is not None else 0.0,
-                "ton_that": v["ton"] if v else 0.0,
-                # Đơn KHÁC của khách đang giữ (chưa xuất) — hiện cho Kinh doanh biết vì sao tồn có
-                # mà giao được ít hơn.
-                "giu_don_khac": round(sum(sl for o, sl in v["giu"].items() if o != order.id), 3) if v else 0.0,
-                "con_kho": con_kho.get(tp.id, 0.0) if tp is not None else 0.0,
-                "giao_duoc": int(min(con, con_kho.get(tp.id, 0.0))) if tp is not None else 0,
-            })
-        return ra
+        ket_qua: dict[int, list[dict]] = {}
+        for order in orders:
+            dat = {ln.id: int(ln.qty or 0) for ln in dong[order.id]}
+            lenh = lenh_don.get(order.id, {})
+            ra: list[dict] = []
+            for c in cums[order.id]:
+                tp = tp_cua_cum[order.id][c.khoa]
+                d = c.dong_dau.id
+                v = kd.get(tp.id) if tp is not None else None
+                con = min(max(0, dat[od.id] - da_giao.get(od.id, 0) - dang_giu.get(od.id, 0))
+                          for od in c.dong)
+                ton_kho = sorted(
+                    ({"kho_id": k, "kho_ten": ten_kho.get(k, f"Kho #{k}"), "so_luong": round(sl, 3)}
+                     for k, sl in (v["ton_kho"].items() if v else []) if sl > 1e-9),
+                    key=lambda r: r["kho_ten"])
+                ra.append({
+                    "cum": c,
+                    "tp_id": tp.id if tp is not None else None,
+                    "co_lenh": any(lenh.get(od.id) for od in c.dong),
+                    "ton_kho": ton_kho,
+                    "lsx_ids": sorted({s for od in c.dong for s in lenh.get(od.id, [])}),
+                    "dat": int(c.so_luong),
+                    "da_giao": int(da_giao.get(d, 0)),
+                    "giao_thang": int(giao_thang.get(d, 0)),
+                    "dang_giu": int(dang_giu.get(d, 0)),
+                    "con_phai_giao": int(con),
+                    # Khách đã THỰC NHẬN đủ mọi dòng của cụm. KHÁC `con_phai_giao` = 0: số đó còn trừ
+                    # phần yêu cầu giao đang giữ (= "còn phải LẬP yêu cầu"), nên lập yêu cầu xong mà
+                    # chưa giao thì nó đã về 0 — từng làm danh sách đơn báo "Hoàn tất" oan (07/10/2026).
+                    "khach_nhan_du": all(da_giao.get(od.id, 0) >= dat[od.id] for od in c.dong),
+                    "kho_de_nghi": de_nghi[order.id].get(tp.id, 0.0) if tp is not None else 0.0,
+                    "kho_da_nhan": da_nhan[order.id].get(tp.id, 0.0) if tp is not None else 0.0,
+                    "ton_that": v["ton"] if v else 0.0,
+                    # Đơn KHÁC của khách đang giữ (chưa xuất) — hiện cho Kinh doanh biết vì sao tồn
+                    # có mà giao được ít hơn.
+                    "giu_don_khac": (round(sum(sl for o, sl in v["giu"].items() if o != order.id), 3)
+                                     if v else 0.0),
+                    "con_kho": con_kho.get(tp.id, 0.0) if tp is not None else 0.0,
+                    "giao_duoc": int(min(con, con_kho.get(tp.id, 0.0))) if tp is not None else 0,
+                })
+            ket_qua[order.id] = ra
+        del _tp_nap
+        return ket_qua
 
     def da_giao_du(self, order_id: int) -> bool:
         """Cờ cho kế toán: đơn đã giao đủ ⇒ đủ điều kiện xuất hoá đơn (PRD §16)."""

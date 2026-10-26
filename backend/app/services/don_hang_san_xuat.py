@@ -109,8 +109,12 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
     if not orders:
         return {}
     svc = DeliveryService(DeliveryRepository(db), OrderRepository(db), EmployeeRepository(db), None, None)
-    nguon = {o.id: ((nguon_san or {}).get(o.id) if (nguon_san or {}).get(o.id) is not None
-                    else svc.nguon_giao_theo_cum(o)) if o.san_xuat_released_at is not None else []
+    san = nguon_san or {}
+    # Nguồn giao của mọi đơn còn thiếu nạp GỘP một lượt — dựng từng đơn là ~16 câu SQL mỗi đơn.
+    moi = svc.nguon_giao_theo_cum_nhieu(
+        [o for o in orders if o.san_xuat_released_at is not None and san.get(o.id) is None])
+    nguon = {o.id: (san.get(o.id) if san.get(o.id) is not None else moi[o.id])
+             if o.san_xuat_released_at is not None else []
              for o in orders}
     lsx_ids = sorted({s for ns in nguon.values() for n in ns for s in n["lsx_ids"]})
     if lenh_san is not None and all(i in lenh_san for i in lsx_ids):
