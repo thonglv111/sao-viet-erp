@@ -33,7 +33,6 @@ from ..realtime import hub
 from ..models.role import SCOPE_DEPARTMENT, SCOPE_OWN
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
-from ..repositories.customer_repo import CustomerRepository
 from ..repositories.delivery_repo import HAN_YEU_CAU, DeliveryRepository, LocChuyen, LocYeuCau
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.order_repo import OrderRepository
@@ -214,13 +213,6 @@ def _scope(authz: AuthorizationService, user: User) -> str:
 # =================================================================================
 # Ánh xạ ORM → schema
 # =================================================================================
-def _ten_nguoi(db: Session, user_id: int | None) -> str | None:
-    if user_id is None:
-        return None
-    u = UserRepository(db).get_by_id(user_id)
-    return getattr(u, "name", None) if u is not None else None
-
-
 def _ten_mat_hang(db: Session, cap: set[tuple[str, int]]) -> dict[tuple[str, int], str]:
     """`{(hang_loai, hang_id): tên}` cho CẢ TRANG trong 2 truy vấn — tra từng dòng là N+1."""
     from sqlalchemy import select as _select
@@ -300,25 +292,53 @@ def _hang_theo_yeu_cau(db: Session, svc: DeliveryService,
     }
 
 
-def _dong_don(db: Session, order_id: int) -> dict[int, tuple[str, str]]:
-    order = OrderRepository(db).get_by_id(order_id)
-    if order is None:
-        return {}
-    return {ln.id: (ln.description or "", ln.don_vi_tinh or "") for ln in order.lines}
+@dataclass
+class _NapYeuCau:
+    """Mọi thứ `_request_out` cần ngoài bản thân yêu cầu, nạp GỘP cho cả trang (26/10/2026: danh
+    sách yêu cầu giao từng tốn ~9 câu SQL mỗi dòng — đơn, dòng đơn, khách, người tạo, đã giao hai
+    lần, chuyến hai lần, tên mặt hàng)."""
+    don: dict           # order_id → Order (kèm dòng)
+    khach: dict         # customer_id → Customer
+    nguoi: dict         # user_id → tên
+    da_giao: dict       # request_id → {order_line_id: đã thực nhận}
+    chuyen: dict        # request_id → [chuyến theo lan_thu]
+    ten_kho: dict       # (hang_loai, hang_id) → tên
+
+
+def _nap_yeu_cau(db: Session, svc: DeliveryService, reqs) -> _NapYeuCau:
+    ids = [r.id for r in reqs]
+    orders = OrderRepository(db)
+    return _NapYeuCau(
+        don=orders.theo_ids_kem_dong({r.order_id for r in reqs}),
+        khach=orders.khach_theo_ids({r.customer_id for r in reqs if r.customer_id is not None}),
+        nguoi=_ten_nguoi_nhieu(db, {r.created_by for r in reqs}),
+        da_giao=svc.deliveries.da_giao_theo_yeu_cau(ids),
+        chuyen=svc.deliveries.trips_cua_nhieu_yeu_cau(ids),
+        ten_kho=_ten_mat_hang(db, {(ln.hang_loai, ln.hang_id) for r in reqs for ln in r.lines
+                                   if ln.hang_loai and ln.hang_id is not None}),
+    )
+
+
+def _requests_out(db: Session, svc: DeliveryService, reqs) -> list[DeliveryRequestOut]:
+    """Nhiều yêu cầu một lượt: nạp gộp một lần rồi dựng từng dòng — số câu SQL không tăng theo
+    số dòng."""
+    nap = _nap_yeu_cau(db, svc, reqs)
+    return [_request_out(db, svc, r, nap=nap) for r in reqs]
 
 
 def _request_out(db: Session, svc: DeliveryService, req, *,
-                 so_lan_giao: int | None = None) -> DeliveryRequestOut:
-    order = OrderRepository(db).get_by_id(req.order_id)
-    mo_ta = _dong_don(db, req.order_id)
-    da_giao = svc.deliveries.da_giao_cua_yeu_cau(req.id)
-    ten_kho = _ten_mat_hang(
-        db, {(ln.hang_loai, ln.hang_id) for ln in req.lines
-             if ln.hang_loai and ln.hang_id is not None},
-    )
+                 so_lan_giao: int | None = None, nap: _NapYeuCau | None = None) -> DeliveryRequestOut:
+    if nap is None:
+        nap = _nap_yeu_cau(db, svc, [req])
+    order = nap.don.get(req.order_id)
+    mo_ta = ({ln.id: (ln.description or "", ln.don_vi_tinh or "") for ln in order.lines}
+             if order is not None else {})
+    da_giao = nap.da_giao.get(req.id, {})
+    trips = nap.chuyen.get(req.id, [])
+    ten_kho = nap.ten_kho
     khach = None
     if req.customer_id is not None:
-        kh = CustomerRepository(db).get_by_id(req.customer_id)
+        kh = nap.khach.get(req.customer_id)
         khach = getattr(kh, "name", None) if kh is not None else None
     cum = _cum_theo_dong(order)
     return DeliveryRequestOut(
@@ -334,10 +354,10 @@ def _request_out(db: Session, svc: DeliveryService, req, *,
         nguoi_nhan=req.nguoi_nhan,
         sdt_nguoi_nhan=req.sdt_nguoi_nhan,
         ghi_chu=req.ghi_chu,
-        trang_thai=svc.trang_thai_yeu_cau(req),
+        trang_thai=svc.trang_thai_yeu_cau(req, trips=trips, da_giao=da_giao),
         ly_do_huy=req.ly_do_huy,
         created_by=req.created_by,
-        created_by_name=_ten_nguoi(db, req.created_by),
+        created_by_name=nap.nguoi.get(req.created_by) if req.created_by is not None else None,
         created_at=req.created_at,
         lines=[
             DeliveryRequestLineOut(
@@ -351,8 +371,7 @@ def _request_out(db: Session, svc: DeliveryService, req, *,
             )
             for ln in req.lines
         ],
-        so_lan_giao=(so_lan_giao if so_lan_giao is not None
-                     else len(svc.deliveries.trips_cua_yeu_cau(req.id))),
+        so_lan_giao=so_lan_giao if so_lan_giao is not None else len(trips),
     )
 
 
@@ -606,7 +625,7 @@ def danh_sach_yeu_cau(
         limit=size if phan_trang else None,
         offset=(page - 1) * size if phan_trang else 0,
     )
-    items = [_request_out(db, svc, r) for r in reqs]
+    items = _requests_out(db, svc, reqs)
     total = svc.deliveries.count_requests(**dk) if phan_trang else len(items)
     dem_han: dict[str, int] = {}
     if cho_len_ke_hoach:
@@ -1154,10 +1173,10 @@ def _ai_la_tai_xe(db, *, scope, actor, svc):
     if not bo_phan:
         return [e for e in emps if e.user_id is not None and e.user_id in vao_duoc], vao_duoc, False
 
-    ra = [
-        e for e in emps
-        if e.department_id in bo_phan or svc.deliveries.list_trips(employee_ids=[e.id])
-    ]
+    # Ai ngoài bộ phận mà có chuyến — MỘT câu cho cả danh sách (hỏi từng người là N+1).
+    co_chuyen = svc.deliveries.nhan_vien_co_chuyen(
+        [e.id for e in emps if e.department_id not in bo_phan])
+    ra = [e for e in emps if e.department_id in bo_phan or e.id in co_chuyen]
     return ra, vao_duoc, True
 
 
@@ -1205,30 +1224,25 @@ def nhan_vien_giao_hang(svc: Service, db: Db, authz: Authz, user: DriverViewer,
     emps, _vao_duoc, _theo_bo_phan = _ai_la_tai_xe(
         db, scope=_scope(authz, user), actor=user, svc=svc,
     )
+    # Cả vai phụ xe — phụ xe đang trên xe cũng có "chuyến đang thực hiện". Nạp gộp cho cả danh
+    # sách (26/10/2026): gọi từng người là ~20 câu SQL mỗi người.
+    tinh_hinh = svc.tinh_hinh_nhan_vien([e.id for e in emps], ngay=hom, moc_thang=moc_thang)
+    ma_yc = svc.deliveries.ma_yeu_cau_theo_ids(
+        {t.request_id for th in tinh_hinh.values() for t in (th["dang"], th["ke_tiep"]) if t is not None})
     items: list[DriverOut] = []
     for e in emps:
-        # Cả vai phụ xe — phụ xe đang trên xe cũng có "chuyến đang thực hiện".
-        trips = svc.deliveries.chuyen_cua_kip(e.id)
-        dang = next((t for t in trips if t.trang_thai in LAN_GIAO_DANG_CHAY), None)
-        ke_tiep = next(
-            (t for t in sorted(trips, key=lambda x: x.created_at)
-             if t.trang_thai in LAN_GIAO_DANG_CHAY and (dang is None or t.id != dang.id)),
-            None,
-        )
-        tk = svc.thong_ke_ngay(e.id, ngay=hom)
-        tkt = svc.thong_ke_thang(e.id, ngay=moc_thang)
-        req_dang = svc.deliveries.get_request(dang.request_id) if dang is not None else None
-        req_ke = svc.deliveries.get_request(ke_tiep.request_id) if ke_tiep is not None else None
+        th = tinh_hinh[e.id]
+        dang, ke_tiep = th["dang"], th["ke_tiep"]
         items.append(DriverOut(
             employee_id=e.id,
             ho_ten=getattr(e, "full_name", "") or "",
-            trang_thai=svc.trang_thai_nhan_vien(e.id, ngay=hom),
-            chuyen_dang_thuc_hien=getattr(req_dang, "code", None),
-            chuyen_ke_tiep=getattr(req_ke, "code", None),
-            so_chuyen_xong=tk["so_chuyen_xong"],
-            tong_km=tk["tong_km"],
-            so_chuyen_thang=tkt["so_chuyen_xong"],
-            tong_km_thang=tkt["tong_km"],
+            trang_thai=th["trang_thai"],
+            chuyen_dang_thuc_hien=ma_yc.get(dang.request_id) if dang is not None else None,
+            chuyen_ke_tiep=ma_yc.get(ke_tiep.request_id) if ke_tiep is not None else None,
+            so_chuyen_xong=th["ngay"]["so_chuyen_xong"],
+            tong_km=th["ngay"]["tong_km"],
+            so_chuyen_thang=th["thang"]["so_chuyen_xong"],
+            tong_km_thang=th["thang"]["tong_km"],
         ))
     return DriverPage(items=items)
 

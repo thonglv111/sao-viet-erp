@@ -1295,21 +1295,11 @@ class DeliveryService:
         bao nhiêu" để theo dõi), và gộp thành một hàm có cờ thì nơi gọi phải nhớ cờ nghĩa là gì.
         """
         ngay = ngay or date.today()
-        xong, tong_km = 0, 0
-        for t in self.deliveries.list_trips(employee_ids=[employee_id]):
-            # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
-            if t.gia_cong_ngoai_id:
-                continue
-            ket = t.thoi_gian_ket_thuc
-            if ket is None or (ket.year, ket.month) != (ngay.year, ngay.month):
-                continue
-            if t.trang_thai in LAN_GIAO_CO_HANG_DEN_TAY:
-                xong += 1
-            tong_km += int(t.km or 0)
-        # Chặng về kho của lượt xe (PRD khoán km §14) không nằm trong km chuyến nào.
-        tong_km += sum(km for luc, km in self.deliveries.ve_kho_cua_tai_xe(employee_id)
-                       if (luc.year, luc.month) == (ngay.year, ngay.month))
-        return {"so_chuyen_xong": xong, "tong_km": tong_km}
+        return _thong_ke_chuyen(
+            self.deliveries.list_trips(employee_ids=[employee_id]),
+            self.deliveries.ve_kho_cua_tai_xe(employee_id),
+            lambda luc: (luc.year, luc.month) == (ngay.year, ngay.month),
+        )
 
     def kho_da_lap_phieu(self, trip_id: int) -> bool:
         """Kho đã LẬP PHIẾU cho chuyến này chưa ⇒ "Kho đã chuẩn bị xong" (chủ chốt 20/08/2026).
@@ -2181,17 +2171,35 @@ class DeliveryService:
         ngay = ngay or date.today()
         if self._dang_nghi(employee_id, ngay):
             return "nghi"
-        trips = self.deliveries.chuyen_cua_kip(employee_id)
-        for t in trips:
-            if t.trang_thai == LG_DANG_GIAO:
-                return "dang_giao"
-        for t in trips:
-            if t.trang_thai == LG_DANG_TRA_HANG:
-                return "dang_tra_hang"
-        for t in trips:
-            if t.trang_thai in (LG_DA_LEN_KE_HOACH, LG_DANG_CHUAN_BI, LG_DA_LAY_HANG):
-                return "co_lich"
-        return "ranh"
+        return _trang_thai_theo_chuyen(self.deliveries.chuyen_cua_kip(employee_id))
+
+    def tinh_hinh_nhan_vien(self, employee_ids: list[int], *, ngay: date,
+                            moc_thang: date) -> dict[int, dict]:
+        """Tab Nhân viên giao hàng cho CẢ danh sách: `{employee_id: {trang_thai, dang, ke_tiep,
+        ngay, thang}}` — cùng luật `trang_thai_nhan_vien` / `thong_ke_ngay` / `thong_ke_thang`,
+        nhưng chuyến và chặng về kho nạp MỘT lần cho mọi người (26/10/2026: gọi từng người là
+        ~20 câu SQL mỗi người)."""
+        chuyen = self.deliveries.chuyen_cua_nhieu_kip(employee_ids)
+        ve_kho = self.deliveries.ve_kho_cua_nhieu_tai_xe(employee_ids)
+        ra: dict[int, dict] = {}
+        for eid in employee_ids:
+            trips = chuyen.get(eid, [])
+            dang = next((t for t in trips if t.trang_thai in LAN_GIAO_DANG_CHAY), None)
+            ke_tiep = next(
+                (t for t in sorted(trips, key=lambda x: x.created_at)
+                 if t.trang_thai in LAN_GIAO_DANG_CHAY and (dang is None or t.id != dang.id)),
+                None,
+            )
+            vk = ve_kho.get(eid, [])
+            ra[eid] = {
+                "trang_thai": "nghi" if self._dang_nghi(eid, ngay) else _trang_thai_theo_chuyen(trips),
+                "dang": dang,
+                "ke_tiep": ke_tiep,
+                "ngay": _thong_ke_chuyen(trips, vk, lambda luc: luc.date() == ngay),
+                "thang": _thong_ke_chuyen(
+                    trips, vk, lambda luc: (luc.year, luc.month) == (moc_thang.year, moc_thang.month)),
+            }
+        return ra
 
     def _dang_nghi(self, employee_id: int, ngay: date) -> bool:
         kiem = getattr(self.employees, "dang_nghi_phep", None)
@@ -2206,16 +2214,40 @@ class DeliveryService:
     def thong_ke_ngay(self, employee_id: int, *, ngay: date | None = None) -> dict:
         """Số chuyến hoàn thành + tổng km trong ngày (tab Nhân viên giao hàng)."""
         ngay = ngay or date.today()
-        xong, tong_km = 0, 0
-        for t in self.deliveries.list_trips(employee_ids=[employee_id]):
-            # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
-            if t.gia_cong_ngoai_id:
-                continue
-            if t.thoi_gian_ket_thuc is None or t.thoi_gian_ket_thuc.date() != ngay:
-                continue
-            if t.trang_thai in LAN_GIAO_CO_HANG_DEN_TAY:
-                xong += 1
-            tong_km += int(t.km or 0)
-        tong_km += sum(km for luc, km in self.deliveries.ve_kho_cua_tai_xe(employee_id)
-                       if luc.date() == ngay)
-        return {"so_chuyen_xong": xong, "tong_km": tong_km}
+        return _thong_ke_chuyen(
+            self.deliveries.list_trips(employee_ids=[employee_id]),
+            self.deliveries.ve_kho_cua_tai_xe(employee_id),
+            lambda luc: luc.date() == ngay,
+        )
+
+
+def _trang_thai_theo_chuyen(trips) -> str:
+    """Rảnh / có lịch / đang giao / đang trả hàng từ các chuyến người này có mặt (cả hai vai)."""
+    for t in trips:
+        if t.trang_thai == LG_DANG_GIAO:
+            return "dang_giao"
+    for t in trips:
+        if t.trang_thai == LG_DANG_TRA_HANG:
+            return "dang_tra_hang"
+    for t in trips:
+        if t.trang_thai in (LG_DA_LEN_KE_HOACH, LG_DANG_CHUAN_BI, LG_DA_LAY_HANG):
+            return "co_lich"
+    return "ranh"
+
+
+def _thong_ke_chuyen(trips, ve_kho, trong_khung) -> dict:
+    """Số chuyến hoàn thành + tổng km của các chuyến KẾT THÚC trong khung (`trong_khung(luc)`),
+    cộng chặng về kho của lượt xe trong khung. Chung cho thống kê ngày lẫn tháng."""
+    xong, tong_km = 0, 0
+    for t in trips:
+        # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
+        if t.gia_cong_ngoai_id:
+            continue
+        if t.thoi_gian_ket_thuc is None or not trong_khung(t.thoi_gian_ket_thuc):
+            continue
+        if t.trang_thai in LAN_GIAO_CO_HANG_DEN_TAY:
+            xong += 1
+        tong_km += int(t.km or 0)
+    # Chặng về kho của lượt xe (PRD khoán km §14) không nằm trong km chuyến nào.
+    tong_km += sum(km for luc, km in ve_kho if trong_khung(luc))
+    return {"so_chuyen_xong": xong, "tong_km": tong_km}

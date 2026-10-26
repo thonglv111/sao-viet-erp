@@ -794,6 +794,49 @@ class DeliveryRepository:
         )
         return list(self.db.execute(q).scalars().all())
 
+    def chuyen_cua_nhieu_kip(self, employee_ids) -> dict[int, list[DeliveryTrip]]:
+        """Bản lô của `chuyen_cua_kip` — `{employee_id: [chuyến]}` trong MỘT câu, cùng thứ tự (mới
+        nhất trước). Tab Nhân viên giao hàng từng hỏi 3 lần mỗi người (26/10/2026)."""
+        ids = {int(i) for i in employee_ids if i is not None}
+        ra: dict[int, list[DeliveryTrip]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        for t in self.db.execute(
+            select(DeliveryTrip)
+            .where(or_(DeliveryTrip.employee_id.in_(ids), DeliveryTrip.phu_xe_employee_id.in_(ids)))
+            .order_by(DeliveryTrip.created_at.desc(), DeliveryTrip.id.desc())
+        ).scalars().all():
+            # Một chuyến thuộc CẢ tài xế lẫn phụ xe — như hai lần gọi `chuyen_cua_kip` riêng.
+            for eid in {t.employee_id, t.phu_xe_employee_id}:
+                if eid in ra:
+                    ra[eid].append(t)
+        return ra
+
+    def nhan_vien_co_chuyen(self, employee_ids) -> set[int]:
+        """Những người (trong `employee_ids`) có ít nhất một chuyến ở vai tài xế HOẶC phụ xe —
+        cùng luật `bool(list_trips(employee_ids=[id]))` nhưng MỘT câu cho cả danh sách."""
+        ids = {int(i) for i in employee_ids if i is not None}
+        if not ids:
+            return set()
+        ra: set[int] = set()
+        for tx, px in self.db.execute(
+            select(DeliveryTrip.employee_id, DeliveryTrip.phu_xe_employee_id)
+            .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+            .where(or_(DeliveryTrip.employee_id.in_(ids), DeliveryTrip.phu_xe_employee_id.in_(ids)))
+            .distinct()
+        ).all():
+            ra.update(i for i in (tx, px) if i in ids)
+        return ra
+
+    def ma_yeu_cau_theo_ids(self, request_ids) -> dict[int, str]:
+        """`{request_id: mã}` trong một câu — khỏi nạp cả yêu cầu chỉ để đọc mã."""
+        ids = {int(i) for i in request_ids if i is not None}
+        if not ids:
+            return {}
+        return {int(i): c for i, c in self.db.execute(
+            select(DeliveryRequest.id, DeliveryRequest.code).where(DeliveryRequest.id.in_(ids))
+        ).all()}
+
     def chuyen_dang_chay_cua_kip(
         self,
         *,
@@ -1070,3 +1113,19 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == LuotXe.ve_kho_trip_id)
             .where(DeliveryTrip.employee_id == employee_id, LuotXe.ve_kho_luc.is_not(None))
         ).all()]
+
+    def ve_kho_cua_nhieu_tai_xe(self, employee_ids) -> dict[int, list[tuple]]:
+        """Bản lô của `ve_kho_cua_tai_xe` — `{employee_id: [(ve_kho_luc, km_ve_kho)]}` một câu."""
+        from ..models.delivery import LuotXe
+
+        ids = {int(i) for i in employee_ids if i is not None}
+        ra: dict[int, list[tuple]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        for eid, luc, km in self.db.execute(
+            select(DeliveryTrip.employee_id, LuotXe.ve_kho_luc, LuotXe.km_ve_kho)
+            .join(DeliveryTrip, DeliveryTrip.id == LuotXe.ve_kho_trip_id)
+            .where(DeliveryTrip.employee_id.in_(ids), LuotXe.ve_kho_luc.is_not(None))
+        ).all():
+            ra[int(eid)].append((luc, int(km or 0)))
+        return ra
