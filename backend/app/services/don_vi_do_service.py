@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from functools import lru_cache
 
 from ..models.don_vi_do import HO_GOI_Y
 from .bien_cong_thuc import LOAI_QUY_DOI, bien_cho
@@ -30,13 +31,20 @@ from .thanh_phan_engine import safe_eval
 SAI_SO = 1e-6
 
 
+@lru_cache(maxsize=2048)
 def cong_thuc_chu(cong_thuc: str) -> str:
     """Công thức → chữ đọc được: `dinh_luong * dai_in * rong_in` → "Định lượng giấy × Dài tờ in ×
-    Rộng tờ in". Nhãn lấy từ TỪ ĐIỂN CHUNG nên thêm biến mới là câu này tự đọc được."""
+    Rộng tờ in". Nhãn lấy từ TỪ ĐIỂN CHUNG nên thêm biến mới là câu này tự đọc được.
+
+    Nhớ theo chuỗi công thức (26/10/2026): từ điển `BIEN` là hằng của module nên kết quả chỉ phụ
+    thuộc chuỗi; trải lịch một bàn tháng gọi lại cùng vài công thức hàng trăm lần."""
     ra = cong_thuc or ""
     for b in bien_cho(LOAI_QUY_DOI):
         ra = re.sub(rf"\b{b['ma']}\b", b["nhan"], ra)
     return ra.replace("*", "×").replace("/", "÷")
+
+
+_BIEN_DAI_TRUOC = tuple(sorted(bien_cho(LOAI_QUY_DOI), key=lambda x: -len(x["ma"])))
 
 
 def cong_thuc_the_so(cong_thuc: str, ctx: dict) -> str:
@@ -48,8 +56,11 @@ def cong_thuc_the_so(cong_thuc: str, ctx: dict) -> str:
     Biến không có trong `ctx` thì GIỮ NGUYÊN mã — thà lộ tên biến còn hơn in số 0 giả.
     """
     ra = cong_thuc or ""
-    for b in sorted(bien_cho(LOAI_QUY_DOI), key=lambda x: -len(x["ma"])):
-        if b["ma"] in ctx and ctx[b["ma"]] is not None:
+    # Chỉ đụng biến CÓ trong công thức (26/10/2026) — thế mã bằng số không đẻ ra mã mới nên kết quả
+    # y như duyệt cả từ điển, mà bớt hàng chục lượt `re.sub` cho mỗi bước khi trải lịch.
+    co = set(re.findall(r"\w+", ra))
+    for b in _BIEN_DAI_TRUOC:
+        if b["ma"] in co and b["ma"] in ctx and ctx[b["ma"]] is not None:
             ra = re.sub(rf"\b{b['ma']}\b", _so(ctx[b["ma"]]), ra)
     return ra.replace("*", "×").replace("/", "÷")
 

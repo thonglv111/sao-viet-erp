@@ -111,3 +111,38 @@ def test_ban_lo_khop_ban_le(client):
         assert lo.get(99999, []) == []
     finally:
         db.close()
+
+
+def test_lich_xuong_nho_khung_tung_ngay():
+    """Khung giờ làm của MỘT ngày tính một lần cho mỗi lịch (DB đo tải 26/10: 3.410 lượt dựng lại
+    khung cho vài chục ngày khác nhau trên bàn tháng)."""
+    from datetime import datetime, timezone
+
+    from app.services.calendar_service import CalendarService
+    from app.services.xep_lich_service import LichXuong
+
+    class _Cal(CalendarService):
+        def __init__(self):  # không đụng DB
+            pass
+
+        def is_working_day(self, d):
+            return d.weekday() != 6
+
+    lich = LichXuong(_Cal(), [], lien_tuc=True, nghi=((720, 780),))
+    dem = [0]
+    goc = lich._khung_ngay_tho
+
+    def dem_tho(d):
+        dem[0] += 1
+        return goc(d)
+
+    lich._khung_ngay_tho = dem_tho
+    c = datetime(2026, 10, 5, 9, tzinfo=timezone.utc)
+    dau = lich._khung_ngay(c.date())
+    for _ in range(50):
+        assert lich._khung_ngay(c.date()) == dau
+        lich.next_interval(c)
+    assert dem[0] == 1
+    # Kết quả trả ra là bản sao — nơi gọi sửa danh sách không làm hỏng bản nhớ.
+    lich._khung_ngay(c.date()).clear()
+    assert lich._khung_ngay(c.date()) == dau
