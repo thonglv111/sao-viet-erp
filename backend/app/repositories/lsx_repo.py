@@ -44,7 +44,7 @@ MOC_HANG_CHO = {
 
 
 _COT_BUOC_MRP = tuple(getattr(LsxCongDoan, c) for c in (
-    "id", "lsx_id", "step_key", "ten", "thu_tu", "nhom", "don_vi_vao",
+    "id", "lsx_id", "step_key", "ten", "thu_tu", "nhom", "don_vi_vao", "don_vi_ra", "cong_doan_id", "so_luong_ra",
 ))
 
 
