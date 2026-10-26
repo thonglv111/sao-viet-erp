@@ -80,6 +80,16 @@ class EmployeeRepository:
             select(Employee).where(Employee.user_id == user_id)
         ).scalars().first()
 
+    def map_by_user_ids(self, user_ids) -> dict[int, Employee]:
+        """`{user_id: hồ sơ}` trong MỘT truy vấn — bản gộp của `get_by_user_id` cho các danh sách
+        tra tên người duyệt. `user_id` UNIQUE nên mỗi khoá đúng một hồ sơ; không có thì vắng."""
+        ids = sorted({int(i) for i in (user_ids or []) if i is not None})
+        if not ids:
+            return {}
+        return {e.user_id: e for e in self.db.execute(
+            select(Employee).where(Employee.user_id.in_(ids))
+        ).scalars()}
+
     def find_by_code(self, code: str) -> Employee | None:
         """Tra theo mã NV — khoá nghiệp vụ của lượt Nhập Excel (`services/employee_excel.py`).
         Không phân biệt hoa/thường: người khai gõ 'nv007' thì vẫn ra NV007."""
