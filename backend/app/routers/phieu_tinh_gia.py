@@ -611,6 +611,7 @@ def nhan_ban_phieu(
 @router.get("/san-pham-tai-ban", response_model=list[SanPhamTaiBanGoiY])
 def san_pham_tai_ban_goi_y(
     db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     _ruot: RuotGia,
     customer_id: int = Query(...),
@@ -618,19 +619,30 @@ def san_pham_tai_ban_goi_y(
     size: int = Query(default=20, ge=1, le=50),
 ) -> list[dict]:
     """Thành phẩm CỦA KHÁCH đầu phiếu để chọn tái bản (11/10/2026 — trước đó chung mọi khách, khoá
-    theo tên). Đặt TRƯỚC route `/{p_id}` (int) — lý do như `/stats`."""
+    theo tên). Đặt TRƯỚC route `/{p_id}` (int) — lý do như `/stats`. Khách ngoài phạm vi → rỗng."""
+    if not _khach_trong_pham_vi(db, customer_id, user, authz):
+        return []
     return san_pham_tai_ban_service.tim_kiem(db, customer_id, q, size)
+
+
+def _khach_trong_pham_vi(db: Session, customer_id: int, user: User, authz: AuthorizationService) -> bool:
+    """Khách có thuộc phạm vi Tính giá của `user` — cùng luật chủ phiếu (`_CHU_PHIEU`): sale phụ
+    trách khách, khách chưa gán ai thì coi như của người đang lập."""
+    owner_ids = _owner_ids_for_scope(db, user, authz)
+    return owner_ids is None or chu_cua(db, customer_id, user.id) in owner_ids
 
 
 @router.get("/san-pham-tai-ban/{id}", response_model=SanPhamTaiBanChiTiet)
 def san_pham_tai_ban_chi_tiet(
     id: int,
     db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     _ruot: RuotGia,
     customer_id: int = Query(...),
 ) -> dict:
-    row = san_pham_tai_ban_service.lay_chi_tiet(db, customer_id, id)
+    row = (san_pham_tai_ban_service.lay_chi_tiet(db, customer_id, id)
+           if _khach_trong_pham_vi(db, customer_id, user, authz) else None)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Không tìm thấy sản phẩm tái bản của khách này")

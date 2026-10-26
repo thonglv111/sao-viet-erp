@@ -558,7 +558,7 @@ def _luot_out(d: dict | None) -> LuotXeTrongChuyenOut | None:
 # =================================================================================
 @router.post("/requests", response_model=DeliveryRequestOut,
              status_code=status.HTTP_201_CREATED)
-def tao_yeu_cau(body: DeliveryRequestCreate, svc: Service, db: Db, user: Writer):
+def tao_yeu_cau(body: DeliveryRequestCreate, svc: Service, db: Db, authz: Authz, user: Writer):
     """GHI LÀ GHI — gửi yêu cầu giao cho đơn của CHÍNH MÌNH vẫn đòi ô Thao tác."""
     try:
         kq = svc.tao_yeu_cau(
@@ -566,6 +566,7 @@ def tao_yeu_cau(body: DeliveryRequestCreate, svc: Service, db: Db, user: Writer)
             ngay_can_giao=body.ngay_can_giao,
             lines=[l.model_dump() for l in body.lines],
             actor=user,
+            scope=_scope(authz, user),
             dia_chi_id=body.dia_chi_id,
             lien_he_id=body.lien_he_id,
         )
@@ -701,8 +702,13 @@ def huy_yeu_cau(request_id: int, body: LyDoIn, svc: Service, db: Db, authz: Auth
 
 
 @router.get("/orders/{order_id}/con-phai-giao", response_model=ConPhaiGiaoOut)
-def con_phai_giao(order_id: int, svc: Service, db: Db, user: Reader):
-    """Dùng ở màn Đơn hàng bán khi lập yêu cầu — và là cờ "đã giao đủ" cho kế toán."""
+def con_phai_giao(order_id: int, svc: Service, db: Db, authz: Authz, user: Reader):
+    """Dùng ở màn Đơn hàng bán khi lập yêu cầu — và là cờ "đã giao đủ" cho kế toán.
+    Đơn ngoài phạm vi xem = 404 (không lộ tên + số lượng từng dòng)."""
+    don = OrderRepository(db).get_by_id(order_id)
+    if don is not None and not OrderRepository(db).can_access(
+            order=don, scope=_scope(authz, user), actor=user):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy đơn hàng bán")
     try:
         con = svc.con_phai_giao(order_id)
     except DeliveryError as e:

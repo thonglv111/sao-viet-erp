@@ -561,6 +561,21 @@ async def quote_events(
 
 # --- create / read / update ---------------------------------------------------
 
+def _thay_phieu(db: Session, phieu_id: int, user: User, authz: AuthorizationService) -> bool:
+    """Phiếu tính giá có trong phạm vi Tính giá của `user` không — cùng luật cửa xem chi tiết
+    (`phieu_tinh_gia._fetch_in_scope`): chủ phiếu = sale phụ trách khách, thiếu thì người lập.
+    Phiếu không tồn tại coi như thấy (đường gọi tự báo lỗi riêng)."""
+    from ..models.phieu_tinh_gia import PhieuTinhGia
+    from ..repositories.org_scope import chu_cua
+    from .phieu_tinh_gia import _owner_ids_for_scope as _ptg_owner_ids
+
+    ptg = db.get(PhieuTinhGia, phieu_id)
+    if ptg is None:
+        return True
+    owner_ids = _ptg_owner_ids(db, user, authz)
+    return owner_ids is None or chu_cua(db, ptg.customer_id, ptg.created_by) in owner_ids
+
+
 @router.post("", response_model=QuotationDetailOut, status_code=status.HTTP_201_CREATED)
 def create_quotation(
     payload: QuotationCreate,
@@ -571,14 +586,9 @@ def create_quotation(
     scope = _scope_for(authz, user)
     # Phải THẤY được phiếu nguồn (phạm vi Tính giá) mới lập được báo giá từ nó — không thì ai có
     # quyền Tạo báo giá cũng chép được giá vốn phiếu người khác bằng cách gọi thẳng API. Ẩn = 404.
-    from ..models.phieu_tinh_gia import PhieuTinhGia
-    from .phieu_tinh_gia import _owner_ids_for_scope as _ptg_owner_ids
-
-    if payload.phieu_tinh_gia_id is not None:
-        ptg = svc.quotations.db.get(PhieuTinhGia, payload.phieu_tinh_gia_id)
-        owner_ids = _ptg_owner_ids(svc.quotations.db, user, authz)
-        if ptg is not None and owner_ids is not None and ptg.created_by not in owner_ids:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy phiếu tính giá.")
+    if payload.phieu_tinh_gia_id is not None and not _thay_phieu(
+            svc.quotations.db, payload.phieu_tinh_gia_id, user, authz):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Không tìm thấy phiếu tính giá.")
     try:
         q = svc.create_quotation(
             customer_id=payload.customer_id,
@@ -602,12 +612,14 @@ def create_quotation(
 def quote_id_for_phieu(
     phieu_tinh_gia_id: int,
     svc: Service,
-    _: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> dict:
     """Báo giá (duy nhất, mọi trạng thái) của 1 Phiếu tính giá — để màn phiếu quyết 'Lập báo giá'
-    hay 'Mở báo giá có sẵn'. Trả `{quote_id, quote_number}` hoặc `{quote_id: null}` nếu chưa có."""
+    hay 'Mở báo giá có sẵn'. Trả `{quote_id, quote_number}` hoặc `{quote_id: null}` nếu chưa có.
+    Phiếu ngoài phạm vi xem cũng trả null — không lộ mã báo giá của khách người khác."""
     existing = svc.quotations.cua_phieu(phieu_tinh_gia_id)
-    if existing is None:
+    if existing is None or not _thay_phieu(svc.quotations.db, phieu_tinh_gia_id, user, authz):
         return {"quote_id": None, "quote_number": None}
     return {"quote_id": existing.id, "quote_number": existing.quote_number}
 

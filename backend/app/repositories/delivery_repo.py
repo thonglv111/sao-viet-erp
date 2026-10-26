@@ -637,7 +637,9 @@ class DeliveryRepository:
         if loc is not None:
             q = q.where(*loc.dieu_kien())
         if employee_ids is not None:
-            q = q.where(DeliveryTrip.employee_id.in_(employee_ids))
+            # "Của tôi" = chuyến có tên mình — tài xế HOẶC phụ xe (cùng đi, cùng chia tiền chuyến).
+            q = q.where(or_(DeliveryTrip.employee_id.in_(employee_ids),
+                            DeliveryTrip.phu_xe_employee_id.in_(employee_ids)))
         if department_ids is not None:
             q = q.where(DeliveryRequest.department_id.in_(department_ids))
         if trang_thai:
