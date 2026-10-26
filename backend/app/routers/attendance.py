@@ -572,11 +572,8 @@ def list_logs(
     logs, total = svc.list_logs(scope=_scope_for(authz, user), actor=user, loc=loc, q=q,
                                 page=page, size=size)
     loc_names = {l.id: l.name for l in svc.list_locations()}
-    emp_names: dict[int, str] = {}
-    for eid in {l.employee_id for l in logs}:
-        emp = employees.get_by_id(eid)
-        if emp is not None:
-            emp_names[eid] = emp.full_name
+    # Tên nhân viên cả trang MỘT truy vấn (trước 26/10/2026 mỗi người một câu).
+    emp_names = {eid: e.full_name for eid, e in employees.map_by_ids({l.employee_id for l in logs}).items()}
     return AttendanceLogsOut(items=[_log_out(l, emp_names, loc_names) for l in logs],
                              total=total, page=page, size=size)
 

@@ -807,6 +807,8 @@ class PurchaseService:
         # `StockRequestService` — TUỲ CHỌN (20/10/2026), cùng nếp. Có mặt thì lưu đợt giao là tạo
         # luôn yêu cầu NHẬP kho của đợt, sửa / xoá đợt kéo yêu cầu theo (`_dong_bo_yeu_cau_nhap`).
         self.stock_requests = stock_requests
+        # Tên người đã nạp gộp cho trang đang dựng (`_nap_ten_nguoi`): `{user_id: tên | None}`.
+        self._ten_nap: dict[int, str | None] = {}
 
     # --- suppliers ---------------------------------------------------------
 
@@ -4211,6 +4213,9 @@ class PurchaseService:
     def _user_name(self, user_id: int | None) -> str | None:
         if user_id is None:
             return None
+        ten_nap = getattr(self, "_ten_nap", None) or {}
+        if user_id in ten_nap:
+            return ten_nap[user_id]
         u = self.users.get_by_id(user_id)
         return u.name if u is not None else None
 
@@ -4247,10 +4252,19 @@ class PurchaseService:
         return nap
 
     def _nap_ten_nguoi(self, user_ids) -> None:
-        """Nạp sẵn các User vào identity map của phiên ⇒ `_user_name` (db.get) khỏi hỏi DB."""
-        ids = {int(u) for u in user_ids if u}
+        """Nạp tên các User MỘT lượt ⇒ `_user_name` khỏi hỏi DB từng dòng.
+
+        Phải GIỮ kết quả lại (`_ten_nap`): identity map của Session chỉ giữ tham chiếu YẾU, nạp
+        rồi bỏ thì object bị dọn ngay và `db.get` sau đó vẫn SELECT lại (đo bản sao 26/10/2026:
+        40 câu SELECT users cho trang 4 đơn mua). Id không còn User ⇒ ghi None, khỏi hỏi lại."""
+        if not hasattr(self, "_ten_nap"):
+            self._ten_nap = {}
+        ids = {int(u) for u in user_ids if u} - set(self._ten_nap)
         if ids:
-            self.users.map_by_ids(ids)
+            gap = self.users.map_by_ids(ids)
+            for i in ids:
+                u = gap.get(i)
+                self._ten_nap[i] = u.name if u is not None else None
 
     def _to_request_out(self, row: PurchaseRequest, nap: dict | None = None) -> dict:
         # Mọi con TIỀN lấy từ `purchase_money` — dùng chung với màn Công nợ phải trả, không cộng lại

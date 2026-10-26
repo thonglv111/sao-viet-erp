@@ -225,7 +225,9 @@ def _so_lieu_map(
     rows, tot_map: dict[int, float], nhan_map: dict[int, dict[str, float]]
 ) -> dict[int, dict]:
     """{cong_viec_id: số thực tế + còn thiếu + nhận/lỗi} cho cả bàn tổ — tổng tốt và bàn giao nạp
-    GỘP một lần; chỉ dòng chưa có bàn giao mới hỏi thêm nguồn trước."""
+    GỘP một lần; chỉ dòng chưa có bàn giao mới hỏi thêm nguồn trước — nguồn trước cũng nạp gộp
+    cho cả trang (`dau_vao.NapTruoc`), không hỏi DB từng dòng."""
+    sl = dau_vao.NapTruoc(sl, [cv for cv in rows if _thuc_nhan(cv, nhan_map) is None])
     ket = {}
     for cv in rows:
         tot = tot_map.get(cv.id, 0.0)

@@ -76,6 +76,63 @@ def _khoa(c) -> tuple:
     return ("cv", c.id)
 
 
+class NapTruoc:
+    """Repo sản lượng đã NẠP SẴN nguồn "công đoạn trước" cho cả một tập việc (26/10/2026).
+
+    Đưa vào `nhom_truoc` / `tran_nhan` thay cho repo thường khi tính cho CẢ TRANG (bàn tổ): mỗi
+    hàm đọc trả từ dict nạp một lượt thay vì hỏi DB từng việc. Việc ngoài tập, hay hàm không nạp
+    sẵn, rơi về repo thật — kết quả luôn y như bản từng việc."""
+
+    def __init__(self, repo: SanXuatSanLuongRepository, cvs):
+        self._repo = repo
+        cvs = list(cvs)
+        self._ids = {cv.id for cv in cvs}
+        self._truoc = repo.cong_viec_chang_truoc_nhieu(cvs)
+        self._canh = repo.canh_phu_thuoc_toi_nhieu(self._ids)
+        them = {c.nguon_cong_viec_id for ds in self._canh.values() for c in ds}
+        self._cv = repo.cong_viec_nhieu(them)
+        self._bg: dict[int, list] | None = None
+        self._tot: dict[int, float] | None = None
+        self._tot_ids: set[int] = set()
+
+    def __getattr__(self, ten):
+        return getattr(self._repo, ten)
+
+    def cong_viec_chang_truoc(self, cv):
+        if cv.id in self._ids:
+            return list(self._truoc.get(cv.id, []))
+        return self._repo.cong_viec_chang_truoc(cv)
+
+    def canh_phu_thuoc_toi(self, dich_cong_viec_id: int):
+        if dich_cong_viec_id in self._ids:
+            return list(self._canh.get(dich_cong_viec_id, []))
+        return self._repo.canh_phu_thuoc_toi(dich_cong_viec_id)
+
+    def cong_viec_nhieu(self, ids):
+        ids = {i for i in ids if i}
+        if ids <= set(self._cv):
+            return {i: self._cv[i] for i in self._cv if i in ids}
+        return self._repo.cong_viec_nhieu(ids)
+
+    def ban_giao_toi_dich(self, cong_viec_id: int):
+        if cong_viec_id not in self._ids:
+            return self._repo.ban_giao_toi_dich(cong_viec_id)
+        if self._bg is None:
+            self._bg = self._repo.ban_giao_toi_nhieu_dich(self._ids)
+        return list(self._bg.get(cong_viec_id, []))
+
+    def tong_tot_nhieu(self, cong_viec_ids):
+        ids = {i for i in cong_viec_ids if i}
+        if self._tot is None:
+            # Nạp một lượt tổng TỐT của MỌI việc có thể là nguồn trước của tập.
+            self._tot_ids = ({c.id for ds in self._truoc.values() for c in ds} | set(self._cv)
+                             | self._ids)
+            self._tot = self._repo.tong_tot_nhieu(self._tot_ids)
+        if not ids <= self._tot_ids:
+            return self._repo.tong_tot_nhieu(ids)
+        return {i: v for i, v in self._tot.items() if i in ids}
+
+
 def nhom_truoc(repo: SanXuatSanLuongRepository, cv) -> list[list]:
     """Các công đoạn trước, mỗi phần tử là MỘT bước (các lần chạy của nó). Nguồn: routing lệnh
     (`cong_viec_chang_truoc`) + cạnh phụ thuộc chéo đổ vào (bước ghép / nhánh toả bài ghép)."""

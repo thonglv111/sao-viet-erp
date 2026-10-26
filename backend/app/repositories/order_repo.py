@@ -198,6 +198,15 @@ class OrderRepository:
     def get_by_id(self, order_id: int) -> Order | None:
         return self.db.get(Order, order_id)
 
+    def theo_ids_kem_dong(self, ids) -> dict[int, Order]:
+        """`{order_id: đơn kèm dòng}` trong một lượt nạp — dựng cả trang khỏi hỏi từng đơn."""
+        ids = {int(i) for i in ids if i is not None}
+        if not ids:
+            return {}
+        return {o.id: o for o in self.db.execute(
+            select(Order).where(Order.id.in_(ids)).options(selectinload(Order.lines))
+        ).scalars()}
+
     def get_with_lines(self, order_id: int) -> Order | None:
         return self.db.execute(
             select(Order).where(Order.id == order_id).options(selectinload(Order.lines))

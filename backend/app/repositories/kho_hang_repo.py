@@ -27,6 +27,13 @@ class KhoHangRepository(CatalogRepo):
             select(KhoHang.id).where(func.upper(KhoHang.ma) == (ma or "").upper())).scalar_one_or_none()
         return int(i) if i is not None else None
 
+    def theo_ids(self, kho_ids) -> dict[int, KhoHang]:
+        """`{kho_id: bản ghi}` một câu cho cả danh sách (kể cả kho đã xoá mềm, như `get`)."""
+        ids = {int(i) for i in kho_ids if i is not None}
+        if not ids:
+            return {}
+        return {k.id: k for k in self.db.execute(select(KhoHang).where(KhoHang.id.in_(ids))).scalars()}
+
     def ten_theo_ids(self, kho_ids) -> dict[int, str]:
         """`{kho_id: tên kho}` cho MỘT lượt đọc, một câu cho cả danh sách. Kho đã xoá mềm vẫn trả tên
         (lô cũ vẫn phải đọc được)."""

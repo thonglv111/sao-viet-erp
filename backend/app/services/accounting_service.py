@@ -555,6 +555,8 @@ class AccountingService:
         # `salary_advance` báo lỗi rõ ràng thay vì vỡ.
         self._payroll = payroll
         self._employees = employees
+        # Tên người đã nạp gộp cho trang đang dựng (`_nap_ten_nguoi`): `{user_id: tên | None}`.
+        self._ten_nap: dict[int, str | None] = {}
 
     # --- bank accounts ----------------------------------------------------
 
@@ -1562,6 +1564,10 @@ class AccountingService:
 
     def list_vouchers(self, **filters):
         rows, total, totals = self.repo.list_vouchers(**filters)
+        self._nap_ten_nguoi(
+            [u for r in rows for u in (r.created_by_user_id, r.paid_by_user_id, r.cancelled_by_user_id)]
+            + [r.purchase_request.created_by_user_id for r in rows if r.purchase_request is not None]
+        )
         return [self._voucher_out(row) for row in rows], total, totals
 
     def get_voucher(self, voucher_id: int):
@@ -2197,6 +2203,8 @@ class AccountingService:
         )
         if until is not None:
             receipts = [r for r in receipts if r.receipt_date <= until]
+        # Tên người lập: một lượt cho mọi phiếu (trước 26/10/2026 mỗi phiếu một SELECT users).
+        self._nap_ten_nguoi(r.created_by_user_id for r in receipts)
         return [
             {
                 "receipt_id": row.receipt_id,
@@ -2519,6 +2527,8 @@ class AccountingService:
             return
         khach = self.repo.customers_by_ids(ids)
         chinh = self.repo.lien_he_chinh_theo_khach(ids)
+        # Tên sale cả trang một lượt — trước 26/10/2026 mỗi sale một SELECT users.
+        self._nap_ten_nguoi(m["sale_user_id"] for m in trang)
         ten_sale: dict[int, str | None] = {}
         for m in trang:
             kh = khach.get(m["customer_id"])
@@ -2686,6 +2696,9 @@ class AccountingService:
             sort=sort,
             page=page,
             size=size,
+        )
+        self._nap_ten_nguoi(
+            [u for r in rows for u in (r.created_by_user_id, r.received_by_user_id, r.cancelled_by_user_id)]
         )
         return [self._receipt_out(row) for row in rows], total, extra
 
@@ -4501,8 +4514,24 @@ class AccountingService:
     def _user_name(self, user_id: int | None) -> str | None:
         if user_id is None:
             return None
+        ten_nap = getattr(self, "_ten_nap", None) or {}
+        if user_id in ten_nap:
+            return ten_nap[user_id]
         user = self.users.get_by_id(user_id)
         return user.name if user else None
+
+    def _nap_ten_nguoi(self, user_ids) -> None:
+        """Nạp tên các User MỘT lượt cho cả trang ⇒ `_user_name` khỏi hỏi DB từng dòng. Giữ lại
+        tên (`_ten_nap`) vì identity map của Session chỉ giữ tham chiếu YẾU — nạp rồi bỏ thì
+        `db.get` sau đó vẫn SELECT lại. Id không còn User ⇒ ghi None, khỏi hỏi lại."""
+        if not hasattr(self, "_ten_nap"):
+            self._ten_nap = {}
+        ids = {int(u) for u in user_ids if u} - set(self._ten_nap)
+        if ids:
+            gap = self.users.map_by_ids(ids)
+            for i in ids:
+                u = gap.get(i)
+                self._ten_nap[i] = u.name if u is not None else None
 
     def _voucher_out(self, row: PaymentVoucher) -> dict:
         purchase = row.purchase_request

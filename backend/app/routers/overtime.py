@@ -126,35 +126,36 @@ def _out(r, emp_names: dict[int, str], decider_names: dict[int, str]) -> Overtim
     return o
 
 
-def _yc_out(yc, employees: EmployeeRepository) -> YeuCauHuyOut:
+def _yc_out(yc, employees: EmployeeRepository,
+            ten_theo_user: dict[int, str] | None = None) -> YeuCauHuyOut:
+    """`ten_theo_user` có ⇒ tra tên người quyết trong đó (đã nạp gộp cho cả trang)."""
     o = YeuCauHuyOut.model_validate(yc)
     if yc.decided_by:
-        emp = employees.get_by_user_id(yc.decided_by)
-        o.decided_by_name = emp.full_name if emp is not None else None
+        if ten_theo_user is not None:
+            o.decided_by_name = ten_theo_user.get(yc.decided_by)
+        else:
+            emp = employees.get_by_user_id(yc.decided_by)
+            o.decided_by_name = emp.full_name if emp is not None else None
     return o
 
 
 def _resolve(employees: EmployeeRepository, reqs: list,
              svc: OvertimeService | None = None) -> list[OvertimeRequestOut]:
-    """`svc` có ⇒ kèm yêu cầu hủy mới nhất của từng phiếu (23/09/2026), một truy vấn cho cả trang."""
-    names: dict[int, str] = {}
-    for eid in {r.employee_id for r in reqs}:
-        emp = employees.get_by_id(eid)
-        if emp is not None:
-            names[eid] = emp.full_name
+    """`svc` có ⇒ kèm yêu cầu hủy mới nhất của từng phiếu (23/09/2026), một truy vấn cho cả trang.
+    Tên người đứng phiếu / người duyệt / người quyết yêu cầu huỷ: nạp GỘP một lượt (26/10/2026 —
+    trước đó mỗi người một câu SELECT)."""
+    names = {eid: e.full_name for eid, e in employees.map_by_ids({r.employee_id for r in reqs}).items()}
+    yc_map = svc.yeu_cau_huy_moi_nhat([r.id for r in reqs]) if svc is not None else {}
     # Người DUYỆT/từ chối là 1 user id → tra hồ sơ NV theo user_id (tổ trưởng/HCNS/GĐ đều có hồ sơ).
-    decider_names: dict[int, str] = {}
-    for uid in {r.decided_by for r in reqs if r.decided_by}:
-        emp = employees.get_by_user_id(uid)
-        if emp is not None:
-            decider_names[uid] = emp.full_name
+    uids = {r.decided_by for r in reqs if r.decided_by} | {yc.decided_by for yc in yc_map.values() if yc.decided_by}
+    ten_theo_user = {uid: e.full_name for uid, e in employees.map_by_user_ids(uids).items()}
+    decider_names = {uid: ten_theo_user[uid] for uid in {r.decided_by for r in reqs if r.decided_by}
+                     if uid in ten_theo_user}
     out = [_out(r, names, decider_names) for r in reqs]
-    if svc is not None:
-        yc_map = svc.yeu_cau_huy_moi_nhat([r.id for r in reqs])
-        for o in out:
-            yc = yc_map.get(o.id)
-            if yc is not None:
-                o.yeu_cau_huy = _yc_out(yc, employees)
+    for o in out:
+        yc = yc_map.get(o.id)
+        if yc is not None:
+            o.yeu_cau_huy = _yc_out(yc, employees, ten_theo_user)
     return out
 
 

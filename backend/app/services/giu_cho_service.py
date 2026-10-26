@@ -306,15 +306,19 @@ class GiuChoService:
         ⚠️ `q` KHÔNG truyền xuống `can_doi()`. Ở đó `q` lọc theo MẶT HÀNG, mà lọc mặt hàng rồi gom
         theo lệnh là cắt mất chính món đang thiếu của lệnh — thẻ sẽ hiện "đủ" cho một lệnh còn
         thiếu giấy. Lấy bảng đầy đủ rồi lọc theo CHỦ THỂ ở đây.
+
+        Đường ĐỌC ⇒ bọc `nho_phieu_mua` như `/can-doi`: không có khối này thì danh sách phiếu mua đang
+        về bị nạp lại 7 lần trong một lượt (đo bản sao 26/10/2026: 76 câu SQL cho 6 thẻ).
         """
-        bang = self.kh.can_doi()
-        gom = self._gom_theo_chu_the(bang)
+        with self.kh.nho_phieu_mua():
+            bang = self.kh.can_doi()
+            gom = self._gom_theo_chu_the(bang)
 
-        da_xep_lsx, da_xep_bai = self.repo.chu_the_da_xep_lich()
-        gio = datetime.now(timezone.utc)
+            da_xep_lsx, da_xep_bai = self.repo.chu_the_da_xep_lich()
+            gio = datetime.now(timezone.utc)
 
-        self._them_mo_coi(gom)
-        tt_by_chu = self.giu_theo_chu_the_hang(bang, gom)
+            self._them_mo_coi(gom)
+            tt_by_chu = self.giu_theo_chu_the_hang(bang, gom)
         dang_thieu = self._chu_the_dang_thieu(gom)
 
         rows: list[dict] = []
