@@ -298,6 +298,9 @@ class _NapYeuCau:
     sách yêu cầu giao từng tốn ~9 câu SQL mỗi dòng — đơn, dòng đơn, khách, người tạo, đã giao hai
     lần, chuyến hai lần, tên mặt hàng)."""
     don: dict           # order_id → Order (kèm dòng)
+    mo_ta: dict         # order_id → {order_line_id: (mô tả, ĐVT)}
+    cum: dict           # order_id → `_cum_theo_dong` — tính MỘT lần mỗi đơn (đơn vài trăm dòng mà
+                        # nhiều yêu cầu thì `cum_ban` từng yêu cầu ăn cả giây CPU)
     khach: dict         # customer_id → Customer
     nguoi: dict         # user_id → tên
     da_giao: dict       # request_id → {order_line_id: đã thực nhận}
@@ -308,8 +311,12 @@ class _NapYeuCau:
 def _nap_yeu_cau(db: Session, svc: DeliveryService, reqs) -> _NapYeuCau:
     ids = [r.id for r in reqs]
     orders = OrderRepository(db)
+    don = orders.theo_ids_kem_dong({r.order_id for r in reqs})
     return _NapYeuCau(
-        don=orders.theo_ids_kem_dong({r.order_id for r in reqs}),
+        don=don,
+        mo_ta={oid: {ln.id: (ln.description or "", ln.don_vi_tinh or "") for ln in o.lines}
+               for oid, o in don.items()},
+        cum={oid: _cum_theo_dong(o) for oid, o in don.items()},
         khach=orders.khach_theo_ids({r.customer_id for r in reqs if r.customer_id is not None}),
         nguoi=_ten_nguoi_nhieu(db, {r.created_by for r in reqs}),
         da_giao=svc.deliveries.da_giao_theo_yeu_cau(ids),
@@ -331,8 +338,7 @@ def _request_out(db: Session, svc: DeliveryService, req, *,
     if nap is None:
         nap = _nap_yeu_cau(db, svc, [req])
     order = nap.don.get(req.order_id)
-    mo_ta = ({ln.id: (ln.description or "", ln.don_vi_tinh or "") for ln in order.lines}
-             if order is not None else {})
+    mo_ta = nap.mo_ta.get(req.order_id, {})
     da_giao = nap.da_giao.get(req.id, {})
     trips = nap.chuyen.get(req.id, [])
     ten_kho = nap.ten_kho
@@ -340,7 +346,7 @@ def _request_out(db: Session, svc: DeliveryService, req, *,
     if req.customer_id is not None:
         kh = nap.khach.get(req.customer_id)
         khach = getattr(kh, "name", None) if kh is not None else None
-    cum = _cum_theo_dong(order)
+    cum = nap.cum.get(req.order_id, {})
     return DeliveryRequestOut(
         id=req.id,
         code=req.code,
