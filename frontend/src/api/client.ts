@@ -509,6 +509,7 @@ export type QuoteEvent =
   // Tạm ứng lương: NV gửi đề nghị → 'pending_changed' (người duyệt refetch badge); kế toán
   // duyệt/từ chối → 'decision' gửi riêng nhân viên đề nghị.
   | { type: "advance_pending_changed"; code?: string }
+  | { type: "khoan_theo_to_changed" }
   | { type: "advance_decision"; code?: string; decision: "approved" | "rejected" }
   // Phiếu tăng ca: NV gửi/hủy → 'ot_pending_changed' (người duyệt refetch badge); tổ trưởng
   // duyệt/từ chối → 'ot_decision' đẩy riêng cho nhân viên nộp phiếu.

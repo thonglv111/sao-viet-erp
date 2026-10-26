@@ -19,6 +19,7 @@ import { ChipTT } from "../../../../components/LuoiDs";
 import { MonthPicker } from "../../../../components/MonthPicker";
 import { curYm, errText, money } from "../shared/helpers";
 import { Hov, pt } from "../components/HovDong";
+import { useKhiTickDoi } from "../../../../hooks/useKhiTickDoi";
 import { ChonNguoi, docNgay, docSo, LuoiGoTay, OGo, type MucMenu } from "./KhoanGoTay";
 import "./khoan-theo-to.css";
 
@@ -488,7 +489,7 @@ function NguoiDm({ tien, ds }: { tien: number; ds: KttNguoiLan[] }) {
   );
 }
 
-export function KhoanTheoToTab({ token }: { token: string }) {
+export function KhoanTheoToTab({ token, eventTick = 0 }: { token: string; eventTick?: number }) {
   const [ym, setYm] = useState(curYm);
   const [toId, setToId] = useState<number | null>(null);
   const [data, setData] = useState<KhoanTheoTo | null>(null);
@@ -520,6 +521,9 @@ export function KhoanTheoToTab({ token }: { token: string }) {
     () => api.luong.khoanTheoTo(token, year, month, toId).then(setData),
     [token, year, month, toId],
   );
+  // Kế toán khác vừa sửa tay sổ (SSE `khoan_theo_to_changed`, L-SX-37) ⇒ nạp lại; chữ đang gõ dở nằm
+  // trong state của ô gõ nên không mất.
+  useKhiTickDoi(eventTick, () => void taiLai().catch(() => undefined));
 
   const luu = useCallback(async (k: string, chu: string): Promise<string | void> => {
     if (!data || data.to_id == null) return;

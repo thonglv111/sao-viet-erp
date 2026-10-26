@@ -244,3 +244,34 @@ describe("BangLuongTab — ô Hoa hồng của người có lần thu nhưng t�
     expect(screen.queryByTitle(/Bấm xem từng lần thu/)).toBeNull();
   });
 });
+
+describe("BangLuongTab — đợt vá 26/10/2026", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.luong.getParams).mockResolvedValue({} as never);
+  });
+
+  it("L-VAI-41: không có quyền soi ⇒ ô Hoa hồng chỉ in số, không bấm được", async () => {
+    vi.mocked(api.luong.table).mockResolvedValue({
+      period: mockPeriod,
+      lines: [{ ...mockLine, hoa_hong: 1_234_000, co_hoa_hong: true } as PayrollLine],
+      phong_loc: [],
+    });
+    render(<BangLuongTab token="t" canManage={false} canLockPeriod={false} canMarkPaid={false}
+      canExportPayroll={false} canSoiChiTiet={false} />);
+    await screen.findByText("Nguyễn Văn Test");
+    expect(screen.queryByTitle(/Bấm xem từng lần thu/)).toBeNull();
+    expect(screen.getAllByText("1.234.000").length).toBeGreaterThan(0);
+  });
+
+  it("L-SX-31: cột Khoán SP cộng cả cộng thêm khoán (kể cả âm)", async () => {
+    vi.mocked(api.luong.table).mockResolvedValue({
+      period: mockPeriod,
+      lines: [{ ...mockLine, khoan: 2_000_000, tang_ca_khoan: 100_000, khoan_cong_them: -300_000 } as PayrollLine],
+      phong_loc: [],
+    });
+    render(<BangLuongTab token="t" canManage canLockPeriod canMarkPaid canExportPayroll />);
+    await screen.findByText("Nguyễn Văn Test");
+    expect(screen.getAllByText("1.800.000").length).toBeGreaterThan(0);
+  });
+});

@@ -63,6 +63,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
 
   // Nhân sự: nghỉ phép · tăng ca · chấm công · tạm ứng lương.
   advance_pending_changed: ["nhan_su"],
+  khoan_theo_to_changed: ["nhan_su"],
   advance_decision: ["nhan_su"],
   ot_pending_changed: ["nhan_su"],
   ot_decision: ["nhan_su"],

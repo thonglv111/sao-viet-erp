@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.payroll import (
@@ -17,6 +17,7 @@ from ..models.payroll import (
     KhoanToTruong,
     LatePenaltyBracket,
     PayrollLine,
+    PayrollLineComponent,
     PayrollParams,
     PERIOD_LOCKED,
     PERIOD_PAID,
@@ -579,6 +580,14 @@ class PayrollRepository:
     def commit(self) -> None:
         """Chốt cả mẻ — dùng khi caller tự quyết ranh giới transaction (vòng tính lương cả kỳ)."""
         self.db.commit()
+
+    def delete_lines(self, ids: list[int]) -> None:
+        """Xoá các dòng lương theo id cùng khoản trên dòng — KHÔNG commit (người gọi gom vào giao dịch
+        của lần Tính lại). Xoá khoản trước: SQLite test không bật FK nên ON DELETE CASCADE không chạy."""
+        if not ids:
+            return
+        self.db.execute(delete(PayrollLineComponent).where(PayrollLineComponent.line_id.in_(ids)))
+        self.db.execute(delete(PayrollLine).where(PayrollLine.id.in_(ids)))
 
     def delete_lines_for_period(self, period_id: int) -> None:
         for ln in self.list_lines(period_id):

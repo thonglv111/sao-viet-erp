@@ -387,10 +387,19 @@ def _adv_out(advs, employees: EmployeeRepository,
 # --- real-time: đề nghị/duyệt tạm ứng đẩy tức thì (bám hub SSE) -------------
 
 
-def _notify_advance_pending(name: str | None) -> None:
+def _notify_advance_pending() -> None:
     """Có đề nghị tạm ứng mới/đổi → người xem màn nhân sự refetch badge (người duyệt nhận).
-    Nhóm `nhan_su`: badge Lương + tab Tạm ứng; người đề nghị nhận kết quả qua `advance_decision`."""
-    hub.gui({"type": "advance_pending_changed", "code": name}, quyen=MAN_NHAN_SU)
+    Nhóm `nhan_su`: badge Lương + tab Tạm ứng; người đề nghị nhận kết quả qua `advance_decision`.
+
+    KHÔNG kèm tên/mã người đề nghị (L-VAI-24, 26/10/2026): `MAN_NHAN_SU` gửi tới gần cả khối nhân sự
+    (chấm công, nghỉ phép, tăng ca…), FE chỉ cần tín hiệu để nạp lại badge."""
+    hub.gui({"type": "advance_pending_changed"}, quyen=MAN_NHAN_SU)
+
+
+def _bao_khoan_doi() -> None:
+    """Sổ Khoán theo tổ vừa bị sửa tay (lần ghi, dòng tay, cộng thêm) ⇒ màn kế toán khác đang mở sổ
+    tự nạp lại (L-SX-37). Chỉ là tín hiệu, không kèm số."""
+    hub.gui({"type": "khoan_theo_to_changed"}, quyen=MAN_NHAN_SU)
 
 
 def _cham_tam_ung_moi(employees: EmployeeRepository, outs, actor_id: int) -> None:
@@ -782,7 +791,7 @@ def create_advance(body: AdvanceIn, svc: Service, employees: Employees, departme
     except PayrollError as exc:
         _raise(exc)
     out = _adv_out([a], employees, departments)[0]
-    _notify_advance_pending(out.employee_name)
+    _notify_advance_pending()
     _cham_tam_ung_moi(employees, [out], user.id)
     return out
 
@@ -821,7 +830,7 @@ def create_advances_bulk(body: AdvanceBulkIn, svc: Service, employees: Employees
     except PayrollError as exc:
         _raise(exc)
     out = _adv_out(rows, employees, departments)
-    _notify_advance_pending(f"{len(out)} người")
+    _notify_advance_pending()
     _cham_tam_ung_moi(employees, out, user.id)
     return AdvancesOut(items=out)
 
@@ -861,7 +870,7 @@ def decide_advances_bulk(body: AdvanceBulkDecisionIn, svc: Service, employees: E
     # Mỗi người nhận ĐÚNG thông báo của phiếu mình (real-time), như duyệt lẻ.
     _notify_advance_decisions(rows, employees, "approved" if body.approve else "rejected",
                               user.id)
-    _notify_advance_pending(f"{len(rows)} phiếu")
+    _notify_advance_pending()
     return AdvancesOut(items=_adv_out(rows, employees, departments))
 
 
@@ -927,7 +936,7 @@ def create_my_advance(body: MyAdvanceIn, svc: Service, employees: Employees,
     except PayrollError as exc:
         _raise(exc)
     out = _adv_out([a], employees, departments)[0]
-    _notify_advance_pending(out.employee_name)
+    _notify_advance_pending()
     _cham_tam_ung_moi(employees, [out], user.id)
     return out
 
@@ -1595,6 +1604,7 @@ def khoan_sua_lan_ghi(batch_id: int, body: KttSuaLanGhiIn, svc: Service, authz: 
                                   **body.model_dump(include=body.model_fields_set))
     except PayrollError as exc:
         _raise(exc)
+    _bao_khoan_doi()
 
 
 @router.post("/khoan-theo-to/dong-tay", response_model=KttDongTayOut, status_code=status.HTTP_201_CREATED)
@@ -1607,6 +1617,7 @@ def khoan_them_dong_tay(body: KttDongTayIn, svc: Service, authz: Authz,
             duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
     except PayrollError as exc:
         _raise(exc)
+    _bao_khoan_doi()
     return KttDongTayOut(id=moi)
 
 
@@ -1619,6 +1630,7 @@ def khoan_sua_dong_tay(dong_id: int, body: KttDongTayPatchIn, svc: Service, auth
                                    **body.model_dump(include=body.model_fields_set))
     except PayrollError as exc:
         _raise(exc)
+    _bao_khoan_doi()
 
 
 @router.delete("/khoan-theo-to/dong-tay/{dong_id}", status_code=204)
@@ -1629,6 +1641,7 @@ def khoan_xoa_dong_tay(dong_id: int, svc: Service, authz: Authz,
                                    duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user))
     except PayrollError as exc:
         _raise(exc)
+    _bao_khoan_doi()
 
 
 @router.put("/khoan-theo-to/cong-them", status_code=204)
@@ -1642,6 +1655,7 @@ def khoan_cong_them(body: KttCongThemIn, svc: Service, authz: Authz,
             actor=user, duoc_xem=svc.nv_duoc_xem(scope=_emp_scope_for(authz, user), actor=user), **gui)
     except PayrollError as exc:
         _raise(exc)
+    _bao_khoan_doi()
 
 
 @router.post("/lines/{line_id}/components", response_model=LineComponentOut,
