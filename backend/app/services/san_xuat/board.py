@@ -1306,6 +1306,21 @@ def chi_tiet_cong_viec(
         db, department_id=cv.department_id,
         ps_rows=[r for rows in ps_map.values() for r in rows],
     ) if any(b.piece_rate_id for b in batches) else ({}, {})
+    # Câu "kỳ lương đã chốt" theo THÁNG của mẻ — mỗi tháng hỏi một lần cho cả tab.
+    from ..ky_luong_guard import ly_do_ky_luong_da_khoa
+    from .nguoi_trong_me import ngay_cua_me
+
+    _ky_khoa: dict[tuple[int, int], str | None] = {}
+
+    def ky_khoa_me(bat_dau) -> str | None:
+        ngay = ngay_cua_me(bat_dau)
+        if ngay is None:
+            return None
+        k = (ngay.year, ngay.month)
+        if k not in _ky_khoa:
+            _ky_khoa[k] = ly_do_ky_luong_da_khoa(db, ngay, viec="sửa lần ghi sản lượng")
+        return _ky_khoa[k]
+
     # Tên đơn vị cho ảnh chụp của mẻ + của việc phát sinh — cột giữ MÃ (`kem`), tổ đọc TÊN.
     dv_me_ten = DonViDoRepository(db).ten_theo_ma()
     # AI LÀM từng lần ghi — CÙNG một hàm với tab Sản lượng và màn thợ (ảnh chụp tổ tick lúc ghi),
@@ -1549,6 +1564,9 @@ def chi_tiet_cong_viec(
                     "danh_muc_doi": viec_khoan.danh_muc_doi(
                         db, b, ps_map.get(b.id, []), department_id=cv.department_id,
                         nap=nap_dmd),
+                    # Lần ghi thuộc tháng đã chốt / đã chi lương: máy chủ chặn sửa (L-SX-47) — FE mờ
+                    # nút "Cập nhật theo danh mục" kèm đúng câu này thay vì để bấm rồi ăn lỗi.
+                    "ky_khoa": ky_khoa_me(b.bat_dau),
                     "lot_vao": [
                         {
                             "id": lot.id,

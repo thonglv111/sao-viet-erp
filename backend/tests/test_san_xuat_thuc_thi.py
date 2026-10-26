@@ -820,3 +820,16 @@ def test_nhan_vien_chon_kem_tinh_trang(db, orders, lsx_svc, admin, customer):
     assert [(v["cong_viec_id"], v["trang_thai"]) for v in theo[chay.id]["viec_cho"]] == [
         (cv1.id, "paused"), (cv2.id, "released"),
     ]
+
+
+def test_bat_dau_hai_lan_lan_sau_bi_chan_chi_mot_phien(db, orders, lsx_svc, admin, customer):
+    """L-SX-23: hai người cùng bấm Bắt đầu — lượt sau (đọc lại sau khoá dòng việc) gặp việc đã chạy,
+    không đẻ phiên thứ hai cùng số thứ tự."""
+    to, cv = _mot_cv(db, orders, lsx_svc, admin, customer, ma="TO-BD2")
+    tho = _emp(db, to, "NV-BD2")
+    thuc_thi.phan_cong(db, user=admin, cong_viec_id=cv.id, employee_id=tho.id)
+    thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    with pytest.raises(ValueError):
+        thuc_thi.bat_dau(db, user=admin, cong_viec_id=cv.id)
+    phien = db.query(SanXuatPhienChay).filter_by(cong_viec_id=cv.id).all()
+    assert [p.so_thu_tu for p in phien] == [1]

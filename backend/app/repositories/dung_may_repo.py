@@ -27,6 +27,12 @@ class DungMayRepository:
         return self.db.scalar(select(Department.id).where(Department.parent_id == department_id)
                               .limit(1)) is not None
 
+    def khoa_may(self, may_id: int) -> None:
+        """Khoá dòng máy tới hết transaction: hai người cùng báo hư MỘT máy xếp hàng — lượt sau đọc
+        lại thấy yêu cầu lượt trước vừa lập, không đẻ yêu cầu thứ hai (L-SX-22). Cùng khuôn
+        `SanXuatSanLuongRepository.khoa_cong_viec`; SQLite (test) tự bỏ FOR UPDATE."""
+        self.db.execute(select(MayThietBi.id).where(MayThietBi.id == may_id).with_for_update())
+
     def trang_thai_ky(self, year: int, month: int) -> str | None:
         return self.db.scalar(select(PayrollPeriod.status)
                               .where(PayrollPeriod.year == year, PayrollPeriod.month == month))

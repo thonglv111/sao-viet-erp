@@ -2105,6 +2105,8 @@ export interface SxBatch {
   phat_sinh: SxMePhatSinh[];
   /** Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = còn khớp. */
   danh_muc_doi: SxMeDanhMucDoi[];
+  /** Câu chặn khi lần ghi thuộc tháng đã chốt / đã chi lương (L-SX-47); null = sửa được. */
+  ky_khoa?: string | null;
 }
 export interface SxMePhatSinh {
   id: number;

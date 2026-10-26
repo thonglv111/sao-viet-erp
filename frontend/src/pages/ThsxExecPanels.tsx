@@ -983,8 +983,9 @@ export function BatchRow({
               <div>Không bấm Cập nhật thì lần này giữ nguyên số lúc ghi.</div>
               <div className="thsx-b-hang-nut">
                 {canAssign && (
-                  <button type="button" className="thsx-b-lk" disabled={busy || b.danh_muc_doi.every((d) => d.mat)}
-                    title={b.danh_muc_doi.every((d) => d.mat) ? "Việc đã gỡ khỏi danh mục — không có số mới để lấy" : undefined}
+                  <button type="button" className="thsx-b-lk"
+                    disabled={busy || !!b.ky_khoa || b.danh_muc_doi.every((d) => d.mat)}
+                    title={b.ky_khoa ?? (b.danh_muc_doi.every((d) => d.mat) ? "Việc đã gỡ khỏi danh mục — không có số mới để lấy" : undefined)}
                     onClick={() => void exec.capNhatDanhMucMe(b.id)}>
                     Cập nhật theo danh mục
                   </button>

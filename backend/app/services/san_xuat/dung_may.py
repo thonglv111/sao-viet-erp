@@ -253,6 +253,7 @@ def bao_may_hu(db: Session, *, user, department_id: int, may_id: int, muc_do: st
 
     cvs = [cv for cv, _ in repo.viec_mo_co_may(department_id) if int(cv.may_id) == may_id]
     neo = cvs[0] if cvs else None
+    repo.khoa_may(may_id)   # giữ khoá rồi mới hỏi "máy đã có yêu cầu / phiếu mở chưa"
     phieu = repo.phieu_mo([may_id]).get(may_id)
     yc = None if phieu is not None else repo.yeu_cau_mo([may_id]).get(may_id)
     moi = nang = bao_phieu = False
