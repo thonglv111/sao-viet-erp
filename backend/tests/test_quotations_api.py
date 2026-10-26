@@ -394,7 +394,9 @@ def test_tong_phien_ban_lam_tron_khong_cat_cut(client):
     q = _create(client, token, _mk_ptg(products=(("Hộp bánh", 2000, 9_159_770.4),)))
     body = client.get(f"/api/quotations/{q['id']}", headers=_h(token)).json()
     du = body["total"]
-    assert du % 1 != 0   # có phần lẻ thì test mới có nghĩa
+    # Từ 26/10/2026 (L-VAI-32) tổng lúc tạo đi `_cong_tong` nên đã là số tròn; vẫn giữ để chặn
+    # lịch sử phiên bản / danh sách cắt cụt khác thẻ giá bán.
+    assert du == round(du)
     assert body["versions"][0]["total"] == round(du)
     row = client.get("/api/quotations", headers=_h(token)).json()["items"][0]
     assert row["total"] == round(du)

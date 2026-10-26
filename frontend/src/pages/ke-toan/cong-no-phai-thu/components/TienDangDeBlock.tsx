@@ -8,6 +8,7 @@ import { ChipTT, soVN, type MauTT } from "../../../../components/LuoiDs";
 const TINH_TRANG: Record<string, { chu: string; mau: MauTT }> = {
   don_huy: { chu: "Đơn đã huỷ", mau: "do" },
   ghi_du: { chu: "Đã ghi đủ hoá đơn", mau: "cam" },
+  coc_vuot: { chu: "Cọc thu vượt tổng đơn", mau: "cam" },
   cho_tru: { chu: "Chờ trừ vào hoá đơn", mau: "xam" },
 };
 

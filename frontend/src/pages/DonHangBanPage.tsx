@@ -1339,7 +1339,9 @@ function InvoicePanel({
       onClick={() => navigate("ke-toan-phieu-thu", { focusReceiptQuery: code })}>{docNo ?? code}</button>
   ) : <span>{docNo ?? code}</span>;
   const depositAlreadyOffset = issued.reduce((sum, item) => sum + item.deposit_offset_amount, 0);
-  const depositAvailable = Math.max(0, (book?.deposit_received ?? 0) - depositAlreadyOffset);
+  // Tiền có thể cấn = cọc + tiền hoá đơn đã huỷ về quỹ đơn, trừ phần đã cấn (L-VAI-36).
+  const tienHdHuy = phieuHdHuy.reduce((sum, p) => sum + p.amount, 0);
+  const depositAvailable = Math.max(0, (book?.deposit_received ?? 0) + tienHdHuy - depositAlreadyOffset);
   const enteredAmount = Math.max(0, Number(amount || 0));
   const expectedOffset = Math.min(depositAvailable, enteredAmount);
   const expectedDebt = Math.max(0, enteredAmount - expectedOffset);
@@ -1858,7 +1860,7 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
   const [deliveryNote, setDeliveryNote] = useState(order.delivery_note ?? "");
   const [productionNote, setProductionNote] = useState(order.production_note ?? "");
   const [isRush, setIsRush] = useState(order.is_rush);
-  const [depositPct, setDepositPct] = useState(order.deposit_pct != null ? String(order.deposit_pct) : "");
+  const [depositPct, setDepositPct] = useState(order.deposit_pct != null ? String(order.deposit_pct).replace(".", ",") : "");
   // Cọc hai tab (20/10/2026): "%" trên tổng đơn gồm VAT hoặc "Số" tiền gõ thẳng. Lưu tab nào thì máy
   // chủ xoá cách kia. Số tiền không vượt tổng đơn gồm VAT.
   const [cocKieu, setCocKieu] = useState<"pct" | "so">(order.deposit_amount != null ? "so" : "pct");
@@ -1884,7 +1886,7 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
         is_rush: isRush,
         ...(cocKieu === "so"
           ? { deposit_amount: tienCoc, ...(tienCoc == null ? { deposit_pct: null } : {}) }
-          : { deposit_pct: depositPct.trim() === "" ? null : Number(depositPct),
+          : { deposit_pct: depositPct.trim() === "" ? null : Math.min(100, Number(depositPct.replace(",", ".")) || 0),
               ...(depositPct.trim() === "" ? { deposit_amount: null } : {}) }),
       });
       onSaved(d);
@@ -1913,13 +1915,14 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
           {cocKieu === "pct" ? (
             <OGoDinhDang
               type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
+              inputMode="decimal"
               aria-label="% cọc"
               value={depositPct}
               onChange={(e) => {
-                const digits = e.target.value.replace(/[^0-9]/g, "");
-                setDepositPct(digits === "" ? "" : String(Math.min(100, Number(digits))));
+                // Nhận số thập phân "12,5" (L-VAI-33): giữ chữ số và MỘT dấu phẩy/chấm; kẹp 100 lúc gửi.
+                const v = e.target.value.replace(/[^0-9.,]/g, "");
+                const i = v.search(/[.,]/);
+                setDepositPct(i < 0 ? v : v.slice(0, i) + "," + v.slice(i + 1).replace(/[.,]/g, ""));
               }}
               placeholder="vd 30"
               className="dhb__input"

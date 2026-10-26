@@ -8362,6 +8362,8 @@ export interface TraLaiKhachChoChi {
   hoa_don_huy: string[];
   da_tra_lai: number;
   con_lai: number;
+  /** don_huy / ghi_du / coc_vuot (cọc thu vượt tổng đơn, chưa ghi hoá đơn) / cho_tru. */
+  tinh_trang?: string | null;
 }
 
 /** Một dòng "Chờ chi chiết khấu / kê" (20/10/2026) — một khoản (hóa đơn, loại) đã thu đủ còn phải chi. */

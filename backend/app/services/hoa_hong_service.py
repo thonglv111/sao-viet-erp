@@ -45,7 +45,7 @@ from ..models.accounting import (
     SalesInvoice,
 )
 from ..models.employee import Employee
-from ..models.order import Order
+from ..models.order import STATUS_CANCELLED, Order
 from .bac_hoa_hong import pct_theo_bac
 
 
@@ -114,7 +114,10 @@ class HoaHongService:
         if not dong:
             return []
         q = (select(Order).options(selectinload(Order.lines))
-             .where(Order.id.in_(sorted({int(d[1]) for d in dong})), Order.sale_user_id.is_not(None)))
+             .where(Order.id.in_(sorted({int(d[1]) for d in dong})), Order.sale_user_id.is_not(None),
+                    # Đơn đã huỷ coi như chưa từng thu — cọc trả lại khách không ra hoa hồng
+                    # (L-VAI-40). Kỳ đã chốt trước khi huỷ giữ số của bảng đã chốt.
+                    Order.status != STATUS_CANCELLED))
         if user_ids is not None:
             q = q.where(Order.sale_user_id.in_(sorted(user_ids)))
         don = {o.id: o for o in self.db.execute(q).scalars()}

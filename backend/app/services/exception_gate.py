@@ -145,11 +145,13 @@ def evaluate_quote(
         triggers.append({"key": EXC_DISCOUNT_OUT, "label": _LABELS[EXC_DISCOUNT_OUT]})
 
     if ke_min_pct is not None or ke_max_pct is not None:
-        def _ke_ngoai(ke: float, ban: float) -> bool:
-            k100 = float(ke) * 100
-            return (ke_min_pct is not None and k100 < ke_min_pct * ban) or (
-                ke_max_pct is not None and k100 > ke_max_pct * ban)
-        lech = [ln["ten"] for ln in (ke_lines or []) if ln["ban"] > 0 and _ke_ngoai(ln["ke"], ln["ban"])]
+        def _ke_ngoai(ke: float, ban: float, n: int = 1) -> bool:
+            # Tiền kê làm tròn tới đồng từng dòng như CK ⇒ cùng biên 1 đ mỗi dòng (L-VAI-30).
+            k100, tol = float(ke) * 100, 100 * max(1, n)
+            return (ke_min_pct is not None and k100 < ke_min_pct * ban - tol) or (
+                ke_max_pct is not None and k100 > ke_max_pct * ban + tol)
+        lech = [ln["ten"] for ln in (ke_lines or [])
+                if ln["ban"] > 0 and _ke_ngoai(ln["ke"], ln["ban"], ln.get("n", 1))]
         if lech:
             triggers.append({"key": EXC_KE_OUT, "label": f"{_LABELS[EXC_KE_OUT]}: {', '.join(lech)}"})
 

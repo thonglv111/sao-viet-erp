@@ -328,7 +328,8 @@ export function ChonNgay({
           if (e.key === "Enter") {
             e.preventDefault(); e.stopPropagation();
             const go = docNgayGo(chu, con.getFullYear());
-            if (go && chu.trim() !== hienNgay(value)) { if (trongKhoang(go, min, max)) dat(go); }
+            // Ngày gõ ngoài khoảng: trả về chữ của ngày đang chọn như lúc rời ô (L-VAI-39).
+            if (go && chu.trim() !== hienNgay(value)) { if (trongKhoang(go, min, max)) dat(go); else setChu(hienNgay(value)); }
             else dat(ymdCuaNgay(con));
             return;
           }

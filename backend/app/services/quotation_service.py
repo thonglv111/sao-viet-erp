@@ -188,6 +188,14 @@ class QuotationNotFound(QuotationError):
     pass
 
 
+def _chan_markup(pricing: dict) -> None:
+    """Cột `margin_percent` là Numeric(5, 2), trần 999,99 %. Giá gõ tay ra markup lớn hơn là gõ
+    nhầm số — báo rõ thay vì để Postgres nổ 500 (bấm thử 25/10/2026, L-VAI-27)."""
+    if round(abs(float(pricing.get("margin_percent") or 0)), 2) > 999.99:
+        raise QuotationValidationError(
+            "Giá bán cho markup vượt 999,99 %. Kiểm tra lại số đã gõ.")
+
+
 class QuotationForbidden(QuotationError):
     """The quotation exists but is outside the caller's data scope."""
     pass
@@ -359,6 +367,7 @@ class QuotationService:
             vat_percent=float(it.vat_percent or 0), quantity=qty,
             ke_gia=float(it.ke_gia or 0),
         )
+        _chan_markup(p)
         it.quantity = qty
         it.total_cost_snapshot = cost
         it.margin_percent = p["margin_percent"]
@@ -865,7 +874,6 @@ class QuotationService:
         thành phần ỔN ĐỊNH từ 07/09/2026, nhưng vị trí vẫn là khoá đúng hơn: bản báo giá cũ có thể
         đã sửa tay, dòng thêm tay không mang pin nào cả.) Dòng chưa có ở bản cũ → dùng default_margin. Duyệt theo thứ tự
         (thu_tu, id) cho ổn định — khớp cách engine sắp xếp."""
-        subtotal = discount = vat = final = total_cost = 0.0
         tps = self._sp_phieu(ptg)
         _giay = self._nap_giay(tps)  # noqa: F841 — giữ trong identity map
         for pos, tp in enumerate(tps):
@@ -876,6 +884,7 @@ class QuotationService:
             pricing = self.calculate_pricing(
                 total_cost=cost, margin_percent=margin, vat_percent=default_vat, quantity=qty,
             )
+            _chan_markup(pricing)
             self.quotations.db.add(QuoteItem(
                 quote_version_id=version.id,
                 phieu_thanh_phan_id=tp.id,
@@ -903,16 +912,12 @@ class QuotationService:
                 vat_amount=pricing["vat_amount"],
                 final_amount=pricing["final_amount"],
             ))
-            subtotal += pricing["selling_price"]
-            discount += pricing["discount_amount"]
-            vat += pricing["vat_amount"]
-            final += pricing["final_amount"]
-            total_cost += cost
-        version.total_cost_snapshot = total_cost
-        version.subtotal_amount = subtotal
-        version.discount_amount = discount
-        version.vat_amount = vat
-        version.final_amount = final
+        # Tổng CÙNG phép tính với lần sửa và với đơn (`_cong_tong`, VAT lấy sàn trên tổng). Trước
+        # 26/10/2026 khối này cộng VAT tròn từng dòng nên tổng lúc tạo lệch tổng sau lần sửa đầu
+        # (L-VAI-32).
+        self.quotations.db.flush()
+        self.quotations.db.refresh(version, ["items"])
+        self._cong_tong(version)
 
     def resync_from_ptg(self, *, phieu_tinh_gia_id: int, scope: str, actor) -> tuple[Quote, str]:
         """Báo giá của phiếu theo số lượng / giá vốn / sản phẩm HIỆN TẠI của phiếu.
@@ -1033,7 +1038,8 @@ class QuotationService:
             markup_min_pct=(cust.markup_min_pct if cust else None),
             markup_max_pct=(cust.markup_max_pct if cust else None),
             ke_amount=ke_tong,
-            ke_lines=[{"ten": ln["ten"], "ban": ln["ban"], "ke": ln["ke"]} for ln in sp.values()],
+            ke_lines=[{"ten": ln["ten"], "ban": ln["ban"], "ke": ln["ke"], "n": ln["n"]}
+                      for ln in sp.values()],
             ke_min_pct=(cust.ke_min_pct if cust else None),
             ke_max_pct=(cust.ke_max_pct if cust else None),
         )
@@ -1325,6 +1331,7 @@ class QuotationService:
                             vat_percent=float(ip.get("vat_percent", db_item.vat_percent)),
                             quantity=db_item.quantity, ke_gia=ke,
                         )
+                    _chan_markup(pricing)
                     db_item.ke_gia = pricing["ke_gia"]
                     db_item.margin_percent = pricing["margin_percent"]
                     db_item.selling_price = pricing["selling_price"]

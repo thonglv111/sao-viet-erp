@@ -718,6 +718,12 @@ class OrderService:
                     f"Tiền cọc không được vượt giá trị đơn hàng ({tong:,} đ).".replace(",", "."))
         elif fields.get("deposit_pct") is not None and order.deposit_amount is not None:
             fields["deposit_amount"] = None
+        # Gửi tiền cọc = 0 là "không cọc" (L-VAI-34): đơn đang cọc theo % thì % cũng về 0, không thì
+        # hộp đóng êm mà cọc 30 % vẫn nằm đó. Cùng lúc gửi % > 0 thì % thắng như cũ.
+        if ("deposit_amount" in gui and not payload.deposit_amount
+                and not ("deposit_pct" in gui and payload.deposit_pct)
+                and (order.deposit_pct or 0) > 0):
+            fields["deposit_pct"] = 0
         if fields:
             self.repo.update(order, **fields)
             self.audit.create(

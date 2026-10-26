@@ -89,7 +89,8 @@ def tien_cho_tra_lai(repo, order_ids: list[int] | None = None) -> list[dict]:
 def tien_cua_don(repo, order_ids: list[int] | None = None) -> list[dict]:
     """Mọi đơn còn ĐANG ĐỂ tiền khách (quỹ − phần đã trừ vào hoá đơn > 0), kể cả đơn còn chờ ghi hoá
     đơn để trừ tiếp. `con_lai` = phần phải trả lại ngay (0 nếu còn chỗ ghi), `tinh_trang`:
-    `don_huy` / `ghi_du` (đã ghi đủ mà vẫn dư) / `cho_tru` (sẽ trừ vào hoá đơn ghi sau)."""
+    `don_huy` / `ghi_du` (đã ghi đủ mà vẫn dư) / `coc_vuot` (cọc thu vượt tổng đơn, chưa ghi hoá
+    đơn nào) / `cho_tru` (sẽ trừ vào hoá đơn ghi sau)."""
     from .accounting_service import quy_tien_don, receivable_rows
 
     if order_ids is None:
@@ -126,7 +127,9 @@ def tien_cua_don(repo, order_ids: list[int] | None = None) -> list[dict]:
             "customer_id": o.customer_id, "customer_name": k.name if k else None,
             "hoa_don_huy": huy.get(oid, []), "da_tra_lai": tra.get(oid, 0), "con_lai": con_lai,
             "da_tru": da_tru.get(oid, 0), "dang_de": du,
-            "tinh_trang": "don_huy" if don_huy else ("ghi_du" if con_lai > 0 else "cho_tru"),
+            # Cọc vượt tổng đơn mà chưa ghi hoá đơn nào: dư không phải vì "đã ghi đủ" (L-VAI-37).
+            "tinh_trang": "don_huy" if don_huy else (
+                ("coc_vuot" if da_ghi.get(oid, 0) == 0 else "ghi_du") if con_lai > 0 else "cho_tru"),
             # Tiền khách đã đưa cho đơn (cọc + tiền hoá đơn đã huỷ), chưa trừ phần đã trả lại.
             "da_nhan": quy[oid] + tra.get(oid, 0),
         })
