@@ -470,6 +470,23 @@ def _clean(v: str | None) -> str | None:
     return v or None
 
 
+def _moc_theo_ngay(mocs, ngays) -> list:
+    """Với mỗi ngày của `ngays` (TĂNG dần): VỊ TRÍ trong `mocs` của mốc ca nền đầu tiên (theo thứ tự
+    danh sách) có hiệu lực ≤ ngày đó, hoặc None — đúng luật `base_shift_id_on(..., assignments=mocs)`
+    nhưng quét mốc MỘT lượt cho cả dải ngày thay vì một lượt mỗi ngày (26/10/2026)."""
+    hieu_luc = [m.effective_from for m in mocs]
+    thu_tu = sorted(range(len(mocs)), key=hieu_luc.__getitem__)
+    n, j, tot = len(thu_tu), 0, None
+    out = []
+    for d in ngays:
+        while j < n and hieu_luc[thu_tu[j]] <= d:
+            if tot is None or thu_tu[j] < tot:
+                tot = thu_tu[j]
+            j += 1
+        out.append(tot)
+    return out
+
+
 #: Dấu "ô chưa gieo ca" trong cache ca (giá trị None trong cache nghĩa là "không có ca").
 _CHUA_GIEO = object()
 
@@ -543,20 +560,12 @@ class AttendanceService:
         cache = self._shift_id_cache
         eid = employee.id
         mac_dinh = None if mocs else employee.default_shift_id
-        hieu_luc = [m.effective_from for m in mocs]
         ca = [m.shift_id for m in mocs]
-        thu_tu = sorted(range(len(mocs)), key=hieu_luc.__getitem__)
-        n, j, tot = len(thu_tu), 0, None
-        sid = mac_dinh
-        for d in self._cac_ngay(start, end):
-            while j < n and hieu_luc[thu_tu[j]] <= d:
-                if tot is None or thu_tu[j] < tot:
-                    tot = thu_tu[j]
-                    sid = ca[tot]
-                j += 1
+        ngays = self._cac_ngay(start, end)
+        for d, i in zip(ngays, _moc_theo_ngay(mocs, ngays)):
             key = (eid, d)
             if key not in cache:
-                cache[key] = sid
+                cache[key] = ca[i] if i is not None else mac_dinh
 
     def _cac_ngay(self, start: date, end: date) -> list[date]:
         """Danh sách ngày [start, end] — dựng một lần cho mỗi khoảng trong request."""
@@ -2535,35 +2544,42 @@ class AttendanceService:
         # đúng thứ tự `list_shift_assignments`) — trước đây mỗi NV một câu.
         moc_ca = self.employees.shift_assignments_map({e.id for e in emps})
 
+        ngay_thang = [date(year, month, d) for d in range(1, days_in_month + 1)]
         rows = []
         for e in emps:
             # Dùng lại cho mọi ngày thay vì hỏi DB từng ngày, và để biết NV có mốc nào chưa.
-            hist = moc_ca.get(e.id, [])
+            eid = e.id
+            hist = moc_ca.get(eid, [])
+            # Mốc ca nền của từng ngày giải một lượt; thuộc tính ORM đọc một lần mỗi người.
+            moc_ngay = _moc_theo_ngay(hist, ngay_thang)
+            ca_moc = [h.shift_id for h in hist]
+            mac_dinh = e.default_shift_id
             days: dict[str, dict] = {}
             bien_che_ngay = self._ngay_bien_che(e, year, month)
             for d in range(1, days_in_month + 1):
-                the_day = date(year, month, d)
+                the_day = ngay_thang[d - 1]
                 if d not in bien_che_ngay:
                     # Ngoài biên chế (chưa vào / đã nghỉ / nghỉ dài hạn): lưới không vẽ ca (A9).
                     days[str(d)] = {"shift_id": None, "source": "none", "is_off": False}
                     continue
-                cell = day_map.get((e.id, the_day))
+                cell = day_map.get((eid, the_day))
                 if cell is not None and cell.is_off:
                     days[str(d)] = {"shift_id": None, "source": "day", "is_off": True}
                     continue
                 if cell is not None and cell.shift_id is not None:
                     days[str(d)] = {"shift_id": cell.shift_id, "source": "day", "is_off": False}
                     continue
-                assign = next((h for h in hist if h.effective_from <= the_day), None)
-                if assign is not None:
-                    days[str(d)] = {"shift_id": assign.shift_id, "is_off": False,
-                                    "source": "assign" if assign.shift_id is not None else "none"}
-                elif not hist and e.default_shift_id is not None:
+                i_moc = moc_ngay[d - 1]
+                if i_moc is not None:
+                    sid_moc = ca_moc[i_moc]
+                    days[str(d)] = {"shift_id": sid_moc, "is_off": False,
+                                    "source": "assign" if sid_moc is not None else "none"}
+                elif not hist and mac_dinh is not None:
                     # `default_shift_id` CHỈ là nguồn khi NV chưa có mốc nào — đúng như
                     # `shift_id_on`. Trước đây lưới rơi về nó cả khi đã có mốc, nên NHỮNG
                     # NGÀY TRƯỚC MỐC ĐẦU TIÊN bị vẽ ra một ca mà engine không hề công nhận:
                     # màn hình báo có ca, thực tế NV không chấm công được.
-                    days[str(d)] = {"shift_id": e.default_shift_id, "source": "default",
+                    days[str(d)] = {"shift_id": mac_dinh, "source": "default",
                                     "is_off": False}
                 else:
                     days[str(d)] = {"shift_id": None, "source": "none", "is_off": False}

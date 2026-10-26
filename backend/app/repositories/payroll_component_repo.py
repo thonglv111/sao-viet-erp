@@ -265,6 +265,22 @@ class PayrollComponentRepository:
             out.setdefault(r.line_id, []).append(r)
         return out
 
+    def line_components_doc_map(self, line_ids: list[int]) -> dict[int, list]:
+        """Như `line_components_map` nhưng CHỈ ĐỌC: dòng cột (đủ mọi trường của `LineComponentOut`)
+        thay vì object ORM — bảng lương cả công ty chỉ đem chúng ra hiển thị (26/10/2026)."""
+        if not line_ids:
+            return {}
+        c = PayrollLineComponent
+        out: dict[int, list] = {}
+        for r in self.db.execute(
+            select(c.id, c.line_id, c.component_id, c.code, c.name, c.kind, c.is_taxable, c.amount,
+                   c.note, c.source, c.da_de_tay)
+            .where(c.line_id.in_(line_ids))
+            .order_by(c.line_id, c.id)
+        ):
+            out.setdefault(r.line_id, []).append(r)
+        return out
+
     def get_line_component(self, row_id: int) -> PayrollLineComponent | None:
         return self.db.get(PayrollLineComponent, row_id)
 

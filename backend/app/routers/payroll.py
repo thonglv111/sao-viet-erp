@@ -308,7 +308,7 @@ def _lines_out(lines, employees: EmployeeRepository, departments: DepartmentRepo
     # Khoản danh mục của CẢ MẺ trong 1 truy vấn (bảng lương ~100 dòng → đừng hỏi từng dòng).
     comp_map: dict[int, list] = {}
     if lines and svc is not None and getattr(svc, "components", None) is not None:
-        comp_map = svc.components.line_components_map([ln.id for ln in lines])
+        comp_map = svc.components.line_components_doc_map([ln.id for ln in lines])
     out: list[LineOut] = []
     for ln in lines:
         o = LineOut.model_validate(ln)

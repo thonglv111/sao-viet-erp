@@ -86,3 +86,27 @@ def test_so_luot_hoi_khong_tang_theo_nguoi_nhan_ngay(client, h, monkeypatch, url
     # 10 người thêm × 30 ngày = 300 ô. Cho phép vài lượt/người, cấm một lượt/ô.
     for k in dem:
         assert nhieu[k] - it[k] <= 10 * 3, f"{k}: {it[k]} -> {nhieu[k]} (tăng theo người × ngày)"
+
+
+def test_moc_theo_ngay_khop_quet_tung_ngay():
+    """Giải mốc ca nền một lượt phải ra đúng mốc mà `base_shift_id_on` chọn từng ngày: mốc ĐẦU TIÊN
+    theo thứ tự danh sách có hiệu lực ≤ ngày — kể cả hai mốc cùng ngày, danh sách không xếp, gỡ ca."""
+    import random
+    from datetime import timedelta
+    from types import SimpleNamespace
+
+    from app.services.attendance_service import _moc_theo_ngay
+
+    rng = random.Random(26)
+    goc = date(2026, 9, 1)
+    ngays = [goc + timedelta(days=i) for i in range(-3, 40)]
+    for _ in range(2000):
+        mocs = [SimpleNamespace(effective_from=goc + timedelta(days=rng.randint(-10, 45)),
+                                shift_id=rng.choice([None, 1, 2, 3]))
+                for _ in range(rng.randint(0, 4))]
+        if rng.random() < 0.5:
+            mocs.sort(key=lambda m: m.effective_from, reverse=True)
+        moi = _moc_theo_ngay(mocs, ngays)
+        for d, i in zip(ngays, moi):
+            mong = next((k for k, m in enumerate(mocs) if m.effective_from <= d), None)
+            assert i == mong, (mocs, d)
