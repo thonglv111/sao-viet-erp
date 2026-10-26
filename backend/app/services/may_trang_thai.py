@@ -222,25 +222,36 @@ def bao_hong_dang_mo(db, may_id: int | None) -> list[dict]:
 
     Gồm yêu cầu còn chờ tổ sửa chữa nhận và phiếu sửa chưa xong. Yêu cầu đã thành phiếu thì chỉ
     hiện phiếu (cùng một lần hỏng, không đếm hai lần); từ chối hoặc sửa xong là rụng. Máy dừng lên
-    trước, rồi mới nhất trước. Import cục bộ cùng lý do với `phieu_sua_dang_mo`.
+    trước, rồi mới nhất trước.
     """
     if not may_id:
         return []
+    return bao_hong_dang_mo_nhieu(db, [may_id]).get(may_id, [])
+
+
+def bao_hong_dang_mo_nhieu(db, may_ids) -> dict[int, list[dict]]:
+    """`bao_hong_dang_mo` cho nhiều máy, số câu SQL cố định — Xếp lịch hỏi cả bàn một lượt (26/10/2026).
+
+    Máy không có gì thì vắng mặt trong kết quả. Import cục bộ cùng lý do với `phieu_sua_dang_mo`.
+    """
+    ids = sorted({m for m in may_ids if m})
+    if not ids:
+        return {}
     try:
         from ..models.ky_thuat_may import (
             TT_SC_DANG_MO, TT_YC_DANG_MO, SuaChuaMay, YeuCauSuaChua,
         )
     except Exception:  # noqa: BLE001
-        return []
+        return {}
 
     yeu_cau = list(db.execute(
         select(YeuCauSuaChua).where(
-            YeuCauSuaChua.may_id == may_id, YeuCauSuaChua.trang_thai.in_(TT_YC_DANG_MO),
+            YeuCauSuaChua.may_id.in_(ids), YeuCauSuaChua.trang_thai.in_(TT_YC_DANG_MO),
         )
     ).scalars())
     phieu = list(db.execute(
         select(SuaChuaMay).where(
-            SuaChuaMay.may_id == may_id, SuaChuaMay.trang_thai.in_(TT_SC_DANG_MO),
+            SuaChuaMay.may_id.in_(ids), SuaChuaMay.trang_thai.in_(TT_SC_DANG_MO),
         )
     ).scalars())
     # Máy dừng là lời của NGƯỜI BÁO, nằm trên yêu cầu — phiếu sinh từ yêu cầu mượn lại cờ đó.
@@ -253,20 +264,21 @@ def bao_hong_dang_mo(db, may_id: int | None) -> list[dict]:
         ).all():
             dung_theo_phieu[pid] = dung_theo_phieu.get(pid, False) or bool(dung)
 
-    out = [
-        {"loai": "yeu_cau", "id": y.id, "ma": y.ma, "trang_thai": y.trang_thai,
-         "may_dung": bool(y.may_dung), "trieu_chung": (y.mo_ta or "").strip() or None,
-         "thoi_diem": y.thoi_diem}
-        for y in yeu_cau
-    ] + [
-        {"loai": "phieu", "id": p.id, "ma": p.ma, "trang_thai": p.trang_thai,
-         "may_dung": dung_theo_phieu.get(p.id, False), "trieu_chung": _ten_hong(p) or None,
-         "thoi_diem": p.thoi_diem}
-        for p in phieu
-    ]
-    out.sort(key=lambda d: _aware(d["thoi_diem"]) or datetime.min.replace(tzinfo=timezone.utc),
-             reverse=True)
-    out.sort(key=lambda d: not d["may_dung"])
+    out: dict[int, list[dict]] = {}
+    for y in yeu_cau:
+        out.setdefault(y.may_id, []).append(
+            {"loai": "yeu_cau", "id": y.id, "ma": y.ma, "trang_thai": y.trang_thai,
+             "may_dung": bool(y.may_dung), "trieu_chung": (y.mo_ta or "").strip() or None,
+             "thoi_diem": y.thoi_diem})
+    for p in phieu:
+        out.setdefault(p.may_id, []).append(
+            {"loai": "phieu", "id": p.id, "ma": p.ma, "trang_thai": p.trang_thai,
+             "may_dung": dung_theo_phieu.get(p.id, False), "trieu_chung": _ten_hong(p) or None,
+             "thoi_diem": p.thoi_diem})
+    for ds in out.values():
+        ds.sort(key=lambda d: _aware(d["thoi_diem"]) or datetime.min.replace(tzinfo=timezone.utc),
+                reverse=True)
+        ds.sort(key=lambda d: not d["may_dung"])
     return out
 
 
