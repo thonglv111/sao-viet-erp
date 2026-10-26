@@ -19,6 +19,7 @@ from ..deps import (
     require_permission,
     require_any_permission,
 )
+from ..models.role import SCOPE_ALL
 from ..models.user import User
 from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
@@ -426,8 +427,14 @@ def list_requests(svc: Service, employees: Employees, authz: Authz,
                                              page=page, size=size)
     except LeaveError as exc:
         _raise(exc)
-    return LeaveRequestsOut(items=_resolve(svc, employees, reqs),
-                            total=total, page=page, size=size, dem_theo_tab=dem)
+    items = _resolve(svc, employees, reqs)
+    if scope != SCOPE_ALL:
+        # Cùng chốt `_decide`: phạm vi khác Tất cả không tự duyệt đơn mình (L-VAI-12).
+        toi = employees.get_by_user_id(user.id)
+        for o in items:
+            if toi is not None and o.employee_id == toi.id:
+                o.duyet_duoc = False
+    return LeaveRequestsOut(items=items, total=total, page=page, size=size, dem_theo_tab=dem)
 
 
 @router.get("/loc/{truong}", response_model=list[LuaChonLoc])

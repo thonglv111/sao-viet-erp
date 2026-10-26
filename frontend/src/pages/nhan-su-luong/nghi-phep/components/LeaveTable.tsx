@@ -96,7 +96,7 @@ export function LeaveTable({ items, showEmployee, onCancel, onApprove, onReject,
       case "chon":
         return (
           <td key={key} className="c" onClick={(e) => e.stopPropagation()}>
-            {r.status === "pending" && <input type="checkbox" checked={tick} onChange={() => onToggle?.(r.id)} aria-label={`Chọn đơn của ${ten}`} />}
+            {r.status === "pending" && r.duyet_duoc !== false && <input type="checkbox" checked={tick} onChange={() => onToggle?.(r.id)} aria-label={`Chọn đơn của ${ten}`} />}
           </td>
         );
       case "nv":
@@ -139,10 +139,10 @@ export function LeaveTable({ items, showEmployee, onCancel, onApprove, onReject,
             {/* GIỮ `danger` cho Từ chối / Hủy: cả hai đều là quyết định người khác nhận được
                 ngay, mất tín hiệu đỏ là bấm nhầm ô bên cạnh. */}
             <div className="np-don__nut">
-              {onApprove && r.status === "pending" && (
+              {onApprove && r.status === "pending" && r.duyet_duoc !== false && (
                 <RowActionButton dense label="Duyệt" icon="check" onClick={() => onApprove(r.id)} />
               )}
-              {onReject && r.status === "pending" && (
+              {onReject && r.status === "pending" && r.duyet_duoc !== false && (
                 <RowActionButton dense danger label="Từ chối" icon="ban" onClick={() => onReject(r)} />
               )}
               {onCancel && r.status === "pending" && (

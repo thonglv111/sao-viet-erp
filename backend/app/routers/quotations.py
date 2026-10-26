@@ -486,9 +486,9 @@ def mark_decisions_seen(
     return {"ok": True}
 
 
-def _authenticate_sse(token: str | None) -> int:
+def _authenticate_sse(token: str | None) -> tuple[int, int]:
     """Xác thực bearer token cho SSE mà KHÔNG giữ session request-scoped (stream sống lâu — 200 kết
-    nối giữ session sẽ cạn pool). Mở session ngắn, validate, đóng ngay; trả user_id."""
+    nối giữ session sẽ cạn pool). Mở session ngắn, validate, đóng ngay; trả (user_id, token_version)."""
     unauth = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated",
                            headers={"WWW-Authenticate": "Bearer"})
     if not token:
@@ -505,7 +505,18 @@ def _authenticate_sse(token: str | None) -> int:
         db.close()
     if claims.get("tv") != user.token_version or not user.is_active:
         raise unauth
-    return user.id
+    return user.id, user.token_version
+
+
+def _sse_con_hieu_luc(user_id: int, tv: int) -> bool:
+    """Kênh đã nối còn được sống không: tài khoản chưa khoá, phiên chưa bị thu hồi (L-VAI-23).
+    Hỏi lúc nhận `quyen_doi` — khoá / thu hồi / nghỉ việc đều đẩy sự kiện đó."""
+    db = SessionLocal()
+    try:
+        user = UserRepository(db).get_by_id(user_id)
+        return user is not None and user.is_active and user.token_version == tv
+    finally:
+        db.close()
 
 
 @router.get("/events")
@@ -523,7 +534,7 @@ async def quote_events(
         token = authorization[7:]
     # Xác thực đụng DB (đồng bộ) — chạy thẳng trong hàm async là chặn event loop của CẢ worker
     # trong lúc chờ DB; 200 người nối lại cùng lúc là mọi request khác đứng theo.
-    user_id = await chay_ngoai_cong(_authenticate_sse, token)
+    user_id, tv = await chay_ngoai_cong(_authenticate_sse, token)
     # Bộ quyền nhận tin — hub chỉ giao sự kiện `gui(quyen=…, to=…)` cho kết nối có quyền khớp.
     queue = hub.subscribe(user_id, quyen=await chay_ngoai_cong(nap_quyen_nhan, user_id))
 
@@ -535,6 +546,11 @@ async def quote_events(
                     break
                 if hub.can_nap_lai_quyen(queue):
                     # Vừa nhận `quyen_doi`: nạp lại bộ quyền trước khi nhận tin kế tiếp.
+                    try:
+                        if not await chay_ngoai_cong(_sse_con_hieu_luc, user_id, tv):
+                            break
+                    except Exception:  # noqa: BLE001 — DB chớp: giữ kênh, lần sau xét lại
+                        pass
                     try:
                         hub.cap_nhat_quyen(queue, await chay_ngoai_cong(nap_quyen_nhan, user_id))
                     except Exception:  # noqa: BLE001 — DB chớp: tạm nhận hết còn hơn lọt tin

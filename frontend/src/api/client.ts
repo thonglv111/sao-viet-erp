@@ -6070,6 +6070,8 @@ export interface LeaveRequest {
   created_at: string | null;
   /** Yêu cầu hủy MỚI NHẤT của đơn (23/09/2026) — `trang_thai === "cho"` ⇒ "Đang xin hủy". */
   yeu_cau_huy?: YeuCauHuy | null;
+  /** false = người đang xem không duyệt được (đơn của chính mình, phạm vi khác Tất cả). */
+  duyet_duoc?: boolean | null;
 }
 
 /** Yêu cầu HỦY đơn nghỉ / phiếu tăng ca ĐÃ DUYỆT (chủ chốt 23/09/2026): người lao động chỉ XIN,

@@ -200,6 +200,9 @@ def _full(employee, depts: DepartmentRepository, users: UserRepository,
     if employee.user_id is not None:
         u = users.get_by_id(employee.user_id)
         out.account_username = u.username if u is not None else None
+        # Hộp Điều chuyển báo trước vai sẽ mất (L-VAI-48) — chi tiết cũng cần tên vai như danh sách.
+        if u is not None and u.role_id is not None:
+            out.role_name = RoleRepository(users.db).names_by_ids({u.role_id}).get(u.role_id)
     if che_luong:
         _mask_salary(out)
     return out

@@ -544,6 +544,9 @@ export function EmployeeDetailPanel({
           onDone={() => {
             setAction(null);
             reload();
+            // Nghỉ việc / tuyển lại đổi khoá tài khoản — tab Tài khoản phải tải lại (L-VAI-22).
+            taiKhoan.loadRow();
+            taiKhoan.loadActivity();
             onChanged();
           }}
         />
