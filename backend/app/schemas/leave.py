@@ -104,6 +104,9 @@ class LeaveRequestOut(BaseModel):
     created_at: datetime | None = None
     #: Yêu cầu hủy MỚI NHẤT của đơn (23/09/2026) — `trang_thai == "cho"` ⇒ nhãn "Đang xin hủy".
     yeu_cau_huy: YeuCauHuyOut | None = None
+    #: False = người đang xem KHÔNG duyệt được đơn này (đơn của chính mình, phạm vi khác Tất cả —
+    #: máy chủ chặn ở `_decide`). None = không xét (L-VAI-12).
+    duyet_duoc: bool | None = None
 
 
 class XinHuyChoDuyetOut(BaseModel):

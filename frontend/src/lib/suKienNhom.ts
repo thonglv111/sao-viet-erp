@@ -44,6 +44,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   // Chấm đỏ thanh bên: AppShell hỏi lại tóm tắt, không màn nào phải nạp lại.
   thong_bao_man: [],
   notification_new: [],
+  cay_to_doi: [],
   // Máy chủ gửi đích danh tổ của bước (`kem_ban_to`) ⇒ chỉ bàn tổ đó nạp lại cột Vật tư.
   san_xuat_vat_tu_de_nghi_changed: ["san_xuat"],
   lsx_dinh_kem_changed: [],
@@ -69,6 +70,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   ot_decision: ["nhan_su"],
   leave_pending_changed: ["nhan_su"],
   leave_decision: ["nhan_su"],
+  profile_request_decision: ["nhan_su"],
   el_pending_changed: ["nhan_su"],
   el_decision: ["nhan_su"],
   adjust_pending_changed: ["nhan_su"],

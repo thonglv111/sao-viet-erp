@@ -290,6 +290,7 @@ class TraLaiKhachChoChiOut(BaseModel):
     hoa_don_huy: list[str] = []
     da_tra_lai: int
     con_lai: int
+    tinh_trang: str | None = None
 
 
 class GiaCongChoChiDemOut(BaseModel):
@@ -1112,7 +1113,7 @@ class ReceivableReceiptOut(BaseModel):
 class TienDangDeOut(BaseModel):
     """Một đơn còn đang để tiền khách (cọc + tiền hoá đơn đã huỷ − đã trả lại − đã trừ vào hoá
     đơn, 17/10/2026) — khối "Tiền khách đang để" của ngăn Công nợ phải thu. `con_lai` > 0 thì
-    lập phiếu trả lại theo đơn; `tinh_trang`: don_huy / ghi_du / cho_tru."""
+    lập phiếu trả lại theo đơn; `tinh_trang`: don_huy / ghi_du / coc_vuot / cho_tru."""
 
     order_id: int
     order_code: str

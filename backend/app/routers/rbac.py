@@ -322,7 +322,16 @@ def create_department(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
     except DeptNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
+    _bao_cay_to_doi(depts)
     return depts.summary_of(dept)
+
+
+def _bao_cay_to_doi(depts: DepartmentService) -> None:
+    """Sau commit: cây tổ đổi (thêm / sửa tên, cấp trên / xoá) ⇒ thanh bên của ai xem bàn tổ tự nạp
+    lại (L-VAI-49). Đổi cấp trên không đổi bộ quyền nên `quyen_doi` không cứu được."""
+    from ..realtime import hub
+
+    hub.gui({"type": "cay_to_doi"}, to=[d.id for d in depts.departments.to_san_xuat()])
 
 
 @router.put("/departments/{dept_id}", response_model=DepartmentSummaryOut)
@@ -392,6 +401,7 @@ def update_department(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
     except DeptNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
+    _bao_cay_to_doi(depts)
     return depts.summary_of(dept)
 
 
@@ -407,6 +417,7 @@ def delete_department(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from None
     except DeptNotFound as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
+    _bao_cay_to_doi(depts)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

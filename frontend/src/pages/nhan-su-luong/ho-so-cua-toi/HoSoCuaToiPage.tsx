@@ -66,7 +66,11 @@ import {
 import "../../nhan-su.css";
 import "../../ho-so-cua-toi.css";
 
-export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
+export function HoSoCuaToiPage({ navigate, eventTick }: {
+  navigate?: NavigateFn;
+  /** Nhảy theo sự kiện nhóm nhân sự — có `phieu_luong_cong_bo` / `_thu_hoi` (L-SX-46). */
+  eventTick?: number;
+}) {
   const { token, user } = useAuth();
   // Ô TỰ PHỤC VỤ (đợt 3) — quản trị TẮT ĐƯỢC. Không hỏi thì tắt xong nút Sửa / Gửi đề nghị
   // vẫn bày ra, bấm mới ăn 403.
@@ -208,6 +212,13 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
     napCong(emp.id);
     napLuong();
   }, [emp, napPhep, napCong, napLuong]);
+
+  // Công bố / thu hồi phiếu tới thì thẻ "Phiếu lương gần nhất" tự đổi, không chờ mở lại màn. HCNS
+  // duyệt / từ chối đề nghị thì khối Đề nghị cập nhật cũng tự đổi (L-VAI-21).
+  useEffect(() => {
+    if (emp && eventTick) { napLuong(); loadReqs(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventTick]);
 
   const tl: TimelineEntry[] = events.map((ev) => {
     const tone: TimelineEntry["tone"] | undefined =
@@ -479,7 +490,7 @@ export function HoSoCuaToiPage({ navigate }: { navigate?: NavigateFn }) {
         <StatChip
           nhan="Phiếu lương gần nhất" icon="calculator" tt={luong}
           giaTri={(d) => ({ so: `${fmtSo(Math.round(d.dong.net_pay))} đ`, donVi: null, tien: true })}
-          phu={(d) => `Kỳ ${d.ky.month}/${d.ky.year}${d.ky.paid_at ? "" : " · chưa chốt"}`}
+          phu={(d) => `Kỳ ${d.ky.month}/${d.ky.year}${d.ky.status === "paid" ? " đã chi" : d.ky.status === "draft" ? " đang tính" : ""}`}
           tone={() => "money"}
           doc={(d) => `Phiếu lương kỳ ${d.ky.month} năm ${d.ky.year}, thực nhận ${Math.round(d.dong.net_pay)} đồng. Mở màn Lương.`}
           onGo={() => navigate?.("luong")} onThuLai={napLuong} moTaGo="Mở màn Lương"

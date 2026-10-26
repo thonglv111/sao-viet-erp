@@ -596,7 +596,7 @@ class OrderService:
         if payload.deposit_pct is not None and not 0 <= payload.deposit_pct <= 100:
             raise OrderValidationError("% cọc phải trong khoảng 0–100")
 
-        order = self._create_from_quotation(actor=actor, payload=payload)
+        order = self._create_from_quotation(actor=actor, scope=scope, payload=payload)
 
         self.audit.create(
             actor_user_id=actor.id,
@@ -606,12 +606,16 @@ class OrderService:
         )
         return self._detail(order)
 
-    def _create_from_quotation(self, *, actor, payload) -> Order:
+    def _create_from_quotation(self, *, actor, scope: str, payload) -> Order:
         if not payload.quotation_id:
             raise OrderValidationError("Thiếu báo giá nguồn")
         quote: Quote | None = self.quotations.get_by_id(payload.quotation_id)
         if quote is None:
             raise OrderValidationError("Không tìm thấy báo giá")
+        # Báo giá nguồn phải trong phạm vi người bấm — cùng cổng đọc báo giá (chủ khách + nhóm dùng
+        # chung + cây phòng). Ngoài phạm vi = 404 như các đường đọc, không lộ tên khách / giá trị.
+        if not self.quotations.can_access(quote=quote, scope=scope, actor=actor):
+            raise OrderNotFound("Không tìm thấy báo giá")
         if quote.status != STATUS_ACCEPTED:
             raise OrderValidationError("Báo giá chưa được khách đồng ý (accepted)")
         if self.repo.active_order_for_quotation(quote.id) is not None:
@@ -714,6 +718,12 @@ class OrderService:
                     f"Tiền cọc không được vượt giá trị đơn hàng ({tong:,} đ).".replace(",", "."))
         elif fields.get("deposit_pct") is not None and order.deposit_amount is not None:
             fields["deposit_amount"] = None
+        # Gửi tiền cọc = 0 là "không cọc" (L-VAI-34): đơn đang cọc theo % thì % cũng về 0, không thì
+        # hộp đóng êm mà cọc 30 % vẫn nằm đó. Cùng lúc gửi % > 0 thì % thắng như cũ.
+        if ("deposit_amount" in gui and not payload.deposit_amount
+                and not ("deposit_pct" in gui and payload.deposit_pct)
+                and (order.deposit_pct or 0) > 0):
+            fields["deposit_pct"] = 0
         if fields:
             self.repo.update(order, **fields)
             self.audit.create(

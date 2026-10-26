@@ -562,7 +562,8 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // chính màn đó, không còn núp dưới tên `can_approve` — nên ở đây chỉ còn các quyền phụ.
   phieu_chi: [
     { key: "can_cancel", label: "Hủy phiếu chi", hint: "Cho phép huỷ phiếu chi đã lập." },
-    { key: "can_export", label: "In phiếu chi", hint: "Cho phép in phiếu chi / UNC và in bảng kê tạm ứng." },
+    // L-VAI-18: ô này chỉ bày nút In; bản in dựng từ chính dữ liệu ô Xem đã cho thấy.
+    { key: "can_export", label: "Nút In phiếu chi", hint: "Chỉ hiện nút In phiếu chi / UNC và bảng kê tạm ứng. Ai có ô Xem đã thấy đủ nội dung phiếu." },
   ],
   // Ô "Xác nhận đã thu tiền" (`can_manage_status`) ĐÃ GỠ 27/08/2026: phiếu thu nay lập ra là ĐÃ
   // THU, không còn trạng thái chờ nên không còn gì để xác nhận. Khoá quyền vẫn tồn tại ở server
@@ -570,7 +571,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // nữa — bày một ô cho cái nút không bao giờ hiện chỉ tổ làm người cấp quyền đoán mò.
   phieu_thu: [
     { key: "can_cancel", label: "Hủy phiếu thu / hoá đơn bán", hint: "Cho phép huỷ phiếu thu và hoá đơn bán. Lưu ý: bật ô này là bật luôn Huỷ hoá đơn ở Đơn hàng bán, tắt cũng vậy." },
-    { key: "can_export", label: "In phiếu thu", hint: "Cho phép in phiếu thu." },
+    { key: "can_export", label: "Nút In phiếu thu", hint: "Chỉ hiện nút In phiếu thu. Ai có ô Xem đã thấy đủ nội dung phiếu." },
   ],
 };
 

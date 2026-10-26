@@ -94,6 +94,7 @@ export function ActionDialog({
             >
               <ChonNgay
                 value={effective}
+                min={emp.hire_date ?? undefined}
                 max={today}
                 onChange={setEffective}
               />
@@ -118,6 +119,12 @@ export function ActionDialog({
                     ))}
                 </select>
               </Field>
+              {emp.user_id && emp.role_name && (
+                <div className="banner banner--warn">
+                  Tài khoản sẽ mất vai «{emp.role_name}» (vai thuộc phòng cũ). Sau khi chuyển, cần gán
+                  vai của phòng mới ở tab Tài khoản & Quyền.
+                </div>
+              )}
             </>
           )}
           {kind === "promote" && (

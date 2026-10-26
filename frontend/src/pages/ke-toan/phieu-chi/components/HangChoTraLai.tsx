@@ -109,7 +109,8 @@ function lyDo(r: TraLaiKhachChoChi): string {
     ? `Hóa đơn ${r.hoa_don_huy.join(" và ")} đã hủy`
     : "";
   if (r.don_huy) return hd ? `Đơn đã hủy. ${hd}` : "Đơn đã hủy";
-  return hd || "Đã ghi đủ hóa đơn";
+  if (hd) return hd;
+  return r.tinh_trang === "coc_vuot" ? "Cọc thu vượt tổng đơn" : "Đã ghi đủ hóa đơn";
 }
 
 /** Popup một khoản chờ trả lại khách (`ChiTietKhoan`, không có thẻ Hàng): tiền dư = đã trả lại + còn phải

@@ -22,6 +22,7 @@ from ..deps import (
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
+from ..repositories.org_scope import chu_cua
 from ..services.chi_ck_ke import bao_ck_ke
 from ..services.thong_bao_man import bao
 from ..models.user import User
@@ -151,15 +152,22 @@ def _notify_accounting_changed(
     # Nhóm `mua_ke_toan` (mọi màn Thu mua / Kế toán); hoá đơn bán còn nhích nhóm `ban_hang` (Công
     # nợ phải thu, Phiếu thu, Đơn hàng bán). Người đứng tên phiếu mua (`recipient_user_id`) nhận
     # đích danh — tin "kế toán đã lập / huỷ chứng từ cho đơn của bạn" là việc của chính họ.
-    quyen = (hop(MAN_MUA_KE_TOAN, MAN_BAN_HANG) if event_type.startswith("sales_invoice")
-             else MAN_MUA_KE_TOAN)
-    hub.gui({
+    su_kien = {
         "type": event_type,
         "code": code,
         "actor_user_id": actor_user_id,
         "recipient_user_id": recipient_user_id,
         **extra,
-    }, quyen=quyen, nguoi=[recipient_user_id] if recipient_user_id else None)
+    }
+    if event_type.startswith("sales_invoice"):
+        # Hoá đơn bán đi tới cả nhóm bán hàng — gồm sale chỉ "Của tôi" — nên nhóm chỉ nhận TÍN HIỆU
+        # nạp lại, không mã đơn / phiếu (các màn không đọc mã từ sự kiện, tự hỏi lại máy chủ theo
+        # phạm vi). Người đứng tên vẫn nhận đủ.
+        hub.gui({"type": event_type}, quyen=hop(MAN_MUA_KE_TOAN, MAN_BAN_HANG))
+        if recipient_user_id:
+            hub.publish(recipient_user_id, su_kien)
+        return
+    hub.gui(su_kien, quyen=MAN_MUA_KE_TOAN, nguoi=[recipient_user_id] if recipient_user_id else None)
 
 
 def _phat_gia_cong_chi_doi(svc: AccountingService, gia_cong_ngoai_id: int | None) -> None:
@@ -1600,10 +1608,11 @@ def create_payment_receipt_gop(
     # Dòng cọc = thu cọc thật: đủ cọc ⇒ báo Sale + tự xuống SX, đúng như thu cọc lẻ trên đơn.
     don_coc = [d["order_id"] for d in row.get("lines") or [] if d.get("sales_invoice_id") is None]
     for d, moi in orders.sau_thu_coc_ngoai(order_ids=don_coc, actor=user):
-        if d.deposit_ok and d.sale_user_id:
-            hub.publish(d.sale_user_id, {"type": "order_deposit_ok", "code": d.order_no})
+        nhan = chu_cua(db, d.customer_id, d.sale_user_id)   # sale đang phụ trách khách
+        if d.deposit_ok and nhan:
+            hub.publish(nhan, {"type": "order_deposit_ok", "code": d.order_no})
             bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
-                nguoi_nhan=d.sale_user_id, ma=d.order_no)
+                nguoi_nhan=nhan, ma=d.order_no)
         _order_changed(d.order_no)
         if moi:
             _bao_xuong_sx(db, d, user)

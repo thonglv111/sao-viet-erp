@@ -224,6 +224,8 @@ class StockRequestOut(BaseModel):
     san_xuat_cong_doan_ten: str | None = None
     # Hệ thống tự lập lúc phát hành lệnh (spec 2026-10-18) — ô Nguồn ghi "Tự lập khi phát hành".
     san_xuat_tu_lap: bool = False
+    # Lệnh của việc đã thu hồi phát hành (L-SX-14) — kho không lập / ghi sổ phiếu tiếp được.
+    san_xuat_lenh_thu_hoi: bool = False
     lines: list[StockRequestLineOut] = []
 
 

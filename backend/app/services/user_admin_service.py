@@ -237,6 +237,9 @@ class UserAdminService:
             target=f"user:{user_id}",
             detail=user.username,
         )
+        if not is_active:
+            # Kênh SSE đang mở xét lại hiệu lực rồi tự cắt (L-VAI-23).
+            bao_quyen_doi([user_id])
         return user
 
     def update_user(
@@ -296,6 +299,7 @@ class UserAdminService:
             target=f"user:{user_id}",
             detail=user.username,
         )
+        bao_quyen_doi([user_id])
         return temp
 
     def revoke_sessions(self, *, user_id: int, actor_id: int | None) -> int:
@@ -313,6 +317,7 @@ class UserAdminService:
             target=f"user:{user_id}",
             detail=user.username,
         )
+        bao_quyen_doi([user_id])
         return n
 
     def list_sessions(self, user_id: int) -> list[RefreshToken]:

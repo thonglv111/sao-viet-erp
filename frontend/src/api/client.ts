@@ -528,6 +528,8 @@ export type QuoteEvent =
       code?: string;
       decision: "approved" | "rejected" | "cancelled" | "huy_dong_y" | "huy_rut_ngan" | "huy_giu_nguyen";
     }
+  // HCNS duyệt / từ chối đề nghị cập nhật hồ sơ ⇒ đẩy riêng người gửi (L-VAI-21).
+  | { type: "profile_request_decision"; decision: "approved" | "rejected" }
   // Phiếu đi muộn / về sớm / nghỉ nửa buổi: cùng luồng với tăng ca (tổ trưởng duyệt), bảng riêng.
   | { type: "el_pending_changed"; code?: string }
   // Yêu cầu chỉnh công (E7, 08/09/2026): gửi/huỷ → người duyệt refetch; duyệt/từ chối → đẩy đúng NV.
@@ -638,6 +640,8 @@ export type QuoteEvent =
   | { type: "giao_hang_changed" }
   // `notification_new` = có thông báo mới vào chuông → FE refetch list + badge chuông.
   | { type: "notification_new" }
+  // Cây tổ đổi (thêm / sửa tên, cấp trên / xoá phòng ban) ⇒ thanh bên nạp lại danh sách bàn tổ (L-VAI-49).
+  | { type: "cay_to_doi" }
   // Thực hiện sản xuất (module `san_xuat`): `san_xuat_cong_viec_changed` = tín hiệu bàn tổ đổi
   // (badge tổ nhảy + bàn đang mở refetch); `san_xuat_duoc_giao_viec` = đẩy đích danh tới người vừa
   // được giao (toast cá nhân, nếu có tài khoản).
@@ -6089,6 +6093,8 @@ export interface LeaveRequest {
   created_at: string | null;
   /** Yêu cầu hủy MỚI NHẤT của đơn (23/09/2026) — `trang_thai === "cho"` ⇒ "Đang xin hủy". */
   yeu_cau_huy?: YeuCauHuy | null;
+  /** false = người đang xem không duyệt được (đơn của chính mình, phạm vi khác Tất cả). */
+  duyet_duoc?: boolean | null;
 }
 
 /** Yêu cầu HỦY đơn nghỉ / phiếu tăng ca ĐÃ DUYỆT (chủ chốt 23/09/2026): người lao động chỉ XIN,
@@ -8385,6 +8391,8 @@ export interface TraLaiKhachChoChi {
   hoa_don_huy: string[];
   da_tra_lai: number;
   con_lai: number;
+  /** don_huy / ghi_du / coc_vuot (cọc thu vượt tổng đơn, chưa ghi hoá đơn) / cho_tru. */
+  tinh_trang?: string | null;
 }
 
 /** Một dòng "Chờ chi chiết khấu / kê" (20/10/2026) — một khoản (hóa đơn, loại) đã thu đủ còn phải chi. */
@@ -10331,6 +10339,8 @@ export interface StockRequest {
   san_xuat_cong_doan_ten: string | null;
   /** Hệ thống tự lập lúc phát hành lệnh — ô Nguồn ghi "Tự lập khi phát hành". */
   san_xuat_tu_lap?: boolean;
+  /** Lệnh đã thu hồi phát hành — kho chờ phát hành lại mới xuất tiếp (L-SX-14). */
+  san_xuat_lenh_thu_hoi?: boolean;
   created_at: string;
   /** Lần đổi gần nhất (tạo/cấp/hoàn tất/hủy) — xếp yêu cầu vừa có phản hồi lên đầu. */
   updated_at: string;

@@ -84,6 +84,7 @@ from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .danh_gia_ncc import DanhGiaNcc, tu_tong_hop
+from .dinh_dang import so_vn
 from .kho_giay import chuan_kho, co_don_vi_goc, don_vi_khai
 from .rbac_service import AuthorizationService
 from .stock_request_service import StockRequestConflict, StockRequestError
@@ -1177,10 +1178,10 @@ class PurchaseService:
         Bịt mỗi đầu trên thì chỉ cần khai cọc lúc đơn còn to rồi sửa đơn nhỏ lại là lách được."""
         if coc > tong:
             raise PurchaseValidationError(
-                f"Cọc dự kiến ({coc:,}đ) đang lớn hơn tổng dự kiến của đơn ({tong:,}đ) {khi}. "
+                f"Cọc dự kiến ({so_vn(coc)}đ) đang lớn hơn tổng dự kiến của đơn ({so_vn(tong)}đ) {khi}. "
                 "Cọc là ứng trước một phần của chính đơn này nên không thể vượt giá trị đơn."
                 if tong > 0 else
-                f"Chưa khai được cọc ({coc:,}đ): đơn chưa có dòng hàng nào nên tổng dự kiến đang "
+                f"Chưa khai được cọc ({so_vn(coc)}đ): đơn chưa có dòng hàng nào nên tổng dự kiến đang "
                 "là 0đ. Khai hàng trước rồi mới đặt cọc."
             )
 
@@ -3071,7 +3072,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="submit_purchase_request",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — cọc {int(row.deposit_expected or 0):,}đ" if row.deposit_expected else row.code,
+            detail=f"{row.code} — cọc {so_vn(int(row.deposit_expected or 0))}đ" if row.deposit_expected else row.code,
         )
         return self._to_request_out(saved)
 
@@ -3795,7 +3796,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="update_purchase_contract",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — HĐ {so_hd or '(trống)'} · cọc dự kiến {coc:,}đ",
+            detail=f"{row.code} — HĐ {so_hd or '(trống)'} · cọc dự kiến {so_vn(coc)}đ",
         )
         return self._to_request_out(saved)
 
@@ -3888,8 +3889,8 @@ class PurchaseService:
         tong = sum(gia_tri_cac_dot(row).values())
         if tong > money_total:
             raise PurchaseValidationError(
-                f"Tổng tiền các đợt giao ({tong:,}đ) vượt giá trị đơn đã duyệt "
-                f"({money_total:,}đ). Hóa đơn cao hơn đơn thì sửa đơn rồi duyệt lại, "
+                f"Tổng tiền các đợt giao ({so_vn(tong)}đ) vượt giá trị đơn đã duyệt "
+                f"({so_vn(money_total)}đ). Hóa đơn cao hơn đơn thì sửa đơn rồi duyệt lại, "
                 "đừng nhét chênh lệch vào đợt giao."
             )
 
@@ -4010,8 +4011,8 @@ class PurchaseService:
         money = purchase_money(row)
         if money["received_total"] < money["net_paid"]:
             raise PurchaseConflict(
-                f"Giá trị thực nhận ({money['received_total']:,}đ) thấp hơn số đã chi "
-                f"({money['net_paid']:,}đ). Huỷ bớt phiếu chi trước rồi sửa lại."
+                f"Giá trị thực nhận ({so_vn(money['received_total'])}đ) thấp hơn số đã chi "
+                f"({so_vn(money['net_paid'])}đ). Huỷ bớt phiếu chi trước rồi sửa lại."
             )
         saved = self.requests.save(row)
         self._doi_soat_giu_cho(row)
@@ -4019,7 +4020,7 @@ class PurchaseService:
             actor_user_id=actor.id,
             action="update_purchase_request_received_quantities",
             target=f"purchase_request:{row.id}",
-            detail=f"{row.code} — thực nhận {money['received_total']:,}đ / đặt {money['total']:,}đ",
+            detail=f"{row.code} — thực nhận {so_vn(money['received_total'])}đ / đặt {so_vn(money['total'])}đ",
         )
         return self._to_request_out(saved)
 

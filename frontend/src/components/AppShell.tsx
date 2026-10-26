@@ -737,6 +737,9 @@ export function AppShell() {
       // bị báo lỗi đổi NGAY; nhóm sự kiện đã được đánh dấu ở đầu handler nên màn KCS, hộp "KCS báo lỗi" và
       // mục "Kết quả KCS" đang mở tự nạp lại (không refresh).
       napBadge("to_sx", reloadTeams);
+    } else if (e.type === "cay_to_doi") {
+      // Phòng ban đổi cấp trên / tên / bị xoá ⇒ cây bàn tổ ở thanh bên nạp lại ngay (L-VAI-49).
+      napBadge("to_sx", reloadTeams);
     } else if (coQuyenBanTo(readable) && e.type === "san_xuat_ban_giao_changed") {
       // Bàn giao giữa hai tổ đổi → badge "chờ xác nhận" của tổ nhảy NGAY;
       // nhóm sự kiện đã được đánh dấu nên hộp "Chờ tổ bạn xác nhận" của bàn đang mở tự nạp lại.
@@ -879,6 +882,12 @@ export function AppShell() {
         e.decision === "approved" || e.decision === "huy_dong_y" ? "ok" : "warn",
       );
       napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "profile_request_decision") {
+      // L-VAI-21: người gửi đề nghị cập nhật hồ sơ biết kết quả ngay; Hồ sơ của tôi tự nạp theo eventTick.
+      pushToast(e.decision === "approved"
+        ? "✓ Đề nghị cập nhật hồ sơ của bạn đã được duyệt"
+        : "✕ Đề nghị cập nhật hồ sơ của bạn bị từ chối — xem lý do ở Hồ sơ của tôi",
+      e.decision === "approved" ? "ok" : "warn");
     } else if (e.type === "leave_decision") {
       // Nghỉ phép (23/09/2026): quyết định về đơn đẩy riêng tới người đứng tên đơn.
       const msg: Record<string, string> = {
@@ -1307,7 +1316,7 @@ export function AppShell() {
       case "nhan-su":
         return <NhanSuPage navigate={navigate} />;
       case "ho-so-cua-toi":
-        return <HoSoCuaToiPage navigate={navigate} />;
+        return <HoSoCuaToiPage navigate={navigate} eventTick={tickCua("nhan_su")} />;
       case "noi-quy":
         return <NoiQuyPage />;
       case "cham-cong":

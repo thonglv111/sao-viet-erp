@@ -546,8 +546,8 @@ export function PopNhom({
         open={hoiXoa}
         title={`Xoá nhóm “${nhom.ten}”?`}
         message={
-          `${nhom.thanh_viens.length} người trong nhóm sẽ trở lại chỉ thấy dữ liệu của chính mình. ` +
-          "Dữ liệu không mất, chỉ là hết dùng chung."
+          "Mọi người trong nhóm sẽ thôi dùng chung dữ liệu qua nhóm này. " +
+          "Ai còn ở nhóm khác vẫn dùng chung qua nhóm đó. Dữ liệu không mất."
         }
         confirmLabel="Xoá nhóm"
         danger

@@ -173,6 +173,7 @@ export function NguonA({ r }: { r: StockRequest }) {
       {nguon === "gia_cong" && <span className="kna-tag">Gia công</span>}
       {/* Hệ thống tự lập lúc phát hành lệnh (18/10/2026) — không phải tổ bấm xin. */}
       {r.san_xuat_tu_lap && <span className="kna-tag">Tự lập khi phát hành</span>}
+      {r.san_xuat_lenh_thu_hoi && <span className="kna-tag">Lệnh đã thu hồi</span>}
       {lenh.slice(0, 2).map((m) => <span key={m}>{m}</span>)}
       {lenh.length > 2 && <span className="kna-tag">+{lenh.length - 2} lệnh</span>}
     </span>

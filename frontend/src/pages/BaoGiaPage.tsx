@@ -476,7 +476,7 @@ export function BaoGiaPage({
 
 // --- Lưới danh sách (phương án A, 07/10/2026) --------------------------------------------------
 // Thứ tự: Mã, Ngày, Khách, Sản phẩm, Giá bán, Lãi, Trạng thái, Người duyệt, Hiệu lực,
-// Đơn hàng (chứng từ kế tiếp), Người lập. Cột Số lượng ĐÃ GỠ (13/10/2026): báo giá nhiều sản phẩm
+// Đơn hàng (chứng từ kế tiếp), NV phụ trách. Cột Số lượng ĐÃ GỠ (13/10/2026): báo giá nhiều sản phẩm
 // khác loại thì một con số SL của dòng đầu không nói lên gì — SL từng dòng xem trong báo giá.
 const COT_BG: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
   { key: "ma", label: "Mã báo giá", coDinh: true, w: 140, sx: "code" },
@@ -489,7 +489,7 @@ const COT_BG: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
   { key: "duyet", label: "Người duyệt", w: 120 },
   { key: "han", label: "Hiệu lực", w: 100, sx: "valid_until" },
   { key: "don", label: "Đơn hàng", w: 90 },
-  { key: "nguoi", label: "Người lập" },
+  { key: "nguoi", label: "NV phụ trách" },
 ];
 
 // Chấm màu hàng lọc nhanh — cùng sắc với chip trạng thái của dòng (BADGE_TRANG_THAI).
@@ -1142,7 +1142,7 @@ export function QuotationDetailView({
         ariaLabel={`Chiết khấu ${ten}`}
         titlePct="Chiết khấu (%) trên giá bán trước kê — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
         titleSo="Tiền chiết khấu — nằm trong giá bán, chi lại cho khách khi hóa đơn thu đủ"
-        onNhap={(k, v) => datNhap(ids, "ck", { k, v })}
+        onNhap={(k, v) => datNhap(ids, "ck", { k, v: k === "pct" ? Math.min(100, Math.max(0, v)) : v })}
         onHuy={() => datNhap(ids, "ck", null)}
         onChot={(k, v) => commitChietKhau(dong, k, v)}
       />
@@ -1163,7 +1163,7 @@ export function QuotationDetailView({
         ariaLabel={`Kê ${ten}`}
         titlePct="Kê (%) trên giá bán — cộng thêm vào giá khách trả, chi lại cho người bên khách (đã trừ thuế TNDN) khi hóa đơn thu đủ"
         titleSo="Tiền kê — cộng thêm vào giá khách trả, chi lại cho người bên khách (đã trừ thuế TNDN) khi hóa đơn thu đủ"
-        onNhap={(k, v) => datNhap(ids, "ke", { k, v })}
+        onNhap={(k, v) => datNhap(ids, "ke", { k, v: k === "pct" ? Math.min(1000, Math.max(0, v)) : v })}
         onHuy={() => datNhap(ids, "ke", null)}
         onChot={(k, v) => commitKe(dong, k, v)}
       />
@@ -1341,10 +1341,10 @@ export function QuotationDetailView({
             <span className="ver">v{d.version}</span>
             <StatusPill status={d.status} statuses={statuses} />
           </div>
-          {/* Khách đã có ở dải ngay dưới — dòng phụ chỉ còn tên hàng + NV soạn. */}
+          {/* Khách đã có ở dải ngay dưới — dòng phụ chỉ còn tên hàng + NV phụ trách. */}
           <div className="subline">
             <span>{productSummary}</span>
-            {d.salesperson_name ? <span className="tag">NV soạn {d.salesperson_name}</span> : null}
+            {d.salesperson_name ? <span className="tag">NV phụ trách {d.salesperson_name}</span> : null}
           </div>
         </div>
         <div className="acts">

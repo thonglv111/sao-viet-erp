@@ -8,6 +8,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import BigInteger, cast, func, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 
 from ..models.payroll import ADV_APPROVED, ADV_PAID
@@ -81,6 +82,8 @@ from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from . import bao_cao_cong_no
 from .cong_no_khoa_ky import loi_ky_khoa
+from .dinh_dang import so_vn
+from .ky_luong_guard import ly_do_ky_luong_da_khoa
 from .hoa_don_theo_giao import _ngay_vn
 from .muc_thu_chi_service import MucThuChiError, MucThuChiService
 from .purchase_service import (
@@ -1610,9 +1613,37 @@ class AccountingService:
     def _chan_ky_khoa(self, obj) -> None:
         """Chứng từ công nợ có ngày trong kỳ đã khoá thì không lập/sửa/huỷ (#46, 18/10/2026) —
         gọi ngay trước mỗi lần lưu phiếu chi, phiếu thu, hoá đơn bán, hoá đơn điều chỉnh."""
-        loi = loi_ky_khoa(self.repo.db, obj)
+        db = self.repo.db
+        ngay_hh: set = set()
+        if isinstance(obj, PaymentReceipt):
+            # Ngày cũ đọc TRƯỚC mọi thứ chạm DB (cùng mẹo `loi_ky_khoa`).
+            with db.no_autoflush:
+                ngay_hh = {obj.receipt_date}
+                tt = sa_inspect(obj)
+                if tt.persistent:
+                    ngay_hh.update(tt.attrs["receipt_date"].history.deleted)
+        loi = loi_ky_khoa(db, obj)
         if loi:
             raise AccountingValidationError(loi)
+        if ngay_hh:
+            # Hoa hồng gom phiếu thu theo ngày thu trong tháng kỳ lương: lập / sửa / huỷ phiếu thu
+            # của đơn có sale vào tháng kỳ lương đã chốt là khoản rơi khỏi mọi kỳ (L-SX-48).
+            # Phiếu thu hoá đơn không mang `order_id` (cố ý) ⇒ đơn lấy cả qua hoá đơn.
+            with db.no_autoflush:
+                don_ids = {obj.order_id} | {l.order_id for l in obj.lines}
+                hd_ids = {obj.sales_invoice_id} | {l.sales_invoice_id for l in obj.lines}
+            don_ids.discard(None)
+            hd_ids.discard(None)
+            if hd_ids:
+                don_ids |= set(db.scalars(select(SalesInvoice.order_id).where(
+                    SalesInvoice.id.in_(sorted(hd_ids)))))
+            don_ids.discard(None)
+            if don_ids and db.scalar(select(Order.id).where(
+                    Order.id.in_(sorted(don_ids)), Order.sale_user_id.is_not(None)).limit(1)):
+                loi = ly_do_ky_luong_da_khoa(db, *ngay_hh,
+                                             viec="lập, sửa hay huỷ phiếu thu ảnh hưởng hoa hồng")
+                if loi:
+                    raise AccountingValidationError(loi)
 
     def create_voucher(self, *, actor, purchase_request_id: int | None = None,
                        salary_advance_id: int | None = None,
@@ -1706,7 +1737,7 @@ class AccountingService:
                     "(chưa thu đủ hoặc đã chi hết).")
             if so > con:
                 raise AccountingValidationError(
-                    f"Số chi vượt phần còn phải chi của hóa đơn {inv.invoice_number} ({con:,} đ).")
+                    f"Số chi vượt phần còn phải chi của hóa đơn {inv.invoice_number} ({so_vn(con)} đ).")
             tong += so
         dau = hoa_don[ids[0]]
         so_hd = [hoa_don[i].invoice_number for i in ids]
@@ -1734,7 +1765,7 @@ class AccountingService:
             actor_user_id=actor.id,
             action="create_payment_voucher",
             target=f"payment_voucher:{saved.id}",
-            detail=f"{saved.code} <- {TEN_LOAI[loai]} {', '.join(so_hd)}: {tong:,}đ",
+            detail=f"{saved.code} <- {TEN_LOAI[loai]} {', '.join(so_hd)}: {so_vn(tong)}đ",
         )
         return self._voucher_out(saved)
 
@@ -2076,7 +2107,7 @@ class AccountingService:
         amount = int(values.get("amount_vnd") or goi_y)
         if amount > available:
             raise AccountingValidationError(
-                f"Số tiền hóa đơn vượt phần đơn chưa ghi hóa đơn ({available:,} đ)."
+                f"Số tiền hóa đơn vượt phần đơn chưa ghi hóa đơn ({so_vn(available)} đ)."
             )
         term_days = customer.payment_term_days
         due_date = (
@@ -2123,7 +2154,7 @@ class AccountingService:
             actor_user_id=actor.id,
             action="create_sales_invoice",
             target=f"sales_invoice:{saved.id}",
-            detail=f"{saved.invoice_number} <- {order.order_no} lượt {dong_luot['ma']}: {amount:,}đ",
+            detail=f"{saved.invoice_number} <- {order.order_no} lượt {dong_luot['ma']}: {so_vn(amount)}đ",
         )
         money = next(
             (row for row in self._receivable_rows(customer_id=customer.id) if row["invoice_id"] == saved.id),
@@ -2919,7 +2950,7 @@ class AccountingService:
         remaining = money_row["remaining_amount"] if money_row else 0
         if int(prepared["amount_vnd"]) > remaining:
             raise AccountingValidationError(
-                f"Số tiền thu vượt quá phần hóa đơn còn phải thu ({remaining:,} đ)."
+                f"Số tiền thu vượt quá phần hóa đơn còn phải thu ({so_vn(remaining)} đ)."
             )
         account = prepared.pop("company_account")
         doc_no = self.sequences.generate_flat_code(SEQ_DOC_TYPE_PAYMENT_RECEIPT)
@@ -3020,7 +3051,7 @@ class AccountingService:
                 tran = con_no.get(invoice.id, 0)
                 if so > tran:
                     raise AccountingValidationError(
-                        f"Số thu cho hoá đơn {invoice.invoice_number} vượt phần còn phải thu ({tran:,} đ)."
+                        f"Số thu cho hoá đơn {invoice.invoice_number} vượt phần còn phải thu ({so_vn(tran)} đ)."
                     )
             dong.append({"invoice": invoice, "order": order, "amount": so})
 
@@ -3147,6 +3178,18 @@ class AccountingService:
         """Σ số tiền các phiếu thu ĐÃ THU (received) của một đơn — cổng chốt đơn đọc số này."""
         return self.repo.receipt_received_sum_for_order(order_id)
 
+    def _chan_huy_khi_da_chi_ck(self, invoice_ids: list[int]) -> None:
+        """Huỷ phiếu thu làm hoá đơn nợ lại, khoản CK/kê rút khỏi hàng chờ trong khi phiếu chi CK/kê
+        vẫn sống (bấm thử 25/10/2026, L-VAI-35). Cùng trình tự như huỷ hoá đơn: huỷ phiếu chi trước."""
+        da_chi = {i for (i, _loai), so in self.repo.da_chi_ck_ke(sorted(set(invoice_ids))).items() if so}
+        if not da_chi:
+            return
+        hd = self.repo.db.get(SalesInvoice, min(da_chi))
+        so = hd.invoice_number if hd is not None else str(min(da_chi))
+        raise AccountingConflict(
+            f"Hóa đơn {so} đã có phiếu chi chiết khấu/kê — huỷ phiếu chi CK/kê trước rồi mới huỷ "
+            "phiếu thu.")
+
     def cancel_order_receipt(self, receipt_id: int, *, actor, reason: str):
         """Hủy phiếu thu CỌC đơn bán — cho hủy cả khi ĐÃ THU (ghi nhầm), khác phiếu thu mua (chỉ
         hủy chờ-thu). Không xóa trắng: giữ vết + số PT trong quyển sổ."""
@@ -3155,6 +3198,9 @@ class AccountingService:
             raise AccountingConflict("Không phải phiếu thu cọc đơn bán.")
         if receipt.status == PAYMENT_RECEIPT_CANCELLED:
             raise AccountingConflict("Phiếu thu đã hủy.")
+        # Cọc cấn FIFO vào hoá đơn của đơn ⇒ huỷ cọc cũng đẩy hoá đơn đã chi CK về nợ (L-VAI-35).
+        self._chan_huy_khi_da_chi_ck(
+            [hd.id for hd in self.repo.hoa_don_hieu_luc_cua_don([receipt.order_id])])
         cleaned = _text(reason, label="Lý do hủy", required=True, max_length=2000)
         receipt.status = PAYMENT_RECEIPT_CANCELLED
         receipt.cancel_reason = cleaned
@@ -3235,6 +3281,9 @@ class AccountingService:
             RECEIPT_SOURCE_SALES_INVOICE,
             RECEIPT_SOURCE_PURCHASE,
         ):
+            self._chan_huy_khi_da_chi_ck(
+                [l.sales_invoice_id for l in receipt.lines if l.sales_invoice_id]
+                + ([receipt.sales_invoice_id] if receipt.sales_invoice_id else []))
             cleaned_reason = _text(reason, label="Lý do hủy", required=True, max_length=2000)
             receipt.status = PAYMENT_RECEIPT_CANCELLED
             receipt.cancel_reason = cleaned_reason
@@ -3345,7 +3394,7 @@ class AccountingService:
         remaining = int(voucher.amount_vnd) - reserved
         if amount_vnd > remaining:
             raise AccountingValidationError(
-                f"Số tiền thu vượt quá phần còn được thu ({remaining:,} đ)."
+                f"Số tiền thu vượt quá phần còn được thu ({so_vn(remaining)} đ)."
             )
         content = _text(values.get("content"), label="Nội dung thu", required=True, max_length=500)
 
@@ -3785,7 +3834,7 @@ class AccountingService:
             else:
                 nhan = "thanh toán"
             raise AccountingValidationError(
-                f"Số tiền quy đổi vượt quá số còn được phép {nhan} ({tran:,} đ)."
+                f"Số tiền quy đổi vượt quá số còn được phép {nhan} ({so_vn(tran)} đ)."
             )
         content = _text(values.get("content"), label="Nội dung chi", required=True, max_length=500)
 
@@ -4131,7 +4180,7 @@ class AccountingService:
                     "không trả lại.")
             if prepared["amount_vnd"] > con:
                 raise AccountingValidationError(
-                    f"Số tiền vượt phần tiền khách còn lại của đơn {don.order_no} ({max(con, 0):,} đ).")
+                    f"Số tiền vượt phần tiền khách còn lại của đơn {don.order_no} ({so_vn(max(con, 0))} đ).")
         prepared["customer_id"] = khach.id
         prepared["order_id"] = don.id if don is not None else None
         prepared["source_code_snapshot"] = (don.order_no if don is not None else "Trả lại tiền khách")[:32]
@@ -4286,7 +4335,7 @@ class AccountingService:
               "detail": f"{phieu.code} <- {len(lo)} phiếu tạm ứng (chi một lượt)"}]
             + [{"actor_user_id": actor.id, "action": "pay_salary_advance",
                 "target": f"salary_advance:{a.id}",
-                "detail": f"{a.code or a.id} · {float(a.amount):,.0f}đ → {phieu.code}"}
+                "detail": f"{a.code or a.id} · {so_vn(float(a.amount))}đ → {phieu.code}"}
                for a in lo]
         )
         pc_id = phieu.id

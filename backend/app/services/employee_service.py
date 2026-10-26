@@ -59,6 +59,7 @@ from ..quyen_notify import bao_quyen_doi
 from ..security import hash_password
 from ..shift_notify import push_shift_changes
 from .leave_service import hom_nay_vn
+from .ky_luong_guard import ly_do_ky_luong_da_khoa
 
 # Mốc bật "tự đánh dấu HẾT THỬ VIỆC" (chủ chốt 22/08/2026). Hồ sơ có NGÀY HẾT THỬ VIỆC TRƯỚC
 # mốc này là dữ liệu tồn từ thời chưa có tính năng — máy KHÔNG đụng, để HCNS tự xử. Đụng vào là
@@ -97,6 +98,12 @@ _STATUS_TRANSITIONS: dict[str, tuple[set[str], str, str]] = {
     # Trước đây không có đường nào về Thử việc. Bắt khai Ngày hết thử việc mới như lúc tạo hồ sơ.
     "probation_restart": ({STATUS_ACTIVE, STATUS_PROBATION_ENDED}, STATUS_PROBATION,
                           EVENT_PROBATION_RESTARTED),
+}
+# Nhãn trạng thái cho dòng nhật ký — khớp chữ trên màn Nhân sự.
+_NHAN_TRANG_THAI = {
+    STATUS_PROBATION: "Thử việc", STATUS_PROBATION_ENDED: "Hết thử việc",
+    STATUS_ACTIVE: "Đang làm việc", STATUS_ON_LEAVE: "Nghỉ dài hạn",
+    STATUS_SUSPENDED: "Đình chỉ", STATUS_RESIGNED: "Đã nghỉ việc",
 }
 # Fields the plain edit (PUT) may set — deliberately EXCLUDES status/department_id
 # and resign_*, which only a transition may change.
@@ -873,6 +880,17 @@ class EmployeeService:
             raise EmployeeValidationError(
                 f"Ngày hiệu lực không được sau hôm nay ({date.today():%d/%m/%Y}) — máy áp thay đổi "
                 "ngay lúc bấm, tới ngày đó hãy bấm.")
+        # Bấm thử 25/10/2026 (L-SX-28): mốc trước ngày vào làm làm biên chế theo ngày đọc sai.
+        if employee.hire_date and effective_date < employee.hire_date:
+            raise EmployeeValidationError(
+                f"Ngày hiệu lực không được trước ngày vào làm ({employee.hire_date:%d/%m/%Y}).")
+        # Kỳ lương đã chốt / đã chi (L-SX-44): các thao tác đổi tiền của kỳ thì chặn. Nghỉ việc vẫn
+        # cho lùi ngày — giấy nghỉ ngoài đời hay về muộn (chủ duyệt theo kế hoạch vá 25/10/2026).
+        if kind in ("probation_restart", "reinstate", "transfer", "promote"):
+            loi = ly_do_ky_luong_da_khoa(self.employees.db, effective_date,
+                                          viec="đổi trạng thái hồ sơ có hiệu lực")
+            if loi:
+                raise EmployeeValidationError(loi)
 
         if kind in _STATUS_TRANSITIONS:
             return self._apply_status(employee, actor, kind, effective_date, note, resign_reason,
@@ -888,6 +906,12 @@ class EmployeeService:
         """Mọi bước ghi đi `commit=False`; chốt MỘT lần ở `audit.create` (bản cũ 3–5 commit).
         `commit=False` (lượt máy quét cả lô): dòng nhật ký cũng chỉ flush, người gọi tự chốt."""
         allowed_from, to_status, event_type = _STATUS_TRANSITIONS[kind]
+        # Cùng khuôn `CannotLockSelf` (L-VAI-20): nghỉ việc / đình chỉ khoá đăng nhập của chính
+        # người bấm. `actor=None` là máy tự quét, không đụng.
+        if (kind in ("resign", "suspend") and actor is not None and employee.user_id is not None
+                and employee.user_id == getattr(actor, "id", None)):
+            raise EmployeeValidationError(
+                "Không thể tự cho mình nghỉ việc / đình chỉ — nhờ người khác thao tác.")
         if employee.status not in allowed_from:
             raise EmployeeValidationError(
                 f"Không thể '{kind}' từ trạng thái hiện tại ({employee.status})."
@@ -934,7 +958,15 @@ class EmployeeService:
         if kind == "reinstate" and employee.user_id is not None:
             account = self.users.get_by_id(employee.user_id)
             if account is not None and not account.is_active:
-                self.users.set_active(account, True, commit=False)
+                # Khoá do nghỉ việc không ghi `lock_user`; dòng `lock_user` mới nhất nghĩa là có
+                # người khoá TAY — tuyển lại không được mở hộ (L-VAI-22).
+                vet = self.audit.list_by_targets(
+                    [f"user:{account.id}"], actions=["lock_user", "unlock_user"])[f"user:{account.id}"]
+                if vet and vet[0].action == "lock_user":
+                    giu_khoa = "Tài khoản đang bị khoá tay — mở ở tab Tài khoản."
+                    note = f"{note} ({giu_khoa})" if note else giu_khoa
+                else:
+                    self.users.set_active(account, True, commit=False)
         self.employees.add_event(
             employee_id=employee.id,
             event_type=event_type,
@@ -953,9 +985,15 @@ class EmployeeService:
             actor_user_id=getattr(actor, "id", None),
             action=f"employee_{event_type}",
             target=f"employee:{employee.id}",
-            detail=f"{employee.code} {old_status}→{to_status}",
+            detail=(f"{employee.code}: {_NHAN_TRANG_THAI.get(old_status, old_status)} → "
+                    f"{_NHAN_TRANG_THAI.get(to_status, to_status)}, hiệu lực {effective_date:%d/%m/%Y}"
+                    + (f", hết thử việc {probation_end_date:%d/%m/%Y}"
+                       if kind == "probation_restart" else "")),
             commit=commit,
         )
+        if kind == "resign" and employee.user_id is not None and commit:
+            # Sau commit: kênh SSE đang mở của người vừa nghỉ xét lại và tự cắt (L-VAI-23).
+            bao_quyen_doi([employee.user_id])
         return employee
 
     def _trang_thai_truoc_dinh_chi(self, employee) -> str:
