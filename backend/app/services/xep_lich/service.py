@@ -640,13 +640,13 @@ class XepLichLenhService:
         CHỈ nhắc, không chặn — cùng mức với `constraint.de_vung_khoa_may` (chủ hạ 21/08/2026: bản
         khai tay còn thưa, chặn cứng thì bịt khe của máy đang chạy tốt). Lỗi #50 và #27 bấm thử
         18/10/2026: khai được khoá máy rồi mà thanh lệnh vẫn im, máy dừng chờ sửa cũng im.
-        Vùng khoá hỏi MỘT lượt cho cả cửa sổ; báo hỏng hỏi theo từng máy có mặt trên bàn.
+        Vùng khoá hỏi MỘT lượt cho cả cửa sổ; báo hỏng cũng một lượt cho mọi máy có mặt trên bàn.
         """
         from ...models.machine_unavailable import (
             KIEU_CHAN, LY_DO_BAO_TRI, LY_DO_HONG_HOC, LY_DO_NGHI,
         )
         from ...repositories.machine_unavailable_repo import MachineUnavailableRepository
-        from ..may_trang_thai import bao_hong_dang_mo
+        from ..may_trang_thai import bao_hong_dang_mo_nhieu
 
         may_ids = {k[0] for d in dong for k in d.get("_khung_may") or ()}
         if not may_ids:
@@ -659,8 +659,8 @@ class XepLichLenhService:
                 khoa.setdefault(p.may_id, []).append(
                     (_aware(p.unavailable_from), _aware(p.unavailable_to), p.reason))
         dung: dict[int, str] = {}
-        for mid in may_ids:
-            ma = next((b["ma"] for b in bao_hong_dang_mo(self.db, mid) if b["may_dung"]), None)
+        for mid, ds in bao_hong_dang_mo_nhieu(self.db, may_ids).items():
+            ma = next((b["ma"] for b in ds if b["may_dung"]), None)
             if ma:
                 dung[mid] = ma
         ten_ly_do = {LY_DO_BAO_TRI: "bảo trì", LY_DO_HONG_HOC: "hỏng", LY_DO_NGHI: "nghỉ"}

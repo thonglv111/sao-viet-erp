@@ -476,10 +476,10 @@ def loc_nguoi_lap(
 ) -> list[dict]:
     """Giá trị của điều kiện "Người lập": ai đã lập phiếu (ở kho `kho_id`), kèm số phiếu."""
     dem = dict(svc.vouchers.nguoi_lap_loc(kho_id=kho_id))
-    users = UserRepository(db)
+    nguoi = UserRepository(db).get_many(dem)   # một câu cho cả ô lọc
     ra = []
     for uid, n in dem.items():
-        u = users.get_by_id(uid)
+        u = nguoi.get(uid)
         ra.append({"id": uid, "ten": getattr(u, "name", None) or f"#{uid}", "so": n})
     return sorted(ra, key=lambda d: d["ten"])
 

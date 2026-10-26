@@ -35,6 +35,17 @@ class XeRepository(CatalogRepo):
             select(func.count()).select_from(Xe).where(Xe.active.is_(True))
         ).scalar_one())
 
+    def dem_theo_cac_muc(self, muc_ids) -> dict[int, int]:
+        """`{muc_id: số xe}` của nhiều mức trong MỘT câu GROUP BY (danh sách mức). Mức không xe
+        nào thì vắng mặt."""
+        ids = sorted({int(i) for i in (muc_ids or []) if i is not None})
+        if not ids:
+            return {}
+        return {int(m): int(n) for m, n in self.db.execute(
+            select(Xe.muc_khoan_km_id, func.count()).where(Xe.muc_khoan_km_id.in_(ids))
+            .group_by(Xe.muc_khoan_km_id)
+        ).all()}
+
     def dem_theo_muc(self, muc_id: int) -> int:
         """Số xe đang ăn một mức — để màn cấu hình nói "mức này 3 xe đang dùng" trước khi sửa giá."""
         return int(self.db.execute(
@@ -105,6 +116,20 @@ class MucKhoanKmRepository:
             .where(MucKhoanKmBac.muc_id == muc_id)
             .order_by(MucKhoanKmBac.seq)
         ).scalars().all())
+
+    def bac_theo_muc(self, muc_ids) -> dict[int, list[MucKhoanKmBac]]:
+        """`{muc_id: bac_cua(muc_id)}` của nhiều mức trong MỘT truy vấn (danh sách mức)."""
+        ids = sorted({int(i) for i in (muc_ids or []) if i is not None})
+        if not ids:
+            return {}
+        ra: dict[int, list[MucKhoanKmBac]] = {}
+        for b in self.db.execute(
+            select(MucKhoanKmBac)
+            .where(MucKhoanKmBac.muc_id.in_(ids))
+            .order_by(MucKhoanKmBac.muc_id, MucKhoanKmBac.seq)
+        ).scalars():
+            ra.setdefault(b.muc_id, []).append(b)
+        return ra
 
     def ghi_lai_bac(self, muc_id: int, rows: list[dict]) -> None:
         """Xoá sạch rồi ghi mới — bảng bậc là một khối, sửa cả cụm chứ không từng dòng.

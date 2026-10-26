@@ -339,7 +339,7 @@ def list_sale_options(
     elif scope == "department":
         dept_ids = dept_subtree_ids(svc.customers.db, user.department_id)
         trong_pham_vi = (
-            {u.id for d in dept_ids for u in users.list_by_department(d)}
+            {u.id for u in users.list_by_departments(dept_ids)}
             if dept_ids
             else {user.id}
         )
@@ -375,12 +375,11 @@ def list_sale_options(
         gan_duoc.setdefault(user.id, user.id in du_tu_cach_ids)
 
     ten_phong = {d.id: d.name for d in depts.list_all()}
+    # Tên vai nạp GỘP một câu cho cả hộp (trước 26/10/2026: mỗi người một SELECT roles).
+    ten_vai = roles.names_by_ids(u.role_id for u in ung_vien.values())
     out: list[SaleOption] = []
     for u in ung_vien.values():
-        vai_tro = None
-        if u.role_id is not None:
-            role = roles.get_by_id(u.role_id)
-            vai_tro = role.name if role is not None else None
+        vai_tro = ten_vai.get(u.role_id) if u.role_id is not None else None
         out.append(
             SaleOption(
                 id=u.id,

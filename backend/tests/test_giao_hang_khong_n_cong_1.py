@@ -85,3 +85,38 @@ def test_danh_sach_giao_hang_khong_hoi_db_tung_dong(client):
     print("\nSO CAU SQL (it dong -> nhieu dong):", {u: (it[u], nhieu[u]) for u in DANH_SACH})
     loi = {u: (it[u], nhieu[u]) for u in DANH_SACH if nhieu[u] > it[u] + 2}
     assert not loi, f"số câu SQL tăng theo số dòng: {loi}"
+
+
+def _muc_km(n: int, tien_to: str) -> None:
+    """n mức khoán km, mỗi mức hai bậc và (i+1) xe đang dùng."""
+    from app.models.xe import MucKhoanKm, MucKhoanKmBac, Xe
+
+    db = SessionLocal()
+    try:
+        for i in range(n):
+            m = MucKhoanKm(ten=f"Mức {tien_to}{i}")
+            db.add(m)
+            db.flush()
+            db.add_all([MucKhoanKmBac(muc_id=m.id, seq=2, up_to_km=None, don_gia=3000),
+                        MucKhoanKmBac(muc_id=m.id, seq=1, up_to_km=10 + i, don_gia=9000)])
+            db.add_all([Xe(ma=f"XE-{tien_to}{i}-{j}", ten=f"Xe {tien_to}{i}{j}", muc_khoan_km_id=m.id)
+                        for j in range(i + 1)])
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_muc_khoan_km_khong_hoi_db_tung_muc(client):
+    """Danh sách mức khoán km: bậc + số xe nạp gộp (bản sao: mỗi mức hai câu)."""
+    h = _admin(client)
+    url = "/api/giao-hang/muc-khoan-km"
+    _muc_km(2, "A")
+    it = _so_cau(client, h, url)
+    _muc_km(6, "B")
+    nhieu = _so_cau(client, h, url)
+    muc = {m["ten"]: m for m in client.get(url, headers=h).json()["items"]}
+    assert muc["Mức B4"]["so_xe"] == 5
+    assert muc["Mức B4"]["items"] == [{"up_to_km": 14, "don_gia": 9000.0},
+                                      {"up_to_km": None, "don_gia": 3000.0}]
+    print("\nSO CAU SQL muc khoan km (2 -> 8 muc):", it, nhieu)
+    assert nhieu <= it, f"{url}: {it} -> {nhieu} câu khi tăng số mức"

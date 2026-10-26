@@ -719,14 +719,12 @@ class LeaveService:
         last = date(year, month, _cal.monthrange(year, month)[1])
         reqs = self.leaves.list_overlapping(first, last, (STATUS_APPROVED, STATUS_PENDING))
         if actor is not None and scope != "all":
-            trong_tam: dict[int, bool] = {}
-            def _duoc_xem(emp_id: int) -> bool:
-                if emp_id not in trong_tam:
-                    emp = self.employees.get_by_id(emp_id)
-                    trong_tam[emp_id] = emp is not None and self.employees.can_access(
-                        employee=emp, scope=scope, actor=actor)
-                return trong_tam[emp_id]
-            reqs = [r for r in reqs if _duoc_xem(r.employee_id)]
+            # Một truy vấn cho cả tập người có đơn — thay `get_by_id` + `can_access` từng người.
+            duoc_xem = self.employees.ids_accessible({r.employee_id for r in reqs},
+                                                     scope=scope, actor=actor)
+            reqs = [r for r in reqs if r.employee_id in duoc_xem]
+        # Tên NV của cả lịch nạp MỘT lần (trước: mỗi người một câu).
+        nv = self.employees.map_by_ids({r.employee_id for r in reqs})
         types = {t.id: t for t in self.leaves.list_types()}
         # Đơn đã duyệt đang có yêu cầu hủy chờ quyết: VẪN là ngày nghỉ (đơn còn hiệu lực), chỉ gắn dấu
         # để tổ trưởng xếp người biết có thể người này sẽ đi làm lại (23/09/2026).
@@ -736,7 +734,7 @@ class LeaveService:
         for r in reqs:
             lt = types.get(r.leave_type_id)
             if r.employee_id not in out:
-                emp = self.employees.get_by_id(r.employee_id)
+                emp = nv.get(r.employee_id)
                 out[r.employee_id] = {
                     "employee_id": r.employee_id,
                     "employee_name": emp.full_name if emp is not None else f"NV#{r.employee_id}",

@@ -1373,9 +1373,17 @@ def _comp_out(c, repo) -> ComponentOut:
 
 
 @router.get("/components", response_model=ComponentsOut)
-def list_components(csvc: CompService, repo: CompRepo, user: ConfigViewer) -> ComponentsOut:
+def list_components(csvc: CompService, user: ConfigViewer) -> ComponentsOut:
     """Cả khoản đã ngưng dùng cũng trả — màn cấu hình cần hiện để bật lại được."""
-    return ComponentsOut(items=[_comp_out(c, repo) for c in csvc.list_components()])
+    ds = csvc.list_components()
+    so_nv, so_ky = csvc.dem_su_dung(c.id for c in ds)
+    items = []
+    for c in ds:
+        o = ComponentOut.model_validate(c)
+        o.employee_count = so_nv.get(c.id, 0)
+        o.period_count = so_ky.get(c.id, 0)
+        items.append(o)
+    return ComponentsOut(items=items)
 
 
 @router.post("/components", response_model=ComponentOut, status_code=status.HTTP_201_CREATED)

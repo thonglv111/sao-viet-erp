@@ -19,18 +19,16 @@ def lua_chon_nguoi(db: Session, dem: dict[int, int], nguoi_xem) -> list[SaleOpti
     """`dem` = {user_id: số phiếu trong tầm nhìn}. Trả hộp chọn: tên + vai trò + phòng + số phiếu
     (`so_kh` — tên trường giữ theo `SaleOption` của Khách hàng để FE dùng chung một kiểu)."""
     ids = set(dem) | {nguoi_xem.id}
-    users = UserRepository(db)
-    roles = RoleRepository(db)
+    # Nạp GỘP người + tên vai một lượt cho cả hộp — trước 26/10/2026 mỗi người một SELECT users
+    # và một SELECT roles (bản sao E2E: hộp NV phụ trách đơn hàng 15 + 5 câu).
+    nguoi = UserRepository(db).get_many(ids)
+    ten_vai = RoleRepository(db).names_by_ids(u.role_id for u in nguoi.values())
     ten_phong = {d.id: d.name for d in DepartmentRepository(db).list_all()}
-    ten_vai: dict[int, str | None] = {}
     out: list[SaleOption] = []
     for uid in ids:
-        u = users.get_by_id(uid)
+        u = nguoi.get(uid)
         if u is None:
             continue
-        if u.role_id is not None and u.role_id not in ten_vai:
-            r = roles.get_by_id(u.role_id)
-            ten_vai[u.role_id] = r.name if r is not None else None
         out.append(SaleOption(
             id=u.id,
             name=u.name or u.username,

@@ -55,3 +55,30 @@ def test_danh_sach_kho_khong_hoi_db_tung_dong(client):
     print("\nSO CAU SQL kho (it -> nhieu):", {u: (it[u], nhieu[u]) for u in DANH_SACH})
     loi = {u: (it[u], nhieu[u]) for u in DANH_SACH if nhieu[u] > it[u] + 2}
     assert not loi, f"số câu SQL tăng theo số dòng: {loi}"
+
+
+def test_bao_cao_nxt_khong_hoi_db_tung_kho(client):
+    """Báo cáo Nhập–Xuất–Tồn: tên kho nạp một câu (bản sao: mỗi kho một SELECT kho_hang)."""
+    from datetime import date
+
+    kho_dau, _mat = _setup(client)
+    h = _admin(client)
+    hom_nay = date.today()
+    url = f"/api/kho/bao-cao/nxt?tu={hom_nay.replace(day=1)}&den={hom_nay}"
+
+    def _them_kho(n: int, tien_to: str) -> None:
+        for i in range(n):
+            r = client.post("/api/kho", json={"ten": f"Kho NXT {tien_to}{i}"}, headers=h)
+            assert r.status_code in (200, 201), r.text
+            _nhap(client, kho_id=r.json()["id"], mat_id=_mk_material(f"NXT-{tien_to}-{i}"),
+                  qty=5, gia=1000)
+
+    _nhap(client, kho_id=kho_dau, mat_id=_mk_material("NXT-0"), qty=5, gia=1000)
+    _them_kho(1, "A")
+    it = _so_cau(client, h, url)
+    _them_kho(6, "B")
+    nhieu = _so_cau(client, h, url)
+    ten = {r["kho_ten"] for r in client.get(url, headers=h).json()["items"]}
+    assert {f"Kho NXT B{i}" for i in range(6)} <= ten
+    print("\nSO CAU SQL nxt (2 -> 8 kho):", it, nhieu)
+    assert nhieu <= it, f"{url}: {it} -> {nhieu} câu khi tăng số kho"

@@ -212,7 +212,10 @@ class KhoanKyRepository:
         if not ids:
             return {}
         rows = self.db.scalars(select(CongDoanKhoan)
-                               .options(selectinload(CongDoanKhoan.cong_doan))
+                               # Việc phát sinh nạp cùng mẻ — vòng tính đọc `khoan.viec_phat_sinh`
+                               # cho mỗi lần ghi, để lười thì mỗi khoán một câu.
+                               .options(selectinload(CongDoanKhoan.cong_doan),
+                                        selectinload(CongDoanKhoan.viec_phat_sinh))
                                .where(CongDoanKhoan.id.in_(ids)))
         return {int(k.id): k for k in rows}
 

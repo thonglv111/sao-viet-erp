@@ -28,14 +28,18 @@ MODULE = "phong_ban"
 QuanTri = Annotated[User, Depends(require_permission(MODULE, "manage_permissions"))]
 
 
-def _ra(repo: NhomDungChungRepository, nhom: NhomDungChung) -> NhomOut:
+def _ra(repo: NhomDungChungRepository, nhom: NhomDungChung,
+        thanh_viens: list[tuple[int, str, str]] | None = None) -> NhomOut:
+    """`thanh_viens` = bản nạp gộp của danh sách nhóm; vắng thì tự tra cho một nhóm."""
+    if thanh_viens is None:
+        thanh_viens = repo.thanh_viens(nhom.id)
     return NhomOut(
         id=nhom.id,
         ten=nhom.ten,
         created_at=nhom.created_at,
         thanh_viens=[
             ThanhVienOut(user_id=uid, ho_ten=ho_ten, username=username)
-            for uid, ho_ten, username in repo.thanh_viens(nhom.id)
+            for uid, ho_ten, username in thanh_viens
         ],
     )
 
@@ -51,7 +55,10 @@ def list_items(
     _: QuanTri,
 ) -> list[NhomOut]:
     repo = NhomDungChungRepository(db)
-    return [_ra(repo, n) for n in repo.list_all()]
+    nhoms = repo.list_all()
+    # Thành viên mọi nhóm nạp GỘP một câu (trước 26/10/2026: mỗi nhóm một câu).
+    tv = repo.thanh_viens_theo_nhom(n.id for n in nhoms)
+    return [_ra(repo, n, tv.get(n.id, [])) for n in nhoms]
 
 
 @router.post("", response_model=NhomOut, status_code=status.HTTP_201_CREATED)

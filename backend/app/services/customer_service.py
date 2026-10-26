@@ -120,14 +120,18 @@ def nguoi_du_tu_cach_nhan_khach(db) -> set[int]:
     khoi_ids = {d.id for d in khoi} if khoi else None
 
     ra: set[int] = set()
-    for u in UserRepository(db).list_all():
+    tat_ca = UserRepository(db).list_all()
+    # Nhánh lùi theo quyền: dòng quyền của mọi vai nạp GỘP một câu, không hỏi từng người.
+    quyen = (roles.permission_by_roles((u.role_id for u in tat_ca if u.is_active), MODULE_KHACH_HANG)
+             if khoi_ids is None else {})
+    for u in tat_ca:
         if not u.is_active:
             continue
         if khoi_ids is not None:
             if u.department_id in khoi_ids:
                 ra.add(u.id)
             continue
-        perm = roles.get_permission(u.role_id, MODULE_KHACH_HANG) if u.role_id is not None else None
+        perm = quyen.get(u.role_id) if u.role_id is not None else None
         if perm is not None and perm.can_read:
             ra.add(u.id)
     return ra

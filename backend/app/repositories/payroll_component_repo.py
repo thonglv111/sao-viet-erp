@@ -87,6 +87,33 @@ class PayrollComponentRepository:
                    PayrollPeriod.status.in_((PERIOD_LOCKED, PERIOD_PAID)))
         ).scalar_one()
 
+    def employee_count_map(self, component_ids) -> dict[int, int]:
+        """`employee_count` của NHIỀU khoản trong MỘT truy vấn — khoản không ai gán thì vắng khoá."""
+        ids = sorted({int(i) for i in (component_ids or [])})
+        if not ids:
+            return {}
+        return {int(cid): int(n) for cid, n in self.db.execute(
+            select(EmployeeSalaryComponent.component_id,
+                   func.count(distinct(EmployeeSalaryComponent.employee_id)))
+            .where(EmployeeSalaryComponent.component_id.in_(ids))
+            .group_by(EmployeeSalaryComponent.component_id)
+        )}
+
+    def period_count_map(self, component_ids) -> dict[int, int]:
+        """`period_count` của NHIỀU khoản trong MỘT truy vấn (cùng luật: chỉ kỳ đã chốt / đã chi)."""
+        ids = sorted({int(i) for i in (component_ids or [])})
+        if not ids:
+            return {}
+        return {int(cid): int(n) for cid, n in self.db.execute(
+            select(PayrollLineComponent.component_id, func.count(distinct(PayrollLine.period_id)))
+            .select_from(PayrollLineComponent)
+            .join(PayrollLine, PayrollLine.id == PayrollLineComponent.line_id)
+            .join(PayrollPeriod, PayrollPeriod.id == PayrollLine.period_id)
+            .where(PayrollLineComponent.component_id.in_(ids),
+                   PayrollPeriod.status.in_((PERIOD_LOCKED, PERIOD_PAID)))
+            .group_by(PayrollLineComponent.component_id)
+        )}
+
     def delete_draft_line_rows(self, component_id: int) -> int:
         """Gỡ dòng khoản này khỏi các dòng lương của kỳ NHÁP (khi xoá cứng khoản). Trả số dòng đã gỡ.
         Không commit — người gọi commit cùng lượt xoá khoản."""

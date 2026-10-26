@@ -2468,12 +2468,14 @@ class AttendanceService:
         # hàng rào. Đừng nhầm hai vai trò đó: gỡ dòng này không làm rò, nhưng gỡ nhầm bộ lọc ở
         # `_employees_in_month` thì rò thật.
         leave_map = self._leave_map(year, month, {e.id for e in emps})
+        # LỊCH SỬ MỐC của CẢ lưới trong MỘT truy vấn (mỗi người đã sort effective_from giảm dần,
+        # đúng thứ tự `list_shift_assignments`) — trước đây mỗi NV một câu.
+        moc_ca = self.employees.shift_assignments_map({e.id for e in emps})
 
         rows = []
         for e in emps:
-            # Cả LỊCH SỬ MỐC của NV, 1 query (đã sort effective_from giảm dần). Dùng lại
-            # cho mọi ngày thay vì hỏi DB từng ngày, và để biết NV có mốc nào chưa.
-            hist = self.employees.list_shift_assignments(e.id)
+            # Dùng lại cho mọi ngày thay vì hỏi DB từng ngày, và để biết NV có mốc nào chưa.
+            hist = moc_ca.get(e.id, [])
             days: dict[str, dict] = {}
             for d in range(1, days_in_month + 1):
                 the_day = date(year, month, d)
