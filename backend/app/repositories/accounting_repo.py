@@ -38,7 +38,7 @@ from .customer_repo import CustomerRepository
 from .loc_danh_sach import dk_khoang_ngay
 from ..models.payroll import SalaryAdvance
 from ..models.order import Order
-from ..models.purchase import PurchaseRequest, PurchaseRequestSource, Supplier
+from ..models.purchase import PurchaseDelivery, PurchaseRequest, PurchaseRequestSource, Supplier
 
 
 _VOUCHER_SORTABLE = {
@@ -1479,6 +1479,11 @@ class AccountingRepository:
             .selectinload(PaymentVoucherLine.voucher),
             selectinload(PaymentVoucher.lines).selectinload(PaymentVoucherLine.purchase_request)
             .selectinload(PurchaseRequest.deliveries),
+            # Đợt giao + dòng đợt của đơn mua — `purchase_money` đọc cả hai; thiếu là mỗi phiếu tự
+            # SELECT dòng đợt từng đợt (N+1, đo 26/10/2026).
+            selectinload(PaymentVoucher.purchase_request).selectinload(PurchaseRequest.deliveries)
+            .selectinload(PurchaseDelivery.lines),
+            selectinload(PaymentVoucher.order),
             selectinload(PaymentVoucher.supplier),
             selectinload(PaymentVoucher.company_bank_account),
             selectinload(PaymentVoucher.supplier_bank_account),
