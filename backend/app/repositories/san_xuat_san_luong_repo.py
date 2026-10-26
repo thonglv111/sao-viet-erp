@@ -282,6 +282,100 @@ class SanXuatSanLuongRepository:
         rows.sort(key=lambda c: (c.step_key or "", c.phan_doan_so, c.id))
         return rows
 
+    def cong_viec_chang_truoc_nhieu(self, cvs) -> dict[int, list[SanXuatCongViec]]:
+        """`{cv.id: cong_viec_chang_truoc(cv)}` cho cả một TẬP việc — số truy vấn cố định, không
+        theo số việc (26/10/2026: bàn tổ gọi bản từng việc 4 câu/dòng, trang 50 lệnh là 230 câu).
+        Cùng luật, cùng thứ tự với bản từng việc; test đối chiếu từng dòng giữ hai bản khớp nhau."""
+        cvs = list(cvs)
+        ra: dict[int, list[SanXuatCongViec]] = {cv.id: [] for cv in cvs}
+        bg_ids = {cv.bai_ghep_cong_doan_id for cv in cvs if cv.bai_ghep_cong_doan_id is not None}
+        key_cua_bg: dict[int, set[str]] = {}
+        if bg_ids:
+            for bg_id, k in self.db.execute(
+                select(BaiGhepCongDoanMap.bai_ghep_cong_doan_id, BaiGhepCongDoanMap.lsx_step_key)
+                .where(BaiGhepCongDoanMap.bai_ghep_cong_doan_id.in_(bg_ids))
+            ):
+                key_cua_bg.setdefault(bg_id, set()).add(k)
+        keys_cv = {
+            cv.id: (set(key_cua_bg.get(cv.bai_ghep_cong_doan_id, ())) if cv.bai_ghep_cong_doan_id is not None
+                    else ({cv.step_key} if cv.step_key else set()))
+            for cv in cvs
+        }
+        moi_key = set().union(*keys_cv.values()) if keys_cv else set()
+        if not moi_key:
+            return ra
+        buoc_theo_key: dict[str, list[LsxCongDoan]] = {}
+        for b in self.db.scalars(select(LsxCongDoan).where(LsxCongDoan.step_key.in_(moi_key))):
+            buoc_theo_key.setdefault(b.step_key, []).append(b)
+        buoc_ids = {b.id for ds in buoc_theo_key.values() for b in ds}
+        if not buoc_ids:
+            return ra
+        truoc_cua_buoc: dict[int, set[str]] = {}
+        for sau_id, k in self.db.execute(
+            select(LsxCongDoanPhuThuoc.buoc_sau_id, LsxCongDoan.step_key)
+            .join(LsxCongDoan, LsxCongDoanPhuThuoc.buoc_truoc_id == LsxCongDoan.id)
+            .where(LsxCongDoanPhuThuoc.buoc_sau_id.in_(buoc_ids))
+        ):
+            truoc_cua_buoc.setdefault(sau_id, set()).add(k)
+        lsx_ids = {b.lsx_id for ds in buoc_theo_key.values() for b in ds}
+        thu_tu_lenh: dict[int, list[LsxCongDoan]] = {}
+        for b in self.db.scalars(
+            select(LsxCongDoan).where(LsxCongDoan.lsx_id.in_(lsx_ids))
+            .order_by(LsxCongDoan.thu_tu, LsxCongDoan.id)
+        ):
+            thu_tu_lenh.setdefault(b.lsx_id, []).append(b)
+        lien_truoc: dict[int, LsxCongDoan] = {}
+        for ds in thu_tu_lenh.values():
+            for i in range(1, len(ds)):
+                if ds[i].id in buoc_ids:
+                    lien_truoc[ds[i].id] = ds[i - 1]
+        co_canh_ra = set(self.db.scalars(
+            select(LsxCongDoanPhuThuoc.buoc_truoc_id).where(
+                LsxCongDoanPhuThuoc.buoc_truoc_id.in_({a.id for a in lien_truoc.values()})
+            )
+        )) if lien_truoc else set()
+
+        truoc_keys_cv: dict[int, set[str]] = {}
+        for cv in cvs:
+            keys = keys_cv[cv.id]
+            tk: set[str] = set()
+            for k in keys:
+                for b in buoc_theo_key.get(k, ()):
+                    tk |= truoc_cua_buoc.get(b.id, set())
+                    a = lien_truoc.get(b.id)
+                    if a is not None and a.id not in co_canh_ra:
+                        tk.add(a.step_key)
+            truoc_keys_cv[cv.id] = {k for k in tk if k} - keys
+        moi_truoc = set().union(*truoc_keys_cv.values())
+        if not moi_truoc:
+            return ra
+        bg_cua_key: dict[str, set[int]] = {}
+        for k, bg_id in self.db.execute(
+            select(BaiGhepCongDoanMap.lsx_step_key, BaiGhepCongDoanMap.bai_ghep_cong_doan_id)
+            .where(BaiGhepCongDoanMap.lsx_step_key.in_(moi_truoc))
+        ):
+            bg_cua_key.setdefault(k, set()).add(bg_id)
+        moi_bg = set().union(*bg_cua_key.values()) if bg_cua_key else set()
+        dieu_kien = SanXuatCongViec.step_key.in_(moi_truoc)
+        if moi_bg:
+            dieu_kien = dieu_kien | SanXuatCongViec.bai_ghep_cong_doan_id.in_(moi_bg)
+        ung_vien = list(self.db.scalars(
+            select(SanXuatCongViec).where(
+                SanXuatCongViec.goi_id.in_({cv.goi_id for cv in cvs}), dieu_kien)
+        ))
+        for cv in cvs:
+            tk = truoc_keys_cv[cv.id]
+            if not tk:
+                continue
+            bgs = set().union(*(bg_cua_key.get(k, set()) for k in tk))
+            rows = [r for r in ung_vien
+                    if r.goi_id == cv.goi_id and r.id != cv.id
+                    and (r.step_key in tk or (r.bai_ghep_cong_doan_id is not None
+                                              and r.bai_ghep_cong_doan_id in bgs))]
+            rows.sort(key=lambda c: (c.step_key or "", c.phan_doan_so, c.id))
+            ra[cv.id] = rows
+        return ra
+
     # --- Batch sản lượng (§11.1) -------------------------------------------------------------
     def batch(self, batch_id: int) -> SanXuatBatch | None:
         return self.db.get(SanXuatBatch, batch_id)
@@ -569,6 +663,19 @@ class SanXuatSanLuongRepository:
                 )
             )
         )
+
+    def canh_phu_thuoc_toi_nhieu(self, dich_ids) -> dict[int, list[SanXuatPhuThuoc]]:
+        """`{dich_id: canh_phu_thuoc_toi(dich_id)}` — MỘT truy vấn cho cả tập. Id không có cạnh
+        nào thì KHÔNG có mặt trong dict (bên gọi tự `.get(id, [])`)."""
+        ids = [i for i in set(dich_ids) if i]
+        if not ids:
+            return {}
+        ra: dict[int, list[SanXuatPhuThuoc]] = {}
+        for c in self.db.scalars(
+            select(SanXuatPhuThuoc).where(SanXuatPhuThuoc.dich_cong_viec_id.in_(ids))
+        ):
+            ra.setdefault(c.dich_cong_viec_id, []).append(c)
+        return ra
 
     def canh_toa_di_tu(self, nguon_cong_viec_id: int) -> list[SanXuatPhuThuoc]:
         """Cạnh TOẢ xuất phát từ một công việc (nó là điểm toả bài ghép). Rỗng với công việc
