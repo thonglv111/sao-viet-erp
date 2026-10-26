@@ -112,3 +112,11 @@ def test_sua_lan_ghi_ky_luong_da_chot_bi_chan(db, orders, lsx_svc, admin, custom
     db.expire_all()
     b = db.get(SanXuatBatch, batch.id)
     assert float(b.tot) == 50 and b.version == v0
+
+
+def test_schema_lan_ghi_giu_cau_ky_khoa():
+    """L-SX-47: board trả `ky_khoa` cho từng lần ghi — schema trả về phải khai trường, không thì
+    FastAPI lọc mất và nút "Cập nhật theo danh mục" không mờ (bấm lại 26/10 mới thấy)."""
+    from app.schemas.san_xuat import BatchOut
+
+    assert "ky_khoa" in BatchOut.model_fields

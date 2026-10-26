@@ -742,6 +742,8 @@ class BatchOut(BaseModel):
     phat_sinh: list[MePhatSinhOut] = []
     # Băng "Danh mục đã đổi so với lúc ghi mẻ" (§7.2b) — rỗng = ảnh chụp còn khớp danh mục.
     danh_muc_doi: list[MeDanhMucDoiOut] = []
+    # Câu chặn khi lần ghi thuộc tháng đã chốt / đã chi lương (L-SX-47); None = sửa được.
+    ky_khoa: str | None = None
 
 
 class SanLuongOut(BaseModel):
