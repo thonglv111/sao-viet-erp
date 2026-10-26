@@ -4594,6 +4594,10 @@ class PurchaseService:
             "lich_su": self.lich_su.cua_nhieu(DOC_YCMH, [r.id for r in rows]),
             "mua_cho": nap_mua_cho(self.requests.db, [ln.id for r in rows for ln in r.lines]),
         }
+        # Định lượng dòng giấy — một lượt cho cả trang, không nạp lại theo từng yêu cầu (N+1).
+        _giay = list({(ln.hang_loai, ln.hang_id) for r in rows for ln in r.lines
+                      if ln.hang_loai == "giay" and ln.hang_id})
+        nap["hang"] = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         self._nap_ten_nguoi(
             [ln.cancelled_by_user_id for r in rows for ln in r.lines]
             + [h.changed_by_user_id for ds in nap["lich_su"].values() for h in ds]
@@ -4613,8 +4617,11 @@ class PurchaseService:
         )
         so_dong_huy = 0
         # Định lượng của dòng giấy đọc từ danh mục — một lượt cho cả yêu cầu.
-        _giay = [(ln.hang_loai, ln.hang_id) for ln in row.lines if ln.hang_loai == "giay" and ln.hang_id]
-        _hmap = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
+        if nap is not None and "hang" in nap:
+            _hmap = nap["hang"]
+        else:
+            _giay = [(ln.hang_loai, ln.hang_id) for ln in row.lines if ln.hang_loai == "giay" and ln.hang_id]
+            _hmap = self.hang.map_theo_cap(_giay) if (_giay and self.hang is not None) else {}
         for line in row.lines:
             qty = float(line.quantity)
             unit_price = int(line.expected_unit_price)
