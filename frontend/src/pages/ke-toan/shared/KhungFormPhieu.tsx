@@ -19,7 +19,8 @@
 import { ChonNgay } from "../../../components/ChonNgay";
 import { Banknote, CircleAlert, Landmark } from "lucide-react";
 import { OGoDinhDang } from "../../../components/OGoDinhDang";
-import { useEffect, useId, useRef, useState } from "react";
+import { OSoLe } from "../../../components/OSoLe";
+import { useId } from "react";
 import type { FormEvent, ReactNode } from "react";
 
 import { amountInWords } from "../../../utils/format";
@@ -86,48 +87,14 @@ export function OF({
   );
 }
 
-/** Viết số (có thể có phần lẻ) theo kiểu Việt Nam: "1.234,5"; 0 ⇒ ô trống. */
-function vietSoLe(n: number): string {
-  return n ? n.toLocaleString("vi-VN", { maximumFractionDigits: 6 }) : "";
-}
-
-/** Đọc chữ đang gõ kiểu Việt Nam: dấu chấm là phân cách nghìn, dấu PHẨY là dấu thập phân. */
-export function docSoLe(chu: string, toiDaLe = 6): { chu: string; so: number } {
-  const sach = chu.replace(/[^\d.,]/g, "");
-  const phay = sach.indexOf(",");
-  const nguyen = (phay < 0 ? sach : sach.slice(0, phay)).replace(/\D/g, "").replace(/^0+(?=\d)/, "");
-  const le = phay < 0 ? null : sach.slice(phay + 1).replace(/\D/g, "").slice(0, toiDaLe);
-  const nguyenSo = nguyen ? Number(nguyen) : 0;
-  const hien = nguyen ? nguyenSo.toLocaleString("vi-VN") : le != null ? "0" : "";
-  return {
-    chu: le != null ? `${hien},${le}` : hien,
-    so: Number(`${nguyenSo}.${le || 0}`),
-  };
-}
-
-/** Ô số nhận phần lẻ (ngoại tệ, tỷ giá): giữ nguyên chữ đang gõ ("1.234," chưa xong vẫn hiện). */
-function OSoLe({ khoa, value, onChange, hauTo, loi }: {
+/** Ô số nhận phần lẻ (ngoại tệ, tỷ giá): giữ nguyên chữ đang gõ ("1.234," chưa xong vẫn hiện) — khuôn
+ *  chung `components/OSoLe`. */
+function OSoLeTien({ khoa, value, onChange, hauTo, loi }: {
   khoa: string; value: number; onChange: (v: number) => void; hauTo: string; loi?: boolean;
 }) {
-  const [chu, setChu] = useState(() => vietSoLe(value));
-  const daGui = useRef(value);
-  // Giá trị đổi từ ngoài (điền sẵn, chọn lại) thì viết lại; giá trị do chính ô này gửi thì giữ chữ đang gõ.
-  useEffect(() => {
-    if (value !== daGui.current) {
-      daGui.current = value;
-      setChu(vietSoLe(value));
-    }
-  }, [value]);
   return (
     <div className="kt-o-tien">
-      <OGoDinhDang id={idO(khoa)} type="text" inputMode="decimal" placeholder="0" aria-invalid={loi || undefined}
-        value={chu}
-        onChange={(e) => {
-          const d = docSoLe(e.target.value);
-          daGui.current = d.so;
-          setChu(d.chu);
-          onChange(d.so);
-        }} />
+      <OSoLe id={idO(khoa)} placeholder="0" aria-invalid={loi || undefined} value={value} onChange={onChange} />
       <span>{hauTo}</span>
     </div>
   );
@@ -154,7 +121,7 @@ export function OTienPhieu({
   /** Cao bằng ô thường (40px) — để đứng cùng hàng với ô khác. */
   nho?: boolean;
 }) {
-  if (soLe) return <OSoLe khoa={khoa} value={value} onChange={onChange} hauTo={hauTo} loi={loi} />;
+  if (soLe) return <OSoLeTien khoa={khoa} value={value} onChange={onChange} hauTo={hauTo} loi={loi} />;
   return (
     <div className={nho ? "kt-o-tien kt-o-tien--nho" : "kt-o-tien"}>
       <OGoDinhDang id={idO(khoa)} type="text" inputMode="numeric" placeholder="0" aria-invalid={loi || undefined}

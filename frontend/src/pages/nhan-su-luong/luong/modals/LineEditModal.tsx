@@ -1,5 +1,6 @@
 // Modal sửa một dòng lương + khoản phát sinh (tách từ pages/LuongPage.tsx).
 import { useCallback, useEffect, useState } from "react";
+import { OSoLe } from "../../../../components/OSoLe";
 import {
   api,
   type LineComponent,
@@ -236,20 +237,11 @@ export function LineEditModal({
           <div className="ns-grid" style={{ marginTop: 12 }}>
             <label className="ns-field">
               <span className="ns-field__label">Giảm trừ khác (trừ)</span>
-              <input
-                type="number"
-                min={0}
-                value={viPham}
-                onChange={(e) => setViPham(Number(e.target.value))}
-              />
+              <OSoLe toiDaLe={0} placeholder="0" value={viPham} onChange={setViPham} />
             </label>
             <label className="ns-field">
               <span className="ns-field__label">Điều chỉnh lương (cộng, gõ âm để trừ)</span>
-              <input
-                type="number"
-                value={dieuChinh}
-                onChange={(e) => setDieuChinh(Number(e.target.value))}
-              />
+              <OSoLe am toiDaLe={0} placeholder="0" value={dieuChinh} onChange={setDieuChinh} />
               <span className="cc-card__hint">Ghi lý do ở ô Ghi chú bên dưới.</span>
             </label>
           </div>
@@ -288,12 +280,12 @@ export function LineEditModal({
                   {diTreManual ? "đã sửa tay" : "tự động"}
                 </span>
               </span>
-              <input
-                type="number"
-                min={0}
+              <OSoLe
+                toiDaLe={0}
+                placeholder="0"
                 value={detail.di_tre}
                 readOnly={!diTreManual}
-                onChange={(e) => setD("di_tre", Number(e.target.value))}
+                onChange={(v) => setD("di_tre", v)}
               />
               <span className="cc-card__hint">
                 {diTreManual ? (
@@ -325,12 +317,7 @@ export function LineEditModal({
             {penaltyFields.map(([k, lbl]) => (
               <label className="ns-field" key={k}>
                 <span className="ns-field__label">{lbl}</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={detail[k]}
-                  onChange={(e) => setD(k, Number(e.target.value))}
-                />
+                <OSoLe toiDaLe={0} placeholder="0" value={detail[k]} onChange={(v) => setD(k, v)} />
               </label>
             ))}
           </div>
@@ -437,17 +424,16 @@ export function LineEditModal({
                       {readOnly || tuDong ? (
                         <span className="lg-lc__ro">{money(r.amount)}</span>
                       ) : (
-                        <input
-                          type="number"
-                          min={0}
-                          step={50000}
+                        <OSoLe
+                          toiDaLe={0}
+                          placeholder="0"
                           aria-label={`Số tiền khoản ${r.name}`}
-                          value={d.amount}
+                          value={Number(d.amount) || 0}
                           disabled={rowBusy}
-                          onChange={(e) =>
+                          onChange={(v) =>
                             setLcDraft((s) => ({
                               ...s,
-                              [r.id]: { ...d, amount: Number(e.target.value) },
+                              [r.id]: { ...d, amount: v },
                             }))
                           }
                         />
@@ -588,16 +574,12 @@ export function LineEditModal({
                   khoản thu nhập.
                 </option>
               </select>
-              <input
-                type="number"
-                min={0}
-                step={50000}
+              <OSoLe
+                toiDaLe={0}
                 placeholder="Số tiền"
                 aria-label="Số tiền khoản phát sinh"
-                value={lcAdd.amount || ""}
-                onChange={(e) =>
-                  setLcAdd({ ...lcAdd, amount: Number(e.target.value) })
-                }
+                value={Number(lcAdd.amount) || 0}
+                onChange={(v) => setLcAdd({ ...lcAdd, amount: v })}
               />
               <input
                 type="text"

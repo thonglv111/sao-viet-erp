@@ -37,6 +37,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
+import { OSoLe } from "../components/OSoLe";
 import { chuanKho, coDonViGoc, gocDongXin, tenGoc } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO, fmtDateTime } from "../utils/format";
 import { congNgay } from "../utils/ky";
@@ -1304,11 +1305,13 @@ export function TaoYeuCauP2({
     const loi = l.hang_id && !l.theo_ke_hoach && l.sl_nen == null && !(Number(l.sl_de_nghi) > 0);
     return (
       <label className={`ycf-gi dfa-gi${lon ? " kfd-lon" : ""}${loi ? " loi" : ""}`}>
-        <input
-          inputMode="decimal"
+        {/* Ô giữ CHỮ đang gõ ("1," chưa xong vẫn hiện) — dựng lại chữ từ số mỗi phím là nuốt dấu phẩy
+            (L-SX-06). Dòng kế hoạch / dòng có số nền để 0 là hợp lệ ⇒ hiện số 0. */}
+        <OSoLe
           aria-label={`Số lượng ${l.hang_ten ?? ""}`}
-          value={Number(l.sl_de_nghi) > 0 ? String(l.sl_de_nghi) : l.theo_ke_hoach || l.sl_nen != null ? "0" : ""}
-          onChange={(e) => patch(l.key, { sl_de_nghi: Number(e.target.value.replace(",", ".").replace(/[^\d.]/g, "")) || 0 })}
+          hienSo0={!!(l.theo_ke_hoach || l.sl_nen != null)}
+          value={Number(l.sl_de_nghi) > 0 ? Number(l.sl_de_nghi) : 0}
+          onChange={(v) => patch(l.key, { sl_de_nghi: v })}
           data-tu-chon={lon ? "" : undefined}
           onFocus={lon ? (e) => e.currentTarget.select() : undefined}
         />
