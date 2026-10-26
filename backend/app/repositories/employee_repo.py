@@ -44,6 +44,20 @@ _COT_MOC = {
 }
 
 
+class DsSuKien(list):
+    """Sự kiện của MỘT nhân viên + chỗ NHỚ kết quả tính lại trên chính danh sách đó (26/10/2026).
+
+    Bảng công / bảng lương hỏi biên chế trên TỪNG ngày của TỪNG người; `bien_che` lọc + xếp lại sự
+    kiện theo trường ở mỗi ô là ~0,45 s CPU một lần mở bảng công 203 người. Danh sách chỉ đọc sau
+    khi nạp, nên nhớ theo khoá là an toàn."""
+
+    def nho(self, khoa, tinh):
+        bo = self.__dict__.setdefault("_nho", {})
+        if khoa not in bo:
+            bo[khoa] = tinh()
+        return bo[khoa]
+
+
 class EmployeeRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -765,7 +779,7 @@ class EmployeeRepository:
         """Sự kiện của NHIỀU NV trong MỘT truy vấn — nuôi hàm biên chế dùng chung (`services/bien_che`)
         khi dựng Bảng công / lưới phân ca / bảng lương, thay vì N truy vấn lẻ."""
         ids = sorted({int(i) for i in (employee_ids or [])})
-        out: dict[int, list[EmployeeEvent]] = {i: [] for i in ids}
+        out: dict[int, list[EmployeeEvent]] = {i: DsSuKien() for i in ids}
         if not ids:
             return out
         for ev in self.db.execute(
@@ -773,7 +787,7 @@ class EmployeeRepository:
             .where(EmployeeEvent.employee_id.in_(ids))
             .order_by(EmployeeEvent.effective_date.asc().nullsfirst(), EmployeeEvent.id.asc())
         ).scalars():
-            out.setdefault(ev.employee_id, []).append(ev)
+            out.setdefault(ev.employee_id, DsSuKien()).append(ev)
         return out
 
     # --- attachments --------------------------------------------------------

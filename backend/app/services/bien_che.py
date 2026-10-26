@@ -35,12 +35,18 @@ from ..models.employee import (
 TRANG_THAI_DANG_LAM = frozenset({STATUS_PROBATION, STATUS_PROBATION_ENDED, STATUS_ACTIVE})
 
 
-def _gia_tri_tren_ngay(gia_tri_hien_tai, events, field: str, d: date):
-    evs = sorted(
+def _loc_xep(events, field: str) -> list:
+    return sorted(
         (e for e in (events or [])
          if getattr(e, "field", None) == field and getattr(e, "effective_date", None) is not None),
         key=lambda e: (e.effective_date, e.id or 0),
     )
+
+
+def _gia_tri_tren_ngay(gia_tri_hien_tai, events, field: str, d: date):
+    # Danh sách nạp gộp (`DsSuKien`) nhớ sẵn bản lọc + xếp: bảng công hỏi 31 ngày × mỗi người.
+    nho = getattr(events, "nho", None)
+    evs = nho(("bien_che", field), lambda: _loc_xep(events, field)) if nho else _loc_xep(events, field)
     if not evs:
         return gia_tri_hien_tai
     # Trước sự kiện đầu tiên: trạng thái "từ" của nó; không ghi thì coi như giá trị hiện tại.
