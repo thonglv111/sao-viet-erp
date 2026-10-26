@@ -311,6 +311,8 @@ def chuyen_de_nghi_cu(db: Session, cv) -> bool:
         .order_by(SanXuatVatTuDeNghi.created_at, SanXuatVatTuDeNghi.id)
         .all()
     )
+    if not rows:
+        rows = _de_nghi_cua_buoc_da_xoa(db, cv)
     so = int(cv.phan_doan_so or 1)
     tong = int(cv.phan_doan_tong or 1)
     nhan = [dn for dn, pd in rows if int(pd or 1) == so or (so == 1 and int(pd or 1) > tong)]
@@ -320,6 +322,58 @@ def chuyen_de_nghi_cu(db: Session, cv) -> bool:
         dn.cong_viec_id, dn.lan_so = cv.id, i
     db.flush()
     return True
+
+
+def _de_nghi_cua_buoc_da_xoa(db: Session, cv) -> list[tuple]:
+    """L-PH-01: bước bị xoá rồi tạo lại khi sửa routing (id mới) ⇒ đề nghị CÒN SỐNG (chưa huỷ, chưa
+    xuất đủ) của việc cũ mà gói mới không còn việc cùng bước thì dò theo `step_key`, rồi cùng nhóm +
+    loại bước + tên bước (việc không chụp `cong_doan_id`, nhóm + loại đứng thay). Chỉ nhận khi đề
+    nghị khớp đúng MỘT bước của gói mới và việc mới chưa có đề nghị riêng cho cùng món."""
+    from ...models.san_xuat import GOI_DA_THU_HOI, SanXuatCongViec, SanXuatGoiPhatHanh
+    from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
+    from ...models.stock_request import REQ_CANCELLED, REQ_DONE, REQ_REJECTED
+
+    if cv.lsx_cong_doan_id:
+        cot_buoc, cot_lenh, lenh_id = (SanXuatCongViec.lsx_cong_doan_id, SanXuatCongViec.lsx_id,
+                                       cv.lsx_id)
+    else:
+        cot_buoc, cot_lenh, lenh_id = (SanXuatCongViec.bai_ghep_cong_doan_id,
+                                       SanXuatCongViec.bai_ghep_id, cv.bai_ghep_id)
+    if lenh_id is None:
+        return []
+    buoc_cua = (lambda v: v.lsx_cong_doan_id) if cv.lsx_cong_doan_id else (
+        lambda v: v.bai_ghep_cong_doan_id)
+    moi = [v for v in SanXuatRepository(db).cong_viec_cua_goi(cv.goi_id)
+           if getattr(v, cot_lenh.key) == lenh_id and buoc_cua(v)]
+    buoc_moi = {buoc_cua(v) for v in moi}
+    rows = (
+        db.query(SanXuatVatTuDeNghi, SanXuatCongViec)
+        .join(SanXuatCongViec, SanXuatCongViec.id == SanXuatVatTuDeNghi.cong_viec_id)
+        .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == SanXuatCongViec.goi_id)
+        .join(StockRequest, StockRequest.id == SanXuatVatTuDeNghi.stock_request_id)
+        .filter(cot_lenh == lenh_id, cot_buoc.notin_(buoc_moi),
+                SanXuatGoiPhatHanh.trang_thai == GOI_DA_THU_HOI,
+                StockRequest.trang_thai.notin_((REQ_CANCELLED, REQ_REJECTED, REQ_DONE)))
+        .order_by(SanXuatVatTuDeNghi.created_at, SanXuatVatTuDeNghi.id)
+        .all()
+    )
+    if not rows:
+        return []
+
+    def _ten(s):
+        return " ".join((s or "").split()).casefold()
+
+    def _khop(cu) -> set:
+        theo_key = {buoc_cua(v) for v in moi if cu.step_key and v.step_key == cu.step_key}
+        return theo_key or {buoc_cua(v) for v in moi
+                            if v.nhom_cong_doan == cu.nhom_cong_doan and v.loai_buoc == cu.loai_buoc
+                            and _ten(v.ten_cong_doan) == _ten(cu.ten_cong_doan)}
+
+    mon_rieng = {(d.hang_loai, d.hang_id) for dn in SanXuatVatTuRepository(db).cac_de_nghi(cv.id)
+                 for d in dn.dongs}
+    return [(dn, cu.phan_doan_so) for dn, cu in rows
+            if _khop(cu) == {buoc_cua(cv)}
+            and not mon_rieng & {(d.hang_loai, d.hang_id) for d in dn.dongs}]
 
 
 def doi_can_luc_theo_lich(db: Session, *, goi_id: int) -> list[int]:
