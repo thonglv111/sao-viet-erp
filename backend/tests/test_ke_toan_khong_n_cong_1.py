@@ -193,3 +193,33 @@ def test_cong_no_phai_thu_khong_hoi_db_tung_dong(client, h):
     assert mot["sale_user_name"] == "sale_b4"
     print("\nPHAI THU (2 -> 10 khach):", it, nhieu)
     assert nhieu <= it + 2, f"{url}: {it} -> {nhieu} câu khi tăng số dòng"
+
+
+def _chot_ky_cong_no(n: int, tu_thang: int) -> None:
+    """n kỳ phải thu đã chốt, mỗi kỳ một tháng của năm 2020 (đều nằm trước hôm nay)."""
+    from app.models.cong_no_khoa_so import CongNoKhoaSo
+
+    db = SessionLocal()
+    try:
+        for m in range(tu_thang, tu_thang + n):
+            db.add(CongNoKhoaSo(phan_he="phai_thu", tu_ngay=date(2020, m, 1),
+                                den_ngay=date(2020, m, 28), hanh_dong="khoa", ten=f"Kỳ {m}/2020"))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_ky_khoa_so_cong_no_khong_hoi_db_tung_ky(client, h):
+    """Danh sách kỳ đã chốt: lịch sử khoá sổ đọc MỘT lần (bản sao: mỗi kỳ hỏi lại hai lần)."""
+    url = "/api/accounting/khoa-so/ky?phan_he=phai_thu"
+    _chot_ky_cong_no(2, 1)
+    it = _so_cau(client, h, url)
+    _chot_ky_cong_no(6, 3)
+    nhieu = _so_cau(client, h, url)
+    ky = client.get(url, headers=h).json()
+    assert ky[0]["dang_dien_ra"] is True and ky[0]["tu_ngay"] == "2020-08-29"
+    assert [k["ten"] for k in ky[1:]] == [f"Kỳ {m}/2020" for m in range(8, 0, -1)]
+    assert [k["co_the_mo"] for k in ky[1:]] == [True] + [False] * 7
+    assert all(k["da_khoa"] and not k["khoa_mot_phan"] for k in ky[1:])
+    print("\nKY KHOA SO (2 -> 8 ky):", it, nhieu)
+    assert nhieu <= it, f"{url}: {it} -> {nhieu} câu khi tăng số kỳ"

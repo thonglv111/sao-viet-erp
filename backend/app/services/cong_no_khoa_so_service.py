@@ -67,18 +67,22 @@ class CongNoKhoaSoService:
             for r in rows
         ]
 
-    def moc_chot_cuoi(self, phan_he: str | None = None) -> date | None:
+    def moc_chot_cuoi(
+        self, phan_he: str | None = None, rows: list | None = None
+    ) -> date | None:
         """Ngày CUỐI CÙNG đang bị khóa. `None` = chưa chốt kỳ nào.
 
         Là mốc để suy ra kỳ tiếp theo bắt đầu từ đâu — kỳ mới luôn nối ngay sau kỳ chốt trước,
         không được đè lên (chủ chốt 04/09/2026: *"đừng cho... trùng ngày đã chốt của kì trước"*).
         """
-        rows = [r for r in self.repo.history(500, phan_he) if r.hanh_dong == "khoa"]
-        if not rows:
+        if rows is None:
+            rows = self.repo.tat_ca()
+        khoa = [r for r in self.repo.history(500, phan_he, rows=rows) if r.hanh_dong == "khoa"]
+        if not khoa:
             return None
-        xa_nhat = max(r.den_ngay for r in rows)
-        som_nhat = min(r.tu_ngay for r in rows)
-        bi_khoa = self.repo.ngay_bi_khoa(som_nhat, xa_nhat, phan_he)
+        xa_nhat = max(r.den_ngay for r in khoa)
+        som_nhat = min(r.tu_ngay for r in khoa)
+        bi_khoa = self.repo.ngay_bi_khoa(som_nhat, xa_nhat, phan_he, rows=rows)
         return max(bi_khoa) if bi_khoa else None
 
     def list_ky(self, phan_he: str | None = None) -> list[dict]:
@@ -95,8 +99,11 @@ class CongNoKhoaSoService:
         """
         ky_list: list[dict] = []
         da_thay: set[tuple[date, date]] = set()
+        # Log khoá/mở nạp MỘT lần cho cả danh sách — trước 26/10/2026 mỗi kỳ đọc lại cả bảng hai
+        # lần (trạng thái khoá + kỳ chặn mở).
+        tat_ca = self.repo.tat_ca()
 
-        for r in self.repo.history(500, phan_he):
+        for r in self.repo.history(500, phan_he, rows=tat_ca):
             if r.hanh_dong != "khoa":
                 continue
             khoa = (r.tu_ngay, r.den_ngay)
@@ -105,7 +112,7 @@ class CongNoKhoaSoService:
             if khoa in da_thay:
                 continue
             da_thay.add(khoa)
-            tron, mot_phan = self.repo.khoa_ca_khoang(r.tu_ngay, r.den_ngay, phan_he)
+            tron, mot_phan = self.repo.khoa_ca_khoang(r.tu_ngay, r.den_ngay, phan_he, rows=tat_ca)
             if not tron and not mot_phan:
                 continue                      # đã mở lại hoàn toàn — không còn là kỳ đã chốt
             ky_list.append({
@@ -116,7 +123,7 @@ class CongNoKhoaSoService:
                 "khoa_mot_phan": mot_phan,
                 "dang_dien_ra": False,
                 # Server nói luôn kỳ nào mở được, để giao diện MỜ nút thay vì cho bấm rồi ăn 422.
-                "co_the_mo": self.ky_chan_mo(r.den_ngay, phan_he) is None,
+                "co_the_mo": self.ky_chan_mo(r.den_ngay, phan_he, rows=tat_ca) is None,
                 "khoa_luc": r.khoa_luc,
             })
 
@@ -125,7 +132,7 @@ class CongNoKhoaSoService:
         # KỲ HIỆN TẠI (chưa chốt) — luôn đứng đầu danh sách. Nối ngay sau ngày chốt cuối cùng;
         # chưa chốt kỳ nào thì lấy từ đầu năm. Có mục này thì kế toán xem được phần đang phát sinh
         # mà không phải gõ tay ngày nào.
-        moc = self.moc_chot_cuoi(phan_he)
+        moc = self.moc_chot_cuoi(phan_he, rows=tat_ca)
         today = date.today()
         tu_hien_tai = (moc + timedelta(days=1)) if moc else date(today.year, 1, 1)
         if tu_hien_tai <= today:
@@ -253,7 +260,7 @@ class CongNoKhoaSoService:
             )
 
     def ky_chan_mo(
-        self, den_ngay: date, phan_he: str | None = None
+        self, den_ngay: date, phan_he: str | None = None, rows: list | None = None
     ) -> tuple[date, date] | None:
         """Kỳ CHỐT nào ra đời sau `den_ngay` — nếu có thì kỳ này niêm vĩnh viễn.
 
@@ -268,7 +275,7 @@ class CongNoKhoaSoService:
         Trả `(ngày đầu, ngày cuối)` của kỳ chốt SỚM NHẤT nằm sau; `None` = không có gì chặn.
         """
         sau = [
-            r for r in self.repo.history(500, phan_he)
+            r for r in self.repo.history(500, phan_he, rows=rows)
             if r.hanh_dong == "khoa" and r.den_ngay > den_ngay
         ]
         if not sau:
