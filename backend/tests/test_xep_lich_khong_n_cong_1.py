@@ -14,7 +14,7 @@ from app.models.may_thiet_bi import MayThietBi
 from tests.test_xep_lich_lenh_api import GOC, _hd
 
 
-def _may_co_lenh(client, h, n: int, dau: int) -> list[int]:
+def _may_co_lenh(client, h, n: int, dau: int, *, don_rieng: bool = False) -> list[int]:
     db = SessionLocal()
     ids = []
     try:
@@ -23,7 +23,19 @@ def _may_co_lenh(client, h, n: int, dau: int) -> list[int]:
                            toc_do=5_000, don_vi_toc_do="to_gio")
             db.add(m)
             db.flush()
-            l = Lsx(ma=f"LSX-N1-{i}", ten="Lệnh đo", order_id=1, order_line_id=1,
+            oid = 1
+            if don_rieng:
+                from app.models.customer import Customer
+                from app.models.order import Order
+
+                kh = Customer(code=f"KH-N1-{i}", name=f"Khách {i}")
+                db.add(kh)
+                db.flush()
+                don = Order(order_no=f"DH-N1-{i}", customer_id=kh.id)
+                db.add(don)
+                db.flush()
+                oid = don.id
+            l = Lsx(ma=f"LSX-N1-{i}", ten="Lệnh đo", order_id=oid, order_line_id=1,
                     trang_thai=TT_SAN_SANG, so_luong_dat=1000, so_to_ke_hoach=2500)
             db.add(l)
             db.flush()
@@ -65,6 +77,19 @@ def test_lich_khong_hoi_bao_hong_tung_may(client):
     assert nhieu <= it + 2, (it, nhieu)
 
 
+def test_lich_khong_hoi_don_khach_tung_lenh(client):
+    """Mỗi lệnh một đơn một khách: tên khách nạp một lượt cho cả bàn (DB đo tải 26/10: 124 + 93 câu)."""
+    h = _hd(client)
+    _may_co_lenh(client, h, 1, 101, don_rieng=True)
+    it = _dem(client, h)
+    _may_co_lenh(client, h, 6, 102, don_rieng=True)
+    nhieu = _dem(client, h)
+    assert nhieu <= it + 2, (it, nhieu)
+    body = client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20", headers=h).json()
+    ten = {d["ma"]: d["customer_name"] for d in body["dong"]}
+    assert ten["LSX-N1-104"] == "Khách 104"
+
+
 def test_ban_lo_khop_ban_le(client):
     from app.services.may_trang_thai import bao_hong_dang_mo, bao_hong_dang_mo_nhieu
 
@@ -86,3 +111,38 @@ def test_ban_lo_khop_ban_le(client):
         assert lo.get(99999, []) == []
     finally:
         db.close()
+
+
+def test_lich_xuong_nho_khung_tung_ngay():
+    """Khung giờ làm của MỘT ngày tính một lần cho mỗi lịch (DB đo tải 26/10: 3.410 lượt dựng lại
+    khung cho vài chục ngày khác nhau trên bàn tháng)."""
+    from datetime import datetime, timezone
+
+    from app.services.calendar_service import CalendarService
+    from app.services.xep_lich_service import LichXuong
+
+    class _Cal(CalendarService):
+        def __init__(self):  # không đụng DB
+            pass
+
+        def is_working_day(self, d):
+            return d.weekday() != 6
+
+    lich = LichXuong(_Cal(), [], lien_tuc=True, nghi=((720, 780),))
+    dem = [0]
+    goc = lich._khung_ngay_tho
+
+    def dem_tho(d):
+        dem[0] += 1
+        return goc(d)
+
+    lich._khung_ngay_tho = dem_tho
+    c = datetime(2026, 10, 5, 9, tzinfo=timezone.utc)
+    dau = lich._khung_ngay(c.date())
+    for _ in range(50):
+        assert lich._khung_ngay(c.date()) == dau
+        lich.next_interval(c)
+    assert dem[0] == 1
+    # Kết quả trả ra là bản sao — nơi gọi sửa danh sách không làm hỏng bản nhớ.
+    lich._khung_ngay(c.date()).clear()
+    assert lich._khung_ngay(c.date()) == dau

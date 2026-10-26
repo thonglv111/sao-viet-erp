@@ -34,6 +34,7 @@ from ..models.role import SCOPE_ALL
 from ..doi_tuong_nhan import MAN_NHAN_SU
 from ..realtime import hub
 from ..services.thong_bao_man import bao
+from ._tra_json import tra_json
 from ..services.payroll_component_service import (
     ComponentError,
     ComponentNotFound,
@@ -292,10 +293,13 @@ def _lines_out(lines, employees: EmployeeRepository, departments: DepartmentRepo
         _p = svc.payroll.get_period(lines[0].period_id)
         if _p is not None:
             _cuoi = date(_p.year, _p.month, monthrange(_p.year, _p.month)[1])
-            for _eid, _s in svc.payroll.latest_salaries_map(_cuoi).items():
+            # Chỉ hai cột BH của bản lương hiện hành — khỏi nạp nguyên hồ sơ lương cả công ty.
+            # Ít dòng (phiếu lương một người) thì chỉ hỏi cho đúng những người đó.
+            _chi = {ln.employee_id for ln in lines} if len(lines) <= 200 else None
+            for _eid, (_bh, _noi_khac) in svc.payroll.muc_bh_hien_hanh(_cuoi, _chi).items():
                 # Tick "BH đóng ở nơi khác" ⇒ không cần khai mức đóng (chủ chốt 16/09/2026).
-                if (float(getattr(_s, "insurance_base", None) or 0) <= 0
-                        and not bool(getattr(_s, "insurance_elsewhere", False))):
+                if (float(_bh or 0) <= 0
+                        and not bool(_noi_khac)):
                     chua_khai_bh.add(_eid)
     # Tỷ lệ + trần BH: lấy MỘT lần cho cả mẻ. Không có `svc` (đường xuất Excel) → bỏ qua phần tách.
     params = svc.get_params() if svc is not None else None
@@ -304,7 +308,7 @@ def _lines_out(lines, employees: EmployeeRepository, departments: DepartmentRepo
     # Khoản danh mục của CẢ MẺ trong 1 truy vấn (bảng lương ~100 dòng → đừng hỏi từng dòng).
     comp_map: dict[int, list] = {}
     if lines and svc is not None and getattr(svc, "components", None) is not None:
-        comp_map = svc.components.line_components_map([ln.id for ln in lines])
+        comp_map = svc.components.line_components_doc_map([ln.id for ln in lines])
     out: list[LineOut] = []
     for ln in lines:
         o = LineOut.model_validate(ln)
@@ -984,7 +988,7 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
               # Thanh lọc (06/10/2026): tìm tên / mã, Phòng / tổ, hợp đồng — lọc ở máy chủ.
               q: str | None = Query(default=None, max_length=100),
               phong: int | None = Query(default=None),
-              hd: str | None = Query(default=None, pattern="^(ct|tv)$")) -> TableOut:
+              hd: str | None = Query(default=None, pattern="^(ct|tv)$")) -> Response:
     # Trả cờ NGAY CẢ KHI chưa có kỳ lương: màn phải cảnh báo được "chốt công trước" từ trước lúc
     # bấm Khởi tạo, chứ không đợi tới lúc bấm Chốt mới báo.
     ly_do = svc.ly_do_chua_chot_duoc(year, month)
@@ -1001,8 +1005,11 @@ def get_table(svc: Service, employees: Employees, departments: Departments, auth
     canh_bao = _canh_bao_chot(lines_out, luot_chua_ve_kho=svc.luot_xe_chua_ve_kho(year, month),
                               thieu_gia=kk["thieu_gia"], khoan_canh_bao=kk["canh_bao"])
     hien, phong_loc = loc_bang_luong(lines_out, q=q, phong=phong, hd=hd)
-    return TableOut(period=PeriodOut.model_validate(data["period"]), lines=hien,
-                    chan_chot_ly_do=ly_do, canh_bao_chot=canh_bao, phong_loc=phong_loc)
+    # Bảng lương cả công ty là hàng nghìn dòng ~100 trường: ghi JSON thẳng từ model đã dựng, khỏi để
+    # FastAPI dump + kiểm lại + serialize thêm ba lượt (`_tra_json`).
+    return tra_json(TableOut, TableOut(period=PeriodOut.model_validate(data["period"]), lines=hien,
+                                       chan_chot_ly_do=ly_do, canh_bao_chot=canh_bao,
+                                       phong_loc=phong_loc))
 
 
 @router.post("/generate", response_model=TableOut)

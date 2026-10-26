@@ -423,7 +423,7 @@ def receivable_rows(
     direct_sums = repo.received_invoice_receipt_sums(invoice_ids)
     order_ids = sorted({row.order_id for row in invoices})
     deposit_sums = quy_tien_don(repo, order_ids)
-    customers = repo.customers_by_ids(
+    customers = repo.khach_nhe_theo_ids(
         {row.customer_id for row in invoices if row.customer_id is not None}
     )
 
@@ -2292,22 +2292,23 @@ class AccountingService:
         so_chup = cuoi_ky >= hom_nay
         tim = (q or "").strip().lower()
         # Hoá đơn đã phát hành nạp MỘT lần: dựng dòng ảnh chụp (bên dưới) và sổ 131 (khối `if co_ky`)
-        # dùng chung.
-        hoa_don_ds = self.repo.list_sales_invoices(status=SALES_INVOICE_ISSUED)
+        # dùng chung. Bản NHẸ (cột thô, 26/10/2026): màn này chỉ đọc số, không cần đối tượng ORM.
+        hoa_don_ds = self.repo.hoa_don_phat_hanh_nhe()
         rows = receivable_rows(self.repo, invoices=hoa_don_ds)
         thu_theo_khach: dict[int | None, int] = {}
-        receipts = self._receipts_for_receivable_rows(
-            rows, since=moc_ky, until=cuoi_ky if co_ky else None
-        )
         order_to_customer = {r["order_id"]: r["customer_id"] for r in rows}
         invoice_to_customer = {r["invoice_id"]: r["customer_id"] for r in rows}
-        for receipt in receipts:
+        # Đã thu trong kỳ: chỉ cần TIỀN theo (hoá đơn, đơn) — cộng sẵn ở SQL, không dựng từng dòng
+        # phiếu (`_receipts_for_receivable_rows` nạp đủ mặt phiếu + tên người lập cho ngăn chi tiết).
+        for hd_id, don_id, tien in self.repo.thu_cong_no_theo_dong(
+            since=moc_ky, until=cuoi_ky if co_ky else None
+        ):
             cid = (
-                invoice_to_customer.get(receipt["sales_invoice_id"])
-                if receipt["sales_invoice_id"] is not None
-                else order_to_customer.get(receipt["order_id"])
+                invoice_to_customer.get(hd_id)
+                if hd_id is not None
+                else order_to_customer.get(don_id)
             )
-            thu_theo_khach[cid] = thu_theo_khach.get(cid, 0) + receipt["amount"]
+            thu_theo_khach[cid] = thu_theo_khach.get(cid, 0) + tien
 
         def _muc_moi(cid, ten, credit_limit, payment_term_days, sale_user_id) -> dict:
             return {
@@ -2405,9 +2406,7 @@ class AccountingService:
                     theo_khach[cid]["cho_tra_lai"] = tra
 
             # Lần thu gần nhất (cả lịch sử): hàng đầu tiên gặp của mỗi khách là mới nhất.
-            for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no(
-                invoice_ids=sorted(invoice_to_customer), order_ids=sorted(order_to_customer)
-            ):
+            for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no():
                 cid = invoice_to_customer.get(hd_id) if hd_id is not None else order_to_customer.get(don_id)
                 muc = theo_khach.get(cid)
                 if muc is not None and muc["thu_gan_nhat_ngay"] is None:

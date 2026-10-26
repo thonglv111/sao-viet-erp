@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import secrets
 import string
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from .stock_request_service import StockRequestService
 from .thanh_pham_khai_bao import cum_ban, khai_mot_dong
@@ -2232,8 +2232,16 @@ class DeliveryService:
         ngay, thang}}` — cùng luật `trang_thai_nhan_vien` / `thong_ke_ngay` / `thong_ke_thang`,
         nhưng chuyến và chặng về kho nạp MỘT lần cho mọi người (26/10/2026: gọi từng người là
         ~20 câu SQL mỗi người)."""
-        chuyen = self.deliveries.chuyen_cua_nhieu_kip(employee_ids)
-        ve_kho = self.deliveries.ve_kho_cua_nhieu_tai_xe(employee_ids)
+        # Chỉ chuyến đang chạy + chuyến/lượt về kho quanh khung ngày ∪ tháng: trạng thái chỉ nhìn
+        # chuyến đang chạy, thống kê chỉ đếm cái kết thúc trong khung. Nới mỗi đầu 2 ngày cho mốc
+        # lưu UTC lệch múi giờ; lọc CHÍNH XÁC vẫn ở `_thong_ke_chuyen` như cũ.
+        dau_thang = moc_thang.replace(day=1)
+        sau_thang = (dau_thang + timedelta(days=32)).replace(day=1)
+        tu = datetime.combine(min(ngay, dau_thang) - timedelta(days=2), time.min, tzinfo=timezone.utc)
+        den = datetime.combine(max(ngay + timedelta(days=1), sau_thang) + timedelta(days=2), time.min,
+                               tzinfo=timezone.utc)
+        chuyen = self.deliveries.chuyen_cua_nhieu_kip(employee_ids, ket_thuc_tu=tu, ket_thuc_den=den)
+        ve_kho = self.deliveries.ve_kho_cua_nhieu_tai_xe(employee_ids, tu=tu, den=den)
         ra: dict[int, dict] = {}
         for eid in employee_ids:
             trips = chuyen.get(eid, [])

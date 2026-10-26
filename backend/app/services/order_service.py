@@ -416,25 +416,32 @@ class OrderService:
             return loc
         from dataclasses import replace
 
-        from .don_hang_san_xuat import CHO_TRA_COC, tom_tat_nhieu_don
+        from . import don_hang_san_xuat as dhsx
 
-        if loc.dang_cho == CHO_TRA_COC:
-            huy = self.repo.don_huy_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
-                                         nguoi=nguoi, loc=loc)
-            return replace(loc, chi_id=self._con_giu_coc(huy))
-
-        ung_vien = self.repo.don_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
-                                              nguoi=nguoi, loc=loc)
-        tom = tom_tat_nhieu_don(self.db, ung_vien)
-        return replace(loc, chi_id=sorted(i for i, t in tom.items() if loc.dang_cho in t["dang_cho"]))
+        loc_kw = dict(scope=scope, actor=actor, q=q, order_kind=order_kind, nguoi=nguoi, loc=loc)
+        if loc.dang_cho == dhsx.CHO_TRA_COC:
+            return replace(loc, chi_id=self._con_giu_coc(self.repo.don_huy_khop(**loc_kw)))
+        # Đơn chưa phát hành chỉ mang "chờ cọc", đơn hoàn tất chỉ mang "xong" — SQL tự biết, không
+        # dựng tóm tắt sản xuất cho chúng (xem `don_da_chot_khop(chi_dang_do=…)`).
+        if loc.dang_cho == dhsx.CHO_COC:
+            return replace(loc, chi_id=sorted(self.repo.id_da_chot_khop(nhom="coc", **loc_kw)))
+        tom = dhsx.tom_tat_nhieu_don(self.db, self.repo.don_da_chot_khop(chi_dang_do=True, **loc_kw))
+        ids = {i for i, t in tom.items() if loc.dang_cho in t["dang_cho"]}
+        if loc.dang_cho == dhsx.CHO_XONG:
+            ids.update(self.repo.id_da_chot_khop(nhom="xong", **loc_kw))
+        return replace(loc, chi_id=sorted(ids))
 
     def dem_dang_cho(self, *, actor, scope: str) -> dict[str, int]:
         """Số đơn theo từng giá trị "Đang chờ" trong tầm nhìn — số đếm của menu lọc."""
-        from .don_hang_san_xuat import CHO_TAT_CA, CHO_TRA_COC, tom_tat_nhieu_don
+        from . import don_hang_san_xuat as dhsx
 
-        tom = tom_tat_nhieu_don(self.db, self.repo.don_da_chot_khop(scope=scope, actor=actor))
-        dem = {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in CHO_TAT_CA}
-        dem[CHO_TRA_COC] = len(self._con_giu_coc(self.repo.don_huy_khop(scope=scope, actor=actor)))
+        tom = dhsx.tom_tat_nhieu_don(
+            self.db, self.repo.don_da_chot_khop(scope=scope, actor=actor, chi_dang_do=True))
+        dem = {c: sum(1 for t in tom.values() if c in t["dang_cho"]) for c in dhsx.CHO_TAT_CA}
+        # Hai nhóm SQL tự biết — xem `_ap_dang_cho`.
+        for nhom in (dhsx.CHO_COC, dhsx.CHO_XONG):
+            dem[nhom] += len(self.repo.id_da_chot_khop(nhom=nhom, scope=scope, actor=actor))
+        dem[dhsx.CHO_TRA_COC] = len(self._con_giu_coc(self.repo.don_huy_khop(scope=scope, actor=actor)))
         return dem
 
     def _tien_khach_don_huy(self, huy_ids: list[int], coc: dict[int, int]) -> dict[int, tuple[int, int]]:

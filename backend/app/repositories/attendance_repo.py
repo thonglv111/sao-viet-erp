@@ -437,6 +437,18 @@ class AttendanceRepository:
             .order_by(AttendancePeriodLine.id)
         ).scalars())
 
+    def period_employee_ids(self, period_id: int) -> set[int]:
+        """Tập NV có dòng trong ảnh chụp kỳ công — khoá của `period_metrics_map`, không giải JSON."""
+        return set(self.db.execute(
+            select(AttendancePeriodLine.employee_id).where(AttendancePeriodLine.period_id == period_id)
+        ).scalars())
+
+    def count_period_lines(self, period_id: int) -> int:
+        return int(self.db.execute(
+            select(func.count()).select_from(AttendancePeriodLine)
+            .where(AttendancePeriodLine.period_id == period_id)
+        ).scalar() or 0)
+
     def period_cong_map(self, period_id: int) -> dict[int, float]:
         return {ln.employee_id: float(ln.total_cong) for ln in self.list_period_lines(period_id)}
 

@@ -96,3 +96,21 @@ def test_theo_lenh_khong_hoi_db_tung_dong(client, h):
     assert len(client.get(URL, headers=h).json()["items"]) == 8
     print("\nTHEO LENH (2 -> 8 lenh):", it, nhieu)
     assert nhieu <= it + 2, f"{URL}: {it} -> {nhieu} câu khi tăng số lệnh"
+
+
+def test_cho_mrp_chi_nap_cot_buoc_can_dung(client, h):
+    """KHVT kéo mọi lệnh đang chạy kèm mọi bước: nạp đủ cột bước (ghi chú, thời lượng…) tốn 2/3 thời gian."""
+    from sqlalchemy import inspect
+
+    from app.repositories.lsx_repo import LsxRepository
+    from app.services.ke_hoach_vat_tu_service import TRANG_THAI_TINH
+
+    _dung(1, "C")
+    db = SessionLocal()
+    try:
+        lenhs = LsxRepository(db).cho_mrp(trang_thai=TRANG_THAI_TINH, include_ids=set())
+        buoc = [b for l in lenhs for b in l.cong_doans]
+        assert buoc
+        assert "may_id" in inspect(buoc[0]).unloaded
+    finally:
+        db.close()

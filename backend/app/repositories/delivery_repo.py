@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.delivery import (
@@ -706,14 +706,18 @@ class DeliveryRepository:
             # Gộp theo yêu cầu — chỉ lấy chuyến MỚI NHẤT (lan_thu lớn nhất) của mỗi yêu cầu, khớp
             # `gopTheoYeuCau()` phía FE. Từ 22/08/2026 mỗi yêu cầu chỉ còn 1 chuyến sống nên đây
             # chủ yếu chừa cho dữ liệu cũ (nhiều `lan_thu` một yêu cầu) trước mốc đó.
+            # Viết "không có lần giao SAU nó" (NOT EXISTS) chứ đừng `lan_thu = (SELECT max …)`:
+            # Postgres ước sai số dòng của dạng max tương quan (90 thay vì 18 nghìn trên DB đo tải
+            # 26/10/2026) rồi nối lồng với lượt xe — bảng Đơn giao hàng 0,6 s mỗi câu. `lan_thu`
+            # NOT NULL nên hai cách cùng nghĩa.
             t2 = aliased(DeliveryTrip)
-            max_lan_thu = (
-                select(func.max(t2.lan_thu))
-                .where(t2.request_id == DeliveryTrip.request_id)
+            co_lan_sau = (
+                select(t2.id)
+                .where(t2.request_id == DeliveryTrip.request_id, t2.lan_thu > DeliveryTrip.lan_thu)
                 .correlate(DeliveryTrip)
-                .scalar_subquery()
+                .exists()
             )
-            q = q.where(DeliveryTrip.lan_thu == max_lan_thu)
+            q = q.where(~co_lan_sau)
         return q
 
     def list_trips(
@@ -852,17 +856,28 @@ class DeliveryRepository:
         )
         return list(self.db.execute(q).scalars().all())
 
-    def chuyen_cua_nhieu_kip(self, employee_ids) -> dict[int, list[DeliveryTrip]]:
+    def chuyen_cua_nhieu_kip(self, employee_ids, *, ket_thuc_tu=None,
+                             ket_thuc_den=None) -> dict[int, list[DeliveryTrip]]:
         """Bản lô của `chuyen_cua_kip` — `{employee_id: [chuyến]}` trong MỘT câu, cùng thứ tự (mới
-        nhất trước). Tab Nhân viên giao hàng từng hỏi 3 lần mỗi người (26/10/2026)."""
+        nhất trước). Tab Nhân viên giao hàng từng hỏi 3 lần mỗi người (26/10/2026).
+
+        `ket_thuc_tu`/`ket_thuc_den` (cùng có hoặc cùng không): chỉ chuyến ĐANG CHẠY + chuyến kết
+        thúc trong `[tu, den)` — tab Nhân viên chỉ cần chừng ấy, nạp cả lịch sử là 7,7 s trên DB đo
+        tải 26/10/2026 (18 nghìn chuyến)."""
         ids = {int(i) for i in employee_ids if i is not None}
         ra: dict[int, list[DeliveryTrip]] = {i: [] for i in ids}
         if not ids:
             return ra
+        stmt = select(DeliveryTrip).where(
+            or_(DeliveryTrip.employee_id.in_(ids), DeliveryTrip.phu_xe_employee_id.in_(ids)))
+        if ket_thuc_tu is not None:
+            stmt = stmt.where(or_(
+                DeliveryTrip.trang_thai.in_(LAN_GIAO_DANG_CHAY),
+                and_(DeliveryTrip.thoi_gian_ket_thuc >= ket_thuc_tu,
+                     DeliveryTrip.thoi_gian_ket_thuc < ket_thuc_den),
+            ))
         for t in self.db.execute(
-            select(DeliveryTrip)
-            .where(or_(DeliveryTrip.employee_id.in_(ids), DeliveryTrip.phu_xe_employee_id.in_(ids)))
-            .order_by(DeliveryTrip.created_at.desc(), DeliveryTrip.id.desc())
+            stmt.order_by(DeliveryTrip.created_at.desc(), DeliveryTrip.id.desc())
         ).scalars().all():
             # Một chuyến thuộc CẢ tài xế lẫn phụ xe — như hai lần gọi `chuyen_cua_kip` riêng.
             for eid in {t.employee_id, t.phu_xe_employee_id}:
@@ -1172,18 +1187,22 @@ class DeliveryRepository:
             .where(DeliveryTrip.employee_id == employee_id, LuotXe.ve_kho_luc.is_not(None))
         ).all()]
 
-    def ve_kho_cua_nhieu_tai_xe(self, employee_ids) -> dict[int, list[tuple]]:
-        """Bản lô của `ve_kho_cua_tai_xe` — `{employee_id: [(ve_kho_luc, km_ve_kho)]}` một câu."""
+    def ve_kho_cua_nhieu_tai_xe(self, employee_ids, *, tu=None, den=None) -> dict[int, list[tuple]]:
+        """Bản lô của `ve_kho_cua_tai_xe` — `{employee_id: [(ve_kho_luc, km_ve_kho)]}` một câu.
+        `tu`/`den`: chỉ lượt về kho trong `[tu, den)` (xem `chuyen_cua_nhieu_kip`)."""
         from ..models.delivery import LuotXe
 
         ids = {int(i) for i in employee_ids if i is not None}
         ra: dict[int, list[tuple]] = {i: [] for i in ids}
         if not ids:
             return ra
-        for eid, luc, km in self.db.execute(
+        stmt = (
             select(DeliveryTrip.employee_id, LuotXe.ve_kho_luc, LuotXe.km_ve_kho)
             .join(DeliveryTrip, DeliveryTrip.id == LuotXe.ve_kho_trip_id)
             .where(DeliveryTrip.employee_id.in_(ids), LuotXe.ve_kho_luc.is_not(None))
-        ).all():
+        )
+        if tu is not None:
+            stmt = stmt.where(LuotXe.ve_kho_luc >= tu, LuotXe.ve_kho_luc < den)
+        for eid, luc, km in self.db.execute(stmt).all():
             ra[int(eid)].append((luc, int(km or 0)))
         return ra
