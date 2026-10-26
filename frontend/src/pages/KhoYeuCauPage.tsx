@@ -577,7 +577,7 @@ function OYeuCauKho({ cot, r, onLapPhieu }: { cot: string; r: StockRequest; onLa
       const daCo = r.lines.some((l) => l.sl_da_ung > 0);
       return (
         <td className="lds-nut" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-          {FULFILLABLE.includes(r.trang_thai) && (
+          {FULFILLABLE.includes(r.trang_thai) && !(r.san_xuat_lenh_thu_hoi && r.open_voucher_id == null) && (
             <button type="button" className={r.open_voucher_id != null || daCo ? "lds-btn" : "btn btn--accent"}
               onClick={() => onLapPhieu(r)}>
               {r.open_voucher_id != null ? "Xem phiếu" : daCo ? "Lập phiếu tiếp" : "Lập phiếu"}
@@ -1143,6 +1143,8 @@ export function InboxRequestDrawer({
   }, [taiLai, reload]);
 
   const canFulfill = canCreate && req != null && FULFILLABLE.includes(req.trang_thai);
+  // Lệnh đã thu hồi phát hành (L-SX-14): máy chủ chặn lập / ghi sổ phiếu tiếp tới khi phát hành lại.
+  const lapDuoc = canFulfill && !(req.san_xuat_lenh_thu_hoi && req.open_voucher_id == null);
   const nhap = req?.loai === "NHAP";
   const dongYc = req?.lines ?? [];
   // Giá bán (tham khảo) — CỘT RIÊNG, chỉ dựng khi có dòng thành phẩm mang giá bán.
@@ -1192,7 +1194,7 @@ export function InboxRequestDrawer({
               )}
               {thaoTac?.(req)}
               {/* Kho đi thẳng "Chờ xử lý → Lập phiếu"; phiếu tự chuyển yêu cầu sang "đang chuẩn bị". */}
-              {canFulfill && (
+              {lapDuoc && (
                 <button type="button" className={`kna-nut${req.open_voucher_id != null ? "" : " kna-nut--chinh"}`}
                   onClick={() => onCreateVoucher(req)}>
                   {req.open_voucher_id != null ? (

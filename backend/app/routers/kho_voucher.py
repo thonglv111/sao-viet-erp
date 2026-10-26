@@ -561,6 +561,8 @@ def dieu_chinh_xuat(
         detail=json.dumps({"noi_dung": "; ".join(changes), "ly_do": payload.ly_do},
                           ensure_ascii=False),
     )
+    # Số "đã cấp" của yêu cầu vừa giảm ⇒ bàn tổ (cột Vật tư, cổng Bắt đầu) phải thấy ngay.
+    _bao_san_xuat(db, v)
     return _serialize(v, svc=svc, db=db, can_view_cost=authz.can(user, MODULE, "view_cost"))
 
 

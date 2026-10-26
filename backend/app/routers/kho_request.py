@@ -340,6 +340,7 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         san_xuat_cong_viec_id=bc.get("cong_viec_id"),
         san_xuat_cong_doan_ten=bc.get("cong_doan_ten"),
         san_xuat_tu_lap=bool(bc.get("tu_lap")),
+        san_xuat_lenh_thu_hoi=bool(bc.get("lenh_thu_hoi")),
         gia_cong_ngoai_id=getattr(req, "gia_cong_ngoai_id", None),
         created_at=req.created_at, updated_at=req.updated_at, lines=lines,
     )

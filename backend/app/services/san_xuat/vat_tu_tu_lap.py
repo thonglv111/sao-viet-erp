@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from ...models.stock_request import StockRequest
 from ...realtime import hub
+from ...repositories.ke_hoach_vat_tu_repo import KeHoachVatTuRepository
 from ...repositories.notification_repo import NotificationRepository
 from ...repositories.rbac_repo import RoleRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
@@ -104,6 +105,20 @@ def lap_khi_phat_hanh(db: Session, *, goi_id: int, nguoi) -> KetQuaTuLap:
     return kq
 
 
+def _co_vat_tu_dinh_muc_0(db: Session, cv) -> bool:
+    """Bước có dòng vật tư (không phải giấy) khai số ≤ 0."""
+    repo = KeHoachVatTuRepository(db)
+    if cv.bai_ghep_cong_doan_id:
+        dongs = repo.vat_tu_theo_buoc_chung([cv.bai_ghep_cong_doan_id])
+    elif cv.lsx_cong_doan_id:
+        dongs = repo.vat_tu_theo_buoc_lenh([cv.lsx_cong_doan_id])
+    else:
+        return False
+    # Bước chung bài ghép không có cột `hang_loai` (chỉ khai vật tư).
+    return any(getattr(d, "hang_loai", "vat_tu") != "giay" and float(d.so_luong or 0) <= _EPS
+               for d in dongs)
+
+
 def _lap_cho_viec(db: Session, cv, *, kq: KetQuaTuLap, nguoi, hang, kh_svc, req_svc, vt_repo,
                   neo_bai) -> None:
     # Đã có đề nghị (gói cũ đã xuất chuyển sang, hay tổ đã xin) thì không lập thêm.
@@ -114,6 +129,10 @@ def _lap_cho_viec(db: Session, cv, *, kq: KetQuaTuLap, nguoi, hang, kh_svc, req_
     if cv.bai_ghep_cong_doan_id and neo_bai.get(cv.bai_ghep_id) != cv.bai_ghep_cong_doan_id:
         nhu_cau = [d for d in nhu_cau if d["hang_loai"] != "giay"]
     if not nhu_cau:
+        # Engine bỏ dòng định mức 0 nên tới đây không còn dòng nào — nhưng bước CÓ khai vật tư thì
+        # tổ phải tự xin, bước vẫn chờ vật tư như nhánh `to_tu_xin` dưới (L-SX-15).
+        if _co_vat_tu_dinh_muc_0(db, cv):
+            cv.can_vat_tu = True
         return
     kh = _NhuCauCo(kh_svc, nhu_cau)
 

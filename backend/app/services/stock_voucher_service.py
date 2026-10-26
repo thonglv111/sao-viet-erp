@@ -151,6 +151,14 @@ class StockVoucherService:
             detail=detail, commit=commit,
         )
 
+    def _chan_lenh_thu_hoi(self, request_id: int) -> None:
+        """Yêu cầu đã xuất một phần của lệnh bị thu hồi (thu hồi chỉ huỷ yêu cầu CHƯA xuất) ⇒ không
+        lập / ghi sổ phiếu tiếp tới khi phát hành lại (L-SX-14)."""
+        from ..repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
+
+        if SanXuatVatTuRepository(self.requests.db).yeu_cau_cua_lenh_thu_hoi(request_id):
+            raise StockVoucherError("Lệnh đã thu hồi phát hành, chờ phát hành lại mới xuất tiếp.")
+
     # --- Lập phiếu ----------------------------------------------------------
 
     def create(self, *, user, request_id: int, kho_id: int, lines: list[dict],
@@ -164,6 +172,7 @@ class StockVoucherService:
             raise StockVoucherError(
                 "Chỉ lập phiếu cho yêu cầu đã duyệt (và chưa hoàn tất)."
             )
+        self._chan_lenh_thu_hoi(request_id)
         if not lines:
             raise StockVoucherError("Phiếu phải có ít nhất 1 dòng.")
         # Lập phiếu NHÁP chưa vào sổ → không xét khóa kỳ ở đây (chỉ xét lúc GHI SỔ). Trừ khi người
@@ -582,6 +591,8 @@ class StockVoucherService:
             raise StockVoucherError("Không tìm thấy phiếu.")
         if v.trang_thai != VOUCHER_DRAFT:
             raise StockVoucherError("Chỉ ghi sổ được phiếu đang ở trạng thái Nháp.")
+        if v.request_id:
+            self._chan_lenh_thu_hoi(v.request_id)
 
         dest_req = self.requests.get_with_lines(v.request_id)
         # Phiếu XUẤT nguồn của điều chuyển KHÔNG ghi sổ riêng — nó tự ghi sổ khi kho đích nhập.

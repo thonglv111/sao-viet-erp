@@ -43,6 +43,7 @@ from sqlalchemy.orm import Session
 
 from ...models.san_xuat import (
     BUOC_MAY,
+    BUOC_THUE_NGOAI,
     CV_PHAT_HANH,
     NHOM_DONG,
     GOI_DA_THU_HOI,
@@ -394,10 +395,11 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         # có máy (bàn xếp theo công đoạn cũ) vẫn thắng máy của bước. Việc đổi tổ rời bàn cũ sang
         # bàn mới; `lsx_changed` của router nhích mọi bàn tổ nên cả hai bàn tự nạp.
         buoc = cd_cua[cv.id]
-        if buoc is not None and cv.gia_cong_ngoai_id is None and cv.loai_buoc == BUOC_MAY:
+        # Bước loại Tổ cũng đổi tổ (như lần phát hành đầu ở `snapshot`); máy chỉ cho bước Máy.
+        if buoc is not None and cv.gia_cong_ngoai_id is None and cv.loai_buoc != BUOC_THUE_NGOAI:
             if buoc.department_id is not None:
                 cv.department_id = buoc.department_id
-            if may_id is None:
+            if may_id is None and cv.loai_buoc == BUOC_MAY:
                 cv.may_id = buoc.may_id
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish

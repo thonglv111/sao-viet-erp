@@ -10310,6 +10310,8 @@ export interface StockRequest {
   san_xuat_cong_doan_ten: string | null;
   /** Hệ thống tự lập lúc phát hành lệnh — ô Nguồn ghi "Tự lập khi phát hành". */
   san_xuat_tu_lap?: boolean;
+  /** Lệnh đã thu hồi phát hành — kho chờ phát hành lại mới xuất tiếp (L-SX-14). */
+  san_xuat_lenh_thu_hoi?: boolean;
   created_at: string;
   /** Lần đổi gần nhất (tạo/cấp/hoàn tất/hủy) — xếp yêu cầu vừa có phản hồi lên đầu. */
   updated_at: string;
