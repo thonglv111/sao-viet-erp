@@ -223,9 +223,10 @@ def _nguon_dong(ns: list[dict], can_view_cost: bool) -> dict:
 def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
                hang_map: dict | None = None, lot_map: dict | None = None,
                req_map: dict | None = None, nguon_map: dict | None = None,
-               nguon_yc: dict | None = None) -> StockVoucherOut:
-    """`hang_map`/`lot_map`/`req_map`/`nguon_map`/`nguon_yc` dựng SẴN theo cả trang (list) để tránh
-    N+1; gọi lẻ 1 phiếu thì để None, hàm tự nạp mỗi map 1 query cho các dòng của phiếu đó."""
+               nguon_yc: dict | None = None, kho_map: dict | None = None,
+               nguoi_map: dict | None = None) -> StockVoucherOut:
+    """`hang_map`/`lot_map`/`req_map`/`nguon_map`/`nguon_yc`/`kho_map`/`nguoi_map` dựng SẴN theo cả
+    trang (list) để tránh N+1; gọi lẻ 1 phiếu thì để None, hàm tự nạp mỗi map cho phiếu đó."""
     users = UserRepository(db)
     khos = KhoHangRepository(db)
     requests = StockRequestRepository(db)
@@ -252,7 +253,9 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
     # SL yêu cầu theo dòng yêu cầu (request_line_id) — nối vào mỗi dòng phiếu để đối chiếu
     # "yêu cầu vs thực nhận/xuất". Đọc-nối, không lưu cột.
     line_sl_de_nghi = {ln.id: float(ln.sl_de_nghi) for ln in req_lines}
-    goc_map = svc.hang.don_vi_goc_map([(ln.hang_loai, ln.hang_id) for ln in v.lines])
+    # Đơn vị gốc = `don_vi_gia` của chính bản ghi mặt hàng đã có trong `hang_map` (cùng luật
+    # `don_vi_goc_map`) — tra lại danh mục cho từng phiếu là N+1 (26/10/2026).
+    goc_map = {k: (getattr(m, "don_vi_gia", None) or None) for k, m in hang_map.items()}
 
     def goc_cua_dong(ln):
         """Đơn vị gốc của dòng: giấy / vật tư theo cột `don_vi_goc` của dòng (đơn vị đã khai), còn lại
@@ -354,13 +357,15 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
                 chua_gia_goc=can_view_cost and any(_lo_chua_gia(ln.lot_id) for ln in grp),
                 **_nguon_dong([nguon_map.get(ln.lot_id) or {} for ln in grp], can_view_cost),
             ))
-    kho = khos.get(v.kho_id)
-    lap = users.get_by_id(v.nguoi_lap_id) if v.nguoi_lap_id else None
-    ghi_so_u = users.get_by_id(v.nguoi_ghi_so_id) if getattr(v, "nguoi_ghi_so_id", None) else None
+    kho = kho_map.get(v.kho_id) if kho_map is not None else khos.get(v.kho_id)
+    if nguoi_map is None:
+        nguoi_map = users.get_many(_nguoi_cua_phieu([v], req_map))
+    lap = nguoi_map.get(v.nguoi_lap_id) if v.nguoi_lap_id else None
+    ghi_so_u = nguoi_map.get(v.nguoi_ghi_so_id) if getattr(v, "nguoi_ghi_so_id", None) else None
     # Ai yêu cầu / ai duyệt lấy từ yêu cầu gốc (phiếu ứng theo yêu cầu đã duyệt).
-    de_nghi_u = users.get_by_id(req.nguoi_tao_id) if req and req.nguoi_tao_id else None
+    de_nghi_u = nguoi_map.get(req.nguoi_tao_id) if req and req.nguoi_tao_id else None
     duyet_u = (
-        users.get_by_id(req.nguoi_duyet_id)
+        nguoi_map.get(req.nguoi_duyet_id)
         if req and getattr(req, "nguoi_duyet_id", None)
         else None
     )
@@ -379,6 +384,18 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
         lines=lines,
         gia_von=gia_von_total if can_view_cost else None,
     )
+
+
+def _nguoi_cua_phieu(vouchers, req_map: dict) -> set[int]:
+    """Id mọi người `_serialize` cần tên: người lập, người ghi sổ, người đề nghị + người duyệt của
+    yêu cầu gốc."""
+    ids: set[int] = set()
+    for v in vouchers:
+        ids.update(i for i in (v.nguoi_lap_id, getattr(v, "nguoi_ghi_so_id", None)) if i)
+        req = req_map.get(v.request_id)
+        if req is not None:
+            ids.update(i for i in (req.nguoi_tao_id, getattr(req, "nguoi_duyet_id", None)) if i)
+    return ids
 
 
 def _xem_gia_man(authz, user: User, man: str, kho_id: int | None) -> bool:
@@ -437,11 +454,13 @@ def list_vouchers(
     req_map = StockRequestRepository(db).by_ids_with_lines([v.request_id for v in rows])
     nguon_map = svc.lots.nguon_lo(lo_ids)
     nguon_yc = svc.lots.nguon_dong_yeu_cau([k for v in rows for k in _dong_nhap_chua_lo(v)])
+    kho_map = KhoHangRepository(db).theo_ids([v.kho_id for v in rows])
+    nguoi_map = UserRepository(db).get_many(_nguoi_cua_phieu(rows, req_map))
     return StockVoucherPage(
         items=[
             _serialize(v, svc=svc, db=db, can_view_cost=can_view_cost,
                        hang_map=hang_map, lot_map=lot_map, req_map=req_map, nguon_map=nguon_map,
-                       nguon_yc=nguon_yc)
+                       nguon_yc=nguon_yc, kho_map=kho_map, nguoi_map=nguoi_map)
             for v in rows
         ],
         total=total,
