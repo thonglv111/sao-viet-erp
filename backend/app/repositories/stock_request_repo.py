@@ -84,6 +84,8 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "can_luc", "uu_tien", "ghi
                   "delivery_trip_id",
                   # ĐIỀU CHUYỂN KHO (mig 0203) — set từ service khi ấn điều chuyển.
                   "dieu_chuyen", "kho_nguon_id", "xuat_voucher_id",
+                  # NHẬP TAY Ở MÀN KHO (mg 0451): Thêm / Import hàng tự sinh yêu cầu này.
+                  "nhap_tay",
                   # NGUỒN KCS (mg 0309): công đoạn KCS cuối gửi thành phẩm vào kho.
                   "san_xuat_cong_viec_id",
                   # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.

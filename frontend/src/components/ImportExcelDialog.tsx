@@ -186,10 +186,43 @@ export function ImportExcelDialog({
                 {error && <div className="banner banner--error" role="alert">{error}</div>}
                 {kq && (
                   <p className={kq.hop_le ? "imx__kq" : "imx__kq imx__kq--loi"} role="status">
-                    {kq.hop_le
-                      ? `Đọc được ${kq.tong_dong} dòng, không có lỗi. Bấm Nhập để ghi.`
-                      : `${kq.loi.length} chỗ chưa đúng — sửa trong file rồi chọn lại. Chưa dòng nào được ghi.`}
+                    {!kq.hop_le
+                      ? `${kq.loi.length} chỗ chưa đúng — sửa trong file rồi chọn lại. Chưa dòng nào được ghi.`
+                      : kq.thay_doi
+                        ? `Đọc được ${kq.tong_dong} dòng: ${kq.tao_moi} thêm mới, ${kq.cap_nhat} cập nhật, ${kq.khong_doi} không đổi.`
+                        : `Đọc được ${kq.tong_dong} dòng, không có lỗi. Bấm Nhập để ghi.`}
                   </p>
+                )}
+                {kq && kq.hop_le && (kq.canh_bao?.length ?? 0) > 0 && (
+                  <ul className="imx__canh-bao">
+                    {kq.canh_bao!.map((c, i) => <li key={i}>Dòng {c.dong}: {c.noi_dung}</li>)}
+                  </ul>
+                )}
+                {kq && kq.hop_le && (kq.thay_doi?.length ?? 0) > 0 && (
+                  <div className="imx__wrap">
+                    <table className="imx__table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: "9%" }}>Dòng</th>
+                          <th style={{ width: "30%" }}>Mặt hàng</th>
+                          <th style={{ width: "15%" }}>Cột</th>
+                          <th>Cũ</th>
+                          <th>Mới</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {kq.thay_doi!.map((t, i) => (
+                          <tr key={i}>
+                            <td className="imx__num">{t.dong}</td>
+                            <td title={t.ma}>{t.ten || t.ma}</td>
+                            <td>{t.cot}</td>
+                            <td>{t.cu || <span className="imx__mo">Chưa có</span>}</td>
+                            <td>{t.moi}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
                 {kq && kq.loi.length > 0 && (
                   <div className="imx__wrap">

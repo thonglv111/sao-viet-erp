@@ -381,6 +381,7 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
         nguoi_giao_nhan=v.nguoi_giao_nhan, ghi_chu=v.ghi_chu,
         trang_thai=v.trang_thai, ghi_so_luc=v.ghi_so_luc, created_at=v.created_at,
         dieu_chuyen=bool(getattr(v, "dieu_chuyen", False)),
+        nhap_tay=bool(getattr(req, "nhap_tay", False)),
         lines=lines,
         gia_von=gia_von_total if can_view_cost else None,
     )
@@ -1063,8 +1064,15 @@ def ton_nhom_trang(
         ),
         page, size,
     )
+    items = _dong_lo_danh_sach(svc, ket_qua["lots"], gia_kho)
+    from ..services.kho_nhap_tay import KhoNhapTayService
+
+    dv_xem = KhoNhapTayService(db, svc).don_vi_xem(ket_qua["lots"])
+    for row, lot in zip(items, ket_qua["lots"]):
+        row.don_vi_xem = dv_xem.get((lot.hang_loai, lot.hang_id, int(lot.kho_rong or 0),
+                                     int(lot.kho_dai or 0), (lot.don_vi_goc or "").lower()))
     return TonNhomPage(
-        items=_dong_lo_danh_sach(svc, ket_qua["lots"], gia_kho),
+        items=items,
         total=ket_qua["total"], dem=TonNhomDem(**ket_qua["dem"]), co_hsd=ket_qua["co_hsd"],
         nhom=[TonNhomMuc(**m) for m in ket_qua["nhom"]], du_bao_ok=ket_qua["du_bao_ok"],
         chi_thanh_pham=ket_qua["chi_thanh_pham"],

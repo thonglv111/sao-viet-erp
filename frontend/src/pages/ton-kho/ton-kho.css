@@ -183,3 +183,17 @@
 .tkh-bieu { border: 1px solid var(--rule-soft); border-radius: 8px; padding: 6px 8px 2px; background: var(--canvas); }
 .tkh-bieu svg { width: 100%; height: auto; display: block; }
 .tkh-bieu__bat { cursor: crosshair; }
+
+/* Thêm hàng / Sửa tồn / Xoá khỏi kho / xem theo ĐVT (28/10/2026). */
+.tkh-hop--rong { width: 640px; }
+.tkh-o p.tkh-loi, .tkh-loi { color: var(--signal); }
+select.tkh-chon { width: 100%; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.tkh-xem-truoc { align-items: flex-start; }
+.tkh-xem-truoc__ds { display: flex; flex-direction: column; gap: 3px; color: var(--ink); }
+.tkh-canh { color: var(--amber-deep); }
+.tkh-nut-xoa { color: var(--signal); }
+.tkh-xoa-ds { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.tkh-bao-xong { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; }
+.tkh-dvt-chon { border: 1px solid transparent; border-radius: 6px; background: none; font: inherit; color: var(--ink);
+  padding: 1px 2px; margin: -2px -3px; cursor: pointer; max-width: 100%; }
+.tkh-dvt-chon:hover, .tkh-dvt-chon:focus { border-color: var(--rule); outline: 0; }

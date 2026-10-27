@@ -243,10 +243,12 @@ _NHAN_LY_DO = {
     "nhap_thanh_pham": "Nhập thành phẩm từ sản xuất",
     "nhap_gia_cong": "Nhập hàng gia công ngoài",
     "nhap_tra_vat_tu": "Nhập lại vật tư thừa",
+    "nhap_tay": "Nhập tay ở Tồn kho",
     "nhap_khac": "Nhập khác",
     "xuat_giao_khach": "Xuất giao khách",
     "xuat_san_xuat": "Xuất cho sản xuất",
     "xuat_gia_cong": "Xuất cho gia công ngoài",
+    "xuat_tay": "Giảm tay ở Tồn kho",
     "xuat_khac": "Xuất khác",
 }
 
@@ -260,6 +262,8 @@ def _nhom_hang(hang_loai: str | None, mh) -> str | None:
 def _ly_do(v, req, co_lenh: bool) -> str:
     nhap = v.loai == VOUCHER_NHAP
     if req is not None:
+        if getattr(req, "nhap_tay", False):   # Thêm / Sửa tồn / Import trên màn Tồn kho (mg 0451)
+            return "nhap_tay" if nhap else "xuat_tay"
         if nhap:
             if req.purchase_delivery_id:
                 return "nhap_mua"

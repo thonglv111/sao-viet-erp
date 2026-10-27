@@ -80,14 +80,21 @@ import { ThuocMuc } from "./ton-kho/ThanhNguong";
 import { HopNguong } from "./ton-kho/HopNguong";
 import { tenTrungLap } from "./ton-kho/tenTrung";
 import { AnhMatHang, TongQuanTon } from "./ton-kho/TongQuanTon";
+import { HopThemHang, type DongSuaTon } from "./ton-kho/HopThemHang";
+import { ImportExcelDialog } from "../components/ImportExcelDialog";
 import "./ton-kho/ton-kho.css";
 
 import {
   ArrowLeftRight,
+  Download,
+  Pencil,
+  Plus,
   Printer,
   QrCode,
   ShoppingCart,
   Gauge,
+  Trash2,
+  Upload,
 } from "lucide-react";
 
 
@@ -134,6 +141,8 @@ interface MaterialGroup {
   muc: TonNhomMuc | null;
   // Số lô khả dụng là thành phẩm KCS CHƯA CÓ giá gốc — `value` đang cộng 0 cho các lô này.
   chuaGiaGoc: number;
+  /** Đơn vị xem được của dòng (gốc đứng đầu) + hệ số so với gốc — máy chủ trả, màn chỉ chia. */
+  donViXem: { ma: string; ten: string; he_so: number }[];
 }
 
 type TonTab = "ton" | "nhap" | "xuat" | "dc";
@@ -152,6 +161,24 @@ const ghiLocManPK = (t: LocManPK) => ({ ...kyLenUrl(t.ky, "tao"), ...locPKLenUrl
 
 const NHOM_TON_TRONG: Record<NhomTon, number> = { all: 0, can_mua: 0, du_ton: 0, chuakhai: 0, sap_het_han: 0 };
 
+// Đơn vị xem từng dòng tồn (spec 2026-10-28 §7b) — chỉ ở máy người xem, như độ rộng cột.
+const KHOA_DV_XEM = "kho-ton-dv-xem";
+function docDvXem(): Record<string, string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(KHOA_DV_XEM) ?? "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+function ghiDvXem(v: Record<string, string>) {
+  try {
+    localStorage.setItem(KHOA_DV_XEM, JSON.stringify(v));
+  } catch {
+    // Trình duyệt chặn lưu ⇒ chỉ nhớ trong phiên.
+  }
+}
+
 // ── Lưới danh sách (khuôn chung 08/10/2026) ──────────────────────────────────
 interface CotKho extends CotLuoi { w?: number; n?: boolean; tip?: string }
 
@@ -169,7 +196,6 @@ export const COT_TON: CotKho[] = [
   { key: "vitri", label: "Vị trí", w: 150 },
   { key: "hsd", label: "Hạn sử dụng", w: 150, tip: "Hạn SỚM NHẤT của lô còn tồn" },
   { key: "co", label: "Đang có", w: 130, n: true },
-  { key: "quykg", label: "Quy kg", w: 110, n: true, tip: "Số tờ đang có quy ra kg theo khổ và định lượng" },
   { key: "sapxuat", label: "Sắp xuất", w: 100, n: true, tip: "Lệnh còn phải lấy hàng này (theo bảng cân đối vật tư) cộng đề nghị xuất chưa ghi sổ (giao hàng, gia công ngoài)" },
   { key: "sapve", label: "Sắp về", w: 100, n: true, tip: "Đơn mua đã hẹn ngày về" },
   { key: "dukien", label: "Dự kiến còn", w: 120, n: true, tip: "Đang có trừ Sắp xuất cộng Sắp về" },
@@ -184,7 +210,8 @@ const COT_PHIEU: CotKho[] = [
   { key: "ma", label: "Số phiếu", coDinh: true, w: 150 },
   { key: "ngay", label: "Ngày tạo", w: 104 },
   { key: "ngaypx", label: "Ngày nhập", w: 110 },
-  { key: "yeucau", label: "Theo yêu cầu", w: 130 },
+  // Rộng đủ cho mã yêu cầu + nhãn "Nhập tay" của phiếu tự sinh ở màn Tồn kho.
+  { key: "yeucau", label: "Theo yêu cầu", w: 200 },
   { key: "mathang", label: "Mặt hàng", w: 90, n: true },
   { key: "tongsl", label: "Tổng SL", w: 110, n: true },
   { key: "giavon", label: "Giá vốn", w: 130, n: true },
@@ -249,6 +276,7 @@ function gomNhomTon(lots: StockLot[], mucs: Record<string, TonNhomMuc>): Materia
           hsdOthers: 0,
           muc: null,
           chuaGiaGoc: 0,
+          donViXem: lot.don_vi_xem ?? [],
         };
         m.set(key, g);
       }
@@ -321,6 +349,25 @@ export function KhoTonKhoPage({
   // ĐÃ GỘP quyền: ghi sổ + hủy dùng CHUNG quyền lập phiếu (create) — không còn 'post' riêng.
   const canPost = canCreate;
   const canSetThreshold = can(khoaTonKho(khoId), "set_threshold");
+  // Ô chi tiết "Thêm, xoá, import, export hàng" của KHO NÀY (28/10/2026) — bốn việc một ô.
+  const canNhapTay = can(khoaTonKho(khoId), "adjust");
+  // Hộp Thêm hàng: "moi" = thêm mới, một dòng = Sửa tồn của dòng đó.
+  const [themMo, setThemMo] = useState<"moi" | DongSuaTon | null>(null);
+  const [importMo, setImportMo] = useState(false);
+  const [xoaMo, setXoaMo] = useState(false);
+  const [xoaBusy, setXoaBusy] = useState(false);
+  const [xoaLoi, setXoaLoi] = useState<string | null>(null);
+  const [baoXong, setBaoXong] = useState<string | null>(null);
+  // Đơn vị xem của từng dòng tồn, nhớ ở máy người xem theo khoá dòng (mã + khổ + đơn vị gốc).
+  const [dvXem, setDvXem] = useState<Record<string, string>>(docDvXem);
+  const doiDvXem = (key: string, ma: string, goc: string) =>
+    setDvXem((cu) => {
+      const moi = { ...cu };
+      if (ma === goc) delete moi[key];
+      else moi[key] = ma;
+      ghiDvXem(moi);
+      return moi;
+    });
 
   const [tab, setTab] = useState<TonTab>("ton");
   // Tab Tồn kho: lô của các MẶT HÀNG trong trang hiện tại — máy chủ đã gom theo mặt hàng, lọc, đếm 5
@@ -643,8 +690,9 @@ export function KhoTonKhoPage({
     });
   }
 
-  // Chọn nhiều dòng để lập yêu cầu mua (ô Yêu cầu mua hàng) hoặc in tem / điều chuyển (ô Kho).
-  const selectable = canCreate || coTheMua;
+  // Chọn nhiều dòng để lập yêu cầu mua (ô Yêu cầu mua hàng), in tem / điều chuyển (ô Kho) hoặc
+  // sửa tồn / xoá (ô chi tiết nhập tay của kho này).
+  const selectable = canCreate || coTheMua || canNhapTay;
   const cotTonDs = COT_TON.filter(
     (c) => (c.key !== "chon" || selectable) && (c.key !== "hsd" || coHsd) && (c.key !== "giatri" || canViewCost));
   const cotTon = luoiTon.rongHien(luoiTon.xep(cotTonDs).filter((c) => !luoiTon.an.has(c.key)));
@@ -674,6 +722,47 @@ export function KhoTonKhoPage({
   // Nhóm đang mở popup lịch sử, lấy bản MỚI NHẤT (sau ghi sổ / điều chỉnh `load()` dựng lại nhóm).
   const matMo = openMaterial ? groups.find((g) => g.key === openMaterial.key) ?? openMaterial : null;
   const nutQr = (g: MaterialGroup) => void printMaterialQr(token, khoId, g.hang_loai, g.hang_id, g.code, g.name);
+
+  // Sau mỗi lần nhập tay / import / xoá: tồn, ngưỡng và popup lịch sử nạp lại ngay.
+  const sauGhi = (cau: string) => {
+    setBaoXong(cau);
+    setChon(new Map());
+    load();
+    loadNguong();
+    setMatTick((n) => n + 1);
+  };
+  const dongSua = (g: MaterialGroup): DongSuaTon => ({
+    ma: g.code ?? "", ten: g.name ?? g.code ?? "", khoRong: g.khoRong, khoDai: g.khoDai,
+    dvt: g.dvtCode ?? g.goc, soLuong: g.total, viTri: g.viTris[0] ?? "",
+  });
+  async function taiFileKho(loai: "mau-excel" | "xuat-excel") {
+    try {
+      const { url, ten: tenFile } = await api.kho.hang.taiFile(token, khoId, loai);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = tenFile;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setBaoXong(e instanceof ApiError ? e.message : "Không tải được file.");
+    }
+  }
+  async function xoaHang() {
+    const ds = chonDs();
+    setXoaBusy(true);
+    setXoaLoi(null);
+    try {
+      await api.kho.hang.xoa(token, khoId, ds.map((g) => ({
+        hang_loai: g.hang_loai, hang_id: g.hang_id, kho_rong: g.khoRong, kho_dai: g.khoDai, don_vi_goc: g.goc,
+      })));
+      setXoaMo(false);
+      sauGhi(`Đã xoá ${ds.length} mặt hàng khỏi ${ten}.`);
+    } catch (e) {
+      setXoaLoi(e instanceof ApiError ? e.message : "Không xoá được.");
+    } finally {
+      setXoaBusy(false);
+    }
+  }
 
   return (
     <main className="rc kho-list lds">
@@ -721,6 +810,16 @@ export function KhoTonKhoPage({
                   <QrCode size={14} aria-hidden="true" />In tem QR
                 </button>
               )}
+              {canNhapTay && chon.size === 1 && (
+                <button type="button" className="lds-btn" onClick={() => setThemMo(dongSua(chonDs()[0]))}>
+                  <Pencil size={14} aria-hidden="true" />Sửa tồn
+                </button>
+              )}
+              {canNhapTay && (
+                <button type="button" className="lds-btn tkh-nut-xoa" onClick={() => { setXoaLoi(null); setXoaMo(true); }}>
+                  <Trash2 size={14} aria-hidden="true" />Xoá khỏi kho
+                </button>
+              )}
               {/* Thành phẩm thiếu thì sản xuất chứ không mua — chỉ mua được các dòng không phải thành phẩm. */}
               {coTheMua && chonDs().some((g) => !g.muc?.la_thanh_pham) && (
                 <Button variant="accent" onClick={() => moFormMua(chonDs().filter((g) => !g.muc?.la_thanh_pham))}>
@@ -759,10 +858,30 @@ export function KhoTonKhoPage({
             {tab === "ton"
               ? <ChonCot cot={cotTonDs} {...luoiTon.chonCot} />
               : <ChonCot cot={cotPhieuDs} {...luoiPhieu.chonCot} />}
+            {tab === "ton" && canNhapTay && (
+              <div className="lds-loc__phai">
+                <button type="button" className="lds-btn" onClick={() => setImportMo(true)}>
+                  <Upload size={14} aria-hidden="true" />Nhập Excel
+                </button>
+                <button type="button" className="lds-btn" onClick={() => void taiFileKho("xuat-excel")}>
+                  <Download size={14} aria-hidden="true" />Xuất Excel
+                </button>
+                <Button variant="accent" onClick={() => setThemMo("moi")}>
+                  <Plus size={14} aria-hidden="true" />Thêm hàng
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </section>
 
+      {/* Báo ngay trên bảng: bảng dài thì báo ở chân bị khuất. */}
+      {baoXong && (
+        <div className="banner banner--success tkh-bao-xong" role="status">
+          {baoXong}
+          <button type="button" className="lds-lk" onClick={() => setBaoXong(null)}>Đóng</button>
+        </div>
+      )}
       <div className="lds-sheet">
         {tab === "ton" ? (
           <CuonLuoi ghim={luoiTon.soGhim(cotTon)}>
@@ -827,6 +946,8 @@ export function KhoTonKhoPage({
                       threshold={nguongCua(g)}
                       canSetThreshold={canSetThreshold}
                       onSetThreshold={setNguongFor}
+                      dvXem={dvXem[g.key] ?? null}
+                      onDoiDv={(ma) => doiDvXem(g.key, ma, g.donViXem[0]?.ma ?? "")}
                     />
                   ))
                 )}
@@ -914,6 +1035,54 @@ export function KhoTonKhoPage({
             ariaLabel={tab === "ton" ? "Phân trang tồn kho" : "Phân trang phiếu kho"} />
         )}
       </div>
+
+      {themMo && (
+        <HopThemHang
+          token={token}
+          khoId={khoId}
+          khoTen={ten}
+          dong={themMo === "moi" ? null : themMo}
+          onClose={() => setThemMo(null)}
+          onSaved={(kq) => sauGhi(kq.tao_moi > 0 ? "Đã thêm hàng vào kho." : "Đã cập nhật tồn.")}
+        />
+      )}
+      {importMo && (
+        <ImportExcelDialog
+          ten="mặt hàng"
+          kieu="ba-buoc"
+          moTaMau="Mỗi dòng một mặt hàng theo mã, khổ và ĐVT. Muốn sửa tồn đang có thì bấm Xuất Excel, sửa rồi nhập lại."
+          luat="Dòng trùng mã, khổ và ĐVT với hàng đang có là cập nhật: số tăng thành lô mới theo đơn giá ghi trong file, số giảm thì trừ lô nhập trước. Cả file một lượt, còn một dòng lỗi là chưa ghi gì."
+          taiMau={() => taiFileKho("mau-excel")}
+          chay={(file, mode) => api.kho.hang.importExcel(token, khoId, file, mode)}
+          onClose={() => setImportMo(false)}
+          onImported={() => {
+            setImportMo(false);
+            sauGhi("Đã nhập file vào kho.");
+          }}
+        />
+      )}
+      <ConfirmDialog
+        open={xoaMo}
+        danger
+        title={`Xoá ${chon.size} mặt hàng khỏi ${ten}?`}
+        message="Xoá hẳn các lô của những dòng này cùng dòng phiếu trỏ tới chúng và mức tồn đã đặt. Danh mục mặt hàng không đổi. Không khôi phục được."
+        confirmLabel="Xoá khỏi kho"
+        busy={xoaBusy}
+        error={xoaLoi}
+        onConfirm={() => void xoaHang()}
+        onCancel={() => setXoaMo(false)}
+      >
+        <ul className="tkh-xoa-ds">
+          {chonDs().slice(0, 8).map((g) => (
+            // Chỉ ghi khổ: đơn vị gốc đã đứng sau con số, nhắc lại trong ngoặc là thừa.
+            <li key={g.key}>
+              {g.name ?? g.code}{coKho(g.hang_loai) && g.khoRong ? ` ${nhanKho(g.khoRong, g.khoDai)}` : ""}:{" "}
+              {fmtQty(g.total)} {g.dvt ?? ""}
+            </li>
+          ))}
+          {chon.size > 8 && <li>và {chon.size - 8} mặt hàng khác</li>}
+        </ul>
+      </ConfirmDialog>
 
       {openMaterial && (
         // Popup lịch sử Nhập/Xuất của 1 vật tư. Bấm mã lô / số phiếu bên trong → mở VoucherDrawer
@@ -1122,6 +1291,8 @@ export function MaterialRow({
   threshold,
   canSetThreshold,
   onSetThreshold,
+  dvXem = null,
+  onDoiDv,
 }: {
   g: MaterialGroup;
   cot: CotKho[];
@@ -1135,11 +1306,19 @@ export function MaterialRow({
   threshold: StockThreshold | undefined;
   canSetThreshold: boolean;
   onSetThreshold: (g: MaterialGroup) => void;
+  /** Mã đơn vị người xem chọn cho dòng này (null = gốc). Chỉ đổi cách hiện số, không đổi số lưu. */
+  dvXem?: string | null;
+  onDoiDv?: (ma: string) => void;
 }) {
+  // Đơn vị đang xem: hệ số = số đơn vị gốc trong 1 đơn vị này ⇒ số hiện = số gốc ÷ hệ số. Giá trị
+  // (tiền) không chia — cùng một lượng hàng.
+  const dvChon = g.donViXem.find((d) => d.ma === dvXem) ?? null;
+  const heSo = dvChon && dvChon.he_so > 0 ? dvChon.he_so : 1;
+  const quy = (n: number | null | undefined) => (n == null ? n : n / heSo);
   const newest = g.lots.length ? g.lots[g.lots.length - 1].ngay_nhap : null;
   const viMore = g.viTris.length - 1;
-  const min = threshold?.nguong_ton ?? null;
-  const max = threshold?.nguong_toi_da ?? null;
+  const min = quy(threshold?.nguong_ton ?? null) ?? null;
+  const max = quy(threshold?.nguong_toi_da ?? null) ?? null;
   // Cần mua, chip Tình trạng và các số dự báo đều do máy chủ trả (`g.muc`); ở đây chỉ trình bày.
   const muc = g.muc;
   const tt = chipTinhTrang(muc);
@@ -1148,7 +1327,7 @@ export function MaterialRow({
   const soPhu = (n: number | null | undefined) =>
     n == null ? <span className="lds-mu3" title="Dự báo chưa dùng được">…</span>
       : n === 0 ? <span className="lds-mu3">–</span> : fmtQty(n);
-  const duKien = muc?.du_kien ?? null;
+  const duKien = quy(muc?.du_kien ?? null) ?? null;
   const lopDk = duKien == null ? undefined : muc?.duoi_cuoi ? "tkh-do" : max != null && duKien > max ? "tkh-cam" : undefined;
   const chan = (e: ReactMouseEvent) => e.stopPropagation();
 
@@ -1187,7 +1366,23 @@ export function MaterialRow({
       case "dl":
         return <td key={c.key} className="n">{muc?.dinh_luong ?? <span className="lds-mu3">–</span>}</td>;
       case "dvt":
-        return <td key={c.key}>{g.dvt ?? <span className="lds-mu3">–</span>}</td>;
+        // Có đơn vị khác quy được (ram, kg theo khổ và định lượng…) ⇒ ô chọn; chọn được nhớ theo mặt hàng.
+        return (
+          <td key={c.key} onClick={g.donViXem.length > 1 ? chan : undefined}>
+            {g.donViXem.length > 1 && onDoiDv ? (
+              <select
+                className="tkh-dvt-chon"
+                aria-label={`Xem ${g.name ?? g.code ?? ""} theo đơn vị`}
+                value={dvChon?.ma ?? g.donViXem[0].ma}
+                onChange={(e) => onDoiDv(e.target.value)}
+              >
+                {g.donViXem.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
+              </select>
+            ) : (
+              g.dvt ?? <span className="lds-mu3">–</span>
+            )}
+          </td>
+        );
       case "nhap":
         return <td key={c.key}>{newest == null ? <span className="lds-mu3">–</span> : fmtDateISO(newest)}</td>;
       case "vitri":
@@ -1229,17 +1424,14 @@ export function MaterialRow({
       case "co":
         return (
           <td key={c.key} className="n">
-            {fmtQty(g.total)}
+            {fmtQty(quy(g.total))}
           </td>
         );
-      case "quykg":
-        // Cuộn đã đếm kg ⇒ máy chủ trả null, để trống.
-        return <td key={c.key} className="n">{muc?.quy_kg == null ? <span className="lds-mu3">–</span> : fmtKg(muc.quy_kg)}</td>;
       // Phép tính: Đang có − Sắp xuất + Sắp về = Dự kiến còn.
       case "sapxuat":
-        return <td key={c.key} className="n">{soPhu(muc?.can_lenh)}</td>;
+        return <td key={c.key} className="n">{soPhu(quy(muc?.can_lenh))}</td>;
       case "sapve":
-        return <td key={c.key} className="n">{soPhu(muc?.dang_ve)}</td>;
+        return <td key={c.key} className="n">{soPhu(quy(muc?.dang_ve))}</td>;
       case "dukien":
         return (
           <td key={c.key} className="n">
@@ -1262,7 +1454,7 @@ export function MaterialRow({
                   ? { role: "button", tabIndex: 0, title: "Sửa mức tồn", className: "tkh-tm-nut",
                     onClick: (e: ReactMouseEvent) => { e.stopPropagation(); onSetThreshold(g); } }
                   : {})}>
-                <ThuocMuc ton={g.total} duKien={duKien} min={min} max={max} fmt={fmtQty} />
+                <ThuocMuc ton={quy(g.total) ?? 0} duKien={duKien} min={min} max={max} fmt={fmtQty} />
               </div>
             ) : canSetThreshold ? (
               <button type="button" className="tkh-dat" onClick={(e) => { e.stopPropagation(); onSetThreshold(g); }}>
@@ -1324,6 +1516,7 @@ function OPhieu({ cot, v, tab, onMoYeuCau }: {
           ) : (
             <span className="lds-mu3">—</span>
           )}
+          {v.nhap_tay && <span className="lds-tag">Nhập tay</span>}
         </td>
       );
     case "mathang":

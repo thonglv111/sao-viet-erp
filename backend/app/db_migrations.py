@@ -19317,3 +19317,17 @@ def _migrate_xem_gia_giay_cong_doan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0450_xem_gia_giay_cong_doan", _migrate_xem_gia_giay_cong_doan))
+
+
+def _migrate_nhap_tay_kho(db: Session) -> None:
+    """0451 (28/10/2026) — `stock_requests.nhap_tay`: yêu cầu + phiếu tự sinh khi Thêm / Import hàng ngay
+    trên màn Tồn kho (spec 2026-10-28-kho-them-xoa-import-export). Dòng cũ để false."""
+    insp = inspect(db.get_bind())
+    if "stock_requests" not in insp.get_table_names():
+        return
+    if "nhap_tay" not in _existing_columns(insp, "stock_requests"):
+        db.execute(text("ALTER TABLE stock_requests ADD COLUMN nhap_tay BOOLEAN NOT NULL DEFAULT false"))
+    db.commit()
+
+
+MIGRATIONS.append(("0451_nhap_tay_kho", _migrate_nhap_tay_kho))

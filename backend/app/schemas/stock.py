@@ -195,6 +195,8 @@ class StockRequestOut(BaseModel):
     kho_nguon_id: int | None = None
     kho_nguon_ten: str | None = None
     xuat_voucher_id: int | None = None
+    # NHẬP TAY Ở MÀN TỒN KHO (mg 0451): Thêm / Sửa tồn / Import tự sinh yêu cầu này — cột Nguồn gọi tên.
+    nhap_tay: bool = False
     # NGUỒN MUA HÀNG: yêu cầu nhập lập từ một đợt giao của phiếu mua — ngăn kho hiện "DMH-… Đợt 2".
     purchase_delivery_id: int | None = None
     don_mua_id: int | None = None
@@ -267,7 +269,7 @@ class BaoCaoKhoRow(BaseModel):
     #: Tên (hoặc khoảng ngày) của kỳ ĐÃ KHÓA SỔ phủ ngày chứng từ của dòng; None = chưa khóa.
     ky_khoa: str | None = None
     #: Phiếu sinh ra từ đâu (mã + chữ hiện): nhap_mua · nhap_thanh_pham · nhap_gia_cong · nhap_tra_vat_tu ·
-    #: nhap_khac · xuat_san_xuat · xuat_giao_khach · xuat_gia_cong · xuat_khac.
+    #: nhap_tay · nhap_khac · xuat_san_xuat · xuat_giao_khach · xuat_gia_cong · xuat_tay · xuat_khac.
     ly_do: str | None = None
     ly_do_ten: str | None = None
     lenh: str | None = None               # mã lệnh sản xuất của dòng (nếu có)
@@ -677,6 +679,8 @@ class StockVoucherOut(BaseModel):
     # ĐIỀU CHUYỂN KHO (mig 0203): true cho cả phiếu xuất nguồn lẫn phiếu nhập đích — FE/báo cáo
     # gắn nhãn "điều chuyển"; báo cáo loại khỏi tổng mua/bán.
     dieu_chuyen: bool = False
+    # Phiếu tự sinh từ Thêm / Sửa tồn / Import trên màn Tồn kho (cờ ở yêu cầu gốc, mg 0451).
+    nhap_tay: bool = False
     lines: list[StockVoucherLineOut] = []
     # Tổng giá vốn — chỉ có khi `can_view_cost`.
     gia_von: int | None = None
@@ -843,6 +847,9 @@ class StockLotOut(BaseModel):
     #: Giấy: gsm của danh mục; tờ: số kg quy từ `sl_con_lai` (cuộn ⇒ None) — chỉ hiển thị (spec §6).
     dinh_luong: int | None = None
     quy_kg: float | None = None
+    #: Màn Tồn kho (`/lo/ton-nhom`): các đơn vị QUY ĐƯỢC từ đơn vị gốc của dòng — xem tồn theo ram, kg…
+    #: (spec 2026-10-28 §7b). `he_so` = số đơn vị gốc trong 1 đơn vị đó; đơn vị gốc đứng đầu.
+    don_vi_xem: list[dict] | None = None
     hsd: date | None = None
     trang_thai: str
     # Phiếu NHẬP đã tạo ra lô này — màn Tồn kho hiển thị lô THEO MÃ PHIẾU (link mở phiếu). Null = đầu kỳ.

@@ -152,6 +152,10 @@ export function NguonA({ r }: { r: StockRequest }) {
   if (r.dieu_chuyen) {
     return <span className="kna-nguon">Từ {r.kho_nguon_ten ?? "kho khác"}</span>;
   }
+  // Thêm / Sửa tồn / Import trên màn Tồn kho tự sinh (mg 0451).
+  if (r.nhap_tay) {
+    return <span className="kna-nguon"><span className="kna-tag">Nhập tay</span></span>;
+  }
   if (r.giao_yeu_cau_ma) {
     // Giao hàng lập (12/10/2026): mã lượt cho kho biết các phiếu lên CÙNG một xe; chuyến cũ ngoài
     // lượt thì lùi về mã yêu cầu giao. Rê chuột thấy đủ cả hai mã.
