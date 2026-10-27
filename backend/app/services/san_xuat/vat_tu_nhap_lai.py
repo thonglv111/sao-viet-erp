@@ -20,7 +20,7 @@ from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.san_xuat_repo import SanXuatRepository
 from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ...repositories.san_xuat_vat_tu_repo import SanXuatVatTuRepository
-from ..kho_giay import DON_VI_TO_KHO, chuan_kho, co_don_vi_goc, khoa_dong
+from ..kho_giay import DON_VI_TO_KHO, chuan_kho, co_don_vi_goc, co_kho, khoa_dong
 from ..ke_hoach_vat_tu_service import KeHoachVatTuError
 from ..quyen_to import VIEC_KHO
 from ..stock_request_service import StockRequestError
@@ -79,10 +79,10 @@ def _chuan_dong(kh_svc, hang, ln: dict, don_gia_goc: dict,
         # Giấy bỏ dạng cuộn/tờ (10/10/2026), vật tư khai nhiều đơn vị (mg 0390): đơn vị gốc SUY từ
         # ĐVT người gõ — nhóm đơn vị đã khai chứa nó (tờ/ram ⇒ "tờ"; kg/tấn ⇒ kg; thùng ⇒ thùng).
         goc = kh_svc.goc_cua_dvt(loai, int(hid), dvt)
-    if loai == "giay":
-        # Đếm tờ cần đủ hai cạnh khổ; đơn vị khác khổ tuỳ chọn.
+    if co_kho(loai):
+        # Giấy đếm tờ cần đủ hai cạnh khổ; đơn vị khác (và vật tư, 27/10/2026) khổ tuỳ chọn.
         kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
-        if goc == DON_VI_TO_KHO and not (kr and kd):
+        if loai == "giay" and goc == DON_VI_TO_KHO and not (kr and kd):
             raise VatTuNhapLaiError(f"«{ten}» đếm theo tờ — khai đủ hai cạnh khổ (mm).")
     try:
         sl_goc, _ = kh_svc.ve_don_vi_goc(loai, int(hid), dvt, so, goc=goc)

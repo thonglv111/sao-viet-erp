@@ -22,7 +22,7 @@ from ..models.stock_request import (
     StockRequestLine,
 )
 from ..models.stock_voucher import VOUCHER_POSTED, StockVoucher, StockVoucherLine
-from ..services.kho_giay import chuan_kho, co_don_vi_goc
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, co_kho
 from .loc_danh_sach import dk_khoang_ngay
 
 
@@ -101,8 +101,8 @@ def _build_line(ln: dict, loai: str) -> StockRequestLine:
     """
     # GIẤY mang khổ + ĐƠN VỊ GỐC, VẬT TƯ mang ĐƠN VỊ GỐC (service đã suy từ ĐVT dòng ở
     # `_validate_lines` — không ai gõ); khổ chỉ giấy, hàng khác luôn "" · 0 · 0 dù người gọi gửi gì.
-    giay = ln["hang_loai"] == "giay"
-    kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai")) if giay else (0, 0)
+    # Vật tư có khổ tuỳ chọn như giấy (27/10/2026).
+    kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai")) if co_kho(ln["hang_loai"]) else (0, 0)
     return StockRequestLine(
         don_vi_goc=((ln.get("don_vi_goc") or "").strip().lower()) if co_don_vi_goc(ln["hang_loai"]) else "",
         kho_rong=kr,

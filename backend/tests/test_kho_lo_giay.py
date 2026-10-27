@@ -260,7 +260,7 @@ def test_xuat_chon_lo_sai_kho_hoac_sai_don_vi_bi_chan(client):
     assert client.post(f"{BASE}/phieu", headers=tk, json=body).status_code == 201
 
 
-def test_vat_tu_khac_khong_doi_hanh_vi(client):
+def test_vat_tu_khac_giu_kho_tuy_chon(client):
     from app.models.stock_request import StockRequestLine
 
     kho_id, mat = _setup(client)
@@ -271,8 +271,9 @@ def test_vat_tu_khac_khong_doi_hanh_vi(client):
     db = SessionLocal()
     try:
         ln = db.get(StockRequestLine, r.json()["lines"][0]["id"])
-        # Vật tư: khổ ép 0 · 0, đơn vị gốc = đơn vị đã khai (mg 0390). Đọc từ DB, không từ phản hồi.
-        assert (ln.don_vi_goc, ln.kho_rong, ln.kho_dai) == ("to", 0, 0)
+        # Vật tư: khổ TUỲ CHỌN như giấy (27/10/2026, chuẩn cạnh ngắn trước), đơn vị gốc = đơn vị đã
+        # khai (mg 0390). Đọc từ DB, không từ phản hồi.
+        assert (ln.don_vi_goc, ln.kho_rong, ln.kho_dai) == ("to", 780, 905)
     finally:
         db.close()
 

@@ -6,7 +6,7 @@
 // Hàm `save` (validate + gọi API) CỐ Ý Ở LẠI SHELL và truyền xuống làm handler của <form>.
 import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { api, type DonViDungDuoc, type HangLoai, type PurchaseRequestRow, type SupplierRow } from "../../../../api/client";
-import { coDonViGoc } from "../../../../lib/khoGiay";
+import { coDonViGoc, coKho } from "../../../../lib/khoGiay";
 import { useAuth } from "../../../../auth/useAuth";
 import { Button } from "../../../../components/Button";
 import { ChonNgay } from "../../../../components/ChonNgay";
@@ -170,9 +170,11 @@ export function PurchaseFormDrawer({
   const nhieuYeuCau = new Set(form.lines.map((l) => l.yeu_cau_ma).filter(Boolean)).size > 1;
   const boPhanCua = new Map(nguon.map((n) => [n.code, n.bo_phan]));
   const nhieuBoPhan = new Set(nguon.map((n) => n.bo_phan).filter(Boolean)).size > 1;
-  // Khổ + Định lượng là cột riêng, chỉ bày khi đơn có dòng giấy (spec 2026-10-24 §6).
+  // Khổ + Định lượng là cột riêng (spec 2026-10-24 §6): Khổ khi có dòng mang khổ (giấy + vật tư, khổ
+  // vật tư tuỳ chọn 27/10/2026), Định lượng chỉ khi có dòng giấy.
   const coGiay = form.lines.some((l) => l.hang_loai === "giay");
-  const soCot = (taoMoi ? 7 : 6) + (coGiay ? 2 : 0);
+  const coCotKho = form.lines.some((l) => coKho(l.hang_loai));
+  const soCot = (taoMoi ? 7 : 6) + (coCotKho ? 1 : 0) + (coGiay ? 1 : 0);
 
   const batTuyChon = (index: number) =>
     setMoTuyChon((s) => {
@@ -186,6 +188,7 @@ export function PurchaseFormDrawer({
     const line = form.lines[index];
     const chon = dongDuocChon(line);
     const laGiay = line.hang_loai === "giay";
+    const laCoKho = coKho(line.hang_loai);
     const ds = dsCua(line);
     const dv = tenDonVi(line.unit) ?? line.unit;
     const tuyChon = chon && (moTuyChon.has(index) || (Number(line.discount_percent) || 0) > 0);
@@ -200,13 +203,13 @@ export function PurchaseFormDrawer({
     const boPhan = line.yeu_cau_ma ? boPhanCua.get(line.yeu_cau_ma) : null;
     // "Theo yêu cầu" là trường hợp thường — chỉ dựng chip khi món mua cho tồn kho hoặc cho lệnh.
     const coMuaCho = (line.mua_cho?.length ?? 0) > 0 || (line.loai_mua != null && line.loai_mua !== "theo_yeu_cau");
-    // Khổ mua của dòng giấy: hai cạnh, hoặc chỉ rộng. Chưa có khổ thì thẻ mời ghi — NCC chỉ được so
-    // trong cùng khổ, không khổ là không ai khớp.
-    const khoChu = !laGiay
+    // Khổ mua: hai cạnh, hoặc chỉ rộng. Giấy chưa có khổ thì thẻ mời ghi — NCC chỉ được so trong cùng
+    // khổ. Vật tư khổ tuỳ chọn: trống là món không khổ, thẻ vẫn bấm được để ghi.
+    const khoChu = !laCoKho
       ? null
       : line.kho_rong && line.kho_dai
         ? `${line.kho_rong} × ${line.kho_dai} mm`
-        : line.kho_rong ? `khổ ${line.kho_rong} mm` : "Chưa có khổ";
+        : line.kho_rong ? `khổ ${line.kho_rong} mm` : laGiay ? "Chưa có khổ" : "Không khổ";
     return [
       <tr key={index} className={chon ? undefined : "kna-mo"}>
         <td>
@@ -235,7 +238,7 @@ export function PurchaseFormDrawer({
             </div>
           </div>
         </td>
-        {coGiay && (
+        {coCotKho && (
           <td>
             {khoChu && chon && (
               <button type="button" className="dfa-the-nho dfa-the-nho--bam" title="Sửa khổ mua"
@@ -358,8 +361,8 @@ export function PurchaseFormDrawer({
         <td>
           {chon && (
             <button type="button" className={`dfa-nut-tuy${tuyChon ? " is-mo" : ""}`}
-              aria-label={laGiay ? "Khổ mua, chiết khấu, ghi chú" : "Chiết khấu, ghi chú"}
-              title={laGiay ? "Khổ mua, chiết khấu, ghi chú" : "Chiết khấu, ghi chú"}
+              aria-label={laCoKho ? "Khổ mua, chiết khấu, ghi chú" : "Chiết khấu, ghi chú"}
+              title={laCoKho ? "Khổ mua, chiết khấu, ghi chú" : "Chiết khấu, ghi chú"}
               onClick={() => batTuyChon(index)}>
               <Icon name={tuyChon ? "minus" : "plus"} size={13} />
             </button>
@@ -370,7 +373,7 @@ export function PurchaseFormDrawer({
         <tr key={`${index}-tuy`} className="dfa-dong-tuy">
           <td colSpan={soCot}>
             <div className="dfa-tuy">
-              {laGiay && (
+              {laCoKho && (
                 <span className="dfa-tuy__o">
                   <span className="kna-mo">Khổ mua</span>
                   <KhungKho
@@ -548,10 +551,10 @@ export function PurchaseFormDrawer({
         </div>
 
         <div className="lds-bang lds-bang--nhap dfa-bang">
-          <table className="lds-g dfa-g" style={{ minWidth: (taoMoi ? 900 : 700) + (coGiay ? 220 : 0) }}>
+          <table className="lds-g dfa-g" style={{ minWidth: (taoMoi ? 900 : 700) + (coCotKho ? 124 : 0) + (coGiay ? 96 : 0) }}>
             <colgroup>
               <col />
-              {coGiay && <col style={{ width: 124 }} />}
+              {coCotKho && <col style={{ width: 124 }} />}
               {coGiay && <col style={{ width: 96 }} />}
               {taoMoi && <col style={{ width: 230 }} />}
               <col style={{ width: 128 }} />
@@ -563,7 +566,7 @@ export function PurchaseFormDrawer({
             <thead>
               <tr>
                 <th>Vật tư</th>
-                {coGiay && <th>Khổ</th>}
+                {coCotKho && <th>Khổ</th>}
                 {coGiay && <th className="n">Định lượng</th>}
                 {taoMoi && <th>Nhà cung cấp</th>}
                 <th className="n">Số lượng</th>

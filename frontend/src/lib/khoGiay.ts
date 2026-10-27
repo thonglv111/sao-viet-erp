@@ -46,17 +46,25 @@ export function nhanKho(khoRong: number | null | undefined, khoDai: number | nul
   return "chưa có khổ";
 }
 
-/** Nhãn khổ cạnh tên của một dòng chứng từ / lô: giấy ⇒ `nhanKho`, hàng khác ⇒ "". */
+/** Loại hàng mang KHỔ — phản chiếu `kho_giay.CO_KHO`. Vật tư khác có khổ TUỲ CHỌN như giấy
+ *  (27/10/2026): màng bóng khổ rộng 320, decal tấm 500 × 700; mực, keo để trống. */
+export function coKho(hangLoai: string | null | undefined): boolean {
+  return hangLoai === "giay" || hangLoai === "vat_tu";
+}
+
+/** Nhãn khổ cạnh tên của một dòng chứng từ / lô: giấy ⇒ `nhanKho` (kể cả "chưa có khổ"), vật tư ⇒
+ *  khổ khi có (trống là món không khổ, không phải thiếu), hàng khác ⇒ "". */
 export function nhanKhoGiay(x: {
   hang_loai: string;
   kho_rong?: number | null;
   kho_dai?: number | null;
 }): string {
-  return x.hang_loai === "giay" ? nhanKho(x.kho_rong, x.kho_dai) : "";
+  if (x.hang_loai === "giay") return nhanKho(x.kho_rong, x.kho_dai);
+  return coKho(x.hang_loai) && x.kho_rong ? nhanKho(x.kho_rong, x.kho_dai) : "";
 }
 
 /** Loại hàng tách dòng theo ĐƠN VỊ GỐC (mỗi đơn vị đã khai ở danh mục là một nhóm không quy đổi lẫn
- *  nhau) — phản chiếu `kho_giay.CO_DON_VI_GOC`. KHỔ vẫn chỉ giấy. */
+ *  nhau) — phản chiếu `kho_giay.CO_DON_VI_GOC`. KHỔ xem `coKho`. */
 const CO_DON_VI_GOC = new Set(["giay", "vat_tu"]);
 
 export function coDonViGoc(hangLoai: string | null | undefined): boolean {
@@ -64,8 +72,8 @@ export function coDonViGoc(hangLoai: string | null | undefined): boolean {
 }
 
 /** Khoá DÒNG TỒN dạng chuỗi — phản chiếu khoá 5 phần của máy chủ (`ton_kho_nhom_service`):
- *  giấy `giay:id:rộng:dài:gốc` (vd. "giay:12:780:905:to"), vật tư khác `vat_tu:id:0:0:gốc`
- *  (vd. "vat_tu:5:0:0:kg"), hàng khác `loai:id:0:0:`. Chuỗi này phải KHỚP từng ký tự với
+ *  giấy `giay:id:rộng:dài:gốc` (vd. "giay:12:780:905:to"), vật tư khác `vat_tu:id:rộng:dài:gốc`
+ *  (vd. "vat_tu:5:320:0:kg"; trống khổ "vat_tu:5:0:0:kg"), hàng khác `loai:id:0:0:`. Chuỗi này phải KHỚP từng ký tự với
  *  `TonNhomMuc.khoa` máy chủ trả, lệch là dòng mất phán quyết. */
 export function khoaTon(x: {
   hang_loai: string;
@@ -76,9 +84,8 @@ export function khoaTon(x: {
 }): string {
   if (!coDonViGoc(x.hang_loai)) return `${x.hang_loai}:${x.hang_id}:0:0:`;
   const goc = (x.don_vi_goc ?? "").trim().toLowerCase();
-  if (x.hang_loai !== "giay") return `${x.hang_loai}:${x.hang_id}:0:0:${goc}`;
   const [r, d] = chuanKho(x.kho_rong, x.kho_dai);
-  return `giay:${x.hang_id}:${r}:${d}:${goc}`;
+  return `${x.hang_loai}:${x.hang_id}:${r}:${d}:${goc}`;
 }
 
 /** Khoá dòng tồn của một NGƯỠNG — cùng khoá với `khoaTon` (ngưỡng đặt trên đúng một dòng tồn). */

@@ -17,7 +17,8 @@ import { Select, type SelectOption } from "../components/Select";
 import { CongThucTip, ketQuaDienGiai } from "../components/CongThucTip";
 import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
-import { coDonViGoc, nhanDongTon } from "../lib/khoGiay";
+import { coDonViGoc, nhanDongTon, nhanKho } from "../lib/khoGiay";
+import { KhungKho } from "../components/kho-giay/KhungKho";
 import { num } from "./keHoachSxShared";
 import { donViOptions, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
@@ -1001,6 +1002,27 @@ export function LsxBuocDrawer({
                                     ))}
                                   </div>
                                 )}
+                                {/* Vật tư khác: khổ TUỲ CHỌN người kế hoạch gõ (27/10/2026) — màng bóng chỉ rộng,
+                                    decal hai cạnh, mực/keo để trống. Kế hoạch vật tư, mua hàng, kho tách theo khổ này. */}
+                                {v.hang_loai !== "giay" && (canUpdate ? (
+                                  <div className="khsx-vattu-kho">
+                                    <span className="khsx-vattu-kho__label">Khổ</span>
+                                    <KhungKho
+                                      ariaLabel={`Khổ ${v.vat_tu_ten}`}
+                                      rong={Number(v.kho_rong) || 0}
+                                      dai={Number(v.kho_dai) || 0}
+                                      onChange={(k) =>
+                                        set("vat_tus", row.vat_tus.map((x, j) => (j === i
+                                          ? { ...x, kho_rong: k.rong ? String(k.rong) : "", kho_dai: k.dai ? String(k.dai) : "" }
+                                          : x)))
+                                      }
+                                    />
+                                  </div>
+                                ) : Number(v.kho_rong) > 0 && (
+                                  <div className="khsx-vattu-kho">
+                                    <span className="khsx-vattu-kho__label">{nhanKho(Number(v.kho_rong), Number(v.kho_dai) || 0)}</span>
+                                  </div>
+                                ))}
                                 {/* Giấy: khổ + đơn vị gốc do MÁY CHỦ suy từ đầu vào của bước — chỉ đọc. */}
                                 {v.hang_loai === "giay" && (
                                   <div className="khsx-vattu-kho">

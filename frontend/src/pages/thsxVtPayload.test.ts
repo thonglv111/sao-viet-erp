@@ -40,9 +40,11 @@ describe("vtPayloadLines — giấy mang khổ, không mang dạng", () => {
     expect([ln.kho_rong, ln.kho_dai, ln.dvt]).toEqual([1000, 0, "kg"]);
   });
 
-  it("vật tư khác không mang khổ", () => {
+  it("vật tư khác mang khổ tuỳ chọn (trống ⇒ 0 · 0)", () => {
     const [ln] = vtPayloadLines([dong()], "lan_dau");
-    expect("kho_rong" in ln).toBe(false);
+    expect([ln.kho_rong, ln.kho_dai]).toEqual([0, 0]);
+    const [co] = vtPayloadLines([dong({ kho_rong: 320 })], "lan_dau");
+    expect([co.kho_rong, co.kho_dai]).toEqual([320, 0]);
     // Bỏ hỏi lý do khi xin khác kế hoạch: dòng gửi không còn trường lý do.
     expect("ly_do_chenh_lech" in ln).toBe(false);
   });
@@ -54,7 +56,7 @@ describe("vtPayloadNhapLai — yêu cầu nhập lại vật tư thừa", () => 
       dong({ tuKeHoach: false, sl_yeu_cau: 2, dvt: "kg" }),
       dong({ key: "vat_tu:8", hang_id: 8, tuKeHoach: false, sl_yeu_cau: 0, dvt: "kg" }),
     ]);
-    expect(ds).toEqual([{ hang_loai: "vat_tu", hang_id: 7, dvt: "kg", so_luong: 2 }]);
+    expect(ds).toEqual([{ hang_loai: "vat_tu", hang_id: 7, dvt: "kg", so_luong: 2, kho_rong: 0, kho_dai: 0 }]);
   });
 
   it("giấy mang khổ (ngắn × dài)", () => {

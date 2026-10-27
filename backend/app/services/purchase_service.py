@@ -85,7 +85,7 @@ from ..repositories.user_repo import UserRepository
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from .danh_gia_ncc import DanhGiaNcc, tu_tong_hop
 from .dinh_dang import so_vn
-from .kho_giay import chuan_kho, co_don_vi_goc, don_vi_khai
+from .kho_giay import chuan_kho, co_don_vi_goc, co_kho, don_vi_khai
 from .rbac_service import AuthorizationService
 from .stock_request_service import StockRequestConflict, StockRequestError
 
@@ -258,7 +258,7 @@ def _doc_kho(get, hang_loai: str | None, *, de_trong: bool = False) -> tuple[int
     r, d = get("kho_rong"), get("kho_dai")
     if de_trong and r is None and d is None:
         return None, None
-    if hang_loai is not None and hang_loai != "giay":
+    if hang_loai is not None and not co_kho(hang_loai):
         return 0, 0
     if hang_loai is None and not de_trong:
         return 0, 0
@@ -833,7 +833,8 @@ class PurchaseService:
         """
         from .vat_lieu_kho_service import VatLieuKhoError
 
-        giay = hang_loai == "giay"
+        # Khổ: giấy + vật tư (khổ tuỳ chọn, 27/10/2026) — biến giữ tên `giay` cho gọn diff.
+        giay = co_kho(hang_loai)
         kr, kd = chuan_kho(kho_rong, kho_dai) if giay else (0, 0)
         # Giấy không truyền gốc ⇒ `ds` GỘP họ tờ + họ đơn vị giá, mỗi dòng mang `goc` của họ nó:
         # một bản cho mọi dòng giá, khỏi nạp lại bảng đơn vị theo từng họ.
@@ -1138,8 +1139,9 @@ class PurchaseService:
     @staticmethod
     def _kho_dong_gia(hang_loai, kho_rong, kho_dai) -> tuple[int, int]:
         """Khổ của một dòng giá giấy (mm, cạnh ngắn trước; chỉ rộng ⇒ `r, 0`; trống ⇒ 0 · 0). Giấy
-        KHÔNG còn dạng bán cuộn/tờ (chủ chốt 10/10/2026) — tờ hay kg là do ĐVT. Không phải giấy ⇒ 0 · 0."""
-        if hang_loai != "giay":
+        KHÔNG còn dạng bán cuộn/tờ (chủ chốt 10/10/2026) — tờ hay kg là do ĐVT. Vật tư có khổ tuỳ chọn
+        như giấy (27/10/2026); hàng khác ⇒ 0 · 0."""
+        if not co_kho(hang_loai):
             return 0, 0
         try:
             a, b = int(kho_rong or 0), int(kho_dai or 0)
@@ -2687,7 +2689,7 @@ class PurchaseService:
         for line in cleaned_lines:
             src_line_id = getattr(line, "department_request_line_id", None)
             if src_line_id is None:
-                if getattr(line, "hang_loai", None) != "giay":
+                if not co_kho(getattr(line, "hang_loai", None)):
                     line.kho_rong, line.kho_dai = 0, 0
                 continue
             if src_line_id not in dong_nguon:
@@ -2703,15 +2705,15 @@ class PurchaseService:
                 line.hang_loai = getattr(goc, "hang_loai", None)
                 line.hang_id = getattr(goc, "hang_id", None)
             # Khổ MUA mặc định = khổ CẦN của dòng yêu cầu (spec §4.4); client gửi khổ thì giữ khổ
-            # mua (thu mua đổi khổ khi lập đơn là hợp lệ). Hàng khác giấy luôn 0 · 0.
+            # mua (thu mua đổi khổ khi lập đơn là hợp lệ). Hàng không mang khổ luôn 0 · 0.
             if getattr(line, "kho_rong", None) is None:
-                if line.hang_loai == "giay" and (line.hang_loai, line.hang_id) == (
+                if co_kho(line.hang_loai) and (line.hang_loai, line.hang_id) == (
                         getattr(goc, "hang_loai", None), getattr(goc, "hang_id", None)):
                     line.kho_rong = int(getattr(goc, "kho_rong", 0) or 0)
                     line.kho_dai = int(getattr(goc, "kho_dai", 0) or 0)
                 else:
                     line.kho_rong, line.kho_dai = 0, 0
-            elif line.hang_loai != "giay":
+            elif not co_kho(line.hang_loai):
                 line.kho_rong, line.kho_dai = 0, 0
 
     def _clean_lines(
@@ -3416,8 +3418,8 @@ class PurchaseService:
     def _kho_nhan_dong(line, item) -> tuple[int, int]:
         """Khổ THỰC NHẬN để lưu (07/10/2026; nới 10/10/2026 khi bỏ dạng cuộn/tờ). Mọi dòng giấy ghi
         được: hai cạnh hoặc chỉ rộng, chuẩn cạnh ngắn trước; bằng khổ đặt hoặc bỏ trống ⇒ 0 · 0
-        (theo khổ đặt). Hàng khác bỏ qua khổ."""
-        if getattr(line, "hang_loai", None) != "giay":
+        (theo khổ đặt). Vật tư cùng luật (27/10/2026); hàng khác bỏ qua khổ."""
+        if not co_kho(getattr(line, "hang_loai", None)):
             return 0, 0
         dat = chuan_kho(int(getattr(line, "kho_rong", 0) or 0), int(getattr(line, "kho_dai", 0) or 0))
         nhan = chuan_kho(int(item.get("kho_rong") or 0), int(item.get("kho_dai") or 0))

@@ -240,7 +240,7 @@ describe("Tab Vật tư mở form Kho", () => {
       can_luc: "2026-10-09T13:30:00", ghi_chu: null,
       lines: [
         { hang_loai: "giay", hang_id: 1, kho_rong: 790, kho_dai: 1090, dvt: "to", sl_yeu_cau: 175 },
-        { hang_loai: "vat_tu", hang_id: 9, dvt: "", sl_yeu_cau: 0 },
+        { hang_loai: "vat_tu", hang_id: 9, kho_rong: 0, kho_dai: 0, dvt: "", sl_yeu_cau: 0 },
       ],
     });
     // Gửi xong thì ngăn đóng.
@@ -315,7 +315,7 @@ describe("Tab Vật tư mở form Kho", () => {
     fireEvent.click(within(ngan).getByRole("button", { name: /Lưu thay đổi/ }));
     await waitFor(() => expect(ex.suaDeNghiVatTu).toHaveBeenCalledTimes(1));
     const body = (ex.suaDeNghiVatTu as ReturnType<typeof vi.fn>).mock.calls[0][2];
-    expect(body.lines).toEqual([{ hang_loai: "vat_tu", hang_id: 12, dvt: "kg", sl_yeu_cau: 5 }]);
+    expect(body.lines).toEqual([{ hang_loai: "vat_tu", hang_id: 12, kho_rong: 0, kho_dai: 0, dvt: "kg", sl_yeu_cau: 5 }]);
   });
 
   it("mở form rồi ô đơn vị tự điền: Esc đóng ngay, không hỏi bỏ nội dung đang nhập", async () => {

@@ -22,6 +22,7 @@ import {
 } from "../../../../components/MaterialCombobox";
 import { emptySupplierItem } from "../shared/helpers";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
+import { coKho } from "../../../../lib/khoGiay";
 import { money } from "../../../../utils/format";
 // Đơn vị lưu bằng MÃ (`mm`), tên hiển thị ("mm"/"mét") nằm ở danh mục — xem pages/tenDonVi.ts.
 import { tenDonVi, useNapTenDonVi } from "../../../tenDonVi";
@@ -102,7 +103,7 @@ export function SupplierItemsTab({
     return { item, originalIndex, quyDoi, heSo, giaVeGoc, khacGoc: daChonDonVi && heSo !== 1 };
   });
   const coCotGoc = dong.some((d) => d.khacGoc);
-  const coCotKho = dong.some((d) => d.item.hang_loai === "giay");
+  const coCotKho = dong.some((d) => coKho(d.item.hang_loai));
   const luoi = luoiCot(coCotKho, coCotGoc);
   const dangTim = itemSearchQ.trim() !== "";
 
@@ -242,7 +243,7 @@ export function SupplierItemsTab({
               placeholder="Gõ tên vật tư…"
             />
             {coCotKho &&
-              (item.hang_loai === "giay" ? (
+              (coKho(item.hang_loai) ? (
                 <div>
                   <span className="ncc-bg__nhan-o">Khổ</span>
                   {/* Hai cạnh, hoặc chỉ rộng (để trống ô dài). Khổ chỉ-rộng không khớp khổ hai cạnh

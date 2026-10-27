@@ -24,7 +24,7 @@ import { NganPhai, useDongNgan } from "../../../ke-toan/shared/NganPhai";
 import { fmtQty } from "../../../khoShared";
 import { OMuaCho } from "../../mua-cho/OMuaCho";
 import { SOURCE_TYPE_LABELS } from "../shared/constants";
-import { chuanKho, coDonViGoc } from "../../../../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho } from "../../../../lib/khoGiay";
 import { congNgay as congNgayVN } from "../../../../utils/ky";
 import { emptyLine, laGiayDong, phieuCoDuLieu, todayInputValue } from "../shared/helpers";
 import "../../../ke-toan/ke-toan.css";
@@ -115,8 +115,9 @@ export function RequestFormDrawer({
   const laChoLenh = !!form.nguon_lenh?.length || form.loai_mua === "cho_lsx";
 
   /** Tồn của dòng. Giấy: CÙNG khổ (khổ chỉ-rộng không khớp khổ hai cạnh), tách theo đơn vị gốc —
-   *  tờ và kg không cộng được nên mỗi đơn vị một số, hiện cạnh nhau. Vật tư khác: không khổ, tách
-   *  theo đơn vị gốc như giấy (kg và thùng không cộng được). Hàng khác: một số. */
+   *  tờ và kg không cộng được nên mỗi đơn vị một số, hiện cạnh nhau. Vật tư khác: khổ tuỳ chọn
+   *  (27/10/2026) — có khổ thì cùng khổ, trống khổ thì cộng mọi khổ; tách theo đơn vị gốc như giấy
+   *  (kg và thùng không cộng được). Hàng khác: một số. */
   function tonDong(l: DepartmentPurchaseRequestLineInput): { so: number; dv: string }[] | null {
     const rows = ton[`${l.hang_loai}:${l.hang_id}`];
     if (!rows) return null;
@@ -124,10 +125,11 @@ export function RequestFormDrawer({
     const laGiay = l.hang_loai === "giay";
     const [r0, d0] = chuanKho(l.kho_rong, l.kho_dai);
     if (laGiay && !r0) return null;
+    const theoKho = laGiay || r0 > 0;
     const theoGoc = new Map<string, { so: number; dv: string }>();
     for (const r of rows) {
       const [r1, d1] = chuanKho(r.kho_rong, r.kho_dai);
-      if (laGiay && (r1 !== r0 || d1 !== d0)) continue;
+      if (theoKho && (r1 !== r0 || d1 !== d0)) continue;
       const k = r.don_vi_goc ?? "";
       const cu = theoGoc.get(k) ?? { so: 0, dv: r.don_vi_goc_ten ?? r.don_vi_goc ?? "" };
       theoGoc.set(k, { ...cu, so: cu.so + r.ton });
@@ -333,7 +335,7 @@ export function RequestFormDrawer({
                       {line.item_name}
                     </td>
                     <td>
-                      {laGiay ? (
+                      {coKho(line.hang_loai) ? (
                         <KhungKho
                           rong={line.kho_rong ?? 0}
                           dai={line.kho_dai ?? 0}

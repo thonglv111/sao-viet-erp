@@ -38,9 +38,14 @@ def test_chuan_kho_canh_ngan_truoc_va_lam_tron_mm():
     assert chuan_kho(None, 0) == (0, 0)
 
 
-def test_khoa_ton_5_phan_tu_vat_tu_bo_kho_giay_giu_kho_va_don_vi_goc():
-    # Vật tư: bỏ khổ, GIỮ đơn vị gốc (mg 0390 — kg và thùng là hai dòng tồn).
-    assert khoa_ton("vat_tu", 7, kho_rong=780, kho_dai=905) == ("vat_tu", 7, 0, 0, "")
+def test_khoa_ton_5_phan_tu_giu_kho_va_don_vi_goc_ca_giay_lan_vat_tu():
+    # Vật tư có khổ tuỳ chọn như giấy (27/10/2026): khổ chuẩn cạnh ngắn trước, GIỮ đơn vị gốc.
+    assert khoa_ton("vat_tu", 7, kho_rong=905, kho_dai=780) == ("vat_tu", 7, 780, 905, "")
+    assert khoa_ton("vat_tu", 7, goc="kg", kho_rong=320) == ("vat_tu", 7, 320, 0, "kg")
+    assert khoa_ton("vat_tu", 7, goc="kg", kho_rong=320) != khoa_ton("vat_tu", 7, goc="kg", kho_rong=320,
+                                                                      kho_dai=500)
+    # Hàng khác (thành phẩm, khuôn) vẫn không khổ.
+    assert khoa_ton("thanh_pham", 7, kho_rong=780, kho_dai=905) == ("thanh_pham", 7, 0, 0, "")
     assert khoa_ton("vat_tu", 7, goc="KG") == ("vat_tu", 7, 0, 0, "kg")
     assert khoa_ton("vat_tu", 7, goc="kg") != khoa_ton("vat_tu", 7, goc="thung")
     assert khoa_ton("giay", 3, goc="to", kho_rong=905, kho_dai=780) == ("giay", 3, 780, 905, "to")
@@ -72,8 +77,10 @@ def test_khoa_dong_cung_ma_khac_kho_hoac_khac_goc_la_hai_dong():
     assert khoa_dong("giay", 3, "to", 780, 905) != khoa_dong("giay", 3, "to", 800, 1090)
     assert khoa_dong("giay", 3, "to", 905, 780) == khoa_dong("giay", 3, "to", 780, 905)
     assert khoa_dong("giay", 3, "to", 780, 905) != khoa_dong("giay", 3, "kg", 780, 905)
-    # Vật tư: khổ không vào khoá, đơn vị gốc có.
-    assert khoa_dong("vat_tu", 5, "cai", 1, 2) == khoa_dong("vat_tu", 5, "CAI")
+    # Vật tư: khổ vào khoá như giấy (27/10/2026), đơn vị gốc có.
+    assert khoa_dong("vat_tu", 5, "cai", 500, 700) == khoa_dong("vat_tu", 5, "CAI", 700, 500)
+    assert khoa_dong("vat_tu", 5, "cai", 500, 700) != khoa_dong("vat_tu", 5, "cai")
+    assert khoa_dong("vat_tu", 5, "cai", 320) != khoa_dong("vat_tu", 5, "cai", 320, 700)
     assert khoa_dong("vat_tu", 5, "cai") != khoa_dong("vat_tu", 5, "thung")
     assert khoa_dong("khuon", 5, "cai", 1, 2) == khoa_dong("khuon", 5, None)
 

@@ -37,7 +37,7 @@ from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from ..repositories.stock_lot_repo import goc_cua
-from .kho_giay import chuan_kho, co_don_vi_goc, khoa_dong, khoa_ton, nhan_kho
+from .kho_giay import chuan_kho, co_don_vi_goc, co_kho, khoa_dong, khoa_ton, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
@@ -361,8 +361,8 @@ class StockVoucherService:
     @staticmethod
     def _kho_cua_dong(rl, ln: dict, loai: str) -> tuple[int, int]:
         """Khổ hiệu lực của dòng phiếu. Phiếu NHẬP giấy khai khổ thì lấy khổ đó, bỏ trống ⇒ kế thừa dòng
-        yêu cầu. Hàng không phải giấy: 0 · 0."""
-        if rl.hang_loai != "giay":
+        yêu cầu. Vật tư cùng luật (khổ tuỳ chọn, 27/10/2026); hàng khác: 0 · 0."""
+        if not co_kho(rl.hang_loai):
             return 0, 0
         if loai == VOUCHER_NHAP:
             kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
@@ -391,7 +391,7 @@ class StockVoucherService:
                 raise StockVoucherError(
                     f"Lô {lot.ma_lo} đếm theo {self._ten_dv(lot.don_vi_goc)}, "
                     f"dòng xin theo {self._ten_dv(goc_dong)}.")
-        if rl is not None and rl.hang_loai == "giay":
+        if rl is not None and co_kho(rl.hang_loai):
             kr, kd = chuan_kho(rl.kho_rong, rl.kho_dai)
             if kr and (int(lot.kho_rong or 0), int(lot.kho_dai or 0)) != (kr, kd):
                 raise StockVoucherError(
@@ -427,7 +427,7 @@ class StockVoucherService:
             raise StockVoucherError(
                 "Điều chuyển giấy phải chọn đúng dòng tồn (khổ + đơn vị) — mỗi khổ, mỗi đơn vị một dòng.")
         raise StockVoucherError(
-            "Điều chuyển phải chọn đúng dòng tồn theo đơn vị — mỗi đơn vị một dòng.")
+            "Điều chuyển phải chọn đúng dòng tồn (khổ + đơn vị) — mỗi khổ, mỗi đơn vị một dòng.")
 
     # --- Ghi sổ -------------------------------------------------------------
 
@@ -888,7 +888,7 @@ class StockVoucherService:
             # GIẤY chuyển theo NHÓM LÔ (khổ, đơn vị gốc), VẬT TƯ theo đơn vị gốc: mỗi nhóm một dòng,
             # số theo đơn vị gốc đó.
             kr, kd = (chuan_kho(it.get("kho_rong"), it.get("kho_dai"))
-                      if hang_loai == "giay" else (0, 0))
+                      if co_kho(hang_loai) else (0, 0))
             dv_goc = (self._goc_dieu_chuyen(hang_loai, hang_id, kho_nguon_id, it, kr, kd)
                       if co_don_vi_goc(hang_loai) else None)
             kd_key = khoa_dong(hang_loai, hang_id, dv_goc, kr, kd)

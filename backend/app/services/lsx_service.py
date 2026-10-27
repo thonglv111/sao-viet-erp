@@ -72,7 +72,7 @@ from ..services.dong_giay import (
     ban_do_tram, dich_chuoi, don_vi_chuoi, ma_cua_tram, tram_cua, tren_dong_giay,
 )
 from ..models.don_vi_do import DonViDo
-from ..services.kho_giay import DON_VI_TO_KHO, GocMatHang, don_vi_khai, dong_giay_theo_dau_vao
+from ..services.kho_giay import DON_VI_TO_KHO, GocMatHang, chuan_kho, don_vi_khai, dong_giay_theo_dau_vao
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
 from ..services.lsx_danh_muc_doi import vat_tu_lech
@@ -3804,6 +3804,8 @@ class LsxService:
                 # đúng thứ đang hiện trên màn, thay vì để tên/đơn vị rỗng.
                 mon = mons.get(cap)
                 cu = cu_theo_cap.get(cap)
+                kho_dong = ((int(getattr(cu, "kho_rong", 0) or 0), int(getattr(cu, "kho_dai", 0) or 0))
+                            if cap[0] == HANG_GIAY else chuan_kho(item.get("kho_rong"), item.get("kho_dai")))
                 row.vat_tus.append(LsxCongDoanVatTu(
                     hang_loai=cap[0],
                     vat_tu_id=cap[1],
@@ -3822,8 +3824,8 @@ class LsxService:
                     # Giấy giữ khổ của dòng cũ cùng mã: Cắt giấy cuộn đọc RỘNG CUỘN người kế hoạch
                     # chọn từ chính dòng này (`_dong_giay_khau_chuan_bi`); về 0 là mất cuộn, 0 kg.
                     # Bước khác thì `_dong_bo_dong_giay` ghi đè khổ theo đầu vào ngay sau.
-                    kho_rong=(int(getattr(cu, "kho_rong", 0) or 0) if cap[0] == HANG_GIAY else 0),
-                    kho_dai=(int(getattr(cu, "kho_dai", 0) or 0) if cap[0] == HANG_GIAY else 0),
+                    # Vật tư khác: khổ TUỲ CHỌN người kế hoạch gõ trên dòng (27/10/2026) — trống = 0 · 0.
+                    kho_rong=kho_dong[0], kho_dai=kho_dong[1],
                     # Giấy: số tạm 0 (cùng đơn vị, dạng, khổ) — `_dong_bo_dong_giay` ghi đè ngay sau.
                     so_luong=(0 if cap[0] == HANG_GIAY else tinh_lai[cap]),
                     gia_tri_chip=(None if cap[0] == HANG_GIAY

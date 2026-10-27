@@ -16,7 +16,7 @@ import { Button } from "../../../../components/Button";
 import { ChonNgay } from "../../../../components/ChonNgay";
 import { Icon } from "../../../../components/Icons";
 import { KhungKho } from "../../../../components/kho-giay/KhungKho";
-import { chuanKho } from "../../../../lib/khoGiay";
+import { chuanKho, coKho } from "../../../../lib/khoGiay";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 import "../../../ke-toan/ke-toan.css";
 import "../../../kho-ngan-a.css";
@@ -41,8 +41,9 @@ import type { AnhCho } from "../shared/types";
  */
 const so = (n: number) => Math.round(n).toLocaleString("vi-VN");
 
-/** Dòng giấy — có khổ nhận sửa được (hai cạnh hoặc chỉ rộng; 10/10/2026 bỏ dạng cuộn/tờ). */
-const laGiay = (line: PurchaseRequestRow["lines"][number]) => line.hang_loai === "giay";
+/** Dòng mang khổ — có khổ nhận sửa được (hai cạnh hoặc chỉ rộng; 10/10/2026 bỏ dạng cuộn/tờ). Giấy +
+ *  vật tư (khổ tuỳ chọn, 27/10/2026). */
+const laGiay = (line: PurchaseRequestRow["lines"][number]) => coKho(line.hang_loai);
 /** Hai khổ giống nhau sau khi xếp cạnh ngắn trước. Khổ chỉ-rộng KHÔNG bằng khổ hai cạnh. */
 const cungKho = (a: { rong: number; dai: number }, b: { rong: number; dai: number }) => {
   const [ar, ad] = chuanKho(a.rong, a.dai);
@@ -285,7 +286,7 @@ export function DeliveryDialog({
         && khoNhanThieuCanh(line, kho);
     });
     if (thieuCanh) {
-      setError("Khổ nhận của giấy tờ cần đủ hai cạnh.");
+      setError("Khổ nhận cần đủ hai cạnh như khổ đặt.");
       return;
     }
     setBusy(true);
@@ -378,6 +379,7 @@ export function DeliveryDialog({
   };
   const soDong = row.lines.filter((l) => (Number(soNhan[l.id]) || 0) > 0).length;
   const coGiay = row.lines.some((l) => l.hang_loai === "giay");
+  const coCotKho = row.lines.some((l) => coKho(l.hang_loai));
 
   const chan = (
     <>
@@ -433,10 +435,10 @@ export function DeliveryDialog({
             </div>
             <section className="kna-the kna-the--cat">
               <div className="lds-bang lds-bang--nhap dfa-bang">
-                <table className="lds-g kna-tren" style={{ minWidth: 558 + (coGiay ? 296 : 0) }}>
+                <table className="lds-g kna-tren" style={{ minWidth: 558 + (coCotKho ? 200 : 0) + (coGiay ? 96 : 0) }}>
                   <colgroup>
                     <col />
-                    {coGiay && <col style={{ width: 200 }} />}
+                    {coCotKho && <col style={{ width: 200 }} />}
                     {coGiay && <col style={{ width: 96 }} />}
                     <col style={{ width: 104 }} />
                     <col style={{ width: 104 }} />
@@ -445,7 +447,7 @@ export function DeliveryDialog({
                   <thead>
                     <tr>
                       <th>Vật tư</th>
-                      {coGiay && <th>Khổ nhận</th>}
+                      {coCotKho && <th>Khổ nhận</th>}
                       {coGiay && <th className="n">Định lượng</th>}
                       <th className="n">Đặt</th>
                       <th className="n">Đã nhận</th>
@@ -468,9 +470,9 @@ export function DeliveryDialog({
                           <td>
                             <div className="kna-hang__ten">{line.item_name}</div>
                           </td>
-                          {coGiay && (
+                          {coCotKho && (
                             <td>
-                              {line.hang_loai === "giay" && (
+                              {laGiay(line) && (
                                 <KhungKho
                                   ariaLabel={`Khổ nhận ${line.item_name}`}
                                   canh={khacKho}

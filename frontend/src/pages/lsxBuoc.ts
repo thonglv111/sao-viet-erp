@@ -495,12 +495,15 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
         ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: null,
             tu_dong: v.tu_dong, kho_rong: 0, kho_dai: 0 }
         // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong — trừ dòng
-        // người đã gõ định mức (`sua_tay`): gửi đúng số đó, máy chủ giữ nguyên.
+        // người đã gõ định mức (`sua_tay`): gửi đúng số đó, máy chủ giữ nguyên. Khổ tuỳ chọn người
+        // kế hoạch gõ (27/10/2026) luôn gửi; trống = 0 · 0 = không khổ.
         : v.sua_tay && v.so_luong.trim() !== "" && Number.isFinite(Number(v.so_luong))
           ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: false, sua_tay: true,
-              so_luong: Number(v.so_luong), gia_tri_chip: v.gia_tri_chip ?? {} }
+              so_luong: Number(v.so_luong), gia_tri_chip: v.gia_tri_chip ?? {},
+              kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 }
           : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
-              gia_tri_chip: v.gia_tri_chip ?? {} })),
+              gia_tri_chip: v.gia_tri_chip ?? {},
+              kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 })),
       // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
       nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
       ghi_chu: ot(r.ghi_chu),

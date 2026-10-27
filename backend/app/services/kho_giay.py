@@ -6,7 +6,7 @@ import math
 
 #: Khoá so tồn / giữ chỗ / nhu cầu: (hang_loai, hang_id, kho_rong, kho_dai, don_vi_goc).
 #: Giấy KHÔNG còn DẠNG cuộn/tờ (chủ chốt 10/10/2026): một mã giấy tách theo KHỔ + ĐƠN VỊ GỐC của dòng.
-#: Vật tư khác (cả thành phẩm — kho mang `vat_tu`) tách theo ĐƠN VỊ GỐC, khổ 0 · 0 (mg 0390). Đơn vị
+#: Vật tư khác tách theo KHỔ (tuỳ chọn, 27/10/2026) + ĐƠN VỊ GỐC (mg 0390). Đơn vị
 #: gốc = đơn vị đã khai ở danh mục mà nhóm của nó chứa ĐVT dòng (`GocMatHang`). Hàng khác: "".
 Khoa = tuple[str, int, int, int, str]
 
@@ -16,6 +16,21 @@ CO_DON_VI_GOC = frozenset({"giay", "vat_tu"})
 
 def co_don_vi_goc(hang_loai: str | None) -> bool:
     return hang_loai in CO_DON_VI_GOC
+
+
+#: `hang_loai` mà dòng mang KHỔ. Vật tư khác có khổ TUỲ CHỌN như giấy (chốt 27/10/2026, spec
+#: 2026-10-27-kho-cho-vat-tu): màng bóng khổ rộng 320, decal tấm 500 × 700; mực, keo để trống.
+CO_KHO = frozenset({"giay", "vat_tu"})
+
+
+def co_kho(hang_loai: str | None) -> bool:
+    return hang_loai in CO_KHO
+
+
+def kho_mo(k) -> bool:
+    """Khoá 5 phần tử của VẬT TƯ trống khổ (lệnh không khai khổ) ⇒ tra tồn / giữ chỗ bằng TỔNG mọi
+    khổ cùng mã + đơn vị gốc. Giấy KHÔNG: khổ 0 · 0 của giấy là lô cũ chưa có khổ, so tuyệt đối."""
+    return len(k) == 5 and k[0] == "vat_tu" and not int(k[2] or 0) and not int(k[3] or 0)
 
 
 def _mm(x) -> int:
@@ -71,25 +86,23 @@ def _goc(goc) -> str:
 
 def khoa_ton(hang_loai: str, hang_id: int, *, goc: str | None = None,
              kho_rong=0, kho_dai=0) -> Khoa:
-    """Giấy: (giay, id, rộng, dài, đơn vị gốc) — khổ chỉ-rộng là (rộng, 0) và KHÔNG khớp khổ hai
-    cạnh; cùng khổ khác đơn vị gốc (tờ vs kg) là hai món. Vật tư: (vat_tu, id, 0, 0, đơn vị gốc).
+    """Giấy + vật tư: (loai, id, rộng, dài, đơn vị gốc) — khổ chỉ-rộng là (rộng, 0) và KHÔNG khớp khổ
+    hai cạnh; cùng khổ khác đơn vị gốc (tờ vs kg) là hai món. Vật tư trống khổ: (vat_tu, id, 0, 0, gốc).
     Hàng khác: (loai, id, 0, 0, "")."""
-    if hang_loai == "vat_tu":
-        return ("vat_tu", int(hang_id), 0, 0, _goc(goc))
-    if hang_loai != "giay":
+    if not co_kho(hang_loai):
         return (hang_loai, int(hang_id), 0, 0, "")
     kr, kd = chuan_kho(kho_rong, kho_dai)
-    return ("giay", int(hang_id), kr, kd, _goc(goc))
+    return (hang_loai, int(hang_id), kr, kd, _goc(goc))
 
 
 def khoa_dong(hang_loai: str, hang_id: int, goc: str | None, kho_rong=0, kho_dai=0) -> tuple:
     """Khoá CHỐNG TRÙNG dòng trên một chứng từ (yêu cầu kho, phiếu, đề nghị cấp): cùng mã khác
-    khổ / khác đơn vị gốc là hai dòng hợp lệ (vật tư: cùng mã khác đơn vị gốc)."""
-    if hang_loai == "vat_tu":
-        return ("vat_tu", int(hang_id), _goc(goc) or None, 0, 0)
-    if hang_loai != "giay":
+    khổ / khác đơn vị gốc là hai dòng hợp lệ (giấy lẫn vật tư)."""
+    if not co_kho(hang_loai):
         return (hang_loai, int(hang_id), None, 0, 0)
     kr, kd = chuan_kho(kho_rong, kho_dai)
+    if hang_loai == "vat_tu":
+        return ("vat_tu", int(hang_id), _goc(goc) or None, kr, kd)
     return ("giay", int(hang_id), _goc(goc), kr, kd)
 
 

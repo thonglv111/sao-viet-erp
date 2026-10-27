@@ -130,7 +130,8 @@ class LsxBuocVatTuIn(BaseModel):
     # True = dòng MÁY bung khi chọn công việc khoán ⇒ lần bung sau thay được. False = người tự thêm
     # hoặc đã sửa số ⇒ máy chừa ra. Mặc định False: client cũ không gửi thì coi như người khai.
     tu_dong: bool = False
-    # Khổ dòng GIẤY: bị bỏ qua (máy chủ lấy từ quy cách lệnh). Giữ field cho client cũ.
+    # Khổ dòng GIẤY: bị bỏ qua (máy chủ lấy từ quy cách lệnh). Vật tư khác: khổ TUỲ CHỌN người kế
+    # hoạch gõ (mm; một cạnh = khổ chỉ-rộng như màng bóng; 0 · 0 = không khổ) — 27/10/2026.
     kho_rong: int = 0
     kho_dai: int = 0
     # CHIP của vật tư: {mã chip: số} — chép từ phiếu tính giá, sửa được ở lệnh nháp.

@@ -201,3 +201,39 @@ def test_dong_kho_0_la_moi_kho_khop_moi_kho_xep_sau_dung_kho(client, giay_id):
     r = client.get("/api/supplier-items/so-gia", headers=h, params={
         "hang_loai": "giay", "hang_id": giay_id})
     assert all(x["dung_kho"] for x in r.json()["items"])
+
+
+def test_vat_tu_khac_co_kho_tuy_chon_cung_luat_giay(client, giay_id):
+    """Vật tư khác có khổ tuỳ chọn như giấy (27/10/2026): dòng giá màng bóng lưu khổ chỉ-rộng, so giá
+    chỉ khớp đúng khổ + dòng trống khổ (bán mọi khổ, xếp sau); không gửi khổ ⇒ mọi dòng đúng khổ."""
+    from app.models.vat_lieu_kho import VatTuInAn
+
+    db = SessionLocal()
+    try:
+        vt = VatTuInAn(ma="MANG-BONG", ten="Màng bóng", don_vi_gia="kg")
+        db.add(vt)
+        db.commit()
+        vid = vt.id
+    finally:
+        db.close()
+
+    def dong(**kw):
+        return {"hang_loai": "vat_tu", "hang_id": vid, "item_name": "Màng bóng", "unit": "kg",
+                "vat_percent": 8, **kw}
+
+    h = _h(client)
+    r = _ncc(client, h, "Màng Việt", [dong(kho_rong=320, unit_price=50_000),
+                                      dong(kho_rong=350, unit_price=48_000)])
+    assert r.status_code == 201, r.text
+    assert sorted((x["kho_rong"], x["kho_dai"]) for x in r.json()["items"]) == [(320, 0), (350, 0)]
+    assert _ncc(client, h, "Màng Mọi Khổ", [dong(unit_price=40_000)]).status_code == 201
+
+    r = client.get("/api/supplier-items/so-gia", headers=h, params={
+        "hang_loai": "vat_tu", "hang_id": vid, "don_vi": "kg", "kho_rong": 320})
+    assert r.status_code == 200, r.text
+    assert [(x["supplier_name"], x["kho_rong"], x["dung_kho"]) for x in r.json()["items"]] == [
+        ("Màng Việt", 320, True), ("Màng Mọi Khổ", 0, False)]
+
+    r = client.get("/api/supplier-items/so-gia", headers=h, params={
+        "hang_loai": "vat_tu", "hang_id": vid, "don_vi": "kg"})
+    assert len(r.json()["items"]) == 3 and all(x["dung_kho"] for x in r.json()["items"])

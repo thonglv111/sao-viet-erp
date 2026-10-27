@@ -10,7 +10,7 @@ import type {
   PurchaseRequestRow,
   SupplierRow,
 } from "../../../../api/client";
-import { chuanKho, coDonViGoc } from "../../../../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho } from "../../../../lib/khoGiay";
 import { homNayVN } from "../../../../utils/ky";
 import { SO_NCC_GOI_Y } from "./constants";
 import type { ChaoGia, FormLine, FormState } from "./types";
@@ -21,7 +21,7 @@ import type { ChaoGia, FormLine, FormState } from "./types";
 export function khoNhapTuDongMua(
   pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai"> | undefined,
 ): { kho_rong: number; kho_dai: number } {
-  if (pl?.hang_loai !== "giay") return { kho_rong: 0, kho_dai: 0 };
+  if (!pl || !coKho(pl.hang_loai)) return { kho_rong: 0, kho_dai: 0 };
   const [r, d] = chuanKho(pl.kho_rong, pl.kho_dai);
   return { kho_rong: r, kho_dai: d };
 }
@@ -32,7 +32,7 @@ export function khoNhapTuDongMua(
 export function nhanKhoMua(
   pl: Pick<PurchaseRequestLineOut, "hang_loai" | "kho_rong" | "kho_dai">,
 ): string {
-  if (pl.hang_loai !== "giay") return "";
+  if (!coKho(pl.hang_loai)) return "";
   const [r, d] = chuanKho(pl.kho_rong, pl.kho_dai);
   if (!r) return "";
   return d ? `Khổ ${r} × ${d} mm` : `Khổ ${r} mm`;
@@ -154,13 +154,16 @@ const maDv = (ma: string | null | undefined) => (ma ?? "").trim().toLowerCase();
 
 /** Khổ dòng bảng giá so với khổ dòng đơn (luật khớp khổ của máy chủ, 10/10/2026): chuẩn hoá cạnh
  *  ngắn trước rồi so bằng ⇒ "dung"; dòng giá khổ 0 · 0 = NCC bán MỌI khổ ⇒ "moi" (khớp, xếp sau dòng
- *  đúng khổ); còn lại ⇒ null. Khổ chỉ-rộng (r, 0) chỉ khớp (r, 0), không khớp khổ hai cạnh. */
+ *  đúng khổ); còn lại ⇒ null. Khổ chỉ-rộng (r, 0) chỉ khớp (r, 0), không khớp khổ hai cạnh.
+ *  Dòng VẬT TƯ trống khổ (khổ tuỳ chọn, 27/10/2026) ⇒ mọi dòng giá đều "dung" — như máy chủ không
+ *  gửi khổ thì không lọc khổ. Giấy trống khổ vẫn so tuyệt đối. */
 export function khopKho(
   item: { kho_rong?: number | null; kho_dai?: number | null },
-  line: { kho_rong?: number | null; kho_dai?: number | null },
+  line: { hang_loai?: string | null; kho_rong?: number | null; kho_dai?: number | null },
 ): "dung" | "moi" | null {
   const [ir, id] = chuanKho(item.kho_rong, item.kho_dai);
   const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
+  if (line.hang_loai === "vat_tu" && !r) return "dung";
   if (ir === r && id === d) return "dung";
   if (!ir && !id) return "moi";
   return null;
@@ -266,8 +269,9 @@ export function chaoGiaChoMatHang(
     line.hang_loai && line.hang_id && i.hang_id
       ? i.hang_loai === line.hang_loai && i.hang_id === line.hang_id
       : normalizeItemName(i.item_name) === ten;
-  const laGiay = line.hang_loai === "giay";
-  // Giấy + vật tư khác tách theo nhóm đơn vị đã khai (khổ vẫn chỉ giấy).
+  // Khổ: giấy + vật tư (khổ tuỳ chọn, 27/10/2026 — `khopKho` cho vật tư trống khổ khớp mọi dòng).
+  const laGiay = coKho(line.hang_loai);
+  // Giấy + vật tư khác tách theo nhóm đơn vị đã khai.
   const coGoc = coDonViGoc(line.hang_loai);
   const unit = line.unit ?? "";
   const gocCua = (i: DongGia) => maDv(i.don_vi_goc) || traDonVi(dsDonVi, i.unit)?.goc || "";

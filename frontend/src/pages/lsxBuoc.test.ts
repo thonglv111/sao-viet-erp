@@ -307,12 +307,13 @@ describe("toBody — dòng giấy dẫn xuất từ đầu vào của bước", 
     so_luong: "5000", tu_dong: false, kho_rong, kho_dai,
   });
 
-  it("dòng giấy chỉ gửi MÃ (số + khổ máy chủ tự ghi); dòng vật tư không gửi khổ", () => {
+  it("dòng giấy chỉ gửi MÃ (số + khổ máy chủ tự ghi); dòng vật tư gửi khổ người kế hoạch gõ", () => {
     const [body] = toBody([dong({ ten: "In offset", vat_tus: [
-      mon("giay", "905", "780"), mon("vat_tu", "", "")] })]);
+      mon("giay", "905", "780"), mon("vat_tu", "", ""), { ...mon("vat_tu", "320", ""), vat_tu_id: 8 }] })]);
     expect(body.vat_tus).toEqual([
       { hang_loai: "giay", vat_tu_id: 7, so_luong: null, tu_dong: false, kho_rong: 0, kho_dai: 0 },
-      { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {} },
+      { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {}, kho_rong: 0, kho_dai: 0 },
+      { hang_loai: "vat_tu", vat_tu_id: 8, tu_dong: false, gia_tri_chip: {}, kho_rong: 320, kho_dai: 0 },
     ]);
   });
 });
@@ -324,7 +325,8 @@ describe("toBody — vật tư khác giấy", () => {
       { hang_loai: "giay", vat_tu_id: 9, so_luong: "10", tu_dong: false, kho_rong: "0", kho_dai: "0" },
     ] } as never;
     const body = toBody([r])[0];
-    expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 } });
+    expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 },
+      kho_rong: 0, kho_dai: 0 });
     expect(body.vat_tus![1].so_luong).toBeNull();
   });
   it("dòng người đã gõ định mức gửi kèm so_luong + sua_tay", () => {
@@ -332,7 +334,8 @@ describe("toBody — vật tư khác giấy", () => {
       { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "12.5", tu_dong: true, sua_tay: true, gia_tri_chip: {}, chips: [] },
     ] } as never;
     expect(toBody([r])[0].vat_tus![0]).toEqual(
-      { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {} });
+      { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {},
+        kho_rong: 0, kho_dai: 0 });
   });
 });
 

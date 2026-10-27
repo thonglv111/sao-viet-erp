@@ -42,7 +42,7 @@ from ..repositories.tim_khong_dau import bo_dau
 from ..repositories.user_repo import UserRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..services.kho_gia_goc_service import GiaGocError, chan_chot_khi_chua_gia
-from ..services.kho_giay import chuan_kho, co_don_vi_goc, nhan_kho
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, co_kho, nhan_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.vat_lieu_kho_service import VatLieuKhoService
 from ..schemas.stock import (
@@ -648,11 +648,9 @@ def _kho_nxt(ln) -> tuple[int, int, str]:
     """(rộng, dài, đơn vị gốc) của dòng phiếu trong N-X-T: giấy tách dòng theo khổ + đơn vị gốc, vật tư
     theo đơn vị gốc (cùng khoá tồn — tờ với kg, thùng với kg khác thang nên không bao giờ chung một
     dòng); hàng khác (0, 0, "") gom theo mã."""
-    if ln.hang_loai == "giay":
+    if co_kho(ln.hang_loai):
         kr, kd = chuan_kho(ln.kho_rong, ln.kho_dai)
         return (kr, kd, (ln.don_vi_goc or "").strip().lower())
-    if co_don_vi_goc(ln.hang_loai):
-        return (0, 0, (ln.don_vi_goc or "").strip().lower())
     return (0, 0, "")
 
 

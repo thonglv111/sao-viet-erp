@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..models.accounting import PAYMENT_VOUCHER_PAID, PaymentVoucher, PaymentVoucherLine
 from ..models.department import Department
 from ..models.user import User
+from ..services.kho_giay import co_kho
 from .loc_danh_sach import dk_khoang_ngay
 from .tim_khong_dau import bo_dau, bo_dau_sql
 from ..models.purchase import (
@@ -542,7 +543,7 @@ class SupplierRepository:
         Chỉ NCC đang hoạt động và dòng còn `is_active`: so giá với NCC đã ngưng hợp tác là mời
         người ta chọn một đường không đi được.
 
-        Giấy có gửi khổ (`kho_rong` > 0, đã chuẩn ngắn × dài): dòng ĐÚNG khổ đó + dòng khổ 0 · 0
+        Giấy / vật tư có gửi khổ (`kho_rong` > 0, đã chuẩn ngắn × dài): dòng ĐÚNG khổ đó + dòng khổ 0 · 0
         ("NCC bán mọi khổ"). Khổ chỉ-rộng `(r, 0)` KHÔNG khớp khổ hai cạnh và ngược lại (chủ chốt
         10/10/2026).
         """
@@ -552,7 +553,8 @@ class SupplierRepository:
             SupplierItem.hang_loai == hang_loai,
             SupplierItem.hang_id == hang_id,
         ]
-        if hang_loai == "giay" and kho_rong:
+        # Vật tư có khổ tuỳ chọn cùng luật giấy (27/10/2026).
+        if co_kho(hang_loai) and kho_rong:
             dk.append(or_(
                 and_(SupplierItem.kho_rong == kho_rong, SupplierItem.kho_dai == kho_dai),
                 and_(SupplierItem.kho_rong == 0, SupplierItem.kho_dai == 0),

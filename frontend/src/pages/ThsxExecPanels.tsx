@@ -23,7 +23,7 @@ import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { ChipTT, OTim, type MauTT } from "../components/LuoiDs";
 import { useAuth } from "../auth/useAuth";
-import { chuanKho, coDonViGoc, nhanKhoGiay } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho, nhanKhoGiay } from "../lib/khoGiay";
 import { TaoYeuCauP2, type DongTuCongViec, type DraftLine, type TuCongViec } from "./KhoDeNghiPage";
 import { num, ngayGio, gioNgan } from "./keHoachSxShared";
 import { ChungTuKhoNoi, type ChungTuKho } from "./gia-cong/ChungTuKhoNoi";
@@ -2152,12 +2152,12 @@ type VtKhoaVao = { hang_loai: string; hang_id: number; don_vi_goc?: string | nul
   kho_rong?: number; kho_dai?: number };
 
 /** Khoá một dòng vật tư — phản chiếu `khoa_dong` của máy chủ: loại · mã · đơn vị gốc · khổ (ngắn ×
- *  dài; chỉ rộng thì dài 0). Vật tư khác: loại · mã · đơn vị gốc · 0 · 0. Hàng khác chỉ loại · mã. */
+ *  dài; chỉ rộng thì dài 0). Vật tư khác cùng luật (khổ tuỳ chọn, 27/10/2026; trống ⇒ 0 · 0). Hàng
+ *  khác chỉ loại · mã. */
 export function vtKhoa(x: VtKhoaVao): string {
   if (!coDonViGoc(x.hang_loai)) return `${x.hang_loai}:${x.hang_id}`;
-  if (x.hang_loai !== "giay") return `${x.hang_loai}:${x.hang_id}:${(x.don_vi_goc ?? "").trim().toLowerCase()}:0:0`;
   const [r, d] = chuanKho(x.kho_rong, x.kho_dai);
-  return `giay:${x.hang_id}:${(x.don_vi_goc ?? "").trim().toLowerCase()}:${r}:${d}`;
+  return `${x.hang_loai}:${x.hang_id}:${(x.don_vi_goc ?? "").trim().toLowerCase()}:${r}:${d}`;
 }
 
 /** Dòng đã chọn được mặt hàng nhưng Ô ĐƠN VỊ CỦA CHÍNH DÒNG ĐÓ đang trống. BE không nhận nổi một
@@ -2215,7 +2215,7 @@ function vtCanTro(
 export function vtPayloadNhapLai(dongs: VtDongForm[]): SxVatTuNhapLaiIn["lines"] {
   return vtPayloadLines(dongs, "bo_sung").map((l) => ({
     hang_loai: l.hang_loai, hang_id: l.hang_id, dvt: l.dvt, so_luong: l.sl_yeu_cau,
-    ...(l.hang_loai === "giay" ? { kho_rong: l.kho_rong, kho_dai: l.kho_dai } : {}),
+    ...(coKho(l.hang_loai) ? { kho_rong: l.kho_rong, kho_dai: l.kho_dai } : {}),
   }));
 }
 
@@ -2231,8 +2231,8 @@ export function vtPayloadLines(dongs: VtDongForm[], loai: "lan_dau" | "bo_sung")
     .filter((d) => (loai === "lan_dau" ? d.tuKeHoach || d.sl_yeu_cau > VT_EPS : d.sl_yeu_cau > VT_EPS));
   return giu.map((d) => ({
     hang_loai: d.hang_loai, hang_id: d.hang_id,
-    // Giấy mang khổ (ngắn × dài; chỉ rộng thì dài 0) — máy chủ chuẩn hoá lại và tự suy đơn vị gốc.
-    ...(d.hang_loai === "giay"
+    // Giấy + vật tư mang khổ (ngắn × dài; chỉ rộng thì dài 0) — máy chủ chuẩn hoá lại và tự suy đơn vị gốc.
+    ...(coKho(d.hang_loai)
       ? {
           kho_rong: chuanKho(d.kho_rong, d.kho_dai)[0],
           kho_dai: chuanKho(d.kho_rong, d.kho_dai)[1],

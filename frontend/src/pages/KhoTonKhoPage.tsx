@@ -35,7 +35,7 @@ import { Select } from "../components/Select";
 import type { NavigateFn } from "../components/AppShell";
 import { fmtDate, fmtDateISO, fmtDateTime, money } from "../utils/format";
 import { qrToSvg } from "../lib/qr";
-import { chuanKho, coDonViGoc, khoaNguong, khoaTon, nhanDongTon, nhanKho } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho, khoaNguong, khoaTon, nhanDongTon, nhanKho } from "../lib/khoGiay";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   DecimalInput,
@@ -94,11 +94,12 @@ import {
 
 
 /** Nhãn khổ + đơn vị gốc cạnh mã của MỘT dòng tồn: giấy "780 × 905 mm (tờ)", "khổ 1000 mm (kg)",
- *  lô chưa có khổ "chưa có khổ (kg)"; hàng khác rỗng — vật tư khác cũng tách dòng theo đơn vị gốc
- *  nhưng không có khổ, đơn vị đã nằm ở cột ĐVT. */
+ *  lô chưa có khổ "chưa có khổ (kg)"; hàng khác rỗng — vật tư khác tách dòng theo khổ (tuỳ chọn,
+ *  27/10/2026) + đơn vị gốc: có khổ thì "khổ 320 mm", trống thì rỗng; đơn vị đã nằm ở cột ĐVT. */
 function nhanTonNhom(g: MaterialGroup): string {
   const laGiay = g.hang_loai === "giay";
-  return nhanDongTon(laGiay ? g.goc : "", g.khoRong, g.khoDai, { laGiay });
+  if (!laGiay) return coKho(g.hang_loai) && g.khoRong ? nhanKho(g.khoRong, g.khoDai) : "";
+  return nhanDongTon(g.goc, g.khoRong, g.khoDai, { laGiay });
 }
 
 interface MaterialGroup {
@@ -227,7 +228,7 @@ function gomNhomTon(lots: StockLot[], mucs: Record<string, TonNhomMuc>): Materia
       const key = khoaTon(lot);
       let g = m.get(key);
       if (!g) {
-        const laGiay = lot.hang_loai === "giay";
+        const laGiay = coKho(lot.hang_loai);
         g = {
           hang_loai: lot.hang_loai,
           hang_id: lot.hang_id,
@@ -1179,7 +1180,8 @@ export function MaterialRow({
       case "kho":
         return (
           <td key={c.key}>
-            {g.hang_loai === "giay" ? nhanKho(g.khoRong, g.khoDai) : <span className="lds-mu3">–</span>}
+            {g.hang_loai === "giay" || (coKho(g.hang_loai) && g.khoRong)
+              ? nhanKho(g.khoRong, g.khoDai) : <span className="lds-mu3">–</span>}
           </td>
         );
       case "dl":
@@ -1497,6 +1499,8 @@ function MaterialHistoryDrawer({
   const loTrang = trang?.lo ?? [];
   const coNguon = loTrang.some((l) => l.order_ma || l.lsx_ma);
   const coGiaBan = canViewCost && loTrang.some((l) => l.don_gia_ban != null);
+  // Cột Khổ của bảng lô: giấy luôn có; vật tư (khổ tuỳ chọn, 27/10/2026) khi có lô đã ghi khổ.
+  const coCotKhoLo = material.hang_loai === "giay" || loTonPaged.some((l) => l.kho_rong > 0);
   const choTab = loading && !trang;
 
   const dvt = material.dvt ?? dvtGoc;
@@ -1616,14 +1620,14 @@ function MaterialHistoryDrawer({
             ) : (
               <div className="lds-bang">
                 {/* minWidth = cột cố định + 140 cho Vị trí: chật hơn thân ngăn thì khung cuộn ngang chứ không ép Vị trí về 0. */}
-                <table className="lds-g" style={{ minWidth: 120 + 100 + (coNguon ? 170 : 0) + 120 + (material.hang_loai === "giay" ? 110 + 150 : 0) + 100 + (canViewCost ? 110 : 0) + (coGiaBan ? 110 : 0) + (canViewCost ? 110 : 0) + 140 }}>
+                <table className="lds-g" style={{ minWidth: 120 + 100 + (coNguon ? 170 : 0) + 120 + (material.hang_loai === "giay" ? 110 : 0) + (coCotKhoLo ? 150 : 0) + 100 + (canViewCost ? 110 : 0) + (coGiaBan ? 110 : 0) + (canViewCost ? 110 : 0) + 140 }}>
                   <colgroup>
                     <col style={{ width: 120 }} />
                     <col style={{ width: 100 }} />
                     {coNguon && <col style={{ width: 170 }} />}
                     <col style={{ width: 120 }} />
                     {material.hang_loai === "giay" && <col style={{ width: 110 }} />}
-                    {material.hang_loai === "giay" && <col style={{ width: 150 }} />}
+                    {coCotKhoLo && <col style={{ width: 150 }} />}
                     <col />
                     <col style={{ width: 100 }} />
                     {canViewCost && <col style={{ width: 110 }} />}
@@ -1637,7 +1641,7 @@ function MaterialHistoryDrawer({
                       {coNguon && <th>Đơn và khách</th>}
                       <th className="n">Còn lại</th>
                       {material.hang_loai === "giay" && <th className="n">Quy kg</th>}
-                      {material.hang_loai === "giay" && <th>Dạng / khổ</th>}
+                      {coCotKhoLo && <th>Dạng / khổ</th>}
                       <th>Vị trí</th>
                       <th>HSD</th>
                       {canViewCost && <th className="n">Đơn giá</th>}
@@ -1664,10 +1668,10 @@ function MaterialHistoryDrawer({
                         {material.hang_loai === "giay" && (
                           <td className="n">{lot.quy_kg == null ? "—" : fmtKg(lot.quy_kg)}</td>
                         )}
-                        {material.hang_loai === "giay" && (
+                        {coCotKhoLo && (
                           <td>
-                            {nhanKho(lot.kho_rong, lot.kho_dai)}
-                            {!lot.kho_rong && canCreate && (
+                            {material.hang_loai === "giay" || lot.kho_rong ? nhanKho(lot.kho_rong, lot.kho_dai) : "—"}
+                            {material.hang_loai === "giay" && !lot.kho_rong && canCreate && (
                               <button type="button" className="kho-bsdk__nut" onClick={() => setBsLot(lot)}>
                                 Bổ sung khổ
                               </button>

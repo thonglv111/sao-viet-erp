@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..services.kho_giay import chuan_kho, co_don_vi_goc, khoa_dong
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, co_kho, khoa_dong
 from .purchase import MuaChoLenhOut
 
 
@@ -19,7 +19,7 @@ def _chuan_kho_giay(hang_loai: str | None, kho_rong, kho_dai) -> tuple[int, int]
     """Khổ của dòng kho: giấy chuẩn hoá cạnh ngắn × cạnh dài (một cạnh ⇒ khổ chỉ-rộng `(r, 0)`); hàng
     khác ép 0 · 0 (client gửi gì cũng bỏ). Giấy KHÔNG còn dạng cuộn/tờ (10/10/2026) — đơn vị gốc của dòng
     máy chủ suy từ ĐVT, client gửi thừa `dang_giay` thì schema bỏ qua (không 422)."""
-    if hang_loai is not None and hang_loai != "giay":
+    if hang_loai is not None and not co_kho(hang_loai):
         return 0, 0
     return chuan_kho(kho_rong, kho_dai)
 

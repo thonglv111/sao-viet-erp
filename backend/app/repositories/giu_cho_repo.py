@@ -5,6 +5,7 @@ from sqlalchemy import delete, func, or_, select, tuple_
 from sqlalchemy.orm import Session
 
 from ..models.vat_tu_giu_cho import VatTuGiuCho
+from ..services.kho_giay import kho_mo
 
 #: Khoá giữ chỗ = khoá tồn `kho_giay.Khoa`: (loai, id, kho_rong, kho_dai, don_vi_goc).
 Hang = tuple[str, int, int, int, str]
@@ -27,19 +28,32 @@ class GiuChoRepository:
 
         Đây là số bị trừ khỏi tồn để ra TỒN TỰ DO, nên phải gộp cả `dang_ve`: phần bám vào lô đang
         mua cũng đã có chủ, hàng về tới nơi là thuộc về lệnh đó rồi.
+
+        Khoá VẬT TƯ trống khổ (`kho_mo`) cộng phần giữ MỌI khổ cùng mã + đơn vị gốc — cùng luật tra
+        tồn (`StockLotRepository._tong_theo_khoa`), không thì tồn tự do của nó âm/dương sai.
         """
         if not hangs:
             return {}
         cot = (VatTuGiuCho.hang_loai, VatTuGiuCho.hang_id, VatTuGiuCho.kho_rong,
                VatTuGiuCho.kho_dai, VatTuGiuCho.don_vi_goc)
-        keys = sorted({khoa5(h) for h in hangs})
-        rows = self.db.execute(
-            select(*cot, func.sum(VatTuGiuCho.so_luong))
-            .where(tuple_(*cot).in_(keys))
-            .group_by(*cot)
-        )
-        found = {(loai, int(hid), int(kr or 0), int(kd or 0), goc or ""): float(tong or 0)
-                 for loai, hid, kr, kd, goc, tong in rows}
+        tat_ca = {khoa5(h) for h in hangs}
+        keys = sorted(k for k in tat_ca if not kho_mo(k))
+        found: dict = {}
+        if keys:
+            rows = self.db.execute(
+                select(*cot, func.sum(VatTuGiuCho.so_luong))
+                .where(tuple_(*cot).in_(keys))
+                .group_by(*cot)
+            )
+            found = {(loai, int(hid), int(kr or 0), int(kd or 0), goc or ""): float(tong or 0)
+                     for loai, hid, kr, kd, goc, tong in rows}
+        mo = sorted({(k[0], k[1], k[4]) for k in tat_ca if kho_mo(k)})
+        if mo:
+            cot_mo = (VatTuGiuCho.hang_loai, VatTuGiuCho.hang_id, VatTuGiuCho.don_vi_goc)
+            for loai, hid, goc, tong in self.db.execute(
+                    select(*cot_mo, func.sum(VatTuGiuCho.so_luong))
+                    .where(tuple_(*cot_mo).in_(mo)).group_by(*cot_mo)):
+                found[(loai, int(hid), 0, 0, goc or "")] = float(tong or 0)
         return {tuple(h): found.get(khoa5(h), 0.0) for h in hangs}
 
     def cua_chu_the(self, *, lsx_id: int | None, bai_ghep_id: int | None) -> list[VatTuGiuCho]:

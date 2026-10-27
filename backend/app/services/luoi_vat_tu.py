@@ -17,7 +17,7 @@ from datetime import date, datetime
 from ..models.purchase import LOAI_MUA_CHO_LSX
 from .dinh_dang import _f, so_vn
 from .giu_cho_service import EPS_GIU, GiuChoService, _k_dong, _k_nhom
-from .kho_giay import nhan_kho
+from .kho_giay import co_kho, nhan_kho
 from .mach_mua import BUOC_DAT, BUOC_MOI, BUOC_NHAP, BUOC_TRA, tom_tat
 
 #: Tình trạng của dòng — hợp đồng với FE (`client.ts` `TinhTrangO`). Thứ tự = nặng → nhẹ.
@@ -363,7 +363,7 @@ def _hang(hang, h0, nhom, ds, ve, mach, theo_o, giu_rows, lenh) -> dict:
     return {
         "hang": khoa_hang(hang), "hang_loai": hang[0], "hang_id": hang[1],
         "kho_rong": hang[2], "kho_dai": hang[3], "don_vi_goc": _goc(hang),
-        "kho": nhan_kho(hang[2], hang[3]) if hang[0] == "giay" and hang[2] else None,
+        "kho": nhan_kho(hang[2], hang[3]) if co_kho(hang[0]) and hang[2] else None,
         "hang_ma": h0["hang_ma"], "hang_ten": h0["hang_ten"], "dvt": dvt,
         "ton": round(ton, 4), "dang_ve": round(dang_ve, 4),
         # Tồn / đang về cùng mã + cùng khổ, khác đơn vị gốc — chỉ bày cạnh, không trừ.
@@ -622,7 +622,7 @@ def xuat_xlsx(luoi: dict, *, xem: str = "lenh", q: str | None = None,
             ws.append([
                 d["ma"], lv.get("ten_sp") or "", lv.get("khach_ten") or "",
                 _ngay_vn(lv.get("han_giao_khach")), d["hang_ten"],
-                nhan_kho(d["kho_rong"], d["kho_dai"]) if d["hang_loai"] == "giay" and d["kho_rong"]
+                nhan_kho(d["kho_rong"], d["kho_dai"]) if co_kho(d["hang_loai"]) and d["kho_rong"]
                 else "",
                 d["dvt"], d["can"], d["da_giu"], d["con_thieu"], phieu,
                 _NHAN_BUOC.get(ph["buoc"], "") if ph else "",
