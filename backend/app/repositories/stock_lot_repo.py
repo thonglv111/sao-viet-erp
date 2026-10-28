@@ -179,10 +179,10 @@ class StockLotRepository:
     def _loc_kho(stmt, goc: str | None, kho_rong: int, kho_dai: int):
         """Lọc lô giấy theo ĐƠN VỊ GỐC và (khi dòng có khổ) đúng KHỔ — so bằng nhau tuyệt đối trên hai
         số đã chuẩn hoá (khổ chỉ-rộng `(r, 0)` không khớp khổ hai cạnh). Dòng chưa có khổ ⇒ không lọc
-        khổ. `goc=None` ⇒ không lọc gì."""
-        if goc is None:
-            return stmt
-        stmt = stmt.where(StockLot.don_vi_goc == (goc or "").strip().lower())
+        khổ. `goc=None` ⇒ không lọc đơn vị, nhưng KHỔ vẫn lọc: dòng xin trống đơn vị gốc mà bỏ luôn
+        khổ thì gợi ý dắt kho sang lô khác khổ, tới lúc lập phiếu mới bị chặn."""
+        if goc is not None:
+            stmt = stmt.where(StockLot.don_vi_goc == (goc or "").strip().lower())
         kr, kd = chuan_kho(kho_rong, kho_dai)
         if kr:
             stmt = stmt.where(StockLot.kho_rong == kr, StockLot.kho_dai == kd)
