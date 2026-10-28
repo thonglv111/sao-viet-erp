@@ -237,6 +237,23 @@ def test_goi_y_lo_chi_lay_dung_don_vi_goc_va_kho(client):
     assert (r.json()[0]["don_vi_goc"], r.json()[0]["kho_rong"], r.json()[0]["kho_dai"]) == ("to", 800, 1090)
 
 
+def test_goi_y_lo_co_kho_ma_thieu_don_vi_goc_van_loc_kho(client):
+    """Dòng xin có khổ nhưng không gửi `goc` (dòng đề nghị trống đơn vị gốc ⇒ FE gửi goc=null) thì
+    vẫn chỉ gợi ý lô ĐÚNG khổ — bỏ lọc khổ là kho bị dắt sang lô khổ khác rồi mới bị chặn lúc lập phiếu."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    lo_a, lo_b, _lo_c = _ba_lo(client, kho_id, g)
+    base = {"hang_loai": "giay", "hang_id": g, "kho_id": kho_id, "so_luong": 100}
+    r = client.get(f"{BASE}/phieu/lo/goi-y", headers=_login(client, "t_thukho"),
+                   params={**base, "kho_rong": 800, "kho_dai": 1090})
+    assert r.status_code == 200, r.text
+    assert [x["lot_id"] for x in r.json()["lines"]] == [lo_b.id]
+    r = client.get(f"{BASE}/phieu/lo/danh-sach", headers=_login(client, "t_ketoan"),
+                   params={"hang_loai": "giay", "hang_id": g, "kho_rong": 905, "kho_dai": 780})
+    assert [x["id"] for x in r.json()] == [lo_a.id]
+
+
 def test_xuat_chon_lo_sai_kho_hoac_sai_don_vi_bi_chan(client):
     kho_id, _ = _setup(client)
     _don_vi()
