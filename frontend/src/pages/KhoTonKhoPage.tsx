@@ -925,7 +925,15 @@ export function KhoTonKhoPage({
                   <tr>
                     <td colSpan={cotTon.length} className="lds-trong">
                       {demNhom.all === 0 && !qTon && !coLocTon
-                        ? "Kho này chưa có hàng. Hàng sẽ xuất hiện sau khi ghi sổ phiếu nhập."
+                        ? (canNhapTay ? (
+                          <>
+                            Kho này chưa có hàng.{" "}
+                            <button type="button" className="lds-lk" onClick={() => setThemMo("moi")}>Thêm hàng</button>
+                            {" "}để ghi tồn đang có, hoặc{" "}
+                            <button type="button" className="lds-lk" onClick={() => setImportMo(true)}>Nhập Excel</button>
+                            {" "}nhiều dòng một lượt.
+                          </>
+                        ) : "Kho này chưa có hàng. Hàng sẽ xuất hiện sau khi ghi sổ phiếu nhập.")
                         : "Không có vật tư nào khớp điều kiện đang lọc."}{" "}
                       {(qTon || coLocTon) && (
                         <button type="button" className="lds-lk" onClick={xoaLocTon}>Xoá bộ lọc</button>

@@ -201,6 +201,24 @@ def test_kg_kho_hai_canh_quy_ra_to(client):
     assert lo.don_vi_goc == "to" and float(lo.sl_con_lai) == 999   # 129,15 ÷ 0,129165 = 999,88 ⇒ làm tròn xuống
 
 
+def test_gia_lo_khong_lam_tron_khi_quy_kg_ra_to(client):
+    # 100 kg × 21.000 = 2.100.000 đ, lô lưu 774 tờ: giá lô làm tròn 2.713 đ/tờ thì tồn thành
+    # 2.099.862 — lệch với báo cáo nhập. Giá lô phải giữ số lẻ để tồn = tiền đã ghi.
+    kho_id, h = _moc(client)
+    _giay(them=("to", "kg"))
+    base = dict(ma="COUCHE150", kho_rong=790, kho_dai=1090)
+    assert _them(client, kho_id, h, dvt="kg", so_luong=100, don_gia=21000, **base).json()["da_ghi"]
+    (lo,) = _lo(kho_id)
+    assert float(lo.sl_con_lai) == 774
+    assert round(float(lo.sl_con_lai) * float(lo.don_gia_nhap)) == 2_100_000
+    admin = _admin(client)
+    dong = client.get("/api/kho/bao-cao/dong", params={"kho_id": kho_id}, headers=admin).json()["items"]
+    assert [d["thanh_tien"] for d in dong] == [2_100_000]
+    # Tăng không ghi giá ⇒ phần tăng theo giá lô gần nhất, vẫn không làm tròn về đ/tờ.
+    assert _them(client, kho_id, h, dvt="tờ", so_luong=1548, **base).json()["da_ghi"]
+    assert round(sum(float(x.sl_con_lai) * float(x.don_gia_nhap) for x in _lo(kho_id))) == 4_200_000
+
+
 def test_loi_dvt(client):
     kho_id, h = _moc(client)
     _giay()

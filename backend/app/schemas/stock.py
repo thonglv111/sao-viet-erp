@@ -803,7 +803,7 @@ class GiaGocOut(BaseModel):
     ma_lo: str
     don_gia_cu: int
     don_gia: int
-    don_gia_nhap: int
+    don_gia_nhap: float
     so_lo: int
 
 
@@ -856,7 +856,7 @@ class StockLotOut(BaseModel):
     voucher_id: int | None = None
     voucher_ma: str | None = None
     # Giá vốn của lô — chỉ có khi `can_view_cost`. Thủ kho chọn lô mà không thấy giá.
-    don_gia_nhap: int | None = None
+    don_gia_nhap: float | None = None
     # SL yêu cầu đã sinh ra lô (đọc-nối qua dòng phiếu NHẬP tạo lô → dòng yêu cầu). Không lưu cột.
     # Không phải tiền → luôn hiện được. None = lô đầu kỳ / không nối được dòng yêu cầu.
     sl_de_nghi: float | None = None
@@ -896,7 +896,7 @@ class AllocationLineOut(BaseModel):
     don_vi_goc: str = ""
     kho_rong: int = 0
     kho_dai: int = 0
-    don_gia_nhap: int | None = None
+    don_gia_nhap: float | None = None
     # Nguồn lô thành phẩm (đọc ở lô gốc) + cảnh báo "Lô này sản xuất cho đơn DH…" khi xuất cho Giao
     # hàng mà lô thuộc đơn khác cùng khách.
     order_ma: str | None = None
@@ -929,7 +929,7 @@ class MaterialXuatRow(BaseModel):
     dvt_yeu_cau: str | None = None
     so_luong: float
     # Giá vốn ĐÍCH DANH của lô đã xuất — router XÓA khi thiếu `can_view_cost`.
-    don_gia: int | None = None
+    don_gia: float | None = None
     # Dòng xuất này thuộc phiếu ĐIỀU CHUYỂN (chuyển đi) → lịch sử mặt hàng xếp vào tab "Chuyển kho".
     dieu_chuyen: bool = False
     # Vị trí + HSD của LÔ đã xuất (đọc cùng câu) và lô thành phẩm từ KCS chưa có giá gốc.
@@ -960,7 +960,7 @@ class MaterialChuyenRow(BaseModel):
     voucher_id: int | None = None
     voucher_ma: str | None = None
     so_luong: float
-    don_gia: int | None = None
+    don_gia: float | None = None
     chua_gia_goc: bool = False
     vi_tri: str | None = None
     hsd: date | None = None

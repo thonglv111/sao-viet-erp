@@ -245,7 +245,7 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
     def _lo_chua_gia(lot_id) -> bool:
         lot = lot_map.get(lot_id) if lot_id else None
         return (lot is not None and bool(nguon_map.get(lot_id, {}).get("tu_kcs"))
-                and not int(lot.don_gia_nhap or 0))
+                and not float(lot.don_gia_nhap or 0))
 
     req = req_map.get(v.request_id)
     req_lines = req.lines if req is not None else []
@@ -328,7 +328,7 @@ def _serialize(v, *, svc: StockVoucherService, db: Session, can_view_cost: bool,
             qty_goc = sum(float(ln.sl_goc) for ln in grp)        # tiền: đơn vị gốc
             raw_cost = sum(
                 int(round(
-                    int(getattr(lot_map.get(ln.lot_id), "don_gia_nhap", 0) or 0) * float(ln.sl_goc)
+                    float(getattr(lot_map.get(ln.lot_id), "don_gia_nhap", 0) or 0) * float(ln.sl_goc)
                 ))
                 for ln in grp
             )
@@ -844,7 +844,7 @@ def _build_stock_xlsx(rows) -> bytes:
 
         qty_rem = float(lot.sl_con_lai)
         qty_orig = float(lot.sl_ban_dau)
-        price = int(lot.don_gia_nhap or 0)
+        price = float(lot.don_gia_nhap or 0)
         value = int(round(qty_rem * price))
 
         hsd_str = lot.hsd.strftime("%d/%m/%Y") if lot.hsd else ""
@@ -1014,7 +1014,7 @@ def _dong_lo_danh_sach(svc, lots, gia_kho) -> list[StockLotOut]:
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
         # Thủ kho chọn lô nhưng KHÔNG thấy giá (spec §6). Tiền theo ô xem giá của MÀN gọi.
         can_view_cost = gia_kho(lot.kho_id)
-        row.don_gia_nhap = int(lot.don_gia_nhap or 0) if can_view_cost else None
+        row.don_gia_nhap = float(lot.don_gia_nhap or 0) if can_view_cost else None
         _gan_nguon_lo(row, nguon.get(lot.id), can_view_cost)
         row.dinh_luong, row.quy_kg = dinh_luong_va_quy_kg(
             lot.hang_loai, m, lot.sl_con_lai, lot.kho_rong, lot.kho_dai, lot.don_vi_goc)
@@ -1156,7 +1156,7 @@ def _dong_lo_lich_su(svc, lots, m, dvt, can_view_cost: bool) -> list[StockLotOut
         row.hang_ten = getattr(m, "ten", None)
         row.dvt = ((lot.don_vi_goc or None) if co_don_vi_goc(lot.hang_loai) else None) or dvt
         row.voucher_ma = voucher_ma_map.get(lot.voucher_id) if lot.voucher_id else None
-        row.don_gia_nhap = int(lot.don_gia_nhap or 0) if can_view_cost else None
+        row.don_gia_nhap = float(lot.don_gia_nhap or 0) if can_view_cost else None
         # SL yêu cầu KHÔNG phải tiền → luôn hiện (không gate theo can_view_cost). Kèm ĐƠN VỊ người
         # xin (có thể khác đơn vị gốc của lô) để lịch sử ghi rõ đơn vị cột "SL yêu cầu".
         sl_dvt = sl_de_nghi_map.get(lot.id)

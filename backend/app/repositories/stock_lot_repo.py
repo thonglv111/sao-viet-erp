@@ -91,7 +91,7 @@ class StockLotRepository:
         return lot
 
     def ghi_kho_goc(self, lot: StockLot, *, goc: str, kho_rong: int, kho_dai: int,
-                    sl_ban_dau, sl_con_lai, don_gia_nhap: int | None = None) -> StockLot:
+                    sl_ban_dau, sl_con_lai, don_gia_nhap: float | None = None) -> StockLot:
         """Ghi khổ + đơn vị gốc + số lượng đã đổi cho MỘT lô; KHÔNG commit (người gọi gộp với nhật ký)."""
         lot.don_vi_goc = goc
         lot.kho_rong = kho_rong

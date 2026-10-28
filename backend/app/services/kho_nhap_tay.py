@@ -185,6 +185,7 @@ class KeHoach:
     goc: str              # đơn vị gốc (mã) — lô lưu theo đơn vị này
     goc_ten: str
     dvt_ten: str          # đơn vị người ghi (tên)
+    dvt: str              # đơn vị người ghi (mã)
     he_so: float          # 1 đơn vị người ghi = he_so đơn vị gốc
     so_luong: float       # theo đơn vị người ghi
     sl_goc: float         # số đích theo đơn vị gốc
@@ -411,7 +412,7 @@ class KhoNhapTayService:
             return None
         if len(kq.loi) > loi_truoc:
             return None
-        goc, goc_ten, he_so, sl_goc = quy
+        goc, goc_ten, he_so, sl_goc, dvt_ma = quy
         if sl == 0:
             sl_goc = 0.0
         gia_goc = None
@@ -419,13 +420,13 @@ class KhoNhapTayService:
             gia_goc = round(gia * sl / sl_goc) if sl and sl_goc else round(gia / he_so if he_so else gia)
         return KeHoach(
             dong=d.dong, hang_loai=loai, hang_id=obj.id, ma=obj.ma, ten=obj.ten,
-            kho_rong=kr, kho_dai=kd, goc=goc, goc_ten=goc_ten, dvt_ten=self.ten_dv(dvt.lower()) or dvt,
+            kho_rong=kr, kho_dai=kd, goc=goc, goc_ten=goc_ten, dvt_ten=self.ten_dv(dvt.lower()) or dvt, dvt=dvt_ma,
             he_so=he_so, so_luong=float(sl), sl_goc=float(sl_goc), gia_goc=gia_goc,
             don_gia=gia, vi_tri=vi_tri, hsd=hsd, ngay=ngay, ncc=_chu(d.ncc), ghi_chu=_chu(d.ghi_chu),
         )
 
     def _quy_dvt(self, loai: str, obj, dvt: str, sl: float | None, kr: int, kd: int):
-        """(gốc, tên gốc, hệ số 1 đvt → gốc, số gốc) — hoặc câu lỗi. Một luật với kho / mua hàng
+        """(gốc, tên gốc, hệ số 1 đvt → gốc, số gốc, mã đvt) — hoặc câu lỗi. Một luật với kho / mua hàng
         (`VatLieuKhoService.quy_ve_goc`), cộng luật riêng của giấy cuộn (khổ chỉ-rộng lưu kg)."""
         thu = sl if sl else 1.0
         try:
@@ -442,7 +443,8 @@ class KhoNhapTayService:
         if loai == "giay" and goc == DON_VI_TO_KHO and kr and not la_kho_to(kr, kd):
             return f"Giấy cuộn khổ {kr} không đếm theo tờ — ghi kg hoặc tấn."
         he_so = float(ra["sl_goc"]) / thu if thu else float(ra.get("he_so_ve_goc") or 1)
-        return goc, ra.get("don_vi_goc_ten") or self.ten_dv(goc), he_so, float(ra["sl_goc"])
+        return (goc, ra.get("don_vi_goc_ten") or self.ten_dv(goc), he_so, float(ra["sl_goc"]),
+                (ra.get("ma_don_vi") or dvt).strip().lower())
 
     # ---------- so với kho ----------
 
@@ -491,7 +493,8 @@ class KhoNhapTayService:
 
     # ---------- ghi ----------
 
-    def _yeu_cau(self, *, user, kho_id: int, loai: str, k: KeHoach, sl: float, gia: int | None) -> StockRequest:
+    def _yeu_cau(self, *, user, kho_id: int, loai: str, k: KeHoach, dvt: str, sl: float,
+                 gia: int | None) -> StockRequest:
         req = StockRequest(
             ma=self.v.sequence.generate_flat_code(
                 SEQ_DOC_TYPE_STOCK_REQUEST_IN if loai == "NHAP" else SEQ_DOC_TYPE_STOCK_REQUEST_OUT),
@@ -500,7 +503,7 @@ class KhoNhapTayService:
             ghi_chu="Nhập tay trên màn Tồn kho" if loai == "NHAP" else "Giảm tồn trên màn Tồn kho",
         )
         req.lines.append(StockRequestLine(
-            hang_loai=k.hang_loai, hang_id=k.hang_id, dvt=k.goc, sl_de_nghi=sl, sl_duyet=sl,
+            hang_loai=k.hang_loai, hang_id=k.hang_id, dvt=dvt, sl_de_nghi=sl, sl_duyet=sl,
             sl_da_ung=0, don_gia=gia, don_vi_goc=k.goc, kho_rong=k.kho_rong, kho_dai=k.kho_dai,
             ghi_chu=k.ghi_chu,
         ))
@@ -525,13 +528,10 @@ class KhoNhapTayService:
         """Đặt dòng về đúng `k.sl_goc` (+ vị trí). KHÔNG commit."""
         if k.sl_goc > k.sl_hien + EPS:
             tang = k.sl_goc - k.sl_hien
-            gia = k.gia_goc
-            if gia is None:   # cập nhật mà không ghi giá ⇒ giá lô gần nhất của dòng
-                moi = max(k.lots, key=lambda x: (x.ngay_nhap, x.id))
-                gia = int(moi.don_gia_nhap or 0)
-            req = self._yeu_cau(user=user, kho_id=kho_id, loai="NHAP", k=k, sl=tang, gia=gia)
+            dvt, sl, gia = self._dong_tang(k, tang)
+            req = self._yeu_cau(user=user, kho_id=kho_id, loai="NHAP", k=k, dvt=dvt, sl=sl, gia=gia)
             v = self._phieu(user=user, kho_id=kho_id, req=req, ngay=k.ngay, dong=[dict(
-                hang_loai=k.hang_loai, hang_id=k.hang_id, so_luong=tang, sl_goc=tang, don_gia=gia,
+                hang_loai=k.hang_loai, hang_id=k.hang_id, so_luong=sl, sl_goc=tang, don_gia=gia,
                 vi_tri=k.vi_tri if k.vi_tri is not None else k.vi_tri_hien, hsd=k.hsd,
                 don_vi_goc=k.goc, kho_rong=k.kho_rong, kho_dai=k.kho_dai, ghi_chu=k.ghi_chu,
             )])
@@ -554,13 +554,37 @@ class KhoNhapTayService:
                 dong.append(dict(hang_loai=k.hang_loai, hang_id=k.hang_id, lot_id=lot.id, so_luong=lay,
                                  sl_goc=lay, don_gia=int(lot.don_gia_nhap or 0), don_vi_goc=k.goc,
                                  kho_rong=k.kho_rong, kho_dai=k.kho_dai))
-            req = self._yeu_cau(user=user, kho_id=kho_id, loai="XUAT", k=k, sl=k.sl_hien - k.sl_goc, gia=None)
+            req = self._yeu_cau(user=user, kho_id=kho_id, loai="XUAT", k=k, dvt=k.goc,
+                                sl=k.sl_hien - k.sl_goc, gia=None)
             v = self._phieu(user=user, kho_id=kho_id, req=req, ngay=k.ngay, dong=dong)
             self._ghi_so(v, req, user)
         if k.doi_vi_tri:
             for lot in self.lo_cua_dong(kho_id, k.khoa):
                 if float(lot.sl_con_lai) > EPS:
                     lot.vi_tri = k.vi_tri
+
+    def _dong_tang(self, k: KeHoach, tang: float) -> tuple[str, float, int]:
+        """(đvt, số lượng, đơn giá) của dòng phiếu nhập phần tăng `tang` (đơn vị gốc). Ghi theo đơn vị
+        mà giá là số tròn — giá lô = đơn giá × SL ÷ SL gốc mới ra đúng tiền: 100 kg × 21.000 =
+        2.100.000, còn quy về 774 tờ × 2.713 đ là 2.099.862. Không ghi giá ⇒ theo đơn vị + giá của dòng
+        nhập lô gần nhất. Số theo đơn vị đó không gọn 2 số lẻ (cột `so_luong`) thì mới ghi theo gốc."""
+        ung_vien: list[tuple[str, float, float]] = []   # (đvt, số gốc / 1 đvt, đơn giá / đvt)
+        if k.don_gia is not None:
+            ung_vien.append((k.dvt, k.he_so, float(k.don_gia)))
+        else:
+            moi = max(k.lots, key=lambda x: (x.ngay_nhap, x.id))
+            v = self.db.get(StockVoucher, moi.voucher_id) if moi.voucher_id else None
+            ln = next((x for x in (v.lines if v is not None else []) if x.lot_id == moi.id), None)
+            rl = self.db.get(StockRequestLine, ln.request_line_id) if ln is not None else None
+            if rl is not None and float(ln.so_luong or 0) > 0 and ln.don_gia is not None:
+                ung_vien.append((rl.dvt, float(ln.sl_goc) / float(ln.so_luong), float(ln.don_gia)))
+            ung_vien.append((k.dvt, k.he_so, float(moi.don_gia_nhap or 0) * k.he_so))
+        for dvt, he_so, gia in ung_vien:
+            sl = tang / he_so if he_so else 0.0
+            if round(sl, 2) > 0 and abs(sl - round(sl, 2)) < 1e-6:
+                return dvt, round(sl, 2), round(gia)
+        dvt, he_so, gia = ung_vien[0]
+        return k.goc, tang, round(gia / he_so if he_so else gia)
 
     def _ghi_so(self, v: StockVoucher, req: StockRequest, user) -> None:
         from .stock_voucher_service import StockVoucherError

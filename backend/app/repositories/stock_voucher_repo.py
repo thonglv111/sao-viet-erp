@@ -296,7 +296,7 @@ class StockVoucherRepository:
             {
                 "voucher_id": r.id, "voucher_ma": r.ma, "ngay": r.ngay,
                 "lot_id": r.lot_id, "ma_lo": r.ma_lo,
-                "so_luong": float(r.so_luong), "don_gia": int(r.don_gia_nhap or 0),
+                "so_luong": float(r.so_luong), "don_gia": float(r.don_gia_nhap or 0),
                 "sl_de_nghi": float(r.sl_de_nghi) if r.sl_de_nghi is not None else None,
                 "dvt_yeu_cau": r.dvt_yeu_cau,
                 "dieu_chuyen": bool(r.dieu_chuyen),

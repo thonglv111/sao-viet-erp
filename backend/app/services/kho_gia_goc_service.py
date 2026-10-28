@@ -74,7 +74,9 @@ def sua_gia_goc(db: Session, *, user, lot_id: int, don_gia: int) -> dict:
     if ln_goc is None:
         raise GiaGocError("Lô gốc không còn dòng phiếu nhập — không sửa được giá.")
     cu = int(ln_goc.don_gia or 0)
-    gia_lo = _gia_ve_goc(don_gia, float(ln_goc.so_luong), float(ln_goc.sl_goc))
+    # Giá lô giữ số lẻ (mg 0452) — cùng công thức lúc ghi sổ, không làm tròn.
+    sl_goc = float(ln_goc.sl_goc)
+    gia_lo = float(don_gia) * float(ln_goc.so_luong) / sl_goc if sl_goc else float(don_gia)
 
     ln_goc.don_gia = don_gia
     goc.don_gia_nhap = gia_lo

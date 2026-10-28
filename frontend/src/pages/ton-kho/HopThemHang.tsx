@@ -302,10 +302,10 @@ export function HopThemHang({
           </div>
           <div className="tkh-hai">
             <O cot="Ngày nhập" loi={loiO("Ngày nhập")}>
-              <ChonNgay value={f.ngay_nhap} onChange={(v) => dat("ngay_nhap", v)} aria-label="Ngày nhập" placeholder="Hôm nay" />
+              <ChonNgay className="tkh-nhap tkh-nhap--nho tkh-ngay" value={f.ngay_nhap} onChange={(v) => dat("ngay_nhap", v)} aria-label="Ngày nhập" placeholder="Hôm nay" />
             </O>
             <O cot="Hạn dùng" loi={loiO("Hạn dùng")}>
-              <ChonNgay value={f.hsd} onChange={(v) => dat("hsd", v)} aria-label="Hạn dùng" />
+              <ChonNgay className="tkh-nhap tkh-nhap--nho tkh-ngay" value={f.hsd} onChange={(v) => dat("hsd", v)} aria-label="Hạn dùng" />
             </O>
           </div>
           <div className="tkh-hai">

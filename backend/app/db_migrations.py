@@ -19331,3 +19331,19 @@ def _migrate_nhap_tay_kho(db: Session) -> None:
 
 
 MIGRATIONS.append(("0451_nhap_tay_kho", _migrate_nhap_tay_kho))
+
+
+def _migrate_gia_lo_so_le(db: Session) -> None:
+    """0452 (28/10/2026) — `stock_lots.don_gia_nhap`: BIGINT → NUMERIC(18,6). Giá lô theo đơn vị gốc
+    làm tròn đồng thì nhập 100 kg × 21.000 quy ra 774 tờ thành 2.713 đ/tờ, tồn 2.099.862 lệch tiền nhập
+    2.100.000. Nới kiểu là mở rộng, giá cũ giữ nguyên. SQLite không ép kiểu ⇒ chỉ ALTER trên Postgres."""
+    bind = db.get_bind()
+    if (bind.dialect.name or "") != "postgresql":
+        return
+    if "stock_lots" not in inspect(bind).get_table_names():
+        return
+    db.execute(text("ALTER TABLE stock_lots ALTER COLUMN don_gia_nhap TYPE NUMERIC(18,6)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0452_gia_lo_so_le", _migrate_gia_lo_so_le))

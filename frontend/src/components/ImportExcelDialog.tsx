@@ -114,6 +114,9 @@ export function ImportExcelDialog({
               <Button variant="ghost" onClick={onClose} disabled={busy}>Hủy</Button>
               {coLoi ? (
                 <Button variant="accent" disabled={busy} onClick={() => chonFile(null)}>Chọn lại file</Button>
+              ) : dungDuoc && seDoi === 0 ? (
+                // Cả file trùng y hàng đang có — bấm nhập cũng chẳng ghi gì.
+                <Button variant="accent" disabled>Không có gì thay đổi</Button>
               ) : dungDuoc ? (
                 <Button variant="accent" loading={busy} onClick={() => { if (file) void chay(file, "commit"); }}>
                   {seDoi > 0 ? `Nhập ${seDoi} ${ten}` : `Nhập ${ten}`}
