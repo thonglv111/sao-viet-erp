@@ -1133,3 +1133,15 @@ def test_den_vat_tu_do_thi_ho_so_noi_dung_cau_cua_den(client, seed_credentials, 
     d = _ho_so(client, seed_credentials, lenh_that)
     assert "thieu_vat_tu" in d["tien_do"]["canh_bao"]
     assert d["tien_do"]["vat_tu_chu"] == "Chưa khai vật tư nào ở bước — kể cả giấy"
+
+
+def test_ngan_tra_the_quy_cach_va_o_duoi_nhu_ban_to(client, seed_credentials, lenh_that):
+    """Ngăn lệnh dùng lại hai khối của ngăn Việc của tổ (27/10/2026, phương án C): thẻ quy cách
+    `the_quy_cach` cho tab Quy cách, và ô đuôi `o_duoi` (làm xong bước cuối thì hàng đi đâu) cho
+    cột phải "Hàng đang tới đâu". Lệnh tự làm cả chuỗi, chưa gửi kho ⇒ nhập kho thành phẩm."""
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    d = client.get(f"/api/lenh-san-xuat/{lenh_that}/ngan", headers=h).json()
+    assert isinstance(d["quy_cach"], dict) and d["quy_cach"], d.get("quy_cach")
+    assert all(v is not None for v in d["quy_cach"].values()), "thẻ bỏ hẳn khoá không có số"
+    assert d["dai_duoi"]["loai"] == "ve_kho"
+    assert d["dai_duoi"]["so"] is None

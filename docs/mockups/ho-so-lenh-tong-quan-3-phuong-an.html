@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hồ sơ lệnh: tab Tổng quan, 3 phương án</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f172a; --ash:#475569; --mu:#94a3b8; --rule:#cbd5e1; --rule-soft:#e2e8f0; --paper:#f8fafc; --canvas:#fff;
+  --la-dot:#22c55e; --la-fg:#15803d; --la-bg:#dcfce7; --slate-dot:#94a3b8;
+  --vang-bg:#fef3c7; --vang-fg:#92400e; --xanh-bg:#dbeafe; --xanh-fg:#1d4ed8; --cam-dot:#f97316;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef1f5;color:var(--ink);font:400 14px/1.45 "Be Vietnam Pro",system-ui,sans-serif}
+.trang{max-width:1220px;margin:0 auto;padding:28px 16px 80px}
+h1{font-size:22px;font-weight:500;margin:0 0 6px}
+h2{font-size:18px;font-weight:500;margin:48px 0 6px}
+.dan{color:var(--ash);max-width:860px;margin:0 0 14px}
+.dan b{font-weight:500;color:var(--ink)}
+.hop{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:16px 20px;margin:14px 0}
+.hop h3{font-size:14px;font-weight:500;margin:0 0 8px}
+.hop ul{margin:0;padding-left:18px;color:var(--ash)} .hop li{margin:3px 0}
+.tk{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.tk figure{margin:0;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.tk img{width:100%;height:190px;object-fit:cover;object-position:top;display:block;border-bottom:1px solid var(--rule-soft)}
+.tk figcaption{padding:10px 12px;font-size:13px;color:var(--ash)} .tk figcaption b{color:var(--ink);font-weight:500}
+
+/* ---- khung ngăn ---- */
+.ngan{background:var(--canvas);border-radius:12px;box-shadow:0 1px 3px rgba(15,23,42,.08),0 8px 24px rgba(15,23,42,.06);overflow:hidden}
+.ngan__dau{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 24px 0}
+.vet{font-size:13px;color:var(--ash)} .vet a{color:var(--ash);text-decoration:none}
+.vet span{color:var(--mu);margin:0 6px}
+.tieude{display:flex;align-items:center;gap:10px;margin:4px 0 0}
+.tieude b{font-size:24px;font-weight:600;letter-spacing:.2px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;padding:2px 10px;border-radius:999px;background:var(--xanh-bg);color:var(--xanh-fg)}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip--la{background:var(--la-bg);color:var(--la-fg)}
+.chip--vang{background:var(--vang-bg);color:var(--vang-fg)} .chip--vang::before{display:none}
+.nut{border:1px solid var(--rule);background:var(--canvas);border-radius:8px;padding:7px 14px;font:inherit;font-size:14px;color:var(--ink)}
+.dong-x{color:var(--mu);font-size:18px;margin-left:12px}
+.tabs{display:flex;gap:26px;padding:0 24px;border-bottom:1px solid var(--rule-soft);margin-top:14px}
+.tabs span{padding:10px 0;color:var(--ash);font-size:15px}
+.tabs span.on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--ink)}
+.tabs small{color:var(--mu);font-size:12px;margin-left:4px}
+.than{display:grid;grid-template-columns:minmax(0,1fr) 340px}
+.chinh{padding:20px 24px 28px;min-width:0}
+.ray{background:var(--paper);border-left:1px solid var(--rule-soft);padding:20px 22px 28px}
+.muc{font-size:16px;font-weight:500;margin:22px 0 10px} .muc:first-child{margin-top:0}
+.muc small{font-size:13px;color:var(--mu);font-weight:400;margin-left:8px}
+.ray .muc{font-size:13px;color:var(--ash);font-weight:400;margin:0 0 10px}
+.mu{color:var(--mu)} .ash{color:var(--ash)}
+.so{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* lưới ô đóng khung — chép khuôn "Quy cách" của Việc của tổ */
+.luoi{display:grid;border:1px solid var(--rule-soft);border-radius:10px;overflow:hidden}
+.luoi>div{padding:12px 16px;border-right:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);min-width:0}
+.luoi .l{font-size:13px;color:var(--ash)} .luoi .v{font-size:17px;margin-top:4px}
+.luoi .v small{font-size:13px;color:var(--ash);margin-left:4px}
+.luoi .p{font-size:12px;color:var(--mu);margin-top:2px}
+.c5{grid-template-columns:repeat(5,minmax(0,1fr))} .c4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.c2{grid-template-columns:repeat(2,minmax(0,1fr))} .c3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.c5>div:nth-child(5n),.c4>div:nth-child(4n),.c3>div:nth-child(3n),.c2>div:nth-child(2n){border-right:0}
+.luoi>div.het{border-bottom:0}
+.muc-in{display:flex;align-items:center;gap:8px;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin-top:10px}
+.muc-in .l{font-size:13px;color:var(--ash);margin-right:8px}
+.o-mau{width:28px;height:28px;border-radius:50%;border:1px solid var(--rule);display:inline-grid;place-items:center;font-size:12px}
+.o-mau.k{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* dải mốc (p4) */
+.moc{display:flex;gap:36px;padding:0 0 18px;border-bottom:1px solid var(--rule-soft);margin-bottom:18px}
+.moc .l{font-size:12px;color:var(--mu)} .moc .v{font-size:14px;margin-top:2px}
+
+/* vướng: một dòng chip, không băng hồng */
+.vuong{display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:13px;color:var(--ash)}
+
+/* Hàng đang tới đâu — chép khuôn cột phải Việc của tổ */
+.cau{display:flex;gap:10px;align-items:flex-start;margin-bottom:4px;font-size:15px}
+.cau i{width:8px;height:8px;border-radius:50%;background:var(--la-dot);margin-top:8px;flex:none}
+.cau-p{font-size:13px;color:var(--mu);margin:0 0 12px 18px}
+.vl{list-style:none;margin:0;padding:0}
+.vs{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:10px;position:relative;padding-bottom:12px;font-size:14px}
+.vs::before{content:"";position:absolute;left:8px;top:16px;bottom:-2px;width:2px;background:var(--rule-soft)}
+.vs:last-child::before{display:none}
+.vs .o{width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);background:var(--canvas);margin-top:4px;position:relative;z-index:1}
+.vs.xong .o{background:var(--slate-dot);border-color:var(--slate-dot)}
+.vs.dang .o{background:var(--la-dot);border-color:var(--la-dot)}
+.vs.dau .o{width:16px;height:16px;margin:2px 0 0 -2px;border-width:3px;border-color:var(--la-fg)}
+.vs .nm{color:var(--ink)} .vs.xong .nm{color:var(--ash)}
+.vs .to{font-size:13px;color:var(--mu)}
+.vs .sl{font-size:13px;color:var(--ash);text-align:right}
+.vs .sl em{font-style:normal;color:var(--mu)}
+.duoi{display:flex;gap:10px;border-top:1px dashed var(--rule);padding-top:12px;margin-top:4px;font-size:14px}
+.duoi span{color:var(--mu)}
+.dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 20px;font-size:14px}
+.dl dt{color:var(--ash)} .dl dd{margin:0}
+
+/* B: timeline giờ bên phải */
+.trang-thai{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+.trang-thai b{font-size:20px;font-weight:500}
+.thanh{height:6px;background:var(--rule-soft);border-radius:4px;overflow:hidden;margin:10px 0 4px}
+.thanh i{display:block;height:100%;background:var(--la-dot)}
+.tl{list-style:none;margin:8px 0 0;padding:0}
+.tl li{display:grid;grid-template-columns:110px 22px minmax(0,1fr) 170px;gap:12px;position:relative;padding:12px 0;border-bottom:1px solid var(--rule-soft)}
+.tl li:last-child{border-bottom:0}
+.tl .gio{font-size:13px;color:var(--ash);text-align:right} .tl .gio small{display:block;color:var(--mu)}
+.tl .o{width:12px;height:12px;border-radius:50%;border:2px solid var(--rule);margin:4px auto 0;background:#fff}
+.tl .dang .o,.tl li.dang .o{background:var(--la-dot);border-color:var(--la-dot)}
+.tl li.xong .o{background:var(--slate-dot);border-color:var(--slate-dot)}
+.tl .nm{font-size:15px} .tl .to{font-size:13px;color:var(--mu)}
+.tl .sl{text-align:right;font-size:14px} .tl .sl small{display:block;font-size:12px;color:var(--mu)}
+
+.ghichu{font-size:13px;color:var(--ash);margin:10px 0 0;padding:10px 14px;border-left:0;background:var(--canvas);border:1px dashed var(--rule);border-radius:8px}
+.ghichu b{font-weight:500;color:var(--ink)}
+@media (max-width:900px){.than{grid-template-columns:1fr}.ray{border-left:0;border-top:1px solid var(--rule-soft)}.c5{grid-template-columns:repeat(2,minmax(0,1fr))}.tl li{grid-template-columns:22px minmax(0,1fr)}.tl .gio,.tl .sl{grid-column:2;text-align:left}.moc{flex-wrap:wrap;gap:16px}}
+</style>
+</head>
+<body>
+<div class="trang">
+
+<h1>Hồ sơ lệnh sản xuất: làm lại tab Tổng quan</h1>
+<p class="dan">Ba phương án cho hai vùng bạn khoanh (thân tab và cột phải). Cả ba đều <b>chép khuôn ngăn Việc của tổ</b>: lưới ô đóng khung cho quy cách và số, cột phải "Hàng đang tới đâu" vẽ các bước dọc có chấm. Khác nhau ở chỗ đặt các bước và có tách tab hay không. Chưa đụng code app.</p>
+
+<div class="hop">
+  <h3>Đã đọc gì trước khi vẽ</h3>
+  <ul>
+    <li><code>frontend/src/pages/LenhSxNgan.tsx</code>: khối <code>tongQuan</code> (băng vướng, thẻ Sản lượng, bảng Các bước 5 cột cuộn ngang) và khối <code>cot</code> ở cột phải (Lệnh, Quy cách, Nhập kho, Sự cố). Kiểu dữ liệu <code>LenhSxNganOut</code>, <code>LenhSxThongSo</code>, <code>LenhSxRoutingNode</code> trong <code>api/client.ts</code>.</li>
+    <li>Khuôn cần chép: <code>thsx/ThsxCotPhai.tsx</code> (khối Hàng đang tới đâu, chấm <code>thsx-b-vs</code>, ô đuôi về kho) và <code>ThsxQuyCach.tsx</code> (lưới ô quy cách, hàng mực in).</li>
+    <li>Bản đã chọn ngày 12/10: <code>ho-so-lenh-san-xuat-3-phuong-an.html</code> (phương án A: routing dọc, bỏ số vào/ra từng bước, bỏ phiên bản). Bản đang chạy đã trôi khỏi bản đó: có lại bảng số từng bước và chữ "phiên bản 1".</li>
+  </ul>
+</div>
+
+<div class="hop">
+  <h3>Bản hiện tại chán ở đâu (đọc từ ảnh bạn khoanh)</h3>
+  <ul>
+    <li>Băng hồng "Chưa giữ chỗ vật tư" chiếm nguyên một hàng to ở đầu, trong khi luật đã chốt là bỏ hẳn nền hồng.</li>
+    <li>Cột "Làm ra / kế hoạch" chỉ rộng 104px, nên số kế hoạch 1.000.000.000 gãy thành ba dòng, và đơn vị rơi xuống dòng thứ tư.</li>
+    <li>Thân tab có thanh cuộn riêng, bảng các bước lại cuộn ngang lần nữa. Trong khi đó cột phải rộng mà gần như chỉ có chữ xám ("Chưa hẹn", "Chưa ước được", "Chưa bắt đầu").</li>
+    <li>"LONG THỦY — lệnh số 104" nói hai lần: ở đầu thẻ Sản lượng và ở mục Thành phẩm bên phải.</li>
+    <li>Các bước là bảng chữ, không thấy hàng đang tới bước nào. Ngăn Việc của tổ trả lời câu đó bằng dải chấm dọc.</li>
+    <li>Lỗi dữ liệu, không phải lỗi bố cục: lệnh có 4 bước "Đang chạy" mà mục "Ở xưởng" vẫn ghi "Chưa bắt đầu". Mốc này đang đọc sự kiện <code>bat_dau</code> trong nhật ký, lệnh này không có sự kiện đó. Nên sửa cùng lúc, dù bạn chọn phương án nào.</li>
+  </ul>
+</div>
+
+<h2>Tham khảo</h2>
+<p class="dan">Bốn ảnh Pinterest đã lưu từ đợt Theo dõi SX, cùng nghiệp vụ "đơn đang tới đâu". Lần tìm Pinterest mới hôm nay trả về chủ yếu màn danh sách, không có màn chi tiết nào hợp hơn, nên tôi không thêm ảnh.</p>
+<div class="tk">
+  <figure><img src="tham-khao-ho-so-lenh-tong-quan/khuon-viec-cua-to.png" alt=""><figcaption><b>Việc của tổ (app mình, bạn chỉ định).</b> Lưới ô đóng khung cho quy cách, cột phải chấm dọc kèm tổ dưới tên bước, ô đuôi "Về …" ở cuối. Cả ba phương án đều dùng lại.</figcaption></figure>
+  <figure><img src="tham-khao-chi-tiet-lenh-theo-doi-pinterest/p4-the-gon-stepper-ngay.jpg" alt=""><figcaption><b>Pinterest p4: thẻ đơn gọn.</b> Một hàng mốc nhỏ (ngày đặt, ngày giao, hãng) ngay dưới tiêu đề, không thành thẻ riêng. Phương án A lấy hàng mốc này.</figcaption></figure>
+  <figure><img src="tham-khao-chi-tiet-lenh-theo-doi-pinterest/p3-trang-thai-lon-dong-thoi-gian.jpg" alt=""><figcaption><b>Pinterest p3: trạng thái to + lịch trình có giờ.</b> Một câu trạng thái lớn trả lời trước, dưới là từng chặng với giờ ở một bên. Phương án B lấy khuôn này.</figcaption></figure>
+  <figure><img src="tham-khao-chi-tiet-lenh-theo-doi-pinterest/p6-timeline-gio-ben-phai.jpg" alt=""><figcaption><b>Pinterest p6: dòng thời gian gọn.</b> Tên chặng một dòng, chữ phụ xám dưới, giờ dạt phải. Cách xếp mỗi bước ở phương án B và C.</figcaption></figure>
+  <figure><img src="tham-khao-ho-so-lenh-tong-quan/hien-tai-T08-104.png" alt=""><figcaption><b>Bản đang chạy (ảnh bạn gửi)</b>, để so.</figcaption></figure>
+</div>
+
+<div class="hop">
+  <h3>Số liệu trong mockup</h3>
+  <ul>
+    <li>Lấy từ ảnh T08-104: mã, đơn, khách, thành phẩm, 5 số sản lượng, 4 bước đang chạy (tổ, số người, số làm ra), kế hoạch 1.000.000.000.</li>
+    <li><b>Giả định</b>: thứ tự các bước và bước In cuối (thẻ Sản lượng ghi "ở In" nên In là bước cuối); quy cách giấy và mực mượn của lệnh T08-32 trong ảnh thứ hai; mọi giờ (ở xưởng từ 08:10 20/10, giờ từng bước) và số "Giấy cần 10.000" là số bịa để thấy chỗ đặt.</li>
+  </ul>
+</div>
+
+<!-- ===================== A ===================== -->
+<h2>A. Như Việc của tổ: số và quy cách ở giữa, các bước dọc ở cột phải</h2>
+<p class="dan">Bám sát ảnh bạn gửi. Thân tab chỉ còn ô số: một hàng mốc nhỏ (hạn giao, dự kiến xong, ở xưởng), lưới Sản lượng, lưới Quy cách. Các bước dọn hết sang cột phải thành dải chấm. Số làm ra/kế hoạch của mỗi bước nằm thành một dòng bên phải tên bước, không bao giờ gãy. Câu vướng thành một chip vàng nhỏ. Không còn thanh cuộn nào bên trong.</p>
+<div class="ngan">
+  <div class="ngan__dau">
+    <div>
+      <div class="vet"><a>LONG THỦY — lệnh số 104</a><span>›</span><a>Đơn DH-SOT08</a><span>›</span><a>Khách sổ T08</a></div>
+      <div class="tieude"><b>T08-104</b><span class="chip">Đang sản xuất</span></div>
+    </div>
+    <div><button class="nut">In phiếu công nghệ</button><span class="dong-x">✕</span></div>
+  </div>
+  <div class="tabs"><span class="on">Tổng quan</span><span>Lịch sử<small>20</small></span></div>
+  <div class="than">
+    <div class="chinh">
+      <div class="moc">
+        <div><div class="l">Hạn giao khách</div><div class="v mu">Chưa hẹn</div></div>
+        <div><div class="l">Dự kiến xong</div><div class="v mu">Chưa ước được</div></div>
+        <div><div class="l">Ở xưởng</div><div class="v">từ 08:10 20/10</div></div>
+      </div>
+      <div class="muc">Sản lượng</div>
+      <div class="luoi c5">
+        <div class="het"><div class="l">Đặt</div><div class="v so">1<small>cái</small></div></div>
+        <div class="het"><div class="l">Làm ra</div><div class="v so">9.800<small>tờ</small></div><div class="p">ở In</div></div>
+        <div class="het"><div class="l">Đạt KCS cuối</div><div class="v mu">Chưa kiểm</div></div>
+        <div class="het"><div class="l">Nhập kho</div><div class="v so">0</div></div>
+        <div class="het"><div class="l">Đã giao</div><div class="v so">0</div></div>
+      </div>
+      <div class="muc">Quy cách</div>
+      <div class="luoi c4">
+        <div><div class="l">Định lượng</div><div class="v">240 gsm</div></div>
+        <div><div class="l">Khổ giấy nguyên</div><div class="v">970 × 945 mm</div></div>
+        <div><div class="l">Khổ tờ in</div><div class="v">945 × 475 mm</div></div>
+        <div><div class="l">Cách in</div><div class="v">1 mặt, 1 màu</div></div>
+        <div class="het"><div class="l">Bình bài</div><div class="v">1 con một tờ in</div></div>
+        <div class="het"><div class="l">Giấy cần</div><div class="v so">10.000<small>tờ nguyên</small></div></div>
+        <div class="het"><div class="l">Thành phẩm</div><div class="v mu">Chưa khai khổ</div></div>
+        <div class="het"></div>
+      </div>
+      <div class="muc-in"><span class="l">Mực in</span><span class="ash" style="margin-right:4px">Mặt A</span><span class="o-mau">C</span><span class="o-mau">M</span><span class="o-mau">Y</span><span class="o-mau k">K</span></div>
+      <div class="muc">Ghi chú kỹ thuật</div>
+      <div class="mu">Không có</div>
+    </div>
+    <div class="ray">
+      <div class="vuong"><span class="chip chip--vang">Chưa giữ chỗ vật tư</span></div>
+      <div class="muc">Hàng đang tới đâu</div>
+      <div class="cau"><i></i><span>Hàng đang chạy song song ở 4 bước</span></div>
+      <div class="cau-p">1 trên 5 bước đã xong</div>
+      <ol class="vl">
+        <li class="vs xong"><i class="o"></i><div><div class="nm">Cắt, tề (theo kg)</div><div class="to">Cắt 1</div></div><div class="sl so">10.000 <em>/ 1 tỷ tờ</em></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">Cán màng bóng, mờ</div><div class="to">Tổ Cán màng</div></div><div class="sl so">9.800 <em>/ 1 tỷ tờ</em></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">Bồi carton 2, 3 lớp E,B</div><div class="to">Tổ bồi</div></div><div class="sl so">9.430 <em>/ 1 tỷ tờ</em></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">Bế carton 3 lớp</div><div class="to">Bế TD - Linh</div></div><div class="sl so">6.517 <em>/ 1 tỷ con</em></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">In</div><div class="to">Nhóm thợ in máy 2 màu</div></div><div class="sl so">9.800 <em>/ 1 tỷ tờ</em></div></li>
+      </ol>
+      <div class="duoi">→<div>Về kho thành phẩm<br><span>chưa có đề nghị nhập kho</span></div></div>
+    </div>
+  </div>
+</div>
+<p class="ghichu"><b>Số to rút gọn:</b> kế hoạch 1.000.000.000 hiện là "1 tỷ"; rê chuột vào thì ra đủ số. Từ 10.000 trở xuống vẫn in đủ. <b>Bỏ khỏi tab:</b> chữ "phiên bản 1", tên người đứng máy, cột Xong lúc. Giờ xong của từng bước xem ở tab Lịch sử.</p>
+
+<!-- ===================== B ===================== -->
+<h2>B. Một câu trạng thái to, các bước thành dòng thời gian ở giữa</h2>
+<p class="dan">Theo Pinterest p3/p6. Đầu thân tab trả lời ngay "lệnh đang ở đâu" bằng một câu và một thanh tiến độ. Dưới là các bước dạng dòng thời gian: giờ ở trái, tên và tổ ở giữa, số làm ra/kế hoạch ở phải, rộng đủ để không gãy. Cột phải gom thông tin đứng yên: Lệnh (hạn, thành phẩm), Quy cách dạng lưới 2 cột kiểu Việc của tổ, Nhập kho.</p>
+<div class="ngan">
+  <div class="ngan__dau">
+    <div>
+      <div class="vet"><a>LONG THỦY — lệnh số 104</a><span>›</span><a>Đơn DH-SOT08</a><span>›</span><a>Khách sổ T08</a></div>
+      <div class="tieude"><b>T08-104</b><span class="chip">Đang sản xuất</span><span class="chip chip--vang">Chưa giữ chỗ vật tư</span></div>
+    </div>
+    <div><button class="nut">In phiếu công nghệ</button><span class="dong-x">✕</span></div>
+  </div>
+  <div class="tabs"><span class="on">Tổng quan</span><span>Lịch sử<small>20</small></span></div>
+  <div class="than">
+    <div class="chinh">
+      <div class="trang-thai"><b>Đang chạy ở 4 bước</b><span class="ash">1 trên 5 bước đã xong</span></div>
+      <div class="thanh"><i style="width:20%"></i></div>
+      <div class="mu" style="font-size:13px;margin-bottom:18px">Làm ra 9.800 tờ ở In. Đặt 1 cái, chưa kiểm KCS cuối, chưa nhập kho, chưa giao.</div>
+      <div class="muc">Các bước</div>
+      <ol class="tl">
+        <li class="xong"><div class="gio">14:20 21/10<small>xong</small></div><i class="o"></i><div><div class="nm">Cắt, tề (theo kg)</div><div class="to">Cắt 1, Võ Hoàng Phương</div></div><div class="sl so">10.000 / 1 tỷ<small>tờ</small></div></li>
+        <li class="dang"><div class="gio">từ 08:10 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">Cán màng bóng, mờ</div><div class="to">Tổ Cán màng, 5 người</div></div><div class="sl so">9.800 / 1 tỷ<small>tờ</small></div></li>
+        <li class="dang"><div class="gio">từ 09:30 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">Bồi carton 2, 3 lớp E,B</div><div class="to">Tổ bồi, 4 người</div></div><div class="sl so">9.430 / 1 tỷ<small>tờ</small></div></li>
+        <li class="dang"><div class="gio">từ 13:00 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">Bế carton 3 lớp</div><div class="to">Bế TD - Linh, 3 người</div></div><div class="sl so">6.517 / 1 tỷ<small>con</small></div></li>
+        <li class="dang"><div class="gio">từ 15:40 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">In</div><div class="to">Nhóm thợ in máy 2 màu</div></div><div class="sl so">9.800 / 1 tỷ<small>tờ</small></div></li>
+      </ol>
+    </div>
+    <div class="ray">
+      <div class="muc">Lệnh</div>
+      <dl class="dl">
+        <dt>Hạn giao khách</dt><dd class="mu">Chưa hẹn</dd>
+        <dt>Dự kiến xong</dt><dd class="mu">Chưa ước được</dd>
+        <dt>Ở xưởng</dt><dd>từ 08:10 20/10</dd>
+      </dl>
+      <div class="muc">Quy cách</div>
+      <div class="luoi c2" style="background:#fff">
+        <div><div class="l">Định lượng</div><div class="v" style="font-size:15px">240 gsm</div></div>
+        <div><div class="l">Cách in</div><div class="v" style="font-size:15px">1 mặt, 1 màu</div></div>
+        <div><div class="l">Khổ nguyên</div><div class="v" style="font-size:15px">970 × 945</div></div>
+        <div><div class="l">Khổ tờ in</div><div class="v" style="font-size:15px">945 × 475</div></div>
+        <div class="het"><div class="l">Bình bài</div><div class="v" style="font-size:15px">1 con một tờ</div></div>
+        <div class="het"><div class="l">Mực</div><div class="v" style="font-size:15px">K</div></div>
+      </div>
+      <div class="muc" style="margin-top:20px">Nhập kho</div>
+      <div class="mu">Chưa có đề nghị nhập kho</div>
+    </div>
+  </div>
+</div>
+<p class="ghichu"><b>Đổi so với hiện tại:</b> thẻ 5 số Sản lượng gộp thành một câu dưới thanh tiến độ. Đây là chỗ B khác A nhiều nhất: gọn hơn, nhưng mất ô số to để liếc. Bỏ chữ "phiên bản 1". Giờ ở cột trái lấy từ <code>hoan_thanh_luc</code> hoặc lúc bắt đầu của bước, máy chủ đang có sẵn.</p>
+
+<!-- ===================== C ===================== -->
+<h2>C. Tách tab như Việc của tổ, cột phải luôn là Hàng đang tới đâu</h2>
+<p class="dan">Giống ngăn Việc của tổ cả cách chia tab: Quy cách, Sản lượng, Kho và giao, Lịch sử. Cột phải đứng yên, luôn là dải chấm các bước, đổi tab không mất. Mỗi tab ngắn, không phải cuộn. Hai khung dưới vẽ tab Quy cách và tab Sản lượng.</p>
+<div class="ngan">
+  <div class="ngan__dau">
+    <div>
+      <div class="vet"><a>LONG THỦY — lệnh số 104</a><span>›</span><a>Đơn DH-SOT08</a><span>›</span><a>Khách sổ T08</a></div>
+      <div class="tieude"><b>T08-104</b><span class="chip">Đang sản xuất</span></div>
+    </div>
+    <div><button class="nut">In phiếu công nghệ</button><span class="dong-x">✕</span></div>
+  </div>
+  <div class="tabs"><span class="on">Quy cách</span><span>Sản lượng</span><span>Kho và giao</span><span>Lịch sử<small>20</small></span></div>
+  <div class="than">
+    <div class="chinh">
+      <div class="moc">
+        <div><div class="l">Hạn giao khách</div><div class="v mu">Chưa hẹn</div></div>
+        <div><div class="l">Dự kiến xong</div><div class="v mu">Chưa ước được</div></div>
+        <div><div class="l">Ở xưởng</div><div class="v">từ 08:10 20/10</div></div>
+      </div>
+      <div class="muc">Quy cách</div>
+      <div class="luoi c5">
+        <div><div class="l">Định lượng</div><div class="v">240 gsm</div></div>
+        <div><div class="l">Khổ giấy nguyên</div><div class="v">970 × 945 mm</div></div>
+        <div><div class="l">Khổ tờ in</div><div class="v">945 × 475 mm</div></div>
+        <div><div class="l">Cách in</div><div class="v">1 mặt</div></div>
+        <div><div class="l">Số màu</div><div class="v">1</div></div>
+        <div class="het"><div class="l">Con / tờ</div><div class="v">1</div></div>
+        <div class="het"><div class="l">Giấy cần</div><div class="v so">10.000<small>tờ nguyên</small></div></div>
+        <div class="het"><div class="l">SL đặt của đơn</div><div class="v">1<small>cái</small></div></div>
+        <div class="het"></div><div class="het"></div>
+      </div>
+      <div class="muc-in"><span class="l">Mực in</span><span class="ash" style="margin-right:4px">Mặt A</span><span class="o-mau">C</span><span class="o-mau">M</span><span class="o-mau">Y</span><span class="o-mau k">K</span></div>
+      <div class="muc">Ghi chú kỹ thuật</div>
+      <div class="mu">Không có</div>
+    </div>
+    <div class="ray">
+      <div class="vuong"><span class="chip chip--vang">Chưa giữ chỗ vật tư</span></div>
+      <div class="muc">Hàng đang tới đâu</div>
+      <div class="cau"><i></i><span>Hàng đang chạy song song ở 4 bước</span></div>
+      <div class="cau-p">1 trên 5 bước đã xong</div>
+      <ol class="vl">
+        <li class="vs xong"><i class="o"></i><div><div class="nm">Cắt, tề (theo kg)</div><div class="to">Cắt 1</div></div><div class="sl"></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">Cán màng bóng, mờ</div><div class="to">Tổ Cán màng</div></div><div class="sl"></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">Bồi carton 2, 3 lớp E,B</div><div class="to">Tổ bồi</div></div><div class="sl"></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">Bế carton 3 lớp</div><div class="to">Bế TD - Linh</div></div><div class="sl"></div></li>
+        <li class="vs dang"><i class="o"></i><div><div class="nm">In</div><div class="to">Nhóm thợ in máy 2 màu</div></div><div class="sl"></div></li>
+      </ol>
+      <div class="duoi">→<div>Về kho thành phẩm<br><span>chưa có đề nghị nhập kho</span></div></div>
+    </div>
+  </div>
+</div>
+<p class="dan" style="margin-top:18px">Tab Sản lượng của phương án C. Cột phải vẫn y như trên, nên khung này chỉ vẽ thân tab.</p>
+<div class="ngan" style="max-width:880px">
+  <div class="tabs" style="margin-top:0"><span>Quy cách</span><span class="on">Sản lượng</span><span>Kho và giao</span><span>Lịch sử<small>20</small></span></div>
+  <div class="chinh">
+    <div class="luoi c5">
+      <div class="het"><div class="l">Đặt</div><div class="v so">1<small>cái</small></div></div>
+      <div class="het"><div class="l">Làm ra</div><div class="v so">9.800<small>tờ</small></div><div class="p">ở In</div></div>
+      <div class="het"><div class="l">Đạt KCS cuối</div><div class="v mu">Chưa kiểm</div></div>
+      <div class="het"><div class="l">Nhập kho</div><div class="v so">0</div></div>
+      <div class="het"><div class="l">Đã giao</div><div class="v so">0</div></div>
+    </div>
+    <div class="muc">Từng bước</div>
+    <ol class="tl">
+      <li class="xong"><div class="gio">14:20 21/10<small>xong</small></div><i class="o"></i><div><div class="nm">Cắt, tề (theo kg)</div><div class="to">Cắt 1, Võ Hoàng Phương</div></div><div class="sl so">10.000 / 1 tỷ<small>tờ</small></div></li>
+      <li class="dang"><div class="gio">từ 08:10 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">Cán màng bóng, mờ</div><div class="to">Tổ Cán màng, 5 người</div></div><div class="sl so">9.800 / 1 tỷ<small>tờ</small></div></li>
+      <li class="dang"><div class="gio">từ 09:30 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">Bồi carton 2, 3 lớp E,B</div><div class="to">Tổ bồi, 4 người</div></div><div class="sl so">9.430 / 1 tỷ<small>tờ</small></div></li>
+      <li class="dang"><div class="gio">từ 13:00 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">Bế carton 3 lớp</div><div class="to">Bế TD - Linh, 3 người</div></div><div class="sl so">6.517 / 1 tỷ<small>con</small></div></li>
+      <li class="dang"><div class="gio">từ 15:40 22/10<small>đang chạy</small></div><i class="o"></i><div><div class="nm">In</div><div class="to">Nhóm thợ in máy 2 màu</div></div><div class="sl so">9.800 / 1 tỷ<small>tờ</small></div></li>
+    </ol>
+  </div>
+</div>
+<p class="ghichu"><b>Đổi so với hiện tại:</b> bỏ tab Tổng quan, tách thành Quy cách / Sản lượng / Kho và giao. Mục Nhập kho và Sự cố ở cột phải cũ dời sang tab Kho và giao. Người quen ngăn Việc của tổ mở ra thấy cùng một chỗ, nhưng muốn xem số phải bấm thêm một tab.</p>
+
+<div class="hop" style="margin-top:40px">
+  <h3>Gợi ý của tôi</h3>
+  <ul>
+    <li><b>A</b> nếu ngăn này chủ yếu để liếc: mở ra thấy ngay số, quy cách và hàng đang ở bước nào, không phải bấm. Đây là phương án gần ảnh bạn gửi nhất mà vẫn một màn.</li>
+    <li>Cả ba đều sửa chung mấy lỗi: bỏ băng hồng, số không gãy dòng, bỏ thanh cuộn trong, không nói tên thành phẩm hai lần. Lỗi "Ở xưởng: Chưa bắt đầu" là lỗi đọc mốc, sửa riêng.</li>
+  </ul>
+</div>
+
+</div>
+</body>
+</html>

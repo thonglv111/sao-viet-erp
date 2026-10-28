@@ -11748,6 +11748,10 @@ export interface LenhSxNganOut {
   /** 13/10/2026 (ngăn hai cột): thẻ Đang vướng + tab Lịch sử. `timeline` tăng dần, `luc` có múi. */
   su_co: LenhSxSuCo[];
   timeline: LenhSxTimeline[];
+  /** Thẻ quy cách đứng máy — CÙNG hàm máy chủ với ngăn Việc của tổ (27/10/2026). */
+  quy_cach: SxQuyCachThe | null;
+  /** Ô đuôi "làm xong bước cuối thì hàng đi đâu" — CÙNG `o_duoi` với ngăn Việc của tổ. */
+  dai_duoi: SxDaiDuoi | null;
 }
 
 // --- Theo dõi sản xuất (module `theo_doi_san_xuat`) — THEO ĐƠN, 12/10/2026 ------------------------

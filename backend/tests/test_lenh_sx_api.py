@@ -685,8 +685,9 @@ def test_ngan_gon_khong_co_vat_tu(client, seed_credentials, lenh_that):
     assert r.status_code == 200, r.text
     body = r.json()
     # Sự cố + nhật ký trở lại 13/10/2026 (ngăn hai cột: thẻ Đang vướng + tab Lịch sử); vật tư vẫn không.
+    # 27/10/2026 thêm thẻ quy cách + ô đuôi của dải, mượn của ngăn Việc của tổ.
     assert set(body) == {"thong_tin", "tien_do", "thong_so", "routing", "kcs", "kho", "phien_ban", "tron_goi",
-                         "kcs_cuoi", "su_co", "timeline"}
+                         "kcs_cuoi", "su_co", "timeline", "quy_cach", "dai_duoi"}
     assert body["kcs_cuoi"] == {"so_lan": 0, "nhan": 0.0, "dat": 0.0, "khong_dat": 0.0}
     assert body["tron_goi"] is None
     assert all("kcs_khong_dat" in n for n in body["routing"]["nodes"])

@@ -78,6 +78,8 @@ const HOSO_77: LenhSxNganOut = {
   kcs_cuoi: { so_lan: 0, nhan: 0, dat: 0, khong_dat: 0 },
   su_co: [],
   timeline: [],
+  quy_cach: null,
+  dai_duoi: null,
 };
 
 /** Hồ sơ của LỆNH KHÁC (#5 — chính là dòng có sẵn trong `LIST`), dùng để (a) sửa vòng 1 P4: chứng
