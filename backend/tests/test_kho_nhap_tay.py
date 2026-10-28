@@ -177,6 +177,19 @@ def test_nhan_nhap_tay_o_yeu_cau_phieu_va_bao_cao(client):
         ("nhap_tay", "Nhập tay ở Tồn kho"), ("xuat_tay", "Giảm tay ở Tồn kho")}
 
 
+def test_giam_tay_khong_tinh_vao_xuat_moi_ngay(client):
+    # Sửa tồn giảm là chỉnh số sau kiểm kê, không phải hàng đã dùng ⇒ gợi ý mức tồn không cộng nó.
+    kho_id, h = _moc(client)
+    gid = _giay()
+    base = dict(ma="COUCHE150", dvt="tờ", kho_rong=790, kho_dai=1090)
+    _them(client, kho_id, h, so_luong=1500, don_gia=3000, **base)
+    _them(client, kho_id, h, so_luong=700, **base)
+    r = client.get(f"/api/kho/phieu/mat-hang/giay/{gid}/tong-xuat", headers=_admin(client),
+                   params={"kho_id": kho_id, "so_ngay": 90, "goc": "to", "kho_rong": 790, "kho_dai": 1090})
+    assert r.status_code == 200, r.text
+    assert r.json()["tong"] == 0
+
+
 def test_ram_quy_ve_to_va_trung_dong(client):
     kho_id, h = _moc(client)
     _giay()

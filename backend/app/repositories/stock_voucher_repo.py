@@ -317,9 +317,15 @@ class StockVoucherRepository:
 
     def tong_xuat(self, hang: tuple[str, int], kho_id: int, *, tu_ngay, goc: str | None = None,
                   kho_rong: int = 0, kho_dai: int = 0) -> float:
-        """Tổng SL XUẤT THƯỜNG (không tính điều chuyển) từ `tu_ngay` — đơn vị gốc của lô."""
+        """Tổng SL XUẤT THƯỜNG (không tính điều chuyển) từ `tu_ngay` — đơn vị gốc của lô. Bỏ phiếu giảm
+        tay ở màn Tồn kho (`nhap_tay`): sửa số sau kiểm kê không phải hàng đã dùng, cộng vào thì gợi
+        ý mức tồn thổi phồng nhịp xuất."""
+        from ..models.stock_request import StockRequest
+
         stmt = self._stmt_xuat((func.coalesce(func.sum(StockVoucherLine.so_luong), 0),), hang, kho_id,
                                goc=goc, kho_rong=kho_rong, kho_dai=kho_dai, dieu_chuyen=False)
+        stmt = (stmt.join(StockRequest, StockRequest.id == StockVoucher.request_id, isouter=True)
+                .where(StockRequest.nhap_tay.isnot(True)))
         return float(self.db.execute(stmt.where(StockVoucher.ngay >= tu_ngay)).scalar() or 0)
 
     def sl_de_nghi_by_lot(self, lots) -> dict[int, tuple[float, str | None]]:
