@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bảng công đoạn của lệnh</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc;--ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;--rust:#c5400a;
+  --xanh-bg:#dbeafe;--xanh-fg:#1d4ed8;--la-bg:#dcfce7;--la-fg:#15803d;
+  --vang-bg:#fef3c7;--vang-fg:#b45309;--tim-bg:#ede9fe;--tim-fg:#6d28d9;
+  --do-bg:#fee2e2;--do-fg:#b91c1c;--slate-bg:#f1f5f9;--slate-fg:#475569;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+b,strong{font-weight:500}
+button,select,input{font:inherit;color:inherit}
+code{font-size:12.5px;background:#fff;border:1px solid var(--rule-soft);border-radius:4px;padding:0 4px}
+.doc{max-width:1400px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc h2{font-size:17px;font-weight:500;margin:26px 0 8px}
+.doc p,.doc li{color:var(--ash);max-width:1160px}
+.doc ul{padding-left:20px;margin:6px 0}
+.refs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.ref{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:10px 12px}
+.ref img{width:100%;height:220px;object-fit:contain;background:#f8fafc;border:1px solid var(--rule-soft);border-radius:6px;display:block}
+.ref p{margin:8px 0 0;font-size:13px}
+.ref .t{color:var(--ink)}
+.now img{width:100%;border:1px solid var(--rule);border-radius:10px;background:#fff}
+.sw{position:sticky;top:0;z-index:40;background:#e9edf2;padding:12px 0 10px;margin-top:18px;border-bottom:1px solid var(--rule);display:flex;gap:8px;align-items:center}
+.pill{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--ash)}
+.pill.on{border-color:var(--ink);color:var(--ink)}
+.desc{background:#fff;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin:12px 0 10px}
+.desc h3{margin:0 0 4px;font-size:16px;font-weight:500}
+.desc p{margin:4px 0;color:var(--ash)}
+
+/* ── khung: tab Công đoạn trong ngăn hồ sơ lệnh (rộng ~1180px) ── */
+.frame{width:1180px;background:#fff;border:1px solid var(--rule);border-radius:12px;padding:16px 20px 18px;position:relative}
+.fhd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.fhd .t{font-size:15px}
+.fhd .s{color:var(--ash-2);font-size:12.5px}
+.fhd .sp{flex:1}
+.btn{border:1px solid var(--rule);background:#fff;border-radius:8px;padding:5px 11px;font-size:13px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.btn:hover{background:var(--rule-hair)}
+.btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.sm{padding:3px 9px;font-size:12.5px}
+.ico{width:28px;height:28px;padding:0;justify-content:center}
+.muted{color:var(--ash-3)}
+.sub{display:block;font-size:12px;color:var(--ash-2)}
+.num{font-variant-numeric:tabular-nums}
+.dv{color:var(--ash-2);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:1px 8px;font-size:12px;white-space:nowrap}
+.c-may{background:var(--xanh-bg);color:var(--xanh-fg)}
+.c-to{background:var(--la-bg);color:var(--la-fg)}
+.c-ngoai{background:var(--tim-bg);color:var(--tim-fg)}
+.c-canh{background:var(--vang-bg);color:var(--vang-fg);white-space:normal;border-radius:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block;flex:0 0 8px}
+
+/* ô chọn / ô gõ trong bảng */
+.sel,.inp{border:1px solid var(--rule-soft);background:#fff;border-radius:7px;height:30px;padding:0 8px;font-size:13px;width:100%}
+.sel:hover,.inp:hover{border-color:var(--rule)}
+.sel:focus,.inp:focus{outline:2px solid #93c5fd;outline-offset:-1px;border-color:#93c5fd}
+.sel.trong{color:var(--vang-fg);border-color:#fcd34d;background:#fffbeb}
+.sel[disabled]{background:var(--rule-hair);color:var(--ash-3)}
+.seg{display:inline-flex;border:1px solid var(--rule-soft);border-radius:7px;overflow:hidden;height:30px}
+.seg button{border:0;background:#fff;padding:0 9px;font-size:12.5px;cursor:pointer;color:var(--ash)}
+.seg button+button{border-left:1px solid var(--rule-soft)}
+.seg button.on.may{background:var(--xanh-bg);color:var(--xanh-fg)}
+.seg button.on.to{background:var(--la-bg);color:var(--la-fg)}
+.seg button.on.ngoai{background:var(--tim-bg);color:var(--tim-fg)}
+
+table{width:100%;border-collapse:collapse}
+th{font-weight:400;color:var(--ash-2);font-size:12px;text-align:left;padding:7px 5px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+td{padding:7px 5px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+tr:hover td{background:#fafbfc}
+th.r,td.r{text-align:right}
+.ord{color:var(--ash-3);font-size:12px}
+.ten{color:var(--ink);cursor:pointer}
+.ten:hover{text-decoration:underline}
+
+/* menu ⋯ */
+.menuwrap{position:relative;display:inline-block}
+.menu{position:absolute;right:0;top:32px;background:#fff;border:1px solid var(--rule);border-radius:8px;box-shadow:0 8px 24px rgba(15,23,42,.12);padding:4px;z-index:20;min-width:170px;display:none}
+.menu.mo{display:block}
+.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+.menu button:hover{background:var(--rule-hair)}
+.menu .xoa{color:var(--do-fg)}
+
+/* B: ô bấm-mới-sửa + bong bóng */
+.cell{border-radius:6px;padding:3px 6px;margin:-3px -6px;cursor:pointer;display:inline-block}
+.cell:hover{background:var(--rule-hair);box-shadow:inset 0 0 0 1px var(--rule-soft)}
+.cell .bt{opacity:0;font-size:11px;color:var(--ash-3);margin-left:4px}
+.cell:hover .bt{opacity:1}
+.pop{position:absolute;background:#fff;border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 32px rgba(15,23,42,.16);padding:12px;z-index:30;width:300px}
+.pop .lb{font-size:12px;color:var(--ash-2);margin:8px 0 4px}
+.pop .lb:first-child{margin-top:0}
+.pop .ft{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+textarea.inp{height:64px;padding:6px 8px;resize:vertical}
+
+/* C: mỗi bước hai dòng */
+.st{border-bottom:1px solid var(--rule-hair);padding:9px 4px}
+.st:hover{background:#fafbfc}
+.l1{display:grid;grid-template-columns:28px minmax(0,1fr) 190px 120px 150px auto;gap:10px;align-items:center}
+.l2{display:grid;grid-template-columns:28px 164px 200px 230px minmax(0,1fr);gap:8px;align-items:center;margin-top:7px}
+.l2 .ngoai{grid-column:3 / span 2}
+.hint{font-size:12px;color:var(--ash-2)}
+.foot{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:13px;color:var(--ash)}
+.foot .sp{flex:1}
+.gia{font-size:11.5px;color:var(--ash-3)}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Bảng công đoạn của lệnh: sửa ngay trên bảng</h1>
+  <p>Yêu cầu: thêm cột Ghi chú ở cuối để gõ thẳng; có nút mở Cấu hình chi tiết; chọn loại bước, tổ, máy ngay ngoài bảng. Dữ liệu là lệnh thật <code>LSX26-0005</code> trên DB dev (10 bước). Thời lượng chỉ có 3 bước trong ảnh hiện tại là số thật; các bước còn lại ghi “giả định”.</p>
+
+  <h2>Đã đọc gì trước khi vẽ</h2>
+  <ul>
+    <li><code>LsxRoutingTable.tsx</code>: bảng 8 cột (#, Công đoạn, Thực hiện, Vào → Ra, Thời lượng, Tiền nhiệm, Cần xem lại, thao tác). Bảng chỉ xem; mọi chỉnh sửa phải bấm tên bước mở ngăn. Bốn nút lên / xuống / chèn / xoá đứng thẳng hàng.</li>
+    <li><code>LsxBuocDrawer.tsx</code>: tab “Cấu hình &amp; Số lượng” có 3 nút Máy / Tổ / Thuê ngoài (<code>doiLoaiBuoc</code>: đổi sang Tổ thì xoá máy và đưa số lượt về 1; sang Thuê ngoài thì xoá tổ, máy, vật tư) và ô <b>Ghi chú kỹ thuật cho thợ</b> (<code>ghi_chu</code>). Tab “Phân công &amp; Thiết bị” có ô Tổ phụ trách và Máy sản xuất.</li>
+    <li><code>lsxBuoc.ts</code>: <code>mayChonDuoc</code> chỉ mời máy của công đoạn và thuộc tổ đang chọn, <code>mayMacDinhCuaTo</code> tự điền máy khi đổi tổ. Ô chọn ngoài bảng sẽ dùng đúng hai hàm này, nên không có luật mới.</li>
+    <li>Lưu vẫn là “Lưu công đoạn” (thay cả bảng một lần). Sửa ngoài bảng chỉ đổi bản nháp, giống sửa trong ngăn.</li>
+    <li>Cột Ghi chú ghi vào đúng <code>lsx_cong_doan.ghi_chu</code> đang có, <b>không thêm cột DB</b>.</li>
+  </ul>
+
+  <h2>Hiện tại</h2>
+  <div class="now"><img src="tham-khao-bang-cong-doan-lenh/hien-tai-LSX26-0005.png" alt="Bảng hiện tại"></div>
+  <p>Chỗ hỏng: ngăn hẹp nên bảng cuộn ngang, mất luôn cột “#” và “Công đoạn” (không thấy tên bước); cột Thực hiện dồn tổ + máy xuống 4–6 dòng; muốn đổi tổ hay gõ một câu ghi chú cũng phải mở ngăn.</p>
+
+  <h2>Tham khảo Pinterest (đã mở và xem; Pinterest chặn lượt tìm thứ hai khi chưa đăng nhập nên chỉ lấy từ lượt “editable table inline dropdown ui”)</h2>
+  <div class="refs">
+    <div class="ref"><img src="https://i.pinimg.com/736x/d4/50/b8/d450b8a77c5b2e8db27df98cedaf5462.jpg" alt=""><p class="t">P1. Ô có công tắc và trạng thái sửa ngay trong hàng</p><p>Học: điều khiển nằm sẵn trong ô, không phải mở hộp; cột hiếm dùng thì giấu qua nút chọn cột. ⇒ Phương án A.</p></div>
+    <div class="ref"><img src="https://i.pinimg.com/736x/a9/a1/e9/a9a1e917c630ae1d126664a57dcfa529.jpg" alt=""><p class="t">P2. Bấm một ô hiện bong bóng nhỏ có Lưu / Huỷ</p><p>Học: bảng vẫn gọn như bảng đọc, chỉ ô đang sửa mới bung ra. ⇒ Phương án B.</p></div>
+    <div class="ref"><img src="https://i.pinimg.com/736x/96/cc/82/96cc82219242f8f9a512910a77628dfc.jpg" alt=""><p class="t">P3. Bảng rộng, bên phải là từng thẻ xếp dọc</p><p>Học: khi chật, một hàng thành một thẻ hai tầng: tầng trên để đọc, tầng dưới để chọn. ⇒ Phương án C.</p></div>
+    <div class="ref"><img src="https://i.pinimg.com/736x/fd/5e/54/fd5e54ec85b5840b2979c3ea162e8fdd.jpg" alt=""><p class="t">P4. Thao tác hàng: menu ⋯ thay cho dãy nút</p><p>Học: gom lên / xuống / chèn / xoá vào một nút ⋯ để lấy chỗ cho ô sửa. Dùng ở cả ba phương án.</p></div>
+  </div>
+
+  <div class="sw">
+    <button class="pill on" data-pa="A">A. Ô chọn nằm sẵn trên hàng</button>
+    <button class="pill" data-pa="B">B. Bấm ô mới sửa</button>
+    <button class="pill" data-pa="C">C. Mỗi bước hai tầng</button>
+  </div>
+
+  <div class="desc" id="desc"></div>
+  <div class="frame" id="frame"></div>
+</div>
+
+<script>
+const TO = ["Xả cuộn 1","Xả cuộn 2","Nhóm thợ in máy 4 màu","Nhóm thợ in máy 6 màu","Tổ Cán màng","Bế TD - Kiệt","Bế TD - Linh","Dán - nhóm 1","Dán - nhóm 2","Thành phẩm - nhóm 1"];
+const MAY = {
+  "Xả cuộn 1":["Máy cắt cuộn 1400","Máy cắt cuộn 1700"],"Xả cuộn 2":["Máy cắt cuộn 1700"],
+  "Nhóm thợ in máy 4 màu":["Máy in 4 màu Komori"],"Nhóm thợ in máy 6 màu":["Máy in 6 màu Mitsubishi 72×102"],
+  "Tổ Cán màng":["Máy cán màng 1080 - số 1","Máy cán màng 1080 - số 2","Máy UV định hình"],
+  "Bế TD - Kiệt":["Máy bế tự động Yawa 1050"],"Bế TD - Linh":["Máy bế tự động Aoer 1500"],
+  "Dán - nhóm 1":["Máy dán hộp mềm tự động nhỏ (≤60cm)"],"Dán - nhóm 2":["Máy dán hộp mềm tự động lớn (≥60cm)"],
+  "Thành phẩm - nhóm 1":[]
+};
+const NCC = ["Gia công Minh Phát","Bế dán Hưng Thịnh","In Tân Tiến"];
+const DV = {to_nguyen:"tờ nguyên",to:"tờ in",con:"con",cai:"cái"};
+const R = [
+  {ten:"Cắt giấy cuộn",loai:"may",to:"Xả cuộn 1",may:"Máy cắt cuộn 1400",v:1500,dv:"to_nguyen",r:1500,dr:"to_nguyen",tg:"—",gc:""},
+  {ten:"Tề giấy in",loai:"may",to:"",may:"",v:1500,dv:"to_nguyen",r:1500,dr:"to",tg:"—",gc:"",canh:"chưa gán tổ / máy"},
+  {ten:"In",loai:"may",to:"Nhóm thợ in máy 6 màu",may:"Máy in 6 màu Mitsubishi 72×102",v:1500,dv:"to",r:1500,dr:"to",tg:"1 giờ 27 phút",gc:"Canh màu theo mẫu đã ký"},
+  {ten:"Cán màng materlize",loai:"may",to:"Tổ Cán màng",may:"Máy cán màng 1080 - số 1",v:1500,dv:"to",r:1500,dr:"to",tg:"2 giờ 12 phút",gc:""},
+  {ten:"UV Định Hình",loai:"may",to:"Tổ Cán màng",may:"Máy UV định hình",v:1500,dv:"to",r:1500,dr:"to",tg:"41 phút",gc:"UV logo mặt trước"},
+  {ten:"Khuôn hộp",loai:"may",to:"Bế TD - Kiệt",may:"Máy bế tự động Yawa 1050",v:1500,dv:"to",r:6000,dr:"con",tg:"1 giờ 05 phút",gia:1,gc:""},
+  {ten:"Gỡ hàng hộp giấy ivory, duplex, chipor",loai:"may",to:"Xả cuộn 1",may:"Máy cắt cuộn 1400",v:6000,dv:"con",r:6000,dr:"con",tg:"50 phút",gia:1,gc:"",canh:"máy không chạy công đoạn này"},
+  {ten:"Dán TĐ 4 góc tự động",loai:"may",to:"Dán - nhóm 1",may:"Máy dán hộp mềm tự động nhỏ (≤60cm)",v:6000,dv:"con",r:6000,dr:"con",tg:"2 giờ 30 phút",gia:1,gc:""},
+  {ten:"Kiểm hộp mềm + đóng thùng hoặc gói",loai:"may",to:"Dán - nhóm 1",may:"Máy dán hộp mềm tự động nhỏ (≤60cm)",v:6000,dv:"con",r:6000,dr:"con",tg:"1 giờ 40 phút",gia:1,gc:""},
+  {ten:"Cân hàng, đếm, đóng thùng",loai:"to",to:"Thành phẩm - nhóm 1",may:"",v:6000,dv:"con",r:6000,dr:"cai",tg:"4 giờ kế hoạch",gia:1,gc:"50 hộp một thùng"},
+];
+R.forEach((r,i)=>{r.truoc = i ? R[i-1].ten : null; r.ncc="";});
+const fmt = n => n.toLocaleString("vi-VN");
+const esc = s => String(s).replace(/"/g,"&quot;");
+let PA = "A", popAt = null, menuAt = null;
+
+const DESC = {
+  A:`<h3>A. Ô chọn nằm sẵn trên hàng <span class="muted">(khuôn P1)</span></h3>
+     <p>Mỗi hàng có sẵn 3 nút Máy / Tổ / Ngoài, ô Tổ, ô Máy và ô Ghi chú ở cuối, gõ là ăn ngay. Nút <b>Chi tiết</b> mở ngăn như cũ; bốn nút lên/xuống/chèn/xoá gom vào <b>⋯</b> (khuôn P4).</p>
+     <p>Để đủ chỗ: “Tiền nhiệm” thành dòng chữ nhỏ dưới tên bước, “Cần xem lại” thành chấm vàng cạnh tên (rê chuột đọc lý do). Bước Tổ thì ô Máy khoá; bước Ngoài thì Tổ + Máy gộp thành một ô Nhà gia công. Ô còn trống tô vàng.</p>
+     <p class="muted">Được: sửa nhanh nhất, nhìn là thấy hết. Mất: hàng dày ô, đọc kém hơn bảng hiện tại; ngăn hẹp dưới ~1100px vẫn phải cuộn ngang.</p>`,
+  B:`<h3>B. Bấm ô mới sửa <span class="muted">(khuôn P2)</span></h3>
+     <p>Bảng vẫn là bảng đọc, giữ đủ cột Tiền nhiệm và Cần xem lại. Rê chuột vào ô Loại, Tổ và máy, Ghi chú thì ô sáng lên kèm chữ “sửa”; bấm thì hiện bong bóng nhỏ có ô chọn và nút Xong. Đang mở sẵn một bong bóng ở bước <b>Tề giấy in</b> để xem.</p>
+     <p class="muted">Được: bảng gọn và yên, ít bấm nhầm. Mất: mỗi lần sửa thêm một cú bấm; gõ ghi chú cho nhiều bước liền phải mở-đóng bong bóng từng bước.</p>`,
+  C:`<h3>C. Mỗi bước hai tầng <span class="muted">(khuôn P3)</span></h3>
+     <p>Tầng trên để đọc: thứ tự, tên bước (dưới là “sau: bước trước”), Vào → Ra, Thời lượng, cảnh báo, nút Chi tiết và ⋯. Tầng dưới để sửa: Máy / Tổ / Ngoài, Tổ, Máy, và ô Ghi chú chiếm hết phần còn lại.</p>
+     <p class="muted">Được: không bao giờ cuộn ngang, ô Ghi chú rộng nhất, hợp cả máy tính bảng. Mất: mỗi bước cao gấp đôi, 10 bước phải cuộn dọc nhiều hơn.</p>`,
+};
+
+function selTo(r,i,cls=""){
+  return `<select class="sel ${r.to?"":"trong"} ${cls}" onchange="doiTo(${i},this.value)">
+    <option value="">— chọn tổ —</option>${TO.map(t=>`<option ${t===r.to?"selected":""}>${t}</option>`).join("")}</select>`;
+}
+function selMay(r,i){
+  if (r.loai==="to") return `<select class="sel" disabled title="Bước tổ làm tay, không chạy máy"><option>không dùng máy</option></select>`;
+  const ds = MAY[r.to] || [];
+  return `<select class="sel ${r.may?"":"trong"}" onchange="R[${i}].may=this.value;ve()" ${r.to?"":"disabled"}>
+    <option value="">${r.to? (ds.length?"— chọn máy —":"tổ chưa có máy"):"chọn tổ trước"}</option>${ds.map(m=>`<option ${m===r.may?"selected":""}>${m}</option>`).join("")}${r.may&&!ds.includes(r.may)?`<option selected>${r.may}</option>`:""}</select>`;
+}
+function selNcc(r,i){
+  return `<select class="sel ${r.ncc?"":"trong"}" onchange="R[${i}].ncc=this.value;ve()"><option value="">— chọn nhà gia công —</option>${NCC.map(n=>`<option ${n===r.ncc?"selected":""}>${n}</option>`).join("")}</select>`;
+}
+function seg(r,i){
+  return `<span class="seg">${[["may","Máy"],["to","Tổ"],["ngoai","Ngoài"]].map(([k,l])=>`<button class="${k} ${r.loai===k?"on":""}" onclick="doiLoai(${i},'${k}')" title="${k==="ngoai"?"Thuê ngoài":l}">${l}</button>`).join("")}</span>`;
+}
+function vaoRa(r){
+  return `<span style="white-space:nowrap"><span class="num">${fmt(r.v)}</span> <span class="dv">${DV[r.dv]}</span></span><span class="sub" style="white-space:nowrap">→ <span class="num">${fmt(r.r)}</span> ${DV[r.dr]}</span>`;
+}
+function tg(r){ return `${r.tg}${r.gia?` <span class="gia">giả định</span>`:""}`; }
+function canh(r){ return r.canh ? `<span class="dot" title="${esc(r.canh)}"></span>` : ""; }
+function menu(i){
+  return `<span class="menuwrap"><button class="btn ico" onclick="moMenu(event,${i})" aria-label="Thao tác khác">⋯</button>
+    <span class="menu ${menuAt===i?"mo":""}"><button>Chuyển lên</button><button>Chuyển xuống</button><button>Chèn bước sau</button><button class="xoa">Bỏ bước</button></span></span>`;
+}
+function chiTiet(){ return `<button class="btn sm" title="Mở ngăn cấu hình chi tiết: số lượng, thời gian, vật tư, phụ thuộc, khuôn">Chi tiết</button>`; }
+function loaiChip(r){ return {may:'<span class="chip c-may">Máy</span>',to:'<span class="chip c-to">Tổ</span>',ngoai:'<span class="chip c-ngoai">Thuê ngoài</span>'}[r.loai]; }
+
+function doiLoai(i,k){
+  const r=R[i]; r.loai=k;
+  if(k==="to"){ r.may=""; }
+  if(k==="ngoai"){ r.to=""; r.may=""; }
+  ve();
+}
+function doiTo(i,v){ const r=R[i]; r.to=v; const ds=MAY[v]||[]; r.may = r.loai==="may" ? (ds[0]||"") : ""; ve(); }
+function moMenu(e,i){ e.stopPropagation(); menuAt = menuAt===i?null:i; ve(); }
+document.addEventListener("click",()=>{ if(menuAt!==null){menuAt=null;ve();} });
+
+function head(){
+  return `<div class="fhd"><span class="t">Công đoạn</span><span class="s">10 bước, chiếm máy 11 giờ 35 phút</span><span class="sp"></span>
+    <button class="btn">Dạng sơ đồ</button><button class="btn">+ Thêm công đoạn</button><button class="btn pri">Lưu công đoạn</button></div>`;
+}
+function foot(){ return `<div class="foot"><span>Đang sửa bản nháp. Chưa bấm Lưu công đoạn thì lệnh chưa đổi.</span><span class="sp"></span><span class="muted">Ô tô vàng: còn trống</span></div>`; }
+
+function veA(){
+  return head()+`<table style="table-layout:fixed"><thead><tr>
+    <th style="width:28px">#</th><th>Công đoạn</th><th style="width:146px">Loại</th><th style="width:132px">Tổ</th><th style="width:150px">Máy</th>
+    <th class="r" style="width:108px">Vào → Ra</th><th style="width:100px">Thời lượng</th><th style="width:150px">Ghi chú</th><th style="width:100px"></th></tr></thead><tbody>
+    ${R.map((r,i)=>`<tr>
+      <td class="ord">${(i+1)*10}</td>
+      <td><span style="display:flex;gap:6px;align-items:center"><span class="ten">${r.ten}</span>${canh(r)}</span>
+          <span class="sub">${r.truoc?`sau: ${r.truoc}`:"bước đầu"}</span></td>
+      <td>${seg(r,i)}</td>
+      ${r.loai==="ngoai" ? `<td colspan="2">${selNcc(r,i)}</td>` : `<td>${selTo(r,i)}</td><td>${selMay(r,i)}</td>`}
+      <td class="r" style="white-space:nowrap"><span class="num">${fmt(r.v)}</span> <span class="dv">${DV[r.dv]}</span><span class="sub">→ <span class="num">${fmt(r.r)}</span> ${DV[r.dr]}</span></td>
+      <td>${tg(r)}</td>
+      <td><input class="inp" value="${esc(r.gc)}" placeholder="Ghi chú cho thợ" oninput="R[${i}].gc=this.value"></td>
+      <td style="white-space:nowrap">${chiTiet()} ${menu(i)}</td></tr>`).join("")}
+  </tbody></table>`+foot();
+}
+
+function veB(){
+  const html = head()+`<table style="table-layout:fixed"><thead><tr>
+    <th style="width:28px">#</th><th>Công đoạn</th><th style="width:80px">Loại</th><th style="width:170px">Tổ và máy</th><th class="r" style="width:108px">Vào → Ra</th>
+    <th style="width:100px">Thời lượng</th><th style="width:120px">Tiền nhiệm</th><th style="width:110px">Cần xem lại</th><th style="width:140px">Ghi chú</th><th style="width:100px"></th></tr></thead><tbody>
+    ${R.map((r,i)=>`<tr>
+      <td class="ord">${(i+1)*10}</td>
+      <td><span class="ten">${r.ten}</span></td>
+      <td><span class="cell" onclick="moPop(event,${i},'loai')">${loaiChip(r)}<span class="bt">sửa</span></span></td>
+      <td><span class="cell" onclick="moPop(event,${i},'to')">${r.loai==="ngoai"
+          ? (r.ncc||'<span class="chip c-canh">chưa chọn nhà gia công</span>')
+          : (r.to ? `${r.to}<span class="sub">${r.may||(r.loai==="to"?"làm tay":"chưa chọn máy")}</span>` : '<span class="chip c-canh">chưa gán tổ / máy</span>')}<span class="bt">sửa</span></span></td>
+      <td class="r">${vaoRa(r)}</td>
+      <td>${tg(r)}</td>
+      <td>${r.truoc?`<span class="sub">${r.truoc}</span>`:'<span class="muted">bước đầu</span>'}</td>
+      <td>${r.canh?`<span class="chip c-canh">${r.canh}</span>`:'<span class="muted">—</span>'}</td>
+      <td><span class="cell" onclick="moPop(event,${i},'gc')">${r.gc||'<span class="muted">+ ghi chú</span>'}<span class="bt">sửa</span></span></td>
+      <td style="white-space:nowrap">${chiTiet()} ${menu(i)}</td></tr>`).join("")}
+  </tbody></table>`+foot();
+  return html;
+}
+function moPop(e,i,k){ e.stopPropagation(); popAt={i,k,el:e.currentTarget.getBoundingClientRect()}; ve(); }
+function popHtml(){
+  if(!popAt) return "";
+  const r=R[popAt.i], fr=document.getElementById("frame").getBoundingClientRect();
+  const top=popAt.el.bottom-fr.top+6, left=Math.min(popAt.el.left-fr.left, 1180-320);
+  let body="";
+  if(popAt.k==="loai") body=`<div class="lb">Loại bước</div>${seg(r,popAt.i)}<div class="lb hint">Đổi sang Tổ thì bỏ máy; sang Thuê ngoài thì bỏ tổ, máy, vật tư.</div>`;
+  if(popAt.k==="to") body = r.loai==="ngoai" ? `<div class="lb">Nhà gia công</div>${selNcc(r,popAt.i)}`
+      : `<div class="lb">Tổ phụ trách</div>${selTo(r,popAt.i)}<div class="lb">Máy</div>${selMay(r,popAt.i)}<div class="lb hint">Chỉ mời máy chạy được “${r.ten}” và thuộc tổ đã chọn.</div>`;
+  if(popAt.k==="gc") body=`<div class="lb">Ghi chú kỹ thuật cho thợ</div><textarea class="inp" oninput="R[${popAt.i}].gc=this.value" placeholder="vd: canh màu theo mẫu đã ký">${r.gc}</textarea>`;
+  return `<div class="pop" style="top:${top}px;left:${left}px" onclick="event.stopPropagation()">${body}
+    <div class="ft"><button class="btn sm" onclick="popAt=null;ve()">Huỷ</button><button class="btn sm pri" onclick="popAt=null;ve()">Xong</button></div></div>`;
+}
+document.addEventListener("click",()=>{ if(popAt){popAt=null;ve();} });
+
+function veC(){
+  return head()+R.map((r,i)=>`<div class="st">
+    <div class="l1">
+      <span class="ord">${(i+1)*10}</span>
+      <span><span style="display:flex;gap:6px;align-items:center"><span class="ten">${r.ten}</span>${r.canh?`<span class="chip c-canh">${r.canh}</span>`:""}</span>
+        <span class="sub">${r.truoc?`sau: ${r.truoc}`:"bước đầu"}</span></span>
+      <span class="r" style="text-align:right">${vaoRa(r)}</span>
+      <span>${tg(r)}</span>
+      <span></span>
+      <span style="white-space:nowrap">${chiTiet()} ${menu(i)}</span>
+    </div>
+    <div class="l2">
+      <span></span>
+      ${seg(r,i)}
+      ${r.loai==="ngoai" ? `<span class="ngoai">${selNcc(r,i)}</span>` : `${selTo(r,i)}${selMay(r,i)}`}
+      <input class="inp" value="${esc(r.gc)}" placeholder="Ghi chú cho thợ" oninput="R[${i}].gc=this.value">
+    </div></div>`).join("")+foot();
+}
+
+function ve(){
+  document.getElementById("desc").innerHTML = DESC[PA];
+  const f=document.getElementById("frame");
+  f.innerHTML = (PA==="A"?veA():PA==="B"?veB():veC());
+  if(PA==="B") f.insertAdjacentHTML("beforeend", popHtml());
+}
+document.querySelectorAll(".pill").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".pill").forEach(x=>x.classList.toggle("on",x===b));
+  PA=b.dataset.pa; popAt=null; menuAt=null; ve();
+  if(PA==="B") setTimeout(()=>{ const c=document.querySelectorAll("#frame tbody tr")[1].querySelectorAll(".cell")[1]; c.click(); },0);
+});
+ve();
+</script>
+</body>
+</html>

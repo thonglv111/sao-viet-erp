@@ -35,10 +35,12 @@ import {
   nhanChang,
   nhanDonVi,
   nhanGiayTheoDauVao,
+  patchLoaiBuoc,
   phut,
   tenBuoc,
   thoiLuong,
   thoiLuongLive,
+  toChonDuoc,
 } from "./lsxBuoc";
 
 // Bước THUÊ NGOÀI (spec gia công ngoài 2026-09-26): nhà gia công lo máy, người, vật tư, thời gian.
@@ -51,7 +53,7 @@ const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"];
  *  cũng trôi. Nhóm KHÔNG chặn: vẫn chọn được máy bất kỳ, chỉ là mắt phải đi qua nhãn loại. */
 const DS_TEN = new Intl.ListFormat("vi", { style: "long", type: "conjunction" });
 
-function nhomMayTheoLoai(mayRefs: RefRow[]): { ten: string; items: RefRow[] }[] {
+export function nhomMayTheoLoai(mayRefs: RefRow[]): { ten: string; items: RefRow[] }[] {
   const groups = new Map<string, RefRow[]>();
   for (const m of mayRefs) {
     const k = (m.nhom || "").trim() || "Chưa phân loại";
@@ -302,15 +304,7 @@ export function LsxBuocDrawer({
   const toChon = useMemo(() => {
     if (!toRefs) return { items: [] as { id: number; ten: string }[], gioiHan: false };
     const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
-    const ids = (cd?.toChoPhep ?? []).filter((id) => toRefs.some((t) => t.id === id));
-    const items = ids.length
-      ? ids.map((id) => ({ id, ten: toRefs.find((t) => t.id === id)!.ten }))
-      : toRefs.map((t) => ({ id: t.id, ten: t.ten }));
-    const dangGan = toRefs.find((t) => t.id === row.department_id);
-    if (dangGan && !items.some((t) => t.id === dangGan.id)) {
-      items.push({ id: dangGan.id, ten: `${dangGan.ten} (không còn phụ trách công đoạn)` });
-    }
-    return { items, gioiHan: ids.length > 0 };
+    return toChonDuoc(toRefs, cd, row.department_id);
   }, [toRefs, congDoanRefs, row.cong_doan_id, row.department_id]);
   const toDangGanHienDuoc = row.department_id != null && toChon.items.some((t) => t.id === row.department_id);
 
@@ -362,28 +356,9 @@ export function LsxBuocDrawer({
   // `tuDinhMuc` · `bungVatTu` · `chonDauViec` GỠ 18/09/2026: vật tư bung theo CÔNG ĐOẠN ở server
   // (tab Vật tư của danh mục, mg `0316`), bước thôi chọn đầu việc.
 
+  // Luật dọn khi đổi loại bước ở `patchLoaiBuoc` — dùng chung với ô "Loại" trên bảng công đoạn.
   function doiLoaiBuoc(k: LsxLoaiBuoc) {
-    if (k === "thue_ngoai") {
-      // Gia công ngoài: không tổ, không máy, một lượt, không vật tư — nhà gia công lo. Dọn ngay
-      // trong bản nháp để bảng không còn chip tổ/máy cũ; máy chủ cũng dọn khi lưu (Task 3).
-      onPatch({
-        loai_buoc: k, may_id: null, department_id: null, department_ten: null,
-        so_luot_chay: "1", vat_tus: [],
-      });
-      return;
-    }
-    // Máy: giờ theo tốc độ máy. Tổ: giờ kế hoạch gõ tay (tab Thời gian).
-    if (k === "may") {
-      onPatch({ loai_buoc: k });
-      return;
-    }
-    onPatch({
-      loai_buoc: k,
-      may_id: null,
-      // Ô "số lượt qua máy" không hiện ở bước tổ (08/09/2026) — trả về 1 ngay lúc đổi loại, để
-      // số 2 lượt của bước máy cũ không nằm lại vô hình trong bản nháp.
-      so_luot_chay: "1",
-    });
+    onPatch(patchLoaiBuoc(k));
   }
 
   const meta = LSX_LOAI_BUOC_META[row.loai_buoc];
@@ -1759,6 +1734,37 @@ function NhaGiaCongCard({
   canUpdate: boolean;
   onPatch: (p: Partial<EditRow>) => void;
 }) {
+  return (
+    <section className="khsx-section-card">
+      <div className="khsx-section-card__head">
+        <h3 className="khsx-section-card__title">Nhà gia công</h3>
+      </div>
+      <div className="khsx-assign-grid">
+        <label className="khsx-field">
+          <span className="khsx-field__label">NHÀ GIA CÔNG</span>
+          <ChonNhaGiaCong row={row} canUpdate={canUpdate} onPatch={onPatch} />
+          {dai?.truoc && (
+            <span className="khsx-field__hint">
+              Đi chung một lần gia công với bước “{dai.truoc}”.
+            </span>
+          )}
+        </label>
+      </div>
+    </section>
+  );
+}
+
+/** Ô chọn NHÀ GIA CÔNG của bước thuê ngoài — dùng chung cho thẻ trong ngăn và ô "Tổ và máy" trên
+ *  bảng công đoạn. Nhà gia công = Nhà cung cấp tích "Nhận gia công". */
+export function ChonNhaGiaCong({
+  row,
+  canUpdate,
+  onPatch,
+}: {
+  row: EditRow;
+  canUpdate: boolean;
+  onPatch: (p: Partial<EditRow>) => void;
+}) {
   const { token } = useAuth();
   const [ds, setDs] = useState<NhaGiaCong[] | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
@@ -1774,57 +1780,41 @@ function NhaGiaCongCard({
   // trong khi bước vẫn trỏ tới họ, và bảng "còn thiếu" không nhắc (máy chủ giữ nguyên id).
   const mat = row.nha_cung_cap_id != null && ds != null
     && !ds.some((n) => n.id === row.nha_cung_cap_id);
+  if (loi) return <span className="khsx-field__hint">{loi}</span>;
   return (
-    <section className="khsx-section-card">
-      <div className="khsx-section-card__head">
-        <h3 className="khsx-section-card__title">Nhà gia công</h3>
-      </div>
-      <div className="khsx-assign-grid">
-        <label className="khsx-field">
-          <span className="khsx-field__label">NHÀ GIA CÔNG</span>
-          {loi ? (
-            <span className="khsx-field__hint">{loi}</span>
-          ) : (
-            // Tìm GẦN ĐÚNG như ô Tên công đoạn ở trên — gõ không dấu, một mẩu tên.
-            <Select<number | null>
-              value={row.nha_cung_cap_id ?? null}
-              disabled={!canUpdate || ds == null}
-              ariaLabel="Nhà gia công"
-              placeholder="— chọn nhà gia công —"
-              searchable
-              searchPlaceholder="Gõ tên nhà gia công…"
-              options={[
-                ...(mat && row.nha_cung_cap_id != null
-                  ? [{
-                      value: row.nha_cung_cap_id,
-                      label: row.nha_cung_cap || "Nhà đã chọn",
-                      sub: "Đã bỏ tích “Nhận gia công”",
-                    }]
-                  : []),
-                ...(ds ?? []).map((n) => ({ value: n.id, label: n.ten })),
-              ]}
-              onChange={(id) => {
-                onPatch({
-                  nha_cung_cap_id: id,
-                  nha_cung_cap: ds?.find((n) => n.id === id)?.ten
-                    ?? (id != null && id === row.nha_cung_cap_id ? row.nha_cung_cap ?? "" : ""),
-                });
-              }}
-            />
-          )}
-          {ds != null && ds.length === 0 && (
-            <span className="khsx-field__hint">
-              Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó cho
-              nhà gia công rồi chọn lại ở đây.
-            </span>
-          )}
-          {dai?.truoc && (
-            <span className="khsx-field__hint">
-              Đi chung một lần gia công với bước “{dai.truoc}”.
-            </span>
-          )}
-        </label>
-      </div>
-    </section>
+    <>
+      {/* Tìm GẦN ĐÚNG như ô Tên công đoạn — gõ không dấu, một mẩu tên. */}
+      <Select<number | null>
+        value={row.nha_cung_cap_id ?? null}
+        disabled={!canUpdate || ds == null}
+        ariaLabel="Nhà gia công"
+        placeholder="— chọn nhà gia công —"
+        searchable
+        searchPlaceholder="Gõ tên nhà gia công…"
+        options={[
+          ...(mat && row.nha_cung_cap_id != null
+            ? [{
+                value: row.nha_cung_cap_id,
+                label: row.nha_cung_cap || "Nhà đã chọn",
+                sub: "Đã bỏ tích “Nhận gia công”",
+              }]
+            : []),
+          ...(ds ?? []).map((n) => ({ value: n.id, label: n.ten })),
+        ]}
+        onChange={(id) => {
+          onPatch({
+            nha_cung_cap_id: id,
+            nha_cung_cap: ds?.find((n) => n.id === id)?.ten
+              ?? (id != null && id === row.nha_cung_cap_id ? row.nha_cung_cap ?? "" : ""),
+          });
+        }}
+      />
+      {ds != null && ds.length === 0 && (
+        <span className="khsx-field__hint">
+          Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó cho
+          nhà gia công rồi chọn lại ở đây.
+        </span>
+      )}
+    </>
   );
 }
