@@ -42,7 +42,7 @@ describe("khoNhapTuDongMua", () => {
   it("vật tư mang khổ tuỳ chọn như giấy; hàng khác hoặc không khớp được dòng đơn ⇒ 0 · 0", () => {
     const rong = { kho_rong: 0, kho_dai: 0 };
     expect(khoNhapTuDongMua({ hang_loai: "vat_tu", kho_rong: 700, kho_dai: 500 })).toEqual({ kho_rong: 500, kho_dai: 700 });
-    expect(khoNhapTuDongMua({ hang_loai: "thanh_pham", kho_rong: 5, kho_dai: 5 })).toEqual(rong);
+    expect(khoNhapTuDongMua({ hang_loai: "thanh_pham" as never, kho_rong: 5, kho_dai: 5 })).toEqual(rong);
     expect(khoNhapTuDongMua(undefined)).toEqual(rong);
   });
 });
