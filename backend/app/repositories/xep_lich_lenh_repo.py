@@ -145,18 +145,22 @@ class XepLichLenhRepository:
         )
         # (2) — bước routing có công việc tra được: riêng (id hoặc step_key) hoặc qua bảng phủ.
         buoc = LsxCongDoan.__table__.alias("buoc_xong_tron")
-        co_viec_rieng = (
-            select(SanXuatCongViec.id)
-            .where(
-                SanXuatCongViec.lsx_id == XepLichLenh.lsx_id,
-                SanXuatCongViec.goi_id.in_(goi_dang),
-                or_(
-                    SanXuatCongViec.lsx_cong_doan_id == buoc.c.id,
-                    SanXuatCongViec.step_key == buoc.c.step_key,
-                ),
+        # Hai khoá riêng tách HAI vế EXISTS, đừng gộp `OR` trong một vế: Postgres không băm được
+        # điều kiện nối có OR nên so lồng mọi bước × mọi việc — DB đo tải 26/10/2026 (102 nghìn
+        # bước) mất 38 s cho bàn tháng; tách ra thì thành hash anti-join.
+        def co_viec_rieng_theo(dk):
+            return (
+                select(SanXuatCongViec.id)
+                .where(
+                    SanXuatCongViec.lsx_id == XepLichLenh.lsx_id,
+                    SanXuatCongViec.goi_id.in_(goi_dang),
+                    dk,
+                )
+                .exists()
             )
-            .exists()
-        )
+
+        co_viec_theo_id = co_viec_rieng_theo(SanXuatCongViec.lsx_cong_doan_id == buoc.c.id)
+        co_viec_theo_khoa = co_viec_rieng_theo(SanXuatCongViec.step_key == buoc.c.step_key)
         co_viec_chung = (
             select(SanXuatCongViec.id)
             .join(
@@ -173,7 +177,7 @@ class XepLichLenhRepository:
         )
         buoc_khong_khop = (
             select(buoc.c.id)
-            .where(buoc.c.lsx_id == XepLichLenh.lsx_id, ~or_(co_viec_rieng, co_viec_chung))
+            .where(buoc.c.lsx_id == XepLichLenh.lsx_id, ~co_viec_theo_id, ~co_viec_theo_khoa, ~co_viec_chung)
             .exists()
         )
         co_routing = select(LsxCongDoan.id).where(LsxCongDoan.lsx_id == XepLichLenh.lsx_id).exists()

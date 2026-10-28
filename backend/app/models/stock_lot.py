@@ -14,7 +14,6 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from sqlalchemy import (
-    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -98,8 +97,10 @@ class StockLot(Base):
     ncc: Mapped[str | None] = mapped_column(String(150), nullable=True)
     # Giá vốn của RIÊNG lô này (VND/đvt). Chỉ vai có `can_view_cost` được xem — router
     # ẩn trường này, kể cả trên bản in (spec §9.1).
-    don_gia_nhap: Mapped[int] = mapped_column(
-        BigInteger, CheckConstraint("don_gia_nhap >= 0"),
+    # SỐ LẺ, không làm tròn (mg 0452): 100 kg × 21.000 quy ra 774 tờ là 2.713,18 đ/tờ — làm tròn
+    # 2.713 thì tồn thành 2.099.862, lệch tiền nhập. Trả float (asdecimal=False) cho Python khỏi trộn Decimal.
+    don_gia_nhap: Mapped[float] = mapped_column(
+        Numeric(18, 6, asdecimal=False), CheckConstraint("don_gia_nhap >= 0"),
         nullable=False, server_default="0", default=0,
     )
     # Scale 4 chữ số thập phân KHỚP `stock_voucher_lines.sl_goc` (Numeric(14,4)) — số quy về đơn vị

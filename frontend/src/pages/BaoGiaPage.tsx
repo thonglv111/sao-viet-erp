@@ -1510,7 +1510,7 @@ export function QuotationDetailView({
                   {/* Giá bán = giá vốn + chiết khấu + lợi nhuận: các cột đi đúng thứ tự công thức. */}
                   <th>Sản phẩm</th><th className="num">SL</th><th className="num">Giá vốn</th>
                   <th className="num">Chiết khấu</th>
-                  <th className="num">Markup</th>
+                  <th className="num">Lợi nhuận</th>
                   <th className="num">Giá bán</th>
                   <th className="num">Kê</th>
                   <th className="num">Giá bán sau kê</th>
@@ -1593,8 +1593,8 @@ export function QuotationDetailView({
                               pct={Math.round(c.m * 10) / 10}
                               so={c.ln}
                               disabled={busy}
-                              ariaLabel={`Markup ${it.product_name}`}
-                              titlePct="Markup (%) trên (giá vốn + chiết khấu) của dòng này"
+                              ariaLabel={`Lợi nhuận ${it.product_name}`}
+                              titlePct="Lợi nhuận (%) trên (giá vốn + chiết khấu) của dòng này"
                               titleSo="Tiền lợi nhuận của dòng này"
                               onNhap={(k, v) => datNhap([it.id], "ln", { k, v })}
                               onHuy={() => datNhap([it.id], "ln", null)}
@@ -1615,7 +1615,7 @@ export function QuotationDetailView({
                             donVi="đ"
                             disabled={busy}
                             ariaLabel={`Giá bán ${it.product_name}`}
-                            title="Gõ tay giá bán dòng này — chiết khấu theo % đã đặt (gõ số tiền thì giữ số tiền), lợi nhuận là phần còn lại. Sửa lại Markup sẽ bỏ giá gõ tay."
+                            title="Gõ tay giá bán dòng này — chiết khấu theo % đã đặt (gõ số tiền thì giữ số tiền), lợi nhuận là phần còn lại. Sửa lại Lợi nhuận sẽ bỏ giá gõ tay."
                             onNhap={(v) => datNhap([it.id], "gia", v)}
                             onChot={(v) => commitGia(it, v)}
                             onHuy={() => datNhap([it.id], "gia", null)}
@@ -1625,7 +1625,7 @@ export function QuotationDetailView({
                               <span className="tag">Gõ tay</span>
                               {editable && it.gia_go_tay && (
                                 <button type="button" className="reset" disabled={busy} onClick={() => veTheoMarkup(it)}>
-                                  <Undo2 size={12} /> Về theo markup
+                                  <Undo2 size={12} /> Về theo lợi nhuận
                                 </button>
                               )}
                             </span>
@@ -1852,7 +1852,7 @@ export function QuotationDetailView({
             <div className="dk__hd"><div className="dk__eyebrow"><DollarSign size={13} /> Giá bán đề xuất <span className="dk__ver">v{d.version}</span></div></div>
             <div className="dk__big">{numf(grandT)}<span className="u">đ</span></div>
             <div className="dk__meter">
-              <div className="lbl"><span>Markup bình quân</span><b>{marginPctDisp}%</b></div>
+              <div className="lbl"><span>Lợi nhuận bình quân</span><b>{marginPctDisp}%</b></div>
               <div className="mbar"><span className="p" style={{ width: `${meterW}%` }} /></div>
             </div>
             <div className="dk__rows">
@@ -1914,7 +1914,7 @@ export function QuotationDetailView({
                       <span key={e.key} className="exc-chip">{e.label}</span>
                     ))}
                     {d.markup_pct != null && (
-                      <span className="exc-chip exc-chip--num">Markup {d.markup_pct}%</span>
+                      <span className="exc-chip exc-chip--num">Lợi nhuận {d.markup_pct}%</span>
                     )}
                   </div>
                   <div className={`exc-status exc-status--${d.status === "pending_approval" ? "pending" : d.status === "approved" ? "approved" : d.status === "rejected" ? "rejected" : d.exception_status}`}>

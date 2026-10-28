@@ -1697,8 +1697,19 @@ button.khsx-thieu__buoc:hover {
 .khsx-rt__baracts { margin-left: auto; display: flex; gap: var(--sp-2); }
 .khsx-rt__flow { padding: var(--sp-2) 0; }
 
-/* Bảng chỉ còn 7 cột nên vừa màn laptop — không cần min-width to như bản 11 cột. */
-.khsx-rt__table { width: 100%; border-collapse: collapse; min-width: 760px; }
+/* 10 cột từ 28/10/2026 (thêm Loại, Ghi chú; Vào → Ra xếp hai dòng) — màn hẹp hơn thì cuộn ngang. */
+.khsx-rt__table { width: 100%; border-collapse: collapse; min-width: 1290px; table-layout: fixed; }
+/* Tiêu đề nhỏ, xám, căn trái, không đậm — bảng đọc bằng nội dung, không bằng tiêu đề. */
+.khsx-rt__table thead th {
+  padding: 10px 8px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--ash);
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.khsx-rt__table thead th.khsx-th--num { text-align: right; }
 .khsx-rt__table td {
   padding: 8px;
   border-bottom: 1px solid var(--rule-hair);
@@ -1810,6 +1821,66 @@ button.khsx-thieu__buoc:hover {
 .khsx-rt__btn--up svg { transform: rotate(180deg); }
 .khsx-rt__btn--del:hover { color: var(--signal); border-color: var(--signal); }
 .khsx-rt__btn--ins:hover { color: var(--rust); border-color: var(--rust); }
+.khsx-rt__btn:hover:not(:disabled) { color: var(--ink); border-color: var(--rule); }
+/* Ô SỬA NHANH (phương án B 28/10/2026): Loại · Tổ và máy · Ghi chú bấm là bật hộp ngay dưới ô.
+   Bình thường trông như chữ, rê chuột mới hiện khung — bảng vẫn đọc như bảng. */
+.khsx-rt__o {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  text-align: left;
+  color: var(--ink);
+  font: inherit;
+  border-radius: var(--r-3);
+  cursor: pointer;
+}
+.khsx-rt__o:hover { background: var(--rule-hair); box-shadow: inset 0 0 0 1px var(--rule-soft); }
+.khsx-rt__o:focus-visible { outline: 2px solid var(--rust); outline-offset: 1px; }
+.khsx-rt__vr { display: block; }
+.khsx-rt__qty { text-align: right; }
+.khsx-rt__cd { display: flex; align-items: center; gap: 6px; }
+.khsx-rt__cd .khsx-rt__open { flex: 1 1 auto; min-width: 0; }
+/* Số món vật tư — cùng hình viên tròn sẫm ở góc thẻ DAG (`.dag-node__vat-tu`), đứng trong dòng. */
+.khsx-rt__vt {
+  flex: none;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--charcoal);
+  color: var(--on-charcoal);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.khsx-rt__vt:hover { background: var(--charcoal-2); }
+.khsx-rt__vt:focus-visible { outline: 2px solid var(--rust); outline-offset: 1px; }
+/* Bảng chia cột cố định ⇒ thứ gì dài phải tự xuống dòng hoặc cắt "…", không được đè sang cột
+   bên. Dải thời gian xuống dòng; chip tên bước dài cắt "…" (rê chuột đọc đủ). */
+.khsx-rt__table .khsx-rt__time { white-space: normal; }
+/* Tiền nhiệm: chữ thường, mỗi bước một dòng, dài thì cắt "…" (rê chuột đọc đủ) — không chip màu. */
+.khsx-rt__tns { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.khsx-rt__tn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-sm);
+}
+.khsx-rt__gctxt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+}
+.khsx-rt__gc .khsx-muted { white-space: nowrap; }
 /* --- dải gợi ý "tính ngược" ------------------------------------------------ */
 .khsx-goiy {
   display: flex;

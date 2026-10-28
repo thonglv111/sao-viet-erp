@@ -474,6 +474,32 @@ def test_sua_cong_thuc_o_sheet_chinh(client, seed_credentials):
     assert r["cong_thuc_gia"] == "dinh_luong * don_gia_giay * 1.1"
 
 
+def test_giay_o_don_gia_trong_la_0_khong_vo_500(client, seed_credentials):
+    """`giay_nguyen.don_gia` NOT NULL: ô Đơn giá trống phải ghi 0 (cả dòng cũ lẫn dòng mới),
+    như form làm ở `_giu_gia_giay` — trước 28/10/2026 nó đi thẳng None xuống DB và nổ 500."""
+    h = _login(client, **seed_credentials)
+    nen = _dung_nen(client, h)
+    prefix, ten = PREFIX["giay"], SPECS["giay"].tieu_de[:31]
+
+    wb = _xuat(client, h, prefix)
+    ws = wb[ten]
+    tieu_de = _bang(ws)[0]
+    i_ma, i_gia = tieu_de.index("Mã"), tieu_de.index("Đơn giá")
+    for hang in ws.iter_rows(min_row=2):
+        if hang[i_ma].value == MA["giay"]:
+            hang[i_gia].value = None
+    moi = [None] * len(tieu_de)
+    moi[i_ma], moi[tieu_de.index("Tên")] = "GI-MOI", "Giấy mới chưa có giá"
+    moi[tieu_de.index("Định lượng (gsm)")] = 300
+    ws.append(moi)
+
+    kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
+    assert kq["hop_le"] and (kq["tao_moi"], kq["cap_nhat"]) == (1, 1), kq
+    assert client.get(f"{prefix}/{nen['giay']['id']}", headers=h).json()["don_gia"] == 0
+    tim = client.get(prefix, params={"q": "GI-MOI"}, headers=h).json()
+    assert [r["don_gia"] for r in tim["items"] if r["ma"] == "GI-MOI"] == [0]
+
+
 def test_sua_bac_bu_hao_va_xoa_mot_bac(client, seed_credentials):
     """Sheet con CÓ MẶT ⇒ thay TRỌN tập con: xoá dòng khỏi file là xoá cấu hình con đó.
 

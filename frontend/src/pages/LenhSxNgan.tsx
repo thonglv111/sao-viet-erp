@@ -11,15 +11,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { ApiError, api } from "../api/client";
-import type { LenhSxNganOut, LenhSxRoutingNode, LenhSxSuCo, LenhSxThongSo, LenhSxTimeline } from "../api/client";
+import type { LenhSxNganOut, LenhSxRoutingNode, LenhSxSuCo, LenhSxTimeline } from "../api/client";
 import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { ngayVN, soVN } from "../components/LuoiDs";
 import { NganPhai } from "./ke-toan/shared/NganPhai";
-import { nhanCachIn } from "./keHoachSxShared";
 import "./ke-toan/ke-toan.css";
 import { PillKhau, TheDaDong, TheGap } from "./lsxKhau";
-import { ChamBuoc, LichSu, buocTronGoi, buocTuNode, gioNgan, type DongLichSu } from "./lsxRoutingDoc";
+import { nhanChangLenh } from "./lsxBuoc";
+import { ChamBuoc, LichSu, buocTuNode, gioNgan, type DongLichSu } from "./lsxRoutingDoc";
+import { ThsxQuyCachThe } from "./ThsxQuyCach";
+import { DaiHangToiDau, oDuoi, type BuocDai } from "./thsx/DaiHangToiDau";
 
 /** Một cặp nhãn–giá trị của cột phải: giá trị chính, dòng phụ mờ (mỗi mẩu một dòng, không nối dấu). */
 function O({ k, v, phu }: { k: string; v: ReactNode; phu?: (string | null | undefined)[] }) {
@@ -39,43 +41,13 @@ function O({ k, v, phu }: { k: string; v: ReactNode; phu?: (string | null | unde
 
 const so = (n: number | null | undefined) => soVN(n ?? 0);
 
-/** Quy cách đủ cho cột phải. Thiếu số thì bỏ dòng đó. */
-function QuyCach({ t }: { t: LenhSxThongSo }) {
-  const mau = t.so_mau_a != null || t.so_mau_b != null ? `In ${t.so_mau_a ?? 0}/${t.so_mau_b ?? 0} màu` : null;
-  const kho = (a: number | null, b: number | null) => (a && b ? `${soVN(a)} x ${soVN(b)}` : null);
-  return (
-    <dl className="kt-ray">
-      {(t.dai_thanh_pham || t.so_trang) && (
-        <O
-          k="Thành phẩm"
-          v={kho(t.dai_thanh_pham, t.rong_thanh_pham) ? `${kho(t.dai_thanh_pham, t.rong_thanh_pham)} mm` : "Chưa khai khổ"}
-          phu={[t.so_trang && t.so_trang > 2 ? `${soVN(t.so_trang)} trang` : null]}
-        />
-      )}
-      {t.giay_ten && (
-        <O
-          k="Giấy"
-          v={t.dinh_luong ? `${t.giay_ten} ${soVN(t.dinh_luong)} g/m²` : t.giay_ten}
-          phu={[
-            kho(t.kho_nguyen_dai, t.kho_nguyen_rong) && `khổ nguyên ${kho(t.kho_nguyen_dai, t.kho_nguyen_rong)}`,
-            kho(t.kho_in_dai, t.kho_in_rong) && `khổ in ${kho(t.kho_in_dai, t.kho_in_rong)}`,
-          ]}
-        />
-      )}
-      {mau && <O k="In" v={mau} phu={[nhanCachIn(t.quy_cach_in)]} />}
-      {t.so_con > 0 && (
-        <O
-          k="Bình bài"
-          v={`${soVN(t.so_con)} con một tờ in`}
-          phu={[t.trang_moi_tay && t.trang_moi_tay > 1 ? `${soVN(t.trang_moi_tay)} trang một tay` : null, t.so_kem ? `${soVN(t.so_kem)} kẽm` : null]}
-        />
-      )}
-      {t.so_to_nguyen > 0 && (
-        <O k="Giấy cần" v={`${soVN(t.so_to_nguyen)} tờ nguyên`} phu={[t.so_to_ke_hoach > 0 ? `ra ${soVN(t.so_to_ke_hoach)} tờ in` : null]} />
-      )}
-      {t.ghi_chu_ky_thuat && <O k="Ghi chú" v={t.ghi_chu_ky_thuat} />}
-    </dl>
-  );
+/** Số kế hoạch rất to (lệnh khai 1.000.000.000) in gọn "1 tỷ" cho khỏi gãy dòng; đủ số ở `title`. */
+export function soGon(n: number | null | undefined): string {
+  const x = n ?? 0;
+  const mot = (v: number) => v.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+  if (x >= 1e9) return `${mot(x / 1e9)} tỷ`;
+  if (x >= 1e6) return `${mot(x / 1e6)} triệu`;
+  return soVN(x);
 }
 
 const TT_SU_CO: Record<string, string> = {
@@ -170,7 +142,7 @@ export function LenhSxNgan({
   const can = useCan();
   const [d, setD] = useState<LenhSxNganOut | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
-  const [tab, setTab] = useState("tong_quan");
+  const [tab, setTab] = useState("quy_cach");
 
   const nap = useCallback(() => {
     if (!token) return;
@@ -262,12 +234,76 @@ export function LenhSxNgan({
   const khoChung = soLenhNhom > 1;
 
   // Ở xưởng: lần bắt đầu chạy đầu tiên tới lúc bước cuối xong.
-  const batDau = d?.timeline.find((e) => e.loai === "bat_dau")?.luc ?? null;
+  const batDau = d?.timeline.find((e) => e.loai === "bat_dau")?.luc
+    ?? d?.timeline.find((e) => e.loai === "san_luong")?.luc ?? null;
   const moc = nodes.map((n) => n.hoan_thanh_luc).filter((x): x is string => !!x).sort();
   const xongLuc = xongSx && moc.length ? moc[moc.length - 1] : null;
   const lichSu = d ? dongLichSu(d.timeline) : [];
 
-  const tongQuan = d && tt && td && (
+  // Dải "Hàng đang tới đâu" của CẢ lệnh (phương án C, 27/10/2026) — cùng khối của ngăn Việc của tổ,
+  // câu nói theo lệnh chứ không theo "tổ mình". Bước theo thứ tự `routing.nodes` (topo).
+  const dangChay = nodes.filter((n) => n.trang_thai === "running" || n.trang_thai === "paused");
+  const soXong = nodes.filter((n) => n.trang_thai === "completed").length;
+  const xongHet = nodes.length > 0 && soXong === nodes.length;
+  const duoi = oDuoi(d?.dai_duoi, (ma) => nhanChangLenh(ma, dvt));
+  const cauDai = xongHet
+    ? `Đã xong cả ${nodes.length} bước${duoi ? ", hàng đã đi tiếp" : ""}`
+    : dangChay.length > 1
+      ? `Đang chạy song song ở ${dangChay.length} bước`
+      : dangChay.length === 1
+        ? `Hàng đang ở ${dangChay[0].ten ?? "bước chưa đặt tên"}`
+        : soXong === 0
+          ? "Chưa bước nào bắt đầu"
+          : `Chờ bắt đầu ${nodes.find((n) => n.trang_thai !== "completed")?.ten ?? "bước sau"}`;
+  const buocDai: BuocDai[] = d?.tron_goi
+    ? [{
+      key: "tron_goi",
+      ten: "Gia công trọn gói",
+      phu: [d.tron_goi.nha_cung_cap ?? "Nhà gia công"],
+      trangThai: d.tron_goi.xong ? "completed" : "running",
+      thueNgoai: true,
+    }]
+    : nodes.map((n) => {
+      const ngoai = n.loai_buoc === "thue_ngoai" || !!n.nha_cung_cap;
+      const ai = ngoai ? n.nha_cung_cap : n.to;
+      return {
+        key: String(n.id),
+        ten: n.ten ?? "Bước chưa đặt tên",
+        phu: [
+          ...(ngoai ? ["Thuê ngoài"] : []),
+          ...(ai ? [ai] : []),
+          ...(n.la_buoc_ghep ? [n.bai_ghep_ma ? `in ghép bài ${n.bai_ghep_ma}` : "in ghép"] : []),
+        ],
+        trangThai: n.trang_thai,
+        thueNgoai: ngoai,
+      };
+    });
+
+  // Cột phải ĐỨNG YÊN qua mọi tab: chỗ vướng (chip vàng, không băng hồng) + dải các bước.
+  const cot = d && tt && td && (
+    <div className="thsx-b">
+      {vuong.length > 0 && (
+        <ul className="lsn-vuong" aria-label="Đang vướng">
+          {vuong.map((v, i) => (
+            <li key={i}>{v}</li>
+          ))}
+        </ul>
+      )}
+      {buocDai.length > 0 ? (
+        <DaiHangToiDau
+          cau={d.tron_goi ? (d.tron_goi.xong ? "Nhà gia công đã giao hàng về" : "Hàng đang ở nhà gia công") : cauDai}
+          chamCau={xongHet || d.tron_goi?.xong ? "qua" : dangChay.length > 0 || d.tron_goi ? "toi" : "sap"}
+          phu={d.tron_goi ? undefined : `${soXong} trên ${nodes.length} bước đã xong`}
+          buoc={buocDai}
+          duoi={d.tron_goi ? null : duoi}
+        />
+      ) : (
+        <p className="lsa-mu lsa-nho">Lệnh chưa có bước nào.</p>
+      )}
+    </div>
+  );
+
+  const banner = d && (
     <>
       {inLoi && (
         <p className="lsn-do" role="alert">
@@ -279,19 +315,54 @@ export function LenhSxNgan({
           Phiếu giấy v{pv}, lệnh hiện tại đã là v{d.phien_ban}
         </div>
       )}
-      {vuong.length > 0 && (
-        <ul className="lsn-vuong" aria-label="Đang vướng">
-          {vuong.map((v, i) => (
-            <li key={i}>{v}</li>
-          ))}
-        </ul>
-      )}
+    </>
+  );
 
+  // Tab Quy cách — ĐÚNG thẻ của ngăn Việc của tổ (`ThsxQuyCachThe`), máy chủ chụp bằng cùng hàm.
+  const tabQuyCach = d && tt && td && (
+    <div className="thsx-b">
+      <dl className="lsn-moc">
+        <O k="Hạn giao khách" v={tt.han_giao_khach ? ngayVN(tt.han_giao_khach) : <span className="lsa-mu">Chưa hẹn</span>} />
+        {!xongSx && <O k="Dự kiến xong" v={td.du_kien_xong ? gioNgan(td.du_kien_xong) : <span className="lsa-mu">Chưa ước được</span>} />}
+        <O
+          k="Ở xưởng"
+          v={batDau ? (xongLuc ? `${gioNgan(batDau)} tới ${gioNgan(xongLuc)}` : `từ ${gioNgan(batDau)}`) : <span className="lsa-mu">Chưa bắt đầu</span>}
+        />
+        {tt.nhom_ten && <O k="Thành phẩm" v={tt.nhom_ten} phu={[khoChung ? `chung ${soLenhNhom} lệnh` : null]} />}
+      </dl>
+      {d.quy_cach ? (
+        <ThsxQuyCachThe qc={d.quy_cach} trongNgan />
+      ) : (
+        <section className="thsx-b-sec">
+          <h3 className="thsx-b-sec__h">Quy cách</h3>
+          <p className="thsx-b-trong">Lệnh chưa khai quy cách</p>
+        </section>
+      )}
+      {d.thong_so.so_to_nguyen > 0 && (
+        <section className="thsx-b-sec">
+          <h3 className="thsx-b-sec__h">Kế hoạch</h3>
+          <dl className="lsn-moc">
+            <O
+              k="Giấy cần"
+              v={`${so(d.thong_so.so_to_nguyen)} tờ nguyên`}
+              phu={[d.thong_so.so_to_ke_hoach > 0 ? `ra ${so(d.thong_so.so_to_ke_hoach)} tờ in` : null]}
+            />
+          </dl>
+        </section>
+      )}
+      <section className="thsx-b-sec">
+        <h3 className="thsx-b-sec__h">Ghi chú kỹ thuật</h3>
+        {d.quy_cach?.ghi_chu_ky_thuat?.trim()
+          ? <p className="thsx-b-dando">{d.quy_cach.ghi_chu_ky_thuat}</p>
+          : <p className="thsx-b-trong">Không có</p>}
+      </section>
+    </div>
+  );
+
+  const tabSanLuong = d && tt && td && (
+    <>
       <section className="lsa-the" aria-labelledby="lsa-sl">
-        <h3 className="lsa-the__h" id="lsa-sl">
-          Sản lượng
-          {tt.ten && <span className="lsa-mu">{tt.ten}</span>}
-        </h3>
+        <h3 className="lsa-the__h" id="lsa-sl">Sản lượng</h3>
         <div className="lsa-so">
           <div>
             <div className="lsa-so__l">Đặt</div>
@@ -343,123 +414,53 @@ export function LenhSxNgan({
         )}
       </section>
 
-      <section className="lsa-the" aria-labelledby="lsa-buoc">
-        <h3 className="lsa-the__h" id="lsa-buoc">
-          Các bước
-          {d.phien_ban != null && <span className="lsa-mu">phiên bản {d.phien_ban}</span>}
-        </h3>
-        {d.tron_goi ? (
-          <table className="lsa-g">
-            <tbody>
+      {!d.tron_goi && nodes.length > 0 && (
+        <section className="lsa-the" aria-labelledby="lsa-buoc">
+          <h3 className="lsa-the__h" id="lsa-buoc">Từng bước</h3>
+          <table className="lsa-g lsn-buoc">
+            <thead>
               <tr>
-                <td className="lsa-g__cham"><ChamBuoc b={buocTronGoi(d.tron_goi.nha_cung_cap, d.tron_goi.xong)} /></td>
-                <td>
-                  Gia công trọn gói
-                  {d.tron_goi.nha_cung_cap && <small className="lsa-phu">{d.tron_goi.nha_cung_cap}</small>}
-                </td>
-                <td className="n">{d.tron_goi.xong ? "Đã nhận hàng về" : "Đang ở nhà gia công"}</td>
+                <th aria-label="Trạng thái" />
+                <th>Bước</th>
+                <th className="n">Làm ra / kế hoạch</th>
+                <th className="n">Xong lúc</th>
               </tr>
+            </thead>
+            <tbody>
+              {nodes.map((n) => {
+                const b = buocTuNode(n);
+                if (xongSx) b.hien_tai = false;
+                const thieu = b.trang_thai === "xong" && (n.lam_ra ?? 0) < n.so_luong_ra;
+                return (
+                  <tr key={n.id} className={b.hien_tai ? "is-o" : undefined}>
+                    <td className="lsa-g__cham"><ChamBuoc b={b} /></td>
+                    <td>
+                      {n.ten ?? "Bước chưa đặt tên"}
+                      <div className="lsn-ai"><ToVaMay n={n} /></div>
+                      {b.trang_thai === "chay" && <small className="lsa-phu lsa-la">Đang chạy</small>}
+                      {b.trang_thai === "dung" && <small className="lsa-phu lsa-do">Tạm dừng</small>}
+                      {(n.kcs_khong_dat ?? 0) > 0 && <small className="lsa-phu lsa-do">KCS không đạt {so(n.kcs_khong_dat)}</small>}
+                    </td>
+                    <td className="n lsn-so">
+                      <span className={thieu ? "lsa-cam" : undefined}>{so(n.lam_ra)}</span>
+                      <span className="lsa-mu" title={so(n.so_luong_ra)}> / {soGon(n.so_luong_ra)}</span>
+                      {n.don_vi_ra_ten && <small className="lsa-phu">{n.don_vi_ra_ten}</small>}
+                    </td>
+                    <td className="n lsn-so">
+                      {gioNgan(n.hoan_thanh_luc) || <span className="lsa-mu">Chưa xong</span>}
+                      {n.du_kien_ket_thuc && <small className="lsa-phu">hẹn {gioNgan(n.du_kien_ket_thuc)}</small>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        ) : nodes.length === 0 ? (
-          <p className="lsa-mu">Lệnh chưa có bước nào.</p>
-        ) : (
-          <div className="lsa-cuon">
-            <table className="lsa-g lsa-g--buoc">
-              <colgroup>
-                <col style={{ width: 22 }} />
-                <col />
-                <col style={{ width: "30%" }} />
-                <col style={{ width: 104 }} />
-                <col style={{ width: 96 }} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th aria-label="Trạng thái" />
-                  <th>Bước</th>
-                  <th>Tổ và máy</th>
-                  <th className="n">Làm ra / kế hoạch</th>
-                  <th className="n">Xong lúc</th>
-                </tr>
-              </thead>
-              <tbody>
-                {nodes.map((n) => {
-                  const b = buocTuNode(n);
-                  if (xongSx) b.hien_tai = false;
-                  const thieu = b.trang_thai === "xong" && (n.lam_ra ?? 0) < n.so_luong_ra;
-                  return (
-                    <tr key={n.id} className={b.hien_tai ? "is-o" : undefined}>
-                      <td className="lsa-g__cham"><ChamBuoc b={b} /></td>
-                      <td>
-                        {n.ten ?? "Bước chưa đặt tên"}
-                        {n.la_buoc_ghep && <small className="lsa-phu">{n.bai_ghep_ma ? `in ghép bài ${n.bai_ghep_ma}` : "in ghép"}</small>}
-                        {b.trang_thai === "chay" && <small className="lsa-phu lsa-la">Đang chạy</small>}
-                        {b.trang_thai === "dung" && <small className="lsa-phu lsa-do">Tạm dừng</small>}
-                        {(n.kcs_khong_dat ?? 0) > 0 && <small className="lsa-phu lsa-do">KCS không đạt {so(n.kcs_khong_dat)}</small>}
-                      </td>
-                      <td><ToVaMay n={n} /></td>
-                      <td className="n">
-                        <span className={thieu ? "lsa-cam" : undefined}>{so(n.lam_ra)}</span>
-                        <span className="lsa-mu"> / {so(n.so_luong_ra)}</span>
-                        {n.don_vi_ra_ten && <small className="lsa-phu">{n.don_vi_ra_ten}</small>}
-                      </td>
-                      <td className="n">
-                        {gioNgan(n.hoan_thanh_luc) || <span className="lsa-mu">Chưa xong</span>}
-                        {n.du_kien_ket_thuc && <small className="lsa-phu">hẹn {gioNgan(n.du_kien_ket_thuc)}</small>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </>
-  );
-
-  const cot = d && tt && td && (
-    <>
-      <h3 className="kt-ngan__muc">Lệnh</h3>
-      <dl className="kt-ray">
-        <O k="Hạn giao khách" v={tt.han_giao_khach ? ngayVN(tt.han_giao_khach) : <span className="lsa-mu">Chưa hẹn</span>} />
-        {!xongSx && <O k="Dự kiến xong" v={td.du_kien_xong ? gioNgan(td.du_kien_xong) : <span className="lsa-mu">Chưa ước được</span>} />}
-        <O
-          k="Ở xưởng"
-          v={batDau ? (xongLuc ? `${gioNgan(batDau)} tới ${gioNgan(xongLuc)}` : `từ ${gioNgan(batDau)}`) : <span className="lsa-mu">Chưa bắt đầu</span>}
-        />
-        {tt.nhom_ten && <O k="Thành phẩm" v={tt.nhom_ten} phu={[khoChung ? `chung ${soLenhNhom} lệnh` : null]} />}
-      </dl>
-
-      <h3 className="kt-ngan__muc">Quy cách</h3>
-      <QuyCach t={d.thong_so} />
-
-      <h3 className="kt-ngan__muc">Nhập kho</h3>
-      {ycKho.length === 0 ? (
-        <p className="lsa-mu lsa-nho">Chưa có đề nghị nhập kho</p>
-      ) : (
-        <dl className="kt-ray">
-          {ycKho.map((y) => (
-            <O
-              key={y.id}
-              k={y.ma ?? "Đề nghị nhập"}
-              v={
-                <>
-                  {so(y.so_luong_xac_nhan)}
-                  {y.so_luong_xac_nhan < y.so_luong_yeu_cau && <span className="lsa-mu"> trên {so(y.so_luong_yeu_cau)}</span>}
-                  {/* Số kho theo đơn vị của MÓN; `y.don_vi` là mã ("cuon"), in tên của lệnh. */}
-                  {dvt && <span className="lsa-mu"> {dvt}</span>}
-                </>
-              }
-              phu={[y.xac_nhan_luc ? `kho nhận ${gioNgan(y.xac_nhan_luc)}` : "chờ kho nhận"]}
-            />
-          ))}
-        </dl>
+        </section>
       )}
 
       {d.su_co.length > 0 && (
-        <>
-          <h3 className="kt-ngan__muc">Sự cố</h3>
+        <section className="lsa-the" aria-labelledby="lsa-suco">
+          <h3 className="lsa-the__h" id="lsa-suco">Sự cố</h3>
           <dl className="kt-ray">
             {d.su_co.map((s) => (
               <O
@@ -470,8 +471,45 @@ export function LenhSxNgan({
               />
             ))}
           </dl>
-        </>
+        </section>
       )}
+    </>
+  );
+
+  const tabKho = d && tt && td && (
+    <>
+      <section className="lsa-the" aria-labelledby="lsa-kho">
+        <h3 className="lsa-the__h" id="lsa-kho">Nhập kho</h3>
+        {ycKho.length === 0 ? (
+          <p className="lsa-mu">Chưa có đề nghị nhập kho</p>
+        ) : (
+          <dl className="kt-ray">
+            {ycKho.map((y) => (
+              <O
+                key={y.id}
+                k={y.ma ?? "Đề nghị nhập"}
+                v={
+                  <>
+                    {so(y.so_luong_xac_nhan)}
+                    {y.so_luong_xac_nhan < y.so_luong_yeu_cau && <span className="lsa-mu"> trên {so(y.so_luong_yeu_cau)}</span>}
+                    {/* Số kho theo đơn vị của MÓN; `y.don_vi` là mã ("cuon"), in tên của lệnh. */}
+                    {dvt && <span className="lsa-mu"> {dvt}</span>}
+                  </>
+                }
+                phu={[y.xac_nhan_luc ? `kho nhận ${gioNgan(y.xac_nhan_luc)}` : "chờ kho nhận"]}
+              />
+            ))}
+          </dl>
+        )}
+      </section>
+      <section className="lsa-the" aria-labelledby="lsa-giao">
+        <h3 className="lsa-the__h" id="lsa-giao">Giao khách</h3>
+        <dl className="lsn-moc">
+          <O k="Đặt" v={`${so(tt.so_luong_dat)}${dvt ? ` ${dvt}` : ""}`} />
+          <O k="Đã giao" v={`${so(td.da_giao)}${dvt ? ` ${dvt}` : ""}`} />
+          <O k="Hạn giao khách" v={tt.han_giao_khach ? ngayVN(tt.han_giao_khach) : <span className="lsa-mu">Chưa hẹn</span>} />
+        </dl>
+      </section>
     </>
   );
 
@@ -515,10 +553,15 @@ export function LenhSxNgan({
           </span>
         ) : undefined
       }
-      tabs={d ? [{ id: "tong_quan", nhan: "Tổng quan" }, { id: "lich_su", nhan: "Lịch sử", dem: lichSu.length }] : undefined}
+      tabs={d ? [
+        { id: "quy_cach", nhan: "Quy cách" },
+        { id: "san_luong", nhan: "Sản lượng" },
+        { id: "kho_giao", nhan: "Kho và giao" },
+        { id: "lich_su", nhan: "Lịch sử", dem: lichSu.length },
+      ] : undefined}
       tab={tab}
       onTab={setTab}
-      cot={tab === "tong_quan" && cot ? cot : undefined}
+      cot={tab !== "lich_su" && cot ? cot : undefined}
       len={len}
       xuong={xuong}
       onDong={onDong}
@@ -530,7 +573,10 @@ export function LenhSxNgan({
       ) : tab === "lich_su" ? (
         <LichSu dong={lichSu} rong="Lệnh chưa có việc nào được ghi." />
       ) : (
-        tongQuan
+        <>
+          {banner}
+          {tab === "san_luong" ? tabSanLuong : tab === "kho_giao" ? tabKho : tabQuyCach}
+        </>
       )}
     </NganPhai>
   );

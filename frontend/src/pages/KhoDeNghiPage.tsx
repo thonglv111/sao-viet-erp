@@ -38,7 +38,7 @@ import { Icon } from "../components/Icons";
 import { DonViChonTheoHang, MaterialCombobox } from "../components/MaterialCombobox";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { OSoLe } from "../components/OSoLe";
-import { chuanKho, coDonViGoc, gocDongXin, tenGoc } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho, gocDongXin, tenGoc } from "../lib/khoGiay";
 import { fmtDate, fmtDateISO, fmtDateTime } from "../utils/format";
 import { congNgay } from "../utils/ky";
 import {
@@ -979,7 +979,9 @@ function tonCuaDong(l: DraftLine, rows: TonKhoaRow[] | undefined): number | null
   if (!rows || !l.hang_id) return null;
   if (!coDonViGoc(l.hang_loai)) return rows.reduce((s, r) => s + r.ton, 0);
   const laGiay = l.hang_loai === "giay";
-  const [r, d] = laGiay ? chuanKho(l.kho_rong, l.kho_dai) : [0, 0];
+  const [r, d] = coKho(l.hang_loai) ? chuanKho(l.kho_rong, l.kho_dai) : [0, 0];
+  // Vật tư khổ tuỳ chọn (27/10/2026): có khổ thì đúng khổ, trống khổ thì cộng mọi khổ (luật máy chủ).
+  const theoKho = laGiay || r > 0;
   // Ô đơn vị chưa báo đơn vị gốc (dòng khoá không vẽ ô chọn) ⇒ thử chính `dvt`: đang là đơn vị gốc
   // (tờ, kg) thì khớp, là đơn vị quy đổi (ram) thì không khớp dòng nào ⇒ coi như chưa biết.
   if (laGiay && !r) return null;
@@ -988,7 +990,8 @@ function tonCuaDong(l: DraftLine, rows: TonKhoaRow[] | undefined): number | null
   if (!goc0) return null;
   // Giấy khổ hai cạnh xin theo kg: lô đếm tờ.
   const goc = gocDongXin({ hangLoai: l.hang_loai, donViGoc: goc0, rong: r, dai: d, slGoc: 0, gsm: null }).goc;
-  return rows.find((x) => (!laGiay || (x.kho_rong === r && x.kho_dai === d)) && x.don_vi_goc === goc)?.ton ?? 0;
+  return rows.filter((x) => (!theoKho || (x.kho_rong === r && x.kho_dai === d)) && x.don_vi_goc === goc)
+    .reduce((s, x) => s + x.ton, 0);
 }
 
 const CHON_NGAY: { nhan: string; ngay: number }[] = [
@@ -1269,7 +1272,7 @@ export function TaoYeuCauP2({
         rong={l.kho_rong ?? 0}
         dai={l.kho_dai ?? 0}
         chiDoc={khoChiDoc(l)}
-        goiY={rowsTon.map((r) => ({ rong: r.kho_rong, dai: r.kho_dai, ghiChu: `Tồn ${fmtQty(r.ton)} ${r.don_vi_goc_ten ?? ""}`.trim() }))}
+        goiY={rowsTon.filter((r) => r.kho_rong > 0).map((r) => ({ rong: r.kho_rong, dai: r.kho_dai, ghiChu: `Tồn ${fmtQty(r.ton)} ${r.don_vi_goc_ten ?? ""}`.trim() }))}
         onChange={(v) => patch(l.key, { kho_rong: v.rong, kho_dai: v.dai })}
       />
     );
@@ -1590,7 +1593,8 @@ export function TaoYeuCauP2({
             const so = Number(l.sl_de_nghi) || 0;
             const loi = !khoa && l.hang_id && !l.theo_ke_hoach && l.sl_nen == null && !(so > 0);
             const dv = tenDonVi(l.dvt) || l.dvt;
-            const kho = l.hang_loai === "giay" ? nhanKho(...chuanKho(l.kho_rong, l.kho_dai)) : "";
+            const kho = l.hang_loai === "giay" || (coKho(l.hang_loai) && l.kho_rong)
+              ? nhanKho(...chuanKho(l.kho_rong, l.kho_dai)) : "";
             const ben = chuNen(l);
             const noiDung = (
               <>
@@ -1682,7 +1686,7 @@ export function TaoYeuCauP2({
           >
             {!dongMo.hang_id && oChonHang(dongMo)}
             {cv && dongMo.canh && !dongMo.dvt && <div className="kfd-lb kfd-cam">{dongMo.canh}</div>}
-            {dongMo.hang_loai === "giay" && dongMo.hang_id && (
+            {coKho(dongMo.hang_loai) && dongMo.hang_id && (
               <>
                 <div className="kfd-lb">Khổ</div>
                 {khungKhoCua(dongMo)}
@@ -1851,7 +1855,7 @@ export function TaoYeuCauP2({
                             ) : (
                               oChonHang(l)
                             )}
-                            {l.hang_loai === "giay" && l.hang_id && <div className="ycf-phu">{khungKhoCua(l)}</div>}
+                            {coKho(l.hang_loai) && l.hang_id && <div className="ycf-phu">{khungKhoCua(l)}</div>}
                             {cv && l.canh && !l.dvt && <div className="kna-thieu-dv">{l.canh}</div>}
                           </td>
                           {coNen && (
@@ -2022,7 +2026,7 @@ function payloadDong(lines: DraftLine[], loai: StockRequestKind): StockRequestLi
     .map((l) => ({
       hang_loai: l.hang_loai as HangLoai,
       hang_id: l.hang_id as number,
-      ...(l.hang_loai === "giay"
+      ...(coKho(l.hang_loai)
         ? {
             kho_rong: chuanKho(l.kho_rong, l.kho_dai)[0],
             kho_dai: chuanKho(l.kho_rong, l.kho_dai)[1],
@@ -2043,9 +2047,8 @@ function payloadDong(lines: DraftLine[], loai: StockRequestKind): StockRequestLi
  *  vị chắc chắn cùng nhóm. */
 function khoaTrungDong(l: DraftLine, them: string): string {
   if (!coDonViGoc(l.hang_loai)) return `${l.hang_loai}:${l.hang_id}:${them}`;
-  if (l.hang_loai !== "giay") return `${l.hang_loai}:${l.hang_id}:${them}:${l.don_vi_goc || l.dvt}:0:0`;
   const [r, d] = chuanKho(l.kho_rong, l.kho_dai);
-  return `giay:${l.hang_id}:${them}:${l.don_vi_goc || l.dvt}:${r}:${d}`;
+  return `${l.hang_loai}:${l.hang_id}:${them}:${l.don_vi_goc || l.dvt}:${r}:${d}`;
 }
 
 // ── INLINE SVG ICONS ─────────────────────────────────────────────────────────

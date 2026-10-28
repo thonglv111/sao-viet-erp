@@ -231,6 +231,9 @@ _HD += _dong("kho", "kho", {
     "kho_phieu_lap": "Lập phiếu kho",
     "kho_phieu_ghi_so": "Ghi sổ phiếu kho",
     "kho_phieu_huy": "Huỷ phiếu kho",
+    # Thêm / cập nhật / xoá hàng ngay trên màn Tồn kho của một kho (28/10/2026).
+    "kho_hang_nhap_tay": "Nhập tay tồn kho",
+    "kho_hang_xoa": "Xoá hàng khỏi kho",
 })
 _HD += _dong("kho", "dm_kho_hang", {
     "kho_vi_tri_create": "Tạo vị trí trong kho",

@@ -22,7 +22,7 @@ from ..models.stock_request import (
     StockRequestLine,
 )
 from ..models.stock_voucher import VOUCHER_POSTED, StockVoucher, StockVoucherLine
-from ..services.kho_giay import chuan_kho, co_don_vi_goc
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, co_kho
 from .loc_danh_sach import dk_khoang_ngay
 
 
@@ -84,6 +84,8 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "can_luc", "uu_tien", "ghi
                   "delivery_trip_id",
                   # ĐIỀU CHUYỂN KHO (mig 0203) — set từ service khi ấn điều chuyển.
                   "dieu_chuyen", "kho_nguon_id", "xuat_voucher_id",
+                  # NHẬP TAY Ở MÀN KHO (mg 0451): Thêm / Import hàng tự sinh yêu cầu này.
+                  "nhap_tay",
                   # NGUỒN KCS (mg 0309): công đoạn KCS cuối gửi thành phẩm vào kho.
                   "san_xuat_cong_viec_id",
                   # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.
@@ -101,8 +103,8 @@ def _build_line(ln: dict, loai: str) -> StockRequestLine:
     """
     # GIẤY mang khổ + ĐƠN VỊ GỐC, VẬT TƯ mang ĐƠN VỊ GỐC (service đã suy từ ĐVT dòng ở
     # `_validate_lines` — không ai gõ); khổ chỉ giấy, hàng khác luôn "" · 0 · 0 dù người gọi gửi gì.
-    giay = ln["hang_loai"] == "giay"
-    kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai")) if giay else (0, 0)
+    # Vật tư có khổ tuỳ chọn như giấy (27/10/2026).
+    kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai")) if co_kho(ln["hang_loai"]) else (0, 0)
     return StockRequestLine(
         don_vi_goc=((ln.get("don_vi_goc") or "").strip().lower()) if co_don_vi_goc(ln["hang_loai"]) else "",
         kho_rong=kr,
@@ -567,6 +569,16 @@ class StockRequestRepository:
                 SanXuatCongViec, SanXuatCongViec.id == StockRequest.vat_tu_tra_cong_viec_id),
         )
         return [(int(v), n) for v, n in self._dem_theo_cap(cap, **loc)]
+
+    def dem_theo_kho(self, **loc) -> dict[int, int]:
+        """`{kho_id: số yêu cầu}` của điều kiện "Kho" — cùng luật `kho_loc` (kho đích, kho nguồn
+        điều chuyển, hoặc đã có phiếu lập ở kho đó), một câu cho mọi kho."""
+        cap = union(
+            select(StockRequest.id.label("rid"), StockRequest.kho_id.label("gia_tri")),
+            select(StockRequest.id, StockRequest.kho_nguon_id),
+            select(StockVoucher.request_id, StockVoucher.kho_id),
+        )
+        return {int(v): n for v, n in self._dem_theo_cap(cap, **loc)}
 
     def dem_theo_lenh(self, **loc) -> list[tuple[int, int]]:
         """Giá trị điều kiện "Lệnh": lệnh trên dòng, cộng mọi lệnh của bài ghép trên dòng."""

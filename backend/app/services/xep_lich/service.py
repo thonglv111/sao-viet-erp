@@ -393,6 +393,7 @@ class XepLichLenhService:
         if not tat_ca:
             return r
         r.lsx = self.repo.lsx_theo_ids(tat_ca)
+        self._nap_don_khach(r.lsx.values())
         r.routing = self.repo.routing_theo_lo(tat_ca)
         r.moc = self.repo.theo_nhieu_lsx(tat_ca)
         self._nap_may(tat_ca)
@@ -640,13 +641,13 @@ class XepLichLenhService:
         CHỈ nhắc, không chặn — cùng mức với `constraint.de_vung_khoa_may` (chủ hạ 21/08/2026: bản
         khai tay còn thưa, chặn cứng thì bịt khe của máy đang chạy tốt). Lỗi #50 và #27 bấm thử
         18/10/2026: khai được khoá máy rồi mà thanh lệnh vẫn im, máy dừng chờ sửa cũng im.
-        Vùng khoá hỏi MỘT lượt cho cả cửa sổ; báo hỏng hỏi theo từng máy có mặt trên bàn.
+        Vùng khoá hỏi MỘT lượt cho cả cửa sổ; báo hỏng cũng một lượt cho mọi máy có mặt trên bàn.
         """
         from ...models.machine_unavailable import (
             KIEU_CHAN, LY_DO_BAO_TRI, LY_DO_HONG_HOC, LY_DO_NGHI,
         )
         from ...repositories.machine_unavailable_repo import MachineUnavailableRepository
-        from ..may_trang_thai import bao_hong_dang_mo
+        from ..may_trang_thai import bao_hong_dang_mo_nhieu
 
         may_ids = {k[0] for d in dong for k in d.get("_khung_may") or ()}
         if not may_ids:
@@ -659,8 +660,8 @@ class XepLichLenhService:
                 khoa.setdefault(p.may_id, []).append(
                     (_aware(p.unavailable_from), _aware(p.unavailable_to), p.reason))
         dung: dict[int, str] = {}
-        for mid in may_ids:
-            ma = next((b["ma"] for b in bao_hong_dang_mo(self.db, mid) if b["may_dung"]), None)
+        for mid, ds in bao_hong_dang_mo_nhieu(self.db, may_ids).items():
+            ma = next((b["ma"] for b in ds if b["may_dung"]), None)
             if ma:
                 dung[mid] = ma
         ten_ly_do = {LY_DO_BAO_TRI: "bảo trì", LY_DO_HONG_HOC: "hỏng", LY_DO_NGHI: "nghỉ"}
@@ -1581,6 +1582,30 @@ class XepLichLenhService:
 
             self._nho_don[oid] = self.db.get(Order, oid)
         return self._nho_don[oid]
+
+    def _nap_don_khach(self, lsxs) -> None:
+        """Nạp sẵn đơn + khách của cả lô lệnh vào bộ nhớ `_don_cua`/`_ten_khach` — HAI câu cho cả bàn.
+
+        Bộ nhớ theo id không đỡ được khi mỗi lệnh một đơn (DB đo tải 26/10/2026: 124 câu orders +
+        93 câu customers trên bàn tháng)."""
+        from sqlalchemy import select
+
+        from ...models.customer import Customer
+        from ...models.order import Order
+
+        oids = {getattr(l, "order_id", None) for l in lsxs} - {None, 0} - set(self._nho_don)
+        if oids:
+            for o in self.db.execute(select(Order).where(Order.id.in_(oids))).scalars():
+                self._nho_don[o.id] = o
+            for oid in oids:
+                self._nho_don.setdefault(oid, None)
+        cids = {getattr(o, "customer_id", None) for o in self._nho_don.values() if o is not None}
+        cids -= {None, 0} | set(self._nho_kh)
+        if cids:
+            for c in self.db.execute(select(Customer).where(Customer.id.in_(cids))).scalars():
+                self._nho_kh[c.id] = c
+            for cid in cids:
+                self._nho_kh.setdefault(cid, None)
 
     def _ten_khach(self, l) -> str | None:
         cid = getattr(self._don_cua(l), "customer_id", None)

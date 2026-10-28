@@ -423,7 +423,7 @@ def receivable_rows(
     direct_sums = repo.received_invoice_receipt_sums(invoice_ids)
     order_ids = sorted({row.order_id for row in invoices})
     deposit_sums = quy_tien_don(repo, order_ids)
-    customers = repo.customers_by_ids(
+    customers = repo.khach_nhe_theo_ids(
         {row.customer_id for row in invoices if row.customer_id is not None}
     )
 
@@ -555,6 +555,8 @@ class AccountingService:
         # `salary_advance` báo lỗi rõ ràng thay vì vỡ.
         self._payroll = payroll
         self._employees = employees
+        # Tên người đã nạp gộp cho trang đang dựng (`_nap_ten_nguoi`): `{user_id: tên | None}`.
+        self._ten_nap: dict[int, str | None] = {}
 
     # --- bank accounts ----------------------------------------------------
 
@@ -1562,6 +1564,10 @@ class AccountingService:
 
     def list_vouchers(self, **filters):
         rows, total, totals = self.repo.list_vouchers(**filters)
+        self._nap_ten_nguoi(
+            [u for r in rows for u in (r.created_by_user_id, r.paid_by_user_id, r.cancelled_by_user_id)]
+            + [r.purchase_request.created_by_user_id for r in rows if r.purchase_request is not None]
+        )
         return [self._voucher_out(row) for row in rows], total, totals
 
     def get_voucher(self, voucher_id: int):
@@ -2197,6 +2203,8 @@ class AccountingService:
         )
         if until is not None:
             receipts = [r for r in receipts if r.receipt_date <= until]
+        # Tên người lập: một lượt cho mọi phiếu (trước 26/10/2026 mỗi phiếu một SELECT users).
+        self._nap_ten_nguoi(r.created_by_user_id for r in receipts)
         return [
             {
                 "receipt_id": row.receipt_id,
@@ -2284,22 +2292,23 @@ class AccountingService:
         so_chup = cuoi_ky >= hom_nay
         tim = (q or "").strip().lower()
         # Hoá đơn đã phát hành nạp MỘT lần: dựng dòng ảnh chụp (bên dưới) và sổ 131 (khối `if co_ky`)
-        # dùng chung.
-        hoa_don_ds = self.repo.list_sales_invoices(status=SALES_INVOICE_ISSUED)
+        # dùng chung. Bản NHẸ (cột thô, 26/10/2026): màn này chỉ đọc số, không cần đối tượng ORM.
+        hoa_don_ds = self.repo.hoa_don_phat_hanh_nhe()
         rows = receivable_rows(self.repo, invoices=hoa_don_ds)
         thu_theo_khach: dict[int | None, int] = {}
-        receipts = self._receipts_for_receivable_rows(
-            rows, since=moc_ky, until=cuoi_ky if co_ky else None
-        )
         order_to_customer = {r["order_id"]: r["customer_id"] for r in rows}
         invoice_to_customer = {r["invoice_id"]: r["customer_id"] for r in rows}
-        for receipt in receipts:
+        # Đã thu trong kỳ: chỉ cần TIỀN theo (hoá đơn, đơn) — cộng sẵn ở SQL, không dựng từng dòng
+        # phiếu (`_receipts_for_receivable_rows` nạp đủ mặt phiếu + tên người lập cho ngăn chi tiết).
+        for hd_id, don_id, tien in self.repo.thu_cong_no_theo_dong(
+            since=moc_ky, until=cuoi_ky if co_ky else None
+        ):
             cid = (
-                invoice_to_customer.get(receipt["sales_invoice_id"])
-                if receipt["sales_invoice_id"] is not None
-                else order_to_customer.get(receipt["order_id"])
+                invoice_to_customer.get(hd_id)
+                if hd_id is not None
+                else order_to_customer.get(don_id)
             )
-            thu_theo_khach[cid] = thu_theo_khach.get(cid, 0) + receipt["amount"]
+            thu_theo_khach[cid] = thu_theo_khach.get(cid, 0) + tien
 
         def _muc_moi(cid, ten, credit_limit, payment_term_days, sale_user_id) -> dict:
             return {
@@ -2397,9 +2406,7 @@ class AccountingService:
                     theo_khach[cid]["cho_tra_lai"] = tra
 
             # Lần thu gần nhất (cả lịch sử): hàng đầu tiên gặp của mỗi khách là mới nhất.
-            for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no(
-                invoice_ids=sorted(invoice_to_customer), order_ids=sorted(order_to_customer)
-            ):
+            for hd_id, don_id, ngay_thu, _, tien_thu in self.repo.lan_thu_cuoi_cong_no():
                 cid = invoice_to_customer.get(hd_id) if hd_id is not None else order_to_customer.get(don_id)
                 muc = theo_khach.get(cid)
                 if muc is not None and muc["thu_gan_nhat_ngay"] is None:
@@ -2519,6 +2526,8 @@ class AccountingService:
             return
         khach = self.repo.customers_by_ids(ids)
         chinh = self.repo.lien_he_chinh_theo_khach(ids)
+        # Tên sale cả trang một lượt — trước 26/10/2026 mỗi sale một SELECT users.
+        self._nap_ten_nguoi(m["sale_user_id"] for m in trang)
         ten_sale: dict[int, str | None] = {}
         for m in trang:
             kh = khach.get(m["customer_id"])
@@ -2686,6 +2695,9 @@ class AccountingService:
             sort=sort,
             page=page,
             size=size,
+        )
+        self._nap_ten_nguoi(
+            [u for r in rows for u in (r.created_by_user_id, r.received_by_user_id, r.cancelled_by_user_id)]
         )
         return [self._receipt_out(row) for row in rows], total, extra
 
@@ -4501,8 +4513,24 @@ class AccountingService:
     def _user_name(self, user_id: int | None) -> str | None:
         if user_id is None:
             return None
+        ten_nap = getattr(self, "_ten_nap", None) or {}
+        if user_id in ten_nap:
+            return ten_nap[user_id]
         user = self.users.get_by_id(user_id)
         return user.name if user else None
+
+    def _nap_ten_nguoi(self, user_ids) -> None:
+        """Nạp tên các User MỘT lượt cho cả trang ⇒ `_user_name` khỏi hỏi DB từng dòng. Giữ lại
+        tên (`_ten_nap`) vì identity map của Session chỉ giữ tham chiếu YẾU — nạp rồi bỏ thì
+        `db.get` sau đó vẫn SELECT lại. Id không còn User ⇒ ghi None, khỏi hỏi lại."""
+        if not hasattr(self, "_ten_nap"):
+            self._ten_nap = {}
+        ids = {int(u) for u in user_ids if u} - set(self._ten_nap)
+        if ids:
+            gap = self.users.map_by_ids(ids)
+            for i in ids:
+                u = gap.get(i)
+                self._ten_nap[i] = u.name if u is not None else None
 
     def _voucher_out(self, row: PaymentVoucher) -> dict:
         purchase = row.purchase_request

@@ -328,6 +328,41 @@ export function congDoanKhongMay<T extends { id: number; toIds?: number[] | null
   return !!cd?.coRangBuocTo && mayChonDuoc(mayRefs, cd, null, null).length === 0;
 }
 
+/** Đổi LOẠI BƯỚC thì dọn gì — một luật cho cả ngăn chi tiết lẫn ô "Loại" trên bảng.
+ *  Thuê ngoài: không tổ, không máy, một lượt, không vật tư — nhà gia công lo; máy chủ cũng dọn khi
+ *  lưu. Tổ: bỏ máy, số lượt về 1 (ô số lượt không hiện ở bước tổ, để số 2 lượt cũ nằm lại vô hình
+ *  trong bản nháp là sai tiền). Máy: chỉ đổi loại, giờ theo tốc độ máy. */
+export function patchLoaiBuoc(k: LsxLoaiBuoc): Partial<EditRow> {
+  if (k === "thue_ngoai") {
+    return {
+      loai_buoc: k, may_id: null, department_id: null, department_ten: null,
+      so_luot_chay: "1", vat_tus: [],
+    };
+  }
+  if (k === "may") return { loai_buoc: k };
+  return { loai_buoc: k, may_id: null, so_luot_chay: "1" };
+}
+
+/** Tổ được mời cho bước: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026),
+ *  đúng thứ tự khai (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn.
+ *  CHỈ nút lá (07/10/2026): `toRefs` là danh sách tổ = nút lá khối Sản xuất, id nào không nằm trong
+ *  đó thì không bày. Tổ đang gán không còn phụ trách công đoạn vẫn hiện (gắn nhãn). */
+export function toChonDuoc(
+  toRefs: { id: number; ten: string }[],
+  cd: { toChoPhep?: number[] | null } | null | undefined,
+  dangGanId: number | null | undefined,
+): { items: { id: number; ten: string }[]; gioiHan: boolean } {
+  const ids = (cd?.toChoPhep ?? []).filter((id) => toRefs.some((t) => t.id === id));
+  const items = ids.length
+    ? ids.map((id) => ({ id, ten: toRefs.find((t) => t.id === id)!.ten }))
+    : toRefs.map((t) => ({ id: t.id, ten: t.ten }));
+  const dangGan = toRefs.find((t) => t.id === dangGanId);
+  if (dangGan && !items.some((t) => t.id === dangGan.id)) {
+    items.push({ id: dangGan.id, ten: `${dangGan.ten} (không còn phụ trách công đoạn)` });
+  }
+  return { items, gioiHan: ids.length > 0 };
+}
+
 export function emptyRow(): EditRow {
   return {
     key: newKey(), id: null, cong_doan_id: null, ten: "", nhom: null, loai_buoc: "may",
@@ -495,12 +530,15 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
         ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: null,
             tu_dong: v.tu_dong, kho_rong: 0, kho_dai: 0 }
         // Vật tư KHÁC: định mức do MÁY tính từ công thức + chip ⇒ không gửi so_luong — trừ dòng
-        // người đã gõ định mức (`sua_tay`): gửi đúng số đó, máy chủ giữ nguyên.
+        // người đã gõ định mức (`sua_tay`): gửi đúng số đó, máy chủ giữ nguyên. Khổ tuỳ chọn người
+        // kế hoạch gõ (27/10/2026) luôn gửi; trống = 0 · 0 = không khổ.
         : v.sua_tay && v.so_luong.trim() !== "" && Number.isFinite(Number(v.so_luong))
           ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: false, sua_tay: true,
-              so_luong: Number(v.so_luong), gia_tri_chip: v.gia_tri_chip ?? {} }
+              so_luong: Number(v.so_luong), gia_tri_chip: v.gia_tri_chip ?? {},
+              kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 }
           : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
-              gia_tri_chip: v.gia_tri_chip ?? {} })),
+              gia_tri_chip: v.gia_tri_chip ?? {},
+              kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 })),
       // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
       nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
       ghi_chu: ot(r.ghi_chu),

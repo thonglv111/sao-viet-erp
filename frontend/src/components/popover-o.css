@@ -1,0 +1,51 @@
+/* Hộp bật lên dưới một ô bảng — xem `PopoverO.tsx`. */
+.popo {
+  position: fixed;
+  z-index: 1200;
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--canvas);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-4, 10px);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.popo--menu { padding: 4px; gap: 0; }
+.popo__lb { font-size: var(--fs-xs); color: var(--ash); margin-top: 4px; }
+.popo__lb:first-child { margin-top: 0; }
+.popo__hint { font-size: var(--fs-xs); color: var(--ash); line-height: 1.45; }
+.popo__ta { min-height: 72px; }
+.popo__ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.popo__btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+.popo__btn:hover { background: var(--rule-hair); }
+.popo__btn--pri { background: var(--ink); border-color: var(--ink); color: var(--canvas); }
+.popo__btn--pri:hover { background: var(--ink); opacity: 0.9; }
+.popo__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 7px 10px;
+  border-radius: var(--r-3);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+.popo__item:hover:not(:disabled),
+.popo__item:focus-visible { background: var(--rule-hair); outline: none; }
+.popo__item:disabled { color: var(--ash); opacity: 0.5; cursor: default; }
+.popo__item--xoa { color: var(--signal); }

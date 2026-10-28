@@ -19,7 +19,8 @@ import { nhanChangLenh } from "../lsxBuoc";
 import { conPhaiLam, tienDoThucTe } from "../thsxShared";
 import { tinhTrangChon } from "../thsxTinhTrangNguoi";
 import { ThsxTepLenh } from "../ThsxTepLenh";
-import { cauDuoi, cauViTri, viTriHang } from "../thsxTuyen";
+import { cauViTri, viTriHang } from "../thsxTuyen";
+import { DaiHangToiDau, oDuoi } from "./DaiHangToiDau";
 
 /** Ảnh đại diện của thợ; chưa có ảnh (hoặc ảnh tải hỏng) thì vẽ chữ cái đầu. */
 export function AnhNguoi({ ten, url, size }: { ten: string; url?: string | null; size?: number }) {
@@ -157,10 +158,7 @@ export function ThsxCotPhai({
   const dai = chiTiet.routing ?? [];
   const viTri = viTriHang(dai, cv.id, cv.step_key);
   // Ô đuôi: làm xong bước cuối thì hàng đi đâu (máy chủ dựng, 11/10/2026).
-  const duoi = chiTiet.dai_duoi ? {
-    icon: (chiTiet.dai_duoi.loai === "ve_kho" ? "warehouse" : chiTiet.dai_duoi.loai === "giao_khach" ? "truck" : "arrowRight") as "warehouse" | "truck" | "arrowRight",
-    ...cauDuoi(chiTiet.dai_duoi, (d) => nhanChangLenh(d, cv.don_vi_tinh), (v) => `${gioNgan(v)} ${v ? new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) : ""}`.trim()),
-  } : null;
+  const duoi = oDuoi(chiTiet.dai_duoi, (d) => nhanChangLenh(d, cv.don_vi_tinh));
 
   // 3 · Tiến độ — CÙNG luật dòng bảng (`tienDoThucTe`): tốt / số cần ra; đã Kết thúc = 100%.
   const tienDo = tienDoThucTe(cv);
@@ -197,55 +195,29 @@ export function ThsxCotPhai({
       )}
 
       {viTri && (
-        <section className="thsx-b-blk">
-          <h3 className="thsx-b-blk__h">Hàng đang tới đâu</h3>
-          <div className="thsx-b-cau">
-            <span className={`thsx-b-cau__dot is-${viTri.k}`} aria-hidden="true" />
-            <span>
-              {/* Mọi bước đã xong mà có ô đuôi: hàng đã rời dải — nói chỗ nó đi tới, đừng nói "đang ở" bước cuối. */}
-              {duoi && dai.length > 0 && dai.every((o) => o.trang_thai === "completed")
-                ? `Lệnh đã xong cả ${dai.length} bước, hàng đã đi tiếp`
-                : cauViTri(viTri, dai, false)}
-            </span>
-            <span className="thsx-b-mo3">tổ mình ở bước {viTri.m} trên {viTri.tong}</span>
-          </div>
-          <ol className="thsx-b-vlist">
-            {dai.map((o, i) => {
-              const laMe = i + 1 === viTri.m;
-              const lop = [
-                "thsx-b-vs",
-                o.trang_thai === "completed" ? "is-xong" : "",
-                o.trang_thai === "running" || o.trang_thai === "paused" ? "is-dang" : "",
-                laMe ? "is-me" : "",
-                o.thue_ngoai ? "is-ngoai" : "",
-              ].filter(Boolean).join(" ");
-              return (
-                <li key={`${o.thu_tu}-${o.step_key ?? i}`} className={lop}>
-                  <i className="thsx-b-vs__o" aria-hidden="true" />
-                  <div>
-                    <div className="thsx-b-vs__nm">{o.ten_cong_doan}</div>
-                    <div className="thsx-b-vs__to">
-                      {o.thue_ngoai && <span>Thuê ngoài</span>}
-                      {o.to_ten && <span>{o.to_ten}</span>}
-                      {laMe && <span className="thsx-b-vs__minh">tổ mình</span>}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-          {duoi && (
-            <div className="thsx-b-duoi">
-              <Icon name={duoi.icon} size={15} />
-              <div>
-                <div className="thsx-b-duoi__nm">{duoi.ten}</div>
-                {duoi.so.length > 0 && (
-                  <div className="thsx-b-vs__to">{duoi.so.map((t) => <span key={t}>{t}</span>)}</div>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
+        <DaiHangToiDau
+          chamCau={viTri.k}
+          cau={
+            /* Mọi bước đã xong mà có ô đuôi: hàng đã rời dải — nói chỗ nó đi tới, đừng nói "đang ở" bước cuối. */
+            duoi && dai.length > 0 && dai.every((o) => o.trang_thai === "completed")
+              ? `Lệnh đã xong cả ${dai.length} bước, hàng đã đi tiếp`
+              : cauViTri(viTri, dai, false)
+          }
+          phu={`tổ mình ở bước ${viTri.m} trên ${viTri.tong}`}
+          buoc={dai.map((o, i) => {
+            const laMe = i + 1 === viTri.m;
+            return {
+              key: `${o.thu_tu}-${o.step_key ?? i}`,
+              ten: o.ten_cong_doan,
+              phu: [...(o.thue_ngoai ? ["Thuê ngoài"] : []), ...(o.to_ten ? [o.to_ten] : [])],
+              trangThai: o.trang_thai,
+              laMe,
+              minh: laMe,
+              thueNgoai: !!o.thue_ngoai,
+            };
+          })}
+          duoi={duoi}
+        />
       )}
 
       <section className="thsx-b-blk">

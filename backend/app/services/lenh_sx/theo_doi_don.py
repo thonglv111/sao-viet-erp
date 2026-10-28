@@ -122,7 +122,8 @@ def _cau_don(sale_ids: set[int] | None, *, q: str | None = None, khach_hang_id: 
 def _tinh(db: Session, orders: list[Order], bay_gio: datetime) -> tuple[dict[int, dict], dict, object]:
     """`({order_id: {"mon": [...]}}, lệnh theo id, BoiCanh|None)` — một lượt nạp cho cả tập."""
     svc = DeliveryService(DeliveryRepository(db), OrderRepository(db), EmployeeRepository(db), None, None)
-    nguon = {o.id: svc.nguon_giao_theo_cum(o) for o in orders}
+    lo = svc.nguon_giao_theo_cum_nhieu(orders)
+    nguon = {o.id: lo.get(o.id, []) for o in orders}
     lsx_ids = sorted({s for ns in nguon.values() for n in ns for s in n["lsx_ids"]})
     lenh = XepLichLenhRepository(db).lsx_theo_ids(lsx_ids)
     chay = [i for i in lsx_ids if lenh[i].trang_thai in TT_DA_XUONG_XUONG]

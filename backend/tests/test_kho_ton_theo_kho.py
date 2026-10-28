@@ -84,6 +84,41 @@ def test_on_hand_map_cap_hai_phan_tu_giu_hanh_vi_cu(db):
     assert repo.on_hand(("vat_tu", 3)) == 40.0
 
 
+def test_vat_tu_co_kho_tach_ton_trong_kho_cong_moi_kho(db):
+    # Khổ vật tư tuỳ chọn (27/10/2026): dòng có khổ chỉ thấy lô đúng khổ; dòng TRỐNG khổ (lệnh không
+    # khai khổ) thấy tồn MỌI khổ cùng mã + cùng đơn vị gốc.
+    k = _kho(db)
+    v = 21
+    _lo(db, k, ("vat_tu", v), 100, goc="kg", kr=320)
+    _lo(db, k, ("vat_tu", v), 30, goc="kg", kr=500, kd=700)
+    _lo(db, k, ("vat_tu", v), 5, goc="kg")
+    _lo(db, k, ("vat_tu", v), 9, goc="cuon", kr=320)          # khác đơn vị gốc — không cộng
+    db.commit()
+    repo = StockLotRepository(db)
+    keys = [("vat_tu", v, 320, 0, "kg"), ("vat_tu", v, 500, 700, "kg"), ("vat_tu", v, 320, 700, "kg"),
+            ("vat_tu", v, 0, 0, "kg"), ("vat_tu", v, 0, 0, "cuon")]
+    assert repo.on_hand_map(keys) == {keys[0]: 100.0, keys[1]: 30.0, keys[2]: 0.0,
+                                      keys[3]: 135.0, keys[4]: 9.0}
+    assert repo.on_hand_by_kho([("vat_tu", v, 0, 0, "kg")]) == {("vat_tu", v, 0, 0, "kg"): {k: 135.0}}
+
+
+def test_giu_cho_vat_tu_trong_kho_cong_moi_kho(db):
+    # Cùng luật với tồn: hỏi phần đang giữ của dòng vật tư TRỐNG khổ thì cộng mọi khổ; dòng có khổ chỉ
+    # đúng khổ. Giấy giữ nguyên so khớp tuyệt đối (khổ 0 · 0 của giấy là lô cũ chưa có khổ).
+    from app.models.vat_tu_giu_cho import VatTuGiuCho
+    from app.repositories.giu_cho_repo import GiuChoRepository
+
+    v = 22
+    for kr, kd, sl in ((320, 0, 10), (500, 700, 4), (0, 0, 1)):
+        db.add(VatTuGiuCho(hang_loai="vat_tu", hang_id=v, kho_rong=kr, kho_dai=kd, don_vi_goc="kg",
+                           lsx_id=1, so_luong=sl, nguon="kho"))
+    db.add(VatTuGiuCho(hang_loai="giay", hang_id=v, kho_rong=780, kho_dai=905, don_vi_goc="to",
+                       lsx_id=1, so_luong=7, nguon="kho"))
+    db.commit()
+    keys = [("vat_tu", v, 320, 0, "kg"), ("vat_tu", v, 0, 0, "kg"), ("giay", v, 0, 0, "to")]
+    assert GiuChoRepository(db).da_giu_map(keys) == {keys[0]: 10.0, keys[1]: 15.0, keys[2]: 0.0}
+
+
 def test_lo_giay_chua_co_kho_vao_khoa_0_0(db):
     k = _kho(db)
     g = 11
@@ -114,7 +149,7 @@ def test_nguong_ton_theo_kho_va_don_vi_goc(db):
     assert float(repo.get_for(("giay", 5), k).nguong_ton) == 50.0
 
 
-def test_api_nguong_ton_giay_mang_kho_va_don_vi_hang_khac_ep_0(client):
+def test_api_nguong_ton_giay_va_vat_tu_mang_kho_va_don_vi(client):
     kho_id, mat = _setup(client)
     tk = _login(client, "t_thukho")
     r = client.put("/api/kho/nguong-ton", headers=tk, json={
@@ -132,8 +167,8 @@ def test_api_nguong_ton_giay_mang_kho_va_don_vi_hang_khac_ep_0(client):
         "hang_loai": mat[0], "hang_id": mat[1], "kho_id": kho_id, "nguong_ton": 10,
         "kho_rong": 905, "kho_dai": 780, "don_vi_goc": "TO"})
     assert r.status_code == 200, r.text
-    # Vật tư: khổ ép 0 · 0, đơn vị gốc giữ (mg 0390 — vật tư tách tồn theo đơn vị gốc).
-    assert (r.json()["kho_rong"], r.json()["kho_dai"], r.json()["don_vi_goc"]) == (0, 0, "to")
+    # Vật tư: khổ tuỳ chọn như giấy (27/10/2026), đơn vị gốc giữ (mg 0390).
+    assert (r.json()["kho_rong"], r.json()["kho_dai"], r.json()["don_vi_goc"]) == (780, 905, "to")
     # Bỏ trống đơn vị ⇒ ĐVT chính của mã.
     r = client.put("/api/kho/nguong-ton", headers=tk, json={
         "hang_loai": mat[0], "hang_id": mat[1], "kho_id": kho_id, "nguong_ton": 12})

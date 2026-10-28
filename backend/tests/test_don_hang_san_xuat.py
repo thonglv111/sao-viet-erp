@@ -222,3 +222,77 @@ def test_dong_lenh_khi_chua_du_hang_la_dong_thieu_khong_phai_cho_kho(sess, admin
     mon = next(m for m in t["mon"] if m["lenh"])
     assert mon["o"] == "dong_thieu" and not mon["du_hang"]
     assert "kho" not in t["dang_cho"]       # món đóng thiếu không giữ đơn ở "chờ kho"
+
+
+def _don_hoan_tat(sess, admin, orders, ma: str) -> Order:
+    """Đơn đã phát hành, khách nhận đủ, hoá đơn đủ — "xong" ở cả SQL (`_hoan_tat`) lẫn Python."""
+    from app.models.accounting import SalesInvoice
+    from app.models.customer import Customer
+    from app.models.delivery import LG_THANH_CONG, DeliveryRequest, DeliveryTrip, DeliveryTripLine
+
+    kh = Customer(code=f"KH-{ma}", name=f"Khách {ma}")
+    sess.add(kh)
+    sess.flush()
+    o = Order(order_no=ma, customer_id=kh.id, source_type="bao_gia", status="ordered",
+              san_xuat_released_at=datetime(2026, 9, 1, tzinfo=timezone.utc))
+    sess.add(o)
+    sess.flush()
+    ln = OrderLine(order_id=o.id, description="Hộp", qty=100, line_total=1_000_000)
+    sess.add(ln)
+    sess.flush()
+    req = DeliveryRequest(code=f"YC-{ma}", order_id=o.id, trang_thai="cho_len_ke_hoach",
+                          ngay_can_giao=date(2026, 10, 1))
+    sess.add(req)
+    sess.flush()
+    trip = DeliveryTrip(request_id=req.id, lan_thu=1, trang_thai=LG_THANH_CONG,
+                        employee_id=nhan_vien_cua(sess, admin).id)
+    sess.add(trip)
+    sess.flush()
+    sess.add(DeliveryTripLine(trip_id=trip.id, order_line_id=ln.id, qty_giao=100))
+    sess.flush()
+    tong = int(orders.list(actor=admin, scope="all", q=ma, status=None, order_kind=None,
+                           sort="order_no", page=1, size=5).items[0].total_with_vat)
+    sess.add(SalesInvoice(order_id=o.id, customer_id=kh.id, invoice_symbol="1C26T",
+                          invoice_number=f"HD-{ma}", invoice_date=date(2026, 10, 2),
+                          amount_vnd=tong, customer_name_snapshot=kh.name))
+    sess.commit()
+    return o
+
+
+def test_dang_cho_khong_dung_tom_tat_cho_don_cho_coc_va_don_xong(sess, admin, orders, customer,
+                                                                   monkeypatch):
+    """Đơn bán không có trạng thái "xong" nên đơn cũ nằm ở "đã chốt" mãi — đếm/lọc "Đang chờ" từng
+    dựng tóm tắt sản xuất cho MỌI đơn từ trước tới nay (DB đo tải 26/10/2026: 13 nghìn đơn, 11 s).
+    Đơn chưa phát hành (chỉ "chờ cọc") và đơn hoàn tất (chỉ "xong") đếm thẳng bằng SQL."""
+    import app.services.don_hang_san_xuat as dhsx
+
+    coc = Order(order_no="DH-COC1", customer_id=customer.id, source_type="bao_gia", status="ordered")
+    sess.add(coc)
+    sess.flush()
+    sess.add(OrderLine(order_id=coc.id, description="Tờ rơi", qty=10, line_total=100_000))
+    sess.commit()
+    xong = _don_hoan_tat(sess, admin, orders, "DH-XONG1")
+
+    dem_truoc = orders.dem_dang_cho(actor=admin, scope="all")
+    da_dung: set[int] = set()
+    goc = dhsx.tom_tat_nhieu_don
+
+    def ghi(db, ds, **kw):
+        da_dung.update(o.id for o in ds if o is not None)
+        return goc(db, ds, **kw)
+
+    monkeypatch.setattr(dhsx, "tom_tat_nhieu_don", ghi)
+    dem = orders.dem_dang_cho(actor=admin, scope="all")
+    assert dem == dem_truoc and dem["coc"] >= 1 and dem["xong"] >= 1
+    assert coc.id not in da_dung and xong.id not in da_dung
+    # Lọc: tập id đưa xuống repo cũng không cần tóm tắt hai nhóm đó (bảng vẫn tóm tắt các đơn CỦA
+    # TRANG để hiển thị — giới hạn theo trang, không tính ở đây).
+    for nhom in ("coc", "xong", "giao"):
+        da_dung.clear()
+        orders._ap_dang_cho(actor=admin, scope="all", q=None, order_kind=None, nguoi=None,
+                            loc=LocDonHang(dang_cho=nhom))
+        assert coc.id not in da_dung and xong.id not in da_dung, nhom
+    assert "DH-COC1" in _ma(orders, admin, dang_cho="coc")
+    assert "DH-XONG1" in _ma(orders, admin, dang_cho="xong")
+    assert "DH-XONG1" not in _ma(orders, admin, dang_cho="coc")
+    assert "DH-COC1" not in _ma(orders, admin, dang_cho="xong")

@@ -4,6 +4,7 @@ import type {
   SupplierItemInput,
   SupplierRow,
 } from "../../../../api/client";
+import { coKho as coKhoLoai } from "../../../../lib/khoGiay";
 
 /** Số ngày kiểu Việt: 8.5 → "8,5", 3 → "3". Dùng cho "trễ TB … ngày" ở cột Đánh giá và hồ sơ NCC.
  *  `null` (chưa trễ đơn nào) → "0" — chỗ gọi phải tự quyết có hiện hay không, đừng in "null". */
@@ -131,10 +132,10 @@ export function cleanSupplierItems(
     .map((item) => ({
       hang_loai: item.hang_loai ?? null,
       hang_id: item.hang_id ?? null,
-      // Khổ chỉ có nghĩa với giấy; chưa có rộng thì bỏ cả dài (khổ chỉ-dài vô nghĩa).
-      kho_rong: item.hang_loai === "giay" ? Number(item.kho_rong || 0) : 0,
+      // Khổ: giấy + vật tư (khổ tuỳ chọn, 27/10/2026); chưa có rộng thì bỏ cả dài (khổ chỉ-dài vô nghĩa).
+      kho_rong: coKhoLoai(item.hang_loai) ? Number(item.kho_rong || 0) : 0,
       kho_dai:
-        item.hang_loai === "giay" && Number(item.kho_rong || 0) > 0 ? Number(item.kho_dai || 0) : 0,
+        coKhoLoai(item.hang_loai) && Number(item.kho_rong || 0) > 0 ? Number(item.kho_dai || 0) : 0,
       item_name: (item.item_name ?? "").trim(),
       unit: (item.unit ?? "").trim(),
       unit_price: Number(item.unit_price || 0),

@@ -59,6 +59,7 @@ from .mach_mua import dung_mach as _dung_mach
 from .kho_giay import (
     GocMatHang,
     co_don_vi_goc,
+    co_kho,
     don_vi_khai,
     chuan_kho,
     don_vi_goc_to,
@@ -1845,7 +1846,7 @@ class KeHoachVatTuService:
         da_xet: set[tuple] = set()
         for c in chon:
             loai = c.get("hang_loai")
-            kr, kd = (chuan_kho(c.get("kho_rong"), c.get("kho_dai")) if loai == HANG_GIAY
+            kr, kd = (chuan_kho(c.get("kho_rong"), c.get("kho_dai")) if co_kho(loai)
                       else (0, 0))
             khoa = _khoa_dong(loai, int(c.get("hang_id") or 0), kr, kd, c.get("don_vi_goc"), c)
             if co_don_vi_goc(loai) and not khoa[4]:

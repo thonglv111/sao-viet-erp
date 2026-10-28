@@ -10311,6 +10311,8 @@ export interface StockRequest {
   kho_nguon_id: number | null;
   kho_nguon_ten: string | null;
   xuat_voucher_id: number | null;
+  /** Tự sinh từ Thêm / Sửa tồn / Import trên màn Tồn kho (mg 0451) — cột Nguồn ghi "Nhập tay". */
+  nhap_tay?: boolean;
   /** Nguồn MUA HÀNG: yêu cầu nhập lập từ một đợt giao của phiếu mua ("DMH-… Đợt 2"). */
   purchase_delivery_id?: number | null;
   don_mua_id?: number | null;
@@ -11746,6 +11748,10 @@ export interface LenhSxNganOut {
   /** 13/10/2026 (ngăn hai cột): thẻ Đang vướng + tab Lịch sử. `timeline` tăng dần, `luc` có múi. */
   su_co: LenhSxSuCo[];
   timeline: LenhSxTimeline[];
+  /** Thẻ quy cách đứng máy — CÙNG hàm máy chủ với ngăn Việc của tổ (27/10/2026). */
+  quy_cach: SxQuyCachThe | null;
+  /** Ô đuôi "làm xong bước cuối thì hàng đi đâu" — CÙNG `o_duoi` với ngăn Việc của tổ. */
+  dai_duoi: SxDaiDuoi | null;
 }
 
 // --- Theo dõi sản xuất (module `theo_doi_san_xuat`) — THEO ĐƠN, 12/10/2026 ------------------------
@@ -12013,6 +12019,8 @@ export interface StockVoucher {
   created_at: string;
   /** ĐIỀU CHUYỂN: true cho cả phiếu xuất nguồn lẫn phiếu nhập đích — FE/báo cáo gắn nhãn. */
   dieu_chuyen: boolean;
+  /** Phiếu tự sinh từ Thêm / Sửa tồn / Import trên màn Tồn kho (cờ ở yêu cầu gốc). */
+  nhap_tay?: boolean;
   lines: StockVoucherLine[];
   /** Tổng giá vốn — chỉ có khi `can_view_cost`. */
   gia_von: number | null;
@@ -12134,6 +12142,32 @@ function datLocGiay(qs: URLSearchParams, p: { goc?: string | null; kho_rong?: nu
   if (p.kho_dai) qs.set("kho_dai", String(p.kho_dai));
 }
 
+/** Một dòng form Thêm hàng — đúng các cột của file nhập tồn. Ô trống gửi null. */
+export interface HangThemIn {
+  ma: string;
+  dvt: string;
+  so_luong: string | number | null;
+  don_gia?: string | number | null;
+  kho_rong?: string | number | null;
+  kho_dai?: string | number | null;
+  vi_tri?: string | null;
+  hsd?: string | null;
+  ngay_nhap?: string | null;
+  ncc?: string | null;
+  ghi_chu?: string | null;
+  /** Chạy thật rồi rollback — biết dòng là thêm mới hay cập nhật (cũ → mới) trước khi Lưu. */
+  xem_truoc?: boolean;
+}
+
+/** Khoá một dòng tồn để xoá: mã + khổ + đơn vị gốc. */
+export interface HangXoaDong {
+  hang_loai: HangLoai;
+  hang_id: number;
+  kho_rong: number;
+  kho_dai: number;
+  don_vi_goc: string;
+}
+
 export interface StockLot {
   id: number;
   ma_lo: string;
@@ -12159,6 +12193,9 @@ export interface StockLot {
   /** Giấy: gsm của danh mục; lô giấy tờ: `sl_con_lai` quy kg (cuộn ⇒ null). Chỉ hiển thị. */
   dinh_luong?: number | null;
   quy_kg?: number | null;
+  /** Đơn vị xem được của DÒNG tồn chứa lô (gốc đứng đầu): `he_so` = số đơn vị gốc trong 1 đơn vị
+   *  này (1 ram = 500 tờ ⇒ 500). Chỉ đổi cách hiển thị — số lưu vẫn theo gốc. */
+  don_vi_xem?: { ma: string; ten: string; he_so: number }[] | null;
   hsd: string | null;
   trang_thai: string;
   /** Phiếu NHẬP đã tạo ra lô — hiển thị lô THEO MÃ PHIẾU (link mở phiếu). Null với tồn đầu kỳ. */
@@ -17850,6 +17887,33 @@ export const api = {
       },
     },
 
+    /** Thêm / sửa số / xoá / import / export hàng ngay trên màn Tồn kho (28/10/2026) — ô chi tiết
+     *  `ton_kho_<id>:adjust`. Mỗi lần ghi máy chủ tự sinh yêu cầu + phiếu `nhap_tay` đã ghi sổ. */
+    hang: {
+      them(token: string, khoId: number, body: HangThemIn): Promise<ImportExcelOut> {
+        return authed<ImportExcelOut>(`/api/kho/ton/${khoId}/hang/them`, token, {
+          method: "POST", body: JSON.stringify(body),
+        });
+      },
+      xoa(token: string, khoId: number, dong: HangXoaDong[]): Promise<{ so_lo: number }> {
+        return authed<{ so_lo: number }>(`/api/kho/ton/${khoId}/hang/xoa`, token, {
+          method: "POST", body: JSON.stringify({ dong }),
+        });
+      },
+      importExcel(token: string, khoId: number, file: File, mode: "preview" | "commit"): Promise<ImportExcelOut> {
+        const form = new FormData();
+        form.append("file", file);
+        return authed<ImportExcelOut>(`/api/kho/ton/${khoId}/hang/import-excel?mode=${mode}`, token, {
+          method: "POST", body: form,
+        });
+      },
+      /** File mẫu / file tồn hiện tại — tên file lấy từ Content-Disposition của máy chủ. */
+      async taiFile(token: string, khoId: number, loai: "mau-excel" | "xuat-excel"): Promise<{ url: string; ten: string }> {
+        const resp = await fetchNhiPhan(`/api/kho/ton/${khoId}/hang/${loai}`, token);
+        const khop = /filename="([^"]+)"/.exec(resp.headers.get("content-disposition") ?? "");
+        return { url: URL.createObjectURL(await resp.blob()), ten: khop ? khop[1] : `${loai}.xlsx` };
+      },
+    },
     nguongTon: {
       /** `khoId` = chỉ ngưỡng của một kho (màn Tồn kho của kho đó). */
       list(token: string, khoId?: number): Promise<StockThreshold[]> {

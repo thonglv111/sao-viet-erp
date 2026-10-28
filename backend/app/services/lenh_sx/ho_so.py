@@ -1142,4 +1142,29 @@ def ngan(db: Session, lsx_id: int, *, sale_ids: set[int] | None, bay_gio: dateti
             "nha_cung_cap": tron.nha_cung_cap_ten,
             "xong": lsx.trang_thai == _DONG or ra["tien_do"]["khau"] != trang_thai.KHAU_DANG_SX,
         }
+    ra["quy_cach"], ra["dai_duoi"] = _cua_ban_to(db, lsx_id)
     return ra
+
+
+def _cua_ban_to(db: Session, lsx_id: int) -> tuple[dict | None, dict | None]:
+    """Hai khối ngăn lệnh mượn NGUYÊN của ngăn Việc của tổ (27/10/2026): thẻ quy cách đứng máy
+    (`the_quy_cach`, cùng bộ biến quy cách lúc phát hành) và ô đuôi của dải (`o_duoi` — làm xong
+    bước cuối thì hàng đi đâu). Cùng hàm thì hai ngăn nói cùng một câu về cùng một lệnh.
+
+    Ô đuôi chỉ có khi lệnh đã phát hành: chưa có gói thì chưa có công việc nào để hỏi."""
+    from ...repositories.san_xuat_repo import SanXuatRepository
+    from ..san_xuat import routing_dai
+    from ..san_xuat.snapshot import _SoPhatHanh, the_quy_cach
+
+    the = the_quy_cach(_SoPhatHanh(db).quy_cach(lsx_id=lsx_id))
+    repo = SanXuatRepository(db)
+    goi = repo.goi_hien_tai_cua({lsx_id}, set())
+    if goi is None:
+        return the, None
+    cvs = [c for c in repo.cong_viec_cua_goi_cho_lenh({goi.id}, {lsx_id}) if c.lsx_id == lsx_id]
+    buoc = sorted(repo.routing_steps(lsx_id), key=lambda b: (b.thu_tu, b.id))
+    if not cvs or not buoc:
+        return the, None
+    # `o_duoi` chỉ đọc `step_key` của ô CUỐI dải; ngăn lệnh vẽ dải từ `routing.nodes` nên khỏi dựng
+    # cả dải bàn tổ (`dung_routing`) chỉ để lấy một khoá.
+    return the, routing_dai.o_duoi(db, [{"step_key": buoc[-1].step_key}], cvs)

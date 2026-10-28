@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.delivery import (
@@ -253,6 +253,20 @@ class DeliveryRepository:
                    DeliveryRequest.trang_thai != YC_DA_HUY)
         ).scalars().all())
 
+    def requests_mo_cua_nhieu_don(self, order_ids) -> dict[int, list[DeliveryRequest]]:
+        """Bản lô của `requests_mo_cua_don` — `{order_id: [yêu cầu chưa huỷ]}` một lượt nạp."""
+        ids = {int(i) for i in order_ids if i is not None}
+        ra: dict[int, list[DeliveryRequest]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        for r in self.db.execute(
+            select(DeliveryRequest)
+            .options(selectinload(DeliveryRequest.lines))
+            .where(DeliveryRequest.order_id.in_(ids), DeliveryRequest.trang_thai != YC_DA_HUY)
+        ).scalars().all():
+            ra[int(r.order_id)].append(r)
+        return ra
+
     def requests_cua_don_ca_huy(self, order_id: int) -> list[DeliveryRequest]:
         """MỌI yêu cầu của đơn, kể cả đã huỷ — Kinh doanh xem lại lịch sử giao của đơn."""
         return list(self.db.execute(
@@ -300,6 +314,22 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
             .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
             .where(DeliveryRequest.order_id == order_id,
+                   DeliveryTrip.gia_cong_ngoai_id.is_not(None),
+                   DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
+            .group_by(DeliveryTripLine.order_line_id)
+        ).all()
+        return {int(r[0]): int(r[1] or 0) for r in rows}
+
+    def giao_thang_theo_dong_nhieu_don(self, order_ids) -> dict[int, int]:
+        """Bản lô của `giao_thang_theo_dong` cho nhiều đơn — MỘT câu: {order_line_id: đã giao thẳng}."""
+        ids = {int(i) for i in order_ids if i is not None}
+        if not ids:
+            return {}
+        rows = self.db.execute(
+            select(DeliveryTripLine.order_line_id, func.coalesce(func.sum(DeliveryTripLine.qty_giao), 0))
+            .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
+            .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+            .where(DeliveryRequest.order_id.in_(ids),
                    DeliveryTrip.gia_cong_ngoai_id.is_not(None),
                    DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
             .group_by(DeliveryTripLine.order_line_id)
@@ -390,6 +420,34 @@ class DeliveryRepository:
             select(Lsx.order_line_id, Lsx.id).where(Lsx.order_id == order_id).order_by(Lsx.id)
         ).all():
             out.setdefault(int(lid), []).append(int(sid))
+        return out
+
+    def lenh_theo_dong_nhieu_don(self, order_ids) -> dict[int, dict[int, list[int]]]:
+        """Bản lô của `lenh_theo_dong_don` — `{order_id: {order_line_id: [lsx_id]}}` một câu."""
+        from ..models.lsx import Lsx
+
+        ids = {int(i) for i in order_ids if i is not None}
+        out: dict[int, dict[int, list[int]]] = {i: {} for i in ids}
+        if not ids:
+            return out
+        for oid, lid, sid in self.db.execute(
+            select(Lsx.order_id, Lsx.order_line_id, Lsx.id).where(Lsx.order_id.in_(ids)).order_by(Lsx.id)
+        ).all():
+            out[int(oid)].setdefault(int(lid), []).append(int(sid))
+        return out
+
+    def dong_don_theo_don(self, order_ids) -> dict[int, list]:
+        """`{order_id: [dòng đơn theo id]}` một câu — như `order.lines` (quan hệ xếp theo id)."""
+        from ..models.order import OrderLine
+
+        ids = {int(i) for i in order_ids if i is not None}
+        out: dict[int, list] = {i: [] for i in ids}
+        if not ids:
+            return out
+        for ln in self.db.execute(
+            select(OrderLine).where(OrderLine.order_id.in_(ids)).order_by(OrderLine.id)
+        ).scalars().all():
+            out[int(ln.order_id)].append(ln)
         return out
 
     def dong_nhap_tp_cua_lenh(self, lsx_ids) -> list:
@@ -648,14 +706,18 @@ class DeliveryRepository:
             # Gộp theo yêu cầu — chỉ lấy chuyến MỚI NHẤT (lan_thu lớn nhất) của mỗi yêu cầu, khớp
             # `gopTheoYeuCau()` phía FE. Từ 22/08/2026 mỗi yêu cầu chỉ còn 1 chuyến sống nên đây
             # chủ yếu chừa cho dữ liệu cũ (nhiều `lan_thu` một yêu cầu) trước mốc đó.
+            # Viết "không có lần giao SAU nó" (NOT EXISTS) chứ đừng `lan_thu = (SELECT max …)`:
+            # Postgres ước sai số dòng của dạng max tương quan (90 thay vì 18 nghìn trên DB đo tải
+            # 26/10/2026) rồi nối lồng với lượt xe — bảng Đơn giao hàng 0,6 s mỗi câu. `lan_thu`
+            # NOT NULL nên hai cách cùng nghĩa.
             t2 = aliased(DeliveryTrip)
-            max_lan_thu = (
-                select(func.max(t2.lan_thu))
-                .where(t2.request_id == DeliveryTrip.request_id)
+            co_lan_sau = (
+                select(t2.id)
+                .where(t2.request_id == DeliveryTrip.request_id, t2.lan_thu > DeliveryTrip.lan_thu)
                 .correlate(DeliveryTrip)
-                .scalar_subquery()
+                .exists()
             )
-            q = q.where(DeliveryTrip.lan_thu == max_lan_thu)
+            q = q.where(~co_lan_sau)
         return q
 
     def list_trips(
@@ -793,6 +855,60 @@ class DeliveryRepository:
             .order_by(DeliveryTrip.created_at.desc(), DeliveryTrip.id.desc())
         )
         return list(self.db.execute(q).scalars().all())
+
+    def chuyen_cua_nhieu_kip(self, employee_ids, *, ket_thuc_tu=None,
+                             ket_thuc_den=None) -> dict[int, list[DeliveryTrip]]:
+        """Bản lô của `chuyen_cua_kip` — `{employee_id: [chuyến]}` trong MỘT câu, cùng thứ tự (mới
+        nhất trước). Tab Nhân viên giao hàng từng hỏi 3 lần mỗi người (26/10/2026).
+
+        `ket_thuc_tu`/`ket_thuc_den` (cùng có hoặc cùng không): chỉ chuyến ĐANG CHẠY + chuyến kết
+        thúc trong `[tu, den)` — tab Nhân viên chỉ cần chừng ấy, nạp cả lịch sử là 7,7 s trên DB đo
+        tải 26/10/2026 (18 nghìn chuyến)."""
+        ids = {int(i) for i in employee_ids if i is not None}
+        ra: dict[int, list[DeliveryTrip]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        stmt = select(DeliveryTrip).where(
+            or_(DeliveryTrip.employee_id.in_(ids), DeliveryTrip.phu_xe_employee_id.in_(ids)))
+        if ket_thuc_tu is not None:
+            stmt = stmt.where(or_(
+                DeliveryTrip.trang_thai.in_(LAN_GIAO_DANG_CHAY),
+                and_(DeliveryTrip.thoi_gian_ket_thuc >= ket_thuc_tu,
+                     DeliveryTrip.thoi_gian_ket_thuc < ket_thuc_den),
+            ))
+        for t in self.db.execute(
+            stmt.order_by(DeliveryTrip.created_at.desc(), DeliveryTrip.id.desc())
+        ).scalars().all():
+            # Một chuyến thuộc CẢ tài xế lẫn phụ xe — như hai lần gọi `chuyen_cua_kip` riêng.
+            for eid in {t.employee_id, t.phu_xe_employee_id}:
+                if eid in ra:
+                    ra[eid].append(t)
+        return ra
+
+    def nhan_vien_co_chuyen(self, employee_ids) -> set[int]:
+        """Những người (trong `employee_ids`) có ít nhất một chuyến ở vai tài xế HOẶC phụ xe —
+        cùng luật `bool(list_trips(employee_ids=[id]))` nhưng MỘT câu cho cả danh sách."""
+        ids = {int(i) for i in employee_ids if i is not None}
+        if not ids:
+            return set()
+        ra: set[int] = set()
+        for tx, px in self.db.execute(
+            select(DeliveryTrip.employee_id, DeliveryTrip.phu_xe_employee_id)
+            .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
+            .where(or_(DeliveryTrip.employee_id.in_(ids), DeliveryTrip.phu_xe_employee_id.in_(ids)))
+            .distinct()
+        ).all():
+            ra.update(i for i in (tx, px) if i in ids)
+        return ra
+
+    def ma_yeu_cau_theo_ids(self, request_ids) -> dict[int, str]:
+        """`{request_id: mã}` trong một câu — khỏi nạp cả yêu cầu chỉ để đọc mã."""
+        ids = {int(i) for i in request_ids if i is not None}
+        if not ids:
+            return {}
+        return {int(i): c for i, c in self.db.execute(
+            select(DeliveryRequest.id, DeliveryRequest.code).where(DeliveryRequest.id.in_(ids))
+        ).all()}
 
     def chuyen_dang_chay_cua_kip(
         self,
@@ -1070,3 +1186,23 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == LuotXe.ve_kho_trip_id)
             .where(DeliveryTrip.employee_id == employee_id, LuotXe.ve_kho_luc.is_not(None))
         ).all()]
+
+    def ve_kho_cua_nhieu_tai_xe(self, employee_ids, *, tu=None, den=None) -> dict[int, list[tuple]]:
+        """Bản lô của `ve_kho_cua_tai_xe` — `{employee_id: [(ve_kho_luc, km_ve_kho)]}` một câu.
+        `tu`/`den`: chỉ lượt về kho trong `[tu, den)` (xem `chuyen_cua_nhieu_kip`)."""
+        from ..models.delivery import LuotXe
+
+        ids = {int(i) for i in employee_ids if i is not None}
+        ra: dict[int, list[tuple]] = {i: [] for i in ids}
+        if not ids:
+            return ra
+        stmt = (
+            select(DeliveryTrip.employee_id, LuotXe.ve_kho_luc, LuotXe.km_ve_kho)
+            .join(DeliveryTrip, DeliveryTrip.id == LuotXe.ve_kho_trip_id)
+            .where(DeliveryTrip.employee_id.in_(ids), LuotXe.ve_kho_luc.is_not(None))
+        )
+        if tu is not None:
+            stmt = stmt.where(LuotXe.ve_kho_luc >= tu, LuotXe.ve_kho_luc < den)
+        for eid, luc, km in self.db.execute(stmt).all():
+            ra[int(eid)].append((luc, int(km or 0)))
+        return ra

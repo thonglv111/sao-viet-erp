@@ -1009,12 +1009,21 @@ const HINT_PHAM_VI_SX =
 const HINT_PHAM_VI_TO =
   "Người này được thấy việc của ai trong tổ ở dòng này (tính cả các tổ con của nó). Của tôi: chỉ việc của chính mình. Cả phòng: việc của tổ mình đang ở và các tổ con của nó. Tất cả: việc của cả tổ ở dòng này và mọi tổ con.";
 
-//: Ô chi tiết của mỗi dòng kho: chỉ Xem giá thành của KHO ĐÓ (khai ngưỡng tồn đã là cột Thao tác).
+//: Ô chi tiết của mỗi dòng kho: Xem giá thành của KHO ĐÓ + Thêm/xoá/import/export hàng ngay trên màn
+//: tồn (28/10/2026, cột `can_adjust` của dòng — bốn việc là MỘT ô). Bật ô sau ⇒ ô Xem giá thành bật kèm
+//: và khoá: nhập tay phải ghi đơn giá, không thấy tiền thì không nhập được (máy chủ cũng ép khi lưu).
 const FINE_KHO: FineAction[] = [
   xemGiaKho(
     "Cho phép: xem giá trị tồn, đơn giá nhập, giá bán của lô trong kho này; bảng so sánh giá nhà cung cấp. Lưu ý: chỉ kho này — kho khác có ô riêng; giá trên phiếu nhập / xuất theo ô của Yêu cầu nhập xuất.",
   ),
+  {
+    key: "can_adjust",
+    label: "Thêm, xoá, import, export hàng",
+    hint: "Cho phép: trên màn tồn của kho này thêm hàng, sửa số tồn, xoá hàng, nhập và xuất file Excel. Mỗi lần ghi tự sinh phiếu nhập / xuất đã ghi sổ nên báo cáo kho có đủ tiền. Lưu ý: bật ô này thì Xem giá thành của kho này bật theo.",
+  },
 ];
+const CANH_BAO_GIA_THEO_NHAP_TAY =
+  "Bật theo ô Thêm, xoá, import, export hàng: nhập tay phải ghi đơn giá nên phải thấy tiền. Tắt ô đó trước.";
 
 const fineCua = (moduleKey: string): FineAction[] | undefined =>
   FINE_ACTIONS[moduleKey]?.length
@@ -1648,16 +1657,20 @@ export function PermissionMatrix({
                             const canhPhamVi = doiPhamViToanCty(khoaO, a.key) && dongO.scope !== "all";
                             // Ô bắt buộc theo Chỉnh sửa chỉ xét cho ô của CHÍNH dòng này.
                             const theoGhi = !a.mod && FINE_THEO_WRITE[row.module_key] === a.key && coDuongGhi;
+                            const theoNhapTay =
+                              laDongKho(row.module_key) && a.key === "can_view_cost" && !!row.can_adjust;
                             return (
                             <label key={`${a.mod ?? ""}:${a.key}`} className="rdx-perm__fine-item">
                               <input
                                 type="checkbox"
                                 className="switch"
                                 checked={fineOn(a) && song}
-                                disabled={readOnly || !song || canhPhamVi || theoGhi}
+                                disabled={readOnly || !song || canhPhamVi || theoGhi || theoNhapTay}
                                 title={
                                   theoGhi
                                     ? CANH_BAO_FINE_THEO_WRITE
+                                    : theoNhapTay
+                                      ? CANH_BAO_GIA_THEO_NHAP_TAY
                                     : canhPhamVi
                                       ? CANH_BAO_PHAM_VI
                                       : song
@@ -1677,6 +1690,9 @@ export function PermissionMatrix({
                                     onToggle(khoaO, k, e.target.checked),
                                   );
                                   if (a.phamVi) onScope(khoaO, a.phamVi);
+                                  if (laDongKho(khoaO) && a.key === "can_adjust" && e.target.checked) {
+                                    onToggle(khoaO, "can_view_cost", true);
+                                  }
                                 }}
                               />
                               <span className="rdx-perm__fine-text">

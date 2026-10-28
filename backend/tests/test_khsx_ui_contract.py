@@ -159,8 +159,11 @@ def test_thue_ngoai_chon_nha_gia_cong_khong_to_may() -> None:
     assert 'LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"]' in drawer
     # Ô chọn đọc danh mục Nhà cung cấp tích "Nhận gia công", không gõ chữ tự do.
     assert "api.giaCongNgoai.nhaGiaCong" in drawer
-    # Đổi sang thuê ngoài là dọn tổ / máy / vật tư ngay trong bản nháp.
-    assert 'if (k === "thue_ngoai") {' in drawer
+    # Đổi sang thuê ngoài là dọn tổ / máy / vật tư ngay trong bản nháp — luật nằm ở `patchLoaiBuoc`
+    # (lsxBuoc.ts), drawer và ô "Loại" trên bảng công đoạn cùng gọi.
+    luat = (DRAWER.parent / "lsxBuoc.ts").read_text(encoding="utf-8")
+    assert "onPatch(patchLoaiBuoc(k))" in drawer
+    assert 'if (k === "thue_ngoai") {' in luat and "vat_tus: []" in luat
     # Ô đơn giá chỉ ở bước cuối lần — bảng cha suy dải cùng luật máy chủ.
     assert "viTriTrongDai(" in bang
 

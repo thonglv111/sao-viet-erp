@@ -22,7 +22,7 @@ import {
   type PurchaseRequestRow,
   type SupplierRow,
 } from "../../../api/client";
-import { coDonViGoc } from "../../../lib/khoGiay";
+import { coDonViGoc, coKho } from "../../../lib/khoGiay";
 import { useDebounced } from "../../../utils/useDebounced";
 import { useAuth } from "../../../auth/useAuth";
 import { useKhiTickDoi } from "../../../hooks/useKhiTickDoi";
@@ -828,8 +828,8 @@ export function PurchaseRequestsPage({
             // TÊN — danh mục đổi tên mà bảng giá NCC giữ tên cũ là báo "không bán" oan (14/10/2026).
             hang_loai: line.hang_loai ?? null,
             hang_id: line.hang_id ?? null,
-            // Khổ MUA chỉ gửi cho giấy; hàng khác để server ép 0.
-            ...(line.hang_loai === "giay"
+            // Khổ MUA gửi cho giấy + vật tư (khổ tuỳ chọn, 27/10/2026); hàng khác để server ép 0.
+            ...(coKho(line.hang_loai)
               ? { kho_rong: line.kho_rong ?? 0, kho_dai: line.kho_dai ?? 0 }
               : {}),
           })),

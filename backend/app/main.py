@@ -54,6 +54,7 @@ from .routers import (
     delivery,
     kho_request,
     kho_voucher,
+    kho_nhap_tay,
     public_scan,
     khuon_be,
     danh_muc_xoa,
@@ -212,6 +213,8 @@ app.include_router(kho_voucher.router)
 app.include_router(kho_voucher.threshold_router)
 # Điều chuyển kho: /api/kho/dieu-chuyen — path RIÊNG, đăng ký TRƯỚC kho.router (path 1 đoạn).
 app.include_router(kho_voucher.dieu_chuyen_router)
+# Thêm / xoá / import / export hàng trên màn Tồn kho: /api/kho/ton/{kho_id}/hang/* — TRƯỚC kho.router.
+app.include_router(kho_nhap_tay.router)
 # Báo cáo kho (kế toán): /api/kho/bao-cao/* + /api/kho/khoa-so — TRƯỚC kho.router (path 1 đoạn).
 app.include_router(kho_baocao.router)
 app.include_router(notifications.router)

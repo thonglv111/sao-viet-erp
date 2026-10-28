@@ -118,7 +118,7 @@ function TenHang({ d }: { d: { hang_ten: string; hang_loai: string; kho_rong: nu
   return (
     <>
       {d.hang_ten}
-      {d.hang_loai === "giay" && d.kho_rong > 0 && (
+      {(d.hang_loai === "giay" || d.hang_loai === "vat_tu") && d.kho_rong > 0 && (
         <span className="lvt-tag">{nhanKho(d.kho_rong, d.kho_dai)}</span>
       )}
     </>

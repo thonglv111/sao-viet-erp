@@ -5,7 +5,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent
 import { createPortal } from "react-dom";
 
 import type { DonViDungDuoc, SupplierRow } from "../../../../api/client";
-import { chuanKho } from "../../../../lib/khoGiay";
+import { chuanKho, coKho } from "../../../../lib/khoGiay";
 import { tenDonVi } from "../../../tenDonVi";
 import { chaoGiaChoMatHang, normalizeItemName, tenGon } from "../shared/helpers";
 import type { ChaoGia, FormLine } from "../shared/types";
@@ -42,13 +42,15 @@ export function LineSupplierPicker({
   const khacHo = tatCa.filter((c) => !c.cung_ho);
   const chuaGoTen = !normalizeItemName(line.item_name) && !line.hang_id;
   const laGiay = line.hang_loai === "giay";
+  // Vật tư khổ tuỳ chọn (27/10/2026): có ghi khổ thì gọi nhóm theo khổ như giấy.
   const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
+  const theoKho = laGiay || (coKho(line.hang_loai) && r > 0);
   const dv = tenDonVi(line.unit) ?? line.unit;
   // Có nhóm bán đơn vị khác thì mọi nhóm gọi theo đơn vị; không thì giấy gọi theo khổ (NCC chỉ được
   // so trong cùng khổ), hàng khác khỏi tiêu đề.
   const nhanChinh = khacHo.length > 0 && dv
     ? `Bán theo ${dv}`
-    : laGiay
+    : theoKho
       ? `${r ? (d ? `Khổ ${r} × ${d} mm` : `Khổ ${r} mm`) : "Chưa ghi khổ"}${dv ? ` theo ${dv}` : ""}`
       : null;
   // Nhóm bán đơn vị khác TÁCH theo từng đơn vị. Chọn là dòng đổi đơn vị: ô Số lượng tự trống + hiện
@@ -113,7 +115,7 @@ export function LineSupplierPicker({
     return (
       <button type="button" className="dfa-nccb" disabled aria-label="Nhà cung cấp của dòng">
         <span className="dfa-nccb__chu dfa-nccb__chu--mo">
-          {chuaGoTen ? "Nhập vật tư trước" : laGiay ? "Chưa có NCC bán khổ này" : "Chưa có NCC nào bán"}
+          {chuaGoTen ? "Nhập vật tư trước" : theoKho ? "Chưa có NCC bán khổ này" : "Chưa có NCC nào bán"}
         </span>
       </button>
     );

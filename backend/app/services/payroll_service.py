@@ -17,6 +17,7 @@ import os
 import secrets
 from calendar import monthrange
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 
 # Mã tạm ứng: TU-YYMMDD-XXXX (4 ký tự ngẫu nhiên). Bỏ ký tự dễ nhầm (0/O, 1/I) cho dễ đọc tay.
 _ADV_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -880,7 +881,10 @@ class PayrollService:
         engine, một cho snapshot), mỗi lần lại đọc lại TOÀN BỘ danh mục khoản."""
         if self.components is None:
             return {}
-        by_id = {c.id: c for c in self.components.list_components()}
+        # Thuộc tính danh mục đọc MỘT lần cho cả mẻ (cùng tên trường) thay vì mỗi dòng khoản.
+        by_id = {c.id: SimpleNamespace(id=c.id, code=c.code, name=c.name, kind=c.kind,
+                                       is_taxable=c.is_taxable)
+                 for c in self.components.list_components()}
         return {eid: self._component_dicts(rows, by_id)
                 for eid, rows in self.components.employee_rows_map(employee_ids).items()}
 
@@ -3049,10 +3053,15 @@ class PayrollService:
             # L14 (07/09/2026) — nợ tạm ứng kỳ TRƯỚC mang sang đã đổi sau lần Tính lại gần nhất (kỳ trước
             # mở lại/tính lại): số `no_ung_ky_truoc` trên dòng là số cũ.
             ky_truoc = self.payroll.get_period_by_ym(*_ky_truoc(year, month))
+            # Chỉ đọc đúng mấy cột cần soi (26/10/2026) — nạp nguyên dòng lương cả công ty ba lượt
+            # ở đây là hàng chục nghìn object mỗi lần mở bảng lương.
+            dong_ky = self.payroll.cot_dong_luong(period_som.id, "employee_id", "no_ung_ky_truoc",
+                                                  "monthly_salary", "actual_cong")
             if ky_truoc is not None:
                 no_truoc = {l.employee_id: float(l.no_ung_chuyen_ky_sau or 0)
-                            for l in self.payroll.list_lines(ky_truoc.id)}
-                lech = [ln for ln in self.payroll.list_lines(period_som.id)
+                            for l in self.payroll.cot_dong_luong(ky_truoc.id, "employee_id",
+                                                                 "no_ung_chuyen_ky_sau")}
+                lech = [ln for ln in dong_ky
                         if abs(float(ln.no_ung_ky_truoc or 0) - no_truoc.get(ln.employee_id, 0.0)) > 0.5]
                 if lech:
                     return (f"Nợ tạm ứng chuyển kỳ của {len(lech)} người đã đổi ở kỳ trước sau lần "
@@ -3062,7 +3071,7 @@ class PayrollService:
             # CHỈ từ mốc `AP_DUNG_CHOT_CONG_TRUOC_TU` (C9, 08/09/2026): tháng cũ đã chốt/đã chi mà mở
             # lại thì ai chưa khai lương hồi đó vẫn chốt lại được như cũ — L12/L14 (tiền tạm ứng) thì
             # vẫn soi mọi tháng.
-            thieu = [ln for ln in self.payroll.list_lines(period_som.id)
+            thieu = [ln for ln in dong_ky
                      if (year, month) >= AP_DUNG_CHOT_CONG_TRUOC_TU
                      and float(ln.monthly_salary or 0) <= 0 and float(ln.actual_cong or 0) > 0]
             if thieu:
@@ -3162,10 +3171,10 @@ class PayrollService:
         LỌC THEO `hire_date`: người tuyển tháng SAU vẫn có thể đã nằm trong hồ sơ và được
         `generate` sinh dòng 0 công — họ vắng mặt trong ảnh chụp là ĐÚNG, không phải lỗi. Bỏ bộ
         lọc này là chặn nhầm mỗi lần HCNS nhập trước hồ sơ người sắp vào làm."""
-        co_trong_anh = set(self.attendance.metrics_map(year, month))
+        co_trong_anh = self.attendance.nv_trong_bang_cong(year, month)
         cuoi_thang = date(year, month, monthrange(year, month)[1])
         thieu: list[str] = []
-        for ln in self.payroll.list_lines(period.id):
+        for ln in self.payroll.cot_dong_luong(period.id, "employee_id"):
             if ln.employee_id in co_trong_anh:
                 continue
             emp = self.employees.get_by_id(ln.employee_id)

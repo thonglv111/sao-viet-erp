@@ -161,6 +161,10 @@ export interface ImportExcelOut {
   /** Đã thực sự ghi xuống DB. Luôn `false` ở `mode=preview`. */
   da_ghi: boolean;
   loi: { sheet: string; dong: number; cot: string; ly_do: string }[];
+  /** Chỉ màn nhập có "cũ → mới" (Tồn kho, 28/10/2026): từng ô sẽ đổi của từng dòng. */
+  thay_doi?: { dong: number; ma: string; ten: string; cot: string; cu: string; moi: string }[];
+  /** Không chặn ghi, chỉ nhắc (vd đổi vị trí áp cho mọi lô còn tồn). */
+  canh_bao?: { dong: number; noi_dung: string }[];
 }
 
 export const mayThietBi = crud("/api/may-thiet-bi");

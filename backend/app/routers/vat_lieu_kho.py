@@ -184,7 +184,8 @@ def tim_mat_hang(
     svc: Service,
     _: Annotated[User, Depends(_doc_mat_hang)],
     q: str | None = Query(default=None),
-    size: int = Query(default=20, ge=1, le=50),
+    # Trần 2000: ô chọn vật tư ở Tồn kho nạp cả danh mục một lần để lọc gần đúng (bỏ dấu) tại chỗ.
+    size: int = Query(default=20, ge=1, le=2000),
     chi_co_nha_cung_cap: bool = Query(default=False),
 ) -> list[MatHangRow]:
     """Tìm gộp Giấy + Vật tư khác. Thay `GET /api/kho/de-nghi/vat-tu` (đọc bảng `materials` cũ)."""

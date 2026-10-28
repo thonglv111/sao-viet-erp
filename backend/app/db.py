@@ -48,8 +48,14 @@ def _make_engine():
             pool_pre_ping=True,
             pool_recycle=1800,
         )
-        if url.startswith("postgresql") and settings.db_statement_timeout_ms > 0:
-            connect_args["options"] = f"-c statement_timeout={settings.db_statement_timeout_ms}"
+        if url.startswith("postgresql"):
+            # jit=off (26/10/2026): câu nhiều subquery tương quan (lịch xếp máy) bị planner ước
+            # lượng đắt quá `jit_above_cost` ⇒ Postgres bỏ 3,5 s BIÊN DỊCH JIT cho một câu chạy
+            # thật 45 ms. Truy vấn OLTP ở đây không có ca nào lợi từ JIT.
+            tuy_chon = ["-c jit=off"]
+            if settings.db_statement_timeout_ms > 0:
+                tuy_chon.append(f"-c statement_timeout={settings.db_statement_timeout_ms}")
+            connect_args["options"] = " ".join(tuy_chon)
 
     eng = create_engine(url, connect_args=connect_args, **engine_kwargs)
     if url.startswith("sqlite"):

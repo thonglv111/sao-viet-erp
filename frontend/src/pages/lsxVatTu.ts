@@ -107,18 +107,19 @@ export function bangKeVatTu(args: {
       // `hang_loai`: Giấy #7 và Vật tư #7 là hai món khác nhau, gom chung một khoá `7` là cộng
       // nhầm kg giấy vào kg keo.
       const giay = v.hang_loai === "giay";
-      // Giấy đếm tờ theo KHỔ: cùng mã hai khổ là hai dòng (khoá mang khổ), không cộng lẫn.
-      const kr = giay ? v.kho_rong ?? 0 : 0;
-      const kd = giay ? v.kho_dai ?? 0 : 0;
+      // Giấy đếm tờ theo KHỔ: cùng mã hai khổ là hai dòng (khoá mang khổ), không cộng lẫn. Vật tư khổ
+      // tuỳ chọn (27/10/2026): có khổ thì cũng tách theo khổ, trống thì khoá như cũ.
+      const kr = v.kho_rong ?? 0;
+      const kd = v.kho_dai ?? 0;
       dong.push({
         nhom: giay ? "nvl" : "vat_tu",
         ...(giay ? { loai_giay: v.giay_loai === "song" ? "song" as const : "giay" as const } : {}),
-        khoa: giay ? `giay:${v.vat_tu_id}:${kr}:${kd}` : `vat_tu:${v.vat_tu_id}`,
+        khoa: giay ? `giay:${v.vat_tu_id}:${kr}:${kd}` : kr ? `vat_tu:${v.vat_tu_id}:${kr}:${kd}` : `vat_tu:${v.vat_tu_id}`,
         ma: v.vat_tu_ma ?? null,
         ten: v.vat_tu_ten ?? "",
         so_luong: soHoac0(v.so_luong),
         don_vi: nhanDv(v.don_vi),
-        chu_thich: giay ? nhanKho(kr, kd) : null,
+        chu_thich: giay || kr ? nhanKho(kr, kd) : null,
       });
     }
 

@@ -8,7 +8,7 @@
 // cột "Cần xem lại". Không có test thì lần sau ai đó "dọn" cái cờ `tren_dong_giay` là nó lặng lẽ
 // quay lại.
 import { describe, expect, it } from "vitest";
-import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, congDoanKhongMay, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toChuaCoMay, toBody, toEdit, toKhacCuaMay, type EditRow } from "./lsxBuoc";
+import { boBuoc, chenBuoc, doiChoBuoc, donViChuoi, tickConLaCuaNguoiKhac, CUA_SO_TU_LAM_MS, emptyRow, lyDoChanLuu, giayChoLuu, laMayTinh, loiDong, congDoanKhongMay, mayChonDuoc, mayMacDinhCuaTo, nhanGiayTheoDauVao, toChuaCoMay, toBody, toEdit, toKhacCuaMay, patchLoaiBuoc, toChonDuoc, type EditRow } from "./lsxBuoc";
 
 /** Dòng routing tối thiểu. `may_id` đặt sẵn để khỏi dính cảnh báo "chưa gán tổ / máy" — thứ đang
  *  không phải chủ đề của phần lớn test dưới đây. */
@@ -307,12 +307,13 @@ describe("toBody — dòng giấy dẫn xuất từ đầu vào của bước", 
     so_luong: "5000", tu_dong: false, kho_rong, kho_dai,
   });
 
-  it("dòng giấy chỉ gửi MÃ (số + khổ máy chủ tự ghi); dòng vật tư không gửi khổ", () => {
+  it("dòng giấy chỉ gửi MÃ (số + khổ máy chủ tự ghi); dòng vật tư gửi khổ người kế hoạch gõ", () => {
     const [body] = toBody([dong({ ten: "In offset", vat_tus: [
-      mon("giay", "905", "780"), mon("vat_tu", "", "")] })]);
+      mon("giay", "905", "780"), mon("vat_tu", "", ""), { ...mon("vat_tu", "320", ""), vat_tu_id: 8 }] })]);
     expect(body.vat_tus).toEqual([
       { hang_loai: "giay", vat_tu_id: 7, so_luong: null, tu_dong: false, kho_rong: 0, kho_dai: 0 },
-      { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {} },
+      { hang_loai: "vat_tu", vat_tu_id: 7, tu_dong: false, gia_tri_chip: {}, kho_rong: 0, kho_dai: 0 },
+      { hang_loai: "vat_tu", vat_tu_id: 8, tu_dong: false, gia_tri_chip: {}, kho_rong: 320, kho_dai: 0 },
     ]);
   });
 });
@@ -324,7 +325,8 @@ describe("toBody — vật tư khác giấy", () => {
       { hang_loai: "giay", vat_tu_id: 9, so_luong: "10", tu_dong: false, kho_rong: "0", kho_dai: "0" },
     ] } as never;
     const body = toBody([r])[0];
-    expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 } });
+    expect(body.vat_tus![0]).toEqual({ hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: true, gia_tri_chip: { dai_support: 500 },
+      kho_rong: 0, kho_dai: 0 });
     expect(body.vat_tus![1].so_luong).toBeNull();
   });
   it("dòng người đã gõ định mức gửi kèm so_luong + sua_tay", () => {
@@ -332,7 +334,8 @@ describe("toBody — vật tư khác giấy", () => {
       { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "12.5", tu_dong: true, sua_tay: true, gia_tri_chip: {}, chips: [] },
     ] } as never;
     expect(toBody([r])[0].vat_tus![0]).toEqual(
-      { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {} });
+      { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {},
+        kho_rong: 0, kho_dai: 0 });
   });
 });
 
@@ -443,5 +446,39 @@ describe("bước đã bắt đầu + tổ khác của máy (23/10/2026)", () =>
     expect(toKhacCuaMay([1], 1)).toEqual({ khac: [], lech: false });
     expect(toKhacCuaMay([2], null)).toEqual({ khac: [2], lech: false });
     expect(toKhacCuaMay(null, 1)).toEqual({ khac: [], lech: false });
+  });
+});
+
+// Bảng công đoạn sửa loại bước + tổ ngay trên ô (phương án B, 28/10/2026) — cùng luật với ngăn chi
+// tiết. Hai nơi tự viết hai bản là lệch nhau ở lần sửa sau.
+describe("patchLoaiBuoc — đổi loại bước dọn gì", () => {
+  it("sang Thuê ngoài: bỏ tổ, máy, vật tư, về một lượt", () => {
+    expect(patchLoaiBuoc("thue_ngoai")).toEqual({
+      loai_buoc: "thue_ngoai", may_id: null, department_id: null, department_ten: null,
+      so_luot_chay: "1", vat_tus: [],
+    });
+  });
+  it("sang Tổ: bỏ máy, về một lượt, giữ tổ", () => {
+    expect(patchLoaiBuoc("to")).toEqual({ loai_buoc: "to", may_id: null, so_luot_chay: "1" });
+  });
+  it("sang Máy: chỉ đổi loại", () => {
+    expect(patchLoaiBuoc("may")).toEqual({ loai_buoc: "may" });
+  });
+});
+
+describe("toChonDuoc — tổ được mời cho một bước", () => {
+  const toRefs = [{ id: 1, ten: "Tổ in" }, { id: 2, ten: "Tổ cán" }, { id: 3, ten: "Tổ bế" }];
+  it("công đoạn khai tổ: chỉ các tổ đó, đúng thứ tự khai", () => {
+    expect(toChonDuoc(toRefs, { toChoPhep: [3, 1] }, null)).toEqual({
+      items: [{ id: 3, ten: "Tổ bế" }, { id: 1, ten: "Tổ in" }], gioiHan: true,
+    });
+  });
+  it("chưa khai tổ: mời mọi tổ", () => {
+    expect(toChonDuoc(toRefs, null, null)).toEqual({ items: toRefs, gioiHan: false });
+  });
+  it("tổ đang gán không còn phụ trách vẫn hiện, gắn nhãn", () => {
+    expect(toChonDuoc(toRefs, { toChoPhep: [1] }, 2).items).toEqual([
+      { id: 1, ten: "Tổ in" }, { id: 2, ten: "Tổ cán (không còn phụ trách công đoạn)" },
+    ]);
   });
 });

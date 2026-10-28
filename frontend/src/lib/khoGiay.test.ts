@@ -29,10 +29,11 @@ describe("khoaTon / khoaNguong — khớp khoá 5 phần của máy chủ", () =
     expect(a).toBe("giay:12:1000:0:to");
     expect(b).toBe("giay:12:1000:0:kg");
   });
-  it("vật tư khác: vat_tu:id:0:0:gốc — không khổ, tách theo đơn vị gốc", () => {
+  it("vật tư khác: khổ tuỳ chọn như giấy, tách theo khổ + đơn vị gốc", () => {
     expect(khoaTon({ hang_loai: "vat_tu", hang_id: 5, don_vi_goc: "KG" })).toBe("vat_tu:5:0:0:kg");
-    expect(khoaTon({ hang_loai: "vat_tu", hang_id: 5, don_vi_goc: "thung", kho_rong: 700, kho_dai: 1000 }))
-      .toBe("vat_tu:5:0:0:thung");
+    expect(khoaTon({ hang_loai: "vat_tu", hang_id: 5, don_vi_goc: "thung", kho_rong: 1000, kho_dai: 700 }))
+      .toBe("vat_tu:5:700:1000:thung");
+    expect(khoaTon({ hang_loai: "vat_tu", hang_id: 5, don_vi_goc: "kg", kho_rong: 320 })).toBe("vat_tu:5:320:0:kg");
   });
   it("hàng khác: loai:id:0:0:", () => {
     expect(khoaTon({ hang_loai: "thanh_pham", hang_id: 5, don_vi_goc: "cai" })).toBe("thanh_pham:5:0:0:");

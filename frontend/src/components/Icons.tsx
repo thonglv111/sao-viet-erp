@@ -401,6 +401,14 @@ const ICONS = {
   ),
   square: <rect x="5" y="5" width="14" height="14" rx="1.5" />,
   // Tay cầm kéo thả 6 chấm
+  // Ba chấm ngang — nút "thao tác khác" mở menu của một hàng.
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.2" fill="currentColor" />
+    </>
+  ),
   grip: (
     <>
       <circle cx="9" cy="12" r="1" fill="currentColor" />

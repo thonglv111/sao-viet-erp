@@ -5,16 +5,16 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..services.kho_giay import chuan_kho
+from ..services.kho_giay import chuan_kho, co_kho
 
 
 def _chuan_kho_dong(obj, *, de_trong: bool):
-    """Khổ giấy của một dòng mua: hai cạnh mm chuẩn (ngắn, dài); hàng khác giấy ép 0 · 0.
+    """Khổ của một dòng mua (giấy + vật tư, 27/10/2026): hai cạnh mm chuẩn (ngắn, dài); hàng khác ép 0 · 0.
     `de_trong`: dòng đơn mua không gửi khổ (cả hai None) ⇒ để None cho server chép khổ cần; dòng
     đơn mua chưa gửi mặt hàng (server kế thừa từ dòng yêu cầu) thì chỉ chuẩn hoá, server ép 0 sau."""
     if de_trong and obj.kho_rong is None and obj.kho_dai is None:
         return obj
-    if obj.hang_loai is not None and obj.hang_loai != "giay":
+    if obj.hang_loai is not None and not co_kho(obj.hang_loai):
         obj.kho_rong, obj.kho_dai = 0, 0
     else:
         obj.kho_rong, obj.kho_dai = chuan_kho(obj.kho_rong, obj.kho_dai)
@@ -34,7 +34,7 @@ class SupplierItemIn(BaseModel):
     vat_percent: float = Field(default=0, ge=0, le=100)
     note: str | None = Field(default=None, max_length=2000)
     # KHỔ giấy (mm): đủ hai cạnh, hoặc chỉ rộng (`r, 0`). Giấy KHÔNG còn dạng bán cuộn/tờ (chủ chốt
-    # 10/10/2026) — tờ hay kg là do ĐVT `unit`. Vật tư khác bị ép 0 · 0.
+    # 10/10/2026) — tờ hay kg là do ĐVT `unit`. Vật tư khác có khổ tuỳ chọn như giấy (27/10/2026).
     kho_rong: int = Field(default=0, ge=0)
     kho_dai: int = Field(default=0, ge=0)
 
@@ -48,7 +48,7 @@ class SupplierItemIn(BaseModel):
 
     @model_validator(mode="after")
     def _kho_giay(self):
-        if self.hang_loai == "giay":
+        if co_kho(self.hang_loai):
             self.kho_rong, self.kho_dai = chuan_kho(self.kho_rong, self.kho_dai)
         else:
             self.kho_rong, self.kho_dai = 0, 0

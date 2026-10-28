@@ -20,7 +20,8 @@ Quy ước:
 from __future__ import annotations
 
 import calendar
-from datetime import date
+from bisect import bisect_right
+from datetime import date, timedelta
 
 from ..models.employee import (
     STATUS_ACTIVE,
@@ -35,23 +36,54 @@ from ..models.employee import (
 TRANG_THAI_DANG_LAM = frozenset({STATUS_PROBATION, STATUS_PROBATION_ENDED, STATUS_ACTIVE})
 
 
-def _gia_tri_tren_ngay(gia_tri_hien_tai, events, field: str, d: date):
-    evs = sorted(
+def _loc_xep(events, field: str) -> list:
+    return sorted(
         (e for e in (events or [])
          if getattr(e, "field", None) == field and getattr(e, "effective_date", None) is not None),
         key=lambda e: (e.effective_date, e.id or 0),
     )
+
+
+#: Dấu "lấy giá trị cột hiện tại" trong mốc đã dựng — cột có thể đổi giữa hai lần hỏi nên không
+#: chụp cứng giá trị vào bản nhớ.
+_HIEN_TAI = object()
+
+
+def _moc(events, field: str):
+    """Dựng MỘT lần các mốc của một trường: `(giá trị trước mốc đầu, [ngày], [giá trị sau ngày])`.
+
+    `gia_tri[i]` = giá trị sau khi áp MỌI sự kiện có ngày ≤ `ngay[i]` — đúng phép duyệt tuần tự cũ
+    (sự kiện thiếu `to_value` giữ nguyên giá trị đang có). None = trường không có sự kiện nào."""
+    evs = _loc_xep(events, field)
     if not evs:
-        return gia_tri_hien_tai
-    # Trước sự kiện đầu tiên: trạng thái "từ" của nó; không ghi thì coi như giá trị hiện tại.
-    gia_tri = evs[0].from_value if evs[0].from_value is not None else gia_tri_hien_tai
+        return None
+    dau = evs[0].from_value if evs[0].from_value is not None else _HIEN_TAI
+    cur = dau
+    ngay, gia_tri = [], []
     for e in evs:
-        if e.effective_date <= d:
-            if e.to_value is not None:
-                gia_tri = e.to_value
-        else:
-            break
-    return gia_tri
+        if e.to_value is not None:
+            cur = e.to_value
+        ngay.append(e.effective_date)
+        gia_tri.append(cur)
+    return dau, ngay, gia_tri
+
+
+def _moc_nho(events, field: str):
+    if not events:
+        return None      # phần lớn nhân viên không có sự kiện nào — khỏi lọc + xếp danh sách rỗng
+    # Danh sách nạp gộp (`DsSuKien`) nhớ sẵn mốc đã dựng: bảng công hỏi 31 ngày × mỗi người.
+    nho = getattr(events, "nho", None)
+    return nho(("bien_che_moc", field), lambda: _moc(events, field)) if nho else _moc(events, field)
+
+
+def _gia_tri_tren_ngay(gia_tri_hien_tai, events, field: str, d: date):
+    m = _moc_nho(events, field)
+    if m is None:
+        return gia_tri_hien_tai
+    dau, ngay, gia_tri = m
+    i = bisect_right(ngay, d)
+    v = dau if i == 0 else gia_tri[i - 1]
+    return gia_tri_hien_tai if v is _HIEN_TAI else v
 
 
 def trang_thai_tren_ngay(emp, events, d: date) -> tuple[str, int | None]:
@@ -80,7 +112,8 @@ def ly_do_ngoai_bien_che(emp, events, d: date) -> str | None:
     resign = getattr(emp, "resign_date", None)
     if resign is not None and d >= resign:
         return f"{ten} đã nghỉ việc từ {resign:%d/%m/%Y} — ngày {d:%d/%m/%Y} ngoài biên chế."
-    status, _ = trang_thai_tren_ngay(emp, events, d)
+    # Chỉ cần TRẠNG THÁI — phòng ban không quyết định biên chế, khỏi dựng lại nó mỗi ngày.
+    status = _gia_tri_tren_ngay(emp.status, events, "status", d)
     if status in TRANG_THAI_DANG_LAM:
         return None
     if status == STATUS_ON_LEAVE:
@@ -93,7 +126,41 @@ def ly_do_ngoai_bien_che(emp, events, d: date) -> str | None:
     return f"{ten} không ở trạng thái đang làm việc ngày {d:%d/%m/%Y} ({status})."
 
 
+def ngay_trong_bien_che_thang(emp, events, year: int, month: int) -> set[int]:
+    """TẬP NGÀY (1..31) trong tháng mà `trong_bien_che` trả True — tính bằng KHOẢNG, không hỏi
+    từng ngày (26/10/2026: bảng công 6.300 người × 31 ngày là 240 nghìn lượt hỏi).
+
+    Cùng luật với `ly_do_ngoai_bien_che`: [hire_date, resign_date) giao với các đoạn trạng thái
+    "đang làm" dựng từ sự kiện `status`."""
+    last = calendar.monthrange(year, month)[1]
+    lo, hi = date(year, month, 1), date(year, month, last)
+    hire = getattr(emp, "hire_date", None)
+    if hire is not None and hire > lo:
+        lo = hire
+    resign = getattr(emp, "resign_date", None)
+    if resign is not None and resign - timedelta(days=1) < hi:
+        hi = resign - timedelta(days=1)
+    if lo > hi:
+        return set()
+    m = _moc_nho(events, "status")
+    if m is None:
+        return set(range(lo.day, hi.day + 1)) if emp.status in TRANG_THAI_DANG_LAM else set()
+    dau, ngay, gia_tri = m
+    out: set[int] = set()
+    tu = lo
+    while tu <= hi:
+        # Đoạn [tu, đến] cùng một trạng thái: tới trước mốc kế tiếp lớn hơn `tu`.
+        i = bisect_right(ngay, tu)
+        v = dau if i == 0 else gia_tri[i - 1]
+        if v is _HIEN_TAI:
+            v = emp.status
+        den = min(hi, ngay[i] - timedelta(days=1)) if i < len(ngay) else hi
+        if v in TRANG_THAI_DANG_LAM:
+            out.update(range(tu.day, den.day + 1))
+        tu = den + timedelta(days=1)
+    return out
+
+
 def trong_bien_che_thang(emp, events, year: int, month: int) -> bool:
     """Có ÍT NHẤT một ngày trong tháng còn biên chế — ai lên Bảng công / có dòng lương."""
-    last = calendar.monthrange(year, month)[1]
-    return any(trong_bien_che(emp, events, date(year, month, d)) for d in range(1, last + 1))
+    return bool(ngay_trong_bien_che_thang(emp, events, year, month))

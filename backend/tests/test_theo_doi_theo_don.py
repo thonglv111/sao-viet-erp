@@ -175,3 +175,15 @@ def test_api_theo_don_va_chi_tiet(client, seed_credentials, sess, lenh_that):
     assert client.get("/api/theo-doi-san-xuat/theo-don?chip=la", headers=h).status_code == 422
     assert client.get("/api/theo-doi-san-xuat/phu-trach-loc", headers=h).status_code == 200
     assert client.get("/api/theo-doi-san-xuat/khach-loc", headers=h).status_code == 200
+
+
+def test_nguon_giao_dung_ban_lo_khong_goi_tung_don(sess, lenh_that, monkeypatch):
+    """26/10/2026: bản một đơn ~16 câu SQL mỗi đơn — trang theo dõi phải dựng nguồn giao bằng bản
+    lô `nguon_giao_theo_cum_nhieu` cho cả trang, không gọi `nguon_giao_theo_cum` từng đơn."""
+    o = _don_cua(sess, lenh_that)
+
+    def _cam(self, order):
+        raise AssertionError("gọi nguồn giao từng đơn")
+
+    monkeypatch.setattr(DeliveryService, "nguon_giao_theo_cum", _cam)
+    assert _dong(sess, o.id)["so_mon"] >= 1

@@ -87,6 +87,33 @@ class PayrollComponentRepository:
                    PayrollPeriod.status.in_((PERIOD_LOCKED, PERIOD_PAID)))
         ).scalar_one()
 
+    def employee_count_map(self, component_ids) -> dict[int, int]:
+        """`employee_count` của NHIỀU khoản trong MỘT truy vấn — khoản không ai gán thì vắng khoá."""
+        ids = sorted({int(i) for i in (component_ids or [])})
+        if not ids:
+            return {}
+        return {int(cid): int(n) for cid, n in self.db.execute(
+            select(EmployeeSalaryComponent.component_id,
+                   func.count(distinct(EmployeeSalaryComponent.employee_id)))
+            .where(EmployeeSalaryComponent.component_id.in_(ids))
+            .group_by(EmployeeSalaryComponent.component_id)
+        )}
+
+    def period_count_map(self, component_ids) -> dict[int, int]:
+        """`period_count` của NHIỀU khoản trong MỘT truy vấn (cùng luật: chỉ kỳ đã chốt / đã chi)."""
+        ids = sorted({int(i) for i in (component_ids or [])})
+        if not ids:
+            return {}
+        return {int(cid): int(n) for cid, n in self.db.execute(
+            select(PayrollLineComponent.component_id, func.count(distinct(PayrollLine.period_id)))
+            .select_from(PayrollLineComponent)
+            .join(PayrollLine, PayrollLine.id == PayrollLineComponent.line_id)
+            .join(PayrollPeriod, PayrollPeriod.id == PayrollLine.period_id)
+            .where(PayrollLineComponent.component_id.in_(ids),
+                   PayrollPeriod.status.in_((PERIOD_LOCKED, PERIOD_PAID)))
+            .group_by(PayrollLineComponent.component_id)
+        )}
+
     def delete_draft_line_rows(self, component_id: int) -> int:
         """Gỡ dòng khoản này khỏi các dòng lương của kỳ NHÁP (khi xoá cứng khoản). Trả số dòng đã gỡ.
         Không commit — người gọi commit cùng lượt xoá khoản."""
@@ -124,18 +151,22 @@ class PayrollComponentRepository:
             .where(EmployeeSalaryComponent.employee_id == employee_id)
         ).scalars())
 
-    def employee_rows_map(self, employee_ids) -> dict[int, list[EmployeeSalaryComponent]]:
+    def employee_rows_map(self, employee_ids) -> dict[int, list]:
         """Khoản theo hồ sơ của NHIỀU người trong MỘT truy vấn — cắt N+1 cho vòng tính lương cả kỳ
-        (trước 09/09/2026 mỗi người 2 lần `employee_rows`, chưa kể lần đọc lại cả danh mục)."""
+        (trước 09/09/2026 mỗi người 2 lần `employee_rows`, chưa kể lần đọc lại cả danh mục).
+
+        CHỈ ĐỌC: trả dòng cột (`employee_id`, `component_id`, `amount`, `note`), không phải object
+        ORM — nơi gọi chỉ đổi sang dict; dựng 19 nghìn object cho cả công ty là ~1 s (26/10/2026)."""
         ids = sorted({int(i) for i in (employee_ids or [])})
-        out: dict[int, list[EmployeeSalaryComponent]] = {i: [] for i in ids}
+        out: dict[int, list] = {i: [] for i in ids}
         if not ids:
             return out
         for r in self.db.execute(
-            select(EmployeeSalaryComponent)
+            select(EmployeeSalaryComponent.employee_id, EmployeeSalaryComponent.component_id,
+                   EmployeeSalaryComponent.amount, EmployeeSalaryComponent.note)
             .where(EmployeeSalaryComponent.employee_id.in_(ids))
             .order_by(EmployeeSalaryComponent.employee_id, EmployeeSalaryComponent.id)
-        ).scalars():
+        ):
             out.setdefault(r.employee_id, []).append(r)
         return out
 
@@ -231,6 +262,22 @@ class PayrollComponentRepository:
         ).scalars()
         out: dict[int, list[PayrollLineComponent]] = {}
         for r in rows:
+            out.setdefault(r.line_id, []).append(r)
+        return out
+
+    def line_components_doc_map(self, line_ids: list[int]) -> dict[int, list]:
+        """Như `line_components_map` nhưng CHỈ ĐỌC: dòng cột (đủ mọi trường của `LineComponentOut`)
+        thay vì object ORM — bảng lương cả công ty chỉ đem chúng ra hiển thị (26/10/2026)."""
+        if not line_ids:
+            return {}
+        c = PayrollLineComponent
+        out: dict[int, list] = {}
+        for r in self.db.execute(
+            select(c.id, c.line_id, c.component_id, c.code, c.name, c.kind, c.is_taxable, c.amount,
+                   c.note, c.source, c.da_de_tay)
+            .where(c.line_id.in_(line_ids))
+            .order_by(c.line_id, c.id)
+        ):
             out.setdefault(r.line_id, []).append(r)
         return out
 

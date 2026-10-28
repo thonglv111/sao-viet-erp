@@ -293,3 +293,5 @@
 /* Phải đặc hiệu hơn `.imx__buoc p` (màu ash) — không thì dòng lỗi xám như chữ thường. */
 .imx__buoc p.imx__kq { font-size: var(--fs-sm); color: var(--moss-deep); }
 .imx__buoc p.imx__kq--loi { color: var(--signal); }
+.imx__canh-bao { margin: 6px 0 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--amber-deep); }
+.imx__mo { color: var(--ash); }

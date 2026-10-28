@@ -29,7 +29,7 @@ def _coc_cho_thu(repo, don) -> list[dict]:
     ids = [o.id for o in don]
     tong = OrderRepository(repo.db).money_sums(ids)
     thu = repo.received_deposit_sums(ids)
-    khach = repo.customers_by_ids({o.customer_id for o in don if o.customer_id})
+    khach = repo.khach_nhe_theo_ids({o.customer_id for o in don if o.customer_id})
     ra = []
     for o in don:
         twv = tong.get(o.id, {}).get("total_with_vat", 0)
@@ -55,10 +55,9 @@ def hoa_don_cho_thu(svc) -> list[dict]:
     Cố ý KHÔNG cân theo sổ 131 như màn Công nợ phải thu: cân sổ cấn chéo tiền đơn này sang hoá đơn
     đơn khác của cùng khách, nên thu cọc đơn mới làm hoá đơn đơn cũ biến khỏi hàng trong khi dòng cọc
     vẫn báo thiếu — một đồng bị đếm hai lần trong cùng một hàng (17/10/2026)."""
-    from ..models.accounting import SALES_INVOICE_ISSUED
     from .accounting_service import receivable_rows
 
-    rows = receivable_rows(svc.repo, invoices=svc.repo.list_sales_invoices(status=SALES_INVOICE_ISSUED))
+    rows = receivable_rows(svc.repo, invoices=svc.repo.hoa_don_phat_hanh_nhe())
     ra = [
         {
             "invoice_id": r["invoice_id"], "invoice_symbol": r["invoice_symbol"],

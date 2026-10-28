@@ -296,7 +296,7 @@ class StockVoucherRepository:
             {
                 "voucher_id": r.id, "voucher_ma": r.ma, "ngay": r.ngay,
                 "lot_id": r.lot_id, "ma_lo": r.ma_lo,
-                "so_luong": float(r.so_luong), "don_gia": int(r.don_gia_nhap or 0),
+                "so_luong": float(r.so_luong), "don_gia": float(r.don_gia_nhap or 0),
                 "sl_de_nghi": float(r.sl_de_nghi) if r.sl_de_nghi is not None else None,
                 "dvt_yeu_cau": r.dvt_yeu_cau,
                 "dieu_chuyen": bool(r.dieu_chuyen),
@@ -317,9 +317,15 @@ class StockVoucherRepository:
 
     def tong_xuat(self, hang: tuple[str, int], kho_id: int, *, tu_ngay, goc: str | None = None,
                   kho_rong: int = 0, kho_dai: int = 0) -> float:
-        """Tổng SL XUẤT THƯỜNG (không tính điều chuyển) từ `tu_ngay` — đơn vị gốc của lô."""
+        """Tổng SL XUẤT THƯỜNG (không tính điều chuyển) từ `tu_ngay` — đơn vị gốc của lô. Bỏ phiếu giảm
+        tay ở màn Tồn kho (`nhap_tay`): sửa số sau kiểm kê không phải hàng đã dùng, cộng vào thì gợi
+        ý mức tồn thổi phồng nhịp xuất."""
+        from ..models.stock_request import StockRequest
+
         stmt = self._stmt_xuat((func.coalesce(func.sum(StockVoucherLine.so_luong), 0),), hang, kho_id,
                                goc=goc, kho_rong=kho_rong, kho_dai=kho_dai, dieu_chuyen=False)
+        stmt = (stmt.join(StockRequest, StockRequest.id == StockVoucher.request_id, isouter=True)
+                .where(StockRequest.nhap_tay.isnot(True)))
         return float(self.db.execute(stmt.where(StockVoucher.ngay >= tu_ngay)).scalar() or 0)
 
     def sl_de_nghi_by_lot(self, lots) -> dict[int, tuple[float, str | None]]:

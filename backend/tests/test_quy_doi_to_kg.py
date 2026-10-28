@@ -45,7 +45,9 @@ def test_nhap_giay_to_tinh_kg_luu_lo_to(client):
     so_to = math.floor(500 / KG_MOT_TO)
     assert (lo.don_vi_goc, lo.kho_rong, lo.kho_dai) == ("to", 650, 860)
     assert float(lo.sl_ban_dau) == so_to
-    assert int(lo.don_gia_nhap) == round(500 * 20_000 / so_to)    # tiền dòng chia đều cho số tờ
+    # Tiền dòng chia đều cho số tờ, giữ số lẻ (mg 0452) — tồn ra đúng 10.000.000, không lệch vì làm tròn.
+    assert abs(float(lo.don_gia_nhap) - 500 * 20_000 / so_to) < 1e-4
+    assert round(float(lo.sl_ban_dau) * float(lo.don_gia_nhap)) == 10_000_000
 
 
 def test_nhap_cuon_kg_giu_kg(client):

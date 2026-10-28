@@ -24,7 +24,7 @@ from ..models.stock_request import StockRequest, StockRequestLine
 from ..models.stock_voucher import (
     VOUCHER_DRAFT, VOUCHER_NHAP, VOUCHER_XUAT, StockVoucher, StockVoucherLine,
 )
-from ..services.kho_giay import chuan_kho, co_don_vi_goc
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, kho_mo
 
 # (hang_loai, hang_id) — một mặt hàng gốc.
 Hang = tuple[str, int]
@@ -91,7 +91,7 @@ class StockLotRepository:
         return lot
 
     def ghi_kho_goc(self, lot: StockLot, *, goc: str, kho_rong: int, kho_dai: int,
-                    sl_ban_dau, sl_con_lai, don_gia_nhap: int | None = None) -> StockLot:
+                    sl_ban_dau, sl_con_lai, don_gia_nhap: float | None = None) -> StockLot:
         """Ghi khổ + đơn vị gốc + số lượng đã đổi cho MỘT lô; KHÔNG commit (người gọi gộp với nhật ký)."""
         lot.don_vi_goc = goc
         lot.kho_rong = kho_rong
@@ -258,12 +258,15 @@ class StockLotRepository:
 
         Luật khoá: cặp 2 phần tử hoặc hàng không mang đơn vị gốc ⇒ gom mọi lô của mã; giấy / vật tư
         5 phần tử `(loai, id, rộng, dài, đơn vị gốc)` ⇒ chỉ lô đúng khổ + đúng đơn vị gốc (tờ và kg,
-        thùng và kg không cộng lẫn; vật tư khổ 0 · 0). Tối đa hai câu (theo mã / theo khoá 5 phần)."""
+        thùng và kg không cộng lẫn). VẬT TƯ trống khổ (`kho_mo`) ⇒ cộng MỌI khổ cùng mã + đơn vị gốc
+        (27/10/2026). Tối đa ba câu (theo mã / theo khoá 5 phần / theo mã + đơn vị gốc)."""
         def la5(k) -> bool:
             return len(k) == 5 and co_don_vi_goc(k[0])
 
         theo_ma = {(k[0], int(k[1])) for k in keys if not la5(k)}
-        giay = {(k[0], int(k[1]), int(k[2]), int(k[3]), str(k[4] or "")) for k in keys if la5(k)}
+        mo = {(k[0], int(k[1]), str(k[4] or "")) for k in keys if la5(k) and kho_mo(k)}
+        giay = {(k[0], int(k[1]), int(k[2]), int(k[3]), str(k[4] or ""))
+                for k in keys if la5(k) and not kho_mo(k)}
         base = [StockLot.trang_thai.in_(LOT_ISSUABLE)]
         if kho_id is not None:
             base.append(StockLot.kho_id == kho_id)
@@ -289,10 +292,14 @@ class StockLotRepository:
         cot_giay = [StockLot.hang_loai, StockLot.hang_id, StockLot.kho_rong, StockLot.kho_dai,
                     StockLot.don_vi_goc]
         f_giay = gom(cot_giay, tuple_(*cot_giay).in_(sorted(giay))) if giay else {}
+        cot_mo = [StockLot.hang_loai, StockLot.hang_id, StockLot.don_vi_goc]
+        f_mo = gom(cot_mo, tuple_(*cot_mo).in_(sorted(mo))) if mo else {}
         out: dict[tuple, dict] = {}
         for k in keys:
             if not la5(k):
                 out[k] = f_ma.get((k[0], int(k[1])), {})
+            elif kho_mo(k):
+                out[k] = f_mo.get((k[0], int(k[1]), str(k[4] or "")), {})
             else:
                 out[k] = f_giay.get((k[0], int(k[1]), int(k[2]), int(k[3]), str(k[4] or "")), {})
         return out

@@ -660,7 +660,7 @@ export function KhoBaoCaoPage({ token }: { token: string }) {
   const [matErr, setMatErr] = useState<string | null>(null);
   function openMatHang(r: BaoCaoNXTRow) {
     if (r.kho_id == null) return;
-    const kho = r.hang_loai === "giay" && r.kho_rong ? nhanKho(r.kho_rong, r.kho_dai) : "";
+    const kho = (r.hang_loai === "giay" || r.hang_loai === "vat_tu") && r.kho_rong ? nhanKho(r.kho_rong, r.kho_dai) : "";
     setMatInfo({ kho_id: r.kho_id, kho_ten: r.kho_ten, hang_loai: r.hang_loai as HangLoai, hang_id: r.hang_id,
       ten: kho ? `${r.ten_hang ?? ""} (${kho})` : r.ten_hang, dvt: r.dvt });
     setMatHist(null);

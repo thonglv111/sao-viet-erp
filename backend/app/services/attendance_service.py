@@ -48,7 +48,11 @@ from ..models.payroll import PERIOD_LOCKED, PERIOD_PAID
 # đằng sau vẫn sửa được ⇒ mất hẳn dấu vết "lương tháng này trả theo công nào".
 PAYROLL_DA_KHOA = (PERIOD_LOCKED, PERIOD_PAID)
 from ..models.role import SCOPE_ALL
-from .bien_che import ly_do_ngoai_bien_che, trong_bien_che, trong_bien_che_thang
+from .bien_che import (
+    ly_do_ngoai_bien_che,
+    ngay_trong_bien_che_thang,
+    trong_bien_che,
+)
 from ..repositories.attendance_repo import AttendanceRepository
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.employee_repo import EmployeeRepository
@@ -466,6 +470,27 @@ def _clean(v: str | None) -> str | None:
     return v or None
 
 
+def _moc_theo_ngay(mocs, ngays) -> list:
+    """Với mỗi ngày của `ngays` (TĂNG dần): VỊ TRÍ trong `mocs` của mốc ca nền đầu tiên (theo thứ tự
+    danh sách) có hiệu lực ≤ ngày đó, hoặc None — đúng luật `base_shift_id_on(..., assignments=mocs)`
+    nhưng quét mốc MỘT lượt cho cả dải ngày thay vì một lượt mỗi ngày (26/10/2026)."""
+    hieu_luc = [m.effective_from for m in mocs]
+    thu_tu = sorted(range(len(mocs)), key=hieu_luc.__getitem__)
+    n, j, tot = len(thu_tu), 0, None
+    out = []
+    for d in ngays:
+        while j < n and hieu_luc[thu_tu[j]] <= d:
+            if tot is None or thu_tu[j] < tot:
+                tot = thu_tu[j]
+            j += 1
+        out.append(tot)
+    return out
+
+
+#: Dấu "ô chưa gieo ca" trong cache ca (giá trị None trong cache nghĩa là "không có ca").
+_CHUA_GIEO = object()
+
+
 def _today_vn() -> date:
     """Hôm nay theo giờ VN (không phải giờ máy chủ).
 
@@ -528,13 +553,28 @@ class AttendanceService:
         """
         if mocs is None:
             return
-        d = start
-        while d <= end:
-            key = (employee.id, d)
-            if key not in self._shift_id_cache:
-                self._shift_id_cache[key] = self.employees.base_shift_id_on(
-                    employee, d, assignments=mocs)
-            d += timedelta(days=1)
+        # Cùng đáp án với `base_shift_id_on(..., assignments=mocs)` — mốc ĐẦU TIÊN theo thứ tự
+        # danh sách có hiệu lực ≤ ngày — nhưng giải một lượt cho cả khoảng (26/10/2026: 6.300 NV ×
+        # 35 ngày là 220 nghìn lượt quét mốc). Duyệt ngày tăng dần, mốc vào "đủ điều kiện" theo
+        # ngày hiệu lực; đáp án là mốc đủ điều kiện có VỊ TRÍ nhỏ nhất trong danh sách.
+        cache = self._shift_id_cache
+        eid = employee.id
+        mac_dinh = None if mocs else employee.default_shift_id
+        ca = [m.shift_id for m in mocs]
+        ngays = self._cac_ngay(start, end)
+        for d, i in zip(ngays, _moc_theo_ngay(mocs, ngays)):
+            key = (eid, d)
+            if key not in cache:
+                cache[key] = ca[i] if i is not None else mac_dinh
+
+    def _cac_ngay(self, start: date, end: date) -> list[date]:
+        """Danh sách ngày [start, end] — dựng một lần cho mỗi khoảng trong request."""
+        bo = self.__dict__.setdefault("_cac_ngay_nho", {})
+        k = (start, end)
+        if k not in bo:
+            n = (end - start).days
+            bo[k] = [start + timedelta(days=i) for i in range(n + 1)]
+        return bo[k]
 
     def prefetch_shift_days(self, employee_ids: set[int] | None, start: date, end: date) -> dict:
         """Nạp sẵn ca-khai-theo-ngày vào cache — cắt N+1 cho lưới NV × ngày. Trả luôn
@@ -850,6 +890,15 @@ class AttendanceService:
 
     def _ly_do_ngoai_bien_che(self, emp, d: date) -> str | None:
         return ly_do_ngoai_bien_che(emp, self._su_kien(emp), d)
+
+    def _ngay_bien_che(self, emp, year: int, month: int) -> set[int]:
+        """Tập ngày trong tháng người này còn biên chế — tính MỘT lần cho mỗi (người, tháng) trong
+        request, thay vì hỏi `trong_bien_che` từng (người × ngày) ở bảng công / lưới phân ca."""
+        bo = self.__dict__.setdefault("_ngay_bien_che_nho", {})
+        k = (emp.id, year, month)
+        if k not in bo:
+            bo[k] = ngay_trong_bien_che_thang(emp, self._su_kien(emp), year, month)
+        return bo[k]
 
     def _shift_for_check(self, employee, now_local: datetime):
         """Ca có hiệu lực tại thời điểm chấm; không có ca thì tuyệt đối không ghi log."""
@@ -1386,7 +1435,7 @@ class AttendanceService:
         self._nap_su_kien([e.id for e in ung_vien])
         # Còn biên chế ÍT NHẤT MỘT NGÀY trong tháng (trước: chỉ nhìn ngày đầu/cuối bằng 2 cột —
         # người nghỉ dài hạn, tuyển lại, đình chỉ vẫn lên bảng; người vào-rồi-nghỉ giữa tháng thì rớt).
-        rows = [e for e in ung_vien if trong_bien_che_thang(e, self._su_kien(e), year, month)]
+        rows = [e for e in ung_vien if self._ngay_bien_che(e, year, month)]
         if department_id is not None:
             rows = [e for e in rows if e.department_id == department_id]
         return sorted(rows, key=lambda e: (e.code or "", e.id))
@@ -1625,9 +1674,25 @@ class AttendanceService:
                 holidays_info.append({"day": s.day.day, "date": s.day.isoformat(), "name": s.name})
             plain_days = {s.day.day for s in self._work_calendar.plain_days_in_month(year, month)}
             standard_cong = self._work_calendar.standard_cong_luong(year, month)
+        # NGÀY LÀM VIỆC theo Lịch chung của từng ngày trong tháng — hỏi MỘT lần cho cả bảng thay vì
+        # mỗi (người × ngày). Không có lịch ⇒ mọi ngày là ngày làm (đúng các nhánh cũ).
+        lam_viec = {dd: (self._work_calendar is None
+                         or self._work_calendar.is_working_day(date(year, month, dd)))
+                    for dd in range(1, days_in_month + 1)}
+        ngay_cua = [None] + [date(year, month, dd) for dd in range(1, days_in_month + 1)]
+        # (id, tên) của từng ca — đọc thuộc tính ORM một lần cho cả bảng thay vì mỗi ô.
+        ca_id_ten = {id(s): (s.id, s.name) for s in shifts.values()}
+        cache_ca = self._shift_id_cache
 
-        def _empty_cell() -> dict:
-            return {"first_in": None, "last_out": None, "hours": None, "present": False,
+        def _ca_ngay(emp_, eid_, d_):
+            """Y `_shift_for_day(emp_, d_, shifts)` (`eid_` = emp_.id), đọc thẳng cache đã gieo — bảng
+            công hỏi mỗi ô."""
+            sid_ = cache_ca.get((eid_, d_), _CHUA_GIEO)
+            if sid_ is _CHUA_GIEO:
+                return self._shift_for_day(emp_, d_, shifts)
+            return shifts.get(sid_) if sid_ is not None else None
+
+        mau_o = {"first_in": None, "last_out": None, "hours": None, "present": False,
                     "cong": None, "late": False, "early": False, "ot_minutes": 0, "night": False,
                     # Có phiếu TC đã duyệt (ngày đã qua) mà không có cặp bấm tăng ca — 07/09/2026.
                     "ot_thieu_cap": False,
@@ -1642,6 +1707,7 @@ class AttendanceService:
                     # 14/10/2026: trước đây ngày này không có ô, màn để trống y như ngày chưa tới.
                     # Chỉ là DẤU: không công, không tiền (`cong` vẫn None).
                     "khong_cham": False}
+        _empty_cell = mau_o.copy
 
         rows = []
         for emp_id in base_ids | set(by_emp) | set(leave_map) | set(hourly_map):
@@ -1661,9 +1727,9 @@ class AttendanceService:
             # Ngày lễ NV hưởng công lễ: không chấm công + đang trong biên chế ngày đó. CÓ đơn phép
             # phủ ngày lễ VẪN vào đây (lễ thắng phép: không tiêu ngày phép); công lễ tính theo
             # is_paid của đơn nền ở nhánh dưới (nghỉ không lương phủ lễ → 0 công, đúng luật).
+            bien_che_ngay = self._ngay_bien_che(emp, year, month)
             emp_holidays = {d for d in paid_holidays
-                            if d not in att_days
-                            and self._trong_bien_che(emp, date(year, month, d))}
+                            if d not in att_days and d in bien_che_ngay}
             day_map: dict[str, dict] = {}
             total_hours = 0.0
             total_days = 0
@@ -1716,10 +1782,9 @@ class AttendanceService:
                 the_d = date(year, month, dd)
                 if the_d < today or (emp_id, the_d) in shift_day_map:
                     continue
-                if not self._trong_bien_che(emp, the_d):
+                if dd not in bien_che_ngay:
                     continue                                       # ngoài biên chế: không xem trước ca (A9)
-                if (self._work_calendar is not None
-                        and not self._work_calendar.is_working_day(the_d)):
+                if not lam_viec[dd]:
                     continue                                       # Chủ nhật: nghỉ mặc định
                 assign = next((h for h in hist if h.effective_from <= the_d), None)
                 sid = (assign.shift_id if assign is not None
@@ -1738,33 +1803,34 @@ class AttendanceService:
             # Hôm nay chưa hết ngày ⇒ chưa tính.
             khong_cham: set[int] = set()
             for dd in range(1, days_in_month + 1):
-                the_d = date(year, month, dd)
+                the_d = ngay_cua[dd]
                 if the_d >= today:
                     break
                 if (dd in att_days or dd in lv_days or dd in emp_holidays or dd in planned_off
                         or dd in paid_holidays):
                     continue
-                if not self._trong_bien_che(emp, the_d):
+                if dd not in bien_che_ngay:
                     continue
-                lam_viec = (dd in scheduled or self._work_calendar is None
-                            or self._work_calendar.is_working_day(the_d))
-                if lam_viec and self._shift_for_day(emp, the_d, shifts) is not None:
+                if (dd in scheduled or lam_viec[dd]) and _ca_ngay(emp, emp_id, the_d) is not None:
                     khong_cham.add(dd)
+            chi_xep = scheduled | xem_truoc | khong_cham
             for d in sorted(set(att_days) | set(lv_days) | emp_holidays | planned_off
                             | scheduled | xem_truoc | set(hl_days) | ngay_phieu_qua | khong_cham):
                 cell = _empty_cell()
                 main_out_min_kep = None
                 phieu_tc = phieu_tc_ngay.get(d)
-                shift = self._shift_for_day(emp, date(year, month, d), shifts)
+                shift = _ca_ngay(emp, emp_id, ngay_cua[d])
                 if shift is not None:
-                    cell.update(shift_id=shift.id, shift_name=shift.name)
+                    ca_id, ca_ten = ca_id_ten.get(id(shift)) or (shift.id, shift.name)
+                    cell["shift_id"] = ca_id
+                    cell["shift_name"] = ca_ten
                     # Ngày CHỈ mới xếp ca (tương lai, chưa chấm/nghỉ/lễ) KHÔNG tính vào "ca đã làm"
                     # của tháng: nó chỉ hiện cho biết "mai làm ca nào". Để nó vào `used_shift_ids`
                     # thì summary nhảy "Nhiều ca" và `total_cong` ra 0 thay vì trống.
-                    chi_xep_truoc = (d in (scheduled | xem_truoc | khong_cham) and d not in att_days
+                    chi_xep_truoc = (d in chi_xep and d not in att_days
                                      and d not in lv_days and d not in emp_holidays)
                     if not chi_xep_truoc:
-                        used_shift_ids.add(shift.id)
+                        used_shift_ids.add(ca_id)
                 if d in planned_off:
                     cell["planned_off"] = True
                 if d in att_days:  # có chấm công → attendance thắng ngày nghỉ/lễ
@@ -1864,8 +1930,7 @@ class AttendanceService:
                         # tự cộng theo `ca_lam`); `night_days` bên dưới chỉ đếm ngày ca qua đêm có
                         # giờ đêm để phơi — tiền giờ đêm đi qua `night_premium_minutes`.
                         # Đ98: phân loại công/OT theo LOẠI NGÀY (làm việc ngày lễ/nghỉ tuần → premium).
-                        is_restday = (self._work_calendar is not None
-                                      and not self._work_calendar.is_working_day(date(year, month, d)))
+                        is_restday = not lam_viec[d]
                         if info["ot_minutes"] > 0:
                             # `is_restday` chính là `not is_working_day` ⇒ ngày lễ và off1x cũng rơi
                             # vào nhánh `nghi`, đúng chốt của chủ 12/08/2026 ("theo lịch nghỉ").
@@ -1978,8 +2043,7 @@ class AttendanceService:
                             "day": d, "from_minute": phieu_tc[0], "to_minute": phieu_tc[1],
                             "ma": "khong_cham",
                             "ly_do": "không có lượt bấm nào trong ngày"})
-                elif (self._work_calendar is not None
-                      and not self._work_calendar.is_working_day(date(year, month, d))):
+                elif not lam_viec[d]:
                     continue  # ngày nghỉ tuần (CN) trong đơn phép → không tiêu phép, không cộng công
                 else:  # d in lv_days: ngày LÀM VIỆC có phép đã duyệt (không rơi lễ)
                     lv = lv_days[d]
@@ -2129,7 +2193,7 @@ class AttendanceService:
             "status": p.status if p is not None else APERIOD_DRAFT,
             "locked_at": p.locked_at if p is not None else None,
             "locked_by": p.locked_by if p is not None else None,
-            "line_count": len(self.attendance.list_period_lines(p.id)) if p is not None else 0,
+            "line_count": self.attendance.count_period_lines(p.id) if p is not None else 0,
             "employee_count": len(ts["rows"]),
             "hanging_days": hanging,
             # L3 — kỳ ĐÃ CHỐT rồi mà vẫn có lượt bấm mới ghi vào. Chấm công GPS cố ý KHÔNG bị
@@ -2401,6 +2465,14 @@ class AttendanceService:
             }
         return out
 
+    def nv_trong_bang_cong(self, year: int, month: int) -> set[int]:
+        """Tập khoá của `metrics_map` (ai có số công tháng này) — kỳ đã chốt thì đọc riêng cột NV của
+        ảnh chụp, khỏi nạp + giải JSON cả ảnh chụp chỉ để lấy tập id."""
+        p = self.attendance.get_period_by_ym(year, month)
+        if p is not None and p.status == APERIOD_LOCKED:
+            return self.attendance.period_employee_ids(p.id)
+        return set(self.metrics_map(year, month))
+
     def cong_map(self, year: int, month: int) -> dict[int, float]:
         """Số công/NV cho Lương (giữ tương thích) — rút cong từ metrics_map (1 nguồn)."""
         return {eid: m["cong"] for eid, m in self.metrics_map(year, month).items()}
@@ -2468,36 +2540,46 @@ class AttendanceService:
         # hàng rào. Đừng nhầm hai vai trò đó: gỡ dòng này không làm rò, nhưng gỡ nhầm bộ lọc ở
         # `_employees_in_month` thì rò thật.
         leave_map = self._leave_map(year, month, {e.id for e in emps})
+        # LỊCH SỬ MỐC của CẢ lưới trong MỘT truy vấn (mỗi người đã sort effective_from giảm dần,
+        # đúng thứ tự `list_shift_assignments`) — trước đây mỗi NV một câu.
+        moc_ca = self.employees.shift_assignments_map({e.id for e in emps})
 
+        ngay_thang = [date(year, month, d) for d in range(1, days_in_month + 1)]
         rows = []
         for e in emps:
-            # Cả LỊCH SỬ MỐC của NV, 1 query (đã sort effective_from giảm dần). Dùng lại
-            # cho mọi ngày thay vì hỏi DB từng ngày, và để biết NV có mốc nào chưa.
-            hist = self.employees.list_shift_assignments(e.id)
+            # Dùng lại cho mọi ngày thay vì hỏi DB từng ngày, và để biết NV có mốc nào chưa.
+            eid = e.id
+            hist = moc_ca.get(eid, [])
+            # Mốc ca nền của từng ngày giải một lượt; thuộc tính ORM đọc một lần mỗi người.
+            moc_ngay = _moc_theo_ngay(hist, ngay_thang)
+            ca_moc = [h.shift_id for h in hist]
+            mac_dinh = e.default_shift_id
             days: dict[str, dict] = {}
+            bien_che_ngay = self._ngay_bien_che(e, year, month)
             for d in range(1, days_in_month + 1):
-                the_day = date(year, month, d)
-                if not self._trong_bien_che(e, the_day):
+                the_day = ngay_thang[d - 1]
+                if d not in bien_che_ngay:
                     # Ngoài biên chế (chưa vào / đã nghỉ / nghỉ dài hạn): lưới không vẽ ca (A9).
                     days[str(d)] = {"shift_id": None, "source": "none", "is_off": False}
                     continue
-                cell = day_map.get((e.id, the_day))
+                cell = day_map.get((eid, the_day))
                 if cell is not None and cell.is_off:
                     days[str(d)] = {"shift_id": None, "source": "day", "is_off": True}
                     continue
                 if cell is not None and cell.shift_id is not None:
                     days[str(d)] = {"shift_id": cell.shift_id, "source": "day", "is_off": False}
                     continue
-                assign = next((h for h in hist if h.effective_from <= the_day), None)
-                if assign is not None:
-                    days[str(d)] = {"shift_id": assign.shift_id, "is_off": False,
-                                    "source": "assign" if assign.shift_id is not None else "none"}
-                elif not hist and e.default_shift_id is not None:
+                i_moc = moc_ngay[d - 1]
+                if i_moc is not None:
+                    sid_moc = ca_moc[i_moc]
+                    days[str(d)] = {"shift_id": sid_moc, "is_off": False,
+                                    "source": "assign" if sid_moc is not None else "none"}
+                elif not hist and mac_dinh is not None:
                     # `default_shift_id` CHỈ là nguồn khi NV chưa có mốc nào — đúng như
                     # `shift_id_on`. Trước đây lưới rơi về nó cả khi đã có mốc, nên NHỮNG
                     # NGÀY TRƯỚC MỐC ĐẦU TIÊN bị vẽ ra một ca mà engine không hề công nhận:
                     # màn hình báo có ca, thực tế NV không chấm công được.
-                    days[str(d)] = {"shift_id": e.default_shift_id, "source": "default",
+                    days[str(d)] = {"shift_id": mac_dinh, "source": "default",
                                     "is_off": False}
                 else:
                     days[str(d)] = {"shift_id": None, "source": "none", "is_off": False}

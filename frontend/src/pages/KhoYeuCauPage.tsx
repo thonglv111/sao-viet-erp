@@ -66,7 +66,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
-import { chuanKho, coDonViGoc, nhanKhoGiay, toTuKg } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho, nhanKhoGiay, toTuKg } from "../lib/khoGiay";
 import { khoaTonKho } from "../auth/quyenKho";
 import {
   LOC_MAN_YCK_TRONG,
@@ -1564,11 +1564,11 @@ interface AllocBlock {
   warnLotId: number | null;
 }
 
-/** Bộ lọc lô của một dòng yêu cầu: đơn vị gốc (`don_vi_goc`, máy chủ suy từ ĐVT dòng) + khổ (giấy).
- *  Vật tư khác chỉ lọc đơn vị gốc (kg và thùng không lấy lẫn). Hàng khác ⇒ rỗng. */
+/** Bộ lọc lô của một dòng yêu cầu: đơn vị gốc (`don_vi_goc`, máy chủ suy từ ĐVT dòng) + khổ (giấy;
+ *  vật tư khi dòng có ghi khổ — khổ tuỳ chọn 27/10/2026, trống thì lấy lô mọi khổ). Hàng khác ⇒ rỗng. */
 function locGiayDong(l: StockRequestLine): { goc?: string | null; kho_rong?: number; kho_dai?: number } {
   if (!coDonViGoc(l.hang_loai)) return {};
-  if (l.hang_loai !== "giay") return { goc: l.don_vi_goc || null };
+  if (l.hang_loai !== "giay" && !l.kho_rong) return { goc: l.don_vi_goc || null };
   return { goc: l.don_vi_goc || null, kho_rong: l.kho_rong, kho_dai: l.kho_dai };
 }
 
@@ -1841,7 +1841,7 @@ function VoucherCreateDrawer({
           don_gia: canViewCost ? Math.round(Number(b.donGia) || 0) : undefined,
           vi_tri: b.viTri.trim() || undefined,
           hsd: b.hsd || undefined,
-          ...(b.line.hang_loai === "giay" && b.khoRong
+          ...(coKho(b.line.hang_loai) && b.khoRong
             ? {
                 kho_rong: chuanKho(b.khoRong, b.khoDai)[0],
                 kho_dai: chuanKho(b.khoRong, b.khoDai)[1],
@@ -1978,8 +1978,9 @@ function VoucherCreateDrawer({
     const lay = isNhap ? b.cap : b.lots.reduce((s, x) => s + x.so_luong, 0) / (b.heSoVeGoc || 1);
     return lay >= b.line.sl_con_lai - 1e-9;
   }).length;
-  // NHẬP: Vị trí + Hạn dùng (+ Khổ khi có dòng giấy) là cột của lưới, mỗi mặt hàng MỘT dòng.
-  const coGiay = isNhap && blocks.some((b) => b.line.hang_loai === "giay" && b.line.sl_con_lai > 0);
+  // NHẬP: Vị trí + Hạn dùng (+ Khổ khi có dòng giấy / vật tư — khổ vật tư tuỳ chọn 27/10/2026) là cột
+  // của lưới, mỗi mặt hàng MỘT dòng.
+  const coGiay = isNhap && blocks.some((b) => coKho(b.line.hang_loai) && b.line.sl_con_lai > 0);
   const soCot = (isNhap ? 8 + (coGiay ? 1 : 0) : 7) + (hienGiaBan ? 1 : 0);
   const soCanXem = isNhap ? 0 : blocks.filter(canXemDong).length;
   const dongHien = isNhap
@@ -2468,7 +2469,7 @@ function AllocRow({
         className="kna-o kna-o--nho kna-o--so"
         value={block.khoRong || null}
         onChange={(n) => onKho({ khoRong: n ?? 0 })}
-        aria-label="Khổ giấy, cạnh rộng (mm)"
+        aria-label="Khổ, cạnh rộng (mm)"
         placeholder="Rộng"
       />
       <span aria-hidden="true">×</span>
@@ -2477,7 +2478,7 @@ function AllocRow({
         className="kna-o kna-o--nho kna-o--so"
         value={block.khoDai || null}
         onChange={(n) => onKho({ khoDai: n ?? 0 })}
-        aria-label="Khổ giấy, cạnh dài (mm), để trống nếu chỉ có khổ rộng"
+        aria-label="Khổ, cạnh dài (mm), để trống nếu chỉ có khổ rộng"
         placeholder="Dài"
       />
       <span className="kna-dv">mm</span>
@@ -2518,7 +2519,7 @@ function AllocRow({
           <HangA ten={block.matLabel} anhNut={anhNut}
             phu={<>
               {block.matCode && <span className="kna-tag kna-tag--ma">{block.matCode}</span>}
-              {!(isNhap && l.hang_loai === "giay") && nhanKhoGiay(l) && <span>{nhanKhoGiay(l)}</span>}
+              {!(isNhap && coKho(l.hang_loai)) && nhanKhoGiay(l) && <span>{nhanKhoGiay(l)}</span>}
               {(l.lsx_ma || l.bai_ghep_ma) && <span>{l.lsx_ma ?? l.bai_ghep_ma}</span>}
             </>} />
         </td>
@@ -2600,7 +2601,7 @@ function AllocRow({
             )}
           </td>
         )}
-        {coGiay && <td>{!settled && l.hang_loai === "giay" ? khoGiayO : null}</td>}
+        {coGiay && <td>{!settled && coKho(l.hang_loai) ? khoGiayO : null}</td>}
         {isNhap && (
           <td className="n kna-so">
             {kcsChuaGia ? (
@@ -2690,7 +2691,9 @@ function AllocRow({
                               <td>
                                 <span className="kna-nguon">
                                   <span className="kna-tag kna-tag--ma">{lot.voucher_ma ?? lot.ma_lo}</span>
-                                  {l.hang_loai === "giay" && <span>{nhanKhoGiay({ hang_loai: "giay", kho_rong: lot.kho_rong, kho_dai: lot.kho_dai })}</span>}
+                                  {coKho(l.hang_loai) && nhanKhoGiay({ hang_loai: l.hang_loai, kho_rong: lot.kho_rong, kho_dai: lot.kho_dai }) && (
+                                    <span>{nhanKhoGiay({ hang_loai: l.hang_loai, kho_rong: lot.kho_rong, kho_dai: lot.kho_dai })}</span>
+                                  )}
                                   {lot.order_ma && <span className="kna-tag">{lot.order_ma}</span>}
                                   {lot.khach_hang && <span>{lot.khach_hang}</span>}
                                   {lot.canh_bao && <span className="kna-tag kna-tag--canh">{lot.canh_bao}</span>}

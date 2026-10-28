@@ -275,8 +275,20 @@ button.lsc-tag:hover {
 .lsn-phu { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; color: var(--ash); font-size: var(--fs-sm); }
 .lsn-mu { color: var(--ash-2); }
 .lsn-do { color: var(--tt-do-fg); }
-.lsn-vuong { list-style: none; margin: 0 0 14px; padding: 8px 12px; display: grid; gap: 4px; border-radius: var(--r-3);
-  background: var(--tt-do-bg); color: var(--tt-do-fg); font-size: var(--fs-sm); }
+/* Chỗ vướng ở đầu cột phải: mỗi câu một chip vàng (27/10/2026 — bỏ băng nền hồng). */
+.lsn-vuong { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.lsn-vuong li { padding: 2px 10px; border-radius: 999px; background: var(--tt-vang-bg); color: var(--tt-vang-fg); font-size: 12.5px; }
+/* Hàng mốc nhỏ đầu tab Quy cách (hạn giao, dự kiến xong, ở xưởng, thành phẩm) — một hàng, không khung. */
+.lsn-moc { display: flex; flex-wrap: wrap; gap: 8px 36px; margin: 0 0 18px; }
+.lsn-moc .kt-ray__o { min-width: 0; }
+.lsn-moc dt { font-size: 12px; color: var(--ash-2); }
+.lsn-moc dd { margin: 2px 0 0; font-size: 14px; color: var(--ink); }
+/* Bảng Từng bước: cột số tự co theo số, KHÔNG gãy dòng (kế hoạch 1 tỷ từng gãy làm bốn dòng). */
+.lsn-buoc { table-layout: auto; }
+.lsn-buoc th:first-child { width: 22px; }
+.lsn-buoc .lsn-so { white-space: nowrap; width: 1%; }
+.lsn-ai { font-size: 12px; color: var(--ash-2); line-height: 1.4; }
+.lsn-ai .lsa-phu { display: inline; margin-left: 8px; }
 
 /* ---------- ngăn hai cột (phương án A, 13/10/2026) — chung ngăn lệnh và ngăn đơn ---------- */
 .lsa-mu { color: var(--ash-2); }

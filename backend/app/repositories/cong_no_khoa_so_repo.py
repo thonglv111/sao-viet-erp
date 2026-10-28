@@ -36,8 +36,18 @@ class CongNoKhoaSoRepository:
                 return r.hanh_dong == "khoa"
         return False
 
+    def tat_ca(self) -> list[CongNoKhoaSo]:
+        """Toàn bộ log khoá/mở, MỚI NHẤT trước — nạp một lần rồi truyền `rows=` cho
+        `ngay_bi_khoa` / `khoa_ca_khoang` / `history` khi phải hỏi nhiều kỳ trong một request."""
+        return list(
+            self.db.execute(
+                select(CongNoKhoaSo).order_by(CongNoKhoaSo.id.desc())
+            ).scalars()
+        )
+
     def ngay_bi_khoa(
-        self, tu_ngay: date, den_ngay: date, phan_he: str | None = None
+        self, tu_ngay: date, den_ngay: date, phan_he: str | None = None,
+        rows: list[CongNoKhoaSo] | None = None,
     ) -> set[date]:
         """Tập NGÀY đang bị khóa trong khoảng — nền của mọi câu hỏi về trạng thái kỳ.
 
@@ -53,11 +63,8 @@ class CongNoKhoaSoRepository:
         Nạp toàn bộ log MỘT LẦN rồi duyệt trong Python: bảng này chỉ vài chục dòng, còn khoảng hỏi
         nhiều nhất là một năm — rẻ hơn hẳn 365 lượt đi DB.
         """
-        rows = list(
-            self.db.execute(
-                select(CongNoKhoaSo).order_by(CongNoKhoaSo.id.desc())
-            ).scalars()
-        )
+        if rows is None:
+            rows = self.tat_ca()
         ra: set[date] = set()
         ngay = tu_ngay
         while ngay <= den_ngay:
@@ -71,7 +78,8 @@ class CongNoKhoaSoRepository:
         return ra
 
     def khoa_ca_khoang(
-        self, tu_ngay: date, den_ngay: date, phan_he: str | None = None
+        self, tu_ngay: date, den_ngay: date, phan_he: str | None = None,
+        rows: list[CongNoKhoaSo] | None = None,
     ) -> tuple[bool, bool]:
         """`(khóa trọn, khóa một phần)` cho khoảng `[tu_ngay, den_ngay]`.
 
@@ -80,7 +88,7 @@ class CongNoKhoaSoRepository:
         """
         if den_ngay < tu_ngay:
             return (False, False)
-        bi_khoa = self.ngay_bi_khoa(tu_ngay, den_ngay, phan_he)
+        bi_khoa = self.ngay_bi_khoa(tu_ngay, den_ngay, phan_he, rows=rows)
         tong = (den_ngay - tu_ngay).days + 1
         return (len(bi_khoa) == tong, 0 < len(bi_khoa) < tong)
 
@@ -108,11 +116,11 @@ class CongNoKhoaSoRepository:
         return row
 
     def history(
-        self, limit: int = 100, phan_he: str | None = None
+        self, limit: int = 100, phan_he: str | None = None,
+        rows: list[CongNoKhoaSo] | None = None,
     ) -> Sequence[CongNoKhoaSo]:
-        rows = self.db.execute(
-            select(CongNoKhoaSo).order_by(CongNoKhoaSo.id.desc())
-        ).scalars().all()
+        if rows is None:
+            rows = self.tat_ca()
         giu = [r for r in rows if self._thuoc_phan_he(r, phan_he)]
         return giu[:limit]
 

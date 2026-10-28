@@ -37,7 +37,7 @@ from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from ..repositories.stock_lot_repo import goc_cua
-from .kho_giay import chuan_kho, co_don_vi_goc, khoa_dong, khoa_ton, nhan_kho
+from .kho_giay import chuan_kho, co_don_vi_goc, co_kho, khoa_dong, khoa_ton, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
@@ -361,8 +361,8 @@ class StockVoucherService:
     @staticmethod
     def _kho_cua_dong(rl, ln: dict, loai: str) -> tuple[int, int]:
         """Khổ hiệu lực của dòng phiếu. Phiếu NHẬP giấy khai khổ thì lấy khổ đó, bỏ trống ⇒ kế thừa dòng
-        yêu cầu. Hàng không phải giấy: 0 · 0."""
-        if rl.hang_loai != "giay":
+        yêu cầu. Vật tư cùng luật (khổ tuỳ chọn, 27/10/2026); hàng khác: 0 · 0."""
+        if not co_kho(rl.hang_loai):
             return 0, 0
         if loai == VOUCHER_NHAP:
             kr, kd = chuan_kho(ln.get("kho_rong"), ln.get("kho_dai"))
@@ -391,7 +391,7 @@ class StockVoucherService:
                 raise StockVoucherError(
                     f"Lô {lot.ma_lo} đếm theo {self._ten_dv(lot.don_vi_goc)}, "
                     f"dòng xin theo {self._ten_dv(goc_dong)}.")
-        if rl is not None and rl.hang_loai == "giay":
+        if rl is not None and co_kho(rl.hang_loai):
             kr, kd = chuan_kho(rl.kho_rong, rl.kho_dai)
             if kr and (int(lot.kho_rong or 0), int(lot.kho_dai or 0)) != (kr, kd):
                 raise StockVoucherError(
@@ -427,7 +427,7 @@ class StockVoucherService:
             raise StockVoucherError(
                 "Điều chuyển giấy phải chọn đúng dòng tồn (khổ + đơn vị) — mỗi khổ, mỗi đơn vị một dòng.")
         raise StockVoucherError(
-            "Điều chuyển phải chọn đúng dòng tồn theo đơn vị — mỗi đơn vị một dòng.")
+            "Điều chuyển phải chọn đúng dòng tồn (khổ + đơn vị) — mỗi khổ, mỗi đơn vị một dòng.")
 
     # --- Ghi sổ -------------------------------------------------------------
 
@@ -507,12 +507,12 @@ class StockVoucherService:
                 sl_goc = float(ln.sl_goc)
                 # Đơn giá khai theo ĐƠN VỊ NGƯỜI NHẬP (đ/ram), lô lưu theo đơn vị gốc (đ/kg) —
                 # quy theo đúng tỉ lệ của chính dòng này: 1.020.000 đ/ram ÷ 41,93 kg/ram ≈ 24.325 đ/kg.
-                gia_goc = round(float(ln.don_gia or 0) * float(ln.so_luong) / sl_goc) if sl_goc else 0
+                gia_goc = float(ln.don_gia or 0) * float(ln.so_luong) / sl_goc if sl_goc else 0.0
                 # Lô thuộc họ lô gốc (điều chuyển, hàng trả về): cả họ MỘT giá — đọc giá gốc HIỆN TẠI
                 # của lô gốc, vì kế toán có thể đã gõ giá gốc sau lúc lập yêu cầu (mg 0401).
                 goc_lo = self.lots.get(ln.lo_goc_id) if ln.lo_goc_id else None
                 if goc_lo is not None and not getattr(req, "dieu_chuyen", False):
-                    gia_goc = int(goc_lo.don_gia_nhap or 0)
+                    gia_goc = float(goc_lo.don_gia_nhap or 0)
                     ln.don_gia = round(gia_goc * sl_goc / float(ln.so_luong)) if ln.so_luong else gia_goc
                 lot = self.lots.create(
                     ma_lo=self.lots.next_ma_lo(mh.ma, v.ngay),
@@ -888,7 +888,7 @@ class StockVoucherService:
             # GIẤY chuyển theo NHÓM LÔ (khổ, đơn vị gốc), VẬT TƯ theo đơn vị gốc: mỗi nhóm một dòng,
             # số theo đơn vị gốc đó.
             kr, kd = (chuan_kho(it.get("kho_rong"), it.get("kho_dai"))
-                      if hang_loai == "giay" else (0, 0))
+                      if co_kho(hang_loai) else (0, 0))
             dv_goc = (self._goc_dieu_chuyen(hang_loai, hang_id, kho_nguon_id, it, kr, kd)
                       if co_don_vi_goc(hang_loai) else None)
             kd_key = khoa_dong(hang_loai, hang_id, dv_goc, kr, kd)
@@ -913,7 +913,7 @@ class StockVoucherService:
                 raise StockVoucherError(
                     f"“{ten}”: kho nguồn không đủ tồn để điều chuyển (thiếu {thieu:g} {dvt_goc})."
                 )
-            tong_tien = sum(float(a["so_luong"]) * int(a["don_gia_nhap"] or 0) for a in alloc)
+            tong_tien = sum(float(a["so_luong"]) * float(a["don_gia_nhap"] or 0) for a in alloc)
             prepared.append({
                 "hang_loai": hang_loai, "hang_id": hang_id, "dvt_goc": dvt_goc,
                 "kho_rong": kr, "kho_dai": kd, "khoa": kd_key,
@@ -1187,7 +1187,7 @@ class StockVoucherService:
                 "hsd": lot.hsd,
                 "sl_con_lai": float(lot.sl_con_lai),
                 "so_luong": take,
-                "don_gia_nhap": int(lot.don_gia_nhap or 0),
+                "don_gia_nhap": float(lot.don_gia_nhap or 0),
                 "lo_goc_id": goc_cua(lot),
                 "don_vi_goc": lot.don_vi_goc or "", "kho_rong": lot.kho_rong, "kho_dai": lot.kho_dai,
                 "order_ma": n.get("order_ma"),
@@ -1215,7 +1215,7 @@ class StockVoucherService:
                 # XUẤT: giá của lô theo ĐƠN VỊ GỐC nên phải nhân với `sl_goc`, không phải
                 # `so_luong` — nhân nhầm là giá vốn lệch đúng bằng hệ số quy đổi.
                 lot = self.lots.get(ln.lot_id) if ln.lot_id else None
-                unit = int(lot.don_gia_nhap or 0) if lot else 0
+                unit = float(lot.don_gia_nhap or 0) if lot else 0
                 total += int(round(unit * float(ln.sl_goc)))
         return total
 

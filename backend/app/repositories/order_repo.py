@@ -198,6 +198,15 @@ class OrderRepository:
     def get_by_id(self, order_id: int) -> Order | None:
         return self.db.get(Order, order_id)
 
+    def theo_ids_kem_dong(self, ids) -> dict[int, Order]:
+        """`{order_id: đơn kèm dòng}` trong một lượt nạp — dựng cả trang khỏi hỏi từng đơn."""
+        ids = {int(i) for i in ids if i is not None}
+        if not ids:
+            return {}
+        return {o.id: o for o in self.db.execute(
+            select(Order).where(Order.id.in_(ids)).options(selectinload(Order.lines))
+        ).scalars()}
+
     def get_with_lines(self, order_id: int) -> Order | None:
         return self.db.execute(
             select(Order).where(Order.id == order_id).options(selectinload(Order.lines))
@@ -687,15 +696,36 @@ class OrderRepository:
 
     def don_da_chot_khop(
         self, *, scope: str, actor, q: str | None = None, order_kind: str | None = None,
-        nguoi: int | None = None, loc: LocDonHang | None = None,
+        nguoi: int | None = None, loc: LocDonHang | None = None, chi_dang_do: bool = False,
     ) -> list[Order]:
         """Đơn ĐÃ CHỐT khớp phạm vi + ô tìm + bộ lọc (trừ "Đang chờ") — tập ứng viên để service suy
-        ra đơn đang chờ ai. Nạp sẵn dòng đơn (cụm bán đọc `order.lines`)."""
+        ra đơn đang chờ ai. Nạp sẵn dòng đơn (cụm bán đọc `order.lines`).
+
+        `chi_dang_do` (26/10/2026): bỏ đơn CHƯA phát hành (chỉ "chờ cọc") và đơn HOÀN TẤT (chỉ
+        "xong") — hai nhóm đó SQL tự biết (`id_da_chot_khop`). Đơn bán không có trạng thái "xong",
+        nên không bỏ thì tập này phình theo mọi đơn từ ngày đầu dùng phần mềm."""
+        conds = self._dk_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
+                                      nguoi=nguoi, loc=loc)
+        if chi_dang_do:
+            conds += [Order.san_xuat_released_at.isnot(None), ~_hoan_tat()]
+        stmt = select(Order).where(*conds).options(selectinload(Order.lines))
+        return list(self.db.execute(stmt).scalars())
+
+    def id_da_chot_khop(
+        self, *, nhom: str, scope: str, actor, q: str | None = None, order_kind: str | None = None,
+        nguoi: int | None = None, loc: LocDonHang | None = None,
+    ) -> list[int]:
+        """Id đơn đã chốt khớp bộ lọc thuộc nhóm SQL tự biết: `coc` = chưa phát hành sản xuất (chỉ
+        "chờ cọc"), `xong` = `_hoan_tat()` — cặp với `chi_dang_do` của `don_da_chot_khop`."""
+        conds = self._dk_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
+                                      nguoi=nguoi, loc=loc)
+        conds.append(Order.san_xuat_released_at.is_(None) if nhom == "coc" else _hoan_tat())
+        return [int(i) for i in self.db.execute(select(Order.id).where(*conds)).scalars()]
+
+    def _dk_da_chot_khop(self, *, scope, actor, q, order_kind, nguoi, loc) -> list:
         conds = [c for c in [self._scope_condition(scope=scope, actor=actor)] if c is not None]
         conds.extend(self._dk_loc(q=q, order_kind=order_kind, nguoi=nguoi, loc=loc))
-        stmt = select(Order).where(Order.status == STATUS_ORDERED, *conds).options(
-            selectinload(Order.lines))
-        return list(self.db.execute(stmt).scalars())
+        return [Order.status == STATUS_ORDERED, *conds]
 
     def don_huy_khop(
         self, *, scope: str, actor, q: str | None = None, order_kind: str | None = None,

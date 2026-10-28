@@ -33,10 +33,10 @@ export const COT_MON: CotMH[] = [
 ];
 
 function khoMon(r: YeuCauMonRow) {
-  if (r.hang_loai !== "giay") return <span className="lds-mu3">Không theo khổ</span>;
+  if (r.hang_loai !== "giay" && r.hang_loai !== "vat_tu") return <span className="lds-mu3">Không theo khổ</span>;
   if (r.kho_rong > 0 && r.kho_dai > 0) return `${r.kho_rong} × ${r.kho_dai} mm`;
   if (r.kho_rong > 0) return `khổ ${r.kho_rong} mm`;
-  return <span className="lds-mu3">Không ghi khổ</span>;
+  return <span className="lds-mu3">{r.hang_loai === "giay" ? "Không ghi khổ" : "Không khổ"}</span>;
 }
 
 /** Chú thích của mã yêu cầu: nội dung, bộ phận và người yêu cầu, ngày tạo. */

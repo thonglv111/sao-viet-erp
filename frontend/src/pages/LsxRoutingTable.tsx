@@ -9,7 +9,7 @@
 // rồi ghi thẳng vào/ra + hao của mọi bước. Bảng này KHÔNG gõ số nữa, và cũng không còn nút "Tính
 // ngược" — số hiển thị chính là kết quả tính ngược. Ô duy nhất gõ được nằm trong drawer bước cuối.
 // Các kiểm tra (chưa gán tổ, thuê ngoài thiếu NCC, đứt đơn vị) chỉ TÔ MÀU, không chặn lưu.
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import {
   LSX_LOAI_BUOC_META,
@@ -21,7 +21,10 @@ import {
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { DagRoutingCanvas } from "../components/DagRoutingCanvas";
-import { LsxBuocDrawer, type TabKey as DrawerTabKey } from "./LsxBuocDrawer";
+import { PopoverO } from "../components/PopoverO";
+import {
+  ChonNhaGiaCong, LsxBuocDrawer, nhomMayTheoLoai, type TabKey as DrawerTabKey,
+} from "./LsxBuocDrawer";
 import { viTriTrongDai } from "./gia-cong/giaCong";
 import { ChuoiCongDoan, ngay, num } from "./keHoachSxShared";
 import { nhanTram, tenDonVi, useNapTenDonVi } from "./tenDonVi";
@@ -34,19 +37,20 @@ import {
   type EditRow,
   emptyRow,
   heSoChu,
-  loiDong,
   congDoanKhongMay,
   mayChonDuoc,
   mayMacDinhCuaTo,
   n,
+  patchLoaiBuoc,
   phut,
   tenBuoc,
   thoiLuong,
   toBody,
+  toChonDuoc,
+  toChuaCoMay,
   toEdit,
 } from "./lsxBuoc";
 import "./dag-routing.css";
-import { laDienThoai } from "../utils/dienThoai";
 
 export interface RefRow {
   id: number;
@@ -190,9 +194,9 @@ export function LsxRoutingTable({
   // số vào–ra đứng im, tới khi bấm Lưu mới hiện băng đỏ.
   const suaDuoc = canUpdate && !giuCho;
   const [rows, setRows] = useState<EditRow[]>(() => congDoans.map(toEdit));
-  // Điện thoại (14/10/2026) mở sẵn dạng DANH SÁCH: sơ đồ DAG kéo-thả cần màn rộng + chuột; vẫn
-  // bấm "Sơ đồ DAG" để xem được.
-  const [viewMode, setViewMode] = useState<"dag" | "table">(() => (laDienThoai() ? "table" : "dag"));
+  // Mở sẵn dạng DANH SÁCH ở mọi màn (28/10/2026, trước chỉ điện thoại): loại bước, tổ, máy, ghi
+  // chú sửa ngay trên bảng. Sơ đồ DAG vẫn một cú bấm.
+  const [viewMode, setViewMode] = useState<"dag" | "table">("table");
   const [undo, setUndo] = useState<
     { row: EditRow; at: number; truoc: EditRow[] } | null>(null);
   const [live, setLive] = useState("");
@@ -205,6 +209,10 @@ export function LsxRoutingTable({
   // (`live`), người nhìn màn không biết vì sao bước mất máy (L-SX-17).
   const [goiY, setGoiY] = useState<string | null>(null);
   const [moBuoc, setMoBuoc] = useState<number | null>(null);
+  // Ô đang sửa nhanh trên bảng (phương án B 28/10/2026): bấm ô Loại / Tổ và máy / Ghi chú bật hộp
+  // ngay dưới ô; `truoc` = ảnh chụp hàng lúc mở để Huỷ trả lại đúng như cũ.
+  const [oMo, setOMo] = useState<
+    { key: string; kieu: "loai" | "to" | "gc" | "menu"; el: HTMLElement; truoc: EditRow } | null>(null);
   const [tabDau, setTabDau] = useState<DrawerTabKey | undefined>(undefined);
   const [keo, setKeo] = useState<number | null>(null);
   const [lyDo, setLyDo] = useState("");
@@ -572,7 +580,19 @@ export function LsxRoutingTable({
   // `tinhNguoc` / `apDungGoiY` đã BỎ: số lượng mọi bước nay do SERVER tính ngược và ghi thẳng
   // (`_ap_chuoi_nguoc`), nên không còn "gợi ý" nào để đối chiếu rồi bấm áp dụng.
 
+  function moO(e: MouseEvent<HTMLElement>, r: EditRow, kieu: "loai" | "to" | "gc" | "menu") {
+    const el = e.currentTarget;
+    setOMo((cu) => (cu?.key === r.key && cu.kieu === kieu ? null : { key: r.key, kieu, el, truoc: r }));
+  }
+  const dongO = useCallback(() => setOMo(null), []);
+  const huyO = useCallback(() => {
+    if (oMo) patch(oMo.key, oMo.truoc);
+    setGoiY(null);
+    setOMo(null);
+  }, [oMo, patch]);
+
   function moDrawer(i: number, el: HTMLElement | null, tab?: DrawerTabKey) {
+    setOMo(null);
     hangMo.current = el;
     setTabDau(tab);
     setMoBuoc(i);
@@ -764,22 +784,36 @@ export function LsxRoutingTable({
           <caption className="sr-only">
             Danh sách công đoạn của lệnh. Bấm một hàng để mở chi tiết bước.
           </caption>
+          {/* Bề rộng CHIA SẴN từng cột (như mockup): để trình duyệt tự chia thì Thời lượng, Tiền
+              nhiệm ăn thừa chỗ còn Ghi chú bị bóp còn một nhúm chữ. Phần dư dồn cho Công đoạn. */}
+          <colgroup>
+            <col style={{ width: 52 }} />
+            <col />
+            <col style={{ width: 84 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 142 }} />
+            <col style={{ width: 176 }} />
+            <col style={{ width: 170 }} />
+            <col style={{ width: 200 }} />
+            <col style={{ width: 76 }} />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col" className="khsx-rt__thord">#</th>
               <th scope="col">Công đoạn</th>
-              <th scope="col">Thực hiện</th>
+              <th scope="col">Loại</th>
+              <th scope="col">Tổ và máy</th>
               <th scope="col" className="khsx-th--num">Vào → Ra</th>
-              <th scope="col" className="khsx-th--num">Thời lượng</th>
+              <th scope="col">Thời lượng</th>
               <th scope="col">Tiền nhiệm</th>
-              <th scope="col">Cần xem lại</th>
+              <th scope="col">Ghi chú</th>
               <th scope="col"><span className="sr-only">Thao tác</span></th>
             </tr>
           </thead>
           <tbody ref={tbodyRef}>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div className="khsx-empty khsx-empty--inline">
                     <Icon name="workflow" size={32} />
                     <p className="khsx-empty__title">Chưa có công đoạn nào.</p>
@@ -799,11 +833,8 @@ export function LsxRoutingTable({
             {rows.map((r, i) => {
               const meta = LSX_LOAI_BUOC_META[r.loai_buoc];
               const t = thoiLuong(r, mayRefs?.find((m) => m.id === r.may_id) ?? null);
-              const loi = loiDong(rows, i);
-              // Thuê ngoài ĐỌC GIỐNG HỆT bước máy: nhà thầu là một máy trong danh mục.
-              const lamO = [toRefs?.find((x) => x.id === r.department_id)?.ten,
-                            mayRefs?.find((x) => x.id === r.may_id)?.ten]
-                              .filter(Boolean).join(" · ");
+              const tenTo = toRefs?.find((x) => x.id === r.department_id)?.ten ?? r.department_ten;
+              const tenMay = mayRefs?.find((x) => x.id === r.may_id)?.ten;
               return (
                 <tr
                   key={r.key}
@@ -822,17 +853,13 @@ export function LsxRoutingTable({
                     <span className="khsx-rt__ord khsx-num">{(i + 1) * 10}</span>
                   </td>
                   <td>
+                    <div className="khsx-rt__cd">
                     <button
                       type="button"
                       className="khsx-rt__open"
                       onClick={(e) => moDrawer(i, e.currentTarget)}
                     >
                       <span className="khsx-rt__ten">{tenBuoc(r, congDoanRefs) || "— chưa chọn công đoạn —"}</span>
-                      {/* Chip DÙNG CHUNG với mọi màn khác có mặt bước này (`components/ChipBuoc`).
-                          Trước 04/09/2026 mỗi màn tự vẽ lại nhãn từ một dữ liệu khác nhau nên nhãn
-                          đứt quãng giữa đường — bước gán Thuê ngoài mà chưa điền nơi làm thì tới
-                          Gantt là mất dấu. */}
-                      <ChipLoaiBuoc loai_buoc={r.loai_buoc} nha_cung_cap={r.nha_cung_cap} />
                       {/* Con dao của bước hiện NGAY TRÊN BẢNG, không bắt mở drawer từng bước mới
                           biết bước nào chưa có dao. */}
                       <ChipKhuon
@@ -844,22 +871,65 @@ export function LsxRoutingTable({
                         }}
                       />
                     </button>
+                    {/* Số món vật tư của bước — CÙNG kiểu số ở góc thẻ sơ đồ DAG (`DagNodeCard`):
+                        nhìn cả bảng là biết bước nào ăn vật tư, bấm mở thẳng tab Vật tư. */}
+                    {r.vat_tus.length > 0 && (
+                      <button
+                        type="button"
+                        className="khsx-rt__vt"
+                        title={[`${r.vat_tus.length} món vật tư`, ...r.vat_tus.map((v) => v.vat_tu_ten)].join("\n")}
+                        aria-label={`${r.vat_tus.length} món vật tư của bước ${i + 1} — mở tab Vật tư`}
+                        onClick={(e) => moDrawer(i, e.currentTarget, "vat_tu")}
+                      >
+                        {r.vat_tus.length}
+                      </button>
+                    )}
+                    </div>
+                  </td>
+                  {/* Loại + Tổ và máy SỬA NGAY TRÊN Ô (phương án B 28/10/2026): bấm ô bật hộp nhỏ,
+                      cùng luật với ngăn chi tiết (`patchLoaiBuoc`, `doiTo`, `doiMay`). Chip loại
+                      DÙNG CHUNG với mọi màn khác có mặt bước này (`components/ChipBuoc`). */}
+                  <td>
+                    {suaDuoc ? (
+                      <button
+                        type="button"
+                        className="khsx-rt__o"
+                        aria-label={`Đổi loại bước ${i + 1}`}
+                        onClick={(e) => moO(e, r, "loai")}
+                      >
+                        <ChipLoaiBuoc loai_buoc={r.loai_buoc} />
+                      </button>
+                    ) : <ChipLoaiBuoc loai_buoc={r.loai_buoc} />}
                   </td>
                   <td>
-                    {r.loai_buoc === "thue_ngoai" ? (
-                      <span className={r.nha_cung_cap ? "" : "khsx-muted"}>
-                        {r.nha_cung_cap || "chưa chọn nhà gia công"}
-                      </span>
-                    ) : (
-                      <span className={lamO ? "" : "khsx-muted"}>{lamO || "tổ mặc định"}</span>
-                    )}
-                    {/* Dòng "Kíp N người" GỠ 18/09/2026 (mg `0321`) — bỏ hẳn logic kíp người.
-                        Bước TỔ hiện SỐ GIỜ KẾ HOẠCH người lập lệnh gõ thay vào chỗ đó. */}
-                    {r.loai_buoc === "to" && (
-                      <span className="khsx-rt__sub2" title="Số giờ kế hoạch của bước tổ — gõ tay ở drawer bước.">
-                        {Number(r.so_gio_ke_hoach) || 0} giờ kế hoạch
-                      </span>
-                    )}
+                    {(() => {
+                      const noiDung = r.loai_buoc === "thue_ngoai" ? (
+                        <span className={r.nha_cung_cap ? "" : "khsx-muted"}>
+                          {r.nha_cung_cap || "chưa chọn nhà gia công"}
+                        </span>
+                      ) : (
+                        <>
+                          <span className={tenTo ? "" : "khsx-muted"}>{tenTo || "chưa gán tổ"}</span>
+                          {/* Dòng "Kíp N người" GỠ 18/09/2026 (mg `0321`). Bước TỔ hiện SỐ GIỜ KẾ
+                              HOẠCH người lập lệnh gõ ở ngăn chi tiết thay vào chỗ máy. */}
+                          <span className="khsx-rt__sub2">
+                            {r.loai_buoc === "to"
+                              ? `${Number(r.so_gio_ke_hoach) || 0} giờ kế hoạch`
+                              : tenMay || "chưa chọn máy"}
+                          </span>
+                        </>
+                      );
+                      return suaDuoc ? (
+                        <button
+                          type="button"
+                          className="khsx-rt__o"
+                          aria-label={`Đổi ${r.loai_buoc === "thue_ngoai" ? "nhà gia công" : "tổ và máy"} của bước ${i + 1}`}
+                          onClick={(e) => moO(e, r, "to")}
+                        >
+                          {noiDung}
+                        </button>
+                      ) : noiDung;
+                    })()}
                   </td>
                   <td className="khsx-rt__qty">
                     {/* GỠ điều kiện `nhom === "prepress"` (14/08/2026): che bước chế bản bằng dấu —
@@ -876,21 +946,26 @@ export function LsxRoutingTable({
                             số đã lưu thành cũ mà không ai biết. Server so ngầm rồi phơi
                             `so_luong_*_moi`; ở đây gạch số cũ + hiện số mới. KHÔNG tự lưu — bấm
                             "Lưu công đoạn" mới ghi, vì lệnh là ảnh chụp. */}
-                        {r.so_luong_vao_moi != null && (
-                          <s className="khsx-rt__cu">{num(n(r.so_luong_vao))}</s>
-                        )}
-                        <span className="khsx-num">
-                          {num(r.so_luong_vao_moi ?? n(r.so_luong_vao))}
+                        {/* Vào một dòng, ra một dòng — nhường bề ngang cho cột Ghi chú. */}
+                        <span className="khsx-rt__vr">
+                          {r.so_luong_vao_moi != null && (
+                            <s className="khsx-rt__cu">{num(n(r.so_luong_vao))}</s>
+                          )}
+                          <span className="khsx-num">
+                            {num(r.so_luong_vao_moi ?? n(r.so_luong_vao))}
+                          </span>
+                          <span className="khsx-rt__dv">{dvNhan(r.don_vi_vao)}</span>
                         </span>
-                        <span className="khsx-rt__dv">{dvNhan(r.don_vi_vao)}</span>
-                        <span className="khsx-rt__arrow" aria-label="ra">→</span>
-                        {r.so_luong_ra_moi != null && (
-                          <s className="khsx-rt__cu">{num(n(r.so_luong_ra))}</s>
-                        )}
-                        <span className="khsx-num">
-                          {num(r.so_luong_ra_moi ?? n(r.so_luong_ra))}
+                        <span className="khsx-rt__vr">
+                          <span className="khsx-rt__arrow" aria-label="ra">→</span>
+                          {r.so_luong_ra_moi != null && (
+                            <s className="khsx-rt__cu">{num(n(r.so_luong_ra))}</s>
+                          )}
+                          <span className="khsx-num">
+                            {num(r.so_luong_ra_moi ?? n(r.so_luong_ra))}
+                          </span>
+                          <span className="khsx-rt__dv">{dvNhan(r.don_vi_ra)}</span>
                         </span>
-                        <span className="khsx-rt__dv">{dvNhan(r.don_vi_ra)}</span>
                         {(r.so_luong_vao_moi != null || r.so_luong_ra_moi != null) && (
                           <span className="khsx-rt__sub2 khsx-rt__lech">
                             danh mục đã đổi — bấm Lưu công đoạn để chốt số mới
@@ -921,7 +996,7 @@ export function LsxRoutingTable({
                   </td>
                   <td>
                     {r.phu_thuoc_step_keys.length ? (
-                      <span className="khsx-need-stack">
+                      <span className="khsx-rt__tns">
                         {r.phu_thuoc_step_keys.slice(0, 2).map((k) => {
                           // Tách "không có trong bảng" (⇒ bước của LSX khác) khỏi "có nhưng chưa
                           // đặt tên" (bước vừa chèn, chưa chọn công đoạn). Gộp hai ca vào một nhãn
@@ -929,79 +1004,67 @@ export function LsxRoutingTable({
                           // ngay sau khi bấm "Chèn trước/sau".
                           const i = rows.findIndex((x) => x.key === k);
                           const ten = i >= 0 ? tenBuoc(rows[i], congDoanRefs) : "";
+                          const nhan = ten || (i >= 0
+                            ? `Bước ${i + 1} — chưa chọn công đoạn`
+                            : "Bước LSX khác");
                           return (
-                            <span key={k} className="khsx-need khsx-need--soft">
-                              {ten || (i >= 0
-                                ? `Bước ${i + 1} — chưa chọn công đoạn`
-                                : "Bước LSX khác")}
+                            <span key={k} className="khsx-rt__tn" title={nhan}>
+                              {nhan}
                             </span>
                           );
                         })}
-                        {r.phu_thuoc_step_keys.length > 2 && <span className="khsx-need">+{r.phu_thuoc_step_keys.length - 2}</span>}
+                        {r.phu_thuoc_step_keys.length > 2 && (
+                          <span className="khsx-rt__tn khsx-muted">và {r.phu_thuoc_step_keys.length - 2} bước khác</span>
+                        )}
                       </span>
                     ) : <span className="khsx-muted">Gốc / song song</span>}
                   </td>
-                  <td>
-                    {loi.length === 0 ? (
-                      <span className="khsx-muted">—</span>
-                    ) : (
-                      <span className="khsx-need-stack">
-                        {loi.slice(0, 2).map((l) => (
-                          <span key={l} className="khsx-need khsx-need--soft">
-                            <Icon name="help" size={10} /> {l}
-                          </span>
-                        ))}
-                        {loi.length > 2 && (
-                          <span className="khsx-need khsx-need--more" title={loi.join(" · ")}>
-                            +{loi.length - 2}
-                          </span>
-                        )}
-                      </span>
-                    )}
+                  {/* Cột "Cần xem lại" GỠ 28/10/2026 (chủ: bỏ cột, bỏ chip vàng). Tổ/máy còn trống đã
+                      hiện ngay ở ô "Tổ và máy" + băng "Còn thiếu" đầu lệnh. */}
+                  <td className="khsx-rt__gc">
+                    {suaDuoc ? (
+                      <button
+                        type="button"
+                        className="khsx-rt__o"
+                        aria-label={`Ghi chú kỹ thuật của bước ${i + 1}`}
+                        title={r.ghi_chu || undefined}
+                        onClick={(e) => moO(e, r, "gc")}
+                      >
+                        {r.ghi_chu
+                          ? <span className="khsx-rt__gctxt">{r.ghi_chu}</span>
+                          : <span className="khsx-muted">+ ghi chú</span>}
+                      </button>
+                    ) : r.ghi_chu
+                      ? <span className="khsx-rt__gctxt" title={r.ghi_chu}>{r.ghi_chu}</span>
+                      : <span className="khsx-muted">—</span>}
                   </td>
-                  {/* Không vẽ tay cầm kéo bằng ký tự ⠿: nó là glyph chữ lạc giữa bộ icon Lucide
-                      của app. Cả hàng đã `cursor: grab` để kéo, còn đổi thứ tự vẫn làm được bằng
-                      nút ▲▼ và Alt+↑↓ — rõ ràng hơn và dùng được bàn phím. */}
+                  {/* Cấu hình chi tiết (số lượng, thời gian, vật tư, phụ thuộc, khuôn) = icon mở ngăn;
+                      chuyển lên/xuống, chèn, bỏ gom vào menu ⋯. Cả hàng vẫn kéo-thả được, và
+                      Alt+↑↓ vẫn đổi thứ tự bằng bàn phím. */}
                   <td>
-                    {suaDuoc && (
-                      <div className="khsx-rt__acts">
-                        <button
-                          type="button"
-                          className="khsx-rt__btn khsx-rt__btn--up"
-                          disabled={i === 0}
-                          onClick={() => move(i, -1)}
-                          aria-label={`Chuyển bước ${i + 1} lên`}
-                        >
-                          <Icon name="chevron" size={14} />
-                        </button>
+                    <div className="khsx-rt__acts">
+                      <button
+                        type="button"
+                        className="khsx-rt__btn"
+                        onClick={(e) => moDrawer(i, e.currentTarget)}
+                        aria-label={`Cấu hình chi tiết bước ${i + 1}`}
+                        title="Cấu hình chi tiết: số lượng, thời gian, vật tư, phụ thuộc, khuôn"
+                      >
+                        <Icon name="settings" size={14} />
+                      </button>
+                      {suaDuoc && (
                         <button
                           type="button"
                           className="khsx-rt__btn"
-                          disabled={i === rows.length - 1}
-                          onClick={() => move(i, 1)}
-                          aria-label={`Chuyển bước ${i + 1} xuống`}
+                          aria-haspopup="menu"
+                          aria-expanded={oMo?.key === r.key && oMo.kieu === "menu"}
+                          onClick={(e) => moO(e, r, "menu")}
+                          aria-label={`Thao tác khác với bước ${i + 1}`}
                         >
-                          <Icon name="chevron" size={14} />
+                          <Icon name="more" size={14} />
                         </button>
-                        <button
-                          type="button"
-                          className="khsx-rt__btn khsx-rt__btn--ins"
-                          onClick={() => themTai(i)}
-                          aria-label={`Chèn công đoạn mới sau bước ${i + 1}`}
-                          title="Chèn công đoạn ngay sau bước này"
-                        >
-                          <Icon name="plus" size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          className="khsx-rt__btn khsx-rt__btn--del"
-                          onClick={() => remove(i)}
-                          aria-label={`Bỏ bước ${i + 1}`}
-                        >
-                          <Icon name="trash" size={14} />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
@@ -1090,6 +1153,144 @@ export function LsxRoutingTable({
       </div>
 
       <p className="sr-only" aria-live="polite">{live}</p>
+
+      {oMo && (() => {
+        const idx = rows.findIndex((x) => x.key === oMo.key);
+        const r = rows[idx];
+        if (!r) return null;
+        if (oMo.kieu === "menu") {
+          const chon = (f: () => void) => () => { setOMo(null); f(); };
+          return (
+            <PopoverO anchor={oMo.el} label={`Thao tác với bước ${idx + 1}`} role="menu" width={200} onDong={dongO}>
+              <button type="button" role="menuitem" className="popo__item" disabled={idx === 0}
+                onClick={chon(() => move(idx, -1))}>
+                Chuyển lên
+              </button>
+              <button type="button" role="menuitem" className="popo__item" disabled={idx === rows.length - 1}
+                onClick={chon(() => move(idx, 1))}>
+                Chuyển xuống
+              </button>
+              <button type="button" role="menuitem" className="popo__item" onClick={chon(() => themTai(idx))}>
+                Chèn công đoạn sau
+              </button>
+              <button type="button" role="menuitem" className="popo__item popo__item--xoa"
+                onClick={chon(() => remove(idx))}>
+                Bỏ bước
+              </button>
+            </PopoverO>
+          );
+        }
+        if (oMo.kieu === "loai") {
+          return (
+            <PopoverO anchor={oMo.el} label="Loại bước" width={300} onDong={dongO} onHuy={huyO}>
+              <span className="popo__lb">Loại bước</span>
+              <div className="khsx-seg-std" role="group" aria-label="Loại bước">
+                {(["may", "to", "thue_ngoai"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    className={r.loai_buoc === k ? "is-active" : ""}
+                    aria-pressed={r.loai_buoc === k}
+                    onClick={() => patch(r.key, patchLoaiBuoc(k))}
+                  >
+                    {LSX_LOAI_BUOC_META[k].label}
+                  </button>
+                ))}
+              </div>
+              <span className="popo__hint">{LSX_LOAI_BUOC_META[r.loai_buoc].hint}</span>
+            </PopoverO>
+          );
+        }
+        if (oMo.kieu === "gc") {
+          return (
+            <PopoverO anchor={oMo.el} label="Ghi chú kỹ thuật cho thợ" width={320} onDong={dongO} onHuy={huyO}>
+              <label className="popo__lb" htmlFor="popo-gc">Ghi chú kỹ thuật cho thợ</label>
+              <textarea
+                id="popo-gc"
+                className="khsx-textarea-std popo__ta"
+                rows={3}
+                value={r.ghi_chu}
+                placeholder="vd: canh màu theo mẫu đã ký, kiểm tra keo..."
+                onChange={(e) => patch(r.key, { ghi_chu: e.target.value })}
+              />
+            </PopoverO>
+          );
+        }
+        // Tổ và máy — hoặc nhà gia công khi bước thuê ngoài.
+        if (r.loai_buoc === "thue_ngoai") {
+          return (
+            <PopoverO anchor={oMo.el} label="Nhà gia công" width={320} onDong={dongO} onHuy={huyO}>
+              <span className="popo__lb">Nhà gia công</span>
+              <ChonNhaGiaCong row={r} canUpdate={suaDuoc} onPatch={(p) => patch(r.key, p)} />
+            </PopoverO>
+          );
+        }
+        const cd = congDoanRefs?.find((c) => c.id === r.cong_doan_id) ?? null;
+        const ghep = baiGhep && baiGhep.buoc_bi_de?.[r.key] ? baiGhep : null;
+        const toChon = toRefs ? toChonDuoc(toRefs, cd, r.department_id) : { items: [], gioiHan: false };
+        const toHienDuoc = r.department_id != null && toChon.items.some((t) => t.id === r.department_id);
+        const nhomMay = nhomMayTheoLoai(mayRefs ? mayChonDuoc(mayRefs, cd, r.department_id, r.may_id) : []);
+        // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi tổ/máy ở lệnh — khoá như ngăn.
+        const khoa = r.da_bat_dau;
+        return (
+          <PopoverO anchor={oMo.el} label="Tổ và máy" width={320} onDong={dongO} onHuy={huyO}>
+            {ghep ? (
+              <span className="popo__hint">
+                Bước chạy chung ở bài ghép <strong>{ghep.ma}</strong> — tổ và máy đổi ở bài.
+              </span>
+            ) : (
+              <>
+                <label className="popo__lb" htmlFor="popo-to">Tổ phụ trách</label>
+                <select
+                  id="popo-to"
+                  className="khsx-select-std"
+                  value={toHienDuoc ? (r.department_id ?? "") : ""}
+                  disabled={khoa}
+                  onChange={(e) => doiTo(r.key, e.target.value ? Number(e.target.value) : null)}
+                >
+                  {!toHienDuoc && <option value="">— chọn tổ —</option>}
+                  {toChon.items.map((t, k) => (
+                    <option key={t.id} value={t.id}>
+                      {toChon.gioiHan && k === 0 ? `${t.ten} (mặc định)` : t.ten}
+                    </option>
+                  ))}
+                </select>
+                {r.loai_buoc !== "to" && (
+                  <>
+                    <label className="popo__lb" htmlFor="popo-may">Máy</label>
+                    <select
+                      id="popo-may"
+                      className="khsx-select-std"
+                      value={r.may_id ?? ""}
+                      disabled={khoa}
+                      onChange={(e) => doiMay(r.key, e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">— chưa gán máy —</option>
+                      {nhomMay.map((g) => (
+                        <optgroup key={g.ten} label={g.ten}>
+                          {g.items.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.active === false ? `${m.ten} (ngừng dùng)` : m.ten}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </>
+                )}
+                <span className="popo__hint">
+                  {khoa ? "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ."
+                    : mayRefs && toChuaCoMay(mayRefs, cd, r.department_id)
+                      ? "Tổ này chưa có máy chạy công đoạn này."
+                      : r.loai_buoc === "to"
+                        ? "Bước tổ làm tay, không chiếm máy. Giờ kế hoạch gõ ở cấu hình chi tiết."
+                        : "Chỉ mời máy chạy được công đoạn này và thuộc tổ đã chọn."}
+                </span>
+              </>
+            )}
+          </PopoverO>
+        );
+      })()}
 
       {moBuoc != null && rows[moBuoc] && (
         <LsxBuocDrawer

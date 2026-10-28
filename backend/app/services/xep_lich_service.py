@@ -255,8 +255,15 @@ class LichXuong:
         return sorted(ra)
 
     def _khung_ngay(self, d: date) -> list[tuple[datetime, datetime]]:
-        """Khoảng LÀM VIỆC của ngày `d`, đã khoét bữa nghỉ giữa ca."""
-        return self._tru_nghi(self._khung_ngay_tho(d), d)
+        """Khoảng LÀM VIỆC của ngày `d`, đã khoét bữa nghỉ giữa ca.
+
+        NHỚ theo ngày (26/10/2026): ca, nghỉ, vùng mở thêm cố định từ lúc dựng lịch, mà trải một bàn
+        tháng hỏi lại cùng vài chục ngày hàng nghìn lần. Trả BẢN SAO để nơi gọi sửa không hỏng bản nhớ.
+        """
+        nho = self.__dict__.setdefault("_nho_khung", {})
+        if d not in nho:
+            nho[d] = tuple(self._tru_nghi(self._khung_ngay_tho(d), d))
+        return list(nho[d])
 
     def _khung_ngay_tho(self, d: date) -> list[tuple[datetime, datetime]]:
         """Khoảng làm-việc CHẠM ngày `d`: ca bắt-đầu-trong-`d` + đuôi ca đêm bắt-đầu-`d-1`

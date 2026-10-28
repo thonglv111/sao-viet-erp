@@ -94,6 +94,10 @@
 .tkh-nhap span { font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
 .tkh-nhap--nho { height: 34px; }
 .tkh-nhap--nho input { font-size: 13.5px; }
+/* Ô ngày (ChonNgay) cùng khuôn + cùng bề ngang với các ô khác trong form — khung gốc là inline-flex nên tự co. */
+.tkh-ngay.cn-khung { display: flex; width: 100%; }
+/* Ô chọn vật tư (Select có ô tìm) cùng cỡ các ô khác trong form. */
+.tkh-chon-hang.rc-input { width: 100%; height: 34px; border-radius: 8px; font-size: 13.5px; }
 .tkh-hai { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 560px) { .tkh-hai { grid-template-columns: 1fr; } }
 .tkh-tinh-ho { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; border-radius: 10px; background: var(--paper);
@@ -183,3 +187,17 @@
 .tkh-bieu { border: 1px solid var(--rule-soft); border-radius: 8px; padding: 6px 8px 2px; background: var(--canvas); }
 .tkh-bieu svg { width: 100%; height: auto; display: block; }
 .tkh-bieu__bat { cursor: crosshair; }
+
+/* Thêm hàng / Sửa tồn / Xoá khỏi kho / xem theo ĐVT (28/10/2026). */
+.tkh-hop--rong { width: 640px; }
+.tkh-o p.tkh-loi, .tkh-loi { color: var(--signal); }
+select.tkh-chon { width: 100%; font: inherit; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.tkh-xem-truoc { align-items: flex-start; }
+.tkh-xem-truoc__ds { display: flex; flex-direction: column; gap: 3px; color: var(--ink); }
+.tkh-canh { color: var(--amber-deep); }
+.tkh-nut-xoa { color: var(--signal); }
+.tkh-xoa-ds { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.tkh-bao-xong { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; }
+.tkh-dvt-chon { border: 1px solid transparent; border-radius: 6px; background: none; font: inherit; color: var(--ink);
+  padding: 1px 2px; margin: -2px -3px; cursor: pointer; max-width: 100%; }
+.tkh-dvt-chon:hover, .tkh-dvt-chon:focus { border-color: var(--rule); outline: 0; }

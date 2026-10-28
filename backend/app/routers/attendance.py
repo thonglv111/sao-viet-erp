@@ -28,6 +28,7 @@ from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.loc_don_nhan_su import LocDon
 from ..repositories.rbac_repo import DepartmentRepository
 from ..schemas.loc_danh_sach import LuaChonLoc
+from ._tra_json import tra_json
 from ..schemas.attendance import (
     AdjustIn,
     AdjustQuotaOut,
@@ -56,6 +57,7 @@ from ..schemas.attendance import (
     AttendancePeriodOut,
     ShiftChangeOut,
     ShiftChangesOut,
+    ShiftPlanCellOut,
     ShiftPlanOut,
     ShiftPlanSaveIn,
     ShiftPlanSaveOut,
@@ -307,7 +309,7 @@ def get_shift_plan(
     year: int,
     month: int,
     department_id: int | None = None,
-) -> ShiftPlanOut:
+) -> Response:
     """Lưới khai ca của một tháng. Lọc theo scope người gọi — tổ trưởng (scope
     `department`) chỉ thấy và sửa được tổ mình."""
     try:
@@ -317,11 +319,24 @@ def get_shift_plan(
         )
     except AttendanceError as exc:
         _raise(exc)
-    return ShiftPlanOut(
+    # Lưới cả xưởng là ~200 nghìn ô mà chỉ vài chục dạng khác nhau: ô GIỐNG HỆT nhau dùng chung một
+    # `ShiftPlanCellOut` đã kiểm (khoá = bộ trường-giá trị, mọi trường là None/bool/int/str), rồi ghi
+    # JSON thẳng một lượt (`_tra_json`).
+    o_da_kiem: dict[tuple, ShiftPlanCellOut] = {}
+
+    def _o(v: dict) -> ShiftPlanCellOut:
+        k = tuple(v.items())
+        m = o_da_kiem.get(k)
+        if m is None:
+            m = o_da_kiem[k] = ShiftPlanCellOut.model_validate(v)
+        return m
+
+    rows = [{**r, "days": {k: _o(v) for k, v in r["days"].items()}} for r in data["rows"]]
+    return tra_json(ShiftPlanOut, dict(
         year=data["year"], month=data["month"], days_in_month=data["days_in_month"],
         locked=data["locked"], calendar=data["calendar"],
-        shifts=[_shift_out(s) for s in data["shifts"]], rows=data["rows"],
-    )
+        shifts=[_shift_out(s) for s in data["shifts"]], rows=rows,
+    ))
 
 
 @router.put("/shift-plan", response_model=ShiftPlanSaveOut)
@@ -572,11 +587,8 @@ def list_logs(
     logs, total = svc.list_logs(scope=_scope_for(authz, user), actor=user, loc=loc, q=q,
                                 page=page, size=size)
     loc_names = {l.id: l.name for l in svc.list_locations()}
-    emp_names: dict[int, str] = {}
-    for eid in {l.employee_id for l in logs}:
-        emp = employees.get_by_id(eid)
-        if emp is not None:
-            emp_names[eid] = emp.full_name
+    # Tên nhân viên cả trang MỘT truy vấn (trước 26/10/2026 mỗi người một câu).
+    emp_names = {eid: e.full_name for eid, e in employees.map_by_ids({l.employee_id for l in logs}).items()}
     return AttendanceLogsOut(items=[_log_out(l, emp_names, loc_names) for l in logs],
                              total=total, page=page, size=size)
 
@@ -596,19 +608,33 @@ def loc_logs(
 # --- bảng công tháng (HR) ---------------------------------------------------
 
 
-def _timesheet_rows(svc: AttendanceService, depts: DepartmentRepository, data: dict) -> list[TimesheetRow]:
+def _timesheet_rows_dict(depts: DepartmentRepository, data: dict) -> list[dict]:
+    """Hàng Bảng công dạng dict đúng khuôn `TimesheetRow` — để kiểm schema MỘT lượt cho cả bảng."""
     # Tên tổ: MỘT truy vấn cho mọi tổ có mặt trên bảng (trước đây mỗi tổ một câu).
     dept_names = depts.names_by_ids({r["department_id"] for r in data["rows"]
                                      if r["department_id"] is not None})
-    rows: list[TimesheetRow] = []
+    # Ô ngày GIỐNG HỆT nhau (vd mọi ngày "không chấm" cùng một ca) dùng chung MỘT `TimesheetDay` đã
+    # kiểm — bảng cả xưởng ~130 nghìn ô mà chỉ vài trăm dạng khác nhau, kiểm từng ô tốn vài giây.
+    # Khoá là bộ (trường, giá trị): mọi trường của ô là bool/int/float/str/None nên hai ô bằng nhau
+    # theo `==` cho ra cùng một model sau kiểm.
+    o_da_kiem: dict[tuple, TimesheetDay] = {}
+
+    def _o(v: dict) -> TimesheetDay:
+        k = tuple(v.items())
+        m = o_da_kiem.get(k)
+        if m is None:
+            m = o_da_kiem[k] = TimesheetDay.model_validate(v)
+        return m
+
+    rows: list[dict] = []
     for r in data["rows"]:
         did = r["department_id"]
         dn = (dept_names.get(did) or None) if did is not None else None
-        rows.append(TimesheetRow(
+        rows.append(dict(
             employee_id=r["employee_id"], employee_code=r["employee_code"],
             employee_name=r["employee_name"], department_id=did, department_name=dn,
             shift_id=r.get("shift_id"), shift_name=r.get("shift_name"),
-            days={k: TimesheetDay(**v) for k, v in r["days"].items()},
+            days={k: _o(v) for k, v in r["days"].items()},
             total_days=r["total_days"], total_leave=r.get("total_leave", 0),
             paid_leave_days=r.get("paid_leave_days", 0),
             total_hours=r["total_hours"], total_cong=r.get("total_cong"),
@@ -620,6 +646,10 @@ def _timesheet_rows(svc: AttendanceService, depts: DepartmentRepository, data: d
     return rows
 
 
+def _timesheet_rows(svc: AttendanceService, depts: DepartmentRepository, data: dict) -> list[TimesheetRow]:
+    return [TimesheetRow.model_validate(r) for r in _timesheet_rows_dict(depts, data)]
+
+
 @router.get("/timesheet", response_model=TimesheetOut)
 def timesheet(
     svc: Service,
@@ -629,19 +659,20 @@ def timesheet(
     year: int = Query(ge=2000, le=2100),
     month: int = Query(ge=1, le=12),
     department_id: int | None = Query(default=None),
-) -> TimesheetOut:
+) -> Response:
     try:
         data = svc.monthly_timesheet(year=year, month=month, department_id=department_id,
                                      scope=_scope_for(authz, user), actor=user)
     except AttendanceError as exc:
         _raise(exc)
-    return TimesheetOut(
+    # Cả xưởng là hàng trăm nghìn ô ngày — kiểm schema một lượt rồi ghi JSON thẳng (`_tra_json`).
+    return tra_json(TimesheetOut, dict(
         year=data["year"], month=data["month"], days_in_month=data["days_in_month"],
         standard_cong=data.get("standard_cong"),
-        holidays=[HolidayMark(**h) for h in data.get("holidays", [])],
-        he_so_ngay=HeSoNgay(**data.get("he_so_ngay", {})),
-        rows=_timesheet_rows(svc, depts, data),
-    )
+        holidays=data.get("holidays", []),
+        he_so_ngay=data.get("he_so_ngay", {}),
+        rows=_timesheet_rows_dict(depts, data),
+    ))
 
 
 @router.get("/timesheet.xlsx")

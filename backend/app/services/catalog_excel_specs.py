@@ -356,6 +356,15 @@ def _DOC_LOAI_GIAY(gt: Any, ctx: NguCanh) -> str:
     return _DOC_LOAI_ENUM(gt, ctx) if str(gt or "").strip() else LOAI_GIAY
 
 
+def _giay_truoc_khi_ghi(du_lieu: dict, _ctx: NguCanh, _cu) -> dict:
+    """Ô Đơn giá trống = 0, như form (`routers/vat_lieu_kho._giu_gia_giay`). `GiayIn.don_gia` nhận
+    None để router GIỮ giá cũ cho người bị che giá — Excel không qua bước đó, None đi thẳng xuống
+    cột NOT NULL và nổ 500 (28/10/2026)."""
+    if "don_gia" in du_lieu and du_lieu["don_gia"] is None:
+        du_lieu["don_gia"] = 0
+    return du_lieu
+
+
 GIAY = CatalogExcelSpec(
     loai="giay", tieu_de="Giấy", repo_cls=_GiayRepo,
     cot=(
@@ -372,6 +381,7 @@ GIAY = CatalogExcelSpec(
     ),
     # Không có ô nhập trên form (15/10/2026) — bày ra Excel là mời sửa thứ không ai thấy ở màn; cột vắng mặt khi nhập thì giữ nguyên giá trị cũ.
     loai_tru=frozenset({"caliper_micron", "gia_thi_truong", "kho_tinh_gia", "tho"}),
+    truoc_khi_ghi=_giay_truoc_khi_ghi,
 )
 
 VAT_TU = CatalogExcelSpec(

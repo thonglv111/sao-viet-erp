@@ -439,6 +439,7 @@ class RoleService:
         co_san = {p.module_key: p for p in self.roles.permissions_for(role_id)}
         # Tổ cha là NHÓM (10/10/2026): chỉ tổ lá nhận việc nên quyền cấp ở dòng tổ lá; dòng tổ cha
         # trên ma trận chỉ là tiêu đề gập/mở, lưu luôn TRẮNG — không để quyền vô hình nằm ở đó.
+        from .quyen_kho import la_khoa_kho
         from .quyen_to import doc_cay, khoa_to
 
         cay = doc_cay(self.roles.db)
@@ -461,6 +462,10 @@ class RoleService:
                 normalized[key] = True
             can_read = can_read or bool(normalized.get("can_read"))
             normalized["can_read"] = can_read
+            # Dòng kho: ô "Thêm, xoá, import, export hàng" (`can_adjust`) là nhập TIỀN ⇒ ô Xem giá thành
+            # của chính kho đó bật kèm, không có "được nhập mà không thấy giá" (spec 2026-10-28 §6).
+            if la_khoa_kho(normalized["module_key"]) and normalized.get("can_adjust"):
+                normalized["can_view_cost"] = True
             if _la_scopeless(normalized["module_key"]):
                 normalized["scope"] = "all"
             can_approve = normalized.get("can_approve", False)

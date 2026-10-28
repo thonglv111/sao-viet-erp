@@ -189,6 +189,30 @@ def test_dinh_muc_go_tay_sua_tay_thi_giu_dung_so_va_khong_con_la_dong_may(
     assert v.sua_tay is False
 
 
+def test_vat_tu_cua_buoc_luu_kho_tuy_chon_nguoi_ke_hoach_go(db, orders, lsx_svc, admin, customer):
+    """Khổ vật tư tuỳ chọn (27/10/2026): người kế hoạch gõ khổ trên dòng vật tư của bước — hai cạnh
+    chuẩn cạnh ngắn trước, một cạnh là khổ chỉ-rộng (màng bóng), bỏ trống là không khổ."""
+    ptg = _ptg_2_san_pham(db)
+    vt = _support(db)
+    lsx = _tao_lenh_hop(db, orders, lsx_svc, admin, customer, ptg)
+
+    def luu(**kho):
+        lsx_svc.replace_routing(lsx_id=lsx.id, actor=admin, rows_in=[
+            LsxCongDoanIn(
+                ten="Dán hộp", nhom="finishing", so_luong_vao=1000, so_luong_ra=1000, don_vi_vao="cai",
+                phu_thuoc_step_keys=[],
+                vat_tus=[{"vat_tu_id": vt.id, "gia_tri_chip": {"dai_support": 500, "rong_support": 400},
+                          **kho}],
+            ),
+        ])
+        v = _buoc(lsx_svc.get(lsx.id)).vat_tus[0]
+        return (v.kho_rong, v.kho_dai)
+
+    assert luu(kho_rong=700, kho_dai=500) == (500, 700)
+    assert luu(kho_rong=320) == (320, 0)
+    assert luu() == (0, 0)
+
+
 def test_dien_giai_dinh_muc_doc_nhan_chip_va_thay_so_chip_rieng(db, orders, lsx_svc, admin, customer):
     """Chip riêng của vật tư không nằm trong từ điển biến chung: diễn giải phải đọc được nhãn chip
     và thay số chip, không để lộ mã `dai_support × rong_support = dai_support × rong_support`."""

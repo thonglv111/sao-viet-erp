@@ -16,6 +16,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from .san_xuat import DaiDuoiOut
+
 
 class LenhSxChang(BaseModel):
     """MỘT đốt trên dải công đoạn của dòng bảng — xem `danh_sach.chang()`.
@@ -539,3 +541,7 @@ class LenhSxNganOut(BaseModel):
     kcs_cuoi: KcsCuoiNhomOut = KcsCuoiNhomOut()
     su_co: list[SuCoOut] = []
     timeline: list[TimelineOut] = []
+    # Thẻ quy cách đứng máy — CÙNG `snapshot.the_quy_cach` với ngăn Việc của tổ (27/10/2026).
+    quy_cach: dict | None = None
+    # Ô đuôi của dải "Hàng đang tới đâu" — CÙNG `routing_dai.o_duoi` với ngăn Việc của tổ.
+    dai_duoi: DaiDuoiOut | None = None

@@ -40,12 +40,12 @@ export type TabDon = "mh" | "dg" | "tt" | "ct" | "ls";
 const so = (n: number) => Math.round(n).toLocaleString("vi-VN");
 const dv = (u: string) => tenDonVi(u) ?? u;
 
-/** Khổ của một dòng giấy bằng chữ; hàng khác không theo khổ. */
+/** Khổ của một dòng bằng chữ — giấy + vật tư (khổ tuỳ chọn, 27/10/2026); hàng khác không theo khổ. */
 function khoChu(hangLoai: string | null, rong: number, dai: number): ReactNode {
-  if (hangLoai !== "giay") return <span className="mh-mo3">Không theo khổ</span>;
+  if (hangLoai !== "giay" && hangLoai !== "vat_tu") return <span className="mh-mo3">Không theo khổ</span>;
   if (rong > 0 && dai > 0) return `${rong} × ${dai} mm`;
   if (rong > 0) return `khổ ${rong} mm`;
-  return <span className="mh-mo3">Không ghi khổ</span>;
+  return <span className="mh-mo3">{hangLoai === "giay" ? "Không ghi khổ" : "Không khổ"}</span>;
 }
 
 function conNgay(ngay: string): number {

@@ -11,7 +11,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..services.kho_giay import chuan_kho, co_don_vi_goc, khoa_dong
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, co_kho, khoa_dong
 from .purchase import MuaChoLenhOut
 
 
@@ -19,7 +19,7 @@ def _chuan_kho_giay(hang_loai: str | None, kho_rong, kho_dai) -> tuple[int, int]
     """Khổ của dòng kho: giấy chuẩn hoá cạnh ngắn × cạnh dài (một cạnh ⇒ khổ chỉ-rộng `(r, 0)`); hàng
     khác ép 0 · 0 (client gửi gì cũng bỏ). Giấy KHÔNG còn dạng cuộn/tờ (10/10/2026) — đơn vị gốc của dòng
     máy chủ suy từ ĐVT, client gửi thừa `dang_giay` thì schema bỏ qua (không 422)."""
-    if hang_loai is not None and hang_loai != "giay":
+    if hang_loai is not None and not co_kho(hang_loai):
         return 0, 0
     return chuan_kho(kho_rong, kho_dai)
 
@@ -195,6 +195,8 @@ class StockRequestOut(BaseModel):
     kho_nguon_id: int | None = None
     kho_nguon_ten: str | None = None
     xuat_voucher_id: int | None = None
+    # NHẬP TAY Ở MÀN TỒN KHO (mg 0451): Thêm / Sửa tồn / Import tự sinh yêu cầu này — cột Nguồn gọi tên.
+    nhap_tay: bool = False
     # NGUỒN MUA HÀNG: yêu cầu nhập lập từ một đợt giao của phiếu mua — ngăn kho hiện "DMH-… Đợt 2".
     purchase_delivery_id: int | None = None
     don_mua_id: int | None = None
@@ -267,7 +269,7 @@ class BaoCaoKhoRow(BaseModel):
     #: Tên (hoặc khoảng ngày) của kỳ ĐÃ KHÓA SỔ phủ ngày chứng từ của dòng; None = chưa khóa.
     ky_khoa: str | None = None
     #: Phiếu sinh ra từ đâu (mã + chữ hiện): nhap_mua · nhap_thanh_pham · nhap_gia_cong · nhap_tra_vat_tu ·
-    #: nhap_khac · xuat_san_xuat · xuat_giao_khach · xuat_gia_cong · xuat_khac.
+    #: nhap_tay · nhap_khac · xuat_san_xuat · xuat_giao_khach · xuat_gia_cong · xuat_tay · xuat_khac.
     ly_do: str | None = None
     ly_do_ten: str | None = None
     lenh: str | None = None               # mã lệnh sản xuất của dòng (nếu có)
@@ -677,6 +679,8 @@ class StockVoucherOut(BaseModel):
     # ĐIỀU CHUYỂN KHO (mig 0203): true cho cả phiếu xuất nguồn lẫn phiếu nhập đích — FE/báo cáo
     # gắn nhãn "điều chuyển"; báo cáo loại khỏi tổng mua/bán.
     dieu_chuyen: bool = False
+    # Phiếu tự sinh từ Thêm / Sửa tồn / Import trên màn Tồn kho (cờ ở yêu cầu gốc, mg 0451).
+    nhap_tay: bool = False
     lines: list[StockVoucherLineOut] = []
     # Tổng giá vốn — chỉ có khi `can_view_cost`.
     gia_von: int | None = None
@@ -799,7 +803,7 @@ class GiaGocOut(BaseModel):
     ma_lo: str
     don_gia_cu: int
     don_gia: int
-    don_gia_nhap: int
+    don_gia_nhap: float
     so_lo: int
 
 
@@ -843,13 +847,16 @@ class StockLotOut(BaseModel):
     #: Giấy: gsm của danh mục; tờ: số kg quy từ `sl_con_lai` (cuộn ⇒ None) — chỉ hiển thị (spec §6).
     dinh_luong: int | None = None
     quy_kg: float | None = None
+    #: Màn Tồn kho (`/lo/ton-nhom`): các đơn vị QUY ĐƯỢC từ đơn vị gốc của dòng — xem tồn theo ram, kg…
+    #: (spec 2026-10-28 §7b). `he_so` = số đơn vị gốc trong 1 đơn vị đó; đơn vị gốc đứng đầu.
+    don_vi_xem: list[dict] | None = None
     hsd: date | None = None
     trang_thai: str
     # Phiếu NHẬP đã tạo ra lô này — màn Tồn kho hiển thị lô THEO MÃ PHIẾU (link mở phiếu). Null = đầu kỳ.
     voucher_id: int | None = None
     voucher_ma: str | None = None
     # Giá vốn của lô — chỉ có khi `can_view_cost`. Thủ kho chọn lô mà không thấy giá.
-    don_gia_nhap: int | None = None
+    don_gia_nhap: float | None = None
     # SL yêu cầu đã sinh ra lô (đọc-nối qua dòng phiếu NHẬP tạo lô → dòng yêu cầu). Không lưu cột.
     # Không phải tiền → luôn hiện được. None = lô đầu kỳ / không nối được dòng yêu cầu.
     sl_de_nghi: float | None = None
@@ -889,7 +896,7 @@ class AllocationLineOut(BaseModel):
     don_vi_goc: str = ""
     kho_rong: int = 0
     kho_dai: int = 0
-    don_gia_nhap: int | None = None
+    don_gia_nhap: float | None = None
     # Nguồn lô thành phẩm (đọc ở lô gốc) + cảnh báo "Lô này sản xuất cho đơn DH…" khi xuất cho Giao
     # hàng mà lô thuộc đơn khác cùng khách.
     order_ma: str | None = None
@@ -922,7 +929,7 @@ class MaterialXuatRow(BaseModel):
     dvt_yeu_cau: str | None = None
     so_luong: float
     # Giá vốn ĐÍCH DANH của lô đã xuất — router XÓA khi thiếu `can_view_cost`.
-    don_gia: int | None = None
+    don_gia: float | None = None
     # Dòng xuất này thuộc phiếu ĐIỀU CHUYỂN (chuyển đi) → lịch sử mặt hàng xếp vào tab "Chuyển kho".
     dieu_chuyen: bool = False
     # Vị trí + HSD của LÔ đã xuất (đọc cùng câu) và lô thành phẩm từ KCS chưa có giá gốc.
@@ -953,7 +960,7 @@ class MaterialChuyenRow(BaseModel):
     voucher_id: int | None = None
     voucher_ma: str | None = None
     so_luong: float
-    don_gia: int | None = None
+    don_gia: float | None = None
     chua_gia_goc: bool = False
     vi_tri: str | None = None
     hsd: date | None = None

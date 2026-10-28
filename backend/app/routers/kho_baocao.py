@@ -42,7 +42,7 @@ from ..repositories.tim_khong_dau import bo_dau
 from ..repositories.user_repo import UserRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..services.kho_gia_goc_service import GiaGocError, chan_chot_khi_chua_gia
-from ..services.kho_giay import chuan_kho, co_don_vi_goc, nhan_kho
+from ..services.kho_giay import chuan_kho, co_don_vi_goc, co_kho, nhan_kho
 from ..services.rbac_service import AuthorizationService
 from ..services.vat_lieu_kho_service import VatLieuKhoService
 from ..schemas.stock import (
@@ -196,8 +196,9 @@ def _report_rows(
             # tròn nhân lại: 500 kg quy ra 1.033 tờ thì 5.174 × 1.033 lệch vài trăm đồng.
             tien = round(float(ln.don_gia) * so) if ln.don_gia is not None else None
         else:
-            price = int(lot.don_gia_nhap) if (lot is not None and lot.don_gia_nhap is not None) else None
-            tien = round(price * qty) if price is not None else None
+            gia_lo = float(lot.don_gia_nhap) if (lot is not None and lot.don_gia_nhap is not None) else None
+            price = round(gia_lo) if gia_lo is not None else None
+            tien = round(gia_lo * qty) if gia_lo is not None else None
         row = BaoCaoKhoRow(
             voucher_id=v.id,
             ngay_ghi_so=_ngay_ghi_so_vn(v.ghi_so_luc),   # vai KIỂM TOÁN (ai bấm lúc nào)
@@ -243,10 +244,12 @@ _NHAN_LY_DO = {
     "nhap_thanh_pham": "Nhập thành phẩm từ sản xuất",
     "nhap_gia_cong": "Nhập hàng gia công ngoài",
     "nhap_tra_vat_tu": "Nhập lại vật tư thừa",
+    "nhap_tay": "Nhập tay ở Tồn kho",
     "nhap_khac": "Nhập khác",
     "xuat_giao_khach": "Xuất giao khách",
     "xuat_san_xuat": "Xuất cho sản xuất",
     "xuat_gia_cong": "Xuất cho gia công ngoài",
+    "xuat_tay": "Giảm tay ở Tồn kho",
     "xuat_khac": "Xuất khác",
 }
 
@@ -260,6 +263,8 @@ def _nhom_hang(hang_loai: str | None, mh) -> str | None:
 def _ly_do(v, req, co_lenh: bool) -> str:
     nhap = v.loai == VOUCHER_NHAP
     if req is not None:
+        if getattr(req, "nhap_tay", False):   # Thêm / Sửa tồn / Import trên màn Tồn kho (mg 0451)
+            return "nhap_tay" if nhap else "xuat_tay"
         if nhap:
             if req.purchase_delivery_id:
                 return "nhap_mua"
@@ -648,11 +653,9 @@ def _kho_nxt(ln) -> tuple[int, int, str]:
     """(rộng, dài, đơn vị gốc) của dòng phiếu trong N-X-T: giấy tách dòng theo khổ + đơn vị gốc, vật tư
     theo đơn vị gốc (cùng khoá tồn — tờ với kg, thùng với kg khác thang nên không bao giờ chung một
     dòng); hàng khác (0, 0, "") gom theo mã."""
-    if ln.hang_loai == "giay":
+    if co_kho(ln.hang_loai):
         kr, kd = chuan_kho(ln.kho_rong, ln.kho_dai)
         return (kr, kd, (ln.don_vi_goc or "").strip().lower())
-    if co_don_vi_goc(ln.hang_loai):
-        return (0, 0, (ln.don_vi_goc or "").strip().lower())
     return (0, 0, "")
 
 
@@ -747,8 +750,9 @@ def _nxt_rows(
     hang_svc = VatLieuKhoService(VatLieuKhoRepository(db), DonViDoRepository(db))
     hang_map = hang_svc.map_theo_cap(list({(k[1], k[2]) for k in comp}))
     dv_ten = {d.ma: d.ten for d in DonViDoRepository(db).all_active()}
-    kho_repo = KhoHangRepository(db)
-    kho_ten = {kid: getattr(kho_repo.get(kid), "ten", None) for kid in {k[0] for k in comp}}
+    kho_ids_comp = {k[0] for k in comp}
+    ten_kho = KhoHangRepository(db).ten_theo_ids(kho_ids_comp)   # một câu cho mọi kho
+    kho_ten = {kid: ten_kho.get(kid) for kid in kho_ids_comp}
 
     rows: list[BaoCaoNXTRow] = []
     for (kid, hloai, hid, kr, kd, goc), c in comp.items():
@@ -894,17 +898,21 @@ def get_ky_da_tinh(db: Db, _: XemBaoCaoUser) -> list[KyDaTinhRow]:
 
 # --- Khóa kỳ (chốt sổ) ---------------------------------------------------------
 
-def _khoa_row(db: Session, row) -> KhoKhoaSoRow:
-    kho = KhoHangRepository(db).get(row.kho_id) if row.kho_id else None
-    nguoi = UserRepository(db).get_by_id(row.nguoi_khoa_id) if row.nguoi_khoa_id else None
+def _khoa_row(db: Session, row, *, ten_kho: dict[int, str] | None = None,
+              nguoi: dict[int, User] | None = None) -> KhoKhoaSoRow:
+    """`ten_kho` / `nguoi` = bản nạp gộp của cả danh sách (lịch sử khoá sổ); vắng thì tự tra."""
+    if ten_kho is None:
+        ten_kho = KhoHangRepository(db).ten_theo_ids([row.kho_id])
+    if nguoi is None:
+        nguoi = UserRepository(db).get_many([row.nguoi_khoa_id])
     return KhoKhoaSoRow(
         id=row.id,
         kho_id=row.kho_id,
-        kho_ten=getattr(kho, "ten", None),
+        kho_ten=ten_kho.get(row.kho_id) if row.kho_id else None,
         tu_ngay=row.tu_ngay,
         den_ngay=row.den_ngay,
         hanh_dong=row.hanh_dong,
-        nguoi_khoa_ten=getattr(nguoi, "name", None),
+        nguoi_khoa_ten=getattr(nguoi.get(row.nguoi_khoa_id), "name", None) if row.nguoi_khoa_id else None,
         khoa_luc=row.khoa_luc,
         ten=row.ten,
     )
@@ -912,8 +920,12 @@ def _khoa_row(db: Session, row) -> KhoKhoaSoRow:
 
 @router.get("/khoa-so", response_model=list[KhoKhoaSoRow])
 def get_khoa_so(db: Db, _: XemBaoCaoUser) -> list[KhoKhoaSoRow]:
-    """Lịch sử thao tác khóa/mở kỳ (mới nhất trước) — dùng cho tab Lịch sử + đối chiếu đang khóa."""
-    return [_khoa_row(db, r) for r in KhoKhoaSoRepository(db).history()]
+    """Lịch sử thao tác khóa/mở kỳ (mới nhất trước) — dùng cho tab Lịch sử + đối chiếu đang khóa.
+    Tên kho + người khoá nạp GỘP một lượt cho cả lịch sử (trước 26/10/2026: mỗi dòng hai câu)."""
+    rows = KhoKhoaSoRepository(db).history()
+    ten_kho = KhoHangRepository(db).ten_theo_ids(r.kho_id for r in rows)
+    nguoi = UserRepository(db).get_many(r.nguoi_khoa_id for r in rows)
+    return [_khoa_row(db, r, ten_kho=ten_kho, nguoi=nguoi) for r in rows]
 
 
 @router.get("/khoa-so/ky", response_model=list[KhoaSoKyRow])

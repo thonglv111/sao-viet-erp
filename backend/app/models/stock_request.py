@@ -121,6 +121,11 @@ class StockRequest(Base):
     dieu_chuyen: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
+    # NHẬP TAY Ở MÀN KHO (mg 0451, 28/10/2026): yêu cầu + phiếu do hệ tự sinh khi thủ kho Thêm / Import
+    # hàng ngay trên màn Tồn kho (đặt tồn về số đếm được) — không có người xin, không qua duyệt.
+    nhap_tay: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     kho_nguon_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("kho_hang.id"), index=True, nullable=True
     )

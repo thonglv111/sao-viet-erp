@@ -9,7 +9,7 @@ import { Button } from "../../../../components/Button";
 import { Icon } from "../../../../components/Icons";
 import { StatusHistoryTimeline } from "../../../../components/StatusHistoryTimeline";
 import { fmtDate } from "../../../../utils/format";
-import { chuanKho, nhanKho } from "../../../../lib/khoGiay";
+import { chuanKho, coKho, nhanKho } from "../../../../lib/khoGiay";
 import { NganPhai } from "../../../ke-toan/shared/NganPhai";
 // Đơn vị lưu bằng MÃ (`cai`), tên hiển thị ("cái") nằm ở danh mục Đơn vị — xem pages/tenDonVi.ts.
 import { tenDonVi } from "../../../tenDonVi";
@@ -33,9 +33,9 @@ function conNgay(ngay: string): number {
   return Math.round((d.getTime() - h.getTime()) / 86_400_000);
 }
 
-/** Khổ của dòng giấy ("780 × 905 mm", chỉ rộng "khổ 1000 mm") — "" khi không có. */
+/** Khổ của dòng giấy / vật tư ("780 × 905 mm", chỉ rộng "khổ 1000 mm") — "" khi không có. */
 function khoDong(line: DepartmentPurchaseRequestLineOut): string {
-  if (line.hang_loai !== "giay" || !line.kho_rong) return "";
+  if (!coKho(line.hang_loai) || !line.kho_rong) return "";
   const [r, d] = chuanKho(line.kho_rong, line.kho_dai);
   return nhanKho(r, d);
 }
@@ -75,6 +75,8 @@ export function RequestDetailDrawer({
   // Món chưa có đơn lên đầu, món đã vào đơn xếp theo mã đơn, món đã bỏ xuống cuối.
   // Khổ + Định lượng là cột riêng, chỉ bày khi yêu cầu có dòng giấy (spec 2026-10-24 §6).
   const coGiay = selected.lines.some((l) => l.hang_loai === "giay");
+  // Vật tư khổ tuỳ chọn (27/10/2026): cột Khổ khi có giấy hoặc có vật tư đã ghi khổ.
+  const coCotKho = coGiay || selected.lines.some((l) => !!khoDong(l));
   const dong = [...selected.lines].sort((a, b) => {
     const hang = (l: DepartmentPurchaseRequestLineOut) => (l.cancelled_at ? 2 : l.fulfilment ? 1 : 0);
     return hang(a) - hang(b) || (a.fulfilment?.purchase_code ?? "").localeCompare(b.fulfilment?.purchase_code ?? "");
@@ -183,7 +185,7 @@ export function RequestDetailDrawer({
             <table className="lds-g">
               <colgroup>
                 <col />
-                {coGiay && <col style={{ width: 120 }} />}
+                {coCotKho && <col style={{ width: 120 }} />}
                 {coGiay && <col style={{ width: 96 }} />}
                 <col style={{ width: 130 }} />
                 <col style={{ width: 230 }} />
@@ -195,7 +197,7 @@ export function RequestDetailDrawer({
               <thead>
                 <tr>
                   <th>Vật tư</th>
-                  {coGiay && <th>Khổ</th>}
+                  {coCotKho && <th>Khổ</th>}
                   {coGiay && <th className="n">Định lượng</th>}
                   <th className="n">Yêu cầu</th>
                   <th>Đơn mua</th>
@@ -231,7 +233,7 @@ export function RequestDetailDrawer({
                           </div>
                         )}
                       </td>
-                      {coGiay && <td>{kho || <span className="lds-mu">–</span>}</td>}
+                      {coCotKho && <td>{kho || <span className="lds-mu">–</span>}</td>}
                       {coGiay && (
                         <td className="n">{line.hang_loai === "giay" ? (line.dinh_luong ?? "–") : ""}</td>
                       )}

@@ -272,19 +272,26 @@ class PayrollRepository:
             out[s.employee_id] = s   # asc ⇒ cái sau ghi đè = hiện hành
         return out
 
+    def _id_luong_hien_hanh(self, on: date, employee_ids=None):
+        """Subquery id bản lương HIỆN HÀNH ≤ on của từng NV: bản có (effective_from, id) lớn nhất —
+        đúng bản "xếp tăng, bản sau ghi đè" thắng. Lọc ngay ở SQL thay vì nạp mọi phiên bản lương
+        (DB đo tải: 19 nghìn bản cho 6.300 người) rồi bỏ hai phần ba."""
+        rn = func.row_number().over(
+            partition_by=EmployeeSalary.employee_id,
+            order_by=(EmployeeSalary.effective_from.desc(), EmployeeSalary.id.desc()),
+        ).label("rn")
+        q = select(EmployeeSalary.id.label("id"), rn).where(EmployeeSalary.effective_from <= on)
+        if employee_ids is not None:
+            q = q.where(EmployeeSalary.employee_id.in_(sorted({int(i) for i in employee_ids})))
+        sub = q.subquery()
+        return select(sub.c.id).where(sub.c.rn == 1)
+
     def latest_salaries_map(self, on: date) -> dict[int, EmployeeSalary]:
         """{employee_id → bản lương hiện hành ≤ on} cho toàn bộ NV (1 query, để tính cả bảng)."""
-        rows = list(
-            self.db.execute(
-                select(EmployeeSalary)
-                .where(EmployeeSalary.effective_from <= on)
-                .order_by(EmployeeSalary.employee_id, EmployeeSalary.effective_from.asc(), EmployeeSalary.id.asc())
-            ).scalars()
-        )
-        out: dict[int, EmployeeSalary] = {}
-        for s in rows:  # asc order → cái sau ghi đè = hiện hành
-            out[s.employee_id] = s
-        return out
+        return {s.employee_id: s for s in self.db.execute(
+            select(EmployeeSalary).where(EmployeeSalary.id.in_(self._id_luong_hien_hanh(on)))
+            .order_by(EmployeeSalary.employee_id)
+        ).scalars()}
 
     def get_salary(self, salary_id: int) -> EmployeeSalary | None:
         return self.db.get(EmployeeSalary, salary_id)
@@ -514,6 +521,35 @@ class PayrollRepository:
                 select(PayrollLine).where(PayrollLine.period_id == period_id).order_by(PayrollLine.id)
             ).scalars()
         )
+
+    def lines_cua_nv(self, period_id: int, employee_ids) -> list[PayrollLine]:
+        """Dòng lương của một kỳ CHỈ cho tập NV — cùng thứ tự `list_lines` (theo id)."""
+        ids = sorted({int(i) for i in (employee_ids or [])})
+        if not ids:
+            return []
+        return list(self.db.execute(
+            select(PayrollLine).where(PayrollLine.period_id == period_id,
+                                      PayrollLine.employee_id.in_(ids)).order_by(PayrollLine.id)
+        ).scalars())
+
+    def cot_dong_luong(self, period_id: int, *cot: str) -> list:
+        """CHỈ vài cột của các dòng lương một kỳ, cùng thứ tự `list_lines` (theo id) — cho các phép
+        soi cả kỳ (cảnh báo chốt) khỏi dựng hàng nghìn object `PayrollLine` rộng ~80 cột. Mỗi dòng
+        đọc theo tên cột như object (`r.employee_id`)."""
+        return list(self.db.execute(
+            select(*[getattr(PayrollLine, c) for c in cot])
+            .where(PayrollLine.period_id == period_id).order_by(PayrollLine.id)
+        ).all())
+
+    def muc_bh_hien_hanh(self, on: date, employee_ids=None) -> dict[int, tuple]:
+        """{employee_id → (insurance_base, insurance_elsewhere)} của bản lương hiện hành ≤ on — cùng
+        luật chọn bản với `latest_salaries_map` (xếp tăng, bản sau ghi đè), chỉ đọc hai cột.
+        `employee_ids` (tuỳ chọn) chỉ lấy cho tập NV đó — phiếu lương một người khỏi quét cả công ty."""
+        stmt = (select(EmployeeSalary.employee_id, EmployeeSalary.insurance_base,
+                       EmployeeSalary.insurance_elsewhere)
+                .where(EmployeeSalary.id.in_(self._id_luong_hien_hanh(on, employee_ids)))
+                .order_by(EmployeeSalary.employee_id))
+        return {r.employee_id: (r.insurance_base, r.insurance_elsewhere) for r in self.db.execute(stmt)}
 
     def user_ids_cua_ky(self, period_id: int) -> list[int]:
         """Tài khoản của những người có dòng lương trong kỳ — người nhận tin "phiếu đã công bố"."""
