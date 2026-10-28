@@ -4,13 +4,14 @@
 // Trùng mã + khổ + đơn vị gốc với dòng đang có = CẬP NHẬT: số tăng thành lô mới theo giá ghi ở đây,
 // số giảm thành phiếu xuất trừ lô nhập trước. Vừa gõ vừa hỏi máy chủ bản xem trước (chạy thật rồi
 // rollback) nên trước khi Lưu đã thấy dòng là thêm mới hay đổi gì, cũ → mới.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
 import { ApiError, api, type DonViDungDuoc, type MatHangOption } from "../../api/client";
 import type { ImportExcelOut } from "../../api/rebuildCatalog";
 import { Button } from "../../components/Button";
 import { ChonNgay } from "../../components/ChonNgay";
+import { Select, type SelectOption } from "../../components/Select";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
 
 /** Dòng tồn đang có — mở hộp ở dạng Sửa tồn với đúng khoá của dòng. */
@@ -92,34 +93,30 @@ export function HopThemHang({
   });
   const dat = <K extends keyof Form>(k: K, v: Form[K]) => setF((x) => ({ ...x, [k]: v }));
 
-  // Gợi ý mã từ danh mục giấy + vật tư; chọn đúng một mã thì nạp các ĐVT mặt hàng đó nhận.
-  const [goiY, setGoiY] = useState<MatHangOption[]>([]);
-  const [hang, setHang] = useState<MatHangOption | null>(null);
+  // Chọn vật tư như ô chọn: nạp cả danh mục giấy + vật tư một lần, gõ trong danh sách lọc gần đúng
+  // theo tên hoặc mã (bỏ dấu, tách từ — xem `Select`). Chọn xong thì nạp các ĐVT mặt hàng đó nhận.
+  const [dsHang, setDsHang] = useState<MatHangOption[]>([]);
   const [donVi, setDonVi] = useState<DonViDungDuoc[]>([]);
   useEffect(() => {
-    const q = f.ma.trim();
-    if (!q) {
-      setGoiY([]);
-      setHang(null);
-      return;
-    }
     let song = true;
-    const t = setTimeout(() => {
-      api.matHang
-        .tim(token, q, 20)
-        .then((ds) => {
-          if (!song) return;
-          const ds2 = ds.filter((x) => x.nhom !== "Thành phẩm");
-          setGoiY(ds2);
-          setHang(ds2.find((x) => x.ma.toLowerCase() === q.toLowerCase()) ?? null);
-        })
-        .catch(() => song && setGoiY([]));
-    }, 250);
+    api.matHang
+      .tim(token, null, 2000)
+      .then((ds) => song && setDsHang(ds.filter((x) => x.nhom !== "Thành phẩm")))
+      .catch(() => song && setDsHang([]));
     return () => {
       song = false;
-      clearTimeout(t);
     };
-  }, [token, f.ma]);
+  }, [token]);
+  const hang = useMemo(
+    () => dsHang.find((x) => x.ma.toLowerCase() === f.ma.trim().toLowerCase()) ?? null,
+    [dsHang, f.ma],
+  );
+  const luaChonHang = useMemo<SelectOption<string>[]>(
+    () => [...dsHang]
+      .sort((a, b) => a.nhom.localeCompare(b.nhom, "vi") || a.ten.localeCompare(b.ten, "vi"))
+      .map((x) => ({ value: `${x.hang_loai}:${x.hang_id}`, label: x.ten, hint: x.ma, search: x.ma, group: x.nhom })),
+    [dsHang],
+  );
   useEffect(() => {
     if (!hang) {
       setDonVi([]);
@@ -230,22 +227,22 @@ export function HopThemHang({
           <button type="button" className="tkh-x" aria-label="Đóng" onClick={onClose} disabled={busy}><X /></button>
         </div>
         <div className="tkh-hop__than">
-          <O cot="Mã hàng" loi={loiO("Mã hàng")} bat>
-            <div className="tkh-nhap tkh-nhap--nho">
-              <input
-                list="tkh-them-ma"
-                value={f.ma}
-                onChange={(e) => dat("ma", e.target.value)}
-                readOnly={!!dong}
-                aria-label="Mã hàng"
-                placeholder="Gõ mã giấy hoặc vật tư"
-                autoFocus={!dong}
-              />
-              {hang && <span>{hang.ten}</span>}
-            </div>
-            <datalist id="tkh-them-ma">
-              {goiY.map((x) => <option key={`${x.hang_loai}:${x.hang_id}`} value={x.ma}>{x.ten}</option>)}
-            </datalist>
+          <O cot="Vật tư" loi={loiO("Mã hàng")} bat>
+            <Select<string>
+              options={luaChonHang}
+              value={hang ? `${hang.hang_loai}:${hang.hang_id}` : ""}
+              onChange={(v) => {
+                const x = dsHang.find((h) => `${h.hang_loai}:${h.hang_id}` === v);
+                if (x) dat("ma", x.ma);
+              }}
+              placeholder={dong ? dong.ten : "Chọn giấy hoặc vật tư"}
+              ariaLabel="Vật tư"
+              searchable
+              searchPlaceholder="Gõ tên hoặc mã…"
+              portal
+              disabled={!!dong}
+              className="rc-input tkh-chon-hang"
+            />
           </O>
           <div className="tkh-hai">
             <O cot="Khổ rộng" loi={loiO("Khổ rộng")}>
