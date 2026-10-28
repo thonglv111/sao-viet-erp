@@ -313,7 +313,8 @@ export function kiemCongThuc(
       continue;
     }
     if (/^\d/.test(t)) {
-      if (/^\d{1,3}(\.\d{3})+$/.test(t)) {
+      // Số nhóm nghìn không bao giờ mở đầu bằng 0 — "0.012" là thập phân, chỉ "700.000" mới nghi.
+      if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(t)) {
         return {
           loi: `"${t}" được hiểu là ${Number(t)} — số không dùng dấu chấm nghìn, viết liền "${t.replace(/\./g, "")}"`,
           idx: i,

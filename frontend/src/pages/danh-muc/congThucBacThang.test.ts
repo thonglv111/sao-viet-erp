@@ -141,6 +141,12 @@ describe("kiemCongThuc — chỉ báo, không tự sửa", () => {
     expect(kiemCongThuc(t("a * 1.5"), null, HAM).loi).toBeNull();
   });
 
+  it("0.012 là số thập phân, không phải chấm nghìn — số nhóm nghìn không bắt đầu bằng 0", () => {
+    expect(kiemCongThuc(t("a * 0.012"), null, HAM).loi).toBeNull();
+    expect(kiemCongThuc(t("a * 0.004 * 47160"), null, HAM).loi).toBeNull();
+    expect(kiemCongThuc(t("a * 1.200"), null, HAM).loi).toMatch(/được hiểu là 1.2/);
+  });
+
   it("hai mục đứng liền không có dấu ⇒ báo thiếu dấu, chỉ vào mục sau", () => {
     expect(kiemCongThuc(t("a + 3 0"), null, HAM)).toEqual({ loi: 'Thiếu dấu giữa "3" và "0" — thêm + − × ÷ vào giữa', idx: 3 });
     expect(kiemCongThuc(t("( a + b ) 3"), null, HAM).loi).toMatch(/Thiếu dấu giữa "\)" và "3"/);

@@ -1438,7 +1438,8 @@ export function FormulaField({
               <span className="rc-formula__boc-nhan">Bọc {chuPhan(chonPhan[0])}
                 {chonPhan[1] > chonPhan[0] ? `–${chuPhan(chonPhan[1])}` : ""} trong</span>
               {([[null, "( )", "Ngoặc"], ["max", "max", "Lấy số lớn hơn — chừa chỗ gõ số thứ hai"],
-                ["min", "min", "Lấy số nhỏ hơn — chừa chỗ gõ số thứ hai"], ["round", "round", "Làm tròn"]] as const)
+                ["min", "min", "Lấy số nhỏ hơn — chừa chỗ gõ số thứ hai"], ["round", "round", "Làm tròn"],
+                ["ceil", "ceil", "Làm tròn lên"], ["floor", "floor", "Làm tròn xuống"]] as const)
                 .map(([ham, nhan, nghia]) => (
                   <button key={nhan} type="button" className="rc-formula__bac-btn" title={nghia}
                     onClick={() => bocPhan(ham)}>{nhan}</button>
@@ -1566,7 +1567,9 @@ export function FormulaField({
           <button type="button" className="rc-formula__op-btn" onClick={() => insertVar(" != ")} title="Khác">!=</button>
           <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("max(")} title="Hàm max">max</button>
           <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("min(")} title="Hàm min">min</button>
-          <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("round(")} title="Hàm round">round</button>
+          <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("round(")} title="Làm tròn gần nhất">round</button>
+          <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("ceil(")} title="Làm tròn LÊN — vd số thùng: ceil(SL ÷ số cái mỗi thùng)">ceil</button>
+          <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("floor(")} title="Làm tròn XUỐNG — vd số con trọn trên một tờ">floor</button>
           <button type="button" className="rc-formula__op-btn" onClick={() => insertVar("if(")} title="Hàm if — điều kiện">if</button>
         </div>
 
