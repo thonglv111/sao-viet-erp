@@ -194,6 +194,16 @@ export function LsxBuocDrawer({
   // đây là chỗ DUY NHẤT khai được, và khai xong thì danh mục thôi kéo lại (`tu_khai_don_vi` ở BE).
   const laNgoaiDong = row.tren_dong_giay === false;
   const khaiTay = laNgoaiDong && canUpdate;
+  // Hao THẬT = vào − ra quy về đơn vị vào. `hao_hut` chỉ là phần tờ CỐ ĐỊNH (bậc % cho ra 0 ở đây),
+  // in thẳng nó thì bước hao 3% hiện "0 tờ (+3%)" trong khi máy đã cộng 77 tờ vào số vào.
+  // Bước ngoài dòng giấy khai tay hai đầu, không qua chuỗi hao ⇒ giữ số khai ở danh mục.
+  const haoCoDinh = Number(row.hao_hut || 0);
+  const haoPct = Number(row.hao_hut_pct || 0);
+  const haoThat = laNgoaiDong
+    ? haoCoDinh
+    : Math.max(0, Math.round(
+        Number(row.so_luong_vao || 0) - Number(row.so_luong_ra || 0) / (Number(row.he_so_quy_doi) || 1),
+      ));
   const dvOpts = useMemo<SelectOption<string>[]>(() => {
     const ds = donViOptions();
     return [
@@ -664,10 +674,12 @@ export function LsxBuocDrawer({
                       <div className="khsx-flow-chip khsx-flow-chip--waste">
                         <span className="khsx-flow-chip__label">Hao hụt:</span>
                         <span className="khsx-flow-chip__val">
-                          {Number(row.hao_hut || 0) > 0 || Number(row.hao_hut_pct || 0) > 0 ? (
+                          {haoThat > 0 || haoPct > 0 ? (
                             <>
-                              <strong>{num(Number(row.hao_hut))}</strong> {dvNhan(row.don_vi_vao)}
-                              {Number(row.hao_hut_pct || 0) > 0 && ` (+${row.hao_hut_pct}%)`}
+                              <strong>{num(haoThat)}</strong> {dvNhan(row.don_vi_vao)}
+                              {haoPct > 0 && (haoCoDinh > 0
+                                ? ` (${haoPct}% + ${num(haoCoDinh)} ${dvNhan(row.don_vi_vao)})`
+                                : ` (${haoPct}%)`)}
                             </>
                           ) : (
                             "—"
