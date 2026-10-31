@@ -316,7 +316,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     {
       key: "can_view_cost",
       label: "Xem giá",
-      hint: "Cho phép xem đơn giá mua giấy và lịch sử giá. Không bật thì cột Đơn giá để trống; sửa dòng giấy vẫn giữ nguyên giá cũ.",
+      hint: "Cho phép xem đơn giá mua giấy và lịch sử giá. Không bật thì cột Đơn giá để trống; sửa dòng giấy vẫn giữ nguyên giá cũ. Lưu ý: ai có ô Xem chi tiết giá vốn của Tính giá vẫn thấy cột Đơn giá (không thấy lịch sử giá).",
     },
   ],
   dm_vat_tu: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],

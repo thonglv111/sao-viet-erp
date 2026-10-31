@@ -100,7 +100,9 @@ export function SalaryModal({
   // Cách trả lương: null = chưa chọn ⇒ theo trạng thái (thử việc = công nhật), máy chủ cũng hiểu vậy.
   const [anCongNhat, setAnCongNhat] = useState<boolean | null>(null);
   const congNhatHienThi = anCongNhat ?? !!preview?.thu_viec;
-  const [applySelfDeduction] = useState(true);
+  // Giảm trừ bản thân: luật cho đăng ký ở ĐÚNG MỘT nơi làm việc. Đọc từ mốc lương gần nhất — trước
+  // 31/10/2026 ô này cố định `true` nên mỗi lần Lưu lại bật ngầm cho người đã tắt.
+  const [applySelfDeduction, setApplySelfDeduction] = useState(true);
   const [params, setParams] = useState<PayrollParams | null>(null);
 
   const reload = useCallback(async () => {
@@ -136,6 +138,7 @@ export function SalaryModal({
       );
       setInsuranceElsewhere(!!latest.insurance_elsewhere);
       setUnionMember(!!latest.union_member);
+      setApplySelfDeduction(latest.apply_self_deduction ?? true);
       setAnCongNhat(latest.an_cong_nhat ?? null);
 
       const vt = latest.luong_vi_tri ?? 0;
@@ -371,7 +374,11 @@ export function SalaryModal({
   const bhxhAmt = bhCapY * bhxhRate;
   const bhytAmt = bhCapY * bhytRate;
   const bhtnAmt = bhCapTN * bhtnRate;
-  const unionFeeAmt = unionMember ? Math.round(salaryBase * 0.01) : 0;
+  // Đoàn phí: tỷ lệ ở Cấu hình lương × mức nền (cơ bản + trách nhiệm), thử việc không đóng — khớp
+  // `payroll_service`. Trước 31/10/2026 viết cứng 1% nên mô phỏng lệch bảng lương thật.
+  const congDoanRate = params?.cong_doan_rate ?? 0;
+  const unionFeeAmt =
+    unionMember && !isProbation ? Math.round(salaryBase * congDoanRate) : 0;
   const bhTotal = bhxhAmt + bhytAmt + bhtnAmt;
 
   const erBhxhAmt = bhCapY * bhxhErRate;
@@ -1087,8 +1094,24 @@ export function SalaryModal({
                     className="cc-card__hint"
                     style={{ marginLeft: 22, marginTop: 2 }}
                   >
-                    Chỉ đoàn viên mới bị trừ đoàn phí công đoàn (1% trên mức
-                    nền). Không tích = không trừ.
+                    Chỉ đoàn viên mới bị trừ đoàn phí công đoàn ({pctOf(congDoanRate)}%
+                    trên mức nền, tỷ lệ ở Cấu hình lương). Không tích = không trừ.
+                  </p>
+
+                  <label className="ns-check" style={{ marginTop: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={applySelfDeduction}
+                      onChange={(e) => setApplySelfDeduction(e.target.checked)}
+                    />
+                    <span>Áp dụng giảm trừ bản thân khi tính thuế TNCN</span>
+                  </label>
+                  <p
+                    className="cc-card__hint"
+                    style={{ marginLeft: 22, marginTop: 2 }}
+                  >
+                    Bỏ tích nếu người này đã đăng ký giảm trừ bản thân ở nơi làm
+                    việc khác (luật chỉ cho đăng ký ở một nơi).
                   </p>
                 </div>
               </div>
@@ -1149,7 +1172,7 @@ export function SalaryModal({
                         </div>
                         {unionMember && (
                           <div className="lg-sim-row">
-                            <span>Đoàn phí CĐ (1% nền)</span>
+                            <span>Đoàn phí CĐ ({pctOf(congDoanRate)}% nền)</span>
                             <span className="lg-num">
                               {money(unionFeeAmt)} đ
                             </span>

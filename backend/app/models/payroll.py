@@ -545,7 +545,7 @@ class PayrollLine(Base):
     gross: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
     insurance_base: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
     bhxh: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")
-    cong_doan: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")        # đoàn phí = insurance_base×cong_doan_rate (tự tính, thử việc=0)
+    cong_doan: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")        # đoàn phí = monthly_salary (mức nền)×cong_doan_rate (tự tính, thử việc=0)
     pit: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")            # thuế TNCN (tự tính, có thể ghi đè tay)
     pit_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")  # HCNS ghi đè TNCN tay (Pha 4b)
     pit_taxable: Mapped[float] = mapped_column(_MONEY, nullable=False, default=0, server_default="0")    # thu nhập tính thuế đã dùng (Pha 4b)

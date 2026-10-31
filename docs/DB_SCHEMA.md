@@ -3186,7 +3186,7 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `gross` | `Numeric(14,2)` | — | no | `0` | Tổng thu nhập trước khấu trừ. |
 | `insurance_base` | `Numeric(14,2)` | — | no | `0` | Mức đóng BH. |
 | `bhxh` | `Numeric(14,2)` | — | no | `0` | Khấu trừ BHXH/BHYT/BHTN. |
-| `cong_doan` | `Numeric(14,2)` | — | no | `0` | Đoàn phí công đoàn = insurance_base×cong_doan_rate (tự tính, thử việc=0). Thêm qua migration 0074. |
+| `cong_doan` | `Numeric(14,2)` | — | no | `0` | Đoàn phí công đoàn = monthly_salary (mức nền cơ bản + trách nhiệm)×cong_doan_rate (tự tính, thử việc=0; gốc chốt 16/09/2026). Thêm qua migration 0074. |
 | `pit` | `Numeric(14,2)` | — | no | `0` | Thuế TNCN (tự tính, có thể ghi đè tay). |
 | `pit_manual` | `Boolean` | — | no | `false` | TNCN do HCNS ghi đè tay (không auto ghi đè). Thêm qua migration 0044. |
 | `pit_taxable` | `Numeric(14,2)` | — | no | `0` | Thu nhập **TÍNH** thuế đã dùng để tính TNCN (đã trừ BHXH + giảm trừ gia cảnh). Thêm qua migration 0044. ⚠️ KHÔNG phải `thu_nhap_chiu_thue` — hai số cách nhau ~15,5tr, dùng lẫn là sai thuế. |

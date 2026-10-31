@@ -3,8 +3,10 @@ import { useState } from "react";
 import {
   api,
   PIT_MODE_META,
+  PIT_MODE_ORDER,
   type EmployeeDetail,
   type EmployeeInput,
+  type PitMode,
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { Check, Copy, CreditCard, FileText, Users } from "lucide-react";
@@ -16,8 +18,9 @@ import { InfoCard, InfoField } from "../components/info-display";
 // Tab Lương & BHXH — dữ liệu nhạy cảm (chỉ hiện với quyền `nhan_su:view_salary`).
 // Khoản thu nhập gán theo TỪNG NGƯỜI: Lương → Lương nhân viên → Sửa lương → "+ Thêm khoản thu
 // nhập" (CHỌN từ danh mục — màn nhân sự không có đường tạo khoản mới).
-// Cách tính thuế TNCN (`pit_mode`) chỉ HIỆN ở đây, sửa ở Lương → Lương nhân viên → Sửa lương
-// (một nơi khai, tránh 2 chỗ cùng sửa một số).
+// Cách tính thuế TNCN (`pit_mode`) khai ở ĐÂY, cạnh Người phụ thuộc — cùng là dữ liệu thuế của hồ
+// sơ, cùng quyền `nhan_su:edit_salary`. Trước 31/10/2026 dòng gợi ý chỉ sang Sửa lương, nhưng khối
+// chọn ở đó đã bị ẩn từ 03/08 ⇒ không còn đường nào đổi được ngoài Nhập Excel.
 export function SalaryTab({
   token,
   emp,
@@ -84,6 +87,21 @@ export function SalaryTab({
               onChange={(e) => set("dependents_count", Number(e.target.value))}
             />
           </Field>
+          <Field
+            label="Cách tính thuế TNCN"
+            hint={form.pit_mode ? PIT_MODE_META[form.pit_mode as PitMode].hint : undefined}
+          >
+            <select
+              value={form.pit_mode ?? "luy_tien"}
+              onChange={(e) => set("pit_mode", e.target.value as PitMode)}
+            >
+              {PIT_MODE_ORDER.map((m) => (
+                <option key={m} value={m}>
+                  {PIT_MODE_META[m].label}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Số tài khoản">
             <input
               value={form.bank_account ?? ""}
@@ -145,7 +163,7 @@ export function SalaryTab({
             label="Cách tính thuế TNCN"
             value={emp.pit_mode ? PIT_MODE_META[emp.pit_mode].label : null}
             icon={FileText}
-            hint="Đổi ở Lương → Lương nhân viên → Sửa lương."
+            hint="Đổi bằng nút Sửa lương & BHXH ở trên."
           />
         </InfoCard>
       </div>
