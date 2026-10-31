@@ -1,0 +1,1242 @@
+% Hướng dẫn cấu hình hệ thống ERP Sao Việt Nhật: một file chung cho mọi module.
+% Biên dịch: xelatex cau-hinh-he-thong.tex (chạy hai lần cho mục lục).
+% Tài liệu sử dụng từng phòng link sang các mốc \label{...} trong file này.
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage[vietnamese]{babel}
+\setmainfont{Times New Roman}
+\newfontfamily\tieude{Arial}
+\usepackage[a4paper,margin=1.9cm,top=1.7cm]{geometry}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\usepackage[most]{tcolorbox}
+\usepackage{longtable}
+\usepackage{booktabs}
+\graphicspath{{hinh/}}
+
+% Màu cam gạch của phần mềm.
+\definecolor{gach}{HTML}{C2410C}
+\definecolor{xamnen}{HTML}{F4F4F5}
+\definecolor{xamchu}{HTML}{52525B}
+
+\setlist{nosep,leftmargin=1.5em}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+
+% Chương = \section, mục = \subsection: tài liệu chạy liền, không ngắt trang ở mỗi chương.
+\titleformat{\section}{\tieude\Large\color{gach}}{Chương \thesection.}{0.4em}{}[{\color{gach}\titlerule[0.8pt]}]
+\titlespacing*{\section}{0pt}{1.2em}{0.6em}
+\titleformat{\subsection}{\tieude\large}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{1.1em}{0.3em}
+\renewcommand{\cftsecpresnum}{Chương }
+\setlength{\cftsecnumwidth}{5.2em}
+\renewcommand{\cftsecfont}{\tieude}
+\renewcommand{\cftsecpagefont}{\tieude}
+\setlength{\cftbeforesecskip}{0.5em}
+\addto\captionsvietnamese{\renewcommand{\contentsname}{Mục lục}}
+\renewcommand{\cfttoctitlefont}{\tieude\large}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{0pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\tieude\footnotesize\color{xamchu}Hướng dẫn cấu hình hệ thống}
+\fancyhead[R]{\tieude\footnotesize\color{xamchu}ERP Sao Việt Nhật}
+\fancyfoot[C]{\tieude\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% Đoạn bối cảnh đầu mỗi chương/mục: việc này là gì, ai làm, khi nào làm.
+\newtcolorbox{boicanh}{colback=xamnen,colframe=xamnen,boxrule=0pt,arc=3pt,
+  left=9pt,right=9pt,top=6pt,bottom=6pt,before skip=4pt,after skip=8pt}
+
+% Tên ô, tên nút trên màn hình.
+\definecolor{vang}{HTML}{FEF08A}
+\newcommand{\oo}[1]{{\setlength{\fboxsep}{1.2pt}\colorbox{vang}{\strut #1}}}
+% Đường đi trong thanh bên.
+\newcommand{\duong}[1]{{\tieude\small #1}}
+% Số khoanh đỏ trên ảnh.
+\newcommand{\so}[1]{{\tieude\bfseries\small\textcolor{white}{\colorbox{red!80!black}{\kern-2pt#1\kern-2pt}}}}
+% Ảnh có viền mảnh.
+\newcommand{\khung}[2]{{\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.5pt}%
+  \fcolorbox{black!20}{white}{\includegraphics[width=\dimexpr#1-1pt\relax]{#2}}}}
+% Nháy kép thẳng.
+\newcommand{\q}[1]{\textquotedbl#1\textquotedbl{}}
+% Ảnh bên trái, chú thích bên phải: \canh{tỉ lệ rộng ảnh}{file}{nội dung}.
+\newcommand{\canh}[3]{%
+  \par\noindent
+  \begin{minipage}[t]{#1\linewidth}\vspace{0pt}\khung{\linewidth}{#2}\end{minipage}\hfill
+  \begin{minipage}[t]{\dimexpr0.97\linewidth-#1\linewidth\relax}\vspace{0pt}\setlength{\parskip}{0.5em}#3\end{minipage}\par\medskip}
+% Ảnh rộng hết dòng.
+\newcommand{\rong}[2][\linewidth]{\par\noindent\begin{center}\khung{#1}{#2}\end{center}\vspace{-0.6em}}
+
+\begin{document}
+
+% ---------- Đầu tài liệu ----------
+\thispagestyle{empty}
+\begin{tcolorbox}[colback=gach,colframe=gach,arc=4pt,left=14pt,right=14pt,top=14pt,bottom=12pt]
+\color{white}\tieude
+{\footnotesize ERP SAO VIỆT NHẬT}\par\vspace{4pt}
+{\fontsize{24}{28}\selectfont Hướng dẫn cấu hình hệ thống}\par\vspace{6pt}
+{\small Phòng ban, phân quyền, tài khoản, danh mục dùng chung và danh mục của từng phòng}\par\vspace{8pt}
+{\footnotesize Cập nhật 31/10/2026}
+\end{tcolorbox}
+
+\begin{boicanh}
+Tài liệu này gom mọi việc khai báo ban đầu của phần mềm vào một chỗ. Người làm là quản trị phần mềm và người
+được giao khai danh mục ở mỗi phòng. Dùng khi xưởng mới bắt đầu chạy phần mềm, và mỗi khi có phòng, người, máy,
+giấy hay công đoạn mới. Tài liệu sử dụng của từng phòng sẽ trỏ về đúng mục ở đây thay vì viết lại.
+
+Ảnh trong tài liệu chụp từ phần mềm thật. Ô đỏ đánh số là chỗ cần bấm hoặc cần điền, số khớp với lời giải
+thích bên cạnh.
+\end{boicanh}
+
+\tableofcontents
+
+% ============================================================
+\section{Thứ tự khai}\label{thu-tu-khai}
+
+\begin{boicanh}
+Nhiều danh mục cần danh mục khác có trước. Máy phải thuộc một tổ, công đoạn phải chọn máy chạy được, phiếu
+tính giá phải chọn khách và giấy. Khai ngược thứ tự thì ô chọn sẽ trống. Sơ đồ dưới cho biết khai cái gì
+trước, cái gì sau.
+\end{boicanh}
+
+\rong[0.84\linewidth]{luong-cau-hinh.png}
+
+\begin{enumerate}
+\item Phòng ban và tổ sản xuất. Vai trò thuộc phòng, máy thuộc tổ, nên phòng ban khai đầu tiên.
+\item Vai trò và ma trận quyền của từng phòng (chương \ref{phan-quyen}).
+\item Chấm công (điểm chấm công, ca làm, lịch và ngày lễ), loại nghỉ phép, cấu hình lương. Hồ sơ nhân viên gán
+ca từ đây, bảng lương đầu tiên tính theo luật ở đây.
+\item Hồ sơ nhân sự: tạo tài khoản, gán vai, khai mức lương từng người. Lập nhóm dùng chung nếu cần.
+\item Danh mục nền: Đơn vị \& quy đổi, rồi Thiết bị \& Máy móc, rồi Giấy và Vật tư khác, cuối cùng là Công đoạn.
+\item Khách hàng, rồi lập thử một phiếu tính giá mẫu so với giá tính tay.
+\end{enumerate}
+
+Thành phẩm và khuôn không cần khai trước. Thành phẩm tự sinh khi chốt đơn hàng bán. Phiếu tính giá chỉ hỏi
+khuôn có sẵn hay làm mới; khuôn bế chọn ở bước lệnh sản xuất. Khai báo kho, Tiêu chí KCS, Xe giao hàng, Mục thu chi
+khai trước khi bắt đầu dùng kho, KCS, giao hàng, thu chi (mục \ref{danh-muc-khuon} trở đi).
+
+% ============================================================
+\section{Phân quyền}\label{phan-quyen}
+
+\begin{boicanh}
+Phân quyền quyết định mỗi người mở được màn nào, sửa được gì và thấy dữ liệu của ai. Chương này giải thích
+cách đọc và cách gán quyền, dùng chung cho mọi module. Quyền riêng của từng màn nằm ngay đầu mục khai màn đó
+ở các chương sau. Người làm là quản trị phần mềm, hoặc trưởng phòng được bật quyền sửa ma trận.
+\end{boicanh}
+
+Quyền gắn vào \emph{vai trò}, mỗi vai thuộc một phòng. Một người dùng được màn nào phải đủ ba thứ: phòng có vai
+đó, vai đó bật quyền trên ma trận, và tài khoản của người đó đã được gán vai.
+
+\subsection{Mở ma trận quyền}\label{phan-quyen-ma-tran}
+
+\begin{boicanh}
+Mỗi phòng tự có danh sách vai của mình. Ví dụ Phòng Kinh Doanh có ba vai: Trợ lý kinh doanh, sale và Trưởng
+phòng kinh doanh. Làm mục này khi phòng mới lập, khi cần thêm vai, hoặc khi muốn mở thêm hay thu bớt quyền
+của một vai. Sửa ma trận là sửa cho mọi người đang giữ vai đó.
+\end{boicanh}
+
+\duong{Nhân sự \& Lương > Phòng ban}, chọn phòng ở cây bên trái. Ảnh là Phòng Kinh Doanh.
+
+\rong[0.74\linewidth]{20-vai-tro.png}
+
+\so{1} Mở tab \oo{Vai trò \& Quyền}.
+
+\so{2} Bấm chip tên vai để mở ma trận của vai đó. Số trên chip là số người đang giữ vai.
+
+\so{3} \oo{+ Vai trò} tạo vai mới trong phòng, gõ tên vào ô \oo{Tên vai trò} rồi bật quyền.
+
+\so{4} Sửa xong bấm \oo{Lưu thay đổi}. Chưa bấm thì chưa có hiệu lực.
+
+Cần vai gần giống vai có sẵn thì bấm \oo{Nhân bản vai trò} rồi sửa chỗ khác nhau, đỡ phải bật lại từng dòng.
+
+\Needspace*{12\baselineskip}
+\subsection{Đọc một dòng quyền}\label{phan-quyen-dong}
+
+\begin{boicanh}
+Mỗi dòng của ma trận là một màn trên thanh bên, dòng nào cũng có cùng một bộ ô. Đọc hiểu một dòng là đọc được
+cả ma trận. Ví dụ dưới là dòng Tính giá của vai Trợ lý kinh doanh.
+\end{boicanh}
+
+\rong{21-dong-quyen.png}
+
+\begin{enumerate}[leftmargin=2.2em,labelsep=0.5em,itemsep=2pt]
+\item[\so{1}] Ô tick: bật hay tắt cả màn với vai này.
+\item[\so{2}] \oo{Xem}: mở màn và xem dữ liệu. Tắt Xem thì Thao tác cũng tắt theo.
+\item[\so{3}] \oo{Thao tác}: thêm, sửa, xoá. Bật Thao tác thì Xem tự bật theo.
+\item[\so{4}] \oo{Phạm vi}: thấy dữ liệu của ai, giải thích ở mục \ref{phan-quyen-pham-vi}.
+\item[\so{5}] Chip \oo{N/M chi tiết}: bấm để mở quyền chi tiết. Màn không có quyền chi tiết thì không có chip.
+\item[\so{6}] Quyền chi tiết. Ở Tính giá là \oo{Xem chi tiết giá vốn}: tắt thì chỉ thấy giá vốn tổng.
+\end{enumerate}
+
+Sáu màn luôn bật Xem, không tắt được: Nội quy, Hồ sơ của tôi, Chấm công, Nghỉ phép, Tăng ca, Lương.
+
+\subsection{Phạm vi}\label{phan-quyen-pham-vi}
+
+\begin{boicanh}
+Phạm vi cho biết người đó thấy dữ liệu của ai: \oo{Của tôi} là của mình, \oo{Cả phòng} là của cả phòng mình
+(gồm tổ con), \oo{Tất cả} là cả công ty.
+\end{boicanh}
+
+Ở khối Kinh doanh, khách và phiếu tính giá, báo giá, đơn của khách đó đều tính theo \oo{NV phụ trách} của
+khách. Cấu hình đang dùng ở Phòng Kinh Doanh:
+
+\begin{itemize}
+\item Sale để \oo{Của tôi}: chỉ thấy khách mình phụ trách.
+\item Trợ lý kinh doanh để \oo{Cả phòng}: thấy mọi khách của các sale trong phòng.
+\end{itemize}
+
+Khách nào cũng phải có \oo{NV phụ trách}. Khách bỏ trống ô này thì chỉ người để \oo{Tất cả} mới thấy.
+
+\subsection{Nhóm dùng chung}\label{phan-quyen-nhom}
+
+Chỉ cần khi muốn một người thấy khách của vài sale chứ không phải cả phòng. Người để \oo{Của tôi} thấy thêm
+khách của người cùng nhóm. Trợ lý đã để \oo{Cả phòng} thì không cần nhóm.
+
+\Needspace*{22\baselineskip}
+\subsection{Gán vai và lập nhóm}\label{phan-quyen-gan-vai}
+
+\begin{boicanh}
+Có vai rồi thì phải gán vai cho người. Tab Nhân sự của phòng cho làm nhiều người một lần, nên dùng khi mới
+khai phòng hoặc khi đổi vai cho cả nhóm người. Nhóm dùng chung cũng lập ở đây.
+\end{boicanh}
+
+\duong{Nhân sự \& Lương > Phòng ban}, chọn phòng.
+
+\rong[0.64\linewidth]{22-gan-vai-nhom.png}
+
+\so{1} Mở tab \oo{Nhân sự}.
+
+\so{2} Tick những người cần làm. Tick bao nhiêu người cũng được, thanh trên cùng báo số đã chọn.
+
+\so{3} \oo{Gán vai trò}: chọn một vai của phòng cho những người đã tick.
+
+\so{4} \oo{Thêm vào nhóm}: mở danh sách nhóm ở ảnh dưới.
+
+\so{5} Chip tím dưới tên người là nhóm họ đang ở. Badge xanh bên phải là vai.
+
+Vai và nhóm gắn theo tài khoản. Người chưa có tài khoản sẽ bị bỏ qua khi gán.
+
+\canh{0.42}{23-them-vao-nhom.png}{%
+Sau khi bấm \oo{Thêm vào nhóm}:
+
+\so{1} Danh sách nhóm có sẵn. Tick nhóm để thêm những người đã chọn vào, bấm lại nhóm đã tick để gỡ họ ra.
+Nhóm nào mới có một phần người đã chọn thì ghi \q{1/2 người đã ở}.
+
+\so{2} \oo{Tạo nhóm mới từ N người này} khi chưa có nhóm phù hợp.}
+
+\Needspace*{22\baselineskip}
+\subsection{Tài khoản của một người}\label{phan-quyen-tai-khoan}
+
+\begin{boicanh}
+Mỗi hồ sơ nhân sự có một tài khoản đăng nhập. Mục này dùng khi chỉ cần xem hay đổi vai của một người, hoặc
+khi người đó quên mật khẩu, nghi lộ mật khẩu, cần chặn đăng nhập tạm thời.
+\end{boicanh}
+
+\duong{Nhân sự \& Lương > Hồ sơ nhân sự}, mở hồ sơ người đó.
+
+\rong[0.8\linewidth]{24-tai-khoan.png}
+
+\so{1} Mở tab \oo{Tài khoản \& Quyền}.
+
+\so{2} Ô \oo{Vai trò} chỉ liệt kê vai của phòng ghi trên hồ sơ.
+
+Khối \oo{Bảo mật} có ba nút: \oo{Đặt lại mật khẩu}, \oo{Thu hồi mọi phiên} và \oo{Khóa tài khoản}. Thu hồi
+mọi phiên là đăng xuất người đó trên mọi máy. Người đã nghỉ việc tự không đăng nhập được, không cần khoá tay.
+
+% ============================================================
+\Needspace*{14\baselineskip}
+\section{Nhân sự}\label{nhan-su}
+
+\begin{boicanh}
+Chương này dựng bộ khung người của công ty: phòng ban và tổ sản xuất, rồi hồ sơ từng nhân viên kèm tài khoản
+đăng nhập. Người làm là phòng Hành chính nhân sự hoặc quản trị phần mềm. Vai trò và nhóm dùng chung đã nói ở
+chương \ref{phan-quyen}.
+\end{boicanh}
+
+\subsection{Quyền của hai màn}\label{nhan-su-quyen}
+
+Mở ma trận như mục \ref{phan-quyen-ma-tran}. Dòng \oo{Phòng ban}: \oo{Thao tác} là thêm, sửa, xoá phòng và vai
+trò. Bấm chip chi tiết có thêm ba quyền:
+
+\rong[0.86\linewidth]{30-quyen-phong-ban.png}
+
+\begin{itemize}
+\item \oo{Đặt trưởng phòng}: chọn hoặc đổi người đứng đầu của phòng, tổ.
+\item \oo{Đổi cấp trên (cây tổ chức)}: chuyển một phòng, tổ sang trực thuộc phòng khác. Lúc tạo phòng mới thì
+chọn cấp trên không cần quyền này.
+\item \oo{Sửa ma trận phân quyền}: sửa và lưu ma trận, nhân bản vai, lập nhóm dùng chung. Không bật thì chỉ
+xem được ma trận.
+\end{itemize}
+
+Hai quyền đầu phải bật kèm \oo{Thao tác}. Quyền thứ ba dùng riêng được.
+
+\Needspace*{16\baselineskip}
+Dòng \oo{Hồ sơ nhân sự} có mười quyền chi tiết. Phạm vi của màn này chỉ có \oo{Cả phòng} và \oo{Tất cả}.
+
+\rong[0.86\linewidth]{31-quyen-nhan-su.png}
+
+\begin{itemize}
+\item \oo{Xem lương \& BHXH}: không bật thì ô lương, bảo hiểm, thuế trên hồ sơ bị ẩn.
+\item \oo{Sửa lương \& BHXH}: bật ô này thì \oo{Xem lương \& BHXH} tự bật theo. Tắt xem lương thì ô này tắt theo.
+\item \oo{Đổi trạng thái nhân viên}: lên chính thức, tạm nghỉ, đình chỉ, nghỉ việc.
+\item \oo{Điều chuyển \& đổi chức danh}: chuyển người sang phòng, tổ khác.
+\item \oo{Duyệt yêu cầu cập nhật}: duyệt đề nghị sửa thông tin nhân viên gửi từ \oo{Hồ sơ của tôi}.
+\item \oo{Xuất Excel danh sách}: cột lương chỉ có khi được xem lương.
+\item \oo{Đặt lại mật khẩu}, \oo{Khóa / Mở tài khoản}, \oo{Thu hồi phiên}, \oo{Gán vai trò}: bốn việc trên tài
+khoản đăng nhập, xem mục \ref{phan-quyen-tai-khoan}.
+\end{itemize}
+
+\subsection{Tạo phòng, tổ}\label{nhan-su-tao-phong}
+
+\begin{boicanh}
+Phòng ban là gốc của mọi thứ: vai trò thuộc phòng, máy thuộc tổ, lương khoán tính theo tổ. Tổ sản xuất cũng là
+một phòng, chỉ khác là nằm dưới phòng khác trên cây.
+\end{boicanh}
+
+\canh{0.5}{32-them-phong.png}{%
+\duong{Nhân sự \& Lương > Phòng ban}. Phòng cấp cao nhất thì bấm \oo{Thêm phòng gốc}. Tổ nằm trong một phòng
+thì rê chuột lên phòng đó ở cây bên trái, bấm dấu \oo{+}.
+
+\so{1} Gõ tên phòng hoặc tổ.
+
+\so{2} \oo{Đơn vị trực thuộc}: phòng cha. Để trống là phòng gốc. Bấm dấu \oo{+} ở cây thì ô này tự điền.
+
+\so{3} Bấm \oo{Tạo phòng ban}.}
+
+\subsection{Trưởng phòng và khối}\label{nhan-su-sua-phong}
+
+\begin{boicanh}
+Tạo xong, mở lại phòng để đặt người đứng đầu và đánh dấu phòng thuộc khối nào. Khối quyết định phòng đó hiện
+ở phân hệ nào: người khối Kinh doanh mới được chọn làm NV phụ trách khách, phòng khối Sản xuất mới lên phân hệ
+Sản xuất.
+\end{boicanh}
+
+\canh{0.5}{33-sua-phong.png}{%
+Chọn phòng ở cây, bấm \oo{Chỉnh sửa}.
+
+\so{1} \oo{Đơn vị Trực thuộc}: đổi phòng cha. Cần quyền \oo{Đổi cấp trên}.
+
+\so{2} \oo{Người đứng đầu}: chỉ chọn được người thuộc phòng này hoặc tổ con của nó.
+
+\so{3} \oo{Bộ phận thuộc Khối Sản xuất}: cả cây con tự tính là sản xuất.
+
+\so{4} \oo{Bộ phận thuộc Khối Kinh doanh}: cả cây con tự tính là kinh doanh. Người trong khối hiện ở ô
+\oo{NV phụ trách} của màn Khách hàng.
+
+\so{5} \oo{Bộ phận Giao hàng}: chỉ đúng phòng, tổ này, không lan xuống tổ con. Người trong đó là tài xế, hiện ở
+tab Nhân viên giao hàng và được tính khoán km.
+
+\so{6} \oo{Tổ in}: chỉ đúng tổ này. Thợ in đi làm Chủ nhật, lễ thì ăn công thay vì tính sản lượng.
+
+Xong bấm \oo{Lưu thay đổi} ở chân hộp.
+
+Ô \oo{Tỷ lệ Lương thử việc} ở dưới chỉ để xem, số này sửa ở Cấu hình lương (mục \ref{nhan-su-cau-hinh-luong}).}
+
+\Needspace*{18\baselineskip}
+\subsection{Chấm công: điểm, ca, ngày lễ}\label{nhan-su-cham-cong}
+
+\begin{boicanh}
+Chấm công cần ba thứ có trước: chỗ được bấm chấm công, ca làm của từng người, và lịch tuần làm việc kèm ngày
+lễ. Thiếu ca thì phần mềm không biết ai đi muộn, thiếu lịch thì công chuẩn của tháng sai. Khai cả ba trước khi
+thêm nhân viên, vì hồ sơ nhân viên gán ca nền từ đây.
+\end{boicanh}
+
+Dòng \oo{Chấm công} trong ma trận: \oo{Xem} và \oo{Thao tác} luôn bật cho mọi người (tự bấm giờ, xem công của
+mình). Việc cấu hình nằm ở ba quyền chi tiết:
+
+\rong[0.86\linewidth]{3d-quyen-cham-cong.png}
+
+\begin{itemize}
+\item \oo{Điểm chấm công}, \oo{Khai ca}, \oo{Lịch \& Ngày lễ}: mỗi quyền mở đúng một tab cùng tên. Muốn thêm,
+sửa thì phạm vi của dòng phải là \oo{Tất cả}.
+\item \oo{Bảng công tháng}, \oo{Xem Nhật ký chấm công}: xem công và từng lượt chấm của người khác.
+\item Các quyền duyệt phiếu đi muộn, về sớm, nghỉ nửa buổi, \oo{Duyệt yêu cầu chỉnh công}, \oo{Chấm bù / sửa công},
+\oo{Chốt kỳ công / Mở lại kỳ}: việc hằng tháng của người quản lý công, không phải cấu hình.
+\end{itemize}
+
+\canh{0.42}{3d-diem-them.png}{%
+\duong{Nhân sự \& Lương > Chấm công}, tab \oo{Điểm chấm công}, bấm \oo{Thêm điểm chấm công}.
+
+\so{1} \oo{Tên điểm chấm công}, ví dụ Xưởng in.
+
+\so{2} Đứng tại xưởng thì bấm \oo{Lấy vị trí GPS hiện tại của tôi}, vĩ độ và kinh độ tự điền.
+
+\so{3} Hoặc bấm lên bản đồ để đặt tâm.
+
+\so{4} \oo{Bán kính cho phép (mét)}: nhân viên chỉ bấm được \oo{Chấm công} khi đứng trong vòng này.
+
+\so{5} \oo{Lưu cấu hình}.
+
+Công ty có nhiều xưởng thì khai mỗi xưởng một điểm.}
+
+\canh{0.42}{3d-ca-form.png}{%
+Tab \oo{Khai ca}, mục \oo{A · Ca làm việc}, bấm \oo{Thêm ca làm việc}.
+
+\so{1} \oo{Tên ca làm việc}, ví dụ Ca hành chính.
+
+\so{2} \oo{Dung sai đi muộn}: vào trễ trong số phút này chưa tính đi muộn.
+
+\so{3} \so{4} \oo{Giờ vào ca}, \oo{Giờ ra ca}. Ca có nghỉ trưa thì bật \oo{Có nghỉ giữa ca}. Ca qua nửa đêm thì
+bật \oo{Ca qua đêm}.
+
+\so{5} \oo{Phụ cấp cơm}, tính theo ngày.
+
+\so{6} \oo{Phụ cấp ca}, tính theo ca.
+
+\so{7} \oo{Lưu ca làm việc}.
+
+Giờ làm thực của ca phải bằng giờ công chuẩn (mục \ref{nhan-su-cau-hinh-luong}), lệch thì phần mềm báo đỏ và
+không cho lưu.}
+
+\Needspace*{20\baselineskip}
+Mục \oo{B · Phân ca tháng} bên dưới gán ca cho từng người, từng ngày:
+
+\rong[0.9\linewidth]{3d-phan-ca.png}
+
+\so{1} \oo{Đặt ca chính cho tất cả}: gán một ca nền cho mọi người trong lưới. Ô để trống thì lấy ca nền.
+\so{2} \oo{Bút ca}: chọn một ca (hoặc \oo{Nghỉ}) rồi bấm, kéo trên lưới để tô. Phím 1 đến 9 chọn ca, phím 0 là
+nghỉ. \so{3} Bấm \oo{Lưu}.
+
+\Needspace*{20\baselineskip}
+\rong[0.9\linewidth]{3f-ca-nen-luoi.png}
+
+Người chưa có ca nền thì chưa chấm công được. Thêm nhân viên xong phải đặt ca nền cho họ. \so{1} Chip
+\oo{Chưa có ca} lọc ra những người còn thiếu, số trong ngoặc là số người. \so{2} Bấm ô ở cột \oo{Ca nền} của một
+người để đặt riêng cho người đó:
+
+\canh{0.5}{3f-ca-nen-form.png}{%
+Chọn \oo{Ca}, chọn ngày \oo{Áp dụng từ}, bấm \oo{Áp dụng}. Ca nền áp từ ngày đó về sau cho mọi tháng, khác với tô
+ca trên lưới chỉ đúng ngày đã tô. Chỉ đặt được từ hôm nay trở đi, vì đổi ca ngày đã chấm công sẽ làm sai lương
+đã tính.
+
+Chọn \oo{bỏ gán ca nền} để gỡ ca nền của người đó.}
+
+\canh{0.55}{3d-lich.png}{%
+Tab \oo{Lịch \& Ngày lễ}:
+
+\so{1} \oo{Tuần làm việc chuẩn}: bật các thứ đi làm. Thứ tắt là ngày nghỉ tuần.
+
+\so{2} \oo{Lưu tuần làm việc}.
+
+\so{3} \oo{Thêm ngày}: khai ngày lễ, ngày làm bù (ảnh dưới).
+
+Công chuẩn của tháng phần mềm tự tính: ngày làm trong tuần, trừ ngày lễ, cộng ngày làm bù. Phần \oo{Xem trước
+tháng} cho thấy kết quả.}
+
+\canh{0.42}{3d-ngay-le.png}{%
+\so{1} \oo{Ngày}.
+
+\so{2} \oo{Tên ngày}, ví dụ Quốc khánh.
+
+\so{3} \oo{Loại ngày}: \oo{Nghỉ lễ} (được nghỉ), \oo{Làm bù} (đi làm vào ngày lẽ ra được nghỉ), \oo{Nghỉ không
+lương}.
+
+\so{4} \oo{Hưởng nguyên lương}: bật thì mọi người được cộng một công ngày đó.
+
+Bấm \oo{Thêm ngày} để lưu.}
+
+\Needspace*{18\baselineskip}
+\subsection{Loại nghỉ phép}\label{nhan-su-nghi-phep}
+
+\begin{boicanh}
+Nhân viên xin nghỉ phải chọn một loại nghỉ. Loại nghỉ quyết định ngày nghỉ có được trả lương không và mỗi năm
+được nghỉ tối đa bao nhiêu ngày.
+\end{boicanh}
+
+\rong[0.86\linewidth]{3d-quyen-nghi-phep.png}
+
+Dòng \oo{Nghỉ phép}: \oo{Quản danh mục loại nghỉ} mới được thêm, sửa loại nghỉ. \oo{Duyệt đơn nghỉ phép} để
+duyệt đơn người khác. \oo{Huỷ đơn nghỉ của mình} nên bật cho mọi nhân viên.
+
+\canh{0.45}{3d-loai-nghi.png}{%
+\duong{Nhân sự \& Lương > Nghỉ phép}, tab \oo{Loại nghỉ}, bấm \oo{Thêm loại nghỉ mới}.
+
+\so{1} Tên, ví dụ Phép năm, Nghỉ ốm.
+
+\so{2} \oo{Hạn mức / năm (số ngày)}. Nhập 0 nếu không giới hạn, ví dụ nghỉ không lương.
+
+\so{3} \oo{Hưởng nguyên lương}: đơn được duyệt thì ngày nghỉ tự chấm công ký hiệu P.
+
+\so{4} \oo{Đang sử dụng}: tắt thì nhân viên không chọn được loại này khi xin nghỉ.
+
+\so{5} \oo{Lưu cấu hình}.}
+
+\Needspace*{18\baselineskip}
+\subsection{Cấu hình lương}\label{nhan-su-cau-hinh-luong}
+
+\begin{boicanh}
+Cấu hình lương là luật chung để phần mềm tính bảng lương: giờ công chuẩn, hệ số tăng ca, các khoản thu nhập,
+bảo hiểm, thuế. Khai một lần, tháng nào cũng dùng. Mức lương của từng người khai riêng ở mục
+\ref{nhan-su-luong-nv}.
+\end{boicanh}
+
+\rong[0.86\linewidth]{3d-quyen-luong.png}
+
+Dòng \oo{Lương}: \oo{Xem cấu hình lương} để xem, bật thêm \oo{Thao tác} để sửa. \oo{Lương nhân viên} mở tab
+mức lương từng người, muốn sửa cũng phải kèm \oo{Thao tác}. Các quyền còn lại (\oo{Bảng lương tháng}, \oo{Chốt
+bảng lương / Mở lại kỳ}, \oo{Đánh dấu đã chi lương}, \oo{Duyệt tạm ứng}, \oo{Xuất bảng lương / file chuyển
+khoản}) là việc hằng tháng.
+
+\Needspace*{20\baselineskip}
+\duong{Nhân sự \& Lương > Lương}, tab \oo{Cấu hình lương}. Tab con \oo{Cơ chế lương theo bộ phận}:
+
+\rong[0.68\linewidth]{3d-chl-chung.png}
+
+\so{1} Tab con \oo{Cơ chế lương theo bộ phận}. \so{2} \oo{Giờ công chuẩn / ngày}: lương chia cho số giờ này ra
+giá một giờ công. Ô \oo{Ca phải khớp giờ công chuẩn} bên dưới bắt mọi ca khai ở tab Khai ca phải đúng số giờ
+này. \so{3} \oo{\% lương thử việc}: áp cho mọi người đang thử việc. Luật lao động yêu cầu tối thiểu 85\%, phần
+mềm vẫn cho lưu số thấp hơn nhưng báo đỏ. \so{4} \oo{Công tối thiểu để hưởng cơm / phụ cấp ca}: ngày làm ít
+hơn số công này thì không được phụ cấp cơm, phụ cấp ca.
+
+Hai ô không khoanh: \oo{Hạn mức chỉnh công / tháng} là số ngày mỗi người được tự xin chỉnh công trong một tháng
+(đếm theo ngày, không theo số đơn; HCNS chấm bù trực tiếp thì không bị giới hạn; 0 là không giới hạn).
+\oo{Công tối thiểu để tạm ứng / nhận lương đợt 1}: từ đầu kỳ tới ngày lập phiếu phải có ít nhất ngần này công
+(đi làm, phép có lương, lễ) mới lập được phiếu tạm ứng hoặc lương đợt 1, kể cả phiếu nhân viên tự xin. 0 là tắt
+điều kiện.
+
+\Needspace*{20\baselineskip}
+Kéo xuống:
+
+\rong[0.68\linewidth]{3d-chl-bo-phan.png}
+
+\so{1} \so{2} Hệ số tăng ca: ngày thường, ngày nghỉ tuần, ngày lễ (mặc định 150\%, 200\%, 300\%), trả theo giờ
+trên đơn giá giờ của mức nền. Các ô còn lại trong khối:
+\begin{itemize}[nosep,leftmargin=1.2em]
+\item \oo{Trần giờ tăng ca / tháng}: hết trần thì không tạo được phiếu tăng ca nữa, phiếu đang chờ duyệt cũng
+tính. 0 là tắt trần. \oo{Trần giờ một phiếu tăng ca}: độ dài tối đa một phiếu.
+\item \oo{Làm nguyên công - ngày nghỉ tuần}, \oo{Làm nguyên công - ngày lễ}: đi làm trọn ngày vào ngày nghỉ
+tuần, ngày lễ thì được trả theo hệ số này thay cho tăng ca.
+\item \oo{Tiền một suất cơm tăng ca} (0 là tắt) và \oo{Tăng ca bao nhiêu phút thì được một suất cơm}. Cơm tăng
+ca tính riêng, không đụng cơm ca.
+\item \oo{Phụ cấp làm ban đêm}: cộng thêm cho giờ làm từ 22h tới 6h. \oo{Phụ cấp tăng ca đêm}: cộng thêm cho
+giờ tăng ca rơi vào 22h tới 6h.
+\end{itemize}
+\so{3} \oo{Đổi bộ phận}: chọn một phòng, tổ để khai phần riêng của nó.
+\so{4} \oo{Chuyên cần}: bật cho cả tổ thì người trong tổ được tính thưởng chuyên cần. Số tiền khai theo từng
+người ở mục \ref{nhan-su-luong-nv}.
+
+\Needspace*{20\baselineskip}
+Tab con \oo{Danh mục khoản thu nhập}:
+
+\rong[0.68\linewidth]{3d-khoan-thu-nhap.png}
+
+\so{1} \oo{Thêm khoản}: tạo các khoản như trợ cấp nhà ở, phụ cấp xăng xe, trang phục. \so{2} \oo{Chịu thuế}:
+tick nếu khoản này tính vào thu nhập chịu thuế thu nhập cá nhân. Tạo khoản ở đây mới chỉ là bước 1. Bước 2 là
+gán khoản và số tiền cho từng người ở tab \oo{Lương nhân viên}.
+
+\Needspace*{20\baselineskip}
+Tab con \oo{Bảo hiểm \& Thuế}:
+
+\rong[0.68\linewidth]{3d-bao-hiem.png}
+
+\so{1} Tỷ lệ người lao động đóng BHXH, BHYT, BHTN, trần lương đóng bảo hiểm, đoàn phí công đoàn, số ngày nghỉ
+không lương thì thôi đóng BHXH trong tháng. Đổi khi luật đổi. Thêm hai ô: \oo{TNLĐ-BNN (công ty đóng)} chỉ dùng
+cho người đã có nơi khác đóng bảo hiểm, công ty chỉ chịu khoản này, không trừ vào lương. \oo{Trần khấu trừ kỷ
+luật}: tiền phạt, bồi thường trừ vào lương không quá ngần này phần trăm lương thực trả; 0 là trừ trọn số đã ghi.
+
+\Needspace*{20\baselineskip}
+Cuối tab là thuế thu nhập cá nhân:
+
+\rong[0.68\linewidth]{3d-thue.png}
+
+\so{1} \oo{Giảm trừ bản thân}. \so{2} \oo{Giảm trừ mỗi người phụ thuộc}. \so{3} Biểu thuế lũy tiến từng bậc.
+Người có cách tính thuế \oo{Khấu trừ 10\%} (hợp đồng dưới 3 tháng, thời vụ, thực tập) không theo biểu này: thu
+nhập chịu thuế cả tháng từ \oo{Ngưỡng bắt đầu khấu trừ tại nguồn} trở lên thì bị trừ theo \oo{Thuế suất khấu trừ
+tại nguồn}, không được giảm trừ gia cảnh. Cách tính thuế của từng người xem ở mục \ref{nhan-su-luong-nv}.
+
+\Needspace*{16\baselineskip}
+\rong[0.68\linewidth]{3f-khau-tru-tre.png}
+
+Cuối tab là bảng \oo{khấu trừ đi trễ / về sớm}: mỗi lần đi trễ hay về sớm không phép, quá dung sai của ca, bảng
+lương tự trừ một khoản. Mỗi bậc là \q{tới N phút thì trừ X đồng một lần}, dòng cuối để trống phút là áp cho mọi
+số phút lớn hơn. Bấm \oo{Thêm bậc} để thêm dòng.
+
+Tab con \oo{Khoán km giao hàng} khai mức tiền theo km cho xe giao hàng, chỉ cần khi công ty có đội xe.
+
+\subsection{Thêm nhân viên}\label{nhan-su-them}
+
+\begin{boicanh}
+Mỗi người làm ở công ty có một hồ sơ, kể cả công nhân xưởng. Hồ sơ là nơi tính chấm công, nghỉ phép, lương.
+Tài khoản đăng nhập là tuỳ chọn: công nhân xưởng có thể không cần.
+\end{boicanh}
+
+\duong{Nhân sự \& Lương > Hồ sơ nhân sự}, bấm \oo{Thêm nhân viên}. Hộp thêm có năm bước.
+
+\canh{0.56}{34-them-nv.png}{%
+\so{1} Năm bước. Bấm \oo{Tiếp} để sang bước sau, bước nào chưa cần thì bỏ qua.
+
+\so{2} \oo{Họ tên}, bắt buộc.
+
+\so{3} \oo{Phòng/Tổ}, bắt buộc. Vai trò ở bước 5 lấy theo phòng này.
+
+\so{4} \oo{Chức danh}.
+
+\so{5} \oo{Trạng thái}: để \oo{Thử việc} thì phải điền \oo{Ngày hết thử việc}. Tới ngày đó phần mềm nhắc
+chuyển chính thức.
+
+\so{6} \oo{Tiếp}.}
+
+\canh{0.56}{35-buoc-tai-khoan.png}{%
+Bước 5 \oo{Tài khoản}:
+
+\so{1} Tick ô \oo{Tạo tài khoản đăng nhập}. Không tick thì chỉ tạo hồ sơ.
+
+\so{2} \oo{Tên đăng nhập}.
+
+\so{3} \oo{Mật khẩu tạm}: đưa cho nhân viên để đăng nhập lần đầu.
+
+\so{4} \oo{Vai trò}: để trống thì người đó đăng nhập được nhưng chưa thấy màn nào.
+
+\so{5} \oo{Lưu \& xem hồ sơ}.}
+
+\subsection{Cấp tài khoản cho hồ sơ đã có}\label{nhan-su-cap-tai-khoan}
+
+\canh{0.56}{36-cap-tai-khoan.png}{%
+Hồ sơ tạo trước mà chưa có tài khoản thì mở hồ sơ đó.
+
+\so{1} Tab \oo{Tài khoản \& Quyền}. Phần mềm báo \oo{Chưa có tài khoản đăng nhập}.
+
+Gõ \oo{Tên đăng nhập}. Ô \oo{Mật khẩu ban đầu} phần mềm tự điền sẵn, muốn đổi thì bấm \oo{Tạo mật khẩu
+khác}. Chọn \oo{Vai trò}.
+
+\so{2} Bấm \oo{Cấp tài khoản}.}
+
+\Needspace*{18\baselineskip}
+\subsection{Mức lương từng người}\label{nhan-su-luong-nv}
+
+\begin{boicanh}
+Người chưa khai mức lương thì bảng lương tính 0 đồng cho người đó. Khai ngay sau khi thêm nhân viên, và khai lại
+khi tăng lương.
+\end{boicanh}
+
+\rong[0.9\linewidth]{3d-lnv.png}
+
+\duong{Nhân sự \& Lương > Lương}, tab \oo{Lương nhân viên}. \so{1} Chip \oo{Chưa khai lương} lọc ra những người
+còn thiếu. \so{2} Bấm \oo{Thiết lập} ở dòng của người đó.
+
+\canh{0.5}{3d-lnv-form.png}{%
+Tab \oo{Mức lương \& Phụ cấp}:
+
+\so{1} \oo{Lương cơ bản}, bắt buộc.
+
+\so{2} \oo{Lương trách nhiệm}. Mức nền bằng cơ bản cộng trách nhiệm.
+
+\so{3} \oo{Thưởng chuyên cần}: để 0 nếu không có. Nghỉ ngày nào trừ dần theo luật ở Cấu hình lương.
+
+\so{4} \oo{Cách trả lương}: \oo{Lương khoán} so lương theo công với tiền khoán sản lượng rồi lấy bên cao hơn.
+\oo{Công nhật} trả theo công và giờ tăng ca, không nhận tiền khoán.
+
+Dưới cùng là các khoản thu nhập đã tạo ở danh mục, điền số tiền cho người này.
+
+\so{5} \oo{Lưu điều chỉnh}.}
+
+\Needspace*{18\baselineskip}
+\rong[0.7\linewidth]{3f-sua-luong-bh.png}
+
+Cùng hộp đó, tab \oo{Bảo hiểm \& Công đoàn}: \so{1} \oo{Mức đóng BHXH}, bắt buộc, là số ghi trên hợp đồng bảo
+hiểm của người này. \so{2} \oo{Bảo hiểm đóng ở nơi khác}: tick khi người này đã có nơi khác đóng BHXH, BHYT,
+BHTN; công ty thôi trừ ba khoản đó, chỉ đóng TNLĐ-BNN. \so{3} \oo{Đoàn viên công đoàn}: chỉ người tick mới bị trừ
+đoàn phí, bằng tỷ lệ ở Cấu hình lương nhân mức nền (cơ bản cộng trách nhiệm); người thử việc không đóng.
+\so{4} \oo{Áp dụng giảm trừ bản thân khi tính thuế TNCN}: bỏ tick nếu người này đã đăng ký giảm trừ bản thân ở
+nơi làm việc khác, vì luật chỉ cho đăng ký ở một nơi. Phía dưới hộp có bảng mô phỏng số tiền người lao động và
+công ty đóng mỗi tháng để soát lại.
+
+\Needspace*{18\baselineskip}
+\rong[0.8\linewidth]{3f-ho-so-luong.png}
+
+Thông tin để tính thuế và trả lương nằm ở hồ sơ: \duong{Hồ sơ nhân sự}, mở người đó, tab \oo{Lương \& BHXH}, bấm
+\so{1} \oo{Sửa lương \& BHXH} (bấm xong nút đổi thành \oo{Hủy sửa}). \so{2} \oo{Người phụ thuộc}: mỗi người được
+giảm trừ thêm khi tính thuế, mức ở Cấu hình lương. \so{3} \oo{Cách tính thuế TNCN}: mặc định \oo{Luỹ tiến từng
+phần}. Người hợp đồng dưới 3 tháng, thời vụ, thực tập chọn \oo{Khấu trừ 10\% tại nguồn}; người đã nộp mẫu cam kết
+08 chọn \oo{Có cam kết 08/CK-TNCN}. \so{4} \oo{Số tài khoản} và \so{5} \oo{Ngân hàng}: thiếu thì dòng của người
+này trong file chuyển khoản lương bị trống. Hai ô \oo{Số sổ BHXH}, \oo{MST cá nhân} điền luôn nếu có. Bấm
+\oo{Lưu}. Nút \oo{Sửa lương \& BHXH} chỉ hiện cho người có quyền sửa lương của Hồ sơ nhân sự. Cột \oo{Cách tính thuế
+TNCN} khi \oo{Nhập Excel} hồ sơ cũng đổi được ô này cho nhiều người một lần.
+
+\subsection{Nội quy công ty}\label{nhan-su-noi-quy}
+
+\duong{Nhân sự \& Lương > Nội quy công ty}, bấm \oo{Thêm tài liệu} để tải file nội quy lên. Mọi người đều đọc
+được. Muốn thêm, xoá tài liệu thì vai phải có \oo{Thao tác} ở dòng \oo{Nội quy công ty}.
+
+% ============================================================
+\Needspace*{14\baselineskip}
+\section{Danh mục dùng chung}\label{danh-muc}
+
+\begin{boicanh}
+Năm danh mục đầu (mục \ref{danh-muc-don-vi} đến \ref{danh-muc-cong-doan}) là nguyên liệu của tính giá và lệnh
+sản xuất: phiếu tính giá lấy giá giấy, vật tư, công đoạn từ đây; lệnh sản xuất lấy máy, tốc độ, định mức vật tư từ
+đây. Khai theo đúng thứ tự: Đơn vị trước, Công đoạn sau cùng, vì công đoạn trỏ tới máy, tổ và vật tư. Sáu danh mục
+sau (mục \ref{danh-muc-khuon} đến \ref{danh-muc-muc-thu-chi}) phục vụ kho, KCS, giao hàng, thu chi; khai trước khi
+bắt đầu dùng phân hệ đó.
+\end{boicanh}
+
+Màn nào cũng cùng một khuôn: thanh trên có nút \oo{Thêm \ldots}, \oo{Nhập Excel}, \oo{Xuất Excel}. Bấm một dòng
+trong bảng để mở ngăn sửa, sửa xong bấm \oo{Lưu thay đổi}.
+
+\Needspace*{20\baselineskip}
+\subsection{Quyền của các màn danh mục}\label{danh-muc-quyen}
+
+\rong[0.9\linewidth]{40-quyen-danh-muc.png}
+
+\so{1} Mỗi danh mục có \oo{Xem} và \oo{Thao tác} (thêm, sửa, ngừng dùng). \oo{Đơn vị \& quy đổi} chỉ có hai ô này.
+
+\so{2} \so{3} Bốn màn còn lại có quyền chi tiết:
+\begin{itemize}
+\item \oo{Nhân bản} (Thiết bị \& Máy móc, Công đoạn, Giấy, Vật tư khác): tạo mục mới bằng cách chép một mục có
+sẵn. Bản chép mang tên \q{\ldots{} (bản sao)}, nhớ soát lại giá và công thức trước khi dùng.
+\item \oo{Xem giá} (Giấy, Công đoạn): giá mua giấy là giá vốn, tiền khoán công đoạn là tiền lương. Không bật thì
+các ô đó để trống, người đó sửa dòng vẫn giữ nguyên giá cũ. Riêng giá giấy: ai có \oo{Xem chi tiết giá vốn} của
+Tính giá (mục \ref{kinh-doanh-quyen}) vẫn thấy cột \oo{Đơn giá}, vì thẻ sản phẩm ở phiếu tính giá hiện giá từng loại
+giấy. Lịch sử giá thì chỉ \oo{Xem giá} của Giấy mới mở được.
+\end{itemize}
+
+Sáu màn ở cuối nhóm (\oo{Thành phẩm}, \oo{Khuôn}, \oo{Khai báo kho}, \oo{Tiêu chí KCS}, \oo{Xe giao hàng},
+\oo{Mục thu chi}) chỉ có \oo{Xem} và \oo{Thao tác}, không có quyền chi tiết.
+
+\Needspace*{12\baselineskip}
+\subsection{Đơn vị \& quy đổi}\label{danh-muc-don-vi}
+
+\begin{boicanh}
+Đơn vị khai một lần ở đây, mọi nơi khác (kho, nhà cung cấp, khoán, tính giá) chọn lại từ danh sách này. Quy đổi
+cho phần mềm tự đổi giữa các đơn vị, ví dụ m\textsuperscript{2} ra cm\textsuperscript{2}, kg ra tờ.
+\end{boicanh}
+
+\canh{0.55}{41-don-vi-them.png}{%
+\duong{Cấu hình danh mục > Đơn vị \& quy đổi}, bấm \oo{Thêm đơn vị \& quy đổi}.
+
+\so{1} \oo{Mã}: viết ngắn, không dấu, ví dụ \q{M2}.
+
+\so{2} \oo{Tên}: chữ hiện ra ở mọi màn, ví dụ \q{m\textsuperscript{2}}.
+
+\so{3} Tab \oo{Quy đổi \& số lượng}, khai luôn nếu cần (ảnh dưới).
+
+\so{4} Bấm \oo{Tạo mới}.}
+
+\canh{0.55}{42-don-vi-quy-doi.png}{%
+Ví dụ đơn vị cm\textsuperscript{2}. Ở mục \oo{Thêm quy đổi mới}:
+
+\so{1} Gõ số: 1 cm\textsuperscript{2} bằng bao nhiêu đơn vị kia.
+
+\so{2} Chọn đơn vị quy đổi về.
+
+\so{3} Bấm \oo{Thêm quy đổi}.
+
+Quy đổi khai ở một đơn vị thì đơn vị kia tự thấy. Trong ảnh, quy đổi m\textsuperscript{2} và
+cm\textsuperscript{2} khai ở m\textsuperscript{2}, nên cm\textsuperscript{2} hiện ở dòng \oo{Quy đổi từ đơn vị
+khác}, không cần khai lại.}
+
+Hai đơn vị \oo{kg} và \oo{tờ} là đơn vị bắt buộc của giấy: không xoá, không ngừng dùng, không đổi mã được, quy đổi
+của chúng vẫn sửa được. Ở cột \oo{Quy đổi} của bảng, chip màu cam là quy đổi theo công thức (ví dụ tờ ra kg phụ
+thuộc định lượng và khổ giấy của từng lệnh), chip xám là quy đổi theo một hệ số cố định.
+
+\Needspace*{22\baselineskip}
+\subsection{Thiết bị \& Máy móc}\label{danh-muc-may}
+
+\begin{boicanh}
+Máy gắn với tổ đứng máy. Tốc độ và thời gian chuẩn bị khai ở đây là gốc để lệnh sản xuất và xếp lịch tính ra
+một bước chạy mất bao lâu.
+\end{boicanh}
+
+\canh{0.44}{43-may-chung.png}{%
+Bấm \oo{Thêm thiết bị \& máy móc}, hoặc mở một máy có sẵn. Tab \oo{Thông tin chung}:
+
+\so{1} \oo{Nhóm máy}: chọn nhóm, ví dụ Bế, In. Thiếu nhóm thì bấm \oo{Thêm / xoá} cạnh đó.
+
+\so{2} \oo{Tổ đứng máy}: tick các tổ chạy được máy này. Ở danh mục Công đoạn, máy sẽ hiện theo tổ đã tick ở đây.
+
+\oo{Hãng sản xuất}, \oo{Model}, \oo{Số seri} điền nếu có.}
+
+\canh{0.44}{44-may-toc-do.png}{%
+Tab \oo{Thông số kỹ thuật}:
+
+\so{1} \oo{Tốc độ trung bình}: số dùng để tính thời gian chạy. \oo{Tốc độ tối thiểu} và \oo{Tốc độ tối đa} cho
+lệnh sản xuất thấy khoảng nhanh, chậm. Để trống thì lấy bằng tốc độ trung bình.
+
+\so{2} \oo{Đơn vị tốc độ}: tờ/h hoặc kẽm/h.
+
+\so{3} \oo{Thời gian chuẩn bị}: chọn \oo{Điền tổng} để gõ một số, hoặc \oo{Theo từng khoản} để khai từng việc
+và phần mềm tự cộng.
+
+\so{4} Số phút chuẩn bị khi chọn \oo{Điền tổng}.}
+
+\canh{0.44}{68-bao-tri.png}{%
+Tab \oo{Lịch bảo trì}: khai các gói bảo trì định kỳ của máy. Mỗi gói có tên (ví dụ Bảo trì tháng máy bế), chu kỳ
+\oo{Mỗi} N ngày, tuần, tháng hoặc năm, ngày \oo{Bắt đầu từ}, và danh sách \oo{Việc phải làm trong gói}.
+
+\oo{Kỳ tới} phần mềm tự tính từ phiếu bảo trì gần nhất của máy. Tới kỳ thì phần mềm báo \oo{Tới hạn bảo trì}, quá kỳ mà
+chưa có phiếu thì báo \oo{Quá hạn bảo trì}.
+
+Một máy có nhiều gói thì bấm \oo{Thêm gói bảo trì}, ví dụ gói tháng và gói năm.}
+
+\Needspace*{22\baselineskip}
+\subsection{Giấy}\label{danh-muc-giay}
+
+\begin{boicanh}
+Mỗi dòng là một loại giấy theo định lượng. Đơn giá và công thức ở đây là chỗ phiếu tính giá lấy ra tiền giấy.
+\end{boicanh}
+
+\canh{0.5}{45-giay.png}{%
+Bấm \oo{Thêm giấy}, hoặc mở một dòng có sẵn.
+
+\so{1} \oo{Loại}: \oo{Giấy} hoặc \oo{Sóng}. Một sản phẩm tính giá, một lệnh có tối đa một Giấy và một Sóng.
+
+\so{2} \oo{Định lượng}, tính bằng g/m\textsuperscript{2}.
+
+\so{3} \oo{Đơn giá}: giá một kg. Khi tính giá, phần mềm tự quy về giá một tờ hoặc một kg.
+
+Giấy không có ô chọn đơn vị: phần mềm tự gán hai đơn vị kg và tờ, đổi qua lại theo khổ và
+định lượng.
+
+\so{4} Tab \oo{Công thức tính giá} (ảnh dưới).}
+
+\canh{0.5}{46-giay-cong-thuc.png}{%
+\so{1} Ô công thức. Dòng \oo{Chèn toán tử} có phép tính và hàm như \oo{round}, \oo{max}, \oo{if}. Chế độ
+\oo{Trực quan} hiện công thức bằng thẻ, \oo{Dạng chữ} để gõ tay.
+
+\so{2} \oo{Danh sách biến khả dụng}: bấm một biến là chèn vào công thức. Ví dụ trong ảnh: định lượng × dài × rộng
+tờ nguyên × số tờ × đơn giá.}
+
+\Needspace*{22\baselineskip}
+\subsection{Vật tư khác}\label{danh-muc-vat-tu}
+
+\begin{boicanh}
+Mọi vật tư không phải giấy: mực, keo, màng, kẽm, dụng cụ. Mỗi vật tư có hai công thức: một công thức ra tiền ở
+phiếu tính giá, một công thức ra lượng tiêu hao để lệnh sản xuất xin vật tư.
+\end{boicanh}
+
+\canh{0.5}{47-vat-tu.png}{%
+Bấm \oo{Thêm vật tư khác}, hoặc mở một dòng có sẵn.
+
+\so{1} \oo{Đơn vị tính}: đơn vị chính. Đơn giá của vật tư tính theo đơn vị này.
+
+\so{2} \oo{Đơn vị thêm}: đơn vị kho hoặc nhà cung cấp còn dùng, ví dụ thùng, cuộn. Giá theo đơn vị thêm lấy ở
+bảng giá nhà cung cấp.
+
+\so{3} \oo{Chip riêng của vật tư}: con số người tính giá phải nhập cho riêng vật tư này. Ví dụ \q{Diện tích phủ UV
+(\%)} thành biến \q{ty\_le\_phu} dùng trong hai công thức.
+
+\so{4} \oo{Công thức tính giá}: ra tiền của vật tư ở phiếu tính giá.
+
+\so{5} \oo{Công thức định mức}: ra lượng vật tư tiêu hao cho một bước. Lệnh sản xuất tự tính, không nhập tay.}
+
+\canh{0.5}{48-vat-tu-dinh-muc.png}{%
+Hai tab công thức dùng chung cách khai với Giấy:
+
+\so{1} Ô công thức.
+
+\so{2} Danh sách biến. Chip riêng của vật tư nằm cuối danh sách, ví dụ \oo{Diện tích phủ UV (\%)}.
+
+Vật tư chưa có công thức thì bảng ghi \oo{Chưa có tính giá} hoặc \oo{Chưa có định mức}.}
+
+\Needspace*{22\baselineskip}
+\subsection{Công đoạn}\label{danh-muc-cong-doan}
+
+\begin{boicanh}
+Công đoạn là một bước làm ra sản phẩm: in, cán màng, bế, dán. Nó nối tổ, máy, vật tư và cách tính tiền lại với
+nhau, nên khai sau cùng. Tab \oo{Khoán} là tiền công trả thợ, viết riêng ở mục \ref{danh-muc-khoan}.
+\end{boicanh}
+
+\canh{0.5}{49-cong-doan.png}{%
+Bấm \oo{Thêm công đoạn}, hoặc mở một dòng có sẵn. Tab \oo{Thông tin}:
+
+\so{1} \oo{Giai đoạn}, ví dụ Gia công sau in.
+
+\so{2} \oo{Phòng ban / Tổ phụ trách}: tick được nhiều tổ. Lệnh sản xuất chọn một trong số này cho từng bước. Tổ
+tick đầu tiên là tổ mặc định.}
+
+\canh{0.5}{50-cong-doan-may.png}{%
+Kéo xuống:
+
+\so{1} \oo{Bước này cần khuôn}: bật nếu bước này dùng khuôn.
+
+\so{2} \oo{Loại khuôn}, ví dụ khuôn bế.
+
+\so{3} \oo{Máy chạy được công đoạn này}: máy hiện theo tổ đã tick ở trên. Tốc độ chỉ đọc, muốn sửa thì sửa ở
+danh mục máy (mục \ref{danh-muc-may}). Bấm \oo{Đặt mặc định} dưới máy hay dùng nhất.}
+
+\canh{0.5}{53-cong-doan-don-vi.png}{%
+Cuối tab:
+
+\so{1} \oo{Đơn vị đầu vào}: thứ đưa vào bước, ví dụ Tờ in.
+
+\so{2} \oo{Đơn vị đầu ra}: thứ bước làm ra, ví dụ Con.
+
+\so{3} \oo{Bù hao}: \oo{Không bù hao}, \oo{Theo bậc số lượng}, hoặc \oo{Cộng cố định (số tờ)}.}
+
+\rong[0.8\linewidth]{67-bu-hao-bac.png}
+
+Bù hao là số tờ hỏng phải chạy thêm ở bước này. \so{1} Chọn \oo{Theo bậc số lượng} thì hiện \so{2} bảng bậc: mỗi
+dòng là \q{khi số lượng ra của công đoạn đến N thì bù hao cộng thêm X}, X tính bằng tờ hoặc \% (bấm chữ \oo{Tờ}
+để đổi). Dòng cuối \oo{Trên} áp cho mọi số lớn hơn. Chọn \oo{Cộng cố định (số tờ)} thì chỉ gõ một số tờ cộng thêm
+cho mọi lệnh. Phần mềm cộng bù hao ngược từ bước cuối về bước in, nên số tờ vào máy in đã gồm bù hao của mọi bước
+sau.
+
+\canh{0.5}{51-cong-doan-vat-tu.png}{%
+Tab \oo{Vật tư}:
+
+\so{1} Gõ tên vật tư bước này tiêu thụ rồi chọn. Lượng tiêu hao không khai ở đây mà lấy từ công thức định mức của
+vật tư (mục \ref{danh-muc-vat-tu}).}
+
+\canh{0.5}{52-cong-doan-cong-thuc.png}{%
+Tab \oo{Công thức tính giá}: ra tiền của bước này ở phiếu tính giá, khai giống Giấy.
+
+\so{1} Ô công thức.
+
+\so{2} Danh sách biến. Công đoạn có thêm \oo{SL vào của công đoạn} và \oo{SL ra của công đoạn}. Nghĩa từng
+biến ở mục \ref{phu-luc-chip}.}
+
+\Needspace*{20\baselineskip}
+\subsection{Tiền khoán của công đoạn}\label{danh-muc-khoan}
+
+\begin{boicanh}
+Tab \oo{Khoán} quyết định mỗi lần thợ ghi sản lượng ở bước này được bao nhiêu tiền. Tiền này cộng vào lương khoán
+(mục \ref{nhan-su-cau-hinh-luong}). Tab chỉ hiện số tiền cho người có ô \oo{Xem giá} của Công đoạn.
+\end{boicanh}
+
+\rong[0.85\linewidth]{64-khoan-in.png}
+
+\so{1} \oo{Đơn giá}: \oo{Đơn vị tính khoán}, \oo{Giá cố định chung}, \oo{Đơn giá chung}. Đây là giá chung cho mọi
+tổ, trừ tổ có giá riêng. \so{2} \oo{Bậc giá theo số màu}: dùng cho bước in. Mỗi dòng có khoảng \oo{Từ màu}
+\oo{Đến màu}, điều kiện \oo{Chỉ khi có pha} hoặc \oo{Chỉ khi tick}, và giá cố định, đơn giá riêng từng tổ. Lúc
+ghi sản lượng, phần mềm dò từ trên xuống, lệnh hợp dòng nào trước thì ăn giá dòng đó. Số màu là số kẽm của lệnh,
+như bên Tính giá. Ô giá trống là tổ không chạy bậc này.
+
+\rong[0.85\linewidth]{65-khoan-to.png}
+
+\so{1} \oo{Giá theo tổ}: để trống hết thì mọi tổ lấy giá chung. Đã điền cho một tổ thì tổ còn trống bị coi là
+thiếu giá. \so{2} \oo{Tuỳ chọn khi ghi}: thứ thợ chọn mỗi lần ghi, ví dụ số lỗ, kẽm bế nối. Mỗi dòng có
+\oo{Tên hiện cho thợ}, cách nhập (\oo{Tick ô} thì tick là 1, không tick là 0; \oo{Gõ số} thì bỏ trống là 0) và
+gợi ý cho thợ. Mỗi tuỳ chọn thành một biến dùng trong công thức khoán. \so{3} \oo{Việc phát sinh}: việc lặt vặt
+trả tiền riêng, không cộng vào sản lượng. Khai tên việc, đơn giá, đơn vị tính, cách tính giá theo từng tổ.
+
+\rong[0.85\linewidth]{66-khoan-cong-thuc.png}
+
+\so{1} \oo{Công thức khoán}: tính trên từng lần ghi sản lượng, giá lấy theo tổ của lần ghi. Kết quả công thức là
+tiền của lần ghi, phần mềm không nhân thêm gì. Bỏ trống thì lần ghi được 0 đ, phần mềm không tự lấy đơn giá nhân
+sản lượng. Công thức dùng được biến khoán (mục \ref{phu-luc-chip}) và các tuỳ chọn khi ghi. Ví dụ bước bế khuôn
+đứt có thể viết \texttt{sl\_ghi / max(1, so\_con) * don\_gia\_khoan}: số tờ bế nhân đơn giá khoán.
+
+\Needspace*{20\baselineskip}
+\subsection{Khuôn}\label{danh-muc-khuon}
+
+\begin{boicanh}
+Kho khuôn bế của xưởng. Mỗi khuôn làm riêng cho hình của một sản phẩm, đơn lặp lại thì lấy khuôn cũ ra dùng. Khai
+để tìm lại được: của khách nào, cất ở kệ nào, còn dùng được không. Phiếu tính giá không đọc danh mục này, chỉ hỏi
+khuôn có sẵn hay làm mới.
+\end{boicanh}
+
+\canh{0.45}{57-khuon.png}{%
+\duong{Cấu hình danh mục > Khuôn}, bấm \oo{Thêm khuôn}.
+
+\so{1} \oo{Tên}: tên sản phẩm của khuôn, ví dụ Khuôn bế hộp mỹ phẩm 8×8×12.
+
+\so{2} \oo{Khách hàng}: khuôn của khách nào.
+
+\so{3} \oo{Loại}: hiện chỉ có \oo{Khuôn bế}.
+
+\so{4} \oo{Số kệ / vị trí lưu}.
+
+\so{5} \oo{Tình trạng}: \oo{Đang dùng}, \oo{Đang đặt làm}, \oo{Hỏng}, \oo{Thanh lý}.
+
+Ở lệnh sản xuất, bước có bật \oo{Bước này cần khuôn} (mục \ref{danh-muc-cong-doan}) chọn khuôn từ đây, lọc theo
+khách và loại. Chọn làm khuôn mới thì phần mềm tự thêm một dòng ở đây với tình trạng \oo{Đang đặt làm}.}
+
+\Needspace*{16\baselineskip}
+\subsection{Thành phẩm}\label{danh-muc-thanh-pham}
+
+\begin{boicanh}
+Thành phẩm là hàng của đơn hàng bán. Phần mềm tự khai khi chốt đơn, không có nút thêm tay. Màn này để xem, sửa
+tên và đơn vị tính.
+\end{boicanh}
+
+\rong[0.9\linewidth]{55-thanh-pham.png}
+
+\so{1} \oo{Đơn đầu tiên}: đơn hàng bán đã sinh ra thành phẩm này. \so{2} \oo{Nhập Excel}: chỉ sửa hàng loạt tên,
+đơn vị tính của mã đã có. Dòng mang mã chưa có sẽ báo lỗi, vì thành phẩm mới chỉ sinh ra từ đơn hàng bán.
+
+\canh{0.45}{56-thanh-pham-sua.png}{%
+Bấm một dòng để mở:
+
+\so{1} \oo{Tên}, sửa được.
+
+\so{2} \oo{Đơn vị tính}: cái, hộp, thùng.
+
+\so{3} \oo{Đơn hàng đầu tiên} và \oo{Khách hàng}: chỉ đọc.
+
+Thành phẩm thuộc về một khách. Khách khác đặt cùng tên thì phần mềm tạo một mã khác.}
+
+\Needspace*{16\baselineskip}
+\subsection{Khai báo kho}\label{danh-muc-kho}
+
+\begin{boicanh}
+Mỗi kho khai ở đây tự hiện thành một mục dưới nhóm \oo{Kho hàng} trên thanh bên. \oo{Kho thành phẩm} (mã
+\oo{KHO-TP}) là kho cố định của phần mềm: thành phẩm chỉ nhập và xuất ở kho này.
+\end{boicanh}
+
+\rong[0.8\linewidth]{58-kho.png}
+
+\duong{Cấu hình danh mục > Khai báo kho}, bấm \oo{Thêm kho hàng}. \so{1} \oo{Tên}, ví dụ Kho giấy. \so{2}
+\oo{Vị trí kho}: kho nằm ở đâu, ví dụ Xưởng 2. Bấm \oo{Tạo mới}.
+
+\so{3} Tab \oo{Vị trí kho}: khai kệ, ô cất hàng trong kho (gõ tên như Kệ A1, bấm \oo{Thêm}). Lập lô hoặc phiếu
+nhập xuất sẽ chọn vị trí từ danh sách này. Tab này chỉ dùng được sau khi kho đã lưu: mở lại kho vừa tạo rồi khai.
+
+\Needspace*{20\baselineskip}
+\subsection{Tiêu chí KCS}\label{danh-muc-kcs}
+
+\begin{boicanh}
+Tiêu chí KCS là các điểm phải kiểm sau mỗi công đoạn, ví dụ màu đúng mẫu, bế không xơ mép. Lệnh sản xuất lúc
+phát hành chép bộ tiêu chí của từng công đoạn về để người kiểm đánh dấu.
+\end{boicanh}
+
+\rong[0.78\linewidth]{60-kcs.png}
+
+\so{1} Cột trái là cây công đoạn theo giai đoạn. Công đoạn chưa có tiêu chí ghi \oo{chưa có}. Bấm một công đoạn
+để khai. \so{2} Gõ một tiêu chí rồi bấm Enter, lặp lại cho tiêu chí tiếp theo. \so{3} \oo{Chép từ công đoạn
+khác}: lấy nguyên bộ tiêu chí của một công đoạn giống. \so{4} \oo{Xem KCS cuối thấy gì}: chọn các công đoạn một
+lệnh sẽ chạy qua, xem bước KCS cuối sẽ bày những tiêu chí nào.
+
+Sửa tiêu chí chỉ áp cho lệnh phát hành từ lúc đó. Lệnh đã phát hành giữ bộ cũ, hồ sơ lệnh sẽ báo tiêu chí đã đổi
+và có nút \oo{Cập nhật tiêu chí}.
+
+\Needspace*{16\baselineskip}
+\subsection{Xe giao hàng}\label{danh-muc-xe}
+
+\canh{0.45}{61-xe.png}{%
+Khai xe để tính tiền khoán km cho tài xế. Cần khai mức khoán km ở Cấu hình lương trước (mục
+\ref{nhan-su-cau-hinh-luong}).
+
+\duong{Cấu hình danh mục > Xe giao hàng}, bấm \oo{Thêm xe giao hàng}.
+
+\so{1} \oo{Biển số}.
+
+\so{2} \oo{Tên}, ví dụ Xe anh Tùng.
+
+\so{3} \oo{Mức khoán km}: chọn mức đã khai. Giá mỗi km do mức này quyết định.
+
+\so{4} \oo{Tải trọng}: chỉ để đối chiếu, không ảnh hưởng tiền.}
+
+\Needspace*{20\baselineskip}
+\subsection{Mục thu chi}\label{danh-muc-muc-thu-chi}
+
+\begin{boicanh}
+Mỗi phiếu thu, phiếu chi mang một mục. Báo cáo thu chi gom tiền theo các mục này.
+\end{boicanh}
+
+\rong[0.8\linewidth]{62-muc-list.png}
+
+\so{1} Các dòng mã \oo{HT-\ldots} có ổ khoá là mục của phần mềm, ví dụ Trả nhà cung cấp, Khách trả tiền hàng.
+Phần mềm tự gắn khi lập phiếu từ đơn mua, đơn bán; không sửa, không xoá được. \so{2} Cột \oo{Bên}: \oo{Thu} hoặc
+\oo{Chi}. Cột \oo{Đã dùng} đếm số phiếu đang mang mục đó.
+
+\canh{0.45}{63-muc.png}{%
+Thêm mục riêng của công ty, ví dụ Tiền điện, Bán phế liệu: bấm \oo{Thêm mục thu chi}.
+
+\so{1} \oo{Mã}: phần mềm gợi ý sẵn, sửa được.
+
+\so{2} \oo{Tên}.
+
+\so{3} \oo{Loại}: \oo{Thu} hoặc \oo{Chi}.
+
+Mục tự thêm mà chưa phiếu nào dùng thì xoá được.}
+
+% ============================================================
+\Needspace*{14\baselineskip}
+\section{Kinh doanh}\label{kinh-doanh}
+
+\begin{boicanh}
+Giá trên phiếu tính giá lấy từ danh mục ở chương \ref{danh-muc}. Phần cấu hình còn lại của phòng Kinh doanh gồm
+ba việc: cấp quyền cho từng màn, khai khách hàng kèm chính sách tài chính, rồi lập một phiếu tính giá mẫu để kiểm
+cả chuỗi. Cách lập phiếu, báo giá, đơn hàng xem ở tài liệu hướng dẫn sử dụng phòng Kinh doanh.
+\end{boicanh}
+
+\Needspace*{16\baselineskip}
+\subsection{Quyền của sáu màn}\label{kinh-doanh-quyen}
+
+Nhóm \duong{Kinh doanh} có sáu màn. \oo{Quy trình kinh doanh} là sơ đồ luồng bán hàng, chỉ cần \oo{Xem}. Năm màn
+còn lại có quyền chi tiết. Ảnh dưới chụp vai Trợ lý kinh doanh: \so{1} bấm chip \oo{chi tiết} để mở, \so{2} các
+quyền chi tiết của dòng.
+
+\rong[0.7\linewidth]{70-quyen-khach.png}
+
+\oo{Khách hàng}: \oo{Thao tác} là thêm, sửa khách, nhập Excel, người liên hệ, lịch hẹn. Phần mềm không có xoá
+khách. \oo{Điều chuyển} cho đổi người phụ trách (mục \ref{kinh-doanh-dieu-chuyen}). \oo{Thiết lập chính sách
+tài chính} cho sửa hạn mức công nợ và rào giá của khách (mục \ref{kinh-doanh-tai-chinh}); không bật thì chỉ xem.
+
+\rong[0.7\linewidth]{71-quyen-tinh-gia.png}
+
+\oo{Tính giá}: \oo{Xem chi tiết giá vốn} cho thấy từng dòng giá vốn và thẻ sản phẩm (giấy, khổ, công đoạn). Không
+bật thì chỉ thấy giá vốn tổng. Có \oo{Thao tác} thì ô này tự bật. Sale thường chỉ để \oo{Xem}.
+
+\rong[0.7\linewidth]{72-quyen-bao-gia.png}
+
+\oo{Báo giá in ấn}: \oo{Thao tác} gồm tạo, sửa, gửi khách, ghi kết quả, huỷ, tải PDF. \oo{Duyệt báo giá đặc thù}
+dành cho người duyệt (thường là giám đốc). Báo giá đặc thù là báo giá từ 1 tỷ trở lên (trước VAT), bán dưới giá
+vốn, hoặc chiết khấu, markup, kê ngoài rào của khách. \oo{Tạo đơn hàng} là ô chung với \oo{Thao tác} của dòng
+Đơn hàng bán: bật một chỗ thì chỗ kia bật theo.
+
+\rong[0.7\linewidth]{73-quyen-don-ban.png}
+
+\oo{Đơn hàng bán}: \oo{Thao tác} gồm tạo, sửa, chốt, huỷ đơn và chuyển đơn xuống sản xuất. Ba quyền chi tiết
+dính tới tiền, nên chung ô với màn kế toán: \oo{Thu cọc và ghi hoá đơn} chung với Phiếu thu, \oo{Huỷ hoá đơn}
+chung với Hủy phiếu thu, \oo{Trả lại cọc} chung với Phiếu chi.
+
+\rong[0.7\linewidth]{74-quyen-giao-hang.png}
+
+\oo{Giao hàng}: \oo{Thao tác} là gửi yêu cầu giao, báo đã lấy hàng, nhập kết quả, số km, đính biên bản. \oo{Lên
+đơn giao hàng} cho xếp chuyến và gửi đề nghị xuất sang kho. \oo{Huỷ yêu cầu / huỷ chuyến} phải ghi lý do.
+\oo{Nhân viên giao hàng} cho xem lịch, chuyến, số km của tài xế khác. Phạm vi ở dòng này tính riêng: \oo{Của tôi}
+là yêu cầu mình lập hoặc chuyến mình chở. Kế toán cần đính biên bản cho mọi đơn thì để \oo{Tất cả}.
+
+Phạm vi các dòng khác theo luật chung (mục \ref{phan-quyen-pham-vi}). Sale để \oo{Của tôi} và lập nhóm dùng chung
+với trợ lý của mình (mục \ref{phan-quyen-nhom}) thì hai người cùng thấy khách, báo giá, đơn của nhau.
+
+\Needspace*{20\baselineskip}
+\subsection{Khai khách hàng}\label{kinh-doanh-khach}
+
+\begin{boicanh}
+Sale khai khách của mình. Người phụ trách khách là người hưởng hoa hồng khi đơn của khách thu được tiền, kể cả
+khi trợ lý lập phiếu, báo giá, đơn hộ.
+\end{boicanh}
+
+\canh{0.55}{75-kh-them.png}{%
+\duong{Kinh doanh > Khách hàng}, bấm \oo{Tạo khách hàng}.
+
+\so{1} Tên công ty hoặc tên khách, bắt buộc.
+
+\so{2} Gõ mã số thuế rồi bấm \oo{Tra cứu MST}: phần mềm tự điền tên và địa chỉ.
+
+\so{3} \oo{Công ty} hoặc \oo{Cá nhân}.
+
+\so{4} \oo{NV phụ trách}: để trống là chính người tạo.
+
+\so{5} \oo{Tạo khách hàng}.}
+
+Trùng mã số thuế, tên hoặc email với khách đã có thì phần mềm cảnh báo nhưng vẫn cho lưu. Đọc kỹ trước khi bấm
+tiếp: khách trùng là hai hồ sơ riêng, báo giá và công nợ bị tách ra hai nơi. Khách đang có trong sổ sách cũ thì
+dùng \oo{Nhập Excel} để đưa vào một lần.
+
+\Needspace*{12\baselineskip}
+\subsection{Chính sách tài chính của khách}\label{kinh-doanh-tai-chinh}
+
+\begin{boicanh}
+Khách mới tạo chưa có hạn mức và rào giá. Người có quyền \oo{Thiết lập chính sách tài chính} (thường là trưởng
+phòng hoặc kế toán) đặt cho từng khách. Rào giá quyết định báo giá nào phải trình duyệt.
+\end{boicanh}
+
+\rong[0.7\linewidth]{77-kh-taichinh.png}
+
+Mở hồ sơ khách, tab \oo{Tổng quan}, kéo xuống cuối: \so{1} thẻ \oo{Chính sách tài chính}. \so{2} Bấm \oo{Sửa}.
+
+\canh{0.55}{78-kh-taichinh-sua.png}{%
+\so{1} \oo{Hạn mức công nợ}: Công nợ phải thu đánh dấu khách nợ vượt số này.
+
+\so{2} \oo{Hạn thanh toán}: số ngày kể từ ngày xuất hoá đơn. Quá ngày thì khoản nợ tính là quá hạn.
+
+\so{3} \oo{Rào giá khi báo giá}: khoảng \oo{Từ} đến \oo{Đến} của \oo{Chiết khấu cho phép}, \oo{Markup trên giá
+vốn}, \oo{Kê cho phép}. Báo giá ra ngoài khoảng thì phải trình duyệt. Để trống một đầu là không giới hạn đầu đó.
+
+\oo{Thuế TNDN trên kê}: phần trăm giữ lại để nộp thuế, chi khách phần còn lại.
+
+Bấm \oo{Lưu}.}
+
+\Needspace*{10\baselineskip}
+\subsection{Đổi người phụ trách}\label{kinh-doanh-dieu-chuyen}
+
+\canh{0.5}{76-kh-dieu-chuyen.png}{%
+Khi sale nghỉ hoặc chia lại khách: \duong{Kinh doanh > Khách hàng}, bấm \oo{Điều chuyển}. Cần quyền
+\oo{Điều chuyển}.
+
+\so{1} Nhân viên đang phụ trách.
+
+\so{2} Nhân viên nhận.
+
+Toàn bộ khách của người nguồn chuyển sang người nhận, kèm lịch sử giao dịch. Nút \oo{Xác nhận bàn giao} đếm
+ngược vài giây trước khi bấm được.}
+
+\Needspace*{6\baselineskip}
+\subsection{Kiểm bằng một phiếu tính giá mẫu}\label{kinh-doanh-kiem}
+
+Khai xong danh mục và khách, trợ lý kinh doanh lập một phiếu tính giá cho một sản phẩm đã từng báo giá tay, đủ
+các bước quen thuộc, ví dụ hộp giấy in 4 màu, cán màng, bế, dán. So từng dòng chi phí trên phiếu với bảng tính
+tay:
+
+\begin{itemize}
+\item Tiền giấy lệch: kiểm \oo{Đơn giá} và \oo{Định lượng} của giấy (mục \ref{danh-muc-giay}), khổ giấy chọn trên
+phiếu.
+\item Một công đoạn ra 0 đ: công đoạn đó chưa có công thức tính giá (mục \ref{danh-muc-cong-doan}).
+\item Số tờ in lệch: kiểm \oo{Đơn vị đầu vào}, \oo{Đơn vị đầu ra} và \oo{Bù hao} của từng công đoạn trong chuỗi.
+\item Tiền vật tư thiếu: vật tư chưa chọn ở tab \oo{Vật tư} của công đoạn, hoặc vật tư chưa có công thức tính giá
+(mục \ref{danh-muc-vat-tu}).
+\end{itemize}
+
+Mọi dòng khớp với cách tính tay thì phần cấu hình ban đầu xong.
+
+\clearpage
+\section{Bảng chip trong công thức}\label{phu-luc-chip}
+
+Ô công thức nào cũng có danh sách chip bên dưới, bấm chip để chèn. Mỗi chip là một con số phần mềm tự điền lúc
+tính. Cột cuối cho biết chip có mặt ở ô nào: G là công thức giá của Giấy, V là Vật tư khác, C là công thức tính
+giá của Công đoạn, Q là công thức lượng (định mức vật tư, quy đổi đơn vị), K là công thức khoán. Chip đặt sai ô
+thì phần mềm không cho lưu.
+
+{\small
+\begin{longtable}{@{}p{0.27\linewidth}p{0.6\linewidth}l@{}}
+\toprule
+\tieude Chip & \tieude Nghĩa & \tieude Ô\\
+\endhead
+\multicolumn{3}{l}{\tieude\small Kích thước và số lượng}\\
+\oo{Dài / Rộng sản phẩm} & Khổ thành phẩm, tính bằng mét (gõ 210 mm thì phần mềm đổi ra 0,21). & GVCQK\\
+\oo{Dài / Rộng tờ nguyên} & Khổ tờ giấy to chưa cắt, mét. & GVCQK\\
+\oo{Dài / Rộng tờ in} & Khổ tờ chạy máy in, mét. & GVCQK\\
+\oo{Số lượng đặt} & Số cái khách đặt. & GVCQK\\
+\oo{Số con/tờ in} & Một tờ in ra mấy cái. & GVCQK\\
+\oo{Số trang sách} & Số trang nội dung một sản phẩm. Tờ rời, hộp là 1. & GVCQK\\
+\oo{Trang mỗi tay} & Số trang trên một tay gấp (8, 16, 32). Không gấp tay là 1. & GVCQK\\
+\midrule
+\multicolumn{3}{l}{\tieude\small Số tờ}\\
+\oo{Tờ vào máy} & Tờ cần in cộng bù hao, đã gồm bù hao các bước sau. & GVCQK\\
+\oo{Tờ tốt sau in} & Số tờ tốt sau in, dùng cho gia công. & GVCQK\\
+\oo{Tờ giấy nguyên} & Số tờ giấy to tiêu hao, chưa cắt. & GVCQK\\
+\midrule
+\multicolumn{3}{l}{\tieude\small Màu, mặt, kẽm}\\
+\oo{Số màu in} & Số màu lên máy, bằng số kẽm một tay, đổi theo quy cách in. & GVCQK\\
+\oo{Số màu pha} & Số kẽm màu pha (Pantone) nằm trong Số màu in. & GVCQK\\
+\oo{Số màu phủ giấy} & Tổng màu phủ lên giấy, mặt A cộng mặt B. Dùng cho mực, giờ máy. & GVCQK\\
+\oo{Số mặt in} & 1 mặt là 1; 2 mặt hoặc tự trở là 2. & GVCQK\\
+\oo{Số bản kẽm} & Số bản mỗi tay nhân số tay. & GVCQK\\
+\midrule
+\multicolumn{3}{l}{\tieude\small Giấy, giá, số của bước}\\
+\oo{Định lượng giấy} & kg/m\textsuperscript{2}, bằng gsm chia 1.000. & GVQK\\
+\oo{Đơn giá giấy} & Giá một kg của loại giấy đang tính. & G\\
+\oo{SL vào / ra của công đoạn} & Số lượng vào, ra của chính bước đang tính, theo đơn vị đầu vào, đầu ra của bước. & VCQK\\
+\oo{Số lượt qua máy} & Số lần hàng đi qua bước này. In trở 2 mặt là 2. & VQK\\
+\oo{Đơn giá khoán} & Đơn giá của chính đầu việc khoán đang khai. Dùng chip này thì công thức ra tiền. & QK\\
+\midrule
+\multicolumn{3}{l}{\tieude\small Chỉ có ở công thức khoán}\\
+\oo{SL ghi} & Số lượng thợ ghi ở lần ghi. & K\\
+\oo{Giá cố định} & Giá cố định của tổ ghi, ví dụ giá một bài in. & K\\
+\oo{Số lần ghi sản lượng} & Số lần ghi của cùng lệnh ở cùng công đoạn tới cuối kỳ lương, tối thiểu 1. & K\\
+\oo{Số lần ghi có thử việc} & Trong số lần ghi trên, số lần có người đang thử việc ngày ghi. & K\\
+\oo{Chạy tiếp} & 1 khi lần ghi liền trước trên cùng máy là chính việc này và cùng ngày, ngược lại 0. & K\\
+\oo{Trùng khuôn} & 1 khi lần ghi liền trước trên cùng máy dùng cùng con dao, khỏi lên khuôn. & K\\
+\oo{Khuôn mới} & 1 khi đây là lần ghi đầu tiên dùng con dao của bước. & K\\
+\oo{Tiền giờ} & Tổng (lương vị trí + trách nhiệm) của người làm chia 26, chia 8, nhân số giờ lần ghi. & K\\
+\oo{Tự trở} & 1 khi quy cách in là tự trở hoặc trở nhíp. & K\\
+\oo{Giá đã gồm UV} & 1 khi bậc giá của lần ghi đã gồm mực UV. & K\\
+\bottomrule
+\end{longtable}}
+
+Ngoài bảng trên, công thức khoán còn dùng được các \oo{Tuỳ chọn khi ghi} của chính công đoạn (mục
+\ref{danh-muc-khoan}). Ô dạng 0/1 hay dùng với \texttt{if}, ví dụ \texttt{if(khuon\_moi > 0, 80000, gia\_co\_dinh)}.
+
+\end{document}
