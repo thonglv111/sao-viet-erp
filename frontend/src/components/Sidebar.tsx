@@ -5,6 +5,7 @@
 // are shown (feat-010) — sections with no visible items are dropped.
 // The user widget lives in the top header (Topbar), not here (feat-018).
 import { useEffect, useState } from "react";
+import { useTenNhomNhanSu } from "../auth/permissions";
 import logoUrl from "../assets/sao-viet-nhat-logo-mark.png";
 import { BAI_GHEP_ENABLED, VOUCHER_PAGE_LABEL } from "../constants/features";
 import { Icon, type IconName } from "./Icons";
@@ -440,6 +441,7 @@ function docGap(): Set<string> {
 }
 
 export function Sidebar({ activeId, onSelect, readable, itemChildren, dynamicItems, badges, hiddenIds, onClose }: SidebarProps) {
+  const tenNhomNhanSu = useTenNhomNhanSu();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [gap, setGap] = useState<Set<string>>(docGap);
@@ -572,7 +574,7 @@ export function Sidebar({ activeId, onSelect, readable, itemChildren, dynamicIte
                 aria-expanded={!isCollapsed}
                 onClick={() => setCollapsed((s) => toggle(s, section.id))}
               >
-                <span>{section.label}</span>
+                <span>{section.id === "nhan-su-luong" ? tenNhomNhanSu : section.label}</span>
                 <Icon
                   name="chevron"
                   size={14}

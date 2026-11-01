@@ -17,13 +17,15 @@ LUONG = "luong"
 KHOAN = "khoan"
 HOA_HONG = "hoa_hong"
 GIAO_HANG = "giao_hang"
-CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG)
+TAI_SAN = "tai_san"
+CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.
 MODULE_CUA_PHAN_HE: dict[str, frozenset[str]] = {
     LUONG: frozenset({"luong"}),
     GIAO_HANG: frozenset({"giao_hang", "dm_xe"}),
+    TAI_SAN: frozenset({"tai_san"}),
 }
 
 

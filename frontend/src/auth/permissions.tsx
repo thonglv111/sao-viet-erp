@@ -74,7 +74,7 @@ interface PermissionsCtx {
 }
 
 /** Phân hệ tắt được theo bản cài — khớp `app/phan_he.py`. */
-export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang";
+export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang" | "tai_san";
 const KHONG_TAT: ReadonlySet<PhanHe> = new Set();
 
 const PermissionsContext = createContext<PermissionsCtx>({
@@ -167,6 +167,11 @@ export function useReloadPermissions(): () => void {
 export function useTat(): (ten: PhanHe) => boolean {
   const ds = useContext(PermissionsContext).phanHeTat;
   return useCallback((ten: PhanHe) => ds.has(ten), [ds]);
+}
+
+/** Tên nhóm "Nhân sự & Lương" (thanh bên, ma trận quyền, chữ nhỏ đầu màn) — tắt lương thì bỏ chữ Lương. */
+export function useTenNhomNhanSu(): string {
+  return useTat()("luong") ? "Nhân sự" : "Nhân sự & Lương";
 }
 
 /** Returns `scopeOf(module)` → own|department|all|null. */

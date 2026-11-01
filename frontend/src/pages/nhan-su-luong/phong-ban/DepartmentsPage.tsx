@@ -17,7 +17,7 @@ import {
   type UserBrief,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan, useReloadPermissions, useTat } from "../../../auth/permissions";
+import { useCan, useReloadPermissions, useTat, useTenNhomNhanSu } from "../../../auth/permissions";
 import { NhanBanVaiTroModal } from "./NhanBanVaiTroModal";
 import {
   PanelChonMot,
@@ -107,6 +107,7 @@ export function DepartmentsPage({
   const { token, user } = useAuth();
   // Bản cài tắt lương / khoán / giao hàng (`useTat`): ẩn ô chỉ có nghĩa với phân hệ đó.
   const tat = useTat();
+  const tenNhom = useTenNhomNhanSu();
   const can = useCan();
   const reloadPermissions = useReloadPermissions();
   const canCreateDept = can("phong_ban", "create");
@@ -1760,7 +1761,7 @@ export function DepartmentsPage({
     <main className="depts rdx-dept">
       <header className="rdx-dept__head">
         <div className="rdx-dept__head-main">
-          <p className="eyebrow">Nhân sự &amp; Lương</p>
+          <p className="eyebrow">{tenNhom}</p>
           <h1 className="depts__title">Phòng ban</h1>
         </div>
 

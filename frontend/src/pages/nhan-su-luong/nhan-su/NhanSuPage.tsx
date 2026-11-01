@@ -14,7 +14,7 @@ import { Button } from "../../../components/Button";
 import { EmptyRow, EmptyState } from "../../../components/EmptyState";
 import { PhanTrangDayDu } from "../../../components/PhanTrangDayDu";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan } from "../../../auth/permissions";
+import { useCan, useTenNhomNhanSu } from "../../../auth/permissions";
 // `fmtDate` DÙNG CHUNG (utils/format) — trước đây file này tự chép một bản y hệt.
 // Đừng viết lại bản cục bộ: sửa cách hiện ngày ở một chỗ mà nửa hệ thống không đổi theo.
 import { fmtDate, fmtDateTime } from "../../../utils/format";
@@ -61,6 +61,7 @@ const ghiLocMan = (t: LocMan) => ({ ...kyLenUrl(t.ky, "tao"), ...locNhanSuLenUrl
 
 export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
   const { token } = useAuth();
+  const tenNhom = useTenNhomNhanSu();
   const can = useCan();
   const canCreate = can("nhan_su", "create");
   const canApprove = can("nhan_su", "approve");
@@ -223,7 +224,7 @@ export function NhanSuPage({ navigate }: { navigate?: NavigateFn }) {
           {/* Eyebrow = TÊN SECTION trên sidebar, chép nguyên văn, MỘT cấp. Lớp phải là
               `eyebrow` (global.css) — `ns__eyebrow` không có CSS ở đâu cả, dùng nó là ra
               chữ thường 15px. */}
-          <p className="eyebrow">Nhân sự &amp; Lương</p>
+          <p className="eyebrow">{tenNhom}</p>
           <h1 className="ns__title">Hồ sơ nhân sự</h1>
         </div>
         <div className="ns2__headact">

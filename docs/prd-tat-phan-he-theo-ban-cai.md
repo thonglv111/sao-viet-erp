@@ -24,7 +24,7 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`. Hà Phương đặt cả bốn. Rỗng = bật hết (SVN).
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`. Hà Phương đặt cả năm. Rỗng = bật hết (SVN).
 - Cổng chặn đặt ở RBAC: module thuộc phân hệ tắt coi như MỌI vai không có quyền, kể cả admin. Nhờ vậy
   thanh bên tự ẩn mục, router trả 403, ma trận quyền không hiện dòng đó. Module bị chặn:
   - `luong` ⇒ `luong`; hai ô `view_salary`/`edit_salary` của `nhan_su`.
@@ -75,6 +75,14 @@ biến môi trường.
 - Đơn bán: cột Kho của lần xuất ghi "Chờ kho xuất" / "Đã xuất"; chặng Giao ghi "N lần xuất mở".
 - Phiếu xuất bán hàng / biên bản giao: bỏ dòng kíp xe.
 - Theo dõi sản xuất, Lệnh SX: chữ "Chưa lên yêu cầu giao" đổi thành "Chưa xuất hàng".
+
+### Tài sản & CCDC (`tai_san`, thêm 01/11/2026)
+- Module `tai_san` tắt như Lương: thanh bên, màn, router `/api/tai-san`, dòng ma trận quyền. Không màn
+  nào khác nhúng phần của nó.
+
+### Ma trận quyền và tên nhóm
+- Tắt `khoan` ⇒ ẩn ô chi tiết "Xem giá" của Công đoạn (ô này chỉ gác tiền khoán).
+- Tắt `luong` ⇒ nhóm "Nhân sự & Lương" đổi thành "Nhân sự" ở thanh bên, ma trận quyền, chữ đầu màn.
 
 ## Xuất hàng ở đơn bán
 

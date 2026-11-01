@@ -7,7 +7,7 @@
 // tiết" → bấm BUNG INLINE ngay dưới hàng (không popover portal). Data contract KHÔNG đổi.
 import { useEffect, useRef, useState } from "react";
 import type { ModuleDef, PermissionRow, Scope } from "../api/client";
-import { useTat } from "../auth/permissions";
+import { useTat, useTenNhomNhanSu } from "../auth/permissions";
 import { BAI_GHEP_ENABLED } from "../constants/features";
 import { Icon } from "./Icons";
 import { HoverTip } from "./HoverTip";
@@ -1263,7 +1263,14 @@ export function PermissionMatrix({
   const moduleTat = new Set([
     ...(tat("luong") ? ["luong"] : []),
     ...(tat("giao_hang") ? ["giao_hang", "dm_xe"] : []),
+    ...(tat("tai_san") ? ["tai_san"] : []),
   ]);
+  const tenNhomNhanSu = useTenNhomNhanSu();
+  /** Ô chi tiết chỉ có nghĩa khi phân hệ của nó bật: lương & BHXH của hồ sơ, "Xem giá" của Công
+   *  đoạn (chỉ gác tiền khoán — `routers/cong_doan.py::_thay_gia`). */
+  const oChiTietTat = (moduleKey: string, key: string) =>
+    (tat("luong") && moduleKey === "nhan_su" && (key === "can_view_salary" || key === "can_edit_salary"))
+    || (tat("khoan") && moduleKey === "cong_doan" && key === "can_view_cost");
   const matrixHienThi = matrix.filter((r) => !MODULE_DA_NGUNG.has(r.module_key) && !moduleTat.has(r.module_key));
   const byKey = new Map(matrixHienThi.map((r) => [r.module_key, r]));
   // Nhóm mở/đóng: mặc định mở khi nhóm CÓ quyền; override khi người dùng bấm.
@@ -1298,7 +1305,7 @@ export function PermissionMatrix({
   const iSanXuat = MODULE_GROUPS.findIndex((g) => g.key === "san_xuat");
   const nhomTinh = MODULE_GROUPS.map((g) => ({
     key: g.key,
-    label: g.label,
+    label: g.key === "nhan_su_luong" ? tenNhomNhanSu : g.label,
     noScope: g.noScope === true,
     noWrite: g.noWrite === true,
     rows: [
@@ -1501,8 +1508,7 @@ export function PermissionMatrix({
                   const def = moduleDef.get(row.module_key);
                   // Ô soi (`mod`) mà dòng nguồn không có trong ma trận (màn ngừng dùng) thì không bày.
                   const fineActs = fineCua(row.module_key)?.filter((a) => (!a.mod || byKey.has(a.mod))
-                    && !(tat("luong") && row.module_key === "nhan_su"
-                      && (a.key === "can_view_salary" || a.key === "can_edit_salary")));
+                    && !oChiTietTat(row.module_key, a.key));
                   /** Dòng mà ô đọc / ghi: dòng đang đứng, hoặc dòng nguồn của ô soi. */
                   const dongCua = (a: FineAction): PermissionRow => (a.mod ? byKey.get(a.mod)! : row);
                   const khoaCua = (a: FineAction) => a.mod ?? row.module_key;
