@@ -21,6 +21,7 @@ from ..models.employee import Employee
 from ..models.stock_request import StockRequest
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_GIAO_HANG, hop
 from ..realtime import hub
+from ..phan_he import GIAO_HANG, tat
 
 
 def bao_tai_xe_kho_lap_phieu(db, request_id: int | None, ma_phieu: str | None = None) -> None:
@@ -30,7 +31,7 @@ def bao_tai_xe_kho_lap_phieu(db, request_id: int | None, ma_phieu: str | None = 
     màn hình báo đỏ, trong khi phiếu đã ghi đúng.
     """
     try:
-        if not request_id:
+        if not request_id or tat(GIAO_HANG):  # tắt giao hàng: chuyến ẩn không có tài xế để báo
             return
         req = db.get(StockRequest, int(request_id))
         trip_id = getattr(req, "delivery_trip_id", None)

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from .. import gioi_han_dang_nhap
 from ..config import settings
 from ..db import get_db
+from ..phan_he import phan_he_tat
 from ..deps import (
     FILE_COOKIE,
     FILE_COOKIE_PATH,
@@ -211,4 +212,5 @@ def my_permissions(
     return PermissionsOut(
         modules=authz.readable_modules(current_user),
         permissions=authz.capabilities(current_user),
+        phan_he_tat=sorted(phan_he_tat()),
     )

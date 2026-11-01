@@ -10,6 +10,7 @@ from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
+from ..phan_he import LUONG, module_bi_tat, tat
 from ..models.user import User
 from ..repositories.rbac_repo import RoleRepository
 
@@ -134,6 +135,8 @@ _ACTION_ATTR = {
     ACTION_CLOSE_SHORT: "can_close_short",
 }
 
+_O_LUONG = frozenset({"can_view_salary", "can_edit_salary"})
+
 
 _THE_HE_KHOA = "rbac_the_he"
 
@@ -177,7 +180,8 @@ class AuthorizationService:
         if ds is None:
             ds = self.roles.permissions_for(role_id)
             self._memo_ds[role_id] = ds
-        return ds
+        # Phân hệ tắt theo bản cài (`app.phan_he`): module của nó coi như không có dòng quyền.
+        return [p for p in ds if not module_bi_tat(p.module_key)]
 
     def nap_ca_ma_tran(self, user: User) -> None:
         """Nạp cả ma trận quyền của vai bằng MỘT câu — gọi trước khi hỏi `can`/`scope_for` trên nhiều
@@ -187,6 +191,8 @@ class AuthorizationService:
 
     def _permission(self, role_id: int, module_key: str):
         self._kiem_the_he()
+        if module_bi_tat(module_key):
+            return None
         khoa = (role_id, module_key)
         if khoa in self._memo_quyen:
             return self._memo_quyen[khoa]
@@ -209,6 +215,9 @@ class AuthorizationService:
             raise ValueError(f"Unknown action: {action!r}")
         if user.role_id is None:
             return False
+        # Tắt lương ⇒ hai ô lương của Hồ sơ nhân sự cũng chết (chúng dùng chung cho `nhan_su`).
+        if attr in _O_LUONG and tat(LUONG):
+            return False
         perm = self._permission(user.role_id, module_key)
         if perm is None:
             return False
@@ -225,6 +234,7 @@ class AuthorizationService:
         Empty if the user has no role."""
         if user.role_id is None:
             return []
+        tat_luong = tat(LUONG)
         return [
             {
                 "module_key": p.module_key,
@@ -252,8 +262,8 @@ class AuthorizationService:
                 "can_clone": p.can_clone,
                 "can_toggle_active": p.can_toggle_active,
                 "can_reparent": p.can_reparent,
-                "can_view_salary": p.can_view_salary,
-                "can_edit_salary": p.can_edit_salary,
+                "can_view_salary": p.can_view_salary and not tat_luong,
+                "can_edit_salary": p.can_edit_salary and not tat_luong,
                 "can_adjust": p.can_adjust,
                 # ⚠️ `can_view_log` THIẾU Ở ĐÂY từ 11/08/2026 tới 15/08/2026 — ô "Xem Nhật ký chấm
                 # công" cấp xong mà tab KHÔNG BAO GIỜ HIỆN, vì trình duyệt không nhận được cờ.

@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     # own/department/all data-scope on the Khách hàng screen.
     seed_demo: bool = False
 
+    # Phân hệ TẮT theo bản cài (docs/prd-tat-phan-he-theo-ban-cai.md), cách nhau dấu phẩy:
+    # `luong`, `khoan`, `hoa_hong`, `giao_hang`. Rỗng = bật hết (Sao Việt Nhật). In Hà Phương đặt đủ
+    # bốn. Đọc qua `app.phan_he`, đừng tách chuỗi này ở chỗ khác.
+    phan_he_tat: str = ""
+
     # --- Sức chịu tải: TỰ CO GIÃN theo máy (app/tai_nguyen.py) -------------
     # Mọi số 0 / -1 dưới đây nghĩa là "tự tính theo CPU/RAM của container". Đặt số dương qua biến
     # môi trường khi muốn chốt tay (vd VPS dùng chung với dịch vụ khác).

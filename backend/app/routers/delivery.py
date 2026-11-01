@@ -41,7 +41,11 @@ from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.user_repo import UserRepository
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..services.san_xuat.vat_tu_de_nghi import can_luc_hien_thi
+from pydantic import BaseModel, Field
+
+from ..phan_he import GIAO_HANG, tat
 from ..schemas.delivery import (
+    DeliveryLineIn,
     DeNghiKhoHangOut,
     DeNghiKhoIn,
     DeNghiKhoOut,
@@ -599,6 +603,49 @@ def tao_yeu_cau(body: DeliveryRequestCreate, svc: Service, db: Db, authz: Authz,
         raise _err(e)
     db.commit()
     return _request_out(db, svc, svc.deliveries.get_request(kq["request"].id))
+
+
+class XuatHangIn(BaseModel):
+    order_id: int
+    ngay_can_giao: date
+    lines: list[DeliveryLineIn]
+    ghi_chu: str | None = Field(None, max_length=1000)
+    dia_chi_id: int | None = None
+    lien_he_id: int | None = None
+
+
+class XuatHangOut(BaseModel):
+    request_code: str
+    phieu_kho: str | None = None
+
+
+@router.post("/xuat-hang", response_model=XuatHangOut, status_code=status.HTTP_201_CREATED)
+def xuat_hang(
+    body: XuatHangIn, svc: Service, db: Db, authz: Authz,
+    # Bản cài tắt giao hàng (`app.phan_he`) không còn module `giao_hang` ⇒ gác bằng quyền SỬA ĐƠN BÁN:
+    # ai đang làm đơn thì xuất hàng cho đơn đó. Phạm vi cũng là phạm vi đơn bán.
+    user: Annotated[User, Depends(require_permission("don_hang_ban", "update"))],
+) -> XuatHangOut:
+    """Xuất hàng ở đơn bán — chỉ khi TẮT giao hàng; bật thì đi màn Giao hàng như thường."""
+    if not tat(GIAO_HANG):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Bản cài này dùng màn Giao hàng — lập yêu cầu giao ở đó.")
+    try:
+        kq = svc.xuat_hang(order_id=body.order_id, ngay_can_giao=body.ngay_can_giao,
+                           lines=[l.model_dump() for l in body.lines], actor=user,
+                           scope=authz.scope_for(user, "don_hang_ban") or SCOPE_OWN,
+                           ghi_chu=body.ghi_chu, dia_chi_id=body.dia_chi_id,
+                           lien_he_id=body.lien_he_id)
+    except DeliveryError as e:
+        db.rollback()
+        raise _err(e)
+    except StockRequestError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    db.commit()
+    _bao_kho(svc, [kq["phieu"]])
+    return XuatHangOut(request_code=kq["request"].code,
+                       phieu_kho=getattr(kq["phieu"], "ma", None))
 
 
 @router.get("/requests", response_model=DeliveryRequestPage)

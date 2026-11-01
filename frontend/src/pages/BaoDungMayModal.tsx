@@ -17,6 +17,7 @@ import type {
   SxDungMay, SxDungMayIn, SxDungMayListOut, SxDungMaySuaIn, SxLyDoDungMay, SxMayHuIn, SxMayHuOut,
 } from "../api/client";
 import { NHAN_MUC_DO } from "../api/kyThuatMay";
+import { useTat } from "../auth/permissions";
 import { ChonNgay } from "../components/ChonNgay";
 import { NguoiLamChon, todayYmd, type NguoiLam } from "./ThsxExecPanels";
 import { ThsxHop } from "./thsx/ThsxHop";
@@ -91,6 +92,8 @@ export function BaoDungMayModal({
   const [mucDo, setMucDo] = useState(MUC_DO_MAC_DINH);
   const [moTa, setMoTa] = useState("");
   const [tinhLuong, setTinhLuong] = useState(false);
+  // Bản cài tắt lương (`useTat`): không có ngày dừng nào để tính lương ⇒ hộp chỉ còn Báo hỏng.
+  const tatLuong = useTat()("luong");
   // Lần nạp đầu tick sẵn mọi người của tổ; nạp lại sau khi lưu / đổi tháng thì giữ người đang tick.
   const daTick = useRef(false);
   // Người đã tự chọn ngày ⇒ lần nạp sau không kéo ô ngày về ngày xưởng nữa (L-SX-25).
@@ -106,7 +109,7 @@ export function BaoDungMayModal({
       if (huy) return;
       setData(r);
       // Chỉ được báo hỏng: không chọn ngày / lý do, luôn là máy hư hôm nay (ngày xưởng).
-      if (!r.quyen_luong) {
+      if (!r.quyen_luong || tatLuong) {
         setLyDo("may_hu");
         if (r.hom_nay) setNgay(r.hom_nay);
       } else if (r.hom_nay && !daChonNgay.current) {
@@ -122,7 +125,7 @@ export function BaoDungMayModal({
       setMayId((cu) => (cu != null && (r.may ?? []).some((m) => m.id === cu) ? cu : (r.may?.[0]?.id ?? null)));
     }).catch((e: unknown) => { if (!huy) setLoi(loiCua(e)); });
     return () => { huy = true; };
-  }, [exec, nam, thang, nap]);
+  }, [exec, nam, thang, nap, tatLuong]);
 
   const dsNguoi: NguoiLam[] = (data?.nguoi ?? []).map((n) => ({ id: n.employee_id, ten: n.ho_ten, the: [], mo: false }));
   const soNguoi = dsNguoi.filter((n) => chon.has(n.id)).length;
@@ -135,7 +138,7 @@ export function BaoDungMayModal({
 
   // Máy hư HÔM NAY (theo ngày xưởng máy chủ) ⇒ báo tổ sửa chữa; ngày đã qua thì chỉ còn phần lương.
   const homNayXuong = data?.hom_nay ?? homNay;
-  const luongDuoc = data?.quyen_luong ?? false;
+  const luongDuoc = !tatLuong && (data?.quyen_luong ?? false);
   const baoHong = (data?.quyen_bao_hong ?? false) && !dangSua && lyDo === "may_hu" && ngay === homNayXuong;
   const dsMay = data?.may ?? [];
   const may = dsMay.find((m) => m.id === mayId) ?? null;

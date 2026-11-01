@@ -7,6 +7,7 @@
 // tiết" → bấm BUNG INLINE ngay dưới hàng (không popover portal). Data contract KHÔNG đổi.
 import { useEffect, useRef, useState } from "react";
 import type { ModuleDef, PermissionRow, Scope } from "../api/client";
+import { useTat } from "../auth/permissions";
 import { BAI_GHEP_ENABLED } from "../constants/features";
 import { Icon } from "./Icons";
 import { HoverTip } from "./HoverTip";
@@ -1257,7 +1258,13 @@ export function PermissionMatrix({
   /** Mặc định CÒN SỐNG — thà để thừa một ô vô hại còn hơn khoá nhầm một ô đang dùng. */
   const oSong = (moduleKey: string, viec: string): boolean =>
     !viecChet.get(moduleKey)?.has(viec);
-  const matrixHienThi = matrix.filter((r) => !MODULE_DA_NGUNG.has(r.module_key));
+  // Bản cài tắt phân hệ (`useTat`): module của nó không ai có quyền, kể cả admin ⇒ khỏi hiện dòng.
+  const tat = useTat();
+  const moduleTat = new Set([
+    ...(tat("luong") ? ["luong"] : []),
+    ...(tat("giao_hang") ? ["giao_hang", "dm_xe"] : []),
+  ]);
+  const matrixHienThi = matrix.filter((r) => !MODULE_DA_NGUNG.has(r.module_key) && !moduleTat.has(r.module_key));
   const byKey = new Map(matrixHienThi.map((r) => [r.module_key, r]));
   // Nhóm mở/đóng: mặc định mở khi nhóm CÓ quyền; override khi người dùng bấm.
   const [groupOverride, setGroupOverride] = useState<Map<string, boolean>>(new Map());
@@ -1493,7 +1500,9 @@ export function PermissionMatrix({
                     PHAM_VI_CHO_PHEP[row.module_key] ?? (laDongKho(row.module_key) ? ["all"] : undefined);
                   const def = moduleDef.get(row.module_key);
                   // Ô soi (`mod`) mà dòng nguồn không có trong ma trận (màn ngừng dùng) thì không bày.
-                  const fineActs = fineCua(row.module_key)?.filter((a) => !a.mod || byKey.has(a.mod));
+                  const fineActs = fineCua(row.module_key)?.filter((a) => (!a.mod || byKey.has(a.mod))
+                    && !(tat("luong") && row.module_key === "nhan_su"
+                      && (a.key === "can_view_salary" || a.key === "can_edit_salary")));
                   /** Dòng mà ô đọc / ghi: dòng đang đứng, hoặc dòng nguồn của ô soi. */
                   const dongCua = (a: FineAction): PermissionRow => (a.mod ? byKey.get(a.mod)! : row);
                   const khoaCua = (a: FineAction) => a.mod ?? row.module_key;

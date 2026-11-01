@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..phan_he import LUONG, chan_khi_tat
 
 from ..deps import (
     get_current_user,
@@ -135,7 +136,9 @@ from ..services.payroll_service import (
     PayrollValidationError,
 )
 
-router = APIRouter(prefix="/api/luong", tags=["luong"])
+# Bản cài tắt lương (`app.phan_he`) ⇒ chặn cả router, kể cả đường "của tôi".
+router = APIRouter(prefix="/api/luong", tags=["luong"],
+                   dependencies=[Depends(chan_khi_tat(LUONG))])
 
 MODULE = "luong"
 

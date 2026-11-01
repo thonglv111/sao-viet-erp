@@ -12,7 +12,7 @@ import {
   type OrderDetail,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan } from "../../../auth/permissions";
+import { useCan, useTat } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { ChonNgay } from "../../../components/ChonNgay";
 import { DetailModal } from "../../../components/DetailModal";
@@ -448,8 +448,11 @@ export function BuocGiaoHang({
 }) {
   const { token } = useAuth();
   const can = useCan();
-  const canRead = can("giao_hang", "read");
-  const canWrite = can("giao_hang", "create");
+  // Bản cài TẮT giao hàng (In Hà Phương): không màn Giao hàng, đơn tự "Xuất hàng" gửi thẳng kho —
+  // quyền là quyền của đơn bán, không còn yêu cầu nào để sửa / huỷ (kho huỷ phiếu là huỷ theo).
+  const xuat = useTat()("giao_hang");
+  const canRead = xuat ? can("don_hang_ban", "read") : can("giao_hang", "read");
+  const canWrite = xuat ? can("don_hang_ban", "update") : can("giao_hang", "create");
   const [mo, setMo] = useState(false);
   const [sua, setSua] = useState<DonTienDoYeuCau | null>(null);
   const [huy, setHuy] = useState<DonTienDoYeuCau | null>(null);
@@ -459,7 +462,8 @@ export function BuocGiaoHang({
   if (!canRead) return <ChanKhung chu="Vai của bạn chưa được xem màn Giao hàng." />;
   if (!td) return <div className="dhb__the-than"><EmptyState trangThai="dang-tai" gon /></div>;
   if (order.status !== "ordered" && td.yeu_cau.length === 0) {
-    return <ChanKhung chu="Đơn phải chốt trước mới lập yêu cầu giao được." />;
+    return <ChanKhung chu={xuat ? "Đơn phải chốt trước mới xuất hàng được."
+      : "Đơn phải chốt trước mới lập yêu cầu giao được."} />;
   }
   const tongGiaoDuoc = td.cum.reduce((a, c) => a + c.giao_duoc, 0);
   const conPhai = td.cum.some((c) => c.con_phai_giao > 0);
@@ -538,15 +542,15 @@ export function BuocGiaoHang({
           <table className="dhb__g">
             <thead>
               <tr>
-                <th>Yêu cầu giao</th><th>Cần giao</th><th className="dhb__text-right">Số lượng</th>
-                <th>Chuyến</th><th>Trạng thái</th><th />
+                <th>{xuat ? "Lần xuất" : "Yêu cầu giao"}</th><th>Cần giao</th><th className="dhb__text-right">Số lượng</th>
+                <th>{xuat ? "Kho" : "Chuyến"}</th><th>Trạng thái</th><th />
               </tr>
             </thead>
             <tbody>
               {td.yeu_cau.flatMap((y) => {
                 const ch = y.chuyen;
-                const suaDuoc = canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
-                const huyDuoc = canWrite && (y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "chuyen_da_huy");
+                const suaDuoc = !xuat && canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
+                const huyDuoc = !xuat && canWrite && (y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "chuyen_da_huy");
                 const khacDiaChi = y.dia_chi && y.dia_chi !== order.delivery_address;
                 return [
                   <tr key={y.id}>
@@ -567,10 +571,13 @@ export function BuocGiaoHang({
                     <td className="dhb__g-hai">
                       {ch ? (
                         <>
-                          <span>{nhanChuyen(ch)}</span>
+                          {/* Chuyến ẩn của "Xuất hàng" không có xe/tài xế ⇒ chỉ nói kho đã xuất hay chưa. */}
+                          <span>{!xuat ? nhanChuyen(ch)
+                            : ch.trang_thai === "thanh_cong" ? "Đã xuất"
+                            : ch.trang_thai === "da_huy" ? nhanChuyen(ch) : "Chờ kho xuất"}</span>
                           <small className="dhb__g-cach">
-                            {ch.tai_xe && <span>{ch.tai_xe}</span>}
-                            {ch.xe && <span>{ch.xe}</span>}
+                            {!xuat && ch.tai_xe && <span>{ch.tai_xe}</span>}
+                            {!xuat && ch.xe && <span>{ch.xe}</span>}
                             {ch.thoi_gian_ket_thuc && <span>xong {fmtDateTime(ch.thoi_gian_ket_thuc)}</span>}
                             {ch.nguoi_nhan_thuc_te && <span>{ch.nguoi_nhan_thuc_te} nhận</span>}
                             {ch.so_anh > 0 && <span>{ch.so_anh} ảnh</span>}
@@ -612,21 +619,22 @@ export function BuocGiaoHang({
       )}
 
       {order.status === "ordered" && conPhai ? (
-        <ChanKhung chu={!canWrite ? "Chỉ xem: vai của bạn chưa được bật ô Thao tác ở màn Giao hàng."
-          : tongGiaoDuoc > 0 ? `Giao được tối đa ${so(tongGiaoDuoc)}${motDv}.`
+        <ChanKhung chu={!canWrite ? (xuat ? "Chỉ xem: vai của bạn chưa được sửa đơn hàng bán."
+            : "Chỉ xem: vai của bạn chưa được bật ô Thao tác ở màn Giao hàng.")
+          : tongGiaoDuoc > 0 ? `${xuat ? "Xuất" : "Giao"} được tối đa ${so(tongGiaoDuoc)}${motDv}.`
           : lenhCho.length > 0 ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(" và ")} xong là giao được.`
           : "Chưa có hàng của đơn này ở kho nào."}>
           {canWrite && (
             <Button variant="accent" disabled={tongGiaoDuoc <= 0} onClick={() => setMo(true)}>
-              Tạo yêu cầu giao hàng
+              {xuat ? "Xuất hàng" : "Tạo yêu cầu giao hàng"}
             </Button>
           )}
         </ChanKhung>
       ) : td.yeu_cau.length === 0 ? (
-        <ChanKhung chu="Chưa có yêu cầu giao hàng nào." />
+        <ChanKhung chu={xuat ? "Chưa xuất hàng lần nào." : "Chưa có yêu cầu giao hàng nào."} />
       ) : null}
       {mo && (
-        <FormYeuCau order={order} td={td} navigate={navigate}
+        <FormYeuCau order={order} td={td} navigate={navigate} xuat={xuat}
           onXong={() => { setMo(false); taiLai(); }} onBo={() => setMo(false)} />
       )}
       {sua && (
@@ -644,11 +652,13 @@ export function BuocGiaoHang({
  *  báo giá, báo giá chọn từ khách), đổi thì chọn trong sổ địa chỉ / người liên hệ của khách. Thiếu thì
  *  bổ sung ở hồ sơ khách hàng, một chỗ, mọi nơi khác tự lấy theo. */
 function FormYeuCau({
-  order, td, sua, onXong, onBo, navigate,
+  order, td, sua, onXong, onBo, navigate, xuat = false,
 }: {
   order: OrderDetail;
   td: DonTienDo;
   sua?: DonTienDoYeuCau;
+  /** Bản cài tắt giao hàng: lưu là gửi đề nghị xuất cho kho luôn (`api.giaoHang.xuatHang`). */
+  xuat?: boolean;
   onXong: () => void;
   onBo: () => void;
   navigate?: (id: string, params?: Record<string, unknown>) => void;
@@ -686,6 +696,7 @@ function FormYeuCau({
   const [soLuong, setSoLuong] = useState<Record<string, string>>(
     () => Object.fromEntries(coHang.map((c) => [c.khoa, String(c.giao_duoc)])),
   );
+  const [ghiChu, setGhiChu] = useState("");
   const [loi, setLoi] = useState<string | null>(null);
   const [dangGui, setDangGui] = useState(false);
   const ngayQuaKhu = ngay !== "" && ngay < HOM_NAY;
@@ -704,15 +715,17 @@ function FormYeuCau({
     if (!token) return;
     setLoi(null);
     setDangGui(true);
-    const p = sua
+    const moi = {
+      order_id: order.id,
+      ngay_can_giao: ngay,
+      // Một cụm gửi MỘT dòng (dòng đầu) — máy chủ bung ra mọi dòng của cụm cùng số.
+      lines: dong.map((x) => ({ order_line_id: x.c.order_line_ids[0], qty: x.qty })),
+      ...noiNhan,
+    };
+    const p: Promise<unknown> = sua
       ? api.giaoHang.updateRequest(token, sua.id, { ngay_can_giao: ngay, ...noiNhan })
-      : api.giaoHang.createRequest(token, {
-          order_id: order.id,
-          ngay_can_giao: ngay,
-          // Một cụm gửi MỘT dòng (dòng đầu) — máy chủ bung ra mọi dòng của cụm cùng số.
-          lines: dong.map((x) => ({ order_line_id: x.c.order_line_ids[0], qty: x.qty })),
-          ...noiNhan,
-        });
+      : xuat ? api.giaoHang.xuatHang(token, { ...moi, ghi_chu: ghiChu.trim() || null })
+      : api.giaoHang.createRequest(token, moi);
     p.then(onXong)
       .catch((e: unknown) => setLoi(e instanceof Error ? e.message : "Không lưu được yêu cầu"))
       .finally(() => setDangGui(false));
@@ -727,12 +740,13 @@ function FormYeuCau({
     : !ngay ? "Chọn ngày cần giao"
     : ngayQuaKhu ? "Ngày cần giao đã qua"
     : null;
-  const tomTat = sua ? "Chỉ sửa ngày và nơi nhận — số lượng giữ như lúc lập" : `Giao ${dong.length} sản phẩm`;
+  const tomTat = sua ? "Chỉ sửa ngày và nơi nhận — số lượng giữ như lúc lập"
+    : `${xuat ? "Xuất" : "Giao"} ${dong.length} sản phẩm`;
 
   return (
     <DetailModal
-      kicker="Giao hàng"
-      title={sua ? `Sửa yêu cầu ${sua.code}` : "Tạo yêu cầu giao hàng"}
+      kicker={xuat ? "Đơn hàng bán" : "Giao hàng"}
+      title={sua ? `Sửa yêu cầu ${sua.code}` : xuat ? "Xuất hàng" : "Tạo yêu cầu giao hàng"}
       // Mã đơn và khách là hai mẩu riêng — khoảng cách tách, không nối bằng dấu chấm giữa.
       subtitle={<span className="dhb__yc-phude">
         {order.order_no && <span>{order.order_no}</span>}
@@ -745,7 +759,7 @@ function FormYeuCau({
           <span className={`dmodal__foot-note ${lyDoKhoa ? "is-warn" : ""}`}>{lyDoKhoa ?? tomTat}</span>
           <Button variant="ghost" onClick={onBo}>Bỏ</Button>
           <Button variant="accent" disabled={dangGui || lyDoKhoa !== null} onClick={gui}>
-            {sua ? "Lưu thay đổi" : "Gửi yêu cầu"}
+            {sua ? "Lưu thay đổi" : xuat ? "Gửi kho xuất" : "Gửi yêu cầu"}
           </Button>
         </>
       }
@@ -753,7 +767,7 @@ function FormYeuCau({
       <div className="pform">
         {!sua && (
           <section>
-            <h3 className="pform__section-title">Hàng giao đợt này</h3>
+            <h3 className="pform__section-title">{xuat ? "Hàng xuất đợt này" : "Hàng giao đợt này"}</h3>
             <div className="pform__items">
               {coHang.length === 0 && (
                 <div className="pform__item"><span className="pform__item-name">Kho chưa nhận hàng nào của đơn này.</span></div>
@@ -850,6 +864,14 @@ function FormYeuCau({
             <b>Lưu ý giao của đơn</b>
             <span>{luuY}</span>
           </div>
+        )}
+
+        {xuat && (
+          <label className="pform__field">
+            Ghi chú cho kho
+            <textarea className="input" rows={2} maxLength={1000} value={ghiChu}
+              onChange={(e) => setGhiChu(e.target.value)} />
+          </label>
         )}
 
         {loi && <div className="banner banner--error" role="alert" style={{ margin: 0 }}>{loi}</div>}

@@ -1,7 +1,7 @@
 // Permission context (spec-09): exposes `can(module, action)` so any screen can hide/disable
 // write actions the current user's role doesn't grant. Backend remains the real gate (403);
 // this only improves UX. AppShell loads the matrix once and provides it here.
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useCallback, useContext, type ReactNode } from "react";
 import type { ModuleCapability, Scope } from "../api/client";
 
 export type PermAction =
@@ -69,12 +69,19 @@ interface PermissionsCtx {
   scopeOf: (moduleKey: string) => Scope | null;
   /** Hỏi lại máy chủ bộ quyền của CHÍNH người đang đăng nhập (menu + `can`). */
   reload: () => void;
+  /** Phân hệ TẮT theo bản cài (`PHAN_HE_TAT` ở máy chủ, docs/prd-tat-phan-he-theo-ban-cai.md). */
+  phanHeTat: ReadonlySet<PhanHe>;
 }
+
+/** Phân hệ tắt được theo bản cài — khớp `app/phan_he.py`. */
+export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang";
+const KHONG_TAT: ReadonlySet<PhanHe> = new Set();
 
 const PermissionsContext = createContext<PermissionsCtx>({
   can: () => false,
   scopeOf: () => null,
   reload: () => {},
+  phanHeTat: KHONG_TAT,
 });
 
 export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
@@ -84,10 +91,12 @@ export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
 export function PermissionsProvider({
   caps,
   onReload,
+  phanHeTat = KHONG_TAT,
   children,
 }: {
   caps: Capabilities;
   onReload?: () => void;
+  phanHeTat?: ReadonlySet<PhanHe>;
   children: ReactNode;
 }) {
   function can(moduleKey: string, action: PermAction): boolean {
@@ -108,7 +117,7 @@ export function PermissionsProvider({
     return caps.get(moduleKey)?.scope ?? null;
   }
   return (
-    <PermissionsContext.Provider value={{ can, scopeOf, reload: onReload ?? (() => {}) }}>
+    <PermissionsContext.Provider value={{ can, scopeOf, reload: onReload ?? (() => {}), phanHeTat }}>
       {children}
     </PermissionsContext.Provider>
   );
@@ -150,6 +159,14 @@ export function useCan(): (moduleKey: string, action: PermAction) => boolean {
  *  thì menu và nút giữ quyền cũ tới khi bấm F5, người lưu tưởng lưu chưa ăn. */
 export function useReloadPermissions(): () => void {
   return useContext(PermissionsContext).reload;
+}
+
+/** `tat("khoan")` — phân hệ đó có bị tắt ở bản cài này không. Module của phân hệ tắt (Lương, Giao
+ *  hàng, Xe) máy chủ đã rút khỏi bộ quyền nên menu tự ẩn; hook này cho phần nằm TRONG màn khác
+ *  (tab Khoán của Công đoạn, cột tiền khoán, ô hoa hồng…). */
+export function useTat(): (ten: PhanHe) => boolean {
+  const ds = useContext(PermissionsContext).phanHeTat;
+  return useCallback((ten: PhanHe) => ds.has(ten), [ds]);
 }
 
 /** Returns `scopeOf(module)` → own|department|all|null. */

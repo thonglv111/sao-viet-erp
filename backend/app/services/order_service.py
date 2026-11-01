@@ -161,7 +161,11 @@ def _bac_hoa_hong_cua_sale(db, sale_user_id, *, on: date | None = None) -> list[
 
 def _chup_hoa_hong(order, db) -> None:
     """Chụp biểu hoa hồng của người phụ trách vào đơn lúc CHỐT. Đơn đã có biểu thì giữ nguyên —
-    `confirm` chạy lại cũng không đổi số đã chụp."""
+    `confirm` chạy lại cũng không đổi số đã chụp. Bản cài tắt hoa hồng (`app.phan_he`) ⇒ không chụp."""
+    from ..phan_he import HOA_HONG, tat
+
+    if tat(HOA_HONG):
+        return
     if order.bac_hoa_hong is None:
         order.bac_hoa_hong = _bac_hoa_hong_cua_sale(db, order.sale_user_id)
 

@@ -6,6 +6,7 @@ import {
   type EmployeeMeta,
   type PayrollComponent,
 } from "../../../api/client";
+import { useTat } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { ChonNgay } from "../../../components/ChonNgay";
 import { fmtDate, money } from "../../../utils/format";
@@ -38,10 +39,12 @@ export function EmployeeWizard({
   // Chọn sẵn tổ khi mở từ màn Phòng ban (khỏi chọn lại). Bỏ trống → tổ đầu danh sách như cũ.
   initialDepartmentId?: number | null;
 }) {
+  // Bản cài tắt lương (`useTat`) ⇒ bỏ hẳn bước Lương & BHXH (bước 3 vốn chỉ để khai lương).
+  const tatLuong = useTat()("luong");
   const STEPS = [
     "Định danh & việc làm",
     "Cá nhân",
-    "Lương & BHXH",
+    ...(tatLuong ? [] : ["Lương & BHXH"]),
     "Đính kèm",
     "Tài khoản",
   ];

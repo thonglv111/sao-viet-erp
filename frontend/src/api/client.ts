@@ -12777,8 +12777,8 @@ export const api = {
    *  thành viên một phòng ban "Tổ KCS" (mg 0306) — không phải ô quyền của vai. */
   myAccess(
     token: string,
-  ): Promise<{ modules: string[]; permissions: ModuleCapability[] }> {
-    return authed<{ modules: string[]; permissions: ModuleCapability[] }>(
+  ): Promise<{ modules: string[]; permissions: ModuleCapability[]; phan_he_tat?: string[] }> {
+    return authed<{ modules: string[]; permissions: ModuleCapability[]; phan_he_tat?: string[] }>(
       "/api/auth/permissions",
       token,
     );
@@ -14579,6 +14579,10 @@ export const api = {
     },
     createRequest(token: string, input: DeliveryRequestInput): Promise<DeliveryRequest> {
       return authed<DeliveryRequest>("/api/giao-hang/requests", token, { method: "POST", body: JSON.stringify(input) });
+    },
+    /** Xuất hàng ở đơn bán — chỉ bản cài TẮT giao hàng (docs/prd-tat-phan-he-theo-ban-cai.md). */
+    xuatHang(token: string, input: DeliveryRequestInput & { ghi_chu?: string | null }): Promise<{ request_code: string; phieu_kho: string | null }> {
+      return authed("/api/giao-hang/xuat-hang", token, { method: "POST", body: JSON.stringify(input) });
     },
     updateRequest(token: string, id: number, input: Partial<DeliveryRequestInput>): Promise<DeliveryRequest> {
       return authed<DeliveryRequest>(`/api/giao-hang/requests/${id}`, token, { method: "PUT", body: JSON.stringify(input) });
