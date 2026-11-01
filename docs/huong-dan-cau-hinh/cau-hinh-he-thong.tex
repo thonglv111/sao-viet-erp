@@ -114,16 +114,16 @@ Các chương sau đi đúng thứ tự này:
 \item Phòng ban và tổ sản xuất (chương \ref{phong-ban}). Vai trò thuộc phòng, máy thuộc tổ, nên khai đầu tiên.
 \item Vai trò và ma trận quyền của từng phòng (chương \ref{phan-quyen}).
 \item Nhân sự (chương \ref{nhan-su}): chấm công (điểm chấm công, ca làm, ngày lễ), loại nghỉ phép, cấu hình
-lương; rồi thêm nhân viên, cấp tài khoản, gán vai, khai mức lương từng người.
+lương, xe giao hàng; rồi thêm nhân viên, cấp tài khoản, gán vai, khai mức lương từng người.
 \item Danh mục dùng chung (chương \ref{danh-muc}): Đơn vị \& quy đổi, Thiết bị \& Máy móc, Giấy, Vật tư khác,
 cuối cùng là Công đoạn.
 \item Kinh doanh (chương \ref{kinh-doanh}): khách hàng, rồi lập thử một phiếu tính giá mẫu so với giá tính tay.
-\item Kho, KCS, giao hàng, thu chi (chương \ref{danh-muc-phong}): khai trước khi bắt đầu dùng phân hệ đó.
+\item Kho, KCS, thu chi (chương \ref{danh-muc-phong}): khai trước khi bắt đầu dùng phân hệ đó.
 \end{enumerate}
 
 Mũi tên trong sơ đồ nghĩa là ô đầu phải có trước thì ô sau mới chọn được. Ví dụ Tiêu chí KCS khai theo từng
-công đoạn nên cần Công đoạn trước; Xe giao hàng cần mức khoán km ở Cấu hình lương (mục
-\ref{nhan-su-cau-hinh-luong}).
+công đoạn nên cần Công đoạn trước; Xe giao hàng chọn mức khoán km khai ở Cấu hình lương nên
+khai sau (mục \ref{danh-muc-xe}).
 
 Bốn danh mục không nằm trong sơ đồ vì không chặn bước nào. Thành phẩm tự sinh khi chốt đơn hàng bán. Khuôn: phiếu
 tính giá chỉ hỏi có sẵn hay làm mới, khuôn bế chọn ở bước lệnh sản xuất. Khai báo kho: kho thành phẩm có sẵn, các
@@ -525,6 +525,25 @@ lương tự trừ một khoản. Mỗi bậc là \q{tới N phút thì trừ X 
 số phút lớn hơn. Bấm \oo{Thêm bậc} để thêm dòng.
 
 Tab con \oo{Khoán km giao hàng} khai mức tiền theo km cho xe giao hàng, chỉ cần khi công ty có đội xe.
+
+\Needspace*{16\baselineskip}
+\subsection{Xe giao hàng}\label{danh-muc-xe}
+
+\canh{0.45}{61-xe.png}{%
+Khai xe để tính tiền khoán km cho tài xế. Mỗi xe ăn một mức khoán km, nên khai mức ở tab \oo{Khoán km giao
+hàng} của Cấu hình lương trước (mục \ref{nhan-su-cau-hinh-luong}). Tài xế là người thuộc phòng có đánh dấu
+\oo{Bộ phận Giao hàng} (mục \ref{nhan-su-sua-phong}). Màn này nằm ở nhóm Cấu hình danh mục, quyền chỉ có
+\oo{Xem} và \oo{Thao tác} (mục \ref{danh-muc-phong-quyen}).
+
+\duong{Cấu hình danh mục > Xe giao hàng}, bấm \oo{Thêm xe giao hàng}.
+
+\so{1} \oo{Biển số}.
+
+\so{2} \oo{Tên}, ví dụ Xe anh Tùng.
+
+\so{3} \oo{Mức khoán km}: chọn mức đã khai. Giá mỗi km do mức này quyết định.
+
+\so{4} \oo{Tải trọng}: chỉ để đối chiếu, không ảnh hưởng tiền.}
 
 \subsection{Thêm nhân viên}\label{nhan-su-them}
 
@@ -1122,18 +1141,18 @@ Mọi dòng khớp với cách tính tay thì phần cấu hình ban đầu xong
 
 % ============================================================
 \Needspace*{14\baselineskip}
-\section{Kho, KCS, giao hàng, thu chi}\label{danh-muc-phong}
+\section{Kho, KCS, thu chi}\label{danh-muc-phong}
 
 \begin{boicanh}
-Bốn danh mục của các phòng khác ngoài Kinh doanh. Không cần cho tính giá; khai trước khi bắt đầu dùng phân hệ
+Ba danh mục của các phòng khác ngoài Kinh doanh. Không cần cho tính giá; khai trước khi bắt đầu dùng phân hệ
 tương ứng.
 \end{boicanh}
 
-\subsection{Quyền của bốn màn}\label{danh-muc-phong-quyen}
+\subsection{Quyền của ba màn}\label{danh-muc-phong-quyen}
 
 \canh{0.55}{79-quyen-kho.png}{%
-Bốn dòng \oo{Khai báo kho}, \oo{Tiêu chí KCS}, \oo{Xe giao hàng}, \oo{Mục thu chi} nằm cuối nhóm danh mục của
-ma trận (mở như mục \ref{phan-quyen-ma-tran}). Mỗi dòng chỉ có hai ô, không có quyền chi tiết:
+Ba dòng \oo{Khai báo kho}, \oo{Tiêu chí KCS}, \oo{Mục thu chi} (cùng dòng \oo{Xe giao hàng} của mục
+\ref{danh-muc-xe}) nằm cuối nhóm danh mục của ma trận (mở như mục \ref{phan-quyen-ma-tran}). Mỗi dòng chỉ có hai ô, không có quyền chi tiết:
 
 \so{1} \oo{Xem}: mở màn, xem danh sách.
 
@@ -1175,23 +1194,6 @@ lệnh sẽ chạy qua, xem bước KCS cuối sẽ bày những tiêu chí nào
 
 Sửa tiêu chí chỉ áp cho lệnh phát hành từ lúc đó. Lệnh đã phát hành giữ bộ cũ, hồ sơ lệnh sẽ báo tiêu chí đã đổi
 và có nút \oo{Cập nhật tiêu chí}.
-
-\Needspace*{16\baselineskip}
-\subsection{Xe giao hàng}\label{danh-muc-xe}
-
-\canh{0.45}{61-xe.png}{%
-Khai xe để tính tiền khoán km cho tài xế. Cần khai mức khoán km ở Cấu hình lương trước (mục
-\ref{nhan-su-cau-hinh-luong}).
-
-\duong{Cấu hình danh mục > Xe giao hàng}, bấm \oo{Thêm xe giao hàng}.
-
-\so{1} \oo{Biển số}.
-
-\so{2} \oo{Tên}, ví dụ Xe anh Tùng.
-
-\so{3} \oo{Mức khoán km}: chọn mức đã khai. Giá mỗi km do mức này quyết định.
-
-\so{4} \oo{Tải trọng}: chỉ để đối chiếu, không ảnh hưởng tiền.}
 
 \Needspace*{20\baselineskip}
 \subsection{Mục thu chi}\label{danh-muc-muc-thu-chi}
