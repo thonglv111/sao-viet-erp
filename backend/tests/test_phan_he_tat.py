@@ -17,7 +17,9 @@ def tat_het(monkeypatch):
     monkeypatch.setattr(settings, "phan_he_tat", "luong,khoan,hoa_hong,giao_hang,tai_san")
 
 
-def test_rong_la_bat_het(client):
+def test_rong_la_bat_het(client, monkeypatch):
+    # Ghi rõ: máy bản cài tắt phân hệ có PHAN_HE_TAT trong backend/.env, test đọc phải nó.
+    monkeypatch.setattr(settings, "phan_he_tat", "")
     h = _admin(client)
     r = client.get("/api/auth/permissions", headers=h).json()
     assert r["phan_he_tat"] == []
