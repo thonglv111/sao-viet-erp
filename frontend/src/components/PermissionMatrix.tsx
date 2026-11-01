@@ -1270,7 +1270,7 @@ export function PermissionMatrix({
    *  đoạn (chỉ gác tiền khoán — `routers/cong_doan.py::_thay_gia`). */
   const oChiTietTat = (moduleKey: string, key: string) =>
     (tat("luong") && moduleKey === "nhan_su" && (key === "can_view_salary" || key === "can_edit_salary"))
-    || (tat("khoan") && moduleKey === "cong_doan" && key === "can_view_cost");
+    || (tat("khoan") && moduleKey === "dm_cong_doan" && key === "can_view_cost");
   const matrixHienThi = matrix.filter((r) => !MODULE_DA_NGUNG.has(r.module_key) && !moduleTat.has(r.module_key));
   const byKey = new Map(matrixHienThi.map((r) => [r.module_key, r]));
   // Nhóm mở/đóng: mặc định mở khi nhóm CÓ quyền; override khi người dùng bấm.
