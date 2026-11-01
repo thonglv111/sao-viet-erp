@@ -32,6 +32,18 @@ progress.md ĐÃ CŨ (dừng ở RBAC) — ĐỪNG tin nó để biết trạng 
   đừng đợi hỏi mới thú nhận. Báo cáo phải liệt kê CỤ THỂ đã bấm gì/gõ gì/thấy gì ở từng bước, không
   nói chung chung "đã test UI".
 
+## Tài liệu PDF đi kèm code — LUẬT CỨNG
+
+- Sửa logic hoặc UI (màn, nhãn, nút, cột, quyền, luồng, công thức, thứ tự khai) mà tài liệu có mô tả →
+  BẮT BUỘC sửa luôn tài liệu tương ứng trong CÙNG lượt việc, chưa sửa doc thì chưa được báo "xong":
+  - `docs/huong-dan-cau-hinh/cau-hinh-he-thong.tex`: khai báo, danh mục, phân quyền, nhân sự, lương.
+  - `docs/huong-dan-kinh-doanh/huong-dan-su-dung-kinh-doanh.tex`: tính giá, báo giá, đơn bán, khách hàng.
+- Trước khi báo xong, grep tên màn/nhãn/nút vừa đổi trong cả hai file .tex. UI đổi thì chụp lại ảnh liên
+  quan trong `hinh/`; sơ đồ archify sai thì vẽ lại.
+- Biên dịch XeLaTeX 2 lần, 0 tham chiếu treo, dọn `*.aux *.log *.out *.toc`. Đổi `\label` thì kiểm lại
+  liên kết chéo từ PDF Kinh doanh sang PDF Cấu hình. Commit .tex + .pdf + ảnh cùng commit với code.
+- Thay đổi không đụng nội dung tài liệu nào thì nói rõ một câu "không ảnh hưởng tài liệu" trong báo cáo.
+
 ## Bẫy kỹ thuật — sai là vỡ DB thật (BẮT BUỘC nhớ)
 
 - KHÔNG có Alembic. `create_all` chỉ TẠO bảng, KHÔNG ALTER. Thêm/đổi cột phải viết vào
