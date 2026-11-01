@@ -622,7 +622,7 @@ export function BuocGiaoHang({
         <ChanKhung chu={!canWrite ? (xuat ? "Chỉ xem: vai của bạn chưa được sửa đơn hàng bán."
             : "Chỉ xem: vai của bạn chưa được bật ô Thao tác ở màn Giao hàng.")
           : tongGiaoDuoc > 0 ? `${xuat ? "Xuất" : "Giao"} được tối đa ${so(tongGiaoDuoc)}${motDv}.`
-          : lenhCho.length > 0 ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(" và ")} xong là giao được.`
+          : lenhCho.length > 0 ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(" và ")} xong là ${xuat ? "xuất" : "giao"} được.`
           : "Chưa có hàng của đơn này ở kho nào."}>
           {canWrite && (
             <Button variant="accent" disabled={tongGiaoDuoc <= 0} onClick={() => setMo(true)}>
