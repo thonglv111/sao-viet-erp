@@ -987,15 +987,20 @@ class LichSuSuaDoi(BaseModel):
 
 class LichSuSuaRow(BaseModel):
     """1 lần sửa ở tab "Lịch sử sửa" của ngăn mặt hàng (phương án B, 03/11/2026): ai, lúc nào, việc
-    gì, sửa ở đâu, ghi chú, và từng thông tin đổi một dòng."""
+    gì, từng thông tin đổi một dòng, và ghi chú NGƯỜI DÙNG gõ (sửa lại được)."""
 
     id: int
     luc: datetime
     nguoi: str | None = None
     viec: str
-    o_dau: str | None = None
-    ghi_chu: list[str] = []
+    ghi_chu: str = ""
+    #: Ai sửa ghi chú lần cuối (rỗng = ghi chú gõ ngay lúc sửa tồn, hoặc chưa ai ghi).
+    ghi_chu_nguoi: str | None = None
     dong: list[LichSuSuaDoi] = []
+
+
+class GhiChuLanSuaIn(BaseModel):
+    ghi_chu: str = Field(default="", max_length=1000)
 
 
 class ChuyenKhoPage(BaseModel):
@@ -1023,6 +1028,8 @@ class MaterialHistoryPage(BaseModel):
     xuat: list[MaterialXuatRow] = []
     chuyen: list[ChuyenKhoRow] = []
     sua: list[LichSuSuaRow] = []
+    #: Được sửa ghi chú tab Lịch sử sửa (cùng ô quyền Thêm, xoá hàng của kho).
+    sua_ghi_chu: bool = False
 
 
 # --- Tra kho CÔNG KHAI (quét tem QR, không đăng nhập) -------------------------

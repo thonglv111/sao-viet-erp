@@ -134,15 +134,33 @@ def test_lich_su_sua_mot_dong_ton(client):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["dem"]["sua"] == 3
-    doi = [(d["viec"], d["o_dau"], [(x["thong_tin"], x["truoc"], x["sau"], x["chenh"]) for x in d["dong"]])
+    doi = [(d["viec"], d["ghi_chu"], [(x["thong_tin"], x["truoc"], x["sau"], x["chenh"]) for x in d["dong"]])
            for d in body["sua"]]
-    assert doi[0] == ("Đặt mức tồn", "Đặt mức trên màn Tồn kho",
+    # Máy không tự điền "sửa ở đâu" vào ghi chú — ghi chú chỉ là chữ người dùng gõ.
+    assert doi[0] == ("Đặt mức tồn", "",
                       [("Tối thiểu", "chưa đặt", "100", None), ("Tối đa", "chưa đặt", "2.000", None)])
-    assert doi[1] == ("Sửa tồn", "Sửa tồn trên màn Tồn kho",
+    assert doi[1] == ("Sửa tồn", "",
                       [("Tồn", "500 tờ", "800 tờ", 300), ("Vị trí", "A1", "B2", None)])
-    assert doi[2] == ("Thêm hàng", "Thêm hàng trên màn Tồn kho",
+    assert doi[2] == ("Thêm hàng", "",
                       [("Tồn", "0 tờ", "500 tờ", 500), ("Vị trí", "chưa gắn", "A1", None)])
-    assert all(d["nguoi"] for d in body["sua"])
+    assert all(d["nguoi"] for d in body["sua"]) and body["sua_ghi_chu"] is True
+
+    # Người dùng ghi / sửa ghi chú cho một lần sửa.
+    loc = {"kho_id": kho_id, "goc": "to", "kho_rong": 790, "kho_dai": 1090}
+    url = f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-sua/{body['sua'][1]['id']}/ghi-chu"
+    r = client.put(url, headers=h, params=loc, json={"ghi_chu": "Kiểm kê cuối tháng"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ghi_chu"] == "Kiểm kê cuối tháng" and r.json()["ghi_chu_nguoi"]
+    client.put(url, headers=h, params=loc, json={"ghi_chu": "  Đếm lại kệ B2  "})
+    lai = client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h,
+                     params={**loc, "tab": "sua"}).json()["sua"]
+    assert [d["ghi_chu"] for d in lai] == ["", "Đếm lại kệ B2", ""]
+    # Lần sửa của dòng khổ khác không sửa được qua dòng đang mở.
+    khac = client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h, params={
+        "kho_id": kho_id, "tab": "sua", "goc": "to", "kho_rong": 650, "kho_dai": 860}).json()["sua"]
+    r = client.put(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-sua/{khac[0]['id']}/ghi-chu",
+                   headers=h, params=loc, json={"ghi_chu": "x"})
+    assert r.status_code == 404, r.text
 
 
 def test_xem_truoc_khong_ghi(client):
@@ -506,12 +524,15 @@ def test_doc_lan_sua_dong_cu_va_giau_gia():
     cu = NS(action="kho_ton_sua", target="ton:1:giay:1:to:790x1090",
             detail="Giấy A tại Kho giấy · Tồn 7.257 → 7.300 tờ · Vị trí A1 → A2")
     d = doc_lan_sua(cu, can_view_cost=True)
-    assert d["o_dau"] == "Màn Tồn kho"
+    assert d["ghi_chu"] == ""
     assert [(x["thong_tin"], x["truoc"], x["sau"], x["chenh"]) for x in d["dong"]] == [
         ("Tồn", "7.257 tờ", "7.300 tờ", 43), ("Vị trí", "A1", "A2", None)]
     gia = NS(action="kho_sua_gia_goc", target="stock_lot:5", detail="LO-1: giá gốc 2.500 → 2.557 đ/tờ · 3 lô")
     d = doc_lan_sua(gia, can_view_cost=True)
-    assert d["dong"][0]["thong_tin"] == "Giá gốc lô LO-1" and d["dong"][0]["chenh"] == 57
-    assert d["ghi_chu"] == ["3 lô"]
+    assert d["dong"][0]["thong_tin"] == "Giá gốc lô LO-1 (3 lô)" and d["dong"][0]["chenh"] == 57
+    assert d["ghi_chu"] == ""
+    nhap = NS(action="kho_ton_sua", target="ton:1:giay:1:to:790x1090",
+              detail="Giấy A tại Kho giấy · Tồn 1 → 2 tờ · Sửa tồn trên màn Tồn kho · Ghi chú: kiểm kê")
+    assert doc_lan_sua(nhap, can_view_cost=True)["ghi_chu"] == "kiểm kê"
     an = doc_lan_sua(gia, can_view_cost=False)["dong"][0]
     assert "2.5" not in an["truoc"] + an["sau"] and an["chenh"] is None

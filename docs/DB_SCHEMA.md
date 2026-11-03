@@ -979,6 +979,20 @@ quyền, khóa tài khoản) for the Activity Log.
 - Index: `ix_audit_logs_actor_created_at` on (`actor_user_id`, `created_at`) — lọc theo người thao tác, migration `0336`.
 - Foreign keys: `actor_user_id FK→users.id` (**ON DELETE CASCADE**).
 
+### `audit_ghi_chu`
+
+**Purpose:** ghi chú NGƯỜI DÙNG gõ cho một lần sửa ở tab "Lịch sử sửa" ngăn mặt hàng màn Tồn kho
+(03/11/2026). Tách khỏi `audit_logs` để dòng nhật ký giữ nguyên như lúc ghi; ghi chú sửa lại được.
+Chưa có dòng ⇒ tab hiện ghi chú gõ lúc sửa tồn (nằm trong `audit_logs.detail`). Tạo bằng `create_all`
+(bảng mới, không cần migration).
+
+| Column          | Type (SQLAlchemy → SQLite / Postgres)                  | Key             | Null | Default        | Meaning                                                      |
+| --------------- | ------------------------------------------------------ | --------------- | ---- | -------------- | ------------------------------------------------------------ |
+| `audit_log_id`  | `Integer` → `INTEGER`                                  | **PK**, **FK→audit_logs.id** (CASCADE) | no | — | Lần sửa được ghi chú. |
+| `noi_dung`      | `Text` → `TEXT`                                        | —               | no   | `""`           | Ghi chú. Rỗng = người dùng xoá trắng (không quay về ghi chú gõ lúc sửa). |
+| `nguoi_sua_ten` | `String(120)` → `VARCHAR(120)`                         | —               | no   | `""`           | Tên người sửa ghi chú lần cuối, chụp lúc ghi. |
+| `sua_luc`       | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —               | no   | now (UTC)      | Lúc sửa ghi chú lần cuối. |
+
 **Relationships**
 
 - Many audit rows reference one `users` (the actor).

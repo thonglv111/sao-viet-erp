@@ -34,6 +34,7 @@ from ..deps import (
 )
 from ..services.quyen_kho import gia_lo_theo_man, kho_duoc, khoa_kho, xem_ton_kho
 from ..models.stock_voucher import VOUCHER_NHAP
+from ..models.audit import AuditLog
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.document_sequence_repo import DocumentSequenceRepository
@@ -61,6 +62,7 @@ from ..schemas.stock import (
     GiaGocOut,
     ChuyenKhoPage,
     ChuyenKhoRow,
+    GhiChuLanSuaIn,
     LichSuSuaRow,
     MaterialHistoryOut,
     MaterialHistoryPage,
@@ -1269,13 +1271,24 @@ def _target_lich_su_sua(svc, kho_id: int, hang: tuple[str, int], loc: dict) -> l
     ]
 
 
-def _dong_lich_su_sua(logs, can_view_cost: bool) -> list[LichSuSuaRow]:
-    """Dòng nhật ký ra tab Lịch sử sửa — tách chữ thành Trước / Sau / Chênh ở `doc_lan_sua`."""
-    return [
-        LichSuSuaRow(id=log.id, luc=log.created_at, nguoi=log.actor_name_luc_do or None,
-                     **doc_lan_sua(log, can_view_cost=can_view_cost))
-        for log in logs
-    ]
+def _dong_lich_su_sua(db, logs, can_view_cost: bool) -> list[LichSuSuaRow]:
+    """Dòng nhật ký ra tab Lịch sử sửa — tách chữ thành Trước / Sau / Chênh ở `doc_lan_sua`. Ghi chú
+    người dùng đã sửa lại (`audit_ghi_chu`) đè lên ghi chú gõ lúc sửa tồn."""
+    da_sua = AuditLogRepository(db).ghi_chu_theo_log(log.id for log in logs)
+    out: list[LichSuSuaRow] = []
+    for log in logs:
+        r = LichSuSuaRow(id=log.id, luc=log.created_at, nguoi=log.actor_name_luc_do or None,
+                         **doc_lan_sua(log, can_view_cost=can_view_cost))
+        if (g := da_sua.get(log.id)) is not None:
+            r.ghi_chu, r.ghi_chu_nguoi = g.noi_dung, g.nguoi_sua_ten or None
+        out.append(r)
+    return out
+
+
+def _duoc_sua_ghi_chu(authz, user: User, kho_id: int) -> bool:
+    """Cùng ô quyền với Thêm / Sửa tồn của kho (`ton_kho_<id>:adjust`) — người sửa tồn ghi lý do."""
+    khoa = khoa_kho(kho_id)
+    return authz.can(user, khoa, "read") and authz.can(user, khoa, "adjust")
 
 
 @router.get("/mat-hang/{hang_loai}/{hang_id}/lich-su-trang", response_model=MaterialHistoryPage)
@@ -1329,8 +1342,37 @@ def material_history_page(
     elif tab == "chuyen":
         out.chuyen = _dong_chuyen_kho(svc, db, dong_dc, can_view_cost)
     else:
-        out.sua = _dong_lich_su_sua(nhat_ky, can_view_cost)
+        out.sua = _dong_lich_su_sua(db, nhat_ky, can_view_cost)
+        out.sua_ghi_chu = _duoc_sua_ghi_chu(authz, user, kho_id)
     return out
+
+
+@router.put("/mat-hang/{hang_loai}/{hang_id}/lich-su-sua/{log_id}/ghi-chu", response_model=LichSuSuaRow)
+def sua_ghi_chu_lan_sua(
+    hang_loai: str, hang_id: int, log_id: int, payload: GhiChuLanSuaIn, svc: Service, db: Db,
+    authz: Authz, user: Annotated[User, Depends(require_xem_kho_nao((MODULE, "read")))],
+    kho_id: int = Query(...),
+    goc: str | None = Query(default=None, max_length=16),
+    kho_rong: int = Query(default=0, ge=0),
+    kho_dai: int = Query(default=0, ge=0),
+) -> LichSuSuaRow:
+    """Ghi / sửa ghi chú của MỘT lần sửa ở tab Lịch sử sửa. Chỉ nhận dòng nhật ký thuộc đúng dòng
+    tồn đang mở — không cho mượn đường này sửa ghi chú nhật ký khác."""
+    _chan_neu_khong_xem_ton(db, authz, user, kho_id)
+    if not _duoc_sua_ghi_chu(authz, user, kho_id):
+        raise HTTPException(status.HTTP_403_FORBIDDEN,
+                            detail="Cần quyền chi tiết “Thêm, xoá, import, export hàng” của kho này.")
+    hang = (hang_loai, hang_id)
+    loc = {"goc": _goc_q(hang_loai, goc), "kho_rong": kho_rong, "kho_dai": kho_dai}
+    repo = AuditLogRepository(db)
+    log = repo.db.get(AuditLog, log_id)
+    if (log is None or log.action not in VIEC_NHAT_KY_TON
+            or log.target not in _target_lich_su_sua(svc, kho_id, hang, loc)):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Không thấy lần sửa này ở dòng tồn đang mở.")
+    repo.dat_ghi_chu(log_id, payload.ghi_chu.strip(), getattr(user, "name", "") or "")
+    db.commit()
+    can_view_cost = gia_lo_theo_man(authz, user, "ton")(kho_id)
+    return _dong_lich_su_sua(db, [log], can_view_cost)[0]
 
 
 @router.get("/chuyen-kho/{kho_id}", response_model=ChuyenKhoPage)

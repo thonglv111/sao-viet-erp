@@ -2,7 +2,9 @@
 // cho tab "Lịch sử chuyển kho" của ngăn mặt hàng (không cột Mặt hàng) và tab Điều chuyển của trang kho.
 // Không số phiếu, không mở phiếu: người xem cần từ kho nào, lấy ở đâu, sang kho nào, cất ở đâu, bao
 // nhiêu, giá trị, ai chuyển.
+import { useState } from "react";
 import type { ChuyenKhoRow, LichSuSuaRow } from "../../api/client";
+import { ApiError } from "../../api/client";
 import { fmtDateTime, money } from "../../utils/format";
 import { fmtQty } from "../khoShared";
 import { tenDonVi } from "../tenDonVi";
@@ -86,9 +88,73 @@ function Chenh({ v, dv }: { v: number | null; dv: string }) {
   );
 }
 
+/** Ô Ghi chú của một lần sửa: chữ người dùng gõ, bấm vào là sửa tại chỗ (Enter lưu, Esc thôi,
+ *  Shift+Enter xuống dòng). Không có quyền thì chỉ đọc. */
+function OGhiChu({ r, suaDuoc, onLuu }: {
+  r: LichSuSuaRow;
+  suaDuoc: boolean;
+  onLuu: (id: number, ghiChu: string) => Promise<void>;
+}) {
+  const [nhap, setNhap] = useState<string | null>(null);
+  const [dangLuu, setDangLuu] = useState(false);
+  const [loi, setLoi] = useState<string | null>(null);
+  const luu = async () => {
+    if (nhap == null || dangLuu) return;
+    if (nhap.trim() === r.ghi_chu) { setNhap(null); return; }
+    setDangLuu(true);
+    try {
+      await onLuu(r.id, nhap.trim());
+      setNhap(null);
+      setLoi(null);
+    } catch (e) {
+      setLoi(e instanceof ApiError ? e.message : "Không lưu được ghi chú.");
+    } finally {
+      setDangLuu(false);
+    }
+  };
+  if (nhap != null) {
+    return (
+      <>
+        <textarea
+          className="lss-o-nhap"
+          autoFocus
+          rows={2}
+          maxLength={1000}
+          value={nhap}
+          disabled={dangLuu}
+          placeholder="Vì sao sửa, đếm lại ở đâu…"
+          onChange={(e) => setNhap(e.target.value)}
+          onBlur={() => void luu()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void luu(); }
+            if (e.key === "Escape") { e.preventDefault(); setNhap(null); setLoi(null); }
+          }}
+        />
+        {loi && <div className="lss-loi">{loi}</div>}
+      </>
+    );
+  }
+  if (!suaDuoc) return r.ghi_chu ? <span className="lss-chu">{r.ghi_chu}</span> : tru;
+  return (
+    <button
+      type="button"
+      className="lss-o-sua"
+      title={r.ghi_chu_nguoi ? `${r.ghi_chu_nguoi} sửa ghi chú lần cuối` : "Bấm để ghi chú"}
+      onClick={() => setNhap(r.ghi_chu)}
+    >
+      {r.ghi_chu ? <span className="lss-chu">{r.ghi_chu}</span> : <span className="lss-goi-y">Thêm ghi chú</span>}
+    </button>
+  );
+}
+
 /** Tab "Lịch sử sửa" của ngăn mặt hàng (phương án B, 03/11/2026): lưới kiểu Excel, mỗi thông tin đổi
- *  một dòng Trước / Sau / Chênh; ngày giờ, người, việc, ở đâu gộp ô theo lần sửa. */
-export function BangLichSuSua({ rows }: { rows: LichSuSuaRow[] }) {
+ *  một dòng Trước / Sau / Chênh; ngày giờ, người, việc, ghi chú gộp ô theo lần sửa. Ghi chú là chữ
+ *  người dùng gõ và sửa được — máy không tự điền. */
+export function BangLichSuSua({ rows, suaDuoc, onLuu }: {
+  rows: LichSuSuaRow[];
+  suaDuoc: boolean;
+  onLuu: (id: number, ghiChu: string) => Promise<void>;
+}) {
   return (
     <table className="kho-lines lss">
       <colgroup>
@@ -110,7 +176,7 @@ export function BangLichSuSua({ rows }: { rows: LichSuSuaRow[] }) {
           <th className="kho-num">Trước</th>
           <th className="kho-num">Sau</th>
           <th className="kho-num">Chênh</th>
-          <th>Ở đâu, ghi chú</th>
+          <th>Ghi chú</th>
         </tr>
       </thead>
       <tbody>
@@ -132,9 +198,7 @@ export function BangLichSuSua({ rows }: { rows: LichSuSuaRow[] }) {
               <td className="kho-num">{d && <Chenh v={d.chenh} dv={d.don_vi} />}</td>
               {i === 0 && (
                 <td rowSpan={n} className="lss-ghi">
-                  {r.o_dau && <div>{r.o_dau}</div>}
-                  {r.ghi_chu.map((g, k) => <div key={k} className="lss-mo">{g}</div>)}
-                  {!r.o_dau && r.ghi_chu.length === 0 && tru}
+                  <OGhiChu r={r} suaDuoc={suaDuoc} onLuu={onLuu} />
                 </td>
               )}
             </tr>

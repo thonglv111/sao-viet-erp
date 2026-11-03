@@ -6,7 +6,7 @@ from .attendance import (
     WorkLocation,
     WorkShift,
 )
-from .audit import AuditLog
+from .audit import AuditGhiChu, AuditLog
 from .customer import Customer
 from .department import Department
 from .employee import (

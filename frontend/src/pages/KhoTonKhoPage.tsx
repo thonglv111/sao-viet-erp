@@ -2066,7 +2066,15 @@ function MaterialHistoryDrawer({
             <p className="kho-hint">Chưa ai sửa thông tin vật tư này ở kho.</p>
           ) : (
             <div className="kho-lines__wrap">
-              <BangLichSuSua rows={trang?.sua ?? []} />
+              <BangLichSuSua
+                rows={trang?.sua ?? []}
+                suaDuoc={!!trang?.sua_ghi_chu}
+                onLuu={async (id, ghiChu) => {
+                  const moi = await api.kho.phieu.suaGhiChuLanSua(
+                    token, material.hang_loai, material.hang_id, id, khoId, ghiChu, giay);
+                  setData((d) => (d ? { ...d, sua: d.sua.map((r) => (r.id === id ? moi : r)) } : d));
+                }}
+              />
             </div>
           )}
           {tab !== "tong_quan" && (dem?.[tabNap] ?? 0) > DRAWER_PAGE && (

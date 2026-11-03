@@ -12387,8 +12387,9 @@ export interface LichSuSuaRow {
   luc: string;
   nguoi: string | null;
   viec: string;
-  o_dau: string | null;
-  ghi_chu: string[];
+  /** Ghi chú người dùng gõ (lúc sửa tồn hoặc sửa lại ở tab). Máy không tự điền. */
+  ghi_chu: string;
+  ghi_chu_nguoi: string | null;
   dong: LichSuSuaDoi[];
 }
 
@@ -12410,6 +12411,8 @@ export interface StockMaterialHistoryPage {
   xuat: StockMaterialXuatRow[];
   chuyen: ChuyenKhoRow[];
   sua: LichSuSuaRow[];
+  /** Được sửa ghi chú tab Lịch sử sửa (ô quyền Thêm, xoá hàng của kho). */
+  sua_ghi_chu: boolean;
 }
 
 /** Lịch sử 1 mã hàng tại 1 kho: NHẬP = các lô (cả đã hết) · XUẤT = dòng phiếu xuất. */
@@ -17814,6 +17817,28 @@ export const api = {
         return authed<StockMaterialHistoryPage>(
           `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su-trang?${qs.toString()}`,
           token,
+        );
+      },
+      /** Ghi / sửa ghi chú một lần sửa ở tab Lịch sử sửa của ngăn mặt hàng. */
+      suaGhiChuLanSua(
+        token: string,
+        hangLoai: HangLoai,
+        hangId: number,
+        logId: number,
+        khoId: number,
+        ghiChu: string,
+        giay?: DongTonGiay,
+      ): Promise<LichSuSuaRow> {
+        const qs = new URLSearchParams({ kho_id: String(khoId) });
+        if (giay) {
+          if (giay.goc) qs.set("goc", giay.goc);
+          qs.set("kho_rong", String(giay.kho_rong));
+          qs.set("kho_dai", String(giay.kho_dai));
+        }
+        return authed<LichSuSuaRow>(
+          `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su-sua/${logId}/ghi-chu?${qs.toString()}`,
+          token,
+          { method: "PUT", body: JSON.stringify({ ghi_chu: ghiChu }) },
         );
       },
       /** Tab Điều chuyển của trang một kho: mọi lần chuyển đi / nhận về, một dòng một mặt hàng × vị

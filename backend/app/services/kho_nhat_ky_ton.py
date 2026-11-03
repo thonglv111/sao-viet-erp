@@ -51,7 +51,6 @@ def tach(detail: str) -> list[str]:
 _NHAN_RIENG = ("Tồn", "Vị trí", "Tối thiểu", "Tối đa", "giá gốc")
 #: Thông tin có số ⇒ tính cột Chênh.
 _CO_CHENH = ("Tồn", "Tối thiểu", "Tối đa", "Giá gốc", "Đơn giá")
-_LOAI_DM = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thành phẩm"}
 _SO = re.compile(r"^(-?[\d.]+(?:,\d+)?)\s*(.*)$")
 
 
@@ -98,19 +97,17 @@ def _mot_doi(chu: str, nhan_biet: list[str], nhan_mac_dinh: str) -> dict | None:
 
 
 def doc_lan_sua(log, *, can_view_cost: bool) -> dict:
-    """Một dòng nhật ký → {viec, o_dau, ghi_chu, dong[]} cho tab Lịch sử sửa. Không thấy giá thì vẫn
-    biết CÓ lần sửa giá, chỉ giấu số."""
+    """Một dòng nhật ký → {viec, ghi_chu, dong[]} cho tab Lịch sử sửa. `ghi_chu` chỉ là chữ NGƯỜI
+    DÙNG gõ lúc sửa (máy không tự điền "sửa ở đâu"); sửa lại sau thì đọc từ `audit_ghi_chu`. Không
+    thấy giá thì vẫn biết CÓ lần sửa giá, chỉ giấu số."""
     phan = tach(log.detail)
     loai = (log.target or "").split(":", 1)[0]
     viec = VIEC.get(log.action, log.action)
-    o_dau = None
     if loai == "ton":
         phan = phan[1:]          # mẩu đầu "mặt hàng tại kho" cho màn Nhật ký chung
-    elif loai in _LOAI_DM:
-        o_dau = f"Danh mục {_LOAI_DM[loai]}"
     if log.action == "dm_tao":
         ten = (log.detail or "").strip()
-        return {"viec": viec, "o_dau": o_dau, "ghi_chu": [],
+        return {"viec": viec, "ghi_chu": "",
                 "dong": [{"thong_tin": "Mặt hàng", "truoc": "chưa có", "sau": ten or "–",
                           "chenh": None, "don_vi": ""}]}
     nhan_biet = _nhan_biet()
@@ -125,11 +122,10 @@ def doc_lan_sua(log, *, can_view_cost: bool) -> dict:
         elif p.startswith("Ghi chú: "):
             ghi.append(p[len("Ghi chú: "):])
         elif p.endswith("trên màn Tồn kho"):
-            o_dau = p
             if p.startswith("Thêm hàng"):
                 viec = "Thêm hàng"
+        elif dong:
+            dong[-1]["thong_tin"] += f" ({p})"   # chú thích của máy cho dòng ngay trước, vd "3 lô"
         else:
-            ghi.append(p)
-    if loai == "ton" and o_dau is None:
-        o_dau = "Màn Tồn kho"
-    return {"viec": viec, "o_dau": o_dau, "ghi_chu": ghi, "dong": dong}
+            dong.append({"thong_tin": p, "truoc": "", "sau": "", "chenh": None, "don_vi": ""})
+    return {"viec": viec, "ghi_chu": "; ".join(ghi), "dong": dong}

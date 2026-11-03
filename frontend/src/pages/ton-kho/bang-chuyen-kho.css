@@ -5,8 +5,20 @@
 .lss-truoc { color: var(--tt-slate-fg); }
 .lss-tang { color: var(--tt-la-fg); }
 .lss-giam { color: var(--tt-do-fg); }
-.lss-ghi { white-space: normal; color: var(--tt-xam-fg); }
-.lss-mo { color: var(--tt-slate-fg); }
+.lss-ghi { white-space: normal; min-width: 180px; }
+.lss-chu { white-space: pre-wrap; }
+.lss-goi-y { color: var(--tt-slate-dot); }
+.lss-o-sua {
+  display: block; width: 100%; min-height: 26px; margin: -4px -6px; padding: 4px 6px;
+  border: 1px solid transparent; border-radius: 6px; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: text;
+}
+.lss-o-sua:hover, .lss-o-sua:focus-visible { border-color: var(--tt-xam-bg); outline: none; }
+.lss-o-nhap {
+  display: block; width: 100%; padding: 4px 6px; border: 1px solid var(--tt-xanh-dot);
+  border-radius: 6px; font: inherit; resize: vertical;
+}
+.lss-loi { margin-top: 4px; color: var(--tt-do-fg); font-size: 12px; }
 .lss-chip {
   display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
   border-radius: 11px; font-size: 12px; white-space: nowrap;
