@@ -12370,6 +12370,15 @@ export interface ChuyenKhoRow {
   /** Tổng giá vốn — null khi người xem không thấy giá ở kho này. */
   gia_tri: number | null;
   nguoi: string | null;
+  /** Đơn vị xem được của dòng (gốc đứng đầu, `he_so` = số đơn vị gốc trong 1 đơn vị) — cột ĐVT. */
+  don_vi_xem?: { ma: string; ten: string; he_so: number }[] | null;
+}
+
+/** Một trang tab Điều chuyển của trang kho: dòng + giá trị chọn của nút Lọc. */
+export interface ChuyenKhoPage {
+  items: ChuyenKhoRow[];
+  total: number;
+  chon: Record<string, GiaTriChonNgan[]>;
 }
 
 /** Một thông tin đổi trong một lần sửa: Trước → Sau, Chênh khi là số. */
@@ -17891,16 +17900,18 @@ export const api = {
         );
       },
       /** Tab Điều chuyển của trang một kho: mọi lần chuyển đi / nhận về, một dòng một mặt hàng × vị
-       *  trí lấy. Kỳ theo ngày chuyển, ô tìm theo mã / tên vật tư — lọc + cắt trang ở máy chủ. */
+       *  trí lấy. Kỳ theo ngày chuyển, ô tìm theo mã / tên vật tư, Lọc từ kho / sang kho / người
+       *  chuyển — lọc + cắt trang ở máy chủ. */
       chuyenKho(
         token: string,
         khoId: number,
-        loc: { q?: string | null; tu_ngay?: string | null; den_ngay?: string | null; page: number; size: number },
-      ): Promise<{ items: ChuyenKhoRow[]; total: number }> {
+        loc: LocNganMatHang & { page: number; size: number },
+      ): Promise<ChuyenKhoPage> {
         const qs = new URLSearchParams({ page: String(loc.page), size: String(loc.size) });
         if (loc.q) qs.set("q", loc.q);
         if (loc.tu_ngay) qs.set("tu_ngay", loc.tu_ngay);
         if (loc.den_ngay) qs.set("den_ngay", loc.den_ngay);
+        for (const k of ["kho_tu", "kho_den", "nguoi"] as const) for (const v of loc[k] ?? []) qs.append(k, v);
         return authed(`/api/kho/phieu/chuyen-kho/${khoId}?${qs.toString()}`, token);
       },
       /** Tổng xuất THƯỜNG `soNgay` ngày qua của một dòng tồn (hộp đặt ngưỡng tính bình quân). */

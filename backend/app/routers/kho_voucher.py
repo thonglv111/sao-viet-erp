@@ -1200,6 +1200,16 @@ def _dong_chuyen_kho(svc, db, rows: list[dict], can_view_cost: bool) -> list[Chu
     kho = KhoHangRepository(db).theo_ids([i for r in rows for i in (r["kho_tu_id"], r["kho_den_id"])])
     nguoi = UserRepository(db).get_many([r["nguoi_id"] for r in rows])
     hang = svc.hang.map_theo_cap([(r["hang_loai"], r["hang_id"]) for r in rows])
+    from types import SimpleNamespace
+
+    from ..services.kho_nhap_tay import KhoNhapTayService
+
+    # Cột ĐVT: cùng luật đơn vị xem với dòng tồn (quy theo khổ + gsm cho giấy).
+    khoa_dv = lambda r: (r["hang_loai"], r["hang_id"], int(r["kho_rong"] or 0), int(r["kho_dai"] or 0),  # noqa: E731
+                         (r["don_vi_goc"] or "").lower())
+    dv_xem = KhoNhapTayService(db, svc).don_vi_xem([SimpleNamespace(**{
+        "hang_loai": r["hang_loai"], "hang_id": r["hang_id"], "kho_rong": r["kho_rong"],
+        "kho_dai": r["kho_dai"], "don_vi_goc": r["don_vi_goc"]}) for r in rows])
     out: list[ChuyenKhoRow] = []
     for r in rows:
         m = hang.get((r["hang_loai"], r["hang_id"]))
@@ -1214,6 +1224,7 @@ def _dong_chuyen_kho(svc, db, rows: list[dict], can_view_cost: bool) -> list[Chu
             lay_o=r["lay_o"], cat_o=r["cat_o"], so_luong=r["so_luong"],
             gia_tri=round(r["gia_tri"]) if can_view_cost else None,
             nguoi=getattr(u, "name", None),
+            don_vi_xem=dv_xem.get(khoa_dv(r)),
         ))
     return out
 
@@ -1397,22 +1408,29 @@ def lich_su_chuyen_kho(
     q: str | None = Query(default=None, max_length=200),
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
+    kho_tu: list[str] = Query(default=[]),
+    kho_den: list[str] = Query(default=[]),
+    nguoi: list[str] = Query(default=[]),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
 ) -> ChuyenKhoPage:
     """Tab Điều chuyển của trang một kho (03/11/2026): mọi lần chuyển đi / nhận về của kho, một dòng
-    một mặt hàng × vị trí lấy, cùng cột với tab Lịch sử chuyển kho của ngăn mặt hàng. Lọc kỳ theo
-    ngày chuyển, ô tìm theo mã / tên vật tư; giá trị chỉ hiện với ô xem giá của kho này."""
+    một mặt hàng × vị trí lấy, cùng khuôn với tab Lịch sử chuyển kho của ngăn mặt hàng (04/11/2026:
+    thêm nút Lọc từ kho / sang kho / người chuyển, cột ĐVT). Lọc kỳ theo ngày chuyển, ô tìm theo mã /
+    tên vật tư; giá trị chỉ hiện với ô xem giá của kho này."""
     _chan_neu_khong_xem_ton(db, authz, user, kho_id)
     can_view_cost = gia_lo_theo_man(authz, user, "ton")(kho_id)
     hang_khop = None
     if q and q.strip():
         hang_khop = [(d["hang_loai"], d["hang_id"])
                      for d in _hang_service(db).tim_mat_hang(q.strip(), size=500)]
-    rows, total = svc.vouchers.dong_chuyen_kho(
-        kho_id, hang_khop=hang_khop, tu_ngay=tu_ngay, den_ngay=den_ngay,
-        offset=(page - 1) * size, limit=size)
-    return ChuyenKhoPage(items=_dong_chuyen_kho(svc, db, rows, can_view_cost), total=total)
+    loc = ngan_ls.LocNgan(tu_ngay=tu_ngay, den_ngay=den_ngay, kho_tu=kho_tu, kho_den=kho_den, nguoi=nguoi)
+    rows, chon = ngan_ls.chuyen(svc, db, None, kho_id, {}, loc, hang_khop=hang_khop)
+    tu = (page - 1) * size
+    return ChuyenKhoPage(
+        items=_dong_chuyen_kho(svc, db, rows[tu:tu + size], can_view_cost), total=len(rows),
+        chon={k: [GiaTriChon(**g) for g in v] for k, v in chon.items()},
+    )
 
 
 @router.get("/mat-hang/{hang_loai}/{hang_id}/tong-xuat")

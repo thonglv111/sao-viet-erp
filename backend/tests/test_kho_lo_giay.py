@@ -426,6 +426,13 @@ def test_lich_su_chuyen_kho_mot_dong_mot_vi_tri_lay(client):
     assert r.status_code == 200, r.text
     assert r.json()["total"] == 2
     assert {d["hang_ten"] for d in r.json()["items"]} == {"Giấy C-300"}
+    # Cột ĐVT (04/11/2026): dòng mang đơn vị xem được, gốc tờ đứng đầu, ram quy 500 tờ.
+    dv = {x["ma"]: x["he_so"] for x in r.json()["items"][0]["don_vi_xem"]}
+    assert r.json()["items"][0]["don_vi_xem"][0]["ma"] == "to" and dv["ram"] == 500
+    # Nút Lọc của tab Điều chuyển: giá trị chọn + lọc sang kho.
+    assert {c["nhan"] for c in r.json()["chon"]["kho_den"]} == {"Kho nhận"}
+    r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client), params={"kho_den": str(kho_id)})
+    assert r.json()["total"] == 0 and r.json()["chon"]["kho_tu"]
     r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client), params={"q": "không khớp gì"})
     assert r.json()["total"] == 0
 

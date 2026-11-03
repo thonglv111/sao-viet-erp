@@ -973,6 +973,8 @@ class ChuyenKhoRow(BaseModel):
     #: Tổng giá vốn các lô đã chuyển — chỉ có khi người xem thấy giá ở màn Tồn kho.
     gia_tri: float | None = None
     nguoi: str | None = None
+    #: Đơn vị xem được của dòng (gốc đứng đầu, `he_so` = số đơn vị gốc trong 1 đơn vị) — cột ĐVT.
+    don_vi_xem: list[dict] | None = None
 
 
 class LichSuSuaDoi(BaseModel):
@@ -1038,6 +1040,8 @@ class GhiChuLanSuaIn(BaseModel):
 class ChuyenKhoPage(BaseModel):
     items: list[ChuyenKhoRow]
     total: int
+    #: Giá trị chọn được của nút Lọc (kho_tu, kho_den, nguoi) — tính trên mọi dòng trước khi lọc.
+    chon: dict[str, list[GiaTriChon]] = {}
 
 
 class MaterialHistoryPage(BaseModel):

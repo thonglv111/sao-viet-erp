@@ -9,7 +9,7 @@ giá trị chọn được bằng câu riêng mà không nhanh hơn ở cỡ nà
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timezone
 
 from ..repositories.audit_repo import AuditLogRepository
@@ -153,9 +153,14 @@ def nhap_xuat(svc, db, hang, kho_id: int, loc_kho: dict, loc: LocNgan,
 
 # ------------------------------------------------------------------ Lịch sử chuyển kho
 
-def chuyen(svc, db, hang, kho_id: int, loc_kho: dict, loc: LocNgan) -> tuple[list[dict], dict]:
-    """Lần chuyển đi / nhận về của dòng tồn. Kỳ theo ngày chuyển; lọc từ kho, sang kho, người chuyển."""
-    rows, _ = svc.vouchers.dong_chuyen_kho(kho_id, hang=hang, **loc_kho)
+def chuyen(svc, db, hang, kho_id: int, loc_kho: dict, loc: LocNgan, *,
+           hang_khop: list[tuple[str, int]] | None = None) -> tuple[list[dict], dict]:
+    """Lần chuyển đi / nhận về của dòng tồn. Kỳ theo ngày chuyển; lọc từ kho, sang kho, người chuyển.
+    `hang=None` là cả kho (tab Điều chuyển của trang kho): ô tìm đã thu về `hang_khop` (mã / tên vật
+    tư) nên không tìm thêm trong vị trí."""
+    rows, _ = svc.vouchers.dong_chuyen_kho(kho_id, hang=hang, hang_khop=hang_khop, **loc_kho)
+    if hang is None:
+        loc = replace(loc, q="")
     kho = KhoHangRepository(db).theo_ids([i for r in rows for i in (r["kho_tu_id"], r["kho_den_id"])])
     users = UserRepository(db).get_many({r["nguoi_id"] for r in rows if r["nguoi_id"]})
     ten_kho = {str(i): k.ten for i, k in kho.items()}

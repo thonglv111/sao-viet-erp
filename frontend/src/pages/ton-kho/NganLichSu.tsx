@@ -5,9 +5,11 @@
 // dòng trên bảng đang xem; đổi ở dòng nào thì số dòng đó đổi theo (số chia hệ số, đơn giá nhân hệ số,
 // tiền giữ nguyên). Ô số lượng chỉ còn số, đơn vị nằm ở cột ĐVT.
 import { MapPin, Tags, User, Warehouse } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
+import { api, ApiError } from "../../api/client";
 import type {
+  ChuyenKhoPage,
   ChuyenKhoRow,
   GiaTriChonNgan,
   LichSuSuaDoi,
@@ -26,6 +28,7 @@ import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { nhanKho } from "../../lib/khoGiay";
 import { fmtDateISO, fmtDateTime, money } from "../../utils/format";
 import { fmtQty, todayISO } from "../khoShared";
+import { tenDonVi, useNapTenDonVi } from "../tenDonVi";
 import { ThanhLoc } from "../thanh-loc/ThanhLoc";
 import { thamSoKy, type KyDS } from "../thanh-loc/ky-danh-sach";
 import type { DieuKien } from "../thanh-loc/thanh-loc";
@@ -63,6 +66,29 @@ export interface DvNgan {
 interface DvDong { heSo: number; ten: string }
 
 const tru = <span className="lds-mu3">–</span>;
+
+/** Đơn vị từng dòng người xem đã đổi (khoá dòng → mã đơn vị); vắng = mặc định `dv.ma`, rồi gốc. */
+function useDvDong() {
+  const [dvDong, setDvDong] = useState<Record<string, string>>({});
+  const maCua = (k: string, dv: DvNgan) => dvDong[k] ?? dv.ma ?? dv.ds[0]?.ma ?? "";
+  return {
+    dvCua(k: string, dv: DvNgan, tenGoc: string): DvDong {
+      const c = dv.ds.find((d) => d.ma === maCua(k, dv)) ?? null;
+      const heSo = c && c.he_so > 0 ? c.he_so : 1;
+      return { heSo, ten: c && heSo !== 1 ? c.ten : tenGoc };
+    },
+    /** Ô ĐVT: ô chọn khi có đơn vị quy được, không thì tên đơn vị gốc. */
+    oDv(k: string, dv: DvNgan, tenGoc: string): ReactNode {
+      if (dv.ds.length < 2) return tenGoc || tru;
+      return (
+        <select className="tkh-dvt-chon" aria-label="Xem dòng này theo đơn vị" value={maCua(k, dv)}
+          onChange={(e) => setDvDong((cu) => ({ ...cu, [k]: e.target.value }))}>
+          {dv.ds.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
+        </select>
+      );
+    },
+  };
+}
 
 type Cot<T> = CotLuoi & { w?: number; n?: boolean; o: (r: T) => ReactNode; lop?: (r: T) => string | undefined };
 
@@ -157,22 +183,11 @@ export function TabBangNgan({
   onLuuGhiChu: (id: number, ghiChu: string) => Promise<void>;
 }) {
   const luoi = useCauHinhLuoi(`kho-ngan-${tab}`);
-  // Đơn vị từng dòng người xem đã đổi trong ngăn (khoá dòng → mã đơn vị); vắng = mặc định của ngăn.
-  const [dvDong, setDvDong] = useState<Record<string, string>>({});
-  const maCua = (k: string) => dvDong[k] ?? dv.ma ?? dv.ds[0]?.ma ?? "";
-  const dvCua = (k: string): DvDong => {
-    const c = dv.ds.find((d) => d.ma === maCua(k)) ?? null;
-    const heSo = c && c.he_so > 0 ? c.he_so : 1;
-    return { heSo, ten: c && heSo !== 1 ? c.ten : dvtGoc };
-  };
+  const dvd = useDvDong();
+  const dvCua = (k: string) => dvd.dvCua(k, dv, dvtGoc);
   const sl = (k: string, n: number | null | undefined, dau = "") => (n == null ? tru : `${dau}${fmtQty(n / dvCua(k).heSo)}`);
   const gia = (k: string, n: number | null | undefined) => (n == null ? "" : money(n * dvCua(k).heSo));
-  const oDv = (k: string) => (dv.ds.length < 2 ? (dvtGoc || tru) : (
-    <select className="tkh-dvt-chon" aria-label="Xem dòng này theo đơn vị" value={maCua(k)}
-      onChange={(e) => setDvDong((cu) => ({ ...cu, [k]: e.target.value }))}>
-      {dv.ds.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
-    </select>
-  ));
+  const oDv = (k: string) => dvd.oDv(k, dv, dvtGoc);
 
   const cot = cotTheoTab(tab, { sl, gia, dvCua, oDv, laGiay, canViewCost, canCreate, onBoSungKho, onOpenVoucher, onLuuGhiChu, suaDuoc: !!trang?.sua_ghi_chu, lo: trang?.lo ?? [] });
   const coLoc = !!loc.q || loc.ky.loai !== "tat_ca" || Object.values(loc.loc).some((v) => v?.length);
@@ -216,6 +231,110 @@ export function TabBangNgan({
         <PhanTrangDayDu trang={page} size={size} tong={trang.tong} soDong={rows.length} onTrang={onPage}
           onSize={onSize} loading={loading} donVi={DON_VI[tab]} ariaLabel={`Phân trang ${DON_VI[tab]}`} />
       )}
+    </>
+  );
+}
+
+/** Tab Điều chuyển của trang một kho (04/11/2026): cùng khuôn tab Lịch sử chuyển kho của ngăn (ô tìm,
+ *  kỳ, Lọc, Cột, kéo rộng, ghim, cột ĐVT đổi được) thêm cột Mặt hàng. ĐVT mỗi dòng theo đơn vị xem
+ *  được của chính dòng đó (máy chủ gửi `don_vi_xem`), mặc định đơn vị gốc. Tự nạp + giữ bộ lọc. */
+export function TabDieuChuyenKho({ token, khoId, canViewCost }: { token: string; khoId: number; canViewCost: boolean }) {
+  useNapTenDonVi();
+  const luoi = useCauHinhLuoi("kho-dieu-chuyen");
+  const dvd = useDvDong();
+  const [loc, setLoc] = useState<LocTab>(() => locTabTrong("chuyen"));
+  const [qGui, setQGui] = useState("");
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
+  const [trang, setTrang] = useState<ChuyenKhoPage | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loi, setLoi] = useState<string | null>(null);
+  const [lan, setLan] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setQGui(loc.q), 300);
+    return () => clearTimeout(t);
+  }, [loc.q]);
+  const khoaNap = JSON.stringify(thamSoTab(loc, qGui));
+  useEffect(() => {
+    let huy = false;
+    setLoading(true);
+    api.kho.phieu
+      .chuyenKho(token, khoId, { ...(JSON.parse(khoaNap) as LocNganMatHang), page, size })
+      .then((r) => { if (!huy) { setTrang(r); setLoi(null); } })
+      .catch((e) => { if (!huy) setLoi(e instanceof ApiError ? e.message : "Không tải được lịch sử chuyển kho."); })
+      .finally(() => { if (!huy) setLoading(false); });
+    return () => { huy = true; };
+  }, [token, khoId, khoaNap, page, size, lan]);
+
+  const rows = trang?.items ?? [];
+  const theoKhoa = new Map(rows.map((r) => [r.key, r]));
+  const dvOf = (k: string): [DvNgan, string] => {
+    const r = theoKhoa.get(k);
+    return [{ ds: r?.don_vi_xem ?? [], ma: null }, r?.don_vi_xem?.[0]?.ten ?? tenDonVi(r?.dvt) ?? r?.dvt ?? ""];
+  };
+  const dvCua = (k: string) => dvd.dvCua(k, ...dvOf(k));
+  const cotChuyen = cotTheoTab("chuyen", {
+    sl: (k, n, dau = "") => (n == null ? tru : `${dau}${fmtQty(n / dvCua(k).heSo)}`),
+    gia: (k, n) => (n == null ? "" : money(n * dvCua(k).heSo)),
+    dvCua,
+    oDv: (k) => dvd.oDv(k, ...dvOf(k)),
+    laGiay: false, canViewCost, canCreate: false, onBoSungKho: () => {}, onOpenVoucher: () => {},
+    onLuuGhiChu: async () => {}, suaDuoc: false, lo: [],
+  }) as Cot<ChuyenKhoRow>[];
+  const cotHang: Cot<ChuyenKhoRow> = {
+    key: "hang", label: "Mặt hàng", w: 250,
+    o: (r) => (
+      <span title={r.hang_ma ?? undefined}>
+        {r.hang_ten ?? r.hang_ma ?? "vật tư"}
+        {r.kho && <span className="lds-mu3"> {r.kho}</span>}
+      </span>
+    ),
+  };
+  const cot = [cotChuyen[0], cotHang, ...cotChuyen.slice(1)];
+  const doiLoc = (l: LocTab) => { setLoc(l); setPage(1); };
+  const xoaLoc = () => doiLoc(locTabTrong("chuyen"));
+  const coLoc = !!loc.q || loc.ky.loai !== "tat_ca" || Object.values(loc.loc).some((v) => v?.length);
+
+  return (
+    <>
+      <section className="lds-loc">
+        <div className="lds-loc__thanh tl-thanh" role="search">
+          <OTim value={loc.q} onChange={(q) => doiLoc({ ...loc, q })} placeholder="Tìm mã, tên vật tư"
+            ariaLabel="Tìm vật tư đã chuyển" />
+          <ThanhLoc
+            ky={loc.ky}
+            moc={MOC.chuyen}
+            onKy={(ky) => doiLoc({ ...loc, ky })}
+            dieuKien={dieuKien("chuyen", trang?.chon ?? {})}
+            loc={loc.loc}
+            onLoc={(l) => doiLoc({ ...loc, loc: l })}
+            onXoaHet={xoaLoc}
+          />
+          <ChonCot cot={cot} {...luoi.chonCot} />
+        </div>
+      </section>
+      <div className="lds-sheet">
+        {loi ? (
+          <div className="lds-trong">
+            <span className="lds-do">{loi}</span>{" "}
+            <button type="button" className="lds-lk" onClick={() => setLan((n) => n + 1)}>Thử lại</button>
+          </div>
+        ) : loading && !trang ? (
+          <div className="lds-trong">Đang tải…</div>
+        ) : rows.length === 0 ? (
+          <div className="lds-trong">
+            {coLoc ? "Không có lần chuyển nào khớp điều kiện đang lọc." : "Kho này chưa chuyển hay nhận hàng từ kho khác."}{" "}
+            {coLoc && <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button>}
+          </div>
+        ) : (
+          <Luoi cot={cot} luoi={luoi} rows={rows} khoa={(r) => r.key} />
+        )}
+        {!loi && trang && trang.total > 0 && (
+          <PhanTrangDayDu trang={page} size={size} tong={trang.total} soDong={rows.length} onTrang={setPage}
+            onSize={(n) => { setSize(n); setPage(1); }} loading={loading} donVi="lần chuyển"
+            ariaLabel="Phân trang lịch sử chuyển kho" />
+        )}
+      </div>
     </>
   );
 }
