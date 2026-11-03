@@ -959,6 +959,11 @@ class StockVoucherService:
         xuat = self.create(
             user=user, request_id=src_req.id, kho_id=kho_nguon_id, ghi_chu=ghi_chu, lines=xuat_lines,
         )
+        # Chụp VỊ TRÍ LẤY lên dòng xuất (03/11/2026): vị trí lô còn bị sửa về sau (sửa tồn, đổi kệ),
+        # lịch sử chuyển kho phải giữ đúng chỗ đã lấy lúc bấm.
+        vt_lo = {lo.id: lo.vi_tri for lo in self.lots.by_ids([ln.lot_id for ln in xuat.lines]).values()}
+        for ln in xuat.lines:
+            ln.vi_tri = vt_lo.get(ln.lot_id)
 
         # (3) MỘT yêu cầu NHẬP ở đích = yêu cầu điều chuyển (THẤY ĐƯỢC): đơn giá dòng = giá vốn bình
         # quân (chỉ để HIỂN THỊ mức giá của yêu cầu); kho nguồn + phiếu xuất để truy cặp đi–đến.

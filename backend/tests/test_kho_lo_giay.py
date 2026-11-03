@@ -396,6 +396,14 @@ def test_lich_su_chuyen_kho_mot_dong_mot_vi_tri_lay(client):
             {"hang_loai": "giay", "hang_id": g, "so_luong": 700, "vi_tri": "B2",
              "don_vi_goc": "to", "kho_rong": 905, "kho_dai": 780}]})
     assert r.status_code == 201, r.text
+    # Đổi kệ SAU khi chuyển: dòng lịch sử vẫn ghi chỗ đã lấy lúc bấm.
+    db = SessionLocal()
+    try:
+        for lo in db.query(StockLot).filter(StockLot.hang_id == g, StockLot.kho_id == kho_id):
+            lo.vi_tri = "Z9"
+        db.commit()
+    finally:
+        db.close()
     for kho in (kho_id, den):
         r = client.get(f"{BASE}/phieu/mat-hang/giay/{g}/lich-su-trang", headers=_admin(client), params={
             "kho_id": kho, "tab": "chuyen", "goc": "to", "kho_rong": 905, "kho_dai": 780})

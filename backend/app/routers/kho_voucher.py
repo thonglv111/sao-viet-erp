@@ -1278,7 +1278,8 @@ def _dong_lich_su_sua(logs, can_view_cost: bool) -> list[LichSuSuaRow]:
         if log.target.startswith("ton:"):
             phan = phan[1:]
         elif log.action == "dm_tao":
-            phan = []
+            # Nhật ký danh mục chỉ lưu tên lúc tạo — nói thẳng là tạo mới với tên đó.
+            phan = [f"Tạo mặt hàng mới, tên {log.detail.strip()}"] if (log.detail or "").strip() else []
         if not can_view_cost:
             phan = [] if log.action == "kho_sua_gia_goc" else [
                 p for p in phan if not p.lower().startswith(("đơn giá", "giá"))]

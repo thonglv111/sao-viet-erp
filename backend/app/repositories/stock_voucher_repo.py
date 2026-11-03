@@ -328,17 +328,19 @@ class StockVoucherRepository:
         from .stock_lot_repo import StockLotRepository
 
         L = StockVoucherLine
+        # Vị trí lấy chụp trên dòng xuất từ 03/11/2026; lần chuyển trước đó không có ⇒ vị trí lô hiện tại.
+        lay_o = func.coalesce(L.vi_tri, StockLot.vi_tri)
         nhom = (StockVoucher.id, StockVoucher.ghi_so_luc, StockVoucher.created_at, StockVoucher.kho_id,
                 StockRequest.id, StockRequest.kho_id, StockVoucher.nguoi_lap_id,
                 L.hang_loai, L.hang_id, StockLot.don_vi_goc, StockLot.kho_rong, StockLot.kho_dai,
-                StockLot.vi_tri)
+                lay_o)
         stmt = (
             select(
                 StockVoucher.id.label("xuat_id"), StockVoucher.ghi_so_luc, StockVoucher.created_at,
                 StockVoucher.kho_id.label("kho_tu"), StockRequest.id.label("req_id"),
                 StockRequest.kho_id.label("kho_den"), StockVoucher.nguoi_lap_id,
                 L.hang_loai, L.hang_id, StockLot.don_vi_goc, StockLot.kho_rong, StockLot.kho_dai,
-                StockLot.vi_tri,
+                lay_o.label("vi_tri"),
                 func.sum(L.so_luong).label("so_luong"),
                 func.sum(L.so_luong * func.coalesce(StockLot.don_gia_nhap, 0)).label("gia_tri"),
             )
@@ -369,7 +371,7 @@ class StockVoucherRepository:
         stmt = stmt.group_by(*nhom)
         tong = int(self.db.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0)
         stmt = stmt.order_by(StockVoucher.ghi_so_luc.desc().nulls_last(), StockVoucher.id.desc(),
-                             L.hang_loai, L.hang_id, StockLot.vi_tri)
+                             L.hang_loai, L.hang_id, lay_o)
         if limit is not None:
             stmt = stmt.offset(offset).limit(limit)
         rows = self.db.execute(stmt).all()

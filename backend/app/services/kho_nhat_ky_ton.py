@@ -21,8 +21,8 @@ VIEC: dict[str, str] = {
     "kho_muc_ton": "Đặt mức tồn",
     "kho_sua_gia_goc": "Sửa giá gốc",
     "kho_bo_sung_kho_lo": "Bổ sung khổ",
-    "dm_tao": "Thêm vào danh mục",
-    "dm_sua": "Sửa danh mục",
+    "dm_tao": "Tạo ở danh mục",
+    "dm_sua": "Sửa ở danh mục",
 }
 
 
