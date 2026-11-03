@@ -1089,11 +1089,10 @@ input.kho-num,
   min-height: 0;
   padding-bottom: var(--sp-6, 32px);
 }
-/* Hộp "Chuyển kho" một bước (03/11/2026). Rộng theo laptop 1000px; đầu + chân đứng yên,
-   chỉ bảng giữa cuộn, đầu bảng dính. Ô nhập nền xám không viền, chip chọn kho nhận. */
+/* Hộp "Chuyển kho" một bước (03/11/2026). Rộng theo laptop 1000px; đầu + chân đứng yên, chỉ lưới
+   giữa cuộn. Lưới dùng khuôn bảng tồn (`lds-sheet` + `lds-g`); ô gõ nằm phẳng trong ô lưới. */
 .cdlg.kdc {
   max-width: 1000px;
-  border-radius: 20px;
 }
 .kdc__dau {
   flex: none;
@@ -1101,23 +1100,124 @@ input.kho-num,
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  padding: 22px 28px 6px;
+  padding: 18px 24px 4px;
 }
 .kdc__tieu {
   margin: 0;
-  font-size: 20px;
+  font-size: 17px;
   font-weight: var(--fw-medium);
   color: var(--ink);
 }
 .kdc__dinh {
   flex: none;
-  padding: 10px 28px 0;
+  padding: 8px 24px 0;
+}
+.kdc__tuyen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.kdc__kho-tu,
+.kdc__chip {
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-pill, 999px);
+  padding: 5px 12px;
+  background: var(--canvas);
+  font: inherit;
+  color: var(--ink);
+}
+.kdc__kho-tu {
+  background: var(--paper);
+  color: var(--ash-2);
+}
+.kdc__mui {
+  color: var(--ash-2);
+}
+.kdc__chip {
+  cursor: pointer;
+}
+.kdc__chip:hover {
+  background: var(--rule-hair);
+}
+.kdc__chip.chon {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--canvas);
+}
+.kdc__thanh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: 14px 0 8px;
+  font-size: 13px;
+  color: var(--ash-2);
+}
+.kdc__thanh .lds-lk + .lds-lk {
+  margin-left: 16px;
+}
+.kdc__khung {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 24px;
 }
 .kdc__cuon {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  margin: 0 28px;
+}
+.kdc__cuon .lds-g thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+/* Ô gõ trong lưới: phẳng, nền giấy nhạt để biết là ô nhập, viền khi đang gõ. */
+.lds-g td.kdc__o-td {
+  padding: 3px 6px;
+  overflow: visible;
+}
+.kdc__o-chuyen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kdc__o-chuyen .lds-lk {
+  flex: none;
+  font-size: 12px;
+}
+.kdc__o {
+  width: 100%;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 0 8px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.kdc__o:hover {
+  border-color: var(--rule-soft);
+}
+.kdc__o:focus {
+  border-color: var(--ink);
+  background: var(--canvas);
+}
+.kdc__o::placeholder {
+  color: var(--lds-mo, var(--ash-2));
+}
+.kdc__o.kdc__o-so {
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.kdc__dinh .banner {
+  margin-top: 10px;
 }
 .kdc__chan {
   flex: none;
@@ -1126,167 +1226,27 @@ input.kho-num,
   justify-content: space-between;
   gap: var(--sp-3);
   margin-top: 14px;
-  padding: 14px 28px 20px;
+  padding: 12px 24px;
   border-top: 1px solid var(--rule-soft);
+  background: var(--paper);
 }
 .kdc__tom {
-  color: var(--ash);
+  font-size: 13px;
+  color: var(--ash-2);
 }
 .kdc__nut {
   display: flex;
-  gap: 10px;
-}
-.kdc__tuyen {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.kdc__kho-tu,
-.kdc__chip {
-  border: 0;
-  border-radius: var(--r-pill, 999px);
-  padding: 9px 16px;
-  background: var(--paper);
-  font: inherit;
-  color: var(--ink);
-}
-.kdc__kho-tu {
-  color: var(--ash);
-}
-.kdc__mui {
-  color: var(--ash-2);
-  font-size: 18px;
-}
-.kdc__chip {
-  cursor: pointer;
-  box-shadow: 0 0 0 1px var(--rule-soft) inset;
-}
-.kdc__chip:hover {
-  background: var(--rule-hair);
-}
-.kdc__chip.chon {
-  background: var(--ink);
-  color: var(--canvas);
-  box-shadow: none;
-}
-.kdc__thanh {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin: 18px 0 4px;
-  font-size: 14px;
-  color: var(--ash);
-}
-.kdc__link,
-.kdc__het {
-  border: 0;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: var(--rust);
-  cursor: pointer;
-}
-.kdc__link {
-  margin-left: 18px;
-}
-.kdc__link:hover,
-.kdc__het:hover {
-  text-decoration: underline;
-}
-.kdc__het {
-  margin-left: 8px;
-  font-size: 13px;
-}
-.kdc__o {
-  width: 100%;
-  border: 0;
-  border-radius: 10px;
-  padding: 9px 12px;
-  background: var(--paper);
-  box-shadow: 0 0 0 1px var(--rule-soft) inset;
-  font: inherit;
-  color: var(--ink);
-  outline: none;
-}
-.kdc__o:focus {
-  background: var(--canvas);
-  box-shadow: 0 0 0 2px var(--rust) inset;
-}
-.kdc__o::placeholder {
-  color: var(--ash-2);
-}
-.kdc__o.kdc__o-so {
-  width: 120px;
-  text-align: right;
-}
-.kdc__o.kdc__o-vt {
-  min-width: 120px;
-}
-.kdc__o-chuyen {
-  white-space: nowrap;
-}
-.kdc__bang {
-  width: 100%;
-  border-collapse: collapse;
-}
-.kdc__bang th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 10px;
-  background: var(--canvas);
-  border-bottom: 1px solid var(--rule-soft);
-  text-align: left;
-  font-size: 13px;
-  font-weight: var(--fw-regular);
-  color: var(--ash);
-  white-space: nowrap;
-}
-.kdc__bang td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--rule-hair);
-  vertical-align: middle;
-}
-.kdc__bang .r {
-  text-align: right;
-}
-.kdc__bang .so {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.kdc__mo,
-.kdc__bang tr.trong td {
-  color: var(--ash);
-}
-.kdc__am {
-  color: var(--signal-deep, #b42318);
-}
-.kdc__ghi {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 14px;
-  padding: 14px 0 0;
-}
-.kdc__dinh .banner {
-  margin-top: 12px;
+  gap: 8px;
 }
 @media (max-width: 720px) {
   .kdc__dau,
+  .kdc__dinh,
   .kdc__chan {
     padding-left: 16px;
     padding-right: 16px;
   }
-  .kdc__dinh {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-  .kdc__cuon {
+  .kdc__khung {
     margin: 0 16px;
-  }
-  .kdc__ghi {
-    grid-template-columns: 1fr;
   }
   .kdc__chan {
     flex-wrap: wrap;

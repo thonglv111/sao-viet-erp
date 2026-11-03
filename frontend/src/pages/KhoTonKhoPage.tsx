@@ -2255,10 +2255,8 @@ function DieuChuyenDialog({
   const [khoDenId, setKhoDenId] = useState<number | null>(khoDich.length === 1 ? khoDich[0].id : null);
   // Số chuyển từng dòng — mặc định TRỐNG (trống = không chuyển dòng đó), nút "Hết" điền cả tồn.
   const [qty, setQty] = useState<Record<string, number | null>>({});
-  // Vị trí cất ở KHO ĐÍCH: một ô chung cho tất cả, dòng nào khác thì gõ riêng.
-  const [viTriChung, setViTriChung] = useState("");
+  // Vị trí cất ở KHO ĐÍCH từng dòng — tuỳ chọn, kho đích còn sửa được lúc ghi sổ phiếu nhận.
   const [viTri, setViTri] = useState<Record<string, string>>({});
-  const [ghiChu, setGhiChu] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -2266,7 +2264,6 @@ function DieuChuyenDialog({
   const dong = items.map((it) => ({ it, k: keyOf(it), sl: qty[keyOf(it)] ?? null }));
   const coSo = dong.filter((d) => d.sl != null && d.sl > 0);
   const vuot = coSo.find((d) => (d.sl as number) > d.it.tonKhaDung + 1e-9);
-  const viTriCua = (k: string) => (viTri[k] ?? "").trim() || viTriChung.trim();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -2293,9 +2290,9 @@ function DieuChuyenDialog({
           hang_id: d.it.hang_id,
           ...(coDonViGoc(d.it.hang_loai) ? { don_vi_goc: d.it.goc, kho_rong: d.it.khoRong, kho_dai: d.it.khoDai } : {}),
           so_luong: d.sl as number,
-          vi_tri: viTriCua(d.k) || null,
+          vi_tri: (viTri[d.k] ?? "").trim() || null,
         })),
-        ghi_chu: ghiChu.trim() || null,
+        ghi_chu: null,
       });
       onDone();
     } catch (e) {
@@ -2304,8 +2301,6 @@ function DieuChuyenDialog({
       setBusy(false);
     }
   }
-
-  const cotKho = (it: DcItem) => (coKhoCot ? <td className="kdc__mo">{it.kho || "—"}</td> : null);
 
   return (
     <div className="cdlg-overlay">
@@ -2339,95 +2334,91 @@ function DieuChuyenDialog({
             <span>
               <button
                 type="button"
-                className="kdc__link"
+                className="lds-lk"
                 onClick={() => setQty(Object.fromEntries(items.map((it) => [keyOf(it), it.tonKhaDung > 0 ? it.tonKhaDung : null])))}
               >
                 Chuyển hết tất cả
               </button>
-              <button type="button" className="kdc__link" onClick={() => setQty({})}>
+              <button type="button" className="lds-lk" onClick={() => setQty({})}>
                 Xoá số đã gõ
               </button>
             </span>
           </div>
         </div>
-        <div className="kdc__cuon">
-          <table className="kdc__bang">
-            <thead>
-              <tr>
-                <th>Mặt hàng</th>
-                {coKhoCot && <th>Khổ</th>}
-                <th className="r">Đang có</th>
-                <th className="r">Chuyển</th>
-                <th className="r">Còn lại</th>
-                <th>Vị trí riêng</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dong.map(({ it, k, sl }) => {
-                const trong = sl == null || sl <= 0;
-                const con = trong ? null : it.tonKhaDung - (sl as number);
-                return (
-                  <tr key={k} className={trong ? "trong" : ""}>
-                    <td>{it.ten}</td>
-                    {cotKho(it)}
-                    <td className="r so">{fmtQty(it.tonKhaDung)} {it.dvt}</td>
-                    <td className="r kdc__o-chuyen">
-                      <DecimalInput
-                        className="kdc__o kdc__o-so so"
-                        value={sl}
-                        allowNull
-                        placeholder="—"
-                        onChange={(n) => setQty((p) => ({ ...p, [k]: n }))}
-                        aria-label={`Số chuyển ${it.ten}${it.kho ? ` khổ ${it.kho}` : ""}`}
-                      />
-                      <button
-                        type="button"
-                        className="kdc__het"
-                        onClick={() => setQty((p) => ({ ...p, [k]: it.tonKhaDung > 0 ? it.tonKhaDung : null }))}
-                      >
-                        Hết
-                      </button>
-                    </td>
-                    <td className={`r so${con != null && con < -1e-9 ? " kdc__am" : ""}`}>
-                      {con == null ? "—" : `${fmtQty(con)} ${it.dvt}`}
-                    </td>
-                    <td>
-                      <input
-                        className="kdc__o kdc__o-vt"
-                        value={viTri[k] ?? ""}
-                        maxLength={100}
-                        placeholder={viTriChung.trim() || "như dưới"}
-                        onChange={(e) => setViTri((p) => ({ ...p, [k]: e.target.value }))}
-                        aria-label={`Vị trí riêng ${it.ten}`}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="kdc__dinh">
-          <div className="kdc__ghi">
-            <input
-              className="kdc__o"
-              value={viTriChung}
-              maxLength={100}
-              placeholder="Vị trí cất cho tất cả (kệ, ô)"
-              aria-label="Vị trí cất cho tất cả"
-              onChange={(e) => setViTriChung(e.target.value)}
-            />
-            <input
-              className="kdc__o"
-              value={ghiChu}
-              maxLength={1000}
-              placeholder="Ghi chú, lý do chuyển (không bắt buộc)"
-              aria-label="Ghi chú"
-              onChange={(e) => setGhiChu(e.target.value)}
-            />
+        <div className="lds-sheet kdc__khung">
+          <div className="kdc__cuon">
+            <table className="lds-g" style={{ minWidth: 200 + (coKhoCot ? 140 : 0) + 110 + 150 + 110 + 150 }}>
+              <colgroup>
+                <col />
+                {coKhoCot && <col style={{ width: 140 }} />}
+                <col style={{ width: 110 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 150 }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Mặt hàng</th>
+                  {coKhoCot && <th>Khổ</th>}
+                  <th className="n">Đang có</th>
+                  <th className="n">Chuyển</th>
+                  <th className="n">Còn lại</th>
+                  <th>Vị trí cất</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dong.map(({ it, k, sl }) => {
+                  const trong = sl == null || sl <= 0;
+                  const con = trong ? null : it.tonKhaDung - (sl as number);
+                  return (
+                    <tr key={k}>
+                      <td>{it.ten}</td>
+                      {coKhoCot && <td>{it.kho || <span className="lds-mu3">–</span>}</td>}
+                      <td className="n">{fmtQty(it.tonKhaDung)}</td>
+                      <td className="kdc__o-td">
+                        <div className="kdc__o-chuyen">
+                          <button
+                            type="button"
+                            className="lds-lk"
+                            tabIndex={-1}
+                            onClick={() => setQty((p) => ({ ...p, [k]: it.tonKhaDung > 0 ? it.tonKhaDung : null }))}
+                          >
+                            Hết
+                          </button>
+                          <DecimalInput
+                            className="kdc__o kdc__o-so"
+                            value={sl}
+                            allowNull
+                            onChange={(n) => setQty((p) => ({ ...p, [k]: n }))}
+                            aria-label={`Số chuyển ${it.ten}${it.kho ? ` khổ ${it.kho}` : ""}`}
+                          />
+                        </div>
+                      </td>
+                      <td className={`n${con != null && con < -1e-9 ? " lds-do" : ""}`}>
+                        {con == null ? <span className="lds-mu3">–</span> : fmtQty(con)}
+                      </td>
+                      <td className="kdc__o-td">
+                        <input
+                          className="kdc__o"
+                          value={viTri[k] ?? ""}
+                          maxLength={100}
+                          placeholder="kệ, ô"
+                          onChange={(e) => setViTri((p) => ({ ...p, [k]: e.target.value }))}
+                          aria-label={`Vị trí cất ${it.ten}`}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          {error && <div className="banner banner--error" role="alert">{error}</div>}
         </div>
+        {error && (
+          <div className="kdc__dinh">
+            <div className="banner banner--error" role="alert">{error}</div>
+          </div>
+        )}
         <div className="kdc__chan">
           <span className="kdc__tom">{coSo.length}/{items.length} mặt hàng có số</span>
           <div className="kdc__nut">
