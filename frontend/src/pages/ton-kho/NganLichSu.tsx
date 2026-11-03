@@ -247,7 +247,7 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
     const coGiaBan = b.canViewCost && b.lo.some((l) => l.don_gia_ban != null);
     const coKho = b.laGiay || b.lo.some((l) => l.kho_rong > 0);
     const c: Cot<StockLot>[] = [
-      { key: "phieu", label: "Phiếu", w: 120, coDinh: true, o: (l) => phieu(l.voucher_id, l.voucher_ma ?? l.ma_lo, b.onOpenVoucher) },
+      { key: "phieu", label: "Phiếu", w: 120, o: (l) => phieu(l.voucher_id, l.voucher_ma ?? l.ma_lo, b.onOpenVoucher) },
       { key: "ngay", label: "Ngày nhập", w: 100, o: (l) => fmtDateISO(l.ngay_nhap) },
       ...(coNguon ? [{
         key: "nguon", label: "Đơn và khách", w: 170,
@@ -284,7 +284,7 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
   }
   if (tab === "nhap_xuat") {
     const c: Cot<NhapXuatRow>[] = [
-      { key: "luc", label: "Ngày giờ", w: 150, coDinh: true, o: (r) => fmtDateTime(r.luc) },
+      { key: "luc", label: "Ngày giờ", w: 150, o: (r) => fmtDateTime(r.luc) },
       {
         key: "viec", label: "Việc", w: 90,
         o: (r) => <span className={`lss-chip ${r.viec === "nhap" ? "lss-chip--xanh" : "lss-chip--cam"}`}>{r.viec === "nhap" ? "Nhập" : "Xuất"}</span>,
@@ -311,7 +311,7 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
   }
   if (tab === "chuyen") {
     const c: Cot<ChuyenKhoRow>[] = [
-      { key: "luc", label: "Ngày giờ", w: 150, coDinh: true, o: (r) => fmtDateTime(r.luc) },
+      { key: "luc", label: "Ngày giờ", w: 150, o: (r) => fmtDateTime(r.luc) },
       { key: "kho_tu", label: "Từ kho", w: 130, o: (r) => r.kho_tu },
       { key: "lay_o", label: "Lấy ở", w: 90, o: (r) => r.lay_o || tru },
       { key: "kho_den", label: "Sang kho", w: 130, o: (r) => r.kho_den },
@@ -326,7 +326,7 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
   // Lịch sử sửa: ô gộp theo lần sửa (Ngày giờ, Người sửa, Việc, Ghi chú) — vẽ ở `LuoiSua`.
   const doi = (d: LichSuSuaDoi | null, ve: "truoc" | "sau", k: string) => (d ? hienDoi(d, ve, b.dvCua(k)) : "");
   const c: Cot<DongSua>[] = [
-    { key: "luc", label: "Ngày giờ", w: 150, coDinh: true, o: ({ r }) => fmtDateTime(r.luc), lop: () => "lss-gio" },
+    { key: "luc", label: "Ngày giờ", w: 150, o: ({ r }) => fmtDateTime(r.luc), lop: () => "lss-gio" },
     { key: "nguoi", label: "Người sửa", w: 120, o: ({ r }) => r.nguoi || tru },
     { key: "viec", label: "Việc", w: 130, o: ({ r }) => <span className={`lss-chip ${LOP_VIEC[r.viec] ?? ""}`}>{r.viec}</span> },
     { key: "thong_tin", label: "Thông tin", w: 130, o: ({ d }) => d?.thong_tin ?? tru },
