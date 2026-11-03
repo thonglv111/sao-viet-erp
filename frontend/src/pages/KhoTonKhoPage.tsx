@@ -2253,7 +2253,7 @@ function DieuChuyenDialog({
   const keyOf = (it: DcItem) =>
     khoaTon({ hang_loai: it.hang_loai, hang_id: it.hang_id, don_vi_goc: it.goc, kho_rong: it.khoRong, kho_dai: it.khoDai });
   const [khoDenId, setKhoDenId] = useState<number | null>(khoDich.length === 1 ? khoDich[0].id : null);
-  // Số chuyển từng dòng — mặc định TRỐNG (trống = không chuyển dòng đó), nút "Hết" điền cả tồn.
+  // Số chuyển từng dòng — mặc định TRỐNG (trống = không chuyển dòng đó).
   const [qty, setQty] = useState<Record<string, number | null>>({});
   // Vị trí cất ở KHO ĐÍCH từng dòng — tuỳ chọn, kho đích còn sửa được lúc ghi sổ phiếu nhận.
   const [viTri, setViTri] = useState<Record<string, string>>({});
@@ -2306,44 +2306,35 @@ function DieuChuyenDialog({
     <div className="cdlg-overlay">
       <div className="cdlg kdc" role="dialog" aria-modal="true" aria-label="Chuyển kho">
         <div className="kdc__dau">
-          <h2 className="kdc__tieu">Chuyển kho</h2>
+          <h2 className="kdc__tieu">
+            Chuyển từ <span className="kdc__kho-tu">{khoNguonTen}</span> sang
+            <span className="kdc__seg" role="radiogroup" aria-label="Kho nhận">
+              {khoDich.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={w.id === khoDenId}
+                  className={w.id === khoDenId ? "chon" : ""}
+                  onClick={() => setKhoDenId(w.id)}
+                >
+                  {w.ten}
+                </button>
+              ))}
+            </span>
+          </h2>
           <button type="button" className="cdlg__close" onClick={onCancel} disabled={busy} aria-label="Đóng" title="Đóng (Esc)">
             <X size={18} />
           </button>
         </div>
-
-        <div className="kdc__dinh">
-          <div className="kdc__tuyen" role="radiogroup" aria-label="Kho nhận">
-            <span className="kdc__kho-tu">{khoNguonTen}</span>
-            <span className="kdc__mui" aria-hidden>→</span>
-            {khoDich.map((w) => (
-              <button
-                key={w.id}
-                type="button"
-                role="radio"
-                aria-checked={w.id === khoDenId}
-                className={`kdc__chip${w.id === khoDenId ? " chon" : ""}`}
-                onClick={() => setKhoDenId(w.id)}
-              >
-                {w.ten}
-              </button>
-            ))}
-          </div>
-          <div className="kdc__thanh">
-            <span>{items.length} mặt hàng</span>
-            <span>
-              <button
-                type="button"
-                className="lds-lk"
-                onClick={() => setQty(Object.fromEntries(items.map((it) => [keyOf(it), it.tonKhaDung > 0 ? it.tonKhaDung : null])))}
-              >
-                Chuyển hết tất cả
-              </button>
-              <button type="button" className="lds-lk" onClick={() => setQty({})}>
-                Xoá số đã gõ
-              </button>
-            </span>
-          </div>
+        <div className="kdc__thanh">
+          <button
+            type="button"
+            className="lds-lk"
+            onClick={() => setQty(Object.fromEntries(items.map((it) => [keyOf(it), it.tonKhaDung > 0 ? it.tonKhaDung : null])))}
+          >
+            Chuyển hết tất cả
+          </button>
         </div>
         <div className="lds-sheet kdc__khung">
           <div className="kdc__cuon">
@@ -2376,23 +2367,13 @@ function DieuChuyenDialog({
                       {coKhoCot && <td>{it.kho || <span className="lds-mu3">–</span>}</td>}
                       <td className="n">{fmtQty(it.tonKhaDung)}</td>
                       <td className="kdc__o-td">
-                        <div className="kdc__o-chuyen">
-                          <button
-                            type="button"
-                            className="lds-lk"
-                            tabIndex={-1}
-                            onClick={() => setQty((p) => ({ ...p, [k]: it.tonKhaDung > 0 ? it.tonKhaDung : null }))}
-                          >
-                            Hết
-                          </button>
-                          <DecimalInput
-                            className="kdc__o kdc__o-so"
-                            value={sl}
-                            allowNull
-                            onChange={(n) => setQty((p) => ({ ...p, [k]: n }))}
-                            aria-label={`Số chuyển ${it.ten}${it.kho ? ` khổ ${it.kho}` : ""}`}
-                          />
-                        </div>
+                        <DecimalInput
+                          className="kdc__o kdc__o-so"
+                          value={sl}
+                          allowNull
+                          onChange={(n) => setQty((p) => ({ ...p, [k]: n }))}
+                          aria-label={`Số chuyển ${it.ten}${it.kho ? ` khổ ${it.kho}` : ""}`}
+                        />
                       </td>
                       <td className={`n${con != null && con < -1e-9 ? " lds-do" : ""}`}>
                         {con == null ? <span className="lds-mu3">–</span> : fmtQty(con)}

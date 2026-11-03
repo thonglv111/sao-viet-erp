@@ -1100,63 +1100,59 @@ input.kho-num,
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  padding: 18px 24px 4px;
+  padding: 14px 20px 14px 24px;
+  border-bottom: 1px solid var(--rule-soft);
 }
 .kdc__tieu {
   margin: 0;
-  font-size: 17px;
-  font-weight: var(--fw-medium);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: var(--fw-regular);
   color: var(--ink);
+}
+.kdc__kho-tu {
+  color: var(--ash-2);
+}
+/* Kho nhận: nút phân đoạn, kho đang chọn nổi nền trắng. */
+.kdc__seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--rule-hair);
+}
+.kdc__seg button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ash);
+  cursor: pointer;
+}
+.kdc__seg button:hover {
+  color: var(--ink);
+}
+.kdc__seg button.chon {
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15);
 }
 .kdc__dinh {
   flex: none;
   padding: 8px 24px 0;
 }
-.kdc__tuyen {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-.kdc__kho-tu,
-.kdc__chip {
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-pill, 999px);
-  padding: 5px 12px;
-  background: var(--canvas);
-  font: inherit;
-  color: var(--ink);
-}
-.kdc__kho-tu {
-  background: var(--paper);
-  color: var(--ash-2);
-}
-.kdc__mui {
-  color: var(--ash-2);
-}
-.kdc__chip {
-  cursor: pointer;
-}
-.kdc__chip:hover {
-  background: var(--rule-hair);
-}
-.kdc__chip.chon {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: var(--canvas);
-}
 .kdc__thanh {
+  flex: none;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-  margin: 14px 0 8px;
+  justify-content: flex-end;
+  padding: 10px 24px 8px;
   font-size: 13px;
-  color: var(--ash-2);
-}
-.kdc__thanh .lds-lk + .lds-lk {
-  margin-left: 16px;
 }
 .kdc__khung {
   flex: 1 1 auto;
@@ -1179,15 +1175,6 @@ input.kho-num,
 .lds-g td.kdc__o-td {
   padding: 3px 6px;
   overflow: visible;
-}
-.kdc__o-chuyen {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.kdc__o-chuyen .lds-lk {
-  flex: none;
-  font-size: 12px;
 }
 .kdc__o {
   width: 100%;
@@ -1241,6 +1228,7 @@ input.kho-num,
 @media (max-width: 720px) {
   .kdc__dau,
   .kdc__dinh,
+  .kdc__thanh,
   .kdc__chan {
     padding-left: 16px;
     padding-right: 16px;
