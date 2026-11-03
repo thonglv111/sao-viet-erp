@@ -718,6 +718,7 @@ function OrderDrawer({
     hanGiao: order.delivery_committed_date,
     td,
     hoaDon: invoiceStage,
+    xuat: tatGiao,
   });
   const khungO = (k: typeof activeStep) => `dhb__chang-o${activeStep === k ? " is-mo" : ""}`;
   const CHANG: { k: typeof activeStep; nhan: string; sub: string; xong: boolean; canhBao?: boolean }[] = [

@@ -186,6 +186,8 @@ export function viecTiepTheo(o: {
   td: DonTienDo | null;
   hoaDon: "none" | "partial" | "full";
   homNay?: Date;
+  /** Bản cài tắt giao hàng: sale bấm Xuất hàng, kho xuất là xong. */
+  xuat?: boolean;
 }): ViecTiepTheo | null {
   if (o.trangThai === "cancelled") return null;
   if (o.trangThai === "draft") {
@@ -277,9 +279,11 @@ export function viecTiepTheo(o: {
   if (!tt.khoXong) return { cau: "Chờ KCS gửi thành phẩm sang kho", the };
   if (!giaoXong) {
     const giaoDuoc = cum.reduce((a, c) => a + c.giao_duoc, 0);
-    const cau = tt.soYeuCauMo > 0 ? `Giao hàng đang xử lý ${tt.soYeuCauMo} yêu cầu`
+    const cau = o.xuat
+      ? (tt.soYeuCauMo > 0 ? `Kho đang xuất ${tt.soYeuCauMo} lần xuất` : giaoDuoc > 0 ? "Xuất hàng" : "Chờ xuất hàng")
+      : tt.soYeuCauMo > 0 ? `Giao hàng đang xử lý ${tt.soYeuCauMo} yêu cầu`
       : giaoDuoc > 0 ? "Lập yêu cầu giao hàng" : "Chờ giao hàng";
-    return { cau, the: [...theThua, ...the], nut: { nhan: "Xem giao hàng", toi: "giao" } };
+    return { cau, the: [...theThua, ...the], nut: { nhan: o.xuat ? "Xem xuất hàng" : "Xem giao hàng", toi: "giao" } };
   }
   if (o.hoaDon !== "full") {
     return { cau: "Kế toán ghi hóa đơn", the: [], nut: { nhan: "Xem hóa đơn", toi: "hoadon" } };
