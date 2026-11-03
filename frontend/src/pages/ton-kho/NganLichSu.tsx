@@ -25,7 +25,7 @@ import {
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
 import { nhanKho } from "../../lib/khoGiay";
 import { fmtDateISO, fmtDateTime, money } from "../../utils/format";
-import { fmtKg, fmtQty, todayISO } from "../khoShared";
+import { fmtQty, todayISO } from "../khoShared";
 import { ThanhLoc } from "../thanh-loc/ThanhLoc";
 import { thamSoKy, type KyDS } from "../thanh-loc/ky-danh-sach";
 import type { DieuKien } from "../thanh-loc/thanh-loc";
@@ -257,7 +257,6 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
       }] : []),
       { key: "dvt", label: "ĐVT", w: 80, o: (l) => b.oDv(`l${l.id}`) },
       { key: "con_lai", label: "Còn lại", w: 110, n: true, o: (l) => b.sl(`l${l.id}`, l.sl_con_lai) },
-      ...(b.laGiay ? [{ key: "quy_kg", label: "Quy kg", w: 110, n: true, o: (l: StockLot) => (l.quy_kg == null ? tru : fmtKg(l.quy_kg)) }] : []),
       ...(coKho ? [{
         key: "kho", label: "Dạng / khổ", w: 150,
         o: (l: StockLot) => (
