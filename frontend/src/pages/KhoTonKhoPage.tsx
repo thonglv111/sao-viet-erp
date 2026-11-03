@@ -1147,7 +1147,6 @@ export function KhoTonKhoPage({
           // bấm mở sẽ giữ lô cũ.
           material={matMo ?? openMaterial}
           dvXem={dvXem[openMaterial.key] ?? null}
-          onDoiDv={(ma) => doiDvXem(openMaterial.key, ma, openMaterial.donViXem[0]?.ma ?? "")}
           threshold={nguongCua(matMo ?? openMaterial)}
           canViewCost={canViewCost}
           canSetThreshold={canSetThreshold}
@@ -1611,15 +1610,13 @@ function MaterialHistoryDrawer({
   onClose,
   onAnhChanged,
   dvXem,
-  onDoiDv,
 }: {
   token: string;
   khoId: number;
   khoTen: string;
   material: MaterialGroup;
-  /** Đơn vị đang xem của dòng trên bảng (null = gốc) — bốn tab bảng của ngăn quy số theo nó. */
+  /** Đơn vị đang xem của dòng trên bảng (null = gốc): mặc định cột ĐVT của bốn tab bảng trong ngăn. */
   dvXem: string | null;
-  onDoiDv: (ma: string) => void;
   threshold: StockThreshold | undefined;
   canViewCost: boolean;
   canSetThreshold: boolean;
@@ -1847,7 +1844,7 @@ function MaterialHistoryDrawer({
                 setSize(n);
                 setPage(1);
               }}
-              dv={{ ds: material.donViXem, ma: dvXem, onDoi: onDoiDv }}
+              dv={{ ds: material.donViXem, ma: dvXem }}
               dvtGoc={dvtGoc}
               laGiay={material.hang_loai === "giay"}
               canViewCost={canViewCost}

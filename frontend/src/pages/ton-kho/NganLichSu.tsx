@@ -1,10 +1,11 @@
 // Bốn tab bảng của ngăn mặt hàng màn Tồn kho — Lô tồn, Lịch sử nhập xuất, Lịch sử chuyển kho, Lịch sử
 // sửa (04/11/2026). Mỗi tab dùng đúng khuôn bảng chính: ô tìm, kỳ, nút Lọc, nút Cột; lưới kéo mép đổi
 // độ rộng và ghim cột (nhớ riêng từng tab); chân PhanTrangDayDu. Lọc + cắt trang ở máy chủ
-// (`kho_ngan_lich_su.py`). Ô ĐVT quy mọi số lượng của bốn tab theo đơn vị người xem chọn (cùng lựa
-// chọn với cột ĐVT của dòng trên bảng): số chia hệ số, đơn giá nhân hệ số, tiền giữ nguyên.
+// (`kho_ngan_lich_su.py`). Cột ĐVT như bảng chính: mỗi dòng một ô chọn đơn vị, mặc định theo đơn vị
+// dòng trên bảng đang xem; đổi ở dòng nào thì số dòng đó đổi theo (số chia hệ số, đơn giá nhân hệ số,
+// tiền giữ nguyên). Ô số lượng chỉ còn số, đơn vị nằm ở cột ĐVT.
 import { MapPin, Tags, User, Warehouse } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import type {
   ChuyenKhoRow,
@@ -52,12 +53,14 @@ export function thamSoTab(l: LocTab, qGui: string): LocNganMatHang {
   return { q: qGui.trim() || undefined, tu_ngay: k.tu_ngay, den_ngay: k.den_ngay, ...l.loc };
 }
 
-/** Đơn vị đang xem của ngăn: `heSo` = số đơn vị gốc trong 1 đơn vị này. */
+/** Đơn vị xem được của dòng tồn (`he_so` = số đơn vị gốc trong 1 đơn vị này) và đơn vị mặc định. */
 export interface DvNgan {
   ds: { ma: string; ten: string; he_so: number }[];
   ma: string | null;
-  onDoi: (ma: string) => void;
 }
+
+/** Đơn vị một dòng bảng đang xem. */
+interface DvDong { heSo: number; ten: string }
 
 const tru = <span className="lds-mu3">–</span>;
 
@@ -154,13 +157,24 @@ export function TabBangNgan({
   onLuuGhiChu: (id: number, ghiChu: string) => Promise<void>;
 }) {
   const luoi = useCauHinhLuoi(`kho-ngan-${tab}`);
-  const chon = dv.ds.find((d) => d.ma === dv.ma) ?? null;
-  const heSo = chon && chon.he_so > 0 ? chon.he_so : 1;
-  const dvTen = chon && heSo !== 1 ? chon.ten : dvtGoc;
-  const sl = (n: number | null | undefined, dau = "") => (n == null ? tru : `${dau}${fmtQty(n / heSo)} ${dvTen}`.trim());
-  const gia = (n: number | null | undefined) => (n == null ? "" : money(n * heSo));
+  // Đơn vị từng dòng người xem đã đổi trong ngăn (khoá dòng → mã đơn vị); vắng = mặc định của ngăn.
+  const [dvDong, setDvDong] = useState<Record<string, string>>({});
+  const maCua = (k: string) => dvDong[k] ?? dv.ma ?? dv.ds[0]?.ma ?? "";
+  const dvCua = (k: string): DvDong => {
+    const c = dv.ds.find((d) => d.ma === maCua(k)) ?? null;
+    const heSo = c && c.he_so > 0 ? c.he_so : 1;
+    return { heSo, ten: c && heSo !== 1 ? c.ten : dvtGoc };
+  };
+  const sl = (k: string, n: number | null | undefined, dau = "") => (n == null ? tru : `${dau}${fmtQty(n / dvCua(k).heSo)}`);
+  const gia = (k: string, n: number | null | undefined) => (n == null ? "" : money(n * dvCua(k).heSo));
+  const oDv = (k: string) => (dv.ds.length < 2 ? (dvtGoc || tru) : (
+    <select className="tkh-dvt-chon" aria-label="Xem dòng này theo đơn vị" value={maCua(k)}
+      onChange={(e) => setDvDong((cu) => ({ ...cu, [k]: e.target.value }))}>
+      {dv.ds.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
+    </select>
+  ));
 
-  const cot = cotTheoTab(tab, { sl, gia, dvTen, heSo, laGiay, canViewCost, canCreate, onBoSungKho, onOpenVoucher, onLuuGhiChu, suaDuoc: !!trang?.sua_ghi_chu, lo: trang?.lo ?? [] });
+  const cot = cotTheoTab(tab, { sl, gia, dvCua, oDv, laGiay, canViewCost, canCreate, onBoSungKho, onOpenVoucher, onLuuGhiChu, suaDuoc: !!trang?.sua_ghi_chu, lo: trang?.lo ?? [] });
   const coLoc = !!loc.q || loc.ky.loai !== "tat_ca" || Object.values(loc.loc).some((v) => v?.length);
   const xoaLoc = () => onLoc(locTabTrong(tab));
   const rows: unknown[] = trang
@@ -182,17 +196,6 @@ export function TabBangNgan({
           onXoaHet={xoaLoc}
         />
         <ChonCot cot={cot} {...luoi.chonCot} />
-        {dv.ds.length > 1 && (
-          <div className="lds-loc__phai">
-            <label className="tkh-ngan-dvt">
-              ĐVT
-              <select className="tkh-dvt-chon" aria-label="Xem số lượng theo đơn vị" value={chon?.ma ?? dv.ds[0].ma}
-                onChange={(e) => dv.onDoi(e.target.value)}>
-                {dv.ds.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
-              </select>
-            </label>
-          </div>
-        )}
       </div>
       {loading && !trang ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
@@ -218,10 +221,12 @@ export function TabBangNgan({
 }
 
 interface BoiCanh {
-  sl: (n: number | null | undefined, dau?: string) => ReactNode;
-  gia: (n: number | null | undefined) => string;
-  dvTen: string;
-  heSo: number;
+  /** Số theo đơn vị của dòng `k` (chỉ số, đơn vị nằm ở cột ĐVT). */
+  sl: (k: string, n: number | null | undefined, dau?: string) => ReactNode;
+  gia: (k: string, n: number | null | undefined) => string;
+  dvCua: (k: string) => DvDong;
+  /** Ô ĐVT của dòng: ô chọn khi có đơn vị quy được, không thì tên đơn vị gốc. */
+  oDv: (k: string) => ReactNode;
   laGiay: boolean;
   canViewCost: boolean;
   canCreate: boolean;
@@ -250,7 +255,8 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
           <>{l.order_ma}{l.lsx_ma && <span className="lds-tag">{l.lsx_ma}</span>}{l.khach_hang && <span className="lds-u">{l.khach_hang}</span>}</>
         )),
       }] : []),
-      { key: "con_lai", label: "Còn lại", w: 120, n: true, o: (l) => b.sl(l.sl_con_lai) },
+      { key: "dvt", label: "ĐVT", w: 80, o: (l) => b.oDv(`l${l.id}`) },
+      { key: "con_lai", label: "Còn lại", w: 110, n: true, o: (l) => b.sl(`l${l.id}`, l.sl_con_lai) },
       ...(b.laGiay ? [{ key: "quy_kg", label: "Quy kg", w: 110, n: true, o: (l: StockLot) => (l.quy_kg == null ? tru : fmtKg(l.quy_kg)) }] : []),
       ...(coKho ? [{
         key: "kho", label: "Dạng / khổ", w: 150,
@@ -266,8 +272,8 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
       { key: "vi_tri", label: "Vị trí", w: 140, o: (l) => l.vi_tri || tru },
       { key: "hsd", label: "HSD", w: 100, o: (l) => hsd(l.hsd), lop: (l) => lopHsd(l.hsd) },
       ...(b.canViewCost ? [{
-        key: "don_gia", label: `Đơn giá (đ/${b.dvTen})`, w: 130, n: true,
-        o: (l: StockLot) => (loChuaGiaGoc(l) ? <NhanChuaGiaGoc /> : b.gia(l.don_gia_nhap ?? 0)),
+        key: "don_gia", label: "Đơn giá", w: 120, n: true,
+        o: (l: StockLot) => (loChuaGiaGoc(l) ? <NhanChuaGiaGoc /> : b.gia(`l${l.id}`, l.don_gia_nhap ?? 0)),
       }] : []),
       ...(coGiaBan ? [{ key: "gia_ban", label: "Giá bán", w: 110, n: true, o: (l: StockLot) => (l.don_gia_ban != null ? money(l.don_gia_ban) : tru) }] : []),
       ...(b.canViewCost ? [{
@@ -285,17 +291,18 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
         o: (r) => <span className={`lss-chip ${r.viec === "nhap" ? "lss-chip--xanh" : "lss-chip--cam"}`}>{r.viec === "nhap" ? "Nhập" : "Xuất"}</span>,
       },
       { key: "phieu", label: "Phiếu", w: 120, o: (r) => phieu(r.voucher_id, r.voucher_ma, b.onOpenVoucher) },
+      { key: "dvt", label: "ĐVT", w: 80, o: (r) => b.oDv(r.key) },
       {
-        key: "so_luong", label: "Số lượng", w: 130, n: true,
-        o: (r) => b.sl(r.so_luong, r.viec === "nhap" ? "+" : "−"), lop: (r) => (r.viec === "nhap" ? "lss-tang" : "lss-giam"),
+        key: "so_luong", label: "Số lượng", w: 110, n: true,
+        o: (r) => b.sl(r.key, r.so_luong, r.viec === "nhap" ? "+" : "−"), lop: (r) => (r.viec === "nhap" ? "lss-tang" : "lss-giam"),
       },
-      { key: "ton_sau", label: "Tồn sau", w: 130, n: true, o: (r) => b.sl(r.ton_sau) },
+      { key: "ton_sau", label: "Tồn sau", w: 110, n: true, o: (r) => b.sl(r.key, r.ton_sau) },
       { key: "vi_tri", label: "Vị trí", w: 120, o: (r) => r.vi_tri || tru },
       { key: "hsd", label: "HSD", w: 100, o: (r) => hsd(r.hsd), lop: (r) => lopHsd(r.hsd) },
       ...(b.canViewCost ? [
         {
-          key: "don_gia", label: `Đơn giá (đ/${b.dvTen})`, w: 130, n: true,
-          o: (r: NhapXuatRow) => (r.chua_gia_goc ? <NhanChuaGiaGoc /> : b.gia(r.don_gia)),
+          key: "don_gia", label: "Đơn giá", w: 120, n: true,
+          o: (r: NhapXuatRow) => (r.chua_gia_goc ? <NhanChuaGiaGoc /> : b.gia(r.key, r.don_gia)),
         },
         { key: "gia_tri", label: "Giá trị", w: 130, n: true, o: (r: NhapXuatRow) => (r.gia_tri != null ? money(r.gia_tri) : tru) },
       ] : []),
@@ -310,22 +317,24 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
       { key: "lay_o", label: "Lấy ở", w: 90, o: (r) => r.lay_o || tru },
       { key: "kho_den", label: "Sang kho", w: 130, o: (r) => r.kho_den },
       { key: "cat_o", label: "Cất ở", w: 90, o: (r) => r.cat_o || tru },
-      { key: "so_luong", label: "Số lượng", w: 130, n: true, o: (r) => b.sl(r.so_luong) },
+      { key: "dvt", label: "ĐVT", w: 80, o: (r) => b.oDv(r.key) },
+      { key: "so_luong", label: "Số lượng", w: 110, n: true, o: (r) => b.sl(r.key, r.so_luong) },
       ...(b.canViewCost ? [{ key: "gia_tri", label: "Giá trị", w: 130, n: true, o: (r: ChuyenKhoRow) => (r.gia_tri != null ? money(r.gia_tri) : "") }] : []),
       { key: "nguoi", label: "Người chuyển", w: 140, o: (r) => r.nguoi || tru },
     ];
     return c as Cot<never>[];
   }
   // Lịch sử sửa: ô gộp theo lần sửa (Ngày giờ, Người sửa, Việc, Ghi chú) — vẽ ở `LuoiSua`.
-  const doi = (d: LichSuSuaDoi | null, ve: "truoc" | "sau") => (d ? hienDoi(d, ve, b) : "");
+  const doi = (d: LichSuSuaDoi | null, ve: "truoc" | "sau", k: string) => (d ? hienDoi(d, ve, b.dvCua(k)) : "");
   const c: Cot<DongSua>[] = [
     { key: "luc", label: "Ngày giờ", w: 150, coDinh: true, o: ({ r }) => fmtDateTime(r.luc), lop: () => "lss-gio" },
     { key: "nguoi", label: "Người sửa", w: 120, o: ({ r }) => r.nguoi || tru },
     { key: "viec", label: "Việc", w: 130, o: ({ r }) => <span className={`lss-chip ${LOP_VIEC[r.viec] ?? ""}`}>{r.viec}</span> },
     { key: "thong_tin", label: "Thông tin", w: 130, o: ({ d }) => d?.thong_tin ?? tru },
-    { key: "truoc", label: "Trước", w: 130, n: true, o: ({ d }) => doi(d, "truoc"), lop: () => "lss-truoc" },
-    { key: "sau", label: "Sau", w: 130, n: true, o: ({ d }) => doi(d, "sau") },
-    { key: "chenh", label: "Chênh", w: 110, n: true, o: ({ d }) => (d ? chenhQuy(d, b) : null) },
+    { key: "dvt", label: "ĐVT", w: 80, o: ({ d, k }) => (d && coDv(d) ? b.oDv(k) : "") },
+    { key: "truoc", label: "Trước", w: 120, n: true, o: ({ d, k }) => doi(d, "truoc", k), lop: () => "lss-truoc" },
+    { key: "sau", label: "Sau", w: 120, n: true, o: ({ d, k }) => doi(d, "sau", k) },
+    { key: "chenh", label: "Chênh", w: 110, n: true, o: ({ d, k }) => (d ? chenhQuy(d, b.dvCua(k)) : null) },
     {
       key: "ghi_chu", label: "Ghi chú", w: 220,
       o: ({ r }) => <OGhiChu r={r} suaDuoc={b.suaDuoc} onLuu={b.onLuuGhiChu} />, lop: () => "lss-ghi",
@@ -338,22 +347,23 @@ function cotTheoTab(tab: TabBang, b: BoiCanh): Cot<never>[] {
 const LA_SL = new Set(["Tồn", "Tối thiểu", "Tối đa"]);
 const laGia = (d: LichSuSuaDoi) => d.thong_tin.startsWith("Giá gốc");
 
-function hienDoi(d: LichSuSuaDoi, ve: "truoc" | "sau", b: BoiCanh): string {
+/** Dòng có cột ĐVT: số lượng của dòng tồn hoặc giá theo đơn vị, có số ở ít nhất một vế. */
+const coDv = (d: LichSuSuaDoi) => (LA_SL.has(d.thong_tin) || laGia(d)) && (d.truoc_so != null || d.sau_so != null);
+
+/** Vế trước/sau: dòng có ĐVT chỉ in số đã quy (vế không có số, vd "chưa đặt", giữ chữ). */
+function hienDoi(d: LichSuSuaDoi, ve: "truoc" | "sau", dv: DvDong): string {
   const so = ve === "truoc" ? d.truoc_so : d.sau_so;
-  if (so == null || b.heSo === 1) return d[ve];
-  if (LA_SL.has(d.thong_tin)) return `${fmtQty(so / b.heSo)}${d.don_vi ? ` ${b.dvTen}` : ""}`;
-  if (laGia(d)) return `${money(so * b.heSo)} đ/${b.dvTen}`;
-  return d[ve];
+  if (so == null || !coDv(d)) return d[ve];
+  return LA_SL.has(d.thong_tin) ? fmtQty(so / dv.heSo) : money(so * dv.heSo);
 }
 
-function chenhQuy(d: LichSuSuaDoi, b: BoiCanh): ReactNode {
-  if (d.chenh == null || b.heSo === 1) return <Chenh v={d.chenh} dv={d.don_vi} />;
-  if (LA_SL.has(d.thong_tin)) return <Chenh v={d.chenh / b.heSo} dv={d.don_vi ? b.dvTen : ""} />;
-  if (laGia(d)) return <Chenh v={d.chenh * b.heSo} dv={`đ/${b.dvTen}`} />;
-  return <Chenh v={d.chenh} dv={d.don_vi} />;
+function chenhQuy(d: LichSuSuaDoi, dv: DvDong): ReactNode {
+  if (!coDv(d)) return <Chenh v={d.chenh} dv={d.don_vi} />;
+  if (d.chenh == null) return null;
+  return LA_SL.has(d.thong_tin) ? <Chenh v={d.chenh / dv.heSo} dv="" /> : <Chenh v={d.chenh * dv.heSo} dv="" />;
 }
 
-interface DongSua { r: LichSuSuaRow; d: LichSuSuaDoi | null }
+interface DongSua { r: LichSuSuaRow; d: LichSuSuaDoi | null; k: string }
 /** Cột gộp ô theo lần sửa: một lần sửa nhiều thông tin đổi thì các ô này chỉ vẽ ở dòng đầu. */
 const GOP = new Set(["luc", "nguoi", "viec", "ghi_chu"]);
 
@@ -374,9 +384,10 @@ function LuoiSua({ rows, cot, luoi }: { rows: LichSuSuaRow[]; cot: Cot<DongSua>[
               <tr key={`${r.id}-${i}`} className={i === n - 1 ? "lss-cuoi" : undefined}>
                 {hien.map((c) => {
                   if (GOP.has(c.key) && i > 0) return null;
-                  const lop = [c.n ? "n" : "", c.lop?.({ r, d }) ?? ""].join(" ").trim() || undefined;
+                  const dong = { r, d, k: `s${r.id}-${i}` };
+                  const lop = [c.n ? "n" : "", c.lop?.(dong) ?? ""].join(" ").trim() || undefined;
                   return (
-                    <td key={c.key} rowSpan={GOP.has(c.key) ? n : undefined} className={lop}>{c.o({ r, d })}</td>
+                    <td key={c.key} rowSpan={GOP.has(c.key) ? n : undefined} className={lop}>{c.o(dong)}</td>
                   );
                 })}
               </tr>
