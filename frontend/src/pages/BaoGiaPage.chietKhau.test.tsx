@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const { get, update } = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn() }));
 vi.mock("../auth/useAuth", () => ({ useAuth: () => ({ token: "t" }) }));
-vi.mock("../auth/permissions", () => ({ useCan: () => () => true }));
+vi.mock("../auth/permissions", () => ({ useCan: () => () => true, useTat: () => () => false }));
 vi.mock("../api/client", async (goc) => ({
   ...(await goc<typeof import("../api/client")>()),
   api: {
