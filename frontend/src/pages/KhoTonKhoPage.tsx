@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import {
   ApiError,
   api,
+  type ChuyenKhoRow,
   type DuBaoTonRow,
   type HangLoai,
   type NhomTon,
@@ -45,7 +46,7 @@ import {
   fmtQty,
   todayISO,
 } from "./khoShared";
-import { InboxRequestDrawer, VoucherDrawer, TransferDrawer } from "./KhoYeuCauPage";
+import { InboxRequestDrawer, VoucherDrawer } from "./KhoYeuCauPage";
 import { khoaTonKho } from "../auth/quyenKho";
 import {
   LOC_PK_TRONG,
@@ -80,6 +81,7 @@ import { HopNguong } from "./ton-kho/HopNguong";
 import { tenTrungLap } from "./ton-kho/tenTrung";
 import { AnhMatHang, TongQuanTon } from "./ton-kho/TongQuanTon";
 import { HopThemHang, type DongSuaTon } from "./ton-kho/HopThemHang";
+import { BangChuyenKho, BangLichSuSua } from "./ton-kho/BangChuyenKho";
 import { ImportExcelDialog } from "../components/ImportExcelDialog";
 import "./ton-kho/ton-kho.css";
 
@@ -158,6 +160,9 @@ const docLocManPK = (p: URLSearchParams): LocManPK => ({
   ton: locTonTuUrl(p),
 });
 const ghiLocManPK = (t: LocManPK) => ({ ...kyLenUrl(t.ky, "tao"), ...locPKLenUrl(t.loc), ...locTonLenUrl(t.ton) });
+
+/** Tab Điều chuyển chỉ có một mốc kỳ: ngày chuyển (bấm là ghi sổ luôn nên trùng ngày ghi sổ). */
+const MOC_DIEU_CHUYEN: [string, string][] = [["ngay", "Ngày chuyển"]];
 
 const NHOM_TON_TRONG: Record<NhomTon, number> = { all: 0, can_mua: 0, du_ton: 0, chuakhai: 0, sap_het_han: 0 };
 
@@ -401,19 +406,10 @@ export function KhoTonKhoPage({
   // Bump khi 1 phiếu đổi (điều chỉnh / ghi sổ / điều chuyển) → popup Lịch sử mặt hàng đang mở nạp lại
   // tồn + lịch sử NGAY (không bắt đóng-mở / reload trang).
   const [matTick, setMatTick] = useState(0);
-  // Tab "Điều chuyển": mở MẶT TIỀN phiếu điều chuyển (TransferDrawer, keyed theo yêu cầu DC) thay vì
-  // phiếu nhập/xuất chung — để hiện đúng "PHIẾU ĐIỀU CHUYỂN" + in mẫu điều chuyển, không phải PNK.
-  const [openTransfer, setOpenTransfer] = useState<number | null>(null);
   const [openRequest, setOpenRequest] = useState<number | null>(null);
-  // Từ MỘT phiếu điều chuyển (nhập-đích hoặc XUẤT-nguồn "chuyển đi") → mở mặt tiền PHIẾU ĐIỀU CHUYỂN.
-  // Vế XUẤT-nguồn: phiếu KHÔNG mang id yêu cầu DC đích, phải hỏi BE tra ngược qua `xuat_voucher_id`.
-  // Nếu không phải phiếu điều chuyển (404) → fallback mở phiếu thường.
-  const openTransferByVoucher = useCallback((voucherId: number) => {
-    api.kho.dieuChuyen
-      .byVoucher(token, voucherId)
-      .then((r) => setOpenTransfer(r.request_id))
-      .catch(() => setOpenVoucher(voucherId));
-  }, [token]);
+  // Tab Điều chuyển (03/11/2026): dòng lịch sử chuyển kho, không phải danh sách phiếu.
+  const [dcRows, setDcRows] = useState<ChuyenKhoRow[]>([]);
+  const [dcTotal, setDcTotal] = useState(0);
   // Điều chuyển HÀNG LOẠT: mở popup cho các mã đã tick → gộp vào 1 yêu cầu điều chuyển.
   const [dcBulkOpen, setDcBulkOpen] = useState(false);
   // Cột ẩn / thứ tự cột người xem đã chọn — nhớ theo màn, mỗi lưới một khoá.
@@ -524,6 +520,24 @@ export function KhoTonKhoPage({
     if (tab === "ton") return;
     const luot = ++luotPhieu.current;
     setLoadingV(true);
+    if (tab === "dc") {
+      const ky = JSON.parse(khoaLocPK) as { tu_ngay?: string; den_ngay?: string };
+      api.kho.phieu
+        .chuyenKho(token, khoId, { q: qPK || null, tu_ngay: ky.tu_ngay, den_ngay: ky.den_ngay, page, size: pageSize })
+        .then((r) => {
+          if (luot !== luotPhieu.current) return;
+          setDcRows(r.items);
+          setDcTotal(r.total);
+          setError(null);
+        })
+        .catch((e) => {
+          if (luot === luotPhieu.current) setError(e instanceof ApiError ? e.message : "Không tải được lịch sử chuyển kho.");
+        })
+        .finally(() => {
+          if (luot === luotPhieu.current) setLoadingV(false);
+        });
+      return;
+    }
     api.kho.phieu
       .list(token, {
         kho_id: khoId,
@@ -833,7 +847,7 @@ export function KhoTonKhoPage({
             <OTim
               value={q}
               onChange={datQ}
-              placeholder={tab === "ton" ? "Tìm mã, tên vật tư" : "Tìm số phiếu, mã yêu cầu, vật tư"}
+              placeholder={tab === "ton" || tab === "dc" ? "Tìm mã, tên vật tư" : "Tìm số phiếu, mã yêu cầu, vật tư"}
               ariaLabel={tab === "ton" ? "Tìm vật tư trong kho" : "Tìm phiếu kho"}
             />
             {tab === "ton" ? (
@@ -844,6 +858,15 @@ export function KhoTonKhoPage({
                 dieuKien={dkTon}
                 loc={locMan.ton}
                 onLoc={(ton) => setLocMan({ ...locMan, ton })}
+              />
+            ) : tab === "dc" ? (
+              <ThanhLoc
+                ky={kyPhieu}
+                moc={MOC_DIEU_CHUYEN}
+                onKy={(ky) => setLocMan({ ...locMan, ky })}
+                dieuKien={[]}
+                loc={locMan.loc}
+                onLoc={(loc) => setLocMan({ ...locMan, loc })}
               />
             ) : (
               <ThanhLoc
@@ -857,7 +880,7 @@ export function KhoTonKhoPage({
             )}
             {tab === "ton"
               ? <ChonCot cot={cotTonDs} {...luoiTon.chonCot} />
-              : <ChonCot cot={cotPhieuDs} {...luoiPhieu.chonCot} />}
+              : tab !== "dc" && <ChonCot cot={cotPhieuDs} {...luoiPhieu.chonCot} />}
             {tab === "ton" && canNhapTay && (
               <div className="lds-loc__phai">
                 <button type="button" className="lds-btn" onClick={() => setImportMo(true)}>
@@ -962,6 +985,30 @@ export function KhoTonKhoPage({
               </tbody>
             </table>
           </CuonLuoi>
+        ) : tab === "dc" ? (
+          <CuonLuoi ghim={0}>
+            {loadingV && dcRows.length === 0 ? (
+              <table className="lds-g"><tbody><DongTrongLds colSpan={1} trangThai="dang-tai" /></tbody></table>
+            ) : error ? (
+              <div className="lds-trong">
+                <span className="lds-do">{error}</span>{" "}
+                <button type="button" className="lds-lk" onClick={loadVouchers}>Thử lại</button>
+              </div>
+            ) : dcRows.length === 0 ? (
+              <div className="lds-trong">
+                {kyPhieu.loai === "tat_ca" && !qPK
+                  ? "Kho này chưa chuyển hay nhận hàng từ kho khác."
+                  : "Không có lần chuyển nào khớp điều kiện đang lọc."}{" "}
+                {(kyPhieu.loai !== "tat_ca" || qPK !== "") && (
+                  <button type="button" className="lds-lk" onClick={() => { setQ(""); setLocMan(LOC_MAN_PK_TRONG); }}>
+                    Xoá bộ lọc
+                  </button>
+                )}
+              </div>
+            ) : (
+              <BangChuyenKho rows={dcRows} coMatHang coGia={canViewCost} lop="lds-g" />
+            )}
+          </CuonLuoi>
         ) : (
           <CuonLuoi ghim={luoiPhieu.soGhim(cotPhieu)}>
             <table className="lds-g" style={{ minWidth: rongLuoi(cotPhieu) }}>
@@ -1003,12 +1050,7 @@ export function KhoTonKhoPage({
                   </tr>
                 ) : (
                   vouchers.map((v) => {
-                    const moPhieu = () =>
-                      v.dieu_chuyen
-                        ? v.loai === "NHAP"
-                          ? setOpenTransfer(v.request_id) // nhập-đích: request_id CHÍNH là DC đích
-                          : openTransferByVoucher(v.id) // xuất-nguồn: hỏi BE tra DC đích
-                        : setOpenVoucher(v.id);
+                    const moPhieu = () => setOpenVoucher(v.id);
                     return (
                       <tr
                         key={v.id}
@@ -1034,12 +1076,12 @@ export function KhoTonKhoPage({
           </CuonLuoi>
         )}
         {/* Máy chủ cắt trang cả hai tab: `tong` = số mặt hàng (tab Tồn kho) hoặc số phiếu khớp lọc. */}
-        {!error && (tab === "ton" ? tonTotal : vTotal) > 0 && (
-          <PhanTrangDayDu trang={page} size={pageSize} tong={tab === "ton" ? tonTotal : vTotal}
-            soDong={tab === "ton" ? groups.length : vouchers.length}
+        {!error && (tab === "ton" ? tonTotal : tab === "dc" ? dcTotal : vTotal) > 0 && (
+          <PhanTrangDayDu trang={page} size={pageSize} tong={tab === "ton" ? tonTotal : tab === "dc" ? dcTotal : vTotal}
+            soDong={tab === "ton" ? groups.length : tab === "dc" ? dcRows.length : vouchers.length}
             onTrang={setPage} onSize={(n) => { setPageSize(n); setPage(1); }}
             loading={tab === "ton" ? loading : loadingV}
-            donVi={tab === "ton" ? "vật tư" : "phiếu"}
+            donVi={tab === "ton" ? "vật tư" : tab === "dc" ? "lần chuyển" : "phiếu"}
             ariaLabel={tab === "ton" ? "Phân trang tồn kho" : "Phân trang phiếu kho"} />
         )}
       </div>
@@ -1117,7 +1159,6 @@ export function KhoTonKhoPage({
           // Kho ĐÍCH khi điều chuyển = mọi kho khác kho hiện tại.
           khoDich={khoOptions.filter((w) => w.id !== khoId)}
           onOpenVoucher={setOpenVoucher}
-          onOpenTransfer={openTransferByVoucher}
           // Điều chuyển xong TRỪ TỒN NGUỒN NGAY → nạp lại tồn + phiếu để bảng phản ánh tức thì.
           onDieuChuyenDone={() => {
             load();
@@ -1152,21 +1193,6 @@ export function KhoTonKhoPage({
         />
       )}
 
-      {openTransfer != null && (
-        <TransferDrawer
-          key={`tr-${openTransfer}`}
-          token={token}
-          requestId={openTransfer}
-          canCreate={canCreate}
-          canViewCost={canViewCost}
-          onClose={() => setOpenTransfer(null)}
-          onChanged={() => {
-            loadVouchers();
-            load();
-            setMatTick((t) => t + 1);   // popup Lịch sử mặt hàng (nếu đang mở) nạp lại tồn ngay
-          }}
-        />
-      )}
 
       {openRequest != null && (
         // Chỉ ĐỌC: mở yêu cầu gốc từ mã "Theo yêu cầu". Lập phiếu vẫn làm ở Hộp yêu cầu, nên
@@ -1585,7 +1611,6 @@ function MaterialHistoryDrawer({
   khoDich,
   refreshTick,
   onOpenVoucher,
-  onOpenTransfer,
   onDieuChuyenDone,
   onMua,
   onDatNguong,
@@ -1611,8 +1636,6 @@ function MaterialHistoryDrawer({
   /** Cha bump khi phiếu đổi (điều chỉnh/ghi sổ) → ngăn nạp lại tồn + lịch sử ngay, khỏi reload. */
   refreshTick?: number;
   onOpenVoucher: (voucherId: number) => void;
-  /** Bấm phiếu ở tab "Lịch sử chuyển kho" → mở mặt tiền PHIẾU ĐIỀU CHUYỂN (không phải mẫu nhập/xuất). */
-  onOpenTransfer: (voucherId: number) => void;
   /** Điều chuyển thành công → cha nạp lại tồn + phiếu (tồn nguồn đã bị trừ ngay). */
   onDieuChuyenDone: () => void;
   /** Mở ngăn Yêu cầu mua (chồng lên ngăn này) cho đúng mặt hàng này. */
@@ -1712,6 +1735,7 @@ function MaterialHistoryDrawer({
     { id: "nhap", nhan: "Lịch sử nhập", dem: dem?.nhap },
     { id: "xuat", nhan: "Lịch sử xuất", dem: dem?.xuat },
     ...(AN_DIEU_CHUYEN ? [] : [{ id: "chuyen", nhan: "Lịch sử chuyển kho", dem: dem?.chuyen }]),
+    { id: "sua", nhan: "Lịch sử sửa", dem: dem?.sua },
   ];
   // Chip đầu ngăn = đúng chip cột Tình trạng của dòng trên bảng.
   const tt = chipTinhTrang(material.muc);
@@ -2030,61 +2054,19 @@ function MaterialHistoryDrawer({
               </table>
             </div>
           )
-          ) : !dem?.chuyen ? (
-            <p className="kho-hint">Chưa có lần chuyển kho nào cho vật tư này.</p>
+          ) : tab === "chuyen" ? (
+            !dem?.chuyen ? (
+              <p className="kho-hint">Chưa có lần chuyển kho nào cho vật tư này.</p>
+            ) : (
+              <div className="kho-lines__wrap">
+                <BangChuyenKho rows={chuyenPaged} coMatHang={false} coGia={canViewCost} lop="kho-lines" />
+              </div>
+            )
+          ) : !dem?.sua ? (
+            <p className="kho-hint">Chưa ai sửa thông tin vật tư này ở kho.</p>
           ) : (
             <div className="kho-lines__wrap">
-              <table className="kho-lines">
-                <thead>
-                  <tr>
-                    <th style={{ minWidth: 130 }}>Số phiếu</th>
-                    <th style={{ width: 96 }}>Ngày</th>
-                    <th style={{ minWidth: 100 }}>Chiều</th>
-                    <th className="kho-num">Số lượng</th>
-                    <th style={{ minWidth: 96 }}>Vị trí</th>
-                    <th style={{ width: 96 }}>HSD</th>
-                    {canViewCost && <th className="kho-num">Giá trị</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {chuyenPaged.map((r) => (
-                    <tr key={r.key}>
-                      <td className="kho-lines__code">
-                        {r.voucher_id != null ? (
-                          <CodeLink
-                            code={r.voucher_ma ?? "—"}
-                            onOpen={() => onOpenTransfer(r.voucher_id!)}
-                          />
-                        ) : (
-                          r.voucher_ma ?? "—"
-                        )}
-                      </td>
-                      <td className="kho-lines__code">{fmtDateISO(r.ngay)}</td>
-                      {/* Chiều điều chuyển ở góc nhìn của KHO NÀY: nhận về (là kho đích) / chuyển đi
-                          (là kho nguồn). Text tự rõ nghĩa nên giữ màu trung tính, không tô đỏ/xanh. */}
-                      <td className="rc__nowrap">
-                        <span style={{ fontSize: 12, color: "var(--ash)" }}>
-                          {r.chieu === "in" ? "⇄ nhận về" : "⇄ chuyển đi"}
-                        </span>
-                      </td>
-                      <td className="kho-num">{`${fmtQty(r.so_luong)} ${dvtGoc}`.trim()}</td>
-                      <td className="kho-lines__vt">{r.vi_tri ?? "—"}</td>
-                      <HsdCell hsd={r.hsd} />
-                      {canViewCost && (
-                        <td className="kho-num">
-                          {r.chua_gia_goc ? (
-                            <NhanChuaGiaGoc />
-                          ) : r.don_gia != null ? (
-                            money(Math.round(r.don_gia * r.so_luong))
-                          ) : (
-                            ""
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <BangLichSuSua rows={trang?.sua ?? []} />
             </div>
           )}
           {tab !== "tong_quan" && (dem?.[tabNap] ?? 0) > DRAWER_PAGE && (

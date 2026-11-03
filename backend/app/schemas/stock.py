@@ -951,19 +951,43 @@ class MaterialHistoryOut(BaseModel):
     xuat: list[MaterialXuatRow] = []
 
 
-class MaterialChuyenRow(BaseModel):
-    """1 dòng tab "Chuyển kho" của ngăn mặt hàng: lô NHẬN VỀ (`chieu=in`) hoặc dòng CHUYỂN ĐI (`out`)."""
+class ChuyenKhoRow(BaseModel):
+    """1 dòng lịch sử CHUYỂN KHO (03/11/2026): một lần chuyển × một mặt hàng × một vị trí lấy — tab
+    "Lịch sử chuyển kho" của ngăn mặt hàng lẫn tab Điều chuyển của trang kho. Không số phiếu: người
+    xem cần từ kho nào, lấy ở đâu, sang kho nào, cất ở đâu, bao nhiêu, giá trị, ai chuyển."""
 
     key: str
-    chieu: str
-    ngay: date
-    voucher_id: int | None = None
-    voucher_ma: str | None = None
+    luc: datetime
+    hang_loai: str
+    hang_id: int
+    hang_ma: str | None = None
+    hang_ten: str | None = None
+    #: Nhãn khổ của lô (giấy, vật tư có khổ); "" khi không khổ.
+    kho: str = ""
+    dvt: str | None = None
+    kho_tu: str
+    lay_o: str | None = None
+    kho_den: str
+    cat_o: str | None = None
     so_luong: float
-    don_gia: float | None = None
-    chua_gia_goc: bool = False
-    vi_tri: str | None = None
-    hsd: date | None = None
+    #: Tổng giá vốn các lô đã chuyển — chỉ có khi người xem thấy giá ở màn Tồn kho.
+    gia_tri: float | None = None
+    nguoi: str | None = None
+
+
+class LichSuSuaRow(BaseModel):
+    """1 dòng tab "Lịch sử sửa" của ngăn mặt hàng: ai, lúc nào, việc gì, từng thay đổi cũ → mới."""
+
+    id: int
+    luc: datetime
+    nguoi: str | None = None
+    viec: str
+    thay_doi: list[str] = []
+
+
+class ChuyenKhoPage(BaseModel):
+    items: list[ChuyenKhoRow]
+    total: int
 
 
 class MaterialHistoryPage(BaseModel):
@@ -984,7 +1008,8 @@ class MaterialHistoryPage(BaseModel):
     dem: dict[str, int]
     lo: list[StockLotOut] = []
     xuat: list[MaterialXuatRow] = []
-    chuyen: list[MaterialChuyenRow] = []
+    chuyen: list[ChuyenKhoRow] = []
+    sua: list[LichSuSuaRow] = []
 
 
 # --- Tra kho CÔNG KHAI (quét tem QR, không đăng nhập) -------------------------

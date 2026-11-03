@@ -320,6 +320,23 @@ class AuditLogRepository:
             ra[log.target].append(log)
         return ra
 
+    def trang_theo_targets(self, targets, actions, *, offset: int = 0,
+                           limit: int | None = None) -> tuple[list[AuditLog], int]:
+        """Một TRANG vết của nhiều đối tượng gộp làm một dòng thời gian, mới nhất trước — tab Lịch sử
+        sửa của ngăn mặt hàng (dòng tồn + các lô của nó + mặt hàng ở danh mục). `limit=0` = chỉ đếm."""
+        targets = sorted(set(targets or []))
+        if not targets:
+            return [], 0
+        dk = [AuditLog.target.in_(targets), AuditLog.action.in_(list(actions))]
+        tong = int(self.db.execute(select(func.count()).select_from(AuditLog).where(*dk)).scalar() or 0)
+        if limit == 0 or not tong:
+            return [], tong
+        stmt = (select(AuditLog).where(*dk)
+                .order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).offset(offset))
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        return list(self.db.execute(stmt).scalars()), tong
+
     def list_for_target(self, target: str, limit: int = 50) -> list[AuditLog]:
         """Recent audit rows whose action targeted a given entity (spec-08 per-user activity)."""
         return self.list_by_target(target, limit=limit)

@@ -59,7 +59,9 @@ from ..schemas.stock import (
     TonNhomPage,
     GiaGocIn,
     GiaGocOut,
-    MaterialChuyenRow,
+    ChuyenKhoPage,
+    ChuyenKhoRow,
+    LichSuSuaRow,
     MaterialHistoryOut,
     MaterialHistoryPage,
     MaterialXuatRow,
@@ -79,8 +81,9 @@ from ..schemas.stock import (
 )
 from ..services import kho_gia_goc_service
 from ..services.kho_giay import (
-    co_don_vi_goc, dinh_luong_va_quy_kg, don_vi_khai, khoa_ton, khoa_ton_cua,
+    co_don_vi_goc, co_kho, dinh_luong_va_quy_kg, don_vi_khai, khoa_ton, khoa_ton_cua, nhan_kho,
 )
+from ..services.kho_nhat_ky_ton import VIEC as VIEC_NHAT_KY_TON, gom as gom_nhat_ky, tach as tach_nhat_ky, target_dong_ton
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
@@ -1187,6 +1190,29 @@ def _dong_xuat_lich_su(svc, rows: list[dict], can_view_cost: bool) -> list[Mater
     ]
 
 
+def _dong_chuyen_kho(svc, db, rows: list[dict], can_view_cost: bool) -> list[ChuyenKhoRow]:
+    """Dòng lịch sử chuyển kho cho màn: tên kho, tên mặt hàng, người chuyển nạp MỘT lượt cho cả trang."""
+    kho = KhoHangRepository(db).theo_ids([i for r in rows for i in (r["kho_tu_id"], r["kho_den_id"])])
+    nguoi = UserRepository(db).get_many([r["nguoi_id"] for r in rows])
+    hang = svc.hang.map_theo_cap([(r["hang_loai"], r["hang_id"]) for r in rows])
+    out: list[ChuyenKhoRow] = []
+    for r in rows:
+        m = hang.get((r["hang_loai"], r["hang_id"]))
+        u = nguoi.get(r["nguoi_id"])
+        out.append(ChuyenKhoRow(
+            key=r["key"], luc=r["luc"], hang_loai=r["hang_loai"], hang_id=r["hang_id"],
+            hang_ma=getattr(m, "ma", None), hang_ten=getattr(m, "ten", None),
+            kho=nhan_kho(r["kho_rong"], r["kho_dai"]) if co_kho(r["hang_loai"]) and r["kho_rong"] else "",
+            dvt=r["don_vi_goc"] or getattr(m, "don_vi_gia", None),
+            kho_tu=getattr(kho.get(r["kho_tu_id"]), "ten", None) or "kho đã xoá",
+            kho_den=getattr(kho.get(r["kho_den_id"]), "ten", None) or "kho đã xoá",
+            lay_o=r["lay_o"], cat_o=r["cat_o"], so_luong=r["so_luong"],
+            gia_tri=round(r["gia_tri"]) if can_view_cost else None,
+            nguoi=getattr(u, "name", None),
+        ))
+    return out
+
+
 @router.get("/mat-hang/{hang_loai}/{hang_id}/lich-su", response_model=MaterialHistoryOut)
 def material_history(
     hang_loai: str, hang_id: int, svc: Service, db: Db, authz: Authz,
@@ -1228,8 +1254,39 @@ def material_history(
         nhap=nhap, xuat=xuat,
     )
 
-#: Tab của ngăn mặt hàng. `chuyen` gộp lô nhận về + dòng chuyển đi.
-_TAB_LICH_SU = "^(lo_ton|nhap|xuat|chuyen)$"
+#: Tab của ngăn mặt hàng. `chuyen` = lần chuyển kho đi / về, `sua` = nhật ký sửa của dòng tồn.
+_TAB_LICH_SU = "^(lo_ton|nhap|xuat|chuyen|sua)$"
+
+
+def _target_lich_su_sua(svc, kho_id: int, hang: tuple[str, int], loc: dict) -> list[str]:
+    """Các đối tượng nhật ký thuộc MỘT dòng tồn: chính dòng tồn, các lô của nó ở kho này (sửa giá
+    gốc, bổ sung khổ ghi theo lô) và mặt hàng ở danh mục (sửa tên, mã… chung mọi kho)."""
+    lots = svc.lots.list_lots(hang=hang, kho_id=kho_id, con_hang=False, **loc)
+    return [
+        target_dong_ton(kho_id, hang[0], hang[1], loc["goc"], loc["kho_rong"], loc["kho_dai"]),
+        f"{hang[0]}:{hang[1]}",
+        *(f"stock_lot:{lo.id}" for lo in lots),
+    ]
+
+
+def _dong_lich_su_sua(logs, can_view_cost: bool) -> list[LichSuSuaRow]:
+    """Dòng nhật ký ra màn. Dòng tồn ghi mẩu đầu là "mặt hàng tại kho" cho màn Nhật ký chung — ở
+    ngăn của chính mặt hàng thì thừa, bỏ đi. Không thấy giá thì vẫn biết CÓ lần sửa giá, chỉ giấu số."""
+    out: list[LichSuSuaRow] = []
+    for log in logs:
+        phan = tach_nhat_ky(log.detail)
+        if log.target.startswith("ton:"):
+            phan = phan[1:]
+        elif log.action == "dm_tao":
+            phan = []
+        if not can_view_cost:
+            phan = [] if log.action == "kho_sua_gia_goc" else [
+                p for p in phan if not p.lower().startswith(("đơn giá", "giá"))]
+        out.append(LichSuSuaRow(
+            id=log.id, luc=log.created_at, nguoi=log.actor_name_luc_do or None,
+            viec=VIEC_NHAT_KY_TON.get(log.action, log.action), thay_doi=phan,
+        ))
+    return out
 
 
 @router.get("/mat-hang/{hang_loai}/{hang_id}/lich-su-trang", response_model=MaterialHistoryPage)
@@ -1260,10 +1317,15 @@ def material_history_page(
 
     dem_lo = svc.lots.dem_lo_theo_tab(hang, kho_id, **loc)
     dem_xuat = svc.vouchers.dem_xuat_theo_chieu(hang, kho_id, **loc)
-    nhan_ve, chuyen_di = dem_lo["nhan_ve"], dem_xuat[True]
-    dem = {"lo_ton": dem_lo["lo_ton"], "nhap": dem_lo["nhap"], "xuat": dem_xuat[False],
-           "chuyen": nhan_ve + chuyen_di}
     tu = (page - 1) * size
+    # Tab Chuyển kho: một dòng một lần chuyển × vị trí lấy (03/11/2026) — đếm ngay trong câu lấy trang.
+    dong_dc, dem_dc = svc.vouchers.dong_chuyen_kho(
+        kho_id, hang=hang, **loc, offset=tu, limit=size if tab == "chuyen" else 0)
+    nhat_ky, dem_sua = AuditLogRepository(db).trang_theo_targets(
+        _target_lich_su_sua(svc, kho_id, hang, loc), VIEC_NHAT_KY_TON,
+        offset=tu, limit=size if tab == "sua" else 0)
+    dem = {"lo_ton": dem_lo["lo_ton"], "nhap": dem_lo["nhap"], "xuat": dem_xuat[False], "chuyen": dem_dc,
+           "sua": dem_sua}
     out = MaterialHistoryPage(
         hang_loai=hang_loai, hang_id=hang_id, hang_ma=getattr(m, "ma", None),
         hang_ten=getattr(m, "ten", None), dvt=goc or dvt,
@@ -1275,27 +1337,36 @@ def material_history_page(
     elif tab == "xuat":
         rows = svc.vouchers.xuat_history(hang, kho_id, dieu_chuyen=False, offset=tu, limit=size, **loc)
         out.xuat = _dong_xuat_lich_su(svc, rows, can_view_cost)
-    elif nhan_ve or chuyen_di:
-        # Hai nguồn, mới nhất trước: lấy (tu + size) dòng đầu mỗi nguồn rồi trộn — trang nào cũng đúng.
-        ins = _dong_lo_lich_su(svc, svc.lots.trang_lo_mat_hang(
-            hang, kho_id, tab="nhan_ve", offset=0, limit=tu + size, **loc), m, dvt, can_view_cost)
-        outs = _dong_xuat_lich_su(svc, svc.vouchers.xuat_history(
-            hang, kho_id, dieu_chuyen=True, offset=0, limit=tu + size, **loc), can_view_cost)
-        tron = [
-            MaterialChuyenRow(key=f"in-{lo.id}", chieu="in", ngay=lo.ngay_nhap, voucher_id=lo.voucher_id,
-                              voucher_ma=lo.voucher_ma or lo.ma_lo, so_luong=lo.sl_ban_dau,
-                              don_gia=lo.don_gia_nhap, chua_gia_goc=bool(lo.tu_kcs) and not lo.don_gia_nhap,
-                              vi_tri=lo.vi_tri, hsd=lo.hsd)
-            for lo in ins
-        ] + [
-            MaterialChuyenRow(key=f"out-{r.voucher_id}-{r.lot_id}-{i}", chieu="out", ngay=r.ngay,
-                              voucher_id=r.voucher_id, voucher_ma=r.voucher_ma, so_luong=r.so_luong,
-                              don_gia=r.don_gia, chua_gia_goc=r.chua_gia_goc, vi_tri=r.vi_tri, hsd=r.hsd)
-            for i, r in enumerate(outs)
-        ]
-        tron.sort(key=lambda x: x.ngay, reverse=True)
-        out.chuyen = tron[tu:tu + size]
+    elif tab == "chuyen":
+        out.chuyen = _dong_chuyen_kho(svc, db, dong_dc, can_view_cost)
+    else:
+        out.sua = _dong_lich_su_sua(nhat_ky, can_view_cost)
     return out
+
+
+@router.get("/chuyen-kho/{kho_id}", response_model=ChuyenKhoPage)
+def lich_su_chuyen_kho(
+    kho_id: int, svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_xem_kho_nao((MODULE, "read")))],
+    q: str | None = Query(default=None, max_length=200),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=50, ge=1, le=200),
+) -> ChuyenKhoPage:
+    """Tab Điều chuyển của trang một kho (03/11/2026): mọi lần chuyển đi / nhận về của kho, một dòng
+    một mặt hàng × vị trí lấy, cùng cột với tab Lịch sử chuyển kho của ngăn mặt hàng. Lọc kỳ theo
+    ngày chuyển, ô tìm theo mã / tên vật tư; giá trị chỉ hiện với ô xem giá của kho này."""
+    _chan_neu_khong_xem_ton(db, authz, user, kho_id)
+    can_view_cost = gia_lo_theo_man(authz, user, "ton")(kho_id)
+    hang_khop = None
+    if q and q.strip():
+        hang_khop = [(d["hang_loai"], d["hang_id"])
+                     for d in _hang_service(db).tim_mat_hang(q.strip(), size=500)]
+    rows, total = svc.vouchers.dong_chuyen_kho(
+        kho_id, hang_khop=hang_khop, tu_ngay=tu_ngay, den_ngay=den_ngay,
+        offset=(page - 1) * size, limit=size)
+    return ChuyenKhoPage(items=_dong_chuyen_kho(svc, db, rows, can_view_cost), total=total)
 
 
 @router.get("/mat-hang/{hang_loai}/{hang_id}/tong-xuat")
@@ -1427,10 +1498,36 @@ def upsert_threshold(
         # Vật tư tách tồn theo đơn vị gốc (mg 0390): khai ngưỡng không nói đơn vị ⇒ ĐVT chính.
         m = _hang_service(db).map_theo_cap([("vat_tu", payload.hang_id)]).get(("vat_tu", payload.hang_id))
         goc = (don_vi_khai(m) or [""])[0]
-    obj = StockThresholdRepository(db).upsert(
-        hang=(payload.hang_loai, payload.hang_id, payload.kho_rong, payload.kho_dai, goc),
-        kho_id=payload.kho_id,
+    repo = StockThresholdRepository(db)
+    hang5 = (payload.hang_loai, payload.hang_id, payload.kho_rong, payload.kho_dai, goc)
+    cu = repo.get_for(hang5, payload.kho_id)
+    truoc = (cu.nguong_ton, cu.nguong_toi_da) if cu is not None else (None, None)
+    obj = repo.upsert(
+        hang=hang5, kho_id=payload.kho_id,
         nguong_ton=payload.nguong_ton, nguong_can_ton=payload.nguong_can_ton,
         nguong_toi_da=payload.nguong_toi_da, canh_bao=payload.canh_bao,
     )
+    # Nhật ký dòng tồn (03/11/2026): ngăn mặt hàng đọc lại ai đặt mức, mức cũ → mới.
+    doi = [
+        f"{nhan} {_so_muc(a)} → {_so_muc(b)}"
+        for nhan, a, b in (("Tối thiểu", truoc[0], obj.nguong_ton), ("Tối đa", truoc[1], obj.nguong_toi_da))
+        if (float(a) if a is not None else None) != (float(b) if b is not None else None)
+    ]
+    if doi:
+        m = _hang_service(db).map_theo_cap([(payload.hang_loai, payload.hang_id)]).get(
+            (payload.hang_loai, payload.hang_id))
+        kho = KhoHangRepository(db).theo_ids([payload.kho_id]).get(payload.kho_id)
+        AuditLogRepository(db).create(
+            actor_user_id=user.id, action="kho_muc_ton",
+            target=target_dong_ton(payload.kho_id, payload.hang_loai, payload.hang_id, goc,
+                                   payload.kho_rong, payload.kho_dai),
+            detail=gom_nhat_ky([f"{getattr(m, 'ten', None) or 'Mặt hàng'} tại {getattr(kho, 'ten', 'kho')}", *doi]),
+        )
     return StockThresholdOut.model_validate(obj)
+
+
+def _so_muc(v) -> str:
+    if v is None:
+        return "chưa đặt"
+    v = float(v)
+    return f"{v:,.3f}".rstrip("0").rstrip(".").replace(",", "§").replace(".", ",").replace("§", ".")

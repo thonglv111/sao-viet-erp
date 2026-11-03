@@ -26,14 +26,15 @@ from tests.test_kho_lo_giay import _don_vi
 PW = "pw123456"
 
 
-def _nguoi(username: str, kho_id: int, *, adjust: bool = True) -> dict:
+def _nguoi(username: str, kho_id: int, *, adjust: bool = True, nguong: bool = False) -> dict:
     db = SessionLocal()
     try:
         dept = DepartmentRepository(db).get_by_name("Kho") or DepartmentRepository(db).create(name="Kho")
         roles = RoleRepository(db)
         role = roles.create(name=f"Vai {username}", department_id=dept.id)
         roles.set_permission(role_id=role.id, module_key=khoa_kho(kho_id), can_read=True,
-                             can_adjust=adjust, can_view_cost=True, scope=SCOPE_ALL)
+                             can_adjust=adjust, can_view_cost=True, can_set_threshold=nguong,
+                             scope=SCOPE_ALL)
         u = UserRepository(db).create(username=username, name=username, password_hash=hash_password(PW))
         UserRepository(db).set_assignment(u, department_id=dept.id, role_id=role.id, is_active=True)
         db.commit()
@@ -109,6 +110,35 @@ def test_them_moi_tao_lo_va_phieu_nhap_tay(client):
         assert db.get(StockRequest, v.request_id).nhap_tay is True
     finally:
         db.close()
+
+
+def test_lich_su_sua_mot_dong_ton(client):
+    """Tab Lịch sử sửa của ngăn mặt hàng (03/11/2026): sửa tồn, đổi vị trí, đặt mức tồn ghi theo
+    ĐÚNG dòng tồn, số cũ → mới; dòng khác khổ không lẫn vào."""
+    admin = _admin(client)
+    kho_id = _mk_kho(client, admin)
+    _don_vi()
+    _nguoi("thukho", kho_id, nguong=True)
+    h = _login(client, "thukho")
+    g = _giay()
+    base = dict(ma="COUCHE150", dvt="tờ", kho_rong=790, kho_dai=1090)
+    _them(client, kho_id, h, so_luong=500, don_gia=3000, vi_tri="A1", **base)
+    _them(client, kho_id, h, so_luong=800, don_gia=3000, vi_tri="B2", **base)
+    _them(client, kho_id, h, ma="COUCHE150", dvt="tờ", kho_rong=650, kho_dai=860, so_luong=10, don_gia=1)
+    r = client.put("/api/kho/nguong-ton", headers=h, json={
+        "hang_loai": "giay", "hang_id": g, "kho_id": kho_id, "nguong_ton": 100, "nguong_toi_da": 2000,
+        "kho_rong": 790, "kho_dai": 1090, "don_vi_goc": "to"})
+    assert r.status_code == 200, r.text
+    r = client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h, params={
+        "kho_id": kho_id, "tab": "sua", "goc": "to", "kho_rong": 790, "kho_dai": 1090})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["dem"]["sua"] == 3
+    viec = [(d["viec"], d["thay_doi"]) for d in body["sua"]]
+    assert viec[0] == ("Đặt mức tồn", ["Tối thiểu chưa đặt → 100", "Tối đa chưa đặt → 2.000"])
+    assert viec[1] == ("Sửa tồn", ["Tồn 500 → 800 tờ", "Vị trí A1 → B2"])
+    assert viec[2][0] == "Sửa tồn" and viec[2][1][0] == "Thêm vào kho 500 tờ"
+    assert all(d["nguoi"] for d in body["sua"])
 
 
 def test_xem_truoc_khong_ghi(client):

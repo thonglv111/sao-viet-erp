@@ -45,6 +45,7 @@ from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from .catalog_excel import PHIEN_BAN, SHEET_META, ExcelSaiMan
 from .kho_giay import DON_VI_TO_KHO, chuan_kho, kg_tu_to, la_kho_to
+from .kho_nhat_ky_ton import gom, target_dong_ton
 from .vat_lieu_kho_service import VatLieuKhoError
 
 LOAI_META = "ton_kho"
@@ -259,6 +260,17 @@ def _ngay(v: Any) -> tuple[date | None, bool]:
         except ValueError:
             continue
     return None, False
+
+
+def _thay_doi_ton(k: KeHoach) -> list[str]:
+    """Từng thay đổi của một dòng nhập tay, số cũ → số mới, cho nhật ký dòng tồn."""
+    if not k.co_dong:
+        return [f"Thêm vào kho {_hien_so(k.sl_goc)} {k.goc_ten}".rstrip(),
+                f"Vị trí {k.vi_tri}" if k.vi_tri else ""]
+    return [
+        f"Tồn {_hien_so(k.sl_hien)} → {_hien_so(k.sl_goc)} {k.goc_ten}".rstrip() if k.doi_so else "",
+        f"Vị trí {k.vi_tri_hien or '–'} → {k.vi_tri or '–'}" if k.doi_vi_tri else "",
+    ]
 
 
 def _hien_so(v: float | None) -> str:
@@ -655,13 +667,14 @@ class KhoNhapTayService:
                     kq.tao_moi += 1
                 self.ap(kho_id, k, user)
             if lam:
-                AuditLogRepository(self.db).create(
-                    actor_user_id=getattr(user, "id", None), action="kho_hang_nhap_tay",
-                    target=f"kho:{kho_id}",
-                    detail=(f"Nhập tay tồn kho {self.kho(kho_id).ten}: {kq.tao_moi} thêm mới, "
-                            f"{kq.cap_nhat} cập nhật — " + ", ".join(sorted({k.ma for k in lam}))),
-                    commit=False,
-                )
+                # Một dòng nhật ký MỘT dòng tồn (03/11/2026) — ngăn mặt hàng đọc lại được "ai sửa gì".
+                ten_kho = self.kho(kho_id).ten
+                AuditLogRepository(self.db).create_many([
+                    {"actor_user_id": getattr(user, "id", None), "action": "kho_ton_sua",
+                     "target": target_dong_ton(kho_id, k.hang_loai, k.hang_id, k.goc, k.kho_rong, k.kho_dai),
+                     "detail": gom([f"{k.ten or k.ma} tại {ten_kho}", *_thay_doi_ton(k)])}
+                    for k in lam
+                ])
             if ghi:
                 self.db.commit()
                 kq.da_ghi = True

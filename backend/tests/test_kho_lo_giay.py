@@ -374,6 +374,48 @@ def test_chuyen_kho_ghi_so_luon_va_hien_o_tab_dieu_chuyen_hai_kho(client):
         db.close()
 
 
+def test_lich_su_chuyen_kho_mot_dong_mot_vi_tri_lay(client):
+    """Tab Lịch sử chuyển kho (03/11/2026): mỗi lần chuyển × vị trí lấy một dòng, ghi đủ hai kho,
+    vị trí lấy / cất, số, giá trị, người chuyển; cả hai kho đọc ra cùng dòng, trang kho cũng vậy."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, kr=780, kd=905, gia=1000))
+    _nhap(client, kho_id, _dong(g, dvt="to", sl=500, kr=780, kd=905, gia=2))
+    db = SessionLocal()
+    try:
+        lo1, lo2 = db.query(StockLot).filter(StockLot.hang_id == g).order_by(StockLot.id).all()
+        lo1.vi_tri, lo2.vi_tri = "A1", "A3"
+        db.commit()
+    finally:
+        db.close()
+    tk = _login(client, "t_thukho")
+    den = client.post("/api/kho", json={"ten": "Kho nhận"}, headers=_admin(client)).json()["id"]
+    r = client.post("/api/kho/dieu-chuyen", headers=tk, json={
+        "kho_nguon_id": kho_id, "kho_den_id": den, "items": [
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 700, "vi_tri": "B2",
+             "don_vi_goc": "to", "kho_rong": 905, "kho_dai": 780}]})
+    assert r.status_code == 201, r.text
+    for kho in (kho_id, den):
+        r = client.get(f"{BASE}/phieu/mat-hang/giay/{g}/lich-su-trang", headers=_admin(client), params={
+            "kho_id": kho, "tab": "chuyen", "goc": "to", "kho_rong": 905, "kho_dai": 780})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["dem"]["chuyen"] == 2
+        dong = sorted((d["lay_o"], d["so_luong"]) for d in body["chuyen"])
+        assert dong == [("A1", 500), ("A3", 200)]
+        d = body["chuyen"][0]
+        assert d["kho_den"] == "Kho nhận" and d["kho_tu"] != "Kho nhận"
+        assert d["cat_o"] == "B2" and d["nguoi"]
+        assert "voucher_ma" not in d
+    r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client))
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 2
+    assert {d["hang_ten"] for d in r.json()["items"]} == {"Giấy C-300"}
+    r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client), params={"q": "không khớp gì"})
+    assert r.json()["total"] == 0
+
+
 def test_dieu_chuyen_giay_khong_ro_don_vi_bi_chan(client):
     kho_id, _ = _setup(client)
     _don_vi()

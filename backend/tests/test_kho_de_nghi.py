@@ -799,7 +799,7 @@ def test_lich_su_trang_dem_tab_va_tong_xuat(client):
     kt = _login(client, "t_ketoan")
     url = f"/api/kho/phieu/mat-hang/{mat_id[0]}/{mat_id[1]}"
     ton = client.get(f"{url}/lich-su-trang", headers=kt, params={"kho_id": kho_id, "tab": "lo_ton"}).json()
-    assert ton["dem"] == {"lo_ton": 1, "nhap": 2, "xuat": 2, "chuyen": 0}
+    assert ton["dem"] == {"lo_ton": 1, "nhap": 2, "xuat": 2, "chuyen": 0, "sua": 0}
     assert ton["on_hand"] == 5
     assert [l["sl_con_lai"] for l in ton["lo"]] == [5] and ton["xuat"] == []
     # Trang 2 cỡ 1 của tab Nhập = lô CŨ hơn (mới nhất trước).
