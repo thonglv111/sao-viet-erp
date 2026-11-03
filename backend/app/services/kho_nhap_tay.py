@@ -46,6 +46,7 @@ from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from .catalog_excel import PHIEN_BAN, SHEET_META, ExcelSaiMan
 from .kho_giay import DON_VI_TO_KHO, chuan_kho, kg_tu_to, la_kho_to
 from .kho_nhat_ky_ton import gom, target_dong_ton
+from .quy_doi_service import don_vi_dung_duoc, don_vi_map
 from .vat_lieu_kho_service import VatLieuKhoError
 
 LOAI_META = "ton_kho"
@@ -955,7 +956,9 @@ class KhoNhapTayService:
     def don_vi_xem(self, lots) -> dict[tuple, list[dict]]:
         """`{(loai, id, rộng, dài, gốc): [{ma, ten, he_so}]}` — các đơn vị QUY ĐƯỢC từ đơn vị gốc của
         dòng, `he_so` = số đơn vị gốc trong 1 đơn vị đó. Đơn vị gốc đứng đầu. Giấy tờ khổ hai cạnh có
-        định lượng thêm kg (quy qua gsm). Không quy được thì không có mặt."""
+        định lượng thêm kg (quy qua gsm) và đi tiếp mọi đơn vị nối với kg ở danh mục quy đổi (g,
+        tấn…). Giấy khổ hai cạnh nhập theo kg đã quy về gốc tờ lúc nhập nên không có chiều ngược.
+        Không quy được thì không có mặt."""
         khoa = {(x.hang_loai, x.hang_id, int(x.kho_rong or 0), int(x.kho_dai or 0), (x.don_vi_goc or "").lower())
                 for x in lots if x.hang_loai in ("giay", "vat_tu") and x.don_vi_goc}
         if not khoa:
@@ -977,7 +980,19 @@ class KhoNhapTayService:
             gsm = getattr(m, "gsm", None) if k[0] == "giay" else None
             if k[0] == "giay" and k[4] == DON_VI_TO_KHO and la_kho_to(k[2], k[3]) and gsm:
                 kg_1to = kg_tu_to(1, k[2], k[3], gsm)
-                if kg_1to > 0 and not any(x["ma"] == "kg" for x in ds):
-                    ds.append({"ma": "kg", "ten": self.ten_dv("kg") or "kg", "he_so": 1 / kg_1to})
+                # 1 kg = 1/kg_1to tờ; đơn vị nối với kg (g, tấn…) nhân thêm hệ số về kg của danh mục.
+                co = {x["ma"] for x in ds}
+                for d in (self._dv_lan("kg") if kg_1to > 0 else []):
+                    hs = float(d.get("he_so_ve_goc") or 0) / kg_1to
+                    if hs > 0 and d["ma"] not in co:
+                        co.add(d["ma"])
+                        ds.append({"ma": d["ma"], "ten": d.get("ten") or d["ma"], "he_so": hs})
             ra[k] = ds
         return ra
+
+    def _dv_lan(self, ma: str) -> list[dict]:
+        """Mọi đơn vị đi tới được từ `ma` qua bảng cặp quy đổi chung (chính nó đứng đầu, hệ số 1)."""
+        if not hasattr(self, "_dv_do"):
+            self._dv_do = (don_vi_map(self.hang.don_vi.all_rows()), list(self.hang.don_vi.cap_rows()))
+        dvs, cap = self._dv_do
+        return don_vi_dung_duoc(ma, dvs, cap) or [{"ma": ma, "ten": self.ten_dv(ma) or ma, "he_so_ve_goc": 1.0}]

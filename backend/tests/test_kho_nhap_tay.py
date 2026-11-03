@@ -520,7 +520,11 @@ def test_ton_nhom_tra_don_vi_xem(client):
     (row,) = r.json()["items"]
     dv = {d["ma"]: d["he_so"] for d in row["don_vi_xem"]}
     assert dv["to"] == 1 and dv["ram"] == 500
-    assert abs(dv["kg"] - 1 / (0.79 * 1.09 * 0.15)) < 1e-6
+    kg_1to = 0.79 * 1.09 * 0.15
+    assert abs(dv["kg"] - 1 / kg_1to) < 1e-6
+    # Suy ra kg qua gsm thì đi tiếp các đơn vị nối với kg ở danh mục quy đổi.
+    assert abs(dv["tan"] - 1000 / kg_1to) < 1e-6
+    assert abs(dv["g"] - 0.001 / kg_1to) < 1e-9
 
 
 def test_o_so_nhan_cham_nghin_kieu_viet():
