@@ -1089,7 +1089,7 @@ input.kho-num,
   min-height: 0;
   padding-bottom: var(--sp-6, 32px);
 }
-/* Hộp "Chuyển kho" hai bước (phương án C, 03/11/2026). Rộng theo laptop 1000px; đầu + chân đứng yên,
+/* Hộp "Chuyển kho" một bước (03/11/2026). Rộng theo laptop 1000px; đầu + chân đứng yên,
    chỉ bảng giữa cuộn, đầu bảng dính. Ô nhập nền xám không viền, chip chọn kho nhận. */
 .cdlg.kdc {
   max-width: 1000px;
@@ -1098,7 +1098,7 @@ input.kho-num,
 .kdc__dau {
   flex: none;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
   padding: 22px 28px 6px;
@@ -1108,24 +1108,6 @@ input.kho-num,
   font-size: 20px;
   font-weight: var(--fw-medium);
   color: var(--ink);
-}
-.kdc__buoc {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--ash);
-}
-.kdc__buoc i {
-  display: inline-block;
-  width: 64px;
-  height: 4px;
-  border-radius: 4px;
-  background: var(--rule-soft);
-}
-.kdc__buoc i.xong {
-  background: var(--rust);
 }
 .kdc__dinh {
   flex: none;
@@ -1289,21 +1271,6 @@ input.kho-num,
 }
 .kdc__dinh .banner {
   margin-top: 12px;
-}
-.kdc__xac {
-  margin-top: 8px;
-  padding: 14px 18px;
-  border-radius: 14px;
-  background: var(--moss-soft);
-  line-height: 1.6;
-  color: var(--ink);
-}
-.kdc__xac-tieu {
-  color: var(--moss-deep);
-}
-.kdc__xac-ghi {
-  margin-top: 4px;
-  color: var(--ash);
 }
 @media (max-width: 720px) {
   .kdc__dau,
