@@ -371,7 +371,7 @@ export const CFG_MAY: CatalogConfig = {
       showIf: (f) => f._chuan_bi_kieu === "khoan" },
     // ── 6. Bảo trì định kỳ (lưu lồng trong fields_theo_loai — KHÔNG cột mới, KHÔNG migration) ─
     { key: "lich_bao_tri", label: "Lịch bảo trì định kỳ", type: "lich_bao_tri",
-      group: "Bảo trì định kỳ", jsonKey: "fields_theo_loai" },
+      group: "Bảo trì định kỳ", jsonKey: "fields_theo_loai", phanHe: "sua_chua" },
     // ── 7. Ghi chú ───────────────────────────────────────────────────────────
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
   ],

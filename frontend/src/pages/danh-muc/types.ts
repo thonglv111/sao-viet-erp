@@ -76,7 +76,7 @@ export interface FieldDef {
   jsonKey?: string;             // field lưu LỒNG trong cột JSON này (vd "fields_theo_loai")
   /** Thuộc phân hệ tắt được theo bản cài (`useTat`, docs/prd-tat-phan-he-theo-ban-cai.md) — tắt
    *  thì ẩn hẳn. Viết chữ thay vì import `PhanHe`: file này chỉ được import `type ReactNode`. */
-  phanHe?: "luong" | "khoan" | "hoa_hong" | "giao_hang";
+  phanHe?: "luong" | "khoan" | "hoa_hong" | "giao_hang" | "sua_chua";
 }
 
 export interface ColumnDef {

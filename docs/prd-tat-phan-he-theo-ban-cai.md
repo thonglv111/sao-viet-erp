@@ -24,7 +24,7 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`. Hà Phương đặt cả sáu. Rỗng = bật hết (SVN).
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`. Hà Phương đặt cả bảy. Rỗng = bật hết (SVN).
 - Cổng chặn đặt ở RBAC: module thuộc phân hệ tắt coi như MỌI vai không có quyền, kể cả admin. Nhờ vậy
   thanh bên tự ẩn mục, router trả 403, ma trận quyền không hiện dòng đó. Module bị chặn:
   - `luong` ⇒ `luong`; hai ô `view_salary`/`edit_salary` của `nhan_su`.
@@ -88,6 +88,15 @@ biến môi trường.
 - Hồ sơ của tôi: ẩn thẻ "Phép năm còn lại", "Công tháng N", ô Ca làm việc, dòng Ca hiện tại, nút
   Chấm công. Hồ sơ nhân sự: ẩn ô Ca làm việc và nút Đặt/Đổi ca nền.
 - Sản xuất vẫn đọc đơn nghỉ đã duyệt để chặn giao người; tắt thì không có đơn nào, không chặn ai.
+
+### Sửa chữa & bảo dưỡng (`sua_chua`, thêm 03/11/2026)
+- Hai module mất quyền: `ky_thuat_may` (Sửa chữa máy), `phieu_bao_tri` (Phiếu bảo trì) ⇒ nhóm thanh bên
+  Sửa chữa & bảo dưỡng ẩn, router `/api/ky-thuat-may` trả 403. Riêng `/api/ky-thuat-may/may-chon` gác
+  theo quyền tổ nên bàn tổ vẫn Đổi máy được.
+- Danh mục Máy: ẩn ô Lịch bảo trì định kỳ, tab Lịch bảo trì tự biến mất. Bộ nhắc bảo trì chạy nền
+  không quét, không ra phiếu.
+- Bàn tổ: nút "Báo dừng máy" cần ô Báo hỏng khi tắt lương (hộp chỉ còn Báo máy hỏng) ⇒ tắt cả hai thì
+  nút ẩn. Đường cũ `/work-items/{id}/su-co` trả 404.
 
 ### Ma trận quyền và tên nhóm
 - Tắt `khoan` ⇒ ẩn ô chi tiết "Xem giá" của Công đoạn (ô này chỉ gác tiền khoán).

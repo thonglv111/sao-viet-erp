@@ -74,7 +74,7 @@ interface PermissionsCtx {
 }
 
 /** Phân hệ tắt được theo bản cài — khớp `app/phan_he.py`. */
-export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang" | "tai_san" | "cham_cong";
+export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang" | "tai_san" | "cham_cong" | "sua_chua";
 const KHONG_TAT: ReadonlySet<PhanHe> = new Set();
 
 const PermissionsContext = createContext<PermissionsCtx>({

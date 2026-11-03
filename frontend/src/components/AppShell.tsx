@@ -1275,7 +1275,8 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
-          coBaoDungMay={t?.quyen?.confirm_output === "all"
+          // Tắt lương thì hộp chỉ còn Báo máy hỏng ⇒ cần ô Báo hỏng (tắt sửa chữa là mất ô này).
+          coBaoDungMay={(!phanHeTat.has("luong") && t?.quyen?.confirm_output === "all")
             || (t?.quyen?.read != null && Boolean(caps.get("ky_thuat_may")?.can_request))}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}

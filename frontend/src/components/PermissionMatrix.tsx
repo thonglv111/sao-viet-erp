@@ -1265,6 +1265,7 @@ export function PermissionMatrix({
     ...(tat("giao_hang") ? ["giao_hang", "dm_xe"] : []),
     ...(tat("tai_san") ? ["tai_san"] : []),
     ...(tat("cham_cong") ? ["cham_cong", "yeu_cau_chinh_cong", "nghi_phep", "tang_ca", "di_muon"] : []),
+    ...(tat("sua_chua") ? ["ky_thuat_may", "phieu_bao_tri"] : []),
   ]);
   const tenNhomNhanSu = useTenNhomNhanSu();
   /** Ô chi tiết chỉ có nghĩa khi phân hệ của nó bật: lương & BHXH của hồ sơ, "Xem giá" của Công
