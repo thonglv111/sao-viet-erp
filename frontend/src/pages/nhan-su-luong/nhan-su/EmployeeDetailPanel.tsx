@@ -53,6 +53,10 @@ export function EmployeeDetailPanel({
 }) {
   const can = useCan();
   const canUpdate = can("nhan_su", "update");
+  // Nút tắt sang màn khác chỉ hiện khi xem được màn đó — bản cài tắt phân hệ cũng rơi vào đây.
+  const coChamCong = can("cham_cong", "read");
+  const coNghiPhep = can("nghi_phep", "read");
+  const coLuong = can("luong", "read");
   const canEditSalaryFields = can("nhan_su", "edit_salary");
   const canViewSalary =
     can("nhan_su", "view_salary") || canEditSalaryFields;
@@ -247,12 +251,12 @@ export function EmployeeDetailPanel({
           </button>
         </header>
 
-      {(navigate || canUpdate || canManageStatus || canTransfer) && (
+      {((navigate && (coChamCong || coNghiPhep || coLuong)) || canUpdate || canManageStatus || canTransfer) && (
         <div className="ns-detail__actions">
           <div className="ns-detail__shortcuts">
             {navigate && (
               <>
-                <button
+                {coChamCong && <button
                   type="button"
                   className="btn btn--ghost btn--sm"
                   onClick={() =>
@@ -261,8 +265,8 @@ export function EmployeeDetailPanel({
                 >
                   <Clock size={12} />
                   Chấm công
-                </button>
-                <button
+                </button>}
+                {coNghiPhep && <button
                   type="button"
                   className="btn btn--ghost btn--sm"
                   onClick={() =>
@@ -271,15 +275,15 @@ export function EmployeeDetailPanel({
                 >
                   <Calendar size={12} />
                   Nghỉ phép
-                </button>
-                <button
+                </button>}
+                {coLuong && <button
                   type="button"
                   className="btn btn--ghost btn--sm"
                   onClick={() => navigate("luong", { focusEmployeeId: emp.id })}
                 >
                   <CreditCard size={12} />
                   Lương
-                </button>
+                </button>}
               </>
             )}
           </div>
