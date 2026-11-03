@@ -98,3 +98,23 @@ def test_don_chep_ke_tu_bao_gia(svc, admin, customer, db):
 
     ln = db.query(OrderLine).filter(OrderLine.order_id == d.id).one()
     assert (ln.line_total, ln.ke_gia, ln.unit_price_snapshot) == (1_500_000, 500_000, 15_000)
+
+
+def test_tat_ke_gia_bo_so_ke_va_rao_ke(client, monkeypatch):
+    """Bản cài tắt kê (PHAN_HE_TAT=ke_gia, In Hà Phương): kê gửi lên bị bỏ, giá bán là giá cuối, rào kê
+    tối thiểu của khách không bắt đặc thù."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "phan_he_tat", "ke_gia")
+    p = QuotationService.calculate_pricing(total_cost=800, margin_percent=25, ke_gia=500,
+                                           vat_percent=10, quantity=10)
+    assert (p["ke_gia"], p["gia_sau_ke"], p["final_amount"]) == (0, 1000, 1100)
+    t = _token(client)
+    cid = client.post("/api/customers", json={"name": "KH Tắt Kê"}, headers=_h(t)).json()["customer"]["id"]
+    r = client.put(f"/api/customers/{cid}/financial", headers=_h(t),
+                   json={"credit_limit": 0, "ke_min_pct": 5, "ke_max_pct": 10})
+    assert r.status_code == 200, r.text
+    q = _quote(client, t, customer_id=cid, markup=20)
+    iid = q["items"][0]["id"]
+    d = _put(client, t, q["id"], {"id": iid, "margin_percent": 20, "ke_percent": 8})
+    assert round(d["items"][0]["ke_gia"]) == 0 and round(d["ke_gia_amount"]) == 0
+    assert "ke_out" not in {e["key"] for e in d["exceptions"]}

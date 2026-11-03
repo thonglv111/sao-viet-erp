@@ -20,7 +20,9 @@ GIAO_HANG = "giao_hang"
 TAI_SAN = "tai_san"
 CHAM_CONG = "cham_cong"
 SUA_CHUA = "sua_chua"
-CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA)
+# Kê giá ở báo giá (03/11/2026): không có module riêng, tắt thì kê luôn 0, rào kê của khách bỏ qua.
+KE_GIA = "ke_gia"
+CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA, KE_GIA)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.

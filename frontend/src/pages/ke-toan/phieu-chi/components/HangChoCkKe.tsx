@@ -4,6 +4,7 @@
 import { useState } from "react";
 
 import type { CkKeChoChi } from "../../../../api/client";
+import { useTat } from "../../../../auth/permissions";
 import { CuonLuoi, rongLuoi, type CauHinhLuoi, type CotLuoi } from "../../../../components/LuoiDs";
 import { ngay, tien, vietSo } from "../../shared/dinhDang";
 
@@ -23,6 +24,13 @@ export const COT_CK_KE: (CotLuoi & { w?: number; n?: boolean })[] = [
   { key: "nut", label: "Thao tác", coDinh: true, w: 140 },
 ];
 
+/** Bản cài tắt kê (PHAN_HE_TAT=ke_gia): hàng chỉ còn chiết khấu ⇒ bỏ cột thuế TNDN, nhãn tiền gọi đúng
+ *  "Tiền chiết khấu". Dùng cho cả lưới lẫn Chọn cột. */
+export function cotCkKe(coKe: boolean): typeof COT_CK_KE {
+  if (coKe) return COT_CK_KE;
+  return COT_CK_KE.filter((c) => c.key !== "thue").map((c) => (c.key === "tien" ? { ...c, label: "Tiền chiết khấu" } : c));
+}
+
 const khoa = (r: CkKeChoChi) => `${r.sales_invoice_id}:${r.loai}`;
 const nhom = (r: CkKeChoChi) => `${r.customer_id ?? r.customer_name}:${r.loai}`;
 
@@ -40,7 +48,8 @@ export function HangChoCkKe({
   onMoDon?: (orderId: number) => void;
   luoi?: CauHinhLuoi;
 }) {
-  const goc = COT_CK_KE.filter((c) => (c.key !== "chon" && c.key !== "nut") || !!onLap);
+  const coKe = !useTat()("ke_gia");
+  const goc = cotCkKe(coKe).filter((c) => (c.key !== "chon" && c.key !== "nut") || !!onLap);
   const cot = luoi ? luoi.rongHien(luoi.xep(goc).filter((c) => !luoi.an.has(c.key))) : goc;
   // Dòng đã tick — chỉ giữ dòng còn trong hàng (chi đủ / nạp lại thì tự rơi khỏi lựa chọn).
   const [chon, setChon] = useState<Set<string>>(new Set());
@@ -110,7 +119,9 @@ export function HangChoCkKe({
     <>
       <div className="lds-sheet">
         <p className="kt-gc-ghi">
-          Hóa đơn đã thu đủ còn chiết khấu hoặc kê chưa chi lại khách. Số chi tính trước VAT; kê đã trừ thuế TNDN.
+          {coKe
+            ? "Hóa đơn đã thu đủ còn chiết khấu hoặc kê chưa chi lại khách. Số chi tính trước VAT; kê đã trừ thuế TNDN."
+            : "Hóa đơn đã thu đủ còn chiết khấu chưa chi lại khách. Số chi tính trước VAT."}
           Chi đủ thì dòng rời khỏi danh sách này.
         </p>
         <CuonLuoi ghim={luoi?.soGhim(cot)}>
@@ -133,13 +144,13 @@ export function HangChoCkKe({
               {loi ? (
                 <tr>
                   <td colSpan={cot.length} className="lds-trong">
-                    <span className="lds-do" role="alert">{`Không tải được hàng chờ chi chiết khấu / kê. ${loi}`}</span>
+                    <span className="lds-do" role="alert">{`Không tải được hàng chờ chi chiết khấu${coKe ? " / kê" : ""}. ${loi}`}</span>
                   </td>
                 </tr>
               ) : rows == null ? (
                 <tr><td colSpan={cot.length} className="lds-trong">Đang tải…</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={cot.length} className="lds-trong">Không còn khoản chiết khấu / kê nào chờ chi.</td></tr>
+                <tr><td colSpan={cot.length} className="lds-trong">{`Không còn khoản chiết khấu${coKe ? " / kê" : ""} nào chờ chi.`}</td></tr>
               ) : (
                 rows.map((r) => <tr key={khoa(r)} className="lds-dong">{cot.map((c) => o(c.key, r))}</tr>)
               )}

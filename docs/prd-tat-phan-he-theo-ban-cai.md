@@ -24,7 +24,7 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`. Hà Phương đặt cả bảy. Rỗng = bật hết (SVN).
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`. Hà Phương đặt cả tám. Rỗng = bật hết (SVN).
 - Cổng chặn đặt ở RBAC: module thuộc phân hệ tắt coi như MỌI vai không có quyền, kể cả admin. Nhờ vậy
   thanh bên tự ẩn mục, router trả 403, ma trận quyền không hiện dòng đó. Module bị chặn:
   - `luong` ⇒ `luong`; hai ô `view_salary`/`edit_salary` của `nhan_su`.
@@ -98,6 +98,16 @@ biến môi trường.
   không quét, không ra phiếu.
 - Bàn tổ: nút "Báo dừng máy" cần ô Báo hỏng khi tắt lương (hộp chỉ còn Báo máy hỏng) ⇒ tắt cả hai thì
   nút ẩn. Đường cũ `/work-items/{id}/su-co` trả 404.
+
+### Kê giá (`ke_gia`, thêm 03/11/2026)
+- Không có module riêng. Máy chủ bỏ mọi số kê gửi lên (`ke_gia`, `ke_percent`) ⇒ kê luôn 0, giá bán là
+  giá cuối; rào kê tối thiểu/tối đa của khách không bắt đặc thù.
+- Báo giá: ẩn cột Kê và Giá bán sau kê ở dòng sản phẩm và dải nhóm. Dòng tổng kê vốn chỉ hiện khi kê > 0.
+- Khách hàng > Chính sách tài chính: ẩn "Kê cho phép" và "Thuế TNDN trên kê" (xem lẫn sửa).
+- Báo cáo kinh doanh: bỏ bốn cột Tiền kê, Thuế TNDN trên kê, Kê phải chi, Kê đã chi; file Excel ẩn
+  cột Y→AB (giữ chữ cột để cột sau khỏi lệch).
+- Phiếu chi: mục "Chờ chi CK / kê" đổi thành "Chờ chi chiết khấu", bỏ cột Thuế TNDN trên kê.
+- Đơn bán: cột và dòng "Trong đó kê" vốn chỉ hiện khi kê > 0 nên không phải sửa.
 
 ### Ma trận quyền và tên nhóm
 - Tắt `khoan` ⇒ ẩn ô chi tiết "Xem giá" của Công đoạn (ô này chỉ gác tiền khoán).

@@ -152,6 +152,12 @@ def xuat_xlsx(bc: dict) -> bytes:
     _tien_tong(hang, bc["tong"])
     _ke(hang, dam=True, nen=nen_khach)
 
+    # Bản cài tắt kê (PHAN_HE_TAT=ke_gia): ẩn 4 cột kê, giữ nguyên chữ cột để các cột sau khỏi lệch.
+    from ..phan_he import KE_GIA, tat
+    if tat(KE_GIA):
+        for cot in ("Y", "Z", "AA", "AB"):
+            ws.column_dimensions[cot].hidden = True
+
     ws.freeze_panes = "A5"
     buf = BytesIO()
     wb.save(buf)

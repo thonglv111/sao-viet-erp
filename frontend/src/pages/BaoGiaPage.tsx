@@ -22,7 +22,7 @@ import {
 } from "../api/client";
 import { gopTheoNhom, gopTrungTen, nhomLechSoLuong } from "../utils/gop-nhom";
 import { useAuth } from "../auth/useAuth";
-import { useCan } from "../auth/permissions";
+import { useCan, useTat } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ChonNgay } from "../components/ChonNgay";
 import { EmptyRow, EmptyState } from "../components/EmptyState";
@@ -749,6 +749,8 @@ export function QuotationDetailView({
   const canApproveException = useCan()("bao_gia", "approve_exception");
   // Lên đơn từ báo giá đã chốt → cần quyền TẠO ở module Đơn hàng bán (nút chỉ hiện khi có).
   const canCreateOrder = useCan()("don_hang_ban", "create");
+  // Bản cài tắt kê (In Hà Phương): bỏ hai cột Kê + Giá bán sau kê, giá bán là giá cuối.
+  const coKe = !useTat()("ke_gia");
   const [d, setD] = useState<QuotationDetail | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1512,8 +1514,8 @@ export function QuotationDetailView({
                   <th className="num">Chiết khấu</th>
                   <th className="num">Lợi nhuận</th>
                   <th className="num">Giá bán</th>
-                  <th className="num">Kê</th>
-                  <th className="num">Giá bán sau kê</th>
+                  {coKe && <th className="num">Kê</th>}
+                  {coKe && <th className="num">Giá bán sau kê</th>}
                 </tr>
               </thead>
               <tbody>
@@ -1633,10 +1635,12 @@ export function QuotationDetailView({
                         </div>
                       </td>
                       {/* Phần con của nhóm: kê gõ ở dải nhóm phía trên, ở đây chỉ hiện số tiền của phần này. */}
-                      <td className={con ? "num muted" : "num"}>
-                        {con ? (c.ke > 0 ? numf(c.ke) : "—") : oKe([it], it.product_name)}
-                      </td>
-                      <td className="num strong">{numf(c.sauKe)}</td>
+                      {coKe && (
+                        <td className={con ? "num muted" : "num"}>
+                          {con ? (c.ke > 0 ? numf(c.ke) : "—") : oKe([it], it.product_name)}
+                        </td>
+                      )}
+                      {coKe && <td className="num strong">{numf(c.sauKe)}</td>}
                     </tr>
                   );
                   };
@@ -1663,8 +1667,8 @@ export function QuotationDetailView({
                       <td className="num">{oChietKhau(node.members, node.ten)}</td>
                       <td className="num muted">{tongGoc > 0 ? `${pctf(((tongBan / tongGoc) - 1) * 100)} %` : "—"}</td>
                       <td className="num strong">{vnd(tongBan)}</td>
-                      <td className="num">{oKe(node.members, node.ten)}</td>
-                      <td className="num strong">{vnd(tongSauKe)}</td>
+                      {coKe && <td className="num">{oKe(node.members, node.ten)}</td>}
+                      {coKe && <td className="num strong">{vnd(tongSauKe)}</td>}
                     </tr>,
                     ...node.members.map((m, k) => dongIt(m, true, k === node.members.length - 1, node.members[0].quantity)),
                   ];

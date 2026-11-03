@@ -31,6 +31,7 @@ from ..models.quotation import (
     VERSION_STATUS_CANCELLED,
 )
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT
+from ..phan_he import KE_GIA, tat
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.quotation_repo import LocBaoGia, QuotationRepository
 from ..services import quotation_ports
@@ -577,7 +578,8 @@ class QuotationService:
         actual_margin = ((selling_price - total_cost) / selling_price) * 100.0 if selling_price > 0 else 0.0
 
         # 5. Kê sau giá bán; VAT trên giá bán sau kê
-        ke = float(round(max(0.0, float(ke_gia or 0))))
+        # Bản cài tắt kê (PHAN_HE_TAT=ke_gia) ⇒ bỏ mọi số kê gửi lên, giá bán là giá cuối.
+        ke = 0.0 if tat(KE_GIA) else float(round(max(0.0, float(ke_gia or 0))))
         subtotal = max(0.0, selling_price) + ke
         vat_amount = subtotal * (max(0.0, float(vat_percent)) / 100.0)
         final_amount = subtotal + vat_amount
@@ -1040,8 +1042,9 @@ class QuotationService:
             ke_amount=ke_tong,
             ke_lines=[{"ten": ln["ten"], "ban": ln["ban"], "ke": ln["ke"], "n": ln["n"]}
                       for ln in sp.values()],
-            ke_min_pct=(cust.ke_min_pct if cust else None),
-            ke_max_pct=(cust.ke_max_pct if cust else None),
+            # Tắt kê thì kê luôn 0 ⇒ rào "kê tối thiểu" của khách không được bắt đặc thù.
+            ke_min_pct=(cust.ke_min_pct if cust and not tat(KE_GIA) else None),
+            ke_max_pct=(cust.ke_max_pct if cust and not tat(KE_GIA) else None),
         )
 
     def approval_status(self, quote: Quote, exc: dict | None = None) -> dict:
