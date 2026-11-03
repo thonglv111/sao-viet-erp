@@ -1,5 +1,6 @@
 // Tab Thông tin của hồ sơ nhân sự (tách từ pages/NhanSuPage.tsx).
 import { useState } from "react";
+import { useTat } from "../../../../auth/permissions";
 import {
   api,
   type EmployeeDetail,
@@ -49,6 +50,8 @@ export function InfoTab({
   // Ca nền ĐANG hiệu lực (A7, 08/09/2026) — máy chủ suy sẵn trong `GET /employees/{id}`. Trước
   // 14/09/2026 tab tự tải lịch sử mốc + cả danh mục ca để tự suy: thêm hai lời gọi mỗi lần mở hồ
   // sơ, mà danh mục ca đòi quyền Khai ca nên HCNS không có quyền đó luôn thấy "chưa gán" oan.
+  // Bản cài tắt chấm công: không có ca để gán.
+  const tatChamCong = useTat()("cham_cong");
   const shiftName = (emp as unknown as { current_shift_name?: string | null }).current_shift_name ?? null;
 
   function set<K extends keyof EmployeeInput>(k: K, v: EmployeeInput[K]) {
@@ -208,7 +211,7 @@ export function InfoTab({
             value={fmtDate(emp.probation_end_date)}
             icon={Calendar}
           />
-          <InfoField
+          {!tatChamCong && <InfoField
             label="Ca làm việc"
             value={shiftName ?? "— chưa gán —"}
             icon={Clock}
@@ -226,7 +229,7 @@ export function InfoTab({
                 </button>
               )
             }
-          />
+          />}
           {emp.resign_date && (
             <InfoField
               label="Ngày nghỉ"

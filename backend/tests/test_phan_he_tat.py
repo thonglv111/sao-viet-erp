@@ -14,7 +14,7 @@ def _admin(client) -> dict[str, str]:
 
 @pytest.fixture
 def tat_het(monkeypatch):
-    monkeypatch.setattr(settings, "phan_he_tat", "luong,khoan,hoa_hong,giao_hang,tai_san")
+    monkeypatch.setattr(settings, "phan_he_tat", "luong,khoan,hoa_hong,giao_hang,tai_san,cham_cong")
 
 
 def test_rong_la_bat_het(client, monkeypatch):
@@ -26,12 +26,13 @@ def test_rong_la_bat_het(client, monkeypatch):
     assert {"luong", "giao_hang", "dm_xe", "tai_san"} <= set(r["modules"])
     assert client.get("/api/luong/params", headers=h).status_code == 200
     assert client.get("/api/tai-san/thang/2026/10", headers=h).status_code == 200
+    assert client.get("/api/leaves/me", headers=h).status_code == 200
 
 
 def test_tat_thi_admin_cung_mat_quyen(client, tat_het):
     h = _admin(client)
     r = client.get("/api/auth/permissions", headers=h).json()
-    assert r["phan_he_tat"] == ["giao_hang", "hoa_hong", "khoan", "luong", "tai_san"]
+    assert r["phan_he_tat"] == ["cham_cong", "giao_hang", "hoa_hong", "khoan", "luong", "tai_san"]
     assert not {"luong", "giao_hang", "dm_xe", "tai_san"} & set(r["modules"])
     assert not any(p["module_key"] in ("luong", "giao_hang", "dm_xe", "tai_san") for p in r["permissions"])
     ns = next(p for p in r["permissions"] if p["module_key"] == "nhan_su")
@@ -42,6 +43,12 @@ def test_tat_thi_admin_cung_mat_quyen(client, tat_het):
     assert client.get("/api/giao-hang/requests", headers=h).status_code == 403
     assert client.get("/api/xe", headers=h).status_code == 403
     assert client.get("/api/tai-san/thang/2026/10", headers=h).status_code == 403
+    cham_cong = {"cham_cong", "yeu_cau_chinh_cong", "nghi_phep", "tang_ca", "di_muon"}
+    assert not cham_cong & set(r["modules"])
+    # đường "của tôi" (đơn nghỉ, bảng công của tôi) cũng chặn
+    for url in ("/api/leaves/me", "/api/attendance/shifts", "/api/overtime", "/api/late-early",
+                "/api/calendar/config"):
+        assert client.get(url, headers=h).status_code == 404, url
 
 
 def test_tat_hoa_hong_thi_chot_don_khong_chup_bieu(monkeypatch):

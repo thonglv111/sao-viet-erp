@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
+from ..phan_he import CHAM_CONG, chan_khi_tat
 from ..deps import (
     get_current_user,
     CurrentUser,
@@ -59,7 +60,8 @@ from ..services.late_early_service import (
 )
 from ..services.rbac_service import AuthorizationService
 
-router = APIRouter(prefix="/api/late-early", tags=["late-early"])
+router = APIRouter(prefix="/api/late-early", tags=["late-early"],
+                   dependencies=[Depends(chan_khi_tat(CHAM_CONG))])
 
 # Khoá `di_muon` GỘP về màn Chấm công 15/08/2026 — nó vốn là một TAB của màn đó, không phải một
 # màn riêng. Duyệt phiếu nay hỏi ô chi tiết `approve_late_early` của `cham_cong`.

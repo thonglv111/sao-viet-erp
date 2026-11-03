@@ -18,7 +18,8 @@ KHOAN = "khoan"
 HOA_HONG = "hoa_hong"
 GIAO_HANG = "giao_hang"
 TAI_SAN = "tai_san"
-CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN)
+CHAM_CONG = "cham_cong"
+CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.
@@ -26,6 +27,8 @@ MODULE_CUA_PHAN_HE: dict[str, frozenset[str]] = {
     LUONG: frozenset({"luong"}),
     GIAO_HANG: frozenset({"giao_hang", "dm_xe"}),
     TAI_SAN: frozenset({"tai_san"}),
+    # Chấm công kéo theo nghỉ phép, tăng ca, đi muộn về sớm, yêu cầu chỉnh công (03/11/2026).
+    CHAM_CONG: frozenset({"cham_cong", "yeu_cau_chinh_cong", "nghi_phep", "tang_ca", "di_muon"}),
 }
 
 

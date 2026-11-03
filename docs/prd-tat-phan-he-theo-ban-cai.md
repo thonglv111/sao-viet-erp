@@ -24,7 +24,7 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`. Hà Phương đặt cả năm. Rỗng = bật hết (SVN).
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`. Hà Phương đặt cả sáu. Rỗng = bật hết (SVN).
 - Cổng chặn đặt ở RBAC: module thuộc phân hệ tắt coi như MỌI vai không có quyền, kể cả admin. Nhờ vậy
   thanh bên tự ẩn mục, router trả 403, ma trận quyền không hiện dòng đó. Module bị chặn:
   - `luong` ⇒ `luong`; hai ô `view_salary`/`edit_salary` của `nhan_su`.
@@ -79,6 +79,15 @@ biến môi trường.
 ### Tài sản & CCDC (`tai_san`, thêm 01/11/2026)
 - Module `tai_san` tắt như Lương: thanh bên, màn, router `/api/tai-san`, dòng ma trận quyền. Không màn
   nào khác nhúng phần của nó.
+
+### Chấm công, nghỉ phép, tăng ca (`cham_cong`, thêm 03/11/2026)
+- Năm module mất quyền: `cham_cong`, `yeu_cau_chinh_cong`, `nghi_phep`, `tang_ca`, `di_muon` ⇒ ba mục
+  thanh bên Chấm công, Nghỉ phép, Tăng ca ẩn, dòng ma trận không hiện.
+- Router `/api/attendance`, `/api/leaves`, `/api/overtime`, `/api/late-early`, `/api/calendar` trả 404
+  cho mọi đường, kể cả đường "của tôi" (đơn nghỉ của tôi, bảng công của tôi).
+- Hồ sơ của tôi: ẩn thẻ "Phép năm còn lại", "Công tháng N", ô Ca làm việc, dòng Ca hiện tại, nút
+  Chấm công. Hồ sơ nhân sự: ẩn ô Ca làm việc và nút Đặt/Đổi ca nền.
+- Sản xuất vẫn đọc đơn nghỉ đã duyệt để chặn giao người; tắt thì không có đơn nào, không chặn ai.
 
 ### Ma trận quyền và tên nhóm
 - Tắt `khoan` ⇒ ẩn ô chi tiết "Xem giá" của Công đoạn (ô này chỉ gác tiền khoán).

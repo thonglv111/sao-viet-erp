@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
+from ..phan_he import CHAM_CONG, chan_khi_tat
 from ..deps import (
     get_current_user,
     CurrentUser,
@@ -58,7 +59,8 @@ from ..services.leave_service import (
 )
 from ..services.rbac_service import AuthorizationService
 
-router = APIRouter(prefix="/api/leaves", tags=["leaves"])
+router = APIRouter(prefix="/api/leaves", tags=["leaves"],
+                   dependencies=[Depends(chan_khi_tat(CHAM_CONG))])
 
 # Module quyền RIÊNG (tách khỏi `nhan_su`) → nhân viên thường được cấp read(own)+create+
 # cancel để tự phục vụ; HCNS/Admin thêm `approve` = "leave admin" (duyệt + quản loại nghỉ +

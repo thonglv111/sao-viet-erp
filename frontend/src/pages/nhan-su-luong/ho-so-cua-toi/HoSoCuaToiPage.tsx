@@ -185,7 +185,10 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
   }, [token]);
 
   // Bản cài tắt lương (`useTat`): không có phiếu lương để hỏi, thẻ cũng ẩn.
-  const tatLuong = useTat()("luong");
+  const tat = useTat();
+  const tatLuong = tat("luong");
+  // Bản cài tắt chấm công: không có phép, công, ca để kéo về.
+  const tatChamCong = tat("cham_cong");
   const napLuong = useCallback(() => {
     if (!token || tatLuong) return;
     setLuong(DANG_TAI);
@@ -210,10 +213,12 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
 
   useEffect(() => {
     if (!emp) return;
-    napPhep();
-    napCong(emp.id);
+    if (!tatChamCong) {
+      napPhep();
+      napCong(emp.id);
+    }
     napLuong();
-  }, [emp, napPhep, napCong, napLuong]);
+  }, [emp, napPhep, napCong, napLuong, tatChamCong]);
 
   // Công bố / thu hồi phiếu tới thì thẻ "Phiếu lương gần nhất" tự đổi, không chờ mở lại màn. HCNS
   // duyệt / từ chối đề nghị thì khối Đề nghị cập nhật cũng tự đổi (L-VAI-21).
@@ -411,6 +416,7 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
                 ) : null}
               </div>
             </div>
+            {!tatChamCong && (
             <div className="mine__fact">
               <Icon name="clock" size={16} />
               <div>
@@ -427,6 +433,7 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
                 ) : null}
               </div>
             </div>
+            )}
             <div className="mine__fact">
               <Icon name="shield" size={16} />
               <div>
@@ -473,22 +480,22 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
 
       {/* Số liệu "của tôi" — kéo từ 3 màn nguồn về đây, bấm là sang đúng màn đó. */}
       <section className="mine__stats" aria-label="Số liệu của tôi">
-        <StatChip
+        {!tatChamCong && <StatChip
           nhan="Phép năm còn lại" icon="calendar" tt={phep}
           giaTri={(d) => ({ so: fmtSo(d.con_lai), donVi: "ngày" })}
           phu={(d) => `Đã dùng ${fmtSo(d.da_dung)}/${fmtSo(d.han_muc)} ngày${d.them > 0 ? ` · +${d.them} loại khác` : ""}`}
           tone={(d) => (d.con_lai >= 3 ? "ok" : d.con_lai >= 0.5 ? "warn" : "low")}
           doc={(d) => `Phép năm còn lại ${d.con_lai} ngày, đã dùng ${d.da_dung} trên ${d.han_muc}. Mở màn Nghỉ phép.`}
           onGo={() => navigate?.("nghi-phep")} onThuLai={napPhep} moTaGo="Mở màn Nghỉ phép"
-        />
-        <StatChip
+        />}
+        {!tatChamCong && <StatChip
           nhan={`Công tháng ${new Date().getMonth() + 1}`} icon="clock" tt={cong}
           giaTri={(d) => ({ so: fmtSo(d.cong), donVi: "công" })}
           phu={(d) => `${d.chuan != null ? `Chuẩn ${fmtSo(d.chuan)} công · ` : ""}${fmtSo(d.ngay)} ngày có mặt`}
           tone={() => "info"}
           doc={(d) => `Công tháng ${d.thang}: ${d.cong} công, ${d.ngay} ngày có mặt. Mở màn Chấm công.`}
           onGo={() => navigate?.("cham-cong")} onThuLai={() => napCong(emp.id)} moTaGo="Mở màn Chấm công"
-        />
+        />}
         {!tatLuong && <StatChip
           nhan="Phiếu lương gần nhất" icon="calculator" tt={luong}
           giaTri={(d) => ({ so: `${fmtSo(Math.round(d.dong.net_pay))} đ`, donVi: null, tien: true })}
@@ -607,13 +614,13 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
             <span className="mine__card-icon"><Icon name="clipboard" size={14} /></span>
             Công việc
           </h4>
-          <Row
+          {!tatChamCong && <Row
             k="Ca hiện tại"
             v={emp.current_shift_name
               ? `${emp.current_shift_name}${emp.current_shift_hours ? ` (${emp.current_shift_hours})` : ""}`
               : null}
             hint="Ca do HCNS gán ở màn Chấm công"
-          />
+          />}
           {emp.department_head_name && <Row k="Quản lý trực tiếp" v={emp.department_head_name} />}
           {emp.status === "probation" && (
             <Row k="Hết thử việc" v={emp.probation_end_date ? fmtDate(emp.probation_end_date) : null} />
