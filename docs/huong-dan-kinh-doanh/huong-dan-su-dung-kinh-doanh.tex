@@ -1,0 +1,789 @@
+% Hướng dẫn sử dụng phòng Kinh doanh ERP Sao Việt Nhật: việc hằng ngày của Trợ lý kinh doanh và Sale.
+% Biên dịch: xelatex huong-dan-su-dung-kinh-doanh.tex (chạy hai lần cho mục lục).
+% Phần khai báo (quyền, danh mục, khách, chính sách tài chính) nằm ở ../huong-dan-cau-hinh/cau-hinh-he-thong.tex.
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage[vietnamese]{babel}
+\setmainfont{Times New Roman}
+\newfontfamily\tieude{Arial}
+\usepackage[a4paper,margin=1.9cm,top=1.7cm]{geometry}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+\usepackage[most]{tcolorbox}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\graphicspath{{hinh/}}
+
+\definecolor{gach}{HTML}{C2410C}
+\definecolor{xamnen}{HTML}{F4F4F5}
+\definecolor{xamchu}{HTML}{52525B}
+
+\setlist{nosep,leftmargin=1.5em}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+
+\titleformat{\section}{\tieude\Large}{Chương \thesection.}{0.4em}{}[{\color{black!25}\titlerule[0.4pt]}]
+\titlespacing*{\section}{0pt}{1.2em}{0.6em}
+\titleformat{\subsection}{\tieude\large}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{1.1em}{0.3em}
+\renewcommand{\cftsecpresnum}{Chương }
+\setlength{\cftsecnumwidth}{5.2em}
+\renewcommand{\cftsecfont}{\tieude}
+\renewcommand{\cftsecpagefont}{\tieude}
+\setlength{\cftbeforesecskip}{0.5em}
+\addto\captionsvietnamese{\renewcommand{\contentsname}{Mục lục}}
+\renewcommand{\cfttoctitlefont}{\tieude\large}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{0pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\tieude\footnotesize\color{xamchu}Hướng dẫn sử dụng phòng Kinh doanh}
+\fancyhead[R]{\tieude\footnotesize\color{xamchu}ERP Sao Việt Nhật}
+\fancyfoot[C]{\tieude\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newtcolorbox{boicanh}{colback=xamnen,colframe=xamnen,boxrule=0pt,arc=3pt,
+  left=9pt,right=9pt,top=6pt,bottom=6pt,before skip=4pt,after skip=8pt}
+
+\definecolor{vang}{HTML}{FEF08A}
+\newcommand{\oo}[1]{{\setlength{\fboxsep}{1.2pt}\colorbox{vang}{\strut #1}}}
+\newcommand{\duong}[1]{{\tieude\small #1}}
+\newcommand{\so}[1]{{\tieude\bfseries\small\textcolor{white}{\colorbox{red!80!black}{\kern-2pt#1\kern-2pt}}}}
+\newcommand{\khung}[2]{{\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.5pt}%
+  \fcolorbox{black!20}{white}{\includegraphics[width=\dimexpr#1-1pt\relax]{#2}}}}
+\newcommand{\q}[1]{\textquotedbl#1\textquotedbl{}}
+\newcommand{\canh}[3]{%
+  \par\noindent
+  \begin{minipage}[t]{#1\linewidth}\vspace{0pt}\khung{\linewidth}{#2}\end{minipage}\hfill
+  \begin{minipage}[t]{\dimexpr0.97\linewidth-#1\linewidth\relax}\vspace{0pt}\setlength{\parskip}{0.5em}#3\end{minipage}\par\medskip}
+\newcommand{\rong}[2][\linewidth]{\par\noindent\begin{center}\khung{#1}{#2}\end{center}\vspace{-0.6em}}
+% Tên tài liệu khác.
+\newcommand{\tl}[1]{\textit{#1}}
+% Liên kết sang một mục của tài liệu cấu hình (đích là tên \label bên đó, nhờ destlabel).
+\newcommand{\cauhinh}{../huong-dan-cau-hinh/cau-hinh-he-thong.pdf}
+\definecolor{lienket}{HTML}{1E40AF}
+\newcommand{\kbn}[2]{\href{\cauhinh\##1}{\textcolor{lienket}{#2}}}
+\newcommand{\kb}[2]{\tl{Hướng dẫn cấu hình hệ thống}, mục \kbn{#1}{#2}}
+
+\begin{document}
+
+\thispagestyle{empty}
+{\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
+{\tieude\fontsize{22}{26}\selectfont Hướng dẫn sử dụng phòng Kinh doanh}\par\vspace{4pt}
+{\small Tính giá, báo giá, đơn hàng bán, theo dõi sản xuất, giao hàng, tiền và hoa hồng}\par\vspace{2pt}
+{\small\color{xamchu} Cập nhật 01/11/2026}\par\vspace{6pt}
+\noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
+
+Tài liệu cho Trợ lý kinh doanh và Sale, dùng hằng ngày. Đi theo đúng đường một đơn hàng: khách hỏi giá, lập phiếu
+tính giá, làm báo giá, khách chốt, lên đơn, theo dõi sản xuất, giao hàng, rồi tiền về và hoa hồng.
+
+Phần khai báo trước khi dùng (quyền từng màn, danh mục giấy, máy, công đoạn, khách hàng, chính sách tài chính của
+khách) nằm ở tài liệu \tl{Hướng dẫn cấu hình hệ thống}, chương \kbn{danh-muc}{Danh mục dùng chung} và chương
+\kbn{kinh-doanh}{Kinh doanh}. Chữ màu xanh là liên kết, bấm vào mở đúng mục bên tài liệu đó.
+
+Ảnh chụp từ phần mềm thật. Ô đỏ đánh số là chỗ cần bấm hoặc cần đọc, số khớp với lời giải thích bên cạnh.
+
+\bigskip
+\tableofcontents
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Đường đi của một đơn hàng}\label{duong-di}
+
+Sơ đồ dưới gồm hai phần. Hai hàng trên cùng là những thứ phải khai báo trước thì phiếu tính giá mới ra số. Các
+hàng còn lại là đường đi của một đơn hàng, mỗi hàng là một vai hoặc một phòng. Mỗi ô là một bước, chữ trên mũi
+tên là điều kiện hoặc thứ được chuyển sang bước sau.
+
+\rong[0.86\linewidth]{kd-00-luong.png}
+
+\Needspace*{12\baselineskip}
+\subsection{Khai báo trước khi tính giá}\label{khai-bao-truoc}
+
+Phần này do quản trị phần mềm hoặc người được giao khai danh mục làm, thường một lần lúc bắt đầu và mỗi khi có
+giấy, máy, công đoạn mới. Trợ lý và sale không cần tự khai, nhưng cần biết số trên phiếu lấy từ đâu để báo đúng
+người khi giá ra lạ. Thứ tự khai theo mũi tên, mỗi bước xem ở \tl{Hướng dẫn cấu hình hệ thống}:
+
+\begin{enumerate}
+\item \kbn{danh-muc-don-vi}{Đơn vị \& quy đổi}: tờ, kg, con, cái và cách đổi qua lại. Máy, giấy, vật tư đều cần
+đơn vị.
+\item \kbn{danh-muc-giay}{Giấy}: định lượng, giá một kg, công thức tính tiền giấy.
+\item \kbn{danh-muc-may}{Thiết bị \& Máy móc}: khổ, tốc độ, phần chừa nhíp. Phiếu tính giá lấy khổ tờ in từ đây.
+\item \kbn{danh-muc-vat-tu}{Vật tư khác}: mực, kẽm, keo, màng, mỗi thứ có công thức tính tiền và công thức định
+mức.
+\item \kbn{danh-muc-cong-doan}{Công đoạn}: nối máy và vật tư thành từng bước In, cán, bế, dán; có công thức tính
+giá và bảng bù hao. Phiếu tính giá ghép các công đoạn thành chuỗi bắt đầu từ In.
+\item \kbn{kinh-doanh-khach}{Khách hàng}: sale tự khai khách của mình, kèm
+\kbn{kinh-doanh-tai-chinh}{chính sách tài chính} (hạn mức nợ, rào giá).
+\end{enumerate}
+
+Hai danh mục không cần khai trước. \kbn{danh-muc-khuon}{Khuôn bế}: phiếu tính giá chỉ hỏi có sẵn hay làm mới, khuôn
+cụ thể do Kế hoạch sản xuất chọn khi lên lệnh. \kbn{danh-muc-thanh-pham}{Thành phẩm}: phần mềm tự tạo khi chốt đơn
+hàng bán.
+
+Khai xong thì lập thử một phiếu mẫu và so với giá tính tay, theo \kb{kinh-doanh-kiem}{Kiểm bằng một phiếu tính giá
+mẫu}.
+
+\Needspace*{12\baselineskip}
+\subsection{Đường đi của đơn hàng}\label{duong-di-don}
+
+Khách hỏi giá thì sale ghi yêu cầu vào hồ sơ khách. Trợ lý lập phiếu tính giá, rồi làm báo giá. Sale gửi báo giá
+cho khách, ghi đồng ý hay từ chối, lên đơn và chốt đơn (trợ lý cũng lập đơn hộ được). Đơn cần cọc thì chờ Kế toán
+thu đủ cọc mới sang sản xuất, đơn không cần cọc thì sang thẳng. Trong lúc sản xuất, trợ lý theo dõi tiến độ để
+trả lời khách. Hàng vào kho thì sale lập yêu cầu giao, bộ phận giao hàng xếp chuyến. Khách nhận hàng, Kế toán ghi
+hoá đơn và thu tiền, tiền về thì tính hoa hồng cho sale phụ trách khách.
+
+Trên phần mềm, cùng luồng này nằm ở \duong{Kinh doanh > Quy trình kinh doanh}. Mỗi ô có số thứ tự, cột là phòng
+làm bước đó, bấm vào một ô để mở đúng màn của bước.
+
+\rong[0.8\linewidth]{kd-01-quy-trinh.png}
+
+Phòng Kinh doanh làm sáu bước ở cột đầu: 1 ghi nhận khách, 2 lập phiếu tính giá, 3 làm báo giá, 4 gửi khách và ghi
+kết quả, 5 lên đơn và chốt đơn, 13 lập yêu cầu giao. Các bước còn lại do phòng khác làm, phòng Kinh doanh chỉ theo
+dõi để trả lời khách:
+
+\begin{itemize}
+\item Kế toán thu cọc (bước 6), ghi hoá đơn (17), thu tiền (18).
+\item Kế hoạch sản xuất lên lệnh, lo vật tư, xếp lịch máy (7 đến 9). Tổ sản xuất chạy công đoạn, KCS kiểm hàng,
+kho nhận thành phẩm (10 đến 12).
+\item Bộ phận giao hàng xếp chuyến, kho xuất hàng, tài xế giao và ghi kết quả (14 đến 16).
+\end{itemize}
+
+\Needspace*{10\baselineskip}
+\subsection{Trợ lý và Sale khác nhau ở đâu}\label{vai}
+
+Trợ lý kinh doanh lập phiếu tính giá, báo giá, đơn hộ cho mọi sale và thấy khách của tất cả sale. Trợ lý thấy từng
+dòng giá vốn và công thức trên phiếu.
+
+Sale làm với khách mình phụ trách: thêm khách, xem báo giá, gửi khách, ghi kết quả, lên đơn, theo dõi đơn. Sale
+không thấy chi tiết giá vốn và công thức, trên phiếu tính giá chỉ thấy giá vốn tổng.
+
+Báo giá và đơn luôn đứng tên người phụ trách khách, kể cả khi trợ lý lập hộ. Ví dụ ở chương này: Admin lập báo giá
+cho khách CAFÉ KATINAT, nhưng báo giá ghi \oo{NV phụ trách Nguyễn Thị Huyên}, vì chị Huyên phụ trách khách đó.
+Người phụ trách cũng là người hưởng hoa hồng khi tiền về (chương \ref{tien}).
+
+Quyền cụ thể từng vai do quản trị phần mềm cài, xem \kb{kinh-doanh-quyen}{Quyền của sáu màn}. Bảng và nút nào bạn không thấy trong tài liệu này là do vai của bạn chưa được bật.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Khách hàng}\label{khach}
+
+\begin{boicanh}
+Khách mới thì tạo hồ sơ trước khi tính giá (cách tạo ở \kb{kinh-doanh-khach}{Khai khách hàng}). Khách cũ thì mở hồ sơ để xem đã mua gì, báo giá cũ ra sao, rồi lập phiếu tính giá ngay từ hồ sơ.
+\end{boicanh}
+
+\duong{Kinh doanh > Khách hàng}. Gõ tên, mã số thuế hoặc số điện thoại vào ô tìm. Bấm vào tên khách để mở hồ sơ.
+
+\rong[0.8\linewidth]{kd-60-khach.png}
+
+\so{1} \oo{Lập phiếu tính giá}: mở phiếu mới đã chọn sẵn khách này.
+
+\so{2} \oo{Lịch sử mua hàng} và \oo{Lịch sử báo giá}: các đơn và báo giá cũ của khách, bấm một dòng để mở. Khách
+hỏi lại giá hàng đã làm thì xem ở đây trước.
+
+\so{3} Số liệu của khách trong kỳ chọn ở hàng trên: doanh số, số đơn đã chốt, nhịp đặt hàng, tỉ lệ chốt báo giá.
+
+Các tab còn lại: \oo{Chăm sóc} để hẹn gọi, gặp khách, \oo{Liên hệ} là người liên hệ của
+khách, \oo{Giao hàng} là các địa chỉ nhận hàng. Cuối tab \oo{Tổng quan} có thẻ \oo{Chính sách tài chính}: hạn mức
+công nợ và rào giá. Rào giá quyết định báo giá nào phải trình duyệt (mục \ref{dac-thu}). Cách đặt hai số này ở
+\kb{kinh-doanh-tai-chinh}{Chính sách tài chính của khách}.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Lập phiếu tính giá}\label{tinh-gia}
+
+\begin{boicanh}
+Phiếu tính giá ra giá vốn của từng sản phẩm từ quy cách, giấy, máy in và chuỗi công đoạn. Đây là việc của Trợ lý
+kinh doanh. Một phiếu có thể nhiều sản phẩm, và một phiếu chỉ ra được một báo giá.
+
+Thứ tự làm: chọn khách, thêm sản phẩm, điền sáu khối của form, bấm \oo{Xong}, bấm \oo{Tính giá \& lưu}, đọc giá
+vốn, rồi bấm \oo{Báo giá →}.
+\end{boicanh}
+
+Phiếu tính giá không có ô đơn giá nào để gõ tay. Mọi con số đều lấy từ danh mục: giá giấy, máy in, công thức tính
+tiền của công đoạn và vật tư. Danh mục thiếu hoặc sai thì giá sai theo. Mỗi mục dưới đây ghi rõ con số lấy từ mục
+nào của tài liệu \tl{Hướng dẫn cấu hình hệ thống}, bấm vào tên mục để mở đúng chỗ (hai file PDF phải nằm đúng thư
+mục như khi tải về).
+
+\subsection{Mở phiếu mới}\label{tinh-gia-moi}
+
+\rong[0.8\linewidth]{kd-10-ds-phieu.png}
+
+\duong{Kinh doanh > Tính giá}. \so{1} \oo{Lập phiếu tính giá} mở phiếu mới. \so{2} Bấm mã phiếu để mở phiếu cũ.
+Cột \oo{Báo giá} cho biết phiếu đã ra báo giá chưa.
+
+\rong[0.8\linewidth]{kd-11-phieu-moi.png}
+
+\so{1} Chọn khách. Chưa chọn khách thì phiếu vẫn lưu và tính được, nhưng nút báo giá bị khoá. Giao tới và người
+nhận lấy theo khách, bấm vào để đổi. Khách chưa có thì tạo trước, xem \kb{kinh-doanh-khach}{Khai khách hàng}.
+
+\so{2} \oo{Thêm sản phẩm}: mở form cấu hình (các mục \ref{tinh-gia-kho} đến \ref{tinh-gia-gv}). Hàng khách đã
+từng đặt thì gõ tên rồi chọn trong gợi ý. Phần mềm hỏi \oo{Nạp cấu hình tái bản?}, đồng ý thì cả quy cách, giấy,
+máy, công đoạn của lần trước được điền sẵn, chỉ cần sửa số lượng.
+
+\so{3} \oo{Tính giá \& lưu}: tính lại và lưu phiếu.
+
+\so{4} \oo{Báo giá →}: lập báo giá từ phiếu này (chương \ref{bao-gia}).
+
+Form sản phẩm có sáu khối bên trái, đánh số 1 đến 6. Bên phải là sơ đồ bình bài, số tờ và giá vốn của sản phẩm,
+tự cập nhật ngay khi bạn gõ, chưa cần bấm tính giá.
+
+\Needspace*{20\baselineskip}
+\subsection{Khối 1: sản phẩm và khổ chi tiết}\label{tinh-gia-kho}
+
+\canh{0.6}{kd-12-sp-1.png}{%
+\so{1} Tên sản phẩm. Tên này in ra báo giá, nên đặt theo cách khách gọi.
+
+\so{2} Số lượng và đơn vị tính (cái, hộp, cuốn, tờ). Đơn vị tính là đơn vị giá vốn chia ra ở cuối: giá vốn
+\q{đ/cuốn}, \q{đ/hộp}.
+
+\so{3} \so{4} Dài và rộng chi tiết phẳng, tính bằng mm: khổ trải phẳng của một con trước khi bế, gấp, dán. Hộp
+thì là khổ trải hộp, sách thì là khổ một trang.
+
+\so{5} \oo{Số bài in}: số mặt in khác nhau phải ra kẽm riêng. Tờ rơi, hộp, name card là 1. Sách nhiều tay thì
+mỗi tay là một bài, bấm \oo{tính từ số trang} để phần mềm đếm.}
+
+Hai ô ngay dưới \oo{Số bài in}:
+
+\begin{itemize}
+\item \oo{Bleed (tràn lề)}: phần in tràn ra mỗi cạnh của con để xén không hở viền trắng, thường 3 mm. Gõ 0 nếu
+hàng không in tràn lề.
+\item \oo{Khe cắt giữa con}: khoảng hở giữa hai con cạnh nhau trên tờ in. Gõ 0 nếu bình sát, cắt chung một nhát.
+\end{itemize}
+
+Hai ô này ảnh hưởng thẳng tới số con xếp được trên một tờ in, nên ảnh hưởng tới số tờ và tiền giấy.
+
+\Needspace*{14\baselineskip}
+\canh{0.55}{kd-18-so-trang.png}{%
+Sách, catalogue, tạp chí in nhiều tay:
+
+\so{1} Bấm \oo{tính từ số trang}.
+
+\so{2} \oo{Số trang}: tổng số trang của phần đang tính, ví dụ ruột 64 trang.
+
+\so{3} \oo{Trang mỗi tay}: số trang một tay sách, hoặc \so{4} bấm nhanh 8, 16, 32 trang.
+
+\so{5} Kết quả: 64 ÷ 16 = 4 tay đủ, tức 4 bài in.
+
+\so{6} \oo{Dùng 4} để điền vào ô \oo{Số bài in}.}
+
+Có số bài in khác 1 thì sơ đồ bên phải đổi thành \oo{Sơ đồ tay sách}, và khối 3 tự chuyển sang kiểu in sách (mục
+\ref{tinh-gia-in}). Số kẽm nhân theo số bài in.
+
+Bìa và ruột in khác giấy, khác màu thì làm hai sản phẩm riêng trong cùng phiếu, rồi gộp lại thành một dòng khi báo
+giá (mục \ref{tinh-gia-gop}).
+
+\Needspace*{12\baselineskip}
+\subsection{Khối 2: giấy nguyên}\label{tinh-gia-giay}
+
+Ô \so{6} ở ảnh trên. Chọn \oo{Giấy} và, nếu là hàng sóng, chọn thêm \oo{Sóng}. Một sản phẩm có tối đa một Giấy và
+một Sóng. Gõ \oo{Dài nguyên} và \oo{Rộng nguyên} là khổ tờ giấy mua về, ví dụ 1090 × 790 mm.
+
+Đơn giá hiện ngay dưới ô chọn giấy, ví dụ \q{18.515 đ / kg}. Số này lấy từ danh mục, không sửa trên phiếu. Giá giấy
+đổi thì báo người khai danh mục sửa ở \kb{danh-muc-giay}{Giấy}. Ở đó cũng có định lượng và công thức tính tiền giấy
+mà phiếu dùng.
+
+Giấy không có trong danh sách nghĩa là chưa khai trong danh mục Giấy.
+
+\Needspace*{20\baselineskip}
+\subsection{Khối 3: kỹ thuật in và màu in}\label{tinh-gia-in}
+
+\canh{0.6}{kd-13-sp-2.png}{%
+\so{1} \oo{Máy in}. Chọn máy thì phần mềm điền \oo{Khổ tờ in dài}, \oo{Khổ tờ in rộng} và chừa sẵn phần nhíp
+giấy, đuôi, lề hông theo thông số máy. Khổ tờ in sửa được, ví dụ khi cắt một tờ nguyên ra hai tờ in. Máy khai ở
+\kb{danh-muc-may}{Thiết bị \& Máy móc}.
+
+\so{2} \oo{Quy cách in} (giải thích dưới).
+
+\so{3} \oo{Mực in}: bấm các màu C, M, Y, K, hoặc \oo{+ Pantone} cho màu pha.}
+
+Với hàng không phải sách, ô \oo{Số con} có nút \oo{tự bình bài}: phần mềm thử các cách xếp con lên tờ in (xoay
+hoặc không xoay) và lấy cách được nhiều con nhất. Sơ đồ bên phải vẽ cách xếp đó, kèm số con mỗi tờ và hiệu suất
+(phần trăm diện tích tờ in dùng được). Gõ tay số con nhỏ hơn nếu xưởng muốn xếp khác.
+
+\oo{Quy cách in} quyết định số kẽm:
+
+\begin{center}
+\small
+\begin{tabularx}{0.95\linewidth}{@{}l X X@{}}
+\toprule
+Quy cách & Nghĩa & Số kẽm một bài \\
+\midrule
+1 mặt & Chỉ in mặt A & Số màu mặt A \\
+AB & Hai mặt, mỗi mặt một bộ kẽm & Màu mặt A cộng màu mặt B \\
+Tự trở & Hai mặt chung một bộ kẽm, lật tờ theo chiều ngang & Số màu khác nhau của cả hai mặt \\
+Trở nhíp & Hai mặt chung một bộ kẽm, lật tờ theo chiều nhíp & Số màu khác nhau của cả hai mặt \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Ví dụ mặt A in CMYK, mặt B chỉ in K. In AB ra 4 + 1 = 5 kẽm. In tự trở ra 4 kẽm, vì kẽm K dùng chung cho hai mặt.
+Tổng kẽm của sản phẩm bằng số kẽm một bài nhân số bài in.
+
+\Needspace*{14\baselineskip}
+\canh{0.55}{kd-17-sach-in.png}{%
+Kiểu in sách (số bài in khác 1), ví dụ ruột catalogue 64 trang, 4 tay:
+
+\so{1} Quy cách hiện nhãn \oo{sách in 2 mặt}, không còn \oo{1 mặt}.
+
+\so{2} \oo{Trang mỗi mặt}: nhãn \oo{theo tay} nghĩa là tự lấy bằng trang mỗi tay chia 2 mặt, ở đây 16 ÷ 2 = 8.
+
+\so{3} Màu của mặt A và mặt B.
+
+\so{4} Tổng kẽm 32, ghi rõ ở \so{5}: 4 + 4 = 8 kẽm mỗi tay, nhân 4 tay.
+
+\so{6} Ô của vật tư mực: \oo{Độ phủ mực (\%)}, mục \ref{tinh-gia-cd}.
+
+\so{7} Vật tư \oo{Kẽm CTP} tự lấy đúng 32 tấm.}
+
+\Needspace*{16\baselineskip}
+\subsection{Khối 4: chuỗi công đoạn và vật tư}\label{tinh-gia-cd}
+
+Chuỗi công đoạn là các bước làm ra sản phẩm, bắt đầu từ In, theo đúng thứ tự xưởng làm: In, cán màng, bế, dán,
+đóng gói. Các bước trước in như cắt tờ, ra kẽm không đưa vào chuỗi. Ở ảnh khối 3:
+
+\begin{itemize}
+\item \so{4} Danh sách bước. Bấm một bước để xem vật tư của bước đó ở cột bên phải. Mũi tên lên, xuống đổi thứ tự;
+nút thùng rác bỏ bước. \oo{Thêm công đoạn} ở cuối danh sách thêm một bước, gõ tên để tìm.
+\item \so{5} \oo{+ Thêm vật tư}: thêm vật tư cho bước đang chọn, gõ tên để tìm. Vật tư mà danh mục công đoạn đã gắn
+sẵn thì tự có, không cần thêm.
+\end{itemize}
+
+Tiền của một bước gồm hai phần, đều tính bằng công thức có sẵn trong danh mục:
+
+\begin{itemize}
+\item Tiền công đoạn, theo công thức tính giá của công đoạn. Xem \kb{danh-muc-cong-doan}{Công đoạn}, tab Công thức
+tính giá. Công đoạn chưa có công thức thì dòng này ra 0 đ.
+\item Tiền từng vật tư, theo công thức tính giá của vật tư. Lượng vật tư (23,15 kg mực, 32 tấm kẽm, 1,92 kg dung
+dịch ở ảnh khối 3) cũng tự tính. Xem \kb{danh-muc-vat-tu}{Vật tư khác}.
+\end{itemize}
+
+Một số vật tư cần người tính giá cho thêm một con số mà chỉ nhìn mẫu mới biết. Ô đó hiện ngay dưới tên vật tư, ví
+dụ \oo{Độ phủ mực (\%)} của mực in, \oo{Diện tích phủ UV (\%)} của keo UV. Đây là chip riêng của vật tư, khai ở danh
+mục Vật tư khác. Chip lạ không hiểu nghĩa thì tra \kb{phu-luc-chip}{Bảng chip trong công thức}.
+
+\Needspace*{14\baselineskip}
+\canh{0.6}{kd-15-sp-3.png}{%
+Bước nào trong danh mục có bật \oo{Bước này cần khuôn} thì hiện khối \oo{Phí khuôn}:
+
+\so{1} \oo{Có sẵn}: xưởng đã có khuôn của hàng này, không tính tiền.
+
+\so{2} \oo{Làm mới}: gõ \oo{Phí làm khuôn}. Phí tính một lần cho cả lô, không nhân theo số lượng.
+
+\so{3} \so{4} Khối 5 và 6, mục \ref{tinh-gia-chi-phi}.
+
+\so{5} \oo{Xong} để đóng form.}
+
+Phiếu tính giá chỉ hỏi khuôn có sẵn hay làm mới, không chọn khuôn cụ thể trong kho. Chọn khuôn là việc của Kế hoạch
+sản xuất khi lên lệnh. Kho khuôn khai ở \kb{danh-muc-khuon}{Khuôn}.
+
+\Needspace*{14\baselineskip}
+\subsection{Khối 5 và 6: giao hàng, chi phí khác}\label{tinh-gia-chi-phi}
+
+\canh{0.55}{kd-1a-chi-phi-khac.png}{%
+\so{1} \oo{Tổng phí chở hàng}: tiền chở cả lô tới khách. Gõ một lần, phần mềm chia đều theo số lượng.
+
+\so{2} \oo{Khoản chi thêm}: tên khoản và số tiền cho cả lô, ví dụ gấp, bắt cuốn, vào keo gáy thuê ngoài 5.000.000 đ.
+
+\so{3} Số đã chia theo đơn vị: 5.000.000 ÷ 2.000 cuốn = 2.500 đ/cuốn.
+
+\so{4} \oo{+ Thêm khoản chi} cho khoản tiếp theo.
+
+\so{5} Tổng chi phí khác.}
+
+Chi phí khác cộng vào giá vốn nhưng không in thành dòng riêng trên báo giá gửi khách. Việc xưởng không có công đoạn
+trong danh mục (thuê ngoài, mua hàng gửi kèm) thì đưa vào đây.
+
+\Needspace*{18\baselineskip}
+\subsection{Số tờ máy tự tính}\label{tinh-gia-so-to}
+
+Ô \so{7} ở ảnh khối 1, đọc từ trên xuống:
+
+\begin{itemize}
+\item \oo{Thành phẩm cần}: số lượng ở khối 1, ví dụ 2.000 cuốn.
+\item \oo{Tờ in cần (chưa hao)}: số lượng chia số con mỗi tờ in, làm tròn lên. Sách thì là số lượng nhân số tay:
+2.000 cuốn × 4 tay = 8.000 tờ in.
+\item \oo{+ Bù hao công đoạn}: số tờ chạy thêm để bù hàng hỏng. Bấm dòng này để xem hao của từng bước.
+\item \oo{= Tờ in}: tờ in cần cộng bù hao. Đây là số tờ đưa vào máy in.
+\item \oo{= Tờ nguyên}: số tờ giấy phải mua, bằng tờ in chia số tờ in cắt được từ một tờ nguyên.
+\end{itemize}
+
+Bù hao không gõ trên phiếu. Mỗi công đoạn có bảng bù hao riêng theo bậc số lượng, khai ở \kb{danh-muc-cong-doan}{Công
+đoạn}, phần Bù hao. Phần mềm cộng ngược từ bước cuối về bước in: bước bế hao 50 tờ, bước cán hao 30 tờ thì máy in
+phải ra thêm 80 tờ. Ví dụ trong ảnh có bù hao 0 tờ vì công đoạn In của dữ liệu mẫu chưa khai bù hao. Thấy bù hao 0
+mà thực tế xưởng có hao thì báo người khai danh mục.
+
+\Needspace*{18\baselineskip}
+\subsection{Giá vốn sản phẩm}\label{tinh-gia-gv}
+
+\canh{0.45}{kd-19-gv-sp.png}{%
+Kéo cột phải xuống cuối:
+
+\so{1} \oo{Tờ nguyên}: 8.000 tờ in, khổ tờ in bằng khổ giấy nguyên nên 1 tờ in một tờ nguyên.
+
+\so{2} Nguyên vật liệu: giấy, kẽm, mực, dung dịch. Di chuột vào dấu hỏi cạnh tên để xem phép tính.
+
+\so{3} \oo{Công đoạn}: tiền từng bước, ở đây chỉ có In 6.080.000 đ.
+
+\so{4} \oo{Chi phí khác}.
+
+\so{5} \oo{Giá vốn sản phẩm} 34.743.844 đ, chia 2.000 cuốn ra 17.372 đ/cuốn.}
+
+Xong thì bấm \oo{Xong}, về phiếu bấm \oo{Tính giá \& lưu}.
+
+\Needspace*{18\baselineskip}
+\subsection{Đọc kết quả trên phiếu}\label{tinh-gia-ket-qua}
+
+\rong[0.85\linewidth]{kd-14-phieu-kq.png}
+
+\so{1} \oo{Tính giá}: tính lại sau khi sửa.
+
+\so{2} \oo{Nhân bản}: tạo phiếu mới giống hệt. Phiếu đã có báo giá mà khách muốn báo thêm một phương án thì nhân
+bản phiếu rồi sửa trên bản sao, vì mỗi phiếu chỉ ra một báo giá.
+
+\so{3} Phiếu đã có báo giá thì nút đổi thành \oo{Mở BG\ldots{} →}.
+
+\so{4} Bảng sản phẩm: số lượng, giá vốn, đơn giá vốn. Bấm tên để sửa cấu hình. Hai nút cuối dòng là nhân bản và
+xoá sản phẩm.
+
+\so{5} \oo{Chi tiết dòng giá vốn}: bốn nhóm \oo{Nguyên vật liệu}, \oo{Công đoạn}, \oo{Giao hàng}, \oo{Chi phí khác}.
+
+Khối tối màu bên phải là \oo{Tổng giá vốn nội bộ}. Đây là giá vốn, chưa có lợi nhuận. Lợi nhuận, chiết khấu, kê
+đặt ở báo giá.
+
+\Needspace*{14\baselineskip}
+\canh{0.55}{kd-1b-dien-giai.png}{%
+Mỗi dòng của bảng chi tiết có \so{1} \oo{Số tiền} cả lô, \so{2} \oo{Đ/TP} là tiền trên một thành phẩm, và
+\so{3} \oo{Diễn giải} là phép tính ra số đó.
+
+Dòng giấy của ruột catalogue đọc như sau: 0,148 kg/m\textsuperscript{2} (định lượng 148 g) × 1,09 m × 0,79 m (khổ
+nguyên) × 8.000 tờ × 18.515 đ/kg = 18.876.827 đ. Chia 2.000 cuốn ra 9.438,41 đ/cuốn.
+
+\so{4} Dòng kẽm: 32 bản × 62.200 đ ÷ 2.000 = 995,20 đ/cuốn.}
+
+Dùng cột Diễn giải để đối chiếu với cách tính tay và để trả lời khi sale hỏi vì sao giá ra như vậy. Sale không thấy
+bảng này, chỉ thấy giá vốn tổng. Ai thấy chi tiết giá vốn do quyền của vai quyết định, xem
+\kb{kinh-doanh-quyen}{Quyền của sáu màn}.
+
+\Needspace*{18\baselineskip}
+\subsection{Sản phẩm nhiều phần: gộp một dòng khi báo giá}\label{tinh-gia-gop}
+
+Catalogue có ruột, bìa, tờ phiếu kẹp giữa. Mỗi phần khác giấy, khác màu, khác công đoạn nên tính thành một sản
+phẩm riêng. Nhưng khách chỉ cần thấy một dòng \q{Catalogue A4 64 trang}. Phiếu PTG-2026-0007 dưới đây làm như vậy.
+
+\rong[0.8\linewidth]{kd-16-gop.png}
+
+\so{1} Tick các sản phẩm muốn gộp. Chỉ gộp được các phần cùng số lượng.
+
+\so{2} Thanh \oo{N dòng đã chọn} hiện ra. Gõ tên in ra báo giá, ví dụ Catalogue A4 64 trang.
+
+\so{3} \oo{Gộp khi báo giá}. Phiếu tự lưu.
+
+\so{4} Dòng nhóm: tên gộp, ghi chú \oo{3 sản phẩm gộp 1 dòng khi báo giá}, và ô chọn đơn vị tính in ra báo giá.
+Giá vốn nhóm là tổng ba phần: 40.127.653 đ, chia 2.000 ra 20.064 đ/cuốn.
+
+\so{5} \oo{Bỏ gộp} để tách lại.
+
+Gộp chỉ đổi cách in ra báo giá. Các phần vẫn tính riêng, và khi lên lệnh sản xuất vẫn là từng phần.
+
+\Needspace*{18\baselineskip}
+\subsection{Số ra lạ: sửa ở đâu}\label{tinh-gia-loi}
+
+Phần lớn số lạ là do danh mục. Trợ lý không tự sửa danh mục mà báo người khai danh mục, kèm mã phiếu và dòng bị lạ.
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}X X X@{}}
+\toprule
+Thấy gì trên phiếu & Thường do & Sửa ở \\
+\midrule
+Dòng giấy 0 đ hoặc lệch tính tay & Đơn giá, định lượng hoặc công thức giấy sai & \kbn{danh-muc-giay}{Giấy} \\
+Dòng công đoạn 0 đ & Công đoạn chưa có công thức tính giá & \kbn{danh-muc-cong-doan}{Công đoạn} \\
+Vật tư 0 đ, lượng 0 & Vật tư chưa có công thức tính giá hoặc định mức & \kbn{danh-muc-vat-tu}{Vật tư khác} \\
+Vật tư hay dùng không tự có ở một bước & Công đoạn chưa gắn vật tư ở tab Vật tư & \kbn{danh-muc-cong-doan}{Công đoạn} \\
+Bù hao 0 tờ dù xưởng có hao & Công đoạn chưa khai bù hao & \kbn{danh-muc-cong-doan}{Công đoạn} \\
+Không có máy cần chọn, khổ tờ in sai & Máy chưa khai hoặc sai thông số & \kbn{danh-muc-may}{Thiết bị \& Máy móc} \\
+Không hiện khối Phí khuôn ở bước bế & Công đoạn chưa bật Bước này cần khuôn & \kbn{danh-muc-cong-doan}{Công đoạn} \\
+Không hiểu một chip trong diễn giải & & \kbn{phu-luc-chip}{Bảng chip trong công thức} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Danh mục mới khai xong thì người khai nên kiểm lại bằng một phiếu mẫu, theo \kb{kinh-doanh-kiem}{Kiểm bằng một phiếu
+tính giá mẫu}.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Báo giá}\label{bao-gia}
+
+\begin{boicanh}
+Báo giá lập từ phiếu tính giá, không lập tay. Nút \oo{Báo giá mới} ở màn \duong{Kinh doanh > Báo giá in ấn} cũng
+đưa về màn Tính giá để chọn phiếu. Báo giá đi qua các trạng thái: Nháp, (Chờ duyệt, Đã duyệt nếu là báo giá đặc
+thù), Đã gửi khách, Khách đồng ý hoặc Từ chối, Đã lên đơn.
+\end{boicanh}
+
+\subsection{Đặt giá bán}\label{bao-gia-gia}
+
+Trên phiếu tính giá bấm \oo{Báo giá →}. Báo giá mới mở ra ở trạng thái \oo{Nháp}, mỗi sản phẩm của phiếu là một
+dòng.
+
+\rong[0.85\linewidth]{kd-20-bg-nhap.png}
+
+\so{1} Phiếu tính giá nguồn. Giá vốn trên báo giá khoá theo phiếu, muốn đổi giá vốn thì sửa phiếu.
+
+\so{2} \oo{Chiết khấu}: phần chi lại cho khách, gõ theo \oo{\%} hoặc \oo{Số}.
+
+\so{3} \oo{Lợi nhuận}: mặc định 20\% trên giá vốn, gõ theo phần trăm hoặc số tiền. Số tiền lợi nhuận hiện ngay
+dưới ô.
+
+\so{4} \oo{Giá bán}: tự ra từ giá vốn, chiết khấu, lợi nhuận. Gõ thẳng giá bán cũng được, lợi nhuận tự tính lại.
+
+\so{5} \oo{Kê}: phần chi lại cho người bên khách, cộng thêm vào giá bán. Cột cuối là \oo{Giá bán sau kê}, là giá
+in trên báo giá gửi khách.
+
+\so{6} \oo{Xem bản in}: xem trước bản báo giá gửi khách, in hoặc lưu PDF.
+
+\so{7} \oo{Gửi khách}. Báo giá đặc thù thì nút này là \oo{Trình duyệt} (mục \ref{dac-thu}).
+
+Dưới mỗi sản phẩm có \oo{Sửa diễn giải} (dòng mô tả in trên báo giá) và \oo{Thêm ảnh minh họa}.
+
+\rong[0.85\linewidth]{kd-21-bg-duoi.png}
+
+\so{1} \oo{Điều khoản áp dụng}: in trên bản báo giá, sửa được khi báo giá còn nháp. Bấm \oo{Lưu nháp điều khoản}
+sau khi sửa.
+
+\so{2} \oo{Hạn hiệu lực báo giá}: mặc định 30 ngày. Quá hạn mà khách chưa chốt thì báo giá tính là \oo{Hết hiệu lực}.
+
+\so{3} \oo{Giá bán đề xuất}: tổng của báo giá, lợi nhuận bình quân, giá vốn, chiết khấu, lợi nhuận, giá bán chưa
+VAT.
+
+\so{4} \oo{VAT}: chọn 0\%, 5\%, 8\% hoặc 10\%.
+
+Phiếu tính giá sửa sau khi đã có báo giá thì báo giá hiện băng vàng. Báo giá còn nháp thì bấm \oo{Cập nhật theo
+phiếu}. Báo giá đã gửi khách thì bấm \oo{Tạo phiên bản mới theo phiếu}: bản khách đang cầm vẫn giữ trong
+\oo{Lịch sử phiên bản}.
+
+\Needspace*{12\baselineskip}
+\subsection{Báo giá đặc thù phải trình duyệt}\label{dac-thu}
+
+Báo giá là đặc thù khi rơi vào một trong ba trường hợp: từ 1 tỷ trở lên (trước VAT), bán dưới giá vốn, hoặc chiết
+khấu, lợi nhuận, kê nằm ngoài rào giá của khách. Khi đó báo giá hiện khối \oo{Báo giá đặc thù, cần duyệt} và nút
+\oo{Gửi khách} đổi thành \oo{Trình duyệt}.
+
+\begin{enumerate}
+\item Bấm \oo{Trình duyệt}. Báo giá sang \oo{Chờ duyệt} và người duyệt nhận thông báo.
+\item Người có quyền duyệt (thường là giám đốc) mở báo giá, bấm \oo{Duyệt} hoặc \oo{Từ chối} kèm lý do.
+\item Được duyệt thì báo giá sang \oo{Đã duyệt}, bạn bấm \oo{Gửi khách}. Bị từ chối thì bấm \oo{Tạo phiên bản
+mới}, sửa giá rồi trình lại.
+\end{enumerate}
+
+\Needspace*{14\baselineskip}
+\subsection{Gửi khách và ghi kết quả}\label{bao-gia-ket-qua}
+
+Bấm \oo{Gửi khách} sau khi đã gửi bản PDF cho khách qua email hoặc Zalo. Phần mềm không tự gửi email, nút này ghi
+lại là đã gửi và khoá bản báo giá.
+
+\rong[0.85\linewidth]{kd-22-bg-gui.png}
+
+\so{1} Trạng thái \oo{Đã gửi khách}. \so{2} Khách không lấy thì bấm \oo{Khách từ chối} và ghi lý do. Muốn báo lại
+giá mới thì bấm \oo{Tạo phiên bản mới}. \so{3} Khách đồng ý thì bấm \oo{Khách chốt}.
+
+\canh{0.5}{kd-23-khach-chot.png}{%
+Hộp \oo{Khách chốt, chọn sản phẩm} hiện ra.
+
+\so{1} \oo{Chọn tất cả} khi khách lấy cả báo giá.
+
+\so{2} Khách chỉ lấy một phần thì bỏ tích sản phẩm khách không lấy. Tổng tiền dưới cùng tính lại theo phần được
+chọn.
+
+\so{3} \oo{Xác nhận khách chốt}.}
+
+\rong[0.85\linewidth]{kd-24-bg-dong-y.png}
+
+\so{1} Báo giá sang \oo{Khách đồng ý}. \so{2} Bấm \oo{Tạo đơn hàng} để lên đơn (chương \ref{don}). Mỗi báo giá chỉ
+ra một đơn. Đơn tạo xong thì nút đổi thành \oo{Xem đơn hàng}, trạng thái báo giá là \oo{Đã lên đơn}.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Đơn hàng bán}\label{don}
+
+\begin{boicanh}
+Đơn tạo từ báo giá mở ở trạng thái \oo{Nháp}. Bạn điền số PO, cọc, ngày giao rồi chốt đơn. Từ lúc chốt, đơn đi
+qua năm chặng hiện trên đầu ngăn đơn: \oo{Chốt}, \oo{Cọc}, \oo{Sản xuất}, \oo{Giao}, \oo{Hóa đơn}. Bấm vào một chặng
+để xem chi tiết chặng đó.
+\end{boicanh}
+
+\subsection{Điền thông tin và chốt đơn}\label{don-chot}
+
+\rong[0.85\linewidth]{kd-30-dh-nhap.png}
+
+\so{1} \oo{Sửa}: mở form thông tin đơn. \so{2} Thanh năm chặng, đơn nháp đứng ở \oo{Chốt}. \so{3} Những thứ còn
+thiếu để chốt, mỗi dòng một chữ đỏ. \so{4} \oo{Chốt đơn} chỉ bấm được khi không còn dòng đỏ.
+
+\canh{0.45}{kd-31-dh-sua.png}{%
+\so{1} \oo{Số PO khách}: bắt buộc để chốt.
+
+\so{2} \oo{Cọc phải thu}: theo \oo{\%} giá trị đơn hoặc \oo{Số} tiền. Để trống là đơn không cần cọc.
+
+\so{3} \oo{Ngày giao cam kết}: bắt buộc để chốt. Gõ ngày hoặc chọn trên lịch.
+
+\so{4} \oo{Lưu ý giao hàng}: dặn tài xế, ví dụ giờ giao, gọi trước.
+
+\so{5} \oo{Lưu ý sản xuất}: dặn xưởng, ví dụ canh màu theo mẫu, cấn bế kỹ.
+
+\so{6} \oo{Hàng gấp (ưu tiên sản xuất)}: đánh dấu đơn gấp cho xưởng.
+
+\so{7} \oo{Lưu}.
+
+Địa chỉ giao và người nhận lấy từ báo giá. Muốn đổi thì sửa ở báo giá hoặc hồ sơ khách trước khi lên đơn.}
+
+Lưu xong, ô \oo{Chốt đơn} báo \oo{Đủ điều kiện chốt}. Bấm \oo{Chốt đơn}. Đơn sang \oo{Đã chốt}. Đơn đã chốt không
+sửa được nữa, chỉ huỷ được bằng nút \oo{Hủy đơn} kèm lý do.
+
+\Needspace*{14\baselineskip}
+\subsection{Chờ cọc}\label{don-coc}
+
+\rong[0.85\linewidth]{kd-32-dh-coc.png}
+
+\so{1} Đơn có cọc thì sau khi chốt đứng ở chặng \oo{Cọc}. \so{2} Dòng việc tiếp theo nói rõ đơn đang chờ ai, còn
+thiếu bao nhiêu. \so{3} Thiếu cọc thì đơn chưa xuống sản xuất.
+
+Thu cọc là việc của Kế toán: nút \oo{Lập phiếu thu cọc} chỉ hiện với người có quyền thu tiền. Sale báo khách chuyển
+khoản rồi báo Kế toán. Kế toán thu đủ cọc thì đơn tự xuống hàng chờ của Kế hoạch sản xuất, không ai phải bấm
+chuyển. Đơn không cần cọc thì xuống hàng chờ ngay khi chốt.
+
+\Needspace*{14\baselineskip}
+\subsection{Đơn đang sản xuất}\label{don-sx}
+
+\rong[0.85\linewidth]{kd-33-dh-sx.png}
+
+Chặng \oo{Sản xuất} liệt kê từng sản phẩm của đơn. \so{1} Mã lệnh sản xuất, bấm để mở hồ sơ lệnh. Cột \oo{Đang ở}
+cho biết lệnh đang ở bước nào hoặc ở nhà gia công ngoài, cột \oo{Đã có hàng} là số thành phẩm kho đã nhận.
+
+\so{2} Dòng tóm tắt, ví dụ \q{2 lệnh chưa xuống xưởng}: Kế hoạch đã có lệnh nhưng chưa phát hành. \so{3} \oo{Mở
+Kế hoạch SX} để xem chi tiết từng công đoạn (cần quyền xem Kế hoạch sản xuất).
+
+Hạn giao cam kết ở bên phải dòng tóm tắt, quá hạn thì có chữ đỏ \q{quá hạn giao}.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Trả lời khách: hàng tới đâu rồi}\label{theo-doi}
+
+\begin{boicanh}
+\duong{Sản xuất > Theo dõi sản xuất} gom mọi đơn đã xuống xưởng vào một bảng. Đây là màn trả lời khách nhanh nhất:
+mỗi dòng một đơn, thấy ngay đơn đang làm gì, có vướng gì, còn bao lâu tới hạn. Bảng chỉ hiện đơn trong phạm vi quyền của bạn.
+\end{boicanh}
+
+Các tab trên cùng lọc nhanh: \oo{Cần để ý} (trễ hạn, đang vướng), \oo{Đang làm}, \oo{Chờ giao}, \oo{Đã giao đủ}.
+Cột \oo{Đang vướng} ghi lý do, ví dụ \q{Đã quá hạn giao}, \q{Thiếu vật tư}. Bấm một dòng để mở chi tiết.
+
+\rong[0.85\linewidth]{kd-40-theo-doi.png}
+
+\so{1} Từng mặt hàng: số đặt, số đã nhập kho, số đang có hàng, số đã giao.
+
+\so{2} Lệnh sản xuất của mặt hàng và bước đang làm. Ví dụ trên là lệnh gia công trọn gói ở nhà gia công ngoài.
+
+\so{3} \oo{Đang vướng}: lý do đơn chậm.
+
+\so{4} \oo{Giao hàng}: đã có yêu cầu giao chưa, còn bao nhiêu chưa giao.
+
+Muốn xem sâu hơn từng bước của một lệnh thì mở \duong{Sản xuất > Hồ sơ lệnh sản xuất}, tìm theo mã lệnh hoặc mã đơn.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Giao hàng}\label{giao}
+
+\begin{boicanh}
+Kinh doanh lập yêu cầu giao ở chặng \oo{Giao} của đơn. Chỉ giao được phần kho đã nhận. Mỗi yêu cầu là một chuyến,
+giao thiếu thì lập yêu cầu mới cho phần còn lại. Bộ phận giao hàng nhận yêu cầu để xếp xe, kho xuất hàng theo chuyến.
+\end{boicanh}
+
+\rong[0.85\linewidth]{kd-50-giao.png}
+
+\so{1} Bấm chặng \oo{Giao} trên thanh chặng của đơn.
+
+\so{2} Bảng từng mặt hàng: khách đặt, đã giao, đang chờ giao, còn phải giao, giao được ngay (số kho đang có).
+
+\so{3} Dòng nhắc. Kho chưa có hàng thì nút bị mờ và dòng nhắc nói đang chờ lệnh nào.
+
+\so{4} \oo{Tạo yêu cầu giao hàng}: mở form gồm \oo{Hàng giao đợt này} (số lượng từng mặt hàng, không quá số giao
+được), \oo{Ngày cần giao}, \oo{Giao tới}, \oo{Người nhận}. Lưu ý giao của đơn hiện sẵn để tài xế đọc.
+
+Sau khi lập, yêu cầu hiện trong bảng của chặng Giao và ở màn \duong{Kinh doanh > Giao hàng}, tab \oo{Yêu cầu giao}.
+Tài xế giao xong ghi khách nhận đủ, nhận thiếu hay không nhận. Hàng không giao được quay về kho, phần còn lại hiện
+lại ở cột \oo{Còn phải giao}.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Hoá đơn, tiền về và hoa hồng}\label{tien}
+
+\begin{boicanh}
+Kế toán ghi hoá đơn theo phần đã giao và thu tiền. Kinh doanh không làm hai việc này nhưng cần đọc được: đơn đã ghi
+hoá đơn chưa, khách còn nợ bao nhiêu, hoa hồng của mình ra sao.
+\end{boicanh}
+
+\rong[0.85\linewidth]{kd-52-hoa-don.png}
+
+\so{1} Chặng \oo{Hóa đơn} của đơn. \so{2} \oo{Tổng đơn}, \oo{Đã giao}, \oo{Đã giao chưa ghi} (hàng khách đã nhận
+mà Kế toán chưa ghi hoá đơn), \oo{Đã ghi hóa đơn}, \oo{Còn phải thu}. Có hoá đơn thì khách mới phát sinh công nợ.
+
+Cột \oo{Cọc} và \oo{Giao khách} ở danh sách \duong{Kinh doanh > Đơn hàng bán} cho thấy nhanh đơn nào đủ cọc, giao
+tới đâu. Khách nợ quá hạn hay vượt hạn mức thì Kế toán thấy ở màn Công nợ phải thu.
+
+\subsection{Hoa hồng}\label{hoa-hong}
+
+Hoa hồng thuộc người phụ trách khách, ghi trên đơn ở dòng \q{\ldots{} phụ trách}. Phần mềm tính như sau:
+
+\begin{itemize}
+\item Hoa hồng chỉ phát sinh khi tiền về, tức khi Kế toán lập phiếu thu. Đơn chốt, giao, ghi hoá đơn mà khách chưa
+trả thì chưa có hoa hồng.
+\item Tiền tính hoa hồng là tiền thu về trước VAT, trừ chiết khấu và kê của đơn.
+\item Phần trăm tra theo biểu bậc của bạn, theo số ngày từ ngày hoá đơn tới ngày thu tiền: khách trả càng sớm phần
+trăm càng cao. Tiền cọc thu trước khi có hoá đơn tính theo bậc đầu tiên.
+\item Biểu bậc chụp vào đơn lúc chốt. Biểu đổi về sau thì đơn đã chốt vẫn tính theo biểu cũ.
+\end{itemize}
+
+Biểu bậc do bộ phận nhân sự khai trong mức lương của từng người. Hoa hồng của tháng hiện trên phiếu lương, dòng
+\oo{Hoa hồng kinh doanh}: \duong{Nhân sự \& Lương > Lương}, tab \oo{Phiếu lương của tôi}. Thắc mắc số nào thì hỏi
+bộ phận lương: họ mở được bảng đối chiếu từng lần tiền về của bạn, mỗi dòng ghi số tiền, số ngày và phần trăm đã áp.
+
+% ============================================================
+\Needspace*{16\baselineskip}
+\section{Câu hỏi hay gặp}\label{hoi-dap}
+
+\begin{description}[style=nextline,leftmargin=0pt,font=\normalfont\tieude\small]
+\item[Nút Báo giá trên phiếu tính giá bị mờ.]
+Phiếu chưa chọn khách hoặc chưa lưu. Chọn khách, bấm \oo{Tính giá \& lưu} rồi bấm lại.
+
+\item[Khách muốn báo hai phương án cho cùng một hàng.]
+Mỗi phiếu ra một báo giá. Bấm \oo{Nhân bản} trên phiếu, sửa phương án hai trên bản sao, rồi ra báo giá thứ hai.
+
+\item[Khách đòi giảm giá sau khi đã gửi báo giá.]
+Báo giá đã gửi bị khoá. Bấm \oo{Khách từ chối} với lý do \q{xin giảm giá}, rồi \oo{Tạo phiên bản mới}, sửa giá và gửi
+lại. Các bản cũ xem ở \oo{Lịch sử phiên bản}, nút \oo{So sánh} đặt hai bản cạnh nhau.
+
+\item[Không thấy nút Gửi khách, chỉ có Trình duyệt.]
+Báo giá đặc thù (mục \ref{dac-thu}). Trình duyệt, chờ giám đốc duyệt rồi mới gửi khách được.
+
+\item[Không chốt được đơn.]
+Đọc các dòng đỏ trong ô \oo{Chốt đơn}: thường thiếu số PO hoặc ngày giao cam kết. Bấm \oo{Sửa} để điền.
+
+\item[Đơn đã chốt mà xưởng chưa thấy.]
+Đơn có cọc mà Kế toán chưa thu đủ. Chặng \oo{Cọc} ghi còn thiếu bao nhiêu.
+
+\item[Nút Tạo yêu cầu giao hàng bị mờ.]
+Kho chưa nhận thành phẩm của đơn. Dòng nhắc dưới bảng nói đang chờ lệnh nào.
+
+\item[Khách của mình đứng tên người khác.]
+Báo trưởng phòng dùng chức năng \oo{Điều chuyển} ở màn Khách hàng để chuyển khách về đúng người, xem
+\kb{kinh-doanh-dieu-chuyen}{Đổi người phụ trách}.
+\end{description}
+
+\end{document}

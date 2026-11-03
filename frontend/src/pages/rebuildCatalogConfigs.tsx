@@ -371,7 +371,7 @@ export const CFG_MAY: CatalogConfig = {
       showIf: (f) => f._chuan_bi_kieu === "khoan" },
     // ── 6. Bảo trì định kỳ (lưu lồng trong fields_theo_loai — KHÔNG cột mới, KHÔNG migration) ─
     { key: "lich_bao_tri", label: "Lịch bảo trì định kỳ", type: "lich_bao_tri",
-      group: "Bảo trì định kỳ", jsonKey: "fields_theo_loai" },
+      group: "Bảo trì định kỳ", jsonKey: "fields_theo_loai", phanHe: "sua_chua" },
     // ── 7. Ghi chú ───────────────────────────────────────────────────────────
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
   ],
@@ -503,7 +503,7 @@ export const CFG_CONG_DOAN: CatalogConfig = {
           .filter(Boolean).join("\n");
         return chipCo(chung || theoMay > 0, title || undefined);
       } },
-    { key: "ct_khoan", label: "CT khoán", w: 100, render: (r) =>
+    { key: "ct_khoan", label: "CT khoán", w: 100, phanHe: "khoan", render: (r) =>
         chipCo(coChu((r.khoan as { cong_thuc_khoan?: unknown } | null | undefined)?.cong_thuc_khoan)) },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
@@ -514,7 +514,8 @@ export const CFG_CONG_DOAN: CatalogConfig = {
     { key: "department_ids", label: "Phòng ban / Tổ phụ trách", type: "to-multi", refPrefix: "/api/cong-doan/phong-ban",
       group: "Thông tin", nhanDau: "mặc định",
       hint: "Chọn được nhiều tổ — lệnh sản xuất chọn một trong số này cho từng bước. Tổ chọn đầu tiên là tổ mặc định." },
-    { key: "khoan", label: "", type: "khoan-cong-doan", refPrefix: "/api/don-vi", group: "Khoán" },
+    { key: "khoan", label: "", type: "khoan-cong-doan", refPrefix: "/api/don-vi", group: "Khoán",
+      phanHe: "khoan" },
 
     // ── Nguồn nuôi thẳng thời lượng bước ở Lệnh sản xuất ──────────────────────────────────────
     { key: "requires_tooling", label: "Bước này cần khuôn", type: "checkbox",

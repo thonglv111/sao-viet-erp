@@ -26,6 +26,7 @@ from datetime import date
 from sqlalchemy import select
 
 from .db import SessionLocal
+from .phan_he import SUA_CHUA, tat
 from .models.ky_thuat_may import TT_BT_DANG_MO, BaoTriMay
 from .models.may_thiet_bi import MayThietBi
 from .models.role import RolePermission
@@ -134,6 +135,10 @@ async def run_bao_tri_reminder_loop(interval: int) -> None:
         # Nhiều worker: chỉ worker giữ vai quét — sổ `_da_ting` nằm trong tiến trình, để worker nào
         # cũng quét là mỗi phiếu bị ting một lần mỗi worker.
         if not await asyncio.to_thread(giu_vai_chinh, "nhac_bao_tri", ttl_ms=interval * 3000):
+            await asyncio.sleep(interval)
+            continue
+        # Bản cài tắt sửa chữa & bảo dưỡng: không ra phiếu bảo trì, không ting ai.
+        if tat(SUA_CHUA):
             await asyncio.sleep(interval)
             continue
         try:

@@ -15,6 +15,7 @@ import {
   type PaymentVoucherRow,
   type PhieuChiCkKeInput,
 } from "../../../../api/client";
+import { useTat } from "../../../../auth/permissions";
 import { useAuth } from "../../../../auth/useAuth";
 import { OGoDinhDang } from "../../../../components/OGoDinhDang";
 import { ngay, tien, vietSo } from "../../shared/dinhDang";
@@ -56,6 +57,7 @@ export function LapPhieuChiCkKeModal({
   const laCk = loai === "chiet_khau";
   const khach = dong[0].customer_name;
   const tenLoai = TEN_LOAI_CK_KE[loai];
+  const coKe = !useTat()("ke_gia");
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() => ({
     voucher_type: "cash",
     payment_stage: "other",
@@ -191,7 +193,7 @@ export function LapPhieuChiCkKeModal({
         <>
           Phiếu chi
           <ChevronRight size={14} aria-hidden="true" />
-          Chờ chi CK / kê
+          {coKe ? "Chờ chi CK / kê" : "Chờ chi chiết khấu"}
           <ChevronRight size={14} aria-hidden="true" />
           {khach}
         </>

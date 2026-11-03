@@ -110,15 +110,22 @@ describe("Khoán theo tổ", () => {
   });
 
   it("gõ vào dòng trống cuối sổ thành một dòng tay chia cả tổ", async () => {
-    const u = userEvent.setup();
-    const { container } = render(<KhoanTheoToTab token="t" />);
-    await screen.findByText("Sổ sản lượng");
-    await u.click(container.querySelector<HTMLElement>('td[data-k="moi|nd"]')!);
-    await u.keyboard("Gấp hộp theo giờ{Enter}");
-    await waitFor(() => expect(themDongTayKhoan).toHaveBeenCalledTimes(1));
-    expect(themDongTayKhoan.mock.calls[0]).toEqual(["t", expect.objectContaining({
-      year: 2026, month: 10, to_id: 1, noi_dung: "Gấp hộp theo giờ", nguoi_ids: [1, 2],
-    })]);
+    // Kỳ mặc định = tháng hiện tại ⇒ ghim ngày vào kỳ của dữ liệu mẫu, kẻo sang tháng là test đỏ.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-23T08:00:00"));
+    try {
+      const u = userEvent.setup();
+      const { container } = render(<KhoanTheoToTab token="t" />);
+      await screen.findByText("Sổ sản lượng");
+      await u.click(container.querySelector<HTMLElement>('td[data-k="moi|nd"]')!);
+      await u.keyboard("Gấp hộp theo giờ{Enter}");
+      await waitFor(() => expect(themDongTayKhoan).toHaveBeenCalledTimes(1));
+      expect(themDongTayKhoan.mock.calls[0]).toEqual(["t", expect.objectContaining({
+        year: 2026, month: 10, to_id: 1, noi_dung: "Gấp hộp theo giờ", nguoi_ids: [1, 2],
+      })]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("kỳ đã chốt: không có ô gõ, không có dòng trống", async () => {

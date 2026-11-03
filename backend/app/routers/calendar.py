@@ -9,6 +9,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from ..phan_he import CHAM_CONG, chan_khi_tat
 from ..deps import get_authorization_service, get_calendar_service, require_permission
 from ..models.role import SCOPE_ALL
 from ..models.user import User
@@ -29,7 +30,8 @@ from ..services.calendar_service import (
     CalendarValidationError,
 )
 
-router = APIRouter(prefix="/api/calendar", tags=["calendar"])
+router = APIRouter(prefix="/api/calendar", tags=["calendar"],
+                   dependencies=[Depends(chan_khi_tat(CHAM_CONG))])
 
 # Lịch & Ngày lễ là một TAB của màn Chấm công ⇒ đi theo khoá của màn đó (10/08/2026).
 MODULE = "cham_cong"

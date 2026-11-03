@@ -951,23 +951,101 @@ class MaterialHistoryOut(BaseModel):
     xuat: list[MaterialXuatRow] = []
 
 
-class MaterialChuyenRow(BaseModel):
-    """1 dòng tab "Chuyển kho" của ngăn mặt hàng: lô NHẬN VỀ (`chieu=in`) hoặc dòng CHUYỂN ĐI (`out`)."""
+class ChuyenKhoRow(BaseModel):
+    """1 dòng lịch sử CHUYỂN KHO (03/11/2026): một lần chuyển × một mặt hàng × một vị trí lấy — tab
+    "Lịch sử chuyển kho" của ngăn mặt hàng lẫn tab Điều chuyển của trang kho. Không số phiếu: người
+    xem cần từ kho nào, lấy ở đâu, sang kho nào, cất ở đâu, bao nhiêu, giá trị, ai chuyển."""
 
     key: str
-    chieu: str
-    ngay: date
+    luc: datetime
+    hang_loai: str
+    hang_id: int
+    hang_ma: str | None = None
+    hang_ten: str | None = None
+    #: Nhãn khổ của lô (giấy, vật tư có khổ); "" khi không khổ.
+    kho: str = ""
+    dvt: str | None = None
+    kho_tu: str
+    lay_o: str | None = None
+    kho_den: str
+    cat_o: str | None = None
+    so_luong: float
+    #: Tổng giá vốn các lô đã chuyển — chỉ có khi người xem thấy giá ở màn Tồn kho.
+    gia_tri: float | None = None
+    nguoi: str | None = None
+    #: Đơn vị xem được của dòng (gốc đứng đầu, `he_so` = số đơn vị gốc trong 1 đơn vị) — cột ĐVT.
+    don_vi_xem: list[dict] | None = None
+
+
+class LichSuSuaDoi(BaseModel):
+    """Một thông tin đổi trong một lần sửa: Trước → Sau, Chênh khi là số (tồn, mức, giá)."""
+
+    thong_tin: str
+    truoc: str
+    sau: str
+    chenh: float | None = None
+    don_vi: str = ""
+    #: Hai vế dạng số (tồn, mức, giá) để giao diện quy theo ĐVT người xem chọn; chữ thì None.
+    truoc_so: float | None = None
+    sau_so: float | None = None
+
+
+class NhapXuatRow(BaseModel):
+    """1 dòng tab "Lịch sử nhập xuất" của ngăn mặt hàng (04/11/2026): một lô nhập hoặc một dòng phiếu
+    xuất (không tính chuyển kho — có tab riêng), kèm tồn của dòng tồn ngay sau lần đó."""
+
+    key: str
+    luc: datetime
+    viec: str  # "nhap" | "xuat"
     voucher_id: int | None = None
     voucher_ma: str | None = None
     so_luong: float
-    don_gia: float | None = None
-    chua_gia_goc: bool = False
+    #: Tồn của dòng tồn tại kho sau lần này — tính lùi từ tồn hiện tại qua MỌI lần nhập, xuất, chuyển.
+    ton_sau: float
     vi_tri: str | None = None
     hsd: date | None = None
+    #: Giá theo đơn vị gốc của lô — None khi không thấy giá.
+    don_gia: float | None = None
+    gia_tri: float | None = None
+    chua_gia_goc: bool = False
+    nguoi: str | None = None
+
+
+class GiaTriChon(BaseModel):
+    """Một giá trị chọn được trong nút Lọc của tab (người, kho, vị trí, việc) kèm số dòng mang nó."""
+
+    value: str
+    nhan: str
+    so: int = 0
+
+
+class LichSuSuaRow(BaseModel):
+    """1 lần sửa ở tab "Lịch sử sửa" của ngăn mặt hàng (phương án B, 03/11/2026): ai, lúc nào, việc
+    gì, từng thông tin đổi một dòng, và ghi chú NGƯỜI DÙNG gõ (sửa lại được)."""
+
+    id: int
+    luc: datetime
+    nguoi: str | None = None
+    viec: str
+    ghi_chu: str = ""
+    #: Ai sửa ghi chú lần cuối (rỗng = ghi chú gõ ngay lúc sửa tồn, hoặc chưa ai ghi).
+    ghi_chu_nguoi: str | None = None
+    dong: list[LichSuSuaDoi] = []
+
+
+class GhiChuLanSuaIn(BaseModel):
+    ghi_chu: str = Field(default="", max_length=1000)
+
+
+class ChuyenKhoPage(BaseModel):
+    items: list[ChuyenKhoRow]
+    total: int
+    #: Giá trị chọn được của nút Lọc (kho_tu, kho_den, nguoi) — tính trên mọi dòng trước khi lọc.
+    chon: dict[str, list[GiaTriChon]] = {}
 
 
 class MaterialHistoryPage(BaseModel):
-    """MỘT trang của một tab ngăn mặt hàng (Lô tồn / Lịch sử nhập / Lịch sử xuất / Chuyển kho).
+    """MỘT trang của một tab ngăn mặt hàng (Lô tồn / Lịch sử nhập xuất / Chuyển kho / Sửa).
 
     Cắt trang ở DB: lịch sử một mặt hàng dày lên theo năm, không nạp cả về trình duyệt. `dem` = số
     dòng của MỌI tab (cho số trên tab), `lo`/`xuat`/`chuyen` chỉ một trong ba có dòng theo `tab`."""
@@ -982,9 +1060,16 @@ class MaterialHistoryPage(BaseModel):
     page: int
     size: int
     dem: dict[str, int]
+    #: Số dòng của tab đang mở SAU khi lọc (cho chân phân trang); `dem` là số chưa lọc trên tab.
+    tong: int = 0
+    #: Giá trị chọn được của từng điều kiện lọc của tab đang mở: `{khoá điều kiện: [giá trị]}`.
+    chon: dict[str, list[GiaTriChon]] = {}
     lo: list[StockLotOut] = []
-    xuat: list[MaterialXuatRow] = []
-    chuyen: list[MaterialChuyenRow] = []
+    nhap_xuat: list[NhapXuatRow] = []
+    chuyen: list[ChuyenKhoRow] = []
+    sua: list[LichSuSuaRow] = []
+    #: Được sửa ghi chú tab Lịch sử sửa (cùng ô quyền Thêm, xoá hàng của kho).
+    sua_ghi_chu: bool = False
 
 
 # --- Tra kho CÔNG KHAI (quét tem QR, không đăng nhập) -------------------------

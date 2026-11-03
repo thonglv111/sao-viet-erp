@@ -979,6 +979,20 @@ quyền, khóa tài khoản) for the Activity Log.
 - Index: `ix_audit_logs_actor_created_at` on (`actor_user_id`, `created_at`) — lọc theo người thao tác, migration `0336`.
 - Foreign keys: `actor_user_id FK→users.id` (**ON DELETE CASCADE**).
 
+### `audit_ghi_chu`
+
+**Purpose:** ghi chú NGƯỜI DÙNG gõ cho một lần sửa ở tab "Lịch sử sửa" ngăn mặt hàng màn Tồn kho
+(03/11/2026). Tách khỏi `audit_logs` để dòng nhật ký giữ nguyên như lúc ghi; ghi chú sửa lại được.
+Chưa có dòng ⇒ tab hiện ghi chú gõ lúc sửa tồn (nằm trong `audit_logs.detail`). Tạo bằng `create_all`
+(bảng mới, không cần migration).
+
+| Column          | Type (SQLAlchemy → SQLite / Postgres)                  | Key             | Null | Default        | Meaning                                                      |
+| --------------- | ------------------------------------------------------ | --------------- | ---- | -------------- | ------------------------------------------------------------ |
+| `audit_log_id`  | `Integer` → `INTEGER`                                  | **PK**, **FK→audit_logs.id** (CASCADE) | no | — | Lần sửa được ghi chú. |
+| `noi_dung`      | `Text` → `TEXT`                                        | —               | no   | `""`           | Ghi chú. Rỗng = người dùng xoá trắng (không quay về ghi chú gõ lúc sửa). |
+| `nguoi_sua_ten` | `String(120)` → `VARCHAR(120)`                         | —               | no   | `""`           | Tên người sửa ghi chú lần cuối, chụp lúc ghi. |
+| `sua_luc`       | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —               | no   | now (UTC)      | Lúc sửa ghi chú lần cuối. |
+
 **Relationships**
 
 - Many audit rows reference one `users` (the actor).
@@ -3186,7 +3200,7 @@ dụng từ ngày" như `khoan_chi_tieu_ngay`. Chế độ hiệu lực ngày D 
 | `gross` | `Numeric(14,2)` | — | no | `0` | Tổng thu nhập trước khấu trừ. |
 | `insurance_base` | `Numeric(14,2)` | — | no | `0` | Mức đóng BH. |
 | `bhxh` | `Numeric(14,2)` | — | no | `0` | Khấu trừ BHXH/BHYT/BHTN. |
-| `cong_doan` | `Numeric(14,2)` | — | no | `0` | Đoàn phí công đoàn = insurance_base×cong_doan_rate (tự tính, thử việc=0). Thêm qua migration 0074. |
+| `cong_doan` | `Numeric(14,2)` | — | no | `0` | Đoàn phí công đoàn = monthly_salary (mức nền cơ bản + trách nhiệm)×cong_doan_rate (tự tính, thử việc=0; gốc chốt 16/09/2026). Thêm qua migration 0074. |
 | `pit` | `Numeric(14,2)` | — | no | `0` | Thuế TNCN (tự tính, có thể ghi đè tay). |
 | `pit_manual` | `Boolean` | — | no | `false` | TNCN do HCNS ghi đè tay (không auto ghi đè). Thêm qua migration 0044. |
 | `pit_taxable` | `Numeric(14,2)` | — | no | `0` | Thu nhập **TÍNH** thuế đã dùng để tính TNCN (đã trừ BHXH + giảm trừ gia cảnh). Thêm qua migration 0044. ⚠️ KHÔNG phải `thu_nhap_chiu_thue` — hai số cách nhau ~15,5tr, dùng lẫn là sai thuế. |

@@ -2451,15 +2451,18 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
                               <button
                                 type="button"
                                 className="grouphd__bo"
-                                onClick={() =>
+                                onClick={() => {
                                   setComps((cs) =>
                                     cs.map((c) =>
                                       uids.includes(c.uid)
                                         ? { ...c, nhom_bao_gia: "", dvt_nhom: "" }
                                         : c,
                                     ),
-                                  )
-                                }
+                                  );
+                                  // Tự lưu như nút Bỏ gộp trên thanh chọn — thiếu dòng này thì tải lại
+                                  // trang là nhóm hiện lại.
+                                  setPendingCalc(true);
+                                }}
                                 title="Bỏ gộp — các dòng lại đứng riêng trên báo giá"
                               >
                                 Bỏ gộp

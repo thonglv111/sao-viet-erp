@@ -45,6 +45,8 @@ from ..repositories.kho_khoa_so_repo import KhoKhoaSoRepository
 from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from .catalog_excel import PHIEN_BAN, SHEET_META, ExcelSaiMan
 from .kho_giay import DON_VI_TO_KHO, chuan_kho, kg_tu_to, la_kho_to
+from .kho_nhat_ky_ton import gom, target_dong_ton
+from .quy_doi_service import don_vi_dung_duoc, don_vi_map
 from .vat_lieu_kho_service import VatLieuKhoError
 
 LOAI_META = "ton_kho"
@@ -259,6 +261,21 @@ def _ngay(v: Any) -> tuple[date | None, bool]:
         except ValueError:
             continue
     return None, False
+
+
+def _thay_doi_ton(k: KeHoach, nguon: str) -> list[str]:
+    """Nhật ký dòng tồn của một dòng nhập tay: từng thay đổi "Nhãn cũ → mới" (cả hai vế mang đơn vị
+    để tab Lịch sử sửa tách được Trước / Sau / Chênh), rồi chỗ sửa, rồi ghi chú người sửa gõ."""
+    moi = not k.co_dong
+    dv = f" {k.goc_ten}".rstrip()
+    doi = [
+        f"Tồn {_hien_so(k.sl_hien)}{dv} → {_hien_so(k.sl_goc)}{dv}" if moi or k.doi_so else "",
+        f"Vị trí {k.vi_tri_hien or 'chưa gắn'} → {k.vi_tri or 'chưa gắn'}"
+        if (k.doi_vi_tri if k.co_dong else bool(k.vi_tri)) else "",
+    ]
+    noi = ("Nhập Excel trên màn Tồn kho" if nguon == "excel"
+           else "Thêm hàng trên màn Tồn kho" if moi else "Sửa tồn trên màn Tồn kho")
+    return [*doi, noi, f"Ghi chú: {k.ghi_chu}" if k.ghi_chu else ""]
 
 
 def _hien_so(v: float | None) -> str:
@@ -599,7 +616,7 @@ class KhoNhapTayService:
 
     # ---------- một lượt (form / file) ----------
 
-    def chay(self, kho_id: int, dong: list[DongVao], user, *, ghi: bool) -> KetQua:
+    def chay(self, kho_id: int, dong: list[DongVao], user, *, ghi: bool, nguon: str = "tay") -> KetQua:
         """Kiểm hết các dòng → còn lỗi thì dừng TRƯỚC khi chạm DB → không lỗi thì ghi cả lượt trong
         MỘT giao dịch. `ghi=False` = XEM TRƯỚC: chạy y hệt rồi rollback (như import khách hàng)."""
         self.kho(kho_id)
@@ -655,13 +672,14 @@ class KhoNhapTayService:
                     kq.tao_moi += 1
                 self.ap(kho_id, k, user)
             if lam:
-                AuditLogRepository(self.db).create(
-                    actor_user_id=getattr(user, "id", None), action="kho_hang_nhap_tay",
-                    target=f"kho:{kho_id}",
-                    detail=(f"Nhập tay tồn kho {self.kho(kho_id).ten}: {kq.tao_moi} thêm mới, "
-                            f"{kq.cap_nhat} cập nhật — " + ", ".join(sorted({k.ma for k in lam}))),
-                    commit=False,
-                )
+                # Một dòng nhật ký MỘT dòng tồn (03/11/2026) — ngăn mặt hàng đọc lại được "ai sửa gì".
+                ten_kho = self.kho(kho_id).ten
+                AuditLogRepository(self.db).create_many([
+                    {"actor_user_id": getattr(user, "id", None), "action": "kho_ton_sua",
+                     "target": target_dong_ton(kho_id, k.hang_loai, k.hang_id, k.goc, k.kho_rong, k.kho_dai),
+                     "detail": gom([f"{k.ten or k.ma} tại {ten_kho}", *_thay_doi_ton(k, nguon)])}
+                    for k in lam
+                ])
             if ghi:
                 self.db.commit()
                 kq.da_ghi = True
@@ -938,7 +956,9 @@ class KhoNhapTayService:
     def don_vi_xem(self, lots) -> dict[tuple, list[dict]]:
         """`{(loai, id, rộng, dài, gốc): [{ma, ten, he_so}]}` — các đơn vị QUY ĐƯỢC từ đơn vị gốc của
         dòng, `he_so` = số đơn vị gốc trong 1 đơn vị đó. Đơn vị gốc đứng đầu. Giấy tờ khổ hai cạnh có
-        định lượng thêm kg (quy qua gsm). Không quy được thì không có mặt."""
+        định lượng thêm kg (quy qua gsm) và đi tiếp mọi đơn vị nối với kg ở danh mục quy đổi (g,
+        tấn…). Giấy khổ hai cạnh nhập theo kg đã quy về gốc tờ lúc nhập nên không có chiều ngược.
+        Không quy được thì không có mặt."""
         khoa = {(x.hang_loai, x.hang_id, int(x.kho_rong or 0), int(x.kho_dai or 0), (x.don_vi_goc or "").lower())
                 for x in lots if x.hang_loai in ("giay", "vat_tu") and x.don_vi_goc}
         if not khoa:
@@ -960,7 +980,19 @@ class KhoNhapTayService:
             gsm = getattr(m, "gsm", None) if k[0] == "giay" else None
             if k[0] == "giay" and k[4] == DON_VI_TO_KHO and la_kho_to(k[2], k[3]) and gsm:
                 kg_1to = kg_tu_to(1, k[2], k[3], gsm)
-                if kg_1to > 0 and not any(x["ma"] == "kg" for x in ds):
-                    ds.append({"ma": "kg", "ten": self.ten_dv("kg") or "kg", "he_so": 1 / kg_1to})
+                # 1 kg = 1/kg_1to tờ; đơn vị nối với kg (g, tấn…) nhân thêm hệ số về kg của danh mục.
+                co = {x["ma"] for x in ds}
+                for d in (self._dv_lan("kg") if kg_1to > 0 else []):
+                    hs = float(d.get("he_so_ve_goc") or 0) / kg_1to
+                    if hs > 0 and d["ma"] not in co:
+                        co.add(d["ma"])
+                        ds.append({"ma": d["ma"], "ten": d.get("ten") or d["ma"], "he_so": hs})
             ra[k] = ds
         return ra
+
+    def _dv_lan(self, ma: str) -> list[dict]:
+        """Mọi đơn vị đi tới được từ `ma` qua bảng cặp quy đổi chung (chính nó đứng đầu, hệ số 1)."""
+        if not hasattr(self, "_dv_do"):
+            self._dv_do = (don_vi_map(self.hang.don_vi.all_rows()), list(self.hang.don_vi.cap_rows()))
+        dvs, cap = self._dv_do
+        return don_vi_dung_duoc(ma, dvs, cap) or [{"ma": ma, "ten": self.ten_dv(ma) or ma, "he_so_ve_goc": 1.0}]

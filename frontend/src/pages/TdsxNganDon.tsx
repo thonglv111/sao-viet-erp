@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 
 import { ApiError, api } from "../api/client";
 import type { LenhSxChang, TdsxDonChiTiet, TdsxLenhCuaMon, TdsxMon, TdsxNhomMon, TdsxSuKienDon } from "../api/client";
+import { useTat } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { ChipTT, LocNhanhTrangThai, ngayVN, soVN, type MauTT } from "../components/LuoiDs";
 import { NganPhai } from "./ke-toan/shared/NganPhai";
@@ -115,6 +116,7 @@ export function TdsxNganDon({
   onMoLenh?: (lsxId: number) => void;
 }) {
   const { token } = useAuth();
+  const tatGiao = useTat()("giao_hang");
   const [d, setD] = useState<TdsxDonChiTiet | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
   const [nhom, setNhom] = useState<string>("tat_ca");
@@ -375,8 +377,8 @@ export function TdsxNganDon({
             <Fragment key={m.khoa}>
               {mons.length > 1 && <p className="lsa-nho lsa-mu">{m.ten}</p>}
               <dl className="kt-ray">
-                {m.dang_giu > 0 && <O k="Đang giữ cho yêu cầu giao" v={`${soVN(m.dang_giu)} ${m.don_vi ?? ""}`} />}
-                {m.con_phai_giao > 0 && <O k="Chưa lên yêu cầu giao" v={`${soVN(m.con_phai_giao)} ${m.don_vi ?? ""}`} />}
+                {m.dang_giu > 0 && <O k={tatGiao ? "Đang chờ kho xuất" : "Đang giữ cho yêu cầu giao"} v={`${soVN(m.dang_giu)} ${m.don_vi ?? ""}`} />}
+                {m.con_phai_giao > 0 && <O k={tatGiao ? "Chưa xuất hàng" : "Chưa lên yêu cầu giao"} v={`${soVN(m.con_phai_giao)} ${m.don_vi ?? ""}`} />}
               </dl>
             </Fragment>
           ))}

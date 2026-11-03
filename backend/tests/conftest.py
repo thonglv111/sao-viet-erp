@@ -35,6 +35,9 @@ os.environ["CARE_REMINDER_SECONDS"] = "0"
 # Redis/MinIO thật. Đừng gỡ hai dòng này.
 os.environ["REDIS_URL"] = ""
 os.environ["MINIO_ENDPOINT"] = ""
+# Bộ test giả định bật đủ phân hệ; bản cài tắt bớt (Hà Phương) có PHAN_HE_TAT trong .env.
+# Test nào cần tắt thì tự monkeypatch `settings.phan_he_tat`.
+os.environ["PHAN_HE_TAT"] = ""
 # Hạ bcrypt về số vòng tối thiểu — CHỈ trong test. Mỗi test seed admin (1 lượt băm) rồi đăng nhập
 # (1 lượt kiểm), ở 12 vòng là ~0,9s/test tiêu vào việc băm một mật khẩu ai cũng biết là "admin123".
 # Production KHÔNG hạ được: `assert_secure_config` chặn khởi động nếu BCRYPT_ROUNDS < 12.

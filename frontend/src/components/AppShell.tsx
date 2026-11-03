@@ -20,6 +20,7 @@ import {
   buildCapabilities,
   PermissionsProvider,
   type Capabilities,
+  type PhanHe,
 } from "../auth/permissions";
 import { nhanChang, nhanDonVi } from "../pages/lsxBuoc";
 import { toastKhoNhapThanhPham } from "../pages/kcs/kcsNhan";
@@ -252,6 +253,7 @@ export function AppShell() {
   useEffect(() => (laDT ? theoDoiBanPhim() : undefined), [laDT]);
   const [readable, setReadable] = useState<Set<string> | null>(null);
   const [caps, setCaps] = useState<Capabilities>(new Map());
+  const [phanHeTat, setPhanHeTat] = useState<ReadonlySet<PhanHe>>(new Set());
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
   // (`napThongBao`) — Sidebar chỉ vẽ chấm, không in số.
   const [badges, setBadges] = useState<Record<string, number>>({});
@@ -436,6 +438,7 @@ export function AppShell() {
         // thì API trả 403 — hai nơi nói hai kiểu.
         setReadable(new Set(acc.modules));
         setCaps(buildCapabilities(acc.permissions));
+        setPhanHeTat(new Set((acc.phan_he_tat ?? []) as PhanHe[]));
         if (baoNeuDoi && !lanDau) pushToast("Quyền của bạn vừa được cập nhật.", "info");
       })
       .catch((err: unknown) => {
@@ -1272,7 +1275,8 @@ export function AppShell() {
           teamId={teamId}
           tenTo={t?.ten}
           laTho={t?.la_tho ?? false}
-          coBaoDungMay={t?.quyen?.confirm_output === "all"
+          // Tắt lương thì hộp chỉ còn Báo máy hỏng ⇒ cần ô Báo hỏng (tắt sửa chữa là mất ô này).
+          coBaoDungMay={(!phanHeTat.has("luong") && t?.quyen?.confirm_output === "all")
             || (t?.quyen?.read != null && Boolean(caps.get("ky_thuat_may")?.can_request))}
           eventTick={tickCua("san_xuat", "kho")}
           vatTuDeNghiDem={vatTuDeNghiDem}
@@ -1527,7 +1531,7 @@ export function AppShell() {
   }
 
   return (
-    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan}>
+    <PermissionsProvider caps={caps} onReload={taiLaiQuyenTuMan} phanHeTat={phanHeTat}>
       <div className={`shell${navOpen ? " is-nav-open" : ""}`}>
         {/* Màn che sau ngăn kéo — chỉ tồn tại khi ngăn kéo mở (màn hẹp). */}
         {navOpen && (

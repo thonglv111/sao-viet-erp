@@ -466,6 +466,16 @@ class RoleService:
             # của chính kho đó bật kèm, không có "được nhập mà không thấy giá" (spec 2026-10-28 §6).
             if la_khoa_kho(normalized["module_key"]) and normalized.get("can_adjust"):
                 normalized["can_view_cost"] = True
+            # Sửa lương & BHXH kéo theo Xem lương: không có "được ghi lương mà không thấy lương".
+            # Giao diện đã tự tick (`applyPermissionDependency`), đây là chốt cho đường gọi API thẳng.
+            if normalized.get("can_edit_salary"):
+                normalized["can_view_salary"] = True
+            # Tính giá: có quyền ghi thì "Xem chi tiết giá vốn" bật kèm — lưu phiếu đòi cả hai
+            # (`routers/phieu_tinh_gia.py` → `RuotGia`). Giao diện khoá ô này (`FINE_THEO_WRITE`).
+            if normalized["module_key"] == "tinh_gia_thanh" and any(
+                normalized.get(k) for k in ("can_create", "can_update", "can_delete")
+            ):
+                normalized["can_view_cost"] = True
             if _la_scopeless(normalized["module_key"]):
                 normalized["scope"] = "all"
             can_approve = normalized.get("can_approve", False)

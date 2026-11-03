@@ -5,7 +5,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BUOC, NOI, QuyTrinhKinhDoanhPage } from "./QuyTrinhKinhDoanhPage";
+import { BUOC, NOI, QuyTrinhKinhDoanhPage, soDo } from "./QuyTrinhKinhDoanhPage";
 import { NAV } from "../components/Sidebar";
 
 const MOI_MAN_MENU = new Set(NAV.flatMap((s) => s.items.flatMap((i) => [i.id, ...(i.children ?? []).map((c) => c.id)])));
@@ -58,5 +58,18 @@ describe("Quy trình kinh doanh", () => {
     expect(localStorage.getItem("qtkd:bo-phan")).toBe("kho");
     await userEvent.click(kho);
     expect(document.querySelectorAll(".qtkd__nut.is-nhat").length).toBe(0);
+  });
+
+  it("tắt giao hàng: không còn làn Giao hàng, sơ đồ vẫn liền mạch và không chồng ô", () => {
+    const s = soDo(true);
+    expect(s.BO_PHAN.some((b) => b.key === "gh")).toBe(false);
+    expect(s.BUOC.some((b) => b.boPhan === "gh" || b.man === "giao-hang")).toBe(false);
+    const id = new Set(s.BUOC.map((b) => b.id));
+    expect(s.NOI.every((n) => id.has(n.tu) && id.has(n.toi))).toBe(true);
+    expect(s.BUOC.filter((b) => b.loai !== "dau" && !s.NOI.some((n) => n.toi === b.id))).toEqual([]);
+    expect(s.BUOC.filter((b) => b.loai !== "cuoi" && !s.NOI.some((n) => n.tu === b.id))).toEqual([]);
+    const o = s.BUOC.map((b) => `${b.boPhan}@${b.hang}`);
+    expect(new Set(o).size).toBe(o.length);
+    expect(s.BUOC.filter((b) => b.stt).map((b) => b.stt)).toEqual(Array.from({ length: 16 }, (_, i) => i + 1));
   });
 });

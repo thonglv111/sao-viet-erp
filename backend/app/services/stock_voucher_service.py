@@ -856,15 +856,17 @@ class StockVoucherService:
 
     def dieu_chuyen(self, *, user, kho_nguon_id: int, kho_den_id: int,
                     items: list[dict], ghi_chu: str | None = None) -> dict:
-        """Ấn ĐIỀU CHUYỂN 1 HAY NHIỀU mặt hàng kho nguồn → kho đích (gộp vào MỘT nhịp).
+        """Ấn CHUYỂN KHO 1 HAY NHIỀU mặt hàng kho nguồn → kho đích: bấm là hàng sang kho đích LUÔN
+        (03/11/2026, chủ chốt "nhấn một phát là vật tư sang kho kia") — không còn bước kho đích ghi sổ.
 
-        Tái dùng TRỌN cơ chế nhập/xuất, CHỈ TRỪ TỒN KHI GHI SỔ (spec §2):
-          1) MỘT yêu cầu XUẤT nội bộ ở nguồn + MỘT phiếu XUẤT NHÁP (FEFO→FIFO đích danh mỗi mặt
-             hàng) — CHƯA trừ tồn.
-          2) MỘT yêu cầu NHẬP ở đích (yêu cầu điều chuyển) + phiếu NHẬP đích DỰNG SẴN theo TỪNG LÔ
-             nguồn (giá vốn + HSD khoá đích danh từng lô, KHÔNG bình quân). Kho đích chỉ ghi sổ →
-             trừ nguồn + cộng đích cùng nhịp (xem `post`).
-        Trả `{yeu_cau, phieu_xuat, phieu_nhap, gia_von}` (gia_von = tổng giá vốn điều chuyển)."""
+        Tái dùng TRỌN cơ chế nhập/xuất:
+          1) MỘT yêu cầu XUẤT nội bộ ở nguồn + MỘT phiếu XUẤT (FEFO→FIFO đích danh mỗi mặt hàng).
+          2) MỘT yêu cầu NHẬP ở đích (yêu cầu điều chuyển) + phiếu NHẬP đích dựng theo TỪNG LÔ nguồn
+             (giá vốn + HSD khoá đích danh từng lô, KHÔNG bình quân).
+          3) Ghi sổ phiếu nhập ngay ⇒ `post` ghi sổ luôn phiếu xuất nguồn trong CÙNG giao dịch: trừ
+             nguồn + cộng đích một nhịp. Ghi sổ hỏng thì huỷ cả cặp vừa dựng rồi báo lỗi — không để
+             phiếu nháp nằm lại.
+        Chuyển nhầm thì chuyển ngược (phiếu đã ghi sổ không huỷ). Trả `{yeu_cau, phieu_xuat, phieu_nhap, gia_von}` (gia_von = tổng giá vốn điều chuyển)."""
         if kho_nguon_id == kho_den_id:
             raise StockVoucherError("Kho nguồn và kho đích phải khác nhau.")
         if not items:
@@ -926,6 +928,7 @@ class StockVoucherService:
         # Phiếu điều chuyển không có ô ngày riêng nên mốc = hôm nay (= `v.ngay` mặc định của phiếu
         # sắp tạo); `_apply_post` kiểm lại theo đúng `v.ngay` khi ghi sổ.
         self._assert_period_open(kho_nguon_id, date.today())
+        self._assert_period_open(kho_den_id, date.today())
 
         # (2) MỘT yêu cầu XUẤT nội bộ ở nguồn (im lặng) — mỗi mặt hàng 1 dòng.
         src_req = self.request_service.create_dieu_chuyen(
@@ -956,12 +959,17 @@ class StockVoucherService:
         xuat = self.create(
             user=user, request_id=src_req.id, kho_id=kho_nguon_id, ghi_chu=ghi_chu, lines=xuat_lines,
         )
+        # Chụp VỊ TRÍ LẤY lên dòng xuất (03/11/2026): vị trí lô còn bị sửa về sau (sửa tồn, đổi kệ),
+        # lịch sử chuyển kho phải giữ đúng chỗ đã lấy lúc bấm.
+        vt_lo = {lo.id: lo.vi_tri for lo in self.lots.by_ids([ln.lot_id for ln in xuat.lines]).values()}
+        for ln in xuat.lines:
+            ln.vi_tri = vt_lo.get(ln.lot_id)
 
         # (3) MỘT yêu cầu NHẬP ở đích = yêu cầu điều chuyển (THẤY ĐƯỢC): đơn giá dòng = giá vốn bình
         # quân (chỉ để HIỂN THỊ mức giá của yêu cầu); kho nguồn + phiếu xuất để truy cặp đi–đến.
         dest_req = self.request_service.create_dieu_chuyen(
             user=user, loai=VOUCHER_NHAP, kho_id=kho_den_id,
-            kho_nguon_id=kho_nguon_id, xuat_voucher_id=xuat.id, ghi_chu=ghi_chu, notify=True,
+            kho_nguon_id=kho_nguon_id, xuat_voucher_id=xuat.id, ghi_chu=ghi_chu, notify=False,
             doc_type=SEQ_DOC_TYPE_STOCK_TRANSFER,   # số phiếu điều chuyển DC… (đầu mối mặt tiền)
             lines=[
                 {"hang_loai": p["hang_loai"], "hang_id": p["hang_id"], "dvt": p["dvt_goc"],
@@ -993,6 +1001,13 @@ class StockVoucherService:
             user=user, request_id=dest_req.id, kho_id=kho_den_id, ghi_chu=ghi_chu,
             lines=nhap_lines, _dc_dest=True,
         )
+        try:
+            nhap = self.post(nhap.id, user)
+        except StockVoucherError:
+            self.vouchers.db.rollback()
+            self.huy_dieu_chuyen(dest_req.id, "Chuyển kho không ghi sổ được", user)
+            raise
+        self.request_service.thong_bao_hang_chuyen_toi(dest_req, so_mat_hang=len(prepared))
         tong_gia_von = sum(int(round(p["gia_von"] * p["qty"])) for p in prepared)
         return {"yeu_cau": dest_req, "phieu_xuat": xuat, "phieu_nhap": nhap,
                 "gia_von": tong_gia_von}

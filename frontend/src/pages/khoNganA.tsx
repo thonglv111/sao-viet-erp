@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Check, Clock, FileText, Package, Plus, X } from "lucide-react";
 
 import type { StockRequest, StockRequestLine, StockVoucher } from "../api/client";
+import { useTat } from "../auth/permissions";
 import { fmtDateTime } from "../utils/format";
 import { fmtGioCan, fmtQty } from "./khoShared";
 import { tenDonVi } from "./tenDonVi";
@@ -141,6 +142,7 @@ export function nguonSanXuat(r: StockRequest): "gia_cong" | "kcs" | null {
 /** Ô "Nguồn" ở danh sách: đơn mua + đợt, KCS + lệnh, điều chuyển từ kho nào, giao hàng (lượt xe +
  *  đơn), hoặc lệnh SX. */
 export function NguonA({ r }: { r: StockRequest }) {
+  const tatGiao = useTat()("giao_hang");
   if (r.don_mua_ma) {
     return (
       <span className="kna-nguon">
@@ -155,6 +157,15 @@ export function NguonA({ r }: { r: StockRequest }) {
   // Thêm / Sửa tồn / Import trên màn Tồn kho tự sinh (mg 0451).
   if (r.nhap_tay) {
     return <span className="kna-nguon"><span className="kna-tag">Nhập tay</span></span>;
+  }
+  if (r.giao_yeu_cau_ma && tatGiao) {
+    // Bản cài tắt giao hàng: đề nghị sinh từ "Xuất hàng" ở đơn bán, chuyến ẩn không có gì để kho xem.
+    return (
+      <span className="kna-nguon">
+        <span className="kna-tag">Đơn bán</span>
+        {r.giao_don_ma && <span className="kna-tag kna-tag--ma">{r.giao_don_ma}</span>}
+      </span>
+    );
   }
   if (r.giao_yeu_cau_ma) {
     // Giao hàng lập (12/10/2026): mã lượt cho kho biết các phiếu lên CÙNG một xe; chuyến cũ ngoài
@@ -189,7 +200,20 @@ export function NguonA({ r }: { r: StockRequest }) {
  *  thủ kho biết hàng của khách nào, lên xe nào, ai tới lấy — đọc thẳng từ chuyến giao nên đổi tài xế /
  *  xe bên Giao hàng là khối này đổi theo. Đề nghị khác (sản xuất, điều chuyển) không hiện. */
 export function TheGiaoHang({ r }: { r: StockRequest }) {
+  const tatGiao = useTat()("giao_hang");
   if (r.loai !== "XUAT" || !r.giao_yeu_cau_ma) return null;
+  if (tatGiao) {
+    return (
+      <TheA tieuDe="Xuất hàng">
+        <div className="kna-the__than">
+          <KvA dong={[
+            ["Khách hàng", r.giao_khach_ten ?? "—"],
+            r.giao_don_ma ? ["Đơn bán", <span className="kna-tag kna-tag--ma">{r.giao_don_ma}</span>] : null,
+          ]} />
+        </div>
+      </TheA>
+    );
+  }
   return (
     <TheA tieuDe="Giao hàng">
       <div className="kna-the__than">

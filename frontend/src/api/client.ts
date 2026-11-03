@@ -12350,21 +12350,99 @@ export interface StockMaterialXuatRow {
   chua_gia_goc?: boolean;
 }
 
-/** Một dòng tab "Chuyển kho" của ngăn mặt hàng: lô nhận về (`in`) hoặc dòng chuyển đi (`out`). */
-export interface StockMaterialChuyenRow {
+/** Một dòng lịch sử CHUYỂN KHO (03/11/2026): một lần chuyển × một mặt hàng × một vị trí lấy — tab
+ *  "Lịch sử chuyển kho" của ngăn mặt hàng và tab Điều chuyển của trang kho. Không số phiếu. */
+export interface ChuyenKhoRow {
   key: string;
-  chieu: "in" | "out";
-  ngay: string;
+  luc: string;
+  hang_loai: HangLoai;
+  hang_id: number;
+  hang_ma: string | null;
+  hang_ten: string | null;
+  /** Nhãn khổ của lô; "" khi không khổ. */
+  kho: string;
+  dvt: string | null;
+  kho_tu: string;
+  lay_o: string | null;
+  kho_den: string;
+  cat_o: string | null;
+  so_luong: number;
+  /** Tổng giá vốn — null khi người xem không thấy giá ở kho này. */
+  gia_tri: number | null;
+  nguoi: string | null;
+  /** Đơn vị xem được của dòng (gốc đứng đầu, `he_so` = số đơn vị gốc trong 1 đơn vị) — cột ĐVT. */
+  don_vi_xem?: { ma: string; ten: string; he_so: number }[] | null;
+}
+
+/** Một trang tab Điều chuyển của trang kho: dòng + giá trị chọn của nút Lọc. */
+export interface ChuyenKhoPage {
+  items: ChuyenKhoRow[];
+  total: number;
+  chon: Record<string, GiaTriChonNgan[]>;
+}
+
+/** Một thông tin đổi trong một lần sửa: Trước → Sau, Chênh khi là số. */
+export interface LichSuSuaDoi {
+  thong_tin: string;
+  truoc: string;
+  sau: string;
+  chenh: number | null;
+  don_vi: string;
+  /** Hai vế dạng số để quy theo ĐVT người xem chọn; chữ thì null. */
+  truoc_so: number | null;
+  sau_so: number | null;
+}
+
+/** Một dòng tab "Lịch sử nhập xuất" của ngăn mặt hàng: một lô nhập hoặc một dòng phiếu xuất. */
+export interface NhapXuatRow {
+  key: string;
+  luc: string;
+  viec: "nhap" | "xuat";
   voucher_id: number | null;
   voucher_ma: string | null;
   so_luong: number;
-  don_gia: number | null;
-  chua_gia_goc: boolean;
+  /** Tồn của dòng tồn tại kho ngay sau lần này (đơn vị gốc). */
+  ton_sau: number;
   vi_tri: string | null;
   hsd: string | null;
+  don_gia: number | null;
+  gia_tri: number | null;
+  chua_gia_goc: boolean;
+  nguoi: string | null;
 }
 
-export type TabLichSuMatHang = "lo_ton" | "nhap" | "xuat" | "chuyen";
+/** Giá trị chọn được trong nút Lọc của một tab ngăn mặt hàng, kèm số dòng. */
+export interface GiaTriChonNgan {
+  value: string;
+  nhan: string;
+  so: number;
+}
+
+/** Ô tìm, kỳ và điều kiện lọc của một tab ngăn mặt hàng — gửi máy chủ. */
+export interface LocNganMatHang {
+  q?: string;
+  tu_ngay?: string;
+  den_ngay?: string;
+  viec?: string[];
+  nguoi?: string[];
+  vi_tri?: string[];
+  kho_tu?: string[];
+  kho_den?: string[];
+}
+
+/** Một lần sửa ở tab "Lịch sử sửa" của ngăn mặt hàng: ai, lúc nào, việc gì, ở đâu, ghi chú. */
+export interface LichSuSuaRow {
+  id: number;
+  luc: string;
+  nguoi: string | null;
+  viec: string;
+  /** Ghi chú người dùng gõ (lúc sửa tồn hoặc sửa lại ở tab). Máy không tự điền. */
+  ghi_chu: string;
+  ghi_chu_nguoi: string | null;
+  dong: LichSuSuaDoi[];
+}
+
+export type TabLichSuMatHang = "lo_ton" | "nhap_xuat" | "chuyen" | "sua";
 
 /** MỘT trang của một tab ngăn mặt hàng — cắt ở máy chủ, kèm số dòng mọi tab. */
 export interface StockMaterialHistoryPage {
@@ -12378,9 +12456,16 @@ export interface StockMaterialHistoryPage {
   page: number;
   size: number;
   dem: Record<TabLichSuMatHang, number>;
+  /** Số dòng của tab đang mở sau khi lọc. */
+  tong: number;
+  /** Giá trị chọn được của từng điều kiện lọc của tab đang mở. */
+  chon: Record<string, GiaTriChonNgan[]>;
   lo: StockLot[];
-  xuat: StockMaterialXuatRow[];
-  chuyen: StockMaterialChuyenRow[];
+  nhap_xuat: NhapXuatRow[];
+  chuyen: ChuyenKhoRow[];
+  sua: LichSuSuaRow[];
+  /** Được sửa ghi chú tab Lịch sử sửa (ô quyền Thêm, xoá hàng của kho). */
+  sua_ghi_chu: boolean;
 }
 
 /** Lịch sử 1 mã hàng tại 1 kho: NHẬP = các lô (cả đã hết) · XUẤT = dòng phiếu xuất. */
@@ -12777,8 +12862,8 @@ export const api = {
    *  thành viên một phòng ban "Tổ KCS" (mg 0306) — không phải ô quyền của vai. */
   myAccess(
     token: string,
-  ): Promise<{ modules: string[]; permissions: ModuleCapability[] }> {
-    return authed<{ modules: string[]; permissions: ModuleCapability[] }>(
+  ): Promise<{ modules: string[]; permissions: ModuleCapability[]; phan_he_tat?: string[] }> {
+    return authed<{ modules: string[]; permissions: ModuleCapability[]; phan_he_tat?: string[] }>(
       "/api/auth/permissions",
       token,
     );
@@ -14579,6 +14664,10 @@ export const api = {
     },
     createRequest(token: string, input: DeliveryRequestInput): Promise<DeliveryRequest> {
       return authed<DeliveryRequest>("/api/giao-hang/requests", token, { method: "POST", body: JSON.stringify(input) });
+    },
+    /** Xuất hàng ở đơn bán — chỉ bản cài TẮT giao hàng (docs/prd-tat-phan-he-theo-ban-cai.md). */
+    xuatHang(token: string, input: DeliveryRequestInput & { ghi_chu?: string | null }): Promise<{ request_code: string; phieu_kho: string | null }> {
+      return authed("/api/giao-hang/xuat-hang", token, { method: "POST", body: JSON.stringify(input) });
     },
     updateRequest(token: string, id: number, input: Partial<DeliveryRequestInput>): Promise<DeliveryRequest> {
       return authed<DeliveryRequest>(`/api/giao-hang/requests/${id}`, token, { method: "PUT", body: JSON.stringify(input) });
@@ -17761,7 +17850,7 @@ export const api = {
           token,
         );
       },
-      /** Một trang của một tab ngăn mặt hàng (Lô tồn / Nhập / Xuất / Chuyển kho), cắt ở máy chủ. */
+      /** Một trang của một tab ngăn mặt hàng (Lô tồn / Nhập xuất / Chuyển kho / Sửa), lọc + cắt ở máy chủ. */
       lichSuTrang(
         token: string,
         hangLoai: HangLoai,
@@ -17771,6 +17860,7 @@ export const api = {
         page: number,
         size: number,
         giay?: DongTonGiay,
+        loc: LocNganMatHang = {},
       ): Promise<StockMaterialHistoryPage> {
         const qs = new URLSearchParams({ kho_id: String(khoId), tab, page: String(page), size: String(size) });
         if (giay) {
@@ -17778,10 +17868,51 @@ export const api = {
           qs.set("kho_rong", String(giay.kho_rong));
           qs.set("kho_dai", String(giay.kho_dai));
         }
+        for (const [k, v] of Object.entries(loc)) {
+          if (Array.isArray(v)) v.forEach((x) => qs.append(k, x));
+          else if (v) qs.set(k, v);
+        }
         return authed<StockMaterialHistoryPage>(
           `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su-trang?${qs.toString()}`,
           token,
         );
+      },
+      /** Ghi / sửa ghi chú một lần sửa ở tab Lịch sử sửa của ngăn mặt hàng. */
+      suaGhiChuLanSua(
+        token: string,
+        hangLoai: HangLoai,
+        hangId: number,
+        logId: number,
+        khoId: number,
+        ghiChu: string,
+        giay?: DongTonGiay,
+      ): Promise<LichSuSuaRow> {
+        const qs = new URLSearchParams({ kho_id: String(khoId) });
+        if (giay) {
+          if (giay.goc) qs.set("goc", giay.goc);
+          qs.set("kho_rong", String(giay.kho_rong));
+          qs.set("kho_dai", String(giay.kho_dai));
+        }
+        return authed<LichSuSuaRow>(
+          `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su-sua/${logId}/ghi-chu?${qs.toString()}`,
+          token,
+          { method: "PUT", body: JSON.stringify({ ghi_chu: ghiChu }) },
+        );
+      },
+      /** Tab Điều chuyển của trang một kho: mọi lần chuyển đi / nhận về, một dòng một mặt hàng × vị
+       *  trí lấy. Kỳ theo ngày chuyển, ô tìm theo mã / tên vật tư, Lọc từ kho / sang kho / người
+       *  chuyển — lọc + cắt trang ở máy chủ. */
+      chuyenKho(
+        token: string,
+        khoId: number,
+        loc: LocNganMatHang & { page: number; size: number },
+      ): Promise<ChuyenKhoPage> {
+        const qs = new URLSearchParams({ page: String(loc.page), size: String(loc.size) });
+        if (loc.q) qs.set("q", loc.q);
+        if (loc.tu_ngay) qs.set("tu_ngay", loc.tu_ngay);
+        if (loc.den_ngay) qs.set("den_ngay", loc.den_ngay);
+        for (const k of ["kho_tu", "kho_den", "nguoi"] as const) for (const v of loc[k] ?? []) qs.append(k, v);
+        return authed(`/api/kho/phieu/chuyen-kho/${khoId}?${qs.toString()}`, token);
       },
       /** Tổng xuất THƯỜNG `soNgay` ngày qua của một dòng tồn (hộp đặt ngưỡng tính bình quân). */
       tongXuat(

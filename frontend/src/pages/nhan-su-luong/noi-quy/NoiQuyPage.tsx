@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { ApiError, api, assetUrl, type NoiQuyRecord } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan } from "../../../auth/permissions";
+import { useCan, useTenNhomNhanSu } from "../../../auth/permissions";
 import { Button } from "../../../components/Button";
 import { ConfirmDialog } from "../../../components/ConfirmDialog";
 import { EmptyRow } from "../../../components/EmptyState";
@@ -82,6 +82,7 @@ function isImage(row: NoiQuyRecord): boolean {
 
 export function NoiQuyPage() {
   const { token } = useAuth();
+  const tenNhom = useTenNhomNhanSu();
   const can = useCan();
   const canCreate = can("noi_quy", "create");
   const canDelete = can("noi_quy", "delete");
@@ -227,7 +228,7 @@ export function NoiQuyPage() {
               ⚠ Lớp cũ `ns__eyebrow` KHÔNG có CSS ở bất kỳ file nào (nên phải gõ HOA bằng tay
               mới ra dáng eyebrow) — dùng `eyebrow` của global.css. Mục này vừa được dời sang
               section "Nhân sự & Lương" nên chữ ở đây phải khớp tên section đó. */}
-          <p className="eyebrow">Nhân sự &amp; Lương</p>
+          <p className="eyebrow">{tenNhom}</p>
           <h1 className="ns__title">Nội quy công ty</h1>
         </div>
         {/* ⚠ `variant="primary"` trong code này ra màu NAVY. Hành động chính = `accent`. */}

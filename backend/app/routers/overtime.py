@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
+from ..phan_he import CHAM_CONG, chan_khi_tat
 from ..deps import (
     get_current_user,
     CurrentUser,
@@ -60,7 +61,8 @@ from ..services.overtime_service import (
 )
 from ..services.rbac_service import AuthorizationService
 
-router = APIRouter(prefix="/api/overtime", tags=["overtime"])
+router = APIRouter(prefix="/api/overtime", tags=["overtime"],
+                   dependencies=[Depends(chan_khi_tat(CHAM_CONG))])
 
 MODULE = "tang_ca"
 

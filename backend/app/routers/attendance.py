@@ -11,6 +11,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 
+from ..phan_he import CHAM_CONG, chan_khi_tat
 from ..deps import (
     get_current_user,
     CurrentUser,
@@ -84,7 +85,8 @@ from ..services.attendance_service import (
     min_to_hhmm,
 )
 
-router = APIRouter(prefix="/api/attendance", tags=["attendance"])
+router = APIRouter(prefix="/api/attendance", tags=["attendance"],
+                   dependencies=[Depends(chan_khi_tat(CHAM_CONG))])
 
 # Màn CHẤM CÔNG có khoá RIÊNG từ 10/08/2026 — trước đây dùng chung `nhan_su` với màn Hồ sơ
 # nhân sự, nên cấp quyền xem hồ sơ là mở luôn bảng công cả công ty.

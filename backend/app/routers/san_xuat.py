@@ -32,6 +32,7 @@ from fastapi import (
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..phan_he import SUA_CHUA, chan_khi_tat
 from ..deps import (
     get_authorization_service, get_current_user, require_permission, require_quyen_to,
 )
@@ -747,7 +748,8 @@ def tam_dung(
     return res
 
 
-@router.post("/work-items/{cong_viec_id}/su-co", response_model=SuCoKetQuaOut)
+@router.post("/work-items/{cong_viec_id}/su-co", response_model=SuCoKetQuaOut,
+             dependencies=[Depends(chan_khi_tat(SUA_CHUA))])
 def bao_su_co(
     cong_viec_id: int,
     body: SuCoIn,

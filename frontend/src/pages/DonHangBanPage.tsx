@@ -17,7 +17,7 @@ import {
   ChipTT, ChonCot, LocNhanhTrangThai, OTim, rongLuoi, TieuDeSapXep, ngayVN, soVN, tenKhachGon, useCauHinhLuoi, type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { useAuth } from "../auth/useAuth";
-import { useCan } from "../auth/permissions";
+import { useCan, useTat } from "../auth/permissions";
 import {
   BangSanXuatMon, BuocGiaoHang, CanhBaoTre, ChanKhung, TomTat, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
   viecTiepTheo,
@@ -564,6 +564,7 @@ function OrderDrawer({
 }) {
   const { token } = useAuth();
   const can = useCan();
+  const tatGiao = useTat()("giao_hang");
   const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   // In phiếu xuất kho bán hàng / 02-VT theo MỘT yêu cầu, sau khi kho ghi sổ (13/10/2026). Nút "Xem
@@ -686,7 +687,7 @@ function OrderDrawer({
   const giaoSub = !isChotDone ? "—"
     : giaoDone ? "đã giao đủ"
     : td && tt.giaoPct > 0 ? `đủ ${soMonGiaoDu}/${tt.soMon} món`
-    : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} yêu cầu mở`
+    : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} ${tatGiao ? "lần xuất" : "yêu cầu"} mở`
     : order.delivery_committed_date ? `hạn ${ngayNgan(order.delivery_committed_date)}` : "—";
 
   const chotSub = order.status === "cancelled" ? "đã hủy"
@@ -717,6 +718,7 @@ function OrderDrawer({
     hanGiao: order.delivery_committed_date,
     td,
     hoaDon: invoiceStage,
+    xuat: tatGiao,
   });
   const khungO = (k: typeof activeStep) => `dhb__chang-o${activeStep === k ? " is-mo" : ""}`;
   const CHANG: { k: typeof activeStep; nhan: string; sub: string; xong: boolean; canhBao?: boolean }[] = [
@@ -1018,7 +1020,7 @@ function OrderDrawer({
                 </div>
 
                 <div className={khungO("giao")}>
-                  <TheChang tieuDe="Giao hàng">
+                  <TheChang tieuDe={tatGiao ? "Xuất hàng" : "Giao hàng"}>
                     <BuocGiaoHang order={order} td={td} taiLai={taiTienDo} onIn={setInYc} navigate={navigate} />
                   </TheChang>
                 </div>
@@ -1304,6 +1306,7 @@ function InvoicePanel({
   onChanged: () => Promise<void>;
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
+  const lan = useTat()("giao_hang") ? "lần xuất" : "lượt";
   const { token } = useAuth();
   const today = homNayVN();
   // Lượt đang ghi hóa đơn: hóa đơn lập theo từng lượt khách đã nhận, không vượt hàng của lượt.
@@ -1546,7 +1549,7 @@ function InvoicePanel({
               <table className="dhb__g dhb__hd">
                 <thead>
                   <tr>
-                    <th>Lượt giao</th>
+                    <th>{lan === "lượt" ? "Lượt giao" : "Lần xuất"}</th>
                     <th className="dhb__text-right">Giá trị hàng</th>
                     <th>Số hóa đơn</th>
                     <th>Ký hiệu</th>
@@ -1649,8 +1652,9 @@ function InvoicePanel({
           )}
 
           <ChanKhung chu={luotGiao.length === 0 && order.status === "ordered"
-            ? "Hóa đơn ghi theo hàng khách đã nhận. Chưa có lượt nào giao xong."
-            : "Hóa đơn ghi theo từng lượt khách đã nhận. Chỉ hóa đơn đã ghi mới thành công nợ phải thu."} />
+            ? (lan === "lượt" ? "Hóa đơn ghi theo hàng khách đã nhận. Chưa có lượt nào giao xong."
+              : "Hóa đơn ghi theo hàng đã xuất. Chưa có lần xuất nào kho ghi sổ xong.")
+            : `Hóa đơn ghi theo từng ${lan === "lượt" ? "lượt khách đã nhận" : "lần xuất"}. Chỉ hóa đơn đã ghi mới thành công nợ phải thu.`} />
         </>
       )}
       {/* Popup gắn vào body: khung chi tiết đơn có thể đang trượt (transform) làm `position: fixed`
@@ -1659,7 +1663,7 @@ function InvoicePanel({
         <div className="dhb__modal-overlay" style={{ zIndex: 80 }} onClick={(event) => { event.stopPropagation(); if (!saving) setLuotGhi(null); }}>
             <form className="dhb__modal-content dhb__invoice-form dhb__invoice-form--popup" onSubmit={createInvoice}
               onClick={(event) => event.stopPropagation()}>
-              <h3 className="dhb__modal-title">Ghi nhận hóa đơn cho lượt {luotGhi?.ma}</h3>
+              <h3 className="dhb__modal-title">Ghi nhận hóa đơn cho {lan} {luotGhi?.ma}</h3>
               <p className="dhb__invoice-lead">Xuất hóa đơn điện tử xong thì chép thông tin trên hóa đơn vào đây.</p>
               <div className="dhb__invoice-form-grid">
                 <label>

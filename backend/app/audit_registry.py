@@ -233,6 +233,9 @@ _HD += _dong("kho", "kho", {
     "kho_phieu_huy": "Huỷ phiếu kho",
     # Thêm / cập nhật / xoá hàng ngay trên màn Tồn kho của một kho (28/10/2026).
     "kho_hang_nhap_tay": "Nhập tay tồn kho",
+    # Từ 03/11/2026 nhập tay ghi MỘT dòng MỘT dòng tồn (target `ton:…`) để ngăn mặt hàng đọc lại.
+    "kho_ton_sua": "Sửa tồn một mặt hàng",
+    "kho_muc_ton": "Đặt mức tồn",
     "kho_hang_xoa": "Xoá hàng khỏi kho",
 })
 _HD += _dong("kho", "dm_kho_hang", {

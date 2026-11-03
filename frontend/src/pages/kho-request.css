@@ -1089,14 +1089,156 @@ input.kho-num,
   min-height: 0;
   padding-bottom: var(--sp-6, 32px);
 }
-/* Bảng "SL chuyển từng mặt hàng" trong popup điều chuyển hàng loạt — tách khỏi ô chọn kho phía trên. */
-.kho-dc-lines {
-  margin-top: var(--sp-3);
-  overflow-x: auto;
+/* Hộp "Chuyển kho" một bước (03/11/2026). Rộng theo laptop 1000px; đầu + chân đứng yên, chỉ lưới
+   giữa cuộn. Lưới dùng khuôn bảng tồn (`lds-sheet` + `lds-g`); ô gõ nằm phẳng trong ô lưới. */
+.cdlg.kdc {
+  max-width: 1000px;
 }
-.kho-dc-lines .rc-input.kho-num {
+.kdc__dau {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 14px 20px 14px 24px;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.kdc__tieu {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: var(--fw-regular);
+  color: var(--ink);
+}
+.kdc__kho-tu {
+  color: var(--ash-2);
+}
+/* Kho nhận: nút phân đoạn, kho đang chọn nổi nền trắng. */
+.kdc__seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--rule-hair);
+}
+.kdc__seg button {
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ash);
+  cursor: pointer;
+}
+.kdc__seg button:hover {
+  color: var(--ink);
+}
+.kdc__seg button.chon {
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15);
+}
+.kdc__dinh {
+  flex: none;
+  padding: 8px 24px 0;
+}
+.kdc__thanh {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 24px 8px;
+  font-size: 13px;
+}
+.kdc__khung {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 24px;
+}
+.kdc__cuon {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+.kdc__cuon .lds-g thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+/* Ô gõ trong lưới: phẳng, nền giấy nhạt để biết là ô nhập, viền khi đang gõ. */
+.lds-g td.kdc__o-td {
+  padding: 3px 6px;
+  overflow: visible;
+}
+.kdc__o {
   width: 100%;
-  min-width: 88px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 0 8px;
+  background: var(--paper);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+}
+.kdc__o:hover {
+  border-color: var(--rule-soft);
+}
+.kdc__o:focus {
+  border-color: var(--ink);
+  background: var(--canvas);
+}
+.kdc__o::placeholder {
+  color: var(--lds-mo, var(--ash-2));
+}
+.kdc__o.kdc__o-so {
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.kdc__dinh .banner {
+  margin-top: 10px;
+}
+.kdc__chan {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: 14px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--rule-soft);
+  background: var(--paper);
+}
+.kdc__tom {
+  font-size: 13px;
+  color: var(--ash-2);
+}
+.kdc__nut {
+  display: flex;
+  gap: 8px;
+}
+@media (max-width: 720px) {
+  .kdc__dau,
+  .kdc__dinh,
+  .kdc__thanh,
+  .kdc__chan {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .kdc__khung {
+    margin: 0 16px;
+  }
+  .kdc__chan {
+    flex-wrap: wrap;
+  }
 }
 
 /* --- Bản in yêu cầu (trong PrintSheet) ----------------------------------- */

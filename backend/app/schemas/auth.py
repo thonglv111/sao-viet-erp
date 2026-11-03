@@ -123,3 +123,5 @@ class PermissionsOut(BaseModel):
 
     modules: list[str]
     permissions: list[ModuleCapability] = []
+    # Phân hệ tắt theo bản cài (`app.phan_he`) — giao diện ẩn phần nằm trong màn khác.
+    phan_he_tat: list[str] = []

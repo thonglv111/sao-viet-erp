@@ -1,0 +1,30 @@
+/* Tab "Lịch sử sửa" của ngăn mặt hàng — lưới phương án B (03/11/2026). */
+.lss td { vertical-align: top; }
+.lss tbody tr:not(.lss-cuoi) td { border-bottom-color: transparent; }
+.lss-gio { white-space: nowrap; }
+.lss-truoc { color: var(--tt-slate-fg); }
+.lss-tang { color: var(--tt-la-fg); }
+.lss-giam { color: var(--tt-do-fg); }
+.lss-ghi { white-space: normal; min-width: 180px; }
+.lss-chu { white-space: pre-wrap; }
+.lss-goi-y { color: var(--tt-slate-dot); }
+.lss-o-sua {
+  display: block; width: 100%; min-height: 26px; margin: -4px -6px; padding: 4px 6px;
+  border: 1px solid transparent; border-radius: 6px; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: text;
+}
+.lss-o-sua:hover, .lss-o-sua:focus-visible { border-color: var(--tt-xam-bg); outline: none; }
+.lss-o-nhap {
+  display: block; width: 100%; padding: 4px 6px; border: 1px solid var(--tt-xanh-dot);
+  border-radius: 6px; font: inherit; resize: vertical;
+}
+.lss-loi { margin-top: 4px; color: var(--tt-do-fg); font-size: 12px; }
+.lss-chip {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
+  border-radius: 11px; font-size: 12px; white-space: nowrap;
+  background: var(--tt-xam-bg); color: var(--tt-xam-fg);
+}
+.lss-chip--lam { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.lss-chip--xanh { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.lss-chip--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.lss-chip--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }

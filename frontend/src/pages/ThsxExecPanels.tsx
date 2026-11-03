@@ -19,6 +19,7 @@ import type {
   SxVatTuDeNghiIn, SxVatTuDeNghiDongIn, SxTranGhi, SxVatTuNhapLaiIn, SxVatTuCapKeHoach, SxWorkItem, HangLoai,
 } from "../api/client";
 import { ApiError } from "../api/client";
+import { useTat } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icons";
 import { ChipTT, OTim, type MauTT } from "../components/LuoiDs";
@@ -468,7 +469,7 @@ function nguonTranGhi(t: SxTranGhi): string {
  *  Số của mẻ là MỘT ô "Số lượng làm được" (18/09/2026): tổ không tự chia tổng/tốt/hỏng — hàng lỗi do
  *  KCS phát hiện và ghi. Máy chủ vẫn giữ luật `tong = tot + hong` nên gửi tong = tot = số đó, hong = 0. */
 export function BatchForm({
-  cv, khoan, busy, tranGhi, nguoiGhi = [], toKhac, giaoSang = null, onXong, exec,
+  cv, khoan: khoanVao, busy, tranGhi, nguoiGhi = [], toKhac, giaoSang = null, onXong, exec,
 }: {
   cv: SxWorkItemChiTiet["cong_viec"]; busy: boolean;
   khoan: SxKhoanCongDoan | null;
@@ -483,6 +484,9 @@ export function BatchForm({
   toKhac?: NguoiToKhac;
   onXong: (ketQua: SxKetQuaNhanh[]) => void; exec: ThsxExec;
 }) {
+  // Bản cài tắt khoán (`useTat`): ghi sản lượng vẫn đủ, chỉ bỏ khối Khoán (giá, mặt in, bậc, tuỳ chọn
+  // ra tiền, việc phát sinh) — không còn gì để tính tiền.
+  const khoan = useTat()("khoan") ? null : khoanVao;
   // Người tổ mình được tick — sẵn mọi người đi làm hôm đó.
   const [chonNguoi, setChonNguoi] = useState<Set<number>>(
     () => new Set(nguoiGhi.filter((n) => n.tick_san).map((n) => n.employee_id)));

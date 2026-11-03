@@ -313,6 +313,15 @@ describe("⭐ Món có lệnh mà đủ hàng nhờ TỒN CÓ SẴN của mã (D
     expect(v.the.map((x) => x.nhan)).toContain("LSX26-0005 vẫn chạy dù đã đủ hàng");
   });
 
+  it("bản cài tắt giao hàng: việc tiếp theo là Xuất hàng, nút ghi Xem xuất hàng", () => {
+    const v = viecTiepTheo({
+      trangThai: "ordered", canCoc: false, duCoc: true, thieuCoc: 0, chuyenSxLuc: "2026-10-05T06:54:32Z",
+      gap: false, hanGiao: null, td: { ...TD, cum: [tuTon] }, hoaDon: "none", xuat: true,
+    })!;
+    expect(v.cau).toBe("Xuất hàng");
+    expect(v.nut?.nhan).toBe("Xem xuất hàng");
+  });
+
   it("bảng Sản xuất nói rõ hàng đến từ tồn có sẵn, không ghi kho đã nhận đủ", () => {
     render(<BangSanXuatMon td={{ ...TD, cum: [tuTon] }} />);
     expect(screen.getByText("1.000 / 1.000 cuốn")).toBeTruthy();

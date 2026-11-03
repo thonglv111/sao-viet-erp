@@ -17,7 +17,7 @@ import {
   type UserBrief,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan, useReloadPermissions } from "../../../auth/permissions";
+import { useCan, useReloadPermissions, useTat, useTenNhomNhanSu } from "../../../auth/permissions";
 import { NhanBanVaiTroModal } from "./NhanBanVaiTroModal";
 import {
   PanelChonMot,
@@ -105,6 +105,9 @@ export function DepartmentsPage({
   navigate,
 }: { onDeptChanged?: () => void; navigate?: NavigateFn } = {}) {
   const { token, user } = useAuth();
+  // Bản cài tắt lương / khoán / giao hàng (`useTat`): ẩn ô chỉ có nghĩa với phân hệ đó.
+  const tat = useTat();
+  const tenNhom = useTenNhomNhanSu();
   const can = useCan();
   const reloadPermissions = useReloadPermissions();
   const canCreateDept = can("phong_ban", "create");
@@ -686,12 +689,12 @@ export function DepartmentsPage({
 
   // Tỷ lệ thử việc chung toàn công ty — chỉ để HIỂN THỊ (read-only) ở form phòng.
   useEffect(() => {
-    if (!token) return;
+    if (!token || tat("luong")) return;
     api.luong
       .getParams(token)
       .then((p) => setCompanyProbationRatio(p.probation_ratio))
       .catch(() => setCompanyProbationRatio(null));
-  }, [token]);
+  }, [token, tat]);
 
   // Lọc ở MÁY CHỦ: có điều kiện thì hỏi `/api/departments` kèm tham số — máy chủ trả phòng KHỚP
   // (`khop`) cùng tổ tiên của chúng. Danh sách hiện phẳng các phòng khớp; sơ đồ giữ cả tổ tiên để
@@ -1758,7 +1761,7 @@ export function DepartmentsPage({
     <main className="depts rdx-dept">
       <header className="rdx-dept__head">
         <div className="rdx-dept__head-main">
-          <p className="eyebrow">Nhân sự &amp; Lương</p>
+          <p className="eyebrow">{tenNhom}</p>
           <h1 className="depts__title">Phòng ban</h1>
         </div>
 
@@ -2217,7 +2220,7 @@ export function DepartmentsPage({
                           </div>
                         );
                       })}
-                      <div className="rdx-ov__item rdx-ov__item--wide">
+                      {!tat("luong") && <div className="rdx-ov__item rdx-ov__item--wide">
                         <span className="rdx-ov__k">Lương thử việc</span>
                         <span className="rdx-ov__v">
                           {companyProbationRatio != null
@@ -2227,7 +2230,7 @@ export function DepartmentsPage({
                         <span className="rdx-ov__note">
                           Áp chung toàn công ty, đổi ở Cấu hình lương
                         </span>
-                      </div>
+                      </div>}
                     </div>
 
                     {(childrenOf.get(currentDept.id)?.length ?? 0) > 0 && (
@@ -2951,7 +2954,7 @@ export function DepartmentsPage({
                 tiền. Quyết định AI hiện trong tab Nhân viên giao hàng và ai ăn khoán km.
                 Tắt cờ khi tài xế của phòng còn chuyến chưa ghi kết quả thì máy chủ CHẶN (400,
                 hiện ở `saveError`). */}
-            <div className="field depts__field--full">
+            {!tat("giao_hang") && <div className="field depts__field--full">
               <div
                 className={`rdx-switch-card${editLaGiaoHang ? " is-checked" : ""}`}
                 onClick={() => {
@@ -2976,12 +2979,12 @@ export function DepartmentsPage({
                 </div>
                 <div className="rdx-toggle-switch" aria-hidden="true" />
               </div>
-            </div>
+            </div>}
 
             {/* Switch Card "Tổ in" — KHÔNG kế thừa cây con (như cờ Giao hàng). Khách chốt
                 15/09/2026: thợ in ăn khoán thì ngày CN / lễ đi làm KHÔNG có công gốc — 2 / 3 / 5
                 công trả hết ở phần thêm, bù lỗ theo công không đếm ngày đó. */}
-            <div className="field depts__field--full">
+            {!tat("khoan") && <div className="field depts__field--full">
               <div
                 className={`rdx-switch-card${editLaToIn ? " is-checked" : ""}`}
                 onClick={() => {
@@ -3005,10 +3008,10 @@ export function DepartmentsPage({
                 </div>
                 <div className="rdx-toggle-switch" aria-hidden="true" />
               </div>
-            </div>
+            </div>}
 
             {/* Thuộc tính lương thử việc */}
-            <div className="field depts__field--full">
+            {!tat("luong") && <div className="field depts__field--full">
               <span className="field__label depts__label">Tỷ lệ Lương thử việc</span>
               <div className="rdx-info-card">
                 <span className="rdx-info-card__badge">
@@ -3020,7 +3023,7 @@ export function DepartmentsPage({
                   Tỷ lệ lương thử việc áp dụng chung toàn công ty (Cấu hình tại <strong>Lương → Cấu hình lương</strong>)
                 </span>
               </div>
-            </div>
+            </div>}
           </div>
         </ConfirmDialog>
       )}

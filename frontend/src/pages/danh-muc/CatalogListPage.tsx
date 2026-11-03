@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Boxes, CircleDot, MapPin, Ruler, Truck, Users, Wrench, type LucideIcon } from "lucide-react";
 
 import { useAuth } from "../../auth/useAuth";
-import { useCan } from "../../auth/permissions";
+import { useCan, useTat } from "../../auth/permissions";
 import { Button } from "../../components/Button";
 import { trangHopLe } from "../../components/Pager";
 import { PhanTrangDayDu } from "../../components/PhanTrangDayDu";
@@ -79,6 +79,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
 }) {
   const { token } = useAuth();
   const can = useCan();
+  const tat = useTat();
   // Nạp bảng nhãn ĐƠN VỊ + CHẶNG dòng giấy cho cả trang lẫn drawer con: cột "Đơn vị" của màn Công
   // đoạn và ô chọn Đơn vị đầu vào/ra đọc `/api/don-vi/tram` (xem `tenDonVi.ts`). Gọi ở ĐÂY chứ
   // không ở từng config vì config là dữ liệu, không phải component — và một lần gọi ở gốc thì
@@ -260,7 +261,8 @@ export function CatalogListPage({ config, onMutate, navigate }: {
     { key: "ma", label: "Mã", coDinh: true, w: config.widthMa ?? RONG_MA },
     { key: "ten", label: "Tên", coDinh: true, w: config.widthTen ?? RONG_TEN },
     ...(config.anNgayTao ? [] : [{ key: "ngay", label: "Ngày tạo", w: COT_NGAY_RONG }]),
-    ...config.columns.map((c) => ({ key: c.key, label: c.label, w: c.w, n: c.n })),
+    ...config.columns.filter((c) => !c.phanHe || !tat(c.phanHe))
+      .map((c) => ({ key: c.key, label: c.label, w: c.w, n: c.n })),
   ];
   const cotTatCa: CotDM[] = coCotNut
     ? [...cotDuLieu, { key: "nut", label: "Hành động", coDinh: true, w: rongCotNut }]

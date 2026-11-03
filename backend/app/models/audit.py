@@ -50,3 +50,18 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, index=True, nullable=False
     )
+
+
+class AuditGhiChu(Base):
+    """Ghi chú NGƯỜI DÙNG gõ cho một lần sửa (tab "Lịch sử sửa" ngăn mặt hàng, 03/11/2026).
+
+    Tách khỏi `audit_logs` để dòng nhật ký giữ nguyên như lúc ghi; ghi chú thì sửa được bao nhiêu lần
+    cũng được. Chưa có dòng ở đây ⇒ tab hiện ghi chú gõ lúc sửa tồn (nằm trong `detail`)."""
+
+    __tablename__ = "audit_ghi_chu"
+
+    audit_log_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("audit_logs.id", ondelete="CASCADE"), primary_key=True)
+    noi_dung: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    nguoi_sua_ten: Mapped[str] = mapped_column(String(120), nullable=False, default="", server_default="")
+    sua_luc: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

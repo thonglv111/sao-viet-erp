@@ -212,6 +212,32 @@ export function traDonVi(
   return { goc: maDv(d.goc ?? ds.find((x) => x.la_goc)?.ma), heSo: d.he_so_ve_goc };
 }
 
+/** Đơn vị dòng đơn đổi sang được: cùng họ (cùng gốc) với ĐVT đang có — khác họ không quy được.
+ *  ĐVT dòng không nằm trong danh sách ⇒ rỗng (ô ĐVT chỉ in chữ). */
+export function donViDoiDuoc(ds: DonViDungDuoc[] | undefined, ma: string | null | undefined): DonViDungDuoc[] {
+  const dang = traDonVi(ds, ma);
+  if (!ds || !dang) return [];
+  return ds.filter((x) => traDonVi(ds, x.ma)?.goc === dang.goc && x.he_so_ve_goc > 0);
+}
+
+/** Đổi ĐVT dòng đơn: số lượng và đơn giá quy theo hệ số để thành tiền giữ nguyên (đơn giá làm tròn
+ *  đồng). Không tra được hai đơn vị cùng họ ⇒ null. */
+export function doiDonViDong(
+  line: Pick<FormLine, "unit" | "quantity" | "expected_unit_price">,
+  ds: DonViDungDuoc[] | undefined,
+  maMoi: string,
+): Pick<FormLine, "unit" | "quantity" | "expected_unit_price"> | null {
+  const cu = traDonVi(ds, line.unit);
+  const moi = traDonVi(ds, maMoi);
+  if (!cu || !moi || cu.goc !== moi.goc || !(cu.heSo > 0) || !(moi.heSo > 0)) return null;
+  const r = cu.heSo / moi.heSo;
+  return {
+    unit: ds!.find((x) => maDv(x.ma) === maDv(maMoi))!.ma,
+    quantity: Math.round((Number(line.quantity) || 0) * r * 1000) / 1000,
+    expected_unit_price: Math.round((Number(line.expected_unit_price) || 0) / r),
+  };
+}
+
 type DongGia = SupplierRow["items"][number];
 
 /** Giá của dòng bảng giá quy về ĐVT `unit` của dòng đơn (cùng họ). Cùng mã ĐVT ⇒ giá NCC báo; khác

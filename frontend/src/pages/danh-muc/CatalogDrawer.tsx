@@ -4,6 +4,7 @@
 // khai · `showIf` không lọt vào body). Sửa phần dựng `body` thì chạy lưới đó trước khi đi tiếp.
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
+import { useTat } from "../../auth/permissions";
 import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
 import { ChonNgay } from "../../components/ChonNgay";
@@ -274,9 +275,10 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     return () => { alive = false; };
   }, [token, config.fields, refTick]);
 
+  const tat = useTat();
   const visibleFields = useMemo(
-    () => config.fields.filter((f) => !f.showIf || f.showIf(form)),
-    [config.fields, form],
+    () => config.fields.filter((f) => (!f.phanHe || !tat(f.phanHe)) && (!f.showIf || f.showIf(form))),
+    [config.fields, form, tat],
   );
 
   // Tab đang mở. Màn không chia tab khai báo thì vẫn là "info" như trước; màn có chia (Máy) thì

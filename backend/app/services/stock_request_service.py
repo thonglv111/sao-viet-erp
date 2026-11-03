@@ -767,6 +767,28 @@ class StockRequestService:
         for uid in uids:
             hub.publish(uid, {"type": "notification_new"})
 
+    def thong_bao_hang_chuyen_toi(self, req: StockRequest, *, so_mat_hang: int) -> None:
+        """Chuyển kho đã ghi sổ xong: báo NGAY người kho (chuông + SSE) rằng hàng đã vào kho đích —
+        tin báo, không phải việc chờ xử lý nên không bật chấm đỏ "việc mới". Gọi SAU commit."""
+        from ..repositories.kho_hang_repo import KhoHangRepository
+        db = self.requests.db
+        uids = [
+            u for u in RoleRepository(db).kho_notify_user_ids(
+                bo_phan_id=req.bo_phan_id, creator_id=req.nguoi_tao_id,
+            ) if u != req.nguoi_tao_id
+        ]
+        if not uids:
+            return
+        kho = {i: k.ten for i, k in KhoHangRepository(db).theo_ids([req.kho_id, req.kho_nguon_id]).items()}
+        NotificationRepository(db).add_many(
+            uids, loai="kho_moi",
+            tieu_de=f"Hàng chuyển tới {kho.get(req.kho_id, 'kho')}",
+            noi_dung=f"{req.ma} từ {kho.get(req.kho_nguon_id, 'kho khác')}, {so_mat_hang} mặt hàng",
+            link_loai="kho_inbox", link_id=req.id,
+        )
+        for uid in uids:
+            hub.publish(uid, {"type": "notification_new"})
+
     def _to_tu_lap(self, req: StockRequest) -> int | None:
         """Tổ của bước nếu yêu cầu là lần đề nghị TỰ LẬP lúc phát hành lệnh, không thì None."""
         from ..models.san_xuat import SanXuatCongViec

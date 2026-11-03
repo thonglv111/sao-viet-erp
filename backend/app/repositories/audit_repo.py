@@ -11,7 +11,7 @@ from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.orm import Session
 
 from ..audit_context import hien_tai
-from ..models.audit import AuditLog
+from ..models.audit import AuditGhiChu, AuditLog
 from ..models.user import User
 
 
@@ -319,6 +319,39 @@ class AuditLogRepository:
         ).scalars():
             ra[log.target].append(log)
         return ra
+
+    def trang_theo_targets(self, targets, actions, *, offset: int = 0,
+                           limit: int | None = None) -> tuple[list[AuditLog], int]:
+        """Một TRANG vết của nhiều đối tượng gộp làm một dòng thời gian, mới nhất trước — tab Lịch sử
+        sửa của ngăn mặt hàng (dòng tồn + các lô của nó + mặt hàng ở danh mục). `limit=0` = chỉ đếm."""
+        targets = sorted(set(targets or []))
+        if not targets:
+            return [], 0
+        dk = [AuditLog.target.in_(targets), AuditLog.action.in_(list(actions))]
+        tong = int(self.db.execute(select(func.count()).select_from(AuditLog).where(*dk)).scalar() or 0)
+        if limit == 0 or not tong:
+            return [], tong
+        stmt = (select(AuditLog).where(*dk)
+                .order_by(AuditLog.created_at.desc(), AuditLog.id.desc()).offset(offset))
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        return list(self.db.execute(stmt).scalars()), tong
+
+    def ghi_chu_theo_log(self, ids) -> dict[int, AuditGhiChu]:
+        ids = list({int(i) for i in ids or []})
+        if not ids:
+            return {}
+        rows = self.db.execute(select(AuditGhiChu).where(AuditGhiChu.audit_log_id.in_(ids))).scalars()
+        return {r.audit_log_id: r for r in rows}
+
+    def dat_ghi_chu(self, log_id: int, noi_dung: str, nguoi_sua_ten: str) -> AuditGhiChu:
+        """Ghi đè ghi chú người dùng của một dòng nhật ký (chuỗi rỗng = xoá trắng, vẫn giữ dòng để
+        không quay về ghi chú gõ lúc sửa)."""
+        g = self.db.get(AuditGhiChu, log_id) or AuditGhiChu(audit_log_id=log_id)
+        g.noi_dung, g.nguoi_sua_ten, g.sua_luc = noi_dung, nguoi_sua_ten, datetime.now(timezone.utc)
+        self.db.add(g)
+        self.db.flush()
+        return g
 
     def list_for_target(self, target: str, limit: int = 50) -> list[AuditLog]:
         """Recent audit rows whose action targeted a given entity (spec-08 per-user activity)."""

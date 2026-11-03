@@ -26,7 +26,7 @@ import {
 } from "../api/client";
 import type { NavigateFn } from "../components/AppShell";
 import { useAuth } from "../auth/useAuth";
-import { useCan, useScopeOf } from "../auth/permissions";
+import { useCan, useScopeOf, useTat } from "../auth/permissions";
 import { BangLichHen, CareCalendar, useLichHen } from "./CareCalendar";
 import { TabBaoGia, TabMuaHang, TabTongQuan, ThanhKy, useSoLieuKhach, type TabSoLieu } from "./khachHangThongKe";
 import { Button } from "../components/Button";
@@ -1744,6 +1744,8 @@ function FinancialPolicyCard({
   onSaved: (c: CustomerRow) => void;
 }) {
   const { token } = useAuth();
+  // Bản cài tắt kê (In Hà Phương): ẩn rào kê và thuế TNDN trên kê, lưu thì giữ nguyên số cũ.
+  const coKe = !useTat()("ke_gia");
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1783,9 +1785,9 @@ function FinancialPolicyCard({
   const loiCk = nguoc(ck) ? "Chiết khấu tối thiểu đang lớn hơn tối đa." : ck.some((v) => v != null && v > 100) ? "Chiết khấu không quá 100%." : null;
   const loiMu = nguoc(mu) ? "Markup tối thiểu đang lớn hơn tối đa." : null;
   const ke = [docSoVN(f.ke_min_pct), docSoVN(f.ke_max_pct)];
-  const loiKe = nguoc(ke) ? "Kê tối thiểu đang lớn hơn tối đa." : ke.some((v) => v != null && v > 100) ? "Kê không quá 100%." : null;
+  const loiKe = !coKe ? null : nguoc(ke) ? "Kê tối thiểu đang lớn hơn tối đa." : ke.some((v) => v != null && v > 100) ? "Kê không quá 100%." : null;
   const thueKe = docSoVN(f.ke_thue_tndn_pct);
-  const loiThue = thueKe == null ? "Nhập % thuế TNDN trên kê (mặc định 20%)." : thueKe > 100 ? "Thuế TNDN trên kê không quá 100%." : null;
+  const loiThue = !coKe ? null : thueKe == null ? "Nhập % thuế TNDN trên kê (mặc định 20%)." : thueKe > 100 ? "Thuế TNDN trên kê không quá 100%." : null;
 
   async function save() {
     if (!token || saving || loiCk || loiMu || loiKe || loiThue) return;
@@ -1851,16 +1853,20 @@ function FinancialPolicyCard({
             <span className="kh__fin-label" title="Markup = lợi nhuận / giá vốn — đúng ô Markup% trên báo giá">Markup (trên giá vốn)</span>
             <span>{rangeText(customer.markup_min_pct, customer.markup_max_pct)}</span>
           </div>
-          <div className="kh__fin-row">
-            <span className="kh__fin-label" title="Kê tính % trên giá bán, trước kê">Kê cho phép (trên giá bán)</span>
-            <span>{rangeText(customer.ke_min_pct, customer.ke_max_pct)}</span>
-          </div>
-          <div className="kh__fin-row">
-            <span className="kh__fin-label" title="Phần kê công ty giữ lại để nộp thuế TNDN; chi lại khách phần còn lại khi hoá đơn thu đủ">
-              Thuế TNDN trên kê
-            </span>
-            <span>{`${(customer.ke_thue_tndn_pct ?? 20).toLocaleString("vi-VN")}%`}</span>
-          </div>
+          {coKe && (
+            <>
+              <div className="kh__fin-row">
+                <span className="kh__fin-label" title="Kê tính % trên giá bán, trước kê">Kê cho phép (trên giá bán)</span>
+                <span>{rangeText(customer.ke_min_pct, customer.ke_max_pct)}</span>
+              </div>
+              <div className="kh__fin-row">
+                <span className="kh__fin-label" title="Phần kê công ty giữ lại để nộp thuế TNDN; chi lại khách phần còn lại khi hoá đơn thu đủ">
+                  Thuế TNDN trên kê
+                </span>
+                <span>{`${(customer.ke_thue_tndn_pct ?? 20).toLocaleString("vi-VN")}%`}</span>
+              </div>
+            </>
+          )}
           {!canEdit && (
             <p className="kh__lock-note">Cần quyền “Thiết lập chính sách tài chính” để sửa.</p>
           )}
@@ -1914,32 +1920,36 @@ function FinancialPolicyCard({
               </span>
               {loiMu && <p className="kh__fin-loi" role="alert">{loiMu}</p>}
             </div>
-            <div className="kh__fin-dong">
-              <span className="kh__fin-nhan" title="Kê tính % trên giá bán, trước kê">Kê cho phép</span>
-              <span className="kh__fin-cum">
-                <OSoChinhSach value={f.ke_min_pct} onChange={(v) => set("ke_min_pct", v)}
-                  donVi="%" thapPhan loi={!!loiKe} ariaLabel="Kê tối thiểu" placeholder="Từ" />
-                <span className="kh__fin-phu">đến</span>
-                <OSoChinhSach value={f.ke_max_pct} onChange={(v) => set("ke_max_pct", v)}
-                  donVi="%" thapPhan loi={!!loiKe} ariaLabel="Kê tối đa" placeholder="Đến" />
-              </span>
-              {loiKe && <p className="kh__fin-loi" role="alert">{loiKe}</p>}
-            </div>
+            {coKe && (
+              <div className="kh__fin-dong">
+                <span className="kh__fin-nhan" title="Kê tính % trên giá bán, trước kê">Kê cho phép</span>
+                <span className="kh__fin-cum">
+                  <OSoChinhSach value={f.ke_min_pct} onChange={(v) => set("ke_min_pct", v)}
+                    donVi="%" thapPhan loi={!!loiKe} ariaLabel="Kê tối thiểu" placeholder="Từ" />
+                  <span className="kh__fin-phu">đến</span>
+                  <OSoChinhSach value={f.ke_max_pct} onChange={(v) => set("ke_max_pct", v)}
+                    donVi="%" thapPhan loi={!!loiKe} ariaLabel="Kê tối đa" placeholder="Đến" />
+                </span>
+                {loiKe && <p className="kh__fin-loi" role="alert">{loiKe}</p>}
+              </div>
+            )}
             <p className="kh__fin-goi-y">Để trống một đầu là không giới hạn đầu đó.</p>
           </fieldset>
 
-          <fieldset className="kh__fin-nhom">
-            <legend>Kê giá</legend>
-            <div className="kh__fin-dong">
-              <span className="kh__fin-nhan">Thuế TNDN trên kê</span>
-              <span className="kh__fin-cum">
-                <OSoChinhSach value={f.ke_thue_tndn_pct} onChange={(v) => set("ke_thue_tndn_pct", v)}
-                  donVi="%" thapPhan loi={!!loiThue} ariaLabel="Thuế TNDN trên kê" placeholder="20" />
-                <span className="kh__fin-phu">giữ lại để nộp thuế, chi khách phần còn lại</span>
-              </span>
-              {loiThue && <p className="kh__fin-loi" role="alert">{loiThue}</p>}
-            </div>
-          </fieldset>
+          {coKe && (
+            <fieldset className="kh__fin-nhom">
+              <legend>Kê giá</legend>
+              <div className="kh__fin-dong">
+                <span className="kh__fin-nhan">Thuế TNDN trên kê</span>
+                <span className="kh__fin-cum">
+                  <OSoChinhSach value={f.ke_thue_tndn_pct} onChange={(v) => set("ke_thue_tndn_pct", v)}
+                    donVi="%" thapPhan loi={!!loiThue} ariaLabel="Thuế TNDN trên kê" placeholder="20" />
+                  <span className="kh__fin-phu">giữ lại để nộp thuế, chi khách phần còn lại</span>
+                </span>
+                {loiThue && <p className="kh__fin-loi" role="alert">{loiThue}</p>}
+              </div>
+            </fieldset>
+          )}
 
           {err && <p className="kh__err" role="alert">{err}</p>}
           <div className="kh__fin-actions">

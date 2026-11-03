@@ -2947,7 +2947,9 @@ class PayrollService:
         ln.thu_nhap_chiu_thue = _round(max(0.0, gross_pre - mien_ngoai_danh_muc - comp_exempt))
         # ĐOÀN PHÍ — PHẢI TÍNH TRƯỚC KHỐI TNCN. Từ 12/08/2026 thuế TRỪ đoàn phí, nên thứ tự này
         # là bắt buộc: để nguyên chỗ cũ (sau TNCN) thì thuế ăn số đoàn phí CŨ và "Sửa 1 ô" ra khác
-        # "Tính lại". Công thức chép ĐÚNG `_compute`: insurance_base × tỷ lệ.
+        # "Tính lại". Công thức chép ĐÚNG `_compute`: MỨC NỀN (`monthly_salary` = cơ bản + trách
+        # nhiệm) × tỷ lệ — gốc chốt 16/09/2026. Trước 31/10/2026 nhánh này còn nhân `insurance_base`
+        # nên "Sửa 1 ô" ra đoàn phí khác "Tính lại" với ai có mức đóng BHXH khác mức nền.
         #
         # Hồ sơ lương TẠI CUỐI KỲ, không phải hôm nay (bản rà A5): khai mốc mới hiệu lực 01/10 trong
         # lúc còn soát tháng 9 thì "Sửa 1 ô" từng đọc cờ đoàn viên của mốc mới ⇒ số nhảy so với
@@ -2955,7 +2957,7 @@ class PayrollService:
         sal_cd = self.payroll.current_salary(ln.employee_id, self._cuoi_ky(period))
         la_doan_vien = bool(getattr(sal_cd, "union_member", False)) if sal_cd else False
         ln.cong_doan = 0.0 if (ln.is_probation or not la_doan_vien) else _round(
-            float(ln.insurance_base) * float(getattr(self.get_params(), "cong_doan_rate", 0) or 0))
+            float(ln.monthly_salary) * float(getattr(self.get_params(), "cong_doan_rate", 0) or 0))
 
         # TNCN: reset về tự tính (pit_manual=False) / ghi đè tay (pit) / else cập nhật auto theo gross mới.
         if pit_manual is False:

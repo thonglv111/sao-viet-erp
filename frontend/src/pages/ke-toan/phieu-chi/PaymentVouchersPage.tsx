@@ -18,7 +18,7 @@ import {
   ApiError, api, type CkKeChoChi, type GiaCongChoChi, type MuaHangChoChi, type PaymentVoucherRow, type TraLaiKhachChoChi,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan } from "../../../auth/permissions";
+import { useCan, useTat } from "../../../auth/permissions";
 import type { NavigateFn } from "../../../components/AppShell";
 import { Button } from "../../../components/Button";
 import {
@@ -31,7 +31,7 @@ import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { COT_GIA_CONG, HangChoGiaCong } from "./components/HangChoGiaCong";
 import { COT_MUA_HANG, dongMuaHang, HangChoMuaHang, type KhoanChi } from "./components/HangChoMuaHang";
 import { COT_TRA_LAI, HangChoTraLai } from "./components/HangChoTraLai";
-import { COT_CK_KE, HangChoCkKe } from "./components/HangChoCkKe";
+import { cotCkKe, HangChoCkKe } from "./components/HangChoCkKe";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { COT_PHIEU_CHI, VouchersTable } from "./components/VouchersTable";
 import { LapPhieuChiGop, type KhoanGop } from "./components/LapPhieuChiGop";
@@ -76,6 +76,7 @@ export function PaymentVouchersPage({
 }) {
   const { token } = useAuth();
   const can = useCan();
+  const coKe = !useTat()("ke_gia");
   // Khoá RIÊNG của màn Phiếu chi. `create` = LẬP phiếu + gán chứng từ.
   const coLap = can("phieu_chi", "create");
   const coHuy = can("phieu_chi", "cancel");
@@ -219,7 +220,7 @@ export function PaymentVouchersPage({
       : [{ key: "tl", label: "Chờ trả lại khách", mau: "cam" as const, count: tl?.length }]),
     ...(the !== "ck" && !ckLoi && (ck?.length ?? 0) === 0
       ? []
-      : [{ key: "ck", label: "Chờ chi CK / kê", mau: "cam" as const, count: ck?.length }]),
+      : [{ key: "ck", label: coKe ? "Chờ chi CK / kê" : "Chờ chi chiết khấu", mau: "cam" as const, count: ck?.length }]),
     // Đơn mua chờ chi: luôn hiện (đây là chỗ duy nhất lập phiếu theo đơn mua) — đếm ĐƠN, không cộng tiền.
     // Đếm KHOẢN (cọc, từng đợt) như dòng của hàng — cùng cách đếm "Đơn hàng chờ thu".
     { key: "mh", label: "Mua hàng chờ chi", mau: "cam", count: mh ? dongMuaHang(mh).length : undefined },
@@ -280,7 +281,7 @@ export function PaymentVouchersPage({
           </div>
         ) : the === "ck" ? (
           <div className="lds-loc__thanh tl-thanh">
-            <ChonCot cot={COT_CK_KE} {...luoiCk.chonCot} />
+            <ChonCot cot={cotCkKe(coKe)} {...luoiCk.chonCot} />
           </div>
         ) : the === "mh" ? (
           <div className="lds-loc__thanh tl-thanh" role="search">

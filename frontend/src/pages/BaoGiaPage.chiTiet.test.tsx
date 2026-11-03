@@ -59,7 +59,7 @@ describe("Tổng báo giá", () => {
 
 const get = vi.fn();
 vi.mock("../auth/useAuth", () => ({ useAuth: () => ({ token: "t" }) }));
-vi.mock("../auth/permissions", () => ({ useCan: () => () => false }));
+vi.mock("../auth/permissions", () => ({ useCan: () => () => false, useTat: () => () => false }));
 vi.mock("../api/client", async (goc) => ({
   ...(await goc<typeof import("../api/client")>()),
   api: {

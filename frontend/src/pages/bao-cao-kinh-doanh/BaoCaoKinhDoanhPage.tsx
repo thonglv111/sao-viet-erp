@@ -28,6 +28,7 @@ import {
   type BaoCaoKinhDoanhKhach,
   type BaoCaoKinhDoanhTien,
 } from "../../api/client";
+import { useTat } from "../../auth/permissions";
 import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
 import { EmptyRow } from "../../components/EmptyState";
@@ -80,6 +81,8 @@ const COT: Cot[] = [
   { key: "coc", label: "Cọc", w: 150 },
   { key: "tl", label: "Tỷ lệ báo giá", w: 110, n: true },
 ];
+// Bản cài tắt kê (PHAN_HE_TAT=ke_gia): bỏ hẳn 4 cột kê khỏi lưới và khỏi danh sách Chọn cột.
+const COT_KE = new Set(["ke", "ket", "kep", "ked"]);
 
 /** Khoá cấu hình lưới của màn. Đổi khoá khi bộ cột đổi hẳn (phương án C; 20/10/2026 gỡ Điều chỉnh,
  *  thêm sáu cột chiết khấu / kê) — cấu hình cũ (ẩn / thứ tự) của bộ cột trước không còn nghĩa. */
@@ -328,7 +331,9 @@ export function BaoCaoKinhDoanhPage() {
   const [dangXuat, setDangXuat] = useState(false);
   datMacDinhLuoi();
   const luoi = useCauHinhLuoi(MAN);
-  const cot = luoi.rongHien(luoi.xep(COT).filter((c) => !luoi.an.has(c.key)));
+  const coKe = !useTat()("ke_gia");
+  const cotDung = useMemo(() => (coKe ? COT : COT.filter((c) => !COT_KE.has(c.key))), [coKe]);
+  const cot = luoi.rongHien(luoi.xep(cotDung).filter((c) => !luoi.an.has(c.key)));
   const soGhim = luoi.soGhim(cot);
 
   const tai = useCallback(async () => {
@@ -418,7 +423,7 @@ export function BaoCaoKinhDoanhPage() {
             <button type="button" aria-pressed={xem === "bang"} onClick={() => doiXem("bang")}>Bảng</button>
             <button type="button" aria-pressed={xem === "bieu-do"} onClick={() => doiXem("bieu-do")}>Biểu đồ</button>
           </div>
-          {xem === "bang" && <ChonCot cot={COT} {...luoi.chonCot} />}
+          {xem === "bang" && <ChonCot cot={cotDung} {...luoi.chonCot} />}
         </div>
         {data && (
           <div className="bckd__ghi" aria-label="Thông tin báo cáo">

@@ -335,8 +335,6 @@ def test_dieu_chuyen_giay_tach_theo_kho_va_don_vi_goc(client):
         ]})
     assert r.status_code == 201, r.text
     assert r.json()["so_dong"] == 2
-    r = client.post(f"{BASE}/phieu/{r.json()['phieu_nhap_id']}/ghi-so", headers=adm)
-    assert r.status_code == 200, r.text
     db = SessionLocal()
     try:
         moi = sorted((lo.don_vi_goc, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau))
@@ -344,6 +342,99 @@ def test_dieu_chuyen_giay_tach_theo_kho_va_don_vi_goc(client):
         assert moi == [("kg", 1000, 0, 40.0), ("to", 780, 905, 300.0)]
     finally:
         db.close()
+
+
+def test_chuyen_kho_ghi_so_luon_va_hien_o_tab_dieu_chuyen_hai_kho(client):
+    """Bấm chuyển là hàng sang kho đích luôn (03/11/2026): cả cặp phiếu đã ghi sổ, mỗi kho thấy vế
+    của mình ở tab Điều chuyển, không lẫn vào tab Nhập/Xuất."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _ba_lo(client, kho_id, g)
+    adm = _login(client, "t_thukho")
+    den = client.post("/api/kho", json={"ten": "Kho đích"}, headers=_admin(client)).json()["id"]
+    r = client.post("/api/kho/dieu-chuyen", headers=adm, json={
+        "kho_nguon_id": kho_id, "kho_den_id": den, "items": [
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 100,
+             "don_vi_goc": "to", "kho_rong": 905, "kho_dai": 780}]})
+    assert r.status_code == 201, r.text
+    nhap_id = r.json()["phieu_nhap_id"]
+    for kho, loai in ((den, "NHAP"), (kho_id, "XUAT")):
+        r = client.get(f"{BASE}/phieu", headers=adm, params={"kho_id": kho, "nhom": "dc", "man": "ton"})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert [(v["loai"], v["trang_thai"]) for v in body["items"]] == [(loai, "posted")]
+        assert body["dem_theo_tab"]["dc"] == 1
+    r = client.get(f"{BASE}/phieu", headers=adm, params={"kho_id": den, "nhom": "nhap", "man": "ton"})
+    assert nhap_id not in [v["id"] for v in r.json()["items"]]
+    db = SessionLocal()
+    try:
+        assert sum(float(lo.sl_con_lai) for lo in db.query(StockLot).filter(StockLot.kho_id == den)) == 100
+    finally:
+        db.close()
+
+
+def test_lich_su_chuyen_kho_mot_dong_mot_vi_tri_lay(client):
+    """Tab Lịch sử chuyển kho (03/11/2026): mỗi lần chuyển × vị trí lấy một dòng, ghi đủ hai kho,
+    vị trí lấy / cất, số, giá trị, người chuyển; cả hai kho đọc ra cùng dòng, trang kho cũng vậy."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _nhap(client, kho_id, _dong(g, dvt="ram", sl=1, kr=780, kd=905, gia=1000))
+    _nhap(client, kho_id, _dong(g, dvt="to", sl=500, kr=780, kd=905, gia=2))
+    db = SessionLocal()
+    try:
+        lo1, lo2 = db.query(StockLot).filter(StockLot.hang_id == g).order_by(StockLot.id).all()
+        lo1.vi_tri, lo2.vi_tri = "A1", "A3"
+        db.commit()
+    finally:
+        db.close()
+    tk = _login(client, "t_thukho")
+    den = client.post("/api/kho", json={"ten": "Kho nhận"}, headers=_admin(client)).json()["id"]
+    r = client.post("/api/kho/dieu-chuyen", headers=tk, json={
+        "kho_nguon_id": kho_id, "kho_den_id": den, "items": [
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 700, "vi_tri": "B2",
+             "don_vi_goc": "to", "kho_rong": 905, "kho_dai": 780}]})
+    assert r.status_code == 201, r.text
+    # Đổi kệ SAU khi chuyển: dòng lịch sử vẫn ghi chỗ đã lấy lúc bấm.
+    db = SessionLocal()
+    try:
+        for lo in db.query(StockLot).filter(StockLot.hang_id == g, StockLot.kho_id == kho_id):
+            lo.vi_tri = "Z9"
+        db.commit()
+    finally:
+        db.close()
+    for kho in (kho_id, den):
+        r = client.get(f"{BASE}/phieu/mat-hang/giay/{g}/lich-su-trang", headers=_admin(client), params={
+            "kho_id": kho, "tab": "chuyen", "goc": "to", "kho_rong": 905, "kho_dai": 780})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["dem"]["chuyen"] == 2
+        dong = sorted((d["lay_o"], d["so_luong"]) for d in body["chuyen"])
+        assert dong == [("A1", 500), ("A3", 200)]
+        d = body["chuyen"][0]
+        assert d["kho_den"] == "Kho nhận" and d["kho_tu"] != "Kho nhận"
+        assert d["cat_o"] == "B2" and d["nguoi"]
+        assert "voucher_ma" not in d
+        # Lọc sang kho (04/11/2026): chỉ còn dòng sang đúng kho đó.
+        assert {c["nhan"] for c in body["chon"]["kho_den"]} == {"Kho nhận"}
+        sai = client.get(f"{BASE}/phieu/mat-hang/giay/{g}/lich-su-trang", headers=_admin(client), params={
+            "kho_id": kho, "tab": "chuyen", "goc": "to", "kho_rong": 905, "kho_dai": 780,
+            "kho_den": str(kho_id)}).json()
+        assert sai["tong"] == 0 and sai["dem"]["chuyen"] == 2
+    r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client))
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 2
+    assert {d["hang_ten"] for d in r.json()["items"]} == {"Giấy C-300"}
+    # Cột ĐVT (04/11/2026): dòng mang đơn vị xem được, gốc tờ đứng đầu, ram quy 500 tờ.
+    dv = {x["ma"]: x["he_so"] for x in r.json()["items"][0]["don_vi_xem"]}
+    assert r.json()["items"][0]["don_vi_xem"][0]["ma"] == "to" and dv["ram"] == 500
+    # Nút Lọc của tab Điều chuyển: giá trị chọn + lọc sang kho.
+    assert {c["nhan"] for c in r.json()["chon"]["kho_den"]} == {"Kho nhận"}
+    r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client), params={"kho_den": str(kho_id)})
+    assert r.json()["total"] == 0 and r.json()["chon"]["kho_tu"]
+    r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client), params={"q": "không khớp gì"})
+    assert r.json()["total"] == 0
 
 
 def test_dieu_chuyen_giay_khong_ro_don_vi_bi_chan(client):

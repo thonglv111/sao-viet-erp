@@ -323,7 +323,7 @@ Menu: **Nhân sự & Lương → Lương** — các tab: **Bảng lương tháng
 | Bảng phạt đi trễ/về sớm (tự động, theo phút) | 4 bậc — xem C.8 |
 | Khấu trừ 10% tại nguồn (HĐ dưới 3 tháng/thời vụ) — tỷ lệ / ngưỡng áp dụng | 10% / từ 2.000.000đ mỗi lần trả |
 
-> 🔴 **Không có UI đổi "cách tính thuế TNCN" (`pit_mode`) cho từng người** — dù backend có hỗ trợ 3 kiểu (luỹ tiến thường / khấu trừ 10% / miễn theo cam kết 08, xem C.8), khối chọn kiểu này đã bị ẩn khỏi cả màn Hồ sơ nhân sự lẫn màn Lương nhân viên. Muốn đổi kiểu tính thuế cho một người hiện chỉ làm được qua API trực tiếp — báo Admin nếu cần.
+> Đổi "cách tính thuế TNCN" (`pit_mode`) cho từng người: Nhân sự → hồ sơ → tab **Lương & BHXH** → **Sửa lương & BHXH** → ô **Cách tính thuế TNCN** (cần quyền sửa lương của hồ sơ; mở lại 31/10/2026 — trước đó khối chọn bị ẩn ở cả hai màn).
 
 ## C.2. Tiền cơm & Phụ cấp ca — tự tính theo ca thực làm
 

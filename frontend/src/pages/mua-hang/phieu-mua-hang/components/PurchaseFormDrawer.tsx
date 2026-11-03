@@ -19,6 +19,8 @@ import {
   applySupplierPrices,
   bestSupplierIdForLines,
   chaoGiaChoMatHang,
+  doiDonViDong,
+  donViDoiDuoc,
   lineDiscountAmount,
   lineTotal,
   lineVatAmount,
@@ -174,7 +176,7 @@ export function PurchaseFormDrawer({
   // vật tư tuỳ chọn 27/10/2026), Định lượng chỉ khi có dòng giấy.
   const coGiay = form.lines.some((l) => l.hang_loai === "giay");
   const coCotKho = form.lines.some((l) => coKho(l.hang_loai));
-  const soCot = (taoMoi ? 7 : 6) + (coCotKho ? 1 : 0) + (coGiay ? 1 : 0);
+  const soCot = (taoMoi ? 8 : 7) + (coCotKho ? 1 : 0) + (coGiay ? 1 : 0);
 
   const batTuyChon = (index: number) =>
     setMoTuyChon((s) => {
@@ -191,6 +193,7 @@ export function PurchaseFormDrawer({
     const laCoKho = coKho(line.hang_loai);
     const ds = dsCua(line);
     const dv = tenDonVi(line.unit) ?? line.unit;
+    const dvDoi = donViDoiDuoc(ds, line.unit);
     const tuyChon = chon && (moTuyChon.has(index) || (Number(line.discount_percent) || 0) > 0);
     // Giá sổ: giá cùng khổ + cùng họ đơn vị của NCC đang chọn, quy về ĐVT dòng — chỉ hiện khi đơn
     // giá gõ LỆCH sổ.
@@ -295,6 +298,24 @@ export function PurchaseFormDrawer({
             )}
           </td>
         )}
+        <td>
+          {/* Đổi ĐVT trong cùng họ (ram ↔ tờ, tấn ↔ kg): số lượng + đơn giá quy theo, thành tiền giữ. */}
+          {chon && dvDoi.length > 1 ? (
+            <select
+              className="kna-o dfa-vat"
+              aria-label={`Đơn vị tính ${line.item_name}`}
+              value={dvDoi.find((d) => d.ma.toLowerCase() === (line.unit ?? "").toLowerCase())?.ma ?? line.unit ?? ""}
+              onChange={(e) => {
+                const moi = doiDonViDong(line, ds, e.target.value);
+                if (moi) setLine(index, moi);
+              }}
+            >
+              {dvDoi.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
+            </select>
+          ) : (
+            <span title={line.de_nghi ? "Đơn vị nhà cung cấp bán" : "Đơn vị do bộ phận đề nghị khai"}>{dv}</span>
+          )}
+        </td>
         <td className="n">
           {/* SỐ LƯỢNG MUA sửa được: mua khổ to hơn rồi tề, NCC chỉ bán chẵn ram… Mặc định = số yêu cầu. */}
           {/* Đổi ĐVT theo NCC: ô trống viền vàng + dòng xám số đề nghị gốc để quy đổi — không
@@ -313,7 +334,6 @@ export function PurchaseFormDrawer({
                 quantity: Number(e.target.value.replace(",", ".").replace(/[^\d.]/g, "")) || 0,
               })}
             />
-            <span title={line.de_nghi ? "Đơn vị nhà cung cấp bán" : "Đơn vị do bộ phận đề nghị khai"}>{dv}</span>
           </label>
           {chon && line.de_nghi && (
             <div className="dfa-duoi dfa-duoi--1" title="Số lượng bộ phận đề nghị, trước khi đổi đơn vị theo nhà cung cấp">
@@ -330,7 +350,6 @@ export function PurchaseFormDrawer({
               value={line.expected_unit_price > 0 ? line.expected_unit_price.toLocaleString("vi-VN") : ""}
               onChange={(e) => setLine(index, { expected_unit_price: Number(e.target.value.replace(/\D/g, "")) || 0 })}
             />
-            <span>đ/{dv}</span>
           </label>
           {chon && lech !== 0 && (
             <div className={`dfa-duoi${lech > 0 ? " ycd-vang" : ""}`}>
@@ -557,8 +576,9 @@ export function PurchaseFormDrawer({
               {coCotKho && <col style={{ width: 124 }} />}
               {coGiay && <col style={{ width: 96 }} />}
               {taoMoi && <col style={{ width: 230 }} />}
-              <col style={{ width: 128 }} />
-              <col style={{ width: 156 }} />
+              <col style={{ width: 92 }} />
+              <col style={{ width: 112 }} />
+              <col style={{ width: 132 }} />
               <col style={{ width: 80 }} />
               <col style={{ width: 116 }} />
               <col style={{ width: 44 }} />
@@ -569,6 +589,7 @@ export function PurchaseFormDrawer({
                 {coCotKho && <th>Khổ</th>}
                 {coGiay && <th className="n">Định lượng</th>}
                 {taoMoi && <th>Nhà cung cấp</th>}
+                <th>ĐVT</th>
                 <th className="n">Số lượng</th>
                 <th className="n">Đơn giá</th>
                 <th className="n">VAT</th>

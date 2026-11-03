@@ -74,6 +74,9 @@ export interface FieldDef {
    *  ra xem là sửa dữ liệu sau lưng người dùng. */
   macDinhTheo?: (form: Record<string, unknown>) => unknown;
   jsonKey?: string;             // field lưu LỒNG trong cột JSON này (vd "fields_theo_loai")
+  /** Thuộc phân hệ tắt được theo bản cài (`useTat`, docs/prd-tat-phan-he-theo-ban-cai.md) — tắt
+   *  thì ẩn hẳn. Viết chữ thay vì import `PhanHe`: file này chỉ được import `type ReactNode`. */
+  phanHe?: "luong" | "khoan" | "hoa_hong" | "giao_hang" | "sua_chua";
 }
 
 export interface ColumnDef {
@@ -87,6 +90,9 @@ export interface ColumnDef {
   /** `extra` = dữ liệu PHỤ của chính dòng này, do `config.loadExtra` nạp song song (vd trạng thái
    *  máy lúc này). `undefined` khi chưa nạp xong hoặc dòng không có gì để nói. */
   render?: (r: Row, extra?: unknown) => ReactNode;
+  /** Thuộc phân hệ tắt được theo bản cài (`useTat`, docs/prd-tat-phan-he-theo-ban-cai.md) — tắt
+   *  thì ẩn hẳn. Viết chữ thay vì import `PhanHe`: file này chỉ được import `type ReactNode`. */
+  phanHe?: "luong" | "khoan" | "hoa_hong" | "giao_hang";
 }
 
 /** Một điều kiện của THANH LỌC chung (`pages/thanh-loc/ThanhLoc`, 06/10/2026) — chọn MỘT giá trị.

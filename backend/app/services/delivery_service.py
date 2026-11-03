@@ -58,6 +58,7 @@ from ..models.delivery import (
     YC_DA_HUY,
 )
 from ..models.delivery import LAN_GIAO_DANG_CHAY
+from ..phan_he import GIAO_HANG, tat
 from ..models.order import STATUS_ORDERED
 from ..models.stock_request import REQ_DONE
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
@@ -1296,6 +1297,27 @@ class DeliveryService:
             self.bao_tai_xe(trip, "Bạn được phân một chuyến giao mới.", viec="phan_chuyen")
         return {"trip": trip, "canh_bao": canh_bao, "phieu": phieu}
 
+    def xuat_hang(self, *, order_id, ngay_can_giao, lines, actor, scope: str,
+                  ghi_chu=None, dia_chi_id=None, lien_he_id=None) -> dict:
+        """XUẤT HÀNG ở đơn bán — bản cài tắt giao hàng (`app.phan_he`, In Hà Phương).
+
+        Không có màn Giao hàng, nhưng mọi chỗ đọc "đã giao" (đơn, tiến độ, lệnh SX, hoá đơn theo lần,
+        sợi nối kho ↔ đơn) đều đọc chuyến ⇒ vẫn lập yêu cầu + MỘT chuyến ẨN: người bấm đứng tên chuyến,
+        không xe, không lượt. Lên đơn = gửi kho luôn như đường thường; kho lập phiếu, ghi sổ đủ ⇒
+        `sau_ghi_so_xuat` tự chốt chuyến thành công. Không commit."""
+        emp = self.employees.get_by_user_id(getattr(actor, "id", 0) or 0)
+        if emp is None:
+            raise DeliveryError("Tài khoản của bạn chưa gắn hồ sơ nhân viên nên chưa xuất hàng được. "
+                                "Nhờ Nhân sự gắn hồ sơ rồi bấm lại.")
+        kq = self.tao_yeu_cau(order_id=order_id, ngay_can_giao=ngay_can_giao, lines=lines,
+                              actor=actor, scope=scope, dia_chi_id=dia_chi_id,
+                              lien_he_id=lien_he_id)
+        ke = self.len_ke_hoach(request_id=kq["request"].id, employee_id=emp.id, actor=actor,
+                               ghi_chu_phan_cong="Xuất hàng tại đơn bán", scope=scope, bao=False)
+        if ke["phieu"] is not None and (ghi_chu or "").strip():
+            ke["phieu"].ghi_chu = ghi_chu.strip()[:1000]
+        return {"request": kq["request"], "trip": ke["trip"], "phieu": ke["phieu"]}
+
     def _tu_gui_kho(self, trip, *, actor, scope):
         """Đề nghị xuất kho của chuyến vừa lên đơn. Không ghi chú tự sinh nữa (12/10/2026): khách,
         đơn, lượt, xe, tài xế kho đọc ở khối "Giao hàng" của đề nghị; ô ghi chú để người lên đơn dặn
@@ -1326,6 +1348,8 @@ class DeliveryService:
         có trước tài khoản). Ném lỗi ở đây là chặn cả thao tác nghiệp vụ chỉ vì không gửi được
         một cái toast.
         """
+        if tat(GIAO_HANG):  # chuyến ẩn của Xuất hàng: người đứng tên là người bấm, không phải tài xế
+            return
         emp = self.employees.get_by_id(getattr(trip, "employee_id", None) or 0)
         uid = getattr(emp, "user_id", None)
         if not uid:
@@ -1480,6 +1504,14 @@ class DeliveryService:
         trip = self.deliveries.get_trip(int(stock_request.delivery_trip_id))
         if trip is None or trip.trang_thai != LG_DANG_CHUAN_BI:
             return None
+        if tat(GIAO_HANG):
+            # Không tài xế, không bước giao: hàng ra khỏi kho là đã giao (Xuất hàng ở đơn bán).
+            req = self.deliveries.get_request(trip.request_id)
+            self._ghi_dong_thuc_nhan(trip, req, ket_qua=LG_THANH_CONG, so_thuc_nhan=None)
+            trip.thoi_gian_ket_thuc = datetime.now(timezone.utc)
+            self._doi_trang_thai(trip, LG_THANH_CONG, actor=actor,
+                                 ghi_chu=f"Kho đã xuất hàng — {stock_request.ma}")
+            return trip
         self._doi_trang_thai(trip, LG_DA_LAY_HANG, actor=actor,
                              ghi_chu=f"Kho đã xuất hàng — {stock_request.ma}")
         return trip
@@ -1502,6 +1534,15 @@ class DeliveryService:
         if trip is None or trip.trang_thai != LG_DANG_CHUAN_BI:
             return None
         ly_do = (getattr(stock_request, "ly_do_huy", None) or "").strip()
+        if tat(GIAO_HANG):
+            # Không ai lên đơn lại được ⇒ huỷ hẳn chuyến + yêu cầu, hàng thôi "đang giữ" cho đơn.
+            ly = (f"Kho huỷ yêu cầu xuất {stock_request.ma}"
+                  + (f": {ly_do}" if ly_do else ""))[:500]
+            self._doi_trang_thai(trip, LG_DA_HUY, actor=actor, ly_do=ly)
+            req = self.deliveries.get_request(trip.request_id)
+            if req is not None:
+                req.trang_thai, req.ly_do_huy = YC_DA_HUY, ly
+            return trip
         self._doi_trang_thai(
             trip, LG_DA_LEN_KE_HOACH, actor=actor,
             ly_do=(f"Kho huỷ yêu cầu xuất {stock_request.ma}: {ly_do}" if ly_do
