@@ -657,6 +657,8 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
                       <td style={{ paddingLeft: 36 }}>Đợt {d.seq_no}<span className="mh-tag mh-tag--vien">nhận {fmtDate(d.delivery_date)}</span></td>
                       {cotMuaCho && <td />}
                       <td>{khoChu(l.hang_loai, x.kho_rong, x.kho_dai)}</td>
+                      {coGiay && <td />}
+                      <td>{dv(x.unit)}</td>
                       <td />
                       <td className="n">{so(x.quantity)}</td>
                       <td colSpan={4} className="lds-mu">
