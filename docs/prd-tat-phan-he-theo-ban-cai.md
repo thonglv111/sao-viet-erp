@@ -75,6 +75,7 @@ biến môi trường.
 - Đơn bán: cột Kho của lần xuất ghi "Chờ kho xuất" / "Đã xuất"; chặng Giao ghi "N lần xuất mở".
 - Phiếu xuất bán hàng / biên bản giao: bỏ dòng kíp xe.
 - Theo dõi sản xuất, Lệnh SX: chữ "Chưa lên yêu cầu giao" đổi thành "Chưa xuất hàng".
+- Quy trình kinh doanh: bỏ làn Giao hàng; bước 13 Xuất hàng (Kinh doanh), 14 kho xuất, 15 hoá đơn, 16 thu tiền.
 
 ### Tài sản & CCDC (`tai_san`, thêm 01/11/2026)
 - Module `tai_san` tắt như Lương: thanh bên, màn, router `/api/tai-san`, dòng ma trận quyền. Không màn

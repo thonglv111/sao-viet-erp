@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTat } from "../auth/permissions";
 import { Icon } from "../components/Icons";
 import { useLaDienThoai } from "../utils/dienThoai";
 import "./quy-trinh-kinh-doanh.css";
@@ -131,9 +132,44 @@ function docLoc(): BoPhan | "all" {
   }
 }
 
-const theoId = new Map(BUOC.map((b) => [b.id, b]));
-const lanCua = (b: Buoc) => BO_PHAN.findIndex((x) => x.key === b.boPhan);
-const SO_HANG = Math.max(...BUOC.map((b) => b.hang)) + 1;
+/** Bản cài tắt giao hàng (Hà Phương): không có làn Giao hàng, sale bấm Xuất hàng ở đơn, kho xuất là xong
+ *  (docs/prd-tat-phan-he-theo-ban-cai.md, mục Xuất hàng ở đơn bán). */
+const BUOC_XUAT: Buoc[] = [
+  ...BUOC.filter((b) => b.stt == null || b.stt <= 12).filter((b) => b.id !== "cuoi"),
+  { id: "ycgiao", stt: 13, ten: "Xuất hàng", boPhan: "kd", hang: 8, man: "don-hang-ban", tenMan: "Đơn hàng bán",
+    moTa: "Bấm Xuất hàng ở đơn, chỉ cho phần kho đã nhận. Phần mềm gửi đề nghị xuất sang kho; xuất thiếu thì bấm thêm lần sau." },
+  { id: "xuatkho", stt: 14, ten: "Soạn hàng, xuất kho", boPhan: "kho", hang: 8, man: "kho-main", tenMan: "Yêu cầu nhập xuất",
+    moTa: "Thủ kho lập phiếu xuất theo đề nghị rồi ghi sổ. Ghi sổ xong thì đơn tính là đã giao số kho xuất." },
+  { id: "hoadon", stt: 15, ten: "Ghi hóa đơn", boPhan: "kt", hang: 9, man: "don-hang-ban", tenMan: "Đơn hàng bán",
+    moTa: "Ghi số hóa đơn đã xuất bên MISA theo từng lần xuất, ở chặng Hóa đơn của đơn. Có hóa đơn mới phát sinh công nợ." },
+  { id: "thutien", stt: 16, ten: "Thu tiền, đối công nợ", boPhan: "kt", hang: 10, man: "ke-toan-cong-no-phai-thu", tenMan: "Công nợ phải thu",
+    moTa: "Theo dõi khoản phải thu của từng khách, lập phiếu thu khi khách trả." },
+  { id: "cuoi", ten: "Đơn hoàn tất", boPhan: "kt", hang: 11, loai: "cuoi" },
+];
+
+const NOI_XUAT: Noi[] = [
+  ...NOI.slice(0, NOI.findIndex((n) => n.tu === "nhapkho") + 1),
+  { tu: "ycgiao", toi: "xuatkho" },
+  { tu: "xuatkho", toi: "hoadon", nhan: "kho đã xuất" },
+  { tu: "hoadon", toi: "thutien" },
+  { tu: "thutien", toi: "cuoi", nhan: "thu đủ" },
+];
+
+export function soDo(tatGiaoHang: boolean) {
+  const boPhan = tatGiaoHang ? BO_PHAN.filter((b) => b.key !== "gh") : BO_PHAN;
+  const buoc = tatGiaoHang ? BUOC_XUAT : BUOC;
+  const theoId = new Map(buoc.map((b) => [b.id, b]));
+  return {
+    BO_PHAN: boPhan,
+    BUOC: buoc,
+    NOI: tatGiaoHang ? NOI_XUAT : NOI,
+    theoId,
+    lanCua: (b: Buoc) => boPhan.findIndex((x) => x.key === b.boPhan),
+    SO_HANG: Math.max(...buoc.map((b) => b.hang)) + 1,
+  };
+}
+const SO_DO_DU = soDo(false);
+const SO_DO_XUAT = soDo(true);
 
 export function QuyTrinhKinhDoanhPage({
   navigate,
@@ -144,6 +180,7 @@ export function QuyTrinhKinhDoanhPage({
   moDuoc?: (manId: string) => boolean;
 }) {
   const laDT = useLaDienThoai();
+  const { BO_PHAN, BUOC, NOI, theoId, lanCua, SO_HANG } = useTat()("giao_hang") ? SO_DO_XUAT : SO_DO_DU;
   const [loc, setLoc] = useState<BoPhan | "all">(docLoc);
   const [chon, setChon] = useState<string | null>(null);
   const [roi, setRoi] = useState<string | null>(null);
