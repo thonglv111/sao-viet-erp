@@ -609,6 +609,8 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
           <Row k="Người phụ thuộc" v={String(emp.dependents_count)} />
         </div>
 
+        {/* Tắt chấm công thì có thể không còn dòng nào ⇒ bỏ cả thẻ, không để tiêu đề trơ. */}
+        {(!tatChamCong || emp.department_head_name || emp.status === "probation") && (
         <div className="mine__card">
           <h4 className="ns-info-card__title mine__cardtitle">
             <span className="mine__card-icon"><Icon name="clipboard" size={14} /></span>
@@ -626,6 +628,7 @@ export function HoSoCuaToiPage({ navigate, eventTick }: {
             <Row k="Hết thử việc" v={emp.probation_end_date ? fmtDate(emp.probation_end_date) : null} />
           )}
         </div>
+        )}
       </div>
 
       {accountCard}
