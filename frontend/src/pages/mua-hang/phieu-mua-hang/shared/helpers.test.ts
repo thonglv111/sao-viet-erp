@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { DonViDungDuoc, SupplierItemRow, SupplierRow } from "../../../../api/client";
-import { chaoGiaChoMatHang, khoNhanThieuCanh, khoNhapTuDongMua, nhanKhoMua, supplierItemForLine } from "./helpers";
+import {
+  chaoGiaChoMatHang, doiDonViDong, donViDoiDuoc, khoNhanThieuCanh, khoNhapTuDongMua, nhanKhoMua, supplierItemForLine,
+} from "./helpers";
 
 describe("nhanKhoMua", () => {
   it("giấy có khổ mua ⇒ ghi khổ, chỉ rộng ⇒ một cạnh", () => {
@@ -145,5 +147,29 @@ describe("chaoGiaChoMatHang theo khổ + họ đơn vị", () => {
     expect(supplierItemForLine(ncc1, { ...base, unit: "to", kho_rong: 1090, kho_dai: 790 })?.id).toBe(11);
     expect(supplierItemForLine(ncc1, { ...base, unit: "kg", kho_rong: 790, kho_dai: 1090 })).toBeNull();
     expect(supplierItemForLine(ncc1, { ...base, unit: "to", kho_rong: 650, kho_dai: 860 })).toBeNull();
+  });
+});
+
+/** Đổi ĐVT dòng đơn mua: chỉ trong cùng họ, số lượng và đơn giá quy theo để thành tiền giữ nguyên. */
+describe("doiDonViDong", () => {
+  const dv = (ma: string, goc: string, he: number): DonViDungDuoc =>
+    ({ ma, ten: ma, he_so: he, he_so_ve_goc: he, la_goc: he === 1, dien_giai: "", goc, goc_ten: goc });
+  const ds = [dv("to", "to", 1), dv("ram", "to", 500), dv("kg", "kg", 1), dv("tan", "kg", 1000)];
+
+  it("chỉ liệt kê đơn vị cùng họ", () => {
+    expect(donViDoiDuoc(ds, "ram").map((d) => d.ma)).toEqual(["to", "ram"]);
+    expect(donViDoiDuoc(ds, "kg").map((d) => d.ma)).toEqual(["kg", "tan"]);
+    expect(donViDoiDuoc(ds, "lit")).toEqual([]);
+  });
+  it("ram → tờ: số nhân 500, giá chia 500", () => {
+    expect(doiDonViDong({ unit: "ram", quantity: 2, expected_unit_price: 1_000_000 }, ds, "to"))
+      .toEqual({ unit: "to", quantity: 1000, expected_unit_price: 2000 });
+  });
+  it("kg → tấn: số lẻ giữ 3 chữ số", () => {
+    expect(doiDonViDong({ unit: "kg", quantity: 30, expected_unit_price: 68_000 }, ds, "tan"))
+      .toEqual({ unit: "tan", quantity: 0.03, expected_unit_price: 68_000_000 });
+  });
+  it("khác họ ⇒ null", () => {
+    expect(doiDonViDong({ unit: "kg", quantity: 30, expected_unit_price: 68_000 }, ds, "to")).toBeNull();
   });
 });

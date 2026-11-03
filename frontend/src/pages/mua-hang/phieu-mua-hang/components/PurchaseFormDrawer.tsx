@@ -19,6 +19,8 @@ import {
   applySupplierPrices,
   bestSupplierIdForLines,
   chaoGiaChoMatHang,
+  doiDonViDong,
+  donViDoiDuoc,
   lineDiscountAmount,
   lineTotal,
   lineVatAmount,
@@ -191,6 +193,7 @@ export function PurchaseFormDrawer({
     const laCoKho = coKho(line.hang_loai);
     const ds = dsCua(line);
     const dv = tenDonVi(line.unit) ?? line.unit;
+    const dvDoi = donViDoiDuoc(ds, line.unit);
     const tuyChon = chon && (moTuyChon.has(index) || (Number(line.discount_percent) || 0) > 0);
     // Giá sổ: giá cùng khổ + cùng họ đơn vị của NCC đang chọn, quy về ĐVT dòng — chỉ hiện khi đơn
     // giá gõ LỆCH sổ.
@@ -296,7 +299,22 @@ export function PurchaseFormDrawer({
           </td>
         )}
         <td>
-          <span title={line.de_nghi ? "Đơn vị nhà cung cấp bán" : "Đơn vị do bộ phận đề nghị khai"}>{dv}</span>
+          {/* Đổi ĐVT trong cùng họ (ram ↔ tờ, tấn ↔ kg): số lượng + đơn giá quy theo, thành tiền giữ. */}
+          {chon && dvDoi.length > 1 ? (
+            <select
+              className="kna-o dfa-vat"
+              aria-label={`Đơn vị tính ${line.item_name}`}
+              value={dvDoi.find((d) => d.ma.toLowerCase() === (line.unit ?? "").toLowerCase())?.ma ?? line.unit ?? ""}
+              onChange={(e) => {
+                const moi = doiDonViDong(line, ds, e.target.value);
+                if (moi) setLine(index, moi);
+              }}
+            >
+              {dvDoi.map((d) => <option key={d.ma} value={d.ma}>{d.ten}</option>)}
+            </select>
+          ) : (
+            <span title={line.de_nghi ? "Đơn vị nhà cung cấp bán" : "Đơn vị do bộ phận đề nghị khai"}>{dv}</span>
+          )}
         </td>
         <td className="n">
           {/* SỐ LƯỢNG MUA sửa được: mua khổ to hơn rồi tề, NCC chỉ bán chẵn ram… Mặc định = số yêu cầu. */}
@@ -558,7 +576,7 @@ export function PurchaseFormDrawer({
               {coCotKho && <col style={{ width: 124 }} />}
               {coGiay && <col style={{ width: 96 }} />}
               {taoMoi && <col style={{ width: 230 }} />}
-              <col style={{ width: 72 }} />
+              <col style={{ width: 92 }} />
               <col style={{ width: 112 }} />
               <col style={{ width: 132 }} />
               <col style={{ width: 80 }} />
