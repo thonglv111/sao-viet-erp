@@ -1,5 +1,6 @@
-// Lịch sử CHUYỂN KHO (03/11/2026): một dòng một lần chuyển × một mặt hàng × một vị trí lấy. Dùng chung
-// cho tab "Lịch sử chuyển kho" của ngăn mặt hàng (không cột Mặt hàng) và tab Điều chuyển của trang kho.
+// Lịch sử CHUYỂN KHO (03/11/2026): một dòng một lần chuyển × một mặt hàng × một vị trí lấy — tab
+// Điều chuyển của trang kho. Ngăn mặt hàng vẽ bảng riêng có lọc / kéo cột (`NganLichSu.tsx`) và dùng lại
+// các mẩu ô của tab Lịch sử sửa ở cuối file này.
 // Không số phiếu, không mở phiếu: người xem cần từ kho nào, lấy ở đâu, sang kho nào, cất ở đâu, bao
 // nhiêu, giá trị, ai chuyển.
 import { useState } from "react";
@@ -71,7 +72,7 @@ export function BangChuyenKho({ rows, coMatHang, coGia, lop }: {
 }
 
 /** Chip màu của cột Việc — mỗi việc một sắc (bộ `--tt-*`). */
-const LOP_VIEC: Record<string, string> = {
+export const LOP_VIEC: Record<string, string> = {
   "Sửa tồn": "lss-chip--lam",
   "Thêm hàng": "lss-chip--xanh",
   "Đặt mức tồn": "lss-chip--cam",
@@ -79,7 +80,7 @@ const LOP_VIEC: Record<string, string> = {
   "Bổ sung khổ": "lss-chip--tim",
 };
 
-function Chenh({ v, dv }: { v: number | null; dv: string }) {
+export function Chenh({ v, dv }: { v: number | null; dv: string }) {
   if (v == null || Math.abs(v) < 1e-9) return null;
   return (
     <span className={v > 0 ? "lss-tang" : "lss-giam"}>
@@ -90,7 +91,7 @@ function Chenh({ v, dv }: { v: number | null; dv: string }) {
 
 /** Ô Ghi chú của một lần sửa: chữ người dùng gõ, bấm vào là sửa tại chỗ (Enter lưu, Esc thôi,
  *  Shift+Enter xuống dòng). Không có quyền thì chỉ đọc. */
-function OGhiChu({ r, suaDuoc, onLuu }: {
+export function OGhiChu({ r, suaDuoc, onLuu }: {
   r: LichSuSuaRow;
   suaDuoc: boolean;
   onLuu: (id: number, ghiChu: string) => Promise<void>;
@@ -144,67 +145,5 @@ function OGhiChu({ r, suaDuoc, onLuu }: {
     >
       {r.ghi_chu ? <span className="lss-chu">{r.ghi_chu}</span> : <span className="lss-goi-y">Thêm ghi chú</span>}
     </button>
-  );
-}
-
-/** Tab "Lịch sử sửa" của ngăn mặt hàng (phương án B, 03/11/2026): lưới kiểu Excel, mỗi thông tin đổi
- *  một dòng Trước / Sau / Chênh; ngày giờ, người, việc, ghi chú gộp ô theo lần sửa. Ghi chú là chữ
- *  người dùng gõ và sửa được — máy không tự điền. */
-export function BangLichSuSua({ rows, suaDuoc, onLuu }: {
-  rows: LichSuSuaRow[];
-  suaDuoc: boolean;
-  onLuu: (id: number, ghiChu: string) => Promise<void>;
-}) {
-  return (
-    <table className="kho-lines lss">
-      <colgroup>
-        <col style={{ width: 140 }} />
-        <col style={{ width: 120 }} />
-        <col style={{ width: 120 }} />
-        <col style={{ width: 120 }} />
-        <col style={{ width: 120 }} />
-        <col style={{ width: 120 }} />
-        <col style={{ width: 110 }} />
-        <col />
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Ngày giờ</th>
-          <th>Người sửa</th>
-          <th>Việc</th>
-          <th>Thông tin</th>
-          <th className="kho-num">Trước</th>
-          <th className="kho-num">Sau</th>
-          <th className="kho-num">Chênh</th>
-          <th>Ghi chú</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.flatMap((r) => {
-          const dong = r.dong.length ? r.dong : [null];
-          const n = dong.length;
-          return dong.map((d, i) => (
-            <tr key={`${r.id}-${i}`} className={i === n - 1 ? "lss-cuoi" : undefined}>
-              {i === 0 && (
-                <>
-                  <td rowSpan={n} className="lss-gio">{fmtDateTime(r.luc)}</td>
-                  <td rowSpan={n}>{r.nguoi || tru}</td>
-                  <td rowSpan={n}><span className={`lss-chip ${LOP_VIEC[r.viec] ?? ""}`}>{r.viec}</span></td>
-                </>
-              )}
-              <td>{d?.thong_tin ?? tru}</td>
-              <td className="kho-num lss-truoc">{d?.truoc ?? ""}</td>
-              <td className="kho-num">{d?.sau ?? ""}</td>
-              <td className="kho-num">{d && <Chenh v={d.chenh} dv={d.don_vi} />}</td>
-              {i === 0 && (
-                <td rowSpan={n} className="lss-ghi">
-                  <OGhiChu r={r} suaDuoc={suaDuoc} onLuu={onLuu} />
-                </td>
-              )}
-            </tr>
-          ));
-        })}
-      </tbody>
-    </table>
   );
 }

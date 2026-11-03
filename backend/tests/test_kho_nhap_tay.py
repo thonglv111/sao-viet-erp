@@ -155,6 +155,25 @@ def test_lich_su_sua_mot_dong_ton(client):
     lai = client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h,
                      params={**loc, "tab": "sua"}).json()["sua"]
     assert [d["ghi_chu"] for d in lai] == ["", "Đếm lại kệ B2", ""]
+    # Lọc của tab (04/11/2026): việc, ô tìm trong ghi chú (không dấu), kỳ.
+    def _loc(**p):
+        return client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h,
+                          params={**loc, "tab": "sua", **p}).json()
+    b = _loc(viec="Sửa tồn")
+    assert b["tong"] == 1 and b["dem"]["sua"] == 3
+    assert {c["value"] for c in b["chon"]["viec"]} == {"Sửa tồn", "Thêm hàng", "Đặt mức tồn"}
+    assert _loc(q="ke b2")["tong"] == 1
+    assert _loc(tu_ngay="2000-01-01", den_ngay="2000-01-02")["tong"] == 0
+    # Lô tồn: lọc vị trí, ô tìm theo vị trí.
+    lo = client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h,
+                    params={**loc, "tab": "lo_ton"}).json()
+    # Sửa tồn đã dời cả dòng sang B2.
+    assert [(c["value"], c["so"]) for c in lo["chon"]["vi_tri"]] == [("B2", lo["tong"])]
+    for vt, n in (("B2", lo["tong"]), ("A1", 0)):
+        assert client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h, params={
+            **loc, "tab": "lo_ton", "vi_tri": vt}).json()["tong"] == n
+    assert client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h, params={
+        **loc, "tab": "lo_ton", "q": "b2"}).json()["tong"] == lo["tong"]
     # Lần sửa của dòng khổ khác không sửa được qua dòng đang mở.
     khac = client.get(f"/api/kho/phieu/mat-hang/giay/{g}/lich-su-trang", headers=h, params={
         "kho_id": kho_id, "tab": "sua", "goc": "to", "kho_rong": 650, "kho_dai": 860}).json()["sua"]

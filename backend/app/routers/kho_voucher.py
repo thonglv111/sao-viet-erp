@@ -63,10 +63,12 @@ from ..schemas.stock import (
     ChuyenKhoPage,
     ChuyenKhoRow,
     GhiChuLanSuaIn,
+    GiaTriChon,
     LichSuSuaRow,
     MaterialHistoryOut,
     MaterialHistoryPage,
     MaterialXuatRow,
+    NhapXuatRow,
     StockLotOut,
     StockLotKhoIn,
     StockLotViTriIn,
@@ -85,6 +87,7 @@ from ..services import kho_gia_goc_service
 from ..services.kho_giay import (
     co_don_vi_goc, co_kho, dinh_luong_va_quy_kg, don_vi_khai, khoa_ton, khoa_ton_cua, nhan_kho,
 )
+from ..services import kho_ngan_lich_su as ngan_ls
 from ..services.kho_nhat_ky_ton import VIEC as VIEC_NHAT_KY_TON, doc_lan_sua, gom as gom_nhat_ky, target_dong_ton
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
@@ -1256,8 +1259,9 @@ def material_history(
         nhap=nhap, xuat=xuat,
     )
 
-#: Tab của ngăn mặt hàng. `chuyen` = lần chuyển kho đi / về, `sua` = nhật ký sửa của dòng tồn.
-_TAB_LICH_SU = "^(lo_ton|nhap|xuat|chuyen|sua)$"
+#: Tab của ngăn mặt hàng. `nhap_xuat` = lô nhập + dòng xuất (04/11/2026 gộp hai tab), `chuyen` = lần
+#: chuyển kho đi / về, `sua` = nhật ký sửa của dòng tồn.
+_TAB_LICH_SU = "^(lo_ton|nhap_xuat|chuyen|sua)$"
 
 
 def _target_lich_su_sua(svc, kho_id: int, hang: tuple[str, int], loc: dict) -> list[str]:
@@ -1303,47 +1307,58 @@ def material_history_page(
     kho_rong: int = Query(default=0, ge=0),
     kho_dai: int = Query(default=0, ge=0),
     man: str = Query(default="ton", pattern="^(ton|yeu_cau|bao_cao)$", description=_MAN_MO_TA),
+    q: str | None = Query(default=None, max_length=200),
+    tu_ngay: date | None = Query(default=None),
+    den_ngay: date | None = Query(default=None),
+    viec: list[str] = Query(default=[]),
+    nguoi: list[str] = Query(default=[]),
+    vi_tri: list[str] = Query(default=[]),
+    kho_tu: list[str] = Query(default=[]),
+    kho_den: list[str] = Query(default=[]),
 ) -> MaterialHistoryPage:
-    """Một trang của MỘT tab ngăn mặt hàng (màn Tồn kho), cắt ở DB, kèm số dòng của mọi tab.
+    """Một trang của MỘT tab ngăn mặt hàng (màn Tồn kho) đã lọc, kèm số dòng chưa lọc của mọi tab và
+    giá trị chọn được cho nút Lọc của tab đang mở (04/11/2026). Lọc + cắt trang ở `kho_ngan_lich_su`.
 
-    `/lich-su` (cả lịch sử một lượt) vẫn giữ cho Báo cáo kho; ngăn Tồn kho dùng đường này để mở ngăn
-    không kéo theo mọi lô và mọi dòng xuất từng có của mặt hàng."""
+    `/lich-su` (cả lịch sử một lượt) vẫn giữ cho Báo cáo kho."""
     _chan_neu_khong_xem_ton(db, authz, user, kho_id)
     can_view_cost = gia_lo_theo_man(authz, user, man)(kho_id)
     hang = (hang_loai, hang_id)
     m = svc.hang.map_theo_cap([hang]).get(hang)
     dvt = getattr(m, "don_vi_gia", None)
     goc = _goc_q(hang_loai, goc)
-    loc = {"goc": goc, "kho_rong": kho_rong, "kho_dai": kho_dai}
+    loc_kho = {"goc": goc, "kho_rong": kho_rong, "kho_dai": kho_dai}
     khoa = khoa_ton(hang_loai, hang_id, goc=goc, kho_rong=kho_rong, kho_dai=kho_dai) if goc else hang
+    loc = ngan_ls.LocNgan(q=q or "", tu_ngay=tu_ngay, den_ngay=den_ngay, viec=viec, nguoi=nguoi,
+                          vi_tri=vi_tri, kho_tu=kho_tu, kho_den=kho_den)
 
-    dem_lo = svc.lots.dem_lo_theo_tab(hang, kho_id, **loc)
-    dem_xuat = svc.vouchers.dem_xuat_theo_chieu(hang, kho_id, **loc)
-    tu = (page - 1) * size
-    # Tab Chuyển kho: một dòng một lần chuyển × vị trí lấy (03/11/2026) — đếm ngay trong câu lấy trang.
-    dong_dc, dem_dc = svc.vouchers.dong_chuyen_kho(
-        kho_id, hang=hang, **loc, offset=tu, limit=size if tab == "chuyen" else 0)
-    nhat_ky, dem_sua = AuditLogRepository(db).trang_theo_targets(
-        _target_lich_su_sua(svc, kho_id, hang, loc), VIEC_NHAT_KY_TON,
-        offset=tu, limit=size if tab == "sua" else 0)
-    dem = {"lo_ton": dem_lo["lo_ton"], "nhap": dem_lo["nhap"], "xuat": dem_xuat[False], "chuyen": dem_dc,
-           "sua": dem_sua}
+    dem_lo = svc.lots.dem_lo_theo_tab(hang, kho_id, **loc_kho)
+    dem_xuat = svc.vouchers.dem_xuat_theo_chieu(hang, kho_id, **loc_kho)
+    _, dem_dc = svc.vouchers.dong_chuyen_kho(kho_id, hang=hang, **loc_kho, limit=0)
+    targets = _target_lich_su_sua(svc, kho_id, hang, loc_kho)
+    _, dem_sua = AuditLogRepository(db).trang_theo_targets(targets, VIEC_NHAT_KY_TON, limit=0)
     out = MaterialHistoryPage(
         hang_loai=hang_loai, hang_id=hang_id, hang_ma=getattr(m, "ma", None),
         hang_ten=getattr(m, "ten", None), dvt=goc or dvt,
-        on_hand=svc.lots.on_hand(khoa, kho_id), tab=tab, page=page, size=size, dem=dem,
+        on_hand=svc.lots.on_hand(khoa, kho_id), tab=tab, page=page, size=size,
+        dem={"lo_ton": dem_lo["lo_ton"], "nhap_xuat": dem_lo["nhap"] + dem_xuat[False],
+             "chuyen": dem_dc, "sua": dem_sua},
     )
-    if tab in ("lo_ton", "nhap"):
-        lots = svc.lots.trang_lo_mat_hang(hang, kho_id, tab=tab, offset=tu, limit=size, **loc)
-        out.lo = _dong_lo_lich_su(svc, lots, m, dvt, can_view_cost)
-    elif tab == "xuat":
-        rows = svc.vouchers.xuat_history(hang, kho_id, dieu_chuyen=False, offset=tu, limit=size, **loc)
-        out.xuat = _dong_xuat_lich_su(svc, rows, can_view_cost)
+    tu = (page - 1) * size
+    if tab == "lo_ton":
+        rows, chon = ngan_ls.lo_ton(svc, hang, kho_id, loc_kho, loc)
+        out.lo = _dong_lo_lich_su(svc, rows[tu:tu + size], m, dvt, can_view_cost)
+    elif tab == "nhap_xuat":
+        rows, chon = ngan_ls.nhap_xuat(svc, db, hang, kho_id, loc_kho, loc, can_view_cost)
+        out.nhap_xuat = [NhapXuatRow(**r) for r in rows[tu:tu + size]]
     elif tab == "chuyen":
-        out.chuyen = _dong_chuyen_kho(svc, db, dong_dc, can_view_cost)
+        rows, chon = ngan_ls.chuyen(svc, db, hang, kho_id, loc_kho, loc)
+        out.chuyen = _dong_chuyen_kho(svc, db, rows[tu:tu + size], can_view_cost)
     else:
-        out.sua = _dong_lich_su_sua(db, nhat_ky, can_view_cost)
+        rows, chon = ngan_ls.sua(db, targets, loc, can_view_cost)
+        out.sua = [LichSuSuaRow(**r) for r in rows[tu:tu + size]]
         out.sua_ghi_chu = _duoc_sua_ghi_chu(authz, user, kho_id)
+    out.tong = len(rows)
+    out.chon = {k: [GiaTriChon(**g) for g in v] for k, v in chon.items()}
     return out
 
 

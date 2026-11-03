@@ -93,6 +93,7 @@ def _mot_doi(chu: str, nhan_biet: list[str], nhan_mac_dinh: str) -> dict | None:
         "thong_tin": nhan + (f" lô {ma_lo}" if ma_lo else ""),
         "truoc": truoc or "–", "sau": sau or "–",
         "chenh": chenh, "don_vi": b[1] if b else "",
+        "truoc_so": a[0] if a else None, "sau_so": b[0] if b else None,
     }
 
 
@@ -117,7 +118,7 @@ def doc_lan_sua(log, *, can_view_cost: bool) -> dict:
         d = _mot_doi(p, nhan_biet, mac_dinh)
         if d is not None:
             if not can_view_cost and d["thong_tin"].lower().startswith(("đơn giá", "giá")):
-                d.update(truoc="có", sau="đã sửa", chenh=None)
+                d.update(truoc="có", sau="đã sửa", chenh=None, truoc_so=None, sau_so=None)
             dong.append(d)
         elif p.startswith("Ghi chú: "):
             ghi.append(p[len("Ghi chú: "):])

@@ -1,7 +1,7 @@
 """Repository — Phiếu nhập/xuất kho (spec-kho-de-nghi §5)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -74,6 +74,18 @@ class StockVoucherRepository:
             select(StockVoucher.id, StockVoucher.ma).where(StockVoucher.id.in_(ids))
         ).all()
         return {r.id: r.ma for r in rows}
+
+    def luc_va_nguoi_by_ids(self, ids) -> dict[int, tuple[datetime, int | None]]:
+        """Map voucher_id → (lúc ghi sổ, hoặc lúc lập nếu chưa ghi; người ghi sổ, hoặc người lập) — cho
+        tab Lịch sử nhập xuất của ngăn mặt hàng xếp đúng thứ tự giờ và ghi ai làm."""
+        ids = sorted({int(i) for i in ids or [] if i is not None})
+        if not ids:
+            return {}
+        rows = self.db.execute(
+            select(StockVoucher.id, StockVoucher.ghi_so_luc, StockVoucher.created_at,
+                   StockVoucher.nguoi_ghi_so_id, StockVoucher.nguoi_lap_id).where(StockVoucher.id.in_(ids))
+        ).all()
+        return {r.id: (r.ghi_so_luc or r.created_at, r.nguoi_ghi_so_id or r.nguoi_lap_id) for r in rows}
 
     def dieu_chuyen_by_ids(self, ids: list[int]) -> set[int]:
         """Tập voucher_id là ĐIỀU CHUYỂN — để lịch sử mặt hàng tách 'chuyển kho' khỏi nhập/xuất

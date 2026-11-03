@@ -416,6 +416,12 @@ def test_lich_su_chuyen_kho_mot_dong_mot_vi_tri_lay(client):
         assert d["kho_den"] == "Kho nhận" and d["kho_tu"] != "Kho nhận"
         assert d["cat_o"] == "B2" and d["nguoi"]
         assert "voucher_ma" not in d
+        # Lọc sang kho (04/11/2026): chỉ còn dòng sang đúng kho đó.
+        assert {c["nhan"] for c in body["chon"]["kho_den"]} == {"Kho nhận"}
+        sai = client.get(f"{BASE}/phieu/mat-hang/giay/{g}/lich-su-trang", headers=_admin(client), params={
+            "kho_id": kho, "tab": "chuyen", "goc": "to", "kho_rong": 905, "kho_dai": 780,
+            "kho_den": str(kho_id)}).json()
+        assert sai["tong"] == 0 and sai["dem"]["chuyen"] == 2
     r = client.get(f"{BASE}/phieu/chuyen-kho/{den}", headers=_admin(client))
     assert r.status_code == 200, r.text
     assert r.json()["total"] == 2

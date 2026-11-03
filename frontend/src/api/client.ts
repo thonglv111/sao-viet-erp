@@ -12379,6 +12379,46 @@ export interface LichSuSuaDoi {
   sau: string;
   chenh: number | null;
   don_vi: string;
+  /** Hai vế dạng số để quy theo ĐVT người xem chọn; chữ thì null. */
+  truoc_so: number | null;
+  sau_so: number | null;
+}
+
+/** Một dòng tab "Lịch sử nhập xuất" của ngăn mặt hàng: một lô nhập hoặc một dòng phiếu xuất. */
+export interface NhapXuatRow {
+  key: string;
+  luc: string;
+  viec: "nhap" | "xuat";
+  voucher_id: number | null;
+  voucher_ma: string | null;
+  so_luong: number;
+  /** Tồn của dòng tồn tại kho ngay sau lần này (đơn vị gốc). */
+  ton_sau: number;
+  vi_tri: string | null;
+  hsd: string | null;
+  don_gia: number | null;
+  gia_tri: number | null;
+  chua_gia_goc: boolean;
+  nguoi: string | null;
+}
+
+/** Giá trị chọn được trong nút Lọc của một tab ngăn mặt hàng, kèm số dòng. */
+export interface GiaTriChonNgan {
+  value: string;
+  nhan: string;
+  so: number;
+}
+
+/** Ô tìm, kỳ và điều kiện lọc của một tab ngăn mặt hàng — gửi máy chủ. */
+export interface LocNganMatHang {
+  q?: string;
+  tu_ngay?: string;
+  den_ngay?: string;
+  viec?: string[];
+  nguoi?: string[];
+  vi_tri?: string[];
+  kho_tu?: string[];
+  kho_den?: string[];
 }
 
 /** Một lần sửa ở tab "Lịch sử sửa" của ngăn mặt hàng: ai, lúc nào, việc gì, ở đâu, ghi chú. */
@@ -12393,7 +12433,7 @@ export interface LichSuSuaRow {
   dong: LichSuSuaDoi[];
 }
 
-export type TabLichSuMatHang = "lo_ton" | "nhap" | "xuat" | "chuyen" | "sua";
+export type TabLichSuMatHang = "lo_ton" | "nhap_xuat" | "chuyen" | "sua";
 
 /** MỘT trang của một tab ngăn mặt hàng — cắt ở máy chủ, kèm số dòng mọi tab. */
 export interface StockMaterialHistoryPage {
@@ -12407,8 +12447,12 @@ export interface StockMaterialHistoryPage {
   page: number;
   size: number;
   dem: Record<TabLichSuMatHang, number>;
+  /** Số dòng của tab đang mở sau khi lọc. */
+  tong: number;
+  /** Giá trị chọn được của từng điều kiện lọc của tab đang mở. */
+  chon: Record<string, GiaTriChonNgan[]>;
   lo: StockLot[];
-  xuat: StockMaterialXuatRow[];
+  nhap_xuat: NhapXuatRow[];
   chuyen: ChuyenKhoRow[];
   sua: LichSuSuaRow[];
   /** Được sửa ghi chú tab Lịch sử sửa (ô quyền Thêm, xoá hàng của kho). */
@@ -17797,7 +17841,7 @@ export const api = {
           token,
         );
       },
-      /** Một trang của một tab ngăn mặt hàng (Lô tồn / Nhập / Xuất / Chuyển kho), cắt ở máy chủ. */
+      /** Một trang của một tab ngăn mặt hàng (Lô tồn / Nhập xuất / Chuyển kho / Sửa), lọc + cắt ở máy chủ. */
       lichSuTrang(
         token: string,
         hangLoai: HangLoai,
@@ -17807,12 +17851,17 @@ export const api = {
         page: number,
         size: number,
         giay?: DongTonGiay,
+        loc: LocNganMatHang = {},
       ): Promise<StockMaterialHistoryPage> {
         const qs = new URLSearchParams({ kho_id: String(khoId), tab, page: String(page), size: String(size) });
         if (giay) {
           if (giay.goc) qs.set("goc", giay.goc);
           qs.set("kho_rong", String(giay.kho_rong));
           qs.set("kho_dai", String(giay.kho_dai));
+        }
+        for (const [k, v] of Object.entries(loc)) {
+          if (Array.isArray(v)) v.forEach((x) => qs.append(k, x));
+          else if (v) qs.set(k, v);
         }
         return authed<StockMaterialHistoryPage>(
           `/api/kho/phieu/mat-hang/${hangLoai}/${hangId}/lich-su-trang?${qs.toString()}`,

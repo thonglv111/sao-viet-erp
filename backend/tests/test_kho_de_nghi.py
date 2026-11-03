@@ -799,19 +799,23 @@ def test_lich_su_trang_dem_tab_va_tong_xuat(client):
     kt = _login(client, "t_ketoan")
     url = f"/api/kho/phieu/mat-hang/{mat_id[0]}/{mat_id[1]}"
     ton = client.get(f"{url}/lich-su-trang", headers=kt, params={"kho_id": kho_id, "tab": "lo_ton"}).json()
-    assert ton["dem"] == {"lo_ton": 1, "nhap": 2, "xuat": 2, "chuyen": 0, "sua": 0}
+    assert ton["dem"] == {"lo_ton": 1, "nhap_xuat": 4, "chuyen": 0, "sua": 0}
     assert ton["on_hand"] == 5
-    assert [l["sl_con_lai"] for l in ton["lo"]] == [5] and ton["xuat"] == []
-    # Trang 2 cỡ 1 của tab Nhập = lô CŨ hơn (mới nhất trước).
-    nhap = client.get(f"{url}/lich-su-trang", headers=kt,
-                      params={"kho_id": kho_id, "tab": "nhap", "page": 2, "size": 1}).json()
-    assert [l["don_gia_nhap"] for l in nhap["lo"]] == [100_000]
-    xuat = client.get(f"{url}/lich-su-trang", headers=kt, params={"kho_id": kho_id, "tab": "xuat"}).json()
-    assert sorted(x["so_luong"] for x in xuat["xuat"]) == [5, 10]
-    assert all(x["vi_tri"] is None or isinstance(x["vi_tri"], str) for x in xuat["xuat"])
+    assert [l["sl_con_lai"] for l in ton["lo"]] == [5] and ton["tong"] == 1
+    # Tab Lịch sử nhập xuất (04/11/2026 gộp hai tab): mới nhất trước, tồn sau tính lùi từ tồn hiện tại.
+    nx = client.get(f"{url}/lich-su-trang", headers=kt, params={"kho_id": kho_id, "tab": "nhap_xuat"}).json()
+    assert nx["tong"] == 4
+    assert [(d["viec"], d["so_luong"], d["ton_sau"]) for d in nx["nhap_xuat"]][:2] in (
+        [("xuat", 5, 5), ("xuat", 10, 10)], [("xuat", 10, 5), ("xuat", 5, 15)])
+    assert [(d["viec"], d["ton_sau"]) for d in nx["nhap_xuat"]][2:] == [("nhap", 20), ("nhap", 10)]
+    assert {c["value"] for c in nx["chon"]["viec"]} == {"nhap", "xuat"}
+    # Lọc Việc = Nhập, trang 2 cỡ 1 = lô CŨ hơn.
+    nhap = client.get(f"{url}/lich-su-trang", headers=kt, params={
+        "kho_id": kho_id, "tab": "nhap_xuat", "viec": "nhap", "page": 2, "size": 1}).json()
+    assert nhap["tong"] == 2 and [d["don_gia"] for d in nhap["nhap_xuat"]] == [100_000]
     # Thiếu view_cost → giá ẩn ở cả trang.
-    x2 = client.get(f"{url}/lich-su-trang", headers=tk, params={"kho_id": kho_id, "tab": "xuat"}).json()
-    assert all(x["don_gia"] is None for x in x2["xuat"])
+    x2 = client.get(f"{url}/lich-su-trang", headers=tk, params={"kho_id": kho_id, "tab": "nhap_xuat"}).json()
+    assert all(x["don_gia"] is None and x["gia_tri"] is None for x in x2["nhap_xuat"])
 
     assert client.get(f"{url}/tong-xuat", headers=kt, params={"kho_id": kho_id}).json()["tong"] == 15
 

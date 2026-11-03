@@ -201,3 +201,7 @@ select.tkh-chon { width: 100%; font: inherit; font-size: 13.5px; color: var(--in
 .tkh-dvt-chon { border: 1px solid transparent; border-radius: 6px; background: none; font: inherit; color: var(--ink);
   padding: 1px 2px; margin: -2px -3px; cursor: pointer; max-width: 100%; }
 .tkh-dvt-chon:hover, .tkh-dvt-chon:focus { border-color: var(--rule); outline: 0; }
+/* Thanh lọc của bốn tab bảng trong ngăn mặt hàng (04/11/2026) — sát mép ngăn, cách bảng một nhịp. */
+.lds-loc__thanh.tkh-ngan-loc { padding: 0 0 10px; }
+.tkh-ngan-dvt { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-size: 13px; }
+.tkh-ngan-dvt .tkh-dvt-chon { margin: 0; padding: 4px 6px; border-color: var(--rule); }
