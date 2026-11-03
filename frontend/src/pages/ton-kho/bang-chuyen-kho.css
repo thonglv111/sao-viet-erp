@@ -1,0 +1,18 @@
+/* Tab "Lịch sử sửa" của ngăn mặt hàng — lưới phương án B (03/11/2026). */
+.lss td { vertical-align: top; }
+.lss tbody tr:not(.lss-cuoi) td { border-bottom-color: transparent; }
+.lss-gio { white-space: nowrap; }
+.lss-truoc { color: var(--tt-slate-fg); }
+.lss-tang { color: var(--tt-la-fg); }
+.lss-giam { color: var(--tt-do-fg); }
+.lss-ghi { white-space: normal; color: var(--tt-xam-fg); }
+.lss-mo { color: var(--tt-slate-fg); }
+.lss-chip {
+  display: inline-flex; align-items: center; height: 22px; padding: 0 9px;
+  border-radius: 11px; font-size: 12px; white-space: nowrap;
+  background: var(--tt-xam-bg); color: var(--tt-xam-fg);
+}
+.lss-chip--lam { background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.lss-chip--xanh { background: var(--tt-la-bg); color: var(--tt-la-fg); }
+.lss-chip--cam { background: var(--tt-cam-bg); color: var(--tt-cam-fg); }
+.lss-chip--tim { background: var(--tt-tim-bg); color: var(--tt-tim-fg); }

@@ -975,14 +975,27 @@ class ChuyenKhoRow(BaseModel):
     nguoi: str | None = None
 
 
+class LichSuSuaDoi(BaseModel):
+    """Một thông tin đổi trong một lần sửa: Trước → Sau, Chênh khi là số (tồn, mức, giá)."""
+
+    thong_tin: str
+    truoc: str
+    sau: str
+    chenh: float | None = None
+    don_vi: str = ""
+
+
 class LichSuSuaRow(BaseModel):
-    """1 dòng tab "Lịch sử sửa" của ngăn mặt hàng: ai, lúc nào, việc gì, từng thay đổi cũ → mới."""
+    """1 lần sửa ở tab "Lịch sử sửa" của ngăn mặt hàng (phương án B, 03/11/2026): ai, lúc nào, việc
+    gì, sửa ở đâu, ghi chú, và từng thông tin đổi một dòng."""
 
     id: int
     luc: datetime
     nguoi: str | None = None
     viec: str
-    thay_doi: list[str] = []
+    o_dau: str | None = None
+    ghi_chu: list[str] = []
+    dong: list[LichSuSuaDoi] = []
 
 
 class ChuyenKhoPage(BaseModel):

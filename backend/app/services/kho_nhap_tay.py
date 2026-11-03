@@ -262,15 +262,19 @@ def _ngay(v: Any) -> tuple[date | None, bool]:
     return None, False
 
 
-def _thay_doi_ton(k: KeHoach) -> list[str]:
-    """Từng thay đổi của một dòng nhập tay, số cũ → số mới, cho nhật ký dòng tồn."""
-    if not k.co_dong:
-        return [f"Thêm vào kho {_hien_so(k.sl_goc)} {k.goc_ten}".rstrip(),
-                f"Vị trí {k.vi_tri}" if k.vi_tri else ""]
-    return [
-        f"Tồn {_hien_so(k.sl_hien)} → {_hien_so(k.sl_goc)} {k.goc_ten}".rstrip() if k.doi_so else "",
-        f"Vị trí {k.vi_tri_hien or '–'} → {k.vi_tri or '–'}" if k.doi_vi_tri else "",
+def _thay_doi_ton(k: KeHoach, nguon: str) -> list[str]:
+    """Nhật ký dòng tồn của một dòng nhập tay: từng thay đổi "Nhãn cũ → mới" (cả hai vế mang đơn vị
+    để tab Lịch sử sửa tách được Trước / Sau / Chênh), rồi chỗ sửa, rồi ghi chú người sửa gõ."""
+    moi = not k.co_dong
+    dv = f" {k.goc_ten}".rstrip()
+    doi = [
+        f"Tồn {_hien_so(k.sl_hien)}{dv} → {_hien_so(k.sl_goc)}{dv}" if moi or k.doi_so else "",
+        f"Vị trí {k.vi_tri_hien or 'chưa gắn'} → {k.vi_tri or 'chưa gắn'}"
+        if (k.doi_vi_tri if k.co_dong else bool(k.vi_tri)) else "",
     ]
+    noi = ("Nhập Excel trên màn Tồn kho" if nguon == "excel"
+           else "Thêm hàng trên màn Tồn kho" if moi else "Sửa tồn trên màn Tồn kho")
+    return [*doi, noi, f"Ghi chú: {k.ghi_chu}" if k.ghi_chu else ""]
 
 
 def _hien_so(v: float | None) -> str:
@@ -611,7 +615,7 @@ class KhoNhapTayService:
 
     # ---------- một lượt (form / file) ----------
 
-    def chay(self, kho_id: int, dong: list[DongVao], user, *, ghi: bool) -> KetQua:
+    def chay(self, kho_id: int, dong: list[DongVao], user, *, ghi: bool, nguon: str = "tay") -> KetQua:
         """Kiểm hết các dòng → còn lỗi thì dừng TRƯỚC khi chạm DB → không lỗi thì ghi cả lượt trong
         MỘT giao dịch. `ghi=False` = XEM TRƯỚC: chạy y hệt rồi rollback (như import khách hàng)."""
         self.kho(kho_id)
@@ -672,7 +676,7 @@ class KhoNhapTayService:
                 AuditLogRepository(self.db).create_many([
                     {"actor_user_id": getattr(user, "id", None), "action": "kho_ton_sua",
                      "target": target_dong_ton(kho_id, k.hang_loai, k.hang_id, k.goc, k.kho_rong, k.kho_dai),
-                     "detail": gom([f"{k.ten or k.ma} tại {ten_kho}", *_thay_doi_ton(k)])}
+                     "detail": gom([f"{k.ten or k.ma} tại {ten_kho}", *_thay_doi_ton(k, nguon)])}
                     for k in lam
                 ])
             if ghi:

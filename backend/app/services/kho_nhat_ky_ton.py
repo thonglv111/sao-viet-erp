@@ -12,6 +12,8 @@ Chuyển kho có tab riêng nên không lặp ở đây.
 """
 from __future__ import annotations
 
+import re
+
 from .kho_giay import chuan_kho
 from .nhat_ky_danh_muc import PHAN_CACH, _gom_dong
 
@@ -41,3 +43,93 @@ def gom(dong: list[str]) -> str:
 def tach(detail: str) -> list[str]:
     """Chi tiết → từng thay đổi một dòng (cùng dấu nối với nhật ký danh mục)."""
     return [p for p in (detail or "").split(PHAN_CACH) if p.strip()]
+
+
+# ======================= đọc ra tab (phương án B, 03/11/2026) =======================
+
+#: Nhãn thông tin biết trước — tách đúng "Nhãn cũ → mới" khi nhãn nhiều chữ ("Công thức tính giá").
+_NHAN_RIENG = ("Tồn", "Vị trí", "Tối thiểu", "Tối đa", "giá gốc")
+#: Thông tin có số ⇒ tính cột Chênh.
+_CO_CHENH = ("Tồn", "Tối thiểu", "Tối đa", "Giá gốc", "Đơn giá")
+_LOAI_DM = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thành phẩm"}
+_SO = re.compile(r"^(-?[\d.]+(?:,\d+)?)\s*(.*)$")
+
+
+def _so(chu: str) -> tuple[float, str] | None:
+    """"38.710 tờ" → (38710.0, "tờ"); không phải số ⇒ None. Số in kiểu Việt: chấm nghìn, phẩy lẻ."""
+    m = _SO.match((chu or "").strip())
+    if not m:
+        return None
+    try:
+        return float(m.group(1).replace(".", "").replace(",", ".")), m.group(2).strip()
+    except ValueError:
+        return None
+
+
+def _nhan_biet() -> list[str]:
+    from .nhat_ky_danh_muc import NHAN
+    return sorted({*NHAN.values(), *_NHAN_RIENG}, key=len, reverse=True)
+
+
+def _mot_doi(chu: str, nhan_biet: list[str], nhan_mac_dinh: str) -> dict | None:
+    """"Tồn 38.710 tờ → 30.000 tờ" → {thong_tin, truoc, sau, chenh, don_vi}; không có "→" ⇒ None."""
+    if " → " not in chu:
+        return None
+    trai, sau = (x.strip() for x in chu.split(" → ", 1))
+    ma_lo = None
+    if ": " in trai:
+        ma_lo, trai = trai.split(": ", 1)
+    nhan = next((n for n in nhan_biet if trai.lower().startswith(n.lower())
+                 and (len(trai) == len(n) or trai[len(n)] == " ")), None)
+    truoc = trai[len(nhan):].strip() if nhan else trai
+    nhan = nhan or nhan_mac_dinh or "Thông tin"
+    nhan = nhan[:1].upper() + nhan[1:]
+    a, b = _so(truoc), _so(sau)
+    if a and b and not a[1] and b[1]:
+        truoc = f"{truoc} {b[1]}"   # dòng cũ chỉ ghi đơn vị ở vế sau
+    chenh = None
+    if a and b and nhan in _CO_CHENH:
+        chenh = b[0] - a[0]
+    return {
+        "thong_tin": nhan + (f" lô {ma_lo}" if ma_lo else ""),
+        "truoc": truoc or "–", "sau": sau or "–",
+        "chenh": chenh, "don_vi": b[1] if b else "",
+    }
+
+
+def doc_lan_sua(log, *, can_view_cost: bool) -> dict:
+    """Một dòng nhật ký → {viec, o_dau, ghi_chu, dong[]} cho tab Lịch sử sửa. Không thấy giá thì vẫn
+    biết CÓ lần sửa giá, chỉ giấu số."""
+    phan = tach(log.detail)
+    loai = (log.target or "").split(":", 1)[0]
+    viec = VIEC.get(log.action, log.action)
+    o_dau = None
+    if loai == "ton":
+        phan = phan[1:]          # mẩu đầu "mặt hàng tại kho" cho màn Nhật ký chung
+    elif loai in _LOAI_DM:
+        o_dau = f"Danh mục {_LOAI_DM[loai]}"
+    if log.action == "dm_tao":
+        ten = (log.detail or "").strip()
+        return {"viec": viec, "o_dau": o_dau, "ghi_chu": [],
+                "dong": [{"thong_tin": "Mặt hàng", "truoc": "chưa có", "sau": ten or "–",
+                          "chenh": None, "don_vi": ""}]}
+    nhan_biet = _nhan_biet()
+    mac_dinh = "Khổ" if log.action == "kho_bo_sung_kho_lo" else ""
+    dong, ghi = [], []
+    for p in phan:
+        d = _mot_doi(p, nhan_biet, mac_dinh)
+        if d is not None:
+            if not can_view_cost and d["thong_tin"].lower().startswith(("đơn giá", "giá")):
+                d.update(truoc="có", sau="đã sửa", chenh=None)
+            dong.append(d)
+        elif p.startswith("Ghi chú: "):
+            ghi.append(p[len("Ghi chú: "):])
+        elif p.endswith("trên màn Tồn kho"):
+            o_dau = p
+            if p.startswith("Thêm hàng"):
+                viec = "Thêm hàng"
+        else:
+            ghi.append(p)
+    if loai == "ton" and o_dau is None:
+        o_dau = "Màn Tồn kho"
+    return {"viec": viec, "o_dau": o_dau, "ghi_chu": ghi, "dong": dong}

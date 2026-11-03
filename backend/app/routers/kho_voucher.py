@@ -83,7 +83,7 @@ from ..services import kho_gia_goc_service
 from ..services.kho_giay import (
     co_don_vi_goc, co_kho, dinh_luong_va_quy_kg, don_vi_khai, khoa_ton, khoa_ton_cua, nhan_kho,
 )
-from ..services.kho_nhat_ky_ton import VIEC as VIEC_NHAT_KY_TON, gom as gom_nhat_ky, tach as tach_nhat_ky, target_dong_ton
+from ..services.kho_nhat_ky_ton import VIEC as VIEC_NHAT_KY_TON, doc_lan_sua, gom as gom_nhat_ky, target_dong_ton
 from ..services.qr_token import sign_scan
 from ..services.vat_lieu_kho_service import HANG_NHAN, VatLieuKhoService
 from ..services.rbac_service import AuthorizationService
@@ -1270,24 +1270,12 @@ def _target_lich_su_sua(svc, kho_id: int, hang: tuple[str, int], loc: dict) -> l
 
 
 def _dong_lich_su_sua(logs, can_view_cost: bool) -> list[LichSuSuaRow]:
-    """Dòng nhật ký ra màn. Dòng tồn ghi mẩu đầu là "mặt hàng tại kho" cho màn Nhật ký chung — ở
-    ngăn của chính mặt hàng thì thừa, bỏ đi. Không thấy giá thì vẫn biết CÓ lần sửa giá, chỉ giấu số."""
-    out: list[LichSuSuaRow] = []
-    for log in logs:
-        phan = tach_nhat_ky(log.detail)
-        if log.target.startswith("ton:"):
-            phan = phan[1:]
-        elif log.action == "dm_tao":
-            # Nhật ký danh mục chỉ lưu tên lúc tạo — nói thẳng là tạo mới với tên đó.
-            phan = [f"Tạo mặt hàng mới, tên {log.detail.strip()}"] if (log.detail or "").strip() else []
-        if not can_view_cost:
-            phan = [] if log.action == "kho_sua_gia_goc" else [
-                p for p in phan if not p.lower().startswith(("đơn giá", "giá"))]
-        out.append(LichSuSuaRow(
-            id=log.id, luc=log.created_at, nguoi=log.actor_name_luc_do or None,
-            viec=VIEC_NHAT_KY_TON.get(log.action, log.action), thay_doi=phan,
-        ))
-    return out
+    """Dòng nhật ký ra tab Lịch sử sửa — tách chữ thành Trước / Sau / Chênh ở `doc_lan_sua`."""
+    return [
+        LichSuSuaRow(id=log.id, luc=log.created_at, nguoi=log.actor_name_luc_do or None,
+                     **doc_lan_sua(log, can_view_cost=can_view_cost))
+        for log in logs
+    ]
 
 
 @router.get("/mat-hang/{hang_loai}/{hang_id}/lich-su-trang", response_model=MaterialHistoryPage)
@@ -1522,7 +1510,8 @@ def upsert_threshold(
             actor_user_id=user.id, action="kho_muc_ton",
             target=target_dong_ton(payload.kho_id, payload.hang_loai, payload.hang_id, goc,
                                    payload.kho_rong, payload.kho_dai),
-            detail=gom_nhat_ky([f"{getattr(m, 'ten', None) or 'Mặt hàng'} tại {getattr(kho, 'ten', 'kho')}", *doi]),
+            detail=gom_nhat_ky([f"{getattr(m, 'ten', None) or 'Mặt hàng'} tại {getattr(kho, 'ten', 'kho')}", *doi,
+                                "Đặt mức trên màn Tồn kho"]),
         )
     return StockThresholdOut.model_validate(obj)
 

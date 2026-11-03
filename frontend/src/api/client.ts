@@ -12372,13 +12372,24 @@ export interface ChuyenKhoRow {
   nguoi: string | null;
 }
 
-/** Một dòng tab "Lịch sử sửa" của ngăn mặt hàng: ai, lúc nào, việc gì, từng thay đổi cũ → mới. */
+/** Một thông tin đổi trong một lần sửa: Trước → Sau, Chênh khi là số. */
+export interface LichSuSuaDoi {
+  thong_tin: string;
+  truoc: string;
+  sau: string;
+  chenh: number | null;
+  don_vi: string;
+}
+
+/** Một lần sửa ở tab "Lịch sử sửa" của ngăn mặt hàng: ai, lúc nào, việc gì, ở đâu, ghi chú. */
 export interface LichSuSuaRow {
   id: number;
   luc: string;
   nguoi: string | null;
   viec: string;
-  thay_doi: string[];
+  o_dau: string | null;
+  ghi_chu: string[];
+  dong: LichSuSuaDoi[];
 }
 
 export type TabLichSuMatHang = "lo_ton" | "nhap" | "xuat" | "chuyen" | "sua";

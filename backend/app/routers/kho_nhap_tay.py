@@ -138,7 +138,7 @@ def import_excel(kho_id: int, db: Db, authz: Authz, nen: BackgroundTasks,
     svc = _svc(db)
     try:
         dong = svc.doc_file(kho_id, doc_gioi_han(file, TRAN_EXCEL, cho_rong=True))
-        kq = svc.chay(kho_id, dong, user, ghi=(mode == "commit"))
+        kq = svc.chay(kho_id, dong, user, ghi=(mode == "commit"), nguon="excel")
     except ExcelSaiMan as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e)) from None
     except KhoNhapTayError as e:
