@@ -346,6 +346,30 @@ def test_dieu_chuyen_giay_tach_theo_kho_va_don_vi_goc(client):
         db.close()
 
 
+def test_tab_dieu_chuyen_hien_phieu_cho_ghi_so_o_ca_hai_kho(client):
+    """Kho đích phải thấy hàng sắp về ngay ở tab Điều chuyển; tab Nhập/Xuất vẫn không lẫn phiếu nháp."""
+    kho_id, _ = _setup(client)
+    _don_vi()
+    g = _giay()
+    _ba_lo(client, kho_id, g)
+    adm = _login(client, "t_thukho")
+    den = client.post("/api/kho", json={"ten": "Kho đích"}, headers=_admin(client)).json()["id"]
+    r = client.post("/api/kho/dieu-chuyen", headers=adm, json={
+        "kho_nguon_id": kho_id, "kho_den_id": den, "items": [
+            {"hang_loai": "giay", "hang_id": g, "so_luong": 100,
+             "don_vi_goc": "to", "kho_rong": 905, "kho_dai": 780}]})
+    assert r.status_code == 201, r.text
+    nhap_id = r.json()["phieu_nhap_id"]
+    for kho, loai in ((den, "NHAP"), (kho_id, "XUAT")):
+        r = client.get(f"{BASE}/phieu", headers=adm, params={"kho_id": kho, "nhom": "dc", "man": "ton"})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert [v["loai"] for v in body["items"]] == [loai]
+        assert body["dem_theo_tab"]["dc"] == 1
+    r = client.get(f"{BASE}/phieu", headers=adm, params={"kho_id": den, "nhom": "nhap", "man": "ton"})
+    assert nhap_id not in [v["id"] for v in r.json()["items"]]
+
+
 def test_dieu_chuyen_giay_khong_ro_don_vi_bi_chan(client):
     kho_id, _ = _setup(client)
     _don_vi()

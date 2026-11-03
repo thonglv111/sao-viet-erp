@@ -1089,14 +1089,241 @@ input.kho-num,
   min-height: 0;
   padding-bottom: var(--sp-6, 32px);
 }
-/* Bảng "SL chuyển từng mặt hàng" trong popup điều chuyển hàng loạt — tách khỏi ô chọn kho phía trên. */
-.kho-dc-lines {
-  margin-top: var(--sp-3);
-  overflow-x: auto;
+/* Hộp "Chuyển kho" hai bước (phương án C, 03/11/2026). Rộng theo laptop 1000px; đầu + chân đứng yên,
+   chỉ bảng giữa cuộn, đầu bảng dính. Ô nhập nền xám không viền, chip chọn kho nhận. */
+.cdlg.kdc {
+  max-width: 1000px;
+  border-radius: 20px;
 }
-.kho-dc-lines .rc-input.kho-num {
+.kdc__dau {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: 22px 28px 6px;
+}
+.kdc__tieu {
+  margin: 0;
+  font-size: 20px;
+  font-weight: var(--fw-medium);
+  color: var(--ink);
+}
+.kdc__buoc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ash);
+}
+.kdc__buoc i {
+  display: inline-block;
+  width: 64px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--rule-soft);
+}
+.kdc__buoc i.xong {
+  background: var(--rust);
+}
+.kdc__dinh {
+  flex: none;
+  padding: 10px 28px 0;
+}
+.kdc__cuon {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: 0 28px;
+}
+.kdc__chan {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-top: 14px;
+  padding: 14px 28px 20px;
+  border-top: 1px solid var(--rule-soft);
+}
+.kdc__tom {
+  color: var(--ash);
+}
+.kdc__nut {
+  display: flex;
+  gap: 10px;
+}
+.kdc__tuyen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.kdc__kho-tu,
+.kdc__chip {
+  border: 0;
+  border-radius: var(--r-pill, 999px);
+  padding: 9px 16px;
+  background: var(--paper);
+  font: inherit;
+  color: var(--ink);
+}
+.kdc__kho-tu {
+  color: var(--ash);
+}
+.kdc__mui {
+  color: var(--ash-2);
+  font-size: 18px;
+}
+.kdc__chip {
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--rule-soft) inset;
+}
+.kdc__chip:hover {
+  background: var(--rule-hair);
+}
+.kdc__chip.chon {
+  background: var(--ink);
+  color: var(--canvas);
+  box-shadow: none;
+}
+.kdc__thanh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin: 18px 0 4px;
+  font-size: 14px;
+  color: var(--ash);
+}
+.kdc__link,
+.kdc__het {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--rust);
+  cursor: pointer;
+}
+.kdc__link {
+  margin-left: 18px;
+}
+.kdc__link:hover,
+.kdc__het:hover {
+  text-decoration: underline;
+}
+.kdc__het {
+  margin-left: 8px;
+  font-size: 13px;
+}
+.kdc__o {
   width: 100%;
-  min-width: 88px;
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1px var(--rule-soft) inset;
+  font: inherit;
+  color: var(--ink);
+  outline: none;
+}
+.kdc__o:focus {
+  background: var(--canvas);
+  box-shadow: 0 0 0 2px var(--rust) inset;
+}
+.kdc__o::placeholder {
+  color: var(--ash-2);
+}
+.kdc__o.kdc__o-so {
+  width: 120px;
+  text-align: right;
+}
+.kdc__o.kdc__o-vt {
+  min-width: 120px;
+}
+.kdc__o-chuyen {
+  white-space: nowrap;
+}
+.kdc__bang {
+  width: 100%;
+  border-collapse: collapse;
+}
+.kdc__bang th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--rule-soft);
+  text-align: left;
+  font-size: 13px;
+  font-weight: var(--fw-regular);
+  color: var(--ash);
+  white-space: nowrap;
+}
+.kdc__bang td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--rule-hair);
+  vertical-align: middle;
+}
+.kdc__bang .r {
+  text-align: right;
+}
+.kdc__bang .so {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kdc__mo,
+.kdc__bang tr.trong td {
+  color: var(--ash);
+}
+.kdc__am {
+  color: var(--signal-deep, #b42318);
+}
+.kdc__ghi {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 14px;
+  padding: 14px 0 0;
+}
+.kdc__dinh .banner {
+  margin-top: 12px;
+}
+.kdc__xac {
+  margin-top: 8px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--moss-soft);
+  line-height: 1.6;
+  color: var(--ink);
+}
+.kdc__xac-tieu {
+  color: var(--moss-deep);
+}
+.kdc__xac-ghi {
+  margin-top: 4px;
+  color: var(--ash);
+}
+@media (max-width: 720px) {
+  .kdc__dau,
+  .kdc__chan {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .kdc__dinh {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .kdc__cuon {
+    margin: 0 16px;
+  }
+  .kdc__ghi {
+    grid-template-columns: 1fr;
+  }
+  .kdc__chan {
+    flex-wrap: wrap;
+  }
 }
 
 /* --- Bản in yêu cầu (trong PrintSheet) ----------------------------------- */

@@ -117,10 +117,12 @@ class StockVoucherRepository:
         # ẨN phiếu điều chuyển CÒN NHÁP khỏi danh sách phiếu thường: cả ve XUẤT nguồn (bút toán nội
         # bộ) LẪN ve NHẬP đích — ve nhập đích hiện qua "Phiếu điều chuyển" (mặt tiền riêng,
         # spec-phieu-dieu-chuyen §6), không lẫn vào list phiếu nhập. Đã ghi sổ thì HIỆN (đối chiếu).
-        conds.append(or_(
-            StockVoucher.dieu_chuyen.is_(False),
-            StockVoucher.trang_thai != VOUCHER_DRAFT,
-        ))
+        # Tab `dc` của màn tồn từng kho thì HIỆN cả phiếu chờ ghi sổ: kho đích phải thấy hàng sắp về.
+        if nhom != "dc":
+            conds.append(or_(
+                StockVoucher.dieu_chuyen.is_(False),
+                StockVoucher.trang_thai != VOUCHER_DRAFT,
+            ))
         if loai:
             conds.append(StockVoucher.loai == loai)
         if nhom == "dc":
@@ -180,15 +182,18 @@ class StockVoucherRepository:
     def dem_theo_nhom(self, **loc) -> dict[str, int]:
         """Số phiếu theo nhóm tab `nhap` / `xuat` / `dc` — cùng bộ lọc với `list`, TRỪ nhóm."""
         loc.pop("nhom", None)
-        rows = self.db.execute(
-            select(StockVoucher.loai, StockVoucher.dieu_chuyen, func.count())
-            .where(*self._dieu_kien(**loc))
-            .group_by(StockVoucher.loai, StockVoucher.dieu_chuyen)
-        ).all()
         dem = {"nhap": 0, "xuat": 0, "dc": 0}
-        for loai, dc, n in rows:
-            k = "dc" if dc else ("nhap" if loai == VOUCHER_NHAP else "xuat")
-            dem[k] += int(n)
+        rows = self.db.execute(
+            select(StockVoucher.loai, func.count())
+            .where(*self._dieu_kien(**loc), StockVoucher.dieu_chuyen.is_(False))
+            .group_by(StockVoucher.loai)
+        ).all()
+        for loai, n in rows:
+            dem["nhap" if loai == VOUCHER_NHAP else "xuat"] += int(n)
+        dem["dc"] = int(self.db.execute(
+            select(func.count()).select_from(StockVoucher)
+            .where(*self._dieu_kien(**loc, nhom="dc"))
+        ).scalar_one())
         return dem
 
     def nguoi_lap_loc(self, *, kho_id: int | None = None) -> list[tuple[int, int]]:

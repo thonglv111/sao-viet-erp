@@ -31,7 +31,6 @@ import {
   type CotLuoi, type MauTT,
 } from "../components/LuoiDs";
 import { EmptyRow as DongTrongLds } from "../components/EmptyState";
-import { Select } from "../components/Select";
 import type { NavigateFn } from "../components/AppShell";
 import { fmtDate, fmtDateISO, fmtDateTime, money } from "../utils/format";
 import { qrToSvg } from "../lib/qr";
@@ -95,6 +94,7 @@ import {
   Gauge,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 
 
@@ -1634,7 +1634,7 @@ function MaterialHistoryDrawer({
   const canEditAnh =
     can("kho", "create") ||
     can(material.hang_loai === "giay" ? "dm_giay" : "dm_vat_tu", "update");
-  // Điều chuyển kho: quyền lập phiếu kho + phải có kho đích. Trừ tồn nguồn NGAY (mở dialog xác nhận).
+  // Điều chuyển kho: quyền lập phiếu kho + phải có kho đích. Tồn hai kho đổi khi kho đích ghi sổ phiếu nhận.
   const canCreate = can("kho", "create");
   const [dcOpen, setDcOpen] = useState(false);
   // Lô giấy CŨ chưa có dạng/khổ: kho bổ sung ngay tại tab "Lô tồn".
@@ -2208,10 +2208,10 @@ function BoSungKhoDialog({
   );
 }
 
-// Dialog ĐIỀU CHUYỂN 1 mặt hàng sang kho khác. Trừ tồn nguồn NGAY khi xác nhận (tự lập + ghi sổ
-// phiếu xuất), rồi sinh YÊU CẦU ĐIỀU CHUYỂN ở đích cho kho đích lập phiếu nhận. Tái dùng ConfirmDialog.
-// 1 mặt hàng trong popup điều chuyển (dùng chung cho 1 mặt hàng ở drawer LẪN nhiều mặt hàng tick
-// hàng loạt ở danh sách tồn).
+// Hộp CHUYỂN KHO hai bước (phương án C, 03/11/2026): bước 1 gõ số từng mặt hàng, bước 2 xem lại chỉ
+// các dòng có số rồi mới gửi. Gửi xong tồn CHƯA đổi: kho đích nhận phiếu nhập chờ ghi sổ, ghi sổ thì
+// kho nguồn bị trừ và kho đích được cộng cùng lúc. Dùng chung cho 1 mặt hàng ở ngăn chi tiết LẪN nhiều
+// mặt hàng tick ở danh sách tồn.
 interface DcItem {
   hang_loai: HangLoai;
   hang_id: number;
@@ -2220,17 +2220,16 @@ interface DcItem {
   khoRong: number;
   khoDai: number;
   ten: string;
+  /** Nhãn khổ của dòng tồn, cột riêng để hai khổ cùng mã không đọc như trùng. Không khổ: "". */
+  kho: string;
   dvt: string;
   tonKhaDung: number;
 }
 
-/** Một dòng tồn → một dòng điều chuyển (tên kèm khổ để hai khổ cùng mã không đọc như trùng). */
 function dcItemTu(g: MaterialGroup, tonKhaDung: number): DcItem {
-  const kho = nhanTonNhom(g);
-  const ten = g.name ?? g.code ?? "vật tư";
   return {
     hang_loai: g.hang_loai, hang_id: g.hang_id, goc: g.goc, khoRong: g.khoRong, khoDai: g.khoDai,
-    ten: kho ? `${ten} · ${kho}` : ten, dvt: g.dvt ?? "", tonKhaDung,
+    ten: g.name ?? g.code ?? "vật tư", kho: nhanTonNhom(g), dvt: g.dvt ?? "", tonKhaDung,
   };
 }
 
@@ -2253,165 +2252,264 @@ function DieuChuyenDialog({
 }) {
   const keyOf = (it: DcItem) =>
     khoaTon({ hang_loai: it.hang_loai, hang_id: it.hang_id, don_vi_goc: it.goc, kho_rong: it.khoRong, kho_dai: it.khoDai });
-  const [khoDenId, setKhoDenId] = useState<number | null>(null);
-  // SL chuyển từng mặt hàng — mặc định = tồn khả dụng (chuyển hết), sửa được từng dòng.
-  const [qty, setQty] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      items.map((it) => [keyOf(it), it.tonKhaDung > 0 ? String(it.tonKhaDung) : ""]),
-    ),
-  );
-  // Vị trí cất ở KHO ĐÍCH (kệ/ô) — tuỳ chọn, khai ngay lúc ấn; áp cho mọi lô của mặt hàng.
+  const [buoc, setBuoc] = useState<1 | 2>(1);
+  const [khoDenId, setKhoDenId] = useState<number | null>(khoDich.length === 1 ? khoDich[0].id : null);
+  // Số chuyển từng dòng — mặc định TRỐNG (trống = không chuyển dòng đó), nút "Hết" điền cả tồn.
+  const [qty, setQty] = useState<Record<string, number | null>>({});
+  // Vị trí cất ở KHO ĐÍCH: một ô chung cho tất cả, dòng nào khác thì gõ riêng.
+  const [viTriChung, setViTriChung] = useState("");
   const [viTri, setViTri] = useState<Record<string, string>>({});
   const [ghiChu, setGhiChu] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const nhieu = items.length > 1;
 
-  async function chuyen() {
-    if (khoDenId == null) {
-      setError("Chọn kho đích.");
-      return;
+  const coKhoCot = items.some((it) => it.kho);
+  const khoDen = khoDich.find((w) => w.id === khoDenId);
+  const dong = items.map((it) => ({ it, k: keyOf(it), sl: qty[keyOf(it)] ?? null }));
+  const coSo = dong.filter((d) => d.sl != null && d.sl > 0);
+  const vuot = coSo.find((d) => (d.sl as number) > d.it.tonKhaDung + 1e-9);
+  const viTriCua = (k: string) => (viTri[k] ?? "").trim() || viTriChung.trim();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !busy) onCancel();
     }
-    const chosen: { it: DcItem; sl: number }[] = [];
-    for (const it of items) {
-      const sl = Number(qty[keyOf(it)]);
-      if (!Number.isFinite(sl) || sl <= 0) continue;
-      if (sl > it.tonKhaDung + 1e-9) {
-        setError(`“${it.ten}” vượt tồn khả dụng (${fmtQty(it.tonKhaDung)} ${it.dvt}).`);
-        return;
-      }
-      chosen.push({ it, sl });
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [busy, onCancel]);
+
+  function tiep() {
+    if (khoDenId == null) return setError("Chọn kho nhận.");
+    if (coSo.length === 0) return setError("Gõ số chuyển cho ít nhất một mặt hàng.");
+    if (vuot) {
+      return setError(`${vuot.it.ten}${vuot.it.kho ? ` khổ ${vuot.it.kho}` : ""} chỉ còn ${fmtQty(vuot.it.tonKhaDung)} ${vuot.it.dvt}.`);
     }
-    if (chosen.length === 0) {
-      setError("Nhập số lượng > 0 cho ít nhất 1 mặt hàng.");
-      return;
-    }
+    setError(null);
+    setBuoc(2);
+  }
+
+  async function gui() {
+    if (khoDenId == null) return;
     setBusy(true);
     setError(null);
     try {
       await api.kho.phieu.dieuChuyen(token, {
         kho_nguon_id: khoNguonId,
         kho_den_id: khoDenId,
-        items: chosen.map((x) => ({
-          hang_loai: x.it.hang_loai,
-          hang_id: x.it.hang_id,
-          ...(coDonViGoc(x.it.hang_loai) ? { don_vi_goc: x.it.goc, kho_rong: x.it.khoRong, kho_dai: x.it.khoDai } : {}),
-          so_luong: x.sl,
-          vi_tri: (viTri[keyOf(x.it)] ?? "").trim() || null,
+        items: coSo.map((d) => ({
+          hang_loai: d.it.hang_loai,
+          hang_id: d.it.hang_id,
+          ...(coDonViGoc(d.it.hang_loai) ? { don_vi_goc: d.it.goc, kho_rong: d.it.khoRong, kho_dai: d.it.khoDai } : {}),
+          so_luong: d.sl as number,
+          vi_tri: viTriCua(d.k) || null,
         })),
         ghi_chu: ghiChu.trim() || null,
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không điều chuyển được.");
+      setError(e instanceof ApiError ? e.message : "Không gửi được phiếu chuyển.");
     } finally {
       setBusy(false);
     }
   }
 
+  const cotKho = (it: DcItem) => (coKhoCot ? <td className="kdc__mo">{it.kho || "—"}</td> : null);
+
   return (
-    <ConfirmDialog
-      open
-      wide={nhieu}
-      title={nhieu ? `Chuyển kho — ${items.length} mặt hàng` : `Chuyển kho — ${items[0]?.ten ?? "vật tư"}`}
-      message={`Gộp vào MỘT yêu cầu điều chuyển sang kho đích. Tồn CHƯA đổi — chỉ trừ kho “${khoNguonTen}” và cộng kho đích KHI kho đích ghi sổ phiếu nhập.`}
-      confirmLabel="Điều chuyển"
-      cancelLabel="Hủy"
-      busy={busy}
-      error={error}
-      confirmDisabled={khoDenId == null}
-      onConfirm={() => void chuyen()}
-      onCancel={onCancel}
-    >
-      <div className="rc-grid kho-setth">
-        <div className="rc-field">
-          <span className="rc-field__label">Từ kho (nguồn)</span>
-          <input className="rc-input" value={khoNguonTen} disabled readOnly />
+    <div className="cdlg-overlay">
+      <div className="cdlg kdc" role="dialog" aria-modal="true" aria-label="Chuyển kho">
+        <div className="kdc__dau">
+          <div>
+            <h2 className="kdc__tieu">{buoc === 1 ? "Chuyển kho" : "Xem lại trước khi gửi"}</h2>
+            <div className="kdc__buoc">
+              <i className="xong" />
+              <i className={buoc === 2 ? "xong" : ""} />
+              <span>Bước {buoc}/2</span>
+            </div>
+          </div>
+          <button type="button" className="cdlg__close" onClick={onCancel} disabled={busy} aria-label="Đóng" title="Đóng (Esc)">
+            <X size={18} />
+          </button>
         </div>
-        <div className="rc-field">
-          <label className="rc-field__label" htmlFor="dc-kho-den">
-            Đến kho (đích) <em>*</em>
-          </label>
-          <Select
-            id="dc-kho-den"
-            portal
-            ariaLabel="Kho đích"
-            placeholder="— Chọn kho đích —"
-            value={khoDenId}
-            onChange={(v) => setKhoDenId(v as number | null)}
-            options={khoDich.map((w) => ({ value: w.id, label: w.ten, hint: w.ma }))}
-          />
-        </div>
-      </div>
 
-      {/* Khung ngoài `kho-dc-lines` giữ lề trên + cuộn ngang khi hộp hẹp (điện thoại); cột cố định cộng lại
-          + 150 cho cột Vật tư, chật hơn thì khung ngoài cuộn. */}
-      <div className="kho-dc-lines">
-        <div className="lds-bang lds-bang--nhap">
-        <table className="lds-g" style={{ minWidth: 150 + 110 + 110 + 170 }}>
-          <colgroup>
-            <col />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 110 }} />
-            <col style={{ width: 170 }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>Vật tư</th>
-              <th className="n">Tồn khả dụng</th>
-              <th className="n">SL chuyển</th>
-              <th>Vị trí (kho đích)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it) => {
-              const k = keyOf(it);
-              return (
-                <tr key={k}>
-                  <td>{it.ten}</td>
-                  <td className="n">
-                    {fmtQty(it.tonKhaDung)} {it.dvt}
-                  </td>
-                  <td className="n">
-                    <DecimalInput
-                      className="rc-input kho-num"
-                      value={qty[k] ? Number(qty[k]) : null}
-                      allowNull
-                      onChange={(n) => setQty((prev) => ({ ...prev, [k]: n == null ? "" : String(n) }))}
-                      aria-label={`SL chuyển ${it.ten}`}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="rc-input"
-                      value={viTri[k] ?? ""}
-                      onChange={(e) => setViTri((prev) => ({ ...prev, [k]: e.target.value }))}
-                      placeholder="kệ / ô… (tuỳ chọn)"
-                      aria-label={`Vị trí ${it.ten}`}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
+        {buoc === 1 ? (
+          <>
+            <div className="kdc__dinh">
+              <div className="kdc__tuyen" role="radiogroup" aria-label="Kho nhận">
+                <span className="kdc__kho-tu">{khoNguonTen}</span>
+                <span className="kdc__mui" aria-hidden>→</span>
+                {khoDich.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={w.id === khoDenId}
+                    className={`kdc__chip${w.id === khoDenId ? " chon" : ""}`}
+                    onClick={() => setKhoDenId(w.id)}
+                  >
+                    {w.ten}
+                  </button>
+                ))}
+              </div>
+              <div className="kdc__thanh">
+                <span>{items.length} mặt hàng</span>
+                <span>
+                  <button
+                    type="button"
+                    className="kdc__link"
+                    onClick={() => setQty(Object.fromEntries(items.map((it) => [keyOf(it), it.tonKhaDung > 0 ? it.tonKhaDung : null])))}
+                  >
+                    Chuyển hết tất cả
+                  </button>
+                  <button type="button" className="kdc__link" onClick={() => setQty({})}>
+                    Xoá số đã gõ
+                  </button>
+                </span>
+              </div>
+            </div>
+            <div className="kdc__cuon">
+              <table className="kdc__bang">
+                <thead>
+                  <tr>
+                    <th>Mặt hàng</th>
+                    {coKhoCot && <th>Khổ (mm)</th>}
+                    <th className="r">Đang có</th>
+                    <th className="r">Chuyển</th>
+                    <th className="r">Còn lại</th>
+                    <th>Vị trí riêng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dong.map(({ it, k, sl }) => {
+                    const trong = sl == null || sl <= 0;
+                    const con = trong ? null : it.tonKhaDung - (sl as number);
+                    return (
+                      <tr key={k} className={trong ? "trong" : ""}>
+                        <td>{it.ten}</td>
+                        {cotKho(it)}
+                        <td className="r so">{fmtQty(it.tonKhaDung)} {it.dvt}</td>
+                        <td className="r kdc__o-chuyen">
+                          <DecimalInput
+                            className="kdc__o kdc__o-so so"
+                            value={sl}
+                            allowNull
+                            placeholder="—"
+                            onChange={(n) => setQty((p) => ({ ...p, [k]: n }))}
+                            aria-label={`Số chuyển ${it.ten}${it.kho ? ` khổ ${it.kho}` : ""}`}
+                          />
+                          <button
+                            type="button"
+                            className="kdc__het"
+                            onClick={() => setQty((p) => ({ ...p, [k]: it.tonKhaDung > 0 ? it.tonKhaDung : null }))}
+                          >
+                            Hết
+                          </button>
+                        </td>
+                        <td className={`r so${con != null && con < -1e-9 ? " kdc__am" : ""}`}>
+                          {con == null ? "—" : `${fmtQty(con)} ${it.dvt}`}
+                        </td>
+                        <td>
+                          <input
+                            className="kdc__o kdc__o-vt"
+                            value={viTri[k] ?? ""}
+                            maxLength={100}
+                            placeholder={viTriChung.trim() || "như dưới"}
+                            onChange={(e) => setViTri((p) => ({ ...p, [k]: e.target.value }))}
+                            aria-label={`Vị trí riêng ${it.ten}`}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="kdc__dinh">
+              <div className="kdc__ghi">
+                <input
+                  className="kdc__o"
+                  value={viTriChung}
+                  maxLength={100}
+                  placeholder="Vị trí cất cho tất cả (kệ, ô)"
+                  aria-label="Vị trí cất cho tất cả"
+                  onChange={(e) => setViTriChung(e.target.value)}
+                />
+                <input
+                  className="kdc__o"
+                  value={ghiChu}
+                  maxLength={1000}
+                  placeholder="Ghi chú, lý do chuyển (không bắt buộc)"
+                  aria-label="Ghi chú"
+                  onChange={(e) => setGhiChu(e.target.value)}
+                />
+              </div>
+              {error && <div className="banner banner--error" role="alert">{error}</div>}
+            </div>
+            <div className="kdc__chan">
+              <span className="kdc__tom">{coSo.length}/{items.length} mặt hàng có số</span>
+              <div className="kdc__nut">
+                <button type="button" className="btn btn--ghost" onClick={onCancel}>
+                  Huỷ
+                </button>
+                <Button type="button" variant="accent" onClick={tiep} disabled={khoDenId == null || coSo.length === 0}>
+                  Tiếp
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="kdc__dinh">
+              <div className="kdc__xac">
+                <div className="kdc__xac-tieu">
+                  {khoNguonTen} → {khoDen?.ten}, {coSo.length} mặt hàng
+                </div>
+                {khoDen?.ten} nhận phiếu chờ ghi sổ. Ghi sổ xong thì {khoNguonTen} bị trừ và {khoDen?.ten} được cộng
+                cùng lúc.
+                {ghiChu.trim() && <div className="kdc__xac-ghi">Ghi chú: {ghiChu.trim()}</div>}
+              </div>
+            </div>
+            <div className="kdc__cuon">
+              <table className="kdc__bang">
+                <thead>
+                  <tr>
+                    <th>Mặt hàng</th>
+                    {coKhoCot && <th>Khổ (mm)</th>}
+                    <th className="r">Chuyển</th>
+                    <th className="r">{khoNguonTen} còn</th>
+                    <th>Vị trí ở {khoDen?.ten}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coSo.map(({ it, k, sl }) => (
+                    <tr key={k}>
+                      <td>{it.ten}</td>
+                      {cotKho(it)}
+                      <td className="r so">{fmtQty(sl)} {it.dvt}</td>
+                      <td className="r so">{fmtQty(it.tonKhaDung - (sl as number))} {it.dvt}</td>
+                      <td className="kdc__mo">{viTriCua(k) || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {error && (
+              <div className="kdc__dinh">
+                <div className="banner banner--error" role="alert">{error}</div>
+              </div>
+            )}
+            <div className="kdc__chan">
+              <button type="button" className="btn btn--ghost" onClick={() => setBuoc(1)} disabled={busy}>
+                ← Sửa lại
+              </button>
+              <Button type="button" variant="accent" onClick={() => void gui()} loading={busy}>
+                Gửi phiếu chuyển
+              </Button>
+            </div>
+          </>
+        )}
       </div>
-
-      <div className="rc-field">
-        <label className="rc-field__label" htmlFor="dc-ghichu">
-          Ghi chú
-        </label>
-        <input
-          id="dc-ghichu"
-          className="rc-input"
-          value={ghiChu}
-          maxLength={1000}
-          placeholder="Lý do / ghi chú điều chuyển (tuỳ chọn)"
-          onChange={(e) => setGhiChu(e.target.value)}
-        />
-      </div>
-    </ConfirmDialog>
+    </div>
   );
 }
 
