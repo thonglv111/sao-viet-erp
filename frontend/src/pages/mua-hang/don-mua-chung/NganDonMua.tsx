@@ -546,7 +546,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
   const cotMuaCho = new Set(row.lines.map((l) => khoaMuaCho(l.loai_mua ? [l.loai_mua] : [], l.mua_cho))).size > 1;
   // Định lượng (gsm danh mục, chỉ đọc) ngay sau Khổ đặt — chỉ khi đơn có dòng giấy (spec 2026-10-24 §6).
   const coGiay = row.lines.some((l) => l.hang_loai === "giay");
-  const soCot = (coHangVe ? 8 : 6) + (cotMuaCho ? 1 : 0) + (coGiay ? 1 : 0);
+  const soCot = (coHangVe ? 9 : 7) + (cotMuaCho ? 1 : 0) + (coGiay ? 1 : 0);
 
   return (
     <>
@@ -578,6 +578,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
             {cotMuaCho && <col style={{ width: 150 }} />}
             <col style={{ width: 122 }} />
             {coGiay && <col style={{ width: 96 }} />}
+            <col style={{ width: 64 }} />
             <col style={{ width: 96 }} />
             {coHangVe && <col style={{ width: 76 }} />}
             {coHangVe && <col style={{ width: 84 }} />}
@@ -591,6 +592,7 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
               {cotMuaCho && <th>Mua cho</th>}
               <th>Khổ đặt</th>
               {coGiay && <th className="n">Định lượng</th>}
+              <th>ĐVT</th>
               <th className="n">Đặt</th>
               {coHangVe && <th className="n">Đã về</th>}
               {coHangVe && <th className="n">Còn thiếu</th>}
@@ -633,7 +635,8 @@ function TabMatHang({ row, coHangVe, onMoLenh }: { row: PurchaseRequestRow; coHa
                       {dot.some(({ x }) => x.khac_kho_dat) && <span className="mh-tag mh-tag--canh">khác khổ</span>}
                     </td>
                     {coGiay && <td className="n">{l.hang_loai === "giay" ? (l.dinh_luong ?? "–") : ""}</td>}
-                    <td className="n">{so(l.quantity)}<span className="mh-u">{dv(l.unit)}</span></td>
+                    <td>{dv(l.unit)}</td>
+                    <td className="n">{so(l.quantity)}</td>
                     {coHangVe && <td className="n">{ve > 0 ? so(ve) : <span className="mh-mo3">0</span>}</td>}
                     {coHangVe && (
                       <td className="n">
@@ -804,11 +807,12 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                             <colgroup>
                               <col />
                               <col style={{ width: 190 }} />
+                              <col style={{ width: 64 }} />
                               <col style={{ width: 130 }} />
                               <col style={{ width: 120 }} />
                             </colgroup>
                             <thead>
-                              <tr><th>Vật tư</th><th>Khổ nhận</th><th className="n">Số lượng</th><th className="n">Giá trị</th></tr>
+                              <tr><th>Vật tư</th><th>Khổ nhận</th><th>ĐVT</th><th className="n">Số lượng</th><th className="n">Giá trị</th></tr>
                             </thead>
                             <tbody>
                               {d.lines.map((x) => {
@@ -821,8 +825,9 @@ function TabDotGiao({ row, viecDot }: { row: PurchaseRequestRow; viecDot?: ViecD
                                       {khoChu(pl?.hang_loai ?? null, x.kho_rong, x.kho_dai)}
                                       {x.khac_kho_dat && <span className="mh-tag mh-tag--canh">khác khổ</span>}
                                     </td>
+                                    <td>{dv(x.unit)}</td>
                                     <td className="n" title={x.quantity_du > 0 ? `${so(x.quantity_tinh_tien)} tính tiền, ${so(x.quantity_du)} vượt số đặt giá 0 đ` : undefined}>
-                                      {so(x.quantity)}<span className="mh-u">{dv(x.unit)}</span>
+                                      {so(x.quantity)}
                                       {x.quantity_du > 0 && <span className="mh-tag">dư {so(x.quantity_du)}</span>}
                                     </td>
                                     <td className="n">{gt != null ? so(gt) : ""}</td>
