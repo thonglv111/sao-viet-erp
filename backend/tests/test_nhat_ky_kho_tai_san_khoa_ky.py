@@ -411,20 +411,26 @@ def test_tick_nhat_ky_sau_commit_o_mo_ky_kho(client, tick):
 
 # --- Fix round 1: huỷ điều chuyển chỉ ghi "huỷ" cho phiếu mà chính lần này huỷ -----------------------
 
-def _dieu_chuyen(client, tick=None):
+def _dieu_chuyen(client, monkeypatch):
+    """Cặp phiếu điều chuyển còn NHÁP như dữ liệu trước 03/11/2026 (từ đó bấm chuyển là ghi sổ luôn)
+    — huỷ cả cặp chỉ còn dọn những cặp cũ này."""
+    from app.services.stock_voucher_service import StockVoucherService
     kho_id, mat_id = _setup(client)
     _nhap(client, kho_id=kho_id, mat_id=mat_id, qty=100, gia=1_000)
+    goc = StockVoucherService.post
+    monkeypatch.setattr(StockVoucherService, "post", lambda self, vid, user=None: self.vouchers.get(vid))
     tk = _login(client, "t_thukho")
     den = client.post("/api/kho", json={"ten": "Kho đích NK"}, headers=_h(client)).json()["id"]
     r = client.post("/api/kho/dieu-chuyen", headers=tk, json={
         "kho_nguon_id": kho_id, "kho_den_id": den,
         "items": [{"hang_loai": mat_id[0], "hang_id": mat_id[1], "so_luong": 10}]})
     assert r.status_code == 201, r.text
+    monkeypatch.setattr(StockVoucherService, "post", goc)
     return tk, r.json()
 
 
-def test_huy_dieu_chuyen_ghi_huy_cho_ca_hai_phieu(client, tick):
-    tk, dc = _dieu_chuyen(client)
+def test_huy_dieu_chuyen_ghi_huy_cho_ca_hai_phieu(client, tick, monkeypatch):
+    tk, dc = _dieu_chuyen(client, monkeypatch)
     tick.clear()
     r = client.post(f"/api/kho/dieu-chuyen/{dc['yeu_cau_id']}/huy", headers=tk,
                     json={"ly_do": "Chuyển nhầm"})
@@ -435,10 +441,10 @@ def test_huy_dieu_chuyen_ghi_huy_cho_ca_hai_phieu(client, tick):
     assert tick, "huỷ điều chuyển không báo màn Nhật ký"
 
 
-def test_huy_dieu_chuyen_khong_ghi_huy_cho_phieu_xuat_da_huy_tu_truoc(client):
+def test_huy_dieu_chuyen_khong_ghi_huy_cho_phieu_xuat_da_huy_tu_truoc(client, monkeypatch):
     from app.models.stock_voucher import VOUCHER_CANCELLED, StockVoucher
 
-    tk, dc = _dieu_chuyen(client)
+    tk, dc = _dieu_chuyen(client, monkeypatch)
     with SessionLocal() as s:                 # phiếu xuất nguồn đã bị huỷ từ trước (dữ liệu cũ)
         s.get(StockVoucher, dc["phieu_xuat_id"]).trang_thai = VOUCHER_CANCELLED
         s.commit()

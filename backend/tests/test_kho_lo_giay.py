@@ -335,8 +335,6 @@ def test_dieu_chuyen_giay_tach_theo_kho_va_don_vi_goc(client):
         ]})
     assert r.status_code == 201, r.text
     assert r.json()["so_dong"] == 2
-    r = client.post(f"{BASE}/phieu/{r.json()['phieu_nhap_id']}/ghi-so", headers=adm)
-    assert r.status_code == 200, r.text
     db = SessionLocal()
     try:
         moi = sorted((lo.don_vi_goc, lo.kho_rong, lo.kho_dai, float(lo.sl_ban_dau))
@@ -346,8 +344,9 @@ def test_dieu_chuyen_giay_tach_theo_kho_va_don_vi_goc(client):
         db.close()
 
 
-def test_tab_dieu_chuyen_hien_phieu_cho_ghi_so_o_ca_hai_kho(client):
-    """Kho đích phải thấy hàng sắp về ngay ở tab Điều chuyển; tab Nhập/Xuất vẫn không lẫn phiếu nháp."""
+def test_chuyen_kho_ghi_so_luon_va_hien_o_tab_dieu_chuyen_hai_kho(client):
+    """Bấm chuyển là hàng sang kho đích luôn (03/11/2026): cả cặp phiếu đã ghi sổ, mỗi kho thấy vế
+    của mình ở tab Điều chuyển, không lẫn vào tab Nhập/Xuất."""
     kho_id, _ = _setup(client)
     _don_vi()
     g = _giay()
@@ -364,10 +363,15 @@ def test_tab_dieu_chuyen_hien_phieu_cho_ghi_so_o_ca_hai_kho(client):
         r = client.get(f"{BASE}/phieu", headers=adm, params={"kho_id": kho, "nhom": "dc", "man": "ton"})
         assert r.status_code == 200, r.text
         body = r.json()
-        assert [v["loai"] for v in body["items"]] == [loai]
+        assert [(v["loai"], v["trang_thai"]) for v in body["items"]] == [(loai, "posted")]
         assert body["dem_theo_tab"]["dc"] == 1
     r = client.get(f"{BASE}/phieu", headers=adm, params={"kho_id": den, "nhom": "nhap", "man": "ton"})
     assert nhap_id not in [v["id"] for v in r.json()["items"]]
+    db = SessionLocal()
+    try:
+        assert sum(float(lo.sl_con_lai) for lo in db.query(StockLot).filter(StockLot.kho_id == den)) == 100
+    finally:
+        db.close()
 
 
 def test_dieu_chuyen_giay_khong_ro_don_vi_bi_chan(client):

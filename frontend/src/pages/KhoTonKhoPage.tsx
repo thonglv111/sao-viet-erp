@@ -1634,7 +1634,7 @@ function MaterialHistoryDrawer({
   const canEditAnh =
     can("kho", "create") ||
     can(material.hang_loai === "giay" ? "dm_giay" : "dm_vat_tu", "update");
-  // Điều chuyển kho: quyền lập phiếu kho + phải có kho đích. Tồn hai kho đổi khi kho đích ghi sổ phiếu nhận.
+  // Điều chuyển kho: quyền lập phiếu kho + phải có kho đích. Bấm là ghi sổ luôn cả cặp phiếu.
   const canCreate = can("kho", "create");
   const [dcOpen, setDcOpen] = useState(false);
   // Lô giấy CŨ chưa có dạng/khổ: kho bổ sung ngay tại tab "Lô tồn".
@@ -2209,8 +2209,8 @@ function BoSungKhoDialog({
 }
 
 // Hộp CHUYỂN KHO một bước (03/11/2026): chọn kho nhận, gõ số từng mặt hàng (trống = không chuyển) rồi
-// gửi luôn. Gửi xong tồn CHƯA đổi: kho đích nhận phiếu nhập chờ ghi sổ, ghi sổ thì
-// kho nguồn bị trừ và kho đích được cộng cùng lúc. Dùng chung cho 1 mặt hàng ở ngăn chi tiết LẪN nhiều
+// bấm Chuyển kho là hàng sang kho nhận LUÔN: máy chủ ghi sổ cả cặp phiếu một nhịp, kho đi bị trừ và
+// kho nhận được cộng cùng lúc, không có bước kho nhận xác nhận. Dùng chung cho 1 mặt hàng ở ngăn chi tiết LẪN nhiều
 // mặt hàng tick ở danh sách tồn.
 interface DcItem {
   hang_loai: HangLoai;
@@ -2296,7 +2296,7 @@ function DieuChuyenDialog({
       });
       onDone();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Không gửi được phiếu chuyển.");
+      setError(e instanceof ApiError ? e.message : "Không chuyển kho được.");
     } finally {
       setBusy(false);
     }
@@ -2413,7 +2413,7 @@ function DieuChuyenDialog({
               loading={busy}
               disabled={khoDenId == null || coSo.length === 0}
             >
-              Gửi phiếu chuyển
+              Chuyển kho
             </Button>
           </div>
         </div>

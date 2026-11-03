@@ -284,7 +284,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       key: "can_create",
       keys: ["can_create", "can_update", "can_delete"],
       label: "Tiếp nhận yêu cầu, lập phiếu",
-      hint: "Cho phép: tiếp nhận yêu cầu; lập, ghi sổ, huỷ phiếu nhập / xuất; từ chối yêu cầu có lý do; điều chỉnh phiếu xuất; điều chuyển kho; sửa vị trí lô. Lưu ý: đây là việc của thủ kho; người kho nên để phạm vi “Tất cả” để thấy mọi yêu cầu gửi tới.",
+      hint: "Cho phép: tiếp nhận yêu cầu; lập, ghi sổ, huỷ phiếu nhập / xuất; từ chối yêu cầu có lý do; điều chỉnh phiếu xuất; chuyển kho: bấm là kho đi bị trừ, kho nhận được cộng ngay, không có bước kho nhận xác nhận, chuyển nhầm thì chuyển ngược; sửa vị trí lô. Lưu ý: đây là việc của thủ kho; người kho nên để phạm vi “Tất cả” để thấy mọi yêu cầu gửi tới. Người có ô này chuyển được hàng giữa mọi kho mình thấy.",
     },
     xemGiaKho(
       "Cho phép: xem đơn giá, thành tiền trên yêu cầu và phiếu nhập / xuất; giá lô lúc lập phiếu xuất. Lưu ý: chỉ ở màn này — từng kho và Báo cáo kho có ô xem giá riêng; thường chỉ kế toán kho bật.",

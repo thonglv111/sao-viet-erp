@@ -46,11 +46,10 @@ def _kho(db, ma: str) -> KhoHang:
 
 
 def _chuyen(db, admin, tp_id: int, tu: KhoHang, den: KhoHang, so_luong: float) -> list[StockLot]:
-    """Ấn điều chuyển rồi kho đích ghi sổ phiếu nhập dựng sẵn — trả các lô mới ở kho đích."""
+    """Ấn chuyển kho (ghi sổ luôn) — trả các lô mới ở kho đích."""
     svc = voucher_service(db)
     res = svc.dieu_chuyen(user=admin, kho_nguon_id=tu.id, kho_den_id=den.id,
                           items=[{"hang_loai": "vat_tu", "hang_id": tp_id, "so_luong": so_luong}])
-    svc.post(res["phieu_nhap"].id, admin)
     ids = [ln.lot_id for ln in db.query(StockVoucherLine).filter_by(voucher_id=res["phieu_nhap"].id)]
     return [db.get(StockLot, i) for i in ids]
 

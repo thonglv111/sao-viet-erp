@@ -51,7 +51,6 @@ def _dung(db, orders, lsx_svc, admin, customer):
     svc = voucher_service(db)
     res = svc.dieu_chuyen(user=admin, kho_nguon_id=a.id, kho_den_id=b.id,
                           items=[{"hang_loai": "vat_tu", "hang_id": tp_id, "so_luong": 30}])
-    svc.post(res["phieu_nhap"].id, admin)
     [o_b] = db.query(StockLot).filter_by(kho_id=b.id, hang_id=tp_id).all()
     return goc, o_b, db.get(StockVoucher, res["phieu_xuat"].id), a, b
 
