@@ -13,7 +13,7 @@ import "./kho-request.css";
 /** TẠM ẨN toàn bộ giao diện ĐIỀU CHUYỂN kho — CHỈ ở FE (backend/API + dữ liệu cũ giữ nguyên).
  *  Che: nút "Điều chuyển"/"Chuyển kho" ở Tồn kho · tab "Điều chuyển" ở Tồn kho · chip "Điều chuyển"
  *  ở Kho · tab con "Chuyển kho" trong Sổ kho (Báo cáo kho). Bật lại: đổi thành `false`. */
-export const AN_DIEU_CHUYEN = true;
+export const AN_DIEU_CHUYEN = false;
 
 /** ẨN nút "In yêu cầu" ở màn Yêu cầu nhập/xuất kho — CHỈ giao diện (hàm in vẫn còn).
  *  Bật lại: đổi thành `false`. */
