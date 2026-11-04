@@ -23,6 +23,7 @@ import {
 } from "../../../../api/client";
 import { Button } from "../../../../components/Button";
 import { DiscardChangesDialog } from "../../../../components/DiscardChangesDialog";
+import { useTat } from "../../../../auth/permissions";
 import { MucKhoanKmEditor } from "./components/MucKhoanKmEditor";
 import { CoCheTab } from "./tabs/CoCheTab";
 import { DanhMucTab } from "./tabs/DanhMucTab";
@@ -65,6 +66,9 @@ export function CauHinhLuongTab({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [sub, setSub] = useState<SubTab>("cochE");
+  // Bản cài tắt giao hàng: không có xe nên không có mức khoán km (máy chủ chặn luôn endpoint).
+  const tatGiao = useTat()("giao_hang");
+  const tabHien = SUB_TABS.filter((t) => !(tatGiao && t.key === "khoankm"));
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -416,7 +420,7 @@ export function CauHinhLuongTab({
   return (
     <div className="cl">
       <nav className="cl-subtabs">
-        {SUB_TABS.map((t) => (
+        {tabHien.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -458,7 +462,7 @@ export function CauHinhLuongTab({
         />
       )}
 
-      {sub === "khoankm" && <MucKhoanKmEditor token={token} readOnly={readOnly} />}
+      {sub === "khoankm" && !tatGiao && <MucKhoanKmEditor token={token} readOnly={readOnly} />}
 
       {sub === "danhmuc" && <DanhMucTab token={token} readOnly={readOnly} />}
 

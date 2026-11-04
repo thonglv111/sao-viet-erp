@@ -1987,10 +1987,21 @@ class AccountingService:
         """Các lượt khách đã nhận của đơn kèm giá trị gồm VAT, phần đã ghi hóa đơn và phần còn ghi."""
         from ..repositories.delivery_repo import DeliveryRepository
         from .hoa_don_theo_giao import gia_tri_luot_giao
+        from ..phan_he import tat
 
         trips = DeliveryRepository(self.repo.db).luot_khach_da_nhan_cua_don(order.id)
         da_ghi = self.repo.issued_invoice_amount_by_trip(order.id)
         ra = gia_tri_luot_giao(order, trips)
+        if tat("giao_hang"):
+            # Bản tắt giao hàng: mỗi lượt là một lần XUẤT kho — gọi bằng số phiếu xuất mà kho và Kế
+            # toán cùng thấy, không bằng mã yêu cầu giao ẩn (04/11/2026).
+            rp = DeliveryRepository(self.repo.db)
+            yc = rp.yeu_cau_kho_cua_nhieu_chuyen([r["trip_id"] for r in ra], "XUAT")
+            ma_phieu = rp.ma_phieu_kho_cua_nhieu_yeu_cau([y.id for y in yc.values()])
+            for r in ra:
+                y = yc.get(r["trip_id"])
+                if y is not None and ma_phieu.get(y.id):
+                    r["ma"] = " và ".join(ma_phieu[y.id])
         for r in ra:
             r["da_ghi"] = min(da_ghi.get(r["trip_id"], 0), r["gia_tri"])
         # Phần dư không nằm gọn trong lượt của nó — hóa đơn cũ chưa gắn lượt (mg 0402), hoặc hóa

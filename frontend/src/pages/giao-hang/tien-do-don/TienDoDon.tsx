@@ -3,7 +3,7 @@
 //
 // Số liệu do máy chủ tính (`GET /api/orders/{id}/tien-do`) — FE chỉ vẽ, không tự suy "giao được".
 // Luật chốt: KHÔNG lập yêu cầu giao cho phần chưa nhập kho ⇒ ô số lượng trần = `giao_duoc`.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   api,
   type DonTienDo,
@@ -17,7 +17,7 @@ import { Button } from "../../../components/Button";
 import { ChonNgay } from "../../../components/ChonNgay";
 import { DetailModal } from "../../../components/DetailModal";
 import { EmptyState } from "../../../components/EmptyState";
-import { fmtDate, fmtDateTime } from "../../../utils/format";
+import { fmtDate, fmtDateTimePhut } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { CHUYEN_THAT_BAI, nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
 import { ChipTT, type MauTT } from "../../../components/LuoiDs";
@@ -232,9 +232,11 @@ export function viecTiepTheo(o: {
 
   // Đủ hàng (kể cả nhờ tồn có sẵn của mã) thì việc kế tiếp là GIAO — không còn chờ xưởng hay KCS.
   // Lệnh của đơn mà vẫn chạy thì chạy xong sẽ ra hàng dư: nhắc một thẻ, không tự huỷ (12/10/2026).
+  // Lệnh chưa xuống xưởng thì chưa "chạy": nói là chưa đóng, kẻo người đọc tưởng xưởng đang làm (04/11/2026).
   const thua = tt.khoXong ? lenh.filter((l) => !l.xong) : [];
+  const coLenhChay = thua.some((l) => l.da_xuong_xuong);
   const theThua: TheViec[] = thua.length === 0 ? []
-    : [{ nhan: thua.length === 1 ? `${thua[0].ma} vẫn chạy dù đã đủ hàng` : `${thua.length} lệnh vẫn chạy dù đã đủ hàng`, tone: "warn" }];
+    : [{ nhan: `${thua.length === 1 ? thua[0].ma : `${thua.length} lệnh`} ${coLenhChay ? "vẫn chạy" : "chưa đóng"} dù đã đủ hàng`, tone: "warn" }];
 
   const choKho = tt.khoXong ? [] : cum.filter((c) => c.cho_kho > 0);
   if (choKho.length > 0) {
@@ -362,6 +364,7 @@ function buocDangChay(c: DonTienDoCum): string | null {
  *  hàng đang nằm ở KHO NÀO. Từ 11/10/2026 thành phẩm thuộc về khách: tồn của mã là hàng của khách,
  *  đơn nào của khách cũng giao được — trừ phần đơn khác của khách đang giữ (dòng chân bảng). */
 export function BangCum({ td }: { td: DonTienDo | null }) {
+  const xuat = useTat()("giao_hang");
   if (!td) return <EmptyState trangThai="dang-tai" gon nhanTai="Đang tải tiến độ…" />;
   if (td.cum.length === 0) return <p className="dhb__td-note">Đơn chưa có sản phẩm.</p>;
   return (
@@ -383,8 +386,8 @@ export function BangCum({ td }: { td: DonTienDo | null }) {
               { nhan: "Đã giao", so: so(c.da_giao), dv, phu: c.khach_nhan_du ? "khách đã nhận đủ" : undefined,
                 tone: c.khach_nhan_du ? "ok" : undefined },
               { nhan: "Còn phải giao", so: so(c.con_phai_giao), dv,
-                phu: c.dang_giu > 0 ? `đã trừ ${so(c.dang_giu)} đang giữ cho yêu cầu` : undefined },
-              { nhan: "Giao được ngay", so: so(c.giao_duoc), dv, tone: c.con_phai_giao > 0 ? "chu" : undefined,
+                phu: c.dang_giu > 0 ? `đã trừ ${so(c.dang_giu)} đang giữ cho ${xuat ? "lần xuất" : "yêu cầu"}` : undefined },
+              { nhan: xuat ? "Xuất được ngay" : "Giao được ngay", so: so(c.giao_duoc), dv, tone: c.con_phai_giao > 0 ? "chu" : undefined,
                 phu: c.giao_duoc > 0 ? `ở ${ton.length} kho`
                   : (c.giu_don_khac ?? 0) > 0 ? "đơn khác của khách đang giữ"
                   : c.co_lenh ? "kho chưa nhận hàng" : "kho không còn hàng" },
@@ -507,10 +510,10 @@ export function BuocGiaoHang({
             { nhan: "Khách đặt", so: `${so(c.dat)}${dv(c)}` },
             { nhan: "Đã giao", so: `${so(c.da_giao)}${dv(c)}`, dien: c.khach_nhan_du ? "khách đã nhận đủ" : undefined,
               tone: c.khach_nhan_du ? "ok" : undefined },
-            ...(c.dang_giu > 0 ? [{ nhan: "Đang chờ giao", so: `${so(c.dang_giu)}${dv(c)}`,
-              dien: soYcMo(c) > 0 ? `${soYcMo(c)} yêu cầu` : undefined }] : []),
+            ...(c.dang_giu > 0 ? [{ nhan: xuat ? "Chờ kho xuất" : "Đang chờ giao", so: `${so(c.dang_giu)}${dv(c)}`,
+              dien: soYcMo(c) > 0 ? `${soYcMo(c)} ${xuat ? "lần xuất" : "yêu cầu"}` : undefined }] : []),
             { nhan: "Còn phải giao", so: `${so(c.con_phai_giao)}${dv(c)}`, tong: true },
-            { nhan: "Giao được ngay", so: `${so(c.giao_duoc)}${dv(c)}`, dien: lyDoGiaoDuoc(c) },
+            { nhan: xuat ? "Xuất được ngay" : "Giao được ngay", so: `${so(c.giao_duoc)}${dv(c)}`, dien: lyDoGiaoDuoc(c) },
           ]} />
         );
       })() : (
@@ -519,8 +522,9 @@ export function BuocGiaoHang({
             <thead>
               <tr>
                 <th>Mặt hàng</th><th className="dhb__text-right">Khách đặt</th><th className="dhb__text-right">Đã giao</th>
-                <th className="dhb__text-right">Đang chờ giao</th><th className="dhb__text-right">Còn phải giao</th>
-                <th className="dhb__text-right">Giao được ngay</th>
+                <th className="dhb__text-right">{xuat ? "Chờ kho xuất" : "Đang chờ giao"}</th>
+                <th className="dhb__text-right">Còn phải giao</th>
+                <th className="dhb__text-right">{xuat ? "Xuất được ngay" : "Giao được ngay"}</th>
               </tr>
             </thead>
             <tbody>
@@ -541,20 +545,21 @@ export function BuocGiaoHang({
 
       {loi && <div className="banner banner--error" role="alert" style={{ margin: "0 20px 8px" }}>{loi}</div>}
 
-      {td.yeu_cau.length > 0 && (
+      {td.yeu_cau.length > 0 && xuat && <BangLanXuat td={td} order={order} onIn={onIn} />}
+      {td.yeu_cau.length > 0 && !xuat && (
         <div className="dhb__the-bang">
           <table className="dhb__g">
             <thead>
               <tr>
-                <th>{xuat ? "Lần xuất" : "Yêu cầu giao"}</th><th>Cần giao</th><th className="dhb__text-right">Số lượng</th>
-                <th>{xuat ? "Kho" : "Chuyến"}</th><th>Trạng thái</th><th />
+                <th>Yêu cầu giao</th><th>Cần giao</th><th className="dhb__text-right">Số lượng</th>
+                <th>Chuyến</th><th>Trạng thái</th><th />
               </tr>
             </thead>
             <tbody>
               {td.yeu_cau.flatMap((y) => {
                 const ch = y.chuyen;
-                const suaDuoc = !xuat && canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
-                const huyDuoc = !xuat && canWrite && (y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "chuyen_da_huy");
+                const suaDuoc = canWrite && y.trang_thai === "cho_len_ke_hoach" && !ch;
+                const huyDuoc = canWrite && (y.trang_thai === "cho_len_ke_hoach" || y.trang_thai === "chuyen_da_huy");
                 const khacDiaChi = y.dia_chi && y.dia_chi !== order.delivery_address;
                 return [
                   <tr key={y.id}>
@@ -575,14 +580,11 @@ export function BuocGiaoHang({
                     <td className="dhb__g-hai">
                       {ch ? (
                         <>
-                          {/* Chuyến ẩn của "Xuất hàng" không có xe/tài xế ⇒ chỉ nói kho đã xuất hay chưa. */}
-                          <span>{!xuat ? nhanChuyen(ch)
-                            : ch.trang_thai === "thanh_cong" ? "Đã xuất"
-                            : ch.trang_thai === "da_huy" ? nhanChuyen(ch) : "Chờ kho xuất"}</span>
+                          <span>{nhanChuyen(ch)}</span>
                           <small className="dhb__g-cach">
-                            {!xuat && ch.tai_xe && <span>{ch.tai_xe}</span>}
-                            {!xuat && ch.xe && <span>{ch.xe}</span>}
-                            {ch.thoi_gian_ket_thuc && <span>xong {fmtDateTime(ch.thoi_gian_ket_thuc)}</span>}
+                            {ch.tai_xe && <span>{ch.tai_xe}</span>}
+                            {ch.xe && <span>{ch.xe}</span>}
+                            {ch.thoi_gian_ket_thuc && <span>xong {fmtDateTimePhut(ch.thoi_gian_ket_thuc)}</span>}
                             {ch.nguoi_nhan_thuc_te && <span>{ch.nguoi_nhan_thuc_te} nhận</span>}
                             {ch.so_anh > 0 && <span>{ch.so_anh} ảnh</span>}
                           </small>
@@ -646,6 +648,80 @@ export function BuocGiaoHang({
           onXong={() => { setSua(null); taiLai(); }} onBo={() => setSua(null)} />
       )}
     </>
+  );
+}
+
+/** Bảng lần xuất của bản TẮT giao hàng (04/11/2026): gọi lần xuất bằng số phiếu xuất kho, mỗi mặt
+ *  hàng một dòng (tên trái, số phải), cột Kho nói đã xuất hay chưa. Không chip trạng thái yêu cầu
+ *  giao: chuyến ẩn nên "Đã giao đủ" chỉ nhắc lại "Đã xuất". */
+function BangLanXuat({ td, order, onIn }: {
+  td: DonTienDo;
+  order: OrderDetail;
+  onIn: (yc: DonTienDoYeuCau) => void;
+}) {
+  const nhieuHang = td.cum.length > 1;
+  const dvCua = (lineId: number) => td.cum.find((c) => c.order_line_ids.includes(lineId))?.don_vi ?? "";
+  return (
+    <div className="dhb__the-bang">
+      <table className="dhb__g">
+        <thead>
+          <tr>
+            <th>Lần xuất</th><th>Ngày cần giao</th>
+            {nhieuHang && <th>Mặt hàng</th>}
+            <th className="dhb__text-right">Số lượng</th><th>Kho</th><th />
+          </tr>
+        </thead>
+        <tbody>
+          {td.yeu_cau.map((y) => {
+            const ch = y.chuyen;
+            const phieu = ch?.phieu_xuat_ma ?? [];
+            const huy = y.trang_thai === "da_huy" || ch?.trang_thai === "da_huy";
+            const xong = !huy && ch?.trang_thai === "thanh_cong";
+            const khacDiaChi = y.dia_chi && y.dia_chi !== order.delivery_address;
+            const hang = y.dong.length > 0 ? y.dong : [null];
+            const n = hang.length;
+            return (
+              <Fragment key={y.id}>
+                {hang.map((d, i) => (
+                  <tr key={d?.order_line_id ?? "rong"} className={i > 0 ? "dhb__g-tiep" : undefined}>
+                    {i === 0 && (
+                      <>
+                        <td rowSpan={n} className="dhb__g-hai">
+                          {phieu.length > 0
+                            ? phieu.map((m) => <span key={m} className="dhb__mono">{m}</span>)
+                            : <span className="dhb__muted">{huy ? "—" : "chờ kho lập phiếu"}</span>}
+                          {khacDiaChi && <small>{y.dia_chi}</small>}
+                          {y.trang_thai === "da_huy" && y.ly_do_huy && <small>Lý do huỷ: {y.ly_do_huy}</small>}
+                        </td>
+                        <td rowSpan={n} className="dhb__mono">{fmtDate(y.ngay_can_giao)}</td>
+                      </>
+                    )}
+                    {nhieuHang && <td>{d ? d.ten || "Hàng" : ""}</td>}
+                    <td className="dhb__text-right dhb__mono">
+                      {d ? `${so(d.qty)}${dvCua(d.order_line_id) ? ` ${dvCua(d.order_line_id)}` : ""}` : ""}
+                    </td>
+                    {i === 0 && (
+                      <>
+                        <td rowSpan={n} className="dhb__g-hai">
+                          <span>{huy ? "Đã huỷ" : xong ? "Đã xuất" : "Chờ kho xuất"}</span>
+                          {xong && ch?.thoi_gian_ket_thuc && <small>{fmtDateTimePhut(ch.thoi_gian_ket_thuc)}</small>}
+                        </td>
+                        <td rowSpan={n} className="dhb__text-right dhb__g-nut">
+                          {/* In theo số phiếu xuất ⇒ kho ghi sổ xong mới mở (13/10/2026). */}
+                          {ch?.kho_da_xuat && !huy
+                            ? <button type="button" className="dhb__td-link" onClick={() => onIn(y)}>In phiếu xuất</button>
+                            : !huy && <span className="dhb__muted">chờ kho xuất mới in</span>}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

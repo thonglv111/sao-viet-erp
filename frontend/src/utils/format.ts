@@ -94,6 +94,18 @@ export function fmtDateTime(value?: string | null): string {
     : d.toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
 }
 
+/** Như `fmtDateTime` nhưng chỉ tới phút ("11:04 04/11/2026") — mốc thao tác không cần giây. */
+export function fmtDateTimePhut(value?: string | null): string {
+  if (!value) return "—";
+  const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(value);
+  const d = new Date(!hasTz && value.includes("T") ? `${value}Z` : value);
+  return Number.isNaN(d.getTime())
+    ? value
+    : d.toLocaleString("vi-VN", {
+      timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric",
+    });
+}
+
 /** Escape chuỗi trước khi nhúng vào HTML in phiếu (window.open + document.write). */
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")

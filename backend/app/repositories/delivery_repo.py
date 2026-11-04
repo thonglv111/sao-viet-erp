@@ -630,6 +630,22 @@ class DeliveryRepository:
             )
         ).all()}
 
+    def ma_phieu_kho_cua_nhieu_yeu_cau(self, stock_request_ids: list[int]) -> dict[int, list[str]]:
+        """Mã phiếu kho CHƯA huỷ theo yêu cầu kho, cũ trước — bảng lần xuất của đơn hiện số phiếu xuất."""
+        from ..models.stock_voucher import VOUCHER_CANCELLED, StockVoucher
+
+        ra: dict[int, list[str]] = {}
+        if not stock_request_ids:
+            return ra
+        for rid, ma in self.db.execute(
+            select(StockVoucher.request_id, StockVoucher.ma).where(
+                StockVoucher.request_id.in_(stock_request_ids),
+                StockVoucher.trang_thai != VOUCHER_CANCELLED,
+            ).order_by(StockVoucher.id)
+        ).all():
+            ra.setdefault(int(rid), []).append(ma)
+        return ra
+
     def phieu_da_ghi_so_cua_yeu_cau(self, stock_request_id: int) -> list:
         """Phiếu kho ĐÃ GHI SỔ của một yêu cầu kho, cũ trước (kèm dòng)."""
         from ..models.stock_voucher import VOUCHER_POSTED, StockVoucher

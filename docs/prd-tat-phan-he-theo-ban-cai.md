@@ -24,7 +24,10 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`. Hà Phương đặt cả tám. Rỗng = bật hết (SVN).
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`. Hà Phương đặt cả tám. Rỗng = bật hết.
+  Sao Việt Nhật đặt `giao_hang` từ 04/11/2026 (`backend/.env` dev, mặc định trong `docker-compose.yml`): bỏ giao
+  hàng, đơn bán Xuất hàng thẳng sang kho, các phân hệ khác giữ. Tắt giao hàng mà giữ lương thì tab Khoán km giao
+  hàng của Cấu hình lương cũng ẩn.
 - Cổng chặn đặt ở RBAC: module thuộc phân hệ tắt coi như MỌI vai không có quyền, kể cả admin. Nhờ vậy
   thanh bên tự ẩn mục, router trả 403, ma trận quyền không hiện dòng đó. Module bị chặn:
   - `luong` ⇒ `luong`; hai ô `view_salary`/`edit_salary` của `nhan_su`.
@@ -145,4 +148,5 @@ chặn huỷ đơn, tồn khả dụng đều chạy nguyên, không đổi ngu�
   đơn theo lần xuất. Rỗng ⇒ toàn bộ test hiện có không đổi.
 - Bấm thử trên Hà Phương: Đơn bán > Xuất hàng; Kho lập phiếu, ghi sổ; Đơn hiện đã giao; Kế toán lập
   hoá đơn. Thanh bên không còn Lương, Giao hàng, Xe giao hàng.
-- Tài liệu PDF: tài liệu của SVN không đổi. Hà Phương nếu có tài liệu riêng thì bỏ các phần trên.
+- Tài liệu PDF: từ 04/11/2026 tài liệu Kinh doanh và Cấu hình của SVN viết theo bản tắt giao hàng (Xuất hàng,
+  không xe, không Bộ phận Giao hàng). Hà Phương nếu có tài liệu riêng thì bỏ thêm các phần khác ở trên.

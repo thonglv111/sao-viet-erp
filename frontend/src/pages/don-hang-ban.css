@@ -1872,6 +1872,9 @@
 .dhb__g td { padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); vertical-align: middle; }
 .dhb__g th:first-child, .dhb__g td:first-child { padding-left: 0; }
 .dhb__g th:last-child, .dhb__g td:last-child { padding-right: 0; }
+/* Dòng tiếp của nhóm trải dọc (rowSpan): ô đầu/cuối của nó nằm giữa bảng, giữ lề như ô thường. */
+.dhb__g tr.dhb__g-tiep > td:first-child { padding-left: 10px; }
+.dhb__g tr.dhb__g-tiep > td:last-child { padding-right: 10px; }
 .dhb__g th.dhb__text-right { text-align: right; }
 .dhb__g tr.is-cancelled td { color: var(--ash-2); }
 .dhb__g-hai > span, .dhb__g-hai > small { display: block; }

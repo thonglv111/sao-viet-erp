@@ -1275,12 +1275,14 @@ function DongBen({ k, v }: { k: string; v: React.ReactNode }) {
 }
 
 /** Hai ô đầu nhóm của một lượt trong bảng hóa đơn — trải dọc hết các dòng hóa đơn của lượt. */
-function ODauLuot({ ma, ngay, giaTri, soDong }: { ma: string; ngay: string | null; giaTri: number; soDong: number }) {
+function ODauLuot({ ma, ngay, giaTri, soDong, xuat }: {
+  ma: string; ngay: string | null; giaTri: number; soDong: number; xuat?: boolean;
+}) {
   return (
     <>
       <td rowSpan={soDong} className="dhb__g-hai dhb__hd-luot">
         <span className="dhb__mono">{ma}</span>
-        {ngay && <small>giao {fmtDate(ngay)}</small>}
+        {ngay && <small>{xuat ? "xuất" : "giao"} {fmtDate(ngay)}</small>}
       </td>
       <td rowSpan={soDong} className="dhb__mono dhb__text-right dhb__hd-luot">{soVN(giaTri)}</td>
     </>
@@ -1565,7 +1567,7 @@ function InvoicePanel({
                     const rieng = Math.min(hd.reduce((s, i) => s + i.amount_vnd, 0), l.gia_tri);
                     const phu = Math.max(0, l.da_ghi - rieng);
                     const dongCon = l.con_ghi > 0 || hd.length === 0;
-                    const dau = <ODauLuot ma={l.ma} ngay={l.ngay_giao} giaTri={l.gia_tri} soDong={hd.length + (dongCon ? 1 : 0)} />;
+                    const dau = <ODauLuot ma={l.ma} ngay={l.ngay_giao} giaTri={l.gia_tri} soDong={hd.length + (dongCon ? 1 : 0)} xuat={lan !== "lượt"} />;
                     return (
                       <Fragment key={l.trip_id}>
                         {hd.map((item, k) => <tr key={item.id}>{k === 0 && dau}{oHoaDon(item)}</tr>)}

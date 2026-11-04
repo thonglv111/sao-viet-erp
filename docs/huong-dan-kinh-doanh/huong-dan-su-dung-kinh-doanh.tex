@@ -78,12 +78,12 @@
 \thispagestyle{empty}
 {\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
 {\tieude\fontsize{22}{26}\selectfont Hướng dẫn sử dụng phòng Kinh doanh}\par\vspace{4pt}
-{\small Tính giá, báo giá, đơn hàng bán, theo dõi sản xuất, giao hàng, tiền và hoa hồng}\par\vspace{2pt}
-{\small\color{xamchu} Cập nhật 01/11/2026}\par\vspace{6pt}
+{\small Tính giá, báo giá, đơn hàng bán, theo dõi sản xuất, xuất hàng, tiền và hoa hồng}\par\vspace{2pt}
+{\small\color{xamchu} Cập nhật 04/11/2026}\par\vspace{6pt}
 \noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
 
 Tài liệu cho Trợ lý kinh doanh và Sale, dùng hằng ngày. Đi theo đúng đường một đơn hàng: khách hỏi giá, lập phiếu
-tính giá, làm báo giá, khách chốt, lên đơn, theo dõi sản xuất, giao hàng, rồi tiền về và hoa hồng.
+tính giá, làm báo giá, khách chốt, lên đơn, theo dõi sản xuất, xuất hàng, rồi tiền về và hoa hồng.
 
 Phần khai báo trước khi dùng (quyền từng màn, danh mục giấy, máy, công đoạn, khách hàng, chính sách tài chính của
 khách) nằm ở tài liệu \tl{Hướng dẫn cấu hình hệ thống}, chương \kbn{danh-muc}{Danh mục dùng chung} và chương
@@ -137,8 +137,8 @@ mẫu}.
 Khách hỏi giá thì sale ghi yêu cầu vào hồ sơ khách. Trợ lý lập phiếu tính giá, rồi làm báo giá. Sale gửi báo giá
 cho khách, ghi đồng ý hay từ chối, lên đơn và chốt đơn (trợ lý cũng lập đơn hộ được). Đơn cần cọc thì chờ Kế toán
 thu đủ cọc mới sang sản xuất, đơn không cần cọc thì sang thẳng. Trong lúc sản xuất, trợ lý theo dõi tiến độ để
-trả lời khách. Hàng vào kho thì sale lập yêu cầu giao, bộ phận giao hàng xếp chuyến. Khách nhận hàng, Kế toán ghi
-hoá đơn và thu tiền, tiền về thì tính hoa hồng cho sale phụ trách khách.
+trả lời khách. Hàng vào kho thì sale bấm Xuất hàng ở đơn, thủ kho lập phiếu xuất và ghi sổ. Kho xuất xong, Kế toán
+ghi hoá đơn và thu tiền, tiền về thì tính hoa hồng cho sale phụ trách khách.
 
 Trên phần mềm, cùng luồng này nằm ở \duong{Kinh doanh > Quy trình kinh doanh}. Mỗi ô có số thứ tự, cột là phòng
 làm bước đó, bấm vào một ô để mở đúng màn của bước.
@@ -146,14 +146,14 @@ làm bước đó, bấm vào một ô để mở đúng màn của bước.
 \rong[0.8\linewidth]{kd-01-quy-trinh.png}
 
 Phòng Kinh doanh làm sáu bước ở cột đầu: 1 ghi nhận khách, 2 lập phiếu tính giá, 3 làm báo giá, 4 gửi khách và ghi
-kết quả, 5 lên đơn và chốt đơn, 13 lập yêu cầu giao. Các bước còn lại do phòng khác làm, phòng Kinh doanh chỉ theo
+kết quả, 5 lên đơn và chốt đơn, 13 xuất hàng. Các bước còn lại do phòng khác làm, phòng Kinh doanh chỉ theo
 dõi để trả lời khách:
 
 \begin{itemize}
-\item Kế toán thu cọc (bước 6), ghi hoá đơn (17), thu tiền (18).
+\item Kế toán thu cọc (bước 6), ghi hoá đơn (15), thu tiền (16).
 \item Kế hoạch sản xuất lên lệnh, lo vật tư, xếp lịch máy (7 đến 9). Tổ sản xuất chạy công đoạn, KCS kiểm hàng,
 kho nhận thành phẩm (10 đến 12).
-\item Bộ phận giao hàng xếp chuyến, kho xuất hàng, tài xế giao và ghi kết quả (14 đến 16).
+\item Kho soạn hàng, lập phiếu xuất và ghi sổ (14).
 \end{itemize}
 
 \Needspace*{10\baselineskip}
@@ -634,7 +634,7 @@ thiếu để chốt, mỗi dòng một chữ đỏ. \so{4} \oo{Chốt đơn} ch
 
 \so{3} \oo{Ngày giao cam kết}: bắt buộc để chốt. Gõ ngày hoặc chọn trên lịch.
 
-\so{4} \oo{Lưu ý giao hàng}: dặn tài xế, ví dụ giờ giao, gọi trước.
+\so{4} \oo{Lưu ý giao hàng}: dặn người giao, ví dụ giờ giao, gọi trước.
 
 \so{5} \oo{Lưu ý sản xuất}: dặn xưởng, ví dụ canh màu theo mẫu, cấn bế kỹ.
 
@@ -692,33 +692,35 @@ Cột \oo{Đang vướng} ghi lý do, ví dụ \q{Đã quá hạn giao}, \q{Thi�
 
 \so{3} \oo{Đang vướng}: lý do đơn chậm.
 
-\so{4} \oo{Giao hàng}: đã có yêu cầu giao chưa, còn bao nhiêu chưa giao.
+\so{4} \oo{Giao hàng}: còn bao nhiêu chưa xuất hàng.
 
 Muốn xem sâu hơn từng bước của một lệnh thì mở \duong{Sản xuất > Hồ sơ lệnh sản xuất}, tìm theo mã lệnh hoặc mã đơn.
 
 % ============================================================
 \Needspace*{16\baselineskip}
-\section{Giao hàng}\label{giao}
+\section{Xuất hàng}\label{giao}
 
 \begin{boicanh}
-Kinh doanh lập yêu cầu giao ở chặng \oo{Giao} của đơn. Chỉ giao được phần kho đã nhận. Mỗi yêu cầu là một chuyến,
-giao thiếu thì lập yêu cầu mới cho phần còn lại. Bộ phận giao hàng nhận yêu cầu để xếp xe, kho xuất hàng theo chuyến.
+Kinh doanh bấm \oo{Xuất hàng} ở chặng \oo{Giao} của đơn. Chỉ xuất được phần kho đã nhận. Phần mềm gửi đề nghị xuất
+sang kho, thủ kho lập phiếu xuất và ghi sổ. Xuất thiếu thì bấm thêm lần sau cho phần còn lại.
 \end{boicanh}
 
 \rong[0.85\linewidth]{kd-50-giao.png}
 
 \so{1} Bấm chặng \oo{Giao} trên thanh chặng của đơn.
 
-\so{2} Bảng từng mặt hàng: khách đặt, đã giao, đang chờ giao, còn phải giao, giao được ngay (số kho đang có).
+\so{2} Bảng từng mặt hàng: khách đặt, đã giao, chờ kho xuất, còn phải giao, xuất được ngay (số kho đang có).
 
-\so{3} Dòng nhắc. Kho chưa có hàng thì nút bị mờ và dòng nhắc nói đang chờ lệnh nào.
+\so{3} Dòng nhắc: xuất được tối đa bao nhiêu. Kho chưa có hàng thì nút bị mờ và dòng nhắc nói đang chờ lệnh nào.
 
-\so{4} \oo{Tạo yêu cầu giao hàng}: mở form gồm \oo{Hàng giao đợt này} (số lượng từng mặt hàng, không quá số giao
-được), \oo{Ngày cần giao}, \oo{Giao tới}, \oo{Người nhận}. Lưu ý giao của đơn hiện sẵn để tài xế đọc.
+\so{4} \oo{Xuất hàng}: mở form gồm \oo{Hàng xuất đợt này} (số lượng từng mặt hàng, không quá số giao được),
+\oo{Ngày cần giao}, \oo{Giao tới}, \oo{Người nhận}, \oo{Ghi chú cho kho}. Bấm \oo{Gửi kho xuất}.
 
-Sau khi lập, yêu cầu hiện trong bảng của chặng Giao và ở màn \duong{Kinh doanh > Giao hàng}, tab \oo{Yêu cầu giao}.
-Tài xế giao xong ghi khách nhận đủ, nhận thiếu hay không nhận. Hàng không giao được quay về kho, phần còn lại hiện
-lại ở cột \oo{Còn phải giao}.
+\so{5} Sau khi gửi, lần xuất hiện trong bảng lần xuất của chặng Giao, mỗi mặt hàng một dòng, cột \oo{Kho} ghi
+\q{Chờ kho xuất}. Thủ kho thấy đề nghị ở \duong{Kho hàng > Yêu cầu nhập xuất}, lập phiếu xuất rồi ghi sổ. Cột
+\oo{Lần xuất} ghi số phiếu xuất của kho (PXK…), chưa có phiếu thì ghi \q{chờ kho lập phiếu}. Ghi sổ xong, cột
+\oo{Kho} đổi thành \q{Đã xuất} kèm giờ xuất, nút \oo{In phiếu xuất} mở ra, và số kho xuất được tính là đã giao
+cho khách. Bảng hoá đơn gọi lần xuất bằng đúng số phiếu này.
 
 % ============================================================
 \Needspace*{16\baselineskip}
@@ -731,7 +733,7 @@ hoá đơn chưa, khách còn nợ bao nhiêu, hoa hồng của mình ra sao.
 
 \rong[0.85\linewidth]{kd-52-hoa-don.png}
 
-\so{1} Chặng \oo{Hóa đơn} của đơn. \so{2} \oo{Tổng đơn}, \oo{Đã giao}, \oo{Đã giao chưa ghi} (hàng khách đã nhận
+\so{1} Chặng \oo{Hóa đơn} của đơn. \so{2} \oo{Tổng đơn}, \oo{Đã giao}, \oo{Đã giao chưa ghi} (hàng kho đã xuất
 mà Kế toán chưa ghi hoá đơn), \oo{Đã ghi hóa đơn}, \oo{Còn phải thu}. Có hoá đơn thì khách mới phát sinh công nợ.
 
 Cột \oo{Cọc} và \oo{Giao khách} ở danh sách \duong{Kinh doanh > Đơn hàng bán} cho thấy nhanh đơn nào đủ cọc, giao
@@ -778,7 +780,7 @@ Báo giá đặc thù (mục \ref{dac-thu}). Trình duyệt, chờ giám đốc 
 \item[Đơn đã chốt mà xưởng chưa thấy.]
 Đơn có cọc mà Kế toán chưa thu đủ. Chặng \oo{Cọc} ghi còn thiếu bao nhiêu.
 
-\item[Nút Tạo yêu cầu giao hàng bị mờ.]
+\item[Nút Xuất hàng bị mờ.]
 Kho chưa nhận thành phẩm của đơn. Dòng nhắc dưới bảng nói đang chờ lệnh nào.
 
 \item[Khách của mình đứng tên người khác.]

@@ -19026,6 +19026,8 @@ export interface DonTienDoChuyen {
   kho_da_lap_phieu?: boolean;
   /** Kho đã GHI SỔ phiếu xuất của chuyến — mở nút in phiếu xuất bán hàng / 02-VT. */
   kho_da_xuat?: boolean;
+  /** Số phiếu xuất kho chưa huỷ của chuyến — bản tắt giao hàng gọi lần xuất bằng số này. */
+  phieu_xuat_ma?: string[];
   so_anh: number;
 }
 

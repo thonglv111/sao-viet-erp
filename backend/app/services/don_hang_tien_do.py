@@ -195,6 +195,7 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
     xuat_theo = rp.yeu_cau_kho_cua_nhieu_chuyen(tids, "XUAT")
     co_phieu = rp.yeu_cau_kho_da_co_phieu([y.id for y in xuat_theo.values()])
     da_ghi_so = rp.yeu_cau_kho_da_ghi_so([y.id for y in xuat_theo.values()])
+    ma_phieu = rp.ma_phieu_kho_cua_nhieu_yeu_cau([y.id for y in xuat_theo.values()])
     so_anh = rp.so_dinh_kem_theo_trip(tids)
     for r in reqs:
         trips = trips_theo_yc[r.id]
@@ -232,6 +233,8 @@ def _yeu_cau(svc: DeliveryService, order) -> list[dict]:
                 "kho_da_lap_phieu": xuat is not None and xuat.id in co_phieu,
                 # Hàng đã thực ra khỏi kho (có phiếu ghi sổ) ⇒ mở nút in phiếu xuất bán hàng / 02-VT.
                 "kho_da_xuat": xuat is not None and xuat.id in da_ghi_so,
+                # Số phiếu xuất kho (chưa huỷ) — bản tắt giao hàng hiện số này thay mã yêu cầu giao.
+                "phieu_xuat_ma": ma_phieu.get(xuat.id, []) if xuat is not None else [],
                 "so_anh": so_anh.get(t.id, 0),
             }
         ra.append({
