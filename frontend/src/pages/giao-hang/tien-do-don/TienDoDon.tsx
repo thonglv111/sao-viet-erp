@@ -72,6 +72,7 @@ export function useTienDoDon(orderId: number, bat: boolean, eventTick?: number) 
 }
 
 const so = (n: number) => n.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+const hoaDau = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 export const NHAN_LY_DO_TRE: Record<string, string> = {
   su_co: "máy sự cố",
@@ -474,8 +475,20 @@ export function BuocGiaoHang({
   }
   const tongGiaoDuoc = td.cum.reduce((a, c) => a + c.giao_duoc, 0);
   const conPhai = td.cum.some((c) => c.con_phai_giao > 0);
-  const lenhCho = td.cum.filter((c) => c.con_phai_giao > 0).flatMap((c) => c.lenh.map((l) => l.ma))
-    .filter((m, i, a) => a.indexOf(m) === i);
+  // Câu chân khối khi chưa xuất được gì: chỉ nói về mặt hàng CÒN PHẢI xuất, và tách mặt hàng kho chưa
+  // có khỏi mặt hàng có ở kho nhưng đã bị giữ. Câu cũ "Chưa có hàng của đơn này ở kho nào" nói cả
+  // phần đã giữ cho lần xuất đang chờ, nên hàng nằm sẵn trong kho vẫn bị báo là không có (04/11/2026).
+  const choXuat = td.cum.filter((c) => c.con_phai_giao > 0);
+  const tenCac = (cs: DonTienDoCum[]) => (td.cum.length === 1 ? "hàng của đơn" : cs.map((c) => c.ten).join(" và "));
+  const chuaCo = choXuat.filter((c) => c.ton_that <= 0);
+  const biGiu = choXuat.filter((c) => c.ton_that > 0);
+  const lenhCho = chuaCo.flatMap((c) => c.lenh.map((l) => l.ma)).filter((m, i, a) => a.indexOf(m) === i);
+  const cauChuaXuatDuoc = [
+    chuaCo.length > 0 && `Kho chưa có ${tenCac(chuaCo)}.${lenhCho.length > 0
+      ? ` Kho nhận hàng từ ${lenhCho.join(" và ")} xong là ${xuat ? "xuất" : "giao"} được.` : ""}`,
+    biGiu.length > 0 && `${hoaDau(tenCac(biGiu))} có ở kho nhưng đã giữ hết cho ${
+      biGiu.some((c) => (c.giu_don_khac ?? 0) > 0) ? "đơn khác của khách" : xuat ? "lần xuất đang chờ" : "yêu cầu đang chờ"}.`,
+  ].filter(Boolean).join(" ");
   const motDv = td.cum.length === 1 && td.cum[0].don_vi ? ` ${td.cum[0].don_vi}` : "";
 
   const huyYc = () => {
@@ -513,6 +526,7 @@ export function BuocGiaoHang({
             ...(c.dang_giu > 0 ? [{ nhan: xuat ? "Chờ kho xuất" : "Đang chờ giao", so: `${so(c.dang_giu)}${dv(c)}`,
               dien: soYcMo(c) > 0 ? `${soYcMo(c)} ${xuat ? "lần xuất" : "yêu cầu"}` : undefined }] : []),
             { nhan: "Còn phải giao", so: `${so(c.con_phai_giao)}${dv(c)}`, tong: true },
+            { nhan: "Đang có ở kho", so: `${so(c.ton_that)}${dv(c)}` },
             { nhan: xuat ? "Xuất được ngay" : "Giao được ngay", so: `${so(c.giao_duoc)}${dv(c)}`, dien: lyDoGiaoDuoc(c) },
           ]} />
         );
@@ -524,6 +538,7 @@ export function BuocGiaoHang({
                 <th>Mặt hàng</th><th className="dhb__text-right">Khách đặt</th><th className="dhb__text-right">Đã giao</th>
                 <th className="dhb__text-right">{xuat ? "Chờ kho xuất" : "Đang chờ giao"}</th>
                 <th className="dhb__text-right">Còn phải giao</th>
+                <th className="dhb__text-right">Đang có ở kho</th>
                 <th className="dhb__text-right">{xuat ? "Xuất được ngay" : "Giao được ngay"}</th>
               </tr>
             </thead>
@@ -535,6 +550,7 @@ export function BuocGiaoHang({
                   <td className="dhb__text-right dhb__mono">{so(c.da_giao)}</td>
                   <td className="dhb__text-right dhb__mono">{so(c.dang_giu)}</td>
                   <td className="dhb__text-right dhb__mono">{so(c.con_phai_giao)}</td>
+                  <td className="dhb__text-right dhb__mono">{so(c.ton_that)}</td>
                   <td className="dhb__text-right dhb__mono" title={lyDoGiaoDuoc(c)}>{so(c.giao_duoc)}</td>
                 </tr>
               ))}
@@ -628,8 +644,7 @@ export function BuocGiaoHang({
         <ChanKhung chu={!canWrite ? (xuat ? "Chỉ xem: vai của bạn chưa được sửa đơn hàng bán."
             : "Chỉ xem: vai của bạn chưa được bật ô Thao tác ở màn Giao hàng.")
           : tongGiaoDuoc > 0 ? `${xuat ? "Xuất" : "Giao"} được tối đa ${so(tongGiaoDuoc)}${motDv}.`
-          : lenhCho.length > 0 ? `Chưa có hàng của đơn này ở kho nào. Kho nhận hàng từ ${lenhCho.join(" và ")} xong là ${xuat ? "xuất" : "giao"} được.`
-          : "Chưa có hàng của đơn này ở kho nào."}>
+          : cauChuaXuatDuoc}>
           {canWrite && (
             <Button variant="accent" disabled={tongGiaoDuoc <= 0} onClick={() => setMo(true)}>
               {xuat ? "Xuất hàng" : "Tạo yêu cầu giao hàng"}

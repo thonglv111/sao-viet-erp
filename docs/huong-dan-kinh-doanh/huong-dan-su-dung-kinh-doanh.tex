@@ -725,9 +725,13 @@ sang kho, thủ kho lập phiếu xuất và ghi sổ. Xuất thiếu thì bấm
 
 \so{1} Bấm chặng \oo{Giao} trên thanh chặng của đơn.
 
-\so{2} Bảng từng mặt hàng: khách đặt, đã giao, chờ kho xuất, còn phải giao, xuất được ngay (số kho đang có).
+\so{2} Bảng từng mặt hàng: khách đặt, đã giao, chờ kho xuất, còn phải giao, \oo{Đang có ở kho} (số đang nằm ở
+Kho thành phẩm, kể cả phần đã giữ cho lần xuất đang chờ) và \oo{Xuất được ngay}. Xuất được ngay là số nhỏ hơn giữa
+còn phải giao và phần ở kho chưa ai giữ, nên có thể bằng 0 dù kho vẫn có hàng.
 
-\so{3} Dòng nhắc: xuất được tối đa bao nhiêu. Kho chưa có hàng thì nút bị mờ và dòng nhắc nói đang chờ lệnh nào.
+\so{3} Dòng nhắc: xuất được tối đa bao nhiêu. Chưa xuất được gì thì nút bị mờ và dòng nhắc nói rõ từng trường hợp:
+kho chưa có mặt hàng nào và đang chờ lệnh nào, hoặc mặt hàng nào có ở kho nhưng đã giữ hết cho lần xuất đang chờ
+hay cho đơn khác của khách.
 
 \so{4} \oo{Xuất hàng}: mở form gồm \oo{Hàng xuất đợt này} (số lượng từng mặt hàng, không quá số giao được),
 \oo{Ngày cần giao}, \oo{Giao tới}, \oo{Người nhận}, \oo{Ghi chú cho kho}. Bấm \oo{Gửi kho xuất}.

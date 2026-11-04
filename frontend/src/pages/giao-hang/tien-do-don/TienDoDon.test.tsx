@@ -158,9 +158,40 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
 
   it("kho chưa nhận gì ⇒ nút tạo yêu cầu khoá kèm lý do", () => {
     stubApi();
-    ve({ ...TD, cum: TD.cum.map((c) => ({ ...c, giao_duoc: 0 })) });
+    ve({ ...TD, cum: TD.cum.map((c) => ({ ...c, giao_duoc: 0, ton_that: 0 })) });
     expect(screen.getByRole("button", { name: "Tạo yêu cầu giao hàng" })).toBeDisabled();
-    expect(screen.getByText(/Chưa có hàng của đơn này ở kho nào/)).toBeInTheDocument();
+    expect(screen.getByText("Kho chưa có Hộp thuốc và Tờ hướng dẫn.")).toBeInTheDocument();
+  });
+
+  it("bảng mặt hàng có cột Đang có ở kho, đọc tồn thật của Kho thành phẩm", () => {
+    stubApi();
+    ve();
+    const bang = within(screen.getByRole("columnheader", { name: "Đang có ở kho" }).closest("table")!);
+    const hop = within(bang.getByRole("cell", { name: "Hộp thuốc" }).closest("tr")!);
+    expect(hop.getAllByRole("cell").map((o) => o.textContent)).toEqual(["Hộp thuốc", "100 hộp", "0", "0", "100", "40", "40"]);
+  });
+
+  it("hàng có ở kho nhưng đã giữ hết cho lần xuất đang chờ ⇒ không báo kho chưa có (DH003, 04/11/2026)", () => {
+    stubApi();
+    ve({
+      ...TD,
+      cum: [
+        // Túi: kho nhận 2.000, xuất 1.200, 800 còn lại đã giữ cho lần xuất chờ kho.
+        cum({ khoa: "tui", ten: "Túi giấy lớn", don_vi: "cái", order_line_ids: [11], dat: 2000, da_giao: 1200,
+          dang_giu: 800, con_phai_giao: 0, ton_that: 800, giao_duoc: 0 }),
+        cum({ khoa: "hop", ten: "Hộp quà bồi cứng", order_line_ids: [12], dat: 1000, con_phai_giao: 1000,
+          ton_that: 0, giao_duoc: 0, lenh: [{ id: 6, ma: "LSX26-0006" } as DonTienDoCum["lenh"][number]] }),
+      ],
+    }, true);
+    expect(screen.getByText("Kho chưa có Hộp quà bồi cứng. Kho nhận hàng từ LSX26-0006 xong là xuất được.")).toBeInTheDocument();
+    expect(screen.queryByText(/Túi giấy lớn có ở kho/)).toBeNull();
+    expect(screen.queryByText(/Chưa có hàng của đơn này/)).toBeNull();
+  });
+
+  it("còn phải giao mà tồn đã bị đơn khác của khách giữ hết ⇒ nói đang giữ, không nói kho chưa có", () => {
+    stubApi();
+    ve({ ...TD, cum: [cum({ ten: "Hộp thuốc", ton_that: 500, giu_don_khac: 500, giao_duoc: 0 })] });
+    expect(screen.getByText("Hàng của đơn có ở kho nhưng đã giữ hết cho đơn khác của khách.")).toBeInTheDocument();
   });
 
   it("yêu cầu có chuyến đã huỷ ⇒ Kinh doanh huỷ được, không sửa được", () => {
