@@ -1112,8 +1112,8 @@ Mọi dòng khớp với cách tính tay thì phần cấu hình ban đầu xong
 \section{Kho, KCS, thu chi}\label{danh-muc-phong}
 
 \begin{boicanh}
-Ba danh mục của các phòng khác ngoài Kinh doanh. Không cần cho tính giá; khai trước khi bắt đầu dùng phân hệ
-tương ứng.
+Ba danh mục của các phòng khác ngoài Kinh doanh, kèm quyền của người làm KCS. Không cần cho tính giá; khai
+trước khi bắt đầu dùng phân hệ tương ứng.
 \end{boicanh}
 
 \subsection{Quyền của ba màn}\label{danh-muc-phong-quyen}
@@ -1148,19 +1148,69 @@ nhập xuất sẽ chọn vị trí từ danh sách này. Tab này chỉ dùng �
 \subsection{Tiêu chí KCS}\label{danh-muc-kcs}
 
 \begin{boicanh}
-Tiêu chí KCS là các điểm phải kiểm sau mỗi công đoạn, ví dụ màu đúng mẫu, bế không xơ mép. Lệnh sản xuất lúc
-phát hành chép bộ tiêu chí của từng công đoạn về để người kiểm đánh dấu.
+Tiêu chí KCS là các điểm phải kiểm của từng công đoạn, mỗi tiêu chí là một câu, ví dụ màu đúng tờ mẫu khách
+duyệt, bế không xơ mép. Lệnh sản xuất lúc phát hành chép bộ tiêu chí của từng công đoạn về để người kiểm đánh
+dấu. Tiêu chí không bắt buộc: lệnh chạy qua công đoạn chưa có tiêu chí thì KCS vẫn kiểm được, lỗi ghi ở dòng
+\oo{Lỗi khác}.
 \end{boicanh}
 
-\rong[0.78\linewidth]{60-kcs.png}
+\rong[0.85\linewidth]{60-kcs.png}
 
-\so{1} Cột trái là cây công đoạn theo giai đoạn. Công đoạn chưa có tiêu chí ghi \oo{chưa có}. Bấm một công đoạn
-để khai. \so{2} Gõ một tiêu chí rồi bấm Enter, lặp lại cho tiêu chí tiếp theo. \so{3} \oo{Chép từ công đoạn
-khác}: lấy nguyên bộ tiêu chí của một công đoạn giống. \so{4} \oo{Xem KCS cuối thấy gì}: chọn các công đoạn một
-lệnh sẽ chạy qua, xem bước KCS cuối sẽ bày những tiêu chí nào.
+\duong{Cấu hình danh mục > Tiêu chí KCS}.
+
+\so{1} Cột trái là các công đoạn xếp theo giai đoạn: Trước in, In, Gia công sau in. Công đoạn chưa có tiêu chí
+ghi \oo{chưa có}, có rồi thì ghi số tiêu chí. Ô tìm tìm được cả tên công đoạn lẫn câu tiêu chí. Tick \oo{Ẩn công
+đoạn chưa có tiêu chí} để chỉ xem những công đoạn đã khai. Bấm một công đoạn để khai.
+
+\so{2} Mỗi dòng là một tiêu chí. Bấm vào câu để sửa, bấm thùng rác để xoá. Kéo chấm bên trái để đổi thứ tự, hoặc
+bấm vào chấm đó rồi dùng mũi tên lên xuống.
+
+\so{3} Gõ tiêu chí mới rồi bấm Enter, lặp lại cho câu tiếp theo. Gõ trùng một câu đã có thì phần mềm báo và không
+thêm.
+
+\so{4} \oo{Chép sang công đoạn khác}: mở hộp chép ở dưới. Công đoạn chưa có tiêu chí nào thì nút này là
+\oo{Chép từ công đoạn khác}, để lấy bộ của một công đoạn giống.
+
+\so{5} \oo{Xem KCS cuối thấy gì}: chọn các công đoạn một lệnh sẽ chạy qua, xem bước KCS cuối bày những tiêu chí
+nào. KCS cuối gộp tiêu chí của cả chuỗi công đoạn, kể cả lệnh phụ của cùng thành phẩm như ruột, tờ lót. Công
+đoạn đi thuê ngoài thì KCS cuối bỏ qua, không xét tiêu chí của nó.
+
+\canh{0.52}{60b-kcs-chep.png}{%
+Hộp chép của công đoạn In:
+
+\so{1} \oo{Bộ sẽ chép}: bỏ tick câu nào không muốn chép.
+
+\so{2} Thêm câu chỉ cho bản chép. Sửa ở hộp này không đổi tiêu chí của công đoạn gốc.
+
+\so{3} Tìm công đoạn đích, tick được nhiều công đoạn.
+
+\so{4} Hàng \oo{Đã chọn} giữ các công đoạn đã tick, kể cả khi đang lọc khuất. Bấm dấu x để bỏ.
+
+\so{5} \oo{Chép vào 2 công đoạn}. Câu chép sang nối vào cuối bộ của đích. Câu đích đã có thì bỏ qua, dòng chân
+hộp đếm trước sẽ thêm mới bao nhiêu dòng.}
 
 Sửa tiêu chí chỉ áp cho lệnh phát hành từ lúc đó. Lệnh đã phát hành giữ bộ cũ, hồ sơ lệnh sẽ báo tiêu chí đã đổi
 và có nút \oo{Cập nhật tiêu chí}.
+
+\Needspace*{16\baselineskip}
+\subsection{Ai được kiểm KCS}\label{danh-muc-kcs-quyen}
+
+\canh{0.55}{80-quyen-kcs.png}{%
+Màn \duong{Sản xuất > KCS} có dòng \oo{KCS} ở nhóm Sản xuất của ma trận quyền (mở như mục
+\ref{phan-quyen-ma-tran}):
+
+\so{1} \oo{Xem}: mở màn KCS, xem các lần kiểm và báo cáo lỗi của mọi tổ, xuất Excel.
+
+\so{2} \oo{Thao tác}: kiểm hàng, ghi lỗi, gửi thành phẩm nhập kho, đóng lệnh khi đã đủ.
+
+\so{3} \oo{Đóng lệnh thiếu}, bấm \oo{1/1 chi tiết} để thấy: đóng lệnh khi còn hàng chưa kiểm, chưa gửi kho,
+thiếu số so với đơn hoặc còn việc đang làm, và mở lại lệnh đã đóng. Phải bật kèm Thao tác.
+
+Phạm vi luôn là Tất cả: người KCS kiểm hàng của mọi tổ.}
+
+Không vai nào tự có quyền này, phải bật cho vai của người làm KCS. Chưa ai có \oo{Thao tác} thì không ai gửi được
+thành phẩm sang kho: đơn bán đứng mãi ở dòng \q{Chờ KCS gửi thành phẩm sang kho}, kho không có hàng để xuất cho
+khách.
 
 \Needspace*{20\baselineskip}
 \subsection{Mục thu chi}\label{danh-muc-muc-thu-chi}
