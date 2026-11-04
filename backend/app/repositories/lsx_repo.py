@@ -86,6 +86,23 @@ class LsxRepository:
                 ds.append(t)
         return giays, songs
 
+    def vat_tu_cac_buoc(self, lsx_id: int) -> dict[int, list[tuple[str, float, str]]]:
+        """`{id bước: [(tên hàng, số lượng, mã đơn vị), …]}` — vật tư KHAI ở từng bước của lệnh, theo
+        thứ tự khai. Phiếu công nghệ in dòng "Lấy …" dưới mỗi bước từ đây (04/11/2026). Số lượng là
+        định mức đã chép vào lệnh, không qua cân đối kho."""
+        rows = self.db.execute(
+            select(LsxCongDoanVatTu.lsx_cong_doan_id, LsxCongDoanVatTu.vat_tu_ten_snapshot,
+                   LsxCongDoanVatTu.so_luong, LsxCongDoanVatTu.don_vi_snapshot)
+            .join(LsxCongDoan, LsxCongDoan.id == LsxCongDoanVatTu.lsx_cong_doan_id)
+            .where(LsxCongDoan.lsx_id == lsx_id)
+            .order_by(LsxCongDoanVatTu.lsx_cong_doan_id, LsxCongDoanVatTu.thu_tu, LsxCongDoanVatTu.id)
+        ).all()
+        ra: dict[int, list[tuple[str, float, str]]] = {}
+        for buoc_id, ten, sl, dv in rows:
+            if (ten or "").strip():
+                ra.setdefault(buoc_id, []).append((ten.strip(), float(sl or 0), (dv or "").strip()))
+        return ra
+
     def get(self, lsx_id: int) -> Lsx | None:
         return self.db.execute(
             select(Lsx).where(Lsx.id == lsx_id).options(

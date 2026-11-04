@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phiếu công nghệ làm lại</title>
+<style>
+  :root { --muc: #1a1a1a; --nhat: #666; --mo: #999; --vien: #444; --ke: #bbb; --nen: #f1f1f1; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e6e4df; color: var(--muc); font: 14px/1.5 "Segoe UI", Arial, sans-serif; font-weight: 400; }
+  b, strong, h1, h2, h3, th { font-weight: 400; }
+  .khung { max-width: 1180px; margin: 0 auto; padding: 24px 16px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 36px 0 8px; }
+  p { margin: 6px 0; max-width: 860px; }
+  .xam { color: var(--nhat); }
+  ul { margin: 6px 0; padding-left: 20px; max-width: 900px; }
+  li { margin: 3px 0; }
+  .luoi-anh { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 10px; }
+  .luoi-anh figure { margin: 0; background: #fff; padding: 8px; border: 1px solid #ccc; }
+  .luoi-anh img { width: 100%; display: block; border: 1px solid #ddd; }
+  .luoi-anh figcaption { font-size: 13px; color: var(--nhat); margin-top: 6px; }
+  .gia-dinh { background: #fff7d6; border: 1px dashed #b39500; padding: 1px 5px; }
+  .thanh { position: sticky; top: 0; z-index: 5; background: #e6e4df; padding: 10px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #c9c6bf; }
+  .thanh button { font: inherit; padding: 6px 14px; border: 1px solid #888; background: #fff; border-radius: 4px; cursor: pointer; }
+  .thanh button[aria-pressed="true"] { background: #222; color: #fff; border-color: #222; }
+  .thanh .gach { width: 1px; height: 24px; background: #aaa; margin: 0 6px; }
+  .moi-pa { display: none; }
+  .moi-pa.hien { display: block; }
+  .mo-ta { background: #fff; border: 1px solid #ccc; padding: 12px 16px; margin: 14px 0; }
+  .trang-wrap { overflow-x: auto; padding: 8px 0; }
+  .nhan-trang { font-size: 13px; color: var(--nhat); margin: 14px 0 4px; }
+
+  /* ---------- trang A4 ---------- */
+  .a4 { width: 210mm; min-height: 297mm; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); padding: 12mm 13mm 10mm; position: relative; font-family: "DejaVu Sans", "Segoe UI", Arial, sans-serif; font-size: 9pt; line-height: 1.3; color: #111; display: flex; flex-direction: column; }
+  .a4 .day { flex: 1; }
+  .dau { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1.2pt solid #111; padding-bottom: 2.5mm; }
+  .dau .loai { font-size: 7.5pt; color: var(--nhat); letter-spacing: .04em; }
+  .dau .ma { font-size: 19pt; line-height: 1.15; }
+  .dau .ten { font-size: 11pt; }
+  .dau .qr { text-align: center; font-size: 7.5pt; color: var(--nhat); }
+  .dau .qr svg { display: block; margin-bottom: 1mm; }
+  .tt { margin-top: 2.5mm; display: flex; flex-wrap: wrap; column-gap: 7mm; row-gap: .6mm; }
+  .tt span i, .ts i, .the i, .kh i { font-style: normal; color: var(--nhat); font-size: 7.5pt; margin-right: 1.5mm; }
+  .ts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.8mm 3mm; margin-top: 3mm; }
+  .ts > div i { display: block; margin: 0; }
+  .ts .rong { grid-column: span 2; }
+  .muc { display: inline-flex; gap: 0; vertical-align: middle; }
+  .muc span { border: .6pt solid #333; padding: 0 1.4mm; font-size: 7pt; line-height: 3.6mm; margin-left: -.6pt; white-space: nowrap; }
+  .muc span:first-child { margin-left: 0; }
+  table.bb { width: 100%; border-collapse: collapse; margin-top: 3.5mm; table-layout: fixed; }
+  table.bb th { font-size: 7pt; color: #333; background: var(--nen); text-align: left; padding: 1mm 1.2mm; border: .6pt solid var(--vien); vertical-align: bottom; }
+  table.bb td { border: .6pt solid var(--vien); padding: 1mm 1.2mm; vertical-align: top; }
+  table.bb td.so { white-space: nowrap; }
+  table.bb .go { color: #aaa; font-size: 6.5pt; }
+  .phu { color: #555; font-size: 7.3pt; line-height: 1.3; }
+  .vt { font-size: 7.3pt; }
+  .vt i, .the .vt i { font-style: normal; color: var(--nhat); margin-right: .8mm; }
+  .o-vien { border: .6pt solid #333; padding: 0 1mm; font-size: 7pt; display: inline-block; margin-top: .5mm; }
+  .bang-khau td.khau { background: var(--nen); border-top: 1.1pt solid #111; padding: 1.4mm 1.6mm; }
+  .bang-khau td.khau .tk { font-size: 10pt; }
+  .bang-khau td.khau .kh { display: flex; flex-wrap: wrap; column-gap: 6mm; row-gap: .4mm; margin-top: .6mm; }
+  .hop-cuoi { display: grid; grid-template-columns: 2fr 1fr; gap: 4mm; margin-top: 4mm; }
+  .hop-cuoi div { border: .6pt solid var(--vien); height: 24mm; padding: 1.2mm 1.6mm; font-size: 7.5pt; color: var(--nhat); }
+  .chan { display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--nhat); border-top: .4pt solid var(--ke); padding-top: 1.5mm; margin-top: 4mm; }
+  /* phương án C: thẻ */
+  .luoi-the { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm; margin-top: 3mm; }
+  .the { border: .7pt solid #333; padding: 1.2mm 2mm 1.2mm; display: flex; flex-direction: column; min-height: 27mm; break-inside: avoid; }
+  .the .dong1 { display: flex; justify-content: space-between; gap: 2mm; }
+  .the .stt { font-size: 13pt; line-height: 1; margin-right: 2mm; }
+  .the .tcd { font-size: 9.5pt; }
+  .the .kh2 { margin-top: .8mm; }
+  .the .ghi { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: auto; border-top: .5pt solid var(--ke); }
+  .the .ghi div { border-right: .5pt solid var(--ke); height: 6mm; padding: .5mm 1mm; font-size: 6.5pt; color: var(--mo); }
+  .the .ghi div:last-child { border-right: 0; }
+  .the .ky { display: grid; grid-template-columns: 1fr 1fr; border-top: .5pt solid var(--ke); }
+  .the .ky div { height: 6mm; padding: .5mm 1mm; font-size: 6.5pt; color: var(--mo); border-right: .5pt solid var(--ke); }
+  .the .ky div:last-child { border-right: 0; }
+  .the.kcs { border-style: dashed; }
+  .ghi-nho { font-size: 12px; color: #7a6400; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="khung">
+  <h1>Phiếu công nghệ làm lại, 3 phương án</h1>
+  <p>Phiếu A4 in từ nút In phiếu công nghệ ở ngăn lệnh, đi theo hàng xuống xưởng. Cả ba phương án dựng bằng số thật của hai lệnh 10 bước trên DB dev: LSX26-0005 hộp mỹ phẩm (đi thẳng một mạch) và LSX26-0006 thùng carton sóng B (Tề sóng chạy song song, Bồi chờ hai nhánh). Trang vẽ đúng khổ 210 × 297 mm.</p>
+  <p class="xam">Chỗ tô vàng là <span class="gia-dinh">giả định</span>: dữ liệu thật chưa có (hai lệnh còn nháp nên chưa có phiên bản và chưa xếp máy), hoặc phải làm thêm phần mềm mới có.</p>
+
+  <h2>Bản đang in</h2>
+  <div class="luoi-anh">
+    <figure><img src="tham-khao-phieu-cong-nghe/hien-tai-LSX26-0005-trang-1.png" alt="Phiếu hiện tại trang 1"><figcaption>LSX26-0005 hiện tại, trang 1/2 (in thử 04/11/2026 từ code đang chạy)</figcaption></figure>
+    <figure><img src="tham-khao-phieu-cong-nghe/hien-tai-LSX26-0005-trang-2.png" alt="Phiếu hiện tại trang 2"><figcaption>Trang 2 chỉ còn bước 10 và hai ô ký</figcaption></figure>
+  </div>
+  <p>Chỗ dở thấy được trên bản in thật:</p>
+  <ul>
+    <li>Lệnh 10 bước tràn sang trang 2 chỉ vì một dòng. Mỗi dòng cao cố định 17 mm nên một trang chỉ chứa 9 bước, mà hộp và thùng carton của xưởng thường 9 đến 11 bước.</li>
+    <li>In mã đơn vị trần "to_nguyen" ở cột Kế hoạch, ô Xuất kho và chữ mờ trong ô Số đạt. Nguyên nhân: công đoạn hệ thống Cắt giấy cuộn và Tề giấy in khai đơn vị mã to_nguyen, nhưng danh mục Đơn vị trên DB dev không còn dòng to_nguyen nên tra tên không ra.</li>
+    <li>Số bước 10 bị gãy thành hai dòng "1 / 0" vì cột # chỉ rộng 7 mm.</li>
+    <li>Ô mực cố định độ rộng nên "TRẮNG" tràn ra ngoài khung, "PANTONE 186C" của lệnh thùng còn tràn tệ hơn.</li>
+    <li>Số màu lệch với số mực trên cả hai lệnh: LSX26-0005 ghi "4 màu" nhưng có 5 mực (C M Y K TRẮNG), LSX26-0006 ghi "1 màu" nhưng có K và PANTONE 186C. Số kẽm thì khớp số mực.</li>
+    <li>Không có vật tư từng bước: tổ Xả cuộn không thấy phải lấy 401,63 kg Giấy Ivory 350, tổ Tề sóng không thấy cần 1.500 tờ Sóng B nâu 140/140.</li>
+    <li>Lệnh có nhánh thì bước nào cũng in "Làm sau bước X", kể cả bước chỉ chờ đúng dòng ngay trên nó. Chỗ đáng nói chỉ có hai: Tề sóng làm ngay từ đầu, Bồi chờ cả In và Tề sóng.</li>
+  </ul>
+
+  <h2>Tham khảo</h2>
+  <div class="luoi-anh">
+    <figure><img src="tham-khao-phieu-cong-nghe/r7-printvis-job-ticket-theo-khau.jpg" alt="PrintVis job ticket"><figcaption>PrintVis (Print MIS trên Business Central): thân phiếu chia theo khâu Prepress, Finishing. Mỗi khâu có ghi chú riêng, thông số riêng và giờ kế hoạch của từng việc. Lấy ý cho phương án B.</figcaption></figure>
+    <figure><img src="tham-khao-phieu-cong-nghe/r6-printvis-job-ticket-dau-phieu.jpg" alt="PrintVis đầu phiếu"><figcaption>PrintVis đầu phiếu: khách, người bán, người điều phối, ngày giao gom một khối, mã đơn to ở giữa.</figcaption></figure>
+    <figure><img src="tham-khao-phieu-cong-nghe/r1-presswise-job-ticket.jpg" alt="PressWise job ticket"><figcaption>PressWise: mỗi công đoạn một khối riêng có mã vạch riêng để quét lúc bắt đầu và xong. Lấy ý cho phương án C.</figcaption></figure>
+    <figure><img src="tham-khao-phieu-cong-nghe/r2-production-traveler-ky-tung-buoc.jpg" alt="Codeware shop traveler"><figcaption>Codeware shop traveler: một dòng một việc, cột trống để ký và ghi ngày, dòng thấp nên 13 việc vừa một trang. Lấy ý cho phương án A.</figcaption></figure>
+  </div>
+
+  <h2>Áp cho cả ba</h2>
+  <ul>
+    <li>10 bước vừa một trang A4 dọc. Lệnh dài hơn mới sang trang 2, và trang nào cũng có mã lệnh, phiên bản, QR như bây giờ.</li>
+    <li>Đơn vị luôn ra chữ: "1.500 tờ nguyên". Phần mềm sẽ biết sẵn tên của các đơn vị hệ thống (tờ nguyên, tờ, con, cái), không phụ thuộc danh mục còn dòng đó hay không.</li>
+    <li>Ô mực rộng theo chữ. Bỏ con số "N màu" vì đang lệch; dãy mực và số kẽm đã đủ nói.</li>
+    <li>Bước có vật tư thì in thêm dòng "Lấy" với tên hàng và số lượng, đúng số đang hiện ở Kế hoạch vật tư.</li>
+    <li>"Làm sau bước" chỉ in ở bước không chờ đúng dòng ngay trên nó. Bước không chờ ai mà không đứng đầu thì in "Làm ngay từ đầu".</li>
+    <li>Giữ như cũ: không một số tiền nào, không chữ đậm, in laser đen trắng vẫn đọc được, thiếu thì im (hạn SX, ghi chú kỹ thuật, định lượng chưa khai đều không in).</li>
+    <li>Máy của từng bước in khi lệnh đã xếp lịch. Hai lệnh mẫu chưa xếp nên chỉ có tổ.</li>
+  </ul>
+
+  <div class="thanh" role="toolbar">
+    <span class="xam">Phương án</span>
+    <button data-pa="A" aria-pressed="true">A. Bảng gọn một trang</button>
+    <button data-pa="B" aria-pressed="false">B. Chia theo khâu</button>
+    <button data-pa="C" aria-pressed="false">C. Mỗi bước một thẻ</button>
+    <span class="gach"></span>
+    <span class="xam">Lệnh</span>
+    <button data-l="1466" aria-pressed="true">LSX26-0005 hộp</button>
+    <button data-l="1467" aria-pressed="false">LSX26-0006 thùng</button>
+  </div>
+
+  <div class="moi-pa" id="mt-A">
+    <div class="mo-ta">
+      <p>A. Giữ nguyên khuôn phiếu đang in (đầu phiếu, lưới thông số, bảng bước, hai ô ký), chỉ sửa cho gọn. Dòng bước hạ từ 17 mm xuống 12 mm, vẫn đủ chỗ viết tay một dòng số và một chữ ký. Lưới thông số 5 cột thay 4 cột nên bớt một hàng.</p>
+      <p class="xam">Hợp khi: tổ đã quen phiếu hiện tại, chỉ muốn hết tràn trang và hết chữ lạ. Đổi ít nhất trong ba phương án.</p>
+    </div>
+  </div>
+  <div class="moi-pa" id="mt-B">
+    <div class="mo-ta">
+      <p>B. Bỏ lưới thông số chung ở đầu phiếu. Bảng bước chia thành ba khâu: Chuẩn bị giấy, In, Sau in. Thông số khâu nào nằm ngay trên các bước của khâu đó, bước giữ số gốc nên lệnh thùng đọc 1, 2, 4 rồi mới tới 3 (Tề sóng là khâu chuẩn bị giấy, chạy song song với In): tổ xả cuộn đọc giấy, khổ nguyên, xuất kho; thợ in đọc khổ in, mực, kẽm; tổ bế dán đọc thành phẩm, số con, khuôn. Mỗi thông tin nói một lần, đúng chỗ người cần đọc.</p>
+      <p class="xam">Hợp khi: phiếu chuyền tay qua nhiều tổ và mỗi tổ chỉ cần phần của mình. Nhóm khâu lấy từ nhóm của công đoạn (Trước in, In, Gia công sau in) đã khai ở danh mục Công đoạn.</p>
+    </div>
+  </div>
+  <div class="moi-pa" id="mt-C">
+    <div class="mo-ta">
+      <p>C. Đầu phiếu và thông số như A. Các bước thành thẻ xếp hai cột, mỗi thẻ có ô Bắt đầu, Xong, Số đạt, Số hỏng, Người làm ký, Bước sau nhận ký. Ô KCS cuối là thẻ cuối cùng. Thẻ có <span class="gia-dinh">QR riêng của bước</span>: tổ trưởng quét là mở đúng bước đó trên Việc của tổ để ghi sản lượng, khỏi tìm lệnh.</p>
+      <p class="xam">Hợp khi: muốn xưởng ghi số trên máy ngay tại chỗ, giấy chỉ còn để đối chiếu. QR từng bước cần làm thêm đường mở thẳng một bước trên Việc của tổ (hiện QR chỉ mở hồ sơ lệnh), nên phương án này tốn công nhất.</p>
+    </div>
+  </div>
+
+  <div class="trang-wrap"><div id="noi-trang"></div></div>
+</div>
+
+<script>
+const L = {
+  1466: {
+    ma: "LSX26-0005", ten: "Hộp mỹ phẩm ghép metalize UV", khach: "CÔNG TY TRÁCH NHIỆM HỮU HẠN WIPRO CONSUMER CARE VIỆT NAM",
+    dat: "6.000 hộp", hanGiao: "30/10/2026", don: "DH002", sale: "Đào Thị Kim Hiệp",
+    giay: "Giấy Ivory 350", kn: "1020 × 720 mm", ki: "1020 × 720 mm", tp: "400 × 300 mm",
+    xa: "1 tờ in một tờ nguyên", con: "4 con một tờ in", xuat: "1.500 tờ nguyên", toIn: "1.500 tờ",
+    qc: "1 mặt", mucA: ["C", "M", "Y", "K", "TRẮNG"], kem: 5,
+    buoc: [
+      { ten: "Cắt giấy cuộn", k: "giay", to: "Xả cuộn 1", vao: "1.500 tờ nguyên", ra: "1.500 tờ nguyên", dv: "tờ nguyên", vt: "Giấy Ivory 350 401,63 kg" },
+      { ten: "Tề giấy in", k: "giay", vao: "1.500 tờ nguyên", ra: "1.500 tờ", dv: "tờ" },
+      { ten: "In", k: "in", to: "Nhóm thợ in máy 6 màu", vao: "1.500 tờ", ra: "1.500 tờ", dv: "tờ" },
+      { ten: "Cán màng materlize", k: "sau", to: "Tổ Cán màng", vao: "1.500 tờ", ra: "1.500 tờ", dv: "tờ" },
+      { ten: "UV Định Hình", k: "sau", to: "Tổ Cán màng", vao: "1.500 tờ", ra: "1.500 tờ", dv: "tờ" },
+      { ten: "Khuôn hộp", k: "sau", to: "Bế TD - Kiệt", vao: "1.500 tờ", ra: "6.000 con", dv: "con" },
+      { ten: "Gỡ hàng hộp giấy ivory, duplex, chipor, tất cả hộp mềm", k: "sau", to: "Xả cuộn 1", vao: "6.000 con", ra: "6.000 con", dv: "con" },
+      { ten: "Dán TĐ 4 góc tự động", k: "sau", to: "Dán - nhóm 1", vao: "6.000 con", ra: "6.000 con", dv: "con" },
+      { ten: "Kiểm hộp mềm + đóng thùng hoặc gói", k: "sau", to: "Dán - nhóm 1", vao: "6.000 con", ra: "6.000 con", dv: "con" },
+      { ten: "Cân hàng,đếm, đóng thùng", k: "sau", to: "Thành phẩm - nhóm 1", vao: "6.000 con", ra: "6.000 cái", dv: "cái" },
+    ],
+  },
+  1467: {
+    ma: "LSX26-0006", ten: "Thùng carton sóng B in 2 màu", khach: "CÔNG TY TRÁCH NHIỆM HỮU HẠN WIPRO CONSUMER CARE VIỆT NAM",
+    dat: "1.500 thùng", hanGiao: "30/10/2026", don: "DH002", sale: "Đào Thị Kim Hiệp",
+    giay: "Giấy Duplex 250", kn: "1020 × 720 mm", ki: "1020 × 720 mm", tp: "900 × 650 mm",
+    xa: "1 tờ in một tờ nguyên", con: "1 con một tờ in", xuat: "1.500 tờ nguyên", toIn: "1.500 tờ",
+    qc: "1 mặt", mucA: ["K", "PANTONE 186C"], kem: 2,
+    buoc: [
+      { ten: "Cắt giấy cuộn", k: "giay", to: "Xả cuộn 1", vao: "1.500 tờ nguyên", ra: "1.500 tờ nguyên", dv: "tờ nguyên", vt: "Giấy Duplex 250 275,4 kg" },
+      { ten: "Tề giấy in", k: "giay", vao: "1.500 tờ nguyên", ra: "1.500 tờ", dv: "tờ" },
+      { ten: "In", k: "in", to: "Nhóm thợ in máy 4 màu", vao: "1.500 tờ", ra: "1.500 tờ", dv: "tờ" },
+      { ten: "Tề sóng", k: "giay", vao: "1.500 tờ", ra: "1.500 tờ", dv: "tờ", vt: "Sóng B nâu 140/140 1.500 tờ", sau: "Làm ngay từ đầu" },
+      { ten: "Bồi carton 4,5 lớp BE, BC", k: "sau", to: "Tổ bồi", vao: "1.500 tờ", ra: "1.500 tờ", dv: "tờ", sau: "Làm sau bước 3 và 4" },
+      { ten: "Bế carton 5-7 lớp", k: "sau", to: "Bế TD - Kiệt", vao: "1.500 tờ", ra: "1.500 con", dv: "con" },
+      { ten: "Gỡ hàng hộp, thùng giấy carton", k: "sau", to: "Gỡ hàng", vao: "1.500 con", ra: "1.500 con", dv: "con" },
+      { ten: "Dán BÁN TĐ 1 mảnh sóng 5 lớp", k: "sau", to: "Dán - nhóm 1", vao: "1.500 con", ra: "1.500 con", dv: "con" },
+      { ten: "Kiểm phẩm carton 5 lớp", k: "sau", to: "Dán - nhóm 1", vao: "1.500 con", ra: "1.500 con", dv: "con" },
+      { ten: "Đếm, dán tem, cột hàng carton sóng 5L", k: "sau", to: "Cột dây", vao: "1.500 con", ra: "1.500 cái", dv: "cái" },
+    ],
+  },
+};
+const KHAU = { giay: "Chuẩn bị giấy", in: "In", sau: "Sau in" };
+
+/* QR giả để minh hoạ chỗ đặt; mã thật vẫn do ReportLab vẽ. */
+function qr(seed, mm) {
+  const n = 25; let s = 7;
+  for (const c of seed) s = (s * 31 + c.charCodeAt(0)) >>> 0;
+  const r = () => ((s = (s * 1103515245 + 12345) >>> 0) >>> 16) & 1;
+  let p = "";
+  const f = (x, y) => { p += `<rect x="${x}" y="${y}" width="7" height="7"/><rect x="${x + 1}" y="${y + 1}" width="5" height="5" fill="#fff"/><rect x="${x + 2}" y="${y + 2}" width="3" height="3"/>`; };
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const inF = (x < 8 && y < 8) || (x > n - 9 && y < 8) || (x < 8 && y > n - 9);
+    if (!inF && r()) p += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+  }
+  f(0, 0); f(n - 7, 0); f(0, n - 7);
+  return `<svg viewBox="0 0 ${n} ${n}" width="${mm}mm" height="${mm}mm" shape-rendering="crispEdges">${p}</svg>`;
+}
+const muc = (ds) => `<span class="muc">${ds.map((m) => `<span>${m}</span>`).join("")}</span>`;
+const dau = (d) => `
+  <div class="dau">
+    <div><div class="loai">PHIẾU CÔNG NGHỆ</div><div class="ma">${d.ma}</div><div class="ten">${d.ten}</div></div>
+    <div class="qr">${qr(d.ma, 20)}<span class="gia-dinh">Phiên bản 1</span></div>
+  </div>
+  <div class="tt">
+    <span><i>Khách</i>${d.khach}</span>
+    <span><i>Đặt</i>${d.dat}</span><span><i>Hạn giao</i>${d.hanGiao}</span><span><i>Đơn</i>${d.don}</span><span><i>Kinh doanh</i>${d.sale}</span>
+  </div>`;
+const thongSo = (d) => `
+  <div class="ts">
+    <div><i>Giấy</i>${d.giay}</div><div><i>Khổ nguyên</i>${d.kn}</div><div><i>Khổ in</i>${d.ki}</div><div><i>Thành phẩm</i>${d.tp}</div><div><i>Quy cách in</i>${d.qc}</div>
+    <div><i>Xả</i>${d.xa}</div><div><i>Con</i>${d.con}</div><div><i>Xuất kho</i>${d.xuat}</div><div><i>Tờ in</i>${d.toIn}</div><div><i>Số kẽm</i>${d.kem}</div>
+    <div class="rong"><i>Mặt A</i>${muc(d.mucA)}</div>
+  </div>`;
+const chan = (tr, tong) => `<div class="chan"><span>In lúc 04/11/2026 16:09 bởi Nguyễn Thị Minh Phương</span><span>Trang ${tr}/${tong}</span></div>`;
+const phuBuoc = (b) => [
+  b.to ? `<div class="phu">${b.to}</div>` : "",
+  b.vt ? `<div class="vt"><i>Lấy</i> ${b.vt}</div>` : "",
+  b.sau ? `<div class="o-vien">${b.sau}</div>` : "",
+].join("");
+const dauBang = `<colgroup><col style="width:8mm"><col style="width:58mm"><col style="width:29mm"><col style="width:13mm"><col style="width:13mm"><col style="width:15mm"><col style="width:15mm"><col style="width:16mm"><col style="width:17mm"></colgroup>
+  <thead><tr><th>#</th><th>Công đoạn</th><th>Kế hoạch</th><th>Bắt đầu</th><th>Xong</th><th>Số đạt</th><th>Số hỏng</th><th>Người làm ký</th><th>Bước sau nhận ký</th></tr></thead>`;
+const dongBuoc = (b, i, cao) => `<tr style="height:${cao}mm">
+  <td>${i + 1}</td><td><div>${b.ten}</div>${phuBuoc(b)}</td>
+  <td class="so">${b.vao}<br><span class="phu">ra ${b.ra}</span></td>
+  <td></td><td></td><td><span class="go">${b.dv}</span></td><td><span class="go">${b.dv}</span></td><td></td><td></td></tr>`;
+const hopCuoi = `<div class="hop-cuoi"><div>Xưởng ghi chú</div><div>KCS cuối ký, ghi ngày</div></div>`;
+
+function A(d) {
+  return `<div class="a4"><div class="day">${dau(d)}${thongSo(d)}
+    <table class="bb">${dauBang}<tbody>${d.buoc.map((b, i) => dongBuoc(b, i, 12.5)).join("")}</tbody></table>
+    ${hopCuoi}</div>${chan(1, 1)}</div>`;
+}
+
+function B(d) {
+  const kh = {
+    giay: [["Giấy", d.giay], ["Khổ nguyên", d.kn], ["Xả", d.xa], ["Xuất kho", d.xuat]],
+    in: [["Khổ in", d.ki], ["Tờ in", d.toIn], ["Quy cách", d.qc], ["Mặt A", muc(d.mucA)], ["Số kẽm", d.kem]],
+    sau: [["Thành phẩm", d.tp], ["Con", d.con]],
+  };
+  let ra = "";
+  for (const k of ["giay", "in", "sau"]) {
+    const ds = d.buoc.map((b, i) => [b, i]).filter(([b]) => b.k === k);
+    if (!ds.length) continue;
+    ra += `<tr class="dong-khau"><td class="khau" colspan="9"><span class="tk">${KHAU[k]}</span>
+      <div class="kh">${kh[k].map(([n, v]) => `<span><i>${n}</i>${v}</span>`).join("")}</div></td></tr>`;
+    ra += ds.map(([b, i]) => dongBuoc(b, i, 12)).join("");
+  }
+  return `<div class="a4"><div class="day">${dau(d)}
+    <table class="bb bang-khau">${dauBang}<tbody>${ra}</tbody></table>
+    ${hopCuoi}</div>${chan(1, 1)}</div>`;
+}
+
+function C(d) {
+  const the = d.buoc.map((b, i) => `<div class="the">
+    <div class="dong1"><div style="display:flex"><span class="stt">${i + 1}</span><div><div class="tcd">${b.ten}</div>${phuBuoc(b)}</div></div>${qr(d.ma + i, 9)}</div>
+    <div class="kh2"><span><i>Nhận</i>${b.vao}</span>&nbsp;&nbsp;&nbsp;<span><i>Giao</i>${b.ra}</span></div>
+    <div class="ghi"><div>Bắt đầu</div><div>Xong</div><div>Số đạt ${b.dv}</div><div>Số hỏng ${b.dv}</div></div>
+    <div class="ky"><div>Người làm ký</div><div>Bước sau nhận ký</div></div>
+  </div>`).join("");
+  const kcs = `<div class="the kcs"><div class="tcd">KCS cuối</div><div class="phu">Ký, ghi ngày. Xưởng ghi chú thêm ở đây.</div></div>`;
+  return `<div class="a4"><div class="day">${dau(d)}${thongSo(d)}
+    <div class="luoi-the">${the}${kcs}</div></div>${chan(1, 1)}</div>`;
+}
+
+const VE = { A, B, C };
+let pa = "A", lenh = 1466;
+function ve() {
+  document.getElementById("noi-trang").innerHTML = `<div class="nhan-trang">Phương án ${pa}, ${L[lenh].ma}, trang 1/1</div>` + VE[pa](L[lenh]);
+  document.querySelectorAll(".moi-pa").forEach((e) => e.classList.toggle("hien", e.id === "mt-" + pa));
+  document.querySelectorAll("[data-pa]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.pa === pa));
+  document.querySelectorAll("[data-l]").forEach((b) => b.setAttribute("aria-pressed", +b.dataset.l === lenh));
+  const t = document.querySelector(".a4");
+  const tran = t.scrollHeight > t.clientHeight + 1 || t.getBoundingClientRect().height > 297 * 3.7795 + 2;
+  document.querySelector(".nhan-trang").innerHTML += tran ? ` <span class="ghi-nho">(đang tràn quá một trang A4)</span>` : "";
+}
+document.querySelectorAll("[data-pa]").forEach((b) => b.onclick = () => { pa = b.dataset.pa; ve(); });
+document.querySelectorAll("[data-l]").forEach((b) => b.onclick = () => { lenh = +b.dataset.l; ve(); });
+ve();
+</script>
+</body>
+</html>
