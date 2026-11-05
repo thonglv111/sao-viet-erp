@@ -191,6 +191,9 @@ def _phat_sse_kcs(res: dict) -> None:
                 "don_vi": res.get("don_vi"),
                 "so_dat": res.get("so_dat"),
                 "so_loi": res.get("so_loi_cua_to", res.get("so_loi")),
+                # Lỗi KCS quy cho công đoạn khác trong lần kiểm này: thiếu số này thì tổ bước cuối đọc
+                # "đạt 995 và lỗi 0" dù KCS vừa ghi 5 lỗi (05/11/2026).
+                "so_loi_quy_ve": sum(m.get("so_loi") or 0 for m in res.get("bao_loi_nguon") or []),
                 "nguoi_kiem": res.get("nguoi_kiem"),
             })
     # Lỗi KCS quy về công đoạn TRƯỚC (bắt ở bước sau) — tổ đó cũng phải biết NGAY.

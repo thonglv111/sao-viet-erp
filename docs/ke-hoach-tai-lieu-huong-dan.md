@@ -168,7 +168,8 @@ cách tự cấp phiên bị chặn, nên mọi bước bấm bằng tài khoả
 từng vai thì cần mật khẩu thử của các tài khoản đó. Bước cán màng thuê ngoài do Kế hoạch SX mang đi và
 nhận về. Kịch bản chụp và thứ tự chạy ở `docs/huong-dan-viec-cua-to/kich-ban/README.md`.
 
-Lỗi thấy lúc dựng dữ liệu, chưa sửa:
+Lỗi thấy lúc dựng dữ liệu, đã sửa 05/11 (riêng Đã nhận khuôn khi khuôn "đang đặt làm" là thiết kế từ 16/09:
+dao về tới tay thì bấm nhận, danh mục tự lật sang Đang dùng; chỉ thêm dòng nhắc dưới nút):
 - Bấm được Đã nhận khuôn khi khuôn còn ghi "đang đặt làm".
 - Nhãn Việc phát sinh trong hộp Ghi sản lượng bị ép hẹp, xuống dòng từng chữ.
 - Chip khuôn nối thông tin bằng dấu "·".

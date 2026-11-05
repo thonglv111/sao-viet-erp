@@ -193,7 +193,7 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
 # Đợt 2 (21/10/2026): gỡ `sl_tot` (chủ: một chip số lượng duy nhất), thêm `so_lan_chay` / `tien_gio`
 # / `tu_tro`. Tuỳ chọn khi ghi của từng công đoạn là chip riêng, không nằm ở bảng này.
 _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
-    ("sl_ghi", "SL ghi", "Số lượng thợ ghi ở lần ghi — cột Số lượng của bàn tổ", "đơn vị của lần ghi",
+    ("sl_ghi", "SL ghi", "Số lượng thợ ghi ở lần ghi — cột Số lượng ở Việc của tổ", "đơn vị của lần ghi",
      "ô Số lượng của lần ghi sản lượng", (LOAI_KHOAN,)),
     ("gia_co_dinh", "Giá cố định", "Giá cố định của tổ ghi (vd giá một bài in)", "đ",
      "Giá cố định chung hoặc bảng Giá theo tổ — ảnh chụp lúc ghi", (LOAI_KHOAN,)),

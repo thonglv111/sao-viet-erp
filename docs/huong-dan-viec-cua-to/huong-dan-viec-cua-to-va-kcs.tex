@@ -157,6 +157,7 @@ xác nhận thì hiện thêm chip hàng chờ nhận, có lỗi KCS tổ chưa 
 \so{5} Cột Vật tư: \oo{Sẵn sàng} là kho đã cấp đủ, còn lại là đang chờ kho hoặc kho mới cấp một phần.
 \so{6} Cột Tốt / cần: số tốt đã ghi trên số phải làm, thanh xanh là phần đã xong.
 \so{7} Cột Hàng đang tới đâu: dải chấm là các bước của lệnh, chấm to là tổ mình, dòng chữ dưới nói hàng đang ở đâu.
+Lệnh xong hết các bước thì dòng chữ ghi \q{Xong cả N bước}.
 
 Mỗi dòng là một việc. Cột Công đoạn có chip \oo{Máy} hay \oo{Tổ} (việc chạy máy hay làm tay) và chip khuôn nếu bước
 cần khuôn. Cột Trạng thái ghi giờ xong hoặc tên người đang làm. Bấm vào dòng để mở ngăn của việc.
@@ -254,6 +255,9 @@ Bộ lọc \oo{Chưa bắt đầu được vì} ở đầu màn lọc đúng the
 Bước cần khuôn có dòng \oo{Khuôn} ở cột phải: mã khuôn, tên khuôn và tình trạng của khuôn. Lấy khuôn ra máy rồi
 bấm \so{1} \oo{Đã nhận khuôn}. Chip khuôn đổi thành \q{đã nhận}, Bắt đầu hết bị chặn vì khuôn.
 
+Khuôn làm mới còn ghi \q{đang đặt làm} (như ảnh trên) vẫn bấm nhận được: dao về tới tay thì bấm Đã nhận khuôn,
+danh mục Khuôn tự đổi khuôn sang Đang dùng. Dưới nút có dòng nhắc đúng câu này.
+
 \rong[0.85\linewidth]{vtt-26-tra-khuon.png}
 
 Làm xong việc, nút \so{1} \oo{Trả khuôn về kệ} mới hiện. Cất khuôn rồi bấm để khuôn về lại kệ, việc khác dùng
@@ -299,8 +303,8 @@ khai ở \kb{danh-muc-khoan}{Tiền khoán của công đoạn}.
 \so{8} \oo{Việc phát sinh}: thay kẽm, xuống bài do lỗi máy. Tính tiền riêng, không cộng vào sản lượng. Có làm thì
 gõ số, không làm thì để trống.
 
-\so{9} Dòng cuối báo ghi xong sẽ tự đề xuất giao lần này sang bước nào. Bước sau thuộc tổ khác thì lần này nằm ở
-Giao đi chờ tổ đó xác nhận (chương \ref{giao-nhan}).}
+Dưới Ghi chú, lệnh có bước sau nhận được lần giao thì có thêm dòng báo ghi xong sẽ tự đề xuất giao lần này sang
+bước nào. Bước sau thuộc tổ khác thì lần này nằm ở Giao đi chờ tổ đó xác nhận (chương \ref{giao-nhan}).}
 
 Mục Ghi chú để ghi thêm điều cần nhớ của lần này. Số ghi không vượt được số còn phải làm. KCS bắt lỗi ở bước này
 thì số còn ghi được trừ luôn phần lỗi.
@@ -504,7 +508,7 @@ ngay về tổ gây lỗi và trừ khỏi số tổ đó còn ghi được.
 \Needspace*{17\baselineskip}
 \subsection{Tổ xem lỗi KCS}\label{to-xem-loi}
 
-\rong{vtt-74-to-loi-cho-xem.png}
+\cat{0 0 0 175}{vtt-74-to-loi-cho-xem.png}
 
 Tổ gây lỗi nhận thông báo ngay, đầu màn Việc của tổ hiện chip \so{1} \oo{Lỗi KCS chờ xem} kèm số việc. Dòng việc có
 chấm đỏ cạnh tên công đoạn và chip \q{KCS: 6 lỗi}. Bấm chip để lọc, bấm việc để mở.
@@ -541,7 +545,8 @@ ghi 2 cái bung keo gáy, quy cho Dán bìa folder.
 
 Lưu xong, bước cuối cập nhật Đạt 995, Lỗi 5, Chưa kiểm 0. Tab \oo{Lần kiểm} có dòng mới: lúc kiểm, người kiểm,
 đạt, từng dòng lỗi với công đoạn gây lỗi, lỗi gì, ảnh và Tổ đã xem. Ô In và ô Dán bìa folder trên dải hiện số lỗi
-đỏ. Hai tổ đó nhận lỗi như mục \ref{to-xem-loi}.
+đỏ. Hai tổ đó nhận lỗi như mục \ref{to-xem-loi}. Tổ bước cuối nhận thông báo số đạt, kèm câu riêng nói bao nhiêu lỗi
+quy cho công đoạn khác, để tổ không tưởng lần kiểm sạch hay tưởng lỗi do mình.
 
 \rong{vtt-78-kcs-loi-theo-cong-doan.png}
 
@@ -594,12 +599,12 @@ Tab \oo{Báo cáo lỗi} của màn KCS tổng hợp lỗi theo kỳ, mặc đ�
 \oo{Bảng}, \oo{Biểu đồ}. Dải số: Lượt kiểm, Tỷ lệ đạt ở bước cuối, Lần ghi lỗi, Lệnh có lỗi, mỗi số so với kỳ
 trước. Kiểu Bảng có bảng gom (mỗi ô là số lỗi trong ngày, đếm theo đơn vị nơi bắt, bấm một dòng để lọc) và bảng
 \oo{Các lần ghi lỗi} mới nhất trước: lúc, lệnh, khách, công đoạn gây lỗi, tiêu chí, bắt ở đâu, số lỗi, tổ chịu,
-ảnh, người ghi.
+ảnh, người ghi. Bước cuối đếm theo đơn vị tính của sản phẩm trên lệnh (cái, cuốn), như hộp Kiểm hàng.
 
 \rong{vtt-84-kcs-bieu-do.png}
 
 Kiểu Biểu đồ: lần ghi lỗi mỗi ngày theo công đoạn gây lỗi (bấm một cột để xem riêng ngày đó), công đoạn gây lỗi
-nhiều nhất, lỗi bắt tại công đoạn hay lọt tới KCS cuối, và tỷ lệ đạt ở bước cuối. Nút \oo{Xuất Excel} ở đầu màn
+nhiều nhất (số lần, dưới là số lỗi theo từng đơn vị, ví dụ In có 6 tờ in và 3 cái vì lỗi bắt ở hai nơi), lỗi bắt tại công đoạn hay lọt tới KCS cuối, và tỷ lệ đạt ở bước cuối. Nút \oo{Xuất Excel} ở đầu màn
 xuất đúng phần đang lọc.
 
 % ============================================================

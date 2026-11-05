@@ -23,7 +23,7 @@ import {
   type PhanHe,
 } from "../auth/permissions";
 import { nhanChang, nhanDonVi } from "../pages/lsxBuoc";
-import { toastKhoNhapThanhPham } from "../pages/kcs/kcsNhan";
+import { soKetQuaKiemCuoi, toastKhoNhapThanhPham } from "../pages/kcs/kcsNhan";
 import { num } from "../pages/keHoachSxShared";
 import { kenhCuaNav, loiNhacCua, navCuaKenh } from "../lib/thongBaoMan";
 import { toLaDauTien } from "../lib/banToLa";
@@ -791,7 +791,7 @@ export function AppShell() {
           "warn",
         );
       } else {
-        const so = `đạt ${soDat.toLocaleString("vi-VN")} và lỗi ${soLoi.toLocaleString("vi-VN")}`;
+        const so = soKetQuaKiemCuoi(soDat, soLoi, e.so_loi_quy_ve ?? 0);
         pushToast(
           `${soLoi > 0 ? "⚠️" : "✓"} ${ai} đã kiểm ${e.ten_cong_doan || "công đoạn"}${lenh}: ${so}`,
           soLoi > 0 ? "warn" : "ok",

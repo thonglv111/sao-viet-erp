@@ -710,6 +710,8 @@ export type QuoteEvent =
       don_vi?: string | null;
       so_dat?: number | null;
       so_loi?: number | null;
+      /** Bước cuối: lỗi của lần kiểm KCS quy cho công đoạn khác (không tính vào `so_loi` của tổ). */
+      so_loi_quy_ve?: number | null;
       nguoi_kiem?: string | null;
     }
   // Yêu cầu NHẬP thành phẩm từ KCS đổi (KCS vừa gửi / kho ghi sổ). `trang_thai` = trạng thái yêu cầu

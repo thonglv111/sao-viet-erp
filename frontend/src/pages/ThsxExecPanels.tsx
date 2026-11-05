@@ -2370,7 +2370,7 @@ export function dungTuCongViec(
   const nguoi = lanSua?.created_by_ten ?? "";
   return {
     duongDan: [
-      ["Bàn tổ", toTen].filter(Boolean).join(" "),
+      ["Việc của tổ", toTen].filter(Boolean).join(" "),
       cv.nguon_ma ? `${cv.ten_cong_doan} của ${cv.nguon_ma}` : cv.ten_cong_doan,
       mode === "sua" ? "Sửa yêu cầu" : "Tạo mới",
     ].join(" › "),

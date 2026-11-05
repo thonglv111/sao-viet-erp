@@ -93,7 +93,7 @@ def _canh_bao(db: Session, s: dict) -> list[dict]:
                      if cv.department_id and (d := db.get(Department, cv.department_id))})
         ten_to = f" ({', '.join(to)})" if to else ""
         out.append({"ma": "viec_do",
-                    "cau": f"Còn {len(s['viec_do'])} việc chưa xong{ten_to} — sẽ rút khỏi bàn tổ."})
+                    "cau": f"Còn {len(s['viec_do'])} việc chưa xong{ten_to}, sẽ rút khỏi Việc của tổ."})
     return out
 
 

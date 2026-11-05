@@ -28,7 +28,7 @@ from tests.test_bai_ghep_service import (  # noqa: F401
     orders,
 )
 
-LOI_DOI = "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ"
+LOI_DOI = "Việc đã bắt đầu, đổi máy ở màn Việc của tổ"
 
 
 def _may(db, ma: str, *to_ids: int) -> MayThietBi:

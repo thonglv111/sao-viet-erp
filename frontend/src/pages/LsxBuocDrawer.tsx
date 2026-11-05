@@ -820,9 +820,9 @@ export function LsxBuocDrawer({
                               ))}
                             </select>
                             <span className="khsx-field__hint">
-                              {row.da_bat_dau ? "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ."
+                              {row.da_bat_dau ? "Việc đã bắt đầu, đổi máy ở màn Việc của tổ."
                                 : toChon.gioiHan
-                                ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi sản lượng, bàn tổ chọn trong công việc khoán của tổ này."
+                                ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi sản lượng, tổ chọn trong công việc khoán của tổ này."
                                 : "Công đoạn chưa khai tổ phụ trách — đang mời mọi tổ."}
                             </span>
                           </>

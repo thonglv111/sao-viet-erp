@@ -3705,7 +3705,7 @@ class LsxService:
             doi_cap = old_dept_id != row.department_id or old_may_id != row.may_id
             if (not buoc_moi and doi_cap and row.id in da_bat_dau
                     and LB_MAY in (old_loai, row.loai_buoc)):
-                raise LsxValidationError("Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ")
+                raise LsxValidationError("Việc đã bắt đầu, đổi máy ở màn Việc của tổ")
             if row.loai_buoc == LB_MAY and (buoc_moi or doi_cap or old_cd_id != cd_id):
                 if loi := loi_cap(self.db, cd_obj, row.department_id, row.may_id):
                     raise LsxValidationError(loi)

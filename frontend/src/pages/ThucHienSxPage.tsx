@@ -867,7 +867,7 @@ export function ThucHienSxPage({
       {/* Thanh trên */}
       <div className="thsx-top">
         <header className="lds-dau">
-          <h1 className="lds-dau__ten">Bàn tổ<span className="thsx-top__to">{tenTo ?? `#${teamId}`}</span></h1>
+          <h1 className="lds-dau__ten">Việc của tổ<span className="thsx-top__to">{tenTo ?? `#${teamId}`}</span></h1>
           <div className="lds-dau__nut">
             {coBaoDungMay && (
               <Button variant="secondary" title="Ngày máy hư hoặc hết hàng, tổ ăn chỉ tiêu ngày"

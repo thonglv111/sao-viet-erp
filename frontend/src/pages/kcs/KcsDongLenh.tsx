@@ -103,7 +103,7 @@ export function KcsDongLenh({
           </button>
           {hop && (
             <div className="kcsb-dong__hop" role="dialog" aria-label={daDong ? "Mở lại nhóm" : "Đóng lệnh nhóm"}>
-              <p>{daDong ? "Mở lại nhóm? Việc chưa làm sẽ hiện lại ở bàn tổ." : tieuDeDong(tt)}</p>
+              <p>{daDong ? "Mở lại nhóm? Việc chưa làm sẽ hiện lại ở Việc của tổ." : tieuDeDong(tt)}</p>
               {!daDong && soCanhBao > 0 && (
                 <ul>{tt.canh_bao.map((c) => <li key={c.ma}>{c.cau}</li>)}</ul>
               )}

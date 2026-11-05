@@ -65,7 +65,7 @@ def test_tinh_trang_du_bon_canh_bao(db, orders, lsx_svc, admin, customer):
     cau = {c["ma"]: c["cau"] for c in tt["canh_bao"]}
     assert "50" in cau["chua_kiem"] and "chưa kiểm" in cau["chua_kiem"]
     assert "90 / 10.000" in cau["thieu_muc_tieu"] and "9.910" in cau["thieu_muc_tieu"]
-    assert "rút khỏi bàn tổ" in cau["viec_do"]
+    assert "rút khỏi Việc của tổ" in cau["viec_do"]
 
 
 def test_dong_khi_con_do_van_dong_duoc_va_dong_moi_lenh(db, orders, lsx_svc, admin, customer):

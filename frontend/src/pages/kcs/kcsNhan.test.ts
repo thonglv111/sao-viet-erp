@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loiHoiNhapKho, toastKhoNhapThanhPham } from "./kcsNhan";
+import { loiHoiNhapKho, soKetQuaKiemCuoi, toastKhoNhapThanhPham } from "./kcsNhan";
 
 describe("loiHoiNhapKho", () => {
   it("không lặp chữ khi đơn vị ra là thành phẩm", () => {
@@ -24,5 +24,18 @@ describe("toastKhoNhapThanhPham", () => {
     const t = toastKhoNhapThanhPham("cancelled", "DNN00084");
     expect(t?.chu).toContain("huỷ");
     expect(t?.kieu).toBe("warn");
+  });
+});
+
+describe("soKetQuaKiemCuoi", () => {
+  it("lỗi đều quy cho công đoạn khác: không ghi 'lỗi 0', nói số quy về", () => {
+    expect(soKetQuaKiemCuoi(995, 0, 5)).toBe("đạt 995. 5 lỗi quy cho công đoạn khác");
+  });
+  it("lỗi của tổ và lỗi quy về tách hai câu", () => {
+    expect(soKetQuaKiemCuoi(990, 3, 7)).toBe("đạt 990 và lỗi 3. 7 lỗi quy cho công đoạn khác");
+  });
+  it("không có lỗi quy về: như cũ", () => {
+    expect(soKetQuaKiemCuoi(1000, 0, 0)).toBe("đạt 1.000 và lỗi 0");
+    expect(soKetQuaKiemCuoi(998, 2, 0)).toBe("đạt 998 và lỗi 2");
   });
 });

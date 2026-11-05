@@ -388,7 +388,7 @@
   }
 
   /* ---- Bàn tổ (ThucHienSxPage) ---------------------------------------------------------------
-     Đầu màn ~500px trước thẻ việc đầu tiên: tiêu đề "Bàn tổ <tên tổ>" lặp tên trên thanh trên, và 6
+     Đầu màn ~500px trước thẻ việc đầu tiên: tiêu đề "Việc của tổ <tên tổ>" lặp tên trên thanh trên, và 6
      chip trạng thái bọc 3 hàng. Bỏ tiêu đề, chip thành một dải trượt ngang như các màn danh sách khác. */
   .thsx-top .lds-dau__ten {
     display: none;
@@ -405,6 +405,17 @@
   }
   .thsx-top .thsx-seg {
     display: flex !important;
+  }
+  /* Nút Báo dừng máy đứng chung hàng với thanh kiểu xem thì bị ép, chữ xuống 3 dòng (05/11/2026):
+     nút lên một hàng riêng trải cả bề ngang, chữ một dòng; thanh kiểu xem xuống hàng dưới. */
+  .thsx-top .lds-dau__nut {
+    flex-wrap: wrap;
+  }
+  .thsx-top .lds-dau__nut > button {
+    flex: 1 1 100%;
+    white-space: nowrap;
+    justify-content: center;
+    min-height: 44px;
   }
   .thsx-top .thsx-seg > *,
   .thsx-top .thsx-seg button {

@@ -1289,7 +1289,7 @@ export function LsxRoutingTable({
                   </>
                 )}
                 <span className="popo__hint">
-                  {khoa ? "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ."
+                  {khoa ? "Việc đã bắt đầu, đổi máy ở màn Việc của tổ."
                     : mayRefs && toChuaCoMay(mayRefs, cd, r.department_id)
                       ? "Tổ này chưa có máy chạy công đoạn này."
                       : r.loai_buoc === "to"
