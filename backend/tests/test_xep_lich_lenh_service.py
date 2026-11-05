@@ -947,3 +947,26 @@ def test_loc_nhanh_xong_muon_bo_qua_lenh_da_dong():
     da_dong = {"trang_thai": "da_dong", "so_buoc_chua_gio": 1}
     assert XepLichLenhService._nhanh(dang_chay, "muon") is True
     assert XepLichLenhService._nhanh(da_dong, "muon") is False
+
+
+def test_mo_lai_de_sua_bo_luon_moc_lich(db, svc3, lsx_svc, lenh, admin):
+    """Bấm thử 05/11: Mở lại để sửa (Sẵn sàng → Nháp) mà mốc còn nằm lại thì lần Sẵn sàng sau lệnh
+    hiện lại trên thanh ở giờ cũ, và nút phát hành vẫn thấy "đã có giờ"."""
+    from app.models.lsx import TT_NHAP
+    from app.models.xep_lich_lenh import XepLichLenh
+
+    svc3.dat_moc(lenh.id, datetime(2026, 9, 11, 8, 0))
+    lsx_svc.set_trang_thai(lsx_id=lenh.id, trang_thai=TT_NHAP, actor=admin)
+    assert db.query(XepLichLenh).filter_by(lsx_id=lenh.id).count() == 0
+
+
+def test_phat_hanh_tu_choi_lenh_nhap(db, svc3, lenh, admin):
+    """Cửa phát hành màn 3 không chặn nghiệp vụ, nhưng lệnh Nháp chưa qua tay kế hoạch thì không thả
+    xuống xưởng được, kể cả khi mốc còn sót lại."""
+    from app.models.lsx import TT_NHAP
+
+    svc3.dat_moc(lenh.id, datetime(2026, 9, 11, 8, 0))
+    lenh.trang_thai = TT_NHAP          # mốc sót từ trước bản sửa: đi thẳng DB, không qua Mở lại
+    db.commit()
+    with pytest.raises(XepLichLenhConflict, match="Nháp"):
+        svc3.phat_hanh(lenh.id, actor=admin)

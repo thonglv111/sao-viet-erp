@@ -105,7 +105,8 @@ class VatTuGiuCho(Base):
     )
 
     #: Theo ĐƠN VỊ GỐC của mặt hàng — cùng thang `stock_lots.sl_con_lai`, khỏi quy đổi khi trừ.
-    so_luong: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    #: 4 số lẻ như lô (mg 0453): lưu 2 số thì phần cần lẻ 0,004–0,005 làm tròn ra 0, không giữ nổi.
+    so_luong: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
 
     nguon: Mapped[str] = mapped_column(
         String(10), nullable=False, server_default=NGUON_KHO, default=NGUON_KHO

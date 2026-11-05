@@ -261,7 +261,7 @@ export function TdsxNganDon({
                         {m.ten ?? "Chưa đặt tên"}
                         <span className={`tdsx-mh__phu lsa-manh${m.nhom === "vuong" ? " tdsx-do" : ""}`}>
                           <span>{o1}</span>
-                          {o2 && <span>{o2}</span>}
+                          {o2 && <span className="tdsx-cach">{o2}</span>}
                         </span>
                       </td>
                       <td className="n">

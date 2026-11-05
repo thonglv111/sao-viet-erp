@@ -137,7 +137,8 @@ Lệnh giao trọn cho nhà gia công đi đường tắt: không xếp lịch, 
 
 \begin{itemize}
 \item Nháp: lệnh vừa tạo hoặc vừa mở lại để sửa. Sửa mọi thứ được.
-\item Sẵn sàng: đủ dữ liệu, vào khay Chờ xếp lịch. Muốn sửa thì bấm Mở lại để sửa, lệnh về Nháp.
+\item Sẵn sàng: đủ dữ liệu, vào khay Chờ xếp lịch. Muốn sửa thì bấm Mở lại để sửa, lệnh về Nháp và rời màn Xếp
+lịch, giờ đã đặt cho lệnh bị bỏ.
 \item Đã phát hành: đã xuống xưởng. Tổ thấy việc, kho thấy yêu cầu xuất. Chuỗi công đoạn bị khoá.
 \item Đã đóng: KCS đã đóng lệnh.
 \end{itemize}
@@ -217,7 +218,8 @@ Bấm mã lệnh ở tab Lệnh SX để mở chi tiết. Việc ở chương n�
 \so{3} \oo{Sẵn sàng lập kế hoạch} mờ cho tới khi hết mục thiếu.
 \so{4} Dãy ô số đầu trang: SL đặt, Vào máy, Giấy nguyên, Con/tờ in, số công đoạn, số món vật tư, hạn giao.
 \so{5} \oo{Gia công trọn gói}: giao cả lệnh cho một nhà gia công (mục \ref{tron-goi}).
-\so{6} \oo{Xoá lệnh}: chỉ có ở lệnh Nháp chưa giữ chỗ vật tư. Dòng đơn quay lại hàng chờ để lên lệnh lại.
+\so{6} \oo{Xoá lệnh}: chỉ có ở lệnh Nháp chưa giữ chỗ vật tư, và chỉ hiện với người có quyền Xoá ở Sản xuất. Dòng
+đơn quay lại hàng chờ để lên lệnh lại. Lệnh Sẵn sàng phải bấm Mở lại để sửa trước rồi mới xoá.
 
 Chip dưới mã lệnh dẫn về đơn, khách, PO, báo giá, phiếu tính giá. Có người khác vừa sửa lệnh thì nút \oo{Làm mới}
 báo \q{Có thay đổi mới}, bấm mới nạp lại. Sửa ở tab nào mà chưa lưu thì đầu trang hiện \oo{Hoàn tác} và
@@ -306,7 +308,8 @@ Hết mục thiếu thì nút Sẵn sàng lập kế hoạch sáng lên. Bấm l
 
 \so{1} Chip trạng thái đổi sang Sẵn sàng.
 \so{2} Chip \q{Chưa giữ chỗ vật tư}: lệnh chưa giữ hàng trong kho. Đây chỉ là nhắc, không chặn xếp lịch hay phát hành.
-\so{3} \oo{Mở lại để sửa}: lệnh về Nháp. Lưu một thay đổi khi lệnh đang Sẵn sàng cũng đưa lệnh về Nháp.
+\so{3} \oo{Mở lại để sửa}: lệnh về Nháp. Lưu một thay đổi khi lệnh đang Sẵn sàng cũng đưa lệnh về Nháp. Lệnh về
+Nháp thì giờ đã đặt ở màn Xếp lịch bị bỏ, bấm Sẵn sàng lại thì kéo lệnh lên lịch lần nữa.
 
 \Needspace*{6\baselineskip}
 \subsection{Hai băng nhắc danh mục đổi}\label{bang-nhac}
@@ -448,7 +451,8 @@ sơ lệnh}.
 \subsection{Phát hành}\label{phat-hanh}
 
 Bấm \oo{Phát hành}. Phần mềm không hỏi lại. Lệnh cùng nhóm thành phẩm hoặc phụ thuộc chéo nhau được phát hành cùng
-nhau, khi đó nút ghi \q{Phát hành cả cụm, N lệnh}.
+nhau, khi đó nút ghi \q{Phát hành cả cụm, N lệnh}. Trong cụm còn lệnh Nháp thì phần mềm báo tên lệnh đó và không
+phát hành, kế hoạch bấm Sẵn sàng cho lệnh ấy trước.
 
 \cat[0.8\linewidth]{0 0 0 1150}{khsx-44-toast-phat-hanh.png}
 
@@ -569,6 +573,8 @@ Bấm \oo{Chọn giấy}.
 
 \so{1} Tình trạng phía kho: Chờ kho soạn, Kho đã nhận, Kho đang soạn, Đã xuất một phần, Đã xuất đủ. Bấm mã đề nghị
 (DNX...) để xem. \so{2} \oo{Nhận hàng về} mờ tới khi kho ghi sổ phiếu xuất giấy, dòng chữ bên dưới nói rõ đang chờ gì.
+Lệnh trọn gói xưởng cấp giấy không giữ chỗ vật tư: đèn vật tư của lệnh vàng khi chưa gửi đề nghị xuất giấy, gửi rồi
+thì xanh.
 
 Hàng trọn gói về thì bấm Nhận hàng về, gõ số, hàng nhập thẳng kho thành phẩm.
 

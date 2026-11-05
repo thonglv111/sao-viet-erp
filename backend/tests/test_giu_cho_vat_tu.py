@@ -1595,7 +1595,8 @@ def test_giu_DU_khi_nhu_cau_le_hon_hai_so_thap_phan(db, svc, kh, customer):
 
     svc.bat(lsx_id=a.id)
     tt = svc.trang_thai(lsx_id=a.id)
-    assert tt["dang_giu"][hang] == pytest.approx(17.02)
+    # Từ mg 0453 chỗ giữ lưu 4 số lẻ như lô: giữ trọn nhu cầu, không còn hụt 0,00155.
+    assert tt["dang_giu"][hang] == pytest.approx(round(can, 4))
     assert tt["thieu"] == {}, tt["thieu"]
     assert tt["du"] is True
     assert svc.nhat_them() == 0, "phần dư 0,00155 không được đẻ thêm dòng giữ chỗ"

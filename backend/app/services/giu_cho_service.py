@@ -68,11 +68,10 @@ NGUONG_GIU_LAU_NGAY = 7
 
 #: Dư dưới ngần này thì coi như ĐÃ GIỮ ĐỦ, không phải "còn thiếu".
 #:
-#: Nhu cầu (`can_doi()`) tính tới 4 số lẻ, còn chỗ giữ lưu `Numeric(14,2)` — `_dong()` làm tròn 2
-#: số. Cần 459,0524 kg thì giữ được NHIỀU NHẤT 459,05: dư 0,0024 kg (2,4 gam giấy) không bao giờ
-#: giữ nổi, vì `nhat_them()` cũng làm tròn phần lấy về 2 số rồi bỏ qua khi ra 0. Coi phần dư đó là
-#: "còn thiếu" thì lệnh kẹt VĨNH VIỄN ở "chờ bù tồn" và cửa xếp lịch không bao giờ mở — đã gặp thật
-#: trên DB dev (LSX26-0009, 30/08/2026).
+#: Nhu cầu (`can_doi()`) tính tới 4 số lẻ. Trước mg 0453 chỗ giữ lưu `Numeric(14,2)`: phần còn
+#: thiếu 0,004–0,005 làm tròn ra 0 bị bỏ qua, ô đứng mãi ở Chưa giữ (LSX26-0009 30/08, lại gặp
+#: 05/11/2026). Nay chỗ giữ lưu 4 số lẻ như `stock_lots.sl_con_lai`, dư làm tròn chỉ còn ≤0,00005;
+#: ngưỡng này giữ lại để nuốt sai số dấu phẩy động khi cộng nhu cầu nhiều bước.
 #:
 #: 0.004 = đúng biên `nhat_them()` đang dùng cho lô đang về, giữ MỘT ngưỡng chứ không đẻ hai.
 EPS_GIU = 0.004
@@ -680,7 +679,7 @@ class GiuChoService:
                     if _f(r.so_luong) - bot <= 0.004:
                         self.db.delete(r)
                         continue
-                    r.so_luong = round(_f(r.so_luong) - bot, 2)
+                    r.so_luong = round(_f(r.so_luong) - bot, 4)
                 con_lai.append(r)
         if ngay_ve is not None:
             for r in con_lai:
@@ -759,7 +758,7 @@ class GiuChoService:
             for hang, con in tt["thieu"].items():
                 # 0) Phần đặt cho CHÍNH ô này trên đơn đang về — của nó, không ai khác lấy được.
                 for i, (ngay, sl, line_id) in enumerate(rieng.get((hang, chu), [])):
-                    lay = round(min(con, sl), 2)
+                    lay = round(min(con, sl), 4)
                     if lay <= 0:
                         continue
                     rieng[(hang, chu)][i] = (ngay, sl - lay, line_id)
@@ -770,10 +769,10 @@ class GiuChoService:
                 if con <= EPS_GIU:
                     continue
                 # 1) Hàng CÓ THẬT trong kho.
-                # `thieu` đếm tới 4 số lẻ nhưng chỗ giữ lưu Numeric(14,2). Làm tròn `lay` về 2 số
-                # NGAY ĐÂY rồi mới xét: dư dấu-phẩy-động (vd 0.003) làm tròn thành 0.00 sẽ đẻ dòng
+                # Chỗ giữ lưu Numeric(14,4). Làm tròn `lay` về 4 số
+                # NGAY ĐÂY rồi mới xét: dư dấu-phẩy-động làm tròn thành 0 sẽ đẻ dòng
                 # so_luong=0 phạm check `ck_giu_cho_so_duong` — nên coi như đã đủ, không giữ.
-                lay = round(min(con, _f(tu_do.get(hang))), 2)
+                lay = round(min(con, _f(tu_do.get(hang))), 4)
                 if lay > 0:
                     tu_do[hang] = _f(tu_do.get(hang)) - lay
                     con -= lay
@@ -782,7 +781,7 @@ class GiuChoService:
                 i = 0
                 while con > 0 and i < len(ve.get(hang, [])):
                     ngay, sl, line_id = ve[hang][i]
-                    lay = round(min(con, sl), 2)
+                    lay = round(min(con, sl), 4)
                     if lay > 0:
                         ve[hang][i] = (ngay, sl - lay, line_id)
                         con -= lay
@@ -817,7 +816,7 @@ class GiuChoService:
         `commit=False`: người gọi đang giữa một giao dịch của chính nó (ghi sổ phiếu) — KHÔNG commit
         hộ, và tự gọi `sau_ghi_so()` sau khi CHÍNH nó commit.
         """
-        con = round(float(so_luong), 2)
+        con = round(float(so_luong), 4)
         if con <= 0:
             return
         self._khoa_nguon([hang])
@@ -833,7 +832,7 @@ class GiuChoService:
         for r in rows:
             if con <= 0:
                 break
-            bot = round(min(con, _f(r.so_luong)), 2)
+            bot = round(min(con, _f(r.so_luong)), 4)
             if bot <= 0:
                 continue
             con -= bot
@@ -842,7 +841,7 @@ class GiuChoService:
                 r.ngay_ve = None
                 r.purchase_request_line_id = None
             else:
-                r.so_luong = round(_f(r.so_luong) - bot, 2)
+                r.so_luong = round(_f(r.so_luong) - bot, 4)
                 self.db.add(VatTuGiuCho(
                     hang_loai=hang[0], hang_id=hang[1], kho_rong=hang[2], kho_dai=hang[3],
                     don_vi_goc=hang[4], lsx_id=r.lsx_id,
@@ -914,7 +913,7 @@ class GiuChoService:
             if _f(r.so_luong) - bot <= 0.004:      # nhả sạch dòng (Numeric(14,2))
                 self.db.delete(r)
             else:
-                r.so_luong = round(_f(r.so_luong) - bot, 2)
+                r.so_luong = round(_f(r.so_luong) - bot, 4)
         if commit:
             self.db.commit()
         return float(so_luong) - con
@@ -1156,7 +1155,7 @@ class GiuChoService:
         return VatTuGiuCho(
             hang_loai=hang[0], hang_id=hang[1], kho_rong=hang[2], kho_dai=hang[3],
             don_vi_goc=hang[4], lsx_id=chu[0], bai_ghep_id=chu[1],
-            so_luong=round(sl, 2), nguon=nguon, ngay_ve=ngay,
+            so_luong=round(sl, 4), nguon=nguon, ngay_ve=ngay,
             purchase_request_line_id=purchase_request_line_id,
         )
 

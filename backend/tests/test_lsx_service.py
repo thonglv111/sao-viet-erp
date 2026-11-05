@@ -1010,6 +1010,21 @@ def test_xoa_lenh_tra_dong_don_ve_hang_cho(db, orders, lsx_svc, admin, customer)
     assert lsx_svc.preview(d.id)["lines"][0]["lsx_id"] is None   # dòng mở lại để tạo lệnh mới
 
 
+def test_xoa_lenh_san_sang_bi_chan(db, orders, lsx_svc, admin, customer):
+    """Lệnh Sẵn sàng đang nằm ở khay Chờ xếp lịch: phải Mở lại để sửa (về Nháp) rồi mới xoá."""
+    from app.models.lsx import TT_SAN_SANG
+    from app.services.lsx_service import LsxConflict
+
+    ptg = _ptg_2_san_pham(db)
+    d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
+    ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
+    l = lsx_svc.tao(order_id=d.id, order_line_ids=ids, actor=admin)[0]
+    l.trang_thai = TT_SAN_SANG
+    db.commit()
+    with pytest.raises(LsxConflict, match="Mở lại"):
+        lsx_svc.xoa(lsx_id=l.id, actor=admin)
+
+
 # ================= Khoán theo đầu việc ở bước lệnh =================
 def _don_gia_khoan(db, *, department_id: int, ten: str, don_vi: str, don_gia: float):
     """1 dòng bảng CÔNG KHOÁN của tổ. Đơn giá chỉ treo vào TỔ — bảng khai báo không biết công đoạn

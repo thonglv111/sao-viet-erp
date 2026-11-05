@@ -531,7 +531,7 @@ export function LenhSxNgan({
         ) : undefined
       }
       hanhDong={
-        can("san_xuat", "read") ? (
+        can("lenh_san_xuat", "read") ? (
           <button type="button" className="kt-btn" onClick={inPhieu} disabled={dangIn || !token}>
             {dangIn ? "Đang dựng phiếu…" : "In phiếu công nghệ"}
           </button>

@@ -206,7 +206,9 @@ export function LsxDetailView({
   dinhKemTick?: number;
 }) {
   const { token } = useAuth();
-  const canUpdate = useCan()("san_xuat", "update");
+  const can = useCan();
+  const canUpdate = can("san_xuat", "update");
+  const canDelete = can("san_xuat", "delete");
   // Nhãn đơn vị đọc từ DANH MỤC (không bảng nhãn cứng) — cùng nguồn với bảng routing và Tính giá.
   // Gọi (không giữ version): hook tự `setState` khi danh mục về ⇒ màn vẽ lại ⇒ bảng kê vật tư
   // tính lại nhãn đơn vị. Nó là hàm thuần gọi thẳng trong render, không cache.
@@ -820,7 +822,7 @@ export function LsxDetailView({
                 cái khoá cho ai đang đứng ở tab khác tab Thông số. */}
             {/* Lệnh đã lập kế hoạch / đã phát hành: máy chủ từ chối xoá (xưởng đang giữ gói việc,
                 có thể có lần gia công ngoài) — không bày nút chắc chắn bị trả về. */}
-            {canUpdate && d.trang_thai !== "san_sang" && !daQuaKeHoach && (
+            {canDelete && d.trang_thai !== "san_sang" && !daQuaKeHoach && (
               giuCho ? (
                 <span
                   className="khsx-khoa-chip"
@@ -884,7 +886,7 @@ export function LsxDetailView({
             <Icon name="refresh" size={15} />
             Danh mục đã đổi sau lần lệnh này lấy số — {dmDoi.so_buoc} công đoạn đang giữ số cũ
             <span className="khsx-dmdoi__nut">
-              {dmDoi.co_the_cap_nhat ? (
+              {dmDoi.co_the_cap_nhat && canUpdate ? (
                 <button type="button" className="khsx-dmdoi__btn" onClick={() => setXemDmDoi(true)}>
                   Cập nhật theo danh mục
                 </button>
@@ -892,7 +894,7 @@ export function LsxDetailView({
                 /* Nút mờ chỉ có tooltip — người dùng bấm không ăn rồi tự đoán là hết quyền. Nói
                    thẳng lý do bằng chữ, cùng luật với chip "Giữ chỗ vật tư" ở đầu trang. */
                 <span className="khsx-dmdoi__khoa">
-                  <Icon name="lock" size={12} /> {dmDoi.ly_do_khoa || "Chưa cập nhật được"}
+                  <Icon name="lock" size={12} /> {!canUpdate ? "Bạn không có quyền sửa lệnh" : dmDoi.ly_do_khoa || "Chưa cập nhật được"}
                 </span>
               )}
             </span>
@@ -980,7 +982,7 @@ export function LsxDetailView({
 
           {/* Nút hành động CTA & Nút Lưu khi Form thay đổi */}
           <div className="khsx-topbar__action">
-            {dirty && (
+            {canUpdate && dirty && (
               <div style={{ display: "flex", gap: 6, marginRight: 8 }}>
                 <Button variant="ghost" onClick={() => setForm(toForm(d))}>
                   Hoàn tác
@@ -991,7 +993,7 @@ export function LsxDetailView({
               </div>
             )}
 
-            {daQuaKeHoach ? null : d.trang_thai === "san_sang" ? (
+            {daQuaKeHoach || !canUpdate ? null : d.trang_thai === "san_sang" ? (
               <Button variant="ghost" onClick={() => doiTrangThai("nhap")}>
                 Mở lại để sửa
               </Button>
@@ -1205,6 +1207,7 @@ export function LsxDetailView({
                     role="switch"
                     aria-checked={form.is_rush}
                     className={`khsx-rush-toggle ${form.is_rush ? "is-rush" : ""}`}
+                    disabled={!canUpdate}
                     onClick={() => set("is_rush", !form.is_rush)}
                     title={form.is_rush ? "Đang bật ưu tiên hàng gấp ở xưởng" : "Bấm để đánh dấu hàng gấp"}
                   >
@@ -1224,6 +1227,7 @@ export function LsxDetailView({
                         <input
                           value={form.ten}
                           placeholder="Nhập tên lệnh..."
+                          readOnly={!canUpdate}
                           onChange={(e) => set("ten", e.target.value)}
                         />
                       </label>
@@ -1232,6 +1236,7 @@ export function LsxDetailView({
                         <ChonNgay
                           value={form.han_hoan_thanh_sx}
                           aria-label="Hạn hoàn thành sản xuất"
+                          readOnly={!canUpdate}
                           onChange={(v) => set("han_hoan_thanh_sx", v)}
                         />
                       </label>
@@ -1264,6 +1269,7 @@ export function LsxDetailView({
                         rows={3}
                         placeholder="Ghi chú điều phối sản xuất, dặn dò xưởng..."
                         value={form.ghi_chu}
+                        readOnly={!canUpdate}
                         onChange={(e) => set("ghi_chu", e.target.value)}
                       />
                     </label>
@@ -1669,6 +1675,15 @@ export function LsxDetailView({
                     phuThuocRefs={phuThuocRefs}
                     canUpdate={canUpdate}
                     giuCho={d.giu_cho_bat}
+                    khoa={
+                      // Cùng ba cửa `replace_routing` chặn ở server, cùng câu chữ.
+                      d.trang_thai === "da_lap_ke_hoach" ? "Lệnh đã lập kế hoạch — gỡ kế hoạch trước khi sửa công đoạn."
+                      : d.trang_thai === "da_phat_hanh"
+                        ? (tronGoi ? "Lệnh đang gia công trọn gói — huỷ gia công trước khi sửa công đoạn."
+                          : "Lệnh đã phát hành — thu hồi ở màn Xếp lịch trước khi sửa công đoạn.")
+                      : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không sửa công đoạn được nữa."
+                      : null
+                    }
                     saving={savingRouting}
                     onSave={luuRouting}
                     onPatchLsx={patchLsx}
