@@ -40,11 +40,14 @@ progress.md ĐÃ CŨ (dừng ở RBAC) — ĐỪNG tin nó để biết trạng 
   - `docs/huong-dan-kinh-doanh/huong-dan-su-dung-kinh-doanh.tex`: tính giá, báo giá, đơn bán, khách hàng.
   - `docs/huong-dan-ke-hoach-sx/huong-dan-ke-hoach-san-xuat.tex`: hàng chờ, lệnh SX, kế hoạch vật tư, xếp lịch,
     phát hành, gia công ngoài, theo dõi sản xuất, hồ sơ lệnh.
-- Trước khi báo xong, grep tên màn/nhãn/nút vừa đổi trong cả ba file .tex. UI đổi thì chụp lại ảnh liên
-  quan trong `hinh/`; sơ đồ archify sai thì vẽ lại.
+  - `docs/huong-dan-viec-cua-to/huong-dan-viec-cua-to-va-kcs.tex`: Việc của tổ (giao người, bắt đầu, ghi sản
+    lượng, giao nhận, vật tư của việc, tạm dừng, đổi máy, báo dừng máy), KCS, gửi nhập kho, đóng lệnh.
+- Trước khi báo xong, grep tên màn/nhãn/nút vừa đổi trong cả bốn file .tex. UI đổi thì chụp lại ảnh liên
+  quan trong `hinh/` (kịch bản chụp ở `kich-ban/` của từng cuốn); sơ đồ archify sai thì vẽ lại.
 - Biên dịch XeLaTeX 2 lần, 0 tham chiếu treo, dọn `*.aux *.log *.out *.toc`. Đổi `\label` thì kiểm lại
-  liên kết chéo từ PDF Kinh doanh và PDF Kế hoạch SX sang PDF Cấu hình, từ PDF Kế hoạch SX sang PDF Kinh
-  doanh (đích là tên `\label`, cả ba file bật `destlabel=true`). Commit .tex + .pdf + ảnh cùng commit với code.
+  liên kết chéo từ PDF Kinh doanh, PDF Kế hoạch SX, PDF Việc của tổ sang PDF Cấu hình, từ PDF Kế hoạch SX
+  sang PDF Kinh doanh, từ PDF Việc của tổ sang PDF Kế hoạch SX (đích là tên `\label`, cả bốn file bật
+  `destlabel=true`; `kich-ban/kiem-lien-ket.py` kiểm). Commit .tex + .pdf + ảnh cùng commit với code.
 - Thay đổi không đụng nội dung tài liệu nào thì nói rõ một câu "không ảnh hưởng tài liệu" trong báo cáo.
 
 ## Bẫy kỹ thuật — sai là vỡ DB thật (BẮT BUỘC nhớ)

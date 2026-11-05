@@ -120,6 +120,63 @@ Bộ dữ liệu mẫu, dựng bằng thao tác thật trên dev, mỗi lệnh �
 - Lệnh C: trọn gói, giao thẳng khách (đơn có dòng đứng riêng một cụm bán).
 - Lệnh D: thiếu vật tư, đi qua Kế hoạch vật tư sinh yêu cầu mua.
 
+## 4b. Cuốn 2: Việc của tổ và KCS
+
+Dàn ý (đọc code 05/11, duyệt 05/11). Người đọc: `docs/personas/to-san-xuat.md`, `docs/personas/kcs.md`.
+
+1. Đường đi của việc dưới xưởng. Sơ đồ archify theo vai: Kế hoạch phát hành, tổ nhận việc, bắt đầu,
+   ghi sản lượng, giao tổ sau, tổ sau xác nhận nhận, bước cuối KCS kiểm, gửi nhập kho, KCS đóng lệnh.
+   Bước thuê ngoài đi vòng qua Kế hoạch SX (dẫn sang cuốn Kế hoạch SX). Ai làm gì, ô quyền nào.
+2. Màn Việc của tổ: tìm tổ ở thanh bên, ba kiểu xem Bảng, Lịch, Sản lượng. Chip trạng thái (Đang chạy,
+   Tạm dừng, Chờ làm, Hoàn thành, Hàng chờ nhận, Lỗi KCS chờ xem), bộ lọc, các cột (Vật tư, Tốt / cần,
+   Hàng đang tới đâu, Máy và thời gian). Mở ngăn một việc: các tab, cột phải (vướng mắc, tiến độ, máy,
+   thợ, khuôn, dặn dò, tệp của lệnh). Trên điện thoại.
+3. Giao người và bắt đầu: Giao người, Rút, Đã nhận khuôn, Bắt đầu. Bảng lý do Bắt đầu còn mờ (chưa có
+   thợ, chưa nhận khuôn, chưa nhận hàng bước trước, vật tư chưa sẵn sàng, máy đang dừng).
+4. Ghi sản lượng: Số lượng làm được, Người làm lần này, Thêm người tổ khác, Khoán và Việc phát sinh,
+   tự đề xuất giao. Sản lượng lần N. Sửa số (tổ trưởng, ghi lý do). Liên hệ với lương khoán: dẫn sang
+   cuốn Nhân sự và lương.
+5. Giao và nhận giữa các tổ: Giao đi (Đề xuất giao, Chọn lại), Nhận vào (Xác nhận). Bước cuối không
+   giao mà sang KCS. Hàng đang tới đâu.
+6. Vật tư của việc: tab Vật tư, Yêu cầu cấp vật tư, Sửa đề nghị, Yêu cầu bổ sung, Yêu cầu nhập kho phần
+   dư. Đề nghị và phiếu kho. Phần kho làm tiếp dẫn sang cuốn Thu mua và Kho.
+7. Tạm dừng, kết thúc, đổi máy, báo dừng máy: Tạm dừng (Vì sao dừng), Tiếp tục, Kết thúc (phải đề xuất
+   giao hết hàng tốt), Đổi máy, Báo dừng máy (Máy hư, Hết hàng, gửi tổ sửa chữa, tính ngày dừng cho
+   lương). Việc thuê ngoài trên Việc của tổ: mọi nút khoá.
+8. KCS kiểm hàng: màn KCS, tab Lệnh và các bộ lọc, sơ đồ bước của lệnh. Kiểm hàng ở bước cuối (tiêu chí
+   không đạt, Số lỗi theo công đoạn, ảnh, Lưu kết quả kiểm, không sửa sau khi lưu). Ghi lỗi ở bước giữa.
+   Tổ thấy lỗi ở tab KCS của ngăn việc. Bước thuê ngoài KCS không kiểm (một câu).
+9. Gửi nhập kho và đóng lệnh: Gửi nhập kho, Gửi yêu cầu, kho nhận (dẫn sang cuốn Thu mua và Kho). Đóng
+   lệnh nhóm, Mở lại nhóm, Đóng lệnh thiếu (ô quyền riêng). Báo cáo lỗi theo công đoạn, tổ, tiêu chí,
+   Bảng và Biểu đồ, Xuất Excel. Tiêu chí KCS khai ở đâu: dẫn sang cuốn Cấu hình.
+10. Câu hỏi hay gặp.
+
+Kết quả bấm thử các điểm nghi lúc đọc code (05/11):
+- "Bàn tổ" còn ở tiêu đề màn (`ThucHienSxPage.tsx:870`), tiêu đề tab trình duyệt (`ThsxExecPanels.tsx:2373`),
+  đường dẫn trong hộp yêu cầu vật tư, và câu "Việc chưa làm sẽ hiện lại ở bàn tổ" của `KcsDongLenh.tsx`.
+  Chưa sửa. Tài liệu gọi "Việc của tổ" và chụp ảnh nguyên trạng.
+- Vai KCS trưởng có ô màn KCS hay không: chưa kiểm được, ảnh chụp bằng tài khoản quản trị.
+- Vật tư chưa sẵn sàng chặn mọi lần Bắt đầu hay chỉ lần đầu: chưa kiểm, tài liệu chỉ nói "vật tư chưa đủ
+  thì Bắt đầu bị chặn".
+- Không có nút "xác nhận đã nhận vật tư". Ô Kho của tổ chỉ dùng cho Yêu cầu nhập kho phần dư.
+- Bước thuê ngoài (Cán màng của LSX26-0007, `department_id` rỗng) không hiện ở Việc của tổ nào. Tài liệu
+  viết đúng như vậy, bỏ ý "mọi nút khoá" của dàn ý chương 7.
+
+Bộ dữ liệu mẫu: LSX26-0007 (Folder A4, 1.000 cái) chạy đủ bảy bước từ In tới đóng lệnh nhóm NTP26-1465
+ngày 05/11. Dự định dùng tài khoản tổ trưởng, thợ, KCS trưởng thật, nhưng đăng nhập thay người khác bằng
+cách tự cấp phiên bị chặn, nên mọi bước bấm bằng tài khoản quản trị. Muốn chụp lại đúng góc nhìn của
+từng vai thì cần mật khẩu thử của các tài khoản đó. Bước cán màng thuê ngoài do Kế hoạch SX mang đi và
+nhận về. Kịch bản chụp và thứ tự chạy ở `docs/huong-dan-viec-cua-to/kich-ban/README.md`.
+
+Lỗi thấy lúc dựng dữ liệu, chưa sửa:
+- Bấm được Đã nhận khuôn khi khuôn còn ghi "đang đặt làm".
+- Nhãn Việc phát sinh trong hộp Ghi sản lượng bị ép hẹp, xuống dòng từng chữ.
+- Chip khuôn nối thông tin bằng dấu "·".
+- Toast sau khi lưu kiểm hàng báo "đạt 995 và lỗi 0" dù đã ghi 5 lỗi (lỗi quy cho công đoạn khác).
+- Báo cáo lỗi ghi "6 tờ in +1 đơn vị". Báo cáo gọi "thành phẩm", hộp kiểm gọi "cái".
+- Trên điện thoại nút Báo dừng máy xuống ba dòng.
+- Lệnh đã đóng mà cột Hàng đang tới đâu vẫn ghi "đang ở Cân hàng", trong khi ngăn ghi "Lệnh đã xong cả 7 bước".
+
 ## 5. Quy trình cho mỗi cuốn
 
 1. Dump DB dev `svn_erp_trong` ra bản sao lưu ở gốc repo, tên `svn_erp_trong-truoc-tai-lieu-<cuon>-<ngay>.dump`.
