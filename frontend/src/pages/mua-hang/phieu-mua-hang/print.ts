@@ -10,6 +10,7 @@ import { escapeHtml as html, fmtDate, money } from "../../../utils/format";
 import { tenDonVi } from "../../tenDonVi";
 import { STATUS_META } from "./shared/constants";
 import { nhanKhoMua } from "./shared/helpers";
+import { leTrangIn } from "../../../utils/leTrangIn";
 
 export function printPurchaseRequest(row: PurchaseRequestRow): boolean {
   const win = window.open("", "_blank", "width=980,height=720");
@@ -67,7 +68,7 @@ export function printPurchaseRequest(row: PurchaseRequestRow): boolean {
   <meta charset="utf-8" />
   <title>In phiếu mua hàng ${html(row.code)}</title>
   <style>
-    @page { size: A4; margin: 14mm; }
+    ${leTrangIn("A4", "14mm")}
     * { box-sizing: border-box; }
     body {
       margin: 0;
