@@ -98,7 +98,8 @@
 
 /* Hộp Ghi mẻ: khối khoán, thanh còn ghi được, ô số lớn có đơn vị trong ô. */
 .thsx-gm-mo { font-size: 12.5px; color: var(--ash-2); }
-.thsx-gm-gia { margin-left: auto; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
+/* Công thức khoán dài phải xuống dòng cho đọc hết: khối khoán có `overflow: hidden` nên `nowrap` cắt cụt cuối câu. */
+.thsx-gm-gia { margin-left: auto; font-size: 12.5px; color: var(--ash-2); min-width: 0; overflow-wrap: anywhere; }
 .thsx-gm-khoan { border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }
 .thsx-gm-khoan__dau { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
 /* Bậc giá (Bài in): bậc chọn theo màu lệnh + tick, đổi ngay khi tick Mực UV. */
