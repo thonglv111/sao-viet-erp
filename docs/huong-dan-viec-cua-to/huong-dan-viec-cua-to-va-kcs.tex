@@ -1,0 +1,658 @@
+% Hướng dẫn sử dụng cho tổ sản xuất (tổ trưởng, thợ) và KCS, ERP Sao Việt Nhật.
+% Biên dịch: xelatex huong-dan-viec-cua-to-va-kcs.tex (chạy hai lần cho mục lục).
+% Người đọc: docs/personas/to-san-xuat.md, docs/personas/kcs.md. Khai báo nằm ở
+% ../huong-dan-cau-hinh/cau-hinh-he-thong.tex, phần lên lệnh ở ../huong-dan-ke-hoach-sx/huong-dan-ke-hoach-san-xuat.tex.
+% Ảnh chụp bằng kịch bản chạy lại được (kich-ban/chup-ui.mjs + c02..c09), dữ liệu dựng bằng thao tác thật trên dev.
+\documentclass[11pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage[vietnamese]{babel}
+\setmainfont{Times New Roman}
+\newfontfamily\tieude{Arial}
+\usepackage[a4paper,margin=1.9cm,top=1.7cm]{geometry}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{needspace}
+\usepackage{fancyhdr}
+\usepackage[hidelinks,destlabel=true]{hyperref}
+\usepackage[most]{tcolorbox}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\graphicspath{{hinh/}}
+
+\definecolor{gach}{HTML}{C2410C}
+\definecolor{xamnen}{HTML}{F4F4F5}
+\definecolor{xamchu}{HTML}{52525B}
+
+\setlist{nosep,leftmargin=1.5em}
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+
+\titleformat{\section}{\tieude\Large}{Chương \thesection.}{0.4em}{}[{\color{black!25}\titlerule[0.4pt]}]
+\titlespacing*{\section}{0pt}{1.2em}{0.6em}
+\titleformat{\subsection}{\tieude\large}{\thesubsection}{0.6em}{}
+\titlespacing*{\subsection}{0pt}{1.1em}{0.3em}
+\renewcommand{\cftsecpresnum}{Chương }
+\setlength{\cftsecnumwidth}{5.9em}
+\renewcommand{\cftsecfont}{\tieude}
+\renewcommand{\cftsecpagefont}{\tieude}
+\setlength{\cftbeforesecskip}{0.5em}
+\addto\captionsvietnamese{\renewcommand{\contentsname}{Mục lục}}
+\renewcommand{\cfttoctitlefont}{\tieude\large}
+\setlength{\cftbeforetoctitleskip}{0pt}
+\setlength{\cftaftertoctitleskip}{0pt}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\tieude\footnotesize\color{xamchu}Hướng dẫn sử dụng Việc của tổ và KCS}
+\fancyhead[R]{\tieude\footnotesize\color{xamchu}ERP Sao Việt Nhật}
+\fancyfoot[C]{\tieude\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\newtcolorbox{boicanh}{colback=xamnen,colframe=xamnen,boxrule=0pt,arc=3pt,
+  left=9pt,right=9pt,top=6pt,bottom=6pt,before skip=4pt,after skip=8pt}
+
+\definecolor{vang}{HTML}{FEF08A}
+\newcommand{\oo}[1]{{\setlength{\fboxsep}{1.2pt}\colorbox{vang}{\strut #1}}}
+\newcommand{\duong}[1]{{\tieude\small #1}}
+\newcommand{\so}[1]{{\tieude\bfseries\small\textcolor{white}{\colorbox{red!80!black}{\kern-2pt#1\kern-2pt}}}}
+\newcommand{\khung}[2]{{\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.5pt}%
+  \fcolorbox{black!20}{white}{\includegraphics[width=\dimexpr#1-1pt\relax]{#2}}}}
+\newcommand{\q}[1]{\textquotedbl#1\textquotedbl{}}
+\newcommand{\canh}[3]{%
+  \par\noindent
+  \begin{minipage}[t]{#1\linewidth}\vspace{0pt}\khung{\linewidth}{#2}\end{minipage}\hfill
+  \begin{minipage}[t]{\dimexpr0.97\linewidth-#1\linewidth\relax}\vspace{0pt}\setlength{\parskip}{0.5em}#3\end{minipage}\par\medskip}
+\newcommand{\rong}[2][\linewidth]{\par\noindent\begin{center}\khung{#1}{#2}\end{center}\vspace{-0.6em}}
+% Ảnh cắt bớt: \cat[rộng]{trái dưới phải trên (px)}{ảnh}.
+\newcommand{\cat}[3][\linewidth]{\par\noindent\begin{center}{\setlength{\fboxsep}{0pt}\setlength{\fboxrule}{0.5pt}%
+  \fcolorbox{black!20}{white}{\includegraphics[width=\dimexpr#1-1pt\relax,trim=#2,clip]{#3}}}\end{center}\vspace{-0.6em}}
+% Tên tài liệu khác.
+\newcommand{\tl}[1]{\textit{#1}}
+% Liên kết sang một mục của tài liệu Cấu hình và tài liệu Kế hoạch SX (đích là tên \label bên đó, nhờ destlabel).
+\newcommand{\cauhinh}{../huong-dan-cau-hinh/cau-hinh-he-thong.pdf}
+\newcommand{\kehoach}{../huong-dan-ke-hoach-sx/huong-dan-ke-hoach-san-xuat.pdf}
+\definecolor{lienket}{HTML}{1E40AF}
+\newcommand{\kbn}[2]{\href{\cauhinh\##1}{\textcolor{lienket}{#2}}}
+\newcommand{\kb}[2]{\tl{Hướng dẫn cấu hình hệ thống}, mục \kbn{#1}{#2}}
+\newcommand{\khn}[2]{\href{\kehoach\##1}{\textcolor{lienket}{#2}}}
+\newcommand{\kh}[2]{\tl{Hướng dẫn sử dụng Kế hoạch sản xuất}, mục \khn{#1}{#2}}
+
+\begin{document}
+
+\thispagestyle{empty}
+{\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
+{\tieude\fontsize{22}{26}\selectfont Hướng dẫn sử dụng Việc của tổ và KCS}\par\vspace{4pt}
+{\small Nhận việc, bắt đầu, ghi sản lượng, giao tổ sau, kiểm hàng, gửi kho, đóng lệnh}\par\vspace{2pt}
+{\small\color{xamchu} Cập nhật 05/11/2026}\par\vspace{6pt}
+\noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
+
+Tài liệu cho người dưới xưởng: tổ trưởng và thợ của các tổ in, cán, bồi, bế, gỡ, dán, thành phẩm, cắt, và người
+làm KCS. Đi theo đúng đường của một việc: lệnh phát hành xuống, tổ nhận việc, bắt đầu, ghi sản lượng, giao tổ sau,
+tới bước cuối thì KCS kiểm, gửi thành phẩm vào kho và đóng lệnh. Người đọc rành nghề hơn ai hết nên tài liệu
+không giải nghĩa tờ in, con, khuôn bế, chỉ nói phần mềm làm gì.
+
+Mỗi tổ là một dòng trong ma trận quyền, nhóm Tổ sản xuất, có bốn ô:
+
+\begin{itemize}
+\item \oo{Xem}: thấy tổ ở thanh bên, mở được màn Việc của tổ.
+\item \oo{Thực hiện lệnh}: giao người, bắt đầu, tạm dừng, kết thúc, ghi sản lượng, nhận và trả khuôn, đề xuất giao,
+yêu cầu cấp vật tư.
+\item \oo{Xác nhận sản lượng}: xác nhận đã nhận hàng của tổ trước, sửa số một lần ghi.
+\item \oo{Kho}: yêu cầu nhập kho phần vật tư còn dư.
+\end{itemize}
+
+Vai thợ có Xem và Thực hiện lệnh. Vai tổ trưởng có thêm Xác nhận sản lượng. Màn KCS là một dòng riêng với ba ô
+\oo{Xem}, \oo{Thao tác}, \oo{Đóng lệnh thiếu}, viết ở chương \ref{kcs}. Thiếu ô nào thì nút tương ứng không hiện
+hoặc bấm bị từ chối. Quản trị bật quyền ở \kb{phan-quyen-ma-tran}{Mở ma trận quyền} và gán vai ở mục
+\kbn{phan-quyen-gan-vai}{Gán vai và lập nhóm}. Chữ màu xanh là liên kết, bấm vào mở đúng mục bên tài liệu đó.
+
+Ảnh chụp từ phần mềm thật, dữ liệu là lệnh LSX26-0007 (Folder A4 cán mờ ép kim, 1.000 cái, khách Café Katinat)
+chạy đủ bảy bước từ In tới đóng lệnh. Ảnh chụp bằng tài khoản quản trị nên đầu màn ghi tên Admin và có thể hiện
+nhiều nút hơn màn của một thợ. Ô đỏ đánh số là chỗ cần bấm hoặc cần đọc, số khớp với lời giải thích bên cạnh.
+
+\bigskip
+\tableofcontents
+
+% ============================================================
+\Needspace*{27\baselineskip}
+\section{Đường đi của việc dưới xưởng}\label{duong-di}
+
+Mỗi hàng của sơ đồ là một bên làm việc, mỗi ô là một bước. Chữ trên mũi tên là điều kiện hoặc thứ được chuyển
+sang bước sau.
+
+\cat[0.95\linewidth]{0 330 0 90}{vtt-00-luong.png}
+
+Kế hoạch sản xuất phát hành lệnh (xem \kh{phat-hanh}{Phát hành}). Lúc đó mỗi bước của lệnh thành một việc ở
+đúng tổ được giao, kho nhận yêu cầu xuất vật tư. Tổ trưởng giao người, nhận khuôn nếu bước cần khuôn, rồi bấm
+\oo{Bắt đầu}. Thợ ghi sản lượng từng lần, ghi xong phần mềm tự đề xuất giao lần đó sang tổ sau. Tổ sau bấm
+\oo{Xác nhận} là đã nhận hàng và bắt đầu được bước của mình. Cứ thế tới bước cuối.
+
+Ở bước cuối, KCS kiểm hàng: bao nhiêu đạt, bao nhiêu lỗi, lỗi do công đoạn nào gây ra. Hàng đạt gửi vào kho thành
+phẩm, kho ghi sổ nhập, KCS đóng lệnh. Giữa chừng KCS thấy lỗi ở bước nào thì ghi lỗi ngay ở bước đó, tổ gây lỗi
+thấy liền ở tab KCS của việc.
+
+Bước thuê ngoài không thuộc tổ nào nên không hiện ở Việc của tổ. Kế hoạch sản xuất mang hàng đi và nhận về (xem
+\kh{mot-phan}{Thuê ngoài một phần}), tổ của bước sau chỉ việc xác nhận nhận hàng như nhận từ tổ trong xưởng.
+
+% ============================================================
+\Needspace*{30\baselineskip}
+\section{Màn Việc của tổ}\label{man-viec}
+
+Mỗi tổ có một màn riêng. Mở bằng tên tổ ở nhóm \duong{Tổ sản xuất} của thanh bên trái. Người có quyền ở nhiều tổ
+thấy nhiều tên, mỗi tên một màn.
+
+\rong{vtt-10-man-viec-cua-to.png}
+
+\so{1} Tên tổ ở thanh bên. Tổ con nằm dưới tổ cha, tổ cha chỉ là tiêu đề nhóm.
+\so{2} Ba kiểu xem: \oo{Bảng}, \oo{Lịch}, \oo{Sản lượng}. Nút \oo{Báo dừng máy} bên cạnh viết ở mục \ref{bao-dung}.
+\so{3} Ô tìm theo mã lệnh, khách, công đoạn, máy. Cạnh đó là chọn kỳ, \oo{Lọc} (lọc thêm theo trạng thái, lệnh gấp,
+hàng đang tới đâu, lý do chưa bắt đầu được, máy, khách, người làm), \oo{Sắp xếp} và \oo{Cột}.
+\so{4} Chip trạng thái kèm số việc: Tất cả, Đang chạy, Tạm dừng, Chờ làm, Hoàn thành. Có hàng tổ trước giao chưa
+xác nhận thì hiện thêm chip hàng chờ nhận, có lỗi KCS tổ chưa xem thì hiện chip \oo{Lỗi KCS chờ xem} (mục
+\ref{to-xem-loi}).
+\so{5} Cột Vật tư: \oo{Sẵn sàng} là kho đã cấp đủ, còn lại là đang chờ kho hoặc kho mới cấp một phần.
+\so{6} Cột Tốt / cần: số tốt đã ghi trên số phải làm, thanh xanh là phần đã xong.
+\so{7} Cột Hàng đang tới đâu: dải chấm là các bước của lệnh, chấm to là tổ mình, dòng chữ dưới nói hàng đang ở đâu.
+Lệnh xong hết các bước thì dòng chữ ghi \q{Xong cả N bước}.
+
+Mỗi dòng là một việc. Cột Công đoạn có chip \oo{Máy} hay \oo{Tổ} (việc chạy máy hay làm tay) và chip khuôn nếu bước
+cần khuôn. Cột Trạng thái ghi giờ xong hoặc tên người đang làm. Bấm vào dòng để mở ngăn của việc.
+
+\Needspace*{26\baselineskip}
+\subsection{Kiểu Lịch và kiểu Sản lượng}\label{kieu-xem}
+
+\rong{vtt-11-kieu-lich.png}
+
+Kiểu \oo{Lịch} xếp việc theo ngày: Tuần, 2 tuần hoặc Tháng, nút Hôm nay và mũi tên để lùi tới. Ô nét đứt là giờ
+kế hoạch xếp, ô đặc là phiên tổ đã chạy thật. Dòng đầu đếm số việc, giờ tổ đã chạy so với giờ kế hoạch và ca làm
+việc. Cột \oo{Hàng chờ} bên phải giữ những việc chưa định giờ hoặc nằm ngoài khoảng ngày đang xem.
+
+\rong{vtt-12-kieu-san-luong.png}
+
+Kiểu \oo{Sản lượng} là sổ sản lượng của tổ: mỗi lệnh một khối, có giấy và khổ tờ, rồi từng công đoạn tổ đã làm,
+lần ghi, việc phát sinh và số lượng. Chọn kỳ theo ngày bắt đầu, mặc định là Tháng này.
+
+\Needspace*{29\baselineskip}
+\subsection{Ngăn của một việc}\label{ngan-viec}
+
+\rong[0.85\linewidth]{vtt-13-ngan-viec.png}
+
+Đầu ngăn là mã lệnh, tên sản phẩm, khách, tên công đoạn và trạng thái. Nút việc (Bắt đầu, Tạm dừng, Kết thúc, dấu
+ba chấm) nằm góc phải, đổi theo trạng thái.
+
+\so{1} Sáu tab: \oo{Quy cách} (giấy, khổ, màu, số kẽm, kế hoạch khối lượng và giờ), \oo{Sản lượng} (chương
+\ref{ghi-san-luong}), \oo{Giao và nhận} (chương \ref{giao-nhan}), \oo{Vật tư} (chương \ref{vat-tu}), \oo{KCS}
+(mục \ref{to-xem-loi}), \oo{Lịch sử} (ai bấm gì, lúc nào).
+
+\so{2} \oo{Hàng đang tới đâu}: các bước của lệnh từ trên xuống, chữ \q{tổ mình} đánh dấu bước của tổ, cuối dải là
+Nhập kho thành phẩm. Câu đầu nói gọn hàng đang ở đâu.
+
+\so{3} \oo{Tiến độ}: số tốt trên số cần, Nhận vào, Lỗi, Đã giao đi, Chờ giao, Còn phải làm. KCS bắt lỗi ở bước
+này thì có thêm dòng KCS bắt lỗi.
+
+\so{4} \oo{Việc}: máy (kèm phiếu sửa chữa đang mở của máy nếu có), thợ được giao, khuôn, dặn dò của kế hoạch.
+Dưới cùng là \oo{Tệp của lệnh}, file kế hoạch đính kèm.
+
+Việc chưa bắt đầu được thì đầu cột phải có thêm khung vàng \oo{Chưa bắt đầu được vì} (mục \ref{chua-bat-dau}).
+
+\Needspace*{32\baselineskip}
+\subsection{Trên điện thoại}\label{dien-thoai}
+
+\par\noindent\begin{center}\khung{0.34\linewidth}{vtt-14-dt-danh-sach.png}\hspace{2em}\khung{0.34\linewidth}{vtt-15-dt-ngan-viec.png}\end{center}\vspace{-0.6em}
+
+Màn hẹp thì mỗi việc thành một thẻ: công đoạn, trạng thái, vật tư, tốt / cần, hàng đang tới đâu, máy, quy cách,
+định mức vật tư. Bộ lọc và chip trạng thái vẫn ở đầu màn, kéo ngang để xem hết chip.
+
+Bấm thẻ để mở việc. Ngăn mở hết màn, có thêm tab \oo{Tổng quan} gom hàng đang tới đâu, tiến độ và phần việc mà
+máy tính để ở cột phải. Mũi tên góc trái để quay về danh sách.
+
+Thanh dưới cùng là các màn của riêng người dùng (Của tôi, Công của tôi, Nghỉ phép, Phiếu lương) và \oo{Menu} để
+mở thanh bên.
+
+
+% ============================================================
+\Needspace*{30\baselineskip}
+\section{Giao người và bắt đầu}\label{giao-nguoi}
+
+Lệnh vừa phát hành thì cả tổ tự được giao vào việc. Tổ trưởng chỉnh lại cho đúng người đứng việc này.
+
+\rong[0.85\linewidth]{vtt-21-giao-nguoi.png}
+
+\so{1} \oo{Bắt đầu}: bấm là việc chuyển sang Đang chạy, giờ máy bắt đầu tính. Không có hộp hỏi lại.
+\so{2} Mỗi thợ là một chip. Bấm dấu x trên chip để rút người ra.
+\so{3} \oo{+ Giao người} mở ô tìm theo tên hoặc mã. Cả tổ đã được giao thì ô báo \q{Không còn ai để giao.}
+
+Giao người và rút người cần ô Thực hiện lệnh. Người được giao là người hiện sẵn ở ô \q{Người làm lần này} khi ghi
+sản lượng (chương \ref{ghi-san-luong}).
+
+\Needspace*{29\baselineskip}
+\subsection{Vì sao chưa bắt đầu được}\label{chua-bat-dau}
+
+\rong[0.85\linewidth]{vtt-24-chua-bat-dau-duoc.png}
+
+Nút Bắt đầu mờ thì khung vàng \oo{Chưa bắt đầu được vì} nói lý do. Có bốn lý do:
+
+\begin{itemize}
+\item Chưa giao thợ: việc chưa có ai. Tổ trưởng giao người.
+\item Chưa nhận khuôn: bước cần khuôn mà tổ chưa bấm Đã nhận khuôn (mục \ref{khuon}).
+\item Chưa nhận hàng bước trước: tổ trước chưa giao, hoặc đã giao mà tổ mình chưa bấm Xác nhận ở tab Giao và nhận.
+Ảnh trên là Ép kim đang chờ hàng cán màng thuê ngoài về.
+\item Chưa sẵn sàng vật tư: kho chưa cấp, hoặc mới cấp một phần (chương \ref{vat-tu}).
+\end{itemize}
+
+Bộ lọc \oo{Chưa bắt đầu được vì} ở đầu màn lọc đúng theo bốn lý do này, để tổ trưởng thấy ngay việc nào đang kẹt
+ở đâu.
+
+\Needspace*{29\baselineskip}
+\subsection{Nhận khuôn và trả khuôn}\label{khuon}
+
+\rong[0.85\linewidth]{vtt-25-nhan-khuon.png}
+
+Bước cần khuôn có dòng \oo{Khuôn} ở cột phải: mã khuôn, tên khuôn và tình trạng của khuôn. Lấy khuôn ra máy rồi
+bấm \so{1} \oo{Đã nhận khuôn}. Chip khuôn đổi thành \q{đã nhận}, Bắt đầu hết bị chặn vì khuôn.
+
+Khuôn làm mới còn ghi \q{đang đặt làm} (như ảnh trên) vẫn bấm nhận được: dao về tới tay thì bấm Đã nhận khuôn,
+danh mục Khuôn tự đổi khuôn sang Đang dùng. Dưới nút có dòng nhắc đúng câu này.
+
+\rong[0.85\linewidth]{vtt-26-tra-khuon.png}
+
+Làm xong việc, nút \so{1} \oo{Trả khuôn về kệ} mới hiện. Cất khuôn rồi bấm để khuôn về lại kệ, việc khác dùng
+khuôn này mới nhận được.
+
+\Needspace*{14\baselineskip}
+\subsection{Đang chạy}\label{dang-chay}
+
+\rong{vtt-23-dang-chay.png}
+
+Bắt đầu xong, \so{1} chip trạng thái ghi \q{Đang chạy từ} và giờ bấm. Góc phải đổi thành \so{2} \oo{Tạm dừng} và
+\so{3} \oo{Kết thúc}, viết ở chương \ref{dung-ket-thuc}.
+
+% ============================================================
+\Needspace*{34\baselineskip}
+\section{Ghi sản lượng}\label{ghi-san-luong}
+
+Làm được bao nhiêu thì ghi bấy nhiêu, ghi nhiều lần trong một việc. Mỗi lần ghi là căn cứ tính lương khoán cho
+người làm lần đó. Mở tab \oo{Sản lượng}, bấm \oo{+ Ghi sản lượng}.
+
+\canh{0.46}{vtt-30-ghi-san-luong.png}{%
+\so{1} \oo{Số lượng làm được}, theo đơn vị ra của bước (tờ in, con, cái). Góc phải ghi \q{còn ghi được} bao nhiêu.
+Nút \oo{Tối đa} điền đúng số còn lại.
+
+\so{2} Nút cộng nhanh \oo{+10}, \oo{+50}, \oo{+100}, \oo{+1.000} và \oo{Về 0}. Thanh dưới cho biết sau lần này
+được bao nhiêu trên số kế hoạch.
+
+\so{3} \oo{Người làm lần này}: người đang được giao, tick sẵn cả. Bỏ tick người không đứng ca này. Người đang làm
+việc khác cùng lúc thì có chữ nhắc bên cạnh tên.
+
+\so{4} \oo{Thêm người tổ khác}: mượn người tổ khác vào làm lần này.
+
+\so{5} \oo{Ghi sản lượng}, hoặc bấm Ctrl + Enter.}
+
+\canh{0.46}{vtt-30b-ghi-san-luong-duoi.png}{%
+Kéo xuống dưới hộp:
+
+\so{6} \oo{Khoán}: công thức tính tiền của bước, và \oo{Bậc giá} lệnh này rơi vào (bước in theo số màu). Công thức
+khai ở \kb{danh-muc-khoan}{Tiền khoán của công đoạn}.
+
+\so{7} \oo{Tuỳ chọn lần này}: tick thì giá cả lần ghi đổi theo, ví dụ in mực UV.
+
+\so{8} \oo{Việc phát sinh}: thay kẽm, xuống bài do lỗi máy. Tính tiền riêng, không cộng vào sản lượng. Có làm thì
+gõ số, không làm thì để trống.
+
+Dưới Ghi chú, lệnh có bước sau nhận được lần giao thì có thêm dòng báo ghi xong sẽ tự đề xuất giao lần này sang
+bước nào. Bước sau thuộc tổ khác thì lần này nằm ở Giao đi chờ tổ đó xác nhận (chương \ref{giao-nhan}).}
+
+Mục Ghi chú để ghi thêm điều cần nhớ của lần này. Số ghi không vượt được số còn phải làm. KCS bắt lỗi ở bước này
+thì số còn ghi được trừ luôn phần lỗi.
+
+\Needspace*{29\baselineskip}
+\subsection{Bảng các lần ghi}\label{cac-lan-ghi}
+
+\rong[0.85\linewidth]{vtt-31b-mo-lan.png}
+
+Mỗi lần ghi là một dòng \q{Lần N}: lúc ghi, người làm, máy, số tốt, số hỏng. Bấm một dòng để mở ra: đơn giá khoán
+và bậc giá của lần đó, cùng nút \oo{Sửa số}.
+
+\Needspace*{22\baselineskip}
+\subsection{Sửa số đã ghi}\label{sua-so}
+
+\rong[0.75\linewidth]{vtt-32-sua-so.png}
+
+Ghi nhầm hay đếm lại thấy khác thì tổ trưởng (ô Xác nhận sản lượng) bấm \oo{Sửa số} ở dòng lần đó. Hộp có \oo{Số
+đang ghi} và \oo{Số sau khi sửa}, nút trừ cộng 100, 10, 1, người làm, tuỳ chọn, và \oo{Lý do sửa} (chọn nhanh Đếm
+lại, Gõ nhầm). Lần giao đi từ lần ghi này đổi theo số mới. Số sửa và lý do vào tab Lịch sử của việc.
+
+% ============================================================
+\Needspace*{31\baselineskip}
+\section{Giao và nhận giữa các tổ}\label{giao-nhan}
+
+Tab \oo{Giao và nhận} có hai phần: \oo{Nhận vào} (hàng tổ trước giao cho mình) và \oo{Giao đi} (hàng mình giao cho
+bước sau).
+
+\rong[0.85\linewidth]{vtt-40-giao-di.png}
+
+Ảnh là bước In sau hai lần ghi 150 và 100 tờ. Bước đầu tiên không nhận hàng của ai, Nhận vào ghi \q{từ kho}: vật tư
+lấy theo phiếu xuất ở tab Vật tư. Giao đi có hai dòng, mỗi lần ghi một dòng, đang \oo{chờ xác nhận} của bên nhận.
+Bấm \oo{Chọn lại} ở một dòng để đổi bước nhận (khi lệnh có nhiều nhánh). Nút \oo{Đề xuất giao} để giao tay phần
+hàng tốt chưa giao, dùng khi ghi sản lượng không tự đề xuất được, ví dụ bước sau có nhiều nhánh.
+
+\Needspace*{29\baselineskip}
+\subsection{Xác nhận nhận hàng}\label{xac-nhan}
+
+\rong[0.85\linewidth]{vtt-41-nhan-vao.png}
+
+Tổ sau thấy chấm đỏ trên tab Giao và nhận. Đếm hàng thực nhận rồi tổ trưởng bấm \so{1} \oo{Xác nhận}. Bấm là xong,
+không có hộp hỏi lại. Trạng thái dòng đổi thành \oo{đã xác nhận}, khung \q{Chưa bắt đầu được vì} mất lý do chờ hàng.
+
+Hai bước liền nhau cùng một tổ thì không phải xác nhận: dòng nhận ghi \q{Tự nhận (cùng tổ)} và đã xác nhận sẵn.
+
+\rong[0.85\linewidth]{vtt-43-da-nhan.png}
+
+Hàng thuê ngoài về (ảnh trên là 250 tờ cán màng về bước Ép kim) cũng xác nhận y như vậy. Cột Từ ghi tên nhà gia
+công.
+
+\Needspace*{10\baselineskip}
+\subsection{Bước cuối}\label{buoc-cuoi}
+
+Bước cuối của lệnh không giao cho tổ nào. Phần Giao đi ghi \q{Bước cuối, hàng tốt} chờ KCS kiểm. KCS kiểm xong
+mới gửi vào kho (chương \ref{kcs}).
+
+% ============================================================
+\Needspace*{31\baselineskip}
+\section{Vật tư của việc}\label{vat-tu}
+
+Lúc phát hành, phần mềm tự lập yêu cầu xuất kho cho vật tư của từng bước. Tab \oo{Vật tư} cho tổ xem kho đã cấp
+tới đâu và xin thêm khi thiếu.
+
+\rong[0.85\linewidth]{vtt-50-tab-vat-tu.png}
+
+Bảng \oo{Vật tư theo kế hoạch}: mỗi món một dòng với Kế hoạch, Đã xin, Kho đã xuất, Nhập lại, Thực dùng và Tình
+trạng (\oo{Khớp} là kho đã xuất đủ số đã xin). Bấm mũi tên đầu dòng để xem chi tiết từng lần xuất. Bảng \oo{Đề nghị
+và phiếu kho}: các lần xin, chiều (xuất hay nhập), cần lúc, người gửi, trạng thái, phiếu kho đã lập. Dòng \q{Tự lập
+khi phát hành} là yêu cầu phần mềm lập sẵn.
+
+Góc phải có một nút xin, đổi theo tình hình:
+
+\begin{itemize}
+\item \oo{Yêu cầu cấp vật tư}: bước chưa có lần xin nào.
+\item \oo{Sửa đề nghị}: lần xin gần nhất kho chưa xử lý, còn sửa được.
+\item \so{2} \oo{Yêu cầu bổ sung}: đã xin đủ kế hoạch mà vẫn thiếu, ví dụ hư giấy nhiều hơn bù hao.
+\end{itemize}
+
+Và \so{1} \oo{Yêu cầu nhập kho}: trả phần vật tư còn dư về kho, cần ô Kho của tổ.
+
+\canh{0.5}{vtt-51-bo-sung.png}{%
+Hộp \oo{Yêu cầu bổ sung} liệt kê các món của bước với số đã xin và tồn kho. Gõ \oo{Số xin thêm} cho món đang
+thiếu, món không thiếu để trống. Chọn \oo{Cần xuất lúc} (Hôm nay, Mai, +3 ngày, Lúc bắt đầu việc), ghi chú nếu cần,
+rồi bấm \oo{Gửi kho}. Lệnh, công đoạn, tổ khoá theo việc, không phải chọn.
+
+Hộp \oo{Yêu cầu nhập kho} giống vậy, cột là Kho đã xuất và \oo{Số lượng nhập}: điền số còn thừa trả về kho, món
+không trả để 0.}
+
+Yêu cầu gửi đi nằm ở màn Yêu cầu nhập xuất của kho. Kho lập phiếu, ghi sổ thì cột Kho đã xuất và Tình trạng ở tab
+này đổi theo. Vật tư chưa đủ thì Bắt đầu bị chặn (mục \ref{chua-bat-dau}).
+
+% ============================================================
+\Needspace*{17\baselineskip}
+\section{Tạm dừng, kết thúc, đổi máy, báo dừng máy}\label{dung-ket-thuc}
+
+\canh{0.45}{vtt-60-tam-dung.png}{%
+\oo{Tạm dừng} mở hộp hỏi \oo{Vì sao dừng}, bắt buộc ghi, ví dụ thay dao cắt khoảng 20 phút. Phiên chạy đóng lại,
+giờ máy ngừng tính từ lúc bấm. Việc về trạng thái Tạm dừng, nút góc phải đổi thành \oo{Tiếp tục}. Bấm Tiếp tục là
+mở phiên chạy mới.}
+
+\Needspace*{14\baselineskip}
+\subsection{Kết thúc}\label{ket-thuc}
+
+\rong{vtt-61b-hoan-thanh.png}
+
+\oo{Kết thúc} đóng việc, chip đổi thành \q{Hoàn thành} kèm giờ. Bấm là xong, không hỏi lại. Kết thúc được khi mọi
+hàng tốt đã ghi đều đã đề xuất giao sang bước sau. Còn hàng chưa giao thì phần mềm báo, tổ vào tab Giao và nhận bấm
+Đề xuất giao trước. Việc có khuôn thì sau Kết thúc mới trả khuôn (mục \ref{khuon}).
+
+\Needspace*{9\baselineskip}
+\subsection{Đổi máy}\label{doi-may}
+
+\rong[0.6\linewidth]{vtt-62-menu-doi-may.png}
+
+\canh{0.45}{vtt-62b-doi-may.png}{%
+Nút ba chấm cạnh Kết thúc có \oo{Đổi máy}: chuyển việc sang máy khác cùng chạy được công đoạn này. Hộp ghi \oo{Máy
+đang dùng}, ô \oo{Đổi sang máy} và \oo{Lý do đổi} (không bắt buộc). Tổ không còn máy nào khác chạy công đoạn này thì
+ô chọn báo \q{Không có máy đổi được}, việc chờ máy sửa xong.}
+
+\Needspace*{28\baselineskip}
+\subsection{Báo dừng máy}\label{bao-dung}
+
+\canh{0.45}{vtt-63-bao-dung-may.png}{%
+Nút \oo{Báo dừng máy} ở đầu màn Việc của tổ. Hộp gồm:
+
+\begin{itemize}
+\item \oo{Ngày}, mặc định hôm nay.
+\item \oo{Lý do}: \oo{Máy hư} hoặc \oo{Hết hàng}.
+\item Máy hư thì chọn máy. Dưới tên máy ghi việc đang chạy trên máy.
+\item \oo{Máy đang dừng, không chạy được}: tick thì việc đang chạy trên máy tự tạm dừng, giờ máy ngừng tính từ
+lúc gửi.
+\item \oo{Mức độ theo bạn thấy}: Nhẹ, Trung bình, Nghiêm trọng. Tổ sửa chữa đánh giá lại khi nhận.
+\item \oo{Triệu chứng}: kể đúng cái mình thấy.
+\item \oo{Tính ngày dừng cho lương}: tick thì ngày đó tổ ăn trọn chỉ tiêu ngày, cộng thêm tiền các lần ghi trong
+ngày nếu có.
+\end{itemize}
+
+Bấm \oo{Gửi tổ sửa chữa}. Phiếu sửa chữa hiện ngay ở dòng Máy trong cột phải của các việc chạy máy đó.}
+
+Gửi phiếu sửa chữa cần ô Yêu cầu của màn Kỹ thuật máy. Thợ chưa có ô này thì nhờ tổ trưởng gửi.
+
+% ============================================================
+\Needspace*{26\baselineskip}
+\section{KCS kiểm hàng}\label{kcs}
+
+Màn \duong{Sản xuất > KCS} là màn của người làm KCS, không theo tổ: thấy lệnh của mọi tổ. Ô quyền ở dòng KCS của
+ma trận (xem \kb{danh-muc-kcs-quyen}{Ai được kiểm KCS}):
+
+\begin{itemize}
+\item \oo{Xem}: mở màn, xem các lần kiểm và báo cáo lỗi, xuất Excel.
+\item \oo{Thao tác}: kiểm hàng, ghi lỗi, gửi nhập kho, đóng lệnh khi đã đủ.
+\item \oo{Đóng lệnh thiếu}: đóng khi còn thiếu số hay còn việc dở, mở lại lệnh đã đóng.
+\end{itemize}
+
+Tiêu chí kiểm của từng công đoạn khai ở \kb{danh-muc-kcs}{Tiêu chí KCS}. Lệnh chép bộ tiêu chí lúc phát hành.
+
+\rong{vtt-70-kcs-danh-sach.png}
+
+\so{1} Chip lọc: Tất cả, \oo{Chờ kiểm} (bước cuối có hàng tổ đã làm mà chưa kiểm), \oo{Chưa gửi kho} (đã kiểm đạt
+mà chưa gửi kho), \oo{Chờ đóng lệnh}, \oo{Đã đóng}.
+\so{2} Ô tìm theo mã lệnh, sản phẩm, khách. Cạnh đó là kỳ, Lọc, Cột.
+\so{3} Mỗi dòng là một lệnh: Chuỗi là dãy ô màu của các bước (xanh lá là xong, xanh dương là đang làm, xám là chưa
+làm, đỏ là gây lỗi), \oo{Đã kiểm đạt / cần}, số \oo{Chờ kiểm}, và \oo{Lỗi do lệnh này gây} theo công đoạn.
+
+\Needspace*{33\baselineskip}
+\subsection{Sơ đồ bước của lệnh}\label{kcs-so-do}
+
+\rong{vtt-71-kcs-so-do.png}
+
+Bấm mã lệnh để mở. Đầu trang là nhóm lệnh (lệnh chính và các lệnh đi kèm như ruột, tờ lót, gom chung một nhóm),
+khách, sản phẩm và \oo{Đã kiểm đạt} trên số cần, cạnh đó là nút \oo{Đóng lệnh nhóm} (mục \ref{dong-lenh}).
+
+Dải ô là các bước của lệnh. Mỗi ô ghi số tốt tổ đã làm, số lỗi đỏ nếu bước đó gây lỗi, và số tiêu chí bước cuối xét
+cho công đoạn (hình danh sách kèm số). Ô ghi \q{lệnh chưa có tiêu chí} là công đoạn chưa khai tiêu chí, KCS vẫn ghi
+lỗi ở dòng Lỗi khác. Ô thuê ngoài ghi \oo{Thuê ngoài}: KCS không kiểm tại chỗ bước thuê ngoài. Ô cuối là \oo{Nhập
+kho} với số đã gửi, chưa gửi.
+
+Bấm một ô, phần dưới đổi theo bước đó. Mở lệnh lần đầu thì phần dưới là bước cuối.
+
+\Needspace*{33\baselineskip}
+\subsection{Ghi lỗi ở bước giữa}\label{ghi-loi-giua}
+
+\rong{vtt-72-kcs-cong-doan-giua.png}
+
+Ở bước giữa, phần dưới có tổng Tổ đã làm, \oo{Lỗi do In gây}, \oo{Bắt ở} và ba tab: \oo{Tiêu chí} (lỗi ghi ở đây
+và kết quả kiểm cuối của từng tiêu chí), \oo{Quy cách}, \oo{Lỗi đã ghi}. Thấy lỗi thì bấm \oo{Ghi lỗi}.
+
+\rong{vtt-73-kcs-ghi-loi.png}
+
+\so{1} Tick tiêu chí không đạt. Tiêu chí đạt để trống. Lỗi không có trong danh sách thì tick dòng \oo{Lỗi khác},
+khi đó Ghi chú là bắt buộc.
+\so{2} \oo{Số lỗi} theo đơn vị của bước.
+\so{3} \oo{Ghi chú}: lỗi ở đâu, ví dụ góc phải tờ.
+\so{4} \oo{Ảnh}: \oo{Chụp ảnh} (điện thoại mở thẳng camera) hoặc \oo{Chọn ảnh}. Ở bước giữa ảnh không bắt buộc.
+Bấm \oo{Xong} để thu dòng lại.
+\so{5} \oo{Lưu lỗi}. Chân hộp cộng Tổng lỗi lần này và báo lỗi sẽ về tổ nào.
+
+Cột phải \oo{Đối chiếu} chỉ để xem: quy cách và tệp của lệnh, để so hàng với mẫu ngay tại chỗ. Lỗi lưu xong báo
+ngay về tổ gây lỗi và trừ khỏi số tổ đó còn ghi được.
+
+\Needspace*{17\baselineskip}
+\subsection{Tổ xem lỗi KCS}\label{to-xem-loi}
+
+\cat{0 0 0 175}{vtt-74-to-loi-cho-xem.png}
+
+Tổ gây lỗi nhận thông báo ngay, đầu màn Việc của tổ hiện chip \so{1} \oo{Lỗi KCS chờ xem} kèm số việc. Dòng việc có
+chấm đỏ cạnh tên công đoạn và chip \q{KCS: 6 lỗi}. Bấm chip để lọc, bấm việc để mở.
+
+\rong[0.85\linewidth]{vtt-75-to-tab-kcs.png}
+
+Mở từ lỗi KCS thì ngăn vào thẳng \so{1} tab \oo{KCS}. \so{2} Khối \oo{Lỗi KCS}: tiêu chí, ghi chú, số lỗi, người ghi,
+lúc ghi, ảnh (bấm con mắt để xem, mũi tên để tải). Không có nút \q{Đã xem}: mở tab là tính tổ đã xem, chip
+\q{đã xem} hiện kèm giờ, bên KCS thấy cột Tổ đã xem đổi theo.
+
+\Needspace*{35\baselineskip}
+\subsection{Kiểm hàng ở bước cuối}\label{kiem-hang}
+
+Bước cuối có hàng tổ đã làm thì nút \oo{Kiểm hàng} kèm số chưa kiểm sáng lên. Mỗi lần kiểm là kiểm hết số đang chờ.
+
+\rong{vtt-76-kcs-kiem-hang.png}
+
+Phần tick tiêu chí gộp tiêu chí của cả chuỗi công đoạn, chia theo công đoạn (ảnh này là ba tiêu chí của In). Tick
+dòng nào thì dòng đó mở ra ô Số lỗi, Ghi chú, ảnh. Tick tiêu chí của công đoạn nào thì lỗi tính cho công đoạn đó.
+
+\so{1} Dòng \oo{Lỗi khác}: ghi chú bắt buộc, kèm \so{2} \oo{Lỗi do công đoạn nào} để quy đúng tổ gây lỗi. Ảnh này
+ghi 2 cái bung keo gáy, quy cho Dán bìa folder.
+
+Ở bước cuối mỗi dòng lỗi phải có \oo{ít nhất 1} ảnh. Ô \oo{Ghi chú cho lần kiểm} không bắt buộc.
+
+\so{3} Chân hộp: \oo{Lần này kiểm} bao nhiêu, \oo{Đạt} (số chưa kiểm trừ số lỗi), \oo{Lỗi}.
+\so{4} \oo{Lưu kết quả kiểm}.
+
+Đã lưu thì không sửa được. Kiểm sai phải nhờ người có quyền xử lý, nên đếm kỹ trước khi lưu. Cột phải
+\oo{Đối chiếu} có thêm tab \oo{Tổ đã ghi}: các lần tổ ghi sản lượng, để biết hàng đang kiểm là của lần nào.
+
+\Needspace*{12\baselineskip}
+\rong{vtt-77-kcs-sau-kiem.png}
+
+Lưu xong, bước cuối cập nhật Đạt 995, Lỗi 5, Chưa kiểm 0. Tab \oo{Lần kiểm} có dòng mới: lúc kiểm, người kiểm,
+đạt, từng dòng lỗi với công đoạn gây lỗi, lỗi gì, ảnh và Tổ đã xem. Ô In và ô Dán bìa folder trên dải hiện số lỗi
+đỏ. Hai tổ đó nhận lỗi như mục \ref{to-xem-loi}. Tổ bước cuối nhận thông báo số đạt, kèm câu riêng nói bao nhiêu lỗi
+quy cho công đoạn khác, để tổ không tưởng lần kiểm sạch hay tưởng lỗi do mình.
+
+\rong{vtt-78-kcs-loi-theo-cong-doan.png}
+
+Tab \oo{Lỗi theo công đoạn} gom các lần kiểm của bước cuối theo công đoạn gây lỗi, tổ, lỗi gì, số lỗi, số lần.
+
+% ============================================================
+\Needspace*{13\baselineskip}
+\section{Gửi nhập kho và đóng lệnh}\label{nhap-kho-dong-lenh}
+
+Kiểm xong có hàng đạt thì nút \oo{Gửi nhập kho} kèm số cái hiện cạnh Kiểm hàng.
+
+\canh{0.45}{vtt-79-kcs-gui-nhap-kho.png}{%
+Bấm \oo{Gửi nhập kho}, hộp hỏi lại số đề nghị kho nhập và lệnh. Bấm \oo{Gửi yêu cầu}.
+
+Yêu cầu nhập sang màn Yêu cầu nhập xuất của kho, nguồn ghi \q{KCS gửi thành phẩm}, nhập về Kho thành phẩm. Thủ kho
+lập phiếu, ghi sổ là xong phần kho.}
+
+\rong{vtt-80-kcs-nhap-kho.png}
+
+Tab \oo{Nhập kho} của bước cuối theo dõi từng yêu cầu: mã yêu cầu (bấm để mở bên màn Kho), gửi lúc, đề nghị, kho đã
+nhận, trạng thái. Ảnh trên là lúc kho đã ghi sổ: \oo{Kho đã nhận đủ}. Chưa ai có ô Thao tác của KCS thì không ai gửi
+được thành phẩm sang kho, đơn bán đứng mãi ở bước chờ KCS.
+
+\Needspace*{16\baselineskip}
+\subsection{Đóng lệnh}\label{dong-lenh}
+
+\rong{vtt-81-kcs-dong-lenh.png}
+
+Bấm \oo{Đóng lệnh nhóm} ở đầu trang. Khung xác nhận bật ngay dưới nút, nêu những điểm chưa xong (ảnh này: đạt 995
+trên 1.000 cái, thiếu 5). Bấm \oo{Xác nhận đóng}, hoặc \oo{Để sau}.
+
+Lệnh còn điểm chưa xong (thiếu số so với đơn, còn hàng chưa kiểm, chưa gửi kho, còn việc đang làm) thì chỉ người
+có ô \oo{Đóng lệnh thiếu} đóng được. Người không có ô này thấy nút mờ kèm câu \q{Còn N điểm chưa xong, cần quyền
+Đóng lệnh thiếu.}
+
+\rong{vtt-82-kcs-da-dong.png}
+
+Đóng xong, nhóm lệnh ghi \oo{Đã đóng} kèm người đóng và giờ. Nút đổi thành \oo{Mở lại nhóm}, cũng cần ô Đóng lệnh
+thiếu. Mở lại thì việc chưa làm hiện lại ở Việc của tổ. Phía Kế hoạch sản xuất xem lệnh đã đóng ở
+\kh{lenh-xong}{Khi lệnh xong}.
+
+\Needspace*{27\baselineskip}
+\subsection{Báo cáo lỗi}\label{bao-cao-loi}
+
+Tab \oo{Báo cáo lỗi} của màn KCS tổng hợp lỗi theo kỳ, mặc định Tháng này theo ngày kiểm.
+
+\rong{vtt-83-kcs-bao-cao-loi.png}
+
+Đầu tab có ô tìm, kỳ, Lọc, ba cách gom \oo{Theo công đoạn}, \oo{Theo tổ}, \oo{Theo tiêu chí}, và hai kiểu xem
+\oo{Bảng}, \oo{Biểu đồ}. Dải số: Lượt kiểm, Tỷ lệ đạt ở bước cuối, Lần ghi lỗi, Lệnh có lỗi, mỗi số so với kỳ
+trước. Kiểu Bảng có bảng gom (mỗi ô là số lỗi trong ngày, đếm theo đơn vị nơi bắt, bấm một dòng để lọc) và bảng
+\oo{Các lần ghi lỗi} mới nhất trước: lúc, lệnh, khách, công đoạn gây lỗi, tiêu chí, bắt ở đâu, số lỗi, tổ chịu,
+ảnh, người ghi. Bước cuối đếm theo đơn vị tính của sản phẩm trên lệnh (cái, cuốn), như hộp Kiểm hàng.
+
+\rong{vtt-84-kcs-bieu-do.png}
+
+Kiểu Biểu đồ: lần ghi lỗi mỗi ngày theo công đoạn gây lỗi (bấm một cột để xem riêng ngày đó), công đoạn gây lỗi
+nhiều nhất (số lần, dưới là số lỗi theo từng đơn vị, ví dụ In có 6 tờ in và 3 cái vì lỗi bắt ở hai nơi), lỗi bắt tại công đoạn hay lọt tới KCS cuối, và tỷ lệ đạt ở bước cuối. Nút \oo{Xuất Excel} ở đầu màn
+xuất đúng phần đang lọc.
+
+% ============================================================
+\Needspace*{10\baselineskip}
+\section{Câu hỏi hay gặp}\label{hoi-dap}
+
+\begin{description}[style=nextline,leftmargin=0pt,font=\normalfont\tieude\small]
+\item[Bấm Bắt đầu không được?]
+Đọc khung vàng \q{Chưa bắt đầu được vì} ở cột phải của ngăn. Bốn lý do và cách gỡ
+ở mục \ref{chua-bat-dau}.
+
+\item[Tổ trước nói đã giao mà không thấy hàng?]
+Mở tab Giao và nhận. Dòng Nhận vào còn \q{chờ xác nhận} thì tổ
+trưởng bấm Xác nhận. Không có dòng nào là tổ trước chưa ghi sản lượng hoặc chưa đề xuất giao, hỏi tổ trước. Hàng
+thuê ngoài thì hỏi Kế hoạch sản xuất đã nhận về chưa.
+
+\item[Ghi nhầm số?]
+Tổ trưởng mở dòng Lần N ở tab Sản lượng, bấm Sửa số, ghi lý do (mục \ref{sua-so}).
+
+\item[Không bấm được Kết thúc?]
+Còn hàng tốt chưa đề xuất giao. Vào tab Giao và nhận bấm Đề xuất giao.
+
+\item[Không thấy nút Trả khuôn về kệ?]
+Nút chỉ hiện sau khi việc đã Kết thúc.
+
+\item[Máy hư giữa ca?]
+Báo dừng máy, tick \q{Máy đang dừng, không chạy được} để việc tự tạm dừng. Tổ còn máy khác
+chạy được công đoạn này thì Đổi máy (chương \ref{dung-ket-thuc}).
+
+\item[Thiếu giấy giữa chừng?]
+Tab Vật tư, Yêu cầu bổ sung, gõ số xin thêm (chương \ref{vat-tu}).
+
+\item[KCS ghi lỗi tổ mình mà tổ thấy không đúng?]
+Mở tab KCS xem ảnh và ghi chú, rồi trao đổi với KCS. Số đã lưu
+KCS không tự sửa được.
+
+\item[Làm sao biết tổ đã xem lỗi chưa?]
+Bên KCS, cột Tổ đã xem ở tab Lần kiểm và tab Lỗi đã ghi. Tổ mở tab KCS
+của việc là tính đã xem.
+
+\item[Lệnh thiếu vài cái mà khách nhận luôn?]
+Người có ô Đóng lệnh thiếu bấm Đóng lệnh nhóm, khung xác nhận nêu
+số thiếu, bấm Xác nhận đóng.
+
+\item[Công đoạn nào cũng ghi \q{lệnh chưa có tiêu chí}?]
+Danh mục Tiêu chí KCS chưa khai cho công đoạn đó. Nhờ
+người khai danh mục thêm (\kb{danh-muc-kcs}{Tiêu chí KCS}). Lệnh đã phát hành lấy bộ mới bằng nút Cập nhật tiêu chí ở
+hồ sơ lệnh (\kh{ho-so-lenh}{Hồ sơ lệnh sản xuất}).
+\end{description}
+
+\end{document}

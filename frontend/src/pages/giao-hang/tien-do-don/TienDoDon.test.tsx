@@ -1,7 +1,7 @@
 // Bước "Giao hàng" trong drawer đơn — luật chốt 19/09/2026: KHÔNG lập yêu cầu giao cho phần chưa
 // nhập kho. Ô số lượng điền sẵn và TRẦN theo `giao_duoc` máy chủ tính; sản phẩm chưa có hàng trong
 // kho thì không có ô.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -64,13 +64,14 @@ function stubApi() {
   return posts;
 }
 
-function ve(td: DonTienDo = TD) {
+function ve(td: DonTienDo = TD, xuat = false) {
   const caps = buildCapabilities([
     { module_key: "giao_hang", scope: "all", can_read: true, can_create: true } as ModuleCapability,
+    { module_key: "don_hang_ban", scope: "all", can_read: true, can_update: true } as ModuleCapability,
   ]);
   return render(
     <AuthContext.Provider value={AUTH}>
-      <PermissionsProvider caps={caps}>
+      <PermissionsProvider caps={caps} phanHeTat={xuat ? new Set(["giao_hang" as const]) : undefined}>
         <BuocGiaoHang order={ORDER} td={td} taiLai={() => {}} onIn={() => {}} />
       </PermissionsProvider>
     </AuthContext.Provider>,
@@ -157,9 +158,40 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
 
   it("kho chưa nhận gì ⇒ nút tạo yêu cầu khoá kèm lý do", () => {
     stubApi();
-    ve({ ...TD, cum: TD.cum.map((c) => ({ ...c, giao_duoc: 0 })) });
+    ve({ ...TD, cum: TD.cum.map((c) => ({ ...c, giao_duoc: 0, ton_that: 0 })) });
     expect(screen.getByRole("button", { name: "Tạo yêu cầu giao hàng" })).toBeDisabled();
-    expect(screen.getByText(/Chưa có hàng của đơn này ở kho nào/)).toBeInTheDocument();
+    expect(screen.getByText("Kho chưa có Hộp thuốc và Tờ hướng dẫn.")).toBeInTheDocument();
+  });
+
+  it("bảng mặt hàng có cột Đang có ở kho, đọc tồn thật của Kho thành phẩm", () => {
+    stubApi();
+    ve();
+    const bang = within(screen.getByRole("columnheader", { name: "Đang có ở kho" }).closest("table")!);
+    const hop = within(bang.getByRole("cell", { name: "Hộp thuốc" }).closest("tr")!);
+    expect(hop.getAllByRole("cell").map((o) => o.textContent)).toEqual(["Hộp thuốc", "100 hộp", "0", "0", "100", "40", "40"]);
+  });
+
+  it("hàng có ở kho nhưng đã giữ hết cho lần xuất đang chờ ⇒ không báo kho chưa có (DH003, 04/11/2026)", () => {
+    stubApi();
+    ve({
+      ...TD,
+      cum: [
+        // Túi: kho nhận 2.000, xuất 1.200, 800 còn lại đã giữ cho lần xuất chờ kho.
+        cum({ khoa: "tui", ten: "Túi giấy lớn", don_vi: "cái", order_line_ids: [11], dat: 2000, da_giao: 1200,
+          dang_giu: 800, con_phai_giao: 0, ton_that: 800, giao_duoc: 0 }),
+        cum({ khoa: "hop", ten: "Hộp quà bồi cứng", order_line_ids: [12], dat: 1000, con_phai_giao: 1000,
+          ton_that: 0, giao_duoc: 0, lenh: [{ id: 6, ma: "LSX26-0006" } as DonTienDoCum["lenh"][number]] }),
+      ],
+    }, true);
+    expect(screen.getByText("Kho chưa có Hộp quà bồi cứng. Kho nhận hàng từ LSX26-0006 xong là xuất được.")).toBeInTheDocument();
+    expect(screen.queryByText(/Túi giấy lớn có ở kho/)).toBeNull();
+    expect(screen.queryByText(/Chưa có hàng của đơn này/)).toBeNull();
+  });
+
+  it("còn phải giao mà tồn đã bị đơn khác của khách giữ hết ⇒ nói đang giữ, không nói kho chưa có", () => {
+    stubApi();
+    ve({ ...TD, cum: [cum({ ten: "Hộp thuốc", ton_that: 500, giu_don_khac: 500, giao_duoc: 0 })] });
+    expect(screen.getByText("Hàng của đơn có ở kho nhưng đã giữ hết cho đơn khác của khách.")).toBeInTheDocument();
   });
 
   it("yêu cầu có chuyến đã huỷ ⇒ Kinh doanh huỷ được, không sửa được", () => {
@@ -221,6 +253,67 @@ describe("Bước Giao hàng · chỉ giao phần kho đã nhận", () => {
       }],
     });
     expect(screen.queryByRole("button", { name: "In phiếu giao" })).toBeNull();
+  });
+});
+
+describe("Bản cài tắt giao hàng: bảng lần xuất (04/11/2026)", () => {
+  const lanXuat = (o: { trang_thai: "thanh_cong" | "dang_chuan_bi"; phieu: string[]; daXuat: boolean }) => ({
+    ...TD,
+    cum: [
+      cum({ khoa: "hop", ten: "Hộp thuốc", don_vi: "hộp", order_line_ids: [11] }),
+      cum({ khoa: "thung", ten: "Thùng carton", don_vi: "thùng", order_line_ids: [12] }),
+    ],
+    yeu_cau: [{
+      id: 6, code: "YCGH-0006", ngay_can_giao: ngayMai(),
+      trang_thai: (o.trang_thai === "thanh_cong" ? "da_giao_du" : "dang_thuc_hien") as "da_giao_du" | "dang_thuc_hien",
+      ly_do_huy: null, dia_chi: "Lô C3", nguoi_nhan: null, sdt_nguoi_nhan: null, ghi_chu: null, created_at: "",
+      dong: [
+        { order_line_id: 11, ten: "Hộp thuốc", qty: 2000, da_giao: o.daXuat ? 2000 : 0 },
+        { order_line_id: 12, ten: "Thùng carton", qty: 1000, da_giao: o.daXuat ? 1000 : 0 },
+      ],
+      chuyen: {
+        id: 10, trang_thai: o.trang_thai, tai_xe: null, xe: null,
+        thoi_gian_ket_thuc: o.daXuat ? "2026-11-04T04:04:23Z" : null, nguoi_nhan_thuc_te: null,
+        ly_do_that_bai: null, tra_hang_ma: null, tra_hang_xong: false, kho_da_lap_phieu: o.phieu.length > 0,
+        kho_da_xuat: o.daXuat, phieu_xuat_ma: o.phieu, so_anh: 0,
+      },
+    }],
+  });
+
+  const bangLanXuat = () => within(screen.getByRole("columnheader", { name: "Lần xuất" }).closest("table")!);
+
+  it("gọi lần xuất bằng số phiếu xuất, mỗi mặt hàng một dòng, không chip trạng thái, giờ tới phút", () => {
+    stubApi();
+    ve(lanXuat({ trang_thai: "thanh_cong", phieu: ["PXK01044"], daXuat: true }), true);
+    const screen = bangLanXuat();
+    expect(screen.getByText("PXK01044")).toBeInTheDocument();
+    expect(screen.queryByText("YCGH-0006")).toBeNull();
+    expect(screen.getByRole("cell", { name: "Hộp thuốc" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Thùng carton" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "2.000 hộp" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "1.000 thùng" })).toBeInTheDocument();
+    expect(screen.getByText("Đã xuất")).toBeInTheDocument();
+    expect(screen.queryByText("Đã giao đủ")).toBeNull();
+    expect(screen.getByText("11:04 04/11/2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "In phiếu xuất" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "In phiếu giao" })).toBeNull();
+  });
+
+  it("kho chưa lập phiếu ⇒ nói chờ kho lập phiếu, chưa in được", () => {
+    stubApi();
+    ve(lanXuat({ trang_thai: "dang_chuan_bi", phieu: [], daXuat: false }), true);
+    const screen = bangLanXuat();
+    expect(screen.getByText("chờ kho lập phiếu")).toBeInTheDocument();
+    expect(screen.getByText("Chờ kho xuất")).toBeInTheDocument();
+    expect(screen.getByText("chờ kho xuất mới in")).toBeInTheDocument();
+  });
+
+  it("bảng tổng nói Xuất được ngay, không còn Giao được ngay", () => {
+    stubApi();
+    ve(lanXuat({ trang_thai: "dang_chuan_bi", phieu: [], daXuat: false }), true);
+    expect(screen.getByText("Xuất được ngay")).toBeInTheDocument();
+    expect(screen.queryByText("Giao được ngay")).toBeNull();
+    expect(screen.queryByText("Đang chờ giao")).toBeNull();
   });
 });
 
@@ -311,6 +404,15 @@ describe("⭐ Món có lệnh mà đủ hàng nhờ TỒN CÓ SẴN của mã (D
     })!;
     expect(v.cau).toBe("Lập yêu cầu giao hàng");
     expect(v.the.map((x) => x.nhan)).toContain("LSX26-0005 vẫn chạy dù đã đủ hàng");
+  });
+
+  it("lệnh chưa xuống xưởng ⇒ thẻ nói chưa đóng, không nói vẫn chạy", () => {
+    const chuaXuong = { ...tuTon, lenh: [{ ...LENH, da_xuong_xuong: false }] };
+    const v = viecTiepTheo({
+      trangThai: "ordered", canCoc: false, duCoc: true, thieuCoc: 0, chuyenSxLuc: "2026-10-05T06:54:32Z",
+      gap: false, hanGiao: null, td: { ...TD, cum: [chuaXuong] }, hoaDon: "none", xuat: true,
+    })!;
+    expect(v.the.map((x) => x.nhan)).toContain("LSX26-0005 chưa đóng dù đã đủ hàng");
   });
 
   it("bản cài tắt giao hàng: việc tiếp theo là Xuất hàng, nút ghi Xem xuất hàng", () => {

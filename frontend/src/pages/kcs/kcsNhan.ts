@@ -52,6 +52,15 @@ export function toastKhoNhapThanhPham(
   return null;
 }
 
+/** Phần số của toast "KCS đã kiểm bước cuối" gửi tổ bước cuối. `soLoi` là lỗi CỦA tổ đó, `quyVe` là
+ *  lỗi cùng lần kiểm quy cho công đoạn khác: nói thành câu riêng, gộp vào thì tổ tưởng mình gây, bỏ
+ *  đi thì "lỗi 0" đọc như lần kiểm sạch dù KCS vừa ghi lỗi (05/11/2026). */
+export function soKetQuaKiemCuoi(soDat: number, soLoi: number, quyVe: number): string {
+  const n = (v: number) => v.toLocaleString("vi-VN");
+  const so = soLoi > 0 || quyVe <= 0 ? `đạt ${n(soDat)} và lỗi ${n(soLoi)}` : `đạt ${n(soDat)}`;
+  return quyVe > 0 ? `${so}. ${n(quyVe)} lỗi quy cho công đoạn khác` : so;
+}
+
 /** Máy chủ chỉ nhận lần kiểm khi công đoạn đã bắt đầu (đang chạy / tạm dừng / đã xong). */
 export function kiemDuoc(trangThai: string): boolean {
   return trangThai === "running" || trangThai === "paused" || trangThai === "completed";

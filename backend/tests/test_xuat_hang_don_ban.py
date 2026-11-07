@@ -112,3 +112,21 @@ def test_kho_huy_phieu_thi_huy_ca_yeu_cau(client, tat_giao_hang):
         db.close()
     # hàng thôi bị giữ ⇒ xuất lại đủ 100
     assert _xuat(client, h, oid, lid, 100).status_code == 201
+
+
+def test_lan_xuat_goi_bang_so_phieu_xuat(client, tat_giao_hang):
+    """Bản tắt giao hàng gọi lần xuất bằng số phiếu xuất kho, ở cả tiến độ đơn lẫn bảng hóa đơn
+    (04/11/2026) — mã yêu cầu giao ẩn không ai khác nhìn thấy."""
+    _gan_ho_so_admin()
+    h = _admin(client)
+    oid, lid = _don_da_chot(suffix="XH5", qty=1000)
+    r = _xuat(client, h, oid, lid, 100)
+    assert r.status_code == 201, r.text
+    trip = _chuyen(r.json()["request_code"])
+    _kho_xuat(client, h, trip.id)
+    td = client.get(f"/api/orders/{oid}/tien-do", headers=h).json()
+    (yc,) = td["yeu_cau"]
+    (ma,) = yc["chuyen"]["phieu_xuat_ma"]
+    assert ma and ma != r.json()["request_code"]
+    hd = client.get("/api/accounting/sales-invoices", headers=h, params={"order_id": oid}).json()
+    assert [l["ma"] for l in hd["luot_giao"]] == [ma]

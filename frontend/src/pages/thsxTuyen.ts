@@ -39,6 +39,11 @@ export function viTriHang(dai: SxRoutingBuoc[], congViecId: number, stepKey?: st
 
 /** Câu nói vị trí. `ngan` cho ô lưới, bản dài cho ngăn chi tiết. */
 export function cauViTri(v: ViTriHang, dai: SxRoutingBuoc[], ngan: boolean): string {
+  // Mọi bước đã xong: hàng đã rời dải. Nói "đang ở" bước cuối thì lưới và ngăn kể hai chuyện khác
+  // nhau về cùng một lệnh (lưới "đang ở Cân hàng", ngăn "Lệnh đã xong cả 7 bước", 05/11/2026).
+  if (dai.length > 0 && dai.every((o) => o.trang_thai === "completed")) {
+    return ngan ? `Xong cả ${dai.length} bước` : `Lệnh đã xong cả ${dai.length} bước, hàng đã đi tiếp`;
+  }
   if (v.k === "qua") {
     const ten = dai[v.c - 1]?.ten_cong_doan ?? "";
     return ngan ? `Đã qua, đang ở ${ten}` : `Đã qua tổ mình, hàng đang ở ${ten}`;

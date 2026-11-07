@@ -13,7 +13,7 @@ describe("ChipLoaiBuoc", () => {
 
   it("dữ liệu CŨ còn tên nhà gia công → vẫn bày ra", () => {
     render(<ChipLoaiBuoc loai_buoc="thue_ngoai" nha_cung_cap="Cơ sở Minh Phát" />);
-    expect(screen.getByText("Ngoài · Cơ sở Minh Phát")).toBeTruthy();
+    expect(screen.getByText("Thuê ngoài Cơ sở Minh Phát")).toBeTruthy();
   });
 
   it("máy và tổ vẫn có nhãn riêng", () => {
@@ -38,7 +38,7 @@ describe("ChipKhuon", () => {
     render(
       <ChipKhuon can_khuon khuon={{ ma: "KB-0123", so_ke: "Kệ A3", tinh_trang: "dang_dung" }} />,
     );
-    expect(screen.getByText("KB-0123 · Kệ A3")).toBeTruthy();
+    expect(screen.getByText("KB-0123 ở Kệ A3")).toBeTruthy();
   });
 
   it("dao đang đặt làm → mã + 'đang đặt làm', tone vàng", () => {
@@ -47,13 +47,13 @@ describe("ChipKhuon", () => {
     const { container } = render(
       <ChipKhuon can_khuon khuon={{ ma: "KB-0130", tinh_trang: "dang_dat_lam" }} />,
     );
-    expect(screen.getByText("KB-0130 · đang đặt làm")).toBeTruthy();
+    expect(screen.getByText("KB-0130 đang đặt làm")).toBeTruthy();
     expect(container.querySelector(".chip-khuon--cho")).toBeTruthy();
   });
 
   it("tổ đã tích nhận → nói 'đã nhận'", () => {
     render(<ChipKhuon can_khuon khuon={{ ma: "KB-0123", so_ke: "Kệ A3", da_nhan: true }} />);
-    expect(screen.getByText("KB-0123 · đã nhận")).toBeTruthy();
+    expect(screen.getByText("KB-0123 đã nhận")).toBeTruthy();
   });
 
   it("bước không cần dụng cụ → không vẽ gì", () => {

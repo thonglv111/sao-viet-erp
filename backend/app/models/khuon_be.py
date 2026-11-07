@@ -1,4 +1,4 @@
-"""Danh mục KHUÔN & KHUNG — kho dụng cụ dùng chung của xưởng (master data nhẹ).
+"""Danh mục KHUÔN — kho khuôn bế dùng chung của xưởng (master data nhẹ).
 
 Mỗi con dao làm riêng cho hình của 1 ấn phẩm; đơn lặp lại thì lôi dao cũ ra dùng. Khai để TÌM LẠI:
 mã / tên ấn phẩm / khách / loại / số kệ / tình trạng / ghi chú.
@@ -9,8 +9,11 @@ Từ 16/08/2026 (mg 0205) danh mục này ĐƯỢC NỐI: bước của lệnh s
 cột `khach_hang_id` + `loai` phải có: không lọc được thì ô chọn bày cả kho, người ta tìm không ra
 rồi đặt làm con dao đã có.
 
-Tên bảng vẫn là `khuon_be` (và quyền vẫn là module `khuon_be`) dù nay chứa cả khuôn ép nhũ — đổi
-tên bảng/quyền là mọi vai mất sạch quyền màn này. Chỉ nhan đề trên màn đổi thành "Khuôn".
+PHIẾU TÍNH GIÁ KHÔNG ĐỌC danh mục này. Phiếu chỉ hỏi một câu "có sẵn hay làm mới" kèm phí làm
+khuôn (`phieu_thanh_pham.khuon_nguon` / `phi_khuon`), không chọn con khuôn nào. Chọn khuôn cụ thể
+là việc ở bước của lệnh sản xuất — nên khai danh mục này KHÔNG phải điều kiện để tính giá.
+
+Từ 01/10/2026 chỉ còn khuôn bế để khai mới; dòng ép kim / khung lụa cũ vẫn đọc được.
 """
 from __future__ import annotations
 
@@ -51,8 +54,8 @@ class KhuonBe(Base):
     khach_hang_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("customers.id"), index=True, nullable=True
     )
-    # Bế hay ép nhũ. Thiếu nó thì bước "Ép nhũ" mở ô chọn ra thấy cả dao bế — chọn nhầm, tới máy
-    # mới biết. Nullable: 6 dòng có sẵn từ trước chưa ai phân loại, ép NOT NULL là phải đoán hộ.
+    # Loại dụng cụ — ô chọn khuôn ở bước lệnh lọc theo cột này. Nay chỉ còn `khuon_be` (xem
+    # `LOAI_KHUON`). Nullable: 6 dòng có sẵn từ trước chưa ai phân loại, ép NOT NULL là phải đoán hộ.
     loai: Mapped[str | None] = mapped_column(String(16), index=True, nullable=True)
     so_ke: Mapped[str | None] = mapped_column(String(120), nullable=True)    # số kệ / vị trí lưu ← lõi
     tinh_trang: Mapped[str] = mapped_column(

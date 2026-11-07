@@ -1073,12 +1073,23 @@ class XepLichLenhService:
         if l.trang_thai == TT_DA_PHAT_HANH:
             # Không phải cửa gác mà là chống bấm hai lần: phát hành lại đè lên gói đang chạy.
             raise XepLichLenhConflict(f"Lệnh {l.ma} đã phát hành rồi — thu hồi trước nếu muốn làm lại.")
+        if l.trang_thai not in TT_XEP_DUOC:
+            # Không phải cửa gác nghiệp vụ: lệnh Nháp chưa qua tay kế hoạch, thả xuống xưởng là
+            # đóng băng một cấu hình còn đang sửa.
+            raise XepLichLenhConflict(
+                f"Lệnh {l.ma} còn Nháp — kế hoạch bấm Sẵn sàng rồi mới phát hành được.")
         if self.repo.theo_lsx(lsx_id) is None:
             raise XepLichLenhError("Lệnh chưa có giờ bắt đầu — đặt mốc trước khi phát hành.")
 
         sx_repo = SanXuatRepository(self.db)
         tp = thanh_phan_lien_thong(sx_repo, {lsx_id})
-        for x in self.repo.lsx_theo_ids(sorted(tp.lsx_ids)).values():
+        cum = self.repo.lsx_theo_ids(sorted(tp.lsx_ids))
+        con_nhap = sorted(x.ma for x in cum.values()
+                          if x.trang_thai not in TT_XEP_DUOC + (TT_DA_PHAT_HANH, TT_DA_DONG))
+        if con_nhap:
+            raise XepLichLenhConflict(
+                f"Lệnh đi cùng cụm còn Nháp: {', '.join(con_nhap)} — bấm Sẵn sàng rồi mới phát hành cả cụm.")
+        for x in cum.values():
             if x.trang_thai not in (TT_DA_PHAT_HANH, TT_DA_DONG):
                 x.trang_thai = TT_DA_PHAT_HANH
         for bg in self._bai_ghep(tp.bai_ghep_ids):

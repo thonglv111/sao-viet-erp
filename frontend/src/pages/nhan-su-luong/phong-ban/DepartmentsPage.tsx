@@ -1458,7 +1458,7 @@ export function DepartmentsPage({
             {d.la_kinh_doanh && (
               <span className="rdx-tree__pill rdx-tree__pill--kd">Khối KD</span>
             )}
-            {d.la_giao_hang && (
+            {d.la_giao_hang && !tat("giao_hang") && (
               <span className="rdx-tree__pill rdx-tree__pill--gh"
                     title="Người trong khối này hiện ở tab Nhân viên giao hàng và chọn được khi phân chuyến">
                 Giao hàng
@@ -1750,7 +1750,7 @@ export function DepartmentsPage({
     co_truong: treeStats.co_truong,
     thieu_truong: treeStats.no_head,
     chua_co_nguoi: treeStats.no_staff,
-  });
+  }, tat("giao_hang"));
   const tabs = [
     { key: "overview", label: "Tổng quan", count: undefined },
     { key: "staff", label: "Nhân sự", count: members.length },
@@ -2083,7 +2083,7 @@ export function DepartmentsPage({
                       {currentDept.la_kinh_doanh && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--kd">Khối kinh doanh</span>
                       )}
-                      {currentDept.la_giao_hang && (
+                      {currentDept.la_giao_hang && !tat("giao_hang") && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Giao hàng</span>
                       )}
                     </div>

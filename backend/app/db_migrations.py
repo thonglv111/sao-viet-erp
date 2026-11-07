@@ -19347,3 +19347,20 @@ def _migrate_gia_lo_so_le(db: Session) -> None:
 
 
 MIGRATIONS.append(("0452_gia_lo_so_le", _migrate_gia_lo_so_le))
+
+
+def _migrate_giu_cho_bon_so_le(db: Session) -> None:
+    """0453 (05/11/2026) — `vat_tu_giu_cho.so_luong`: NUMERIC(14,2) → NUMERIC(14,4), cùng số lẻ với
+    `stock_lots.sl_con_lai`. Nhu cầu tính tới 4 số lẻ; giữ chỗ làm tròn 2 số thì phần còn thiếu
+    0,004–0,005 ra 0 và bị bỏ qua, ô vật tư đứng mãi ở Chưa giữ. Nới kiểu, số cũ giữ nguyên. SQLite
+    không ép kiểu ⇒ chỉ ALTER trên Postgres."""
+    bind = db.get_bind()
+    if (bind.dialect.name or "") != "postgresql":
+        return
+    if "vat_tu_giu_cho" not in inspect(bind).get_table_names():
+        return
+    db.execute(text("ALTER TABLE vat_tu_giu_cho ALTER COLUMN so_luong TYPE NUMERIC(14,4)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0453_giu_cho_bon_so_le", _migrate_giu_cho_bon_so_le))

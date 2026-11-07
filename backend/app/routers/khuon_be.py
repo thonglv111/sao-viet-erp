@@ -1,4 +1,4 @@
-"""Khuôn router — CRUD danh mục KHAI BÁO nơi lưu trữ khuôn (bế · ép kim · khung lụa).
+"""Khuôn router — CRUD danh mục KHAI BÁO nơi lưu trữ khuôn bế (ép kim / khung lụa gỡ 01/10/2026).
 
 Thân CRUD sinh từ `routers/catalog_base.make_catalog_router`. Dependency INLINE.
 MODULE quyền RIÊNG = "khuon_be" (tích quyền độc lập trong ma trận).
@@ -33,8 +33,8 @@ make_catalog_router(
     router, ten="khuon_be", ServiceDep=Service, module=MODULE,
     InModel=KhuonBeIn, RowModel=KhuonBeRow, ListModel=KhuonBeListOut,
     excel_spec=KHUON_BE,
-    # Chip lọc của màn Khuôn theo LOẠI (Khuôn bế · Khuôn ép kim · Khung lụa) từ 18/09/2026 —
-    # trước đó chip theo tình trạng. Tình trạng + khách + số kệ nằm ở bảng "Lọc nâng cao"
+    # Chip lọc của màn Khuôn theo LOẠI từ 18/09/2026 (nay chỉ còn khuôn bế để khai mới; chip loại
+    # cũ chỉ còn ý nghĩa với dòng ép kim / khung lụa từ trước 01/10/2026) — trước đó chip theo tình trạng. Tình trạng + khách + số kệ nằm ở bảng "Lọc nâng cao"
     # (`loc_them`), ghép VÀ với chip và ô tìm. Mọi việc lọc đều ở máy chủ: bảng chỉ cầm 20 dòng.
     loc="loai",
     loc_them={"tinh_trang": str, "khach_hang_id": int, "so_ke": str},

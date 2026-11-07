@@ -84,7 +84,7 @@
 {\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
 {\tieude\fontsize{22}{26}\selectfont Hướng dẫn cấu hình hệ thống}\par\vspace{4pt}
 {\small Phòng ban, phân quyền, tài khoản, danh mục dùng chung và danh mục của từng phòng}\par\vspace{2pt}
-{\small\color{xamchu} Cập nhật 01/11/2026}\par\vspace{6pt}
+{\small\color{xamchu} Cập nhật 04/11/2026}\par\vspace{6pt}
 \noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
 
 Tài liệu này gom mọi việc khai báo ban đầu của phần mềm vào một chỗ. Người làm là quản trị phần mềm và người
@@ -114,7 +114,7 @@ Các chương sau đi đúng thứ tự này:
 \item Phòng ban và tổ sản xuất (chương \ref{phong-ban}). Vai trò thuộc phòng, máy thuộc tổ, nên khai đầu tiên.
 \item Vai trò và ma trận quyền của từng phòng (chương \ref{phan-quyen}).
 \item Nhân sự (chương \ref{nhan-su}): chấm công (điểm chấm công, ca làm, ngày lễ), loại nghỉ phép, cấu hình
-lương, xe giao hàng; rồi thêm nhân viên, cấp tài khoản, gán vai, khai mức lương từng người.
+lương; rồi thêm nhân viên, cấp tài khoản, gán vai, khai mức lương từng người.
 \item Danh mục dùng chung (chương \ref{danh-muc}): Đơn vị \& quy đổi, Thiết bị \& Máy móc, Giấy, Vật tư khác,
 cuối cùng là Công đoạn.
 \item Kinh doanh (chương \ref{kinh-doanh}): khách hàng, rồi lập thử một phiếu tính giá mẫu so với giá tính tay.
@@ -122,8 +122,7 @@ cuối cùng là Công đoạn.
 \end{enumerate}
 
 Mũi tên trong sơ đồ nghĩa là ô đầu phải có trước thì ô sau mới chọn được. Ví dụ Tiêu chí KCS khai theo từng
-công đoạn nên cần Công đoạn trước; Xe giao hàng chọn mức khoán km khai ở Cấu hình lương nên
-khai sau (mục \ref{danh-muc-xe}).
+công đoạn nên cần Công đoạn trước.
 
 Bốn danh mục không nằm trong sơ đồ vì không chặn bước nào. Thành phẩm tự sinh khi chốt đơn hàng bán. Khuôn: phiếu
 tính giá chỉ hỏi có sẵn hay làm mới, khuôn bế chọn ở bước lệnh sản xuất. Khai báo kho: kho thành phẩm có sẵn, các
@@ -190,10 +189,7 @@ Chọn phòng ở cây, bấm \oo{Chỉnh sửa}.
 \so{4} \oo{Bộ phận thuộc Khối Kinh doanh}: cả cây con tự tính là kinh doanh. Người trong khối hiện ở ô
 \oo{NV phụ trách} của màn Khách hàng.
 
-\so{5} \oo{Bộ phận Giao hàng}: chỉ đúng phòng, tổ này, không lan xuống tổ con. Người trong đó là tài xế, hiện ở
-tab Nhân viên giao hàng và được tính khoán km.
-
-\so{6} \oo{Tổ in}: chỉ đúng tổ này. Thợ in đi làm Chủ nhật, lễ thì ăn công thay vì tính sản lượng.
+\so{5} \oo{Tổ in}: chỉ đúng tổ này. Thợ in đi làm Chủ nhật, lễ thì ăn công thay vì tính sản lượng.
 
 Xong bấm \oo{Lưu thay đổi} ở chân hộp.
 
@@ -524,27 +520,6 @@ Cuối tab là bảng \oo{khấu trừ đi trễ / về sớm}: mỗi lần đi 
 lương tự trừ một khoản. Mỗi bậc là \q{tới N phút thì trừ X đồng một lần}, dòng cuối để trống phút là áp cho mọi
 số phút lớn hơn. Bấm \oo{Thêm bậc} để thêm dòng.
 
-Tab con \oo{Khoán km giao hàng} khai mức tiền theo km cho xe giao hàng, chỉ cần khi công ty có đội xe.
-
-\Needspace*{16\baselineskip}
-\subsection{Xe giao hàng}\label{danh-muc-xe}
-
-\canh{0.45}{61-xe.png}{%
-Khai xe để tính tiền khoán km cho tài xế. Mỗi xe ăn một mức khoán km, nên khai mức ở tab \oo{Khoán km giao
-hàng} của Cấu hình lương trước (mục \ref{nhan-su-cau-hinh-luong}). Tài xế là người thuộc phòng có đánh dấu
-\oo{Bộ phận Giao hàng} (mục \ref{nhan-su-sua-phong}). Màn này nằm ở nhóm Cấu hình danh mục, quyền chỉ có
-\oo{Xem} và \oo{Thao tác} (mục \ref{danh-muc-phong-quyen}).
-
-\duong{Cấu hình danh mục > Xe giao hàng}, bấm \oo{Thêm xe giao hàng}.
-
-\so{1} \oo{Biển số}.
-
-\so{2} \oo{Tên}, ví dụ Xe anh Tùng.
-
-\so{3} \oo{Mức khoán km}: chọn mức đã khai. Giá mỗi km do mức này quyết định.
-
-\so{4} \oo{Tải trọng}: chỉ để đối chiếu, không ảnh hưởng tiền.}
-
 \subsection{Thêm nhân viên}\label{nhan-su-them}
 
 \begin{boicanh}
@@ -709,7 +684,7 @@ TNCN} khi \oo{Nhập Excel} hồ sơ cũng đổi được ô này cho nhiều n
 Năm danh mục đầu (mục \ref{danh-muc-don-vi} đến \ref{danh-muc-cong-doan}) là nguyên liệu của tính giá và lệnh
 sản xuất: phiếu tính giá lấy giá giấy, vật tư, công đoạn từ đây; lệnh sản xuất lấy máy, tốc độ, định mức vật tư từ
 đây. Khai theo đúng thứ tự: Đơn vị trước, Công đoạn sau cùng, vì công đoạn trỏ tới máy, tổ và vật tư. Khuôn và
-Thành phẩm không cần khai trước. Danh mục của kho, KCS, giao hàng, thu chi ở chương \ref{danh-muc-phong}.
+Thành phẩm không cần khai trước. Danh mục của kho, KCS, thu chi ở chương \ref{danh-muc-phong}.
 \end{boicanh}
 
 Màn nào cũng cùng một khuôn: thanh trên có nút \oo{Thêm \ldots}, \oo{Nhập Excel}, \oo{Xuất Excel}. Bấm một dòng
@@ -732,7 +707,7 @@ Tính giá (mục \ref{kinh-doanh-quyen}) vẫn thấy cột \oo{Đơn giá}, v�
 giấy. Lịch sử giá thì chỉ \oo{Xem giá} của Giấy mới mở được.
 \end{itemize}
 
-Sáu màn ở cuối nhóm (\oo{Thành phẩm}, \oo{Khuôn}, \oo{Khai báo kho}, \oo{Tiêu chí KCS}, \oo{Xe giao hàng},
+Năm màn ở cuối nhóm (\oo{Thành phẩm}, \oo{Khuôn}, \oo{Khai báo kho}, \oo{Tiêu chí KCS},
 \oo{Mục thu chi}) chỉ có \oo{Xem} và \oo{Thao tác}, không có quyền chi tiết.
 
 \Needspace*{12\baselineskip}
@@ -1048,14 +1023,7 @@ vốn, hoặc chiết khấu, markup, kê ngoài rào của khách. \oo{Tạo đ
 dính tới tiền, nên chung ô với màn kế toán: \oo{Thu cọc và ghi hoá đơn} chung với Phiếu thu, \oo{Huỷ hoá đơn}
 chung với Hủy phiếu thu, \oo{Trả lại cọc} chung với Phiếu chi.
 
-\rong[0.7\linewidth]{74-quyen-giao-hang.png}
-
-\oo{Giao hàng}: \oo{Thao tác} là gửi yêu cầu giao, báo đã lấy hàng, nhập kết quả, số km, đính biên bản. \oo{Lên
-đơn giao hàng} cho xếp chuyến và gửi đề nghị xuất sang kho. \oo{Huỷ yêu cầu / huỷ chuyến} phải ghi lý do.
-\oo{Nhân viên giao hàng} cho xem lịch, chuyến, số km của tài xế khác. Phạm vi ở dòng này tính riêng: \oo{Của tôi}
-là yêu cầu mình lập hoặc chuyến mình chở. Kế toán cần đính biên bản cho mọi đơn thì để \oo{Tất cả}.
-
-Phạm vi các dòng khác theo luật chung (mục \ref{phan-quyen-pham-vi}). Sale để \oo{Của tôi} và lập nhóm dùng chung
+Phạm vi các dòng theo luật chung (mục \ref{phan-quyen-pham-vi}). Sale để \oo{Của tôi} và lập nhóm dùng chung
 với trợ lý của mình (mục \ref{phan-quyen-nhom}) thì hai người cùng thấy khách, báo giá, đơn của nhau.
 
 \Needspace*{20\baselineskip}
@@ -1144,15 +1112,14 @@ Mọi dòng khớp với cách tính tay thì phần cấu hình ban đầu xong
 \section{Kho, KCS, thu chi}\label{danh-muc-phong}
 
 \begin{boicanh}
-Ba danh mục của các phòng khác ngoài Kinh doanh. Không cần cho tính giá; khai trước khi bắt đầu dùng phân hệ
-tương ứng.
+Ba danh mục của các phòng khác ngoài Kinh doanh, kèm quyền của người làm KCS. Không cần cho tính giá; khai
+trước khi bắt đầu dùng phân hệ tương ứng.
 \end{boicanh}
 
 \subsection{Quyền của ba màn}\label{danh-muc-phong-quyen}
 
 \canh{0.55}{79-quyen-kho.png}{%
-Ba dòng \oo{Khai báo kho}, \oo{Tiêu chí KCS}, \oo{Mục thu chi} (cùng dòng \oo{Xe giao hàng} của mục
-\ref{danh-muc-xe}) nằm cuối nhóm danh mục của ma trận (mở như mục \ref{phan-quyen-ma-tran}). Mỗi dòng chỉ có hai ô, không có quyền chi tiết:
+Ba dòng \oo{Khai báo kho}, \oo{Tiêu chí KCS}, \oo{Mục thu chi} nằm cuối nhóm danh mục của ma trận (mở như mục \ref{phan-quyen-ma-tran}). Mỗi dòng chỉ có hai ô, không có quyền chi tiết:
 
 \so{1} \oo{Xem}: mở màn, xem danh sách.
 
@@ -1181,19 +1148,69 @@ nhập xuất sẽ chọn vị trí từ danh sách này. Tab này chỉ dùng �
 \subsection{Tiêu chí KCS}\label{danh-muc-kcs}
 
 \begin{boicanh}
-Tiêu chí KCS là các điểm phải kiểm sau mỗi công đoạn, ví dụ màu đúng mẫu, bế không xơ mép. Lệnh sản xuất lúc
-phát hành chép bộ tiêu chí của từng công đoạn về để người kiểm đánh dấu.
+Tiêu chí KCS là các điểm phải kiểm của từng công đoạn, mỗi tiêu chí là một câu, ví dụ màu đúng tờ mẫu khách
+duyệt, bế không xơ mép. Lệnh sản xuất lúc phát hành chép bộ tiêu chí của từng công đoạn về để người kiểm đánh
+dấu. Tiêu chí không bắt buộc: lệnh chạy qua công đoạn chưa có tiêu chí thì KCS vẫn kiểm được, lỗi ghi ở dòng
+\oo{Lỗi khác}.
 \end{boicanh}
 
-\rong[0.78\linewidth]{60-kcs.png}
+\rong[0.85\linewidth]{60-kcs.png}
 
-\so{1} Cột trái là cây công đoạn theo giai đoạn. Công đoạn chưa có tiêu chí ghi \oo{chưa có}. Bấm một công đoạn
-để khai. \so{2} Gõ một tiêu chí rồi bấm Enter, lặp lại cho tiêu chí tiếp theo. \so{3} \oo{Chép từ công đoạn
-khác}: lấy nguyên bộ tiêu chí của một công đoạn giống. \so{4} \oo{Xem KCS cuối thấy gì}: chọn các công đoạn một
-lệnh sẽ chạy qua, xem bước KCS cuối sẽ bày những tiêu chí nào.
+\duong{Cấu hình danh mục > Tiêu chí KCS}.
+
+\so{1} Cột trái là các công đoạn xếp theo giai đoạn: Trước in, In, Gia công sau in. Công đoạn chưa có tiêu chí
+ghi \oo{chưa có}, có rồi thì ghi số tiêu chí. Ô tìm tìm được cả tên công đoạn lẫn câu tiêu chí. Tick \oo{Ẩn công
+đoạn chưa có tiêu chí} để chỉ xem những công đoạn đã khai. Bấm một công đoạn để khai.
+
+\so{2} Mỗi dòng là một tiêu chí. Bấm vào câu để sửa, bấm thùng rác để xoá. Kéo chấm bên trái để đổi thứ tự, hoặc
+bấm vào chấm đó rồi dùng mũi tên lên xuống.
+
+\so{3} Gõ tiêu chí mới rồi bấm Enter, lặp lại cho câu tiếp theo. Gõ trùng một câu đã có thì phần mềm báo và không
+thêm.
+
+\so{4} \oo{Chép sang công đoạn khác}: mở hộp chép ở dưới. Công đoạn chưa có tiêu chí nào thì nút này là
+\oo{Chép từ công đoạn khác}, để lấy bộ của một công đoạn giống.
+
+\so{5} \oo{Xem KCS cuối thấy gì}: chọn các công đoạn một lệnh sẽ chạy qua, xem bước KCS cuối bày những tiêu chí
+nào. KCS cuối gộp tiêu chí của cả chuỗi công đoạn, kể cả lệnh phụ của cùng thành phẩm như ruột, tờ lót. Công
+đoạn đi thuê ngoài thì KCS cuối bỏ qua, không xét tiêu chí của nó.
+
+\canh{0.52}{60b-kcs-chep.png}{%
+Hộp chép của công đoạn In:
+
+\so{1} \oo{Bộ sẽ chép}: bỏ tick câu nào không muốn chép.
+
+\so{2} Thêm câu chỉ cho bản chép. Sửa ở hộp này không đổi tiêu chí của công đoạn gốc.
+
+\so{3} Tìm công đoạn đích, tick được nhiều công đoạn.
+
+\so{4} Hàng \oo{Đã chọn} giữ các công đoạn đã tick, kể cả khi đang lọc khuất. Bấm dấu x để bỏ.
+
+\so{5} \oo{Chép vào 2 công đoạn}. Câu chép sang nối vào cuối bộ của đích. Câu đích đã có thì bỏ qua, dòng chân
+hộp đếm trước sẽ thêm mới bao nhiêu dòng.}
 
 Sửa tiêu chí chỉ áp cho lệnh phát hành từ lúc đó. Lệnh đã phát hành giữ bộ cũ, hồ sơ lệnh sẽ báo tiêu chí đã đổi
 và có nút \oo{Cập nhật tiêu chí}.
+
+\Needspace*{16\baselineskip}
+\subsection{Ai được kiểm KCS}\label{danh-muc-kcs-quyen}
+
+\canh{0.55}{80-quyen-kcs.png}{%
+Màn \duong{Sản xuất > KCS} có dòng \oo{KCS} ở nhóm Sản xuất của ma trận quyền (mở như mục
+\ref{phan-quyen-ma-tran}):
+
+\so{1} \oo{Xem}: mở màn KCS, xem các lần kiểm và báo cáo lỗi của mọi tổ, xuất Excel.
+
+\so{2} \oo{Thao tác}: kiểm hàng, ghi lỗi, gửi thành phẩm nhập kho, đóng lệnh khi đã đủ.
+
+\so{3} \oo{Đóng lệnh thiếu}, bấm \oo{1/1 chi tiết} để thấy: đóng lệnh khi còn hàng chưa kiểm, chưa gửi kho,
+thiếu số so với đơn hoặc còn việc đang làm, và mở lại lệnh đã đóng. Phải bật kèm Thao tác.
+
+Phạm vi luôn là Tất cả: người KCS kiểm hàng của mọi tổ.}
+
+Không vai nào tự có quyền này, phải bật cho vai của người làm KCS. Chưa ai có \oo{Thao tác} thì không ai gửi được
+thành phẩm sang kho: đơn bán đứng mãi ở dòng \q{Chờ KCS gửi thành phẩm sang kho}, kho không có hàng để xuất cho
+khách.
 
 \Needspace*{20\baselineskip}
 \subsection{Mục thu chi}\label{danh-muc-muc-thu-chi}

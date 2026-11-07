@@ -349,6 +349,11 @@ def noi_ve_hop_le(db: Session, gcn, chang_sau: list) -> list[str]:
         return [NOI_VE_XUONG]
     if gcn.bai_ghep_id is not None:
         return [NOI_VE_KHO]
+    # Bản cài tắt giao hàng: giao thẳng ghi chuyến giao, mà phân hệ đó không có ⇒ chỉ còn về kho.
+    from ...phan_he import GIAO_HANG, tat
+
+    if tat(GIAO_HANG):
+        return [NOI_VE_KHO]
     from .giao_thang import dong_don_dung_rieng
 
     return [NOI_VE_KHO, NOI_VE_KHACH] if dong_don_dung_rieng(db, gcn.lsx_id) else [NOI_VE_KHO]

@@ -711,7 +711,7 @@ def delete_item(
     lsx_id: int,
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+    user: Annotated[User, Depends(require_permission(MODULE, "delete"))],
 ) -> dict:
     """Xoá lệnh chưa phát hành → dòng đơn quay lại hàng chờ (thay cho 'hủy lệnh' ở lát này)."""
     svc = _svc(db)

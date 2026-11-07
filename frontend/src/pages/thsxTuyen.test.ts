@@ -65,6 +65,12 @@ describe("câu vị trí", () => {
     expect(cauViTri(viTriHang(sap, 99)!, sap, true)).toBe("Còn 2 bước tới mình");
     expect(cauViTri(viTriHang(sap, 99)!, sap, false)).toBe("Còn 2 bước nữa mới tới tổ mình");
   });
+
+  it("mọi bước đã xong: không nói 'đang ở' bước cuối, lưới và ngăn cùng một câu", () => {
+    const xong = dai(["completed", "completed", "completed"], 1);
+    expect(cauViTri(viTriHang(xong, 99)!, xong, true)).toBe("Xong cả 3 bước");
+    expect(cauViTri(viTriHang(xong, 99)!, xong, false)).toBe("Lệnh đã xong cả 3 bước, hàng đã đi tiếp");
+  });
 });
 
 describe("dải của một việc", () => {

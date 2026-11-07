@@ -949,7 +949,7 @@ export function cayDongTo(dong: { key: string; cap?: number }[]): {
 const hintDongTo = (ten: string, soLa: number | undefined) =>
   soLa != null
     ? `${ten} là nhóm: không nhận việc, không cấp quyền riêng. Bấm tên để gập, mở các tổ bên trong. Ô tích bên trái bật hoặc tắt hết quyền của cả ${soLa} tổ bên trong. Lưu ý: tổ mới thêm vào nhóm sau này chưa có quyền, phải bật ở dòng của tổ đó.`
-    : `Xem: mục ${ten} dưới Tổ sản xuất trên thanh bên; mở Bàn tổ của tổ này. Phạm vi “Của tôi”: chỉ thấy việc mình được giao. “Cả phòng”: người ngồi ở tổ này hoặc ở nhóm trên nó. Ba quyền chi tiết là việc làm được trên bàn này.`;
+    : `Xem: mục ${ten} dưới Tổ sản xuất trên thanh bên; mở màn Việc của tổ của tổ này. Phạm vi “Của tôi”: chỉ thấy việc mình được giao. “Cả phòng”: người ngồi ở tổ này hoặc ở nhóm trên nó. Ba quyền chi tiết là việc làm được trên màn này.`;
 
 const FINE_TO: { key: ActionKey; label: string; hint: string }[] = [
   {

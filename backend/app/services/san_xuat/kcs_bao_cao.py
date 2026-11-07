@@ -312,6 +312,15 @@ def _tach_tieu_chi(mo_ta: str | None, gay: SanXuatCongViec | None) -> tuple[str 
     return None, m or None
 
 
+def _dv_hien(dv: str | None, dvt: str | None) -> str | None:
+    """Chặng thành phẩm (mã `cai`) gọi bằng đơn vị tính của sản phẩm trên lệnh ("cái", "cuốn"), y như
+    hộp Kiểm hàng và kho. Không đổi thì bảng báo cáo ghi "thành phẩm" còn hộp kiểm ghi "cái" cho
+    cùng một số (05/11/2026). Mã chặng khác giữ nguyên để giao diện tự dịch."""
+    if dv and dvt and dv.strip().lower() == "cai":
+        return dvt
+    return dv
+
+
 def _dong_loi(db: Session, hang: list[tuple[SanXuatKcsBatch, SanXuatCongViec]], *,
               day_du: bool = True) -> list[dict]:
     """MỖI lần ghi lỗi (dòng `san_xuat_kcs_loi` có số > 0) của các lần kiểm `hang` thành một dòng
@@ -327,14 +336,16 @@ def _dong_loi(db: Session, hang: list[tuple[SanXuatKcsBatch, SanXuatCongViec]], 
     gay = repo.cong_viec_nhieu({l.cong_doan_ref_id for _k, _c, l in loi_all})
     lsx_ids = {c.lsx_id for c in gay.values()} | {cv.lsx_id for _k, cv, _l in loi_all}
     lenh: dict[int, tuple[str, str, str | None]] = {}
+    dvt: dict[int, str | None] = {}
     if lsx_ids:
-        for lid, ma, ten, khach in db.execute(
-            select(Lsx.id, Lsx.ma, Lsx.ten, Customer.name)
+        for lid, ma, ten, khach, dv_tinh in db.execute(
+            select(Lsx.id, Lsx.ma, Lsx.ten, Customer.name, Lsx.don_vi_tinh)
             .join(Order, Lsx.order_id == Order.id, isouter=True)
             .join(Customer, Order.customer_id == Customer.id, isouter=True)
             .where(Lsx.id.in_({i for i in lsx_ids if i}))
         ).all():
             lenh[lid] = (ma, ten, khach)
+            dvt[lid] = dv_tinh
     ten_to = repo.ten_to({l.to_chiu_id for _k, _c, l in loi_all})
     anh = repo.anh_cua_loi_nhieu([l.id for _k, _c, l in loi_all]) if day_du else {}
     nguoi = repo.ten_nguoi({l.created_by for _k, _c, l in loi_all}) if day_du else {}
@@ -358,7 +369,8 @@ def _dong_loi(db: Session, hang: list[tuple[SanXuatKcsBatch, SanXuatCongViec]], 
             "noi_bat": cv.ten_cong_doan,
             "tai_cho": g.id == cv.id,
             "so_luong": float(l.so_luong or 0),
-            "don_vi": l.don_vi or kcs.don_vi or None,
+            # Đơn vị là của nơi BẮT (lỗi đếm theo đơn vị bước đang kiểm) ⇒ ĐVT lệnh của bước đó.
+            "don_vi": _dv_hien(l.don_vi or kcs.don_vi or None, dvt.get(cv.lsx_id)),
             "anh": [{"file_name": a.file_name, "file_url": a.file_url, "file_type": a.file_type}
                     for a in anh.get(l.id, [])],
             "nguoi_ghi": nguoi.get(l.created_by) if l.created_by else None,
@@ -525,6 +537,7 @@ def _lich_su_rows(
 
     repo_sx = SanXuatRepository(db)
     lsx_map = repo_sx.lsx_nhan({cv.lsx_id for _k, cv in hang if cv.lsx_id})
+    dvt_map = repo_sx.lsx_dvt({cv.lsx_id for _k, cv in hang if cv.lsx_id})
     bg_map = repo_sx.bai_ghep_nhan({cv.bai_ghep_id for _k, cv in hang if cv.bai_ghep_id})
     nguoi_ids = {k.created_by for k, _cv in hang if k.created_by}
     nguoi_ten = (
@@ -554,7 +567,7 @@ def _lich_su_rows(
             "thoi_diem": _ve_gio_vn(kcs.ket_thuc) or _ve_gio_vn(kcs.bat_dau),
             "so_luong_dat": float(kcs.so_luong_dat or 0),
             "so_luong_khong_dat": float(kcs.so_luong_khong_dat or 0),
-            "don_vi": kcs.don_vi or "",
+            "don_vi": _dv_hien(kcs.don_vi, dvt_map.get(cv.lsx_id)) or "",
             "nguon_ma": ma,
             "nguon_ten": ten,
             "ten_cong_doan": cv.ten_cong_doan,

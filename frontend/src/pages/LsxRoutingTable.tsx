@@ -121,6 +121,7 @@ export function LsxRoutingTable({
   phuThuocRefs,
   canUpdate,
   giuCho,
+  khoa = null,
   saving,
   onSave,
   onPatchLsx,
@@ -154,6 +155,8 @@ export function LsxRoutingTable({
   canUpdate: boolean;
   /** Lệnh đang GIỮ CHỖ vật tư → server chặn MỌI đường ghi routing, kể cả bản xem trước. */
   giuCho: boolean;
+  /** Lý do server khoá routing theo trạng thái lệnh (đã lập kế hoạch, đã phát hành, đã đóng). */
+  khoa?: string | null;
   saving: boolean;
   onSave: (body: LsxCongDoanBody[], lyDo?: string) => void;
   /** Sửa cấp LỆNH từ drawer bước cuối (SL thành phẩm / hao thêm) → server tính lại cả chuỗi. */
@@ -192,7 +195,7 @@ export function LsxRoutingTable({
   // Backend `_chan_dang_giu_cho` chặn cả `PUT /routing` lẫn `POST /xem-truoc-routing`, nên để
   // bảng sửa được lúc này là mời người ta làm không công: mỗi lần đổi công đoạn ăn một 409 câm,
   // số vào–ra đứng im, tới khi bấm Lưu mới hiện băng đỏ.
-  const suaDuoc = canUpdate && !giuCho;
+  const suaDuoc = canUpdate && !giuCho && !khoa;
   const [rows, setRows] = useState<EditRow[]>(() => congDoans.map(toEdit));
   // Mở sẵn dạng DANH SÁCH ở mọi màn (28/10/2026, trước chỉ điện thoại): loại bước, tổ, máy, ghi
   // chú sửa ngay trên bảng. Sơ đồ DAG vẫn một cú bấm.
@@ -735,7 +738,14 @@ export function LsxRoutingTable({
       {/* Lệnh đang giữ chỗ vật tư: routing KHOÁ ở server. Nói ngay đây kèm đường lùi — cùng lẽ với
           băng bài ghép trên. Nguyên văn lý do lấy đúng câu server trả lúc từ chối để hai đầu không
           nói hai kiểu. */}
-      {canUpdate && giuCho && (
+      {canUpdate && khoa && (
+        <div className="khsx-ghep-bang khsx-ghep-bang--khoa">
+          <Icon name="lock" size={14} />
+          <span>{khoa}</span>
+        </div>
+      )}
+
+      {canUpdate && !khoa && giuCho && (
         <div className="khsx-ghep-bang khsx-ghep-bang--khoa">
           <Icon name="lock" size={14} />
           <span>
@@ -1279,7 +1289,7 @@ export function LsxRoutingTable({
                   </>
                 )}
                 <span className="popo__hint">
-                  {khoa ? "Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ."
+                  {khoa ? "Việc đã bắt đầu, đổi máy ở màn Việc của tổ."
                     : mayRefs && toChuaCoMay(mayRefs, cd, r.department_id)
                       ? "Tổ này chưa có máy chạy công đoạn này."
                       : r.loai_buoc === "to"

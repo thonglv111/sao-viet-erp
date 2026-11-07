@@ -16,7 +16,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from math import ceil, floor
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
@@ -1205,7 +1205,7 @@ class LsxService:
                 rows.insert(0, cu)
         return [
             # `loai` phải trả về: màn lọc tiếp theo loại của TỪNG BƯỚC trên danh sách đã rút gọn
-            # này (một lệnh có thể vừa có bước bế vừa có bước ép nhũ), nên nạp một lần dùng chung.
+            # này (nay chỉ còn khuôn bế, nhưng dòng ép kim cũ vẫn mang loại riêng), nạp một lần dùng chung.
             {"id": k.id, "ma": k.ma, "ten": k.ten, "loai": k.loai, "so_ke": k.so_ke,
              "tinh_trang": k.tinh_trang}
             for k in rows
@@ -2573,6 +2573,7 @@ class LsxService:
             lsx.trang_thai = TT_CHO_BO_SUNG
         elif not thieu and lsx.trang_thai == TT_CHO_BO_SUNG:
             lsx.trang_thai = TT_NHAP
+        self._roi_khay_xep_lich(lsx)
         self.audit.create(
             actor_user_id=actor.id, action="doi_nguon_giay", target=f"lsx:{lsx.id}",
             detail=f"Đổi nguồn giấy lệnh {lsx.ma}: {_NHAN_NGUON.get(cu, 'chưa có')} → {_NHAN_NGUON[nguon]}"
@@ -3328,6 +3329,7 @@ class LsxService:
                 lsx.trang_thai = TT_CHO_BO_SUNG
             elif lsx.trang_thai == TT_CHO_BO_SUNG:
                 lsx.trang_thai = TT_NHAP
+            self._roi_khay_xep_lich(lsx)
             self.audit.create(
                 actor_user_id=actor.id, action="update_lsx", target=f"lsx:{lsx.id}",
                 detail=f"Sửa lệnh {lsx.ma}: {', '.join(changed)}",
@@ -3356,6 +3358,16 @@ class LsxService:
         "may_id", "khuon_be_id", "chay_phut",
         "ghi_chu",
     }
+
+    def _roi_khay_xep_lich(self, lsx: Lsx) -> None:
+        """Lệnh rời khay Chờ xếp lịch (về Nháp / Chờ bổ sung) thì bỏ luôn mốc giờ đã đặt.
+
+        Mốc chỉ có nghĩa với lệnh Sẵn sàng. Để lại thì lần Sẵn sàng sau lệnh hiện lại trên thanh ở
+        giờ cũ như chưa từng sửa, và `phat_hanh` thấy "đã có giờ" nên thả được cả lệnh Nháp."""
+        if lsx.trang_thai not in (TT_NHAP, TT_CHO_BO_SUNG):
+            return
+        from ..models.xep_lich_lenh import XepLichLenh
+        self.db.execute(delete(XepLichLenh).where(XepLichLenh.lsx_id == lsx.id))
 
     def _chan_dang_giu_cho(self, lsx: Lsx) -> None:
         """Lệnh đang giữ chỗ vật tư → không đổi số lượng/con·tờ/quy cách/routing, không xoá.
@@ -3539,6 +3551,7 @@ class LsxService:
             lsx.trang_thai = TT_CHO_BO_SUNG
         elif not thieu and lsx.trang_thai == TT_CHO_BO_SUNG:
             lsx.trang_thai = TT_NHAP
+        self._roi_khay_xep_lich(lsx)
         self.audit.create(
             actor_user_id=actor.id, action="update_lsx_danh_muc", target=f"lsx:{lsx.id}",
             detail=f"Cập nhật lệnh {lsx.ma} theo danh mục: {len(buocs)} công đoạn lấy số mới",
@@ -3692,7 +3705,7 @@ class LsxService:
             doi_cap = old_dept_id != row.department_id or old_may_id != row.may_id
             if (not buoc_moi and doi_cap and row.id in da_bat_dau
                     and LB_MAY in (old_loai, row.loai_buoc)):
-                raise LsxValidationError("Việc đã bắt đầu ở bàn tổ — đổi máy ở bàn tổ")
+                raise LsxValidationError("Việc đã bắt đầu, đổi máy ở màn Việc của tổ")
             if row.loai_buoc == LB_MAY and (buoc_moi or doi_cap or old_cd_id != cd_id):
                 if loi := loi_cap(self.db, cd_obj, row.department_id, row.may_id):
                     raise LsxValidationError(loi)
@@ -3899,6 +3912,7 @@ class LsxService:
             lsx.trang_thai = TT_CHO_BO_SUNG
         elif not thieu and lsx.trang_thai == TT_CHO_BO_SUNG:
             lsx.trang_thai = TT_NHAP
+        self._roi_khay_xep_lich(lsx)
         # §10: routing lệch bài tính giá thì phải lưu NGƯỜI xác nhận (audit đã có) + LÝ DO.
         detail = f"Sửa routing lệnh {lsx.ma}: {truoc} → {len(rows)} công đoạn"
         if (ly_do or "").strip():
@@ -4069,6 +4083,7 @@ class LsxService:
             if thieu:
                 raise LsxConflict("Còn thiếu dữ liệu — bổ sung xong mới đánh dấu sẵn sàng")
         lsx.trang_thai = trang_thai
+        self._roi_khay_xep_lich(lsx)
         self.audit.create(
             actor_user_id=actor.id, action="lsx_trang_thai", target=f"lsx:{lsx.id}",
             detail=f"Lệnh {lsx.ma} → {NHAN_TRANG_THAI.get(trang_thai, trang_thai)}",
@@ -4098,6 +4113,10 @@ class LsxService:
         if ghep_ma:
             raise LsxConflict(f"LSX đang trong bài ghép {ghep_ma} — gỡ khỏi bài trước khi xoá")
         self._chan_dang_giu_cho(lsx)
+        # Sẵn sàng = đang nằm ở khay Chờ xếp lịch, người xếp lịch có thể đang kéo nó. Mở lại để sửa
+        # (về Nháp) rồi mới xoá, để người bấm thấy rõ là rút lệnh khỏi khay.
+        if lsx.trang_thai == TT_SAN_SANG:
+            raise LsxConflict("Lệnh đang Sẵn sàng — bấm Mở lại để sửa rồi mới xoá")
         order_id, ma = lsx.order_id, lsx.ma
         self.repo.delete(lsx)
         self.audit.create(

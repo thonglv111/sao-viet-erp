@@ -204,17 +204,17 @@ def test_giay_in_ten_don_vi_khong_in_ma(client, seed_credentials, lenh_that, mon
     gọi hàm tra tên nên nó canh CÔNG CỤ chứ không canh chỗ CẮM công cụ vào giấy — bỏ hàm tra ra
     khỏi đúng chỗ nối, in mã trần lên phiếu, mà bài đó vẫn xanh. Bài này soi MẶT GIẤY.
 
-    `lenh_that` khai `don_vi_vao/ra="to"` cho cả ba bước (`test_lenh_sx_tien_do._dung_lenh`), và
-    `to` là dòng seed nền (ngoài cổng `SEED_DEMO`) có `ten="tờ"`.
+    `lenh_that` khai `don_vi_vao/ra="to"` cho cả ba bước (`test_lenh_sx_tien_do._dung_lenh`). Hai
+    cột đó giữ MÃ CHẶNG dòng giấy nên in nhãn chặng "tờ in" (04/11/2026), như màn hồ sơ.
     """
     giay = _bat_chu(monkeypatch)
     h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
     r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
     assert r.status_code == 200, r.text
 
-    # Ô Kế hoạch: "480 tờ" / "ra 470 tờ" (13/10/2026 số đi kèm đơn vị, bỏ cột ĐVT riêng).
-    co_ten = [o for o in giay.o if re.fullmatch(r"(ra )?[\d.,]+ tờ", o)]
-    assert co_ten, f"không ô số lượng nào mang đơn vị 'tờ' — các ô: {giay.o}"
+    # Ô Kế hoạch: "480 tờ in" / "ra 470 tờ in" (13/10/2026 số đi kèm đơn vị, bỏ cột ĐVT riêng).
+    co_ten = [o for o in giay.o if re.fullmatch(r"(ra )?[\d.,]+ tờ in", o)]
+    assert co_ten, f"không ô số lượng nào mang đơn vị 'tờ in' — các ô: {giay.o}"
     lot = [o for o in giay.o if re.fullmatch(r"(ra )?[\d.,]+ to", o) or o == "to"]
     assert not lot, f"MÃ đơn vị 'to' lọt lên giấy thay vì tên 'tờ': {lot}"
 
@@ -288,12 +288,13 @@ def test_chuoi_thang_khong_ghi_lam_sau(client, seed_credentials, lenh_that, monk
 
     for ten in ("CTP", "In", "Đóng gói"):
         assert ten in giay.o, f"thiếu bước {ten}: {giay.o}"
-    assert not [o for o in giay.o if o.startswith(("Làm sau", "Không chờ"))], giay.o
+    assert not [o for o in giay.o if o.startswith(("Làm sau", "Làm ngay"))], giay.o
 
 
-def test_lam_sau_chi_khi_routing_co_nhanh():
+def test_lam_sau_chi_khi_dong_tren_noi_sai():
     """Bìa (1) và ruột (2) chạy SONG SONG rồi gặp nhau ở bắt cuốn (3): thứ tự dòng 1 → 2 → 3 nói
-    SAI là ruột phải đợi bìa. Có nhánh thì MỌI bước ghi rõ nó chờ ai, kể cả bước không chờ ai."""
+    SAI là ruột phải đợi bìa và bắt cuốn chỉ đợi ruột. Chỉ hai dòng đó được ghi; bước 4 chờ đúng
+    dòng ngay trên nó thì im (04/11/2026, trước đó mọi bước của routing có nhánh đều ghi)."""
     nhanh = [
         {"id": 11, "phu_thuoc": []},
         {"id": 12, "phu_thuoc": []},
@@ -301,9 +302,13 @@ def test_lam_sau_chi_khi_routing_co_nhanh():
         {"id": 14, "phu_thuoc": [13]},
     ]
     assert phieu_cong_nghe._lam_sau(nhanh) == {
-        11: "Không chờ bước nào",
-        12: "Không chờ bước nào",
+        12: "Làm ngay từ đầu",
         13: "Làm sau bước 1 và 2",
+    }
+    # Dòng in theo dải khâu khác thứ tự số bước: so với dòng NGAY TRÊN trên giấy, không phải số liền trước.
+    assert phieu_cong_nghe._lam_sau(nhanh, [11, 13, 12, 14]) == {
+        13: "Làm sau bước 1 và 2",
+        12: "Làm ngay từ đầu",
         14: "Làm sau bước 3",
     }
     thang = [{"id": 1, "phu_thuoc": []}, {"id": 2, "phu_thuoc": [1]}, {"id": 3, "phu_thuoc": [2]}]
@@ -497,3 +502,74 @@ def test_lenh_hai_giay_ke_du_o_giay_bo_dinh_luong(client, seed_credentials, lenh
 
     assert "COUCHE 150GSM<br/>GIẤY SÓNG E 300GSM" in giay.o, f"ô Giấy không kể đủ hai giấy — các ô: {giay.o}"
     assert "Định lượng" not in giay.o
+
+
+def _chia_khau(sess, lsx_id: int) -> list:
+    """CTP → Trước In, In → In, Đóng gói → Gia công sau in; CTP nhận tờ nguyên, Đóng gói ra chặng
+    thành phẩm. Lật sau phát hành là hợp lệ: `ho_so._routing` đọc thẳng `lsx_cong_doan`."""
+    from app.models.lsx import LsxCongDoan
+
+    buocs = (sess.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lsx_id)
+             .order_by(LsxCongDoan.thu_tu).all())
+    buocs[0].nhom, buocs[0].don_vi_vao = "prepress", "to_nguyen"
+    buocs[2].nhom, buocs[2].don_vi_ra = "finishing", "cai"
+    sess.commit()
+    return buocs
+
+
+def test_bang_buoc_chia_dai_theo_khau(client, seed_credentials, lenh_that, sess, monkeypatch):
+    """Phương án B (04/11/2026): bảng bước chia dải Trước In / In / Gia công sau in theo nhóm công
+    đoạn, đúng thứ tự đó, và thông số nằm trên dải của khâu đọc nó — mỗi nhãn in đúng MỘT lần, không
+    còn lưới thông số chung ở đầu phiếu."""
+    _chia_khau(sess, lenh_that)
+    giay = _bat_chu(monkeypatch)
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
+    assert r.status_code == 200, r.text
+
+    dai = [o for o in giay.o if o in ("Trước In", "In", "Gia công sau in", "Dịch vụ khác")]
+    # "In" xuất hiện hai lần: nhãn dải và tên bước In — dải đứng trước bước của nó.
+    assert dai == ["Trước In", "In", "In", "Gia công sau in"], dai
+    assert giay.o.index("Trước In") < giay.o.index("CTP") < giay.o.index("In")
+    assert giay.o.index("Gia công sau in") < giay.o.index("Đóng gói")
+    for nhan in ("Khổ nguyên", "Khổ in", "Thành phẩm", "Quy cách in"):
+        assert giay.o.count(nhan) <= 1, f"{nhan} in {giay.o.count(nhan)} lần"
+
+
+def test_chang_giay_in_nhan_chang_khong_tra_danh_muc(
+    client, seed_credentials, lenh_that, sess, monkeypatch
+):
+    """Mã chặng `to_nguyen` KHÔNG có trong danh mục Đơn vị của test (cũng như DB dev 04/11/2026)
+    mà giấy vẫn phải in "tờ nguyên" — trước đó phiếu tra danh mục nên in trần "500 to_nguyen". Chặng
+    thành phẩm (`cai`) gọi bằng ĐVT sản phẩm của lệnh, như `nhanChangLenh` của màn hồ sơ."""
+    _chia_khau(sess, lenh_that)
+    giay = _bat_chu(monkeypatch)
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
+    assert r.status_code == 200, r.text
+    dvt = client.get(f"/api/lenh-san-xuat/{lenh_that}", headers=h).json()["thong_tin"]["don_vi_tinh"]
+
+    assert "500 tờ nguyên" in giay.o, giay.o
+    assert not [o for o in giay.o if "to_nguyen" in o], giay.o
+    assert f"ra 5.000 {dvt}" in giay.o, (dvt, giay.o)
+
+
+def test_duoi_buoc_ke_vat_tu_can_lay(client, seed_credentials, lenh_that, sess, monkeypatch):
+    """Vật tư khai ở bước in ra dòng "Lấy" dưới ĐÚNG bước đó: tổ biết phải lĩnh gì, bao nhiêu."""
+    from app.models.lsx import LsxCongDoan, LsxCongDoanVatTu
+
+    buoc_in = (sess.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == lenh_that, LsxCongDoan.ten == "In")
+               .one())
+    sess.add(LsxCongDoanVatTu(
+        lsx_cong_doan_id=buoc_in.id, hang_loai="vat_tu", vat_tu_id=777, vat_tu_ma_snapshot="MUC-K",
+        vat_tu_ten_snapshot="MỰC IN ĐEN", don_vi_snapshot="kg", so_luong=3.856, thu_tu=0))
+    sess.commit()
+
+    giay = _bat_chu(monkeypatch)
+    h = {"Authorization": f"Bearer {_tok(client, seed_credentials)}"}
+    r = client.get(f"/api/lenh-san-xuat/{lenh_that}/phieu-cong-nghe.pdf", headers=h)
+    assert r.status_code == 200, r.text
+
+    lay = [o for o in giay.o if "MỰC IN ĐEN" in o]
+    assert len(lay) == 1 and "Lấy" in lay[0] and lay[0].endswith("MỰC IN ĐEN 3,856 kg"), lay
+    assert giay.o.index("In") < giay.o.index(lay[0]) < giay.o.index("Đóng gói")

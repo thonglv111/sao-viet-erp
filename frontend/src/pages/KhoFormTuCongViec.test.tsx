@@ -39,7 +39,7 @@ function dong(kw: Partial<DongTuCongViec>): DongTuCongViec {
 
 function congViec(kw: Partial<TuCongViec>): TuCongViec {
   return {
-    duongDan: "Bàn tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới",
+    duongDan: "Việc của tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới",
     tieuDe: "Yêu cầu xuất kho",
     loai: "XUAT",
     cotNen: "Kế hoạch",

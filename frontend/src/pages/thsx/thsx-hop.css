@@ -98,7 +98,8 @@
 
 /* Hộp Ghi mẻ: khối khoán, thanh còn ghi được, ô số lớn có đơn vị trong ô. */
 .thsx-gm-mo { font-size: 12.5px; color: var(--ash-2); }
-.thsx-gm-gia { margin-left: auto; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
+/* Công thức khoán dài phải xuống dòng cho đọc hết: khối khoán có `overflow: hidden` nên `nowrap` cắt cụt cuối câu. */
+.thsx-gm-gia { margin-left: auto; font-size: 12.5px; color: var(--ash-2); min-width: 0; overflow-wrap: anywhere; }
 .thsx-gm-khoan { border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }
 .thsx-gm-khoan__dau { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
 /* Bậc giá (Bài in): bậc chọn theo màu lệnh + tick, đổi ngay khi tick Mực UV. */
@@ -127,10 +128,12 @@
 .thsx-gm-ps__o span { flex: none; font-size: 12.5px; color: var(--ash-2); white-space: nowrap; }
 .thsx-gm-ps__loi { display: block; padding: 0 0 4px; }
 /* Việc phát sinh: một lưới chung cho mọi hàng ⇒ ô số lượng và đơn giá thẳng cột dù tên dài ngắn. */
-.thsx-gm-ps__luoi { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; align-items: center; }
+/* Cột tên giữ tối thiểu 9em: đơn giá dạng câu dài ("tính theo cách tính giá: …") cột cuối tự xuống dòng
+   thay vì ép tên việc xuống mỗi dòng một chữ (05/11/2026). */
+.thsx-gm-ps__luoi { display: grid; grid-template-columns: minmax(9em, 1fr) auto minmax(0, auto); column-gap: 12px; align-items: center; }
 .thsx-gm-ps__luoi > li, .thsx-gm-ps__luoi .thsx-gm-ps__hang { display: contents; }
 .thsx-gm-ps__luoi .thsx-gm-ps__chon { min-height: 36px; }
-.thsx-gm-ps__luoi .thsx-gm-gia { text-align: right; }
+.thsx-gm-ps__luoi .thsx-gm-gia { text-align: right; white-space: normal; max-width: 15em; }
 .thsx-gm-ps__luoi .thsx-gm-ps__loi { grid-column: 1 / -1; }
 .thsx-gm-so { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 10px;
   padding: 0 12px; background: var(--canvas); }

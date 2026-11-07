@@ -197,12 +197,7 @@ export function ThsxCotPhai({
       {viTri && (
         <DaiHangToiDau
           chamCau={viTri.k}
-          cau={
-            /* Mọi bước đã xong mà có ô đuôi: hàng đã rời dải — nói chỗ nó đi tới, đừng nói "đang ở" bước cuối. */
-            duoi && dai.length > 0 && dai.every((o) => o.trang_thai === "completed")
-              ? `Lệnh đã xong cả ${dai.length} bước, hàng đã đi tiếp`
-              : cauViTri(viTri, dai, false)
-          }
+          cau={cauViTri(viTri, dai, false)}
           phu={`tổ mình ở bước ${viTri.m} trên ${viTri.tong}`}
           buoc={dai.map((o, i) => {
             const laMe = i + 1 === viTri.m;
@@ -340,6 +335,11 @@ export function ThsxCotPhai({
                   {cv.khuon.ten && <span>{cv.khuon.ten}</span>}
                 </span>
                 {cv.khuon.so_ke && !cv.khuon_da_nhan && <small>Lấy ở {cv.khuon.so_ke}</small>}
+                {/* Khuôn làm mới chưa về vẫn bấm nhận được: cầm dao trong tay là bằng chứng dao đã về,
+                    máy chủ lật danh mục sang Đang dùng (16/09/2026). Nói ra để tổ khỏi tưởng nút bấm nhầm. */}
+                {!cv.khuon_da_nhan && canAssign && cv.khuon.tinh_trang === "dang_dat_lam" && (
+                  <small>Khuôn làm mới về tới tay thì bấm Đã nhận khuôn, danh mục Khuôn tự đổi sang Đang dùng.</small>
+                )}
                 {!cv.khuon_da_nhan && canAssign && (
                   <div className="thsx-b-dd-nut">
                     <Button variant="secondary" onClick={onNhanKhuon} disabled={busy}>Đã nhận khuôn</Button>

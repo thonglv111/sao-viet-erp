@@ -1226,11 +1226,11 @@ def _canh_bao_chot(lines: list[LineOut], *, luot_chua_ve_kho: list[str] | None =
     if nhom.get("lan_ghi"):
         xs = nhom["lan_ghi"]
         parts.append(f"{len(xs)} lần ghi sản lượng chưa có tiền khoán ({vd(xs, True)}) — sửa lần ghi ở "
-                     "bàn tổ, rồi Tính lại")
+                     "Việc của tổ, rồi Tính lại")
     if nhom.get("dung_may"):
         xs = nhom["dung_may"]
         parts.append(f"{len(xs)} ngày dừng máy chưa chọn người hưởng ({vd(xs, False)}) — xoá rồi báo "
-                     "lại ở bàn tổ (Báo dừng máy), rồi Tính lại")
+                     "lại ở Việc của tổ (Báo dừng máy), rồi Tính lại")
     for c in kcb:
         parts.append(c.rstrip("."))
     if thieu_muc_bh:

@@ -700,7 +700,7 @@ export function KhoanTheoToTab({ token, eventTick = 0 }: { token: string; eventT
       {data == null && !loi && <EmptyState trangThai="dang-tai" inline nhanTai="Đang tải khoán theo tổ…" />}
       {data != null && data.to_id == null && (
         <EmptyState title="Kỳ này chưa có lần ghi sản lượng nào ra tiền khoán"
-          sub="Tổ ghi sản lượng ở bàn tổ, tiền khoán hiện ở đây theo kỳ." />
+          sub="Tổ ghi sản lượng ở Việc của tổ, tiền khoán hiện ở đây theo kỳ." />
       )}
 
       {data != null && data.to_id != null && data.quy && (
@@ -777,7 +777,7 @@ export function KhoanTheoToTab({ token, eventTick = 0 }: { token: string; eventT
             <>
               <h3>Hỏng máy, dừng máy</h3>
               <p className="ktt-hint">
-                Từ hộp Báo dừng máy ở bàn tổ. Mỗi ngày dừng ăn đúng chỉ tiêu ngày của tổ, chia theo lương bù lỗ của
+                Từ hộp Báo dừng máy ở Việc của tổ. Mỗi ngày dừng ăn đúng chỉ tiêu ngày của tổ, chia theo lương bù lỗ của
                 người được tick.
               </p>
               <div className="ktt-cuon">

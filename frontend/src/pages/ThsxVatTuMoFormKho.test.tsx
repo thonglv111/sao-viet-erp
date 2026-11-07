@@ -101,7 +101,7 @@ describe("dungTuCongViec — dựng form Kho từ công việc của bàn tổ",
     const f = dungTuCongViec(cv, capMoi, "moi", null, "Cắt 2");
     vi.useRealTimers();
     expect(f.tieuDe).toBe("Yêu cầu xuất kho");
-    expect(f.duongDan).toBe("Bàn tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới");
+    expect(f.duongDan).toBe("Việc của tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới");
     expect(f.loai).toBe("XUAT");
     expect(f.cotNen).toBe("Kế hoạch");
     expect(f.nhanSoLuong).toBe("Số lượng xin");
@@ -134,7 +134,7 @@ describe("dungTuCongViec — dựng form Kho từ công việc của bàn tổ",
   it("sửa đề nghị: số của chính lần đang sửa, bù dòng kế hoạch còn thiếu, có hàng Lần", () => {
     const f = dungTuCongViec(cv, capSua, "sua", lan1, "Cắt 2");
     expect(f.tieuDe).toBe("Sửa yêu cầu xuất kho YC26-0031");
-    expect(f.duongDan).toBe("Bàn tổ Cắt 2 › Cắt tờ của LSX26-0004 › Sửa yêu cầu");
+    expect(f.duongDan).toBe("Việc của tổ Cắt 2 › Cắt tờ của LSX26-0004 › Sửa yêu cầu");
     expect(f.cotNen).toBe("Kế hoạch");
     expect(f.nutGui).toBe("Lưu thay đổi");
     expect(f.canLuc).toBe("2026-10-09T10:00");
@@ -229,7 +229,7 @@ describe("Tab Vật tư mở form Kho", () => {
     ve(capMoi, ex);
     fireEvent.click(screen.getByRole("button", { name: /Yêu cầu cấp vật tư/ }));
     expect(await screen.findByText("Yêu cầu xuất kho")).toBeTruthy();
-    expect(screen.getByText("Bàn tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới")).toBeTruthy();
+    expect(screen.getByText("Việc của tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới")).toBeTruthy();
     expect(screen.getByText(CANH)).toBeTruthy();
     expect(screen.queryByText(/Lý do/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Gửi kho/ }));

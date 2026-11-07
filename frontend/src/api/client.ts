@@ -710,6 +710,8 @@ export type QuoteEvent =
       don_vi?: string | null;
       so_dat?: number | null;
       so_loi?: number | null;
+      /** Bước cuối: lỗi của lần kiểm KCS quy cho công đoạn khác (không tính vào `so_loi` của tổ). */
+      so_loi_quy_ve?: number | null;
       nguoi_kiem?: string | null;
     }
   // Yêu cầu NHẬP thành phẩm từ KCS đổi (KCS vừa gửi / kho ghi sổ). `trang_thai` = trạng thái yêu cầu
@@ -3328,8 +3330,8 @@ export interface LsxBuocMacDinh {
    *  Phải áp CÙNG LÚC với hai ô đơn vị: cờ là thuộc tính của cặp đơn vị, không phải của dòng. */
   tren_dong_giay: boolean;
   /** Cờ DỤNG CỤ của công đoạn mới — ô chọn khuôn của bước lọc kho theo `tooling_type`, mà client
-   *  không suy ra được nó từ tên. Áp cùng lúc, nếu không thì bước vừa đổi sang công đoạn cần
-   *  khung lụa vẫn bày dao BẾ. */
+   *  không suy ra được nó từ tên. Áp cùng lúc, nếu không thì bước vừa đổi sang công đoạn không cần
+   *  khuôn vẫn bày kho dao (nay chỉ còn khuôn bế; ép kim / khung lụa gỡ 01/10/2026). */
   requires_tooling: boolean;
   tooling_type: string | null;
   setup_phut: number;
@@ -19026,6 +19028,8 @@ export interface DonTienDoChuyen {
   kho_da_lap_phieu?: boolean;
   /** Kho đã GHI SỔ phiếu xuất của chuyến — mở nút in phiếu xuất bán hàng / 02-VT. */
   kho_da_xuat?: boolean;
+  /** Số phiếu xuất kho chưa huỷ của chuyến — bản tắt giao hàng gọi lần xuất bằng số này. */
+  phieu_xuat_ma?: string[];
   so_anh: number;
 }
 

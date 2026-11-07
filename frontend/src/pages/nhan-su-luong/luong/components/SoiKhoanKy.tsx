@@ -189,7 +189,7 @@ export function SoiKhoanKy({
             </div>
           )}
           <p className="cc-note">
-            Sai số lượng thì sửa ở bàn tổ, sai giá thì sửa ở Danh mục → Công đoạn → tab Khoán, rồi bấm
+            Sai số lượng thì sửa ở Việc của tổ, sai giá thì sửa ở Danh mục → Công đoạn → tab Khoán, rồi bấm
             Tính lại.
           </p>
         </div>

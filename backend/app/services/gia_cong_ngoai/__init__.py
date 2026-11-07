@@ -14,7 +14,7 @@ TT_DA_HUY = "da_huy"
 # Câu chặn chung cho mọi cửa xưởng (bàn tổ, ghi mẻ, KCS) gặp công việc gia công ngoài.
 CHAN_XUONG = (
     "Công việc Gia công ngoài — ghi nhận ở khối Gia công ngoài trên lệnh (Đã mang đi / Chốt số), "
-    "không làm ở bàn tổ hay KCS."
+    "không làm ở Việc của tổ hay KCS."
 )
 
 

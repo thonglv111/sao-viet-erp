@@ -55,12 +55,13 @@ export function locPhongBanLenUrl(loc: LocPhongBan): GiaTriUrl {
   };
 }
 
-export function dieuKienPhongBan(dem: DemPhongBan): DieuKien<LocPhongBan>[] {
+/** `anGiaoHang`: bản cài tắt giao hàng thì bỏ lựa chọn Khối "Giao hàng" (04/11/2026). */
+export function dieuKienPhongBan(dem: DemPhongBan, anGiaoHang = false): DieuKien<LocPhongBan>[] {
   const giaTri = (ds: [string, string][]): GiaTriDK[] =>
     ds.map(([value, nhan]) => ({ value, nhan, so: dem[value] }));
   return [
     {
-      khoa: "khoi", nhan: "Khối", icon: Layers, kieu: "nhieu", giaTri: giaTri(KHOI),
+      khoa: "khoi", nhan: "Khối", icon: Layers, kieu: "nhieu", giaTri: giaTri(anGiaoHang ? KHOI.filter(([k]) => k !== "giao_hang") : KHOI),
       doc: (l) => l.khoi,
       ghi: (l, v) => ({ ...l, khoi: v }),
     },

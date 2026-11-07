@@ -244,8 +244,9 @@ class PhieuThanhPham(Base):
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # PHÍ KHUÔN của CHÍNH bước này — khoản MỘT LẦN (không nhân số lượng).
     #
-    # Chỉ có nghĩa khi công đoạn nguồn bật `requires_tooling` với `tooling_type` là dao/dụng cụ lưu
-    # kho (`khuon_be` · `khuon_ep` · `khung_lua`). `kem` KHÔNG có ô: bản kẽm là vật tư tiêu hao, mỗi
+    # Chỉ có nghĩa khi công đoạn nguồn bật `requires_tooling` với `tooling_type = khuon_be` (ép kim /
+    # khung lụa gỡ 01/10/2026). Phiếu KHÔNG chọn con khuôn nào trong danh mục Khuôn — chỉ có phí này
+    # và `khuon_nguon`; chọn khuôn cụ thể là việc của bước lệnh SX. `kem` KHÔNG có ô: bản kẽm là vật tư tiêu hao, mỗi
     # bài phơi mới, và tiền nó đã nằm trong công thức của bước chế bản (`so_kem × đơn giá`) — thêm
     # ô là tính hai lần.
     #

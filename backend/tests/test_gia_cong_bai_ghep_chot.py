@@ -153,3 +153,15 @@ def test_buoc_chung_cuoi_nhap_kho_tung_lenh(sess, orders, lsx_svc, admin, custom
     assert all(r.trang_thai == REQ_CANCELLED for r in
                sess.query(StockRequest).filter_by(gia_cong_ngoai_id=lan.id))
     assert sess.query(SanXuatKcsBatch).filter_by(cong_viec_id=can.id).count() == 0
+
+
+def test_tat_giao_hang_thi_lan_cuoi_chi_ve_kho(sess, monkeypatch):
+    """Bản cài tắt giao hàng: Giao thẳng cho khách ghi chuyến giao vào phân hệ không có ⇒ chỉ còn kho."""
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.services.gia_cong_ngoai.lan import NOI_VE_KHO, noi_ve_hop_le
+
+    monkeypatch.setattr(get_settings(), "phan_he_tat", "giao_hang")
+    gcn = SimpleNamespace(bai_ghep_id=None, lsx_id=-1)
+    assert noi_ve_hop_le(sess, gcn, []) == [NOI_VE_KHO]

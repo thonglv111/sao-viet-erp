@@ -1029,7 +1029,7 @@ export interface DongTuCongViec extends SeedLine {
  *  đã biết theo nút bấm nên ẩn, lệnh khoá theo việc, có cột nền Kế hoạch / Đã xin, giờ cần bắt buộc,
  *  gửi qua `onGui` (đường của tổ) thay cho `api.kho.deNghi.create`. */
 export interface TuCongViec {
-  duongDan: string;               // "Bàn tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới"
+  duongDan: string;               // "Việc của tổ Cắt 2 › Cắt tờ của LSX26-0004 › Tạo mới"
   tieuDe: string;                 // "Yêu cầu xuất kho" | "Sửa yêu cầu xuất kho YC26-0031" | "Yêu cầu nhập kho"
   loai: StockRequestKind;         // XUAT cho moi/bo_sung/sua, NHAP cho nhap_lai — seg Nhập/Xuất ẨN
   cotNen: string | null;          // "Kế hoạch" | "Đã xin" | null (nhập lại không có cột nền)

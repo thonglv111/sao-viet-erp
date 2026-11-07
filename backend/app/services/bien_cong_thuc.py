@@ -181,7 +181,7 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
     # và hai tầng đó không còn nhân đơn giá nào (spec "Sản xuất chỉ ghi số lượng"). Công thức RA
     # TIỀN vì thế chỉ chạy ở màn của kế toán lương. Ngữ cảnh không đứng ở đầu việc nào (công thức
     # của máy, của đơn vị quy đổi, của Giấy/Vật tư) cũng là 0 — chip bị ẩn ở những ô đó
-    # (`AN_MOI_O` bên frontend), y hệt cách ba chip khuôn ép kim chỉ hiện ở bước khai khuôn ép.
+    # (`AN_MOI_O` bên frontend).
     ("don_gia_khoan", "Đơn giá khoán",
      "Đơn giá của CHÍNH đầu việc khoán đang khai — dùng chip này thì công thức RA TIỀN, "
      "hệ không nhân đơn giá lần nữa", "đ",
@@ -193,7 +193,7 @@ _BANG: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
 # Đợt 2 (21/10/2026): gỡ `sl_tot` (chủ: một chip số lượng duy nhất), thêm `so_lan_chay` / `tien_gio`
 # / `tu_tro`. Tuỳ chọn khi ghi của từng công đoạn là chip riêng, không nằm ở bảng này.
 _RIENG_KHOAN: tuple[tuple[str, str, str, str, str, tuple[str, ...]], ...] = (
-    ("sl_ghi", "SL ghi", "Số lượng thợ ghi ở lần ghi — cột Số lượng của bàn tổ", "đơn vị của lần ghi",
+    ("sl_ghi", "SL ghi", "Số lượng thợ ghi ở lần ghi — cột Số lượng ở Việc của tổ", "đơn vị của lần ghi",
      "ô Số lượng của lần ghi sản lượng", (LOAI_KHOAN,)),
     ("gia_co_dinh", "Giá cố định", "Giá cố định của tổ ghi (vd giá một bài in)", "đ",
      "Giá cố định chung hoặc bảng Giá theo tổ — ảnh chụp lúc ghi", (LOAI_KHOAN,)),

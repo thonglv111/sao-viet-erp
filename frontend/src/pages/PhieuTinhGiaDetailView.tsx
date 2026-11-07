@@ -3657,6 +3657,9 @@ function ComponentModal({
               {/* PHÍ KHUÔN — chỉ mọc khi chuỗi có bước cần dao lưu kho. Chuỗi toàn bước phẳng thì
                   khối này không tồn tại, màn hình không đổi một pixel.
 
+                  Khối này KHÔNG chọn con khuôn nào trong danh mục Khuôn: chỉ hỏi "có sẵn / làm mới"
+                  và phí làm khuôn. Chọn khuôn cụ thể là việc ở bước của lệnh sản xuất.
+
                   Không gắn ô vào chip được: chip chỉ có tên + dấu ×, nhét input vào là vỡ hàng và
                   mất luôn nghĩa "kéo thả thứ tự". Nên tách thành khối con ngay dưới dãy chip. */}
               {(() => {

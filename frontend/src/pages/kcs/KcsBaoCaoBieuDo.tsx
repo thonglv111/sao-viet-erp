@@ -238,7 +238,9 @@ function XepHang({ ds, mau, chon, onChon, gy }: {
               </span>
               <span className="kcsb-xh__so">
                 {num(a.lan)} lần
-                <small>{dv[0]}{dv.length > 1 ? ` +${dv.length - 1} đơn vị` : ""}</small>
+                {/* Hai đơn vị không cộng được (tờ in với cái) nên nói đủ cả hai; "+1 đơn vị" giấu mất
+                    số thứ hai (05/11/2026). Quá hai thì đếm phần còn lại, rê chuột xem đủ. */}
+                <small>{dv.slice(0, 2).join(" và ")}{dv.length > 2 ? ` và ${dv.length - 2} đơn vị khác` : ""}</small>
               </span>
             </button>
           );

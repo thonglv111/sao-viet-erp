@@ -24,6 +24,7 @@ import {
 } from "./xlShared";
 import "./ke-toan/ke-toan.css";
 import { nhanChang } from "./lsxBuoc";
+import { useNapTenDonVi } from "./tenDonVi";
 import { cauChuaTinhGio, goiDaThuHoi, soBuocChuaGio } from "./xlNganSo";
 
 /** Bộ màu + biểu tượng theo loại bước — cùng bộ của lưới (`.xa-m-*`). */
@@ -229,6 +230,8 @@ export function XlNgan({
   len?: () => void;
   xuong?: () => void;
 }) {
+  // Nhãn chặng (`to` → "tờ in") nạp một lần cho phiên; thiếu dòng này thì cột số lượng in mã trần.
+  useNapTenDonVi();
   const [tab, setTab] = useState("chi-tiet");
   const [chep, setChep] = useState(false);
   const [chon, setChon] = useState<number[]>([]);

@@ -4581,7 +4581,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `lsx_id` | `Integer` | **FK→lsx.id** (CASCADE), IX | yes | — | Chủ thể giữ chỗ khi lệnh in RIÊNG. |
 | `bai_ghep_id` | `Integer` | **FK→bai_ghep.id** (CASCADE), IX | yes | — | Chủ thể giữ chỗ khi lệnh đã GHÉP — bài đại diện, lệnh thành viên không giữ riêng. |
 | `purchase_request_line_id` | `Integer` | **FK→purchase_request_lines.id** (SET NULL), IX | yes | — | [MỚI 30/08/2026] Dòng phiếu mua làm phát sinh phần giữ — CHỈ có ý nghĩa khi `nguon='dang_ve'`. Để đối soát đúng dòng khi PMH đổi thay vì đoán theo mặt hàng. |
-| `so_luong` | `Numeric(14,2)` | — | no | — | Theo **ĐƠN VỊ GỐC** của mặt hàng (`don_vi_gia`) — cùng thang `stock_lots.sl_con_lai`, khỏi quy đổi lần nữa khi trừ tồn tự do. |
+| `so_luong` | `Numeric(14,4)` | — | no | — | Theo **ĐƠN VỊ GỐC** của mặt hàng (`don_vi_gia`) — cùng thang và cùng 4 số lẻ với `stock_lots.sl_con_lai`, khỏi quy đổi lần nữa khi trừ tồn tự do. Trước mg `0453` là `Numeric(14,2)`: nhu cầu lẻ tới 4 số thì phần dư 0,004–0,005 làm tròn ra 0, ô đứng mãi ở Chưa giữ. |
 | `nguon` | `String(10)` | — | no | `kho` | `kho` = hàng đang nằm trong kho ⇒ lệnh xếp lịch ngày nào cũng được. `dang_ve` = bám vào lô đang mua ⇒ lịch **không được đặt trước `ngay_ve`**. |
 | `ngay_ve` | `Date` | — | yes | — | Chỉ có nghĩa khi `nguon='dang_ve'` — ngày lô về tới kho, là **CHẶN DƯỚI của lịch**. Trống thì KHÔNG thành giữ chỗ: hàng không có ngày về thì không hứa được với lệnh nào (cùng luật `_hang_dang_ve` ở bảng cân đối). |
 | `created_at` | `DateTime(timezone=True)` | — | no | now | |

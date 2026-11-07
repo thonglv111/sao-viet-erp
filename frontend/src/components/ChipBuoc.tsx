@@ -40,7 +40,7 @@ export function ChipLoaiBuoc({
     const cu = (nha_cung_cap ?? "").trim();   // dữ liệu CŨ còn sót thì vẫn bày ra
     return (
       <span className="chip-buoc chip-buoc--ngoai">
-        {cu ? `Ngoài · ${cu}` : "Thuê ngoài"}
+        {cu ? `Thuê ngoài ${cu}` : "Thuê ngoài"}
       </span>
     );
   }
@@ -66,8 +66,9 @@ export function ChipKhuon({
   khuon?: KhuonChip | null;
 }) {
   if (!can_khuon) return null;
-  // Nhãn dựng thành MỘT chuỗi rồi mới render: ghép `{ma}{" · "}{ke}` trong JSX đẻ ra nhiều text
-  // node, chuỗi hiện đúng nhưng máy đọc màn hình (và cả test) thấy ba mảnh rời.
+  // Nhãn dựng thành MỘT chuỗi rồi mới render: ghép nhiều mảnh trong JSX đẻ ra nhiều text node, chuỗi
+  // hiện đúng nhưng máy đọc màn hình (và cả test) thấy mảnh rời. Mã và tình trạng nối bằng chữ như
+  // câu nói ("KB-0123 ở Kệ A3"), không nối bằng dấu chấm giữa (05/11/2026).
   let cls = "co";
   let chu: string;
   if (!khuon || !khuon.ma) {
@@ -77,14 +78,14 @@ export function ChipKhuon({
     chu = "chưa chốt khuôn";
   } else if (khuon.da_nhan) {
     cls = "nhan";
-    chu = `${khuon.ma} · đã nhận`;
+    chu = `${khuon.ma} đã nhận`;
   } else if (khuon.tinh_trang === "dang_dat_lam") {
     // Không còn ngày dự kiến (mg `0293` gỡ cột): chip nói ĐÚNG cái hệ biết — dao chưa trong tay.
     cls = "cho";
-    chu = `${khuon.ma} · đang đặt làm`;
+    chu = `${khuon.ma} đang đặt làm`;
   } else {
     const ke = (khuon.so_ke ?? "").trim();
-    chu = ke ? `${khuon.ma} · ${ke}` : String(khuon.ma);
+    chu = ke ? `${khuon.ma} ở ${ke}` : String(khuon.ma);
   }
   return (
     <span className={`chip-khuon chip-khuon--${cls}`}>
@@ -121,16 +122,16 @@ export function nhanTomTat(n?: NhanBuoc | null): string {
   const ra: string[] = [];
   if (n?.loai_buoc === "thue_ngoai") {
     const cu = (n.nha_cung_cap ?? "").trim();
-    ra.push(cu ? `Ngoài · ${cu}` : "Thuê ngoài");
+    ra.push(cu ? `Thuê ngoài ${cu}` : "Thuê ngoài");
   }
   if (n?.khuon_ma) {
     ra.push(
       n.khuon_da_nhan
-        ? `${n.khuon_ma} · đã nhận`
+        ? `${n.khuon_ma} đã nhận`
         : n.khuon_tinh_trang === "dang_dat_lam"
-          ? `${n.khuon_ma} · đang đặt làm`
-          : `${n.khuon_ma}${(n.khuon_so_ke ?? "").trim() ? ` · ${n.khuon_so_ke}` : ""}`,
+          ? `${n.khuon_ma} đang đặt làm`
+          : `${n.khuon_ma}${(n.khuon_so_ke ?? "").trim() ? ` ở ${n.khuon_so_ke}` : ""}`,
     );
   }
-  return ra.join(" · ");
+  return ra.join("\n");
 }
