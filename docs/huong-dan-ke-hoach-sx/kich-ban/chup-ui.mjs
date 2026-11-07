@@ -11,7 +11,7 @@ const { chromium } = require("playwright");
 const [, , kichBan, raDir] = process.argv;
 const env = readFileSync("D:/jobs/SVN/.env.example", "utf8");
 const lay = (k) => (env.match(new RegExp(`^${k}=(.*)$`, "m")) || [])[1]?.trim();
-const BASE = "http://localhost:5173";
+const BASE = process.env.CHUP_BASE || "http://localhost:5173"; // frontend Hà Phương: CHUP_BASE=http://localhost:5273
 
 const browser = await chromium.launch({ channel: "chrome" });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1.5, locale: "vi-VN", colorScheme: "light" });
