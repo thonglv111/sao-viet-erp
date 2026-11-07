@@ -622,6 +622,8 @@ const MODULE_HINTS: Record<string, string> = {
     "Xem: bài ghép. Thao tác: tạo, sửa bài ghép.",
   xep_lich:
     "Xem: lịch xưởng. Thao tác: xếp, dời, bỏ lịch.",
+  ke_hoach_bo_phan:
+    "Xem: việc lệnh đã phát tới bộ phận, quy cách in và tệp của lệnh. Thao tác: xếp vào máy, chọn nhóm, giao xuống tổ, rút lại. Lưu ý: phạm vi Tất cả là mọi bộ phận, Cả phòng là bộ phận của người dùng.",
   ky_thuat_may:
     "Xem: phiếu sửa chữa và máy được báo hỏng. Thao tác: nhận phiếu, ghi đã sửa, tải ảnh, xác nhận xong.",
   phieu_bao_tri:
@@ -805,6 +807,8 @@ const MODULE_GROUPS: {
       "ke_hoach_vat_tu",
       "bai_ghep_2",
       "xep_lich",
+      // Kế hoạch bộ phận (07/11/2026): lệnh đã phát tới bộ phận, bộ phận xếp máy, chọn nhóm, Giao.
+      "ke_hoach_bo_phan",
       "kcs",
     ],
   },
@@ -1123,6 +1127,9 @@ const PHAM_VI_CHO_PHEP: Record<string, Scope[]> = {
   bao_cao_cong_no: ["all"],
   bao_cao_thu_chi: ["all"],
   nhan_su: ["department", "all"],
+  // Kế hoạch bộ phận: máy chủ chỉ phân hai mức, Tất cả = mọi bộ phận, còn lại = bộ phận chứa phòng
+  // của người xem (`KeHoachBoPhanService.bo_phan_thay_duoc`) ⇒ "Của tôi" không có nghĩa riêng.
+  ke_hoach_bo_phan: ["department", "all"],
   // Bốn màn sổ sách kế toán / tài sản (05/10/2026): máy chủ KHÔNG đọc phạm vi của các khoá này
   // (`routers/accounting.py`, `routers/tai_san.py`) — chọn gì cũng thấy toàn bộ. Nay vào
   // `SCOPELESS_MODULES` (ép `all` lúc lưu), giao diện khoá cho khớp.

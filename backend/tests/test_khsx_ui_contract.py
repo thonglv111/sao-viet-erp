@@ -36,11 +36,17 @@ def _nhan(path: Path) -> str:
     return re.sub(r"\s+", " ", path.read_text(encoding="utf-8")).casefold()
 
 
-def test_drawer_chi_co_mot_o_nhap_so_luot_chay() -> None:
+def test_drawer_lenh_khong_con_o_luot_chay_va_tab_phan_cong() -> None:
+    """07/11/2026 (`docs/design-lenh-san-xuat-ke-hoach-bo-phan.md`): lệnh không chọn tổ, máy, giờ
+    nữa ⇒ ngăn bước gỡ hai tab "Phân công & Thiết bị" và "Tiến độ & Thời gian", kéo theo ô số
+    lượt qua máy. Máy, nhóm, thứ tự do bộ phận chọn ở Kế hoạch bộ phận."""
     source = DRAWER.read_text(encoding="utf-8")
 
-    assert source.count('set("so_luot_chay", e.target.value)') == 1
-    assert "số lượt qua máy" in _nhan(DRAWER)  # nhãn rút gọn khi làm gọn drawer 06/10/2026
+    assert 'set("so_luot_chay"' not in source
+    assert "số lượt qua máy" not in _nhan(DRAWER)
+    assert '{ key: "cau_hinh", label: "Cấu hình & Số lượng" }' in source
+    assert 'key: "phu_thuoc", label: "Phụ thuộc"' in source
+    assert 'ariaLabel="Bộ phận nhận"' in source
 
 
 def test_cong_doan_khong_khai_loai_thuc_hien_hoac_may_mac_dinh() -> None:
@@ -93,18 +99,18 @@ def test_drawer_hien_nhan_luc_ke_thua_va_ket_qua_thoi_gian_o_cuoi() -> None:
     # tính giờ bằng SỐ GIỜ KẾ HOẠCH gõ tay, bước máy theo tốc độ máy. Ô kíp không được quay lại.
     assert "kíp chuẩn (định mức công đoạn)" not in source
     assert "điền sẵn từ định mức đầu việc của công đoạn" not in source
-    # Nguồn tính đứng TRƯỚC kết quả — đọc từ "vì sao ra số này" rồi mới tới con số.
-    assert "nguồn tính" in source
-    assert "thời gian chiếm máy" in source
-    # Ô KPI "Tổng thời gian hoàn thành" GỠ khi làm gọn drawer 06/10/2026 — mỗi thông tin nói một lần.
-    assert source.index("nguồn tính") < source.index("thời gian chiếm máy")
+    # 07/11/2026: lệnh không còn tính giờ chạy (giờ phụ thuộc máy mà lệnh không chọn máy) ⇒ khối
+    # "Nguồn tính / Thời gian chiếm máy" gỡ cùng tab Tiến độ & Thời gian.
+    assert "nguồn tính" not in source
+    assert "thời gian chiếm máy" not in source
 
 
 def test_drawer_doi_dau_viec_cap_nhat_dinh_muc_va_thoi_gian_live() -> None:
     source = DRAWER.read_text(encoding="utf-8")
     model = (DRAWER.parent / "lsxBuoc.ts").read_text(encoding="utf-8")
 
-    assert "thoiLuongLive" in source
+    # 07/11/2026: ngăn bước của lệnh thôi hiện giờ; `thoiLuongLive` còn phục vụ bước chung bài ghép.
+    assert "thoiLuongLive" not in source
     assert "export function thoiLuongLive" in model
     # 18/09/2026 (mg `0321`): bước thôi chọn đầu việc, bước TỔ = SỐ GIỜ KẾ HOẠCH × 60 — mirror FE
     # phải cùng phép với `thoi_luong_buoc` ở server, không còn nhân năng suất × số người.
@@ -156,7 +162,8 @@ def test_thue_ngoai_chon_nha_gia_cong_khong_to_may() -> None:
         assert '"giao_nhan"' not in src
         assert "khsx-gn-badge" not in src
         assert "onGiaoNhan(" not in src
-    assert 'LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"]' in drawer
+    # 07/11/2026: bước lệnh chỉ còn Nội bộ (khoá `may`) hoặc Gia công (`thue_ngoai`), không chọn tổ.
+    assert 'LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "thue_ngoai"]' in drawer
     # Ô chọn đọc danh mục Nhà cung cấp tích "Nhận gia công", không gõ chữ tự do.
     assert "api.giaCongNgoai.nhaGiaCong" in drawer
     # Đổi sang thuê ngoài là dọn tổ / máy / vật tư ngay trong bản nháp — luật nằm ở `patchLoaiBuoc`

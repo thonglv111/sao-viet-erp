@@ -102,6 +102,25 @@ def _phat_hanh_vao_to(db, orders, lsx_svc, admin, customer, to_id: int):
     return a, b, goi
 
 
+def _bo_phan_giao(db, admin, *bo_phan: Department) -> None:
+    """Từ 07/11/2026 việc Nội bộ phát tới BỘ PHẬN (con trực tiếp của gốc khối), bàn tổ chỉ thấy sau
+    khi bộ phận bấm Giao (`docs/design-lenh-san-xuat-ke-hoach-bo-phan.md`). Bộ phận có một nhóm lá
+    hoặc tự làm thì nhóm điền sẵn ⇒ Giao thẳng như người bấm nút."""
+    from app.models.lsx import TT_DA_PHAT_HANH, Lsx
+    from app.services.ke_hoach_bo_phan import KeHoachBoPhanService
+
+    # `release.phat_hanh` ở tầng service không lật trạng thái lệnh (router xếp lịch lật); khay bộ
+    # phận chỉ nhận việc của lệnh đã phát hành.
+    lsx_ids = {i for (i,) in db.query(SanXuatCongViec.lsx_id).filter(
+        SanXuatCongViec.bo_phan_id.in_([bp.id for bp in bo_phan])).distinct() if i}
+    for lid in lsx_ids:
+        db.get(Lsx, lid).trang_thai = TT_DA_PHAT_HANH
+    db.commit()
+    svc = KeHoachBoPhanService(db, user=admin, scope=SCOPE_ALL)
+    for bp in bo_phan:
+        assert svc.giao(bp.id), f"bộ phận {bp.name} không có việc nào để giao"
+
+
 def _authz(db) -> AuthorizationService:
     return AuthorizationService(RoleRepository(db))
 
@@ -439,6 +458,8 @@ def test_ban_nut_cha_gom_viec_cua_to_con(db, orders, lsx_svc, admin, customer):
     db.commit()
     release.phat_hanh(db, lsx_ids={a.id, b.id}, actor=admin)
     db.commit()
+    # Bước gắn Nhóm 2 màu thuộc bộ phận Tổ in ⇒ Giao xuống nhóm đó; Tổ cắt tự làm.
+    _bo_phan_giao(db, admin, c.to_in, c.to_cat)
 
     quan_doc = _nguoi(db, "quan_doc_sx", c.goc)
     cap_quyen_to(db, quan_doc, c.goc, scope=SCOPE_ALL)
@@ -623,6 +644,7 @@ def test_chi_tiet_quyen_muc_own_chi_bat_tren_viec_dang_giao(db, orders, lsx_svc,
     việc đang giao cho mình, tắt trên việc người khác; quyền không được cấp luôn tắt."""
     c = _cay_san_xuat(db)
     _phat_hanh_vao_to(db, orders, lsx_svc, admin, customer, c.to_in.id)
+    _bo_phan_giao(db, admin, c.to_in)   # việc xuống Nhóm 2 màu, bàn Tổ in gom thấy
     u = _tho_co_tai_khoan(db, c.to_in, username="tho_board_own", ma_nv="NV-BOARD-OWN",
                           pham_vi=SCOPE_ALL, viec=())
     cap_quyen_to(db, u, c.goc, scope=SCOPE_OWN, viec=("run_order",), xem=False)
@@ -653,6 +675,7 @@ def test_dong_bang_chay_duoc_theo_quyen_thuc_hien(db, orders, lsx_svc, admin, cu
     cho mình. Hai hình bàn (lệnh, phẳng) phải nói giống nhau."""
     c = _cay_san_xuat(db)
     _phat_hanh_vao_to(db, orders, lsx_svc, admin, customer, c.to_in.id)
+    _bo_phan_giao(db, admin, c.to_in)
     u = _tho_co_tai_khoan(db, c.to_in, username="tho_board_chay", ma_nv="NV-BOARD-CHAY",
                           pham_vi=SCOPE_ALL, viec=())
     db.commit()
