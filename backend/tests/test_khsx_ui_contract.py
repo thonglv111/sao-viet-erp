@@ -259,7 +259,8 @@ def test_lenh_giu_cho_vat_tu_thi_bang_routing_khoa_va_noi_ra() -> None:
     """
     source = ROUTING.read_text(encoding="utf-8")
 
-    assert "const suaDuoc = canUpdate && !giuCho;" in source
+    # `khoa` = lý do server khoá routing theo trạng thái lệnh (đã lập kế hoạch, phát hành, đóng).
+    assert "const suaDuoc = canUpdate && !giuCho && !khoa;" in source
     # Mọi CỬA GHI phải đi qua `suaDuoc`. Còn sót `canUpdate` trần trong JSX là còn một đường sửa
     # mở ra trong lúc server đang khoá — đúng cái lỗ này.
     assert "{canUpdate && (" not in source
@@ -267,7 +268,8 @@ def test_lenh_giu_cho_vat_tu_thi_bang_routing_khoa_va_noi_ra() -> None:
     assert "draggable={suaDuoc}" in source
     # Băng nói lý do + đường lùi, và nó phải là băng RIÊNG (điều kiện `canUpdate && giuCho`), không
     # dựa vào `suaDuoc` — `suaDuoc` đã false nên dùng nó là băng không bao giờ hiện.
-    assert "{canUpdate && giuCho && (" in source
+    # Có câu khoá của server thì băng đó nói thay, băng giữ chỗ nhường để khỏi nói hai lần.
+    assert "{canUpdate && !khoa && giuCho && (" in source
     assert "khsx-ghep-bang--khoa" in source
     assert "Nhả chỗ" in source
 
