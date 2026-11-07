@@ -19364,3 +19364,20 @@ def _migrate_giu_cho_bon_so_le(db: Session) -> None:
 
 
 MIGRATIONS.append(("0453_giu_cho_bon_so_le", _migrate_giu_cho_bon_so_le))
+
+def _migrate_go_bleed_khe_cat(db: Session) -> None:
+    """0454 (07/11/2026) — gỡ `phieu_thanh_phan.bleed_mm` + `khe_cat_mm` (thêm ở mg 0108). Chủ dự
+    án bỏ hai ô "Bleed (tràn lề)" và "Khe cắt giữa con" trên phiếu tính giá: bình bài lấy đúng kích
+    thước thành phẩm, xếp sát nhau. Giữ cột mà không còn ô nhập thì số cũ vẫn âm thầm đổi số con/tờ
+    ⇒ DROP hẳn. Ảnh chụp quy cách của lệnh cũ còn khoá `bleed_mm` trong JSON thì không ai đọc nữa."""
+    insp = inspect(db.get_bind())
+    if "phieu_thanh_phan" not in insp.get_table_names():
+        return
+    cols = _existing_columns(insp, "phieu_thanh_phan")
+    for col in ("bleed_mm", "khe_cat_mm"):
+        if col in cols:
+            db.execute(text(f"ALTER TABLE phieu_thanh_phan DROP COLUMN {col}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0454_go_bleed_khe_cat", _migrate_go_bleed_khe_cat))

@@ -373,7 +373,7 @@ def test_snapshot_chep_du_moi_o_nhap(db):
         don_vi_tinh="hộp", nhom_bao_gia="Bộ hộp", dvt_nhom="bộ",
         giay_id=101, song_id=102, kho_nguyen="65x86", kho_nguyen_dai=650, kho_nguyen_rong=860,
         don_gia_giay=25000, don_gia_don_vi="kg", nguon_giay="khach", chua_nhip=12,
-        bleed_mm=3, khe_cat_mm=2, co_in=False, che_ban_loai="ctp", che_ban_don_gia=150_000,
+        co_in=False, che_ban_loai="ctp", che_ban_don_gia=150_000,
         quy_cach_in="tu_tro", kho_in_dai=430, kho_in_rong=650, so_con=8, con_auto=False,
         may_id=201, don_gia_cong_in=500, muc_a=["C", "M"], muc_b=["K"],
         ghi_chu_ky_thuat="canh màu như mẫu", phi_giao_hang=750_000,

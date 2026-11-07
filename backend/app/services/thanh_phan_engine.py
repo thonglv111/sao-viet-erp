@@ -732,12 +732,11 @@ def _fit(outer_d: float, outer_r: float, inner_d: float, inner_r: float) -> int:
     return max(straight, rotated)
 
 
-def _suc_chua(usable: float, canh: float, khe: float) -> int:
-    """Số ô xếp trên 1 chiều: k×cạnh + (k−1)×khe ≤ usable ⟺ k ≤ (usable+khe)/(cạnh+khe). >= 0."""
-    buoc = canh + khe
-    if buoc <= 0 or usable <= 0:
+def _suc_chua(usable: float, canh: float) -> int:
+    """Số ô xếp sát nhau trên 1 chiều: k×cạnh ≤ usable. >= 0."""
+    if canh <= 0 or usable <= 0:
         return 0
-    return max(floor((usable + khe) / buoc), 0)
+    return max(floor(usable / canh), 0)
 
 
 def chua_theo_chieu(tp: dict) -> tuple[float, float]:
@@ -767,25 +766,22 @@ def chua_theo_chieu(tp: dict) -> tuple[float, float]:
 
 def binh_bai_layout(*, kho_in_dai: float, kho_in_rong: float, dai_tp: float, rong_tp: float,
                     chua_mm: float = 0.0, chua_dai_mm: float | None = None,
-                    chua_rong_mm: float | None = None,
-                    bleed_mm: float = 0.0, khe_cat_mm: float = 0.0) -> dict:
+                    chua_rong_mm: float | None = None) -> dict:
     """Bình bài ③ lên ② (trừ chừa) — trả LAYOUT đầy đủ để FE vẽ sơ đồ ĐÚNG engine.
 
     CHỪA TÁCH THEO CHIỀU: `chua_dai_mm` (nhíp giấy + đuôi/thanh màu — cạnh nạp, ăn chiều DÀI) và
     `chua_rong_mm` (lề hông 2 bên — ăn chiều RỘNG). Bỏ trống CẢ HAI thì lùi về `chua_mm` trừ đều
     mỗi chiều như bản cũ — caller cũ giữ nguyên hành vi.
 
-    Con để bình = ③ + 2×`bleed_mm` mỗi chiều (tràn lề); giữa 2 con kề nhau chừa `khe_cat_mm`
-    (n con chỉ có n−1 khe, không phải n).
+    Con để bình = đúng thành phẩm ③, xếp sát nhau. Bleed (tràn lề) và khe cắt giữa con đã GỠ
+    07/11/2026 (mg 0454): phiếu không còn hai ô đó, kích thước dài/rộng thành phẩm là kích thước bình.
 
     Trả {con, cols, rows, rotated, usable_dai, usable_rong, chua_dai, chua_rong, piece_dai,
     piece_rong, kho_in_dai, kho_in_rong, dai_tp, rong_tp}. cols = theo chiều RỘNG, rows = chiều DÀI.
     """
     chua_d = _f(chua_mm) if chua_dai_mm is None else _f(chua_dai_mm)
     chua_r = _f(chua_mm) if chua_rong_mm is None else _f(chua_rong_mm)
-    bleed, khe = max(_f(bleed_mm), 0.0), max(_f(khe_cat_mm), 0.0)
-    piece_d = dai_tp + 2 * bleed if dai_tp > 0 else dai_tp
-    piece_r = rong_tp + 2 * bleed if rong_tp > 0 else rong_tp
+    piece_d, piece_r = dai_tp, rong_tp
     usable_d = max(kho_in_dai - chua_d, 0.0)
     usable_r = max(kho_in_rong - chua_r, 0.0)
     base = {"kho_in_dai": kho_in_dai, "kho_in_rong": kho_in_rong,
@@ -795,10 +791,10 @@ def binh_bai_layout(*, kho_in_dai: float, kho_in_rong: float, dai_tp: float, ron
             "piece_dai": piece_d, "piece_rong": piece_r}
     if piece_d <= 0 or piece_r <= 0 or usable_d <= 0 or usable_r <= 0:
         return {**base, "con": 0, "cols": 0, "rows": 0, "rotated": False}
-    s_rows = _suc_chua(usable_d, piece_d, khe)      # thẳng
-    s_cols = _suc_chua(usable_r, piece_r, khe)
-    r_rows = _suc_chua(usable_d, piece_r, khe)      # xoay 90°
-    r_cols = _suc_chua(usable_r, piece_d, khe)
+    s_rows = _suc_chua(usable_d, piece_d)      # thẳng
+    s_cols = _suc_chua(usable_r, piece_r)
+    r_rows = _suc_chua(usable_d, piece_r)      # xoay 90°
+    r_cols = _suc_chua(usable_r, piece_d)
     if r_rows * r_cols > s_rows * s_cols:
         rows, cols, rot = r_rows, r_cols, True
     else:
@@ -811,13 +807,11 @@ def binh_bai_layout(*, kho_in_dai: float, kho_in_rong: float, dai_tp: float, ron
 
 def binh_bai_con(*, kho_in_dai: float, kho_in_rong: float, dai_tp: float, rong_tp: float,
                  chua_mm: float = 0.0, chua_dai_mm: float | None = None,
-                 chua_rong_mm: float | None = None,
-                 bleed_mm: float = 0.0, khe_cat_mm: float = 0.0) -> int:
+                 chua_rong_mm: float | None = None) -> int:
     """Số con/tờ in (chỉ số) — bọc `binh_bai_layout`. mm. >= 0."""
     return binh_bai_layout(kho_in_dai=kho_in_dai, kho_in_rong=kho_in_rong,
                            dai_tp=dai_tp, rong_tp=rong_tp, chua_mm=chua_mm,
-                           chua_dai_mm=chua_dai_mm, chua_rong_mm=chua_rong_mm,
-                           bleed_mm=bleed_mm, khe_cat_mm=khe_cat_mm)["con"]
+                           chua_dai_mm=chua_dai_mm, chua_rong_mm=chua_rong_mm)["con"]
 
 
 def _vi(n) -> str:
@@ -958,8 +952,6 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     dai_tp = _f(tp.get("dai_thanh_pham"))    # thành phẩm ③
     rong_tp = _f(tp.get("rong_thanh_pham"))
     chua_dai, chua_rong = chua_theo_chieu(tp)
-    bleed = _f(tp.get("bleed_mm"))
-    khe_cat = _f(tp.get("khe_cat_mm"))
 
     # --- ④ con/tờ: auto bình bài, override được ---
     con_auto = tp.get("con_auto", True)
@@ -967,16 +959,13 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
     if con_auto and dai_tp > 0 and rong_tp > 0 and kho_in_d > 0 and kho_in_r > 0:
         lay = binh_bai_layout(kho_in_dai=kho_in_d, kho_in_rong=kho_in_r,
                               dai_tp=dai_tp, rong_tp=rong_tp,
-                              chua_dai_mm=chua_dai, chua_rong_mm=chua_rong,
-                              bleed_mm=bleed, khe_cat_mm=khe_cat)
+                              chua_dai_mm=chua_dai, chua_rong_mm=chua_rong)
         con = lay["con"]
         # Bài (phần đặt con, chưa kể chừa) phải lọt VÙNG IN máy — chỉ nhắc, KHÔNG chặn/tự sửa.
         vung_d, vung_r = _f(tp.get("vung_in_dai")), _f(tp.get("vung_in_rong"))
         if con > 0 and vung_d > 0 and vung_r > 0:
             bai_d = lay["rows"] * (lay["piece_rong"] if lay["rotated"] else lay["piece_dai"])
             bai_r = lay["cols"] * (lay["piece_dai"] if lay["rotated"] else lay["piece_rong"])
-            bai_d += max(lay["rows"] - 1, 0) * khe_cat
-            bai_r += max(lay["cols"] - 1, 0) * khe_cat
             if bai_d > vung_d + 1e-6 or bai_r > vung_r + 1e-6:
                 warnings.append(
                     f"Thành phần '{name}': bài bình {bai_d:g}×{bai_r:g} vượt vùng in máy "

@@ -316,7 +316,7 @@ def test_giu_cho_vat_tu_khong_con_gi_de_khoa_o_cum_thong_so() -> None:
 def test_quy_cach_o_lenh_chi_xem_khong_con_o_nao_sua_duoc() -> None:
     """Quy cách là thứ đã CHỐT với khách ở phiếu tính giá — lệnh không gõ lại, KỂ CẢ giấy.
 
-    Khổ giấy nguyên / khổ tờ / khổ thành phẩm / cách in / số trang / bleed / khe cắt / mực / bình
+    Khổ giấy nguyên / khổ tờ / khổ thành phẩm / cách in / số trang / mực / bình
     bài đều chỉ xem, và từ 07/09/2026 ô Giấy cũng vậy. Phiếu tính ra sao thì lệnh chạy y như vậy;
     muốn đổi thì sửa ở phiếu rồi tạo lại lệnh. Không còn ai sửa `form.qc` ⇒ đường xem-trước-số-máy-
     tự-tính cũng không còn việc gì để làm.

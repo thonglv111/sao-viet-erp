@@ -121,7 +121,7 @@ Số con hình học = max(
    floor(khổ_in_khả_dụng_W / con_W) × floor(khổ_in_khả_dụng_H / con_H),
    floor(khổ_in_khả_dụng_W / con_H) × floor(khổ_in_khả_dụng_H / con_W)   ← nếu cho xoay
 )
-   khổ_in_khả_dụng = khổ tờ in − nhíp − xén ;  con = khổ TP + bleed + gutter
+   khổ_in_khả_dụng = khổ tờ in − nhíp − xén ;  con = khổ TP (bleed, khe cắt gỡ 07/11/2026)
 Số con thành phẩm/tờ = Số con hình học × Hệ số thành phẩm   ← từ DM Kiểu bình bài
 ```
 
@@ -264,7 +264,7 @@ Công in: 625.000đ = (0.75 setup + 3.000×1 lượt / 6.000 tờ/giờ) × 500.
 - số tờ mua giấy **≥** số tờ sản xuất
 - **0 < tỷ lệ đạt ≤ 1**
 - đơn giá **không âm**
-- khổ thành phẩm **< khổ in khả dụng** (đã trừ nhíp/xén, cộng bleed)
+- khổ thành phẩm **< khổ in khả dụng** (đã trừ nhíp/xén)
 - công đoạn có khuôn → **phải có đơn giá khuôn HOẶC cho nhập tay**
 - kiểu bình bài yêu cầu số bộ kẽm → **phải có đơn giá kẽm**
 - mỗi công đoạn **bắt buộc** có `basis_quantity` + `pricing_method`

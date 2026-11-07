@@ -52,8 +52,6 @@ def cau_hinh_tu_thanh_phan(tp: PhieuThanhPhan) -> dict:
         don_gia_don_vi=tp.don_gia_don_vi,
         nguon_giay=tp.nguon_giay,
         chua_nhip=tp.chua_nhip,
-        bleed_mm=tp.bleed_mm,
-        khe_cat_mm=tp.khe_cat_mm,
         co_in=tp.co_in,
         che_ban_loai=tp.che_ban_loai,
         che_ban_don_gia=tp.che_ban_don_gia,
