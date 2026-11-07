@@ -288,7 +288,7 @@ def _buoc_can_khuon(db: Session, buocs: list[LsxCongDoan]) -> set[int]:
     "bước này CÓ CẦN dao không". Thiếu vế thứ hai thì bước cần dao mà chưa chốt lại hiện y hệt bước
     không cần — đúng chỗ đang chặn ở cửa "Sẵn sàng lập kế hoạch" mà hồ sơ lại im lặng.
     """
-    from ..lsx_service import can_chot_khuon   # cùng luật với cửa "Sẵn sàng" (khung lụa miễn)
+    from ..lsx_service import can_chot_khuon   # cùng luật với cửa "Sẵn sàng" (chỉ khuôn bế phải chốt)
 
     ids = {b.cong_doan_id for b in buocs if b.cong_doan_id}
     if not ids:

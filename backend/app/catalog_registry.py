@@ -65,8 +65,8 @@ DANH_MUC: tuple[DanhMuc, ...] = (
     # thường, trả ra con số sai cho cả hai màn. Không có bộ đếm còn hơn có bộ đếm nói dối.
     DanhMuc("thanh_pham", "dm_thanh_pham", "Thành phẩm", "thanh-pham"),
     # `khuon_be` KHÔNG có tiền tố `dm_` — chuỗi này đã cấp quyền trong DB thật, đổi cần migration.
-    # NHÃN "Khuôn & khung" (04/09/2026) → "Khuôn" (18/09/2026, chủ đổi): màn vẫn chứa cả khuôn bế,
-    # khuôn ép kim và khung lụa — chip loại trên màn phân biệt chúng. Chỉ chữ hiển thị đổi (menu ·
+    # NHÃN "Khuôn & khung" (04/09/2026) → "Khuôn" (18/09/2026, chủ đổi). Từ 01/10/2026 chỉ còn khuôn
+    # bế để khai mới; dòng ép kim / khung lụa cũ vẫn đọc được. Chỉ chữ hiển thị đổi (menu ·
     # ma trận quyền · nhãn module), KHOÁ giữ nguyên. `seed_modules` chạy mỗi lần khởi động và tự
     # đồng bộ `modules.label` theo dòng này (mg 0261 chỉ đổi nhãn đời trước).
     DanhMuc("khuon_be", "khuon_be", "Khuôn", "khuon-be", model="models.khuon_be:KhuonBe"),

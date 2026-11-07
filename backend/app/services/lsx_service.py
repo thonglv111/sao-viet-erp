@@ -1205,7 +1205,7 @@ class LsxService:
                 rows.insert(0, cu)
         return [
             # `loai` phải trả về: màn lọc tiếp theo loại của TỪNG BƯỚC trên danh sách đã rút gọn
-            # này (một lệnh có thể vừa có bước bế vừa có bước ép nhũ), nên nạp một lần dùng chung.
+            # này (nay chỉ còn khuôn bế, nhưng dòng ép kim cũ vẫn mang loại riêng), nạp một lần dùng chung.
             {"id": k.id, "ma": k.ma, "ten": k.ten, "loai": k.loai, "so_ke": k.so_ke,
              "tinh_trang": k.tinh_trang}
             for k in rows

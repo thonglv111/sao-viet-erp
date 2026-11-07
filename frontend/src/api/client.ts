@@ -3330,8 +3330,8 @@ export interface LsxBuocMacDinh {
    *  Phải áp CÙNG LÚC với hai ô đơn vị: cờ là thuộc tính của cặp đơn vị, không phải của dòng. */
   tren_dong_giay: boolean;
   /** Cờ DỤNG CỤ của công đoạn mới — ô chọn khuôn của bước lọc kho theo `tooling_type`, mà client
-   *  không suy ra được nó từ tên. Áp cùng lúc, nếu không thì bước vừa đổi sang công đoạn cần
-   *  khung lụa vẫn bày dao BẾ. */
+   *  không suy ra được nó từ tên. Áp cùng lúc, nếu không thì bước vừa đổi sang công đoạn không cần
+   *  khuôn vẫn bày kho dao (nay chỉ còn khuôn bế; ép kim / khung lụa gỡ 01/10/2026). */
   requires_tooling: boolean;
   tooling_type: string | null;
   setup_phut: number;
