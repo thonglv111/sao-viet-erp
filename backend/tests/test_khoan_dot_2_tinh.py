@@ -108,7 +108,7 @@ def test_thieu_luong_ca_may_bao_thieu(nen):
 
 def test_canh_bao_chot_chi_dung_cho_sua_theo_ly_do(nen):
     """Câu cảnh báo trước chốt: thiếu lương ca máy chỉ sang hồ sơ lương, lần ghi chưa tick người
-    chỉ sang bàn tổ — không gom hết vào "khai giá ở tab Khoán"."""
+    chỉ sang Việc của tổ — không gom hết vào "khai giá ở tab Khoán"."""
     from app.routers.payroll import _canh_bao_chot
 
     to = nen.to("Tổ in")
@@ -120,7 +120,7 @@ def test_canh_bao_chot_chi_dung_cho_sua_theo_ly_do(nen):
     cb = _canh_bao_chot([], thieu_gia=kq["thieu_gia"])
     assert "tab Khoán" not in cb
     assert "Linh chưa có lương ca máy" in cb and "Lương nhân viên" in cb
-    assert "chưa tick người làm" in cb and "bàn tổ" in cb
+    assert "chưa tick người làm" in cb and "Việc của tổ" in cb
 
 
 def test_nguoi_to_khac_dung_muc_cua_ho(nen):
