@@ -61,11 +61,14 @@ export function XlKhay({
         )}
         {the.map((t) => {
           const vt = vatTu?.get(t.lsx_id);
+          // Lệnh đã phát (chưa có giờ) chỉ nằm đây để bấm mở ngăn thu hồi, không kéo lên lịch:
+          // giờ chạy đã do bộ phận xếp ở Kế hoạch bộ phận.
+          const keoThe = keoDuoc && !t.da_phat_hanh;
           return (
           <article
             key={t.lsx_id}
-            className={`xa-q${keoId === t.lsx_id ? " xa-q--keo" : ""}${keoDuoc ? "" : " xa-q--khoa"}`}
-            draggable={keoDuoc}
+            className={`xa-q${keoId === t.lsx_id ? " xa-q--keo" : ""}${keoThe ? "" : " xa-q--khoa"}`}
+            draggable={keoThe}
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", t.ma);
@@ -78,6 +81,7 @@ export function XlKhay({
             <div className="xa-q__1">
               <span className="xa-ma">{t.ma}</span>
               {t.is_rush && <span className="xa-gap">Gấp</span>}
+              {t.da_phat_hanh && <span className="xa-da-phat">Đã phát</span>}
             </div>
             <div className="xa-q__p">
               {t.han_hoan_thanh_sx ? `hạn ${t.han_hoan_thanh_sx.slice(8, 10)}/${t.han_hoan_thanh_sx.slice(5, 7)}` : "chưa có hạn"}

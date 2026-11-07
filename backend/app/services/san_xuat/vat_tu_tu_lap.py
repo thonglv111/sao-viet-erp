@@ -170,7 +170,9 @@ def _lap_cho_viec(db: Session, cv, *, kq: KetQuaTuLap, nguoi, hang, kh_svc, req_
 
     dongs = vtdn._chuan_hoa(kh, cv, nhan)
     _dn, req = vtdn._lap_lan(
-        db, cv=cv, nguoi=nguoi, bo_phan_id=cv.department_id, can_luc=_gio_can(cv),
+        db, cv=cv, nguoi=nguoi,
+        # Việc chưa giao chưa có tổ ⇒ yêu cầu đứng tên bộ phận nhận (07/11/2026).
+        bo_phan_id=cv.department_id or cv.bo_phan_id, can_luc=_gio_can(cv),
         dongs=dongs, ghi_chu=f"Tự lập khi phát hành «{cv.ten_cong_doan}».", tu_lap=True,
         req_svc=req_svc, hang=hang,
     )

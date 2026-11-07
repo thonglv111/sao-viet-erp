@@ -360,7 +360,8 @@ export function XlNgan({
   );
 
   const canh: ReactNode[] = [];
-  if (!daXep) canh.push(<>Gõ giờ bắt đầu ở trên hoặc kéo lệnh từ khay Chờ xếp lịch thả vào lịch.</>);
+  // 07/11/2026: phát lệnh không cần giờ bắt đầu, từng bộ phận tự xếp máy ở Kế hoạch bộ phận.
+  if (!daXep && !daPhatHanh) canh.push(<>Chưa có giờ bắt đầu vẫn phát được. Phát xong, mỗi bước tới khay của bộ phận nhận, bộ phận tự chọn máy và nhóm.</>);
   if (daChayDo && !daXongHet) {
     canh.push(<>Lệnh đã vào việc {thuNgayGio(ct.thuc_bat_dau_lenh)}, xong {ct.so_buoc_xong} trên {ct.so_buoc} bước. Giờ bắt đầu là của phần còn lại; không lùi được xuống dưới bước đã xong.</>);
   }
@@ -502,7 +503,7 @@ export function XlNgan({
         <div className="xa-b-truc">{truc ? nhanNgay : <span className="xa-b-ngay xa-mo2">Chưa xếp lịch</span>}</div>
       </div>
       {ct.cong_doans.length === 0
-        ? <p className="xa-b-trong">Lệnh chưa có quy trình. Khai quy trình ở Kế hoạch sản xuất.</p>
+        ? <p className="xa-b-trong">Lệnh chưa có quy trình. Khai quy trình ở Lệnh sản xuất.</p>
         : ct.cong_doans.map(dongBuoc)}
       {truc && (
         <div className="xa-b-chu">
@@ -652,7 +653,7 @@ export function XlNgan({
       {duyetDuoc && daPhatHanh && khoaThuHoi && (
         <span className="xa-goi-y"><AlertCircle size={14} />Đã có {soDaBatDau} trên {goi?.so_cong_viec ?? 0} việc dưới xưởng bắt đầu, không rút cả gói về được.</span>
       )}
-      {!daPhatHanh && !daDong && khac.length > 0 && duyetDuoc && daXep && (
+      {!daPhatHanh && !daDong && khac.length > 0 && duyetDuoc && (
         <span className="xa-goi-y"><Link2 size={14} />{khac.map((z) => z.ma).join(" và ")} xuống xưởng cùng lúc</span>
       )}
       {suaDuoc && daXep && !daPhatHanh && !daDong && (
@@ -670,7 +671,7 @@ export function XlNgan({
           <Send size={14} />Phát hành cập nhật
         </button>
       )}
-      {duyetDuoc && daXep && !daPhatHanh && !daDong && (
+      {duyetDuoc && !daPhatHanh && !daDong && (
         <button type="button" className="xa-btn xa-btn--xanh" disabled={dangGhi} onClick={onPhatHanh}>
           <Send size={14} />{nPhatHanh > 1 ? `Phát hành cả cụm, ${nPhatHanh} lệnh` : "Phát hành"}
         </button>
@@ -703,7 +704,7 @@ export function XlNgan({
       )}
       hanhDong={(
         <button type="button" className="xa-btn" onClick={() => onMoHoSo(ct.lsx_id, daPhatHanh || daDong)}>
-          <ExternalLink size={14} />{daPhatHanh || daDong ? "Mở hồ sơ lệnh" : "Mở ở Kế hoạch sản xuất"}
+          <ExternalLink size={14} />{daPhatHanh || daDong ? "Mở hồ sơ lệnh" : "Mở ở Lệnh sản xuất"}
         </button>
       )}
       tabs={[{ id: "chi-tiet", nhan: "Chi tiết" }, { id: "lich-su", nhan: "Lịch sử phát hành" }]}

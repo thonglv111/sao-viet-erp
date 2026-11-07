@@ -5,6 +5,7 @@
 // người dùng cố tình khai bằng 0. Ép sang number quá sớm sẽ xoá mất sự khác nhau đó.
 import { nhanTram, tenDonVi } from "./tenDonVi";
 import type {
+  LsxBoPhanChon,
   LsxCongDoan,
   LsxCongDoanBody,
   LsxLoaiBuoc,
@@ -39,6 +40,8 @@ export interface EditRow {
   /** Tên tổ phụ trách server RESOLVE lúc đọc (kể cả khi `department_id` null vì lấy tổ mặc định của
    *  công đoạn). CHỈ ĐỌC — tổ khai ở danh mục Công đoạn, drawer chỉ bày lại, không cho đổi. */
   department_ten: string | null;
+  /** Bộ phận nhận chọn được (07/11/2026) — server tính theo số nhóm tick ở danh mục Công đoạn. */
+  bo_phan_chon: LsxBoPhanChon[];
   may_id: number | null;
   /** Việc của bước đã chạy ở bàn tổ — CHỈ ĐỌC. Máy chủ không cho đổi tổ/máy nữa nên ngăn bước khoá
    *  sẵn hai ô đó (23/10/2026). */
@@ -177,6 +180,7 @@ export function toEdit(cd: LsxCongDoan): EditRow {
     loai_buoc: cd.loai_buoc,
     department_id: cd.department_id,
     department_ten: cd.department_ten ?? null,
+    bo_phan_chon: cd.bo_phan_chon ?? [],
     may_id: cd.may_id,
     da_bat_dau: !!cd.da_bat_dau,
     requires_tooling: !!cd.requires_tooling,
@@ -366,7 +370,7 @@ export function toChonDuoc(
 export function emptyRow(): EditRow {
   return {
     key: newKey(), id: null, cong_doan_id: null, ten: "", nhom: null, loai_buoc: "may",
-    department_id: null, department_ten: null, may_id: null, da_bat_dau: false,
+    department_id: null, department_ten: null, bo_phan_chon: [], may_id: null, da_bat_dau: false,
     requires_tooling: false, tooling_type: null, khuon_be_id: null, khuon_be_ma: null,
     khuon_be_ten: null, khuon_be_so_ke: null, khuon_be_tinh_trang: null,
     khuon_nguon: null, khuon_phi: 0, khuon_lech: null,

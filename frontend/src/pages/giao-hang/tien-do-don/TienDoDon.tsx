@@ -222,7 +222,7 @@ export function viecTiepTheo(o: {
     return {
       cau,
       the: [{ nhan: `chuyển xuống ${gioNgay(o.chuyenSxLuc)}` }, ...the],
-      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
+      nut: { nhan: "Mở Lệnh sản xuất", toi: "ke-hoach-sx" },
     };
   }
   // Mốc dự kiến xong SX so với hạn giao: trễ là băng đỏ riêng (`CanhBaoTre`), ở đây chỉ thẻ nhỏ.
@@ -252,7 +252,7 @@ export function viecTiepTheo(o: {
     return {
       cau: chuaXuong.length === 1 ? `${chuaXuong[0].ma} chưa xuống xưởng` : `${chuaXuong.length} lệnh chưa xuống xưởng`,
       the,
-      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
+      nut: { nhan: "Mở Lệnh sản xuất", toi: "ke-hoach-sx" },
     };
   }
   const dangChay = tt.khoXong ? [] : lenh.filter((l) => !l.xong);
@@ -276,7 +276,7 @@ export function viecTiepTheo(o: {
     return {
       cau,
       the: [{ nhan: "làm bù hoặc thỏa thuận giao thiếu với khách", tone: "bad" }, ...the],
-      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
+      nut: { nhan: "Mở Lệnh sản xuất", toi: "ke-hoach-sx" },
     };
   }
   if (!tt.khoXong) return { cau: "Chờ KCS gửi thành phẩm sang kho", the };

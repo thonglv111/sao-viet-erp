@@ -12,6 +12,7 @@ const KENH_NAV: Record<string, string> = {
   don_hang_ban: "don-hang-ban",
   san_xuat: "ke-hoach-sx",
   xep_lich: "xep-lich",
+  ke_hoach_bo_phan: "ke-hoach-bo-phan",
   kho: "kho-main",
   phieu_chi: "ke-toan-phieu-chi",
   phieu_thu: "ke-toan-phieu-thu",
@@ -49,6 +50,7 @@ const LOI_NHAC: Record<string, (ma: string | null) => string> = {
   don_cho_coc: (ma) => `🔔 Đơn hàng${ma ? " " + ma : ""} chờ ghi cọc`,
   lenh_cho_xep: (ma) => `🔔 Lệnh${ma ? " " + ma : ""} vừa vào hàng chờ xếp lịch`,
   viec_moi: () => "🔔 Tổ có việc mới",
+  lenh_moi: () => "🔔 Bộ phận có lệnh mới chờ xếp",
   kho_yeu_cau_moi: (ma) => `🔔 Có yêu cầu kho mới${ma ? " " + ma : ""} chờ lập phiếu`,
   // Phát hành lệnh tự lập yêu cầu xuất: `ma` = "LSX…: N yêu cầu xuất mới" (máy chủ ghép sẵn).
   kho_yeu_cau_phat_hanh: (ma) => `🔔 ${ma ?? "Có yêu cầu xuất mới"} chờ lập phiếu`,

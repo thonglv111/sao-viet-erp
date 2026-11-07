@@ -24,9 +24,13 @@ const HIEN_TRUOC = 3;
 export function ThsxTepLenh({
   congViecId,
   dinhKemDem,
+  nap,
 }: {
   congViecId: number;
   dinhKemDem?: Record<number, number>;
+  /** Nạp tệp qua đường khác (Kế hoạch bộ phận gác theo quyền của nó, không theo quyền tổ).
+   *  Vắng thì nạp như Việc của tổ. */
+  nap?: (token: string, congViecId: number) => Promise<SxTepLenhNhom[]>;
 }) {
   const { token } = useAuth();
   const [nhom, setNhom] = useState<SxTepLenhNhom[] | null>(null);
@@ -43,14 +47,15 @@ export function ThsxTepLenh({
     if (!token) return;
     let bo = false;
     setLoi(null);
-    api.sanXuat
-      .tepLenh(token, congViecId)
+    (nap ?? api.sanXuat.tepLenh)(token, congViecId)
       .then((r) => { if (!bo) setNhom(r); })
       .catch((e) => {
         if (bo) return;
         setLoi(e instanceof ApiError && e.isNetwork ? "Mất kết nối tới máy chủ" : "Không nạp được tệp của lệnh");
       });
     return () => { bo = true; };
+    // `nap` cố ý không vào deps: nơi gọi truyền hàm tạo mới mỗi lần vẽ, đổi nguồn giữa chừng không có.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, congViecId, dem, lanNap]);
 
   // Đổi sang việc khác thì gấp lại — mỗi việc mở ra đều bắt đầu gọn.

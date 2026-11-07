@@ -27,11 +27,19 @@ export function ChipKcs({ so_lan, loi }: { so_lan?: number | null; loi?: number 
 export function ChipLoaiBuoc({
   loai_buoc,
   nha_cung_cap,
+  capLenh = false,
 }: {
   loai_buoc?: string | null;
   nha_cung_cap?: string | null;
+  /** Bước LỆNH (07/11/2026): chỉ hai loại Nội bộ | Gia công, máy hay làm tay do bộ phận chọn sau.
+   *  Việc ở xưởng (đã giao) vẫn nói "Máy"/"Tổ" vì lúc đó đã biết. */
+  capLenh?: boolean;
 }) {
   if (!loai_buoc) return null;
+  if (capLenh) {
+    const ngoai = loai_buoc === "thue_ngoai";
+    return <span className={`chip-buoc chip-buoc--${ngoai ? "ngoai" : "may"}`}>{ngoai ? "Gia công" : "Nội bộ"}</span>;
+  }
   if (loai_buoc === "thue_ngoai") {
     // NƠI LÀM của bước thuê ngoài nay là MÁY của nhà thầu (khai trong danh mục Máy, tên kèm hậu
     // tố "thuê ngoài – <nhà in>") — cột "Thực hiện" của bảng/thẻ đã bày tên máy đó. Nên chip chỉ

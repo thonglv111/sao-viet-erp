@@ -258,9 +258,15 @@ def _cham_cho_xep(db: Session, lsx_id: int, actor_id: int) -> None:
 
 
 def _cham_viec_moi(db: Session, lsx_id: int, actor_id: int) -> None:
-    """Phát hành ⇒ chấm đỏ bàn của từng tổ nhận việc."""
+    """Phát hành ⇒ chấm đỏ bàn của từng tổ nhận việc (việc đã giao), và chấm Kế hoạch bộ phận cho
+    từng bộ phận còn việc chờ xếp (07/11/2026) kèm sự kiện để màn đang mở tự nạp."""
+    from ..repositories.ke_hoach_bo_phan_repo import KeHoachBoPhanRepository
+
     for to_id in sorted(SanXuatRepository(db).to_cua_lenh([lsx_id])):
         bao(db, kenh=kenh_to(to_id), loai="viec_moi", actor_id=actor_id)
+    for bp in sorted(KeHoachBoPhanRepository(db).bo_phan_cho_giao([lsx_id])):
+        bao(db, kenh="ke_hoach_bo_phan", loai="lenh_moi", actor_id=actor_id, phong_id=bp)
+        hub.gui({"type": "ke_hoach_bo_phan_changed", "bo_phan_id": bp}, quyen=["ke_hoach_bo_phan"])
 
 
 @router.post("/phat-hanh/{lsx_id}", response_model=None)

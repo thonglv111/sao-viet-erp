@@ -29,6 +29,8 @@ KENH: dict[str, tuple[str, ...]] = {
     "don_hang_ban": ("phieu_thu:create",),
     "san_xuat": (),
     "xep_lich": (),
+    # Kế hoạch bộ phận (07/11/2026): phát lệnh ⇒ chấm cho người kế hoạch của bộ phận nhận.
+    "ke_hoach_bo_phan": (),
     "kho": (),
     # Hàng việc tiền của đơn bán (17/10/2026): chấm cho người LẬP được phiếu — "Đơn hàng chờ thu"
     # ở Phiếu thu, "Chờ trả lại khách" ở Phiếu chi.

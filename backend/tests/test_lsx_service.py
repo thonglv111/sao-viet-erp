@@ -842,16 +842,16 @@ def test_san_sang_bi_chan_khi_con_thieu_va_mo_khi_du(db, orders, lsx_svc, admin,
     [hop, _tem] = lsx_svc.tao(order_id=d.id, order_line_ids=ids, actor=admin)
     _gan_dao_cho_buoc_can(db, hop)
 
-    # Bước nội bộ chưa biết TỔ/MÁY nào làm → CHỜ BỔ SUNG. (Mục "thiếu khuôn bế" đã bỏ khỏi
+    # Bước nội bộ chưa có BỘ PHẬN NHẬN → CHỜ BỔ SUNG (07/11/2026, trước là tổ/máy). (Mục "thiếu khuôn bế" đã bỏ khỏi
     # checklist 11/08/2026: ô gán khuôn ở cấp lệnh không còn, giữ lại là khoá lệnh vĩnh viễn.)
     buoc = hop.cong_doans[0]
     buoc.department_id = None
     buoc.may_id = None
     db.commit()
     hop = lsx_svc.get(hop.id)
-    assert "thieu_to_may" in lsx_svc.thieu_cua(hop)
+    assert "thieu_bo_phan" in lsx_svc.thieu_cua(hop)
     # Màn lệnh gọi đích danh bước nào thiếu — id bước đi kèm mã, ra tới API chi tiết.
-    assert buoc.id in lsx_svc.detail_dict(hop)["thieu_buoc"]["thieu_to_may"]
+    assert buoc.id in lsx_svc.detail_dict(hop)["thieu_buoc"]["thieu_bo_phan"]
     with pytest.raises(LsxConflict):
         lsx_svc.set_trang_thai(lsx_id=hop.id, trang_thai=TT_SAN_SANG, actor=admin)
 
@@ -2515,7 +2515,7 @@ def test_thue_ngoai_doi_nha_gia_cong_tu_danh_muc(db, orders, lsx_svc, admin, cus
     # Chưa chọn nhà gia công → chặn bằng mã mới, KHÔNG đòi tổ/máy cho bước thuê ngoài.
     thieu = dat_routing()
     assert "thieu_nha_gia_cong" in thieu
-    assert "thieu_to_may" not in thieu
+    assert "thieu_bo_phan" not in thieu
 
     # Chọn nhà gia công từ danh mục → hết thiếu.
     assert "thieu_nha_gia_cong" not in dat_routing(nha_cung_cap_id=s.id)

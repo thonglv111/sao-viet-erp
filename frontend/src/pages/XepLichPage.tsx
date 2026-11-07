@@ -769,7 +769,10 @@ export function XepLichPage({
         message={laThuHoi
           ? (maCum
             ? `Các lệnh ${maCum} xuống xưởng cùng một lần nên sẽ rút về cùng nhau. Các lệnh giữ lịch đã xếp nhưng chưa phát hành.`
-            : `Rút lệnh ${maLenh} khỏi xưởng, lệnh quay về có lịch nhưng chưa phát hành.`)
+            // Phát không cần giờ (07/11/2026): lệnh chưa có giờ thì về khay, không phải "có lịch".
+            : ct?.bat_dau_at
+              ? `Rút lệnh ${maLenh} khỏi xưởng, lệnh quay về có lịch nhưng chưa phát hành.`
+              : `Rút lệnh ${maLenh} khỏi xưởng và khỏi khay của các bộ phận, lệnh về khay Chờ xếp lịch, chưa phát hành.`)
           : `Đẩy lịch mới xuống xưởng cho ${goi?.so_chua_bat_dau ?? 0} việc chưa bắt đầu của lệnh ${maLenh}. ${goi?.so_da_bat_dau ?? 0} việc đã chạy giữ nguyên, tổ nhận việc cập nhật phải xác nhận lại phân công.`}
         confirmLabel={dangGhi ? "Đang xử lý" : laThuHoi ? "Thu hồi" : "Đẩy lịch mới xuống xưởng"}
         cancelLabel="Huỷ"

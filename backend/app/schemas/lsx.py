@@ -235,8 +235,11 @@ class LsxCongDoanOut(BaseModel):
     nhom: str | None = None
     loai_buoc: str
     bat_buoc: bool = True
+    #: BỘ PHẬN NHẬN của bước (07/11/2026) — không còn là tổ.
     department_id: int | None = None
     department_ten: str | None = None
+    #: Bộ phận được chọn cho bước: `[{id, ten, so_nhom}]`, bộ phận chọn sẵn đứng đầu.
+    bo_phan_chon: list[dict] = Field(default_factory=list)
     may_id: int | None = None
     may_ten: str | None = None
     #: Bước đã có việc chạy ở bàn tổ ⇒ ngăn bước khoá ô tổ/máy (đổi máy ở bàn tổ).
@@ -513,7 +516,7 @@ class LsxOut(BaseModel):
     # `thieu` CHẶN nút "Sẵn sàng lập kế hoạch" (§12). Rổ cảnh báo MỀM §14 (`canh_bao`) đã gỡ
     # 25/08/2026 — server vẫn tính mỗi lần mở lệnh mà không màn nào đọc.
     thieu: list[str] = Field(default_factory=list)
-    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_to_may`, `thieu_nha_gia_cong`, `thieu_khuon`):
+    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_bo_phan`, `thieu_nha_gia_cong`, `thieu_khuon`):
     # màn lệnh gọi đích danh bước nào chặn nút Sẵn sàng, khỏi phải mở từng bước ra dò.
     thieu_buoc: dict[str, list[int]] = Field(default_factory=dict)
     lead_time: LeadTimeOut | None = None
@@ -709,6 +712,8 @@ class BuocMacDinhOut(BaseModel):
     #: của bước chỉ được chọn trong danh sách này.
     department_id: int | None = None
     department_ids: list[int] = Field(default_factory=list)
+    #: Bộ phận nhận được chọn (07/11/2026), bộ phận chọn sẵn đứng đầu.
+    bo_phan_chon: list[dict] = Field(default_factory=list)
     don_vi_vao: str | None = None
     don_vi_ra: str | None = None
     he_so_quy_doi: float

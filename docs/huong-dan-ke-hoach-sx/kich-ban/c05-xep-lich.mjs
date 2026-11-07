@@ -74,6 +74,54 @@ export default async ({ page, chup, khoanh, mo }) => {
       { loc: nut(/Phát hành cập nhật/) },
     ]);
     await chup("khsx-45-ngan-da-phat-hanh", await ngan());
+  } else if (BUOC === "5") {
+    // 07/11/2026, phát không cần giờ. LSX26-0011 đã phát mà chưa có giờ nằm ở khay với chip "Đã phát".
+    // Thu hồi (chụp hộp lý do), chụp ngăn lệnh chưa có giờ, Phát hành (chụp câu báo, ngăn đã phát,
+    // Lịch sử phát hành). GHI dữ liệu: thu hồi rồi phát lại.
+    const nut = (re) => page.locator("button:visible").filter({ hasText: re });
+    const moThe = async () => {
+      await page.locator(".xa-khay").getByText("LSX26-0011").first().click();
+      await page.getByText("Lịch sử phát hành").first().waitFor();
+      await page.waitForTimeout(2500);
+    };
+    await moThe();
+    if (await nut(/Thu hồi phát hành/).count()) {
+      await nut(/Thu hồi phát hành/).click();
+      await page.locator("#xa-ly-do").waitFor();
+      await page.locator("#xa-ly-do").pressSequentially("Khách đổi ngày giao, xếp lại", { delay: 30 });
+      await page.waitForTimeout(600);
+      await chup("khsx-47-thu-hoi");
+      await page.locator("button:visible").filter({ hasText: /^Thu hồi$/ }).last().click();
+      await page.waitForTimeout(9000);   // câu báo thu hồi tự tắt sau 8 giây
+    }
+    await khoanh([
+      { loc: page.getByText("Bắt đầu", { exact: true }).first().locator("xpath=..") },
+      { loc: page.getByText(/Chưa có giờ bắt đầu vẫn phát được/).first() },
+      { loc: page.getByText(/còn thiếu \d+ mặt hàng|Chưa giữ|giữ được/).last() },
+      { loc: nut(/^Phát hành$/) },
+    ]);
+    await chup("khsx-43-ngan-lenh", await ngan());
+    await nut(/^Phát hành$/).click();
+    await page.getByText(/Đã phát lệnh tới các bộ phận/).first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(800);
+    await khoanh([{ loc: page.getByText(/Đã phát lệnh tới các bộ phận/).first() }]);
+    await chup("khsx-44-toast-phat-hanh");
+    await page.waitForTimeout(6000);
+    await khoanh([
+      { loc: nut(/Thu hồi phát hành/) },
+      { loc: nut(/Phát hành cập nhật/) },
+    ]);
+    await chup("khsx-45-ngan-da-phat-hanh", await ngan());
+    await page.getByText("Lịch sử phát hành").first().click();
+    await page.waitForTimeout(2000);
+    await chup("khsx-46-lich-su-phat-hanh", await ngan());
+    // Khay: lệnh vừa phát vẫn nằm đó, gắn "Đã phát".
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(800);
+    const theKhay = page.locator(".xa-khay .xa-q").filter({ hasText: "LSX26-0011" }).first();
+    await khoanh([{ loc: theKhay.locator(".xa-da-phat") }]);
+    const k = await page.locator(".xa-khay").first().boundingBox();
+    await chup("khsx-40b-khay-da-phat", { x: k.x, y: k.y, width: k.width, height: Math.min(k.height, 520) });
   } else if (BUOC === "3") {
     await moNgan();
     const nut = (re) => page.locator("button:visible").filter({ hasText: re });

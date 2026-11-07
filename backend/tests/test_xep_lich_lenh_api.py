@@ -168,9 +168,42 @@ def test_xoa_moc_lenh_chua_xep_thi_404(client):
     assert client.delete(f"{GOC}/lenh/{lid}", headers=h).status_code == 404
 
 
-def test_phat_hanh_chua_co_moc_thi_400(client):
+def test_phat_hanh_khong_can_moc(client):
+    """07/11/2026: phát lệnh không còn đòi giờ bắt đầu, bộ phận tự xếp máy ở Kế hoạch bộ phận."""
     lid, h = _lenh(), _hd(client)
-    assert client.post(f"{GOC}/phat-hanh/{lid}", headers=h).status_code == 400
+    assert client.post(f"{GOC}/phat-hanh/{lid}", headers=h).status_code == 200
+    # Phát mà chưa có giờ thì lệnh vẫn nằm khay (gắn "đã phát"), không thì mất đường thu hồi.
+    dong = {d["lsx_id"]: d for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]}
+    assert dong[lid]["da_phat_hanh"] is True
+
+
+def test_lenh_tron_goi_da_phat_khong_vao_khay(client):
+    """Trọn gói cũng ở trạng thái đã phát nhưng không bao giờ qua Xếp lịch."""
+    from app.models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+    from app.models.lsx import TT_DA_PHAT_HANH
+    from app.models.purchase import Supplier
+
+    lid, h = _lenh("LSX-XL3-TG"), _hd(client)
+    db = SessionLocal()
+    try:
+        s = Supplier(name="In ngoài thử", nhan_gia_cong=True)
+        db.add(s)
+        db.flush()
+        db.add(GiaCongNgoai(kieu=KIEU_TRON_GOI, nha_cung_cap_id=s.id, lsx_id=lid))
+        db.get(Lsx, lid).trang_thai = TT_DA_PHAT_HANH
+        db.commit()
+    finally:
+        db.close()
+    assert lid not in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
+    # Lần trọn gói đã huỷ thì lệnh phát thường như mọi lệnh, lại vào khay.
+    db = SessionLocal()
+    try:
+        g = db.query(GiaCongNgoai).filter(GiaCongNgoai.lsx_id == lid).one()
+        g.huy_luc = datetime(2026, 11, 7, 8, 0)
+        db.commit()
+    finally:
+        db.close()
+    assert lid in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
 
 
 def test_phat_hanh_bam_la_di_khong_hoi_gi(client):

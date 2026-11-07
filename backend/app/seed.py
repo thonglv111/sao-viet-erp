@@ -89,7 +89,8 @@ MODULES: list[tuple[str, str]] = [
     # Hai khoá cũ GIỮ NGUYÊN TÊN, chỉ thu hẹp nghĩa còn đúng một màn — đổi khoá là mọi hàng
     # `role_permissions` cũ trỏ vào hư không. Migration 0209 SAO CHÉP quyền sang 4 khoá mới.
     # Thứ tự bám đúng menu để người cấp quyền dò theo màn hình.
-    ("san_xuat", "Kế hoạch sản xuất"),
+    # Nhãn "Lệnh sản xuất" từ 07/11/2026 (mg `0454`) — khoá giữ nguyên `san_xuat`.
+    ("san_xuat", "Lệnh sản xuất"),
     ("ke_hoach_vat_tu", "Kế hoạch vật tư"),
     # Khoá `bai_ghep` (màn cũ) gỡ 18/08/2026 — mg `0216` chép quyền sang `bai_ghep_2` rồi xoá.
     # Khoá giữ hậu tố "_2" để khỏi phải đổi khoá trong DB; NHÃN là "Bài ghép", đây là màn duy nhất.
@@ -100,6 +101,9 @@ MODULES: list[tuple[str, str]] = [
     # án chốt 18/09/2026 bỏ đánh số, nên khoá quay về đúng `xep_lich`; mg `0314` chép quyền của
     # `xep_lich_3` sang rồi xoá cả hai khoá cũ. Ở đây là đường của DB TRẮNG.
     ("xep_lich", "Xếp lịch"),
+    # Kế hoạch bộ phận (07/11/2026, mg `0454`): bộ phận nhận lệnh, chọn máy + nhóm rồi Giao.
+    # Phạm vi: `department` = bộ phận chứa phòng của người xem; `all` = mọi bộ phận.
+    ("ke_hoach_bo_phan", "Kế hoạch bộ phận"),
     # KCS (09/10/2026, mg 0383) — thay cờ phòng ban "Tổ KCS đích danh". Xem = màn + báo cáo mọi tổ;
     # Thao tác (`can_create`) = ghi lần kiểm, gửi nhập kho, đóng lệnh đủ; ô chi tiết "Đóng lệnh
     # thiếu" (`can_close_short`).
@@ -537,6 +541,7 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # KHÔNG chặn gì nên không ai hỏi tới bit này nữa. Giữ cấp cho trưởng điều độ để hàng
             # quyền của vai không hụt so với DB đang chạy (mg `0314` chép y nguyên sang).
             "xep_lich": {**_rcu(SCOPE_ALL), "can_approve": True, "can_approve_exception": True},
+            "ke_hoach_bo_phan": _rcu(SCOPE_ALL),
             # Điều độ XEM phiếu kỹ thuật để biết máy nào sắp/đang nằm mà né khi xếp lịch.
             "ky_thuat_may": _read(SCOPE_ALL),
             "phieu_bao_tri": _read(SCOPE_ALL),

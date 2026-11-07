@@ -732,6 +732,11 @@ export type QuoteEvent =
       trang_thai?: string | null;
     }
   | {
+      // Bảng Kế hoạch bộ phận đổi (phát lệnh tới, xếp, giao, rút) — màn đang mở nạp lại.
+      type: "ke_hoach_bo_phan_changed";
+      bo_phan_id?: number | null;
+    }
+  | {
       type: "san_xuat_lenh_dong";
       nhom_id?: number | null;
       order_id?: number | null;
@@ -785,10 +790,19 @@ export type LsxLoaiBuoc = "may" | "to" | "thue_ngoai";
 
 
 /** Nhãn + màu của loại bước. `tone` map sang class `.khsx-lb--{tone}` trong ke-hoach-sx.css. */
+/** Bộ nhãn ba loại, còn dùng ở bài ghép (bước chung vẫn chọn tổ và máy, chưa làm lại). */
 export const LSX_LOAI_BUOC_META: Record<LsxLoaiBuoc, { label: string; tone: string; hint: string }> = {
   may: { label: "Máy", tone: "may", hint: "Chiếm máy — có thanh trên lịch máy" },
   to: { label: "Tổ", tone: "to", hint: "Tổ lao động làm tay — chiếm nhân công, không chiếm máy" },
   thue_ngoai: { label: "Thuê ngoài", tone: "ngoai", hint: "Nhà gia công ngoài làm — chọn nhà gia công trong danh mục Nhà cung cấp; không tổ, không máy, không vật tư, không tính thời gian" },
+};
+
+/** Bước của LỆNH (07/11/2026): chỉ còn Nội bộ | Gia công. `may`/`to` cùng là Nội bộ, bộ phận nhận
+ *  tự chọn máy (hay làm tay) và nhóm ở Kế hoạch bộ phận. */
+export const LSX_LOAI_BUOC_LENH: Record<LsxLoaiBuoc, { label: string; tone: string; hint: string }> = {
+  may: { label: "Nội bộ", tone: "may", hint: "Bộ phận trong xưởng làm — bộ phận nhận tự chọn máy và nhóm thợ ở Kế hoạch bộ phận" },
+  to: { label: "Nội bộ", tone: "may", hint: "Bộ phận trong xưởng làm — bộ phận nhận tự chọn máy và nhóm thợ ở Kế hoạch bộ phận" },
+  thue_ngoai: { label: "Gia công", tone: "ngoai", hint: "Nhà gia công ngoài làm — chọn nhà gia công trong danh mục Nhà cung cấp; không qua bộ phận nào" },
 };
 
 /** Đơn vị bốn chặng của lệnh đang xét — xem `pages/lsxBuoc.donViChuoi`. Khai lại hình dạng tối
@@ -813,8 +827,8 @@ export const LSX_THIEU_LABELS: Record<string, NhanMa> = {
   thieu_kho_nguyen: "Thiếu khổ nguyên của giấy",
   thieu_routing: "Chưa có công đoạn",
   thieu_ngay_giao: "Thiếu ngày giao",
-  thieu_to_may: "Có công đoạn chưa gán tổ / máy",
-  thieu_nha_gia_cong: "Có bước thuê ngoài chưa chọn nhà gia công",
+  thieu_bo_phan: "Có công đoạn chưa có bộ phận nhận (khai nhóm làm được ở danh mục Công đoạn)",
+  thieu_nha_gia_cong: "Có bước gia công chưa chọn nhà gia công",
   // Bước cần dụng cụ lưu kho (khuôn bế) mà chưa trỏ con dao nào. Đứng NGANG HÀNG
   // với thiếu nhà gia công — cùng một danh sách, người dùng không phải học luật mới.
   thieu_khuon: "Có công đoạn cần khuôn / khung mà chưa chọn",
@@ -1318,6 +1332,8 @@ export interface XlThe {
   han_hoan_thanh_sx: string | null;
   han_giao_khach: string | null;
   is_rush: boolean;
+  /** Đã phát tới các bộ phận mà chưa có giờ bắt đầu (07/11/2026): nằm khay để còn mở ngăn thu hồi. */
+  da_phat_hanh?: boolean;
   so_to_ke_hoach: number;
   so_luong_dat: number;
   don_vi_tinh: string | null;
@@ -3199,10 +3215,16 @@ interface LsxThueNgoaiFields {
   nha_cung_cap: string | null;
 }
 
+/** Một bộ phận người lập lệnh chọn được cho bước — `so_nhom` = số nhóm của bộ phận làm được công đoạn. */
+export interface LsxBoPhanChon { id: number; ten: string; so_nhom: number }
+
 export interface LsxCongDoan extends LsxThueNgoaiFields {
   id: number; step_key: string; thu_tu: number; cong_doan_id: number | null;
   ten: string; nhom: string | null; loai_buoc: LsxLoaiBuoc; bat_buoc: boolean;
+  /** BỘ PHẬN NHẬN của bước (07/11/2026) — không còn là tổ. */
   department_id: number | null; department_ten: string | null;
+  /** Bộ phận được chọn cho bước, bộ phận chọn sẵn (nhiều nhóm làm được nhất) đứng đầu. */
+  bo_phan_chon?: LsxBoPhanChon[];
   may_id: number | null; may_ten: string | null;
   /** Bước đã có việc chạy ở bàn tổ ⇒ không đổi tổ/máy ở lệnh nữa (đổi máy ở bàn tổ). */
   da_bat_dau?: boolean;
@@ -3325,6 +3347,8 @@ export interface LsxBuocMacDinh {
   /** Tổ MẶC ĐỊNH (tổ đầu danh sách) + cả danh sách tổ phụ trách công đoạn để ô tổ chọn trong đó. */
   department_id: number | null;
   department_ids: number[];
+  /** Bộ phận nhận chọn được (07/11/2026), bộ phận chọn sẵn đứng đầu. */
+  bo_phan_chon?: LsxBoPhanChon[];
   don_vi_vao: string; don_vi_ra: string; he_so_quy_doi: number;
   /** Cặp đơn vị trên có nằm trên DÒNG GIẤY không — server quyết theo cờ trạm của danh mục Đơn vị.
    *  Phải áp CÙNG LÚC với hai ô đơn vị: cờ là thuộc tính của cặp đơn vị, không phải của dòng. */
@@ -3583,6 +3607,74 @@ export interface LsxDinhKem {
 }
 
 /** Tệp của MỘT lệnh nhìn từ Bàn tổ (chỉ đọc). Công việc bài ghép thì mỗi lệnh thành viên một nhóm. */
+// --- Kế hoạch bộ phận (module `ke_hoach_bo_phan`, 07/11/2026) -----------------------------------
+// Bộ phận nhận việc lúc phát lệnh, chọn máy + nhóm, xếp thứ tự rồi Giao xuống tổ.
+export interface KhbpBoPhan {
+  id: number;
+  ten: string;
+  /** Bộ phận không có nhóm con: tự nhận việc, giao cho chính mình. */
+  tu_lam: boolean;
+}
+export interface KhbpMay {
+  id: number;
+  ma: string | null;
+  ten: string;
+  nhom_ids?: number[];
+}
+export interface KhbpKhauTruoc {
+  ten: string;
+  trang_thai: string;
+  da_giao: boolean;
+  o: string | null;
+}
+export interface KhbpViec {
+  id: number;
+  version: number;
+  lsx_id: number | null;
+  lsx_ma: string | null;
+  lsx_ten: string | null;
+  bai_ghep_id: number | null;
+  bai_ghep_ma: string | null;
+  khach_hang: string | null;
+  han_giao: string | null;
+  ten_cong_doan: string;
+  nhom_cong_doan: string | null;
+  so_luong_vao: number | null;
+  so_luong_ra: number | null;
+  don_vi_vao: string | null;
+  don_vi_ra: string | null;
+  chay_phut: number | null;
+  setup_phut: number | null;
+  may_id: number | null;
+  /** Máy in của bài tính giá chép xuống bước — đổi khỏi máy này phải có lý do. */
+  may_goi_y_id: number | null;
+  may_goi_y_ten: string | null;
+  /** Nhóm đang làm (chỉ có khi đã giao). */
+  department_id: number | null;
+  department_ten: string | null;
+  /** Nhóm đã chọn (hoặc gợi ý khi chỉ một nhóm hợp lệ) cho việc chưa giao. */
+  nhom_xep_id: number | null;
+  da_giao_at: string | null;
+  /** Đã rời khay "Lệnh mới tới": có máy hoặc đã chọn Làm tay. */
+  da_xep: boolean;
+  trang_thai: string;
+  thu_tu_xep: number | null;
+  may_chon: number[];
+  nhom_chon: number[];
+  quy_cach: SxQuyCachThe | null;
+  ghi_chu: string | null;
+  khuon: SxKhuonChip | null;
+  khau_truoc: KhbpKhauTruoc | null;
+}
+export interface KhbpBang {
+  bo_phan: KhbpBoPhan;
+  nhom: { id: number; ten: string }[];
+  may: KhbpMay[];
+  /** Máy đang gắn trên việc nhưng không thuộc bộ phận (máy tính giá của tổ khác). */
+  may_ngoai: KhbpMay[];
+  viec: KhbpViec[];
+}
+
 export interface SxTepLenhNhom {
   lsx_id: number;
   lsx_ma: string;
@@ -15523,6 +15615,42 @@ export const api = {
     },
   },
 
+
+  keHoachBoPhan: {
+    danhSach(token: string): Promise<KhbpBoPhan[]> {
+      return authed<KhbpBoPhan[]>("/api/ke-hoach-bo-phan/bo-phan", token);
+    },
+    bang(token: string, boPhanId: number): Promise<KhbpBang> {
+      return authed<KhbpBang>(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}`, token);
+    },
+    tep(token: string, congViecId: number): Promise<SxTepLenhNhom[]> {
+      return authed<SxTepLenhNhom[]>(`/api/ke-hoach-bo-phan/viec/${congViecId}/tep`, token);
+    },
+    /** Đặt máy (`null` = Làm tay) + nhóm cho việc chưa giao. Cả hai `null` = trả về khay. */
+    xep(
+      token: string, congViecId: number,
+      body: { may_id: number | null; department_id: number | null; ly_do?: string | null; version?: number },
+    ): Promise<{ id: number; version: number }> {
+      return authed(`/api/ke-hoach-bo-phan/viec/${congViecId}`, token, {
+        method: "PUT", body: JSON.stringify(body),
+      });
+    },
+    thuTu(token: string, boPhanId: number, body: { may_id: number | null; ids: number[] }): Promise<{ ok: boolean }> {
+      return authed(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}/thu-tu`, token, {
+        method: "PUT", body: JSON.stringify(body),
+      });
+    },
+    giao(token: string, boPhanId: number, ids: number[]): Promise<{ so_viec: number; nhom_ids: number[] }> {
+      return authed(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}/giao`, token, {
+        method: "POST", body: JSON.stringify({ ids }),
+      });
+    },
+    rut(token: string, congViecId: number, version?: number): Promise<{ id: number }> {
+      return authed(`/api/ke-hoach-bo-phan/viec/${congViecId}/rut`, token, {
+        method: "POST", body: JSON.stringify({ version }),
+      });
+    },
+  },
 
   // --- Xếp lịch (module `xep_lich`) — bàn cấp LỆNH SẢN XUẤT ------------------
   // Ít đường hơn màn 2 đúng một bậc: KHÔNG có "đưa vào nháp", KHÔNG có `xem-truoc` (xem trước

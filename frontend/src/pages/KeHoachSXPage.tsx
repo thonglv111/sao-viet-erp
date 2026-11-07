@@ -288,7 +288,7 @@ export function KeHoachSXPage({
   return (
     <main className="khsx lds">
       <header className="lds-dau">
-        <h1 className="lds-dau__ten">Kế hoạch sản xuất</h1>
+        <h1 className="lds-dau__ten">Lệnh sản xuất</h1>
         {/* Hai tab thật (đổi cả bảng bên dưới), đặt cạnh tên màn. Tab không mang số đếm: hàng chờ có
             đơn thì một chấm nhỏ, số đơn nằm ở chân bảng. */}
         <div className="khsx-tabman" role="tablist" aria-label="Khu vực làm việc">

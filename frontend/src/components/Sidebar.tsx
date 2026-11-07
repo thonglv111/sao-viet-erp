@@ -106,7 +106,8 @@ export const NAV: NavSection[] = [
       // MỘT MÀN = MỘT Ô QUYỀN (17/08/2026). Trước đó 6 mục dưới đây treo trên đúng hai khoá
       // (`san_xuat` mở 4 màn, `ky_thuat_may` mở 2), nên không có cách nào cho ai đó xem lệnh mà
       // không dời được lịch cả xưởng. Migration 0209 đã sao chép quyền cũ sang 4 khoá mới.
-      { id: "ke-hoach-sx", label: "Kế hoạch sản xuất", icon: "clipboardList", module: "san_xuat" },
+      // 07/11/2026: "Kế hoạch sản xuất" đổi tên "Lệnh sản xuất" — nơi lập lệnh. Id + khoá giữ nguyên.
+      { id: "ke-hoach-sx", label: "Lệnh sản xuất", icon: "clipboardList", module: "san_xuat" },
       // Bàn TRA (điều độ · QC · sale), khác hẳn Kế hoạch SX là bàn LẬP: chỉ lệnh ĐÃ PHÁT HÀNH, và
       // không một nút ghi nào. Nhãn "Hồ sơ lệnh sản xuất" chứ không "Lệnh sản xuất" — màn Kế hoạch
       // SX đã có sẵn một TAB mang đúng chữ đó. ĐỊNH DANH giữ nguyên: nav id `lenh-san-xuat`,
@@ -134,6 +135,8 @@ export const NAV: NavSection[] = [
       // bỏ đánh số về `xep_lich`, mg `0314` chép quyền của `xep_lich_3` sang nên không ai mất
       // đường vào. Dấu trang cũ `/xep-lich-3` và `/xep-lich-cong-doan-2` không còn dùng được.
       { id: "xep-lich", label: "Xếp lịch", icon: "gantt", module: "xep_lich" },
+      // Kế hoạch bộ phận (07/11/2026): bộ phận nhận lệnh đã phát, chọn máy + nhóm rồi Giao xuống tổ.
+      { id: "ke-hoach-bo-phan", label: "Kế hoạch bộ phận", icon: "gantt", module: "ke_hoach_bo_phan" },
       // KCS (09/10/2026) — ô quyền thật `kcs` (Xem · Thao tác · Đóng lệnh thiếu), thay cờ phòng ban
       // "Tổ KCS đích danh" từng tiêm mục này động vào khối Tổ sản xuất. Kiểm cả chuỗi mọi tổ.
       { id: "kcs", label: "KCS", icon: "badgeCheck", module: "kcs" },

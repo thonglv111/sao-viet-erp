@@ -528,6 +528,7 @@ class XepLichLenhService:
                 "han_hoan_thanh_sx": l.han_hoan_thanh_sx,
                 "han_giao_khach": l.han_giao_khach,
                 "is_rush": bool(l.is_rush),
+                "da_phat_hanh": l.trang_thai == TT_DA_PHAT_HANH,
                 "so_to_ke_hoach": int(l.so_to_ke_hoach or 0),
                 "so_luong_dat": int(l.so_luong_dat or 0),
                 "don_vi_tinh": l.don_vi_tinh,
@@ -1078,8 +1079,8 @@ class XepLichLenhService:
             # đóng băng một cấu hình còn đang sửa.
             raise XepLichLenhConflict(
                 f"Lệnh {l.ma} còn Nháp — kế hoạch bấm Sẵn sàng rồi mới phát hành được.")
-        if self.repo.theo_lsx(lsx_id) is None:
-            raise XepLichLenhError("Lệnh chưa có giờ bắt đầu — đặt mốc trước khi phát hành.")
+        # 07/11/2026: phát lệnh KHÔNG cần giờ bắt đầu nữa — giờ chạy do từng bộ phận xếp ở Kế hoạch
+        # bộ phận. Lệnh Sẵn sàng là phát được (kiểm thiếu bộ phận nhận nằm ở `kiem_thieu`).
 
         sx_repo = SanXuatRepository(self.db)
         tp = thanh_phan_lien_thong(sx_repo, {lsx_id})

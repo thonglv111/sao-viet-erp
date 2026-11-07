@@ -5005,7 +5005,12 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `ten_cong_doan` | `String(255)` | — | no | `""` | Tên công đoạn snapshot; bước đã tách mang hậu tố “(lần k/N)”. |
 | `nhom_cong_doan` | `String(24)` | — | yes | — | prepress/print/finishing. |
 | `loai_buoc` | `String(16)` | — | no | `may` | `may`/`to`/`thue_ngoai`. |
-| `department_id` | `Integer` FK→`departments.id` | IX | yes | — | Snapshot tổ thực hiện (§2.2). |
+| `department_id` | `Integer` FK→`departments.id` | IX | yes | — | Snapshot tổ thực hiện (§2.2). Từ mg `0454` việc Nội bộ CHƯA GIAO để NULL: việc nằm ở bộ phận (`bo_phan_id`), bàn tổ chỉ thấy việc từ lúc bộ phận Giao. |
+| `bo_phan_id` | `Integer` | IX | yes | — | Bộ phận nhận việc (mg `0454`, `docs/design-lenh-san-xuat-ke-hoach-bo-phan.md`): phòng trực thuộc ngay dưới phòng gốc khối Sản xuất, chép từ `lsx_cong_doan.department_id` lúc phát hành. NULL = việc gia công. |
+| `da_giao_at` | `DateTime(timezone=True)` | — | yes | — | Lúc bộ phận bấm Giao xuống nhóm (mg `0454`). NULL = còn ở khay Kế hoạch bộ phận. Việc phát hành trước mg `0454` backfill = `created_at`. |
+| `da_giao_by_id` | `Integer` | — | yes | — | Người bấm Giao (soft → `users.id`), máy chủ gán từ tài khoản. |
+| `thu_tu_xep` | `Integer` | — | yes | — | Thứ tự chạy trong cột máy hoặc cột Làm tay của Kế hoạch bộ phận. NULL = chưa xếp. |
+| `nhom_xep_id` | `Integer` | — | yes | — | Nhóm bộ phận đã chọn mà chưa bấm Giao (soft → `departments.id`, mg `0454`). Lúc Giao chép sang `department_id`; rút lại thì nhóm cũ quay về đây. |
 | `la_kcs_cuoi` | `Boolean` | — | no | `false` | CÔNG ĐOẠN CUỐI của nhóm thành phẩm, bất kể tổ nào làm (đúng một bước/nhóm, mọi phân đoạn của bước đó; mg `0306`, `docs/design-kcs-theo-lenh.md` mục 6). Phần KCS kiểm đạt ở bước này là số đề nghị nhập kho. |
 | `kcs_tieu_chi_json` | `JSON` | — | yes | — | SNAPSHOT checklist KCS của bước tại lúc PHÁT HÀNH, lấy từ danh mục `san_xuat_kcs_tieu_chi` gắn theo công đoạn (nguồn DUY NHẤT từ mg `0283` — ô "bổ sung" ở lệnh đã gỡ). **NULL ⇔ công đoạn chưa gắn tiêu chí nào** — đừng ghi `[]` thay NULL. Từ mg `0381` mỗi mục `{tieu_chi_id, ma, ten, thu_tu}`, `thu_tu` = vị trí 1..n (ảnh chụp cũ còn khoá `huong_dan`/`bat_buoc`/`nguon`, không ai đọc nữa). |
 | `may_id` | `Integer` | — | yes | — | Snapshot máy — soft → `may_thiet_bi.id`. Migration `0237` GỠ khoá ngoại cứng cũ trỏ `machines`: máy của bước lấy từ danh mục đang chạy `may_thiet_bi`, id lệch hẳn `machines` (danh mục đời tính giá) nên lệnh nào có bước chạy máy ngoài dải đó cũng vỡ lúc phát hành, kẹt lại `da_phat_hanh` mà không có công việc. |
@@ -5034,7 +5039,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 | `updated_at` | `DateTime(timezone=True)` | — | no | now/onupdate | |
 
-**Tất cả cột:** `id`, `goi_id`, `phien_ban_so`, `nhom_id`, `lsx_id`, `bai_ghep_id`, `lsx_cong_doan_id`, `bai_ghep_cong_doan_id`, `step_key`, `phan_doan_so`, `phan_doan_tong`, `ten_cong_doan`, `nhom_cong_doan`, `loai_buoc`, `department_id`, `la_kcs_cuoi`, `kcs_tieu_chi_json`, `may_id`, `du_kien_bat_dau`, `du_kien_ket_thuc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `dinh_muc_json`, `vat_tu_json`, `can_vat_tu`, `nha_cung_cap`, `gia_cong_ngoai_id`, `khuon_json`, `khuon_nhan_luc`, `khuon_nhan_by_id`, `khuon_tra_luc`, `trang_thai`, `hoan_thanh_luc`, `version`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `goi_id`, `phien_ban_so`, `nhom_id`, `lsx_id`, `bai_ghep_id`, `lsx_cong_doan_id`, `bai_ghep_cong_doan_id`, `step_key`, `phan_doan_so`, `phan_doan_tong`, `ten_cong_doan`, `nhom_cong_doan`, `loai_buoc`, `department_id`, `bo_phan_id`, `da_giao_at`, `da_giao_by_id`, `thu_tu_xep`, `nhom_xep_id`, `la_kcs_cuoi`, `kcs_tieu_chi_json`, `may_id`, `du_kien_bat_dau`, `du_kien_ket_thuc`, `so_luong_vao`, `so_luong_ra`, `don_vi_vao`, `don_vi_ra`, `he_so_quy_doi`, `dinh_muc_json`, `vat_tu_json`, `can_vat_tu`, `nha_cung_cap`, `gia_cong_ngoai_id`, `khuon_json`, `khuon_nhan_luc`, `khuon_nhan_by_id`, `khuon_tra_luc`, `trang_thai`, `hoan_thanh_luc`, `version`, `created_at`, `updated_at`.
 
 ### `san_xuat_cong_viec_lich_su`
 

@@ -15,10 +15,11 @@ from ..models.bai_ghep import BaiGhepThanhVien
 from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import DonViDo
-from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
+from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+from ..models.lsx import TT_DA_PHAT_HANH, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.may_thiet_bi import MayThietBi
 from ..models.san_xuat import (
-    GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatCongViecLichSu, SanXuatGoiPhatHanh,
+    CV_PHAT_HANH, GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatCongViecLichSu, SanXuatGoiPhatHanh,
 )
 from ..models.san_xuat_thuc_thi import SanXuatPhienChay
 from ..models.order import Order, OrderLine
@@ -203,9 +204,21 @@ class XepLichLenhRepository:
     def _dk_hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None = None,
                      tu_ngay: date | None = None, den_ngay: date | None = None,
                      moc: str = "tao", khach_id: int | None = None) -> list:
-        """Điều kiện của hàng chờ — dùng chung cho danh sách và nguồn ô "Khách hàng"."""
+        """Điều kiện của hàng chờ — dùng chung cho danh sách và nguồn ô "Khách hàng".
+
+        Từ 07/11/2026 phát lệnh không cần giờ bắt đầu, nên lệnh ĐÃ PHÁT mà chưa có giờ cũng nằm ở
+        khay (không thì nó không ở đâu trên màn, mất đường mở ngăn để Thu hồi hay Phát hành cập
+        nhật). Chỉ lấy lệnh chưa việc nào bắt đầu — đúng tập còn thu hồi được; lệnh đang chạy dở
+        theo dõi ở Theo dõi sản xuất. Lệnh gia công trọn gói cũng ở trạng thái đã phát nhưng không
+        bao giờ qua Xếp lịch, nên loại ra."""
+        da_bat_dau = select(SanXuatCongViec.id).where(
+            SanXuatCongViec.lsx_id == Lsx.id, SanXuatCongViec.trang_thai != CV_PHAT_HANH).exists()
+        tron_goi = select(GiaCongNgoai.id).where(
+            GiaCongNgoai.lsx_id == Lsx.id, GiaCongNgoai.kieu == KIEU_TRON_GOI,
+            GiaCongNgoai.huy_luc.is_(None)).exists()
         dieu_kien = [
-            Lsx.trang_thai.in_(trang_thai),
+            or_(Lsx.trang_thai.in_(trang_thai),
+                and_(Lsx.trang_thai == TT_DA_PHAT_HANH, ~da_bat_dau, ~tron_goi)),
             ~select(XepLichLenh.id).where(XepLichLenh.lsx_id == Lsx.id).exists(),
         ]
         if tim:

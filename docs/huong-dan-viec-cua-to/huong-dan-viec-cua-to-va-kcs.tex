@@ -87,11 +87,11 @@
 {\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
 {\tieude\fontsize{22}{26}\selectfont Hướng dẫn sử dụng Việc của tổ và KCS}\par\vspace{4pt}
 {\small Nhận việc, bắt đầu, ghi sản lượng, giao tổ sau, kiểm hàng, gửi kho, đóng lệnh}\par\vspace{2pt}
-{\small\color{xamchu} Cập nhật 05/11/2026}\par\vspace{6pt}
+{\small\color{xamchu} Cập nhật 07/11/2026}\par\vspace{6pt}
 \noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
 
 Tài liệu cho người dưới xưởng: tổ trưởng và thợ của các tổ in, cán, bồi, bế, gỡ, dán, thành phẩm, cắt, và người
-làm KCS. Đi theo đúng đường của một việc: lệnh phát hành xuống, tổ nhận việc, bắt đầu, ghi sản lượng, giao tổ sau,
+làm KCS. Đi theo đúng đường của một việc: lệnh phát hành, bộ phận giao việc xuống, tổ nhận việc, bắt đầu, ghi sản lượng, giao tổ sau,
 tới bước cuối thì KCS kiểm, gửi thành phẩm vào kho và đóng lệnh. Người đọc rành nghề hơn ai hết nên tài liệu
 không giải nghĩa tờ in, con, khuôn bế, chỉ nói phần mềm làm gì.
 
@@ -126,8 +126,10 @@ sang bước sau.
 
 \cat[0.95\linewidth]{0 330 0 90}{vtt-00-luong.png}
 
-Kế hoạch sản xuất phát hành lệnh (xem \kh{phat-hanh}{Phát hành}). Lúc đó mỗi bước của lệnh thành một việc ở
-đúng tổ được giao, kho nhận yêu cầu xuất vật tư. Tổ trưởng giao người, nhận khuôn nếu bước cần khuôn, rồi bấm
+Kế hoạch sản xuất phát hành lệnh (xem \kh{phat-hanh}{Phát hành}). Lúc đó mỗi bước của lệnh tới khay của bộ phận
+nhận, kho nhận yêu cầu xuất vật tư. Tổ chưa thấy gì. Người kế hoạch của bộ phận xếp việc vào máy, chọn nhóm làm rồi
+bấm Giao (xem \kh{ke-hoach-bo-phan}{Kế hoạch bộ phận}), lúc đó việc mới hiện ở Việc của tổ được giao. Bộ phận rút
+lại khi tổ chưa bắt đầu thì việc biến khỏi Việc của tổ. Tổ trưởng giao người, nhận khuôn nếu bước cần khuôn, rồi bấm
 \oo{Bắt đầu}. Thợ ghi sản lượng từng lần, ghi xong phần mềm tự đề xuất giao lần đó sang tổ sau. Tổ sau bấm
 \oo{Xác nhận} là đã nhận hàng và bắt đầu được bước của mình. Cứ thế tới bước cuối.
 
@@ -135,7 +137,7 @@ Kế hoạch sản xuất phát hành lệnh (xem \kh{phat-hanh}{Phát hành}). 
 phẩm, kho ghi sổ nhập, KCS đóng lệnh. Giữa chừng KCS thấy lỗi ở bước nào thì ghi lỗi ngay ở bước đó, tổ gây lỗi
 thấy liền ở tab KCS của việc.
 
-Bước thuê ngoài không thuộc tổ nào nên không hiện ở Việc của tổ. Kế hoạch sản xuất mang hàng đi và nhận về (xem
+Bước gia công không thuộc tổ nào nên không hiện ở Việc của tổ. Kế hoạch sản xuất mang hàng đi và nhận về (xem
 \kh{mot-phan}{Thuê ngoài một phần}), tổ của bước sau chỉ việc xác nhận nhận hàng như nhận từ tổ trong xưởng.
 
 % ============================================================
@@ -218,7 +220,7 @@ mở thanh bên.
 \Needspace*{30\baselineskip}
 \section{Giao người và bắt đầu}\label{giao-nguoi}
 
-Lệnh vừa phát hành thì cả tổ tự được giao vào việc. Tổ trưởng chỉnh lại cho đúng người đứng việc này.
+Bộ phận vừa giao việc xuống thì cả tổ tự được giao vào việc. Tổ trưởng chỉnh lại cho đúng người đứng việc này.
 
 \rong[0.85\linewidth]{vtt-21-giao-nguoi.png}
 

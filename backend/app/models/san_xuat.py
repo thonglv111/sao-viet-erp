@@ -249,9 +249,23 @@ class SanXuatCongViec(Base):
     nhom_cong_doan: Mapped[str | None] = mapped_column(String(24), nullable=True)
     loai_buoc: Mapped[str] = mapped_column(String(16), nullable=False, default=BUOC_MAY)
     # Snapshot phòng/tổ thực hiện + trạng thái KCS (§2.2, §4.2).
+    # NULL ở việc Nội bộ CHƯA GIAO (mg `0454`): việc nằm ở bộ phận (`bo_phan_id`) chờ người kế
+    # hoạch bộ phận chọn nhóm. Mọi bàn tổ / badge / chấm đỏ lọc theo cột này nên tự bỏ qua việc
+    # chưa giao, không cần thêm điều kiện.
     department_id: Mapped[int | None] = mapped_column(
         ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # BỘ PHẬN NHẬN việc (mg `0454`, thiết kế 07/11/2026): phòng trực thuộc ngay dưới phòng gốc
+    # khối Sản xuất. Chép từ `lsx_cong_doan.department_id` lúc phát hành. NULL = việc gia công.
+    bo_phan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # Lúc bộ phận bấm Giao + người giao (soft → users.id). NULL = còn ở khay của bộ phận.
+    da_giao_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    da_giao_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Thứ tự chạy trong cột máy (hoặc cột Làm tay) ở Kế hoạch bộ phận. NULL = chưa xếp.
+    thu_tu_xep: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Nhóm bộ phận ĐÃ CHỌN mà chưa bấm Giao (soft → departments.id). Lúc Giao chép sang
+    # `department_id`; rút lại thì nhóm cũ quay về đây.
+    nhom_xep_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # CÔNG ĐOẠN CUỐI của nhóm thành phẩm (bất kể tổ nào làm) — phần KCS kiểm đạt ở đây mới được
     # đề nghị nhập kho (mg `0306`, `docs/design-kcs-theo-lenh.md` mục 6).
     la_kcs_cuoi: Mapped[bool] = mapped_column(

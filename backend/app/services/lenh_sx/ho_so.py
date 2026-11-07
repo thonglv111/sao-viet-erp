@@ -777,11 +777,15 @@ def _goi_id(db: Session, bc: BoiCanh, lsx_id: int) -> int | None:
     return goi.id if goi is not None else None
 
 
+#: Hành động của Kế hoạch bộ phận hiện trên dòng thời gian của lệnh (nhãn ở `audit_registry.py`).
+_NHAT_KY_BO_PHAN = ("kh_bo_phan_giao", "kh_bo_phan_rut", "kh_bo_phan_doi_may")
+
+
 def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
               lich_su_nhan_luc: list[dict]) -> list[dict]:
     """Mọi việc đã xảy ra với lệnh, MỘT dòng thời gian, sắp tăng dần theo mốc MÁY CHỦ.
 
-    Bảy nguồn, vì bảy nơi ghi: gói phát hành · phiên chạy · sản lượng · KCS · sự cố · kho ·
+    Tám nguồn, vì tám nơi ghi: nhật ký Kế hoạch bộ phận (giao nhóm, rút, đổi máy) · gói phát hành · phiên chạy · sản lượng · KCS · sự cố · kho ·
     phân công/đổi máy (nhận lại từ `_nhan_luc` thay vì đọc `san_xuat_phan_cong` lần thứ hai).
 
     KHÔNG có giao hàng — CÓ NGUỒN, CỐ Ý CHƯA DÙNG (phán quyết C70). Nguồn sẵn sàng là
@@ -913,6 +917,27 @@ def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
             "noi_dung": noi_dung,
             "nguoi_ten": e["nguoi"],
         })
+
+    # Nguồn thứ tám (07/11/2026): Kế hoạch bộ phận giao việc cho nhóm, rút về, đổi khỏi máy tính giá
+    # kèm lý do. Ba việc này chỉ ghi nhật ký (`audit_logs`, target của lệnh hoặc của bài ghép chứa
+    # lệnh), không có bảng riêng, nên đọc từ đó — thiếu thì người xem hồ sơ không biết vì sao máy
+    # đổi so với lúc tính giá.
+    from ...repositories.audit_repo import AuditLogRepository
+    from ...repositories.san_xuat_repo import SanXuatRepository
+
+    dich = [f"lsx:{lsx_id}"] + [f"bai_ghep:{b}" for b in
+                                 SanXuatRepository(db).bai_ghep_ids_cua_lsx({lsx_id})]
+    for logs in AuditLogRepository(db).list_by_targets(dich, actions=_NHAT_KY_BO_PHAN).values():
+        for log in logs:
+            ra.append({
+                "loai": "ke_hoach_bo_phan",
+                "luc": _aware(log.created_at),
+                "nguoi_id": log.actor_user_id,
+                "cong_viec_id": None,
+                "ten_viec": None,
+                "noi_dung": log.detail,
+                **({"nguoi_ten": log.actor_name_luc_do} if log.actor_name_luc_do else {}),
+            })
 
     ten_user = _ten_user(db, {e.get("nguoi_id") for e in ra})
     for e in ra:

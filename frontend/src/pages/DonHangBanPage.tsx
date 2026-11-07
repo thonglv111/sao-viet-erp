@@ -1007,10 +1007,10 @@ function OrderDrawer({
                             onMoLenh={navigate && can("san_xuat", "read") ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
                         </div>
                         {can("san_xuat", "read") && (
-                          <ChanKhung chu="Theo dõi từng công đoạn của lệnh ở Kế hoạch sản xuất.">
+                          <ChanKhung chu="Theo dõi từng công đoạn của lệnh ở Lệnh sản xuất.">
                             <button type="button" className="btn"
                               onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
-                              Mở Kế hoạch sản xuất ↗
+                              Mở Lệnh sản xuất ↗
                             </button>
                           </ChanKhung>
                         )}

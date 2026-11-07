@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from ...models.san_xuat import (
     BUOC_MAY,
+    BUOC_THUE_NGOAI,
     CV_PHAT_HANH,
     SanXuatCongViec,
     SanXuatGoiPhatHanh,
@@ -52,6 +53,20 @@ class _SoPhatHanh:
         self._svc = None
         self._qc_lsx: dict[int, dict] = {}
         self._qc_bai: dict[int, dict] = {}
+        self._cay = None
+
+    def bo_phan(self, dept_id: int | None) -> int | None:
+        """Bộ phận nhận của bước (07/11/2026). Bước mới lưu thẳng bộ phận; bước cũ còn trỏ nhóm
+        thì đi ngược lên bộ phận chứa nhóm. Cây đọc MỘT lần cho cả gói."""
+        if dept_id is None:
+            return None
+        if self._cay is None:
+            from ..quyen_to import doc_cay
+
+            self._cay = doc_cay(self.db)
+        from .bo_phan import bo_phan_cua
+
+        return bo_phan_cua(self._cay, int(dept_id))
 
     def _lsx_svc(self):
         if self._svc is None:
@@ -247,6 +262,10 @@ def _hanh_ly(so: _SoPhatHanh, cd, *, lsx_id: int | None, bai_ghep_id: int | None
         # `yeu_cau_ky_thuat`: câu đó viết cho NHÀ GIA CÔNG, không phải cho tổ trong xưởng.
         "ghi_chu": (getattr(cd, "ghi_chu", None) or "").strip() or None,
         "quy_cach_json": the_quy_cach(qc),
+        # Bộ phận nhận (07/11/2026): bước Nội bộ tới khay Kế hoạch bộ phận, CHƯA có nhóm. Bước gia
+        # công không qua bộ phận nào.
+        "bo_phan_id": (None if (cd.loai_buoc or BUOC_MAY) == BUOC_THUE_NGOAI
+                       else so.bo_phan(getattr(cd, "department_id", None))),
     }
 
 
@@ -413,7 +432,12 @@ def _cong_viec_theo_phan_doan(
             phan_doan_so=phan_doan_so, phan_doan_tong=tong,
             ten_cong_doan=_ten_phan_doan(cd.ten, phan_doan_so, tong),
             nhom_cong_doan=cd.nhom, loai_buoc=cd.loai_buoc or BUOC_MAY,
-            department_id=cd.department_id,
+            # Việc Nội bộ CHƯA GIAO: không tổ, nằm ở bộ phận (07/11/2026). Nhóm chọn ở Kế hoạch bộ
+            # phận lúc Giao. Bước không tìm ra bộ phận (dữ liệu cũ ngoài khối) giữ đường cũ: tổ
+            # của bước, coi như đã giao.
+            department_id=(None if hanh_ly["bo_phan_id"] is not None else cd.department_id),
+            bo_phan_id=hanh_ly["bo_phan_id"],
+            # Máy của bước là máy GỢI Ý (máy in từ bài tính giá); bộ phận đổi được, có lý do.
             may_id=may_id or cd.may_id,
             du_kien_bat_dau=start, du_kien_ket_thuc=finish,
             so_luong_vao=sl_vao, so_luong_ra=sl_ra,

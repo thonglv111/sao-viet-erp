@@ -86,20 +86,25 @@
 \thispagestyle{empty}
 {\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
 {\tieude\fontsize{22}{26}\selectfont Hướng dẫn sử dụng Kế hoạch sản xuất}\par\vspace{4pt}
-{\small Nhận đơn, lên lệnh, lo vật tư, xếp lịch máy, gia công ngoài, theo dõi hàng}\par\vspace{2pt}
-{\small\color{xamchu} Cập nhật 05/11/2026}\par\vspace{6pt}
+{\small Nhận đơn, lên lệnh, lo vật tư, phát lệnh tới các bộ phận, gia công ngoài, theo dõi hàng}\par\vspace{2pt}
+{\small\color{xamchu} Cập nhật 07/11/2026}\par\vspace{6pt}
 \noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
 
 Tài liệu cho người lên kế hoạch của xưởng, dùng hằng ngày. Đi theo đúng đường một lệnh sản xuất: đơn rơi xuống,
-tạo lệnh, rà lệnh cho đủ số, lo vật tư, xếp lịch máy và phát hành xuống xưởng, đưa hàng đi gia công ngoài, rồi
-theo dõi tới lúc KCS đóng lệnh. Người đọc đã biết nghề in nên tài liệu không giải nghĩa tay sách, bù hao hay khổ
-tờ, chỉ nói phần mềm làm gì với chúng.
+tạo lệnh, rà lệnh cho đủ số, lo vật tư, phát lệnh tới các bộ phận, đưa hàng đi gia công ngoài, rồi theo dõi tới
+lúc KCS đóng lệnh. Người đọc đã biết nghề in nên tài liệu không giải nghĩa tay sách, bù hao hay khổ tờ, chỉ nói
+phần mềm làm gì với chúng.
+
+Từ 07/11/2026 màn Kế hoạch sản xuất đổi tên thành Lệnh sản xuất. Lệnh không chọn tổ và máy nữa, mỗi bước chỉ ghi
+bộ phận nhận. Phát lệnh xong, từng bộ phận tự chọn máy và nhóm thợ ở màn Kế hoạch bộ phận (chương
+\ref{ke-hoach-bo-phan}).
 
 Tài liệu viết theo bộ quyền của vai Kế hoạch SX, phạm vi Tất cả ở mọi màn:
 
 \begin{itemize}
-\item Kế hoạch sản xuất, Kế hoạch vật tư, Yêu cầu mua hàng: Xem và Thao tác.
+\item Lệnh sản xuất, Kế hoạch vật tư, Yêu cầu mua hàng: Xem và Thao tác.
 \item Xếp lịch: Xem, Thao tác và Phát hành lịch.
+\item Kế hoạch bộ phận: Xem và Thao tác.
 \item Hồ sơ lệnh sản xuất, Theo dõi sản xuất: Xem.
 \item Xem danh mục Công đoạn, Thiết bị \& Máy móc, Khuôn.
 \end{itemize}
@@ -108,8 +113,9 @@ Thiếu ô nào thì nút tương ứng không hiện hoặc bấm bị từ ch�
 trận quyền} và gán vai ở mục \kbn{phan-quyen-gan-vai}{Gán vai và lập nhóm}. Chữ màu xanh là liên kết, bấm vào mở đúng
 mục bên tài liệu đó.
 
-Ảnh chụp từ phần mềm thật, dữ liệu là đơn DH003 của khách Café Katinat với ba lệnh LSX26-0007, 0008, 0009. Ô đỏ
-đánh số là chỗ cần bấm hoặc cần đọc, số khớp với lời giải thích bên cạnh.
+Ảnh chụp từ phần mềm thật, dữ liệu là đơn DH003 của khách Café Katinat với ba lệnh LSX26-0007, 0008, 0009. Ảnh của
+phần đổi ngày 07/11/2026 (bảng công đoạn, ngăn bước, phát lệnh, Kế hoạch bộ phận) chụp lệnh LSX26-0005 và
+LSX26-0011. Ô đỏ đánh số là chỗ cần bấm hoặc cần đọc, số khớp với lời giải thích bên cạnh.
 
 \bigskip
 \tableofcontents
@@ -118,16 +124,18 @@ mục bên tài liệu đó.
 \Needspace*{16\baselineskip}
 \section{Đường đi của một lệnh}\label{duong-di}
 
-Mỗi hàng của sơ đồ là một phòng, mỗi ô là một bước. Hàng thứ hai là việc của Kế hoạch sản xuất, các hàng còn lại
+Mỗi hàng của sơ đồ là một phòng, mỗi ô là một bước. Hàng thứ hai là việc của người lên kế hoạch, các hàng còn lại
 là việc phòng khác làm, kế hoạch chỉ theo dõi. Chữ trên mũi tên là điều kiện hoặc thứ được chuyển sang bước sau.
 
 \rong[0.92\linewidth]{khsx-00-luong.png}
 
 Đơn hàng bán do Kinh doanh chốt. Đơn cần cọc thì phải chờ Kế toán thu đủ cọc, đơn không cần cọc thì sang thẳng
-(xem \kd{don-coc}{Chờ cọc}). Đơn sang là rơi vào \oo{Hàng chờ tiếp nhận} ở màn Kế hoạch sản xuất. Kế hoạch tạo lệnh,
-rà cho đủ số rồi bấm \oo{Sẵn sàng lập kế hoạch}. Lệnh sẵn sàng thì lo vật tư (giữ hàng có sẵn, thiếu thì đề nghị mua),
-kéo lệnh vào lịch máy và bấm \oo{Phát hành}. Phát hành xong, tổ nhận việc ở màn Việc của tổ, kho nhận yêu cầu xuất
-vật tư, bước thuê ngoài chờ mang đi gia công. Tổ ghi sản lượng, KCS kiểm, gửi thành phẩm vào kho và đóng lệnh.
+(xem \kd{don-coc}{Chờ cọc}). Đơn sang là rơi vào \oo{Hàng chờ tiếp nhận} ở màn Lệnh sản xuất. Kế hoạch tạo lệnh,
+rà cho đủ số rồi bấm \oo{Sẵn sàng lập kế hoạch}. Lệnh sẵn sàng thì lo vật tư (giữ hàng có sẵn, thiếu thì đề nghị mua)
+rồi bấm \oo{Phát hành} ở màn Xếp lịch. Giờ bắt đầu để trống được. Phát hành xong, mỗi bước nội bộ tới khay
+\q{Lệnh mới tới} của bộ phận nhận nó, kho nhận yêu cầu xuất vật tư, bước gia công chờ mang đi. Bộ phận chọn máy
+và nhóm thợ rồi bấm Giao, lúc đó nhóm mới thấy việc ở màn Việc của tổ. Tổ ghi sản lượng, KCS kiểm, gửi thành phẩm
+vào kho và đóng lệnh.
 
 Lệnh giao trọn cho nhà gia công đi đường tắt: không xếp lịch, không xuống tổ, hàng về thì nhập thẳng kho thành phẩm
 (chương \ref{gia-cong}).
@@ -139,7 +147,8 @@ Lệnh giao trọn cho nhà gia công đi đường tắt: không xếp lịch, 
 \item Nháp: lệnh vừa tạo hoặc vừa mở lại để sửa. Sửa mọi thứ được.
 \item Sẵn sàng: đủ dữ liệu, vào khay Chờ xếp lịch. Muốn sửa thì bấm Mở lại để sửa, lệnh về Nháp và rời màn Xếp
 lịch, giờ đã đặt cho lệnh bị bỏ.
-\item Đã phát hành: đã xuống xưởng. Tổ thấy việc, kho thấy yêu cầu xuất. Chuỗi công đoạn bị khoá.
+\item Đã phát hành: đã tới các bộ phận. Kho thấy yêu cầu xuất. Tổ chỉ thấy việc sau khi bộ phận giao. Chuỗi công
+đoạn bị khoá.
 \item Đã đóng: KCS đã đóng lệnh.
 \end{itemize}
 
@@ -149,12 +158,13 @@ Kéo lệnh vào lịch không đổi trạng thái. Lệnh có giờ mà chưa 
 \Needspace*{8\baselineskip}
 \subsection{Màn hình dùng hằng ngày}\label{man-hinh}
 
-Cả năm màn nằm trong nhóm \duong{Sản xuất} của thanh bên trái:
+Cả sáu màn nằm trong nhóm \duong{Sản xuất} của thanh bên trái:
 
 \begin{itemize}
-\item \duong{Kế hoạch sản xuất}: hàng chờ tiếp nhận, danh sách lệnh, chi tiết từng lệnh.
+\item \duong{Lệnh sản xuất}: hàng chờ tiếp nhận, danh sách lệnh, chi tiết từng lệnh.
 \item \duong{Kế hoạch vật tư}: vật tư của mọi lệnh đang chạy, giữ hàng, đề nghị mua.
-\item \duong{Xếp lịch}: lịch máy, khay chờ xếp, phát hành.
+\item \duong{Xếp lịch}: khay chờ xếp, lịch, phát hành.
+\item \duong{Kế hoạch bộ phận}: mỗi bộ phận chọn máy và nhóm thợ cho việc vừa tới, rồi giao xuống tổ.
 \item \duong{Theo dõi sản xuất}: hàng của từng đơn tới đâu.
 \item \duong{Hồ sơ lệnh sản xuất}: lệnh đã phát hành, sản lượng từng bước, in phiếu công nghệ.
 \end{itemize}
@@ -167,7 +177,7 @@ nhập kho (thủ kho).
 \section{Nhận đơn và tạo lệnh}\label{nhan-don}
 
 Đơn chốt xong (và đủ cọc nếu cần cọc) là tự sang sản xuất. Người kế hoạch nhận thông báo ngay, tab
-\oo{Hàng chờ tiếp nhận} có chấm đỏ. Mở \duong{Sản xuất > Kế hoạch sản xuất}.
+\oo{Hàng chờ tiếp nhận} có chấm đỏ. Mở \duong{Sản xuất > Lệnh sản xuất}.
 
 \rong{khsx-10-hang-cho.png}
 
@@ -186,7 +196,7 @@ Bấm một dòng, ngăn bên phải mở ra với mỗi mặt hàng của đơn
 \so{1} Số trong ngăn lấy sẵn từ bài tính giá của mặt hàng. Đây là đề xuất, sau khi tạo lệnh vẫn sửa được.
 \so{2} Tick dòng muốn tạo lệnh. Dòng đã có lệnh thì hiện mã lệnh và không tick được nữa.
 \so{3} Vào máy, Bù hao, Giấy nguyên, Con/tờ, Kẽm, Lượt in: số của bài in.
-\so{4} Công đoạn: chuỗi bước từ bài tính giá. Bước có hình xe tải là bước thuê ngoài.
+\so{4} Công đoạn: chuỗi bước từ bài tính giá. Bước có hình xe tải là bước gia công.
 \so{5} Bấm \oo{Xác nhận tạo N lệnh sản xuất}.
 
 Mấy trường hợp cần để ý trong ngăn:
@@ -209,7 +219,7 @@ Tab Lệnh SX có ba chip lọc Tất cả, Nháp, Sẵn sàng. Cột Hạn sả
 \section{Rà một lệnh trước khi lập kế hoạch}\label{ra-lenh}
 
 Bấm mã lệnh ở tab Lệnh SX để mở chi tiết. Việc ở chương này là làm cho lệnh đủ số để xưởng chạy được: đúng giấy,
-đúng chuỗi công đoạn, mỗi bước có tổ và máy, bước cần khuôn có khuôn.
+đúng chuỗi công đoạn, mỗi bước nội bộ có bộ phận nhận, bước cần khuôn có khuôn.
 
 \rong{khsx-20-tong-quan.png}
 
@@ -226,8 +236,11 @@ báo \q{Có thay đổi mới}, bấm mới nạp lại. Sửa ở tab nào mà 
 \oo{Lưu thay đổi}.
 
 Những mục \q{Còn thiếu} hay gặp: chưa có bài tính giá, thiếu loại giấy hay khổ nguyên của giấy, chưa có công đoạn,
-thiếu ngày giao, có bước thuê ngoài chưa chọn nhà gia công, có công đoạn chưa gán tổ hoặc máy, có công đoạn cần
-khuôn mà chưa chọn, chưa khai Con/tờ. Sách thì thêm Số trang, Trang mỗi tay, số mảnh xả.
+thiếu ngày giao, có bước gia công chưa chọn nhà gia công, có công đoạn chưa có bộ phận nhận, có công đoạn cần khuôn
+mà chưa chọn, chưa khai Con/tờ. Sách thì thêm Số trang, Trang mỗi tay, số mảnh xả.
+
+Mục \q{Có công đoạn chưa có bộ phận nhận} nghĩa là công đoạn đó chưa tick nhóm thợ nào ở danh mục, phần mềm không
+biết giao cho bộ phận nào. Nhờ người khai danh mục tick nhóm ở \kb{danh-muc-cong-doan}{Công đoạn} rồi mở lại lệnh.
 
 \Needspace*{14\baselineskip}
 \subsection{Thông tin chung}\label{thong-tin-chung}
@@ -257,14 +270,24 @@ khớp, không bỏ tay các bước này được.
 
 \rong{khsx-22-cong-doan.png}
 
-Bảng có hai cách nhìn, \oo{Sơ đồ DAG} và \oo{Bảng danh sách}. Mỗi dòng là một bước: Loại (Máy, Tổ hay Thuê ngoài),
-tổ và máy làm, số vào và ra kèm đơn vị, thời lượng máy chạy, bước đi trước (Tiền nhiệm). Số tròn đen cạnh tên là số
-món vật tư khai ở bước. Nút ba chấm cuối dòng có Chuyển lên, Chuyển xuống, Chèn công đoạn sau, Bỏ bước.
+Bảng có hai cách nhìn, \oo{Sơ đồ DAG} và \oo{Bảng danh sách}. Ảnh trên là Bảng danh sách của lệnh LSX26-0005. Mỗi
+dòng là một bước: số vào và ra kèm đơn vị, bước đi trước (Tiền nhiệm), ghi chú. Số tròn đen cạnh tên là số món vật
+tư khai ở bước. Nút ba chấm cuối dòng có Chuyển lên, Chuyển xuống, Chèn công đoạn sau, Bỏ bước.
 
-Ảnh trên là lệnh 0007 sau khi đổi bước Cán màng bóng, mờ sang Thuê ngoài, giao Cơ sở Gia công Cán màng Thành Công.
+\so{1} Loại: \q{Nội bộ} là bước do một bộ phận trong xưởng làm, \q{Gia công} là bước giao nhà gia công ngoài. Bấm
+chip để đổi.
+
+\so{2} Bộ phận nhận: bộ phận sẽ nhận bước này khi lệnh được phát. Phần mềm tự chọn theo danh mục Công đoạn: lấy các
+nhóm thợ được tick cho công đoạn, đi lên bộ phận chứa từng nhóm, chọn sẵn bộ phận có nhiều nhóm được tick nhất. Công
+đoạn chỉ thuộc một bộ phận thì ô này không đổi được. Thuộc nhiều bộ phận thì bấm vào để chọn, ô chọn có chỗ gõ tìm.
+Bước gia công thì cột này là nhà gia công.
+
+Lệnh không chọn máy, không chọn tổ và không tính giờ chạy nữa. Máy, nhóm thợ và thứ tự làm do bộ phận chọn ở Kế
+hoạch bộ phận. Máy in đã chọn lúc tính giá vẫn đi theo lệnh, sang tới bộ phận In thì việc đứng sẵn ở cột máy đó.
+Ở ảnh, bước Tề giấy in ghi \q{chưa có bộ phận nhận} vì công đoạn này chưa tick nhóm nào ở danh mục.
+
 Chuỗi khác bài tính giá thì phải ghi lý do ở ô cuối bảng, lý do vào Nhật ký của lệnh. Sửa xong bấm \oo{Lưu công
-đoạn}. Dòng tổng cuối bảng cho biết tổng thời gian máy, dự kiến xong, còn mấy ngày tới hạn giao, có mấy bước thuê
-ngoài.
+đoạn}. Dòng cuối bảng đếm số công đoạn và số bước gia công.
 
 Lệnh đang giữ chỗ vật tư thì tab này khoá, muốn sửa phải nhả hàng ở Kế hoạch vật tư (mục \ref{giu-hang}).
 
@@ -272,32 +295,30 @@ Lệnh đang giữ chỗ vật tư thì tab này khoá, muốn sửa phải nh�
 \subsection{Ngăn của một bước}\label{ngan-buoc}
 
 \canh{0.47}{khsx-23-ngan-buoc.png}{%
-Bấm tên bước, ngăn của bước mở bên phải, có năm tab: Cấu hình \& Số lượng, Phân công \& Thiết bị, Vật tư, Tiến độ
-\& Thời gian, Phụ thuộc. Mũi tên trên đầu chuyển sang bước trước hay bước sau.
+Bấm tên bước, ngăn của bước mở bên phải. Bước nội bộ có ba tab: Cấu hình \& Số lượng, Vật tư, Phụ thuộc. Bước gia
+công có Cấu hình \& Số lượng, Nhà gia công, Phụ thuộc. Mũi tên trên đầu chuyển sang bước trước hay bước sau.
 
-\so{1} Tab Phân công \& Thiết bị.
+\so{1} Tab Cấu hình \& Số lượng. Ảnh là bước Khuôn hộp của LSX26-0005.
 
-\so{2} Tổ phụ trách: chỉ có các tổ đã khai cho công đoạn này ở danh mục. Lúc ghi sản lượng, Việc của tổ chọn việc
-khoán của tổ này.
+\so{2} Loại bước: Nội bộ hoặc Gia công.
 
-\so{3} Máy sản xuất. Máy dùng chung nhiều tổ thì ghi thêm tên các tổ kia. Bước thuê ngoài thì chỗ này là ô chọn Nhà
-gia công.
+\so{3} Bộ phận nhận, cùng luật với cột ở bảng. Ô chọn có chỗ gõ tìm, mỗi dòng ghi số nhóm làm được.
 
-\so{4} Lời nhắn của sale về khuôn, chép từ phiếu tính giá.
+\so{4} Khuôn của bước: lời nhắn của sale về khuôn chép từ phiếu tính giá, ô chọn khuôn có sẵn của khách, hoặc
+\oo{+ Làm khuôn mới}. Chỉ hiện khuôn của đúng khách này.
 
-\so{5} Chọn khuôn có sẵn của khách, hoặc \oo{+ Làm khuôn mới}. Chỉ hiện khuôn của đúng khách này.
+\so{5} Sửa trong ngăn chưa lưu ngay. Bấm Xong để đóng ngăn rồi bấm Lưu công đoạn ở bảng chính.}
 
-\so{6} Sửa trong ngăn chưa lưu ngay. Bấm Xong để đóng ngăn rồi bấm Lưu công đoạn ở bảng chính.}
-
-Danh sách tổ, máy và khuôn lấy từ danh mục, xem \kb{danh-muc-cong-doan}{Công đoạn},
-\kbn{danh-muc-may}{Thiết bị \& Máy móc} và \kbn{danh-muc-khuon}{Khuôn}. Máy hay tổ nào không có trong ô chọn thì
-nhờ người khai danh mục thêm.
+Bộ phận nhận và khuôn lấy từ danh mục, xem \kb{danh-muc-cong-doan}{Công đoạn} và \kbn{danh-muc-khuon}{Khuôn}.
+Bộ phận cần chọn mà không có trong ô thì nhờ người khai danh mục tick thêm nhóm thợ của bộ phận đó cho công đoạn.
+Việc đã bắt đầu ở xưởng thì không đổi bộ phận nhận được nữa.
 
 \Needspace*{6\baselineskip}
 \subsection{Vật tư, Tệp đính kèm, Nhật ký}\label{tab-khac}
 
 Tab Vật tư gộp nhu cầu của cả lệnh theo nhóm: NVL chính, Phụ liệu, Dụng cụ, Khuôn, mỗi dòng ghi dùng ở bước nào.
-Tab Tệp đính kèm giữ file gửi kèm lệnh. Tab Nhật ký ghi ai sửa gì, lúc nào, kèm lý do đổi chuỗi công đoạn.
+Tab Tệp đính kèm giữ file gửi kèm lệnh, bộ phận và tổ mở được các tệp này ở Kế hoạch bộ phận và Việc của tổ. Tab
+Nhật ký ghi ai sửa gì, lúc nào, kèm lý do đổi chuỗi công đoạn.
 
 \Needspace*{14\baselineskip}
 \subsection{Sẵn sàng lập kế hoạch}\label{san-sang}
@@ -390,8 +411,8 @@ thì ngăn hiện \q{Phiếu trùng nên huỷ} kèm nút \oo{Huỷ phiếu}, ph
 \Needspace*{16\baselineskip}
 \section{Xếp lịch và phát hành}\label{xep-lich}
 
-Mở \duong{Sản xuất > Xếp lịch}. Lưới là các ngày, mỗi dòng một lệnh có giờ. Khay bên phải là lệnh Sẵn sàng chưa có
-giờ.
+Mở \duong{Sản xuất > Xếp lịch}. Đây là nơi phát lệnh tới các bộ phận. Lưới là các ngày, mỗi dòng một lệnh có giờ.
+Khay bên phải là lệnh Sẵn sàng chưa có giờ. Đặt giờ là tuỳ ý: lệnh chưa có giờ vẫn phát được ngay từ khay.
 
 \rong{khsx-40-khay.png}
 
@@ -403,10 +424,16 @@ hạn gần nhất đứng đầu. \so{4} Chip vật tư: chưa giữ, giữ m�
 Ô tìm (phím tắt \oo{/}) nhận mã, tên, khách. \oo{Lọc} theo trạng thái (Chưa phát hành, Đã phát hành, Đã xong),
 khách, hàng gấp. \oo{Hiển thị} chọn thông tin hiện trên thanh.
 
+Lệnh đã phát mà chưa có giờ vẫn nằm ở khay, gắn chip \so{1} \q{Đã phát}. Thẻ này không kéo được, bấm vào để mở ngăn
+lệnh (Thu hồi, Phát hành cập nhật). Lệnh rời khay khi có việc đầu tiên bắt đầu.
+
+\cat[0.45\linewidth]{0 0 0 0}{khsx-40b-khay-da-phat.png}
+
 \Needspace*{14\baselineskip}
 \subsection{Kéo lệnh vào lịch}\label{keo-tha}
 
-Kéo thẻ lệnh từ khay thả vào cột ngày muốn bắt đầu.
+Muốn hẹn giờ cho lệnh thì kéo thẻ lệnh từ khay thả vào cột ngày muốn bắt đầu. Không kéo cũng được, xem mục
+\ref{ngan-lich}.
 
 \rong{khsx-41-dang-tha.png}
 
@@ -435,16 +462,19 @@ bước. \oo{Bỏ lịch} trong ngăn đưa lệnh về khay.
 \Needspace*{16\baselineskip}
 \subsection{Ngăn lệnh trên lịch}\label{ngan-lich}
 
-Bấm vào thanh hoặc mã lệnh, ngăn lệnh mở ra.
+Bấm vào thanh, mã lệnh, hoặc thẻ lệnh trong khay, ngăn lệnh mở ra. Hình dưới là lệnh chưa có giờ mở từ khay.
 
 \rong[0.8\linewidth]{khsx-43-ngan-lenh.png}
 
-\so{1} Ô Bắt đầu: ngày và giờ, kèm nút lùi tới 15 phút. \so{2} Bước chưa tính được giờ (thường là bước tổ làm tay
-chưa khai thời lượng) thì ngày xong có thể muộn hơn số đang hiện. Dãy ô bên cạnh: Sớm nhất xong, Từ đầu tới xong,
-Máy chạy, Hạn xong sản xuất, Hạn giao khách, kèm số ngày còn dư. \so{4} Bước thuê ngoài ghi \q{Gia công ngoài}
-thay cho giờ. \so{5} Chip vật tư của lệnh. \so{6} \oo{Bỏ lịch}. \so{7} \oo{Phát hành}.
+\so{1} Ô Bắt đầu: ngày và giờ, kèm nút lùi tới 15 phút. Để trống được. \so{2} Lệnh chưa có giờ thì ngăn nhắc
+\q{Chưa có giờ bắt đầu vẫn phát được}: phát xong, mỗi bước tới khay của bộ phận nhận, bộ phận tự chọn máy và nhóm.
+\so{3} Chip vật tư của lệnh. \so{4} \oo{Phát hành}.
 
-Nút \oo{Mở ở Kế hoạch sản xuất} trên đầu ngăn mở chi tiết lệnh. Lệnh đã phát hành thì nút này đổi thành \oo{Mở hồ
+Lệnh đã có giờ thì ngăn có thêm dãy ô Sớm nhất xong, Từ đầu tới xong, Máy chạy, Hạn xong sản xuất, Hạn giao khách,
+kèm số ngày còn dư, và nút \oo{Bỏ lịch}. Bước chưa tính được giờ (thường là bước làm tay chưa khai thời lượng) thì
+ngày xong có thể muộn hơn số đang hiện. Bước gia công ghi \q{Gia công ngoài} thay cho giờ.
+
+Nút \oo{Mở ở Lệnh sản xuất} trên đầu ngăn mở chi tiết lệnh. Lệnh đã phát hành thì nút này đổi thành \oo{Mở hồ
 sơ lệnh}.
 
 \Needspace*{12\baselineskip}
@@ -454,15 +484,17 @@ Bấm \oo{Phát hành}. Phần mềm không hỏi lại. Lệnh cùng nhóm thà
 nhau, khi đó nút ghi \q{Phát hành cả cụm, N lệnh}. Trong cụm còn lệnh Nháp thì phần mềm báo tên lệnh đó và không
 phát hành, kế hoạch bấm Sẵn sàng cho lệnh ấy trước.
 
-\cat[0.8\linewidth]{0 0 0 1150}{khsx-44-toast-phat-hanh.png}
+\cat[0.9\linewidth]{390 0 0 1120}{khsx-44-toast-phat-hanh.png}
 
 Phát hành xong:
 
 \begin{itemize}
-\item Lệnh sang Đã phát hành. Tổ thấy việc ở Việc của tổ theo phân công trong lệnh.
+\item Lệnh sang Đã phát hành. Thông báo ghi \q{Đã phát lệnh tới các bộ phận}.
+\item Mỗi bước nội bộ tới khay \q{Lệnh mới tới} của bộ phận nhận, người kế hoạch của bộ phận nhận thông báo. Tổ chưa
+thấy gì: tổ thấy việc ở Việc của tổ sau khi bộ phận xếp máy, chọn nhóm và bấm Giao (chương \ref{ke-hoach-bo-phan}).
 \item Mỗi bước có vật tư tự lập một yêu cầu xuất kho, thủ kho nhận thông báo. Thông báo ghi \q{Đã gửi kho N yêu cầu
 xuất}. Món nào chưa tự lập được thì thông báo nói rõ, tổ xin tay ở Việc của tổ.
-\item Bước thuê ngoài sang \q{Chờ mang đi} (chương \ref{gia-cong}).
+\item Bước gia công sang \q{Chờ mang đi} (chương \ref{gia-cong}).
 \end{itemize}
 
 Thiếu vật tư hay chưa giữ hàng không chặn phát hành. Người kế hoạch tự quyết dựa trên chip cảnh báo.
@@ -472,13 +504,14 @@ Thiếu vật tư hay chưa giữ hàng không chặn phát hành. Người kế
 
 \rong[0.8\linewidth]{khsx-45-ngan-da-phat-hanh.png}
 
-\so{1} \oo{Thu hồi phát hành}: rút lệnh khỏi xưởng, lệnh về \q{Có lịch, chưa phát hành}, yêu cầu xuất kho chưa ghi
-sổ bị huỷ. Chỉ thu hồi được khi chưa việc nào của lệnh bắt đầu. Phải ghi lý do, ít nhất ba ký tự.
+\so{1} \oo{Thu hồi phát hành}: rút lệnh khỏi xưởng và khỏi khay của các bộ phận, kể cả việc bộ phận đã giao
+xuống tổ. Yêu cầu xuất kho chưa ghi sổ bị huỷ. Lệnh có giờ thì về \q{Có lịch, chưa phát hành}, lệnh chưa có giờ thì
+về khay Chờ xếp lịch. Chỉ thu hồi được khi chưa việc nào của lệnh bắt đầu. Phải ghi lý do, ít nhất ba ký tự.
 
-\so{2} \oo{Phát hành cập nhật}: dời giờ hay đổi máy sau khi đã phát hành mà không rút lệnh về. Chỉ áp cho việc chưa
-bắt đầu, phải ghi lý do, tổ nhận được và xác nhận lại phân công.
+\so{2} \oo{Phát hành cập nhật}: dời giờ sau khi đã phát hành mà không rút lệnh về. Chỉ áp cho việc chưa bắt đầu,
+phải ghi lý do. Máy và nhóm do bộ phận chọn không bị đè: việc đã giao xuống tổ giữ nguyên.
 
-\cat[0.5\linewidth]{190 410 703 410}{khsx-47-thu-hoi.png}
+\cat[0.5\linewidth]{700 410 700 410}{khsx-47-thu-hoi.png}
 
 Tab \oo{Lịch sử phát hành} ghi từng phiên bản, lần thu hồi kèm lý do. Bấm chọn hai phiên bản để so giờ và máy từng
 bước.
@@ -497,6 +530,57 @@ lịch chỉ cảnh báo để kế hoạch dời tay.
 
 % ============================================================
 \Needspace*{16\baselineskip}
+\section{Kế hoạch bộ phận}\label{ke-hoach-bo-phan}
+
+Lệnh phát xong thì mỗi bước nội bộ nằm ở khay của bộ phận nhận, chưa tổ nào thấy. Người kế hoạch của bộ phận mở
+\duong{Sản xuất > Kế hoạch bộ phận}, xếp việc vào máy, chọn nhóm làm, rồi giao xuống tổ. Giao xong nhóm mới thấy việc
+ở Việc của tổ. Bộ phận là các phòng con trực tiếp của khối sản xuất, ví dụ Tổ in, Tổ thành phẩm.
+
+Ô quyền \q{Kế hoạch bộ phận} có Xem và Thao tác. Phạm vi Tất cả thì chọn được mọi bộ phận. Phạm vi khác thì chỉ thấy
+bộ phận chứa phòng của mình.
+
+\rong{khsx-48-bo-phan.png}
+
+\so{1} Ô chọn bộ phận, gõ để tìm. \so{2} Cột \q{Lệnh mới tới}: việc chưa xếp, nhóm chưa thấy. Lệnh mới phát thì cột
+này nhảy số ngay, không phải tải lại màn. \so{3} Thẻ việc trong cột máy, chip \q{Đã xếp}. Thẻ ghi mã lệnh, khách,
+công đoạn, số lượng vào, thời gian chạy, hạn giao khách. Bước In mang sẵn máy in của phiếu tính giá nên việc đứng thẳng
+ở cột máy đó. Máy tính giá không thuộc bộ phận thì cột ghi \q{Máy không thuộc bộ phận}. \so{4} \q{Khâu trước}: bước
+liền trước của lệnh đang ở đâu (xong, đang ở nhóm nào, hay còn chờ bộ phận nào xếp). \so{5} Ô chọn nhóm làm, gõ để
+tìm. Chỉ hiện nhóm có máy đó. \so{6} \oo{Giao xuống tổ (N việc)}: giao mọi việc đã xếp máy và đã có nhóm.
+
+Xếp một việc có hai cách:
+
+\begin{itemize}
+\item Kéo thẻ từ cột này thả sang cột khác. Kéo lên xuống trong một cột để đổi thứ tự làm. Việc nhóm đang làm luôn
+đứng đầu cột, không chen lên trước được.
+\item Ở thẻ trong cột Lệnh mới tới, bấm ô \oo{Xếp vào máy…}, gõ tên máy rồi chọn. Máy tính giá có chữ
+\q{máy tính giá} bên cạnh.
+\end{itemize}
+
+Cột \oo{Làm tay} dành cho việc không dùng máy. Thả vào đây thì phải chọn nhóm làm ngay trong hộp hiện ra.
+\oo{Trả về khay} đưa việc chưa giao về Lệnh mới tới, không hỏi gì.
+
+Việc có máy tính giá mà đặt sang máy khác hoặc sang Làm tay thì phải ghi lý do.
+
+\cat[0.5\linewidth]{0 0 0 0}{khsx-48b-ly-do.png}
+
+\so{1} Ô lý do, ghi tên máy tính giá trong tiêu đề. Lý do ghi vào nhật ký của lệnh. \so{2} \oo{Xếp việc}. \oo{Huỷ} thì
+việc đứng nguyên chỗ cũ.
+
+Việc đã giao mà nhóm chưa bắt đầu thì thẻ ghi \q{... đã thấy việc} kèm nút \oo{Rút lại}. Rút lại thì việc ở lại cột máy
+đó với chip Đã xếp, nhóm không còn thấy. Nhóm đã bắt đầu thì không rút được. Mỗi lần giao, rút lại, đổi máy đều hiện ở tab Lịch sử
+của hồ sơ lệnh (mục \ref{ho-so-lenh}).
+
+Bấm mã lệnh trên thẻ để mở ngăn của việc.
+
+\rong[0.8\linewidth]{khsx-49-ngan-quy-cach.png}
+
+\so{1} Ba tab. \oo{Thông tin}: lệnh, khách, hạn giao, số lượng vào và ra, máy, máy tính giá, thời gian chạy, nhóm,
+khâu trước, khuôn, ghi chú kỹ thuật. \oo{Quy cách in}: giấy, sóng, khổ, số màu, số bản, mực, như phiếu công nghệ.
+\oo{Tệp của lệnh}: tệp đính kèm của lệnh, mở hay tải về được. Mũi tên trên đầu ngăn chuyển sang việc trước, việc sau.
+
+% ============================================================
+\Needspace*{16\baselineskip}
 \section{Gia công ngoài}\label{gia-cong}
 
 Có hai cách đưa hàng ra ngoài. Thuê ngoài một phần: một hay vài bước của lệnh do nhà gia công làm, các bước khác
@@ -504,13 +588,13 @@ vẫn chạy ở xưởng. Gia công trọn gói: cả lệnh giao cho một nh�
 \q{Nhận gia công}, do Thu mua khai.
 
 Người kế hoạch cũng là người mang hàng đi và ghi số nhận về. Mọi việc đó làm ở khối \oo{Gia công ngoài} trên chi tiết
-lệnh, ở màn Kế hoạch sản xuất.
+lệnh, ở màn Lệnh sản xuất.
 
 \Needspace*{14\baselineskip}
 \subsection{Thuê ngoài một phần}\label{mot-phan}
 
-Ở tab Công đoạn, đổi Loại của bước sang Thuê ngoài và chọn nhà gia công trong ngăn bước (mục \ref{ngan-buoc}). Phát
-hành xong, các bước thuê ngoài liền nhau cùng một nhà gia công thành một lần gia công.
+Ở tab Công đoạn, đổi Loại của bước sang Gia công và chọn nhà gia công trong ngăn bước (mục \ref{ngan-buoc}). Phát
+hành xong, các bước gia công liền nhau cùng một nhà gia công thành một lần gia công.
 
 \rong{khsx-50-gia-cong-mot-phan.png}
 
@@ -521,18 +605,18 @@ hành xong, các bước thuê ngoài liền nhau cùng một nhà gia công th�
 Mang hàng đi:
 
 \begin{itemize}
-\item Bước thuê ngoài là bước đầu tiên: gõ Số mang đi rồi bấm \oo{Đã mang đi}.
+\item Bước gia công là bước đầu tiên: gõ Số mang đi rồi bấm \oo{Đã mang đi}.
 \item Có bước trước: số mang đi lấy theo số tổ trước đã bàn giao. Tổ bàn giao thêm thì bấm \oo{Mang thêm}.
 \end{itemize}
 
 Hàng về thì bấm \oo{Nhận hàng về}, gõ Số nhận về, chọn \oo{Hàng về đâu} và bước nhận hàng, rồi \oo{Chốt số nhận về}.
-Còn bước sau thì hàng \q{Về xưởng làm tiếp}, tổ của bước sau thấy hàng để nhận. Bước thuê ngoài là bước cuối thì hàng
+Còn bước sau thì hàng \q{Về xưởng làm tiếp}, tổ của bước sau thấy hàng để nhận. Bước gia công là bước cuối thì hàng
 nhập kho thành phẩm.
 
 Chốt nhầm thì \oo{Mở lại} khi lần gia công đang Đã nhận về. Mở lại bị khoá khi đã có phiếu chi cho lần gia công, tổ
 nhận đã xác nhận, kho đã lập phiếu, hoặc lệnh đã đóng.
 
-KCS không kiểm bước thuê ngoài, số chốt nhận về là số chính thức. Tiền gia công do Kế toán chi: dòng Chi tiền ghi
+KCS không kiểm bước gia công, số chốt nhận về là số chính thức. Tiền gia công do Kế toán chi: dòng Chi tiền ghi
 \q{Chờ kế toán chi}, chi xong thì hiện mã phiếu chi.
 
 \Needspace*{16\baselineskip}
@@ -617,14 +701,14 @@ Mở \duong{Sản xuất > Hồ sơ lệnh sản xuất}. Chỉ có lệnh đã 
 \so{1} Chip Tất cả, Đang sản xuất, Sau sản xuất, Đã giao đủ. \so{2} Các bước: chấm xanh là bước đã xong, chấm cam là
 bước đang làm. \so{3} Trạng thái theo khâu: Đang sản xuất, Đang KCS, Chờ nhập kho, Sẵn sàng giao, Đã giao đủ.
 \so{4} Lệnh trọn gói chỉ có một dòng \q{Gia công trọn gói ở ...}. \oo{Lọc} có mục Gia công ngoài để chỉ xem lệnh có
-bước thuê ngoài.
+bước gia công.
 
 Bấm một lệnh để mở hồ sơ.
 
 \rong[0.8\linewidth]{khsx-63-ngan-ho-so.png}
 
 \so{1} Bốn tab Quy cách, Sản lượng, Kho và giao, Lịch sử. \so{2} \oo{In phiếu công nghệ} cho xưởng.
-\so{3} Cột phải \q{Hàng đang tới đâu}: dải bước dọc, bước thuê ngoài ghi tên nhà gia công, cuối dải là nhập kho thành
+\so{3} Cột phải \q{Hàng đang tới đâu}: dải bước dọc, bước gia công ghi tên nhà gia công, cuối dải là nhập kho thành
 phẩm. \so{4} Dải vàng trên cùng là chỗ đang vướng của lệnh.
 
 Tab Sản lượng cho số tổng (Đặt, Làm ra, Đạt KCS cuối, Nhập kho, Đã giao) và bảng Từng bước: làm ra trên kế hoạch,
@@ -633,7 +717,7 @@ xong lúc nào, chưa xong thì giờ hẹn theo lịch.
 \rong[0.8\linewidth]{khsx-64-san-luong.png}
 
 Tab Kho và giao cho biết thành phẩm đã vào kho bao nhiêu, đã xuất cho khách bao nhiêu. Tab Lịch sử ghi mọi việc của
-lệnh từ lúc tạo.
+lệnh từ lúc tạo, kể cả lúc bộ phận giao việc xuống nhóm, rút lại, hay đổi máy kèm lý do.
 
 % ============================================================
 \Needspace*{10\baselineskip}
@@ -645,7 +729,7 @@ thành phẩm. Thành phẩm chỉ vào kho khi có người giữ quyền kiể
 Làm ra ít hơn số đặt thì KCS chỉ đóng được khi có quyền \q{Đóng lệnh thiếu}. Lệnh đóng thiếu thì mặt hàng hiện
 \q{Đóng lệnh thiếu} ở cột Đang vướng của Theo dõi sản xuất, đơn giao phần đã có. Phần mềm không tự tạo lệnh làm bù.
 
-Hàng gia công trọn gói và bước thuê ngoài cuối chuỗi không qua KCS: số chốt nhận về là số nhập kho.
+Hàng gia công trọn gói và bước gia công cuối chuỗi không qua KCS: số chốt nhận về là số nhập kho.
 
 % ============================================================
 \Needspace*{10\baselineskip}
@@ -663,18 +747,22 @@ Hỏi Kế toán, hoặc xem đơn ở \kd{don-coc}{Chờ cọc}. Đơn đã có
 \item[Không sửa được số lượng hay chuỗi công đoạn?]
 Lệnh đang giữ hàng. Nhả hàng ở Kế hoạch vật tư (mục
 \ref{giu-hang}). Lệnh Sẵn sàng thì bấm Mở lại để sửa trước. Lệnh đã phát hành thì chuỗi công đoạn khoá hẳn, chỉ
-dời giờ hay đổi máy bằng Phát hành cập nhật.
+dời giờ bằng Phát hành cập nhật. Máy và nhóm của từng việc do bộ phận đổi ở Kế hoạch bộ phận.
 
 \item[Lệnh không có trong khay Chờ xếp lịch?]
-Lệnh còn Nháp, đã có giờ trên lưới, hoặc là lệnh trọn gói (trọn gói
-không xếp lịch).
+Lệnh còn Nháp, đã có giờ trên lưới, là lệnh trọn gói (trọn gói
+không xếp lịch), hoặc đã phát và đã có việc bắt đầu.
+
+\item[Đã phát lệnh mà tổ chưa thấy việc?]
+Việc còn nằm ở khay của bộ phận. Người kế hoạch bộ phận phải xếp máy, chọn
+nhóm và bấm Giao (chương \ref{ke-hoach-bo-phan}). Bộ phận Rút lại thì việc rời Việc của tổ.
 
 \item[Phát hành khi chưa đủ vật tư có được không?]
 Được. Phần mềm chỉ cảnh báo bằng chip. Món chưa có thì kho chưa
 xuất được, tổ chờ hoặc xin tay.
 
 \item[Phát hành rồi mới thấy sai?]
-Chưa việc nào bắt đầu thì Thu hồi phát hành, sửa, xếp lại, phát hành lại. Đã có
+Chưa việc nào bắt đầu thì Thu hồi phát hành, sửa, phát hành lại. Đã có
 việc bắt đầu thì chỉ còn Phát hành cập nhật cho các việc chưa bắt đầu.
 
 \item[Thanh lệnh có đuôi sọc đỏ?]

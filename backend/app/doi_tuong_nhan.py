@@ -46,7 +46,7 @@ MAN_NHAN_SU = ("cham_cong", "nghi_phep", "tang_ca", "luong")
 #: Theo dõi SX · Kế hoạch vật tư · Bài ghép · Xếp lịch. Bàn tổ thêm riêng bằng `to=` / `BAN_TO`.
 MAN_THEO_LENH = (
     KCS, "don_hang_ban", "san_xuat", "lenh_san_xuat", "theo_doi_san_xuat", "ke_hoach_vat_tu",
-    "bai_ghep_2", "xep_lich",
+    "bai_ghep_2", "xep_lich", "ke_hoach_bo_phan",
 )
 #: nhóm `kho` TRỪ bàn tổ: Yêu cầu nhập xuất · KCS · drawer Đơn hàng bán · Kế hoạch vật tư.
 MAN_KHO = ("kho", KCS, "don_hang_ban", "ke_hoach_vat_tu")

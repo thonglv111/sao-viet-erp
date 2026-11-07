@@ -63,7 +63,7 @@ def test_thieu_nha_gia_cong_chan_san_sang(sess, orders, lsx_svc, admin, customer
         lsx, loai_buoc=LB_THUE_NGOAI), actor=admin)
     thieu = lsx_svc.thieu_cua(lsx)
     assert "thieu_nha_gia_cong" in thieu
-    assert "thieu_to_may" not in thieu     # bước thuê ngoài không bị đòi tổ/máy
+    assert "thieu_bo_phan" not in thieu     # bước thuê ngoài không bị đòi tổ/máy
 
 
 def test_thoi_luong_buoc_thue_ngoai_bang_0_khong_canh_bao():

@@ -137,6 +137,12 @@ _HD += _dong("san_xuat", "bai_ghep_2", {
     "bo_thanh_vien": "Gỡ thành viên khỏi bài ghép",
     "ke_hoach_buoc_chung": "Đặt kế hoạch bước chung",
 })
+_HD += _dong("san_xuat", "ke_hoach_bo_phan", {
+    "kh_bo_phan_xep": "Xếp việc vào máy ở Kế hoạch bộ phận",
+    "kh_bo_phan_giao": "Giao việc xuống nhóm",
+    "kh_bo_phan_rut": "Rút việc đã giao về bộ phận",
+    "kh_bo_phan_doi_may": "Đổi máy in so với bài tính giá",
+})
 _HD += _dong("san_xuat", "xep_lich", {
     "xep_lich_dua_vao": "Đưa lệnh vào xếp lịch",
     "xep_lich_gan": "Gán lịch cho công đoạn",

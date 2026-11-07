@@ -60,6 +60,7 @@ const TheoDoiSanXuatPage = lazy(() =>
 const KeHoachVatTuPage = lazy(() => import("../pages/KeHoachVatTuPage").then((m) => ({ default: m.KeHoachVatTuPage })));
 const BaiGhep2Page = lazy(() => import("../pages/BaiGhep2Page").then((m) => ({ default: m.BaiGhep2Page })));
 const XepLichPage = lazy(() => import("../pages/XepLichPage").then((m) => ({ default: m.XepLichPage })));
+const KeHoachBoPhanPage = lazy(() => import("../pages/KeHoachBoPhanPage").then((m) => ({ default: m.KeHoachBoPhanPage })));
 const ThucHienSxPage = lazy(() => import("../pages/ThucHienSxPage").then((m) => ({ default: m.ThucHienSxPage })));
 const KcsTheoLenhPage = lazy(() => import("../pages/kcs/KcsTheoLenhPage").then((m) => ({ default: m.KcsTheoLenhPage })));
 const SuaChuaMayPage = lazy(() => import("../pages/SuaChuaMayPage").then((m) => ({ default: m.SuaChuaMayPage })));
@@ -723,7 +724,8 @@ export function AppShell() {
       e.type === "order_ordered" ||
       e.type === "lsx_changed" ||
       e.type === "bai_ghep_changed" ||
-      e.type === "xep_lich_changed"
+      e.type === "xep_lich_changed" ||
+      e.type === "ke_hoach_bo_phan_changed"
     ) {
       // Nội dung màn tự refetch qua tick nhóm; chấm đỏ đi theo kênh `san_xuat`/`xep_lich`.
       if (readable.has("san_xuat") && e.type === "order_ordered") {
@@ -1442,6 +1444,8 @@ export function AppShell() {
         );
       case "xep-lich":
         return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} navigate={navigate} />;
+      case "ke-hoach-bo-phan":
+        return <KeHoachBoPhanPage eventTick={tickCua("san_xuat")} />;
       case "sua-chua-may":
         // `eventTick` nhích theo sự kiện nhóm kỹ thuật ⇒ danh sách yêu cầu tự nạp lại khi có lời báo mới
         // hoặc khi người khác vừa tiếp nhận — không để hai người cùng lập phiếu cho một cái máy.

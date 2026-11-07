@@ -4,7 +4,7 @@
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "../components/Icons";
 import {
-  LSX_LOAI_BUOC_META,
+  LSX_LOAI_BUOC_LENH,
   type LsxDen,
   type LsxLoaiBuoc,
   type LsxTrangThai,
@@ -373,7 +373,7 @@ export function ChuoiCongDoan({
   return (
     <span className="khsx-flow">
       {steps.map((s, i) => {
-        const meta = s.loai_buoc ? LSX_LOAI_BUOC_META[s.loai_buoc as LsxLoaiBuoc] : undefined;
+        const meta = s.loai_buoc ? LSX_LOAI_BUOC_LENH[s.loai_buoc as LsxLoaiBuoc] : undefined;
         const ngoaiLe = !!meta && s.loai_buoc !== "may" && s.loai_buoc !== "to";
         const active = i === activeIndex;
         return (

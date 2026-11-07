@@ -19364,3 +19364,98 @@ def _migrate_giu_cho_bon_so_le(db: Session) -> None:
 
 
 MIGRATIONS.append(("0453_giu_cho_bon_so_le", _migrate_giu_cho_bon_so_le))
+
+
+
+def _bo_phan_theo_cay(db: Session) -> dict[int, int]:
+    """`{phòng: bộ phận chứa nó}` cho mọi phòng thuộc khối Sản xuất (bộ phận = con trực tiếp của
+    phòng tự bật `la_san_xuat`). Raw SQL, đọc một lượt — bảng phòng ban nhỏ."""
+    rows = db.execute(text("SELECT id, parent_id, la_san_xuat FROM departments")).all()
+    cha = {int(r[0]): (int(r[1]) if r[1] is not None else None) for r in rows}
+    goc = {int(r[0]) for r in rows if r[2]}
+    ra: dict[int, int] = {}
+    for did in cha:
+        cur, seen = did, set()
+        while cur is not None and cur not in seen:
+            seen.add(cur)
+            p = cha.get(cur)
+            if p is None:
+                break
+            if p in goc:
+                ra[did] = cur
+                break
+            cur = p
+    return ra
+
+
+def _migrate_ke_hoach_bo_phan(db: Session) -> None:
+    """0454 (07/11/2026) — Lệnh sản xuất + Kế hoạch bộ phận (`docs/design-lenh-san-xuat-ke-hoach-bo-phan.md`).
+
+    1. `san_xuat_cong_viec` thêm `bo_phan_id`, `da_giao_at`, `da_giao_by_id`, `thu_tu_xep`,
+       `nhom_xep_id`. Việc
+       đã phát hành trước đây đều đã nằm ở bàn tổ ⇒ backfill coi như ĐÃ GIAO (`da_giao_at =
+       created_at`), bộ phận = bộ phận chứa tổ của việc. Xưởng không mất việc đang chạy.
+    2. Bước lệnh và bước chung bài ghép: `department_id` nay là BỘ PHẬN NHẬN, không còn là tổ. Bước
+       đang trỏ một nhóm thì đổi sang bộ phận chứa nhóm đó.
+    3. Module quyền `ke_hoach_bo_phan` mới — chép quyền từ `xep_lich` (người phát lệnh cũng là người
+       xếp việc cho đến khi quản trị cấp lại theo bộ phận). Module `san_xuat` đổi nhãn "Lệnh sản xuất".
+    Idempotent: cột kiểm trước khi thêm; backfill chỉ đụng dòng chưa có `bo_phan_id`.
+    Đọc cột/bảng TRƯỚC lệnh ghi đầu tiên (inspector sau UPDATE trên SQLite mất dữ liệu)."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    cols = _existing_columns(insp, "san_xuat_cong_viec") if "san_xuat_cong_viec" in tables else set()
+    rp_cols = (sorted(_existing_columns(insp, "role_permissions"))
+               if "role_permissions" in tables else [])
+    la_pg = (db.get_bind().dialect.name or "") == "postgresql"
+    if "san_xuat_cong_viec" in tables:
+        moi = {
+            "bo_phan_id": "INTEGER",
+            "da_giao_at": "TIMESTAMP WITH TIME ZONE" if la_pg else "TIMESTAMP",
+            "da_giao_by_id": "INTEGER",
+            "thu_tu_xep": "INTEGER",
+            "nhom_xep_id": "INTEGER",
+        }
+        for c, kieu in moi.items():
+            if c not in cols:
+                db.execute(text(f"ALTER TABLE san_xuat_cong_viec ADD COLUMN {c} {kieu}"))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_san_xuat_cong_viec_bo_phan_id "
+            "ON san_xuat_cong_viec (bo_phan_id)"))
+    bp = _bo_phan_theo_cay(db) if "departments" in tables else {}
+    if "san_xuat_cong_viec" in tables and bp:
+        viec = db.execute(text(
+            "SELECT id, department_id FROM san_xuat_cong_viec "
+            "WHERE bo_phan_id IS NULL AND department_id IS NOT NULL")).all()
+        for vid, dept in viec:
+            if int(dept) in bp:
+                db.execute(text(
+                    "UPDATE san_xuat_cong_viec SET bo_phan_id = :b, "
+                    "da_giao_at = COALESCE(da_giao_at, created_at) WHERE id = :i"),
+                    {"b": bp[int(dept)], "i": vid})
+    for bang in ("lsx_cong_doan", "bai_ghep_cong_doan"):
+        if bang not in tables or not bp:
+            continue
+        for rid, dept in db.execute(text(
+                f"SELECT id, department_id FROM {bang} WHERE department_id IS NOT NULL")).all():
+            dich = bp.get(int(dept))
+            if dich is not None and dich != int(dept):
+                db.execute(text(f"UPDATE {bang} SET department_id = :b WHERE id = :i"),
+                           {"b": dich, "i": rid})
+    if {"modules", "role_permissions"} <= tables:
+        db.execute(text(
+            "INSERT INTO modules (key, label, created_at) "
+            "SELECT :k, :l, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+            {"k": "ke_hoach_bo_phan", "l": "Kế hoạch bộ phận"})
+        chep = [c for c in rp_cols if c not in ("id", "module_key")]
+        db.execute(text(
+            f"INSERT INTO role_permissions (module_key, {', '.join(chep)}) "
+            f"SELECT :moi, {', '.join('rp.' + c for c in chep)} FROM role_permissions rp "
+            "WHERE rp.module_key = :cu AND NOT EXISTS (SELECT 1 FROM role_permissions x "
+            "  WHERE x.role_id = rp.role_id AND x.module_key = :moi)"),
+            {"cu": "xep_lich", "moi": "ke_hoach_bo_phan"})
+        db.execute(text("UPDATE modules SET label = :l WHERE key = :k"),
+                   {"k": "san_xuat", "l": "Lệnh sản xuất"})
+    db.commit()
+
+
+MIGRATIONS.append(("0454_ke_hoach_bo_phan", _migrate_ke_hoach_bo_phan))

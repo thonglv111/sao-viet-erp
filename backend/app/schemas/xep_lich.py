@@ -200,6 +200,8 @@ class TheHangChoOut(BaseModel):
     han_hoan_thanh_sx: date | None = None
     han_giao_khach: date | None = None
     is_rush: bool = False
+    #: Lệnh đã phát tới các bộ phận mà chưa có giờ bắt đầu (07/11/2026) — thẻ ghi "Đã phát".
+    da_phat_hanh: bool = False
     so_to_ke_hoach: int = 0
     so_luong_dat: int = 0
     don_vi_tinh: str | None = None
