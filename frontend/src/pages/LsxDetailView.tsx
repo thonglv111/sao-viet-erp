@@ -122,7 +122,6 @@ function toQc(d: LsxDetail): LsxQuyCachBody {
     quy_cach_in: String(q.quy_cach_in ?? "mot_mat"),
     muc_a: ml("muc_a"), muc_b: ml("muc_b"),
     so_trang: Math.max(n("so_trang"), 1), trang_moi_tay: Math.max(n("trang_moi_tay"), 1),
-    bleed_mm: n("bleed_mm"), khe_cat_mm: n("khe_cat_mm"),
     con_auto: q.con_auto !== false,
   };
 }
@@ -544,7 +543,7 @@ export function LsxDetailView({
   // Tiêu chí KCS đổi sau lúc phát hành — bấm "Cập nhật tiêu chí" mở bảng cũ → mới, đồng ý mới ghi.
   const tcDoi = d?.tieu_chi_kcs_doi ?? null;
   // QUY CÁCH Ở LỆNH = CHỈ XEM, không chừa ô nào (07/09/2026). Cụm này là thứ đã chốt với khách ở
-  // phiếu tính giá — giấy, khổ, cách in, số trang, bleed, khe cắt, bình bài đều là số đã tính ra
+  // phiếu tính giá — giấy, khổ, cách in, số trang, bình bài đều là số đã tính ra
   // giá và đã báo. Phiếu tính ra sao thì lệnh chạy y như vậy; gõ lại ở lệnh là lệnh chạy một đằng,
   // khách mua một nẻo, mà không ai đối chiếu. Muốn đổi thật thì sửa ở phiếu rồi TẠO LẠI lệnh.
   //
@@ -1599,12 +1598,11 @@ export function LsxDetailView({
                     </h4>
                   </div>
                   <div className="khsx-spec__card-body">
-                    {/* KẾ THỪA TRỌN từ phiếu tính giá: đưa NGUYÊN các khoản chừa + bleed + khe cắt
-                        của quy cách, để server tách chiều bằng đúng engine. Bản trước tự cộng năm
-                        khoản thành một số rồi trừ đều hai chiều và bỏ quên bleed → sơ đồ vẽ 105
-                        con trong khi phiếu ra 99, hiệu suất cũng thành số ảo.
+                    {/* KẾ THỪA TRỌN từ phiếu tính giá: đưa NGUYÊN các khoản chừa của quy cách, để
+                        server tách chiều bằng đúng engine. Bản trước tự cộng các khoản thành một
+                        số rồi trừ đều hai chiều → sơ đồ lệch số con của phiếu.
 
-                        Khổ/bleed/khe LẤY TỪ `form.qc` chứ không từ ảnh chụp đã lưu: từ khi mở khoá
+                        Khổ LẤY TỪ `form.qc` chứ không từ ảnh chụp đã lưu: từ khi mở khoá
                         sửa thông số, đọc ảnh chụp nghĩa là gõ lại khổ tờ in mà hình đứng im.
                         `trangMoiTay` BẮT BUỘC truyền — thiếu nó thì sách vẽ lưới CẮT RỜI (16 con,
                         4×4) trong khi tờ in gấp nguyên thành một tay, không cắt con nào. */}
@@ -1620,8 +1618,6 @@ export function LsxDetailView({
                         le_hong_mm: n("le_hong_mm"),
                         duoi_thang_mau_mm: n("duoi_thang_mau_mm"),
                       }}
-                      bleedMm={form.qc.bleed_mm ?? 0}
-                      kheCatMm={form.qc.khe_cat_mm ?? 0}
                       soCon={n("so_con")}
                       trangMoiTay={form.qc.trang_moi_tay ?? 1}
                       dvCon={dvTp}

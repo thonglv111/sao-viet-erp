@@ -114,7 +114,7 @@ Tài liệu: cuốn "Hướng dẫn sử dụng Kế hoạch sản xuất" phả
 
 Thêm yêu cầu của chủ dự án lúc giao việc: màn Kế hoạch bộ phận phải thấy quy cách in ấn và tệp của lệnh, và mọi ô chọn kiểu danh sách thả xuống phải có chỗ tìm kiếm, dùng lại ô chọn có sẵn của SVN.
 
-**Dữ liệu.** Migration `0454_ke_hoach_bo_phan`. Bước lệnh không thêm cột: `lsx_cong_doan.department_id` của bước Nội bộ nay giữ bộ phận nhận thay cho tổ (migration đổi dữ liệu cũ từ nhóm lên bộ phận chứa nó, bài ghép cũng vậy). Việc của tổ `san_xuat_cong_viec` thêm năm cột:
+**Dữ liệu.** Migration `0455_ke_hoach_bo_phan`. Bước lệnh không thêm cột: `lsx_cong_doan.department_id` của bước Nội bộ nay giữ bộ phận nhận thay cho tổ (migration đổi dữ liệu cũ từ nhóm lên bộ phận chứa nó, bài ghép cũng vậy). Việc của tổ `san_xuat_cong_viec` thêm năm cột:
 - `bo_phan_id`: bộ phận nhận việc.
 - `nhom_xep_id`: nhóm bộ phận đã chọn khi việc chưa giao.
 - `thu_tu_xep`: thứ tự chạy trong cột máy hoặc cột Làm tay.

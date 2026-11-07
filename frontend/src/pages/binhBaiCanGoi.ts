@@ -13,8 +13,6 @@ export interface DongBinhBai {
   r: number;
   cd: number;
   cr: number;
-  bl: number;
-  ke: number;
 }
 
 /** Sản phẩm tự xếp con, đủ khổ, và có số khác lần gửi trước. `daGui` (uid → chữ ký đã gửi) do nơi

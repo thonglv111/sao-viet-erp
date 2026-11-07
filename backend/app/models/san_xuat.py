@@ -249,13 +249,13 @@ class SanXuatCongViec(Base):
     nhom_cong_doan: Mapped[str | None] = mapped_column(String(24), nullable=True)
     loai_buoc: Mapped[str] = mapped_column(String(16), nullable=False, default=BUOC_MAY)
     # Snapshot phòng/tổ thực hiện + trạng thái KCS (§2.2, §4.2).
-    # NULL ở việc Nội bộ CHƯA GIAO (mg `0454`): việc nằm ở bộ phận (`bo_phan_id`) chờ người kế
+    # NULL ở việc Nội bộ CHƯA GIAO (mg `0455`): việc nằm ở bộ phận (`bo_phan_id`) chờ người kế
     # hoạch bộ phận chọn nhóm. Mọi bàn tổ / badge / chấm đỏ lọc theo cột này nên tự bỏ qua việc
     # chưa giao, không cần thêm điều kiện.
     department_id: Mapped[int | None] = mapped_column(
         ForeignKey("departments.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # BỘ PHẬN NHẬN việc (mg `0454`, thiết kế 07/11/2026): phòng trực thuộc ngay dưới phòng gốc
+    # BỘ PHẬN NHẬN việc (mg `0455`, thiết kế 07/11/2026): phòng trực thuộc ngay dưới phòng gốc
     # khối Sản xuất. Chép từ `lsx_cong_doan.department_id` lúc phát hành. NULL = việc gia công.
     bo_phan_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     # Lúc bộ phận bấm Giao + người giao (soft → users.id). NULL = còn ở khay của bộ phận.

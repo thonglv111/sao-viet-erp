@@ -94,7 +94,7 @@ class PhieuThanhPhan(Base):
     # `kho_thanh_pham` / `kho_mo_rong` / `tay_gap` đã DROP (mig 0144): ô nhập gỡ từ 2026-07-29 nên
     # phiếu mới luôn rỗng, mà bản lệnh vẫn vẽ ra ba dòng "—". Khổ thành phẩm THẬT là
     # `dai_thanh_pham` / `rong_thanh_pham` ngay dưới (mm, nuôi bình bài).
-    # SỐ LẺ ĐƯỢC (mig 0236, Numeric như `bleed_mm`/`khe_cat_mm` ngay dưới): khổ thật hay lẻ nửa
+    # SỐ LẺ ĐƯỢC (mig 0236, Numeric): khổ thật hay lẻ nửa
     # ly — name card 88.9×50.8 (3.5×2 inch), thư mời 215.9×279.4 (khổ letter), bìa cộng gáy 3.5mm.
     # Thời còn INTEGER, gõ 215.9 là engine trả 422 `int_from_float` và ô bình bài đứng im.
     dai_thanh_pham: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)   # mm — khổ thành phẩm ③ (bình bài)
@@ -141,10 +141,8 @@ class PhieuThanhPhan(Base):
     don_gia_don_vi: Mapped[str] = mapped_column(String(8), nullable=False, default="to")   # to|tan
     nguon_giay: Mapped[str] = mapped_column(String(12), nullable=False, default="cong_ty")  # cong_ty|khach
     chua_nhip: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
-    # Bình bài: con để bình = thành phẩm ③ + 2×bleed; giữa 2 con kề nhau chừa `khe_cat_mm`.
-    # 0 = không tràn lề / bình sát cắt chung nhát. Sale nhập trên phiếu (hỏi khách hoặc kỹ thuật).
-    bleed_mm: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
-    khe_cat_mm: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0)
+    # `bleed_mm` / `khe_cat_mm` đã DROP (mg 0454, 07/11/2026): bình bài lấy đúng thành phẩm ③,
+    # xếp sát nhau.
 
     # --- In ---
     co_in: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

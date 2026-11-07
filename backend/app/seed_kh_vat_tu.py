@@ -173,7 +173,7 @@ def _tao_phieu(db: Session, *, cd: dict[str, int], sale_id: int | None, sale_ten
             so_to_per_sp=1, so_luong=sl, don_vi_tinh=dvt,
             giay_id=(g.id if g else None), kho_nguyen=f"{kn_rong}×{kn_dai}",
             kho_nguyen_dai=kn_dai, kho_nguyen_rong=kn_rong, nguon_giay="cong_ty",
-            bleed_mm=3, co_in=True,
+            co_in=True,
             quy_cach_in=("hai_mat" if mau_b else "mot_mat"),
             kho_in_dai=kn_dai, kho_in_rong=kn_rong,
             con_auto=True, may_id=_may_id(db, ma_may),

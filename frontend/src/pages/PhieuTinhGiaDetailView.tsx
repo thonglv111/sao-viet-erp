@@ -651,8 +651,6 @@ interface EditableComponent {
    *  Giữ field để không phải sửa DTO hai đầu — cột vẫn còn trong DB theo lệ dự án (không drop cột). */
   nguon_giay: string;
   chua_nhip: number; // đè nhíp giấy của máy (0 = theo danh mục Máy)
-  bleed_mm: number;
-  khe_cat_mm: number;
   // Kỹ thuật in ② — In/kẽm nay là CÔNG ĐOẠN (chuỗi), không còn field cứng ở đây.
   quy_cach_in: string; // mot_mat | hai_mat (AB) | tu_tro | tro_nhip
   kho_in_dai: number; // mm
@@ -729,8 +727,6 @@ function blankComponent(ten = ""): EditableComponent {
     don_gia_don_vi: "to",
     nguon_giay: "cong_ty",
     chua_nhip: 0,
-    bleed_mm: 0,
-    khe_cat_mm: 0,
     quy_cach_in: "mot_mat",
     kho_in_dai: 0,
     kho_in_rong: 0,
@@ -799,8 +795,6 @@ export function fromComponent(c: ThanhPhanOut): EditableComponent {
     don_gia_don_vi: c.don_gia_don_vi ?? "to",
     nguon_giay: c.nguon_giay ?? "cong_ty",
     chua_nhip: c.chua_nhip ?? 0,
-    bleed_mm: c.bleed_mm ?? 0,
-    khe_cat_mm: c.khe_cat_mm ?? 0,
     quy_cach_in: c.quy_cach_in ?? "mot_mat",
     kho_in_dai: c.kho_in_dai ?? 0,
     kho_in_rong: c.kho_in_rong ?? 0,
@@ -846,8 +840,6 @@ export function toThanhPhanIn(c: EditableComponent): ThanhPhanIn {
     don_gia_don_vi: c.don_gia_don_vi,
     nguon_giay: c.nguon_giay,
     chua_nhip: c.chua_nhip,
-    bleed_mm: c.bleed_mm,
-    khe_cat_mm: c.khe_cat_mm,
     quy_cach_in: c.quy_cach_in,
     kho_in_dai: c.kho_in_dai,
     kho_in_rong: c.kho_in_rong,
@@ -924,8 +916,6 @@ function fromThanhPhanIn(
     don_gia_don_vi: cfg.don_gia_don_vi ?? "to",
     nguon_giay: cfg.nguon_giay ?? "cong_ty",
     chua_nhip: cfg.chua_nhip ?? 0,
-    bleed_mm: cfg.bleed_mm ?? 0,
-    khe_cat_mm: cfg.khe_cat_mm ?? 0,
     quy_cach_in: cfg.quy_cach_in ?? "mot_mat",
     kho_in_dai: cfg.kho_in_dai ?? 0,
     kho_in_rong: cfg.kho_in_rong ?? 0,
@@ -1656,8 +1646,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
             r: c.rong_thanh_pham,
             cd: ch.dai,
             cr: ch.rong,
-            bl: c.bleed_mm,
-            ke: c.khe_cat_mm,
           };
         }),
       ),
@@ -1681,8 +1669,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
             rong_thanh_pham: x.r,
             chua_dai_mm: x.cd,
             chua_rong_mm: x.cr,
-            bleed_mm: x.bl,
-            khe_cat_mm: x.ke,
           })
           .then(({ con }) => {
             if (con >= 1)
@@ -1710,7 +1696,6 @@ export function PhieuTinhGiaDetailView({ id, onBack, onMoPhieu, navigate, eventT
       // ngay khi bấm chip, ký nhầm vào chúng là preview đứng im trong khi số kẽm đã khác.
       ma: c.muc_a, mb: c.muc_b,
       ch: c.chua_nhip,
-      bl: c.bleed_mm, ke: c.khe_cat_mm,
       // Chuỗi công đoạn: ký theo CẢ `phi_khuon`, không chỉ `cong_doan_id`. Thiếu nó thì gõ tiền
       // dao xong chữ ký không đổi ⇒ KHÔNG gọi lại engine ⇒ khối bên phải đứng im, phải bấm Xong
       // rồi mở lại mới thấy. (Σ bên trái vẫn nhảy ngay vì nó cộng từ state, không qua engine —
@@ -3214,28 +3199,8 @@ function ComponentModal({
                         → kẽm ×{soBaiIn(c)}.</>
                       ) : null}
                     </p>
-                {/* Bleed + khe cắt: cộng vào kích thước con khi bình bài. Hỏi khách/kỹ thuật;
-                    không biết thì để 0 — engine bình sát như trước. */}
-                <div className="tg-span-6">
-                  <NumField
-                    label="Bleed (tràn lề)"
-                    value={c.bleed_mm}
-                    onChange={(n) => patchComp(c.uid, { bleed_mm: n })}
-                    opt="mỗi cạnh con, 0 = không tràn lề"
-                    thapPhan
-                    suffix="mm"
-                  />
-                </div>
-                <div className="tg-span-6">
-                  <NumField
-                    label="Khe cắt giữa con"
-                    value={c.khe_cat_mm}
-                    onChange={(n) => patchComp(c.uid, { khe_cat_mm: n })}
-                    opt="0 = bình sát, cắt chung nhát"
-                    thapPhan
-                    suffix="mm"
-                  />
-                </div>
+                {/* Ô "Bleed (tràn lề)" và "Khe cắt giữa con" gỡ 07/11/2026 (mg 0454 DROP cột):
+                    bình bài lấy đúng dài/rộng thành phẩm, con xếp sát nhau. */}
               </div>
             </section>
 
@@ -3902,8 +3867,6 @@ function ComponentModal({
                 chuaMm={0}
                 chuaDai={chuaCh.dai}
                 chuaRong={chuaCh.rong}
-                bleedMm={c.bleed_mm}
-                kheCatMm={c.khe_cat_mm}
                 soCon={c.so_con}
                 trangMoiTay={c.trang_moi_tay}
                 dvCon={dvCuoiChuoi}

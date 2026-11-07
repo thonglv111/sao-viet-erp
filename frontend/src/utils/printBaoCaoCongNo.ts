@@ -1,6 +1,7 @@
 ﻿import { COMPANY } from "../constants/company";
 import { escapeHtml } from "./format";
 import type { BaoCaoCongNo } from "../api/client";
+import { leTrangIn } from "./leTrangIn";
 
 function fmtMoney(v: number): string {
   return v ? Math.round(v).toLocaleString("vi-VN") : "—";
@@ -51,10 +52,7 @@ export function printBaoCaoCongNo(bc: BaoCaoCongNo): void {
   <meta charset="utf-8">
   <title>${tieuDe} (${tuNgay} - ${denNgay})</title>
   <style>
-    @page {
-      size: A4 landscape;
-      margin: 10mm 10mm 10mm 10mm;
-    }
+    ${leTrangIn("A4 landscape", "10mm")}
     * { box-sizing: border-box; }
     body {
       font-family: "Times New Roman", serif;

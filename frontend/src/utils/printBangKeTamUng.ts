@@ -7,6 +7,7 @@
  */
 import { api, type BangKeTamUng } from "../api/client";
 import { amountInWords, dmyParts, escapeHtml, money } from "./format";
+import { leTrangIn } from "./leTrangIn";
 
 /** Mở cửa sổ in; trả false nếu trình duyệt chặn pop-up. */
 export function printBangKeTamUng(bk: BangKeTamUng): boolean {
@@ -39,7 +40,7 @@ export function printBangKeTamUng(bk: BangKeTamUng): boolean {
 
   win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <title>Bảng kê ${escapeHtml(bk.code)}</title><style>
-@page{size:A4 ${tienMat ? "portrait" : "landscape"};margin:12mm}
+${leTrangIn(tienMat ? "A4 portrait" : "A4 landscape", "12mm")}
 *{box-sizing:border-box}
 body{font:12.5px "Times New Roman",serif;color:#000;margin:0}
 h1{font-size:18px;text-align:center;margin:0 0 4px;letter-spacing:.5px}

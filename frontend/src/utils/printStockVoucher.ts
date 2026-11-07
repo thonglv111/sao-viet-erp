@@ -16,6 +16,7 @@
 import logoUrl from "../assets/sao-viet-nhat-logo-mark.png";
 import { COMPANY } from "../constants/company";
 import { amountInWords, dmyParts, escapeHtml, money } from "./format";
+import { leTrangIn } from "./leTrangIn";
 
 export interface StockVoucherPrintLine {
   materialCode: string | null;
@@ -143,7 +144,7 @@ export function printStockVoucher(data: StockVoucherPrintData): boolean {
 
   win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <title>${form.title} ${escapeHtml(data.docNo ?? "")}</title><style>
-@page{size:A4;margin:12mm}
+${leTrangIn("A4", "12mm")}
 *{box-sizing:border-box}
 body{font:13px "Times New Roman",serif;color:#000;margin:0;position:relative}
 .head{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}
@@ -327,7 +328,7 @@ export function printTransferVoucher(data: TransferPrintData): boolean {
 
   win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <title>PHIẾU ĐIỀU CHUYỂN KHO ${escapeHtml(data.docNo ?? "")}</title><style>
-@page{size:A4;margin:12mm}
+${leTrangIn("A4", "12mm")}
 *{box-sizing:border-box}
 body{font:13px "Times New Roman",serif;color:#000;margin:0;position:relative}
 .head{display:flex;justify-content:space-between;gap:24px;align-items:flex-start}

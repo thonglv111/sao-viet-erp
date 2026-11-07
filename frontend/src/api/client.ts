@@ -3574,7 +3574,6 @@ export interface LsxQuyCachBody {
   quy_cach_in?: string;
   muc_a?: string[]; muc_b?: string[];
   so_trang?: number; trang_moi_tay?: number;
-  bleed_mm?: number; khe_cat_mm?: number;
   con_auto?: boolean;
 }
 /** Các số MÁY TỰ TÍNH ứng với bộ thông số đang gõ — chưa lưu. */
@@ -4741,8 +4740,6 @@ export interface BinhBaiIn {
   nhip_giay_mm?: number;
   le_hong_mm?: number;
   duoi_thang_mau_mm?: number;
-  bleed_mm?: number;
-  khe_cat_mm?: number;
 }
 export interface BinhBaiOut {
   con: number;
@@ -4754,7 +4751,7 @@ export interface BinhBaiOut {
   /** Chừa engine ĐÃ trừ, theo từng chiều — FE vẽ sơ đồ theo số này, đừng tự tính lại. */
   chua_dai: number;
   chua_rong: number;
-  /** Kích thước 1 con ĐÃ cộng bleed (= thành phẩm + 2×bleed). */
+  /** Kích thước 1 con để bình = đúng thành phẩm (bleed gỡ 07/11/2026). */
   piece_dai: number;
   piece_rong: number;
   kho_in_dai: number;
@@ -4904,10 +4901,6 @@ export interface ThanhPhanOut {
   /** Đè nhíp giấy của MÁY (0 = theo danh mục máy). Lề hông · đuôi · xén · cả gáy đã bỏ khỏi
    *  phiếu — chừa tờ in khai một lần ở danh mục Máy. */
   chua_nhip: number;
-  /** Tràn lề MỖI CẠNH con (0 = không tràn lề) — con để bình = thành phẩm + 2×bleed. */
-  bleed_mm: number;
-  /** Khe giữa 2 con kề nhau (0 = bình sát, cắt chung nhát). n con chỉ có n−1 khe. */
-  khe_cat_mm: number;
   // Kỹ thuật in
   co_in: boolean;
   che_ban_loai: string | null;
@@ -5031,8 +5024,6 @@ export interface ThanhPhanIn {
   don_gia_don_vi?: string;
   nguon_giay?: string;
   chua_nhip?: number;
-  bleed_mm?: number;
-  khe_cat_mm?: number;
   co_in?: boolean;
   che_ban_loai?: string | null;
   che_ban_don_gia?: number;

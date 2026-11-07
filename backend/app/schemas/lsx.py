@@ -607,8 +607,6 @@ class LsxQuyCachIn(BaseModel):
     muc_b: list[str] | None = None
     so_trang: int | None = Field(default=None, ge=1)
     trang_moi_tay: int | None = Field(default=None, ge=1)
-    bleed_mm: float | None = Field(default=None, ge=0)
-    khe_cat_mm: float | None = Field(default=None, ge=0)
     con_auto: bool | None = None
 
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chonBinhBaiCanGoi, type DongBinhBai } from "./binhBaiCanGoi";
 
 const sp = (u: string, kw: Partial<DongBinhBai> = {}): DongBinhBai => ({
-  u, a: true, kd: 790, kr: 540, d: 148, r: 210, cd: 10, cr: 0, bl: 0, ke: 0, ...kw,
+  u, a: true, kd: 790, kr: 540, d: 148, r: 210, cd: 10, cr: 0, ...kw,
 });
 
 /** Mô phỏng effect: chọn rồi "gửi" — ghi chữ ký đã gửi như nơi gọi làm. */

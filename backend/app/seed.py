@@ -89,7 +89,7 @@ MODULES: list[tuple[str, str]] = [
     # Hai khoá cũ GIỮ NGUYÊN TÊN, chỉ thu hẹp nghĩa còn đúng một màn — đổi khoá là mọi hàng
     # `role_permissions` cũ trỏ vào hư không. Migration 0209 SAO CHÉP quyền sang 4 khoá mới.
     # Thứ tự bám đúng menu để người cấp quyền dò theo màn hình.
-    # Nhãn "Lệnh sản xuất" từ 07/11/2026 (mg `0454`) — khoá giữ nguyên `san_xuat`.
+    # Nhãn "Lệnh sản xuất" từ 07/11/2026 (mg `0455`) — khoá giữ nguyên `san_xuat`.
     ("san_xuat", "Lệnh sản xuất"),
     ("ke_hoach_vat_tu", "Kế hoạch vật tư"),
     # Khoá `bai_ghep` (màn cũ) gỡ 18/08/2026 — mg `0216` chép quyền sang `bai_ghep_2` rồi xoá.
@@ -101,7 +101,7 @@ MODULES: list[tuple[str, str]] = [
     # án chốt 18/09/2026 bỏ đánh số, nên khoá quay về đúng `xep_lich`; mg `0314` chép quyền của
     # `xep_lich_3` sang rồi xoá cả hai khoá cũ. Ở đây là đường của DB TRẮNG.
     ("xep_lich", "Xếp lịch"),
-    # Kế hoạch bộ phận (07/11/2026, mg `0454`): bộ phận nhận lệnh, chọn máy + nhóm rồi Giao.
+    # Kế hoạch bộ phận (07/11/2026, mg `0455`): bộ phận nhận lệnh, chọn máy + nhóm rồi Giao.
     # Phạm vi: `department` = bộ phận chứa phòng của người xem; `all` = mọi bộ phận.
     ("ke_hoach_bo_phan", "Kế hoạch bộ phận"),
     # KCS (09/10/2026, mg 0383) — thay cờ phòng ban "Tổ KCS đích danh". Xem = màn + báo cáo mọi tổ;

@@ -1,7 +1,7 @@
 # Kịch bản chụp ảnh cho Hướng dẫn Kế hoạch sản xuất
 
 Mỗi file `cNN-*.mjs` lái trình duyệt thật (Playwright, Chrome) trên dev `http://localhost:5173` (đổi bằng biến
-`BASE`, ví dụ `BASE=http://localhost:5174` khi chạy dev thứ hai), bấm đúng
+`CHUP_BASE`, ví dụ `CHUP_BASE=http://localhost:5174` khi chạy dev thứ hai), bấm đúng
 luồng của một chương rồi chụp ảnh có ô đỏ đánh số. Đăng nhập lấy `SEED_ADMIN_USERNAME`/`SEED_ADMIN_PASSWORD`
 ở `.env.example`. Dữ liệu mẫu là đơn DH003 (Café Katinat), lệnh LSX26-0007, 0008, 0009 trên DB dev.
 

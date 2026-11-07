@@ -3192,7 +3192,7 @@ class LsxService:
         "giay_id", "nguon_giay", "kho_nguyen_dai", "kho_nguyen_rong",
         "kho_in_dai", "kho_in_rong", "dai_thanh_pham", "rong_thanh_pham",
         "quy_cach_in", "muc_a", "muc_b", "so_trang", "trang_moi_tay",
-        "bleed_mm", "khe_cat_mm", "con_auto",
+        "con_auto",
     )
 
     def ap_quy_cach(self, lsx: Lsx, patch: dict) -> tuple[dict, list[str]]:
@@ -3243,7 +3243,6 @@ class LsxService:
                 kho_in_dai=ki_d, kho_in_rong=ki_r,
                 dai_tp=_f(qc.get("dai_thanh_pham")), rong_tp=_f(qc.get("rong_thanh_pham")),
                 chua_mm=0, chua_dai_mm=chua_d, chua_rong_mm=chua_r,
-                bleed_mm=_f(qc.get("bleed_mm")), khe_cat_mm=_f(qc.get("khe_cat_mm")),
             )
             if con > 0:
                 lsx.so_con = con

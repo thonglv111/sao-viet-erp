@@ -21,8 +21,6 @@ interface Props {
     chua_nhip?: number;   // ô đè của phiếu
     nhip_giay_mm?: number; le_hong_mm?: number; duoi_thang_mau_mm?: number;  // danh mục MÁY
   };
-  bleedMm?: number; // tràn lề mỗi cạnh con
-  kheCatMm?: number; // khe giữa 2 con kề nhau
   soCon: number; // Số con hiện tại (có thể được đè tay)
   /** > 1 = SÁCH (gấp tay) → vẽ lưới TAY thay cho lưới con. Xem `luoiTay` bên dưới. */
   trangMoiTay?: number;
@@ -50,7 +48,7 @@ interface Props {
  *  ĐÂY LÀ HÌNH MINH HOẠ, KHÔNG PHẢI BẢN BÌNH BÀI ĐEM IN: không đánh số trang, không hướng gấp,
  *  không thớ giấy. Muốn mấy thứ đó thì phải dựng `folding_scheme` ở docs/spec-quy-tac-binh-bai.md. */
 function luoiTay(
-  oMoiMat: number, dungW: number, dungH: number, pieceR: number, pieceD: number, khe: number,
+  oMoiMat: number, dungW: number, dungH: number, pieceR: number, pieceD: number,
 ): { cols: number; rows: number; xoay: boolean } | null {
   if (oMoiMat < 1 || dungW <= 0 || dungH <= 0 || pieceR <= 0 || pieceD <= 0) return null;
   let best: { cols: number; rows: number; xoay: boolean; phu: number } | null = null;
@@ -60,8 +58,8 @@ function luoiTay(
       const rows = oMoiMat / cols;
       const cw = xoay ? pieceD : pieceR;
       const ch = xoay ? pieceR : pieceD;
-      const canW = cols * cw + khe * (cols - 1);
-      const canH = rows * ch + khe * (rows - 1);
+      const canW = cols * cw;
+      const canH = rows * ch;
       if (canW > dungW || canH > dungH) continue;
       const phu = Math.min(canW / dungW, canH / dungH);
       if (!best || phu > best.phu) best = { cols, rows, xoay, phu };
@@ -74,7 +72,7 @@ function luoiTay(
 
 export function ImpositionDiagram({
   khoInDai, khoInRong, daiTP, rongTP, chuaMm,
-  chuaDai, chuaRong, chuaTho, bleedMm = 0, kheCatMm = 0, soCon, trangMoiTay = 1,
+  chuaDai, chuaRong, chuaTho, soCon, trangMoiTay = 1,
   dvCon = "con", dvTo = "tờ",
 }: Props) {
   const { token } = useAuth();
@@ -102,8 +100,6 @@ export function ImpositionDiagram({
           chua_dai_mm: chuaDai,
           chua_rong_mm: chuaRong,
           ...(chuaTho ?? {}),
-          bleed_mm: bleedMm,
-          khe_cat_mm: kheCatMm,
         })
         .then((res) => {
           if (my === seq.current) {
@@ -123,7 +119,7 @@ export function ImpositionDiagram({
     // effect bắn liên tục (debounce 300ms không cứu nổi).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, ready, khoInDai, khoInRong, daiTP, rongTP, chuaMm, chuaDai, chuaRong,
-      JSON.stringify(chuaTho ?? null), bleedMm, kheCatMm]);
+      JSON.stringify(chuaTho ?? null)]);
 
   // Chưa đủ khổ → khối hướng dẫn.
   if (!ready) {
@@ -144,20 +140,17 @@ export function ImpositionDiagram({
   const insetY = (lay ? Math.max(0, lay.chua_dai) : 0) / 2; // trục Y = chiều DÀI
   const insetX = (lay ? Math.max(0, lay.chua_rong) : 0) / 2; // trục X = chiều RỘNG
 
-  const khe = Math.max(0, kheCatMm); // n con → n−1 khe
-  // bleed > 0 → mỗi ô vẽ HAI hình: ngoài = vùng tràn lề, trong = thành phẩm thật.
-  const bleed = Math.max(0, bleedMm);
-  // Kích thước 1 ô trên trục vẽ (X=rộng, Y=dài) — dùng piece ĐÃ cộng bleed của engine. Nhánh dự
-  // phòng phải cộng bleed tay: lưới tay vẽ được TRƯỚC khi /binh-bai trả lời, không thì nhấp nháy.
-  const pieceD = lay?.piece_dai ?? daiTP + bleed * 2;
-  const pieceR = lay?.piece_rong ?? rongTP + bleed * 2;
+  // Kích thước 1 ô trên trục vẽ (X=rộng, Y=dài) = đúng thành phẩm, con xếp sát nhau (bleed và
+  // khe cắt gỡ 07/11/2026). Nhánh dự phòng: lưới tay vẽ được TRƯỚC khi /binh-bai trả lời.
+  const pieceD = lay?.piece_dai ?? daiTP;
+  const pieceR = lay?.piece_rong ?? rongTP;
 
   // ── SÁCH: lưới TAY, không phải lưới con ──
   const laTay = trangMoiTay > 1;
   const oMoiMat = laTay ? Math.max(1, Math.ceil(trangMoiTay / 2)) : 0; // tay in 2 mặt → chia đôi
   const tay = laTay
     ? luoiTay(oMoiMat, Math.max(W - (lay?.chua_rong ?? 0), 0), Math.max(H - (lay?.chua_dai ?? 0), 0),
-              pieceR, pieceD, khe)
+              pieceR, pieceD)
     : null;
 
   const cols = laTay ? tay?.cols ?? 0 : lay?.cols ?? 0;
@@ -172,11 +165,11 @@ export function ImpositionDiagram({
   // nửa tờ — vẽ từ góc sẽ ra một khối lệch trông như hình vẽ hỏng, nên căn giữa vùng khả dụng.
   const canhX =
     laTay && con > 0
-      ? Math.max((W - insetX * 2 - (cols * cellW + khe * (cols - 1))) / 2, 0)
+      ? Math.max((W - insetX * 2 - cols * cellW) / 2, 0)
       : 0;
   const canhY =
     laTay && con > 0
-      ? Math.max((H - insetY * 2 - (rows * cellH + khe * (rows - 1))) / 2, 0)
+      ? Math.max((H - insetY * 2 - rows * cellH) / 2, 0)
       : 0;
 
   const pieces: { x: number; y: number; used: boolean }[] = [];
@@ -185,8 +178,8 @@ export function ImpositionDiagram({
     for (let r = 0; r < rows; r++) {
       for (let cix = 0; cix < cols; cix++) {
         pieces.push({
-          x: insetX + canhX + cix * (cellW + khe),
-          y: insetY + canhY + r * (cellH + khe),
+          x: insetX + canhX + cix * cellW,
+          y: insetY + canhY + r * cellH,
           used: laTay || index < soCon,
         });
         index++;
@@ -196,8 +189,6 @@ export function ImpositionDiagram({
   // Đánh số ô = số con thứ mấy. Tay sách KHÔNG đánh: 1..8 ở đây dễ bị đọc nhầm thành số TRANG,
   // mà thứ tự trang thật thì phụ thuộc kiểu gấp — thứ hình này không biết và không hứa.
   const showIndex = !laTay && con > 0 && con <= 24;
-  const trimW = Math.max(cellW - bleed * 2, 0);
-  const trimH = Math.max(cellH - bleed * 2, 0);
   // Phần tờ thật sự dùng — tay 16 trên tờ chứa nổi 32 thì con số này rơi xuống ~50%, nhìn là biết.
   const phuTay =
     laTay && tay && W > 0 && H > 0
@@ -205,7 +196,7 @@ export function ImpositionDiagram({
       : 0;
   const chuaD = lay?.chua_dai ?? 0;
   const chuaR = lay?.chua_rong ?? 0;
-  const coThongSo = bleed > 0 || khe > 0 || chuaD > 0 || chuaR > 0;
+  const coThongSo = chuaD > 0 || chuaR > 0;
 
   return (
     <div className={`tg-imp${con === 0 && (lay || laTay) ? " tg-imp--bad" : ""}`}>
@@ -246,25 +237,15 @@ export function ImpositionDiagram({
               vectorEffect="non-scaling-stroke"
             />
           )}
-          {/* Lưới con. bleed > 0 → hình ngoài = vùng tràn lề, hình trong = thành phẩm thật. */}
+          {/* Lưới con */}
           {pieces.map((p, i) => (
             <g key={i}>
-              {bleed > 0 && (
-                <rect
-                  className="tg-imp__bleed"
-                  x={p.x}
-                  y={p.y}
-                  width={cellW}
-                  height={cellH}
-                  vectorEffect="non-scaling-stroke"
-                />
-              )}
               <rect
                 className={`tg-imp__piece${p.used ? "" : " tg-imp__piece--unused"}`}
-                x={p.x + bleed}
-                y={p.y + bleed}
-                width={trimW}
-                height={trimH}
+                x={p.x}
+                y={p.y}
+                width={cellW}
+                height={cellH}
                 vectorEffect="non-scaling-stroke"
               />
               {p.used && showIndex && (
@@ -343,16 +324,6 @@ export function ImpositionDiagram({
       {/* Thông số ĐANG áp dụng — để nhìn ra ngay vì sao số con đổi, khỏi phải đoán. */}
       {lay && coThongSo && (
         <div className="tg-imp__params">
-          {bleed > 0 && (
-            <span className="tg-imp__param">
-              bleed <b>{bleed}</b> · {dvCon} {cellW}×{cellH}
-            </span>
-          )}
-          {khe > 0 && (
-            <span className="tg-imp__param">
-              khe cắt <b>{khe}</b>
-            </span>
-          )}
           {(chuaD > 0 || chuaR > 0) && (
             <span className="tg-imp__param">
               chừa dài <b>{chuaD}</b> · rộng <b>{chuaR}</b>

@@ -242,14 +242,13 @@ def test_bimh_bai_doc_nhip_giay_tu_may_khong_dung_nhip_kem(client, auth_headers)
     assert _con_cua(client, auth_headers, giay_id, may_id) == 143
 
 
-def test_bleed_va_khe_cat_tu_phieu_giam_so_con(client, auth_headers):
-    """bleed/khe cắt sale nhập trên phiếu phải chảy tới engine (con to hơn → ít con hơn)."""
+def test_bleed_va_khe_cat_da_go_khong_con_doi_so_con(client, auth_headers):
+    """Bleed / khe cắt đã gỡ (mg 0454). Client cũ còn gửi hai khoá này thì server bỏ qua, số con
+    giữ nguyên — không có ô nào trên phiếu mà vẫn âm thầm đổi giá là tính ngầm."""
     giay_id, _ = _seed_catalog()
     may_id = _seed_may_mitsubishi()
     goc = _con_cua(client, auth_headers, giay_id, may_id)
-    co_bleed = _con_cua(client, auth_headers, giay_id, may_id, bleed_mm=3)
-    co_khe = _con_cua(client, auth_headers, giay_id, may_id, khe_cat_mm=5)
-    assert co_bleed < goc and co_khe < goc
+    assert _con_cua(client, auth_headers, giay_id, may_id, bleed_mm=3, khe_cat_mm=5) == goc
 
 
 def _lui_moc(pid: int, gio: int = 2) -> None:

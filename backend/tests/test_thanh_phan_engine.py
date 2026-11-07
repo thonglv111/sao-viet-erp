@@ -52,27 +52,18 @@ def test_chua_tach_chieu_khong_an_chieu_con_lai():
                         chua_dai_mm=0, chua_rong_mm=40) == 150
 
 
-def test_bleed_phinh_con_moi_chieu():
-    """bleed cộng 2 CẠNH mỗi chiều: con 100×43 + bleed 3 → 106×49."""
-    khong = binh_bai_con(kho_in_dai=1020, kho_in_rong=720, dai_tp=100, rong_tp=43)
-    co = binh_bai_con(kho_in_dai=1020, kho_in_rong=720, dai_tp=100, rong_tp=43, bleed_mm=3)
-    assert khong == 161                    # xoay: floor(1020/43) × floor(720/100) = 23 × 7
-    assert co == 9 * 14                    # thẳng: floor(1020/106) × floor(720/49)
-    lay = binh_bai_layout(kho_in_dai=1020, kho_in_rong=720, dai_tp=100, rong_tp=43, bleed_mm=3)
-    assert lay["piece_dai"] == 106 and lay["piece_rong"] == 49
-
-
-def test_khe_cat_n_con_chi_co_n_tru_1_khe():
-    """3 con chỉ có 2 khe. Khổ vừa khít 3 con + 2 khe → đúng 3; hụt 1mm → chỉ còn 2."""
-    # 3×100 + 2×5 = 310
-    assert binh_bai_con(kho_in_dai=310, kho_in_rong=43, dai_tp=100, rong_tp=43, khe_cat_mm=5) == 3
-    assert binh_bai_con(kho_in_dai=309, kho_in_rong=43, dai_tp=100, rong_tp=43, khe_cat_mm=5) == 2
-    # Không khe thì 3 con chỉ cần 300.
+def test_con_de_binh_dung_bang_thanh_pham_khong_bleed_khong_khe():
+    """Bleed và khe cắt đã gỡ (mg 0454): con để bình = đúng thành phẩm, xếp sát nhau."""
     assert binh_bai_con(kho_in_dai=300, kho_in_rong=43, dai_tp=100, rong_tp=43) == 3
+    assert binh_bai_con(kho_in_dai=299, kho_in_rong=43, dai_tp=100, rong_tp=43) == 2
+    lay = binh_bai_layout(kho_in_dai=1020, kho_in_rong=720, dai_tp=100, rong_tp=43)
+    assert lay["piece_dai"] == 100 and lay["piece_rong"] == 43
+    with pytest.raises(TypeError):
+        binh_bai_con(kho_in_dai=300, kho_in_rong=43, dai_tp=100, rong_tp=43, bleed_mm=3)
 
 
 def test_tham_so_moi_mac_dinh_giu_nguyen_hanh_vi_cu():
-    """bleed=0, khe=0, KHÔNG truyền chua_dai/rong → y hệt bản cũ (tương thích ngược)."""
+    """KHÔNG truyền chua_dai/rong → trừ chừa đều hai chiều như bản cũ (tương thích ngược)."""
     for d, r, dt, rt, ch in ((650, 430, 90, 54, 0), (1090, 800, 210, 140, 60),
                              (1020, 720, 100, 43, 44), (100, 100, 200, 50, 0)):
         lay = binh_bai_layout(kho_in_dai=d, kho_in_rong=r, dai_tp=dt, rong_tp=rt, chua_mm=ch)
@@ -935,25 +926,6 @@ def test_chua_tach_chieu_nhip_khong_an_chieu_rong():
     ) == (16, 6)
     # Không chọn máy + không đè → 0 cả hai chiều (bình sát mép, số con thổi phồng — cảnh báo ở UI).
     assert chua_theo_chieu({}) == (0, 0)
-
-
-def test_binh_bai_the_nhan_vien_ra_99_con():
-    """Số THẬT của xưởng: thẻ 54×86 trên tờ in 860×650, bleed 2 → 11×9 = 99 con/tờ.
-
-    Canh nguyên cụm lỗi cũ của sơ đồ ở màn lệnh: bỏ bleed + trừ chừa đều hai chiều thì ra 105 con
-    (7×15 xoay 90°) — cùng một tờ mà hai màn vẽ hai hình khác nhau."""
-    from app.services.thanh_phan_engine import binh_bai_layout, chua_theo_chieu
-
-    chua_d, chua_r = chua_theo_chieu(
-        {"nhip_giay_mm": 10, "duoi_thang_mau_mm": 5, "le_hong_mm": 5}
-    )
-    lay = binh_bai_layout(kho_in_dai=860, kho_in_rong=650, dai_tp=86, rong_tp=54,
-                          chua_dai_mm=chua_d, chua_rong_mm=chua_r, bleed_mm=2)
-    assert (lay["con"], lay["cols"], lay["rows"], lay["rotated"]) == (99, 11, 9, False)
-    # Bỏ bleed + gộp chừa = đúng cách sai cũ → 105. Giữ lại để thấy vì sao hai màn từng lệch.
-    sai = binh_bai_layout(kho_in_dai=860, kho_in_rong=650, dai_tp=86, rong_tp=54,
-                          chua_mm=20, bleed_mm=0)
-    assert sai["con"] == 105
 
 
 # ============================ Đợt 4 · L — LƯỢNG vật tư ============================
