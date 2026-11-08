@@ -179,6 +179,9 @@ NHAN: dict[str, str] = {
     # Công tắc chia hai màn danh mục (mg 0228). Người dùng KHÔNG khai ô này — repo tự đóng dấu —
     # nhưng nhật ký vẫn phải gọi được tên nó nếu có gì đó chạm vào.
     "la_thanh_pham": "Là thành phẩm",
+    # Hàng thương mại (mg 0460, chỉ In Hà Phương): repo tự đóng dấu cờ, giá bán khai theo từng ĐVT.
+    "la_hang_thuong_mai": "Là hàng thương mại",
+    "gia_ban_theo_dvt": "Giá bán theo đơn vị",
     # Tái bản (mg 0394): cấu hình kỹ thuật chụp lúc chốt đơn, máy ghi — người dùng không khai.
     "cau_hinh_tai_ban": "Cấu hình tái bản",
     "tai_ban_luc": "Chốt cấu hình tái bản lúc",

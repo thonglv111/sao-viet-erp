@@ -40,7 +40,7 @@ class XeGiaoHang(Base):
     ten: Mapped[str] = mapped_column(String(150), nullable=False)
     #: Nhân viên bộ phận giao hàng phụ trách xe. Chọn người giao ở Xuất hàng thì ô Xe tự điền xe này.
     nguoi_phu_trach_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     #: Tắt = ngưng dùng: không hiện ở ô chọn lần xuất mới, lần xuất cũ vẫn giữ tên xe.
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
@@ -65,7 +65,7 @@ class PhuongThucGiaoHp(Base):
     ma_lan_xuat: Mapped[str | None] = mapped_column(String(40), nullable=True)
     loai: Mapped[str] = mapped_column(String(16), nullable=False)
     nguoi_giao_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
     xe_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("xe_giao_hang.id", ondelete="SET NULL"), index=True, nullable=True)
     don_vi_vc_id: Mapped[int | None] = mapped_column(
@@ -74,7 +74,7 @@ class PhuongThucGiaoHp(Base):
     tien_cuoc: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     ma_van_don: Mapped[str | None] = mapped_column(String(64), nullable=True)
     nguoi_chon_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
 
 

@@ -37,7 +37,7 @@ class LuotXuatThuongMai(Base):
     stock_request_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     trang_thai: Mapped[str] = mapped_column(
         String(16), nullable=False, server_default=LXTM_CHO_XUAT, default=LXTM_CHO_XUAT)
-    nguoi_lap_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id"), nullable=True)
+    nguoi_lap_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=_now)
     xuat_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

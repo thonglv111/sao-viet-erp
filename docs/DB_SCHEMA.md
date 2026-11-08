@@ -6107,7 +6107,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `kho_id` | `Integer` → `INTEGER` | **FK→kho_hang.id**, **IX** | no | — | Kho xuất (Kho Cửa hàng do HP khai, không mã cứng). |
 | `stock_request_id` | `Integer` → `INTEGER` | **IX** | yes | — | Yêu cầu XUẤT của lượt (soft ref). |
 | `trang_thai` | `String(16)` → `VARCHAR(16)` | — | no | `cho_xuat` | `cho_xuat` · `da_xuat` (kho ghi sổ xong) · `huy` (kho huỷ khi chưa xuất gì). |
-| `nguoi_lap_id` | `Integer` → `INTEGER` | **FK→users.id** | yes | — | Người bấm Xuất hàng, server gán từ tài khoản. |
+| `nguoi_lap_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE) | yes | — | Người bấm Xuất hàng, server gán từ tài khoản. |
 | `ghi_chu` | `String(500)` → `VARCHAR(500)` | — | yes | — | Ghi chú. |
 | `created_at` | `DateTime(timezone=True)` → `TIMESTAMPTZ` | — | no | now (UTC) | Khi lập. |
 | `xuat_luc` | `DateTime(timezone=True)` → `TIMESTAMPTZ` | — | yes | — | Lúc lượt sang `da_xuat`. |
@@ -6145,7 +6145,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `id` | `Integer` → `INTEGER` | **PK** | no | auto | Khoá. |
 | `ma` | `String(30)` → `VARCHAR(30)` | **UQ**, **IX** | no | — | Biển số, người khai gõ tay. |
 | `ten` | `String(150)` → `VARCHAR(150)` | — | no | — | Tên xe. |
-| `nguoi_phu_trach_id` | `Integer` → `INTEGER` | **FK→users.id** (SET NULL), **IX** | yes | — | Nhân viên bộ phận giao hàng phụ trách xe; chọn người giao ở Xuất hàng thì ô Xe tự điền xe này. |
+| `nguoi_phu_trach_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE), **IX** | yes | — | Nhân viên bộ phận giao hàng phụ trách xe; chọn người giao ở Xuất hàng thì ô Xe tự điền xe này. |
 | `ghi_chu` | `String(500)` → `VARCHAR(500)` | — | yes | — | Ghi chú. |
 | `active` | `Boolean` → `BOOLEAN` | — | no | `true` | Tắt = ngưng dùng, không hiện ở ô chọn lần xuất mới. |
 | `created_at` | `DateTime(timezone=True)` → `TIMESTAMPTZ` | — | no | now (UTC) | Khi tạo. |
@@ -6167,12 +6167,12 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `luot_xuat_tm_id` | `Integer` → `INTEGER` | **IX** | yes | — | Đơn thương mại: lượt xuất (soft ref → `luot_xuat_thuong_mai.id`). |
 | `ma_lan_xuat` | `String(40)` → `VARCHAR(40)` | — | yes | — | Mã lần xuất hiện cho người dùng (mã yêu cầu kho hoặc mã lượt), chép lúc ghi. |
 | `loai` | `String(16)` → `VARCHAR(16)` | — | no | — | `khong_giao` / `noi_bo` / `dich_vu`. Bắt buộc chọn, không mặc định. |
-| `nguoi_giao_id` | `Integer` → `INTEGER` | **FK→users.id** (SET NULL), **IX** | yes | — | Giao nội bộ: người giao, thuộc bộ phận có `departments.la_giao_hang`. |
+| `nguoi_giao_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE), **IX** | yes | — | Giao nội bộ: người giao, thuộc bộ phận có `departments.la_giao_hang`. |
 | `xe_id` | `Integer` → `INTEGER` | **FK→xe_giao_hang.id** (SET NULL), **IX** | yes | — | Giao nội bộ: xe. |
 | `don_vi_vc_id` | `Integer` → `INTEGER` | **FK→suppliers.id** (SET NULL), **IX** | yes | — | Giao dịch vụ: NCC có `la_don_vi_van_chuyen`. |
 | `tien_cuoc` | `BigInteger` → `BIGINT` | — | yes | — | Giao dịch vụ: tiền cước công ty chịu, không cộng vào đơn hay hoá đơn. Tiền: chỉ người có ô Xem của Phiếu chi thấy, gác ở router. |
 | `ma_van_don` | `String(64)` → `VARCHAR(64)` | — | yes | — | Giao dịch vụ: mã vận đơn, không bắt buộc. |
-| `nguoi_chon_id` | `Integer` → `INTEGER` | **FK→users.id** (SET NULL) | yes | — | Người chọn cách giao, máy chủ ghi từ tài khoản. |
+| `nguoi_chon_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE) | yes | — | Người chọn cách giao, máy chủ ghi từ tài khoản. |
 | `created_at` | `DateTime(timezone=True)` → `TIMESTAMPTZ` | — | no | now (UTC) | Khi ghi. |
 
 **Tất cả cột:** `id`, `order_id`, `stock_request_id`, `luot_xuat_tm_id`, `ma_lan_xuat`, `loai`, `nguoi_giao_id`, `xe_id`, `don_vi_vc_id`, `tien_cuoc`, `ma_van_don`, `nguoi_chon_id`, `created_at`.
