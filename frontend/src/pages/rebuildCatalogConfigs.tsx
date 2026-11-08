@@ -751,6 +751,43 @@ export const CFG_VAT_TU: CatalogConfig = {
   ],
 };
 
+// HÀNG THƯƠNG MẠI (08/11/2026, chỉ In Hà Phương — phân hệ `thuong_mai`, docs/design-hang-thuong-mai-ha-phuong.md
+// §3): hàng mua về bán, không qua sản xuất. Cùng bảng `vat_tu_in_an`, với kho vẫn là "vat_tu". Giá bán
+// khai theo TỪNG ĐVT, không quy đổi. Máy chủ xoá cột giá khi thiếu ô Xem giá của màn này.
+const giaBanCell = (r: Row) => {
+  const g = r.gia_ban_theo_dvt && typeof r.gia_ban_theo_dvt === "object" ? (r.gia_ban_theo_dvt as Record<string, number>) : null;
+  if (!g) return "";
+  const ds = Object.entries(g);
+  if (ds.length === 0) return <span className="lds-cam">Chưa đặt giá</span>;
+  return doc(ds.map(([ma, so]) => <span key={ma}>{`${so.toLocaleString("vi-VN")} đ/${tenDonVi(ma) ?? ma}`}</span>));
+};
+
+export const CFG_HANG_THUONG_MAI: CatalogConfig = {
+  title: "Hàng thương mại",
+  moduleQuyen: "hang_thuong_mai",
+  enableClone: true,
+  prefix: "/api/vat-lieu-kho/hang-thuong-mai",
+  nhatKyLoai: "hang_thuong_mai",
+  man: "hang-thuong-mai",
+  dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
+  softDelete: true,
+  widthMa: 130,
+  widthTen: 260,
+  columns: [
+    { key: "don_vi_gia", label: "ĐVT", w: 160, render: (r) => dvCellNhieu(r) },
+    { key: "gia_ban_theo_dvt", label: "Giá bán", w: 200, render: (r) => giaBanCell(r) },
+    { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
+  ],
+  fields: [
+    { key: "don_vi_gia", label: "Đơn vị tính (ĐVT)", ...F_DON_VI, group: "Thông số" },
+    F_DON_VI_THEM,
+    { key: "gia_ban_theo_dvt", label: "Giá bán theo đơn vị", type: "gia-ban-dvt", refPrefix: "/api/don-vi",
+      group: "Giá bán",
+      hint: "Mỗi đơn vị một giá, chưa gồm VAT. Bán theo đơn vị nào thì đơn tự lấy giá đó, sửa được ở dòng đơn." },
+    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
+  ],
+};
+
 // THÀNH PHẨM — cùng bảng `vat_tu_in_an` với Vật tư khác, chia nhau bằng `order_line_id`
 // (docs/prd-thanh-pham.md §3). Menu + ô quyền riêng, nhưng KHÔNG phải `hang_loai` thứ ba: với
 // kho thành phẩm vẫn là "vat_tu", nên luồng nhập kho · lập phiếu · trừ tồn không sửa gì.
@@ -1260,6 +1297,31 @@ export const CFG_MUC_THU_CHI: CatalogConfig = {
   ],
 };
 
+// XE GIAO HÀNG kiểu Hà Phương (08/11/2026, chỉ bản cài bật `giao_hang_hp`,
+// docs/design-giao-hang-ha-phuong.md): biển số, tên xe, người phụ trách. Không có mức khoán km.
+// Lúc Xuất hàng chọn người giao thì ô Xe tự điền xe người đó phụ trách.
+export const CFG_XE_GIAO_HANG: CatalogConfig = {
+  title: "Xe giao hàng",
+  moduleQuyen: "xe_giao_hang",
+  prefix: "/api/xe-giao-hang",
+  nhatKyLoai: "xe_giao_hang",
+  nhanMa: "Biển số",
+  khongGoiYMa: true,
+  // Xoá mềm: xe bán đi vẫn giữ tên cho các lần giao cũ.
+  softDelete: true,
+  man: "xe-giao-hang",
+  columns: [
+    { key: "nguoi_phu_trach_ten", label: "Người phụ trách", w: 220,
+      render: (r) => (r.nguoi_phu_trach_ten ? String(r.nguoi_phu_trach_ten) : "") },
+    { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
+  ],
+  fields: [
+    // `hint` của ô ref-search là placeholder: giữ một dòng ngắn.
+    { key: "nguoi_phu_trach_id", label: "Người phụ trách", type: "ref-search",
+      refPrefix: "/api/giao-hang-hp/nguoi-giao", group: "Thông tin", hint: "Chọn người giao…" },
+    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Thông tin" },
+  ],
+};
 
 export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
   "khai-bao-kho": CFG_KHO_HANG,
@@ -1269,7 +1331,9 @@ export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
   "giay": CFG_GIAY,
   "vat-tu-in-an": CFG_VAT_TU,
   "thanh-pham": CFG_THANH_PHAM,
+  "hang-thuong-mai": CFG_HANG_THUONG_MAI,
   "khuon-be": CFG_KHUON_BE,
   "xe": CFG_XE,
+  "xe-giao-hang": CFG_XE_GIAO_HANG,
   "muc-thu-chi": CFG_MUC_THU_CHI,
 };

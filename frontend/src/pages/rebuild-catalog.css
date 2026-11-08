@@ -4516,3 +4516,8 @@ button.rc-formula__nhan--nut.is-chon {
 /* Nút "＋ Thêm" rộng bằng khung nhìn, kéo ngang thì đứng yên (không trôi đi để lại dải trống). */
 .rc-khoan__luoi .rc-bands--bac-gia > .rc-bands__add,
 .rc-khoan__luoi .rc-bands--vps > .rc-bands__add { position: sticky; left: 0; }
+
+/* Giá bán theo ĐVT — danh mục Hàng thương mại (chỉ In Hà Phương, 08/11/2026). */
+.rc-gia-dvt { display: grid; gap: 6px; }
+.rc-gia-dvt__dong { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(120px, 180px) auto; align-items: center; gap: 8px; }
+.rc-gia-dvt__dv { color: var(--ink-3, #6b7280); }

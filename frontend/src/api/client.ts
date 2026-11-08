@@ -7675,6 +7675,8 @@ export interface SupplierRow {
   status: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong: boolean;
+  /** Hà Phương: NCC là đơn vị vận chuyển — hiện trong ô chọn "Đơn vị vận chuyển" lúc Xuất hàng. */
+  la_don_vi_van_chuyen?: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -7747,6 +7749,7 @@ export interface SupplierInput {
   status?: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong?: boolean;
+  la_don_vi_van_chuyen?: boolean;
   note?: string | null;
   items?: SupplierItemInput[];
 }
@@ -8568,8 +8571,11 @@ export interface SalesInvoiceInput {
   invoice_symbol: string;
   invoice_number: string;
   invoice_date: string;
-  /** Lượt giao khách đã nhận mà hóa đơn lập cho — máy chủ bắt buộc (mg 0402). */
-  delivery_trip_id: number;
+  /** Lượt giao khách đã nhận mà hóa đơn lập cho — máy chủ bắt buộc (mg 0402). Đơn thương mại gửi
+   *  `luot_xuat_tm_id` thay vào. */
+  delivery_trip_id?: number;
+  /** Đơn thương mại (chỉ In Hà Phương): lượt xuất đã xuất mà hoá đơn lập cho. */
+  luot_xuat_tm_id?: number;
   /** Bỏ trống = toàn bộ hàng đã giao của lượt chưa ghi hóa đơn. */
   amount_vnd?: number | null;
 }
@@ -8601,6 +8607,8 @@ export interface SalesInvoiceRow {
   cancelled_at: string | null;
   cancel_reason: string | null;
   delivery_trip_id?: number | null;
+  /** Đơn thương mại (chỉ In Hà Phương): lượt xuất của hoá đơn. */
+  luot_xuat_tm_id?: number | null;
   /** Mã lượt giao của hóa đơn; null với hóa đơn ghi trước khi gắn lượt. */
   luot_giao_ma?: string | null;
   /** Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT; kê chi lại sau khi trừ thuế TNDN. */
@@ -8640,6 +8648,8 @@ export interface SalesInvoiceListOut {
   /** Tiền khách đưa dư còn phải trả lại — cùng số với hàng Chờ trả lại khách ở Phiếu chi. */
   cho_tra_lai?: number;
   luot_giao?: LuotGiaoHoaDon[];
+  /** Đơn thương mại: `luot_giao[].trip_id` là id lượt xuất, gửi lại ở `luot_xuat_tm_id`. */
+  luot_xuat_tm?: boolean;
   /** Phiếu thu ĐÃ THU gắn thẳng vào hoá đơn của đơn (không gồm cọc). */
   phieu_thu?: {
     id: number; code: string; doc_no: string | null; invoice_id: number; amount: number; receipt_date: string;
@@ -9242,6 +9252,8 @@ export type PaymentVoucherSource =
   /** Chi chiết khấu / kê trả khách theo hóa đơn đã thu đủ (20/10/2026). */
   | "chi_chiet_khau"
   | "chi_ke_gia"
+  /** Chi tiền cước giao hàng cho đơn vị vận chuyển (chỉ In Hà Phương, `giao_hang_hp`). */
+  | "cuoc_giao_hang"
   | "other";
 /** BỎ HẲN `waiting_payment` từ 06/08/2026 (Đ1): lập phiếu chi = tiền ĐÃ RA, phiếu sinh ra đã là
  *  `paid`. Migration đã chuyển mọi phiếu "chờ chi" cũ thành `paid` (có dấu trong `note`). */
@@ -9838,6 +9850,8 @@ export interface OrderLineOut {
   phieu_thanh_phan_id: number | null;
   /** Nhãn nhóm gộp KHI IN xác nhận đơn — copy từ dòng báo giá, khớp bản khách đã nhận. */
   nhom: string | null;
+  /** Đơn thương mại (chỉ In Hà Phương): mặt hàng thương mại của dòng. */
+  hang_thuong_mai_id?: number | null;
 }
 export interface AttachmentOut {
   id: number;

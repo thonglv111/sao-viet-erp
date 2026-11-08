@@ -166,6 +166,11 @@ class Supplier(Base):
     nhan_gia_cong: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
+    # ĐƠN VỊ VẬN CHUYỂN (08/11/2026, chỉ In Hà Phương, phân hệ `giao_hang_hp`) — ô chọn đơn vị vận
+    # chuyển lúc Xuất hàng chỉ mời NCC đang hoạt động có cờ này (docs/design-giao-hang-ha-phuong.md §5).
+    la_don_vi_van_chuyen: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_false(), default=False
+    )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

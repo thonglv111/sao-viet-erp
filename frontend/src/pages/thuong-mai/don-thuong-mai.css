@@ -1,0 +1,26 @@
+/* Đơn thương mại — chỉ In Hà Phương. Dựng trên khuôn modal / bảng của màn Đơn hàng bán (dhb__*). */
+.dtm__form { width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; display: grid; gap: 12px; }
+.dtm__lead { margin: 0; color: var(--text-muted, #667085); font-size: 13px; }
+.dtm__o { display: grid; gap: 4px; font-size: 13px; }
+.dtm__o > span b { color: var(--danger, #d92d20); font-weight: 400; }
+.dtm__hai { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
+.dtm__chon { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.dtm__tim { position: relative; }
+.dtm__goi-y {
+  position: absolute; z-index: 5; left: 0; right: 0; top: calc(100% + 2px); margin: 0; padding: 4px 0;
+  list-style: none; background: var(--surface, #fff); border: 1px solid var(--border, #d0d5dd); border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(16, 24, 40, 0.12); max-height: 260px; overflow: auto;
+}
+.dtm__goi-y button {
+  display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 6px 10px;
+  border: 0; background: none; text-align: left; font: inherit; cursor: pointer;
+}
+.dtm__goi-y button:hover, .dtm__goi-y button:focus-visible { background: var(--surface-hover, #f2f4f7); }
+.dtm__goi-y small { color: var(--text-muted, #667085); }
+.dtm__bang td { vertical-align: middle; }
+.dtm__bang .dhb__input { width: 100%; min-width: 0; }
+.dtm__c-hang { min-width: 240px; }
+.dtm__them { justify-self: start; }
+.dtm__check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.dtm__phu { display: block; color: var(--text-muted, #667085); font-size: 12px; }
+@media (max-width: 640px) { .dtm__hai { grid-template-columns: 1fr; } }

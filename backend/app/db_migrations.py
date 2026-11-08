@@ -19476,3 +19476,114 @@ def _migrate_ke_hoach_bo_phan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0455_ke_hoach_bo_phan", _migrate_ke_hoach_bo_phan))
+
+
+def _chep_quyen_module(db: Session, insp, *, cu: str, moi: str, nhan: str) -> None:
+    """Khai module quyền MỚI `moi` và chép nguyên bit của `cu` cho mọi vai đang có `cu` (cùng khuôn
+    mg 0296). Module mới nằm trong `SCOPELESS_MODULES` ⇒ scope ghi thẳng 'all'. Idempotent."""
+    bang = set(insp.get_table_names())
+    if "modules" in bang:
+        db.execute(
+            text("INSERT INTO modules (key, label, created_at) "
+                 "SELECT :k, :l, CURRENT_TIMESTAMP "
+                 "WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+            {"k": moi, "l": nhan},
+        )
+    if "role_permissions" in bang:
+        cols = sorted(_existing_columns(insp, "role_permissions"))
+        chep = [c for c in cols if c not in ("id", "module_key")]
+        chon = ["'all'" if c == "scope" else f"rp.{c}" for c in chep]
+        db.execute(
+            text(
+                f"INSERT INTO role_permissions (module_key, {', '.join(chep)}) "
+                f"SELECT :moi, {', '.join(chon)} FROM role_permissions rp "
+                "WHERE rp.module_key = :cu AND NOT EXISTS ("
+                "  SELECT 1 FROM role_permissions x "
+                "  WHERE x.role_id = rp.role_id AND x.module_key = :moi)"
+            ),
+            {"cu": cu, "moi": moi},
+        )
+
+
+def _migrate_hang_thuong_mai(db: Session) -> None:
+    """0460 (08/11/2026) — danh mục Hàng thương mại, chỉ In Hà Phương dùng
+    (docs/design-hang-thuong-mai-ha-phuong.md §3).
+
+    · `vat_tu_in_an.la_hang_thuong_mai BOOLEAN NOT NULL DEFAULT false` — công tắc màn thứ ba.
+    · `vat_tu_in_an.gia_ban_theo_dvt JSON NULL` — giá bán theo từng ĐVT.
+    · Module quyền `hang_thuong_mai`, chép bit từ `dm_vat_tu` (người khai vật tư khai luôn hàng thương
+      mại). Bản cài không bật phân hệ thì module coi như không ai có quyền (`app.phan_he`).
+    Không backfill: dòng cũ đều là vật tư hoặc thành phẩm. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "vat_tu_in_an" in insp.get_table_names():
+        cot = _existing_columns(insp, "vat_tu_in_an")
+        if "la_hang_thuong_mai" not in cot:
+            db.execute(text(
+                "ALTER TABLE vat_tu_in_an ADD COLUMN la_hang_thuong_mai BOOLEAN NOT NULL DEFAULT false"))
+        if "gia_ban_theo_dvt" not in cot:
+            db.execute(text("ALTER TABLE vat_tu_in_an ADD COLUMN gia_ban_theo_dvt JSON"))
+    _chep_quyen_module(db, insp, cu="dm_vat_tu", moi="hang_thuong_mai", nhan="Hàng thương mại")
+    db.commit()
+
+
+MIGRATIONS.append(("0460_hang_thuong_mai", _migrate_hang_thuong_mai))
+
+
+def _migrate_don_thuong_mai(db: Session) -> None:
+    """0461 (08/11/2026) — đơn thương mại, chỉ In Hà Phương (docs/design-hang-thuong-mai-ha-phuong.md §6).
+
+    · `order_lines.hang_thuong_mai_id INTEGER NULL` + index — soft → `vat_tu_in_an.id` (hàng thương mại).
+    `orders.source_type` nhận thêm giá trị `thuong_mai`: cột String(16) sẵn có, không đổi kiểu. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "order_lines" in insp.get_table_names():
+        if "hang_thuong_mai_id" not in _existing_columns(insp, "order_lines"):
+            db.execute(text("ALTER TABLE order_lines ADD COLUMN hang_thuong_mai_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_order_lines_hang_thuong_mai_id "
+                        "ON order_lines (hang_thuong_mai_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0461_don_thuong_mai", _migrate_don_thuong_mai))
+
+
+def _migrate_luot_xuat_thuong_mai(db: Session) -> None:
+    """0462 (08/11/2026) — lượt xuất của đơn thương mại, chỉ In Hà Phương
+    (docs/design-hang-thuong-mai-ha-phuong.md §7–8).
+
+    · Hai bảng `luot_xuat_thuong_mai` / `luot_xuat_thuong_mai_dong` — bảng mới, `create_all` tạo.
+    · `stock_requests.luot_xuat_tm_id INTEGER NULL` + index — yêu cầu XUẤT sinh từ lượt (soft ref).
+    · `sales_invoices.luot_xuat_tm_id INTEGER NULL` + index — hoá đơn lập theo lượt xuất (soft ref).
+    Không backfill. Idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for t in ("stock_requests", "sales_invoices"):
+        if t not in bang:
+            continue
+        if "luot_xuat_tm_id" not in _existing_columns(insp, t):
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN luot_xuat_tm_id INTEGER"))
+        db.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{t}_luot_xuat_tm_id ON {t} (luot_xuat_tm_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0462_luot_xuat_thuong_mai", _migrate_luot_xuat_thuong_mai))
+
+
+def _migrate_giao_hang_hp(db: Session) -> None:
+    """0463 (08/11/2026) — giao hàng kiểu In Hà Phương, chỉ bản cài bật `giao_hang_hp`
+    (docs/design-giao-hang-ha-phuong.md).
+
+    · Ba bảng mới `xe_giao_hang`, `phuong_thuc_giao_hp`, `phieu_chi_cuoc_giao` — `create_all` tạo.
+    · `suppliers.la_don_vi_van_chuyen BOOLEAN NOT NULL DEFAULT false` — cờ Đơn vị vận chuyển.
+    · Module quyền `xe_giao_hang`, chép bit từ `dm_xe` (người khai xe cũ khai luôn xe mới). Bản cài
+      không bật phân hệ thì module coi như không ai có quyền (`app.phan_he`).
+    Không backfill, không seed. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "suppliers" in insp.get_table_names():
+        if "la_don_vi_van_chuyen" not in _existing_columns(insp, "suppliers"):
+            db.execute(text(
+                "ALTER TABLE suppliers ADD COLUMN la_don_vi_van_chuyen BOOLEAN NOT NULL DEFAULT false"))
+    _chep_quyen_module(db, insp, cu="dm_xe", moi="xe_giao_hang", nhan="Xe giao hàng")
+    db.commit()
+
+
+MIGRATIONS.append(("0463_giao_hang_hp", _migrate_giao_hang_hp))

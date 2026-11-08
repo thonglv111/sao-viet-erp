@@ -11,6 +11,7 @@
 import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { OGoDinhDang } from "../../../../components/OGoDinhDang";
 import type { SupplierInput } from "../../../../api/client";
+import { useTat } from "../../../../auth/permissions";
 import "./ncc-form.css";
 
 /** Cách tính hạn trả, lưu ở `debt_cutoff_day`: null = từ ngày hoá đơn · 31 = chốt cuối tháng ·
@@ -96,6 +97,8 @@ export function SupplierInfoTab({
   nhomGoiY: string[];
 }) {
   const doi = (patch: Partial<SupplierInput>) => setForm((f) => ({ ...f, ...patch }));
+  // Cờ "Đơn vị vận chuyển" chỉ có ở bản cài giao hàng kiểu Hà Phương.
+  const coDonViVc = !useTat()("giao_hang_hp");
   const ngayChot = form.debt_cutoff_day ?? null;
   // Vừa chọn "Chốt ngày" mà chưa gõ ngày thì giá trị vẫn trống — cờ này giữ ô ngày đang mở
   // (ô đó `required` nên trống thì không lưu được). Mở NCC khác thì tắt.
@@ -166,6 +169,28 @@ export function SupplierInfoTab({
               </span>
             </span>
           </Dong>
+          {coDonViVc && (
+            <Dong nhan="Đơn vị vận chuyển" rong>
+              <span
+                className="ncc-a__cong-tac"
+                title="Bật thì nhà cung cấp này có trong ô chọn Đơn vị vận chuyển lúc Xuất hàng, tiền cước chờ chi ở Phiếu chi."
+              >
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="ncc-a__cong-tac-o"
+                  checked={Boolean(form.la_don_vi_van_chuyen)}
+                  onChange={(e) => doi({ la_don_vi_van_chuyen: e.target.checked })}
+                />
+                <span className="ncc-a__cong-tac-nut" aria-hidden="true" />
+                <span className="ncc-a__cong-tac-chu">
+                  {form.la_don_vi_van_chuyen
+                    ? "Có, chọn được lúc Xuất hàng khi thuê bên ngoài giao"
+                    : "Không"}
+                </span>
+              </span>
+            </Dong>
+          )}
         </div>
       </section>
 

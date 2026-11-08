@@ -134,6 +134,9 @@ class StockRequest(Base):
     # này. Soft ref cùng khuôn `delivery_trip_id`: kho không biết gì về cột này, còn Lệnh SX / KCS đọc
     # ngược "đã đề nghị / kho đã nhận". Thêm mg 0309.
     san_xuat_cong_viec_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    # NGUỒN: lượt xuất của đơn thương mại (chỉ In Hà Phương, mg 0462) — soft ref cùng khuôn
+    # `delivery_trip_id`. Kho không biết gì về cột này; móc ghi sổ / huỷ đọc nó để cập nhật lượt.
+    luot_xuat_tm_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     # NGUỒN GIA CÔNG NGOÀI (mg 0339): đề nghị xuất giấy cấp cho nhà gia công trọn gói, hoặc đề
     # nghị nhập thành phẩm từ lần gia công đã chốt. Soft ref cùng khuôn `delivery_trip_id`.
     gia_cong_ngoai_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)

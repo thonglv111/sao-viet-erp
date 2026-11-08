@@ -47,6 +47,9 @@ import { useLocMan } from "./thanh-loc/useLocMan";
 import { gopTheoNhom } from "../utils/gop-nhom";
 import { layHoaDonNapTruoc, layLenhNapTruoc, layNhatKyNapTruoc, napTruocNganDon } from "./napTruocNganDon";
 import "./don-hang-ban.css";
+import { FormDonThuongMai, TheXuatHang, useXuatHangTM } from "./thuong-mai/DonThuongMai";
+import { giaoHangHpApi, type CachGiaoRow } from "../api/giaoHangHp";
+import { BangCachGiao, nhanCachGiao } from "./giao-hang-hp/BangCachGiao";
 import { fmtDateTime } from "../utils/format";
 import { homNayVN, ngayCuaMoc } from "../utils/ky";
 
@@ -161,6 +164,12 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   const can = useCan();
   // `create` KHÔNG còn được dùng ở màn này (đơn sinh từ Báo giá) — quyền vẫn tồn tại, gác ở đó.
   const canUpdate = can("don_hang_ban", "update");
+  // Đơn thương mại (chỉ In Hà Phương): bán hàng có sẵn, lập ngay ở màn này — không qua báo giá.
+  const coThuongMai = !useTat()("thuong_mai") && can("don_hang_ban", "create");
+  const [taoTM, setTaoTM] = useState(false);
+  // Giao hàng kiểu Hà Phương: cột Giao hàng = cách giao của lần xuất gần nhất.
+  const coCachGiao = !useTat()("giao_hang_hp");
+  const cotDs = coCachGiao ? COT_DH : COT_DH.filter((c) => c.key !== "cach_giao");
   // Thu cọc = lập phiếu thu ⇒ hỏi Phiếu thu → Tạo (13/10/2026, trước đó là ô riêng của Đơn hàng bán).
   const canRecordDeposit = can("phieu_thu", "create");
 
@@ -225,6 +234,18 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
     load();
   }, [load]);
 
+  const [cachGiao, setCachGiao] = useState<Record<string, CachGiaoRow>>({});
+  // Xuất hàng lập trong ngăn đơn không nạp lại danh sách ⇒ đóng ngăn thì đọc lại cột Giao hàng.
+  const [lanCachGiao, setLanCachGiao] = useState(0);
+  useEffect(() => {
+    if (!token || !coCachGiao || rows.length === 0) { setCachGiao({}); return; }
+    let bo = false;
+    giaoHangHpApi.moiNhat(token, rows.map((o) => o.id))
+      .then((r) => { if (!bo) setCachGiao(r.items); })
+      .catch(() => { if (!bo) setCachGiao({}); });
+    return () => { bo = true; };
+  }, [token, coCachGiao, rows, lanCachGiao]);
+
   useEffect(() => {
     setPage(1);
   }, [tab, q, nguoi, khoaLoc]);
@@ -249,17 +270,25 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
 
   // Cột ngày thứ hai theo mốc kỳ: Ngày tạo / Ngày chốt (mốc "Ngày giao hẹn" đã có cột Hẹn giao).
   const mocNgay = locMan.ky.moc === "chot" ? "chot" : "tao";
-  const cotHien = luoi.rongHien(luoi.xep(COT_DH).filter((c) => !luoi.an.has(c.key)).map((c) =>
+  const cotHien = luoi.rongHien(luoi.xep(cotDs).filter((c) => !luoi.an.has(c.key)).map((c) =>
     c.key === "ngay" && mocNgay === "chot" ? { ...c, label: "Ngày chốt", sx: "ordered_at" } : c));
   const viTriGia = cotHien.findIndex((c) => c.key === "gia");
   const muc = TABS.map((t) => ({ key: t.id, label: t.label, count: stats?.[t.countKey], mau: MAU_TAB[t.id] }));
 
   return (
     <main className="dhb-container lds">
-      {/* Màn này KHÔNG tạo đơn: đơn chỉ sinh từ Báo giá khi khách đồng ý — nên đầu trang không có nút chính. */}
+      {/* Đơn sản xuất chỉ sinh từ Báo giá khi khách đồng ý. Nút duy nhất ở đầu trang là Tạo đơn thương mại,
+          và chỉ bản cài bật phân hệ thương mại (In Hà Phương) mới có. */}
       <header className="lds-dau">
         <h1 className="lds-dau__ten">Đơn hàng bán</h1>
+        {coThuongMai && (
+          <button type="button" className="btn btn--primary" onClick={() => setTaoTM(true)}>Tạo đơn thương mại</button>
+        )}
       </header>
+      {taoTM && (
+        <FormDonThuongMai onClose={() => setTaoTM(false)}
+          onSaved={(d) => { setTaoTM(false); setSelected(d); load(); }} />
+      )}
 
       {err && <div className="banner banner--error" role="alert">{err}</div>}
 
@@ -276,7 +305,7 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
             onLoc={(loc) => setLocMan({ ...locMan, loc })}
           />
           <LocNguoiPhuTrach nap={api.orders.nguoiPhuTrach} value={nguoi} onChange={setNguoi} donVi="đơn" />
-          <ChonCot cot={COT_DH} {...luoi.chonCot} />
+          <ChonCot cot={cotDs} {...luoi.chonCot} />
         </div>
       </section>
 
@@ -321,7 +350,7 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
                   }}
                 >
                   {cotHien.map((c) => (
-                    <ODon key={c.key} cot={c.key} o={o} mocNgay={mocNgay} />
+                    <ODon key={c.key} cot={c.key} o={o} mocNgay={mocNgay} cg={cachGiao[String(o.id)]} />
                   ))}
                 </tr>
               ))}
@@ -368,7 +397,10 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
           order={selected}
           canUpdate={canUpdate}
           canRecordDeposit={canRecordDeposit}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null);
+            setLanCachGiao((x) => x + 1);
+          }}
           onSaved={(d) => {
             setSelected(d);
             load();
@@ -397,6 +429,8 @@ const COT_DH: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
   { key: "hen", label: "Hẹn giao", w: 165, sx: "delivery_committed_date" },
   { key: "coc", label: "Cọc", w: 125 },
   { key: "giao", label: "Giao khách", w: 120 },
+  // Chỉ bản cài bật giao hàng kiểu Hà Phương (`giao_hang_hp`) — bản khác lọc cột này đi.
+  { key: "cach_giao", label: "Giao hàng", w: 170 },
   { key: "nv", label: "Phụ trách" },
 ];
 
@@ -433,7 +467,7 @@ function conNgayGiao(o: OrderRow): number | null {
   return days < 0 ? null : days;
 }
 
-function ODon({ cot, o, mocNgay }: { cot: string; o: OrderRow; mocNgay: "tao" | "chot" }) {
+function ODon({ cot, o, mocNgay, cg }: { cot: string; o: OrderRow; mocNgay: "tao" | "chot"; cg?: CachGiaoRow }) {
   const mu = <span className="lds-mu3">—</span>;
   switch (cot) {
     case "ma":
@@ -505,6 +539,16 @@ function ODon({ cot, o, mocNgay }: { cot: string; o: OrderRow; mocNgay: "tao" | 
         </td>
       );
     }
+    case "cach_giao": {
+      if (!cg) return <td>{mu}</td>;
+      const n = nhanCachGiao(cg);
+      return (
+        <td title={cg.ma_lan_xuat ? `Lần xuất ${cg.ma_lan_xuat}` : undefined}>
+          {n.chinh}
+          {n.phu && <span className="lds-u">{n.phu}</span>}
+        </td>
+      );
+    }
     case "nv":
       return <td title={o.sale_name ?? undefined}>{o.sale_name ? tenGoi(o.sale_name) : mu}</td>;
     default:
@@ -565,6 +609,10 @@ function OrderDrawer({
   const { token } = useAuth();
   const can = useCan();
   const tatGiao = useTat()("giao_hang");
+  const coCachGiao = !useTat()("giao_hang_hp");
+  // Đơn thương mại (chỉ In Hà Phương): không sản xuất, không giao hàng — chặng Xuất hàng đọc lượt xuất.
+  const laTM = order.source_type === "thuong_mai";
+  const xh = useXuatHangTM(order, eventTick);
   const [editing, setEditing] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   // In phiếu xuất kho bán hàng / 02-VT theo MỘT yêu cầu, sau khi kho ghi sổ (13/10/2026). Nút "Xem
@@ -654,7 +702,7 @@ function OrderDrawer({
   }, [token, order.id, order.status, order.san_xuat_released_at]);
   const sxReleased = !!order.san_xuat_released_at;
   // Tiến độ SX (gồm cả nhập kho) → Giao do máy chủ gộp theo sản phẩm (`/orders/{id}/tien-do`), tự tươi qua SSE.
-  const { td, taiLai: taiTienDo } = useTienDoDon(order.id, order.status !== "draft", eventTick);
+  const { td, taiLai: taiTienDo } = useTienDoDon(order.id, order.status !== "draft" && !laTM, eventTick);
   const tt = tomTatTienDo(td);
   // Lệnh xong hết = MỌI lệnh của đơn xong VÀ không còn món nào thiếu nguồn (không lệnh mà tồn kho
   // không đủ) — thiếu một món là chưa thể xong, dù các lệnh đã chạy hết.
@@ -663,8 +711,8 @@ function OrderDrawer({
   // Bước "Nhập kho" riêng ĐÃ GỘP vào Sản xuất (05/10/2026): Sản xuất chỉ XONG khi mọi sản phẩm đã
   // đủ hàng trong kho (kho nhận đủ thành phẩm KCS gửi sang, hoặc tồn kho gánh đủ).
   const khoDone = td != null && tt.khoXong;
-  const sxDone = lenhXongHet && khoDone;
-  const giaoDone = td != null && tt.giaoXong;
+  const sxDone = laTM || (lenhXongHet && khoDone);
+  const giaoDone = laTM ? xh.xong : td != null && tt.giaoXong;
   // #54: không xem được lệnh thì `lenhs` rỗng — lấy "có lệnh" theo tiến độ máy chủ gộp.
   const sxState = trangThaiSanXuat(sxReleased, lenhs.length, tt.coLenh);
   // Món có lệnh đã đóng hết mà hàng chưa đủ (máy chủ chốt `o = dong_thieu`) — không còn "đang chạy".
@@ -685,6 +733,7 @@ function OrderDrawer({
   const soMonGiaoDu = (td?.cum ?? []).filter((c) => c.khach_nhan_du ?? c.da_giao >= c.dat).length;
   const ngayNgan = (v: string | null | undefined) => fmtDate(v ?? null).replace(/\/\d{4}$/, "");
   const giaoSub = !isChotDone ? "—"
+    : laTM ? (giaoDone ? "đã xuất đủ" : xh.conTong != null ? `còn ${soVN(xh.conTong)} chưa xuất` : "…")
     : giaoDone ? "đã giao đủ"
     : td && tt.giaoPct > 0 ? `đủ ${soMonGiaoDu}/${tt.soMon} món`
     : tt.soYeuCauMo > 0 ? `${tt.soYeuCauMo} ${tatGiao ? "lần xuất" : "yêu cầu"} mở`
@@ -708,7 +757,7 @@ function OrderDrawer({
   const buocDang: typeof activeStep | null = order.status === "cancelled" ? null
     : !isChotDone ? "chot" : !isCocDone ? "coc" : !sxDone ? "sanxuat"
     : !giaoDone ? "giao" : invoiceStage !== "full" ? "hoadon" : null;
-  const viec = viecTiepTheo({
+  const viec = laTM ? null : viecTiepTheo({
     trangThai: order.status,
     canCoc: !noDeposit,
     duCoc: order.deposit_ok,
@@ -724,8 +773,8 @@ function OrderDrawer({
   const CHANG: { k: typeof activeStep; nhan: string; sub: string; xong: boolean; canhBao?: boolean }[] = [
     { k: "chot", nhan: "Chốt", sub: chotSub, xong: isChotDone },
     { k: "coc", nhan: "Cọc", sub: cocText, xong: isCocDone },
-    { k: "sanxuat", nhan: "Sản xuất", sub: sxText, xong: sxDone, canhBao: baoThieuNguon && order.status !== "cancelled" },
-    { k: "giao", nhan: "Giao", sub: giaoSub, xong: giaoDone },
+    ...(laTM ? [] : [{ k: "sanxuat" as const, nhan: "Sản xuất", sub: sxText, xong: sxDone, canhBao: baoThieuNguon && order.status !== "cancelled" }]),
+    { k: "giao", nhan: laTM ? "Xuất hàng" : "Giao", sub: giaoSub, xong: giaoDone },
     { k: "hoadon", nhan: "Hóa đơn", sub: invoiceStageLabel.toLowerCase(), xong: invoiceStage === "full" },
   ];
 
@@ -788,7 +837,7 @@ function OrderDrawer({
             </div>
           </div>
           {isDraft && canUpdate && (
-            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setEditing(true)}>Sửa</button>
+            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setEditing(true)}>{laTM ? "Sửa hàng" : "Sửa"}</button>
           )}
           {canCancel && (
             <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setCancelling(true)}>Hủy đơn</button>
@@ -934,7 +983,7 @@ function OrderDrawer({
                     {!isChotDone ? (
                       <ChanKhung chu="Đơn phải chốt trước, sau chốt kế toán thu cọc ở đây." />
                     ) : noDeposit && order.deposits.length === 0 ? (
-                      <ChanKhung chu="Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt." />
+                      <ChanKhung chu={laTM ? "Khách này không phải đặt cọc." : "Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt."} />
                     ) : (
                       <>
                         <TomTat d={[
@@ -958,7 +1007,7 @@ function OrderDrawer({
                         ]} />
                         <ChanKhung chu={isCocDone
                           ? (phieuCuoi ? `Đủ cọc lúc ${fmtDateTime(phieuCuoi.created_at)}.` : "Đủ cọc.")
-                          : canRecordDeposit ? "Thiếu cọc thì đơn chưa xuống sản xuất." : "Chờ kế toán thu cọc."}>
+                          : canRecordDeposit && !laTM ? "Thiếu cọc thì đơn chưa xuống sản xuất." : "Chờ kế toán thu cọc."}>
                           {!isCocDone && canRecordDeposit && <DepositForm order={order} onSaved={onSaved} />}
                         </ChanKhung>
                       </>
@@ -966,7 +1015,7 @@ function OrderDrawer({
                   </TheChang>
                 </div>
 
-                <div className={khungO("sanxuat")}>
+                {!laTM && <div className={khungO("sanxuat")}>
                   <TheChang tieuDe="Sản xuất">
                     {order.status === "cancelled" ? (
                       <ChanKhung chu={sxReleased
@@ -1017,11 +1066,17 @@ function OrderDrawer({
                       </>
                     )}
                   </TheChang>
-                </div>
+                </div>}
 
                 <div className={khungO("giao")}>
-                  <TheChang tieuDe={tatGiao ? "Xuất hàng" : "Giao hàng"}>
-                    <BuocGiaoHang order={order} td={td} taiLai={taiTienDo} onIn={setInYc} navigate={navigate} />
+                  <TheChang tieuDe={tatGiao || laTM ? "Xuất hàng" : "Giao hàng"}>
+                    {laTM
+                      ? <TheXuatHang order={order} canUpdate={canUpdate} xh={xh} />
+                      : <BuocGiaoHang order={order} td={td} taiLai={taiTienDo} onIn={setInYc} navigate={navigate} />}
+                    {coCachGiao && (
+                      <BangCachGiao orderId={order.id}
+                        tick={laTM ? `${xh.st?.luot.length ?? 0}-${eventTick ?? 0}` : `${td?.yeu_cau.length ?? 0}-${eventTick ?? 0}`} />
+                    )}
                   </TheChang>
                 </div>
 
@@ -1043,7 +1098,7 @@ function OrderDrawer({
 
               <div className="dhb__tq-phai">
                 <TheBen tieuDe="Đơn hàng">
-                  <DongBen k="Nguồn" v={order.source_type === "bao_gia" && order.quotation_code ? (
+                  <DongBen k="Nguồn" v={laTM ? "Đơn thương mại" : order.source_type === "bao_gia" && order.quotation_code ? (
                     <>
                       {can("bao_gia", "read")
                         ? <button type="button" className="dhb__td-link" onClick={moBaoGia}>{order.quotation_code} ↗</button>
@@ -1051,17 +1106,17 @@ function OrderDrawer({
                       {order.quotation_version != null && <span className="dhb__muted dhb__ben-phu">bản {order.quotation_version}</span>}
                     </>
                   ) : "Nhập giá tay"} />
-                  <DongBen k="Loại đơn" v={order.order_kind === "bo_sung" ? "Đơn bổ sung" : "Đơn mới"} />
+                  {!laTM && <DongBen k="Loại đơn" v={order.order_kind === "bo_sung" ? "Đơn bổ sung" : "Đơn mới"} />}
                   {order.parent_order_no && <DongBen k="Đơn gốc" v={order.parent_order_no} />}
-                  <DongBen k="Số PO khách" v={order.customer_po_no || "—"} />
+                  {!laTM && <DongBen k="Số PO khách" v={order.customer_po_no || "—"} />}
                   <DongBen k="Ngày tạo" v={<span className="dhb__mono">{fmtDate(order.created_at)}</span>} />
                   <DongBen k="Cọc quy định" v={order.deposit_amount != null ? `${soVN(order.deposit_amount)} đ` : order.deposit_pct != null ? `${order.deposit_pct}%` : "—"} />
                 </TheBen>
 
                 {/* Lưu ý sản xuất — sửa được cả khi đã chốt (đường hẹp D3 → realtime bàn Kế hoạch). */}
-                <ProductionHintEditor order={order} canEdit={order.status === "ordered" && canUpdate} onSaved={onSaved} />
+                {!laTM && <ProductionHintEditor order={order} canEdit={order.status === "ordered" && canUpdate} onSaved={onSaved} />}
 
-                <TheBen tieuDe="Giao tới">
+                {!laTM && <TheBen tieuDe="Giao tới">
                   <div className="dhb__ben-ic"><Icon name="users" size={14} /><span>{order.delivery_contact_name || "—"}</span></div>
                   {order.delivery_contact_phone && (
                     <div className="dhb__ben-ic"><Icon name="phone" size={14} /><span className="dhb__mono">{order.delivery_contact_phone}</span></div>
@@ -1073,7 +1128,12 @@ function OrderDrawer({
                       <div>{order.delivery_note}</div>
                     </div>
                   )}
-                </TheBen>
+                </TheBen>}
+                {laTM && order.delivery_note && (
+                  <TheBen tieuDe="Ghi chú">
+                    <div>{order.delivery_note}</div>
+                  </TheBen>
+                )}
               </div>
             </div>
           )}
@@ -1217,7 +1277,11 @@ function OrderDrawer({
             </section>
           )}
         </div>
-        {editing && (
+        {editing && laTM && (
+          <FormDonThuongMai order={order} onClose={() => setEditing(false)}
+            onSaved={(d) => { setEditing(false); onSaved(d); }} />
+        )}
+        {editing && !laTM && (
           <EditDialog
             order={order}
             onCancel={() => setEditing(false)}
@@ -1308,7 +1372,10 @@ function InvoicePanel({
   onChanged: () => Promise<void>;
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
-  const lan = useTat()("giao_hang") ? "lần xuất" : "lượt";
+  const laTM = order.source_type === "thuong_mai";
+  const lan = useTat()("giao_hang") || laTM ? "lần xuất" : "lượt";
+  // Đơn thương mại: hoá đơn gắn LƯỢT XUẤT (`luot_xuat_tm_id`), không gắn chuyến giao.
+  const luotCua = (i: SalesInvoiceRow) => (laTM ? i.luot_xuat_tm_id : i.delivery_trip_id);
   const { token } = useAuth();
   const today = homNayVN();
   // Lượt đang ghi hóa đơn: hóa đơn lập theo từng lượt khách đã nhận, không vượt hàng của lượt.
@@ -1392,7 +1459,7 @@ function InvoicePanel({
         invoice_symbol: symbol.trim(),
         invoice_number: number.trim(),
         invoice_date: invoiceDate,
-        delivery_trip_id: luotGhi.trip_id,
+        ...(laTM ? { luot_xuat_tm_id: luotGhi.trip_id } : { delivery_trip_id: luotGhi.trip_id }),
         amount_vnd: Math.round(enteredAmount),
       });
       setLuotGhi(null);
@@ -1433,8 +1500,8 @@ function InvoicePanel({
   // Bảng hóa đơn theo lượt (phương án A 13/10/2026): mỗi lượt một nhóm dòng, hóa đơn của lượt nằm
   // ngay trong nhóm; hóa đơn đã hủy gom ở chân bảng.
   const idLuot = new Set(luotGiao.map((l) => l.trip_id));
-  const hdCuaLuot = (id: number) => issued.filter((i) => i.delivery_trip_id === id);
-  const hdChuaGan = issued.filter((i) => i.delivery_trip_id == null || !idLuot.has(i.delivery_trip_id));
+  const hdCuaLuot = (id: number) => issued.filter((i) => luotCua(i) === id);
+  const hdChuaGan = issued.filter((i) => { const l = luotCua(i); return l == null || !idLuot.has(l); });
   const daHuy = book?.items.filter((i) => i.status === "cancelled") ?? [];
   // Hóa đơn vượt hàng của lượt mình (hoặc hóa đơn cũ chưa gắn lượt) phủ sang lượt khác — máy chủ dồn
   // theo thứ tự giao; ở đây chỉ gọi tên nguồn.

@@ -306,6 +306,9 @@ export const NAV: NavSection[] = [
       // Thành phẩm: hàng của đơn hàng bán, hệ tự khai khi chốt đơn. Đứng CẠNH Vật tư khác vì
       // chung một bảng và người dùng hay nhầm hai chỗ (docs/prd-thanh-pham.md).
       { id: "thanh-pham", label: "Thành phẩm", icon: "packageCheck", module: "dm_thanh_pham" },
+      // Hàng thương mại (08/11/2026, chỉ In Hà Phương): hàng mua về bán. Bản cài không bật phân hệ
+      // `thuong_mai` thì máy chủ không trả module này ⇒ mục tự ẩn.
+      { id: "hang-thuong-mai", label: "Hàng thương mại", icon: "store", module: "hang_thuong_mai" },
       // Khuôn: kho khuôn bế của xưởng — khách · loại · số kệ ·
       // tình trạng. Bước cần dụng cụ ở Lệnh sản xuất chọn từ đây. Nhan đề đổi 18/09/2026;
       // `module` GIỮ chuỗi `khuon_be` vì nó nằm trong bảng phân quyền của DB thật.
@@ -319,6 +322,9 @@ export const NAV: NavSection[] = [
       // của từng mức khai ở Cấu hình lương — sửa giá là việc kế toán, không phải việc của
       // người khai biển số.
       { id: "xe", label: "Xe giao hàng", icon: "truck", module: "dm_xe" },
+      // Xe giao hàng kiểu Hà Phương (`giao_hang_hp`): biển số + người phụ trách, không khoán km.
+      // Hai mục cùng tên không bao giờ cùng hiện: bản cài HP tắt `giao_hang` (mất `dm_xe`).
+      { id: "xe-giao-hang", label: "Xe giao hàng", icon: "truck", module: "xe_giao_hang" },
       // Mục thu chi (11/10/2026): mỗi phiếu thu / phiếu chi mang một mục từ đây.
       { id: "muc-thu-chi", label: "Mục thu chi", icon: "layers", module: "dm_muc_thu_chi" },
     ],

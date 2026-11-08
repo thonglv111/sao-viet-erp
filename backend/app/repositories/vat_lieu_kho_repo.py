@@ -63,7 +63,8 @@ class _VatTuRepo(CatalogRepo):
     bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
 
     def extra_conds(self, *, don_vi_gia: str | None = None, **kw) -> list:
-        conds = [*super().extra_conds(**kw), VatTuInAn.la_thanh_pham.is_(False)]
+        conds = [*super().extra_conds(**kw), VatTuInAn.la_thanh_pham.is_(False),
+                 VatTuInAn.la_hang_thuong_mai.is_(False)]
         if don_vi_gia:
             conds.append(VatTuInAn.don_vi_gia == don_vi_gia)
         return conds
@@ -123,10 +124,32 @@ class _ThanhPhamRepo(CatalogRepo):
         return super().update(obj, {k: v for k, v in data.items() if k != "ma"})
 
 
+class _HangThuongMaiRepo(CatalogRepo):
+    """Hàng thương mại (chỉ In Hà Phương): CÙNG bảng `vat_tu_in_an`, lọc theo `la_hang_thuong_mai`.
+
+    `la_hang_thuong_mai` không nằm trong `fields` — repo này tự đóng dấu, cùng lẽ `_ThanhPhamRepo`."""
+
+    model = VatTuInAn
+    fields = ("ten", "don_vi_gia", "don_vi_them", "gia_ban_theo_dvt", "ghi_chu", "active")
+    commit_on_write = False
+    bang_nhan_cot = {"don_vi_gia": (DonViDo.ma, DonViDo.ten)}
+
+    def extra_conds(self, *, don_vi_gia: str | None = None, **kw) -> list:
+        conds = [*super().extra_conds(**kw), VatTuInAn.la_hang_thuong_mai.is_(True)]
+        if don_vi_gia:
+            conds.append(VatTuInAn.don_vi_gia == don_vi_gia)
+        return conds
+
+    def _sau_gan(self, obj, data: dict) -> None:
+        super()._sau_gan(obj, data)
+        obj.la_hang_thuong_mai = True
+
+
 _REPOS = {
     "giay": _GiayRepo,
     "vat_tu": _VatTuRepo,
     "thanh_pham": _ThanhPhamRepo,
+    "hang_thuong_mai": _HangThuongMaiRepo,
 }
 
 

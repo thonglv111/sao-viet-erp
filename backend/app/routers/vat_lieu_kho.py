@@ -21,6 +21,7 @@ from ..deps import (
     require_quyen_to,
 )
 from ..models.user import User
+from ..phan_he import THUONG_MAI, tat
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.don_vi_do_repo import DonViDoRepository
 from ..repositories.purchase_repo import SupplierRepository
@@ -28,7 +29,8 @@ from ..repositories.rbac_repo import RoleRepository
 from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..schemas.vat_lieu_kho import (
     DonViCuaMatHangOut, DonViNhieuMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
-    GiayIn, GiayRow, ListOut, MatHangRow, ThanhPhamIn, ThanhPhamRow, VatLieuAnhOut,
+    GiayIn, GiayRow, HangThuongMaiIn, HangThuongMaiRow, ListOut, MatHangRow, ThanhPhamIn,
+    ThanhPhamRow, VatLieuAnhOut,
     VatTuIn, VatTuRow,
 )
 from ..services.rbac_service import AuthorizationService
@@ -54,6 +56,8 @@ MODULE_BY_KIND = {
     # bằng `customer_id` (docs/prd-thanh-pham.md §3). Ô quyền riêng vì chủ dự án muốn menu
     # riêng ở Cấu hình danh mục.
     "thanh_pham": "dm_thanh_pham",
+    # Hàng thương mại (08/11/2026, chỉ In Hà Phương — phân hệ `thuong_mai`). Cùng bảng, màn thứ ba.
+    "hang_thuong_mai": "hang_thuong_mai",
 }
 MODULE = MODULE_BY_KIND["giay"]   # dùng cho các route giá giấy bên dưới
 
@@ -102,6 +106,11 @@ def _giu_gia_giay(svc: MotDanhMucVatLieu, user: User, item_id: int | None, data:
 def _mot(kind: str):
     """Provider cho MỘT trong ba danh mục — ghim sẵn `kind` (xem `MotDanhMucVatLieu`)."""
     def provider(db: Annotated[Session, Depends(get_db)]) -> MotDanhMucVatLieu:
+        # Hàng thương mại chỉ In Hà Phương có: bản cài không bật `thuong_mai` thì cả màn không tồn
+        # tại, kể cả với người đọc qua quyền kho / tính giá ở `_DOC_CHUNG`.
+        if kind == "hang_thuong_mai" and tat(THUONG_MAI):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="Phân hệ này không dùng ở bản cài hiện tại")
         return MotDanhMucVatLieu(get_service(db), kind)
     return Annotated[MotDanhMucVatLieu, Depends(provider)]
 
@@ -164,6 +173,28 @@ _khai("vat_tu", VatTuIn, VatTuRow, "vat-tu-in-an", kem_don_vi=True, enable_clone
 # Thành phẩm: CÙNG nền CRUD, nhưng `VatLieuKhoService._chan_tao_tay` / `_chan_go_tay` chặn tạo/xoá — dòng ở
 # đây chỉ do `OrderService.confirm()` sinh ra (docs/prd-thanh-pham.md L1, L5). Không nhân bản được
 # vì cùng lý do: đây không phải danh mục khai tay.
+def _thay_gia_ban(db: Session, user: User) -> bool:
+    return AuthorizationService(RoleRepository(db)).can(user, "hang_thuong_mai", "view_cost")
+
+
+def _che_gia_ban(svc: MotDanhMucVatLieu, user: User, rows: list) -> None:
+    if not _thay_gia_ban(svc.audit.db, user):
+        for r in rows:
+            r.gia_ban_theo_dvt = None
+
+
+def _giu_gia_ban(svc: MotDanhMucVatLieu, user: User, item_id: int | None, data: dict) -> None:
+    """Không có ô Xem giá thì không gõ đè được giá bán: tạo mới để trống, sửa thì giữ giá cũ."""
+    if _thay_gia_ban(svc.audit.db, user):
+        return
+    if item_id is None:
+        data.pop("gia_ban_theo_dvt", None)
+    else:
+        data["gia_ban_theo_dvt"] = svc.get(item_id).gia_ban_theo_dvt
+
+
+_khai("hang_thuong_mai", HangThuongMaiIn, HangThuongMaiRow, "hang-thuong-mai", kem_don_vi=True,
+      enable_clone=True, che_tien=_che_gia_ban, giu_tien=_giu_gia_ban, **_DON_VI_GIA)
 _khai("thanh_pham", ThanhPhamIn, ThanhPhamRow, "thanh-pham", kem_don_vi="khach",
       excel_spec=THANH_PHAM,
       # Khách đặt lần đầu (vết `customer_id`) — tham số mang tên chung với màn Khuôn.

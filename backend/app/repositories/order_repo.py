@@ -295,7 +295,7 @@ class OrderRepository:
 
     def chot_trong_khoang(
         self, *, tu, den, scope: str, actor, customer_id: int | None = None,
-        sale_user_id: int | None = None,
+        sale_user_id: int | None = None, nguon: str | None = None,
     ) -> list[Order]:
         """Đơn ĐÃ CHỐT có `ordered_at` trong `[tu, den)` (hai mốc UTC; đầu nào None = không chặn
         đầu đó — kỳ "Tất cả") — nguồn của Báo cáo kinh doanh (24/09/2026). Nạp sẵn dòng sản phẩm:
@@ -318,6 +318,11 @@ class OrderRepository:
             stmt = stmt.where(Order.customer_id == customer_id)
         if sale_user_id is not None:
             stmt = stmt.where(Order.sale_user_id == sale_user_id)
+        # Nguồn đơn (chỉ In Hà Phương có đơn thương mại): `thuong_mai` | `san_xuat` (mọi đơn còn lại).
+        if nguon == "thuong_mai":
+            stmt = stmt.where(Order.source_type == "thuong_mai")
+        elif nguon == "san_xuat":
+            stmt = stmt.where(or_(Order.source_type.is_(None), Order.source_type != "thuong_mai"))
         return list(self.db.execute(stmt).scalars().unique().all())
 
     def dem_chot_theo(self, *, theo: str, scope: str, actor) -> list[dict]:
@@ -390,7 +395,23 @@ class OrderRepository:
         if truoc is not None:
             stmt = stmt.where(or_(DeliveryTrip.thoi_gian_ket_thuc.is_(None),
                                   DeliveryTrip.thoi_gian_ket_thuc < truoc))
-        return {int(lid): int(sl or 0) for lid, sl in self.db.execute(stmt)}
+        ra = {int(lid): int(sl or 0) for lid, sl in self.db.execute(stmt)}
+        # Đơn THƯƠNG MẠI (chỉ In Hà Phương) không đi chuyến giao: "đã giao" = SL kho thực xuất của các
+        # lượt xuất đã xuất. Đơn sản xuất không có lượt nào nên câu này trả rỗng cho chúng.
+        from ..models.thuong_mai import LXTM_DA_XUAT, LuotXuatThuongMai, LuotXuatThuongMaiDong
+
+        tm = (
+            select(LuotXuatThuongMaiDong.order_line_id,
+                   func.coalesce(func.sum(LuotXuatThuongMaiDong.qty_thuc), 0))
+            .join(LuotXuatThuongMai, LuotXuatThuongMai.id == LuotXuatThuongMaiDong.luot_id)
+            .where(LuotXuatThuongMai.order_id.in_(order_ids), LuotXuatThuongMai.trang_thai == LXTM_DA_XUAT)
+            .group_by(LuotXuatThuongMaiDong.order_line_id)
+        )
+        if truoc is not None:
+            tm = tm.where(LuotXuatThuongMai.xuat_luc < truoc)
+        for lid, sl in self.db.execute(tm):
+            ra[int(lid)] = ra.get(int(lid), 0) + int(sl or 0)
+        return ra
 
     def money_sums(self, order_ids: list[int]) -> dict[int, dict]:
         """Batch của `line_total_sum` + `total_with_vat` + `order_cost_sum` — MỘT câu cho cả trang.
@@ -629,23 +650,27 @@ class OrderRepository:
 
     # --- writes -------------------------------------------------------------
 
-    def _next_order_no(self) -> str:
+    def _next_order_no(self, tien_to: str = "DH") -> str:
         """Next sequential order number: 'DH' + zero-padded number (DH001, DH002…). NOT
-        `PB###` (mã phòng ban). Pattern chưa xác nhận với SVN — DH### is the working default."""
+        `PB###` (mã phòng ban). Pattern chưa xác nhận với SVN — DH### is the working default.
+
+        Đơn thương mại (chỉ In Hà Phương) đánh dãy riêng `TM001`… — nhìn mã là biết loại đơn."""
         max_n = 0
-        for no in self.db.execute(select(Order.order_no)).scalars():
-            if no and no.startswith("DH"):
+        n = len(tien_to)
+        for no in self.db.execute(select(Order.order_no).where(Order.order_no.like(f"{tien_to}%"))).scalars():
+            if no and no.startswith(tien_to):
                 try:
-                    max_n = max(max_n, int(no[2:]))
+                    max_n = max(max_n, int(no[n:]))
                 except ValueError:
                     continue
-        return f"DH{max_n + 1:03d}"
+        return f"{tien_to}{max_n + 1:03d}"
 
     def create(self, *, lines: list[dict], **order_fields) -> Order:
         """Tạo đơn + dòng. `order_fields` = giá trị các cột `orders` do OrderService chuẩn bị
         (source_type/customer_id/quotation_*/deposit_pct/cost_basis/needs_approval/... — service
         kiểm hợp lệ). `order_no` tự sinh (DH###). Mỗi phần tử `lines` là dict cột `order_lines`."""
-        order = Order(order_no=self._next_order_no(), **order_fields)
+        tien_to = "TM" if order_fields.get("source_type") == "thuong_mai" else "DH"
+        order = Order(order_no=self._next_order_no(tien_to), **order_fields)
         for ln in lines:
             order.lines.append(
                 OrderLine(
@@ -662,6 +687,7 @@ class OrderRepository:
                     nhom=ln.get("nhom"),   # nhãn gộp dòng khi in xác nhận đơn (khớp bản báo giá)
                     don_vi_tinh=ln.get("don_vi_tinh", "cái"),   # ĐVT dòng (kéo từ báo giá / gõ tay)
                     dvt_nhom=ln.get("dvt_nhom"),   # ĐVT của cụm khi in gộp (ruột + bìa → "cuốn")
+                    hang_thuong_mai_id=ln.get("hang_thuong_mai_id"),   # chỉ đơn thương mại
                 )
             )
         self.db.add(order)

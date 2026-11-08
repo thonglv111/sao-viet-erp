@@ -23,6 +23,9 @@ from .db import SessionLocal
 from .services import su_kien_danh_muc  # noqa: F401 — đăng ký listener SSE "danh mục đã đổi"
 from .routers import (
     accounting,
+    thuong_mai,
+    giao_hang_hp,
+    xe_giao_hang,
     module_notifications,
     auth,
     attendance,
@@ -245,6 +248,9 @@ app.include_router(gia_cong_ngoai.router)    # Gia công ngoài — cùng module
 app.include_router(tai_san.router)            # sổ tài sản cố định + CCDC (module quyền `tai_san`; không còn kỳ chốt từ 08/09/2026)
 app.include_router(muc_thu_chi.router)        # danh mục Mục thu chi (module quyền `dm_muc_thu_chi`)
 app.include_router(bao_cao_thu_chi.router)    # Báo cáo thu chi theo mục × tháng (module quyền `bao_cao_thu_chi`)
+app.include_router(thuong_mai.router)         # Đơn thương mại — chỉ In Hà Phương (phân hệ `thuong_mai`, quyền `don_hang_ban`)
+app.include_router(xe_giao_hang.router)       # Xe giao hàng kiểu Hà Phương — chỉ phân hệ `giao_hang_hp` (module `xe_giao_hang`)
+app.include_router(giao_hang_hp.router)       # Cách giao lúc Xuất hàng + cước chờ chi — chỉ phân hệ `giao_hang_hp`
 
 
 

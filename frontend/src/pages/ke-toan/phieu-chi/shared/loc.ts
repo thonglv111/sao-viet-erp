@@ -23,7 +23,8 @@ export const MOC_PC: [string, string][] = [["tao", "Ngày tạo"], ["chi", "Ngà
 /** Thẻ lọc đầu bảng. "gc" / "tl" / "ck" / "mh" không lọc phiếu — chúng đổi bảng sang hàng chờ gia công /
  *  hàng chờ trả lại khách / hàng đơn mua chờ chi (việc CHƯA lập phiếu). */
 // Lọc theo chứng từ gốc ĐÃ GỠ hẳn: thẻ "Thiếu chứng từ gốc" 17/10/2026, điều kiện "Chứng từ" ở nút Lọc 18/10/2026.
-export type TheLocPC = "tat_ca" | "xong" | "gc" | "tl" | "ck" | "mh" | "da_huy";
+// "cuoc" = Cước chờ chi, chỉ bản cài bật giao hàng kiểu Hà Phương (`giao_hang_hp`).
+export type TheLocPC = "tat_ca" | "xong" | "gc" | "tl" | "ck" | "cuoc" | "mh" | "da_huy";
 
 /** Bộ lọc ĐÃ ÁP — khuôn chung của hai sổ phiếu (`shared/locPhieu.ts`). */
 export type LocPC = LocNangCao;
@@ -59,7 +60,7 @@ export function dangLoc(the: TheLocPC, loc: LocPC, tim: string): boolean {
 /** Trạng thái lọc của màn — thứ ghi lên URL cùng với kỳ (kỳ do `useKyKeToan` tự ghi). */
 export type TrangThaiLocPC = { the: TheLocPC; tim: string; loc: LocPC };
 
-const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "gc", "tl", "ck", "mh", "da_huy"];
+const THE_HOP_LE: TheLocPC[] = ["tat_ca", "xong", "gc", "tl", "ck", "cuoc", "mh", "da_huy"];
 
 /** Trạng thái lọc → khoá URL. Giá trị mặc định ⇒ undefined (khoá bị bỏ khỏi URL). */
 export function locLenUrl({ the, tim, loc }: TrangThaiLocPC): Record<string, string | undefined> {

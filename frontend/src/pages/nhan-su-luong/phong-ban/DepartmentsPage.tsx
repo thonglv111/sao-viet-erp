@@ -107,6 +107,10 @@ export function DepartmentsPage({
   const { token, user } = useAuth();
   // Bản cài tắt lương / khoán / giao hàng (`useTat`): ẩn ô chỉ có nghĩa với phân hệ đó.
   const tat = useTat();
+  // Cờ "Bộ phận Giao hàng" có nghĩa khi bật Giao hàng (Sao Việt Nhật) HOẶC giao hàng kiểu Hà Phương
+  // (`giao_hang_hp`: người giao lúc Xuất hàng chọn trong bộ phận này). Khoán km vẫn theo `giao_hang`.
+  const hpGiao = tat("giao_hang") && !tat("giao_hang_hp");
+  const coCoGiaoHang = !tat("giao_hang") || hpGiao;
   const tenNhom = useTenNhomNhanSu();
   const can = useCan();
   const reloadPermissions = useReloadPermissions();
@@ -1458,9 +1462,10 @@ export function DepartmentsPage({
             {d.la_kinh_doanh && (
               <span className="rdx-tree__pill rdx-tree__pill--kd">Khối KD</span>
             )}
-            {d.la_giao_hang && !tat("giao_hang") && (
+            {d.la_giao_hang && coCoGiaoHang && (
               <span className="rdx-tree__pill rdx-tree__pill--gh"
-                    title="Người trong khối này hiện ở tab Nhân viên giao hàng và chọn được khi phân chuyến">
+                    title={hpGiao ? "Người trong khối này chọn được làm Người giao lúc Xuất hàng"
+                      : "Người trong khối này hiện ở tab Nhân viên giao hàng và chọn được khi phân chuyến"}>
                 Giao hàng
               </span>
             )}
@@ -1750,7 +1755,7 @@ export function DepartmentsPage({
     co_truong: treeStats.co_truong,
     thieu_truong: treeStats.no_head,
     chua_co_nguoi: treeStats.no_staff,
-  }, tat("giao_hang"));
+  }, !coCoGiaoHang);
   const tabs = [
     { key: "overview", label: "Tổng quan", count: undefined },
     { key: "staff", label: "Nhân sự", count: members.length },
@@ -2083,7 +2088,7 @@ export function DepartmentsPage({
                       {currentDept.la_kinh_doanh && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--kd">Khối kinh doanh</span>
                       )}
-                      {currentDept.la_giao_hang && !tat("giao_hang") && (
+                      {currentDept.la_giao_hang && coCoGiaoHang && (
                         <span className="rdx-drawer__pill rdx-drawer__pill--gh">Giao hàng</span>
                       )}
                     </div>
@@ -2954,7 +2959,7 @@ export function DepartmentsPage({
                 tiền. Quyết định AI hiện trong tab Nhân viên giao hàng và ai ăn khoán km.
                 Tắt cờ khi tài xế của phòng còn chuyến chưa ghi kết quả thì máy chủ CHẶN (400,
                 hiện ở `saveError`). */}
-            {!tat("giao_hang") && <div className="field depts__field--full">
+            {coCoGiaoHang && <div className="field depts__field--full">
               <div
                 className={`rdx-switch-card${editLaGiaoHang ? " is-checked" : ""}`}
                 onClick={() => {
@@ -2969,11 +2974,14 @@ export function DepartmentsPage({
                   <div className="rdx-switch-card__main">
                     <span className="rdx-switch-card__title">
                       Bộ phận Giao hàng
-                      <InfoHint label="Đánh dấu ĐÍCH DANH phòng/tổ này làm GIAO HÀNG — KHÔNG kế thừa cho cây con: tổ con có tài xế thì bật cờ ở chính tổ đó. Người trong phòng/tổ bật cờ hiện ở tab Nhân viên giao hàng (kể cả người chưa chạy chuyến nào) và được tính tiền khoán km. Không tắt được khi tài xế của phòng còn chuyến đang chạy." />
+                      <InfoHint label={hpGiao
+                        ? "Đánh dấu phòng/tổ này làm giao hàng. Không áp cho tổ con: tổ con có người giao thì bật ở chính tổ đó. Lúc Xuất hàng, ô Người giao chỉ liệt kê người trong phòng/tổ bật cờ này."
+                        : "Đánh dấu ĐÍCH DANH phòng/tổ này làm GIAO HÀNG — KHÔNG kế thừa cho cây con: tổ con có tài xế thì bật cờ ở chính tổ đó. Người trong phòng/tổ bật cờ hiện ở tab Nhân viên giao hàng (kể cả người chưa chạy chuyến nào) và được tính tiền khoán km. Không tắt được khi tài xế của phòng còn chuyến đang chạy."} />
                     </span>
                     <span className="rdx-switch-card__desc">
-                      Người trong khối là tài xế — hiện ở tab Nhân viên giao hàng để phân chuyến và
-                      theo dõi km
+                      {hpGiao
+                        ? "Người trong khối đi giao hàng, chọn được làm Người giao lúc Xuất hàng"
+                        : "Người trong khối là tài xế — hiện ở tab Nhân viên giao hàng để phân chuyến và theo dõi km"}
                     </span>
                   </div>
                 </div>

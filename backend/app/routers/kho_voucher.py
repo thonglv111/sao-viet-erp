@@ -106,6 +106,10 @@ from ..services.delivery_notify import (
     kho_ghi_so_hang_giao,
     kho_huy_hang_giao,
 )
+from ..services.thuong_mai.luot_xuat import (
+    kho_ghi_so_luot_xuat,
+    kho_huy_luot_xuat,
+)
 from ..services.san_xuat.kho import phat_su_kien_kho
 
 router = APIRouter(prefix="/api/kho/phieu", tags=["kho-phieu"])
@@ -548,6 +552,7 @@ def post_voucher(
         raise _err(e) from None
     _bao_san_xuat(db, v)
     kho_ghi_so_hang_giao(db, getattr(v, "request_id", None), actor=user)
+    kho_ghi_so_luot_xuat(db, getattr(v, "request_id", None))  # đơn thương mại (In Hà Phương)
     return _serialize(v, svc=svc, db=db, can_view_cost=authz.can(user, MODULE, "view_cost"))
 
 
@@ -565,6 +570,7 @@ def cancel_voucher(
     _bao_san_xuat(db, v)
     # Phiếu nháp cuối của đề nghị xuất chuyến giao ⇒ yêu cầu đã huỷ theo, chuyến về trước kho (#32).
     kho_huy_hang_giao(db, getattr(v, "request_id", None), actor=user)
+    kho_huy_luot_xuat(db, getattr(v, "request_id", None))  # đơn thương mại (In Hà Phương)
     return _serialize(v, svc=svc, db=db, can_view_cost=authz.can(user, MODULE, "view_cost"))
 
 

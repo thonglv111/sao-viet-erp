@@ -67,6 +67,10 @@ VOUCHER_SOURCE_GIA_CONG = "gia_cong_ngoai"
 # kéo phiếu vào quỹ tiền của đơn và sổ 131 (tiền trả lại khách), còn khoản này là chi phí.
 VOUCHER_SOURCE_CHI_CK = "chi_chiet_khau"
 VOUCHER_SOURCE_CHI_KE = "chi_ke_gia"
+# Phiếu chi CƯỚC GIAO HÀNG dịch vụ (08/11/2026, chỉ In Hà Phương — phân hệ `giao_hang_hp`): lập từ
+# hàng chờ, gắn từng lần giao qua `phieu_chi_cuoc_giao`. Không phải mục cố định: kế toán chọn mục như
+# phiếu lập tay (Sao Việt Nhật không có nguồn này nên danh mục mục thu chi y nguyên).
+VOUCHER_SOURCE_CUOC_GIAO = "cuoc_giao_hang"
 VOUCHER_SOURCES = (
     VOUCHER_SOURCE_SALARY_ADVANCE,
     VOUCHER_SOURCE_GIA_CONG,
@@ -75,6 +79,7 @@ VOUCHER_SOURCES = (
     VOUCHER_SOURCE_CUSTOMER_REFUND,
     VOUCHER_SOURCE_CHI_CK,
     VOUCHER_SOURCE_CHI_KE,
+    VOUCHER_SOURCE_CUOC_GIAO,
     VOUCHER_SOURCE_OTHER,
 )
 #: Loại khoản chờ chi của một hóa đơn bán (dòng `phieu_chi_ck_ke.loai`) → nguồn phiếu chi.
@@ -383,6 +388,9 @@ class SalesInvoice(Base):
     delivery_trip_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("delivery_trips.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    # Đơn THƯƠNG MẠI (chỉ In Hà Phương, mg 0462): hoá đơn lập theo LƯỢT XUẤT thay cho lượt giao —
+    # đơn thương mại không đi chuyến giao. Soft ref → `luot_xuat_thuong_mai.id`.
+    luot_xuat_tm_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     # Chiết khấu / kê giá của đơn rơi vào hóa đơn này (mg 0428, 20/10/2026), TRƯỚC VAT: chia theo hàng
     # của lượt giao lúc ghi, hóa đơn ghi đủ đơn nhận phần dư. Hết nợ thì sinh khoản chờ chi: CK chi đủ,
     # kê chi `ke_gia − ke_thue_tndn`. `ke_thue_tndn_pct` chụp từ khách lúc ghi.

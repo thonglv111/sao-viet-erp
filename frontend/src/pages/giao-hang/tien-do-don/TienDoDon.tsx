@@ -21,6 +21,10 @@ import { fmtDate, fmtDateTimePhut } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { CHUYEN_THAT_BAI, nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
 import { ChipTT, type MauTT } from "../../../components/LuoiDs";
+import { giaoHangHpApi } from "../../../api/giaoHangHp";
+import {
+  boCachGiao, CACH_GIAO_TRONG, ChonCachGiao, loiCachGiao, type CachGiao,
+} from "../../giao-hang-hp/ChonCachGiao";
 
 // Lời gọi tiến độ bắn SẴN lúc bấm mở đơn, chạy SONG SONG với lời gọi chi tiết đơn. Trước 06/10/2026
 // ngăn đơn chỉ hỏi tiến độ sau khi chi tiết đơn về (ngăn mới mount) ⇒ ô Sản xuất / Giao hiện trễ
@@ -759,6 +763,10 @@ function FormYeuCau({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
+  // In Hà Phương (`giao_hang_hp`): Xuất hàng bắt chọn cách giao, gửi qua đường giao hàng HP.
+  const tatPh = useTat();
+  const hpGiao = xuat && !sua && !tatPh("giao_hang_hp");
+  const [cach, setCach] = useState<CachGiao>(CACH_GIAO_TRONG);
   const HOM_NAY = homNay();
   const nn = td.noi_nhan;
   const coTheoDon = Boolean(nn.dia_chi?.trim());
@@ -819,6 +827,7 @@ function FormYeuCau({
     };
     const p: Promise<unknown> = sua
       ? api.giaoHang.updateRequest(token, sua.id, { ngay_can_giao: ngay, ...noiNhan })
+      : hpGiao ? giaoHangHpApi.xuatHang(token, { ...moi, ghi_chu: ghiChu.trim() || null, phuong_thuc: boCachGiao(cach) })
       : xuat ? api.giaoHang.xuatHang(token, { ...moi, ghi_chu: ghiChu.trim() || null })
       : api.giaoHang.createRequest(token, moi);
     p.then(onXong)
@@ -834,6 +843,7 @@ function FormYeuCau({
     : vuot ? "Số lượng vượt phần giao được"
     : !ngay ? "Chọn ngày cần giao"
     : ngayQuaKhu ? "Ngày cần giao đã qua"
+    : hpGiao ? loiCachGiao(cach)
     : null;
   const tomTat = sua ? "Chỉ sửa ngày và nơi nhận — số lượng giữ như lúc lập"
     : `${xuat ? "Xuất" : "Giao"} ${dong.length} sản phẩm`;
@@ -960,6 +970,8 @@ function FormYeuCau({
             <span>{luuY}</span>
           </div>
         )}
+
+        {hpGiao && <ChonCachGiao value={cach} onChange={setCach} />}
 
         {xuat && (
           <label className="pform__field">

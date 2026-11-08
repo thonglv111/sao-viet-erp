@@ -91,7 +91,9 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "can_luc", "uu_tien", "ghi
                   # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.
                   "gia_cong_ngoai_id",
                   # NHẬP LẠI VẬT TƯ THỪA (mg 0361): công việc của tổ trả vật tư dư về kho.
-                  "vat_tu_tra_cong_viec_id")
+                  "vat_tu_tra_cong_viec_id",
+                  # LƯỢT XUẤT ĐƠN THƯƠNG MẠI (mg 0462, chỉ In Hà Phương).
+                  "luot_xuat_tm_id")
 
 
 def _build_line(ln: dict, loai: str) -> StockRequestLine:

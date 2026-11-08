@@ -22,6 +22,7 @@ import {
 } from "./fields";
 import { goiYMaTiepTheo } from "./maGoiY";
 import { ODonViNhieu } from "./ODonViNhieu";
+import { OGiaBanTheoDvt } from "./OGiaBanTheoDvt";
 import { useNapTenDonVi } from "../tenDonVi";
 import { NhatKyTab } from "./nhat-ky/NhatKyTab";
 import { DieuHuongDanhMuc, useDieuHuongDanhMuc } from "./dieuHuong";
@@ -73,7 +74,7 @@ function locConDung(rows: Row[], dangChon: unknown, nhan = true): Row[] {
 const KIEU_CO_THAM_CHIEU = new Set<string>([
   "ref", "ref-multi", "ref-search", "ref-search-ma",
   "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi", "vat-tu-chip",
-  "don-vi-them",
+  "don-vi-them", "gia-ban-dvt",
 ]);
 
 /** Danh mục nguồn cần nạp cho các ô chọn của drawer: `{prefix: query}`. Gộp `refParams` theo
@@ -303,7 +304,7 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
     // "div" chứ không "label": khối này chứa NHIỀU input, bọc trong <label> là bấm đâu cũng nhảy
     // focus vào ô đầu tiên.
-    const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "don-vi-them" ? "div" : "label";
+    const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "don-vi-them" || f.type === "gia-ban-dvt" ? "div" : "label";
     return (
       <Tag className={`rc-field${f.type === "checkbox" ? " rc-field--check" : ""}${isFullWidth ? " rc-field--full" : ""}${f.type === "don-vi-them" ? " rc-field--dvn" : ""}`} key={f.key}>
         {cleanLabel && <span className="rc-field__label">{cleanLabel}{f.required ? " *" : ""}</span>}
@@ -439,6 +440,14 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             chinh={String(form[f.donViChinh ?? "don_vi_gia"] ?? "")}
             donVi={optsRef(f)}
             batBuoc={f.donViBatBuoc}
+            onChange={(v) => set(f.key, v)}
+          />
+        ) : f.type === "gia-ban-dvt" ? (
+          <OGiaBanTheoDvt
+            value={form[f.key]}
+            chinh={String(form.don_vi_gia ?? "")}
+            them={Array.isArray(form.don_vi_them) ? (form.don_vi_them as string[]) : []}
+            donVi={optsRef(f)}
             onChange={(v) => set(f.key, v)}
           />
         ) : f.type === "ref-multi" ? (

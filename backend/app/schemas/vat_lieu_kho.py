@@ -188,6 +188,35 @@ class ThanhPhamRow(BaseModel):
     updated_at: datetime | None = None
 
 
+class HangThuongMaiIn(BaseModel):
+    """Ô khai màn Hàng thương mại (chỉ In Hà Phương). Giá bán theo từng ĐVT, không quy đổi."""
+    ma: str = Field(min_length=1, max_length=30)
+    ten: str = Field(min_length=1, max_length=150)
+    don_vi_gia: str | None = None
+    don_vi_them: list[str] | None = None
+    # `{ma_dvt: giá}`. Vắng = không đụng. Người không có ô Xem giá gửi lên thì máy chủ giữ giá cũ.
+    gia_ban_theo_dvt: dict[str, float | None] | None = None
+    ghi_chu: str | None = None
+    active: bool = True
+
+
+class HangThuongMaiRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    ma: str
+    ten: str
+    don_vi_gia: str | None = None
+    don_vi_them: list[str] | None = None
+    don_vi_ten: str | None = None
+    # Tiền: router xoá (None) khi người xem không có ô Xem giá của Hàng thương mại.
+    gia_ban_theo_dvt: dict[str, int] | None = None
+    ghi_chu: str | None = None
+    anh_url: str | None = None
+    active: bool
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
 class ListOut(BaseModel, Generic[RowT]):
     """Phong bì phân trang dùng chung cho CẢ BA danh mục ở router `vat_lieu_kho`.
 

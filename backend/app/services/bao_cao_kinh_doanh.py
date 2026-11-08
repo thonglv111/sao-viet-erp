@@ -91,7 +91,7 @@ def lap_bao_cao(
     q: str | None = None, coc: list[str] | None = None,
     ty_le_tu: float | None = None, ty_le_den: float | None = None,
     gt_tu: float | None = None, gt_den: float | None = None,
-    giao: list[str] | None = None, thu: list[str] | None = None,
+    giao: list[str] | None = None, thu: list[str] | None = None, nguon: str | None = None,
 ) -> dict:
     """Báo cáo `[tu_ngay, den_ngay]` (tính cả hai đầu, giờ VN), gom theo khách → đơn → dòng.
     Đầu nào None thì không chặn đầu đó (kỳ "Tất cả" của thanh lọc, 06/10/2026).
@@ -104,6 +104,7 @@ def lap_bao_cao(
         tu=_moc_utc(tu_ngay) if tu_ngay else None,
         den=_moc_utc(den_ngay + timedelta(days=1)) if den_ngay else None,
         scope=scope, actor=actor, customer_id=customer_id, sale_user_id=sale_user_id,
+        nguon=nguon,
     )
     ids = [o.id for o in don]
     tien = orders_repo.money_sums(ids)

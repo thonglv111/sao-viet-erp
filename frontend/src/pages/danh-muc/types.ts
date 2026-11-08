@@ -15,7 +15,7 @@ export interface FieldDef {
   // mã như `don_vi_gia` (quy đổi làm việc trên mã `kg`/`to`, không trên id).
   // `don-vi-them` = mảng MÃ đơn vị khai thêm cạnh ĐVT chính (Giấy · Vật tư khác, `ODonViNhieu`):
   // `refPrefix` trỏ danh mục Đơn vị, `donViChinh` là ô ĐVT chính cùng form.
-  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them";
+  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them" | "gia-ban-dvt";
   /** Ô `select`: danh sách chọn. Nhận cả HÀM (như `hint`/`an`) cho menu mà nhãn đến MUỘN hơn
    *  lúc khai config — 5 chặng dòng giấy nạp từ `/api/don-vi/tram`, mảng dựng sẵn ở tầm module sẽ
    *  đóng băng lúc bảng còn rỗng. Hàm được gọi MỖI lần vẽ, nên vẽ lại là menu tự đầy. */

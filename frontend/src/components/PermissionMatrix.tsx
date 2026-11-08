@@ -321,6 +321,15 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     },
   ],
   dm_vat_tu: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
+  // Hàng thương mại (chỉ In Hà Phương): giá bán là tiền — máy chủ xoá cột giá khi thiếu ô Xem giá.
+  hang_thuong_mai: [
+    { key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT },
+    {
+      key: "can_view_cost",
+      label: "Xem giá",
+      hint: "Cho phép xem và sửa giá bán của từng mặt hàng. Không bật thì cột Giá bán để trống; sửa mặt hàng vẫn giữ nguyên giá cũ.",
+    },
+  ],
   dm_thiet_bi: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
   dm_cong_doan: [
     { key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT },
@@ -672,6 +681,8 @@ const MODULE_HINTS: Record<string, string> = {
     "Xem: danh mục vật tư khác, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
   dm_thanh_pham:
     "Xem: danh mục thành phẩm, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
+  hang_thuong_mai:
+    "Xem: danh sách hàng mua về bán lại (không qua sản xuất). Thao tác: thêm, sửa, xoá, ngừng / dùng lại mặt hàng.",
   khuon_be:
     "Xem: danh mục khuôn, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
   dm_kho_hang:
@@ -680,6 +691,8 @@ const MODULE_HINTS: Record<string, string> = {
     "Xem: tiêu chí KCS. Thao tác: thêm, sửa, xoá, ngừng / dùng lại.",
   dm_xe:
     "Xem: danh mục xe giao hàng, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
+  xe_giao_hang:
+    "Xem: danh sách xe giao hàng và ai phụ trách xe nào. Thao tác: thêm, sửa, xoá, ngừng / dùng lại xe. Lưu ý: người lập Xuất hàng vẫn chọn được xe dù không có ô này.",
   dm_muc_thu_chi:
     "Xem: danh mục mục thu chi. Thao tác: thêm, sửa, xoá, ngừng / dùng lại. Lưu ý: người lập phiếu thu, phiếu chi vẫn chọn được mục dù không có ô này.",
   bao_cao_thu_chi:
@@ -878,10 +891,12 @@ const MODULE_GROUPS: {
       "dm_giay",
       "dm_vat_tu",
       "dm_thanh_pham",
+      "hang_thuong_mai",
       "khuon_be",
       "dm_kho_hang",
       "dm_kcs_tieu_chi",
       "dm_xe",
+      "xe_giao_hang",
       "dm_muc_thu_chi",
     ],
     noScope: true,
@@ -1273,6 +1288,8 @@ export function PermissionMatrix({
     ...(tat("tai_san") ? ["tai_san"] : []),
     ...(tat("cham_cong") ? ["cham_cong", "yeu_cau_chinh_cong", "nghi_phep", "tang_ca", "di_muon"] : []),
     ...(tat("sua_chua") ? ["ky_thuat_may", "phieu_bao_tri"] : []),
+    ...(tat("thuong_mai") ? ["hang_thuong_mai"] : []),
+    ...(tat("giao_hang_hp") ? ["xe_giao_hang"] : []),
   ]);
   const tenNhomNhanSu = useTenNhomNhanSu();
   /** Ô chi tiết chỉ có nghĩa khi phân hệ của nó bật: lương & BHXH của hồ sơ, "Xem giá" của Công

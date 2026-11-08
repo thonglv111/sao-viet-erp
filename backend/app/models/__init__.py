@@ -115,6 +115,8 @@ from .delivery import (
     LuotXe,
     LuotXeDiem,
 )
+from .thuong_mai import LuotXuatThuongMai, LuotXuatThuongMaiDong
+from .giao_hang_hp import PhieuChiCuocGiao, PhuongThucGiaoHp, XeGiaoHang
 from .xe import MucKhoanKm, MucKhoanKmBac, Xe
 from .stock_request import StockRequest, StockRequestLine
 from .stock_lot import StockLot, StockThreshold
@@ -344,4 +346,9 @@ __all__ = [
     "TaiSanChiPhi",
     "TaiSanBienDong",
     "TaiSanMoc",
+    "LuotXuatThuongMai",
+    "LuotXuatThuongMaiDong",
+    "XeGiaoHang",
+    "PhuongThucGiaoHp",
+    "PhieuChiCuocGiao",
 ]

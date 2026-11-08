@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     # `luong`, `khoan`, `hoa_hong`, `giao_hang`. Rỗng = bật hết (Sao Việt Nhật). In Hà Phương đặt đủ
     # bốn. Đọc qua `app.phan_he`, đừng tách chuỗi này ở chỗ khác.
     phan_he_tat: str = ""
+    # Phân hệ CHỈ BẬT KHI KHAI (08/11/2026): chiều ngược của `phan_he_tat`. Tính năng chỉ In Hà Phương
+    # có (`thuong_mai`, `giao_hang_hp`) mặc định TẮT; bản cài nào muốn dùng thì khai tên ở đây.
+    phan_he_bat: str = ""
 
     # --- Sức chịu tải: TỰ CO GIÃN theo máy (app/tai_nguyen.py) -------------
     # Mọi số 0 / -1 dưới đây nghĩa là "tự tính theo CPU/RAM của container". Đặt số dương qua biến
