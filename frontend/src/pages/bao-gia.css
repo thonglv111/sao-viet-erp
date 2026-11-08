@@ -1975,6 +1975,16 @@ select.input {
 .rdx-quote table.bg-dong tbody td:has(.o2tab, .pricecell, .markcell) { padding-top: 12px; }
 /* Số kết quả (giá bán, giá sau kê) nổi nhờ màu mực cạnh giá vốn xám — không cần chữ đậm. */
 .rdx-quote table.bg-dong td.strong { font-weight: 500; color: var(--ink); }
+/* Thêm cột Đơn giá (08/11/2026) là 9 cột: cột Sản phẩm bị ép còn ~100px, tên và từng dòng quy cách
+   in ("KT: 90×50mm") gãy vụn. Giữ cột này đủ một dòng quy cách; khung hẹp hơn thì cuộn ngang. Thẻ
+   điện thoại (`data-the`) không cần. */
+.rdx-quote table.bg-dong:not([data-the]) > thead > tr > th:first-child,
+.rdx-quote table.bg-dong:not([data-the]) > tbody > tr > td:first-child { min-width: 210px; }
+/* Dòng "Gõ tay · Về theo lợi nhuận" dưới giá bán được xuống hàng — để liền một dòng thì cột Giá bán
+   phình ~190px và bảng 9 cột tràn ở màn 1440. */
+.rdx-quote table.bg-dong .pricecell .meta { flex-wrap: wrap; justify-content: flex-end; row-gap: 2px; }
+/* Ô Đơn giá chứa số nhỏ hơn giá bán nhiều — hẹp hơn để nhường chỗ cho cột Sản phẩm. */
+.rdx-quote .pricecell--dg .nf.money { width: 112px; }
 .rdx-quote tr.qrow--con > td:first-child {
   padding-left: 22px;
   /* Ray dọc suốt các dòng thuộc nhóm + kẻ đóng ở dòng cuối → thấy rõ nhóm hết ở đâu. */
