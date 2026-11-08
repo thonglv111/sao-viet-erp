@@ -103,7 +103,6 @@ MODULES: list[tuple[str, str]] = [
     ("xep_lich", "Xếp lịch"),
     # Kế hoạch bộ phận (07/11/2026, mg `0455`): bộ phận nhận lệnh, chọn máy + nhóm rồi Giao.
     # Phạm vi: `department` = bộ phận chứa phòng của người xem; `all` = mọi bộ phận.
-    ("ke_hoach_bo_phan", "Kế hoạch bộ phận"),
     # KCS (09/10/2026, mg 0383) — thay cờ phòng ban "Tổ KCS đích danh". Xem = màn + báo cáo mọi tổ;
     # Thao tác (`can_create`) = ghi lần kiểm, gửi nhập kho, đóng lệnh đủ; ô chi tiết "Đóng lệnh
     # thiếu" (`can_close_short`).
@@ -541,7 +540,6 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             # KHÔNG chặn gì nên không ai hỏi tới bit này nữa. Giữ cấp cho trưởng điều độ để hàng
             # quyền của vai không hụt so với DB đang chạy (mg `0314` chép y nguyên sang).
             "xep_lich": {**_rcu(SCOPE_ALL), "can_approve": True, "can_approve_exception": True},
-            "ke_hoach_bo_phan": _rcu(SCOPE_ALL),
             # Điều độ XEM phiếu kỹ thuật để biết máy nào sắp/đang nằm mà né khi xếp lịch.
             "ky_thuat_may": _read(SCOPE_ALL),
             "phieu_bao_tri": _read(SCOPE_ALL),
@@ -3163,6 +3161,9 @@ def dong_bo_danh_muc_he_thong(db: Session) -> None:
     # luật: chỉ phản chiếu, không đẻ kho.
     from .services.quyen_kho import dong_bo_dong_quyen_kho
     dong_bo_dong_quyen_kho(db)
+    # Dòng Kế hoạch theo BỘ PHẬN (`ke_hoach_bp_<id>`, 08/11/2026) — cùng luật, soi theo cây.
+    from .services.quyen_ke_hoach import dong_bo_dong_quyen_ke_hoach
+    dong_bo_dong_quyen_ke_hoach(db)
 
 
 def seed_all(db: Session) -> None:

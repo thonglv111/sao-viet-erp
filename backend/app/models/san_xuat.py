@@ -261,8 +261,6 @@ class SanXuatCongViec(Base):
     # Lúc bộ phận bấm Giao + người giao (soft → users.id). NULL = còn ở khay của bộ phận.
     da_giao_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     da_giao_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Thứ tự chạy trong cột máy (hoặc cột Làm tay) ở Kế hoạch bộ phận. NULL = chưa xếp.
-    thu_tu_xep: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Nhóm bộ phận ĐÃ CHỌN mà chưa bấm Giao (soft → departments.id). Lúc Giao chép sang
     # `department_id`; rút lại thì nhóm cũ quay về đây.
     nhom_xep_id: Mapped[int | None] = mapped_column(Integer, nullable=True)

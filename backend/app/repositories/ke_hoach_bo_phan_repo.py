@@ -2,42 +2,146 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from ..models.bai_ghep import BaiGhep
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan
 from ..models.customer import Customer
-from ..models.lsx import TT_DA_PHAT_HANH, Lsx, LsxCongDoan
+from ..models.lsx import TT_DA_PHAT_HANH, TT_DA_XUONG_XUONG, Lsx, LsxCongDoan
 from ..models.may_thiet_bi import MayThietBi, MayTo
 from ..models.order import Order
-from ..models.san_xuat import CV_HOAN_THANH, SanXuatCongViec, SanXuatGoiPhatHanh
+from ..models.san_xuat import CV_HOAN_THANH, GOI_DA_THU_HOI, SanXuatCongViec, SanXuatGoiPhatHanh
 from ..models.san_xuat_san_luong import SanXuatBatch
-from ..models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong
+from ..models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong, SanXuatPhienChay
+from .loc_danh_sach import dk_khoang_ngay
+
+
+def _goi_con_hieu_luc():
+    """Việc thuộc gói phát hành còn hiệu lực. Thu hồi phát hành giữ việc của gói cũ (gói đánh dấu
+    `da_thu_hoi`); không lọc thì phát hành lại lệnh sẽ hiện mỗi việc hai lần."""
+    return SanXuatGoiPhatHanh.trang_thai != GOI_DA_THU_HOI
 
 
 class KeHoachBoPhanRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def viec_cua_bo_phan(self, bo_phan_id: int) -> list[SanXuatCongViec]:
-        """Việc Nội bộ của bộ phận còn sống: chưa xong, thuộc gói đang hiệu lực, lệnh (hoặc bài
-        ghép) còn ở trạng thái đã phát hành. Thứ tự: đã xếp theo `thu_tu_xep`, rồi theo id."""
+    def viec_cua_bo_phan(self, bo_phan_id: int, *, xong_tu=None) -> list[SanXuatCongViec]:
+        """Việc Nội bộ của bộ phận: việc còn sống (lệnh hoặc bài ghép còn đã phát hành) và việc
+        Hoàn thành từ mốc `xong_tu` trở đi (chip Hoàn thành của bảng việc). Việc mới tới đứng đầu.
+
+        Không còn thứ tự chạy do kế hoạch sắp (08/11/2026): nhóm tự quyết chạy việc nào trước."""
         cv = SanXuatCongViec
+        song = (cv.trang_thai != CV_HOAN_THANH) & (
+            cv.lsx_id.is_(None) | (Lsx.trang_thai == TT_DA_PHAT_HANH))
+        dk = song
+        if xong_tu is not None:
+            dk = dk | ((cv.trang_thai == CV_HOAN_THANH) & (cv.hoan_thanh_luc >= xong_tu)
+                       & (cv.lsx_id.is_(None) | Lsx.trang_thai.in_(TT_DA_XUONG_XUONG)))
         q = (
             select(cv)
             .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
             .outerjoin(Lsx, Lsx.id == cv.lsx_id)
-            .where(
-                cv.bo_phan_id == bo_phan_id,
-                cv.trang_thai != CV_HOAN_THANH,
-                cv.gia_cong_ngoai_id.is_(None),
-                (cv.lsx_id.is_(None)) | (Lsx.trang_thai == TT_DA_PHAT_HANH),
-            )
-            .order_by(cv.thu_tu_xep.is_(None), cv.thu_tu_xep, cv.id)
+            .where(cv.bo_phan_id == bo_phan_id, cv.gia_cong_ngoai_id.is_(None), _goi_con_hieu_luc(), dk)
+            .order_by(cv.id.desc())
         )
         return list(self.db.execute(q).scalars())
+
+    @staticmethod
+    def bieu_thuc_trang_thai():
+        """Năm trạng thái của bảng việc viết thành SQL — cùng luật `trang_thai_ke_hoach`."""
+        from ..models.san_xuat import CV_DANG_CHAY, CV_TAM_DUNG
+
+        cv = SanXuatCongViec
+        return case(
+            (and_(cv.da_giao_at.is_(None), cv.trang_thai != CV_HOAN_THANH), "chua_giao"),
+            (cv.trang_thai == CV_DANG_CHAY, "dang_chay"),
+            (cv.trang_thai == CV_TAM_DUNG, "tam_dung"),
+            (cv.trang_thai == CV_HOAN_THANH, "hoan_thanh"),
+            else_="da_giao",
+        )
+
+    def _loc_bang(self, bo_phan_id: int, *, tim: str | None, tu_ngay: date | None,
+                  den_ngay: date | None, may_id: int | None, nhom_id: int | None):
+        """Điều kiện chung của bảng việc (chưa tính chip): việc Nội bộ của bộ phận, việc còn sống
+        cộng việc Hoàn thành mọi lúc; tìm theo lệnh, bài ghép, sản phẩm, khách, công đoạn, máy; kỳ
+        theo lúc việc tới bộ phận."""
+        cv = SanXuatCongViec
+        song = (cv.trang_thai != CV_HOAN_THANH) & (cv.lsx_id.is_(None) | (Lsx.trang_thai == TT_DA_PHAT_HANH))
+        xong = (cv.trang_thai == CV_HOAN_THANH) & (cv.lsx_id.is_(None) | Lsx.trang_thai.in_(TT_DA_XUONG_XUONG))
+        dk = [cv.bo_phan_id == bo_phan_id, cv.gia_cong_ngoai_id.is_(None), _goi_con_hieu_luc(), or_(song, xong)]
+        if tim:
+            mau = f"%{tim.strip()}%"
+            dk.append(or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau), Customer.name.ilike(mau),
+                          BaiGhep.ma.ilike(mau), cv.ten_cong_doan.ilike(mau), MayThietBi.ten.ilike(mau),
+                          MayThietBi.ma.ilike(mau)))
+        dk.extend(dk_khoang_ngay(cv.created_at, tu_ngay, den_ngay))
+        if may_id is not None:
+            dk.append(cv.may_id == may_id)
+        if nhom_id is not None:
+            dk.append(cv.department_id == nhom_id)
+        return dk
+
+    def _tu(self, q):
+        cv = SanXuatCongViec
+        return (q.select_from(cv)
+                .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
+                .outerjoin(Lsx, Lsx.id == cv.lsx_id)
+                .outerjoin(Order, Order.id == Lsx.order_id)
+                .outerjoin(Customer, Customer.id == Order.customer_id)
+                .outerjoin(BaiGhep, BaiGhep.id == cv.bai_ghep_id)
+                .outerjoin(MayThietBi, MayThietBi.id == cv.may_id))
+
+    def trang_viec(self, bo_phan_id: int, *, trang_thai: str, offset: int, limit: int,
+                   **loc) -> tuple[list[SanXuatCongViec], int]:
+        """Một trang bảng việc ở chip `trang_thai`, việc mới tới đứng đầu, kèm tổng khớp."""
+        cv = SanXuatCongViec
+        dk = self._loc_bang(bo_phan_id, **loc)
+        if trang_thai != "tat_ca":
+            dk.append(self.bieu_thuc_trang_thai() == trang_thai)
+        tong = self.db.execute(self._tu(select(func.count(cv.id))).where(*dk)).scalar_one()
+        rows = self.db.execute(
+            self._tu(select(cv)).where(*dk).order_by(cv.id.desc()).offset(offset).limit(limit)
+        ).scalars().all()
+        return list(rows), int(tong)
+
+    def dem_trang_thai(self, bo_phan_id: int, **loc) -> dict[str, int]:
+        """Số việc khớp tìm / kỳ / lọc ở từng chip."""
+        tt = self.bieu_thuc_trang_thai().label("tt")
+        rows = self.db.execute(
+            self._tu(select(tt, func.count(SanXuatCongViec.id))).where(*self._loc_bang(bo_phan_id, **loc))
+            .group_by(tt)
+        ).all()
+        return {k: int(n) for k, n in rows}
+
+    def viec_theo_may(self, bo_phan_id: int) -> tuple[set[int], dict[int, int]]:
+        """Máy đang có việc chạy của bộ phận, và số việc Đã giao còn chờ chạy trên từng máy (khoá
+        `None` = làm tay)."""
+        from ..models.san_xuat import CV_DANG_CHAY, CV_PHAT_HANH
+
+        cv = SanXuatCongViec
+        chay: set[int] = set()
+        cho: dict[int, int] = {}
+        for may_id, tt, n in self.db.execute(
+            select(cv.may_id, cv.trang_thai, func.count(cv.id))
+            .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
+            .outerjoin(Lsx, Lsx.id == cv.lsx_id)
+            .where(cv.bo_phan_id == bo_phan_id, cv.gia_cong_ngoai_id.is_(None),
+                   _goi_con_hieu_luc(),
+                   (cv.trang_thai == CV_DANG_CHAY)
+                   | ((cv.trang_thai == CV_PHAT_HANH) & cv.da_giao_at.is_not(None)),
+                   cv.lsx_id.is_(None) | (Lsx.trang_thai == TT_DA_PHAT_HANH))
+            .group_by(cv.may_id, cv.trang_thai)
+        ).all():
+            if tt == CV_DANG_CHAY:
+                if may_id is not None:
+                    chay.add(may_id)
+            else:
+                cho[may_id] = int(n)   # khoá None = việc Đã giao làm tay
+        return chay, cho
 
     def bo_phan_cho_giao(self, lsx_ids: Iterable[int]) -> set[int]:
         """Bộ phận còn việc CHƯA GIAO của những lệnh này (kể cả việc chung bài ghép chứa lệnh)."""
@@ -52,7 +156,8 @@ class KeHoachBoPhanRepository:
         if bai:
             dk = dk | cv.bai_ghep_id.in_(bai)
         return set(self.db.execute(
-            select(cv.bo_phan_id).where(dk, cv.bo_phan_id.is_not(None), cv.da_giao_at.is_(None))
+            select(cv.bo_phan_id).join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
+            .where(dk, cv.bo_phan_id.is_not(None), cv.da_giao_at.is_(None), _goi_con_hieu_luc())
             .distinct()).scalars())
 
     def cong_viec(self, cv_id: int) -> SanXuatCongViec | None:
@@ -112,66 +217,6 @@ class KeHoachBoPhanRepository:
         return {m.id: m for m in self.db.execute(
             select(MayThietBi).where(MayThietBi.id.in_(ids))).scalars()}
 
-    def viec_cung_buoc(self, goi_id: int, step_keys: Iterable[str]) -> list[SanXuatCongViec]:
-        keys = {k for k in step_keys if k}
-        if not keys:
-            return []
-        return list(self.db.execute(
-            select(SanXuatCongViec).where(SanXuatCongViec.goi_id == goi_id,
-                                          SanXuatCongViec.step_key.in_(keys))).scalars())
-
-    def viec_truoc(self, viec: Iterable[SanXuatCongViec]) -> dict[int, list[SanXuatCongViec]]:
-        """`{id việc: [việc của khâu ngay trước]}` cho các việc này.
-
-        Hai nguồn, vì hai nơi ghi: cạnh TRONG một lệnh nằm ở `lsx_cong_doan_phu_thuoc` (bước lệnh,
-        nối sang việc qua `step_key` cùng gói); cạnh GIỮA hai lệnh (bài ghép) nằm ở
-        `san_xuat_phu_thuoc`. Bước tách lần chạy: khâu trước lấy phân đoạn CUỐI (id lớn nhất)."""
-        from ..models.lsx import LsxCongDoanPhuThuoc
-        from ..models.san_xuat import SanXuatPhuThuoc
-        from sqlalchemy.orm import aliased
-
-        viec = [v for v in viec]
-        if not viec:
-            return {}
-        ra: dict[int, list[SanXuatCongViec]] = {v.id: [] for v in viec}
-        cv = SanXuatCongViec
-
-        lenh = {v.lsx_id for v in viec if v.lsx_id and v.step_key}
-        if lenh:
-            truoc, sau = aliased(LsxCongDoan), aliased(LsxCongDoan)
-            canh: dict[tuple[int, str], set[str]] = {}
-            for lsx_id, k_sau, k_truoc in self.db.execute(
-                select(sau.lsx_id, sau.step_key, truoc.step_key)
-                .join(LsxCongDoanPhuThuoc, LsxCongDoanPhuThuoc.buoc_sau_id == sau.id)
-                .join(truoc, truoc.id == LsxCongDoanPhuThuoc.buoc_truoc_id)
-                .where(sau.lsx_id.in_(lenh))
-            ).all():
-                canh.setdefault((lsx_id, k_sau), set()).add(k_truoc)
-            goi = {v.goi_id for v in viec}
-            keys = {k for ks in canh.values() for k in ks}
-            cuoi: dict[tuple[int, str], SanXuatCongViec] = {}
-            if keys:
-                for c in self.db.execute(
-                    select(cv).where(cv.goi_id.in_(goi), cv.step_key.in_(keys)).order_by(cv.id)
-                ).scalars():
-                    cuoi[(c.goi_id, c.step_key)] = c
-            for v in viec:
-                for k in canh.get((v.lsx_id, v.step_key), ()):
-                    c = cuoi.get((v.goi_id, k))
-                    if c is not None and c.id != v.id:
-                        ra[v.id].append(c)
-
-        ids = list(ra)
-        nguon = aliased(cv)
-        for dich_id, c in self.db.execute(
-            select(SanXuatPhuThuoc.dich_cong_viec_id, nguon)
-            .join(nguon, nguon.id == SanXuatPhuThuoc.nguon_cong_viec_id)
-            .where(SanXuatPhuThuoc.dich_cong_viec_id.in_(ids))
-        ).all():
-            if all(x.id != c.id for x in ra[dich_id]):
-                ra[dich_id].append(c)
-        return ra
-
     def da_ghi_san_luong(self, cv_id: int) -> bool:
         return self.db.execute(
             select(SanXuatBatch.id).where(SanXuatBatch.cong_viec_id == cv_id).limit(1)
@@ -181,3 +226,17 @@ class KeHoachBoPhanRepository:
         return list(self.db.execute(
             select(SanXuatPhanCong).where(SanXuatPhanCong.cong_viec_id == cv_id,
                                           SanXuatPhanCong.trang_thai == PC_HOAT_DONG)).scalars())
+
+    def ly_do_tam_dung(self, cv_ids: Iterable[int]) -> dict[int, str | None]:
+        """`{id việc: lý do của lần Tạm dừng gần nhất}` — chữ phụ dưới chip Tạm dừng."""
+        ids = {int(i) for i in cv_ids if i}
+        if not ids:
+            return {}
+        ra: dict[int, str | None] = {}
+        for cv_id, ly_do in self.db.execute(
+            select(SanXuatPhienChay.cong_viec_id, SanXuatPhienChay.ly_do)
+            .where(SanXuatPhienChay.cong_viec_id.in_(ids), SanXuatPhienChay.loai_dong == "tam_dung")
+            .order_by(SanXuatPhienChay.ket_thuc, SanXuatPhienChay.id)
+        ).all():
+            ra[cv_id] = ly_do
+        return ra

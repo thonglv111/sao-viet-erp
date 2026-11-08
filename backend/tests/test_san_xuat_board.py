@@ -116,9 +116,16 @@ def _bo_phan_giao(db, admin, *bo_phan: Department) -> None:
     for lid in lsx_ids:
         db.get(Lsx, lid).trang_thai = TT_DA_PHAT_HANH
     db.commit()
-    svc = KeHoachBoPhanService(db, user=admin, scope=SCOPE_ALL)
+    ds = {bp.id for bp in bo_phan}
+    svc = KeHoachBoPhanService(db, user=admin, xem=ds, giao=ds)
     for bp in bo_phan:
-        assert svc.giao(bp.id), f"bộ phận {bp.name} không có việc nào để giao"
+        cho = [v for v in svc.bang(bp.id)["viec"] if v["trang_thai_kh"] == "chua_giao"]
+        assert cho, f"bộ phận {bp.name} không có việc nào để giao"
+        for v in cho:
+            # Máy theo báo giá của khuôn lệnh không thuộc nhóm nào của cây test ⇒ giao Làm tay,
+            # kèm lý do như người bấm.
+            nhom = v["nhom_goi_y_id"] or v["nhom_chon"][0]
+            svc.giao(v["id"], may_id=None, department_id=nhom, ly_do="Giao trong test")
 
 
 def _authz(db) -> AuthorizationService:

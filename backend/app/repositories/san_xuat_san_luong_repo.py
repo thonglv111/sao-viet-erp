@@ -12,6 +12,7 @@ from __future__ import annotations
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from ..db import nho_trong_luot_doc
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
 from ..models.cong_doan import CongDoan, CongDoanKhoan
 from ..models.lsx import LsxCongDoan, LsxCongDoanPhuThuoc
@@ -135,6 +136,11 @@ class SanXuatSanLuongRepository:
         return {r.id: r for r in rows}
 
     def cong_viec_chang_sau(self, cv: SanXuatCongViec) -> list[SanXuatCongViec]:
+        # Một lượt GET dựng chi tiết việc hỏi lại chặng của cùng việc 5-7 lần (trần nhận, đầu vào,
+        # công đoạn trước…): nhớ trong lượt, mỗi lần 3-4 truy vấn.
+        return list(nho_trong_luot_doc(self.db, ("cong_viec_chang_sau", cv.id), lambda: tuple(self._cong_viec_chang_sau(cv))))
+
+    def _cong_viec_chang_sau(self, cv: SanXuatCongViec) -> list[SanXuatCongViec]:
         """Công việc của CHẶNG SAU theo routing lệnh — đích bàn giao DUY NHẤT hợp lệ (§11.2).
 
         Lệnh nào cũng đã khai chuỗi công đoạn, nên đích không phải thứ để tổ trưởng chọn trong mọi
@@ -215,6 +221,11 @@ class SanXuatSanLuongRepository:
         return rows
 
     def cong_viec_chang_truoc(self, cv: SanXuatCongViec) -> list[SanXuatCongViec]:
+        # Một lượt GET dựng chi tiết việc hỏi lại chặng của cùng việc 5-7 lần (trần nhận, đầu vào,
+        # công đoạn trước…): nhớ trong lượt, mỗi lần 3-4 truy vấn.
+        return list(nho_trong_luot_doc(self.db, ("cong_viec_chang_truoc", cv.id), lambda: tuple(self._cong_viec_chang_truoc(cv))))
+
+    def _cong_viec_chang_truoc(self, cv: SanXuatCongViec) -> list[SanXuatCongViec]:
         """Công việc của CHẶNG TRƯỚC theo routing lệnh — CHIỀU NGƯỢC đúng của `cong_viec_chang_sau`
         (19/09/2026), để A là chặng trước của B ⇔ B là chặng sau của A.
 
@@ -656,13 +667,13 @@ class SanXuatSanLuongRepository:
     def canh_phu_thuoc_toi(self, dich_cong_viec_id: int) -> list[SanXuatPhuThuoc]:
         """Các cạnh phụ thuộc chéo ĐỔ VÀO một công việc (nó là đích = bước ghép). Rỗng với công
         việc thường → cổng bước-ghép ở §10.2 là no-op, an toàn cho công việc một nhánh."""
-        return list(
+        return list(nho_trong_luot_doc(self.db, ("canh_phu_thuoc_toi", dich_cong_viec_id), lambda: tuple(
             self.db.scalars(
                 select(SanXuatPhuThuoc).where(
                     SanXuatPhuThuoc.dich_cong_viec_id == dich_cong_viec_id
                 )
             )
-        )
+        )))
 
     def canh_phu_thuoc_toi_nhieu(self, dich_ids) -> dict[int, list[SanXuatPhuThuoc]]:
         """`{dich_id: canh_phu_thuoc_toi(dich_id)}` — MỘT truy vấn cho cả tập. Id không có cạnh

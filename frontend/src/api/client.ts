@@ -3606,26 +3606,34 @@ export interface LsxDinhKem {
 }
 
 /** Tệp của MỘT lệnh nhìn từ Bàn tổ (chỉ đọc). Công việc bài ghép thì mỗi lệnh thành viên một nhóm. */
-// --- Kế hoạch bộ phận (module `ke_hoach_bo_phan`, 07/11/2026) -----------------------------------
-// Bộ phận nhận việc lúc phát lệnh, chọn máy + nhóm, xếp thứ tự rồi Giao xuống tổ.
+// --- Kế hoạch theo bộ phận (07/11/2026, quyền từng bộ phận `ke_hoach_bp_<id>` từ 08/11/2026) ------
+// Bộ phận nhận việc lúc phát lệnh; người kế hoạch bấm Giao, chọn máy + nhóm một lần.
 export interface KhbpBoPhan {
   id: number;
   ten: string;
   /** Bộ phận không có nhóm con: tự nhận việc, giao cho chính mình. */
   tu_lam: boolean;
+  /** Vai bật Giao việc ở dòng Kế hoạch của bộ phận này. */
+  giao_duoc: boolean;
+}
+/** Tình trạng lúc này của máy — cùng bộ chữ với màn Máy (`may_trang_thai`). */
+export interface KhbpTinhTrang {
+  ma: string;
+  nhan: string;
 }
 export interface KhbpMay {
   id: number;
   ma: string | null;
   ten: string;
   nhom_ids?: number[];
+  tinh_trang?: KhbpTinhTrang;
+  /** Bảng việc: số việc Đã giao còn chờ chạy trên máy. */
+  so_cho?: number;
 }
-export interface KhbpKhauTruoc {
-  ten: string;
-  trang_thai: string;
-  da_giao: boolean;
-  o: string | null;
-}
+/** Năm trạng thái trên kế hoạch: Chưa giao là của bộ phận, bốn cái sau đọc từ tổ. */
+export type KhbpTrangThai = "chua_giao" | "da_giao" | "dang_chay" | "tam_dung" | "hoan_thanh";
+/** Chip của bảng việc: năm trạng thái và Tất cả. */
+export type KhbpChip = KhbpTrangThai | "tat_ca";
 export interface KhbpViec {
   id: number;
   version: number;
@@ -3642,36 +3650,59 @@ export interface KhbpViec {
   so_luong_ra: number | null;
   don_vi_vao: string | null;
   don_vi_ra: string | null;
-  chay_phut: number | null;
-  setup_phut: number | null;
+  so_mau: number | null;
   may_id: number | null;
-  /** Máy in của bài tính giá chép xuống bước — đổi khỏi máy này phải có lý do. */
+  /** Máy theo báo giá (máy in của bài tính giá) — chạy máy khác phải có lý do. */
   may_goi_y_id: number | null;
-  may_goi_y_ten: string | null;
   /** Nhóm đang làm (chỉ có khi đã giao). */
   department_id: number | null;
   department_ten: string | null;
-  /** Nhóm đã chọn (hoặc gợi ý khi chỉ một nhóm hợp lệ) cho việc chưa giao. */
-  nhom_xep_id: number | null;
+  /** Nhóm điền sẵn cho lần Giao: nhóm cũ (vừa rút về) hoặc nhóm duy nhất hợp lệ. */
+  nhom_goi_y_id: number | null;
+  /** Lúc việc tới bộ phận (lệnh phát) — dòng "Tới …" dưới mã lệnh. */
+  toi_luc: string | null;
   da_giao_at: string | null;
-  /** Đã rời khay "Lệnh mới tới": có máy hoặc đã chọn Làm tay. */
-  da_xep: boolean;
   trang_thai: string;
-  thu_tu_xep: number | null;
+  trang_thai_kh: KhbpTrangThai;
+  /** Số tốt tổ đã ghi (null khi chưa bắt đầu). */
+  da_lam: number | null;
+  ly_do_tam_dung: string | null;
+  hoan_thanh_luc: string | null;
   may_chon: number[];
   nhom_chon: number[];
-  quy_cach: SxQuyCachThe | null;
-  ghi_chu: string | null;
-  khuon: SxKhuonChip | null;
-  khau_truoc: KhbpKhauTruoc | null;
 }
 export interface KhbpBang {
   bo_phan: KhbpBoPhan;
   nhom: { id: number; ten: string }[];
   may: KhbpMay[];
-  /** Máy đang gắn trên việc nhưng không thuộc bộ phận (máy tính giá của tổ khác). */
+  /** Máy đang gắn trên việc nhưng không thuộc bộ phận (máy theo báo giá ở tổ khác). */
   may_ngoai: KhbpMay[];
   viec: KhbpViec[];
+}
+
+/** Một trang bảng việc: lọc, đếm năm chip, cắt trang ở máy chủ. */
+export interface KhbpTrangViec {
+  items: KhbpViec[];
+  tong: number;
+  trang: number;
+  co_trang: number;
+  dem: Record<KhbpChip, number>;
+  /** Người xem có Giao việc ở bộ phận này. */
+  giao_duoc: boolean;
+  /** Máy của bộ phận (nhóm, tình trạng, số việc chờ) và máy ngoài các dòng nhắc tới. */
+  may: KhbpMay[];
+  /** Nhóm của bộ phận. */
+  nhom: { id: number; ten: string | null }[];
+  /** Số việc Đã giao làm tay (không máy) còn chờ chạy ở bộ phận. */
+  so_cho_lam_tay?: number;
+}
+
+export interface KhbpThamSoViec {
+  trang_thai: KhbpChip;
+  tim?: string;
+  trang?: number;
+  co_trang?: number;
+  loc?: ThamSoLoc;
 }
 
 export interface SxTepLenhNhom {
@@ -15614,29 +15645,34 @@ export const api = {
     bang(token: string, boPhanId: number): Promise<KhbpBang> {
       return authed<KhbpBang>(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}`, token);
     },
+    /** Bảng việc: tìm, kỳ (`tu_ngay`/`den_ngay`), lọc `may_id`/`nhom_id`, cắt trang ở máy chủ. */
+    viec(token: string, boPhanId: number, p: KhbpThamSoViec): Promise<KhbpTrangViec> {
+      const s = new URLSearchParams(qs({
+        trang_thai: p.trang_thai, tim: p.tim?.trim() || undefined, trang: p.trang, co_trang: p.co_trang,
+      }).replace(/^\?/, ""));
+      ganThamSoLoc(s, p.loc);
+      return authed<KhbpTrangViec>(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}/viec?${s}`, token);
+    },
     tep(token: string, congViecId: number): Promise<SxTepLenhNhom[]> {
       return authed<SxTepLenhNhom[]>(`/api/ke-hoach-bo-phan/viec/${congViecId}/tep`, token);
     },
-    /** Đặt máy (`null` = Làm tay) + nhóm cho việc chưa giao. Cả hai `null` = trả về khay. */
-    xep(
+    /** Ngăn của Việc của tổ cho một việc của bộ phận — chỉ xem, gác theo bộ phận. */
+    chiTiet(token: string, congViecId: number): Promise<SxWorkItemChiTiet> {
+      return authed<SxWorkItemChiTiet>(`/api/ke-hoach-bo-phan/viec/${congViecId}/chi-tiet`, token);
+    },
+    lichSu(token: string, congViecId: number): Promise<SxLichSuViec> {
+      return authed<SxLichSuViec>(`/api/ke-hoach-bo-phan/viec/${congViecId}/lich-su`, token);
+    },
+    /** Giao một việc: máy (`null` = Làm tay) + nhóm cùng lúc. Chạy khác máy theo báo giá phải có lý do. */
+    giao(
       token: string, congViecId: number,
       body: { may_id: number | null; department_id: number | null; ly_do?: string | null; version?: number },
-    ): Promise<{ id: number; version: number }> {
-      return authed(`/api/ke-hoach-bo-phan/viec/${congViecId}`, token, {
-        method: "PUT", body: JSON.stringify(body),
+    ): Promise<{ id: number; version: number; nhom_id: number }> {
+      return authed(`/api/ke-hoach-bo-phan/viec/${congViecId}/giao`, token, {
+        method: "POST", body: JSON.stringify(body),
       });
     },
-    thuTu(token: string, boPhanId: number, body: { may_id: number | null; ids: number[] }): Promise<{ ok: boolean }> {
-      return authed(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}/thu-tu`, token, {
-        method: "PUT", body: JSON.stringify(body),
-      });
-    },
-    giao(token: string, boPhanId: number, ids: number[]): Promise<{ so_viec: number; nhom_ids: number[] }> {
-      return authed(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}/giao`, token, {
-        method: "POST", body: JSON.stringify({ ids }),
-      });
-    },
-    rut(token: string, congViecId: number, version?: number): Promise<{ id: number }> {
+    rut(token: string, congViecId: number, version?: number): Promise<{ id: number; version: number }> {
       return authed(`/api/ke-hoach-bo-phan/viec/${congViecId}/rut`, token, {
         method: "POST", body: JSON.stringify({ version }),
       });

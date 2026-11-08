@@ -38,7 +38,7 @@ from ...models.san_xuat import SanXuatCongViec
 from ...models.san_xuat_vat_tu import SanXuatVatTuDeNghi
 from ...models.don_vi_do import TRAM_CAI
 from ...models.stock_request import REQ_CANCELLED, REQ_NHAP, REQ_REJECTED
-from ...doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop, kem_ban_to
+from ...doi_tuong_nhan import MAN_KHO, MAN_THEO_LENH, hop, kem_ban_to_viec
 from ...realtime import hub
 from ...repositories.audit_repo import AuditLogRepository
 from ...repositories.delivery_repo import DeliveryRepository
@@ -434,11 +434,12 @@ def _bao_ban_to_yeu_cau(req) -> None:
     cv_ids.discard(None)
     if not cv_ids:
         return
-    teams = list(db.scalars(
-        select(SanXuatCongViec.department_id).where(SanXuatCongViec.id.in_(cv_ids))))
-    # Một sự kiện là đủ: bàn tổ nạp lại cả danh sách lẫn ngăn đang mở theo `eventTick`.
+    viec = db.execute(select(SanXuatCongViec.department_id, SanXuatCongViec.bo_phan_id)
+                      .where(SanXuatCongViec.id.in_(cv_ids))).all()
+    # Một sự kiện là đủ: bàn tổ nạp lại cả danh sách lẫn ngăn đang mở theo `eventTick`. Việc chưa
+    # giao thì chỉ Kế hoạch bộ phận giữ việc (thu hồi lệnh huỷ hàng loạt yêu cầu kho, 08/11/2026).
     hub.gui({"type": "san_xuat_cong_viec_changed", "request_id": req.id},
-            **kem_ban_to(MAN_THEO_LENH, teams))
+            **kem_ban_to_viec(MAN_THEO_LENH, [tuple(v) for v in viec]))
 
 
 def phat_su_kien_kho(req, *, bao_nguoi_tao: bool) -> None:

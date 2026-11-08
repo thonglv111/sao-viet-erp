@@ -135,8 +135,8 @@ export const NAV: NavSection[] = [
       // bỏ đánh số về `xep_lich`, mg `0314` chép quyền của `xep_lich_3` sang nên không ai mất
       // đường vào. Dấu trang cũ `/xep-lich-3` và `/xep-lich-cong-doan-2` không còn dùng được.
       { id: "xep-lich", label: "Xếp lịch", icon: "gantt", module: "xep_lich" },
-      // Kế hoạch bộ phận (07/11/2026): bộ phận nhận lệnh đã phát, chọn máy + nhóm rồi Giao xuống tổ.
-      { id: "ke-hoach-bo-phan", label: "Kế hoạch bộ phận", icon: "gantt", module: "ke_hoach_bo_phan" },
+      // (Mục chung "Kế hoạch bộ phận" gỡ 08/11/2026: mỗi bộ phận có mục "Kế hoạch" riêng, ĐỘNG dưới
+      // khối Tổ sản xuất, khoá `ke_hoach_bp_<id>` — AppShell dựng.)
       // KCS (09/10/2026) — ô quyền thật `kcs` (Xem · Thao tác · Đóng lệnh thiếu), thay cờ phòng ban
       // "Tổ KCS đích danh" từng tiêm mục này động vào khối Tổ sản xuất. Kiểm cả chuỗi mọi tổ.
       { id: "kcs", label: "KCS", icon: "badgeCheck", module: "kcs" },

@@ -27,7 +27,7 @@ from ..models.lsx import Lsx
 from ..models.user import User
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..services.thong_bao_man import bao, kenh_to
-from ..doi_tuong_nhan import BAN_TO, MAN_KHVT, MAN_THEO_LENH, NGHE_LENH, hop, kem_ban_to
+from ..doi_tuong_nhan import MAN_KHVT, MAN_THEO_LENH, NGHE_LENH, hop
 from ..realtime import hub
 from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
@@ -90,15 +90,33 @@ def _map(exc: Exception) -> HTTPException:
 
 def _phat_lich_doi(lsx_id: int) -> None:
     """Đặt / dời / bỏ mốc: nhóm `san_xuat` + `khvt` (màn theo lệnh) và badge Xếp lịch. Bàn tổ cầm
-    gói ĐÃ phát hành — lịch mới chỉ xuống tổ qua "phát hành cập nhật" — nên không nhận."""
-    hub.gui({"type": "xep_lich_changed", "lsx_id": lsx_id}, quyen=hop(MAN_THEO_LENH, MAN_KHVT))
+    gói ĐÃ phát hành — lịch mới chỉ xuống tổ qua "phát hành cập nhật" — nên không nhận. Kế hoạch bộ
+    phận cũng không đọc gì của Xếp lịch nên bỏ khoá giả của nó (08/11/2026)."""
+    from ..services.quyen_ke_hoach import NGHE_KE_HOACH
+
+    quyen = [k for k in hop(MAN_THEO_LENH, MAN_KHVT) if k != NGHE_KE_HOACH]
+    hub.gui({"type": "xep_lich_changed", "lsx_id": lsx_id}, quyen=quyen)
 
 
-def _phat_goi_xuong_xuong(lsx_id: int) -> None:
-    """Phát hành / phát hành cập nhật / thu hồi: gói việc ở xưởng đổi ⇒ thêm MỌI người có Bàn tổ
-    (bàn nào có việc của lệnh thì phải tự nạp; tra tổ cần đọc lại gói, còn cửa này thưa)."""
+def _noi_goi(db: Session, lsx_id: int) -> tuple[set[int], set[int]]:
+    """Ảnh chụp (tổ, bộ phận) cầm việc của gói chứa lệnh — chụp TRƯỚC khi đổi gói, vì thu hồi
+    xong thì việc cũ không còn chỉ ra tổ nào nữa."""
+    return SanXuatRepository(db).to_cua_goi_chua_lenh({lsx_id})
+
+
+def _phat_goi_xuong_xuong(db: Session, lsx_id: int, truoc: tuple[set[int], set[int]]) -> None:
+    """Phát hành / phát hành cập nhật / thu hồi: gói việc ở xưởng đổi ⇒ bàn của ĐÚNG các tổ cầm
+    việc của gói trước hoặc sau lần đổi, và Kế hoạch của đúng các bộ phận đó (08/11/2026).
+
+    Trước đây gửi MỌI người có Bàn tổ: một lần phát lệnh bắt cả xưởng nạp lại ba API cùng lúc
+    (100 người ≈ 300 request, cỡ 40 giây CPU của một worker) dù bàn của họ không đổi gì."""
+    from ..services.quyen_ke_hoach import NGHE_KE_HOACH, khoa_ke_hoach
+
     _phat_lich_doi(lsx_id)
-    hub.gui({"type": "lsx_changed"}, quyen=hop(NGHE_LENH, (BAN_TO,)))
+    to_sau, bp_sau = _noi_goi(db, lsx_id)
+    to, bo_phan = truoc[0] | to_sau, truoc[1] | bp_sau
+    quyen = [k for k in NGHE_LENH if k != NGHE_KE_HOACH] + [khoa_ke_hoach(b) for b in bo_phan]
+    hub.gui({"type": "lsx_changed"}, quyen=quyen, to=sorted(to))
 
 
 def _phat_lich_doi_may(may_id: int) -> None:
@@ -258,15 +276,16 @@ def _cham_cho_xep(db: Session, lsx_id: int, actor_id: int) -> None:
 
 
 def _cham_viec_moi(db: Session, lsx_id: int, actor_id: int) -> None:
-    """Phát hành ⇒ chấm đỏ bàn của từng tổ nhận việc (việc đã giao), và chấm Kế hoạch bộ phận cho
-    từng bộ phận còn việc chờ xếp (07/11/2026) kèm sự kiện để màn đang mở tự nạp."""
+    """Phát hành ⇒ chấm đỏ bàn của từng tổ nhận việc (việc đã giao), và chấm mục Kế hoạch của từng
+    bộ phận còn việc chờ giao (08/11/2026: kênh riêng mỗi bộ phận) kèm sự kiện để màn đang mở tự nạp."""
     from ..repositories.ke_hoach_bo_phan_repo import KeHoachBoPhanRepository
+    from ..services.quyen_ke_hoach import khoa_ke_hoach
 
     for to_id in sorted(SanXuatRepository(db).to_cua_lenh([lsx_id])):
         bao(db, kenh=kenh_to(to_id), loai="viec_moi", actor_id=actor_id)
     for bp in sorted(KeHoachBoPhanRepository(db).bo_phan_cho_giao([lsx_id])):
-        bao(db, kenh="ke_hoach_bo_phan", loai="lenh_moi", actor_id=actor_id, phong_id=bp)
-        hub.gui({"type": "ke_hoach_bo_phan_changed", "bo_phan_id": bp}, quyen=["ke_hoach_bo_phan"])
+        bao(db, kenh=khoa_ke_hoach(bp), loai="lenh_moi", actor_id=actor_id, phong_id=bp)
+        hub.gui({"type": "ke_hoach_bo_phan_changed", "bo_phan_id": bp}, quyen=[khoa_ke_hoach(bp)])
 
 
 @router.post("/phat-hanh/{lsx_id}", response_model=None)
@@ -281,12 +300,13 @@ def phat_hanh(
     để toast nói cho người phát hành biết."""
     from ..services.san_xuat.vat_tu_tu_lap import bao_sau_phat_hanh
 
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).phat_hanh(lsx_id, actor=user)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     _cham_viec_moi(db, lsx_id, user.id)
     bao_sau_phat_hanh(db, kq["_tu_lap"], ma_lenh=kq["ma"], actor_id=user.id)
     return {"ok": True, "vat_tu": kq["vat_tu"]}
@@ -318,6 +338,7 @@ def phat_hanh_cap_nhat(
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
 ) -> dict:
     """Đẩy lịch mới xuống xưởng cho phần CHƯA bắt đầu (§4.3), giữ nguyên việc đã chạy."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).phat_hanh_cap_nhat(lsx_id, actor=user, ly_do=payload.ly_do)
     except Exception as exc:
@@ -329,7 +350,7 @@ def phat_hanh_cap_nhat(
     _cham_viec_moi(db, lsx_id, user.id)
     # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
     # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     return kq
 
 
@@ -341,6 +362,7 @@ def thu_hoi(
     ly_do: str | None = Query(None, max_length=500),
 ) -> dict:
     """Thu hồi CẢ CỤM đã phát hành chung một gói — mọi lệnh trong cụm quay lại khay chờ xếp."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
@@ -349,7 +371,7 @@ def thu_hoi(
 
     xoa_cache_can_doi()
     bao_da_huy(db, kq.get("yeu_cau_da_huy") or [])
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     for i in kq["cum_lsx"]:
         _cham_cho_xep(db, i, user.id)
     return {"ok": True, "cum_lsx": kq["cum_lsx"]}

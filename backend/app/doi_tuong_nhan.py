@@ -46,7 +46,9 @@ MAN_NHAN_SU = ("cham_cong", "nghi_phep", "tang_ca", "luong")
 #: Theo dõi SX · Kế hoạch vật tư · Bài ghép · Xếp lịch. Bàn tổ thêm riêng bằng `to=` / `BAN_TO`.
 MAN_THEO_LENH = (
     KCS, "don_hang_ban", "san_xuat", "lenh_san_xuat", "theo_doi_san_xuat", "ke_hoach_vat_tu",
-    "bai_ghep_2", "xep_lich", "ke_hoach_bo_phan",
+    "bai_ghep_2", "xep_lich",
+    # Kế hoạch của từng bộ phận (`ke_hoach_bp_<id>`, 08/11/2026): khoá giả, xem `nap_quyen_nhan`.
+    "ke_hoach_bp",
 )
 #: nhóm `kho` TRỪ bàn tổ: Yêu cầu nhập xuất · KCS · drawer Đơn hàng bán · Kế hoạch vật tư.
 MAN_KHO = ("kho", KCS, "don_hang_ban", "ke_hoach_vat_tu")
@@ -74,11 +76,68 @@ def hop(*tap: Iterable[str]) -> list[str]:
 NGHE_LENH = hop(MAN_THEO_LENH, MAN_BAN_HANG, MAN_KHVT)
 
 
+def _khoa_ke_hoach_cua_to(teams: list[int]) -> set[str]:
+    """Khoá Kế hoạch (`ke_hoach_bp_<id>`) của mọi bộ phận chứa các tổ này: chính tổ và tổ tiên của nó
+    (bộ phận nào không có dòng quyền thì khoá đó không ai giữ, thừa vô hại). Đọc cây mỗi lần gửi —
+    gửi thưa hơn đọc nhiều, và cây vừa đổi thì vẫn tới đúng bộ phận mới."""
+    from .services.quyen_ke_hoach import khoa_ke_hoach
+    from .services.quyen_to import doc_cay
+
+    db = SessionLocal()
+    try:
+        cha = doc_cay(db).cha_day_du
+    finally:
+        db.close()
+    ra: set[str] = set()
+    for t in teams:
+        cur, seen = t, set()
+        while cur is not None and cur not in seen:
+            seen.add(cur)
+            ra.add(khoa_ke_hoach(cur))
+            cur = cha.get(cur)
+    return ra
+
+
 def kem_ban_to(quyen: Iterable[str], team_ids: Iterable[int | None]) -> dict:
     """Tham số `hub.gui` cho sự kiện đụng bàn tổ: biết tổ ⇒ `to=` đúng các tổ đó; không biết tổ nào
-    (bước chung, thuê ngoài…) ⇒ mọi người có Bàn tổ (`BAN_TO`) — thiếu còn tệ hơn thừa."""
+    (bước chung, thuê ngoài…) ⇒ mọi người có Bàn tổ (`BAN_TO`) — thiếu còn tệ hơn thừa.
+
+    Biết tổ thì khoá giả `ke_hoach_bp` (mọi người kế hoạch của MỌI bộ phận) thu về đúng bộ phận chứa
+    tổ: một lần ghi sản lượng ở Tổ in không bắt màn Kế hoạch Tổ cán màng nạp lại (08/11/2026)."""
+    from .services.quyen_ke_hoach import NGHE_KE_HOACH
+
     teams = sorted({int(t) for t in team_ids if t})
-    return {"quyen": hop(quyen, () if teams else (BAN_TO,)), "to": teams}
+    q = set(quyen)
+    if teams and NGHE_KE_HOACH in q:
+        try:
+            khoa = _khoa_ke_hoach_cua_to(teams)
+        except Exception:  # noqa: BLE001 — đọc cây hỏng thì gửi rộng như cũ, không làm hỏng lượt ghi
+            khoa = None
+        if khoa:
+            q.discard(NGHE_KE_HOACH)
+            q |= khoa
+    return {"quyen": hop(q, () if teams else (BAN_TO,)), "to": teams}
+
+
+def kem_ban_to_viec(quyen: Iterable[str], viec: Iterable[tuple[int | None, int | None]]) -> dict:
+    """Như `kem_ban_to` nhưng nhận cặp `(department_id, bo_phan_id)` của từng việc. Việc CHƯA GIAO
+    (chưa tổ, còn ở khay bộ phận) không nằm trên bàn tổ nào ⇒ không kéo `BAN_TO` cả nhà máy, chỉ báo
+    Kế hoạch của bộ phận giữ việc. Việc không tổ cũng không bộ phận (gia công) vẫn gửi rộng."""
+    from .services.quyen_ke_hoach import NGHE_KE_HOACH, khoa_ke_hoach
+
+    viec = list(viec)
+    if not viec or any(d is None and bp is None for d, bp in viec):
+        return kem_ban_to(quyen, ())
+    teams = [d for d, _ in viec if d is not None]
+    cho = {int(bp) for d, bp in viec if d is None}
+    goc = set(quyen)
+    kw = kem_ban_to(goc, teams) if teams else {"quyen": hop(goc), "to": []}
+    q = set(kw["quyen"])
+    if cho and NGHE_KE_HOACH in goc:
+        if not teams:
+            q.discard(NGHE_KE_HOACH)
+        q |= {khoa_ke_hoach(b) for b in cho}
+    return {"quyen": hop(q), "to": kw["to"]}
 
 
 def nap_quyen_nhan(user_id: int) -> frozenset[str]:
@@ -96,6 +155,9 @@ def nap_quyen_nhan(user_id: int) -> frozenset[str]:
         khoa = set(AuthorizationService(RoleRepository(db)).readable_modules(user))
         if any(k.startswith(KHOA_TIEN_TO) for k in khoa):
             khoa.add(BAN_TO)
+        from .services.quyen_ke_hoach import NGHE_KE_HOACH, la_khoa_ke_hoach
+        if any(la_khoa_ke_hoach(k) for k in khoa):
+            khoa.add(NGHE_KE_HOACH)
         if user.role_id is not None:
             q = quyen_to_cua(db, user)
             khoa.update(f"to:{t}" for t in q.tron[VIEC_XEM] | q.rieng[VIEC_XEM])

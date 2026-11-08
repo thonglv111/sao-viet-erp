@@ -899,6 +899,26 @@ class SanXuatRepository:
         ).all()
         return {dept_id: n for dept_id, n in rows if dept_id is not None}
 
+    def to_cua_goi_chua_lenh(self, lsx_ids: set[int]) -> tuple[set[int], set[int]]:
+        """(tổ, bộ phận) đang cầm việc trong MỌI gói có bước của các lệnh này (cả bước chung bài
+        ghép cùng gói, cả cụm lệnh chung gói). Đích SSE của phát hành / cập nhật / thu hồi: bàn tổ
+        chỉ bày việc có `department_id`, việc chưa giao và việc gia công để trống cột này nên không
+        bàn nào thấy; việc chưa giao nằm ở khay Kế hoạch của `bo_phan_id`."""
+        ids = {int(i) for i in lsx_ids if i}
+        if not ids:
+            return set(), set()
+        cv = SanXuatCongViec
+        goi = select(cv.goi_id).where(cv.lsx_id.in_(ids))
+        to: set[int] = set()
+        bo_phan: set[int] = set()
+        for d, bp in self.db.execute(
+                select(cv.department_id, cv.bo_phan_id).distinct().where(cv.goi_id.in_(goi))):
+            if d is not None:
+                to.add(int(d))
+            if bp is not None:
+                bo_phan.add(int(bp))
+        return to, bo_phan
+
     def lsx_nhan(self, lsx_ids: set[int]) -> dict[int, tuple[str, str]]:
         """{lsx_id: (mã, tên)} để gắn nhãn công việc — không có thì bỏ khỏi map."""
         if not lsx_ids:

@@ -9,9 +9,9 @@
 //
 // Component KHÔNG tự gọi API ghi: phát ý định qua callback; controller lo dialog lý do + version lạc quan.
 // Mọi mặt GHI của pha sau (sản lượng · bàn giao · vật tư) đi qua `exec.*`.
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type {
-  SxNhanVienChon, SxWorkItemChiTiet, SxHoTroUngVien,
+  SxLichSuViec, SxNhanVienChon, SxTepLenhNhom, SxWorkItemChiTiet, SxHoTroUngVien,
 } from "../api/client";
 import type { MayChon } from "../api/kyThuatMay";
 import { Button } from "../components/Button";
@@ -80,6 +80,14 @@ interface Props {
   onXemKcs?: (loiIds: number[]) => void;
   /** Tên tổ của bàn — form Kho mở từ tab Vật tư ghi "Bàn tổ … ›". */
   tenTo?: string;
+  /** Mở từ màn Kế hoạch của bộ phận (08/11/2026): ngăn chỉ xem, không có ⋯ Đổi máy và tab KCS;
+   *  nút đầu ngăn là Giao / Rút lại của bộ phận (`nutDau`) thay cho nút chạy máy của tổ; tệp và
+   *  lịch sử nạp qua đường gác theo bộ phận. */
+  boPhan?: {
+    nutDau: ReactNode;
+    napLichSu: (token: string, congViecId: number) => Promise<SxLichSuViec>;
+    napTep: (token: string, congViecId: number) => Promise<SxTepLenhNhom[]>;
+  };
 }
 
 export type ThsxDrawerTab = "tq" | "qc" | "sl" | "gn" | "vt" | "kcs" | "ls";
@@ -163,7 +171,7 @@ function ThanhKeoNgan() {
 export function ThsxDrawer({
   chiTiet, loi = false, candidates, hoTroUngVien, ungVienHomNay = null, onMoChonNguoi, mayOptions, exec, busy,
   onGiao, onRut, onBatDau, onNhanKhuon, onTraKhuon, onTamDung, onKetThuc, onClose, tabDau, dinhKemDem,
-  kcsTick, kcsLoiChoXem, cho, onXemKcs, tenTo,
+  kcsTick, kcsLoiChoXem, cho, onXemKcs, tenTo, boPhan,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   useDoRongNganChung();
@@ -273,11 +281,11 @@ export function ThsxDrawer({
     { k: "sl", ten: "Sản lượng", phu: soMe > 0 ? `${soMe} lần` : undefined },
     { k: "gn", ten: "Giao và nhận", cham: chamGn ? "Có bàn giao chờ tổ nhận" : null },
     { k: "vt", ten: "Vật tư" },
-    { k: "kcs", ten: "KCS", cham: chamKcs ? "Có lỗi KCS chờ tổ xem" : null },
+    ...(boPhan ? [] : [{ k: "kcs" as const, ten: "KCS", cham: chamKcs ? "Có lỗi KCS chờ tổ xem" : null }]),
     { k: "ls", ten: "Lịch sử" },
   ];
 
-  const nutChay = cv && !done && (
+  const nutChay = boPhan ? boPhan.nutDau : cv && !done && (
     tt === "running" ? (
       <>
         <Button variant="secondary" onClick={onTamDung} disabled={!canTamDung}>
@@ -307,7 +315,8 @@ export function ThsxDrawer({
     <ThsxCotPhai chiTiet={chiTiet} candidates={candidates} ungVienHomNay={ungVienHomNay}
       onMoChonNguoi={onMoChonNguoi} busy={busy} canAssign={canAssign} chuaGiaoChoToi={chuaGiaoChoToi}
       vuong={{ coNguoi, khuonChoNhan, thieuDauVao, vatTu, mayDung }}
-      onGiao={onGiao} onRut={onRut} onNhanKhuon={onNhanKhuon} onTraKhuon={onTraKhuon} dinhKemDem={dinhKemDem} hep={hep} />
+      onGiao={onGiao} onRut={onRut} onNhanKhuon={onNhanKhuon} onTraKhuon={onTraKhuon} dinhKemDem={dinhKemDem} hep={hep}
+      napTep={boPhan?.napTep} />
   );
 
   return (
@@ -339,7 +348,7 @@ export function ThsxDrawer({
         </div>
         <div className="thsx-b-hd__acts">
           {!hep && nutChay}
-          {cv && isMay && !done && (
+          {cv && isMay && !done && !boPhan && (
             <span className="thsx-b-menu">
               <button type="button" className="thsx-b-ic" aria-label="Thêm thao tác" aria-haspopup="menu"
                 aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
@@ -448,11 +457,11 @@ export function ThsxDrawer({
                 )}
 
                 {/* KCS kiểm công đoạn này (theo lệnh, mg 0306): các lần kiểm, lỗi + ảnh. Mở tab là tổ đã xem. */}
-                {activeTab === "kcs" && (
+                {activeTab === "kcs" && !boPhan && (
                   <ThsxKetQuaKcs congViecId={cv.id} kcsTick={kcsTick} loiChoXem={kcsLoiChoXem} onXem={onXemKcs} />
                 )}
 
-                {activeTab === "ls" && <ThsxTabLichSu congViecId={cv.id} tick={chiTiet} />}
+                {activeTab === "ls" && <ThsxTabLichSu congViecId={cv.id} tick={chiTiet} nap={boPhan?.napLichSu} />}
               </>
             )}
           </div>

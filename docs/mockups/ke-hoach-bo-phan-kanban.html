@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanban kế hoạch bộ phận</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Token chép từ frontend/src/styles/tokens.css */
+:root{
+  --canvas:#fff; --paper:#f8fafc; --ink:#0f172a; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c; --tt-cam-dot:#f97316;
+  --tt-cyan-bg:#cffafe; --tt-cyan-fg:#0e7490; --tt-cyan-dot:#06b6d4;
+  --tt-tim-bg:#ede9fe; --tt-tim-fg:#6d28d9; --tt-tim-dot:#8b5cf6;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d; --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2; --tt-do-fg:#b91c1c; --tt-do-dot:#ef4444;
+  --tt-slate-bg:#f1f5f9; --tt-slate-fg:#475569; --tt-slate-dot:#94a3b8;
+  --ff:"Be Vietnam Pro",ui-sans-serif,system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--ff);font-size:13px;color:var(--ink);background:#e9edf2}
+button,input{font:inherit;color:inherit}
+
+/* ---------- vỏ mockup (không phải app) ---------- */
+.mk{padding:16px;max-width:1640px;margin:0 auto}
+.mk h1{font-size:18px;font-weight:500;margin:0 0 6px}
+.mk__tk{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:12px 16px;margin-bottom:14px;line-height:1.6;max-width:1180px}
+.mk__tk h2{font-size:13px;font-weight:500;margin:0 0 4px;color:var(--ash)}
+.mk__tk ol{margin:0;padding-left:18px}
+.mk__tk li{margin:2px 0}
+.mk__tk a{color:var(--ink)}
+.mk__tk .lay{color:var(--ash)}
+.mk__khung{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.mk__nhan{font-size:12px;color:var(--ash);margin:0 0 6px}
+.khung{position:relative;background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.khung--pc{width:1200px;height:780px}
+.khung--dt{flex:0 0 375px;width:375px;height:780px;border-radius:28px;border:6px solid #1e293b}
+.khung__cuon{position:absolute;inset:0;overflow:auto}
+.mk__bat{display:flex;gap:8px;margin:0 0 10px;flex-wrap:wrap}
+.mk__bat button{border:1px solid var(--rule);background:var(--canvas);border-radius:8px;padding:6px 12px;cursor:pointer}
+.mk__bat button[aria-pressed=true]{border-color:var(--ink)}
+
+/* ---------- app ---------- */
+.app{padding:16px 18px 24px;display:flex;flex-direction:column;height:100%}
+.dau{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.dau h2{font-size:18px;font-weight:500;margin:0}
+.dau__phu{color:var(--ash-2);font-size:12px}
+.xem{margin-left:auto;display:flex;background:var(--rule-hair);border-radius:10px;padding:3px}
+.xem button{border:0;background:none;border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--ash)}
+.xem button[aria-pressed=true]{background:var(--canvas);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.08)}
+.thanh{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.otim{flex:0 1 380px;display:flex;align-items:center;gap:6px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;height:36px;background:var(--canvas)}
+.otim input{border:0;outline:0;flex:1;min-width:0;background:transparent}
+.nut{height:36px;border:1px solid var(--rule);background:var(--canvas);border-radius:8px;padding:0 12px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap}
+.batTat{margin-left:auto;display:inline-flex;align-items:center;gap:8px;color:var(--ash);cursor:pointer;user-select:none}
+.batTat i{width:30px;height:18px;border-radius:9px;background:var(--rule);position:relative;transition:background .15s}
+.batTat i::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
+.batTat[aria-checked=true] i{background:var(--ink)}
+.batTat[aria-checked=true] i::after{left:14px}
+
+/* Bảng: cột Chờ giao đứng yên bên trái, các cột máy chia đều phần còn lại, nhiều máy mới cuộn ngang. */
+.ban{flex:1;min-height:0;display:flex;gap:12px;align-items:stretch}
+.cho{flex:0 0 256px;display:flex;flex-direction:column;background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;min-height:0}
+.cho__dau{display:flex;align-items:center;gap:8px;padding:12px 12px 10px;border-bottom:1px solid var(--rule-hair)}
+.cho__dau b{font-weight:500;font-size:14px}
+.so{min-width:22px;height:20px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;background:var(--rule-hair);color:var(--ash)}
+.so--vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.cho__sx{margin-left:auto;font-size:12px;color:var(--ash-2)}
+.cho__ds{padding:8px;display:flex;flex-direction:column;gap:6px;overflow:auto;min-height:0}
+.may-cuon{flex:1;min-width:0;position:relative}
+.may-cuon::before,.may-cuon::after{content:"";position:absolute;top:0;bottom:12px;width:18px;pointer-events:none;z-index:2;opacity:0;transition:opacity .15s}
+.may-cuon::before{left:0;background:linear-gradient(90deg,var(--paper),transparent)}
+.may-cuon::after{right:0;background:linear-gradient(270deg,var(--paper),transparent)}
+.may-cuon.co-trai::before,.may-cuon.co-phai::after{opacity:1}
+.cac-may{display:flex;gap:12px;height:100%;overflow-x:auto;padding-bottom:12px}
+.cot{flex:1 0 250px;min-width:0;max-width:340px;display:flex;flex-direction:column;background:#eef1f5;border-radius:12px;min-height:0;transition:opacity .15s,box-shadow .15s}
+.cot__dau{padding:10px 12px 8px;min-width:0}
+.cot__1{display:flex;align-items:center;gap:8px}
+.cham{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+.cot__ten{flex:1;min-width:0;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cot__2{display:flex;gap:10px;margin-top:4px;font-size:12px;color:var(--ash-2);white-space:nowrap;overflow:hidden}
+.cot__2 .canh{color:var(--tt-cam-fg)}
+.cot__3{display:flex;gap:14px;white-space:nowrap;overflow:hidden;margin-top:6px;font-size:12px;color:var(--ash-2)}
+.cot__3 span em{font-style:normal;color:var(--ink)}
+.cot__giao{display:none;margin-top:8px;width:100%;height:34px;border:0;border-radius:8px;background:var(--ink);color:#fff;cursor:pointer}
+.cot__ds{padding:0 8px 8px;display:flex;flex-direction:column;gap:6px;overflow:auto;min-height:0}
+.cot__them{font-size:12px;color:var(--ash);text-align:center;padding:8px;border-radius:8px;cursor:pointer}
+.cot__them:hover{background:var(--rule-hair)}
+
+/* Máy trống gom thành một dải gọn trên bảng (Linear: nhóm trống bị giấu, vẫn thả việc vào được). */
+.trong{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;color:var(--ash-2)}
+.trong__may{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 4px 0 10px;border-radius:999px;background:var(--canvas);border:1px solid var(--rule-soft);font-size:12.5px;color:var(--ink)}
+.trong__may span{padding-right:6px}
+.trong__may button{display:none;border:0;background:var(--ink);color:#fff;border-radius:999px;font-size:12px;height:22px;padding:0 10px;cursor:pointer}
+.dang-chon .trong__may.nhan{border-color:var(--tt-la-dot)}
+
+/* Thẻ việc */
+.the{background:var(--canvas);border-radius:10px;padding:9px 10px;box-shadow:0 0 0 1px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.05);cursor:pointer;text-align:left;border:0;width:100%;display:block}
+.the:hover{box-shadow:0 0 0 1px var(--rule),0 4px 12px rgba(15,23,42,.08)}
+.the[aria-pressed=true]{box-shadow:0 0 0 2px var(--ink)}
+.the__1{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ash-2)}
+.the__ma{flex:1;min-width:0}
+.han{padding:1px 6px;border-radius:5px;background:var(--rule-hair);color:var(--ash);font-size:11.5px;white-space:nowrap}
+.han--gan{background:var(--tt-vang-bg);color:var(--tt-vang-fg)}
+.han--tre{background:var(--tt-do-bg);color:var(--tt-do-fg)}
+.the__sp{margin-top:4px;font-size:13.5px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.the__3{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:11.5px;line-height:20px;padding:0 7px;border-radius:5px;background:var(--rule-hair);color:var(--ash);white-space:nowrap}
+.tag--mau{background:var(--tt-tim-bg);color:var(--tt-tim-fg)}
+.tt{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;line-height:20px;padding:0 7px;border-radius:999px;white-space:nowrap}
+.tt::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tt--giao{background:var(--tt-tim-bg);color:var(--tt-tim-fg)}
+.tt--chay{background:var(--tt-cyan-bg);color:var(--tt-cyan-fg)}
+.tt--dung{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.the__tien{display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11.5px;color:var(--tt-cyan-fg)}
+.the__tien i{flex:1;height:5px;border-radius:3px;background:#e2e8f0;overflow:hidden}
+.the__tien i b{display:block;height:100%;background:var(--tt-cyan-dot)}
+.the__ly{margin-top:6px;font-size:12px;color:var(--tt-cam-fg)}
+.the__may{margin-top:5px;font-size:12px;color:var(--ash-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Đang chọn một việc ở Chờ giao: cột nhận được sáng nút Giao, cột không nhận được mờ đi. */
+.dang-chon .cot.nhan .cot__giao,.dang-chon .trong__may.nhan button{display:block}
+.dang-chon .trong__may.nhan span{padding-right:0}
+.dang-chon .cot.nhan .cot__3{display:none}
+.dang-chon .cot.nhan{box-shadow:inset 0 0 0 2px var(--tt-la-dot)}
+.dang-chon .cot:not(.nhan),.dang-chon .trong__may:not(.nhan){opacity:.45}
+.dang-chon .cot.goi-y .cot__giao::after{content:"  theo báo giá";opacity:.7}
+
+/* ---------- điện thoại ---------- */
+.dt{padding:10px 10px 90px}
+.dt .dau{margin-bottom:10px}
+.dt .dau h2{font-size:17px}
+.dt .otim{flex:1}
+.dt-may{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;margin-top:10px;overflow:hidden}
+.dt-may__dau{display:flex;align-items:center;gap:8px;padding:11px 12px;cursor:pointer}
+.dt-may__dau .cot__ten{font-size:14px}
+.dt-may__2{display:flex;gap:10px;padding:0 12px 10px 28px;margin-top:-6px;font-size:12px;color:var(--ash-2)}
+.dt-may__2 .canh{color:var(--tt-cam-fg)}
+.dt-may__ds{padding:0 8px 8px;display:flex;flex-direction:column;gap:6px;background:#f6f8fa;padding-top:8px}
+.dt-may.gap .dt-may__ds{display:none}
+.mui{color:var(--ash-3);font-size:12px;transition:transform .15s}
+.dt-may.gap .mui{transform:rotate(-90deg)}
+.dt-trong{margin-top:12px}
+.dt-bar{position:absolute;left:10px;right:10px;bottom:14px;background:var(--ink);color:#fff;border-radius:14px;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;box-shadow:0 10px 30px rgba(15,23,42,.28)}
+.dt-bar div{flex:1;min-width:0}
+.dt-bar small{display:block;opacity:.7;font-size:11.5px;margin-top:1px}
+.dt-bar button{height:38px;border:0;border-radius:10px;background:rgba(255,255,255,.16);color:#fff;padding:0 14px}
+</style>
+</head>
+<body>
+<div class="mk">
+  <h1>Kanban của Kế hoạch bộ phận, làm lại theo tham khảo</h1>
+  <div class="mk__tk">
+    <h2>Lấy từ đâu</h2>
+    <ol>
+      <li><a href="https://linear.app/docs/board-layout" target="_blank" rel="noopener">Linear, Board layout</a>:
+        <span class="lay">có tuỳ chọn "Show empty groups" để giấu cột trống; cột bị giấu dồn về cuối và vẫn thả việc vào được.
+        Thẻ không chứa mô tả, muốn xem thêm thì mở thẻ.</span> Ở đây: máy trống gom thành một dải gọn trên bảng, chọn một việc thì dải này cũng hiện nút giao; công tắc
+        "Máy trống thành cột" để bung ra; thẻ chỉ còn mã, hạn, sản phẩm, số màu, số lượng, trạng thái.</li>
+      <li><a href="https://docs.github.com/en/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/customizing-the-board-layout" target="_blank" rel="noopener">GitHub Projects, Customizing the board layout</a>:
+        <span class="lay">đầu cột hiện số thẻ và tổng một trường số (field sum); vượt giới hạn cột thì số được tô.</span>
+        Ở đây: đầu cột máy ghi số việc chờ, số đang chạy và tổng tờ chờ chạy, để biết máy nào đang gánh nặng.</li>
+      <li><a href="https://www.atlassian.com/agile/kanban/boards" target="_blank" rel="noopener">Atlassian, Kanban boards</a>:
+        <span class="lay">cột đầu là hàng chờ, nơi việc được nhận vào (commitment point); WIP limit để lộ chỗ nghẽn.</span>
+        Ở đây: Chờ giao là cột cố định bên trái, không cuộn theo các máy; máy có phiếu sửa chữa hay bảo trì ghi chữ cam ở đầu cột.</li>
+      <li><a href="https://trello.com/guide/trello-101" target="_blank" rel="noopener">Trello 101</a>:
+        <span class="lay">cột cao theo nội dung, thẻ trắng trên nền xám nhạt.</span> Ở đây: bỏ ô viền đứt "Máy chưa có việc",
+        tiêu đề máy không tô nền màu, chỉ còn chấm tình trạng.</li>
+    </ol>
+  </div>
+  <div class="mk__bat">
+    <button type="button" id="thuChon">Thử: bấm chọn một việc ở Chờ giao</button>
+    <button type="button" id="thuBo">Bỏ chọn</button>
+  </div>
+  <div class="mk__khung">
+    <div>
+      <p class="mk__nhan">Máy tính 1440, phần nội dung cạnh thanh bên rộng 1200</p>
+      <div class="khung khung--pc"><div class="khung__cuon"><div class="app" id="pc"></div></div></div>
+    </div>
+    <div>
+      <p class="mk__nhan">Điện thoại 375</p>
+      <div class="khung khung--dt"><div class="khung__cuon"><div class="dt" id="dt"></div></div>
+        <div class="dt-bar"><div>Chờ giao 3<small>Hạn gần nhất 10/11</small></div><button type="button">Mở</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Dữ liệu mẫu: Tổ in, năm máy và Làm tay.
+const MAY = [
+  { id: 2, ten: "Máy in 2 màu Mitsubishi 72×102", tt: ["Đang chạy", "--tt-cyan-dot"], nhom: "Nhóm thợ in máy 2 màu" },
+  { id: 4, ten: "Máy in 4 màu Mitsubishi 79×109", tt: ["Có phiếu sửa chữa", "--tt-cam-dot", 1], nhom: "Nhóm thợ in máy 4 màu" },
+  { id: 5, ten: "Máy in 5 màu Mitsubishi 54×79", tt: ["Xếp được", "--tt-la-dot"], nhom: "Nhóm thợ in máy 5 màu" },
+  { id: 6, ten: "Máy in 6 màu Mitsubishi 72×102", tt: ["Xếp được", "--tt-la-dot"], nhom: "Nhóm thợ in máy 6 màu" },
+  { id: 7, ten: "Máy in 7 màu Heidelberg 72×102", tt: ["Bảo trì", "--tt-cam-dot", 1], nhom: "Nhóm thợ in máy 7 màu" },
+  { id: 0, ten: "Làm tay", tt: ["Không cần máy", "--tt-slate-dot"], nhom: "Nhóm thợ in máy 2 màu" },
+];
+const CHO = [
+  { ma: "LSX26-0011", sp: "Thùng carton sóng B in 2 màu", mau: 2, sl: "1.500 tờ", han: ["10/11", "gan"], may: 4, nhan: [2, 4, 5, 6, 0] },
+  { ma: "LSX26-0014", sp: "Hộp giấy Duplex 350 in 4 màu cán bóng", mau: 4, sl: "6.000 tờ", han: ["14/11"], may: 4, nhan: [4, 5, 6] },
+  { ma: "LSX26-0016", sp: "Tờ rơi A4 khuyến mãi tháng 11", mau: 4, sl: "12.000 tờ", han: ["18/11"], may: null, nhan: [4, 5, 6, 7] },
+];
+const VIEC = {
+  2: [
+    { ma: "LSX26-0007", sp: "Folder A4 hai mặt", mau: 2, sl: "3.000 tờ", han: ["20/11"], tt: "chay", tien: [1200, 3000] },
+    { ma: "LSX26-0009", sp: "Nhãn chai nước mắm 500ml", mau: 2, sl: "8.000 tờ", han: ["12/11", "gan"], tt: "giao" },
+  ],
+  4: [
+    { ma: "LSX26-0003", sp: "Hộp mỹ phẩm kem dưỡng 50ml", mau: 4, sl: "8.000 tờ", han: ["09/11", "tre"], tt: "dung", ly: "Chờ thay cao su, máy có phiếu sửa" },
+  ],
+  0: Array.from({ length: 410 }, (_, i) => ({ ma: `T08-${String(13 + i).padStart(3, "0")}`, sp: ["JU SHIN, lệnh sổ 13", "CAISA, lệnh sổ 362", "EISHIN, lệnh sổ 368", "JHANS, lệnh sổ 58"][i % 4], mau: 1, sl: "1.000.000 tờ", han: ["—"], tt: "chay", tien: [[17350, 2100, 2200, 900][i % 4], 1000000] })),
+};
+const HIEN_TOI_DA = 6;
+const SO = (n) => n.toLocaleString("vi-VN");
+const TT = { giao: ["Đã giao", "giao"], chay: ["Đang chạy", "chay"], dung: ["Tạm dừng", "dung"] };
+
+function the(v, cho) {
+  const h = v.han[0] === "—" ? "" : `<span class="han ${v.han[1] ? "han--" + v.han[1] : ""}">${v.han[0]}${v.han[1] === "tre" ? " trễ" : ""}</span>`;
+  const tt = v.tt ? `<span class="tt tt--${TT[v.tt][1]}">${TT[v.tt][0]}</span>` : "";
+  const tien = v.tien ? `<div class="the__tien"><i><b style="width:${Math.min(100, v.tien[0] / v.tien[1] * 100)}%"></b></i>${SO(v.tien[0])}/${SO(v.tien[1])}</div>` : "";
+  const ly = v.ly ? `<div class="the__ly">${v.ly}</div>` : "";
+  const may = cho ? `<div class="the__may">${v.may != null ? "Báo giá: " + MAY.find((m) => m.id === v.may).ten : "Chưa có máy báo giá"}</div>` : "";
+  return `<button type="button" class="the" ${cho ? `data-cho="${v.ma}" aria-pressed="false"` : ""}>
+    <div class="the__1"><span class="the__ma">${v.ma}</span>${h}</div>
+    <div class="the__sp" title="${v.sp}">${v.sp}</div>
+    <div class="the__3"><span class="tag tag--mau">${v.mau} màu</span><span class="tag">${v.sl}</span>${tt}</div>
+    ${tien}${ly}${may}</button>`;
+}
+function soTo(ds) {
+  return ds.filter((v) => v.tt === "giao").reduce((s, v) => s + Number(v.sl.replace(/\D/g, "")), 0);
+}
+function cot(m) {
+  const ds = VIEC[m.id] || [];
+  const cho = ds.filter((v) => v.tt === "giao").length;
+  const chay = ds.filter((v) => v.tt === "chay").length;
+  const con = ds.length - HIEN_TOI_DA;
+  return `<section class="cot" data-may="${m.id}">
+    <div class="cot__dau">
+      <div class="cot__1"><i class="cham" style="background:var(${m.tt[1]})"></i><span class="cot__ten" title="${m.ten}">${m.ten}</span><span class="so">${ds.length}</span></div>
+      <div class="cot__2"><span class="${m.tt[2] ? "canh" : ""}">${m.tt[0]}</span><span>${m.nhom}</span></div>
+      <div class="cot__3"><span>Chờ chạy <em>${cho}</em></span><span>Đang chạy <em>${chay}</em></span>${cho ? `<span><em>${SO(soTo(ds))}</em> tờ chờ</span>` : ""}</div>
+      <button type="button" class="cot__giao">Giao vào đây</button>
+    </div>
+    <div class="cot__ds">${ds.slice(0, HIEN_TOI_DA).map((v) => the(v)).join("")}
+      ${con > 0 ? `<div class="cot__them">Còn ${SO(con)} việc, xem ở Bảng việc</div>` : ""}</div>
+  </section>`;
+}
+
+let hienTrong = false;
+function vePc() {
+  const coViec = MAY.filter((m) => (VIEC[m.id] || []).length);
+  const trong = MAY.filter((m) => !(VIEC[m.id] || []).length);
+  const cotTrong = hienTrong ? trong.map(cot).join("") : "";
+  const daiTrong = !hienTrong && trong.length ? `<div class="trong" id="daiTrong"><span>Máy chưa có việc</span>
+      ${trong.map((m) => `<span class="trong__may" data-may="${m.id}"><i class="cham" style="background:var(${m.tt[1]})"></i><span>${m.ten}</span><button type="button">Giao vào đây</button></span>`).join("")}
+    </div>` : "";
+  document.getElementById("pc").innerHTML = `
+    <div class="dau"><h2>Kế hoạch Tổ in</h2><span class="dau__phu">Mỗi máy một cột</span>
+      <div class="xem"><button type="button">Bảng việc</button><button type="button" aria-pressed="true">Kanban</button></div></div>
+    <div class="thanh"><label class="otim">⌕<input placeholder="Tìm lệnh, khách, sản phẩm"></label><button type="button" class="nut">Lọc</button>
+      <span class="batTat" role="switch" tabindex="0" aria-checked="${hienTrong}" id="batTrong"><i></i>Máy trống thành cột</span></div>
+    ${daiTrong}
+    <div class="ban" id="ban">
+      <aside class="cho">
+        <div class="cho__dau"><b>Chờ giao</b><span class="so so--vang">${CHO.length}</span><span class="cho__sx">Hạn gần trước</span></div>
+        <div class="cho__ds">${CHO.map((v) => the(v, true)).join("")}</div>
+      </aside>
+      <div class="may-cuon" id="mayCuon"><div class="cac-may" id="cacMay">${coViec.map(cot).join("")}${cotTrong}</div></div>
+    </div>`;
+  document.getElementById("batTrong").onclick = () => { hienTrong = !hienTrong; vePc(); };
+  document.querySelectorAll("#pc [data-cho]").forEach((b) => b.onclick = () => chon(b.dataset.cho));
+  const c = document.getElementById("cacMay"), k = document.getElementById("mayCuon");
+  const vien = () => { k.classList.toggle("co-trai", c.scrollLeft > 2); k.classList.toggle("co-phai", c.scrollLeft + c.clientWidth < c.scrollWidth - 2); };
+  c.onscroll = vien; vien();
+}
+function chon(ma) {
+  const v = CHO.find((x) => x.ma === ma);
+  document.querySelectorAll("#pc [data-cho]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.cho === ma)));
+  document.getElementById("pc").classList.toggle("dang-chon", !!v);
+  document.querySelectorAll("#pc [data-may]").forEach((el) => {
+    const id = Number(el.dataset.may);
+    el.classList.toggle("nhan", !!v && v.nhan.includes(id));
+    el.classList.toggle("goi-y", !!v && v.may === id);
+  });
+}
+
+function veDt() {
+  const coViec = MAY.filter((m) => (VIEC[m.id] || []).length);
+  const trong = MAY.filter((m) => !(VIEC[m.id] || []).length);
+  document.getElementById("dt").innerHTML = `
+    <div class="dau"><h2>Kế hoạch Tổ in</h2>
+      <div class="xem"><button type="button">Bảng</button><button type="button" aria-pressed="true">Kanban</button></div></div>
+    <div class="thanh"><label class="otim">⌕<input placeholder="Tìm lệnh, khách"></label><button type="button" class="nut">Lọc</button></div>
+    ${coViec.map((m, i) => {
+      const ds = VIEC[m.id];
+      return `<section class="dt-may ${i > 1 ? "gap" : ""}">
+        <div class="dt-may__dau"><span class="mui">▾</span><i class="cham" style="background:var(${m.tt[1]})"></i><span class="cot__ten">${m.ten}</span><span class="so">${ds.length}</span></div>
+        <div class="dt-may__2"><span class="${m.tt[2] ? "canh" : ""}">${m.tt[0]}</span><span>${m.nhom}</span></div>
+        <div class="dt-may__ds">${ds.slice(0, 3).map((v) => the(v)).join("")}${ds.length > 3 ? `<div class="cot__them">Còn ${SO(ds.length - 3)} việc, xem ở Bảng việc</div>` : ""}</div>
+      </section>`;
+    }).join("")}
+    <div class="trong dt-trong"><span>Máy chưa có việc</span>${trong.map((m) => `<span class="trong__may"><i class="cham" style="background:var(${m.tt[1]})"></i><span>${m.ten}</span></span>`).join("")}</div>`;
+  document.querySelectorAll(".dt-may__dau").forEach((d) => d.onclick = () => d.parentElement.classList.toggle("gap"));
+}
+
+vePc(); veDt();
+document.getElementById("thuChon").onclick = () => chon("LSX26-0011");
+document.getElementById("thuBo").onclick = () => chon(null);
+</script>
+</body>
+</html>

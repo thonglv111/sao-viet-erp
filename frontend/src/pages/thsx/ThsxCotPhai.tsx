@@ -7,7 +7,7 @@
 // Mọi mặt GHI (giao/rút thợ, nhận/trả khuôn) đi qua callback của ngăn — cột không tự gọi API ghi.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { anhNho } from "../../api/client";
-import type { SxNhanVienChon, SxWorkItemChiTiet } from "../../api/client";
+import type { SxNhanVienChon, SxTepLenhNhom, SxWorkItemChiTiet } from "../../api/client";
 import { NHAN_TT_SUA_CHUA, NHAN_TT_YEU_CAU } from "../../api/kyThuatMay";
 import { Button } from "../../components/Button";
 import { ChipKhuon } from "../../components/ChipBuoc";
@@ -49,7 +49,7 @@ export interface VuongMac {
 
 export function ThsxCotPhai({
   chiTiet, candidates, ungVienHomNay, onMoChonNguoi, busy, canAssign, chuaGiaoChoToi, vuong,
-  onGiao, onRut, onNhanKhuon, onTraKhuon, dinhKemDem, hep = false,
+  onGiao, onRut, onNhanKhuon, onTraKhuon, dinhKemDem, hep = false, napTep,
 }: {
   chiTiet: SxWorkItemChiTiet;
   candidates: SxNhanVienChon[];
@@ -66,6 +66,8 @@ export function ThsxCotPhai({
   dinhKemDem?: Record<number, number>;
   /** Ngăn hẹp (điện thoại): đầu ngăn ẩn tên khách nên thẻ Việc ghi lại. */
   hep?: boolean;
+  /** Nạp tệp của lệnh qua đường khác (màn Kế hoạch của bộ phận). */
+  napTep?: (token: string, congViecId: number) => Promise<SxTepLenhNhom[]>;
 }) {
   const cv = chiTiet.cong_viec;
   const tt = chiTiet.trang_thai ?? cv.trang_thai;
@@ -389,7 +391,7 @@ export function ThsxCotPhai({
 
       {/* Tệp của lệnh — maket/bản vẽ Kế hoạch SX đính kèm; tổ xem/tải, không sửa. */}
       <div className="thsx-b-blk thsx-b-tep">
-        <ThsxTepLenh congViecId={cv.id} dinhKemDem={dinhKemDem} />
+        <ThsxTepLenh congViecId={cv.id} dinhKemDem={dinhKemDem} nap={napTep} />
       </div>
     </>
   );

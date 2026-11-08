@@ -19,7 +19,7 @@ Biến `BUOC` chọn đoạn của kịch bản (đọc chú thích đầu từn
 | c03c-cong-doan.mjs | 3 Rà lệnh, tab Công đoạn và ngăn bước (Loại, Bộ phận nhận) | khsx-22, 23 |
 | c04-vat-tu.mjs | 4 Vật tư (`BUOC=1` giữ hàng, `BUOC=2 GUI=1` đề nghị mua) | khsx-30 đến 34 |
 | c05-xep-lich.mjs | 5 Xếp lịch (`BUOC=1` kéo thả, `2` ngăn, `3` thu hồi rồi phát hành, `4` chỉ chụp, `5` lệnh LSX26-0011 chưa có giờ: thu hồi, phát lại, khay chip Đã phát) | khsx-40 đến 47, 40b |
-| c08-ke-hoach-bo-phan.mjs | Kế hoạch bộ phận (Tổ in: trả về khay, hộp lý do rồi Huỷ, xếp IN-02, chọn nhóm, ngăn Quy cách in; không bấm Giao) | khsx-48, 48b, 49 |
+| c08-ke-hoach-bo-phan.mjs | Kế hoạch của bộ phận (Tổ in: thanh bên, Bảng việc, khay Giao đổi máy có lý do rồi Hủy, Kanban chọn việc, Giao vào máy theo báo giá, ngăn, cuối cùng Rút lại) | khsx-48, 48a, 48b, 48c, 49 |
 | c06-gia-cong.mjs | 6 Gia công ngoài (`BUOC=1` một phần, `2` đặt trọn gói, `3` chọn giấy) | khsx-50 đến 54 |
 | c07-theo-doi.mjs | 7 Theo dõi (`BUOC=1` theo đơn, `2` hồ sơ lệnh) | khsx-60 đến 64 |
 

@@ -709,6 +709,27 @@ def require_quyen_to(viec: str = "read", *hoac: tuple[str, str], cho_dong_kho: b
     return dependency
 
 
+def require_ke_hoach(viec: str = "read"):
+    """Cổng mục Kế hoạch theo bộ phận (08/11/2026): cho qua nếu vai bật `viec` ("read" | "update")
+    trên ÍT NHẤT MỘT dòng `ke_hoach_bp_<id>`. Đúng bộ phận nào do service hỏi
+    (`services/quyen_ke_hoach.bo_phan_duoc`). Dòng động, không đăng ký `O_QUYEN_DUOC_GAC`."""
+
+    def dependency(
+        user: CurrentUser,
+        authz: Annotated[AuthorizationService, Depends(get_authorization_service)],
+    ) -> User:
+        from .services.quyen_ke_hoach import bo_phan_duoc
+
+        if bo_phan_duoc(authz, user, viec):
+            return user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bạn không có quyền thực hiện thao tác này",
+        )
+
+    return dependency
+
+
 def require_any_permission(*grants: tuple[str, str]):
     """Like `require_permission`, but allows the request if ANY of the
     (module_key, action) pairs is granted — for read endpoints that legitimately

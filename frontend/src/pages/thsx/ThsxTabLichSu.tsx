@@ -35,7 +35,12 @@ function ngayGio(luc: string | null): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export function ThsxTabLichSu({ congViecId, tick }: { congViecId: number; tick?: unknown }) {
+export function ThsxTabLichSu({ congViecId, tick, nap }: {
+  congViecId: number;
+  tick?: unknown;
+  /** Nạp qua đường khác (màn Kế hoạch của bộ phận gác theo bộ phận). Vắng thì như Việc của tổ. */
+  nap?: (token: string, congViecId: number) => Promise<SxLichSuViec>;
+}) {
   const { token } = useAuth();
   const [ds, setDs] = useState<SxLichSuViec | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
@@ -49,13 +54,15 @@ export function ThsxTabLichSu({ congViecId, tick }: { congViecId: number; tick?:
     if (!token) return;
     let bo = false;
     setLoi(null);
-    api.sanXuat.lichSuViec(token, congViecId)
+    (nap ?? api.sanXuat.lichSuViec)(token, congViecId)
       .then((r) => { if (!bo) setDs(r); })
       .catch((e) => {
         if (bo) return;
         setLoi(e instanceof ApiError && e.isNetwork ? "Mất kết nối tới máy chủ." : "Không nạp được lịch sử của việc.");
       });
     return () => { bo = true; };
+    // `nap` cố ý không vào deps: nơi gọi truyền hàm cố định, đổi nguồn giữa chừng không có.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, congViecId, tick, lan]);
 
   const dong = (ds?.items ?? []).filter((x) => nhom == null || x.nhom === nhom);

@@ -87,7 +87,11 @@ def test_khoa_trong_tap_man_nghe_la_module_that():
     # KCS nay là module THẬT `kcs` (mg 0383) — chỉ còn `BAN_TO` là khoá giả.
     assert KCS in that
     assert BAN_TO not in that, "khoá giả trùng một module thật"
-    gia = {BAN_TO}
+    from app.services.quyen_ke_hoach import NGHE_KE_HOACH
+
+    # `ke_hoach_bp`: khoá giả của người có Xem ở ít nhất một dòng Kế hoạch bộ phận (08/11/2026).
+    assert NGHE_KE_HOACH not in that, "khoá giả trùng một module thật"
+    gia = {BAN_TO, NGHE_KE_HOACH}
     for tap in (MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, MAN_KHO,
                 MAN_GIAO_HANG, MAN_KHVT, MAN_NHAT_KY):
         assert set(tap) - gia <= that, sorted(set(tap) - gia - that)
