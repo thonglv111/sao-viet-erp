@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kế hoạch từng bộ phận: 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Token chép từ frontend/src/styles/tokens.css và components/sidebar.css */
+:root {
+  --canvas:#fff; --paper:#f8fafc; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07; --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --charcoal:#0f172a; --on-charcoal:#f8fafc; --paper-contrast:#fff;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8;
+  --tt-cham-bg:#e0e7ff; --tt-cham-fg:#4338ca;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d;
+  --r-2:4px; --r-3:6px; --r-5:10px; --r-pill:9999px;
+  --sb-text:#e2e8f0; --sb-muted:#94a3b8; --sb-hover:rgba(248,250,252,.06); --sb-edge:rgba(248,250,252,.1);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:400 13px/1.45 "Be Vietnam Pro",ui-sans-serif,system-ui,sans-serif; }
+button { font:inherit; color:inherit; }
+svg { flex:0 0 auto; }
+
+/* ---------- đầu trang: chọn phương án ---------- */
+.dau { max-width:1500px; margin:0 auto; padding:16px 16px 10px; }
+.dau h1 { font-size:20px; font-weight:500; margin:0 0 4px; }
+.dau p { margin:0 0 12px; color:var(--ash); max-width:980px; }
+.chon-pa { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.chon-pa button { border:1px solid var(--rule); background:var(--canvas); border-radius:var(--r-3); padding:7px 14px; cursor:pointer; text-align:left; }
+.chon-pa button:hover { background:var(--rule-hair); }
+.chon-pa button.chon { background:var(--rust); border-color:var(--rust); color:var(--paper-contrast); }
+.chon-pa small { display:block; font-size:11px; opacity:.85; }
+.mo-ta { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,1fr); gap:10px; margin-bottom:12px; }
+@media (max-width:900px) { .mo-ta { grid-template-columns:minmax(0,1fr); } }
+.mo-ta > div { background:var(--canvas); border:1px solid var(--rule-soft); border-radius:var(--r-5); padding:10px 12px; }
+.mo-ta h3 { margin:0 0 4px; font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--ash); }
+.mo-ta ul { margin:0; padding-left:18px; color:var(--ash); }
+.mo-ta li { margin:2px 0; }
+.mo-ta .tk { color:var(--ash-2); font-size:12px; }
+
+/* ---------- khung app ---------- */
+.app { max-width:1500px; margin:0 auto 32px; display:flex; height:760px; border:1px solid var(--rule); border-radius:var(--r-5); overflow:hidden; background:var(--paper); }
+@media (max-width:820px) { .app { height:auto; flex-direction:column; } .sb { width:100% !important; flex-basis:auto !important; max-height:420px; } }
+
+.sb { flex:0 0 244px; width:244px; background:var(--ink); color:var(--sb-text); display:flex; flex-direction:column; overflow:hidden; }
+.sb__brand { display:flex; align-items:center; gap:10px; padding:14px 14px 12px; border-bottom:1px solid var(--sb-edge); }
+.sb__logo { width:30px; height:30px; border-radius:var(--r-3); background:var(--canvas); display:grid; place-items:center; color:var(--rust); font-weight:600; }
+.sb__brand b { font-weight:500; display:block; font-size:13px; }
+.sb__brand span { font-size:11px; color:var(--sb-muted); letter-spacing:.06em; text-transform:uppercase; }
+.sb__nav { flex:1 1 auto; overflow-y:auto; padding:6px 8px 16px; }
+.sb__nav::-webkit-scrollbar { width:6px; } .sb__nav::-webkit-scrollbar-thumb { background:rgba(248,250,252,.15); border-radius:3px; }
+.sec { margin-top:12px; }
+.sec__head { display:flex; justify-content:space-between; align-items:center; padding:8px 12px 4px; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--sb-muted); }
+.sec ul { list-style:none; margin:0; padding:0; }
+
+.row { display:flex; align-items:center; gap:10px; padding:6px 12px; border-radius:var(--r-3); cursor:pointer; color:var(--sb-text); white-space:nowrap; position:relative; }
+.row:hover { background:var(--sb-hover); }
+.row .ic { color:var(--sb-muted); }
+.row:hover .ic { color:var(--sb-text); }
+.row .lb { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.row.dang { background:var(--rust); color:var(--paper-contrast); font-weight:500; }
+.row.dang .ic { color:var(--paper-contrast); }
+.row.mo { color:var(--sb-muted); cursor:default; }
+.row.mo:hover { background:none; }
+.row.nhom-dau { padding-left:12px; }
+.lvl1 { padding-left:22px; }
+.lvl2 { padding-left:40px; }
+.caret { margin-left:auto; color:var(--sb-muted); display:inline-flex; transition:transform .14s; }
+.caret.gap { transform:rotate(-90deg); }
+.cham { width:8px; height:8px; border-radius:50%; background:#ef4444; box-shadow:0 0 6px rgba(239,68,68,.65); flex:0 0 auto; }
+.row.dang .cham { background:#ff3b30; box-shadow:0 0 0 2px #fff; }
+.so-moi { font-size:11px; padding:0 6px; border-radius:var(--r-pill); background:rgba(248,250,252,.12); color:var(--sb-text); }
+.row.dang .so-moi { background:rgba(255,255,255,.25); }
+.twisty { width:24px; display:inline-flex; justify-content:center; color:var(--sb-muted); border-radius:var(--r-2); }
+.twisty:hover { background:var(--sb-hover); color:var(--sb-text); }
+.row-wrap { display:flex; align-items:center; gap:2px; border-radius:var(--r-3); }
+.row-wrap.dang { background:var(--rust); }
+.row-wrap.dang .row { background:none; color:var(--paper-contrast); font-weight:500; }
+.row-wrap.dang .row .ic, .row-wrap.dang .twisty { color:var(--paper-contrast); }
+.row-wrap .row { flex:1 1 auto; min-width:0; }
+
+/* phương án C: hộp chọn bộ phận */
+.doi { margin:6px 4px 6px; border:1px solid var(--sb-edge); border-radius:var(--r-5); background:rgba(248,250,252,.04); }
+.doi__nut { display:flex; align-items:center; gap:10px; width:100%; padding:8px 10px; background:none; border:0; cursor:pointer; text-align:left; color:var(--sb-text); }
+.doi__nut small { display:block; font-size:11px; color:var(--sb-muted); }
+.doi__nut b { font-weight:500; }
+.doi__ds { border-top:1px solid var(--sb-edge); padding:4px; }
+.doi__ds .row { padding:6px 8px; }
+.doi__ds .row.chon { background:rgba(248,250,252,.1); }
+
+/* ---------- vùng chính ---------- */
+.main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; overflow:hidden; }
+.topbar { height:48px; flex:0 0 48px; background:var(--canvas); border-bottom:1px solid var(--rule-soft); display:flex; align-items:center; padding:0 16px; gap:8px; color:var(--ash); }
+.topbar .duong { display:flex; align-items:center; gap:6px; }
+.topbar .duong b { color:var(--ink); font-weight:500; }
+.than { flex:1 1 auto; overflow:auto; padding:14px 16px 20px; }
+.tieu-de { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.tieu-de h2 { margin:0; font-size:18px; font-weight:500; }
+.tieu-de .gian { flex:1 1 auto; }
+.tabs { display:flex; gap:2px; border-bottom:1px solid var(--rule-soft); margin:0 0 12px; }
+.tabs button { border:0; background:none; padding:8px 12px; cursor:pointer; color:var(--ash); border-bottom:2px solid transparent; margin-bottom:-1px; display:inline-flex; align-items:center; gap:6px; }
+.tabs button:hover { color:var(--ink); }
+.tabs button.chon { color:var(--ink); font-weight:500; border-bottom-color:var(--rust); }
+.nut { border:1px solid var(--rule); background:var(--canvas); border-radius:var(--r-3); padding:6px 12px; cursor:pointer; white-space:nowrap; }
+.nut:hover { background:var(--rule-hair); }
+.nut.chinh { background:var(--rust); border-color:var(--rust); color:var(--paper-contrast); }
+.nut.chinh:hover { background:var(--rust-deep); }
+.chip { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; padding:2px 9px; border-radius:var(--r-pill); font-size:11px; font-weight:600; }
+.chip i { width:6px; height:6px; border-radius:50%; background:currentColor; }
+.chip.vang { background:var(--tt-vang-bg); color:var(--tt-vang-fg); }
+.chip.xanh { background:var(--tt-xanh-bg); color:var(--tt-xanh-fg); }
+.chip.cham { background:var(--tt-cham-bg); color:var(--tt-cham-fg); }
+.chip.la { background:var(--tt-la-bg); color:var(--tt-la-fg); }
+.the-nho { display:inline-block; padding:1px 7px; border-radius:var(--r-2); background:var(--rule-hair); color:var(--ash); font-size:11px; }
+
+/* bảng kế hoạch: cột máy */
+.bang { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(230px,1fr); gap:10px; align-items:start; overflow-x:auto; padding-bottom:6px; }
+.cot { background:var(--rule-hair); border:1px solid var(--rule-soft); border-radius:var(--r-5); padding:8px; min-height:320px; }
+.cot__dau { display:flex; align-items:center; gap:6px; padding:2px 4px 8px; }
+.cot__dau b { font-weight:500; }
+.cot__dau .mo2 { color:var(--ash-2); font-size:12px; margin-left:auto; }
+.the { background:var(--canvas); border:1px solid var(--rule-soft); border-radius:var(--r-3); padding:8px 10px; margin-bottom:8px; display:grid; gap:4px; }
+.the__1 { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.the__1 .ma { color:var(--ash); white-space:nowrap; }
+.the__1 .chip { margin-left:auto; }
+.the__ten { font-weight:500; }
+.the__3 { display:flex; gap:6px; flex-wrap:wrap; align-items:center; color:var(--ash-2); font-size:12px; }
+
+/* việc của tổ (rút gọn) */
+.luoi { width:100%; border-collapse:collapse; background:var(--canvas); border:1px solid var(--rule); border-radius:var(--r-5); overflow:hidden; font-size:13px; }
+.luoi th { text-align:left; font-size:11px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--ash); background:var(--paper); border-bottom:1.5px solid var(--rule); padding:9px 12px; }
+.luoi td { padding:8px 12px; border-bottom:1px solid var(--rule-hair); }
+.luoi tr:last-child td { border-bottom:0; }
+.loc { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.loc button { border:1px solid var(--rule); background:var(--canvas); border-radius:var(--r-pill); padding:3px 11px; font-size:12px; font-weight:600; cursor:pointer; }
+.loc button.chon { background:var(--charcoal); border-color:var(--charcoal); color:var(--on-charcoal); }
+.ghi { color:var(--ash-2); font-size:12px; margin:10px 0 0; }
+</style>
+</head>
+<body>
+
+<div class="dau">
+  <h1>Kế hoạch từng bộ phận: 3 phương án</h1>
+  <p>Mỗi bộ phận (Tổ in, Tổ cán màng, Tổ bồi, Tổ bế…) có màn kế hoạch của riêng mình nằm trong khối Tổ sản xuất. Mục chung "Kế hoạch bộ phận" ở khối Sản xuất bị gỡ. Ruột màn kế hoạch giữ như đã làm: cột lệnh mới tới, mỗi máy một cột, chọn nhóm, Giao, Rút lại. Bấm thử các dòng bên thanh bên trái. Dữ liệu là dữ liệu mẫu.</p>
+  <div class="chon-pa" id="chonPa"></div>
+  <div class="mo-ta" id="moTa"></div>
+</div>
+
+<div class="app">
+  <aside class="sb">
+    <div class="sb__brand"><div class="sb__logo">S</div><div><b>Sao Việt Nhật</b><span>Hệ thống ERP</span></div></div>
+    <nav class="sb__nav" id="nav"></nav>
+  </aside>
+  <section class="main">
+    <div class="topbar"><div class="duong" id="duong"></div></div>
+    <div class="than" id="than"></div>
+  </section>
+</div>
+
+<script>
+const IC = {
+  kh: '<svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v7M12 7v4M16 7v9"/></svg>',
+  nhom: '<svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  bp: '<svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-7 5V8l-7 5V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/></svg>',
+  viec: '<svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+  mo: '<svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18"/></svg>',
+  xuong: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  doi: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>',
+  phai: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>',
+};
+
+// Bộ phận = con trực tiếp của gốc Sản xuất. nhom rỗng = bộ phận tự làm.
+const BP = [
+  { id:"in", ten:"Tổ in", moi:3, nhom:["Nhóm thợ in máy 2 màu","Nhóm thợ in máy 4 màu","Nhóm thợ in máy 5 màu","Nhóm thợ in máy 6 màu","Nhóm thợ in máy 7 màu"],
+    may:["Máy in 2 màu","Máy in 4 màu","Máy in 5 màu"] },
+  { id:"can", ten:"Tổ cán màng", moi:1, nhom:[], may:["Máy cán màng nhiệt"] },
+  { id:"boi", ten:"Tổ bồi", moi:0, nhom:[], may:["Máy bồi tự động"] },
+  { id:"be", ten:"Tổ bế", moi:2, nhom:["Bế TD - Kiệt","Bế TD - Long","Bế TD - Linh","Bế T - Cường"], may:["Máy bế tự động 1","Máy bế tự động 2"] },
+  { id:"cat", ten:"Cắt", moi:0, nhom:["Cắt giấy cuộn","Cắt thành phẩm"], may:["Máy cắt cuộn","Máy xén 3 mặt"] },
+  { id:"dan", ten:"Dán", moi:0, nhom:["Dán máy","Dán tay"], may:["Máy dán hộp"] },
+];
+
+const PA = {
+  A: { ten:"A. Kế hoạch đứng đầu nhánh", phu:"Mỗi bộ phận mở ra có dòng Kế hoạch rồi tới các nhóm",
+       tk:"Tham khảo: Dribbble \"Navigation sidebar\" (Dmitry Sergushkin), mỗi nhóm có trang con cố định bên dưới.",
+       uu:["Nhìn thanh bên là thấy ngay bộ phận nào có lệnh mới, chấm đỏ nằm đúng dòng Kế hoạch của bộ phận đó.","Thợ vẫn bấm thẳng vào nhóm của mình như hiện nay, không thêm bước."],
+       nhuoc:["Thanh bên dài thêm một dòng mỗi bộ phận.","Bộ phận tự làm (Tổ cán màng, Tổ bồi) từ một dòng thành nhánh hai dòng."] },
+  B: { ten:"B. Bấm tên bộ phận mở trang có tab", phu:"Tên bộ phận là một trang: tab Kế hoạch và tab Việc của tổ",
+       tk:"Tham khảo: Dribbble \"Task Management Web App UI\" (Vislume Studio), dự án ở thanh bên mở trang có hàng tab Overview, List, Board.",
+       uu:["Thanh bên giữ nguyên số dòng như hiện nay.","Trưởng bộ phận ở một trang, chuyển qua lại giữa xếp máy và xem việc các nhóm bằng tab."],
+       nhuoc:["Tên bộ phận vừa là nút mở trang vừa có mũi tên gập nhóm, hai thứ bấm sát nhau.","Chấm lệnh mới nằm trên tên bộ phận, chưa nói rõ là ở tab nào."] },
+  C: { ten:"C. Chọn bộ phận ở đầu khối", phu:"Hộp chọn bộ phận, bên dưới chỉ hiện Kế hoạch và nhóm của bộ phận đó",
+       tk:"Tham khảo: Dribbble \"Zenats HR Management\" và \"Team Switch\" (Kevin Dukkon), hộp đổi phòng ban ở đầu thanh bên.",
+       uu:["Thanh bên ngắn nhất, chỉ hiện một bộ phận một lúc.","Hợp người chỉ làm ở một bộ phận: chọn một lần, lần sau mở ra vẫn là bộ phận đó."],
+       nhuoc:["Muốn xem bộ phận khác phải mở hộp chọn, không thấy cùng lúc mọi bộ phận.","Chấm lệnh mới của bộ phận khác chỉ hiện trong hộp chọn."] },
+};
+
+const S = { pa:"A", bp:"in", xem:"kh", nhom:null, mo:{ in:true, be:false, can:false, boi:false, cat:false, dan:false }, doiMo:false, tab:"kh" };
+
+function chonPa() {
+  document.getElementById("chonPa").innerHTML = Object.entries(PA).map(([k,p]) =>
+    `<button class="${S.pa===k?"chon":""}" data-pa="${k}">${p.ten}<small>${p.phu}</small></button>`).join("");
+  const p = PA[S.pa];
+  document.getElementById("moTa").innerHTML =
+    `<div><h3>Cách đặt</h3><div>${p.phu}.</div><div class="tk">${p.tk}</div></div>
+     <div><h3>Được</h3><ul>${p.uu.map(x=>`<li>${x}</li>`).join("")}</ul></div>
+     <div><h3>Mất</h3><ul>${p.nhuoc.map(x=>`<li>${x}</li>`).join("")}</ul></div>`;
+}
+
+function phanTren() {
+  // Các khối phía trên giữ như app; khối Sản xuất không còn mục Kế hoạch bộ phận.
+  return `
+  <div class="sec"><div class="sec__head">Kinh doanh ${IC.xuong}</div></div>
+  <div class="sec"><div class="sec__head">Sản xuất ${IC.xuong}</div><ul>
+    <li class="row">${IC.mo}<span class="lb">Lệnh sản xuất</span></li>
+    <li class="row">${IC.mo}<span class="lb">Hồ sơ lệnh sản xuất</span></li>
+    <li class="row">${IC.mo}<span class="lb">Theo dõi sản xuất</span></li>
+    <li class="row">${IC.mo}<span class="lb">Kế hoạch vật tư</span></li>
+    <li class="row">${IC.mo}<span class="lb">Xếp lịch</span></li>
+    <li class="row">${IC.mo}<span class="lb">KCS</span></li>
+  </ul></div>`;
+}
+
+const dangKh = b => S.bp===b.id && S.xem==="kh";
+const dangNhom = (b,n) => S.bp===b.id && S.xem==="nhom" && S.nhom===n;
+const cham = b => b.moi ? '<span class="cham" title="Có lệnh mới chưa xếp"></span>' : "";
+
+function navA() {
+  return BP.map(b => {
+    const mo = S.mo[b.id];
+    let h = `<li class="row lvl1 mo" data-gap="${b.id}"><span class="lb">${b.ten}</span>${!mo && b.moi ? cham(b) : ""}<span class="caret ${mo?"":"gap"}">${IC.xuong}</span></li>`;
+    if (mo) {
+      h += `<li class="row lvl2 ${dangKh(b)?"dang":""}" data-bp="${b.id}" data-xem="kh">${IC.kh}<span class="lb">Kế hoạch</span>${cham(b)}</li>`;
+      h += b.nhom.length
+        ? b.nhom.map(n => `<li class="row lvl2 ${dangNhom(b,n)?"dang":""}" data-bp="${b.id}" data-xem="nhom" data-nhom="${n}">${IC.nhom}<span class="lb">${n}</span></li>`).join("")
+        : `<li class="row lvl2 ${dangNhom(b,b.ten)?"dang":""}" data-bp="${b.id}" data-xem="nhom" data-nhom="${b.ten}">${IC.viec}<span class="lb">Việc của tổ</span></li>`;
+    }
+    return h;
+  }).join("");
+}
+
+function navB() {
+  return BP.map(b => {
+    const mo = S.mo[b.id];
+    const dang = S.bp===b.id && S.xem!=="nhom";
+    let h = `<li class="row-wrap lvl1x ${dang?"dang":""}" style="padding-left:10px">
+      <div class="row" data-bp="${b.id}" data-xem="trang">${IC.bp}<span class="lb">${b.ten}</span>${cham(b)}</div>
+      ${b.nhom.length ? `<span class="twisty" data-gap="${b.id}" title="Gập hoặc mở các nhóm"><span class="caret ${mo?"":"gap"}" style="margin:0;color:inherit">${IC.xuong}</span></span>` : ""}
+    </li>`;
+    if (mo && b.nhom.length) h += b.nhom.map(n => `<li class="row lvl2 ${dangNhom(b,n)?"dang":""}" data-bp="${b.id}" data-xem="nhom" data-nhom="${n}">${IC.nhom}<span class="lb">${n}</span></li>`).join("");
+    return h;
+  }).join("");
+}
+
+function navC() {
+  const b = BP.find(x => x.id===S.bp);
+  const tong = BP.filter(x => x.id!==S.bp && x.moi).length;
+  let h = `<div class="doi">
+    <button class="doi__nut" data-doi="1">${IC.bp}<span style="flex:1"><small>Bộ phận</small><b>${b.ten}</b></span>${tong?'<span class="cham" title="Bộ phận khác có lệnh mới"></span>':""}${IC.doi}</button>
+    ${S.doiMo ? `<div class="doi__ds">${BP.map(x => `<div class="row ${x.id===S.bp?"chon":""}" data-chonbp="${x.id}"><span class="lb">${x.ten}</span>${x.moi?'<span class="cham" title="Có lệnh mới chưa xếp"></span>':""}</div>`).join("")}</div>` : ""}
+  </div>`;
+  h += `<li class="row ${dangKh(b)?"dang":""}" data-bp="${b.id}" data-xem="kh">${IC.kh}<span class="lb">Kế hoạch</span>${cham(b)}</li>`;
+  h += b.nhom.length
+    ? b.nhom.map(n => `<li class="row ${dangNhom(b,n)?"dang":""}" data-bp="${b.id}" data-xem="nhom" data-nhom="${n}">${IC.nhom}<span class="lb">${n}</span></li>`).join("")
+    : `<li class="row ${dangNhom(b,b.ten)?"dang":""}" data-bp="${b.id}" data-xem="nhom" data-nhom="${b.ten}">${IC.viec}<span class="lb">Việc của tổ</span></li>`;
+  return h;
+}
+
+function nav() {
+  const khoi = S.pa==="A" ? navA() : S.pa==="B" ? navB() : navC();
+  document.getElementById("nav").innerHTML = phanTren() +
+    `<div class="sec"><div class="sec__head">Tổ sản xuất ${IC.xuong}</div><ul>
+      ${S.pa==="C" ? "" : `<li class="row mo"><span class="lb">Sản xuất</span><span class="caret">${IC.xuong}</span></li>`}
+      ${khoi}</ul></div>`;
+}
+
+// ---------- vùng chính ----------
+const VIEC = {
+  moi: [
+    { ma:"LSX26-0141", ten:"Hộp bánh trung thu 4 chiếc", kh:"Bánh kẹo Hữu Nghị", sl:"12.000 tờ", truoc:"Cắt giấy cuộn xong", c:"xanh", cc:"Mới tới" },
+    { ma:"LSX26-0143", ten:"Tờ gấp giới thiệu sản phẩm", kh:"Dược Hậu Giang", sl:"8.500 tờ", truoc:"Đang cắt giấy", c:"vang", cc:"Chờ khâu trước" },
+    { ma:"LSX26-0144", ten:"Nhãn chai nước mắm 500 ml", kh:"Masan", sl:"20.000 tờ", truoc:"Cắt giấy cuộn xong", c:"xanh", cc:"Mới tới" },
+  ],
+  may: [
+    [ { ma:"LSX26-0128", ten:"Thùng carton 5 lớp in 2 màu", kh:"Vinamilk", sl:"6.000 tờ", nhom:"Nhóm thợ in máy 2 màu", c:"cham", cc:"Đang in" } ],
+    [ { ma:"LSX26-0131", ten:"Hộp mỹ phẩm 4 màu phủ UV", kh:"Thorakao", sl:"9.200 tờ", nhom:"Nhóm thợ in máy 4 màu", c:"la", cc:"Đã giao" },
+      { ma:"LSX26-0135", ten:"Catalogue nội thất 32 trang", kh:"Hoà Phát", sl:"14.000 tờ", nhom:"Chưa chọn nhóm", c:"vang", cc:"Đã xếp" } ],
+    [],
+  ],
+};
+
+function theMoi(v) {
+  return `<div class="the"><div class="the__1"><span class="ma">${v.ma}</span><span class="chip ${v.c}"><i></i>${v.cc}</span></div>
+    <div class="the__ten">${v.ten}</div>
+    <div class="the__3"><span class="the-nho">${v.kh}</span><span>${v.sl}</span></div>
+    <div class="the__3"><span>Khâu trước: ${v.truoc}</span></div></div>`;
+}
+function theMay(v) {
+  return `<div class="the"><div class="the__1"><span class="ma">${v.ma}</span><span class="chip ${v.c}"><i></i>${v.cc}</span></div>
+    <div class="the__ten">${v.ten}</div>
+    <div class="the__3"><span class="the-nho">${v.kh}</span><span>${v.sl}</span></div>
+    <div class="the__3"><span>${v.nhom}</span></div></div>`;
+}
+
+function keHoach(b) {
+  const moi = b.id==="in" ? VIEC.moi : VIEC.moi.slice(0, b.moi);
+  const cot = [`<div class="cot"><div class="cot__dau"><b>Lệnh mới tới</b><span class="mo2">${moi.length} việc</span></div>${moi.map(theMoi).join("") || '<div class="ghi">Chưa có lệnh nào phát tới.</div>'}</div>`];
+  b.may.forEach((m,i) => {
+    const ds = b.id==="in" ? (VIEC.may[i]||[]) : [];
+    cot.push(`<div class="cot"><div class="cot__dau"><b>${m}</b><span class="mo2">${ds.length} việc</span></div>${ds.map(theMay).join("")}</div>`);
+  });
+  cot.push(`<div class="cot"><div class="cot__dau"><b>Làm tay</b><span class="mo2">0 việc</span></div></div>`);
+  return `<div class="bang">${cot.join("")}</div>
+    <p class="ghi">Kéo thẻ từ cột Lệnh mới tới sang cột máy, chọn nhóm trên thẻ, rồi bấm Giao xuống tổ. Ruột màn này giữ như bản đã làm.</p>`;
+}
+
+function viecCuaTo(b, nhom) {
+  const loc = b.nhom.length && S.pa==="B"
+    ? `<div class="loc">${["Tất cả nhóm", ...b.nhom].map((n,i)=>`<button class="${(nhom||"Tất cả nhóm")===n?"chon":""}" data-locnhom="${i?n:""}">${n}</button>`).join("")}</div>` : "";
+  return `${loc}<table class="luoi"><thead><tr><th>Lệnh</th><th>Công đoạn</th><th>Máy</th><th>Nhóm</th><th>Trạng thái</th></tr></thead><tbody>
+    <tr><td>LSX26-0128</td><td>In</td><td>Máy in 2 màu</td><td>Nhóm thợ in máy 2 màu</td><td><span class="chip cham"><i></i>Đang làm</span></td></tr>
+    <tr><td>LSX26-0131</td><td>In</td><td>Máy in 4 màu</td><td>Nhóm thợ in máy 4 màu</td><td><span class="chip xanh"><i></i>Chờ bắt đầu</span></td></tr>
+  </tbody></table><p class="ghi">Màn Việc của tổ giữ như hiện nay, chỉ thấy việc bộ phận đã giao.</p>`;
+}
+
+function main() {
+  const b = BP.find(x => x.id===S.bp);
+  const duong = document.getElementById("duong"), than = document.getElementById("than");
+  const nutGiao = `<button class="nut">Rút lại</button><button class="nut chinh">Giao xuống tổ</button>`;
+  if (S.pa==="B" && S.xem!=="nhom") {
+    duong.innerHTML = `Tổ sản xuất ${IC.phai} <b>${b.ten}</b>`;
+    than.innerHTML = `<div class="tieu-de"><h2>${b.ten}</h2><span class="gian"></span>${S.tab==="kh"?nutGiao:""}</div>
+      <div class="tabs"><button class="${S.tab==="kh"?"chon":""}" data-tab="kh">Kế hoạch ${b.moi?'<span class="cham"></span>':""}</button><button class="${S.tab==="viec"?"chon":""}" data-tab="viec">Việc của tổ</button></div>
+      ${S.tab==="kh" ? keHoach(b) : viecCuaTo(b, S.nhom)}`;
+    return;
+  }
+  if (S.xem==="kh") {
+    duong.innerHTML = `Tổ sản xuất ${IC.phai} ${b.ten} ${IC.phai} <b>Kế hoạch</b>`;
+    than.innerHTML = `<div class="tieu-de"><h2>Kế hoạch ${b.ten.toLowerCase()}</h2><span class="gian"></span>${nutGiao}</div>${keHoach(b)}`;
+  } else {
+    const ten = S.nhom===b.ten ? "Việc của tổ" : S.nhom;
+    duong.innerHTML = `Tổ sản xuất ${IC.phai} ${b.ten} ${IC.phai} <b>${ten}</b>`;
+    than.innerHTML = `<div class="tieu-de"><h2>${ten}</h2></div>${viecCuaTo(b, S.nhom)}`;
+  }
+}
+
+function ve() { chonPa(); nav(); main(); }
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-pa],[data-gap],[data-bp],[data-doi],[data-chonbp],[data-tab],[data-locnhom]");
+  if (!t) return;
+  const d = t.dataset;
+  if (d.pa) { S.pa = d.pa; S.xem = S.pa==="B" ? "trang" : "kh"; S.tab = "kh"; S.nhom = null; S.doiMo = false; }
+  else if (d.gap) { S.mo[d.gap] = !S.mo[d.gap]; }
+  else if (d.doi) { S.doiMo = !S.doiMo; }
+  else if (d.chonbp) { S.bp = d.chonbp; S.xem = "kh"; S.nhom = null; S.doiMo = false; }
+  else if (d.tab) { S.tab = d.tab; S.nhom = null; }
+  else if (d.locnhom !== undefined) { S.nhom = d.locnhom || null; }
+  else if (d.bp) { S.bp = d.bp; S.xem = d.xem; S.nhom = d.nhom || null; if (d.xem==="trang") S.tab = "kh"; S.mo[d.bp] = S.mo[d.bp] || d.xem!=="trang" ? S.mo[d.bp] : S.mo[d.bp]; }
+  ve();
+});
+
+ve();
+</script>
+</body>
+</html>

@@ -402,7 +402,7 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
             bp_moi = so.bo_phan(buoc.department_id)
             if cv.bo_phan_id is not None and cv.da_giao_at is None:
                 if bp_moi is not None and bp_moi != cv.bo_phan_id:
-                    cv.bo_phan_id, cv.thu_tu_xep = bp_moi, None
+                    cv.bo_phan_id = bp_moi
                 if may_id is None:
                     cv.may_id = buoc.may_id
             elif cv.bo_phan_id is None:

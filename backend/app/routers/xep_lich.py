@@ -93,6 +93,7 @@ _phat_lich_doi = sau_phat_hanh.phat_lich_doi
 _phat_goi_xuong_xuong = sau_phat_hanh.phat_goi_xuong_xuong
 _cham_cho_xep = sau_phat_hanh.cham_cho_xep
 _cham_viec_moi = sau_phat_hanh.cham_viec_moi
+_noi_goi = sau_phat_hanh.noi_goi
 
 
 def _phat_lich_doi_may(may_id: int) -> None:
@@ -288,6 +289,7 @@ def phat_hanh(
 
     Trả kèm `vat_tu` = số yêu cầu xuất vừa tự lập + các món chưa tự lập được (spec 2026-10-18 §4)
     để toast nói cho người phát hành biết."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).phat_hanh(lsx_id, actor=user)
     except Exception as exc:
@@ -297,7 +299,7 @@ def phat_hanh(
     # Cùng trình tự `sau_phat_hanh.bao` (vòng tự đẩy gọi bản đó) — viết rời để bài soi nguồn SSE
     # của router thấy `_phat_goi_xuong_xuong(` ngay trong route.
     xoa_cache_can_doi()
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     _cham_viec_moi(db, lsx_id, user.id)
     bao_sau_phat_hanh(db, kq["_tu_lap"], ma_lenh=kq["ma"], actor_id=user.id)
     return {"ok": True, "vat_tu": kq["vat_tu"]}
@@ -329,6 +331,7 @@ def phat_hanh_cap_nhat(
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
 ) -> dict:
     """Đẩy lịch mới xuống xưởng cho phần CHƯA bắt đầu (§4.3), giữ nguyên việc đã chạy."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).phat_hanh_cap_nhat(lsx_id, actor=user, ly_do=payload.ly_do)
     except Exception as exc:
@@ -340,7 +343,7 @@ def phat_hanh_cap_nhat(
     _cham_viec_moi(db, lsx_id, user.id)
     # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
     # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     return kq
 
 
@@ -352,6 +355,7 @@ def thu_hoi(
     ly_do: str | None = Query(None, max_length=500),
 ) -> dict:
     """Thu hồi CẢ CỤM đã phát hành chung một gói — mọi lệnh trong cụm quay lại khay chờ xếp."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
@@ -360,7 +364,7 @@ def thu_hoi(
 
     xoa_cache_can_doi()
     bao_da_huy(db, kq.get("yeu_cau_da_huy") or [])
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     for i in kq["cum_lsx"]:
         _cham_cho_xep(db, i, user.id)
     return {"ok": True, "cum_lsx": kq["cum_lsx"]}

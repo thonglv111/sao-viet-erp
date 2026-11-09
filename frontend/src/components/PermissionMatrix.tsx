@@ -638,8 +638,6 @@ const MODULE_HINTS: Record<string, string> = {
     "Xem: bài ghép. Thao tác: tạo, sửa bài ghép.",
   xep_lich:
     "Xem: lịch xưởng. Thao tác: xếp, dời, bỏ lịch.",
-  ke_hoach_bo_phan:
-    "Xem: việc lệnh đã phát tới bộ phận, quy cách in và tệp của lệnh. Thao tác: xếp vào máy, chọn nhóm, giao xuống tổ, rút lại. Lưu ý: phạm vi Tất cả là mọi bộ phận, Cả phòng là bộ phận của người dùng.",
   ky_thuat_may:
     "Xem: phiếu sửa chữa và máy được báo hỏng. Thao tác: nhận phiếu, ghi đã sửa, tải ảnh, xác nhận xong.",
   phieu_bao_tri:
@@ -827,8 +825,6 @@ const MODULE_GROUPS: {
       "ke_hoach_vat_tu",
       "bai_ghep_2",
       "xep_lich",
-      // Kế hoạch bộ phận (07/11/2026): lệnh đã phát tới bộ phận, bộ phận xếp máy, chọn nhóm, Giao.
-      "ke_hoach_bo_phan",
       "kcs",
     ],
   },
@@ -995,6 +991,22 @@ const FINE_TO: { key: ActionKey; label: string; hint: string }[] = [
   },
 ];
 
+// Dòng quyền KẾ HOẠCH THEO BỘ PHẬN (08/11/2026): mỗi bộ phận (Tổ in, Tổ cán màng…) một dòng
+// `ke_hoach_bp_<id>`, máy chủ tự sinh theo cây và trả ngay sau dòng tổ của bộ phận (thụt một nấc).
+// Hiện chữ "Kế hoạch" như mục trên thanh bên; không tính là tổ lá của nhóm. Phạm vi khoá Tất cả,
+// một ô chi tiết Giao việc.
+const laDongKeHoach = (moduleKey: string) => /^ke_hoach_bp_\d+$/.test(moduleKey);
+const tenBoPhanCuaDong = (nhan: string) => nhan.replace(/^Kế hoạch\s+/, "");
+const hintDongKeHoach = (tenBoPhan: string) =>
+  `Cho phép mở mục Kế hoạch của ${tenBoPhan}: xem việc bộ phận nhận, đang ở máy nào, nhóm nào.`;
+const FINE_KE_HOACH: FineAction[] = [
+  {
+    key: "can_update",
+    label: "Giao việc",
+    hint: "Cho phép: giao việc cho nhóm và chọn máy; rút lại việc nhóm chưa làm.",
+  },
+];
+
 // Dòng quyền THEO KHO (05/10/2026): MỖI KHO đã khai báo là một dòng `ton_kho_<id>` mang tên kho,
 // máy chủ tự sinh / đổi tên theo Khai báo kho. Xem = mục kho đó hiện trên thanh bên + số tồn, lô
 // của kho; Thao tác = khai ngưỡng tồn (cột `can_set_threshold`, xem `COT_THAO_TAC` — chủ chốt
@@ -1059,7 +1071,9 @@ const fineCua = (moduleKey: string): FineAction[] | undefined =>
       ? FINE_TO
       : laDongKho(moduleKey)
         ? FINE_KHO
-        : undefined;
+        : laDongKeHoach(moduleKey)
+          ? FINE_KE_HOACH
+          : undefined;
 
 /** A fresh all-off matrix (scope "own") for every module — used when creating a new role. */
 export function defaultMatrix(modules: ModuleDef[]): PermissionRow[] {
@@ -1149,9 +1163,6 @@ const PHAM_VI_CHO_PHEP: Record<string, Scope[]> = {
   bao_cao_cong_no: ["all"],
   bao_cao_thu_chi: ["all"],
   nhan_su: ["department", "all"],
-  // Kế hoạch bộ phận: máy chủ chỉ phân hai mức, Tất cả = mọi bộ phận, còn lại = bộ phận chứa phòng
-  // của người xem (`KeHoachBoPhanService.bo_phan_thay_duoc`) ⇒ "Của tôi" không có nghĩa riêng.
-  ke_hoach_bo_phan: ["department", "all"],
   // Bốn màn sổ sách kế toán / tài sản (05/10/2026): máy chủ KHÔNG đọc phạm vi của các khoá này
   // (`routers/accounting.py`, `routers/tai_san.py`) — chọn gì cũng thấy toàn bộ. Nay vào
   // `SCOPELESS_MODULES` (ép `all` lúc lưu), giao diện khoá cho khớp.
@@ -1315,17 +1326,23 @@ export function PermissionMatrix({
   const mapped = new Set(MODULE_GROUPS.flatMap((g) => g.modules));
   const orphans = matrixHienThi
     .map((r) => r.module_key)
-    .filter((k) => !mapped.has(k) && !laDongTo(k) && !laDongKho(k));
+    .filter((k) => !mapped.has(k) && !laDongTo(k) && !laDongKho(k) && !laDongKeHoach(k));
   // Dòng tổ theo ĐÚNG thứ tự cây máy chủ trả (`modules` đã xếp duyệt sâu) — thứ tự của ma trận đã
   // lưu thì không có nghĩa gì với cây.
+  // Dòng Kế hoạch của bộ phận xen ngay sau dòng tổ của bộ phận đó (máy chủ đã xếp).
   const dongTo = modules
-    .filter((m) => laDongTo(m.key))
+    .filter((m) => laDongTo(m.key) || laDongKeHoach(m.key))
     .map((m) => byKey.get(m.key))
     .filter((r): r is PermissionRow => !!r);
   const cayTo = cayDongTo(modules.filter((m) => laDongTo(m.key)));
   // Nhóm tổ đang GẬP trên ma trận (giống thanh bên).
   const [toGap, setToGap] = useState<Set<string>>(new Set());
   const anVaoNhomGap = (key: string): boolean => {
+    // Dòng Kế hoạch đi theo dòng tổ của bộ phận: bộ phận là nhóm đang gập, hoặc nằm trong nhóm gập.
+    if (laDongKeHoach(key)) {
+      const to = KHOA_TO_TIEN_TO + key.slice("ke_hoach_bp_".length);
+      return toGap.has(to) || anVaoNhomGap(to);
+    }
     for (let c = cayTo.cha.get(key); c; c = cayTo.cha.get(c)) if (toGap.has(c)) return true;
     return false;
   };
@@ -1474,8 +1491,11 @@ export function PermissionMatrix({
                   )}
                 </div>
                 {g.rows.map((row) => {
-                  const label = moduleLabel.get(row.module_key) ?? row.module_key;
-                  if (laDongTo(row.module_key) && anVaoNhomGap(row.module_key)) return null;
+                  const nhanGoc = moduleLabel.get(row.module_key) ?? row.module_key;
+                  const laKeHoach = laDongKeHoach(row.module_key);
+                  // Dòng Kế hoạch nằm dưới bộ phận nên chỉ ghi "Kế hoạch", như mục trên thanh bên.
+                  const label = laKeHoach ? "Kế hoạch" : nhanGoc;
+                  if ((laDongTo(row.module_key) || laKeHoach) && anVaoNhomGap(row.module_key)) return null;
                   const laTrongNhom = laDongTo(row.module_key) ? cayTo.laCuaNhom.get(row.module_key) : undefined;
                   if (laTrongNhom) {
                     const oLa = laTrongNhom
@@ -1537,7 +1557,8 @@ export function PermissionMatrix({
                     oSong(row.module_key, k.replace("can_", "")),
                   );
                   const phamViChoPhep =
-                    PHAM_VI_CHO_PHEP[row.module_key] ?? (laDongKho(row.module_key) ? ["all"] : undefined);
+                    PHAM_VI_CHO_PHEP[row.module_key]
+                    ?? (laDongKho(row.module_key) || laKeHoach ? ["all"] : undefined);
                   const def = moduleDef.get(row.module_key);
                   // Ô soi (`mod`) mà dòng nguồn không có trong ma trận (màn ngừng dùng) thì không bày.
                   const fineActs = fineCua(row.module_key)?.filter((a) => (!a.mod || byKey.has(a.mod))
@@ -1571,13 +1592,15 @@ export function PermissionMatrix({
                         )}
                         <span className="rdx-perm__mod">
                           {label}
-                          {(MODULE_HINTS[row.module_key] || laDongKho(row.module_key) || laDongTo(row.module_key)) && (
+                          {(MODULE_HINTS[row.module_key] || laDongKho(row.module_key) || laDongTo(row.module_key) || laKeHoach) && (
                             <HoverTip
-                              tieuDe={label}
+                              tieuDe={nhanGoc}
                               text={MODULE_HINTS[row.module_key]
-                                ?? (laDongTo(row.module_key)
-                                  ? hintDongTo(label, undefined)
-                                  : hintDongKho(label))}
+                                ?? (laKeHoach
+                                  ? hintDongKeHoach(tenBoPhanCuaDong(nhanGoc))
+                                  : laDongTo(row.module_key)
+                                    ? hintDongTo(label, undefined)
+                                    : hintDongKho(label))}
                             />
                           )}
                         </span>

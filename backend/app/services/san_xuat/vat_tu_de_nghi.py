@@ -386,7 +386,12 @@ def _req_service(db: Session, hang):
 def _bao_de_nghi_doi(cv) -> None:
     """Đề nghị cấp vật tư của MỘT công việc đổi. FE chỉ nghe ở bàn tổ (gác `coQuyenBanTo`, đếm theo
     `cong_viec_id` cho drawer đang mở, không nhích nhóm nào) ⇒ chỉ bàn của tổ giữ việc; phía kho
-    nhận tin riêng của yêu cầu kho."""
+    nhận tin riêng của yêu cầu kho.
+
+    Việc CHƯA GIAO (chưa có tổ, còn ở khay bộ phận) không nằm trên bàn tổ nào ⇒ không gửi: gửi rộng
+    thì mỗi lần phát hành tự lập đề nghị là mọi bàn tổ nạp lại lưới và ăn toast (08/11/2026)."""
+    if cv.department_id is None and cv.bo_phan_id is not None:
+        return
     hub.gui({"type": "san_xuat_vat_tu_de_nghi_changed", "cong_viec_id": cv.id},
             **kem_ban_to((), [cv.department_id]))
 

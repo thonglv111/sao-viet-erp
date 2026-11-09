@@ -19680,3 +19680,54 @@ def _migrate_xep_lich_hen_day(db: Session) -> None:
 
 
 MIGRATIONS.append(("0470_xep_lich_hen_day", _migrate_xep_lich_hen_day))
+
+
+def _migrate_ke_hoach_tung_bo_phan(db: Session) -> None:
+    """0471 (08/11/2026; số gốc 0456 trùng Giao đơn nên đổi lúc gộp dev 09/11/2026).
+
+    Kế hoạch bộ phận thôi là MỘT mục ở khối Sản xuất: mỗi bộ phận có mục
+    "Kế hoạch" của riêng nó dưới khối Tổ sản xuất, và MỘT DÒNG QUYỀN riêng `ke_hoach_bp_<id bộ phận>`
+    (cùng khuôn dòng theo tổ / theo kho; chủ dự án: "mỗi module sinh ra phải có quyền tương ứng").
+
+    1. Sinh dòng `ke_hoach_bp_<id>` cho mọi bộ phận hiện có (sau này `dong_bo_dong_quyen_ke_hoach`
+       giữ khớp cây lúc khởi động). Vai đang có Xem ở dòng cũ `ke_hoach_bo_phan` được chép Xem (và
+       Giao việc nếu có Thao tác) sang MỌI dòng mới, phạm vi Tất cả — dòng theo bộ phận không có
+       phạm vi theo người. Dự án chưa có người dùng thật nên chép rộng không lộ gì.
+    2. Gỡ dòng cũ `ke_hoach_bo_phan` cùng mọi ô đã cấp.
+    3. Gỡ cột `san_xuat_cong_viec.thu_tu_xep`: kế hoạch không sắp thứ tự chạy nữa (doc §11).
+    Idempotent. Đọc cột/bảng TRƯỚC lệnh ghi đầu tiên."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    cols = _existing_columns(insp, "san_xuat_cong_viec") if "san_xuat_cong_viec" in tables else set()
+    co_cot = ([c for c in sorted(_existing_columns(insp, "role_permissions")) if c.startswith("can_")]
+              if "role_permissions" in tables else [])
+    bp = sorted(set(_bo_phan_theo_cay(db).values())) if "departments" in tables else []
+    if {"modules", "role_permissions", "departments"} <= tables:
+        ten = dict(db.execute(text("SELECT id, name FROM departments")).all())
+        cu = db.execute(text(
+            "SELECT role_id, can_update FROM role_permissions "
+            "WHERE module_key = 'ke_hoach_bo_phan' AND can_read")).all()
+        for b in bp:
+            k = f"ke_hoach_bp_{b}"
+            db.execute(text(
+                "INSERT INTO modules (key, label, created_at) "
+                "SELECT :k, :l, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+                {"k": k, "l": f"Kế hoạch {ten.get(b, b)}"})
+            for role_id, sua in cu:
+                # Mọi cột `can_*` khác phải ghi rõ False: mặc định của chúng chỉ nằm ở ORM.
+                gia_tri = {c: False for c in co_cot}
+                gia_tri.update({"can_read": True, "can_update": bool(sua)})
+                db.execute(text(
+                    f"INSERT INTO role_permissions (role_id, module_key, scope, {', '.join(gia_tri)}) "
+                    f"SELECT :r, :k, 'all', {', '.join(':' + c for c in gia_tri)} "
+                    "WHERE NOT EXISTS (SELECT 1 FROM role_permissions "
+                    "  WHERE role_id = :r AND module_key = :k)"),
+                    {"r": role_id, "k": k, **gia_tri})
+        db.execute(text("DELETE FROM role_permissions WHERE module_key = 'ke_hoach_bo_phan'"))
+        db.execute(text("DELETE FROM modules WHERE key = 'ke_hoach_bo_phan'"))
+    if "thu_tu_xep" in cols:
+        db.execute(text("ALTER TABLE san_xuat_cong_viec DROP COLUMN thu_tu_xep"))
+    db.commit()
+
+
+MIGRATIONS.append(("0471_ke_hoach_tung_bo_phan", _migrate_ke_hoach_tung_bo_phan))

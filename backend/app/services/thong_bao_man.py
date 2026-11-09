@@ -30,8 +30,6 @@ KENH: dict[str, tuple[str, ...]] = {
     # Đơn mới vào hàng chờ chỉ báo người có ô Giao đơn (08/11/2026).
     "san_xuat": ("reassign",),
     "xep_lich": (),
-    # Kế hoạch bộ phận (07/11/2026): phát lệnh ⇒ chấm cho người kế hoạch của bộ phận nhận.
-    "ke_hoach_bo_phan": (),
     "kho": (),
     # Hàng việc tiền của đơn bán (17/10/2026): chấm cho người LẬP được phiếu — "Đơn hàng chờ thu"
     # ở Phiếu thu, "Chờ trả lại khách" ở Phiếu chi.
@@ -49,7 +47,11 @@ def kenh_to(department_id: int) -> str:
 
 
 def kenh_hop_le(kenh: str) -> bool:
+    from .quyen_ke_hoach import la_khoa_ke_hoach
+
     if kenh in KENH:
+        return True
+    if la_khoa_ke_hoach(kenh):  # mục Kế hoạch của một bộ phận (08/11/2026)
         return True
     return kenh.startswith(TIEN_TO_TO) and kenh[len(TIEN_TO_TO):].isdigit()
 
@@ -139,4 +141,8 @@ def trang_thai(db: Session, authz, user) -> dict[str, dict]:
         qt = quyen_to_cua(db, user)
         for to_id in sorted(qt.tron[VIEC_XEM] | qt.rieng[VIEC_XEM]):
             dk.append(DieuKienKenh(kenh=kenh_to(to_id), quyen=None, phong_ids=None))
+    from .quyen_ke_hoach import bo_phan_duoc, khoa_ke_hoach
+
+    for bp in sorted(bo_phan_duoc(authz, user)):
+        dk.append(DieuKienKenh(kenh=khoa_ke_hoach(bp), quyen=None, phong_ids=None))
     return ModuleNotificationRepository(db).moi_nhat(user.id, dk)

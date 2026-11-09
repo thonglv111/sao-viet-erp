@@ -6,11 +6,13 @@ engine directly. SQL stays portable across SQLite (local/test) and Postgres
 """
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import TypeVar
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
+from starlette.requests import Request
 
 from .config import settings
 
@@ -77,13 +79,35 @@ SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 Base = declarative_base()
 
 
-def get_db() -> Iterator[Session]:
-    """FastAPI dependency: yield a request-scoped session, always closed."""
+_T = TypeVar("_T")
+
+
+def get_db(request: Request = None) -> Iterator[Session]:  # type: ignore[assignment]
+    """FastAPI dependency: yield a request-scoped session, always closed.
+
+    Request GET/HEAD đánh dấu phiên chỉ đọc (`db.info["chi_doc"]`) để `nho_trong_luot_doc` được nhớ
+    kết quả truy vấn đọc lặp lại trong cùng một lượt (08/11/2026, tối ưu tải phân hệ Tổ sản xuất)."""
     db = SessionLocal()
+    db.info["chi_doc"] = request is not None and request.method in ("GET", "HEAD")
     try:
         yield db
     finally:
         db.close()
+
+
+def nho_trong_luot_doc(db: Session, khoa: tuple, tinh: Callable[[], _T]) -> _T:
+    """Nhớ kết quả `tinh()` theo `khoa` trong MỘT phiên của request GET. Phiên ghi (POST/PUT/…, hay
+    phiên tự mở ngoài request) luôn tính lại: trong lượt ghi, dữ liệu vừa sửa phải đọc lại thật.
+
+    Dùng cho truy vấn đọc thuần bị gọi lặp nhiều lần trong một lượt dựng màn (vd chặng trước của
+    một việc: trần nhận, đầu vào, công đoạn trước đều hỏi lại). Bên gọi không được sửa giá trị trả
+    về (danh sách dùng chung giữa các lần gọi)."""
+    if not db.info.get("chi_doc"):
+        return tinh()
+    nho = db.info.setdefault("nho_doc", {})
+    if khoa not in nho:
+        nho[khoa] = tinh()
+    return nho[khoa]
 
 
 def init_db() -> None:

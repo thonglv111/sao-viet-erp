@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Bundle, Session, selectinload
 
+from ..db import nho_trong_luot_doc
 from ..models.cong_doan import CongDoanKhoan
 from ..models.department import Department
 from ..models.employee import Employee
@@ -222,8 +223,9 @@ class KhoanKyRepository:
     def lenh_theo_id(self, ids: set[int]) -> dict[int, Lsx]:
         if not ids:
             return {}
-        rows = self.db.scalars(select(Lsx).options(selectinload(Lsx.cong_doans))
-                               .where(Lsx.id.in_(ids)))
+        khoa = ("lenh_theo_id", frozenset(int(i) for i in ids))
+        rows = nho_trong_luot_doc(self.db, khoa, lambda: tuple(
+            self.db.scalars(select(Lsx).options(selectinload(Lsx.cong_doans)).where(Lsx.id.in_(ids)))))
         return {int(l.id): l for l in rows}
 
     def lenh_cho_quy_cach(self, ids: set[int]) -> dict[int, SimpleNamespace]:

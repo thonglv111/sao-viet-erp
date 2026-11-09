@@ -105,9 +105,11 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
 def _la_scopeless(module_key: str) -> bool:
     """Khoá tĩnh trong `SCOPELESS_MODULES`, cộng mọi dòng quyền theo kho (`ton_kho_<id>`): người
     này thấy được kho nào là do CHÍNH DÒNG của kho đó quyết định, không phải phạm vi của vai."""
+    from .quyen_ke_hoach import la_khoa_ke_hoach
     from .quyen_kho import la_khoa_kho
 
-    return module_key in SCOPELESS_MODULES or la_khoa_kho(module_key)
+    # Dòng Kế hoạch theo bộ phận (`ke_hoach_bp_<id>`, 08/11/2026) cũng vậy: dòng đã gắn một bộ phận.
+    return module_key in SCOPELESS_MODULES or la_khoa_kho(module_key) or la_khoa_ke_hoach(module_key)
 
 
 READ_IMPLYING_KEYS = (
@@ -306,6 +308,7 @@ class RoleService:
         from ..deps import O_CHET_DA_XAC_MINH
         from ..repositories.quyen_kho_repo import QuyenKhoRepository
         from .quyen_kho import khoa_kho, la_khoa_kho
+        from .quyen_ke_hoach import khoa_ke_hoach, la_khoa_ke_hoach
         from .quyen_to import doc_cay, khoa_to
 
         # Dòng quyền theo KHO (`ton_kho_<id>`, 05/10/2026): chỉ bày kho ĐANG DÙNG (đúng như thanh
@@ -319,8 +322,20 @@ class RoleService:
         # lề; module tĩnh giữ thứ tự cũ.
         cay = doc_cay(self.departments.db)
         thu_tu_to = {khoa_to(d): (i, d, cap) for i, (d, cap) in enumerate(cay.thu_tu())}
+        # Dòng Kế hoạch của bộ phận (`ke_hoach_bp_<id>`, 08/11/2026) đứng NGAY SAU dòng tổ của bộ
+        # phận đó, sâu hơn một cấp — đúng chỗ mục "Kế hoạch" nằm dưới bộ phận trên thanh bên.
+        thu_tu_kh = {khoa_ke_hoach(d): (i + 0.5, d, cap + 1)
+                     for i, (d, cap) in enumerate(cay.thu_tu())}
         tinh, dong_to = [], []
         for m in self.modules.list_all():
+            if la_khoa_ke_hoach(m.key):
+                if m.key in thu_tu_kh:
+                    i, bp, cap = thu_tu_kh[m.key]
+                    dong_to.append((i, {
+                        "key": m.key, "label": m.label, "viec_chet": ["create", "delete"],
+                        "department_id": bp, "cap": cap, "ke_hoach_bo_phan_id": bp,
+                    }))
+                continue
             if la_khoa_kho(m.key):
                 if m.key in thu_tu_kho:
                     i, kho_id = thu_tu_kho[m.key]

@@ -93,7 +93,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   lsx_changed: ["san_xuat", "ban_hang", "khvt"],
   bai_ghep_changed: ["san_xuat", "khvt"],
   xep_lich_changed: ["san_xuat", "khvt"],
-  // Kế hoạch bộ phận đổi (phát lệnh / xếp / giao / rút) — màn bộ phận và Xếp lịch nạp lại.
+  // Kế hoạch của một bộ phận đổi (phát lệnh / giao / rút) — màn Kế hoạch đang mở nạp lại.
   ke_hoach_bo_phan_changed: ["san_xuat"],
   san_xuat_changed: ["san_xuat"],
   san_xuat_cong_viec_changed: ["san_xuat"],

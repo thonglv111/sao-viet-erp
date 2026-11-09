@@ -11,6 +11,7 @@ from datetime import date
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
+from ..db import nho_trong_luot_doc
 from ..models.customer import Customer
 from ..models.lsx import LOAI_MOI, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
 from ..models.order import STATUS_ORDERED, Order, OrderLine
@@ -282,14 +283,15 @@ class LsxRepository:
         ids = {int(i) for i in (ids or set()) if i}
         if not ids:
             return []
-        return list(
+        # Chi tiết một việc hỏi lại cùng lệnh ở nhiều nhánh (vật tư cấp, giấy nhận từ): nhớ trong lượt GET.
+        return list(nho_trong_luot_doc(self.db, ("lsx_theo_ids", frozenset(ids)), lambda: tuple(
             self.db.execute(
                 select(Lsx)
                 .options(selectinload(Lsx.cong_doans))
                 .where(Lsx.id.in_(ids))
                 .order_by(Lsx.created_at.desc(), Lsx.id.desc())
             ).scalars()
-        )
+        )))
 
     def by_order_lines(self, order_line_ids: list[int]) -> dict[int, Lsx]:
         """order_line_id → LSX 'sản xuất mới' đã tạo (nguồn của guard chống sinh trùng)."""
