@@ -731,6 +731,8 @@ function NganLenh({
 
   const l = d?.lenh;
   const dangGiu = (d?.dong ?? []).filter((x) => x.giu_kho + x.giu_ve > 0);
+  const nguonNha = dangGiu.every((x) => x.giu_ve <= 0) ? "kho"
+    : dangGiu.every((x) => x.giu_kho <= 0) ? "ve" : "lan";
   const phieu = (d?.dong ?? []).filter((x) => x.phieu);
   const trung = (d?.dong ?? []).flatMap((x) => x.trung.map((p) => ({ p, d: x })));
 
@@ -899,20 +901,37 @@ function NganLenh({
           <p className="lvt-hop">Lệnh này chưa giữ được món nào. Nhả chỉ tắt việc tự giữ khi hàng về.</p>
         ) : (
           <>
-            {/* Hàng giữ có thể còn đang về chứ chưa vào kho — nói đúng nguồn từng món. */}
-            <p className="lvt-hop">Thôi giữ cho lệnh này:</p>
-            <ul className="lvt-hop__ds">
-              {dangGiu.map((x) => (
-                <li key={x.khoa}>
-                  <span>{so(x.giu_kho + x.giu_ve)} {x.dvt}</span>
-                  <span>{x.hang_ten}</span>
-                  <span className="lvt-mu">
-                    {x.giu_kho > 0 && x.giu_ve > 0 ? "trong kho và hàng đang về"
-                      : x.giu_kho > 0 ? "trong kho" : "hàng đang về"}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {/* Hàng giữ có thể còn đang về chứ chưa vào kho. Cùng một nguồn thì nói một lần ở câu
+                dẫn; lẫn nguồn mới thêm cột Nguồn cho từng món. */}
+            <p className="lvt-hop">
+              {nguonNha === "kho" ? "Thôi giữ hàng trong kho cho lệnh này:"
+                : nguonNha === "ve" ? "Thôi giữ hàng đang về cho lệnh này:" : "Thôi giữ cho lệnh này:"}
+            </p>
+            <div className="lvt-hop__khung">
+              <table className="lvt-hop__bang">
+                <thead>
+                  <tr>
+                    <th>Món</th>
+                    {nguonNha === "lan" && <th>Nguồn</th>}
+                    <th className="so">Đang giữ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dangGiu.map((x) => (
+                    <tr key={x.khoa}>
+                      <td>{x.hang_ten}</td>
+                      {nguonNha === "lan" && (
+                        <td className="lvt-mu">
+                          {x.giu_kho > 0 && x.giu_ve > 0 ? "Trong kho và đang về"
+                            : x.giu_kho > 0 ? "Trong kho" : "Đang về"}
+                        </td>
+                      )}
+                      <td className="so">{so(x.giu_kho + x.giu_ve)} {x.dvt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
         <p className="lvt-hop">Lệnh khác cần sớm hơn sẽ giữ phần vừa nhả, giữ lại sau có thể không còn.</p>
