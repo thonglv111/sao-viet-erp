@@ -157,7 +157,7 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
     """Cùng bộ số với cột tiến độ của bảng danh sách — CỐ Ý, không phải tiện tay.
 
     Mở hồ sơ ra thấy 40% trong khi bảng vừa nói 55% là mất niềm tin vào cả hai màn, nên hai bên
-    phải gọi ĐÚNG một hàm (`tien_do.phan_tram` / `gio_may` / `du_kien_xong`) chứ không mỗi bên tự
+    phải gọi ĐÚNG một hàm (`tien_do.phan_tram` / `gio_may`) chứ không mỗi bên tự
     tính. `uoc_tinh=True` = phần trăm đang đo bằng THỜI LƯỢNG kế hoạch vì bước chưa khai sản lượng;
     hai mức tin cậy đó phải ra tới UI, gộp làm một là mời người ta quyết trên con số họ tưởng chắc.
     """
@@ -169,7 +169,6 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
         "phan_tram": pct,
         "uoc_tinh": uoc_tinh,
         "gio_may": tien_do.gio_may(bc, lsx_id, bay_gio),
-        "du_kien_xong": tinh["xong"],
         "trang_thai": tinh["trang_thai"],
         "canh_bao": tinh["canh_bao"],
         "buoc_hien_tai": cv.ten_cong_doan if cv is not None else None,
@@ -1012,16 +1011,12 @@ def ho_so(
     if can & {"tien_do", "vat_tu"}:
         den, bang, chu_den = trang_thai.den_va_bang(db, [lsx_id])
     if "tien_do" in can:
-        xong = tien_do.du_kien_xong(bc, lsx_id, bay_gio)
         tinh = {
-            "xong": xong,
             "vat_tu_chu": (
                 chu_den.get(lsx_id) if (den or {}).get(lsx_id) == lsx_tong_quan.MUC_DO else None
             ),
-            "canh_bao": trang_thai.co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den, xong=xong),
-            "trang_thai": trang_thai.trang_thai_chinh(
-                bc, lsx_id, bay_gio, den_vat_tu=den, xong=xong
-            ),
+            "canh_bao": trang_thai.co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den),
+            "trang_thai": trang_thai.trang_thai_chinh(bc, lsx_id, bay_gio, den_vat_tu=den),
         }
 
     buocs: list[LsxCongDoan] = []

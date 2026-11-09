@@ -26,7 +26,7 @@ function cum(o: Partial<DonTienDoCum>): DonTienDoCum {
 }
 
 const TD: DonTienDo = {
-  order_id: 3, han_cam_ket: null, du_kien_xong: null, chua_du_du_lieu: false, tre_ngay: null, dang_cho: [],
+  order_id: 3, han_cam_ket: null, dang_cho: [],
   ly_do: [],
   cum: [
     cum({ khoa: "hop", ten: "Hộp thuốc", order_line_ids: [11] }),
@@ -350,7 +350,7 @@ describe("Tóm tắt vòng đời · Nhập kho tính mọi sản phẩm, báo m
 
 describe("Nhà gia công giao thẳng cho khách (gia công ngoài, không qua KCS/kho trên phần mềm)", () => {
   const xong = { id: 2, ma: "LSX26-0002", da_xuong_xuong: true, pct: 100, uoc_tinh: false, xong: true,
-    buoc_hien_tai: null, du_kien_xong: null, trang_thai: null, canh_bao: [] };
+    buoc_hien_tai: null, trang_thai: null, canh_bao: [] };
   const gt = cum({ ten: "Hộp kem", dat: 5000, sx_pct: 100, sx_xong: true, lenh: [xong], kho_de_nghi: 0,
     kho_da_nhan: 0, cho_kho: 0, ton_that: 0, da_giao: 5000, giao_thang: 5000, con_phai_giao: 0, giao_duoc: 0 });
 
@@ -381,7 +381,7 @@ const LM: LenhMon = {
 
 const LENH = {
   id: 5, ma: "LSX26-0005", da_xuong_xuong: true, pct: 60, uoc_tinh: false, xong: false,
-  buoc_hien_tai: "Bế", du_kien_xong: null, trang_thai: null, canh_bao: [],
+  buoc_hien_tai: "Bế", trang_thai: null, canh_bao: [],
 };
 
 describe("⭐ Món có lệnh mà đủ hàng nhờ TỒN CÓ SẴN của mã (DH002/DH003, 12/10/2026)", () => {

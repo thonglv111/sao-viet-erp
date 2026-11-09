@@ -145,7 +145,7 @@ def _lenh(db, customer, *, ma, giay_id, so_to_nguyen, han=None, nguon_giay=None,
     l = Lsx(
         ma=ma, ten=ma, order_id=o.id, order_line_id=o._line.id,
         so_luong_dat=1_000, so_to_nguyen=so_to_nguyen, so_con=1,
-        han_hoan_thanh_sx=han, quy_cach_json=qc, trang_thai=TT_SAN_SANG,
+        han_giao_khach=han, quy_cach_json=qc, trang_thai=TT_SAN_SANG,
     )
     db.add(l)
     db.flush()
@@ -701,8 +701,8 @@ def test_dong_giay_chua_kho_canh_bao_khong_tra_ton(db, svc, customer):
     assert nhom["ton"] == 0
 
 
-def test_ton_chia_theo_HAN_SX_lenh_khong_han_xuong_cuoi(db, svc, customer):
-    """Con trỏ tồn chạy theo HẠN SẢN XUẤT — không phải thứ tự tạo lệnh, không phải id.
+def test_ton_chia_theo_HAN_GIAO_lenh_khong_han_xuong_cuoi(db, svc, customer):
+    """Lệnh chưa hẹn đẩy: con trỏ tồn chạy theo HẠN GIAO — không phải thứ tự tạo lệnh, không id.
 
     Sai thứ tự là sai kết quả chứ không chỉ sai hiển thị: lệnh hạn sau đứng trước sẽ ăn hết tồn,
     rồi lệnh gấp hơn bị báo đỏ oan. Lệnh chưa khai hạn không được chen lên trước lệnh có hạn.
@@ -1455,13 +1455,10 @@ def test_mon_da_BO_khoi_yeu_cau_thi_rung_chip(db, svc, customer):
 def test_dong_mang_khach_va_han_giao_cua_lenh(db, svc, customer):
     """Bảng cân đối phải nói được "lệnh này của ai, giao ngày nào".
 
-    Hạn giao KHÁCH (`han_giao_khach`) khác hạn nội bộ `han_hoan_thanh_sx` mà bảng dùng xếp thứ tự
-    ăn tồn — dựng hai ngày LỆCH nhau để bắt được ca lấy nhầm cột."""
+    Hạn giao lấy đúng `han_giao_khach` của lệnh (08/11/2026 hạn SX nội bộ đã gỡ)."""
     g = _giay(db)
-    a = _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000,
-              han=HOM_NAY + timedelta(days=5))
-    a.han_giao_khach = HOM_NAY + timedelta(days=9)
-    db.commit()
+    _lenh(db, customer, ma="LSX-A", giay_id=g.id, so_to_nguyen=1_000,
+          han=HOM_NAY + timedelta(days=9))
 
     d = _nhom(svc.can_doi(), g)["dong"][0]
     assert d["khach_ten"] == customer.name
@@ -1816,3 +1813,28 @@ def test_de_nghi_mua_tao_ycmh_co_kho(client, db, svc, customer):
     assert [(ln["kho_rong"], ln["kho_dai"], ln["quantity"]) for ln in yc["lines"]] == [
         (800, 1_090, 2_000)]
 
+
+# --- Thứ tự chia tồn theo GIỜ HẸN ĐẨY rồi HẠN GIAO (08/11/2026) ---------------------------------
+# Hạn hoàn thành SX đã gỡ. Lệnh nào hẹn đẩy xuống xưởng sớm hơn thì lĩnh trước — kể cả khi hạn giao
+# của nó muộn hơn; lệnh chưa hẹn đứng sau mọi lệnh đã hẹn, giữa chúng xếp theo hạn giao.
+def test_chia_ton_theo_gio_hen_roi_han_giao(db, svc, customer):
+    from app.models.xep_lich_lenh import XepLichLenh
+
+    g = _giay(db)
+    _ton(db, g, 1_500)                     # mỗi lệnh 1.000 tờ ⇒ tồn chỉ đủ MỘT lệnh
+    c = _lenh(db, customer, ma="LSX-X-CHUA-HEN", giay_id=g.id, so_to_nguyen=1_000,
+              han=HOM_NAY + timedelta(days=2))
+    b = _lenh(db, customer, ma="LSX-Y-HEN-MUON", giay_id=g.id, so_to_nguyen=1_000,
+              han=HOM_NAY + timedelta(days=3))
+    a = _lenh(db, customer, ma="LSX-Z-HEN-SOM", giay_id=g.id, so_to_nguyen=1_000,
+              han=HOM_NAY + timedelta(days=30))
+    gio = datetime.combine(MAI, datetime.min.time(), tzinfo=timezone.utc)
+    db.add_all([
+        XepLichLenh(lsx_id=a.id, bat_dau_at=gio + timedelta(hours=7)),
+        XepLichLenh(lsx_id=b.id, bat_dau_at=gio + timedelta(hours=9)),
+    ])
+    db.commit()
+
+    dong = _nhom(svc.can_doi(), g)["dong"]
+    assert [d["ma"] for d in dong] == [a.ma, b.ma, c.ma]
+    assert [d["trang_thai"] for d in dong] == ["xanh", "do", "do"]

@@ -69,10 +69,11 @@ def xuong_co_chuyen(sess, orders, lsx_svc, admin, customer) -> dict[str, int]:
         unavailable_from=bay_gio - timedelta(days=1), unavailable_to=bay_gio + timedelta(days=1),
     ))
     for k, lsx_id in w.items():
-        sess.get(Lsx, lsx_id).han_hoan_thanh_sx = _HAN_XA
+        sess.get(Lsx, lsx_id).han_giao_khach = _HAN_XA
         for cv in _cvs(sess, lsx_id):
             cv.may_id = thuong.id
-    sess.get(Lsx, w["tre_han"]).han_hoan_thanh_sx = date(2020, 1, 1)
+    # Từ 08/11/2026 trễ đo theo HẠN GIAO KHÁCH (lệnh chưa xong mà đã qua hạn giao).
+    sess.get(Lsx, w["tre_han"]).han_giao_khach = date(2020, 1, 1)
     _cvs(sess, w["tam_dung"])[0].trang_thai = CV_TAM_DUNG
     _cvs(sess, w["may_hong"])[1].may_id = hong.id
     _cvs(sess, w["chua_may"])[0].may_id = None
@@ -116,7 +117,6 @@ def test_canh_bao_tren_dong_va_tre_ngay(sess, xuong_co_chuyen):
     tre = dong[xuong_co_chuyen["tre_han"]]
     assert tre["canh_bao"] == [trang_thai.CO_TRE_HAN]
     assert tre["tre_ngay"] is not None and tre["tre_ngay"] > 0
-    assert tre["du_kien_xong"] is not None
     assert dong[xuong_co_chuyen["su_co"]]["canh_bao"] == [trang_thai.CO_SU_CO]
     assert dong[xuong_co_chuyen["su_co"]]["tre_ngay"] is None
 
@@ -131,16 +131,16 @@ def test_dong_mang_dang_o_va_khau(sess, lenh_that):
     assert set(row) == {
         "lsx_id", "ma", "ten", "is_rush", "so_luong_dat", "don_vi_tinh", "khach_hang", "chang",
         "buoc_hien_tai", "khau", "khau_chi_tiet", "han_hoan_thanh_sx", "created_at",
-        "du_kien_xong", "canh_bao", "tre_ngay",
+        "canh_bao", "tre_ngay",
     }
 
 
 def test_sap_so_co_giam_roi_gap_roi_han(sess, admin, customer, lenh_that):
     kw = dict(sale_user_id=admin.id, customer_id=customer.id)
-    a = _lenh_tho(sess, ma="LSX-TL-A", han_sx=date(2099, 1, 9), **kw)
-    gap = _lenh_tho(sess, ma="LSX-TL-GAP", han_sx=date(2099, 1, 20), is_rush=True, **kw)
-    b = _lenh_tho(sess, ma="LSX-TL-B", han_sx=date(2099, 1, 5), **kw)
-    sess.get(Lsx, lenh_that).han_hoan_thanh_sx = date(2099, 1, 30)
+    a = _lenh_tho(sess, ma="LSX-TL-A", han_giao=date(2099, 1, 9), **kw)
+    gap = _lenh_tho(sess, ma="LSX-TL-GAP", han_giao=date(2099, 1, 20), is_rush=True, **kw)
+    b = _lenh_tho(sess, ma="LSX-TL-B", han_giao=date(2099, 1, 5), **kw)
+    sess.get(Lsx, lenh_that).han_giao_khach = date(2099, 1, 30)
     sess.commit()
     _su_co(sess, lenh_that, _cvs(sess, lenh_that)[0].id, ma="YC-TL-SAP")
     assert _ids(_theo_lenh(sess)) == [lenh_that, gap, b, a]

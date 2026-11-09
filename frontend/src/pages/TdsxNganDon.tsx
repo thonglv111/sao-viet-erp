@@ -19,7 +19,7 @@ import { useAuth } from "../auth/useAuth";
 import { ChipTT, LocNhanhTrangThai, ngayVN, soVN, type MauTT } from "../components/LuoiDs";
 import { NganPhai } from "./ke-toan/shared/NganPhai";
 import "./ke-toan/ke-toan.css";
-import { LichSu, TuyenBuoc, buocTronGoi, gioNgan, ngayThang, type BuocDoc, type DongLichSu } from "./lsxRoutingDoc";
+import { LichSu, TuyenBuoc, buocTronGoi, gioNgan, type BuocDoc, type DongLichSu } from "./lsxRoutingDoc";
 import { NHAN_VUONG, NHOM_MON, cauVuong, chipHan, dangO } from "./tdsxDon";
 
 const MAU_NHOM_DON: Record<string, [string, MauTT]> = {
@@ -348,9 +348,6 @@ export function TdsxNganDon({
             )
           }
         />
-        {don.nhom === "dang_lam" && (
-          <O k="Dự kiến xong" v={don.du_kien_xong ? ngayThang(don.du_kien_xong) : <span className="lsa-mu">Chưa ước được</span>} />
-        )}
         {d.giao_xuong_luc && <O k="Giao xưởng" v={gioNgan(d.giao_xuong_luc)} />}
       </dl>
 

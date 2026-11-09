@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.customer import Customer
@@ -19,11 +19,12 @@ from .catalog_base import SIZE_TRAN
 from .loc_danh_sach import dk_khoang_ngay
 from .org_scope import chu_theo_khach
 
-# Mốc ngày của dải kỳ trên bảng lệnh (06/10/2026): (cột, là cột Date).
+# Mốc ngày của dải kỳ trên bảng lệnh (06/10/2026): (cột, là cột Date). `han_sx` (hạn SX nội bộ đã
+# gỡ 08/11/2026) còn nhận cho link cũ và hiểu như hạn giao.
 MOC_LENH = {
     "tao": (Lsx.created_at, False),
-    "han_sx": (Lsx.han_hoan_thanh_sx, True),
     "han_giao": (Lsx.han_giao_khach, True),
+    "han_sx": (Lsx.han_giao_khach, True),
 }
 def dk_don_trong_pham_vi(owner_ids: set[int]):
     """Đơn thuộc phạm vi (14/10/2026): CHỦ ĐƠN — sale phụ trách khách, thiếu thì sale ghi trên đơn —
@@ -31,9 +32,22 @@ def dk_don_trong_pham_vi(owner_ids: set[int]):
     return chu_theo_khach(Order.customer_id, Order.sale_user_id).in_(owner_ids)
 
 
-def dk_lenh_trong_pham_vi(owner_ids: set[int]):
-    """Lệnh thuộc phạm vi = ĐƠN của lệnh thuộc phạm vi (lệnh luôn có `order_id`)."""
-    return Lsx.order_id.in_(select(Order.id).where(dk_don_trong_pham_vi(owner_ids)))
+def dk_lenh_trong_pham_vi(phu_trach_ids: set[int]):
+    """Lệnh thuộc phạm vi (08/11/2026) = NGƯỜI PHỤ TRÁCH lệnh nằm trong `phu_trach_ids` (Của tôi = mình,
+    Cả phòng = người trong phòng mình và phòng con). Lệnh cũ chưa ghi người phụ trách thì tính người tạo.
+    Trước đó (14/10/2026) tính theo chủ đơn."""
+    return func.coalesce(Lsx.nguoi_phu_trach_id, Lsx.created_by).in_(phu_trach_ids)
+
+
+# Trạng thái của đơn ở hai bảng hàng chờ (08/11/2026): chỉ Chưa giao / Đã giao. Đã tạo bao nhiêu
+# lệnh là cột riêng ("Đã tạo x/y lệnh"), không thành trạng thái thứ ba (chủ dự án chốt 08/11/2026).
+TRANG_THAI_CHO = ("chua_giao", "da_giao")
+
+
+def dk_trang_thai_cho(tt: str):
+    if tt == "chua_giao":
+        return Order.nguoi_lam_lenh_id.is_(None)
+    return Order.nguoi_lam_lenh_id.is_not(None)
 
 
 # Mốc ngày của dải kỳ trên hàng chờ: ngày tạo đơn / lúc Sale chuyển xuống sản xuất.
@@ -118,11 +132,12 @@ class LsxRepository:
         customer_id: int | None = None,
         trang_thai: str | None = None,
         q: str | None = None,
-        owner_ids: set[int] | None = None,
+        owner_ids: set[int] | None = None,   # 08/11/2026: tập NGƯỜI PHỤ TRÁCH (`dk_lenh_trong_pham_vi`)
         gia_cong: str | None = None,
         tu_ngay: date | None = None,
         den_ngay: date | None = None,
         moc: str = "tao",
+        phu_trach_id: int | None = None,
     ) -> list:
         """Bộ lọc dùng CHUNG cho `list` và `dem_theo_trang_thai`, để số dòng trong bảng và số
         trên tab không bao giờ nói hai chuyện khác nhau (cùng lý do như `catalog_base._loc_q`)."""
@@ -152,6 +167,9 @@ class LsxRepository:
             ))
         if owner_ids is not None:
             conds.append(dk_lenh_trong_pham_vi(owner_ids))
+        if phu_trach_id is not None:
+            # Chip "Của tôi" (08/11/2026): lệnh mình phụ trách — vẫn trong phạm vi ở trên.
+            conds.append(Lsx.nguoi_phu_trach_id == phu_trach_id)
         if gia_cong:
             # Ô lọc "Gia công ngoài" (spec gia công ngoài §7) — chờ mang đi / đang ở ngoài / trọn gói.
             from .gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
@@ -284,9 +302,13 @@ class LsxRepository:
         ).scalars()
         return {r.order_line_id: r for r in rows}
 
-    def _dk_hang_cho(self, owner_ids: set[int] | None = None) -> tuple:
-        """Điều kiện NỀN của hàng chờ (chưa kể thanh lọc) — dùng chung cho bảng và ô lọc Khách.
-        `owner_ids` None = mọi đơn; có tập thì chỉ đơn trong phạm vi (`dk_don_trong_pham_vi`)."""
+    def _dk_hang_cho(self, owner_ids: set[int] | None = None, *, che_do: str = "giao",
+                     phu_trach_ids: set[int] | None = None) -> tuple:
+        """Điều kiện NỀN của hai bảng hàng chờ (chưa kể thanh lọc) — dùng chung cho bảng và ô lọc.
+
+        `che_do="giao"` = tab Hàng chờ tiếp nhận của người giao: mọi đơn còn nợ lệnh, `owner_ids` là
+        phạm vi theo chủ đơn (None = mọi đơn). `che_do="tao"` = tab Tạo lệnh (08/11/2026): chỉ đơn ĐÃ
+        GIAO, người phụ trách nằm trong `phu_trach_ids` (None = mọi người phụ trách)."""
         # Viết bằng MỘT TẬP ID (union) chứ không phải `or_(EXISTS…, NOT EXISTS…)` ngay trong WHERE:
         # dạng OR làm Postgres ước lượng chi phí ~1.000.000, vượt `jit_above_cost` nên nó bật JIT
         # và đốt 470 ms biên dịch cho một câu chỉ chạy 80 ms (đo 18/08/2026 trên 20.000 đơn).
@@ -313,35 +335,87 @@ class LsxRepository:
             Order.san_xuat_released_at.is_not(None),
             Order.id.in_(select(con_no.c.order_id)),
         )
+        if che_do == "tao":
+            dk = (*dk, Order.nguoi_lam_lenh_id.is_not(None))
+            return dk if phu_trach_ids is None else (*dk, Order.nguoi_lam_lenh_id.in_(phu_trach_ids))
         return dk if owner_ids is None else (*dk, dk_don_trong_pham_vi(owner_ids))
 
-    def khach_hang_cho(self, *, owner_ids: set[int] | None = None) -> list[tuple[int, str, int]]:
+    def khach_hang_cho(self, **nen) -> list[tuple[int, str, int]]:
         """`(id, tên, số đơn)` của khách đang có đơn nằm hàng chờ — ô "Khách hàng" của hàng chờ."""
         stmt = (
             select(Customer.id, Customer.name, func.count(Order.id))
             .join(Order, Order.customer_id == Customer.id)
-            .where(*self._dk_hang_cho(owner_ids))
+            .where(*self._dk_hang_cho(**nen))
             .group_by(Customer.id, Customer.name)
             .order_by(Customer.name)
         )
         return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
 
+    def phu_trach_hang_cho(self, **nen) -> list[tuple[int, str, int]]:
+        """`(id, tên, số đơn)` của người phụ trách đang có đơn trong hàng chờ — ô "Người phụ trách"."""
+        from ..models.user import User
+
+        ten = func.coalesce(User.name, User.username)
+        stmt = (
+            select(User.id, ten, func.count(Order.id))
+            .join(Order, Order.nguoi_lam_lenh_id == User.id)
+            .where(*self._dk_hang_cho(**nen))
+            .group_by(User.id, User.name, User.username)
+            .order_by(ten)
+        )
+        return [(int(i), t, int(n)) for i, t, n in self.db.execute(stmt).all()]
+
+    def _dk_loc_hang_cho(
+        self, *, customer_id: int | None = None, tu_ngay: date | None = None,
+        den_ngay: date | None = None, moc: str = "tao", nguoi_phu_trach_id: int | None = None,
+        **nen,
+    ) -> list:
+        """Điều kiện nền + thanh lọc (khách, người phụ trách, kỳ) — CHƯA kể chip trạng thái. Chung
+        cho bảng và số trên chip."""
+        conds = list(self._dk_hang_cho(**nen))
+        if customer_id is not None:
+            conds.append(Order.customer_id == customer_id)
+        if nguoi_phu_trach_id is not None:
+            conds.append(Order.nguoi_lam_lenh_id == nguoi_phu_trach_id)
+        cot, la_ngay = MOC_HANG_CHO.get(moc, MOC_HANG_CHO["tao"])
+        conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
+        return conds
+
+    def dem_trang_thai_hang_cho(self, **loc) -> dict[str, int]:
+        """Số trên chip Tất cả / Chưa giao / Đã giao — MỘT câu, cùng thanh lọc với bảng."""
+        conds = self._dk_loc_hang_cho(**loc)
+        hang = self.db.execute(
+            select(func.count(), *[
+                func.coalesce(func.sum(case((dk_trang_thai_cho(tt), 1), else_=0)), 0)
+                for tt in TRANG_THAI_CHO
+            ]).select_from(Order).where(*conds)
+        ).one()
+        return {"tat_ca": int(hang[0]), **{tt: int(n) for tt, n in zip(TRANG_THAI_CHO, hang[1:])}}
+
+    def co_cham_hang_cho(self, *, nguoi_xem_id: int, che_do: str,
+                         owner_ids: set[int] | None = None) -> bool:
+        """Chấm của tab — KHÔNG theo thanh lọc. Hàng chờ tiếp nhận: còn đơn Chưa giao trong phạm vi.
+        Tạo lệnh: có đơn giao cho chính người xem mà họ chưa mở."""
+        if che_do == "giao":
+            conds = [*self._dk_hang_cho(owner_ids), Order.nguoi_lam_lenh_id.is_(None)]
+        else:
+            conds = [*self._dk_hang_cho(che_do="tao", phu_trach_ids={nguoi_xem_id}),
+                     Order.nguoi_lam_lenh_mo_at.is_(None)]
+        return self.db.execute(select(Order.id).where(*conds).limit(1)).first() is not None
+
     def orders_ban_giao(
         self, *, page: int = 1, size: int = 50, chi_dem: bool = False,
-        customer_id: int | None = None, tu_ngay: date | None = None,
-        den_ngay: date | None = None, moc: str = "tao", owner_ids: set[int] | None = None,
+        trang_thai: str | None = None, **loc,
     ) -> tuple[list[Order], int]:
         """Đơn đã chốt + đã chuyển xuống SX mà CÒN nợ lệnh (kèm dòng đơn), mới nhất trước.
 
         Điều kiện "còn dòng chưa lên lệnh" nằm trong SQL chứ không lọc bằng Python sau khi kéo
         toàn bộ lịch sử đơn hàng về kèm mọi dòng đơn — cách cũ làm endpoint không trả nổi kết
-        quả ở quy mô thật.
+        quả ở quy mô thật. `trang_thai` = chip Chưa giao / Đã giao.
         """
-        conds = list(self._dk_hang_cho(owner_ids))
-        if customer_id is not None:
-            conds.append(Order.customer_id == customer_id)
-        cot, la_ngay = MOC_HANG_CHO.get(moc, MOC_HANG_CHO["tao"])
-        conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
+        conds = self._dk_loc_hang_cho(**loc)
+        if trang_thai in TRANG_THAI_CHO:
+            conds.append(dk_trang_thai_cho(trang_thai))
         total = self.db.execute(select(func.count()).select_from(Order).where(*conds)).scalar_one()
         if chi_dem:
             # Badge chỉ cần TỔNG — khỏi nạp trang đơn + dòng đơn.
@@ -374,6 +448,34 @@ class LsxRepository:
         return self.db.execute(
             select(Order).where(Order.id == order_id).options(selectinload(Order.lines))
         ).scalar_one_or_none()
+
+    def orders_hang_cho_theo_id(self, order_ids: list[int], *,
+                                owner_ids: set[int] | None) -> list[Order]:
+        """Các đơn trong `order_ids` CÒN nằm hàng chờ và trong phạm vi — đầu vào của Giao đơn."""
+        if not order_ids:
+            return []
+        return list(self.db.execute(
+            select(Order).where(*self._dk_hang_cho(owner_ids), Order.id.in_(set(order_ids)))
+            .order_by(Order.id)
+        ).scalars())
+
+    def nguoi_lam_lenh_chon_duoc(self, *, phong_ids: list[int], ban_than_id: int) -> list[tuple]:
+        """`(id, tên, tên phòng)` của người đang hoạt động có Thao tác ở Lệnh sản xuất, thuộc
+        `phong_ids` — cộng chính người giao (nếu họ có Thao tác) dù không có phòng."""
+        from ..models.department import Department
+        from ..models.role import RolePermission
+        from ..models.user import User
+
+        stmt = (
+            select(User.id, User.name, User.username, Department.name)
+            .join(RolePermission, (RolePermission.role_id == User.role_id)
+                  & (RolePermission.module_key == "san_xuat"))
+            .outerjoin(Department, Department.id == User.department_id)
+            .where(User.is_active.is_(True), RolePermission.can_create.is_(True),
+                   or_(User.department_id.in_(phong_ids or [-1]), User.id == ban_than_id))
+            .order_by(User.name, User.id)
+        )
+        return [(int(i), (n or u), p) for i, n, u, p in self.db.execute(stmt).all()]
 
     def order_lines(self, order_id: int) -> list[OrderLine]:
         return list(

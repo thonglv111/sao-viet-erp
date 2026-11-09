@@ -27,7 +27,8 @@ KENH: dict[str, tuple[str, ...]] = {
     "cham_cong": ("approve_late_early",),
     "bao_gia": ("approve_exception",),
     "don_hang_ban": ("phieu_thu:create",),
-    "san_xuat": (),
+    # Đơn mới vào hàng chờ chỉ báo người có ô Giao đơn (08/11/2026).
+    "san_xuat": ("reassign",),
     "xep_lich": (),
     # Kế hoạch bộ phận (07/11/2026): phát lệnh ⇒ chấm cho người kế hoạch của bộ phận nhận.
     "ke_hoach_bo_phan": (),

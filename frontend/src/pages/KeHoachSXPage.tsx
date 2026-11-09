@@ -1,19 +1,21 @@
 // BÀN KẾ HOẠCH SẢN XUẤT — controller master↔detail (không react-router, điều hướng bằng state).
 //
-// Luồng: Sale bấm "Chuyển xuống sản xuất" ở Đơn hàng → đơn rơi vào tab HÀNG CHỜ (real-time qua SSE,
-// `eventTick` đổi → refetch) → mở đơn xem DANH SÁCH LỆNH DỰ KIẾN → tick → tạo lệnh → sang tab LỆNH
-// SẢN XUẤT sửa routing/số lượng → đánh dấu "Sẵn sàng lập kế hoạch".
+// Luồng (08/11/2026): Sale bấm "Chuyển xuống sản xuất" ở Đơn hàng → đơn rơi vào tab HÀNG CHỜ TIẾP NHẬN
+// (real-time qua SSE, `eventTick` đổi → refetch) → người có ô Giao đơn tick rồi giao cho người phụ
+// trách → đơn sang tab TẠO LỆNH của người đó → mở đơn xem DANH SÁCH LỆNH DỰ KIẾN → tick → tạo lệnh →
+// sang tab LỆNH SẢN XUẤT sửa routing/số lượng → đánh dấu "Sẵn sàng lập kế hoạch".
 //
 // Lát này DỪNG ở trạng thái "sẵn sàng": chưa ghép bài, chưa xếp lịch, chưa phát xuống xưởng.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ApiError,
   api,
+  type CheDoCho,
   type HangChoItem,
   type LsxListGiaCong,
   type LsxListItem,
-  type LsxTongQuanOut,
   type LsxTrangThai,
+  type TrangThaiCho,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useCan, useScopeOf } from "../auth/permissions";
@@ -55,6 +57,7 @@ import { daAp, type DieuKien } from "./thanh-loc/thanh-loc";
 import { useLocMan } from "./thanh-loc/useLocMan";
 import { LsxDetailView } from "./LsxDetailView";
 import { LsxPreviewDrawer } from "./LsxPreviewDrawer";
+import { HopGiaoDon } from "./HopGiaoDon";
 import { nhanDonVi } from "./lsxBuoc";
 import { laTronGoi } from "./gia-cong/GiaCongDong";
 import { NHAN_NGAN } from "./gia-cong/giaCong";
@@ -63,7 +66,6 @@ import {
   BangLoi,
   TRANG_THAI_TABS,
   classHan,
-  classHanLich,
   nhanTrangThaiLsx,
   ngayGio,
   num,
@@ -96,28 +98,45 @@ export function KeHoachSXPage({
   const can = useCan();
   const scopeOf = useScopeOf();
   const canCreate = can("san_xuat", "create");
+  // Ô "Giao đơn" (08/11/2026): chỉ người có ô này thấy tab Hàng chờ tiếp nhận.
+  const laNguoiGiao = can("san_xuat", "reassign");
   // Nhãn đơn vị đọc từ DANH MỤC — nạp một lần cho cả phiên (bảng lệnh + drawer lệnh dự kiến).
   useNapTenDonVi();
 
   const [view, setView] = useState<View>({ mode: "list" });
   // Tab "Vật tư" ĐÃ TÁCH 17/08/2026 thành màn riêng `Kế hoạch vật tư` (chủ chốt) — xem
   // `KeHoachVatTuPage`. Màn này giữ đúng phạm vi MỘT lệnh; bảng cân đối cả kho là việc của màn kia.
-  const [tab, setTab] = useState<"hang-cho" | "lenh">("hang-cho");
+  const [tabChon, setTab] = useState<"hang-cho" | "tao" | "lenh">(laNguoiGiao ? "hang-cho" : "tao");
+  // Không có ô Giao đơn thì tab Hàng chờ tiếp nhận không có — rơi về Tạo lệnh.
+  const tab = tabChon === "hang-cho" && !laNguoiGiao ? "tao" : tabChon;
+  const cheDo: CheDoCho = tab === "hang-cho" ? "giao" : "tao";
   const [previewOrderId, setPreviewOrderId] = useState<number | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   const [queue, setQueue] = useState<HangChoItem[] | null>(null);
+  // Chip trạng thái của từng tab, số trên chip và chấm hai tab do MÁY CHỦ trả.
+  const [ttCho, setTtCho] = useState<Record<CheDoCho, string>>({ giao: "tat_ca", tao: "tat_ca" });
+  const ttHien = ttCho[cheDo];
+  const [facetsCho, setFacetsCho] = useState<Record<string, number>>({});
+  const [cham, setCham] = useState<{ giao: boolean; tao: boolean }>({ giao: false, tao: false });
+  // Đơn đã tick — giữ cả dòng để hộp Giao biết đơn nào đang giao cho ai, kể cả khi đổi trang.
+  const [chonCho, setChonCho] = useState<Map<number, HangChoItem>>(new Map());
+  const [moGiao, setMoGiao] = useState(false);
+  const [cuaToi, setCuaToi] = useState(false);
   const [lenhs, setLenhs] = useState<LsxListItem[] | null>(null);
   const [ttFilter, setTtFilter] = useState("all");
   const [q, setQ] = useState("");
-  // Thanh lọc (kỳ + điều kiện) của HAI bảng — ghi lên URL, nhớ theo màn (06/10/2026).
+  // Thanh lọc (kỳ + điều kiện) của BA bảng — ghi lên URL, nhớ theo màn (06/10/2026).
   const [locMan, setLocMan] = useLocMan<LocKhsx>("ke-hoach-sx", LOC_KHSX_TRONG, locKhsxTuUrl, locKhsxLenUrl);
   // Nạp lại danh sách khách/đơn của ô lọc khi có sự kiện hay vừa tạo lệnh (đơn mới mới có để chọn).
   const [nguonTick, setNguonTick] = useState(0);
   const dkLenh = useDieuKienLenhKhsx((eventTick ?? 0) + nguonTick, locMan.lenh.loc);
-  const dkCho = useDieuKienHangCho((eventTick ?? 0) + nguonTick);
+  const dkGiao = useDieuKienHangCho((eventTick ?? 0) + nguonTick, "giao", !laNguoiGiao);
+  const dkTao = useDieuKienHangCho((eventTick ?? 0) + nguonTick, "tao");
+  const khoaLocCho: "cho" | "tao" = cheDo === "giao" ? "cho" : "tao";
+  const locCho = locMan[khoaLocCho];
   const khoaLenh = JSON.stringify({ ...thamSoKy(locMan.lenh.ky), ...thamSoLocLenhKhsx(locMan.lenh.loc) });
-  const khoaCho = JSON.stringify({ ...thamSoKy(locMan.cho.ky), ...thamSoLocHangCho(locMan.cho.loc) });
+  const khoaCho = JSON.stringify({ ...thamSoKy(locCho.ky), ...thamSoLocHangCho(locCho.loc) });
   const [err, setErr] = useState<string | null>(null);
   // Phân trang + số trên tab đều do MÁY CHỦ trả. Đếm bằng `lenhs.length` như trước chỉ đúng khi
   // cả bảng nằm gọn trong một lượt tải — có phân trang là số đó thành số của TRANG, sai ngay.
@@ -126,34 +145,47 @@ export function KeHoachSXPage({
   const [facets, setFacets] = useState<Record<string, number>>({});
   const [queuePage, setQueuePage] = useState(1);
   const [queueTotal, setQueueTotal] = useState(0);
-  // Dòng/trang dùng CHUNG cho cả hai bảng của màn: cùng một chỗ giữ cho chân trang và tham số
-  // gửi lên không lệch nhau. Đổi cỡ ⇒ cả hai bảng về trang 1.
+  // Dòng/trang dùng CHUNG cho các bảng của màn: cùng một chỗ giữ cho chân trang và tham số
+  // gửi lên không lệch nhau. Đổi cỡ ⇒ các bảng về trang 1.
   const [sizeTrang, setSizeTrang] = useState(25);
   const doiSizeTrang = (n: number) => {
     setSizeTrang(n);
     setPage(1);
     setQueuePage(1);
   };
-  // Hàng đèn tiến độ (Đợt 1 redesign 18/08/2026) — GỌI RỜI sau bảng lệnh, không nhét vào
-  // `/api/lsx`: endpoint tổng quan chạy engine cân đối vật tư + bộ dò vấn đề, còn bảng lệnh phải
-  // hiện ngay. `denTick` để các hành động khác (tạo lệnh, đổi routing, giữ chỗ) bắt đèn tính lại —
-  // bộ lọc/ô tìm KHÔNG bắt, vì khoá dưới đây chỉ đổi khi TẬP lệnh đổi.
-  const [tq, setTq] = useState<Record<number, LsxTongQuanOut["items"][number]>>({});
-  const [denTick, setDenTick] = useState(0);
 
-  const loadQueue = useCallback(() => {
+  // Chấm của hai tab, không theo thanh lọc — tab đang không mở vẫn biết có việc mới.
+  const loadCham = useCallback(() => {
     if (!token) return;
+    api.lsx.hangChoCham(token).then(setCham).catch(() => {});
+  }, [token]);
+
+  // Số thứ tự lượt tải bảng đơn: đổi tab giữa chừng thì lượt của tab cũ về muộn không được ghi đè.
+  const luotCho = useRef(0);
+  const loadQueue = useCallback(() => {
+    if (!token || tab === "lenh") return;
+    const luot = ++luotCho.current;
     api.lsx
-      .hangCho(token, { page: queuePage, size: sizeTrang, loc: JSON.parse(khoaCho) })
+      .hangCho(token, {
+        page: queuePage,
+        size: sizeTrang,
+        loc: { ...JSON.parse(khoaCho), che_do: cheDo, trang_thai: ttHien === "tat_ca" ? undefined : ttHien },
+      })
       .then((r) => {
+        if (luot !== luotCho.current) return;
         setErr(null);
         setQueue(r.items);
         setQueueTotal(r.total);
+        setFacetsCho(r.facets ?? {});
+        setCham((c) => ({ ...c, [cheDo]: Boolean(r.cham) }));
         const ve = trangHopLe(queuePage, r.total, sizeTrang);
         if (ve) setQueuePage(ve);
       })
-      .catch((e: unknown) => setErr(e instanceof ApiError ? e.message : String(e)));
-  }, [token, queuePage, sizeTrang, khoaCho]);
+      .catch((e: unknown) => {
+        if (luot !== luotCho.current) return;
+        setErr(e instanceof ApiError ? e.message : String(e));
+      });
+  }, [token, tab, cheDo, queuePage, sizeTrang, khoaCho, ttHien]);
 
   // Số thứ tự lượt tải bảng lệnh. Không có nó thì một lượt gọi CŨ về muộn sẽ ghi đè kết quả
   // mới: bấm "Tạo lệnh" xong màn đặt lọc theo đơn vừa tạo, nhưng lượt tải không-lọc bắn trước đó
@@ -168,8 +200,8 @@ export function KeHoachSXPage({
         q: q.trim() || undefined,
         page,
         size: sizeTrang,
-        // Kỳ + Khách / Đơn / Gia công ngoài của thanh lọc.
-        loc: JSON.parse(khoaLenh),
+        // Kỳ + Khách / Đơn / Gia công ngoài của thanh lọc; chip "Của tôi" = lệnh mình phụ trách.
+        loc: { ...JSON.parse(khoaLenh), cua_toi: cuaToi || undefined },
       })
       .then((r) => {
         if (luot !== luotLenh.current) return;   // đã có lượt mới hơn — bỏ kết quả này
@@ -185,46 +217,40 @@ export function KeHoachSXPage({
         if (luot !== luotLenh.current) return;
         setErr(e instanceof ApiError ? e.message : String(e));
       });
-  }, [token, ttFilter, q, page, sizeTrang, khoaLenh]);
+  }, [token, ttFilter, q, page, sizeTrang, khoaLenh, cuaToi]);
 
   // Đổi bộ lọc thì về trang 1 — giữ nguyên trang cũ là rơi vào vùng trống của kết quả mới.
-  useEffect(() => setPage(1), [ttFilter, q, khoaLenh]);
-  useEffect(() => setQueuePage(1), [khoaCho]);
+  useEffect(() => setPage(1), [ttFilter, q, khoaLenh, cuaToi]);
+  useEffect(() => setQueuePage(1), [khoaCho, ttHien, cheDo]);
+  // Đổi tab đơn ⇒ bảng về trạng thái đang tải và bỏ các đơn đã tick của tab kia.
+  useEffect(() => {
+    setQueue(null);
+    setChonCho(new Map());
+  }, [cheDo]);
 
   useEffect(() => loadQueue(), [loadQueue, eventTick]);
+  useEffect(() => loadCham(), [loadCham, eventTick]);
+  // Hàng chờ nạp lại (người khác vừa giao, vừa tạo lệnh) ⇒ đơn đang tick lấy bản mới, để câu hỏi
+  // "đang giao cho X" của hộp Giao nói đúng người đang giữ.
+  useEffect(() => {
+    if (!queue) return;
+    setChonCho((m) => {
+      if (m.size === 0) return m;
+      const moi = new Map(m);
+      for (const o of queue) if (moi.has(o.order_id)) moi.set(o.order_id, o);
+      return moi;
+    });
+  }, [queue]);
   useEffect(() => {
     const t = setTimeout(loadLenhs, q ? 250 : 0);   // debounce ô tìm
     return () => clearTimeout(t);
   }, [loadLenhs, eventTick, q]);
 
-  // Hỏi tổng quan cho MỌI lệnh đang hiện — bảng chỉ còn dùng `slack_ngay` tô ô Hạn SX (cột
-  // "Vướng" đã gỡ 06/10/2026). Một lượt `tong_quan` là chi phí gần như không đổi theo số lệnh.
-  const khoaDen = (lenhs ?? []).map((l) => l.id).join(",");
-  useEffect(() => {
-    if (!token || !khoaDen) {
-      setTq({});
-      return;
-    }
-    let huy = false;
-    api.lsx
-      .tongQuan(token, khoaDen.split(",").map(Number))
-      .then((r) => {
-        if (!huy) setTq(Object.fromEntries(r.items.map((i) => [i.lsx_id, i])));
-      })
-      // Đèn hỏng thì bảng lệnh vẫn phải dùng được — ô đèn để trống, KHÔNG chặn cả màn bằng `err`.
-      .catch(() => {
-        if (!huy) setTq({});
-      });
-    return () => {
-      huy = true;
-    };
-  }, [token, khoaDen, eventTick, denTick]);
-
-  // Deep-link từ màn Đơn hàng ("Mở bàn Kế hoạch sản xuất ↗").
+  // Deep-link từ màn Đơn hàng ("Mở bàn Kế hoạch sản xuất ↗") — lệnh tạo ở tab Tạo lệnh.
   useEffect(() => {
     if (openOrderId) {
       setView({ mode: "list" });
-      setTab("hang-cho");
+      setTab("tao");
       setPreviewOrderId(openOrderId);
     }
   }, [openOrderId]);
@@ -247,7 +273,7 @@ export function KeHoachSXPage({
     setNguonTick((n) => n + 1);
     setTab("lenh");
     if (maList.length) setFlash(`Đã tạo ${maList.length} lệnh: ${maList.join(", ")}`);
-    loadQueue();
+    loadCham();
     // KHÔNG gọi `loadLenhs()` ở đây: hàm đang cầm là bản của lần render TRƯỚC, tức chưa biết
     // lọc đơn vừa đặt ⇒ nó hỏi cả bảng. Đặt lọc xong effect tự chạy lượt ĐÚNG; số thứ tự
     // lượt trong `loadLenhs` lo nốt trường hợp lượt cũ về muộn.
@@ -257,11 +283,9 @@ export function KeHoachSXPage({
   const doiDuLieu = useCallback(() => {
     loadQueue();
     loadLenhs();
-    // Tập lệnh có thể KHÔNG đổi sau một lần sửa routing/giữ chỗ ⇒ `khoaDen` đứng yên ⇒ effect trên
-    // không chạy lại. Tick thẳng để đèn không nói chuyện cũ.
-    setDenTick((n) => n + 1);
+    loadCham();
     onBadgeStale?.();
-  }, [loadQueue, loadLenhs, onBadgeStale]);
+  }, [loadQueue, loadLenhs, loadCham, onBadgeStale]);
 
   if (view.mode === "detail") {
     return (
@@ -285,32 +309,29 @@ export function KeHoachSXPage({
       ? (facets.all ?? 0)
       : key.split(",").reduce((s, k) => s + (facets[k] ?? 0), 0);
 
+  const nutTab = (key: "hang-cho" | "tao" | "lenh", nhan: string, chamTab?: string | false) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={tab === key}
+      className={`khsx-tabman__btn${tab === key ? " is-active" : ""}`}
+      onClick={() => setTab(key)}
+    >
+      {nhan}
+      {chamTab && <span className="khsx-tabman__cham" aria-label={chamTab} />}
+    </button>
+  );
+
   return (
     <main className="khsx lds">
       <header className="lds-dau">
         <h1 className="lds-dau__ten">Lệnh sản xuất</h1>
-        {/* Hai tab thật (đổi cả bảng bên dưới), đặt cạnh tên màn. Tab không mang số đếm: hàng chờ có
-            đơn thì một chấm nhỏ, số đơn nằm ở chân bảng. */}
+        {/* Ba tab thật (đổi cả bảng bên dưới), đặt cạnh tên màn. Tab không mang số đếm: có việc mới thì
+            một chấm nhỏ, số đơn nằm ở chân bảng. */}
         <div className="khsx-tabman" role="tablist" aria-label="Khu vực làm việc">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "hang-cho"}
-            className={`khsx-tabman__btn${tab === "hang-cho" ? " is-active" : ""}`}
-            onClick={() => setTab("hang-cho")}
-          >
-            Hàng chờ tiếp nhận
-            {queueTotal > 0 && <span className="khsx-tabman__cham" aria-label="Có đơn đang chờ lên lệnh" />}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "lenh"}
-            className={`khsx-tabman__btn${tab === "lenh" ? " is-active" : ""}`}
-            onClick={() => setTab("lenh")}
-          >
-            Lệnh sản xuất
-          </button>
+          {laNguoiGiao && nutTab("hang-cho", "Hàng chờ tiếp nhận", cham.giao && "Còn đơn chưa giao")}
+          {nutTab("tao", "Tạo lệnh", cham.tao && "Có đơn mới giao cho bạn")}
+          {nutTab("lenh", "Lệnh sản xuất")}
         </div>
       </header>
 
@@ -321,27 +342,39 @@ export function KeHoachSXPage({
       )}
       {/* Lượt nạp ĐẦU lỗi (bảng chưa có dòng nào) thì câu lỗi + "Thử lại" nằm ngay trong dòng rỗng của
           lưới; băng này chỉ cho lỗi xảy ra khi bảng đã có dòng. */}
-      {err && (tab === "hang-cho" ? queue !== null : lenhs !== null) && <BangLoi text={err} onRetry={doiDuLieu} />}
+      {err && (tab !== "lenh" ? queue !== null : lenhs !== null) && <BangLoi text={err} onRetry={doiDuLieu} />}
 
-      {tab === "hang-cho" ? (
+      {tab !== "lenh" ? (
         <QueueTable
+          key={cheDo}
+          cheDo={cheDo}
           rows={queue}
           loi={err}
           onTaiLai={doiDuLieu}
-          scopeAll={scopeOf("san_xuat") === "all"}
-          onOpen={(id) => setPreviewOrderId(id)}
+          scope={scopeOf("san_xuat")}
+          onOpen={(id) => {
+            setPreviewOrderId(id);
+            // Máy chủ tắt chấm "chưa mở" khi ngăn nạp; tắt ngay trên màn để khỏi chờ lượt nạp lại.
+            setQueue((ds) => ds?.map((o) => (o.order_id === id ? { ...o, chua_mo: false } : o)) ?? ds);
+          }}
           dangMo={previewOrderId}
+          tt={ttHien}
+          onTt={(k) => setTtCho((m) => ({ ...m, [cheDo]: k }))}
+          facets={facetsCho}
+          chon={chonCho}
+          onChon={setChonCho}
+          onGiao={() => setMoGiao(true)}
           total={queueTotal}
           page={queuePage}
           size={sizeTrang}
           onPage={setQueuePage}
           onSize={doiSizeTrang}
-          ky={locMan.cho.ky}
-          onKy={(ky) => setLocMan({ ...locMan, cho: { ...locMan.cho, ky } })}
-          dieuKien={dkCho}
-          loc={locMan.cho.loc}
-          onLoc={(loc) => setLocMan({ ...locMan, cho: { ...locMan.cho, loc } })}
-          onXoaLoc={() => setLocMan({ ...locMan, cho: { ky: { loai: "tat_ca", moc: locMan.cho.ky.moc }, loc: {} } })}
+          ky={locCho.ky}
+          onKy={(ky) => setLocMan({ ...locMan, [khoaLocCho]: { ...locCho, ky } })}
+          dieuKien={cheDo === "giao" ? dkGiao : dkTao}
+          loc={locCho.loc}
+          onLoc={(loc) => setLocMan({ ...locMan, [khoaLocCho]: { ...locCho, loc } })}
+          onXoaLoc={() => setLocMan({ ...locMan, [khoaLocCho]: { ky: { loai: "tat_ca", moc: locCho.ky.moc }, loc: {} } })}
         />
       ) : (
         <LenhTable
@@ -359,14 +392,32 @@ export function KeHoachSXPage({
           onLoc={(loc) => setLocMan({ ...locMan, lenh: { ...locMan.lenh, loc } })}
           onXoaLoc={() => setLocMan({ ...locMan, lenh: { ky: { loai: "tat_ca", moc: locMan.lenh.ky.moc }, loc: {} } })}
           onOpen={(id) => setView({ mode: "detail", id })}
-          onGoQueue={() => setTab("hang-cho")}
-          tq={tq}
+          onGoTao={() => setTab("tao")}
+          cuaToi={cuaToi}
+          onCuaToi={setCuaToi}
           dem={demTheoTt}
           total={total}
           page={page}
           size={sizeTrang}
           onPage={setPage}
           onSize={doiSizeTrang}
+        />
+      )}
+
+      {moGiao && (
+        <HopGiaoDon
+          don={[...chonCho.values()]}
+          onDong={() => setMoGiao(false)}
+          onXong={(kq) => {
+            setMoGiao(false);
+            setChonCho(new Map());
+            const so = kq.da_giao.length + kq.giao_lai.length;
+            setFlash(so > 0 ? `Đã giao ${so} đơn cho ${kq.nguoi_nhan_ten}` : `Các đơn đã ở chỗ ${kq.nguoi_nhan_ten}`);
+            loadQueue();
+            loadCham();
+            setNguonTick((n) => n + 1);
+            onBadgeStale?.();
+          }}
         />
       )}
 
@@ -407,7 +458,7 @@ function lopHan(cls: string): string | undefined {
   return cls === "khsx-date--late" ? "lds-do" : cls === "khsx-date--soon" ? "lds-vang" : undefined;
 }
 
-// --- Tab 1: hàng chờ tiếp nhận ----------------------------------------------
+// --- Tab 1 + 2: Hàng chờ tiếp nhận (giao) và Tạo lệnh (tao), chung một bảng đơn ---------------
 const COT_CHO: CotKh[] = [
   { key: "ma", label: "Mã đơn", coDinh: true, w: 150 },
   { key: "tao", label: "Ngày tạo", w: 104 },
@@ -415,18 +466,53 @@ const COT_CHO: CotKh[] = [
   { key: "giao", label: "Ngày giao", w: 104 },
   { key: "khach", label: "Khách hàng", w: 200 },
   { key: "sp", label: "Sản phẩm / Hạng mục", w: 250 },
-  { key: "tiendo", label: "Tiến độ lệnh", w: 120 },
+  { key: "tt", label: "Trạng thái", w: 110 },
+  { key: "lenh", label: "Lệnh", w: 140 },
+  { key: "nguoi", label: "Người phụ trách", w: 160 },
   { key: "sale", label: "Sale", w: 140 },
   { key: "luuy", label: "Lưu ý sản xuất" },
 ];
 
-function OCho({ cot, o }: { cot: string; o: HangChoItem }) {
+const TT_CHO: Record<TrangThaiCho, { nhan: string; mau: MauTT }> = {
+  chua_giao: { nhan: "Chưa giao", mau: "cam" },
+  da_giao: { nhan: "Đã giao", mau: "xanh" },
+};
+
+function OCho({ cot, o, cheDo }: { cot: string; o: HangChoItem; cheDo: CheDoCho }) {
   switch (cot) {
     case "ma":
       return (
         <td>
+          {/* Đơn giao cho mình chưa mở: chấm đỏ cạnh mã, không số (thấy là đã xem khi mở ngăn). */}
+          {cheDo === "tao" && o.chua_mo && (
+            <span className="khsx-cham-dong" aria-label="Đơn mới giao cho bạn, chưa mở" />
+          )}
           {o.order_no}
           {o.is_rush && <ChipGapLuoi />}
+        </td>
+      );
+    case "tt": {
+      // Chỉ hai trạng thái: Chưa giao / Đã giao. Đã tạo bao nhiêu lệnh là cột "lenh" bên cạnh.
+      const t = TT_CHO[o.trang_thai ?? "chua_giao"];
+      return (
+        <td>
+          <ChipTT mau={t.mau}>{t.nhan}</ChipTT>
+        </td>
+      );
+    }
+    case "lenh":
+      // Một dòng đơn tính một lệnh. Đơn đủ lệnh thì rời bảng nên ở đây luôn còn thiếu.
+      return (
+        <td>
+          Đã tạo {o.so_dong_co_lsx}/{o.so_dong} lệnh
+        </td>
+      );
+    case "nguoi":
+      return o.nguoi_lam_lenh_ten ? (
+        <td title={o.nguoi_lam_lenh_ten}>{o.nguoi_lam_lenh_ten}</td>
+      ) : (
+        <td>
+          <span className="lds-mu3">—</span>
         </td>
       );
     case "tao":
@@ -456,16 +542,6 @@ function OCho({ cot, o }: { cot: string; o: HangChoItem }) {
         </td>
       );
     }
-    case "tiendo": {
-      const xong = o.so_dong > 0 && o.so_dong_co_lsx === o.so_dong;
-      return (
-        <td>
-          <ChipTT mau={xong ? "la" : "cam"} vuong>
-            {o.so_dong_co_lsx}/{o.so_dong} dòng
-          </ChipTT>
-        </td>
-      );
-    }
     case "sale":
       return o.sale_name ? <td title={o.sale_name}>{o.sale_name}</td> : <td><span className="lds-mu3">—</span></td>;
     case "luuy":
@@ -475,13 +551,33 @@ function OCho({ cot, o }: { cot: string; o: HangChoItem }) {
   }
 }
 
+/** Câu của bảng rỗng khi không lọc gì — nói đúng phạm vi người xem. */
+function cauTrong(cheDo: CheDoCho, scope: string | null): string {
+  const tuHien = "tự hiện ở đây ngay, không cần tải lại trang.";
+  if (cheDo === "giao") {
+    return scope === "all"
+      ? `Không có đơn nào chờ giao. Đơn Sale chuyển xuống sản xuất ${tuHien}`
+      : `Không có đơn nào của bạn chờ giao. Đơn Sale chuyển xuống sản xuất ${tuHien}`;
+  }
+  if (scope === "all") return `Không có đơn nào đã giao mà chưa tạo đủ lệnh. Đơn được giao ${tuHien}`;
+  if (scope === "department") return `Phòng của bạn chưa có đơn nào cần tạo lệnh. Đơn được giao ${tuHien}`;
+  return `Chưa có đơn nào giao cho bạn phụ trách. Đơn được giao ${tuHien}`;
+}
+
 function QueueTable({
+  cheDo,
   rows,
   loi,
   onTaiLai,
-  scopeAll,
+  scope,
   onOpen,
   dangMo,
+  tt,
+  onTt,
+  facets,
+  chon,
+  onChon,
+  onGiao,
   total,
   page,
   size,
@@ -494,15 +590,25 @@ function QueueTable({
   onLoc,
   onXoaLoc,
 }: {
+  /** `giao` = Hàng chờ tiếp nhận: chỉ tick và giao, bấm dòng KHÔNG mở lệnh. `tao` = Tạo lệnh: bấm dòng
+   *  mở ngăn lệnh dự kiến. */
+  cheDo: CheDoCho;
   rows: HangChoItem[] | null;
   /** Lỗi nạp; chỉ vẽ trong dòng rỗng khi `rows === null` (chưa có lượt nạp nào thành công). */
   loi: string | null;
   onTaiLai: () => void;
-  scopeAll: boolean;
+  scope: string | null;
   onOpen: (orderId: number) => void;
   /** Đơn đang mở ngăn "lệnh dự kiến" — dòng đó viền đủ cạnh. */
   dangMo: number | null;
-  /** TỔNG đơn chờ trên máy chủ (≠ `rows.length`, vốn chỉ là trang đang xem). */
+  /** Chip trạng thái: tat_ca | chua_giao | da_giao (chỉ tab Hàng chờ tiếp nhận). */
+  tt: string;
+  onTt: (k: string) => void;
+  facets: Record<string, number>;
+  chon: Map<number, HangChoItem>;
+  onChon: (m: Map<number, HangChoItem>) => void;
+  onGiao: () => void;
+  /** TỔNG đơn trên máy chủ (≠ `rows.length`, vốn chỉ là trang đang xem). */
   total: number;
   page: number;
   size: number;
@@ -516,28 +622,86 @@ function QueueTable({
   /** Kỳ về "Tất cả" + bỏ mọi điều kiện — MỘT lần ghi (hai lần ghi rời thì lần sau đè lần trước). */
   onXoaLoc: () => void;
 }) {
-  const luoi = useCauHinhLuoi("khsx-hang-cho");
+  const giao = cheDo === "giao";
+  const luoi = useCauHinhLuoi(giao ? "khsx-hang-cho" : "khsx-tao-lenh");
   const cotHien = luoi.rongHien(luoi.xep(COT_CHO).filter((c) => !luoi.an.has(c.key)));
-  const coLoc = ky.loai !== "tat_ca" || dieuKien.some((d) => daAp(d, loc));
+  const coLoc = ky.loai !== "tat_ca" || tt !== "tat_ca" || dieuKien.some((d) => daAp(d, loc));
+  const soCot = cotHien.length + (giao ? 1 : 0);
+  const trang = rows ?? [];
+  const daTickHet = trang.length > 0 && trang.every((o) => chon.has(o.order_id));
+  const tick = (o: HangChoItem) => {
+    const m = new Map(chon);
+    if (m.has(o.order_id)) m.delete(o.order_id);
+    else m.set(o.order_id, o);
+    onChon(m);
+  };
+  const tickTrang = () => {
+    const m = new Map(chon);
+    if (daTickHet) trang.forEach((o) => m.delete(o.order_id));
+    else trang.forEach((o) => m.set(o.order_id, o));
+    onChon(m);
+  };
+  // Tab Tạo lệnh chỉ có đơn Đã giao nên không có chip trạng thái.
+  const muc = (["chua_giao", "da_giao"] as const).map(
+    (k) => ({ key: k, label: TT_CHO[k].nhan, count: facets[k], mau: TT_CHO[k].mau }),
+  );
   return (
     <>
       <section className="lds-loc">
+        {giao && (
+        <div className="khsx-loc-hang khsx-loc-hang--trai">
+          <LocNhanhTrangThai
+            ariaLabel="Lọc theo trạng thái"
+            muc={[{ key: "tat_ca", label: "Tất cả", count: facets.tat_ca }, ...muc]}
+            dang={tt}
+            onChon={onTt}
+          />
+          {/* Chọn đơn thì cụm thao tác nằm phẳng ngay sau chip lọc, không nổi thành thẻ. */}
+          {giao && chon.size > 0 && (
+            <div className="khsx-bulk" role="region" aria-label="Đơn đã chọn">
+              <span>Đã chọn {chon.size} đơn</span>
+              <button type="button" className="khsx-bulk__btn khsx-bulk__btn--ghost" onClick={() => onChon(new Map())}>
+                Bỏ chọn
+              </button>
+              <button type="button" className="khsx-bulk__btn khsx-bulk__btn--pri" onClick={onGiao}>
+                Giao
+              </button>
+            </div>
+          )}
+        </div>
+        )}
         <div className="lds-loc__thanh tl-thanh" role="search">
           <ThanhLoc ky={ky} moc={MOC_HANG_CHO} onKy={onKy} dieuKien={dieuKien} loc={loc} onLoc={onLoc} />
           <ChonCot cot={COT_CHO} {...luoi.chonCot} />
         </div>
       </section>
       <div className="lds-sheet">
-        <CuonLuoi ghim={luoi.soGhim(cotHien)}>
-          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) }}>
-            <caption className="sr-only">Đơn hàng đã chuyển xuống sản xuất, chờ lên lệnh</caption>
+        {/* Cột tick đứng trước Mã đơn: ghim thêm một cột, không thì Mã đơn trượt xuống dưới cột tick. */}
+        <CuonLuoi ghim={luoi.soGhim(cotHien) + (giao ? 1 : 0)}>
+          <table className="lds-g" style={{ minWidth: rongLuoi(cotHien) + (giao ? 36 : 0) }}>
+            <caption className="sr-only">
+              {giao ? "Đơn hàng đã chuyển xuống sản xuất, chờ giao người phụ trách" : "Đơn đã giao, chờ tạo lệnh"}
+            </caption>
             <colgroup>
+              {giao && <col style={{ width: 36 }} />}
               {cotHien.map((c) => (
                 <col key={c.key} style={c.w ? { width: c.w } : undefined} />
               ))}
             </colgroup>
             <thead>
               <tr>
+                {giao && (
+                  <th className="khsx-cot-tick">
+                    <input
+                      type="checkbox"
+                      className="khsx-tick"
+                      aria-label="Chọn mọi đơn của trang này"
+                      checked={daTickHet}
+                      disabled={trang.length === 0}
+                      onChange={tickTrang}
+                    />
+                  </th>
+                )}
                 {cotHien.map((c) => (
                   <th key={c.key} className={c.n ? "n" : undefined}>
                     {c.label}
@@ -549,37 +713,64 @@ function QueueTable({
             <tbody>
               {rows === null && loi ? (
                 <tr>
-                  <td colSpan={cotHien.length} className="lds-trong">
+                  <td colSpan={soCot} className="lds-trong">
                     <span role="alert" className="lds-do">{loi}</span>{" "}
                     <button type="button" className="lds-lk" onClick={onTaiLai}>Thử lại</button>
                   </td>
                 </tr>
               ) : rows === null ? (
-                <EmptyRow colSpan={cotHien.length} trangThai="dang-tai" />
+                <EmptyRow colSpan={soCot} trangThai="dang-tai" />
               ) : rows.length === 0 ? (
                 <tr>
-                  <td colSpan={cotHien.length} className="lds-trong">
+                  <td colSpan={soCot} className="lds-trong">
                     {coLoc ? (
                       <>
-                        Không có đơn chờ nào khớp điều kiện đang lọc.{" "}
-                        <button type="button" className="lds-lk" onClick={onXoaLoc}>
+                        Không có đơn nào khớp điều kiện đang lọc.{" "}
+                        <button
+                          type="button"
+                          className="lds-lk"
+                          onClick={() => {
+                            onTt("tat_ca");
+                            onXoaLoc();
+                          }}
+                        >
                           Xoá bộ lọc
                         </button>
                       </>
-                    ) : scopeAll ? (
-                      "Không có đơn nào chờ lên lệnh. Đơn đã chốt và đủ cọc tự hiện ở đây ngay, không cần tải lại trang."
                     ) : (
-                      "Không có đơn nào của bạn chờ lên lệnh. Đơn đã chốt và đủ cọc tự hiện ở đây ngay, không cần tải lại trang."
+                      cauTrong(cheDo, scope)
                     )}
                   </td>
                 </tr>
+              ) : giao ? (
+                // Hàng chờ tiếp nhận chỉ để giao: bấm dòng là tick đơn, không mở lệnh.
+                rows.map((o) => (
+                  <tr
+                    key={o.order_id}
+                    className={`lds-dong${chon.has(o.order_id) ? " is-chon" : ""}`}
+                    onClick={() => tick(o)}
+                  >
+                    <td className="khsx-cot-tick" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="khsx-tick"
+                        aria-label={`Chọn đơn ${o.order_no}`}
+                        checked={chon.has(o.order_id)}
+                        onChange={() => tick(o)}
+                      />
+                    </td>
+                    {cotHien.map((c) => (
+                      <OCho key={c.key} cot={c.key} o={o} cheDo={cheDo} />
+                    ))}
+                  </tr>
+                ))
               ) : (
                 rows.map((o) => (
                   <tr
                     key={o.order_id}
                     className={`lds-dong${o.order_id === dangMo ? " is-chon" : ""}`}
                     tabIndex={0}
-                    aria-label={`Xem lệnh dự kiến của đơn ${o.order_no}`}
+                    aria-label={`Tạo lệnh cho đơn ${o.order_no}`}
                     onClick={() => onOpen(o.order_id)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -589,7 +780,7 @@ function QueueTable({
                     }}
                   >
                     {cotHien.map((c) => (
-                      <OCho key={c.key} cot={c.key} o={o} />
+                      <OCho key={c.key} cot={c.key} o={o} cheDo={cheDo} />
                     ))}
                   </tr>
                 ))
@@ -606,8 +797,8 @@ function QueueTable({
             onTrang={onPage}
             onSize={onSize}
             loading={rows === null}
-            donVi="đơn chờ"
-            ariaLabel="Phân trang đơn chờ lên lệnh"
+            donVi="đơn"
+            ariaLabel={giao ? "Phân trang hàng chờ tiếp nhận" : "Phân trang đơn chờ tạo lệnh"}
           />
         )}
       </div>
@@ -615,11 +806,10 @@ function QueueTable({
   );
 }
 
-// --- Tab 2: danh sách lệnh ---------------------------------------------------
+// --- Tab 3: danh sách lệnh ---------------------------------------------------
 const COT_LENH: CotKh[] = [
   { key: "ma", label: "Mã lệnh", coDinh: true, w: 150 },
   { key: "tao", label: "Ngày tạo", w: 104 },
-  { key: "hansx", label: "Hạn sản xuất", w: 112 },
   { key: "hangiao", label: "Hạn giao", w: 104 },
   { key: "don", label: "Đơn hàng", w: 110 },
   { key: "khach", label: "Khách hàng", w: 190 },
@@ -645,11 +835,9 @@ const conMoGc = (g: LsxListGiaCong) => g.trang_thai !== "da_xong";
 function OLenh({
   cot,
   l,
-  tq,
 }: {
   cot: string;
   l: LsxListItem;
-  tq: Record<number, LsxTongQuanOut["items"][number]>;
 }) {
   switch (cot) {
     case "ma":
@@ -661,22 +849,6 @@ function OLenh({
       );
     case "tao":
       return <td title={ngayGioDayDu(l.created_at)}>{ngayDayDu(l.created_at)}</td>;
-    case "hansx": {
-      const slack = tq[l.id]?.slack_ngay;
-      return (
-        <td
-          title={
-            slack != null
-              ? slack < 0
-                ? `Lịch đang vượt hạn ${-slack} ngày làm việc`
-                : `Lịch còn dư ${slack} ngày làm việc`
-              : undefined
-          }
-        >
-          <span className={lopHan(classHanLich(slack, l.han_hoan_thanh_sx))}>{ngayVN(l.han_hoan_thanh_sx)}</span>
-        </td>
-      );
-    }
     case "hangiao":
       return <td>{ngayVN(l.han_giao_khach)}</td>;
     case "don":
@@ -785,8 +957,9 @@ function LenhTable({
   onLoc,
   onXoaLoc,
   onOpen,
-  onGoQueue,
-  tq,
+  onGoTao,
+  cuaToi,
+  onCuaToi,
   dem,
   total,
   page,
@@ -815,21 +988,29 @@ function LenhTable({
   onPage: (p: number) => void;
   onSize: (n: number) => void;
   onOpen: (id: number) => void;
-  onGoQueue: () => void;
-  /** Tổng quan theo lsx_id (bảng chỉ dùng `slack_ngay` tô ô hạn) — tải RỜI sau bảng. */
-  tq: Record<number, LsxTongQuanOut["items"][number]>;
+  onGoTao: () => void;
+  /** Chip "Của tôi": chỉ lệnh mình phụ trách (lọc ở máy chủ). */
+  cuaToi: boolean;
+  onCuaToi: (v: boolean) => void;
   dem: (key: string) => number;
 }) {
   const luoi = useCauHinhLuoi("khsx-lenh");
   const cotHien = luoi.rongHien(luoi.xep(COT_LENH).filter((c) => !luoi.an.has(c.key)));
-  const coLoc = ttFilter !== "all" || q.trim() !== "" || ky.loai !== "tat_ca"
+  const coLoc = ttFilter !== "all" || q.trim() !== "" || ky.loai !== "tat_ca" || cuaToi
     || dieuKien.some((d) => daAp(d, loc));
   // Số trên hàng lọc nhanh lấy từ `facets` của máy chủ (qua `dem`), cùng bộ lọc trừ trạng thái.
   const muc = TRANG_THAI_TABS.map((t) => ({ key: t.key, label: t.label, count: dem(t.key), mau: MAU_LOC_LENH[t.key] }));
   return (
     <>
       <section className="lds-loc">
-        <LocNhanhTrangThai muc={muc} dang={ttFilter} onChon={onTtFilter} />
+        <div className="khsx-loc-hang">
+          <LocNhanhTrangThai muc={muc} dang={ttFilter} onChon={onTtFilter} />
+          <div className="lds-flt" role="group" aria-label="Lọc theo người phụ trách">
+            <button type="button" aria-pressed={cuaToi} className={cuaToi ? "on" : ""} onClick={() => onCuaToi(!cuaToi)}>
+              <span>Của tôi</span>
+            </button>
+          </div>
+        </div>
         <div className="lds-loc__thanh tl-thanh" role="search">
           <OTim
             value={q}
@@ -882,6 +1063,7 @@ function LenhTable({
                           onClick={() => {
                             onTtFilter("all");
                             onQ("");
+                            onCuaToi(false);
                             // `coLoc` tính cả kỳ lẫn mọi điều kiện — sót một cái là bấm xong vẫn rỗng.
                             onXoaLoc();
                           }}
@@ -891,9 +1073,9 @@ function LenhTable({
                       </>
                     ) : (
                       <>
-                        Chưa có lệnh sản xuất nào. Lệnh sinh ra từ đơn Sale đã chuyển xuống sản xuất.{" "}
-                        <button type="button" className="lds-lk" onClick={onGoQueue}>
-                          Sang Hàng chờ →
+                        Chưa có lệnh sản xuất nào trong phạm vi của bạn. Lệnh tạo ở tab Tạo lệnh.{" "}
+                        <button type="button" className="lds-lk" onClick={onGoTao}>
+                          Sang Tạo lệnh →
                         </button>
                       </>
                     )}
@@ -915,7 +1097,7 @@ function LenhTable({
                     }}
                   >
                     {cotHien.map((c) => (
-                      <OLenh key={c.key} cot={c.key} l={l} tq={tq} />
+                      <OLenh key={c.key} cot={c.key} l={l} />
                     ))}
                   </tr>
                 ))

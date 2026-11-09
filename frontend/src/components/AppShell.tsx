@@ -728,7 +728,8 @@ export function AppShell() {
       e.type === "ke_hoach_bo_phan_changed"
     ) {
       // Nội dung màn tự refetch qua tick nhóm; chấm đỏ đi theo kênh `san_xuat`/`xep_lich`.
-      if (readable.has("san_xuat") && e.type === "order_ordered") {
+      // Đơn mới vào hàng chờ ở trạng thái Chưa giao ⇒ chỉ người có ô Giao đơn được báo (08/11/2026).
+      if (readable.has("san_xuat") && e.type === "order_ordered" && caps.get("san_xuat")?.can_reassign) {
         pushToast(`🔔 Đơn ${e.code ?? ""} vừa chuyển xuống sản xuất`.trim(), "info");
       }
       napBadge("tat_ca", reloadBadges);
@@ -770,6 +771,14 @@ export function AppShell() {
       } else {
         pushToast(`🔔 Bàn giao mới ${tuyen}${sl ? ` (${sl})` : ""} — chờ tổ bạn xác nhận`, "info");
       }
+    } else if (e.type === "don_giao_lam_lenh") {
+      // Đẩy ĐÍCH DANH tới người phụ trách được giao (08/11/2026).
+      const ma = e.codes.length === 1 ? `đơn ${e.codes[0]}` : `${e.codes.length} đơn`;
+      pushToast(`🔔 ${e.nguoi_giao ?? "Bạn"} vừa giao ${ma} cho bạn phụ trách, xem ở tab Tạo lệnh`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "lsx_tao_ho") {
+      pushToast(`🔔 ${e.nguoi_tao ?? "Người giao"} đã tạo hộ ${e.so_lenh} lệnh của đơn ${e.code} bạn phụ trách`, "info");
+      napBadge("tat_ca", reloadBadges);
     } else if (e.type === "san_xuat_duoc_giao_viec") {
       // Đẩy đích danh tới người vừa được giao việc (chỉ người có tài khoản nhận) — toast cá nhân.
       pushToast("🔔 Bạn được giao việc sản xuất mới", "info");

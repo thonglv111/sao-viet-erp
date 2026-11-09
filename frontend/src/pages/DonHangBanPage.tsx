@@ -19,7 +19,7 @@ import {
 import { useAuth } from "../auth/useAuth";
 import { useCan, useTat } from "../auth/permissions";
 import {
-  BangSanXuatMon, BuocGiaoHang, CanhBaoTre, ChanKhung, TomTat, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
+  BangSanXuatMon, BuocGiaoHang, ChanKhung, TomTat, coHangCum, napTruocTienDo, tomTatTienDo, useTienDoDon,
   viecTiepTheo,
 } from "./giao-hang/tien-do-don";
 import { duocHuyDon, trangThaiSanXuat } from "./don-hang-ban-dieu-kien";
@@ -865,8 +865,6 @@ function OrderDrawer({
               <div className="dhb__tq-trai">
                 <section className="dhb__the">
                   <div className="dhb__the-than dhb__the-than--tien-do">
-                    <CanhBaoTre td={order.status === "ordered" && !giaoDone ? td : null} />
-
                     {/* Thanh chặng (khuôn Atlassian progress tracker): năm chấm trên một trục, đoạn đã đi
                         tô xanh tới chặng đang chạy. Bấm chặng để xem thẻ chặng bên dưới. */}
                     <div className="dhb__path" role="tablist" aria-label="Các chặng của đơn">
@@ -1029,10 +1027,7 @@ function OrderDrawer({
                       <>
                         {td && td.cum.length > 0 && (() => {
                           const mot = td.cum.length === 1 ? td.cum[0] : null;
-                          const lenhAll = td.cum.flatMap((c) => c.lenh);
-                          const chay = lenhAll.filter((l) => !l.xong);
                           const dangLam = td.cum.reduce((a, c) => a + Math.max(0, c.dat - Math.min(c.dat, coHangCum(c))), 0);
-                          const vuong = new Set(chay.flatMap((l) => l.canh_bao)).size;
                           const dv = mot?.don_vi ? ` ${mot.don_vi}` : "";
                           return (
                             <TomTat d={[
@@ -1042,12 +1037,6 @@ function OrderDrawer({
                                   ? { nhan: "Thiếu", dien: "lệnh đã đóng", so: `${soVN(dangLam)}${dv}`, tone: "chu" }
                                   : { nhan: "Còn phải làm", so: `${soVN(dangLam)}${dv}` }
                                 : { nhan: "Món đủ hàng", so: `${tt.soMonDuHang} / ${tt.soMon}`, tone: tt.khoXong ? "ok" : undefined },
-                              { nhan: "Dự kiến xong",
-                                so: td.du_kien_xong ? fmtDate(td.du_kien_xong) : soMonDongThieu > 0 ? "đã đóng" : tt.sxXong ? "đã xong" : "chưa ước được",
-                                tone: (td.tre_ngay ?? 0) > 0 || (!td.du_kien_xong && !tt.sxXong && lenhAll.length > 0) ? "chu" : undefined,
-                                dien: (td.tre_ngay ?? 0) > 0 ? `trễ ${td.tre_ngay} ngày so với hạn giao`
-                                  : vuong > 0 ? `${vuong} vướng mắc đang mở`
-                                  : td.du_kien_xong ? "kịp hạn giao" : undefined },
                             ]} />
                           );
                         })()}

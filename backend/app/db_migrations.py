@@ -19478,6 +19478,56 @@ def _migrate_ke_hoach_bo_phan(db: Session) -> None:
 MIGRATIONS.append(("0455_ke_hoach_bo_phan", _migrate_ke_hoach_bo_phan))
 
 
+def _migrate_giao_don_lam_lenh(db: Session) -> None:
+    """0456 (08/11/2026) — giao đơn ở Hàng chờ tiếp nhận cho người làm lệnh
+    (docs/design-giao-don-lam-lenh.md). Bốn cột trên `orders`: người được giao, lúc giao, người giao,
+    lúc người được giao mở đơn lần đầu (chấm "chưa mở"). Đơn đang chờ lúc lên bản ở trạng thái Chưa
+    giao (NULL) — không backfill. Ô quyền "Giao đơn" dùng lại cột có sẵn `role_permissions.can_reassign`
+    của khoá `san_xuat`, không đổi schema quyền.
+
+    Idempotent: đọc cột TRƯỚC lệnh ghi đầu tiên rồi chỉ thêm cột còn thiếu."""
+    insp = inspect(db.get_bind())
+    if "orders" not in insp.get_table_names():
+        return
+    cols = _existing_columns(insp, "orders")
+    la_pg = (db.get_bind().dialect.name or "") == "postgresql"
+    tg = "TIMESTAMP WITH TIME ZONE" if la_pg else "TIMESTAMP"
+    nguoi = "INTEGER REFERENCES users(id) ON DELETE SET NULL"
+    moi = {
+        "nguoi_lam_lenh_id": nguoi,
+        "giao_lam_lenh_at": tg,
+        "nguoi_giao_lam_lenh_id": nguoi,
+        "nguoi_lam_lenh_mo_at": tg,
+    }
+    for c, kieu in moi.items():
+        if c not in cols:
+            db.execute(text(f"ALTER TABLE orders ADD COLUMN {c} {kieu}"))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_orders_nguoi_lam_lenh_id ON orders (nguoi_lam_lenh_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0456_giao_don_lam_lenh", _migrate_giao_don_lam_lenh))
+
+
+def _migrate_cham_don_chuyen_sx_chi_nguoi_giao(db: Session) -> None:
+    """0457 (08/11/2026) — chấm đỏ "đơn mới chuyển sản xuất" chỉ dành cho người có ô Giao đơn.
+
+    Từ 0456 dòng `don_chuyen_sx` ghi kèm `required_action='reassign'`; dòng cũ ghi trước đó để NULL
+    nên ai có quyền Xem ở Lệnh sản xuất (kể cả người làm lệnh chưa được giao gì) vẫn thấy chấm.
+    Gắn lại ô quyền cho các dòng cũ đó. Idempotent: chỉ đụng dòng còn NULL."""
+    insp = inspect(db.get_bind())
+    if "module_notifications" not in insp.get_table_names():
+        return
+    db.execute(text(
+        "UPDATE module_notifications SET required_action = 'reassign' "
+        "WHERE channel = 'san_xuat' AND event_type = 'don_chuyen_sx' AND required_action IS NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0457_cham_don_chuyen_sx_chi_nguoi_giao", _migrate_cham_don_chuyen_sx_chi_nguoi_giao))
+
+
 def _chep_quyen_module(db: Session, insp, *, cu: str, moi: str, nhan: str) -> None:
     """Khai module quyền MỚI `moi` và chép nguyên bit của `cu` cho mọi vai đang có `cu` (cùng khuôn
     mg 0296). Module mới nằm trong `SCOPELESS_MODULES` ⇒ scope ghi thẳng 'all'. Idempotent."""
@@ -19587,3 +19637,46 @@ def _migrate_giao_hang_hp(db: Session) -> None:
 
 
 MIGRATIONS.append(("0463_giao_hang_hp", _migrate_giao_hang_hp))
+
+
+KET_MOC_CU = "Giờ cũ của bàn kéo thả, chưa phải giờ hẹn đẩy. Hẹn lại giờ."
+
+
+def _migrate_xep_lich_hen_day(db: Session) -> None:
+    """0470 (08/11/2026) — bàn Xếp lịch thành bàn hẹn đẩy (docs/design-go-toc-do-may-va-xep-lich.md).
+
+    · `xep_lich_lenh.nguoi_hen_id INTEGER NULL` — soft → `users.id`; backfill = `created_by` (mốc cũ
+      coi như do người đặt mốc hẹn).
+    · `xep_lich_lenh.ket_ly_do TEXT NULL`, `xep_lich_lenh.ket_luc TIMESTAMPTZ NULL` — tới giờ mà đẩy
+      không được. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "xep_lich_lenh" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "xep_lich_lenh")
+    # Đọc TRƯỚC lệnh ghi đầu tiên: inspector gọi sau UPDATE trên SQLite cuốn mất phần đã ghi.
+    lsx_co_tt = ("lsx" in insp.get_table_names()
+                 and "trang_thai" in _existing_columns(insp, "lsx"))
+    kieu_gio = "TIMESTAMP WITH TIME ZONE" if db.get_bind().dialect.name == "postgresql" else "DATETIME"
+    them_hen = "nguoi_hen_id" not in co
+    if them_hen:
+        db.execute(text("ALTER TABLE xep_lich_lenh ADD COLUMN nguoi_hen_id INTEGER"))
+    if "ket_ly_do" not in co:
+        db.execute(text("ALTER TABLE xep_lich_lenh ADD COLUMN ket_ly_do TEXT"))
+    if "ket_luc" not in co:
+        db.execute(text(f"ALTER TABLE xep_lich_lenh ADD COLUMN ket_luc {kieu_gio}"))
+    if them_hen:
+        from .models.lsx import TT_DA_LAP_KE_HOACH, TT_SAN_SANG
+
+        db.execute(text("UPDATE xep_lich_lenh SET nguoi_hen_id = created_by WHERE nguoi_hen_id IS NULL"))
+        # Mốc cũ của bàn kéo thả là giờ BẮT ĐẦU chạy, không phải giờ hẹn đẩy, và đa phần đã trôi
+        # qua: để nguyên thì vòng tự đẩy thả cả loạt lệnh xuống xưởng ngay phút đầu. Lệnh chưa đẩy
+        # mang mốc cũ vào tab Kẹt kèm lý do, người điều phối hẹn lại giờ.
+        if lsx_co_tt:
+            db.execute(text(
+                "UPDATE xep_lich_lenh SET ket_ly_do = :ly_do, ket_luc = CURRENT_TIMESTAMP "
+                "WHERE lsx_id IN (SELECT id FROM lsx WHERE trang_thai IN (:a, :b))"),
+                {"ly_do": KET_MOC_CU, "a": TT_SAN_SANG, "b": TT_DA_LAP_KE_HOACH})
+    db.commit()
+
+
+MIGRATIONS.append(("0470_xep_lich_hen_day", _migrate_xep_lich_hen_day))

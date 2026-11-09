@@ -109,6 +109,10 @@ _HD += _dong("kinh_doanh", "tinh_gia_thanh", {
 # --- Sản xuất -------------------------------------------------------------------------------
 _HD += _dong("san_xuat", "san_xuat", {
     "create_lsx": "Tạo lệnh sản xuất",
+    # Giao đơn cho người phụ trách (08/11/2026, docs/design-giao-don-lam-lenh.md).
+    "giao_don_lam_lenh": "Giao đơn cho người phụ trách",
+    "giao_lai_don_lam_lenh": "Giao lại đơn cho người phụ trách khác",
+    "tao_lsx_ho": "Tạo lệnh hộ người được giao",
     "update_lsx": "Sửa lệnh sản xuất",
     "delete_lsx": "Xoá lệnh sản xuất",
     "lsx_trang_thai": "Đổi trạng thái lệnh sản xuất",
@@ -156,6 +160,12 @@ _HD += _dong("san_xuat", "xep_lich", {
     "xep_lich_quan_so_go_de": "Ghi quân số gỡ đè",
     "xep_lich_quan_so_bo_go_de": "Bỏ quân số gỡ đè",
     "xep_lich_ve_san_sang": "Đưa lệnh về sẵn sàng",
+    # Bàn hẹn đẩy (08/11/2026).
+    "xep_lich_hen_day": "Hẹn đẩy",
+    "xep_lich_doi_gio_hen": "Đổi giờ hẹn",
+    "xep_lich_bo_hen": "Bỏ hẹn",
+    "xep_lich_tu_day": "Tự đẩy",
+    "xep_lich_tu_day_ket": "Tới giờ chưa đẩy được",
     # Xung đột & nguy cơ trễ — cùng bàn Xếp lịch.
     "van_de_tiep_nhan": "Tiếp nhận vấn đề xếp lịch",
     "van_de_xu_ly": "Xử lý vấn đề xếp lịch",

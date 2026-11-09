@@ -27,7 +27,10 @@ def test_cho_coc_du_coc_va_chuyen_san_xuat(client):
     tao_nguoi("ke_toan_coc", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL),
                          "phieu_thu": dict(can_read=True, can_create=True, scope=SCOPE_ALL)})
     tao_nguoi("chi_xem_don", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL)})
-    tao_nguoi("ke_hoach", {"san_xuat": dict(can_read=True, scope=SCOPE_ALL)})
+    # Đơn mới vào hàng chờ chỉ báo người có ô Giao đơn (08/11/2026); người làm lệnh chỉ nghe đơn giao
+    # cho mình.
+    tao_nguoi("ke_hoach", {"san_xuat": dict(can_read=True, can_reassign=True, scope=SCOPE_ALL)})
+    tao_nguoi("lam_lenh_cham", {"san_xuat": dict(can_read=True, can_create=True, scope=SCOPE_ALL)})
     hk = dang_nhap(client, "ke_toan_coc")
 
     r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
@@ -53,6 +56,7 @@ def test_cho_coc_du_coc_va_chuyen_san_xuat(client):
     rel = client.post(f"/api/orders/{d['id']}/release-production", headers=ha)
     assert rel.status_code == 200, rel.text
     assert tom_tat(client, dang_nhap(client, "ke_hoach"))["san_xuat"]["loai"] == "don_chuyen_sx"
+    assert "san_xuat" not in tom_tat(client, dang_nhap(client, "lam_lenh_cham"))
     db = SessionLocal()
     try:
         assert db.query(ModuleNotification).filter_by(channel="san_xuat").count() == 1
@@ -64,7 +68,7 @@ def test_chot_truoc_thu_coc_sau_thi_du_coc_tu_xuong_san_xuat(client):
     ha = admin(client)
     tao_nguoi("ke_toan_coc3", {"don_hang_ban": dict(can_read=True, scope=SCOPE_ALL),
                          "phieu_thu": dict(can_read=True, can_create=True, scope=SCOPE_ALL)})
-    tao_nguoi("ke_hoach3", {"san_xuat": dict(can_read=True, scope=SCOPE_ALL)})
+    tao_nguoi("ke_hoach3", {"san_xuat": dict(can_read=True, can_reassign=True, scope=SCOPE_ALL)})
     hk = dang_nhap(client, "ke_toan_coc3")
     r = client.post("/api/orders", json={"source_type": "bao_gia", "quotation_id": _bao_gia_da_chot(),
                                          "deposit_pct": 50}, headers=ha)

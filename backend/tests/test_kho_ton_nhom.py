@@ -199,24 +199,24 @@ def test_can_mua_khi_ton_cham_toi_thieu():
 
 def test_can_mua_khi_chua_khai_nguong_chi_khi_am():
     assert can_mua_theo_du_bao(0, None, None) is False
-    du = {"lenh": [{"han_sx": "2026-10-10", "can": 120}], "ve": []}
+    du = {"lenh": [{"han_giao": "2026-10-10", "can": 120}], "ve": []}
     assert can_mua_theo_du_bao(100, du, None) is True       # lệnh lĩnh vượt tồn → âm
 
 
 def test_hang_ve_sau_ngay_thung_khong_cuu_lenh_linh_truoc():
-    du = {"lenh": [{"han_sx": "2026-10-10", "can": 95}], "ve": [{"ngay_ve": "2026-10-20", "sl": 500}]}
+    du = {"lenh": [{"han_giao": "2026-10-10", "can": 95}], "ve": [{"ngay_ve": "2026-10-20", "sl": 500}]}
     assert can_mua_theo_du_bao(100, du, _th(10)) is True     # còn 5 ≤ 10 trước khi hàng về
     # Hàng về TRƯỚC ngày lĩnh thì không thủng.
-    du2 = {"lenh": [{"han_sx": "2026-10-10", "can": 95}], "ve": [{"ngay_ve": "2026-10-05", "sl": 500}]}
+    du2 = {"lenh": [{"han_giao": "2026-10-10", "can": 95}], "ve": [{"ngay_ve": "2026-10-05", "sl": 500}]}
     assert can_mua_theo_du_bao(100, du2, _th(10)) is False
     # Cùng ngày: LĨNH trước, VỀ sau.
-    du3 = {"lenh": [{"han_sx": "2026-10-10", "can": 95}], "ve": [{"ngay_ve": "2026-10-10", "sl": 500}]}
+    du3 = {"lenh": [{"han_giao": "2026-10-10", "can": 95}], "ve": [{"ngay_ve": "2026-10-10", "sl": 500}]}
     assert can_mua_theo_du_bao(100, du3, _th(10)) is True
 
 
-@pytest.mark.parametrize("han_sx", [None, ""])
-def test_lenh_chua_co_han_coi_nhu_linh_ngay(han_sx):
-    du = {"lenh": [{"han_sx": han_sx, "can": 95}], "ve": [{"ngay_ve": "2026-10-05", "sl": 500}]}
+@pytest.mark.parametrize("han_giao", [None, ""])
+def test_lenh_chua_co_han_coi_nhu_linh_ngay(han_giao):
+    du = {"lenh": [{"han_giao": han_giao, "can": 95}], "ve": [{"ngay_ve": "2026-10-05", "sl": 500}]}
     assert can_mua_theo_du_bao(100, du, _th(10)) is True
 
 
@@ -228,7 +228,7 @@ def _du_bao_gia(m, *, can=None, ve=None):
         "hang_loai": m[0], "hang_id": m[1], "kho_rong": 0, "kho_dai": 0, "don_vi_goc": "",
         "ton_toan_xuong": None,
         "can_lenh": sum(x[1] for x in (can or [])), "dang_ve": sum(x[1] for x in (ve or [])),
-        "lenh": [{"ma": f"LSX-{i}", "han_sx": h, "can": c, "da_giu": 0} for i, (h, c) in enumerate(can or [])],
+        "lenh": [{"ma": f"LSX-{i}", "han_giao": h, "can": c, "da_giu": 0} for i, (h, c) in enumerate(can or [])],
         "ve": [{"ma": f"PO-{i}", "ngay_ve": h, "sl": c, "mua_cho": [], "loai_mua_cac": []}
                for i, (h, c) in enumerate(ve or [])],
         "phieu_mua": [],

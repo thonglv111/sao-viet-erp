@@ -113,6 +113,7 @@ async def lifespan(app: FastAPI):
     don_dep_task: asyncio.Task | None = None
     don_tep_task: asyncio.Task | None = None
     phieu_luong_task: asyncio.Task | None = None
+    tu_day_task: asyncio.Task | None = None
     if settings.care_reminder_seconds > 0:
         from .care_reminders import run_care_reminder_loop
         reminder_task = asyncio.create_task(run_care_reminder_loop(settings.care_reminder_seconds))
@@ -128,6 +129,9 @@ async def lifespan(app: FastAPI):
         phieu_luong_task = asyncio.create_task(
             run_phieu_luong_mo_loop(settings.care_reminder_seconds)
         )
+        # Xếp lịch hẹn đẩy (08/11/2026): mỗi phút đẩy lệnh đã tới giờ hẹn, bằng quyền người hẹn.
+        from .services.xep_lich.hen_day import run_tu_day_loop
+        tu_day_task = asyncio.create_task(run_tu_day_loop(60))
         # Dọn refresh token quá hạn mỗi giờ (thay cho quét ở mỗi lượt đăng nhập).
         from .don_dinh_ky import run_don_dep_loop
         don_dep_task = asyncio.create_task(run_don_dep_loop())
@@ -141,7 +145,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        for task in (reminder_task, bao_tri_task, don_dep_task, don_tep_task, phieu_luong_task, bridge_task):
+        for task in (reminder_task, bao_tri_task, don_dep_task, don_tep_task, phieu_luong_task,
+                     tu_day_task, bridge_task):
             if task is not None:
                 task.cancel()
 

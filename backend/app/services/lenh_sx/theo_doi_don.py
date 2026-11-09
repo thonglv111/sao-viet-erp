@@ -35,7 +35,7 @@ from ...repositories.order_repo import OrderRepository
 from ...repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from .. import don_hang_san_xuat as dhsx
 from ..delivery_service import DeliveryService
-from ..gio_xuong import thuc_te_hien_thi
+
 from ..thanh_pham_khai_bao import cum_ban
 from . import danh_sach, pham_vi, tien_do, trang_thai
 
@@ -65,7 +65,7 @@ CHIP_DA_GIAO = "da_giao"
 CHIP = (CHIP_TAT_CA, CHIP_CAN_DE_Y, CHIP_DANG_LAM, CHIP_CHO_GIAO, CHIP_DA_GIAO)
 
 # Cờ vướng của mặt hàng, thứ tự nặng → nhẹ. `tre` chỉ có ở cấp đơn (đo theo hạn giao khách);
-# cờ `tre_han` của lệnh (đo theo hạn SX nội bộ) cố ý KHÔNG lên màn này.
+# cờ `tre_han` của lệnh cố ý KHÔNG lên màn này.
 CO_TRE = "tre"
 CO_DONG_THIEU = "dong_thieu"
 CO_CHUA_LENH = "chua_lenh"
@@ -156,7 +156,6 @@ def _tinh(db: Session, orders: list[Order], bay_gio: datetime) -> tuple[dict[int
             "da_xuong": i in tinh, "tron_goi": i in tron_goi or x.get("kieu") == "tron_goi",
             "nha_gia_cong": ncc.get(i) or (x.get("gia_cong") or {}).get("nha_cung_cap_ten"),
             "buoc": x.get("buoc"), "buoc_so": buoc_so, "buoc_tong": buoc_tong, "pct": x.get("pct"),
-            "du_kien_xong": tinh.get(i, {}).get("xong"),
         }
 
     ra: dict[int, dict] = {}
@@ -220,33 +219,13 @@ def _dong_don(o: Order, t: dict, *, khach: str | None, phu_trach: str | None, ho
     giao_xong = so_mon > 0 and all(m["nhom"] == MON_GIAO for m in mons)
     du_hang = so_mon > 0 and all(m["nhom"] in (MON_KHO, MON_GIAO) for m in mons)
 
-    # Dự kiến xong của đơn = lệnh xong muộn nhất; một lệnh chưa ước được (hoặc chưa xuống xưởng)
-    # là cả đơn chưa ước được.
-    moc: list[datetime] = []
-    thieu = False
-    for m in mons:
-        if m["nhom"] in (MON_KHO, MON_GIAO):
-            continue
-        if not m["lenh"]:
-            thieu = True
-        for x in m["lenh"]:
-            if x["xong"]:
-                continue
-            if x["du_kien_xong"] is None:
-                thieu = True
-            else:
-                moc.append(x["du_kien_xong"])
-    du_kien = max(moc) if moc and not thieu else None
-
+    # "Dự kiến xong" GỠ 08/11/2026: trễ chỉ còn nghĩa đã qua hạn giao mà chưa giao xong.
     han = o.delivery_committed_date
     tre = con = None
     if han is not None and not giao_xong:
         con = (han - hom_nay).days
-        mau = _ngay_xuong(du_kien) if (du_kien is not None and not du_hang) else None
         if con < 0:
             tre = -con
-        elif mau is not None and mau > han:
-            tre = (mau - han).days
 
     co_don = sorted({c for m in mons for c in m["co"]}, key=THU_TU_CO.index)
     if tre:
@@ -280,7 +259,6 @@ def _dong_don(o: Order, t: dict, *, khach: str | None, phu_trach: str | None, ho
         "so_mon_kho": sum(1 for m in mons if m["nhom"] in (MON_KHO, MON_GIAO)),
         "so_mon_giao": sum(1 for m in mons if m["nhom"] == MON_GIAO),
         "han_giao": han,
-        "du_kien_xong": thuc_te_hien_thi(du_kien),
         "tre_ngay": tre,
         "con_ngay": con,
         "vuong": {"so_mon": len(vuong), "ly_do": ly_do, "buoc": buoc_vuong} if ly_do else None,
@@ -313,7 +291,7 @@ def _dong_da_giao(o: Order, *, khach: str | None, phu_trach: str | None) -> dict
             "buoc_so": None, "buoc_tong": None, "pct": None, "nha_gia_cong": None,
         } if dau else None,
         "so_mon_kho": len(cums), "so_mon_giao": len(cums),
-        "han_giao": o.delivery_committed_date, "du_kien_xong": None, "tre_ngay": None,
+        "han_giao": o.delivery_committed_date, "tre_ngay": None,
         "con_ngay": None, "vuong": None, "nhom": CHIP_DA_GIAO, "can_de_y": False,
     }
 

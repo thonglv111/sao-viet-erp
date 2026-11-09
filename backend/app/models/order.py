@@ -201,6 +201,18 @@ class Order(Base):
     san_xuat_released_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # --- Giao đơn cho người làm lệnh (08/11/2026, docs/design-giao-don-lam-lenh.md) ---------------
+    # Người giữ ô "Giao đơn" (`san_xuat:reassign`) chia đơn ở hàng chờ cho MỘT người cùng phòng. NULL =
+    # Chưa giao. Server ghi từ tài khoản, không có ô gõ tay. `nguoi_lam_lenh_mo_at` = lúc người được
+    # giao mở ngăn Lệnh dự kiến lần đầu sau lần giao gần nhất (chấm "chưa mở"); giao lại thì xoá.
+    nguoi_lam_lenh_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
+    )
+    giao_lam_lenh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    nguoi_giao_lam_lenh_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    nguoi_lam_lenh_mo_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # --- Hủy (P5) ---------------------------------------------------------------
     cancel_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)

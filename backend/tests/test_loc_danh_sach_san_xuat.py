@@ -58,16 +58,14 @@ def test_lenh_khsx_loc_ngay_tao_ranh_gio_vn(db, admin, lsx_svc):
     assert rows[0]["created_at"] is not None
 
 
-def test_lenh_khsx_loc_han_sx_va_han_giao(db, admin, lsx_svc):
-    a = _lenh_tho(db, ma="LSX-HAN-A", sale_user_id=admin.id, han_sx=date(2026, 10, 5))
-    _lenh_tho(db, ma="LSX-HAN-B", sale_user_id=admin.id, han_sx=date(2026, 11, 5))
-    db.get(Lsx, a).han_giao_khach = date(2026, 12, 1)
-    db.commit()
-    rows, _ = lsx_svc.list_rows(q="LSX-HAN", moc="han_sx", **THANG_10)
-    assert [r["ma"] for r in rows] == ["LSX-HAN-A"]
-    rows, _ = lsx_svc.list_rows(
-        q="LSX-HAN", moc="han_giao", tu_ngay=date(2026, 12, 1), den_ngay=date(2026, 12, 31))
-    assert [r["ma"] for r in rows] == ["LSX-HAN-A"]
+def test_lenh_khsx_loc_han_giao_va_moc_han_sx_cu(db, admin, lsx_svc):
+    """`moc=han_giao` lọc theo hạn giao; `moc=han_sx` của link cũ (hạn SX đã gỡ 08/11/2026) hiểu y
+    như hạn giao, không vỡ."""
+    _lenh_tho(db, ma="LSX-HAN-A", sale_user_id=admin.id, han_giao=date(2026, 10, 5))
+    _lenh_tho(db, ma="LSX-HAN-B", sale_user_id=admin.id, han_giao=date(2026, 11, 5))
+    for moc in ("han_giao", "han_sx"):
+        rows, _ = lsx_svc.list_rows(q="LSX-HAN", moc=moc, **THANG_10)
+        assert [r["ma"] for r in rows] == ["LSX-HAN-A"], moc
 
 
 def test_lenh_khsx_tab_dem_theo_ky(db, admin, lsx_svc):
@@ -128,16 +126,16 @@ def test_hang_cho_loc_khach_va_o_khach(db, lsx_svc):
 
 # --- Hồ sơ lệnh sản xuất ------------------------------------------------------------------------
 def test_ho_so_lenh_moc_mac_dinh_la_ngay_tao(db, admin):
-    a = _lenh_tho(db, ma="LSX-HS-A", sale_user_id=admin.id, han_sx=date(2026, 12, 1))
-    b = _lenh_tho(db, ma="LSX-HS-B", sale_user_id=admin.id, han_sx=date(2026, 10, 3))
+    a = _lenh_tho(db, ma="LSX-HS-A", sale_user_id=admin.id, han_giao=date(2026, 12, 1))
+    b = _lenh_tho(db, ma="LSX-HS-B", sale_user_id=admin.id, han_giao=date(2026, 10, 3))
     _dat_tao(db, a, TRONG)
     _dat_tao(db, b, NGOAI)
     d = danh_sach.danh_sach(db, sale_ids=None, q="LSX-HS", **THANG_10)
     assert [i["ma"] for i in d["items"]] == ["LSX-HS-A"]
     assert d["dem_theo_tab"]["tat_ca"] == 1
     assert d["items"][0]["created_at"] is not None
-    # Khoảng hạn SX cũ nay là `moc=han_sx`.
-    d = danh_sach.danh_sach(db, sale_ids=None, q="LSX-HS", moc="han_sx", **THANG_10)
+    # `moc=han_giao` (link cũ `han_sx` hiểu như hạn giao).
+    d = danh_sach.danh_sach(db, sale_ids=None, q="LSX-HS", moc="han_giao", **THANG_10)
     assert [i["ma"] for i in d["items"]] == ["LSX-HS-B"]
 
 

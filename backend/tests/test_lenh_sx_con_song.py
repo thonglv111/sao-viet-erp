@@ -61,7 +61,7 @@ def the_gioi(sess, orders, lsx_svc, admin, customer):
     w = {}
     w["cu_tho"] = _lenh_tho(
         sess, ma="LSX-CS-CU-THO", sale_user_id=admin.id, customer_id=customer.id,
-        han_sx=date(2025, 1, 10), so_luong=100,
+        han_giao=date(2025, 1, 10), so_luong=100,
     )
     _giao_du(sess, w["cu_tho"], ma="YCGH-CS-1")
 
@@ -80,13 +80,13 @@ def the_gioi(sess, orders, lsx_svc, admin, customer):
 
     w["giao_thieu"] = _lenh_tho(
         sess, ma="LSX-CS-THIEU", sale_user_id=admin.id, customer_id=customer.id,
-        han_sx=date(2026, 9, 3), so_luong=100,
+        han_giao=date(2026, 9, 3), so_luong=100,
     )
     _giao_xong(sess, w["giao_thieu"], 40, ma="YCGH-CS-4")
 
     w["gap"] = _lenh_tho(
         sess, ma="LSX-CS-GAP", sale_user_id=admin.id, customer_id=customer.id,
-        han_sx=date(2026, 9, 20), is_rush=True,
+        han_giao=date(2026, 9, 20), is_rush=True,
     )
 
     a, b, _chung = _lenh_ghep_doi(
@@ -97,12 +97,12 @@ def the_gioi(sess, orders, lsx_svc, admin, customer):
         _dat_xong_luc(sess, cv, _XONG_NAM_NGOAI)
     w["ghep_a"], w["ghep_b"] = a, b
 
-    # Hạn SX đặt tay để THỨ TỰ bảng biết trước: gấp → ba lệnh hạn 2025 (đã giao hết) → lệnh sống.
+    # Hạn giao đặt tay để THỨ TỰ bảng biết trước: gấp → ba lệnh hạn 2025 (đã giao hết) → lệnh sống.
     # Bài phân trang dựa vào đúng thứ tự này để có trang CHỨA và trang KHÔNG chứa lệnh cũ.
     for k, han in (("cu_that", date(2025, 1, 8)), ("hom_nay", date(2025, 1, 9))):
-        sess.get(Lsx, w[k]).han_hoan_thanh_sx = han
+        sess.get(Lsx, w[k]).han_giao_khach = han
     for k in ("dang", "ghep_a", "ghep_b"):
-        sess.get(Lsx, w[k]).han_hoan_thanh_sx = date(2026, 9, 10)
+        sess.get(Lsx, w[k]).han_giao_khach = date(2026, 9, 10)
     sess.commit()
     return w
 

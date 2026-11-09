@@ -304,6 +304,8 @@ class CongDoanService(CatalogService):
                 # Chuẩn hoá TẠI ĐÂY để mọi đường vào (form, Excel, API) cùng một dạng: khoảng
                 # trắng thừa làm `if cong_thuc:` ở engine tưởng có khai rồi `safe_eval("  ")` nổ.
                 for k in ("cong_thuc_gio", "cong_thuc_gia"):
+                    if k == "cong_thuc_gio" and k not in r:
+                        continue  # vắng khoá = giữ câu cũ (form/Excel thôi gửi, 08/11/2026)
                     r[k] = ((r.get(k) or "").strip()) or None
             # W-CD-GIA-NGOAI-IN: công thức GIÁ chỉ có nghĩa ở công đoạn nhóm In — phiếu tính giá
             # chỉ chọn máy ở khối In của thành phần, nên câu khai cho máy bế/cán không có đường

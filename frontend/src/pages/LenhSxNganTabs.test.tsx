@@ -33,7 +33,7 @@ const NGAN = {
     nhom_ten: "Lệnh 104 — LONG THỦY",
   },
   tien_do: {
-    phan_tram: 0, uoc_tinh: false, gio_may: 0, du_kien_xong: null, trang_thai: "dang_sx",
+    phan_tram: 0, uoc_tinh: false, gio_may: 0, trang_thai: "dang_sx",
     canh_bao: ["thieu_vat_tu"], buoc_hien_tai: null, buoc_hien_tai_cong_viec_id: null, nhom_cong_doan: null,
     may: null, nguoi: [], da_giao: 0, khau: "dang_sx", khau_chi_tiet: null, vat_tu_chu: "Chưa giữ chỗ vật tư",
   },

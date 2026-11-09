@@ -16,7 +16,7 @@ tập id.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -498,192 +498,7 @@ class XepLichLenhService:
                 r.cum_cua[i] = cid
         return r
 
-    def _buoc_vao(self, lsx, cds) -> list[BuocVao]:
-        return self._tinh_buoc(lsx, cds)[0]
-
-    def _trai(self, lsx, cds, moc: datetime) -> KetQuaTrai:
-        return trai_lich(moc, self._buoc_vao(lsx, cds), self._khung())
-
     # ================= đọc =================
-
-    def hang_cho(self, *, tim: str | None = None, trang: int = 1, cd_trang: int = 20,
-                 tu_ngay: date | None = None, den_ngay: date | None = None, moc: str = "tao",
-                 khach_id: int | None = None) -> dict:
-        """Thẻ chờ xếp: lệnh đủ điều kiện mà chưa có mốc. Lọc + phân trang ở MÁY CHỦ."""
-        rows, tong = self.repo.hang_cho(
-            trang_thai=TT_XEP_DUOC, tim=tim, trang=trang, cd_trang=cd_trang,
-            tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach_id=khach_id,
-        )
-        routing = self.repo.routing_theo_lo([r.id for r in rows])
-        self._nap_may([r.id for r in rows])
-        self._nap_phu([r.id for r in rows])
-        self._nap_tai_nguyen(routing)
-        dong = []
-        for l in rows:
-            cds = routing.get(l.id, [])
-            phut = sum(b.chay_phut for b in self._buoc_vao(l, cds))
-            dong.append({
-                "lsx_id": l.id, "ma": l.ma, "ten": l.ten,
-                "customer_name": self._ten_khach(l),
-                "han_hoan_thanh_sx": l.han_hoan_thanh_sx,
-                "han_giao_khach": l.han_giao_khach,
-                "is_rush": bool(l.is_rush),
-                "da_phat_hanh": l.trang_thai == TT_DA_PHAT_HANH,
-                "so_to_ke_hoach": int(l.so_to_ke_hoach or 0),
-                "so_luong_dat": int(l.so_luong_dat or 0),
-                "don_vi_tinh": l.don_vi_tinh,
-                "chay_phut": round(phut, 2),
-                "so_buoc": len(cds),
-                "created_at": l.created_at,
-            })
-        return {"dong": dong, "tong": tong}
-
-    def khach_hang_cho(self, *, tim: str | None = None, tu_ngay: date | None = None,
-                       den_ngay: date | None = None, moc: str = "tao") -> list[dict]:
-        """Nguồn ô "Khách hàng" của thanh lọc hàng chờ — đếm trên cùng điều kiện tìm + kỳ."""
-        return [
-            {"id": i, "ten": t, "so": n}
-            for i, t, n in self.repo.khach_hang_cho(
-                trang_thai=TT_XEP_DUOC, tim=tim, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
-        ]
-
-    def lich(self, *, tu: date, den: date, tim: str | None = None,
-             trang_thai: list[str] | None = None, khach_id: int | None = None,
-             gap: bool | None = None, nhanh: str | None = None) -> dict:
-        """Các lệnh CHẠM cửa sổ `[tu, den]`, mỗi lệnh một dòng đã trải sẵn.
-
-        Cắt hai nhịp: SQL loại lệnh bắt đầu sau mép phải, rồi sau khi trải mới loại được lệnh kết
-        thúc trước mép trái — `ket_thuc` không có cột nên SQL không biết nó.
-
-        Riêng lệnh ĐÃ XONG TRỌN (mọi bước đóng, dấu đóng trước mép trái) thì SQL biết chắc thanh của
-        nó kết thúc trước cửa sổ, nên loại luôn ở nhịp một (A7, 28/09/2026 — xem
-        `XepLichLenhRepository._xong_tron_truoc`). Không có vế đó, mỗi lượt vẽ bàn trải lại MỌI lệnh
-        từng xếp lịch từ ngày đầu dùng phần mềm chỉ để vứt đi.
-
-        LỌC Ở MÁY CHỦ (08/10/2026): `tim` (mã / tên / khách), `trang_thai`, `khach_id`, `gap` cắt
-        dòng; `dem` đếm ba nút lọc nhanh trên tập ĐÃ qua các điều kiện đó nhưng CHƯA qua `nhanh`
-        (bấm "trễ hạn" thì hai nút kia vẫn giữ số của chúng); `nhanh` cắt cuối cùng.
-        """
-        d_tu = datetime.combine(tu, time.min)
-        d_den = datetime.combine(den, time.max)
-        moc_rows = self.repo.truoc_moc(_aware(d_den), tu=_aware(d_tu))
-        cum = self._trai_cum([m.lsx_id for m in moc_rows])
-
-        dong = []
-        for m in moc_rows:
-            l = cum.lsx.get(m.lsx_id)
-            if l is None or l.id not in cum.kq:  # lệnh đã xoá, FK CASCADE dọn sau
-                continue
-            cds = cum.routing.get(l.id, [])
-            buoc, tin = cum.buoc[l.id], cum.tin[l.id]
-            kq = cum.kq[l.id]
-            tt = self._du_kien_theo_thuc_te(l, cds, buoc, m, kq)
-            kq_con = tt.pop("_kq_con_lai", None)
-            # Mép PHẢI để cắt cửa sổ phải là mép sẽ VẼ, không phải mép kế hoạch: lệnh đã chạy dở
-            # kết thúc theo `ket_thuc_thuc_te`, có thể sớm hơn hẳn mốc kế hoạch.
-            if (tt.get("ket_thuc_thuc_te") or kq.ket_thuc) < d_tu:
-                continue
-            d = self._dong(l, m, kq, tin, tt, kq_con)
-            d.update(self._phan_cum(cum, l.id))
-            # Bước ĐÃ XONG không còn chạy trên máy nào — máy hỏng/khoá sau đó không phải việc của
-            # lệnh này nữa (#79: LSX26-0016 xong In 18/10 vẫn ghi "máy dừng chờ sửa").
-            da_xong = {cd.id for cd in cds
-                       if self._thuc_te_cua(cd, l.id).get("trang_thai") == CV_HOAN_THANH}
-            d["_khung_may"] = [
-                (tin[b.lsx_cong_doan_id]["may_id"], tin[b.lsx_cong_doan_id]["may_ten"],
-                 b.bat_dau, b.ket_thuc)
-                for b in (kq_con or kq).buoc
-                if not b.la_thue_ngoai and b.lsx_cong_doan_id not in da_xong
-                and (tin.get(b.lsx_cong_doan_id) or {}).get("may_id")
-            ]
-            d["_khach_id"] = getattr(self._don_cua(l), "customer_id", None)
-            dong.append(d)
-
-        tu_khoa = (tim or "").strip().lower()
-        tt_loc = set(trang_thai or [])
-
-        def qua(d: dict, bo_khach: bool = False) -> bool:
-            if tu_khoa and not any(tu_khoa in (d.get(k) or "").lower()
-                                   for k in ("ma", "ten", "customer_name")):
-                return False
-            if tt_loc and d["trang_thai"] not in tt_loc:
-                return False
-            if gap is not None and bool(d["is_rush"]) != gap:
-                return False
-            return bo_khach or khach_id is None or d["_khach_id"] == khach_id
-
-        # Khách để lọc: đếm trên tập đã qua mọi điều kiện TRỪ chính ô khách.
-        khach: dict[int, list] = {}
-        for d in dong:
-            if d["_khach_id"] and qua(d, bo_khach=True):
-                khach.setdefault(d["_khach_id"], [d["customer_name"] or "", 0])[1] += 1
-        dong = [d for d in dong if qua(d)]
-        dem = {k: sum(1 for d in dong if self._nhanh(d, k)) for k in ("tre", "muon", "chua")}
-        if nhanh in dem:
-            dong = [d for d in dong if self._nhanh(d, nhanh)]
-        self._gan_canh_bao_may(dong, d_tu, d_den)
-        for d in dong:
-            d.pop("_khach_id", None)
-            d.pop("_khung_may", None)
-        co_cum = {d["cum_id"] for d in dong if d.get("cum_id")}
-        return {
-            "dem": dem,
-            "khach_loc": [{"id": i, "ten": t, "so": n}
-                          for i, (t, n) in sorted(khach.items(), key=lambda x: x[1][0])],
-            "dong": dong, "tong": len(dong), "ngay_nghi": self._ngay_nghi(d_tu, d_den),
-            "ngay_dac_biet": self._ngay_dac_biet(d_tu, d_den),
-            "cac_ca": mo_ta_ca(self._ca_xuong),
-            "cum": [cum.cum[i] for i in sorted(co_cum)],
-        }
-
-    def _gan_canh_bao_may(self, dong: list[dict], d_tu: datetime, d_den: datetime) -> None:
-        """`canh_bao_may` của từng thanh: bước chạy đè vùng khoá máy, hoặc máy đang dừng chờ sửa.
-
-        CHỈ nhắc, không chặn — cùng mức với `constraint.de_vung_khoa_may` (chủ hạ 21/08/2026: bản
-        khai tay còn thưa, chặn cứng thì bịt khe của máy đang chạy tốt). Lỗi #50 và #27 bấm thử
-        18/10/2026: khai được khoá máy rồi mà thanh lệnh vẫn im, máy dừng chờ sửa cũng im.
-        Vùng khoá hỏi MỘT lượt cho cả cửa sổ; báo hỏng cũng một lượt cho mọi máy có mặt trên bàn.
-        """
-        from ...models.machine_unavailable import (
-            KIEU_CHAN, LY_DO_BAO_TRI, LY_DO_HONG_HOC, LY_DO_NGHI,
-        )
-        from ...repositories.machine_unavailable_repo import MachineUnavailableRepository
-        from ..may_trang_thai import bao_hong_dang_mo_nhieu
-
-        may_ids = {k[0] for d in dong for k in d.get("_khung_may") or ()}
-        if not may_ids:
-            for d in dong:
-                d["canh_bao_may"] = []
-            return
-        khoa: dict[int, list] = {}
-        for p in MachineUnavailableRepository(self.db).list_range(tu=d_tu.date(), den=d_den.date()):
-            if p.may_id in may_ids and (getattr(p, "kieu", None) or KIEU_CHAN) == KIEU_CHAN:
-                khoa.setdefault(p.may_id, []).append(
-                    (_aware(p.unavailable_from), _aware(p.unavailable_to), p.reason))
-        dung: dict[int, str] = {}
-        for mid, ds in bao_hong_dang_mo_nhieu(self.db, may_ids).items():
-            ma = next((b["ma"] for b in ds if b["may_dung"]), None)
-            if ma:
-                dung[mid] = ma
-        ten_ly_do = {LY_DO_BAO_TRI: "bảo trì", LY_DO_HONG_HOC: "hỏng", LY_DO_NGHI: "nghỉ"}
-        for d in dong:
-            cau: list[str] = []
-            for mid, ten, a, b in d.get("_khung_may") or ():
-                ten = ten or "Máy"
-                a, b = _aware(a), _aware(b)
-                for k_tu, k_den, ly_do in khoa.get(mid, ()):
-                    # Bước 0 phút (thiếu dữ kiện) vẫn phải bắt được khi mốc nằm TRONG vùng khoá.
-                    if k_tu < max(b, a + timedelta(seconds=1)) and a < k_den:
-                        c = (f"{ten} có lịch {ten_ly_do.get(ly_do, 'khoá máy')} "
-                             f"{_naive(k_tu):%d/%m %H:%M}–{_naive(k_den):%d/%m %H:%M}, "
-                             f"đè lên giờ chạy.")
-                        if c not in cau:
-                            cau.append(c)
-                if mid in dung:
-                    c = f"{ten} đang dừng chờ sửa ({dung[mid]})."
-                    if c not in cau:
-                        cau.append(c)
-            d["canh_bao_may"] = cau
 
     def vat_tu(self, lsx_ids: list[int]) -> list[dict]:
         """Đèn vật tư của các lệnh đang hiện trên bàn — ĐƯỜNG RIÊNG, màn gọi SAU khi lưới đã vẽ.
@@ -698,87 +513,8 @@ class XepLichLenhService:
         return [{"lsx_id": i, "muc": d.get("muc") or "ok", "chu": d.get("chu") or ""}
                 for i, d in den.items()]
 
-    @staticmethod
-    def _nhanh(d: dict, k: str) -> bool:
-        """Ba nút lọc nhanh của đầu màn. `tre`: xong (thực tế nếu đã chạy) sau hết ngày hạn SX — không
-        có hạn SX thì so hạn giao. `muon`: có bước chưa tính được giờ nên ngày xong đang lạc quan —
-        lệnh đã đóng thì ngày xong là số thật, không tính. `chua`: có lịch nhưng chưa phát hành."""
-        if k == "chua":
-            return d["trang_thai"] in TT_XEP_DUOC
-        if k == "muon":
-            return d["trang_thai"] != TT_DA_DONG and d.get("so_buoc_chua_gio", 0) > 0
-        han = d.get("han_hoan_thanh_sx") or d.get("han_giao_khach")
-        xong = d.get("ket_thuc_thuc_te") or d.get("ket_thuc")
-        return bool(han and xong and xong > datetime.combine(han, time.max))
-
-    def thu_moc(self, lsx_id: int, moc: datetime) -> dict:
-        """XEM TRƯỚC lúc kéo: thả ở `moc` thì lệnh bắt đầu / xong lúc nào — CHỈ ĐỌC, không ghi.
-
-        Cùng đường với `dat_moc` (sàn việc đã xảy ra → trải theo CỤM → lớp thực tế) để số trên nhãn
-        lúc kéo và số sau khi thả là MỘT. Màn gọi có trễ (debounce), không theo từng pixel.
-        """
-        l = self.repo.lsx_theo_ids([lsx_id]).get(lsx_id)
-        if l is None:
-            raise XepLichLenhNotFound("Không tìm thấy lệnh sản xuất.")
-        cds = self.repo.routing_theo_lo([lsx_id]).get(lsx_id, [])
-        buoc, _tin = self._tinh_buoc(l, cds)
-        self._nap_thuc_te([lsx_id])
-        san, _da, _co = self._san(l, cds)
-        if san is not None and _naive(moc) < san:
-            moc = san
-        kq0 = trai_lich(moc, buoc, self._khung())
-        cum = self._trai_cum([lsx_id], doi={lsx_id: kq0.bat_dau})
-        kq = cum.kq.get(lsx_id, kq0)
-
-        class _M:
-            bat_dau_at = kq.bat_dau
-            updated_at = None
-
-        tt = self._du_kien_theo_thuc_te(l, cds, buoc, _M, kq)
-        kq_con = tt.get("_kq_con_lai")
-        return {
-            "bat_dau": kq.bat_dau,
-            "ket_thuc": tt.get("ket_thuc_thuc_te") or (kq_con or kq).ket_thuc,
-            "da_doi": _naive(moc) != kq.bat_dau,
-            "cho_phut": round(kq.cho_phut, 2),
-        }
-
     def _phan_cum(self, cum: _Cum, lsx_id: int) -> dict:
         return {"cum_id": cum.cum_cua.get(lsx_id), "lien": cum.lien.get(lsx_id, [])}
-
-    def _ngay_dac_biet(self, tu: datetime, den: datetime) -> list[dict]:
-        """Ngày lễ / làm bù / nghỉ khác khai ở Lịch làm việc (Chấm công) trong cửa sổ — trục ngày ghi
-        TÊN thay vì chỉ tô xám (mục 6 mockup, 08/10/2026). Cache theo năm của `CalendarService`."""
-        cal = self._khung().cal
-        ra: list[dict] = []
-        d, cuoi = tu.date(), den.date()
-        while d <= cuoi:
-            sp = cal._special_for(d)
-            if sp is not None:
-                ra.append({"ngay": d, "loai": sp.kind, "ten": sp.name})
-            d = d + timedelta(days=1)
-        return ra
-
-    def _ngay_nghi(self, tu: datetime, den: datetime) -> list[date]:
-        """Ngày KHÔNG làm việc trong cửa sổ đang xem — để bàn tô nền đúng thay vì đoán T7/CN.
-
-        Trước 10/09/2026 màn tự suy "cuối tuần = thứ 7 + chủ nhật" ngay ở FE, trong khi xưởng khai
-        `works_sat = true`: bàn tô thứ 7 là ngày nghỉ còn engine vẫn xếp việc vào đó. Ngày lễ và
-        ngày làm bù thì FE không có cách nào biết. Nguồn duy nhất đúng là `is_working_day`, đã
-        tính lễ + làm bù + cấu hình tuần.
-
-        Rẻ: `CalendarService` cache cấu hình tuần và ngày đặc biệt theo NĂM, nên 7–30 ngày ở đây
-        chỉ tốn hai lượt đọc, không phải mỗi ngày một lượt.
-        """
-        cal = self._khung().cal
-        ra: list[date] = []
-        d = tu.date()
-        cuoi = den.date()
-        while d <= cuoi:
-            if not cal.is_working_day(d):
-                ra.append(d)
-            d = d + timedelta(days=1)
-        return ra
 
     def chi_tiet(self, lsx_id: int) -> dict:
         """Panel dưới: thông tin THẬT của một lệnh + bảng công đoạn.
@@ -831,7 +567,6 @@ class XepLichLenhService:
             "so_to_ke_hoach": int(l.so_to_ke_hoach or 0),
             "so_to_nguyen": int(l.so_to_nguyen or 0),
             "so_con": int(l.so_con or 1),
-            "han_hoan_thanh_sx": l.han_hoan_thanh_sx,
             "han_giao_khach": l.han_giao_khach,
             "nguoi_phu_trach_ten": self._ten_nguoi(l.nguoi_phu_trach_id),
             "luu_y_gui_xuong": l.ghi_chu,
@@ -1190,6 +925,11 @@ class XepLichLenhService:
             self.db.rollback()
             self.db.info.pop(KHOA_YC_HUY, None)
             raise
+        # Bàn hẹn đẩy (08/11/2026): lệnh về chờ đẩy thì bỏ giờ hẹn cũ. Giờ đó đã qua, để lại thì
+        # vòng tự đẩy thả lệnh xuống xưởng lại ngay phút sau — ngược hẳn ý người vừa thu hồi.
+        from ...repositories.xep_lich_hen_repo import XepLichHenRepository
+
+        XepLichHenRepository(self.db).xoa_hen([l.id, *(x.id for x in khac)])
         # Lệnh được bấm mà vốn không ở `da_phat_hanh` thì đường chung không commit gì — chốt nốt.
         self.db.commit()
         yc_huy = self.db.info.pop(KHOA_YC_HUY, [])
@@ -1311,10 +1051,10 @@ class XepLichLenhService:
 
     def _dong(self, l, m: XepLichLenh, kq: KetQuaTrai, tin: dict[int, dict] | None = None,
               tt: dict | None = None, kq_con: KetQuaTrai | None = None) -> dict:
-        """Một dòng bàn Gantt.
+        """Kết quả `dat_moc` (bàn Gantt gỡ 08/11/2026; hàm còn để bài test dựng lệnh có mốc).
 
         `tt` + `kq_con` là lớp THỰC TẾ (rỗng khi lệnh chưa chạy). Có nó thì thanh KHÔNG còn là
-        "trải cả routing từ mốc" nữa — xem `DongLichOut`: mép trái là lúc lệnh thật sự vào việc,
+        "trải cả routing từ mốc" nữa: mép trái là lúc lệnh thật sự vào việc,
         còn khối chạy/giờ chạy chỉ tính PHẦN CÒN LẠI. Trải cả routing từ mốc mới sẽ vẽ bước đã
         xong nằm trong tương lai, và bàn sẽ nói lệnh chưa bắt đầu trong khi tổ đã làm xong một bước.
         """
@@ -1327,7 +1067,6 @@ class XepLichLenhService:
             "don_vi_tinh": l.don_vi_tinh,
             "so_to_ke_hoach": int(l.so_to_ke_hoach or 0),
             "so_con": int(l.so_con or 1),
-            "han_hoan_thanh_sx": l.han_hoan_thanh_sx,
             "han_giao_khach": l.han_giao_khach,
             "may_ten": self._ten_may_chinh(l, tin),
             # Bước chiếm 0 phút vì THIẾU dữ kiện (không phải thuê ngoài) — lệnh "có thể xong muộn".

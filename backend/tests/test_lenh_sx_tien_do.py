@@ -375,75 +375,7 @@ def test_gio_may_phien_con_mo_tinh_toi_bay_gio(db, lenh_phien_dang_mo):
 
 
 # --- Dự kiến hoàn thành --------------------------------------------------------------------------
-def test_song_song_lay_duong_gang(db, lenh_hai_nhanh_2h_va_5h):
-    """Hai nhánh chạy song song 2h và 5h ⇒ dự kiến xong theo nhánh 5h (cộng 30' chuẩn bị).
-
-    Cận TRÊN quan trọng ngang cận dưới: cộng dồn cả ba bước ra 7,5h — cũng thoả cận dưới 4,5h mà
-    vẫn là cài đặt SAI. Cận trên 6,5h loại nó ra. Và chốt luôn con số ĐÚNG 330' (30 + 300): khoảng
-    4,5–6,5h vẫn lọt một cách sai nữa là "bỏ qua bước tiền nhiệm" (chỉ lấy 300' của nhánh dài).
-    """
-    cvs = _cong_viec(db, lenh_hai_nhanh_2h_va_5h)
-    assert not ({cv.id for cv in cvs} & {cv.lsx_cong_doan_id for cv in cvs}), (
-        "hai dãy id trùng khoảng — bài canh nối cạnh qua `lsx_cong_doan_id` mất ý nghĩa"
-    )
-
-    bc = boi_canh.nap(db, [lenh_hai_nhanh_2h_va_5h])
-    xong = tien_do.du_kien_xong(bc, lenh_hai_nhanh_2h_va_5h, BAY_GIO)
-    assert xong is not None
-    assert xong >= BAY_GIO + timedelta(hours=4.5), xong
-    assert xong <= BAY_GIO + timedelta(hours=6.5), xong
-    assert xong == BAY_GIO + timedelta(minutes=330), xong
-
-
-def test_da_chay_mot_phan_thi_tru_bot_phan_con_lai(db, lenh_in_dang_chay_nua_muc_tieu):
-    """Bước 6h đã xong nửa sản lượng ⇒ còn ~3h, không phải 6h."""
-    bc = boi_canh.nap(db, [lenh_in_dang_chay_nua_muc_tieu])
-    xong = tien_do.du_kien_xong(bc, lenh_in_dang_chay_nua_muc_tieu, BAY_GIO)
-    assert xong == BAY_GIO + timedelta(hours=3), xong
-
-
-def test_thieu_du_lieu_tra_none(db, lenh_khong_lich):
-    bc = boi_canh.nap(db, [lenh_khong_lich])
-    assert tien_do.du_kien_xong(bc, lenh_khong_lich, BAY_GIO) is None
-
-
 # --- Trễ hạn --------------------------------------------------------------------------------------
-def test_tre_han_khi_du_kien_vuot_han_sx(db, lenh_du_kien_vuot_han):
-    bc = boi_canh.nap(db, [lenh_du_kien_vuot_han])
-    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO) is True
-
-
-def test_trong_han_thi_khong_tre(db, lenh_du_kien_vuot_han):
-    from app.models.lsx import Lsx
-
-    db.get(Lsx, lenh_du_kien_vuot_han).han_hoan_thanh_sx = date(2026, 9, 5)
-    db.commit()
-    bc = boi_canh.nap(db, [lenh_du_kien_vuot_han])
-    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO) is False
-
-
-def test_khong_co_han_thi_khong_tre(db, lenh_du_kien_vuot_han):
-    """`han_hoan_thanh_sx` NULL ⇒ không có hạn thì không thể trễ (KHÔNG rơi sang hạn giao khách)."""
-    from app.models.lsx import Lsx
-
-    lsx = db.get(Lsx, lenh_du_kien_vuot_han)
-    lsx.han_hoan_thanh_sx = None
-    lsx.han_giao_khach = date(2020, 1, 1)  # hạn khách quá khứ — vẫn KHÔNG được coi là trễ SX
-    db.commit()
-    bc = boi_canh.nap(db, [lenh_du_kien_vuot_han])
-    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO) is False
-
-
-def test_khong_du_lieu_thi_khong_khang_dinh_tre(db, lenh_khong_lich):
-    """Không suy được mốc xong ⇒ không kết luận trễ (thà im còn hơn đoán)."""
-    from app.models.lsx import Lsx
-
-    db.get(Lsx, lenh_khong_lich).han_hoan_thanh_sx = date(2020, 1, 1)
-    db.commit()
-    bc = boi_canh.nap(db, [lenh_khong_lich])
-    assert tien_do.tre_han(bc, lenh_khong_lich, BAY_GIO) is False
-
-
 # ================================================================================================
 # VÒNG SỬA 1 — bốn lỗ hổng review chỉ ra
 # ================================================================================================
@@ -508,27 +440,6 @@ def lenh_moi_buoc_deu_ghep(db, orders, lsx_svc, admin, customer) -> int:
     return lsx_id
 
 
-def test_buoc_ghep_van_nam_trong_duong_gang(db, lenh_ghep_giua_chuoi):
-    """Bước ghép có `lsx_id IS NULL` nên `cong_viec[lsx_id]` không thấy nó — nhưng nó là bước NẶNG
-    NHẤT của lệnh. Chốt cứng 450', không dùng cận."""
-    assert len(_cong_viec(db, lenh_ghep_giua_chuoi)) == 2, (
-        "tiền đề hỏng: bước bị ghép phủ vẫn đẻ công việc riêng"
-    )
-    cv_ghep = _cv_ghep(db, lenh_ghep_giua_chuoi)
-    assert cv_ghep.lsx_id is None
-
-    bc = boi_canh.nap(db, [lenh_ghep_giua_chuoi])
-    xong = tien_do.du_kien_xong(bc, lenh_ghep_giua_chuoi, BAY_GIO)
-    assert xong == BAY_GIO + timedelta(minutes=450), xong
-
-
-def test_canh_cham_buoc_ghep_khong_duoc_bo(db, lenh_ghep_co_nhanh_song_song):
-    """Cạnh nối vào/ra bước ghép phải bắc cầu qua `buoc_phu`. Bỏ cầu ⇒ 360' (nhánh dài rời rạc)."""
-    bc = boi_canh.nap(db, [lenh_ghep_co_nhanh_song_song])
-    xong = tien_do.du_kien_xong(bc, lenh_ghep_co_nhanh_song_song, BAY_GIO)
-    assert xong == BAY_GIO + timedelta(minutes=450), xong
-
-
 def test_moi_buoc_deu_ghep_van_ra_so_that(db, lenh_moi_buoc_deu_ghep):
     bc = boi_canh.nap(db, [lenh_moi_buoc_deu_ghep])
     assert bc.cong_viec[lenh_moi_buoc_deu_ghep] == [], "tiền đề hỏng: lệnh vẫn còn bước riêng"
@@ -572,41 +483,6 @@ def lenh_bat_dau_sau_hai_ngay(db, orders, lsx_svc, admin, customer) -> int:
     db.get(Lsx, lsx_id).han_hoan_thanh_sx = date(2026, 9, 1)
     db.commit()
     return lsx_id
-
-
-def test_du_kien_xong_lui_theo_moc_bat_dau_ke_hoach(db, lenh_bat_dau_sau_hai_ngay):
-    cv = _cong_viec(db, lenh_bat_dau_sau_hai_ngay)[0]
-    assert cv.du_kien_bat_dau is not None
-    assert cv.du_kien_bat_dau.replace(tzinfo=timezone.utc) != BAY_GIO, (
-        "fixture lại trùng `bay_gio` — đúng cái bẫy đã che lỗi này ở vòng trước"
-    )
-
-    bc = boi_canh.nap(db, [lenh_bat_dau_sau_hai_ngay])
-    xong = tien_do.du_kien_xong(bc, lenh_bat_dau_sau_hai_ngay, BAY_GIO)
-    # Lùi ĐÚNG bằng khoảng lệch: 2 ngày 3 giờ chờ + 8 giờ chạy.
-    assert xong == BAY_GIO + timedelta(days=2, hours=11), xong
-
-
-def test_tre_han_bat_duoc_lenh_xep_lich_muon(db, lenh_bat_dau_sau_hai_ngay):
-    """Hạn 01/09 nằm GIỮA hai mốc: bỏ sàn thì xong 01/09 ⇒ báo không trễ; có sàn thì xong 03/09 ⇒ trễ."""
-    bc = boi_canh.nap(db, [lenh_bat_dau_sau_hai_ngay])
-    assert tien_do.tre_han(bc, lenh_bat_dau_sau_hai_ngay, BAY_GIO) is True
-
-    # Chốt luôn tiền đề "bỏ sàn thì KHÔNG trễ" — nếu không, bài trên xanh cả khi hạn quá chặt và
-    # lỗi sàn vẫn còn nguyên.
-    khong_san = BAY_GIO + timedelta(hours=8)
-    assert khong_san.astimezone(tien_do.BUSINESS_TZ).date() == date(2026, 9, 1)
-    assert tien_do.tre_han(bc, lenh_bat_dau_sau_hai_ngay, BAY_GIO, xong=khong_san) is False
-
-
-def test_tre_han_dung_ket_qua_ben_goi_truyen_vao(db, lenh_du_kien_vuot_han):
-    """`xong` truyền vào phải được DÙNG (màn 200 lệnh tránh duyệt đường găng lần hai). `None` là
-    giá trị hợp lệ nghĩa "đã tính, không đủ dữ liệu" — không được lẫn với "chưa tính"."""
-    bc = boi_canh.nap(db, [lenh_du_kien_vuot_han])
-    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO) is True
-    # Cùng lệnh, cùng hạn — chỉ khác mốc xong do bên gọi đưa.
-    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO, xong=BAY_GIO) is False
-    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO, xong=None) is False
 
 
 # --- C. Cờ `uoc_tinh` cho bước KHÔNG ĐO ĐƯỢC ---------------------------------------------------
@@ -727,42 +603,6 @@ def lenh_hai_buoc_roi_lech_bay_ngay(db, orders, lsx_svc, admin, customer) -> int
     )
 
 
-def test_san_co_hieu_luc_trong_vong_kahn(db, lenh_buoc_giua_cho_ba_ngay):
-    """Sàn của bước GIỮA vượt hẳn mốc mà tiền nhiệm đẩy tới ⇒ phải đẩy cả đuôi chuỗi theo."""
-    bc = boi_canh.nap(db, [lenh_buoc_giua_cho_ba_ngay])
-    # Tiền đề: lệnh này CÓ cạnh, tức đi vào nhánh Kahn chứ không rơi về `_tuan_tu`.
-    assert bc.phu_thuoc_buoc[lenh_buoc_giua_cho_ba_ngay], "không có cạnh — bài này không chạm Kahn"
-
-    xong = tien_do.du_kien_xong(bc, lenh_buoc_giua_cho_ba_ngay, BAY_GIO)
-    assert xong == BAY_GIO + timedelta(days=3, minutes=150), xong
-
-
-def test_khong_canh_thi_gop_theo_san_tang_dan(db, lenh_hai_buoc_roi_lech_bay_ngay):
-    """Nhánh `_tuan_tu`: gộp theo sàn TĂNG DẦN, không cộng từ sàn nhỏ nhất."""
-    bc = boi_canh.nap(db, [lenh_hai_buoc_roi_lech_bay_ngay])
-    assert bc.phu_thuoc_buoc[lenh_hai_buoc_roi_lech_bay_ngay] == [], (
-        "fixture còn cạnh — bài này sẽ đi Kahn chứ không chạm nhánh tuần tự"
-    )
-
-    xong = tien_do.du_kien_xong(bc, lenh_hai_buoc_roi_lech_bay_ngay, BAY_GIO)
-    assert xong == BAY_GIO + timedelta(days=7, minutes=30), xong
-
-
-def test_tre_han_khong_bo_sot_khi_buoc_roi_xep_muon(db, lenh_hai_buoc_roi_lech_bay_ngay):
-    """Hụt 7 ngày ở `_tuan_tu` kéo theo `tre_han` bỏ sót — chốt luôn vế hậu quả, không chỉ vế số."""
-    from app.models.lsx import Lsx
-
-    db.get(Lsx, lenh_hai_buoc_roi_lech_bay_ngay).han_hoan_thanh_sx = date(2026, 9, 3)
-    db.commit()
-
-    bc = boi_canh.nap(db, [lenh_hai_buoc_roi_lech_bay_ngay])
-    # Cộng từ sàn nhỏ nhất ⇒ xong 31/08 ⇒ báo KHÔNG trễ. Gộp đúng ⇒ xong 07/09 ⇒ TRỄ.
-    assert tien_do.tre_han(bc, lenh_hai_buoc_roi_lech_bay_ngay, BAY_GIO) is True
-    assert tien_do.tre_han(
-        bc, lenh_hai_buoc_roi_lech_bay_ngay, BAY_GIO, xong=BAY_GIO + timedelta(minutes=90)
-    ) is False
-
-
 # --- Vòng sửa 1 (mục C): lệnh KHÔNG CÒN GÌ ĐỂ LÀM có mốc xong QUÁ KHỨ, không phải `bay_gio` ------
 def _xong_co_phien(db, cv, bat_dau, ket_thuc) -> None:
     """Đóng một công việc ĐÚNG NHƯ PRODUCTION: `completed` + MỘT PHIÊN ĐÃ ĐÓNG.
@@ -798,57 +638,6 @@ def lenh_da_xong_hom_qua(db, orders, lsx_svc, admin, customer) -> int:
     return lsx_id
 
 
-def test_lenh_da_xong_lay_moc_phien_dong_cuoi(db, lenh_da_xong_hom_qua):
-    """Bậc 1: mốc xong = `max(phien.ket_thuc)` — sự thật ghi được từ xưởng, KHÔNG phải `bay_gio`.
-
-    Bản Task 7 trả đúng `bay_gio` cho mọi lệnh đã xong (mọi `con_lai = 0` ⇒ đường găng 0 phút).
-    Con số ấy không những sai, nó còn TRƯỢT thêm một ngày mỗi ngày trôi qua.
-    """
-    bc = boi_canh.nap(db, [lenh_da_xong_hom_qua])
-    xong = tien_do.du_kien_xong(bc, lenh_da_xong_hom_qua, BAY_GIO)
-    assert xong == BAY_GIO - timedelta(days=1, hours=1), xong
-    assert xong < BAY_GIO
-
-
-def test_lenh_da_xong_khong_phien_thi_lui_ve_moc_ke_hoach(db, lenh_da_xong_hom_qua):
-    """Bậc 2: không phiên đóng nào ⇒ `max(cv.du_kien_ket_thuc)`. Mốc kế hoạch còn hơn không —
-    nhưng nó KHÁC mốc phiên, nên hai bậc không thay nhau được."""
-    for p in db.query(SanXuatPhienChay).all():
-        db.delete(p)
-    db.commit()
-    bc = boi_canh.nap(db, [lenh_da_xong_hom_qua])
-    xong = tien_do.du_kien_xong(bc, lenh_da_xong_hom_qua, BAY_GIO)
-    assert xong == BAY_GIO - timedelta(days=1) + timedelta(minutes=420), xong
-
-
-def test_lenh_da_xong_khong_phien_khong_lich_tra_none(db, orders, lsx_svc, admin, customer):
-    """Bậc 3: không phiên, không mốc kế hoạch ⇒ `None` ("chưa đủ dữ liệu"), KHÔNG bịa `bay_gio`."""
-    lsx_id = _dung_lenh(db, orders, lsx_svc, admin, customer,
-                        buoc=[("In offset", None, 5_000)])
-    cv = _cong_viec(db, lsx_id)[0]
-    cv.trang_thai = CV_HOAN_THANH        # cố ý KHÔNG đẻ phiên: bậc 3 là ca dữ liệu thiếu
-    db.commit()
-    bc = boi_canh.nap(db, [lsx_id])
-    assert tien_do.du_kien_xong(bc, lsx_id, BAY_GIO) is None
-
-
-def test_lenh_ve_dung_han_khong_con_bao_tre(db, lenh_da_xong_hom_qua):
-    """HỆ QUẢ thật của bậc 1 — đây mới là chỗ lỗi Task 7 cắn người dùng.
-
-    Hạn 30/08; lệnh đóng phiên cuối 16:00 giờ xưởng 30/08 ⇒ VỀ ĐÚNG HẠN. Lấy `bay_gio` (31/08)
-    làm mốc xong thì lệnh này báo TRỄ vĩnh viễn — dòng đối chứng `xong=BAY_GIO` bên dưới chính là
-    hành vi cũ.
-    """
-    from app.models.lsx import Lsx
-
-    db.get(Lsx, lenh_da_xong_hom_qua).han_hoan_thanh_sx = date(2026, 8, 30)
-    db.commit()
-
-    bc = boi_canh.nap(db, [lenh_da_xong_hom_qua])
-    assert tien_do.tre_han(bc, lenh_da_xong_hom_qua, BAY_GIO) is False
-    assert tien_do.tre_han(bc, lenh_da_xong_hom_qua, BAY_GIO, xong=BAY_GIO) is True
-
-
 def _dang_chay(db, cv, bat_dau) -> None:
     """Đặt một công việc ĐANG CHẠY đúng như production: `running` + MỘT PHIÊN CÒN MỞ.
 
@@ -880,33 +669,34 @@ def lenh_ghi_du_san_luong_quen_bam_xong(db, orders, lsx_svc, admin, customer) ->
     return lsx_id
 
 
-def test_ghi_du_san_luong_ma_chua_dong_buoc_van_chua_xong(
-        db, lenh_ghi_du_san_luong_quen_bam_xong):
-    """Bước chưa `completed` ⇒ KHÔNG được vào thang "đã xong", dù `con_lai` đã bằng 0.
-
-    Vòng sửa 2 — regression của chính Vòng sửa 1. Cửa `con_lai == 0` cho lệnh này vào thang; phiên
-    của bước đang chạy còn MỞ nên bậc 1 nhặt mốc phiên của BƯỚC TRƯỚC (28/08 11:00) và trả về đó.
-    Cửa đúng là `all(cv.trang_thai == CV_HOAN_THANH)`: lệnh còn trên máy thì mốc xong là "đáng lẽ
-    xong rồi" = `bay_gio`, không phải một mốc ba ngày trước.
-    """
-    bc = boi_canh.nap(db, [lenh_ghi_du_san_luong_quen_bam_xong])
-    xong = tien_do.du_kien_xong(bc, lenh_ghi_du_san_luong_quen_bam_xong, BAY_GIO)
-    assert xong == BAY_GIO, xong
-    # Mốc phiên đóng của BƯỚC TRƯỚC — con số mà bản lỗi trả về. Chốt thẳng để bài không xanh nhầm.
-    assert xong != BAY_GIO - timedelta(days=3, hours=-1)
-
-
-def test_ghi_du_san_luong_ma_chua_dong_buoc_van_bao_tre(
-        db, lenh_ghi_du_san_luong_quen_bam_xong):
-    """HỆ QUẢ: lệnh trễ hai ngày CÒN TRÊN MÁY phải giữ cờ `tre_han`.
-
-    Bản lỗi trả `du_kien_xong` = 28/08 11:00 (quá khứ) ⇒ `tre_han` False ⇒ lệnh mất badge và rơi
-    khỏi tab Cảnh báo. Đúng ca điều độ cần nhìn nhất.
-    """
+# --- Trễ hạn: đo theo hạn giao khách (08/11/2026) -----------------------------------------------
+# "Dự kiến xong" và hạn hoàn thành SX đã gỡ cùng tốc độ máy: không còn đường găng để dự báo, cờ trễ
+# chỉ còn nói điều đo được — chưa xong mà hôm nay (giờ xưởng) đã qua hạn giao khách.
+def test_tre_han_theo_han_giao(db, lenh_du_kien_vuot_han):
     from app.models.lsx import Lsx
 
-    db.get(Lsx, lenh_ghi_du_san_luong_quen_bam_xong).han_hoan_thanh_sx = date(2026, 8, 29)
-    db.commit()
+    lsx = db.get(Lsx, lenh_du_kien_vuot_han)          # còn bước chưa xong
+    lsx.han_hoan_thanh_sx = None                       # hạn SX cũ không còn tác dụng gì
+    for han, ky_vong in ((date(2026, 8, 30), True), (date(2026, 8, 31), False), (None, False)):
+        lsx.han_giao_khach = han
+        db.commit()
+        bc = boi_canh.nap(db, [lenh_du_kien_vuot_han])
+        assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO) is ky_vong, han
 
-    bc = boi_canh.nap(db, [lenh_ghi_du_san_luong_quen_bam_xong])
-    assert tien_do.tre_han(bc, lenh_ghi_du_san_luong_quen_bam_xong, BAY_GIO) is True
+    # Ca đêm: 18:00 UTC 31/08 là 01:00 giờ xưởng NGÀY 01/09 ⇒ hạn 31/08 đã qua.
+    lsx.han_giao_khach = date(2026, 8, 31)
+    db.commit()
+    bc = boi_canh.nap(db, [lenh_du_kien_vuot_han])
+    assert tien_do.tre_han(bc, lenh_du_kien_vuot_han, BAY_GIO.replace(hour=18)) is True
+
+
+
+def test_lenh_da_xong_khong_tre_du_qua_han_giao(db, lenh_da_xong_hom_qua):
+    """Đã xong sản xuất thì không trễ, dù hạn giao đã qua từ lâu."""
+    from app.models.lsx import Lsx
+
+    xong = db.get(Lsx, lenh_da_xong_hom_qua)
+    xong.han_giao_khach = date(2026, 8, 1)
+    db.commit()
+    bc = boi_canh.nap(db, [lenh_da_xong_hom_qua])
+    assert tien_do.tre_han(bc, lenh_da_xong_hom_qua, BAY_GIO) is False

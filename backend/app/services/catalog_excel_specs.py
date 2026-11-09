@@ -447,8 +447,7 @@ def _giu_bac_bu_hao(obj, _ctx: NguCanh) -> list[dict]:
 def _giu_may_cong_doan(obj, _ctx: NguCanh) -> list[dict]:
     """Máy của công đoạn ĐANG CÓ — ghi lại y nguyên khi sheet vắng (`_ghi_may` upsert, không xoá
     dòng nào, nên đây chỉ giữ thứ tự)."""
-    return [{"may_id": m.may_id, "cong_thuc_gio": m.cong_thuc_gio,
-             "cong_thuc_gia": m.cong_thuc_gia}
+    return [{"may_id": m.may_id, "cong_thuc_gia": m.cong_thuc_gia}
             for m in (getattr(obj, "may_lam_duoc", None) or [])]
 
 
@@ -512,7 +511,7 @@ CONG_DOAN = CatalogExcelSpec(
             "Máy của công đoạn", field="may_lam_duoc",
             cot=(
                 Cot("Mã máy", "may_id", doc=TRA_MAY.doc, ghi=TRA_MAY.ghi, rong=22),
-                Cot("Công thức giờ chạy", "cong_thuc_gio", rong=36),
+                # "Công thức giờ chạy" GỠ 08/11/2026 (bỏ tốc độ máy): vắng cột thì câu cũ giữ nguyên.
                 Cot("Công thức giá", "cong_thuc_gia", rong=36),
             ),
             giu_khi_vang=_giu_may_cong_doan,
@@ -536,7 +535,9 @@ CONG_DOAN = CatalogExcelSpec(
 # 13 · Máy & thiết bị
 # ======================================================================================
 
-_KHOA_JSON_BIET = ("chuan_bi_khoan", "lich_bao_tri")
+# `chuan_bi_khoan` thôi là khoá "biết" từ 08/11/2026 (bỏ tốc độ máy): nó đi theo sheet ẩn để
+# round-trip không mất, không còn sheet "Khoản chuẩn bị" mời khai.
+_KHOA_JSON_BIET = ("lich_bao_tri",)
 
 
 def _doc_nhom_may(_obj, ctx: NguCanh) -> list[dict]:
@@ -653,11 +654,8 @@ MAY_THIET_BI = CatalogExcelSpec(
         Cot("Model", "model", rong=18),
         Cot("Số seri", "so_seri", rong=18),
         Cot("Ghi chú", "ghi_chu", rong=32),
-        Cot("Tốc độ (trung bình)", "toc_do", kieu="so", rong=20),
-        Cot("Tốc độ tối thiểu", "toc_do_min", kieu="so", rong=18),
-        Cot("Tốc độ tối đa", "toc_do_max", kieu="so", rong=18),
-        Cot("Đơn vị tốc độ", "don_vi_toc_do", rong=16),
-        Cot("Thời gian canh máy mặc định", "makeready_time_default", kieu="so", rong=26),
+        # Tốc độ, đơn vị tốc độ, thời gian canh máy GỠ 08/11/2026 (bỏ tốc độ máy). Cột DB giữ;
+        # file cũ còn các cột đó vẫn nhập được, cột lạ bị bỏ qua nên số trong DB nằm nguyên.
         CO_ACTIVE,
         # Cột đời cũ: cả túi JSON trong MỘT ô. Nay tách thành ba sheet đọc được; sheet con áp SAU
         # nên file mới thắng, file cũ vẫn nhập được nguyên trạng.
@@ -667,13 +665,6 @@ MAY_THIET_BI = CatalogExcelSpec(
         SheetCon("Nhóm máy", toan_cuc=True, thu_tu=False,
                  cot=(Cot("Tên nhóm", "ten", rong=24),),
                  doc_hien_co=_doc_nhom_may, ap_dung=_ap_nhom_may),
-        SheetCon(
-            "Khoản chuẩn bị", trong_json=("fields_theo_loai", "chuan_bi_khoan"),
-            cot=(
-                Cot("Tên khoản", "ten", rong=30),
-                Cot("Số phút", "phut", kieu="so", rong=14),
-            ),
-        ),
         SheetCon(
             "Gói bảo trì", trong_json=("fields_theo_loai", "lich_bao_tri"),
             cot=(
@@ -706,6 +697,8 @@ MAY_THIET_BI = CatalogExcelSpec(
         "duoi_thang_mau_mm", "kho_kem_dai", "kho_kem_rong", "kho_max_dai", "kho_max_rong",
         "kho_min_dai", "kho_min_rong", "le_hong_mm", "nhip_giay_mm", "vung_in_dai",
         "vung_in_rong",
+        # Bỏ tốc độ máy 08/11/2026: cột DB còn, Excel thôi bày.
+        "toc_do", "toc_do_min", "toc_do_max", "don_vi_toc_do", "makeready_time_default",
     }),
 )
 

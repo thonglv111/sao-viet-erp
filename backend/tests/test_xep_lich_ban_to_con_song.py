@@ -1,4 +1,4 @@
-"""A7 (28/09/2026) — bàn Xếp lịch (`lich()`) và Gantt bàn tổ thôi kéo toàn lịch sử.
+"""A7 (28/09/2026) — Gantt bàn tổ thôi kéo toàn lịch sử (phần bàn Xếp lịch `lich()` gỡ 08/11/2026 cùng Gantt).
 
 Cùng hai loại bài như `test_lenh_sx_con_song.py`: bản mới == bản cũ trên thế giới có cả việc/lệnh cũ
 đã xong lẫn đang chạy, VÀ thứ cũ không còn lọt qua câu SQL. File riêng vì hai màn này dựng nền bằng
@@ -7,10 +7,8 @@ fixture `db` của `test_xep_lich_service` — trộn với `sess`/`client` là 
 """
 from __future__ import annotations
 
-import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
-from app.models.lsx import LsxCongDoan
 from app.models.san_xuat import CV_HOAN_THANH, SanXuatCongViec
 from app.repositories.audit_repo import AuditLogRepository
 from app.repositories.san_xuat_repo import SanXuatRepository
@@ -19,8 +17,6 @@ from app.services.san_xuat import board
 from app.services.xep_lich import XepLichLenhService
 from tests.test_san_xuat_board import _authz, _phat_hanh_vao_to, _to_moi
 from tests.test_xep_lich_service import (  # noqa: F401
-    _hai_lsx_san_sang,
-    _khai_giay_len_buoc_in,
     admin,
     customer,
     db,
@@ -28,82 +24,9 @@ from tests.test_xep_lich_service import (  # noqa: F401
     orders,
 )
 
-_DONG_NGAY_2_9 = datetime(2026, 9, 2, 8, 0, tzinfo=timezone.utc)
-
 
 def _svc(db) -> XepLichLenhService:
     return XepLichLenhService(db, XepLichLenhRepository(db), AuditLogRepository(db))
-
-
-def _lich_cu(db, monkeypatch, *, tu: date, den: date) -> dict:
-    """`lich()` trước A7: repo không nhận mép trái."""
-    goc = XepLichLenhRepository.truoc_moc
-    with monkeypatch.context() as m:
-        m.setattr(XepLichLenhRepository, "truoc_moc", lambda self, den, tu=None: goc(self, den))
-        return _svc(db).lich(tu=tu, den=den)
-
-
-def _hai_lenh_mot_xong(db, orders, lsx_svc, admin, customer):
-    """`xong`: xếp 01/09, phát hành, MỌI công việc đóng 02/09. `dang`: xếp 22/09, chưa ai đụng."""
-    xong, dang = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
-    for l in (xong, dang):
-        _khai_giay_len_buoc_in(db, l.id)
-    db.commit()
-    _svc(db).dat_moc(xong.id, datetime(2026, 9, 1, 8, 0))
-    _svc(db).dat_moc(dang.id, datetime(2026, 9, 22, 8, 0))
-    _svc(db).phat_hanh(xong.id, actor=admin)
-    cvs = db.query(SanXuatCongViec).filter(SanXuatCongViec.lsx_id == xong.id).all()
-    assert cvs, "tiền đề: phát hành phải đẻ công việc"
-    for cv in cvs:
-        cv.trang_thai = CV_HOAN_THANH
-        cv.hoan_thanh_luc = _DONG_NGAY_2_9
-    db.commit()
-    return xong, dang
-
-
-def test_lich_khong_doi_ket_qua_va_bo_lenh_xong_tron_truoc_cua_so(
-    db, orders, lsx_svc, admin, customer, monkeypatch,
-):
-    xong, dang = _hai_lenh_mot_xong(db, orders, lsx_svc, admin, customer)
-    cua_so = [
-        (date(2026, 9, 1), date(2026, 9, 5)),     # lệnh xong nằm TRONG cửa sổ
-        (date(2026, 9, 3), date(2026, 9, 30)),    # mép trái sát sau ngày đóng (biên 1 ngày)
-        (date(2026, 9, 20), date(2026, 9, 30)),   # lệnh xong nằm TRƯỚC cửa sổ
-    ]
-    for tu, den in cua_so:
-        assert _svc(db).lich(tu=tu, den=den) == _lich_cu(db, monkeypatch, tu=tu, den=den), (tu, den)
-
-    trong = [d["lsx_id"] for d in _svc(db).lich(tu=date(2026, 9, 1), den=date(2026, 9, 5))["dong"]]
-    assert xong.id in trong, "tiền đề: cửa sổ chứa ngày đóng phải còn thấy lệnh đã xong"
-
-    repo = XepLichLenhRepository(db)
-    tu_dt = datetime(2026, 9, 20, tzinfo=timezone.utc)
-    den_dt = datetime(2026, 9, 30, 23, 59, tzinfo=timezone.utc)
-    ids = {m.lsx_id for m in repo.truoc_moc(den_dt, tu=tu_dt)}
-    assert xong.id not in ids, "lệnh xong trọn trước cửa sổ vẫn bị SQL trả về"
-    assert dang.id in ids
-    assert xong.id in {m.lsx_id for m in repo.truoc_moc(den_dt)}, "tu=None phải giữ hành vi cũ"
-
-
-def test_lich_giu_lenh_con_buoc_routing_chua_co_cong_viec(
-    db, orders, lsx_svc, admin, customer, monkeypatch,
-):
-    """Mọi công việc đã đóng nhưng routing có một bước KHÔNG khớp công việc nào (thêm sau phát
-    hành) ⇒ service sẽ TRẢI TIẾP bước đó từ mốc lệnh, mép vẽ không chặn được ⇒ SQL phải giữ lại."""
-    xong, _dang = _hai_lenh_mot_xong(db, orders, lsx_svc, admin, customer)
-    goc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == xong.id).first()
-    db.add(LsxCongDoan(
-        step_key=str(uuid.uuid4()), lsx_id=xong.id, thu_tu=int(goc.thu_tu or 0) + 1,
-        cong_doan_id=goc.cong_doan_id, ten=f"{goc.ten} (thêm sau)", nhom=goc.nhom,
-        department_id=goc.department_id, may_id=goc.may_id,
-    ))
-    db.commit()
-
-    tu_dt = datetime(2026, 9, 20, tzinfo=timezone.utc)
-    den_dt = datetime(2026, 9, 30, 23, 59, tzinfo=timezone.utc)
-    assert xong.id in {m.lsx_id for m in XepLichLenhRepository(db).truoc_moc(den_dt, tu=tu_dt)}
-    for tu, den in ((date(2026, 9, 20), date(2026, 9, 30)), (date(2026, 9, 1), date(2026, 9, 5))):
-        assert _svc(db).lich(tu=tu, den=den) == _lich_cu(db, monkeypatch, tu=tu, den=den)
 
 
 # --- Gantt bàn tổ (`work_items(nhom="phang")`) ----------------------------------------------------

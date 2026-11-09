@@ -71,7 +71,7 @@ class BaiGhepUpdateIn(BaseModel):
 
 class BaiGhep2UpdateIn(BaiGhepUpdateIn):
     ten: str = ""
-    han_hoan_thanh_sx: date | None = None
+    # `han_hoan_thanh_sx` gỡ 08/11/2026: gửi lên thì bị bỏ qua.
     is_rush: bool = False
     nguoi_phu_trach_id: int | None = None
 
@@ -89,6 +89,8 @@ class HangChoGhepItem(BaseModel):
     don_vi_tinh: str | None = None
     so_con: int = 1
     han_hoan_thanh_sx: date | None = None
+    #: Hạn giao khách — bài: SỚM NHẤT của các lệnh con (thay hạn SX đã gỡ 08/11/2026).
+    han_giao_khach: date | None = None
     is_rush: bool = False
     order_id: int | None = None
     customer_name: str | None = None
@@ -119,6 +121,8 @@ class BaiGhepListItem(BaseModel):
     ma: str
     ten: str = ""
     han_hoan_thanh_sx: date | None = None
+    #: Hạn giao khách — bài: SỚM NHẤT của các lệnh con (thay hạn SX đã gỡ 08/11/2026).
+    han_giao_khach: date | None = None
     is_rush: bool = False
     nguoi_phu_trach_id: int | None = None
     nguoi_phu_trach_ten: str | None = None
@@ -181,6 +185,8 @@ class ThanhVienOut(BaseModel):
     quy_cach_in: str | None = None
     kho_tp: str | None = None
     han_hoan_thanh_sx: date | None = None
+    #: Hạn giao khách — bài: SỚM NHẤT của các lệnh con (thay hạn SX đã gỡ 08/11/2026).
+    han_giao_khach: date | None = None
 
 
 class BaiGhepDetailOut(BaseModel):
@@ -188,6 +194,8 @@ class BaiGhepDetailOut(BaseModel):
     ma: str
     ten: str = ""
     han_hoan_thanh_sx: date | None = None
+    #: Hạn giao khách — bài: SỚM NHẤT của các lệnh con (thay hạn SX đã gỡ 08/11/2026).
+    han_giao_khach: date | None = None
     is_rush: bool = False
     nguoi_phu_trach_id: int | None = None
     nguoi_phu_trach_ten: str | None = None
@@ -392,6 +400,8 @@ class SoDoNhanh(BaseModel):
     lsx_ten: str | None = None
     customer_name: str | None = None
     han_hoan_thanh_sx: date | None = None
+    #: Hạn giao khách — bài: SỚM NHẤT của các lệnh con (thay hạn SX đã gỡ 08/11/2026).
+    han_giao_khach: date | None = None
     is_rush: bool = False
     mau: int = 0                       # chỉ số màu của nhánh (FE tự map sang bảng màu)
     so_con_tren_to: int = 1

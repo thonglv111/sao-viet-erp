@@ -457,27 +457,11 @@ def _mo_ta_gan(truoc: tuple, sau: tuple) -> str:
 
 
 def _thoi_luong_in_ghep(bg: BaiGhep, tong_to: int, may: MayThietBi | None) -> dict:
-    """Thời lượng công đoạn IN CHUNG của bài ghép: makeready + số tờ / tốc độ. Không có máy /
-    chưa khai tốc độ → 0 (dòng bị chặn `thieu_thoi_luong`).
-
-    Vệ sinh/rửa mực đã BỎ khỏi hệ (2026-08-04): không còn cộng vào thời gian chiếm máy."""
-    setup = _f(may.makeready_time_default) if may else 0.0
-    toc_do = _f(may.toc_do) if may else 0.0
-
-    def _chay(v: float) -> float:
-        return (float(tong_to) * 60.0 / v) if v > 0 and tong_to > 0 else 0.0
-
-    chay = _chay(toc_do)
-    cao = _f(may.toc_do_max) if may else 0.0      # tốc độ TỐI ĐA ⇒ thời lượng NHỎ nhất
-    thap = _f(may.toc_do_min) if may else 0.0
-    chay_nhanh = _chay(cao) if cao > 0 else chay
-    chay_cham = _chay(thap) if thap > 0 else chay
-    chiem = round(setup + chay, 2)
-    return {"chiem_may_phut": chiem, "tong_phut": chiem,
-            "chiem_may_phut_min": round(setup + chay_nhanh, 2),
-            "chiem_may_phut_max": round(setup + chay_cham, 2),
-            "setup_phut": round(setup, 2), "chay_phut": round(chay, 2),
-            "phat_sinh_phut": 0.0}
+    """Thời lượng công đoạn IN CHUNG của bài ghép. Từ 08/11/2026 (bỏ tốc độ máy) không tính theo
+    tốc độ và chuẩn bị của máy nữa ⇒ luôn 0, không cảnh báo."""
+    return {"chiem_may_phut": 0.0, "tong_phut": 0.0,
+            "chiem_may_phut_min": 0.0, "chiem_may_phut_max": 0.0,
+            "setup_phut": 0.0, "chay_phut": 0.0, "phat_sinh_phut": 0.0}
 
 
 def may_cho_hop_khoa(db: Session) -> list[dict]:
@@ -1093,8 +1077,8 @@ class XepLichService:
             tong_to = self.bg_svc.tinh_so_to(bg, lsx_map)["tong_to"]
             may = self.db.get(MayThietBi, dong.may_id) if dong.may_id else None
             d = _thoi_luong_in_ghep(bg, tong_to, may)
-            d["theo_may"] = bool(may and _f(may.toc_do) > 0)
-            d["canh_bao"] = None if d["theo_may"] or not dong.may_id else "may_chua_toc_do"
+            d["theo_may"] = False
+            d["canh_bao"] = None  # bỏ tốc độ máy 08/11/2026: không còn "máy chưa khai tốc độ"
             return d
         lcd = self._lcd(dong.lsx_cong_doan_id)
         if lcd is None:
@@ -1160,11 +1144,9 @@ class XepLichService:
         may = self.db.get(MayThietBi, dong.may_id) if dong.may_id else None
         t = thoi_luong_buoc(lcd, may, self._sl_tinh(lcd, may, dong=dong))
         pp = t["dien_giai"]["phuong_phap"]
+        # 08/11/2026: bước máy thôi tính giờ theo tốc độ (`phuong_phap = "khong_tinh"`), nên không
+        # còn cảnh báo "máy chưa khai tốc độ" hay "chưa quy đổi".
         canh_bao = None
-        if pp == "thieu_nang_suat":
-            canh_bao = "may_chua_toc_do"
-        elif pp == "chua_quy_doi":
-            canh_bao = "chua_quy_doi"
         return {
             "chiem_may_phut": t["chiem_may_phut"],
             "chiem_may_phut_min": t["chiem_may_phut_min"],
@@ -1403,7 +1385,7 @@ class XepLichService:
     def _han(self, lsx: Lsx | None) -> date | None:
         if lsx is None:
             return None
-        return lsx.han_hoan_thanh_sx or lsx.han_giao_khach
+        return lsx.han_giao_khach   # hạn SX nội bộ đã gỡ 08/11/2026
 
     def _chuoi(self, rows: list[XepLichCongDoan], *, san: datetime, gang_finish: datetime | None,
                han: date | None, dur: dict[int, dict],

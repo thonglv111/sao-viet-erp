@@ -8163,3 +8163,44 @@ td.khsx-vtbang__buoc {
   align-items: center;
   gap: var(--sp-2);
 }
+
+/* --- Giao đơn cho người phụ trách (08/11/2026) ---------------------------------------------- */
+/* Hàng lọc nhanh của bảng lệnh: trạng thái + chip "Của tôi" cùng một dải. */
+.khsx .khsx-loc-hang { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 4px 12px; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); }
+.khsx .khsx-cot-tick { width: 36px; text-align: center; }
+.khsx .khsx-tick { width: 14px; height: 14px; margin: 0; accent-color: var(--ink); cursor: pointer; vertical-align: -2px; }
+/* Chấm "đơn mới giao cho bạn, chưa mở" đứng trước mã đơn — chấm, không số. */
+.khsx .khsx-cham-dong { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--tt-do-dot); margin-right: 7px; vertical-align: 1px; }
+/* Hàng chip của hai tab đơn: chip lọc rồi tới cụm "Đã chọn N đơn" nằm liền bên phải, không đẩy ra mép. */
+.khsx .khsx-loc-hang--trai { justify-content: flex-start; }
+/* Cụm "Đã chọn N đơn  Bỏ chọn  Giao" — nằm phẳng trong hàng chip, ngăn với chip bằng một vạch dọc. */
+.khsx .khsx-bulk { display: flex; align-items: center; gap: 8px; margin-left: 4px; padding-left: 14px;
+  border-left: 1px solid var(--rule); font-size: 13px; color: var(--ink); white-space: nowrap; }
+.khsx .khsx-bulk__btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule);
+  background: var(--canvas, #fff); border-radius: 7px; height: 28px; padding: 0 12px; font: inherit; font-size: 13px;
+  font-weight: 500; cursor: pointer; color: var(--ink); }
+.khsx .khsx-bulk__btn--pri { background: var(--rust); border-color: var(--rust); color: #fff; }
+.khsx .khsx-bulk__btn--pri:hover { background: var(--rust-deep, var(--rust)); }
+.khsx .khsx-bulk__btn--ghost { border-color: transparent; background: transparent; color: var(--ash); }
+.khsx .khsx-bulk__btn--ghost:hover { background: var(--rule-hair); }
+@media (max-width: 720px) {
+  .khsx .khsx-bulk { white-space: normal; flex-wrap: wrap; margin-left: 0; padding-left: 0; border-left: 0; }
+}
+
+/* Hộp chọn người phụ trách (nằm trong ConfirmDialog, ngoài cây .khsx). */
+.khsx-giao { display: flex; flex-direction: column; gap: 8px; min-width: min(420px, 80vw); }
+.khsx-giao__tim { height: 32px; border: 1px solid var(--rule); border-radius: 7px; padding: 0 10px; font: inherit;
+  font-size: 13px; color: var(--ink); }
+.khsx-giao__ds { max-height: 300px; overflow-y: auto; border: 1px solid var(--rule-soft); border-radius: 8px; }
+.khsx-giao__nguoi { display: flex; align-items: center; gap: 10px; padding: 0 12px; min-height: 34px; font-size: 13px;
+  cursor: pointer; border-bottom: 1px solid var(--rule-hair); }
+.khsx-giao__nguoi:last-child { border-bottom: 0; }
+.khsx-giao__nguoi:hover { background: var(--rule-hair); }
+.khsx-giao__nguoi.is-chon { background: var(--paper); }
+.khsx-giao__nguoi input { margin: 0; accent-color: var(--ink); }
+.khsx-giao__phong { margin-left: auto; color: var(--ash-2); font-size: 12px; }
+.khsx-giao__mu { color: var(--ash-2); font-size: 13px; padding: 10px 12px; margin: 0; }
+.khsx-giao__chuyen { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
+.khsx-giao__chuyen .khsx-giao__mu { list-style: none; margin-left: -18px; padding: 6px 0 0; }

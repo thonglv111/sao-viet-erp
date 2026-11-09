@@ -135,19 +135,6 @@ export function tomTatTienDo(td: DonTienDo | null) {
   };
 }
 
-/** Băng cảnh báo trễ: CHỈ khi dự kiến xong SX trễ so với hạn giao cam kết. "Kịp hạn" và "chưa ước
- *  được ngày xong" là thẻ nhỏ ở câu "việc tiếp theo" (05/10/2026) — băng đỏ chỉ dành cho việc trễ thật. */
-export function CanhBaoTre({ td }: { td: DonTienDo | null }) {
-  if (!td || td.tre_ngay == null || td.tre_ngay <= 0) return null;
-  const lyDo = td.ly_do.map((k) => NHAN_LY_DO_TRE[k] ?? k).join(", ");
-  return (
-    <div className="banner banner--error dhb__td-tre" role="alert">
-      Dự kiến xong sản xuất {fmtDate(td.du_kien_xong)} — <b>trễ {td.tre_ngay} ngày</b> so với hạn
-      giao {fmtDate(td.han_cam_ket)}.{lyDo ? ` Lý do: ${lyDo}.` : ""}
-    </div>
-  );
-}
-
 /** "HH:mm dd/mm" giờ xưởng — đủ để biết đơn chờ từ lúc nào, khỏi năm. */
 function gioNgay(iso: string): string {
   const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
@@ -229,11 +216,7 @@ export function viecTiepTheo(o: {
       nut: { nhan: "Mở Lệnh sản xuất", toi: "ke-hoach-sx" },
     };
   }
-  // Mốc dự kiến xong SX so với hạn giao: trễ là băng đỏ riêng (`CanhBaoTre`), ở đây chỉ thẻ nhỏ.
-  const theSx: TheViec[] = td.du_kien_xong
-    ? [{ nhan: `dự kiến xong ${fmtDate(td.du_kien_xong).replace(/\/\d{4}$/, "")}` },
-      td.tre_ngay ? { nhan: `trễ ${td.tre_ngay} ngày`, tone: "bad" } : { nhan: "kịp hạn giao", tone: "ok" }]
-    : td.chua_du_du_lieu ? [{ nhan: "chưa ước được ngày xong" }] : [];
+  // Thẻ "dự kiến xong" và băng trễ GỠ 08/11/2026 cùng tốc độ máy.
 
   // Đủ hàng (kể cả nhờ tồn có sẵn của mã) thì việc kế tiếp là GIAO — không còn chờ xưởng hay KCS.
   // Lệnh của đơn mà vẫn chạy thì chạy xong sẽ ra hàng dư: nhắc một thẻ, không tự huỷ (12/10/2026).
@@ -249,7 +232,7 @@ export function viecTiepTheo(o: {
     const cau = choKho.length === 1
       ? `Kho chưa nhận ${so(c.cho_kho)} ${c.don_vi ?? ""} ${c.ten} KCS đã gửi`.replace(/\s+/g, " ")
       : `Kho chưa nhận hàng KCS đã gửi ở ${choKho.length} món`;
-    return { cau, the: [...theSx, ...the] };
+    return { cau, the };
   }
   const chuaXuong = tt.khoXong ? [] : lenh.filter((l) => !l.xong && !l.da_xuong_xuong);
   if (chuaXuong.length > 0) {
@@ -265,7 +248,7 @@ export function viecTiepTheo(o: {
     const cau = dangChay.length === 1
       ? `Xưởng đang chạy ${l.ma}${l.buoc_hien_tai ? `, đang ${l.buoc_hien_tai}` : ""}`
       : `Xưởng đang chạy ${dangChay.length} lệnh`;
-    return { cau, the: [...theSx, ...the] };
+    return { cau, the };
   }
   // Lệnh đã đóng mà chưa đủ hàng: không còn gì đang tới — nói thẳng thiếu bao nhiêu và lối đi tiếp
   // (làm bù ở Kế hoạch SX, hoặc thỏa thuận giao thiếu), thay vì "chờ KCS" chẳng bao giờ tới (11/10/2026).

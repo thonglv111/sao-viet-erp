@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import math
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -101,6 +101,13 @@ class KeHoachVatTuError(Exception):
 
 class KeHoachVatTuValidationError(KeHoachVatTuError):
     pass
+
+
+def _hen_khoa(v: datetime | None) -> datetime:
+    """Giờ hẹn làm khoá sắp xếp: Postgres trả aware, SQLite trả naive (coi là UTC) — so được với nhau."""
+    if v is None:
+        return datetime.max.replace(tzinfo=timezone.utc)
+    return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
 
 
 def _f(v) -> float:
@@ -497,6 +504,24 @@ class KeHoachVatTuService:
 
     def _khach_cua(self, lsx_id: int | None) -> str | None:
         return getattr(self, "_khach_map", {}).get(lsx_id) if lsx_id else None
+
+    def _hen_cua(self, lsx_ids) -> dict[int, datetime]:
+        """Giờ hẹn đẩy (`xep_lich_lenh.bat_dau_at`) của các lệnh — khoá đầu của thứ tự ăn tồn.
+
+        Nạp lười, nhớ theo request: lệnh thành viên của bài ghép không đi qua `_nap_khach`."""
+        from ..models.xep_lich_lenh import XepLichLenh
+
+        nho: dict[int, datetime | None] = self.__dict__.setdefault("_hen_map", {})
+        thieu = {int(i) for i in lsx_ids if i and int(i) not in nho}
+        if thieu:
+            for i in thieu:
+                nho[i] = None
+            for lid, luc in self.db.execute(
+                select(XepLichLenh.lsx_id, XepLichLenh.bat_dau_at)
+                .where(XepLichLenh.lsx_id.in_(thieu))
+            ).all():
+                nho[int(lid)] = luc
+        return {int(i): nho[int(i)] for i in lsx_ids if i and nho.get(int(i)) is not None}
 
     # ================== CÁC NGUỒN SỐ ĐÃ CÓ ==================
 
@@ -1470,12 +1495,11 @@ class KeHoachVatTuService:
             "ten_sp": getattr(l, "ten", None) or None,
             "ngay_can": self._ngay_can_cua(hang, l.id, None),
             # "Lệnh của ai, giao ngày nào" — hai câu mà người lập kế hoạch luôn phải hỏi kèm khi
-            # nhìn một dòng thiếu hàng. `han_giao_khach` là hạn KHÁCH (lấy từ đơn), khác
-            # `han_sx` ở trên là hạn nội bộ do kế hoạch đặt — đừng thay nhau.
+            # nhìn một dòng thiếu hàng.
             "khach_ten": self._khach_cua(l.id),
             "han_giao_khach": getattr(l, "han_giao_khach", None),
-            # Thứ tự ăn tồn — xem `_chay_con_tro`. Hạn là ngày NGƯỜI khai, không phải ngày suy.
-            "han_sx": getattr(l, "han_hoan_thanh_sx", None),
+            # Thứ tự ăn tồn — xem `_chay_con_tro`. Giờ hẹn là giờ NGƯỜI hẹn, không phải giờ suy.
+            "hen_luc": self._hen_cua([l.id]).get(l.id),
             "dvt": dvt, "sl": sl,
             # Cờ GẤP của lệnh — chỉ để BÀY, máy không xếp ưu tiên hộ (chủ chốt 17/08/2026).
             # Người lập kế hoạch nhìn cờ rồi tự quyết nhả chỗ của lệnh nào.
@@ -1494,9 +1518,8 @@ class KeHoachVatTuService:
 
     def _dong_bai(self, bg: BaiGhep, hang, dvt, sl, buoc) -> dict:
         lsx_map = getattr(self, "_bai_ctx", {}).get(bg.id, {})
-        # Bài chạy chung một lượt ⇒ xếp theo hạn SỚM NHẤT của các thành viên.
-        hans = [h for h in (getattr(l, "han_hoan_thanh_sx", None)
-                            for l in (lsx_map or {}).values()) if h]
+        # Bài chạy chung một lượt ⇒ lĩnh theo giờ hẹn SỚM NHẤT của các thành viên.
+        hens = list(self._hen_cua(list(lsx_map or {})).values())
         return {
             "hang": hang, "loai": "vat_tu", "lsx_id": None, "bai_ghep_id": bg.id,
             # Cùng lý do như `_dong_lenh`. Ở đây `buoc_id` là `bai_ghep_cong_doan.id` — KHÁC không
@@ -1506,10 +1529,10 @@ class KeHoachVatTuService:
             "ma": bg.ma, "ten_viec": getattr(buoc, "ten", None),
             "ten_sp": getattr(bg, "ten", None) or None,
             "ngay_can": self._ngay_can_cua(hang, None, bg.id),
-            "han_sx": min(hans) if hans else None,
+            "hen_luc": min(hens) if hens else None,
             # Bài gom nhiều lệnh ⇒ có thể nhiều khách. Một tên thì nói tên; nhiều tên thì nói
             # ĐÚNG là "3 khách" chứ không bốc một cái tên làm đại diện — người đọc sẽ tưởng cả
-            # bài của khách đó. Hạn giao lấy SỚM NHẤT, cùng lẽ với `han_sx` ngay trên.
+            # bài của khách đó. Hạn giao lấy SỚM NHẤT, cùng lẽ với giờ hẹn ngay trên.
             **self._khach_han_bai(lsx_map),
             "dvt": dvt, "sl": sl,
             # Bài GẤP khi có ÍT NHẤT MỘT thành viên gấp — cả bài chạy chung một lượt, không tách được.
@@ -1582,10 +1605,13 @@ class KeHoachVatTuService:
         for hang, ds in theo_hang.items():
             obj = self._obj(hang)
             chua_khai = self._chua_khai(hang)
-            # THỨ TỰ ĂN TỒN = HẠN SẢN XUẤT (18/09/2026): lệnh phải xong trước được tính trước. Không
-            # còn xếp theo ngày cần — ngày đó giờ chỉ có khi đã lập yêu cầu mua, tức sau khi bảng đã
-            # cân đối xong. Lệnh chưa khai hạn xuống CUỐI: không được chen lên trước lệnh có hạn.
-            ds.sort(key=lambda d: (d.get("han_sx") is None, d.get("han_sx") or date.max, d["ma"]))
+            # THỨ TỰ ĂN TỒN (08/11/2026, hạn SX nội bộ đã gỡ): lệnh hẹn đẩy xuống xưởng sớm hơn lĩnh
+            # trước; lệnh chưa hẹn đứng sau mọi lệnh đã hẹn, giữa chúng xếp theo hạn giao khách; chưa
+            # có cả hai thì xuống CUỐI. Ngày cần không vào khoá — nó chỉ có sau khi đã lập yêu cầu mua.
+            ds.sort(key=lambda d: (
+                d.get("hen_luc") is None, _hen_khoa(d.get("hen_luc")),
+                d.get("han_giao_khach") is None, d.get("han_giao_khach") or date.max, d["ma"],
+            ))
             # Số dòng của cùng (mặt hàng, chủ thể) — quyết định có phải CHIA phần đã cấp không.
             so_dong_khoa: dict[tuple, int] = {}
             for d in ds:
@@ -1660,8 +1686,6 @@ class KeHoachVatTuService:
                     "ngay_can": d["ngay_can"],
                     "khach_ten": d.get("khach_ten"),
                     "han_giao_khach": d.get("han_giao_khach"),
-                    # Hạn SX = khoá xếp thứ tự ăn tồn ở trên — màn Tồn kho vẽ dự báo theo đúng mốc này.
-                    "han_sx": d.get("han_sx"),
                     "nhu_cau": round(_f(d["nhu_cau"]), 4),
                     "nhu_cau_hien_thi": d["nhu_cau_hien_thi"],
                     "da_cap": round(cap, 4),

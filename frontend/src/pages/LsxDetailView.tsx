@@ -25,7 +25,6 @@ import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
-import { ChonNgay } from "../components/ChonNgay";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DinhKemTep } from "../components/DinhKemTep";
 import { EmptyState } from "../components/EmptyState";
@@ -94,7 +93,6 @@ function tomTatBuoc(b: DanhMucDoiBuoc): string {
 
 interface FormState {
   ten: string;
-  han_hoan_thanh_sx: string;
   is_rush: boolean;
   may_id: string;
   ghi_chu: string;
@@ -132,7 +130,6 @@ function toQc(d: LsxDetail): LsxQuyCachBody {
 function toForm(d: LsxDetail): FormState {
   return {
     ten: d.ten,
-    han_hoan_thanh_sx: d.han_hoan_thanh_sx ?? "",
     is_rush: d.is_rush,
     may_id: d.may_id != null ? String(d.may_id) : "",
     ghi_chu: d.ghi_chu ?? "",
@@ -161,28 +158,6 @@ function demNgayConLai(hanGiaoStr?: string | null): string {
   if (diff < 0) return `Quá hạn ${Math.abs(diff)} ngày`;
   if (diff === 0) return `Hôm nay giao`;
   return `Còn ${diff} ngày`;
-}
-
-function tinhNgayDem(hanSxStr: string | null | undefined, hanGiaoStr: string | null | undefined): {
-  status: "safe" | "warning" | "danger" | "none";
-  text: string;
-} {
-  if (!hanSxStr || !hanGiaoStr) return { status: "none", text: "" };
-  const dSx = new Date(hanSxStr);
-  const dGiao = new Date(hanGiaoStr);
-  if (isNaN(dSx.getTime()) || isNaN(dGiao.getTime())) return { status: "none", text: "" };
-  dSx.setHours(0, 0, 0, 0);
-  dGiao.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((dGiao.getTime() - dSx.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays >= 2) {
-    return { status: "safe", text: `Đệm ${diffDays} ngày an toàn trước hạn giao` };
-  } else if (diffDays === 1) {
-    return { status: "warning", text: `Đệm 1 ngày — Cận kề hạn giao khách` };
-  } else if (diffDays === 0) {
-    return { status: "warning", text: `Trùng hạn giao — Không có ngày đệm` };
-  } else {
-    return { status: "danger", text: `Trễ hơn hạn giao khách ${Math.abs(diffDays)} ngày!` };
-  }
 }
 
 export function LsxDetailView({
@@ -447,25 +422,12 @@ export function LsxDetailView({
       coRangBuocTo: (c.department_ids ?? []).length > 0,
     })))).catch(() => setCongDoanRefs(null));
     crud("/api/cong-doan/phong-ban").list(token).then((r) => setToRefs(r.items.map((t) => ({ id: t.id, ten: t.ten })))).catch(() => setToRefs(null));
-    // Giữ luôn TỐC ĐỘ + CHUẨN BỊ của máy: form phải tính lại thời lượng ngay khi đổi máy, chứ
-    // không đợi lưu rồi server mới trả số về (xem `RefRow`).
-    crud("/api/may-thiet-bi").list(token).then((r) => setMayRefs(r.items.map((m) => {
-      const khoan = (m.fields_theo_loai as { chuan_bi_khoan?: { ten?: string; phut?: number }[] } | null)
-        ?.chuan_bi_khoan;
-      return {
-        id: m.id, ten: m.ten, nhom: m.loai_may ? String(m.loai_may) : null,
-        active: m.active !== false,
-        toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
-        tocDo: m.toc_do == null ? null : Number(m.toc_do),
-        tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
-        tocDoMax: m.toc_do_max == null ? null : Number(m.toc_do_max),
-        donViTocDo: m.don_vi_toc_do ? String(m.don_vi_toc_do) : null,
-        chuanBiPhut: m.makeready_time_default == null ? null : Number(m.makeready_time_default),
-        chuanBiKhoan: Array.isArray(khoan) ? khoan : [],
-        // Ô "Số người vận hành tiêu chuẩn" của máy ĐÃ GỠ (06/09/2026, mg `0270`); cả logic kíp người
-        // gỡ nốt 18/09/2026 (mg `0321`) — chọn máy chỉ đổi tốc độ + chuẩn bị.
-      };
-    }))).catch(() => setMayRefs(null));
+    // Tốc độ và chuẩn bị của máy KHÔNG nạp nữa (08/11/2026): bước máy thôi tính giờ theo máy.
+    crud("/api/may-thiet-bi").list(token).then((r) => setMayRefs(r.items.map((m) => ({
+      id: m.id, ten: m.ten, nhom: m.loai_may ? String(m.loai_may) : null,
+      active: m.active !== false,
+      toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
+    })))).catch(() => setMayRefs(null));
     crud("/api/vat-lieu-kho/vat-tu-in-an").list(token, { active: true }).then((r) =>
       setVatTuRefs(r.items.map((v) => ({ id: v.id, ten: v.ten, ma: String(v.ma), donVi: String(v.don_vi_gia ?? "") })))
     ).catch(() => setVatTuRefs(null));
@@ -557,7 +519,6 @@ export function LsxDetailView({
     setErr(null);
     const body: LsxUpdateBody = {
       ten: form.ten,
-      han_hoan_thanh_sx: form.han_hoan_thanh_sx || null,
       is_rush: form.is_rush,
       ghi_chu: form.ghi_chu || null,
       so_luong_dat: Number(form.so_luong_dat || 0),
@@ -683,15 +644,6 @@ export function LsxDetailView({
       setAskDelete(false);
     }
   }
-
-  // HOOK PHẢI NẰM TRƯỚC MỌI `return` SỚM. Khối này từng đứng dưới hai nhánh return bên dưới:
-  // render đầu (đang tải) React đếm 45 hook, dữ liệu về thành 46 → "Rendered more hooks than
-  // during the previous render" và cả màn trắng ngay khi bấm vào một lệnh. `d`/`form` lúc này
-  // còn có thể là null nên đọc bằng `?.` — `tinhNgayDem` đã nhận null/undefined và trả "none".
-  const demHan = useMemo(
-    () => tinhNgayDem(form?.han_hoan_thanh_sx, d?.han_giao_khach),
-    [form?.han_hoan_thanh_sx, d?.han_giao_khach],
-  );
 
   if (loading) {
     // Skeleton GIỮ ĐÚNG layout (head + 2 cột) để nội dung thật không làm nhảy trang.
@@ -1230,37 +1182,7 @@ export function LsxDetailView({
                           onChange={(e) => set("ten", e.target.value)}
                         />
                       </label>
-                      <label className="khsx-field khsx-field--flex1">
-                        <span className="khsx-field__label">Hạn hoàn thành sản xuất</span>
-                        <ChonNgay
-                          value={form.han_hoan_thanh_sx}
-                          aria-label="Hạn hoàn thành sản xuất"
-                          readOnly={!canUpdate}
-                          onChange={(v) => set("han_hoan_thanh_sx", v)}
-                        />
-                      </label>
                     </div>
-
-                    {demHan.status !== "none" && (
-                      <div className={`khsx-buffer-gauge khsx-buffer-gauge--${demHan.status}`}>
-                        <div className="khsx-buffer-gauge__track">
-                          <div className="khsx-buffer-gauge__milestone">
-                            <span className="khsx-buffer-gauge__tag">Bàn giao</span>
-                            <span className="khsx-buffer-gauge__val">{ngay(d.ban_giao_at || d.created_at)}</span>
-                          </div>
-                          <div className="khsx-buffer-gauge__bar-wrap">
-                            <div className="khsx-buffer-gauge__bar" />
-                            <span className="khsx-buffer-gauge__badge">
-                              {demHan.text}
-                            </span>
-                          </div>
-                          <div className="khsx-buffer-gauge__milestone">
-                            <span className="khsx-buffer-gauge__tag">Hạn giao</span>
-                            <span className="khsx-buffer-gauge__val">{ngay(d.han_giao_khach)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     <label className="khsx-field khsx-field--wide">
                       <span className="khsx-field__label">Ghi chú kế hoạch</span>

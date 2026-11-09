@@ -106,6 +106,7 @@ def test_may_chay_lien_tuc_khong_bi_ca_cat(db, orders, lsx_svc, xl_svc, admin, c
     step = _in_step(db, lsx.id)
     # 600 phút máy = 10 giờ: dài hơn ca hành chính 8h, ngắn hơn một ngày.
     step.so_luong_vao, step.chay_phut, step.setup_phut = 1000, 600, 0
+    step.phat_sinh_phut = 600  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
     dong = xl_svc.repo.by_lsx(lsx.id)[0]

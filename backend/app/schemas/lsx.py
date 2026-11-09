@@ -29,6 +29,14 @@ class HangChoItem(BaseModel):
     # Tên các hạng mục của đơn (OrderLine.description, bỏ trùng) — service đã trả từ lâu nhưng
     # schema thiếu nên Pydantic nuốt im lặng, cột "Sản phẩm" của hàng chờ luôn trống.
     san_pham_tom_tat: str | None = None
+    # Người phụ trách đơn (08/11/2026; cột DB giữ tên `nguoi_lam_lenh_id`). NULL = Chưa giao.
+    # `trang_thai` = chua_giao | da_giao. Số lệnh đã tạo đọc ở `so_dong_co_lsx`/`so_dong`
+    # (cột "Đã tạo x/y lệnh", một dòng đơn tính là một lệnh).
+    # `chua_mo` = đơn giao cho NGƯỜI XEM mà họ chưa mở ngăn Lệnh dự kiến lần nào (chấm đỏ đầu dòng).
+    nguoi_lam_lenh_id: int | None = None
+    nguoi_lam_lenh_ten: str | None = None
+    trang_thai: str = "chua_giao"
+    chua_mo: bool = False
 
 
 class HangChoOut(BaseModel):
@@ -36,6 +44,32 @@ class HangChoOut(BaseModel):
     total: int          # TỔNG số đơn còn nợ lệnh, không phải số dòng của trang
     page: int = 1
     size: int = 50
+    # Người xem có ô Giao đơn không — FE bật cột tick, chip lọc, nút Giao theo cờ này.
+    la_nguoi_giao: bool = False
+    # Số trên chip Tất cả / Chưa giao / Đã giao, cùng thanh lọc với bảng.
+    facets: dict[str, int] = Field(default_factory=dict)
+    # Chấm của tab, KHÔNG theo thanh lọc: Hàng chờ tiếp nhận = còn đơn Chưa giao; Tạo lệnh = có đơn
+    # mới giao cho mình chưa mở.
+    cham: bool = False
+
+
+class NguoiLamLenhOut(BaseModel):
+    id: int
+    ten: str
+    phong: str | None = None
+
+
+class GiaoDonIn(BaseModel):
+    order_ids: list[int] = Field(min_length=1, max_length=200)
+    nguoi_nhan_id: int
+
+
+class GiaoDonOut(BaseModel):
+    nguoi_nhan_ten: str
+    # Mã đơn vừa giao lần đầu / vừa chuyển từ người khác sang; đơn đã giao đúng người này thì bỏ qua.
+    da_giao: list[str] = Field(default_factory=list)
+    giao_lai: list[str] = Field(default_factory=list)
+    bo_qua: int = 0
 
 
 # ============================ Preview (lệnh dự kiến) ============================
@@ -99,6 +133,9 @@ class PreviewOut(BaseModel):
     delivery_committed_date: date | None = None
     is_rush: bool = False
     production_note: str | None = None
+    # Người phụ trách đơn (08/11/2026) — đầu ngăn ghi "Người phụ trách: X" khi X không phải người xem.
+    nguoi_lam_lenh_id: int | None = None
+    nguoi_lam_lenh_ten: str | None = None
     lines: list[PreviewLine]
 
 
@@ -113,7 +150,6 @@ class LeadTimeOut(BaseModel):
     tong_phut: float = 0
     chiem_may_phut: float = 0     # phần ĂN capacity máy/tổ (không gồm chờ, di chuyển)
     so_ngay: float = 0            # quy ước 8h/ngày, CHƯA trừ nghỉ lễ/ca kíp
-    ngay_du_kien_xong: date | None = None
     ngay_con_lai: int | None = None   # tới `han_giao_khach`; âm = đã trễ
 
 
@@ -619,7 +655,7 @@ class LsxUpdateIn(BaseModel):
     so_to_ke_hoach: int | None = Field(default=None, ge=0)
     so_to_nguyen: int | None = Field(default=None, ge=0)
     so_con: int | None = Field(default=None, ge=1)
-    han_hoan_thanh_sx: date | None = None
+    # `han_hoan_thanh_sx` gỡ 08/11/2026: client cũ còn gửi thì bị bỏ qua (không 422).
     is_rush: bool | None = None
     may_id: int | None = None
     nguoi_phu_trach_id: int | None = None

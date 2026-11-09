@@ -148,28 +148,6 @@ def test_buoc_ngoai_dong_giay_van_bung_vat_tu_khong_an_theo_sl(db, orders, lsx_s
     assert len(canh_bao) == 1 and "sl_vao" in canh_bao[0], "món ăn theo SL vẫn bị loại kèm lý do"
 
 
-def test_buoc_may_trong_may_bao_dung_cho_khong_do_cho_cau_quy_doi():
-    """Chưa gán máy thì gốc rễ không phải cầu quy đổi — cả cách đo giờ lẫn tốc độ treo ở CẶP."""
-    from types import SimpleNamespace
-
-    from app.services.lsx_service import thoi_luong_buoc
-
-    cd = SimpleNamespace(loai_buoc="may", so_luot_chay=1, phat_sinh_phut=0, so_luong_vao=705)
-    kq = thoi_luong_buoc(cd, may=None, sl_tinh=None)["dien_giai"]
-    assert kq["phuong_phap"] == "chua_quy_doi", "mã giữ nguyên — xếp lịch phân nhánh theo nó"
-    assert "chưa gán máy" in kq["canh_bao"][0]
-    assert "quy đổi" not in kq["canh_bao"][0], "đừng chỉ người ta sang màn Đơn vị & quy đổi"
-
-    # Có máy mà vẫn không đổi được ⇒ chỉ về ô "Cách đo giờ chạy" của cặp công đoạn × máy, KHÔNG
-    # về Đơn vị & quy đổi (màn đó chỉ còn hệ số cố định, tờ → m² không khai được ở đó).
-    may = SimpleNamespace(toc_do=6000, toc_do_min=0, toc_do_max=0, don_vi_toc_do="to_gio",
-                          makeready_time_default=15)
-    kq2 = thoi_luong_buoc(cd, may=may, sl_tinh=None)["dien_giai"]
-    assert "Chưa đổi được" in kq2["canh_bao"][0]
-    assert "Cách đo giờ chạy" in kq2["canh_bao"][0]
-    assert "Đơn vị & quy đổi" not in kq2["canh_bao"][0]
-
-
 def test_may_mac_dinh_dien_cho_ca_buoc_ngoai_nhom_in(db, orders, lsx_svc, admin, customer):
     """Máy mặc định = máy còn dùng đứng ĐẦU bảng máy của công đoạn, kể cả bước không thuộc nhóm in."""
     from app.models.may_thiet_bi import MayThietBi

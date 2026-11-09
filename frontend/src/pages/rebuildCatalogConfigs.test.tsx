@@ -112,6 +112,20 @@ describe("Khoán được hợp nhất vào Công đoạn", () => {
   });
 });
 
+describe("Máy bỏ tốc độ và chuẩn bị (08/11/2026)", () => {
+  it("form, lưới và tab không còn tốc độ, canh máy; Ghi chú về tab Thông tin chung", () => {
+    const bo = ["toc_do", "toc_do_min", "toc_do_max", "don_vi_toc_do", "_chuan_bi_kieu",
+      "makeready_time_default", "chuan_bi_khoan"];
+    expect(CFG_MAY.fields.filter((f) => bo.includes(f.key)).map((f) => f.key)).toEqual([]);
+    expect(CFG_MAY.columns.some((c) => c.key === "toc_do")).toBe(false);
+    expect(CFG_MAY.tabsKhai?.map((t) => t.label)).not.toContain("Thông số kỹ thuật");
+    expect(truong(CFG_MAY, "ghi_chu").group).toBe("Thông tin chung");
+    // Không còn gì để suy hay dọn lúc lưu — giá trị cũ trong DB nằm nguyên.
+    expect(CFG_MAY.deriveInitial).toBeUndefined();
+    expect(CFG_MAY.transformSubmit).toBeUndefined();
+  });
+});
+
 describe("ô Cách đo lượng ĐÃ GỠ khỏi Máy · Vật tư khác (06/09/2026)", () => {
   it("hai màn không còn ô `cong_thuc_luong`", () => {
     // Cách đo nay khai ở drawer Công đoạn: theo CẶP (công đoạn × máy) cho giờ chạy, theo dòng đầu

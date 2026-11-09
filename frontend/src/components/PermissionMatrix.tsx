@@ -223,6 +223,13 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // Kế hoạch vật tư (14/10/2026): nút "Đề nghị mua" trên dòng thiếu + "Huỷ phiếu" trùng trong ngăn hỏi
   // Yêu cầu mua hàng → Thao tác (create mở form, update huỷ). Soi lên đây để người cấp quyền thấy
   // ngay, khỏi đoán sang dòng khác — thiếu ô này thì ô tick trên bảng khoá mà không nói vì sao.
+  san_xuat: [
+    {
+      key: "can_reassign",
+      label: "Giao đơn",
+      hint: "Thấy tab Hàng chờ tiếp nhận và giao đơn cho người phụ trách. Tạo lệnh ở tab Tạo lệnh theo phạm vi: Của tôi là đơn mình phụ trách, Cả phòng là đơn của người trong phòng, Tất cả là mọi đơn đã giao.",
+    },
+  ],
   ke_hoach_vat_tu: [
     {
       key: "can_create",
@@ -622,7 +629,7 @@ const MODULE_HINTS: Record<string, string> = {
   // 6 dòng dưới đây gác 6 MÀN RIÊNG (tách 17/08/2026). Trước đó `san_xuat` mở 4 màn và
   // `ky_thuat_may` mở 2 — nhãn cũ chỉ kể một màn nên người cấp quyền không đoán ra mình vừa mở gì.
   san_xuat:
-    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: phạm vi tính theo sale phụ trách đơn.",
+    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: phạm vi tính theo sale phụ trách đơn; không có ô Giao đơn thì hàng chờ chỉ hiện đơn được giao cho mình.",
   ke_hoach_vat_tu:
     "Xem: bảng cân đối vật tư (không có giá). Thao tác: giữ chỗ, nhả giữ chỗ vật tư cho lệnh. Lưu ý: lập yêu cầu mua từ dòng thiếu là ô chi tiết Đề nghị mua.",
   // Khoá vẫn mang hậu tố `_2` (đổi khoá trong DB không đáng), nhưng đây là màn Bài ghép DUY NHẤT

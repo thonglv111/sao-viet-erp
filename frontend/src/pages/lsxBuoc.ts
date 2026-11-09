@@ -661,68 +661,21 @@ export function thoiLuongLive(r: ThoiLuongInput, may?: MayTinhGio | null): Recor
   const luot = r.loai_buoc === "to" ? 1 : Math.max(Math.trunc(f(r.so_luot_chay)) || 1, 1);
   const canhBao: string[] = [];
 
-  // Số của MÁY ĐANG CHỌN trên form (`may`) — KHÔNG đợi server. Đổi máy trong drawer là chuẩn bị
-  // + thời gian chạy phải nhảy ngay; chỉ khi bấm Lưu mới ghi DB. Không truyền `may` (bảng chưa
-  // nạp xong danh mục) thì rơi về diễn giải server đã trả — vẫn hơn là ra 0.
-  const numOf = (k: string): number => Number(dgServer[k] ?? 0) || 0;
-  const coMay = may != null;
-  // THUÊ NGOÀI đi CHUNG đường bước máy: nhà thầu là một máy trong danh mục (tên kèm hậu tố
-  // "thuê ngoài – …"), nên chuẩn bị + tốc độ + số lượt lấy từ máy đó. Bỏ nó ra ngoài như bản
-  // trước thì mọi bước thuê ngoài ra 0′ mà KHÔNG có lời cảnh báo nào — im lặng, khó thấy nhất.
-  const theoMay = r.loai_buoc !== "to";
-  const setup = coMay ? (theoMay ? f(may?.chuanBiPhut) : 0) : numOf("setup_phut");
-  const khac = f(r.phat_sinh_phut);
-  const khoanChuanBi = coMay
-    ? (theoMay ? (may?.chuanBiKhoan ?? []) : [])
-    : (Array.isArray(dgServer.chuan_bi_khoan) ? dgServer.chuan_bi_khoan : []);
-
-  let phuongPhap: string = theoMay ? "may" : r.loai_buoc;
-  let nangSuatCoSo = 0;       // tốc độ máy (bước tổ không có năng suất nào nữa — mg `0321`)
-  let nangSuatHieuDung = 0;
-  let chay = 0;
-  let chayNhanh = 0;
-  let chayCham = 0;
-
-  if (r.loai_buoc === "to") {
-    // Bước TỔ = SỐ GIỜ KẾ HOẠCH người lập lệnh gõ × 60 (18/09/2026, §5.1) — cùng phép với
-    // `thoi_luong_buoc` ở server. Một con số gõ tay: ba mức bằng nhau, 0 giờ là HỢP LỆ, không cảnh báo.
-    chay = chayNhanh = chayCham = Math.max(f(r.so_gio_ke_hoach), 0) * 60;
-  } else {
-    // Công thức chốt 2026-08-04: SL vào × 60 ÷ tốc độ × số lượt.
-    const tocDo = coMay ? f(may?.tocDo) : numOf("toc_do");
-    const tocDoMax = coMay ? f(may?.tocDoMax) : numOf("toc_do_max");
-    const tocDoMin = coMay ? f(may?.tocDoMin) : numOf("toc_do_min");
-    const chayVoi = (v: number): number => (v > 0 && vao > 0 ? (vao * 60) / v * luot : 0);
-    nangSuatCoSo = tocDo;
-    nangSuatHieuDung = tocDo;
-    chay = chayVoi(tocDo);
-    chayNhanh = tocDoMax > 0 ? chayVoi(tocDoMax) : chay;   // tốc độ TỐI ĐA ⇒ thời lượng nhỏ nhất
-    chayCham = tocDoMin > 0 ? chayVoi(tocDoMin) : chay;
-    if (tocDo <= 0) phuongPhap = "thieu_nang_suat";
-  }
-  // Chưa quy đổi được SL vào sang đơn vị tốc độ ⇒ không có giờ chạy, và nói đúng chỗ phải đi khai.
-  // Thắng mọi lý do khác: có tốc độ mà không biết bước nhận bao nhiêu THEO ĐƠN VỊ ĐÓ thì phép chia
-  // vô nghĩa (chủ 15/08/2026 — ca `500 kg/h` nhận số tờ).
-  // Bước tổ không quy đổi gì (giờ là số gõ tay) — nhánh này chỉ dành cho máy / thuê ngoài.
-  if (!daQuyDoi && theoMay) {
-    phuongPhap = "chua_quy_doi";
-    chay = chayNhanh = chayCham = 0;
-    // CHƯA GÁN MÁY nói câu khác: bước máy trống máy thì server không có ĐÍCH nào để quy về — cách
-    // đo giờ chạy lẫn tốc độ đều treo ở cặp (công đoạn × máy). Câu "chưa quy đổi" ở ca này chỉ
-    // người ta sang Đơn vị & quy đổi, khai xong cũng không cứu được gì. Mã `phuong_phap` vẫn giữ
-    // `chua_quy_doi` — xếp lịch phân nhánh theo mã đó, chỉ CÂU cần đổi. `may_id === undefined`
-    // (bài ghép không truyền) coi như không biết ⇒ giữ câu cũ.
-    canhBao.push(
-      theoMay && r.may_id === null
-        ? "Bước chưa gán máy nên chưa biết chạy trên máy nào — chọn máy ở tab Phân công & Thiết bị. "
-          + "Cách đo giờ chạy và tốc độ đều khai theo cặp (công đoạn × máy)."
-        // Cùng câu với server — xem chú thích ở `thoi_luong_buoc` vì sao không chỉ về Đơn vị & quy đổi.
-        : "Chưa đổi được số lượng vào sang đơn vị tốc độ của máy nên không tính được thời gian chạy. "
-          + "Khai ô \"Cách đo giờ chạy\" của máy này ở Cấu hình danh mục → Công đoạn → bảng máy của công đoạn."
-    );
-  } else if (phuongPhap === "thieu_nang_suat") {
-    canhBao.push("Máy đang gán chưa khai tốc độ (hoặc bước chưa gán máy) nên không tính được thời gian chạy.");
-  }
+  // BỎ TỐC ĐỘ MÁY (08/11/2026, docs/design-go-toc-do-may-va-xep-lich.md §1): bước MÁY và THUÊ NGOÀI
+  // thôi tính giờ chạy và chuẩn bị theo máy — cùng luật với `thoi_luong_buoc` ở server. Chỉ còn
+  // "thời gian khác" người lập lệnh gõ; `phuong_phap = "khong_tinh"` để màn không bày "0 phút" và
+  // không cảnh báo "máy chưa khai tốc độ". `may` giữ trong chữ ký cho nơi gọi cũ, không đọc nữa.
+  void may;
+  const setup = 0;
+  const khac = r.loai_buoc === "thue_ngoai" ? 0 : f(r.phat_sinh_phut);
+  const khoanChuanBi: unknown[] = [];
+  const phuongPhap: string = r.loai_buoc === "to" ? "to"
+    : r.loai_buoc === "thue_ngoai" ? "thue_ngoai" : "khong_tinh";
+  // Bước TỔ = SỐ GIỜ KẾ HOẠCH người lập lệnh gõ × 60 (18/09/2026, §5.1). Một con số gõ tay: ba mức
+  // bằng nhau, 0 giờ là HỢP LỆ, không cảnh báo.
+  const chay = r.loai_buoc === "to" ? Math.max(f(r.so_gio_ke_hoach), 0) * 60 : 0;
+  const chayNhanh = chay;
+  const chayCham = chay;
 
   const chiemTaiNguyen = khac + setup + chay;
   return {
@@ -735,8 +688,8 @@ export function thoiLuongLive(r: ThoiLuongInput, may?: MayTinhGio | null): Recor
     don_vi_vao_goc: (dgServer.don_vi_vao_goc as string | null) ?? r.don_vi_vao,
     quy_doi_dien_giai: dgServer.quy_doi_dien_giai ?? null,
     nguon_nang_suat: r.loai_buoc === "to" ? "gio_ke_hoach" : "may",
-    nang_suat_co_so: nangSuatCoSo > 0 ? tron(nangSuatCoSo) : null,
-    nang_suat_hieu_dung: nangSuatHieuDung > 0 ? tron(nangSuatHieuDung) : null,
+    nang_suat_co_so: null,
+    nang_suat_hieu_dung: null,
     // Bước tổ vẫn BÁO số lượt — chip `so_luot_chay` của công thức tiền công cần số thật — nhưng
     // từ 08/09/2026 số đó luôn là 1: ô nhập chỉ còn ở bước máy/thuê ngoài.
     so_luot_chay: luot,
@@ -747,10 +700,10 @@ export function thoiLuongLive(r: ThoiLuongInput, may?: MayTinhGio | null): Recor
     chay_phut: tron(chay),
     chay_phut_min: tron(chayNhanh),
     chay_phut_max: tron(chayCham),
-    toc_do: coMay ? (may?.tocDo ?? null) : (dgServer.toc_do ?? null),
-    toc_do_min: coMay ? (may?.tocDoMin ?? null) : (dgServer.toc_do_min ?? null),
-    toc_do_max: coMay ? (may?.tocDoMax ?? null) : (dgServer.toc_do_max ?? null),
-    co_dai_toc_do: tron(chayNhanh) !== tron(chayCham),
+    toc_do: null,
+    toc_do_min: null,
+    toc_do_max: null,
+    co_dai_toc_do: false,
     chiem_tai_nguyen_phut: tron(chiemTaiNguyen),
     // Chờ kỹ thuật GỠ 13/08/2026 ⇒ tổng bằng đúng phần chiếm tài nguyên.
     tong_phut: tron(chiemTaiNguyen),

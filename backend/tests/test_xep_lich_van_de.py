@@ -124,69 +124,7 @@ def test_bang_can_doi_hong_thi_KEU_chu_khong_im(db, vd_svc, monkeypatch):
 # --- Detector: đè vùng khóa máy ---------------------------------------------
 
 
-def test_de_khoa_may_detector(db, orders, lsx_svc, xl_svc, vd_svc, admin, customer, monkeypatch):
-    _luon_lam(monkeypatch)
-    lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
-    step = _in_step(db, lsx.id)
-    step.setup_phut, step.so_luong_vao = 0, 5000
-    step.chay_phut, step.ve_sinh_phut, step.so_luot_chay = None, 0, 1  # theo máy 30+60 = 90'
-    db.commit()
-    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
-    dong = XepLichRepository(db).by_lsx(lsx.id)[0]
-    xl_svc.gan(dong_id=dong.id, patch={"may_id": step.may_id,
-               "start_at": datetime(2026, 7, 27, 8, 0, tzinfo=timezone.utc)}, actor=admin)  # 08:00→09:45
-    # Khóa máy CHỒNG khối đã xếp — tạo SAU khi gán nên engine không né được.
-    xl_svc.tao_vung_khoa(may_id=step.may_id,
-                         tu=datetime(2026, 7, 27, 8, 30, tzinfo=timezone.utc),
-                         den=datetime(2026, 7, 27, 8, 45, tzinfo=timezone.utc),
-                         ly_do="bao_tri", note=None, actor=admin)
-    des = _bo_do(vd_svc.liet_ke(), "de_khoa_may")
-    assert len(des) == 1 and des[0]["severity"] == "chan"
-    assert dong.id in des[0]["impacts"]["dong_ids"]
-
-
 # --- Detector: sai thứ tự tiền nhiệm ----------------------------------------
-
-
-def test_sai_tien_nhiem_detector(db, orders, lsx_svc, xl_svc, vd_svc, admin, customer, monkeypatch):
-    """Bước sau xếp trước khi bước trước xong ⇒ `sai_tien_nhiem`, mức Chặn.
-
-    Hai chi tiết của test này là ĐIỀU KIỆN để nó kiểm đúng thứ nó nói:
-
-    - Phải có DÒNG PHỤ THUỘC thật (`LsxCongDoanPhuThuoc`). `_do_thi` ghi rõ "quan hệ duy nhất là
-      bảng phụ thuộc" — `thu_tu` không tạo cạnh ngầm. Thiếu cạnh thì hai bước rời nhau và cái
-      lệch giờ chẳng liên quan gì tới tiền nhiệm.
-    - Mốc phải nằm ở TƯƠNG LAI. `som_nhat` có sàn là bây giờ, nên mốc quá khứ tự nó đã đủ làm
-      `som_nhat > start_at`; test ghim ngày cứng trong quá khứ sẽ xanh kể cả khi phần tiền nhiệm
-      hỏng hoàn toàn — và đúng là nó đã từng xanh như vậy. Nay quá khứ đi lối `lich_da_qua` riêng.
-    """
-    from app.models.lsx import LsxCongDoanPhuThuoc
-
-    _luon_lam(monkeypatch)
-    lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
-    step = _in_step(db, lsx.id)
-    step.setup_phut, step.so_luong_vao, step.chay_phut = 0, 5000, None  # In 60'
-    # Bước sau (Dán, chiếm TỔ — không máy nên không lẫn trùng-máy).
-    dan = LsxCongDoan(lsx_id=lsx.id, thu_tu=1, ten="Dán tay", nhom="finishing", loai_buoc=LB_TO,
-                      department_id=step.department_id, so_luong_vao=5000, chay_phut=30,
-                      don_vi_vao="cai")
-    db.add(dan)
-    db.flush()
-    db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=step.id, buoc_sau_id=dan.id))
-    db.commit()
-    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
-    dongs = XepLichRepository(db).by_lsx(lsx.id)
-    in_dong = next(d for d in dongs if d.source_thu_tu == 0)
-    dan_dong = next(d for d in dongs if d.loai_buoc == LB_TO)
-    mai = (_gio_xuong() + timedelta(days=2)).replace(hour=9, minute=0, second=0, microsecond=0)
-    # In 09:00→10:00; Dán bị xếp 08:00 — TRƯỚC khi In xong.
-    xl_svc.gan(dong_id=in_dong.id, patch={"may_id": step.may_id, "start_at": mai}, actor=admin)
-    xl_svc.gan(dong_id=dan_dong.id, patch={"department_id": step.department_id,
-               "start_at": mai - timedelta(hours=1)}, actor=admin)
-    sai = _bo_do(vd_svc.liet_ke(), "sai_tien_nhiem")
-    assert any(dan_dong.id in it["impacts"]["dong_ids"] for it in sai)
-    assert all(it["severity"] == "chan" for it in sai)
-    assert all("trước khi công đoạn trước kết thúc" in it["nguyen_nhan"] for it in sai)
 
 
 def _gop_in_va_san_sang(db, bg_svc, bg, admin):
@@ -241,81 +179,6 @@ def test_khong_con_detector_gang_thieu_xa_to(db, orders, lsx_svc, bg_svc, xl_svc
 
 
 # --- Gate phát hành: còn Chặn → chặn; ngoại lệ → thả; thu hồi ----------------
-
-
-def test_phat_hanh_gate_ngoai_le_revert(db, orders, lsx_svc, xl_svc, vd_svc, admin, customer, monkeypatch):
-    _luon_lam(monkeypatch)
-    a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
-    for lsx in (a, b):
-        s = _in_step(db, lsx.id)
-        s.setup_phut, s.so_luong_vao, s.chay_phut = 0, 5000, None
-    # Gate KCS-cuối (§4.4) nay đã gác thật ở phát hành: thêm bước KCS cuối routing cho `a` —
-    # đây là ứng viên DUY NHẤT bị phát hành trong test này (`b` không đụng tới).
-    # Công đoạn cuối của nhóm suy TỰ ĐỘNG từ bước CUỐI routing (thu_tu=999 cao nhất) — tổ nào làm
-    # cũng được (KCS theo lệnh, mg 0306).
-    kcs_dept = Department(name="KCS Xưởng", code="KCS-XL-VD")
-    db.add(kcs_dept)
-    db.flush()
-    db.add(LsxCongDoan(lsx_id=a.id, thu_tu=999, ten="KCS cuối", nhom="finishing",
-                       department_id=kcs_dept.id))
-    db.commit()
-    xl_svc.dua_vao_lsx(lsx_id=a.id, actor=admin)
-    xl_svc.dua_vao_lsx(lsx_id=b.id, actor=admin)
-    repo = XepLichRepository(db)
-    may_id = _in_step(db, a.id).may_id
-    # Mốc xếp phải nằm ở TƯƠNG LAI so với lúc chạy test, không được ghim cứng ngày.
-    # `_san_thoi_gian` lấy sàn = max(now, ban_giao_at) — mà `ban_giao_at` do fixture đóng dấu
-    # bằng giờ THẬT. Ghim cứng một ngày thì tới ngày đó test đỏ vĩnh viễn: sàn vượt `start_at`
-    # ⇒ detector `sai_tien_nhiem` bắn thêm xung đột Chặn, gate phát hành không bao giờ mở.
-    # ĐÃ NỔ THẬT lúc 2026-07-27 08:00 UTC với mốc cũ `datetime(2026, 7, 27, 8, 0)`.
-    bat_dau = (_gio_xuong() + timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
-    xl_svc.gan(dong_id=repo.by_lsx(a.id)[0].id, patch={"may_id": may_id, "start_at": bat_dau}, actor=admin)
-    xl_svc.gan(dong_id=repo.by_lsx(b.id)[0].id, patch={"may_id": may_id, "start_at": bat_dau}, actor=admin)
-
-    # Trùng máy (Chặn) touching cả a lẫn b → a KHÔNG phát hành được.
-    with pytest.raises(XepLichConflict):
-        vd_svc.phat_hanh_lsx(lsx_id=a.id, actor=admin)
-    tm = _bo_do(vd_svc.liet_ke(), "trung_may")[0]
-
-    # Duyệt ngoại lệ → hết Chặn → phát hành được (Released).
-    vd_svc.ngoai_le(issue_key=tm["issue_key"], ly_do="chấp nhận chạy nối ca", expires_at=None, actor=admin)
-    # ⚠️ ĐỔI 17/08/2026. Từ 2026-08-09 tới nay chỗ này còn một chặn `thieu_vat_tu` và test phải đi
-    # vòng qua nó — vì fixture không dựng tồn kho nào nên lệnh thật sự thiếu giấy.
-    #
-    # Nay `_hai_lsx_san_sang` dựng sẵn kho đầy + bật giữ chỗ: đó là TIỀN ĐỀ MỚI của việc vào kế
-    # hoạch (Đợt 2 — *đã xếp lịch nghĩa là vật tư đã có chủ*), nên lệnh đã nằm trên board thì không
-    # còn thiếu vật tư nữa. Chặn đó biến mất là ĐÚNG, không phải nới lỏng.
-    #
-    # Vẫn quét và duyệt nốt các Chặn còn lại: test này soi cơ chế NGOẠI LỆ, không soi vật tư — ghim
-    # cứng "không còn chặn nào" sẽ đỏ oan mỗi lần ai đó thêm detector mới.
-    con_chan = [
-        it for it in vd_svc.liet_ke()["items"]
-        if it["severity"] == "chan" and it["trang_thai"] != "ngoai_le"
-    ]
-    assert not [it for it in con_chan if it["category"] == "thieu_vat_tu"], \
-        "lệnh đã giữ chỗ đủ thì KHÔNG được còn chặn vì thiếu vật tư"
-    for it in con_chan:
-        vd_svc.ngoai_le(issue_key=it["issue_key"], ly_do="ngoài phạm vi test ngoại lệ",
-                        expires_at=None, actor=admin)
-    lsx_a = vd_svc.phat_hanh_lsx(lsx_id=a.id, actor=admin)
-    assert lsx_a.trang_thai == TT_DA_PHAT_HANH
-
-    # Đã phát hành → không gỡ kế hoạch trực tiếp; thu hồi phát hành để về da_lap_ke_hoach.
-    with pytest.raises(XepLichConflict):
-        xl_svc.go_lsx(lsx_id=a.id, actor=admin)
-    # G2: gỡ phát hành BẮT BUỘC có lý do. Lệnh đã thả xuống xưởng mà hệ chưa có lớp thực thi ⇒ nó
-    # không biết thợ chạy tới đâu; thứ duy nhất còn lại là vết ai-gỡ-lúc-nào-vì-sao.
-    with pytest.raises(XepLichConflict):
-        vd_svc.go_phat_hanh_lsx(lsx_id=a.id, actor=admin)
-    assert db.get(Lsx, a.id).trang_thai == TT_DA_PHAT_HANH      # không lý do ⇒ KHÔNG đổi gì
-    vd_svc.go_phat_hanh_lsx(lsx_id=a.id, actor=admin, ly_do="khách dời hạn, xếp lại")
-    assert db.get(Lsx, a.id).trang_thai == TT_DA_LAP_KE_HOACH
-    # Vết phải nằm trong AuditLog kèm nguyên văn lý do — đó là toàn bộ giá trị của ràng buộc này.
-    vet = [
-        r for r in AuditLogRepository(db).list_for_target(f"lsx:{a.id}", limit=50)
-        if r.action == "xep_lich_go_phat_hanh"
-    ]
-    assert vet and "khách dời hạn" in (vet[0].detail or "")
 
 
 # --- Vòng đời state + ngoại lệ kỹ thuật bị chặn + tái phát -------------------
@@ -385,26 +248,6 @@ def test_qua_tai_may_detector(db, orders, lsx_svc, xl_svc, vd_svc, admin, custom
 
 
 # --- Detector: hạn LSX sớm hơn lúc bài ghép in xong -------------------------
-
-
-def test_han_som_bai_ghep_detector(db, orders, lsx_svc, bg_svc, xl_svc, vd_svc, admin, customer, monkeypatch):
-    _luon_lam(monkeypatch)
-    a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
-    a.han_hoan_thanh_sx = date(2026, 7, 20)   # SỚM hơn lúc in ghép xong (27/7) → bị bắt
-    b.han_hoan_thanh_sx = date(2026, 8, 30)   # xa → không bị bắt
-    db.commit()
-    _nha_cho(db, [a.id, b.id])
-    bg = bg_svc.tao(lsx_ids=[a.id, b.id], actor=admin)
-    bg = _gop_in_va_san_sang(db, bg_svc, bg, admin)
-    xl_svc.dua_vao_bai_ghep(bai_ghep_id=bg.id, actor=admin)
-    in_dong = XepLichRepository(db).by_bai_ghep(bg.id)[0]
-    xl_svc.gan(dong_id=in_dong.id, patch={"may_id": _in_step(db, a.id).may_id,
-               "start_at": datetime(2026, 7, 27, 8, 0, tzinfo=timezone.utc)}, actor=admin)
-    keys = [it["issue_key"] for it in _bo_do(vd_svc.liet_ke(), "han_bai_ghep")]
-    assert f"han_bai_ghep:{a.id}:{bg.id}" in keys
-    assert f"han_bai_ghep:{b.id}:{bg.id}" not in keys
-    only = _bo_do(vd_svc.liet_ke(), "han_bai_ghep")
-    assert all(it["severity"] == "luu_y" for it in only)
 
 
 # --- Detector: lệch thực tế (J) ----------------------------------------------

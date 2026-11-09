@@ -86,9 +86,9 @@ def test_tao_bg2_can_hai_lsx_khoi_tao_metadata_mot_lan_va_cho_sua(
     lsxs[0].trang_thai = TT_NHAP
     lsxs[1].trang_thai = TT_CHO_BO_SUNG
     lsxs[2].trang_thai = TT_SAN_SANG
-    lsxs[0].han_hoan_thanh_sx = date.today() + timedelta(days=5)
-    lsxs[1].han_hoan_thanh_sx = date.today() + timedelta(days=2)
-    lsxs[2].han_hoan_thanh_sx = date.today() + timedelta(days=1)
+    lsxs[0].han_giao_khach = date.today() + timedelta(days=5)
+    lsxs[1].han_giao_khach = date.today() + timedelta(days=2)
+    lsxs[2].han_giao_khach = date.today() + timedelta(days=1)
     lsxs[1].is_rush = True
     db.commit()
     svc = _bg2_svc(db)
@@ -98,7 +98,10 @@ def test_tao_bg2_can_hai_lsx_khoi_tao_metadata_mot_lan_va_cho_sua(
 
     bg = svc.tao(lsx_ids=[lsxs[0].id, lsxs[1].id], actor=admin)
     assert bg.ten == f"Bài ghép {bg.ma}"
-    assert bg.han_hoan_thanh_sx == lsxs[1].han_hoan_thanh_sx
+    # 08/11/2026 hạn SX nội bộ đã gỡ: bài không tự đặt hạn, chỉ ĐỌC ra hạn giao sớm nhất của lệnh con.
+    assert bg.han_hoan_thanh_sx is None
+    assert _bg2_svc(db).detail_dict(bg)["han_giao_khach"] == lsxs[1].han_giao_khach
+    assert _bg2_svc(db).list_rows()[0]["han_giao_khach"] == lsxs[1].han_giao_khach
     assert bg.is_rush is True
     assert bg.nguoi_phu_trach_id == admin.id
     assert _bg2_svc(db).detail_dict(bg)["nguoi_phu_trach_ten"] == admin.name
@@ -121,8 +124,9 @@ def test_tao_bg2_can_hai_lsx_khoi_tao_metadata_mot_lan_va_cho_sua(
     svc.bo_thanh_vien(bai_ghep_id=bg.id, thanh_vien_id=tv_moi.id, actor=admin)
     sau = svc._get(bg.id)
 
+    # Gửi hạn SX khi sửa thì bị bỏ qua.
     assert (sau.ten, sau.han_hoan_thanh_sx, sau.is_rush, sau.nguoi_phu_trach_id) == (
-        "Bài gấp ca tối", custom_han, False, None,
+        "Bài gấp ca tối", None, False, None,
     )
 
 

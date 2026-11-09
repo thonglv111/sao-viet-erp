@@ -111,7 +111,7 @@ class DuBaoTonService:
                     "ma": req.ma, "lsx_id": None, "bai_ghep_id": None, "de_nghi_id": req.id,
                     "ten_viec": (f"Giao đơn {g[2]}" if g and g[2] else "Giao hàng") if g else None,
                     "khach_ten": None,
-                    "han_sx": req.ngay_can.isoformat() if req.ngay_can else None,
+                    "han_giao": req.ngay_can.isoformat() if req.ngay_can else None,
                     "can": float(sl), "da_giu": 0.0,
                 }
             else:
@@ -150,11 +150,12 @@ class DuBaoTonService:
                 theo[chu] = {
                     "ma": d["ma"], "lsx_id": d.get("lsx_id"), "bai_ghep_id": d.get("bai_ghep_id"),
                     "ten_viec": d.get("ten_viec"), "khach_ten": d.get("khach_ten"),
-                    "han_sx": d.get("han_sx"), "can": float(can), "da_giu": giu,
+                    "han_giao": d.get("han_giao_khach"), "can": float(can), "da_giu": giu,
                 }
             else:
                 x["can"] += float(can)
                 x["da_giu"] = max(x["da_giu"], giu)
-                if d.get("han_sx") and (x["han_sx"] is None or str(d["han_sx"]) < str(x["han_sx"])):
-                    x["han_sx"] = d["han_sx"]
+                h = d.get("han_giao_khach")
+                if h and (x["han_giao"] is None or str(h) < str(x["han_giao"])):
+                    x["han_giao"] = h
         return list(theo.values())

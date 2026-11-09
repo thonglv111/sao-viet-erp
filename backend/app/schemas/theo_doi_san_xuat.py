@@ -56,7 +56,7 @@ class DemBatThuongOut(BaseModel):
 
 class TheoLenhDongOut(BaseModel):
     """MỘT lệnh còn sống. `canh_bao` ⊆ `tre_han` / `su_co` / `tam_dung` / `kcs_khong_dat`.
-    `du_kien_xong` là giờ xưởng không nhãn múi; `tre_ngay` chỉ có khi `tre_han`."""
+    `tre_ngay` = số ngày đã qua hạn giao khách, chỉ có khi `tre_han`."""
 
     lsx_id: int
     ma: str
@@ -72,7 +72,6 @@ class TheoLenhDongOut(BaseModel):
     han_hoan_thanh_sx: date | None = None
     #: Ngày tạo lệnh — cột "Ngày tạo" của bảng (06/10/2026).
     created_at: datetime | None = None
-    du_kien_xong: datetime | None = None
     canh_bao: list[str] = []
     tre_ngay: int | None = None
 
@@ -173,7 +172,7 @@ class DonVuongOut(BaseModel):
 
 class DonDongOut(BaseModel):
     """MỘT đơn. `chang` ∈ lenh/sx/kho/giao/xong (chặng của món chậm nhất); `nhom` ∈
-    dang_lam/cho_giao/da_giao; `can_de_y` cắt ngang. `du_kien_xong` giờ xưởng không nhãn múi."""
+    dang_lam/cho_giao/da_giao; `can_de_y` cắt ngang."""
 
     order_id: int
     order_no: str
@@ -189,7 +188,6 @@ class DonDongOut(BaseModel):
     so_mon_kho: int = 0
     so_mon_giao: int = 0
     han_giao: date | None = None
-    du_kien_xong: datetime | None = None
     tre_ngay: int | None = None
     con_ngay: int | None = None
     vuong: DonVuongOut | None = None

@@ -3,9 +3,7 @@
 // `default` (prefill khi tạo), `jsonKey` (lưu lồng vào fields_theo_loai).
 // Enum hiển thị bằng thuật ngữ in ấn thuần Việt — dùng chung 1 bảng nhãn cho cả dropdown lẫn cột.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CatalogConfig, ChuanBiKhoanRow } from "./RebuildCatalogPage";
-import { tongChuanBi } from "./RebuildCatalogPage";
-import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
+import type { CatalogConfig } from "./RebuildCatalogPage";
 import { nhanTramDai, tenDonVi, tramOptions } from "./tenDonVi";
 import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
@@ -264,21 +262,7 @@ export const CFG_MAY: CatalogConfig = {
       ], [r.hang_san_xuat, r.model, r.so_seri ? `Seri ${String(r.so_seri)}` : ""].filter(Boolean).join("\n")) },
     // Cột "Khổ máy & Vùng in" + "Chừa lề tờ in" ĐÃ ẨN (04/09/2026): mọi ô đổ ra hai cột này đã
     // rút khỏi form khai, để lại cột thì bảng chỉ còn bày số cũ mà không ai sửa được ở đâu nữa.
-    { key: "toc_do", label: "Tốc độ & Chuẩn bị", w: 230,
-      render: (r) => {
-        const nSpeed = r.toc_do ? `${Number(r.toc_do).toLocaleString("vi-VN")} ${nhanDonViTocDo(r)}` : null;
-        const box = (r.fields_theo_loai ?? {}) as Record<string, unknown>;
-        const khoan = box.chuan_bi_khoan as ChuanBiKhoanRow[] | undefined;
-        const tongKhoan = Array.isArray(khoan) && khoan.length > 0 ? tongChuanBi(khoan) : 0;
-        const totalMakeready = tongKhoan > 0 ? tongKhoan : (Number(r.makeready_time_default) || 0);
-
-        if (!nSpeed && !totalMakeready) return "";
-        return doc([
-          nSpeed ? <span key="t">{nSpeed}</span> : null,
-          totalMakeready > 0 ? <span key="c" className="lds-u">Chuẩn bị {totalMakeready} phút</span> : null,
-        ], [nSpeed, totalMakeready > 0 ? `Chuẩn bị ${totalMakeready} phút` : ""].filter(Boolean).join("\n"));
-      }
-    },
+    // Cột "Tốc độ & Chuẩn bị" GỠ 08/11/2026 (bỏ tốc độ máy, docs/design-go-toc-do-may-va-xep-lich.md §1).
     // Trạng thái LÚC NÀY — dẫn xuất từ sự cố + vùng khoá + lệnh đang chạy (`loadExtra` bên dưới).
     // Cố ý KHÔNG đẻ lại cột `trang_thai` trên máy: cột đó từng có và bị gỡ 11/08/2026 vì là ô khai
     // tay không ai vào sửa, nên máy đang nằm vẫn hiện "đang hoạt động".
@@ -314,9 +298,8 @@ export const CFG_MAY: CatalogConfig = {
   // Khai máy vẫn chia 3 tab theo việc: cuộn một mạch thì khối Lịch bảo trì nằm tít dưới đáy,
   // ai vào sửa chu kỳ cũng phải lướt hết phần vận hành.
   tabsKhai: [
+    // Tab "Thông số kỹ thuật" GỠ 08/11/2026 (bỏ tốc độ máy); Ghi chú về tab Thông tin chung.
     { id: "chung", label: "Thông tin chung", groups: ["Thông tin chung"] },
-    { id: "ky-thuat", label: "Thông số kỹ thuật",
-      groups: ["Tốc độ & Vận hành", "Ghi chú"] },
     { id: "bao-tri", label: "Lịch bảo trì", groups: ["Bảo trì định kỳ"] },
   ],
   fields: [
@@ -335,91 +318,14 @@ export const CFG_MAY: CatalogConfig = {
     // Khổ kẽm · Vùng in max · Chừa lề tờ in · Khổ giấy min/max ĐÃ ẨN (04/09/2026): mấy số này chỉ
     // phục vụ bình bài THEO MÁY ở phiếu tính giá, mà ô "Máy in" của phiếu cũng vừa ẩn cùng đợt.
     // Cột DB + engine giữ nguyên (phiếu cũ đã gắn máy vẫn tính đúng), chỉ không bày ra form nữa.
-    // ── 2. Tốc độ & Năng suất vận hành ───────────────────────────────────────
-    { key: "toc_do", label: "Tốc độ trung bình", type: "number", group: "Tốc độ & Vận hành" },
-    // Dải tốc độ BÀY LẠI (08/09/2026). Lần ẩn trước (04/09/2026) đi kèm lời "dải tốc độ chỉ để
-    // khai, không nối vào công thức nào" — nay KHÔNG còn đúng: `lsxBuoc.ts`, `lsx_service` và
-    // `xep_lich_service` đều đọc hai số này để ra khoảng nhanh–chậm ("Biên độ tốc độ máy" ở drawer
-    // bước, râu Gantt). Ẩn ô mà engine vẫn đọc ⇒ người khai thấy một khoảng 130h–312h không biết
-    // từ đâu ra và không có cửa nào sửa. Chưa khai thì cả ba mức bằng nhau, không vẽ khoảng.
-    { key: "toc_do_min", label: "Tốc độ tối thiểu", type: "number", group: "Tốc độ & Vận hành" },
-    { key: "toc_do_max", label: "Tốc độ tối đa", type: "number", group: "Tốc độ & Vận hành" },
-    { key: "don_vi_toc_do", label: "Đơn vị tốc độ", type: "don_vi_toc_do",
-      refPrefix: "/api/don-vi", refParams: { size: 200 },
-      group: "Tốc độ & Vận hành", default: "to_gio" },
-    // Ô "Cách đo lượng theo đơn vị tốc độ" ĐÃ GỠ (06/09/2026): cách đo nay khai theo CẶP (công
-    // đoạn × máy) ở drawer Công đoạn — cùng một máy chạy hai công đoạn thì đo khác nhau.
-    // Ô "Số người vận hành tiêu chuẩn" ĐÃ GỠ (06/09/2026, mg `0270`): kíp nay khai MỘT chỗ duy
-    // nhất là định mức đầu việc của công đoạn, và mọi loại bước lệnh đều điền sẵn từ đó.
-    // Ô "Ca làm việc của máy này" ĐÃ BỎ (2026-08-10): máy là thiết bị, bàn xếp lịch cho chạy
-    // LIÊN TỤC (chỉ dừng vì ngày nghỉ/lễ + vùng khoá máy). Ca là chuyện của người và khai một chỗ
-    // ở Nhân sự → Ca kíp; tăng ca thì cứ xếp việc vào giờ đó, khỏi sửa danh mục máy.
-    // Ô "Thời gian rửa mực" ĐÃ BỎ (2026-08-04): vệ sinh/rửa mực gỡ khỏi hệ, engine xếp lịch
-    // thôi cộng vào thời gian chiếm máy. Cột DB giữ dormant — đừng khai lại ô này.
-    { key: "_chuan_bi_kieu", label: "Thời gian chuẩn bị", type: "select", group: "Tốc độ & Vận hành",
-      default: "trong",
-      options: [
-        { value: "trong", label: "Để trống — chưa khai" },
-        { value: "tong", label: "Điền tổng — gõ thẳng một số" },
-        { value: "khoan", label: "Theo từng khoản — máy tự cộng" },
-      ] },
-    { key: "makeready_time_default", label: "Tổng thời gian chuẩn bị (phút)", type: "number",
-      group: "Tốc độ & Vận hành",
-      showIf: (f) => f._chuan_bi_kieu === "tong" },
-    { key: "chuan_bi_khoan", label: "Các khoản chuẩn bị", type: "chuan_bi_khoan",
-      group: "Tốc độ & Vận hành", jsonKey: "fields_theo_loai",
-      showIf: (f) => f._chuan_bi_kieu === "khoan" },
+    // ── Tốc độ, đơn vị tốc độ, thời gian chuẩn bị GỠ 08/11/2026 (bỏ tốc độ máy): lệnh thôi tính
+    // giờ chạy theo tốc độ. Cột DB giữ nguyên; form không gửi các khoá này nên số cũ nằm yên.
     // ── 6. Bảo trì định kỳ (lưu lồng trong fields_theo_loai — KHÔNG cột mới, KHÔNG migration) ─
     { key: "lich_bao_tri", label: "Lịch bảo trì định kỳ", type: "lich_bao_tri",
       group: "Bảo trì định kỳ", jsonKey: "fields_theo_loai", phanHe: "sua_chua" },
-    // ── 7. Ghi chú ───────────────────────────────────────────────────────────
-    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
+    // ── 7. Ghi chú (về tab Thông tin chung từ 08/11/2026) ─────────────────────
+    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Thông tin chung" },
   ],
-  // Đơn vị tốc độ là Ô CHỌN 2 giá trị, không suy từ `loai_may`: nhóm máy ở đây là CHỮ TỰ DO
-  // ("Máy in", "Bế", "Cán màng / UV"…) nên suy theo nó là đoán, mà đoán sai thì lệnh SX lặng lẽ
-  // bỏ qua tốc độ. Chỉ bày 2 lựa chọn đang dùng thật (tờ/giờ · kẽm/giờ), không đổ hết 5 đơn vị.
-  // Kiểu chuẩn bị KHÔNG có cột riêng — SUY từ dữ liệu đã lưu. Thêm cột "kiểu" là đẻ trạng thái
-  // thứ hai có thể đá nhau với chính dữ liệu (kiểu="khoản" mà danh sách rỗng thì tin ai?).
-  deriveInitial: (existing) => {
-    const box = (existing?.fields_theo_loai ?? {}) as Record<string, unknown>;
-    const khoan = box.chuan_bi_khoan;
-    const co_khoan = Array.isArray(khoan) && khoan.length > 0;
-    const co_tong = existing?.makeready_time_default != null && existing.makeready_time_default !== "";
-    return { _chuan_bi_kieu: co_khoan ? "khoan" : co_tong ? "tong" : "trong" };
-  },
-  transformSubmit: (body, form, existing) => {
-    const out: Record<string, unknown> = {
-      ...body,
-      // Đơn vị đi theo BẤT KỲ ô tốc độ nào có số, không riêng ô trung bình: khai mỗi dải
-      // nhanh–chậm mà đơn vị bị xoá thì lệnh SX coi như lệch đơn vị và bỏ qua tốc độ trong im lặng.
-      don_vi_toc_do: (body.toc_do || body.toc_do_min || body.toc_do_max)
-        ? (body.don_vi_toc_do || "to_gio") : null,
-    };
-    // Ô CHỈ ĐỂ UI, không có cột — gửi lên là 422.
-    delete out._chuan_bi_kieu;
-
-    // Đổi kiểu phải DỌN kiểu cũ. Form chỉ gửi field ĐANG HIỆN, mà backend gán từng phần
-    // (`if k in data`) ⇒ không dọn thì số cũ nằm lại: chuyển "tổng 30" sang "để trống" vẫn còn 30,
-    // và `deriveInitial` lần sau đọc được nó rồi lật ngược kiểu về "tổng".
-    const kieu = form._chuan_bi_kieu;
-    // ⚠️ Nền phải là JSON CŨ của bản ghi, không phải {}: ở kiểu "tổng"/"trống" thì ô các-khoản bị
-    // ẩn nên `body.fields_theo_loai` không tồn tại — dựng lại từ số 0 là XOÁ SẠCH các khoá khác
-    // của cột này (thông số riêng của máy web/digital/flexo… đều nằm trong đó).
-    const box = {
-      ...((existing?.fields_theo_loai as Record<string, unknown>) ?? {}),
-      ...((out.fields_theo_loai as Record<string, unknown>) ?? {}),
-    };
-    if (kieu === "khoan") {
-      const rows = (Array.isArray(box.chuan_bi_khoan) ? box.chuan_bi_khoan : []) as ChuanBiKhoanRow[];
-      // Tổng do MÁY cộng — đây là số Xếp lịch đọc. Nguồn chân lý vẫn là một cột duy nhất.
-      out.makeready_time_default = tongChuanBi(rows) || null;
-    } else {
-      box.chuan_bi_khoan = [];
-      if (kieu === "trong") out.makeready_time_default = null;
-    }
-    out.fields_theo_loai = box;
-    return out;
-  },
 };
 
 export const CFG_CONG_DOAN: CatalogConfig = {

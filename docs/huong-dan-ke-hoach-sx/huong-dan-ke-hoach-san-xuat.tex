@@ -87,7 +87,7 @@
 {\tieude\small\color{xamchu} ERP Sao Việt Nhật}\par\vspace{3pt}
 {\tieude\fontsize{22}{26}\selectfont Hướng dẫn sử dụng Kế hoạch sản xuất}\par\vspace{4pt}
 {\small Nhận đơn, lên lệnh, lo vật tư, phát lệnh tới các bộ phận, gia công ngoài, theo dõi hàng}\par\vspace{2pt}
-{\small\color{xamchu} Cập nhật 07/11/2026}\par\vspace{6pt}
+{\small\color{xamchu} Cập nhật 08/11/2026}\par\vspace{6pt}
 \noindent{\color{black!25}\rule{\linewidth}{0.4pt}}\par\vspace{4pt}
 
 Tài liệu cho người lên kế hoạch của xưởng, dùng hằng ngày. Đi theo đúng đường một lệnh sản xuất: đơn rơi xuống,
@@ -102,7 +102,8 @@ bộ phận nhận. Phát lệnh xong, từng bộ phận tự chọn máy và n
 Tài liệu viết theo bộ quyền của vai Kế hoạch SX, phạm vi Tất cả ở mọi màn:
 
 \begin{itemize}
-\item Lệnh sản xuất, Kế hoạch vật tư, Yêu cầu mua hàng: Xem và Thao tác.
+\item Lệnh sản xuất: Xem, Thao tác và Giao đơn.
+\item Kế hoạch vật tư, Yêu cầu mua hàng: Xem và Thao tác.
 \item Xếp lịch: Xem, Thao tác và Phát hành lịch.
 \item Kế hoạch bộ phận: Xem và Thao tác.
 \item Hồ sơ lệnh sản xuất, Theo dõi sản xuất: Xem.
@@ -115,7 +116,8 @@ mục bên tài liệu đó.
 
 Ảnh chụp từ phần mềm thật, dữ liệu là đơn DH003 của khách Café Katinat với ba lệnh LSX26-0007, 0008, 0009. Ảnh của
 phần đổi ngày 07/11/2026 (bảng công đoạn, ngăn bước, phát lệnh, Kế hoạch bộ phận) chụp lệnh LSX26-0005 và
-LSX26-0011. Ô đỏ đánh số là chỗ cần bấm hoặc cần đọc, số khớp với lời giải thích bên cạnh.
+LSX26-0011. Ảnh chương Nhận đơn và tạo lệnh (08/11/2026) chụp đơn DH006 của DT Box bằng tài khoản thật của Phòng kỹ
+thuật: tổ trưởng Nguyễn Thị Minh Phương giao đơn, Hoàng Phi Hùng tạo lệnh. Ô đỏ đánh số là chỗ cần bấm hoặc cần đọc, số khớp với lời giải thích bên cạnh.
 
 \bigskip
 \tableofcontents
@@ -130,7 +132,8 @@ là việc phòng khác làm, kế hoạch chỉ theo dõi. Chữ trên mũi tê
 \rong[0.92\linewidth]{khsx-00-luong.png}
 
 Đơn hàng bán do Kinh doanh chốt. Đơn cần cọc thì phải chờ Kế toán thu đủ cọc, đơn không cần cọc thì sang thẳng
-(xem \kd{don-coc}{Chờ cọc}). Đơn sang là rơi vào \oo{Hàng chờ tiếp nhận} ở màn Lệnh sản xuất. Kế hoạch tạo lệnh,
+(xem \kd{don-coc}{Chờ cọc}). Đơn sang là rơi vào \oo{Hàng chờ tiếp nhận} ở màn Lệnh sản xuất, người giao đơn chia
+cho người phụ trách, người phụ trách tạo lệnh,
 rà cho đủ số rồi bấm \oo{Sẵn sàng lập kế hoạch}. Lệnh sẵn sàng thì lo vật tư (giữ hàng có sẵn, thiếu thì đề nghị mua)
 rồi bấm \oo{Phát hành} ở màn Xếp lịch. Giờ bắt đầu để trống được. Phát hành xong, mỗi bước nội bộ tới khay
 \q{Lệnh mới tới} của bộ phận nhận nó, kho nhận yêu cầu xuất vật tư, bước gia công chờ mang đi. Bộ phận chọn máy
@@ -161,7 +164,7 @@ Kéo lệnh vào lịch không đổi trạng thái. Lệnh có giờ mà chưa 
 Cả sáu màn nằm trong nhóm \duong{Sản xuất} của thanh bên trái:
 
 \begin{itemize}
-\item \duong{Lệnh sản xuất}: hàng chờ tiếp nhận, danh sách lệnh, chi tiết từng lệnh.
+\item \duong{Lệnh sản xuất}: hàng chờ tiếp nhận, tạo lệnh, danh sách lệnh, chi tiết từng lệnh.
 \item \duong{Kế hoạch vật tư}: vật tư của mọi lệnh đang chạy, giữ hàng, đề nghị mua.
 \item \duong{Xếp lịch}: khay chờ xếp, lịch, phát hành.
 \item \duong{Kế hoạch bộ phận}: mỗi bộ phận chọn máy và nhóm thợ cho việc vừa tới, rồi giao xuống tổ.
@@ -176,20 +179,86 @@ nhập kho (thủ kho).
 \Needspace*{16\baselineskip}
 \section{Nhận đơn và tạo lệnh}\label{nhan-don}
 
-Đơn chốt xong (và đủ cọc nếu cần cọc) là tự sang sản xuất. Người kế hoạch nhận thông báo ngay, tab
-\oo{Hàng chờ tiếp nhận} có chấm đỏ. Mở \duong{Sản xuất > Lệnh sản xuất}.
+Đơn chốt xong (và đủ cọc nếu cần cọc) là tự sang sản xuất. Màn \duong{Sản xuất > Lệnh sản xuất} có ba tab:
+\oo{Hàng chờ tiếp nhận} để giao đơn cho người phụ trách, \oo{Tạo lệnh} để người phụ trách tạo lệnh,
+\oo{Lệnh sản xuất} là danh sách lệnh đã tạo.
+
+Ví dụ xuyên suốt chương: đơn DH006 của DT Box có ba mặt hàng vừa chốt. Tổ trưởng Phòng kỹ thuật Nguyễn Thị Minh
+Phương có ô Giao đơn, thấy đơn ở Hàng chờ tiếp nhận và giao cho Hoàng Phi Hùng. Hùng mở tab Tạo lệnh, tạo ba lệnh
+LSX26-0019, 0020, 0021. Đơn DH005 trước đó cũng giao cho Hùng, Hùng mới tạo lệnh LSX26-0018 cho một trong hai mặt hàng.
 
 \rong{khsx-10-hang-cho.png}
 
-\so{1} Tab Hàng chờ tiếp nhận. Chấm đỏ còn đó khi còn đơn chưa xem.
+\so{1} Tab Hàng chờ tiếp nhận chỉ hiện với người có ô \q{Giao đơn} ở dòng Lệnh sản xuất của ma trận quyền
+(\kb{phan-quyen-ma-tran}{Mở ma trận quyền}). Người có ô này nhận thông báo khi có đơn mới. Chấm đỏ trên tab còn đó
+khi còn đơn chưa giao cho ai.
 \so{2} Mỗi dòng là một đơn còn mặt hàng chưa có lệnh. Cột Chuyển lúc là giờ đơn sang sản xuất. Ngày giao đỏ là đã
 quá hạn, vàng là còn ba ngày trở xuống. Cột Lưu ý sản xuất chép từ đơn.
-\so{3} Tiến độ lệnh: bao nhiêu dòng của đơn đã có lệnh. Đơn có đủ lệnh thì rời hàng chờ.
+\so{3} Trạng thái chỉ có hai: \q{Chưa giao} là đơn chưa có người phụ trách, \q{Đã giao} là đã có người phụ trách,
+dù đã tạo lệnh nào hay chưa.
+\so{4} Cột Lệnh ghi \q{Đã tạo x/y lệnh}: y là số mặt hàng của đơn, mỗi mặt hàng một lệnh, x là số mặt hàng đã có
+lệnh. Đơn có đủ lệnh thì rời hàng chờ.
+
+Ở ảnh, DH006 vừa sang nên Chưa giao, Đã tạo 0/3 lệnh. DH005 đã giao cho Hùng và có lệnh cho một trong hai mặt hàng
+nên Đã giao, Đã tạo 1/2 lệnh. Tab này chỉ để giao. Bấm vào dòng chỉ tick đơn, không mở được ngăn tạo lệnh.
+
+\Needspace*{12\baselineskip}
+\subsection{Giao đơn cho người phụ trách}\label{giao-don}
+
+\rong{khsx-12-giao-don.png}
+
+\so{1} Chip lọc theo trạng thái: Tất cả, Chưa giao, Đã giao. Nút \oo{Lọc} lọc thêm theo khách hàng hoặc
+theo người phụ trách.
+\so{2} Tick một hoặc nhiều đơn, hoặc bấm vào dòng. Ô tick ở đầu cột chọn cả trang.
+\so{3} Cột Người phụ trách: tên người đang được giao, chưa giao thì để trống.
+\so{4} Cạnh chip lọc hiện \q{Đã chọn N đơn}. Bấm \oo{Giao}.
+
+\rong[0.5\linewidth]{khsx-13-hop-giao.png}
+
+\so{1} Hộp Giao chỉ liệt kê người cùng phòng (kể cả phòng con) có Thao tác ở Lệnh sản xuất, có cả bản thân. Gõ tên
+người hoặc tên phòng để lọc, gõ không dấu cũng được.
+\so{2} Chọn một người. Ở ảnh là chín người của Phòng kỹ thuật, tên tổ trưởng có chữ \q{(bạn)}.
+\so{3} Bấm \oo{Giao}.
+
+Giao xong, màn báo \q{Đã giao 1 đơn cho Hoàng Phi Hùng}. DH006 chuyển sang Đã giao, cột Người phụ trách ghi Hoàng
+Phi Hùng, chấm đỏ trên tab Hàng chờ tiếp nhận tắt vì không còn đơn chưa giao.
+
+Đơn đang giao cho người khác thì hộp hỏi lại, ví dụ \q{1 đơn đang giao cho X sẽ chuyển sang Y}. Bấm \oo{Chuyển}.
+Lệnh đã tạo của đơn đó vẫn giữ người phụ trách cũ, các dòng còn lại thuộc người mới.
+
+Người được giao nhận thông báo ngay, tab \oo{Tạo lệnh} của họ có chấm đỏ.
+
+\Needspace*{14\baselineskip}
+\subsection{Tab Tạo lệnh}\label{tab-tao-lenh}
+
+Tab này hiện đơn đã giao mà còn dòng chưa có lệnh. Đơn chưa giao không có ở đây, kể cả với người có ô Giao đơn:
+muốn tự làm thì giao cho chính mình trước.
+
+\rong{khsx-14-tao-lenh.png}
+
+\so{1} Tab Tạo lệnh. Ảnh chụp từ tài khoản Hùng, không có ô Giao đơn nên chỉ có hai tab Tạo lệnh và Lệnh sản xuất.
+Chấm đỏ còn đó khi có đơn mới giao cho mình mà chưa mở.
+\so{2} DH006 vừa giao cho Hùng nên có chấm đỏ trước mã đơn, mở đơn thì tắt. Bấm vào dòng để mở ngăn Lệnh dự kiến.
+\so{3} Cột Người phụ trách.
+
+Tab này không có chip trạng thái vì đơn nào ở đây cũng đã giao. Cột Lệnh cho biết đơn đã tạo được bao nhiêu lệnh,
+như DH005 ở ảnh là 1/2. Tab này và tab Lệnh sản xuất lọc theo người phụ trách, đọc phạm vi ở dòng Lệnh sản xuất của ma trận quyền:
+
+\begin{itemize}
+\item Của tôi: chỉ đơn và lệnh mình phụ trách.
+\item Cả phòng: đơn và lệnh của người trong phòng mình, kể cả phòng con.
+\item Tất cả: mọi đơn đã giao, mọi lệnh.
+\end{itemize}
+
+Thành viên Phòng kỹ thuật ở ví dụ có phạm vi Của tôi, nên Hùng chỉ thấy DH005 và DH006 là hai đơn giao cho mình.
+
+Người tạo lệnh cho đơn người khác phụ trách (vì phạm vi cho phép) thì lệnh vẫn do người phụ trách đơn phụ trách. Đầu
+ngăn Lệnh dự kiến ghi \q{Người phụ trách: X}, nhật ký ghi là tạo hộ, X nhận thông báo.
 
 \Needspace*{14\baselineskip}
 \subsection{Ngăn Lệnh dự kiến}\label{lenh-du-kien}
 
-Bấm một dòng, ngăn bên phải mở ra với mỗi mặt hàng của đơn là một lệnh dự kiến.
+Bấm một dòng ở tab Tạo lệnh, ngăn bên phải mở ra với mỗi mặt hàng của đơn là một lệnh dự kiến.
 
 \rong[0.9\linewidth]{khsx-11-lenh-du-kien.png}
 
@@ -212,7 +281,13 @@ Tạo xong, màn chuyển sang tab \oo{Lệnh SX}, lọc sẵn theo đơn vừa 
 ở trạng thái Nháp. Hàng gấp và hạn giao chép từ đơn, ô Hạn hoàn thành sản xuất để trống chờ kế hoạch điền. Phần
 mềm tự dựng khâu chuẩn bị giấy (cắt cuộn, tề giấy) theo nguồn giấy đang có trong kho.
 
-Tab Lệnh SX có ba chip lọc Tất cả, Nháp, Sẵn sàng. Cột Hạn sản xuất tô màu theo số ngày còn dư so với hạn giao.
+Ở ví dụ, Hùng để nguyên ba dòng đã tick, bấm \oo{Xác nhận tạo 3 lệnh sản xuất}. Màn báo \q{Đã tạo 3 lệnh: LSX26-0021,
+LSX26-0020, LSX26-0019} và hiện ba lệnh Nháp của DH006. DH006 rời tab Tạo lệnh và Hàng chờ tiếp nhận vì cả ba dòng đã
+có lệnh.
+
+Tab Lệnh SX có ba chip lọc Tất cả, Nháp, Sẵn sàng. Chip \oo{Của tôi} ở góc phải chỉ giữ lệnh mình phụ trách, có ích
+khi phạm vi là Cả phòng hoặc Tất cả. Cột
+Hạn sản xuất tô màu theo số ngày còn dư so với hạn giao.
 
 % ============================================================
 \Needspace*{16\baselineskip}
@@ -738,7 +813,9 @@ Hàng gia công trọn gói và bước gia công cuối chuỗi không qua KCS:
 \begin{description}[style=nextline,leftmargin=0pt,font=\normalfont\tieude\small]
 \item[Kinh doanh nói đã chốt đơn mà Hàng chờ tiếp nhận không có?]
 Đơn cần cọc chưa đủ cọc thì chưa sang sản xuất.
-Hỏi Kế toán, hoặc xem đơn ở \kd{don-coc}{Chờ cọc}. Đơn đã có lệnh cho mọi dòng cũng rời hàng chờ.
+Hỏi Kế toán, hoặc xem đơn ở \kd{don-coc}{Chờ cọc}. Đơn đã có lệnh cho mọi dòng cũng rời hàng chờ. Không có
+ô Giao đơn thì không có tab Hàng chờ tiếp nhận: đơn chỉ hiện ở tab Tạo lệnh khi đã giao cho người trong phạm vi
+của mình, nhờ người giao đơn chia cho (mục \ref{giao-don}).
 
 \item[Nút Sẵn sàng lập kế hoạch mờ?]
 Đọc \oo{Còn thiếu N mục} ở đầu chi tiết lệnh, bấm từng mục để tới chỗ sửa

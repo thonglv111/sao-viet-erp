@@ -378,8 +378,11 @@ def _bao_xuong_sx(db: Session, d: OrderDetailOut, user: User) -> None:
     lúc chốt / lúc đủ cọc. Hàng chờ Kế hoạch SX (badge + toast người có `san_xuat`) + nhóm
     `ban_hang`/`san_xuat`. Đơn mới vào hàng chờ, chưa có công việc nào ở bàn tổ."""
     hub.gui({"type": "order_ordered", "code": d.order_no, "order_id": d.id}, quyen=NGHE_LENH)
-    # Chấm đỏ Kế hoạch SX — chuyển lại (idempotent) không đẻ thêm dòng.
-    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True)
+    # Chấm đỏ Kế hoạch SX — chuyển lại (idempotent) không đẻ thêm dòng. Chỉ NGƯỜI GIAO (ô Giao đơn
+    # `san_xuat:reassign`) nhận: đơn mới vào hàng chờ ở trạng thái Chưa giao, người phụ trách chỉ
+    # được báo khi có đơn giao cho mình (08/11/2026, docs/design-giao-don-lam-lenh.md).
+    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True,
+        quyen="reassign")
 
 
 # --- Hủy đơn (P5) — nháp hay đã chốt đều cần `update` (hủy đã chốt mặc định bật) ----

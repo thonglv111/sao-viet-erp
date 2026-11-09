@@ -59,11 +59,13 @@ def test_0291_mot_lenh_mot_moc():
 
 
 def test_0291_khop_voi_model():
-    """Migration và model phải tả CÙNG một bảng — lệch là DB live khác DB test, im lặng."""
+    """Migration và model phải tả CÙNG một bảng — lệch là DB live khác DB test, im lặng. Chạy cả
+    các migration về sau thêm cột cho bảng này (`0470` hẹn đẩy, 08/11/2026)."""
     from app.models.xep_lich_lenh import XepLichLenh
 
     eng, db = _db_trang()
     with db:
         _chay(db, "0291_xep_lich_lenh")
+        _chay(db, "0470_xep_lich_hen_day")
         cols = {c["name"] for c in inspect(eng).get_columns("xep_lich_lenh")}
     assert cols == {c.name for c in XepLichLenh.__table__.columns}

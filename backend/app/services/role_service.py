@@ -55,7 +55,7 @@ SCOPELESS_MODULES = frozenset(MODULE_KEYS) | {
     # Ba màn tách khỏi `san_xuat` ngày 17/08/2026. Đã soi: KHÔNG router nào của chúng đọc scope
     # (`bai_ghep_2.py` · `xep_lich.py` · `ke_hoach_vat_tu.py` đều 0 lần) — bài ghép và lịch xưởng
     # là bức tranh chung, không có "bài ghép của tôi". Riêng `san_xuat` KHÔNG vào đây: `lsx.py` đọc
-    # scope thật (`_owner_ids_for_scope`) — từ 14/10/2026 theo CHỦ ĐƠN, như Đơn hàng bán.
+    # scope thật (`_phu_trach_ids`) — từ 08/11/2026 theo NGƯỜI PHỤ TRÁCH lệnh (trước đó theo chủ đơn).
     # Khoá `bai_ghep` gỡ 18/08/2026 (mg 0216) — quyền đã chép sang `bai_ghep_2`.
     "ke_hoach_vat_tu",
     "bai_ghep_2",

@@ -3,8 +3,8 @@
 Thiết kế: `docs/superpowers/plans/2026-09-19-giao-hang-tien-do-don.md`.
 
 Chỉ ĐỌC, không một cột nào mới. Ba nguồn đã có sẵn, gộp theo CỤM BÁN (một sản phẩm khách mua):
-  · Sản xuất — lệnh của đơn (`lsx.order_line_id`), % và dự kiến xong tính bằng đúng hàm bảng lệnh
-    dùng (`lenh_sx.danh_sach._soi`, `tien_do.phan_tram`) để hai màn không vênh số;
+  · Sản xuất — lệnh của đơn (`lsx.order_line_id`), % tính bằng đúng hàm bảng lệnh dùng
+    (`lenh_sx.danh_sach._soi`, `tien_do.phan_tram`) để hai màn không vênh số;
   · Nhập kho — dòng yêu cầu NHẬP thành phẩm KCS gửi cho lệnh của đơn (đề nghị / kho đã nhận);
   · Giao hàng — `DeliveryService.nguon_giao_theo_cum` (đã giao / đang giữ / giao được).
 """
@@ -20,14 +20,6 @@ from ..repositories.delivery_repo import DeliveryRepository
 from ..repositories.employee_repo import EmployeeRepository
 from ..repositories.order_repo import OrderRepository
 from .delivery_service import DeliveryService
-
-
-def _ngay(dt: datetime | None):
-    if dt is None:
-        return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc).date()
 
 
 def tien_do_don(db: Session, order) -> dict:
@@ -47,7 +39,7 @@ def tien_do_don(db: Session, order) -> dict:
         l = lenh[i]
         if i not in tinh:
             return {"id": i, "ma": l.ma, "da_xuong_xuong": False, "pct": 0.0, "uoc_tinh": False,
-                    "xong": False, "buoc_hien_tai": None, "du_kien_xong": None,
+                    "xong": False, "buoc_hien_tai": None,
                     "trang_thai": None, "canh_bao": []}
         pct, uoc = tien_do.phan_tram(bc, i)
         if l.trang_thai == TT_DA_DONG:
@@ -60,7 +52,6 @@ def tien_do_don(db: Session, order) -> dict:
             "xong": (bool(cvs) and all(c.trang_thai == CV_HOAN_THANH for c in cvs))
             or l.trang_thai == TT_DA_DONG,
             "buoc_hien_tai": cv.ten_cong_doan if cv is not None else None,
-            "du_kien_xong": tinh[i]["xong"],
             "trang_thai": tinh[i]["trang_thai"],
             "canh_bao": list(tinh[i]["canh_bao"]),
         }
@@ -74,8 +65,6 @@ def tien_do_don(db: Session, order) -> dict:
     mon_theo_khoa = {m["khoa"]: m for m in tom.get("mon", [])}
 
     cum_out: list[dict] = []
-    moc_xong: list[datetime] = []
-    thieu_moc = False
     ly_do: set[str] = set()
     for n in nguon:
         c = n["cum"]
@@ -86,11 +75,6 @@ def tien_do_don(db: Session, order) -> dict:
             ly_do.update(x["canh_bao"])
             if not x["da_xuong_xuong"]:
                 ly_do.add("chua_xuong_xuong")
-                thieu_moc = True
-            elif x["du_kien_xong"] is None:
-                thieu_moc = True
-            else:
-                moc_xong.append(x["du_kien_xong"])
         de_nghi, da_nhan = n["kho_de_nghi"], n["kho_da_nhan"]
         cum_out.append({
             "khoa": c.khoa,
@@ -118,17 +102,10 @@ def tien_do_don(db: Session, order) -> dict:
             "lenh_o": (mon_theo_khoa.get(c.khoa) or {}).get("lenh", []),
         })
 
-    han = order.delivery_committed_date
-    du_kien = max(moc_xong) if moc_xong and not thieu_moc else None
-    tre = None
-    if han is not None and du_kien is not None:
-        tre = max(0, (_ngay(du_kien) - han).days)
+    # "Dự kiến xong", số ngày trễ dự báo và "chưa đủ dữ liệu" GỠ 08/11/2026 cùng tốc độ máy.
     return {
         "order_id": order.id,
-        "han_cam_ket": han,
-        "du_kien_xong": du_kien,
-        "chua_du_du_lieu": thieu_moc and any(not x["sx_xong"] for x in cum_out if x["co_lenh"]),
-        "tre_ngay": tre,
+        "han_cam_ket": order.delivery_committed_date,
         "ly_do": sorted(ly_do),
         "cum": cum_out,
         "yeu_cau": _yeu_cau(svc, order),

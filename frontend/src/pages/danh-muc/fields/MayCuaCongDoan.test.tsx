@@ -38,25 +38,52 @@ describe("MayCuaCongDoanField", () => {
   it("tick tổ A chỉ hiện máy của tổ A", () => {
     bay({ value: [], options: MAY_TO, toDangTick: [1], tenTo: TEN_TO, nhomCongDoan: "print",
           onChange: () => {} });
-    expect(screen.getByRole("button", { name: /IN-01/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /IN-02/ })).toBeNull();
+    expect(screen.getByText(/IN-01/)).toBeInTheDocument();
+    expect(screen.queryByText(/IN-02/)).toBeNull();
   });
 
   it("tick thêm tổ B thì máy tổ B hiện kèm công thức đã khai lúc trước", () => {
     bay({ value: [{ may_id: 11 }], options: MAY_TO, toDangTick: [1, 2], tenTo: TEN_TO,
-          mayKhai: [{ may_id: 12, cong_thuc_gio: "sl_vao * 2" }], nhomCongDoan: "print",
+          mayKhai: [{ may_id: 12, cong_thuc_gia: "sl_vao * 2" }], nhomCongDoan: "print",
           onChange: () => {} });
-    const o = screen.getAllByTitle("Sửa cách đo giờ chạy của máy này").map((b) => b.textContent);
+    const o = screen.getAllByTitle("Sửa cách tính giá của máy này").map((b) => b.textContent);
     expect(o).toEqual(["—", "sl_vao * 2", "—"]);
   });
 
   it("máy thuộc hai tổ đang tick là MỘT dòng, hai chip tổ", () => {
     bay({ value: [], options: MAY_TO, toDangTick: [1, 2], tenTo: TEN_TO, nhomCongDoan: "print",
           onChange: () => {} });
-    expect(screen.getAllByRole("button", { name: /IN-03/ })).toHaveLength(1);
-    const dong = screen.getByRole("button", { name: /IN-03/ }).closest("tr") as HTMLElement;
+    expect(screen.getAllByText(/IN-03/)).toHaveLength(1);
+    const dong = screen.getByText(/IN-03/).closest("tr") as HTMLElement;
     expect(dong.textContent).toContain("Tổ A");
     expect(dong.textContent).toContain("Tổ B");
+  });
+
+  it("bảng không còn tốc độ, canh máy, cách đo giờ chạy (bỏ tốc độ máy 08/11/2026)", () => {
+    const { container } = bay({ value: [{ may_id: 1 }], options: MAY, nhomCongDoan: "print",
+          onChange: () => {} });
+    const chu = container.textContent ?? "";
+    expect(chu).not.toContain("Tốc độ chạy");
+    expect(chu).not.toContain("Canh máy");
+    expect(chu).not.toContain("Cách đo giờ chạy");
+    expect(screen.queryByTitle("Sửa cách đo giờ chạy của máy này")).toBeNull();
+    // Cột Cách tính giá ở lại.
+    expect(chu).toContain("Cách tính giá");
+  });
+
+  it("sửa giá vẫn chở nguyên công thức giờ cũ của dòng, không xoá trắng", async () => {
+    const user = userEvent.setup();
+    let gui: MayCongDoanRow[] = [];
+    function Bang() {
+      const [v, setV] = useState<MayCongDoanRow[]>(
+        [{ may_id: 1, cong_thuc_gio: "sl_vao / 2", cong_thuc_gia: null }]);
+      return <MayCuaCongDoanField value={v} options={MAY}
+        nhomCongDoan="print" onChange={(x) => { gui = x; setV(x); }} />;
+    }
+    render(<AuthContext.Provider value={AUTH}><Bang /></AuthContext.Provider>);
+    await user.click(screen.getByTitle("Sửa cách tính giá của máy này"));
+    await user.click(screen.getByRole("button", { name: "×" }));
+    expect(gui[0].cong_thuc_gio).toBe("sl_vao / 2");
   });
 
   it("không còn ô chọn máy tay lẫn nút xoá dòng", () => {
@@ -76,20 +103,9 @@ describe("MayCuaCongDoanField", () => {
         nhomCongDoan="print" onChange={(x) => { gui = x; setV(x); }} />;
     }
     render(<AuthContext.Provider value={AUTH}><Bang /></AuthContext.Provider>);
-    await user.click(screen.getAllByTitle("Sửa cách đo giờ chạy của máy này")[0]);
+    await user.click(screen.getAllByTitle("Sửa cách tính giá của máy này")[0]);
     await user.click(screen.getByRole("button", { name: "×" }));
     expect(gui.map((r) => r.may_id)).toEqual([12, 13]);
-  });
-
-  it("bấm tên máy mở Ô GIỜ, không kéo theo ô giá", async () => {
-    const user = userEvent.setup();
-    bay({ value: [{ may_id: 1 }], options: MAY, nhomCongDoan: "print",
-          onChange: () => {} });
-    await user.click(screen.getByRole("button", { name: /Komori 5 màu/ }));
-    // `nhanO` render ra `<span className="rc-formula__editor-label">`, KHÔNG phải `<label for>`
-    // ⇒ dùng `getByText`, `getByLabelText` sẽ không thấy.
-    expect(screen.getByText(/^Công thức giờ chạy — /)).toBeInTheDocument();
-    expect(screen.queryByText("Công thức giá")).not.toBeInTheDocument();
   });
 
   it("bấm ô giá của DÒNG NÀO thì mở đúng ô giá của dòng ấy", async () => {
@@ -157,14 +173,13 @@ describe("MayCuaCongDoanField", () => {
     expect(o().textContent).toBe("sl_vao * 420 *");
   });
 
-  it("công đoạn KHÔNG thuộc nhóm In thì không có ô công thức giá", async () => {
-    const user = userEvent.setup();
+  it("công đoạn KHÔNG thuộc nhóm In thì không có ô công thức nào", () => {
     bay({ value: [{ may_id: 2 }], options: MAY, nhomCongDoan: "finishing",
           onChange: () => {} });
-    await user.click(screen.getByRole("button", { name: /Yawa 1050/ }));
-    expect(screen.getByText(/^Công thức giờ chạy — /)).toBeInTheDocument();
-    expect(screen.queryByText("Công thức giá")).not.toBeInTheDocument();
+    expect(screen.getByText(/Yawa 1050/)).toBeInTheDocument();
+    expect(screen.queryByText("Cách tính giá")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Sửa cách tính giá của máy này")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("Sửa cách đo giờ chạy của máy này")).not.toBeInTheDocument();
   });
   it("popup TRỐNG mời lấy công thức chung hoặc chép từ máy khác; tiêu đề ghi tên máy", async () => {
     const user = userEvent.setup();

@@ -14,12 +14,16 @@ cấp lệnh không cần ai gán lại.
 RBAC MODULE = "xep_lich". `lsx_id` là FK THẬT + `ondelete=CASCADE` (lớp chặn cuối ở DB) và
 UNIQUE: màn ở cấp LỆNH nên hai mốc cho một lệnh là mâu thuẫn chứ không phải dữ liệu. Bảng mới →
 `create_all` tự tạo trên DB trắng; DB live nhận qua migration `0291`.
+
+08/11/2026 (mg `0470`): bàn Xếp lịch thành bàn HẸN ĐẨY — `bat_dau_at` là giờ hẹn đẩy lệnh xuống
+xưởng, tới giờ vòng nền `services/xep_lich/hen_day.py` tự đẩy BẰNG QUYỀN của người hẹn
+(`nguoi_hen_id`). Đẩy không được thì lệnh "kẹt": `ket_ly_do` + `ket_luc`, chờ người hẹn lại.
 """
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer
+from sqlalchemy import DateTime, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..db import Base
@@ -49,3 +53,8 @@ class XepLichLenh(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
+    # Hẹn đẩy (mg 0470): người hẹn — tới giờ, vòng nền đẩy bằng quyền của đúng người này.
+    nguoi_hen_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # soft → users.id
+    # Tới giờ mà đẩy không được ⇒ câu lỗi + lúc kẹt (UTC thật). Hẹn lại thì xoá cả hai.
+    ket_ly_do: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ket_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

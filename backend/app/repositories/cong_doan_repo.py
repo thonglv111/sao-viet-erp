@@ -199,7 +199,10 @@ class CongDoanRepository(CatalogRepo):
                 dong = CongDoanMay(may_id=mid)
                 cd.may_khai.append(dong)
                 cu[mid] = dong
-            dong.cong_thuc_gio = r.get("cong_thuc_gio")
+            # Bỏ tốc độ máy (08/11/2026): form và Excel thôi gửi `cong_thuc_gio` — vắng khoá thì
+            # giữ câu cũ trong DB, không ghi null.
+            if "cong_thuc_gio" in r:
+                dong.cong_thuc_gio = r.get("cong_thuc_gio")
             dong.cong_thuc_gia = r.get("cong_thuc_gia")
             dong.thu_tu = i
             i += 1

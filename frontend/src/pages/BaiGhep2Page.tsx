@@ -20,7 +20,6 @@ import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { BaiGhepDagCanvas, mauNhanh } from "../components/BaiGhepDagCanvas";
 import { Button } from "../components/Button";
-import { ChonNgay } from "../components/ChonNgay";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
@@ -400,7 +399,7 @@ function QueueTable({
             <th className="khsx-th--num" style={{ width: 120 }}>
               Số lượng
             </th>
-            <th style={{ width: 110 }}>Hạn in</th>
+            <th style={{ width: 110 }}>Hạn giao</th>
           </tr>
         </thead>
         {rows == null ? (
@@ -475,8 +474,8 @@ function QueueTable({
                     </div>
                   </td>
                   <td>
-                    <span className={`bg2-date-val ${classHan(r.han_hoan_thanh_sx)}`}>
-                      {ngay(r.han_hoan_thanh_sx)}
+                    <span className={`bg2-date-val ${classHan(r.han_giao_khach)}`}>
+                      {ngay(r.han_giao_khach)}
                     </span>
                   </td>
                 </tr>
@@ -506,7 +505,7 @@ function GangList({
             <th className="khsx-th--num" style={{ width: 140 }}>
               Tờ chạy
             </th>
-            <th style={{ width: 130 }}>Hạn in</th>
+            <th style={{ width: 130 }}>Hạn giao</th>
             <th style={{ width: 160 }}>Trạng thái</th>
           </tr>
         </thead>
@@ -560,8 +559,8 @@ function GangList({
                   </div>
                 </td>
                 <td>
-                  <span className={`bg2-date-val ${classHan(r.han_hoan_thanh_sx)}`}>
-                    {ngay(r.han_hoan_thanh_sx)}
+                  <span className={`bg2-date-val ${classHan(r.han_giao_khach)}`}>
+                    {ngay(r.han_giao_khach)}
                   </span>
                 </td>
                 <td>
@@ -579,7 +578,6 @@ function GangList({
 type MetaForm = BaiGhep2UpdateBody & { ten: string; is_rush: boolean };
 const toForm = (d: BaiGhep2Detail): MetaForm => ({
   ten: d.ten,
-  han_hoan_thanh_sx: d.han_hoan_thanh_sx,
   is_rush: d.is_rush,
   nguoi_phu_trach_id: d.nguoi_phu_trach_id,
   ghi_chu: d.ghi_chu ?? "",
@@ -778,7 +776,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
         <Kpi label="Giấy lĩnh kho" value={num(d.so_to.to_nguyen_can)} />
         <Kpi label="Bước chung" value={num(d.so_to.so_buoc_chung)} />
         <Kpi label="Vật tư" value={materials ? num(totalMaterials) : "Xem tab"} />
-        <Kpi label="Hạn" value={ngay(d.han_hoan_thanh_sx)} danger={classHan(d.han_hoan_thanh_sx)} />
+        <Kpi label="Hạn giao" value={ngay(d.han_giao_khach)} danger={classHan(d.han_giao_khach)} />
         {/* Ô "Khoán bước chung" GỠ 11/09/2026: bài ghép chọn ĐẦU VIỆC, không chốt TIỀN. */}
       </section>
 
@@ -815,7 +813,6 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
         <PanelHead icon="pencil" title="Thông tin kế hoạch" action={dirty ? <><Button variant="ghost" onClick={() => setForm(toForm(d))}>Hoàn tác</Button><Button variant="primary" loading={saving} onClick={save}>Lưu</Button></> : null} />
         <div className="bg2-form-grid">
           <label className="khsx-field"><span>Tên bài ghép</span><input disabled={!suaDuoc} value={form.ten} onChange={(e) => setForm({ ...form, ten: e.target.value })} /></label>
-          <label className="khsx-field"><span>Hạn hoàn thành sản xuất</span><ChonNgay disabled={!suaDuoc} aria-label="Hạn hoàn thành sản xuất" value={form.han_hoan_thanh_sx ?? ""} onChange={(v) => setForm({ ...form, han_hoan_thanh_sx: v || null })} /></label>
           <label className="khsx-field"><span>Người phụ trách</span><select disabled={!suaDuoc} value={form.nguoi_phu_trach_id ?? ""} onChange={(e) => setForm({ ...form, nguoi_phu_trach_id: e.target.value ? Number(e.target.value) : null })}><option value="">— chưa phân công —</option>{form.nguoi_phu_trach_id != null && !owners.some((x) => x.id === form.nguoi_phu_trach_id) && <option value={form.nguoi_phu_trach_id}>{d.nguoi_phu_trach_ten || `Người dùng #${form.nguoi_phu_trach_id}`}</option>}{owners.map((owner) => <option key={owner.id} value={owner.id}>{owner.ten}</option>)}</select></label>
           <label className="bg2-check"><input type="checkbox" disabled={!suaDuoc} checked={form.is_rush} onChange={(e) => setForm({ ...form, is_rush: e.target.checked })} /><span>Hàng gấp · ưu tiên ở xưởng</span></label>
           <label className="khsx-field bg2-form-wide"><span>Ghi chú kế hoạch</span><textarea rows={3} disabled={!suaDuoc} value={form.ghi_chu ?? ""} onChange={(e) => setForm({ ...form, ghi_chu: e.target.value })} /></label>
@@ -829,7 +826,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
               {tv.trang_thai_lsx && <TrangThaiPill tt={tv.trang_thai_lsx as LsxTrangThai} />}
             </span>
             <span className="bg2-member__sub">{tv.lsx_ten || "—"}{tv.customer_name ? ` · ${tv.customer_name}` : ""}</span>
-            <span className={`bg2-date-val ${classHan(tv.han_hoan_thanh_sx)}`}>hạn {ngay(tv.han_hoan_thanh_sx)}</span>
+            <span className={`bg2-date-val ${classHan(tv.han_giao_khach)}`}>hạn giao {ngay(tv.han_giao_khach)}</span>
           </button>
           <span>{num(tv.so_luong_dat)} {tv.don_vi_tinh}</span><span>{tv.so_con_tren_to} con/tờ</span>
           {suaDuoc && <button type="button" className="bg2-icon-btn" title="Bỏ lệnh khỏi bài" aria-label={`Bỏ ${tv.lsx_ma}`} onClick={() => token && mutate(() => api.baiGhep2.boThanhVien(token, id, tv.thanh_vien_id))}><Icon name="x" size={15} /></button>}
@@ -942,7 +939,7 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
                     {tv.trang_thai_lsx && <TrangThaiPill tt={tv.trang_thai_lsx as LsxTrangThai} />}
                   </div>
                   <span>{tv.lsx_ten || "—"}{tv.customer_name ? ` · ${tv.customer_name}` : ""}</span>
-                  <span>hạn {ngay(tv.han_hoan_thanh_sx)}{tv.quy_cach_in ? ` · ${CACH_IN_NHAN[tv.quy_cach_in] ?? tv.quy_cach_in}` : ""}</span>
+                  <span>hạn giao {ngay(tv.han_giao_khach)}{tv.quy_cach_in ? ` · ${CACH_IN_NHAN[tv.quy_cach_in] ?? tv.quy_cach_in}` : ""}</span>
                   <span>{tv.giay_ten || "Chưa có giấy"} · khổ TP {formatKhoTp(tv.kho_tp)} · {tv.so_mau_a ?? 0}/{tv.so_mau_b ?? 0}
                     {[...tv.muc_a, ...tv.muc_b].length > 0 && ` (${[...new Set([...tv.muc_a, ...tv.muc_b])].join("+")})`}</span>
                 </div>

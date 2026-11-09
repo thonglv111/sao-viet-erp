@@ -60,6 +60,9 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   care_moved: ["ban_hang"],
   // Đơn chốt xuống sản xuất: hàng chờ Kế hoạch SX + bước "Sản xuất" ở Đơn hàng.
   order_ordered: ["ban_hang", "san_xuat"],
+  // Giao đơn / tạo hộ lệnh (08/11/2026): hàng chờ + bảng lệnh của người được giao nạp lại.
+  don_giao_lam_lenh: ["san_xuat"],
+  lsx_tao_ho: ["san_xuat"],
   order_sx_hint_changed: ["ban_hang", "san_xuat"],
 
   // Nhân sự: nghỉ phép · tăng ca · chấm công · tạm ứng lương.

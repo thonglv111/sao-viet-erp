@@ -106,12 +106,12 @@ def _co_buoc(cot_cong_viec, cot_routing, gia_tri):
     )
 
 
-# Mốc ngày của dải kỳ (06/10/2026): (cột, là cột Date). Mặc định `tao` = ngày tạo lệnh; khoảng
-# hạn SX cũ nay là `moc=han_sx`.
+# Mốc ngày của dải kỳ (06/10/2026): (cột, là cột Date). Mặc định `tao` = ngày tạo lệnh. Hạn SX nội
+# bộ đã gỡ 08/11/2026: `moc=han_sx` của link cũ vẫn nhận và hiểu như hạn giao.
 MOC = {
     "tao": (Lsx.created_at, False),
-    "han_sx": (Lsx.han_hoan_thanh_sx, True),
     "han_giao": (Lsx.han_giao_khach, True),
+    "han_sx": (Lsx.han_giao_khach, True),
 }
 
 
@@ -162,17 +162,14 @@ def _soi(db: Session, lsx_ids: list[int], bay_gio: datetime) -> tuple[BoiCanh, d
 
     `den_vat_tu` BẮT BUỘC truyền vào `trang_thai_chinh`/`co_canh_bao`: bỏ trống là im lặng bỏ cờ
     `thieu_vat_tu` (xem docstring `trang_thai.py`), và khi đó tab Cảnh báo thiếu người mà không ai
-    biết. `xong` cũng truyền vào để đường găng chỉ duyệt MỘT lần cho mỗi lệnh thay vì bốn.
     """
     bc = boi_canh.nap(db, lsx_ids)
     den = _den_vat_tu_co_cache(db, lsx_ids)
     ket: dict[int, dict] = {}
     for i in lsx_ids:
-        xong = tien_do.du_kien_xong(bc, i, bay_gio)
-        co = trang_thai.co_canh_bao(bc, i, bay_gio, den_vat_tu=den, xong=xong)
-        tt = trang_thai.trang_thai_chinh(bc, i, bay_gio, den_vat_tu=den, xong=xong)
+        co = trang_thai.co_canh_bao(bc, i, bay_gio, den_vat_tu=den)
+        tt = trang_thai.trang_thai_chinh(bc, i, bay_gio, den_vat_tu=den)
         ket[i] = {
-            "xong": xong,
             "canh_bao": co,
             "trang_thai": tt,
             "tre": trang_thai.CO_TRE_HAN in co,
@@ -374,13 +371,13 @@ def _khoa_sap(lsx: LenhNhe) -> tuple:
     Nhận `LenhNhe` (ba cột phẳng) chứ không `bc.lenh[...]`: từ A7 lệnh đã giao hết KHÔNG qua
     `boi_canh.nap()` nữa, nhưng vẫn phải đứng đúng chỗ trong tab Hoàn thành / Tất cả.
     """
-    return (0 if lsx.is_rush else 1, lsx.han_hoan_thanh_sx or _NGAY_XA, lsx.ma or "")
+    return (0 if lsx.is_rush else 1, lsx.han_giao_khach or _NGAY_XA, lsx.ma or "")
 
 
 def _khoa_sap_tra_cuu(lsx: LenhNhe) -> tuple:
-    """Tab Tất cả / Đã giao đủ: hạn SX GIẢM dần, lệnh chưa có hạn xuống cuối, mã làm nấc cuối để
+    """Tab Tất cả / Đã giao đủ: hạn giao GIẢM dần, lệnh chưa có hạn xuống cuối, mã làm nấc cuối để
     thứ tự toàn phần (trang 1 và trang 2 không chồng nhau)."""
-    han = lsx.han_hoan_thanh_sx
+    han = lsx.han_giao_khach
     return (0 if han is not None else 1, -han.toordinal() if han is not None else 0, lsx.ma or "")
 
 

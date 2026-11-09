@@ -409,8 +409,9 @@ def test_xuat_bang_con_ra_sheet_doc_duoc_khong_phai_json(client, seed_credential
     assert "Đầu việc định mức" not in wb.sheetnames, "sheet của tầng đã gỡ (mg `0320`)"
 
     wb = _xuat(client, h, PREFIX["may_thiet_bi"])
-    assert [d[2:] for d in _bang(wb["Khoản chuẩn bị"])[1]] == [["Canh máy", 20.0],
-                                                              ["Rửa lô", 15.0]]
+    # Sheet "Khoản chuẩn bị" GỠ 08/11/2026 (bỏ tốc độ máy): máy thôi khai thời gian chuẩn bị.
+    # Khoá `chuan_bi_khoan` cũ vẫn nằm trong DB — nó đi theo sheet ẨN để round-trip không mất.
+    assert "Khoản chuẩn bị" not in wb.sheetnames
     assert _bang(wb["Gói bảo trì"])[1][0][2] == "hm-1"
     assert [d[2:] for d in _bang(wb["Hạng mục bảo trì"])[1]] == [
         ["hm-1", "hm-1-1", "Lô nước"], ["hm-1", "hm-1-2", "Ru lô mực"]]
@@ -418,6 +419,7 @@ def test_xuat_bang_con_ra_sheet_doc_duoc_khong_phai_json(client, seed_credential
     # bày ra cho người khai sửa tay.
     assert SHEET_GIU in wb.sheetnames and wb[SHEET_GIU].sheet_state == "hidden"
     assert "khoa_la_khong_hieu" in _bang(wb[SHEET_GIU])[1][0][1]
+    assert "chuan_bi_khoan" in _bang(wb[SHEET_GIU])[1][0][1]
 
 
 # ======================================================================================
@@ -524,22 +526,24 @@ def test_sua_bac_bu_hao_va_xoa_mot_bac(client, seed_credentials):
 def test_thu_tu_o_sheet_con_quyet_dinh_thu_tu_luu(client, seed_credentials):
     """Cột `Thứ tự` quyết định, KHÔNG phải vị trí dòng — người ta chèn dòng mới ở cuối file.
 
-    Soi trên "Khoản chuẩn bị" của Máy chứ không phải "Bậc bù hao": bậc bù hao bắt mốc TĂNG DẦN nên
-    đảo thứ tự là bị cổng lưu chặn, không đọc ra được thứ tự đã lưu.
+    Soi trên "Hạng mục bảo trì" của Máy chứ không phải "Bậc bù hao": bậc bù hao bắt mốc TĂNG DẦN
+    nên đảo thứ tự là bị cổng lưu chặn, không đọc ra được thứ tự đã lưu. (Trước 08/11/2026 soi
+    trên sheet "Khoản chuẩn bị" — sheet đó gỡ cùng tốc độ máy.)
     """
     h = _login(client, **seed_credentials)
     nen = _dung_nen(client, h)
     prefix = PREFIX["may_thiet_bi"]
 
     wb = _xuat(client, h, prefix)
-    ws = wb["Khoản chuẩn bị"]
+    ws = wb["Hạng mục bảo trì"]
     ws.cell(row=2, column=2).value = 2
     ws.cell(row=3, column=2).value = 1
 
     kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
     assert kq["hop_le"], kq
     may = client.get(f"{prefix}/{nen['may_thiet_bi']['id']}", headers=h).json()
-    assert [k["ten"] for k in may["fields_theo_loai"]["chuan_bi_khoan"]] == ["Rửa lô", "Canh máy"]
+    goi = may["fields_theo_loai"]["lich_bao_tri"][0]
+    assert [k["ten"] for k in goi["hang_muc"]] == ["Ru lô mực", "Lô nước"]
 
 
 def test_them_dong_con_moi_cho_ma_da_co(client, seed_credentials):
@@ -548,13 +552,57 @@ def test_them_dong_con_moi_cho_ma_da_co(client, seed_credentials):
     prefix = PREFIX["may_thiet_bi"]
 
     wb = _xuat(client, h, prefix)
-    wb["Khoản chuẩn bị"].append([MA["may_thiet_bi"], 3, "Thay kẽm", 5])
+    wb["Hạng mục bảo trì"].append([MA["may_thiet_bi"], 3, "hm-1", "hm-1-3", "Bánh răng"])
     kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
     assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
 
     may = client.get(f"{prefix}/{nen['may_thiet_bi']['id']}", headers=h).json()
-    assert [k["ten"] for k in may["fields_theo_loai"]["chuan_bi_khoan"]] == [
-        "Canh máy", "Rửa lô", "Thay kẽm"]
+    goi = may["fields_theo_loai"]["lich_bao_tri"][0]
+    assert [k["ten"] for k in goi["hang_muc"]] == ["Lô nước", "Ru lô mực", "Bánh răng"]
+
+
+def test_xuat_may_khong_con_cot_toc_do_va_canh_may(client, seed_credentials):
+    """Bỏ tốc độ máy (08/11/2026): file Máy không còn mời khai tốc độ, đơn vị tốc độ, canh máy."""
+    h = _login(client, **seed_credentials)
+    _dung_nen(client, h)
+
+    tieu_de, _ = _chinh(client, h, "may_thiet_bi")
+    for xau in ("Tốc độ", "Đơn vị tốc độ", "Thời gian canh máy"):
+        assert not [t for t in tieu_de if xau in str(t)], (xau, tieu_de)
+    assert "Khoản chuẩn bị" not in _xuat(client, h, PREFIX["may_thiet_bi"]).sheetnames
+
+
+def test_nhap_file_may_doi_cu_con_cot_toc_do_thi_bo_qua_khong_ghi_de(client, seed_credentials):
+    """File xuất trước 08/11/2026 còn cột tốc độ / canh máy và sheet "Khoản chuẩn bị": vẫn nhập
+    được, các cột đó bị bỏ qua — số đang có trong DB GIỮ NGUYÊN dù file ghi số khác."""
+    h = _login(client, **seed_credentials)
+    nen = _dung_nen(client, h)
+    prefix = PREFIX["may_thiet_bi"]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = SHEET_META
+    ws.append(["khoa", "gia_tri"])
+    ws.append(["loai", "may_thiet_bi"])
+    ws.append(["phien_ban", PHIEN_BAN])
+    ws = wb.create_sheet(SPECS["may_thiet_bi"].tieu_de[:31])
+    ws.append(["Mã", "Tên", "Loại máy", "Tốc độ (trung bình)", "Tốc độ tối thiểu",
+               "Tốc độ tối đa", "Đơn vị tốc độ", "Thời gian canh máy mặc định"])
+    ws.append([MA["may_thiet_bi"], "Máy thử đổi tên", "Máy in", 1, 1, 2, "kem_gio", 99])
+    ws = wb.create_sheet("Khoản chuẩn bị")
+    ws.append(["Mã", "Thứ tự", "Tên khoản", "Số phút"])
+    ws.append([MA["may_thiet_bi"], 1, "Khoản lạ", 77])
+
+    kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
+    assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
+
+    may = client.get(f"{prefix}/{nen['may_thiet_bi']['id']}", headers=h).json()
+    assert may["ten"] == "Máy thử đổi tên"
+    assert (float(may["toc_do"]), float(may["toc_do_min"]), float(may["toc_do_max"])) == \
+        (8000, 4000, 12000)
+    assert may["don_vi_toc_do"] == "to"
+    assert float(may["makeready_time_default"]) == 30
+    assert [k["ten"] for k in may["fields_theo_loai"]["chuan_bi_khoan"]] == ["Canh máy", "Rửa lô"]
 
 
 def test_sua_goi_bao_tri_khong_lam_mat_khoa_khong_co_cot(client, seed_credentials):
@@ -1012,15 +1060,57 @@ def test_guard_khong_khai_thua_field_khong_ai_ghi_duoc():
         assert not thua, f"{loai}: cột Excel {sorted(thua)} trỏ vào field repo không cho ghi"
 
 
-def test_excel_cong_doan_co_cot_cach_do_gio_chay():
-    """Sheet con của công đoạn phải chở ĐỦ ô công thức: định mức từng vật tư + giờ/giá theo máy.
+def test_excel_cong_doan_may_chi_con_cach_tinh_gia():
+    """Sheet con của công đoạn chở định mức từng vật tư + công thức GIÁ theo máy.
 
-    Thiếu cột nào là nhập một file xuất ra từ chính hệ cũng xoá sạch ô đó của mọi công đoạn —
-    `CongDoanRepository._sau_gan` thay TRỌN bảng con mỗi lần ghi.
+    "Công thức giờ chạy" GỠ 08/11/2026 (bỏ tốc độ máy): máy thôi đo giờ chạy theo công thức.
     """
     from app.services.catalog_excel_specs import SPECS
 
     con = {s.field: [c.field for c in s.cot] for s in SPECS["cong_doan"].sheets_con}
     assert "dau_viec_dinh_muc" not in con, "tầng đầu việc định mức đã gỡ (mg `0320`)"
     assert con["vat_tus"] == ["vat_tu_id"]
-    assert {"cong_thuc_gio", "cong_thuc_gia"} <= set(con["may_lam_duoc"])
+    assert "cong_thuc_gia" in con["may_lam_duoc"]
+    assert "cong_thuc_gio" not in con["may_lam_duoc"]
+    nhan = [c.nhan for s in SPECS["cong_doan"].sheets_con for c in s.cot]
+    assert "Công thức giờ chạy" not in nhan
+
+
+def test_nhap_sheet_may_cua_cong_doan_giu_nguyen_cong_thuc_gio_trong_db(client, seed_credentials):
+    """Sheet "Máy của công đoạn" không còn cột giờ chạy, nhưng nhập file KHÔNG được xoá trắng
+    `cong_doan_may.cong_thuc_gio` đang có — cột DB còn đó, chỉ thôi bày ra."""
+    from app.models.cong_doan import CongDoanMay
+
+    h = _login(client, **seed_credentials)
+    nen = _dung_nen(client, h)
+    to_id = _to()[0]
+    may = _tao(client, h, "may_thiet_bi", {"ma": "MAY-TO1", "ten": "Máy của tổ",
+                                           "loai_may": "Máy in", "to_ids": [to_id]})
+    db = SessionLocal()
+    try:
+        dong = db.execute(select(CongDoanMay).where(
+            CongDoanMay.cong_doan_id == nen["cong_doan"]["id"],
+            CongDoanMay.may_id == may["id"])).scalar_one()
+        dong.cong_thuc_gio = "sl_vao * 2"
+        db.commit()
+    finally:
+        db.close()
+
+    prefix, ten = PREFIX["cong_doan"], SPECS["cong_doan"].tieu_de[:31]
+    wb = _xuat(client, h, prefix)
+    assert "Công thức giờ chạy" not in _bang(wb["Máy của công đoạn"])[0]
+    tieu_de = _bang(wb[ten])[0]
+    for hang in wb[ten].iter_rows(min_row=2):
+        if hang[tieu_de.index("Mã")].value == MA["cong_doan"]:
+            hang[tieu_de.index("Tên")].value = "Công đoạn đổi tên"
+    kq = _nhap(client, h, prefix, _bytes(wb), mode="commit").json()
+    assert kq["hop_le"] and kq["cap_nhat"] == 1, kq
+
+    db = SessionLocal()
+    try:
+        gio = db.execute(select(CongDoanMay.cong_thuc_gio).where(
+            CongDoanMay.cong_doan_id == nen["cong_doan"]["id"],
+            CongDoanMay.may_id == may["id"])).scalar_one()
+    finally:
+        db.close()
+    assert gio == "sl_vao * 2"

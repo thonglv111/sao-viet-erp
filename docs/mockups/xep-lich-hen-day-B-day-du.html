@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xếp lịch — phương án B, 2.000 lệnh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --hair:#f1f5f9; --rust:#c5400a;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c; --tt-cam-dot:#f97316;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8; --tt-xanh-dot:#3b82f6;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d; --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2; --tt-do-fg:#b91c1c; --tt-do-dot:#ef4444;
+  --tt-cyan-bg:#cffafe; --tt-cyan-fg:#0e7490; --tt-cyan-dot:#06b6d4;
+  --tt-slate-bg:#f1f5f9; --tt-slate-fg:#475569; --tt-slate-dot:#94a3b8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1500px;margin:0 auto;padding:36px 20px 96px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 18px;max-width:1080px}
+.hop{background:var(--trang);border-radius:12px;padding:18px 22px;margin:0 0 20px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ul{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:5px 0}
+.hop li b{font-weight:500;color:var(--chu)}
+
+.screen{background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden;position:relative}
+.dau{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--vien)}
+.dau h3{font-size:18px;font-weight:500;margin:0 14px 0 0;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:8px;font:inherit;font-size:13px;color:var(--chu);white-space:nowrap;cursor:pointer}
+.btn--chinh{background:var(--chu);color:#fff;border-color:var(--chu)}
+.tim{height:32px;border:1px solid var(--vien);border-radius:8px;padding:0 10px;font-size:13px;width:260px;color:var(--chu-4);display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+.khoang{font-size:13px;color:var(--chu-2);white-space:nowrap}
+.gian{flex:1}
+.loc{display:flex;gap:8px;align-items:center;padding:10px 18px;border-bottom:1px solid var(--vien)}
+.ln{height:28px;padding:0 11px;border:1px solid var(--vien);border-radius:999px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;color:var(--chu-2);background:var(--trang);white-space:nowrap}
+.ln[aria-pressed=true]{border-color:var(--chu);color:var(--chu);background:#f8fafc}
+.ln .n{color:var(--chu)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.chip--la{background:var(--tt-la-bg);color:var(--tt-la-fg)} .chip--la .dot{background:var(--tt-la-dot)}
+.chip--vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)} .chip--vang .dot{background:var(--tt-vang-dot)}
+.chip--do{background:var(--tt-do-bg);color:var(--tt-do-fg)} .chip--do .dot{background:var(--tt-do-dot)}
+.chip--gap{background:var(--tt-cam-bg);color:var(--tt-cam-fg);height:20px;padding:0 7px;font-size:11.5px}
+.mu{color:var(--chu-3)} .mu4{color:var(--chu-4)} .nho{font-size:12px} .do{color:var(--tt-do-fg)} .la{color:var(--tt-la-fg)} .cyan{color:var(--tt-cyan-fg)}
+
+/* ---- bảng: phần lưới + phần dải ngày cùng một <table> để hàng luôn thẳng ---- */
+.khung{overflow-x:auto}
+table.xl{border-collapse:collapse;width:100%;min-width:1440px;font-size:13px;table-layout:fixed}
+.xl th,.xl td{border-bottom:1px solid var(--vien-2);padding:0 10px;text-align:left;vertical-align:middle}
+.xl thead th{height:58px;background:#fafbfc;border-bottom:1px solid var(--vien);font-weight:500;font-size:12px;color:var(--chu-3);white-space:nowrap}
+.xl td{height:56px}
+.xl tbody tr:hover td{background:var(--hair)}
+.xl tr.chon td{background:#f8fafc}
+.xl .o{width:36px;padding:0 0 0 14px}
+.xl .c-lenh{width:190px}
+.xl .c-khach{width:185px}
+.xl .c-vt{width:170px}
+.xl .c-hen{width:150px}
+.xl .c-giao{width:120px}
+.xl .c-dai{padding:0;border-left:1px solid var(--vien)}
+.lenh1{display:flex;align-items:center;gap:6px}
+.lenh2,.phu{display:block;font-size:12px;color:var(--chu-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.khach{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;color:var(--chu-2)}
+.ogio{display:inline-flex;align-items:center;height:28px;padding:0 8px;border:1px solid var(--vien);border-radius:6px;font-size:13px;white-space:nowrap;background:#fff}
+.ogio--trong{color:var(--chu-3);border-style:dashed}
+.ogio--do{border-color:#fca5a5;color:var(--tt-do-fg)}
+tr.nhom td{height:34px;background:#fafbfc;font-size:12.5px;color:var(--chu-2);border-bottom:1px solid var(--vien)}
+tr.nhom td .n{color:var(--chu-4);margin-left:4px}
+tr.nhom:hover td{background:#fafbfc}
+
+/* dải ngày */
+.ngay{display:grid;grid-template-columns:repeat(14,1fr);height:58px}
+.ngay div{text-align:center;font-size:11px;color:var(--chu-3);border-left:1px solid var(--vien-2);line-height:1.25;padding-top:5px}
+.ngay div:first-child{border-left:none}
+.ngay div b{display:block;font-weight:500;color:var(--chu);font-size:13px}
+.ngay .nay{background:#fff7ed}.ngay .nay b{color:var(--rust)}
+.ngay .nghi{background:#f1f5f9}
+.dai{position:relative;height:56px}
+.dai .cot{position:absolute;inset:0;display:grid;grid-template-columns:repeat(14,1fr)}
+.dai .cot div{border-left:1px solid var(--vien-2)}
+.dai .cot div:first-child{border-left:none}
+.dai .cot .nay{background:#fff7ed99}.dai .cot .nghi{background:#f8fafc}
+.vach{position:absolute;top:50%;height:4px;border-radius:2px;transform:translateY(-50%);background:#cbd5e1}
+.vach--sat{background:#fca5a5}
+.vach--chay{background:#67e8f9}
+.cham{position:absolute;top:50%;width:14px;height:14px;border-radius:50%;transform:translate(-50%,-50%);border:2px solid #fff}
+.cham--hen{background:var(--tt-xanh-dot);box-shadow:0 0 0 1px var(--tt-xanh-dot)}
+.cham--day{background:var(--tt-la-dot);box-shadow:0 0 0 1px var(--tt-la-dot)}
+.cham--ket{background:var(--tt-do-dot);box-shadow:0 0 0 1px var(--tt-do-dot)}
+.thoi{position:absolute;top:50%;width:12px;height:12px;transform:translate(-50%,-50%) rotate(45deg);background:#fff;border:2px solid var(--chu-3)}
+.thoi--sat{border-color:var(--tt-do-dot);background:var(--tt-do-bg)}
+.tamgiac{position:absolute;top:50%;width:0;height:0;transform:translate(-50%,-50%);border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:11px solid var(--tt-vang-dot)}
+.ngoai{position:absolute;top:50%;right:6px;transform:translateY(-50%);font-size:15px;color:var(--chu-3)}
+
+.chuGiai{display:flex;gap:20px;padding:10px 18px;border-top:1px solid var(--vien);font-size:12px;color:var(--chu-3);flex-wrap:wrap;align-items:center}
+.chuGiai span{display:inline-flex;align-items:center;gap:6px}
+.chuGiai .k{position:relative;display:inline-block;width:14px;height:14px}
+.chon-bar{display:flex;align-items:center;gap:10px;padding:10px 18px;border-top:1px solid var(--vien);background:#f8fafc;font-size:13px}
+
+/* ngăn */
+.ngan-wrap{display:grid;grid-template-columns:1fr 560px;gap:24px;margin-top:32px;align-items:start}
+.ngan-wrap .giai{color:var(--chu-2);font-size:13.5px}
+.ngan-wrap .giai b{font-weight:500;color:var(--chu)}
+.ngan{background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden}
+.ngan .dauN{padding:16px 20px;border-bottom:1px solid var(--vien)}
+.ngan .dauN .r{display:flex;align-items:center;gap:8px}
+.ngan h3{margin:0;font-size:17px;font-weight:500}
+.ngan .ttN{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:13px;margin-top:12px}
+.ngan .ttN .k{color:var(--chu-3)}
+.tabsN{display:flex;gap:4px;padding:10px 20px 0;border-bottom:1px solid var(--vien)}
+.tabsN span{padding:7px 10px;font-size:13px;color:var(--chu-3);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0}
+.tabsN span.on{color:var(--chu);border-color:var(--vien);margin-bottom:-1px;background:#fff;font-weight:500}
+.ngan .than{padding:12px 20px}
+table.vt{width:100%;border-collapse:collapse;font-size:13px}
+.vt th{font-weight:500;font-size:12px;color:var(--chu-3);text-align:left;padding:6px;border-bottom:1px solid var(--vien)}
+.vt td{padding:8px 6px;border-bottom:1px solid var(--vien-2)}
+.vt .num{text-align:right}
+.chan{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--vien)}
+.tabs{display:flex;gap:4px;padding:8px 18px 0;border-bottom:1px solid var(--vien)}
+.tab{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;font-size:13px;color:var(--chu-3);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;white-space:nowrap}
+.tab .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.tab.on{color:var(--chu);border-color:var(--vien);background:#fff;margin-bottom:-1px;font-weight:500}
+.tab .n{color:var(--chu-4);font-weight:400}
+.ngay div i{display:block;font-style:normal;font-size:10.5px;color:var(--tt-xanh-fg);line-height:1.2;margin-top:1px}
+.chan-bang{display:flex;align-items:center;gap:8px;padding:10px 18px;border-top:1px solid var(--vien);font-size:13px}
+.trang{display:inline-grid;place-items:center;min-width:30px;height:30px;border-radius:8px;font-size:13px;color:var(--chu-2)}
+.trang.on{border:1px solid var(--chu);color:var(--chu)}
+.lk{color:var(--tt-xanh-fg);cursor:pointer;font-size:13px}
+table.xl{min-width:0}
+.xl .c-lenh{width:165px}.xl .c-khach{width:180px}.xl .c-vt{width:96px}
+.xl td{height:50px}.dai{height:50px}
+.nhan-gio{position:absolute;top:50%;transform:translateY(-50%);font-size:11.5px;color:var(--tt-xanh-fg);background:#fff;padding:0 3px;border-radius:4px;line-height:16px;white-space:nowrap}
+.khoang-btn{gap:6px}
+.vt.ls .c-luc{width:96px}.vt.ls .c-ng{width:130px}
+.vt .c-b{width:44px}
+.vt td .phu{margin-top:2px}
+.ghi{margin:10px 0 2px}
+.tabsN span{cursor:pointer}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Xếp lịch, phương án B, chịu được 2.000 lệnh</h1>
+<p class="lead">Lưới trái hẹp ba cột để biết lệnh nào, của ai, đủ vật tư chưa; dải ngày bên phải chiếm phần lớn bề ngang, ghi giờ hẹn cạnh chấm và đặt hạn giao đúng ngày, nên nhìn một hàng thấy giờ đẩy cách hạn giao bao xa.</p>
+
+<div class="hop">
+  <h2>Khi có 2.000 lệnh</h2>
+  <ul>
+    <li><b>Bốn tab theo việc, số đếm do máy chủ trả</b>: Kẹt, Chưa hẹn giờ, Đã hẹn chờ tự đẩy, Đã đẩy. Mỗi lúc xem một tab, không xếp chồng bốn nhóm trên một bảng. Gần hết lệnh nằm ở Đã đẩy (dev hôm nay 753 trên 759 lệnh), nên tab đó không bao giờ là tab mở đầu: mở màn vào Kẹt nếu có, không thì Chưa hẹn giờ.</li>
+    <li><b>Mỗi tab phân trang ở máy chủ</b>, 25 dòng một trang, chân bảng như các màn khác. Tìm, lọc (Gấp, Chưa đủ vật tư, Sát hạn giao, khách), sắp xếp đều chạy ở máy chủ. Tab Đã hẹn và Đã đẩy lọc thêm theo khoảng ngày đang xem (tab Đã hẹn mở từ hôm nay trở đi, tab Đã đẩy mở từ hôm nay lùi lại); Kẹt và Chưa hẹn giờ thì không, vì chưa có ngày. Mặc định lệnh gấp đứng đầu, rồi tới giờ hẹn sớm.</li>
+    <li><b>Dưới mỗi ngày là số lệnh hẹn đẩy ngày đó</b>, đếm trên cả kết quả lọc chứ không riêng trang đang xem, để thấy ngày nào dồn lệnh mà không phải lật trang. Bấm một ngày thì bảng lọc còn lệnh hẹn ngày đó.</li>
+    <li><b>Hẹn hàng loạt</b>: tick cả trang, hoặc bấm "Chọn cả 62 lệnh theo bộ lọc", rồi Hẹn giờ một lần cho cả nhóm. Không ai phải đặt giờ từng lệnh khi có vài trăm lệnh.</li>
+    <li><b>Đèn vật tư chỉ tính cho lệnh chưa đẩy</b> (ba tab đầu, thường vài chục tới vài trăm lệnh), tính một lượt cho cả lô rồi giữ đệm; lệnh đã đẩy không cần đèn. Lọc "Chưa đủ vật tư" chạy trên kết quả đệm đó.</li>
+    <li><b>Lưới trái chỉ còn ba cột hẹp</b> (Lệnh, Khách, Vật tư, khoảng 420 px), dải ngày chiếm phần còn lại. Hẹn đẩy và hạn giao không còn là cột chữ riêng: giờ hẹn ghi ngay cạnh chấm xanh, ngày đọc theo cột; hạn giao là hình thoi, đỏ khi còn từ 2 ngày trở xuống. Muốn xem đủ ngày giờ thì di chuột hoặc mở ngăn.</li>
+    <li><b>Khoảng ngày</b> dùng lại đúng bộ chọn Xếp lịch đang có (Tuần này, 2 tuần, Tháng này, Tháng sau, 30 ngày tới, Tự chọn, dài nhất 3 tháng). Khoảng dài thì cột ngày hẹp lại như lưới hiện nay đang làm.</li>
+    <li>Ảnh dưới vẽ 8 dòng đầu của trang 1 tab Đã hẹn, đang chọn cả trang.</li>
+  </ul>
+</div>
+
+<div class="screen">
+  <div class="dau">
+    <h3>Xếp lịch</h3>
+    <button class="btn">‹</button><button class="btn">Hôm nay</button><button class="btn">›</button>
+    <button class="btn khoang-btn" title="Mở bộ chọn khoảng ngày đang có của Xếp lịch">08/11 – 21/11/2026 <span class="mu">▾</span></button>
+    <div class="tim">Tìm mã lệnh, sản phẩm, khách</div>
+    <button class="btn">Lọc</button>
+    <div class="gian"></div>
+    <button class="btn">Hiển thị</button>
+  </div>
+  <div class="tabs">
+    <span class="tab"><span class="dot" style="background:var(--tt-do-dot)"></span>Kẹt, chưa đẩy được <span class="n">4</span></span>
+    <span class="tab">Chưa hẹn giờ <span class="n">38</span></span>
+    <span class="tab on">Đã hẹn, chờ tự đẩy <span class="n">62</span></span>
+    <span class="tab">Đã đẩy <span class="n">1.896</span></span>
+  </div>
+  <div class="loc">
+    <span class="ln"><span class="dot" style="background:var(--tt-cam-dot)"></span>Gấp <span class="n">9</span></span>
+    <span class="ln"><span class="dot" style="background:var(--tt-vang-dot)"></span>Chưa đủ vật tư <span class="n">17</span></span>
+    <span class="ln"><span class="dot" style="background:var(--tt-do-dot)"></span>Sát hạn giao <span class="n">5</span></span>
+    <div class="gian"></div>
+    <span class="mu nho">Sắp xếp</span><span class="ln">Gấp trước, rồi giờ hẹn</span>
+  </div>
+
+  <div class="khung">
+  <table class="xl">
+    <thead><tr>
+      <th class="o"><input type="checkbox" checked></th>
+      <th class="c-lenh">Lệnh</th><th class="c-khach">Khách hàng</th><th class="c-vt">Vật tư</th>
+      <th class="c-dai"><div class="ngay"><div class="nay">CN<b>8</b></div><div>T2<b>9</b><i>12 lệnh</i></div><div>T3<b>10</b><i>10 lệnh</i></div><div>T4<b>11</b><i>8 lệnh</i></div><div>T5<b>12</b><i>9 lệnh</i></div><div>T6<b>13</b><i>5 lệnh</i></div><div>T7<b>14</b><i>6 lệnh</i></div><div class="nghi">CN<b>15</b></div><div>T2<b>16</b><i>4 lệnh</i></div><div>T3<b>17</b><i>3 lệnh</i></div><div>T4<b>18</b><i>3 lệnh</i></div><div>T5<b>19</b><i>2 lệnh</i></div><div>T6<b>20</b></div><div>T7<b>21</b></div></div></th>
+    </tr></thead>
+    <tbody>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0412 <span class="chip chip--gap">Gấp</span></span><span class="lenh2">Hộp quà bồi cứng</span></td>
+        <td><span class="khach">Mỹ phẩm Ngọc Lan</span></td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach" style="left:9.4%;width:37.0%"></div><div class="cham cham--hen" style="left:9.4%" title="Hẹn đẩy 09/11 07:30"></div><span class="nhan-gio" style="left:calc(9.4% + 11px)">07:30</span><div class="thoi" style="left:46.4%" title="Hạn giao 14/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0398 <span class="chip chip--gap">Gấp</span></span><span class="lenh2">Túi giấy kraft</span></td>
+        <td><span class="khach">Thực phẩm Hương Quê</span></td>
+        <td><span class="chip chip--vang"><span class="dot"></span>Về 9/11</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach" style="left:16.5%;width:8.5%"></div><div class="tamgiac" style="left:10.7%" title="Vật tư về"></div><div class="cham cham--hen" style="left:16.5%" title="Hẹn đẩy 10/11 07:30"></div><span class="nhan-gio" style="left:calc(16.5% + 11px)">07:30</span><div class="thoi" style="left:25.0%" title="Hạn giao 11/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0377 <span class="chip chip--gap">Gấp</span></span><span class="lenh2">Kẹp file hội nghị</span></td>
+        <td><span class="khach">Điện máy Phúc Long</span></td>
+        <td><span class="chip chip--do"><span class="dot"></span>Về 12/11</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach" style="left:23.6%;width:15.7%"></div><div class="tamgiac" style="left:32.1%" title="Vật tư về"></div><div class="cham cham--hen" style="left:23.6%" title="Hẹn đẩy 11/11 07:30"></div><span class="nhan-gio" style="left:calc(23.6% + 11px)">07:30</span><div class="thoi" style="left:39.3%" title="Hạn giao 13/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0405</span><span class="lenh2">Bìa sổ tay</span></td>
+        <td><span class="khach">Giáo dục Trí Việt</span></td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach vach--sat" style="left:11.0%;width:6.9%"></div><div class="cham cham--hen" style="left:11.0%" title="Hẹn đẩy 09/11 13:00"></div><span class="nhan-gio" style="left:calc(11.0% + 11px)">13:00</span><div class="thoi thoi--sat" style="left:17.9%" title="Hạn giao 10/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0406</span><span class="lenh2">Ruột sổ tay</span></td>
+        <td><span class="khach">Giáo dục Trí Việt</span></td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach vach--sat" style="left:11.0%;width:6.9%"></div><div class="cham cham--hen" style="left:11.0%" title="Hẹn đẩy 09/11 13:00"></div><span class="nhan-gio" style="left:calc(11.0% + 11px)">13:00</span><div class="thoi thoi--sat" style="left:17.9%" title="Hạn giao 10/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0420</span><span class="lenh2">Tem nhãn chai</span></td>
+        <td><span class="khach">Nhà hàng Sen Vàng</span></td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach" style="left:18.1%;width:35.5%"></div><div class="cham cham--hen" style="left:18.1%" title="Hẹn đẩy 10/11 13:00"></div><span class="nhan-gio" style="left:calc(18.1% + 11px)">13:00</span><div class="thoi" style="left:53.6%" title="Hạn giao 15/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0388</span><span class="lenh2">Catalogue 2027</span></td>
+        <td><span class="khach">Ngân hàng Đông Á</span></td>
+        <td><span class="chip chip--vang"><span class="dot"></span>Về 11/11</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach" style="left:32.4%;width:56.9%"></div><div class="tamgiac" style="left:25.0%" title="Vật tư về"></div><div class="cham cham--hen" style="left:32.4%" title="Hẹn đẩy 12/11 13:00"></div><span class="nhan-gio" style="left:calc(32.4% + 11px)">13:00</span><div class="thoi" style="left:89.3%" title="Hạn giao 20/11"></div></div></td>
+      </tr>
+      <tr class="chon">
+        <td class="o"><input type="checkbox" checked></td>
+        <td><span class="lenh1">LSX26-0391</span><span class="lenh2">Thẻ đeo đại biểu</span></td>
+        <td><span class="khach">Dược phẩm An Thịnh</span></td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ</span></td>
+        <td class="c-dai"><div class="dai"><div class="cot"><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+          <div class="vach" style="left:30.8%;width:calc(69.2% - 18px)"></div><div class="cham cham--hen" style="left:30.8%" title="Hẹn đẩy 12/11 07:30"></div><span class="nhan-gio" style="left:calc(30.8% + 11px)">07:30</span><span class="ngoai" title="Hạn giao 22/11, ngoài khoảng đang xem">›</span></div></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="chon-bar">
+    <span>Đã chọn 25 lệnh trên trang này</span>
+    <a class="lk">Chọn cả 62 lệnh theo bộ lọc</a>
+    <div class="gian"></div>
+    <button class="btn">Hẹn giờ</button>
+    <button class="btn btn--chinh">Đẩy ngay</button>
+    <button class="btn">Bỏ chọn</button>
+  </div>
+  <div class="chan-bang">
+    <span class="mu">1–25 trong 62 lệnh</span>
+    <div class="gian"></div>
+    <span class="mu nho">Số dòng</span><span class="ln">25</span>
+    <button class="btn">‹</button><span class="trang on">1</span><span class="trang">2</span><span class="trang">3</span><button class="btn">›</button>
+  </div>
+  <div class="chuGiai">
+    <span><span class="k"><span class="cham cham--hen" style="left:50%"></span></span>Hẹn đẩy, tới giờ tự đẩy</span>
+    <span><span class="k"><span class="tamgiac" style="left:50%"></span></span>Vật tư về</span>
+    <span><span class="k"><span class="thoi" style="left:50%"></span></span>Hạn giao khách</span>
+    <span><i style="width:18px;height:4px;border-radius:2px;background:#fca5a5;display:inline-block"></i>Còn từ 2 ngày trở xuống tới hạn giao</span>
+    <span>Số dưới ngày: số lệnh hẹn đẩy ngày đó theo bộ lọc</span>
+  </div>
+</div>
+
+<div class="ngan-wrap">
+  <div class="giai">
+    <p><b>Bấm một dòng</b> mở ngăn bên phải (cùng khuôn ngăn chi tiết các màn khác: đầu ngăn cố định, tab, kéo mép trái để rộng ra). Ngăn trả lời "vì sao lệnh này chưa đẩy được, thiếu cái gì, ai hẹn".</p>
+    <p><b>Tab Vật tư</b>: từng món, cần bao nhiêu, đã giữ chỗ bao nhiêu, đang về theo đơn mua nào.<br><b>Tab Lịch sử hẹn</b>: mới nhất ở trên. Ngoài Hẹn đẩy và Đổi giờ hẹn còn các dòng Bỏ hẹn, Đẩy ngay, Tự đẩy (người ghi là người đã hẹn), Tới giờ chưa đẩy được kèm lý do (ví dụ thiếu vật tư), Thu hồi về chờ đẩy.<br><b>Tab Công đoạn</b>: các bước của lệnh, bộ phận nhận và số lượng từng bước. Không còn cột giờ chạy vì tốc độ máy đã bỏ.</p>
+  </div>
+  <div class="ngan">
+    <div class="dauN">
+      <div class="r"><h3>LSX26-0398</h3></div>
+      <div class="ttN">
+        <span class="k">Sản phẩm</span><span>Túi giấy kraft</span>
+        <span class="k">Khách hàng</span><span>Thực phẩm Hương Quê</span>
+        <span class="k">Số lượng</span><span>5.000 cái</span>
+        <span class="k">Hẹn đẩy</span><span>10/11/2026 07:30</span>
+        <span class="k">Người hẹn</span><span>Vũ Đức Thành</span>
+        <span class="k">Hạn giao khách</span><span>11/11/2026</span>
+      </div>
+    </div>
+    <div class="tabsN"><span class="on" data-t="vt">Vật tư</span><span data-t="ls">Lịch sử hẹn</span><span data-t="cd">Công đoạn</span></div>
+    <div class="than" data-p="vt">
+      <table class="vt">
+        <thead><tr><th>Vật tư</th><th class="num">Cần</th><th class="num">Đã giữ chỗ</th><th>Tình trạng</th><th>Đơn mua</th></tr></thead>
+        <tbody>
+          <tr><td>Giấy kraft 120 65×86</td><td class="num">2.650 tờ</td><td class="num">0</td><td><span class="chip chip--vang"><span class="dot"></span>Về 09/11</span></td><td>DM26-0011</td></tr>
+          <tr><td>Quai giấy xoắn</td><td class="num">10.000 sợi</td><td class="num">10.000 sợi</td><td><span class="chip chip--la"><span class="dot"></span>Đã giữ chỗ</span></td><td></td></tr>
+          <tr><td>Mực 2 màu</td><td class="num">0,8 kg</td><td class="num">0,8 kg</td><td><span class="chip chip--la"><span class="dot"></span>Đã giữ chỗ</span></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="than" data-p="ls" hidden>
+      <table class="vt ls">
+        <thead><tr><th class="c-luc">Lúc</th><th class="c-ng">Người</th><th>Việc</th></tr></thead>
+        <tbody>
+          <tr><td>08/11 16:20</td><td>Vũ Đức Thành</td><td>Đổi giờ hẹn<span class="phu">11/11 07:30 sang 10/11 07:30</span></td></tr>
+          <tr><td>07/11 10:05</td><td>Vũ Đức Thành</td><td>Hẹn đẩy<span class="phu">11/11 07:30</span></td></tr>
+          <tr><td>06/11 14:30</td><td>Trần Thu Hà</td><td>Lập lệnh</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="than" data-p="cd" hidden>
+      <table class="vt">
+        <thead><tr><th class="c-b">Bước</th><th>Công đoạn</th><th>Bộ phận nhận</th><th class="num">Số lượng</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>In offset 2 màu</td><td>Bộ phận In</td><td class="num">2.650 tờ</td></tr>
+          <tr><td>2</td><td>Bế</td><td>Bộ phận Thành phẩm</td><td class="num">2.600 tờ</td></tr>
+          <tr><td>3</td><td>Dán túi</td><td>Bộ phận Thành phẩm</td><td class="num">5.150 cái</td></tr>
+          <tr><td>4</td><td>Xỏ quai</td><td>Bộ phận Thành phẩm</td><td class="num">5.050 cái</td></tr>
+          <tr><td>5</td><td>Đóng gói</td><td>Bộ phận Thành phẩm</td><td class="num">5.000 cái</td></tr>
+        </tbody>
+      </table>
+      <p class="mu nho ghi">Đẩy lệnh thì mỗi bước tới bộ phận nhận. Máy và tổ do bộ phận chọn sau đó, ở Kế hoạch bộ phận.</p>
+    </div>
+    <div class="chan"><button class="btn">Bỏ hẹn</button><button class="btn">Đổi giờ</button><button class="btn btn--chinh">Đẩy ngay</button></div>
+  </div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tabsN span').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tabsN span').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.than[data-p]').forEach(p=>p.hidden=p.dataset.p!==t.dataset.t);
+});
+</script>
+</body>
+</html>

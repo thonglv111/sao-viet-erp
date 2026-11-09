@@ -12,7 +12,7 @@ from .thanh_phan_engine import la_gap_tay, so_tay_moi_cuon
 
 class BaiGhep2Service(BaiGhepService):
     _SUA_DUOC_BAI = BaiGhepService._SUA_DUOC_BAI + (
-        "ten", "han_hoan_thanh_sx", "is_rush", "nguoi_phu_trach_id",
+        "ten", "is_rush", "nguoi_phu_trach_id",   # hạn SX nội bộ gỡ 08/11/2026
     )
     _TRANG_THAI_HANG_CHO = (TT_NHAP, TT_CHO_BO_SUNG, TT_SAN_SANG)
 

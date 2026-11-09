@@ -784,6 +784,10 @@ data. Duyệt bản in + tiến độ SX = luồng NGOÀI hệ thống (không l
 | `ordered_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Đóng dấu lúc chốt đơn (P4). |
 | `ordered_by` | `Integer` → `INTEGER` | **FK→users.id** | yes | — | Người chốt đơn. |
 | `san_xuat_released_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Sale bấm "Chuyển xuống sản xuất" (sau chốt, đủ cọc) → đơn vào hàng chờ kế hoạch. NULL = chưa chuyển (migration `0078`). |
+| `nguoi_lam_lenh_id` | `Integer` → `INTEGER` | **FK→users.id** (ON DELETE SET NULL) | yes | — | Người được giao làm lệnh cho đơn ở Hàng chờ tiếp nhận (08/11/2026). NULL = Chưa giao. Người không có ô Giao đơn chỉ thấy và chỉ tạo lệnh cho đơn có cột này là mình; lệnh tạo ra lấy người này làm người phụ trách (migration `0456`). |
+| `giao_lam_lenh_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Lúc giao (hoặc giao lại) gần nhất (migration `0456`). |
+| `nguoi_giao_lam_lenh_id` | `Integer` → `INTEGER` | **FK→users.id** (ON DELETE SET NULL) | yes | — | Người bấm Giao, server lấy từ tài khoản (migration `0456`). |
+| `nguoi_lam_lenh_mo_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Lúc người được giao mở đơn lần đầu sau lần giao gần nhất; NULL = chưa mở (chấm đỏ). Giao lại thì xoá về NULL (migration `0456`). |
 | `cancel_by` | `Integer` → `INTEGER` | **FK→users.id** | yes | — | Người hủy đơn. |
 | `cancel_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Thời điểm hủy. |
 | `cancel_fault` | `String(16)` → `VARCHAR(16)` | — | yes | — | Lỗi tại ai khi hủy ∈ {khach, xuong}. |
@@ -791,7 +795,7 @@ data. Duyệt bản in + tiến độ SX = luồng NGOÀI hệ thống (không l
 **Keys & indexes**
 
 - Primary key: `id`.
-- Indexes: `ix_orders_order_no` (U), `ix_orders_customer_id`, `ix_orders_quotation_id`, `ix_orders_parent_order_id`, `ix_orders_sale_user_id` (scope filter).
+- Indexes: `ix_orders_order_no` (U), `ix_orders_customer_id`, `ix_orders_quotation_id`, `ix_orders_parent_order_id`, `ix_orders_sale_user_id` (scope filter), `ix_orders_nguoi_lam_lenh_id` (hàng chờ của người làm lệnh).
 - Foreign keys: `customer_id FK→customers.id` (ON DELETE CASCADE), `parent_order_id FK→orders.id` (ON DELETE CASCADE, self-FK), `sale_user_id FK→users.id`. `quotation_id` is deliberately NOT a FK (SEAM-04; báo giá versioned — the (id, version) pin is the reference).
 
 ### `payments`
@@ -4855,7 +4859,7 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 
 ### `xep_lich_lenh`
 
-**Purpose:** Mốc BẮT ĐẦU do người điều độ đặt cho MỘT lệnh sản xuất (module Xếp lịch 3, RBAC `xep_lich_3`). Một dòng = một lệnh. Ngày kết thúc lệnh, mốc từng công đoạn và các đoạn máy chạy trong ca đều là số DẪN XUẤT — tính lúc đọc ở `services/xep_lich_3`, KHÔNG lưu cột. Bảng mới, có migration `0291`.
+**Purpose:** Từ 08/11/2026 (mg `0470`): GIỜ HẸN ĐẨY lệnh xuống xưởng — tới giờ thì vòng nền `services/xep_lich/hen_day.py` tự đẩy bằng quyền người hẹn. Trước đó: mốc BẮT ĐẦU do người điều độ đặt cho MỘT lệnh sản xuất (module Xếp lịch 3, RBAC `xep_lich_3`). Một dòng = một lệnh. Ngày kết thúc lệnh, mốc từng công đoạn và các đoạn máy chạy trong ca đều là số DẪN XUẤT — tính lúc đọc ở `services/xep_lich_3`, KHÔNG lưu cột. Bảng mới, có migration `0291`.
 
 | Column       | Type (SQLAlchemy → SQLite / Postgres)                  | Key                     | Null | Default        | Meaning                                                                    |
 | ------------ | ------------------------------------------------------ | ----------------------- | ---- | -------------- | -------------------------------------------------------------------------- |
@@ -4865,6 +4869,9 @@ Trước đó bảng cân đối **chỉ đọc**, tồn không thuộc về ai:
 | `created_by` | `Integer` → `INTEGER`                                  | —                       | yes  | —              | Soft → `users.id` — ai đặt mốc lần đầu.                                    |
 | `created_at` | `DateTime(timezone=True)`                              | —                       | no   | now (UTC)      | Khi tạo.                                                                   |
 | `updated_at` | `DateTime(timezone=True)`                              | —                       | no   | now/onupdate   | Chốt chống ghi đè khi hai người cùng kéo (`expected_updated_at` → 409).    |
+| `nguoi_hen_id` | `Integer` → `INTEGER`                                | —                       | yes  | —              | Soft → `users.id` — người HẸN ĐẨY (mg `0470`, 08/11/2026). Tới giờ vòng nền đẩy bằng quyền của người này; backfill = `created_by`. |
+| `ket_ly_do`  | `Text` → `TEXT`                                        | —                       | yes  | —              | Tới giờ hẹn mà đẩy không được ⇒ câu lỗi (lệnh ở tab Kẹt). Hẹn lại thì xoá. |
+| `ket_luc`    | `DateTime(timezone=True)`                              | —                       | yes  | —              | Lúc kẹt (UTC thật). Hẹn lại thì xoá.                                       |
 
 **Keys & indexes**
 

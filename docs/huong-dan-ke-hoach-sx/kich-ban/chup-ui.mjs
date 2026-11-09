@@ -21,8 +21,9 @@ await page.goto(BASE);
 await page.waitForLoadState("domcontentloaded");
 const mk = page.locator('input[type="password"]').first();
 if (await mk.waitFor({ timeout: 10000 }).then(() => true, () => false)) {
-  await page.getByPlaceholder("vd: admin").fill(lay("SEED_ADMIN_USERNAME"));
-  await mk.fill(lay("SEED_ADMIN_PASSWORD"));
+  // CHUP_USER/CHUP_MK: chụp bằng tài khoản người dùng thật (vd tổ trưởng kỹ thuật), mặc định admin.
+  await page.getByPlaceholder("vd: admin").fill(process.env.CHUP_USER || lay("SEED_ADMIN_USERNAME"));
+  await mk.fill(process.env.CHUP_MK || lay("SEED_ADMIN_PASSWORD"));
   await page.getByRole("button", { name: /Đăng nhập hệ thống/ }).click();
   await mk.waitFor({ state: "detached", timeout: 20000 });
   await page.waitForTimeout(2000);

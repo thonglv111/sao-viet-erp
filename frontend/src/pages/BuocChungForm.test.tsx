@@ -130,8 +130,8 @@ describe("form kế hoạch bước chung", () => {
     expect(screen.getByRole("button", { name: "Lưu kế hoạch lượt chung" })).toBeDisabled();
   });
 
-  // E2E 27/09/2026: gợi ý dưới ô máy in thẳng MÃ đơn vị tốc độ ("Tốc độ 6.000 to_gio/giờ").
-  it("gợi ý tốc độ máy dịch đơn vị sang nhãn, không in mã trần", async () => {
+  // 08/11/2026 bỏ tốc độ máy: dưới ô máy không còn gợi ý "Tốc độ …" hay "Máy chưa khai tốc độ".
+  it("chọn máy không còn gợi ý tốc độ", async () => {
     render(<BuocChungForm g={gop({
       step_key: "gang-in-3",
       ten: "In chung",
@@ -140,8 +140,9 @@ describe("form kế hoạch bước chung", () => {
     })} canUpdate onLuu={async () => true} onTach={async () => {}} />);
 
     await userEvent.setup().click(screen.getByRole("button", { name: /Phân công & Thiết bị/ }));
-    expect(await screen.findByText(/Tốc độ 6\.000 tờ in\/h/)).toBeInTheDocument();
-    expect(screen.queryByText(/to_gio/)).toBeNull();
+    await screen.findByRole("option", { name: "Máy 4 màu" });
+    expect(screen.queryByText(/Tốc độ/)).toBeNull();
+    expect(screen.queryByText(/chưa khai tốc độ/)).toBeNull();
   });
 
   // Review 23/10/2026: ô máy lượt chung lấy máy theo thứ tự id và mời cả máy ngoài công đoạn (máy

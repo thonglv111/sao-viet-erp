@@ -93,7 +93,7 @@ def danh_sach_lenh(
         str | None, Query(pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$")
     ] = None,
     # Dải kỳ (06/10/2026): khoảng ngày tính theo `moc` — ngày tạo lệnh (mặc định) / hạn SX / hạn
-    # giao khách. Khoảng hạn SX cũ (`tu_ngay`/`den_ngay` trần) nay là `moc=han_sx`.
+    # giao khách. `moc=han_sx` (hạn SX nội bộ đã gỡ 08/11/2026) hiểu như `han_giao`.
     tu_ngay: date | None = None,
     den_ngay: date | None = None,
     moc: Annotated[str, Query(pattern="^(tao|han_sx|han_giao)$")] = "tao",

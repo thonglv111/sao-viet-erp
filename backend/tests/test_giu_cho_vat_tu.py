@@ -128,7 +128,7 @@ def _lenh(db, customer, *, ma, giay_id, so_to_nguyen, han=MAI, giay_o_buoc=True,
     db.add(ln)
     db.flush()
     l = Lsx(ma=ma, ten=ma, order_id=o.id, order_line_id=ln.id, so_luong_dat=1_000,
-            so_to_nguyen=so_to_nguyen, so_con=1, han_hoan_thanh_sx=han,
+            so_to_nguyen=so_to_nguyen, so_con=1, han_giao_khach=han,
             quy_cach_json={"giay_id": giay_id, "kho_nguyen_rong": KHO[0],
                            "kho_nguyen_dai": KHO[1]}, trang_thai=TT_SAN_SANG)
     db.add(l)

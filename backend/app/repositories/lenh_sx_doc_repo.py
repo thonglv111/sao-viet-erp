@@ -28,13 +28,13 @@ from ..models.san_xuat_kcs import SanXuatKcsBatch
 @dataclass(frozen=True)
 class LenhNhe:
     """Đúng những cột mà tầng danh sách cần cho một lệnh KHÔNG đi qua `boi_canh.nap()`: khoá sắp
-    (`is_rush`, `han_hoan_thanh_sx`, `ma` — xem `danh_sach._khoa_sap`) + hai số của phép "đã giao
+    (`is_rush`, `han_giao_khach`, `ma` — xem `danh_sach._khoa_sap`) + hai số của phép "đã giao
     hết" (`so_luong_dat`, `da_giao`)."""
 
     id: int
     ma: str | None
     is_rush: bool
-    han_hoan_thanh_sx: date | None
+    han_giao_khach: date | None
     so_luong_dat: int
     da_giao: int
 
@@ -62,7 +62,7 @@ class LenhSxDocRepository:
             return {}
         rows = self.db.execute(
             select(
-                Lsx.id, Lsx.ma, Lsx.is_rush, Lsx.han_hoan_thanh_sx, Lsx.so_luong_dat,
+                Lsx.id, Lsx.ma, Lsx.is_rush, Lsx.han_giao_khach, Lsx.so_luong_dat,
                 Lsx.order_line_id,
             ).where(Lsx.id.in_(lsx_ids))
         ).all()
@@ -78,7 +78,7 @@ class LenhSxDocRepository:
                     tong[ol] = tong.get(ol, 0) + int(qty or 0)
         return {
             r[0]: LenhNhe(
-                id=r[0], ma=r[1], is_rush=bool(r[2]), han_hoan_thanh_sx=r[3],
+                id=r[0], ma=r[1], is_rush=bool(r[2]), han_giao_khach=r[3],
                 so_luong_dat=r[4] or 0, da_giao=tong.get(r[5], 0),
             )
             for r in rows

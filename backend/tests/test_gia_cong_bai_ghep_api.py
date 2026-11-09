@@ -7,7 +7,6 @@ from fastapi import HTTPException
 
 from app.models.gia_cong_ngoai import NOI_VE_XUONG, GiaCongNgoai
 from app.models.lsx import Lsx
-from app.models.order import Order
 from app.models.role import SCOPE_OWN
 from app.models.user import User
 from app.routers import gia_cong_ngoai as r
@@ -96,16 +95,11 @@ def test_pham_vi_mot_lenh_chi_xem_khong_lenh_nao_404(sess, bai):
     ngoai = User(username="nguoi_ngoai_bg", name="Người ngoài", password_hash="x")
     sess.add_all([la, ngoai])
     sess.commit()
-    # Phạm vi Kế hoạch SX đi theo CHỦ ĐƠN (14/10/2026): hai lệnh dựng chung một đơn ⇒ tách lệnh B
-    # sang một đơn khác của người khác để bài ghép có đúng một lệnh trong phạm vi của `la`.
+    # Phạm vi lệnh đi theo NGƯỜI PHỤ TRÁCH (08/11/2026): `la` phụ trách lệnh A, lệnh B của admin ⇒
+    # bài ghép có đúng một lệnh trong phạm vi của `la`.
     lenh_a, lenh_b = sess.get(Lsx, a), sess.get(Lsx, b)
-    don_a = sess.get(Order, lenh_a.order_id)
-    don_a.sale_user_id, don_a.customer_id = la.id, None
-    don_b = Order(order_no="DH-BG-NGOAI", sale_user_id=sess.query(User).filter(
-        User.username == "admin").first().id)
-    sess.add(don_b)
-    sess.flush()
-    lenh_b.order_id = don_b.id
+    lenh_a.nguoi_phu_trach_id = la.id
+    lenh_b.nguoi_phu_trach_id = sess.query(User).filter(User.username == "admin").first().id
     sess.commit()
 
     (d,) = r.cua_bai_ghep(bg.id, sess, _Own(), la)

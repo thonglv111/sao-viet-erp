@@ -228,22 +228,22 @@ def test_lenh_gap_dung_dau_tab_dang_sx(client, seed_credentials, sess, admin, ha
     """Tab Đang sản xuất giữ thứ tự cũ: GẤP → hạn SX tăng → mã."""
     h = _h(_tok(client, seed_credentials))
     gap = _lenh_tho(
-        sess, ma="LSX-DS-GAP2", sale_user_id=admin.id, is_rush=True, han_sx=date(2027, 1, 1)
+        sess, ma="LSX-DS-GAP2", sale_user_id=admin.id, is_rush=True, han_giao=date(2027, 1, 1)
     )
     d = client.get("/api/lenh-san-xuat?tab=dang_sx&page=1&page_size=5", headers=h).json()
     assert d["items"][0]["id"] == gap
 
 
-def test_loc_khoang_ngay_theo_han_sx(client, seed_credentials, hai_muoi_lenh):
-    """`tu_ngay`/`den_ngay` + `moc=han_sx` soi `han_hoan_thanh_sx` — cùng cột mà `tre_han` dùng làm
+def test_loc_khoang_ngay_theo_han_giao(client, seed_credentials, hai_muoi_lenh):
+    """`tu_ngay`/`den_ngay` + `moc=han_giao` soi `han_giao_khach` — cùng cột mà `tre_han` dùng làm
     mốc. Thiếu `moc` thì kỳ tính theo ngày tạo lệnh (thanh lọc 06/10/2026)."""
     h = _h(_tok(client, seed_credentials))
     d = client.get(
-        "/api/lenh-san-xuat?moc=han_sx&tu_ngay=2026-09-03&den_ngay=2026-09-05&page_size=200",
+        "/api/lenh-san-xuat?moc=han_giao&tu_ngay=2026-09-03&den_ngay=2026-09-05&page_size=200",
         headers=h,
     ).json()
     assert d["total"] == 3
-    assert {i["han_hoan_thanh_sx"] for i in d["items"]} == {
+    assert {i["han_giao_khach"] for i in d["items"]} == {
         "2026-09-03", "2026-09-04", "2026-09-05"
     }
 
@@ -401,8 +401,8 @@ def test_sap_xep_toan_phan_khi_trung_khoa_chinh(client, seed_credentials, sess, 
     """
     h = _h(_tok(client, seed_credentials))
     hom = date(2026, 9, 9)
-    z = _lenh_tho(sess, ma="LSX-SAP-Z", sale_user_id=admin.id, customer_id=customer.id, han_sx=hom)
-    a = _lenh_tho(sess, ma="LSX-SAP-A", sale_user_id=admin.id, customer_id=customer.id, han_sx=hom)
+    z = _lenh_tho(sess, ma="LSX-SAP-Z", sale_user_id=admin.id, customer_id=customer.id, han_giao=hom)
+    a = _lenh_tho(sess, ma="LSX-SAP-A", sale_user_id=admin.id, customer_id=customer.id, han_giao=hom)
     assert z < a, "tiền đề: id tăng theo thứ tự tạo, tức NGƯỢC thứ tự mã"
 
     t1 = client.get("/api/lenh-san-xuat?page=1&page_size=1", headers=h).json()
@@ -607,14 +607,11 @@ def test_chang_rong_khi_lenh_khong_con_cong_viec_nao(sess, lenh_that):
 def test_danh_sach_khong_chay_can_doi_lan_duong_gang(
     client, seed_credentials, sess, lenh_that, monkeypatch,
 ):
-    """Danh sách tĩnh: gọi cân đối vật tư hay dự kiến xong là đẻ lại đúng phần nặng nhất đã bỏ."""
-    from app.services.lenh_sx import tien_do
-
+    """Danh sách tĩnh: gọi cân đối vật tư là đẻ lại đúng phần nặng nhất đã bỏ."""
     def cam(*_a, **_k):
         raise AssertionError("danh sách Hồ sơ lệnh không được gọi hàm này")
 
     monkeypatch.setattr(trang_thai, "den_vat_tu_theo_lo", cam)
-    monkeypatch.setattr(tien_do, "du_kien_xong", cam)
     h = _h(_tok(client, seed_credentials))
     r = client.get("/api/lenh-san-xuat?page_size=200", headers=h)
     assert r.status_code == 200
@@ -635,10 +632,10 @@ def test_loc_khach_hang(client, seed_credentials, sess, admin, customer, hai_muo
 def test_tab_tat_ca_sap_han_giam_dan(client, seed_credentials, sess, admin):
     """Danh sách tra cứu: lệnh mới nhất ở trên. Lệnh chưa có hạn xuống cuối."""
     h = _h(_tok(client, seed_credentials))
-    cu = _lenh_tho(sess, ma="LSX-DS-SAP1", sale_user_id=admin.id, han_sx=date(2026, 1, 5))
-    moi = _lenh_tho(sess, ma="LSX-DS-SAP2", sale_user_id=admin.id, han_sx=date(2026, 9, 5))
+    cu = _lenh_tho(sess, ma="LSX-DS-SAP1", sale_user_id=admin.id, han_giao=date(2026, 1, 5))
+    moi = _lenh_tho(sess, ma="LSX-DS-SAP2", sale_user_id=admin.id, han_giao=date(2026, 9, 5))
     gap_cu = _lenh_tho(
-        sess, ma="LSX-DS-SAP3", sale_user_id=admin.id, han_sx=date(2025, 6, 1), is_rush=True,
+        sess, ma="LSX-DS-SAP3", sale_user_id=admin.id, han_giao=date(2025, 6, 1), is_rush=True,
     )
     d = client.get("/api/lenh-san-xuat?q=LSX-DS-SAP&page_size=50", headers=h).json()
     assert [i["id"] for i in d["items"]] == [moi, cu, gap_cu], "GẤP không được kéo lên ở tab Tất cả"
@@ -692,3 +689,19 @@ def test_ngan_gon_khong_co_vat_tu(client, seed_credentials, lenh_that):
     assert body["tron_goi"] is None
     assert all("kcs_khong_dat" in n for n in body["routing"]["nodes"])
     assert client.get("/api/lenh-san-xuat/987654/ngan", headers=h).status_code == 404
+
+
+# 08/11/2026 gỡ "Hạn hoàn thành SX": client cũ còn gửi trường đó khi sửa lệnh thì máy chủ bỏ qua —
+# không 422, và cột trong DB không đổi.
+def test_sua_lenh_gui_han_sx_thi_khong_doi(client, seed_credentials, sess, admin):
+    from app.models.lsx import TT_NHAP
+
+    h = _h(_tok(client, seed_credentials))
+    lid = _lenh_tho(sess, ma="LSX-HANSX-BO", sale_user_id=admin.id, trang_thai_lsx=TT_NHAP)
+    r = client.put(f"/api/lsx/{lid}", headers=h,
+                   json={"han_hoan_thanh_sx": "2026-12-31", "ghi_chu": "sửa ghi chú"})
+    assert r.status_code == 200, r.text
+    sess.expire_all()
+    lsx = sess.get(Lsx, lid)
+    assert lsx.han_hoan_thanh_sx is None
+    assert lsx.ghi_chu == "sửa ghi chú"

@@ -1,8 +1,9 @@
-"""Tầng TÍNH của Lệnh SX & Theo dõi SX (Task 7): tiến độ có trọng số · giờ máy · dự kiến xong · trễ hạn.
+"""Tầng TÍNH của Lệnh SX & Theo dõi SX (Task 7): tiến độ có trọng số · giờ máy · trễ hạn.
 
-Bốn hàm ở đây trả lời đúng ba câu hỏi của điều độ: "lệnh này chạy tới đâu rồi", "bao giờ xong",
-"có trễ không". Lỗi ở tầng này KHÔNG làm gãy gì — nó ra CON SỐ SAI mà trông vẫn hợp lý, nên mọi
-lựa chọn dưới đây đều ghi rõ lý do.
+Ba hàm ở đây trả lời đúng hai câu hỏi của điều độ: "lệnh này chạy tới đâu rồi" và "có trễ
+không". "Bao giờ xong" (`du_kien_xong`, đường găng) GỠ 08/11/2026 cùng tốc độ máy. Lỗi ở tầng
+này KHÔNG làm gãy gì — nó ra CON SỐ SAI mà trông vẫn hợp lý, nên mọi lựa chọn dưới đây đều ghi rõ
+lý do.
 
 ĐỌC TỪ `BoiCanh` (Task 6), KHÔNG truy vấn DB. Cả tầng này sinh ra để màn 200 lệnh không đẻ N+1:
 nếu một hàm ở đây tự mở query thì công của `boi_canh.nap()` đổ sông. Thiếu dữ liệu thì bổ sung ở
@@ -26,29 +27,7 @@ nếu một hàm ở đây tự mở query thì công của `boi_canh.nap()` đ�
 --- BƯỚC BỊ BÀI GHÉP PHỦ: đọc `cong_viec_du`, đừng đọc `cong_viec` -----------------------------
 Bước gộp vào bài ghép KHÔNG đẻ công việc riêng — nó đẻ MỘT công việc CHUNG `lsx_id = None`. Đọc
 `bc.cong_viec[lsx_id]` là mất đúng bước nặng nhất (ca in ghép), IM LẶNG. Ba hàm đọc công việc ở
-đây (`phan_tram`, `gio_may`, `du_kien_xong`) đều đi qua `bc.cong_viec_du(lsx_id)`, và
-`_duong_gang_phut` nối cạnh qua `bc.buoc_phu` (Task 6 mở rộng ở vòng sửa 1).
-
---- Đường găng của `du_kien_xong` -------------------------------------------------------------
-Cạnh phụ thuộc TRONG một lệnh nằm ở `lsx_cong_doan_phu_thuoc` (`bc.phu_thuoc_buoc[lsx_id]`),
-KHÔNG ở `san_xuat_phu_thuoc` — bảng kia chỉ chứa cạnh CHÉO GIỮA HAI LSX (snapshot bước ghép,
-`models/san_xuat.py:251-255`; `services/san_xuat/snapshot.py` chỉ chụp cạnh chéo + cạnh toả vào
-đó). Duyệt nhầm bảng thì đường găng LUÔN RỖNG, và im lặng.
-
-Cạnh đọc được là cặp `lsx_cong_doan.id`; nối về công việc qua `SanXuatCongViec.lsx_cong_doan_id`
-(soft-ref Integer, NULLABLE) VÀ qua `bc.buoc_phu` cho bước bị bài ghép phủ. Đầu nào không nối được
-thì BỎ cạnh, không đoán.
-
-Mỗi bước còn có SÀN thời điểm bắt đầu = `max(bay_gio, du_kien_bat_dau)`. Không có sàn thì lệnh
-xếp lịch cho tuần sau vẫn báo xong theo giờ hôm nay — sai LUÔN về phía lạc quan, đúng bằng
-`du_kien_bat_dau − bay_gio`, và `tre_han` bỏ sót y hệt.
-
-KHÔNG dựng thêm bảng snapshot cho routing: từ `da_lap_ke_hoach` trở đi routing bị khoá
-(`models/lsx.py:47-48`) nên cạnh live đã đóng băng trên thực tế.
-
-GIỚI HẠN CÓ Ý THỨC: `du_kien_xong` chỉ tính đường găng TRONG MỘT LỆNH. Lệnh phải chờ bước ghép
-của lệnh khác (cạnh chéo `san_xuat_phu_thuoc`) sẽ báo xong SỚM HƠN thực tế. Đã ghi nhận, cố tình
-để ngoài phạm vi task này.
+đây (`phan_tram`, `gio_may`, `tre_han`) đều đi qua `bc.cong_viec_du(lsx_id)`.
 
 --- Hai bẫy kiểu dữ liệu (đều là bẫy tái phát của repo) ---------------------------------------
 `Decimal`: `batch.tot`, `cong_viec.so_luong_ra/so_luong_vao` là `Numeric` ⇒ SQLAlchemy trả
@@ -64,24 +43,12 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from ...models.san_xuat import CV_HOAN_THANH, SanXuatCongViec
-from ..gio_xuong import ve_gio_xuong, ve_utc_that
 from .boi_canh import BoiCanh
 
 # Giờ xưởng (+7). Hạn SX là kiểu `Date` nên "trễ hay không" phải quy về NGÀY THEO GIỜ XƯỞNG:
 # ca đêm 2h sáng giờ VN vẫn là ngày HÔM TRƯỚC theo UTC, mà xưởng này CÓ chạy ca đêm. Khai tại chỗ
 # đúng khuôn `services/sequence_service.py:45` và `services/ky_thuat_may_service.py:130`.
 BUSINESS_TZ = timezone(timedelta(hours=7))
-
-class _TuTinh:
-    """Sentinel "bên gọi chưa tính `du_kien_xong`" — KHÔNG dùng `None` được, vì `None` là một kết
-    quả HỢP LỆ của `du_kien_xong` ("chưa đủ dữ liệu") mà bên gọi có quyền truyền lại.
-
-    Khai thành LỚP riêng thay vì `object()`: annotation `datetime | None | object` bị `object` nuốt
-    trọn (mọi thứ đều là `object`) nên nó không nói được gì cho người đọc lẫn cho type checker.
-    """
-
-
-_TU_TINH = _TuTinh()
 
 
 def _aware(dt: datetime) -> datetime:
@@ -204,210 +171,21 @@ def gio_may(bc: BoiCanh, lsx_id: int, bay_gio: datetime | None = None) -> float:
     return tong_giay / 3600.0
 
 
-def _duong_gang_phut(
-    bc: BoiCanh,
-    lsx_id: int,
-    cvs: list[SanXuatCongViec],
-    con_lai: dict[int, float],
-    san: dict[int, float],
-) -> float:
-    """Số phút TỪ `bay_gio` tới lúc lệnh xong, theo ĐƯỜNG GĂNG của đồ thị phụ thuộc trong lệnh.
-
-    `cvs` là danh sách công việc đã gồm cả bước ghép (`cong_viec_du`); `con_lai` và `san` khoá theo
-    `san_xuat_cong_viec.id`. `san[n]` = SÀN thời điểm bắt đầu của n, đo bằng phút từ `bay_gio` —
-    bằng 0 khi mốc kế hoạch đã qua hoặc chưa khai. Không có sàn thì lệnh xếp lịch cho TUẦN SAU vẫn
-    báo xong theo giờ hôm nay: sai luôn về phía LẠC QUAN, đúng bằng `du_kien_bat_dau − bay_gio`.
-
-    Nhánh CHẠY THẬT là Kahn: `LsxService.tao` sinh sẵn chuỗi cạnh ĐẦY ĐỦ (`lsx_service.py:1526-1528`
-    nối `thu_tu` liền kề), nên lệnh bình thường luôn có cạnh. Nhánh `_tuan_tu` là lối thoát cho hai
-    ca BẤT THƯỜNG: kế hoạch đã gỡ hết cạnh, hoặc mọi cạnh đều không nối được về công việc (bước bị
-    bài ghép phủ làm cạnh tự-nối, dữ liệu routing hỏng). Cả hai nhánh trả cùng một hệ quy chiếu
-    "phút từ `bay_gio`".
-    """
-    cv_theo_buoc = {
-        cv.lsx_cong_doan_id: cv.id for cv in cvs if cv.lsx_cong_doan_id is not None
-    }
-    # Bước bị BÀI GHÉP phủ không có công việc riêng — nó trỏ về công việc CHUNG. Thiếu vòng này thì
-    # mọi cạnh chạm bước ghép bị bỏ, chuỗi tuần tự vỡ thành nhánh song song và `max` thay cho `sum`
-    # (reviewer đo: 570' thật → báo 210', hụt 63%).
-    for cv in cvs:
-        for cd_id in bc.buoc_phu.get(cv.id, ()):
-            cv_theo_buoc[cd_id] = cv.id
-
-    def _tuan_tu() -> float:
-        """Gộp TUẦN TỰ theo SÀN TĂNG DẦN: `t = max(t, san[n]) + con_lai[n]`.
-
-        Cộng dồn từ `min(san)` (bản cũ) luôn ra số NHỎ HƠN HOẶC BẰNG sự thật: hai bước không cạnh,
-        A 60' xếp bây giờ và B 30' xếp 7 ngày nữa, cho `0 + 90` thay vì `10080 + 30` — hụt trọn 7
-        ngày, và hụt về phía LẠC QUAN, đúng thứ SÀN sinh ra để diệt.
-
-        Duyệt theo sàn tăng dần chứ KHÔNG theo thứ tự `con_lai`: nhánh này chạy đúng lúc không có
-        cạnh nào dùng được, nên không suy ra được đâu là đầu chuỗi; mà `con_lai` sinh từ truy vấn
-        không `ORDER BY` — SQLite và Postgres có quyền trả khác thứ tự.
-        """
-        t = 0.0
-        for i in sorted(con_lai, key=lambda k: san.get(k, 0.0)):
-            t = max(t, san.get(i, 0.0)) + con_lai[i]
-        return t
-
-    canh: set[tuple[int, int]] = set()
-    for buoc_truoc, buoc_sau in bc.phu_thuoc_buoc[lsx_id]:
-        u = cv_theo_buoc.get(buoc_truoc)
-        v = cv_theo_buoc.get(buoc_sau)
-        # Bỏ cạnh không nối được về công việc, và cạnh TỰ NỐI CHÍNH MÌNH — xảy ra khi một công việc
-        # ghép phủ hai bước liền nhau của cùng lệnh.
-        if u is None or v is None or u == v or u not in con_lai or v not in con_lai:
-            continue
-        canh.add((u, v))
-    if not canh:
-        return _tuan_tu()
-
-    ke: dict[int, list[int]] = {}
-    bac_vao: dict[int, int] = {i: 0 for i in con_lai}
-    for u, v in canh:
-        ke.setdefault(u, []).append(v)
-        bac_vao[v] += 1
-
-    # Kahn + longest path: `xong[n]` = mốc kết thúc sớm nhất của n, tính bằng phút từ `bay_gio`.
-    xong: dict[int, float] = {i: 0.0 for i in con_lai}
-    hang_doi = [i for i, bac in bac_vao.items() if bac == 0]
-    da_tham = 0
-    while hang_doi:
-        u = hang_doi.pop()
-        da_tham += 1
-        # Bước không bắt đầu trước SÀN của nó, kể cả khi mọi tiền nhiệm đã xong sớm.
-        xong[u] = max(xong[u], san.get(u, 0.0)) + con_lai[u]
-        for v in ke.get(u, []):
-            xong[v] = max(xong[v], xong[u])
-            bac_vao[v] -= 1
-            if bac_vao[v] == 0:
-                hang_doi.append(v)
-    if da_tham != len(con_lai):
-        # Chu trình (dữ liệu routing hỏng) — trả về ước lượng TUẦN TỰ. Bi quan hơn sự thật còn hơn
-        # trả một con số cụt vì bỏ sót nguyên cụm bước nằm trong vòng.
-        return _tuan_tu()
-    return max(xong.values(), default=0.0)
-
-
-def _moc_da_xong(bc: BoiCanh, cvs: list) -> datetime | None:
-    """Mốc hoàn thành của lệnh ĐÃ ĐÓNG HẾT BƯỚC — thang BA BẬC, không bao giờ lùi về `bay_gio`.
-
-    1. `max(phien.ket_thuc)` của mọi phiên ĐÃ ĐÓNG — sự thật ghi được từ xưởng;
-    2. không có phiên đóng nào ⇒ `max(cv.du_kien_ket_thuc)` — mốc kế hoạch, còn hơn không;
-    3. cả hai đều không có ⇒ `None` ("chưa đủ dữ liệu").
-
-    CHỈ gọi khi MỌI công việc `completed` — cửa nằm ở `du_kien_xong`, và cửa đó là phần load-bearing
-    nhất của hàm này (xem chú thích tại chỗ: cửa `con_lai == 0` đã đẻ ra một regression thật).
-    Bậc 1 nhặt phiên của MỌI bước, nên nếu lọt vào đây khi còn một bước đang chạy phiên MỞ, nó sẽ
-    trả mốc của bước TRƯỚC — một con số quá khứ trông rất hợp lý.
-
-    VÌ SAO KHÔNG TRẢ `bay_gio` (lỗi thật của bản Task 7, sửa ở Vòng sửa 1): đường găng của lệnh đã
-    xong ra 0 phút, `du_kien_xong` = đúng `bay_gio`, và `bay_gio` thì LUÔN muộn hơn một hạn đã qua
-    ⇒ `tre_han` bật VĨNH VIỄN cho mọi lệnh đã xong có hạn trong quá khứ, kể cả lệnh về ĐÚNG HẠN từ
-    tháng trước. Cứ mỗi ngày trôi qua, mốc "dự kiến xong" của một lệnh đã đóng lại trượt thêm một
-    ngày — con số không những sai, nó còn không đứng yên.
-    """
-    dong = [_aware(p.ket_thuc) for cv in cvs for p in bc.phien[cv.id] if p.ket_thuc is not None]
-    if dong:
-        return max(dong)
-    # Bậc 2 đổi THANG: `du_kien_ket_thuc` là giờ tường dán nhãn UTC, còn hàm này trả UTC THẬT (bậc
-    # 1 lấy từ `phien.ket_thuc`, và `tre_han` so bằng `.astimezone(BUSINESS_TZ).date()`). Trả thẳng
-    # là mốc xong nhảy +7 tiếng — đủ để một lệnh về đúng hạn lúc 18h bị đọc thành 1h sáng HÔM SAU
-    # và bật cờ trễ. Xem `services/gio_xuong.py`.
-    kh = [ve_utc_that(_aware(cv.du_kien_ket_thuc)) for cv in cvs if cv.du_kien_ket_thuc is not None]
-    if kh:
-        return max(kh)
-    return None
-
-
-def du_kien_xong(bc: BoiCanh, lsx_id: int, bay_gio: datetime) -> datetime | None:
-    """Mốc dự kiến hoàn thành lệnh. `None` = CHƯA ĐỦ DỮ LIỆU (UI hiện "Chưa đủ dữ liệu").
-
-    Phần còn lại của mỗi công việc = `thời lượng × (1 - phần đã xong)`; `completed` ⇒ 0. Chỉ cần
-    MỘT công việc chưa xong mà thiếu thời lượng là trả `None` — thà im còn hơn bịa ra một mốc giờ
-    mà điều độ sẽ hứa với khách.
-
-    TÔN TRỌNG MỐC BẮT ĐẦU KẾ HOẠCH: mỗi bước có SÀN = `max(bay_gio, du_kien_bat_dau)`. Cộng thẳng
-    từ `bay_gio` là coi mọi lệnh như đang bắt đầu ngay bây giờ ⇒ lệnh xếp cho tuần sau báo xong
-    theo giờ hôm nay, và `tre_han` bỏ sót đúng bằng `du_kien_bat_dau − bay_gio`.
-
-    LỆNH ĐÃ ĐÓNG HẾT BƯỚC đi đường riêng (`_moc_da_xong`): mốc xong của nó là quá khứ đã ghi được,
-    KHÔNG phải `bay_gio` — lỗi thật của bản đầu, sửa ở Vòng sửa 1. Cửa vào đường đó là `trang_thai`
-    của mọi công việc, KHÔNG phải `con_lai`: xem chú thích ngay tại cửa, đó là chỗ Vòng sửa 1 đặt
-    sai và làm mất cờ `tre_han` của lệnh còn trên máy.
-
-    Giới hạn: chỉ đường găng TRONG một lệnh; lệnh chờ bước ghép của lệnh khác — cạnh CHÉO ở
-    `san_xuat_phu_thuoc` — sẽ báo xong sớm hơn thực tế (xem docstring module). Đây là chuyện KHÁC
-    với bước ghép phủ bước của chính lệnh này: cái đó đã được `cong_viec_du` + `buoc_phu` nối lại.
-    """
+def _da_xong_san_xuat(bc: BoiCanh, lsx_id: int) -> bool:
+    """Lệnh đã xong khâu sản xuất: có công việc và MỌI công việc đã `completed`."""
     cvs = bc.cong_viec_du(lsx_id)
-    if not cvs:
-        return None
-
-    # CỬA VÀO THANG là "MỌI bước đã `completed`", KHÔNG phải "mọi `con_lai` = 0" (Vòng sửa 2 —
-    # regression của chính Vòng sửa 1). `_phan_hoan_thanh` kẹp `min(1.0, …)`, nên một bước ĐANG
-    # CHẠY đã ghi đủ (hoặc dư) sản lượng cũng cho `con_lai = 0`. Lấy `con_lai` làm cửa thì ca
-    # "thợ ghi hết sản lượng rồi QUÊN bấm Kết thúc" rơi vào thang: phiên của bước đó còn MỞ nên
-    # bậc 1 nhặt mốc của BƯỚC TRƯỚC, `du_kien_xong` lùi về quá khứ, và một lệnh trễ hai ngày CÒN
-    # TRÊN MÁY mất cờ `tre_han` — biến khỏi tab Cảnh báo đúng lúc điều độ cần nhìn nhất.
-    if all(cv.trang_thai == CV_HOAN_THANH for cv in cvs):
-        return _moc_da_xong(bc, cvs)
-
-    moc = _aware(bay_gio)
-    # SÀN đo bằng HIỆU hai mốc, mà `moc` là UTC THẬT còn `du_kien_bat_dau` là giờ tường dán nhãn
-    # UTC (`services/gio_xuong.py`). Trừ thẳng là mọi bước nhận thêm đúng offset máy chủ (VN: 7
-    # tiếng) vào sàn ⇒ `du_kien_xong` của MỌI lệnh chưa vào việc bị đẩy muộn 7 tiếng và `tre_han`
-    # bật oan. Hiệu thì bất biến theo thang, nên chỉ cần kéo `moc` sang thang xưởng, KHÔNG đổi
-    # thang của giá trị trả về (bên gọi + `tre_han` đang đo bằng UTC thật).
-    moc_xuong = ve_gio_xuong(moc)
-    con_lai: dict[int, float] = {}
-    san: dict[int, float] = {}
-    for cv in cvs:
-        if cv.trang_thai == CV_HOAN_THANH:
-            # Bước ĐÃ XONG không có sàn: nó không còn chờ mốc kế hoạch nào nữa. Để nguyên sàn
-            # tương lai ở đây là một bước đã hoàn thành lại đẩy lùi các bước sau nó.
-            san[cv.id] = 0.0
-            con_lai[cv.id] = 0.0
-            continue
-        san[cv.id] = (
-            max(0.0, (_aware(cv.du_kien_bat_dau) - moc_xuong).total_seconds() / 60.0)
-            if cv.du_kien_bat_dau is not None else 0.0
-        )
-        thoi_luong = _thoi_luong_phut(cv)
-        if thoi_luong is None:
-            return None
-        con_lai[cv.id] = thoi_luong * (1.0 - _phan_hoan_thanh(bc, cv))
-
-    # Còn bước CHƯA đóng ⇒ đi đường găng, kể cả khi mọi `con_lai` đã bằng 0 (ca "ghi đủ sản lượng
-    # nhưng chưa bấm Kết thúc"): kết quả khi đó là `bay_gio`, tức "đáng lẽ xong rồi" — đúng thứ
-    # điều độ cần thấy, và `tre_han` vẫn bật nếu hạn đã qua.
-    return moc + timedelta(minutes=_duong_gang_phut(bc, lsx_id, cvs, con_lai, san))
+    return bool(cvs) and all(cv.trang_thai == CV_HOAN_THANH for cv in cvs)
 
 
-def tre_han(
-    bc: BoiCanh, lsx_id: int, bay_gio: datetime, *,
-    xong: datetime | None | _TuTinh = _TU_TINH,
-) -> bool:
-    """Lệnh có nguy cơ trễ HẠN SX hay không.
+def tre_han(bc: BoiCanh, lsx_id: int, bay_gio: datetime) -> bool:
+    """Lệnh chưa xong sản xuất mà hôm nay (theo giờ xưởng) đã qua HẠN GIAO KHÁCH.
 
-    `xong` (KEYWORD-ONLY, để không ai lỡ truyền nhầm vào vị trí của `bay_gio`) = kết quả
-    `du_kien_xong` mà bên gọi ĐÃ tính. Bỏ trống thì hàm tự tính — tiện cho lời gọi lẻ, nhưng màn
-    danh sách 200 lệnh phải TRUYỀN VÀO: cả hai hàm đều duyệt đường găng, để mặc thì trang đó chạy
-    400 lượt duyệt thay vì 200. Truyền `None` là hợp lệ và có nghĩa "đã tính, không đủ dữ liệu" —
-    nên mặc định phải là sentinel riêng chứ không thể là `None`.
-
-    Mốc so là `han_hoan_thanh_sx` (hạn nội bộ của kế hoạch), KHÔNG phải `han_giao_khach` — trễ
-    khâu sản xuất và trễ giao hàng là hai chuyện khác nhau. Hạn NULL ⇒ `False`: không có hạn thì
-    không thể trễ. Không suy được mốc xong ⇒ `False`: không kết luận trên dữ liệu thiếu.
-
-    Hạn là kiểu `Date` (`models/lsx.py:120`) nên so bằng NGÀY THEO GIỜ XƯỞNG. `.date()` của mốc
-    UTC là sai: ca đêm 2h sáng giờ VN vẫn nằm ở ngày hôm trước theo UTC.
+    Đổi 08/11/2026 (docs/design-go-toc-do-may-va-xep-lich.md §1, §3): "Dự kiến xong" và hạn hoàn
+    thành sản xuất đã gỡ, nên không còn đường găng nào để dự báo. Cờ trễ chỉ còn nói một sự thật
+    đo được: tới ngày giao rồi mà lệnh chưa xong. Hạn NULL ⇒ `False`. Hạn là kiểu `Date` nên so
+    bằng NGÀY THEO GIỜ XƯỞNG: ca đêm 2h sáng giờ VN vẫn là ngày hôm trước theo UTC.
     """
-    han = bc.lenh[lsx_id].han_hoan_thanh_sx
-    if han is None:
+    han = bc.lenh[lsx_id].han_giao_khach
+    if han is None or _da_xong_san_xuat(bc, lsx_id):
         return False
-    if xong is _TU_TINH:
-        xong = du_kien_xong(bc, lsx_id, bay_gio)
-    if xong is None:
-        return False
-    return xong.astimezone(BUSINESS_TZ).date() > han
+    return _aware(bay_gio).astimezone(BUSINESS_TZ).date() > han

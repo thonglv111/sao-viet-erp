@@ -171,7 +171,7 @@ def _dot_dong_don(sess, so_dong: int = 7) -> None:
 
 def _lenh_tho(
     sess, *, ma: str, sale_user_id: int | None, customer_id: int | None = None,
-    trang_thai_lsx: str = TT_DA_PHAT_HANH, han_sx: date | None = None,
+    trang_thai_lsx: str = TT_DA_PHAT_HANH, han_giao: date | None = None,
     is_rush: bool = False, so_luong: int = 1000, ten: str = "Hộp giấy",
 ) -> int:
     """MỘT lệnh + đơn + dòng đơn của nó, đặt cột bằng tay.
@@ -179,7 +179,7 @@ def _lenh_tho(
     Mọi cột đặt ở đây đều là cột mà đường ghi production ghi đúng giá trị đó:
       · `orders.sale_user_id` — `OrderService` gán người bán khi lập đơn;
       · `lsx.trang_thai='da_phat_hanh'` — `xep_lich_van_de_service.py:716` (xem docstring module);
-      · `lsx.is_rush` / `han_hoan_thanh_sx` / `so_luong_dat` — `LsxService.tao` + màn Kế hoạch SX.
+      · `lsx.is_rush` / `han_giao_khach` / `so_luong_dat` — `LsxService.tao` + màn Kế hoạch SX.
     KHÔNG có công việc/phiên nào: đây là lệnh dùng cho các bài ĐẾM và PHÂN TRANG, nơi nội dung
     routing không tham gia phép so. Bài nào cần lệnh THẬT (routing + snapshot + phiên) thì dùng
     `lenh_that`, dựng qua `_dung_lenh` (đơn → PTG → LSX → `release.phat_hanh`).
@@ -190,7 +190,7 @@ def _lenh_tho(
     sess.flush()
     lsx = Lsx(
         ma=ma, ten=ten, order_id=don.id, order_line_id=don.lines[0].id,
-        trang_thai=trang_thai_lsx, so_luong_dat=so_luong, han_hoan_thanh_sx=han_sx,
+        trang_thai=trang_thai_lsx, so_luong_dat=so_luong, han_giao_khach=han_giao,
         is_rush=is_rush,
     )
     sess.add(lsx)
@@ -210,7 +210,7 @@ def hai_muoi_lenh(sess, admin, customer) -> list[int]:
     for i in range(20):
         ids.append(_lenh_tho(
             sess, ma=f"LSX-DS-{i:02d}", sale_user_id=admin.id, customer_id=customer.id,
-            han_sx=date(2026, 9, 1) + timedelta(days=i), so_luong=100 + i,
+            han_giao=date(2026, 9, 1) + timedelta(days=i), so_luong=100 + i,
         ))
     return ids
 
@@ -258,7 +258,7 @@ def sale_own(sess) -> User:
 def lenh_cua_sale_own(sess, sale_own, customer) -> int:
     return _lenh_tho(
         sess, ma="LSX-DS-OWN", sale_user_id=sale_own.id, customer_id=customer.id,
-        han_sx=date(2026, 9, 5), ten="Lệnh của Sale Own",
+        han_giao=date(2026, 9, 5), ten="Lệnh của Sale Own",
     )
 
 

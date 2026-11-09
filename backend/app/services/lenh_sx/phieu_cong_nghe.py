@@ -382,7 +382,6 @@ def render_pdf(
     cap_tt = [c for c in (
         cap("Khách", tt.get("khach_hang")),
         cap("Đặt", so_luong),
-        cap("Hạn SX", _ngay(tt.get("han_hoan_thanh_sx"))),
         cap("Hạn giao", _ngay(tt.get("han_giao_khach"))),
         cap("Đơn", tt.get("order_no")),
         cap("Kinh doanh", tt.get("sale")),

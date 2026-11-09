@@ -36,6 +36,7 @@ export function nhanh(
     lsx_ten: null,
     customer_name: "Khách A",
     han_hoan_thanh_sx: null,
+    han_giao_khach: null,
     is_rush: false,
     mau: 0,
     so_con_tren_to: 2,

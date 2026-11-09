@@ -26,7 +26,7 @@ export function LsxPreviewDrawer({
   onCreated: (orderId: number, maList: string[], orderNo?: string) => void;
   onOpenLsx: (lsxId: number) => void;
 }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [data, setData] = useState<LsxPreviewOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -131,6 +131,13 @@ export function LsxPreviewDrawer({
                   </span>
                 )}
                 {data.is_rush && <ChipGap />}
+                {/* Người giao mở đơn đã giao cho người khác: tạo lệnh vẫn được (tạo hộ), người phụ
+                    trách lệnh vẫn là người được giao (08/11/2026). */}
+                {data.nguoi_lam_lenh_id != null && data.nguoi_lam_lenh_id !== user?.id && (
+                  <span className="khsx-meta-item" title="Tạo lệnh ở đây là tạo hộ, người phụ trách lệnh vẫn là người được giao">
+                    <Icon name="users" size={13} /> Người phụ trách: {data.nguoi_lam_lenh_ten ?? "người khác"}
+                  </span>
+                )}
               </div>
             )}
           </div>

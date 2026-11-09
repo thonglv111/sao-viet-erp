@@ -72,9 +72,7 @@ export function dangLamDon(d: TdsxDonDong): [string, string | null] {
 export function cauVuong(d: TdsxDonDong): string | null {
   const v = d.vuong;
   if (!v) return null;
-  if (v.ly_do === "tre") {
-    return d.con_ngay != null && d.con_ngay >= 0 ? "Dự kiến xong sau hạn giao" : "Đã quá hạn giao";
-  }
+  if (v.ly_do === "tre") return "Đã quá hạn giao";
   const nhan = NHAN_VUONG[v.ly_do] ?? v.ly_do;
   const dau = d.so_mon > 1 && v.so_mon > 0 ? `${v.so_mon} mặt hàng ${nhan.toLowerCase()}` : nhan;
   return v.buoc ? `${dau} ở ${v.buoc}` : dau;
