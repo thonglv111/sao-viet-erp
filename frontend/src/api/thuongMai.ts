@@ -73,6 +73,25 @@ export const thuongMaiApi = {
       method: "PUT", body: JSON.stringify({ lines }),
     });
   },
+  /** Trang Tạo đơn: tạo + chốt, kèm xuất hết hàng (`xuat`) và/hoặc phiếu thu theo đơn (`thu`). */
+  banNhanh(token: string, body: { customer_id: number; lines: DongThuongMaiInput[]; deposit_amount?: number | null;
+    ghi_chu?: string | null;
+    thu?: { receipt_method: "cash" | "bank_transfer"; amount: number; company_bank_account_id?: number | null;
+      bank_reference?: string | null } | null;
+    xuat?: { kho_id: number; ghi_so: boolean; phuong_thuc?: CachGiaoInput } | null }): Promise<OrderDetail> {
+    return authed<OrderDetail>("/api/thuong-mai/ban-nhanh", token, { method: "POST", body: JSON.stringify(body) });
+  },
+  /** Kho chọn được ở khối Xuất hàng của trang Tạo đơn. */
+  khoXuat(token: string): Promise<KhoXuat[]> {
+    return authed<KhoXuat[]>("/api/thuong-mai/kho-xuat", token);
+  },
+  /** Tồn từng dòng theo ĐVT của dòng, ở kho đã chọn (hoặc mọi kho khi `kho_id` trống). */
+  ton(token: string, kho_id: number | null, lines: { hang_id: number; dvt: string; qty: number }[]):
+    Promise<{ hang_id: number; dvt: string; ton: number }[]> {
+    return authed<{ hang_id: number; dvt: string; ton: number }[]>("/api/thuong-mai/ton", token, {
+      method: "POST", body: JSON.stringify({ kho_id, lines }),
+    });
+  },
   xemXuat(token: string, orderId: number): Promise<XuatHangState> {
     return authed<XuatHangState>(`/api/thuong-mai/don/${orderId}/xuat`, token);
   },

@@ -211,6 +211,194 @@ def _state(db: Session, authz: AuthorizationService, user: User, order) -> XuatH
     )
 
 
+@router.get("/kho-xuat", response_model=list[KhoXuatOut])
+def kho_xuat(
+    db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+) -> list[KhoXuatOut]:
+    """Kho chọn được ở trang Tạo đơn (khối Xuất hàng) — cùng danh sách, cùng thứ tự hộp Xuất hàng."""
+    from ..models.kho_hang import KhoHang
+
+    duoc = kho_duoc(authz, user, "read")
+    khos = db.query(KhoHang).filter(KhoHang.active.is_(True)).order_by(KhoHang.ten).all()
+    return sorted([KhoXuatOut(id=k.id, ma=k.ma, ten=k.ten, ghi_so_duoc=_ghi_so_duoc(authz, user, k.id))
+                   for k in khos], key=lambda k: (k.id not in duoc, k.ten))
+
+
+class TonHoiIn(BaseModel):
+    kho_id: int | None = None
+    lines: list[DongThuongMaiIn] = Field(min_length=1, max_length=200)
+
+
+class TonDongOut(BaseModel):
+    hang_id: int
+    dvt: str
+    ton: float
+
+
+@router.post("/ton", response_model=list[TonDongOut])
+def ton_dong(
+    body: TonHoiIn, db: Db,
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+) -> list[TonDongOut]:
+    """Tồn từng dòng của trang Tạo đơn, tính theo ĐVT của dòng: ở kho xuất đang chọn, hoặc cộng mọi
+    kho khi chưa chọn. Không có tiền."""
+    from ..services.thuong_mai.ban_nhanh import ton_theo_dvt
+    from .kho_voucher import _hang_service
+
+    hang = _hang_service(db)
+    ra: list[TonDongOut] = []
+    for ln in body.lines:
+        dvt = (ln.dvt or "").strip().lower()
+        if not dvt:
+            continue
+        ra.append(TonDongOut(hang_id=ln.hang_id, dvt=dvt,
+                             ton=ton_theo_dvt(db, hang, body.kho_id, ln.hang_id, dvt)))
+    return ra
+
+
+class ThuNgayIn(BaseModel):
+    receipt_method: str
+    amount: int = Field(gt=0)
+    company_bank_account_id: int | None = None
+    bank_reference: str | None = Field(None, max_length=64)
+
+
+class XuatNgayIn(BaseModel):
+    kho_id: int
+    ghi_so: bool = False
+    phuong_thuc: PhuongThucGiaoIn | None = None
+
+
+class BanNhanhIn(DonThuongMaiIn):
+    """Trang Tạo đơn thương mại: `thu` có ⇒ khách trả ngay (phiếu thu theo đơn), `xuat` có ⇒ xuất hết
+    hàng ngay. Cả hai vắng ⇒ tạo và chốt đơn."""
+    thu: ThuNgayIn | None = None
+    xuat: XuatNgayIn | None = None
+
+
+@router.post("/ban-nhanh", response_model=OrderDetailOut, status_code=status.HTTP_201_CREATED)
+def ban_nhanh(
+    body: BanNhanhIn, svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+) -> OrderDetailOut:
+    from ..models.customer import Customer
+    from ..services.ban_hang_cho_thu_chi import bao_hang_cho
+    from ..services.order_service import OrderError
+    from ..services.stock_voucher_service import StockVoucherError
+    from ..services.thanh_pham_khai_bao import ma_don_vi
+    from ..services.thuong_mai import ban_nhanh as bn
+    from ..services.thuong_mai.luot_xuat import kho_ghi_so_luot_xuat
+    from .kho_request import get_service as yeu_cau_service
+    from .kho_voucher import get_service as phieu_service
+    from .orders import _order_changed
+
+    # Quyền gác ở máy chủ, trước mọi thứ: thu tiền = lập phiếu thu; ghi sổ = ô Lập phiếu của Kho.
+    if body.thu is not None and not authz.can(user, "phieu_thu", "create"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Bạn chưa có quyền lập phiếu thu — chọn Thanh toán sau.")
+    if body.xuat is not None and body.xuat.ghi_so and not _ghi_so_duoc(authz, user, body.xuat.kho_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Bạn chưa có quyền ghi sổ kho này — bỏ chọn ghi sổ để gửi yêu cầu cho kho.")
+
+    # 1) Kiểm hết trước khi ghi dòng đầu tiên.
+    pt_cot = None
+    phieu = phieu_service(db)
+    try:
+        if not body.customer_id or db.get(Customer, int(body.customer_id)) is None:
+            raise DonThuongMaiError("Chọn khách hàng cho đơn.")
+        dong = bn.chuan_dong(db, [ln.model_dump() for ln in body.lines])
+        tong = bn.tong_gom_vat(dong)
+        if body.thu is not None:
+            bn.kiem_thu(bn.ThuNgay(**body.thu.model_dump()), tong)
+        if body.xuat is not None:
+            bn.kiem_kho(db, body.xuat.kho_id)
+            if not tat(GIAO_HANG_HP):
+                from ..services.giao_hang_hp import phuong_thuc as pt_svc
+
+                try:
+                    pt_cot = pt_svc.kiem(db, body.xuat.phuong_thuc.model_dump() if body.xuat.phuong_thuc else None)
+                except pt_svc.PhuongThucLoi as e:
+                    raise DonThuongMaiError(str(e)) from None
+            if body.xuat.ghi_so:
+                bn.kiem_ton(phieu.hang, phieu, body.xuat.kho_id, dong,
+                            [ma_don_vi(db, d["don_vi_tinh"]) or "" for d in dong],
+                            bn.bang_ten_dvt(db))
+    except (DonThuongMaiError, DonThuongMaiNotFound) as e:
+        db.rollback()
+        raise _loi(e) from None
+
+    # 2) Tạo + chốt.
+    tm = DonThuongMaiService(db, svc.repo, svc.audit)
+    try:
+        order = tm.tao(actor=user, customer_id=body.customer_id, lines=[ln.model_dump() for ln in body.lines],
+                       deposit_pct=(None if body.thu else body.deposit_pct),
+                       deposit_amount=(None if body.thu else body.deposit_amount), ghi_chu=body.ghi_chu)
+    except (DonThuongMaiError, DonThuongMaiNotFound) as e:
+        db.rollback()
+        raise _loi(e) from None
+    scope = _scope(authz, user)
+
+    def _do_dang(buoc: str, e: Exception) -> HTTPException:
+        db.rollback()
+        _order_changed(order.order_no)
+        return HTTPException(status_code=status.HTTP_409_CONFLICT,
+                             detail=f"Đã tạo đơn {order.order_no} nhưng chưa {buoc}: {e}")
+
+    try:
+        svc.confirm(order_id=order.id, actor=user, scope=scope)
+    except OrderError as e:
+        raise _do_dang("chốt được", e) from None
+    bao_hang_cho(db, svc.accounting_repo, actor_id=user.id, order_id=order.id,
+                 order_code=order.order_no, coc_moi=body.thu is None)
+
+    # 3) Xuất hết hàng.
+    if body.xuat is not None:
+        yc = yeu_cau_service(db)
+        lx = LuotXuatService(db, request_service=yc, voucher_service=phieu)
+        o = svc.repo.get_with_lines(order.id)
+        pt_row = None
+        try:
+            luot, req = lx.tao(order=o, actor=user, kho_id=body.xuat.kho_id,
+                               lines=[{"order_line_id": ln.id, "qty": ln.qty} for ln in o.lines])
+            if pt_cot is not None:
+                pt_row = pt_svc.ghi(db, order_id=o.id, actor=user, cot=pt_cot,
+                                    luot_xuat_tm_id=luot.id, ma_lan_xuat=luot.ma)
+            db.commit()
+        except (DonThuongMaiError, DonThuongMaiNotFound) as e:
+            raise _do_dang("xuất hàng", e) from None
+        loi_ghi_so = None
+        if body.xuat.ghi_so:
+            try:
+                lx.ghi_so_ngay(req=req, actor=user)
+                kho_ghi_so_luot_xuat(db, req.id)
+            except (DonThuongMaiError, StockVoucherError) as e:
+                db.rollback()
+                loi_ghi_so = str(e)
+        if loi_ghi_so or not body.xuat.ghi_so:
+            yc.thong_bao_yeu_cau_moi(db.get(type(req), req.id))
+        if pt_row is not None:
+            pt_svc.bao_nguoi_giao(db, pt_row, o)
+        if loi_ghi_so:
+            raise _do_dang(f"ghi sổ kho (yêu cầu xuất {req.ma} đã gửi kho)", Exception(loi_ghi_so))
+
+    # 4) Thu tiền.
+    if body.thu is not None:
+        from ..schemas.order import OrderDepositReceiptIn
+
+        try:
+            svc.add_deposit_receipt(order_id=order.id, actor=user, scope=scope, payload=OrderDepositReceiptIn(
+                receipt_method=body.thu.receipt_method, amount=body.thu.amount,
+                company_bank_account_id=body.thu.company_bank_account_id,
+                bank_reference=body.thu.bank_reference))
+        except OrderError as e:
+            raise _do_dang("lập phiếu thu", e) from None
+
+    _order_changed(order.order_no)
+    db.expire_all()
+    return svc._detail(svc.repo.get_with_lines(order.id))
+
+
 @router.get("/don/{order_id}/xuat", response_model=XuatHangState)
 def xem_xuat(
     order_id: int, svc: Service, db: Db, authz: Authz,

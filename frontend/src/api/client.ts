@@ -9931,6 +9931,8 @@ export interface OrderDetail extends OrderRow {
   phieu_vua_lap_id?: number | null;
   /** Người bấm Chốt. */
   ordered_by_name?: string | null;
+  /** Đơn thương mại: tiền khách đã đưa cho đơn (cọc + thu theo hoá đơn) — chặng Thu tiền. */
+  tm_da_thu?: number | null;
 }
 export interface OrderStatsOut {
   all: number;

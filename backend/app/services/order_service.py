@@ -427,7 +427,16 @@ class OrderService:
             confirm_blockers=blockers,
             quote_expired=quote_expired,
             ordered_by_name=names.get(order.ordered_by) if order.ordered_by else None,
+            tm_da_thu=self._tm_da_thu(order),
         )
+
+    def _tm_da_thu(self, order: Order) -> int | None:
+        """Chặng Thu tiền của đơn thương mại: tiền khách đã đưa cho đơn (cọc + thu theo hoá đơn)."""
+        if order.source_type != SOURCE_THUONG_MAI:
+            return None
+        from .thuong_mai.thu_tien import tien_da_thu
+
+        return tien_da_thu(self.accounting_repo, order.id)
 
     # --- reads --------------------------------------------------------------
     def _ap_dang_cho(self, *, actor, scope: str, q: str | None, order_kind: str | None,
@@ -887,6 +896,11 @@ class OrderService:
             raise OrderNotFound("Không tìm thấy đơn hàng")
         if order.status == STATUS_CANCELLED:
             raise OrderConflict("Đơn đã hủy — không ghi cọc")
+        if order.source_type == SOURCE_THUONG_MAI:
+            # Đơn thương mại thu theo đơn bất kỳ lúc nào (chặng Thu tiền), trần là phần đơn còn thiếu.
+            from .thuong_mai.thu_tien import chan_thu_vuot
+
+            chan_thu_vuot(self.accounting_repo, order.id, self.repo.total_with_vat(order.id), payload.amount)
         customer_name = None
         if order.customer_id:
             from ..models.customer import Customer
@@ -901,13 +915,15 @@ class OrderService:
                 receipt_date=(payload.receipt_date or date.today()), note=payload.note,
                 company_bank_account_id=payload.company_bank_account_id,
                 payer_name=payload.payer_name, payer_address=payload.payer_address,
-                content=payload.content, bank_reference=payload.bank_reference,
+                content=(payload.content or (f"Thu tiền đơn {order.order_no}"
+                                             if order.source_type == SOURCE_THUONG_MAI else None)),
+                bank_reference=payload.bank_reference,
             )
         except AccountingValidationError as exc:
             raise OrderValidationError(str(exc)) from exc
         self.audit.create(
             actor_user_id=actor.id, action="record_deposit", target=f"order:{order.id}",
-            detail=f"Thu cọc {_tien_vn(payload.amount)} bằng {_HINH_THUC_THU.get(payload.receipt_method, payload.receipt_method)}",
+            detail=f"{'Thu tiền' if order.source_type == SOURCE_THUONG_MAI else 'Thu cọc'} {_tien_vn(payload.amount)} bằng {_HINH_THUC_THU.get(payload.receipt_method, payload.receipt_method)}",
         )
         self._tu_chuyen_sx(order, actor)
         d = self._detail(self.repo.get_with_lines(order_id))

@@ -22,6 +22,7 @@ from ..deps import (
     require_permission,
 )
 from ..db import get_db
+from ..models.order import SOURCE_THUONG_MAI
 from ..models.user import User
 from ..services import ban_hang_cho_thu_chi
 from ..services.thong_bao_man import bao
@@ -478,8 +479,9 @@ def add_deposit_receipt(
         raise _map(exc)
     # Kế toán thu ĐỦ cọc → báo sale ĐANG phụ trách khách 'chốt được rồi' (Việc 3). Không báo theo
     # `sale_user_id` chụp lúc tạo đơn: khách đã điều chuyển thì sale cũ không còn thấy đơn.
+    # Đơn thương mại không xuống sản xuất: thu tiền của nó không phải "đủ cọc, chuyển xuống SX được".
     nhan = chu_cua(db, d.customer_id, d.sale_user_id)
-    if d.deposit_ok and nhan:
+    if d.deposit_ok and nhan and d.source_type != SOURCE_THUONG_MAI:
         hub.publish(nhan, {"type": "order_deposit_ok", "code": d.order_no})
         bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
             nguoi_nhan=nhan, ma=d.order_no)

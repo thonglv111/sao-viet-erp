@@ -180,6 +180,11 @@ Mọi màn Kế hoạch, Lệnh sản xuất và Theo dõi đơn bỏ đơn `sou
 các chỗ đọc `san_xuat_released_at` và danh sách đơn. Kèm theo phải có test bảo đảm đơn thương mại không
 hiện ở các màn đó.
 
+Ở danh sách Đơn hàng bán, "đã chốt mà chưa xuống sản xuất" nghĩa là chờ cọc, nhưng chỉ đúng với đơn
+sản xuất. Đơn thương mại đã chốt hiện "Đã chốt", không đếm vào tab Chờ cọc, ô "Đang chờ" để trống. Thu
+tiền đơn thương mại cũng không bắn thông báo "đủ cọc, chuyển xuống sản xuất được rồi" (sửa 09/11/2026
+khi bấm thử trang Tạo đơn, test ở `test_ban_nhanh_thuong_mai.py`).
+
 ### Xuất hàng
 
 Đơn thương mại đã chốt có nút "Xuất hàng". Người bán chọn kho xuất (mặc định kho duy nhất người đó có
@@ -224,14 +229,90 @@ Các sửa này nằm ở kế toán và báo cáo, không ở Giao hàng. Đơn
 Hàng chưa đủ tồn vẫn chốt được đơn và thu cọc được, ví dụ khách đặt trước rồi hàng về sau. Phiếu xuất
 thì bị chặn như mọi phiếu xuất vượt tồn. Phần này dùng luật kho hiện có.
 
+### Trang Tạo đơn thương mại (phương án C, chốt 09/11/2026)
+
+Mockup: `docs/mockups/ban-hang-thuong-mai-3-phuong-an.html`, tab C. Bỏ hộp Tạo đơn thương mại hiện nay,
+thay bằng một trang riêng theo khuôn trang Tạo đơn hàng của Sapo. Nút "Tạo đơn thương mại" ở màn Đơn
+hàng bán mở trang này; nút "← Đơn hàng bán" quay về.
+
+Bố cục hai cột:
+
+- Trái, khối Mặt hàng: giữ nguyên bảng đang có (Mặt hàng, Đơn vị, Số lượng, Đơn giá, VAT %, Thành tiền,
+  nút xoá, nút "Thêm mặt hàng", "Tổng gồm VAT"). Thêm một dòng tồn dưới tên mặt hàng, đọc tồn của kho
+  xuất đang chọn theo đúng ĐVT của dòng ("Cửa hàng còn 12 hộp"). Thiếu thì dòng đó đổi màu cam và ghi
+  "thiếu N". Chọn Xuất sau thì dòng tồn cộng mọi kho.
+- Trái, khối Xuất hàng: "Xuất ngay" hoặc "Xuất sau". Xuất ngay hiện Kho xuất *, ô "Ghi sổ kho luôn (hàng
+  trừ tồn ngay, khỏi qua màn Kho)" và 3 thẻ Cách giao, y như hộp Xuất hàng ở ngăn đơn. Xuất ngay là xuất
+  hết số lượng của đơn; muốn xuất một phần thì chọn Xuất sau rồi xuất ở ngăn đơn như hôm nay.
+- Phải, khối Khách hàng: ô tìm "Gõ tên, mã hoặc số điện thoại khách", chọn xong hiện tên, mã, nút Đổi.
+- Phải, khối Thanh toán: "Khách trả ngay" hoặc "Thanh toán sau".
+  - Khách trả ngay: Khách phải trả (= Tổng gồm VAT), Nhận bằng Tiền mặt / Chuyển khoản, ô "Tiền khách
+    đưa" điền sẵn số phải trả, kèm các mức gợi ý (đúng số phải trả, làm tròn lên chục nghìn, trăm nghìn,
+    năm trăm nghìn, bỏ mức trùng), rồi ba dòng tự tính: Trả lại khách, Phiếu thu ghi, Còn phải thu.
+  - Phiếu thu ghi = min(Tiền khách đưa, Khách phải trả). Tiền thừa trả lại tại quầy, không vào sổ.
+  - Chuyển khoản: thay ô Tiền khách đưa bằng ô "Số tiền nhận" và thêm Tài khoản nhận *, Mã giao dịch *
+    như form Lập phiếu thu.
+  - Người nộp = tên khách, ngày thu = hôm nay, lý do "Thu tiền đơn hàng thương mại". Ai cần sửa thì sửa
+    ở phiếu thu bên Kế toán.
+  - Thanh toán sau: ô Tiền cọc như hộp hiện nay, để trống là không cọc.
+- Phải, khối Ghi chú: như hộp hiện nay (tối đa 1000 ký tự).
+
+Mở trang thì "Khách trả ngay" và "Xuất ngay" được chọn sẵn. Kho xuất mặc định như hộp Xuất hàng: kho
+đầu danh sách, kho người đó có quyền xếp trước (`GET /api/thuong-mai/kho-xuat`). Dòng tồn đọc
+`POST /api/thuong-mai/ton`.
+
+Nút: Hủy, Lưu nháp, và nút chính đổi chữ theo hai khối:
+
+| Thanh toán | Xuất hàng | Nút chính |
+|---|---|---|
+| Khách trả ngay | Xuất ngay | Tạo, chốt, xuất hàng và thu tiền |
+| Khách trả ngay | Xuất sau | Tạo, chốt và thu tiền |
+| Thanh toán sau | Xuất ngay | Tạo, chốt và xuất hàng |
+| Thanh toán sau | Xuất sau | Tạo và chốt đơn |
+
+Lưu nháp chỉ tạo đơn nháp như hộp hiện nay, bỏ qua hai khối Thanh toán và Xuất hàng.
+
+Máy chủ: `POST /api/thuong-mai/ban-nhanh` làm theo thứ tự tạo đơn → chốt (qua cổng
+`cong_chot_don_thuong_mai`) → tạo lượt xuất hết hàng và ghi sổ nếu Xuất ngay → lập phiếu thu theo đơn
+nếu Khách trả ngay. Gọi lại đúng service đang có (`DonThuongMaiService.tao`, `OrderService.confirm`,
+`LuotXuatService`, `OrderService.add_deposit_receipt`), không chép logic.
+
+Các service đó tự commit nên không gói được vào một giao dịch. Thay vào đó mọi điều kiện kiểm được đều
+kiểm TRƯỚC khi ghi dòng đầu tiên: khách, dòng hàng, quyền, kho, cách giao, đủ tồn để ghi sổ (cùng cách
+quy về đơn vị gốc và gợi ý lô như lúc ghi sổ), số tiền thu không vượt tổng, chuyển khoản có tài khoản
+nhận và mã giao dịch. Sai một điều thì trả 400, không ghi gì (`services/thuong_mai/ban_nhanh.py`). Bước
+sau mà vẫn hỏng (hiếm, ví dụ người khác vừa xuất mất hàng) thì đơn giữ nguyên chỗ đã tới và máy chủ
+trả 409 "Đã tạo đơn TMxxx nhưng chưa …"; trang báo lỗi đó và danh sách nạp lại để thấy đơn.
+
+Quyền, gác ở máy chủ:
+
+- Thiếu quyền tạo phiếu thu (`phieu_thu:create`) thì không thấy "Khách trả ngay", khối Thanh toán chỉ
+  còn ô Tiền cọc.
+- Thiếu quyền ghi sổ kho đã chọn thì không thấy ô "Ghi sổ kho luôn"; Xuất ngay tạo yêu cầu xuất gửi tới
+  người giữ kho, như hộp Xuất hàng hôm nay.
+
+Sau khi lưu mở ngăn đơn như hiện nay.
+
 ### Cọc và thu tiền
 
 Dùng nguyên `deposit_pct`, `deposit_amount`, `add_deposit_receipt` và hàng chờ "Đơn hàng chờ thu".
-Khác biệt duy nhất: đủ cọc không kích hoạt gì, vì không có sản xuất để chuyển.
+Khác biệt: đủ cọc không kích hoạt gì, vì không có sản xuất để chuyển.
 
-Thu đủ tiền đi đúng đường đơn sản xuất: lập hoá đơn theo lượt xuất, rồi lập phiếu thu cho hoá đơn đó
-từ hàng chờ "Đơn hàng chờ thu". Không thêm nguồn thu mới. Ai thu tiền ở quầy là chuyện cấp quyền: nhân
-viên cửa hàng được cấp quyền hoá đơn bán và phiếu thu thì tự làm được, không thì kế toán làm.
+Tiền thu theo đơn (cọc, hoặc tiền khách trả ngay ở trang Tạo đơn) vào quỹ tiền của đơn, chưa phải công
+nợ. Kế toán ghi hoá đơn theo lượt xuất thì quỹ đó tự cấn vào hoá đơn của chính đơn, như đơn sản xuất.
+
+Ở ngăn đơn, chặng Cọc của đơn thương mại đổi tên "Thu tiền" và luôn có nút "Lập phiếu thu" khi còn thiếu
+tiền, kể cả đơn không khai cọc. Thẻ chặng đối chiếu Tổng đơn gồm VAT, Đã thu, Còn thiếu; lý do mặc định
+"Thu tiền đơn TMxxx". Đơn sản xuất giữ chặng Cọc như cũ.
+
+Phiếu thu theo đơn thương mại không được vượt tổng đơn gồm VAT trừ phần đã thu; máy chủ chặn
+(`services/thuong_mai/thu_tien.py`). "Đã thu" = quỹ tiền của đơn (`quy_tien_don`) cộng tiền thu đích
+danh trên hoá đơn còn hiệu lực của đơn; chi tiết đơn trả số này ở `tm_da_thu`. Phiếu thu gộp lập bên Kế
+toán chưa đi qua luật chặn này.
+
+Phần còn lại sau khi ghi hoá đơn đi đúng đường đơn sản xuất: phiếu thu cho hoá đơn từ hàng chờ "Đơn hàng
+chờ thu". Ai thu tiền ở quầy là chuyện cấp quyền: nhân viên cửa hàng được cấp quyền phiếu thu thì tự làm
+được, không thì kế toán làm.
 
 Khách trả cả đơn sản xuất lẫn đơn thương mại một lần thì lập một phiếu thu gom hai đơn. Việc này đã
 làm được, vì phiếu thu nhiều dòng.
@@ -301,6 +382,8 @@ tạo đơn (mục 6). Bộ lọc chỉ hiện khi bật `thuong_mai`.
   mại. Bỏ cột Loại đơn.
 - 08/11/2026: bỏ nút Đề nghị mua trên đơn. Hàng thương mại mua để tồn.
 - 08/11/2026: báo cáo kinh doanh phân được đơn sản xuất và đơn thương mại, không thêm báo cáo khác.
+- 09/11/2026: tạo đơn thương mại theo phương án C: trang riêng hai cột khuôn Sapo, thu tiền kiểu quầy
+  (Tiền khách đưa, tự tính tiền trả lại), mặc định Khách trả ngay và Xuất ngay.
 
 ## Những lựa chọn tôi tự quyết
 
@@ -315,5 +398,11 @@ tạo đơn (mục 6). Bộ lọc chỉ hiện khi bật `thuong_mai`.
 - Đơn thương mại hiện chung danh sách Đơn hàng bán, mã tiền tố `TM`; dùng chung quyền Đơn hàng bán,
   không thêm mục thanh bên.
 - Thu tiền như đơn sản xuất. Ai thu ở quầy do cấp quyền quyết.
+- Xuất ngay ở trang Tạo đơn là xuất hết; xuất một phần đi Xuất sau.
+- Đơn đã xuất mà chưa thu đủ không thêm vào hàng chờ "Đơn hàng chờ thu" khi chưa có hoá đơn. Phần thiếu
+  hiện ở chặng Thu tiền của đơn; kế toán ghi hoá đơn theo lượt xuất thì thành công nợ và vào hàng chờ
+  như hôm nay.
+- Phiếu thu ghi số tiền giữ lại, không ghi số khách đưa; tiền thừa trả tại quầy không vào sổ.
+- Phiếu thu theo đơn thương mại bị chặn vượt tổng đơn trừ phần đã thu.
 - "Khách lẻ" do Hà Phương tự khai.
 - Không có báo giá thương mại trong đợt này.

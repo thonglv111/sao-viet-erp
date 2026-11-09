@@ -265,6 +265,9 @@ class OrderDetailOut(OrderRow):
     phieu_vua_lap_id: int | None = None
     # Người bấm Chốt (khung Chốt của ngăn đơn, 12/10/2026).
     ordered_by_name: str | None = None
+    # Đơn thương mại: tiền khách đã đưa cho đơn (cọc + thu theo hoá đơn), chặng Thu tiền đối chiếu với
+    # tổng đơn gồm VAT. Đơn sản xuất để trống.
+    tm_da_thu: int | None = None
 
 
 class OrderActivityItem(BaseModel):

@@ -44,6 +44,7 @@ import "../../ke-toan.css";
 export function DepositReceiptDialog({
   order,
   coTheTaiTep,
+  thuTien,
   onClose,
   onSaved,
 }: {
@@ -53,12 +54,17 @@ export function DepositReceiptDialog({
   >;
   /** Được tải chứng từ gốc lên phiếu thu (`phieu_thu.create`) — không có thì ẩn ô ảnh chứng từ. */
   coTheTaiTep: boolean;
+  /** Đơn thương mại: chặng "Thu tiền" thu theo cả đơn, không theo cọc (docs/design-hang-thuong-mai-ha-phuong.md
+   *  §6). `tong` = tổng đơn gồm VAT, `daThu` = tiền khách đã đưa cho đơn. Máy chủ chặn thu vượt phần còn thiếu. */
+  thuTien?: { tong: number; daThu: number };
   onClose: () => void;
   /** Lập xong — đơn mới (đã cộng cọc); `canhBao` = phiếu đã lập nhưng chứng từ tải hỏng. */
   onSaved: (d: OrderDetail, canhBao?: string) => void;
 }) {
   const { token } = useAuth();
-  const conThieu = Math.max(0, order.deposit_required - order.deposit_received);
+  const conThieu = thuTien
+    ? Math.max(0, thuTien.tong - thuTien.daThu)
+    : Math.max(0, order.deposit_required - order.deposit_received);
   const [form, setForm] = useState<PaymentReceiptInput>(() => ({
     payer_name: order.customer_name ?? "",
     payer_address: null,
@@ -66,7 +72,7 @@ export function DepositReceiptDialog({
     receipt_date: isoToday(),
     amount: conThieu,
     exchange_rate: 1,
-    content: `Thu cọc đơn ${order.order_no}`,
+    content: `${thuTien ? "Thu tiền" : "Thu cọc"} đơn ${order.order_no}`,
     debit_account: null,
     credit_account: null,
     company_bank_account_id: null,
@@ -113,6 +119,7 @@ export function DepositReceiptDialog({
     const l: LoiForm = {};
     if (!form.payer_name.trim()) l.payer_name = "Ghi người hoặc đơn vị nộp tiền.";
     if (!Number.isFinite(form.amount) || form.amount <= 0) l.amount = "Số tiền thu phải lớn hơn 0.";
+    else if (thuTien && form.amount > conThieu) l.amount = `Đơn chỉ còn thiếu ${vietSo(conThieu)} đ.`;
     if (!form.content.trim()) l.content = "Ghi lý do nộp.";
     const loiNgay = loiNgayPhieu(form.receipt_date, "Ngày thu");
     if (loiNgay) l.receipt_date = loiNgay;
@@ -154,7 +161,7 @@ export function DepositReceiptDialog({
       }
       onSaved(d, canhBao);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Không lập được phiếu thu cọc.");
+      setError(err instanceof ApiError ? err.message : thuTien ? "Không lập được phiếu thu." : "Không lập được phiếu thu cọc.");
       setSaving(false);
     }
   }
@@ -175,7 +182,7 @@ export function DepositReceiptDialog({
   return createPortal(
     <KhungFormPhieu
       duongDan={`Đơn hàng bán > ${order.order_no}`}
-      tieuDe="Lập phiếu thu cọc"
+      tieuDe={thuTien ? "Lập phiếu thu" : "Lập phiếu thu cọc"}
       tang={1}
       phuDe={
         <>
@@ -216,9 +223,13 @@ export function DepositReceiptDialog({
         />
       }
     >
-      <KhoiForm tieu="Cọc của đơn">
+      <KhoiForm tieu={thuTien ? "Tiền của đơn" : "Cọc của đơn"}>
         <HangDoiChieu
-          o={[
+          o={thuTien ? [
+            { nhan: "Tổng đơn gồm VAT", giaTri: tien(thuTien.tong) },
+            { nhan: "Đã thu", giaTri: tien(thuTien.daThu) },
+            { nhan: "Còn thiếu", giaTri: tien(conThieu), chot: true },
+          ] : [
             { nhan: `Cọc quy định${order.deposit_pct != null ? ` (${order.deposit_pct}%)` : ""}`, giaTri: tien(order.deposit_required) },
             { nhan: "Đã thu", giaTri: tien(order.deposit_received) },
             { nhan: "Còn thiếu", giaTri: tien(conThieu), chot: true },
@@ -228,11 +239,11 @@ export function DepositReceiptDialog({
 
       <KhoiForm tieu="Tiền thu">
         <OTienLon khoa="amount" nhan="Số tiền thu" value={form.amount} onChange={(v) => set("amount", v)} loi={loi.amount}
-          nutDu={{ nhan: "Thu đủ", so: conThieu }} goiTrong="Nhập số tiền khách nộp cọc"
+          nutDu={{ nhan: "Thu đủ", so: conThieu }} goiTrong={thuTien ? "Nhập số tiền khách trả" : "Nhập số tiền khách nộp cọc"}
           con={
             <>
-              <SauPhieu o={[{ nhan: "Cọc còn thiếu", tu: conThieu, den: conThieu - (form.amount || 0) }]} />
-              {conThieu > 0 && du > 0 && (
+              <SauPhieu o={[{ nhan: thuTien ? "Đơn còn thiếu" : "Cọc còn thiếu", tu: conThieu, den: conThieu - (form.amount || 0) }]} />
+              {!thuTien && conThieu > 0 && du > 0 && (
                 <p className="kt-khac">{`Thu dư ${vietSo(du)} đ so với phần cọc còn thiếu.`}</p>
               )}
             </>

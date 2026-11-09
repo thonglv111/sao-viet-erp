@@ -18,10 +18,10 @@ import { ChanKhung, TomTat } from "../giao-hang/tien-do-don";
 import { fmtDateTime } from "../../utils/format";
 import "./don-thuong-mai.css";
 
-const loi = (e: unknown, macDinh: string) => (e instanceof ApiError ? e.message : macDinh);
-const chuSo = (s: string) => s.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+export const loi = (e: unknown, macDinh: string) => (e instanceof ApiError ? e.message : macDinh);
+export const chuSo = (s: string) => s.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 
-type Dong = {
+export type Dong = {
   khoa: number;
   hang: HangThuongMai | null;
   dvt: string;
@@ -32,14 +32,14 @@ type Dong = {
 };
 
 let dem = 0;
-const dongMoi = (): Dong => ({ khoa: ++dem, hang: null, dvt: "", qty: "1", gia: "", vat: "0" });
-const dvtCua = (h: HangThuongMai) =>
+export const dongMoi = (): Dong => ({ khoa: ++dem, hang: null, dvt: "", qty: "1", gia: "", vat: "0" });
+export const dvtCua = (h: HangThuongMai) =>
   [h.don_vi_gia, ...(h.don_vi_them ?? [])].map((m) => (m ?? "").trim().toLowerCase())
     .filter((m, i, a) => m && a.indexOf(m) === i);
-const giaKhai = (d: Dong) => (d.hang && d.dvt ? d.hang.gia_ban_theo_dvt?.[d.dvt] : undefined);
+export const giaKhai = (d: Dong) => (d.hang && d.dvt ? d.hang.gia_ban_theo_dvt?.[d.dvt] : undefined);
 
 /** Mã ĐVT → tên ("cai" → "Cái"), theo danh mục Đơn vị & quy đổi. */
-function useTenDvt(): (ma: string) => string {
+export function useTenDvt(): (ma: string) => string {
   const { token } = useAuth();
   const [bang, setBang] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -52,7 +52,9 @@ function useTenDvt(): (ma: string) => string {
 
 /** Ô tìm chọn khách hàng (tên / mã / SĐT). Khách mua lẻ không lấy tên thì chọn khách "Khách lẻ" do
  *  cửa hàng tự khai — hệ không tự tạo khách. */
-function ChonKhach({ value, onChange }: { value: { id: number; name: string } | null; onChange: (k: { id: number; name: string } | null) => void }) {
+export type KhachChon = { id: number; name: string; code?: string | null; phone?: string | null };
+
+export function ChonKhach({ value, onChange }: { value: KhachChon | null; onChange: (k: KhachChon | null) => void }) {
   const { token } = useAuth();
   const [q, setQ] = useState("");
   const [ds, setDs] = useState<CustomerRow[]>([]);
@@ -80,7 +82,7 @@ function ChonKhach({ value, onChange }: { value: { id: number; name: string } | 
         <ul className="dtm__goi-y" role="listbox">
           {ds.map((k) => (
             <li key={k.id}>
-              <button type="button" onClick={() => { onChange({ id: k.id, name: k.name }); setMo(false); }}>
+              <button type="button" onClick={() => { onChange({ id: k.id, name: k.name, code: k.code, phone: k.phone }); setMo(false); }}>
                 <span>{k.name}</span>
                 <small>{k.code}{k.phone ? ` ${k.phone}` : ""}</small>
               </button>
@@ -93,7 +95,7 @@ function ChonKhach({ value, onChange }: { value: { id: number; name: string } | 
 }
 
 /** Ô tìm chọn mặt hàng thương mại (mã / tên). */
-function ChonHang({ value, onChange }: { value: HangThuongMai | null; onChange: (h: HangThuongMai) => void }) {
+export function ChonHang({ value, onChange }: { value: HangThuongMai | null; onChange: (h: HangThuongMai) => void }) {
   const { token } = useAuth();
   const [q, setQ] = useState("");
   const [ds, setDs] = useState<HangThuongMai[]>([]);

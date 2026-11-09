@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..models.customer import Customer
 from ..models.order import (
-    SOURCE_BAO_GIA, STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED, Order, OrderLine,
+    SOURCE_BAO_GIA, SOURCE_THUONG_MAI, STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED, Order, OrderLine,
 )
 from ..models.quotation import Quote
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
@@ -141,7 +141,10 @@ def _gia_cong_cua_don(*dk):
 
 #: Đã chốt mà chưa xuống sản xuất = còn chờ kế toán thu đủ cọc (chốt xong đủ cọc là tự chuyển —
 #: `OrderService._tu_chuyen_sx`). Cùng cách đọc với ô "Chờ đủ cọc" ở cột Sản xuất ngoài bảng.
-_CHO_COC = and_(Order.status == STATUS_ORDERED, Order.san_xuat_released_at.is_(None))
+#: Đơn thương mại không bao giờ xuống sản xuất (docs/design-hang-thuong-mai-ha-phuong.md, Vòng đời)
+#: nên "chưa phát hành" của nó không có nghĩa là chờ cọc.
+_LA_DON_SX = or_(Order.source_type.is_(None), Order.source_type != SOURCE_THUONG_MAI)
+_CHO_COC = and_(Order.status == STATUS_ORDERED, Order.san_xuat_released_at.is_(None), _LA_DON_SX)
 
 
 def _hoan_tat():
@@ -745,7 +748,7 @@ class OrderRepository:
         "chờ cọc"), `xong` = `_hoan_tat()` — cặp với `chi_dang_do` của `don_da_chot_khop`."""
         conds = self._dk_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
                                       nguoi=nguoi, loc=loc)
-        conds.append(Order.san_xuat_released_at.is_(None) if nhom == "coc" else _hoan_tat())
+        conds.append(and_(Order.san_xuat_released_at.is_(None), _LA_DON_SX) if nhom == "coc" else _hoan_tat())
         return [int(i) for i in self.db.execute(select(Order.id).where(*conds)).scalars()]
 
     def _dk_da_chot_khop(self, *, scope, actor, q, order_kind, nguoi, loc) -> list:

@@ -20,6 +20,7 @@ from ..deps import (
     require_permission,
 )
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
+from ..models.order import SOURCE_THUONG_MAI
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
 from ..repositories.org_scope import chu_cua
@@ -1609,7 +1610,7 @@ def create_payment_receipt_gop(
     don_coc = [d["order_id"] for d in row.get("lines") or [] if d.get("sales_invoice_id") is None]
     for d, moi in orders.sau_thu_coc_ngoai(order_ids=don_coc, actor=user):
         nhan = chu_cua(db, d.customer_id, d.sale_user_id)   # sale đang phụ trách khách
-        if d.deposit_ok and nhan:
+        if d.deposit_ok and nhan and d.source_type != SOURCE_THUONG_MAI:
             hub.publish(nhan, {"type": "order_deposit_ok", "code": d.order_no})
             bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
                 nguoi_nhan=nhan, ma=d.order_no)

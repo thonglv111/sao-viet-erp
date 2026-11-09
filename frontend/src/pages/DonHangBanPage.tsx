@@ -48,6 +48,7 @@ import { gopTheoNhom } from "../utils/gop-nhom";
 import { layHoaDonNapTruoc, layLenhNapTruoc, layNhatKyNapTruoc, napTruocNganDon } from "./napTruocNganDon";
 import "./don-hang-ban.css";
 import { FormDonThuongMai, TheXuatHang, useXuatHangTM } from "./thuong-mai/DonThuongMai";
+import { TaoDonThuongMai } from "./thuong-mai/TaoDonThuongMai";
 import { giaoHangHpApi, type CachGiaoRow } from "../api/giaoHangHp";
 import { BangCachGiao, nhanCachGiao } from "./giao-hang-hp/BangCachGiao";
 import { fmtDateTime } from "../utils/format";
@@ -275,6 +276,14 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   const viTriGia = cotHien.findIndex((c) => c.key === "gia");
   const muc = TABS.map((t) => ({ key: t.id, label: t.label, count: stats?.[t.countKey], mau: MAU_TAB[t.id] }));
 
+  // Tạo đơn thương mại mở TRANG riêng thay cho danh sách (phương án C, 09/11/2026).
+  if (taoTM) {
+    return (
+      <TaoDonThuongMai onClose={() => setTaoTM(false)} onDoDang={load}
+        onSaved={(d) => { setTaoTM(false); setSelected(d); load(); }} />
+    );
+  }
+
   return (
     <main className="dhb-container lds">
       {/* Đơn sản xuất chỉ sinh từ Báo giá khi khách đồng ý. Nút duy nhất ở đầu trang là Tạo đơn thương mại,
@@ -285,10 +294,6 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
           <button type="button" className="btn btn--primary" onClick={() => setTaoTM(true)}>Tạo đơn thương mại</button>
         )}
       </header>
-      {taoTM && (
-        <FormDonThuongMai onClose={() => setTaoTM(false)}
-          onSaved={(d) => { setTaoTM(false); setSelected(d); load(); }} />
-      )}
 
       {err && <div className="banner banner--error" role="alert">{err}</div>}
 
@@ -448,7 +453,8 @@ const MAU_TAB: Record<string, MauTT | undefined> = {
 function trangThaiDong(o: OrderRow): { nhan: string; mau: MauTT } {
   if (o.status === "ordered") {
     if (o.dang_cho.length === 1 && o.dang_cho[0] === "xong") return { nhan: "Hoàn tất", mau: "la" };
-    if (!o.san_xuat_released_at) return { nhan: "Chờ cọc", mau: "vang" };
+    // Đơn thương mại không xuống sản xuất: chưa phát hành không có nghĩa là chờ cọc.
+    if (!o.san_xuat_released_at && o.source_type !== "thuong_mai") return { nhan: "Chờ cọc", mau: "vang" };
     return { nhan: "Đã chốt", mau: "xanh" };
   }
   if (o.status === "draft") return { nhan: "Nháp", mau: "slate" };
@@ -741,7 +747,13 @@ function OrderDrawer({
 
   const chotSub = order.status === "cancelled" ? "đã hủy"
     : isChotDone ? ngayNgan(order.ordered_at ?? order.created_at) : "chưa chốt";
-  const cocText = !isChotDone ? "chưa tới" : noDeposit ? "không cần" : order.deposit_ok ? "đủ" : "chờ cọc";
+  // Đơn thương mại: chặng Cọc thành "Thu tiền", đối chiếu cả đơn (docs/design-hang-thuong-mai-ha-phuong.md §6).
+  const tmTong = order.total_with_vat ?? 0;
+  const tmDaThu = order.tm_da_thu ?? 0;
+  const tmThieu = Math.max(0, tmTong - tmDaThu);
+  const cocText = !isChotDone ? "chưa tới"
+    : laTM ? (tmThieu === 0 ? "đã thu đủ" : tmDaThu > 0 ? `thiếu ${soVN(tmThieu)}` : "chưa thu")
+    : noDeposit ? "không cần" : order.deposit_ok ? "đủ" : "chờ cọc";
   const invoiceStage = !invoiceBook || invoiceBook.invoiced_amount <= 0
     ? "none"
     : invoiceBook.uninvoiced_amount > 0
@@ -772,7 +784,7 @@ function OrderDrawer({
   const khungO = (k: typeof activeStep) => `dhb__chang-o${activeStep === k ? " is-mo" : ""}`;
   const CHANG: { k: typeof activeStep; nhan: string; sub: string; xong: boolean; canhBao?: boolean }[] = [
     { k: "chot", nhan: "Chốt", sub: chotSub, xong: isChotDone },
-    { k: "coc", nhan: "Cọc", sub: cocText, xong: isCocDone },
+    { k: "coc", nhan: laTM ? "Thu tiền" : "Cọc", sub: cocText, xong: laTM ? isChotDone && tmThieu === 0 : isCocDone },
     ...(laTM ? [] : [{ k: "sanxuat" as const, nhan: "Sản xuất", sub: sxText, xong: sxDone, canhBao: baoThieuNguon && order.status !== "cancelled" }]),
     { k: "giao", nhan: laTM ? "Xuất hàng" : "Giao", sub: giaoSub, xong: giaoDone },
     { k: "hoadon", nhan: "Hóa đơn", sub: invoiceStageLabel.toLowerCase(), xong: invoiceStage === "full" },
@@ -977,8 +989,38 @@ function OrderDrawer({
                 </div>
 
                 <div className={khungO("coc")}>
-                  <TheChang tieuDe="Cọc">
-                    {!isChotDone ? (
+                  <TheChang tieuDe={laTM ? "Thu tiền" : "Cọc"}>
+                    {laTM && isChotDone ? (
+                      <>
+                        <TomTat d={[
+                          { nhan: "Tổng đơn gồm VAT", so: soVN(tmTong) },
+                          ...(order.deposit_required > 0 ? [{ nhan: "Cọc quy định", so: soVN(order.deposit_required) }] : []),
+                          ...order.deposits.map((d) => ({
+                            khoa: `pt-${d.id}`,
+                            nhan: can("phieu_thu", "read") ? (
+                              <button type="button" className="dhb__td-link" title="Mở phiếu thu này bên Kế toán"
+                                onClick={() => navigate?.("ke-toan-phieu-thu", { focusReceiptQuery: d.code })}>
+                                {d.doc_no ?? d.code}
+                              </button>
+                            ) : (d.doc_no ?? d.code),
+                            dien: `${RECEIPT_METHOD_LABELS[d.receipt_method] ?? d.receipt_method} lúc ${fmtDateTime(d.created_at)}`
+                              + (d.gop && d.tong_phieu ? ` phiếu gộp ${soVN(d.tong_phieu)}` : ""),
+                            so: soVN(d.amount),
+                          })),
+                          ...(tmDaThu > order.deposit_received
+                            ? [{ nhan: "Thu theo hóa đơn", dien: "xem ở chặng Hóa đơn", so: soVN(tmDaThu - order.deposit_received) }] : []),
+                          { nhan: "Đã thu", so: soVN(tmDaThu), tong: true },
+                          { nhan: "Còn thiếu", so: soVN(tmThieu), tone: tmThieu > 0 ? "chu" : undefined },
+                        ]} />
+                        <ChanKhung chu={order.status === "cancelled" ? "Đơn đã hủy."
+                          : tmThieu === 0 ? "Khách đã trả đủ tiền của đơn."
+                          : canRecordDeposit ? "Khách trả thêm thì lập phiếu thu ở đây." : "Chờ kế toán thu tiền."}>
+                          {order.status === "ordered" && tmThieu > 0 && canRecordDeposit && (
+                            <DepositForm order={order} onSaved={onSaved} thuTien={{ tong: tmTong, daThu: tmDaThu }} />
+                          )}
+                        </ChanKhung>
+                      </>
+                    ) : !isChotDone ? (
                       <ChanKhung chu="Đơn phải chốt trước, sau chốt kế toán thu cọc ở đây." />
                     ) : noDeposit && order.deposits.length === 0 ? (
                       <ChanKhung chu={laTM ? "Khách này không phải đặt cọc." : "Khách này không phải đặt cọc. Đơn đã xuống Kế hoạch sản xuất ngay lúc chốt."} />
@@ -2090,18 +2132,24 @@ function ConfirmPanel({ order, canManage, canExtend, onSaved }: { order: OrderDe
 // `ApprovalPanel` + `APPROVAL_STATE_META` đã XOÁ cùng luồng duyệt đơn đặc thù.
 
 // Form thu cọc = form Lập phiếu thu của Kế toán (`DepositReceiptDialog`), chỉ khác phần riêng của cọc.
-function DepositForm({ order, onSaved }: { order: OrderDetail; onSaved: (d: OrderDetail) => void }) {
+function DepositForm({ order, onSaved, thuTien }: {
+  order: OrderDetail;
+  onSaved: (d: OrderDetail) => void;
+  /** Đơn thương mại: thu theo cả đơn (chặng Thu tiền). */
+  thuTien?: { tong: number; daThu: number };
+}) {
   const can = useCan();
   const [open, setOpen] = useState(false);
   const [canhBao, setCanhBao] = useState<string | null>(null);
   return (
     <>
-      <Button variant="accent" onClick={() => { setCanhBao(null); setOpen(true); }}>Lập phiếu thu cọc</Button>
+      <Button variant="accent" onClick={() => { setCanhBao(null); setOpen(true); }}>{thuTien ? "Lập phiếu thu" : "Lập phiếu thu cọc"}</Button>
       {canhBao && <div className="banner banner--error" style={{ margin: "8px 0 0" }}>{canhBao}</div>}
       {open && (
         <DepositReceiptDialog
           order={order}
           coTheTaiTep={can("phieu_thu", "create")}
+          thuTien={thuTien}
           onClose={() => setOpen(false)}
           onSaved={(d, cb) => {
             setOpen(false);
