@@ -175,6 +175,31 @@ def test_doi_may_tinh_gia_phai_co_ly_do_va_ghi_nhat_ky(db, admin, lenh_phat, cay
         svc.xep(cv.id, may_id=c["m4"].id, department_id=c["n4"].id)
 
 
+def test_thu_hoi_roi_day_lai_chi_hien_viec_cua_goi_dang_chay(db, admin, lenh_phat, cay_bp):
+    """Thu hồi đánh gói `da_thu_hoi` nhưng giữ nguyên việc của nó; đẩy lại sinh gói mới và lệnh
+    lại "Đã phát hành". Bảng chỉ được hiện việc của gói đang chạy — không thì một lệnh hai thẻ."""
+    from app.models.san_xuat import GOI_DANG_PHAT_HANH, SanXuatGoiPhatHanh
+    from app.repositories.ke_hoach_bo_phan_repo import KeHoachBoPhanRepository
+    from app.services.san_xuat.release_update import thu_hoi_goi
+
+    c = cay_bp
+    goi_cu = _cv(db, lenh_phat).goi_id
+    thu_hoi_goi(db, nguon="lsx", id=lenh_phat, actor=admin, ly_do="khách đổi quy cách")
+    db.commit()
+    # Gói đã thu hồi không còn việc chờ bộ phận nào giao (badge "lệnh mới" không được báo oan).
+    assert KeHoachBoPhanRepository(db).bo_phan_cho_giao([lenh_phat]) == set()
+    goi_moi = release.phat_hanh(db, lsx_ids={lenh_phat}, actor=admin).id
+    db.commit()
+    assert goi_moi != goi_cu
+    assert db.get(SanXuatGoiPhatHanh, goi_moi).trang_thai == GOI_DANG_PHAT_HANH
+
+    viec = [v for v in KeHoachBoPhanRepository(db).viec_cua_bo_phan(c["bp_in"].id)
+            if v.lsx_id == lenh_phat]
+    assert [v.goi_id for v in viec] == [goi_moi]
+    svc = KeHoachBoPhanService(db, user=admin, scope=SCOPE_ALL)
+    assert [x["lsx_id"] for x in svc.bang(c["bp_in"].id)["viec"]].count(lenh_phat) == 1
+
+
 def test_khau_truoc_doc_tu_phu_thuoc_buoc_lenh(db, orders, lsx_svc, admin, customer, cay_bp):
     """Thứ tự bước TRONG một lệnh nằm ở `lsx_cong_doan_phu_thuoc`, không ở `san_xuat_phu_thuoc`
     (bảng ấy chỉ có cạnh giữa hai lệnh) — thẻ Bế phải nói khâu In đang chờ Tổ in xếp."""

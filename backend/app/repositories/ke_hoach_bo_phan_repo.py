@@ -12,7 +12,9 @@ from ..models.customer import Customer
 from ..models.lsx import TT_DA_PHAT_HANH, Lsx, LsxCongDoan
 from ..models.may_thiet_bi import MayThietBi, MayTo
 from ..models.order import Order
-from ..models.san_xuat import CV_HOAN_THANH, SanXuatCongViec, SanXuatGoiPhatHanh
+from ..models.san_xuat import (
+    CV_HOAN_THANH, GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatGoiPhatHanh,
+)
 from ..models.san_xuat_san_luong import SanXuatBatch
 from ..models.san_xuat_thuc_thi import PC_HOAT_DONG, SanXuatPhanCong
 
@@ -23,7 +25,11 @@ class KeHoachBoPhanRepository:
 
     def viec_cua_bo_phan(self, bo_phan_id: int) -> list[SanXuatCongViec]:
         """Việc Nội bộ của bộ phận còn sống: chưa xong, thuộc gói đang hiệu lực, lệnh (hoặc bài
-        ghép) còn ở trạng thái đã phát hành. Thứ tự: đã xếp theo `thu_tu_xep`, rồi theo id."""
+        ghép) còn ở trạng thái đã phát hành. Thứ tự: đã xếp theo `thu_tu_xep`, rồi theo id.
+
+        Phải lọc trạng thái GÓI, không chỉ trạng thái lệnh: thu hồi đánh gói `da_thu_hoi` nhưng giữ
+        việc của nó, đẩy lại thì lệnh lại "Đã phát hành" với gói mới — không lọc thì việc của gói cũ
+        sống lại thành thẻ thứ hai của cùng lệnh."""
         cv = SanXuatCongViec
         q = (
             select(cv)
@@ -31,6 +37,7 @@ class KeHoachBoPhanRepository:
             .outerjoin(Lsx, Lsx.id == cv.lsx_id)
             .where(
                 cv.bo_phan_id == bo_phan_id,
+                SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
                 cv.trang_thai != CV_HOAN_THANH,
                 cv.gia_cong_ngoai_id.is_(None),
                 (cv.lsx_id.is_(None)) | (Lsx.trang_thai == TT_DA_PHAT_HANH),
@@ -40,7 +47,8 @@ class KeHoachBoPhanRepository:
         return list(self.db.execute(q).scalars())
 
     def bo_phan_cho_giao(self, lsx_ids: Iterable[int]) -> set[int]:
-        """Bộ phận còn việc CHƯA GIAO của những lệnh này (kể cả việc chung bài ghép chứa lệnh)."""
+        """Bộ phận còn việc CHƯA GIAO của những lệnh này (kể cả việc chung bài ghép chứa lệnh),
+        chỉ tính việc của gói đang chạy — gói đã thu hồi giữ nguyên việc chưa giao của nó."""
         from .san_xuat_repo import SanXuatRepository
 
         lsx_ids = {int(i) for i in lsx_ids}
@@ -52,7 +60,10 @@ class KeHoachBoPhanRepository:
         if bai:
             dk = dk | cv.bai_ghep_id.in_(bai)
         return set(self.db.execute(
-            select(cv.bo_phan_id).where(dk, cv.bo_phan_id.is_not(None), cv.da_giao_at.is_(None))
+            select(cv.bo_phan_id)
+            .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
+            .where(dk, SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH,
+                   cv.bo_phan_id.is_not(None), cv.da_giao_at.is_(None))
             .distinct()).scalars())
 
     def cong_viec(self, cv_id: int) -> SanXuatCongViec | None:
