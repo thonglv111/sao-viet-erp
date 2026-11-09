@@ -19492,7 +19492,7 @@ def _migrate_giao_don_lam_lenh(db: Session) -> None:
     cols = _existing_columns(insp, "orders")
     la_pg = (db.get_bind().dialect.name or "") == "postgresql"
     tg = "TIMESTAMP WITH TIME ZONE" if la_pg else "TIMESTAMP"
-    nguoi = "INTEGER REFERENCES users(id) ON DELETE SET NULL"
+    nguoi = "INTEGER REFERENCES users(id) ON DELETE CASCADE"  # luật chung mg 0327
     moi = {
         "nguoi_lam_lenh_id": nguoi,
         "giao_lam_lenh_at": tg,
@@ -19731,3 +19731,7 @@ def _migrate_ke_hoach_tung_bo_phan(db: Session) -> None:
 
 
 MIGRATIONS.append(("0471_ke_hoach_tung_bo_phan", _migrate_ke_hoach_tung_bo_phan))
+
+# 0472 (09/11/2026) — bản đầu của 0456 tạo hai FK người làm lệnh / người giao trên `orders` với ON DELETE
+# SET NULL, trái luật mg 0327. Chạy lại đúng bước 0327: nó quét mọi FK tới `users` chưa CASCADE và đổi.
+MIGRATIONS.append(("0472_user_fks_delete_cascade_lan_2", _migrate_user_fks_delete_cascade))

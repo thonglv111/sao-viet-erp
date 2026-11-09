@@ -887,6 +887,8 @@ class KeHoachVatTuService:
 
         self._nap_ngay_can(set(lenh_map), {b.id for b in bais})
         self._nap_khach(lenh)
+        # Giờ hẹn đẩy của cả bảng (lệnh lẻ + lệnh thành viên bài) MỘT câu, khỏi hỏi từng thẻ.
+        self._hen_cua(set(lenh_map) | {tv.lsx_id for b in bais for tv in b.thanh_viens})
 
         tho = self._gom_nhu_cau(lenh, lenh_map, bais)
         self._nap_mat_hang(tho)

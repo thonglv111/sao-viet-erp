@@ -784,9 +784,9 @@ data. Duyệt bản in + tiến độ SX = luồng NGOÀI hệ thống (không l
 | `ordered_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Đóng dấu lúc chốt đơn (P4). |
 | `ordered_by` | `Integer` → `INTEGER` | **FK→users.id** | yes | — | Người chốt đơn. |
 | `san_xuat_released_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Sale bấm "Chuyển xuống sản xuất" (sau chốt, đủ cọc) → đơn vào hàng chờ kế hoạch. NULL = chưa chuyển (migration `0078`). |
-| `nguoi_lam_lenh_id` | `Integer` → `INTEGER` | **FK→users.id** (ON DELETE SET NULL) | yes | — | Người được giao làm lệnh cho đơn ở Hàng chờ tiếp nhận (08/11/2026). NULL = Chưa giao. Người không có ô Giao đơn chỉ thấy và chỉ tạo lệnh cho đơn có cột này là mình; lệnh tạo ra lấy người này làm người phụ trách (migration `0456`). |
+| `nguoi_lam_lenh_id` | `Integer` → `INTEGER` | **FK→users.id** (ON DELETE CASCADE) | yes | — | Người được giao làm lệnh cho đơn ở Hàng chờ tiếp nhận (08/11/2026). NULL = Chưa giao. Người không có ô Giao đơn chỉ thấy và chỉ tạo lệnh cho đơn có cột này là mình; lệnh tạo ra lấy người này làm người phụ trách (migration `0456`). |
 | `giao_lam_lenh_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Lúc giao (hoặc giao lại) gần nhất (migration `0456`). |
-| `nguoi_giao_lam_lenh_id` | `Integer` → `INTEGER` | **FK→users.id** (ON DELETE SET NULL) | yes | — | Người bấm Giao, server lấy từ tài khoản (migration `0456`). |
+| `nguoi_giao_lam_lenh_id` | `Integer` → `INTEGER` | **FK→users.id** (ON DELETE CASCADE) | yes | — | Người bấm Giao, server lấy từ tài khoản (migration `0456`). |
 | `nguoi_lam_lenh_mo_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Lúc người được giao mở đơn lần đầu sau lần giao gần nhất; NULL = chưa mở (chấm đỏ). Giao lại thì xoá về NULL (migration `0456`). |
 | `cancel_by` | `Integer` → `INTEGER` | **FK→users.id** | yes | — | Người hủy đơn. |
 | `cancel_at` | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | — | yes | — | Thời điểm hủy. |

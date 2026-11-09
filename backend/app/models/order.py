@@ -206,11 +206,11 @@ class Order(Base):
     # Chưa giao. Server ghi từ tài khoản, không có ô gõ tay. `nguoi_lam_lenh_mo_at` = lúc người được
     # giao mở ngăn Lệnh dự kiến lần đầu sau lần giao gần nhất (chấm "chưa mở"); giao lại thì xoá.
     nguoi_lam_lenh_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
     )
     giao_lam_lenh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     nguoi_giao_lam_lenh_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
     nguoi_lam_lenh_mo_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

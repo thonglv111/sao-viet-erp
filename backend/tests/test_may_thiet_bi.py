@@ -164,25 +164,20 @@ def test_sua_may_khong_gui_toc_do_thi_giu_nguyen_so_cu():
     assert m2.fields_theo_loai["chuan_bi_khoan"] == [{"ten": "Canh", "phut": 30}]
 
 
-def test_dai_toc_do_KHONG_dung_de_tinh_gi_ca():
-    """⭐ Canh cho quyết định của chủ: hai cột này là DỮ LIỆU KHAI, không phải đầu vào công thức.
-
-    Lõi xếp lịch đơn trị (`_cong_gio_lam` cộng MỘT con số phút để ra giờ kết thúc). Nếu một ngày
-    ai đó "tiện tay" cho nó đọc min/max, đây là thứ đỏ lên — và người đó phải quay lại đọc §3 của
-    kế hoạch trước khi viết lại lõi xếp lịch."""
+def test_thoi_luong_in_ghep_khong_tinh_theo_toc_do_hay_chuan_bi_cua_may():
+    """Bỏ tốc độ máy (08/11/2026): Xếp lịch thôi tính giờ chạy từ tốc độ và canh máy ⇒ thời lượng in
+    chung của bài ghép luôn 0, dù máy còn số tốc độ / chuẩn bị cũ trong DB."""
     from app.services.xep_lich_service import _thoi_luong_in_ghep
 
     db, svc = _svc()
     may = svc.create(_off74(toc_do=6000, toc_do_min=1000, toc_do_max=60000,
-                            makeready_time_default=30))
+                            makeready_time_default=33))
 
-    class _BG:  # bai ghep gia - ham chi doc may + tong to
+    class _BG:  # bai ghep gia - ham khong doc gi
         pass
 
     t = _thoi_luong_in_ghep(_BG(), 6000, may)
-    # 6000 to / 6000 to/gio = 1 gio = 60 phut chay, + 30 phut makeready.
-    assert t["chay_phut"] == 60.0, "phai tinh bang TRUNG BINH, khong phai min/max"
-    assert t["chiem_may_phut"] == 90.0
+    assert t["chay_phut"] == t["setup_phut"] == t["chiem_may_phut"] == 0.0
 
 
 # --- Thời gian chuẩn bị (canh máy) 3 kiểu ------------------------------------
@@ -224,21 +219,6 @@ def test_doi_kieu_ve_de_TRONG_thi_XOA_han_so_cu():
                                  fields_theo_loai={"chuan_bi_khoan": []}))
     assert m2.makeready_time_default is None
     assert m2.fields_theo_loai["chuan_bi_khoan"] == []
-
-
-def test_chuan_bi_cua_MAY_khong_dinh_gi_toi_cong_doan():
-    """⭐ Canh chốt "hai nơi hai việc": Xếp lịch cộng số của MÁY, không đụng `cong_doan.setup_time`."""
-    from app.services.xep_lich_service import _thoi_luong_in_ghep
-
-    db, svc = _svc()
-    may = svc.create(_off74(toc_do=6000, makeready_time_default=33))
-
-    class _BG:
-        pass
-
-    t = _thoi_luong_in_ghep(_BG(), 6000, may)
-    assert t["setup_phut"] == 33.0, "Xep lich phai lay makeready cua MAY"
-    assert t["chiem_may_phut"] == 93.0        # 33 canh may + 60 chay
 
 
 # --- Đơn vị tốc độ suy ra từ danh mục Đơn vị --------------------------------
