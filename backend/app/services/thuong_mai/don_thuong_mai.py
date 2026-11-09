@@ -79,7 +79,7 @@ def chuan_dong(db: Session, lines: list[dict]) -> list[dict]:
         if h is None or not h.la_hang_thuong_mai:
             raise DonThuongMaiError("Đơn thương mại chỉ bán mặt hàng trong danh mục Hàng thương mại.")
         if not h.active:
-            raise DonThuongMaiError(f"«{h.ten}» đã ngừng dùng.")
+            raise DonThuongMaiError(f"«{h.ten}» đã ngừng bán.")
         dvt = (ln.get("dvt") or h.don_vi_gia or "").strip().lower()
         if dvt not in dvt_cua_hang(h):
             raise DonThuongMaiError(f"«{h.ten}» chưa khai đơn vị này.")

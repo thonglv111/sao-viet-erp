@@ -236,6 +236,60 @@ class VatLieuKhoRepository:
         return {"ton": ton, "yeu_cau_kho": yck, "bang_gia": bang_gia, "don_mua": don_mua,
                 "yeu_cau_mua": yeu_cau_mua}
 
+    def ton_theo_goc_nhieu(self, hang_loai: str, hang_ids) -> dict[int, dict[str, float]]:
+        """Tồn CỘNG MỌI KHO của nhiều mã, tách theo đơn vị gốc của lô: `{hang_id: {goc: sl}}` — MỘT
+        truy vấn cho cả trang danh mục (cột Tồn của Hàng thương mại). Mã không còn lô nào thì vắng mặt."""
+        from ..models.stock_lot import StockLot
+
+        ids = sorted({int(i) for i in hang_ids if i})
+        if not ids:
+            return {}
+        ra: dict[int, dict[str, float]] = {}
+        for hid, goc, sl in self.db.execute(
+                select(StockLot.hang_id, StockLot.don_vi_goc, func.sum(StockLot.sl_con_lai))
+                .where(StockLot.hang_loai == hang_loai, StockLot.hang_id.in_(ids), StockLot.sl_con_lai > 0)
+                .group_by(StockLot.hang_id, StockLot.don_vi_goc)):
+            ra.setdefault(int(hid), {})[goc or ""] = float(sl or 0)
+        return ra
+
+    def gia_nhap_cuoi_nhieu(self, hang_loai: str, hang_ids) -> dict[int, dict[str, tuple]]:
+        """Lô nhập MỚI NHẤT có giá của nhiều mã, mỗi đơn vị gốc một lô: `{hang_id: {goc: (ngày nhập,
+        id lô, đơn giá)}}` — một truy vấn cho cả trang (cột Giá nhập gần nhất, 09/11/2026). Lô đã xuất
+        hết vẫn tính: đây là giá mua lần cuối, không phải giá của hàng còn trong kho. Lô giá 0 (chưa
+        nhập giá) bỏ qua, không thì một phiếu thiếu giá đè mất giá thật lần trước."""
+        from ..models.stock_lot import StockLot
+
+        ids = sorted({int(i) for i in hang_ids if i})
+        if not ids:
+            return {}
+        thu_tu = func.row_number().over(
+            partition_by=(StockLot.hang_id, StockLot.don_vi_goc),
+            order_by=(StockLot.ngay_nhap.desc(), StockLot.id.desc()),
+        ).label("thu_tu")
+        con = (select(StockLot.hang_id, StockLot.don_vi_goc, StockLot.ngay_nhap, StockLot.id,
+                      StockLot.don_gia_nhap, thu_tu)
+               .where(StockLot.hang_loai == hang_loai, StockLot.hang_id.in_(ids), StockLot.don_gia_nhap > 0)
+               .subquery())
+        ra: dict[int, dict[str, tuple]] = {}
+        for hid, goc, ngay, lo_id, gia in self.db.execute(
+                select(con.c.hang_id, con.c.don_vi_goc, con.c.ngay_nhap, con.c.id, con.c.don_gia_nhap)
+                .where(con.c.thu_tu == 1)):
+            ra.setdefault(int(hid), {})[goc or ""] = (ngay, int(lo_id), float(gia or 0))
+        return ra
+
+    def ton_theo_kho(self, hang_loai: str, hang_id: int) -> list[tuple[int, str, str, str, float]]:
+        """Tồn của MỘT mã tách theo kho và đơn vị gốc của lô: `[(kho_id, mã kho, tên kho, gốc, sl)]`,
+        xếp theo mã kho (tab Tồn theo kho của Hàng thương mại). Kho không còn lô nào thì vắng."""
+        from ..models.kho_hang import KhoHang
+        from ..models.stock_lot import StockLot
+
+        return [(int(k), m, t, g or "", float(sl or 0)) for k, m, t, g, sl in self.db.execute(
+            select(KhoHang.id, KhoHang.ma, KhoHang.ten, StockLot.don_vi_goc, func.sum(StockLot.sl_con_lai))
+            .join(KhoHang, KhoHang.id == StockLot.kho_id)
+            .where(StockLot.hang_loai == hang_loai, StockLot.hang_id == int(hang_id), StockLot.sl_con_lai > 0)
+            .group_by(KhoHang.id, KhoHang.ma, KhoHang.ten, StockLot.don_vi_goc)
+            .order_by(KhoHang.ma))]
+
     def nguon_goc_thanh_pham(
         self, customer_ids, order_ids,
     ) -> tuple[dict[int, tuple[str, str]], dict[int, str]]:

@@ -30,7 +30,7 @@ from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
 from ..schemas.vat_lieu_kho import (
     DonViCuaMatHangOut, DonViNhieuMatHangOut, GiayGiaVersionIn, GiayGiaVersionRow,
     GiayIn, GiayRow, HangThuongMaiIn, HangThuongMaiRow, ListOut, MatHangRow, ThanhPhamIn,
-    ThanhPhamRow, VatLieuAnhOut,
+    ThanhPhamRow, TonTheoKhoRow, VatLieuAnhOut,
     VatTuIn, VatTuRow,
 )
 from ..services.rbac_service import AuthorizationService
@@ -122,6 +122,15 @@ def _rows_kem_don_vi(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
     return rows
 
 
+def _rows_hang_thuong_mai(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
+    """Dòng + tên đơn vị + TỒN cộng mọi kho theo đơn vị gốc (cột Tồn, 09/11/2026) — một truy vấn mỗi
+    thứ cho cả trang."""
+    rows = _rows_kem_don_vi(svc, objs, RowModel)
+    svc.gan_ton_theo_dvt(rows)
+    svc.gan_gia_nhap_cuoi(rows)
+    return rows
+
+
 def _rows_thanh_pham(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
     """Dòng + tên đơn vị + NGUỒN GỐC (số đơn, mã/tên khách đặt lần đầu) — mỗi thứ một truy vấn
     cho cả trang. Bảng chỉ lưu id; không dịch ra thì màn chẳng có gì để hiện."""
@@ -131,7 +140,7 @@ def _rows_thanh_pham(svc: MotDanhMucVatLieu, objs: list, RowModel) -> list:
 
 
 
-def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_clone: bool = False,
+def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool | str, enable_clone: bool = False,
           excel_spec=None, loc_them: dict | None = None, dem_them: dict | None = None,
           che_tien=None, giu_tien=None):
     mod = MODULE_BY_KIND[kind]
@@ -145,6 +154,8 @@ def _khai(kind: str, InModel, RowModel, path: str, *, kem_don_vi: bool, enable_c
         dung_rows=(
             (lambda svc, objs: _rows_thanh_pham(svc, objs, RowModel))
             if kem_don_vi == "khach"
+            else (lambda svc, objs: _rows_hang_thuong_mai(svc, objs, RowModel))
+            if kem_don_vi == "ton"
             else (lambda svc, objs: _rows_kem_don_vi(svc, objs, RowModel)) if kem_don_vi
             else None
         ),
@@ -181,6 +192,7 @@ def _che_gia_ban(svc: MotDanhMucVatLieu, user: User, rows: list) -> None:
     if not _thay_gia_ban(svc.audit.db, user):
         for r in rows:
             r.gia_ban_theo_dvt = None
+            r.gia_nhap_gan_nhat = None
 
 
 def _giu_gia_ban(svc: MotDanhMucVatLieu, user: User, item_id: int | None, data: dict) -> None:
@@ -193,8 +205,22 @@ def _giu_gia_ban(svc: MotDanhMucVatLieu, user: User, item_id: int | None, data: 
         data["gia_ban_theo_dvt"] = svc.get(item_id).gia_ban_theo_dvt
 
 
-_khai("hang_thuong_mai", HangThuongMaiIn, HangThuongMaiRow, "hang-thuong-mai", kem_don_vi=True,
+_khai("hang_thuong_mai", HangThuongMaiIn, HangThuongMaiRow, "hang-thuong-mai", kem_don_vi="ton",
       enable_clone=True, che_tien=_che_gia_ban, giu_tien=_giu_gia_ban, **_DON_VI_GIA)
+
+
+@router.get("/hang-thuong-mai/{item_id}/ton-theo-kho", response_model=list[TonTheoKhoRow],
+            name="ton_theo_kho_hang_thuong_mai")
+def ton_theo_kho_hang_thuong_mai(
+    item_id: int,
+    svc: _mot("hang_thuong_mai"),
+    _: Annotated[User, Depends(require_any_permission(("hang_thuong_mai", "read"), *_DOC_CHUNG))],
+) -> list[TonTheoKhoRow]:
+    """Tab Tồn theo kho của ngăn Hàng thương mại: tồn từng kho, mỗi đơn vị một dòng. Không có tiền."""
+    try:
+        return [TonTheoKhoRow(**d) for d in svc.ton_theo_kho(item_id)]
+    except VatLieuKhoNotFound as e:
+        raise loi_http(e) from None
 _khai("thanh_pham", ThanhPhamIn, ThanhPhamRow, "thanh-pham", kem_don_vi="khach",
       excel_spec=THANH_PHAM,
       # Khách đặt lần đầu (vết `customer_id`) — tham số mang tên chung với màn Khuôn.

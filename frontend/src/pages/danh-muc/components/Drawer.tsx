@@ -19,8 +19,12 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { XIcon } from "../icons";
 
 export function Drawer({
-  kicker, title, rong, onClose, foot, children,
+  kicker, title, rong, lop, duoiDau, onClose, foot, children,
 }: {
+  /** Lớp thêm cho panel — màn có ngăn riêng (vd Hàng thương mại) tự đặt bề rộng, chữ đầu ngăn. */
+  lop?: string;
+  /** Khối nằm TRONG phần đầu, dưới tiêu đề (vd hàng tab gạch chân của Hàng thương mại). */
+  duoiDau?: ReactNode;
   /** Dòng nhỏ phía trên tiêu đề ("Chỉnh sửa" / "Thêm mới"). */
   kicker?: ReactNode;
   title: ReactNode;
@@ -72,7 +76,7 @@ export function Drawer({
     <div className="rc-drawer__scrim" onClick={onClose}>
       <aside
         ref={panelRef}
-        className={`rc-drawer${rong ? " rc-drawer--formula" : ""}`}
+        className={`rc-drawer${rong ? " rc-drawer--formula" : ""}${lop ? ` ${lop}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -83,6 +87,7 @@ export function Drawer({
           <div>
             {kicker != null && <div className="rc-drawer__kicker">{kicker}</div>}
             <h2 className="rc-drawer__title" id={titleId}>{title}</h2>
+            {duoiDau}
           </div>
           <button type="button" className="rc-drawer__x" onClick={onClose} aria-label="Đóng">
             <XIcon />

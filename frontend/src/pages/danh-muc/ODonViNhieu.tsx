@@ -23,10 +23,10 @@ const apiCap = crud("/api/don-vi/quy-doi");
  *  `kho_giay.GIAY_DON_VI_BAT_BUOC`. */
 export const DON_VI_KHOA = ["to", "kg"];
 
-const chuan = (ma: unknown) => String(ma ?? "").trim().toLowerCase();
+export const chuan = (ma: unknown) => String(ma ?? "").trim().toLowerCase();
 
 /** Đồ thị cặp quy đổi `{mã: tập mã kề}`, cả hai chiều — khai "1 tấn = 1.000 kg" là đủ đi ngược. */
-function doThi(caps: Row[]): Map<string, Set<string>> {
+export function doThi(caps: Row[]): Map<string, Set<string>> {
   const g = new Map<string, Set<string>>();
   for (const c of caps) {
     const tu = chuan(c.tu_ma);
@@ -41,7 +41,7 @@ function doThi(caps: Row[]): Map<string, Set<string>> {
 }
 
 /** Mọi mã đổi được từ `ma` (gồm cả chính nó), theo thứ tự gần trước xa sau. */
-function nhomCua(ma: string, g: Map<string, Set<string>>): string[] {
+export function nhomCua(ma: string, g: Map<string, Set<string>>): string[] {
   const goc = chuan(ma);
   if (!goc) return [];
   const da = new Set([goc]);

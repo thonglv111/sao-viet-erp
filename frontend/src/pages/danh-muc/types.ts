@@ -3,7 +3,7 @@
 // File này CHỈ được import `type ReactNode`. Mọi thứ khác trong `danh-muc/` đều trỏ về đây, nên
 // hễ nó import ngược lại một component là cả cây thành vòng tròn (module rỗng lúc chạy, lỗi kiểu
 // "Cannot access '...' before initialization" — rất khó lần).
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 export type Option = { value: string; label: string };
 export type OptionsField = Option[] | (() => Option[]);
@@ -15,7 +15,7 @@ export interface FieldDef {
   // mã như `don_vi_gia` (quy đổi làm việc trên mã `kg`/`to`, không trên id).
   // `don-vi-them` = mảng MÃ đơn vị khai thêm cạnh ĐVT chính (Giấy · Vật tư khác, `ODonViNhieu`):
   // `refPrefix` trỏ danh mục Đơn vị, `donViChinh` là ô ĐVT chính cùng form.
-  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them" | "gia-ban-dvt";
+  type?: "text" | "number" | "date" | "select" | "checkbox" | "ref" | "ref-multi" | "ref-search" | "ref-search-ma" | "bands" | "nhom_may" | "nhom_may-multi" | "formula" | "vat-tu-cong-doan" | "vat-tu-chip" | "chuan_bi_khoan" | "lich_bao_tri" | "don_vi_toc_do" | "may-cua-cong-doan" | "viec-phat-sinh" | "khoan-cong-doan" | "to-multi" | "don-vi-them" | "gia-ban-dvt" | "don-vi-ban-gia";
   /** Ô `select`: danh sách chọn. Nhận cả HÀM (như `hint`/`an`) cho menu mà nhãn đến MUỘN hơn
    *  lúc khai config — 5 chặng dòng giấy nạp từ `/api/don-vi/tram`, mảng dựng sẵn ở tầm module sẽ
    *  đóng băng lúc bảng còn rỗng. Hàm được gọi MỖI lần vẽ, nên vẽ lại là menu tự đầy. */
@@ -119,6 +119,14 @@ export interface DieuKienDanhMuc {
  *  đúng lời hứa "không import gì ngoài `type ReactNode`" — hai khai báo phải khớp nhau. */
 export type Row = Record<string, unknown> & { id: number; ma: string; ten: string };
 
+/** Tham số của ngăn chi tiết danh mục — `CatalogDrawer` và mọi `CatalogConfig.nganRieng`. */
+export interface NganDanhMucProps {
+  config: CatalogConfig;
+  existing: Row | null;
+  onClose: () => void;
+  onSaved: (moi?: Row) => void;
+}
+
 export interface CatalogConfig {
   title: string;
   /** Tiêu đề H1 RIÊNG khi cần KHÁC `title` — vd menu là "Khai báo kho" nhưng danh từ ở nút/lọc vẫn
@@ -183,6 +191,13 @@ export interface CatalogConfig {
   /** Bỏ cột Ngày tạo (màn có dòng không ngày tạo, vd mục cố định). */
   anNgayTao?: boolean;
   softDelete?: boolean;         // "Xóa" = ẩn mềm (active=false), giữ dữ liệu; list chỉ hiện active
+  /** Chữ riêng cho hàng lọc trạng thái của màn xoá mềm, thay "Đang dùng / Đã ngừng" (vd Hàng thương
+   *  mại: "Đang bán / Ngừng bán"). Chỉ đổi chữ, cờ `active` và luật lọc giữ nguyên. */
+  nhanTrangThai?: { dung: string; ngung: string };
+  /** Ngăn chi tiết RIÊNG thay cho form dựng từ `fields` — chỉ cho màn mà bố cục không theo khuôn
+   *  chung được (Hàng thương mại: ngăn hai cột, thẻ Trạng thái + Tồn bên phải, tab Tồn theo kho).
+   *  Nhận đúng bộ tham số của `CatalogDrawer`. */
+  nganRieng?: ComponentType<NganDanhMucProps>;
   /** Danh mục do HỆ SINH, không ai gõ tay ⇒ giấu nút "Thêm". Máy chủ chặn song song
    *  (`VatLieuKhoService._chan_go_tay`) — giấu nút mà không chặn thì một lời gọi API thẳng vẫn
    *  đẻ được dòng. Dùng cho Thành phẩm: `OrderService.confirm()` khai, xem docs/prd-thanh-pham.md. */

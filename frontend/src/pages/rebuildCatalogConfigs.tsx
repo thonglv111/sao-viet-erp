@@ -16,6 +16,7 @@ import { CodeLink } from "../components/CodeLink";
 import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { useDieuHuongDanhMuc } from "./danh-muc/dieuHuong";
+import { NganHangThuongMai } from "./danh-muc/NganHangThuongMai";
 import { ApiError, anhNho, assetUrl, authed } from "../api/client";
 import { crud, trangThaiMay, type Row, type TrangThaiMay } from "../api/rebuildCatalog";
 
@@ -660,12 +661,38 @@ export const CFG_VAT_TU: CatalogConfig = {
 // HÀNG THƯƠNG MẠI (08/11/2026, chỉ In Hà Phương — phân hệ `thuong_mai`, docs/design-hang-thuong-mai-ha-phuong.md
 // §3): hàng mua về bán, không qua sản xuất. Cùng bảng `vat_tu_in_an`, với kho vẫn là "vat_tu". Giá bán
 // khai theo TỪNG ĐVT, không quy đổi. Máy chủ xoá cột giá khi thiếu ô Xem giá của màn này.
+//
+// 09/11/2026 phương án A (docs/mockups/hang-thuong-mai-3-phuong-an.html, tham khảo Sapo): cột ĐVT và
+// cột Giá bán nhập thành một cột "Giá bán" mỗi đơn vị một thẻ; thêm cột Tồn đọc sổ kho; form gộp ba ô
+// ĐVT / Đơn vị thêm / Giá bán thành bảng "Đơn vị bán và giá"; hàng lọc trạng thái nói "Đang bán /
+// Ngừng bán".
+const dvCuaDong = (r: Row): string[] => {
+  const ds = [String(r.don_vi_gia ?? ""), ...(Array.isArray(r.don_vi_them) ? (r.don_vi_them as unknown[]).map(String) : [])];
+  return ds.map((m) => m.trim().toLowerCase()).filter((m, i, a) => m && a.indexOf(m) === i);
+};
 const giaBanCell = (r: Row) => {
+  const dvt = dvCuaDong(r);
+  if (dvt.length === 0) return <span className="lds-cam">Chưa chọn đơn vị</span>;
   const g = r.gia_ban_theo_dvt && typeof r.gia_ban_theo_dvt === "object" ? (r.gia_ban_theo_dvt as Record<string, number>) : null;
-  if (!g) return "";
-  const ds = Object.entries(g);
-  if (ds.length === 0) return <span className="lds-cam">Chưa đặt giá</span>;
-  return doc(ds.map(([ma, so]) => <span key={ma}>{`${so.toLocaleString("vi-VN")} đ/${tenDonVi(ma) ?? ma}`}</span>));
+  // Không có ô Xem giá: máy chủ không trả giá ⇒ chỉ hiện đơn vị bán, không bịa "chưa đặt giá".
+  if (!g) return doc(dvt.map((ma) => <span key={ma} className="lds-tag">{tenDonVi(ma) ?? ma}</span>));
+  const coGia = dvt.filter((ma) => g[ma] != null);
+  if (coGia.length === 0) return <span className="lds-cam">Chưa đặt giá</span>;
+  const thieu = dvt.filter((ma) => g[ma] == null);
+  return doc([
+    ...coGia.map((ma) => <span key={ma} className="lds-tag">{`${g[ma].toLocaleString("vi-VN")} đ/${tenDonVi(ma) ?? ma}`}</span>),
+    ...thieu.map((ma) => <span key={`t-${ma}`} className="lds-tag lds-cam">{`${tenDonVi(ma) ?? ma} chưa đặt giá`}</span>),
+  ]);
+};
+/** Tồn cộng mọi kho, tách theo đơn vị gốc của lô (máy chủ gắn `ton_theo_dvt`). Không còn lô nào thì
+ *  "Hết hàng" — với người bán, chưa nhập bao giờ và bán hết là một: không có hàng để giao. */
+const tonCell = (r: Row) => {
+  const t = r.ton_theo_dvt && typeof r.ton_theo_dvt === "object" ? (r.ton_theo_dvt as Record<string, number>) : {};
+  const ds = Object.entries(t).filter(([, so]) => so > 0);
+  if (ds.length === 0) return <span className="lds-cam">Hết hàng</span>;
+  return doc(ds.map(([ma, so]) => (
+    <span key={ma} className="lds-tag">{`${so.toLocaleString("vi-VN")} ${tenDonVi(ma) ?? ma}`}</span>
+  )));
 };
 
 export const CFG_HANG_THUONG_MAI: CatalogConfig = {
@@ -677,19 +704,19 @@ export const CFG_HANG_THUONG_MAI: CatalogConfig = {
   man: "hang-thuong-mai",
   dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
   softDelete: true,
+  nhanTrangThai: { dung: "Đang bán", ngung: "Ngừng bán" },
+  nganRieng: NganHangThuongMai,
   widthMa: 130,
   widthTen: 260,
   columns: [
-    { key: "don_vi_gia", label: "ĐVT", w: 160, render: (r) => dvCellNhieu(r) },
-    { key: "gia_ban_theo_dvt", label: "Giá bán", w: 200, render: (r) => giaBanCell(r) },
+    { key: "gia_ban_theo_dvt", label: "Giá bán", w: 260, render: (r) => giaBanCell(r) },
+    { key: "ton_theo_dvt", label: "Tồn", w: 200, render: (r) => tonCell(r) },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
-    { key: "don_vi_gia", label: "Đơn vị tính (ĐVT)", ...F_DON_VI, group: "Thông số" },
-    F_DON_VI_THEM,
-    { key: "gia_ban_theo_dvt", label: "Giá bán theo đơn vị", type: "gia-ban-dvt", refPrefix: "/api/don-vi",
-      group: "Giá bán",
-      hint: "Mỗi đơn vị một giá, chưa gồm VAT. Bán theo đơn vị nào thì đơn tự lấy giá đó, sửa được ở dòng đơn." },
+    { key: "gia_ban_theo_dvt", label: "Đơn vị bán và giá", type: "don-vi-ban-gia", refPrefix: "/api/don-vi",
+      group: "Thông tin chung",
+      hint: "Dòng đầu là đơn vị chính. Dòng đơn tự lấy giá theo đơn vị bán; đơn vị để trống giá thì người bán gõ ở dòng đơn." },
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
   ],
 };

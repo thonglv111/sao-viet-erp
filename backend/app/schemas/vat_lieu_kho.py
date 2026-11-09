@@ -210,11 +210,26 @@ class HangThuongMaiRow(BaseModel):
     don_vi_ten: str | None = None
     # Tiền: router xoá (None) khi người xem không có ô Xem giá của Hàng thương mại.
     gia_ban_theo_dvt: dict[str, int] | None = None
+    # Tồn cộng mọi kho theo đơn vị gốc của lô (09/11/2026, cột Tồn) — service gắn khi dựng trang, không
+    # phải cột bảng. Không phải tiền nên không gác Xem giá.
+    ton_theo_dvt: dict[str, float] | None = None
+    # Đơn giá của lô nhập mới nhất theo đơn vị gốc (ngăn chi tiết, 09/11/2026) — service gắn. Là giá vốn
+    # nên router che cùng giá bán khi thiếu ô Xem giá.
+    gia_nhap_gan_nhat: dict[str, float] | None = None
     ghi_chu: str | None = None
     anh_url: str | None = None
     active: bool
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class TonTheoKhoRow(BaseModel):
+    """Một dòng tab Tồn theo kho của Hàng thương mại: tồn một đơn vị ở một kho."""
+    kho_id: int
+    kho_ma: str
+    kho_ten: str
+    don_vi: str
+    sl: float
 
 
 class ListOut(BaseModel, Generic[RowT]):

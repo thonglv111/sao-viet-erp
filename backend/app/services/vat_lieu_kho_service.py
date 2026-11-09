@@ -248,7 +248,8 @@ class VatLieuKhoService:
         bo = [u for u in cu_khai if u not in khai]
         if not bo:
             return
-        dung = self.repo.noi_dung_don_vi(kind, obj.id)
+        # Hàng thương mại nằm chung bảng Vật tư khác, kho ghi lô của nó dưới `hang_loai="vat_tu"`.
+        dung = self.repo.noi_dung_don_vi("vat_tu" if kind == "hang_thuong_mai" else kind, obj.id)
         for u in bo:
             con: list[str] = []
             if dung["ton"].get(u, 0) > 0:
@@ -488,6 +489,44 @@ class VatLieuKhoService:
         for it in items:
             it.customer_ma, it.customer_ten = khach.get(it.customer_id or 0, (None, None))
             it.order_no = don.get(it.order_id or 0)
+
+    def gan_ton_theo_dvt(self, items) -> None:
+        """Điền tồn cộng mọi kho theo đơn vị gốc cho cả trang (cột Tồn của Hàng thương mại, 09/11/2026),
+        một truy vấn. Lô cũ không ghi đơn vị gốc (`""`) thuộc ĐVT chính của mã. Số lẻ giữ nguyên, số
+        tròn trả kiểu int cho JSON gọn."""
+        ton = self.repo.ton_theo_goc_nhieu("vat_tu", (getattr(it, "id", None) for it in items))
+        for it in items:
+            gom: dict[str, float] = {}
+            for goc, sl in ton.get(it.id, {}).items():
+                ma = (goc or getattr(it, "don_vi_gia", None) or "").strip().lower()
+                gom[ma] = gom.get(ma, 0.0) + sl
+            it.ton_theo_dvt = {m: (int(s) if float(s).is_integer() else round(s, 3)) for m, s in gom.items()}
+
+    def gan_gia_nhap_cuoi(self, items) -> None:
+        """Điền giá nhập gần nhất theo đơn vị cho cả trang (Hàng thương mại, 09/11/2026), một truy vấn.
+        Lô cũ không ghi đơn vị gốc thuộc ĐVT chính; hai lô cùng rơi về một đơn vị thì lấy lô mới hơn."""
+        cuoi = self.repo.gia_nhap_cuoi_nhieu("vat_tu", (getattr(it, "id", None) for it in items))
+        for it in items:
+            chon: dict[str, tuple] = {}
+            for goc, (ngay, lo_id, gia) in cuoi.get(it.id, {}).items():
+                ma = (goc or getattr(it, "don_vi_gia", None) or "").strip().lower()
+                if ma not in chon or (ngay, lo_id) > chon[ma][:2]:
+                    chon[ma] = (ngay, lo_id, gia)
+            it.gia_nhap_gan_nhat = {m: (int(g) if float(g).is_integer() else round(g, 2))
+                                    for m, (_, _, g) in chon.items()}
+
+    def ton_theo_kho(self, obj) -> list[dict]:
+        """Tồn một mã theo từng kho, mỗi đơn vị một dòng (tab Tồn theo kho). Lô cũ không ghi đơn vị
+        gốc thuộc ĐVT chính của mã."""
+        gom: dict[tuple, dict] = {}
+        for kho_id, kho_ma, kho_ten, goc, sl in self.repo.ton_theo_kho("vat_tu", obj.id):
+            ma = (goc or obj.don_vi_gia or "").strip().lower()
+            d = gom.setdefault((kho_id, ma), {"kho_id": kho_id, "kho_ma": kho_ma, "kho_ten": kho_ten,
+                                              "don_vi": ma, "sl": 0.0})
+            d["sl"] += sl
+        for d in gom.values():
+            d["sl"] = int(d["sl"]) if float(d["sl"]).is_integer() else round(d["sl"], 3)
+        return list(gom.values())
 
     # --- MẶT HÀNG GỐC: cửa dùng chung cho Kho + NCC ---------------------------
     @staticmethod
@@ -933,3 +972,12 @@ class MotDanhMucVatLieu:
 
     def gan_nguon_goc_thanh_pham(self, items) -> None:
         self.goc.gan_nguon_goc_thanh_pham(items)
+
+    def gan_ton_theo_dvt(self, items) -> None:
+        self.goc.gan_ton_theo_dvt(items)
+
+    def gan_gia_nhap_cuoi(self, items) -> None:
+        self.goc.gan_gia_nhap_cuoi(items)
+
+    def ton_theo_kho(self, item_id: int) -> list[dict]:
+        return self.goc.ton_theo_kho(self.get(item_id))
