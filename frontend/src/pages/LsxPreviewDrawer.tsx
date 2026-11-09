@@ -15,12 +15,15 @@ import { donViChuoi, nhanChang } from "./lsxBuoc";
 export function LsxPreviewDrawer({
   orderId,
   canCreate,
+  chiXem = false,
   onClose,
   onCreated,
   onOpenLsx,
 }: {
   orderId: number;
   canCreate: boolean;
+  /** Mở từ Hàng chờ tiếp nhận: xem lệnh dự kiến của đơn, không tick, không tạo lệnh. */
+  chiXem?: boolean;
   onClose: () => void;
   /** Tạo xong → controller nhảy sang tab Lệnh SX đã lọc theo đơn này. */
   onCreated: (orderId: number, maList: string[], orderNo?: string) => void;
@@ -64,6 +67,7 @@ export function LsxPreviewDrawer({
 
   const chuaCoLenh = data?.lines.filter((l) => l.lsx_id == null) ?? [];
   const tatCaDaCoLenh = (data?.lines.length ?? 0) > 0 && chuaCoLenh.length === 0;
+  const soCot = chiXem ? SO_COT - 1 : SO_COT;
 
   // Checkbox "chọn tất cả" ở header — trạng thái nửa vời khi tick một phần.
   useEffect(() => {
@@ -177,18 +181,20 @@ export function LsxPreviewDrawer({
                 <caption className="sr-only">Danh sách lệnh sản xuất dự kiến của đơn</caption>
                 <thead>
                   <tr>
-                    <th scope="col" className="khsx-prev__tickcol">
-                      <label className="khsx-prev__tick">
-                        <input
-                          ref={allRef}
-                          type="checkbox"
-                          checked={picked.size > 0 && picked.size === chuaCoLenh.length}
-                          onChange={toggleAll}
-                          disabled={loading || chuaCoLenh.length === 0}
-                        />
-                        <span className="sr-only">Chọn tất cả dòng chưa có lệnh</span>
-                      </label>
-                    </th>
+                    {!chiXem && (
+                      <th scope="col" className="khsx-prev__tickcol">
+                        <label className="khsx-prev__tick">
+                          <input
+                            ref={allRef}
+                            type="checkbox"
+                            checked={picked.size > 0 && picked.size === chuaCoLenh.length}
+                            onChange={toggleAll}
+                            disabled={loading || chuaCoLenh.length === 0}
+                          />
+                          <span className="sr-only">Chọn tất cả dòng chưa có lệnh</span>
+                        </label>
+                      </th>
+                    )}
                     <th scope="col" className="khsx-prev__namecol">Sản phẩm</th>
                     <th scope="col" className="khsx-th--num">SL đơn</th>
                     <th scope="col" className="khsx-th--num">Vào máy</th>
@@ -204,7 +210,7 @@ export function LsxPreviewDrawer({
                   <tbody className="khsx-skel">
                     {Array.from({ length: 3 }).map((_, r) => (
                       <tr key={r}>
-                        {Array.from({ length: SO_COT }).map((__, c) => (
+                        {Array.from({ length: soCot }).map((__, c) => (
                           <td key={c}>
                             <span className="khsx-skel__bar" />
                           </td>
@@ -221,6 +227,7 @@ export function LsxPreviewDrawer({
                           line={l}
                           con={con}
                           conCuoi={cuoi}
+                          chiXem={chiXem}
                           checked={picked.has(l.order_line_id)}
                           onToggle={() => toggle(l.order_line_id)}
                           onOpenLsx={onOpenLsx}
@@ -229,7 +236,7 @@ export function LsxPreviewDrawer({
                       if (node.kind === "don") return [dong(node.line, false)];
                       return [
                         <tr key={`nh-${node.key}`} className="khsx-prev__nhom">
-                          <td />
+                          {!chiXem && <td />}
                           <td colSpan={SO_COT - 1}>
                             <span className="khsx-prev__nhomTen">{node.ten}</span>
                             <span className="khsx-prev__nhomSub">
@@ -248,7 +255,17 @@ export function LsxPreviewDrawer({
           )}
         </div>
 
-        {!tatCaDaCoLenh && (
+        {!tatCaDaCoLenh && chiXem && (
+          <footer className="khsx-drawer__foot">
+            <p className="khsx-drawer__tally">Chỉ xem. Lệnh do người phụ trách tạo ở tab Tạo lệnh.</p>
+            <div className="khsx-drawer__footbtns">
+              <Button variant="ghost" onClick={onClose}>
+                Đóng
+              </Button>
+            </div>
+          </footer>
+        )}
+        {!tatCaDaCoLenh && !chiXem && (
           <footer className="khsx-drawer__foot">
             <p className="khsx-drawer__tally" aria-live="polite">
               Đã chọn <strong>{picked.size}</strong>/{chuaCoLenh.length} dòng
@@ -318,6 +335,7 @@ function PreviewRow({
   line,
   con,
   conCuoi,
+  chiXem,
   checked,
   onToggle,
   onOpenLsx,
@@ -325,6 +343,7 @@ function PreviewRow({
   line: LsxPreviewLine;
   con?: boolean;
   conCuoi?: boolean;
+  chiXem?: boolean;
   checked: boolean;
   onToggle: () => void;
   onOpenLsx: (id: number) => void;
@@ -342,12 +361,14 @@ function PreviewRow({
         `${con ? " khsx-prev__row--con" : ""}${conCuoi ? " khsx-prev__row--conCuoi" : ""}`
       }
     >
-      <td>
-        <label className="khsx-prev__tick">
-          <input type="checkbox" checked={checked} onChange={onToggle} disabled={daCo} />
-          <span className="sr-only">Chọn {line.ten}</span>
-        </label>
-      </td>
+      {!chiXem && (
+        <td>
+          <label className="khsx-prev__tick">
+            <input type="checkbox" checked={checked} onChange={onToggle} disabled={daCo} />
+            <span className="sr-only">Chọn {line.ten}</span>
+          </label>
+        </td>
+      )}
       <td>
         <div className="khsx-prev__namecell">
           <span className="khsx-prev__name">{line.ten}</span>

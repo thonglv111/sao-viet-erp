@@ -354,8 +354,11 @@ export function KeHoachSXPage({
           scope={scopeOf("san_xuat")}
           onOpen={(id) => {
             setPreviewOrderId(id);
-            // Máy chủ tắt chấm "chưa mở" khi ngăn nạp; tắt ngay trên màn để khỏi chờ lượt nạp lại.
-            setQueue((ds) => ds?.map((o) => (o.order_id === id ? { ...o, chua_mo: false } : o)) ?? ds);
+            // Máy chủ tắt chấm "chưa mở" khi người được giao mở ngăn; tắt ngay trên màn để khỏi chờ
+            // lượt nạp lại. Ở Hàng chờ tiếp nhận người mở là người giao, chấm không đổi.
+            if (cheDo === "tao") {
+              setQueue((ds) => ds?.map((o) => (o.order_id === id ? { ...o, chua_mo: false } : o)) ?? ds);
+            }
           }}
           dangMo={previewOrderId}
           tt={ttHien}
@@ -425,6 +428,7 @@ export function KeHoachSXPage({
         <LsxPreviewDrawer
           orderId={previewOrderId}
           canCreate={canCreate}
+          chiXem={cheDo === "giao"}
           onClose={() => setPreviewOrderId(null)}
           onCreated={sauKhiTao}
           onOpenLsx={(id) => {
@@ -743,14 +747,30 @@ function QueueTable({
                   </td>
                 </tr>
               ) : giao ? (
-                // Hàng chờ tiếp nhận chỉ để giao: bấm dòng là tick đơn, không mở lệnh.
+                // Hàng chờ tiếp nhận: bấm dòng mở lệnh dự kiến để XEM (không tạo lệnh ở đây), ô đầu
+                // dòng mới là tick để giao.
                 rows.map((o) => (
                   <tr
                     key={o.order_id}
-                    className={`lds-dong${chon.has(o.order_id) ? " is-chon" : ""}`}
-                    onClick={() => tick(o)}
+                    className={`lds-dong${chon.has(o.order_id) || o.order_id === dangMo ? " is-chon" : ""}`}
+                    tabIndex={0}
+                    aria-label={`Xem lệnh dự kiến của đơn ${o.order_no}`}
+                    onClick={() => onOpen(o.order_id)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        onOpen(o.order_id);
+                      }
+                    }}
                   >
-                    <td className="khsx-cot-tick" onClick={(e) => e.stopPropagation()}>
+                    <td
+                      className="khsx-cot-tick"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Bấm trượt ra lề ô vẫn tính là tick, khỏi phải nhắm đúng ô vuông nhỏ.
+                        if (e.target === e.currentTarget) tick(o);
+                      }}
+                    >
                       <input
                         type="checkbox"
                         className="khsx-tick"
