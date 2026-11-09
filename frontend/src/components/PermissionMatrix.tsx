@@ -7,7 +7,7 @@
 // tiết" → bấm BUNG INLINE ngay dưới hàng (không popover portal). Data contract KHÔNG đổi.
 import { useEffect, useRef, useState } from "react";
 import type { ModuleDef, PermissionRow, Scope } from "../api/client";
-import { useTat, useTenNhomNhanSu } from "../auth/permissions";
+import { useTat, useTenNhomNhanSu, type PhanHe } from "../auth/permissions";
 import { BAI_GHEP_ENABLED } from "../constants/features";
 import { Icon } from "./Icons";
 import { HoverTip } from "./HoverTip";
@@ -107,6 +107,12 @@ type FineAction = {
   /** Ô soi kèm PHẠM VI (14/10/2026): bật = các cột `keys`/`key` bật VÀ dòng nguồn ở phạm vi này;
    *  tắt = chỉ hạ phạm vi dòng nguồn về "Của tôi" (giữ nguyên Xem). */
   phamVi?: Scope;
+  /** Ô chỉ có nghĩa khi bản cài BẬT phân hệ này (vd. lối tắt bán hàng thương mại, chỉ In Hà Phương). */
+  phanHe?: PhanHe;
+  /** Hint thay cho `hint` khi phân hệ này bật — ô dùng chung cho đơn sản xuất và đơn thương mại. */
+  hintKhiBat?: { phanHe: PhanHe; hint: string };
+  /** Tắt công tắc gộp chỉ tắt các cột này (vd. giữ Xem của dòng nguồn khi dòng đó còn quyền ghi). */
+  tatChi?: ActionKey[];
 };
 
 //: Ô chi tiết "Xem giá thành" — MỖI module kho một ô RIÊNG, cột `can_view_cost` của chính dòng đó
@@ -190,6 +196,10 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       chung: "chung ô Phiếu thu",
       label: "Thu cọc và ghi hoá đơn",
       hint: "Cho phép thu cọc và ghi hoá đơn ngay trên đơn. Lưu ý: bật ô này là bật luôn Chỉnh sửa ở Phiếu thu, tắt cũng vậy.",
+      hintKhiBat: {
+        phanHe: "thuong_mai",
+        hint: "Thu cọc, ghi hoá đơn trên đơn. Đơn thương mại thì chọn được Khách trả ngay. Lưu ý: bật, tắt cùng ô Chỉnh sửa ở Phiếu thu.",
+      },
     },
     {
       key: "can_cancel",
@@ -205,6 +215,27 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       chung: "chung ô Phiếu chi",
       label: "Trả lại cọc",
       hint: "Cho phép trả lại cọc cho khách khi đơn đã huỷ. Lưu ý: bật ô này là bật luôn Chỉnh sửa ở Phiếu chi, tắt cũng vậy.",
+    },
+    // Bán hàng thương mại (09/11/2026, chỉ In Hà Phương): trang Tạo đơn thương mại hỏi thêm hai ô của
+    // màn khác — soi lên đây để người cấp quyền cho nhân viên bán quầy thấy đủ ở một chỗ.
+    {
+      key: "can_read",
+      keys: ["can_read", "can_view_cost"],
+      tatChi: ["can_view_cost"],
+      mod: "hang_thuong_mai",
+      chung: "chung ô Hàng thương mại",
+      phanHe: "thuong_mai",
+      label: "Chọn hàng thương mại, thấy giá bán",
+      hint: "Tìm được hàng thương mại khi tạo đơn, giá bán tự điền. Lưu ý: bật là bật Xem và Xem giá ở Hàng thương mại; tắt chỉ tắt Xem giá.",
+    },
+    {
+      key: "can_create",
+      keys: ["can_create", "can_update", "can_delete"],
+      mod: "kho",
+      chung: "chung ô Kho",
+      phanHe: "thuong_mai",
+      label: "Xuất kho ngay khi bán",
+      hint: "Xuất hàng đơn thương mại là trừ tồn ngay, không chờ thủ kho. Lưu ý: bật, tắt cùng ô Tiếp nhận yêu cầu ở Yêu cầu nhập xuất, tức quyền thủ kho ở mọi kho.",
     },
   ],
   // "Gán việc" · "Ghi sản lượng" · "Bàn giao / nhận" ĐÃ GỠ 14/09/2026: Bàn tổ thôi hỏi ô "Kế hoạch
@@ -227,7 +258,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     {
       key: "can_reassign",
       label: "Giao đơn",
-      hint: "Thấy tab Hàng chờ tiếp nhận và giao đơn cho người phụ trách. Tạo lệnh ở tab Tạo lệnh theo phạm vi: Của tôi là đơn mình phụ trách, Cả phòng là đơn của người trong phòng, Tất cả là mọi đơn đã giao.",
+      hint: "Giao đơn chờ làm lệnh cho người phụ trách. Không bật thì chỉ thấy đơn được giao cho mình.",
     },
   ],
   ke_hoach_vat_tu: [
@@ -292,6 +323,10 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
       keys: ["can_create", "can_update", "can_delete"],
       label: "Tiếp nhận yêu cầu, lập phiếu",
       hint: "Cho phép: tiếp nhận yêu cầu; lập, ghi sổ, huỷ phiếu nhập / xuất; từ chối yêu cầu có lý do; điều chỉnh phiếu xuất; chuyển kho: bấm là kho đi bị trừ, kho nhận được cộng ngay, không có bước kho nhận xác nhận, chuyển nhầm thì chuyển ngược; sửa vị trí lô. Lưu ý: đây là việc của thủ kho; người kho nên để phạm vi “Tất cả” để thấy mọi yêu cầu gửi tới. Người có ô này chuyển được hàng giữa mọi kho mình thấy.",
+      hintKhiBat: {
+        phanHe: "thuong_mai",
+        hint: "Cho phép: tiếp nhận yêu cầu; lập, ghi sổ, huỷ phiếu nhập / xuất; từ chối yêu cầu có lý do; điều chỉnh phiếu xuất; chuyển kho: bấm là kho đi bị trừ, kho nhận được cộng ngay, không có bước kho nhận xác nhận, chuyển nhầm thì chuyển ngược; sửa vị trí lô. Lưu ý: đây là việc của thủ kho; người kho nên để phạm vi “Tất cả” để thấy mọi yêu cầu gửi tới. Người có ô này chuyển được hàng giữa mọi kho mình thấy. Bật, tắt cùng ô Xuất kho ngay khi bán ở Đơn hàng bán.",
+      },
     },
     xemGiaKho(
       "Cho phép: xem đơn giá, thành tiền trên yêu cầu và phiếu nhập / xuất; giá lô lúc lập phiếu xuất. Lưu ý: chỉ ở màn này — từng kho và Báo cáo kho có ô xem giá riêng; thường chỉ kế toán kho bật.",
@@ -334,7 +369,7 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
     {
       key: "can_view_cost",
       label: "Xem giá",
-      hint: "Cho phép xem và sửa giá bán của từng mặt hàng. Không bật thì cột Giá bán để trống; sửa mặt hàng vẫn giữ nguyên giá cũ.",
+      hint: "Xem và sửa giá bán từng mặt hàng; tạo đơn thì giá tự điền. Không bật thì cột Giá bán để trống.",
     },
   ],
   dm_thiet_bi: [{ key: "can_clone", label: "Nhân bản", hint: NHAN_BAN_HINT }],
@@ -687,7 +722,7 @@ const MODULE_HINTS: Record<string, string> = {
   dm_thanh_pham:
     "Xem: danh mục thành phẩm, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
   hang_thuong_mai:
-    "Xem: danh sách hàng mua về bán lại (không qua sản xuất). Thao tác: thêm, sửa, xoá, ngừng / dùng lại mặt hàng.",
+    "Xem: danh sách hàng mua về bán lại (không qua sản xuất); tìm được hàng khi tạo đơn thương mại. Thao tác: thêm, sửa, xoá, ngừng / dùng lại mặt hàng.",
   khuon_be:
     "Xem: danh mục khuôn, xuất Excel. Thao tác: thêm, sửa, xoá, ngừng / dùng lại, nhập Excel.",
   dm_kho_hang:
@@ -1562,7 +1597,10 @@ export function PermissionMatrix({
                   const def = moduleDef.get(row.module_key);
                   // Ô soi (`mod`) mà dòng nguồn không có trong ma trận (màn ngừng dùng) thì không bày.
                   const fineActs = fineCua(row.module_key)?.filter((a) => (!a.mod || byKey.has(a.mod))
+                    && (!a.phanHe || !tat(a.phanHe))
                     && !oChiTietTat(row.module_key, a.key));
+                  const hintCua = (a: FineAction) =>
+                    (a.hintKhiBat && !tat(a.hintKhiBat.phanHe) ? a.hintKhiBat.hint : a.hint);
                   /** Dòng mà ô đọc / ghi: dòng đang đứng, hoặc dòng nguồn của ô soi. */
                   const dongCua = (a: FineAction): PermissionRow => (a.mod ? byKey.get(a.mod)! : row);
                   const khoaCua = (a: FineAction) => a.mod ?? row.module_key;
@@ -1745,7 +1783,7 @@ export function PermissionMatrix({
                                     : canhPhamVi
                                       ? CANH_BAO_PHAM_VI
                                       : song
-                                        ? a.hint
+                                        ? hintCua(a)
                                         : CANH_BAO_O_CHET
                                 }
                                 aria-label={`${a.label} — ${label}`}
@@ -1757,7 +1795,7 @@ export function PermissionMatrix({
                                   }
                                   // Công tắc gộp → set TẤT CẢ cột trong `keys`; thường → 1 cột. Ô soi
                                   // ghi vào dòng nguồn (`mod`).
-                                  (a.keys ?? [a.key]).forEach((k) =>
+                                  ((!e.target.checked && a.tatChi) || a.keys || [a.key]).forEach((k) =>
                                     onToggle(khoaO, k, e.target.checked),
                                   );
                                   if (a.phamVi) onScope(khoaO, a.phamVi);
@@ -1777,8 +1815,8 @@ export function PermissionMatrix({
                                     cần Phạm vi “Tất cả”
                                   </span>
                                 )}
-                                {a.hint && (
-                                  <HoverTip tieuDe={a.label} text={a.hint} />
+                                {hintCua(a) && (
+                                  <HoverTip tieuDe={a.label} text={hintCua(a)!} />
                                 )}
                               </span>
                             </label>

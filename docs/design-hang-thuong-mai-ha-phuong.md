@@ -290,6 +290,20 @@ Quyền, gác ở máy chủ:
   còn ô Tiền cọc.
 - Thiếu quyền ghi sổ kho đã chọn thì không thấy ô "Ghi sổ kho luôn"; Xuất ngay tạo yêu cầu xuất gửi tới
   người giữ kho, như hộp Xuất hàng hôm nay.
+- Thiếu quyền xem hàng thương mại (`hang_thuong_mai:read`) thì ô tìm hàng báo không có quyền; thiếu
+  `hang_thuong_mai:view_cost` thì tìm được hàng nhưng ô đơn giá không tự điền.
+
+Ma trận quyền (màn Phòng ban, vai trò) gom các quyền trên vào chi tiết của dòng Đơn hàng bán để người
+cấu hình vai không phải dò sang module khác. Hai ô dưới đây chỉ hiện khi bật phân hệ `thuong_mai`, là ô
+soi của dòng khác nên bật hay tắt ở đây là đổi luôn ô gốc:
+
+- "Chọn hàng thương mại, thấy giá bán" (chung ô Hàng thương mại): bật là bật Xem và Xem giá; tắt chỉ tắt
+  Xem giá, Xem giữ nguyên để không cắt quyền của người đang sửa danh mục.
+- "Xuất kho ngay khi bán" (chung ô Kho): bật hoặc tắt cùng ô "Tiếp nhận yêu cầu, lập phiếu" của Yêu cầu
+  nhập xuất, tức quyền thủ kho trên mọi kho.
+
+Ô "Thu cọc và ghi hoá đơn" (chung ô Phiếu thu) có sẵn từ trước; khi bật `thuong_mai` lời giải thích nói
+thêm nó mở "Khách trả ngay" ở trang Tạo đơn.
 
 Sau khi lưu mở ngăn đơn như hiện nay.
 
