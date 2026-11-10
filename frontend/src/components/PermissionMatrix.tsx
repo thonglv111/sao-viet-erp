@@ -257,8 +257,8 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   san_xuat: [
     {
       key: "can_reassign",
-      label: "Giao đơn",
-      hint: "Giao đơn chờ làm lệnh cho người phụ trách. Không bật thì chỉ thấy đơn được giao cho mình.",
+      label: "Chọn người làm lệnh",
+      hint: "Đơn kinh doanh chuyển xuống nằm ở tab Hàng chờ tiếp nhận. Có ô này thì chọn được ai trong phòng làm lệnh cho từng đơn. Không bật thì chỉ thấy đơn người khác đã chọn mình làm.",
     },
   ],
   ke_hoach_vat_tu: [
@@ -664,7 +664,7 @@ const MODULE_HINTS: Record<string, string> = {
   // 6 dòng dưới đây gác 6 MÀN RIÊNG (tách 17/08/2026). Trước đó `san_xuat` mở 4 màn và
   // `ky_thuat_may` mở 2 — nhãn cũ chỉ kể một màn nên người cấp quyền không đoán ra mình vừa mở gì.
   san_xuat:
-    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: phạm vi tính theo sale phụ trách đơn; không có ô Giao đơn thì hàng chờ chỉ hiện đơn được giao cho mình.",
+    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: phạm vi tính theo sale phụ trách đơn; không có ô Chọn người làm lệnh thì chỉ thấy đơn người khác đã chọn mình làm.",
   ke_hoach_vat_tu:
     "Xem: bảng cân đối vật tư (không có giá). Thao tác: giữ chỗ, nhả giữ chỗ vật tư cho lệnh. Lưu ý: lập yêu cầu mua từ dòng thiếu là ô chi tiết Đề nghị mua.",
   // Khoá vẫn mang hậu tố `_2` (đổi khoá trong DB không đáng), nhưng đây là màn Bài ghép DUY NHẤT
