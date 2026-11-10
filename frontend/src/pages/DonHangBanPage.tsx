@@ -924,7 +924,7 @@ function OrderDrawer({
                       return (
                         <div className="dhb__viec">
                           <div className="dhb__viec-chu">
-                            <span className="dhb__viec-cau">{viec.cau}</span>
+                            {viec.cau && <span className="dhb__viec-cau">{viec.cau}</span>}
                             {theKhac.length > 0 && (
                               <span className="dhb__viec-the">
                                 {theKhac.map((t) => (
@@ -932,14 +932,9 @@ function OrderDrawer({
                                 ))}
                               </span>
                             )}
-                            {viec.nut && (viec.nut.toi !== activeStep)
-                              && (viec.nut.toi !== "ke-hoach-sx" || can("san_xuat", "read")) && (
+                            {viec.nut && viec.nut.toi !== activeStep && (
                               <Button variant="secondary" className="dhb__viec-nut"
-                                onClick={() => {
-                                  const toi = viec.nut!.toi;
-                                  if (toi === "ke-hoach-sx") navigate?.("ke-hoach-sx", { openSxOrderId: order.id });
-                                  else setActiveStep(toi);
-                                }}>
+                                onClick={() => setActiveStep(viec.nut!.toi)}>
                                 {viec.nut.nhan}
                               </Button>
                             )}
@@ -1096,14 +1091,6 @@ function OrderDrawer({
                           <BangSanXuatMon td={td}
                             onMoLenh={navigate && can("san_xuat", "read") ? (id) => navigate("ke-hoach-sx", { openLsxId: id }) : undefined} />
                         </div>
-                        {can("san_xuat", "read") && (
-                          <ChanKhung chu="Theo dõi từng công đoạn của lệnh ở Lệnh sản xuất.">
-                            <button type="button" className="btn"
-                              onClick={() => navigate?.("ke-hoach-sx", { openSxOrderId: order.id })}>
-                              Mở Lệnh sản xuất ↗
-                            </button>
-                          </ChanKhung>
-                        )}
                       </>
                     )}
                   </TheChang>
@@ -1971,7 +1958,6 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
   const { token } = useAuth();
   const [po, setPo] = useState(order.customer_po_no ?? "");
   const [date, setDate] = useState(order.delivery_committed_date ?? "");
-  const [deliveryNote, setDeliveryNote] = useState(order.delivery_note ?? "");
   const [productionNote, setProductionNote] = useState(order.production_note ?? "");
   const [isRush, setIsRush] = useState(order.is_rush);
   const [depositPct, setDepositPct] = useState(order.deposit_pct != null ? String(order.deposit_pct).replace(".", ",") : "");
@@ -1995,7 +1981,6 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
       const d = await api.orders.update(token, order.id, {
         customer_po_no: po || null,
         delivery_committed_date: date || null,
-        delivery_note: deliveryNote.trim() || null,
         production_note: productionNote.trim() || null,
         is_rush: isRush,
         ...(cocKieu === "so"
@@ -2063,7 +2048,6 @@ function EditDialog({ order, onCancel, onSaved }: { order: OrderDetail; onCancel
           {[order.delivery_contact_name, order.delivery_contact_phone].filter(Boolean).join(" · ") || "—"}
         </div>
       </Field>
-      <Field label="Lưu ý giao hàng"><textarea value={deliveryNote} onChange={(e) => setDeliveryNote(e.target.value)} placeholder="Dặn tài xế / khâu giao (giờ giao, tầng, gọi trước…)" className="dhb__input" style={{ minHeight: 56, resize: "vertical" }} /></Field>
       <Field label="Lưu ý sản xuất"><textarea value={productionNote} onChange={(e) => setProductionNote(e.target.value)} placeholder="Dặn tổ in / xưởng (canh màu, cấn bế, gia công…)" className="dhb__input" style={{ minHeight: 56, resize: "vertical" }} /></Field>
       <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13, cursor: "pointer", userSelect: "none" }}>
         <input type="checkbox" checked={isRush} onChange={(e) => setIsRush(e.target.checked)} /> Hàng gấp (ưu tiên sản xuất)
