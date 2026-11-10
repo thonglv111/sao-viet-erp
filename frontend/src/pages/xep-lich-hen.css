@@ -8,6 +8,9 @@
 .xh-mo { color: var(--xa-chu-3); font-size: 12.5px; }
 .xh-do { color: var(--tt-do-fg); }
 .xh-o-tim { width: 260px; }
+.xh-dieu-huong { display: inline-flex; gap: 6px; flex: none; }
+.xh-sap { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid var(--xa-vien); border-radius: 999px;
+  font-size: 12.5px; color: var(--xa-chu-2); background: #fff; white-space: nowrap; }
 
 /* ---------- tab + lọc nhanh ---------- */
 .xh-tabs { display: flex; gap: 4px; padding: 8px 20px 0 24px; border-bottom: 1px solid var(--xa-vien); overflow-x: auto; }

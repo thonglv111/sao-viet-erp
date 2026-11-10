@@ -476,6 +476,24 @@ def test_ban_khoang_qua_92_ngay_thi_400(client):
     assert client.get(f"{GOC}/ban?tab=da_hen", headers=h).status_code == 422
 
 
+def test_tim_theo_ten_khach(client):
+    """Ô tìm của bàn: mã lệnh, sản phẩm, KHÁCH (mockup B)."""
+    from app.models.customer import Customer
+
+    lid = _lenh("HD-TK")
+    don = _don_cua(lid)   # trước khi mở phiên ghi: phiên phụ đóng lại sẽ rollback kết nối chung
+    db = SessionLocal()
+    try:
+        c = Customer(code="KH-HDTK", name="Khách Tìm Được HDTK")
+        db.add(c)
+        db.flush()
+        db.get(Order, don).customer_id = c.id
+        db.commit()
+    finally:
+        db.close()
+    assert [x["lsx_id"] for x in _ban(tab="chua_hen", tim="Tìm Được HDTK")["dong"]] == [lid]
+
+
 def test_ban_api_khoang_da_day_rieng(client):
     d = _lenh("HD-API-D")
     _da_day(d, datetime.now(timezone.utc) - timedelta(days=5))

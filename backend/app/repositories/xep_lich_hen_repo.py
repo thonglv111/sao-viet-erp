@@ -54,7 +54,10 @@ def _dk_tim(tim: str | None) -> list:
     if not (tim or "").strip():
         return []
     mau = f"%{tim.strip()}%"
-    return [or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau))]
+    # Mã lệnh, sản phẩm, tên khách (mockup B: "Tìm mã lệnh, sản phẩm, khách").
+    khach = (select(Order.id).join(Customer, Customer.id == Order.customer_id)
+             .where(Order.id == Lsx.order_id, Customer.name.ilike(mau)).exists())
+    return [or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau), khach)]
 
 
 class XepLichHenRepository:

@@ -109,7 +109,7 @@ export function XlBan({
             <th className="xh-c-khach">Khách hàng</th>
             <th className="xh-c-vt">Vật tư</th>
             <th className="xh-c-hen">Hẹn đẩy</th>
-            <th className="xh-c-dai">
+            <th className="xh-c-dai" data-tieu-de="">
               <div className="xh-ngay" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
                 {ngay.map((d) => (
                   <div key={d} className={lopNgay(d)}>
@@ -131,9 +131,10 @@ export function XlBan({
             const pHan = d.han_giao_khach ? pct(d.han_giao_khach) : null;
             const hanNgoai = pHan !== null && pHan > 100;
             const pVe = d.vat_tu_ve && d.vat_tu?.muc !== "ok" ? pct(d.vat_tu_ve) : null;
-            // Vạch nối chấm (giờ hẹn) tới hạn giao, cắt trong khoảng đang xem.
+            // Vạch nối chấm (giờ hẹn / lúc đẩy) tới hạn giao, cắt trong khoảng đang xem — nhìn một hàng
+            // thấy giờ đẩy cách hạn giao bao xa.
             let vach: { l: number; w: number } | null = null;
-            if (pCham !== null && pHan !== null && tab !== "da_day") {
+            if (pCham !== null && pHan !== null) {
               const a = Math.max(0, Math.min(pCham, pHan));
               const b = Math.min(100, Math.max(pCham, pHan));
               if (b > a) vach = { l: a, w: b - a };

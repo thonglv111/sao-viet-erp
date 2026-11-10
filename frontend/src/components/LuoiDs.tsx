@@ -744,7 +744,8 @@ function tieuDeCot(td: HTMLTableCellElement): string {
   }
   let dem = 0;
   for (const th of Array.from(bang.querySelectorAll<HTMLTableCellElement>("thead tr:first-child > th"))) {
-    if (dem === viTri) return (th.textContent ?? "").replace(/\s+/g, " ").trim();
+    // `data-tieu-de` thay chữ đầu cột khi đầu cột không phải một nhãn (ví dụ dải ngày: cả hàng thứ/ngày).
+    if (dem === viTri) return (th.dataset.tieuDe ?? th.textContent ?? "").replace(/\s+/g, " ").trim();
     dem += th.colSpan || 1;
     if (dem > viTri) return "";
   }

@@ -3,7 +3,7 @@
 // tự đẩy bằng quyền người hẹn, không hỏi lại. Bốn tab có số đếm từ máy chủ; tìm, lọc, sắp xếp, cắt
 // trang đều ở máy chủ. Thay cho Gantt kéo thả cũ (tốc độ máy đã gỡ nên không còn giờ chạy để vẽ).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, RotateCcw, Search, Send, Wrench, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Search, Send, X } from "lucide-react";
 
 import {
   ApiError, api,
@@ -16,11 +16,9 @@ import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useDebounced } from "../utils/useDebounced";
 import { XlBan } from "./XlBan";
 import { XlHenGio } from "./XlHenGio";
-import { XlKhoaMay } from "./XlKhoaMay";
 import { XlKhoangNgay } from "./XlKhoangNgay";
 import { XlNganHen } from "./XlNganHen";
 import { cauBaoPhatHanh } from "./cauBaoPhatHanh";
-import { NhanKhoang } from "./xlKhoang";
 import { soNgayGiua, themNgay, ymd } from "./xlShared";
 import "./ke-toan/ke-toan.css";
 import "./xep-lich-a.css";
@@ -40,6 +38,15 @@ const LOC_NHANH: { k: keyof Loc; ten: string; dot: string }[] = [
   { k: "sat_han", ten: "Sát hạn giao", dot: "var(--tt-do-dot)" },
 ];
 type Bao = { chu: string; loi?: boolean; giai?: string };
+
+/** "08/11 – 21/11/2026" (khác năm thì ghi đủ năm cả hai đầu) — chữ trên nút khoảng ngày, như mockup B. */
+export function chuKhoang(tu: string, den: string): string {
+  const dm = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+  return tu.slice(0, 4) === den.slice(0, 4)
+    ? `${dm(tu)} – ${dm(den)}/${den.slice(0, 4)}`
+    : `${dm(tu)}/${tu.slice(0, 4)} – ${dm(den)}/${den.slice(0, 4)}`;
+}
+
 /** Hộp hẹn giờ đang mở cho ai: các lệnh đã tick, cả tập theo bộ lọc, hay một lệnh ở ngăn. */
 type Hen = { kieu: "chon"; ids: number[] } | { kieu: "loc"; so: number } | { kieu: "mot"; id: number; cu: string | null };
 
@@ -54,7 +61,6 @@ export function XepLichPage({
 }) {
   const { token } = useAuth();
   const can = useCan();
-  const suaDuoc = can("xep_lich", "update");
   const duyetDuoc = can("xep_lich", "approve");
   const homNay = ymd(new Date());
 
@@ -262,7 +268,6 @@ export function XepLichPage({
     }
   };
 
-  const [moKhoaMay, setMoKhoaMay] = useState(false);
   const coLoc = !!tim || loc.gap || loc.thieu_vat_tu || loc.sat_han;
   const dem = ban?.dem_tab;
 
@@ -270,39 +275,30 @@ export function XepLichPage({
     <div className="xa xh">
       <header className="xa-dau">
         <h1>Xếp lịch</h1>
-        <div className="xa-kn">
-          <button type="button" className={`xa-kn__nay${coHomNay ? " is-trong" : ""}`} onClick={veHomNay}
-            title={coHomNay ? "Hôm nay đang nằm trong khoảng xem" : "Về khoảng có hôm nay"}>
-            <i />Hôm nay
-          </button>
-          <div className={`xa-kn__hop${moKhoang ? " is-mo" : ""}`}>
-            <button type="button" className="xa-kn__mui" aria-label="Khoảng trước" onClick={() => luiTien(-1)}><ChevronLeft size={17} /></button>
-            <button type="button" className="xa-kn__giua" aria-haspopup="dialog" aria-expanded={moKhoang}
-              title="Chọn khoảng ngày" onClick={() => setMoKhoang((m) => !m)}>
-              <span className="xa-kn__lich"><CalendarDays size={14} /></span>
-              <NhanKhoang tu={tu} den={den} />
-              <span className="xa-kn__phu">{soNgay} ngày</span>
-            </button>
-            <button type="button" className="xa-kn__mui" aria-label="Khoảng sau" onClick={() => luiTien(1)}><ChevronRight size={17} /></button>
-          </div>
+        {/* Mockup B: ‹ Hôm nay › rồi nút khoảng ngày mở bộ chọn khoảng sẵn có của Xếp lịch. */}
+        <div className="xh-dieu-huong">
+          <button type="button" className="xa-btn xa-btn--o" aria-label="Khoảng trước" onClick={() => luiTien(-1)}><ChevronLeft size={16} /></button>
+          <button type="button" className="xa-btn" onClick={veHomNay}
+            title={coHomNay ? "Hôm nay đang nằm trong khoảng xem" : "Về khoảng có hôm nay"}>Hôm nay</button>
+          <button type="button" className="xa-btn xa-btn--o" aria-label="Khoảng sau" onClick={() => luiTien(1)}><ChevronRight size={16} /></button>
         </div>
+        <button type="button" className={`xa-btn${moKhoang ? " xa-btn--bat" : ""}`} aria-haspopup="dialog" aria-expanded={moKhoang}
+          title={`Chọn khoảng ngày (${soNgay} ngày)`} onClick={() => setMoKhoang((m) => !m)}>
+          {chuKhoang(tu, den)}<ChevronDown size={14} className="xh-mo" />
+        </button>
         {moKhoang && (
           <XlKhoangNgay tu={tu} den={den} onDong={() => setMoKhoang(false)}
             onApDung={(a, b) => { setKhoang(a, b); setMoKhoang(false); }} />
         )}
         <label className="xa-o-tim xh-o-tim">
           <Search size={15} />
-          <input value={tim} placeholder="Tìm mã lệnh, sản phẩm" aria-label="Tìm lệnh"
+          <input value={tim} placeholder="Tìm mã lệnh, sản phẩm, khách" aria-label="Tìm lệnh"
             onChange={(e) => setTim(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Escape") setTim(""); }} />
           {tim && (
             <button type="button" className="xa-btn xa-btn--tron" style={{ height: 22, padding: 0 }} aria-label="Xoá ô tìm" onClick={() => setTim("")}><X size={13} /></button>
           )}
         </label>
-        <span className="xa-gian" />
-        <button type="button" className="xa-btn" aria-haspopup="dialog" onClick={() => setMoKhoaMay(true)}>
-          <Wrench size={15} />Khoá máy
-        </button>
       </header>
 
       <div className="xh-tabs" role="tablist" aria-label="Nhóm lệnh">
@@ -324,7 +320,8 @@ export function XepLichPage({
         ))}
         {coLoc && <button type="button" className="xa-lk" onClick={() => { setTim(""); setLoc(LOC_TRONG); }}>Xoá bộ lọc</button>}
         <span className="xa-gian" />
-        <span className="xh-mo">
+        <span className="xh-mo">Sắp xếp</span>
+        <span className="xh-sap">
           {tab === "da_hen" ? "Gấp trước, rồi giờ hẹn sớm" : tab === "da_day" ? "Gấp trước, rồi lúc đẩy mới nhất" : "Gấp trước, rồi hạn giao sớm"}
         </span>
       </div>
@@ -408,7 +405,6 @@ export function XepLichPage({
         onHuy={() => setHen(null)}
       />
 
-      <XlKhoaMay open={moKhoaMay} suaDuoc={suaDuoc} onDong={() => setMoKhoaMay(false)} onDoi={lamMoi} />
 
       <ConfirmDialog
         open={prompt !== null}
