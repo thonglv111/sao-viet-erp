@@ -564,6 +564,16 @@ export function LsxDetailView({
   );
 
   /** Bộ mặc định của công đoạn mới khi kế hoạch đổi 1 bước — luật ở backend, client chỉ áp. */
+  /** Ngăn bước mở ⇒ hỏi lượng gợi ý của từng món cho bước đó. Phụ thuộc `d` để lưu xong (số vào–ra
+   *  đổi) thì ngăn đang mở hỏi lại. */
+  const napGoiY = useCallback(
+    async (buocId: number) => {
+      if (!token || !d) return [];
+      return api.lsx.goiYVatTuBuoc(token, d.id, buocId);
+    },
+    [token, d],
+  );
+
   const macDinhBuoc = useCallback(
     async (congDoanId: number) => {
       if (!token || !d) throw new Error("chưa sẵn sàng");
@@ -1606,6 +1616,7 @@ export function LsxDetailView({
                     onSave={luuRouting}
                     onPatchLsx={patchLsx}
                     onMacDinhBuoc={macDinhBuoc}
+                    napGoiY={napGoiY}
                     onXemTruocBuoc={xemTruocBuoc}
                     onXemTruocRouting={xemTruocRouting}
                     onDirtyChange={setRoutingDirty}

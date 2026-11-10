@@ -120,6 +120,7 @@ export function LsxRoutingTable({
   onSave,
   onPatchLsx,
   onMacDinhBuoc,
+  napGoiY,
   onXemTruocBuoc,
   onXemTruocRouting,
   onDirtyChange,
@@ -157,6 +158,8 @@ export function LsxRoutingTable({
   /** Sửa cấp LỆNH từ drawer bước cuối (SL thành phẩm / hao thêm) → server tính lại cả chuỗi. */
   onPatchLsx: (p: { so_luong_dat?: number }) => void;
   onMacDinhBuoc: (congDoanId: number) => Promise<LsxBuocMacDinh>;
+  /** Lượng gợi ý của từng món cho MỘT bước đã lưu — ngăn bước gọi khi mở. */
+  napGoiY?: (buocId: number) => Promise<EditRow["vat_tu_goi_y"]>;
   /** Sửa bước → hỏi server giờ chạy mới (chỉ backend quy đổi được SL vào sang đơn vị đích của
    *  bước, và chỉ nó chạy được công thức giờ). */
   onXemTruocBuoc: (
@@ -1192,6 +1195,7 @@ export function LsxRoutingTable({
           tenSanPham={tenSanPham}
           tenKhach={tenKhach}
           onTaoKhuon={onTaoKhuon}
+          napGoiY={napGoiY}
           vatTuRefs={vatTuRefs}
           giayRefs={giayRefs}
           phuThuocRefs={phuThuocRefs}

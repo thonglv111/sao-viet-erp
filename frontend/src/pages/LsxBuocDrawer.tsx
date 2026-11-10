@@ -92,6 +92,7 @@ export function LsxBuocDrawer({
   tenSanPham,
   tenKhach,
   onTaoKhuon,
+  napGoiY,
   vatTuRefs,
   giayRefs,
   phuThuocRefs,
@@ -131,6 +132,8 @@ export function LsxBuocDrawer({
   tenKhach: string;
   /** Tạo dao mới cho bước — trả id dao vừa tạo để gán luôn. */
   onTaoKhuon: (input: { ten: string; loai: string | null }) => Promise<number>;
+  /** Lượng gợi ý từng món cho bước đã lưu (`row.id`) — hỏi khi mở ngăn, không đi kèm chi tiết lệnh. */
+  napGoiY?: (buocId: number) => Promise<EditRow["vat_tu_goi_y"]>;
   vatTuRefs: RefRow[] | null;
   giayRefs: RefRow[] | null;
   phuThuocRefs: import("../api/client").LsxPhuThuocOption[];
@@ -173,6 +176,18 @@ export function LsxBuocDrawer({
   const laBuocCuoi = laBuocGiao && !!row.don_vi_ra;
   const [slRaCuoi, setSlRaCuoi] = useState(String(soLuongDat ?? 0));
   useEffect(() => setSlRaCuoi(String(soLuongDat ?? 0)), [soLuongDat]);
+  // Lượng gợi ý từng món: hỏi riêng khi mở ngăn (chi tiết lệnh không mang nữa, 10/11/2026). Bước
+  // chưa lưu (`row.id` null) chưa có số vào–ra ở máy chủ nên không hỏi. `napGoiY` đổi khi lệnh vừa
+  // lưu ⇒ hỏi lại theo số mới.
+  const [goiYNap, setGoiYNap] = useState<{ id: number; ds: EditRow["vat_tu_goi_y"] } | null>(null);
+  useEffect(() => {
+    const id = row.id;
+    if (id == null || !napGoiY) return;
+    let huy = false;
+    napGoiY(id).then((ds) => { if (!huy) setGoiYNap({ id, ds }); }).catch(() => {});
+    return () => { huy = true; };
+  }, [row.id, napGoiY]);
+  const goiYDs = goiYNap && goiYNap.id === row.id ? goiYNap.ds : row.vat_tu_goi_y;
 
   // Bảng nhãn đơn vị nạp ở bảng cha rồi, gọi lại ở đây chỉ để drawer TỰ vẽ lại khi bảng về muộn
   // (hook có cache + danh sách người chờ dùng chung, không đẻ thêm request).
@@ -241,7 +256,7 @@ export function LsxBuocDrawer({
     for (const x of giayRefs ?? []) {
       if (daCo("giay", x.id)) continue;
       // Khổ gợi ý của chính mã này (nếu máy chủ đã tính cho bước) — để nhãn nói "khổ 1000 mm (kg)".
-      const khoGoiY = row.vat_tu_goi_y.find((g) => capMon(g.hang_loai, g.vat_tu_id) === capMon("giay", x.id))?.kho_rong;
+      const khoGoiY = goiYDs.find((g) => capMon(g.hang_loai, g.vat_tu_id) === capMon("giay", x.id))?.kho_rong;
       const nhanDv = nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi), khoGoiY);
       ds.push({
         value: capMon("giay", x.id),
@@ -260,7 +275,7 @@ export function LsxBuocDrawer({
       });
     }
     return ds;
-  }, [giayRefs, vatTuRefs, row.vat_tus, row.don_vi_vao]);
+  }, [giayRefs, vatTuRefs, row.vat_tus, row.don_vi_vao, goiYDs]);
 
   // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi bộ phận ở lệnh: khoá sẵn ô.
   const khoaToMay = !canUpdate || row.da_bat_dau;
@@ -819,7 +834,7 @@ export function LsxBuocDrawer({
                         </tr>
                       ) : (
                         row.vat_tus.map((v, i) => {
-                          const goiY = row.vat_tu_goi_y.find(
+                          const goiY = goiYDs.find(
                             (g) => capMon(g.hang_loai, g.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
                           // Giấy vừa chọn chưa lưu: máy chủ chưa dẫn xuất — có lý do lỗi thì vẫn nói lý do.
                           const choLuu = giayChoLuu(v) && !goiY?.ly_do;
@@ -1001,7 +1016,7 @@ export function LsxBuocDrawer({
                                   if (!item) return;
                                   if (row.vat_tus.some(
                                     (v) => capMon(v.hang_loai, v.vat_tu_id) === cap)) return;
-                                  const goiY = row.vat_tu_goi_y.find(
+                                  const goiY = goiYDs.find(
                                     (g) => capMon(g.hang_loai, g.vat_tu_id) === cap);
                                   set("vat_tus", [
                                     ...row.vat_tus,

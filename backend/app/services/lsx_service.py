@@ -2742,14 +2742,17 @@ class LsxService:
         mã giấy. Trả kết quả `quy_ve_goc` hoặc câu lỗi."""
         nho = self.__dict__.setdefault("_kg_goc", {})
         if (giay_id, goc) not in nho:
-            from ..repositories.don_vi_do_repo import DonViDoRepository
+            from ..repositories.don_vi_do_repo import DonViDoRepositoryDoc
             from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
             from .vat_lieu_kho_service import VatLieuKhoError, VatLieuKhoService
 
+            # MỘT service cho cả lượt, repo đơn vị CHỈ ĐỌC nhớ bảng đơn vị + cặp quy đổi: trước
+            # 10/11/2026 mỗi mã giấy đọc lại cả hai bảng (cả trăm mã ⇒ cả trăm lượt hỏi DB).
+            if (kho := self.__dict__.get("_kho_svc_doc")) is None:
+                kho = self.__dict__["_kho_svc_doc"] = VatLieuKhoService(
+                    VatLieuKhoRepository(self.db), DonViDoRepositoryDoc(self.db))
             try:
-                nho[(giay_id, goc)] = VatLieuKhoService(
-                    VatLieuKhoRepository(self.db), DonViDoRepository(self.db)
-                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", 1.0, goc=goc)
+                nho[(giay_id, goc)] = kho.quy_ve_goc(HANG_GIAY, giay_id, "kg", 1.0, goc=goc)
             except VatLieuKhoError as e:
                 nho[(giay_id, goc)] = str(e)
         return nho[(giay_id, goc)]
@@ -3109,9 +3112,19 @@ class LsxService:
                                      else [])]}
                 for v in cd.vat_tus
             ],
-            # Lượng tính sẵn cho MỌI vật tư — drawer chọn món nào là điền được ngay, khỏi gõ tay.
-            "vat_tu_goi_y": self._goi_y_luong_vat_tu(cd, quy_cach),
+            # ⚠️ `vat_tu_goi_y` RỜI khỏi chi tiết lệnh 10/11/2026: tính cho mọi bước × mọi món (cả
+            #    trăm mã giấy) ăn hơn 1 giây mỗi lần mở / lưu lệnh. Ngăn bước tự hỏi khi mở —
+            #    `goi_y_vat_tu_buoc` / `GET /lsx/{id}/buoc/{buoc_id}/goi-y-vat-tu`.
         }
+
+    def goi_y_vat_tu_buoc(self, lsx_id: int, buoc_id: int) -> list[dict]:
+        """Lượng tính sẵn cho MỌI món theo một bước đã lưu — nguồn của ngăn bước (chọn món nào là
+        điền số ngay). Tách khỏi chi tiết lệnh để mở / lưu lệnh không phải tính cho cả chuỗi."""
+        lsx = self.get(lsx_id)
+        cd = next((c for c in lsx.cong_doans if c.id == buoc_id), None)
+        if cd is None:
+            raise LsxNotFound("Không tìm thấy bước trong lệnh này")
+        return self._goi_y_luong_vat_tu(cd, quy_cach_bien(lsx))
 
     # ⚠️ `_dau_viec_cua_buoc()` GỠ 18/09/2026 (mg `0320`) — không còn ai gọi từ lúc bước lệnh
     #    thôi chọn đầu việc.

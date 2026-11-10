@@ -791,6 +791,24 @@ def tinh_nguoc(
     )
 
 
+@router.get("/{lsx_id}/buoc/{buoc_id}/goi-y-vat-tu")
+def goi_y_vat_tu_buoc(
+    lsx_id: int,
+    buoc_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    """Lượng tính sẵn cho MỌI món theo một bước — ngăn bước hỏi khi mở (10/11/2026). Tách khỏi
+    `GET /{lsx_id}` vì tính cho cả chuỗi × cả danh mục làm mở / lưu lệnh chậm hơn 1 giây. CHỈ ĐỌC."""
+    svc = _svc(db)
+    try:
+        _guard_scope(db, svc.get(lsx_id), user, authz)
+        return svc.goi_y_vat_tu_buoc(lsx_id, buoc_id)
+    except Exception as exc:
+        raise _map(exc)
+
+
 @router.get("/{lsx_id}/mac-dinh-buoc/{cong_doan_id}", response_model=BuocMacDinhOut)
 def mac_dinh_buoc(
     lsx_id: int,

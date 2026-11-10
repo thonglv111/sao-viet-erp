@@ -336,9 +336,8 @@ class LsxCongDoanOut(BaseModel):
 
     # ⚠️ `khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc` GỠ 18/09/2026 (mg `0320`): bước thôi chọn
     #    đầu việc khoán — việc khoán chọn LÚC GHI MẺ ở bàn tổ, nơi thợ biết mình vừa làm gì.
-    # `[{vat_tu_id, so_luong, dien_giai}]` — lượng tính sẵn cho MỌI vật tư theo bước này. Drawer
-    # chọn món nào là điền số ngay, khỏi bắt gõ tay. Món chưa tính ra được thì KHÔNG có ở đây.
-    vat_tu_goi_y: list[dict] = Field(default_factory=list)
+    # ⚠️ `vat_tu_goi_y` GỠ khỏi bước của chi tiết lệnh 10/11/2026 — ngăn bước hỏi riêng
+    #    `GET /lsx/{id}/buoc/{buoc_id}/goi-y-vat-tu` khi mở (mở / lưu lệnh khỏi tính cả chuỗi).
     # Số ĐÚNG RA phải là theo danh mục HIỆN TẠI, khi nó KHÁC số đã lưu (None = không lệch).
     # Lệnh là ẢNH CHỤP nên server không tự đè — chỉ phơi ra để màn gạch số cũ + mời "Tính lại".
     so_luong_vao_moi: float | None = None

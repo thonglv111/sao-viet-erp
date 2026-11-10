@@ -1504,7 +1504,7 @@ def test_goi_y_luong_cho_MOI_vat_tu_de_drawer_dien_san(db, orders, lsx_svc, admi
     """Chọn một vật tư BẤT KỲ ở drawer thì số phải hiện ngay — server tính sẵn cho cả danh mục.
 
     Chủ 13/08/2026: "khi chọn keo vào gáy thì nó tính luôn". Công thức + quy cách đều nằm ở server;
-    client không có và không nên có (công thức chỉ được một bản). Nên server gửi kèm `vat_tu_goi_y`.
+    client không có và không nên có (công thức chỉ được một bản). Nên server tính hộ — ngăn bước hỏi `goi_y_vat_tu_buoc` khi mở (10/11/2026 rời khỏi chi tiết lệnh).
 
     Món chưa tính ra được VẪN có mặt, `so_luong=None` kèm `ly_do` chỉ chỗ khai (18/08/2026): ô vẫn
     để trống cho người khai (không đoán số), nhưng drawer nói được VÌ SAO nó trống thay vì để người
@@ -1534,7 +1534,8 @@ def test_goi_y_luong_cho_MOI_vat_tu_de_drawer_dien_san(db, orders, lsx_svc, admi
 
     # Khoá theo CẶP: gợi ý nay gồm cả danh mục Giấy, mà Giấy #7 với Vật tư #7 là hai món khác
     # nhau — khoá bằng id trần thì một loại giấy trùng id sẽ đè mất dòng vật tư đang kiểm.
-    goi_y = {(g["hang_loai"], g["vat_tu_id"]): g for g in buoc["vat_tu_goi_y"]}
+    goi_y = {(g["hang_loai"], g["vat_tu_id"]): g
+             for g in lsx_svc.goi_y_vat_tu_buoc(lsx.id, buoc["id"])}
     k_keo, k_mu = ("vat_tu", keo.id), ("vat_tu", mu.id)
     assert k_keo in goi_y, "vật tư đã khai định mức ở công đoạn phải được tính sẵn"
     assert goi_y[k_keo]["so_luong"] == pytest.approx(

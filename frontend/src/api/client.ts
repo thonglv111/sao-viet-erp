@@ -3132,8 +3132,9 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
      `0320`): việc khoán chọn LÚC GHI MẺ ở bàn tổ, lọc theo tổ của bước. */
   /** Lượng TÍNH SẴN cho mọi vật tư theo bước này — chọn món nào ở drawer là điền số ngay.
    *  Món chưa tính ra được vẫn CÓ trong mảng với `so_luong: null` + `ly_do` chỉ chỗ khai công
-   *  thức ⇒ ô để trống cho người khai (không đoán), nhưng người dùng biết vì sao nó trống. */
-  vat_tu_goi_y: {
+   *  thức ⇒ ô để trống cho người khai (không đoán), nhưng người dùng biết vì sao nó trống.
+   *  Từ 10/11/2026 chi tiết lệnh KHÔNG gửi trường này nữa — ngăn bước hỏi `goiYVatTuBuoc` khi mở. */
+  vat_tu_goi_y?: {
     hang_loai?: "giay" | "vat_tu";
     vat_tu_id: number;
     so_luong: number | null;
@@ -15130,6 +15131,11 @@ export const api = {
         method: "PUT",
         body: JSON.stringify(body),
       });
+    },
+    /** Lượng tính sẵn cho MỌI món theo một bước đã lưu — ngăn bước hỏi khi mở. CHỈ ĐỌC. Tách khỏi
+     *  chi tiết lệnh (10/11/2026) để mở / lưu lệnh khỏi tính cả chuỗi × cả danh mục. */
+    goiYVatTuBuoc(token: string, id: number, buocId: number): Promise<NonNullable<LsxCongDoan["vat_tu_goi_y"]>> {
+      return authed<NonNullable<LsxCongDoan["vat_tu_goi_y"]>>(`/api/lsx/${id}/buoc/${buocId}/goi-y-vat-tu`, token);
     },
     /** REPLACE-ALL routing của LỆNH (không đụng phiếu tính giá, không ảnh hưởng lệnh khác).
      *  `lyDo` chỉ gửi khi routing đã lệch bài tính giá — server ghép vào nhật ký (§10). */
