@@ -565,17 +565,35 @@ class LsxService:
         """
         if self._mon_cache is not None:
             return self._mon_cache
+        # Nhớ theo service nhưng chỉ dùng lại món CÒN SỐNG: commit / expire_all làm món hết hạn,
+        # đọc lại từng món (kèm chip) là mỗi món một câu. Món không tìm thấy (ngừng dùng) chỉ tin
+        # trong cùng giao dịch.
         le = self.__dict__.setdefault("_mon_le", {})
-        thieu = {(str(h), int(i)) for h, i in caps if i} - le.keys()
+        gd = self.db.get_transaction()
+
+        def con_dung(k) -> bool:
+            if k not in le:
+                return False
+            g, m = le[k]
+            return _con_song([m]) if m is not None else (gd is not None and g is gd)
+
+        muon = {(str(h), int(i)) for h, i in caps if i}
+        thieu = {k for k in muon if not con_dung(k)}
+        if thieu:
+            # Đã phải hỏi thì hỏi luôn vật tư của MỌI công đoạn đang nạp (`_cd_giu`): tạo lệnh bung
+            # vật tư TỪNG bước một, hỏi lẻ là số câu tăng theo số bước (test_vat_tu_chip_so_truy_van).
+            thieu |= {k for k in ((HANG_VAT_TU, int(v.vat_tu_id)) for c in self._cd_giu
+                                  for v in (c.vat_tus or []) if v.vat_tu_id) if not con_dung(k)}
         for hl, model in ((HANG_VAT_TU, VatTuInAn), (HANG_GIAY, GiayNguyen)):
             ids = [i for h, i in thieu if h == hl]
             if not ids:
                 continue
             tim = {m.id: m for m in self.db.execute(
                 select(model).where(model.id.in_(ids), model.active.is_(True))).scalars()}
+            g = self.db.get_transaction()
             for i in ids:
-                le[(hl, i)] = tim.get(i)
-        return {k: v for k, v in le.items() if v is not None}
+                le[(hl, i)] = (g, tim.get(i))
+        return {k: m for k, (_g, m) in le.items() if m is not None}
 
     def _loai_giay(self, gid: int) -> str:
         """Loại Giấy/Sóng của mã giấy (kể cả mã đã ngừng dùng) — dựng MỘT lần cho cả service."""
@@ -1774,6 +1792,9 @@ class LsxService:
         đoạn. `nguon=None` (không có phiếu) ⇒ danh mục công đoạn, chip rỗng.
         """
         theo_vi_tri = {r["thu_tu"]: r.get("vat_tus") or [] for r in (nguon or [])}
+        # Nạp gộp MỘT lượt món của mọi bước (phiếu + danh mục công đoạn) — `_vat_tu_bung` hỏi theo bước.
+        self._mon_cua([(HANG_VAT_TU, int(v["vat_tu_id"])) for vs in theo_vi_tri.values() for v in vs
+                       if v.get("vat_tu_id") and (v.get("hang_loai") or HANG_VAT_TU) == HANG_VAT_TU])
         for cd in lsx.cong_doans:
             # THUÊ NGOÀI không bung — nhà gia công tự lo vật tư (tiền nằm trong đơn giá, spec §3).
             if cd.loai_buoc == LB_THUE_NGOAI:
