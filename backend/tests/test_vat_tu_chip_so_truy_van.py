@@ -162,8 +162,10 @@ def test_lenh_sx_so_cau_khong_tang_theo_so_buoc_vat_tu(db, orders, lsx_svc, admi
     b = _luong_lenh(db, orders, lsx_svc, admin, customer, 10, "b")
     print("lenh N=2:", a, "N=10:", b)
     for k in a:
-        # `tao` còn mỗi bước/vật tư 1 câu INSERT (ghi, không phải đọc) nên cho dư theo số dòng ghi.
-        du = 3 + (2 * 8 if k in ("tao", "replace_routing") else 0)
+        # `tao` ghi mỗi bước 3 dòng (bước, vật tư, phụ thuộc — SQLite không gộp INSERT ... RETURNING)
+        # nên cho dư theo số dòng ghi; câu ĐỌC thì không được tăng. Trước 10/11/2026 chừa 2/bước vẫn
+        # xanh chỉ vì lượt N=10 dùng lại bộ nhớ danh mục nạp từ lượt N=2 (cùng `lsx_svc`).
+        du = 3 + (3 * 8 if k == "tao" else 2 * 8 if k == "replace_routing" else 0)
         assert b[k] <= a[k] + du, f"{k} tăng theo số bước: {a[k]} → {b[k]}"
 
 
