@@ -1923,16 +1923,38 @@ button.khsx-thieu__buoc:hover {
 }
 .khsx-lead__warn { color: var(--signal); font-weight: var(--fw-bold); }
 
-.khsx-lydo { display: flex; flex-direction: column; gap: 4px; }
+/* Ô lý do đổi chuỗi: việc PHẢI làm mới lưu được ⇒ khối vàng cả khung (không viền một cạnh), ô
+   nhập trắng viền đậm cho ra dáng chỗ gõ — nền trắng trên khung trắng trước đây trông như mảng nền. */
+.khsx-lydo {
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--tt-vang-bg);
+  border-radius: var(--r-3);
+  padding: 10px 12px;
+}
+.khsx-lydo__nhan { font-size: var(--fs-sm); color: var(--tt-vang-fg); }
 .khsx-lydo input {
   font: inherit;
   font-size: var(--fs-sm);
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
+  background: #ffffff;
+  border: 1px solid var(--rule);
   border-radius: var(--r-3);
   padding: 8px 10px;
   color: var(--ink);
 }
+.khsx-lydo input:focus { outline: none; border-color: var(--ink); }
+
+/* Nguồn giấy: một dòng ngang ngay dưới tiêu đề chuỗi — ô chọn vừa chữ, câu giải thích luôn hiện. */
+.khsx-nguon { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.khsx-nguon__o { display: flex; align-items: center; gap: 8px; }
+.khsx-nguon__o .sel { width: 200px; }
+.khsx-nguon__o input {
+  font: inherit; font-size: var(--fs-sm); width: 90px;
+  background: #ffffff; border: 1px solid var(--rule); border-radius: var(--r-3);
+  padding: 6px 10px; color: var(--ink);
+}
+.khsx-nguon__nhan { font-size: var(--fs-sm); color: var(--ash); white-space: nowrap; }
+.khsx-nguon__chu { font-size: var(--fs-sm); color: var(--ash-2); flex: 1 1 240px; }
+.khsx-nguon .khsx-note-banner { flex-basis: 100%; }
 
 /* --- lưu ý mềm ở cột phải (khác hẳn checklist CHẶN màu đỏ ở trên) ---------- */
 .khsx-luuy {

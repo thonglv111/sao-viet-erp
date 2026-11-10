@@ -31,10 +31,15 @@ describe("ONguonGiay", () => {
     expect(onDoi).toHaveBeenCalledWith({ nguon: "cuon", rong_cuon: 870 });
   });
 
-  it("lệnh đang giữ chỗ thì khoá, lý do nằm ở chú thích", () => {
+  it("lệnh đang giữ chỗ thì khoá, lý do hiện thành chữ cạnh ô", () => {
     render(<ONguonGiay nguon="to_in" khoa="Lệnh đang giữ chỗ vật tư" onDoi={vi.fn()} />);
     const o = screen.getByRole("button", { name: "Nguồn giấy" }) as HTMLButtonElement;
     expect(o.disabled).toBe(true);
-    expect(o.closest("[title]")?.getAttribute("title")).toBe("Lệnh đang giữ chỗ vật tư");
+    expect(screen.getByText("Lệnh đang giữ chỗ vật tư")).toBeTruthy();
+  });
+
+  it("không khoá thì nói rõ máy tự chọn theo tồn kho", () => {
+    render(<ONguonGiay nguon="cuon" khoa={null} onDoi={vi.fn()} />);
+    expect(screen.getByText(/Máy tự chọn theo tồn kho/)).toBeTruthy();
   });
 });

@@ -9,7 +9,7 @@
 // rồi ghi thẳng vào/ra + hao của mọi bước. Bảng này KHÔNG gõ số nữa, và cũng không còn nút "Tính
 // ngược" — số hiển thị chính là kết quả tính ngược. Ô duy nhất gõ được nằm trong drawer bước cuối.
 // Các kiểm tra (chưa gán tổ, thuê ngoài thiếu NCC, đứt đơn vị) chỉ TÔ MÀU, không chặn lưu.
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import {
   LSX_LOAI_BUOC_LENH,
@@ -127,7 +127,10 @@ export function LsxRoutingTable({
   dvChuoi,
   yeuCauMo,
   onDaMo,
+  dauChuoi,
 }: {
+  /** Dòng đặt ngay dưới thanh tiêu đề chuỗi (màn lệnh truyền ô Nguồn giấy) — đầu chuỗi do nó dựng. */
+  dauChuoi?: ReactNode;
   congDoans: LsxCongDoan[];
   soLuongDat: number;
   /** Không đọc nữa từ 07/11/2026 (lệnh không tính giờ). Giữ trong kiểu để nơi gọi khỏi sửa. */
@@ -678,12 +681,14 @@ export function LsxRoutingTable({
         )}
       </div>
 
-      {/* Ô lý do đứng NGAY dưới nút Lưu trên (10/11/2026): để cuối bảng thì đổi loại bước xong
-          chỉ thấy nút mờ, không biết vì sao (ô nằm khuất dưới bước cuối). */}
+      {dauChuoi}
+
+      {/* Ô lý do đứng NGAY dưới thanh có nút Lưu (10/11/2026): để cuối bảng thì đổi loại bước xong
+          chỉ thấy nút mờ, không biết vì sao. Nền vàng vì đây là việc PHẢI làm mới lưu được. */}
       {suaDuoc && doiCauTruc && (
         <label className="khsx-lydo">
-          <span className="khsx-field__label">
-            Routing đã khác bài tính giá — ghi lý do (bắt buộc) để lưu vào nhật ký
+          <span className="khsx-lydo__nhan">
+            Chuỗi đã khác bài tính giá. Ghi lý do để lưu vào Nhật ký (bắt buộc)
           </span>
           <input
             value={lyDo}

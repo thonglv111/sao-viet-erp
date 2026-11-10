@@ -1572,21 +1572,21 @@ export function LsxDetailView({
                   <h4 className="khsx-spec__title">Công đoạn sản xuất (Routing)</h4>
                 </div>
                 <div className="khsx-spec__card-body">
-                  {(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
-                    <ONguonGiay
-                      key={`${d.id}-${d.nguon_giay ?? ""}`}
-                      nguon={d.nguon_giay}
-                      khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
-                        : d.trang_thai === "da_phat_hanh" ? "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi đổi nguồn giấy"
-                        : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không đổi nguồn giấy được nữa"
-                        : tronGoi ? "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy"
-                        : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
-                        : routingDirty ? "Lưu hoặc huỷ thay đổi routing trước khi đổi nguồn giấy"
-                        : null}
-                      onDoi={doiNguonGiay}
-                    />
-                  )}
                   <LsxRoutingTable
+                    dauChuoi={(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
+                      <ONguonGiay
+                        key={`${d.id}-${d.nguon_giay ?? ""}`}
+                        nguon={d.nguon_giay}
+                        khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
+                          : d.trang_thai === "da_phat_hanh" ? "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi đổi nguồn giấy"
+                          : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không đổi nguồn giấy được nữa"
+                          : tronGoi ? "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy"
+                          : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
+                          : routingDirty ? "Đang sửa chuỗi công đoạn: lưu xong mới đổi nguồn giấy được"
+                          : null}
+                        onDoi={doiNguonGiay}
+                      />
+                    )}
                     congDoans={d.cong_doans}
                     soLuongDat={d.so_luong_dat}
                     leadTime={d.lead_time}
