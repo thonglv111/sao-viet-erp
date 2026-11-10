@@ -80,6 +80,8 @@ SCOPELESS_CU = frozenset({
     # Mua hàng (14/10/2026, mg 0411): ai có màn Mua hàng thấy mọi phiếu mua — "để tất cả và không
     # chuyển đổi được".
     "thu_mua",
+    # Chỉ In Hà Phương (08/11/2026): Hàng thương mại và Xe giao hàng kiểu Hà Phương — danh mục chung.
+    "hang_thuong_mai", "xe_giao_hang",
 })
 
 #: `nhat_ky_danh_muc.LOAI_MODULE` — tên chính của từng màn, 2 tên đời cũ (`machine`/`operation`),
@@ -112,6 +114,9 @@ LOAI_MODULE_CU = {
     "san_xuat_kcs_tieu_chi": "dm_kcs_tieu_chi",
     # Mục thu chi (11/10/2026).
     "muc_thu_chi": "dm_muc_thu_chi",
+    # Chỉ In Hà Phương (08/11/2026).
+    "hang_thuong_mai": "hang_thuong_mai",
+    "xe_giao_hang": "xe_giao_hang",
 }
 
 #: `danh_muc_tham_chieu.model_cua` bản cũ — đúng 6 loại có model (`bu_hao` gỡ 22/09/2026,
@@ -171,7 +176,8 @@ def test_khong_trung_loai_khong_trung_module():
     # 11 từ 11/10/2026 (thêm Mục thu chi); 10 sau khi gỡ Loại sản phẩm + Chủng loại giấy (27/09/2026); 12 sau khi Bù hao được hợp nhất
     # vào Công đoạn (22/09/2026; trước đó 13, từ đợt hợp nhất Công việc khoán 21/09). Con số phải
     # ĐỔI chứ không được bỏ — nó bắt cả trường hợp lỡ tay khai trùng một màn thành hai dòng.
-    assert len(MODULE_KEYS) == len(set(MODULE_KEYS)) == 11
+    # 13 từ 08/11/2026: thêm Hàng thương mại + Xe giao hàng kiểu Hà Phương (chỉ In Hà Phương bật).
+    assert len(MODULE_KEYS) == len(set(MODULE_KEYS)) == 13
 
 
 def test_dem_theo_loai_phu_dung_cac_man_co_model():
@@ -191,7 +197,10 @@ def test_dang_ky_tra_du_cac_man(client):
     r = client.get("/api/danh-muc/dang-ky", headers=_admin(client))
     assert r.status_code == 200, r.text
     items = r.json()["items"]
+    # Bản cài mặc định (Sao Việt Nhật) tắt `thuong_mai` + `giao_hang_hp` ⇒ hai màn chỉ Hà Phương có
+    # không vào bảng khai, vẫn đúng 11 màn như trước.
     assert len(items) == 11
+    assert not {"hang_thuong_mai", "xe_giao_hang"} & {i["module"] for i in items}
 # `test_dang_ky_tra_du_11_man` GỠ 21/08/2026 — trùng việc với `test_dang_ky_tra_du_cac_man`
 # ngay trên (cả hai đếm số màn của endpoint đăng ký). Con số 14 (31/08/2026) rút còn 13
 # (10/09/2026) khi màn "Lý do & lỗi SX" gỡ hẳn, rồi còn 12 (22/09/2026) khi màn Bù hao gỡ, rồi còn 10 (27/09/2026) khi Loại sản phẩm +

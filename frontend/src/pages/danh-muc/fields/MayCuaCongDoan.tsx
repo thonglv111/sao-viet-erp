@@ -14,17 +14,8 @@
 import { useMemo, useState } from "react";
 
 import type { MayCongDoanRow, Row } from "../types";
-import { nhanDonViTocDo } from "./DonViTocDo";
 import { FormulaField } from "./FormulaField";
 import { FormulaPopover } from "./FormulaPopover";
-
-// Số NĂNG LỰC kế thừa từ danh mục Thiết bị & Máy móc: trống / 0 / rác đều hiện TRẮNG chứ không
-// phải "—". Trong chính bảng này "—" đang mang nghĩa "chưa khai, bấm vào khai" ở hai ô công thức;
-// rải nó sang ô chỉ-đọc là mời một cú bấm không có thật.
-function so(v: unknown): string {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n.toLocaleString("vi-VN") : "";
-}
 
 /** Tổ (trong các tổ đang tick) mà máy thuộc. */
 function toCuaMay(may: Row | undefined, toDangTick: number[]): number[] {
@@ -79,9 +70,10 @@ export function MayCuaCongDoanField({
   // `banDau` = công thức lúc MỞ panel, để nút ✕ trả ô về đúng chỗ cũ. Ô công thức ghi thẳng vào form
   // theo từng nhịp gõ nên không có nó thì "bỏ sửa" chỉ còn cách đóng drawer rồi mở lại.
   const [mo, setMo] = useState<
-    { may: number; o: "gio" | "gia"; neo: HTMLElement; banDau: string | null } | null>(null);
-  const bat = (may: number, o: "gio" | "gia", neo: HTMLElement, banDau: string | null) =>
-    setMo(mo && mo.may === may && mo.o === o ? null : { may, o, neo, banDau });
+    { may: number; neo: HTMLElement; banDau: string | null } | null>(null);
+  // Chỉ còn ô GIÁ (ô giờ chạy gỡ 08/11/2026 cùng tốc độ máy).
+  const bat = (may: number, neo: HTMLElement, banDau: string | null) =>
+    setMo(mo && mo.may === may ? null : { may, neo, banDau });
   const patch = (i: number, p: Partial<MayCongDoanRow>) =>
     onChange(chon.map((r, j) => (j === i ? { ...r, ...p } : r)));
   // Chỉ công đoạn nhóm In mới có ô giá: phiếu tính giá chỉ chọn máy ở khối In của thành phần, nên
@@ -99,7 +91,7 @@ export function MayCuaCongDoanField({
   // BỎ SỬA: dùng chung cho nút "Huỷ" ở chân popup và cho phím Esc.
   const huy = () => {
     if (!mo || iMo < 0) return;
-    patch(iMo, mo.o === "gio" ? { cong_thuc_gio: mo.banDau } : { cong_thuc_gia: mo.banDau });
+    patch(iMo, { cong_thuc_gia: mo.banDau });
     setMo(null);
   };
 
@@ -107,45 +99,28 @@ export function MayCuaCongDoanField({
     <div className="rc-dinh-muc-wrapper">
       <table className={`rc-dinh-muc-table rc-dinh-muc-table--may ${coOGia ? "rc-dinh-muc-table--may-gia" : ""}`}>
         <thead>
+          {/* Cột Tốc độ chạy, Canh máy, Cách đo giờ chạy GỠ 08/11/2026 (bỏ tốc độ máy): lệnh thôi
+              tính giờ chạy theo tốc độ. Câu `cong_thuc_gio` cũ vẫn đi theo dòng, không bị xoá. */}
           <tr className="rc-dinh-muc-table__group-row">
-            <th rowSpan={2} className="rc-col--left">Máy</th>
-            {/* Ba mốc + đơn vị đọc thành một DẢI, đúng ngữ pháp "Năng suất khoán" của bảng đầu việc
-                ngay phía trên: số xếp cột canh phải thì so DỌC giữa các máy được ngay, nối thành
-                một dòng thì mắt phải đếm vị trí ở từng dòng mới biết số nào là số nào. */}
-            <th colSpan={4} className="rc-col--group rc-group--may"
-              title="Khai ở danh mục Thiết bị & Máy móc. Trung bình là tốc độ hệ dùng để tính thời lượng bước; tối thiểu/tối đa chỉ dựng khoảng nhanh–chậm khi xếp lịch.">Tốc độ chạy</th>
-            {/* Canh máy luôn tính bằng phút ⇒ đơn vị lên đầu cột, ô chỉ còn con số trần. */}
-            <th rowSpan={2} className="rc-col--num rc-group--may"
-              title="Thời gian canh máy mặc định — Xếp lịch cộng thẳng vào thời gian chiếm máy. Khai ở danh mục Thiết bị & Máy móc.">Canh máy (phút)</th>
-            <th rowSpan={2} className="rc-col--left">Cách đo giờ chạy</th>
-            {coOGia && <th rowSpan={2} className="rc-col--left">Cách tính giá</th>}
-          </tr>
-          <tr className="rc-dinh-muc-table__sub-row">
-            {/* Thứ tự tối thiểu → trung bình → tối đa: đọc thành một dải tăng dần, y bảng trên. */}
-            <th className="rc-col--num">Tối thiểu</th>
-            <th className="rc-col--num">Trung bình</th>
-            <th className="rc-col--num">Tối đa</th>
-            <th className="rc-col--unit rc-col--unit-hep">Đơn vị</th>
+            <th className="rc-col--left">Máy</th>
+            {coOGia && <th className="rc-col--left">Cách tính giá</th>}
           </tr>
         </thead>
         <tbody>
-          {chon.length === 0 && <tr><td colSpan={coOGia ? 8 : 7} className="rc-bands__empty">
+          {chon.length === 0 && <tr><td colSpan={coOGia ? 2 : 1} className="rc-bands__empty">
             {toDangTick.length === 0
               ? "Chưa tick tổ nào ở ô Tổ phụ trách."
               : "Các tổ đã tick chưa có máy nào."}
           </td></tr>}
           {chon.map((r, i) => {
             const may = theoId.get(r.may_id);
-            const moGio = mo?.may === r.may_id && mo.o === "gio";
-            const moGia = mo?.may === r.may_id && mo.o === "gia";
+            const moGia = mo?.may === r.may_id;
             return (
               <tr key={r.may_id}>
                 <td className="rc-col--left rc-dinh-muc-name">
-                  {/* Bấm tên mở ô GIỜ: ô đó nhóm công đoạn nào cũng có, còn ô giá thì không. */}
-                  <button type="button" className={`rc-dm-vt__pill ${moGio ? "is-open" : ""}`}
-                    onClick={(e) => bat(r.may_id, "gio", e.currentTarget, r.cong_thuc_gio ?? null)}>
+                  <span className="rc-dm-vt__pill">
                     {may ? `${String(may.ma)} · ${String(may.ten)}` : `#${r.may_id}`}
-                  </button>
+                  </span>
                   {toCuaMay(may, toDangTick).map((t) =>
                     <span key={t} className="lds-tag">{tenTo[t] ?? `Tổ #${t}`}</span>)}
                   {/* Một máy thì chẳng có gì để chọn — nhãn chỉ hiện khi có từ hai máy, như chip tổ. */}
@@ -157,29 +132,10 @@ export function MayCuaCongDoanField({
                         Đặt mặc định
                       </button>)}
                 </td>
-                {/* NĂNG LỰC MÁY — chỉ đọc, kế thừa từ danh mục Thiết bị & Máy móc. Bày ở đây vì
-                    người khai "Cách đo giờ chạy" cần biết máy chạy nhanh cỡ nào theo đơn vị nào
-                    thì mới viết nổi công thức; trước 08/09/2026 phải mở sang màn Máy mà tra. */}
-                <td className="rc-col--num rc-may-nl">{so(may?.toc_do_min)}</td>
-                <td className="rc-col--num rc-may-nl rc-may-nl--tb">{so(may?.toc_do)}</td>
-                <td className="rc-col--num rc-may-nl">{so(may?.toc_do_max)}</td>
-                <td className="rc-col--unit rc-col--unit-hep rc-may-nl">{may ? nhanDonViTocDo(may) : ""}</td>
-                {/* Đọc THẲNG `makeready_time_default` chứ không cộng lại `chuan_bi_khoan`: form Máy
-                    đã ghi tổng các khoản xuống đúng cột này lúc lưu (`CFG_MAY.transformSubmit`), và
-                    đây mới là cột Xếp lịch cộng vào thời gian chiếm máy. Tự cộng lại là bày một con
-                    số mà hệ không dùng. */}
-                <td className="rc-col--num rc-may-nl">{so(may?.makeready_time_default)}</td>
-                {/* Ô công thức là NÚT: bấm thẳng vào con số muốn sửa là mở đúng ô đó của đúng dòng đó. */}
-                {/* Ô có trần, chữ thừa thành "…" (`.rc-ct-td`) — bấm vào là popup bày đủ. */}
-                <td className="rc-col--left rc-dinh-muc-unit rc-ct-td">
-                  <button type="button" title="Sửa cách đo giờ chạy của máy này"
-                    className={`rc-ct-cell ${moGio ? "is-open" : ""} ${r.cong_thuc_gio ? "" : "is-empty"}`}
-                    onClick={(e) => bat(r.may_id, "gio", e.currentTarget, r.cong_thuc_gio ?? null)}>{r.cong_thuc_gio || "—"}</button>
-                </td>
                 {coOGia && <td className="rc-col--left rc-dinh-muc-unit rc-ct-td">
                   <button type="button" title="Sửa cách tính giá của máy này"
                     className={`rc-ct-cell ${moGia ? "is-open" : ""} ${r.cong_thuc_gia ? "" : "is-empty"}`}
-                    onClick={(e) => bat(r.may_id, "gia", e.currentTarget, r.cong_thuc_gia ?? null)}>{r.cong_thuc_gia || "—"}</button>
+                    onClick={(e) => bat(r.may_id, e.currentTarget, r.cong_thuc_gia ?? null)}>{r.cong_thuc_gia || "—"}</button>
                 </td>}
               </tr>
             );
@@ -187,20 +143,18 @@ export function MayCuaCongDoanField({
         </tbody>
       </table>
     </div>
-    {/* Nói thẳng bốn cột kia sửa ở đâu — không có dòng này thì người khai bấm mãi vào con số. */}
     <div className="rc-dinh-muc-note">
       Máy hiện theo tổ đã tick. Thêm máy vào tổ ở danh mục Thiết bị &amp; Máy móc.
-      {chon.length > 0 && " Tốc độ và canh máy cũng khai ở đó — ở đây chỉ đọc."}
     </div>
     {mo && iMo >= 0 && <FormulaPopover neo={mo.neo} onClose={() => setMo(null)} onHuy={huy}
-      nhan={mo.o === "gio" ? "Công thức giờ chạy" : "Công thức giá"}>
+      nhan="Công thức giá">
       {/* Popup TRỐNG có lối vào: 5 máy cùng công đoạn thường chung một khung công thức, chỉ khác vài
           con số — chép công thức chung hoặc của máy khác làm gốc rồi sửa số, khỏi đi vòng bộ nhớ tạm.
           Chỉ bày khi ô đang trống để không ai lỡ tay đè mất công thức đang có. */}
       {(() => {
-        const cot = mo.o === "gio" ? "cong_thuc_gio" : "cong_thuc_gia";
+        const cot = "cong_thuc_gia";
         if ((chon[iMo][cot] ?? "").trim()) return null;
-        const chung = mo.o === "gia" ? congThucChung.trim() : "";
+        const chung = congThucChung.trim();
         const nguon = chon.filter((r, j) => j !== iMo && (r[cot] ?? "").trim());
         if (!chung && !nguon.length) return null;
         return <div className="rc-ct-pop__goc">
@@ -222,17 +176,12 @@ export function MayCuaCongDoanField({
         </div>;
       })()}
       {/* `id` phải DUY NHẤT: drawer còn những ô công thức khác, trùng id là hai ô dính nhau. */}
-      {mo.o === "gio" ? <FormulaField
-        id={`ct-gio-${mo.may}`} configPrefix="/api/cong-doan" loaiO="quy_doi"
-        nhanO={`Công thức giờ chạy — ${tenMay(mo.may)}`}
-        goY="Ra LƯỢNG theo đơn vị tốc độ của máy. Bỏ trống = hệ tự quy đổi. vd máy 5 màu chạy 2 lượt: sl_vao * so_mau_phu / 5. ĐỪNG nhân so_luot_chay — hệ đã tự nhân."
-        value={chon[iMo].cong_thuc_gio ?? ""}
-        onChange={(v) => patch(iMo, { cong_thuc_gio: v })} /> : <FormulaField
+      <FormulaField
         id={`ct-gia-${mo.may}`} configPrefix="/api/cong-doan" loaiO="cong_doan"
         nhanO={`Công thức giá riêng — ${tenMay(mo.may)}`}
         goY="Ghi đè công thức giá của công đoạn khi phiếu tính giá chọn đúng máy này. Bỏ trống = dùng công thức chung."
         value={chon[iMo].cong_thuc_gia ?? ""}
-        onChange={(v) => patch(iMo, { cong_thuc_gia: v })} />}
+        onChange={(v) => patch(iMo, { cong_thuc_gia: v })} />
     </FormulaPopover>}
   </div>;
 }

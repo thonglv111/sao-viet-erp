@@ -4,9 +4,10 @@
  *  11/10/2026 thêm Cọc (chọn nhiều, số đếm máy chủ trả kèm báo cáo), khoảng tỷ lệ báo giá và khoảng
  *  tổng đơn có VAT — cùng gửi lên cho cả màn lẫn file Excel. Phương án C thêm Tình trạng giao và
  *  Tình trạng thu (lũy kế tới cuối kỳ). */
-import { Banknote, HandCoins, Percent, Truck, UserCheck, Users, Wallet } from "lucide-react";
+import { Banknote, HandCoins, Percent, Store, Truck, UserCheck, Users, Wallet } from "lucide-react";
 
 import { api, type ThamSoLoc } from "../../api/client";
+import { useTat } from "../../auth/permissions";
 import type { GiaTriUrl } from "../ke-toan/shared/urlMan";
 import { kyBaoCaoLenUrl, kyBaoCaoTuUrl } from "../thanh-loc/ky-bao-cao";
 import { soLenUrl, soTuUrl, type KyDS } from "../thanh-loc/ky-danh-sach";
@@ -26,6 +27,8 @@ export type LocBCKD = {
   tl_den?: number;
   gt_tu?: number;
   gt_den?: number;
+  /** Chỉ In Hà Phương (phân hệ thương mại): `san_xuat` | `thuong_mai`. */
+  nguon?: string;
 };
 
 export type LocManBCKD = { ky: KyDS; loc: LocBCKD };
@@ -42,6 +45,10 @@ const GIAO: GiaTriDK[] = [
   { value: "chua", nhan: "Chưa giao" },
   { value: "mot_phan", nhan: "Giao một phần" },
   { value: "du", nhan: "Đã giao đủ" },
+];
+const NGUON: GiaTriDK[] = [
+  { value: "san_xuat", nhan: "Đơn sản xuất" },
+  { value: "thuong_mai", nhan: "Đơn thương mại" },
 ];
 const THU: GiaTriDK[] = [
   { value: "chua", nhan: "Chưa thu" },
@@ -60,6 +67,7 @@ export function thamSoLocBCKD(loc: LocBCKD): ThamSoLoc {
     ty_le_den: loc.tl_den,
     gt_tu: loc.gt_tu,
     gt_den: loc.gt_den,
+    nguon: loc.nguon,
   };
 }
 
@@ -68,7 +76,8 @@ const noi = (ds?: string[]) => (ds?.length ? ds.join(",") : undefined);
 const KHOA_SO = ["khach", "sale", "tl_tu", "tl_den", "gt_tu", "gt_den"] as const;
 
 export function locManBCKDTuUrl(p: URLSearchParams): LocManBCKD {
-  const loc: LocBCKD = { coc: tach(p.get("coc")), giao: tach(p.get("giao")), thu: tach(p.get("thu")) };
+  const loc: LocBCKD = { coc: tach(p.get("coc")), giao: tach(p.get("giao")), thu: tach(p.get("thu")),
+    nguon: p.get("nguon") || undefined };
   for (const k of KHOA_SO) loc[k] = soTuUrl(p.get(k));
   return { ky: kyBaoCaoTuUrl(p, [MOC_MAC_DINH], MOC_MAC_DINH, "thang"), loc };
 }
@@ -76,7 +85,7 @@ export function locManBCKDTuUrl(p: URLSearchParams): LocManBCKD {
 export function locManBCKDLenUrl(t: LocManBCKD): GiaTriUrl {
   const g: GiaTriUrl = {
     ...kyBaoCaoLenUrl(t.ky, MOC_MAC_DINH, "thang"),
-    coc: noi(t.loc.coc), giao: noi(t.loc.giao), thu: noi(t.loc.thu),
+    coc: noi(t.loc.coc), giao: noi(t.loc.giao), thu: noi(t.loc.thu), nguon: t.loc.nguon,
   };
   for (const k of KHOA_SO) g[k] = soLenUrl(t.loc[k]);
   return g;
@@ -87,7 +96,13 @@ type DemBCKD = Partial<Record<"coc" | "giao" | "thu", GiaTriDK[]>>;
 export function useDieuKienBCKD(dem: DemBCKD = {}): DieuKien<LocBCKD>[] {
   const khach = useLuaChonLoc(api.baoCaoKinhDoanh.khachLoc);
   const sale = useLuaChonLoc(api.baoCaoKinhDoanh.saleLoc);
+  const coThuongMai = !useTat()("thuong_mai");
   return [
+    ...(coThuongMai ? [{
+      khoa: "nguon", nhan: "Nguồn đơn", icon: Store, kieu: "mot" as const, giaTri: NGUON,
+      doc: (l: LocBCKD) => l.nguon,
+      ghi: (l: LocBCKD, v: string | undefined) => ({ ...l, nguon: v }),
+    }] : []),
     {
       khoa: "khach", nhan: "Khách hàng", icon: Users, kieu: "mot", tim: true, giaTri: khach,
       doc: (l) => idThanhChu(l.khach),

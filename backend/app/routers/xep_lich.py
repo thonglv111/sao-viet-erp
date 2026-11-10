@@ -6,16 +6,15 @@ Tên cũ là "Xếp lịch 3" (`/api/xep-lich-3`, quyền `xep_lich_3`); 18/09/2
 số — bàn theo công đoạn (`xep_lich_2`) xoá hẳn, bàn này về đúng tên `xep_lich`. Quyền chép sang ở
 mg `0314`, dấu trang cũ `/xep-lich-3` không còn dùng được.
 
-Luồng gọn hơn bàn theo công đoạn cũ đúng một bậc: thẻ ở `/hang-cho` → `PUT /lenh/{id}` đặt hoặc dời mốc bắt đầu
-(khóa lạc quan theo `updated_at` → 409) → `POST /phat-hanh/{id}`. KHÔNG có bước "đưa vào nháp",
-KHÔNG có `xem-truoc`, KHÔNG có `kiem-phat-hanh`: màn này không chặn gì hết, xem trước chính là
-thanh trên lưới, và phát hành bấm là đi.
+Bàn HẸN ĐẨY (08/11/2026, thay Gantt kéo thả): `/ban` đọc bốn tab, `POST /hen` hẹn giờ đẩy, tới giờ
+vòng nền `hen_day.run_tu_day_loop` tự đẩy bằng quyền người hẹn; `POST /day-ngay` đẩy liền. Thu hồi /
+đẩy cập nhật lệnh đã đẩy giữ đường `/phat-hanh*` cũ.
 
 Router CHỈ điều phối + kiểm quyền + đẩy SSE. Mọi luật nằm ở `services/xep_lich`.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,29 +22,30 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..deps import require_permission
-from ..models.lsx import Lsx
 from ..models.user import User
-from ..repositories.san_xuat_repo import SanXuatRepository
-from ..services.thong_bao_man import bao, kenh_to
-from ..doi_tuong_nhan import BAN_TO, MAN_KHVT, MAN_THEO_LENH, NGHE_LENH, hop, kem_ban_to
+from ..doi_tuong_nhan import MAN_KHVT, MAN_THEO_LENH, hop
 from ..realtime import hub
 from ..services.can_doi_cache import xoa_cache_can_doi
 from ..repositories.audit_repo import AuditLogRepository
 from ..repositories.xep_lich_lenh_repo import XepLichLenhRepository
-from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.xep_lich import (
+    BanOut,
     ChiTietOut,
-    DatMocIn,
-    DongLichOut,
-    HangChoOut,
-    LichOut,
+    DayNgayIn,
+    DayNgayOut,
+    HenIn,
+    HenKqOut,
+    HenTheoLocIn,
+    LichSuHenOut,
+    NganOut,
     PhatHanhCapNhatIn,
-    ThuMocOut,
     VatTuLenhOut,
     MayGonOut,
     VungKhoaIn,
     VungKhoaOut,
 )
+from ..services.xep_lich import sau_phat_hanh
+from ..services.xep_lich.hen_day import HenDayError, HenDayNotFound, HenDayService
 from ..services.xep_lich import (
     XepLichLenhConflict,
     XepLichLenhError,
@@ -88,17 +88,12 @@ def _map(exc: Exception) -> HTTPException:
     raise exc
 
 
-def _phat_lich_doi(lsx_id: int) -> None:
-    """Đặt / dời / bỏ mốc: nhóm `san_xuat` + `khvt` (màn theo lệnh) và badge Xếp lịch. Bàn tổ cầm
-    gói ĐÃ phát hành — lịch mới chỉ xuống tổ qua "phát hành cập nhật" — nên không nhận."""
-    hub.gui({"type": "xep_lich_changed", "lsx_id": lsx_id}, quyen=hop(MAN_THEO_LENH, MAN_KHVT))
-
-
-def _phat_goi_xuong_xuong(lsx_id: int) -> None:
-    """Phát hành / phát hành cập nhật / thu hồi: gói việc ở xưởng đổi ⇒ thêm MỌI người có Bàn tổ
-    (bàn nào có việc của lệnh thì phải tự nạp; tra tổ cần đọc lại gói, còn cửa này thưa)."""
-    _phat_lich_doi(lsx_id)
-    hub.gui({"type": "lsx_changed"}, quyen=hop(NGHE_LENH, (BAN_TO,)))
+# Báo sau phát hành dùng chung với vòng nền tự đẩy — thân hàm ở `services/xep_lich/sau_phat_hanh`.
+_phat_lich_doi = sau_phat_hanh.phat_lich_doi
+_phat_goi_xuong_xuong = sau_phat_hanh.phat_goi_xuong_xuong
+_cham_cho_xep = sau_phat_hanh.cham_cho_xep
+_cham_viec_moi = sau_phat_hanh.cham_viec_moi
+_noi_goi = sau_phat_hanh.noi_goi
 
 
 def _phat_lich_doi_may(may_id: int) -> None:
@@ -106,56 +101,138 @@ def _phat_lich_doi_may(may_id: int) -> None:
     hub.gui({"type": "xep_lich_changed", "may_id": may_id}, quyen=hop(MAN_THEO_LENH, MAN_KHVT))
 
 
-# --- Đọc ---------------------------------------------------------------------
-@router.get("/hang-cho", response_model=HangChoOut)
-def hang_cho(
+# --- Bàn hẹn đẩy (08/11/2026, docs/design-go-toc-do-may-va-xep-lich.md) -----------------------
+def _hen_svc(db: Session) -> HenDayService:
+    return HenDayService(db, AuditLogRepository(db))
+
+
+def _map_hen(exc: Exception) -> HTTPException:
+    if isinstance(exc, HenDayNotFound):
+        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if isinstance(exc, HenDayError):
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    return _map(exc)
+
+
+@router.get("/ban", response_model=BanOut)
+def ban(
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-    tim: str | None = Query(None, description="Tìm theo mã / tên lệnh — lọc Ở MÁY CHỦ"),
+    tab: str = Query(..., pattern="^(ket|chua_hen|da_hen|da_day)$"),
+    tu: date = Query(...),
+    den: date = Query(...),
+    tim: str | None = Query(None, max_length=100),
+    gap: bool = False,
+    thieu_vat_tu: bool = False,
+    sat_han: bool = False,
     trang: int = Query(1, ge=1),
-    moi_trang: int = Query(20, ge=1, le=200),
-    tu_ngay: date | None = Query(None),
-    den_ngay: date | None = Query(None),
-    moc: str = Query("tao", pattern="^(tao|han_sx)$", description="Kỳ theo Ngày tạo / Hạn SX"),
-    khach_id: int | None = Query(None),
+    moi_trang: int = Query(25, ge=1, le=100),
+    day_tu: date | None = Query(None),
+    day_den: date | None = Query(None),
 ) -> dict:
-    return _svc(db).hang_cho(tim=tim, trang=trang, cd_trang=moi_trang, tu_ngay=tu_ngay,
-                             den_ngay=den_ngay, moc=moc, khach_id=khach_id)
+    """Bốn tab + đếm + dải ngày. `ket`/`chua_hen` không lọc theo khoảng ngày; `da_hen` theo giờ
+    hẹn trong `tu`/`den`, `da_day` theo lúc đẩy trong `day_tu`/`day_den` (thiếu thì dùng
+    `tu`/`den`). Lọc, sắp xếp, phân trang đều ở máy chủ."""
+    try:
+        return _hen_svc(db).ban(tab=tab, tu=tu, den=den, tim=tim, gap=gap,
+                                thieu_vat_tu=thieu_vat_tu, sat_han=sat_han, trang=trang,
+                                moi_trang=moi_trang, day_tu=day_tu, day_den=day_den)
+    except Exception as exc:
+        raise _map_hen(exc)
 
 
-@router.get("/hang-cho/khach-loc", response_model=list[LuaChonLoc])
-def hang_cho_khach_loc(
+@router.post("/hen", response_model=HenKqOut)
+def hen(
+    payload: HenIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
+) -> dict:
+    """Hẹn hoặc đổi giờ đẩy cho các lệnh đã chọn. Tới giờ máy chủ tự đẩy bằng quyền người hẹn."""
+    try:
+        so = _hen_svc(db).hen(payload.lsx_ids, payload.hen_luc, actor=user)
+    except Exception as exc:
+        raise _map_hen(exc)
+    _phat_lich_doi(None, hen=True)
+    return {"ok": True, "so_lenh": so}
+
+
+@router.post("/hen-theo-loc", response_model=HenKqOut)
+def hen_theo_loc(
+    payload: HenTheoLocIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
+) -> dict:
+    """"Chọn cả N lệnh theo bộ lọc": máy chủ tự tìm lại tập lệnh theo đúng bộ lọc đang xem."""
+    svc = _hen_svc(db)
+    try:
+        ids = svc.ids_theo_loc(tab=payload.tab, tu=payload.tu, den=payload.den, tim=payload.tim,
+                               gap=payload.gap, thieu_vat_tu=payload.thieu_vat_tu,
+                               sat_han=payload.sat_han)
+        if len(ids) > 500:
+            raise HenDayError("Mỗi lần hẹn tối đa 500 lệnh, lọc hẹp lại rồi hẹn tiếp.")
+        so = svc.hen(ids, payload.hen_luc, actor=user)
+    except Exception as exc:
+        raise _map_hen(exc)
+    _phat_lich_doi(None, hen=True)
+    return {"ok": True, "so_lenh": so}
+
+
+@router.delete("/hen/{lsx_id}", response_model=None)
+def bo_hen(
+    lsx_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
+) -> dict:
+    try:
+        _hen_svc(db).bo_hen(lsx_id, actor=user)
+    except Exception as exc:
+        raise _map_hen(exc)
+    _phat_lich_doi(lsx_id)
+    return {"ok": True}
+
+
+@router.post("/day-ngay", response_model=DayNgayOut)
+def day_ngay(
+    payload: DayNgayIn,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
+) -> dict:
+    """Đẩy ngay các lệnh đã chọn. Lệnh lỗi không chặn lệnh khác; báo sau phát hành chạy cho từng
+    lệnh đẩy được (`sau_phat_hanh.bao(` trong service)."""
+    try:
+        kq = _hen_svc(db).day_ngay(payload.lsx_ids, actor=user)
+    except Exception as exc:
+        raise _map_hen(exc)
+    _phat_lich_doi(None, hen=True)
+    return kq
+
+
+@router.get("/lenh/{lsx_id}/lich-su-hen", response_model=list[LichSuHenOut])
+def lich_su_hen(
+    lsx_id: int,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-    tim: str | None = Query(None),
-    tu_ngay: date | None = Query(None),
-    den_ngay: date | None = Query(None),
-    moc: str = Query("tao", pattern="^(tao|han_sx)$"),
 ) -> list[dict]:
-    """Ô "Khách hàng" của thanh lọc hàng chờ: khách đang có lệnh chờ xếp, kèm số lệnh."""
-    return _svc(db).khach_hang_cho(tim=tim, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc)
+    try:
+        return _hen_svc(db).lich_su_hen(lsx_id)
+    except Exception as exc:
+        raise _map_hen(exc)
 
 
-@router.get("/lich", response_model=LichOut)
-def lich(
+@router.get("/lenh/{lsx_id}/ngan", response_model=NganOut)
+def ngan_hen(
+    lsx_id: int,
     db: Annotated[Session, Depends(get_db)],
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-    tu: date = Query(..., description="Ngày ĐẦU cửa sổ"),
-    den: date = Query(..., description="Ngày CUỐI cửa sổ"),
-    tim: str | None = Query(None, description="Mã / tên lệnh / khách — lọc Ở MÁY CHỦ"),
-    trang_thai: str | None = Query(None, description="Trạng thái lệnh, cách nhau dấu phẩy"),
-    khach_id: int | None = Query(None),
-    gap: bool | None = Query(None),
-    nhanh: str | None = Query(None, pattern="^(tre|muon|chua)$", description="Nút lọc nhanh"),
 ) -> dict:
-    """Các lệnh CHẠM cửa sổ. `tu`/`den` BẮT BUỘC — không mở đường trải cả lịch sử (spec §4.1)."""
-    if den < tu:
-        raise HTTPException(status_code=400, detail="Cửa sổ không hợp lệ: ngày cuối trước ngày đầu.")
-    tt = [x.strip() for x in (trang_thai or "").split(",") if x.strip()] or None
-    return _svc(db).lich(tu=tu, den=den, tim=tim, trang_thai=tt, khach_id=khach_id, gap=gap,
-                         nhanh=nhanh)
+    """Ngăn chi tiết: đầu ngăn + tab Vật tư + tab Công đoạn (Lịch sử hẹn gọi đường riêng)."""
+    try:
+        return _hen_svc(db).ngan(lsx_id)
+    except Exception as exc:
+        raise _map_hen(exc)
 
 
+# --- Đọc ---------------------------------------------------------------------
 @router.get("/vat-tu", response_model=list[VatTuLenhOut])
 def vat_tu(
     db: Annotated[Session, Depends(get_db)],
@@ -182,20 +259,6 @@ def chi_tiet(
         raise _map(exc)
 
 
-@router.get("/lenh/{lsx_id}/thu", response_model=ThuMocOut)
-def thu_moc(
-    lsx_id: int,
-    db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
-    bat_dau: datetime = Query(..., description="Mốc thử — chưa lưu"),
-) -> dict:
-    """Xem trước lúc kéo: thả ở `bat_dau` thì lệnh bắt đầu / xong lúc nào. CHỈ ĐỌC."""
-    try:
-        return _svc(db).thu_moc(lsx_id, bat_dau)
-    except Exception as exc:
-        raise _map(exc)
-
-
 @router.get("/lenh/{lsx_id}/so-sanh", response_model=None)
 def so_sanh_phien_ban(
     lsx_id: int,
@@ -216,53 +279,6 @@ def so_sanh_phien_ban(
 
 
 # --- Ghi ---------------------------------------------------------------------
-@router.put("/lenh/{lsx_id}", response_model=DongLichOut)
-def dat_moc(
-    lsx_id: int,
-    payload: DatMocIn,
-    db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
-) -> dict:
-    """Đặt / dời giờ bắt đầu. Mốc ngoài giờ chạy thì TRƯỢT + báo, không chặn."""
-    try:
-        ra = _svc(db).dat_moc(
-            lsx_id, payload.bat_dau_at, payload.expected_updated_at, nguoi_id=user.id,
-        )
-    except Exception as exc:
-        raise _map(exc)
-    _phat_lich_doi(lsx_id)
-    return ra
-
-
-@router.delete("/lenh/{lsx_id}", response_model=None)
-def xoa_moc(
-    lsx_id: int,
-    db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
-) -> dict:
-    """Bỏ lịch — thẻ quay lại hàng chờ."""
-    try:
-        _svc(db).xoa_moc(lsx_id, nguoi_id=user.id)
-    except Exception as exc:
-        raise _map(exc)
-    _phat_lich_doi(lsx_id)
-    _cham_cho_xep(db, lsx_id, user.id)
-    return {"ok": True}
-
-
-def _cham_cho_xep(db: Session, lsx_id: int, actor_id: int) -> None:
-    """Thẻ quay lại hàng chờ ⇒ chấm đỏ Xếp lịch."""
-    lsx = db.get(Lsx, lsx_id)
-    if lsx is not None:
-        bao(db, kenh="xep_lich", loai="lenh_cho_xep", actor_id=actor_id, ma=lsx.ma)
-
-
-def _cham_viec_moi(db: Session, lsx_id: int, actor_id: int) -> None:
-    """Phát hành ⇒ chấm đỏ bàn của từng tổ nhận việc."""
-    for to_id in sorted(SanXuatRepository(db).to_cua_lenh([lsx_id])):
-        bao(db, kenh=kenh_to(to_id), loai="viec_moi", actor_id=actor_id)
-
-
 @router.post("/phat-hanh/{lsx_id}", response_model=None)
 def phat_hanh(
     lsx_id: int,
@@ -273,14 +289,17 @@ def phat_hanh(
 
     Trả kèm `vat_tu` = số yêu cầu xuất vừa tự lập + các món chưa tự lập được (spec 2026-10-18 §4)
     để toast nói cho người phát hành biết."""
-    from ..services.san_xuat.vat_tu_tu_lap import bao_sau_phat_hanh
-
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).phat_hanh(lsx_id, actor=user)
     except Exception as exc:
         raise _map(exc)
+    from ..services.san_xuat.vat_tu_tu_lap import bao_sau_phat_hanh
+
+    # Cùng trình tự `sau_phat_hanh.bao` (vòng tự đẩy gọi bản đó) — viết rời để bài soi nguồn SSE
+    # của router thấy `_phat_goi_xuong_xuong(` ngay trong route.
     xoa_cache_can_doi()
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     _cham_viec_moi(db, lsx_id, user.id)
     bao_sau_phat_hanh(db, kq["_tu_lap"], ma_lenh=kq["ma"], actor_id=user.id)
     return {"ok": True, "vat_tu": kq["vat_tu"]}
@@ -312,6 +331,7 @@ def phat_hanh_cap_nhat(
     user: Annotated[User, Depends(require_permission(MODULE, "approve"))],
 ) -> dict:
     """Đẩy lịch mới xuống xưởng cho phần CHƯA bắt đầu (§4.3), giữ nguyên việc đã chạy."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).phat_hanh_cap_nhat(lsx_id, actor=user, ly_do=payload.ly_do)
     except Exception as exc:
@@ -323,7 +343,7 @@ def phat_hanh_cap_nhat(
     _cham_viec_moi(db, lsx_id, user.id)
     # (Từng bắn thêm `san_xuat_changed` — FE không có nhánh riêng, chỉ nhích nhóm `san_xuat` mà
     # `lsx_changed` ngay trong `_phat_goi_xuong_xuong` đã nhích cho cùng tập người. Bỏ 28/09/2026.)
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     return kq
 
 
@@ -335,6 +355,7 @@ def thu_hoi(
     ly_do: str | None = Query(None, max_length=500),
 ) -> dict:
     """Thu hồi CẢ CỤM đã phát hành chung một gói — mọi lệnh trong cụm quay lại khay chờ xếp."""
+    truoc = _noi_goi(db, lsx_id)
     try:
         kq = _svc(db).thu_hoi(lsx_id, actor=user, ly_do=ly_do)
     except Exception as exc:
@@ -343,7 +364,7 @@ def thu_hoi(
 
     xoa_cache_can_doi()
     bao_da_huy(db, kq.get("yeu_cau_da_huy") or [])
-    _phat_goi_xuong_xuong(lsx_id)
+    _phat_goi_xuong_xuong(db, lsx_id, truoc)
     for i in kq["cum_lsx"]:
         _cham_cho_xep(db, i, user.id)
     return {"ok": True, "cum_lsx": kq["cum_lsx"]}

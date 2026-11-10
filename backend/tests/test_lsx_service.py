@@ -161,8 +161,8 @@ def test_sach_di_het_luong_don_den_lenh(db, orders, lsx_svc, admin, customer):
     # Hao 50 CUỐN ở cuối chuỗi lội ngược qua cầu = 500 TỜ ở bước in. Cộng hao phẳng thì chỉ ra 50.
     assert float(buoc["In offset"].so_luong_vao) == 20_500
 
-    # Giờ máy ăn theo `so_luong_vao`: hệ số sai là xếp lịch sai theo, không riêng số giấy.
-    assert _tl(buoc["In offset"], db)["chiem_may_phut"] > 400   # 20.500 tờ ÷ 5.000 tờ/giờ
+    # Bước máy thôi tính giờ theo tốc độ (08/11/2026).
+    assert _tl(buoc["In offset"], db)["dien_giai"]["phuong_phap"] == "khong_tinh"
 
 
 def _ptg_hinh(db, *, ma: str, buoc: list[tuple[str, str, str, str]],
@@ -842,16 +842,16 @@ def test_san_sang_bi_chan_khi_con_thieu_va_mo_khi_du(db, orders, lsx_svc, admin,
     [hop, _tem] = lsx_svc.tao(order_id=d.id, order_line_ids=ids, actor=admin)
     _gan_dao_cho_buoc_can(db, hop)
 
-    # Bước nội bộ chưa biết TỔ/MÁY nào làm → CHỜ BỔ SUNG. (Mục "thiếu khuôn bế" đã bỏ khỏi
+    # Bước nội bộ chưa có BỘ PHẬN NHẬN → CHỜ BỔ SUNG (07/11/2026, trước là tổ/máy). (Mục "thiếu khuôn bế" đã bỏ khỏi
     # checklist 11/08/2026: ô gán khuôn ở cấp lệnh không còn, giữ lại là khoá lệnh vĩnh viễn.)
     buoc = hop.cong_doans[0]
     buoc.department_id = None
     buoc.may_id = None
     db.commit()
     hop = lsx_svc.get(hop.id)
-    assert "thieu_to_may" in lsx_svc.thieu_cua(hop)
+    assert "thieu_bo_phan" in lsx_svc.thieu_cua(hop)
     # Màn lệnh gọi đích danh bước nào thiếu — id bước đi kèm mã, ra tới API chi tiết.
-    assert buoc.id in lsx_svc.detail_dict(hop)["thieu_buoc"]["thieu_to_may"]
+    assert buoc.id in lsx_svc.detail_dict(hop)["thieu_buoc"]["thieu_bo_phan"]
     with pytest.raises(LsxConflict):
         lsx_svc.set_trang_thai(lsx_id=hop.id, trang_thai=TT_SAN_SANG, actor=admin)
 
@@ -914,8 +914,9 @@ def test_thoi_gian_buoc_MAY_doc_cong_thuc_cua_CHINH_MAY(
     assert dg["so_luong_vao"] == pytest.approx(vao_to * 0.559, abs=0.01)   # server làm tròn 2 số
     assert dg["don_vi_vao"] == "m²"
     assert "SL vào của công đoạn" in (dg["quy_doi_dien_giai"] or "")
-    luot = int(dg["so_luot_chay"] or 1)
-    assert buoc["chay_phut"] == pytest.approx(vao_to * 0.559 * 60 / 3000 * luot, abs=0.01)
+    # Quy đổi vẫn còn để hiển thị; giờ chạy thì thôi tính theo tốc độ (08/11/2026).
+    assert buoc["chay_phut"] == 0
+    assert dg["phuong_phap"] == "khong_tinh"
 
 
 def test_sua_quy_cach_tren_lenh_tinh_lai_moi_so_dan_xuat(db, orders, lsx_svc, admin, customer):
@@ -1503,7 +1504,7 @@ def test_goi_y_luong_cho_MOI_vat_tu_de_drawer_dien_san(db, orders, lsx_svc, admi
     """Chọn một vật tư BẤT KỲ ở drawer thì số phải hiện ngay — server tính sẵn cho cả danh mục.
 
     Chủ 13/08/2026: "khi chọn keo vào gáy thì nó tính luôn". Công thức + quy cách đều nằm ở server;
-    client không có và không nên có (công thức chỉ được một bản). Nên server gửi kèm `vat_tu_goi_y`.
+    client không có và không nên có (công thức chỉ được một bản). Nên server tính hộ — ngăn bước hỏi `goi_y_vat_tu_buoc` khi mở (10/11/2026 rời khỏi chi tiết lệnh).
 
     Món chưa tính ra được VẪN có mặt, `so_luong=None` kèm `ly_do` chỉ chỗ khai (18/08/2026): ô vẫn
     để trống cho người khai (không đoán số), nhưng drawer nói được VÌ SAO nó trống thay vì để người
@@ -1533,7 +1534,8 @@ def test_goi_y_luong_cho_MOI_vat_tu_de_drawer_dien_san(db, orders, lsx_svc, admi
 
     # Khoá theo CẶP: gợi ý nay gồm cả danh mục Giấy, mà Giấy #7 với Vật tư #7 là hai món khác
     # nhau — khoá bằng id trần thì một loại giấy trùng id sẽ đè mất dòng vật tư đang kiểm.
-    goi_y = {(g["hang_loai"], g["vat_tu_id"]): g for g in buoc["vat_tu_goi_y"]}
+    goi_y = {(g["hang_loai"], g["vat_tu_id"]): g
+             for g in lsx_svc.goi_y_vat_tu_buoc(lsx.id, buoc["id"])}
     k_keo, k_mu = ("vat_tu", keo.id), ("vat_tu", mu.id)
     assert k_keo in goi_y, "vật tư đã khai định mức ở công đoạn phải được tính sẵn"
     assert goi_y[k_keo]["so_luong"] == pytest.approx(
@@ -2016,38 +2018,15 @@ def _tl(cd, db=None):
     return _tlb(cd, may)
 
 
-def test_thoi_luong_bo_qua_cac_o_dormant():
-    """`ve_sinh_phut` · `di_chuyen_phut` · `cho_phut` đều DORMANT — truyền vào để CHỨNG MINH bỏ qua.
-
-    CHỜ KỸ THUẬT gỡ 13/08/2026: `tong_phut` nay bằng đúng `chiem_may_phut`. Hai khoá vẫn tách vì
-    bàn xếp lịch lấy HIỆU của chúng làm độ trễ giữa hai bước — hiệu = 0 nghĩa là bước sau bắt đầu
-    ngay khi máy nhả tờ. Muốn dựng lại độ trễ thì cộng vào `tong`, KHÔNG cộng vào `chiem_may`.
-    """
-    b = _buoc(so_luong_vao=5300, ve_sinh_phut=15, di_chuyen_phut=30)
-    t = _tlb(b, _may_gia(toc_do=5000, chuan_bi=45))
-    assert round(t["chay_phut"]) == 64
-    assert round(t["chiem_may_phut"]) == 109                 # 45 + 64
-    assert round(t["tong_phut"]) == 109                      # không cộng thêm gì
-
-
 def test_thoi_gian_khac_cong_thang_vao_chiem_may():
     """Ô "Thời gian khác" là ô DUY NHẤT người kế hoạch còn gõ được — phải có tác dụng thật.
 
-    `chay_phut` nhập đè đã BỎ: truyền vào cũng bị bỏ qua, giờ chạy luôn suy từ tốc độ máy."""
+    `chay_phut` nhập đè đã BỎ. Từ 08/11/2026 bước máy thôi tính giờ theo tốc độ và chuẩn bị của
+    máy, nên chiếm máy chỉ còn đúng "thời gian khác"."""
     b = _buoc(so_luong_vao=5300, chay_phut=120, phat_sinh_phut=30)
     t = _tlb(b, _may_gia(toc_do=5000, chuan_bi=45))
-    assert round(t["chay_phut"]) == 64                       # KHÔNG lấy 120 gõ đè
-    assert round(t["chiem_may_phut"]) == 139                 # 30 khác + 45 chuẩn bị + 64 chạy
-
-
-def test_may_nhan_so_luot_chay():
-    may = _may_gia(toc_do=5000)
-    assert _tlb(_buoc(loai_buoc="may", so_luong_vao=5000), may)["chay_phut"] == 60
-    # In trở 2 lượt → chạy gấp đôi.
-    t = _tlb(_buoc(loai_buoc="may", so_luong_vao=5000, so_luot_chay=2), may)
-    assert t["chay_phut"] == 120
-    assert t["dien_giai"]["phuong_phap"] == "may"
-    assert "so_nhan_cong_tinh" not in t["dien_giai"], "kíp người đã gỡ hẳn (mg 0321)"
+    assert t["chay_phut"] == 0                               # KHÔNG lấy 120 gõ đè, không chia tốc độ
+    assert round(t["chiem_may_phut"]) == 30                  # chỉ còn 30 khác
 
 
 def test_to_doc_SO_GIO_KE_HOACH_khong_chia_gi():
@@ -2123,11 +2102,27 @@ def test_buoc_to_ep_mot_luot_chay(db, orders, lsx_svc, admin, customer):
     assert khac and all(cd.so_luot_chay == 2 for cd in khac)
 
 
-def test_thieu_nang_suat_thi_khong_bia_so():
-    """Chưa khai năng suất → thời gian chạy = 0, KHÔNG đoán bừa để Gantt khỏi vẽ số sai."""
-    result = _tlb(_buoc(so_luong_vao=5000))    # bước máy CHƯA gán máy
-    assert result["chay_phut"] == 0
-    assert any("chưa khai tốc độ" in x for x in result["dien_giai"]["canh_bao"])
+def test_buoc_may_khong_tinh_gio():
+    """BỎ TỐC ĐỘ MÁY (08/11/2026): bước máy không còn giờ chạy, kể cả máy khai đủ tốc độ.
+
+    Trả số 0 (không None) cho các chỗ cộng dồn vẫn chạy; `phuong_phap = "khong_tinh"` để màn
+    biết mà không bày "0 phút". Không còn cảnh báo "máy chưa khai tốc độ". Bước TỔ giữ nguyên:
+    giờ = số giờ kế hoạch người lập lệnh gõ."""
+    may = _may_gia(toc_do=5000, chuan_bi=45, toc_do_min=4000, toc_do_max=6000)
+    t = _tlb(_buoc(loai_buoc="may", so_luong_vao=5000, so_luot_chay=2), may)
+    assert t["chiem_may_phut"] == 0
+    assert t["chiem_may_phut_min"] == t["chiem_may_phut_max"] == 0
+    dg = t["dien_giai"]
+    assert dg["phuong_phap"] == "khong_tinh"
+    assert dg["canh_bao"] == []
+    assert dg["toc_do"] is None and dg["toc_do_min"] is None and dg["toc_do_max"] is None
+    assert dg["setup_phut"] == 0 and dg["chuan_bi_khoan"] == []
+    # Bước chưa gán máy cũng vậy, không cảnh báo.
+    assert _tlb(_buoc(so_luong_vao=5000))["dien_giai"]["canh_bao"] == []
+
+    to = _tlb(_buoc(loai_buoc="to", so_luong_vao=5000, so_gio_ke_hoach=2))
+    assert to["chiem_may_phut"] == 120
+    assert to["dien_giai"]["phuong_phap"] == "to"
 
 
 def test_mac_dinh_ke_thua_tu_danh_muc_cong_doan_va_may(db, orders, lsx_svc, admin, customer):
@@ -2515,7 +2510,7 @@ def test_thue_ngoai_doi_nha_gia_cong_tu_danh_muc(db, orders, lsx_svc, admin, cus
     # Chưa chọn nhà gia công → chặn bằng mã mới, KHÔNG đòi tổ/máy cho bước thuê ngoài.
     thieu = dat_routing()
     assert "thieu_nha_gia_cong" in thieu
-    assert "thieu_to_may" not in thieu
+    assert "thieu_bo_phan" not in thieu
 
     # Chọn nhà gia công từ danh mục → hết thiếu.
     assert "thieu_nha_gia_cong" not in dat_routing(nha_cung_cap_id=s.id)
@@ -2774,9 +2769,8 @@ def test_doi_may_thi_thoi_luong_theo_may_moi(
 
     saved = next(x for x in lsx_svc.get(hop.id).cong_doans if x.id == muc_tieu.id)
     assert saved.may_id == may_moi.id
-    # Tốc độ KHÔNG chép lên bước (15/08/2026) — đổi máy là thời lượng tự đổi theo máy mới.
-    assert round(_tl(saved, db)["chay_phut"], 2) == round(
-        float(saved.so_luong_vao) * 60 / 4000, 2)
+    # Bước máy thôi tính giờ theo tốc độ (08/11/2026): đổi máy không đổi thời lượng.
+    assert _tl(saved, db)["chay_phut"] == 0
 
 
 def test_xem_truoc_buoc_ra_gio_moi_ngay_va_khong_ghi_gi_vao_DB(
@@ -2793,15 +2787,15 @@ def test_xem_truoc_buoc_ra_gio_moi_ngay_va_khong_ghi_gi_vao_DB(
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
     hop = lsx_svc.tao(order_id=d.id, order_line_ids=ids[:1], actor=admin)[0]
     inn = next(x for x in hop.cong_doans if x.ten == "In offset")
-    may_cu, vao = inn.may_id, float(inn.so_luong_vao)
+    may_cu = inn.may_id
     assert may_cu is not None and may_cu != may_cham.id
 
     xt = lsx_svc.xem_truoc_buoc(lsx_id=hop.id, step_key=inn.step_key, may_id=may_cham.id)
 
-    assert xt["thoi_luong_dien_giai"]["toc_do"] == 2_500
-    assert xt["thoi_luong_dien_giai"]["chay_phut"] == pytest.approx(vao * 60 / 2_500, abs=0.01)
-    # Máy cũ 5.000 tờ/giờ ⇒ máy này phải lâu gấp đôi, không phải "y hệt".
-    assert xt["chiem_may_phut"] > _tl(inn, db)["chiem_may_phut"]
+    # Bước máy thôi tính giờ theo tốc độ (08/11/2026): xem trước không ra giờ chạy.
+    assert xt["thoi_luong_dien_giai"]["toc_do"] is None
+    assert xt["thoi_luong_dien_giai"]["phuong_phap"] == "khong_tinh"
+    assert xt["chiem_may_phut"] == 0
 
     db.expire_all()
     van_the = next(x for x in lsx_svc.get(hop.id).cong_doans if x.ten == "In offset")
@@ -2858,8 +2852,7 @@ def test_chay_phut_luon_la_so_dan_xuat_khong_bi_dong_bang(
     hop = _chon_loai_buoc(lsx_svc, hop, admin, {"Dán hộp": "to"})
 
     ra = {c["ten"]: c for c in lsx_svc.detail_dict(hop)["cong_doans"]}
-    assert ra["In offset"]["chay_phut"] > 0             # dẫn xuất từ tốc độ máy đang gán
-    assert ra["In offset"]["chiem_may_phut"] > 0
+    assert ra["In offset"]["chay_phut"] == 0            # bước máy thôi tính giờ (08/11/2026)
     # Cột DB vẫn NULL: số hiển thị là tính-lúc-đọc, không ghi ngược vào bước.
     assert {c.ten: c for c in lsx_svc.get(hop.id).cong_doans}["In offset"].chay_phut is None
 
@@ -2874,7 +2867,6 @@ def test_chay_phut_luon_la_so_dan_xuat_khong_bi_dong_bang(
     ])
     sau = {c.ten: c for c in lsx_svc.get(hop.id).cong_doans}
     assert sau["In offset"].chay_phut is None
-    assert _tl(sau["In offset"], db)["chay_phut"] > 0
 
     # Bước TỔ gõ số giờ kế hoạch muộn vẫn ăn ngay (tổ không lấy tốc độ từ máy).
     sau["Dán hộp"].so_gio_ke_hoach = 2
@@ -2991,64 +2983,6 @@ def test_che_ban_lay_toc_do_may_ghi_kem():
     assert ma_don_vi_toc_do(_May(20, "kem_gio")) == "kem"
     assert ma_don_vi_toc_do(_May(5000, "to_gio")) == "to"
     assert ma_don_vi_toc_do(_May(5000, None)) is None
-
-
-def test_thoi_luong_che_ban_chay_theo_so_kem():
-    """4 kẽm @ 20 kẽm/giờ = 12 phút ghi; cộng 10 phút chuẩn bị của MÁY CTP → 22 phút."""
-    ctp = _may_gia(toc_do=20, chuan_bi=10, don_vi="kem_gio")
-    b = _buoc(ten="Ghi kèm CTP", loai_buoc="may", nhom="prepress", so_luong_vao=4,
-              don_vi_vao=None)
-    t = _tlb(b, ctp, "kẽm")
-    assert round(t["chay_phut"]) == 12
-    assert round(t["chiem_may_phut"]) == 22
-    # Gấp 10 lần số kẽm thì thời gian ghi cũng gấp 10 — trước đây cả hai đều ra 10 phút.
-    b10 = _buoc(ten="Ghi kèm CTP", loai_buoc="may", nhom="prepress", so_luong_vao=40,
-                don_vi_vao=None)
-    assert round(_tlb(b10, ctp, "kẽm")["chay_phut"]) == 120
-
-
-def test_ba_con_so_theo_dai_toc_do_may():
-    """Công thức chốt 2026-08-04 — ba con số chỉ khác nhau ở MẪU SỐ (tốc độ max/TB/min).
-
-    Số thật của máy 5 màu Mitsubishi: chuẩn bị 55' (4 khoản) · tốc độ 8.000/11.000/15.000."""
-    khoan = [{"ten": "Đổi kẽm", "phut": 15}, {"ten": "Canh màu", "phut": 15},
-             {"ten": "Lên giấy", "phut": 10}, {"ten": "Pha mực", "phut": 15}]
-    may = _may_gia(toc_do=11_000, toc_do_min=8_000, toc_do_max=15_000, chuan_bi=55, khoan=khoan)
-    t = _tlb(_buoc(loai_buoc="may", so_luong_vao=20_000, don_vi_vao="to"), may)
-    assert round(t["chiem_may_phut"]) == 164        # 55 + 20.000×60÷11.000
-    assert round(t["chiem_may_phut_min"]) == 135    # tốc độ TỐI ĐA ⇒ thời lượng NHỎ nhất
-    assert round(t["chiem_may_phut_max"]) == 205
-    # Chuẩn bị là hằng ⇒ độ rộng râu = đúng dao động của phần CHẠY, không dính setup.
-    dg = t["dien_giai"]
-    assert round(dg["chay_phut_max"] - dg["chay_phut_min"]) == 70
-    assert dg["co_dai_toc_do"] is True
-    # Chuẩn bị xổ CHI TIẾT cho drawer, không chỉ một cục tổng.
-    assert [k["ten"] for k in dg["chuan_bi_khoan"]] == ["Đổi kẽm", "Canh màu", "Lên giấy", "Pha mực"]
-    assert sum(k["phut"] for k in dg["chuan_bi_khoan"]) == 55
-
-
-def test_may_chua_khai_dai_thi_ba_so_bang_nhau():
-    """Máy chỉ khai tốc độ TB ⇒ râu co về một điểm — KHÔNG bịa khoảng."""
-    t = _tlb(_buoc(loai_buoc="may", so_luong_vao=5_000, don_vi_vao="to"),
-                        _may_gia(toc_do=5_000, chuan_bi=30))
-    assert t["chiem_may_phut"] == t["chiem_may_phut_min"] == t["chiem_may_phut_max"] == 90
-    assert t["dien_giai"]["co_dai_toc_do"] is False
-
-
-def test_chua_quy_doi_duoc_thi_KHONG_bia_gio():
-    """⭐ Bước đếm `tờ`, máy khai `tấn/giờ`, không quy đổi được ⇒ **không có số**, nêu lý do.
-
-    🔴 ĐỔI 15/08/2026 — chỗ này trước đây chốt điều NGƯỢC LẠI ("chỉ lấy CON SỐ, không kiểm nhãn"),
-    nên 20.000 tờ chia 11.000 tấn/giờ ra 109 phút trông như thật. Chủ bắt lỗi ở ca `500 kg/h` nhận
-    số tờ. Nay quy đổi được thì tính, không được thì thôi — thà trống còn hơn một con số không ai
-    đi kiểm. Chuẩn bị của máy vẫn còn vì nó không phụ thuộc số lượng.
-    """
-    t = thoi_luong_buoc(_buoc(loai_buoc="may", so_luong_vao=20_000, don_vi_vao="to"),
-                        _may_gia(toc_do=11_000, chuan_bi=55, don_vi="tan_gio"))
-    assert t["chay_phut"] == 0
-    assert round(t["chiem_may_phut"]) == 55                  # chỉ còn chuẩn bị
-    assert t["dien_giai"]["phuong_phap"] == "chua_quy_doi"
-    assert any("Cách đo giờ chạy" in c for c in t["dien_giai"]["canh_bao"])
 
 
 # --- Khuôn của bước: hai nhánh gán-cũ / làm-mới (mg 0205, 16/08/2026) ----------------
@@ -3644,7 +3578,7 @@ def test_xem_truoc_buoc_lay_SO_LUONG_RA_dang_go_lam_chip_sl_ra(
     dg = xt["thoi_luong_dien_giai"]
     assert dg["phuong_phap"] != "chua_quy_doi"
     assert dg["so_luong_vao"] == pytest.approx(1910)          # số ĐEM CHIA là số ra
-    assert dg["chay_phut"] == pytest.approx(1910 * 60 / 15_000, abs=0.01)   # 7,64′
+    assert dg["chay_phut"] == 0                               # thôi chia tốc độ (08/11/2026)
 
     # Ô trống = 0, KHÔNG phải "giữ số đã lưu": xoá số ra thì giờ chạy về 0 ngay.
     trong = lsx_svc.xem_truoc_buoc(lsx_id=lsx.id, step_key=buoc.step_key, may_id=may.id,
@@ -3676,7 +3610,7 @@ def test_xem_truoc_buoc_CHUA_LUU_tinh_duoc_nho_cong_doan_id(
 
     xt = lsx_svc.xem_truoc_buoc(lsx_id=lsx.id, step_key="buoc-moi-chua-luu", may_id=may.id,
                                 cong_doan_id=cd_dan.id, so_luong_vao=1, so_luong_ra=1910)
-    assert xt["thoi_luong_dien_giai"]["chay_phut"] == pytest.approx(1910 * 60 / 18_000, abs=0.01)
+    assert xt["thoi_luong_dien_giai"]["phuong_phap"] == "khong_tinh"
 
     with pytest.raises(LsxNotFound):
         lsx_svc.xem_truoc_buoc(lsx_id=lsx.id, step_key="buoc-moi-chua-luu", may_id=may.id)

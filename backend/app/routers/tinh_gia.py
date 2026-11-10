@@ -45,8 +45,6 @@ class BinhBaiIn(BaseModel):
     nhip_giay_mm: float | None = Field(default=None, ge=0)
     le_hong_mm: float | None = Field(default=None, ge=0)
     duoi_thang_mau_mm: float | None = Field(default=None, ge=0)
-    bleed_mm: float = Field(default=0, ge=0)    # tràn lề mỗi cạnh con
-    khe_cat_mm: float = Field(default=0, ge=0)  # khe giữa 2 con kề nhau
 
 
 @router.post("/binh-bai")
@@ -65,7 +63,6 @@ def binh_bai(
         kho_in_dai=payload.kho_in_dai, kho_in_rong=payload.kho_in_rong,
         dai_tp=payload.dai_thanh_pham, rong_tp=payload.rong_thanh_pham, chua_mm=payload.chua_mm,
         chua_dai_mm=chua_d, chua_rong_mm=chua_r,
-        bleed_mm=payload.bleed_mm, khe_cat_mm=payload.khe_cat_mm,
     )
     dt_tp = payload.dai_thanh_pham * payload.rong_thanh_pham
     dt_in = payload.kho_in_dai * payload.kho_in_rong

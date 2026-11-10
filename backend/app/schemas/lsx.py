@@ -29,6 +29,14 @@ class HangChoItem(BaseModel):
     # Tên các hạng mục của đơn (OrderLine.description, bỏ trùng) — service đã trả từ lâu nhưng
     # schema thiếu nên Pydantic nuốt im lặng, cột "Sản phẩm" của hàng chờ luôn trống.
     san_pham_tom_tat: str | None = None
+    # Người phụ trách đơn (08/11/2026; cột DB giữ tên `nguoi_lam_lenh_id`). NULL = Chưa giao.
+    # `trang_thai` = chua_giao | da_giao. Số lệnh đã tạo đọc ở `so_dong_co_lsx`/`so_dong`
+    # (cột "Đã tạo x/y lệnh", một dòng đơn tính là một lệnh).
+    # `chua_mo` = đơn giao cho NGƯỜI XEM mà họ chưa mở ngăn Lệnh dự kiến lần nào (chấm đỏ đầu dòng).
+    nguoi_lam_lenh_id: int | None = None
+    nguoi_lam_lenh_ten: str | None = None
+    trang_thai: str = "chua_giao"
+    chua_mo: bool = False
 
 
 class HangChoOut(BaseModel):
@@ -36,6 +44,32 @@ class HangChoOut(BaseModel):
     total: int          # TỔNG số đơn còn nợ lệnh, không phải số dòng của trang
     page: int = 1
     size: int = 50
+    # Người xem có ô Giao đơn không — FE bật cột tick, chip lọc, nút Giao theo cờ này.
+    la_nguoi_giao: bool = False
+    # Số trên chip Tất cả / Chưa giao / Đã giao, cùng thanh lọc với bảng.
+    facets: dict[str, int] = Field(default_factory=dict)
+    # Chấm của tab, KHÔNG theo thanh lọc: Hàng chờ tiếp nhận = còn đơn Chưa giao; Tạo lệnh = có đơn
+    # mới giao cho mình chưa mở.
+    cham: bool = False
+
+
+class NguoiLamLenhOut(BaseModel):
+    id: int
+    ten: str
+    phong: str | None = None
+
+
+class GiaoDonIn(BaseModel):
+    order_ids: list[int] = Field(min_length=1, max_length=200)
+    nguoi_nhan_id: int
+
+
+class GiaoDonOut(BaseModel):
+    nguoi_nhan_ten: str
+    # Mã đơn vừa giao lần đầu / vừa chuyển từ người khác sang; đơn đã giao đúng người này thì bỏ qua.
+    da_giao: list[str] = Field(default_factory=list)
+    giao_lai: list[str] = Field(default_factory=list)
+    bo_qua: int = 0
 
 
 # ============================ Preview (lệnh dự kiến) ============================
@@ -99,6 +133,9 @@ class PreviewOut(BaseModel):
     delivery_committed_date: date | None = None
     is_rush: bool = False
     production_note: str | None = None
+    # Người phụ trách đơn (08/11/2026) — đầu ngăn ghi "Người phụ trách: X" khi X không phải người xem.
+    nguoi_lam_lenh_id: int | None = None
+    nguoi_lam_lenh_ten: str | None = None
     lines: list[PreviewLine]
 
 
@@ -113,7 +150,6 @@ class LeadTimeOut(BaseModel):
     tong_phut: float = 0
     chiem_may_phut: float = 0     # phần ĂN capacity máy/tổ (không gồm chờ, di chuyển)
     so_ngay: float = 0            # quy ước 8h/ngày, CHƯA trừ nghỉ lễ/ca kíp
-    ngay_du_kien_xong: date | None = None
     ngay_con_lai: int | None = None   # tới `han_giao_khach`; âm = đã trễ
 
 
@@ -235,8 +271,11 @@ class LsxCongDoanOut(BaseModel):
     nhom: str | None = None
     loai_buoc: str
     bat_buoc: bool = True
+    #: BỘ PHẬN NHẬN của bước (07/11/2026) — không còn là tổ.
     department_id: int | None = None
     department_ten: str | None = None
+    #: Bộ phận được chọn cho bước: `[{id, ten, so_nhom}]`, bộ phận chọn sẵn đứng đầu.
+    bo_phan_chon: list[dict] = Field(default_factory=list)
     may_id: int | None = None
     may_ten: str | None = None
     #: Bước đã có việc chạy ở bàn tổ ⇒ ngăn bước khoá ô tổ/máy (đổi máy ở bàn tổ).
@@ -297,9 +336,8 @@ class LsxCongDoanOut(BaseModel):
 
     # ⚠️ `khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc` GỠ 18/09/2026 (mg `0320`): bước thôi chọn
     #    đầu việc khoán — việc khoán chọn LÚC GHI MẺ ở bàn tổ, nơi thợ biết mình vừa làm gì.
-    # `[{vat_tu_id, so_luong, dien_giai}]` — lượng tính sẵn cho MỌI vật tư theo bước này. Drawer
-    # chọn món nào là điền số ngay, khỏi bắt gõ tay. Món chưa tính ra được thì KHÔNG có ở đây.
-    vat_tu_goi_y: list[dict] = Field(default_factory=list)
+    # ⚠️ `vat_tu_goi_y` GỠ khỏi bước của chi tiết lệnh 10/11/2026 — ngăn bước hỏi riêng
+    #    `GET /lsx/{id}/buoc/{buoc_id}/goi-y-vat-tu` khi mở (mở / lưu lệnh khỏi tính cả chuỗi).
     # Số ĐÚNG RA phải là theo danh mục HIỆN TẠI, khi nó KHÁC số đã lưu (None = không lệch).
     # Lệnh là ẢNH CHỤP nên server không tự đè — chỉ phơi ra để màn gạch số cũ + mời "Tính lại".
     so_luong_vao_moi: float | None = None
@@ -513,7 +551,7 @@ class LsxOut(BaseModel):
     # `thieu` CHẶN nút "Sẵn sàng lập kế hoạch" (§12). Rổ cảnh báo MỀM §14 (`canh_bao`) đã gỡ
     # 25/08/2026 — server vẫn tính mỗi lần mở lệnh mà không màn nào đọc.
     thieu: list[str] = Field(default_factory=list)
-    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_to_may`, `thieu_nha_gia_cong`, `thieu_khuon`):
+    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_bo_phan`, `thieu_nha_gia_cong`, `thieu_khuon`):
     # màn lệnh gọi đích danh bước nào chặn nút Sẵn sàng, khỏi phải mở từng bước ra dò.
     thieu_buoc: dict[str, list[int]] = Field(default_factory=dict)
     lead_time: LeadTimeOut | None = None
@@ -604,8 +642,6 @@ class LsxQuyCachIn(BaseModel):
     muc_b: list[str] | None = None
     so_trang: int | None = Field(default=None, ge=1)
     trang_moi_tay: int | None = Field(default=None, ge=1)
-    bleed_mm: float | None = Field(default=None, ge=0)
-    khe_cat_mm: float | None = Field(default=None, ge=0)
     con_auto: bool | None = None
 
 
@@ -618,7 +654,7 @@ class LsxUpdateIn(BaseModel):
     so_to_ke_hoach: int | None = Field(default=None, ge=0)
     so_to_nguyen: int | None = Field(default=None, ge=0)
     so_con: int | None = Field(default=None, ge=1)
-    han_hoan_thanh_sx: date | None = None
+    # `han_hoan_thanh_sx` gỡ 08/11/2026: client cũ còn gửi thì bị bỏ qua (không 422).
     is_rush: bool | None = None
     may_id: int | None = None
     nguoi_phu_trach_id: int | None = None
@@ -709,6 +745,8 @@ class BuocMacDinhOut(BaseModel):
     #: của bước chỉ được chọn trong danh sách này.
     department_id: int | None = None
     department_ids: list[int] = Field(default_factory=list)
+    #: Bộ phận nhận được chọn (07/11/2026), bộ phận chọn sẵn đứng đầu.
+    bo_phan_chon: list[dict] = Field(default_factory=list)
     don_vi_vao: str | None = None
     don_vi_ra: str | None = None
     he_so_quy_doi: float

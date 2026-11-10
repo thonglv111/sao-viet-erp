@@ -23,6 +23,9 @@ from .db import SessionLocal
 from .services import su_kien_danh_muc  # noqa: F401 — đăng ký listener SSE "danh mục đã đổi"
 from .routers import (
     accounting,
+    thuong_mai,
+    giao_hang_hp,
+    xe_giao_hang,
     module_notifications,
     auth,
     attendance,
@@ -66,6 +69,7 @@ from .routers import (
     lsx,
     bai_ghep_2,
     xep_lich,
+    ke_hoach_bo_phan,
     ke_hoach_vat_tu,
     ky_thuat_may,
     san_xuat,
@@ -109,6 +113,7 @@ async def lifespan(app: FastAPI):
     don_dep_task: asyncio.Task | None = None
     don_tep_task: asyncio.Task | None = None
     phieu_luong_task: asyncio.Task | None = None
+    tu_day_task: asyncio.Task | None = None
     if settings.care_reminder_seconds > 0:
         from .care_reminders import run_care_reminder_loop
         reminder_task = asyncio.create_task(run_care_reminder_loop(settings.care_reminder_seconds))
@@ -124,6 +129,9 @@ async def lifespan(app: FastAPI):
         phieu_luong_task = asyncio.create_task(
             run_phieu_luong_mo_loop(settings.care_reminder_seconds)
         )
+        # Xếp lịch hẹn đẩy (08/11/2026): mỗi phút đẩy lệnh đã tới giờ hẹn, bằng quyền người hẹn.
+        from .services.xep_lich.hen_day import run_tu_day_loop
+        tu_day_task = asyncio.create_task(run_tu_day_loop(60))
         # Dọn refresh token quá hạn mỗi giờ (thay cho quét ở mỗi lượt đăng nhập).
         from .don_dinh_ky import run_don_dep_loop
         don_dep_task = asyncio.create_task(run_don_dep_loop())
@@ -137,7 +145,8 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        for task in (reminder_task, bao_tri_task, don_dep_task, don_tep_task, phieu_luong_task, bridge_task):
+        for task in (reminder_task, bao_tri_task, don_dep_task, don_tep_task, phieu_luong_task,
+                     tu_day_task, bridge_task):
             if task is not None:
                 task.cancel()
 
@@ -231,6 +240,7 @@ app.include_router(lsx.router)
 # (`services/bai_ghep_service.py` + `repositories/bai_ghep_repo.py`) vẫn là của chung, đừng nhầm
 # là code chết: router này chạy trên đó.
 app.include_router(bai_ghep_2.router)
+app.include_router(ke_hoach_bo_phan.router)  # Kế hoạch bộ phận (07/11/2026)
 app.include_router(xep_lich.router)          # Xếp lịch — bàn cấp LỆNH, module quyền `xep_lich`
                                              # (bàn theo công đoạn `xep_lich_2` xoá hẳn 18/09/2026, mg 0314)
 app.include_router(ke_hoach_vat_tu.router)   # bảng cân đối vật tư (cùng module quyền `san_xuat`)
@@ -243,6 +253,9 @@ app.include_router(gia_cong_ngoai.router)    # Gia công ngoài — cùng module
 app.include_router(tai_san.router)            # sổ tài sản cố định + CCDC (module quyền `tai_san`; không còn kỳ chốt từ 08/09/2026)
 app.include_router(muc_thu_chi.router)        # danh mục Mục thu chi (module quyền `dm_muc_thu_chi`)
 app.include_router(bao_cao_thu_chi.router)    # Báo cáo thu chi theo mục × tháng (module quyền `bao_cao_thu_chi`)
+app.include_router(thuong_mai.router)         # Đơn thương mại — chỉ In Hà Phương (phân hệ `thuong_mai`, quyền `don_hang_ban`)
+app.include_router(xe_giao_hang.router)       # Xe giao hàng kiểu Hà Phương — chỉ phân hệ `giao_hang_hp` (module `xe_giao_hang`)
+app.include_router(giao_hang_hp.router)       # Cách giao lúc Xuất hàng + cước chờ chi — chỉ phân hệ `giao_hang_hp`
 
 
 

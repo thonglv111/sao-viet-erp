@@ -5,7 +5,7 @@ giờ chỉ biết bảng lịch cũ, nên nếu không nối thì mỗi nơi h�
 
 - giữ chỗ vật tư: lệnh bị coi là chưa qua cửa kế hoạch → nhả chỗ đã giữ;
 - kế hoạch vật tư: "ngày cần" rơi về suy đoán từ hạn SX thay vì giờ bước thật;
-- màn Máy: máy đang chạy hiện "rảnh" — sai theo hướng nguy hiểm nhất, người ta đẩy thêm việc vào;
+- màn Máy: máy đang chạy hiện "rảnh" — sai theo hướng nguy hiểm nhất, người ta đẩy thêm việc vào (bài này gỡ 08/11/2026 cùng tốc độ máy: không còn khoảng chạy dự kiến để so);
 - bàn tổ: thẻ việc ra TRỐNG GIỜ, tổ không xếp được thứ tự làm.
 
 Không cái nào trong bốn cái đó làm test khác đỏ, nên phải có bộ riêng chốt lại.
@@ -65,31 +65,6 @@ def test_giu_cho_khong_nha_lenh_xep_o_man_3(db, svc3, lenh):
     assert lenh.id not in GiuChoRepository(db).chu_the_da_xep_lich()[0]
     svc3.dat_moc(lenh.id, MOC)
     assert lenh.id in GiuChoRepository(db).chu_the_da_xep_lich()[0]
-
-
-def test_man_may_thay_may_dang_ban(db, svc3, lenh):
-    """Bước IN có máy — giữa khoảng chạy của nó, cột Trạng thái phải nói máy đang bận."""
-    from app.services.may_trang_thai import lenh_dang_chay
-
-    svc3.dat_moc(lenh.id, MOC)
-    moc = moc_theo_buoc(db, [lenh.id])
-    may_ids = [c.may_id for c in lenh.cong_doans if c.may_id]
-    assert may_ids, "lệnh mẫu không có bước nào gán máy — test mất ý nghĩa"
-
-    trong = None
-    for c in lenh.cong_doans:
-        if c.may_id and c.id in moc:
-            bd, kt = moc[c.id]
-            if kt > bd:
-                trong = (c.may_id, bd + (kt - bd) / 2)
-                break
-    assert trong, "không bước máy nào có khoảng chạy > 0"
-    may_id, giua = trong
-    dang = lenh_dang_chay(db, may_ids, giua)
-    assert may_id in dang and dang[may_id]["ma"] == lenh.ma
-
-    # Trước mốc bắt đầu thì máy phải rảnh — nếu không là cầu đang trả khoảng vô hạn.
-    assert lenh_dang_chay(db, may_ids, MOC - timedelta(days=30)) == {}
 
 
 def test_the_viec_duoi_xuong_co_gio_du_kien(db, svc3, lenh, admin):

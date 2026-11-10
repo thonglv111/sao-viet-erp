@@ -9,12 +9,12 @@
 // công đoạn" duy nhất ở bảng, nên người dùng không phải nhớ mình đang ở tầng lưu nào.
 //
 // Năng suất là snapshot chỉ đọc từ máy hoặc định mức đầu việc; người dùng chỉ nhập đè thời gian.
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ApiError, api, LSX_LOAI_BUOC_META, type LsxLoaiBuoc, type NhaGiaCong } from "../api/client";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { ApiError, api, LSX_LOAI_BUOC_LENH, type LsxLoaiBuoc, type NhaGiaCong } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
 import { Select, type SelectOption } from "../components/Select";
-import { CongThucTip, ketQuaDienGiai } from "../components/CongThucTip";
+import { CongThucTip } from "../components/CongThucTip";
 import type { ViTriDai } from "./gia-cong/giaCong";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
 import { coDonViGoc, nhanDongTon, nhanKho } from "../lib/khoGiay";
@@ -27,32 +27,21 @@ import {
   capMon,
   giayChoLuu,
   heSoChu,
-  mayChonDuoc,
-  mayMacDinh,
-  mayMacDinhCuaTo,
-  toChuaCoMay,
-  toKhacCuaMay,
-  nhanChang,
   nhanDonVi,
   nhanGiayTheoDauVao,
   patchLoaiBuoc,
-  phut,
   tenBuoc,
-  thoiLuong,
-  thoiLuongLive,
-  toChonDuoc,
 } from "./lsxBuoc";
 
 // Bước THUÊ NGOÀI (spec gia công ngoài 2026-09-26): nhà gia công lo máy, người, vật tư, thời gian.
 // Drawer chỉ còn NHÀ GIA CÔNG (danh mục Nhà cung cấp tích "Nhận gia công") + ĐƠN GIÁ cả lần ở bước
 // cuối dải. Mang đi / chốt số làm ở khối Gia công ngoài trên lệnh sau phát hành.
-const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "to", "thue_ngoai"];
+// 07/11/2026: hai loại Nội bộ | Gia công. "Nội bộ" lưu `may`, bước cũ mang `to` vẫn tính là Nội bộ.
+const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "thue_ngoai"];
 
 /** Gom máy theo `loai_may`.
  *  Xưởng có ~24 máy đủ loại (bế, bồi, UV, cán, in) — đổ phẳng thì gán máy bế cho bước ghi kẽm
  *  cũng trôi. Nhóm KHÔNG chặn: vẫn chọn được máy bất kỳ, chỉ là mắt phải đi qua nhãn loại. */
-const DS_TEN = new Intl.ListFormat("vi", { style: "long", type: "conjunction" });
-
 export function nhomMayTheoLoai(mayRefs: RefRow[]): { ten: string; items: RefRow[] }[] {
   const groups = new Map<string, RefRow[]>();
   for (const m of mayRefs) {
@@ -98,12 +87,12 @@ export function LsxBuocDrawer({
   laBuocGiao,
   soLuongDat,
   congDoanRefs,
-  toRefs,
-  mayRefs,
+  // (`toRefs`, `mayRefs` vẫn là prop; drawer thôi chọn tổ, máy từ 07/11/2026.)
   khuonRefs,
   tenSanPham,
   tenKhach,
   onTaoKhuon,
+  napGoiY,
   vatTuRefs,
   giayRefs,
   phuThuocRefs,
@@ -115,7 +104,7 @@ export function LsxBuocDrawer({
   onPatch,
   onPatchLsx,
   onDoiCongDoan,
-  onDoiMay,
+  // (`onDoiMay` vẫn là prop nhưng drawer thôi chọn máy từ 07/11/2026, máy do bộ phận chọn.)
   onDoiTo,
   tabDau,
   onClose,
@@ -143,6 +132,8 @@ export function LsxBuocDrawer({
   tenKhach: string;
   /** Tạo dao mới cho bước — trả id dao vừa tạo để gán luôn. */
   onTaoKhuon: (input: { ten: string; loai: string | null }) => Promise<number>;
+  /** Lượng gợi ý từng món cho bước đã lưu (`row.id`) — hỏi khi mở ngăn, không đi kèm chi tiết lệnh. */
+  napGoiY?: (buocId: number) => Promise<EditRow["vat_tu_goi_y"]>;
   vatTuRefs: RefRow[] | null;
   giayRefs: RefRow[] | null;
   phuThuocRefs: import("../api/client").LsxPhuThuocOption[];
@@ -185,6 +176,18 @@ export function LsxBuocDrawer({
   const laBuocCuoi = laBuocGiao && !!row.don_vi_ra;
   const [slRaCuoi, setSlRaCuoi] = useState(String(soLuongDat ?? 0));
   useEffect(() => setSlRaCuoi(String(soLuongDat ?? 0)), [soLuongDat]);
+  // Lượng gợi ý từng món: hỏi riêng khi mở ngăn (chi tiết lệnh không mang nữa, 10/11/2026). Bước
+  // chưa lưu (`row.id` null) chưa có số vào–ra ở máy chủ nên không hỏi. `napGoiY` đổi khi lệnh vừa
+  // lưu ⇒ hỏi lại theo số mới.
+  const [goiYNap, setGoiYNap] = useState<{ id: number; ds: EditRow["vat_tu_goi_y"] } | null>(null);
+  useEffect(() => {
+    const id = row.id;
+    if (id == null || !napGoiY) return;
+    let huy = false;
+    napGoiY(id).then((ds) => { if (!huy) setGoiYNap({ id, ds }); }).catch(() => {});
+    return () => { huy = true; };
+  }, [row.id, napGoiY]);
+  const goiYDs = goiYNap && goiYNap.id === row.id ? goiYNap.ds : row.vat_tu_goi_y;
 
   // Bảng nhãn đơn vị nạp ở bảng cha rồi, gọi lại ở đây chỉ để drawer TỰ vẽ lại khi bảng về muộn
   // (hook có cache + danh sách người chờ dùng chung, không đẻ thêm request).
@@ -253,7 +256,7 @@ export function LsxBuocDrawer({
     for (const x of giayRefs ?? []) {
       if (daCo("giay", x.id)) continue;
       // Khổ gợi ý của chính mã này (nếu máy chủ đã tính cho bước) — để nhãn nói "khổ 1000 mm (kg)".
-      const khoGoiY = row.vat_tu_goi_y.find((g) => capMon(g.hang_loai, g.vat_tu_id) === capMon("giay", x.id))?.kho_rong;
+      const khoGoiY = goiYDs.find((g) => capMon(g.hang_loai, g.vat_tu_id) === capMon("giay", x.id))?.kho_rong;
       const nhanDv = nhanGiayTheoDauVao(row.don_vi_vao, nhanDonVi(x.donVi), khoGoiY);
       ds.push({
         value: capMon("giay", x.id),
@@ -272,54 +275,12 @@ export function LsxBuocDrawer({
       });
     }
     return ds;
-  }, [giayRefs, vatTuRefs, row.vat_tus, row.don_vi_vao]);
+  }, [giayRefs, vatTuRefs, row.vat_tus, row.don_vi_vao, goiYDs]);
 
-  const mayForm = mayRefs?.find((m) => m.id === row.may_id) ?? null;
-  const t = useMemo(() => thoiLuong(row, mayForm), [row, mayForm]);
-  const tg = useMemo(() => thoiLuongLive(row, mayForm), [row, mayForm]);
-  // Luật lọc nằm ở `mayChonDuoc` (xem `lsxBuoc.ts`) — cùng một luật với backend, và tách ra khỏi
-  // JSX để test được: máy của bảng công đoạn, công đoạn có tổ thì chỉ máy THUỘC tổ của bước.
-  const cdBuoc = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
-  const mayMoi = useMemo(
-    () => (mayRefs ? mayChonDuoc(mayRefs, cdBuoc, row.department_id, row.may_id) : []),
-    [mayRefs, cdBuoc, row.department_id, row.may_id],
-  );
-  const nhomMay = useMemo(() => nhomMayTheoLoai(mayMoi), [mayMoi]);
-  // Máy đầu danh sách (của tổ, khi công đoạn có tổ) — ô chọn máy ghi "(mặc định)" như ô tổ.
-  const mayMd = useMemo(() => {
-    if (!mayRefs) return null;
-    if (cdBuoc?.coRangBuocTo) {
-      return mayMoi.filter((m) => m.id !== row.may_id || m.active !== false).length > 1
-        ? mayMacDinhCuaTo(mayRefs, cdBuoc, row.department_id) : null;
-    }
-    return (cdBuoc?.mayChoPhep?.length ?? 0) > 1 ? mayMacDinh(mayRefs, cdBuoc) : null;
-  }, [mayRefs, cdBuoc, mayMoi, row.department_id, row.may_id]);
-  // Máy thuộc nhiều tổ (mg `0435`): bày TÊN các tổ khác của máy — chọn máy không bị chặn, chỉ để
-  // người lập biết máy đang chia cho tổ nào nữa. `lech` = máy đang gán KHÔNG thuộc tổ đang chọn ⇒
-  // nói "thuộc", không nói "cũng thuộc" (23/10/2026).
-  const toKhacCua = useCallback((m: RefRow): { ten: string[]; lech: boolean } => {
-    const { khac, lech } = toKhacCuaMay(m.toIds, row.department_id);
-    return { ten: khac.map((t) => toRefs?.find((x) => x.id === t)?.ten ?? `Tổ #${t}`), lech };
-  }, [toRefs, row.department_id]);
-  // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi tổ/máy ở lệnh: khoá sẵn hai ô.
+  // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi bộ phận ở lệnh: khoá sẵn ô.
   const khoaToMay = !canUpdate || row.da_bat_dau;
-  // Tổ của bước chưa có máy nào chạy được công đoạn ⇒ nói thẳng, đừng để ô máy trống không lời.
-  const toHetMay = !!mayRefs && toChuaCoMay(mayRefs, cdBuoc, row.department_id);
-  // Ô TỔ: chỉ các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ, 18/09/2026), đúng thứ tự khai
-  // (tổ đầu = mặc định). Công đoạn chưa khai tổ ⇒ mời mọi tổ, như server không chặn.
-  // CHỈ nút lá (07/10/2026): `toRefs` là danh sách tổ = nút lá khối Sản xuất, id nào không nằm trong
-  // đó (nút cha, tổ đã xoá) thì không bày ra. Tổ đang gán là TỔ THẬT nhưng không còn phụ trách công
-  // đoạn thì vẫn hiện (gắn nhãn); bước đang gán nút cha thì select đứng ở "— chọn tổ —" — chỉ đổi khi
-  // người dùng chọn, nên không mất gì nếu họ không đụng.
-  const toChon = useMemo(() => {
-    if (!toRefs) return { items: [] as { id: number; ten: string }[], gioiHan: false };
-    const cd = congDoanRefs?.find((c) => c.id === row.cong_doan_id) ?? null;
-    return toChonDuoc(toRefs, cd, row.department_id);
-  }, [toRefs, congDoanRefs, row.cong_doan_id, row.department_id]);
-  const toDangGanHienDuoc = row.department_id != null && toChon.items.some((t) => t.id === row.department_id);
 
   // Đầu việc khoán của bước (`dsKhoan` / `khoanDaChon`) GỠ 18/09/2026 (mg `0320`).
-  const mayDaChon = mayRefs?.find((m) => m.id === row.may_id);
   const nhomPhuThuoc = useMemo(() => {
     const currentLsxId = phuThuocRefs.find((o) => o.step_key === row.key)?.lsx_id;
     const groups = new Map<number, typeof phuThuocRefs>();
@@ -371,7 +332,7 @@ export function LsxBuocDrawer({
     onPatch(patchLoaiBuoc(k));
   }
 
-  const meta = LSX_LOAI_BUOC_META[row.loai_buoc];
+  const meta = LSX_LOAI_BUOC_LENH[row.loai_buoc];
   const ngoai = row.loai_buoc === "thue_ngoai";
 
   // Mở drawer từ badge trạng thái ngoài bảng/sơ đồ → nhảy thẳng tới tab đó
@@ -381,17 +342,6 @@ export function LsxBuocDrawer({
     }
   }, [row.key, tabDau]);
 
-  const setup = Number(tg.setup_phut ?? 0);
-  const phatSinh = Number(tg.phat_sinh_phut ?? 0);
-  const chayTB = Number(tg.chay_phut ?? 0);
-  const coDai = Boolean(tg.co_dai_toc_do);
-  const khoanChuanBi: { ten?: string; phut?: number }[] = Array.isArray(tg.chuan_bi_khoan)
-    ? (tg.chuan_bi_khoan as { ten?: string; phut?: number }[])
-    : [];
-  const mayTen = mayDaChon?.ten ?? "";
-  const chiemTB = Number(tg.chiem_tai_nguyen_phut ?? 0);
-  const chiemMin = phatSinh + setup + Number(tg.chay_phut_min ?? chayTB);
-  const chiemMax = phatSinh + setup + Number(tg.chay_phut_max ?? chayTB);
 
   // Danh sách Tab chính cho Drawer
   const tabsList = useMemo(() => {
@@ -402,10 +352,10 @@ export function LsxBuocDrawer({
           { key: "phan_cong", label: "Nhà gia công" },
         ]
       : [
+          // 07/11/2026: lệnh không chọn tổ, máy, giờ nữa ⇒ gỡ "Phân công & Thiết bị" và
+          // "Tiến độ & Thời gian". Bộ phận nhận nằm ở Cấu hình; máy, nhóm, thứ tự do bộ phận chọn.
           { key: "cau_hinh", label: "Cấu hình & Số lượng" },
-          { key: "phan_cong", label: "Phân công & Thiết bị" },
           { key: "vat_tu", label: "Vật tư", badge: row.vat_tus.length },
-          { key: "tien_do", label: "Tiến độ & Thời gian" },
         ];
     // CUỐI hàng — badge đếm số bước tiền nhiệm đang chọn, đúng con số trước đây treo ở tab Tiến độ.
     list.push({ key: "phu_thuoc", label: "Phụ thuộc", badge: row.phu_thuoc_step_keys.length });
@@ -415,6 +365,7 @@ export function LsxBuocDrawer({
   // Đang đứng ở tab vừa biến mất (đổi sang thuê ngoài, hoặc badge ngoài bảng mở thẳng tab đó).
   useEffect(() => {
     if (ngoai && (activeTab === "vat_tu" || activeTab === "tien_do")) setActiveTab("phan_cong");
+    if (!ngoai && (activeTab === "phan_cong" || activeTab === "tien_do")) setActiveTab("cau_hinh");
   }, [ngoai, activeTab]);
 
   return (
@@ -566,16 +517,17 @@ export function LsxBuocDrawer({
                     <span className="khsx-field__label">LOẠI BƯỚC THỰC HIỆN</span>
                     <div className="khsx-seg-std" role="group" aria-label="Loại bước">
                       {LOAI_BUOC_ORDER.map((k) => {
-                        const m = LSX_LOAI_BUOC_META[k];
+                        const m = LSX_LOAI_BUOC_LENH[k];
+                        const dang = k === "thue_ngoai" ? ngoai : !ngoai;
                         return (
                           <button
                             key={k}
                             type="button"
-                            className={row.loai_buoc === k ? "is-active" : ""}
+                            className={dang ? "is-active" : ""}
                             disabled={!canUpdate}
-                            aria-pressed={row.loai_buoc === k}
+                            aria-pressed={dang}
                             title={m.hint}
-                            onClick={() => doiLoaiBuoc(k)}
+                            onClick={() => { if (!dang) doiLoaiBuoc(k); }}
                           >
                             {m.label}
                           </button>
@@ -583,6 +535,41 @@ export function LsxBuocDrawer({
                       })}
                     </div>
                   </div>
+
+                  {/* BỘ PHẬN NHẬN (07/11/2026) thay ô tổ + máy: chỉ các bộ phận có nhóm làm được công
+                      đoạn, xếp theo số nhóm, bộ phận đầu là chọn sẵn. */}
+                  {!ngoai && (
+                    <div className="khsx-field khsx-field--wide">
+                      <span className="khsx-field__label">BỘ PHẬN NHẬN</span>
+                      {buocGhep && deLen ? (
+                        <span className="khsx-val-text">
+                          {row.department_ten ?? "—"} (chạy chung ở bài ghép {baiGhep?.ma}, đổi ở bài)
+                        </span>
+                      ) : (
+                        <Select
+                          options={(row.bo_phan_chon ?? []).map((b, k) => ({
+                            value: String(b.id),
+                            label: b.ten,
+                            hint: `${b.so_nhom} nhóm làm được${k === 0 ? ", chọn sẵn" : ""}`,
+                          }))}
+                          value={row.department_id != null ? String(row.department_id) : ""}
+                          onChange={(v) => onDoiTo(v ? Number(v) : null)}
+                          disabled={khoaToMay}
+                          ariaLabel="Bộ phận nhận"
+                          placeholder={(row.bo_phan_chon?.length ?? 0) === 0
+                            ? "Công đoạn chưa tick nhóm nào" : "— chọn bộ phận —"}
+                          searchable
+                          searchPlaceholder="Gõ tên bộ phận…"
+                          portal
+                          className="khsx-select-std"
+                        />
+                      )}
+                      <span className="khsx-field__hint">
+                        {row.da_bat_dau ? "Việc đã bắt đầu ở xưởng, không đổi bộ phận được nữa."
+                          : "Máy, nhóm thợ và thứ tự làm do bộ phận chọn ở Kế hoạch bộ phận."}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Hàng 2: Ghi chú kỹ thuật — chiếm cả hàng từ 07/09/2026, khi ô "Bước bắt buộc"
                       ở cột 2 bị GỠ: routing đã khai bước nào thì bước đó PHẢI làm, không có bước
@@ -765,160 +752,48 @@ export function LsxBuocDrawer({
                 {/* Hai dòng diễn giải "Số ra = …" / "Số vào = …" của bước ngoài dòng giấy GỠ
                     18/09/2026 (mg `0324`) cùng công thức sản lượng ra của công đoạn. */}
               </section>
+              {/* Thẻ Khuôn dao của bước (chuyển từ tab Phân công 07/11/2026) */}
+              {row.requires_tooling && (
+                <KhuonCuaBuoc
+                  row={row}
+                  tenSanPham={tenSanPham}
+                  tenKhach={tenKhach}
+                  khuonRefs={khuonRefs}
+                  canUpdate={canUpdate}
+                  onChon={(id) => {
+                    // Gán ĐỦ bộ trường của dao, không chỉ id: thẻ DAG / bảng công đoạn đọc
+                    // `khuon_be_ma` + tình trạng, mà mấy trường đó trước chỉ có sau khi Lưu ⇒
+                    // chọn xong thẻ vẫn kêu "chưa chốt khuôn". Bỏ chọn thì xoá sạch, kẻo thẻ
+                    // còn giữ mã cũ. Dao vừa tạo chưa kịp vào danh sách ⇒ chỉ có id, Lưu xong
+                    // máy chủ trả đủ.
+                    const dao = id == null ? null : (khuonRefs ?? []).find((k) => k.id === id);
+                    onPatch({
+                      khuon_be_id: id,
+                      khuon_be_ma: dao?.ma ?? null,
+                      khuon_be_ten: dao?.ten ?? null,
+                      khuon_be_so_ke: dao?.so_ke ?? null,
+                      khuon_be_tinh_trang: dao?.tinh_trang ?? null,
+                    });
+                  }}
+                  onTaoMoi={onTaoKhuon}
+                />
+              )}
             </div>
           )}
 
           {/* =========================================================================
               TAB 2: PHÂN CÔNG & THIẾT BỊ
              ========================================================================= */}
-          {activeTab === "phan_cong" && (
+          {activeTab === "phan_cong" && ngoai && (
             <div className="khsx-tab-pane">
-                <div className="khsx-form-stack">
-                  {ngoai && (
-                    <NhaGiaCongCard
-                      row={row}
-                      dai={daiGiaCong}
-                      canUpdate={canUpdate}
-                      onPatch={onPatch}
-                    />
-                  )}
-                  {!ngoai && (
-                  <>
-                  {/* Thẻ Tổ phụ trách */}
-                  <section className="khsx-section-card">
-                    <div className="khsx-section-card__head">
-                      <h3 className="khsx-section-card__title">Tổ sản xuất & Máy thiết bị</h3>
-                    </div>
-
-                    <div className="khsx-assign-grid">
-                      {/* TỔ PHỤ TRÁCH — chọn MỘT trong các tổ khai ở danh mục Công đoạn (nhiều tổ,
-                          18/09/2026). Bước chạy chung ở bài ghép thì tổ do lượt chung quyết, như máy. */}
-                      <label className="khsx-field">
-                        <span className="khsx-field__label">TỔ PHỤ TRÁCH</span>
-                        {buocGhep && deLen ? (
-                          <div className="khsx-gang-box">
-                            <span className="khsx-gang-box__title">
-                              {deLen.to_ten ?? "Chưa chọn ở bài"}
-                            </span>
-                            <span className="khsx-gang-box__hint">
-                              Tổ của lượt chung — đổi ở bài <strong>{buocGhep.ma}</strong>.
-                            </span>
-                          </div>
-                        ) : toRefs ? (
-                          <>
-                            <select
-                              className="khsx-select-std"
-                              value={toDangGanHienDuoc ? (row.department_id ?? "") : ""}
-                              disabled={khoaToMay}
-                              onChange={(e) => onDoiTo(e.target.value ? Number(e.target.value) : null)}
-                            >
-                              {!toDangGanHienDuoc && <option value="">— chọn tổ —</option>}
-                              {toChon.items.map((t, i) => (
-                                <option key={t.id} value={t.id}>
-                                  {toChon.gioiHan && i === 0 ? `${t.ten} (mặc định)` : t.ten}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="khsx-field__hint">
-                              {row.da_bat_dau ? "Việc đã bắt đầu, đổi máy ở màn Việc của tổ."
-                                : toChon.gioiHan
-                                ? "Chỉ các tổ phụ trách khai ở danh mục Công đoạn. Lúc ghi sản lượng, tổ chọn trong công việc khoán của tổ này."
-                                : "Công đoạn chưa khai tổ phụ trách — đang mời mọi tổ."}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="khsx-val-text">{row.department_ten ?? "—"}</span>
-                        )}
-                      </label>
-
-                      {/* Máy sản xuất (chỉ với bước MÁY) */}
-                      {row.loai_buoc !== "to" && (
-                        <label className="khsx-field">
-                          <span className="khsx-field__label">MÁY SẢN XUẤT</span>
-                          {buocGhep && deLen ? (
-                            <div className="khsx-gang-box">
-                              <span className="khsx-gang-box__title">
-                                {deLen.may_ten ?? buocGhep.may_ten ?? "Chưa chọn ở bài"}
-                              </span>
-                              <span className="khsx-gang-box__hint">
-                                Bước "{deLen.ten}" chạy chung ở bài <strong>{buocGhep.ma}</strong> (cấp {deLen.so_luong_vao.toLocaleString("vi-VN")} {dvNhanChung(row.don_vi_vao)}).
-                              </span>
-                            </div>
-                          ) : mayRefs ? (
-                            <select
-                              className="khsx-select-std"
-                              value={row.may_id ?? ""}
-                              disabled={khoaToMay}
-                              onChange={(e) =>
-                                onDoiMay(e.target.value ? Number(e.target.value) : null)
-                              }
-                            >
-                              <option value="">— chưa gán máy —</option>
-                              {nhomMay.map((g) => (
-                                <optgroup key={g.ten} label={g.ten}>
-                                  {g.items.map((m) => {
-                                    const { ten: khac, lech } = toKhacCua(m);
-                                    const nhan = m.active === false ? `${m.ten} (ngừng dùng)`
-                                      : m.id === mayMd ? `${m.ten} (mặc định)` : m.ten;
-                                    return (
-                                      <option key={m.id} value={m.id}>
-                                        {khac.length ? `${nhan} — ${lech ? "thuộc" : "cũng thuộc"} ${DS_TEN.format(khac)}` : nhan}
-                                      </option>
-                                    );
-                                  })}
-                                </optgroup>
-                              ))}
-                            </select>
-                          ) : (
-                            <span className="khsx-val-text">—</span>
-                          )}
-                          {!(buocGhep && deLen) && mayForm && toKhacCua(mayForm).ten.length > 0 && (
-                            <span className="khsx-field__hint">
-                              {toKhacCua(mayForm).lech ? "Máy này không thuộc tổ đang chọn, máy của" : "Máy này cũng thuộc"}{" "}
-                              {toKhacCua(mayForm).ten.map((t) => <span key={t} className="lds-tag">{t}</span>)}
-                            </span>
-                          )}
-                          {!(buocGhep && deLen) && toHetMay && (
-                            <span className="khsx-field__hint">Tổ này chưa có máy chạy công đoạn này.</span>
-                          )}
-                        </label>
-                      )}
-                    </div>
-                  </section>
-
-                  {/* Hai thẻ "KÍP CHUẨN" và "Đầu việc thợ làm" GỠ 18/09/2026 (mg `0320` + `0321`, chủ
-                      khoanh đỏ trên màn): bỏ hẳn logic kíp người, bước thôi chọn đầu việc — việc
-                      khoán thợ chọn lúc ghi mẻ ở bàn tổ. Giờ của bước tổ gõ ở tab Thời gian. */}
-                  </>
-                  )}
-
-                  {/* Thẻ Khuôn dao của bước */}
-                  {row.requires_tooling && (
-                    <KhuonCuaBuoc
-                      row={row}
-                      tenSanPham={tenSanPham}
-                      tenKhach={tenKhach}
-                      khuonRefs={khuonRefs}
-                      canUpdate={canUpdate}
-                      onChon={(id) => {
-                        // Gán ĐỦ bộ trường của dao, không chỉ id: thẻ DAG / bảng công đoạn đọc
-                        // `khuon_be_ma` + tình trạng, mà mấy trường đó trước chỉ có sau khi Lưu ⇒
-                        // chọn xong thẻ vẫn kêu "chưa chốt khuôn". Bỏ chọn thì xoá sạch, kẻo thẻ
-                        // còn giữ mã cũ. Dao vừa tạo chưa kịp vào danh sách ⇒ chỉ có id, Lưu xong
-                        // máy chủ trả đủ.
-                        const dao = id == null ? null : (khuonRefs ?? []).find((k) => k.id === id);
-                        onPatch({
-                          khuon_be_id: id,
-                          khuon_be_ma: dao?.ma ?? null,
-                          khuon_be_ten: dao?.ten ?? null,
-                          khuon_be_so_ke: dao?.so_ke ?? null,
-                          khuon_be_tinh_trang: dao?.tinh_trang ?? null,
-                        });
-                      }}
-                      onTaoMoi={onTaoKhuon}
-                    />
-                  )}
-                </div>
+              <div className="khsx-form-stack">
+                <NhaGiaCongCard
+                  row={row}
+                  dai={daiGiaCong}
+                  canUpdate={canUpdate}
+                  onPatch={onPatch}
+                />
+              </div>
             </div>
           )}
 
@@ -959,7 +834,7 @@ export function LsxBuocDrawer({
                         </tr>
                       ) : (
                         row.vat_tus.map((v, i) => {
-                          const goiY = row.vat_tu_goi_y.find(
+                          const goiY = goiYDs.find(
                             (g) => capMon(g.hang_loai, g.vat_tu_id) === capMon(v.hang_loai, v.vat_tu_id));
                           // Giấy vừa chọn chưa lưu: máy chủ chưa dẫn xuất — có lý do lỗi thì vẫn nói lý do.
                           const choLuu = giayChoLuu(v) && !goiY?.ly_do;
@@ -1141,7 +1016,7 @@ export function LsxBuocDrawer({
                                   if (!item) return;
                                   if (row.vat_tus.some(
                                     (v) => capMon(v.hang_loai, v.vat_tu_id) === cap)) return;
-                                  const goiY = row.vat_tu_goi_y.find(
+                                  const goiY = goiYDs.find(
                                     (g) => capMon(g.hang_loai, g.vat_tu_id) === cap);
                                   set("vat_tus", [
                                     ...row.vat_tus,
@@ -1234,268 +1109,6 @@ export function LsxBuocDrawer({
             </div>
           )}
 
-          {activeTab === "tien_do" && (() => {
-            // 06/10/2026 — dựng lại: KẾT QUẢ lên đầu (bước này chiếm máy bao lâu), bóc tách thành
-            // các dòng cộng dồn như một phiếu tính, ô điều chỉnh xuống cuối. Trước đây cùng một con
-            // số hiện ba lần (dải tỷ trọng, thẻ giai đoạn, ô "Kế hoạch Gantt") và phút lẻ
-            // "7.866,67′" đứng to hơn giờ đọc được.
-            const coMay = row.loai_buoc !== "to" && Number(tg.nang_suat_hieu_dung ?? 0) > 0;
-            const coQuyDoi = coMay && tg.phuong_phap !== "chua_quy_doi";
-            const pct = (v: number) => (chiemTB > 0 ? Math.max(2, (v / chiemTB) * 100) : 0);
-            const viTriKH = chiemMax > chiemMin ? ((chiemTB - chiemMin) / (chiemMax - chiemMin)) * 100 : 50;
-            return (
-            <div className="khsx-tab-pane">
-              <section className="khsx-section-card khsx-tgb">
-                {Array.isArray(tg.canh_bao) &&
-                  tg.canh_bao.map((warning) => (
-                    <div className="khsx-alert" key={String(warning)}>
-                      {String(warning)}
-                    </div>
-                  ))}
-
-                <div className="khsx-tgb__ket-qua">
-                  <span className="khsx-tgb__nhan">{row.loai_buoc === "to" ? "Tổ làm trong" : "Chiếm máy"}</span>
-                  <span className="khsx-tgb__so-lon">{phut(chiemTB)}</span>
-                  {t.tong !== t.chiemMay && (
-                    <span className="khsx-tgb__phu">
-                      Xong sau {phut(t.tong)} — gồm {phut(t.tong - t.chiemMay)} chờ
-                    </span>
-                  )}
-                </div>
-
-                {chiemTB > 0 && (
-                  <div className="khsx-tgb__thanh" aria-hidden="true">
-                    {setup > 0 && <span className="khsx-tgb__doan is-chuan-bi" style={{ width: `${pct(setup)}%` }} />}
-                    {chayTB > 0 && <span className="khsx-tgb__doan is-chay" style={{ width: `${pct(chayTB)}%` }} />}
-                    {phatSinh > 0 && <span className="khsx-tgb__doan is-phat-sinh" style={{ width: `${pct(phatSinh)}%` }} />}
-                  </div>
-                )}
-
-                <ul className="khsx-tgb__ds">
-                  <li className="khsx-tgb__dong">
-                    <span className="khsx-tgb__cham is-chuan-bi" aria-hidden="true" />
-                    <div className="khsx-tgb__giua">
-                      <span className="khsx-tgb__ten">Chuẩn bị &amp; căn chỉnh</span>
-                      {khoanChuanBi.length > 0 && (
-                        <span className="khsx-tgb__khoan">
-                          {khoanChuanBi.map((k, i) => (
-                            <span key={`${k.ten}-${i}`} className="khsx-tgb__khoan-o">
-                              {k.ten || "—"} <b>{num(Number(k.phut ?? 0))} phút</b>
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </div>
-                    <span className="khsx-tgb__gio">{phut(setup)}</span>
-                  </li>
-
-                  <li className="khsx-tgb__dong">
-                    <span className="khsx-tgb__cham is-chay" aria-hidden="true" />
-                    <div className="khsx-tgb__giua">
-                      {/* Công thức quy đổi (có khi là cả câu `if (…)` ba dòng) hiện khi rê chuột vào
-                          tên — dòng dưới chỉ giữ phép chia ngắn. */}
-                      <CongThucTip
-                        tieuDe={row.loai_buoc === "to" ? "Tổ làm" : "Chạy máy"}
-                        congThuc={coMay && tg.quy_doi_dien_giai ? String(tg.quy_doi_dien_giai) : null}
-                        them={
-                          coMay && tg.quy_doi_dien_giai
-                            ? `÷ ${num(Number(tg.nang_suat_hieu_dung ?? 0))}/giờ${
-                                Number(tg.so_luot_chay ?? 1) !== 1 ? ` × ${Number(tg.so_luot_chay ?? 1)} lượt` : ""
-                              } = ${phut(chayTB)}`
-                            : null
-                        }
-                        ghiChu={coMay ? `Nguồn tính: ${mayTen || "Chưa gán máy"}` : null}
-                      >
-                        <span className="khsx-tgb__ten">{row.loai_buoc === "to" ? "Tổ làm" : "Chạy máy"}</span>
-                      </CongThucTip>
-                      {coQuyDoi && (
-                        <span className="khsx-tgb__phep">
-                          {tg.quy_doi_dien_giai
-                            ? ketQuaDienGiai(String(tg.quy_doi_dien_giai))
-                            : `${num(Number(tg.so_luong_vao ?? 0))} ${nhanChang(tg.don_vi_vao as string | null)}`}
-                          {" ÷ "}
-                          {num(Number(tg.nang_suat_hieu_dung ?? 0))}/giờ
-                          {Number(tg.so_luot_chay ?? 1) !== 1 ? ` × ${Number(tg.so_luot_chay ?? 1)} lượt` : ""}
-                        </span>
-                      )}
-                      {row.loai_buoc === "to" && (
-                        <span className="khsx-tgb__phep">Theo số giờ kế hoạch người lập lệnh gõ</span>
-                      )}
-                    </div>
-                    <span className="khsx-tgb__gio">{phut(chayTB)}</span>
-                  </li>
-
-                  {phatSinh > 0 && (
-                    <li className="khsx-tgb__dong">
-                      <span className="khsx-tgb__cham is-phat-sinh" aria-hidden="true" />
-                      <div className="khsx-tgb__giua">
-                        <span className="khsx-tgb__ten">Phát sinh ngoài định mức</span>
-                      </div>
-                      <span className="khsx-tgb__gio">{phut(phatSinh)}</span>
-                    </li>
-                  )}
-                </ul>
-
-                {coDai ? (
-                  <div className="khsx-tgb__dai">
-                    <span className="khsx-tgb__dai-nhan">Khoảng theo tốc độ máy</span>
-                    <div className="khsx-tgb__dai-hang">
-                      <span className="khsx-tgb__dai-dau">
-                        Nhanh nhất <b>{phut(chiemMin)}</b>
-                      </span>
-                      <span className="khsx-tgb__dai-ray" aria-hidden="true">
-                        <span
-                          className="khsx-tgb__dai-moc"
-                          style={{ left: `${Math.min(100, Math.max(0, viTriKH))}%` }}
-                        />
-                      </span>
-                      <span className="khsx-tgb__dai-dau">
-                        Chậm nhất <b>{phut(chiemMax)}</b>
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="khsx-tgb__dai-trong">
-                    {row.loai_buoc === "to"
-                      ? "Bước tổ chạy theo số giờ kế hoạch gõ tay — không có khoảng nhanh–chậm."
-                      : "Máy chưa khai tốc độ tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."}
-                  </p>
-                )}
-              </section>
-
-              <section className="khsx-section-card">
-                <div className="khsx-section-card__head">
-                  <h3 className="khsx-section-card__title">Điều chỉnh</h3>
-                </div>
-                <div className="khsx-thoi-gian-grid">
-                  {/* 08/09/2026: ô CHỈ hiện ở bước máy/thuê ngoài — làm tay thì không có "lượt qua
-                      máy" nào để đếm. Bước tổ ép cứng 1 lượt (payload gửi 1, server ghi lại 1 lần
-                      nữa). 06/10/2026: bỏ cặp nút "1 lượt / 2 lượt" đứng cạnh ô số — hai điều khiển
-                      cùng sửa một giá trị; ô số nay có nút trừ/cộng. */}
-                  {row.loai_buoc !== "to" && (
-                    <div className="khsx-field">
-                      <label className="khsx-field__label" htmlFor={`luot-${row.key}`}>Số lượt qua máy</label>
-                      <div className="khsx-tgb__buoc-so">
-                        <button
-                          type="button"
-                          className="khsx-tgb__buoc-nut"
-                          aria-label="Bớt một lượt"
-                          disabled={!canUpdate || Number(row.so_luot_chay || 1) <= 1}
-                          onClick={() => set("so_luot_chay", String(Math.max(1, Number(row.so_luot_chay || 1) - 1)))}
-                        >
-                          −
-                        </button>
-                        <input
-                          id={`luot-${row.key}`}
-                          type="number"
-                          min="1"
-                          className="khsx-tgb__buoc-o"
-                          value={row.so_luot_chay}
-                          placeholder="1"
-                          disabled={!canUpdate}
-                          onChange={(e) => set("so_luot_chay", e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          className="khsx-tgb__buoc-nut"
-                          aria-label="Thêm một lượt"
-                          disabled={!canUpdate}
-                          onClick={() => set("so_luot_chay", String(Number(row.so_luot_chay || 1) + 1))}
-                        >
-                          +
-                        </button>
-                        <span className="khsx-tgb__buoc-dv">lượt</span>
-                      </div>
-                      <span className="khsx-field__hint">In trở 2 mặt = 2 lượt qua máy</span>
-                    </div>
-                  )}
-
-                  {/* SỐ GIỜ KẾ HOẠCH (18/09/2026, mg `0319`) — bước TỔ không còn năng suất hay kíp
-                      để máy chia, nên giờ của nó là số người lập lệnh ƯỚC gõ tay. Mặc định 0, nhận
-                      số lẻ (1,5 giờ), để 0 cũng không cảnh báo gì (chủ chốt). */}
-                  {row.loai_buoc === "to" && (
-                    <div className="khsx-field">
-                      <label className="khsx-field__label" htmlFor={`gio-kh-${row.key}`}>Số giờ kế hoạch</label>
-                      <div className="khsx-input-unit-combine">
-                        <input
-                          id={`gio-kh-${row.key}`}
-                          type="number"
-                          min="0"
-                          step="0.25"
-                          inputMode="decimal"
-                          className="khsx-input-combine__num"
-                          value={row.so_gio_ke_hoach}
-                          placeholder="0"
-                          disabled={!canUpdate}
-                          onChange={(e) => {
-                            // Chỉ nhận SỐ: ô rỗng về "" (gửi đi thành 0), số âm kẹp về 0. Giữ nguyên
-                            // chuỗi đang gõ ("1." / "0,5" giữa chừng) để không nuốt dấu thập phân.
-                            const v = e.target.value;
-                            set("so_gio_ke_hoach", v === "" || Number(v) >= 0 ? v : "0");
-                          }}
-                        />
-                        <span className="khsx-input-combine__unit">giờ</span>
-                      </div>
-                      <span className="khsx-field__hint">
-                        Tổ ước làm bao lâu — xếp lịch chiếm đúng chừng ấy giờ của tổ. Để 0 nếu chưa ước.
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="khsx-field">
-                    <label className="khsx-field__label" htmlFor={`phat-sinh-${row.key}`}>Thời gian phát sinh</label>
-                    <div className="khsx-extra-time-control">
-                      <div className="khsx-input-unit-combine">
-                        <input
-                          id={`phat-sinh-${row.key}`}
-                          type="number"
-                          min="0"
-                          className="khsx-input-combine__num"
-                          value={row.phat_sinh_phut}
-                          placeholder="0"
-                          disabled={!canUpdate}
-                          onChange={(e) => set("phat_sinh_phut", Math.max(0, Number(e.target.value) || 0).toString())}
-                        />
-                        <span className="khsx-input-combine__unit">phút</span>
-                      </div>
-                      {canUpdate && (
-                        <div className="khsx-quick-presets">
-                          <button
-                            type="button"
-                            className="khsx-preset-btn"
-                            title="Thêm 15 phút"
-                            onClick={() => set("phat_sinh_phut", (Number(row.phat_sinh_phut || 0) + 15).toString())}
-                          >
-                            +15 phút
-                          </button>
-                          <button
-                            type="button"
-                            className="khsx-preset-btn"
-                            title="Thêm 30 phút"
-                            onClick={() => set("phat_sinh_phut", (Number(row.phat_sinh_phut || 0) + 30).toString())}
-                          >
-                            +30 phút
-                          </button>
-                          {Number(row.phat_sinh_phut || 0) > 0 && (
-                            <button
-                              type="button"
-                              className="khsx-preset-btn khsx-preset-btn--reset"
-                              title="Đặt lại 0 phút"
-                              onClick={() => set("phat_sinh_phut", "0")}
-                            >
-                              Xoá
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <span className="khsx-field__hint">Cộng thẳng vào thời gian chiếm máy</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-            );
-          })()}
         </div>
 
         <footer className="khsx-drawer__foot">

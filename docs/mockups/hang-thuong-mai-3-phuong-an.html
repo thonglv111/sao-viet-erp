@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hàng thương mại</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --rust:#c5400a; --charcoal:#0f172a;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d; --tt-la-dot:#22c55e;
+  --tt-xam-bg:#e5e7eb; --tt-xam-fg:#374151; --tt-xam-dot:#6b7280;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c; --tt-cam-dot:#f97316;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1280px;margin:0 auto;padding:32px 16px 120px}
+h1{font-size:24px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:940px}
+.box{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.box h2{font-size:15px;margin:0 0 10px}
+.box ul{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--ash);font-size:13.5px}
+.cmp{border-collapse:collapse;width:100%;font-size:13px}
+.cmp th{font-size:12px;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);font-weight:600}
+.cmp td{padding:9px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:top;color:var(--ash)}
+.cmp td:first-child{color:var(--ink);white-space:nowrap}
+.optnav{position:sticky;top:0;z-index:30;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);padding:12px 0;margin:24px 0 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.optnav button{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.optnav button:hover{background:var(--rule-hair)}
+.optnav button.on{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-h{margin:0 0 6px;font-size:21px}
+.why{color:var(--ash);margin:4px 0 16px;max-width:980px;font-size:13.5px}
+.why ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
+.scr-h{font-size:16px;margin:26px 0 8px}
+
+/* khung app */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:10px;overflow:hidden;position:relative}
+.bar{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--canvas);border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.bar h4{margin:0;font-size:17px;font-weight:600;flex:1 1 200px}
+.btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;white-space:nowrap}
+.btn.chinh{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.loc{display:flex;gap:8px;padding:10px 16px;background:var(--canvas);border-bottom:1px solid var(--rule-soft);flex-wrap:wrap;align-items:center}
+.o-tim{height:32px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;min-width:260px;color:var(--ash-3);display:flex;align-items:center;font-size:13px;background:var(--canvas)}
+.chiploc{height:30px;border:1px solid var(--rule);border-radius:999px;padding:0 12px;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);background:var(--canvas)}
+.chiploc.on{border-color:var(--ink);color:var(--ink);font-weight:600}
+.tabs{display:flex;gap:2px;padding:0 16px;background:var(--canvas);border-bottom:1px solid var(--rule-soft)}
+.tabs span{padding:9px 12px;font-size:13px;color:var(--ash);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs span.on{color:var(--ink);border-color:var(--ink);font-weight:600}
+.tabs i{font-style:normal;color:var(--ash-3);margin-left:4px}
+.khung{overflow-x:auto;background:var(--canvas)}
+table.luoi{border-collapse:collapse;width:100%;min-width:900px;font-size:13px}
+.luoi th{height:34px;padding:0 10px;text-align:left;font-size:12px;font-weight:600;color:var(--ash-2);background:var(--paper);border-bottom:1px solid var(--rule-soft);border-right:1px solid var(--rule-hair);white-space:nowrap}
+.luoi td{height:34px;padding:0 10px;border-bottom:1px solid var(--rule-hair);border-right:1px solid var(--rule-hair);white-space:nowrap;color:var(--ink-2)}
+.luoi tr:hover td{background:var(--rule-hair)}
+.luoi .so{text-align:right;font-variant-numeric:tabular-nums}
+.luoi .mu{color:var(--ash-3)}
+.luoi tr.con td{background:#fbfcfd;color:var(--ash)}
+.luoi tr.con td:first-child{padding-left:34px}
+.mui{display:inline-block;width:16px;color:var(--ash-2);font-size:11px}
+.the{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--rule-hair);font-size:12px;color:var(--ink-2);margin-right:4px}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:999px;font-size:12px;font-weight:500}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%}
+.chip.ban{background:var(--tt-la-bg);color:var(--tt-la-fg)}.chip.ban::before{background:var(--tt-la-dot)}
+.chip.ngung{background:var(--tt-xam-bg);color:var(--tt-xam-fg)}.chip.ngung::before{background:var(--tt-xam-dot)}
+.cam{color:var(--tt-cam-fg)}
+.chan{display:flex;justify-content:space-between;padding:8px 16px;font-size:12.5px;color:var(--ash);background:var(--canvas);border-top:1px solid var(--rule-soft);flex-wrap:wrap;gap:8px}
+
+/* ngăn phải */
+.duoi{display:flex;min-height:560px}
+.duoi .trai{flex:1 1 auto;min-width:0;opacity:.45}
+.ngan{flex:0 0 640px;max-width:100%;background:var(--canvas);border-left:1px solid var(--rule);box-shadow:-8px 0 24px rgba(15,23,42,.06);display:flex;flex-direction:column}
+.ngan.rong{flex-basis:860px}
+.n-dau{padding:14px 18px 0;border-bottom:1px solid var(--rule-soft)}
+.n-dau .ma{font-size:12.5px;color:var(--ash-2)}
+.n-dau h5{margin:2px 0 10px;font-size:17px;font-weight:500}
+.n-dau .tabs{padding:0;border:0}
+.n-than{padding:16px 18px;overflow:auto;flex:1}
+.n-chan{padding:12px 18px;border-top:1px solid var(--rule-soft);display:flex;justify-content:flex-end;gap:8px}
+.nhom{margin:0 0 18px}
+.nhom h6{font-size:12px;font-weight:600;color:var(--ash-2);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+.dong{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center;min-height:38px}
+.dong label{font-size:13px;color:var(--ash)}
+.dong label em{font-style:normal;color:var(--rust)}
+.o{height:34px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;display:flex;align-items:center;font-size:13px;background:var(--canvas)}
+.o.mo{color:var(--ash-3)}
+.goi{font-size:12px;color:var(--ash-2);margin:4px 0 0 162px}
+table.bdv{border-collapse:collapse;width:100%;font-size:13px;border:1px solid var(--rule-soft);border-radius:8px;overflow:hidden}
+.bdv th{height:32px;padding:0 10px;text-align:left;font-size:12px;font-weight:600;color:var(--ash-2);background:var(--paper);border-bottom:1px solid var(--rule-soft)}
+.bdv td{height:40px;padding:0 10px;border-bottom:1px solid var(--rule-hair)}
+.bdv .so{text-align:right;font-variant-numeric:tabular-nums}
+.bdv .o{height:30px}
+.bdv .o.so{justify-content:flex-end}
+.them{font-size:13px;color:var(--ink-2);padding:8px 0;display:inline-block}
+.xoa{color:var(--ash-3);font-size:16px}
+.ben{display:grid;grid-template-columns:1fr 240px;gap:16px}
+.the-phai{border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.the-phai h6{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--ash-2);text-transform:uppercase;letter-spacing:.04em}
+.gat{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+.gat b{display:inline-block;width:34px;height:20px;border-radius:999px;background:var(--tt-la-dot);position:relative}
+.gat b::after{content:"";position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+.nho{font-size:12px;color:var(--ash-2);margin:6px 0 0}
+.so-to{font-size:20px;font-variant-numeric:tabular-nums}
+@media (max-width:900px){.ngan,.ngan.rong{flex-basis:100%}.duoi .trai{display:none}.ben{grid-template-columns:1fr}.dong{grid-template-columns:1fr}.goi{margin-left:0}}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Hàng thương mại: 3 phương án tham khảo Sapo</h1>
+<p class="lead">Màn danh mục Hàng thương mại của In Hà Phương: hàng mua về bán lại, không qua sản xuất. Dữ liệu mẫu là bút, giấy A4 và băng keo của tiệm. Ba phương án dùng chung một nền dữ liệu, chỉ khác cách bày.</p>
+
+<div class="box">
+<h2>Lấy gì từ Sapo (đọc ở help.sapo.vn, các bài Thêm mới sản phẩm thường, Sản phẩm có đơn vị quy đổi, Danh sách sản phẩm, Chi tiết sản phẩm)</h2>
+<ul>
+<li>Sapo khai đơn vị và giá trong cùng một bảng: mỗi dòng là một đơn vị (lon, thùng) với giá bán, mã riêng. Màn hiện tại của mình tách ba ô rời: ĐVT, Đơn vị thêm, Giá bán theo đơn vị. Cả ba phương án gộp lại thành một bảng "Đơn vị bán và giá".</li>
+<li>Danh sách sản phẩm của Sapo có cột Tồn kho. Màn hiện tại chưa có số tồn, người bán phải sang màn Tồn kho mới biết còn hàng không. Cả ba phương án thêm cột Tồn, đọc từ sổ kho (tồn tách theo từng đơn vị gốc, đúng luật nhiều ĐVT đang chạy).</li>
+<li>Sapo có công tắc "Cho phép bán / Ngừng bán". Mình dùng lại cờ ngừng dùng sẵn có của danh mục, chỉ đổi chữ thành "Đang bán / Ngừng bán". Không thêm cột.</li>
+<li>Sapo có "Giá nhập" gợi ý. Mình không khai tay ô này (giá mua đi đường mua hàng), chỉ hiện "Giá nhập gần nhất" đọc từ lô nhập cuối, cho người có ô Xem giá. Phương án B và C có, A không.</li>
+<li>Không lấy: ảnh, barcode, khối lượng, nhãn hiệu, tags, thuế, bảo hành, phiên bản theo màu cỡ. Không lấy luôn kiểu quy đổi riêng từng mặt hàng (1 thùng = 24 lon) của Sapo, vì quy đổi của mình nằm ở danh mục Đơn vị và quy đổi, và luật đã chốt là giá không quy đổi giữa các đơn vị.</li>
+</ul>
+</div>
+
+<div class="box">
+<h2>So nhanh</h2>
+<table class="cmp">
+<tr><th></th><th>Danh sách</th><th>Ngăn chi tiết</th><th>Hợp khi</th></tr>
+<tr><td>A. Bảng gọn</td><td>Một dòng một mặt hàng; giá và tồn mỗi đơn vị là thẻ nhỏ trong ô</td><td>Như hiện nay, tab Thông tin gộp bảng Đơn vị bán và giá</td><td>Ít mặt hàng có nhiều đơn vị; muốn đổi ít nhất</td></tr>
+<tr><td>B. Dòng con theo đơn vị</td><td>Như Sapo bung phiên bản: mặt hàng nhiều đơn vị có mũi tên, bung ra mỗi đơn vị một dòng con có Giá bán, Tồn, Giá nhập gần nhất</td><td>Như A, thêm cột Tồn chỉ đọc trong bảng đơn vị</td><td>Tiệm bán cả lẻ lẫn hộp, cần so giá và tồn từng đơn vị</td></tr>
+<tr><td>C. Lưới phẳng + ngăn hai cột</td><td>Mỗi cặp mặt hàng × đơn vị một dòng, lọc và sắp được theo giá, theo tồn</td><td>Ngăn rộng hai cột như trang thêm sản phẩm của Sapo: trái là thông tin và bảng đơn vị, phải là Trạng thái và số tồn</td><td>Muốn xem cả danh mục như bảng giá Excel</td></tr>
+</table>
+</div>
+
+<div class="optnav">
+<button class="on" data-o="A">A. Bảng gọn</button>
+<button data-o="B">B. Dòng con theo đơn vị</button>
+<button data-o="C">C. Lưới phẳng + ngăn hai cột</button>
+</div>
+
+<!-- ================= A ================= -->
+<section class="opt on" id="A">
+<h2 class="opt-h">A. Bảng gọn</h2>
+<div class="why">Giữ bố cục màn danh mục hiện nay. Cột ĐVT và cột Giá bán cũ nhập thành một cột "Giá bán", mỗi đơn vị một thẻ; thêm cột Tồn cũng theo thẻ đơn vị; cột Trạng thái thay cho việc ẩn dòng ngừng dùng.
+<ul><li>Đổi ít nhất: chỉ thêm hai cột và gộp ba ô của form thành một bảng.</li><li>Nhược: mặt hàng có ba bốn đơn vị thì ô thẻ dài, khó so giá giữa các dòng.</li></ul></div>
+
+<h3 class="scr-h">Danh sách</h3>
+<div class="app">
+  <div class="bar"><h4>Hàng thương mại</h4><button class="btn">Nhập Excel</button><button class="btn chinh">Thêm hàng thương mại</button></div>
+  <div class="tabs"><span class="on">Đang bán <i>5</i></span><span>Ngừng bán <i>1</i></span></div>
+  <div class="loc"><div class="o-tim">Tìm mã hoặc tên hàng</div><span class="chiploc">Đơn vị</span><span class="chiploc">Còn hàng</span></div>
+  <div class="khung"><table class="luoi">
+    <tr><th style="width:120px">Mã</th><th style="width:240px">Tên hàng</th><th>Giá bán</th><th>Tồn</th><th style="width:110px">Ngày tạo</th><th>Ghi chú</th></tr>
+    <tr><td>TM-BUT01</td><td>Bút bi Thiên Long TL-027</td><td><span class="the">5.000 đ/cái</span><span class="the">90.000 đ/hộp</span></td><td><span class="the">320 cái</span><span class="the">12 hộp</span></td><td>08/11/2026</td><td class="mu"></td></tr>
+    <tr><td>TM-A4-70</td><td>Giấy A4 Double A 70</td><td><span class="the">78.000 đ/ram</span><span class="the">380.000 đ/thùng</span></td><td><span class="the">46 ram</span><span class="the">3 thùng</span></td><td>08/11/2026</td><td class="mu"></td></tr>
+    <tr><td>TM-KEO48</td><td>Băng keo trong 4,8 cm</td><td><span class="the">12.000 đ/cuộn</span></td><td><span class="the">0 cuộn</span></td><td>08/11/2026</td><td>Hết, chờ đơn mua</td></tr>
+    <tr><td>TM-BIA-A4</td><td>Bìa lỗ A4</td><td><span class="cam">Chưa đặt giá</span></td><td><span class="the">200 cái</span></td><td>09/11/2026</td><td class="mu"></td></tr>
+    <tr><td>TM-GHIM10</td><td>Ghim bấm số 10</td><td><span class="the">4.000 đ/hộp</span></td><td><span class="the">85 hộp</span></td><td>09/11/2026</td><td class="mu"></td></tr>
+  </table></div>
+  <div class="chan"><span>1–5 trên 5</span><span>25 dòng mỗi trang</span></div>
+</div>
+
+<h3 class="scr-h">Ngăn chi tiết, tab Thông tin (đang sửa)</h3>
+<div class="app"><div class="duoi"><div class="trai"></div>
+  <div class="ngan">
+    <div class="n-dau"><div class="ma">TM-BUT01</div><h5>Bút bi Thiên Long TL-027</h5><div class="tabs"><span class="on">Thông tin</span><span>Tồn theo kho</span><span>Lịch sử</span></div></div>
+    <div class="n-than">
+      <div class="nhom"><h6>Thông tin chung</h6>
+        <div class="dong"><label>Mã <em>*</em></label><div class="o">TM-BUT01</div></div>
+        <div class="dong"><label>Tên hàng <em>*</em></label><div class="o">Bút bi Thiên Long TL-027</div></div>
+        <div class="dong"><label>Trạng thái</label><div><span class="chip ban">Đang bán</span></div></div>
+      </div>
+      <div class="nhom"><h6>Đơn vị bán và giá</h6>
+        <table class="bdv">
+          <tr><th style="width:150px">Đơn vị</th><th>Giá bán (chưa VAT)</th><th style="width:30px"></th></tr>
+          <tr><td><div class="o">cái</div></td><td><div class="o so">5.000</div></td><td></td></tr>
+          <tr><td><div class="o">hộp</div></td><td><div class="o so">90.000</div></td><td class="xoa">×</td></tr>
+        </table>
+        <span class="them">+ Thêm đơn vị</span>
+        <div class="nho">Dòng đầu là đơn vị chính. Bán theo đơn vị nào thì dòng đơn tự lấy giá đơn vị đó; đơn vị để trống giá thì dòng đơn trống giá. Đơn vị còn tồn hoặc đang có chứng từ thì không xoá được.</div>
+      </div>
+      <div class="nhom"><h6>Ghi chú</h6><div class="o mo">Ghi chú thêm</div></div>
+    </div>
+    <div class="n-chan"><button class="btn">Huỷ</button><button class="btn chinh">Lưu</button></div>
+  </div>
+</div></div>
+</section>
+
+<!-- ================= B ================= -->
+<section class="opt" id="B">
+<h2 class="opt-h">B. Dòng con theo đơn vị</h2>
+<div class="why">Theo cách Sapo bung phiên bản bằng mũi tên trước tên sản phẩm. Dòng mặt hàng chỉ có mã, tên, trạng thái; mặt hàng một đơn vị hiện giá và tồn ngay trên dòng, mặt hàng nhiều đơn vị bung ra mỗi đơn vị một dòng con.
+<ul><li>Giá, tồn, giá nhập gần nhất mỗi đơn vị nằm thẳng cột, so được giữa các dòng.</li><li>Cột Giá nhập gần nhất chỉ người có ô Xem giá thấy, máy chủ không trả số cho người khác.</li><li>Nhược: thêm một thao tác bấm mũi tên; mặc định bung hết thì danh sách dài gấp đôi.</li></ul></div>
+
+<h3 class="scr-h">Danh sách</h3>
+<div class="app">
+  <div class="bar"><h4>Hàng thương mại</h4><button class="btn">Nhập Excel</button><button class="btn chinh">Thêm hàng thương mại</button></div>
+  <div class="tabs"><span class="on">Đang bán <i>5</i></span><span>Ngừng bán <i>1</i></span></div>
+  <div class="loc"><div class="o-tim">Tìm mã hoặc tên hàng</div><span class="chiploc">Đơn vị</span><span class="chiploc on">Còn hàng</span></div>
+  <div class="khung"><table class="luoi">
+    <tr><th style="width:150px">Mã</th><th style="width:240px">Tên hàng</th><th style="width:90px">Đơn vị</th><th class="so" style="width:120px">Giá bán</th><th class="so" style="width:100px">Tồn</th><th class="so" style="width:150px">Giá nhập gần nhất</th><th style="width:110px">Trạng thái</th><th>Ghi chú</th></tr>
+    <tr><td><span class="mui">▾</span>TM-BUT01</td><td>Bút bi Thiên Long TL-027</td><td class="mu">2 đơn vị</td><td></td><td></td><td></td><td><span class="chip ban">Đang bán</span></td><td></td></tr>
+    <tr class="con"><td></td><td></td><td>cái</td><td class="so">5.000</td><td class="so">320</td><td class="so">3.200</td><td></td><td></td></tr>
+    <tr class="con"><td></td><td></td><td>hộp</td><td class="so">90.000</td><td class="so">12</td><td class="so">62.000</td><td></td><td></td></tr>
+    <tr><td><span class="mui">▸</span>TM-A4-70</td><td>Giấy A4 Double A 70</td><td class="mu">2 đơn vị</td><td></td><td></td><td></td><td><span class="chip ban">Đang bán</span></td><td></td></tr>
+    <tr><td><span class="mui"></span>TM-KEO48</td><td>Băng keo trong 4,8 cm</td><td>cuộn</td><td class="so">12.000</td><td class="so cam">0</td><td class="so">7.500</td><td><span class="chip ban">Đang bán</span></td><td>Hết, chờ đơn mua</td></tr>
+    <tr><td><span class="mui"></span>TM-BIA-A4</td><td>Bìa lỗ A4</td><td>cái</td><td class="so cam">Chưa đặt giá</td><td class="so">200</td><td class="so mu">Chưa nhập</td><td><span class="chip ban">Đang bán</span></td><td></td></tr>
+    <tr><td><span class="mui"></span>TM-GHIM10</td><td>Ghim bấm số 10</td><td>hộp</td><td class="so">4.000</td><td class="so">85</td><td class="so">2.600</td><td><span class="chip ban">Đang bán</span></td><td></td></tr>
+  </table></div>
+  <div class="chan"><span>1–5 trên 5</span><span>25 dòng mỗi trang</span></div>
+</div>
+
+<h3 class="scr-h">Ngăn chi tiết, tab Thông tin (đang sửa)</h3>
+<div class="app"><div class="duoi"><div class="trai"></div>
+  <div class="ngan">
+    <div class="n-dau"><div class="ma">TM-BUT01</div><h5>Bút bi Thiên Long TL-027</h5><div class="tabs"><span class="on">Thông tin</span><span>Tồn theo kho</span><span>Lịch sử</span></div></div>
+    <div class="n-than">
+      <div class="nhom"><h6>Thông tin chung</h6>
+        <div class="dong"><label>Mã <em>*</em></label><div class="o">TM-BUT01</div></div>
+        <div class="dong"><label>Tên hàng <em>*</em></label><div class="o">Bút bi Thiên Long TL-027</div></div>
+        <div class="dong"><label>Trạng thái</label><div class="gat" style="justify-content:flex-start;gap:10px"><b></b>Đang bán</div></div>
+      </div>
+      <div class="nhom"><h6>Đơn vị bán và giá</h6>
+        <table class="bdv">
+          <tr><th style="width:130px">Đơn vị</th><th>Giá bán (chưa VAT)</th><th class="so" style="width:80px">Tồn</th><th class="so" style="width:120px">Giá nhập gần nhất</th><th style="width:30px"></th></tr>
+          <tr><td><div class="o">cái</div></td><td><div class="o so">5.000</div></td><td class="so">320</td><td class="so">3.200</td><td></td></tr>
+          <tr><td><div class="o">hộp</div></td><td><div class="o so">90.000</div></td><td class="so">12</td><td class="so">62.000</td><td class="xoa">×</td></tr>
+        </table>
+        <span class="them">+ Thêm đơn vị</span>
+        <div class="nho">Tồn và Giá nhập gần nhất chỉ đọc, lấy từ sổ kho và lô nhập cuối. Đơn vị còn tồn hoặc đang có chứng từ thì không xoá được.</div>
+      </div>
+      <div class="nhom"><h6>Ghi chú</h6><div class="o mo">Ghi chú thêm</div></div>
+    </div>
+    <div class="n-chan"><button class="btn">Huỷ</button><button class="btn chinh">Lưu</button></div>
+  </div>
+</div></div>
+</section>
+
+<!-- ================= C ================= -->
+<section class="opt" id="C">
+<h2 class="opt-h">C. Lưới phẳng + ngăn hai cột</h2>
+<div class="why">Danh sách thành bảng giá: mỗi cặp mặt hàng × đơn vị là một dòng, nên sắp theo giá, lọc "hết hàng" ra đúng đơn vị hết. Ngăn chi tiết rộng, chia hai cột như trang thêm sản phẩm của Sapo: cột trái để khai, cột phải để xem nhanh trạng thái và số tồn.
+<ul><li>In hay xuất Excel ra là có ngay bảng giá cho quầy.</li><li>Nhược: tên hàng lặp ở từng dòng đơn vị (dòng sau làm mờ để đỡ rối); số đếm ở tab đếm theo mặt hàng chứ không theo dòng, dễ lệch với số dòng thấy trên lưới.</li></ul></div>
+
+<h3 class="scr-h">Danh sách</h3>
+<div class="app">
+  <div class="bar"><h4>Hàng thương mại</h4><button class="btn">Xuất bảng giá</button><button class="btn">Nhập Excel</button><button class="btn chinh">Thêm hàng thương mại</button></div>
+  <div class="tabs"><span class="on">Đang bán <i>5</i></span><span>Ngừng bán <i>1</i></span></div>
+  <div class="loc"><div class="o-tim">Tìm mã hoặc tên hàng</div><span class="chiploc">Đơn vị</span><span class="chiploc">Hết hàng</span><span class="chiploc">Chưa đặt giá</span></div>
+  <div class="khung"><table class="luoi">
+    <tr><th style="width:120px">Mã</th><th style="width:240px">Tên hàng</th><th style="width:90px">Đơn vị</th><th class="so" style="width:120px">Giá bán</th><th class="so" style="width:100px">Tồn</th><th class="so" style="width:150px">Giá nhập gần nhất</th><th>Ghi chú</th></tr>
+    <tr><td>TM-BUT01</td><td>Bút bi Thiên Long TL-027</td><td>cái</td><td class="so">5.000</td><td class="so">320</td><td class="so">3.200</td><td></td></tr>
+    <tr><td class="mu">TM-BUT01</td><td class="mu">Bút bi Thiên Long TL-027</td><td>hộp</td><td class="so">90.000</td><td class="so">12</td><td class="so">62.000</td><td></td></tr>
+    <tr><td>TM-A4-70</td><td>Giấy A4 Double A 70</td><td>ram</td><td class="so">78.000</td><td class="so">46</td><td class="so">64.000</td><td></td></tr>
+    <tr><td class="mu">TM-A4-70</td><td class="mu">Giấy A4 Double A 70</td><td>thùng</td><td class="so">380.000</td><td class="so">3</td><td class="so">315.000</td><td></td></tr>
+    <tr><td>TM-KEO48</td><td>Băng keo trong 4,8 cm</td><td>cuộn</td><td class="so">12.000</td><td class="so cam">0</td><td class="so">7.500</td><td>Hết, chờ đơn mua</td></tr>
+    <tr><td>TM-BIA-A4</td><td>Bìa lỗ A4</td><td>cái</td><td class="so cam">Chưa đặt giá</td><td class="so">200</td><td class="so mu">Chưa nhập</td><td></td></tr>
+    <tr><td>TM-GHIM10</td><td>Ghim bấm số 10</td><td>hộp</td><td class="so">4.000</td><td class="so">85</td><td class="so">2.600</td><td></td></tr>
+  </table></div>
+  <div class="chan"><span>5 mặt hàng, 7 dòng đơn vị</span><span>25 mặt hàng mỗi trang</span></div>
+</div>
+
+<h3 class="scr-h">Ngăn chi tiết rộng hai cột (đang sửa)</h3>
+<div class="app"><div class="duoi"><div class="trai"></div>
+  <div class="ngan rong">
+    <div class="n-dau"><div class="ma">TM-BUT01</div><h5>Bút bi Thiên Long TL-027</h5><div class="tabs"><span class="on">Thông tin</span><span>Tồn theo kho</span><span>Lịch sử</span></div></div>
+    <div class="n-than"><div class="ben">
+      <div>
+        <div class="nhom"><h6>Thông tin chung</h6>
+          <div class="dong"><label>Mã <em>*</em></label><div class="o">TM-BUT01</div></div>
+          <div class="dong"><label>Tên hàng <em>*</em></label><div class="o">Bút bi Thiên Long TL-027</div></div>
+        </div>
+        <div class="nhom"><h6>Đơn vị bán và giá</h6>
+          <table class="bdv">
+            <tr><th style="width:140px">Đơn vị</th><th>Giá bán (chưa VAT)</th><th class="so" style="width:130px">Giá nhập gần nhất</th><th style="width:30px"></th></tr>
+            <tr><td><div class="o">cái</div></td><td><div class="o so">5.000</div></td><td class="so">3.200</td><td></td></tr>
+            <tr><td><div class="o">hộp</div></td><td><div class="o so">90.000</div></td><td class="so">62.000</td><td class="xoa">×</td></tr>
+          </table>
+          <span class="them">+ Thêm đơn vị</span>
+        </div>
+        <div class="nhom"><h6>Ghi chú</h6><div class="o mo">Ghi chú thêm</div></div>
+      </div>
+      <div>
+        <div class="the-phai"><h6>Trạng thái</h6><div class="gat">Đang bán <b></b></div><p class="nho">Ngừng bán thì không chọn được ở dòng đơn thương mại mới; đơn cũ giữ nguyên.</p></div>
+        <div class="the-phai"><h6>Tồn hiện có</h6>
+          <div class="gat"><span>cái</span><span class="so-to">320</span></div>
+          <div class="gat"><span>hộp</span><span class="so-to">12</span></div>
+          <p class="nho">Cộng mọi kho. Xem từng kho ở tab Tồn theo kho.</p></div>
+      </div>
+    </div></div>
+    <div class="n-chan"><button class="btn">Huỷ</button><button class="btn chinh">Lưu</button></div>
+  </div>
+</div></div>
+</section>
+</div>
+<script>
+document.querySelectorAll(".optnav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".optnav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".opt").forEach(s=>s.classList.toggle("on",s.id===b.dataset.o));
+});
+</script>
+</body>
+</html>

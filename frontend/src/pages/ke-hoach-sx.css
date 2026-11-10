@@ -1923,16 +1923,38 @@ button.khsx-thieu__buoc:hover {
 }
 .khsx-lead__warn { color: var(--signal); font-weight: var(--fw-bold); }
 
-.khsx-lydo { display: flex; flex-direction: column; gap: 4px; }
+/* Ô lý do đổi chuỗi: việc PHẢI làm mới lưu được ⇒ khối vàng cả khung (không viền một cạnh), ô
+   nhập trắng viền đậm cho ra dáng chỗ gõ — nền trắng trên khung trắng trước đây trông như mảng nền. */
+.khsx-lydo {
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--tt-vang-bg);
+  border-radius: var(--r-3);
+  padding: 10px 12px;
+}
+.khsx-lydo__nhan { font-size: var(--fs-sm); color: var(--tt-vang-fg); }
 .khsx-lydo input {
   font: inherit;
   font-size: var(--fs-sm);
-  background: var(--canvas);
-  border: 1px solid var(--rule-soft);
+  background: #ffffff;
+  border: 1px solid var(--rule);
   border-radius: var(--r-3);
   padding: 8px 10px;
   color: var(--ink);
 }
+.khsx-lydo input:focus { outline: none; border-color: var(--ink); }
+
+/* Nguồn giấy: một dòng ngang ngay dưới tiêu đề chuỗi — ô chọn vừa chữ, câu giải thích luôn hiện. */
+.khsx-nguon { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.khsx-nguon__o { display: flex; align-items: center; gap: 8px; }
+.khsx-nguon__o .sel { width: 200px; }
+.khsx-nguon__o input {
+  font: inherit; font-size: var(--fs-sm); width: 90px;
+  background: #ffffff; border: 1px solid var(--rule); border-radius: var(--r-3);
+  padding: 6px 10px; color: var(--ink);
+}
+.khsx-nguon__nhan { font-size: var(--fs-sm); color: var(--ash); white-space: nowrap; }
+.khsx-nguon__chu { font-size: var(--fs-sm); color: var(--ash-2); flex: 1 1 240px; }
+.khsx-nguon .khsx-note-banner { flex-basis: 100%; }
 
 /* --- lưu ý mềm ở cột phải (khác hẳn checklist CHẶN màu đỏ ở trên) ---------- */
 .khsx-luuy {
@@ -2255,6 +2277,7 @@ button.khsx-thieu__buoc:hover {
 }
 .khsx-rt__foot { display: flex; align-items: center; gap: var(--sp-3); }
 .khsx-rt__summary { margin: 0; flex: 1 1 auto; font-size: var(--fs-sm); color: var(--ash); }
+.khsx-rt__chan { margin: 0; font-size: var(--fs-sm); color: var(--tt-vang-fg); }
 
 /* --- liên kết chéo -------------------------------------------------------- */
 .khsx-xlink {
@@ -8163,3 +8186,44 @@ td.khsx-vtbang__buoc {
   align-items: center;
   gap: var(--sp-2);
 }
+
+/* --- Giao đơn cho người phụ trách (08/11/2026) ---------------------------------------------- */
+/* Hàng lọc nhanh của bảng lệnh: trạng thái + chip "Của tôi" cùng một dải. */
+.khsx .khsx-loc-hang { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 4px 12px; padding: 8px 10px; border-bottom: 1px solid var(--rule-hair); }
+.khsx .khsx-cot-tick { width: 36px; text-align: center; }
+.khsx .khsx-tick { width: 14px; height: 14px; margin: 0; accent-color: var(--ink); cursor: pointer; vertical-align: -2px; }
+/* Chấm "đơn mới giao cho bạn, chưa mở" đứng trước mã đơn — chấm, không số. */
+.khsx .khsx-cham-dong { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--tt-do-dot); margin-right: 7px; vertical-align: 1px; }
+/* Hàng chip của hai tab đơn: chip lọc rồi tới cụm "Đã chọn N đơn" nằm liền bên phải, không đẩy ra mép. */
+.khsx .khsx-loc-hang--trai { justify-content: flex-start; }
+/* Cụm "Đã chọn N đơn  Bỏ chọn  Giao" — nằm phẳng trong hàng chip, ngăn với chip bằng một vạch dọc. */
+.khsx .khsx-bulk { display: flex; align-items: center; gap: 8px; margin-left: 4px; padding-left: 14px;
+  border-left: 1px solid var(--rule); font-size: 13px; color: var(--ink); white-space: nowrap; }
+.khsx .khsx-bulk__btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rule);
+  background: var(--canvas, #fff); border-radius: 7px; height: 28px; padding: 0 12px; font: inherit; font-size: 13px;
+  font-weight: 500; cursor: pointer; color: var(--ink); }
+.khsx .khsx-bulk__btn--pri { background: var(--rust); border-color: var(--rust); color: #fff; }
+.khsx .khsx-bulk__btn--pri:hover { background: var(--rust-deep, var(--rust)); }
+.khsx .khsx-bulk__btn--ghost { border-color: transparent; background: transparent; color: var(--ash); }
+.khsx .khsx-bulk__btn--ghost:hover { background: var(--rule-hair); }
+@media (max-width: 720px) {
+  .khsx .khsx-bulk { white-space: normal; flex-wrap: wrap; margin-left: 0; padding-left: 0; border-left: 0; }
+}
+
+/* Hộp chọn người phụ trách (nằm trong ConfirmDialog, ngoài cây .khsx). */
+.khsx-giao { display: flex; flex-direction: column; gap: 8px; min-width: min(420px, 80vw); }
+.khsx-giao__tim { height: 32px; border: 1px solid var(--rule); border-radius: 7px; padding: 0 10px; font: inherit;
+  font-size: 13px; color: var(--ink); }
+.khsx-giao__ds { max-height: 300px; overflow-y: auto; border: 1px solid var(--rule-soft); border-radius: 8px; }
+.khsx-giao__nguoi { display: flex; align-items: center; gap: 10px; padding: 0 12px; min-height: 34px; font-size: 13px;
+  cursor: pointer; border-bottom: 1px solid var(--rule-hair); }
+.khsx-giao__nguoi:last-child { border-bottom: 0; }
+.khsx-giao__nguoi:hover { background: var(--rule-hair); }
+.khsx-giao__nguoi.is-chon { background: var(--paper); }
+.khsx-giao__nguoi input { margin: 0; accent-color: var(--ink); }
+.khsx-giao__phong { margin-left: auto; color: var(--ash-2); font-size: 12px; }
+.khsx-giao__mu { color: var(--ash-2); font-size: 13px; padding: 10px 12px; margin: 0; }
+.khsx-giao__chuyen { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
+.khsx-giao__chuyen .khsx-giao__mu { list-style: none; margin-left: -18px; padding: 6px 0 0; }

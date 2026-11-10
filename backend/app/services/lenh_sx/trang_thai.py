@@ -32,9 +32,8 @@ máy KHÔNG còn chỗ nào để tắc — cảnh báo ở đó là việc khô
 một lệnh đã giao xong là việc của tổ kỹ thuật, không phải việc điều độ phải gỡ trên bảng lệnh.
 HAI bài canh, cố ý đi qua HAI cờ khác nhau: `test_hoan_thanh_an_truoc_canh_bao` (cờ `tre_han`)
 và `test_hoan_thanh_an_truoc_canh_bao_ke_ca_khi_con_su_co` (cờ `su_co`).
-(Bản Task 8 biện minh luật này bằng "`tre_han` của lệnh đã xong bật vĩnh viễn". Lý lẽ đó đã HẾT
-hiệu lực từ Vòng sửa 1: `tien_do.du_kien_xong` không còn lùi về `bay_gio` cho lệnh đã xong — nên
-lưới thứ hai KHÔNG được phụ thuộc vào `tre_han` nữa. Luật giữ nguyên, nhưng vì lý do ở trên.)
+(Từ 08/11/2026 `tre_han` tự tắt khi lệnh đã xong sản xuất, nên lưới thứ hai KHÔNG được phụ
+thuộc vào `tre_han`. Luật giữ nguyên, nhưng vì lý do ở trên.)
 
 LỆNH CHƯA PHÁT HÀNH KHÔNG CÓ Ô NÀO ở đây, và đó là chủ ý: hai màn này chỉ nhận
 `trang_thai = 'da_phat_hanh'` (`pham_vi.loc_lsx_da_phat_hanh`). Lệnh nháp/đang lập vẫn xem ở màn
@@ -47,7 +46,7 @@ lần tải). Cả năm đều tính từ dữ liệu mà luật ưu tiên ở t
 
   `su_co`         — yêu cầu sửa chữa neo vào lệnh còn ĐANG MỞ.
   `tam_dung`      — có công việc `paused`.
-  `tre_han`       — `tien_do.tre_han` (hạn SX nội bộ, so theo ngày GIỜ XƯỞNG).
+  `tre_han`       — `tien_do.tre_han` (chưa xong mà đã qua hạn giao khách, ngày GIỜ XƯỞNG).
   `kcs_khong_dat` — có batch KCS kết luận KHÔNG ĐẠT toàn bộ.
   `thieu_vat_tu`  — đèn `vat_tu` của `lsx_tong_quan` báo ĐỎ.
 
@@ -113,20 +112,6 @@ CO_TRE_HAN = "tre_han"
 CO_KCS_KHONG_DAT = "kcs_khong_dat"
 CO_THIEU_VAT_TU = "thieu_vat_tu"
 CO_CANH_BAO = (CO_SU_CO, CO_TAM_DUNG, CO_TRE_HAN, CO_KCS_KHONG_DAT, CO_THIEU_VAT_TU)
-
-
-class _TuTinh:
-    """Sentinel "bên gọi chưa tính `du_kien_xong`" — cùng lý do với `tien_do._TuTinh`: `None` là
-    một KẾT QUẢ hợp lệ của `du_kien_xong` ("chưa đủ dữ liệu") mà bên gọi có quyền truyền lại, nên
-    không dùng `None` làm mặc định được.
-
-    Khai riêng ở đây thay vì import `tien_do._TU_TINH` (tên `_`-riêng tư của module khác): hàm này
-    LUÔN quy `xong` về `datetime | None` rồi mới gọi `tien_do.tre_han(..., xong=...)` bằng giá trị
-    thật, nên hai sentinel không bao giờ phải so với nhau.
-    """
-
-
-_TU_TINH = _TuTinh()
 
 
 def den_vat_tu_theo_lo(db: Session, lsx_ids: list[int]) -> dict[int, str]:
@@ -322,7 +307,6 @@ def giao_du(so_luong_dat: int | None, da_giao: int) -> bool:
 def co_canh_bao(
     bc: BoiCanh, lsx_id: int, bay_gio: datetime, *,
     den_vat_tu: dict[int, str] | None = None,
-    xong: datetime | None | _TuTinh = _TU_TINH,
 ) -> list[str]:
     """MỌI thứ đang sai của một lệnh, theo thứ tự cố định của `CO_CANH_BAO`. Rỗng = không có gì.
 
@@ -332,20 +316,13 @@ def co_canh_bao(
     `den_vat_tu` (KEYWORD-ONLY) = `{lsx_id: mức}` do `den_vat_tu_theo_lo()` đọc MỘT lần cho cả
     trang. Bỏ trống = CHƯA ĐỌC đèn ⇒ cờ `thieu_vat_tu` không được xét — im lặng bỏ một cờ, nên
     tầng danh sách BẮT BUỘC truyền vào (xem docstring module).
-
-    `xong` (KEYWORD-ONLY) = kết quả `tien_do.du_kien_xong` bên gọi ĐÃ tính. Bỏ trống thì hàm tự
-    tính; màn 200 lệnh phải truyền vào, không thì trang duyệt đường găng 400 lượt. Truyền `None`
-    là hợp lệ và có nghĩa "đã tính, không đủ dữ liệu" — vì vậy mặc định là sentinel riêng.
     """
     co: list[str] = []
     if _co_su_co_dang_mo(bc, lsx_id):
         co.append(CO_SU_CO)
     if _co_tam_dung(bc, lsx_id):
         co.append(CO_TAM_DUNG)
-    if isinstance(xong, _TuTinh):
-        xong = tien_do.du_kien_xong(bc, lsx_id, bay_gio)
-    # `xong` đã là `datetime | None` thật ⇒ truyền thẳng, `tien_do.tre_han` không phải tính lại.
-    if tien_do.tre_han(bc, lsx_id, bay_gio, xong=xong):
+    if tien_do.tre_han(bc, lsx_id, bay_gio):
         co.append(CO_TRE_HAN)
     if _co_kcs_khong_dat(bc, lsx_id):
         co.append(CO_KCS_KHONG_DAT)
@@ -357,16 +334,15 @@ def co_canh_bao(
 def trang_thai_chinh(
     bc: BoiCanh, lsx_id: int, bay_gio: datetime, *,
     den_vat_tu: dict[int, str] | None = None,
-    xong: datetime | None | _TuTinh = _TU_TINH,
 ) -> str:
     """MỘT trạng thái cho một dòng bảng — luôn là một trong `TAB_CHINH`, không bao giờ rỗng.
 
-    Thứ tự xét + lý do từng nhánh: xem docstring module. Hai tham số keyword-only đi thẳng xuống
+    Thứ tự xét + lý do từng nhánh: xem docstring module. Tham số `den_vat_tu` đi thẳng xuống
     `co_canh_bao`; ý nghĩa và bẫy của chúng nằm ở đó.
     """
     if _da_giao_het(bc, lsx_id):
         return TAB_HOAN_THANH
-    if co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den_vat_tu, xong=xong):
+    if co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den_vat_tu):
         return TAB_CANH_BAO
     if _co_ton_thanh_pham(bc, lsx_id):
         return TAB_SAN_SANG_GIAO

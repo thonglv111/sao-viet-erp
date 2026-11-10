@@ -95,6 +95,14 @@ def _f(v) -> float:
         return 0.0
 
 
+def _han_giao_som(bg, lsx_map: dict):
+    """Hạn giao SỚM NHẤT của các lệnh trên bài — bài chạy chung một lượt nên lệnh gấp nhất quyết.
+    Thay "hạn hoàn thành SX" của bài (gỡ 08/11/2026)."""
+    hans = [l.han_giao_khach for tv in bg.thanh_viens
+            if (l := lsx_map.get(tv.lsx_id)) is not None and l.han_giao_khach]
+    return min(hans) if hans else None
+
+
 def _kho(d, r) -> str | None:
     return f"{int(d)}×{int(r)}" if d and r else None
 
@@ -306,7 +314,8 @@ class BaiGhepService:
                 "lsx_id": l.id, "ma": l.ma, "ten": l.ten,
                 "so_luong_dat": l.so_luong_dat, "don_vi_tinh": l.don_vi_tinh,
                 "so_con": l.so_con,
-                "han_hoan_thanh_sx": l.han_hoan_thanh_sx, "is_rush": bool(l.is_rush),
+                "han_hoan_thanh_sx": l.han_hoan_thanh_sx, "han_giao_khach": l.han_giao_khach,
+                "is_rush": bool(l.is_rush),
                 "order_id": l.order_id, "customer_name": cust.get(l.order_id),
                 "giay_id": qc.get("giay_id"), "giay_ten": qc.get("giay_ten"), "gsm": qc.get("gsm"),
                 # Gửi kèm TẬP MỰC: người ghép chọn ứng viên ngay ở bảng này, mà "4/1" của hai
@@ -362,11 +371,9 @@ class BaiGhepService:
         lsx_map = self.repo.lsx_by_ids(ids)
         self._validate_them(ids, lsx_map)
         ma = self.sequence.generate_code("bai_ghep")
-        hans = [lsx_map[i].han_hoan_thanh_sx for i in ids if lsx_map[i].han_hoan_thanh_sx]
         bg = BaiGhep(
             ma=ma,
             ten=f"Bài ghép {ma}",
-            han_hoan_thanh_sx=min(hans) if hans else None,
             is_rush=any(bool(lsx_map[i].is_rush) for i in ids),
             nguoi_phu_trach_id=getattr(actor, "id", None),
             trang_thai=TT_NHAP,
@@ -1412,8 +1419,9 @@ class BaiGhepService:
                 used += _f(qc.get("dai_thanh_pham")) * _f(qc.get("rong_thanh_pham")) * int(tv.so_con_tren_to or 0)
             fill_pct = round(used / area * 100, 1) if area > 0 else None
 
-        hans = [l.han_hoan_thanh_sx for tv in bg.thanh_viens
-                if (l := lsx_map.get(tv.lsx_id)) and l.han_hoan_thanh_sx]
+        # Hạn SX nội bộ đã gỡ 08/11/2026 ⇒ "hạn in muộn nhất" = hạn giao SỚM NHẤT của các lệnh con.
+        hans = [l.han_giao_khach for tv in bg.thanh_viens
+                if (l := lsx_map.get(tv.lsx_id)) and l.han_giao_khach]
         return {
             "so_to_tot": so_to_tot,
             "tong_to": tong_to,
@@ -1514,6 +1522,7 @@ class BaiGhepService:
                 "thanh_vien_id": tv.id, "lsx_id": l.id, "lsx_ma": l.ma, "lsx_ten": l.ten,
                 "customer_name": cust.get(l.order_id),
                 "han_hoan_thanh_sx": l.han_hoan_thanh_sx,
+                "han_giao_khach": l.han_giao_khach,
                 "is_rush": bool(l.is_rush),
                 "mau": mau,
                 "so_con_tren_to": tv.so_con_tren_to,
@@ -2094,7 +2103,7 @@ class BaiGhepService:
         lsxs = [lsx_map.get(tv.lsx_id) for tv in bg.thanh_viens]
         if any(l and l.is_rush for l in lsxs):
             cb.append("co_gap")
-        hans = [l.han_hoan_thanh_sx for l in lsxs if l and l.han_hoan_thanh_sx]
+        hans = [l.han_giao_khach for l in lsxs if l and l.han_giao_khach]
         if len(hans) >= 2 and (max(hans) - min(hans)).days > LECH_HAN_NGAY:
             cb.append("lech_han")
         # Lệnh ĐI TIẾP (đã lập KH, đã phát hành) là bình thường — chỉ lệnh LÙI về nháp/chờ bổ sung mới
@@ -2172,6 +2181,7 @@ class BaiGhepService:
             out.append({
                 "id": bg.id, "ma": bg.ma, "ten": bg.ten,
                 "han_hoan_thanh_sx": bg.han_hoan_thanh_sx,
+                "han_giao_khach": _han_giao_som(bg, lsx_map),
                 "is_rush": bool(bg.is_rush), "nguoi_phu_trach_id": bg.nguoi_phu_trach_id,
                 "trang_thai": bg.trang_thai,
                 "so_lsx": len(bg.thanh_viens),
@@ -2229,6 +2239,7 @@ class BaiGhepService:
                 "quy_cach_in": qc.get("quy_cach_in"),
                 "kho_tp": _kho(qc.get("dai_thanh_pham"), qc.get("rong_thanh_pham")),
                 "han_hoan_thanh_sx": l.han_hoan_thanh_sx if l else None,
+                "han_giao_khach": l.han_giao_khach if l else None,
             })
 
         # Quy cách CẢ TỜ GHÉP — dẫn xuất, không lưu cột. Ghép chung một tờ là chung MỘT bộ bản:
@@ -2241,6 +2252,7 @@ class BaiGhepService:
         return {
             "id": bg.id, "ma": bg.ma, "ten": bg.ten,
             "han_hoan_thanh_sx": bg.han_hoan_thanh_sx,
+            "han_giao_khach": _han_giao_som(bg, lsx_map),
             "is_rush": bool(bg.is_rush), "nguoi_phu_trach_id": bg.nguoi_phu_trach_id,
             "trang_thai": bg.trang_thai,
             "giay_id": bg.giay_id, "giay_ten": giay.get(bg.giay_id),

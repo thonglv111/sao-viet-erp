@@ -183,6 +183,15 @@ class VatTuInAn(Base):
     la_thanh_pham: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=sa_false()
     )
+    # HÀNG THƯƠNG MẠI (mg 0460, chỉ In Hà Phương — docs/design-hang-thuong-mai-ha-phuong.md §3): mua
+    # về bán, không qua sản xuất. Màn thứ ba trên cùng bảng, công tắc riêng như `la_thanh_pham`.
+    # Với kho vẫn là `hang_loai="vat_tu"`.
+    la_hang_thuong_mai: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sa_false()
+    )
+    # Giá bán khai TRÊN TỪNG ĐVT của mặt hàng: `{ma_dvt: giá}` (đồng, trước VAT). Không quy đổi giá
+    # giữa các ĐVT — hộp và cái là hai giá người bán tự đặt. Chỉ hàng thương mại dùng.
+    gia_ban_theo_dvt: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Đơn ĐẦU TIÊN đặt món này — giữ để tra nguồn gốc, KHÔNG phải khoá định danh (mg 0203 từng
     # dùng làm khoá và sai: đặt lại là đẻ dòng thứ hai). Không cập nhật ở những lần đặt sau.

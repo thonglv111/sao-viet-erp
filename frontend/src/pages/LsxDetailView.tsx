@@ -25,7 +25,6 @@ import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { Button } from "../components/Button";
-import { ChonNgay } from "../components/ChonNgay";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DinhKemTep } from "../components/DinhKemTep";
 import { EmptyState } from "../components/EmptyState";
@@ -94,7 +93,6 @@ function tomTatBuoc(b: DanhMucDoiBuoc): string {
 
 interface FormState {
   ten: string;
-  han_hoan_thanh_sx: string;
   is_rush: boolean;
   may_id: string;
   ghi_chu: string;
@@ -122,7 +120,6 @@ function toQc(d: LsxDetail): LsxQuyCachBody {
     quy_cach_in: String(q.quy_cach_in ?? "mot_mat"),
     muc_a: ml("muc_a"), muc_b: ml("muc_b"),
     so_trang: Math.max(n("so_trang"), 1), trang_moi_tay: Math.max(n("trang_moi_tay"), 1),
-    bleed_mm: n("bleed_mm"), khe_cat_mm: n("khe_cat_mm"),
     con_auto: q.con_auto !== false,
   };
 }
@@ -133,7 +130,6 @@ function toQc(d: LsxDetail): LsxQuyCachBody {
 function toForm(d: LsxDetail): FormState {
   return {
     ten: d.ten,
-    han_hoan_thanh_sx: d.han_hoan_thanh_sx ?? "",
     is_rush: d.is_rush,
     may_id: d.may_id != null ? String(d.may_id) : "",
     ghi_chu: d.ghi_chu ?? "",
@@ -162,28 +158,6 @@ function demNgayConLai(hanGiaoStr?: string | null): string {
   if (diff < 0) return `Quá hạn ${Math.abs(diff)} ngày`;
   if (diff === 0) return `Hôm nay giao`;
   return `Còn ${diff} ngày`;
-}
-
-function tinhNgayDem(hanSxStr: string | null | undefined, hanGiaoStr: string | null | undefined): {
-  status: "safe" | "warning" | "danger" | "none";
-  text: string;
-} {
-  if (!hanSxStr || !hanGiaoStr) return { status: "none", text: "" };
-  const dSx = new Date(hanSxStr);
-  const dGiao = new Date(hanGiaoStr);
-  if (isNaN(dSx.getTime()) || isNaN(dGiao.getTime())) return { status: "none", text: "" };
-  dSx.setHours(0, 0, 0, 0);
-  dGiao.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((dGiao.getTime() - dSx.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays >= 2) {
-    return { status: "safe", text: `Đệm ${diffDays} ngày an toàn trước hạn giao` };
-  } else if (diffDays === 1) {
-    return { status: "warning", text: `Đệm 1 ngày — Cận kề hạn giao khách` };
-  } else if (diffDays === 0) {
-    return { status: "warning", text: `Trùng hạn giao — Không có ngày đệm` };
-  } else {
-    return { status: "danger", text: `Trễ hơn hạn giao khách ${Math.abs(diffDays)} ngày!` };
-  }
 }
 
 export function LsxDetailView({
@@ -448,25 +422,12 @@ export function LsxDetailView({
       coRangBuocTo: (c.department_ids ?? []).length > 0,
     })))).catch(() => setCongDoanRefs(null));
     crud("/api/cong-doan/phong-ban").list(token).then((r) => setToRefs(r.items.map((t) => ({ id: t.id, ten: t.ten })))).catch(() => setToRefs(null));
-    // Giữ luôn TỐC ĐỘ + CHUẨN BỊ của máy: form phải tính lại thời lượng ngay khi đổi máy, chứ
-    // không đợi lưu rồi server mới trả số về (xem `RefRow`).
-    crud("/api/may-thiet-bi").list(token).then((r) => setMayRefs(r.items.map((m) => {
-      const khoan = (m.fields_theo_loai as { chuan_bi_khoan?: { ten?: string; phut?: number }[] } | null)
-        ?.chuan_bi_khoan;
-      return {
-        id: m.id, ten: m.ten, nhom: m.loai_may ? String(m.loai_may) : null,
-        active: m.active !== false,
-        toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
-        tocDo: m.toc_do == null ? null : Number(m.toc_do),
-        tocDoMin: m.toc_do_min == null ? null : Number(m.toc_do_min),
-        tocDoMax: m.toc_do_max == null ? null : Number(m.toc_do_max),
-        donViTocDo: m.don_vi_toc_do ? String(m.don_vi_toc_do) : null,
-        chuanBiPhut: m.makeready_time_default == null ? null : Number(m.makeready_time_default),
-        chuanBiKhoan: Array.isArray(khoan) ? khoan : [],
-        // Ô "Số người vận hành tiêu chuẩn" của máy ĐÃ GỠ (06/09/2026, mg `0270`); cả logic kíp người
-        // gỡ nốt 18/09/2026 (mg `0321`) — chọn máy chỉ đổi tốc độ + chuẩn bị.
-      };
-    }))).catch(() => setMayRefs(null));
+    // Tốc độ và chuẩn bị của máy KHÔNG nạp nữa (08/11/2026): bước máy thôi tính giờ theo máy.
+    crud("/api/may-thiet-bi").list(token).then((r) => setMayRefs(r.items.map((m) => ({
+      id: m.id, ten: m.ten, nhom: m.loai_may ? String(m.loai_may) : null,
+      active: m.active !== false,
+      toIds: Array.isArray(m.to_ids) ? (m.to_ids as unknown[]).map(Number) : [],
+    })))).catch(() => setMayRefs(null));
     crud("/api/vat-lieu-kho/vat-tu-in-an").list(token, { active: true }).then((r) =>
       setVatTuRefs(r.items.map((v) => ({ id: v.id, ten: v.ten, ma: String(v.ma), donVi: String(v.don_vi_gia ?? "") })))
     ).catch(() => setVatTuRefs(null));
@@ -544,7 +505,7 @@ export function LsxDetailView({
   // Tiêu chí KCS đổi sau lúc phát hành — bấm "Cập nhật tiêu chí" mở bảng cũ → mới, đồng ý mới ghi.
   const tcDoi = d?.tieu_chi_kcs_doi ?? null;
   // QUY CÁCH Ở LỆNH = CHỈ XEM, không chừa ô nào (07/09/2026). Cụm này là thứ đã chốt với khách ở
-  // phiếu tính giá — giấy, khổ, cách in, số trang, bleed, khe cắt, bình bài đều là số đã tính ra
+  // phiếu tính giá — giấy, khổ, cách in, số trang, bình bài đều là số đã tính ra
   // giá và đã báo. Phiếu tính ra sao thì lệnh chạy y như vậy; gõ lại ở lệnh là lệnh chạy một đằng,
   // khách mua một nẻo, mà không ai đối chiếu. Muốn đổi thật thì sửa ở phiếu rồi TẠO LẠI lệnh.
   //
@@ -558,7 +519,6 @@ export function LsxDetailView({
     setErr(null);
     const body: LsxUpdateBody = {
       ten: form.ten,
-      han_hoan_thanh_sx: form.han_hoan_thanh_sx || null,
       is_rush: form.is_rush,
       ghi_chu: form.ghi_chu || null,
       so_luong_dat: Number(form.so_luong_dat || 0),
@@ -604,6 +564,16 @@ export function LsxDetailView({
   );
 
   /** Bộ mặc định của công đoạn mới khi kế hoạch đổi 1 bước — luật ở backend, client chỉ áp. */
+  /** Ngăn bước mở ⇒ hỏi lượng gợi ý của từng món cho bước đó. Phụ thuộc `d` để lưu xong (số vào–ra
+   *  đổi) thì ngăn đang mở hỏi lại. */
+  const napGoiY = useCallback(
+    async (buocId: number) => {
+      if (!token || !d) return [];
+      return api.lsx.goiYVatTuBuoc(token, d.id, buocId);
+    },
+    [token, d],
+  );
+
   const macDinhBuoc = useCallback(
     async (congDoanId: number) => {
       if (!token || !d) throw new Error("chưa sẵn sàng");
@@ -684,15 +654,6 @@ export function LsxDetailView({
       setAskDelete(false);
     }
   }
-
-  // HOOK PHẢI NẰM TRƯỚC MỌI `return` SỚM. Khối này từng đứng dưới hai nhánh return bên dưới:
-  // render đầu (đang tải) React đếm 45 hook, dữ liệu về thành 46 → "Rendered more hooks than
-  // during the previous render" và cả màn trắng ngay khi bấm vào một lệnh. `d`/`form` lúc này
-  // còn có thể là null nên đọc bằng `?.` — `tinhNgayDem` đã nhận null/undefined và trả "none".
-  const demHan = useMemo(
-    () => tinhNgayDem(form?.han_hoan_thanh_sx, d?.han_giao_khach),
-    [form?.han_hoan_thanh_sx, d?.han_giao_khach],
-  );
 
   if (loading) {
     // Skeleton GIỮ ĐÚNG layout (head + 2 cột) để nội dung thật không làm nhảy trang.
@@ -1231,37 +1192,7 @@ export function LsxDetailView({
                           onChange={(e) => set("ten", e.target.value)}
                         />
                       </label>
-                      <label className="khsx-field khsx-field--flex1">
-                        <span className="khsx-field__label">Hạn hoàn thành sản xuất</span>
-                        <ChonNgay
-                          value={form.han_hoan_thanh_sx}
-                          aria-label="Hạn hoàn thành sản xuất"
-                          readOnly={!canUpdate}
-                          onChange={(v) => set("han_hoan_thanh_sx", v)}
-                        />
-                      </label>
                     </div>
-
-                    {demHan.status !== "none" && (
-                      <div className={`khsx-buffer-gauge khsx-buffer-gauge--${demHan.status}`}>
-                        <div className="khsx-buffer-gauge__track">
-                          <div className="khsx-buffer-gauge__milestone">
-                            <span className="khsx-buffer-gauge__tag">Bàn giao</span>
-                            <span className="khsx-buffer-gauge__val">{ngay(d.ban_giao_at || d.created_at)}</span>
-                          </div>
-                          <div className="khsx-buffer-gauge__bar-wrap">
-                            <div className="khsx-buffer-gauge__bar" />
-                            <span className="khsx-buffer-gauge__badge">
-                              {demHan.text}
-                            </span>
-                          </div>
-                          <div className="khsx-buffer-gauge__milestone">
-                            <span className="khsx-buffer-gauge__tag">Hạn giao</span>
-                            <span className="khsx-buffer-gauge__val">{ngay(d.han_giao_khach)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
 
                     <label className="khsx-field khsx-field--wide">
                       <span className="khsx-field__label">Ghi chú kế hoạch</span>
@@ -1599,12 +1530,11 @@ export function LsxDetailView({
                     </h4>
                   </div>
                   <div className="khsx-spec__card-body">
-                    {/* KẾ THỪA TRỌN từ phiếu tính giá: đưa NGUYÊN các khoản chừa + bleed + khe cắt
-                        của quy cách, để server tách chiều bằng đúng engine. Bản trước tự cộng năm
-                        khoản thành một số rồi trừ đều hai chiều và bỏ quên bleed → sơ đồ vẽ 105
-                        con trong khi phiếu ra 99, hiệu suất cũng thành số ảo.
+                    {/* KẾ THỪA TRỌN từ phiếu tính giá: đưa NGUYÊN các khoản chừa của quy cách, để
+                        server tách chiều bằng đúng engine. Bản trước tự cộng các khoản thành một
+                        số rồi trừ đều hai chiều → sơ đồ lệch số con của phiếu.
 
-                        Khổ/bleed/khe LẤY TỪ `form.qc` chứ không từ ảnh chụp đã lưu: từ khi mở khoá
+                        Khổ LẤY TỪ `form.qc` chứ không từ ảnh chụp đã lưu: từ khi mở khoá
                         sửa thông số, đọc ảnh chụp nghĩa là gõ lại khổ tờ in mà hình đứng im.
                         `trangMoiTay` BẮT BUỘC truyền — thiếu nó thì sách vẽ lưới CẮT RỜI (16 con,
                         4×4) trong khi tờ in gấp nguyên thành một tay, không cắt con nào. */}
@@ -1620,8 +1550,6 @@ export function LsxDetailView({
                         le_hong_mm: n("le_hong_mm"),
                         duoi_thang_mau_mm: n("duoi_thang_mau_mm"),
                       }}
-                      bleedMm={form.qc.bleed_mm ?? 0}
-                      kheCatMm={form.qc.khe_cat_mm ?? 0}
                       soCon={n("so_con")}
                       trangMoiTay={form.qc.trang_moi_tay ?? 1}
                       dvCon={dvTp}
@@ -1644,21 +1572,21 @@ export function LsxDetailView({
                   <h4 className="khsx-spec__title">Công đoạn sản xuất (Routing)</h4>
                 </div>
                 <div className="khsx-spec__card-body">
-                  {(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
-                    <ONguonGiay
-                      key={`${d.id}-${d.nguon_giay ?? ""}`}
-                      nguon={d.nguon_giay}
-                      khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
-                        : d.trang_thai === "da_phat_hanh" ? "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi đổi nguồn giấy"
-                        : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không đổi nguồn giấy được nữa"
-                        : tronGoi ? "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy"
-                        : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
-                        : routingDirty ? "Lưu hoặc huỷ thay đổi routing trước khi đổi nguồn giấy"
-                        : null}
-                      onDoi={doiNguonGiay}
-                    />
-                  )}
                   <LsxRoutingTable
+                    dauChuoi={(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
+                      <ONguonGiay
+                        key={`${d.id}-${d.nguon_giay ?? ""}`}
+                        nguon={d.nguon_giay}
+                        khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
+                          : d.trang_thai === "da_phat_hanh" ? "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi đổi nguồn giấy"
+                          : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không đổi nguồn giấy được nữa"
+                          : tronGoi ? "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy"
+                          : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
+                          : routingDirty ? "Đang sửa chuỗi công đoạn: lưu xong mới đổi nguồn giấy được"
+                          : null}
+                        onDoi={doiNguonGiay}
+                      />
+                    )}
                     congDoans={d.cong_doans}
                     soLuongDat={d.so_luong_dat}
                     leadTime={d.lead_time}
@@ -1688,6 +1616,7 @@ export function LsxDetailView({
                     onSave={luuRouting}
                     onPatchLsx={patchLsx}
                     onMacDinhBuoc={macDinhBuoc}
+                    napGoiY={napGoiY}
                     onXemTruocBuoc={xemTruocBuoc}
                     onXemTruocRouting={xemTruocRouting}
                     onDirtyChange={setRoutingDirty}

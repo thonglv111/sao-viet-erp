@@ -4516,3 +4516,69 @@ button.rc-formula__nhan--nut.is-chon {
 /* Nút "＋ Thêm" rộng bằng khung nhìn, kéo ngang thì đứng yên (không trôi đi để lại dải trống). */
 .rc-khoan__luoi .rc-bands--bac-gia > .rc-bands__add,
 .rc-khoan__luoi .rc-bands--vps > .rc-bands__add { position: sticky; left: 0; }
+
+/* Giá bán theo ĐVT — danh mục Hàng thương mại (chỉ In Hà Phương, 08/11/2026). */
+.rc-gia-dvt { display: grid; gap: 6px; }
+.rc-gia-dvt__dong { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(120px, 180px) auto; align-items: center; gap: 8px; }
+.rc-gia-dvt__dv { color: var(--ink-3, #6b7280); }
+
+/* Bảng "Đơn vị bán và giá" — Hàng thương mại, phương án A (09/11/2026). Mỗi dòng một đơn vị kèm giá. */
+.rc-dvbg { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rc-dvbg__bang { width: 100%; border-collapse: collapse; border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 8px; font-size: 13px; }
+.rc-dvbg__bang th { height: 32px; padding: 0 10px; text-align: left; font-size: 12px; font-weight: 600; color: var(--ash-2, #64748b); background: var(--paper, #f8fafc); border-bottom: 1px solid var(--rule-soft, #e2e8f0); }
+.rc-dvbg__bang td { padding: 5px 10px; border-bottom: 1px solid var(--rule-hair, #f1f5f9); vertical-align: middle; }
+.rc-dvbg__bang tr:last-child td { border-bottom: 0; }
+.rc-dvbg__c-dv { width: 45%; }
+.rc-dvbg__c-bo { width: 36px; }
+.rc-dvbg__ten { display: inline-block; padding: 0 2px; }
+.rc-dvbg__ten--loi { color: var(--tt-do-fg, #b91c1c); }
+.rc-dvbg__bo { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--ash-3, #94a3b8); cursor: pointer; }
+.rc-dvbg__bo:hover { background: var(--rule-hair, #f1f5f9); color: var(--ink, #0f172a); }
+.rc-dvbg__them { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px dashed var(--rule, #cbd5e1); border-radius: 8px; background: transparent; font: inherit; font-size: 13px; color: var(--ink-2, #334155); cursor: pointer; }
+.rc-dvbg__them:hover:not(:disabled) { background: var(--rule-hair, #f1f5f9); }
+.rc-dvbg__them:disabled { color: var(--ash-3, #94a3b8); cursor: not-allowed; }
+
+/* Bảng "Đơn vị bán và giá" — các phần thêm cho ngăn Hàng thương mại hai cột (09/11/2026). */
+.rc-dvbg .rc-dvbg__c-dv { width: 150px; }
+.rc-dvbg__c-nhap { width: 140px; }
+.rc-dvbg__bang th.rc-dvbg__so, .rc-dvbg__bang th.rc-dvbg__c-nhap { text-align: right; }
+.rc-dvbg__so { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rc-dvbg__mo { color: var(--ash-3, #94a3b8); }
+.rc-dvbg .rc-input--num { text-align: right; font-variant-numeric: tabular-nums; }
+.rc-dvbg__ten { display: flex; align-items: center; height: 36px; padding: 0 12px; border: 1px solid var(--rule, #cbd5e1); border-radius: 8px; background: var(--paper, #f8fafc); }
+
+/* Ngăn chi tiết Hàng thương mại — khung "Ngăn chi tiết rộng hai cột" của
+   docs/mockups/hang-thuong-mai-3-phuong-an.html: trái khai, phải thẻ Trạng thái + Tồn hiện có. */
+.rc-drawer.htm-ngan { width: min(95vw, 920px); }
+.htm-ngan .rc-drawer__head { padding-bottom: 0; }
+.htm-ngan .rc-drawer__head > div:first-child { flex: 1; min-width: 0; }
+.htm-ngan .rc-drawer__kicker { font-size: 12.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ash-2, #64748b); }
+.htm-ngan .rc-drawer__title { font-size: 17px; font-weight: 500; margin: 2px 0 10px; }
+.htm-tabs { display: flex; gap: 2px; }
+.htm-tab { padding: 9px 12px; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; font: inherit; font-size: 13px; color: var(--ash, #475569); cursor: pointer; }
+.htm-tab:hover { color: var(--ink, #0f172a); }
+.htm-tab.is-on { color: var(--ink, #0f172a); border-bottom-color: var(--ink, #0f172a); font-weight: 500; }
+.htm-than { gap: 0; }
+.htm-ben { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+.htm-trai { min-width: 0; }
+.htm-nhom { margin: 0 0 20px; }
+.htm-nhom h3, .htm-the h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--ash-2, #64748b); text-transform: uppercase; letter-spacing: .04em; }
+.htm-dong { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: center; min-height: 44px; }
+.htm-dong > span:first-child { font-size: 13px; color: var(--ash, #475569); }
+.htm-dong em { font-style: normal; color: var(--rust, #c5400a); }
+.htm-loi { display: block; margin-top: 4px; font-size: 12px; color: var(--tt-do-fg, #b91c1c); }
+.htm-the { border: 1px solid var(--rule-soft, #e2e8f0); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.htm-gat { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; font-size: 13px; }
+.htm-so-to { font-size: 20px; font-variant-numeric: tabular-nums; }
+.htm-nho { margin: 6px 0 0; font-size: 12px; color: var(--ash-2, #64748b); }
+.htm-cam { color: var(--tt-cam-fg, #c2410c); }
+.htm-cong-tac { position: relative; flex: 0 0 auto; width: 38px; height: 22px; border: 0; border-radius: 999px; background: var(--rule, #cbd5e1); cursor: pointer; transition: background .15s; }
+.htm-cong-tac::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(15, 23, 42, .2); transition: transform .15s; }
+.htm-cong-tac.is-on { background: var(--tt-la-dot, #22c55e); }
+.htm-cong-tac.is-on::after { transform: translateX(16px); }
+.htm-cong-tac:focus-visible { outline: 2px solid var(--rust, #c5400a); outline-offset: 2px; }
+.htm-ton-kho { max-width: 560px; }
+@media (max-width: 900px) {
+  .htm-ben { grid-template-columns: 1fr; }
+  .htm-dong { grid-template-columns: 1fr; gap: 4px; }
+}

@@ -282,8 +282,12 @@ def bao_hong_dang_mo_nhieu(db, may_ids) -> dict[int, list[dict]]:
     return out
 
 
-def trang_thai_may(db, may_ids: list[int], *, bay_gio: datetime | None = None) -> dict[int, dict]:
+def trang_thai_may(db, may_ids: list[int], *, bay_gio: datetime | None = None,
+                   xep_lich: bool = True) -> dict[int, dict]:
     """{may_id: {trang_thai, nhan, chi_tiet, phieu_id, den}} — chỉ máy CÓ CHUYỆN mới có mặt.
+
+    `xep_lich=False`: bỏ bước 1 (đang chạy theo dòng Xếp lịch, phải dựng mốc cả lịch) cho bên gọi
+    tự biết máy nào đang chạy, như Kế hoạch bộ phận đọc việc tổ đang chạy.
 
     Máy không xuất hiện trong map = `ranh`. Cố ý không nhồi cả danh sách máy vào đây: bên gọi đã
     có danh sách rồi, trả về thêm một bản sao chỉ để nói "không có gì" là tốn công vô ích.
@@ -294,7 +298,7 @@ def trang_thai_may(db, may_ids: list[int], *, bay_gio: datetime | None = None) -
     out: dict[int, dict] = {}
 
     # 1. Đang chạy (yếu nhất — bị vùng khoá đè)
-    for may_id, lenh in lenh_dang_chay(db, may_ids, bay_gio).items():
+    for may_id, lenh in (lenh_dang_chay(db, may_ids, bay_gio) if xep_lich else {}).items():
         finish = lenh.get("finish_at")
         out[may_id] = {
             "trang_thai": TT_DANG_CHAY, "nhan": NHAN[TT_DANG_CHAY],

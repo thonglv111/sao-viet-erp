@@ -64,6 +64,10 @@ DANH_MUC: tuple[DanhMuc, ...] = (
     # `model=None` là CỐ Ý: bộ đếm "còn ai dùng không" mà trỏ vào VatTuInAn thì nó đếm cả vật tư
     # thường, trả ra con số sai cho cả hai màn. Không có bộ đếm còn hơn có bộ đếm nói dối.
     DanhMuc("thanh_pham", "dm_thanh_pham", "Thành phẩm", "thanh-pham"),
+    # Hàng thương mại (08/11/2026, CHỈ In Hà Phương — phân hệ `thuong_mai`): cùng bảng `vat_tu_in_an`,
+    # cờ `la_hang_thuong_mai`. Khoá không có tiền tố `dm_` vì đã chốt tên `hang_thuong_mai` trong
+    # `app.phan_he.MODULE_CUA_PHAN_HE`.
+    DanhMuc("hang_thuong_mai", "hang_thuong_mai", "Hàng thương mại", "hang-thuong-mai"),
     # `khuon_be` KHÔNG có tiền tố `dm_` — chuỗi này đã cấp quyền trong DB thật, đổi cần migration.
     # NHÃN "Khuôn & khung" (04/09/2026) → "Khuôn" (18/09/2026, chủ đổi). Từ 01/10/2026 chỉ còn khuôn
     # bế để khai mới; dòng ép kim / khung lụa cũ vẫn đọc được. Chỉ chữ hiển thị đổi (menu ·
@@ -79,6 +83,10 @@ DANH_MUC: tuple[DanhMuc, ...] = (
     # Xe giao hàng (12/09/2026). Chỉ DANH TÍNH xe + xe này ăn MỨC khoán km nào. Bảng bậc giá
     # thuộc về MỨC và khai ở màn Cấu hình lương — xem docs/prd-khoan-km-giao-hang.md §11.
     DanhMuc("xe", "dm_xe", "Xe giao hàng", "xe", model="models.xe:Xe"),
+    # Xe giao hàng kiểu Hà Phương (08/11/2026, CHỈ In Hà Phương — phân hệ `giao_hang_hp`): bảng MỚI
+    # `xe_giao_hang`, không mức khoán km. Nhãn trùng màn xe cũ không sao: hai phân hệ không bao giờ
+    # cùng bật (Hà Phương tắt `giao_hang`, Sao Việt Nhật không bật `giao_hang_hp`).
+    DanhMuc("xe_giao_hang", "xe_giao_hang", "Xe giao hàng", "xe-giao-hang"),
     # Mục thu chi (11/10/2026) — mỗi phiếu thu/chi mang một mục, Báo cáo thu chi gom theo đây.
     DanhMuc("muc_thu_chi", "dm_muc_thu_chi", "Mục thu chi", "muc-thu-chi",
             model="models.muc_thu_chi:MucThuChi"),

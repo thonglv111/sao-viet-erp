@@ -6,30 +6,22 @@ duyệt vài chục lệnh, hỏi routing từng lệnh là đúng bài N+1 đã
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..models.bai_ghep import BaiGhepThanhVien
-from ..models.customer import Customer
 from ..models.department import Department
 from ..models.don_vi_do import DonViDo
-from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc, LsxCongDoanVatTu
+from ..models.lsx import Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
 from ..models.may_thiet_bi import MayThietBi
 from ..models.san_xuat import (
     GOI_DANG_PHAT_HANH, SanXuatCongViec, SanXuatCongViecLichSu, SanXuatGoiPhatHanh,
 )
 from ..models.san_xuat_thuc_thi import SanXuatPhienChay
-from ..models.order import Order, OrderLine
+from ..models.order import OrderLine
 from ..models.xep_lich_lenh import XepLichLenh
-from .loc_danh_sach import dk_khoang_ngay
-
-#: Mốc kỳ của hàng chờ → (cột, là cột Date).
-MOC_HANG_CHO = {
-    "tao": (Lsx.created_at, False),
-    "han_sx": (Lsx.han_hoan_thanh_sx, True),
-}
 
 
 class XepLichLenhRepository:
@@ -51,138 +43,6 @@ class XepLichLenhRepository:
         ).scalars()
         return {r.lsx_id: r for r in rows}
 
-    def truoc_moc(self, den: datetime, tu: datetime | None = None) -> list[XepLichLenh]:
-        """Lệnh CHẠM cửa sổ: mốc bắt đầu trước mép phải, HOẶC đã có phiên chạy trước mép phải.
-
-        Vế thứ hai không thừa. Từ lúc mốc của lệnh chạy dở đổi nghĩa thành "bắt đầu phần CÒN LẠI",
-        người điều độ đẩy mốc ra sau cửa sổ là chuyện thường — nhưng lệnh đã chạy từ trước đó và
-        thanh của nó vẫn cắt ngang cửa sổ. Lọc mỗi `bat_dau_at` thì nó biến mất khỏi bàn.
-
-        `san_xuat_phien_chay.bat_dau` là UTC THẬT còn `den` là giờ tường dán nhãn UTC, nên vế này
-        LỎNG hơn thực tế đúng một offset máy chủ. Cố ý: lọt thừa vài lệnh thì service cắt lại
-        chính xác sau khi trải, còn lọt thiếu là mất dòng.
-
-        `tu` (mép TRÁI, A7 28/09/2026) — bỏ những lệnh `_xong_tron_truoc(tu)`: không có nó, mọi lệnh
-        TỪNG được xếp lịch từ ngày đầu dùng phần mềm đều đi qua trải lịch + nạp thực tế ở mỗi lượt
-        vẽ bàn, rồi mới bị service vứt vì kết thúc trước cửa sổ. `None` = hành vi cũ.
-        """
-        da_chay = (
-            select(SanXuatCongViec.lsx_id)
-            .join(SanXuatPhienChay, SanXuatPhienChay.cong_viec_id == SanXuatCongViec.id)
-            .where(SanXuatPhienChay.bat_dau <= den, SanXuatCongViec.lsx_id.is_not(None))
-            .scalar_subquery()
-        )
-        stmt = select(XepLichLenh).where(
-            or_(XepLichLenh.bat_dau_at <= den, XepLichLenh.lsx_id.in_(da_chay))
-        )
-        if tu is not None:
-            stmt = stmt.where(~self._xong_tron_truoc(tu))
-        return list(self.db.execute(stmt.order_by(XepLichLenh.bat_dau_at)).scalars())
-
-    @staticmethod
-    def _xong_tron_truoc(tu: datetime):
-        """Vị ngữ (tương quan với `XepLichLenh.lsx_id`): lệnh mà thanh trên bàn CHẮC CHẮN kết thúc
-        trước `tu` — nên bỏ ở SQL mà không đổi kết quả của `XepLichLenhService.lich()`.
-
-        CHỈ ĐƯỢC HẸP, không được rộng: vị ngữ này ĐÚNG ⇒ service chắc chắn đã loại lệnh (mép vẽ
-        `ket_thuc_thuc_te or kq.ket_thuc < d_tu`). Sai theo chiều ngược lại (bỏ sót vài lệnh đáng
-        bỏ) chỉ tốn thêm chút công, còn sai theo chiều này là mất dòng khỏi bàn. Nên chỉ nhận ca mà
-        mép vẽ KHÔNG còn phụ thuộc kế hoạch — tức `_du_kien_theo_thuc_te` rơi đúng nhánh "hết bước
-        để trải ⇒ mốc xong = mốc thực cuối cùng" (`xong = san`), và `san` < `tu`:
-
-          (1) lệnh CÓ routing (không routing thì `co_thuc_te=False`, mép vẽ = mốc kế hoạch — không
-              chặn trên được bằng cột nào);
-          (2) MỌI bước routing đều khớp một công việc của GÓI ĐANG PHÁT HÀNH — theo `lsx_cong_doan_id`,
-              `step_key`, hoặc qua bảng phủ bài ghép — đúng ba khoá mà `_thuc_te_cua` tra. Bước nào
-              không khớp thì nó rơi vào "phần còn lại" và được TRẢI TIẾP từ mốc lệnh ⇒ mép vẽ
-              không chặn được;
-          (3) MỌI công việc đó (riêng + chung bài ghép) đã `completed` VÀ có `hoan_thanh_luc` —
-              bước xong mà thiếu dấu đóng thì `_san` lấy "bây giờ" làm sàn;
-          (4) và mọi `hoan_thanh_luc` < `tu` − 1 ngày. `tu` là giờ tường dán nhãn UTC, cột là UTC
-              thật: VN lệch +7h nên chỉ cần lùi 7 tiếng; lùi hẳn một ngày để khỏi phụ thuộc offset.
-
-        Cùng bộ lọc gói của `thuc_te_buoc`/`thuc_te_buoc_chung` (`GOI_DANG_PHAT_HANH`) — lệch bộ lọc
-        gói ở đây là một bước tra ra thực tế ở service mà SQL tưởng không có (hoặc ngược lại).
-        """
-        from datetime import timedelta
-
-        from ..models.bai_ghep_cong_doan import BaiGhepCongDoanMap
-        from ..models.san_xuat import CV_HOAN_THANH
-
-        mep = tu - timedelta(days=1)
-        goi_dang = select(SanXuatGoiPhatHanh.id).where(
-            SanXuatGoiPhatHanh.trang_thai == GOI_DANG_PHAT_HANH
-        )
-        chua_xong_truoc_mep = or_(
-            SanXuatCongViec.trang_thai != CV_HOAN_THANH,
-            SanXuatCongViec.hoan_thanh_luc.is_(None),
-            SanXuatCongViec.hoan_thanh_luc >= mep,
-        )
-        # (3)+(4) — công việc RIÊNG của lệnh còn dở / đóng muộn.
-        rieng_con_do = (
-            select(SanXuatCongViec.id)
-            .where(
-                SanXuatCongViec.lsx_id == XepLichLenh.lsx_id,
-                SanXuatCongViec.goi_id.in_(goi_dang),
-                chua_xong_truoc_mep,
-            )
-            .exists()
-        )
-        # (3)+(4) — công việc CHUNG của bài ghép phủ bước của lệnh còn dở / đóng muộn.
-        chung_con_do = (
-            select(SanXuatCongViec.id)
-            .join(
-                BaiGhepCongDoanMap,
-                BaiGhepCongDoanMap.bai_ghep_cong_doan_id == SanXuatCongViec.bai_ghep_cong_doan_id,
-            )
-            .where(
-                BaiGhepCongDoanMap.lsx_id == XepLichLenh.lsx_id,
-                SanXuatCongViec.lsx_id.is_(None),
-                SanXuatCongViec.goi_id.in_(goi_dang),
-                chua_xong_truoc_mep,
-            )
-            .exists()
-        )
-        # (2) — bước routing có công việc tra được: riêng (id hoặc step_key) hoặc qua bảng phủ.
-        buoc = LsxCongDoan.__table__.alias("buoc_xong_tron")
-        # Hai khoá riêng tách HAI vế EXISTS, đừng gộp `OR` trong một vế: Postgres không băm được
-        # điều kiện nối có OR nên so lồng mọi bước × mọi việc — DB đo tải 26/10/2026 (102 nghìn
-        # bước) mất 38 s cho bàn tháng; tách ra thì thành hash anti-join.
-        def co_viec_rieng_theo(dk):
-            return (
-                select(SanXuatCongViec.id)
-                .where(
-                    SanXuatCongViec.lsx_id == XepLichLenh.lsx_id,
-                    SanXuatCongViec.goi_id.in_(goi_dang),
-                    dk,
-                )
-                .exists()
-            )
-
-        co_viec_theo_id = co_viec_rieng_theo(SanXuatCongViec.lsx_cong_doan_id == buoc.c.id)
-        co_viec_theo_khoa = co_viec_rieng_theo(SanXuatCongViec.step_key == buoc.c.step_key)
-        co_viec_chung = (
-            select(SanXuatCongViec.id)
-            .join(
-                BaiGhepCongDoanMap,
-                BaiGhepCongDoanMap.bai_ghep_cong_doan_id == SanXuatCongViec.bai_ghep_cong_doan_id,
-            )
-            .where(
-                BaiGhepCongDoanMap.lsx_id == XepLichLenh.lsx_id,
-                BaiGhepCongDoanMap.lsx_step_key == buoc.c.step_key,
-                SanXuatCongViec.lsx_id.is_(None),
-                SanXuatCongViec.goi_id.in_(goi_dang),
-            )
-            .exists()
-        )
-        buoc_khong_khop = (
-            select(buoc.c.id)
-            .where(buoc.c.lsx_id == XepLichLenh.lsx_id, ~co_viec_theo_id, ~co_viec_theo_khoa, ~co_viec_chung)
-            .exists()
-        )
-        co_routing = select(LsxCongDoan.id).where(LsxCongDoan.lsx_id == XepLichLenh.lsx_id).exists()
-        return and_(co_routing, ~buoc_khong_khop, ~rieng_con_do, ~chung_con_do)
-
     def them(self, row: XepLichLenh) -> XepLichLenh:
         self.db.add(row)
         self.db.flush()
@@ -199,64 +59,6 @@ class XepLichLenhRepository:
             return {}
         rows = self.db.execute(select(Lsx).where(Lsx.id.in_(lsx_ids))).scalars()
         return {r.id: r for r in rows}
-
-    def _dk_hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None = None,
-                     tu_ngay: date | None = None, den_ngay: date | None = None,
-                     moc: str = "tao", khach_id: int | None = None) -> list:
-        """Điều kiện của hàng chờ — dùng chung cho danh sách và nguồn ô "Khách hàng"."""
-        dieu_kien = [
-            Lsx.trang_thai.in_(trang_thai),
-            ~select(XepLichLenh.id).where(XepLichLenh.lsx_id == Lsx.id).exists(),
-        ]
-        if tim:
-            mau = f"%{tim.strip()}%"
-            dieu_kien.append(or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau)))
-        cot, la_ngay = MOC_HANG_CHO[moc]
-        dieu_kien += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
-        if khach_id is not None:
-            dieu_kien.append(Lsx.order_id.in_(
-                select(Order.id).where(Order.customer_id == khach_id)))
-        return dieu_kien
-
-    def khach_hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None = None,
-                       tu_ngay: date | None = None, den_ngay: date | None = None,
-                       moc: str = "tao") -> list[tuple[int, str, int]]:
-        """Nguồn ô "Khách hàng": khách đang có lệnh trong hàng chờ (đã qua tìm + kỳ), kèm số lệnh."""
-        dk = self._dk_hang_cho(trang_thai=trang_thai, tim=tim, tu_ngay=tu_ngay,
-                               den_ngay=den_ngay, moc=moc)
-        rows = self.db.execute(
-            select(Customer.id, Customer.name, func.count(Lsx.id))
-            .select_from(Lsx)
-            .join(Order, Order.id == Lsx.order_id)
-            .join(Customer, Customer.id == Order.customer_id)
-            .where(*dk)
-            .group_by(Customer.id, Customer.name)
-            .order_by(Customer.name)
-        ).all()
-        return [(int(i), t or f"Khách #{i}", int(n)) for i, t, n in rows]
-
-    def hang_cho(self, *, trang_thai: tuple[str, ...], tim: str | None,
-                 trang: int, cd_trang: int, tu_ngay: date | None = None,
-                 den_ngay: date | None = None, moc: str = "tao",
-                 khach_id: int | None = None) -> tuple[list[Lsx], int]:
-        """Lệnh đủ điều kiện xếp mà CHƯA có mốc. Lọc + phân trang Ở MÁY CHỦ, luôn.
-
-        Cắt trang trong JS sau khi kéo cả bảng về là đường đã bị bác một lần — thẻ hàng chờ có thể
-        lên vài trăm khi xưởng dồn việc cuối tháng. Kỳ (`tu_ngay`/`den_ngay`/`moc`) + khách thêm
-        06/10/2026 cho thanh lọc chung.
-        """
-        dieu_kien = self._dk_hang_cho(trang_thai=trang_thai, tim=tim, tu_ngay=tu_ngay,
-                                      den_ngay=den_ngay, moc=moc, khach_id=khach_id)
-        tong = self.db.execute(
-            select(func.count()).select_from(Lsx).where(*dieu_kien)
-        ).scalar_one()
-        rows = list(self.db.execute(
-            select(Lsx).where(*dieu_kien)
-            # Gấp lên đầu, rồi tới hạn SX sớm nhất — đúng thứ tự người điều độ nhặt việc.
-            .order_by(Lsx.is_rush.desc(), Lsx.han_hoan_thanh_sx.asc().nullslast(), Lsx.id)
-            .offset(max(0, (trang - 1)) * cd_trang).limit(cd_trang)
-        ).scalars())
-        return rows, int(tong)
 
     # ---------------------------------------------------------------- routing
 

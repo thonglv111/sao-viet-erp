@@ -255,16 +255,6 @@ thì là khổ trải hộp, sách thì là khổ một trang.
 \so{5} \oo{Số bài in}: số mặt in khác nhau phải ra kẽm riêng. Tờ rơi, hộp, name card là 1. Sách nhiều tay thì
 mỗi tay là một bài, bấm \oo{tính từ số trang} để phần mềm đếm.}
 
-Hai ô ngay dưới \oo{Số bài in}:
-
-\begin{itemize}
-\item \oo{Bleed (tràn lề)}: phần in tràn ra mỗi cạnh của con để xén không hở viền trắng, thường 3 mm. Gõ 0 nếu
-hàng không in tràn lề.
-\item \oo{Khe cắt giữa con}: khoảng hở giữa hai con cạnh nhau trên tờ in. Gõ 0 nếu bình sát, cắt chung một nhát.
-\end{itemize}
-
-Hai ô này ảnh hưởng thẳng tới số con xếp được trên một tờ in, nên ảnh hưởng tới số tờ và tiền giấy.
-
 \Needspace*{14\baselineskip}
 \canh{0.55}{kd-18-so-trang.png}{%
 Sách, catalogue, tạp chí in nhiều tay:
@@ -548,14 +538,17 @@ dòng.
 \so{3} \oo{Lợi nhuận}: mặc định 20\% trên giá vốn, gõ theo phần trăm hoặc số tiền. Số tiền lợi nhuận hiện ngay
 dưới ô.
 
-\so{4} \oo{Giá bán}: tự ra từ giá vốn, chiết khấu, lợi nhuận. Gõ thẳng giá bán cũng được, lợi nhuận tự tính lại.
+\so{4} \oo{Đơn giá}: giá bán chia số lượng, lấy hai số lẻ. Gõ đơn giá thì giá bán thành đơn giá nhân số lượng,
+làm tròn tới đồng, lợi nhuận tự tính lại như khi gõ thẳng giá bán.
 
-\so{5} \oo{Kê}: phần chi lại cho người bên khách, cộng thêm vào giá bán. Cột cuối là \oo{Giá bán sau kê}, là giá
+\so{5} \oo{Giá bán}: tự ra từ giá vốn, chiết khấu, lợi nhuận. Gõ thẳng giá bán cũng được, lợi nhuận tự tính lại.
+
+\so{6} \oo{Kê}: phần chi lại cho người bên khách, cộng thêm vào giá bán. Cột cuối là \oo{Giá bán sau kê}, là giá
 in trên báo giá gửi khách.
 
-\so{6} \oo{Xem bản in}: xem trước bản báo giá gửi khách, in hoặc lưu PDF.
+\so{7} \oo{Xem bản in}: xem trước bản báo giá gửi khách, in hoặc lưu PDF.
 
-\so{7} \oo{Gửi khách}. Báo giá đặc thù thì nút này là \oo{Trình duyệt} (mục \ref{dac-thu}).
+\so{8} \oo{Gửi khách}. Báo giá đặc thù thì nút này là \oo{Trình duyệt} (mục \ref{dac-thu}).
 
 Dưới mỗi sản phẩm có \oo{Sửa diễn giải} (dòng mô tả in trên báo giá) và \oo{Thêm ảnh minh họa}.
 
@@ -639,13 +632,11 @@ thiếu để chốt, mỗi dòng một chữ đỏ. \so{4} \oo{Chốt đơn} ch
 
 \so{3} \oo{Ngày giao cam kết}: bắt buộc để chốt. Gõ ngày hoặc chọn trên lịch.
 
-\so{4} \oo{Lưu ý giao hàng}: dặn người giao, ví dụ giờ giao, gọi trước.
+\so{4} \oo{Lưu ý sản xuất}: dặn xưởng, ví dụ canh màu theo mẫu, cấn bế kỹ.
 
-\so{5} \oo{Lưu ý sản xuất}: dặn xưởng, ví dụ canh màu theo mẫu, cấn bế kỹ.
+\so{5} \oo{Hàng gấp (ưu tiên sản xuất)}: đánh dấu đơn gấp cho xưởng.
 
-\so{6} \oo{Hàng gấp (ưu tiên sản xuất)}: đánh dấu đơn gấp cho xưởng.
-
-\so{7} \oo{Lưu}.
+\so{6} \oo{Lưu}.
 
 Địa chỉ giao và người nhận lấy từ báo giá. Muốn đổi thì sửa ở báo giá hoặc hồ sơ khách trước khi lên đơn.}
 
@@ -672,8 +663,8 @@ chuyển. Đơn không cần cọc thì xuống hàng chờ ngay khi chốt.
 Chặng \oo{Sản xuất} liệt kê từng sản phẩm của đơn. \so{1} Mã lệnh sản xuất, bấm để mở hồ sơ lệnh. Cột \oo{Đang ở}
 cho biết lệnh đang ở bước nào hoặc ở nhà gia công ngoài, cột \oo{Đã có hàng} là số thành phẩm kho đã nhận.
 
-\so{2} Dòng tóm tắt, ví dụ \q{2 lệnh chưa xuống xưởng}: Kế hoạch đã có lệnh nhưng chưa phát hành. \so{3} \oo{Mở
-Kế hoạch SX} để xem chi tiết từng công đoạn (cần quyền xem Kế hoạch sản xuất).
+\so{2} Dòng tóm tắt, ví dụ \q{3 lệnh chưa xuống xưởng}: Kế hoạch đã có lệnh nhưng chưa phát hành. Món chưa có lệnh
+thì dòng này để trống, cột \oo{Đang ở} của món đó ghi \q{chờ Kế hoạch lên lệnh}.
 
 Khi lệnh đã chạy xong các công đoạn, dòng tóm tắt nói hàng đang ở khâu KCS hay kho:
 

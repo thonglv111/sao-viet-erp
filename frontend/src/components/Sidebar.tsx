@@ -106,7 +106,8 @@ export const NAV: NavSection[] = [
       // MỘT MÀN = MỘT Ô QUYỀN (17/08/2026). Trước đó 6 mục dưới đây treo trên đúng hai khoá
       // (`san_xuat` mở 4 màn, `ky_thuat_may` mở 2), nên không có cách nào cho ai đó xem lệnh mà
       // không dời được lịch cả xưởng. Migration 0209 đã sao chép quyền cũ sang 4 khoá mới.
-      { id: "ke-hoach-sx", label: "Kế hoạch sản xuất", icon: "clipboardList", module: "san_xuat" },
+      // 07/11/2026: "Kế hoạch sản xuất" đổi tên "Lệnh sản xuất" — nơi lập lệnh. Id + khoá giữ nguyên.
+      { id: "ke-hoach-sx", label: "Lệnh sản xuất", icon: "clipboardList", module: "san_xuat" },
       // Bàn TRA (điều độ · QC · sale), khác hẳn Kế hoạch SX là bàn LẬP: chỉ lệnh ĐÃ PHÁT HÀNH, và
       // không một nút ghi nào. Nhãn "Hồ sơ lệnh sản xuất" chứ không "Lệnh sản xuất" — màn Kế hoạch
       // SX đã có sẵn một TAB mang đúng chữ đó. ĐỊNH DANH giữ nguyên: nav id `lenh-san-xuat`,
@@ -134,6 +135,8 @@ export const NAV: NavSection[] = [
       // bỏ đánh số về `xep_lich`, mg `0314` chép quyền của `xep_lich_3` sang nên không ai mất
       // đường vào. Dấu trang cũ `/xep-lich-3` và `/xep-lich-cong-doan-2` không còn dùng được.
       { id: "xep-lich", label: "Xếp lịch", icon: "gantt", module: "xep_lich" },
+      // (Mục chung "Kế hoạch bộ phận" gỡ 08/11/2026: mỗi bộ phận có mục "Kế hoạch" riêng, ĐỘNG dưới
+      // khối Tổ sản xuất, khoá `ke_hoach_bp_<id>` — AppShell dựng.)
       // KCS (09/10/2026) — ô quyền thật `kcs` (Xem · Thao tác · Đóng lệnh thiếu), thay cờ phòng ban
       // "Tổ KCS đích danh" từng tiêm mục này động vào khối Tổ sản xuất. Kiểm cả chuỗi mọi tổ.
       { id: "kcs", label: "KCS", icon: "badgeCheck", module: "kcs" },
@@ -303,6 +306,9 @@ export const NAV: NavSection[] = [
       // Thành phẩm: hàng của đơn hàng bán, hệ tự khai khi chốt đơn. Đứng CẠNH Vật tư khác vì
       // chung một bảng và người dùng hay nhầm hai chỗ (docs/prd-thanh-pham.md).
       { id: "thanh-pham", label: "Thành phẩm", icon: "packageCheck", module: "dm_thanh_pham" },
+      // Hàng thương mại (08/11/2026, chỉ In Hà Phương): hàng mua về bán. Bản cài không bật phân hệ
+      // `thuong_mai` thì máy chủ không trả module này ⇒ mục tự ẩn.
+      { id: "hang-thuong-mai", label: "Hàng thương mại", icon: "store", module: "hang_thuong_mai" },
       // Khuôn: kho khuôn bế của xưởng — khách · loại · số kệ ·
       // tình trạng. Bước cần dụng cụ ở Lệnh sản xuất chọn từ đây. Nhan đề đổi 18/09/2026;
       // `module` GIỮ chuỗi `khuon_be` vì nó nằm trong bảng phân quyền của DB thật.
@@ -316,6 +322,9 @@ export const NAV: NavSection[] = [
       // của từng mức khai ở Cấu hình lương — sửa giá là việc kế toán, không phải việc của
       // người khai biển số.
       { id: "xe", label: "Xe giao hàng", icon: "truck", module: "dm_xe" },
+      // Xe giao hàng kiểu Hà Phương (`giao_hang_hp`): biển số + người phụ trách, không khoán km.
+      // Hai mục cùng tên không bao giờ cùng hiện: bản cài HP tắt `giao_hang` (mất `dm_xe`).
+      { id: "xe-giao-hang", label: "Xe giao hàng", icon: "truck", module: "xe_giao_hang" },
       // Mục thu chi (11/10/2026): mỗi phiếu thu / phiếu chi mang một mục từ đây.
       { id: "muc-thu-chi", label: "Mục thu chi", icon: "layers", module: "dm_muc_thu_chi" },
     ],

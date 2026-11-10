@@ -1282,7 +1282,8 @@ def _mo_ta_cong_thuc_khoan(ct: str | None, tuy_chon: list | None) -> dict:
 
 
 def chi_tiet_cong_viec(
-    db: Session, user: User, authz: AuthorizationService, *, cong_viec_id: int
+    db: Session, user: User, authz: AuthorizationService, *, cong_viec_id: int,
+    chi_xem: bool = False,
 ) -> dict:
     """Drawer một công việc: thanh kế hoạch + roster + phiên chạy + khoảng tham gia + sản lượng /
     bàn giao / vật tư (§5.1, §10–§11, §18).
@@ -1294,10 +1295,13 @@ def chi_tiet_cong_viec(
     cv = tt.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
-    q, muc = _pham_vi_doc(db, user, cv.department_id)
-    la_tho = muc == MUC_CUA_TOI
-    if la_tho and not _loc_viec_cua_tho(db, user, [cv]):
-        raise PermissionError("Chỉ xem được việc đã giao cho mình.")
+    # `chi_xem`: người gọi (Kế hoạch bộ phận) đã gác theo BỘ PHẬN của việc — việc chưa giao chưa có
+    # tổ nên gác theo tổ không dùng được. Ngăn trả quyền rỗng: mọi nút ghi của tổ tự khoá.
+    q = None
+    if not chi_xem:
+        q, muc = _pham_vi_doc(db, user, cv.department_id)
+        if muc == MUC_CUA_TOI and not _loc_viec_cua_tho(db, user, [cv]):
+            raise PermissionError("Chỉ xem được việc đã giao cho mình.")
 
     lsx_map = repo.lsx_nhan({cv.lsx_id} if cv.lsx_id else set())
     bg_map = repo.bai_ghep_nhan({cv.bai_ghep_id} if cv.bai_ghep_id else set())
@@ -1464,11 +1468,12 @@ def chi_tiet_cong_viec(
         "trang_thai": cv.trang_thai,
         "version": cv.version,
         # Bốn quyền chi tiết của người đang xem trên CHÍNH việc này — drawer bật/tắt nút theo đây.
-        "quyen": quyen_tren_viec(db, user.id, cv, q=q),
+        "quyen": quyen_tren_viec(db, user.id, cv, q=q) if q is not None else {},
         # MỨC của từng quyền ở tổ này ("all" | "own"; không có khoá = không được cấp). `quyen` tắt
         # vì hai lý do khác nhau — không được cấp, hoặc chỉ "Của tôi" mà việc chưa giao cho mình —
         # và drawer phải nói đúng lý do nào, không thì người đã bật quyền đọc thấy "cần quyền".
-        "quyen_muc": {v: m for v in VIEC_CHI_TIET if (m := q.muc(v, cv.department_id))},
+        "quyen_muc": ({v: m for v in VIEC_CHI_TIET if (m := q.muc(v, cv.department_id))}
+                      if q is not None else {}),
         # Giá bày cho tổ là giá CỦA TỔ làm việc này (bảng giá theo tổ, 21/10/2026) — đúng số máy
         # chủ sẽ chụp vào lần ghi; tổ vắng trong bảng ⇒ cờ thiếu giá, không bày giá chung.
         "khoan": ({

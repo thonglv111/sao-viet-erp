@@ -197,6 +197,5 @@ def test_buoc_tren_dong_giay_giu_nguyen_don_vi_va_co_dai_phut(
 
     dm = cv.dinh_muc_json
     assert dm["ngoai_dong"] is False
-    # Bước in có máy nên có giờ thật; dải luôn bọc lấy số giữa (máy chưa khai min/max ⇒ bằng nhau).
-    assert dm["chay_phut"] > 0
-    assert dm["chay_phut_min"] <= dm["chay_phut"] <= dm["chay_phut_max"]
+    # Bước máy thôi tính giờ theo tốc độ (08/11/2026): ba số đều 0.
+    assert dm["chay_phut"] == dm["chay_phut_min"] == dm["chay_phut_max"] == 0

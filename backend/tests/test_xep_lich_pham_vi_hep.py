@@ -103,11 +103,11 @@ def ban(db, orders, lsx_svc, xl_svc, admin, customer):
     _dat(db, d_n1, may_id=may_id, to_id=to_id, tu=T + timedelta(days=14))
     db.add(LsxCongDoanPhuThuoc(buoc_truoc_id=b_l1.id, buoc_sau_id=b_l2.id))
     # Hạn L1 xa, hạn L2 gần ⇒ mốc muộn nhất của bước In L1 do L2 quyết (qua cạnh), không do L1.
-    l1.han_hoan_thanh_sx = (T + timedelta(days=20)).date()
-    l2.han_hoan_thanh_sx = (T + timedelta(days=2)).date()
+    l1.han_giao_khach = (T + timedelta(days=20)).date()
+    l2.han_giao_khach = (T + timedelta(days=2)).date()
     db.commit()
     return {"trang": {l1.id}, "l2": d_l2.id, "m1": d_m1.id, "n1": d_n1.id,
-            "d_l1": d_l1.id, "han_l2": l2.han_hoan_thanh_sx}
+            "d_l1": d_l1.id, "han_l2": l2.han_giao_khach}
 
 
 def _cua_trang(issues, trang):

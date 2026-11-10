@@ -334,7 +334,7 @@ export function LenhSanXuatPage({
                         </button>
                       </>
                     ) : (
-                      "Chưa có lệnh sản xuất nào đã phát hành trong phạm vi của bạn. Lệnh còn đang lập nằm ở màn Kế hoạch sản xuất."
+                      "Chưa có lệnh sản xuất nào đã phát hành trong phạm vi của bạn. Lệnh còn đang lập nằm ở màn Lệnh sản xuất."
                     )}
                   </td>
                 </tr>

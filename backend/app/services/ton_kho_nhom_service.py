@@ -83,7 +83,7 @@ def tinh_du_bao_gon(ton: float, du: dict | None, nguong, hom_nay: date | None = 
     lenh = (du or {}).get("lenh") or []
     ve = (du or {}).get("ve") or []
     # Cùng ngày thì LĨNH trước, VỀ sau; lệnh chưa có hạn đứng đầu (coi như lĩnh ngay).
-    tho = [(str(l.get("han_sx") or ""), 0, j, -float(l["can"])) for j, l in enumerate(lenh)]
+    tho = [(str(l.get("han_giao") or ""), 0, j, -float(l["can"])) for j, l in enumerate(lenh)]
     tho += [(str(v.get("ngay_ve") or ""), 1, j, float(v["sl"])) for j, v in enumerate(ve)]
     tho.sort(key=lambda t: t[:3])
     con_lai = float(ton)

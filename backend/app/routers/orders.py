@@ -22,6 +22,7 @@ from ..deps import (
     require_permission,
 )
 from ..db import get_db
+from ..models.order import SOURCE_THUONG_MAI
 from ..models.user import User
 from ..services import ban_hang_cho_thu_chi
 from ..services.thong_bao_man import bao
@@ -122,12 +123,17 @@ def _loc_don_hang(
     nha_gia_cong: int | None = Query(default=None),
     giao: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
     hoa_don: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
+    ban: str | None = Query(default=None, pattern="^(san_xuat|thuong_mai)$"),
+    cach_giao: str | None = Query(default=None, pattern="^(khong_giao|noi_bo|dich_vu)$"),
+    nguoi_giao: int | None = Query(default=None),
+    don_vi_vc: int | None = Query(default=None),
 ) -> LocDonHang:
     """Dải kỳ + bảng "Bộ lọc nâng cao" — chung cho danh sách và thanh tab."""
     return LocDonHang(
         tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach, gap=gap, gia_tu=gia_tu, gia_den=gia_den,
         hen_giao=hen_giao, dang_cho=dang_cho, gia_cong=gia_cong, nha_gia_cong=nha_gia_cong,
-        giao=giao, hoa_don=hoa_don,
+        giao=giao, hoa_don=hoa_don, ban=ban,
+        cach_giao=cach_giao, nguoi_giao=nguoi_giao, don_vi_vc=don_vi_vc,
     )
 
 
@@ -378,8 +384,11 @@ def _bao_xuong_sx(db: Session, d: OrderDetailOut, user: User) -> None:
     lúc chốt / lúc đủ cọc. Hàng chờ Kế hoạch SX (badge + toast người có `san_xuat`) + nhóm
     `ban_hang`/`san_xuat`. Đơn mới vào hàng chờ, chưa có công việc nào ở bàn tổ."""
     hub.gui({"type": "order_ordered", "code": d.order_no, "order_id": d.id}, quyen=NGHE_LENH)
-    # Chấm đỏ Kế hoạch SX — chuyển lại (idempotent) không đẻ thêm dòng.
-    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True)
+    # Chấm đỏ Kế hoạch SX — chuyển lại (idempotent) không đẻ thêm dòng. Chỉ NGƯỜI GIAO (ô Giao đơn
+    # `san_xuat:reassign`) nhận: đơn mới vào hàng chờ ở trạng thái Chưa giao, người phụ trách chỉ
+    # được báo khi có đơn giao cho mình (08/11/2026, docs/design-giao-don-lam-lenh.md).
+    bao(db, kenh="san_xuat", loai="don_chuyen_sx", actor_id=user.id, ma=d.order_no, chi_mot_lan=True,
+        quyen="reassign")
 
 
 # --- Hủy đơn (P5) — nháp hay đã chốt đều cần `update` (hủy đã chốt mặc định bật) ----
@@ -475,8 +484,9 @@ def add_deposit_receipt(
         raise _map(exc)
     # Kế toán thu ĐỦ cọc → báo sale ĐANG phụ trách khách 'chốt được rồi' (Việc 3). Không báo theo
     # `sale_user_id` chụp lúc tạo đơn: khách đã điều chuyển thì sale cũ không còn thấy đơn.
+    # Đơn thương mại không xuống sản xuất: thu tiền của nó không phải "đủ cọc, chuyển xuống SX được".
     nhan = chu_cua(db, d.customer_id, d.sale_user_id)
-    if d.deposit_ok and nhan:
+    if d.deposit_ok and nhan and d.source_type != SOURCE_THUONG_MAI:
         hub.publish(nhan, {"type": "order_deposit_ok", "code": d.order_no})
         bao(db, kenh="don_hang_ban", loai="don_du_coc", actor_id=user.id,
             nguoi_nhan=nhan, ma=d.order_no)

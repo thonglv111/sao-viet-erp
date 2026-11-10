@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tạo đơn thương mại</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --rust:#c5400a; --moss:#16a34a; --charcoal:#0f172a;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c;
+  --moi-bg:#fefce8; --moi-vien:#eab308;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1280px;margin:0 auto;padding:32px 16px 120px}
+h1{font-size:24px;margin:0 0 6px}
+.lead{color:var(--ash);margin:0 0 18px;max-width:980px}
+.box{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.box h2{font-size:15px;margin:0 0 10px}
+.box ul{margin:0;padding-left:18px;display:grid;gap:4px;color:var(--ash);font-size:13.5px}
+.box p{color:var(--ash);font-size:13.5px;margin:0 0 8px}
+.khung-bang{overflow-x:auto}
+.cmp{border-collapse:collapse;width:100%;min-width:720px;font-size:13px}
+.cmp th{font-size:12px;color:var(--ash-2);text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);font-weight:600}
+.cmp td{padding:9px 10px;border-bottom:1px solid var(--rule-hair);vertical-align:top;color:var(--ash)}
+.cmp td:first-child{color:var(--ink)}
+.optnav{position:sticky;top:0;z-index:30;background:rgba(233,237,242,.94);backdrop-filter:blur(6px);padding:12px 0;margin:24px 0 20px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.optnav button{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.optnav button.on{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-h{margin:0 0 6px;font-size:21px}
+.why{color:var(--ash);margin:4px 0 16px;max-width:980px;font-size:13.5px}
+.why ul{margin:4px 0 0;padding-left:18px;display:grid;gap:3px}
+.scr-h{font-size:16px;margin:26px 0 8px}
+
+/* app */
+.app{background:var(--paper);border:1px solid var(--rule);border-radius:10px;overflow:hidden}
+.dau-trang{display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--canvas);border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.dau-trang h4{margin:0;font-size:18px;font-weight:600;flex:1 1 auto}
+.dau-trang .lui{color:var(--ash-2);font-size:13px}
+.btn{height:34px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13px;color:var(--ink-2);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn.chinh{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.than{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;padding:16px 20px}
+.cot{display:grid;gap:16px;align-content:start;min-width:0}
+.the{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:10px;padding:14px 16px;display:grid;gap:12px;min-width:0}
+.the h5{margin:0;font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.the h5 .phai{margin-left:auto;font-weight:400;font-size:12.5px;color:var(--ash-2)}
+.moi{outline:2px dashed var(--moi-vien);outline-offset:2px;background:var(--moi-bg)}
+.nhan-moi{display:inline-block;font-size:11px;font-weight:600;color:#854d0e;background:#fef9c3;border:1px solid var(--moi-vien);border-radius:4px;padding:0 5px}
+.o-nhan{display:grid;align-content:start;gap:4px;font-size:13px;color:var(--ash);min-width:0}
+.o-nhan b{color:var(--rust);font-weight:400}
+.o-nhan small{color:var(--ash-2);font-size:12px}
+.o{height:34px;border:1px solid var(--rule);border-radius:8px;padding:0 10px;display:flex;align-items:center;font-size:13px;background:var(--canvas);color:var(--ink-2);min-width:0;overflow:hidden;white-space:nowrap}
+.o.so{justify-content:flex-end;font-variant-numeric:tabular-nums}
+.o.mo{color:var(--ash-3)}
+.o.chon::after{content:"▾";margin-left:auto;padding-left:8px;color:var(--ash-3);font-size:10px}
+.o.tim::before{content:"⌕";color:var(--ash-3);margin-right:6px}
+.o.khoa{background:var(--rule-hair);color:var(--ash)}
+.hai{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ba{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+table.g{border-collapse:collapse;width:100%;min-width:700px;font-size:13px}
+.g th{height:32px;padding:0 6px;text-align:left;font-size:12px;font-weight:600;color:var(--ash-2);border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+.g td{padding:6px;border-bottom:1px solid var(--rule-hair);color:var(--ink-2);vertical-align:top}
+.g .so{text-align:right;font-variant-numeric:tabular-nums}
+.g th.so{text-align:right}
+.g td.tt{padding-top:13px}
+.g .o{height:32px}
+.ton{font-size:12px;color:var(--ash-2);margin-top:3px;padding:0 2px;display:inline-block}
+.ton.thieu{color:var(--tt-cam-fg)}
+.xoa{color:var(--ash-3);font-size:16px;padding-top:13px;display:inline-block}
+.tomtat{display:grid;gap:2px;font-size:13.5px}
+.tomtat div{display:flex;justify-content:space-between;gap:12px;min-height:26px;align-items:center}
+.tomtat div span:first-child{color:var(--ash)}
+.tomtat div span:first-child small{color:var(--ash-3);margin-left:6px;font-size:12px}
+.tomtat div span:last-child{font-variant-numeric:tabular-nums}
+.tomtat div.tong{border-top:1px solid var(--rule-soft);padding-top:4px;font-weight:600}
+.tomtat div.tong span:first-child{color:var(--ink)}
+.tomtat .chu{color:var(--rust)}
+.chon2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chon2 label,.the-giao label{border:1px solid var(--rule);border-radius:8px;padding:9px 12px;display:grid;gap:1px;font-size:13px;color:var(--ink-2);background:var(--canvas)}
+.chon2 label.on,.the-giao label.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.chon2 label span,.the-giao label span{font-weight:500}
+.chon2 label small,.the-giao label small{color:var(--ash-2);font-size:12px}
+.chon2 label span::before,.the-giao label span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:50%;border:1.5px solid var(--ash-3);margin-right:7px;vertical-align:-1px}
+.chon2 label.on span::before,.the-giao label.on span::before{border:4px solid var(--ink)}
+.the-giao{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cach-nhan{display:flex;gap:8px}
+.cach-nhan span{flex:1;height:38px;border:1px solid var(--rule);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--ink-2);background:var(--canvas)}
+.cach-nhan span.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink);font-weight:600}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink-2)}
+.check i{width:16px;height:16px;border:1.5px solid var(--ink);border-radius:4px;flex:0 0 auto;margin-top:2px;display:grid;place-items:center;font-style:normal;font-size:11px;background:var(--ink);color:#fff}
+.goiy{display:flex;gap:6px;flex-wrap:wrap}
+.goiy span{height:28px;padding:0 10px;border-radius:6px;border:1px solid var(--rule-soft);background:var(--rule-hair);font-size:12.5px;color:var(--ink-2);display:inline-flex;align-items:center;font-variant-numeric:tabular-nums}
+.nho{font-size:12px;color:var(--ash-2);margin:0}
+.dong-ben{display:flex;justify-content:space-between;gap:10px;font-size:13px;min-height:24px}
+.dong-ben span:first-child{color:var(--ash-2)}
+.khach-chon{border:1px solid var(--rule-soft);border-radius:8px;padding:10px 12px;display:grid;gap:2px;font-size:13px}
+.khach-chon .ten{display:flex;justify-content:space-between;align-items:center;font-weight:500}
+.khach-chon .ten a{font-weight:400;font-size:12.5px;color:var(--ash-2);text-decoration:underline}
+.khach-chon small{color:var(--ash-2)}
+.chan-trang{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--rule-soft);background:var(--canvas);flex-wrap:wrap;align-items:center}
+.chan-trang .nho{margin-right:auto}
+.gap{border:1px solid var(--rule-soft);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;color:var(--ink-2)}
+.gap a{color:var(--ash-2);text-decoration:underline;font-size:12.5px}
+.nen{background:rgba(15,23,42,.35);padding:24px 16px;display:flex;justify-content:center}
+.hop{background:var(--canvas);border-radius:12px;width:min(100%,1000px);box-shadow:0 20px 50px rgba(15,23,42,.25);overflow:hidden}
+.hop .dau-trang{border-radius:12px 12px 0 0}
+.hop .than{background:var(--paper)}
+
+@media (max-width:900px){
+  .than{grid-template-columns:1fr;padding:12px}
+  .hai,.ba,.the-giao,.chon2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Tạo đơn thương mại theo khuôn trang Tạo đơn hàng của Sapo</h1>
+<p class="lead">Thay hộp Tạo đơn thương mại hiện nay bằng một trang (hoặc hộp rộng) chia khối như Sapo: chọn luôn lúc tạo là khách trả tiền chưa và có xuất hàng ngay không. Mọi ô lấy đúng chữ và luật của form đang có (hộp Tạo đơn thương mại, hộp Xuất hàng, ô Cách giao, form Lập phiếu thu). Khung vàng nét đứt là phần mới. Ví dụ: Khách lẻ mua 2 hộp bút, 1 ram giấy A4, 2 cuộn băng keo, VAT 0%, tổng 259.000đ.</p>
+
+<div class="box">
+<h2>Sapo có gì, mình lấy gì (đọc ở help.sapo.vn: Tạo đơn hàng tại màn Danh sách đơn hàng, Xác nhận thanh toán đơn hàng, Thanh toán đơn hàng tại màn hình bán hàng)</h2>
+<div class="khung-bang">
+<table class="cmp">
+<tr><th>Khối của Sapo</th><th>Lấy sang đơn thương mại</th><th>Chạy bằng gì ở máy chủ</th></tr>
+<tr><td>Sản phẩm: tìm theo tên/mã, SL, đơn giá, thành tiền, ghi "Hết hàng", xem tồn có thể bán</td><td>Giữ bảng đang có (Mặt hàng, Đơn vị, Số lượng, Đơn giá, VAT %, Thành tiền). Thêm dòng tồn dưới tên mặt hàng.</td><td>Tồn theo kho và theo đơn vị đã có (tab Tồn theo kho của Hàng thương mại)</td></tr>
+<tr><td>Khách hàng: tìm, hoặc thêm khách mới ngay</td><td>Giữ ô tìm "Gõ tên, mã hoặc số điện thoại khách". Khách lẻ là khách Hà Phương tự tạo.</td><td>Như hôm nay</td></tr>
+<tr><td>Thanh toán: Đã thanh toán (hình thức + số tiền) / Thanh toán sau</td><td>Khách trả ngay / Thanh toán sau (giữ ô Tiền cọc)</td><td>Khách trả ngay = phiếu thu theo đơn (cùng đường thu cọc), ghi luôn lúc tạo</td></tr>
+<tr><td>Giao hàng: Đã giao (khách nhận tại cửa hàng) / Tự giao / Đẩy qua hãng / Giao hàng sau</td><td>Xuất ngay (3 thẻ Cách giao đang có: Không cần giao, Giao nội bộ, Thuê vận chuyển) / Xuất sau</td><td>Lượt xuất thương mại + ghi sổ kho luôn, như hộp Xuất hàng</td></tr>
+<tr><td>Nút lưu: Lưu nháp / Tạo đơn / Tạo đơn và xác nhận / Tạo đơn và giao hàng</td><td>Lưu nháp / Tạo và chốt đơn; chữ nút đổi theo lựa chọn ở hai khối trên</td><td>Tạo đơn, chốt, xuất, thu trong một giao dịch: hỏng một bước thì không ghi gì</td></tr>
+<tr><td>Hoá đơn điện tử: MST, tên công ty, người mua, email, tick "Người mua không lấy hoá đơn"</td><td>Không đặt trên trang tạo đơn. Kế toán vẫn ghi hoá đơn theo lượt xuất ở chặng Hoá đơn như hôm nay.</td><td>Không đổi</td></tr>
+<tr><td>Nguồn đơn, tag, chiết khấu, phí giao hàng, ngày hẹn giao, nhân viên phụ trách</td><td>Không lấy. Người lập lấy từ tài khoản; tiền cước nằm ở Thuê vận chuyển.</td><td>Không có</td></tr>
+</table>
+</div>
+</div>
+
+<div class="box">
+<h2>Ba phương án khác nhau ở đâu</h2>
+<ul>
+<li>A. Trang riêng hai cột như Sapo; khối Thanh toán kiểu trang quản trị Sapo (chọn trả ngay hay trả sau, gõ số tiền thu).</li>
+<li>B. Giữ lối vào hiện nay là hộp, chỉ nới rộng và chia khối như A; Thanh toán và Giao hàng gập thành một dòng, bấm mới mở.</li>
+<li>C. Trang riêng như A, nhưng khối Thanh toán kiểu quầy của Sapo: ô Tiền khách đưa có mức gợi ý, tự tính tiền thừa hoặc còn thiếu; mặc định Xuất ngay.</li>
+</ul>
+<p style="margin-top:8px">Cả ba: sau khi lưu mở ngăn đơn như hiện nay; chặng Cọc của đơn thương mại đổi tên "Thu tiền" và có nút Lập phiếu thu cả khi không khai cọc, để thu nốt phần thiếu. Ai thiếu quyền tạo phiếu thu thì không thấy lựa chọn "Khách trả ngay"; ai thiếu quyền ghi sổ kho Cửa hàng thì không thấy ô "Ghi sổ kho luôn", yêu cầu xuất gửi tới người giữ kho.</p>
+</div>
+
+<div class="optnav">
+<button class="on" data-o="A">A. Trang hai cột</button>
+<button data-o="B">B. Hộp rộng, khối gập</button>
+<button data-o="C">C. Trang, thu kiểu quầy</button>
+</div>
+
+<!-- ===================== A ===================== -->
+<section class="opt on" id="A">
+<h2 class="opt-h">A. Trang hai cột như Sapo</h2>
+<div class="why">Bấm "Tạo đơn thương mại" ở màn Đơn hàng bán thì mở trang này thay cho hộp.
+<ul><li>Hợp khi: một trang dùng cho cả khách tại quầy lẫn đơn đặt trước.</li><li>Điểm yếu: rời màn danh sách khi tạo đơn.</li></ul></div>
+
+<h3 class="scr-h">Khách trả ngay, xuất ngay</h3>
+<div class="app">
+  <div class="dau-trang"><span class="lui">← Đơn hàng bán</span><h4>Tạo đơn thương mại</h4><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo, chốt, xuất hàng và thu tiền</button></div>
+  <div class="than">
+    <div class="cot">
+      <div class="the">
+        <h5>Mặt hàng</h5>
+        <div class="khung-bang"><table class="g">
+          <tr><th style="width:34%">Mặt hàng</th><th>Đơn vị</th><th class="so">Số lượng</th><th class="so">Đơn giá</th><th class="so">VAT %</th><th class="so">Thành tiền</th><th></th></tr>
+          <tr><td><div class="o tim">Bút bi TL-027 xanh</div><span class="ton moi">Cửa hàng còn 12 hộp</span></td><td><div class="o chon">hộp</div></td><td><div class="o so">2</div></td><td><div class="o so">75.000</div></td><td><div class="o so">0</div></td><td class="so tt">150.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim">Giấy A4 Double A 70gsm</div><span class="ton moi">Cửa hàng còn 18 ram</span></td><td><div class="o chon">ram</div></td><td><div class="o so">1</div></td><td><div class="o so">85.000</div></td><td><div class="o so">0</div></td><td class="so tt">85.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim">Băng keo trong 5cm</div><span class="ton thieu moi">Cửa hàng còn 1 cuộn, thiếu 1</span></td><td><div class="o chon">cuộn</div></td><td><div class="o so">2</div></td><td><div class="o so">12.000</div></td><td><div class="o so">0</div></td><td class="so tt">24.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim mo">Gõ mã hoặc tên hàng</div></td><td><div class="o chon mo"></div></td><td><div class="o so">1</div></td><td><div class="o so mo">Gõ giá</div></td><td><div class="o so">0</div></td><td class="so tt">—</td><td><span class="xoa">×</span></td></tr>
+        </table></div>
+        <div><button class="btn">Thêm mặt hàng</button></div>
+        <div class="tomtat"><div class="tong"><span>Tổng gồm VAT</span><span>259.000</span></div></div>
+      </div>
+
+      <div class="the moi">
+        <h5>Thanh toán <span class="nhan-moi">mới</span></h5>
+        <div class="chon2">
+          <label class="on"><span>Khách trả ngay</span><small>Lập phiếu thu theo đơn lúc tạo</small></label>
+          <label><span>Thanh toán sau</span><small>Có thể khai tiền cọc</small></label>
+        </div>
+        <div class="o-nhan">Nhận bằng</div>
+        <div class="cach-nhan"><span class="on">Tiền mặt</span><span>Chuyển khoản</span></div>
+        <div class="hai">
+          <label class="o-nhan"><span>Số tiền thu <b>*</b></span><div class="o so">259.000</div><small>Tổng đơn 259.000. Thu ít hơn thì phần còn lại thu sau ở chặng Thu tiền.</small></label>
+          <label class="o-nhan"><span>Ngày thu <b>*</b></span><div class="o">09/11/2026</div></label>
+        </div>
+        <div class="hai">
+          <label class="o-nhan"><span>Người nộp tiền <b>*</b></span><div class="o">Khách lẻ</div></label>
+          <label class="o-nhan"><span>Lý do nộp <b>*</b></span><div class="o">Thu tiền đơn hàng thương mại</div></label>
+        </div>
+        <p class="nho">Chọn Chuyển khoản thì hiện thêm Tài khoản nhận và Mã giao dịch ("Mã trên sao kê hoặc tin nhắn báo có"), như form Lập phiếu thu. Địa chỉ người nộp, chứng từ, ghi chú nội bộ sửa sau ở phiếu thu bên Kế toán.</p>
+      </div>
+
+      <div class="the moi">
+        <h5>Xuất hàng <span class="nhan-moi">mới</span></h5>
+        <div class="chon2">
+          <label class="on"><span>Xuất ngay</span><small>Khách lấy hàng hoặc giao ngay</small></label>
+          <label><span>Xuất sau</span><small>Chốt đơn, xuất ở ngăn đơn khi có hàng</small></label>
+        </div>
+        <div class="hai">
+          <label class="o-nhan"><span>Kho xuất <b>*</b></span><div class="o chon">Cửa hàng</div></label>
+          <div class="check" style="align-self:end;padding-bottom:7px"><i>✓</i><span>Ghi sổ kho luôn (hàng trừ tồn ngay, khỏi qua màn Kho)</span></div>
+        </div>
+        <div class="o-nhan"><span>Cách giao <b>*</b></span></div>
+        <div class="the-giao">
+          <label class="on"><span>Không cần giao</span><small>Khách tự lấy hàng</small></label>
+          <label><span>Giao nội bộ</span><small>Nhân viên giao hàng của mình đi giao</small></label>
+          <label><span>Thuê vận chuyển</span><small>Thuê đơn vị vận chuyển, có tiền cước</small></label>
+        </div>
+        <p class="nho">Giao nội bộ thì thêm Người giao *, Xe. Thuê vận chuyển thì thêm Đơn vị vận chuyển *, Tiền cước *, Mã vận đơn. Xuất ngay thì xuất hết số lượng của đơn; muốn xuất một phần thì chọn Xuất sau rồi xuất ở ngăn đơn.</p>
+      </div>
+    </div>
+
+    <div class="cot">
+      <div class="the">
+        <h5>Khách hàng <b style="color:var(--rust);font-weight:400">*</b></h5>
+        <div class="khach-chon"><div class="ten">Khách lẻ <a>Đổi</a></div><small>KH0001</small></div>
+      </div>
+      <div class="the">
+        <h5>Ghi chú</h5>
+        <div class="o mo" style="height:64px;align-items:flex-start;padding-top:8px"></div>
+      </div>
+      <div class="the">
+        <h5>Thông tin đơn</h5>
+        <div class="dong-ben"><span>Mã đơn</span><span>TM tự cấp khi lưu</span></div>
+        <div class="dong-ben"><span>Người lập</span><span>Nguyễn Thu Hà</span></div>
+        <div class="dong-ben"><span>Nguồn</span><span>Đơn thương mại</span></div>
+      </div>
+      <div class="the">
+        <h5>Sau khi lưu</h5>
+        <div class="tomtat">
+          <div><span>Chốt đơn</span><span>có</span></div>
+          <div><span>Xuất kho Cửa hàng</span><span>3 mặt hàng</span></div>
+          <div><span>Phiếu thu</span><span>259.000</span></div>
+          <div class="tong"><span>Còn phải thu</span><span>0</span></div>
+        </div>
+        <p class="nho">Hoá đơn kế toán ghi sau ở chặng Hoá đơn của đơn, theo lượt xuất; tiền đã thu tự trừ vào.</p>
+      </div>
+    </div>
+  </div>
+  <div class="chan-trang"><span class="nho">Băng keo thiếu 1 cuộn: bấm lưu sẽ báo đúng dòng, không ghi gì. Sửa số lượng hoặc chọn Xuất sau.</span><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo, chốt, xuất hàng và thu tiền</button></div>
+</div>
+
+<h3 class="scr-h">Cùng trang, đơn đặt trước: Thanh toán sau, Xuất sau</h3>
+<div class="app">
+  <div class="dau-trang"><span class="lui">← Đơn hàng bán</span><h4>Tạo đơn thương mại</h4><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo và chốt đơn</button></div>
+  <div class="than">
+    <div class="cot">
+      <div class="the"><h5>Mặt hàng <span class="phai">3 dòng, tổng gồm VAT 1.090.000</span></h5><p class="nho">Bảng như trên.</p></div>
+      <div class="the moi">
+        <h5>Thanh toán</h5>
+        <div class="chon2">
+          <label><span>Khách trả ngay</span><small>Lập phiếu thu theo đơn lúc tạo</small></label>
+          <label class="on"><span>Thanh toán sau</span><small>Có thể khai tiền cọc</small></label>
+        </div>
+        <label class="o-nhan" style="max-width:320px">Tiền cọc<div class="o so">300.000</div><small>Để trống là không cọc. Kế toán thu cọc ở chặng Thu tiền.</small></label>
+      </div>
+      <div class="the moi">
+        <h5>Xuất hàng</h5>
+        <div class="chon2">
+          <label><span>Xuất ngay</span><small>Khách lấy hàng hoặc giao ngay</small></label>
+          <label class="on"><span>Xuất sau</span><small>Chốt đơn, xuất ở ngăn đơn khi có hàng</small></label>
+        </div>
+      </div>
+    </div>
+    <div class="cot">
+      <div class="the"><h5>Khách hàng <b style="color:var(--rust);font-weight:400">*</b></h5><div class="khach-chon"><div class="ten">Văn phòng phẩm Minh Anh <a>Đổi</a></div><small>KH0142 0905 123 456</small></div></div>
+      <div class="the"><h5>Ghi chú</h5><div class="o">Khách hẹn lấy thứ Hai</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ===================== B ===================== -->
+<section class="opt" id="B">
+<h2 class="opt-h">B. Hộp rộng, khối Thanh toán và Xuất hàng gập lại</h2>
+<div class="why">Giữ lối vào như hôm nay: bấm "Tạo đơn thương mại" mở hộp trên màn Đơn hàng bán. Hộp nới rộng, chia khối như A. Hai khối Thanh toán và Xuất hàng mặc định gập thành một dòng "Thanh toán sau, không cọc" và "Xuất sau"; bấm Đổi mới mở ra đúng các ô của A.
+<ul><li>Hợp khi: phần lớn là đơn đặt trước, thỉnh thoảng có khách tại quầy.</li><li>Điểm yếu: khách tại quầy phải mở hai khối mỗi lần.</li></ul></div>
+
+<h3 class="scr-h">Hộp lúc mở, hai khối đang gập</h3>
+<div class="app"><div class="nen"><div class="hop">
+  <div class="dau-trang"><h4>Tạo đơn thương mại</h4><span class="nho">Bán hàng có sẵn, không qua sản xuất.</span></div>
+  <div class="than">
+    <div class="cot">
+      <div class="the">
+        <h5>Mặt hàng</h5>
+        <div class="khung-bang"><table class="g">
+          <tr><th style="width:34%">Mặt hàng</th><th>Đơn vị</th><th class="so">Số lượng</th><th class="so">Đơn giá</th><th class="so">VAT %</th><th class="so">Thành tiền</th><th></th></tr>
+          <tr><td><div class="o tim">Bút bi TL-027 xanh</div><span class="ton moi">Tồn 12 hộp</span></td><td><div class="o chon">hộp</div></td><td><div class="o so">2</div></td><td><div class="o so">75.000</div></td><td><div class="o so">0</div></td><td class="so tt">150.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim">Giấy A4 Double A 70gsm</div><span class="ton moi">Tồn 18 ram</span></td><td><div class="o chon">ram</div></td><td><div class="o so">1</div></td><td><div class="o so">85.000</div></td><td><div class="o so">0</div></td><td class="so tt">85.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim">Băng keo trong 5cm</div><span class="ton moi">Tồn 25 cuộn</span></td><td><div class="o chon">cuộn</div></td><td><div class="o so">2</div></td><td><div class="o so">12.000</div></td><td><div class="o so">0</div></td><td class="so tt">24.000</td><td><span class="xoa">×</span></td></tr>
+        </table></div>
+        <div><button class="btn">Thêm mặt hàng</button></div>
+        <div class="tomtat"><div class="tong"><span>Tổng gồm VAT</span><span>259.000</span></div></div>
+      </div>
+      <div class="gap moi"><span>Thanh toán: thanh toán sau, không cọc</span><a>Đổi</a></div>
+      <div class="gap moi"><span>Xuất hàng: xuất sau ở ngăn đơn</span><a>Đổi</a></div>
+    </div>
+    <div class="cot">
+      <div class="the"><h5>Khách hàng <b style="color:var(--rust);font-weight:400">*</b></h5><div class="o tim mo">Gõ tên, mã hoặc số điện thoại khách</div></div>
+      <div class="the"><h5>Ghi chú</h5><div class="o mo" style="height:64px"></div></div>
+      <p class="nho">Tồn khi chưa chọn kho xuất là cộng mọi kho; chọn Xuất ngay thì đổi sang tồn của kho đã chọn.</p>
+    </div>
+  </div>
+  <div class="chan-trang"><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo và chốt đơn</button></div>
+</div></div></div>
+
+<h3 class="scr-h">Bấm Đổi ở hai dòng: mở ra y như A</h3>
+<div class="app"><div class="nen"><div class="hop">
+  <div class="dau-trang"><h4>Tạo đơn thương mại</h4></div>
+  <div class="than" style="grid-template-columns:1fr">
+    <div class="cot">
+      <div class="the moi">
+        <h5>Thanh toán <span class="phai"><a style="text-decoration:underline">Thu gọn</a></span></h5>
+        <div class="chon2"><label class="on"><span>Khách trả ngay</span><small>Lập phiếu thu theo đơn lúc tạo</small></label><label><span>Thanh toán sau</span><small>Có thể khai tiền cọc</small></label></div>
+        <div class="ba">
+          <div class="o-nhan">Nhận bằng<div class="cach-nhan"><span class="on">Tiền mặt</span><span>Chuyển khoản</span></div></div>
+          <label class="o-nhan"><span>Số tiền thu <b>*</b></span><div class="o so">259.000</div></label>
+          <label class="o-nhan"><span>Ngày thu <b>*</b></span><div class="o">09/11/2026</div></label>
+        </div>
+        <div class="hai"><label class="o-nhan"><span>Người nộp tiền <b>*</b></span><div class="o">Khách lẻ</div></label><label class="o-nhan"><span>Lý do nộp <b>*</b></span><div class="o">Thu tiền đơn hàng thương mại</div></label></div>
+      </div>
+      <div class="the moi">
+        <h5>Xuất hàng <span class="phai"><a style="text-decoration:underline">Thu gọn</a></span></h5>
+        <div class="chon2"><label class="on"><span>Xuất ngay</span><small>Khách lấy hàng hoặc giao ngay</small></label><label><span>Xuất sau</span><small>Chốt đơn, xuất ở ngăn đơn khi có hàng</small></label></div>
+        <div class="hai"><label class="o-nhan"><span>Kho xuất <b>*</b></span><div class="o chon">Cửa hàng</div></label><div class="check" style="align-self:end;padding-bottom:7px"><i>✓</i><span>Ghi sổ kho luôn (hàng trừ tồn ngay, khỏi qua màn Kho)</span></div></div>
+        <div class="the-giao"><label class="on"><span>Không cần giao</span><small>Khách tự lấy hàng</small></label><label><span>Giao nội bộ</span><small>Nhân viên giao hàng của mình đi giao</small></label><label><span>Thuê vận chuyển</span><small>Thuê đơn vị vận chuyển, có tiền cước</small></label></div>
+      </div>
+    </div>
+  </div>
+  <div class="chan-trang"><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo, chốt, xuất hàng và thu tiền</button></div>
+</div></div></div>
+</section>
+
+<!-- ===================== C ===================== -->
+<section class="opt" id="C">
+<h2 class="opt-h">C. Trang hai cột, thu tiền kiểu quầy</h2>
+<div class="why">Bố cục như A. Khác ở khối Thanh toán: lấy ô "Tiền khách đưa" của màn bán tại quầy Sapo. Người bán gõ số khách đưa (hoặc bấm mức gợi ý), hệ tính tiền thừa phải trả lại hay còn thiếu. Phiếu thu ghi số tiền giữ lại, không ghi số khách đưa. Mở trang là Khách trả ngay và Xuất ngay được chọn sẵn.
+<ul><li>Hợp khi: tiệm chủ yếu bán khách tại quầy trả tiền mặt.</li><li>Điểm yếu: đơn đặt trước phải tự chuyển hai khối sang Thanh toán sau và Xuất sau.</li></ul></div>
+
+<h3 class="scr-h">Khách đưa 300.000, trả lại 41.000</h3>
+<div class="app">
+  <div class="dau-trang"><span class="lui">← Đơn hàng bán</span><h4>Tạo đơn thương mại</h4><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo, chốt, xuất hàng và thu tiền</button></div>
+  <div class="than">
+    <div class="cot">
+      <div class="the">
+        <h5>Mặt hàng</h5>
+        <div class="khung-bang"><table class="g">
+          <tr><th style="width:34%">Mặt hàng</th><th>Đơn vị</th><th class="so">Số lượng</th><th class="so">Đơn giá</th><th class="so">VAT %</th><th class="so">Thành tiền</th><th></th></tr>
+          <tr><td><div class="o tim">Bút bi TL-027 xanh</div><span class="ton moi">Cửa hàng còn 12 hộp</span></td><td><div class="o chon">hộp</div></td><td><div class="o so">2</div></td><td><div class="o so">75.000</div></td><td><div class="o so">0</div></td><td class="so tt">150.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim">Giấy A4 Double A 70gsm</div><span class="ton moi">Cửa hàng còn 18 ram</span></td><td><div class="o chon">ram</div></td><td><div class="o so">1</div></td><td><div class="o so">85.000</div></td><td><div class="o so">0</div></td><td class="so tt">85.000</td><td><span class="xoa">×</span></td></tr>
+          <tr><td><div class="o tim">Băng keo trong 5cm</div><span class="ton moi">Cửa hàng còn 25 cuộn</span></td><td><div class="o chon">cuộn</div></td><td><div class="o so">2</div></td><td><div class="o so">12.000</div></td><td><div class="o so">0</div></td><td class="so tt">24.000</td><td><span class="xoa">×</span></td></tr>
+        </table></div>
+        <div><button class="btn">Thêm mặt hàng</button></div>
+        <div class="tomtat"><div class="tong"><span>Tổng gồm VAT</span><span>259.000</span></div></div>
+      </div>
+      <div class="the moi">
+        <h5>Xuất hàng</h5>
+        <div class="chon2"><label class="on"><span>Xuất ngay</span><small>Khách lấy hàng hoặc giao ngay</small></label><label><span>Xuất sau</span><small>Chốt đơn, xuất ở ngăn đơn khi có hàng</small></label></div>
+        <div class="hai"><label class="o-nhan"><span>Kho xuất <b>*</b></span><div class="o chon">Cửa hàng</div></label><div class="check" style="align-self:end;padding-bottom:7px"><i>✓</i><span>Ghi sổ kho luôn (hàng trừ tồn ngay, khỏi qua màn Kho)</span></div></div>
+        <div class="o-nhan"><span>Cách giao <b>*</b></span></div>
+        <div class="the-giao"><label class="on"><span>Không cần giao</span><small>Khách tự lấy hàng</small></label><label><span>Giao nội bộ</span><small>Nhân viên giao hàng của mình đi giao</small></label><label><span>Thuê vận chuyển</span><small>Thuê đơn vị vận chuyển, có tiền cước</small></label></div>
+      </div>
+    </div>
+    <div class="cot">
+      <div class="the"><h5>Khách hàng <b style="color:var(--rust);font-weight:400">*</b></h5><div class="khach-chon"><div class="ten">Khách lẻ <a>Đổi</a></div><small>KH0001</small></div></div>
+      <div class="the moi">
+        <h5>Thanh toán</h5>
+        <div class="chon2"><label class="on"><span>Khách trả ngay</span></label><label><span>Thanh toán sau</span></label></div>
+        <div class="tomtat"><div class="tong"><span>Khách phải trả</span><span>259.000</span></div></div>
+        <div class="cach-nhan"><span class="on">Tiền mặt</span><span>Chuyển khoản</span></div>
+        <label class="o-nhan">Tiền khách đưa<div class="o so" style="height:40px;font-size:17px">300.000</div></label>
+        <div class="goiy"><span>259.000</span><span>260.000</span><span>300.000</span><span>500.000</span></div>
+        <div class="tomtat">
+          <div><span>Trả lại khách</span><span>41.000</span></div>
+          <div><span>Phiếu thu ghi</span><span>259.000</span></div>
+          <div class="tong"><span>Còn phải thu</span><span>0</span></div>
+        </div>
+        <p class="nho">Khách đưa ít hơn số phải trả thì phiếu thu ghi đúng số khách đưa, phần thiếu hiện ở chặng Thu tiền. Người nộp lấy tên khách, ngày thu hôm nay, lý do "Thu tiền đơn hàng thương mại"; sửa ở phiếu thu bên Kế toán.</p>
+      </div>
+      <div class="the"><h5>Ghi chú</h5><div class="o mo" style="height:52px"></div></div>
+    </div>
+  </div>
+  <div class="chan-trang"><button class="btn">Hủy</button><button class="btn">Lưu nháp</button><button class="btn chinh">Tạo, chốt, xuất hàng và thu tiền</button></div>
+</div>
+</section>
+
+<div class="box" style="margin-top:28px">
+<h2>Chưa chốt, cần chủ dự án quyết</h2>
+<ul>
+<li>Xuất ngay có cần cho xuất một phần không. Mockup cho xuất hết; xuất một phần thì chọn Xuất sau rồi xuất ở ngăn đơn như hôm nay.</li>
+<li>Đơn đã xuất mà chưa thu đủ, chưa có hoá đơn có vào hàng chờ Đơn hàng chờ thu của Kế toán không. Hôm nay hàng chờ chỉ có cọc thiếu và hoá đơn còn nợ.</li>
+</ul>
+</div>
+</div>
+<script>
+document.querySelectorAll(".optnav button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".optnav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".opt").forEach(s=>s.classList.toggle("on",s.id===b.dataset.o));
+});
+</script>
+</body>
+</html>

@@ -51,6 +51,9 @@ class LocDon:
         gt_den: float | None = Query(default=None, ge=0),
         giao: list[str] | None = Query(default=None, description="chua | mot_phan | du"),
         thu: list[str] | None = Query(default=None, description="chua | mot_phan | du"),
+        # Chỉ In Hà Phương (phân hệ `thuong_mai`): lọc đơn sản xuất / đơn thương mại. Bản cài tắt
+        # phân hệ thì bỏ qua — mọi đơn đều là đơn sản xuất.
+        nguon: str | None = Query(default=None, pattern="^(san_xuat|thuong_mai)$"),
     ) -> None:
         for ten, chon, hop_le in (("cọc", coc, bao_cao_kinh_doanh.NHAN_COC),
                                   ("giao", giao, bao_cao_kinh_doanh.NHAN_GIAO),
@@ -65,6 +68,9 @@ class LocDon:
         self.thu = thu or None
         self.ty_le_tu, self.ty_le_den = ty_le_tu, ty_le_den
         self.gt_tu, self.gt_den = gt_tu, gt_den
+        from ..phan_he import THUONG_MAI, tat
+
+        self.nguon = None if tat(THUONG_MAI) else nguon
 
 
 Loc = Annotated[LocDon, Depends()]
@@ -79,7 +85,7 @@ def _lap(orders, accounting, authz, user, tu_ngay: date | None, den_ngay: date |
         orders, accounting, tu_ngay=tu_ngay, den_ngay=den_ngay,
         scope=authz.scope_for(user, MODULE) or "own", actor=user, customer_id=customer_id,
         sale_user_id=sale_id, q=loc.q, coc=loc.coc, ty_le_tu=loc.ty_le_tu, ty_le_den=loc.ty_le_den,
-        gt_tu=loc.gt_tu, gt_den=loc.gt_den, giao=loc.giao, thu=loc.thu,
+        gt_tu=loc.gt_tu, gt_den=loc.gt_den, giao=loc.giao, thu=loc.thu, nguon=loc.nguon,
     )
 
 

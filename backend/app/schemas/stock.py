@@ -1175,13 +1175,14 @@ class DuBaoLenhRow(BaseModel):
     bai_ghep_id: int | None = None
     ten_viec: str | None = None
     khach_ten: str | None = None
-    han_sx: date | None = None
+    #: Hạn giao khách của lệnh (08/11/2026 thay hạn SX nội bộ đã gỡ) — mốc dự báo lĩnh.
+    han_giao: date | None = None
     #: Σ `con_phai_co` của chủ thể với mặt hàng này — đơn vị GỐC.
     can: float = 0
     #: Phần đã giữ chỗ (kho + đang về) của chủ thể — để bày, không vào phép trừ.
     da_giu: float = 0
     #: Việc xuất là ĐỀ NGHỊ XUẤT còn treo ở kho này (giao hàng, gia công ngoài, xuất lẻ) chứ không
-    #: phải lệnh — `ma` là số đề nghị, `han_sx` là ngày cần (12/10/2026).
+    #: phải lệnh — `ma` là số đề nghị, `han_giao` là ngày cần (12/10/2026).
     de_nghi_id: int | None = None
 
 

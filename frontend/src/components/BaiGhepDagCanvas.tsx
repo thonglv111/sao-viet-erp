@@ -1109,9 +1109,9 @@ export function BaiGhepDagCanvas({
                     </div>
                     <div className="bgsd-card-branch__tags">
                       {n.is_rush && <span className="bgsd-rush-tag"><ChipGap /></span>}
-                      {n.han_hoan_thanh_sx && (
-                        <small className={`bgsd-card-branch__han ${classHan(n.han_hoan_thanh_sx)}`}>
-                          hạn {ngay(n.han_hoan_thanh_sx)}
+                      {n.han_giao_khach && (
+                        <small className={`bgsd-card-branch__han ${classHan(n.han_giao_khach)}`}>
+                          hạn giao {ngay(n.han_giao_khach)}
                         </small>
                       )}
                     </div>

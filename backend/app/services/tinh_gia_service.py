@@ -186,7 +186,7 @@ _TP_SCALAR_FIELDS = (
     "don_vi_tinh", "so_to_per_sp", "so_trang", "trang_moi_tay", "so_luong",
     "giay_id", "song_id", "kho_nguyen", "kho_nguyen_dai", "kho_nguyen_rong", "don_gia_giay",
     "don_gia_don_vi", "nguon_giay",
-    "chua_nhip", "bleed_mm", "khe_cat_mm",
+    "chua_nhip",
     "co_in", "che_ban_loai", "che_ban_don_gia", "quy_cach_in",
     "kho_in_dai", "kho_in_rong", "so_con", "con_auto", "may_id", "don_gia_cong_in",
     # `muc_a`/`muc_b` là TẬP mã mực người dùng khai — nguồn sự thật của số kẽm. Ba số `so_mau_*`

@@ -164,9 +164,11 @@
 
 /* ---- IN: chỉ chừa tờ .psheet, chảy qua nhiều trang A4 (bám cơ chế print của Báo giá) ---- */
 @media print {
-  /* Le trang theo Nghi dinh 30/2020/ND-CP: tren/duoi 20-25mm, trai 30-35mm,
-     phai 15-20mm. Le trai rong de dong/luu ho so. */
-  @page { size: A4; margin: 20mm 20mm 20mm 30mm; }
+  /* Lề trang của TRÌNH DUYỆT bằng 0 — cùng lẽ với bản in Báo giá: Chrome in giờ, tiêu đề, đường
+     dẫn và số trang vào dải lề này khi ô "Đầu trang và chân trang" trong hộp in đang tick. Lề
+     thật (Nghị định 30/2020: trên/dưới 20mm, trái 30mm để đóng hồ sơ, phải 20mm) là padding của
+     `.psheet` bên dưới, lặp lại ở MỖI trang nhờ `box-decoration-break: clone`. */
+  @page { size: A4; margin: 0; }
   body:has(.psheet) .shell > *:not(.shell__main),
   body:has(.psheet) .shell__main > *:not(.shell__content) { display: none !important; }
   body:has(.psheet) .shell__content { padding: 0 !important; overflow: visible !important; }
@@ -190,9 +192,14 @@
     box-shadow: none !important; border: 0 !important; border-radius: 0 !important;
   }
   body:has(.psheet) .ps-dialog-head, body:has(.psheet) .ps-dialog-actions { display: none !important; }
-  /* Khi in, @page đã cầm khổ và lề → tờ phải nhả bề ngang/lề của bản xem trước, không thì cộng
-     dồn thành lề đôi và tràn sang trang thứ hai. */
-  body:has(.psheet) .psheet { max-height: none !important; min-height: 0 !important; overflow: visible !important; padding: 0 !important; width: auto !important; margin: 0 !important; }
+  /* Khi in, @page cầm khổ → tờ nhả bề ngang/chiều cao của bản xem trước. Lề do chính tờ cầm
+     (xem @page ở trên), cắt lại theo từng trang. */
+  body:has(.psheet) .psheet {
+    max-height: none !important; min-height: 0 !important; overflow: visible !important;
+    width: auto !important; margin: 0 !important;
+    padding: 20mm 20mm 20mm 30mm !important;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
   /* Tờ không còn mảng tô nền nào — chỉ chữ đen + nét kẻ đen trên giấy trắng — nên không cần ép
      `print-color-adjust`; máy in nào cũng dựng đúng. */
   body:has(.psheet) .psheet .ps-tbl tr, body:has(.psheet) .psheet .ps-grand, body:has(.psheet) .psheet .ps-signs { page-break-inside: avoid; }

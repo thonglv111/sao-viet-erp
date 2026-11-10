@@ -44,6 +44,7 @@ from ..schemas.stock import (
     StockRequestUpdate,
 )
 from ..services.delivery_notify import kho_huy_hang_giao
+from ..services.thuong_mai.luot_xuat import kho_huy_luot_xuat
 from ..services.kho_giay import DON_VI_TO_KHO, co_don_vi_goc, khoa_ton_cua, la_kho_to, to_tu_kg
 from ..services.kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
@@ -797,7 +798,9 @@ def cancel(request_id: int, svc: Service, db: Db, authz: Authz,
     if req is not None and req.nguoi_tao_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                             detail="Chỉ người tạo mới hủy được yêu cầu")
-    return _act(svc, request_id, user, authz, db, svc.cancel)
+    ra = _act(svc, request_id, user, authz, db, svc.cancel)
+    kho_huy_luot_xuat(db, request_id)  # đơn thương mại (In Hà Phương)
+    return ra
 
 
 @router.post("/{request_id}/huy-kho", response_model=StockRequestOut)
@@ -810,6 +813,7 @@ def cancel_kho(request_id: int, payload: StockRequestReject, svc: Service, db: D
               bao_nguoi_tao=True)
     # Đề nghị xuất của chuyến giao: chuyến rời "Chờ kho xuất", Giao hàng được báo (#32).
     kho_huy_hang_giao(db, request_id, actor=user)
+    kho_huy_luot_xuat(db, request_id)  # đơn thương mại (In Hà Phương)
     return ra
 
 

@@ -18,7 +18,7 @@ from .thong_bao_helpers import admin as h_admin
 from .thong_bao_helpers import dang_nhap, tao_nguoi, tom_tat
 
 
-def test_bo_lich_lenh_quay_lai_hang_cho(client):
+def test_thu_hoi_lenh_quay_lai_cho_day_cham_xep_lich(client):
     db = SessionLocal()
     try:
         l = Lsx(ma="LSX-CHAM-01", ten="Lệnh chấm", order_id=1, order_line_id=1,
@@ -31,9 +31,10 @@ def test_bo_lich_lenh_quay_lai_hang_cho(client):
     tao_nguoi("xem_xl", {"xep_lich": dict(can_read=True, scope=SCOPE_ALL)})
     tao_nguoi("khong_xl", {"san_xuat": dict(can_read=True, scope=SCOPE_ALL)})
     ha = h_admin(client)
-    assert client.put(f"/api/xep-lich/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"},
-                      headers=ha).status_code == 200
-    assert client.delete(f"/api/xep-lich/lenh/{lid}", headers=ha).status_code == 200
+    # Bàn kéo thả cũ (bỏ mốc) gỡ 08/11/2026; đường còn đưa lệnh quay lại chờ đẩy là thu hồi.
+    assert client.post(f"/api/xep-lich/phat-hanh/{lid}", headers=ha).status_code == 200
+    assert client.delete(f"/api/xep-lich/phat-hanh/{lid}?ly_do=Khách đổi quy cách",
+                         headers=ha).status_code == 200
     tt = tom_tat(client, dang_nhap(client, "xem_xl"))
     assert tt["xep_lich"]["loai"] == "lenh_cho_xep" and tt["xep_lich"]["ma"] == "LSX-CHAM-01"
     assert "xep_lich" not in tom_tat(client, dang_nhap(client, "khong_xl"))

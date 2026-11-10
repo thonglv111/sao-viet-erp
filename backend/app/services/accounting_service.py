@@ -36,6 +36,7 @@ from ..models.accounting import (
     SALES_INVOICE_ISSUED,
     VOUCHER_SOURCE_CHI_CK,
     VOUCHER_SOURCE_CHI_KE,
+    VOUCHER_SOURCE_CUOC_GIAO,
     VOUCHER_SOURCE_CUSTOMER_REFUND,
     VOUCHER_SOURCE_GIA_CONG,
     VOUCHER_SOURCE_INTERNAL,
@@ -360,6 +361,11 @@ def _text(value, *, label: str, required: bool = False, max_length: int | None =
     if max_length is not None and len(cleaned) > max_length:
         raise AccountingValidationError(f"{label} vượt quá {max_length} ký tự.")
     return cleaned or None
+
+
+def _la_don_thuong_mai(order) -> bool:
+    """Đơn thương mại (chỉ In Hà Phương): hoá đơn theo lượt xuất, không theo chuyến giao."""
+    return getattr(order, "source_type", None) == "thuong_mai"
 
 
 def _order_total_with_vat(order: Order) -> int:
@@ -1974,6 +1980,7 @@ class AccountingService:
             "cancelled_at": invoice.cancelled_at,
             "cancel_reason": invoice.cancel_reason,
             "delivery_trip_id": invoice.delivery_trip_id,
+            "luot_xuat_tm_id": getattr(invoice, "luot_xuat_tm_id", None),
             # Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT, chi lại khách khi thu đủ.
             "chiet_khau": int(invoice.chiet_khau or 0),
             "ke_gia": int(invoice.ke_gia or 0),
@@ -1983,16 +1990,33 @@ class AccountingService:
             "ke_da_chi": da_chi.get((invoice.id, LOAI_KE), 0),
         }
 
+    def _luot_khach_nhan(self, order) -> list:
+        """Lượt khách đã nhận của đơn, xếp theo lúc nhận. Đơn thương mại (chỉ In Hà Phương): lượt xuất
+        đã xuất, dựng cùng dáng chuyến giao (`services/thuong_mai/hoa_don.py`)."""
+        if _la_don_thuong_mai(order):
+            from .thuong_mai.hoa_don import luot_xuat_nhu_luot_giao
+
+            return luot_xuat_nhu_luot_giao(self.repo.db, order)
+        from ..repositories.delivery_repo import DeliveryRepository
+
+        return DeliveryRepository(self.repo.db).luot_khach_da_nhan_cua_don(order.id)
+
     def _luot_giao_ghi_hoa_don(self, order) -> list[dict]:
         """Các lượt khách đã nhận của đơn kèm giá trị gồm VAT, phần đã ghi hóa đơn và phần còn ghi."""
         from ..repositories.delivery_repo import DeliveryRepository
         from .hoa_don_theo_giao import gia_tri_luot_giao
         from ..phan_he import tat
 
-        trips = DeliveryRepository(self.repo.db).luot_khach_da_nhan_cua_don(order.id)
-        da_ghi = self.repo.issued_invoice_amount_by_trip(order.id)
+        la_tm = _la_don_thuong_mai(order)
+        trips = self._luot_khach_nhan(order)
+        if la_tm:
+            from .thuong_mai.hoa_don import hoa_don_da_ghi_theo_luot
+
+            da_ghi = hoa_don_da_ghi_theo_luot(self.repo.db, order.id)
+        else:
+            da_ghi = self.repo.issued_invoice_amount_by_trip(order.id)
         ra = gia_tri_luot_giao(order, trips)
-        if tat("giao_hang"):
+        if tat("giao_hang") and not la_tm:
             # Bản tắt giao hàng: mỗi lượt là một lần XUẤT kho — gọi bằng số phiếu xuất mà kho và Kế
             # toán cùng thấy, không bằng mã yêu cầu giao ẩn (04/11/2026).
             rp = DeliveryRepository(self.repo.db)
@@ -2050,6 +2074,8 @@ class AccountingService:
             "delivered_amount": delivered,
             "invoiceable_amount": max(0, delivered - invoiced),
             "luot_giao": luot,
+            # Đơn thương mại: `luot_giao[].trip_id` là id LƯỢT XUẤT, gửi lại ở `luot_xuat_tm_id`.
+            "luot_xuat_tm": _la_don_thuong_mai(order),
             "deposit_received": self.repo.received_deposit_sum(order.id),
             # Hai trường dưới cho popup ghi nhận hoá đơn: hiện trước hạn trả và điền sẵn ký hiệu.
             "payment_term_days": customer.payment_term_days if customer else None,
@@ -2072,7 +2098,8 @@ class AccountingService:
             ],
             "items": [
                 {**self._sales_invoice_out(row, money.get(row.id), da_chi),
-                 "luot_giao_ma": ma_luot.get(row.delivery_trip_id)}
+                 "luot_giao_ma": ma_luot.get(
+                     row.luot_xuat_tm_id if _la_don_thuong_mai(order) else row.delivery_trip_id)}
                 for row in invoices
             ],
         }
@@ -2105,13 +2132,17 @@ class AccountingService:
             values.get("invoice_symbol"), label="Ký hiệu hóa đơn", required=True, max_length=64
         )
         # Hóa đơn lập theo LƯỢT GIAO khách đã nhận, không vượt hàng của lượt đó (13/10/2026).
-        trip_id = values.get("delivery_trip_id")
+        la_tm = _la_don_thuong_mai(order)
+        trip_id = values.get("luot_xuat_tm_id") if la_tm else values.get("delivery_trip_id")
         if not trip_id:
-            raise AccountingValidationError("Chọn lượt giao cần ghi hóa đơn.")
+            raise AccountingValidationError(
+                "Chọn lượt xuất cần ghi hóa đơn." if la_tm else "Chọn lượt giao cần ghi hóa đơn.")
         luot = self._luot_giao_ghi_hoa_don(order)
         dong_luot = next((r for r in luot if r["trip_id"] == int(trip_id)), None)
         if dong_luot is None:
             raise AccountingValidationError(
+                "Lượt xuất này không thuộc đơn hoặc kho chưa xuất hàng — xuất xong mới ghi hóa đơn."
+                if la_tm else
                 "Lượt giao này không thuộc đơn hoặc khách chưa nhận hàng — giao xong mới ghi hóa đơn."
             )
         already_invoiced = self.repo.issued_invoice_amount_for_order(order.id)
@@ -2138,7 +2169,7 @@ class AccountingService:
 
         tong_don = _order_total_with_vat(order)
         ck, ke = chia_ck_ke(
-            order, DeliveryRepository(self.repo.db).luot_khach_da_nhan_cua_don(order.id),
+            order, self._luot_khach_nhan(order),
             trip_id=int(trip_id), amount=amount, gia_tri_luot=dong_luot["gia_tri"], tong_don=tong_don,
             da_ghi=self.repo.ck_ke_da_ghi_cua_don(order.id),
             ghi_du=already_invoiced + amount >= tong_don,
@@ -2154,7 +2185,8 @@ class AccountingService:
             payment_term_days_snapshot=term_days,
             due_date=due_date,
             customer_name_snapshot=customer.name,
-            delivery_trip_id=int(trip_id),
+            delivery_trip_id=(None if la_tm else int(trip_id)),
+            luot_xuat_tm_id=(int(trip_id) if la_tm else None),
             chiet_khau=ck,
             ke_gia=ke,
             ke_thue_tndn_pct=ke_pct if ke else None,
@@ -3993,6 +4025,7 @@ class AccountingService:
             VOUCHER_SOURCE_OTHER,
             VOUCHER_SOURCE_CHI_CK,
             VOUCHER_SOURCE_CHI_KE,
+            VOUCHER_SOURCE_CUOC_GIAO,
         ):
             raise AccountingValidationError("Nguồn chi độc lập không hợp lệ.")
         voucher_type = (values.get("voucher_type") or "").strip()
@@ -4065,6 +4098,7 @@ class AccountingService:
             VOUCHER_SOURCE_OTHER: "Khác",
             VOUCHER_SOURCE_CHI_CK: "Chi chiết khấu",
             VOUCHER_SOURCE_CHI_KE: "Chi kê",
+            VOUCHER_SOURCE_CUOC_GIAO: "Cước giao hàng",
         }
         # Phiếu tạm ứng: mã nguồn in trên chứng từ là MÃ PHIẾU TẠM ỨNG (TU26-0001), để lần ngược
         # từ sổ quỹ về đúng phiếu đã duyệt.

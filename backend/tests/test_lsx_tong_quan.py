@@ -118,38 +118,6 @@ def test_den_vat_tu_doi_mau_theo_dung_giu_cho_that(db, orders, lsx_svc, admin, c
     assert res[b.id]["vat_tu"]["muc"] == MUC_OK
 
 
-def test_den_may_gio_len_tieng_khi_vao_ke_hoach_va_do_khi_trung_may(
-    db, orders, lsx_svc, xl_svc, admin, customer, monkeypatch
-):
-    monkeypatch.setattr(xl_svc.cal, "is_working_day", lambda d: True)
-    a, b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
-    for lsx in (a, b):
-        s = _in_step(db, lsx.id)
-        s.setup_phut, s.nang_suat, s.so_luong_vao, s.chay_phut = 0, 5000, 5000, None
-    db.commit()
-
-    # Chưa vào kế hoạch: chưa có gì để nói.
-    assert tong_quan(db, [a.id])[0]["den"]["may_gio"]["muc"] == MUC_OK
-
-    xl_svc.dua_vao_lsx(lsx_id=a.id, actor=admin)
-    xl_svc.dua_vao_lsx(lsx_id=b.id, actor=admin)
-    # Có dòng mà chưa dòng nào có giờ ⇒ đèn KHÔNG được im (vàng "chưa có giờ", hoặc đỏ nếu bước
-    # còn thiếu máy/năng suất). Cái phải chặn ở đây là trạng thái `ok`.
-    assert tong_quan(db, [a.id])[0]["den"]["may_gio"]["muc"] != MUC_OK
-
-    repo = XepLichRepository(db)
-    bat_dau = datetime(2026, 7, 27, 8, 0, tzinfo=timezone.utc)
-    may_id = _in_step(db, a.id).may_id          # 2 lệnh cùng công đoạn in → cùng máy
-    for lsx in (a, b):
-        xl_svc.gan(dong_id=repo.by_lsx(lsx.id)[0].id,
-                   patch={"may_id": may_id, "start_at": bat_dau}, actor=admin)
-
-    res = {r["lsx_id"]: r["den"] for r in tong_quan(db, [a.id, b.id])}
-    assert res[a.id]["may_gio"]["muc"] == MUC_DO
-    assert "Trùng giờ" in res[a.id]["may_gio"]["chu"]
-    assert res[b.id]["may_gio"]["muc"] == MUC_DO
-
-
 def test_tong_quan_khong_hoi_thi_khong_tinh(db):
     """Không id nào thì thoát ngay — đừng chạy engine cân đối cho một câu trả lời rỗng."""
     assert tong_quan(db, []) == []

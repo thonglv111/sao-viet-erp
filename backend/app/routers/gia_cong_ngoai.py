@@ -25,7 +25,7 @@ from ..services.gia_cong_ngoai import chot as chot_svc
 from ..services.gia_cong_ngoai import mot_phan, tron_goi
 from ..services.gia_cong_ngoai.lan import lan_cua_bai_ghep, lan_cua_lenh, lan_dict, nguon_lan
 from ..services.rbac_service import AuthorizationService
-from .lsx import _guard_scope, _owner_ids_for_scope, lenh_trong_pham_vi
+from .lsx import _guard_scope, _phu_trach_ids, lenh_trong_pham_vi
 
 router = APIRouter(prefix="/api/gia-cong-ngoai", tags=["gia-cong-ngoai"])
 MODULE = "san_xuat"
@@ -75,7 +75,7 @@ def _pham_vi_bai_ghep(db: Session, authz: AuthorizationService, user: User,
     sx = SanXuatRepository(db)
     lenh = [sx.lsx(i) for i in sx.thanh_vien_so_con({bai_ghep_id})]
     lenh = [l for l in lenh if l is not None]
-    owner_ids = _owner_ids_for_scope(db, user, authz)
+    owner_ids = _phu_trach_ids(db, user, authz)
     if owner_ids is None:
         return len(lenh), len(lenh)
     trong = sum(1 for l in lenh if lenh_trong_pham_vi(db, l, owner_ids))

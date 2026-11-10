@@ -39,7 +39,10 @@ def dang_ky(user: Annotated[User, Depends(get_current_user)]) -> dict:
     ô mà ai cũng phải bật.
     """
     _ = user
-    return {"items": dang_ky_json()}
+    # Màn của phân hệ đang TẮT ở bản cài (vd Hàng thương mại, Xe giao hàng chỉ In Hà Phương) không vào
+    # bảng khai — cùng cổng `module_bi_tat` mà thanh bên và ma trận quyền đang dùng.
+    from ..phan_he import module_bi_tat
+    return {"items": [d for d in dang_ky_json() if not module_bi_tat(d["module"])]}
 
 
 @router.get("/{loai}/{obj_id}/kiem-xoa")

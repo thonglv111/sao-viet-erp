@@ -33,7 +33,8 @@ from .thanh_phan_engine import kiem_cong_thuc
 # Tên khác `HANG_LOAI` (tuple mã hợp lệ, ở models) để không ai nhầm "danh sách mã" với "bảng nhãn".
 # `thanh_pham` là MÀN danh mục thứ ba, KHÔNG phải `hang_loai` thứ ba — nó chung bảng
 # `vat_tu_in_an` và với kho vẫn là "vat_tu" (xem `_mat_hang_row`, docs/prd-thanh-pham.md §3).
-HANG_NHAN = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thành phẩm"}
+HANG_NHAN = {"giay": "Giấy", "vat_tu": "Vật tư khác", "thanh_pham": "Thành phẩm",
+             "hang_thuong_mai": "Hàng thương mại"}
 
 # Ô công thức của từng màn: (cột, NHÃN đúng như trên màn khai, loại ô để tra tập biến hợp lệ).
 # Nhãn phải trùng chữ ở `rebuildCatalogConfigs.tsx` — câu lỗi hiện thẳng cho người đang gõ, gọi
@@ -165,18 +166,46 @@ class VatLieuKhoService:
                               dang_co=getattr(obj, "don_vi_gia", None))
             if data.get("tho") not in (None, "") and data["tho"] not in THO:
                 raise VatLieuKhoValidationError("Thớ không hợp lệ.")
-        elif kind in ("vat_tu", "thanh_pham"):
+        elif kind in ("vat_tu", "thanh_pham", "hang_thuong_mai"):
             # `thanh_pham` VÀO CHUNG nhánh này từ 08/09/2026: cùng bảng, cùng cột, cùng người đọc
             # (kho tra đơn vị bằng mã lúc nhập kho thành phẩm). Trước đây màn này không có cổng nào
             # cho đơn vị nên nhận cả chuỗi lạ, và đó là nửa sau của lỗi "cái · không có trong danh
             # mục" — nửa đầu là `thanh_pham_khai_bao` chép thẳng ĐVT của dòng đơn sang.
             self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính",
                               dang_co=getattr(obj, "don_vi_gia", None))
-        if kind in ("giay", "vat_tu"):
+        if kind in ("giay", "vat_tu", "hang_thuong_mai"):
             self._kiem_don_vi_them(kind, data, obj)
         else:
             data.pop("don_vi_them", None)   # Thành phẩm một đơn vị (spec 2026-10-10 §4)
+        if kind == "hang_thuong_mai":
+            self._kiem_gia_ban_theo_dvt(data, obj)
+        else:
+            data.pop("gia_ban_theo_dvt", None)
         self._kiem_chip_va_cong_thuc(kind, data, obj)
+
+    @staticmethod
+    def _kiem_gia_ban_theo_dvt(data: dict, obj=None) -> None:
+        """Giá bán hàng thương mại: mỗi ĐVT đã khai của mặt hàng một giá nguyên đồng ≥ 0. Bỏ giá của
+        ĐVT không còn khai; ĐVT chưa gõ giá thì không có khoá (để trống, người bán gõ ở dòng đơn)."""
+        if "gia_ban_theo_dvt" not in data:
+            return
+        dvt = {(data.get("don_vi_gia") if "don_vi_gia" in data else getattr(obj, "don_vi_gia", None)) or ""}
+        them = data["don_vi_them"] if "don_vi_them" in data else getattr(obj, "don_vi_them", None)
+        dvt |= {u for u in (them or [])}
+        dvt = {(u or "").strip().lower() for u in dvt if u}
+        ra: dict[str, int] = {}
+        for k, v in (data.get("gia_ban_theo_dvt") or {}).items():
+            k = (k or "").strip().lower()
+            if not k or k not in dvt or v in (None, ""):
+                continue
+            try:
+                so = int(round(float(v)))
+            except (TypeError, ValueError):
+                raise VatLieuKhoValidationError("Giá bán phải là số.") from None
+            if so < 0:
+                raise VatLieuKhoValidationError("Giá bán không được âm.")
+            ra[k] = so
+        data["gia_ban_theo_dvt"] = ra or None
 
     def _kiem_don_vi_them(self, kind: str, data: dict, obj=None) -> None:
         """Danh sách đơn vị khai (spec 2026-10-10-mat-hang-nhieu-don-vi-tinh §2): chuẩn hoá `don_vi_them`
@@ -219,7 +248,8 @@ class VatLieuKhoService:
         bo = [u for u in cu_khai if u not in khai]
         if not bo:
             return
-        dung = self.repo.noi_dung_don_vi(kind, obj.id)
+        # Hàng thương mại nằm chung bảng Vật tư khác, kho ghi lô của nó dưới `hang_loai="vat_tu"`.
+        dung = self.repo.noi_dung_don_vi("vat_tu" if kind == "hang_thuong_mai" else kind, obj.id)
         for u in bo:
             con: list[str] = []
             if dung["ton"].get(u, 0) > 0:
@@ -425,7 +455,7 @@ class VatLieuKhoService:
         `url` = đường `/api/files/…` đã lưu file, hoặc None để gỡ. Trả về object đã cập nhật; caller
         (router) tự xoá file cũ trên storage. Không ghi nhật ký danh mục — ảnh không phải trường giá.
         """
-        if kind not in ("giay", "vat_tu"):
+        if kind not in ("giay", "vat_tu", "hang_thuong_mai"):
             raise VatLieuKhoValidationError("Loại mặt hàng không nhận ảnh.")
         obj = self.get(kind, item_id)
         return self.repo.set_anh(obj, url)
@@ -460,6 +490,44 @@ class VatLieuKhoService:
             it.customer_ma, it.customer_ten = khach.get(it.customer_id or 0, (None, None))
             it.order_no = don.get(it.order_id or 0)
 
+    def gan_ton_theo_dvt(self, items) -> None:
+        """Điền tồn cộng mọi kho theo đơn vị gốc cho cả trang (cột Tồn của Hàng thương mại, 09/11/2026),
+        một truy vấn. Lô cũ không ghi đơn vị gốc (`""`) thuộc ĐVT chính của mã. Số lẻ giữ nguyên, số
+        tròn trả kiểu int cho JSON gọn."""
+        ton = self.repo.ton_theo_goc_nhieu("vat_tu", (getattr(it, "id", None) for it in items))
+        for it in items:
+            gom: dict[str, float] = {}
+            for goc, sl in ton.get(it.id, {}).items():
+                ma = (goc or getattr(it, "don_vi_gia", None) or "").strip().lower()
+                gom[ma] = gom.get(ma, 0.0) + sl
+            it.ton_theo_dvt = {m: (int(s) if float(s).is_integer() else round(s, 3)) for m, s in gom.items()}
+
+    def gan_gia_nhap_cuoi(self, items) -> None:
+        """Điền giá nhập gần nhất theo đơn vị cho cả trang (Hàng thương mại, 09/11/2026), một truy vấn.
+        Lô cũ không ghi đơn vị gốc thuộc ĐVT chính; hai lô cùng rơi về một đơn vị thì lấy lô mới hơn."""
+        cuoi = self.repo.gia_nhap_cuoi_nhieu("vat_tu", (getattr(it, "id", None) for it in items))
+        for it in items:
+            chon: dict[str, tuple] = {}
+            for goc, (ngay, lo_id, gia) in cuoi.get(it.id, {}).items():
+                ma = (goc or getattr(it, "don_vi_gia", None) or "").strip().lower()
+                if ma not in chon or (ngay, lo_id) > chon[ma][:2]:
+                    chon[ma] = (ngay, lo_id, gia)
+            it.gia_nhap_gan_nhat = {m: (int(g) if float(g).is_integer() else round(g, 2))
+                                    for m, (_, _, g) in chon.items()}
+
+    def ton_theo_kho(self, obj) -> list[dict]:
+        """Tồn một mã theo từng kho, mỗi đơn vị một dòng (tab Tồn theo kho). Lô cũ không ghi đơn vị
+        gốc thuộc ĐVT chính của mã."""
+        gom: dict[tuple, dict] = {}
+        for kho_id, kho_ma, kho_ten, goc, sl in self.repo.ton_theo_kho("vat_tu", obj.id):
+            ma = (goc or obj.don_vi_gia or "").strip().lower()
+            d = gom.setdefault((kho_id, ma), {"kho_id": kho_id, "kho_ma": kho_ma, "kho_ten": kho_ten,
+                                              "don_vi": ma, "sl": 0.0})
+            d["sl"] += sl
+        for d in gom.values():
+            d["sl"] = int(d["sl"]) if float(d["sl"]).is_integer() else round(d["sl"], 3)
+        return list(gom.values())
+
     # --- MẶT HÀNG GỐC: cửa dùng chung cho Kho + NCC ---------------------------
     @staticmethod
     def _mat_hang_row(loai: str, obj) -> dict:
@@ -473,7 +541,7 @@ class VatLieuKhoService:
             # Trả thẳng "thanh_pham" ra đây là đẻ ra `hang_loai` thứ ba mà `stock_lots` /
             # `stock_vouchers` / `stock_requests` không nhận — kho nhập được nhưng tra ngược ra
             # rỗng, và không có lỗi nào báo.
-            "hang_loai": "vat_tu" if loai == "thanh_pham" else loai,
+            "hang_loai": "vat_tu" if loai in ("thanh_pham", "hang_thuong_mai") else loai,
             "hang_id": obj.id,
             "nhom": HANG_NHAN[loai],
             "ma": obj.ma,
@@ -523,7 +591,12 @@ class VatLieuKhoService:
         # `thanh_pham` PHẢI có mặt: đây là ô kho gõ để chọn mặt hàng lúc nhập kho / lập phiếu.
         # Thiếu nó thì kho KHÔNG TÌM THẤY thành phẩm để nhập kho, mà ô tìm chỉ trả về rỗng —
         # không lỗi, không thông báo, không ai biết vì sao (docs/prd-thanh-pham.md §10.3).
-        for loai in ("giay", "vat_tu", "thanh_pham"):
+        from ..phan_he import THUONG_MAI, tat
+
+        # Hàng thương mại (chỉ In Hà Phương) cũng mua, nhập, xuất qua kho như vật tư — bản cài không
+        # bật phân hệ thì danh mục này rỗng, khỏi tra.
+        cac_loai = ("giay", "vat_tu", "thanh_pham") + (() if tat(THUONG_MAI) else ("hang_thuong_mai",))
+        for loai in cac_loai:
             rows, _t = self.repo.list(loai, q=q, active=True, page=1, size=moi_ben)
             ra.extend(
                 self._mat_hang_row(loai, r)
@@ -854,7 +927,7 @@ class MotDanhMucVatLieu:
         14 test đỏ với câu "Không tìm thấy mặt hàng." ở bước lập yêu cầu xuất kho. Lớp này thì
         chỉ nền CRUD của MÀN danh mục đi qua, kho không dùng.
         """
-        if self.kind not in ("vat_tu", "thanh_pham"):
+        if self.kind not in ("vat_tu", "thanh_pham", "hang_thuong_mai"):
             return
         obj = self.goc.get(self.kind, item_id)      # ném NotFound nếu không có
         # ⚠️ Phân biệt bằng `la_thanh_pham` — ĐÚNG cột mà `_VatTuRepo` / `_ThanhPhamRepo` lọc.
@@ -866,8 +939,9 @@ class MotDanhMucVatLieu:
         #   · `customer_id` (mg 0204) — đúng khi thành phẩm còn thuộc về một khách, hỏng ngay khi
         #     chủ bỏ ô Khách (21/08/2026) vì dòng mới không còn khách để suy.
         # Nay là cột cờ nói thẳng, không suy từ gì cả.
-        la_thanh_pham = bool(getattr(obj, "la_thanh_pham", False))
-        if la_thanh_pham != (self.kind == "thanh_pham"):
+        man = ("thanh_pham" if getattr(obj, "la_thanh_pham", False)
+               else "hang_thuong_mai" if getattr(obj, "la_hang_thuong_mai", False) else "vat_tu")
+        if man != self.kind:
             raise VatLieuKhoNotFound("Không tìm thấy mặt hàng.")
 
     def get(self, item_id: int):
@@ -898,3 +972,12 @@ class MotDanhMucVatLieu:
 
     def gan_nguon_goc_thanh_pham(self, items) -> None:
         self.goc.gan_nguon_goc_thanh_pham(items)
+
+    def gan_ton_theo_dvt(self, items) -> None:
+        self.goc.gan_ton_theo_dvt(items)
+
+    def gan_gia_nhap_cuoi(self, items) -> None:
+        self.goc.gan_gia_nhap_cuoi(items)
+
+    def ton_theo_kho(self, item_id: int) -> list[dict]:
+        return self.goc.ton_theo_kho(self.get(item_id))

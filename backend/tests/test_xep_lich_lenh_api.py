@@ -11,9 +11,6 @@ from __future__ import annotations
 
 import ast
 import inspect as _inspect
-from datetime import date, datetime
-
-import pytest
 
 from app.db import SessionLocal
 from app.models.lsx import TT_SAN_SANG, Lsx
@@ -42,53 +39,7 @@ def _lenh(ma: str = "LSX-XL3-01", **kw) -> int:
 
 # ============================================================== cửa vào
 def test_chua_dang_nhap_thi_401(client):
-    assert client.get(f"{GOC}/hang-cho").status_code == 401
-
-
-def test_admin_doc_duoc_hang_cho(client):
-    lid = _lenh()
-    r = client.get(f"{GOC}/hang-cho", headers=_hd(client))
-    assert r.status_code == 200
-    body = r.json()
-    assert lid in [d["lsx_id"] for d in body["dong"]]
-    assert body["tong"] >= 1
-
-
-def test_hang_cho_tim_va_phan_trang_di_qua_may_chu(client):
-    _lenh("LSX-XL3-A")
-    _lenh("LSX-XL3-B")
-    h = _hd(client)
-    assert len(client.get(f"{GOC}/hang-cho?moi_trang=1", headers=h).json()["dong"]) == 1
-    r = client.get(f"{GOC}/hang-cho?tim=LSX-XL3-B", headers=h).json()
-    assert [d["ma"] for d in r["dong"]] == ["LSX-XL3-B"]
-
-
-def test_lich_thieu_cua_so_thi_422(client):
-    """`tu`/`den` BẮT BUỘC — không mở đường trải cả lịch sử (spec §4.1)."""
-    assert client.get(f"{GOC}/lich", headers=_hd(client)).status_code == 422
-
-
-def test_lich_cua_so_nguoc_thi_400(client):
-    r = client.get(f"{GOC}/lich?tu=2026-09-20&den=2026-09-10", headers=_hd(client))
-    assert r.status_code == 400
-
-
-def test_lich_tra_ngay_dac_biet_ca_va_cum(client):
-    """Mục 6 mockup: trục ghi TÊN lễ và tô làm bù — ba khoá mới phải đi qua `response_model`."""
-    from app.models.work_calendar import SpecialDay
-
-    db = SessionLocal()
-    try:
-        db.query(SpecialDay).filter(SpecialDay.day.in_([date(2027, 3, 3), date(2027, 3, 6)])).delete()
-        db.add(SpecialDay(day=date(2027, 3, 3), kind="off", name="Lễ thử"))
-        db.add(SpecialDay(day=date(2027, 3, 6), kind="work", name="Làm bù thử"))
-        db.commit()
-    finally:
-        db.close()
-    body = client.get(f"{GOC}/lich?tu=2027-03-01&den=2027-03-07", headers=_hd(client)).json()
-    assert {"ngay": "2027-03-03", "loai": "off", "ten": "Lễ thử"} in body["ngay_dac_biet"]
-    assert {"ngay": "2027-03-06", "loai": "work", "ten": "Làm bù thử"} in body["ngay_dac_biet"]
-    assert "cac_ca" in body and body["cum"] == []
+    assert client.get(f"{GOC}/ban?tab=chua_hen&tu=2026-11-01&den=2026-11-14").status_code == 401
 
 
 def test_vat_tu_tra_den_theo_lo(client):
@@ -100,77 +51,17 @@ def test_vat_tu_tra_den_theo_lo(client):
     assert client.get(f"{GOC}/vat-tu?lsx_ids=a,b", headers=_hd(client)).status_code == 400
 
 
-def test_lich_tra_kem_ngay_nghi_cua_dung_cua_so(client):
-    """`ngay_nghi` phải ĐI QUA được `response_model` — `LichOut` không khai thì Pydantic nuốt im
-    lặng và FE lại quay về đoán "T7 + CN" (xưởng này làm thứ 7)."""
-    body = client.get(f"{GOC}/lich?tu=2026-09-12&den=2026-09-20", headers=_hd(client)).json()
-    assert "2026-09-13" in body["ngay_nghi"]      # chủ nhật
-    assert "2026-09-12" not in body["ngay_nghi"]  # thứ 7 vẫn làm
-    # Không rò ngày ngoài cửa sổ: bàn tô nền theo đúng danh sách này.
-    assert all("2026-09-12" <= n <= "2026-09-20" for n in body["ngay_nghi"])
-
-
 def test_lenh_khong_ton_tai_thi_404(client):
     assert client.get(f"{GOC}/lenh/999999", headers=_hd(client)).status_code == 404
 
 
 # ============================================================== ghi
-def test_dat_moc_roi_doc_lai_ra_dung_moc(client):
+
+
+def test_phat_hanh_khong_can_moc(client):
+    """07/11/2026: phát lệnh không còn đòi giờ bắt đầu, bộ phận tự xếp máy ở Kế hoạch bộ phận."""
     lid, h = _lenh(), _hd(client)
-    r = client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
-    assert r.status_code == 200, r.text
-    assert r.json()["bat_dau_at"].startswith("2026-09-11T08:00")
-    ct = client.get(f"{GOC}/lenh/{lid}", headers=h).json()
-    assert ct["bat_dau_at"].startswith("2026-09-11T08:00")
-    assert lid not in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
-
-
-def test_thu_moc_xem_truoc_khong_ghi(client):
-    lid, h = _lenh("LSX-XL3-THU", han_hoan_thanh_sx=date(2026, 9, 1)), _hd(client)
-    r = client.get(f"{GOC}/lenh/{lid}/thu?bat_dau=2026-09-11T08:00:00", headers=h)
-    assert r.status_code == 200, r.text
-    assert r.json()["bat_dau"].startswith("2026-09-11T08:00") and r.json()["ket_thuc"]
-    assert lid in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
-    assert client.get(f"{GOC}/lenh/999999/thu?bat_dau=2026-09-11T08:00:00", headers=h).status_code == 404
-    # Lọc nhanh "trễ hạn" + đếm đi qua response_model.
-    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
-    body = client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20&nhanh=tre", headers=h).json()
-    assert lid in [d["lsx_id"] for d in body["dong"]] and body["dem"]["tre"] >= 1
-    assert "so_buoc_chua_gio" in body["dong"][0]
-    assert client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20&nhanh=x", headers=h).status_code == 422
-
-
-def test_chot_cu_thi_409(client):
-    lid, h = _lenh(), _hd(client)
-    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
-    r = client.put(f"{GOC}/lenh/{lid}", json={
-        "bat_dau_at": "2026-09-12T08:00:00", "expected_updated_at": "2020-01-01T00:00:00",
-    }, headers=h)
-    assert r.status_code == 409
-
-
-def test_KHONG_CHAN_du_xep_sau_han_sx(client):
-    """§1 ở tầng HTTP: trễ hạn SX vẫn 200. Trễ là chuyện của MÀU trên thanh, không phải cửa gác."""
-    lid, h = _lenh(han_hoan_thanh_sx=date(2026, 9, 1)), _hd(client)
-    r = client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
-    assert r.status_code == 200
-
-
-def test_xoa_moc_tra_lenh_ve_hang_cho(client):
-    lid, h = _lenh(), _hd(client)
-    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
-    assert client.delete(f"{GOC}/lenh/{lid}", headers=h).status_code == 200
-    assert lid in [d["lsx_id"] for d in client.get(f"{GOC}/hang-cho", headers=h).json()["dong"]]
-
-
-def test_xoa_moc_lenh_chua_xep_thi_404(client):
-    lid, h = _lenh(), _hd(client)
-    assert client.delete(f"{GOC}/lenh/{lid}", headers=h).status_code == 404
-
-
-def test_phat_hanh_chua_co_moc_thi_400(client):
-    lid, h = _lenh(), _hd(client)
-    assert client.post(f"{GOC}/phat-hanh/{lid}", headers=h).status_code == 400
+    assert client.post(f"{GOC}/phat-hanh/{lid}", headers=h).status_code == 200
 
 
 def test_phat_hanh_bam_la_di_khong_hoi_gi(client):
@@ -178,7 +69,6 @@ def test_phat_hanh_bam_la_di_khong_hoi_gi(client):
     from app.models.lsx import TT_DA_PHAT_HANH
 
     lid, h = _lenh(), _hd(client)
-    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
     r = client.post(f"{GOC}/phat-hanh/{lid}", headers=h)
     assert r.status_code == 200, r.text
     db = SessionLocal()
@@ -202,7 +92,6 @@ def test_goi_phat_hanh_mo_bang_quyen_READ_va_404_khi_khong_co_lenh(client):
 
 def test_phat_hanh_cap_nhat_thieu_ly_do_thi_400(client):
     lid, h = _lenh(), _hd(client)
-    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
     client.post(f"{GOC}/phat-hanh/{lid}", headers=h)
     r = client.post(f"{GOC}/phat-hanh-cap-nhat/{lid}", json={"ly_do": "ff"}, headers=h)
     assert r.status_code == 400, r.text
@@ -211,7 +100,6 @@ def test_phat_hanh_cap_nhat_thieu_ly_do_thi_400(client):
 def test_thu_hoi_thieu_ly_do_thi_400_chu_khong_phai_500(client):
     """Lý do thu hồi là cái VẾT, không phải cửa gác xếp lịch — nhưng lỗi phải ra 400 đọc được."""
     lid, h = _lenh(), _hd(client)
-    client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"}, headers=h)
     client.post(f"{GOC}/phat-hanh/{lid}", headers=h)
     assert client.delete(f"{GOC}/phat-hanh/{lid}", headers=h).status_code == 400
     r = client.delete(f"{GOC}/phat-hanh/{lid}?ly_do=Khách dời hạn", headers=h)
@@ -221,12 +109,12 @@ def test_thu_hoi_thieu_ly_do_thi_400_chu_khong_phai_500(client):
 # ============================================================== hợp đồng router
 def test_moi_duong_GHI_deu_day_SSE():
     """Soi NGUỒN chứ không soi hành vi: quên đẩy SSE thì màn người khác đứng im mà không test
-    nghiệp vụ nào đỏ — đúng kiểu lỗi lọt lưới. Đẩy đi qua `_phat_lich_doi` (đặt / bỏ mốc) hoặc
+    nghiệp vụ nào đỏ — đúng kiểu lỗi lọt lưới. Đẩy đi qua `_phat_lich_doi` (hẹn / bỏ hẹn / đẩy ngay) hoặc
     `_phat_goi_xuong_xuong` (phát hành / cập nhật / thu hồi — thêm bàn tổ)."""
     from app.routers import xep_lich as r
 
     cay = ast.parse(_inspect.getsource(r))
-    ghi = {"dat_moc", "xoa_moc", "phat_hanh", "thu_hoi", "phat_hanh_cap_nhat"}
+    ghi = {"hen", "hen_theo_loc", "bo_hen", "day_ngay", "phat_hanh", "thu_hoi", "phat_hanh_cap_nhat"}
     thay = {
         n.name for n in ast.walk(cay)
         if isinstance(n, ast.FunctionDef) and n.name in ghi

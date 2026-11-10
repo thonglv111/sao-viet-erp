@@ -32,7 +32,7 @@ class _KhGia:
 
 def _dong(ma, lsx_id, can, *, han, giu=0.0, loai="vat_tu"):
     return {"loai": loai, "ma": ma, "lsx_id": lsx_id, "bai_ghep_id": None, "ten_viec": "In",
-            "khach_ten": "Khách A", "han_sx": han, "con_phai_co": can,
+            "khach_ten": "Khách A", "han_giao_khach": han, "con_phai_co": can,
             "da_giu_kho": giu, "da_giu_dang_ve": 0}
 
 
@@ -63,7 +63,7 @@ def test_du_bao_gop_theo_lenh_va_cong_hang_dang_ve(monkeypatch):
 
     g = rows[("giay", 5)]
     assert g["ton_toan_xuong"] == 5000 and g["don_vi_goc"] == "to"
-    assert [(x["ma"], x["can"], x["da_giu"], x["han_sx"]) for x in g["lenh"]] == [
+    assert [(x["ma"], x["can"], x["da_giu"], x["han_giao"]) for x in g["lenh"]] == [
         ("LSX-0318", 1500.0, 1200.0, "2026-10-08"), ("LSX-0322", 700.0, 0.0, "2026-10-12")]
     assert g["can_lenh"] == 2200.0
     assert g["dang_ve"] == 1500.0 and g["ve"] == [{

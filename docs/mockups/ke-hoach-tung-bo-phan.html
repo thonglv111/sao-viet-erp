@@ -1,0 +1,560 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kế hoạch từng bộ phận</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --canvas:#fff; --paper:#f8fafc; --ink:#0f172a; --ash:#475569; --ash-2:#64748b;
+  --rust:#c5400a; --rust-deep:#8a2d07; --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8;
+  --tt-cham-bg:#e0e7ff; --tt-cham-fg:#4338ca;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d; --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2; --tt-do-fg:#b91c1c;
+  --tt-xam-bg:#e5e7eb; --tt-xam-fg:#374151;
+  --r-2:4px; --r-3:6px; --r-5:10px; --r-pill:9999px;
+  --shadow-lg:0 14px 34px rgba(20,19,15,.17);
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:400 13px/1.45 "Be Vietnam Pro",ui-sans-serif,system-ui,sans-serif; }
+button,select,input { font:inherit; color:inherit; }
+.trang { max-width:1560px; margin:0 auto; padding:18px 16px 40px; }
+h1 { font-size:20px; font-weight:500; margin:0 0 4px; }
+h2 { font-size:14px; font-weight:500; margin:0; }
+.mo { color:var(--ash-2); }
+.dau p { margin:0 0 14px; color:var(--ash); max-width:900px; }
+
+/* Ba chặng: lệnh đi từ đâu tới đâu. Bấm vào chặng để mở màn của chặng đó. */
+.chang { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:14px; }
+@media (max-width:820px) { .chang { grid-template-columns:minmax(0,1fr); } }
+.chang button { text-align:left; border:1px solid var(--rule-soft); background:var(--canvas); border-radius:var(--r-5); padding:10px 12px; cursor:pointer; display:grid; grid-template-columns:28px minmax(0,1fr); gap:2px 10px; }
+.chang button:hover { background:var(--rule-hair); }
+.chang button.chon { border-color:var(--rust); }
+.chang .so { grid-row:span 2; width:26px; height:26px; border-radius:50%; background:var(--rule-hair); color:var(--ash); display:grid; place-items:center; font-size:12.5px; }
+.chang button.chon .so { background:var(--rust); color:var(--paper); }
+.chang .ten { font-weight:500; }
+.chang .ta { color:var(--ash-2); font-size:12px; }
+
+.man { display:none; }
+.man.hien { display:block; }
+
+.nut { border:1px solid var(--rule); background:var(--canvas); border-radius:var(--r-3); padding:5px 11px; cursor:pointer; white-space:nowrap; }
+.nut:hover { background:var(--rule-hair); }
+.nut:disabled { color:var(--ash-2); cursor:default; background:var(--rule-hair); }
+.nut.chinh { background:var(--rust); border-color:var(--rust); color:var(--paper); }
+.nut.chinh:hover { background:var(--rust-deep); }
+.nut.chinh:disabled { background:var(--rule); border-color:var(--rule); color:var(--canvas); }
+.lien { border:0; background:none; padding:0; color:var(--rust-deep); cursor:pointer; font-size:12px; }
+.lien:hover { text-decoration:underline; }
+
+.chip { display:inline-flex; align-items:center; gap:5px; border-radius:var(--r-pill); padding:0 8px; font-size:11.5px; white-space:nowrap; line-height:20px; }
+.chip::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.c-cho { background:var(--tt-xam-bg); color:var(--tt-xam-fg); }
+.c-moi { background:var(--tt-vang-bg); color:var(--tt-vang-fg); }
+.c-xep { background:var(--tt-xanh-bg); color:var(--tt-xanh-fg); }
+.c-giao { background:var(--tt-cham-bg); color:var(--tt-cham-fg); }
+.c-lam { background:var(--tt-cam-bg); color:var(--tt-cam-fg); }
+.c-xong { background:var(--tt-la-bg); color:var(--tt-la-fg); }
+.c-thieu { background:var(--tt-do-bg); color:var(--tt-do-fg); }
+.nho { display:inline-block; background:var(--rule-hair); border-radius:var(--r-2); padding:0 6px; font-size:11.5px; color:var(--ash); white-space:nowrap; }
+
+.thanh-cu { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin-bottom:10px; }
+.gian { flex:1; }
+.hop { background:var(--canvas); border:1px solid var(--rule-soft); border-radius:var(--r-5); padding:12px; }
+
+table { border-collapse:collapse; width:100%; }
+th { font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--ash); text-align:left; background:var(--paper); border-bottom:1.5px solid var(--rule); padding:6px 8px; white-space:nowrap; }
+td { padding:0 8px; height:34px; border-bottom:1px solid var(--rule-soft); }
+.khung-bang { overflow-x:auto; }
+tr.bam { cursor:pointer; }
+tr.bam:hover td { background:var(--rule-hair); }
+tr.chon td { background:var(--tt-xanh-bg); }
+td.so { text-align:right; white-space:nowrap; }
+#ds-lenh td, #ct-lenh td { white-space:nowrap; }
+
+/* Màn 1: Lệnh sản xuất */
+.lenh-bo { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); gap:10px; align-items:start; }
+@media (max-width:1000px) { .lenh-bo { grid-template-columns:minmax(0,1fr); } }
+.dau-lenh { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; margin-bottom:10px; }
+.dau-lenh .gian { min-width:10px; }
+.ghi-nho { color:var(--ash-2); font-size:12px; margin:10px 0 0; }
+
+/* Màn 2: Kế hoạch bộ phận. Mỗi máy một cột, việc xếp từ trên xuống là thứ tự chạy. */
+.chon-bp { display:inline-flex; border:1px solid var(--rule); border-radius:var(--r-3); overflow:hidden; background:var(--canvas); }
+.chon-bp button { border:0; background:none; padding:6px 12px; cursor:pointer; color:var(--ash); display:inline-flex; gap:6px; align-items:center; }
+.chon-bp button + button { border-left:1px solid var(--rule); }
+.chon-bp button.chon { background:var(--ink); color:var(--paper); }
+.chon-bp .dem { font-size:11px; background:var(--tt-vang-bg); color:var(--tt-vang-fg); border-radius:var(--r-pill); padding:0 6px; }
+.cac-cot { display:flex; gap:10px; overflow-x:auto; align-items:stretch; padding-bottom:6px; }
+.cot { flex:0 0 272px; background:var(--canvas); border:1px solid var(--rule-soft); border-radius:var(--r-5); padding:10px; min-height:380px; display:flex; flex-direction:column; }
+.cot.khay { background:var(--rule-hair); }
+.cot .dau-cot { display:flex; justify-content:space-between; gap:8px; align-items:baseline; margin-bottom:2px; }
+.cot .phu { color:var(--ash-2); font-size:12px; }
+.cot .rong { color:var(--ash-2); margin-top:10px; font-size:12.5px; }
+.cot .vung { flex:1; }
+.dang-keo .cot.duoc { border-color:var(--tt-la-dot); background:var(--tt-la-bg); }
+.dang-keo .cot.khong { opacity:.4; }
+.cho-tha { height:3px; border-radius:2px; background:var(--ink); margin:6px 0 -3px; }
+
+.the { border:1px solid var(--rule-soft); border-radius:var(--r-3); padding:8px 9px; margin-top:7px; background:var(--canvas); }
+.the[draggable="true"] { cursor:grab; }
+.the[draggable="true"]:hover { border-color:var(--rule); }
+.the.dang { opacity:.4; }
+.the.khoa { background:var(--paper); }
+.the .dong1 { display:flex; gap:6px; align-items:center; justify-content:space-between; }
+.the .hang { color:var(--ash); font-size:12px; }
+.the .cd { margin-top:3px; }
+.the .so-lieu { display:flex; gap:4px; flex-wrap:wrap; margin-top:5px; }
+.the .gio { margin-top:5px; font-size:12px; color:var(--ash); }
+.the .truoc { margin-top:3px; font-size:12px; color:var(--ash-2); }
+.the .to { display:flex; gap:6px; align-items:center; margin-top:7px; }
+.the .to select { flex:1; min-width:0; border:1px solid var(--rule); border-radius:var(--r-2); padding:3px 4px; background:var(--canvas); }
+.the .to select.trong { border-color:var(--tt-do-fg); }
+.the .duoi-the { display:flex; justify-content:space-between; align-items:center; margin-top:6px; gap:8px; }
+
+/* Màn 3: Việc của tổ. Nút to, chữ to, vì xem nhanh dưới xưởng. */
+.chon-to { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.chon-to button { border:1px solid var(--rule); background:var(--canvas); border-radius:var(--r-3); padding:8px 14px; cursor:pointer; display:inline-flex; gap:7px; align-items:center; }
+.chon-to button.chon { border-color:var(--rust); color:var(--rust-deep); }
+.chon-to .dem { font-size:11px; color:var(--ash-2); }
+.viec { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:center; background:var(--canvas); border:1px solid var(--rule-soft); border-radius:var(--r-5); padding:14px 16px; margin-bottom:8px; }
+.viec .ten-viec { font-size:16px; font-weight:500; }
+.viec .phu { color:var(--ash); margin-top:2px; }
+.viec .so-lieu { display:flex; gap:5px; flex-wrap:wrap; margin-top:6px; }
+.viec .nut { padding:10px 18px; font-size:14px; }
+.nhom-may { color:var(--ash); margin:14px 0 6px; }
+
+.logic { margin-top:18px; }
+.logic ol { margin:6px 0 0; padding-left:20px; color:var(--ash); max-width:980px; }
+.logic li { margin:4px 0; }
+
+.bao { position:fixed; left:50%; transform:translateX(-50%); bottom:20px; z-index:60; background:var(--ink); color:var(--paper); padding:9px 15px; border-radius:var(--r-3); box-shadow:var(--shadow-lg); max-width:min(640px,calc(100vw - 32px)); }
+</style>
+</head>
+<body>
+<div class="trang">
+  <div class="dau">
+    <h1>Lệnh sản xuất và kế hoạch từng bộ phận</h1>
+    <p>Trang thử, dữ liệu mẫu, chưa nối vào SVN. Người lập lệnh không chọn máy hay tổ. Phát lệnh thì từng công đoạn tới khay của bộ phận nhận nó. Người kế hoạch bộ phận chọn máy và tổ rồi giao, lúc đó tổ mới thấy việc.</p>
+  </div>
+
+  <div class="chang" id="chang">
+    <button data-man="lenh"><span class="so">1</span><span class="ten">Lệnh sản xuất</span><span class="ta">Lập lệnh, chọn công đoạn, phát lệnh</span></button>
+    <button data-man="kh"><span class="so">2</span><span class="ten">Kế hoạch bộ phận</span><span class="ta">Nhận việc, chọn máy và tổ, giao xuống tổ</span></button>
+    <button data-man="to"><span class="so">3</span><span class="ten">Việc của tổ</span><span class="ta">Thấy việc đã giao, bắt đầu, xong</span></button>
+  </div>
+
+  <section class="man" id="man-lenh">
+    <div class="thanh-cu">
+      <h2>Danh sách lệnh</h2>
+      <span class="gian"></span>
+      <button class="nut" id="tao-lenh">Tạo lệnh</button>
+    </div>
+    <div class="lenh-bo">
+      <div class="hop khung-bang"><table id="ds-lenh"></table></div>
+      <div class="hop" id="ct-lenh"></div>
+    </div>
+  </section>
+
+  <section class="man" id="man-kh">
+    <div class="thanh-cu">
+      <div class="chon-bp" id="chon-bp"></div>
+      <span class="mo" id="nguoi-kh"></span>
+      <span class="gian"></span>
+      <button class="nut chinh" id="giao">Giao xuống tổ</button>
+    </div>
+    <p class="mo" style="margin:0 0 10px">Kéo việc từ khay vào cột máy. Thứ tự từ trên xuống là thứ tự chạy, giờ dự kiến tự tính theo thứ tự đó. Khi kéo, máy làm được sáng xanh.</p>
+    <div class="cac-cot" id="cac-cot"></div>
+  </section>
+
+  <section class="man" id="man-to">
+    <div class="chon-to" id="chon-to"></div>
+    <div id="viec-to"></div>
+  </section>
+
+  <div class="hop logic">
+    <h2>Logic trong trang này</h2>
+    <ol>
+      <li>Lệnh sản xuất là nơi tạo lệnh. Người lập lệnh chọn công đoạn và số lượng, không chọn máy, không chọn tổ, không đặt hạn cho từng công đoạn.</li>
+      <li>Ở danh mục, mỗi công đoạn khai sẵn bộ phận nhận. Tôi giả định một công đoạn chỉ thuộc một bộ phận: In 4 màu và In 6 màu về bộ phận In, Cán màng và Bế về bộ phận Cán bế.</li>
+      <li>Phát lệnh một lần là mọi công đoạn của lệnh tới khay các bộ phận cùng lúc, để bộ phận sau chuẩn bị trước. Thẻ việc ghi khâu trước đang ở đâu, nhưng không chặn xếp.</li>
+      <li>Người kế hoạch bộ phận chỉ thấy máy và tổ của bộ phận mình. Kéo việc vào máy, chọn tổ, bấm Giao xuống tổ. Việc chưa giao thì tổ không thấy.</li>
+      <li>Việc đã giao mà tổ chưa bắt đầu thì bộ phận còn rút lại để đổi máy hay đổi tổ. Tổ bắt đầu rồi thì việc khoá ở máy đó.</li>
+    </ol>
+  </div>
+</div>
+
+<script>
+const BP = {
+  in:  { ten:'In', nguoi:'Người kế hoạch: chị Lan',
+         may:[ {id:'in6', ten:'Máy in 6 màu', lam:['in'], mau:6},
+               {id:'in4', ten:'Máy in 4 màu', lam:['in'], mau:4} ],
+         to:['Tổ in 1','Tổ in 2'] },
+  cb:  { ten:'Cán bế', nguoi:'Người kế hoạch: anh Hùng',
+         may:[ {id:'can',   ten:'Máy cán màng',   lam:['can']},
+               {id:'betd',  ten:'Máy bế tự động', lam:['be']},
+               {id:'betay', ten:'Máy bế tay',     lam:['be']} ],
+         to:['Tổ cán','Tổ bế'] },
+  dan: { ten:'Dán', nguoi:'Người kế hoạch: chị Mai',
+         may:[ {id:'dan',    ten:'Máy dán hộp', lam:['dan']},
+               {id:'dantay', ten:'Dán tay',     lam:['dan'], tay:true} ],
+         to:['Tổ dán máy','Tổ dán tay'] },
+  tp:  { ten:'Thành phẩm', nguoi:'Người kế hoạch: anh Tú',
+         may:[ {id:'tptay', ten:'Làm tay', lam:['tp'], tay:true} ],
+         to:['Tổ thành phẩm'] },
+};
+const BP_CUA = { in:'in', can:'cb', be:'cb', dan:'dan', tp:'tp' };
+const TT = {
+  cho:  ['c-cho',  'Chưa phát'],
+  moi:  ['c-moi',  'Bộ phận chưa xếp'],
+  xep:  ['c-xep',  'Đã xếp máy'],
+  giao: ['c-giao', 'Đã giao tổ'],
+  lam:  ['c-lam',  'Đang làm'],
+  xong: ['c-xong', 'Xong'],
+};
+const NGAY = ['09/11','10/11','11/11','12/11','13/11','14/11','16/11','17/11','18/11','19/11','20/11','21/11'];
+const GIO_NGAY = 10, GIO_DAU = 7;
+
+let soLenh = 105;
+function buoc(loai, ten, gio, sl, them) { return Object.assign({ loai, ten, gio, sl, tt:'cho', may:null, to:'' }, them || {}); }
+const LENH = [
+  { ma:'LSX26-0101', hang:'Hộp bánh trung thu', sl:'5.000 hộp', giao:'16/11', phat:true, buoc:[
+    buoc('in','In 6 màu',4,'2.500 tờ',{mau:6, tt:'xong', may:'in6', to:'Tổ in 1'}),
+    buoc('can','Cán màng mờ',2,'2.500 tờ',{tt:'lam', may:'can', to:'Tổ cán'}),
+    buoc('be','Bế',3,'2.500 tờ',{tt:'giao', may:'betd', to:'Tổ bế'}),
+    buoc('dan','Dán hộp',4,'5.000 hộp',{tt:'moi'}),
+    buoc('tp','Đếm, đóng thùng',2,'5.000 hộp',{tt:'moi'}) ]},
+  { ma:'LSX26-0102', hang:'Hộp thuốc nhỏ', sl:'20.000 hộp', giao:'14/11', phat:true, buoc:[
+    buoc('in','In 4 màu',5,'2.000 tờ',{mau:4, tt:'xep', may:'in4'}),
+    buoc('be','Bế',3,'2.000 tờ',{tt:'moi'}),
+    buoc('dan','Dán hộp',3,'20.000 hộp',{tt:'moi'}),
+    buoc('tp','Đếm, đóng thùng',1.5,'20.000 hộp',{tt:'moi'}) ]},
+  { ma:'LSX26-0103', hang:'Túi giấy quà tặng', sl:'3.000 cái', giao:'18/11', phat:true, buoc:[
+    buoc('in','In 4 màu',2,'1.500 tờ',{mau:4, tt:'moi'}),
+    buoc('can','Cán màng bóng',1.5,'1.500 tờ',{tt:'moi'}),
+    buoc('be','Bế',2,'1.500 tờ',{tt:'moi'}),
+    buoc('dan','Dán túi',6,'3.000 cái',{tt:'moi'}),
+    buoc('tp','Đếm, đóng thùng',1,'3.000 cái',{tt:'moi'}) ]},
+  { ma:'LSX26-0104', hang:'Hộp mỹ phẩm', sl:'8.000 hộp', giao:'20/11', phat:false, buoc:[
+    buoc('in','In 6 màu',3.5,'4.000 tờ',{mau:6}),
+    buoc('can','Cán màng mờ',2,'4.000 tờ'),
+    buoc('be','Bế',2.5,'4.000 tờ'),
+    buoc('dan','Dán hộp',3,'8.000 hộp'),
+    buoc('tp','Đếm, đóng thùng',1.5,'8.000 hộp') ]},
+  { ma:'LSX26-0105', hang:'Hộp giày', sl:'2.000 hộp', giao:'22/11', phat:false, buoc:[
+    buoc('in','In 4 màu',2,'2.000 tờ',{mau:4}),
+    buoc('be','Bế',3,'2.000 tờ'),
+    buoc('dan','Dán hộp',5,'2.000 hộp'),
+    buoc('tp','Đếm, đóng thùng',1,'2.000 hộp') ]},
+];
+// Gắn mã cho từng bước để kéo thả.
+LENH.forEach(l => l.buoc.forEach((b,i) => { b.id = l.ma + '-' + i; b.lenh = l; b.thu = i; }));
+
+// Hàng chờ của từng máy: thứ tự chạy. Việc xong thì rời hàng chờ.
+const HANG = {};
+Object.values(BP).forEach(bp => bp.may.forEach(m => HANG[m.id] = []));
+LENH.forEach(l => l.buoc.forEach(b => { if (b.may && b.tt !== 'xong') HANG[b.may].push(b.id); }));
+
+const BUOC = id => { for (const l of LENH) for (const b of l.buoc) if (b.id === id) return b; };
+const MAY = id => { for (const k in BP) for (const m of BP[k].may) if (m.id === id) return Object.assign({bp:k}, m); };
+const chip = tt => `<span class="chip ${TT[tt][0]}">${TT[tt][1]}</span>`;
+const gioChu = h => (Number.isInteger(h) ? h : String(h).replace('.', ',')) + ' giờ';
+
+let man = 'lenh', lenhChon = 'LSX26-0101', bpChon = 'in', toChon = 'Tổ in 1', keo = null;
+
+function bao(chu) {
+  const cu = document.querySelector('.bao'); if (cu) cu.remove();
+  const d = document.createElement('div'); d.className = 'bao'; d.textContent = chu;
+  document.body.appendChild(d); setTimeout(() => d.remove(), 3600);
+}
+
+// Giờ dự kiến của từng việc trên máy: chạy nối nhau từ 7:00 ngày 09/11, mỗi ngày 10 giờ.
+function moc(h) {
+  const ngay = Math.floor(h / GIO_NGAY), gio = h % GIO_NGAY + GIO_DAU;
+  const hh = Math.floor(gio), mm = Math.round((gio - hh) * 60);
+  return { ngay: NGAY[Math.min(ngay, NGAY.length - 1)], gio: hh + ':' + String(mm).padStart(2,'0') };
+}
+function duKien(b) {
+  if (!b.may || b.tt === 'xong') return '';
+  let t = 0;
+  for (const id of HANG[b.may]) {
+    const x = BUOC(id);
+    if (id === b.id) {
+      const a = moc(t), z = moc(t + x.gio);
+      return a.ngay === z.ngay ? `${a.ngay} từ ${a.gio} đến ${z.gio}` : `${a.ngay} ${a.gio} đến ${z.ngay} ${z.gio}`;
+    }
+    t += x.gio;
+  }
+  return '';
+}
+function mayTo(b) {
+  if (!b.may) return '<span class="mo">Bộ phận chọn</span>';
+  const m = MAY(b.may);
+  return m.ten + (b.to ? ', ' + b.to : '');
+}
+
+/* ---------- Màn 1: Lệnh sản xuất ---------- */
+function tinhHinhLenh(l) {
+  if (!l.phat) return chip('cho');
+  const xong = l.buoc.filter(b => b.tt === 'xong').length;
+  if (xong === l.buoc.length) return chip('xong');
+  const dang = l.buoc.find(b => b.tt === 'lam');
+  return `<span class="mo">${xong} trên ${l.buoc.length} công đoạn xong${dang ? ', đang ' + dang.ten.toLowerCase() : ''}</span>`;
+}
+function veLenh() {
+  document.getElementById('ds-lenh').innerHTML =
+    '<tr><th>Mã lệnh</th><th>Hàng</th><th style="text-align:right">Số lượng</th><th>Ngày giao</th><th>Tình hình</th></tr>' +
+    LENH.map(l => `<tr class="bam ${l.ma === lenhChon ? 'chon' : ''}" data-lenh="${l.ma}">
+      <td>${l.ma}</td><td>${l.hang}</td><td class="so">${l.sl}</td><td>${l.giao}</td><td>${tinhHinhLenh(l)}</td></tr>`).join('');
+  const l = LENH.find(x => x.ma === lenhChon);
+  document.getElementById('ct-lenh').innerHTML = `
+    <div class="dau-lenh">
+      <h2>${l.ma}</h2><span>${l.hang}</span><span class="mo">${l.sl}, giao ${l.giao}</span>
+      <span class="gian"></span>
+      ${l.phat ? '<span class="mo">Đã phát lệnh</span>' : '<button class="nut chinh" id="phat">Phát lệnh</button>'}
+    </div>
+    <div class="khung-bang"><table>
+      <tr><th>Bước</th><th>Công đoạn</th><th>Bộ phận nhận</th><th style="text-align:right">Số lượng</th><th>Máy và tổ</th><th>Tình hình</th></tr>
+      ${l.buoc.map((b,i) => `<tr><td>${i+1}</td><td>${b.ten}</td><td>${BP[BP_CUA[b.loai]].ten}</td>
+        <td class="so">${b.sl}</td><td>${mayTo(b)}</td><td>${chip(b.tt)}</td></tr>`).join('')}
+    </table></div>
+    <p class="ghi-nho">Bộ phận nhận lấy từ danh mục công đoạn, người lập lệnh không sửa ở đây. Cột Máy và tổ chỉ để xem, do bộ phận điền khi xếp.</p>`;
+  const nut = document.getElementById('phat');
+  if (nut) nut.onclick = () => phatLenh(l);
+}
+function phatLenh(l) {
+  l.phat = true;
+  const dem = {};
+  l.buoc.forEach(b => { b.tt = 'moi'; const k = BP_CUA[b.loai]; dem[k] = (dem[k] || 0) + 1; });
+  bao(`Đã phát ${l.ma}. ` + Object.keys(dem).map(k => `${BP[k].ten} nhận ${dem[k]} việc`).join(', ') + '.');
+  veTatCa();
+}
+document.getElementById('ds-lenh').onclick = e => {
+  const tr = e.target.closest('[data-lenh]'); if (!tr) return;
+  lenhChon = tr.dataset.lenh; veLenh();
+};
+document.getElementById('tao-lenh').onclick = () => {
+  soLenh++;
+  const l = { ma:'LSX26-0' + soLenh, hang:'Hộp quà Tết', sl:'6.000 hộp', giao:'24/11', phat:false, buoc:[
+    buoc('in','In 4 màu',3,'3.000 tờ',{mau:4}), buoc('be','Bế',2,'3.000 tờ'),
+    buoc('dan','Dán hộp',3,'6.000 hộp'), buoc('tp','Đếm, đóng thùng',1,'6.000 hộp') ]};
+  l.buoc.forEach((b,i) => { b.id = l.ma + '-' + i; b.lenh = l; b.thu = i; });
+  LENH.push(l); lenhChon = l.ma;
+  bao(`Đã tạo ${l.ma} ở trạng thái nháp. Chỉ chọn công đoạn và số lượng, chưa ai thấy cho tới khi phát.`);
+  veTatCa();
+};
+
+/* ---------- Màn 2: Kế hoạch bộ phận ---------- */
+function lamDuoc(b, m) {
+  if (!m.lam.includes(b.loai)) return false;
+  if (b.loai === 'in' && m.mau && b.mau > m.mau) return false;
+  return true;
+}
+function khauTruoc(b) {
+  if (b.thu === 0) return '';
+  const t = b.lenh.buoc[b.thu - 1];
+  const chu = { moi:'chưa xếp', xep:'đã xếp máy', giao:'đã giao tổ', lam:'đang làm', xong:'xong' }[t.tt];
+  return `<div class="truoc">Khâu trước: ${t.ten} ${chu}</div>`;
+}
+function theViec(b, oKhay) {
+  const keoDuoc = b.tt === 'moi' || b.tt === 'xep';
+  const toBp = BP[BP_CUA[b.loai]].to;
+  let duoi = '';
+  if (!oKhay) {
+    if (b.tt === 'xep') {
+      duoi = `<div class="to"><select data-to="${b.id}" class="${b.to ? '' : 'trong'}">
+        <option value="">Chọn tổ làm</option>${toBp.map(t => `<option ${t === b.to ? 'selected' : ''}>${t}</option>`).join('')}
+        </select></div>
+        <div class="duoi-the"><button class="lien" data-ve-khay="${b.id}">Trả về khay</button></div>`;
+    } else if (b.tt === 'giao') {
+      duoi = `<div class="duoi-the"><span class="mo">${b.to} đã thấy việc</span><button class="lien" data-rut="${b.id}">Rút lại</button></div>`;
+    } else if (b.tt === 'lam') {
+      duoi = `<div class="duoi-the"><span class="mo">${b.to} đang làm</span></div>`;
+    }
+  }
+  return `<div class="the ${keoDuoc ? '' : 'khoa'}" data-id="${b.id}" draggable="${keoDuoc}">
+    <div class="dong1"><span>${b.lenh.ma}</span>${oKhay ? '' : chip(b.tt)}</div>
+    <div class="hang">${b.lenh.hang}</div>
+    <div class="cd">${b.ten}</div>
+    <div class="so-lieu"><span class="nho">${b.sl}</span><span class="nho">${gioChu(b.gio)}</span><span class="nho">Lệnh giao ${b.lenh.giao}</span></div>
+    ${oKhay ? '' : `<div class="gio">Dự kiến ${duKien(b)}</div>`}
+    ${khauTruoc(b)}
+    ${duoi}
+  </div>`;
+}
+function veKeHoach() {
+  document.getElementById('chon-bp').innerHTML = Object.keys(BP).map(k => {
+    const moi = khayCua(k).length;
+    return `<button data-bp="${k}" class="${k === bpChon ? 'chon' : ''}">${BP[k].ten}${moi ? `<span class="dem">${moi} mới</span>` : ''}</button>`;
+  }).join('');
+  const bp = BP[bpChon];
+  document.getElementById('nguoi-kh').textContent = bp.nguoi;
+  const khay = khayCua(bpChon);
+  let html = `<div class="cot khay" data-may="khay">
+    <div class="dau-cot"><h2>Lệnh mới tới</h2><span class="phu">${khay.length} việc</span></div>
+    <div class="phu">Chưa xếp máy, tổ chưa thấy</div>
+    <div class="vung">${khay.length ? khay.map(b => theViec(b, true)).join('') : '<div class="rong">Không còn việc chờ xếp.</div>'}</div>
+  </div>`;
+  bp.may.forEach(m => {
+    const viec = HANG[m.id].map(BUOC);
+    const tong = viec.reduce((s,b) => s + b.gio, 0);
+    html += `<div class="cot" data-may="${m.id}">
+      <div class="dau-cot"><h2>${m.ten}</h2><span class="phu">${gioChu(tong)}</span></div>
+      <div class="phu">${m.tay ? 'Không dùng máy' : m.mau ? 'In tối đa ' + m.mau + ' màu' : '&nbsp;'}</div>
+      <div class="vung">${viec.length ? viec.map(b => theViec(b, false)).join('') : '<div class="rong">Máy trống. Kéo việc vào đây.</div>'}</div>
+    </div>`;
+  });
+  document.getElementById('cac-cot').innerHTML = html;
+  const san = sanGiao();
+  const nut = document.getElementById('giao');
+  nut.disabled = !san.length;
+  nut.textContent = san.length ? `Giao xuống tổ (${san.length} việc)` : 'Giao xuống tổ';
+}
+const khayCua = k => { const r = []; LENH.forEach(l => l.buoc.forEach(b => { if (b.tt === 'moi' && BP_CUA[b.loai] === k) r.push(b); })); return r; };
+const sanGiao = () => BP[bpChon].may.flatMap(m => HANG[m.id].map(BUOC)).filter(b => b.tt === 'xep' && b.to);
+
+document.getElementById('chon-bp').onclick = e => {
+  const n = e.target.closest('[data-bp]'); if (!n) return;
+  bpChon = n.dataset.bp; veKeHoach();
+};
+document.getElementById('cac-cot').addEventListener('change', e => {
+  const s = e.target.closest('[data-to]'); if (!s) return;
+  BUOC(s.dataset.to).to = s.value; veKeHoach();
+});
+document.getElementById('cac-cot').addEventListener('click', e => {
+  const v = e.target.closest('[data-ve-khay]');
+  if (v) { veKhay(BUOC(v.dataset.veKhay)); veTatCa(); return; }
+  const r = e.target.closest('[data-rut]');
+  if (r) { const b = BUOC(r.dataset.rut); b.tt = 'xep'; bao(`Đã rút ${b.lenh.ma} ${b.ten} khỏi ${b.to}. Tổ không còn thấy việc này.`); veTatCa(); }
+});
+function roiHang(b) { if (b.may) HANG[b.may] = HANG[b.may].filter(x => x !== b.id); }
+function veKhay(b) { roiHang(b); b.may = null; b.to = ''; b.tt = 'moi'; }
+document.getElementById('giao').onclick = () => {
+  const san = sanGiao(); const dem = {};
+  san.forEach(b => { b.tt = 'giao'; dem[b.to] = (dem[b.to] || 0) + 1; });
+  bao('Đã giao. ' + Object.keys(dem).map(t => `${t} thấy thêm ${dem[t]} việc`).join(', ') + '.');
+  veTatCa();
+};
+
+// Kéo thả: khay sang máy, máy sang máy, đổi thứ tự trong máy, kéo về khay.
+const vungCot = document.getElementById('cac-cot');
+vungCot.addEventListener('dragstart', e => {
+  const t = e.target.closest('.the[draggable="true"]'); if (!t) return;
+  keo = BUOC(t.dataset.id);
+  e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', keo.id);
+  requestAnimationFrame(() => {
+    t.classList.add('dang'); document.body.classList.add('dang-keo');
+    vungCot.querySelectorAll('.cot[data-may]').forEach(c => {
+      const id = c.dataset.may;
+      if (id === 'khay') return;
+      c.classList.add(lamDuoc(keo, MAY(id)) ? 'duoc' : 'khong');
+    });
+  });
+});
+function viTriTha(cot, y) {
+  const the = [...cot.querySelectorAll('.the')].filter(t => t.dataset.id !== keo.id);
+  let i = 0;
+  for (const t of the) { const r = t.getBoundingClientRect(); if (y > r.top + r.height / 2) i++; }
+  // Không chen lên trước việc đang chạy trên máy.
+  const dau = the.filter(t => BUOC(t.dataset.id).tt === 'lam').length;
+  return { i: Math.max(i, dau), the };
+}
+function boChoTha() { vungCot.querySelectorAll('.cho-tha').forEach(x => x.remove()); }
+vungCot.addEventListener('dragover', e => {
+  if (!keo) return;
+  const cot = e.target.closest('.cot[data-may]'); if (!cot) return;
+  const id = cot.dataset.may;
+  if (id !== 'khay' && !lamDuoc(keo, MAY(id))) return;
+  e.preventDefault();
+  boChoTha();
+  if (id === 'khay') return;
+  const { i, the } = viTriTha(cot, e.clientY);
+  const vach = document.createElement('div'); vach.className = 'cho-tha';
+  if (i < the.length) the[i].before(vach); else cot.querySelector('.vung').appendChild(vach);
+});
+vungCot.addEventListener('drop', e => {
+  if (!keo) return;
+  const cot = e.target.closest('.cot[data-may]'); if (!cot) return;
+  e.preventDefault();
+  const id = cot.dataset.may, b = keo;
+  if (id === 'khay') { veKhay(b); veTatCa(); return; }
+  const { i, the } = viTriTha(cot, e.clientY);
+  const truoc = i < the.length ? the[i].dataset.id : null;
+  const doiMay = b.may !== id;
+  roiHang(b);
+  const hang = HANG[id];
+  const k = truoc ? hang.indexOf(truoc) : hang.length;
+  hang.splice(k < 0 ? hang.length : k, 0, b.id);
+  b.may = id; b.tt = 'xep';
+  if (doiMay) bao(`${b.lenh.ma} ${b.ten} vào ${MAY(id).ten}, đứng thứ ${hang.indexOf(b.id) + 1}. Chọn tổ rồi giao.`);
+  veTatCa();
+});
+vungCot.addEventListener('dragend', () => {
+  keo = null; boChoTha(); document.body.classList.remove('dang-keo');
+  vungCot.querySelectorAll('.duoc,.khong,.dang').forEach(c => c.classList.remove('duoc','khong','dang'));
+});
+
+/* ---------- Màn 3: Việc của tổ ---------- */
+function veTo() {
+  const tatCaTo = Object.values(BP).flatMap(bp => bp.to);
+  const viecCua = t => LENH.flatMap(l => l.buoc).filter(b => b.to === t && ['giao','lam'].includes(b.tt));
+  document.getElementById('chon-to').innerHTML = tatCaTo.map(t =>
+    `<button data-to-chon="${t}" class="${t === toChon ? 'chon' : ''}">${t}<span class="dem">${viecCua(t).length} việc</span></button>`).join('');
+  const viec = viecCua(toChon);
+  const theoMay = {};
+  viec.forEach(b => (theoMay[b.may] = theoMay[b.may] || []).push(b));
+  let html = '';
+  if (!viec.length) html = `<div class="hop mo">Chưa có việc nào giao cho ${toChon}. Việc bộ phận mới xếp máy mà chưa giao thì tổ chưa thấy.</div>`;
+  for (const mid in theoMay) {
+    html += `<div class="nhom-may">${MAY(mid).ten}</div>`;
+    theoMay[mid].sort((a,b) => HANG[mid].indexOf(a.id) - HANG[mid].indexOf(b.id)).forEach(b => {
+      const thu = HANG[mid].indexOf(b.id) + 1;
+      html += `<div class="viec">
+        <div>
+          <div class="ten-viec">${b.ten}</div>
+          <div class="phu">${b.lenh.ma}, ${b.lenh.hang}</div>
+          <div class="so-lieu"><span class="nho">Thứ ${thu} trên máy</span><span class="nho">${b.sl}</span><span class="nho">${gioChu(b.gio)}</span><span class="nho">Dự kiến ${duKien(b)}</span></div>
+        </div>
+        ${b.tt === 'giao' ? `<button class="nut chinh" data-bat-dau="${b.id}">Bắt đầu</button>` : `<button class="nut" data-xong="${b.id}">Xong</button>`}
+      </div>`;
+    });
+  }
+  document.getElementById('viec-to').innerHTML = html;
+}
+document.getElementById('chon-to').onclick = e => {
+  const n = e.target.closest('[data-to-chon]'); if (!n) return;
+  toChon = n.dataset.toChon; veTo();
+};
+document.getElementById('viec-to').onclick = e => {
+  const a = e.target.closest('[data-bat-dau]');
+  if (a) {
+    const b = BUOC(a.dataset.batDau);
+    const dang = HANG[b.may].map(BUOC).find(x => x.tt === 'lam');
+    if (dang) { bao(`${MAY(b.may).ten} đang chạy ${dang.lenh.ma}. Báo xong việc đó trước.`); return; }
+    // Việc bắt đầu thì đứng đầu hàng chờ của máy.
+    HANG[b.may] = [b.id, ...HANG[b.may].filter(x => x !== b.id)];
+    b.tt = 'lam'; veTatCa(); return;
+  }
+  const x = e.target.closest('[data-xong]');
+  if (x) { const b = BUOC(x.dataset.xong); roiHang(b); b.tt = 'xong'; bao(`${b.lenh.ma} ${b.ten} xong. Bộ phận làm khâu sau thấy ngay trên thẻ việc.`); veTatCa(); }
+};
+
+/* ---------- Chuyển màn ---------- */
+document.getElementById('chang').onclick = e => {
+  const n = e.target.closest('[data-man]'); if (!n) return;
+  man = n.dataset.man; veTatCa();
+};
+function veTatCa() {
+  document.querySelectorAll('#chang button').forEach(b => b.classList.toggle('chon', b.dataset.man === man));
+  document.querySelectorAll('.man').forEach(s => s.classList.toggle('hien', s.id === 'man-' + man));
+  veLenh(); veKeHoach(); veTo();
+}
+veTatCa();
+</script>
+</body>
+</html>

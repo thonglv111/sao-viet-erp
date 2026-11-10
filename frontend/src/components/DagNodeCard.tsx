@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { dvNhan, type RefRow } from "../pages/LsxRoutingTable";
-import { type EditRow, n, phut, tenBuoc, thoiLuong } from "../pages/lsxBuoc";
+import { type EditRow, n, tenBuoc } from "../pages/lsxBuoc";
 import { Icon } from "./Icons";
 import { ChipKhuon, ChipLoaiBuoc } from "./ChipBuoc";
 
@@ -44,7 +44,7 @@ export function DagNodeCard({
   isHoveredPort,
   congDoanRefs,
   toRefs,
-  mayRefs,
+  // (`mayRefs` vẫn là prop; thẻ thôi hiện máy và thời lượng từ 07/11/2026.)
   warnings,
   maBaiGhep,
   canUpdate,
@@ -57,24 +57,14 @@ export function DagNodeCard({
   onDeleteNode,
 }: DagNodeCardProps) {
   // Tìm nhãn tổ & máy
+  // BỘ PHẬN NHẬN (07/11/2026): bước lệnh mang bộ phận, không mang tổ và máy. Tên lấy từ danh sách
+  // bộ phận chọn được của bước; bước cũ còn mang tổ thì lùi về danh sách tổ.
   const toTen = useMemo(() => {
-    if (!row.department_id || !toRefs) return null;
-    return toRefs.find((t) => t.id === row.department_id)?.ten ?? null;
-  }, [row.department_id, toRefs]);
-
-  // Máy đang gán — nguồn tốc độ + thời gian chuẩn bị của công thức thời lượng. Trước đây chỉ lấy
-  // mỗi TÊN để in badge, còn `thoiLuong(row)` gọi không kèm máy nên node luôn hiện "—" dù drawer
-  // ngay cạnh đã tính ra số: hai chỗ cùng công thức mà một chỗ thiếu đầu vào.
-  const may = useMemo(
-    () => (row.may_id && mayRefs ? mayRefs.find((m) => m.id === row.may_id) ?? null : null),
-    [row.may_id, mayRefs],
-  );
-  const mayTen = may?.ten ?? null;
-
-  const thoiGian = useMemo(() => {
-    const t = thoiLuong(row, may);
-    return phut(t.tong);
-  }, [row, may]);
+    if (!row.department_id) return null;
+    return row.bo_phan_chon?.find((b) => b.id === row.department_id)?.ten
+      ?? toRefs?.find((t) => t.id === row.department_id)?.ten
+      ?? row.department_ten ?? null;
+  }, [row.department_id, row.bo_phan_chon, row.department_ten, toRefs]);
 
   // Màu viền theo mức độ cảnh báo
   const hasError = warnings.some((w) => w.includes("chưa") || w.includes("đứt"));
@@ -162,7 +152,7 @@ export function DagNodeCard({
           /* Thẻ chỉ rộng 240px: chip "Ngoài · <nhà gia công>" ở đầu thẻ đẩy tên bước về 0 rồi tràn
              khỏi thẻ, mà kể cả chip ngắn "Thuê ngoài" cũng cắt tên bước còn vài chữ. Bước thuê
              ngoài nói chuyện đó MỘT lần ở hàng nơi làm bên dưới (icon xe + tên nhà, màu thuê ngoài). */
-          !ngoai && <ChipLoaiBuoc loai_buoc={row.loai_buoc} nha_cung_cap={row.nha_cung_cap} />
+          !ngoai && <ChipLoaiBuoc loai_buoc={row.loai_buoc} nha_cung_cap={row.nha_cung_cap} capLenh />
         )}
         {/* Con dao của bước — thẻ DAG là chỗ người kế hoạch nhìn cả chuỗi một lượt, thiếu dao phải
             thấy ngay ở đây chứ không phải mở từng drawer. */}
@@ -227,14 +217,7 @@ export function DagNodeCard({
           ) : (
             <span className="dag-node__badge">
               <Icon name="users" size={11} />
-              {/* Danh mục đặt tên tổ đã kèm chữ "Tổ" ("Tổ Cán màng") — thêm tiền tố nữa thành "Tổ Tổ…". */}
-              {toTen ? (/^tổ\s/i.test(toTen) ? toTen : `Tổ ${toTen}`) : "Chưa chọn tổ"}
-            </span>
-          )}
-          {mayTen && (
-            <span className="dag-node__badge" title={`Máy: ${mayTen}`}>
-              <Icon name="cpu" size={11} />
-              {mayTen}
+              {toTen ?? "Chưa có bộ phận nhận"}
             </span>
           )}
         </div>
@@ -252,11 +235,6 @@ export function DagNodeCard({
           </span>
         </div>
 
-        {/* Thời lượng */}
-        <div className="dag-node__row">
-          <span className="dag-node__label">Thời lượng:</span>
-          <span className="dag-node__value">{thoiGian}</span>
-        </div>
 
         {/* Cảnh báo nếu có */}
         {warnings.length > 0 && (

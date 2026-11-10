@@ -1,91 +1,54 @@
-// XẾP LỊCH — bàn xếp lịch cấp LỆNH SẢN XUẤT, phương án A cải tiến (08/10/2026).
-// Mockup `docs/mockups/xep-lich-A-cai-tien.html` mục 1–7: đầu màn một hàng (khoảng ngày, tìm, Lọc,
-// Hiển thị, khay), băng tóm tắt + lọc nhanh, lưới không cột nhãn, khay Chờ xếp lịch bên phải, băng
-// Hoàn tác + Ctrl Z, ngăn chi tiết 1180px. Lọc + đếm ở MÁY CHỦ; chỉ `bat_dau_at` được ghi.
+// XẾP LỊCH — bàn HẸN ĐẨY (08/11/2026, mockup `docs/mockups/xep-lich-hen-day-B-day-du.html`, spec
+// `docs/design-go-toc-do-may-va-xep-lich.md`). Người điều phối hẹn giờ đẩy cho lệnh; tới giờ máy chủ
+// tự đẩy bằng quyền người hẹn, không hỏi lại. Bốn tab có số đếm từ máy chủ; tìm, lọc, sắp xếp, cắt
+// trang đều ở máy chủ. Thay cho Gantt kéo thả cũ (tốc độ máy đã gỡ nên không còn giờ chạy để vẽ).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Building2, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock, Inbox, RotateCcw, Search, Send,
-  SlidersHorizontal, Users, X, Zap, FileText, Package, Printer, Hash, Wrench,
-} from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, RotateCcw, Search, Send, X } from "lucide-react";
 
 import {
   ApiError, api,
-  type XlChiTiet, type XlCum, type XlDong, type XlGoiPhatHanh, type XlLien, type XlLocLich, type XlNgayDacBiet,
-  type XlThe, type XlVatTu,
+  type XlBan as BanData, type XlGoiPhatHanh, type XlLichSuHen, type XlLocBan, type XlLocBanDu, type XlNganHen as NganData, type XlTab,
 } from "../api/client";
 import { useAuth } from "../auth/useAuth";
 import { useCan } from "../auth/permissions";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useDebounced } from "../utils/useDebounced";
-import { XlKhay } from "./XlKhay";
+import { XlBan } from "./XlBan";
+import { XlHenGio } from "./XlHenGio";
 import { XlKhoangNgay } from "./XlKhoangNgay";
-import { XlLuoi, type HienThi } from "./XlLuoi";
-import { XlNgan } from "./XlNgan";
-import { XlKhoaMay } from "./XlKhoaMay";
-import { XlDanhSachDT } from "./XlDanhSachDT";
-import { useLaDienThoai } from "../utils/dienThoai";
-import {
-  LOC_HANG_CHO_TRONG,
-  MAN_XEP_LICH,
-  MOC_HANG_CHO,
-  locHangChoLenUrl,
-  locHangChoTuUrl,
-  thamSoLocHangCho,
-  useDieuKienHangCho,
-} from "./loc-san-xuat/dieu-kien-hang-cho";
-import { ThanhLoc } from "./thanh-loc/ThanhLoc";
-import type { DieuKien } from "./thanh-loc/thanh-loc";
-import { thamSoKy } from "./thanh-loc/ky-danh-sach";
-import { useLocMan } from "./thanh-loc/useLocMan";
-import {
-  dauTuan, gioChu, moc, phutChayTrongCuaSo, soNgayGiua, themNgay, thuNgayGio, ymd,
-} from "./xlShared";
-import { CO_NHIN, NhanKhoang, khoangTheoCo, laCoNhin, soTuan, type CoNhin } from "./xlKhoang";
+import { XlNganHen } from "./XlNganHen";
 import { cauBaoPhatHanh } from "./cauBaoPhatHanh";
+import { soNgayGiua, themNgay, ymd } from "./xlShared";
 import "./ke-toan/ke-toan.css";
 import "./xep-lich-a.css";
+import "./xep-lich-hen.css";
 
-const MOI_TRANG = 20;
-const KHOA_HIEN = "xep-lich.hien-thi";
-const HIEN_GOC: HienThi = {
-  thoang: false, khach: true, may: true, sl: false, gioChay: true, soTo: false, hienXong: false, vatTu: true,
-};
+const TAB: { id: XlTab; ten: string; dot?: string }[] = [
+  { id: "ket", ten: "Kẹt, chưa đẩy được", dot: "var(--tt-do-dot)" },
+  { id: "chua_hen", ten: "Chưa hẹn giờ" },
+  { id: "da_hen", ten: "Đã hẹn, chờ tự đẩy" },
+  { id: "da_day", ten: "Đã đẩy" },
+];
+type Loc = { gap: boolean; thieu_vat_tu: boolean; sat_han: boolean };
+const LOC_TRONG: Loc = { gap: false, thieu_vat_tu: false, sat_han: false };
+const LOC_NHANH: { k: keyof Loc; ten: string; dot: string }[] = [
+  { k: "gap", ten: "Gấp", dot: "var(--tt-cam-dot)" },
+  { k: "thieu_vat_tu", ten: "Chưa đủ vật tư", dot: "var(--tt-vang-dot)" },
+  { k: "sat_han", ten: "Sát hạn giao", dot: "var(--tt-do-dot)" },
+];
+type Bao = { chu: string; loi?: boolean; giai?: string };
 
-/** Lọc của LƯỚI (khác lọc khay). Trạng thái là nhóm người dùng hiểu, máy chủ nhận mã thật. */
-type LocLuoi = { tt?: string[]; khach?: string; gap?: string };
-const TT_NHOM: Record<string, string[]> = {
-  chua: ["san_sang", "da_lap_ke_hoach"],
-  phat: ["da_phat_hanh"],
-  dong: ["da_dong"],
-};
-
-type Nhanh = "tre" | "muon" | "chua";
-type BuocLui = { lsxId: number; ma: string; truoc: string | null };
-type Bao = { chu: string; loi?: boolean; hoanTac?: boolean; giai?: string };
-
-function docHien(): HienThi {
-  try {
-    const s = window.localStorage.getItem(KHOA_HIEN);
-    return s ? { ...HIEN_GOC, ...JSON.parse(s) } : HIEN_GOC;
-  } catch {
-    return HIEN_GOC;
-  }
+/** "08/11 – 21/11/2026" (khác năm thì ghi đủ năm cả hai đầu) — chữ trên nút khoảng ngày, như mockup B. */
+export function chuKhoang(tu: string, den: string): string {
+  const dm = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+  return tu.slice(0, 4) === den.slice(0, 4)
+    ? `${dm(tu)} – ${dm(den)}/${den.slice(0, 4)}`
+    : `${dm(tu)}/${tu.slice(0, 4)} – ${dm(den)}/${den.slice(0, 4)}`;
 }
 
-function laONhap(t: EventTarget | null): boolean {
-  const el = t as HTMLElement | null;
-  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
-}
-
-/** Giờ một ca (phút) — Shift + mũi tên dời đúng ngần này. */
-function phutCa(ca: XlLien["cac_ca"]): number {
-  const c = ca[0];
-  if (!c) return 480;
-  const p = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
-  const d = p(c.den) - p(c.tu);
-  return d > 0 ? d : d + 1440;
-}
-
+/** Hộp hẹn giờ đang mở cho ai: các lệnh đã tick, cả tập theo bộ lọc, hay một lệnh ở ngăn. */
+type Hen = { kieu: "chon"; ids: number[] } | { kieu: "loc"; so: number } | { kieu: "mot"; id: number; cu: string | null };
 
 export function XepLichPage({
   eventTick = 0,
@@ -97,361 +60,207 @@ export function XepLichPage({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
-  // Điện thoại: lưới Gantt → danh sách lệnh theo ngày (XlDanhSachDT); khay chờ xếp đóng sẵn.
-  const laDT = useLaDienThoai();
   const can = useCan();
-  const suaDuoc = can("xep_lich", "update");
   const duyetDuoc = can("xep_lich", "approve");
+  const homNay = ymd(new Date());
 
-  // ---------------------------------------------------------------- khoảng ngày
-  const [tu, setTu] = useState<string>(() => dauTuan(new Date()));
-  const [den, setDen] = useState<string>(() => themNgay(dauTuan(new Date()), 13));
+  // ---------------------------------------------------------------- tab + khoảng ngày
+  const [tab, setTabGoc] = useState<XlTab>("chua_hen");
+  const daChonTab = useRef(false);
+  // Hai khoảng riêng: ba tab chờ đẩy nhìn tới (hôm nay → +13), tab Đã đẩy nhìn lùi (−13 → hôm nay).
+  const [khoangToi, setKhoangToi] = useState<[string, string]>(() => [homNay, themNgay(homNay, 13)]);
+  const [khoangQua, setKhoangQua] = useState<[string, string]>(() => [themNgay(homNay, -13), homNay]);
+  const [tu, den] = tab === "da_day" ? khoangQua : khoangToi;
+  const setKhoang = (a: string, b: string) => (tab === "da_day" ? setKhoangQua([a, b]) : setKhoangToi([a, b]));
   const soNgay = soNgayGiua(tu, den);
   const [moKhoang, setMoKhoang] = useState(false);
-  const luiTien = (huong: 1 | -1) => {
-    if (laCoNhin(tu, den) === "thang") {
-      const [y, m] = tu.split("-").map(Number);
-      const [a, b] = khoangTheoCo("thang", ymd(new Date(y, m - 1 + huong, 1)));
-      setTu(a);
-      setDen(b);
-      return;
-    }
-    setTu(themNgay(tu, huong * soNgay));
-    setDen(themNgay(den, huong * soNgay));
-  };
-  // Ba cỡ nhìn nhanh; khoảng gõ tay ở bảng lịch thì không cỡ nào sáng.
-  const coNhin: CoNhin | null = laCoNhin(tu, den);
-  const chonCo = (co: CoNhin, moc: string = tu) => {
-    const [a, b] = khoangTheoCo(co, moc);
-    setTu(a);
-    setDen(b);
-  };
-  const homNay = () => {
-    const nay = ymd(new Date());
-    if (coNhin) { chonCo(coNhin, nay); return; }
-    const t2 = dauTuan(new Date());
-    setTu(t2);
-    setDen(themNgay(t2, soNgay - 1));
-  };
-  const coHomNay = ymd(new Date()) >= tu && ymd(new Date()) <= den;
+  const luiTien = (h: 1 | -1) => setKhoang(themNgay(tu, h * soNgay), themNgay(den, h * soNgay));
+  const veHomNay = () => (tab === "da_day"
+    ? setKhoang(themNgay(homNay, -(soNgay - 1)), homNay)
+    : setKhoang(homNay, themNgay(homNay, soNgay - 1)));
+  const coHomNay = homNay >= tu && homNay <= den;
 
-  // ---------------------------------------------------------------- lọc lưới
-  const [timLuoi, setTimLuoi] = useState("");
-  const timLuoiCho = useDebounced(timLuoi, 300);
-  const [locLuoi, setLocLuoi] = useState<LocLuoi>({});
-  const [nhanh, setNhanh] = useState<Nhanh | null>(null);
-  const oTimRef = useRef<HTMLInputElement>(null);
-
-  const [hien, setHienGoc] = useState<HienThi>(docHien);
-  const setHien = (h: HienThi) => {
-    setHienGoc(h);
-    try { window.localStorage.setItem(KHOA_HIEN, JSON.stringify(h)); } catch { /* trình duyệt chặn lưu thì thôi */ }
-  };
-  const [moHien, setMoHien] = useState(false);
-  const hienRef = useRef<HTMLDivElement>(null);
-  const nutHienRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (!moHien) return;
-    const ngoai = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!hienRef.current?.contains(t) && !nutHienRef.current?.contains(t)) setMoHien(false);
-    };
-    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setMoHien(false); };
-    document.addEventListener("mousedown", ngoai);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", ngoai);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [moHien]);
-
-  // ---------------------------------------------------------------- dữ liệu lưới
-  const [dong, setDong] = useState<XlDong[]>([]);
-  const [ngayNghi, setNgayNghi] = useState<string[]>([]);
-  const [ngayDacBiet, setNgayDacBiet] = useState<XlNgayDacBiet[]>([]);
-  const [cacCa, setCacCa] = useState<XlLien["cac_ca"]>([]);
-  const [cum, setCum] = useState<XlCum[]>([]);
-  const [dem, setDem] = useState<XlLien["dem"]>({ tre: 0, muon: 0, chua: 0 });
-  const [khachLoc, setKhachLoc] = useState<XlLien["khach_loc"]>([]);
-  const [vatTu, setVatTu] = useState<Map<number, XlVatTu>>(new Map());
-
-  // ---------------------------------------------------------------- khay
-  const [khayMo, setKhayMo] = useState(() => !window.matchMedia("(max-width: 900px)").matches);
-  const [the, setThe] = useState<XlThe[]>([]);
-  const [tongCho, setTongCho] = useState(0);
+  // ---------------------------------------------------------------- lọc + trang
   const [tim, setTim] = useState("");
   const timCho = useDebounced(tim, 300);
+  const [loc, setLoc] = useState<Loc>(LOC_TRONG);
   const [trang, setTrang] = useState(1);
-  const [taiCho, setTaiCho] = useState(false);
-  const [locCho, setLocCho] = useLocMan(MAN_XEP_LICH, LOC_HANG_CHO_TRONG, locHangChoTuUrl, locHangChoLenUrl);
-  const dieuKienCho = useDieuKienHangCho();
-  const khoaLocCho = JSON.stringify({ ...thamSoKy(locCho.ky), ...thamSoLocHangCho(locCho.loc) });
-  const [keoTuKhay, setKeoTuKhay] = useState<XlThe | null>(null);
+  const [moiTrang, setMoiTrang] = useState(25);
+  // tu/den luôn là khoảng tới (lọc giờ hẹn), day_tu/day_den luôn là khoảng lùi (lọc lúc đẩy): máy chủ
+  // đếm mỗi tab theo khoảng của chính nó, nên số trên tab khớp số dòng khi bấm vào dù đang ở tab nào.
+  const thamSo: XlLocBan = useMemo(
+    () => ({ tab, tu: khoangToi[0], den: khoangToi[1], tim: timCho || undefined, ...loc }),
+    [tab, khoangToi, timCho, loc],
+  );
+  const khoaLoc = JSON.stringify({ ...thamSo, day_tu: khoangQua[0], day_den: khoangQua[1] });
+  useEffect(() => setTrang(1), [khoaLoc]);
 
-  // ---------------------------------------------------------------- ngăn
-  const [chonId, setChonId] = useState<number | null>(null);
-  const [ct, setCt] = useState<XlChiTiet | null>(null);
-  const [taiCt, setTaiCt] = useState(false);
-  // Lượt nạp chi tiết lệnh hỏng thật — ngăn chỉ nói "Không mở được lệnh" theo cờ này (L-SX-13).
-  const [loiCt, setLoiCt] = useState(false);
-  const [goi, setGoi] = useState<XlGoiPhatHanh | null>(null);
-  const [dangGhi, setDangGhi] = useState(false);
-  const [chePrompt, setChePrompt] = useState<"thu_hoi" | "cap_nhat" | null>(null);
-  const [lyDo, setLyDo] = useState("");
-  const [loiLyDo, setLoiLyDo] = useState<string | null>(null);
-
-  // ---------------------------------------------------------------- băng báo + hoàn tác
+  // ---------------------------------------------------------------- dữ liệu
+  const [ban, setBan] = useState<BanData | null>(null);
+  const [dangTai, setDangTai] = useState(false);
+  const [nhip, setNhip] = useState(0);
+  const lamMoi = useCallback(() => setNhip((n) => n + 1), []);
   const [bao, setBao] = useState<Bao | null>(null);
-  const [lui, setLui] = useState<BuocLui[]>([]);
-  const luiRef = useRef(lui);
-  luiRef.current = lui;
   useEffect(() => {
     if (!bao) return;
-    const h = window.setTimeout(() => setBao(null), bao.loi ? 10_000 : 8_000);
+    const h = window.setTimeout(() => setBao(null), bao.loi ? 10_000 : 6_000);
     return () => window.clearTimeout(h);
   }, [bao]);
 
-  const [nhip, setNhip] = useState(0);
-  const lamMoi = useCallback(() => setNhip((n) => n + 1), []);
-  const [moKhoaMay, setMoKhoaMay] = useState(false);
-  const tickRef = useRef(eventTick);
-  tickRef.current = eventTick;
-  const theRef = useRef(the);
-  theRef.current = the;
-  const dongRef = useRef(dong);
-  dongRef.current = dong;
-
-  const thamSoLuoi = useMemo<XlLocLich>(() => ({
-    tim: timLuoiCho || undefined,
-    trang_thai: locLuoi.tt?.flatMap((k) => TT_NHOM[k] ?? []),
-    khach_id: locLuoi.khach ? Number(locLuoi.khach) : undefined,
-    gap: locLuoi.gap ? true : undefined,
-    nhanh: nhanh ?? undefined,
-  }), [timLuoiCho, locLuoi, nhanh]);
-  const khoaLuoi = JSON.stringify(thamSoLuoi);
-
-  // ---------------------------------------------------------------- nạp
   useEffect(() => {
     if (!token) return;
     let huy = false;
-    api.xepLich
-      .lich(token, { tu, den, ...(JSON.parse(khoaLuoi) as XlLocLich) })
+    setDangTai(true);
+    api.xepLich.ban(token, { ...(JSON.parse(khoaLoc) as XlLocBanDu), trang, moi_trang: moiTrang })
       .then((r) => {
         if (huy) return;
-        setDong(r.dong);
-        setNgayNghi(r.ngay_nghi ?? []);
-        setNgayDacBiet(r.ngay_dac_biet ?? []);
-        setCacCa(r.cac_ca ?? []);
-        setCum(r.cum ?? []);
-        setDem(r.dem);
-        setKhachLoc(r.khach_loc ?? []);
+        setBan(r);
+        // Mở màn: vào Kẹt nếu có lệnh kẹt, không thì Chưa hẹn giờ (người dùng đã bấm tab thì thôi).
+        if (!daChonTab.current) {
+          daChonTab.current = true;
+          if (r.dem_tab.ket > 0 && tab !== "ket") setTabGoc("ket");
+        }
       })
-      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được lịch.", loi: true }));
+      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được bàn xếp lịch.", loi: true }))
+      .finally(() => !huy && setDangTai(false));
     return () => { huy = true; };
-  }, [token, tu, den, khoaLuoi, eventTick, nhip]);
+    // SSE `xep_lich_changed` tăng eventTick ⇒ nạp lại đúng trang + bộ lọc đang xem.
+  }, [token, khoaLoc, trang, moiTrang, eventTick, nhip, tab]);
 
-  // Đèn vật tư: hỏi riêng sau khi có dòng — câu phụ, hỏng thì lưới vẫn vẽ. Gộp cả lệnh đang nằm
-  // trong khay chờ vào CÙNG một lượt: bảng cân đối là phần đắt, dựng một lần cho cả hai chỗ.
-  const idsVatTu = useMemo(
-    () => [...new Set([
-      ...dong.filter((d) => d.trang_thai !== "da_dong").map((d) => d.lsx_id),
-      ...the.map((t) => t.lsx_id),
-    ])].sort((a, b) => a - b).join(","),
-    [dong, the],
-  );
-  useEffect(() => {
-    if (!token || !hien.vatTu || !idsVatTu) { setVatTu(new Map()); return; }
-    let huy = false;
-    api.xepLich.vatTu(token, idsVatTu.split(",").map(Number))
-      .then((r) => !huy && setVatTu(new Map(r.map((v) => [v.lsx_id, v]))))
-      .catch(() => !huy && setVatTu(new Map()));
-    return () => { huy = true; };
-  }, [token, hien.vatTu, idsVatTu]);
+  const setTab = (t: XlTab) => {
+    daChonTab.current = true;
+    setTabGoc(t);
+    setChon(new Set());
+    setTheoLoc(false);
+  };
 
+  // ---------------------------------------------------------------- chọn
+  const [chon, setChon] = useState<Set<number>>(new Set());
+  const [theoLoc, setTheoLoc] = useState(false);
+  useEffect(() => { setChon(new Set()); setTheoLoc(false); }, [khoaLoc]);
+  const dong = ban?.dong ?? [];
+  const choDay = tab !== "da_day";
+  const coChon = duyetDuoc && choDay;
+  const daChonCaTrang = dong.length > 0 && dong.every((d) => chon.has(d.lsx_id));
+  const soChon = theoLoc ? (ban?.tong ?? 0) : chon.size;
+  const doiChon = (id: number) => {
+    setTheoLoc(false);
+    setChon((s) => { const m = new Set(s); if (m.has(id)) m.delete(id); else m.add(id); return m; });
+  };
+  const chonTrang = (het: boolean) => {
+    setTheoLoc(false);
+    setChon(het ? new Set(dong.map((d) => d.lsx_id)) : new Set());
+  };
+  const boChon = () => { setChon(new Set()); setTheoLoc(false); };
+
+  // ---------------------------------------------------------------- ngăn
+  const [chonId, setChonId] = useState<number | null>(null);
+  const [ngan, setNgan] = useState<NganData | null>(null);
+  const [lichSu, setLichSu] = useState<XlLichSuHen[] | null>(null);
+  const [goi, setGoi] = useState<XlGoiPhatHanh | null>(null);
+  const [taiNgan, setTaiNgan] = useState(false);
+  const [loiNgan, setLoiNgan] = useState(false);
   useEffect(() => {
-    if (!token) return;
+    if (!token || chonId === null) { setNgan(null); setLichSu(null); setGoi(null); return; }
     let huy = false;
-    setTaiCho(true);
-    api.xepLich
-      .hangCho(token, { ...JSON.parse(khoaLocCho), tim: timCho, trang, moi_trang: MOI_TRANG })
+    setTaiNgan(true);
+    setLoiNgan(false);
+    api.xepLich.ngan(token, chonId)
       .then((r) => {
         if (huy) return;
-        setThe(r.dong);
-        setTongCho(r.tong);
+        setNgan(r);
+        const daDay = r.dau.trang_thai === "da_phat_hanh" || r.dau.trang_thai === "da_dong";
+        if (daDay) api.xepLich.goiPhatHanh(token, chonId).then((g) => !huy && setGoi(g)).catch(() => !huy && setGoi(null));
+        else setGoi(null);
       })
-      .catch((e) => !huy && setBao({ chu: e instanceof ApiError ? e.message : "Không tải được lệnh chờ xếp.", loi: true }))
-      .finally(() => !huy && setTaiCho(false));
-    return () => { huy = true; };
-  }, [token, timCho, trang, khoaLocCho, eventTick, nhip]);
-  useEffect(() => setTrang(1), [timCho, khoaLocCho]);
-
-  useEffect(() => {
-    if (!token || chonId === null) { setCt(null); setLoiCt(false); return; }
-    let huy = false;
-    setTaiCt(true);
-    api.xepLich
-      .chiTiet(token, chonId)
-      .then((r) => { if (!huy) { setCt(r); setLoiCt(false); } })
-      .catch((e) => {
-        if (huy) return;
-        setLoiCt(true);
-        setBao({ chu: e instanceof ApiError ? e.message : "Không tải được chi tiết lệnh.", loi: true });
-      })
-      .finally(() => !huy && setTaiCt(false));
+      .catch(() => !huy && setLoiNgan(true))
+      .finally(() => !huy && setTaiNgan(false));
+    api.xepLich.lichSuHen(token, chonId).then((r) => !huy && setLichSu(r)).catch(() => !huy && setLichSu([]));
     return () => { huy = true; };
   }, [token, chonId, eventTick, nhip]);
-
-  // Trạng thái gói đã thả xuống xưởng — hỏi TRƯỚC khi bày nút Thu hồi / Phát hành cập nhật.
-  useEffect(() => {
-    if (!token || chonId === null) { setGoi(null); return; }
-    let huy = false;
-    api.xepLich.goiPhatHanh(token, chonId)
-      .then((r) => !huy && setGoi(r))
-      .catch(() => !huy && setGoi(null));
-    return () => { huy = true; };
-  }, [token, chonId, eventTick, nhip]);
+  const viTri = chonId === null ? -1 : dong.findIndex((d) => d.lsx_id === chonId);
 
   // ---------------------------------------------------------------- ghi
-  const sau = useCallback((lsxId: number) => {
-    setChonId(lsxId);
-    lamMoi();
-    onBadgeStale?.();
-  }, [lamMoi, onBadgeStale]);
+  const [dangGhi, setDangGhi] = useState(false);
+  const [hen, setHen] = useState<Hen | null>(null);
+  const [loiHen, setLoiHen] = useState<string | null>(null);
+  const xong = useCallback(() => { lamMoi(); onBadgeStale?.(); }, [lamMoi, onBadgeStale]);
 
-  /** Ghi giờ bắt đầu. `ghiLui` = đẩy một bước lên chồng Hoàn tác (lần hoàn tác thì không). */
-  const datMoc = useCallback(async (lsxId: number, batDauAt: string, expected: string | null, ghiLui = true) => {
-    if (!token || !suaDuoc) return;
+  const moHen = () => {
+    setLoiHen(null);
+    setHen(theoLoc ? { kieu: "loc", so: ban?.tong ?? 0 } : { kieu: "chon", ids: [...chon] });
+  };
+  const ghiHen = async (henLuc: string) => {
+    if (!token || !hen) return;
     setDangGhi(true);
-    // Nhịp SSE lấy LÚC GỬI: máy chủ phát sự kiện trước khi trả phản hồi.
-    const tickTruoc = tickRef.current;
-    const tuKhay = theRef.current.find((t) => t.lsx_id === lsxId);
-    const cu = dongRef.current.find((d) => d.lsx_id === lsxId);
+    setLoiHen(null);
     try {
-      const r = await api.xepLich.datMoc(token, lsxId, batDauAt, expected);
-      // VẼ NGAY bằng dòng PUT trả về — máy chủ dựng nó bằng đúng `_dong` của `/lich`.
-      setDong((ds) => (ds.some((d) => d.lsx_id === lsxId) ? ds.map((d) => (d.lsx_id === lsxId ? r : d)) : [...ds, r]));
-      if (tuKhay) {
-        setThe((ds) => ds.filter((t) => t.lsx_id !== lsxId));
-        setTongCho((n) => Math.max(0, n - 1));
-      }
-      if (ghiLui) {
-        setLui((s) => [...s.slice(-19), { lsxId, ma: r.ma, truoc: tuKhay ? null : (cu?.bat_dau_at ?? null) }]);
-      }
-      const chu = ghiLui
-        ? `${r.ma} ${tuKhay ? "xếp" : "dời"} sang ${thuNgayGio(r.bat_dau_at)}${r.ket_thuc ? `, xong ${thuNgayGio(r.ket_thuc)}` : ""}`
-        : `Đã hoàn tác ${r.ma} về ${thuNgayGio(r.bat_dau_at)}`;
-      setBao({ chu: r.thong_bao ? `${chu}. ${r.thong_bao}` : chu, hoanTac: ghiLui });
-      // Lệnh trong cụm: dời một lệnh là đoạn chờ của lệnh kia đổi theo ⇒ tải lại cả lịch.
-      if (r.cum_id) lamMoi();
-      // KHÔNG tự tải lại: máy chủ phát `xep_lich_changed`, AppShell tăng `eventTick`. Chỉ khi SSE
-      // im quá 3 giây (mất kết nối) mới tự tải, để màn không đứng số cũ.
-      window.setTimeout(() => {
-        if (tickRef.current !== tickTruoc) return;
-        lamMoi();
-        onBadgeStale?.();
-      }, 3000);
+      const r = hen.kieu === "loc"
+        ? await api.xepLich.henTheoLoc(token, thamSo, henLuc)
+        : await api.xepLich.hen(token, hen.kieu === "mot" ? [hen.id] : hen.ids, henLuc);
+      setBao({ chu: `Đã hẹn đẩy ${r.so_lenh} lệnh lúc ${henLuc.slice(11, 16)} ${henLuc.slice(8, 10)}/${henLuc.slice(5, 7)}.` });
+      setHen(null);
+      if (hen.kieu !== "mot") boChon();
+      xong();
     } catch (e) {
-      setBao({
-        chu: e instanceof ApiError && e.status === 409
-          ? "Người khác vừa dời lệnh này. Màn đang tải lại bản mới nhất."
-          : e instanceof ApiError ? e.message : "Không lưu được giờ bắt đầu.",
-        loi: true,
-      });
-      lamMoi();
+      setLoiHen(e instanceof ApiError ? e.message : "Không hẹn được giờ.");
     } finally {
       setDangGhi(false);
-      setKeoTuKhay(null);
     }
-  }, [token, suaDuoc, lamMoi, onBadgeStale]);
+  };
 
-  const hoanTac = useCallback(async () => {
-    const b = luiRef.current[luiRef.current.length - 1];
-    if (!b || !token) return;
-    setLui((s) => s.slice(0, -1));
-    if (b.truoc === null) {
-      setDangGhi(true);
-      try {
-        await api.xepLich.xoaMoc(token, b.lsxId);
-        setBao({ chu: `Đã hoàn tác: ${b.ma} quay lại khay Chờ xếp lịch` });
-        lamMoi();
-        onBadgeStale?.();
-      } catch (e) {
-        setBao({ chu: e instanceof ApiError ? e.message : "Không hoàn tác được.", loi: true });
-      } finally {
-        setDangGhi(false);
-      }
-      return;
+  const dayNgay = async (ids: number[]) => {
+    if (!token || ids.length === 0) return;
+    setDangGhi(true);
+    try {
+      const r = await api.xepLich.dayNgay(token, ids);
+      const ok = r.da_day.length ? cauBaoPhatHanh(r.da_day.length, r.vat_tu) : null;
+      const loi = r.loi.length ? ` Chưa đẩy được ${r.loi.map((x) => `${x.ma}: ${x.ly_do}`).join("; ")}` : "";
+      setBao({ chu: ((ok?.chu ?? "") + loi).trim(), loi: r.loi.length > 0, giai: ok?.giai });
+      boChon();
+      xong();
+    } catch (e) {
+      setBao({ chu: e instanceof ApiError ? e.message : "Không đẩy được lệnh.", loi: true });
+    } finally {
+      setDangGhi(false);
     }
-    const hienTai = dongRef.current.find((d) => d.lsx_id === b.lsxId);
-    await datMoc(b.lsxId, b.truoc, hienTai?.updated_at ?? null, false);
-  }, [token, datMoc, lamMoi, onBadgeStale]);
+  };
 
-  const boLich = useCallback(async () => {
+  const boHen = async () => {
     if (!token || chonId === null) return;
     setDangGhi(true);
     try {
-      await api.xepLich.xoaMoc(token, chonId);
-      setBao({ chu: "Đã bỏ lịch, lệnh quay lại khay Chờ xếp lịch." });
-      setLui((s) => s.filter((x) => x.lsxId !== chonId));
-      sau(chonId);
+      await api.xepLich.boHen(token, chonId);
+      setBao({ chu: `Đã bỏ hẹn ${ngan?.dau.ma ?? ""}, lệnh về tab Chưa hẹn giờ.` });
+      xong();
     } catch (e) {
-      setBao({ chu: e instanceof ApiError ? e.message : "Không bỏ được lịch.", loi: true });
+      setBao({ chu: e instanceof ApiError ? e.message : "Không bỏ được hẹn.", loi: true });
     } finally {
       setDangGhi(false);
     }
-  }, [token, chonId, sau]);
-
-  const phatHanh = useCallback(async () => {
-    if (!token || chonId === null) return;
-    setDangGhi(true);
-    const n = ct?.cum?.lsx.length ?? 1;
-    try {
-      const r = await api.xepLich.phatHanh(token, chonId);
-      setBao(cauBaoPhatHanh(n, r.vat_tu));
-      sau(chonId);
-    } catch (e) {
-      setBao({ chu: e instanceof ApiError ? e.message : "Không phát hành được.", loi: true });
-    } finally {
-      setDangGhi(false);
-    }
-  }, [token, chonId, ct, sau]);
-
-  const moPrompt = (che: "thu_hoi" | "cap_nhat") => {
-    setLyDo("");
-    setLoiLyDo(null);
-    setChePrompt(che);
   };
-  const dongPrompt = () => {
-    setChePrompt(null);
-    setLyDo("");
-    setLoiLyDo(null);
-  };
+
+  // Thu hồi / Đẩy cập nhật (lệnh đã đẩy) — dùng lại đường có sẵn, bắt gõ lý do.
+  const [prompt, setPrompt] = useState<"thu_hoi" | "cap_nhat" | null>(null);
+  const [lyDo, setLyDo] = useState("");
+  const [loiLyDo, setLoiLyDo] = useState<string | null>(null);
+  const moPrompt = (p: "thu_hoi" | "cap_nhat") => { setLyDo(""); setLoiLyDo(null); setPrompt(p); };
   const xacNhanPrompt = async () => {
-    if (!token || chonId === null || chePrompt === null) return;
+    if (!token || chonId === null || !prompt) return;
     const ld = lyDo.trim();
-    if (ld.length < 3) {
-      setLoiLyDo(chePrompt === "thu_hoi"
-        ? "Vui lòng nhập lý do thu hồi dài ít nhất 3 ký tự."
-        : "Vui lòng nhập lý do cập nhật dài ít nhất 3 ký tự.");
-      return;
-    }
+    if (ld.length < 3) { setLoiLyDo("Vui lòng nhập lý do dài ít nhất 3 ký tự."); return; }
     setDangGhi(true);
-    setLoiLyDo(null);
     try {
-      if (chePrompt === "thu_hoi") {
+      if (prompt === "thu_hoi") {
         const r = await api.xepLich.thuHoi(token, chonId, ld);
         const n = r.cum_lsx?.length ?? 1;
-        setBao({ chu: n > 1 ? `Đã thu hồi ${n} lệnh khỏi xưởng.` : "Đã thu hồi phát hành." });
+        setBao({ chu: n > 1 ? `Đã thu hồi ${n} lệnh, các lệnh về tab Chưa hẹn giờ.` : "Đã thu hồi, lệnh về tab Chưa hẹn giờ." });
       } else {
         const r = await api.xepLich.phatHanhCapNhat(token, chonId, ld);
-        setBao({
-          chu: `Đã đẩy lịch mới xuống xưởng: cập nhật ${r.so_cong_viec_cap_nhat} việc, giữ nguyên ${r.so_giu_nguyen} việc đã bắt đầu.`
-            // Việc lệch lần chạy KHÔNG được cập nhật — nuốt con số này là xưởng chạy lịch cũ mà màn báo "xong".
-            + (r.so_lech_phan_doan ? ` Còn ${r.so_lech_phan_doan} việc giữ nguyên lịch cũ vì lần chạy đã tách hoặc gộp lại.` : ""),
-        });
+        setBao({ chu: `Đã đẩy cập nhật: ${r.so_cong_viec_cap_nhat} việc cập nhật, ${r.so_giu_nguyen} việc đã bắt đầu giữ nguyên.` });
       }
-      dongPrompt();
-      sau(chonId);
+      setPrompt(null);
+      xong();
     } catch (e) {
       setLoiLyDo(e instanceof ApiError ? e.message : "Không thực hiện được.");
     } finally {
@@ -459,340 +268,165 @@ export function XepLichPage({
     }
   };
 
-  // ---------------------------------------------------------------- phím tắt màn
-  useEffect(() => {
-    const phim = (e: KeyboardEvent) => {
-      if (laONhap(e.target) || document.querySelector(".cdlg-overlay")) return;
-      if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        oTimRef.current?.focus();
-      } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z") {
-        if (luiRef.current.length === 0) return;
-        e.preventDefault();
-        void hoanTac();
-      }
-    };
-    document.addEventListener("keydown", phim);
-    return () => document.removeEventListener("keydown", phim);
-  }, [hoanTac]);
-
-  // ---------------------------------------------------------------- dẫn xuất
-  const hienLuoi = useMemo<HienThi>(
-    () => ({ ...hien, hienXong: hien.hienXong || !!locLuoi.tt?.includes("dong") }),
-    [hien, locLuoi.tt],
-  );
-  const dongThay = useMemo(
-    () => dong
-      .filter((d) => hienLuoi.hienXong || d.trang_thai !== "da_dong")
-      .sort((a, b) => (moc(a.thuc_bat_dau_lenh ?? a.bat_dau_at) ?? 0) - (moc(b.thuc_bat_dau_lenh ?? b.bat_dau_at) ?? 0)),
-    [dong, hienLuoi.hienXong],
-  );
-  const viTri = chonId === null ? -1 : dongThay.findIndex((d) => d.lsx_id === chonId);
-  // Đếm đúng các lệnh lưới đang vẽ — lệnh đã xong bị ẩn mà vẫn cộng giờ thì đầu màn ghi "máy chạy
-  // 3 giờ" cạnh "0 lệnh trong khoảng".
-  const phutChay = useMemo(() => phutChayTrongCuaSo(dongThay, tu, soNgay), [dongThay, tu, soNgay]);
-  const caPhut = useMemo(() => phutCa(cacCa), [cacCa]);
-  const caDau = useMemo(() => cacCa.map((c) => c.tu.slice(0, 5)).sort()[0] ?? "00:00", [cacCa]);
-  const truocDo = useMemo(() => {
-    for (let i = lui.length - 1; i >= 0; i -= 1) if (lui[i].lsxId === chonId) return lui[i].truoc;
-    return null;
-  }, [lui, chonId]);
-
-  const dieuKienLuoi = useMemo<DieuKien<LocLuoi>[]>(() => [
-    {
-      khoa: "tt", nhan: "Trạng thái", icon: CircleDot, kieu: "nhieu",
-      giaTri: [
-        { value: "chua", nhan: "Chưa phát hành" },
-        { value: "phat", nhan: "Đã phát hành" },
-        { value: "dong", nhan: "Đã xong" },
-      ],
-      doc: (l) => l.tt ?? [],
-      ghi: (l, v) => ({ ...l, tt: v.length ? v : undefined }),
-    },
-    {
-      khoa: "khach", nhan: "Khách hàng", icon: Building2, kieu: "mot", tim: true,
-      giaTri: khachLoc.map((k) => ({ value: String(k.id), nhan: k.ten, so: k.so })),
-      doc: (l) => l.khach,
-      ghi: (l, v) => ({ ...l, khach: v }),
-    },
-    {
-      khoa: "gap", nhan: "Gấp", icon: Zap, kieu: "mot",
-      giaTri: [{ value: "1", nhan: "Chỉ lệnh gấp" }],
-      doc: (l) => l.gap,
-      ghi: (l, v) => ({ ...l, gap: v }),
-    },
-  ], [khachLoc]);
-
-  const coLoc = !!timLuoi || !!nhanh || !!locLuoi.tt || !!locLuoi.khach || !!locLuoi.gap;
-  const xoaLoc = () => {
-    setTimLuoi("");
-    setNhanh(null);
-    setLocLuoi({});
-  };
-
-  const NHANH: { k: Nhanh; nhan: string; mau: string }[] = [
-    { k: "tre", nhan: "Trễ hạn", mau: "#dc2626" },
-    { k: "muon", nhan: "Có thể xong muộn hơn", mau: "#d97706" },
-    { k: "chua", nhan: "Chưa phát hành", mau: "#2563eb" },
-  ];
-
-  const chip = (k: keyof HienThi, nhan: string, Ic: typeof Building2) => (
-    <button type="button" aria-pressed={hien[k]} onClick={() => setHien({ ...hien, [k]: !hien[k] })}>
-      <Ic size={13} style={{ marginRight: 6 }} />{nhan}
-    </button>
-  );
-  const gat = (k: keyof HienThi, nhan: string, Ic: typeof Building2) => (
-    <button type="button" className="xa-hien__dong" role="switch" aria-checked={hien[k]} onClick={() => setHien({ ...hien, [k]: !hien[k] })}>
-      <span className="k"><Ic size={14} />{nhan}</span>
-      <span className="xa-gian" />
-      <span className={`xa-gat${hien[k] ? " xa-gat--on" : ""}`} />
-    </button>
-  );
-
-  const laThuHoi = chePrompt === "thu_hoi";
-  const maLenh = ct?.ma ?? `lệnh số ${chonId}`;
-  // Thu hồi rút CẢ CỤM đã phát hành chung một gói — hộp hỏi phải kể đủ lệnh sẽ bị rút.
-  const maCum = ct?.cum && ct.cum.lsx.length > 1 ? ct.cum.lsx.map((z) => z.ma).join(" và ") : null;
+  const coLoc = !!tim || loc.gap || loc.thieu_vat_tu || loc.sat_han;
+  const dem = ban?.dem_tab;
 
   return (
-    <div className="xa">
+    <div className="xa xh">
       <header className="xa-dau">
         <h1>Xếp lịch</h1>
-        <div className="xa-kn">
-          <button type="button" className={`xa-kn__nay${coHomNay ? " is-trong" : ""}`} onClick={homNay}
-            title={coHomNay ? "Hôm nay đang nằm trong khoảng xem" : "Về khoảng có hôm nay"}>
-            <i />Hôm nay
-          </button>
-          <div className={`xa-kn__hop${moKhoang ? " is-mo" : ""}`}>
-            <button type="button" className="xa-kn__mui" aria-label="Khoảng trước" title="Lùi một khoảng" onClick={() => luiTien(-1)}><ChevronLeft size={17} /></button>
-            <button type="button" className="xa-kn__giua" aria-haspopup="dialog" aria-expanded={moKhoang}
-              title="Chọn khoảng ngày" onClick={() => setMoKhoang((m) => !m)}>
-              <span className="xa-kn__lich"><CalendarDays size={14} /></span>
-              <NhanKhoang tu={tu} den={den} />
-              {coNhin === "tuan" && <span className="xa-kn__phu">tuần {soTuan(tu)}</span>}
-              {!coNhin && <span className="xa-kn__phu">{soNgay} ngày</span>}
-            </button>
-            <button type="button" className="xa-kn__mui" aria-label="Khoảng sau" title="Tới một khoảng" onClick={() => luiTien(1)}><ChevronRight size={17} /></button>
-          </div>
-          <div className="xa-kn__co" role="group" aria-label="Cỡ nhìn">
-            {CO_NHIN.map((c) => (
-              <button key={c.id} type="button" aria-pressed={coNhin === c.id} onClick={() => chonCo(c.id)}>{c.ten}</button>
-            ))}
-          </div>
+        {/* Mockup B: ‹ Hôm nay › rồi nút khoảng ngày mở bộ chọn khoảng sẵn có của Xếp lịch. */}
+        <div className="xh-dieu-huong">
+          <button type="button" className="xa-btn xa-btn--o" aria-label="Khoảng trước" onClick={() => luiTien(-1)}><ChevronLeft size={16} /></button>
+          <button type="button" className="xa-btn" onClick={veHomNay}
+            title={coHomNay ? "Hôm nay đang nằm trong khoảng xem" : "Về khoảng có hôm nay"}>Hôm nay</button>
+          <button type="button" className="xa-btn xa-btn--o" aria-label="Khoảng sau" onClick={() => luiTien(1)}><ChevronRight size={16} /></button>
         </div>
+        <button type="button" className={`xa-btn${moKhoang ? " xa-btn--bat" : ""}`} aria-haspopup="dialog" aria-expanded={moKhoang}
+          title={`Chọn khoảng ngày (${soNgay} ngày)`} onClick={() => setMoKhoang((m) => !m)}>
+          {chuKhoang(tu, den)}<ChevronDown size={14} className="xh-mo" />
+        </button>
         {moKhoang && (
           <XlKhoangNgay tu={tu} den={den} onDong={() => setMoKhoang(false)}
-            onApDung={(a, b) => { setTu(a); setDen(b); setMoKhoang(false); }} />
+            onApDung={(a, b) => { setKhoang(a, b); setMoKhoang(false); }} />
         )}
-        <span className="xa-ngan-dung" />
-        <label className="xa-o-tim">
+        <label className="xa-o-tim xh-o-tim">
           <Search size={15} />
-          <input ref={oTimRef} value={timLuoi} placeholder="Tìm mã, tên, khách" aria-label="Tìm lệnh trên lịch"
-            onChange={(e) => setTimLuoi(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") { setTimLuoi(""); (e.target as HTMLInputElement).blur(); } }} />
-          {timLuoi ? (
-            <button type="button" className="xa-btn xa-btn--tron" style={{ height: 22, padding: 0 }} aria-label="Xoá ô tìm" onClick={() => setTimLuoi("")}><X size={13} /></button>
-          ) : <kbd>/</kbd>}
+          <input value={tim} placeholder="Tìm mã lệnh, sản phẩm, khách" aria-label="Tìm lệnh"
+            onChange={(e) => setTim(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setTim(""); }} />
+          {tim && (
+            <button type="button" className="xa-btn xa-btn--tron" style={{ height: 22, padding: 0 }} aria-label="Xoá ô tìm" onClick={() => setTim("")}><X size={13} /></button>
+          )}
         </label>
-        <div className="xa-loc tl-thanh">
-          <ThanhLoc dieuKien={dieuKienLuoi} loc={locLuoi} onLoc={setLocLuoi} />
-        </div>
-        <span className="xa-gian" />
-        <button type="button" className="xa-btn" aria-haspopup="dialog" onClick={() => setMoKhoaMay(true)}>
-          <Wrench size={15} />Khoá máy
-        </button>
-        <button ref={nutHienRef} type="button" className={`xa-btn${moHien ? " xa-btn--bat" : ""}`} aria-expanded={moHien} onClick={() => setMoHien((m) => !m)}>
-          <SlidersHorizontal size={15} />Hiển thị
-        </button>
-        <button type="button" className={`xa-btn${khayMo ? " xa-btn--bat" : ""}`} aria-pressed={khayMo} onClick={() => setKhayMo((m) => !m)}>
-          <Inbox size={15} />Chờ xếp lịch<span className="xa-dem">{tongCho}</span>
-        </button>
-        {moHien && (
-          <div className="xa-hien" ref={hienRef} role="dialog" aria-label="Hiển thị">
-            <div className="xa-hien__khoi">
-              <p className="xa-hien__nhan">Độ cao dòng</p>
-              <div className="xa-seg">
-                <button type="button" aria-pressed={!hien.thoang} onClick={() => setHien({ ...hien, thoang: false })}>Gọn</button>
-                <button type="button" aria-pressed={hien.thoang} onClick={() => setHien({ ...hien, thoang: true })}>Thoáng</button>
-              </div>
-            </div>
-            <div className="xa-hien__khoi">
-              <p className="xa-hien__nhan">Thông tin ở cột trái{hien.thoang ? "" : ", hiện khi chọn Thoáng"}</p>
-              <div className="xa-tg">
-                {chip("khach", "Khách hàng", Building2)}
-                {chip("may", "Máy chính", Printer)}
-                {chip("sl", "Sản lượng", Hash)}
-                {chip("gioChay", "Giờ chạy", Clock)}
-                {chip("soTo", "Số tờ in", FileText)}
-              </div>
-            </div>
-            <div className="xa-hien__khoi">
-              {gat("hienXong", "Hiện lệnh đã xong", Users)}
-              {gat("vatTu", "Hiện tình trạng vật tư", Package)}
-            </div>
-          </div>
-        )}
       </header>
 
-      <div className="xa-tom">
-        <span>Trong khoảng này máy chạy <span className="xa-tom__so">{gioChu(phutChay)}</span></span>
-        {NHANH.filter((n) => dem[n.k] > 0 || nhanh === n.k).map((n) => (
-          <button key={n.k} type="button" className="xa-ln" aria-pressed={nhanh === n.k} onClick={() => setNhanh(nhanh === n.k ? null : n.k)}>
-            <i style={{ background: n.mau }} />{n.nhan}<span className="xa-tom__so">{dem[n.k]}</span>
+      <div className="xh-tabs" role="tablist" aria-label="Nhóm lệnh">
+        {TAB.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id}
+            className={`xh-tab${tab === t.id ? " is-on" : ""}`} onClick={() => setTab(t.id)}>
+            {t.dot && (dem?.ket ?? 0) > 0 && <span className="xh-dot" style={{ background: t.dot }} />}
+            {t.ten} <span className="xh-n">{(dem?.[t.id] ?? 0).toLocaleString("vi-VN")}</span>
           </button>
         ))}
-        {coLoc && <button type="button" className="xa-lk" onClick={xoaLoc}>Xoá bộ lọc</button>}
-        <span className="xa-gian" />
-        {cacCa.map((c) => (
-          <span key={`${c.ten}${c.tu}`} className="xa-ca"><Clock size={13} />{c.ten} {c.tu} đến {c.den}</span>
+      </div>
+
+      <div className="xh-loc">
+        {LOC_NHANH.filter((l) => l.k !== "thieu_vat_tu" || choDay).map((l) => (
+          <button key={l.k} type="button" className="xa-ln" aria-pressed={loc[l.k]}
+            onClick={() => setLoc({ ...loc, [l.k]: !loc[l.k] })}>
+            <i style={{ background: l.dot }} />{l.ten}<span className="xh-n">{ban?.dem_loc[l.k] ?? 0}</span>
+          </button>
         ))}
-      </div>
-
-      <div className="xa-than">
-        {laDT ? (
-          <XlDanhSachDT
-            dong={dong}
-            vatTu={vatTu}
-            hienXong={hien.hienXong}
-            chonId={chonId}
-            trong={coLoc ? "Không có lệnh nào khớp bộ lọc." : undefined}
-            onChon={setChonId}
-          />
-        ) : (
-        <main className="xa-luoi">
-          <XlLuoi
-            tu={tu}
-            soNgay={soNgay}
-            dong={dong}
-            ngayNghi={ngayNghi}
-            ngayDacBiet={ngayDacBiet}
-            cum={cum}
-            vatTu={vatTu}
-            hien={hienLuoi}
-            chonId={chonId}
-            suaDuoc={suaDuoc && !dangGhi}
-            keoTuKhay={keoTuKhay}
-            caPhut={caPhut}
-            caDau={caDau}
-            trong={coLoc ? "Không có lệnh nào khớp bộ lọc." : undefined}
-            onChon={setChonId}
-            onDatMoc={datMoc}
-            onThu={(id, gio, signal) => api.xepLich.thuMoc(token ?? "", id, gio, signal)}
-          />
-        </main>
-        )}
-        {khayMo && (
-          <XlKhay
-            the={the}
-            vatTu={hien.vatTu ? vatTu : undefined}
-            tong={tongCho}
-            tim={tim}
-            trang={trang}
-            moiTrang={MOI_TRANG}
-            dangTai={taiCho}
-            keoDuoc={suaDuoc}
-            keoId={keoTuKhay?.lsx_id ?? null}
-            thanhLoc={(
-              <ThanhLoc
-                ky={locCho.ky}
-                moc={MOC_HANG_CHO}
-                onKy={(ky) => setLocCho({ ...locCho, ky })}
-                dieuKien={dieuKienCho}
-                loc={locCho.loc}
-                onLoc={(loc) => setLocCho({ ...locCho, loc })}
-              />
-            )}
-            dangLoc={khoaLocCho !== "{}"}
-            onTim={setTim}
-            onTrang={setTrang}
-            onChon={setChonId}
-            onKeo={setKeoTuKhay}
-            onThu={() => setKhayMo(false)}
-          />
-        )}
-      </div>
-
-      <footer className="xa-chan">
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#eef3fe", boxShadow: "inset 0 0 0 1px #bfdbfe" }} />Chưa phát hành</span>
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#edf8f1", boxShadow: "inset 0 0 0 1px #bbf7d0" }} />Đã phát hành</span>
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "#16a34a" }} />Đã chạy</span>
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, background: "repeating-linear-gradient(-45deg, #fecaca 0 4px, #fee2e2 4px 8px)" }} />Quá hạn</span>
-        <span><i style={{ width: 22, height: 10, borderRadius: 3, boxShadow: "inset 0 0 0 1.5px #8b5cf6" }} />In chung một tờ</span>
-        <span><i style={{ width: 9, height: 9, transform: "rotate(45deg)", border: "1.5px solid #475569", background: "#fff" }} />Hạn xong sản xuất</span>
+        {coLoc && <button type="button" className="xa-lk" onClick={() => { setTim(""); setLoc(LOC_TRONG); }}>Xoá bộ lọc</button>}
         <span className="xa-gian" />
-        <span className="xa-phim"><kbd>◀</kbd><kbd>▶</kbd>15 phút</span>
-        <span className="xa-phim"><kbd>Shift</kbd><kbd>◀</kbd><kbd>▶</kbd>một ca</span>
-        <span className="xa-phim"><kbd>Ctrl</kbd><kbd>Z</kbd>hoàn tác</span>
+        <span className="xh-mo">Sắp xếp</span>
+        <span className="xh-sap">
+          {tab === "da_hen" ? "Gấp trước, rồi giờ hẹn sớm" : tab === "da_day" ? "Gấp trước, rồi lúc đẩy mới nhất" : "Gấp trước, rồi hạn giao sớm"}
+        </span>
+      </div>
+
+      {dong.length === 0 ? (
+        <p className="xh-trong">
+          {dangTai ? "Đang tải" : coLoc ? "Không có lệnh nào khớp bộ lọc."
+            : tab === "ket" ? "Không có lệnh nào kẹt." : tab === "chua_hen" ? "Không còn lệnh nào chờ hẹn giờ."
+              : tab === "da_hen" ? "Không có lệnh nào hẹn đẩy trong khoảng này." : "Không có lệnh nào đẩy trong khoảng này."}
+        </p>
+      ) : (
+        <XlBan dong={dong} tab={tab} tu={tu} den={den} homNay={homNay} demNgay={ban?.dem_ngay ?? {}}
+          coChon={coChon} chon={chon} chonId={chonId} onChon={doiChon} onChonTrang={chonTrang} onMo={setChonId} />
+      )}
+
+      {coChon && soChon > 0 && (
+        <div className="xh-chon-bar" role="region" aria-label="Lệnh đã chọn">
+          <span>{theoLoc ? `Đã chọn cả ${soChon} lệnh theo bộ lọc` : `Đã chọn ${soChon} lệnh trên trang này`}</span>
+          {!theoLoc && daChonCaTrang && (ban?.tong ?? 0) > dong.length && (
+            <button type="button" className="xa-lk" onClick={() => setTheoLoc(true)}>Chọn cả {ban?.tong} lệnh theo bộ lọc</button>
+          )}
+          <span className="xa-gian" />
+          <button type="button" className="xa-btn" disabled={dangGhi} onClick={moHen}>Hẹn giờ</button>
+          <button type="button" className="xa-btn xa-btn--den" disabled={dangGhi || theoLoc}
+            title={theoLoc ? "Đẩy ngay làm theo từng trang, chọn các lệnh trên trang rồi bấm" : undefined}
+            onClick={() => void dayNgay([...chon])}>Đẩy ngay</button>
+          <button type="button" className="xa-btn" onClick={boChon}>Bỏ chọn</button>
+        </div>
+      )}
+
+      {ban && ban.tong > 0 && (
+        <PhanTrangDayDu trang={trang} size={moiTrang} tong={ban.tong} soDong={dong.length} loading={dangTai}
+          onTrang={setTrang} onSize={(s) => { setMoiTrang(s); setTrang(1); }} donVi="lệnh" />
+      )}
+
+      <footer className="xh-chu-giai">
+        <span><span className="xh-k"><span className="xh-cham xh-cham--hen" /></span>Hẹn đẩy, tới giờ tự đẩy</span>
+        <span><span className="xh-k"><span className="xh-cham xh-cham--day" /></span>Đã đẩy</span>
+        <span><span className="xh-k"><span className="xh-tamgiac" /></span>Vật tư về</span>
+        <span><span className="xh-k"><span className="xh-thoi" /></span>Hạn giao khách</span>
+        <span><i className="xh-vach-mau" />Còn từ 2 ngày trở xuống tới hạn giao</span>
+        <span>Số dưới ngày: số lệnh hẹn đẩy ngày đó theo bộ lọc</span>
       </footer>
 
       {bao && (
         <div className={`xa-toast${bao.loi ? " xa-toast--loi" : ""}`} role={bao.loi ? "alert" : "status"}>
           <span title={bao.giai}>{bao.chu}</span>
-          {bao.hoanTac && lui.length > 0 && (
-            <button type="button" onClick={() => { setBao(null); void hoanTac(); }}><RotateCcw size={14} />Hoàn tác<kbd>Ctrl Z</kbd></button>
-          )}
           <button type="button" className="xa-toast__x" aria-label="Đóng thông báo" onClick={() => setBao(null)}><X size={14} /></button>
         </div>
       )}
 
       {chonId !== null && (
-        <XlNgan
-          ct={ct && ct.lsx_id === chonId ? ct : null}
-          dangTai={taiCt || (!(ct && ct.lsx_id === chonId) && !loiCt)}
-          suaDuoc={suaDuoc}
+        <XlNganHen
+          key={chonId}
+          ngan={ngan && ngan.dau.lsx_id === chonId ? ngan : null}
+          lichSu={lichSu}
+          goi={goi}
+          dangTai={taiNgan}
+          loi={loiNgan}
           duyetDuoc={duyetDuoc}
           dangGhi={dangGhi}
-          goi={goi}
-          vatTu={vatTu.get(chonId)}
-          truocDo={truocDo}
-          onDoiGio={(g) => void datMoc(chonId, g, ct?.updated_at ?? null)}
-          onHoanTac={() => void hoanTac()}
-          onBoLich={boLich}
-          onPhatHanh={phatHanh}
+          onBoHen={() => void boHen()}
+          onDoiGio={() => { setLoiHen(null); setHen({ kieu: "mot", id: chonId, cu: ngan?.dau.hen_luc ?? null }); }}
+          onDayNgay={() => void dayNgay([chonId])}
           onThuHoi={() => moPrompt("thu_hoi")}
           onCapNhat={() => moPrompt("cap_nhat")}
+          onMoHoSo={navigate ? () => navigate("lenh-san-xuat", { openHoSoLsxId: chonId }) : undefined}
           onDong={() => setChonId(null)}
-          onMoLenh={setChonId}
-          onMoHoSo={(id, daPhat) => navigate?.(daPhat ? "lenh-san-xuat" : "ke-hoach-sx", daPhat ? { openHoSoLsxId: id } : { openLsxId: id })}
-          onSoSanh={(a, b) => api.xepLich.soSanhPhienBan(token ?? "", chonId, a, b)}
-          len={viTri > 0 ? () => setChonId(dongThay[viTri - 1].lsx_id) : undefined}
-          xuong={viTri >= 0 && viTri < dongThay.length - 1 ? () => setChonId(dongThay[viTri + 1].lsx_id) : undefined}
+          len={viTri > 0 ? () => setChonId(dong[viTri - 1].lsx_id) : undefined}
+          xuong={viTri >= 0 && viTri < dong.length - 1 ? () => setChonId(dong[viTri + 1].lsx_id) : undefined}
         />
       )}
 
-      <XlKhoaMay open={moKhoaMay} suaDuoc={suaDuoc} onDong={() => setMoKhoaMay(false)} onDoi={lamMoi} />
+      <XlHenGio
+        open={hen !== null}
+        soLenh={hen?.kieu === "loc" ? hen.so : hen?.kieu === "chon" ? hen.ids.length : 1}
+        giaTriDau={hen?.kieu === "mot" ? hen.cu : null}
+        busy={dangGhi}
+        loi={loiHen}
+        onHen={(g) => void ghiHen(g)}
+        onHuy={() => setHen(null)}
+      />
+
 
       <ConfirmDialog
-        open={chePrompt !== null}
-        title={laThuHoi ? (maCum ? `Thu hồi cả cụm, ${ct?.cum?.lsx.length} lệnh` : "Thu hồi phát hành") : "Phát hành cập nhật"}
-        icon={laThuHoi ? <RotateCcw size={20} /> : <Send size={20} />}
-        message={laThuHoi
-          ? (maCum
-            ? `Các lệnh ${maCum} xuống xưởng cùng một lần nên sẽ rút về cùng nhau. Các lệnh giữ lịch đã xếp nhưng chưa phát hành.`
-            : `Rút lệnh ${maLenh} khỏi xưởng, lệnh quay về có lịch nhưng chưa phát hành.`)
-          : `Đẩy lịch mới xuống xưởng cho ${goi?.so_chua_bat_dau ?? 0} việc chưa bắt đầu của lệnh ${maLenh}. ${goi?.so_da_bat_dau ?? 0} việc đã chạy giữ nguyên, tổ nhận việc cập nhật phải xác nhận lại phân công.`}
-        confirmLabel={dangGhi ? "Đang xử lý" : laThuHoi ? "Thu hồi" : "Đẩy lịch mới xuống xưởng"}
+        open={prompt !== null}
+        title={prompt === "thu_hoi" ? "Thu hồi lệnh khỏi xưởng" : "Đẩy cập nhật"}
+        icon={prompt === "thu_hoi" ? <RotateCcw size={20} /> : <Send size={20} />}
+        message={prompt === "thu_hoi"
+          ? `Rút lệnh ${ngan?.dau.ma ?? ""} (và các lệnh đẩy cùng cụm) khỏi xưởng. Lệnh về tab Chưa hẹn giờ, giờ hẹn cũ bỏ.`
+          : `Đẩy bản mới của lệnh ${ngan?.dau.ma ?? ""} xuống xưởng cho ${goi?.so_chua_bat_dau ?? 0} việc chưa bắt đầu. ${goi?.so_da_bat_dau ?? 0} việc đã chạy giữ nguyên.`}
+        confirmLabel={dangGhi ? "Đang xử lý" : prompt === "thu_hoi" ? "Thu hồi" : "Đẩy cập nhật"}
         cancelLabel="Huỷ"
-        danger={laThuHoi}
+        danger={prompt === "thu_hoi"}
         busy={dangGhi}
         error={loiLyDo}
         onConfirm={() => void xacNhanPrompt()}
-        onCancel={dongPrompt}
+        onCancel={() => setPrompt(null)}
       >
-        <label style={{ display: "block", fontSize: 13, marginBottom: 6 }} htmlFor="xa-ly-do">
-          {laThuHoi ? "Lý do thu hồi" : "Lý do cập nhật"}
+        <label style={{ display: "block", fontSize: 13, marginBottom: 6 }} htmlFor="xh-ly-do">
+          {prompt === "thu_hoi" ? "Lý do thu hồi" : "Lý do cập nhật"}
         </label>
-        <textarea
-          id="xa-ly-do"
-          className="xa-ly-do"
-          autoFocus
-          value={lyDo}
-          placeholder={laThuHoi ? "Ví dụ: khách đổi quy cách tờ in" : "Ví dụ: dời giờ chạy vì máy in kẹt"}
-          onChange={(e) => {
-            setLyDo(e.target.value);
-            if (loiLyDo && e.target.value.trim().length >= 3) setLoiLyDo(null);
-          }}
-        />
+        <textarea id="xh-ly-do" className="xa-ly-do" autoFocus value={lyDo}
+          placeholder={prompt === "thu_hoi" ? "Ví dụ: khách đổi quy cách tờ in" : "Ví dụ: đổi số lượng bước bế"}
+          onChange={(e) => { setLyDo(e.target.value); if (loiLyDo && e.target.value.trim().length >= 3) setLoiLyDo(null); }} />
       </ConfirmDialog>
     </div>
   );

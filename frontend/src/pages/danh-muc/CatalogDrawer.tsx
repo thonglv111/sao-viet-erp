@@ -4,7 +4,7 @@
 // khai · `showIf` không lọt vào body). Sửa phần dựng `body` thì chạy lưới đó trước khi đi tiếp.
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
-import { useTat } from "../../auth/permissions";
+import { useCan, useTat } from "../../auth/permissions";
 import { useAuth } from "../../auth/useAuth";
 import { Button } from "../../components/Button";
 import { ChonNgay } from "../../components/ChonNgay";
@@ -21,7 +21,9 @@ import {
   type VatTuChipRow,
 } from "./fields";
 import { goiYMaTiepTheo } from "./maGoiY";
+import { ODonViBanGia } from "./ODonViBanGia";
 import { ODonViNhieu } from "./ODonViNhieu";
+import { OGiaBanTheoDvt } from "./OGiaBanTheoDvt";
 import { useNapTenDonVi } from "../tenDonVi";
 import { NhatKyTab } from "./nhat-ky/NhatKyTab";
 import { DieuHuongDanhMuc, useDieuHuongDanhMuc } from "./dieuHuong";
@@ -73,7 +75,7 @@ function locConDung(rows: Row[], dangChon: unknown, nhan = true): Row[] {
 const KIEU_CO_THAM_CHIEU = new Set<string>([
   "ref", "ref-multi", "ref-search", "ref-search-ma",
   "may-cua-cong-doan", "don_vi_toc_do", "nhom_may", "nhom_may-multi", "viec-phat-sinh", "khoan-cong-doan", "to-multi", "vat-tu-chip",
-  "don-vi-them",
+  "don-vi-them", "gia-ban-dvt", "don-vi-ban-gia",
 ]);
 
 /** Danh mục nguồn cần nạp cho các ô chọn của drawer: `{prefix: query}`. Gộp `refParams` theo
@@ -106,6 +108,10 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
   onClose: () => void; onSaved: (moi?: Row) => void;
 }) {
   const { token } = useAuth();
+  const can = useCan();
+  // Bảng "Đơn vị bán và giá" (Hàng thương mại): không có ô Xem giá của màn thì máy chủ không trả giá ⇒
+  // cột giá ẩn hẳn, khỏi bày ô trống trông như "chưa đặt giá".
+  const coGiaBan = config.moduleQuyen ? can(config.moduleQuyen, "view_cost") : true;
   // Nạp lại bảng nhãn (đơn vị + chặng dòng giấy) MỖI LẦN MỞ drawer. Trang danh sách cũng gọi hook
   // này, nhưng nó đứng yên suốt buổi: chuyến nạp hụt lúc trang mở ra thì ở đó không có nhịp nào
   // để thử lại, và ô "Đơn vị đầu vào/đầu ra" nằm im với menu rỗng. Mở drawer là một nhịp mount
@@ -134,6 +140,12 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
           : (existing ? raw ?? "" : f.default ?? "");
       } else {
         init[f.key] = existing ? existing[f.key] ?? "" : f.default ?? "";
+      }
+      // Bảng "Đơn vị bán và giá" giữ thêm hai cột không có ô riêng trong `fields` — nạp kèm, không
+      // thì mở sửa ra bảng trống và lưu là xoá mất đơn vị.
+      if (f.type === "don-vi-ban-gia") {
+        init.don_vi_gia = existing?.don_vi_gia ?? "";
+        init.don_vi_them = Array.isArray(existing?.don_vi_them) ? existing.don_vi_them : [];
       }
     }
     if (config.deriveInitial) Object.assign(init, config.deriveInitial(existing));  // vd suy _method từ pricing_basis
@@ -300,10 +312,10 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     const khoa = khoaO(f.key);
     const hint = typeof f.hint === "function" ? f.hint(form) : f.hint;
     const laDonVi = config.prefix.includes("don-vi");
-    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
+    const isFullWidth = f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "ref-multi" || f.type === "nhom_may-multi" || f.type === "vat-tu-cong-doan" || f.type === "vat-tu-chip" || f.type === "may-cua-cong-doan" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "to-multi" || f.type === "don-vi-ban-gia" || f.key === "ghi_chu" || f.key === "ghi_chu_2" || f.key === "mo_ta";
     // "div" chứ không "label": khối này chứa NHIỀU input, bọc trong <label> là bấm đâu cũng nhảy
     // focus vào ô đầu tiên.
-    const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "don-vi-them" ? "div" : "label";
+    const Tag = f.type === "formula" || f.type === "bands" || f.type === "chuan_bi_khoan" || f.type === "lich_bao_tri" || f.type === "viec-phat-sinh" || f.type === "khoan-cong-doan" || f.type === "don-vi-them" || f.type === "gia-ban-dvt" || f.type === "don-vi-ban-gia" ? "div" : "label";
     return (
       <Tag className={`rc-field${f.type === "checkbox" ? " rc-field--check" : ""}${isFullWidth ? " rc-field--full" : ""}${f.type === "don-vi-them" ? " rc-field--dvn" : ""}`} key={f.key}>
         {cleanLabel && <span className="rc-field__label">{cleanLabel}{f.required ? " *" : ""}</span>}
@@ -441,6 +453,27 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
             batBuoc={f.donViBatBuoc}
             onChange={(v) => set(f.key, v)}
           />
+        ) : f.type === "don-vi-ban-gia" ? (
+          <ODonViBanGia
+            chinh={String(form.don_vi_gia ?? "")}
+            them={Array.isArray(form.don_vi_them) ? (form.don_vi_them as string[]) : []}
+            gia={form[f.key]}
+            donVi={optsRef(f)}
+            coGia={coGiaBan}
+            onChange={(v) => {
+              set("don_vi_gia", v.don_vi_gia);
+              set("don_vi_them", v.don_vi_them);
+              if (coGiaBan) set(f.key, v.gia_ban_theo_dvt);
+            }}
+          />
+        ) : f.type === "gia-ban-dvt" ? (
+          <OGiaBanTheoDvt
+            value={form[f.key]}
+            chinh={String(form.don_vi_gia ?? "")}
+            them={Array.isArray(form.don_vi_them) ? (form.don_vi_them as string[]) : []}
+            donVi={optsRef(f)}
+            onChange={(v) => set(f.key, v)}
+          />
         ) : f.type === "ref-multi" ? (
           <RefMultiField
             value={Array.isArray(form[f.key]) ? (form[f.key] as number[]) : []}
@@ -513,6 +546,14 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
     if (!config.autoCode || isEdit) body.ma = form.ma;
     for (const f of visibleFields) {
       let v = form[f.key];
+      // Một bảng ghi ba cột: ĐVT chính, đơn vị thêm, giá theo ĐVT. Không có ô Xem giá thì KHÔNG gửi
+      // giá (máy chủ giữ giá cũ), khỏi gửi `{}` mà xoá trắng giá người khác đã đặt.
+      if (f.type === "don-vi-ban-gia") {
+        if (form.don_vi_gia) body.don_vi_gia = form.don_vi_gia;
+        body.don_vi_them = Array.isArray(form.don_vi_them) ? form.don_vi_them : [];
+        if (coGiaBan && v && typeof v === "object") body[f.key] = v;
+        continue;
+      }
       if (KIEU_MANG.has(f.type ?? "")) { body[f.key] = Array.isArray(v) ? v : []; continue; }
       if (v === "" || v === undefined) {
         const kieuChu = !f.type || f.type === "text" || f.type === "date" || f.type === "nhom_may";

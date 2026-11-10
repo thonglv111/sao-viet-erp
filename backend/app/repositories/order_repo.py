@@ -15,8 +15,9 @@ from sqlalchemy import BigInteger, and_, asc, cast, desc, exists, func, or_, sel
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.customer import Customer
+from ..models.giao_hang_hp import PhuongThucGiaoHp
 from ..models.order import (
-    SOURCE_BAO_GIA, STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED, Order, OrderLine,
+    SOURCE_BAO_GIA, SOURCE_THUONG_MAI, STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED, Order, OrderLine,
 )
 from ..models.quotation import Quote
 from ..models.role import SCOPE_ALL, SCOPE_DEPARTMENT, SCOPE_OWN
@@ -141,7 +142,10 @@ def _gia_cong_cua_don(*dk):
 
 #: Đã chốt mà chưa xuống sản xuất = còn chờ kế toán thu đủ cọc (chốt xong đủ cọc là tự chuyển —
 #: `OrderService._tu_chuyen_sx`). Cùng cách đọc với ô "Chờ đủ cọc" ở cột Sản xuất ngoài bảng.
-_CHO_COC = and_(Order.status == STATUS_ORDERED, Order.san_xuat_released_at.is_(None))
+#: Đơn thương mại không bao giờ xuống sản xuất (docs/design-hang-thuong-mai-ha-phuong.md, Vòng đời)
+#: nên "chưa phát hành" của nó không có nghĩa là chờ cọc.
+_LA_DON_SX = or_(Order.source_type.is_(None), Order.source_type != SOURCE_THUONG_MAI)
+_CHO_COC = and_(Order.status == STATUS_ORDERED, Order.san_xuat_released_at.is_(None), _LA_DON_SX)
 
 
 def _hoan_tat():
@@ -181,6 +185,12 @@ class LocDonHang:
     giao: str | None = None
     #: `chua` | `mot_phan` | `du` — hoá đơn đã ghi so với giá trị gồm VAT.
     hoa_don: str | None = None
+    #: `thuong_mai` = đơn tạo ở màn Đơn hàng bán (chỉ In Hà Phương có), `san_xuat` = mọi đơn còn lại.
+    ban: str | None = None
+    #: Giao hàng kiểu Hà Phương: đơn có ÍT NHẤT MỘT lần xuất khớp cách giao / người giao / đơn vị vận chuyển.
+    cach_giao: str | None = None
+    nguoi_giao: int | None = None
+    don_vi_vc: int | None = None
     #: Cho test ghim ngày; bỏ trống = hôm nay giờ Việt Nam.
     hom_nay: date | None = None
 
@@ -295,7 +305,7 @@ class OrderRepository:
 
     def chot_trong_khoang(
         self, *, tu, den, scope: str, actor, customer_id: int | None = None,
-        sale_user_id: int | None = None,
+        sale_user_id: int | None = None, nguon: str | None = None,
     ) -> list[Order]:
         """Đơn ĐÃ CHỐT có `ordered_at` trong `[tu, den)` (hai mốc UTC; đầu nào None = không chặn
         đầu đó — kỳ "Tất cả") — nguồn của Báo cáo kinh doanh (24/09/2026). Nạp sẵn dòng sản phẩm:
@@ -318,6 +328,11 @@ class OrderRepository:
             stmt = stmt.where(Order.customer_id == customer_id)
         if sale_user_id is not None:
             stmt = stmt.where(Order.sale_user_id == sale_user_id)
+        # Nguồn đơn (chỉ In Hà Phương có đơn thương mại): `thuong_mai` | `san_xuat` (mọi đơn còn lại).
+        if nguon == "thuong_mai":
+            stmt = stmt.where(Order.source_type == "thuong_mai")
+        elif nguon == "san_xuat":
+            stmt = stmt.where(or_(Order.source_type.is_(None), Order.source_type != "thuong_mai"))
         return list(self.db.execute(stmt).scalars().unique().all())
 
     def dem_chot_theo(self, *, theo: str, scope: str, actor) -> list[dict]:
@@ -390,7 +405,23 @@ class OrderRepository:
         if truoc is not None:
             stmt = stmt.where(or_(DeliveryTrip.thoi_gian_ket_thuc.is_(None),
                                   DeliveryTrip.thoi_gian_ket_thuc < truoc))
-        return {int(lid): int(sl or 0) for lid, sl in self.db.execute(stmt)}
+        ra = {int(lid): int(sl or 0) for lid, sl in self.db.execute(stmt)}
+        # Đơn THƯƠNG MẠI (chỉ In Hà Phương) không đi chuyến giao: "đã giao" = SL kho thực xuất của các
+        # lượt xuất đã xuất. Đơn sản xuất không có lượt nào nên câu này trả rỗng cho chúng.
+        from ..models.thuong_mai import LXTM_DA_XUAT, LuotXuatThuongMai, LuotXuatThuongMaiDong
+
+        tm = (
+            select(LuotXuatThuongMaiDong.order_line_id,
+                   func.coalesce(func.sum(LuotXuatThuongMaiDong.qty_thuc), 0))
+            .join(LuotXuatThuongMai, LuotXuatThuongMai.id == LuotXuatThuongMaiDong.luot_id)
+            .where(LuotXuatThuongMai.order_id.in_(order_ids), LuotXuatThuongMai.trang_thai == LXTM_DA_XUAT)
+            .group_by(LuotXuatThuongMaiDong.order_line_id)
+        )
+        if truoc is not None:
+            tm = tm.where(LuotXuatThuongMai.xuat_luc < truoc)
+        for lid, sl in self.db.execute(tm):
+            ra[int(lid)] = ra.get(int(lid), 0) + int(sl or 0)
+        return ra
 
     def money_sums(self, order_ids: list[int]) -> dict[int, dict]:
         """Batch của `line_total_sum` + `total_with_vat` + `order_cost_sum` — MỘT câu cho cả trang.
@@ -491,6 +522,19 @@ class OrderRepository:
             conditions.append(Order.customer_id == loc.khach)
         if loc.gap is not None:
             conditions.append(Order.is_rush.is_(loc.gap))
+        if loc.ban == "thuong_mai":
+            conditions.append(Order.source_type == SOURCE_THUONG_MAI)
+        elif loc.ban == "san_xuat":
+            conditions.append(_LA_DON_SX)
+        if loc.cach_giao or loc.nguoi_giao is not None or loc.don_vi_vc is not None:
+            dk_giao = [PhuongThucGiaoHp.order_id == Order.id]
+            if loc.cach_giao:
+                dk_giao.append(PhuongThucGiaoHp.loai == loc.cach_giao)
+            if loc.nguoi_giao is not None:
+                dk_giao.append(PhuongThucGiaoHp.nguoi_giao_id == loc.nguoi_giao)
+            if loc.don_vi_vc is not None:
+                dk_giao.append(PhuongThucGiaoHp.don_vi_vc_id == loc.don_vi_vc)
+            conditions.append(exists().where(*dk_giao))
         if loc.gia_tu is not None:
             conditions.append(_tong_vat_x100() >= loc.gia_tu * 100)
         if loc.gia_den is not None:
@@ -629,23 +673,27 @@ class OrderRepository:
 
     # --- writes -------------------------------------------------------------
 
-    def _next_order_no(self) -> str:
+    def _next_order_no(self, tien_to: str = "DH") -> str:
         """Next sequential order number: 'DH' + zero-padded number (DH001, DH002…). NOT
-        `PB###` (mã phòng ban). Pattern chưa xác nhận với SVN — DH### is the working default."""
+        `PB###` (mã phòng ban). Pattern chưa xác nhận với SVN — DH### is the working default.
+
+        Đơn thương mại (chỉ In Hà Phương) đánh dãy riêng `TM001`… — nhìn mã là biết loại đơn."""
         max_n = 0
-        for no in self.db.execute(select(Order.order_no)).scalars():
-            if no and no.startswith("DH"):
+        n = len(tien_to)
+        for no in self.db.execute(select(Order.order_no).where(Order.order_no.like(f"{tien_to}%"))).scalars():
+            if no and no.startswith(tien_to):
                 try:
-                    max_n = max(max_n, int(no[2:]))
+                    max_n = max(max_n, int(no[n:]))
                 except ValueError:
                     continue
-        return f"DH{max_n + 1:03d}"
+        return f"{tien_to}{max_n + 1:03d}"
 
     def create(self, *, lines: list[dict], **order_fields) -> Order:
         """Tạo đơn + dòng. `order_fields` = giá trị các cột `orders` do OrderService chuẩn bị
         (source_type/customer_id/quotation_*/deposit_pct/cost_basis/needs_approval/... — service
         kiểm hợp lệ). `order_no` tự sinh (DH###). Mỗi phần tử `lines` là dict cột `order_lines`."""
-        order = Order(order_no=self._next_order_no(), **order_fields)
+        tien_to = "TM" if order_fields.get("source_type") == "thuong_mai" else "DH"
+        order = Order(order_no=self._next_order_no(tien_to), **order_fields)
         for ln in lines:
             order.lines.append(
                 OrderLine(
@@ -662,6 +710,7 @@ class OrderRepository:
                     nhom=ln.get("nhom"),   # nhãn gộp dòng khi in xác nhận đơn (khớp bản báo giá)
                     don_vi_tinh=ln.get("don_vi_tinh", "cái"),   # ĐVT dòng (kéo từ báo giá / gõ tay)
                     dvt_nhom=ln.get("dvt_nhom"),   # ĐVT của cụm khi in gộp (ruột + bìa → "cuốn")
+                    hang_thuong_mai_id=ln.get("hang_thuong_mai_id"),   # chỉ đơn thương mại
                 )
             )
         self.db.add(order)
@@ -719,7 +768,7 @@ class OrderRepository:
         "chờ cọc"), `xong` = `_hoan_tat()` — cặp với `chi_dang_do` của `don_da_chot_khop`."""
         conds = self._dk_da_chot_khop(scope=scope, actor=actor, q=q, order_kind=order_kind,
                                       nguoi=nguoi, loc=loc)
-        conds.append(Order.san_xuat_released_at.is_(None) if nhom == "coc" else _hoan_tat())
+        conds.append(and_(Order.san_xuat_released_at.is_(None), _LA_DON_SX) if nhom == "coc" else _hoan_tat())
         return [int(i) for i in self.db.execute(select(Order.id).where(*conds)).scalars()]
 
     def _dk_da_chot_khop(self, *, scope, actor, q, order_kind, nguoi, loc) -> list:

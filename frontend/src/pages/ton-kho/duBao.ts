@@ -100,10 +100,10 @@ export function tinhDuBao(
   const lenh = du?.lenh ?? [];
   const ve = du?.ve ?? [];
   // Trộn theo ngày. Cùng ngày thì LĨNH trước, VỀ sau — hàng về chiều không cứu lệnh lĩnh sáng.
-  // Lệnh chưa có hạn SX đứng đầu: không biết bao giờ lĩnh thì coi như lĩnh ngay.
+  // Lệnh chưa có hạn giao đứng đầu: không biết bao giờ lĩnh thì coi như lĩnh ngay.
   type Tho = { ngay: string | null; thu: number; j: number; ev: { loai: "lenh"; lenh: DuBaoLenhRow } | { loai: "ve"; ma: string | null; muaCho?: MuaChoLenh[]; loaiMua?: LoaiMua[] }; sl: number };
   const tho: Tho[] = [
-    ...lenh.map((l, j) => ({ ngay: l.han_sx, thu: 0, j, sl: l.can, ev: { loai: "lenh" as const, lenh: l } })),
+    ...lenh.map((l, j) => ({ ngay: l.han_giao, thu: 0, j, sl: l.can, ev: { loai: "lenh" as const, lenh: l } })),
     ...ve.map((v, j) => ({ ngay: v.ngay_ve, thu: 1, j, sl: v.sl, ev: { loai: "ve" as const, ma: v.ma, muaCho: v.mua_cho, loaiMua: v.loai_mua_cac } })),
   ];
   tho.sort((a, b) => {

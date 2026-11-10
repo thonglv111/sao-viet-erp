@@ -76,7 +76,7 @@ def _dong(luc, nhom: str, cau: str, ct: list[str] | None = None, *, ly_do: str |
             "ly_do": (ly_do or "").strip() or None, "mau": mau, "_id": id_}
 
 
-def lich_su(db: Session, user: User, *, cong_viec_id: int) -> dict:
+def lich_su(db: Session, user: User, *, cong_viec_id: int, chi_xem: bool = False) -> dict:
     """{"items": [dòng mới nhất trên cùng], "dem": {nhóm: số dòng}}.
 
     Cùng phạm vi ĐỌC với ngăn chi tiết (`board.chi_tiet_cong_viec`): ngoài phạm vi ⇒
@@ -85,9 +85,10 @@ def lich_su(db: Session, user: User, *, cong_viec_id: int) -> dict:
     cv = tt.cong_viec(cong_viec_id)
     if cv is None:
         raise LookupError("Không tìm thấy công việc.")
-    _q, muc = _pham_vi_doc(db, user, cv.department_id)
-    if muc == MUC_CUA_TOI and not _loc_viec_cua_tho(db, user, [cv]):
-        raise PermissionError("Chỉ xem được việc đã giao cho mình.")
+    if not chi_xem:  # Kế hoạch bộ phận đã gác theo bộ phận của việc (xem `board.chi_tiet_cong_viec`).
+        _q, muc = _pham_vi_doc(db, user, cv.department_id)
+        if muc == MUC_CUA_TOI and not _loc_viec_cua_tho(db, user, [cv]):
+            raise PermissionError("Chỉ xem được việc đã giao cho mình.")
 
     items = cac_dong(db, cv)
     for x in items:

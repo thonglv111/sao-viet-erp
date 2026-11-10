@@ -1,14 +1,8 @@
-"""Thanh lọc chung (06/10/2026) cho ba bảng điều phối — Theo dõi sản xuất, Kế hoạch vật tư, hàng
-chờ Xếp lịch. Luật: lọc + đếm tab ở MÁY CHỦ; kỳ gửi `tu_ngay`/`den_ngay`/`moc` theo giờ VN.
+"""Thanh lọc chung (06/10/2026) cho các bảng điều phối — Theo dõi sản xuất, Kế hoạch vật tư (hàng
+chờ Xếp lịch gỡ 08/11/2026 cùng Gantt, bàn hẹn đẩy có bài riêng ở `test_xep_lich_hen_day.py`). Luật: lọc + đếm tab ở MÁY CHỦ; kỳ gửi `tu_ngay`/`den_ngay`/`moc` theo giờ VN.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
-
-from app.db import SessionLocal
-from app.models.customer import Customer
-from app.models.lsx import TT_SAN_SANG, Lsx
-from app.models.order import Order
 from app.services.giu_cho_service import GiuChoService
 from app.services.ke_hoach_vat_tu_service import KeHoachVatTuService
 from tests.lenh_sx_fixtures import (  # noqa: F401
@@ -115,63 +109,3 @@ def test_api_theo_lenh_tra_dem_theo_tab(client):
     assert r.json()["dem_theo_tab"] == {"tat_ca": 0, "du": 0, "dang": 0, "tat": 0, "giu_lau": 0}
     assert client.get("/api/ke-hoach-vat-tu/theo-lenh", params={"giu": "la"},
                       headers=h).status_code == 422
-
-
-# --- Xếp lịch: hàng chờ ---------------------------------------------------------------------------
-
-def _don(ten_khach: str) -> tuple[int, int]:
-    db = SessionLocal()
-    try:
-        c = Customer(code=f"KH-XL-{ten_khach[-1]}", name=ten_khach)
-        db.add(c)
-        db.flush()
-        o = Order(order_no=f"DH-XL-{ten_khach[-1]}", customer_id=c.id)
-        db.add(o)
-        db.commit()
-        return c.id, o.id
-    finally:
-        db.close()
-
-
-def _lenh(ma: str, order_id: int, created_at: datetime, han: date | None = None) -> int:
-    db = SessionLocal()
-    try:
-        l = Lsx(ma=ma, ten=f"Lệnh {ma}", order_id=order_id, order_line_id=1,
-                trang_thai=TT_SAN_SANG, so_luong_dat=1000, so_to_ke_hoach=10,
-                han_hoan_thanh_sx=han, created_at=created_at)
-        db.add(l)
-        db.commit()
-        return l.id
-    finally:
-        db.close()
-
-
-def _ma(client, h, **params) -> list[str]:
-    r = client.get("/api/xep-lich/hang-cho", params=params, headers=h)
-    assert r.status_code == 200, r.text
-    return sorted(d["ma"] for d in r.json()["dong"])
-
-
-def test_hang_cho_ky_ngay_tao_ranh_gio_vn_va_khach(client):
-    h = _hd(client)
-    k_a, d_a = _don("Khách A")
-    k_b, d_b = _don("Khách B")
-    # 30/09 17:30 UTC = 01/10 00:30 giờ VN ⇒ THUỘC tháng 10; 16:30 UTC = 30/09 23:30 VN ⇒ ngoài.
-    _lenh("XL-A", d_a, datetime(2026, 9, 30, 17, 30, tzinfo=timezone.utc), han=date(2026, 11, 5))
-    _lenh("XL-B", d_b, datetime(2026, 9, 30, 16, 30, tzinfo=timezone.utc), han=date(2026, 10, 20))
-
-    thang10 = {"tu_ngay": "2026-10-01", "den_ngay": "2026-10-31"}
-    assert _ma(client, h, **thang10, moc="tao") == ["XL-A"]
-    assert _ma(client, h, **thang10, moc="han_sx") == ["XL-B"]
-    assert _ma(client, h, khach_id=k_b) == ["XL-B"]
-    assert _ma(client, h, khach_id=k_a, **thang10) == ["XL-A"]
-
-    r = client.get("/api/xep-lich/hang-cho", headers=h).json()
-    assert r["tong"] == 2 and all(d["created_at"] for d in r["dong"])
-
-    loc = client.get("/api/xep-lich/hang-cho/khach-loc", headers=h).json()
-    assert loc == [{"id": k_a, "ten": "Khách A", "so": 1}, {"id": k_b, "ten": "Khách B", "so": 1}]
-    loc = client.get("/api/xep-lich/hang-cho/khach-loc", params={**thang10, "moc": "tao"},
-                     headers=h).json()
-    assert [o["id"] for o in loc] == [k_a]
-    assert client.get("/api/xep-lich/hang-cho", params={"moc": "la"}, headers=h).status_code == 422

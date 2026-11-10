@@ -1286,9 +1286,13 @@ select.input {
 
 /* ---- IN: chỉ chừa tờ .qpdf, chảy qua nhiều trang A4 (bám cơ chế print của Tính giá) ---- */
 @media print {
-  /* Le trang theo Nghi dinh 30/2020/ND-CP: tren/duoi 20-25mm, trai 30-35mm,
-     phai 15-20mm. Le trai rong de dong/luu ho so. */
-  @page { size: A4; margin: 20mm 20mm 20mm 30mm; }
+  /* Lề trang của TRÌNH DUYỆT bằng 0: Chrome in giờ, tiêu đề trang, đường dẫn và số trang vào
+     chính dải lề này khi ô "Đầu trang và chân trang" trong hộp in đang tick (07/11/2026 tờ báo
+     giá gửi khách dính "Sao Việt Nhật — Hệ thống ERP" và https://svn.superbai.io/?man=bao-gia).
+     Lề 0 thì không còn chỗ để in. Lề thật (Nghị định 30/2020: trên/dưới 20mm, trái 30mm để đóng
+     hồ sơ, phải 20mm) chuyển thành padding của `.qpdf` bên dưới, lặp lại ở MỖI trang nhờ
+     `box-decoration-break: clone` — không có nó thì báo giá dài sang trang 2 dính sát mép giấy. */
+  @page { size: A4; margin: 0; }
   body:has(.qpdf) .shell > *:not(.shell__main),
   body:has(.qpdf) .shell__main > *:not(.shell__content) { display: none !important; }
   body:has(.qpdf) .shell__content { padding: 0 !important; overflow: visible !important; }
@@ -1316,9 +1320,14 @@ select.input {
   }
   body:has(.qpdf) .bg__dialog-head,
   body:has(.qpdf) .bg__dialog-actions { display: none !important; }
-  /* Khi in, @page đã cầm khổ và lề → tờ phải nhả bề ngang/lề của bản xem trước, không thì cộng
-     dồn thành lề đôi và tràn sang trang thứ hai. */
-  body:has(.qpdf) .qpdf { max-height: none !important; min-height: 0 !important; overflow: visible !important; padding: 0 !important; width: auto !important; margin: 0 !important; }
+  /* Khi in, @page cầm khổ → tờ nhả bề ngang/chiều cao của bản xem trước. Lề do chính tờ cầm
+     (xem @page ở trên), cắt lại theo từng trang. */
+  body:has(.qpdf) .qpdf {
+    max-height: none !important; min-height: 0 !important; overflow: visible !important;
+    width: auto !important; margin: 0 !important;
+    padding: 20mm 20mm 20mm 30mm !important;
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
   /* Letterhead + ảnh minh họa là ảnh MÀU: máy in/PDF nào cũng phải in đúng màu, không được
      "tiết kiệm mực" bỏ nền. */
   body:has(.qpdf) .qpdf .q-mh,
@@ -1966,6 +1975,16 @@ select.input {
 .rdx-quote table.bg-dong tbody td:has(.o2tab, .pricecell, .markcell) { padding-top: 12px; }
 /* Số kết quả (giá bán, giá sau kê) nổi nhờ màu mực cạnh giá vốn xám — không cần chữ đậm. */
 .rdx-quote table.bg-dong td.strong { font-weight: 500; color: var(--ink); }
+/* Thêm cột Đơn giá (08/11/2026) là 9 cột: cột Sản phẩm bị ép còn ~100px, tên và từng dòng quy cách
+   in ("KT: 90×50mm") gãy vụn. Giữ cột này đủ một dòng quy cách; khung hẹp hơn thì cuộn ngang. Thẻ
+   điện thoại (`data-the`) không cần. */
+.rdx-quote table.bg-dong:not([data-the]) > thead > tr > th:first-child,
+.rdx-quote table.bg-dong:not([data-the]) > tbody > tr > td:first-child { min-width: 210px; }
+/* Dòng "Gõ tay · Về theo lợi nhuận" dưới giá bán được xuống hàng — để liền một dòng thì cột Giá bán
+   phình ~190px và bảng 9 cột tràn ở màn 1440. */
+.rdx-quote table.bg-dong .pricecell .meta { flex-wrap: wrap; justify-content: flex-end; row-gap: 2px; }
+/* Ô Đơn giá chứa số nhỏ hơn giá bán nhiều — hẹp hơn để nhường chỗ cho cột Sản phẩm. */
+.rdx-quote .pricecell--dg .nf.money { width: 112px; }
 .rdx-quote tr.qrow--con > td:first-child {
   padding-left: 22px;
   /* Ray dọc suốt các dòng thuộc nhóm + kẻ đóng ở dòng cuối → thấy rõ nhóm hết ở đâu. */

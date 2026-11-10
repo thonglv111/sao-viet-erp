@@ -3,9 +3,7 @@
 // `default` (prefill khi tạo), `jsonKey` (lưu lồng vào fields_theo_loai).
 // Enum hiển thị bằng thuật ngữ in ấn thuần Việt — dùng chung 1 bảng nhãn cho cả dropdown lẫn cột.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CatalogConfig, ChuanBiKhoanRow } from "./RebuildCatalogPage";
-import { tongChuanBi } from "./RebuildCatalogPage";
-import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
+import type { CatalogConfig } from "./RebuildCatalogPage";
 import { nhanTramDai, tenDonVi, tramOptions } from "./tenDonVi";
 import { NHOM_CONG_DOAN, ngayGio } from "./keHoachSxShared";
 import { QuyDoiCuaDonVi } from "./QuyDoiCuaDonVi";
@@ -18,6 +16,7 @@ import { CodeLink } from "../components/CodeLink";
 import { useCan } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { useDieuHuongDanhMuc } from "./danh-muc/dieuHuong";
+import { NganHangThuongMai } from "./danh-muc/NganHangThuongMai";
 import { ApiError, anhNho, assetUrl, authed } from "../api/client";
 import { crud, trangThaiMay, type Row, type TrangThaiMay } from "../api/rebuildCatalog";
 
@@ -264,21 +263,7 @@ export const CFG_MAY: CatalogConfig = {
       ], [r.hang_san_xuat, r.model, r.so_seri ? `Seri ${String(r.so_seri)}` : ""].filter(Boolean).join("\n")) },
     // Cột "Khổ máy & Vùng in" + "Chừa lề tờ in" ĐÃ ẨN (04/09/2026): mọi ô đổ ra hai cột này đã
     // rút khỏi form khai, để lại cột thì bảng chỉ còn bày số cũ mà không ai sửa được ở đâu nữa.
-    { key: "toc_do", label: "Tốc độ & Chuẩn bị", w: 230,
-      render: (r) => {
-        const nSpeed = r.toc_do ? `${Number(r.toc_do).toLocaleString("vi-VN")} ${nhanDonViTocDo(r)}` : null;
-        const box = (r.fields_theo_loai ?? {}) as Record<string, unknown>;
-        const khoan = box.chuan_bi_khoan as ChuanBiKhoanRow[] | undefined;
-        const tongKhoan = Array.isArray(khoan) && khoan.length > 0 ? tongChuanBi(khoan) : 0;
-        const totalMakeready = tongKhoan > 0 ? tongKhoan : (Number(r.makeready_time_default) || 0);
-
-        if (!nSpeed && !totalMakeready) return "";
-        return doc([
-          nSpeed ? <span key="t">{nSpeed}</span> : null,
-          totalMakeready > 0 ? <span key="c" className="lds-u">Chuẩn bị {totalMakeready} phút</span> : null,
-        ], [nSpeed, totalMakeready > 0 ? `Chuẩn bị ${totalMakeready} phút` : ""].filter(Boolean).join("\n"));
-      }
-    },
+    // Cột "Tốc độ & Chuẩn bị" GỠ 08/11/2026 (bỏ tốc độ máy, docs/design-go-toc-do-may-va-xep-lich.md §1).
     // Trạng thái LÚC NÀY — dẫn xuất từ sự cố + vùng khoá + lệnh đang chạy (`loadExtra` bên dưới).
     // Cố ý KHÔNG đẻ lại cột `trang_thai` trên máy: cột đó từng có và bị gỡ 11/08/2026 vì là ô khai
     // tay không ai vào sửa, nên máy đang nằm vẫn hiện "đang hoạt động".
@@ -314,9 +299,8 @@ export const CFG_MAY: CatalogConfig = {
   // Khai máy vẫn chia 3 tab theo việc: cuộn một mạch thì khối Lịch bảo trì nằm tít dưới đáy,
   // ai vào sửa chu kỳ cũng phải lướt hết phần vận hành.
   tabsKhai: [
+    // Tab "Thông số kỹ thuật" GỠ 08/11/2026 (bỏ tốc độ máy); Ghi chú về tab Thông tin chung.
     { id: "chung", label: "Thông tin chung", groups: ["Thông tin chung"] },
-    { id: "ky-thuat", label: "Thông số kỹ thuật",
-      groups: ["Tốc độ & Vận hành", "Ghi chú"] },
     { id: "bao-tri", label: "Lịch bảo trì", groups: ["Bảo trì định kỳ"] },
   ],
   fields: [
@@ -335,91 +319,14 @@ export const CFG_MAY: CatalogConfig = {
     // Khổ kẽm · Vùng in max · Chừa lề tờ in · Khổ giấy min/max ĐÃ ẨN (04/09/2026): mấy số này chỉ
     // phục vụ bình bài THEO MÁY ở phiếu tính giá, mà ô "Máy in" của phiếu cũng vừa ẩn cùng đợt.
     // Cột DB + engine giữ nguyên (phiếu cũ đã gắn máy vẫn tính đúng), chỉ không bày ra form nữa.
-    // ── 2. Tốc độ & Năng suất vận hành ───────────────────────────────────────
-    { key: "toc_do", label: "Tốc độ trung bình", type: "number", group: "Tốc độ & Vận hành" },
-    // Dải tốc độ BÀY LẠI (08/09/2026). Lần ẩn trước (04/09/2026) đi kèm lời "dải tốc độ chỉ để
-    // khai, không nối vào công thức nào" — nay KHÔNG còn đúng: `lsxBuoc.ts`, `lsx_service` và
-    // `xep_lich_service` đều đọc hai số này để ra khoảng nhanh–chậm ("Biên độ tốc độ máy" ở drawer
-    // bước, râu Gantt). Ẩn ô mà engine vẫn đọc ⇒ người khai thấy một khoảng 130h–312h không biết
-    // từ đâu ra và không có cửa nào sửa. Chưa khai thì cả ba mức bằng nhau, không vẽ khoảng.
-    { key: "toc_do_min", label: "Tốc độ tối thiểu", type: "number", group: "Tốc độ & Vận hành" },
-    { key: "toc_do_max", label: "Tốc độ tối đa", type: "number", group: "Tốc độ & Vận hành" },
-    { key: "don_vi_toc_do", label: "Đơn vị tốc độ", type: "don_vi_toc_do",
-      refPrefix: "/api/don-vi", refParams: { size: 200 },
-      group: "Tốc độ & Vận hành", default: "to_gio" },
-    // Ô "Cách đo lượng theo đơn vị tốc độ" ĐÃ GỠ (06/09/2026): cách đo nay khai theo CẶP (công
-    // đoạn × máy) ở drawer Công đoạn — cùng một máy chạy hai công đoạn thì đo khác nhau.
-    // Ô "Số người vận hành tiêu chuẩn" ĐÃ GỠ (06/09/2026, mg `0270`): kíp nay khai MỘT chỗ duy
-    // nhất là định mức đầu việc của công đoạn, và mọi loại bước lệnh đều điền sẵn từ đó.
-    // Ô "Ca làm việc của máy này" ĐÃ BỎ (2026-08-10): máy là thiết bị, bàn xếp lịch cho chạy
-    // LIÊN TỤC (chỉ dừng vì ngày nghỉ/lễ + vùng khoá máy). Ca là chuyện của người và khai một chỗ
-    // ở Nhân sự → Ca kíp; tăng ca thì cứ xếp việc vào giờ đó, khỏi sửa danh mục máy.
-    // Ô "Thời gian rửa mực" ĐÃ BỎ (2026-08-04): vệ sinh/rửa mực gỡ khỏi hệ, engine xếp lịch
-    // thôi cộng vào thời gian chiếm máy. Cột DB giữ dormant — đừng khai lại ô này.
-    { key: "_chuan_bi_kieu", label: "Thời gian chuẩn bị", type: "select", group: "Tốc độ & Vận hành",
-      default: "trong",
-      options: [
-        { value: "trong", label: "Để trống — chưa khai" },
-        { value: "tong", label: "Điền tổng — gõ thẳng một số" },
-        { value: "khoan", label: "Theo từng khoản — máy tự cộng" },
-      ] },
-    { key: "makeready_time_default", label: "Tổng thời gian chuẩn bị (phút)", type: "number",
-      group: "Tốc độ & Vận hành",
-      showIf: (f) => f._chuan_bi_kieu === "tong" },
-    { key: "chuan_bi_khoan", label: "Các khoản chuẩn bị", type: "chuan_bi_khoan",
-      group: "Tốc độ & Vận hành", jsonKey: "fields_theo_loai",
-      showIf: (f) => f._chuan_bi_kieu === "khoan" },
+    // ── Tốc độ, đơn vị tốc độ, thời gian chuẩn bị GỠ 08/11/2026 (bỏ tốc độ máy): lệnh thôi tính
+    // giờ chạy theo tốc độ. Cột DB giữ nguyên; form không gửi các khoá này nên số cũ nằm yên.
     // ── 6. Bảo trì định kỳ (lưu lồng trong fields_theo_loai — KHÔNG cột mới, KHÔNG migration) ─
     { key: "lich_bao_tri", label: "Lịch bảo trì định kỳ", type: "lich_bao_tri",
       group: "Bảo trì định kỳ", jsonKey: "fields_theo_loai", phanHe: "sua_chua" },
-    // ── 7. Ghi chú ───────────────────────────────────────────────────────────
-    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
+    // ── 7. Ghi chú (về tab Thông tin chung từ 08/11/2026) ─────────────────────
+    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Thông tin chung" },
   ],
-  // Đơn vị tốc độ là Ô CHỌN 2 giá trị, không suy từ `loai_may`: nhóm máy ở đây là CHỮ TỰ DO
-  // ("Máy in", "Bế", "Cán màng / UV"…) nên suy theo nó là đoán, mà đoán sai thì lệnh SX lặng lẽ
-  // bỏ qua tốc độ. Chỉ bày 2 lựa chọn đang dùng thật (tờ/giờ · kẽm/giờ), không đổ hết 5 đơn vị.
-  // Kiểu chuẩn bị KHÔNG có cột riêng — SUY từ dữ liệu đã lưu. Thêm cột "kiểu" là đẻ trạng thái
-  // thứ hai có thể đá nhau với chính dữ liệu (kiểu="khoản" mà danh sách rỗng thì tin ai?).
-  deriveInitial: (existing) => {
-    const box = (existing?.fields_theo_loai ?? {}) as Record<string, unknown>;
-    const khoan = box.chuan_bi_khoan;
-    const co_khoan = Array.isArray(khoan) && khoan.length > 0;
-    const co_tong = existing?.makeready_time_default != null && existing.makeready_time_default !== "";
-    return { _chuan_bi_kieu: co_khoan ? "khoan" : co_tong ? "tong" : "trong" };
-  },
-  transformSubmit: (body, form, existing) => {
-    const out: Record<string, unknown> = {
-      ...body,
-      // Đơn vị đi theo BẤT KỲ ô tốc độ nào có số, không riêng ô trung bình: khai mỗi dải
-      // nhanh–chậm mà đơn vị bị xoá thì lệnh SX coi như lệch đơn vị và bỏ qua tốc độ trong im lặng.
-      don_vi_toc_do: (body.toc_do || body.toc_do_min || body.toc_do_max)
-        ? (body.don_vi_toc_do || "to_gio") : null,
-    };
-    // Ô CHỈ ĐỂ UI, không có cột — gửi lên là 422.
-    delete out._chuan_bi_kieu;
-
-    // Đổi kiểu phải DỌN kiểu cũ. Form chỉ gửi field ĐANG HIỆN, mà backend gán từng phần
-    // (`if k in data`) ⇒ không dọn thì số cũ nằm lại: chuyển "tổng 30" sang "để trống" vẫn còn 30,
-    // và `deriveInitial` lần sau đọc được nó rồi lật ngược kiểu về "tổng".
-    const kieu = form._chuan_bi_kieu;
-    // ⚠️ Nền phải là JSON CŨ của bản ghi, không phải {}: ở kiểu "tổng"/"trống" thì ô các-khoản bị
-    // ẩn nên `body.fields_theo_loai` không tồn tại — dựng lại từ số 0 là XOÁ SẠCH các khoá khác
-    // của cột này (thông số riêng của máy web/digital/flexo… đều nằm trong đó).
-    const box = {
-      ...((existing?.fields_theo_loai as Record<string, unknown>) ?? {}),
-      ...((out.fields_theo_loai as Record<string, unknown>) ?? {}),
-    };
-    if (kieu === "khoan") {
-      const rows = (Array.isArray(box.chuan_bi_khoan) ? box.chuan_bi_khoan : []) as ChuanBiKhoanRow[];
-      // Tổng do MÁY cộng — đây là số Xếp lịch đọc. Nguồn chân lý vẫn là một cột duy nhất.
-      out.makeready_time_default = tongChuanBi(rows) || null;
-    } else {
-      box.chuan_bi_khoan = [];
-      if (kieu === "trong") out.makeready_time_default = null;
-    }
-    out.fields_theo_loai = box;
-    return out;
-  },
 };
 
 export const CFG_CONG_DOAN: CatalogConfig = {
@@ -748,6 +655,69 @@ export const CFG_VAT_TU: CatalogConfig = {
     { key: "cong_thuc_dinh_muc", label: "Công thức định mức", type: "formula",
       nhanTab: "Công thức định mức", loaiO: "quy_doi", chipsTu: "chips",
       hint: "Số lượng vật tư này tiêu hao cho MỘT bước; lệnh sản xuất tự tính, không nhập tay." },
+  ],
+};
+
+// HÀNG THƯƠNG MẠI (08/11/2026, chỉ In Hà Phương — phân hệ `thuong_mai`, docs/design-hang-thuong-mai-ha-phuong.md
+// §3): hàng mua về bán, không qua sản xuất. Cùng bảng `vat_tu_in_an`, với kho vẫn là "vat_tu". Giá bán
+// khai theo TỪNG ĐVT, không quy đổi. Máy chủ xoá cột giá khi thiếu ô Xem giá của màn này.
+//
+// 09/11/2026 phương án A (docs/mockups/hang-thuong-mai-3-phuong-an.html, tham khảo Sapo): cột ĐVT và
+// cột Giá bán nhập thành một cột "Giá bán" mỗi đơn vị một thẻ; thêm cột Tồn đọc sổ kho; form gộp ba ô
+// ĐVT / Đơn vị thêm / Giá bán thành bảng "Đơn vị bán và giá"; hàng lọc trạng thái nói "Đang bán /
+// Ngừng bán".
+const dvCuaDong = (r: Row): string[] => {
+  const ds = [String(r.don_vi_gia ?? ""), ...(Array.isArray(r.don_vi_them) ? (r.don_vi_them as unknown[]).map(String) : [])];
+  return ds.map((m) => m.trim().toLowerCase()).filter((m, i, a) => m && a.indexOf(m) === i);
+};
+const giaBanCell = (r: Row) => {
+  const dvt = dvCuaDong(r);
+  if (dvt.length === 0) return <span className="lds-cam">Chưa chọn đơn vị</span>;
+  const g = r.gia_ban_theo_dvt && typeof r.gia_ban_theo_dvt === "object" ? (r.gia_ban_theo_dvt as Record<string, number>) : null;
+  // Không có ô Xem giá: máy chủ không trả giá ⇒ chỉ hiện đơn vị bán, không bịa "chưa đặt giá".
+  if (!g) return doc(dvt.map((ma) => <span key={ma} className="lds-tag">{tenDonVi(ma) ?? ma}</span>));
+  const coGia = dvt.filter((ma) => g[ma] != null);
+  if (coGia.length === 0) return <span className="lds-cam">Chưa đặt giá</span>;
+  const thieu = dvt.filter((ma) => g[ma] == null);
+  return doc([
+    ...coGia.map((ma) => <span key={ma} className="lds-tag">{`${g[ma].toLocaleString("vi-VN")} đ/${tenDonVi(ma) ?? ma}`}</span>),
+    ...thieu.map((ma) => <span key={`t-${ma}`} className="lds-tag lds-cam">{`${tenDonVi(ma) ?? ma} chưa đặt giá`}</span>),
+  ]);
+};
+/** Tồn cộng mọi kho, tách theo đơn vị gốc của lô (máy chủ gắn `ton_theo_dvt`). Không còn lô nào thì
+ *  "Hết hàng" — với người bán, chưa nhập bao giờ và bán hết là một: không có hàng để giao. */
+const tonCell = (r: Row) => {
+  const t = r.ton_theo_dvt && typeof r.ton_theo_dvt === "object" ? (r.ton_theo_dvt as Record<string, number>) : {};
+  const ds = Object.entries(t).filter(([, so]) => so > 0);
+  if (ds.length === 0) return <span className="lds-cam">Hết hàng</span>;
+  return doc(ds.map(([ma, so]) => (
+    <span key={ma} className="lds-tag">{`${so.toLocaleString("vi-VN")} ${tenDonVi(ma) ?? ma}`}</span>
+  )));
+};
+
+export const CFG_HANG_THUONG_MAI: CatalogConfig = {
+  title: "Hàng thương mại",
+  moduleQuyen: "hang_thuong_mai",
+  enableClone: true,
+  prefix: "/api/vat-lieu-kho/hang-thuong-mai",
+  nhatKyLoai: "hang_thuong_mai",
+  man: "hang-thuong-mai",
+  dieuKien: [{ key: "don_vi_gia", nhan: "Đơn vị giá", icon: "don-vi" }],
+  softDelete: true,
+  nhanTrangThai: { dung: "Đang bán", ngung: "Ngừng bán" },
+  nganRieng: NganHangThuongMai,
+  widthMa: 130,
+  widthTen: 260,
+  columns: [
+    { key: "gia_ban_theo_dvt", label: "Giá bán", w: 260, render: (r) => giaBanCell(r) },
+    { key: "ton_theo_dvt", label: "Tồn", w: 200, render: (r) => tonCell(r) },
+    { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
+  ],
+  fields: [
+    { key: "gia_ban_theo_dvt", label: "Đơn vị bán và giá", type: "don-vi-ban-gia", refPrefix: "/api/don-vi",
+      group: "Thông tin chung",
+      hint: "Dòng đầu là đơn vị chính. Dòng đơn tự lấy giá theo đơn vị bán; đơn vị để trống giá thì người bán gõ ở dòng đơn." },
+    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
   ],
 };
 
@@ -1260,6 +1230,31 @@ export const CFG_MUC_THU_CHI: CatalogConfig = {
   ],
 };
 
+// XE GIAO HÀNG kiểu Hà Phương (08/11/2026, chỉ bản cài bật `giao_hang_hp`,
+// docs/design-giao-hang-ha-phuong.md): biển số, tên xe, người phụ trách. Không có mức khoán km.
+// Lúc Xuất hàng chọn người giao thì ô Xe tự điền xe người đó phụ trách.
+export const CFG_XE_GIAO_HANG: CatalogConfig = {
+  title: "Xe giao hàng",
+  moduleQuyen: "xe_giao_hang",
+  prefix: "/api/xe-giao-hang",
+  nhatKyLoai: "xe_giao_hang",
+  nhanMa: "Biển số",
+  khongGoiYMa: true,
+  // Xoá mềm: xe bán đi vẫn giữ tên cho các lần giao cũ.
+  softDelete: true,
+  man: "xe-giao-hang",
+  columns: [
+    { key: "nguoi_phu_trach_ten", label: "Người phụ trách", w: 220,
+      render: (r) => (r.nguoi_phu_trach_ten ? String(r.nguoi_phu_trach_ten) : "") },
+    { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
+  ],
+  fields: [
+    // `hint` của ô ref-search là placeholder: giữ một dòng ngắn.
+    { key: "nguoi_phu_trach_id", label: "Người phụ trách", type: "ref-search",
+      refPrefix: "/api/giao-hang-hp/nguoi-giao", group: "Thông tin", hint: "Chọn người giao…" },
+    { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Thông tin" },
+  ],
+};
 
 export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
   "khai-bao-kho": CFG_KHO_HANG,
@@ -1269,7 +1264,9 @@ export const REBUILD_CONFIGS: Record<string, CatalogConfig> = {
   "giay": CFG_GIAY,
   "vat-tu-in-an": CFG_VAT_TU,
   "thanh-pham": CFG_THANH_PHAM,
+  "hang-thuong-mai": CFG_HANG_THUONG_MAI,
   "khuon-be": CFG_KHUON_BE,
   "xe": CFG_XE,
+  "xe-giao-hang": CFG_XE_GIAO_HANG,
   "muc-thu-chi": CFG_MUC_THU_CHI,
 };

@@ -1,12 +1,12 @@
-/** Thanh lọc của màn Kế hoạch sản xuất (06/10/2026) — HAI bảng trên cùng một màn: tab "Lệnh sản xuất"
- *  và tab "Hàng chờ tiếp nhận". Lọc + đếm ở máy chủ; thanh lọc chung lo giao diện.
+/** Thanh lọc của màn Lệnh sản xuất (06/10/2026) — BA bảng trên cùng một màn (08/11/2026): tab "Hàng chờ
+ *  tiếp nhận", "Tạo lệnh" và "Lệnh sản xuất". Lọc + đếm ở máy chủ; thanh lọc chung lo giao diện.
  *
- *  Một màn chỉ có MỘT dấu `?man=` trên URL, nên hai bảng chung một trạng thái: khoá của hàng chờ mang
- *  tiền tố `c_` (`c_ky`, `c_khach`…) để không đè khoá của bảng lệnh. */
+ *  Một màn chỉ có MỘT dấu `?man=` trên URL, nên ba bảng chung một trạng thái: khoá của hàng chờ mang
+ *  tiền tố `c_`, của tab Tạo lệnh mang `t_` (`c_ky`, `t_khach`…) để không đè khoá của bảng lệnh. */
 import { useEffect, useMemo, useState } from "react";
-import { Factory, FileText, Users } from "lucide-react";
+import { Factory, FileText, UserCheck, Users } from "lucide-react";
 
-import { api, type LuaChonLoc, type ThamSoLoc } from "../../api/client";
+import { api, type CheDoCho, type LuaChonLoc, type ThamSoLoc } from "../../api/client";
 import { useAuth } from "../../auth/useAuth";
 import type { GiaTriUrl } from "../ke-toan/shared/urlMan";
 import { kyLenUrl, kyTuUrl, soLenUrl, soTuUrl, type KyDS } from "../thanh-loc/ky-danh-sach";
@@ -16,7 +16,6 @@ import type { DieuKien, GiaTriDK } from "../thanh-loc/thanh-loc";
 // --- Bảng lệnh -------------------------------------------------------------------------------
 export const MOC_LENH_KHSX: [string, string][] = [
   ["tao", "Ngày tạo"],
-  ["han_sx", "Hạn sản xuất"],
   ["han_giao", "Hạn giao khách"],
 ];
 
@@ -52,23 +51,26 @@ export const MOC_HANG_CHO: [string, string][] = [
   ["chuyen", "Lúc chuyển xuống sản xuất"],
 ];
 
-export type LocHangCho = { khach?: number };
+/** Dùng chung cho hai tab Hàng chờ tiếp nhận và Tạo lệnh: khách + người phụ trách. */
+export type LocHangCho = { khach?: number; nguoi?: number };
 
 export const LOC_HANG_CHO_TRONG: LocHangCho = {};
 
 export function thamSoLocHangCho(loc: LocHangCho): ThamSoLoc {
-  return { customer_id: loc.khach };
+  return { customer_id: loc.khach, nguoi_phu_trach_id: loc.nguoi };
 }
 
 // --- Trạng thái chung của màn + URL ---------------------------------------------------------
 export type LocKhsx = {
   lenh: { ky: KyDS; loc: LocLenhKhsx };
   cho: { ky: KyDS; loc: LocHangCho };
+  tao: { ky: KyDS; loc: LocHangCho };
 };
 
 export const LOC_KHSX_TRONG: LocKhsx = {
   lenh: { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_LENH_KHSX_TRONG },
   cho: { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_HANG_CHO_TRONG },
+  tao: { ky: { loai: "tat_ca", moc: "tao" }, loc: LOC_HANG_CHO_TRONG },
 };
 
 /** Bộ lọc sau khi tạo lệnh cho một đơn: sang bảng lệnh, lọc đúng đơn đó; kỳ về "Tất cả" (giữ mốc) để
@@ -80,23 +82,34 @@ export function locKhsxSauKhiTao(cu: LocKhsx, orderId: number, orderNo?: string)
   };
 }
 
-const TIEN_TO_CHO = "c_";
-
-/** Khoá có tiền tố `c_` của hàng chờ → bộ khoá trần để dùng lại `kyTuUrl`. */
-function boTienTo(p: URLSearchParams): URLSearchParams {
+/** Khoá có tiền tố (`c_` hàng chờ, `t_` Tạo lệnh) → bộ khoá trần để dùng lại `kyTuUrl`. */
+function boTienTo(p: URLSearchParams, tienTo: string): URLSearchParams {
   const ra = new URLSearchParams();
   p.forEach((v, k) => {
-    if (k.startsWith(TIEN_TO_CHO)) ra.set(k.slice(TIEN_TO_CHO.length), v);
+    if (k.startsWith(tienTo)) ra.set(k.slice(tienTo.length), v);
   });
   return ra;
 }
 
-function themTienTo(g: GiaTriUrl): GiaTriUrl {
-  return Object.fromEntries(Object.entries(g).map(([k, v]) => [`${TIEN_TO_CHO}${k}`, v]));
+function themTienTo(g: GiaTriUrl, tienTo: string): GiaTriUrl {
+  return Object.fromEntries(Object.entries(g).map(([k, v]) => [`${tienTo}${k}`, v]));
+}
+
+function choTuUrl(c: URLSearchParams): { ky: KyDS; loc: LocHangCho } {
+  return {
+    ky: kyTuUrl(c, MOC_HANG_CHO.map(([m]) => m), "tao"),
+    loc: { khach: soTuUrl(c.get("khach")), nguoi: soTuUrl(c.get("nguoi")) },
+  };
+}
+
+function choLenUrl(t: { ky: KyDS; loc: LocHangCho }, tienTo: string): GiaTriUrl {
+  return themTienTo(
+    { ...kyLenUrl(t.ky, "tao"), khach: soLenUrl(t.loc.khach), nguoi: soLenUrl(t.loc.nguoi) },
+    tienTo,
+  );
 }
 
 export function locKhsxTuUrl(p: URLSearchParams): LocKhsx {
-  const c = boTienTo(p);
   return {
     lenh: {
       ky: kyTuUrl(p, MOC_LENH_KHSX.map(([m]) => m), "tao"),
@@ -107,10 +120,8 @@ export function locKhsxTuUrl(p: URLSearchParams): LocKhsx {
         gia_cong: giaCongTuUrl(p.get("gc")),
       },
     },
-    cho: {
-      ky: kyTuUrl(c, MOC_HANG_CHO.map(([m]) => m), "tao"),
-      loc: { khach: soTuUrl(c.get("khach")) },
-    },
+    cho: choTuUrl(boTienTo(p, "c_")),
+    tao: choTuUrl(boTienTo(p, "t_")),
   };
 }
 
@@ -121,7 +132,8 @@ export function locKhsxLenUrl(t: LocKhsx): GiaTriUrl {
     don: soLenUrl(t.lenh.loc.don),
     dn: t.lenh.loc.don != null ? t.lenh.loc.nhan : undefined,
     gc: t.lenh.loc.gia_cong,
-    ...themTienTo({ ...kyLenUrl(t.cho.ky, "tao"), khach: soLenUrl(t.cho.loc.khach) }),
+    ...choLenUrl(t.cho, "c_"),
+    ...choLenUrl(t.tao, "t_"),
   };
 }
 
@@ -178,13 +190,21 @@ export function useDieuKienLenhKhsx(tick: number, locDangAp?: LocLenhKhsx): Dieu
   ];
 }
 
-export function useDieuKienHangCho(tick: number): DieuKien<LocHangCho>[] {
-  const khach = useLuaChonTick(api.lsx.hangChoKhachLoc, tick);
+/** Ô lọc của tab Hàng chờ tiếp nhận (`giao`) hoặc Tạo lệnh (`tao`). `tat` = không nạp (tab đó không
+ *  dành cho người xem, gọi máy chủ chỉ ăn 403). */
+export function useDieuKienHangCho(tick: number, cheDo: CheDoCho, tat = false): DieuKien<LocHangCho>[] {
+  const khach = useLuaChonTick((t) => (tat ? Promise.resolve([]) : api.lsx.hangChoKhachLoc(t, cheDo)), tick);
+  const nguoi = useLuaChonTick((t) => (tat ? Promise.resolve([]) : api.lsx.hangChoPhuTrachLoc(t, cheDo)), tick);
   return [
     {
       khoa: "khach", nhan: "Khách hàng", icon: Users, kieu: "mot", tim: true, giaTri: khach,
       doc: (l) => idThanhChu(l.khach),
       ghi: (l, v) => ({ ...l, khach: chuThanhId(v) }),
+    },
+    {
+      khoa: "nguoi", nhan: "Người phụ trách", icon: UserCheck, kieu: "mot", tim: true, giaTri: nguoi,
+      doc: (l) => idThanhChu(l.nguoi),
+      ghi: (l, v) => ({ ...l, nguoi: chuThanhId(v) }),
     },
   ];
 }

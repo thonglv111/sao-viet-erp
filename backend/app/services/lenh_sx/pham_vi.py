@@ -45,6 +45,20 @@ def sale_ids_theo_pham_vi(db: Session, user: User, authz, module_key: str) -> se
     return nhom_dung_chung_user_ids(db, user.id)
 
 
+def phu_trach_ids_theo_pham_vi(db: Session, user: User, authz, module_key: str) -> set[int] | None:
+    """Tập `users.id` NGƯỜI PHỤ TRÁCH mà `user` được nhìn (08/11/2026, Lệnh sản xuất + tab Tạo lệnh).
+    Của tôi = chính mình; Cả phòng = người trong phòng mình và phòng con; Tất cả = None."""
+    scope = authz.scope_for(user, module_key) or SCOPE_OWN
+    if scope == SCOPE_ALL:
+        return None
+    if scope == SCOPE_DEPARTMENT:
+        dept_ids = dept_subtree_ids(db, user.department_id)
+        if dept_ids:
+            ids = db.execute(select(User.id).where(User.department_id.in_(dept_ids))).scalars().all()
+            return set(ids) | {user.id}
+    return {user.id}
+
+
 def chu_don():
     """Biểu thức SQL chủ của một đơn — cùng một biểu thức với `OrderRepository._scope_condition`."""
     return chu_theo_khach(Order.customer_id, Order.sale_user_id)

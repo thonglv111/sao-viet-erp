@@ -22,7 +22,13 @@ CHAM_CONG = "cham_cong"
 SUA_CHUA = "sua_chua"
 # Kê giá ở báo giá (03/11/2026): không có module riêng, tắt thì kê luôn 0, rào kê của khách bỏ qua.
 KE_GIA = "ke_gia"
-CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA, KE_GIA)
+# CHỈ In Hà Phương (08/11/2026): hàng thương mại và giao hàng kiểu Hà Phương. Mặc định TẮT, bật bằng
+# `PHAN_HE_BAT` (docs/design-hang-thuong-mai-ha-phuong.md, docs/design-giao-hang-ha-phuong.md).
+THUONG_MAI = "thuong_mai"
+GIAO_HANG_HP = "giao_hang_hp"
+CHI_BAT_KHI_KHAI = frozenset({THUONG_MAI, GIAO_HANG_HP})
+CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA, KE_GIA, THUONG_MAI,
+               GIAO_HANG_HP)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.
@@ -35,13 +41,20 @@ MODULE_CUA_PHAN_HE: dict[str, frozenset[str]] = {
     # Sửa chữa & bảo dưỡng: Sửa chữa máy + Phiếu bảo trì (03/11/2026). `may-chon` của router
     # ky_thuat_may gác theo quyền tổ, không theo module ⇒ bàn tổ vẫn Đổi máy được.
     SUA_CHUA: frozenset({"ky_thuat_may", "phieu_bao_tri"}),
+    THUONG_MAI: frozenset({"hang_thuong_mai"}),
+    GIAO_HANG_HP: frozenset({"xe_giao_hang"}),
 }
 
 
 def phan_he_tat() -> frozenset[str]:
-    """Tập phân hệ đang tắt. Đọc lại mỗi lần (rẻ) để test đổi `settings.phan_he_tat` là ăn ngay."""
-    chuoi = get_settings().phan_he_tat or ""
-    return frozenset(t.strip().lower() for t in chuoi.split(",") if t.strip())
+    """Tập phân hệ đang tắt. Đọc lại mỗi lần (rẻ) để test đổi `settings.phan_he_tat` là ăn ngay.
+
+    = `PHAN_HE_TAT` ∪ (phân hệ chỉ-bật-khi-khai − `PHAN_HE_BAT`). Gộp ở đây nên mọi cổng sẵn có (quyền,
+    router, ma trận, `useTat` ở giao diện) tự gác cả phân hệ mới, không phải sửa cổng nào."""
+    s = get_settings()
+    def _tach(chuoi: str | None) -> frozenset[str]:
+        return frozenset(t.strip().lower() for t in (chuoi or "").split(",") if t.strip())
+    return _tach(s.phan_he_tat) | (CHI_BAT_KHI_KHAI - _tach(getattr(s, "phan_he_bat", "")))
 
 
 def tat(ten: str) -> bool:

@@ -32,7 +32,15 @@ def id_cong_doan_he_thong(db, ma: str) -> int | None:
         return None
     nho = db.info.setdefault("id_cong_doan_he_thong", {})
     if ma not in nho:
-        nho[ma] = db.scalar(select(CongDoan.id).where(CongDoan.ma == ma))
+        # Một lượt lập/lưu lệnh hỏi tới 7 mã khác nhau ⇒ nạp cả bộ mã hệ thống bằng một câu.
+        from ..models.cong_doan import CD_HE_THONG
+
+        tim = dict(db.execute(
+            select(CongDoan.ma, CongDoan.id).where(CongDoan.ma.in_(list(CD_HE_THONG)))
+        ).all())
+        for m in CD_HE_THONG:
+            nho.setdefault(m, tim.get(m))
+        nho.setdefault(ma, tim.get(ma))
     return nho[ma]
 
 
@@ -103,6 +111,19 @@ class CongDoanRepository(CatalogRepo):
 
     # ⚠️ `piece_rates()` + `piece_rates_active()` GỠ 18/09/2026 (mg `0320`): công đoạn thôi khai
     #    đầu việc nên không còn chỗ nào tra `piece_rates` từ màn này.
+
+    def buoc_lenh_thieu_bo_phan(self, cong_doan_id: int) -> list:
+        """Bước nội bộ (Máy/Tổ) của lệnh CHƯA lập kế hoạch, gắn công đoạn này mà chưa có bộ phận
+        nhận — thường do lệnh bung lúc công đoạn chưa tick nhóm nào."""
+        from ..models.lsx import LB_MAY, LB_TO, TRANG_THAI_SUA_DUOC, Lsx, LsxCongDoan
+
+        return list(self.db.execute(
+            select(LsxCongDoan).join(Lsx, Lsx.id == LsxCongDoan.lsx_id).where(
+                LsxCongDoan.cong_doan_id == cong_doan_id,
+                LsxCongDoan.department_id.is_(None),
+                LsxCongDoan.loai_buoc.in_((LB_MAY, LB_TO)),
+                Lsx.trang_thai.in_(TRANG_THAI_SUA_DUOC),
+            )).scalars())
 
     def mays(self, ids: set[int]) -> dict[int, MayThietBi]:
         """Máy theo id — service dùng để chặn id không tồn tại / máy đã thanh lý (`may_id` là
@@ -199,7 +220,10 @@ class CongDoanRepository(CatalogRepo):
                 dong = CongDoanMay(may_id=mid)
                 cd.may_khai.append(dong)
                 cu[mid] = dong
-            dong.cong_thuc_gio = r.get("cong_thuc_gio")
+            # Bỏ tốc độ máy (08/11/2026): form và Excel thôi gửi `cong_thuc_gio` — vắng khoá thì
+            # giữ câu cũ trong DB, không ghi null.
+            if "cong_thuc_gio" in r:
+                dong.cong_thuc_gio = r.get("cong_thuc_gio")
             dong.cong_thuc_gia = r.get("cong_thuc_gia")
             dong.thu_tu = i
             i += 1

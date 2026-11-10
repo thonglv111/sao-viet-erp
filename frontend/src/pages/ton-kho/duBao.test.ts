@@ -9,7 +9,7 @@ const tinhDuBao = (ton: number, du: DuBaoTonRow | undefined, th: StockThreshold 
   tinhGoc(ton, du, th, HOM_NAY);
 
 const lenh = (ma: string, han: string | null, can: number) =>
-  ({ ma, lsx_id: 1, bai_ghep_id: null, ten_viec: "In", khach_ten: null, han_sx: han, can, da_giu: 0 });
+  ({ ma, lsx_id: 1, bai_ghep_id: null, ten_viec: "In", khach_ten: null, han_giao: han, can, da_giu: 0 });
 const row = (p: Partial<DuBaoTonRow>): DuBaoTonRow => ({
   hang_loai: "giay", hang_id: 5, kho_rong: 650, kho_dai: 860, ton_toan_xuong: null,
   can_lenh: 0, dang_ve: 0, lenh: [], ve: [], phieu_mua: [], ...p,

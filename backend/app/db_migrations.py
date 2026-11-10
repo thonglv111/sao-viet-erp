@@ -19364,3 +19364,374 @@ def _migrate_giu_cho_bon_so_le(db: Session) -> None:
 
 
 MIGRATIONS.append(("0453_giu_cho_bon_so_le", _migrate_giu_cho_bon_so_le))
+
+
+def _migrate_go_bleed_khe_cat(db: Session) -> None:
+    """0454 (07/11/2026) — gỡ `phieu_thanh_phan.bleed_mm` + `khe_cat_mm` (thêm ở mg 0108). Chủ dự
+    án bỏ hai ô "Bleed (tràn lề)" và "Khe cắt giữa con" trên phiếu tính giá: bình bài lấy đúng kích
+    thước thành phẩm, xếp sát nhau. Giữ cột mà không còn ô nhập thì số cũ vẫn âm thầm đổi số con/tờ
+    ⇒ DROP hẳn. Ảnh chụp quy cách của lệnh cũ còn khoá `bleed_mm` trong JSON thì không ai đọc nữa."""
+    insp = inspect(db.get_bind())
+    if "phieu_thanh_phan" not in insp.get_table_names():
+        return
+    cols = _existing_columns(insp, "phieu_thanh_phan")
+    for col in ("bleed_mm", "khe_cat_mm"):
+        if col in cols:
+            db.execute(text(f"ALTER TABLE phieu_thanh_phan DROP COLUMN {col}"))
+    db.commit()
+
+
+MIGRATIONS.append(("0454_go_bleed_khe_cat", _migrate_go_bleed_khe_cat))
+
+
+def _bo_phan_theo_cay(db: Session) -> dict[int, int]:
+    """`{phòng: bộ phận chứa nó}` cho mọi phòng thuộc khối Sản xuất (bộ phận = con trực tiếp của
+    phòng tự bật `la_san_xuat`). Raw SQL, đọc một lượt — bảng phòng ban nhỏ."""
+    rows = db.execute(text("SELECT id, parent_id, la_san_xuat FROM departments")).all()
+    cha = {int(r[0]): (int(r[1]) if r[1] is not None else None) for r in rows}
+    goc = {int(r[0]) for r in rows if r[2]}
+    ra: dict[int, int] = {}
+    for did in cha:
+        cur, seen = did, set()
+        while cur is not None and cur not in seen:
+            seen.add(cur)
+            p = cha.get(cur)
+            if p is None:
+                break
+            if p in goc:
+                ra[did] = cur
+                break
+            cur = p
+    return ra
+
+
+def _migrate_ke_hoach_bo_phan(db: Session) -> None:
+    """0455 (07/11/2026) — Lệnh sản xuất + Kế hoạch bộ phận (`docs/design-lenh-san-xuat-ke-hoach-bo-phan.md`).
+
+    1. `san_xuat_cong_viec` thêm `bo_phan_id`, `da_giao_at`, `da_giao_by_id`, `thu_tu_xep`,
+       `nhom_xep_id`. Việc
+       đã phát hành trước đây đều đã nằm ở bàn tổ ⇒ backfill coi như ĐÃ GIAO (`da_giao_at =
+       created_at`), bộ phận = bộ phận chứa tổ của việc. Xưởng không mất việc đang chạy.
+    2. Bước lệnh và bước chung bài ghép: `department_id` nay là BỘ PHẬN NHẬN, không còn là tổ. Bước
+       đang trỏ một nhóm thì đổi sang bộ phận chứa nhóm đó.
+    3. Module quyền `ke_hoach_bo_phan` mới — chép quyền từ `xep_lich` (người phát lệnh cũng là người
+       xếp việc cho đến khi quản trị cấp lại theo bộ phận). Module `san_xuat` đổi nhãn "Lệnh sản xuất".
+    Idempotent: cột kiểm trước khi thêm; backfill chỉ đụng dòng chưa có `bo_phan_id`.
+    Đọc cột/bảng TRƯỚC lệnh ghi đầu tiên (inspector sau UPDATE trên SQLite mất dữ liệu)."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    cols = _existing_columns(insp, "san_xuat_cong_viec") if "san_xuat_cong_viec" in tables else set()
+    rp_cols = (sorted(_existing_columns(insp, "role_permissions"))
+               if "role_permissions" in tables else [])
+    la_pg = (db.get_bind().dialect.name or "") == "postgresql"
+    if "san_xuat_cong_viec" in tables:
+        moi = {
+            "bo_phan_id": "INTEGER",
+            "da_giao_at": "TIMESTAMP WITH TIME ZONE" if la_pg else "TIMESTAMP",
+            "da_giao_by_id": "INTEGER",
+            "thu_tu_xep": "INTEGER",
+            "nhom_xep_id": "INTEGER",
+        }
+        for c, kieu in moi.items():
+            if c not in cols:
+                db.execute(text(f"ALTER TABLE san_xuat_cong_viec ADD COLUMN {c} {kieu}"))
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_san_xuat_cong_viec_bo_phan_id "
+            "ON san_xuat_cong_viec (bo_phan_id)"))
+    bp = _bo_phan_theo_cay(db) if "departments" in tables else {}
+    if "san_xuat_cong_viec" in tables and bp:
+        viec = db.execute(text(
+            "SELECT id, department_id FROM san_xuat_cong_viec "
+            "WHERE bo_phan_id IS NULL AND department_id IS NOT NULL")).all()
+        for vid, dept in viec:
+            if int(dept) in bp:
+                db.execute(text(
+                    "UPDATE san_xuat_cong_viec SET bo_phan_id = :b, "
+                    "da_giao_at = COALESCE(da_giao_at, created_at) WHERE id = :i"),
+                    {"b": bp[int(dept)], "i": vid})
+    for bang in ("lsx_cong_doan", "bai_ghep_cong_doan"):
+        if bang not in tables or not bp:
+            continue
+        for rid, dept in db.execute(text(
+                f"SELECT id, department_id FROM {bang} WHERE department_id IS NOT NULL")).all():
+            dich = bp.get(int(dept))
+            if dich is not None and dich != int(dept):
+                db.execute(text(f"UPDATE {bang} SET department_id = :b WHERE id = :i"),
+                           {"b": dich, "i": rid})
+    if {"modules", "role_permissions"} <= tables:
+        db.execute(text(
+            "INSERT INTO modules (key, label, created_at) "
+            "SELECT :k, :l, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+            {"k": "ke_hoach_bo_phan", "l": "Kế hoạch bộ phận"})
+        chep = [c for c in rp_cols if c not in ("id", "module_key")]
+        db.execute(text(
+            f"INSERT INTO role_permissions (module_key, {', '.join(chep)}) "
+            f"SELECT :moi, {', '.join('rp.' + c for c in chep)} FROM role_permissions rp "
+            "WHERE rp.module_key = :cu AND NOT EXISTS (SELECT 1 FROM role_permissions x "
+            "  WHERE x.role_id = rp.role_id AND x.module_key = :moi)"),
+            {"cu": "xep_lich", "moi": "ke_hoach_bo_phan"})
+        db.execute(text("UPDATE modules SET label = :l WHERE key = :k"),
+                   {"k": "san_xuat", "l": "Lệnh sản xuất"})
+    db.commit()
+
+
+MIGRATIONS.append(("0455_ke_hoach_bo_phan", _migrate_ke_hoach_bo_phan))
+
+
+def _migrate_giao_don_lam_lenh(db: Session) -> None:
+    """0456 (08/11/2026) — giao đơn ở Hàng chờ tiếp nhận cho người làm lệnh
+    (docs/design-giao-don-lam-lenh.md). Bốn cột trên `orders`: người được giao, lúc giao, người giao,
+    lúc người được giao mở đơn lần đầu (chấm "chưa mở"). Đơn đang chờ lúc lên bản ở trạng thái Chưa
+    giao (NULL) — không backfill. Ô quyền "Giao đơn" dùng lại cột có sẵn `role_permissions.can_reassign`
+    của khoá `san_xuat`, không đổi schema quyền.
+
+    Idempotent: đọc cột TRƯỚC lệnh ghi đầu tiên rồi chỉ thêm cột còn thiếu."""
+    insp = inspect(db.get_bind())
+    if "orders" not in insp.get_table_names():
+        return
+    cols = _existing_columns(insp, "orders")
+    la_pg = (db.get_bind().dialect.name or "") == "postgresql"
+    tg = "TIMESTAMP WITH TIME ZONE" if la_pg else "TIMESTAMP"
+    nguoi = "INTEGER REFERENCES users(id) ON DELETE CASCADE"  # luật chung mg 0327
+    moi = {
+        "nguoi_lam_lenh_id": nguoi,
+        "giao_lam_lenh_at": tg,
+        "nguoi_giao_lam_lenh_id": nguoi,
+        "nguoi_lam_lenh_mo_at": tg,
+    }
+    for c, kieu in moi.items():
+        if c not in cols:
+            db.execute(text(f"ALTER TABLE orders ADD COLUMN {c} {kieu}"))
+    db.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_orders_nguoi_lam_lenh_id ON orders (nguoi_lam_lenh_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0456_giao_don_lam_lenh", _migrate_giao_don_lam_lenh))
+
+
+def _migrate_cham_don_chuyen_sx_chi_nguoi_giao(db: Session) -> None:
+    """0457 (08/11/2026) — chấm đỏ "đơn mới chuyển sản xuất" chỉ dành cho người có ô Giao đơn.
+
+    Từ 0456 dòng `don_chuyen_sx` ghi kèm `required_action='reassign'`; dòng cũ ghi trước đó để NULL
+    nên ai có quyền Xem ở Lệnh sản xuất (kể cả người làm lệnh chưa được giao gì) vẫn thấy chấm.
+    Gắn lại ô quyền cho các dòng cũ đó. Idempotent: chỉ đụng dòng còn NULL."""
+    insp = inspect(db.get_bind())
+    if "module_notifications" not in insp.get_table_names():
+        return
+    db.execute(text(
+        "UPDATE module_notifications SET required_action = 'reassign' "
+        "WHERE channel = 'san_xuat' AND event_type = 'don_chuyen_sx' AND required_action IS NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0457_cham_don_chuyen_sx_chi_nguoi_giao", _migrate_cham_don_chuyen_sx_chi_nguoi_giao))
+
+
+def _chep_quyen_module(db: Session, insp, *, cu: str, moi: str, nhan: str) -> None:
+    """Khai module quyền MỚI `moi` và chép nguyên bit của `cu` cho mọi vai đang có `cu` (cùng khuôn
+    mg 0296). Module mới nằm trong `SCOPELESS_MODULES` ⇒ scope ghi thẳng 'all'. Idempotent."""
+    bang = set(insp.get_table_names())
+    if "modules" in bang:
+        db.execute(
+            text("INSERT INTO modules (key, label, created_at) "
+                 "SELECT :k, :l, CURRENT_TIMESTAMP "
+                 "WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+            {"k": moi, "l": nhan},
+        )
+    if "role_permissions" in bang:
+        cols = sorted(_existing_columns(insp, "role_permissions"))
+        chep = [c for c in cols if c not in ("id", "module_key")]
+        chon = ["'all'" if c == "scope" else f"rp.{c}" for c in chep]
+        db.execute(
+            text(
+                f"INSERT INTO role_permissions (module_key, {', '.join(chep)}) "
+                f"SELECT :moi, {', '.join(chon)} FROM role_permissions rp "
+                "WHERE rp.module_key = :cu AND NOT EXISTS ("
+                "  SELECT 1 FROM role_permissions x "
+                "  WHERE x.role_id = rp.role_id AND x.module_key = :moi)"
+            ),
+            {"cu": cu, "moi": moi},
+        )
+
+
+def _migrate_hang_thuong_mai(db: Session) -> None:
+    """0460 (08/11/2026) — danh mục Hàng thương mại, chỉ In Hà Phương dùng
+    (docs/design-hang-thuong-mai-ha-phuong.md §3).
+
+    · `vat_tu_in_an.la_hang_thuong_mai BOOLEAN NOT NULL DEFAULT false` — công tắc màn thứ ba.
+    · `vat_tu_in_an.gia_ban_theo_dvt JSON NULL` — giá bán theo từng ĐVT.
+    · Module quyền `hang_thuong_mai`, chép bit từ `dm_vat_tu` (người khai vật tư khai luôn hàng thương
+      mại). Bản cài không bật phân hệ thì module coi như không ai có quyền (`app.phan_he`).
+    Không backfill: dòng cũ đều là vật tư hoặc thành phẩm. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "vat_tu_in_an" in insp.get_table_names():
+        cot = _existing_columns(insp, "vat_tu_in_an")
+        if "la_hang_thuong_mai" not in cot:
+            db.execute(text(
+                "ALTER TABLE vat_tu_in_an ADD COLUMN la_hang_thuong_mai BOOLEAN NOT NULL DEFAULT false"))
+        if "gia_ban_theo_dvt" not in cot:
+            db.execute(text("ALTER TABLE vat_tu_in_an ADD COLUMN gia_ban_theo_dvt JSON"))
+    _chep_quyen_module(db, insp, cu="dm_vat_tu", moi="hang_thuong_mai", nhan="Hàng thương mại")
+    db.commit()
+
+
+MIGRATIONS.append(("0460_hang_thuong_mai", _migrate_hang_thuong_mai))
+
+
+def _migrate_don_thuong_mai(db: Session) -> None:
+    """0461 (08/11/2026) — đơn thương mại, chỉ In Hà Phương (docs/design-hang-thuong-mai-ha-phuong.md §6).
+
+    · `order_lines.hang_thuong_mai_id INTEGER NULL` + index — soft → `vat_tu_in_an.id` (hàng thương mại).
+    `orders.source_type` nhận thêm giá trị `thuong_mai`: cột String(16) sẵn có, không đổi kiểu. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "order_lines" in insp.get_table_names():
+        if "hang_thuong_mai_id" not in _existing_columns(insp, "order_lines"):
+            db.execute(text("ALTER TABLE order_lines ADD COLUMN hang_thuong_mai_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_order_lines_hang_thuong_mai_id "
+                        "ON order_lines (hang_thuong_mai_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0461_don_thuong_mai", _migrate_don_thuong_mai))
+
+
+def _migrate_luot_xuat_thuong_mai(db: Session) -> None:
+    """0462 (08/11/2026) — lượt xuất của đơn thương mại, chỉ In Hà Phương
+    (docs/design-hang-thuong-mai-ha-phuong.md §7–8).
+
+    · Hai bảng `luot_xuat_thuong_mai` / `luot_xuat_thuong_mai_dong` — bảng mới, `create_all` tạo.
+    · `stock_requests.luot_xuat_tm_id INTEGER NULL` + index — yêu cầu XUẤT sinh từ lượt (soft ref).
+    · `sales_invoices.luot_xuat_tm_id INTEGER NULL` + index — hoá đơn lập theo lượt xuất (soft ref).
+    Không backfill. Idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    for t in ("stock_requests", "sales_invoices"):
+        if t not in bang:
+            continue
+        if "luot_xuat_tm_id" not in _existing_columns(insp, t):
+            db.execute(text(f"ALTER TABLE {t} ADD COLUMN luot_xuat_tm_id INTEGER"))
+        db.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{t}_luot_xuat_tm_id ON {t} (luot_xuat_tm_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0462_luot_xuat_thuong_mai", _migrate_luot_xuat_thuong_mai))
+
+
+def _migrate_giao_hang_hp(db: Session) -> None:
+    """0463 (08/11/2026) — giao hàng kiểu In Hà Phương, chỉ bản cài bật `giao_hang_hp`
+    (docs/design-giao-hang-ha-phuong.md).
+
+    · Ba bảng mới `xe_giao_hang`, `phuong_thuc_giao_hp`, `phieu_chi_cuoc_giao` — `create_all` tạo.
+    · `suppliers.la_don_vi_van_chuyen BOOLEAN NOT NULL DEFAULT false` — cờ Đơn vị vận chuyển.
+    · Module quyền `xe_giao_hang`, chép bit từ `dm_xe` (người khai xe cũ khai luôn xe mới). Bản cài
+      không bật phân hệ thì module coi như không ai có quyền (`app.phan_he`).
+    Không backfill, không seed. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "suppliers" in insp.get_table_names():
+        if "la_don_vi_van_chuyen" not in _existing_columns(insp, "suppliers"):
+            db.execute(text(
+                "ALTER TABLE suppliers ADD COLUMN la_don_vi_van_chuyen BOOLEAN NOT NULL DEFAULT false"))
+    _chep_quyen_module(db, insp, cu="dm_xe", moi="xe_giao_hang", nhan="Xe giao hàng")
+    db.commit()
+
+
+MIGRATIONS.append(("0463_giao_hang_hp", _migrate_giao_hang_hp))
+
+
+KET_MOC_CU = "Giờ cũ của bàn kéo thả, chưa phải giờ hẹn đẩy. Hẹn lại giờ."
+
+
+def _migrate_xep_lich_hen_day(db: Session) -> None:
+    """0470 (08/11/2026) — bàn Xếp lịch thành bàn hẹn đẩy (docs/design-go-toc-do-may-va-xep-lich.md).
+
+    · `xep_lich_lenh.nguoi_hen_id INTEGER NULL` — soft → `users.id`; backfill = `created_by` (mốc cũ
+      coi như do người đặt mốc hẹn).
+    · `xep_lich_lenh.ket_ly_do TEXT NULL`, `xep_lich_lenh.ket_luc TIMESTAMPTZ NULL` — tới giờ mà đẩy
+      không được. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "xep_lich_lenh" not in insp.get_table_names():
+        return
+    co = _existing_columns(insp, "xep_lich_lenh")
+    # Đọc TRƯỚC lệnh ghi đầu tiên: inspector gọi sau UPDATE trên SQLite cuốn mất phần đã ghi.
+    lsx_co_tt = ("lsx" in insp.get_table_names()
+                 and "trang_thai" in _existing_columns(insp, "lsx"))
+    kieu_gio = "TIMESTAMP WITH TIME ZONE" if db.get_bind().dialect.name == "postgresql" else "DATETIME"
+    them_hen = "nguoi_hen_id" not in co
+    if them_hen:
+        db.execute(text("ALTER TABLE xep_lich_lenh ADD COLUMN nguoi_hen_id INTEGER"))
+    if "ket_ly_do" not in co:
+        db.execute(text("ALTER TABLE xep_lich_lenh ADD COLUMN ket_ly_do TEXT"))
+    if "ket_luc" not in co:
+        db.execute(text(f"ALTER TABLE xep_lich_lenh ADD COLUMN ket_luc {kieu_gio}"))
+    if them_hen:
+        from .models.lsx import TT_DA_LAP_KE_HOACH, TT_SAN_SANG
+
+        db.execute(text("UPDATE xep_lich_lenh SET nguoi_hen_id = created_by WHERE nguoi_hen_id IS NULL"))
+        # Mốc cũ của bàn kéo thả là giờ BẮT ĐẦU chạy, không phải giờ hẹn đẩy, và đa phần đã trôi
+        # qua: để nguyên thì vòng tự đẩy thả cả loạt lệnh xuống xưởng ngay phút đầu. Lệnh chưa đẩy
+        # mang mốc cũ vào tab Kẹt kèm lý do, người điều phối hẹn lại giờ.
+        if lsx_co_tt:
+            db.execute(text(
+                "UPDATE xep_lich_lenh SET ket_ly_do = :ly_do, ket_luc = CURRENT_TIMESTAMP "
+                "WHERE lsx_id IN (SELECT id FROM lsx WHERE trang_thai IN (:a, :b))"),
+                {"ly_do": KET_MOC_CU, "a": TT_SAN_SANG, "b": TT_DA_LAP_KE_HOACH})
+    db.commit()
+
+
+MIGRATIONS.append(("0470_xep_lich_hen_day", _migrate_xep_lich_hen_day))
+
+
+def _migrate_ke_hoach_tung_bo_phan(db: Session) -> None:
+    """0471 (08/11/2026; số gốc 0456 trùng Giao đơn nên đổi lúc gộp dev 09/11/2026).
+
+    Kế hoạch bộ phận thôi là MỘT mục ở khối Sản xuất: mỗi bộ phận có mục
+    "Kế hoạch" của riêng nó dưới khối Tổ sản xuất, và MỘT DÒNG QUYỀN riêng `ke_hoach_bp_<id bộ phận>`
+    (cùng khuôn dòng theo tổ / theo kho; chủ dự án: "mỗi module sinh ra phải có quyền tương ứng").
+
+    1. Sinh dòng `ke_hoach_bp_<id>` cho mọi bộ phận hiện có (sau này `dong_bo_dong_quyen_ke_hoach`
+       giữ khớp cây lúc khởi động). Vai đang có Xem ở dòng cũ `ke_hoach_bo_phan` được chép Xem (và
+       Giao việc nếu có Thao tác) sang MỌI dòng mới, phạm vi Tất cả — dòng theo bộ phận không có
+       phạm vi theo người. Dự án chưa có người dùng thật nên chép rộng không lộ gì.
+    2. Gỡ dòng cũ `ke_hoach_bo_phan` cùng mọi ô đã cấp.
+    3. Gỡ cột `san_xuat_cong_viec.thu_tu_xep`: kế hoạch không sắp thứ tự chạy nữa (doc §11).
+    Idempotent. Đọc cột/bảng TRƯỚC lệnh ghi đầu tiên."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    cols = _existing_columns(insp, "san_xuat_cong_viec") if "san_xuat_cong_viec" in tables else set()
+    co_cot = ([c for c in sorted(_existing_columns(insp, "role_permissions")) if c.startswith("can_")]
+              if "role_permissions" in tables else [])
+    bp = sorted(set(_bo_phan_theo_cay(db).values())) if "departments" in tables else []
+    if {"modules", "role_permissions", "departments"} <= tables:
+        ten = dict(db.execute(text("SELECT id, name FROM departments")).all())
+        cu = db.execute(text(
+            "SELECT role_id, can_update FROM role_permissions "
+            "WHERE module_key = 'ke_hoach_bo_phan' AND can_read")).all()
+        for b in bp:
+            k = f"ke_hoach_bp_{b}"
+            db.execute(text(
+                "INSERT INTO modules (key, label, created_at) "
+                "SELECT :k, :l, CURRENT_TIMESTAMP WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = :k)"),
+                {"k": k, "l": f"Kế hoạch {ten.get(b, b)}"})
+            for role_id, sua in cu:
+                # Mọi cột `can_*` khác phải ghi rõ False: mặc định của chúng chỉ nằm ở ORM.
+                gia_tri = {c: False for c in co_cot}
+                gia_tri.update({"can_read": True, "can_update": bool(sua)})
+                db.execute(text(
+                    f"INSERT INTO role_permissions (role_id, module_key, scope, {', '.join(gia_tri)}) "
+                    f"SELECT :r, :k, 'all', {', '.join(':' + c for c in gia_tri)} "
+                    "WHERE NOT EXISTS (SELECT 1 FROM role_permissions "
+                    "  WHERE role_id = :r AND module_key = :k)"),
+                    {"r": role_id, "k": k, **gia_tri})
+        db.execute(text("DELETE FROM role_permissions WHERE module_key = 'ke_hoach_bo_phan'"))
+        db.execute(text("DELETE FROM modules WHERE key = 'ke_hoach_bo_phan'"))
+    if "thu_tu_xep" in cols:
+        db.execute(text("ALTER TABLE san_xuat_cong_viec DROP COLUMN thu_tu_xep"))
+    db.commit()
+
+
+MIGRATIONS.append(("0471_ke_hoach_tung_bo_phan", _migrate_ke_hoach_tung_bo_phan))
+
+# 0472 (09/11/2026) — bản đầu của 0456 tạo hai FK người làm lệnh / người giao trên `orders` với ON DELETE
+# SET NULL, trái luật mg 0327. Chạy lại đúng bước 0327: nó quét mọi FK tới `users` chưa CASCADE và đổi.
+MIGRATIONS.append(("0472_user_fks_delete_cascade_lan_2", _migrate_user_fks_delete_cascade))

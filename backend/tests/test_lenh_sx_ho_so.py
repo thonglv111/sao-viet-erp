@@ -123,7 +123,7 @@ def lenh_cua_sale_b(sess, admin, customer) -> int:
     """Lệnh ĐÃ PHÁT HÀNH của một người bán KHÁC (admin) — Sale A không được thấy nội dung."""
     return _lenh_tho(
         sess, ma="LSX-HS-B", sale_user_id=admin.id, customer_id=customer.id,
-        han_sx=date(2026, 9, 9), ten="Lệnh của người bán khác",
+        han_giao=date(2026, 9, 9), ten="Lệnh của người bán khác",
     )
 
 

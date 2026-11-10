@@ -21,6 +21,10 @@ import { fmtDate, fmtDateTimePhut } from "../../../utils/format";
 import { NHAN_TRANG_THAI_YC } from "../giao-hang/shared/constants";
 import { CHUYEN_THAT_BAI, nhanChuyen, TONE_YC } from "../giao-hang/shared/helpers";
 import { ChipTT, type MauTT } from "../../../components/LuoiDs";
+import { giaoHangHpApi } from "../../../api/giaoHangHp";
+import {
+  boCachGiao, CACH_GIAO_TRONG, ChonCachGiao, loiCachGiao, type CachGiao,
+} from "../../giao-hang-hp/ChonCachGiao";
 
 // Lời gọi tiến độ bắn SẴN lúc bấm mở đơn, chạy SONG SONG với lời gọi chi tiết đơn. Trước 06/10/2026
 // ngăn đơn chỉ hỏi tiến độ sau khi chi tiết đơn về (ngăn mới mount) ⇒ ô Sản xuất / Giao hiện trễ
@@ -131,31 +135,6 @@ export function tomTatTienDo(td: DonTienDo | null) {
   };
 }
 
-/** Băng cảnh báo trễ: CHỈ khi dự kiến xong SX trễ so với hạn giao cam kết. "Kịp hạn" và "chưa ước
- *  được ngày xong" là thẻ nhỏ ở câu "việc tiếp theo" (05/10/2026) — băng đỏ chỉ dành cho việc trễ thật. */
-export function CanhBaoTre({ td }: { td: DonTienDo | null }) {
-  if (!td || td.tre_ngay == null || td.tre_ngay <= 0) return null;
-  const lyDo = td.ly_do.map((k) => NHAN_LY_DO_TRE[k] ?? k).join(", ");
-  return (
-    <div className="banner banner--error dhb__td-tre" role="alert">
-      Dự kiến xong sản xuất {fmtDate(td.du_kien_xong)} — <b>trễ {td.tre_ngay} ngày</b> so với hạn
-      giao {fmtDate(td.han_cam_ket)}.{lyDo ? ` Lý do: ${lyDo}.` : ""}
-    </div>
-  );
-}
-
-/** "HH:mm dd/mm" giờ xưởng — đủ để biết đơn chờ từ lúc nào, khỏi năm. */
-function gioNgay(iso: string): string {
-  const d = new Date(/[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso) || !iso.includes("T") ? iso : `${iso}Z`);
-  if (Number.isNaN(d.getTime())) return iso;
-  const p = d.toLocaleString("en-GB", {
-    timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", hour12: false,
-  });
-  // en-GB ⇒ "05/10, 13:54"
-  const [ngay, gio] = p.split(", ");
-  return gio ? `${gio} ${ngay}` : p;
-}
-
 function soNgayToi(han: string, homNay: Date): number {
   const [y, m, d] = han.slice(0, 10).split("-").map(Number);
   const moc = Date.UTC(y, m - 1, d);
@@ -169,8 +148,9 @@ export type TheViec = { nhan: string; tone?: "ok" | "warn" | "bad"; loai?: "han"
 export type ViecTiepTheo = {
   cau: string;
   the: TheViec[];
-  /** Nút đi kèm: mở bàn Kế hoạch SX, hoặc chọn một chặng trong vòng đời. */
-  nut?: { nhan: string; toi: "ke-hoach-sx" | "coc" | "giao" | "hoadon" };
+  /** Nút đi kèm: chọn một chặng trong vòng đời. Nút "Mở Lệnh sản xuất" gỡ 10/11/2026: lệnh mở từ bảng
+   *  Sản xuất ngay dưới. */
+  nut?: { nhan: string; toi: "coc" | "giao" | "hoadon" };
 };
 
 /** Câu "việc tiếp theo" đầu khối Vòng đời đơn (05/10/2026, phương án A): đơn đang chờ AI làm gì, từ
@@ -215,21 +195,10 @@ export function viecTiepTheo(o: {
   const cum = td.cum;
   const lenh = cum.flatMap((c) => c.lenh);
   const chuaNguon = cum.filter((c) => !c.co_lenh && coHangCum(c) < c.dat);
-  if (chuaNguon.length > 0) {
-    const cau = lenh.length === 0
-      ? "Chờ Kế hoạch lên lệnh sản xuất"
-      : `Chờ Kế hoạch lên lệnh cho ${chuaNguon.length === 1 ? chuaNguon[0].ten : `${chuaNguon.length} món`}`;
-    return {
-      cau,
-      the: [{ nhan: `chuyển xuống ${gioNgay(o.chuyenSxLuc)}` }, ...the],
-      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
-    };
-  }
-  // Mốc dự kiến xong SX so với hạn giao: trễ là băng đỏ riêng (`CanhBaoTre`), ở đây chỉ thẻ nhỏ.
-  const theSx: TheViec[] = td.du_kien_xong
-    ? [{ nhan: `dự kiến xong ${fmtDate(td.du_kien_xong).replace(/\/\d{4}$/, "")}` },
-      td.tre_ngay ? { nhan: `trễ ${td.tre_ngay} ngày`, tone: "bad" } : { nhan: "kịp hạn giao", tone: "ok" }]
-    : td.chua_du_du_lieu ? [{ nhan: "chưa ước được ngày xong" }] : [];
+  // Món chưa có lệnh: chặng Sản xuất đã ghi "chờ lệnh" và bảng Sản xuất ghi từng món chờ Kế hoạch lên
+  // lệnh ⇒ dòng việc không nói lại, chỉ còn thẻ đi kèm và hạn giao (10/11/2026).
+  if (chuaNguon.length > 0) return { cau: "", the };
+  // Thẻ "dự kiến xong" và băng trễ GỠ 08/11/2026 cùng tốc độ máy.
 
   // Đủ hàng (kể cả nhờ tồn có sẵn của mã) thì việc kế tiếp là GIAO — không còn chờ xưởng hay KCS.
   // Lệnh của đơn mà vẫn chạy thì chạy xong sẽ ra hàng dư: nhắc một thẻ, không tự huỷ (12/10/2026).
@@ -245,14 +214,13 @@ export function viecTiepTheo(o: {
     const cau = choKho.length === 1
       ? `Kho chưa nhận ${so(c.cho_kho)} ${c.don_vi ?? ""} ${c.ten} KCS đã gửi`.replace(/\s+/g, " ")
       : `Kho chưa nhận hàng KCS đã gửi ở ${choKho.length} món`;
-    return { cau, the: [...theSx, ...the] };
+    return { cau, the };
   }
   const chuaXuong = tt.khoXong ? [] : lenh.filter((l) => !l.xong && !l.da_xuong_xuong);
   if (chuaXuong.length > 0) {
     return {
       cau: chuaXuong.length === 1 ? `${chuaXuong[0].ma} chưa xuống xưởng` : `${chuaXuong.length} lệnh chưa xuống xưởng`,
       the,
-      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
     };
   }
   const dangChay = tt.khoXong ? [] : lenh.filter((l) => !l.xong);
@@ -261,7 +229,7 @@ export function viecTiepTheo(o: {
     const cau = dangChay.length === 1
       ? `Xưởng đang chạy ${l.ma}${l.buoc_hien_tai ? `, đang ${l.buoc_hien_tai}` : ""}`
       : `Xưởng đang chạy ${dangChay.length} lệnh`;
-    return { cau, the: [...theSx, ...the] };
+    return { cau, the };
   }
   // Lệnh đã đóng mà chưa đủ hàng: không còn gì đang tới — nói thẳng thiếu bao nhiêu và lối đi tiếp
   // (làm bù ở Kế hoạch SX, hoặc thỏa thuận giao thiếu), thay vì "chờ KCS" chẳng bao giờ tới (11/10/2026).
@@ -276,7 +244,6 @@ export function viecTiepTheo(o: {
     return {
       cau,
       the: [{ nhan: "làm bù hoặc thỏa thuận giao thiếu với khách", tone: "bad" }, ...the],
-      nut: { nhan: "Mở Kế hoạch SX", toi: "ke-hoach-sx" },
     };
   }
   if (!tt.khoXong) return { cau: "Chờ KCS gửi thành phẩm sang kho", the };
@@ -759,6 +726,10 @@ function FormYeuCau({
   navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
+  // In Hà Phương (`giao_hang_hp`): Xuất hàng bắt chọn cách giao, gửi qua đường giao hàng HP.
+  const tatPh = useTat();
+  const hpGiao = xuat && !sua && !tatPh("giao_hang_hp");
+  const [cach, setCach] = useState<CachGiao>(CACH_GIAO_TRONG);
   const HOM_NAY = homNay();
   const nn = td.noi_nhan;
   const coTheoDon = Boolean(nn.dia_chi?.trim());
@@ -819,6 +790,7 @@ function FormYeuCau({
     };
     const p: Promise<unknown> = sua
       ? api.giaoHang.updateRequest(token, sua.id, { ngay_can_giao: ngay, ...noiNhan })
+      : hpGiao ? giaoHangHpApi.xuatHang(token, { ...moi, ghi_chu: ghiChu.trim() || null, phuong_thuc: boCachGiao(cach) })
       : xuat ? api.giaoHang.xuatHang(token, { ...moi, ghi_chu: ghiChu.trim() || null })
       : api.giaoHang.createRequest(token, moi);
     p.then(onXong)
@@ -834,6 +806,7 @@ function FormYeuCau({
     : vuot ? "Số lượng vượt phần giao được"
     : !ngay ? "Chọn ngày cần giao"
     : ngayQuaKhu ? "Ngày cần giao đã qua"
+    : hpGiao ? loiCachGiao(cach)
     : null;
   const tomTat = sua ? "Chỉ sửa ngày và nơi nhận — số lượng giữ như lúc lập"
     : `${xuat ? "Xuất" : "Giao"} ${dong.length} sản phẩm`;
@@ -960,6 +933,8 @@ function FormYeuCau({
             <span>{luuY}</span>
           </div>
         )}
+
+        {hpGiao && <ChonCachGiao value={cach} onChange={setCach} />}
 
         {xuat && (
           <label className="pform__field">

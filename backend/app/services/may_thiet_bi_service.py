@@ -133,27 +133,8 @@ class MayThietBiService(CatalogService):
         if kminr and kmaxr and kminr > kmaxr:
             raise MayThietBiValidationError("Khổ min (rộng) > khổ max. [E-MAY-KHO]")
 
-        toc_do = data.get("toc_do")
-        dvtd = data.get("don_vi_toc_do")
-        if toc_do is not None and _f(toc_do) <= 0:
-            raise MayThietBiValidationError("Tốc độ phải > 0. [E-MAY-SPEED]")
-        # Dải tốc độ: chỉ kiểm những ô ĐÃ khai. Không ép khai đủ ba — khai mỗi trung bình là
-        # trường hợp thường gặp nhất, bắt điền đủ chỉ tổ làm người ta gõ số bừa cho qua.
-        td_min, td_max = data.get("toc_do_min"), data.get("toc_do_max")
-        for nhan, v in (("tối thiểu", td_min), ("tối đa", td_max)):
-            if v is not None and _f(v) <= 0:
-                raise MayThietBiValidationError(f"Tốc độ {nhan} phải > 0. [E-MAY-SPEED]")
-        if td_min is not None and td_max is not None and _f(td_min) > _f(td_max):
-            raise MayThietBiValidationError(
-                "Tốc độ tối thiểu > tối đa. [E-MAY-SPEED-RANGE]")
-        if toc_do is not None:
-            if td_min is not None and _f(td_min) > _f(toc_do):
-                raise MayThietBiValidationError(
-                    "Tốc độ tối thiểu > tốc độ trung bình. [E-MAY-SPEED-RANGE]")
-            if td_max is not None and _f(td_max) < _f(toc_do):
-                raise MayThietBiValidationError(
-                    "Tốc độ tối đa < tốc độ trung bình. [E-MAY-SPEED-RANGE]")
-        _ = dvtd  # đơn vị tốc độ khớp loai_may — cảnh báo mềm, không chặn ở MVP.
+        # Kiểm dải tốc độ GỠ 08/11/2026 (bỏ tốc độ máy): form thôi khai tốc độ, số cũ còn trong DB
+        # (kể cả số vô lý từ trước) không được chặn đường sửa máy.
 
     # -- reads --
     def dem_theo_loai(self, **kw) -> dict[str, int]:

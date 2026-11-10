@@ -290,7 +290,10 @@ class _BuocAo:
 
 
 def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
-    """Thời lượng 1 bước, tính TẠI CHỖ (không lưu cột) — nguồn số cho Gantt.
+    """Thời lượng 1 bước, tính TẠI CHỖ (không lưu cột).
+
+    ⚠️ Từ 08/11/2026 bước MÁY KHÔNG còn tính theo tốc độ (xem chú thích trong thân hàm): chỉ còn
+    "thời gian khác", `phuong_phap = "khong_tinh"`. Đoạn dưới là lịch sử công thức cũ.
 
     CÔNG THỨC (chốt 2026-08-04, chỉ áp cho bước loại MÁY)::
 
@@ -356,15 +359,14 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
 
     # THUÊ NGOÀI KHÔNG đi đường máy nữa (26/09/2026): nhà gia công chọn từ danh mục Nhà cung cấp,
     # không còn là "máy giả" trong danh mục Máy — không tốc độ, không chuẩn bị, không lượt.
-    theo_may = loai == LB_MAY
-    khoan = khoan_chuan_bi_cua_may(may) if theo_may else []
-    setup = _f(getattr(may, "makeready_time_default", None)) if (theo_may and may) else 0.0
-    may_dung_duoc = may if theo_may else None
-    # Bước TỔ không có "năng suất" nào nữa — ô đó và cả dải min/max đã gỡ khỏi bước (mg `0321`).
-    ns = _f(getattr(may_dung_duoc, "toc_do", None)) if theo_may else 0.0
-
-    def _chay(toc_do: float) -> float:
-        return (vao * 60.0 / toc_do * luot) if toc_do > 0 and vao > 0 else 0.0
+    # BỎ TỐC ĐỘ MÁY (08/11/2026, docs/design-go-toc-do-may-va-xep-lich.md §1): bước MÁY thôi tính
+    # giờ chạy từ tốc độ và chuẩn bị của máy — không đọc `toc_do*`, `makeready_time_default`,
+    # `chuan_bi_khoan` nữa, không cảnh báo "máy chưa khai tốc độ". Chỉ còn "thời gian khác" người
+    # lập lệnh gõ. Trả SỐ 0 chứ không None: mọi nơi cộng dồn / so sánh thời lượng vẫn chạy được,
+    # màn nhận ra bước máy qua `phuong_phap == "khong_tinh"` để không bày "0 phút".
+    khoan: list = []
+    setup = 0.0
+    ns = 0.0
 
     if loai == LB_TO:
         # Giờ của tổ = SỐ GIỜ KẾ HOẠCH người lập lệnh gõ (§5.1). Ba mức bằng nhau: một con số gõ
@@ -376,44 +378,8 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
         chay = chay_nhanh = chay_cham = 0.0
         phuong_phap = "thue_ngoai"
     else:
-        # Máy chưa khai dải thì min/max rơi về tốc độ TB — ba số bằng nhau, không bịa khoảng.
-        toc_do_cao = _f(getattr(may_dung_duoc, "toc_do_max", None)) if may_dung_duoc else 0.0
-        toc_do_thap = _f(getattr(may_dung_duoc, "toc_do_min", None)) if may_dung_duoc else 0.0
-        chay = _chay(ns)
-        chay_nhanh = _chay(toc_do_cao) if toc_do_cao > 0 else chay
-        chay_cham = _chay(toc_do_thap) if toc_do_thap > 0 else chay
-        phuong_phap = "may" if ns > 0 else "thieu_nang_suat"
-
-    # QUY ĐỔI TỊT thắng mọi lý do khác: có tốc độ mà không biết bước nhận bao nhiêu THEO ĐƠN VỊ ĐÓ
-    # thì phép chia vô nghĩa. Nói "chưa quy đổi" chứ đừng nói "chưa khai năng suất" — sai chỗ khai.
-    if sl_tinh is None and theo_may:
         chay = chay_nhanh = chay_cham = 0.0
-        phuong_phap = "chua_quy_doi"
-        canh_bao.append(
-            # CHƯA GÁN MÁY là lý do khác hẳn, phải nói khác (09/09/2026). Bước máy chưa có máy thì
-            # `sl_tinh_cua_buoc` trả None vì KHÔNG CÓ ĐÍCH để quy về — cả cách đo giờ
-            # (`cong_doan_may.cong_thuc_gio`) lẫn tốc độ đều treo ở CẶP (công đoạn × máy). Dán câu
-            # "chưa quy đổi" vào ca này là chỉ người dùng đi khai cầu quy đổi trong khi chỉ cần
-            # chọn máy — mà khai xong cũng chẳng cứu được gì.
-            #
-            # Mã `phuong_phap` vẫn giữ `chua_quy_doi`: xếp lịch
-            # (`xep_lich_service`) phân nhánh theo mã này, đẻ mã mới là phải sửa cả bên đó cho
-            # một câu chữ. Câu là thứ người đọc, mã là thứ máy đọc — chỉ câu cần đổi.
-            "Bước chưa gán máy nên chưa biết chạy trên máy nào — chọn máy ở tab Phân công & "
-            "Thiết bị. Cách đo giờ chạy và tốc độ đều khai theo cặp (công đoạn × máy)."
-            if theo_may and may_dung_duoc is None else
-            # Chỉ về ô "Cách đo giờ chạy" chứ không về Đơn vị & quy đổi: màn đó chỉ còn hệ số CỐ
-            # ĐỊNH (quy đổi động gỡ 14/08/2026), nên ca hay gặp nhất — bước đếm tờ, máy chạy m²/h —
-            # khai ở đó không bao giờ ra số.
-            "Chưa đổi được số lượng vào sang đơn vị tốc độ của máy nên không tính được thời gian "
-            "chạy. Khai ô \"Cách đo giờ chạy\" của máy này ở Cấu hình danh mục → Công đoạn → "
-            "bảng máy của công đoạn."
-        )
-    elif phuong_phap == "thieu_nang_suat":
-        # Chỉ còn bước MÁY vào được nhánh này. Bước TỔ để 0 giờ là hợp lệ, KHÔNG cảnh báo (§5.1).
-        canh_bao.append(
-            "Máy đang gán chưa khai tốc độ (hoặc bước chưa gán máy) nên không tính được thời gian chạy."
-        )
+        phuong_phap = "khong_tinh"
 
     chiem_may = khac + setup + chay
     tong = chiem_may
@@ -448,8 +414,8 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
         # thời gian khác (drawer cập nhật ngay, không phải lưu rồi mới thấy). Client KHÔNG tự
         # đi lấy máy — công thức chỉ có một bản, số gốc do server phát.
         "toc_do": round(ns, 2) if ns > 0 else None,
-        "toc_do_min": round(_f(getattr(may_dung_duoc, "toc_do_min", None)), 2) if may_dung_duoc else None,
-        "toc_do_max": round(_f(getattr(may_dung_duoc, "toc_do_max", None)), 2) if may_dung_duoc else None,
+        "toc_do_min": None,
+        "toc_do_max": None,
         "co_dai_toc_do": co_dai,
         "chiem_tai_nguyen_phut": round(chiem_may, 2),
         "tong_phut": round(tong, 2),
@@ -467,6 +433,20 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
 
 # Nhãn nguồn giấy cho nhật ký (spec 2026-10-24-chuan-bi-giay §7) — cùng chữ với ô "Nguồn giấy" màn lệnh.
 _NHAN_NGUON = {"to_in": "Tờ đúng khổ in", "to_nguyen": "Tờ khổ nguyên", "cuon": "Cuộn", "mua": "Mua mới"}
+
+
+def _con_song(objs) -> bool:
+    """Mọi đối tượng còn gắn phiên và chưa bị commit làm hết hạn — dùng lại được, khỏi hỏi DB."""
+    from sqlalchemy import inspect as sa_inspect
+
+    if not objs:
+        return False
+    for o in objs:
+        st = sa_inspect(o)
+        # Chỉ xét CỘT: quan hệ chưa từng nạp (lazy) cũng nằm trong `expired_attributes`.
+        if st.detached or st.expired or not st.expired_attributes.isdisjoint(st.mapper.column_attrs.keys()):
+            return False
+    return True
 
 
 class LsxError(Exception):
@@ -519,6 +499,7 @@ class LsxService:
         self._to_cua_may_nap: dict[int, list[int]] | None = None
         self._vt_theo_id_nguon: dict | None = None
         self._cd_giu: list = []                 # công đoạn đã nạp sẵn (xem `_nap_cd`)
+        self._cd_nap_ids: set[int] = set()
 
     def _nap_cd(self, ids) -> None:
         """Nạp TRƯỚC các công đoạn (kèm tổ phụ trách · máy · vật tư) bằng vài câu `IN (...)`.
@@ -532,6 +513,12 @@ class LsxService:
         if not can:
             self._cd_giu = []
             return
+        # Một lượt lưu routing gọi tới 4 lần với cùng bộ id (mở lệnh, lưu, đọc lại, dựng chi tiết).
+        # Đã nạp đủ và còn sống (lưu routing commit KHÔNG làm hết hạn danh mục — `_commit_giu_danh_muc`)
+        # ⇒ khỏi hỏi lại (10/11/2026).
+        if can <= self._cd_nap_ids and _con_song(self._cd_giu):
+            return
+        self._cd_nap_ids = can
         self._cd_giu = list(self.db.execute(
             select(CongDoan).where(CongDoan.id.in_(can)).options(
                 selectinload(CongDoan.to_phu_trach), selectinload(CongDoan.may_lam_duoc),
@@ -569,6 +556,26 @@ class LsxService:
                 ra[(HANG_GIAY, g.id)] = g
             self._mon_cache = ra
         return self._mon_cache
+
+    def _mon_cua(self, caps) -> dict[tuple[str, int], object]:
+        """Như `_mon_active` nhưng CHỈ nạp các món được hỏi (`(hang_loai, id)`), nhớ theo service.
+
+        Lưu / dựng chi tiết lệnh chỉ đụng vài món trên bước, mà nạp trọn danh mục (vài trăm mã giấy
+        + vật tư kèm chip) ăn ~50 ms mỗi lượt (10/11/2026). Đã nạp trọn rồi thì dùng luôn bản trọn.
+        """
+        if self._mon_cache is not None:
+            return self._mon_cache
+        le = self.__dict__.setdefault("_mon_le", {})
+        thieu = {(str(h), int(i)) for h, i in caps if i} - le.keys()
+        for hl, model in ((HANG_VAT_TU, VatTuInAn), (HANG_GIAY, GiayNguyen)):
+            ids = [i for h, i in thieu if h == hl]
+            if not ids:
+                continue
+            tim = {m.id: m for m in self.db.execute(
+                select(model).where(model.id.in_(ids), model.active.is_(True))).scalars()}
+            for i in ids:
+                le[(hl, i)] = tim.get(i)
+        return {k: v for k, v in le.items() if v is not None}
 
     def _loai_giay(self, gid: int) -> str:
         """Loại Giấy/Sóng của mã giấy (kể cả mã đã ngừng dùng) — dựng MỘT lần cho cả service."""
@@ -668,26 +675,61 @@ class LsxService:
 
     def _to_va_may_mac_dinh(self, cd_obj, may_phieu: int | None,
                             nhom: str | None) -> tuple[int | None, int | None]:
-        """(TỔ, MÁY) điền sẵn cho một bước máy — máy thuộc tổ (spec 2026-10-22-may-thuoc-to §4.6).
+        """(BỘ PHẬN NHẬN, MÁY) điền sẵn cho một bước (thiết kế 07/11/2026 §4–5).
 
-        Bước IN có máy phiếu nằm trong máy của công đoạn ⇒ máy = máy phiếu, tổ đi theo máy (tổ mặc
-        định nếu máy thuộc nó, không thì tổ đầu có máy đó) — ca LSX26-0003: phiếu chọn IN-02 mà bước
-        ra đời với tổ 2 màu. Còn lại ⇒ tổ mặc định + máy mặc định CỦA TỔ ĐÓ. Công đoạn chưa tick tổ
-        nào ⇒ không ràng buộc, giữ `_may_mac_dinh`.
+        Bộ phận = bộ phận có nhiều nhóm tick nhất ở công đoạn (`san_xuat/bo_phan.py`). Lệnh không
+        chọn máy nữa; chỉ bước IN mang MÁY IN của bài tính giá xuống, và khi đó bộ phận đi theo máy
+        (bộ phận chứa tổ của máy) để việc nằm sẵn ở cột máy đó trong Kế hoạch bộ phận.
         """
-        from .may_to import may_mac_dinh, rang_buoc_to, to_cho_may
+        from .may_to import to_cho_may
+        from .san_xuat.bo_phan import bo_phan_cua, bo_phan_mac_dinh
 
         if cd_obj is None:
             return None, None
+        cay = self._cay_bo_phan()
+        tick = cd_obj.department_ids
+        bp_md = bo_phan_mac_dinh(cay, tick)
         phieu = may_phieu if nhom == "print" else None
-        if not rang_buoc_to(cd_obj):
-            return cd_obj.to_mac_dinh_id, self._may_mac_dinh(cd_obj, phieu)
+        if bp_md is None:
+            # Tổ tick không nằm dưới bộ phận nào (tổ tự bật cờ Sản xuất, không có tầng bộ phận):
+            # giữ luật cũ — tổ mặc định + máy của tổ. Phát lệnh đưa thẳng xuống tổ đó.
+            from .may_to import may_mac_dinh, rang_buoc_to
+
+            if not rang_buoc_to(cd_obj):
+                return cd_obj.to_mac_dinh_id, self._may_mac_dinh(cd_obj, phieu)
+            if phieu and int(phieu) in {int(m.may_id) for m in cd_obj.may_lam_duoc}:
+                to = to_cho_may(self.db, cd_obj, int(phieu), uu_tien=cd_obj.to_mac_dinh_id)
+                if to is not None:
+                    return to, int(phieu)
+            return cd_obj.to_mac_dinh_id, may_mac_dinh(self.db, cd_obj, cd_obj.to_mac_dinh_id)
         if phieu and int(phieu) in {int(m.may_id) for m in cd_obj.may_lam_duoc}:
             to = to_cho_may(self.db, cd_obj, int(phieu), uu_tien=cd_obj.to_mac_dinh_id)
-            if to is not None:
-                return to, int(phieu)
-        to = cd_obj.to_mac_dinh_id
-        return to, may_mac_dinh(self.db, cd_obj, to)
+            bp = bo_phan_cua(cay, to) if to is not None else None
+            return (bp or bp_md), int(phieu)
+        return bp_md, None
+
+    def _cay_bo_phan(self):
+        """Cây khối Sản xuất, đọc một lần cho cả service (một request)."""
+        from .quyen_to import doc_cay
+
+        if getattr(self, "_cay_bp", None) is None:
+            self._cay_bp = doc_cay(self.db)
+        return self._cay_bp
+
+    def _la_bo_phan(self, dept_id: int | None) -> bool:
+        """Phòng này là một BỘ PHẬN (con trực tiếp của gốc khối Sản xuất)?"""
+        from .san_xuat.bo_phan import bo_phan_cua
+
+        return dept_id is not None and bo_phan_cua(self._cay_bo_phan(), int(dept_id)) == int(dept_id)
+
+    def ung_vien_bo_phan(self, cd_obj) -> list[dict]:
+        """Bộ phận người lập lệnh được chọn cho bước của công đoạn này, bộ phận chọn sẵn đứng đầu."""
+        from .san_xuat.bo_phan import ung_vien_cua
+
+        if cd_obj is None:
+            return []
+        return [{"id": u.id, "ten": u.ten, "so_nhom": u.so_nhom}
+                for u in ung_vien_cua(self._cay_bo_phan(), cd_obj.department_ids)]
 
     def may_dau_con_dung(self, may_ids: list[int]) -> int | None:
         """Máy CÒN DÙNG đầu tiên theo đúng thứ tự truyền vào — máy mặc định của công đoạn."""
@@ -725,7 +767,8 @@ class LsxService:
             return [], []
         sl = _f(getattr(buoc, "so_luong_vao", 0))
         can = {vid for vid, _ in dong_nguon}
-        mats = {i: m for i, m in self._vat_tu_theo_id().items() if i in can}
+        mats = {i: m for (h, i), m in self._mon_cua((HANG_VAT_TU, x) for x in can).items()
+                if h == HANG_VAT_TU and i in can}
         # Bơm SỐ CỦA CHÍNH BƯỚC lên trên ngữ cảnh lệnh — `sl_vao`/`sl_ra` chỉ tồn tại ở tầng này.
         # Bơm SAU `ngu_canh_lenh` vì hàm đó assert bộ khoá của nó phải khớp `MA_NGU_CANH_PHIEU`.
         base = {**ngu_canh_lenh(quy_cach or {}), **MAC_DINH_TANG_LENH,
@@ -1266,13 +1309,18 @@ class LsxService:
     def _thanh_phan(self, tp_id: int | None) -> PhieuThanhPhan | None:
         if not tp_id:
             return None
-        return self.db.execute(
+        # Kiểm thiếu + dựng chi tiết cùng hỏi một phiếu trong một lượt ⇒ nhớ tới khi hết hạn.
+        nho = self.__dict__.setdefault("_tp_nho", {})
+        if (cu := nho.get(tp_id)) is not None and _con_song([cu, *cu.thanh_phams]):
+            return cu
+        nho[tp_id] = self.db.execute(
             select(PhieuThanhPhan)
             .where(PhieuThanhPhan.id == tp_id)
             .options(
                 selectinload(PhieuThanhPhan.thanh_phams).selectinload(PhieuThanhPham.vat_tus),
             )
         ).scalar_one_or_none()
+        return nho[tp_id]
 
     # ================= HÀNG CHỜ =================
 
@@ -1286,17 +1334,22 @@ class LsxService:
         """
         # `loc` = thanh lọc của hàng chờ (06/10/2026): `customer_id`, `tu_ngay`/`den_ngay`/`moc`,
         # cộng `owner_ids` — phạm vi theo chủ đơn (14/10/2026).
+        # 08/11/2026: `che_do` giao | tao (hai tab), `phu_trach_ids` = phạm vi tab Tạo lệnh,
+        # `trang_thai` = chip Chưa giao / Đã giao, `nguoi_phu_trach_id` = ô lọc người.
+        nguoi_xem_id = loc.pop("nguoi_xem_id", None)
         orders, total = self.repo.orders_ban_giao(page=page, size=size, chi_dem=chi_dem, **loc)
         if not orders:
             return [], total
         line_ids = [ln.id for o in orders for ln in o.lines]
         da_co = self.repo.by_order_lines(line_ids)
         khach = self._customer_names({o.customer_id for o in orders if o.customer_id})
-        nguoi = self._user_names({o.sale_user_id for o in orders if o.sale_user_id})
+        nguoi = self._user_names({o.sale_user_id for o in orders if o.sale_user_id}
+                                 | {o.nguoi_lam_lenh_id for o in orders if o.nguoi_lam_lenh_id})
         out: list[dict] = []
         for o in orders:
             so_dong = len(o.lines)
             so_co = sum(1 for ln in o.lines if ln.id in da_co)
+            tt = "chua_giao" if o.nguoi_lam_lenh_id is None else "da_giao"
             # Tóm tắt tên các sản phẩm/hạng mục trong đơn (OrderLine.description)
             sp_names = list(dict.fromkeys((ln.description or "").strip() for ln in o.lines if (ln.description or "").strip()))
             san_pham_tom_tat = ", ".join(sp_names) if sp_names else None
@@ -1313,8 +1366,73 @@ class LsxService:
                 "so_dong": so_dong,
                 "so_dong_co_lsx": so_co,
                 "san_pham_tom_tat": san_pham_tom_tat,
+                "nguoi_lam_lenh_id": o.nguoi_lam_lenh_id,
+                "nguoi_lam_lenh_ten": nguoi.get(o.nguoi_lam_lenh_id) if o.nguoi_lam_lenh_id else None,
+                "trang_thai": tt,
+                "chua_mo": bool(nguoi_xem_id and o.nguoi_lam_lenh_id == nguoi_xem_id
+                                and o.nguoi_lam_lenh_mo_at is None),
             })
         return out, total
+
+    # ================= GIAO ĐƠN CHO NGƯỜI PHỤ TRÁCH (08/11/2026) =================
+    # docs/design-giao-don-lam-lenh.md. Người giao = ô `san_xuat:reassign` (router gác). Người nhận
+    # phải cùng phòng (kể cả phòng con) trên cây Phòng ban và có Thao tác ở Lệnh sản xuất.
+
+    def nguoi_lam_lenh_chon_duoc(self, actor) -> list[dict]:
+        from ..repositories.org_scope import dept_subtree_ids
+
+        phong = dept_subtree_ids(self.db, actor.department_id) if actor.department_id else []
+        return [{"id": i, "ten": t, "phong": p}
+                for i, t, p in self.repo.nguoi_lam_lenh_chon_duoc(phong_ids=phong, ban_than_id=actor.id)]
+
+    def giao_don(self, *, order_ids: list[int], nguoi_nhan_id: int, actor,
+                 owner_ids: set[int] | None) -> dict:
+        """Giao (hoặc giao lại) nhiều đơn ở hàng chờ cho MỘT người. Lệnh đã tạo giữ người phụ trách
+        cũ; chỉ dòng còn lại thuộc người mới. Đơn đã giao đúng người này thì bỏ qua."""
+        chon = {r["id"]: r["ten"] for r in self.nguoi_lam_lenh_chon_duoc(actor)}
+        if nguoi_nhan_id not in chon:
+            raise LsxValidationError(
+                "Người này không nhận được đơn: phải cùng phòng với bạn và có quyền Thao tác ở Lệnh sản xuất")
+        ids = list(dict.fromkeys(order_ids))
+        orders = self.repo.orders_hang_cho_theo_id(ids, owner_ids=owner_ids)
+        if len(orders) != len(ids):
+            raise LsxConflict("Có đơn không còn ở hàng chờ hoặc ngoài phạm vi của bạn — tải lại hàng chờ")
+        ten_cu = self._user_names({o.nguoi_lam_lenh_id for o in orders if o.nguoi_lam_lenh_id})
+        ten_moi = chon[nguoi_nhan_id]
+        bay_gio = datetime.now(timezone.utc)
+        da_giao: list[str] = []
+        giao_lai: list[str] = []
+        for o in orders:
+            cu = o.nguoi_lam_lenh_id
+            if cu == nguoi_nhan_id:
+                continue
+            o.nguoi_lam_lenh_id = nguoi_nhan_id
+            o.giao_lam_lenh_at = bay_gio
+            o.nguoi_giao_lam_lenh_id = actor.id
+            # Tự giao cho mình thì không có gì "chưa mở" để báo.
+            o.nguoi_lam_lenh_mo_at = bay_gio if nguoi_nhan_id == actor.id else None
+            if cu is None:
+                da_giao.append(o.order_no)
+                self.audit.create(
+                    actor_user_id=actor.id, action="giao_don_lam_lenh", target=f"order:{o.id}",
+                    detail=f"Giao đơn {o.order_no} cho {ten_moi} phụ trách")
+            else:
+                giao_lai.append(o.order_no)
+                self.audit.create(
+                    actor_user_id=actor.id, action="giao_lai_don_lam_lenh", target=f"order:{o.id}",
+                    detail=f"Giao lại đơn {o.order_no} từ {ten_cu.get(cu, f'#{cu}')} sang {ten_moi}")
+        self.repo.commit()
+        return {"nguoi_nhan_ten": ten_moi, "da_giao": da_giao, "giao_lai": giao_lai,
+                "bo_qua": len(orders) - len(da_giao) - len(giao_lai)}
+
+    def danh_dau_da_mo(self, order_id: int, user_id: int) -> bool:
+        """Người được giao mở ngăn Lệnh dự kiến ⇒ tắt chấm "chưa mở" của đơn. True nếu lần này mới tắt."""
+        o = self.db.get(Order, order_id)
+        if o is None or o.nguoi_lam_lenh_id != user_id or o.nguoi_lam_lenh_mo_at is not None:
+            return False
+        o.nguoi_lam_lenh_mo_at = datetime.now(timezone.utc)
+        self.repo.commit()
+        return True
 
     # ================= tính số cho 1 dòng đơn =================
 
@@ -1504,6 +1622,8 @@ class LsxService:
             "delivery_committed_date": order.delivery_committed_date,
             "is_rush": bool(order.is_rush),
             "production_note": order.production_note,
+            "nguoi_lam_lenh_id": order.nguoi_lam_lenh_id,
+            "nguoi_lam_lenh_ten": self._user_name(order.nguoi_lam_lenh_id),
             "lines": lines,
         }
 
@@ -1547,7 +1667,7 @@ class LsxService:
         # Máy của PHIẾU chỉ mang xuống bước IN (ô đó là "Máy in"); tổ đi theo máy — xem
         # `_to_va_may_mac_dinh`. Bước không phải máy giữ tổ của routing, không máy.
         dept, may_id = r.get("department_id"), None
-        if loai_buoc == LB_MAY and cd_obj is not None:
+        if loai_buoc != LB_THUE_NGOAI and cd_obj is not None:
             dept, may_id = self._to_va_may_mac_dinh(cd_obj, lsx_may_id, nhom)
 
         con = max(int(comp.get("con") or 1), 1)
@@ -1709,6 +1829,15 @@ class LsxService:
             raise LsxConflict("Dòng đã có lệnh sản xuất — không tạo trùng")
 
         quote_version_id = order.quotation_id and self._quote_version_id(order.quotation_id)
+        # Người phụ trách lệnh = người phụ trách ĐƠN (08/11/2026), không phải người bấm. Router chỉ cho
+        # tạo lệnh ở đơn đã giao; gọi thẳng service với đơn chưa giao thì người bấm tự nhận đơn.
+        if order.nguoi_lam_lenh_id is None:
+            bay_gio = datetime.now(timezone.utc)
+            order.nguoi_lam_lenh_id = actor.id
+            order.giao_lam_lenh_at = bay_gio
+            order.nguoi_giao_lam_lenh_id = actor.id
+            order.nguoi_lam_lenh_mo_at = bay_gio
+        phu_trach_id = order.nguoi_lam_lenh_id
         created: list[Lsx] = []
         for line in chosen:
             tp = self._thanh_phan(line.phieu_thanh_phan_id)
@@ -1741,7 +1870,7 @@ class LsxService:
                 # Lệnh mới LUÔN ở Nháp (07/09/2026): checklist chấm dòng đơn đã gỡ. Thiếu gì thì
                 # `thieu_cua` nói ở màn lệnh, và lệnh tự rơi về Chờ bổ sung khi kế hoạch sửa routing.
                 trang_thai=TT_NHAP,
-                nguoi_phu_trach_id=actor.id,
+                nguoi_phu_trach_id=phu_trach_id,
                 created_by=actor.id,
             )
             for r in calc["routing"]:
@@ -1785,6 +1914,14 @@ class LsxService:
                 detail=f"Tạo lệnh {lsx.ma} — {lsx.ten} (đơn {order.order_no}, "
                        f"{so_luong_dat:,} {lsx.don_vi_tinh})".replace(",", "."),
             )
+        if phu_trach_id != actor.id:
+            # Tạo hộ đơn người khác phụ trách — nhật ký nói rõ, router báo người phụ trách.
+            self.audit.create(
+                actor_user_id=actor.id, action="tao_lsx_ho", target=f"order:{order.id}",
+                detail=f"Tạo hộ {len(created)} lệnh của đơn {order.order_no} cho "
+                       f"{self._user_name(phu_trach_id) or f'#{phu_trach_id}'}: "
+                       + ", ".join(c.ma for c in created),
+            )
         self.repo.commit()
         return created
 
@@ -1806,6 +1943,14 @@ class LsxService:
     def thieu_cua(self, lsx: Lsx) -> list[str]:
         """Checklist CHẶN — còn mã nào thì không cho đánh dấu "Sẵn sàng lập kế hoạch" (§12)."""
         return self.kiem_thieu(lsx)[0]
+
+    def _kiem_thieu_lan_nay(self, lsx: Lsx) -> tuple[list[str], dict[str, list[int]]]:
+        """`kiem_thieu` — dùng lại kết quả lưu routing vừa tính ngay trước commit (một lần), khỏi
+        hỏi lại chừng ấy câu chỉ để dựng chi tiết trả về."""
+        da = self.__dict__.pop("_thieu_vua_tinh", None)
+        if da is not None and da[0] == lsx.id:
+            return da[1]
+        return self.kiem_thieu(lsx)
 
     def kiem_thieu(self, lsx: Lsx) -> tuple[list[str], dict[str, list[int]]]:
         """`(mã thiếu, {mã thiếu cấp BƯỚC: [id bước dính]})`.
@@ -1872,9 +2017,10 @@ class LsxService:
             if cd.loai_buoc == LB_THUE_NGOAI:
                 if cd.nha_cung_cap_id is None:
                     buoc.setdefault("thieu_nha_gia_cong", []).append(cd.id)
-            elif (cd.loai_buoc in (LB_MAY, LB_TO)
-                    and not (cd.department_id or cd.may_id)):
-                buoc.setdefault("thieu_to_may", []).append(cd.id)
+            # Bước NỘI BỘ (Máy/Tổ cũ) phải có BỘ PHẬN NHẬN — lệnh không chọn tổ, máy nữa (07/11/2026);
+            # công đoạn chưa tick nhóm nào ở danh mục thì không suy ra bộ phận, phải khai thêm.
+            elif cd.loai_buoc in (LB_MAY, LB_TO) and not cd.department_id:
+                buoc.setdefault("thieu_bo_phan", []).append(cd.id)
             # Bước cần dụng cụ lưu kho mà chưa trỏ con dao nào → chưa chạy được, chặn Y NHƯ
             # thiếu nhà gia công. Trước 04/09/2026 cửa này im lặng: lệnh qua cửa ngon lành rồi tới
             # lúc thợ ra máy mới biết không có dao. Danh sách dụng cụ đọc từ CỜ của công đoạn
@@ -1941,8 +2087,11 @@ class LsxService:
             # Công đoạn NHIỀU tổ (mg `0312`): tổ đầu là mặc định, kèm cả danh sách để client biết
             # ô chọn tổ của bước được chọn những tổ nào.
             # Tổ đi theo máy phiếu ở bước In (spec máy thuộc tổ §4.6) — cùng luật tạo lệnh.
+            # 07/11/2026: `department_id` = BỘ PHẬN NHẬN chọn sẵn; `bo_phan_chon` = bộ phận được
+            # đổi sang (đúng luật số nhóm). `department_ids` giữ nhóm tick để client cũ không vỡ.
             "department_id": to_md,
             "department_ids": cd.department_ids,
+            "bo_phan_chon": self.ung_vien_bo_phan(cd),
             "don_vi_vao": dv_vao,
             "don_vi_ra": dv_ra,
             "he_so_quy_doi": he_so,
@@ -2030,11 +2179,20 @@ class LsxService:
         nap = getattr(self, "_ghep_nap", None)
         if nap is not None and lsx.id in nap:
             return nap[lsx.id]
-        return self.db.execute(
+        # Một lượt lưu + dựng chi tiết hỏi tới 4 lần cho cùng lệnh ⇒ nhớ, nhưng CHỈ trong cùng một
+        # giao dịch: commit xong (của mình hay của service khác) là hỏi lại.
+        nho = self.__dict__.setdefault("_ghep_nho", {})
+        gd = self.db.get_transaction()
+        cu = nho.get(lsx.id)
+        if gd is not None and cu is not None and cu[0] is gd:
+            return cu[1]
+        kq = self.db.execute(
             select(BaiGhep, BaiGhepThanhVien)
             .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == BaiGhep.id)
             .where(BaiGhepThanhVien.lsx_id == lsx.id)
         ).first()
+        nho[lsx.id] = (self.db.get_transaction(), kq)
+        return kq
 
     @staticmethod
     def _manh_xa_theo_bai(qc: dict, bg) -> int | None:
@@ -2648,14 +2806,17 @@ class LsxService:
         mã giấy. Trả kết quả `quy_ve_goc` hoặc câu lỗi."""
         nho = self.__dict__.setdefault("_kg_goc", {})
         if (giay_id, goc) not in nho:
-            from ..repositories.don_vi_do_repo import DonViDoRepository
+            from ..repositories.don_vi_do_repo import DonViDoRepositoryDoc
             from ..repositories.vat_lieu_kho_repo import VatLieuKhoRepository
             from .vat_lieu_kho_service import VatLieuKhoError, VatLieuKhoService
 
+            # MỘT service cho cả lượt, repo đơn vị CHỈ ĐỌC nhớ bảng đơn vị + cặp quy đổi: trước
+            # 10/11/2026 mỗi mã giấy đọc lại cả hai bảng (cả trăm mã ⇒ cả trăm lượt hỏi DB).
+            if (kho := self.__dict__.get("_kho_svc_doc")) is None:
+                kho = self.__dict__["_kho_svc_doc"] = VatLieuKhoService(
+                    VatLieuKhoRepository(self.db), DonViDoRepositoryDoc(self.db))
             try:
-                nho[(giay_id, goc)] = VatLieuKhoService(
-                    VatLieuKhoRepository(self.db), DonViDoRepository(self.db)
-                ).quy_ve_goc(HANG_GIAY, giay_id, "kg", 1.0, goc=goc)
+                nho[(giay_id, goc)] = kho.quy_ve_goc(HANG_GIAY, giay_id, "kg", 1.0, goc=goc)
             except VatLieuKhoError as e:
                 nho[(giay_id, goc)] = str(e)
         return nho[(giay_id, goc)]
@@ -2772,7 +2933,6 @@ class LsxService:
             "tong_phut": round(tong, 2),
             "chiem_may_phut": round(chiem_may, 2),
             "so_ngay": round(so_ngay, 2),
-            "ngay_du_kien_xong": date.today() + timedelta(days=ceil(so_ngay)) if tong else None,
             "ngay_con_lai": con_lai,
         }
 
@@ -2787,7 +2947,7 @@ class LsxService:
         dept_names = self._dept_names(dept_ids)
         may_names = self._may_names(may_ids)
         khuon_map = self._khuon_map({cd.khuon_be_id for cd in lsx.cong_doans})
-        thieu, thieu_buoc = self.kiem_thieu(lsx)
+        thieu, thieu_buoc = self._kiem_thieu_lan_nay(lsx)
         ptg_id = ptg_ma = None
         tp = self._thanh_phan(lsx.phieu_thanh_phan_id)
         if tp is not None:
@@ -2821,6 +2981,8 @@ class LsxService:
         # tự đổi dưới chân người kế hoạch còn tệ hơn số cũ — máy đề xuất, người quyết.
         moi = {r["idx"]: r for r in self.tinh_nguoc_routing(lsx)}
         thu_tu_idx = {id(c): i for i, c in enumerate(sorted(lsx.cong_doans, key=lambda x: x.thu_tu))}
+        # Nạp gộp món của MỌI bước một lượt — mỗi bước tự hỏi là N câu.
+        self._mon_cua((v.hang_loai, v.vat_tu_id) for c in lsx.cong_doans for v in c.vat_tus)
         buoc_dicts = [
             self._cong_doan_dict(cd, dept_names, may_names, qc_bien,
                                  moi.get(thu_tu_idx.get(id(cd), -1)), khuon_map)
@@ -2919,7 +3081,9 @@ class LsxService:
                         quy_cach: dict | None = None, moi: dict | None = None,
                         khuon_map: dict | None = None) -> dict:
         vao = _f(cd.so_luong_vao)
-        vat_tu_theo_id = self._vat_tu_theo_id()   # chip riêng của vật tư
+        vat_tu_theo_id = {   # chip riêng của vật tư — chỉ các món trên bước
+            i: m for (h, i), m in self._mon_cua((v.hang_loai, v.vat_tu_id) for v in cd.vat_tus).items()
+            if h == HANG_VAT_TU}
         may_cd = self._may_cua_buoc(cd)
         t = thoi_luong_buoc(cd, may_cd, self.sl_tinh_cua_buoc(cd, may_cd, quy_cach))
         cd_obj = self.db.get(CongDoan, cd.cong_doan_id) if cd.cong_doan_id else None
@@ -2932,6 +3096,8 @@ class LsxService:
             "ten": cd.ten, "nhom": cd.nhom, "loai_buoc": cd.loai_buoc, "bat_buoc": bool(cd.bat_buoc),
             "department_id": cd.department_id,
             "department_ten": dept_names.get(cd.department_id),
+            # Bộ phận người lập lệnh được đổi sang (07/11/2026) — bộ phận chọn sẵn đứng đầu.
+            "bo_phan_chon": self.ung_vien_bo_phan(cd_obj),
             "may_id": cd.may_id, "may_ten": may_names.get(cd.may_id),
             # Hai cờ dụng cụ đọc từ danh mục Công đoạn (KHÔNG suy từ tên bước — tên là chữ người
             # dùng gõ, đặt "Die-cut" hay "Ép kim" đều được). Chúng quyết định bước này có hỏi khuôn
@@ -3014,9 +3180,19 @@ class LsxService:
                                      else [])]}
                 for v in cd.vat_tus
             ],
-            # Lượng tính sẵn cho MỌI vật tư — drawer chọn món nào là điền được ngay, khỏi gõ tay.
-            "vat_tu_goi_y": self._goi_y_luong_vat_tu(cd, quy_cach),
+            # ⚠️ `vat_tu_goi_y` RỜI khỏi chi tiết lệnh 10/11/2026: tính cho mọi bước × mọi món (cả
+            #    trăm mã giấy) ăn hơn 1 giây mỗi lần mở / lưu lệnh. Ngăn bước tự hỏi khi mở —
+            #    `goi_y_vat_tu_buoc` / `GET /lsx/{id}/buoc/{buoc_id}/goi-y-vat-tu`.
         }
+
+    def goi_y_vat_tu_buoc(self, lsx_id: int, buoc_id: int) -> list[dict]:
+        """Lượng tính sẵn cho MỌI món theo một bước đã lưu — nguồn của ngăn bước (chọn món nào là
+        điền số ngay). Tách khỏi chi tiết lệnh để mở / lưu lệnh không phải tính cho cả chuỗi."""
+        lsx = self.get(lsx_id)
+        cd = next((c for c in lsx.cong_doans if c.id == buoc_id), None)
+        if cd is None:
+            raise LsxNotFound("Không tìm thấy bước trong lệnh này")
+        return self._goi_y_luong_vat_tu(cd, quy_cach_bien(lsx))
 
     # ⚠️ `_dau_viec_cua_buoc()` GỠ 18/09/2026 (mg `0320`) — không còn ai gọi từ lúc bước lệnh
     #    thôi chọn đầu việc.
@@ -3102,9 +3278,14 @@ class LsxService:
         """Ô "Đơn hàng" của thanh lọc bảng lệnh — đơn đang có lệnh trong phạm vi, kèm số lệnh."""
         return self.repo.don_loc(owner_ids=owner_ids)
 
-    def khach_hang_cho(self, *, owner_ids: set[int] | None = None) -> list[tuple[int, str, int]]:
-        """Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có đơn chờ lên lệnh (trong phạm vi), kèm số đơn."""
-        return self.repo.khach_hang_cho(owner_ids=owner_ids)
+    def khach_hang_cho(self, **nen) -> list[tuple[int, str, int]]:
+        """Ô "Khách hàng" của thanh lọc hàng chờ — khách đang có đơn chờ lên lệnh, kèm số đơn. `nen` =
+        điều kiện nền của tab (`che_do`, `owner_ids`, `phu_trach_ids`)."""
+        return self.repo.khach_hang_cho(**nen)
+
+    def phu_trach_hang_cho(self, **nen) -> list[tuple[int, str, int]]:
+        """Ô "Người phụ trách" của thanh lọc hàng chờ, kèm số đơn."""
+        return self.repo.phu_trach_hang_cho(**nen)
 
     def dem_trang_thai(self, **kw) -> dict[str, int]:
         """Số trên TAB lọc — đếm ở máy chủ theo cùng bộ lọc trừ chính `trang_thai`.
@@ -3151,7 +3332,7 @@ class LsxService:
         "giay_id", "nguon_giay", "kho_nguyen_dai", "kho_nguyen_rong",
         "kho_in_dai", "kho_in_rong", "dai_thanh_pham", "rong_thanh_pham",
         "quy_cach_in", "muc_a", "muc_b", "so_trang", "trang_moi_tay",
-        "bleed_mm", "khe_cat_mm", "con_auto",
+        "con_auto",
     )
 
     def ap_quy_cach(self, lsx: Lsx, patch: dict) -> tuple[dict, list[str]]:
@@ -3202,7 +3383,6 @@ class LsxService:
                 kho_in_dai=ki_d, kho_in_rong=ki_r,
                 dai_tp=_f(qc.get("dai_thanh_pham")), rong_tp=_f(qc.get("rong_thanh_pham")),
                 chua_mm=0, chua_dai_mm=chua_d, chua_rong_mm=chua_r,
-                bleed_mm=_f(qc.get("bleed_mm")), khe_cat_mm=_f(qc.get("khe_cat_mm")),
             )
             if con > 0:
                 lsx.so_con = con
@@ -3292,7 +3472,7 @@ class LsxService:
         # chuỗi ngược (`_ap_chuoi_nguoc`), nhận thêm đường nữa là đẻ nguồn sự thật thứ hai.
         for field in (
             "ten", "so_luong_dat", "don_vi_tinh",
-            "so_con", "han_hoan_thanh_sx", "is_rush", "may_id",
+            "so_con", "is_rush", "may_id",   # hạn SX nội bộ gỡ 08/11/2026 — không nhận nữa
             "nguoi_phu_trach_id", "ghi_chu",
         ):
             if field in data and getattr(lsx, field) != data[field]:
@@ -3482,8 +3662,10 @@ class LsxService:
             if cd.may_id and may_ids and cd.may_id not in may_ids:
                 muc["may_canh_bao"] = (
                     "Máy đang gán không còn nằm trong danh sách máy của công đoạn — chọn máy khác")
-            elif cd.loai_buoc == LB_MAY:
+            elif cd.loai_buoc == LB_MAY and not self._la_bo_phan(cd.department_id):
                 # Máy thuộc tổ (mg `0435`): tổ/máy là ảnh chụp, danh mục đổi sau thì chỉ NÓI.
+                # Bước mang BỘ PHẬN (07/11/2026) thì máy chỉ là gợi ý của bài tính giá, bộ phận chọn
+                # máy ở Kế hoạch bộ phận ⇒ không soi cặp tổ × máy (soi là báo oan "không thuộc").
                 muc["may_canh_bao"] = cap_lech(self.db, cd_obj, cd.department_id, cd.may_id,
                                                to_map=self._to_cua_may_nap)
             co_gi = (muc["vat_tu_them"] or muc["vat_tu_bo"] or muc["vat_tu_lech"]
@@ -3620,7 +3802,8 @@ class LsxService:
                 if cd_obj is not None:
                     ten = ten or cd_obj.ten
                     nhom = nhom if nhom is not None else cd_obj.nhom
-                    dept = dept if dept is not None else cd_obj.to_mac_dinh_id
+                    dept = (dept if dept is not None
+                            else self._to_va_may_mac_dinh(cd_obj, None, cd_obj.nhom)[0])
             key = (d.get("step_key") or "").strip()
             row = old_by_key.get(key) if key else None
             old_cd_id = row.cong_doan_id if row is not None else None
@@ -3628,16 +3811,18 @@ class LsxService:
             old_loai = row.loai_buoc if row is not None else None
             old_may_id = row.may_id if row is not None else None
             buoc_moi = row is None
-            # Tổ của bước phải là một TỔ PHỤ TRÁCH của công đoạn (mg `0312`) — chỉ soi khi bước mới,
-            # đổi tổ hoặc đổi công đoạn. Bước giữ nguyên thì để yên snapshot cũ: danh mục đổi tổ sau
-            # khi lên lệnh không được khoá đường lưu cả lệnh vì một bước chẳng ai đụng.
+            # BỘ PHẬN NHẬN của bước (07/11/2026) phải là một bộ phận chứa nhóm tick ở công đoạn —
+            # chỉ soi khi bước mới, đổi bộ phận hoặc đổi công đoạn. Bước giữ nguyên thì để yên:
+            # danh mục đổi sau khi lên lệnh không được khoá đường lưu cả lệnh.
             if ((d.get("loai_buoc") or old_loai) != LB_THUE_NGOAI
                     and cd_obj is not None and dept is not None and cd_obj.department_ids
-                    and dept not in cd_obj.department_ids
                     and (row is None or old_cd_id != cd_id or old_dept_id != dept)):
-                raise LsxValidationError(
-                    f'Tổ đã chọn không phụ trách công đoạn "{cd_obj.ten}" — chọn một trong các tổ '
-                    f'khai ở danh mục Công đoạn.')
+                chon = {u["id"] for u in self.ung_vien_bo_phan(cd_obj)}
+                # Không suy ra bộ phận nào (tổ ngoài tầng bộ phận) ⇒ luật cũ: tổ phải được tick.
+                if (dept not in chon) if chon else (dept not in cd_obj.department_ids):
+                    raise LsxValidationError(
+                        f'Bộ phận đã chọn không làm công đoạn "{cd_obj.ten}" — chọn một trong các '
+                        f'bộ phận có nhóm tick ở danh mục Công đoạn.')
             if row is None:
                 row = LsxCongDoan(thu_tu=i, **({"step_key": key} if key else {}))
             row.cong_doan_id = cd_id
@@ -3706,7 +3891,11 @@ class LsxService:
             if (not buoc_moi and doi_cap and row.id in da_bat_dau
                     and LB_MAY in (old_loai, row.loai_buoc)):
                 raise LsxValidationError("Việc đã bắt đầu, đổi máy ở màn Việc của tổ")
-            if row.loai_buoc == LB_MAY and (buoc_moi or doi_cap or old_cd_id != cd_id):
+            # Cặp tổ × máy không soi ở lệnh nữa (07/11/2026): lệnh chỉ chọn bộ phận, máy in của
+            # bài tính giá là GỢI Ý — bộ phận chốt máy + nhóm ở Kế hoạch bộ phận. Còn soi ở đường
+            # lùi (công đoạn không suy ra bộ phận ⇒ bước vẫn mang tổ như cũ).
+            if (row.loai_buoc == LB_MAY and (buoc_moi or doi_cap or old_cd_id != cd_id)
+                    and not self.ung_vien_bo_phan(cd_obj)):
                 if loi := loi_cap(self.db, cd_obj, row.department_id, row.may_id):
                     raise LsxValidationError(loi)
             if cd_id and old_cd_id != cd_id:
@@ -3761,6 +3950,8 @@ class LsxService:
         self.repo.sync_cong_doans(lsx, rows)
 
         # Vật tư là khai báo riêng của bước, chọn từ danh mục; không đọc PTG.
+        self._mon_cua((str(v.get("hang_loai") or HANG_VAT_TU), int(v.get("vat_tu_id") or 0))
+                      for d in payloads for v in (d.get("vat_tus") or []))   # nạp gộp một lượt
         for row, d in zip(rows, payloads):
             ngoai = row.loai_buoc == LB_THUE_NGOAI
             if "vat_tus" not in d and not ngoai:
@@ -3779,7 +3970,7 @@ class LsxService:
             # hai kiểu như trước thì một lệnh cũ có vật tư ngừng dùng là KHÔNG LƯU LẠI ĐƯỢC routing
             # nữa, kể cả khi người ta chỉ sửa cái khác.
             cu_theo_cap = {(v.hang_loai, int(v.vat_tu_id)): v for v in row.vat_tus if v.vat_tu_id}
-            mons = self._mon_active()
+            mons = self._mon_cua(caps)
             thieu = [c for c in caps if c not in mons and c not in cu_theo_cap]
             if thieu:
                 raise LsxValidationError(
@@ -3907,7 +4098,8 @@ class LsxService:
             # người gọi (`xem_truoc_routing`) đọc số xong rollback. Trả `lsx` in-session.
             return lsx
         self._bai_ghep_xep_lai(lsx)   # lệnh đang ghép → thứ tự bước chung của bài phải theo
-        thieu = self.thieu_cua(lsx)
+        kq_thieu = self.kiem_thieu(lsx)
+        thieu = kq_thieu[0]
         if thieu and lsx.trang_thai != TT_CHO_BO_SUNG:
             lsx.trang_thai = TT_CHO_BO_SUNG
         elif not thieu and lsx.trang_thai == TT_CHO_BO_SUNG:
@@ -3919,10 +4111,35 @@ class LsxService:
             detail += f" — lý do: {ly_do.strip()}"
         self.audit.create(
             actor_user_id=actor.id, action="update_lsx_routing", target=f"lsx:{lsx.id}",
-            detail=detail,
+            detail=detail, commit=False,
         )
-        self.repo.commit()
-        return self.get(lsx_id)
+        self._commit_giu_danh_muc()
+        from ..repositories.audit_repo import _bao_co_dong_moi
+
+        _bao_co_dong_moi()   # audit tự chốt thì nó tự báo; ở đây mình chốt nên mình báo
+        lsx = self.get(lsx_id)
+        self._thieu_vua_tinh = (lsx.id, kq_thieu)
+        return lsx
+
+    # Danh mục lưu routing CHỈ ĐỌC, không bao giờ ghi — commit xong vẫn đúng như DB.
+    _GIU_SAU_COMMIT = (CongDoan, CongDoanMay, PhieuThanhPhan, PhieuThanhPham)
+
+    def _commit_giu_danh_muc(self) -> None:
+        """Commit như thường (mọi thứ hết hạn để đọc lại số DB đã làm tròn) TRỪ đối tượng danh mục
+        công đoạn / phiếu thành phần — đường lưu không ghi chúng, nạp lại chỉ tốn câu hỏi (10/11/2026)."""
+        from ..models.cong_doan import CongDoanTo, CongDoanVatTu
+
+        giu_lop = (*self._GIU_SAU_COMMIT, CongDoanTo, CongDoanVatTu)
+        cu = self.db.expire_on_commit
+        self.db.expire_on_commit = False
+        try:
+            self.repo.commit()
+        finally:
+            self.db.expire_on_commit = cu
+        for o in list(self.db.identity_map.values()):
+            if not isinstance(o, giu_lop):
+                self.db.expire(o)
+        self.__dict__.pop("_mon_le", None)   # món vật tư vừa hết hạn — nạp lại gộp một câu
 
     def _bai_ghep_xep_lai(self, lsx: Lsx) -> None:
         """Routing của lệnh đổi → đánh lại thứ tự bước chung của bài rồi tính lại. KHÔNG commit.

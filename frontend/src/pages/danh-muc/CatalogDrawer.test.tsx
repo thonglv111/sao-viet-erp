@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 import { RebuildCatalogPage, type CatalogConfig } from "../RebuildCatalogPage";
 import { AuthContext, type AuthState } from "../../auth/AuthContext";
 import type { Row } from "../../api/rebuildCatalog";
+import { NganHangThuongMai } from "./NganHangThuongMai";
 
 const AUTH: AuthState = {
   status: "authenticated", user: null, token: "t",
@@ -235,6 +236,32 @@ describe("CatalogDrawer — form của màn danh mục dùng chung", () => {
     expect(ghi.path).toBe("/api/cong-doan/7");     // đúng id bản ghi, không phải id nào khác
     expect(ghi.body?.ten).toBe("Bế nổi");
     expect(ghi.body?.ma).toBe("CD-007");            // ô khoá nhưng VẪN gửi lên
+  });
+
+  it("bảng \"Đơn vị bán và giá\": mở sửa nạp đủ đơn vị chính, đơn vị thêm và giá, lưu gửi lại nguyên", async () => {
+    // Hai cột `don_vi_gia` / `don_vi_them` không có ô riêng trong `fields` — quên nạp thì bảng trống
+    // và lưu là xoá mất đơn vị (lỗi bắt được lúc bấm thử 09/11/2026).
+    const user = userEvent.setup();
+    const rows: Row[] = [{ id: 7, ma: "TM-1", ten: "Bút", don_vi_gia: "cai", don_vi_them: ["hop"],
+      gia_ban_theo_dvt: { cai: 5000, hop: 90000 } }];
+    const goi = moMan({ ...CO_BAN, fields: [{ key: "gia_ban_theo_dvt", label: "Đơn vị bán và giá",
+      type: "don-vi-ban-gia", refPrefix: "/api/don-vi" }] }, rows);
+
+    await user.click(await screen.findByText("Bút"));
+    await screen.findByRole("dialog");
+    const oGia = drawer().getAllByPlaceholderText("Chưa đặt giá") as HTMLInputElement[];
+    expect(oGia.map((o) => o.value)).toEqual(["5.000", "90.000"]);
+
+    const oTen = drawer().getByLabelText(/^Tên/);
+    await user.clear(oTen);
+    await user.type(oTen, "Bút bi");
+    await user.click(drawer().getByRole("button", { name: "Lưu thay đổi" }));
+
+    await waitFor(() => expect(soLanGhi(goi)).toBe(1));
+    const ghi = bodyGhi(goi);
+    expect(ghi.body?.don_vi_gia).toBe("cai");
+    expect(ghi.body?.don_vi_them).toEqual(["hop"]);
+    expect(ghi.body?.gia_ban_theo_dvt).toEqual({ cai: 5000, hop: 90000 });
   });
 
   it("`oKhoaKhiCoDinh`: dòng hệ thống khoá tên + ô liệt kê, ô khác vẫn sửa được và vẫn gửi đủ", async () => {
@@ -522,5 +549,43 @@ describe("CatalogDrawer — ô prefill theo form (`macDinhTheo`)", () => {
     // Ô trống của bản ghi vốn trống thì drawer bỏ hẳn khỏi body (xem `submit`) — cái cần khoá ở
     // đây là nó KHÔNG mọc ra chuỗi nào, chứ không phải nó gửi lên chuỗi rỗng.
     expect(bodyGhi(goi).body).not.toHaveProperty("cong_thuc");
+  });
+});
+
+describe("NganHangThuongMai — ngăn hai cột của Hàng thương mại", () => {
+  const HTM: CatalogConfig = { ...CO_BAN, title: "Hàng thương mại", prefix: "/api/vat-lieu-kho/hang-thuong-mai",
+    nhatKyLoai: "hang_thuong_mai", nganRieng: NganHangThuongMai, fields: [] };
+  const BUT: Row = { id: 7, ma: "TM-BUT01", ten: "Bút bi", don_vi_gia: "cai", don_vi_them: ["hop"],
+    gia_ban_theo_dvt: { cai: 5000, hop: 90000 }, gia_nhap_gan_nhat: { cai: 3200 },
+    ton_theo_dvt: { cai: 320, hop: 12 }, ghi_chu: "", active: true };
+
+  it("mở sửa: ba tab, bảng đơn vị có giá nhập gần nhất, thẻ Tồn hiện có theo đơn vị", async () => {
+    const user = userEvent.setup();
+    moMan(HTM, [BUT]);
+    await user.click(await screen.findByText("Bút bi"));
+    await screen.findByRole("dialog");
+    expect(drawer().getAllByRole("tab").map((t) => t.textContent)).toEqual(["Thông tin", "Tồn theo kho", "Lịch sử"]);
+    expect((drawer().getAllByPlaceholderText("Chưa đặt giá") as HTMLInputElement[]).map((o) => o.value))
+      .toEqual(["5.000", "90.000"]);
+    expect(drawer().getByText("3.200")).toBeInTheDocument();
+    expect(drawer().getByText("Chưa nhập")).toBeInTheDocument();      // hộp chưa có lô nhập có giá
+    expect(drawer().getByText("320")).toBeInTheDocument();
+    expect(drawer().getByText("12")).toBeInTheDocument();
+  });
+
+  it("tắt công tắc Đang bán rồi Lưu: gửi `active: false`, giữ nguyên đơn vị và giá", async () => {
+    const user = userEvent.setup();
+    const goi = moMan(HTM, [BUT]);
+    await user.click(await screen.findByText("Bút bi"));
+    await screen.findByRole("dialog");
+    await user.click(drawer().getByRole("switch", { name: "Đang bán" }));
+    expect(drawer().getByText("Ngừng bán")).toBeInTheDocument();
+    await user.click(drawer().getByRole("button", { name: "Lưu" }));
+    await waitFor(() => expect(soLanGhi(goi)).toBe(1));
+    const ghi = bodyGhi(goi);
+    expect(ghi.method).toBe("PUT");
+    expect(ghi.path).toBe("/api/vat-lieu-kho/hang-thuong-mai/7");
+    expect(ghi.body).toMatchObject({ active: false, don_vi_gia: "cai", don_vi_them: ["hop"],
+      gia_ban_theo_dvt: { cai: 5000, hop: 90000 } });
   });
 });

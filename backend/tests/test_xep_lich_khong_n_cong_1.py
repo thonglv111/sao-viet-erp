@@ -1,7 +1,7 @@
-"""Xếp lịch không hỏi báo hỏng TỪNG máy (quét SQL lặp 26/10/2026: 8 lần ky_thuat_yeu_cau_sua).
+"""Bàn Xếp lịch không hỏi DB theo TỪNG lệnh (quét SQL lặp 26/10/2026).
 
-Bàn xếp lịch hiện bao nhiêu máy thì `_gan_canh_bao_may` hỏi bấy nhiêu lượt yêu cầu sửa + phiếu sửa.
-Số câu SQL của `/lich` phải không đổi theo số máy có lệnh.
+Từ 08/11/2026 Xếp lịch là bàn hẹn đẩy (`/ban`), cảnh báo máy trên Gantt đã gỡ; số câu SQL của
+`/ban` vẫn phải không đổi theo số lệnh, mỗi lệnh một đơn một khách.
 """
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ from app.models.ky_thuat_may import TT_YC_CHO_TIEP_NHAN, YeuCauSuaChua
 from app.models.lsx import TT_SAN_SANG, Lsx, LsxCongDoan
 from app.models.may_thiet_bi import MayThietBi
 from tests.test_xep_lich_lenh_api import GOC, _hd
+
+BAN = f"{GOC}/ban?tab=chua_hen&tu=2026-09-07&den=2026-09-20"
 
 
 def _may_co_lenh(client, h, n: int, dau: int, *, don_rieng: bool = False) -> list[int]:
@@ -47,9 +49,6 @@ def _may_co_lenh(client, h, n: int, dau: int, *, don_rieng: bool = False) -> lis
         db.commit()
     finally:
         db.close()
-    for lid in ids:
-        assert client.put(f"{GOC}/lenh/{lid}", json={"bat_dau_at": "2026-09-11T08:00:00"},
-                          headers=h).status_code == 200
     return ids
 
 
@@ -61,23 +60,14 @@ def _dem(client, h) -> int:
 
     event.listen(engine, "before_cursor_execute", nghe)
     try:
-        r = client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20", headers=h)
+        r = client.get(f"{BAN}", headers=h)
     finally:
         event.remove(engine, "before_cursor_execute", nghe)
     assert r.status_code == 200
     return n[0]
 
 
-def test_lich_khong_hoi_bao_hong_tung_may(client):
-    h = _hd(client)
-    _may_co_lenh(client, h, 1, 1)
-    it = _dem(client, h)
-    _may_co_lenh(client, h, 6, 2)
-    nhieu = _dem(client, h)
-    assert nhieu <= it + 2, (it, nhieu)
-
-
-def test_lich_khong_hoi_don_khach_tung_lenh(client):
+def test_ban_khong_hoi_don_khach_tung_lenh(client):
     """Mỗi lệnh một đơn một khách: tên khách nạp một lượt cho cả bàn (DB đo tải 26/10: 124 + 93 câu)."""
     h = _hd(client)
     _may_co_lenh(client, h, 1, 101, don_rieng=True)
@@ -85,7 +75,7 @@ def test_lich_khong_hoi_don_khach_tung_lenh(client):
     _may_co_lenh(client, h, 6, 102, don_rieng=True)
     nhieu = _dem(client, h)
     assert nhieu <= it + 2, (it, nhieu)
-    body = client.get(f"{GOC}/lich?tu=2026-09-07&den=2026-09-20", headers=h).json()
+    body = client.get(f"{BAN}&moi_trang=100", headers=h).json()
     ten = {d["ma"]: d["customer_name"] for d in body["dong"]}
     assert ten["LSX-N1-104"] == "Khách 104"
 

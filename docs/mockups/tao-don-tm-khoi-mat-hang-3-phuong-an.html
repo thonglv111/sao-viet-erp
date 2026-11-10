@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Khối Mặt hàng</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Token chép từ frontend/src/styles/tokens.css */
+:root{
+  --paper:#f8fafc; --canvas:#fff; --ink:#0f172a; --ink-2:#334155; --ash:#475569; --ash-2:#64748b; --ash-3:#94a3b8;
+  --rule:#cbd5e1; --rule-soft:#e2e8f0; --rule-hair:#f1f5f9; --rust:#c5400a; --amber-deep:#7a5c0f;
+  --tt-cam-bg:#ffedd5; --tt-cam-fg:#c2410c; --vang-bg:#fefce8; --vang-vien:#eab308; --charcoal:#0f172a;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif}
+.page{max-width:1120px;margin:0 auto;padding:28px 16px 100px}
+h1{font-size:22px;margin:0 0 6px;font-weight:500}
+.lead{color:var(--ash);margin:0 0 6px;max-width:900px;font-size:13.5px}
+.optnav{position:sticky;top:0;z-index:30;background:rgba(233,237,242,.94);padding:12px 0;margin:18px 0;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--rule)}
+.optnav button{height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--rule);background:var(--canvas);font:inherit;font-size:13.5px;color:var(--ink-2);cursor:pointer}
+.optnav button.on{background:var(--charcoal);border-color:var(--charcoal);color:#fff}
+.opt{display:none}.opt.on{display:block}
+.opt-h{margin:0 0 4px;font-size:18px;font-weight:500}
+.why{color:var(--ash);margin:0 0 14px;font-size:13.5px}
+.why ul{margin:4px 0 0;padding-left:18px;display:grid;gap:2px}
+
+/* Khung khối như trang thật */
+.the{background:var(--canvas);border:1px solid var(--rule-soft);border-radius:12px;padding:18px 20px;max-width:1060px}
+.the h2{margin:0 0 12px;font-size:15px;font-weight:500}
+.tong{display:flex;justify-content:space-between;border-top:1px solid var(--rule-soft);margin-top:12px;padding-top:12px;font-size:15px}
+.mo{color:var(--ash-2);font-size:12px}
+.so{font-variant-numeric:tabular-nums}
+.r{text-align:right}
+button{font:inherit}
+.x{width:28px;height:28px;border:0;background:none;color:var(--ash-3);border-radius:6px;cursor:pointer;font-size:16px}
+.x:hover{background:var(--rule-hair);color:var(--ink)}
+
+/* Ô tìm trên đầu khối (A, C) */
+.tim{position:relative;margin-bottom:12px}
+.tim input{width:100%;height:42px;border:1px solid var(--rule);border-radius:8px;padding:0 12px 0 38px;font:inherit;font-size:14px;background:var(--canvas)}
+.tim input:focus{outline:none;border-color:var(--ink)}
+.tim svg{position:absolute;left:12px;top:12px;color:var(--ash-2)}
+.tim .goi{position:absolute;left:0;right:0;top:46px;background:var(--canvas);border:1px solid var(--rule);border-radius:8px;box-shadow:0 6px 16px rgba(16,24,40,.12);z-index:5;display:none;padding:4px 0}
+.tim.mo-ds .goi{display:block}
+.goi .dau,.goi .d{display:grid;grid-template-columns:1fr 110px 120px;gap:12px;padding:7px 12px;align-items:center}
+.goi .dau{font-size:12px;color:var(--ash-2);border-bottom:1px solid var(--rule-soft)}
+.goi .d{cursor:pointer}.goi .d:hover{background:var(--rule-hair)}
+.het{color:#d92d20}
+
+/* Stepper */
+.step{display:inline-flex;align-items:center;border:1px solid var(--rule);border-radius:8px;height:32px;overflow:hidden}
+.step button{width:30px;height:100%;border:0;background:none;cursor:pointer;color:var(--ash)}
+.step button:hover{background:var(--rule-hair);color:var(--ink)}
+.step input{width:44px;height:100%;border:0;border-left:1px solid var(--rule-soft);border-right:1px solid var(--rule-soft);text-align:center;font:inherit;font-variant-numeric:tabular-nums}
+.step input:focus{outline:none}
+
+/* Chữ bấm để sửa */
+.sua{border:1px solid transparent;border-radius:6px;padding:3px 6px;cursor:text;display:inline-block;min-width:60px}
+.sua:hover{border-color:var(--rule)}
+.sua input{width:90px;border:0;font:inherit;text-align:right;padding:0}
+.sua input:focus{outline:none}
+.sua.dang{border-color:var(--ink)}
+.dvt{border:1px solid transparent;border-radius:6px;padding:3px 4px;background:none;font:inherit;color:var(--ink);cursor:pointer}
+.dvt:hover{border-color:var(--rule)}
+.ton{font-size:12px;color:var(--ash-2)}
+.ton.thieu{color:var(--tt-cam-fg)}
+
+/* A */
+.a-bang{width:100%;border-collapse:collapse;font-size:14px}
+.a-bang th{font-size:12px;color:var(--ash-2);font-weight:400;text-align:left;padding:6px 8px;border-bottom:1px solid var(--rule-soft)}
+.a-bang td{padding:10px 8px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+.a-bang tr:hover td{background:#fcfdfe}
+.a-ten{display:grid;gap:1px}
+
+/* B */
+.b-bang{width:100%;border-collapse:collapse;font-size:13px}
+.b-bang th{font-size:12px;color:var(--ash-2);font-weight:400;text-align:left;padding:0 8px;height:32px;border-bottom:1px solid var(--rule-soft);background:var(--paper)}
+.b-bang td{height:36px;padding:0;border-bottom:1px solid var(--rule-soft);border-right:1px solid var(--rule-hair)}
+.b-bang td:last-child{border-right:0}
+.b-bang input,.b-bang select{width:100%;height:35px;border:1px solid transparent;background:none;padding:0 8px;font:inherit;color:var(--ink)}
+.b-bang input:hover,.b-bang select:hover{border-color:var(--rule)}
+.b-bang input:focus,.b-bang select:focus{outline:none;border-color:var(--ink);background:var(--canvas)}
+.b-bang td.chu{padding:0 8px}
+.b-bang td.thieu-o{background:var(--vang-bg);box-shadow:inset 0 0 0 1px var(--vang-vien)}
+.b-them td{color:var(--ash-2)}
+.b-them input::placeholder{color:var(--ash-3)}
+
+/* C */
+.c-ds{display:grid;gap:8px}
+.c-the{display:grid;grid-template-columns:1fr auto 120px 28px;gap:16px;align-items:center;border:1px solid var(--rule-soft);border-radius:10px;padding:12px 14px}
+.c-the:hover{border-color:var(--rule)}
+.c-ten{font-size:15px}
+.c-phu{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chip{font-size:12px;background:var(--rule-hair);border-radius:6px;padding:2px 8px;color:var(--ash)}
+.chip.thieu{background:var(--tt-cam-bg);color:var(--tt-cam-fg)}
+.c-tien{font-size:15px}
+@media (max-width:720px){
+  .c-the{grid-template-columns:1fr auto;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Tạo đơn thương mại: khối Mặt hàng, 3 phương án</h1>
+  <p class="lead">Chỉ vẽ lại khối Mặt hàng; khối Xuất hàng, Khách hàng, Thanh toán giữ nguyên. Logic không đổi: một dòng một món theo một đơn vị, đơn giá tự lấy giá khai của đơn vị đó và gõ đè được, VAT tính riêng từng dòng, tồn đọc ở kho xuất đang chọn (ở đây giả sử kho Cửa hàng). Dữ liệu là ba món thử; Bút bi xanh cố ý thiếu hàng. Khuôn quầy bán tham khảo trang Tạo đơn của Sapo đã mở ở lần dựng mockup trước (ban-hang-thuong-mai-3-phuong-an.html).</p>
+  <p class="lead">Bấm được: nút trừ cộng, ô số lượng, chữ đơn giá và VAT (A), ô tìm hàng (A, C).</p>
+
+  <nav class="optnav">
+    <button data-o="a" class="on">A. Kiểu quầy bán</button>
+    <button data-o="b">B. Bảng nhập phẳng</button>
+    <button data-o="c">C. Mỗi món một thẻ</button>
+  </nav>
+
+  <section class="opt on" id="o-a">
+    <h2 class="opt-h">A. Kiểu quầy bán</h2>
+    <div class="why"><ul>
+      <li>Ô tìm hàng nằm trên đầu khối, chọn là thêm dòng; chọn lại món đã có thì cộng số lượng. Bỏ nút "Thêm mặt hàng" và dòng trống.</li>
+      <li>Dòng là chữ, không ô viền. Số lượng là nút trừ cộng; đơn giá, VAT, đơn vị là chữ, rê chuột hiện khung, bấm vào mới sửa.</li>
+      <li>Tồn là chữ nhỏ dưới tên, cùng chỗ với mã; thiếu thì đổi cam.</li>
+    </ul></div>
+    <div class="the">
+      <h2>Mặt hàng</h2>
+      <div class="tim" data-tim>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input placeholder="Thêm hàng: gõ mã hoặc tên">
+        <div class="goi"></div>
+      </div>
+      <table class="a-bang">
+        <thead><tr><th>Mặt hàng</th><th>Đơn vị</th><th>Số lượng</th><th class="r">Đơn giá</th><th class="r">VAT %</th><th class="r">Thành tiền</th><th></th></tr></thead>
+        <tbody id="a-body"></tbody>
+      </table>
+      <div class="tong"><span>Tổng gồm VAT</span><span class="so" data-tong></span></div>
+    </div>
+  </section>
+
+  <section class="opt" id="o-b">
+    <h2 class="opt-h">B. Bảng nhập phẳng</h2>
+    <div class="why"><ul>
+      <li>Giữ đúng dáng bảng hiện tại nhưng như lưới Excel của app: dòng 36px, ô không viền, chỉ viền khi rê chuột hoặc đang gõ.</li>
+      <li>Dòng cuối luôn trống để gõ món tiếp, bỏ nút "Thêm mặt hàng".</li>
+      <li>Tồn một số một dòng. Thiếu thì ô Số lượng nền vàng, rê chuột vào thấy "Thiếu 1".</li>
+    </ul></div>
+    <div class="the">
+      <h2>Mặt hàng</h2>
+      <table class="b-bang">
+        <thead><tr><th style="width:34%">Mặt hàng</th><th>Đơn vị</th><th class="r">Tồn</th><th class="r">Số lượng</th><th class="r">Đơn giá</th><th class="r">VAT %</th><th class="r">Thành tiền</th><th style="width:32px"></th></tr></thead>
+        <tbody id="b-body"></tbody>
+      </table>
+      <div class="tong"><span>Tổng gồm VAT</span><span class="so" data-tong></span></div>
+    </div>
+  </section>
+
+  <section class="opt" id="o-c">
+    <h2 class="opt-h">C. Mỗi món một thẻ</h2>
+    <div class="why"><ul>
+      <li>Ô tìm trên đầu như A. Mỗi món một thẻ: tên lớn, dưới tên là thẻ nhỏ tồn, giá theo đơn vị, VAT.</li>
+      <li>Bên phải là trừ cộng số lượng và thành tiền. Đổi đơn vị, sửa giá, VAT bằng cách bấm vào thẻ nhỏ tương ứng.</li>
+      <li>Hợp khi bán trên điện thoại: thu hẹp thì thẻ xuống dòng, không cần cuộn ngang.</li>
+    </ul></div>
+    <div class="the">
+      <h2>Mặt hàng</h2>
+      <div class="tim" data-tim>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input placeholder="Thêm hàng: gõ mã hoặc tên">
+        <div class="goi"></div>
+      </div>
+      <div class="c-ds" id="c-body"></div>
+      <div class="tong"><span>Tổng gồm VAT</span><span class="so" data-tong></span></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const DM = [
+  {id:1, ten:"Bút bi xanh (thử TM)", ma:"TM-THU1", dvt:"hộp", dvts:["hộp","cây"], gia:{"hộp":75000,"cây":8000}, ton:{"hộp":0,"cây":0}},
+  {id:2, ten:"Giấy A4 Double A (thử TM)", ma:"TM-THU2", dvt:"ram", dvts:["ram","thùng"], gia:{"ram":85000,"thùng":420000}, ton:{"ram":18,"thùng":3}},
+  {id:3, ten:"Băng keo trong 5cm (thử TM)", ma:"TM-THU3", dvt:"cuộn", dvts:["cuộn"], gia:{"cuộn":12000}, ton:{"cuộn":40}},
+];
+let dong = [
+  {h:DM[0], dvt:"hộp", sl:1, gia:null, vat:0},
+  {h:DM[1], dvt:"ram", sl:2, gia:null, vat:0},
+  {h:DM[2], dvt:"cuộn", sl:10, gia:null, vat:8},
+];
+const vn = n => n.toLocaleString("vi-VN");
+const giaCua = d => d.gia ?? d.h.gia[d.dvt];
+const tien = d => giaCua(d) * d.sl;
+const tonCua = d => d.h.ton[d.dvt];
+const thieu = d => Math.max(0, d.sl - tonCua(d));
+const chuTon = d => thieu(d) ? `Còn ${tonCua(d)} ${d.dvt}, thiếu ${thieu(d)}` : `Còn ${tonCua(d)} ${d.dvt}`;
+
+function ve(){
+  // A
+  document.getElementById("a-body").innerHTML = dong.map((d,i)=>`
+    <tr>
+      <td><div class="a-ten"><span>${d.h.ten}</span><span class="mo">${d.h.ma}<span class="ton ${thieu(d)?"thieu":""}" style="margin-left:12px">${chuTon(d)}</span></span></div></td>
+      <td><select class="dvt" data-i="${i}" data-k="dvt">${d.h.dvts.map(m=>`<option ${m===d.dvt?"selected":""}>${m}</option>`).join("")}</select></td>
+      <td>${step(i,d)}</td>
+      <td class="r"><span class="sua so" data-i="${i}" data-k="gia">${vn(giaCua(d))}</span></td>
+      <td class="r"><span class="sua so" data-i="${i}" data-k="vat" style="min-width:36px">${d.vat}</span></td>
+      <td class="r so">${vn(tien(d))}</td>
+      <td><button class="x" data-xoa="${i}" title="Bỏ dòng">×</button></td>
+    </tr>`).join("");
+  // B
+  document.getElementById("b-body").innerHTML = dong.map((d,i)=>`
+    <tr>
+      <td><input value="${d.h.ten}" title="${d.h.ten} (${d.h.ma})"></td>
+      <td><select data-i="${i}" data-k="dvt">${d.h.dvts.map(m=>`<option ${m===d.dvt?"selected":""}>${m}</option>`).join("")}</select></td>
+      <td class="chu r so">${tonCua(d)}</td>
+      <td class="${thieu(d)?"thieu-o":""}" title="${thieu(d)?`Thiếu ${thieu(d)} ${d.dvt}`:""}"><input class="r so" data-i="${i}" data-k="sl" value="${d.sl}"></td>
+      <td><input class="r so" data-i="${i}" data-k="gia" value="${vn(giaCua(d))}"></td>
+      <td><input class="r so" data-i="${i}" data-k="vat" value="${d.vat}"></td>
+      <td class="chu r so">${vn(tien(d))}</td>
+      <td class="chu"><button class="x" data-xoa="${i}" title="Bỏ dòng">×</button></td>
+    </tr>`).join("") + `
+    <tr class="b-them"><td><input placeholder="Gõ mã hoặc tên để thêm hàng"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+  // C
+  document.getElementById("c-body").innerHTML = dong.map((d,i)=>`
+    <div class="c-the">
+      <div>
+        <div class="c-ten">${d.h.ten}</div>
+        <div class="c-phu">
+          <span class="chip ${thieu(d)?"thieu":""}">${chuTon(d)}</span>
+          <span class="chip">${vn(giaCua(d))}/${d.dvt}</span>
+          <span class="chip">VAT ${d.vat}%</span>
+          <span class="chip">${d.h.ma}</span>
+        </div>
+      </div>
+      ${step(i,d)}
+      <span class="r so c-tien">${vn(tien(d))}</span>
+      <button class="x" data-xoa="${i}" title="Bỏ dòng">×</button>
+    </div>`).join("");
+  const t = dong.reduce((s,d)=>s+Math.floor(tien(d)*(100+d.vat)/100),0);
+  document.querySelectorAll("[data-tong]").forEach(e=>e.textContent=vn(t));
+}
+const step = (i,d) => `<span class="step"><button data-i="${i}" data-d="-1" aria-label="Bớt">−</button><input class="so" data-i="${i}" data-k="sl" value="${d.sl}"><button data-i="${i}" data-d="1" aria-label="Thêm">+</button></span>`;
+
+document.addEventListener("click", e=>{
+  const b = e.target.closest("button");
+  if (b?.dataset.o){ document.querySelectorAll(".optnav button").forEach(x=>x.classList.toggle("on",x===b)); document.querySelectorAll(".opt").forEach(s=>s.classList.toggle("on",s.id==="o-"+b.dataset.o)); return; }
+  if (b?.dataset.d){ const d=dong[+b.dataset.i]; d.sl=Math.max(1,d.sl+ +b.dataset.d); ve(); return; }
+  if (b?.dataset.xoa!=null){ dong.splice(+b.dataset.xoa,1); ve(); return; }
+  const s = e.target.closest(".sua");
+  if (s && !s.classList.contains("dang")){
+    const d=dong[+s.dataset.i], k=s.dataset.k;
+    s.classList.add("dang"); s.innerHTML=`<input value="${k==="gia"?giaCua(d):d.vat}">`;
+    const ip=s.querySelector("input"); ip.focus(); ip.select();
+    const xong=()=>{ const v=Number(ip.value.replace(/\D/g,""))||0; if(k==="gia") d.gia=v; else d.vat=v; ve(); };
+    ip.addEventListener("blur",xong); ip.addEventListener("keydown",ev=>{ if(ev.key==="Enter") ip.blur(); });
+  }
+  const g = e.target.closest(".goi .d");
+  if (g){ const h=DM.find(x=>x.id===+g.dataset.id); const co=dong.find(x=>x.h===h&&x.dvt===h.dvt); if(co) co.sl++; else dong.push({h,dvt:h.dvt,sl:1,gia:null,vat:0}); g.closest("[data-tim]").classList.remove("mo-ds"); ve(); }
+});
+document.addEventListener("change", e=>{
+  const t=e.target; if(t.dataset.k==null) return; const d=dong[+t.dataset.i];
+  if(t.dataset.k==="dvt"){ d.dvt=t.value; d.gia=null; }
+  if(t.dataset.k==="sl") d.sl=Math.max(1,Number(t.value.replace(/\D/g,""))||1);
+  if(t.dataset.k==="gia") d.gia=Number(t.value.replace(/\D/g,""))||0;
+  if(t.dataset.k==="vat") d.vat=Number(t.value.replace(/\D/g,""))||0;
+  ve();
+});
+document.querySelectorAll("[data-tim]").forEach(w=>{
+  const ip=w.querySelector("input"), ds=w.querySelector(".goi");
+  const loc=()=>{ const q=ip.value.toLowerCase(); ds.innerHTML=`<div class="dau"><span>Mặt hàng</span><span class="r">Tồn</span><span class="r">Giá bán</span></div>`+
+    DM.filter(h=>!q||h.ten.toLowerCase().includes(q)||h.ma.toLowerCase().includes(q)).map(h=>`<div class="d" data-id="${h.id}"><span>${h.ten} <span class="mo">${h.ma}</span></span><span class="r so ${h.ton[h.dvt]?"":"het"}">${h.ton[h.dvt]?h.ton[h.dvt]+" "+h.dvt:"Hết"}</span><span class="r so">${vn(h.gia[h.dvt])}/${h.dvt}</span></div>`).join(""); };
+  ip.addEventListener("focus",()=>{ loc(); w.classList.add("mo-ds"); });
+  ip.addEventListener("input",loc);
+  ip.addEventListener("blur",()=>setTimeout(()=>w.classList.remove("mo-ds"),150));
+  ds.addEventListener("mousedown",e=>e.preventDefault());
+});
+ve();
+</script>
+</body>
+</html>

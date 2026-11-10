@@ -250,9 +250,6 @@ export function BuocChungForm({
   const phatSinh = Number(tg.phat_sinh_phut ?? 0);
   const chayTB = Number(tg.chay_phut ?? 0);
   const chiemTB = Number(tg.chiem_tai_nguyen_phut ?? 0);
-  const chiemMin = phatSinh + setup + Number(tg.chay_phut_min ?? chayTB);
-  const chiemMax = phatSinh + setup + Number(tg.chay_phut_max ?? chayTB);
-  const coDai = Boolean(tg.co_dai_toc_do);
   const khoanChuanBi: { ten?: string; phut?: number }[] = Array.isArray(tg.chuan_bi_khoan)
     ? (tg.chuan_bi_khoan as { ten?: string; phut?: number }[])
     : [];
@@ -544,14 +541,6 @@ export function BuocChungForm({
                     </select>
                     {coRangBuocTo && toDangGan != null && mayCuaTo(toDangGan).length === 0 && (
                       <span className="khsx-field__hint">Tổ này chưa có máy chạy công đoạn này.</span>
-                    )}
-                    {mayDaChon && (
-                      <span className="khsx-field__hint">
-                        {mayDaChon.tocDo
-                          ? `Tốc độ ${num(Number(mayDaChon.tocDo))} ${mayDaChon.nhanTocDo || "đv/h"}`
-                          : "Máy chưa khai tốc độ"}
-                        {mayDaChon.chuanBiPhut ? ` · chuẩn bị ${num(Number(mayDaChon.chuanBiPhut))}′` : ""}
-                      </span>
                     )}
                   </label>
                 )}
@@ -905,6 +894,8 @@ export function BuocChungForm({
               </div>
             </section>
 
+            {/* 08/11/2026: bước máy thôi tính giờ theo tốc độ — không còn gì để bóc tách. */}
+            {tg.phuong_phap !== "khong_tinh" && (
             <section className="khsx-section-card">
               <div className="khsx-section-card__head">
                 <div>
@@ -1100,27 +1091,6 @@ export function BuocChungForm({
                   </div>
                 )}
 
-                {coDai ? (
-                  <div className="khsx-tolerance-line">
-                    <div className="khsx-tolerance-line__head">
-                      <span>Biên độ tốc độ máy (Min — Max)</span>
-                      <span>Kế hoạch Gantt: <b>{phut(chiemTB)}</b></span>
-                    </div>
-                    <div className="khsx-tolerance-line__bar">
-                      <span className="khsx-tolerance-line__node">Nhanh nhất: <b>{phut(chiemMin)}</b></span>
-                      <div className="khsx-tolerance-line__track">
-                        <div className="khsx-tolerance-line__point" />
-                      </div>
-                      <span className="khsx-tolerance-line__node">Chậm nhất: <b>{phut(chiemMax)}</b></span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="khsx-tolerance-empty">
-                    {loai === "to"
-                      ? "Đầu việc chưa khai năng suất tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."
-                      : "Máy chưa khai tốc độ tối thiểu / tối đa nên chưa có khoảng nhanh–chậm."}
-                  </div>
-                )}
               </div>
 
               <div className="khsx-compact-kpi-strip">
@@ -1140,6 +1110,7 @@ export function BuocChungForm({
                 </div>
               </div>
             </section>
+            )}
           </div>
         )}
 

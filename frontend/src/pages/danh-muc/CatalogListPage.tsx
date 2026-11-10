@@ -117,6 +117,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | "new" | null>(null);
+  const NganChiTiet = config.nganRieng ?? CatalogDrawer;
   const [deleting, setDeleting] = useState<Row | null>(null);      // renderDeleteDialog: dialog xóa riêng
   const [q, setQ] = useState("");
   const qTre = useTre(q);              // gõ xong 300ms mới hỏi máy chủ
@@ -234,8 +235,8 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   const soNgung = demActive?.find((d) => d.value === "false")?.so;
   const mucTrangThai: MucLocNhanh[] = [
     { key: "", label: "Tất cả", count: demActive ? (soDung ?? 0) + (soNgung ?? 0) : undefined },
-    { key: "true", label: "Đang dùng", count: demActive ? soDung ?? 0 : undefined, mau: "la" },
-    { key: "false", label: "Đã ngừng", count: demActive ? soNgung ?? 0 : undefined, mau: "xam" },
+    { key: "true", label: config.nhanTrangThai?.dung ?? "Đang dùng", count: demActive ? soDung ?? 0 : undefined, mau: "la" },
+    { key: "false", label: config.nhanTrangThai?.ngung ?? "Đã ngừng", count: demActive ? soNgung ?? 0 : undefined, mau: "xam" },
   ];
   const chonTrangThai = (key: string) => setLocMan({ ...locMan, loc: { ...locMan.loc, [KHOA_ACTIVE]: key || undefined } });
 
@@ -540,7 +541,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
       </div>
 
       {editing && (
-        <CatalogDrawer config={config} existing={editing === "new" ? null : editing}
+        <NganChiTiet config={config} existing={editing === "new" ? null : editing}
           onClose={() => { setEditing(null); lamMoi(); }}
           onSaved={(moi) => {
             setEditing(config.moLaiSauKhiTao && editing === "new" && moi ? moi : null);

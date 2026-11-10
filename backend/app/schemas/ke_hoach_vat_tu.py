@@ -45,11 +45,9 @@ class CanDoiDong(BaseModel):
     #: Khách của lệnh (qua `orders.customer_id`). Dòng BÀI GHÉP gom nhiều lệnh: một khách thì là
     #: tên khách, nhiều khách thì là chuỗi `"3 khách"` — cố ý không bốc một tên làm đại diện.
     khach_ten: str | None = None
-    #: Hạn giao KHÁCH (`lsx.han_giao_khach`), KHÁC hạn nội bộ `han_hoan_thanh_sx` mà bảng dùng để
-    #: xếp thứ tự ăn tồn. Bài ghép lấy hạn sớm nhất trong các thành viên.
+    #: Hạn giao KHÁCH (`lsx.han_giao_khach`). Bài ghép lấy hạn sớm nhất trong các thành viên.
+    #: Thứ tự ăn tồn: giờ hẹn đẩy rồi tới hạn này (08/11/2026). Màn Tồn kho vẽ dự báo theo mốc này.
     han_giao_khach: date | None = None
-    #: Hạn HOÀN THÀNH SX nội bộ — chính là thứ tự ăn tồn của bảng. Màn Tồn kho vẽ dự báo theo mốc này.
-    han_sx: date | None = None
 
     #: Mọi số dưới đây theo ĐƠN VỊ GỐC của mặt hàng (kho đếm theo đơn vị đó). `None` ở dòng công cụ.
     nhu_cau: float | None = None

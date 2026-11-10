@@ -43,7 +43,11 @@ from ..db import Base
 # --- source_type (P1 redesign): nguồn tạo đơn ---------------------------------
 SOURCE_BAO_GIA = "bao_gia"        # NGUỒN DUY NHẤT hiện nay
 SOURCE_NHAP_TAY = "nhap_tay"      # DORMANT — đường tạo đã gỡ, hằng còn để ĐỌC đơn cũ
-SOURCE_TYPES = (SOURCE_BAO_GIA, SOURCE_NHAP_TAY)
+# ĐƠN THƯƠNG MẠI (08/11/2026, chỉ In Hà Phương — docs/design-hang-thuong-mai-ha-phuong.md §6): tạo ở màn
+# Đơn hàng bán, bán hàng thương mại, KHÔNG qua sản xuất. Loại đơn là bản chất của nguồn tạo, không có
+# cột "loại đơn" riêng. Mã tiền tố `TM`, dãy số riêng.
+SOURCE_THUONG_MAI = "thuong_mai"
+SOURCE_TYPES = (SOURCE_BAO_GIA, SOURCE_NHAP_TAY, SOURCE_THUONG_MAI)
 
 # --- order_nature: DORMANT (gỡ cùng vùng "Bản chất đơn" trên UI) ---------------
 NATURE_HANG_HOA = "hang_hoa"      # xưởng lo hết → HĐ toàn bộ giá trị
@@ -197,6 +201,18 @@ class Order(Base):
     san_xuat_released_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # --- Giao đơn cho người làm lệnh (08/11/2026, docs/design-giao-don-lam-lenh.md) ---------------
+    # Người giữ ô "Giao đơn" (`san_xuat:reassign`) chia đơn ở hàng chờ cho MỘT người cùng phòng. NULL =
+    # Chưa giao. Server ghi từ tài khoản, không có ô gõ tay. `nguoi_lam_lenh_mo_at` = lúc người được
+    # giao mở ngăn Lệnh dự kiến lần đầu sau lần giao gần nhất (chấm "chưa mở"); giao lại thì xoá.
+    nguoi_lam_lenh_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    giao_lam_lenh_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    nguoi_giao_lam_lenh_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    nguoi_lam_lenh_mo_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # --- Hủy (P5) ---------------------------------------------------------------
     cancel_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -253,6 +269,9 @@ class OrderLine(Base):
     # giao hàng, tiến độ đọc mã ở đây chứ không tra lại theo tên. NULL = đơn chốt trước 11/10/2026
     # (đọc rơi về tìm theo khách + tên, `thanh_pham_cua_cum`).
     thanh_pham_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    # MẶT HÀNG THƯƠNG MẠI của dòng (mg 0461, soft → vat_tu_in_an.id có `la_hang_thuong_mai`). Chỉ dòng
+    # của đơn `source_type='thuong_mai'` có; đơn sản xuất luôn NULL.
+    hang_thuong_mai_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
     # Nhãn NHÓM GỘP KHI IN (copy từ `quote_items.nhom`): bản in xác nhận đơn gom các dòng cùng
     # nhãn thành 1 dòng, khớp bản báo giá khách đã nhận. KHÔNG đụng sản xuất — `lsx_service` vẫn

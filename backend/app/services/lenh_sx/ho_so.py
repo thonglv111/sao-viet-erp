@@ -157,7 +157,7 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
     """Cùng bộ số với cột tiến độ của bảng danh sách — CỐ Ý, không phải tiện tay.
 
     Mở hồ sơ ra thấy 40% trong khi bảng vừa nói 55% là mất niềm tin vào cả hai màn, nên hai bên
-    phải gọi ĐÚNG một hàm (`tien_do.phan_tram` / `gio_may` / `du_kien_xong`) chứ không mỗi bên tự
+    phải gọi ĐÚNG một hàm (`tien_do.phan_tram` / `gio_may`) chứ không mỗi bên tự
     tính. `uoc_tinh=True` = phần trăm đang đo bằng THỜI LƯỢNG kế hoạch vì bước chưa khai sản lượng;
     hai mức tin cậy đó phải ra tới UI, gộp làm một là mời người ta quyết trên con số họ tưởng chắc.
     """
@@ -169,7 +169,6 @@ def _tien_do(bc: BoiCanh, lsx_id: int, bay_gio: datetime, tinh: dict) -> dict:
         "phan_tram": pct,
         "uoc_tinh": uoc_tinh,
         "gio_may": tien_do.gio_may(bc, lsx_id, bay_gio),
-        "du_kien_xong": tinh["xong"],
         "trang_thai": tinh["trang_thai"],
         "canh_bao": tinh["canh_bao"],
         "buoc_hien_tai": cv.ten_cong_doan if cv is not None else None,
@@ -777,11 +776,15 @@ def _goi_id(db: Session, bc: BoiCanh, lsx_id: int) -> int | None:
     return goi.id if goi is not None else None
 
 
+#: Hành động của Kế hoạch bộ phận hiện trên dòng thời gian của lệnh (nhãn ở `audit_registry.py`).
+_NHAT_KY_BO_PHAN = ("kh_bo_phan_giao", "kh_bo_phan_rut", "kh_bo_phan_doi_may")
+
+
 def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
               lich_su_nhan_luc: list[dict]) -> list[dict]:
     """Mọi việc đã xảy ra với lệnh, MỘT dòng thời gian, sắp tăng dần theo mốc MÁY CHỦ.
 
-    Bảy nguồn, vì bảy nơi ghi: gói phát hành · phiên chạy · sản lượng · KCS · sự cố · kho ·
+    Tám nguồn, vì tám nơi ghi: nhật ký Kế hoạch bộ phận (giao nhóm, rút, đổi máy) · gói phát hành · phiên chạy · sản lượng · KCS · sự cố · kho ·
     phân công/đổi máy (nhận lại từ `_nhan_luc` thay vì đọc `san_xuat_phan_cong` lần thứ hai).
 
     KHÔNG có giao hàng — CÓ NGUỒN, CỐ Ý CHƯA DÙNG (phán quyết C70). Nguồn sẵn sàng là
@@ -914,6 +917,27 @@ def _timeline(db: Session, bc: BoiCanh, lsx_id: int, *, goi_id: int | None,
             "nguoi_ten": e["nguoi"],
         })
 
+    # Nguồn thứ tám (07/11/2026): Kế hoạch bộ phận giao việc cho nhóm, rút về, đổi khỏi máy tính giá
+    # kèm lý do. Ba việc này chỉ ghi nhật ký (`audit_logs`, target của lệnh hoặc của bài ghép chứa
+    # lệnh), không có bảng riêng, nên đọc từ đó — thiếu thì người xem hồ sơ không biết vì sao máy
+    # đổi so với lúc tính giá.
+    from ...repositories.audit_repo import AuditLogRepository
+    from ...repositories.san_xuat_repo import SanXuatRepository
+
+    dich = [f"lsx:{lsx_id}"] + [f"bai_ghep:{b}" for b in
+                                 SanXuatRepository(db).bai_ghep_ids_cua_lsx({lsx_id})]
+    for logs in AuditLogRepository(db).list_by_targets(dich, actions=_NHAT_KY_BO_PHAN).values():
+        for log in logs:
+            ra.append({
+                "loai": "ke_hoach_bo_phan",
+                "luc": _aware(log.created_at),
+                "nguoi_id": log.actor_user_id,
+                "cong_viec_id": None,
+                "ten_viec": None,
+                "noi_dung": log.detail,
+                **({"nguoi_ten": log.actor_name_luc_do} if log.actor_name_luc_do else {}),
+            })
+
     ten_user = _ten_user(db, {e.get("nguoi_id") for e in ra})
     for e in ra:
         e["nguoi"] = e.pop("nguoi_ten", None) or ten_user.get(e.pop("nguoi_id", None))
@@ -987,16 +1011,12 @@ def ho_so(
     if can & {"tien_do", "vat_tu"}:
         den, bang, chu_den = trang_thai.den_va_bang(db, [lsx_id])
     if "tien_do" in can:
-        xong = tien_do.du_kien_xong(bc, lsx_id, bay_gio)
         tinh = {
-            "xong": xong,
             "vat_tu_chu": (
                 chu_den.get(lsx_id) if (den or {}).get(lsx_id) == lsx_tong_quan.MUC_DO else None
             ),
-            "canh_bao": trang_thai.co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den, xong=xong),
-            "trang_thai": trang_thai.trang_thai_chinh(
-                bc, lsx_id, bay_gio, den_vat_tu=den, xong=xong
-            ),
+            "canh_bao": trang_thai.co_canh_bao(bc, lsx_id, bay_gio, den_vat_tu=den),
+            "trang_thai": trang_thai.trang_thai_chinh(bc, lsx_id, bay_gio, den_vat_tu=den),
         }
 
     buocs: list[LsxCongDoan] = []

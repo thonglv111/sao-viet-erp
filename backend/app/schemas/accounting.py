@@ -658,6 +658,8 @@ class SalesInvoiceIn(BaseModel):
     invoice_date: date
     # Lượt giao khách đã nhận mà hóa đơn lập cho — service bắt buộc (mg 0402).
     delivery_trip_id: int | None = Field(default=None, gt=0)
+    # Đơn THƯƠNG MẠI (chỉ In Hà Phương): lượt xuất đã xuất thay cho lượt giao (mg 0462).
+    luot_xuat_tm_id: int | None = Field(default=None, gt=0)
     # Bỏ trống = toàn bộ phần hàng đã giao của lượt chưa ghi hóa đơn.
     amount_vnd: int | None = Field(default=None, gt=0)
 
@@ -693,6 +695,7 @@ class SalesInvoiceOut(BaseModel):
     cancelled_at: datetime | None = None
     cancel_reason: str | None = None
     delivery_trip_id: int | None = None
+    luot_xuat_tm_id: int | None = None
     luot_giao_ma: str | None = None
     # Chiết khấu / kê của hóa đơn (20/10/2026) — trước VAT; kê chi lại sau khi trừ thuế TNDN.
     chiet_khau: int = 0
@@ -739,6 +742,8 @@ class SalesInvoiceListOut(BaseModel):
     #: Tiền khách đưa dư còn phải trả lại (cùng số với hàng Chờ trả lại khách ở Phiếu chi).
     cho_tra_lai: int = 0
     luot_giao: list[LuotGiaoHoaDonOut] = []
+    # Đơn thương mại (chỉ In Hà Phương): `luot_giao[].trip_id` là id lượt xuất, gửi lại ở `luot_xuat_tm_id`.
+    luot_xuat_tm: bool = False
     phieu_thu: list[PhieuThuHoaDonOut] = []
     phieu_thu_hd_huy: list[PhieuThuHoaDonOut] = []
     items: list[SalesInvoiceOut]

@@ -12,6 +12,7 @@ import {
   type HangLoai,
   type PinnedCustomer,
   type QuoteEvent,
+  type KhbpBoPhan,
   type SxTeam,
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
@@ -60,6 +61,7 @@ const TheoDoiSanXuatPage = lazy(() =>
 const KeHoachVatTuPage = lazy(() => import("../pages/KeHoachVatTuPage").then((m) => ({ default: m.KeHoachVatTuPage })));
 const BaiGhep2Page = lazy(() => import("../pages/BaiGhep2Page").then((m) => ({ default: m.BaiGhep2Page })));
 const XepLichPage = lazy(() => import("../pages/XepLichPage").then((m) => ({ default: m.XepLichPage })));
+const KeHoachBoPhanPage = lazy(() => import("../pages/KeHoachBoPhanPage").then((m) => ({ default: m.KeHoachBoPhanPage })));
 const ThucHienSxPage = lazy(() => import("../pages/ThucHienSxPage").then((m) => ({ default: m.ThucHienSxPage })));
 const KcsTheoLenhPage = lazy(() => import("../pages/kcs/KcsTheoLenhPage").then((m) => ({ default: m.KcsTheoLenhPage })));
 const SuaChuaMayPage = lazy(() => import("../pages/SuaChuaMayPage").then((m) => ({ default: m.SuaChuaMayPage })));
@@ -125,6 +127,9 @@ import { GoiYBang } from "./LuoiDs";
 import { coQuyenBanTo, khoaBanTo } from "./appShellRealtime";
 import { khoaTonKho, xemKhoNao } from "../auth/quyenKho";
 import { docDeepLinkLsx } from "./appShellDeepLink";
+
+/** Tiền tố dòng quyền mục "Kế hoạch" của từng bộ phận (`services/quyen_ke_hoach.py`). */
+const KHOA_KE_HOACH = "ke_hoach_bp_";
 
 /** A cross-module navigation intent: which screen to open + optional payload so the
  *  target screen can pre-pin a customer or drill straight to a document. */
@@ -273,6 +278,8 @@ export function AppShell() {
   // số việc chờ. `teams` MỘT cú gọi ra cả list lẫn badge (`so_viec_cho`) — đừng thêm API badge
   // riêng. Refetch khi có sự kiện `san_xuat_cong_viec_changed` (badge nhảy + bàn đang mở tự tươi).
   const [teamList, setTeamList] = useState<SxTeam[]>([]);
+  // Bộ phận người này mở được mục "Kế hoạch" (dòng quyền `ke_hoach_bp_<id>`, 08/11/2026).
+  const [khbpList, setKhbpList] = useState<KhbpBoPhan[]>([]);
   // Real-time (SSE): toast nổi + mốc 'chờ tôi duyệt' gần nhất để chỉ toast khi TĂNG. Kênh SSE DUY
   // NHẤT ở đây (trang con mở kênh riêng = tốn kết nối + lệch trạng thái).
   // Tick THEO NHÓM (28/09/2026, trước là một `quoteTick` chung cho mọi màn): mỗi màn nhận tổng tick
@@ -576,6 +583,14 @@ export function AppShell() {
       .catch(() => {});
   }, [token, readable]);
   useEffect(() => { reloadTeams(); }, [reloadTeams]);
+  useEffect(() => {
+    if (!token || readable === null) return;
+    if (![...readable].some((k) => k.startsWith(KHOA_KE_HOACH))) {
+      setKhbpList([]);
+      return;
+    }
+    api.keHoachBoPhan.danhSach(token).then(setKhbpList).catch(() => {});
+  }, [token, readable]);
   // Tổ cha không có bàn (chỉ tổ lá nhận việc): link cũ, toast hay URL trỏ vào tổ cha ⇒ sang tổ lá
   // đầu tiên của nhánh, đừng mở bàn gộp việc mọi tổ con.
   useEffect(() => {
@@ -723,10 +738,12 @@ export function AppShell() {
       e.type === "order_ordered" ||
       e.type === "lsx_changed" ||
       e.type === "bai_ghep_changed" ||
-      e.type === "xep_lich_changed"
+      e.type === "xep_lich_changed" ||
+      e.type === "ke_hoach_bo_phan_changed"
     ) {
       // Nội dung màn tự refetch qua tick nhóm; chấm đỏ đi theo kênh `san_xuat`/`xep_lich`.
-      if (readable.has("san_xuat") && e.type === "order_ordered") {
+      // Đơn mới vào hàng chờ ở trạng thái Chưa giao ⇒ chỉ người có ô Giao đơn được báo (08/11/2026).
+      if (readable.has("san_xuat") && e.type === "order_ordered" && caps.get("san_xuat")?.can_reassign) {
         pushToast(`🔔 Đơn ${e.code ?? ""} vừa chuyển xuống sản xuất`.trim(), "info");
       }
       napBadge("tat_ca", reloadBadges);
@@ -768,6 +785,14 @@ export function AppShell() {
       } else {
         pushToast(`🔔 Bàn giao mới ${tuyen}${sl ? ` (${sl})` : ""} — chờ tổ bạn xác nhận`, "info");
       }
+    } else if (e.type === "don_giao_lam_lenh") {
+      // Đẩy ĐÍCH DANH tới người phụ trách được giao (08/11/2026).
+      const ma = e.codes.length === 1 ? `đơn ${e.codes[0]}` : `${e.codes.length} đơn`;
+      pushToast(`🔔 ${e.nguoi_giao ?? "Bạn"} vừa giao ${ma} cho bạn phụ trách, xem ở tab Tạo lệnh`, "info");
+      napBadge("tat_ca", reloadBadges);
+    } else if (e.type === "lsx_tao_ho") {
+      pushToast(`🔔 ${e.nguoi_tao ?? "Người giao"} đã tạo hộ ${e.so_lenh} lệnh của đơn ${e.code} bạn phụ trách`, "info");
+      napBadge("tat_ca", reloadBadges);
     } else if (e.type === "san_xuat_duoc_giao_viec") {
       // Đẩy đích danh tới người vừa được giao việc (chỉ người có tài khoản nhận) — toast cá nhân.
       pushToast("🔔 Bạn được giao việc sản xuất mới", "info");
@@ -1142,6 +1167,7 @@ export function AppShell() {
     // không có, phải khai tay ở đây.
     (baseId === "thuc-hien-sx"
       ? khoaBanTo(readable)
+      : baseId === "ke-hoach-bo-phan" ? [KHOA_KE_HOACH + activeId.split(":")[1]]
       : isKhoView ? [khoaTonKho(Number(activeId.split(":")[1]))] : undefined);
   const allowed =
     AUTHENTICATED_NAV_IDS.has(baseId) ||
@@ -1169,6 +1195,17 @@ export function AppShell() {
   // bàn "Thực hiện sản xuất" lọc theo tổ. teamList chỉ có dữ liệu khi có Xem ở một dòng quyền theo
   // tổ, nên thiếu quyền thì không đổ node nào. Máy chủ trả theo thứ tự cây kèm `cap` — thụt lề tính
   // từ nút NÔNG nhất người này thấy, để ai chỉ thấy vài tổ lá thì menu vẫn thẳng hàng.
+  //
+  // Mục "Kế hoạch" của bộ phận (08/11/2026) đứng ĐẦU nhánh của bộ phận đó. Bộ phận có nhóm: thêm
+  // con "Kế hoạch" trên các nhóm. Bộ phận tự làm (không nhóm): hàng bộ phận thành tiêu đề nhóm, bên
+  // trong là "Kế hoạch" và "Việc của tổ". Bộ phận người này lập kế hoạch được mà không có quyền tổ
+  // nào trong đó thì vẫn có tiêu đề + "Kế hoạch" ở cuối khối.
+  const khbpCua = new Map(khbpList.map((x) => [x.id, x]));
+  const daGanKh = new Set<number>();
+  const mucKeHoach = (bp: number, indent: number, parentId: string): NavItem => ({
+    id: `ke-hoach-bo-phan:${bp}`, label: "Kế hoạch", icon: "gantt", module: KHOA_KE_HOACH + bp,
+    indent, parentId,
+  });
   if (teamList.length) {
     const cacKhoaTo = khoaBanTo(readable);
     const capGoc = Math.min(...teamList.map((t) => t.cap ?? 0));
@@ -1176,17 +1213,44 @@ export function AppShell() {
     // phía trên. Giữ một chồng để suy ra `parentId` → Sidebar gập được cả nhánh (11 tổ + 5 nhóm in
     // đẩy menu dài quá màn hình).
     const nganh: { cap: number; id: string }[] = [];
-    for (const t of teamList) {
+    teamList.forEach((t, i) => {
       const cap = (t.cap ?? 0) - capGoc;
       while (nganh.length && nganh[nganh.length - 1].cap >= cap) nganh.pop();
+      const cha = nganh.length ? nganh[nganh.length - 1].id : undefined;
       const id = `thuc-hien-sx:${t.id}`;
+      const kh = khbpCua.get(t.id);
+      const laLa = !((teamList[i + 1]?.cap ?? -1) > (t.cap ?? 0));
+      if (kh && laLa) {
+        const tieuDe = `bo-phan:${t.id}`;
+        sanXuatDong.push(
+          { id: tieuDe, label: t.ten, icon: "users", module: KHOA_KE_HOACH + t.id,
+            modules: [KHOA_KE_HOACH + t.id, ...cacKhoaTo], indent: cap, parentId: cha },
+          mucKeHoach(t.id, cap + 1, tieuDe),
+          { id, label: "Việc của tổ", icon: "users", module: "to_sx", modules: cacKhoaTo,
+            indent: cap + 1, parentId: tieuDe },
+        );
+        daGanKh.add(t.id);
+        nganh.push({ cap, id: tieuDe });
+        return;
+      }
       sanXuatDong.push({
         id, label: t.ten, icon: "users", module: "to_sx",
-        modules: cacKhoaTo, indent: cap,
-        parentId: nganh.length ? nganh[nganh.length - 1].id : undefined,
+        modules: kh ? [KHOA_KE_HOACH + t.id, ...cacKhoaTo] : cacKhoaTo, indent: cap, parentId: cha,
       });
+      if (kh) {
+        sanXuatDong.push(mucKeHoach(t.id, cap + 1, id));
+        daGanKh.add(t.id);
+      }
       nganh.push({ cap, id });
-    }
+    });
+  }
+  for (const kh of khbpList) {
+    if (daGanKh.has(kh.id)) continue;
+    const tieuDe = `bo-phan:${kh.id}`;
+    sanXuatDong.push(
+      { id: tieuDe, label: kh.ten, icon: "users", module: KHOA_KE_HOACH + kh.id },
+      mucKeHoach(kh.id, 1, tieuDe),
+    );
   }
   if (sanXuatDong.length) dynamicItems["to-san-xuat"] = sanXuatDong;
   // Mục "Kho" chỉ cần `kho:read`; tab "Phiếu từ đề nghị" (cần create/view_stock) tự ẩn trong KhoPage.
@@ -1442,6 +1506,14 @@ export function AppShell() {
         );
       case "xep-lich":
         return <XepLichPage eventTick={tickCua("san_xuat")} onBadgeStale={reloadBadges} navigate={navigate} />;
+      case "ke-hoach-bo-phan": {
+        const bp = Number(activeId.split(":")[1]);
+        const kh = khbpList.find((x) => x.id === bp);
+        return (
+          <KeHoachBoPhanPage key={`khbp-${bp}`} boPhanId={bp} tenBoPhan={kh?.ten}
+            eventTick={tickCua("san_xuat", "kho")} />
+        );
+      }
       case "sua-chua-may":
         // `eventTick` nhích theo sự kiện nhóm kỹ thuật ⇒ danh sách yêu cầu tự nạp lại khi có lời báo mới
         // hoặc khi người khác vừa tiếp nhận — không để hai người cùng lập phiếu cho một cái máy.

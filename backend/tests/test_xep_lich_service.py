@@ -404,6 +404,7 @@ def test_gan_tinh_gio_ket_thuc_va_da_xep(db, orders, lsx_svc, xl_svc, admin, cus
     step = _in_step(db, lsx.id)
     step.setup_phut, step.so_luong_vao = 45, 5000
     step.chay_phut, step.ve_sinh_phut, step.so_luot_chay = None, 0, 1
+    step.phat_sinh_phut = 90  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
 
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
@@ -412,8 +413,7 @@ def test_gan_tinh_gio_ket_thuc_va_da_xep(db, orders, lsx_svc, xl_svc, admin, cus
     res = xl_svc.gan(dong_id=dong.id, patch={"may_id": step.may_id, "start_at": bat_dau}, actor=admin)
 
     assert res.trang_thai == "da_xep"
-    # Bước In gán vào máy `_may_in` (to_gio) → THEO MÁY (HM3): makeready 30 + chạy 5000/5000*60=60 +
-    # = 90 phút (setup của máy THẮNG snapshot bước). SQLite trả naive → 09:30.
+    # 90 phút thời gian khác (setup snapshot 45 của bước bị bỏ qua). SQLite trả naive → 09:30.
     assert res.finish_at.replace(tzinfo=None) == datetime(2026, 7, 27, 9, 30)
 
 
@@ -423,6 +423,7 @@ def test_xung_dot_may_khi_chong_gio(db, orders, lsx_svc, xl_svc, admin, customer
     for lsx in (a, b):
         s = _in_step(db, lsx.id)
         s.setup_phut, s.so_luong_vao, s.chay_phut = 0, 5000, None
+        s.phat_sinh_phut = 90  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
     xl_svc.dua_vao_lsx(lsx_id=a.id, actor=admin)
     xl_svc.dua_vao_lsx(lsx_id=b.id, actor=admin)
@@ -532,10 +533,8 @@ def test_moi_buoc_chung_mot_dong_lich_khong_bi_boc_hoi(
     assert all(r.bai_ghep_cong_doan_id for r in gang), "dòng phải neo đích danh bước chung"
     # Máy lấy từ bước chung người dùng vừa khai, KHÔNG phải `bg.may_id` (bài chưa chọn máy).
     assert bg.may_id is None and all(r.may_id == mau.may_id for r in gang)
-    # Thời lượng suy từ MÁY của chính bước chung (bài chưa chọn máy) — mọi dòng đều ra số > 0
-    # bằng đúng công thức chung, không còn ô `chay_phut` gõ đè để ghim số cứng.
-    assert all(xl_svc._thoi_luong(r)["chay_phut"] > 0 for r in gang)
-    assert all(xl_svc._thoi_luong(r)["theo_may"] is True for r in gang)
+    # Bước máy thôi tính giờ theo tốc độ (08/11/2026): bước chung không còn giờ chạy.
+    assert all(xl_svc._thoi_luong(r)["chay_phut"] == 0 for r in gang)
     # Không lệnh nào còn giữ dòng riêng cho hai bước đã gộp.
     for lsx in created:
         assert XepLichRepository(db).by_lsx(lsx.id) == []
@@ -670,7 +669,8 @@ def test_gan_lai_mot_phan_tren_dong_da_co_gio(db, orders, lsx_svc, xl_svc, admin
     lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
     step = _in_step(db, lsx.id)
     step.setup_phut, step.so_luong_vao = 0, 5000
-    step.chay_phut, step.ve_sinh_phut, step.so_luot_chay = None, 0, 1  # theo máy: 30+60 = 90 phút
+    step.chay_phut, step.ve_sinh_phut, step.so_luot_chay = None, 0, 1
+    step.phat_sinh_phut = 90  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
     dong = XepLichRepository(db).by_lsx(lsx.id)[0]
@@ -681,7 +681,7 @@ def test_gan_lai_mot_phan_tren_dong_da_co_gio(db, orders, lsx_svc, xl_svc, admin
     res = xl_svc.gan(dong_id=dong.id, patch={"may_id": step.may_id}, actor=admin)
     assert res.trang_thai == "da_xep"
     assert res.start_at.replace(tzinfo=None) == datetime(2026, 7, 27, 8, 0)   # giờ giữ nguyên
-    assert res.finish_at.replace(tzinfo=None) == datetime(2026, 7, 27, 9, 30)  # 08:00 + 90 (theo máy)
+    assert res.finish_at.replace(tzinfo=None) == datetime(2026, 7, 27, 9, 30)  # 08:00 + 90
 
 
 # --- LichXuong: lịch máy theo CA THẬT (nghỉ trưa / ca đêm / fallback) ---------
@@ -764,8 +764,9 @@ def test_gan_ne_vung_khoa(db, orders, lsx_svc, xl_svc, admin, customer, monkeypa
     monkeypatch.setattr(xl_svc.cal, "is_working_day", lambda d: True)
     lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
     step = _in_step(db, lsx.id)
-    step.setup_phut, step.so_luong_vao = 0, 15000  # theo máy: 30+180+15 = 225'
+    step.setup_phut, step.so_luong_vao = 0, 15000
     step.chay_phut, step.ve_sinh_phut, step.so_luot_chay = None, 0, 1
+    step.phat_sinh_phut = 210  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
     dong = XepLichRepository(db).by_lsx(lsx.id)[0]
@@ -775,7 +776,7 @@ def test_gan_ne_vung_khoa(db, orders, lsx_svc, xl_svc, admin, customer, monkeypa
                          ly_do="bao_tri", note=None, actor=admin)
     res = xl_svc.gan(dong_id=dong.id, patch={"may_id": step.may_id,
                      "start_at": datetime(2026, 7, 27, 8, 0, tzinfo=timezone.utc)}, actor=admin)
-    # 210' (theo máy) né khóa 10–12: 08→10 (120') + 12→13:30 (90') = 13:30.
+    # 210' né khóa 10–12: 08→10 (120') + 12→13:30 (90') = 13:30.
     assert res.finish_at.replace(tzinfo=None) == datetime(2026, 7, 27, 13, 30)
 
 
@@ -807,34 +808,11 @@ def test_vung_khoa_tu_sau_den_bao_loi(db, xl_svc, admin):
 
 
 # --- HM3: thời lượng TÍNH LẠI theo máy đang gán (to_gio ⟷ tờ) -----------------
-def test_thoi_luong_theo_may_khop_don_vi(db, orders, lsx_svc, xl_svc, admin, customer):
-    """Bước In gán máy `to_gio`, bước vào `tờ` → tính LẠI theo máy (makeready + tốc-độ + rửa-mực),
-    BỎ QUA snapshot nang_suat/setup/vệ-sinh vô lý của bước."""
-    lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
-    step = _in_step(db, lsx.id)
-    step.setup_phut, step.so_luong_vao = 999, 5000   # snapshot cố tình vô lý
-    step.chay_phut, step.ve_sinh_phut, step.so_luot_chay = None, 999, 1
-    db.commit()
-    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
-    dong = XepLichRepository(db).by_lsx(lsx.id)[0]
-    d = xl_svc._thoi_luong(dong)
-    assert d["theo_may"] is True and d["canh_bao"] is None
-    # makeready 30 + 5000/5000*60=60 = 90 (KHÔNG lấy snapshot 999). Vệ sinh đã gỡ khỏi hệ nên
-    # `ve_sinh_phut=999` của bước bị bỏ qua hoàn toàn — breakdown cũng không còn khoá đó.
-    assert d["setup_phut"] == 30 and d["chay_phut"] == 60
-    assert "ve_sinh_phut" not in d
-    assert d["chiem_may_phut"] == 90
-
-
 def test_xep_lich_va_drawer_cung_mot_so_khi_don_vi_may_lech(
     db, orders, lsx_svc, xl_svc, admin, customer,
 ):
-    """⭐ Máy khai `m2_gio` mà bước đếm `tờ`, chưa khai quy đổi ⇒ **xếp lịch cũng không bịa giờ**.
-
-    🔴 ĐỔI 15/08/2026 — test này trước đây chốt "kệ nhãn, cứ chia con số" (5.000 tờ ÷ 5.000 m²/giờ
-    = 60 phút). Nay Gantt phải nói cùng một câu với drawer lệnh: quy đổi được thì tính, không thì
-    thôi + cảnh báo `chua_quy_doi`. Điều KHÔNG được phép là hai màn ra hai số.
-    """
+    """Xếp lịch và drawer lệnh nói cùng một số. Từ 08/11/2026 bước máy thôi tính giờ theo tốc độ
+    nên cả hai cùng ra 0, không cảnh báo `chua_quy_doi` dù đơn vị máy lệch."""
     lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
     step = _in_step(db, lsx.id)
     step.so_luong_vao, step.so_luot_chay = 5000, 1
@@ -844,9 +822,8 @@ def test_xep_lich_va_drawer_cung_mot_so_khi_don_vi_may_lech(
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
     dong = XepLichRepository(db).by_lsx(lsx.id)[0]
     d = xl_svc._thoi_luong(dong)
-    assert d["chay_phut"] == 0 and d["canh_bao"] == "chua_quy_doi"
-    assert d["setup_phut"] == float(may.makeready_time_default or 0)
-    assert d["chiem_may_phut"] == d["setup_phut"]
+    assert d["chay_phut"] == 0 and d["canh_bao"] is None
+    assert d["setup_phut"] == 0 and d["chiem_may_phut"] == 0
 
     # Cùng bước, cùng máy → drawer lệnh phải ra ĐÚNG con số đó.
     buoc = next(b for b in lsx_svc.detail_dict(lsx_svc.get(lsx.id))["cong_doans"]
@@ -927,6 +904,7 @@ def test_can_xac_nhan_khi_gan_may_nho(db, orders, lsx_svc, xl_svc, admin, custom
     nho = MayThietBi(ma="MAY-NHO", ten="Máy con", loai_may="press_offset_sheet",
                      toc_do=3000, don_vi_toc_do="to_gio", kho_max_dai=520, kho_max_rong=360)
     db.add(nho)
+    _in_step(db, lsx.id).phat_sinh_phut = 60  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.flush()
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
     dong = XepLichRepository(db).by_lsx(lsx.id)[0]
@@ -941,17 +919,18 @@ def test_can_xac_nhan_khi_gan_may_nho(db, orders, lsx_svc, xl_svc, admin, custom
 
 # --- HM5: xem trước ảnh hưởng khi kéo-thả (KHÔNG commit) ----------------------
 def test_xem_truoc_khong_commit(db, orders, lsx_svc, xl_svc, admin, customer, monkeypatch):
-    """Xem trước trả finish giả định (theo máy) NHƯNG không đổi DB — dòng vẫn `cho_xep`, chưa có giờ."""
+    """Xem trước trả finish giả định NHƯNG không đổi DB — dòng vẫn `cho_xep`, chưa có giờ."""
     monkeypatch.setattr(xl_svc.cal, "is_working_day", lambda d: True)
     lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
     step = _in_step(db, lsx.id)
     step.setup_phut, step.so_luong_vao, step.chay_phut = 0, 5000, None
+    step.phat_sinh_phut = 90  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
     xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
     dong_id = XepLichRepository(db).by_lsx(lsx.id)[0].id
     res = xl_svc.xem_truoc(dong_id=dong_id, may_id=step.may_id,
                            start_at=datetime(2026, 7, 27, 8, 0, tzinfo=timezone.utc))
-    assert res["finish_at"].replace(tzinfo=None) == datetime(2026, 7, 27, 9, 30)  # theo máy 90'
+    assert res["finish_at"].replace(tzinfo=None) == datetime(2026, 7, 27, 9, 30)  # 90'
     assert res["finish_at"].tzinfo is None                                        # wall-clock naive
     db.expire_all()
     fresh = XepLichRepository(db).get(dong_id)
@@ -988,6 +967,7 @@ def test_xem_truoc_bao_xung_dot(db, orders, lsx_svc, xl_svc, admin, customer, mo
     for lsx in (a, b):
         s = _in_step(db, lsx.id)
         s.setup_phut, s.so_luong_vao, s.chay_phut = 0, 5000, None
+        s.phat_sinh_phut = 105  # 08/11/2026: thôi tính giờ theo tốc độ, thời lượng lấy từ thời gian khác
     db.commit()
     xl_svc.dua_vao_lsx(lsx_id=a.id, actor=admin)
     xl_svc.dua_vao_lsx(lsx_id=b.id, actor=admin)

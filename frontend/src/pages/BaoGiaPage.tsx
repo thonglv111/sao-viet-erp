@@ -1513,6 +1513,8 @@ export function QuotationDetailView({
                   <th>Sản phẩm</th><th className="num">SL</th><th className="num">Giá vốn</th>
                   <th className="num">Chiết khấu</th>
                   <th className="num">Lợi nhuận</th>
+                  {/* Đơn giá = giá bán ÷ SL (08/11/2026). Gõ được, quy về giá bán gõ tay. */}
+                  <th className="num">Đơn giá</th>
                   <th className="num">Giá bán</th>
                   {coKe && <th className="num">Kê</th>}
                   {coKe && <th className="num">Giá bán sau kê</th>}
@@ -1526,6 +1528,10 @@ export function QuotationDetailView({
                   const c = calcItem(it);
                   const priceVal = nhap[it.id]?.gia ?? c.selling;
                   const priceOverridden = nhap[it.id]?.gia != null || it.gia_go_tay;
+                  // Đơn giá giữ 2 số lẻ (giá bán chia SL hiếm khi tròn); gõ đơn giá thì giá bán = đơn
+                  // giá × SL làm tròn tới đồng rồi đi đúng đường gõ tay giá bán.
+                  const donGia = it.quantity > 0 ? Math.round((priceVal / it.quantity) * 100) / 100 : 0;
+                  const giaTuDonGia = (v: number) => Math.max(0, Math.round(v * it.quantity));
                   const declined = quoteClosed && acceptedDecided && !it.accepted;
                   // Dòng con có SL khác PHẦN ĐẦU nhóm → bản in in số phần đầu, không in số này. Đánh dấu.
                   const lechNhom = slDauNhom !== undefined && it.quantity !== slDauNhom;
@@ -1609,6 +1615,22 @@ export function QuotationDetailView({
                         </div>
                       </td>
                       <td className="num">
+                        <div className="pricecell pricecell--dg">
+                          {!editable || it.quantity <= 0 ? (it.quantity > 0 ? donGiaf(donGia) : "—") : <ONhapSo
+                            className={`money ${priceOverridden ? "manual" : "auto"}`}
+                            giaTri={donGia}
+                            soLe={2}
+                            donVi="đ"
+                            disabled={busy}
+                            ariaLabel={`Đơn giá ${it.product_name}`}
+                            title="Đơn giá = giá bán ÷ số lượng. Gõ đơn giá thì giá bán = đơn giá × số lượng, làm tròn tới đồng; lợi nhuận là phần còn lại, như gõ tay giá bán."
+                            onNhap={(v) => datNhap([it.id], "gia", giaTuDonGia(v))}
+                            onChot={(v) => commitGia(it, giaTuDonGia(v))}
+                            onHuy={() => datNhap([it.id], "gia", null)}
+                          />}
+                        </div>
+                      </td>
+                      <td className="num">
                         <div className="pricecell">
                           {/* Chỉ xem thì in số trơn — ô nhập bị khoá trông như còn sửa được. */}
                           {!editable ? numf(priceVal) : <ONhapSo
@@ -1666,6 +1688,10 @@ export function QuotationDetailView({
                       <td className="num muted">{numf(tongVon)}</td>
                       <td className="num">{oChietKhau(node.members, node.ten)}</td>
                       <td className="num muted">{tongGoc > 0 ? `${pctf(((tongBan / tongGoc) - 1) * 100)} %` : "—"}</td>
+                      {/* Đơn giá cụm = giá bán cả cụm ÷ SL phần đầu — đúng con số khách thấy trên bản in. */}
+                      <td className="num muted">
+                        {node.members[0].quantity > 0 ? donGiaf(tongBan / node.members[0].quantity) : "—"}
+                      </td>
                       <td className="num strong">{vnd(tongBan)}</td>
                       {coKe && <td className="num">{oKe(node.members, node.ten)}</td>}
                       {coKe && <td className="num strong">{vnd(tongSauKe)}</td>}
@@ -2357,5 +2383,9 @@ function vnd(v: number): string {
 }
 function numf(v: number): string {
   return Math.round(v).toLocaleString("vi-VN");
+}
+/** Đơn giá: tối đa 2 số lẻ — giá bán ÷ SL hiếm khi tròn đồng. */
+function donGiaf(v: number): string {
+  return v.toLocaleString("vi-VN", { maximumFractionDigits: 2 });
 }
 

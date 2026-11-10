@@ -23,8 +23,7 @@ const DONG: TdsxDonDong = {
     ten: "Hộp thuốc", o: "xuong", nhom: "vuong", dat: 1000, don_vi: "cái", kho_da_nhan: 0, da_giao: 0,
     buoc: "Cán màng", buoc_so: 2, buoc_tong: 3, pct: 40, nha_gia_cong: null,
   },
-  so_mon_kho: 0, so_mon_giao: 0, han_giao: "2026-10-20", du_kien_xong: "2026-10-18T10:00:00",
-  tre_ngay: null, con_ngay: 8, vuong: { so_mon: 1, ly_do: "thieu_vat_tu", buoc: "Cán màng" },
+  so_mon_kho: 0, so_mon_giao: 0, han_giao: "2026-10-20",   tre_ngay: null, con_ngay: 8, vuong: { so_mon: 1, ly_do: "thieu_vat_tu", buoc: "Cán màng" },
   nhom: "dang_lam", can_de_y: true,
 };
 

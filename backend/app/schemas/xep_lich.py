@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class DoanChayOut(BaseModel):
@@ -17,13 +17,6 @@ class DoanChayOut(BaseModel):
     tu: datetime
     den: datetime
     buoc_index: int
-
-
-class DoanThucTeOut(BaseModel):
-    """Một quãng lệnh THẬT SỰ chạy (theo phiên chạy của tổ), đã gộp phần các bước chồng giờ nhau."""
-
-    tu: datetime
-    den: datetime
 
 
 class DoanChoOut(BaseModel):
@@ -102,118 +95,6 @@ class _LichChung(BaseModel):
     lien: list[LienOut] = Field(default_factory=list)
 
 
-class DongLichOut(_LichChung):
-    """Một dòng trên bàn Gantt = MỘT lệnh sản xuất."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    lsx_id: int
-    ma: str
-    ten: str
-    customer_name: str | None = None
-    trang_thai: str
-    is_rush: bool = False
-    so_luong_dat: int = 0
-    don_vi_tinh: str | None = None
-    so_to_ke_hoach: int = 0
-    so_con: int = 1
-    han_hoan_thanh_sx: date | None = None
-    han_giao_khach: date | None = None
-    may_ten: str | None = None
-    # Số bước chưa tính được giờ (thiếu máy / thiếu quy đổi) — nút lọc nhanh "có thể xong muộn".
-    so_buoc_chua_gio: int = 0
-    # Bước chạy đè vùng khoá máy / máy đang dừng chờ sửa — chỉ nhắc, không chặn.
-    canh_bao_may: list[str] = Field(default_factory=list)
-    # --- MÉP THANH của lệnh ĐÃ CHẠY DỞ (cả hai `None` khi lệnh chưa vào việc) ---
-    # Thanh KHÔNG bắt đầu ở `bat_dau_at`: từ khi mốc đổi nghĩa thành "bắt đầu phần còn lại", mốc
-    # nằm ở TƯƠNG LAI trong khi lệnh đã chạy từ trước. Vẽ từ mốc là nói lệnh chưa bắt đầu, ngược
-    # hẳn với chính panel của nó. Màn vẽ:
-    #     mép trái  = `thuc_bat_dau_lenh` ?? `bat_dau_at`
-    #     mép phải  = `ket_thuc_thuc_te`  ?? `ket_thuc`
-    #     đoạn `thuc_bat_dau_lenh` → `bat_dau_at` là phần ĐÃ CHẠY: khoá lại, không kéo được.
-    # `bat_dau_at` vẫn là con số duy nhất kéo-thả ghi xuống, đừng đổi nghĩa nó.
-    thuc_bat_dau_lenh: datetime | None = None
-    ket_thuc_thuc_te: datetime | None = None
-    # Các quãng CHẠY THẬT bên trong đoạn `thuc_bat_dau_lenh` → `bat_dau_at`. Cả đoạn đó là "đã vào
-    # việc rồi NẰM CHỜ" chứ không phải đã chạy: lệnh chạy 13 phút hôm 09/09 rồi chờ tới 06:00 14/09
-    # mà tô một tông "đã chạy" suốt 5 ngày thì bàn đang nói dối. Màn vẽ nền CHỜ cho cả đoạn rồi
-    # chồng các quãng này lên.
-    doan_thuc_te: list[DoanThucTeOut] = Field(default_factory=list)
-    # Chỉ có ở phản hồi của PUT — cho băng thông báo biết mốc vừa bị dời.
-    da_doi: bool | None = None
-    thong_bao: str | None = None
-
-
-class DemNhanhOut(BaseModel):
-    """Số lệnh của ba nút lọc nhanh đầu màn (trên tập đã qua tìm + Lọc)."""
-
-    tre: int = 0
-    muon: int = 0
-    chua: int = 0
-
-
-class KhachLocOut(BaseModel):
-    id: int
-    ten: str
-    so: int = 0
-
-
-class ThuMocOut(BaseModel):
-    """Xem trước lúc kéo — thả ở mốc này thì bắt đầu / xong lúc nào. Không ghi gì."""
-
-    bat_dau: datetime
-    ket_thuc: datetime
-    da_doi: bool = False
-    cho_phut: float = 0.0
-
-
-class LichOut(BaseModel):
-    dem: DemNhanhOut = Field(default_factory=DemNhanhOut)
-    khach_loc: list[KhachLocOut] = Field(default_factory=list)
-    dong: list[DongLichOut] = Field(default_factory=list)
-    tong: int = 0
-    # Ngày KHÔNG làm việc trong đúng cửa sổ đang xem — lễ, ngày làm bù, cấu hình tuần của xưởng.
-    # FE ĐỪNG tự suy "T7 + CN": xưởng này khai `works_sat = true` nên đoán kiểu đó tô sai ngay
-    # thứ 7 đầu tiên, còn lễ và làm bù thì không có cách nào đoán.
-    ngay_nghi: list[date] = Field(default_factory=list)
-    # Ngày khai ở Lịch làm việc trong cửa sổ — trục ghi tên lễ, tô làm bù (mục 6 mockup).
-    ngay_dac_biet: list[NgayDacBietOut] = Field(default_factory=list)
-    # Ca xưởng — đầu màn ghi giờ ca.
-    cac_ca: list[CaXuongOut] = Field(default_factory=list)
-    # Cụm của các dòng đang hiện — hàng tiêu đề cụm.
-    cum: list[CumOut] = Field(default_factory=list)
-
-
-class NgayDacBietOut(BaseModel):
-    """Một ngày khai ở Lịch làm việc. `loai`: `off` nghỉ lễ · `work` làm bù · `off1x` nghỉ khác."""
-
-    ngay: date
-    loai: str
-    ten: str | None = None
-
-
-class TheHangChoOut(BaseModel):
-    lsx_id: int
-    ma: str
-    ten: str
-    customer_name: str | None = None
-    han_hoan_thanh_sx: date | None = None
-    han_giao_khach: date | None = None
-    is_rush: bool = False
-    so_to_ke_hoach: int = 0
-    so_luong_dat: int = 0
-    don_vi_tinh: str | None = None
-    chay_phut: float = 0.0
-    so_buoc: int = 0
-    #: Ngày tạo lệnh — hiện trên thẻ hàng chờ (06/10/2026).
-    created_at: datetime | None = None
-
-
-class HangChoOut(BaseModel):
-    dong: list[TheHangChoOut] = Field(default_factory=list)
-    tong: int = 0
-
-
 class CongDoanOut(BaseModel):
     """Dòng bảng công đoạn trong panel.
 
@@ -283,6 +164,14 @@ class CongDoanOut(BaseModel):
     lien: list[LienOut] = Field(default_factory=list)
 
 
+class NgayDacBietOut(BaseModel):
+    """Một ngày khai ở Lịch làm việc. `loai`: `off` nghỉ lễ · `work` làm bù · `off1x` nghỉ khác."""
+
+    ngay: date
+    loai: str
+    ten: str | None = None
+
+
 class KhungGioOut(BaseModel):
     tu: str      # "HH:MM"
     den: str
@@ -342,7 +231,6 @@ class ChiTietOut(_LichChung):
     so_to_ke_hoach: int = 0
     so_to_nguyen: int = 0
     so_con: int = 1
-    han_hoan_thanh_sx: date | None = None
     han_giao_khach: date | None = None
     nguoi_phu_trach_ten: str | None = None
     luu_y_gui_xuong: str | None = None
@@ -382,13 +270,6 @@ class VatTuLenhOut(BaseModel):
     chu: str = ""
 
 
-class DatMocIn(BaseModel):
-    bat_dau_at: datetime
-    # Chốt chống ghi đè: mốc `updated_at` mà màn đang cầm. Bỏ trống = đặt lần đầu (kéo từ hàng
-    # chờ) — không có gì để so, và KHÔNG được đòi.
-    expected_updated_at: datetime | None = None
-
-
 class PhatHanhCapNhatIn(BaseModel):
     """Lý do đẩy lịch mới xuống xưởng. BẮT BUỘC — tổ đang cầm giấy in lịch cũ, đổi ngầm là mất vết.
 
@@ -398,8 +279,6 @@ class PhatHanhCapNhatIn(BaseModel):
 
     ly_do: str = Field(..., max_length=500)
 
-
-LichOut.model_rebuild()
 
 
 class MayGonOut(BaseModel):
@@ -424,3 +303,124 @@ class VungKhoaOut(BaseModel):
     ly_do: str
     note: str | None = None
     kieu: str
+
+
+# ---------------------------------------------------------------- bàn hẹn đẩy (08/11/2026)
+class DenVatTuOut(BaseModel):
+    muc: str            # ok | vang | do
+    chu: str = ""
+
+
+class DongBanOut(BaseModel):
+    """Một lệnh trên bàn hẹn đẩy. Mọi mốc giờ là giờ xưởng, naive."""
+
+    lsx_id: int
+    ma: str
+    ten: str
+    customer_name: str | None = None
+    # `san_sang` · `da_lap_ke_hoach` (chờ đẩy) · `da_phat_hanh` · `da_dong` (đã đẩy).
+    trang_thai: str = ""
+    is_rush: bool = False
+    so_luong_dat: int = 0
+    don_vi_tinh: str | None = None
+    han_giao_khach: date | None = None
+    hen_luc: datetime | None = None
+    nguoi_hen: str | None = None
+    da_day_luc: datetime | None = None
+    ket_ly_do: str | None = None
+    ket_luc: datetime | None = None
+    vat_tu: DenVatTuOut | None = None
+    vat_tu_ve: date | None = None
+    cum_id: int | None = None
+    updated_at: datetime | None = None
+
+
+class DemTabOut(BaseModel):
+    ket: int = 0
+    chua_hen: int = 0
+    da_hen: int = 0
+    da_day: int = 0
+
+
+class DemLocOut(BaseModel):
+    gap: int = 0
+    thieu_vat_tu: int = 0
+    sat_han: int = 0
+
+
+class BanOut(BaseModel):
+    dong: list[DongBanOut]
+    tong: int
+    dem_tab: DemTabOut
+    # Đếm trong tab đang xem, TRƯỚC khi áp ba lọc nhanh.
+    dem_loc: DemLocOut
+    # `YYYY-MM-DD` → số lệnh hẹn đẩy ngày đó (theo bộ lọc). Ngày không có lệnh thì vắng mặt.
+    dem_ngay: dict[str, int]
+
+
+class HenIn(BaseModel):
+    lsx_ids: list[int] = Field(min_length=1, max_length=500)
+    hen_luc: datetime
+
+
+class HenTheoLocIn(BaseModel):
+    tab: str
+    tu: date
+    den: date
+    tim: str | None = Field(default=None, max_length=100)
+    gap: bool = False
+    thieu_vat_tu: bool = False
+    sat_han: bool = False
+    hen_luc: datetime
+
+
+class HenKqOut(BaseModel):
+    ok: bool = True
+    so_lenh: int
+
+
+class DayNgayIn(BaseModel):
+    lsx_ids: list[int] = Field(min_length=1, max_length=100)
+
+
+class DayNgayLoiOut(BaseModel):
+    ma: str
+    ly_do: str
+
+
+class DayNgayOut(BaseModel):
+    da_day: list[str]
+    loi: list[DayNgayLoiOut]
+    # Gộp của mọi lệnh vừa đẩy: số yêu cầu xuất tự gửi kho + món chưa tự lập được (như /phat-hanh).
+    vat_tu: dict = Field(default_factory=lambda: {"so_yeu_cau": 0, "bo_qua": []})
+
+
+class LichSuHenOut(BaseModel):
+    luc: datetime
+    nguoi: str | None = None
+    viec: str
+    chi_tiet: str | None = None
+
+
+class VatTuNganOut(BaseModel):
+    ten: str
+    can: float
+    da_giu: float
+    don_vi: str | None = None
+    muc: str
+    chu: str
+    don_mua: str | None = None
+
+
+class CongDoanNganOut(BaseModel):
+    buoc: int
+    ten: str
+    bo_phan: str | None = None
+    so_luong: float
+    don_vi: str | None = None
+
+
+class NganOut(BaseModel):
+    dau: DongBanOut
+    vat_tu: list[VatTuNganOut]
+    cong_doan: list[CongDoanNganOut]

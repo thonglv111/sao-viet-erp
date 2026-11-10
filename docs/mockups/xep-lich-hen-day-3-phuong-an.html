@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Xếp lịch — hẹn giờ đẩy lệnh, 3 phương án</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --trang:#fff; --chu:#0f172a; --chu-2:#475569; --chu-3:#64748b; --chu-4:#94a3b8;
+  --vien:#e2e8f0; --vien-2:#edf0f4; --hair:#f1f5f9; --rust:#c5400a;
+  --tt-vang-bg:#fef3c7; --tt-vang-fg:#b45309; --tt-vang-dot:#f59e0b;
+  --tt-xanh-bg:#dbeafe; --tt-xanh-fg:#1d4ed8; --tt-xanh-dot:#3b82f6;
+  --tt-la-bg:#dcfce7; --tt-la-fg:#15803d; --tt-la-dot:#22c55e;
+  --tt-do-bg:#fee2e2; --tt-do-fg:#b91c1c; --tt-do-dot:#ef4444;
+  --tt-slate-bg:#f1f5f9; --tt-slate-fg:#475569; --tt-slate-dot:#94a3b8;
+  --tt-cham-bg:#e0e7ff; --tt-cham-fg:#4338ca; --tt-cham-dot:#6366f1;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e8ebef;color:var(--chu);font:14px/1.5 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.page{max-width:1440px;margin:0 auto;padding:36px 20px 96px}
+h1{font-size:22px;font-weight:500;margin:0 0 8px}
+.lead{color:var(--chu-2);margin:0 0 18px;max-width:1000px}
+.hop{background:var(--trang);border-radius:12px;padding:18px 22px;margin:0 0 20px}
+.hop h2{font-size:15px;font-weight:500;margin:0 0 8px}
+.hop ul{margin:0;padding-left:20px;color:var(--chu-2)}
+.hop li{margin:4px 0}
+.buoc{font-size:17px;font-weight:500;margin:48px 0 4px}
+.buoc-mo{color:var(--chu-2);margin:0 0 14px;max-width:1000px}
+.uu{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0 0;color:var(--chu-2);font-size:13px}
+.uu b{font-weight:500;color:var(--chu)}
+
+.screen{background:var(--trang);border-radius:14px;box-shadow:0 14px 44px rgba(15,23,42,.12);overflow:hidden}
+.dau{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--vien);flex-wrap:wrap}
+.dau h3{font-size:18px;font-weight:500;margin:0 12px 0 0}
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid var(--vien);background:var(--trang);border-radius:8px;font:inherit;font-size:13px;color:var(--chu);cursor:pointer}
+.btn--chinh{background:var(--chu);color:#fff;border-color:var(--chu)}
+.tim{height:32px;border:1px solid var(--vien);border-radius:8px;padding:0 10px;font:inherit;font-size:13px;width:220px;color:var(--chu-3);display:flex;align-items:center}
+.gian{flex:1}
+.tabs{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--vien)}
+.tab{padding:8px 12px;font-size:13px;color:var(--chu-3);border:1px solid transparent;border-bottom:none;border-radius:8px 8px 0 0;display:flex;gap:6px;align-items:center}
+.tab[aria-selected=true]{color:var(--chu);border-color:var(--vien);background:var(--trang);margin-bottom:-1px;font-weight:500}
+.tab .dem{color:var(--chu-4);font-weight:400}
+.loc{display:flex;gap:8px;padding:10px 18px;border-bottom:1px solid var(--vien-2);flex-wrap:wrap}
+.ln{height:28px;padding:0 10px;border:1px solid var(--vien);border-radius:999px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;color:var(--chu-2);background:var(--trang)}
+.ln[aria-pressed=true]{border-color:var(--chu);color:var(--chu)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;font-size:12px;white-space:nowrap}
+.chip--la{background:var(--tt-la-bg);color:var(--tt-la-fg)} .chip--la .dot{background:var(--tt-la-dot)}
+.chip--vang{background:var(--tt-vang-bg);color:var(--tt-vang-fg)} .chip--vang .dot{background:var(--tt-vang-dot)}
+.chip--do{background:var(--tt-do-bg);color:var(--tt-do-fg)} .chip--do .dot{background:var(--tt-do-dot)}
+.chip--xanh{background:var(--tt-xanh-bg);color:var(--tt-xanh-fg)} .chip--xanh .dot{background:var(--tt-xanh-dot)}
+.chip--slate{background:var(--tt-slate-bg);color:var(--tt-slate-fg)} .chip--slate .dot{background:var(--tt-slate-dot)}
+.chip--cham{background:var(--tt-cham-bg);color:var(--tt-cham-fg)} .chip--cham .dot{background:var(--tt-cham-dot)}
+.mu{color:var(--chu-3)} .mu4{color:var(--chu-4)}
+.nho{font-size:12px}
+.do{color:var(--tt-do-fg)}
+
+/* ---------- lưới kiểu Excel ---------- */
+table.luoi{width:100%;border-collapse:collapse;font-size:13px}
+.luoi th{font-weight:500;color:var(--chu-3);text-align:left;font-size:12px;padding:0 10px;height:34px;border-bottom:1px solid var(--vien);background:#fafbfc;white-space:nowrap}
+.luoi td{padding:0 10px;height:38px;border-bottom:1px solid var(--vien-2);white-space:nowrap}
+.luoi tr:hover td{background:var(--hair)}
+.luoi .num{text-align:right}
+.ma{color:var(--chu)} .ten{color:var(--chu-2)}
+.ogio{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 8px;border:1px solid var(--vien);border-radius:6px;font-size:13px;min-width:140px}
+.ogio--trong{color:var(--chu-4);border-style:dashed}
+.ogio--qua{border-color:#fca5a5}
+.bao{display:flex;gap:8px;align-items:center;padding:8px 18px;background:#fff7ed;border-bottom:1px solid #fed7aa;font-size:13px;color:#9a3412}
+
+/* ---------- dải ngày ---------- */
+.dai{display:grid;grid-template-columns:300px 1fr;font-size:13px}
+.dai .trai{border-right:1px solid var(--vien)}
+.dai .hang{height:58px;border-bottom:1px solid var(--vien-2);display:flex;flex-direction:column;justify-content:center;padding:0 14px;gap:3px}
+.dai .hang .r1{display:flex;gap:8px;align-items:center}
+.dai .dauNgay{height:48px;border-bottom:1px solid var(--vien);display:grid;grid-template-columns:repeat(14,1fr)}
+.dai .dauNgay div{text-align:center;font-size:11.5px;color:var(--chu-3);padding-top:6px;border-left:1px solid var(--vien-2)}
+.dai .dauNgay div b{display:block;font-weight:500;color:var(--chu);font-size:13px}
+.dai .dauNgay .nay{background:#fff7ed}.dai .dauNgay .nay b{color:var(--rust)}
+.dai .dauNgay .nghi{background:#f8fafc}
+.dai .luoiNgay{position:relative}
+.dai .luoiNgay .hang{padding:0;position:relative;display:block}
+.dai .cot{position:absolute;inset:0;display:grid;grid-template-columns:repeat(14,1fr);pointer-events:none}
+.dai .cot div{border-left:1px solid var(--vien-2)}
+.dai .cot .nay{background:#fff7ed80}.dai .cot .nghi{background:#f8fafc}
+.moc{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap}
+.moc .ky{width:14px;height:14px;border-radius:50%;flex:none}
+.moc--hen .ky{background:var(--tt-xanh-dot);box-shadow:0 0 0 3px var(--tt-xanh-bg)}
+.moc--day .ky{background:var(--tt-la-dot);box-shadow:0 0 0 3px var(--tt-la-bg)}
+.moc--ket .ky{background:var(--tt-do-dot);box-shadow:0 0 0 3px var(--tt-do-bg)}
+.moc--giao .ky{width:12px;height:12px;border-radius:2px;transform:rotate(45deg);background:var(--trang);border:2px solid var(--chu-3)}
+.moc--giao.sat .ky{border-color:var(--tt-do-dot)}
+.noi{position:absolute;top:50%;height:2px;background:var(--vien);transform:translateY(-50%)}
+.noi.sat{background:#fecaca}
+.chuGiai{display:flex;gap:18px;padding:10px 18px;border-top:1px solid var(--vien);font-size:12px;color:var(--chu-3);flex-wrap:wrap}
+.chuGiai span{display:inline-flex;align-items:center;gap:6px}
+.khay{border-left:1px solid var(--vien);background:#fafbfc;padding:12px;display:flex;flex-direction:column;gap:8px}
+.khay h4{margin:0 0 4px;font-size:13px;font-weight:500}
+.the{background:var(--trang);border:1px solid var(--vien);border-radius:8px;padding:8px 10px;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+.the .r1{display:flex;justify-content:space-between;gap:8px;align-items:center}
+
+/* ---------- hàng theo ngày ---------- */
+.ngay3{display:grid;grid-template-columns:1fr 320px}
+.nhom{padding:6px 18px 2px}
+.nhom h4{font-size:13px;font-weight:500;margin:12px 0 6px;display:flex;gap:8px;align-items:baseline}
+.nhom h4 .mu{font-weight:400;font-size:12px}
+.dong3{display:grid;grid-template-columns:64px 1fr 150px 130px 120px;gap:12px;align-items:center;padding:8px 10px;border:1px solid var(--vien-2);border-radius:8px;margin:0 0 6px;font-size:13px}
+.dong3:hover{background:var(--hair)}
+.gio{font-size:15px;color:var(--chu)}
+.gio.qua{color:var(--tt-do-fg)}
+.dong3 .ma{display:block}
+.dong3--day{opacity:.7}
+</style>
+</head>
+<body>
+<div class="page">
+<h1>Xếp lịch làm lại: bàn gom lệnh để hẹn giờ đẩy</h1>
+<p class="lead">Ba phương án cho cùng một logic, đã chốt 08/11/2026: mỗi lệnh thấy được đã giữ chỗ đủ vật tư chưa, đặt giờ hẹn đẩy (tới giờ phần mềm tự đẩy xuống bộ phận), thấy lúc đã đẩy thật, và thấy hạn giao khách. Không còn thanh giờ chạy vì tốc độ máy đã bỏ. Hạn hoàn thành sản xuất không còn xuất hiện ở đâu.</p>
+
+<div class="hop">
+  <h2>Tham khảo đã mở</h2>
+  <ul>
+    <li><b>Katana, màn Make → Schedule</b> (support.katanamrp.com, bài "How to use the Make screen (Schedule)" và "How to create a manufacturing order"): một hàng đợi lệnh, mỗi dòng có chấm vật tư ba mức (có sẵn, đang về, không có), trạng thái, hạn sản xuất và hạn giao khách đặt cạnh nhau để thấy xung đột. Phương án A đi theo khuôn này.</li>
+    <li><b>Bàn Xếp lịch hiện tại</b> (`XepLichPage.tsx`, ảnh tham khảo cũ Bryntum, Float, Linear ở `tham-khao-xep-lich/`): dải ngày, khay Chờ xếp lịch bên phải, kéo thẻ vào ngày. Phương án B giữ khung này, thay thanh bằng mốc.</li>
+    <li><b>Hàng đợi bài hẹn giờ</b> (kiểu lịch đăng bài: nhóm theo ngày, mỗi mục một giờ): Phương án C.</li>
+  </ul>
+</div>
+
+<!-- ======================= A ======================= -->
+<div class="buoc">Phương án A. Lưới kiểu Excel, ba tab theo việc</div>
+<p class="buoc-mo">Một lưới đặc như các màn danh sách khác. Tab chia theo việc người điều phối đang làm: lệnh chưa hẹn giờ, lệnh đã hẹn chờ tự đẩy, lệnh đã đẩy. Giờ hẹn gõ thẳng trong ô của dòng. Cột "Hẹn đẩy → hạn giao" nói còn mấy ngày đệm.</p>
+<div class="screen">
+  <div class="dau">
+    <h3>Xếp lịch</h3>
+    <div class="tim">Tìm mã lệnh, sản phẩm, khách…</div>
+    <button class="btn">Lọc</button>
+    <div class="gian"></div>
+    <button class="btn btn--chinh">Đẩy ngay 2 lệnh đã chọn</button>
+  </div>
+  <div class="tabs">
+    <div class="tab">Chưa hẹn giờ <span class="dem">3</span></div>
+    <div class="tab" aria-selected="true">Đã hẹn, chờ đẩy <span class="dem">4</span></div>
+    <div class="tab">Đã đẩy <span class="dem">12</span></div>
+  </div>
+  <div class="bao">LSX26-0003 tới giờ hẹn 08:00 hôm nay nhưng chưa đẩy được: thiếu 2 món vật tư chưa giữ chỗ. Giữ chỗ xong là phần mềm đẩy ngay.</div>
+  <div class="loc">
+    <span class="ln" aria-pressed="true"><span class="dot" style="background:var(--tt-la-dot)"></span>Đủ vật tư 2</span>
+    <span class="ln"><span class="dot" style="background:var(--tt-vang-dot)"></span>Đang về 1</span>
+    <span class="ln"><span class="dot" style="background:var(--tt-do-dot)"></span>Chưa giữ chỗ 1</span>
+    <span class="ln"><span class="dot" style="background:var(--tt-do-dot)"></span>Hẹn sát hạn giao 1</span>
+  </div>
+  <table class="luoi">
+    <thead><tr>
+      <th style="width:28px"></th><th>Lệnh</th><th>Sản phẩm</th><th>Khách hàng</th><th class="num">SL</th>
+      <th>Vật tư</th><th>Hẹn đẩy</th><th>Hạn giao khách</th><th>Hẹn đẩy → hạn giao</th><th>Người hẹn</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><input type="checkbox" checked></td><td class="ma">LSX26-0006</td><td class="ten">Hộp quà bồi cứng</td><td class="mu">Mỹ phẩm Ngọc Lan</td><td class="num">2.000</td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ, đã giữ chỗ</span></td>
+        <td><span class="ogio">09/11 07:30</span></td><td>14/11/2026</td><td>còn 5 ngày</td><td class="mu">Vũ Đức Thành</td></tr>
+      <tr><td><input type="checkbox" checked></td><td class="ma">LSX26-0001</td><td class="ten">Kẹp file hội nghị</td><td class="mu">Điện máy Phúc Long</td><td class="num">1.500</td>
+        <td><span class="chip chip--la"><span class="dot"></span>Đủ, đã giữ chỗ</span></td>
+        <td><span class="ogio">10/11 07:30</span></td><td>18/11/2026</td><td>còn 8 ngày</td><td class="mu">Vũ Đức Thành</td></tr>
+      <tr><td><input type="checkbox"></td><td class="ma">LSX26-0002</td><td class="ten">Bìa sổ tay</td><td class="mu">Giáo dục Trí Việt</td><td class="num">800</td>
+        <td><span class="chip chip--vang" title="Giấy Couche 250 về ngày 10/11 theo đơn mua DM26-0011"><span class="dot"></span>Đang về 10/11</span></td>
+        <td><span class="ogio">11/11 13:00</span></td><td class="do">12/11/2026</td><td class="do">còn 1 ngày</td><td class="mu">Vũ Đức Thành</td></tr>
+      <tr><td><input type="checkbox"></td><td class="ma">LSX26-0003</td><td class="ten">Ruột sổ tay</td><td class="mu">Giáo dục Trí Việt</td><td class="num">800</td>
+        <td><span class="chip chip--do"><span class="dot"></span>Thiếu 2 món</span></td>
+        <td><span class="ogio ogio--qua do">08/11 08:00 quá giờ</span></td><td>12/11/2026</td><td>còn 4 ngày</td><td class="mu">Vũ Đức Thành</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="uu">
+  <div><b>Được:</b> giống mọi màn danh sách khác nên ít phải học. Đọc nhanh nhiều lệnh, lọc theo vật tư một chạm, chọn nhiều dòng để đẩy ngay. Tab "Chưa hẹn giờ" là hàng chờ, "Đã đẩy" có cột Đẩy lúc thay cột Hẹn đẩy.</div>
+  <div><b>Mất:</b> không nhìn ra ngày nào dồn nhiều lệnh, khoảng hẹn đẩy tới hạn giao chỉ đọc bằng số chứ không thấy bằng mắt.</div>
+</div>
+
+<!-- ======================= B ======================= -->
+<div class="buoc">Phương án B. Giữ dải ngày hiện tại, thanh thay bằng mốc</div>
+<p class="buoc-mo">Khung bàn Xếp lịch đang dùng: cột lệnh bên trái, dải 14 ngày, khay "Chưa hẹn giờ" bên phải kéo thẻ thả vào ngày để hẹn. Mỗi dòng chỉ còn ba loại mốc: chấm xanh là hẹn đẩy, chấm lá là đã đẩy, hình thoi là hạn giao. Vạch nối giữa hẹn đẩy và hạn giao chuyển đỏ khi còn dưới 2 ngày.</p>
+<div class="screen">
+  <div class="dau">
+    <h3>Xếp lịch</h3>
+    <button class="btn">‹</button><button class="btn">Hôm nay</button><button class="btn">›</button>
+    <span class="mu nho">02/11 – 15/11/2026</span>
+    <div class="tim">Tìm mã lệnh, khách…</div>
+    <div class="gian"></div>
+    <span class="ln" aria-pressed="true"><span class="dot" style="background:var(--tt-la-dot)"></span>Đủ vật tư</span>
+    <span class="ln">Hiện lệnh đã đẩy</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 260px">
+    <div class="dai">
+      <div class="trai">
+        <div style="height:48px;border-bottom:1px solid var(--vien);display:flex;align-items:center;padding:0 14px" class="mu nho">5 lệnh</div>
+        <div class="hang"><div class="r1"><span class="ma">LSX26-0005</span><span class="chip chip--la"><span class="dot"></span>Đã đẩy</span></div><span class="ten nho">Thẻ đeo đại biểu</span></div>
+        <div class="hang"><div class="r1"><span class="ma">LSX26-0006</span><span class="chip chip--la"><span class="dot"></span>Đủ vật tư</span></div><span class="ten nho">Hộp quà bồi cứng</span></div>
+        <div class="hang"><div class="r1"><span class="ma">LSX26-0001</span><span class="chip chip--la"><span class="dot"></span>Đủ vật tư</span></div><span class="ten nho">Kẹp file hội nghị</span></div>
+        <div class="hang"><div class="r1"><span class="ma">LSX26-0002</span><span class="chip chip--vang"><span class="dot"></span>Đang về 10/11</span></div><span class="ten nho">Bìa sổ tay</span></div>
+        <div class="hang"><div class="r1"><span class="ma">LSX26-0003</span><span class="chip chip--do"><span class="dot"></span>Thiếu 2 món</span></div><span class="ten nho">Ruột sổ tay</span></div>
+      </div>
+      <div class="luoiNgay">
+        <div class="dauNgay">
+          <div>T2<b>2</b></div><div>T3<b>3</b></div><div>T4<b>4</b></div><div>T5<b>5</b></div><div>T6<b>6</b></div><div>T7<b>7</b></div><div class="nay">CN<b>8</b></div>
+          <div>T2<b>9</b></div><div>T3<b>10</b></div><div>T4<b>11</b></div><div>T5<b>12</b></div><div>T6<b>13</b></div><div>T7<b>14</b></div><div class="nghi">CN<b>15</b></div>
+        </div>
+        <div style="position:relative">
+          <div class="cot"><div></div><div></div><div></div><div></div><div></div><div></div><div class="nay"></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="nghi"></div></div>
+          <!-- 1 ngày = 1/14 = 7.142857% ; giữa ngày i = (i+0.5)*7.14 -->
+          <div class="hang">
+            <div class="noi" style="left:25%;width:57.1%"></div>
+            <div class="moc moc--day" style="left:25%"><span class="ky"></span><span class="mu">đã đẩy 05/11 07:30</span></div>
+            <div class="moc moc--giao" style="left:82.1%"><span class="ky"></span></div>
+          </div>
+          <div class="hang">
+            <div class="noi" style="left:53.6%;width:35.7%"></div>
+            <div class="moc moc--hen" style="left:53.6%"><span class="ky"></span><span>09/11 07:30</span></div>
+            <div class="moc moc--giao" style="left:89.3%"><span class="ky"></span></div>
+          </div>
+          <div class="hang">
+            <div class="noi" style="left:60.7%;width:39.3%"></div>
+            <div class="moc moc--hen" style="left:60.7%"><span class="ky"></span><span>10/11 07:30</span></div>
+            <div class="moc mu4 nho" style="left:97%">18/11 ›</div>
+          </div>
+          <div class="hang">
+            <div class="noi sat" style="left:67.9%;width:7.1%"></div>
+            <div class="moc moc--hen" style="left:67.9%"><span class="ky"></span></div>
+            <div class="moc moc--giao sat" style="left:75%"><span class="ky"></span><span class="do">giao 12/11</span></div>
+          </div>
+          <div class="hang">
+            <div class="noi" style="left:46.4%;width:28.6%"></div>
+            <div class="moc moc--ket" style="left:46.4%"><span class="ky"></span><span class="do">quá giờ, thiếu vật tư</span></div>
+            <div class="moc moc--giao" style="left:75%"><span class="ky"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="khay">
+      <h4>Chưa hẹn giờ <span class="mu">3</span></h4>
+      <div class="the"><div class="r1"><span class="ma">LSX26-0007</span><span class="chip chip--la"><span class="dot"></span>Đủ</span></div><span class="ten">Túi giấy kraft</span><span class="mu nho" title="Kéo thẻ vào một ngày để hẹn giờ đẩy">Giao 20/11</span></div>
+      <div class="the"><div class="r1"><span class="ma">LSX26-0008</span><span class="chip chip--vang"><span class="dot"></span>Đang về</span></div><span class="ten">Tem nhãn chai</span><span class="mu nho">Giao 22/11</span></div>
+      <div class="the"><div class="r1"><span class="ma">LSX26-0009</span><span class="chip chip--do"><span class="dot"></span>Chưa giữ chỗ</span></div><span class="ten">Catalogue 2027</span><span class="mu nho">Giao 30/11</span></div>
+    </div>
+  </div>
+  <div class="chuGiai">
+    <span><i class="dot" style="background:var(--tt-xanh-dot);width:10px;height:10px"></i>Hẹn đẩy, tới giờ tự đẩy</span>
+    <span><i class="dot" style="background:var(--tt-la-dot);width:10px;height:10px"></i>Đã đẩy</span>
+    <span><i class="dot" style="background:var(--tt-do-dot);width:10px;height:10px"></i>Tới giờ mà không đẩy được</span>
+    <span><i style="width:9px;height:9px;border:2px solid var(--chu-3);transform:rotate(45deg);display:inline-block"></i>Hạn giao khách</span>
+  </div>
+</div>
+<div class="uu">
+  <div><b>Được:</b> nhìn là thấy ngày nào dồn nhiều lệnh đẩy, và khoảng hẹn đẩy tới hạn giao dài hay ngắn. Giữ thói quen kéo thả của bàn hiện tại, sửa code ít nhất (lưới, khay, ngăn chi tiết dùng lại).</div>
+  <div><b>Mất:</b> mỗi dòng gần như trống, chỉ hai ba chấm trên 14 cột. Chữ trên mốc dễ đè nhau khi hẹn đẩy sát hạn giao. Đổi giờ hẹn chính xác tới phút vẫn phải mở ngăn.</div>
+</div>
+
+<!-- ======================= C ======================= -->
+<div class="buoc">Phương án C. Hàng đợi theo ngày đẩy</div>
+<p class="buoc-mo">Lệnh xếp theo giờ sẽ được đẩy, nhóm theo ngày: Quá giờ chưa đẩy được, Hôm nay, Ngày mai, các ngày sau. Mỗi dòng mở đầu bằng giờ đẩy, rồi lệnh, vật tư, hạn giao và khoảng đệm. Cột phải là lệnh chưa hẹn giờ, bấm "Hẹn" ra ô chọn ngày giờ.</p>
+<div class="screen">
+  <div class="dau">
+    <h3>Xếp lịch</h3>
+    <div class="tim">Tìm mã lệnh, khách…</div>
+    <button class="btn">Lọc</button>
+    <div class="gian"></div>
+    <span class="ln">Hiện lệnh đã đẩy</span>
+  </div>
+  <div class="ngay3">
+    <div>
+      <div class="nhom">
+        <h4 class="do">Quá giờ, chưa đẩy được <span class="mu">1</span></h4>
+        <div class="dong3"><span class="gio qua">08:00</span><span><span class="ma">LSX26-0003</span><span class="ten nho">Ruột sổ tay, Giáo dục Trí Việt</span></span>
+          <span class="chip chip--do"><span class="dot"></span>Thiếu 2 món</span><span>Giao 12/11</span><span class="mu nho">giữ chỗ xong tự đẩy</span></div>
+      </div>
+      <div class="nhom">
+        <h4>Ngày mai, thứ Hai 09/11 <span class="mu">1</span></h4>
+        <div class="dong3"><span class="gio">07:30</span><span><span class="ma">LSX26-0006</span><span class="ten nho">Hộp quà bồi cứng, Mỹ phẩm Ngọc Lan</span></span>
+          <span class="chip chip--la"><span class="dot"></span>Đủ, đã giữ chỗ</span><span>Giao 14/11</span><span class="mu nho">đệm 5 ngày</span></div>
+      </div>
+      <div class="nhom">
+        <h4>Thứ Ba 10/11 <span class="mu">1</span></h4>
+        <div class="dong3"><span class="gio">07:30</span><span><span class="ma">LSX26-0001</span><span class="ten nho">Kẹp file hội nghị, Điện máy Phúc Long</span></span>
+          <span class="chip chip--la"><span class="dot"></span>Đủ, đã giữ chỗ</span><span>Giao 18/11</span><span class="mu nho">đệm 8 ngày</span></div>
+      </div>
+      <div class="nhom">
+        <h4>Thứ Tư 11/11 <span class="mu">1</span></h4>
+        <div class="dong3"><span class="gio">13:00</span><span><span class="ma">LSX26-0002</span><span class="ten nho">Bìa sổ tay, Giáo dục Trí Việt</span></span>
+          <span class="chip chip--vang"><span class="dot"></span>Đang về 10/11</span><span class="do">Giao 12/11</span><span class="do nho">đệm 1 ngày</span></div>
+      </div>
+      <div class="nhom" style="padding-bottom:14px">
+        <h4 class="mu">Đã đẩy hôm qua <span class="mu">1</span></h4>
+        <div class="dong3 dong3--day"><span class="gio">07:30</span><span><span class="ma">LSX26-0005</span><span class="ten nho">Thẻ đeo đại biểu, Dược phẩm An Thịnh</span></span>
+          <span class="chip chip--la"><span class="dot"></span>Đã đẩy</span><span>Giao 18/11</span><span class="mu nho">tự đẩy đúng giờ</span></div>
+      </div>
+    </div>
+    <div class="khay">
+      <h4>Chưa hẹn giờ <span class="mu">3</span></h4>
+      <div class="the"><div class="r1"><span class="ma">LSX26-0007</span><button class="btn" style="height:26px">Hẹn</button></div><span class="ten">Túi giấy kraft</span><div class="r1"><span class="chip chip--la"><span class="dot"></span>Đủ vật tư</span><span class="mu nho">Giao 20/11</span></div></div>
+      <div class="the"><div class="r1"><span class="ma">LSX26-0008</span><button class="btn" style="height:26px">Hẹn</button></div><span class="ten">Tem nhãn chai</span><div class="r1"><span class="chip chip--vang"><span class="dot"></span>Đang về</span><span class="mu nho">Giao 22/11</span></div></div>
+      <div class="the"><div class="r1"><span class="ma">LSX26-0009</span><button class="btn" style="height:26px">Hẹn</button></div><span class="ten">Catalogue 2027</span><div class="r1"><span class="chip chip--do"><span class="dot"></span>Chưa giữ chỗ</span><span class="mu nho">Giao 30/11</span></div></div>
+    </div>
+  </div>
+</div>
+<div class="uu">
+  <div><b>Được:</b> đọc đúng câu người điều phối hỏi mỗi sáng: "hôm nay và mai sẽ đẩy những lệnh nào, lệnh nào kẹt". Lệnh kẹt luôn nằm trên cùng. Giờ đẩy là thứ đầu tiên mắt thấy.</div>
+  <div><b>Mất:</b> nhiều lệnh thì danh sách dài, phải cuộn; không có lưới cột để sắp xếp hay so số lượng. Khuôn mới hoàn toàn, phải viết lại màn nhiều nhất.</div>
+</div>
+
+</div>
+</body>
+</html>

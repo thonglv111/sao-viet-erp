@@ -4,6 +4,7 @@
  *  Nhân viên/kế toán bấm "In phiếu" ở màn Tạm ứng → mở cửa sổ in.
  */
 import { amountInWords, dmyParts, escapeHtml, money } from "./format";
+import { leTrangIn } from "./leTrangIn";
 
 export interface AdvancePrintData {
   code: string | null;
@@ -55,7 +56,7 @@ export function printAdvanceRequest(d: AdvancePrintData): boolean {
 
   win.document.write(`<!doctype html><html lang="vi"><head><meta charset="utf-8">
 <title>${escapeHtml(docTitle)} — ${escapeHtml(d.employeeName ?? "")}</title><style>
-@page{size:A4;margin:16mm}
+${leTrangIn("A4", "16mm")}
 *{box-sizing:border-box}
 body{font:13px "Times New Roman",serif;color:#000;margin:0}
 .date{text-align:right;font-style:italic;margin-bottom:6px}

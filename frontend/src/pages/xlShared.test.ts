@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { congPhut, khungLuoi, loiKhoangNgay, nacCuaSo, nhanKhoang, soNgayDu, soNgayGiua } from "./xlShared";
+import { khungLuoi, loiKhoangNgay, nacCuaSo, soNgayGiua } from "./xlShared";
 
 describe("khungLuoi với khoảng ngày tự chọn", () => {
   it("ba nút 7/14/30 giữ đúng số cũ trên màn rộng", () => {
@@ -39,25 +39,5 @@ describe("loiKhoangNgay", () => {
     expect(loiKhoangNgay("2026-10-03", "2026-09-14")).toMatch(/từ ngày bắt đầu/);
     expect(loiKhoangNgay("2026-09-01", "2026-11-30")).toBeNull();
     expect(loiKhoangNgay("2026-09-01", "2026-12-02")).toMatch(/tối đa 3 tháng/);
-  });
-});
-
-describe("màn A cải tiến", () => {
-  it("nhanKhoang ghi ngày/tháng gọn, năm ghi một lần nếu trùng", () => {
-    expect(nhanKhoang("2026-10-05", "2026-10-18")).toBe("5/10 đến 18/10/2026");
-    expect(nhanKhoang("2026-09-28", "2026-10-11")).toBe("28/9 đến 11/10/2026");
-    expect(nhanKhoang("2026-12-28", "2027-01-10")).toBe("28/12/2026 đến 10/1/2027");
-  });
-
-  it("soNgayDu đếm tới hết ngày hạn, âm khi trễ", () => {
-    expect(soNgayDu("2026-10-14T16:40:00", "2026-10-16")).toBe(2);
-    expect(soNgayDu("2026-10-16T23:00:00", "2026-10-16")).toBe(0);
-    expect(soNgayDu("2026-10-17T08:00:00", "2026-10-16")).toBe(-1);
-    expect(soNgayDu(null, "2026-10-16")).toBeNull();
-  });
-
-  it("congPhut cộng qua ngày", () => {
-    expect(congPhut("2026-10-12T23:50:00", 15)).toBe("2026-10-13T00:05:00");
-    expect(congPhut("2026-10-12T14:00:00", -15)).toBe("2026-10-12T13:45:00");
   });
 });

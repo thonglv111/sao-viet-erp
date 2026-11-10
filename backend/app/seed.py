@@ -89,7 +89,8 @@ MODULES: list[tuple[str, str]] = [
     # Hai khoá cũ GIỮ NGUYÊN TÊN, chỉ thu hẹp nghĩa còn đúng một màn — đổi khoá là mọi hàng
     # `role_permissions` cũ trỏ vào hư không. Migration 0209 SAO CHÉP quyền sang 4 khoá mới.
     # Thứ tự bám đúng menu để người cấp quyền dò theo màn hình.
-    ("san_xuat", "Kế hoạch sản xuất"),
+    # Nhãn "Lệnh sản xuất" từ 07/11/2026 (mg `0455`) — khoá giữ nguyên `san_xuat`.
+    ("san_xuat", "Lệnh sản xuất"),
     ("ke_hoach_vat_tu", "Kế hoạch vật tư"),
     # Khoá `bai_ghep` (màn cũ) gỡ 18/08/2026 — mg `0216` chép quyền sang `bai_ghep_2` rồi xoá.
     # Khoá giữ hậu tố "_2" để khỏi phải đổi khoá trong DB; NHÃN là "Bài ghép", đây là màn duy nhất.
@@ -100,6 +101,8 @@ MODULES: list[tuple[str, str]] = [
     # án chốt 18/09/2026 bỏ đánh số, nên khoá quay về đúng `xep_lich`; mg `0314` chép quyền của
     # `xep_lich_3` sang rồi xoá cả hai khoá cũ. Ở đây là đường của DB TRẮNG.
     ("xep_lich", "Xếp lịch"),
+    # Kế hoạch bộ phận (07/11/2026, mg `0455`): bộ phận nhận lệnh, chọn máy + nhóm rồi Giao.
+    # Phạm vi: `department` = bộ phận chứa phòng của người xem; `all` = mọi bộ phận.
     # KCS (09/10/2026, mg 0383) — thay cờ phòng ban "Tổ KCS đích danh". Xem = màn + báo cáo mọi tổ;
     # Thao tác (`can_create`) = ghi lần kiểm, gửi nhập kho, đóng lệnh đủ; ô chi tiết "Đóng lệnh
     # thiếu" (`can_close_short`).
@@ -3158,6 +3161,9 @@ def dong_bo_danh_muc_he_thong(db: Session) -> None:
     # luật: chỉ phản chiếu, không đẻ kho.
     from .services.quyen_kho import dong_bo_dong_quyen_kho
     dong_bo_dong_quyen_kho(db)
+    # Dòng Kế hoạch theo BỘ PHẬN (`ke_hoach_bp_<id>`, 08/11/2026) — cùng luật, soi theo cây.
+    from .services.quyen_ke_hoach import dong_bo_dong_quyen_ke_hoach
+    dong_bo_dong_quyen_ke_hoach(db)
 
 
 def seed_all(db: Session) -> None:

@@ -102,9 +102,31 @@ class CongDoanService(CatalogService):
         công đoạn này" — máy đi theo tổ, không ai chọn tay (spec máy thuộc tổ §4.4)."""
         from .may_to import dong_bo_cong_doan_may
 
-        if dong_bo_cong_doan_may(self.repo.db, cong_doan_ids=[cd.id]):
+        doi = dong_bo_cong_doan_may(self.repo.db, cong_doan_ids=[cd.id])
+        doi = self._dien_bo_phan_lenh(cd) or doi
+        if doi:
             self.repo.db.commit()
         return cd
+
+    def _dien_bo_phan_lenh(self, cd: CongDoan) -> bool:
+        """Tick nhóm cho công đoạn ⇒ bước của lệnh chưa lập kế hoạch đang trống BỘ PHẬN NHẬN (bung
+        lúc công đoạn chưa tick nhóm nào) nhận ngay bộ phận chọn sẵn, cùng luật lúc bung lệnh
+        (10/11/2026). Không thì lệnh kẹt "Còn thiếu" mà màn lệnh không có ô nào để chọn: công đoạn
+        chỉ một bộ phận làm được thì ô bộ phận là chữ, không mở hộp chọn. Bước đã có bộ phận để yên."""
+        from .quyen_to import doc_cay
+        from .san_xuat.bo_phan import bo_phan_mac_dinh
+
+        if not cd.department_ids:
+            return False
+        buoc = self.repo.buoc_lenh_thieu_bo_phan(cd.id)
+        if not buoc:
+            return False
+        bp = bo_phan_mac_dinh(doc_cay(self.repo.db), list(cd.department_ids)) or cd.to_mac_dinh_id
+        if bp is None:
+            return False
+        for b in buoc:
+            b.department_id = bp
+        return True
 
     def _chuan_hoa(self, data: dict) -> dict:
         """Khử trùng danh sách tổ phụ trách, GIỮ thứ tự chọn (tổ đầu là mặc định của bước lệnh).
@@ -304,6 +326,8 @@ class CongDoanService(CatalogService):
                 # Chuẩn hoá TẠI ĐÂY để mọi đường vào (form, Excel, API) cùng một dạng: khoảng
                 # trắng thừa làm `if cong_thuc:` ở engine tưởng có khai rồi `safe_eval("  ")` nổ.
                 for k in ("cong_thuc_gio", "cong_thuc_gia"):
+                    if k == "cong_thuc_gio" and k not in r:
+                        continue  # vắng khoá = giữ câu cũ (form/Excel thôi gửi, 08/11/2026)
                     r[k] = ((r.get(k) or "").strip()) or None
             # W-CD-GIA-NGOAI-IN: công thức GIÁ chỉ có nghĩa ở công đoạn nhóm In — phiếu tính giá
             # chỉ chọn máy ở khối In của thành phần, nên câu khai cho máy bế/cán không có đường

@@ -24,14 +24,19 @@ const NAV_KENH: Record<string, string> = Object.fromEntries(
 );
 const TIEN_TO_TO = "to_sx_";
 const NAV_TO = "thuc-hien-sx:";
+// Mục "Kế hoạch" của từng bộ phận (08/11/2026): kênh `ke_hoach_bp_<id>` ↔ mục `ke-hoach-bo-phan:<id>`.
+const TIEN_TO_KH = "ke_hoach_bp_";
+const NAV_KH = "ke-hoach-bo-phan:";
 
 export function navCuaKenh(kenh: string): string | null {
   if (kenh.startsWith(TIEN_TO_TO)) return NAV_TO + kenh.slice(TIEN_TO_TO.length);
+  if (kenh.startsWith(TIEN_TO_KH)) return NAV_KH + kenh.slice(TIEN_TO_KH.length);
   return KENH_NAV[kenh] ?? null;
 }
 
 export function kenhCuaNav(navId: string): string | null {
   if (navId.startsWith(NAV_TO)) return TIEN_TO_TO + navId.slice(NAV_TO.length);
+  if (navId.startsWith(NAV_KH)) return TIEN_TO_KH + navId.slice(NAV_KH.length);
   return NAV_KENH[navId.split(":")[0]] ?? null;
 }
 
@@ -48,7 +53,9 @@ const LOI_NHAC: Record<string, (ma: string | null) => string> = {
   bao_gia_cho_duyet: (ma) => `🔔 Báo giá${ma ? " " + ma : ""} chờ bạn duyệt`,
   don_cho_coc: (ma) => `🔔 Đơn hàng${ma ? " " + ma : ""} chờ ghi cọc`,
   lenh_cho_xep: (ma) => `🔔 Lệnh${ma ? " " + ma : ""} vừa vào hàng chờ xếp lịch`,
+  tu_day_ket: (ma) => `🔔 Lệnh${ma ? " " + ma : ""} tới giờ hẹn mà chưa đẩy được, xem tab Kẹt`,
   viec_moi: () => "🔔 Tổ có việc mới",
+  lenh_moi: () => "🔔 Bộ phận có việc mới chờ giao",
   kho_yeu_cau_moi: (ma) => `🔔 Có yêu cầu kho mới${ma ? " " + ma : ""} chờ lập phiếu`,
   // Phát hành lệnh tự lập yêu cầu xuất: `ma` = "LSX…: N yêu cầu xuất mới" (máy chủ ghép sẵn).
   kho_yeu_cau_phat_hanh: (ma) => `🔔 ${ma ?? "Có yêu cầu xuất mới"} chờ lập phiếu`,

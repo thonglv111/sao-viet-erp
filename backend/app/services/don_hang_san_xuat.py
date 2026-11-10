@@ -15,7 +15,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from ..models.lsx import TT_DA_DONG, TT_DA_XUONG_XUONG, Lsx
-from ..models.order import STATUS_ORDERED
+from ..models.order import SOURCE_THUONG_MAI, STATUS_ORDERED
 from ..models.san_xuat import CV_HOAN_THANH
 from ..repositories.accounting_repo import AccountingRepository
 from ..repositories.delivery_repo import DeliveryRepository
@@ -132,7 +132,8 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
     ra: dict[int, dict] = {}
     for o in orders:
         if o.san_xuat_released_at is None:
-            ra[o.id] = {"mon": [], "dang_cho": [CHO_COC]}
+            # Đơn thương mại không xuống sản xuất nên không mang "chờ cọc" của luồng sản xuất.
+            ra[o.id] = {"mon": [], "dang_cho": [] if o.source_type == SOURCE_THUONG_MAI else [CHO_COC]}
             continue
         mons = []
         cho: set[str] = set()

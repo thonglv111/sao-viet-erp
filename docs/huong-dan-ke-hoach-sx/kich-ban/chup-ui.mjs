@@ -11,7 +11,8 @@ const { chromium } = require("playwright");
 const [, , kichBan, raDir] = process.argv;
 const env = readFileSync("D:/jobs/SVN/.env.example", "utf8");
 const lay = (k) => (env.match(new RegExp(`^${k}=(.*)$`, "m")) || [])[1]?.trim();
-const BASE = "http://localhost:5173";
+// CHUP_BASE=http://localhost:5174 khi chụp ở bản chạy thử trong worktree.
+const BASE = process.env.CHUP_BASE || "http://localhost:5173"; // frontend Hà Phương: CHUP_BASE=http://localhost:5273
 
 const browser = await chromium.launch({ channel: "chrome" });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1.5, locale: "vi-VN", colorScheme: "light" });
@@ -20,8 +21,9 @@ await page.goto(BASE);
 await page.waitForLoadState("domcontentloaded");
 const mk = page.locator('input[type="password"]').first();
 if (await mk.waitFor({ timeout: 10000 }).then(() => true, () => false)) {
-  await page.getByPlaceholder("vd: admin").fill(lay("SEED_ADMIN_USERNAME"));
-  await mk.fill(lay("SEED_ADMIN_PASSWORD"));
+  // CHUP_USER/CHUP_MK: chụp bằng tài khoản người dùng thật (vd tổ trưởng kỹ thuật), mặc định admin.
+  await page.getByPlaceholder("vd: admin").fill(process.env.CHUP_USER || lay("SEED_ADMIN_USERNAME"));
+  await mk.fill(process.env.CHUP_MK || lay("SEED_ADMIN_PASSWORD"));
   await page.getByRole("button", { name: /Đăng nhập hệ thống/ }).click();
   await mk.waitFor({ state: "detached", timeout: 20000 });
   await page.waitForTimeout(2000);

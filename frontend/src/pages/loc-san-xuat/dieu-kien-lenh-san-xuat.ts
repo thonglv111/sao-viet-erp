@@ -9,7 +9,6 @@ import type { DieuKien, GiaTriDK } from "../thanh-loc/thanh-loc";
 
 export const MOC_HO_SO_LENH: [string, string][] = [
   ["tao", "Ngày tạo"],
-  ["han_sx", "Hạn sản xuất"],
   ["han_giao", "Hạn giao khách"],
 ];
 

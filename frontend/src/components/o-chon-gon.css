@@ -1,0 +1,26 @@
+/* Ô chọn gọn (OChonGon.tsx): mỗi dòng tên bên trái, thông tin phụ chữ xám bên phải. */
+.ocg { position: relative; min-width: 0; }
+.ocg__o {
+  display: flex; align-items: center; gap: 12px; width: 100%; height: 36px; padding: 0 10px 0 12px;
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--canvas);
+  font: inherit; font-size: 13.5px; color: var(--ink); text-align: left; cursor: pointer;
+}
+.ocg__o:hover:not(:disabled) { border-color: var(--ash-2); }
+.ocg__o.is-open, .ocg__o:focus-visible { outline: none; border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.ocg__o:disabled { cursor: not-allowed; color: var(--ash-2); }
+.ocg__ten { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ocg__phu { flex: none; color: var(--ash-2); font-size: 12.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ocg__chev { flex: none; color: var(--ash-2); }
+.ocg__pop {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); max-height: 300px; overflow: auto;
+  padding: 4px; background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+}
+.ocg__opt {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px; border: 0;
+  border-radius: 6px; background: none; font: inherit; font-size: 13.5px; text-align: left; color: var(--ink);
+  cursor: pointer;
+}
+.ocg__opt:hover, .ocg__opt:focus-visible { outline: none; background: var(--rule-hair); }
+.ocg__ck { flex: none; visibility: hidden; }
+.ocg__opt.is-sel .ocg__ck { visibility: visible; }

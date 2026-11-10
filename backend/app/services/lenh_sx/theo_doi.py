@@ -1,7 +1,7 @@
 """Màn "Theo dõi sản xuất" — Theo máy, Theo lệnh và dải bất thường (làm gọn 05/10/2026).
 
 Cả ba đọc MỘT lượt nạp (`_nap`): tập lệnh = `_ids_trong_pham_vi` (đã phát hành, đúng phạm vi token)
-→ `_bo_lenh_da_rung` (luật 28/09) → MỘT `boi_canh.nap()` → `tien_do.du_kien_xong` +
+→ `_bo_lenh_da_rung` (luật 28/09) → MỘT `boi_canh.nap()` →
 `trang_thai.co_canh_bao(den_vat_tu=None)` cho từng lệnh → trạng thái máy cho máy còn dùng hoặc còn
 việc. Không `can_doi()`: cờ thiếu vật tư không vào màn này. Số câu SQL hằng theo số lệnh.
 
@@ -61,7 +61,8 @@ class _Nap:
 
     ids: list[int]
     bc: BoiCanh
-    xong: dict[int, datetime | None]
+    # Ngày hôm nay theo giờ xưởng — đếm số ngày đã qua hạn giao khách.
+    hom_nay: date
     co: dict[int, list[str]]
     # Công việc CHƯA xong của tập đã nạp, khử trùng theo id (một ca in ghép phục vụ nhiều lệnh).
     cv_song: dict[int, SanXuatCongViec]
@@ -100,8 +101,7 @@ def _trang_thai_may_that(db: Session, may_ids: list[int]) -> dict[int, str]:
 def _nap(db: Session, sale_ids: set[int] | None, bay_gio: datetime) -> _Nap:
     ids = _bo_lenh_da_rung(db, _ids_trong_pham_vi(db, sale_ids), bay_gio=bay_gio)
     bc = boi_canh.nap(db, ids)
-    xong = {i: tien_do.du_kien_xong(bc, i, bay_gio) for i in ids}
-    co = {i: trang_thai.co_canh_bao(bc, i, bay_gio, xong=xong[i]) for i in ids}
+    co = {i: trang_thai.co_canh_bao(bc, i, bay_gio) for i in ids}
 
     cv_song: dict[int, SanXuatCongViec] = {}
     lenh_cua_cv: dict[int, list[int]] = {}
@@ -118,7 +118,7 @@ def _nap(db: Session, sale_ids: set[int] | None, bay_gio: datetime) -> _Nap:
     co_viec = {cv.may_id for cv in cv_song.values() if cv.may_id is not None}
     may_xet = [m for m, mm in may.items() if mm.active or m in co_viec]
     return _Nap(
-        ids=ids, bc=bc, xong=xong, co=co, cv_song=cv_song, lenh_cua_cv=lenh_cua_cv,
+        ids=ids, bc=bc, hom_nay=tien_do._aware(bay_gio).astimezone(tien_do.BUSINESS_TZ).date(), co=co, cv_song=cv_song, lenh_cua_cv=lenh_cua_cv,
         may=may, tt_may=_trang_thai_may_that(db, may_xet),
     )
 
@@ -156,9 +156,9 @@ def dem_bat_thuong(n: _Nap) -> dict[str, int]:
 
 
 def _khoa_sap_theo_lenh(n: _Nap, lsx_id: int) -> tuple:
-    """Số cờ giảm dần → GẤP trước → hạn SX tăng (chưa có hạn xuống cuối) → mã."""
+    """Số cờ giảm dần → GẤP trước → hạn giao tăng (chưa có hạn xuống cuối) → mã."""
     lsx = n.bc.lenh[lsx_id]
-    han = lsx.han_hoan_thanh_sx
+    han = lsx.han_giao_khach
     return (
         -len(n.co[lsx_id]), 0 if lsx.is_rush else 1,
         0 if han is not None else 1, han or date.max, lsx.ma or "", lsx_id,
@@ -172,10 +172,10 @@ def _dong_lenh(n: _Nap, lsx_id: int) -> dict:
     khach = bc.khach.get(don.customer_id) if don is not None and don.customer_id else None
     cv = danh_sach.buoc_hien_tai(bc, lsx_id)
     khau, khau_ct = trang_thai.khau(bc, lsx_id)
-    xong = n.xong[lsx_id]
+    # Số ngày đã qua hạn giao khách khi lệnh chưa xong (08/11/2026: thôi đo theo "dự kiến xong").
     tre_ngay = None
-    if trang_thai.CO_TRE_HAN in n.co[lsx_id] and xong is not None and lsx.han_hoan_thanh_sx:
-        tre_ngay = (xong.astimezone(tien_do.BUSINESS_TZ).date() - lsx.han_hoan_thanh_sx).days
+    if trang_thai.CO_TRE_HAN in n.co[lsx_id] and lsx.han_giao_khach:
+        tre_ngay = (n.hom_nay - lsx.han_giao_khach).days
     return {
         "lsx_id": lsx.id,
         "ma": lsx.ma,
@@ -190,7 +190,6 @@ def _dong_lenh(n: _Nap, lsx_id: int) -> dict:
         "khau_chi_tiet": khau_ct,
         "han_hoan_thanh_sx": lsx.han_hoan_thanh_sx,
         "created_at": lsx.created_at,
-        "du_kien_xong": thuc_te_hien_thi(xong),
         "canh_bao": list(n.co[lsx_id]),
         "tre_ngay": tre_ngay,
     }

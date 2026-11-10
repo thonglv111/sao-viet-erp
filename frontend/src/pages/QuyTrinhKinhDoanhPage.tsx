@@ -54,7 +54,7 @@ export const BUOC: Buoc[] = [
     moTa: "Tạo đơn hàng bán từ báo giá khách đã đồng ý, điền hạn giao và lưu ý sản xuất rồi chốt đơn." },
   { id: "coc", stt: 6, ten: "Thu cọc", boPhan: "kt", hang: 5, man: "ke-toan-phieu-thu", tenMan: "Phiếu thu",
     moTa: "Lập phiếu thu cọc theo tỷ lệ của đơn. Đủ cọc thì đơn tự xuống hàng chờ của Kế hoạch sản xuất." },
-  { id: "lenh", stt: 7, ten: "Lên lệnh sản xuất", boPhan: "khsx", hang: 5, man: "ke-hoach-sx", tenMan: "Kế hoạch sản xuất",
+  { id: "lenh", stt: 7, ten: "Lên lệnh sản xuất", boPhan: "khsx", hang: 5, man: "ke-hoach-sx", tenMan: "Lệnh sản xuất",
     moTa: "Nhận đơn ở hàng chờ, lên lệnh cho từng món. Món đủ tồn kho thì lấy từ kho, không cần lệnh." },
   { id: "vattu", stt: 8, ten: "Lo vật tư", boPhan: "khsx", hang: 6, man: "ke-hoach-vat-tu", tenMan: "Kế hoạch vật tư",
     moTa: "Xem lệnh còn thiếu giấy, vật tư gì và hạn phải đặt mua." },

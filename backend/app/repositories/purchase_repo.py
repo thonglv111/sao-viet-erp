@@ -428,6 +428,7 @@ class SupplierRepository:
         debt_cutoff_day: int | None = None,
         status: str = SUPPLIER_ACTIVE,
         nhan_gia_cong: bool = False,
+        la_don_vi_van_chuyen: bool = False,
         note: str | None = None,
         items: Sequence["SupplierItemInput"] | None = None,
     ) -> Supplier:
@@ -446,6 +447,7 @@ class SupplierRepository:
             debt_cutoff_day=debt_cutoff_day,
             status=status,
             nhan_gia_cong=nhan_gia_cong,
+            la_don_vi_van_chuyen=la_don_vi_van_chuyen,
             note=note,
         )
         row.items = [

@@ -112,7 +112,8 @@ def _co(db, lsx_id, **kw):
 
 
 def _dat_han(db, lsx_id, han=_HAN_XA) -> None:
-    db.get(Lsx, lsx_id).han_hoan_thanh_sx = han
+    """Đặt HẠN GIAO KHÁCH — từ 08/11/2026 cờ `tre_han` đo theo hạn giao, không theo hạn SX."""
+    db.get(Lsx, lsx_id).han_giao_khach = han
     db.commit()
 
 
@@ -519,7 +520,7 @@ def test_nam_co_cung_bat_giu_dung_thu_tu_co_canh_bao(db, orders, lsx_svc, admin,
 def test_lenh_sach_khong_co_co_nao(db, lenh_dang_chay):
     """Tiền đề của mọi bài ưu tiên: fixture nền phải THẬT SỰ sạch cờ, không phải sạch vì luật nào
     đó chưa chạy. Hạn đã đặt (còn xa) nên `tre_han` có chạy và trả False vì lý do thật."""
-    assert db.get(Lsx, lenh_dang_chay).han_hoan_thanh_sx is not None
+    assert db.get(Lsx, lenh_dang_chay).han_giao_khach is not None
     assert _co(db, lenh_dang_chay) == []
 
 
@@ -542,7 +543,7 @@ def test_su_co_da_tao_phieu_khong_con_giuong_co(db, lenh_dang_chay_co_su_co):
     assert _co(db, lenh_dang_chay_co_su_co) == []
 
 
-# --- Bổ sung C: trễ hạn đi qua `tien_do`, và `xong` truyền vào được dùng ---------------------------
+# --- Bổ sung C: trễ hạn đi qua `tien_do` ---------------------------
 def test_tre_han_ra_canh_bao(db, lenh_dang_chay):
     """Cùng một lệnh sạch, chỉ kéo hạn về quá khứ ⇒ nhảy sang Cảnh báo. Không fixture riêng: đổi
     đúng MỘT biến thì mới biết chắc biến đó là nguyên nhân."""
@@ -550,16 +551,6 @@ def test_tre_han_ra_canh_bao(db, lenh_dang_chay):
     _dat_han(db, lenh_dang_chay, date(2026, 8, 1))
     assert _co(db, lenh_dang_chay) == ["tre_han"]
     assert _tt(db, lenh_dang_chay) == trang_thai.TAB_CANH_BAO
-
-
-def test_dung_moc_xong_ben_goi_truyen_vao(db, lenh_dang_chay):
-    """Màn 200 lệnh tính `du_kien_xong` MỘT lần rồi truyền lại — nếu `co_canh_bao` bỏ qua tham số
-    đó mà tự tính, trang phải duyệt đường găng 400 lượt. Truyền một mốc quá khứ ⇒ phải ra TRỄ."""
-    _dat_han(db, lenh_dang_chay, date(2026, 8, 1))
-    bc = boi_canh.nap(db, [lenh_dang_chay])
-    assert trang_thai.co_canh_bao(bc, lenh_dang_chay, BAY_GIO, xong=None) == []
-    assert trang_thai.co_canh_bao(
-        bc, lenh_dang_chay, BAY_GIO, xong=BAY_GIO + timedelta(days=30)) == ["tre_han"]
 
 
 # --- Bổ sung D: KCS — không đạt là cảnh báo, đạt-một-phần là chuyện thường -------------------------
@@ -651,14 +642,13 @@ def test_giao_het_doc_dung_dong_cua_lenh_khong_phai_dong_trung_id(db, lenh_giao_
 
 
 def test_hoan_thanh_an_truoc_canh_bao(db, lenh_giao_het):
-    """Lệnh đã giao hết mà quá hạn SX thì vẫn là HOÀN THÀNH, không phải Cảnh báo.
+    """Lệnh đã giao hết mà quá hạn giao thì vẫn là HOÀN THÀNH, không phải Cảnh báo.
 
     Cảnh báo sinh ra để điều độ TÌM CHỖ TẮC; lệnh đã ra khỏi nhà máy không còn chỗ nào để tắc.
-    Hạn 01/08 trong khi mốc xong THẬT (phiên đã đóng) là 30/08 ⇒ lệnh này trễ thật, cờ `tre_han`
-    đúng — nhưng nó vẫn phải nằm ở tab Hoàn thành.
+    Từ 08/11/2026 `tre_han` chỉ bật khi lệnh CHƯA xong sản xuất, nên ở đây cờ cũng tắt.
     """
     _dat_han(db, lenh_giao_het, date(2026, 8, 1))
-    assert "tre_han" in _co(db, lenh_giao_het)
+    assert "tre_han" not in _co(db, lenh_giao_het)
     assert _tt(db, lenh_giao_het) == trang_thai.TAB_HOAN_THANH
 
 

@@ -315,33 +315,6 @@ def test_routing_ket_o_con_van_ra_dung_so_to():
     assert so_to_vao("con") == 2000, "kết ở `con` phải cần đúng ngần ấy giấy"
 
 
-def test_may_ctp_chay_theo_so_kem_khi_buoc_dem_kem():
-    """LỖ 2 (bản 15/08/2026) — bước ghi kẽm đếm `kem`, máy CTP khai `kem/giờ` ⇒ chạy đúng số kẽm.
-
-    Bản cũ đi bằng "khớp mã": bước khai `bai → kem` cho tử tế thì `bai` không có trong bảng 5 mã,
-    máy CTP hết khớp, thời lượng tụt về mỗi thời gian chuẩn bị — im lặng. Nay cùng đơn vị thì tính
-    thẳng, khác đơn vị thì QUY ĐỔI, quy đổi không được thì nói ra.
-    """
-    from app.services.lsx_service import thoi_luong_buoc
-
-    class May:
-        def __init__(self, td, dv):
-            self.toc_do, self.don_vi_toc_do = td, dv
-            self.toc_do_min = self.toc_do_max = None
-            self.makeready_time_default, self.fields_theo_loai = 10, None
-
-    buoc = LsxCongDoan(lsx_id=0, thu_tu=0, ten="Ghi kẽm CTP", loai_buoc="may",
-                       nhom="prepress", so_luong_vao=40, don_vi_vao="kem")
-    t = thoi_luong_buoc(buoc, May(40, "kem_gio"), (40.0, "kẽm", "40 kẽm"))
-    assert round(t["chay_phut"]) == 60          # 40 kẽm ÷ 40 kẽm/giờ
-    assert round(t["chiem_may_phut"]) == 70     # + 10 phút chuẩn bị
-
-    # Máy đo bằng thứ khác mà chưa khai quy đổi ⇒ KHÔNG bịa giờ, chỉ còn chuẩn bị.
-    t2 = thoi_luong_buoc(buoc, May(500, "kg_gio"), None)
-    assert t2["chay_phut"] == 0
-    assert t2["dien_giai"]["phuong_phap"] == "chua_quy_doi"
-
-
 def test_dich_chuoi_va_routing_ket_o_con():
     """LỖ 4 — routing kết ở `con` thì hai tầng ăn hai đích khác nhau, lệch đúng số con/cái.
 

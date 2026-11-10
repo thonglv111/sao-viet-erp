@@ -223,3 +223,26 @@ class DonViDoRepository(CatalogRepo):
     def delete_cap(self, obj) -> None:
         self.db.delete(obj)
         self.db.commit()
+
+
+class DonViDoRepositoryDoc(DonViDoRepository):
+    """Repo đơn vị cho đường CHỈ ĐỌC trong một lượt request: nhớ `all_rows` + `cap_rows` sau lần đọc
+    đầu. Quy đổi cả trăm mã giấy trong một lượt (chi tiết lệnh, gợi ý vật tư) từng đọc lại hai
+    bảng này cho từng mã. KHÔNG dùng ở đường ghi danh mục đơn vị — ghi xong đọc lại sẽ ra bản cũ."""
+
+    def __init__(self, db) -> None:
+        super().__init__(db)
+        self._all = None
+        self._cap = None
+
+    def all_rows(self):
+        if self._all is None:
+            self._all = super().all_rows()
+        return self._all
+
+    def cap_rows(self, *, bo_qua_id: int | None = None):
+        if bo_qua_id is not None:
+            return super().cap_rows(bo_qua_id=bo_qua_id)
+        if self._cap is None:
+            self._cap = super().cap_rows()
+        return self._cap

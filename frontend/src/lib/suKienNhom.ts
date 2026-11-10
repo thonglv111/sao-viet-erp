@@ -60,6 +60,9 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   care_moved: ["ban_hang"],
   // Đơn chốt xuống sản xuất: hàng chờ Kế hoạch SX + bước "Sản xuất" ở Đơn hàng.
   order_ordered: ["ban_hang", "san_xuat"],
+  // Giao đơn / tạo hộ lệnh (08/11/2026): hàng chờ + bảng lệnh của người được giao nạp lại.
+  don_giao_lam_lenh: ["san_xuat"],
+  lsx_tao_ho: ["san_xuat"],
   order_sx_hint_changed: ["ban_hang", "san_xuat"],
 
   // Nhân sự: nghỉ phép · tăng ca · chấm công · tạm ứng lương.
@@ -90,6 +93,8 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   lsx_changed: ["san_xuat", "ban_hang", "khvt"],
   bai_ghep_changed: ["san_xuat", "khvt"],
   xep_lich_changed: ["san_xuat", "khvt"],
+  // Kế hoạch của một bộ phận đổi (phát lệnh / giao / rút) — màn Kế hoạch đang mở nạp lại.
+  ke_hoach_bo_phan_changed: ["san_xuat"],
   san_xuat_changed: ["san_xuat"],
   san_xuat_cong_viec_changed: ["san_xuat"],
   san_xuat_duoc_giao_viec: ["san_xuat"],

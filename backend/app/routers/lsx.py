@@ -32,6 +32,8 @@ from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.lsx import (
     BuocMacDinhOut,
     DoiNguonGiayIn,
+    GiaoDonIn,
+    GiaoDonOut,
     HangChoOut,
     LsxActivityItem,
     LsxActivityOut,
@@ -45,6 +47,7 @@ from ..schemas.lsx import (
     LsxTongQuanItem,
     LsxTongQuanOut,
     LsxUpdateIn,
+    NguoiLamLenhOut,
     PreviewOut,
     KhuonMoiIn,
     PhuThuocOption,
@@ -105,37 +108,62 @@ def _map(exc: Exception) -> HTTPException:
 
 
 def _owner_ids_for_scope(db: Session, user: User, authz: AuthorizationService) -> set[int] | None:
-    """Tập user-id CHỦ ĐƠN mà `user` được thấy theo scope module `san_xuat`. None = thấy TẤT CẢ.
-
-    14/10/2026 chủ chốt: phạm vi của Kế hoạch SX đi THEO ĐƠN, đúng luật Đơn hàng bán + Hồ sơ lệnh +
-    Theo dõi SX (`services/lenh_sx/pham_vi.py`): Của tôi = mình + người cùng nhóm dùng chung, Cả
-    phòng = phòng mình + cây con, Tất cả = không lọc. Lệnh thuộc phạm vi khi ĐƠN của nó thuộc phạm
-    vi (`lsx_repo.dk_lenh_trong_pham_vi`). Trước đó tính theo người tạo / phụ trách lệnh.
-    """
+    """Tập user-id CHỦ ĐƠN theo scope `san_xuat` — chỉ còn dùng cho tab Hàng chờ tiếp nhận của người
+    giao (đơn chưa có người phụ trách thì chỉ còn chủ đơn để khoanh). None = thấy TẤT CẢ."""
     return pham_vi.sale_ids_theo_pham_vi(db, user, authz, MODULE)
 
 
-def lenh_trong_pham_vi(db: Session, lsx, owner_ids: set[int] | None) -> bool:
+def _phu_trach_ids(db: Session, user: User, authz: AuthorizationService) -> set[int] | None:
+    """Phạm vi của Lệnh sản xuất và tab Tạo lệnh (08/11/2026) theo NGƯỜI PHỤ TRÁCH: Của tôi = lệnh
+    và đơn mình phụ trách, Cả phòng = của người trong phòng mình (kể cả phòng con), Tất cả = không lọc.
+    Trước đó (14/10/2026) tính theo chủ đơn. None = thấy tất cả."""
+    return pham_vi.phu_trach_ids_theo_pham_vi(db, user, authz, MODULE)
+
+
+def lenh_trong_pham_vi(db: Session, lsx, phu_trach_ids: set[int] | None) -> bool:
     """Bản Python của `dk_lenh_trong_pham_vi` cho một lệnh đã nạp."""
-    if owner_ids is None:
+    if phu_trach_ids is None:
         return True
-    order = db.get(Order, lsx.order_id) if lsx.order_id else None
-    return order is not None and chu_cua(db, order.customer_id, order.sale_user_id) in owner_ids
+    return (lsx.nguoi_phu_trach_id or lsx.created_by) in phu_trach_ids
 
 
-def _guard_don(db: Session, order_id: int, user: User, authz: AuthorizationService) -> None:
-    """Đơn ngoài phạm vi ⇒ 404 như lệnh ngoài phạm vi (hàng chờ đã lọc theo chủ đơn, gõ id thẳng
-    vào `/preview` hay `/tao` cũng không vượt được)."""
-    owner_ids = _owner_ids_for_scope(db, user, authz)
-    if owner_ids is None:
-        return
+def la_nguoi_giao(user: User, authz: AuthorizationService) -> bool:
+    """Ô "Giao đơn" (`san_xuat:reassign`, 08/11/2026) — người hứng đơn ở Hàng chờ tiếp nhận rồi chia
+    cho người phụ trách. Không có ô này thì không thấy tab Hàng chờ tiếp nhận."""
+    return authz.can(user, MODULE, "reassign")
+
+
+def _guard_don_tao(db: Session, order_id: int, user: User, authz: AuthorizationService) -> None:
+    """Cửa của `/preview` và `/tao` (08/11/2026): đơn phải ĐÃ GIAO cho người phụ trách, và người đó
+    nằm trong phạm vi của người xem. Gõ id thẳng hay mở link cũ cũng không vượt được."""
     order = db.get(Order, order_id)
-    if order is None or chu_cua(db, order.customer_id, order.sale_user_id) not in owner_ids:
+    if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
+    if order.nguoi_lam_lenh_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Đơn này chưa giao cho ai phụ trách")
+    ids = _phu_trach_ids(db, user, authz)
+    if ids is not None and order.nguoi_lam_lenh_id not in ids:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Đơn này không thuộc phạm vi phụ trách của bạn")
+
+
+def _guard_don_xem(db: Session, order_id: int, user: User, authz: AuthorizationService) -> None:
+    """Cửa của `/preview` (10/11/2026): người có ô Giao đơn mở đơn ở Hàng chờ tiếp nhận để XEM sản phẩm
+    và lệnh dự kiến, kể cả đơn chưa giao — trong đúng phạm vi tab đó (chủ đơn). Tạo lệnh vẫn qua
+    `_guard_don_tao`: chưa giao cho ai thì không tạo được."""
+    if la_nguoi_giao(user, authz):
+        order = db.get(Order, order_id)
+        if order is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
+        ids = _owner_ids_for_scope(db, user, authz)
+        if ids is None or chu_cua(db, order.customer_id, order.sale_user_id) in ids:
+            return
+    _guard_don_tao(db, order_id, user, authz)
 
 
 def _guard_scope(db: Session, lsx, user: User, authz: AuthorizationService) -> None:
-    if lenh_trong_pham_vi(db, lsx, _owner_ids_for_scope(db, user, authz)):
+    if lenh_trong_pham_vi(db, lsx, _phu_trach_ids(db, user, authz)):
         return
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy lệnh sản xuất")
 
@@ -149,29 +177,68 @@ def _out(svc: LsxService, lsx) -> LsxOut:
     })
 
 
-# --- Hàng chờ tiếp nhận -------------------------------------------------------
+# --- Hàng chờ tiếp nhận + Tạo lệnh ---------------------------------------------
+# 08/11/2026: hai tab dùng chung một bảng đơn. `che_do=giao` = Hàng chờ tiếp nhận, chỉ người có ô Giao
+# đơn, chỉ để giao; `che_do=tao` = Tạo lệnh, đơn đã giao trong phạm vi người phụ trách, bấm dòng để tạo.
+_CHE_DO = "^(giao|tao)$"
+
+
+def _nen_hang_cho(db: Session, user: User, authz: AuthorizationService, che_do: str) -> dict:
+    """Điều kiện nền của tab theo người xem. Tab giao mà không có ô Giao đơn ⇒ 403."""
+    if che_do == "giao":
+        if not la_nguoi_giao(user, authz):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                                detail="Bạn không có quyền Giao đơn ở Lệnh sản xuất")
+        return {"che_do": "giao", "owner_ids": _owner_ids_for_scope(db, user, authz)}
+    return {"che_do": "tao", "phu_trach_ids": _phu_trach_ids(db, user, authz)}
+
+
 @router.get("/hang-cho", response_model=HangChoOut)
 def hang_cho(
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    che_do: str = Query(default="giao", pattern=_CHE_DO),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=SIZE_TRAN),
     chi_dem: bool = Query(default=False, description="True ⇒ chỉ trả `total` (badge), `items` rỗng"),
-    # Thanh lọc của hàng chờ (06/10/2026): kỳ theo ngày tạo đơn / lúc chuyển xuống SX + khách.
+    # Thanh lọc (06/10/2026): kỳ theo ngày tạo đơn / lúc chuyển xuống SX + khách; 08/11/2026 thêm
+    # người phụ trách và chip trạng thái.
     customer_id: int | None = Query(default=None),
+    nguoi_phu_trach_id: int | None = Query(default=None),
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern="^(tao|chuyen)$"),
+    trang_thai: str | None = Query(default=None, pattern="^(chua_giao|da_giao)$"),
 ) -> HangChoOut:
-    """Đơn Sale đã chuyển xuống SX mà còn dòng chưa lên lệnh, trong phạm vi theo CHỦ ĐƠN (14/10/2026
-    — trước đó chỉ người có phạm vi toàn bộ mới thấy). Lên lệnh vẫn do ô Thao tác (`create`)."""
-    items, total = _svc(db).hang_cho(
-        page=page, size=size, chi_dem=chi_dem,
-        customer_id=customer_id, tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc,
-        owner_ids=_owner_ids_for_scope(db, user, authz),
+    """Đơn Sale đã chuyển xuống SX mà còn dòng chưa lên lệnh."""
+    svc = _svc(db)
+    nen = _nen_hang_cho(db, user, authz, che_do)
+    loc = {"customer_id": customer_id, "nguoi_phu_trach_id": nguoi_phu_trach_id,
+           "tu_ngay": tu_ngay, "den_ngay": den_ngay, "moc": moc, **nen}
+    items, total = svc.hang_cho(page=page, size=size, chi_dem=chi_dem, trang_thai=trang_thai,
+                                nguoi_xem_id=user.id, **loc)
+    if chi_dem:   # đường badge: chỉ tổng, không thêm câu đếm chip / chấm
+        return HangChoOut(items=items, total=total, page=page, size=size)
+    return HangChoOut(
+        items=items, total=total, page=page, size=size, la_nguoi_giao=la_nguoi_giao(user, authz),
+        facets=svc.repo.dem_trang_thai_hang_cho(**loc),
+        cham=svc.repo.co_cham_hang_cho(nguoi_xem_id=user.id, che_do=che_do,
+                                       owner_ids=nen.get("owner_ids")),
     )
-    return HangChoOut(items=items, total=total, page=page, size=size)
+
+
+@router.get("/hang-cho/cham", response_model=dict[str, bool])
+def hang_cho_cham(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> dict[str, bool]:
+    """Chấm của HAI tab (không theo thanh lọc) để tab đang không mở vẫn biết có việc mới."""
+    repo = _svc(db).repo
+    giao = la_nguoi_giao(user, authz) and repo.co_cham_hang_cho(
+        nguoi_xem_id=user.id, che_do="giao", owner_ids=_owner_ids_for_scope(db, user, authz))
+    return {"giao": bool(giao), "tao": repo.co_cham_hang_cho(nguoi_xem_id=user.id, che_do="tao")}
 
 
 @router.get("/hang-cho/khach-loc", response_model=list[LuaChonLoc])
@@ -179,11 +246,62 @@ def hang_cho_khach_loc(
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    che_do: str = Query(default="giao", pattern=_CHE_DO),
 ) -> list[LuaChonLoc]:
-    """Ô "Khách hàng" của thanh lọc hàng chờ: khách đang có đơn chờ lên lệnh, kèm số đơn. Cùng cửa
-    phạm vi với `/hang-cho`."""
-    return [LuaChonLoc(id=i, ten=t, so=n)
-            for i, t, n in _svc(db).khach_hang_cho(owner_ids=_owner_ids_for_scope(db, user, authz))]
+    """Ô "Khách hàng" của thanh lọc: khách đang có đơn trong tab, kèm số đơn. Cùng cửa với `/hang-cho`."""
+    cap = _svc(db).khach_hang_cho(**_nen_hang_cho(db, user, authz, che_do))
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in cap]
+
+
+@router.get("/hang-cho/phu-trach-loc", response_model=list[LuaChonLoc])
+def hang_cho_phu_trach_loc(
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+    che_do: str = Query(default="giao", pattern=_CHE_DO),
+) -> list[LuaChonLoc]:
+    """Ô "Người phụ trách" của thanh lọc: người đang có đơn trong tab, kèm số đơn."""
+    cap = _svc(db).phu_trach_hang_cho(**_nen_hang_cho(db, user, authz, che_do))
+    return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in cap]
+
+
+# --- Giao đơn cho người phụ trách (08/11/2026, docs/design-giao-don-lam-lenh.md) ----------------
+@router.get("/hang-cho/nguoi-lam-lenh", response_model=list[NguoiLamLenhOut])
+def nguoi_lam_lenh(
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(require_permission(MODULE, "reassign"))],
+) -> list[NguoiLamLenhOut]:
+    """Ô chọn người của nút Giao: người cùng phòng với người giao (kể cả phòng con) trên cây Phòng
+    ban, đang hoạt động, có Thao tác ở Lệnh sản xuất — kể cả chính người giao."""
+    return [NguoiLamLenhOut(**r) for r in _svc(db).nguoi_lam_lenh_chon_duoc(user)]
+
+
+@router.post("/hang-cho/giao", response_model=GiaoDonOut)
+def giao_don(
+    payload: GiaoDonIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "reassign"))],
+) -> GiaoDonOut:
+    """Giao (hoặc giao lại) một hay nhiều đơn ở hàng chờ cho MỘT người. Tên người giao, người nhận
+    do máy chủ lấy từ tài khoản. Người nhận có toast + chấm ngay qua SSE."""
+    svc = _svc(db)
+    try:
+        kq = svc.giao_don(order_ids=payload.order_ids, nguoi_nhan_id=payload.nguoi_nhan_id, actor=user,
+                          owner_ids=_owner_ids_for_scope(db, user, authz))
+    except Exception as exc:
+        raise _map(exc)
+    ma_moi = kq["da_giao"] + kq["giao_lai"]
+    if ma_moi:
+        # Mọi màn đang mở hàng chờ nạp lại (cột Người phụ trách, đơn rời tay người cũ)…
+        hub.gui({"type": "lsx_changed", "order_id": payload.order_ids[0]}, quyen=NGHE_LENH)
+        if payload.nguoi_nhan_id != user.id:
+            # …và người nhận có toast + chấm Lệnh sản xuất ngay, không phải tải lại màn.
+            hub.gui({"type": "don_giao_lam_lenh", "codes": ma_moi, "nguoi_giao": user.name or user.username},
+                    nguoi=[payload.nguoi_nhan_id])
+            bao(db, kenh=MODULE, loai="giao_don_lam_lenh", actor_id=user.id,
+                nguoi_nhan=payload.nguoi_nhan_id, ma=ma_moi[0])
+    return GiaoDonOut(**kq)
 
 
 # --- Xem trước danh sách lệnh dự kiến ----------------------------------------
@@ -194,11 +312,17 @@ def preview(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> PreviewOut:
-    _guard_don(db, order_id, user, authz)
+    _guard_don_xem(db, order_id, user, authz)
+    svc = _svc(db)
     try:
-        return PreviewOut.model_validate(_svc(db).preview(order_id))
+        out = PreviewOut.model_validate(svc.preview(order_id))
     except Exception as exc:
         raise _map(exc)
+    # Người được giao mở đơn ⇒ tắt chấm "chưa mở" của đơn (thấy là đã xem). Chỉ màn của CHÍNH họ
+    # đổi chấm, nên chỉ đẩy cho họ.
+    if svc.danh_dau_da_mo(order_id, user.id):
+        hub.gui({"type": "lsx_changed", "order_id": order_id}, nguoi=[user.id])
+    return out
 
 
 @router.post("/tao/{order_id}", response_model=LsxListOut, status_code=status.HTTP_201_CREATED)
@@ -209,12 +333,19 @@ def tao(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
 ) -> LsxListOut:
-    _guard_don(db, order_id, user, authz)
+    _guard_don_tao(db, order_id, user, authz)
     svc = _svc(db)
     try:
         created = svc.tao(order_id=order_id, order_line_ids=payload.order_line_ids, actor=user)
     except Exception as exc:
         raise _map(exc)
+    # Người giao tạo hộ đơn đã giao cho X ⇒ X là người phụ trách lệnh và được báo ngay (design §4).
+    don = db.get(Order, order_id)
+    x = don.nguoi_lam_lenh_id if don else None
+    if created and x and x != user.id:
+        hub.gui({"type": "lsx_tao_ho", "code": don.order_no, "so_lenh": len(created),
+                 "nguoi_tao": user.name or user.username}, nguoi=[x])
+        bao(db, kenh=MODULE, loai="tao_lsx_ho", actor_id=user.id, nguoi_nhan=x, ma=don.order_no)
     ids = [c.id for c in created]
     # Trong PHẠM VI MỘT ĐƠN — vài chục dòng là cùng, lấy trọn trần một trang rồi lọc ra dòng vừa tạo.
     rows, _ = svc.list_rows(order_id=order_id, size=SIZE_TRAN)
@@ -240,6 +371,8 @@ def list_items(
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern="^(tao|han_sx|han_giao)$"),
+    # Chip "Của tôi" (08/11/2026): chỉ lệnh mình phụ trách.
+    cua_toi: bool = Query(default=False),
     page: int = Query(default=1, ge=1),
     # Trần 200 khớp `repositories/catalog_base.SIZE_TRAN` — chặn client gõ `?size=99999` để kéo
     # cả bảng về, đúng cái đã làm chết endpoint này ở 100.000 lệnh.
@@ -250,7 +383,8 @@ def list_items(
         "order_id": order_id, "customer_id": customer_id, "trang_thai": trang_thai, "q": q,
         "gia_cong": gia_cong,
         "tu_ngay": tu_ngay, "den_ngay": den_ngay, "moc": moc,
-        "owner_ids": _owner_ids_for_scope(db, user, authz),
+        "owner_ids": _phu_trach_ids(db, user, authz),
+        "phu_trach_id": user.id if cua_toi else None,
     }
     rows, total = svc.list_rows(page=page, size=size, **loc)
     return LsxListOut(
@@ -275,7 +409,7 @@ def bo_loc(
     ô chọn cũng chỉ chào đơn của mình."""
     return LsxBoLocOut.model_validate(_svc(db).nguon_bo_loc(
         trang_thai=trang_thai, q=q, gia_cong=gia_cong,
-        owner_ids=_owner_ids_for_scope(db, user, authz),
+        owner_ids=_phu_trach_ids(db, user, authz),
     ))
 
 
@@ -287,7 +421,7 @@ def khach_loc(
 ) -> list[LuaChonLoc]:
     """Ô "Khách hàng" của thanh lọc bảng lệnh: khách đang có lệnh trong phạm vi, kèm số lệnh.
     ⚠️ Đường TĨNH — phải đứng trước `/{lsx_id}`."""
-    owner_ids = _owner_ids_for_scope(db, user, authz)
+    owner_ids = _phu_trach_ids(db, user, authz)
     return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in _svc(db).khach_loc(owner_ids=owner_ids)]
 
 
@@ -298,7 +432,7 @@ def don_loc(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> list[LuaChonLoc]:
     """Ô "Đơn hàng" của thanh lọc bảng lệnh: đơn đang có lệnh trong phạm vi, kèm số lệnh."""
-    owner_ids = _owner_ids_for_scope(db, user, authz)
+    owner_ids = _phu_trach_ids(db, user, authz)
     return [LuaChonLoc(id=i, ten=t, so=n) for i, t, n in _svc(db).don_loc(owner_ids=owner_ids)]
 
 
@@ -328,7 +462,7 @@ def tong_quan(
     # thì id rác cũng nhận được đèn đỏ "chưa giữ chỗ vật tư", tức là bịa trạng thái cho lệnh không
     # tồn tại và rò trạng thái của lệnh ngoài phạm vi.
     truy = select(Lsx.id).where(Lsx.id.in_(wanted))
-    owner_ids = _owner_ids_for_scope(db, user, authz)
+    owner_ids = _phu_trach_ids(db, user, authz)
     if owner_ids is not None:
         truy = truy.where(dk_lenh_trong_pham_vi(owner_ids))
     thay = set(db.execute(truy).scalars())
@@ -655,6 +789,24 @@ def tinh_nguoc(
         rows=[TinhNguocRow.model_validate(r) for r in svc.tinh_nguoc_routing(lsx)],
         so_to_ke_hoach=lsx.so_to_ke_hoach,
     )
+
+
+@router.get("/{lsx_id}/buoc/{buoc_id}/goi-y-vat-tu")
+def goi_y_vat_tu_buoc(
+    lsx_id: int,
+    buoc_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> list[dict]:
+    """Lượng tính sẵn cho MỌI món theo một bước — ngăn bước hỏi khi mở (10/11/2026). Tách khỏi
+    `GET /{lsx_id}` vì tính cho cả chuỗi × cả danh mục làm mở / lưu lệnh chậm hơn 1 giây. CHỈ ĐỌC."""
+    svc = _svc(db)
+    try:
+        _guard_scope(db, svc.get(lsx_id), user, authz)
+        return svc.goi_y_vat_tu_buoc(lsx_id, buoc_id)
+    except Exception as exc:
+        raise _map(exc)
 
 
 @router.get("/{lsx_id}/mac-dinh-buoc/{cong_doan_id}", response_model=BuocMacDinhOut)

@@ -9,24 +9,25 @@
 // rồi ghi thẳng vào/ra + hao của mọi bước. Bảng này KHÔNG gõ số nữa, và cũng không còn nút "Tính
 // ngược" — số hiển thị chính là kết quả tính ngược. Ô duy nhất gõ được nằm trong drawer bước cuối.
 // Các kiểm tra (chưa gán tổ, thuê ngoài thiếu NCC, đứt đơn vị) chỉ TÔ MÀU, không chặn lưu.
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { ChipKhuon, ChipLoaiBuoc } from "../components/ChipBuoc";
 import {
-  LSX_LOAI_BUOC_META,
+  LSX_LOAI_BUOC_LENH,
   type LsxBuocMacDinh,
   type LsxCongDoan,
   type LsxCongDoanBody,
   type LsxLeadTime,
 } from "../api/client";
 import { Button } from "../components/Button";
+import { Select } from "../components/Select";
 import { Icon } from "../components/Icons";
 import { DagRoutingCanvas } from "../components/DagRoutingCanvas";
 import { PopoverO } from "../components/PopoverO";
 import {
-  ChonNhaGiaCong, LsxBuocDrawer, nhomMayTheoLoai, type TabKey as DrawerTabKey,
+  ChonNhaGiaCong, LsxBuocDrawer, type TabKey as DrawerTabKey,
 } from "./LsxBuocDrawer";
 import { viTriTrongDai } from "./gia-cong/giaCong";
-import { ChuoiCongDoan, ngay, num } from "./keHoachSxShared";
+import { ChuoiCongDoan, num } from "./keHoachSxShared";
 import { nhanTram, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
   boBuoc,
@@ -37,17 +38,11 @@ import {
   type EditRow,
   emptyRow,
   heSoChu,
-  congDoanKhongMay,
   mayChonDuoc,
-  mayMacDinhCuaTo,
   n,
   patchLoaiBuoc,
-  phut,
   tenBuoc,
-  thoiLuong,
   toBody,
-  toChonDuoc,
-  toChuaCoMay,
   toEdit,
 } from "./lsxBuoc";
 import "./dag-routing.css";
@@ -107,7 +102,6 @@ export function dvNhan(dv: string | null | undefined): string {
 export function LsxRoutingTable({
   congDoans,
   soLuongDat,
-  leadTime,
   baiGhep,
   congDoanRefs,
   toRefs,
@@ -126,15 +120,20 @@ export function LsxRoutingTable({
   onSave,
   onPatchLsx,
   onMacDinhBuoc,
+  napGoiY,
   onXemTruocBuoc,
   onXemTruocRouting,
   onDirtyChange,
   dvChuoi,
   yeuCauMo,
   onDaMo,
+  dauChuoi,
 }: {
+  /** Dòng đặt ngay dưới thanh tiêu đề chuỗi (màn lệnh truyền ô Nguồn giấy) — đầu chuỗi do nó dựng. */
+  dauChuoi?: ReactNode;
   congDoans: LsxCongDoan[];
   soLuongDat: number;
+  /** Không đọc nữa từ 07/11/2026 (lệnh không tính giờ). Giữ trong kiểu để nơi gọi khỏi sửa. */
   leadTime: LsxLeadTime | null;
   /** Lệnh đang ghép chung tờ → thông số tờ do BÀI quyết, bước in khoá lại ở màn này. */
   baiGhep: import("../api/client").LsxBaiGhep | null;
@@ -162,6 +161,8 @@ export function LsxRoutingTable({
   /** Sửa cấp LỆNH từ drawer bước cuối (SL thành phẩm / hao thêm) → server tính lại cả chuỗi. */
   onPatchLsx: (p: { so_luong_dat?: number }) => void;
   onMacDinhBuoc: (congDoanId: number) => Promise<LsxBuocMacDinh>;
+  /** Lượng gợi ý của từng món cho MỘT bước đã lưu — ngăn bước gọi khi mở. */
+  napGoiY?: (buocId: number) => Promise<EditRow["vat_tu_goi_y"]>;
   /** Sửa bước → hỏi server giờ chạy mới (chỉ backend quy đổi được SL vào sang đơn vị đích của
    *  bước, và chỉ nó chạy được công thức giờ). */
   onXemTruocBuoc: (
@@ -345,21 +346,22 @@ export function LsxRoutingTable({
         // server quyết (`may_id_goi_y`), client không tự dò danh mục. KHÔNG đè máy người ta đã chọn.
         // Máy thuộc tổ (mg `0435`): máy cũ không chạy được ở (công đoạn mới, tổ mới) cũng thay —
         // giữ lại là bước đeo cặp tổ/máy lệch, server từ chối lúc lưu.
+        // 07/11/2026: lệnh không chọn máy nữa. Máy in của bài tính giá (nếu có) chỉ là gợi ý cho
+        // bộ phận; đổi công đoạn mà máy cũ không chạy được công đoạn mới thì bỏ máy.
         const cdMoi = congDoanRefs?.find((c) => c.id === m.cong_doan_id) ?? null;
         const mayCuHong = !!rowCu?.may_id && !!mayRefs
-          && !mayChonDuoc(mayRefs, cdMoi, m.department_id, null).some((x) => x.id === rowCu.may_id);
-        // Công đoạn mới mà mọi tổ đều chưa có máy ⇒ bước máy chuyển thành bước TỔ (23/10/2026),
-        // cùng luật lúc tạo lệnh (`may_to.to_khong_may`). Bước thuê ngoài giữ nguyên.
-        const sangTo = rowCu?.loai_buoc === "may" && !!mayRefs && congDoanKhongMay(mayRefs, cdMoi);
-        const mayGoiY = sangTo ? { loai_buoc: "to" as const, may_id: null }
-          : rowCu?.loai_buoc === "to" ? {}
-          : m.may_id_goi_y != null && (!rowCu?.may_id || mayCuHong) ? { may_id: m.may_id_goi_y }
-          : mayCuHong ? { may_id: null }
-          : {};
+          && !mayChonDuoc(mayRefs, cdMoi, null, null).some((x) => x.id === rowCu.may_id);
+        const mayGoiY = mayCuHong ? { may_id: null } : {};
+        const bpChon = m.bo_phan_chon ?? [];
         const applied: Partial<EditRow> = {
           ...mayGoiY,
           cong_doan_id: m.cong_doan_id, ten: m.ten, nhom: m.nhom,
-          department_id: m.department_id,
+          // Bước gia công giữ không bộ phận.
+          ...(rowCu?.loai_buoc === "thue_ngoai" ? {} : {
+            department_id: m.department_id,
+            department_ten: bpChon.find((b) => b.id === m.department_id)?.ten ?? null,
+          }),
+          bo_phan_chon: bpChon,
           don_vi_vao: m.don_vi_vao, don_vi_ra: m.don_vi_ra,
           // Cờ dòng giấy đi CÙNG cặp đơn vị — nó là thuộc tính của cặp đó, không phải của dòng.
           // Giữ cờ cũ là bước vừa đổi sang ghi kẽm (`m² → bài in`) vẫn bị đem so đơn vị với bước
@@ -383,13 +385,9 @@ export function LsxRoutingTable({
           // Thời gian chuẩn bị + chạy KHÔNG còn nằm ở bước: kế thừa sống từ máy đang gán.
         };
         patch(key, applied);
-        setGoiY(sangTo ? "Tổ chưa có máy chạy công đoạn này, bước chuyển sang làm theo Tổ."
-          : "may_id" in mayGoiY && mayGoiY.may_id == null ? "Tổ chưa có máy chạy công đoạn này."
-          : null);
-        setLive(`Đã đổi sang ${m.ten} và lấy lại đơn vị, tổ phụ trách`
-          + ("may_id" in mayGoiY
-            ? (mayGoiY.may_id != null ? " và máy mặc định của tổ" : ". Tổ chưa có máy chạy công đoạn này")
-            : ""));
+        setGoiY(bpChon.length === 0 && rowCu?.loai_buoc !== "thue_ngoai"
+          ? "Công đoạn này chưa tick nhóm nào ở danh mục Công đoạn, chưa có bộ phận nhận." : null);
+        setLive(`Đã đổi sang ${m.ten} và lấy lại đơn vị, bộ phận nhận`);
         // Số vào–ra + đơn vị cả chuỗi phải nhảy NGAY (chủ 20/08/2026). Dựng ảnh chụp từ `rowsRef`
         // (đã cộng patch vừa áp) vì closure `rows` ở nhịp này còn CŨ, chưa thấy bước vừa đổi.
         const snapshot = rowsRef.current.map(
@@ -422,28 +420,12 @@ export function LsxRoutingTable({
   /** Đổi TỔ của bước — chọn MỘT trong các tổ phụ trách khai ở danh mục Công đoạn (nhiều tổ,
    *  18/09/2026). Server chặn lại nếu tổ không thuộc danh sách (`replace_routing`). Việc khoán
    *  của tổ KHÔNG nạp ở đây nữa: thợ chọn lúc ghi mẻ ở bàn tổ (mg `0320`). */
-  const doiTo = useCallback((key: string, deptId: number | null) => {
-    // Máy đi theo tổ (mg `0435`): máy đang gán không thuộc tổ mới ⇒ máy mặc định của tổ mới
-    // (máy đầu bảng thuộc tổ), tổ chưa có máy ⇒ bỏ trống. Máy còn thuộc tổ mới thì giữ.
+  const doiBoPhan = useCallback((key: string, deptId: number | null) => {
     const row = rowsRef.current.find((r) => r.key === key);
-    const cd = congDoanRefs?.find((c) => c.id === row?.cong_doan_id) ?? null;
-    const doiMayTheo = !!row && row.loai_buoc !== "to" && !!mayRefs && !!cd?.coRangBuocTo
-      && deptId != null
-      && !mayChonDuoc(mayRefs, cd, deptId, null).some((m) => m.id === row.may_id);
-    const mayMoi = doiMayTheo ? mayMacDinhCuaTo(mayRefs ?? [], cd, deptId) : undefined;
-    const tenTo = toRefs?.find((t) => t.id === deptId)?.ten ?? "tổ";
-    patch(key, {
-      department_id: deptId,
-      department_ten: toRefs?.find((t) => t.id === deptId)?.ten ?? null,
-      ...(doiMayTheo ? { may_id: mayMoi ?? null } : {}),
-    });
-    setGoiY(doiMayTheo && mayMoi == null ? `${tenTo} chưa có máy chạy công đoạn này.` : null);
-    setLive(deptId == null ? "Đã bỏ tổ khỏi bước"
-      : !doiMayTheo ? `Đã chọn ${tenTo}`
-      : mayMoi != null
-        ? `Đã chọn ${tenTo} và máy ${mayRefs?.find((m) => m.id === mayMoi)?.ten ?? ""} của tổ`
-        : `Đã chọn ${tenTo}. Tổ chưa có máy chạy công đoạn này`);
-  }, [toRefs, mayRefs, congDoanRefs, patch]);
+    const ten = row?.bo_phan_chon?.find((b) => b.id === deptId)?.ten ?? null;
+    patch(key, { department_id: deptId, department_ten: ten });
+    setLive(deptId == null ? "Đã bỏ bộ phận nhận khỏi bước" : `Đã chọn ${ten ?? "bộ phận"}`);
+  }, [patch]);
 
   const doiMay = useCallback((key: string, mayId: number | null) => {
     const may = mayRefs?.find((m) => m.id === mayId) ?? null;
@@ -630,27 +612,8 @@ export function LsxRoutingTable({
     () => rows.map((r) => ({ ten: tenBuoc(r, congDoanRefs) || "…", loai_buoc: r.loai_buoc })),
     [rows, congDoanRefs],
   );
-  const tong = useMemo(
-    () => rows.reduce(
-      (acc, r) => {
-        const t = thoiLuong(r, mayRefs?.find((m) => m.id === r.may_id) ?? null);
-        // Bước không có dải (tổ / thuê ngoài / máy chưa khai min-max) góp CÙNG một số vào cả
-        // hai đầu ⇒ chúng không làm khoảng rộng ra một cách giả tạo.
-        return {
-          chiemMay: acc.chiemMay + t.chiemMay,
-          tong: acc.tong + t.tong,
-          min: acc.min + t.chiemMin,
-          max: acc.max + t.chiemMax,
-          coDai: acc.coDai || t.coDai,
-        };
-      },
-      { chiemMay: 0, tong: 0, min: 0, max: 0, coDai: false },
-    ),
-    [rows],
-  );
-  const soNgay = tong.tong / 60 / 8;
-  const conLai = leadTime?.ngay_con_lai ?? null;
-  const treHan = conLai != null && soNgay > conLai;
+  // Dòng "Tổng thời gian dẫn / chiếm máy / Dự kiến xong" GỠ 07/11/2026: lệnh không chọn máy nữa
+  // nên không tính được giờ; giờ chạy do bộ phận có ở Kế hoạch bộ phận theo máy đã xếp.
   const soNgoai = rows.filter((r) => r.loai_buoc === "thue_ngoai").length;
   // Bước GIAO KHÁCH = bước CUỐI NẰM TRÊN DÒNG GIẤY (đơn vị thành phẩm), KHÔNG phải dòng cuối bảng.
   // Bước bản-kèm/CTP chèn vào giữa (tren_dong_giay=false) có thể xếp cuối theo thứ tự nhưng không
@@ -717,6 +680,23 @@ export function LsxRoutingTable({
           </div>
         )}
       </div>
+
+      {dauChuoi}
+
+      {/* Ô lý do đứng NGAY dưới thanh có nút Lưu (10/11/2026): để cuối bảng thì đổi loại bước xong
+          chỉ thấy nút mờ, không biết vì sao. Nền vàng vì đây là việc PHẢI làm mới lưu được. */}
+      {suaDuoc && doiCauTruc && (
+        <label className="khsx-lydo">
+          <span className="khsx-lydo__nhan">
+            Chuỗi đã khác bài tính giá. Ghi lý do để lưu vào Nhật ký (bắt buộc)
+          </span>
+          <input
+            value={lyDo}
+            placeholder="vd: khách đổi sang cán màng thuê ngoài"
+            onChange={(e) => setLyDo(e.target.value)}
+          />
+        </label>
+      )}
 
       {/* Lệnh đang ghép chung tờ: quyền quyết định về TỜ đã chuyển sang bài. Nói ra ở đây, không
           để người kế hoạch sửa máy in rồi tưởng có tác dụng. */}
@@ -802,7 +782,6 @@ export function LsxRoutingTable({
             <col style={{ width: 84 }} />
             <col style={{ width: 170 }} />
             <col style={{ width: 142 }} />
-            <col style={{ width: 176 }} />
             <col style={{ width: 170 }} />
             <col style={{ width: 200 }} />
             <col style={{ width: 76 }} />
@@ -812,9 +791,8 @@ export function LsxRoutingTable({
               <th scope="col" className="khsx-rt__thord">#</th>
               <th scope="col">Công đoạn</th>
               <th scope="col">Loại</th>
-              <th scope="col">Tổ và máy</th>
+              <th scope="col">Bộ phận nhận</th>
               <th scope="col" className="khsx-th--num">Vào → Ra</th>
-              <th scope="col">Thời lượng</th>
               <th scope="col">Tiền nhiệm</th>
               <th scope="col">Ghi chú</th>
               <th scope="col"><span className="sr-only">Thao tác</span></th>
@@ -823,7 +801,7 @@ export function LsxRoutingTable({
           <tbody ref={tbodyRef}>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={9}>
+                <td colSpan={8}>
                   <div className="khsx-empty khsx-empty--inline">
                     <Icon name="workflow" size={32} />
                     <p className="khsx-empty__title">Chưa có công đoạn nào.</p>
@@ -841,10 +819,8 @@ export function LsxRoutingTable({
               </tr>
             )}
             {rows.map((r, i) => {
-              const meta = LSX_LOAI_BUOC_META[r.loai_buoc];
-              const t = thoiLuong(r, mayRefs?.find((m) => m.id === r.may_id) ?? null);
-              const tenTo = toRefs?.find((x) => x.id === r.department_id)?.ten ?? r.department_ten;
-              const tenMay = mayRefs?.find((x) => x.id === r.may_id)?.ten;
+              const meta = LSX_LOAI_BUOC_LENH[r.loai_buoc];
+              const tenTo = r.bo_phan_chon?.find((x) => x.id === r.department_id)?.ten ?? r.department_ten;
               return (
                 <tr
                   key={r.key}
@@ -907,33 +883,29 @@ export function LsxRoutingTable({
                         aria-label={`Đổi loại bước ${i + 1}`}
                         onClick={(e) => moO(e, r, "loai")}
                       >
-                        <ChipLoaiBuoc loai_buoc={r.loai_buoc} />
+                        <ChipLoaiBuoc loai_buoc={r.loai_buoc} capLenh />
                       </button>
-                    ) : <ChipLoaiBuoc loai_buoc={r.loai_buoc} />}
+                    ) : <ChipLoaiBuoc loai_buoc={r.loai_buoc} capLenh />}
                   </td>
                   <td>
                     {(() => {
+                      // BỘ PHẬN NHẬN (07/11/2026) thay "Tổ và máy": lệnh không chọn tổ, máy nữa.
+                      // Một bộ phận làm được ⇒ tự điền, không mở hộp chọn.
+                      const nhieu = (r.bo_phan_chon?.length ?? 0) > 1;
                       const noiDung = r.loai_buoc === "thue_ngoai" ? (
                         <span className={r.nha_cung_cap ? "" : "khsx-muted"}>
                           {r.nha_cung_cap || "chưa chọn nhà gia công"}
                         </span>
                       ) : (
-                        <>
-                          <span className={tenTo ? "" : "khsx-muted"}>{tenTo || "chưa gán tổ"}</span>
-                          {/* Dòng "Kíp N người" GỠ 18/09/2026 (mg `0321`). Bước TỔ hiện SỐ GIỜ KẾ
-                              HOẠCH người lập lệnh gõ ở ngăn chi tiết thay vào chỗ máy. */}
-                          <span className="khsx-rt__sub2">
-                            {r.loai_buoc === "to"
-                              ? `${Number(r.so_gio_ke_hoach) || 0} giờ kế hoạch`
-                              : tenMay || "chưa chọn máy"}
-                          </span>
-                        </>
+                        <span className={tenTo ? "" : "khsx-muted"}>
+                          {tenTo || "chưa có bộ phận nhận"}
+                        </span>
                       );
-                      return suaDuoc ? (
+                      return suaDuoc && (r.loai_buoc === "thue_ngoai" || nhieu) ? (
                         <button
                           type="button"
                           className="khsx-rt__o"
-                          aria-label={`Đổi ${r.loai_buoc === "thue_ngoai" ? "nhà gia công" : "tổ và máy"} của bước ${i + 1}`}
+                          aria-label={`Đổi ${r.loai_buoc === "thue_ngoai" ? "nhà gia công" : "bộ phận nhận"} của bước ${i + 1}`}
                           onClick={(e) => moO(e, r, "to")}
                         >
                           {noiDung}
@@ -991,17 +963,6 @@ export function LsxRoutingTable({
                           </span>
                         )}
                       </>
-                    )}
-                  </td>
-                  <td className="khsx-rt__time">
-                    <span className="khsx-dur">{phut(t.chiemMay)}</span>
-                    {t.coDai && (
-                      <span className="khsx-rt__sub2 khsx-rt__dai" title="Nhanh nhất – chậm nhất theo dải tốc độ của máy">
-                        {phut(t.chiemMin)} – {phut(t.chiemMax)}
-                      </span>
-                    )}
-                    {t.tong !== t.chiemMay && (
-                      <span className="khsx-rt__sub2">bước sau bắt đầu sau {phut(t.tong)}</span>
                     )}
                   </td>
                   <td>
@@ -1093,62 +1054,11 @@ export function LsxRoutingTable({
         </div>
       )}
 
-      {rows.length > 0 && (
-        <div className={`khsx-lead ${treHan ? "khsx-lead--tre" : ""}`}>
-          <div className="khsx-lead__sec khsx-lead__sec--main">
-            <span className="khsx-lead__label">Tổng thời gian dẫn:</span>
-            <strong className="khsx-lead__val khsx-dur">{phut(tong.tong)}</strong>
-            <span className="khsx-lead__sub">≈ {soNgay.toFixed(1)} ngày làm việc</span>
-            <span className="khsx-lead__chip khsx-lead__chip--highlight">chiếm máy {phut(tong.chiemMay)}</span>
-            {tong.coDai && (
-              <span className="khsx-lead__chip khsx-lead__chip--range" title="Nhanh nhất – chậm nhất theo dải tốc độ máy">
-                {phut(tong.min)} – {phut(tong.max)}
-              </span>
-            )}
-          </div>
-
-          <div className="khsx-lead__sec khsx-lead__sec--side">
-            {leadTime?.ngay_du_kien_xong && !dirty && (
-              <span className="khsx-lead__est">
-                Dự kiến xong: <strong>{ngay(leadTime.ngay_du_kien_xong)}</strong>
-              </span>
-            )}
-
-            {conLai != null && (
-              <span className={`khsx-lead__status-badge ${treHan ? "is-tre" : "is-ok"}`}>
-                {treHan
-                  ? `Vượt hạn giao khách — chỉ còn ${conLai} ngày`
-                  : `Còn ${conLai} ngày tới hạn giao`}
-              </span>
-            )}
-
-            {soNgoai > 0 && (
-              <span className="khsx-lead__chip khsx-lead__chip--ngoai">
-                {soNgoai} thuê ngoài
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {suaDuoc && doiCauTruc && (
-        <label className="khsx-lydo">
-          <span className="khsx-field__label">
-            Routing đã khác bài tính giá — ghi lý do (bắt buộc) để lưu vào nhật ký
-          </span>
-          <input
-            value={lyDo}
-            placeholder="vd: khách đổi sang cán màng thuê ngoài"
-            onChange={(e) => setLyDo(e.target.value)}
-          />
-        </label>
-      )}
-
       <div className="khsx-rt__foot">
         <p className="khsx-rt__summary">
-          {rows.length} công đoạn
-          {soNgoai > 0 && ` · ${soNgoai} thuê ngoài`}
+          {soNgoai > 0 ? `${rows.length} công đoạn, trong đó ${soNgoai} bước gia công` : `${rows.length} công đoạn`}
         </p>
+        {suaDuoc && dirty && chanLuu && <p className="khsx-rt__chan">Ghi lý do ở đầu bảng rồi mới lưu được</p>}
         {suaDuoc && (
           <Button
             variant="accent"
@@ -1195,19 +1105,28 @@ export function LsxRoutingTable({
             <PopoverO anchor={oMo.el} label="Loại bước" width={300} onDong={dongO} onHuy={huyO}>
               <span className="popo__lb">Loại bước</span>
               <div className="khsx-seg-std" role="group" aria-label="Loại bước">
-                {(["may", "to", "thue_ngoai"] as const).map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    className={r.loai_buoc === k ? "is-active" : ""}
-                    aria-pressed={r.loai_buoc === k}
-                    onClick={() => patch(r.key, patchLoaiBuoc(k))}
-                  >
-                    {LSX_LOAI_BUOC_META[k].label}
-                  </button>
-                ))}
+                {/* Hai loại (07/11/2026): Nội bộ (máy hay tay do bộ phận chọn) | Gia công. */}
+                {(["may", "thue_ngoai"] as const).map((k) => {
+                  const dang = k === "thue_ngoai" ? r.loai_buoc === "thue_ngoai" : r.loai_buoc !== "thue_ngoai";
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      className={dang ? "is-active" : ""}
+                      aria-pressed={dang}
+                      onClick={() => {
+                        if (dang) return;
+                        const bp = r.bo_phan_chon?.[0];
+                        patch(r.key, k === "thue_ngoai" ? patchLoaiBuoc(k)
+                          : { loai_buoc: "may", department_id: bp?.id ?? null, department_ten: bp?.ten ?? null });
+                      }}
+                    >
+                      {LSX_LOAI_BUOC_LENH[k].label}
+                    </button>
+                  );
+                })}
               </div>
-              <span className="popo__hint">{LSX_LOAI_BUOC_META[r.loai_buoc].hint}</span>
+              <span className="popo__hint">{LSX_LOAI_BUOC_LENH[r.loai_buoc].hint}</span>
             </PopoverO>
           );
         }
@@ -1235,66 +1154,34 @@ export function LsxRoutingTable({
             </PopoverO>
           );
         }
-        const cd = congDoanRefs?.find((c) => c.id === r.cong_doan_id) ?? null;
         const ghep = baiGhep && baiGhep.buoc_bi_de?.[r.key] ? baiGhep : null;
-        const toChon = toRefs ? toChonDuoc(toRefs, cd, r.department_id) : { items: [], gioiHan: false };
-        const toHienDuoc = r.department_id != null && toChon.items.some((t) => t.id === r.department_id);
-        const nhomMay = nhomMayTheoLoai(mayRefs ? mayChonDuoc(mayRefs, cd, r.department_id, r.may_id) : []);
-        // Việc của bước đã chạy ở bàn tổ ⇒ máy chủ không nhận đổi tổ/máy ở lệnh — khoá như ngăn.
-        const khoa = r.da_bat_dau;
+        const chon = r.bo_phan_chon ?? [];
         return (
-          <PopoverO anchor={oMo.el} label="Tổ và máy" width={320} onDong={dongO} onHuy={huyO}>
+          <PopoverO anchor={oMo.el} label="Bộ phận nhận" width={320} onDong={dongO} onHuy={huyO}>
             {ghep ? (
               <span className="popo__hint">
-                Bước chạy chung ở bài ghép <strong>{ghep.ma}</strong> — tổ và máy đổi ở bài.
+                Bước chạy chung ở bài ghép <strong>{ghep.ma}</strong> — bộ phận đổi ở bài.
               </span>
             ) : (
               <>
-                <label className="popo__lb" htmlFor="popo-to">Tổ phụ trách</label>
-                <select
-                  id="popo-to"
-                  className="khsx-select-std"
-                  value={toHienDuoc ? (r.department_id ?? "") : ""}
-                  disabled={khoa}
-                  onChange={(e) => doiTo(r.key, e.target.value ? Number(e.target.value) : null)}
-                >
-                  {!toHienDuoc && <option value="">— chọn tổ —</option>}
-                  {toChon.items.map((t, k) => (
-                    <option key={t.id} value={t.id}>
-                      {toChon.gioiHan && k === 0 ? `${t.ten} (mặc định)` : t.ten}
-                    </option>
-                  ))}
-                </select>
-                {r.loai_buoc !== "to" && (
-                  <>
-                    <label className="popo__lb" htmlFor="popo-may">Máy</label>
-                    <select
-                      id="popo-may"
-                      className="khsx-select-std"
-                      value={r.may_id ?? ""}
-                      disabled={khoa}
-                      onChange={(e) => doiMay(r.key, e.target.value ? Number(e.target.value) : null)}
-                    >
-                      <option value="">— chưa gán máy —</option>
-                      {nhomMay.map((g) => (
-                        <optgroup key={g.ten} label={g.ten}>
-                          {g.items.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.active === false ? `${m.ten} (ngừng dùng)` : m.ten}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  </>
-                )}
+                <label className="popo__lb" htmlFor="popo-bp">Bộ phận nhận</label>
+                <Select
+                  id="popo-bp"
+                  searchable
+                  portal
+                  value={r.department_id}
+                  disabled={r.da_bat_dau}
+                  placeholder="— chọn bộ phận —"
+                  options={chon.map((b, k) => ({
+                    value: b.id,
+                    label: b.ten,
+                    hint: `${b.so_nhom} nhóm làm được${k === 0 ? ", chọn sẵn" : ""}`,
+                  }))}
+                  onChange={(v) => doiBoPhan(r.key, v == null ? null : Number(v))}
+                />
                 <span className="popo__hint">
-                  {khoa ? "Việc đã bắt đầu, đổi máy ở màn Việc của tổ."
-                    : mayRefs && toChuaCoMay(mayRefs, cd, r.department_id)
-                      ? "Tổ này chưa có máy chạy công đoạn này."
-                      : r.loai_buoc === "to"
-                        ? "Bước tổ làm tay, không chiếm máy. Giờ kế hoạch gõ ở cấu hình chi tiết."
-                        : "Chỉ mời máy chạy được công đoạn này và thuộc tổ đã chọn."}
+                  {r.da_bat_dau ? "Việc đã bắt đầu ở xưởng, không đổi bộ phận được nữa."
+                    : "Chỉ các bộ phận có nhóm làm được công đoạn này. Máy và nhóm thợ do bộ phận chọn ở Kế hoạch bộ phận."}
                 </span>
               </>
             )}
@@ -1316,6 +1203,7 @@ export function LsxRoutingTable({
           tenSanPham={tenSanPham}
           tenKhach={tenKhach}
           onTaoKhuon={onTaoKhuon}
+          napGoiY={napGoiY}
           vatTuRefs={vatTuRefs}
           giayRefs={giayRefs}
           phuThuocRefs={phuThuocRefs}
@@ -1327,7 +1215,7 @@ export function LsxRoutingTable({
           onPatchLsx={onPatchLsx}
           onDoiCongDoan={(id) => doiCongDoan(rows[moBuoc].key, id, rows[moBuoc].ten)}
           onDoiMay={(id) => doiMay(rows[moBuoc].key, id)}
-          onDoiTo={(id) => doiTo(rows[moBuoc].key, id)}
+          onDoiTo={(id) => doiBoPhan(rows[moBuoc].key, id)}
           tabDau={tabDau}
           onClose={dongDrawer}
           onPrev={() => setMoBuoc(Math.max(moBuoc - 1, 0))}

@@ -323,7 +323,6 @@ export function LenhSxNgan({
     <div className="thsx-b">
       <dl className="lsn-moc">
         <O k="Hạn giao khách" v={tt.han_giao_khach ? ngayVN(tt.han_giao_khach) : <span className="lsa-mu">Chưa hẹn</span>} />
-        {!xongSx && <O k="Dự kiến xong" v={td.du_kien_xong ? gioNgan(td.du_kien_xong) : <span className="lsa-mu">Chưa ước được</span>} />}
         <O
           k="Ở xưởng"
           v={batDau ? (xongLuc ? `${gioNgan(batDau)} tới ${gioNgan(xongLuc)}` : `từ ${gioNgan(batDau)}`) : <span className="lsa-mu">Chưa bắt đầu</span>}

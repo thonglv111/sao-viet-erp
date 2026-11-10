@@ -1,13 +1,7 @@
-// XẾP LỊCH 3 — helper THUẦN dùng chung ba mảnh của màn (Gantt · hàng chờ · panel).
-//
-// Ở đây KHÔNG gọi API, KHÔNG giữ state: chỉ số học ngày-giờ + hình học thanh + định dạng. Tách ra
-// để lưới và panel không tự tính lệch nhau — cả hai phải quy ra pixel bằng ĐÚNG một công thức, nếu
-// không thanh vẽ một đằng còn chữ nói một nẻo.
-import type { XlDong, XlNgayDacBiet } from "../api/client";
+// Helper NGÀY-GIỜ thuần dùng chung: ô chọn khoảng ngày (Xếp lịch, Thực hiện SX), bàn hẹn đẩy, lưới
+// ngày của view Lịch bên Thực hiện SX. KHÔNG gọi API, KHÔNG giữ state. Gantt kéo thả cũ của Xếp lịch
+// (thanh, hạn SX, giờ chạy) đã gỡ 08/11/2026 cùng tốc độ máy.
 
-/** Số ngày MỘT màn hình. Bảy vì tuần làm việc là đơn vị người điều độ nghĩ bằng — "lệnh này chạy
- *  hết tuần" là câu họ nói, không phải "hết 5,5 ngày". */
-export const SO_NGAY = 7;
 /** Bề rộng một ngày (px). Cột nhãn trái + 7 cột này = bề ngang lưới. */
 export const NGAY_W = 168;
 export const NHAN_W = 260;
@@ -98,62 +92,12 @@ export function mocNgay(d: string): number {
   return new Date(y, mo - 1, dd).getTime();
 }
 
-const NGAY_MS = 86_400_000;
-
-/** Hai mép của cả lệnh trên bàn. Lệnh ĐÃ CHẠY DỞ bắt đầu ở lúc nó thật sự vào việc, KHÔNG ở mốc:
- *  mốc lúc đó là "bắt đầu phần còn lại" và nằm ở tương lai, vẽ từ đó thì bàn nói lệnh chưa bắt
- *  đầu trong khi tổ đã làm xong mấy bước. Mép phải cũng vậy — theo thực tế, không theo kế hoạch. */
-export function veTu(dong: XlDong): string | null {
-  return dong.thuc_bat_dau_lenh ?? dong.bat_dau_at;
-}
-
-export function veDen(dong: XlDong): string | null {
-  return dong.ket_thuc_thuc_te ?? dong.ket_thuc;
-}
-
 // ---------------------------------------------------------------- định dạng
-export function gio(iso: string | null | undefined): string {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  return m ? `${m[4]}:${m[5]} ${m[3]}/${m[2]}` : "—";
-}
-
-export function ngayNgan(iso: string | null | undefined): string {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}` : "—";
-}
-
 /** "10/09 19:00" — ngày đứng trước giờ, cho nhãn "xong …" cạnh thanh: mắt đang dò theo trục NGÀY
  *  nên ngày phải đọc được trước. */
 export function ngayGio(iso: string | null | undefined): string {
   const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
   return m ? `${m[3]}/${m[2]} ${m[4]}:${m[5]}` : "—";
-}
-
-/** Phút → "63h15". Giờ ĐỒNG HỒ, không quy ra "ngày làm 8 tiếng": đây là tổng giờ máy
- *  của nhiều lệnh cộng lại, "7 ngày 7 giờ" đọc thành một lệnh chạy một tuần. */
-export function gioPhut(phut: number): string {
-  const p = Math.max(0, Math.round(phut));
-  return `${Math.floor(p / 60)}h${String(p % 60).padStart(2, "0")}`;
-}
-
-/** Tổng phút MÁY CHẠY nằm TRONG cửa sổ `[tu, tu + soNgay)`. Chỉ cộng phần giao với cửa sổ — lệnh vắt
- *  qua mép chỉ được tính phần thật sự nằm trong khoảng đang xem. Cộng cả hai lớp khối chạy của
- *  thanh: `doan` (phần còn lại theo kế hoạch) và `doan_thuc_te` (quãng máy đã quay thật); hai lớp
- *  không chồng nhau vì một bên nằm trước mốc, một bên sau.
- *  Cộng ở FE được vì `/lich` trả TRỌN mọi lệnh chạm cửa sổ, không phân trang. */
-export function phutChayTrongCuaSo(dong: XlDong[], tu: string, soNgay: number): number {
-  const a = mocNgay(tu);
-  const b = a + soNgay * NGAY_MS;
-  let tong = 0;
-  for (const d of dong) {
-    for (const k of [...d.doan, ...(d.doan_thuc_te ?? [])]) {
-      const t0 = moc(k.tu);
-      const t1 = moc(k.den);
-      if (t0 === null || t1 === null) continue;
-      tong += Math.max(0, Math.min(t1, b) - Math.max(t0, a));
-    }
-  }
-  return tong / 60_000;
 }
 
 /** Phút → "6 giờ 30 phút" / "45 phút" — giờ ĐỒNG HỒ cho mọi thời lượng của màn: giờ chạy của bước,
@@ -167,59 +111,6 @@ export function gioChu(phut: number | null | undefined): string {
   return m ? `${g} giờ ${m} phút` : `${g} giờ`;
 }
 
-/** Phút ĐỒNG HỒ giữa hai mốc → "1 ngày 19 giờ" (ngày 24 tiếng) / "3 giờ 4 phút". Cho độ LỆCH giữa
- *  mốc kế hoạch và mốc thực tế: quy theo "ngày làm 8 tiếng" thì 43 giờ thành "5 ngày 3 giờ" — khớp
- *  cả lịch lẫn giờ ca đều không. */
-export function quangDongHo(phut: number | null | undefined): string {
-  const p = Math.max(0, Math.round(phut ?? 0));
-  if (p < 1440) return gioChu(p);
-  const gioTong = Math.round(p / 60);
-  const ngay = Math.floor(gioTong / 24);
-  const g = gioTong % 24;
-  return g ? `${ngay} ngày ${g} giờ` : `${ngay} ngày`;
-}
-
-/** "2026-09-13" → "CN 13/09". */
-export function thuNgay(iso: string): string {
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return iso;
-  return `${THU[new Date(+m[1], +m[2] - 1, +m[3]).getDay()]} ${m[3]}/${m[2]}`;
-}
-
-/** Diễn giải `nghi_ngoai_ca_phut` của panel — bốn loại `*_phut` cộng lại đúng con số gộp. */
-export interface XlKhungLap { tu: string; den: string; so_lan: number; phut: number }
-export interface XlPhanTachNghi {
-  ca_san_xuat: { tu: string; den: string }[];
-  /** Từng ca có tên + bữa nghỉ đã khai; rỗng khi xưởng chưa khai ca (khung lùi) — dùng `ca_san_xuat`. */
-  cac_ca?: { ten: string; tu: string; den: string; nghi_tu: string | null; nghi_den: string | null }[];
-  nghi_giua_ca_phut: number;
-  nghi_giua_ca: XlKhungLap[];
-  ngoai_ca_phut: number;
-  ngoai_ca: XlKhungLap[];
-  ngay_nghi_phut: number;
-  ngay_nghi: { ngay: string; phut: number; ten: string | null; loai?: string | null }[];
-  gia_cong_ngoai_phut: number;
-  /** Quãng đứng chờ lệnh khác trong cụm (5b) — tách khỏi phần nghỉ. */
-  cho_lenh_khac_phut?: number;
-}
-
-/** Trễ hạn SX bao nhiêu ngày (âm = còn sớm, null = chưa đủ dữ kiện). Màn KHÔNG chặn theo số này —
- *  nó chỉ đổi màu để người điều độ tự quyết. */
-export function treHan(dong: { ket_thuc: string | null; han_hoan_thanh_sx: string | null }): number | null {
-  const kt = moc(dong.ket_thuc);
-  if (kt === null || !dong.han_hoan_thanh_sx) return null;
-  const han = mocNgay(dong.han_hoan_thanh_sx) + NGAY_MS - 1;   // hết ngày hạn
-  return Math.ceil((kt - han) / NGAY_MS);
-}
-
-export function classHan(dong: { ket_thuc: string | null; han_hoan_thanh_sx: string | null }): string {
-  const t = treHan(dong);
-  if (t === null) return "";
-  if (t > 0) return "xl--tre";
-  if (t >= -1) return "xl--sat";
-  return "";
-}
-
 
 export const THU = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
@@ -227,58 +118,4 @@ export function nhanNgay(d: string): { thu: string; so: string; homNay: boolean 
   const [y, mo, dd] = d.split("-").map(Number);
   const dt = new Date(y, mo - 1, dd);
   return { thu: THU[dt.getDay()], so: `${dd}/${mo}`, homNay: ymd(new Date()) === d };
-}
-
-// ---------------------------------------------------------------- màn A cải tiến (08/10/2026)
-
-/** "T4 14/10 16:40" — mốc đọc theo trục ngày: thứ trước để biết có dính CN không. */
-export function thuNgayGio(iso: string | null | undefined): string {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  if (!m) return "—";
-  return `${THU[new Date(+m[1], +m[2] - 1, +m[3]).getDay()]} ${m[3]}/${m[2]} ${m[4]}:${m[5]}`;
-}
-
-/** Kiểu một ngày trên trục, đọc từ Lịch làm việc: `le` nghỉ lễ, `khac` nghỉ khác, `bu` làm bù,
- *  `tuan` nghỉ theo tuần chuẩn, rỗng = ngày làm thường. */
-export type KieuNgay = "" | "tuan" | "le" | "khac" | "bu";
-
-export function kieuNgay(d: string, nghi: Set<string>, dac: Map<string, XlNgayDacBiet>): KieuNgay {
-  const s = dac.get(d);
-  if (s) return s.loai === "work" ? "bu" : s.loai === "off" ? "le" : "khac";
-  return nghi.has(d) ? "tuan" : "";
-}
-
-/** Nhãn khoảng ngày của nút đầu màn: "5/10 đến 18/10/2026"; qua năm thì ghi năm cả hai đầu. */
-export function nhanKhoang(tu: string, den: string): string {
-  const [y1, m1, d1] = tu.split("-").map(Number);
-  const [y2, m2, d2] = den.split("-").map(Number);
-  return y1 !== y2 ? `${d1}/${m1}/${y1} đến ${d2}/${m2}/${y2}` : `${d1}/${m1} đến ${d2}/${m2}/${y2}`;
-}
-
-/** Hạn của một lệnh để so trễ: hạn SX, không có thì hạn giao — đúng như mockup. Trả mốc HẾT ngày. */
-export function mocHan(d: { han_hoan_thanh_sx: string | null; han_giao_khach: string | null }): number | null {
-  const h = d.han_hoan_thanh_sx ?? d.han_giao_khach;
-  return h ? mocNgay(h) + NGAY_MS : null;
-}
-
-/** Trễ mấy ngày so với hạn (`mocHan`); 0 = không trễ / không có hạn. Xong theo THỰC TẾ nếu đã chạy. */
-export function soNgayTre(d: XlDong): number {
-  const han = mocHan(d);
-  const kt = moc(veDen(d));
-  return han !== null && kt !== null && kt > han ? Math.ceil((kt - han) / NGAY_MS) : 0;
-}
-
-/** Còn dư mấy ngày tới hết ngày `han` (YYYY-MM-DD) tính từ mốc xong `ketThuc`; âm = trễ. */
-export function soNgayDu(ketThuc: string | null | undefined, han: string | null | undefined): number | null {
-  const kt = moc(ketThuc);
-  if (kt === null || !han) return null;
-  const h = mocNgay(han) + NGAY_MS;
-  return kt <= h ? Math.floor((h - kt) / NGAY_MS) : -Math.ceil((kt - h) / NGAY_MS);
-}
-
-/** Cộng `phut` phút vào ISO naive, trả ISO naive "YYYY-MM-DDTHH:MM:00". */
-export function congPhut(iso: string, phut: number): string {
-  const t = (moc(iso) ?? 0) + phut * 60_000;
-  const d = new Date(t);
-  return `${ymd(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:00`;
 }

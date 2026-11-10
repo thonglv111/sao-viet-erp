@@ -22,6 +22,7 @@ from ..models.order import (
     FAULT_XUONG,
     ORDER_KIND_BO_SUNG,
     SOURCE_BAO_GIA,
+    SOURCE_THUONG_MAI,
     STATUS_CANCELLED,
     STATUS_DRAFT,
     STATUS_ORDERED,
@@ -82,7 +83,8 @@ _STATUS_LABELS = {
     STATUS_CANCELLED: "Hủy",
 }
 # Đơn mới chỉ có MỘT nguồn, nhưng nhãn giữ cả `nhap_tay` để đơn cũ trong DB còn đọc ra chữ đúng.
-_SOURCE_LABELS = {SOURCE_BAO_GIA: "Từ báo giá", "nhap_tay": "Nhập giá tay"}
+_SOURCE_LABELS = {SOURCE_BAO_GIA: "Từ báo giá", "nhap_tay": "Nhập giá tay",
+                  SOURCE_THUONG_MAI: "Đơn thương mại"}
 _HINH_THUC_THU = {"cash": "tiền mặt", "bank_transfer": "chuyển khoản"}
 _LOI_TAI = {"khach": "khách hàng", "xuong": "xưởng in"}
 
@@ -179,6 +181,13 @@ _NHAN_SUA_DON = {
 }
 
 
+
+def _che_gia_von_tm(order, out):
+    """Dòng đơn thương mại không mang giá vốn ra màn đơn bán (xem `_money`)."""
+    if order.source_type == SOURCE_THUONG_MAI:
+        out.cost_snapshot = None
+    return out
+
 class OrderService:
     def __init__(
         self,
@@ -236,6 +245,10 @@ class OrderService:
             total = agg.get("total")
             total_with_vat = agg.get("total_with_vat", 0)
             order_cost = agg.get("order_cost")
+        # Đơn thương mại: giá vốn là giá nhập lô kho thực xuất — chỉ đường `/api/thuong-mai` trả ra,
+        # gác theo ô Xem giá thành của Kho. Màn đơn bán không mang số này.
+        if order.source_type == SOURCE_THUONG_MAI:
+            order_cost = None
         # V5: cọc đọc từ phiếu thu THẬT (Kế toán) — Σ PaymentReceipt(order, source=đơn, received).
         if received is None:
             received = self.accounting_repo.received_deposit_sum(order.id)
@@ -259,6 +272,12 @@ class OrderService:
         blockers: list[str] = []
         if order.status != STATUS_DRAFT:
             return False, ["Đơn không ở trạng thái nháp"]
+        # ĐƠN THƯƠNG MẠI (chỉ In Hà Phương): không báo giá, không PO, không ngày giao, không thành
+        # phẩm. Chỉ cần có dòng, dòng nào cũng là hàng thương mại và đã có giá.
+        if order.source_type == SOURCE_THUONG_MAI:
+            from .thuong_mai.don_thuong_mai import cong_chot_don_thuong_mai
+            blockers = cong_chot_don_thuong_mai(self.db, order)
+            return (len(blockers) == 0), blockers
         # (a) báo giá còn duyệt & còn hạn (chỉ nguồn báo giá)
         if order.source_type == SOURCE_BAO_GIA:
             quote = self.quotations.get_by_id(order.quotation_id) if order.quotation_id else None
@@ -397,7 +416,7 @@ class OrderService:
             delivery_note=order.delivery_note,
             production_note=order.production_note,
             vat_pct_estimate=order.vat_pct_estimate,
-            lines=[OrderLineOut.model_validate(ln) for ln in order.lines],
+            lines=[_che_gia_von_tm(order, OrderLineOut.model_validate(ln)) for ln in order.lines],
             order_cost=m["order_cost"],
             margin_pct=m["margin_pct"],
             cancel_reason=order.cancel_reason,
@@ -408,7 +427,16 @@ class OrderService:
             confirm_blockers=blockers,
             quote_expired=quote_expired,
             ordered_by_name=names.get(order.ordered_by) if order.ordered_by else None,
+            tm_da_thu=self._tm_da_thu(order),
         )
+
+    def _tm_da_thu(self, order: Order) -> int | None:
+        """Chặng Thu tiền của đơn thương mại: tiền khách đã đưa cho đơn (cọc + thu theo hoá đơn)."""
+        if order.source_type != SOURCE_THUONG_MAI:
+            return None
+        from .thuong_mai.thu_tien import tien_da_thu
+
+        return tien_da_thu(self.accounting_repo, order.id)
 
     # --- reads --------------------------------------------------------------
     def _ap_dang_cho(self, *, actor, scope: str, q: str | None, order_kind: str | None,
@@ -774,6 +802,8 @@ class OrderService:
             raise OrderNotFound("Không tìm thấy đơn hàng")
         if order.status != STATUS_ORDERED:
             raise OrderConflict("Chỉ chuyển sản xuất đơn đã chốt")
+        if order.source_type == SOURCE_THUONG_MAI:
+            raise OrderConflict("Đơn thương mại không đi qua sản xuất")
         if not self._money(order)["deposit_ok"]:
             raise OrderConflict("Chưa đủ cọc — kế toán thu đủ cọc rồi mới chuyển sản xuất")
         self._tu_chuyen_sx(order, actor)
@@ -784,6 +814,9 @@ class OrderService:
         SX luôn, không chờ Sale bấm). Gọi sau chốt và sau mỗi phiếu thu cọc. Đã chuyển thì giữ mốc
         đầu. Trả True nếu LẦN NÀY mới chuyển — router dựa vào đó để báo hàng chờ Kế hoạch."""
         if order.status != STATUS_ORDERED or order.san_xuat_released_at is not None:
+            return False
+        # Đơn thương mại không bao giờ xuống sản xuất — đủ cọc cũng không kích hoạt gì.
+        if order.source_type == SOURCE_THUONG_MAI:
             return False
         if not self._money(order)["deposit_ok"]:
             return False
@@ -863,6 +896,11 @@ class OrderService:
             raise OrderNotFound("Không tìm thấy đơn hàng")
         if order.status == STATUS_CANCELLED:
             raise OrderConflict("Đơn đã hủy — không ghi cọc")
+        if order.source_type == SOURCE_THUONG_MAI:
+            # Đơn thương mại thu theo đơn bất kỳ lúc nào (chặng Thu tiền), trần là phần đơn còn thiếu.
+            from .thuong_mai.thu_tien import chan_thu_vuot
+
+            chan_thu_vuot(self.accounting_repo, order.id, self.repo.total_with_vat(order.id), payload.amount)
         customer_name = None
         if order.customer_id:
             from ..models.customer import Customer
@@ -877,13 +915,15 @@ class OrderService:
                 receipt_date=(payload.receipt_date or date.today()), note=payload.note,
                 company_bank_account_id=payload.company_bank_account_id,
                 payer_name=payload.payer_name, payer_address=payload.payer_address,
-                content=payload.content, bank_reference=payload.bank_reference,
+                content=(payload.content or (f"Thu tiền đơn {order.order_no}"
+                                             if order.source_type == SOURCE_THUONG_MAI else None)),
+                bank_reference=payload.bank_reference,
             )
         except AccountingValidationError as exc:
             raise OrderValidationError(str(exc)) from exc
         self.audit.create(
             actor_user_id=actor.id, action="record_deposit", target=f"order:{order.id}",
-            detail=f"Thu cọc {_tien_vn(payload.amount)} bằng {_HINH_THUC_THU.get(payload.receipt_method, payload.receipt_method)}",
+            detail=f"{'Thu tiền' if order.source_type == SOURCE_THUONG_MAI else 'Thu cọc'} {_tien_vn(payload.amount)} bằng {_HINH_THUC_THU.get(payload.receipt_method, payload.receipt_method)}",
         )
         self._tu_chuyen_sx(order, actor)
         d = self._detail(self.repo.get_with_lines(order_id))
@@ -952,8 +992,12 @@ class OrderService:
         # Từ 11/10/2026 (mg 0394) thành phẩm THUỘC VỀ KHÁCH: cụm gắn tái bản ⇒ đúng mã đã chọn, cụm
         # từ phiếu tính giá không gắn ⇒ mã mới, và mã nhận cấu hình kỹ thuật lần chốt này (nguồn của
         # ô tái bản lần sau). Gắn sang mã của khách khác ⇒ dừng chốt.
+        # Đơn thương mại bán hàng có sẵn trong danh mục Hàng thương mại: không khai thành phẩm, không
+        # chụp hoa hồng, không xuống sản xuất (docs/design-hang-thuong-mai-ha-phuong.md §6 Vòng đời).
+        la_tm = order.source_type == SOURCE_THUONG_MAI
         try:
-            khai_cho_don(self.db, order_with_lines)
+            if not la_tm:
+                khai_cho_don(self.db, order_with_lines)
         except ThanhPhamKhacKhach as exc:
             self.db.rollback()
             raise OrderValidationError(str(exc)) from exc
@@ -964,7 +1008,8 @@ class OrderService:
         # KHÔNG phơi biểu ra API/giao diện đơn hàng, cố ý (chủ chốt 21/08/2026): cho sale gõ % trên
         # chính đơn mình bán là để người ta tự viết phiếu lương của mình. Biểu chỉ khai được ở HỒ SƠ
         # LƯƠNG; % riêng của đơn chỉ đặt được qua API lương (ô `luong:update`).
-        _chup_hoa_hong(order, self.db)
+        if not la_tm:
+            _chup_hoa_hong(order, self.db)
         self.db.commit()
         self.audit.create(actor_user_id=actor.id, action="confirm_order",
             target=f"order:{order.id}", detail=f"Chốt đơn {order.order_no}")

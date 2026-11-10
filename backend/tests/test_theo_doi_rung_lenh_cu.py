@@ -48,7 +48,7 @@ def _giao(sess, lsx_id: int, qty: int, *, ma: str, cach_day: timedelta) -> None:
 @pytest.fixture
 def the_gioi(sess, orders, lsx_svc, admin, customer):
     _dot_dong_don(sess, 5)
-    kw = dict(sale_user_id=admin.id, customer_id=customer.id, han_sx=date(2026, 9, 10), so_luong=100)
+    kw = dict(sale_user_id=admin.id, customer_id=customer.id, han_giao=date(2026, 9, 10), so_luong=100)
     w = {}
     w["rung"] = _lenh_tho(sess, ma="LSX-KB-RUNG", **kw)
     _giao(sess, w["rung"], 100, ma="YCGH-KB-1", cach_day=timedelta(days=5))

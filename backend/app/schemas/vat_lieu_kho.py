@@ -188,6 +188,50 @@ class ThanhPhamRow(BaseModel):
     updated_at: datetime | None = None
 
 
+class HangThuongMaiIn(BaseModel):
+    """Ô khai màn Hàng thương mại (chỉ In Hà Phương). Giá bán theo từng ĐVT, không quy đổi."""
+    ma: str = Field(min_length=1, max_length=30)
+    ten: str = Field(min_length=1, max_length=150)
+    don_vi_gia: str | None = None
+    don_vi_them: list[str] | None = None
+    # `{ma_dvt: giá}`. Vắng = không đụng. Người không có ô Xem giá gửi lên thì máy chủ giữ giá cũ.
+    gia_ban_theo_dvt: dict[str, float | None] | None = None
+    ghi_chu: str | None = None
+    active: bool = True
+
+
+class HangThuongMaiRow(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    ma: str
+    ten: str
+    don_vi_gia: str | None = None
+    don_vi_them: list[str] | None = None
+    don_vi_ten: str | None = None
+    # Tiền: router xoá (None) khi người xem không có ô Xem giá của Hàng thương mại.
+    gia_ban_theo_dvt: dict[str, int] | None = None
+    # Tồn cộng mọi kho theo đơn vị gốc của lô (09/11/2026, cột Tồn) — service gắn khi dựng trang, không
+    # phải cột bảng. Không phải tiền nên không gác Xem giá.
+    ton_theo_dvt: dict[str, float] | None = None
+    # Đơn giá của lô nhập mới nhất theo đơn vị gốc (ngăn chi tiết, 09/11/2026) — service gắn. Là giá vốn
+    # nên router che cùng giá bán khi thiếu ô Xem giá.
+    gia_nhap_gan_nhat: dict[str, float] | None = None
+    ghi_chu: str | None = None
+    anh_url: str | None = None
+    active: bool
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class TonTheoKhoRow(BaseModel):
+    """Một dòng tab Tồn theo kho của Hàng thương mại: tồn một đơn vị ở một kho."""
+    kho_id: int
+    kho_ma: str
+    kho_ten: str
+    don_vi: str
+    sl: float
+
+
 class ListOut(BaseModel, Generic[RowT]):
     """Phong bì phân trang dùng chung cho CẢ BA danh mục ở router `vat_lieu_kho`.
 

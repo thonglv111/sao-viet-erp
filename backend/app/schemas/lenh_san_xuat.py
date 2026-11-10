@@ -126,7 +126,6 @@ class TienDoOut(BaseModel):
     phan_tram: float = 0.0
     uoc_tinh: bool = False
     gio_may: float = 0.0
-    du_kien_xong: datetime | None = None
     trang_thai: str
     canh_bao: list[str] = []
     buoc_hien_tai: str | None = None

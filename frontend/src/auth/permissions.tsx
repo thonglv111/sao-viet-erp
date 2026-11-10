@@ -74,7 +74,9 @@ interface PermissionsCtx {
 }
 
 /** Phân hệ tắt được theo bản cài — khớp `app/phan_he.py`. */
-export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang" | "tai_san" | "cham_cong" | "sua_chua" | "ke_gia";
+// `thuong_mai`, `giao_hang_hp`: chỉ In Hà Phương có, máy chủ coi là TẮT khi bản cài không khai `PHAN_HE_BAT`.
+export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang" | "tai_san" | "cham_cong" | "sua_chua" | "ke_gia"
+  | "thuong_mai" | "giao_hang_hp";
 const KHONG_TAT: ReadonlySet<PhanHe> = new Set();
 
 const PermissionsContext = createContext<PermissionsCtx>({

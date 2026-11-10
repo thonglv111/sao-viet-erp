@@ -300,3 +300,28 @@
     border-bottom: 0;
   }
 }
+
+/* Ô Khách hàng đứng riêng (OChonKhach, ChonKhachHang.tsx): một cột, danh sách rộng đúng bằng ô. */
+.dkh--mot {
+  grid-template-columns: 1fr;
+  margin: 0;
+  box-shadow: none;
+}
+.dkh--mot .dkh__o {
+  border-right: 0;
+  border-bottom: 0;
+  border-radius: var(--r-5);
+}
+.dkh--mot .dkh__v {
+  font-weight: var(--fw-regular, 400);
+}
+.dkh--mot .dkh__pop {
+  left: 0;
+  right: 0;
+  width: auto;
+}
+.dkh__s--manh {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}

@@ -57,7 +57,7 @@ const HOSO_77: LenhSxNganOut = {
   },
   tien_do: {
     phan_tram: 0, uoc_tinh: false, gio_may: 0,
-    du_kien_xong: null, trang_thai: "dang_sx", canh_bao: [],
+    trang_thai: "dang_sx", canh_bao: [],
     buoc_hien_tai: null, buoc_hien_tai_cong_viec_id: null, nhom_cong_doan: null,
     may: null, nguoi: [], da_giao: 0, khau: "dang_sx", khau_chi_tiet: null, vat_tu_chu: null,
   },
@@ -336,12 +336,12 @@ describe("LenhSanXuatPage · danh sách tra cứu", () => {
     await userEvent.click(await screen.findByRole("radio", { name: /Công ty Sao/ }));
     await waitFor(() => expect(goi.some((u) => u.includes("khach_hang_id=9"))).toBe(true));
 
-    // Kỳ theo Hạn sản xuất (thay hai ô ngày rời cũ).
+    // Kỳ theo Hạn giao khách (thay hai ô ngày rời cũ).
     await userEvent.click(screen.getByRole("button", { name: /Mọi thời gian/ }));
-    await userEvent.click(screen.getByRole("radio", { name: "Hạn sản xuất" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Hạn giao khách" }));
     await userEvent.click(screen.getByRole("radio", { name: /Năm nay/ }));
     await waitFor(() =>
-      expect(goi.some((u) => u.includes("moc=han_sx") && /tu_ngay=\d{4}-01-01/.test(u))).toBe(true));
+      expect(goi.some((u) => u.includes("moc=han_giao") && /tu_ngay=\d{4}-01-01/.test(u))).toBe(true));
 
     // Không còn gọi hai đường đã bỏ.
     expect(goi.some((u) => u.includes("/summary"))).toBe(false);

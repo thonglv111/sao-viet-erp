@@ -1,0 +1,30 @@
+/* Hộp "Cách giao" của Xuất hàng — chỉ bản cài In Hà Phương (giao_hang_hp). */
+.ccg { margin: 0; padding: 0; border: 0; display: grid; gap: 10px; min-width: 0; }
+.ccg__nhan { padding: 0; margin-bottom: 6px; font-size: 13px; color: var(--ink); }
+.ccg__nhan b, .ccg__o > span b { color: var(--signal); font-weight: 400; }
+.ccg__loai { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ccg__the {
+  display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px;
+  background: var(--canvas); cursor: pointer; position: relative;
+}
+.ccg__the input { position: absolute; opacity: 0; pointer-events: none; }
+.ccg__the:hover { border-color: var(--ash); }
+.ccg__the.is-on { border-color: var(--tt-xanh-fg); background: var(--tt-xanh-bg); }
+.ccg__the:has(input:focus-visible) { outline: 2px solid var(--tt-xanh-dot); outline-offset: 1px; }
+.ccg__the-ten { font-size: 13px; color: var(--ink); }
+.ccg__the-phu { font-size: 12px; color: var(--ash); }
+.ccg__luoi { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.ccg__o { display: grid; gap: 4px; font-size: 13px; min-width: 0; align-content: start; }
+.ccg__o--rong { grid-column: 1 / -1; }
+.ccg__o select, .ccg__o input { width: 100%; min-width: 0; }
+.ccg__tien { display: flex; align-items: center; gap: 6px; }
+.ccg__tien input { text-align: right; }
+.ccg__goi-y { font-size: 12px; color: var(--ash); }
+.ccg__goi-y.is-loi { color: var(--signal); }
+@media (max-width: 640px) {
+  .ccg__loai, .ccg__luoi { grid-template-columns: 1fr; }
+}
+
+/* Bảng cách giao từng lần xuất trong ngăn Đơn hàng bán. */
+.bcg { display: grid; gap: 6px; margin-top: 12px; }
+.bcg__ten { margin: 0; font-size: 13px; font-weight: 400; color: var(--ash); }

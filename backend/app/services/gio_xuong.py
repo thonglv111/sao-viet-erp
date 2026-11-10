@@ -46,7 +46,7 @@ def ve_utc_that(dt: datetime | None) -> datetime | None:
     UTC THẬT, để trộn chung được với `san_xuat_phien_chay` / `datetime.now(timezone.utc)`.
 
     Dùng khi cần TRẢ RA một mốc tuyệt đối lấy từ `du_kien_*` mà bên nhận đo bằng thước UTC thật
-    (`tien_do._moc_da_xong` bậc 2 → `du_kien_xong` → `tre_han.astimezone(BUSINESS_TZ)`). Chỉ cần
+    (bậc 2 của mốc xong cũ, gỡ 08/11/2026 cùng "Dự kiến xong"). Chỉ cần
     HIỆU hai mốc cùng thang thì đừng gọi hàm này — đưa vế kia sang thang xưởng bằng
     `ve_gio_xuong()` là đủ và rẻ hơn.
     """

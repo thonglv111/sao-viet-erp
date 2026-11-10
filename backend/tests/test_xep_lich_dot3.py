@@ -196,26 +196,6 @@ def test_go_de_quan_so_lam_thay_doi_ket_luan_qua_tai(db, xl_svc, vd_svc, admin, 
 
 
 # ============================ J — tầng tuần ============================
-def test_ke_hoach_tuan_dem_ca_viec_CHUA_XEP(db, orders, lsx_svc, xl_svc, admin, customer,
-                                            monkeypatch):
-    """Việc chưa có giờ vẫn phải vào tuần chứa HẠN của nó.
-
-    Chỉ đếm việc đã xếp thì bảng báo "còn rỗng" trong khi hàng chờ đang đầy — đúng cái sai khiến
-    người ta nhận thêm đơn rồi vỡ trận.
-    """
-    monkeypatch.setattr(xl_svc.cal, "is_working_day", lambda d: True)
-    lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
-    step = _in_step(db, lsx.id)
-    step.so_luong_vao, step.chay_phut = 2500, None
-    lsx.han_hoan_thanh_sx = NGAY + timedelta(days=2)
-    db.commit()
-    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)   # có dòng nhưng CHƯA gán giờ
-
-    res = xl_svc.ke_hoach_tuan(tu=NGAY, so_tuan=2)
-    o_may = [i for i in res["items"] if i["loai"] == "may" and i["can_gio"] > 0]
-    assert o_may, "việc chưa xếp phải rơi vào tuần chứa hạn SX, không được biến mất khỏi bảng"
-
-
 def test_ke_hoach_tuan_nguong_mau(db, xl_svc):
     """Ngưỡng của plan: ≥100% đỏ · ≥85% vàng · còn lại xanh. Khả dụng 0 mà có việc ⇒ đỏ, không nổ."""
     assert xl_svc._dong_tuan(NGAY, "may", 1, "M1", 80, 100)["mau"] == "xanh"
@@ -227,24 +207,3 @@ def test_ke_hoach_tuan_nguong_mau(db, xl_svc):
 
 
 # ============================ J — gom theo NHÓM máy ============================
-def test_tuan_gom_theo_NHOM_may_khong_theo_may_le(db, orders, lsx_svc, xl_svc, admin, customer,
-                                                  monkeypatch):
-    """Plan viết *"nhóm Máy in 92/88 giờ · nhóm Bế 60/80"* — gom theo NHÓM, không theo máy lẻ.
-
-    Xưởng có 3 máy in thì câu hỏi thật là "khâu in tuần sau còn chỗ không", chứ không phải "máy in
-    số 2 còn chỗ không": việc chuyển giữa các máy cùng nhóm là chuyện thường ngày.
-    """
-    monkeypatch.setattr(xl_svc.cal, "is_working_day", lambda d: True)
-    lsx = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)[0]
-    step = _in_step(db, lsx.id)
-    step.so_luong_vao, step.chay_phut = 2500, None
-    lsx.han_hoan_thanh_sx = NGAY + timedelta(days=2)
-    db.commit()
-    xl_svc.dua_vao_lsx(lsx_id=lsx.id, actor=admin)
-
-    o_may = [i for i in xl_svc.ke_hoach_tuan(tu=NGAY, so_tuan=2)["items"] if i["loai"] == "may"]
-    assert o_may, "phải có dòng máy"
-    for o in o_may:
-        assert o["res_id"] is None, "dòng máy gom theo nhóm ⇒ không mang id máy lẻ"
-        assert o["nhom"], "phải mang TÊN NHÓM để bấm sang Gantt lọc đúng nhóm đó"
-        assert o["ten"] == o["nhom"]

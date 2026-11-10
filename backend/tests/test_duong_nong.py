@@ -235,7 +235,9 @@ def test_lsx_hang_cho_chi_dem(client):
     (dem, n_dem, _) = _dem(lambda: client.get("/api/lsx/hang-cho?chi_dem=true", headers=h).json())
     (_, n_day, _) = _dem(lambda: client.get("/api/lsx/hang-cho", headers=h).json())
     assert day["total"] == 3 and len(day["items"]) == 3
-    assert dem == {"items": [], "total": 3, "page": 1, "size": 50}
+    # Ba trường giao đơn (08/11/2026) về mặc định ở đường đếm — không thêm câu nào.
+    assert {k: dem[k] for k in ("items", "total", "page", "size")} == {"items": [], "total": 3, "page": 1, "size": 50}
+    assert dem["facets"] == {} and dem["cham"] is False
     print(f"\n[lsx hang-cho] đầy đủ {n_day} câu, chi_dem {n_dem} câu")
     assert n_dem < n_day
 

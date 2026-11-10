@@ -32,6 +32,9 @@ import { COT_GIA_CONG, HangChoGiaCong } from "./components/HangChoGiaCong";
 import { COT_MUA_HANG, dongMuaHang, HangChoMuaHang, type KhoanChi } from "./components/HangChoMuaHang";
 import { COT_TRA_LAI, HangChoTraLai } from "./components/HangChoTraLai";
 import { cotCkKe, HangChoCkKe } from "./components/HangChoCkKe";
+import { COT_CUOC_GIAO, HangChoCuocGiao } from "./components/HangChoCuocGiao";
+import { LapPhieuChiCuocModal } from "./modals/LapPhieuChiCuocModal";
+import { giaoHangHpApi, type CuocChoChi } from "../../../api/giaoHangHp";
 import { VouchersDrawer } from "./components/VouchersDrawer";
 import { COT_PHIEU_CHI, VouchersTable } from "./components/VouchersTable";
 import { LapPhieuChiGop, type KhoanGop } from "./components/LapPhieuChiGop";
@@ -77,6 +80,8 @@ export function PaymentVouchersPage({
   const { token } = useAuth();
   const can = useCan();
   const coKe = !useTat()("ke_gia");
+  // Cước chờ chi: chỉ bản cài bật giao hàng kiểu Hà Phương (`giao_hang_hp`).
+  const coCuoc = !useTat()("giao_hang_hp");
   // Khoá RIÊNG của màn Phiếu chi. `create` = LẬP phiếu + gán chứng từ.
   const coLap = can("phieu_chi", "create");
   const coHuy = can("phieu_chi", "cancel");
@@ -102,6 +107,11 @@ export function PaymentVouchersPage({
   const [ckLoi, setCkLoi] = useState<string | null>(null);
   const [lapCk, setLapCk] = useState<CkKeChoChi[] | null>(null);
   const [lanCk, setLanCk] = useState(0);
+  // Hàng "Cước chờ chi" (giao hàng Hà Phương). `lanCuoc` đổi sau khi lập để hàng chờ bỏ hết dấu tick.
+  const [cuoc, setCuoc] = useState<CuocChoChi[] | null>(null);
+  const [cuocLoi, setCuocLoi] = useState<string | null>(null);
+  const [lapCuoc, setLapCuoc] = useState<CuocChoChi[] | null>(null);
+  const [lanCuoc, setLanCuoc] = useState(0);
 
   const taiGc = useCallback(() => {
     if (!token) return;
@@ -142,11 +152,25 @@ export function PaymentVouchersPage({
   useEffect(() => {
     taiCk();
   }, [taiCk]);
+  const taiCuoc = useCallback(() => {
+    if (!token || !coCuoc) return;
+    giaoHangHpApi
+      .cuocChoChi(token)
+      .then((r) => {
+        setCuoc(r.items);
+        setCuocLoi(null);
+      })
+      .catch((e: unknown) => setCuocLoi(e instanceof ApiError ? e.message : "Không tải được hàng cước chờ chi."));
+  }, [token, coCuoc]);
+  useEffect(() => {
+    taiCuoc();
+  }, [taiCuoc]);
   const taiHangCho = useCallback(() => {
     taiGc();
     taiTl();
     taiCk();
-  }, [taiGc, taiTl, taiCk]);
+    taiCuoc();
+  }, [taiGc, taiTl, taiCk, taiCuoc]);
 
   // Hàng "Mua hàng chờ chi": nạp cả hàng (không phân trang), ô tìm lọc ngay trên máy.
   const [mh, setMh] = useState<MuaHangChoChi[] | null>(null);
@@ -181,7 +205,7 @@ export function PaymentVouchersPage({
     thamSoLoc,
     thamSoTai,
     goiDanhSach: (t, p) => api.accounting.vouchers(t, p),
-    theKhongBang: (t) => t === "gc" || t === "tl" || t === "ck" || t === "mh",
+    theKhongBang: (t) => t === "gc" || t === "tl" || t === "ck" || t === "cuoc" || t === "mh",
     chuLoi: "Không tải được danh sách phiếu chi.",
     coTrang: PAGE_SIZE,
     coXemTaiKhoan,
@@ -221,16 +245,19 @@ export function PaymentVouchersPage({
     ...(the !== "ck" && !ckLoi && (ck?.length ?? 0) === 0
       ? []
       : [{ key: "ck", label: coKe ? "Chờ chi CK / kê" : "Chờ chi chiết khấu", mau: "cam" as const, count: ck?.length }]),
+    ...(!coCuoc || (the !== "cuoc" && !cuocLoi && (cuoc?.length ?? 0) === 0)
+      ? []
+      : [{ key: "cuoc", label: "Cước chờ chi", mau: "cam" as const, count: cuoc?.length }]),
     // Đơn mua chờ chi: luôn hiện (đây là chỗ duy nhất lập phiếu theo đơn mua) — đếm ĐƠN, không cộng tiền.
     // Đếm KHOẢN (cọc, từng đợt) như dòng của hàng — cùng cách đếm "Đơn hàng chờ thu".
     { key: "mh", label: "Mua hàng chờ chi", mau: "cam", count: mh ? dongMuaHang(mh).length : undefined },
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
-  ], [soThe, gc, gcLoi, tl, tlLoi, ck, ckLoi, the, mh]);
+  ], [soThe, gc, gcLoi, tl, tlLoi, ck, ckLoi, cuoc, cuocLoi, coCuoc, the, mh]);
   // Trạng thái trong nút Lọc = các tab có bảng (các hàng chờ thay cả bảng nên không vào).
   const dieuKien = useMemo(
     () => [
       dkTrangThaiPhieu({
-        muc: muc.filter((m) => m.key !== "gc" && m.key !== "tl" && m.key !== "ck" && m.key !== "mh").map((m) => ({ id: m.key, nhan: m.label })),
+        muc: muc.filter((m) => m.key !== "gc" && m.key !== "tl" && m.key !== "ck" && m.key !== "cuoc" && m.key !== "mh").map((m) => ({ id: m.key, nhan: m.label })),
         n: soThe, dang: the, dat: (id) => setThe(id as TheLocPC),
       }),
       ...dieuKienPhieu(CAU_HINH_LOC_PC, sp.taiKhoan, mucLoc),
@@ -243,6 +270,7 @@ export function PaymentVouchersPage({
   const luoiGc = useCauHinhLuoi(`${MAN}:gia-cong`);
   const luoiTl = useCauHinhLuoi(`${MAN}:tra-lai`);
   const luoiCk = useCauHinhLuoi(`${MAN}:ck-ke`);
+  const luoiCuoc = useCauHinhLuoi(`${MAN}:cuoc-giao`);
   const luoiMh = useCauHinhLuoi(`${MAN}:mua-hang`);
   const moDon = coXemDonBan ? (id: number) => navigate("don-hang-ban", { openOrderId: id }) : undefined;
   const moNguonGc = (r: GiaCongChoChi) => {
@@ -283,6 +311,10 @@ export function PaymentVouchersPage({
           <div className="lds-loc__thanh tl-thanh">
             <ChonCot cot={cotCkKe(coKe)} {...luoiCk.chonCot} />
           </div>
+        ) : the === "cuoc" ? (
+          <div className="lds-loc__thanh tl-thanh">
+            <ChonCot cot={COT_CUOC_GIAO} {...luoiCuoc.chonCot} />
+          </div>
         ) : the === "mh" ? (
           <div className="lds-loc__thanh tl-thanh" role="search">
             <OTim value={timMh} onChange={setTimMh} placeholder="Tìm mã đơn, nhà cung cấp" ariaLabel="Tìm đơn mua chờ chi" />
@@ -305,6 +337,9 @@ export function PaymentVouchersPage({
         <HangChoTraLai rows={tl} loi={tlLoi} onLap={coLap ? setLapTl : undefined} onMoDon={moDon} luoi={luoiTl} />
       ) : the === "ck" ? (
         <HangChoCkKe key={lanCk} rows={ck} loi={ckLoi} onLap={coLap ? setLapCk : undefined} onMoDon={moDon} luoi={luoiCk} />
+      ) : the === "cuoc" ? (
+        <HangChoCuocGiao key={lanCuoc} rows={cuoc} loi={cuocLoi} onLap={coLap ? setLapCuoc : undefined}
+          onMoDon={moDon} luoi={luoiCuoc} />
       ) : the === "mh" ? (
         <HangChoMuaHang
           key={lanGop}
@@ -423,6 +458,20 @@ export function PaymentVouchersPage({
             setMo(saved);
             load();
             taiCk();
+          }}
+        />
+      )}
+      {lapCuoc && lapCuoc.length > 0 && (
+        <LapPhieuChiCuocModal
+          dong={lapCuoc}
+          onClose={() => setLapCuoc(null)}
+          onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
+          onSaved={(saved) => {
+            setLapCuoc(null);
+            setLanCuoc((x) => x + 1);
+            setMo(saved);
+            load();
+            taiCuoc();
           }}
         />
       )}

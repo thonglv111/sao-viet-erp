@@ -54,9 +54,9 @@ export function ONguonGiay({ nguon, khoa, onDoi }: Props) {
   const soRong = Number(rong);
   const choRong = chon === "cuon" && nguon !== "cuon";
   return (
-    <div className="khsx-plan-form__row">
-      <label className="khsx-field khsx-field--flex1" title={khoa ?? undefined}>
-        <span className="khsx-field__label">Nguồn giấy</span>
+    <div className="khsx-nguon">
+      <label className="khsx-nguon__o" title={khoa ?? undefined}>
+        <span className="khsx-nguon__nhan">Nguồn giấy</span>
         <Select
           options={LUA_CHON}
           value={chon}
@@ -67,8 +67,8 @@ export function ONguonGiay({ nguon, khoa, onDoi }: Props) {
         />
       </label>
       {choRong && (
-        <label className="khsx-field khsx-field--flex1">
-          <span className="khsx-field__label">Rộng cuộn (mm)</span>
+        <label className="khsx-nguon__o">
+          <span className="khsx-nguon__nhan">Rộng cuộn (mm)</span>
           <input
             aria-label="Rộng cuộn (mm)"
             inputMode="numeric"
@@ -87,6 +87,11 @@ export function ONguonGiay({ nguon, khoa, onDoi }: Props) {
           Áp dụng
         </Button>
       )}
+      {/* Luôn nói ô này từ đâu ra (máy tự chọn) và vì sao đang khoá — chỉ để trong tooltip thì người
+          dùng chỉ thấy một ô xám không bấm được (10/11/2026). */}
+      <span className="khsx-nguon__chu">
+        {khoa ?? "Máy tự chọn theo tồn kho lúc lập lệnh. Chỉ đổi khi thực tế lấy giấy khác."}
+      </span>
       {loi && <div className="khsx-note-banner khsx-note-banner--error" role="alert">{loi}</div>}
     </div>
   );

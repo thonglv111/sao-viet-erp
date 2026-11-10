@@ -396,11 +396,20 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         # bàn mới; `lsx_changed` của router nhích mọi bàn tổ nên cả hai bàn tự nạp.
         buoc = cd_cua[cv.id]
         # Bước loại Tổ cũng đổi tổ (như lần phát hành đầu ở `snapshot`); máy chỉ cho bước Máy.
+        # 07/11/2026: việc ĐÃ GIAO thì nhóm + máy do bộ phận chốt — cập nhật lệnh không đè. Việc
+        # còn ở khay bộ phận thì theo bộ phận nhận mới của bước (đổi bộ phận = rời khay cũ).
         if buoc is not None and cv.gia_cong_ngoai_id is None and cv.loai_buoc != BUOC_THUE_NGOAI:
-            if buoc.department_id is not None:
-                cv.department_id = buoc.department_id
-            if may_id is None and cv.loai_buoc == BUOC_MAY:
-                cv.may_id = buoc.may_id
+            bp_moi = so.bo_phan(buoc.department_id)
+            if cv.bo_phan_id is not None and cv.da_giao_at is None:
+                if bp_moi is not None and bp_moi != cv.bo_phan_id:
+                    cv.bo_phan_id = bp_moi
+                if may_id is None:
+                    cv.may_id = buoc.may_id
+            elif cv.bo_phan_id is None:
+                if buoc.department_id is not None:
+                    cv.department_id = buoc.department_id
+                if may_id is None and cv.loai_buoc == BUOC_MAY:
+                    cv.may_id = buoc.may_id
         cv.du_kien_bat_dau = start
         cv.du_kien_ket_thuc = finish
         cv.phien_ban_so = new_ver
