@@ -92,7 +92,11 @@ function useDvDong() {
 
 type Cot<T> = CotLuoi & { w?: number; n?: boolean; o: (r: T) => ReactNode; lop?: (r: T) => string | undefined };
 
-function Luoi<T>({ cot, luoi, rows, khoa }: { cot: Cot<T>[]; luoi: CauHinhLuoi; rows: T[]; khoa: (r: T) => string | number }) {
+/** `trong`: chưa có dòng nào thì vẫn giữ hàng tiêu đề cột, câu báo trống nằm giữa một dòng cao (khuôn chung
+ *  `td.lds-trong` của lưới) — không để câu chữ trần dính sát mép dưới thanh lọc. */
+function Luoi<T>({ cot, luoi, rows, khoa, trong }: {
+  cot: Cot<T>[]; luoi: CauHinhLuoi; rows: T[]; khoa: (r: T) => string | number; trong?: ReactNode;
+}) {
   const hien = luoi.rongHien(luoi.xep(cot).filter((c) => !luoi.an.has(c.key)));
   return (
     <CuonLuoi ghim={luoi.soGhim(hien)}>
@@ -102,6 +106,9 @@ function Luoi<T>({ cot, luoi, rows, khoa }: { cot: Cot<T>[]; luoi: CauHinhLuoi; 
           <tr>{hien.map((c) => <th key={c.key} className={c.n ? "n" : undefined}>{c.label}{luoi.keo(c.key)}</th>)}</tr>
         </thead>
         <tbody>
+          {rows.length === 0 && (
+            <tr><td colSpan={hien.length || 1} className="lds-trong">{trong}</td></tr>
+          )}
           {rows.map((r) => (
             <tr key={khoa(r)}>
               {hien.map((c) => (
@@ -217,10 +224,10 @@ export function TabBangNgan({
           {Array.from({ length: 4 }).map((_, i) => <span key={i} className="rc-skel" style={{ width: `${90 - i * 12}%` }} />)}
         </div>
       ) : rows.length === 0 ? (
-        <div className="lds-trong">
+        <Luoi cot={cot as Cot<unknown>[]} luoi={luoi} rows={[]} khoa={() => 0} trong={<>
           Không có dòng nào khớp điều kiện đang lọc.{" "}
           <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button>
-        </div>
+        </>} />
       ) : tab === "sua" ? (
         <LuoiSua rows={rows as LichSuSuaRow[]} cot={cot as Cot<DongSua>[]} luoi={luoi} />
       ) : (
@@ -322,10 +329,10 @@ export function TabDieuChuyenKho({ token, khoId, canViewCost }: { token: string;
         ) : loading && !trang ? (
           <div className="lds-trong">Đang tải…</div>
         ) : rows.length === 0 ? (
-          <div className="lds-trong">
+          <Luoi cot={cot} luoi={luoi} rows={[]} khoa={(r) => r.key} trong={<>
             {coLoc ? "Không có lần chuyển nào khớp điều kiện đang lọc." : "Kho này chưa chuyển hay nhận hàng từ kho khác."}{" "}
             {coLoc && <button type="button" className="lds-lk" onClick={xoaLoc}>Xoá bộ lọc</button>}
-          </div>
+          </>} />
         ) : (
           <Luoi cot={cot} luoi={luoi} rows={rows} khoa={(r) => r.key} />
         )}
