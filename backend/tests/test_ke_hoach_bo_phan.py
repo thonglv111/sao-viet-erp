@@ -419,3 +419,27 @@ def test_thu_hoi_roi_day_lai_chi_hien_viec_cua_goi_dang_chay(db, admin, lenh_pha
             if v.lsx_id == lenh_phat]
     assert [v.goi_id for v in viec] == [goi_moi]
     assert [x["lsx_id"] for x in _svc(db, admin).bang(c["bp_in"].id)["viec"]].count(lenh_phat) == 1
+
+
+def test_tick_nhom_o_danh_muc_dien_bo_phan_cho_buoc_lenh_trong(db, orders, lsx_svc, admin, customer, cay_bp):
+    """Lệnh bung lúc công đoạn chưa tick nhóm ⇒ bước trống bộ phận nhận. Tick nhóm ở danh mục rồi
+    lưu thì bước của lệnh chưa lập kế hoạch nhận ngay bộ phận, hết "Còn thiếu" (10/11/2026)."""
+    from app.repositories.cong_doan_repo import CongDoanRepository
+    from app.models.cong_doan import PRICING_BASIS
+    from app.services.cong_doan_service import CongDoanService
+
+    a, _b = _hai_lsx_san_sang(db, orders, lsx_svc, admin, customer)
+    buoc = db.query(LsxCongDoan).filter(LsxCongDoan.lsx_id == a.id,
+                                        LsxCongDoan.cong_doan_id.isnot(None)).first()
+    buoc.loai_buoc, buoc.department_id = LB_MAY, None
+    cd = db.get(CongDoan, buoc.cong_doan_id)
+    cd.department_ids = []
+    db.commit()
+    assert "thieu_bo_phan" in lsx_svc.kiem_thieu(db.get(Lsx, a.id))[0]
+
+    CongDoanService(CongDoanRepository(db)).update(
+        cd.id, {"ma": cd.ma, "ten": cd.ten, "nhom": cd.nhom, "che_do_tinh": cd.che_do_tinh,
+                "pricing_basis": cd.pricing_basis or PRICING_BASIS[0], "department_ids": [cay_bp["be"].id]})
+    db.refresh(buoc)
+    assert buoc.department_id == cay_bp["bp_be"].id
+    assert "thieu_bo_phan" not in lsx_svc.kiem_thieu(db.get(Lsx, a.id))[0]

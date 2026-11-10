@@ -104,6 +104,19 @@ class CongDoanRepository(CatalogRepo):
     # ⚠️ `piece_rates()` + `piece_rates_active()` GỠ 18/09/2026 (mg `0320`): công đoạn thôi khai
     #    đầu việc nên không còn chỗ nào tra `piece_rates` từ màn này.
 
+    def buoc_lenh_thieu_bo_phan(self, cong_doan_id: int) -> list:
+        """Bước nội bộ (Máy/Tổ) của lệnh CHƯA lập kế hoạch, gắn công đoạn này mà chưa có bộ phận
+        nhận — thường do lệnh bung lúc công đoạn chưa tick nhóm nào."""
+        from ..models.lsx import LB_MAY, LB_TO, TRANG_THAI_SUA_DUOC, Lsx, LsxCongDoan
+
+        return list(self.db.execute(
+            select(LsxCongDoan).join(Lsx, Lsx.id == LsxCongDoan.lsx_id).where(
+                LsxCongDoan.cong_doan_id == cong_doan_id,
+                LsxCongDoan.department_id.is_(None),
+                LsxCongDoan.loai_buoc.in_((LB_MAY, LB_TO)),
+                Lsx.trang_thai.in_(TRANG_THAI_SUA_DUOC),
+            )).scalars())
+
     def mays(self, ids: set[int]) -> dict[int, MayThietBi]:
         """Máy theo id — service dùng để chặn id không tồn tại / máy đã thanh lý (`may_id` là
         soft-ref nên không có FK gác hộ)."""
