@@ -96,6 +96,10 @@ def test_giao_don_va_cua_chan_may_chu(client):
         db.close()
     assert client.post(f"/api/lsx/tao/{ids['d1']}", headers=hl,
                        json={"order_line_ids": d1_dong}).status_code == 403
+    # Người giao XEM được sản phẩm và lệnh dự kiến của đơn chưa giao (10/11/2026) — chỉ xem.
+    r = client.get(f"/api/lsx/preview/{ids['d1']}", headers=hg)
+    assert r.status_code == 200, r.text
+    assert len(r.json()["lines"]) == 1
     # Người giao (Tất cả) cũng không tạo được lệnh cho đơn chưa giao.
     assert client.post(f"/api/lsx/tao/{ids['d1']}", headers=hg,
                        json={"order_line_ids": d1_dong}).status_code == 403

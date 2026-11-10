@@ -148,6 +148,20 @@ def _guard_don_tao(db: Session, order_id: int, user: User, authz: AuthorizationS
                             detail="Đơn này không thuộc phạm vi phụ trách của bạn")
 
 
+def _guard_don_xem(db: Session, order_id: int, user: User, authz: AuthorizationService) -> None:
+    """Cửa của `/preview` (10/11/2026): người có ô Giao đơn mở đơn ở Hàng chờ tiếp nhận để XEM sản phẩm
+    và lệnh dự kiến, kể cả đơn chưa giao — trong đúng phạm vi tab đó (chủ đơn). Tạo lệnh vẫn qua
+    `_guard_don_tao`: chưa giao cho ai thì không tạo được."""
+    if la_nguoi_giao(user, authz):
+        order = db.get(Order, order_id)
+        if order is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy đơn hàng")
+        ids = _owner_ids_for_scope(db, user, authz)
+        if ids is None or chu_cua(db, order.customer_id, order.sale_user_id) in ids:
+            return
+    _guard_don_tao(db, order_id, user, authz)
+
+
 def _guard_scope(db: Session, lsx, user: User, authz: AuthorizationService) -> None:
     if lenh_trong_pham_vi(db, lsx, _phu_trach_ids(db, user, authz)):
         return
@@ -298,7 +312,7 @@ def preview(
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
 ) -> PreviewOut:
-    _guard_don_tao(db, order_id, user, authz)
+    _guard_don_xem(db, order_id, user, authz)
     svc = _svc(db)
     try:
         out = PreviewOut.model_validate(svc.preview(order_id))
