@@ -7,11 +7,13 @@ import { thuongMaiApi, type DongThuongMaiInput, type KhoXuat } from "../../api/t
 import { useAuth } from "../../auth/useAuth";
 import { useCan, useTat } from "../../auth/permissions";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
+import { OChonKhach } from "../../components/ChonKhachHang";
+import { OChonGon } from "../../components/OChonGon";
 import { soVN } from "../../components/LuoiDs";
 import { boCachGiao, CACH_GIAO_TRONG, ChonCachGiao, loiCachGiao, type CachGiao } from "../giao-hang-hp/ChonCachGiao";
 import { useTaiKhoanNhan } from "../ke-toan/phieu-thu/shared/taiKhoanNhan";
 import {
-  ChonHang, ChonKhach, chuSo, dongMoi, dvtCua, giaKhai, loi, useTenDvt, type Dong, type KhachChon,
+  ChonHang, chuSo, dongMoi, dvtCua, giaKhai, loi, useTenDvt, type Dong, type KhachChon,
 } from "./DonThuongMai";
 import "./don-thuong-mai.css";
 import "./tao-don-thuong-mai.css";
@@ -67,7 +69,8 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   const [khos, setKhos] = useState<KhoXuat[]>([]);
   const [khoId, setKhoId] = useState<number | null>(null);
   const [ghiSo, setGhiSo] = useState(true);
-  const [cach, setCach] = useState<CachGiao>(CACH_GIAO_TRONG);
+  // Bán tại tiệm: mặc định khách tự lấy hàng, cần giao thì người bán chọn lại.
+  const [cach, setCach] = useState<CachGiao>({ ...CACH_GIAO_TRONG, loai: "khong_giao" });
   const kho = khos.find((k) => k.id === khoId) ?? null;
   // Tồn từng dòng theo ĐVT của dòng: khoá `${hang_id}|${dvt}`. Nhớ kèm kho đã hỏi để
   // lúc vừa đổi kho không hiện tên kho mới với số của kho cũ.
@@ -98,6 +101,10 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   const ton = tonHoi.kho === khoTon ? tonHoi.so : {};
 
   const sua = (k: number, p: Partial<Dong>) => setDong((ds) => ds.map((d) => (d.khoa === k ? { ...d, ...p } : d)));
+  // Luôn chừa đúng một dòng trống cuối bảng để gõ món tiếp (thay nút "Thêm mặt hàng").
+  useEffect(() => {
+    if (dong.length === 0 || dong[dong.length - 1].hang) setDong((ds) => [...ds, dongMoi()]);
+  }, [dong]);
   const giaDong = (d: Dong) => (d.gia !== "" ? Number(d.gia) : giaKhai(d));
   const tong = useMemo(() => dong.reduce((t, d) => {
     const g = d.gia !== "" ? Number(d.gia) : giaKhai(d);
@@ -117,12 +124,13 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
     if (!khach) { setErr("Chọn khách hàng cho đơn."); return null; }
     const lines: DongThuongMaiInput[] = [];
     for (const d of dong) {
-      if (!d.hang) { setErr("Còn dòng chưa chọn mặt hàng."); return null; }
+      if (!d.hang) continue; // dòng trống cuối bảng để gõ món tiếp
       const sl = Number(d.qty);
       if (!Number.isInteger(sl) || sl <= 0) { setErr(`Số lượng của «${d.hang.ten}» phải là số nguyên lớn hơn 0.`); return null; }
       if (giaDong(d) == null) { setErr(`«${d.hang.ten}» chưa có giá bán theo đơn vị này, gõ đơn giá.`); return null; }
       lines.push({ hang_id: d.hang.id, dvt: d.dvt, qty: sl, don_gia: d.gia !== "" ? Number(d.gia) : null, vat_pct: Number(d.vat) || 0 });
     }
+    if (lines.length === 0) { setErr("Chọn ít nhất một mặt hàng."); return null; }
     return lines;
   }
 
@@ -189,20 +197,21 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
       <header className="tdtm__dau">
         <button type="button" className="tdtm__lui" onClick={onClose} disabled={luu}>← Đơn hàng bán</button>
         <h1 className="tdtm__ten">Tạo đơn thương mại</h1>
-        <div className="tdtm__nut">{nut}</div>
       </header>
-      {err && <div className="banner banner--error" role="alert">{err}</div>}
 
       <div className="tdtm__than">
         <div className="tdtm__cot">
           <section className="tdtm__the" aria-label="Mặt hàng">
             <h2 className="tdtm__tieu">Mặt hàng</h2>
             <div className="tdtm__cuon">
-              <table className="dhb__g dtm__bang">
+              <table className="dtm__bang tdtm__luoi">
                 <thead>
                   <tr>
                     <th>Mặt hàng</th>
                     <th>Đơn vị</th>
+                    <th className="dhb__text-right" title={xuatNgay && kho ? `Số còn ở kho xuất ${kho.ten}` : "Số còn cộng mọi kho"}>
+                      Tồn
+                    </th>
                     <th className="dhb__text-right">Số lượng</th>
                     <th className="dhb__text-right">Đơn giá</th>
                     <th className="dhb__text-right">VAT %</th>
@@ -212,28 +221,37 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
                 </thead>
                 <tbody>
                   {dong.map((d) => {
+                    // Dòng trống cuối bảng chỉ có ô tìm hàng: chọn hàng ở đây là thêm dòng.
+                    if (!d.hang) {
+                      return (
+                        <tr key={d.khoa} className="tdtm__dong-moi">
+                          <td className="dtm__c-hang" data-khong-goi-y="">
+                            <ChonHang value={null} tonKho={{ khoId: khoTon }} goiY="Gõ mã hoặc tên để thêm hàng"
+                              onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
+                          </td>
+                          <td colSpan={7} />
+                        </tr>
+                      );
+                    }
                     const g = giaDong(d);
                     const sl = Number(d.qty) || 0;
-                    const t = d.hang && d.dvt ? ton[`${d.hang.id}|${d.dvt}`] : undefined;
+                    const t = d.dvt ? ton[`${d.hang.id}|${d.dvt}`] : undefined;
                     const thieu = xuatNgay && t != null && t < sl ? sl - t : 0;
                     return (
                       <tr key={d.khoa}>
-                        <td className="dtm__c-hang">
-                          <ChonHang value={d.hang} onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
-                          {t != null && (
-                            <span className={`tdtm__ton${thieu > 0 ? " is-thieu" : ""}`}>
-                              {`${xuatNgay && kho ? kho.ten : "Mọi kho"} còn ${soLe(t)} ${tenDvt(d.dvt)}`}
-                              {thieu > 0 ? `, thiếu ${soLe(thieu)}` : ""}
-                            </span>
-                          )}
+                        <td className="dtm__c-hang" data-khong-goi-y="">
+                          <ChonHang value={d.hang} tonKho={{ khoId: khoTon }}
+                            onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
                         </td>
                         <td>
-                          <select className="dhb__input" aria-label="Đơn vị" value={d.dvt} disabled={!d.hang}
+                          <select className="dhb__input" aria-label="Đơn vị" value={d.dvt}
                             onChange={(e) => sua(d.khoa, { dvt: e.target.value, gia: "" })}>
-                            {(d.hang ? dvtCua(d.hang) : []).map((m) => <option key={m} value={m}>{tenDvt(m)}</option>)}
+                            {dvtCua(d.hang).map((m) => <option key={m} value={m}>{tenDvt(m)}</option>)}
                           </select>
                         </td>
-                        <td>
+                        <td className="tdtm__chu dhb__text-right tdtm__ton">{t == null ? "—" : soLe(t)}</td>
+                        <td className={thieu > 0 ? "is-thieu" : undefined}
+                          title={thieu > 0 ? `Thiếu ${soLe(thieu)} ${tenDvt(d.dvt)}` : undefined}>
                           <input className="dhb__input dhb__text-right" inputMode="numeric" aria-label="Số lượng" value={d.qty}
                             onChange={(e) => sua(d.khoa, { qty: chuSo(e.target.value) })} />
                         </td>
@@ -246,12 +264,10 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
                           <input className="dhb__input dhb__text-right" inputMode="numeric" aria-label="VAT" value={d.vat}
                             onChange={(e) => sua(d.khoa, { vat: chuSo(e.target.value).slice(0, 3) })} />
                         </td>
-                        <td className="dhb__mono dhb__text-right">{g == null ? "—" : soVN(g * sl)}</td>
-                        <td>
-                          {dong.length > 1 && (
-                            <button type="button" className="btn btn--ghost" aria-label="Xoá dòng"
-                              onClick={() => setDong((ds) => ds.filter((x) => x.khoa !== d.khoa))}>×</button>
-                          )}
+                        <td className="tdtm__chu dhb__text-right tdtm__so">{g == null ? "—" : soVN(g * sl)}</td>
+                        <td className="tdtm__chu">
+                          <button type="button" className="tdtm__xoa" aria-label="Xoá dòng" title="Xoá dòng"
+                            onClick={() => setDong((ds) => ds.filter((x) => x.khoa !== d.khoa))}>×</button>
                         </td>
                       </tr>
                     );
@@ -259,7 +275,6 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
                 </tbody>
               </table>
             </div>
-            <button type="button" className="btn btn--secondary dtm__them" onClick={() => setDong((ds) => [...ds, dongMoi()])}>Thêm mặt hàng</button>
             <div className="tdtm__tong"><span>Tổng gồm VAT</span><span>{soVN(tong)}</span></div>
           </section>
 
@@ -272,13 +287,11 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
             {xuatNgay && (
               <>
                 <div className="tdtm__hang">
-                  <label className="dtm__o">
+                  <div className="dtm__o">
                     <span>Kho xuất <b>*</b></span>
-                    <select className="dhb__input" aria-label="Kho xuất" value={khoId ?? ""} onChange={(e) => setKhoId(Number(e.target.value) || null)}>
-                      {khos.length === 0 && <option value="">Chưa có kho</option>}
-                      {khos.map((k) => <option key={k.id} value={k.id}>{k.ten}</option>)}
-                    </select>
-                  </label>
+                    <OChonGon nhan="Kho xuất" value={khoId == null ? "" : String(khoId)} onChange={(v) => setKhoId(Number(v) || null)}
+                      ds={khos.map((k) => ({ value: String(k.id), ten: k.ten }))} />
+                  </div>
                   {kho?.ghi_so_duoc ? (
                     <label className="dtm__check tdtm__ghi-so">
                       <input type="checkbox" checked={ghiSo} onChange={(e) => setGhiSo(e.target.checked)} />
@@ -296,17 +309,8 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
         </div>
 
         <div className="tdtm__cot">
-          <section className="tdtm__the" aria-label="Khách hàng">
-            <h2 className="tdtm__tieu">Khách hàng <b className="tdtm__sao">*</b></h2>
-            {khach ? (
-              <div className="tdtm__khach">
-                <div><span>{khach.name}</span><button type="button" className="tdtm__doi" onClick={() => setKhach(null)}>Đổi</button></div>
-                {(khach.code || khach.phone) && <small>{[khach.code, khach.phone].filter(Boolean).join(" ")}</small>}
-              </div>
-            ) : (
-              <ChonKhach value={null} onChange={setKhach} />
-            )}
-          </section>
+          {/* Ô tự làm thẻ, nhãn Khách hàng nằm trong ô nên không thêm tiêu đề thẻ. */}
+          <OChonKhach value={khach} onChange={(k) => { setKhach(k); setErr(null); }} />
 
           <section className="tdtm__the" aria-label="Thanh toán">
             <h2 className="tdtm__tieu">Thanh toán</h2>
@@ -383,7 +387,11 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
         </div>
       </div>
 
-      <footer className="tdtm__chan">{nut}</footer>
+      {/* Một bộ nút duy nhất, dính đáy màn hình; lỗi hiện ngay cạnh nút vừa bấm. */}
+      <footer className="tdtm__chan">
+        {err && <span className="tdtm__loi" role="alert">{err}</span>}
+        {nut}
+      </footer>
     </main>
   );
 }

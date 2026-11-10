@@ -19,7 +19,7 @@ Không làm:
 ## 2. Bật theo bản cài
 
 MỌI thứ trong tài liệu này chỉ In Hà Phương có (chủ dự án nhắc 08/11/2026). Tắt `giao_hang_hp` thì
-Sao Việt Nhật không thấy hộp chọn phương thức, cột Giao hàng, danh mục xe, cờ đơn vị vận chuyển hay chip
+Sao Việt Nhật không thấy hộp chọn phương thức, cột Cách giao và Người giao, mục lọc giao hàng, danh mục xe, cờ đơn vị vận chuyển hay chip
 bộ phận giao hàng, và Xuất hàng chạy y như hiện nay. Phải có test chứng minh điều này.
 
 Phân hệ mới `giao_hang_hp`, mặc định tắt. Hà Phương bật bằng `PHAN_HE_BAT`, cùng cơ chế ở
@@ -35,6 +35,11 @@ Bấm "Xuất hàng" ở đơn sản xuất hay đơn thương mại đều như
 2. **Giao hàng nội bộ.** Chọn Người giao và Xe.
    - Người giao chỉ liệt kê nhân viên thuộc bộ phận có cờ giao hàng.
    - Chọn người thì ô Xe tự điền xe người đó phụ trách. Đổi được.
+   - Hai ô là danh sách gọn tự dựng (`components/OChonGon.tsx`), không ghép thông tin thành một chuỗi
+     (09/11/2026). Ô Người giao: mỗi dòng tên người, bên phải chữ xám là biển số xe người đó phụ trách;
+     ô đã chọn chỉ ghi tên vì ô Xe ngay cạnh đã hiện biển số. Không ghi bộ phận vì ai trong danh sách cũng
+     thuộc bộ phận giao hàng. Ô Xe: tên xe bên trái, biển số chữ xám bên phải; dòng đầu "Không dùng xe
+     của công ty".
 3. **Giao hàng dịch vụ.** Chọn Đơn vị vận chuyển, gõ Tiền cước và Mã vận đơn (không bắt buộc).
    - Đơn vị vận chuyển chọn trong danh sách nhà cung cấp có cờ "Đơn vị vận chuyển".
 
@@ -72,12 +77,17 @@ Dùng bảng mới, không dùng bảng `xe` của module cũ, vì bảng đó g
 
 Thông tin giao hàng được ghi nhận và xem tại đơn hàng (chủ dự án chốt 08/11/2026):
 
-- Danh sách Đơn hàng bán thêm cột "Giao hàng". Cột hiện phương thức của lần xuất gần nhất, kèm người
-  giao hoặc đơn vị vận chuyển.
+- Danh sách Đơn hàng bán thêm hai cột theo lần xuất gần nhất (tách ngày 09/11/2026): "Cách giao" (Không
+  cần giao / Giao nội bộ / Thuê vận chuyển) và "Người giao" (nhân viên giao, hoặc đơn vị vận chuyển nếu
+  thuê ngoài). Để bảng vừa màn 1600px, bản này ẩn sẵn cột PO khách cho người chưa tự chỉnh cột; bật lại
+  ở nút Cột.
+- Nút Lọc của Đơn hàng bán thêm hai mục: "Cách giao" và "Người giao" (một ô gồm cả nhân viên giao lẫn
+  đơn vị vận chuyển). Đơn được tính nếu có ít nhất một lần xuất khớp. Lọc và đếm ở máy chủ
+  (`GET /api/orders?cach_giao=&nguoi_giao=&don_vi_vc=`), ghi lên URL (`cg=`, `ng=nv:id` hoặc `ng=vc:id`).
 - Ngăn chi tiết đơn, khối Xuất hàng: mỗi lần xuất ghi phương thức, người giao, xe, đơn vị vận chuyển,
   tiền cước, mã vận đơn. Tiền cước chỉ hiện với người có quyền xem tiền.
 
-Cột và khối này chỉ hiện khi bật `giao_hang_hp`.
+Các cột, mục lọc và khối này chỉ hiện khi bật `giao_hang_hp`.
 
 ## 8. Dữ liệu
 

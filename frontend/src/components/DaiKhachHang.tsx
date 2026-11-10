@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Building2, Check, ChevronDown, FileText, MapPin, Plus, User } from "lucide-react";
 import { api, type CustomerAddress, type CustomerContact, type CustomerRow } from "../api/client";
 import { useAuth } from "../auth/useAuth";
+import { DsTimKhach } from "./ChonKhachHang";
 import "./dai-khach-hang.css";
 
 export interface KhachCuaPhieu {
@@ -52,9 +53,6 @@ export function DaiKhachHang({ giaTri, ghiChu, onDoi, khoa, phuKhach, nhanDiemGi
   const [napCho, setNapCho] = useState<number | null>(null);
   const [dsXong, setDsXong] = useState<number | null>(null);
   const [mst, setMst] = useState<string | null>(null);
-  const [tim, setTim] = useState("");
-  const [khachs, setKhachs] = useState<CustomerRow[]>([]);
-  const [dangTim, setDangTim] = useState(false);
   const [note, setNote] = useState(ghiChu ?? "");
   const [ghiChuDu, setGhiChuDu] = useState(false);
   const goc = useRef<HTMLDivElement>(null);
@@ -89,20 +87,6 @@ export function DaiKhachHang({ giaTri, ghiChu, onDoi, khoa, phuKhach, nhanDiemGi
     }
     api.customers.get(token, cid).then((r) => setMst(r.customer.tax_code)).catch(() => setMst(null));
   }, [sua, token, cid, phuKhach]);
-
-  // Tìm khách ở MÁY CHỦ (đúng phạm vi Khách hàng của người dùng), không tải hết rồi lọc tay.
-  useEffect(() => {
-    if (mo !== "kh" || !token) return;
-    setDangTim(true);
-    const h = window.setTimeout(() => {
-      api.customers
-        .list(token, { q: tim.trim() || undefined, size: 20, sort: "name" })
-        .then((r) => setKhachs(r.items))
-        .catch(() => setKhachs([]))
-        .finally(() => setDangTim(false));
-    }, 200);
-    return () => window.clearTimeout(h);
-  }, [mo, tim, token]);
 
   useEffect(() => {
     if (!mo) return;
@@ -227,7 +211,6 @@ export function DaiKhachHang({ giaTri, ghiChu, onDoi, khoa, phuKhach, nhanDiemGi
         disabled={khoa || tat}
         aria-expanded={mo === o}
         onClick={() => {
-          setTim("");
           setMo(mo === o ? null : o);
         }}
       >
@@ -277,38 +260,7 @@ export function DaiKhachHang({ giaTri, ghiChu, onDoi, khoa, phuKhach, nhanDiemGi
 
       {mo && (
         <div className={`dkh__pop dkh__pop--${mo}`} role="listbox">
-          {mo === "kh" && (
-            <>
-              <input
-                autoFocus
-                className="dkh__search"
-                placeholder="Gõ tên, mã hoặc mã số thuế"
-                value={tim}
-                onChange={(e) => setTim(e.target.value)}
-                aria-label="Tìm khách hàng"
-              />
-              {khachs.map((k) => (
-                <button
-                  type="button"
-                  key={k.id}
-                  className={`dkh__opt${k.id === cid ? " is-sel" : ""}`}
-                  onClick={() => void chonKhach(k)}
-                >
-                  <span>
-                    <span className="dkh__opt-t">{k.name}</span>
-                    <span className="dkh__opt-d">
-                      <span className="dkh__tag">{k.code}</span>
-                      {k.tax_code && <span>MST {k.tax_code}</span>}
-                    </span>
-                  </span>
-                  <Check size={14} className="dkh__ck" aria-hidden="true" />
-                </button>
-              ))}
-              {!dangTim && khachs.length === 0 && (
-                <div className="dkh__none">Không tìm thấy khách trong phạm vi bạn được xem.</div>
-              )}
-            </>
-          )}
+          {mo === "kh" && <DsTimKhach chonId={cid} onChon={(k) => void chonKhach(k)} />}
           {(mo === "dc" || mo === "ng") && dsXong !== cid && <div className="dkh__none">Đang tải…</div>}
           {mo === "dc" && dsXong === cid &&
             (diemGiao.length ? (

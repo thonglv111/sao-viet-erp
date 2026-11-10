@@ -123,12 +123,17 @@ def _loc_don_hang(
     nha_gia_cong: int | None = Query(default=None),
     giao: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
     hoa_don: str | None = Query(default=None, pattern="^(chua|mot_phan|du)$"),
+    ban: str | None = Query(default=None, pattern="^(san_xuat|thuong_mai)$"),
+    cach_giao: str | None = Query(default=None, pattern="^(khong_giao|noi_bo|dich_vu)$"),
+    nguoi_giao: int | None = Query(default=None),
+    don_vi_vc: int | None = Query(default=None),
 ) -> LocDonHang:
     """Dải kỳ + bảng "Bộ lọc nâng cao" — chung cho danh sách và thanh tab."""
     return LocDonHang(
         tu_ngay=tu_ngay, den_ngay=den_ngay, moc=moc, khach=khach, gap=gap, gia_tu=gia_tu, gia_den=gia_den,
         hen_giao=hen_giao, dang_cho=dang_cho, gia_cong=gia_cong, nha_gia_cong=nha_gia_cong,
-        giao=giao, hoa_don=hoa_don,
+        giao=giao, hoa_don=hoa_don, ban=ban,
+        cach_giao=cach_giao, nguoi_giao=nguoi_giao, don_vi_vc=don_vi_vc,
     )
 
 

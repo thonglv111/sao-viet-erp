@@ -168,9 +168,10 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   // Đơn thương mại (chỉ In Hà Phương): bán hàng có sẵn, lập ngay ở màn này — không qua báo giá.
   const coThuongMai = !useTat()("thuong_mai") && can("don_hang_ban", "create");
   const [taoTM, setTaoTM] = useState(false);
-  // Giao hàng kiểu Hà Phương: cột Giao hàng = cách giao của lần xuất gần nhất.
+  // Giao hàng kiểu Hà Phương: cột Cách giao + Người giao theo lần xuất gần nhất.
   const coCachGiao = !useTat()("giao_hang_hp");
-  const cotDs = coCachGiao ? COT_DH : COT_DH.filter((c) => c.key !== "cach_giao");
+  const coLoaiDon = !useTat()("thuong_mai");
+  const cotDs = COT_DH.filter((c) => ((c.key !== "cach_giao" && c.key !== "nguoi_giao") || coCachGiao) && (c.key !== "loai" || coLoaiDon));
   // Thu cọc = lập phiếu thu ⇒ hỏi Phiếu thu → Tạo (13/10/2026, trước đó là ô riêng của Đơn hàng bán).
   const canRecordDeposit = can("phieu_thu", "create");
 
@@ -184,7 +185,9 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   const [total, setTotal] = useState(0);
   const [tong, setTong] = useState({ giaTri: 0, coc: 0 });
   const [sort, setSort] = useState("-created_at");
-  const luoi = useCauHinhLuoi("don-hang-ban");
+  // Bản giao hàng kiểu Hà Phương có thêm Cách giao + Người giao: ẩn sẵn PO khách để bảng vừa màn 1600px
+  // (chỉ áp cho người chưa tự chỉnh cột lần nào; bật lại ở nút Cột).
+  const luoi = useCauHinhLuoi("don-hang-ban", coCachGiao ? ["po"] : undefined);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // `/enums` không còn được nạp ở đây: nó chỉ phục vụ hộp thoại tạo đơn (đã xoá). Nhãn trạng thái
@@ -423,20 +426,26 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
 // --- Lưới danh sách (phương án A, 07/10/2026) --------------------------------------------------
 // Thứ tự: Mã, Ngày tạo, Khách, Hàng, PO khách, Giá trị, Trạng thái, rồi các khâu theo luồng (Hẹn giao,
 // Cọc, Sản xuất, Giao khách), cuối là Phụ trách.
+// Độ rộng mặc định chia để các cột vừa khung bảng ở màn 1600px (≈1290px) không phải cuộn ngang
+// (09/11/2026; bản Hà Phương ẩn sẵn PO khách): ngày, loại đơn, giá trị, trạng thái đủ chỗ; tên khách, hàng,
+// "còn N ngày", người giao dài thì bị cắt, rê chuột xem đủ, cột nào cần rộng thì kéo mép.
 const COT_DH: (CotLuoi & { w?: number; n?: boolean; sx?: string })[] = [
-  { key: "ma", label: "Mã đơn", coDinh: true, w: 105, sx: "order_no" },
-  { key: "ngay", label: "Ngày tạo", w: 100, sx: "created_at" },
-  { key: "khach", label: "Khách hàng", w: 190 },
-  { key: "hang", label: "Hàng", w: 190 },
-  { key: "po", label: "PO khách", w: 95 },
-  { key: "gia", label: "Giá trị", w: 115, n: true },
-  { key: "tt", label: "Trạng thái", w: 105, sx: "status" },
-  { key: "hen", label: "Hẹn giao", w: 165, sx: "delivery_committed_date" },
-  { key: "coc", label: "Cọc", w: 125 },
-  { key: "giao", label: "Giao khách", w: 120 },
+  { key: "ma", label: "Mã đơn", coDinh: true, w: 85, sx: "order_no" },
+  // Chỉ bản cài bật hàng thương mại (`thuong_mai`, In Hà Phương) — bản khác lọc cột này đi.
+  { key: "loai", label: "Loại đơn", w: 105 },
+  { key: "ngay", label: "Ngày tạo", w: 95, sx: "created_at" },
+  { key: "khach", label: "Khách hàng", w: 115 },
+  { key: "hang", label: "Hàng", w: 115 },
+  { key: "po", label: "PO khách", w: 65 },
+  { key: "gia", label: "Giá trị", w: 100, n: true },
+  { key: "tt", label: "Trạng thái", w: 95, sx: "status" },
+  { key: "hen", label: "Hẹn giao", w: 100, sx: "delivery_committed_date" },
+  { key: "coc", label: "Cọc", w: 85 },
+  { key: "giao", label: "Giao khách", w: 90 },
   // Chỉ bản cài bật giao hàng kiểu Hà Phương (`giao_hang_hp`) — bản khác lọc cột này đi.
-  { key: "cach_giao", label: "Giao hàng", w: 170 },
-  { key: "nv", label: "Phụ trách" },
+  { key: "cach_giao", label: "Cách giao", w: 115 },
+  { key: "nguoi_giao", label: "Người giao", w: 115 },
+  { key: "nv", label: "Phụ trách", w: 75 },
 ];
 
 // Chấm màu hàng lọc nhanh = sắc chip trạng thái trên dòng.
@@ -483,6 +492,8 @@ function ODon({ cot, o, mocNgay, cg }: { cot: string; o: OrderRow; mocNgay: "tao
           {o.is_rush ? <span className="lds-tag lds-do">Gấp</span> : null}
         </td>
       );
+    case "loai":
+      return <td>{o.source_type === "thuong_mai" ? "Thương mại" : "Sản xuất"}</td>;
     case "ngay":
       return <td>{ngayVN(mocNgay === "chot" ? o.ordered_at : o.created_at)}</td>;
     case "khach":
@@ -547,13 +558,12 @@ function ODon({ cot, o, mocNgay, cg }: { cot: string; o: OrderRow; mocNgay: "tao
     }
     case "cach_giao": {
       if (!cg) return <td>{mu}</td>;
-      const n = nhanCachGiao(cg);
-      return (
-        <td title={cg.ma_lan_xuat ? `Lần xuất ${cg.ma_lan_xuat}` : undefined}>
-          {n.chinh}
-          {n.phu && <span className="lds-u">{n.phu}</span>}
-        </td>
-      );
+      return <td title={cg.ma_lan_xuat ? `Lần xuất ${cg.ma_lan_xuat}` : undefined}>{nhanCachGiao(cg).chinh}</td>;
+    }
+    case "nguoi_giao": {
+      // Nhân viên giao (giao nội bộ) hoặc đơn vị vận chuyển (thuê ngoài) của lần xuất gần nhất.
+      const phu = cg ? nhanCachGiao(cg).phu : null;
+      return phu ? <td title={phu}>{phu}</td> : <td>{mu}</td>;
     }
     case "nv":
       return <td title={o.sale_name ?? undefined}>{o.sale_name ? tenGoi(o.sale_name) : mu}</td>;

@@ -127,7 +127,7 @@ Chủ dự án chốt 08/11/2026: loại đơn là bản chất của đơn, kh�
 - Đơn đi qua sản xuất (tạo từ báo giá) là đơn sản xuất.
 - Đơn tạo ở màn Đơn hàng bán là đơn thương mại.
 
-Không thêm cột `loai_don`, không có cột "Loại đơn" trên màn. Máy chủ biết loại qua nguồn tạo đơn đang có
+Không thêm cột `loai_don` trong DB. Màn Đơn hàng bán có cột "Loại đơn" ngay sau Mã đơn, ghi "Sản xuất" hoặc "Thương mại" (chủ dự án yêu cầu 09/11/2026), chỉ hiện khi bật `thuong_mai`. Máy chủ biết loại qua nguồn tạo đơn đang có
 `orders.source_type`:
 
 - `bao_gia`: đơn sản xuất, như hiện nay.
@@ -138,6 +138,10 @@ Giá trị `nhap_tay` cũ (đã gỡ, còn đơn cũ) không tính là thương 
 Khi bật `thuong_mai`:
 
 - Màn Đơn hàng bán có nút tạo đơn thương mại. Đơn sản xuất vẫn tạo từ báo giá như cũ.
+- Nút Lọc của màn Đơn hàng bán có thêm mục "Loại đơn" (Đơn sản xuất / Đơn thương mại),
+  đứng đầu danh sách mục lọc. Lọc và đếm ở máy chủ (`GET /api/orders?ban=san_xuat|thuong_mai`, áp cả số trên
+  các tab trạng thái), ghi lên URL (`ban=`). Mục chỉ hiện khi bật `thuong_mai`. Mục lọc Đơn mới / Đơn bổ sung
+  có từ trước nay đổi tên thành "Mới hay bổ sung" cho khỏi trùng.
 - Mã đơn thương mại có tiền tố riêng `TM` (TM001, TM002…), đánh số riêng, khác `DH` của đơn sản xuất
   (`order_repo.py`). Nhìn mã là biết loại, kể cả ở chỗ chỉ in mã.
 - Đầu ngăn chi tiết đơn ghi rõ loại. Đơn thương mại mở ra form của nó (dòng mặt hàng), không có các ô
@@ -237,14 +241,21 @@ hàng bán mở trang này; nút "← Đơn hàng bán" quay về.
 
 Bố cục hai cột:
 
-- Trái, khối Mặt hàng: giữ nguyên bảng đang có (Mặt hàng, Đơn vị, Số lượng, Đơn giá, VAT %, Thành tiền,
-  nút xoá, nút "Thêm mặt hàng", "Tổng gồm VAT"). Thêm một dòng tồn dưới tên mặt hàng, đọc tồn của kho
-  xuất đang chọn theo đúng ĐVT của dòng ("Cửa hàng còn 12 hộp"). Thiếu thì dòng đó đổi màu cam và ghi
-  "thiếu N". Chọn Xuất sau thì dòng tồn cộng mọi kho.
+- Trái, khối Mặt hàng: lưới phẳng kiểu Excel (phương án B ở
+  `docs/mockups/tao-don-tm-khoi-mat-hang-3-phuong-an.html`), cột Mặt hàng, Đơn vị, Tồn, Số lượng, Đơn giá,
+  VAT %, Thành tiền, nút xoá, dưới là "Tổng gồm VAT". Dòng cao 36px, ô không viền, chỉ hiện viền khi rê
+  chuột hoặc đang gõ. Dòng cuối luôn trống ("Gõ mã hoặc tên để thêm hàng"), chọn hàng ở đó là thêm dòng,
+  không có nút "Thêm mặt hàng"; dòng trống không gửi lên máy chủ. Đơn giá trống in giá đã khai cùng màu
+  chữ thường. Cột Tồn đọc tồn của kho xuất đang chọn theo đúng ĐVT của dòng (đầu cột chỉ ghi "Tồn", tên
+  kho nằm ở ô Kho xuất); thiếu thì ô Số lượng nền vàng, rê chuột vào thấy "Thiếu N <đơn vị>". Chọn Xuất
+  sau thì cột Tồn cộng mọi kho.
+  Danh sách gợi ý của ô tìm hàng rộng hơn ô gõ, mỗi dòng có tên (mã nhạt bên dưới), Tồn ở cùng kho đó
+  theo ĐVT bán chính (hết thì chữ đỏ "Hết") và Giá bán theo ĐVT đó. Mũi tên lên xuống để dò, Enter để
+  chọn, Esc để đóng.
 - Trái, khối Xuất hàng: "Xuất ngay" hoặc "Xuất sau". Xuất ngay hiện Kho xuất *, ô "Ghi sổ kho luôn (hàng
-  trừ tồn ngay, khỏi qua màn Kho)" và 3 thẻ Cách giao, y như hộp Xuất hàng ở ngăn đơn. Xuất ngay là xuất
+  trừ tồn ngay, khỏi qua màn Kho)" và 3 thẻ Cách giao (mặc định chọn sẵn Không cần giao vì bán tại tiệm). Ô Kho xuất là danh sách gọn, mỗi kho một dòng chỉ ghi tên kho, y như hộp Xuất hàng ở ngăn đơn. Xuất ngay là xuất
   hết số lượng của đơn; muốn xuất một phần thì chọn Xuất sau rồi xuất ở ngăn đơn như hôm nay.
-- Phải, khối Khách hàng: ô tìm "Gõ tên, mã hoặc số điện thoại khách", chọn xong hiện tên, mã, nút Đổi.
+- Phải, ô Khách hàng: cùng khuôn ô Khách hàng ở dải khách của Phiếu tính giá (thành phần chung `components/ChonKhachHang.tsx`). Bấm ô mở danh sách có ô tìm "Gõ tên, số điện thoại hoặc mã số thuế" (máy chủ tìm theo ba cột này), mỗi dòng là tên, mã và số điện thoại. Chọn xong ô hiện tên khách, dưới là mã và số điện thoại; muốn đổi thì bấm lại ô. Ô tự làm thẻ, không có tiêu đề thẻ riêng.
 - Phải, khối Thanh toán: "Khách trả ngay" hoặc "Thanh toán sau".
   - Khách trả ngay: Khách phải trả (= Tổng gồm VAT), Nhận bằng Tiền mặt / Chuyển khoản, ô "Tiền khách
     đưa" điền sẵn số phải trả, kèm các mức gợi ý (đúng số phải trả, làm tròn lên chục nghìn, trăm nghìn,
@@ -261,7 +272,7 @@ Mở trang thì "Khách trả ngay" và "Xuất ngay" được chọn sẵn. Kho
 đầu danh sách, kho người đó có quyền xếp trước (`GET /api/thuong-mai/kho-xuat`). Dòng tồn đọc
 `POST /api/thuong-mai/ton`.
 
-Nút: Hủy, Lưu nháp, và nút chính đổi chữ theo hai khối:
+Nút: một bộ duy nhất ở chân trang, dính đáy màn hình khi cuộn; lỗi khi bấm hiện chữ đỏ bên trái thanh nút. Gồm Hủy, Lưu nháp, và nút chính đổi chữ theo hai khối:
 
 | Thanh toán | Xuất hàng | Nút chính |
 |---|---|---|

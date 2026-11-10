@@ -83,8 +83,8 @@ export function ChonKhach({ value, onChange }: { value: KhachChon | null; onChan
           {ds.map((k) => (
             <li key={k.id}>
               <button type="button" onClick={() => { onChange({ id: k.id, name: k.name, code: k.code, phone: k.phone }); setMo(false); }}>
-                <span>{k.name}</span>
-                <small>{k.code}{k.phone ? ` ${k.phone}` : ""}</small>
+                <span title={k.name}>{k.name}</span>
+                <small><span>{k.code}</span>{k.phone && <span>{k.phone}</span>}</small>
               </button>
             </li>
           ))}
@@ -94,37 +94,94 @@ export function ChonKhach({ value, onChange }: { value: KhachChon | null; onChan
   );
 }
 
-/** Ô tìm chọn mặt hàng thương mại (mã / tên). */
-export function ChonHang({ value, onChange }: { value: HangThuongMai | null; onChange: (h: HangThuongMai) => void }) {
+/** Ô tìm chọn mặt hàng thương mại (mã / tên). Truyền `tonKho` thì danh sách gợi ý kèm tồn ở kho đó
+ *  (`khoId` null = cộng mọi kho), tính theo ĐVT bán chính của mặt hàng. */
+export function ChonHang({ value, onChange, tonKho, goiY = "Gõ mã hoặc tên hàng" }: {
+  value: HangThuongMai | null;
+  onChange: (h: HangThuongMai) => void;
+  tonKho?: { khoId: number | null };
+  goiY?: string;
+}) {
   const { token } = useAuth();
+  const tenDvt = useTenDvt();
   const [q, setQ] = useState("");
   const [ds, setDs] = useState<HangThuongMai[]>([]);
+  const [ton, setTon] = useState<Record<number, number>>({});
   const [mo, setMo] = useState(false);
+  const [chiSo, setChiSo] = useState(0);
+  const coTon = tonKho !== undefined;
+  const khoId = tonKho?.khoId ?? null;
   useEffect(() => {
     if (!token || !mo) return;
+    let bo = false;
     const t = window.setTimeout(() => {
-      thuongMaiApi.hang(token, q).then((r) => setDs(r.items)).catch(() => setDs([]));
+      thuongMaiApi.hang(token, q).then((r) => {
+        if (bo) return;
+        setDs(r.items);
+        setChiSo(0);
+        if (!coTon || r.items.length === 0) { setTon({}); return; }
+        thuongMaiApi.ton(token, khoId, r.items.map((h) => ({ hang_id: h.id, dvt: h.don_vi_gia, qty: 1 })))
+          .then((x) => { if (!bo) setTon(Object.fromEntries(x.map((y) => [y.hang_id, y.ton]))); })
+          .catch(() => { if (!bo) setTon({}); });
+      }).catch(() => { if (!bo) setDs([]); });
     }, 200);
-    return () => window.clearTimeout(t);
-  }, [token, q, mo]);
+    return () => { bo = true; window.clearTimeout(t); };
+  }, [token, q, mo, coTon, khoId]);
+  const chon = (h: HangThuongMai) => { onChange(h); setMo(false); };
   return (
-    <div className="dtm__tim">
-      <input className="dhb__input" aria-label="Mặt hàng" placeholder="Gõ mã hoặc tên hàng"
-        value={mo ? q : value ? `${value.ma} ${value.ten}` : q}
+    // `data-khong-goi-y`: ô bảng chứa danh sách nổi bị bong bóng chung của bảng coi là "cắt chữ" và
+    // bung cả danh sách thành chữ; tên đã chọn bị cắt thì xem bằng `title` của ô gõ.
+    <div className="dtm__tim" data-khong-goi-y="">
+      <input className="dhb__input" aria-label="Mặt hàng" placeholder={goiY}
+        value={mo ? q : value ? value.ten : q}
+        title={value && !mo ? `${value.ten} (${value.ma})` : undefined}
         onFocus={() => { setMo(true); setQ(""); }}
         onBlur={() => window.setTimeout(() => setMo(false), 150)}
-        onChange={(e) => setQ(e.target.value)} />
-      {mo && ds.length > 0 && (
-        <ul className="dtm__goi-y" role="listbox">
-          {ds.map((h) => (
-            <li key={h.id}>
-              <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { onChange(h); setMo(false); }}>
-                <span>{h.ten}</span>
-                <small>{h.ma}</small>
-              </button>
-            </li>
-          ))}
-        </ul>
+        onKeyDown={(e) => {
+          if (!mo || ds.length === 0) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setChiSo((i) => Math.min(ds.length - 1, i + 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setChiSo((i) => Math.max(0, i - 1)); }
+          else if (e.key === "Enter") { e.preventDefault(); chon(ds[chiSo]); }
+          else if (e.key === "Escape") setMo(false);
+        }}
+        onClick={() => setMo(true)}
+        onChange={(e) => { setQ(e.target.value); setMo(true); }} />
+      {mo && (
+        <div className="dtm__goi-y" role="listbox" aria-label="Mặt hàng tìm được">
+          {ds.length === 0 ? (
+            <p className="dtm__goi-y-trong">{q.trim() ? "Không có mặt hàng khớp." : "Chưa có mặt hàng thương mại nào."}</p>
+          ) : (
+            <>
+              <div className="dtm__goi-y-dau" aria-hidden="true">
+                <span>Mặt hàng</span>
+                {coTon && <span>Tồn</span>}
+                <span>Giá bán</span>
+              </div>
+              {ds.map((h, i) => {
+                const t = ton[h.id];
+                const gia = h.gia_ban_theo_dvt?.[h.don_vi_gia];
+                return (
+                  <button key={h.id} type="button" role="option" aria-selected={i === chiSo}
+                    className={`dtm__goi-y-dong${i === chiSo ? " is-chon" : ""}${coTon ? " co-ton" : ""}`}
+                    onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setChiSo(i)} onClick={() => chon(h)}>
+                    <span className="dtm__goi-y-ten">
+                      <span>{h.ten}</span>
+                      <small>{h.ma}</small>
+                    </span>
+                    {coTon && (
+                      <span className={`dtm__goi-y-so${t != null && t <= 0 ? " is-het" : ""}`}>
+                        {t == null ? "—" : t <= 0 ? "Hết" : `${Number(t.toFixed(3)).toLocaleString("vi-VN")} ${tenDvt(h.don_vi_gia)}`}
+                      </span>
+                    )}
+                    <span className="dtm__goi-y-so">
+                      {gia == null ? "—" : `${soVN(gia)}/${tenDvt(h.don_vi_gia)}`}
+                    </span>
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -223,7 +280,7 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
               const sl = Number(d.qty) || 0;
               return (
                 <tr key={d.khoa}>
-                  <td className="dtm__c-hang">
+                  <td className="dtm__c-hang" data-khong-goi-y="">
                     <ChonHang value={d.hang} onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
                   </td>
                   <td>

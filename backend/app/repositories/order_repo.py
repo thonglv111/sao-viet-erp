@@ -15,6 +15,7 @@ from sqlalchemy import BigInteger, and_, asc, cast, desc, exists, func, or_, sel
 from sqlalchemy.orm import Session, selectinload
 
 from ..models.customer import Customer
+from ..models.giao_hang_hp import PhuongThucGiaoHp
 from ..models.order import (
     SOURCE_BAO_GIA, SOURCE_THUONG_MAI, STATUS_CANCELLED, STATUS_DRAFT, STATUS_ORDERED, Order, OrderLine,
 )
@@ -184,6 +185,12 @@ class LocDonHang:
     giao: str | None = None
     #: `chua` | `mot_phan` | `du` — hoá đơn đã ghi so với giá trị gồm VAT.
     hoa_don: str | None = None
+    #: `thuong_mai` = đơn tạo ở màn Đơn hàng bán (chỉ In Hà Phương có), `san_xuat` = mọi đơn còn lại.
+    ban: str | None = None
+    #: Giao hàng kiểu Hà Phương: đơn có ÍT NHẤT MỘT lần xuất khớp cách giao / người giao / đơn vị vận chuyển.
+    cach_giao: str | None = None
+    nguoi_giao: int | None = None
+    don_vi_vc: int | None = None
     #: Cho test ghim ngày; bỏ trống = hôm nay giờ Việt Nam.
     hom_nay: date | None = None
 
@@ -515,6 +522,19 @@ class OrderRepository:
             conditions.append(Order.customer_id == loc.khach)
         if loc.gap is not None:
             conditions.append(Order.is_rush.is_(loc.gap))
+        if loc.ban == "thuong_mai":
+            conditions.append(Order.source_type == SOURCE_THUONG_MAI)
+        elif loc.ban == "san_xuat":
+            conditions.append(_LA_DON_SX)
+        if loc.cach_giao or loc.nguoi_giao is not None or loc.don_vi_vc is not None:
+            dk_giao = [PhuongThucGiaoHp.order_id == Order.id]
+            if loc.cach_giao:
+                dk_giao.append(PhuongThucGiaoHp.loai == loc.cach_giao)
+            if loc.nguoi_giao is not None:
+                dk_giao.append(PhuongThucGiaoHp.nguoi_giao_id == loc.nguoi_giao)
+            if loc.don_vi_vc is not None:
+                dk_giao.append(PhuongThucGiaoHp.don_vi_vc_id == loc.don_vi_vc)
+            conditions.append(exists().where(*dk_giao))
         if loc.gia_tu is not None:
             conditions.append(_tong_vat_x100() >= loc.gia_tu * 100)
         if loc.gia_den is not None:

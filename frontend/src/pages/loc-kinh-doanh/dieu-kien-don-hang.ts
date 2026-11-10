@@ -3,11 +3,13 @@
  *  chuyển" (nay là Đang chờ = Đủ cọc). */
 import { useEffect, useState } from "react";
 import {
-  Banknote, CalendarClock, Factory, FileText, Hourglass, Receipt, Truck, Users, Warehouse, Zap,
+  Banknote, CalendarClock, Factory, FileText, Hourglass, Receipt, Store, Truck, UserRound, Users, Warehouse, Zap,
 } from "lucide-react";
 
 import { api, type DangCho, type ThamSoLoc } from "../../api/client";
+import { giaoHangHpApi } from "../../api/giaoHangHp";
 import { useAuth } from "../../auth/useAuth";
+import { useTat } from "../../auth/permissions";
 import type { GiaTriUrl } from "../ke-toan/shared/urlMan";
 import { soLenUrl, soTuUrl } from "../thanh-loc/ky-danh-sach";
 import { chuThanhId, idThanhChu, useLuaChonLoc } from "../thanh-loc/lua-chon";
@@ -27,6 +29,12 @@ export type LocDonHang = {
   nha_gia_cong?: number;
   giao?: MucDo;
   hoa_don?: MucDo;
+  /** Đơn sản xuất hay đơn thương mại — chỉ khi bật phân hệ `thuong_mai` (In Hà Phương). */
+  ban?: "san_xuat" | "thuong_mai";
+  /** Giao hàng kiểu Hà Phương: đơn có ít nhất một lần xuất khớp. Người giao là nhân viên giao (`nv:id`)
+   *  hoặc đơn vị vận chuyển thuê ngoài (`vc:id`), chung một ô. */
+  cach_giao?: "khong_giao" | "noi_bo" | "dich_vu";
+  nguoi_giao?: string;
 };
 type MucDo = "chua" | "mot_phan" | "du";
 
@@ -35,6 +43,15 @@ export const LOC_DH_TRONG: LocDonHang = {};
 const LOAI: GiaTriDK[] = [
   { value: "moi", nhan: "Đơn mới" },
   { value: "bo_sung", nhan: "Đơn bổ sung" },
+];
+const BAN: GiaTriDK[] = [
+  { value: "san_xuat", nhan: "Đơn sản xuất" },
+  { value: "thuong_mai", nhan: "Đơn thương mại" },
+];
+const CACH_GIAO: GiaTriDK[] = [
+  { value: "khong_giao", nhan: "Không cần giao" },
+  { value: "noi_bo", nhan: "Giao nội bộ" },
+  { value: "dich_vu", nhan: "Thuê vận chuyển" },
 ];
 const GAP: GiaTriDK[] = [
   { value: "co", nhan: "Chỉ đơn gấp" },
@@ -86,6 +103,10 @@ export function thamSoLocDH(loc: LocDonHang): ThamSoLoc {
     nha_gia_cong: loc.nha_gia_cong,
     giao: loc.giao,
     hoa_don: loc.hoa_don,
+    ban: loc.ban,
+    cach_giao: loc.cach_giao,
+    nguoi_giao: loc.nguoi_giao?.startsWith("nv:") ? Number(loc.nguoi_giao.slice(3)) : undefined,
+    don_vi_vc: loc.nguoi_giao?.startsWith("vc:") ? Number(loc.nguoi_giao.slice(3)) : undefined,
   };
 }
 
@@ -108,6 +129,9 @@ export function locDHTuUrl(p: URLSearchParams): LocDonHang {
     nha_gia_cong: soTuUrl(p.get("ngc")),
     giao: mot<MucDo>(p.get("giao"), MUC_GIAO),
     hoa_don: mot<MucDo>(p.get("hd"), MUC_HOA_DON),
+    ban: mot<NonNullable<LocDonHang["ban"]>>(p.get("ban"), BAN),
+    cach_giao: mot<NonNullable<LocDonHang["cach_giao"]>>(p.get("cg"), CACH_GIAO),
+    nguoi_giao: /^(nv|vc):\d+$/.test(p.get("ng") ?? "") ? p.get("ng")! : undefined,
   };
 }
 
@@ -124,6 +148,9 @@ export function locDHLenUrl(loc: LocDonHang): GiaTriUrl {
     ngc: soLenUrl(loc.nha_gia_cong),
     giao: loc.giao,
     hd: loc.hoa_don,
+    ban: loc.ban,
+    cg: loc.cach_giao,
+    ng: loc.nguoi_giao,
   };
 }
 
@@ -138,11 +165,35 @@ function useDangCho(): GiaTriDK[] {
   return DANG_CHO.map((d) => ({ ...d, so: dem[d.value] }));
 }
 
+/** Nhân viên giao hàng + đơn vị vận chuyển cho ô lọc Người giao (chỉ bản giao hàng kiểu Hà Phương). */
+function useNguoiGiao(bat: boolean): GiaTriDK[] {
+  const { token } = useAuth();
+  const [ds, setDs] = useState<GiaTriDK[]>([]);
+  useEffect(() => {
+    if (!token || !bat) return;
+    Promise.all([giaoHangHpApi.nguoiGiao(token), giaoHangHpApi.donViVc(token)])
+      .then(([n, v]) => setDs([
+        ...n.items.map((x) => ({ value: `nv:${x.id}`, nhan: x.ten })),
+        ...v.items.map((x) => ({ value: `vc:${x.id}`, nhan: x.ten })),
+      ]))
+      .catch(() => setDs([]));
+  }, [token, bat]);
+  return ds;
+}
+
 export function useDieuKienDonHang(): DieuKien<LocDonHang>[] {
   const khach = useLuaChonLoc(api.orders.khachLoc);
   const nhaGiaCong = useLuaChonLoc(api.orders.nhaGiaCongLoc);
   const dangCho = useDangCho();
+  const coThuongMai = !useTat()("thuong_mai");
+  const coGiaoHp = !useTat()("giao_hang_hp");
+  const nguoiGiao = useNguoiGiao(coGiaoHp);
   return [
+    ...(coThuongMai ? [{
+      khoa: "ban", nhan: "Loại đơn", icon: Store, kieu: "mot", giaTri: BAN,
+      doc: (l) => l.ban,
+      ghi: (l, v) => ({ ...l, ban: v as LocDonHang["ban"] }),
+    } satisfies DieuKien<LocDonHang>] : []),
     {
       khoa: "khach", nhan: "Khách hàng", icon: Users, kieu: "mot", tim: true, giaTri: khach,
       doc: (l) => idThanhChu(l.khach),
@@ -168,6 +219,15 @@ export function useDieuKienDonHang(): DieuKien<LocDonHang>[] {
       doc: (l) => l.giao,
       ghi: (l, v) => ({ ...l, giao: v as MucDo | undefined }),
     },
+    ...(coGiaoHp ? [{
+      khoa: "cach_giao", nhan: "Cách giao", icon: Truck, kieu: "mot", giaTri: CACH_GIAO,
+      doc: (l) => l.cach_giao,
+      ghi: (l, v) => ({ ...l, cach_giao: v as LocDonHang["cach_giao"] }),
+    } satisfies DieuKien<LocDonHang>, {
+      khoa: "nguoi_giao", nhan: "Người giao", icon: UserRound, kieu: "mot", tim: true, giaTri: nguoiGiao,
+      doc: (l) => l.nguoi_giao,
+      ghi: (l, v) => ({ ...l, nguoi_giao: v ?? undefined }),
+    } satisfies DieuKien<LocDonHang>] : []),
     {
       khoa: "hoa_don", nhan: "Hoá đơn", icon: Receipt, kieu: "mot", giaTri: MUC_HOA_DON,
       doc: (l) => l.hoa_don,
@@ -179,7 +239,7 @@ export function useDieuKienDonHang(): DieuKien<LocDonHang>[] {
       ghi: (l, v) => ({ ...l, hen_giao: v as LocDonHang["hen_giao"] }),
     },
     {
-      khoa: "loai", nhan: "Loại đơn", icon: FileText, kieu: "mot", giaTri: LOAI,
+      khoa: "loai", nhan: "Mới hay bổ sung", icon: FileText, kieu: "mot", giaTri: LOAI,
       doc: (l) => l.loai,
       ghi: (l, v) => ({ ...l, loai: v as LocDonHang["loai"] }),
     },

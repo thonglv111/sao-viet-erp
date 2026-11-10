@@ -96,3 +96,27 @@ def test_sua_dong_luc_nhap(client, bat_tm):
         "lines": [{"hang_id": hid, "dvt": dv, "qty": 5, "don_gia": 1000}]})
     assert r.status_code == 200, r.text
     assert [(x["qty"], x["line_total"]) for x in r.json()["lines"]] == [(5, 5000)]
+
+
+def test_loc_danh_sach_theo_san_xuat_hay_thuong_mai(client, bat_tm):
+    """Nút Lọc của Đơn hàng bán: `ban=thuong_mai` chỉ đơn TM, `ban=san_xuat` mọi đơn còn lại."""
+    h = _admin(client)
+    hid, dv = _hang(client, h)
+    kh = _khach(client, h)
+    ids = [client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1}]}).json()["id"] for _ in range(2)]
+    from app.db import SessionLocal
+    from app.models.order import Order
+
+    with SessionLocal() as db:   # giả một đơn sản xuất: nguồn khác thuong_mai
+        db.get(Order, ids[1]).source_type = "bao_gia"
+        db.commit()
+
+    def ds(ban):
+        r = client.get(f"/api/orders?ban={ban}&size=50", headers=h)
+        assert r.status_code == 200, r.text
+        return {x["id"] for x in r.json()["items"]}
+
+    assert ids[0] in ds("thuong_mai") and ids[1] not in ds("thuong_mai")
+    assert ids[1] in ds("san_xuat") and ids[0] not in ds("san_xuat")
+    assert client.get("/api/orders?ban=khac", headers=h).status_code == 422

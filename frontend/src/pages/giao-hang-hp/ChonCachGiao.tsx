@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/useAuth";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
+import { OChonGon } from "../../components/OChonGon";
 import {
   giaoHangHpApi, NHAN_CACH_GIAO, type CachGiaoInput, type DonViVc, type LoaiCachGiao, type NguoiGiao,
   type XeGiaoHang,
@@ -99,26 +100,24 @@ export function ChonCachGiao({ value, onChange, oInput = "input" }: {
 
       {value.loai === "noi_bo" && (
         <div className="ccg__luoi">
-          <label className="ccg__o">
+          <div className="ccg__o">
             <span>Người giao <b>*</b></span>
-            <select className={oInput} aria-label="Người giao" value={value.nguoiGiaoId}
-              onChange={(e) => chonNguoi(e.target.value)}>
-              <option value="">Chọn người…</option>
-              {(nguoi ?? []).map((n) => (
-                <option key={n.id} value={n.id}>{n.bo_phan ? `${n.ten} (${n.bo_phan})` : n.ten}</option>
-              ))}
-            </select>
+            {/* Trong danh sách, bên phải là biển số xe người đó phụ trách (chọn người thì ô Xe tự điền xe này, nên
+                ô đã chọn không nhắc lại biển số). Không ghi
+                bộ phận: ai trong danh sách cũng thuộc bộ phận giao hàng. */}
+            <OChonGon nhan="Người giao" goiY="Chọn người giao" phuChiTrongDs value={value.nguoiGiaoId} onChange={chonNguoi}
+              ds={(nguoi ?? []).map((n) => ({ value: String(n.id), ten: n.ten,
+                phu: xe.find((x) => x.id === n.xe_id)?.ma ?? null }))} />
             {nguoi && nguoi.length === 0 && (
               <span className="ccg__goi-y">Chưa có ai ở bộ phận giao hàng. Bật cờ Bộ phận giao hàng ở màn Phòng ban.</span>
             )}
-          </label>
-          <label className="ccg__o">
+          </div>
+          <div className="ccg__o">
             <span>Xe</span>
-            <select className={oInput} aria-label="Xe" value={value.xeId} onChange={(e) => doi({ xeId: e.target.value })}>
-              <option value="">Không dùng xe của công ty</option>
-              {xe.map((x) => <option key={x.id} value={x.id}>{`${x.ma} ${x.ten}`}</option>)}
-            </select>
-          </label>
+            {/* Tên xe bên trái, biển số chữ xám bên phải — không ghép thành một chuỗi. */}
+            <OChonGon nhan="Xe" value={value.xeId} onChange={(v) => doi({ xeId: v })}
+              trong="Không dùng xe của công ty" ds={xe.map((x) => ({ value: String(x.id), ten: x.ten, phu: x.ma }))} />
+          </div>
         </div>
       )}
 

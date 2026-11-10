@@ -176,3 +176,35 @@ def test_don_thuong_mai_ghi_cach_giao_theo_luot(client, hp):
     ds = client.get(f"/api/giao-hang-hp/don/{d['id']}", headers=h).json()["items"]
     assert ds[0]["loai"] == "khong_giao" and ds[0]["luot_xuat_tm_id"] == r.json()["luot"][0]["id"]
     assert ds[0]["ma_lan_xuat"] == f"{d['order_no']}-X1"
+
+
+def test_loc_don_hang_ban_theo_cach_giao_va_nguoi_giao(client, hp):
+    """Nút Lọc của Đơn hàng bán: đơn có ít nhất một lần xuất khớp cách giao / người giao / đơn vị VC."""
+    from tests.test_luot_xuat_thuong_mai import _don_chot, _hang
+
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-LOC", gia=5000)
+    a = _don_chot(client, h, hid, dv, qty=1, kh="KH lọc A")["id"]
+    b = _don_chot(client, h, hid, dv, qty=1, kh="KH lọc B")["id"]
+    c = _don_chot(client, h, hid, dv, qty=1, kh="KH lọc C")["id"]
+    uid = _nguoi_giao("L")
+    vc = _ncc(client, h, "VC lọc", True)
+    with SessionLocal() as db:
+        db.add_all([
+            PhuongThucGiaoHp(order_id=a, loai="noi_bo", nguoi_giao_id=uid),
+            PhuongThucGiaoHp(order_id=b, loai="dich_vu", don_vi_vc_id=vc, tien_cuoc=0),
+            PhuongThucGiaoHp(order_id=c, loai="khong_giao"),
+        ])
+        db.commit()
+
+    def ds(qs):
+        r = client.get(f"/api/orders?{qs}&size=100", headers=h)
+        assert r.status_code == 200, r.text
+        return {x["id"] for x in r.json()["items"]} & {a, b, c}
+
+    assert ds("cach_giao=noi_bo") == {a}
+    assert ds("cach_giao=khong_giao") == {c}
+    assert ds(f"nguoi_giao={uid}") == {a}
+    assert ds(f"don_vi_vc={vc}") == {b}
+    assert ds(f"cach_giao=noi_bo&nguoi_giao={uid}") == {a}
+    assert client.get("/api/orders?cach_giao=xe_om", headers=h).status_code == 422
