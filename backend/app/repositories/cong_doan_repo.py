@@ -32,7 +32,15 @@ def id_cong_doan_he_thong(db, ma: str) -> int | None:
         return None
     nho = db.info.setdefault("id_cong_doan_he_thong", {})
     if ma not in nho:
-        nho[ma] = db.scalar(select(CongDoan.id).where(CongDoan.ma == ma))
+        # Một lượt lập/lưu lệnh hỏi tới 7 mã khác nhau ⇒ nạp cả bộ mã hệ thống bằng một câu.
+        from ..models.cong_doan import CD_HE_THONG
+
+        tim = dict(db.execute(
+            select(CongDoan.ma, CongDoan.id).where(CongDoan.ma.in_(list(CD_HE_THONG)))
+        ).all())
+        for m in CD_HE_THONG:
+            nho.setdefault(m, tim.get(m))
+        nho.setdefault(ma, tim.get(ma))
     return nho[ma]
 
 
