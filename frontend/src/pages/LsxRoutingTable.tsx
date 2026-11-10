@@ -678,6 +678,21 @@ export function LsxRoutingTable({
         )}
       </div>
 
+      {/* Ô lý do đứng NGAY dưới nút Lưu trên (10/11/2026): để cuối bảng thì đổi loại bước xong
+          chỉ thấy nút mờ, không biết vì sao (ô nằm khuất dưới bước cuối). */}
+      {suaDuoc && doiCauTruc && (
+        <label className="khsx-lydo">
+          <span className="khsx-field__label">
+            Routing đã khác bài tính giá — ghi lý do (bắt buộc) để lưu vào nhật ký
+          </span>
+          <input
+            value={lyDo}
+            placeholder="vd: khách đổi sang cán màng thuê ngoài"
+            onChange={(e) => setLyDo(e.target.value)}
+          />
+        </label>
+      )}
+
       {/* Lệnh đang ghép chung tờ: quyền quyết định về TỜ đã chuyển sang bài. Nói ra ở đây, không
           để người kế hoạch sửa máy in rồi tưởng có tác dụng. */}
       {baiGhep && (
@@ -1034,23 +1049,11 @@ export function LsxRoutingTable({
         </div>
       )}
 
-      {suaDuoc && doiCauTruc && (
-        <label className="khsx-lydo">
-          <span className="khsx-field__label">
-            Routing đã khác bài tính giá — ghi lý do (bắt buộc) để lưu vào nhật ký
-          </span>
-          <input
-            value={lyDo}
-            placeholder="vd: khách đổi sang cán màng thuê ngoài"
-            onChange={(e) => setLyDo(e.target.value)}
-          />
-        </label>
-      )}
-
       <div className="khsx-rt__foot">
         <p className="khsx-rt__summary">
           {soNgoai > 0 ? `${rows.length} công đoạn, trong đó ${soNgoai} bước gia công` : `${rows.length} công đoạn`}
         </p>
+        {suaDuoc && dirty && chanLuu && <p className="khsx-rt__chan">Ghi lý do ở đầu bảng rồi mới lưu được</p>}
         {suaDuoc && (
           <Button
             variant="accent"

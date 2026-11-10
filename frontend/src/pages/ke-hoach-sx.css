@@ -2255,6 +2255,7 @@ button.khsx-thieu__buoc:hover {
 }
 .khsx-rt__foot { display: flex; align-items: center; gap: var(--sp-3); }
 .khsx-rt__summary { margin: 0; flex: 1 1 auto; font-size: var(--fs-sm); color: var(--ash); }
+.khsx-rt__chan { margin: 0; font-size: var(--fs-sm); color: var(--tt-vang-fg); }
 
 /* --- liên kết chéo -------------------------------------------------------- */
 .khsx-xlink {
