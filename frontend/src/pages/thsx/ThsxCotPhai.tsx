@@ -49,7 +49,7 @@ export interface VuongMac {
 
 export function ThsxCotPhai({
   chiTiet, candidates, ungVienHomNay, onMoChonNguoi, busy, canAssign, chuaGiaoChoToi, vuong,
-  onGiao, onRut, onNhanKhuon, onTraKhuon, dinhKemDem, hep = false, napTep,
+  onGiao, onRut, onNhanKhuon, onTraKhuon, dinhKemDem, hep = false, napTep, anVuong = false,
 }: {
   chiTiet: SxWorkItemChiTiet;
   candidates: SxNhanVienChon[];
@@ -68,6 +68,9 @@ export function ThsxCotPhai({
   hep?: boolean;
   /** Nạp tệp của lệnh qua đường khác (màn Kế hoạch của bộ phận). */
   napTep?: (token: string, congViecId: number) => Promise<SxTepLenhNhom[]>;
+  /** Màn lên kế hoạch (Kế hoạch của bộ phận, 10/11/2026): ẩn "Chưa bắt đầu được vì" — đó là câu cho
+   *  tổ đứng máy, người đang giao việc không cần đọc. */
+  anVuong?: boolean;
 }) {
   const cv = chiTiet.cong_viec;
   const tt = chiTiet.trang_thai ?? cv.trang_thai;
@@ -179,7 +182,7 @@ export function ThsxCotPhai({
 
   return (
     <>
-      {(cauVuong.length > 0 || dungLuc) && (
+      {((cauVuong.length > 0 && !anVuong) || dungLuc) && (
         <div className="thsx-b-vuong">
           {dungLuc && (
             <div className="thsx-b-vuong__dung">
@@ -187,7 +190,7 @@ export function ThsxCotPhai({
               {phienCuoi?.ly_do && <div className="thsx-b-lydo">{phienCuoi.ly_do}</div>}
             </div>
           )}
-          {cauVuong.length > 0 && (
+          {cauVuong.length > 0 && !anVuong && (
             <>
               <div>{tt === "paused" ? "Chưa tiếp tục được vì" : "Chưa bắt đầu được vì"}</div>
               <ul>{cauVuong.map((c) => <li key={c.key}>{c.noi}</li>)}</ul>

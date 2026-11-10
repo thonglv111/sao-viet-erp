@@ -316,7 +316,7 @@ export function ThsxDrawer({
       onMoChonNguoi={onMoChonNguoi} busy={busy} canAssign={canAssign} chuaGiaoChoToi={chuaGiaoChoToi}
       vuong={{ coNguoi, khuonChoNhan, thieuDauVao, vatTu, mayDung }}
       onGiao={onGiao} onRut={onRut} onNhanKhuon={onNhanKhuon} onTraKhuon={onTraKhuon} dinhKemDem={dinhKemDem} hep={hep}
-      napTep={boPhan?.napTep} />
+      napTep={boPhan?.napTep} anVuong={!!boPhan} />
   );
 
   return (

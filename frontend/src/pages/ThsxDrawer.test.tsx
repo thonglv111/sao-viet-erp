@@ -120,6 +120,23 @@ describe("ThsxDrawer · thợ được giao", () => {
     expect(txt).not.toContain("khoán");
   });
 
+  it("mở từ màn Kế hoạch của bộ phận: không có khối Chưa bắt đầu được vì", () => {
+    const base = chiTiet(true, true);
+    const ct = {
+      ...base, cong_viec: { ...base.cong_viec, khuon: null, trang_thai: "released" },
+      trang_thai: "released", phan_cong: [],
+    } as unknown as SxWorkItemChiTiet;
+    render(
+      <ThsxDrawer chiTiet={ct} loading={false} candidates={[]} hoTroUngVien={[]}
+        mayOptions={[]} exec={{} as ThsxExec} busy={false} onGiao={vi.fn()} onRut={vi.fn()}
+        onBatDau={vi.fn()} onNhanKhuon={vi.fn()} onTraKhuon={vi.fn()} onTamDung={vi.fn()}
+        onKetThuc={vi.fn()} onClose={vi.fn()}
+        boPhan={{ nutDau: null, napLichSu: vi.fn(), napTep: vi.fn().mockResolvedValue([]) }} />,
+    );
+    expect(screen.queryByText("Chưa bắt đầu được vì")).toBeNull();
+    expect(document.body.textContent).not.toContain("Cần giao ít nhất 1 thợ");
+  });
+
   it("giao 1 thợ: không còn câu kíp chuẩn nào, thẻ thợ không gắn chữ khoán", () => {
     const txt = moKip(1);
     expect(txt).not.toContain("kíp chuẩn");
