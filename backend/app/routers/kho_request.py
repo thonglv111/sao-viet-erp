@@ -45,7 +45,9 @@ from ..schemas.stock import (
 )
 from ..services.delivery_notify import kho_huy_hang_giao
 from ..services.thuong_mai.luot_xuat import kho_huy_luot_xuat
-from ..services.kho_giay import DON_VI_TO_KHO, co_don_vi_goc, khoa_ton_cua, la_kho_to, to_tu_kg
+from ..services.kho_giay import (
+    DON_VI_M2, DON_VI_TO_KHO, co_don_vi_goc, khoa_ton_cua, la_kho_to, to_tu_kg, to_tu_m2,
+)
 from ..services.kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 from ..services.mua_cho import mua_cho_cua_dong, mua_cho_theo_dot
 from ..services.quyen_kho import xem_ton_kho
@@ -243,7 +245,16 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
                 so_to = to_tu_kg(kg["sl_goc"], ln.kho_rong, ln.kho_dai, getattr(m, "gsm", 0))
                 qd = {**kg, "sl_goc": float(so_to), "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
                       "he_so_ve_goc": so_to / float(ln.sl_de_nghi)}
-                quy_to = {"kg_moi_dvt": kg["sl_goc"] / float(ln.sl_de_nghi), "gsm": int(m.gsm)}
+                quy_to = {"kg_moi_dvt": kg["sl_goc"] / float(ln.sl_de_nghi), "gsm": int(m.gsm or 0) or None}
+            elif (ln.hang_loai == "giay" and ln.don_vi_goc == DON_VI_TO_KHO and dv is not None
+                    and la_kho_to(ln.kho_rong, ln.kho_dai)
+                    and (hang_svc.quy_tu_don_vi(dv, ln.dvt, 1)["don_vi_goc"] or "").lower() == DON_VI_M2):
+                # Sóng khai m² (12/11/2026): gốc tờ, quy theo khổ — cùng số với `quy_ve_goc`.
+                m2 = hang_svc.quy_tu_don_vi(dv, ln.dvt, float(ln.sl_de_nghi))
+                so_to = to_tu_m2(m2["sl_goc"], ln.kho_rong, ln.kho_dai)
+                qd = {**m2, "sl_goc": float(so_to), "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
+                      "he_so_ve_goc": so_to / float(ln.sl_de_nghi)}
+                quy_to = {"m2_moi_dvt": m2["sl_goc"] / float(ln.sl_de_nghi)}
             elif co_don_vi_goc(ln.hang_loai) and ln.don_vi_goc:
                 dvg = don_vi_goc_map.get((ln.hang_loai, ln.hang_id, ln.don_vi_goc))
                 qd = (hang_svc.quy_tu_don_vi(dvg, ln.dvt, float(ln.sl_de_nghi)) if dvg is not None

@@ -25,6 +25,11 @@ export function toTuKg(kg: number, rong: number, dai: number, gsm: number): numb
   return Math.floor(kg / ((rong / 1000) * (dai / 1000) * (gsm / 1000)) + 1e-9);
 }
 
+/** Số tờ từ m² theo khổ, LÀM TRÒN XUỐNG như `toTuKg` (sóng tính theo m²). */
+export function toTuM2(m2: number, rong: number, dai: number): number {
+  return Math.floor(m2 / ((rong / 1000) * (dai / 1000)) + 1e-9);
+}
+
 /** Gốc + số gốc của một dòng xin: giấy KHỔ HAI CẠNH xin theo họ kg ⇒ TỜ (`toTuKg`), như máy chủ quy
  *  lúc lưu đề nghị — lô giấy hai cạnh luôn đếm tờ. `sl` null = chưa quy được (thiếu gsm). Dòng khác
  *  giữ nguyên `donViGoc` + `slGoc`. */
@@ -33,6 +38,8 @@ export function gocDongXin(x: {
   gsm: number | null | undefined;
 }): { goc: string | null; sl: number | null } {
   const [r, d] = chuanKho(x.rong, x.dai);
+  // Sóng khai m² (12/11/2026): tờ theo khổ, không cần định lượng — cùng số với máy chủ (`to_tu_m2`).
+  if (x.hangLoai === "giay" && x.donViGoc === "m2" && r && d) return { goc: "to", sl: toTuM2(x.slGoc, r, d) };
   if (x.hangLoai !== "giay" || x.donViGoc !== "kg" || !(r && d)) return { goc: x.donViGoc, sl: x.slGoc };
   return { goc: "to", sl: x.gsm ? toTuKg(x.slGoc, r, d, x.gsm) : null };
 }

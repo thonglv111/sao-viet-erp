@@ -37,7 +37,7 @@ import { TronGoiDialog } from "./gia-cong/TronGoiDialog";
 import { ImpositionDiagram } from "./ImpositionDiagram";
 import { LsxRoutingTable, type RefRow } from "./LsxRoutingTable";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
-import { ONguonGiay, type DoiNguonGiay } from "./ONguonGiay";
+import { KhoiVatLieu } from "./KhoiVatLieu";
 import { donViChuoi, nhanDonVi, tickConLaCuaNguoiKhac } from "./lsxBuoc";
 import { bangKeVatTu, giayVaVatTuQuyCach } from "./lsxVatTu";
 import { useNapTenDonVi } from "./tenDonVi";
@@ -378,15 +378,12 @@ export function LsxDetailView({
     }
   }, [token, lsxId, onChanged]);
 
-  /** Đổi nguồn giấy ⇒ máy chủ dựng lại khâu chuẩn bị giấy; nạp lại cả lệnh để bảng routing có bước mới.
-   *  Lỗi ném lên cho ô tự hiện, ô lùi về nguồn cũ. */
-  const doiNguonGiay = useCallback(async (body: DoiNguonGiay) => {
-    if (!token) return;
-    const r = await api.lsx.doiNguonGiay(token, lsxId, body);
+  /** Đổi vật liệu đầu vào ⇒ máy chủ đã dựng lại bước chuẩn bị; nhận lệnh mới để bảng công đoạn có bước mới. */
+  const doiVatLieu = useCallback((r: LsxDetail) => {
     setD(r);
     setForm(toForm(r));
     onChanged();
-  }, [token, lsxId, onChanged]);
+  }, [onChanged]);
 
   /** Tạo dao mới cho một bước → dòng mới trong danh mục Khuôn ở tình trạng "đang đặt làm".
    *
@@ -1573,20 +1570,19 @@ export function LsxDetailView({
                 </div>
                 <div className="khsx-spec__card-body">
                   <LsxRoutingTable
-                    dauChuoi={(d.nguon_giay != null || !!(d.quy_cach_json ?? {}).giay_id) && (
-                      <ONguonGiay
-                        key={`${d.id}-${d.nguon_giay ?? ""}`}
-                        nguon={d.nguon_giay}
-                        khoa={!canUpdate ? "Bạn không có quyền sửa lệnh"
-                          : d.trang_thai === "da_phat_hanh" ? "Lệnh đã phát hành — thu hồi ở màn Xếp lịch (hoặc huỷ gia công trọn gói) trước khi đổi nguồn giấy"
-                          : d.trang_thai === "da_dong" ? "Lệnh đã đóng — không đổi nguồn giấy được nữa"
-                          : tronGoi ? "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy"
-                          : d.giu_cho_bat ? "Lệnh đang giữ chỗ vật tư — nhả chỗ ở màn Kế hoạch vật tư trước khi đổi nguồn giấy"
-                          : routingDirty ? "Đang sửa chuỗi công đoạn: lưu xong mới đổi nguồn giấy được"
+                    dauChuoi={!!(d.quy_cach_json ?? {}).giay_id && (
+                      <KhoiVatLieu
+                        lsxId={d.id}
+                        token={token}
+                        phienBan={d.cong_doans.map((c) => `${c.id}:${c.so_luong_vao}`).join(",")}
+                        khoaNgoai={!canUpdate ? "Bạn không có quyền sửa lệnh"
+                          : routingDirty ? "Đang sửa chuỗi công đoạn: lưu xong mới đổi vật liệu đầu vào được"
                           : null}
-                        onDoi={doiNguonGiay}
+                        onDoi={doiVatLieu}
                       />
                     )}
+                    giayId={Number((d.quy_cach_json ?? {}).giay_id) || null}
+                    songId={Number((d.quy_cach_json ?? {}).song_id) || null}
                     congDoans={d.cong_doans}
                     soLuongDat={d.so_luong_dat}
                     leadTime={d.lead_time}

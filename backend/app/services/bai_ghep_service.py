@@ -628,13 +628,13 @@ class BaiGhepService:
                      for v in cd.vat_tus if v.hang_loai == "giay" and v.kho_rong), None)
 
     def _tra_khau_rieng(self, lsx_ids: list[int]) -> None:
-        """Lệnh rời bài (bỏ thành viên / phá bài) ⇒ chọn lại nguồn theo tồn của CHÍNH lệnh (§7). Lệnh cũ
+        """Lệnh rời bài (bỏ thành viên / phá bài) ⇒ lấy lại phương án giấy điểm cao nhất của CHÍNH lệnh. Lệnh cũ
         (`nguon_giay` NULL) không dựng. KHÔNG commit."""
         svc = self._lsx_svc()
         for lsx in self.repo.lsx_by_ids(lsx_ids).values():
             if lsx.nguon_giay:
                 svc._ap_chuoi_nguoc(lsx)
-                self._dung_lai_khau_lenh(lsx, svc._chon_nguon_giay(lsx))
+                self._dung_lai_khau_lenh(lsx, svc._chon_giay_tot_nhat(lsx))
 
     def _dung_khau_chuan_bi_bai(self, bg: BaiGhep, *, chon_lai: bool = False) -> None:
         """Đồng bộ khâu chuẩn bị giấy của bài. KHÔNG commit; bên gọi sắp thứ tự + tính lại số.

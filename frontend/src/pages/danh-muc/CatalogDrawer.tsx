@@ -559,7 +559,9 @@ export function CatalogDrawer({ config, existing, onClose, onSaved }: {
         const kieuChu = !f.type || f.type === "text" || f.type === "date" || f.type === "nhom_may";
         const voonCoGiaTri = isEdit && existing != null && existing[f.key] != null
           && existing[f.key] !== "";
-        if (!f.required && !(kieuChu && voonCoGiaTri)) continue;
+        const xoaSo = !!f.xoaTrongLaNull && voonCoGiaTri;
+        if (!f.required && !(kieuChu && voonCoGiaTri) && !xoaSo) continue;
+        if (xoaSo) v = null;
       }
       // Ô tìm-chọn BẮT BUỘC còn trống: gửi `null`, KHÔNG gửi chuỗi rỗng — "" vào cột số thì pydantic
       // trả 422 tiếng Anh ("valid integer"), còn `null` để máy chủ nói đúng câu "Phải chọn …".

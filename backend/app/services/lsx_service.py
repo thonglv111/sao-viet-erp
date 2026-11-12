@@ -21,7 +21,9 @@ from sqlalchemy.orm import Session, aliased, selectinload
 
 from ..models.bai_ghep import BaiGhep, BaiGhepThanhVien
 from ..models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
-from ..models.cong_doan import CD_BOI, CD_CAT_CUON, CD_TE_GIAY_IN, CD_TE_SONG, CongDoan, CongDoanMay
+from ..models.cong_doan import (
+    CD_BOI, CD_CAT_CUON, CD_HE_THONG, CD_TE_GIAY_IN, CD_TE_SONG, CongDoan, CongDoanMay,
+)
 from ..models.customer import Customer
 from ..models.lsx import (
     DV_CAI,
@@ -58,8 +60,8 @@ from ..models.vat_lieu_kho import HANG_GIAY, HANG_VAT_TU, LOAI_GIAY, GiayNguyen,
 from .may_to import cap_lech, loi_cap, to_khong_may
 from .ptg_giay_buoc import bang_giay, id_giay_cua_rows, loi_tran_giay
 from .chuan_bi_giay import (
-    CUON_DU_TOI_DA_MM, NGUON_GIAY, DauVaoGiay, NguonChon, chon_nguon, dong_giay_buoc_dau, dong_song,
-    kho_nguyen_dung_duoc, khoa_ung_vien, ma_buoc_giay,
+    DauVaoGiay, KhoLay, NguonChon, chon_nguon, dong_giay_buoc_dau, kho_nguyen_dung_duoc, khoa_ung_vien,
+    ma_buoc_giay, ma_buoc_lay, phuong_an_lay, so_manh,
 )
 from ..repositories.cong_doan_repo import id_cong_doan_he_thong
 from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
@@ -72,7 +74,9 @@ from ..services.dong_giay import (
     ban_do_tram, dich_chuoi, don_vi_chuoi, ma_cua_tram, tram_cua, tren_dong_giay,
 )
 from ..models.don_vi_do import DonViDo
-from ..services.kho_giay import DON_VI_TO_KHO, GocMatHang, chuan_kho, don_vi_khai, dong_giay_theo_dau_vao
+from ..services.kho_giay import (
+    DON_VI_TO_KHO, GocMatHang, chuan_kho, don_vi_khai, dong_giay_theo_dau_vao, khoa_ton,
+)
 from ..services.bien_cong_thuc import MAC_DINH_TANG_LENH, ngu_canh_lenh, quy_cach_bien
 from ..services.don_vi_do_service import cong_thuc_chu, cong_thuc_the_so
 from ..services.lsx_danh_muc_doi import vat_tu_lech
@@ -432,7 +436,14 @@ def thoi_luong_buoc(cd, may=None, sl_tinh=None) -> dict:
 
 
 # Nhãn nguồn giấy cho nhật ký (spec 2026-10-24-chuan-bi-giay §7) — cùng chữ với ô "Nguồn giấy" màn lệnh.
-_NHAN_NGUON = {"to_in": "Tờ đúng khổ in", "to_nguyen": "Tờ khổ nguyên", "cuon": "Cuộn", "mua": "Mua mới"}
+LE_SONG_TOI_DA_MM = 50
+
+
+def _nhan_kho_lay(k: KhoLay | None) -> str:
+    """Nhãn khổ đang lấy cho nhật ký: "Tờ 760 × 1060" / "Cuộn rộng 750"."""
+    if k is None:
+        return "chưa có"
+    return f"Cuộn rộng {k.rong}" if k.dang == "cuon" else f"Tờ {k.rong} × {k.dai}"
 
 
 def _con_song(objs) -> bool:
@@ -1923,9 +1934,9 @@ class LsxService:
             ordered_steps = sorted(lsx.cong_doans, key=lambda x: x.thu_tu)
             for prev, cur in zip(ordered_steps, ordered_steps[1:]):
                 cur.phu_thuoc.append(LsxCongDoanPhuThuoc(buoc_truoc_id=prev.id))
-            # KHÂU CHUẨN BỊ GIẤY (24/10/2026): nguồn chọn theo SL vào In vừa tính ở chuỗi ngược trên,
-            # chèn bước rồi tính ngược lại; vật tư định mức của bước mới bung sau khi có số.
-            moi = self._dung_khau_chuan_bi(lsx, self._chon_nguon_giay(lsx))
+            # VẬT LIỆU ĐẦU VÀO (12/11/2026): phương án điểm cao nhất theo tồn, tính trên SL vào In / bồi
+            # vừa có ở chuỗi ngược trên; chèn bước rồi tính ngược lại, vật tư định mức của bước mới bung sau.
+            moi = self._dung_khau_chuan_bi(lsx, self._chon_vat_lieu_tot_nhat(lsx))
             self._ap_chuoi_nguoc(lsx)
             self._bung_lai_vat_tu(lsx, moi)
             lsx.routing_goc_json = _routing_van_tay(lsx.cong_doans)
@@ -2016,9 +2027,9 @@ class LsxService:
                 thieu.append("thieu_giay")
             if not (qc.get("dai_thanh_pham") and qc.get("rong_thanh_pham")):
                 thieu.append("thieu_kho")
-            # Lệnh có nguồn giấy mà thiếu khổ nguyên / mảnh xả (24/10/2026): máy không dựng được khâu
-            # Tề/Cắt cuộn, chỉ dò được tờ khổ in — báo để người lập lệnh khai.
-            if lsx.nguon_giay and qc.get("giay_id") and not (
+            # Lệnh lấy tờ to hơn / cuộn mà thiếu khổ nguyên / mảnh xả (24/10/2026): máy không dựng được khâu
+            # Tề/Cắt cuộn — báo để người lập lệnh khai. Tờ đúng khổ in không cần khổ nguyên (12/11/2026).
+            if lsx.nguon_giay in ("to_nguyen", "cuon", "mua") and qc.get("giay_id") and not (
                     _f(qc.get("so_manh_xa")) > 0 and kho_nguyen_dung_duoc(
                         (_f(qc.get("kho_nguyen_rong")), _f(qc.get("kho_nguyen_dai"))),
                         (_f(qc.get("kho_in_rong")), _f(qc.get("kho_in_dai"))))):
@@ -2570,13 +2581,6 @@ class LsxService:
             kho_nguyen=kn if all(kn) else None,
             so_to_in=int(ceil(_f(so_to_in))), so_manh_xa=int(_f(qc.get("so_manh_xa"))) or None)
 
-    def _chon_nguon_giay(self, lsx: Lsx) -> NguonChon | None:
-        """Nguồn giấy theo TỒN TỰ DO (tồn − đang giữ), đọc MỘT lượt cho mọi khoá ứng viên. Chọn sau
-        chuỗi ngược lần đầu: cần SL vào In."""
-        in_ = self._buoc_in(sorted(lsx.cong_doans, key=lambda c: c.thu_tu))
-        dv = self._dau_vao_giay(lsx, in_.so_luong_vao) if in_ is not None else None
-        return self._chon_nguon_theo_ton(dv) if dv is not None else None
-
     def _chon_nguon_theo_ton(self, dv: DauVaoGiay) -> NguonChon:
         """`chon_nguon` trên tồn tự do của mọi khoá ứng viên — dùng chung cho lệnh và bài ghép."""
         from types import SimpleNamespace
@@ -2611,13 +2615,30 @@ class LsxService:
             gia_tri_chip={}, kho_rong=dong["kho_rong"], kho_dai=dong["kho_dai"],
             don_vi_goc=dong["don_vi_goc"]))
 
-    def _dung_khau_chuan_bi(self, lsx: Lsx, nguon: NguonChon | None) -> list[LsxCongDoan]:
+    def _tu_khai_giay(self, lsx: Lsx) -> bool:
+        """Phiếu kiểu cũ đã tự khai bước chuẩn bị giấy trước In (xả/cắt tờ): máy không dựng khâu. Bước
+        Cắt giấy cuộn / Tề giấy in do máy dựng không tính (hỏi trước khi gỡ khâu cũ vẫn đúng)."""
+        buoc = sorted(lsx.cong_doans, key=lambda c: (c.thu_tu, c.id or 0))
+        in_ = self._buoc_in(buoc)
+        tram = self._tram()
+        khau = {i for ma in (CD_CAT_CUON, CD_TE_GIAY_IN) if (i := id_cong_doan_he_thong(self.db, ma))}
+        dong_giay = [c for c in buoc if tren_dong_giay(c.don_vi_vao, c.don_vi_ra, tram)
+                     and not self._la_te_song(c) and c.cong_doan_id not in khau]
+        return in_ is not None and bool(dong_giay) and dong_giay[0] is not in_ and (
+            dong_giay[0].thu_tu <= in_.thu_tu)
+
+    def _dung_khau_chuan_bi(self, lsx: Lsx, nguon: NguonChon | None,
+                            phan: tuple[str, ...] = ("giay", "song")) -> list[LsxCongDoan]:
         """Chèn Cắt giấy cuộn / Tề giấy in ngay trước In (theo `nguon`) và Tề sóng ngay trước bước bồi (có sóng
         + có bước bồi), gắn giấy vào bước đầu khâu, sóng vào Tề sóng, ghi `lsx.nguon_giay`. KHÔNG commit.
 
         Lệnh phải có id (cạnh trỏ id bước). Cạnh: bước trước In chuyển sang trỏ bước chuẩn bị đầu, khâu
         nối thẳng một hàng vào In; Tề sóng chỉ nối vào bước bồi đầu, chạy song song nhánh giấy.
-        Trả các bước vừa chèn để bên gọi bung vật tư định mức sau chuỗi ngược."""
+        Trả các bước vừa chèn để bên gọi bung vật tư định mức sau chuỗi ngược.
+
+        `phan` chọn phần dựng: đổi riêng sóng thì không đụng khâu giấy (giữ máy, tổ đã gán ở Tề giấy in).
+        Sóng (12/11/2026): Tề sóng chỉ chèn khi khổ sóng đang lấy to hơn khổ cần; đúng khổ thì dòng sóng
+        gắn thẳng vào bước bồi đầu."""
         buoc = sorted(lsx.cong_doans, key=lambda c: (c.thu_tu, c.id or 0))
         qc = lsx.quy_cach_json or {}
         in_ = self._buoc_in(buoc)
@@ -2631,13 +2652,17 @@ class LsxService:
             dong_giay[0].thu_tu <= in_.thu_tu)
         if tu_khai:
             nguon = None
-        lsx.nguon_giay = nguon.nguon if (nguon is not None and dv is not None) else None
-        khau = [b for ma in (ma_buoc_giay(lsx.nguon_giay, dv) if lsx.nguon_giay else [])
+        lam_giay = "giay" in phan
+        if lam_giay:
+            lsx.nguon_giay = nguon.nguon if (nguon is not None and dv is not None) else None
+        khau = [b for ma in (ma_buoc_giay(lsx.nguon_giay, dv) if (lam_giay and lsx.nguon_giay) else [])
                 if (b := self._them_buoc_he_thong(lsx, ma)) is not None]
         ts = next((c for c in buoc if self._la_te_song(c)), None)
         boi = next((c for c in buoc if c.cong_doan_id in self._id_boi()), None)
         ts_moi = None
-        if qc.get("song_id") and boi is not None and ts is None:
+        song_id = int(qc.get("song_id") or 0)
+        lam_song = "song" in phan and bool(song_id) and boi is not None and ts is None
+        if lam_song and self._song_can_te(lsx):
             ts = ts_moi = self._them_buoc_he_thong(lsx, CD_TE_SONG)
         con_lai = [c for c in buoc if c is not ts]
         vt = con_lai.index(in_) if in_ in con_lai else len(con_lai)
@@ -2657,7 +2682,9 @@ class LsxService:
                 sau.phu_thuoc.append(LsxCongDoanPhuThuoc(buoc_truoc_id=truoc.id))
         if ts_moi is not None:
             boi.phu_thuoc.append(LsxCongDoanPhuThuoc(buoc_truoc_id=ts_moi.id))
-        if lsx.nguon_giay:
+        if not lam_giay:
+            pass
+        elif lsx.nguon_giay:
             # Giấy CHỈ ở bước đầu khâu (không khâu ⇒ In): gỡ dòng của mã này ở mọi bước khác trước.
             for c in lsx.cong_doans:
                 for v in [v for v in c.vat_tus if v.hang_loai == HANG_GIAY and v.vat_tu_id == dv.giay_id]:
@@ -2673,16 +2700,19 @@ class LsxService:
             dau = dong_giay[0] if dong_giay else buoc[0]
             if not any(v.hang_loai == HANG_GIAY and v.vat_tu_id == int(qc["giay_id"]) for v in dau.vat_tus):
                 self._gan_giay(dau, int(qc["giay_id"]), {"don_vi_goc": "", "kho_rong": 0, "kho_dai": 0})
-        if ts_moi is not None:
-            kho_in = (int(_f(qc.get("kho_in_rong"))), int(_f(qc.get("kho_in_dai"))))
-            self._gan_giay(ts_moi, int(qc["song_id"]), dong_song(int(qc["song_id"]), kho_in, 0))
+        if lam_song:
+            for c in lsx.cong_doans:
+                for v in [v for v in c.vat_tus if v.hang_loai == HANG_GIAY and v.vat_tu_id == song_id]:
+                    c.vat_tus.remove(v)
+            self.db.flush()
+            self._gan_giay(ts_moi if ts_moi is not None else boi, song_id, self._dong_song_lay(lsx, 0))
         self.db.flush()
         return [*khau, *([ts_moi] if ts_moi else [])]
 
-    def _go_khau_chuan_bi_giay(self, lsx: Lsx) -> None:
-        """Gỡ Cắt giấy cuộn / Tề giấy in của lệnh (cùng dòng giấy của chúng), nối bước đứng trước khâu
-        thẳng vào In. Tề sóng giữ nguyên. KHÔNG commit."""
-        ids = {i for ma in (CD_CAT_CUON, CD_TE_GIAY_IN) if (i := id_cong_doan_he_thong(self.db, ma))}
+    def _go_khau_chuan_bi_giay(self, lsx: Lsx, ma_go: tuple[str, ...] = (CD_CAT_CUON, CD_TE_GIAY_IN)) -> None:
+        """Gỡ bước hệ thống `ma_go` của lệnh (mặc định Cắt giấy cuộn / Tề giấy in, cùng dòng giấy của
+        chúng), nối bước đứng trước khâu thẳng vào bước nhận. KHÔNG commit."""
+        ids = {i for ma in ma_go if (i := id_cong_doan_he_thong(self.db, ma))}
         buoc = sorted(lsx.cong_doans, key=lambda c: (c.thu_tu, c.id or 0))
         bo = [c for c in buoc if c.cong_doan_id in ids]
         if not bo:
@@ -2713,38 +2743,245 @@ class LsxService:
             c.thu_tu = i
         self.db.flush()
 
-    def doi_nguon_giay(self, *, lsx_id: int, nguon: str, rong_cuon: int | None, actor) -> Lsx:
-        """Người kế hoạch đổi nguồn giấy: gỡ Cắt giấy cuộn / Tề giấy in hiện có rồi dựng lại theo nguồn
-        mới, không đụng bước khác (Tề sóng giữ nguyên). Chặn đúng ba cửa của sửa routing."""
-        lsx = self.get(lsx_id)
+    # ================= VẬT LIỆU ĐẦU VÀO (12/11/2026, mockup chuan-bi-vat-lieu.html) =================
+    # Giấy: khổ đang lấy CHÍNH LÀ khổ nguyên của lệnh (`quy_cach_json.kho_nguyen_*`, cuộn ⇒ rộng cuộn ×
+    # cạnh cắt) + `nguon_giay` — số mảnh xả, Tề giấy in, dòng giấy, bài ghép đã chạy theo hai thứ đó.
+    # Sóng: `quy_cach_json.song_kho_rong/dai` + `song_tru_le_mm`. Lệnh cũ vắng hai khoá ⇒ khổ in; lề lấy
+    # theo danh mục nếu chuỗi đang có Tề sóng (cách dựng cũ luôn chèn), không thì 0 — đọc đúng chuỗi đang có.
+
+    def _kho_in(self, lsx: Lsx) -> tuple[int, int] | None:
+        qc = lsx.quy_cach_json or {}
+        k = chuan_kho(_f(qc.get("kho_in_rong")), _f(qc.get("kho_in_dai")))
+        return k if all(k) else None
+
+    def kho_can(self, lsx: Lsx, vat_lieu: str) -> tuple[int, int] | None:
+        """Khổ cần đưa vào bước nhận: giấy = khổ in; sóng = khổ in trừ lề ở mỗi chiều."""
+        ki = self._kho_in(lsx)
+        if ki is None or vat_lieu == "giay":
+            return ki
+        le = self._le_song(lsx)
+        w, h = ki[0] - le, ki[1] - le
+        return (w, h) if w > 0 and h > 0 else None
+
+    def _le_danh_muc(self) -> int:
+        ts = self.db.get(CongDoan, id_cong_doan_he_thong(self.db, CD_TE_SONG) or 0)
+        return int(getattr(ts, "tru_le_mm", None) or 0)
+
+    def _le_song(self, lsx: Lsx) -> int:
+        qc = lsx.quy_cach_json or {}
+        if "song_tru_le_mm" in qc:
+            return int(_f(qc.get("song_tru_le_mm")))
+        id_ts = id_cong_doan_he_thong(self.db, CD_TE_SONG)
+        co_ts = id_ts is not None and any(c.cong_doan_id == id_ts for c in lsx.cong_doans)
+        return self._le_danh_muc() if co_ts else 0
+
+    def _song_lay(self, lsx: Lsx) -> KhoLay | None:
+        qc = lsx.quy_cach_json or {}
+        k = chuan_kho(_f(qc.get("song_kho_rong")), _f(qc.get("song_kho_dai")))
+        if all(k):
+            return KhoLay("to", *k)
+        ki = self._kho_in(lsx)
+        return KhoLay("to", *ki) if ki else None
+
+    def _song_can_te(self, lsx: Lsx) -> bool:
+        kc, lay = self.kho_can(lsx, "song"), self._song_lay(lsx)
+        return kc is None or lay is None or bool(ma_buoc_lay("song", lay, kc))
+
+    def _dong_song_lay(self, lsx: Lsx, vao: float) -> dict:
+        """Dòng sóng xin kho: tờ khổ đang lấy, số = tờ vào bước chia số mảnh khổ cần lấy được."""
+        lay, kc = self._song_lay(lsx), self.kho_can(lsx, "song")
+        manh = (so_manh(lay, kc)[0] if (lay and kc) else 0) or 1
+        kr, kd = (lay.rong, lay.dai) if lay else (0, 0)
+        return {"hang_loai": "giay", "vat_tu_id": int((lsx.quy_cach_json or {}).get("song_id") or 0),
+                "so_luong": ceil(_f(vao) / manh), "don_vi_goc": "to", "kho_rong": kr, "kho_dai": kd}
+
+    def _giay_lay(self, lsx: Lsx) -> KhoLay | None:
+        qc = lsx.quy_cach_json or {}
+        if lsx.nguon_giay == "to_in":
+            ki = self._kho_in(lsx)
+            return KhoLay("to", *ki) if ki else None
+        if lsx.nguon_giay in ("to_nguyen", "mua"):
+            kn = chuan_kho(_f(qc.get("kho_nguyen_rong")), _f(qc.get("kho_nguyen_dai")))
+            return KhoLay("to", *kn) if all(kn) else None
+        if lsx.nguon_giay == "cuon":
+            gid = int(qc.get("giay_id") or 0)
+            id_cgc = id_cong_doan_he_thong(self.db, CD_CAT_CUON)
+            rong = next((int(v.kho_rong or 0) for c in lsx.cong_doans if c.cong_doan_id == id_cgc
+                         for v in c.vat_tus if v.hang_loai == HANG_GIAY and v.vat_tu_id == gid), 0)
+            return KhoLay("cuon", rong, 0) if rong else None
+        return None
+
+    def _dat_giay(self, lsx: Lsx, kho: KhoLay, kho_can: tuple[int, int]) -> NguonChon:
+        """Ghi khổ đang lấy của giấy vào lệnh: tờ to hơn / cuộn ⇒ khổ nguyên (cuộn: rộng × cạnh cắt) và số
+        mảnh xả như `ap_quy_cach` bước ①; tờ đúng khổ ⇒ chỉ đổi nguồn. Trả nguồn để dựng khâu."""
+        if kho.dang == "cuon":
+            kn, nguon = (kho.rong, so_manh(kho, kho_can)[1]), NguonChon("cuon", kho.rong, None)
+        elif chuan_kho(kho.rong, kho.dai) == chuan_kho(*kho_can):
+            return NguonChon("to_in", None, None)
+        else:
+            kn, nguon = (kho.rong, kho.dai), NguonChon("to_nguyen", None, None)
+        qc = dict(lsx.quy_cach_json or {})
+        qc["kho_nguyen_rong"], qc["kho_nguyen_dai"] = kn
+        qc["so_manh_xa"] = max(so_manh(KhoLay("to", *kn), kho_can)[0], 1)
+        lsx.quy_cach_json = qc
+        return nguon
+
+    def _dat_song(self, lsx: Lsx, kho: KhoLay) -> None:
+        """Ghi khổ sóng đang lấy; chốt luôn lề đang dùng để dựng lại chuỗi (có thể bỏ Tề sóng) không làm
+        đổi khổ cần của lệnh cũ."""
+        qc = dict(lsx.quy_cach_json or {})
+        qc.setdefault("song_tru_le_mm", self._le_song(lsx))
+        qc["song_kho_rong"], qc["song_kho_dai"] = kho.rong, kho.dai
+        lsx.quy_cach_json = qc
+
+    def _ton_tu_do_theo_kho(self, hang_id: int) -> list[tuple[int, int, str, float]]:
+        """Tồn tự do (tồn − đang giữ) của một mã giấy chia theo khổ, gộp hai chiều cùng khổ."""
+        from types import SimpleNamespace
+
+        from ..repositories.stock_lot_repo import StockLotRepository
+        from .giu_cho_service import GiuChoService
+
+        lots = StockLotRepository(self.db)
+        khoa: dict[tuple, list] = {}
+        for r, d, g, so in lots.ton_giay_theo_kho(hang_id):
+            k = khoa_ton("giay", hang_id, goc=g, kho_rong=r, kho_dai=d)
+            khoa.setdefault(k, [r, d, g, 0.0])[3] += so
+        # Tồn lấy từ câu GROUP BY trên (cộng cả lô ghi khổ ngược chiều), trừ phần đang giữ theo khoá.
+        giu = GiuChoService(self.db, SimpleNamespace(lots=lots)).repo.da_giu_map(list(khoa))
+        return [(r, d, g, max(0.0, so - _f(giu.get(k)))) for k, (r, d, g, so) in khoa.items()]
+
+    def _buoc_nhan(self, lsx: Lsx, vat_lieu: str) -> LsxCongDoan | None:
+        buoc = sorted(lsx.cong_doans, key=lambda c: (c.thu_tu, c.id or 0))
+        if vat_lieu == "giay":
+            return self._buoc_in(buoc)
+        return next((c for c in buoc if c.cong_doan_id in self._id_boi()), None)
+
+    def _phuong_an_cua(self, lsx: Lsx, vat_lieu: str):
+        """(khổ cần, bước nhận, danh sách phương án, mã giấy) — None khi lệnh không có vật liệu này,
+        khổ in hoặc bước nhận."""
+        qc = lsx.quy_cach_json or {}
+        hang_id = int(qc.get("giay_id" if vat_lieu == "giay" else "song_id") or 0)
+        nhan = self._buoc_nhan(lsx, vat_lieu)
+        kc = self.kho_can(lsx, vat_lieu)
+        if not hang_id or nhan is None or kc is None:
+            return None
+        g = self.db.get(GiayNguyen, hang_id)
+        ds = phuong_an_lay(vat_lieu, kc, int(ceil(_f(nhan.so_luong_vao))), _f(getattr(g, "gsm", None)),
+                           self._ton_tu_do_theo_kho(hang_id))
+        return kc, nhan, ds, g
+
+    def _chon_vat_lieu_tot_nhat(self, lsx: Lsx) -> NguonChon | None:
+        """Lúc tạo lệnh: lề sóng lấy theo danh mục Tề sóng, rồi mỗi vật liệu lấy phương án đứng đầu. Lệnh
+        tự khai bước chuẩn bị giấy giữ nguyên khổ nguyên của phiếu. Trả nguồn giấy cho `_dung_khau_chuan_bi`."""
+        qc = dict(lsx.quy_cach_json or {})
+        if qc.get("song_id") and "song_tru_le_mm" not in qc:
+            qc["song_tru_le_mm"] = self._le_danh_muc()
+            lsx.quy_cach_json = qc
+        if (pa := self._phuong_an_cua(lsx, "song")) is not None:
+            self._dat_song(lsx, pa[2][0].kho)
+        return self._chon_giay_tot_nhat(lsx)
+
+    def _chon_giay_tot_nhat(self, lsx: Lsx) -> NguonChon | None:
+        """Ghi phương án giấy đứng đầu vào lệnh, trả nguồn. Lệnh tự khai / không giấy ⇒ None."""
+        if self._tu_khai_giay(lsx) or (pa := self._phuong_an_cua(lsx, "giay")) is None:
+            return None
+        return self._dat_giay(lsx, pa[2][0].kho, pa[0])
+
+    def _ly_do_khoa_vat_lieu(self, lsx: Lsx) -> str | None:
+        """Câu khoá đầu tiên trúng khi đổi vật liệu đầu vào — cùng các cửa của sửa routing."""
+        viec = "đổi vật liệu đầu vào"
         if (loi := self._ly_do_khong_cap_nhat(lsx)) is not None:
-            raise LsxConflict(loi.replace("lấy số mới của danh mục", "đổi nguồn giấy")
-                              .replace("lấy số mới", "đổi nguồn giấy"))
-        self._chan_da_xuong_xuong(lsx, "đổi nguồn giấy")
+            return loi.replace("lấy số mới của danh mục", viec).replace("lấy số mới", viec)
+        try:
+            self._chan_da_xuong_xuong(lsx, viec)
+            self._chan_dang_giu_cho(lsx)
+        except LsxConflict as e:
+            return str(e)
         if self._co_tron_goi(lsx.id):
-            raise LsxConflict("Lệnh đang gia công trọn gói — nhà gia công tự lo giấy, không đổi nguồn giấy. "
-                              "Huỷ gia công trọn gói trước nếu cần.")
-        if self._ghep_cua(lsx) is not None:   # bước chung của bài trỏ vào step_key của lệnh ⇒ gỡ là mồ côi
-            raise LsxConflict("Lệnh đang nằm trong bài ghép — bỏ lệnh khỏi bài trước khi đổi nguồn giấy.")
-        if nguon not in NGUON_GIAY:
-            raise LsxValidationError("Nguồn giấy chỉ nhận: tờ đúng khổ in, tờ khổ nguyên, cuộn, mua mới.")
-        in_ = self._buoc_in(sorted(lsx.cong_doans, key=lambda c: c.thu_tu))
-        dv = self._dau_vao_giay(lsx, in_.so_luong_vao) if in_ is not None else None
-        if dv is None:
-            raise LsxValidationError("Lệnh chưa có giấy hoặc chưa có bước In — không có gì để đổi nguồn.")
-        if nguon == "cuon":
-            if dv.kho_nguyen is None:
-                raise LsxValidationError("Lệnh thiếu khổ nguyên — chưa dựng được Cắt giấy cuộn theo rộng cuộn.")
-            if not rong_cuon or not any(c <= rong_cuon <= c + CUON_DU_TOI_DA_MM for c in dv.kho_nguyen):
-                raise LsxValidationError(
-                    f"Rộng cuộn phải bằng một cạnh khổ nguyên ({dv.kho_nguyen[0]} hoặc {dv.kho_nguyen[1]} mm), "
-                    f"dư tối đa {CUON_DU_TOI_DA_MM} mm.")
-        cu = lsx.nguon_giay
-        self._go_khau_chuan_bi_giay(lsx)
-        moi = self._dung_khau_chuan_bi(
-            lsx, NguonChon(nguon, int(rong_cuon) if nguon == "cuon" else None, None))
+            return "Lệnh đang gia công trọn gói — nhà gia công tự lo giấy, không đổi vật liệu đầu vào."
+        if self._ghep_cua(lsx) is not None:
+            return "Lệnh đang nằm trong bài ghép — bỏ lệnh khỏi bài trước khi đổi vật liệu đầu vào."
+        return None
+
+    @staticmethod
+    def _pa_dict(p) -> dict:
+        return {"dang": p.kho.dang, "rong": p.kho.rong, "dai": p.kho.dai, "so_manh": p.so_manh,
+                "buoc": [CD_HE_THONG[m]["ten"] for m in p.ma_buoc], "can": p.can, "don_vi": p.don_vi,
+                "ton": round(p.ton, 2), "diem": p.diem}
+
+    def phuong_an_vat_lieu(self, lsx: Lsx) -> dict:
+        """Khối Vật liệu đầu vào: mỗi vật liệu khổ cần, bước nhận, khổ đang lấy, tối đa 8 phương án."""
+        out: dict = {"khoa": self._ly_do_khoa_vat_lieu(lsx), "giay": None, "song": None}
+        tu_khai = self._tu_khai_giay(lsx)
+        for vl in ("giay", "song"):
+            if (pa := self._phuong_an_cua(lsx, vl)) is None:
+                continue
+            kc, nhan, ds, g = pa
+            so_to = int(ceil(_f(nhan.so_luong_vao)))
+            lay = self._giay_lay(lsx) if vl == "giay" else self._song_lay(lsx)
+            dang = next((p for p in ds if p.kho == lay), None)
+            if dang is None and lay is not None:
+                # Khổ đang lấy rơi khỏi top 8 (tồn đổi) vẫn hiện đúng như đang lấy, tồn tự do 0.
+                goc = "kg" if lay.dang == "cuon" else "to"
+                dang = next((p for p in phuong_an_lay(vl, kc, so_to, _f(getattr(g, "gsm", None)),
+                                                      [(lay.rong, lay.dai, goc, 0.0)])
+                             if p.kho == lay), None)
+            out[vl] = {
+                "ten_hang": getattr(g, "ten", None) or "", "kho_can": list(kc), "so_to_can": so_to,
+                "vao_buoc": nhan.ten,
+                "tru_le_mm": self._le_song(lsx) if vl == "song" else None,
+                "dang_lay": self._pa_dict(dang) if dang else None,
+                "ds": [self._pa_dict(p) for p in ds],
+                "tot_nhat": dang is not None and bool(ds) and dang.kho == ds[0].kho,
+                "tu_khai": tu_khai if vl == "giay" else False,
+            }
+        return out
+
+    def doi_vat_lieu(self, *, lsx_id: int, vat_lieu: str, rong: int | None, dai: int | None,
+                     tru_le_mm: int | None, ve_tot_nhat: bool, actor) -> Lsx:
+        """Người kế hoạch đổi khổ lấy ở kho (hoặc lề sóng, hoặc về phương án tốt nhất): gỡ bước chuẩn bị
+        của riêng vật liệu đó rồi dựng lại, không đụng bước khác."""
+        lsx = self.get(lsx_id)
+        if (loi := self._ly_do_khoa_vat_lieu(lsx)) is not None:
+            raise LsxConflict(loi)
+        if vat_lieu not in ("giay", "song"):
+            raise LsxValidationError("Vật liệu chỉ nhận giấy in hoặc sóng.")
+        ten = "giấy in" if vat_lieu == "giay" else "sóng"
+        if vat_lieu == "giay" and self._tu_khai_giay(lsx):
+            raise LsxConflict("Lệnh tự khai bước chuẩn bị giấy — sửa ở bảng công đoạn, không đổi ở đây.")
+        cu_le = self._le_song(lsx)
+        if vat_lieu == "song" and "song_tru_le_mm" not in (lsx.quy_cach_json or {}):
+            # Lệnh cũ: chốt lề đang suy ra TRƯỚC khi gỡ Tề sóng, không thì gỡ xong lề rơi về 0.
+            lsx.quy_cach_json = {**(lsx.quy_cach_json or {}), "song_tru_le_mm": cu_le}
+        if vat_lieu == "song" and tru_le_mm is not None:
+            if not 0 <= int(tru_le_mm) <= LE_SONG_TOI_DA_MM:
+                raise LsxValidationError(f"Lề trừ từ 0 đến {LE_SONG_TOI_DA_MM} mm.")
+            lsx.quy_cach_json = {**(lsx.quy_cach_json or {}), "song_tru_le_mm": int(tru_le_mm)}
+        pa = self._phuong_an_cua(lsx, vat_lieu)
+        if pa is None:
+            raise LsxValidationError(
+                f"Lệnh chưa có {ten}, chưa có khổ in hoặc chưa có bước nhận {ten} — không có gì để đổi.")
+        kc, _nhan, ds, _g = pa
+        cu = self._giay_lay(lsx) if vat_lieu == "giay" else self._song_lay(lsx)
+        if ve_tot_nhat:
+            chon = ds[0].kho
+        elif rong:
+            chon = KhoLay("cuon", int(rong), 0) if not dai else KhoLay("to", *chuan_kho(int(rong), int(dai)))
+            if chon not in [p.kho for p in ds]:
+                raise LsxValidationError("Khổ này không còn trong danh sách phương án — tải lại để chọn lại.")
+        elif cu is not None and so_manh(cu, kc)[0] > 0:
+            chon = cu
+        else:
+            chon = ds[0].kho
+        if vat_lieu == "giay":
+            self._go_khau_chuan_bi_giay(lsx)
+            moi = self._dung_khau_chuan_bi(lsx, self._dat_giay(lsx, chon, kc), phan=("giay",))
+        else:
+            self._go_khau_chuan_bi_giay(lsx, (CD_TE_SONG,))
+            self._dat_song(lsx, chon)
+            moi = self._dung_khau_chuan_bi(lsx, None, phan=("song",))
         self._ap_chuoi_nguoc(lsx)
-        # Lưới cuối (L-SX-21): đổi nguồn không được lưu một tuyến mà `replace_routing` sau đó từ chối.
+        # Lưới cuối (L-SX-21): đổi vật liệu không được lưu một tuyến mà `replace_routing` sau đó từ chối.
         self._kiem_tuyen_luu(lsx, sorted(lsx.cong_doans, key=lambda c: (c.thu_tu, c.id or 0)))
         self._bung_lai_vat_tu(lsx, moi)
         thieu = self.thieu_cua(lsx)
@@ -2753,16 +2990,17 @@ class LsxService:
         elif not thieu and lsx.trang_thai == TT_CHO_BO_SUNG:
             lsx.trang_thai = TT_NHAP
         self._roi_khay_xep_lich(lsx)
-        self.audit.create(
-            actor_user_id=actor.id, action="doi_nguon_giay", target=f"lsx:{lsx.id}",
-            detail=f"Đổi nguồn giấy lệnh {lsx.ma}: {_NHAN_NGUON.get(cu, 'chưa có')} → {_NHAN_NGUON[nguon]}"
-                   + (f" rộng {rong_cuon} mm" if nguon == "cuon" else ""))
+        cau = f"Đổi {ten} lệnh {lsx.ma}: {_nhan_kho_lay(cu)} → {_nhan_kho_lay(chon)}"
+        if vat_lieu == "song" and tru_le_mm is not None and int(tru_le_mm) != cu_le:
+            cau += f", lề {cu_le} → {int(tru_le_mm)} mm"
+        self.audit.create(actor_user_id=actor.id, action="doi_vat_lieu_dau_vao", target=f"lsx:{lsx.id}",
+                          detail=cau)
         self.repo.commit()
         return self.get(lsx_id)
 
     def _dong_giay_khau_chuan_bi(self, cd, qc: dict, giay_id: int) -> dict | None:
         """Dòng giấy/sóng của lệnh CÓ nguồn giấy (`lsx.nguon_giay`): Cắt giấy cuộn ⇒ kg theo rộng cuộn,
-        Tề giấy in ⇒ tờ khổ nguyên, bước khác (In) ⇒ tờ khổ in; sóng ở Tề sóng ⇒ tờ khổ in. Lệnh cũ
+        Tề giấy in ⇒ tờ khổ nguyên, bước khác (In) ⇒ tờ khổ in; sóng ở Tề sóng / bồi ⇒ tờ khổ đang lấy. Lệnh cũ
         (NULL) hoặc mã không phải giấy/sóng của sản phẩm ⇒ None, đi luật cũ `_dong_giay_cho_ma`."""
         lsx = getattr(cd, "lsx", None)
         if lsx is None or not getattr(lsx, "nguon_giay", None):
@@ -2770,9 +3008,10 @@ class LsxService:
         vao, ma = _f(getattr(cd, "so_luong_vao", 0)), self._ma_cd(cd)
         out = {"ly_do": None, "dien_giai_nguon": None}
         if qc.get("song_id") and int(qc["song_id"]) == giay_id:
-            if ma != CD_TE_SONG:
+            # Sóng ở Tề sóng, hoặc ở bước bồi khi sóng đúng khổ (12/11/2026): tờ khổ đang lấy.
+            if ma != CD_TE_SONG and getattr(cd, "cong_doan_id", None) not in self._id_boi():
                 return None
-            d = dong_song(giay_id, (int(_f(qc.get("kho_in_rong"))), int(_f(qc.get("kho_in_dai")))), vao)
+            d = self._dong_song_lay(lsx, vao)
         elif qc.get("giay_id") and int(qc["giay_id"]) == giay_id:
             dv = self._dau_vao_giay(lsx, vao)
             if ma == CD_CAT_CUON:
@@ -3779,7 +4018,7 @@ class LsxService:
                 moi[k] = d.get("cong_doan_id")
         for k, c in khau.items():
             if k not in moi or moi[k] != c.cong_doan_id:
-                raise LsxConflict(f'Bước "{c.ten}" do Nguồn giấy dựng — đổi Nguồn giấy thay vì bỏ hay đổi bước này.')
+                raise LsxConflict(f'Bước "{c.ten}" do máy dựng theo Vật liệu đầu vào — đổi khổ ở Vật liệu đầu vào thay vì bỏ hay đổi bước này.')
 
     def replace_routing(self, *, lsx_id: int, rows_in, actor, ly_do: str | None = None,
                         commit: bool = True) -> Lsx:

@@ -78,6 +78,20 @@ def _ton(db, giay_ma: str, kr: int, kd: int, goc: str, so: float) -> None:
     db.commit()
 
 
+def _le_song(db, mm: int | None) -> None:
+    """Lề trừ của Tề sóng ở danh mục — lệnh mới lấy làm lề mặc định (mg 0474)."""
+    _cd_he_thong(db, "TS").tru_le_mm = mm
+    db.commit()
+
+
+def _ptg_song_co_te(db) -> PhieuTinhGia:
+    """Có sóng, lề 5, kho có sóng tờ khổ in 430×650 ⇒ to hơn khổ cần 425×645 ⇒ cần Tề sóng."""
+    _le_song(db, 5)
+    ptg = _ptg(db, song=True)
+    _ton(db, "G-SONGE", 430, 650, "to", 999_999)
+    return ptg
+
+
 def _tao(db, orders, lsx_svc, admin, customer, ptg):
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     return lsx_svc.tao(order_id=d.id, order_line_ids=[ln.id for ln in d.lines], actor=admin)[0]
@@ -130,20 +144,52 @@ def test_kho_co_to_kho_in_khong_them_buoc_giay_o_in(db, orders, lsx_svc, admin, 
     assert float(g.so_luong) == in_.so_luong_vao
 
 
-def test_kho_trong_nguon_mua_co_te_giay_in(db, orders, lsx_svc, admin, customer):
+def test_kho_trong_lay_to_dung_kho_in_khong_te(db, orders, lsx_svc, admin, customer):
+    """12/11/2026: kho chưa có khổ nào ⇒ phương án duy nhất là tờ đúng khổ in tồn 0; Kế hoạch vật tư lo mua."""
     lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db))
-    assert _ma(db, lsx) == ["TGI", "CD-IN-CB", "CD-CAN-CB"]
-    assert lsx.nguon_giay == "mua"
+    assert _ma(db, lsx) == ["CD-IN-CB", "CD-CAN-CB"]
+    assert lsx.nguon_giay == "to_in"
+    in_ = _in(lsx)
+    (g,) = _giay(lsx)[in_.ten]
+    assert (g.don_vi_goc, g.kho_rong, g.kho_dai) == ("to", 430, 650)
+    assert float(g.so_luong) == in_.so_luong_vao > 0
+
+
+def test_kho_co_to_nguyen_chon_te_theo_diem(db, orders, lsx_svc, admin, customer):
+    ptg = _ptg(db)
+    _ton(db, "G-DUP350", 650, 860, "to", 999_999)
+    lsx = _tao(db, orders, lsx_svc, admin, customer, ptg)
+    assert _ma(db, lsx) == ["TGI", "CD-IN-CB", "CD-CAN-CB"] and lsx.nguon_giay == "to_nguyen"
     tgi = _theo_ma(db, lsx, "TGI")
     (g,) = _giay(lsx)[tgi.ten]
-    assert (g.don_vi_goc, g.kho_rong, g.kho_dai) == ("to", 650, 860)
-    assert float(g.so_luong) == tgi.so_luong_vao
-    assert _giay(lsx)[_in(lsx).ten] == []
+    assert (g.don_vi_goc, g.kho_rong, g.kho_dai, float(g.so_luong)) == ("to", 650, 860, tgi.so_luong_vao)
+    assert tgi.so_luong_vao == ceil(_in(lsx).so_luong_vao / 2)
+
+
+def test_to_hai_manh_khac_kho_nguyen_phieu_ghi_lai_kho_nguyen(db, orders, lsx_svc, admin, customer):
+    """Kho chỉ có tờ 870×660 (2 mảnh 430×650): lệnh lấy khổ đó, khổ nguyên + mảnh xả ghi theo khổ lấy."""
+    ptg = _ptg(db, kho_nguyen=(700, 1000))
+    _ton(db, "G-DUP350", 870, 660, "to", 999_999)
+    lsx = _tao(db, orders, lsx_svc, admin, customer, ptg)
+    qc = lsx.quy_cach_json
+    assert (qc["kho_nguyen_rong"], qc["kho_nguyen_dai"], qc["so_manh_xa"]) == (660, 870, 2)
+    (g,) = _giay(lsx)[_theo_ma(db, lsx, "TGI").ten]
+    assert (g.kho_rong, g.kho_dai) == (660, 870)
+
+
+def test_song_dung_kho_khong_te_dong_song_o_boi(db, orders, lsx_svc, admin, customer):
+    _le_song(db, 5)
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, song=True))
+    assert _ma(db, lsx) == ["CD-IN-CB", "BTĐ", "CD-CAN-CB"]
+    boi = _theo_ma(db, lsx, "BTĐ")
+    (s,) = _giay(lsx)[boi.ten]
+    assert (s.don_vi_goc, s.kho_rong, s.kho_dai, float(s.so_luong)) == ("to", 425, 645, boi.so_luong_vao)
+    assert lsx.quy_cach_json["song_tru_le_mm"] == 5
 
 
 def test_co_song_them_te_song_noi_vao_boi(db, orders, lsx_svc, admin, customer):
-    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, song=True))
-    assert _ma(db, lsx) == ["TGI", "CD-IN-CB", "TS", "BTĐ", "CD-CAN-CB"]
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg_song_co_te(db))
+    assert _ma(db, lsx) == ["CD-IN-CB", "TS", "BTĐ", "CD-CAN-CB"]
     ts, boi = _theo_ma(db, lsx, "TS"), _theo_ma(db, lsx, "BTĐ")
     assert ts.phu_thuoc == []
     sau_ts = [c for c in lsx.cong_doans if any(e.buoc_truoc_id == ts.id for e in c.phu_thuoc)]
@@ -159,7 +205,7 @@ def test_co_song_them_te_song_noi_vao_boi(db, orders, lsx_svc, admin, customer):
 def test_tinh_nguoc_te_song_ra_bang_vao_boi_cong_hao(db, orders, lsx_svc, admin, customer):
     ts_dm = _cd_he_thong(db, "TS")
     ts_dm.kieu_bu_hao, ts_dm.so_to_bu_hao = "co_dinh", 21
-    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, song=True))
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg_song_co_te(db))
     ts, boi = _theo_ma(db, lsx, "TS"), _theo_ma(db, lsx, "BTĐ")
     assert ts.so_luong_ra == boi.so_luong_vao
     assert ts.so_luong_vao == ts.so_luong_ra + 21
@@ -183,7 +229,7 @@ def test_nhanh_giay_tinh_nguoc_qua_te_va_cat_cuon(db, orders, lsx_svc, admin, cu
 
 
 def test_xoa_buoc_boi_khi_co_te_song_bi_chan(db, orders, lsx_svc, admin, customer):
-    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, song=True))
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg_song_co_te(db))
     rows = [LsxCongDoanIn(step_key=c.step_key, cong_doan_id=c.cong_doan_id, ten=c.ten, nhom=c.nhom,
                           department_id=c.department_id, may_id=c.may_id)
             for c in _buoc(lsx) if c.ten != "Bồi Duplex với Krap TĐ"]
@@ -191,21 +237,21 @@ def test_xoa_buoc_boi_khi_co_te_song_bi_chan(db, orders, lsx_svc, admin, custome
         lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=rows, actor=admin)
 
 
-def test_thieu_kho_nguyen_kiem_thieu_bao(db, orders, lsx_svc, admin, customer):
+def test_thieu_kho_nguyen_van_lay_to_dung_kho_in(db, orders, lsx_svc, admin, customer):
+    """Phiếu không khai khổ nguyên: tờ đúng khổ in không cần khổ nguyên ⇒ không báo thiếu."""
     lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, kho_nguyen=None))
-    assert lsx.nguon_giay == "mua"
+    assert lsx.nguon_giay == "to_in"
     assert _ma(db, lsx) == ["CD-IN-CB", "CD-CAN-CB"]
-    assert "thieu_kho_nguyen" in lsx_svc.thieu_cua(lsx)
+    assert "thieu_kho_nguyen" not in lsx_svc.thieu_cua(lsx)
 
 
-def test_kho_nguyen_nho_hon_kho_in_khong_chon_cuon_va_bao_thieu(db, orders, lsx_svc, admin, customer):
-    """Khổ nguyên 400×500 không chứa được khổ in 430×650 ⇒ không dựng Cắt cuộn từ cuộn 400, báo thiếu."""
+def test_cuon_hep_hon_kho_in_khong_thanh_phuong_an(db, orders, lsx_svc, admin, customer):
+    """Cuộn 400 không cắt nổi một tờ 430×650 ⇒ không là phương án, lệnh lấy tờ đúng khổ in."""
     ptg = _ptg(db, kho_nguyen=(400, 500))
     _ton(db, "G-DUP350", 400, 0, "kg", 9999)
     lsx = _tao(db, orders, lsx_svc, admin, customer, ptg)
-    assert lsx.nguon_giay == "mua"
+    assert lsx.nguon_giay == "to_in"
     assert _ma(db, lsx) == ["CD-IN-CB", "CD-CAN-CB"]
-    assert "thieu_kho_nguyen" in lsx_svc.thieu_cua(lsx)
 
 
 def test_lenh_khong_buoc_in_van_giu_giay_o_buoc_dau(db, orders, lsx_svc, admin, customer):

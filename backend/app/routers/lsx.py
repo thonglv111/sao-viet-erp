@@ -31,7 +31,8 @@ from ..repositories.org_scope import chu_cua
 from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.lsx import (
     BuocMacDinhOut,
-    DoiNguonGiayIn,
+    DoiVatLieuIn,
+    VatLieuDauVaoOut,
     GiaoDonIn,
     GiaoDonOut,
     HangChoOut,
@@ -718,22 +719,39 @@ def dong_bo_danh_muc(
     return _out(svc, lsx)
 
 
-@router.put("/{lsx_id}/nguon-giay", response_model=LsxOut)
-def doi_nguon_giay(
+@router.get("/{lsx_id}/vat-lieu-dau-vao", response_model=VatLieuDauVaoOut)
+def xem_vat_lieu_dau_vao(
     lsx_id: int,
-    payload: DoiNguonGiayIn,
+    db: Annotated[Session, Depends(get_db)],
+    authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "read"))],
+) -> VatLieuDauVaoOut:
+    """Khối Vật liệu đầu vào: khổ cần, khổ đang lấy và tối đa 8 phương án khổ trong kho (chấm điểm
+    100 = đủ tồn 50 + ít bước chuẩn bị 30 + ít thừa giấy 20) của giấy in và sóng. Không có tiền."""
+    svc = _svc(db)
+    try:
+        lsx = svc.get(lsx_id)
+        _guard_scope(db, lsx, user, authz)
+        return VatLieuDauVaoOut(**svc.phuong_an_vat_lieu(lsx))
+    except Exception as exc:
+        raise _map(exc)
+
+
+@router.put("/{lsx_id}/vat-lieu-dau-vao", response_model=LsxOut)
+def doi_vat_lieu_dau_vao(
+    lsx_id: int,
+    payload: DoiVatLieuIn,
     db: Annotated[Session, Depends(get_db)],
     authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "update"))],
 ) -> LsxOut:
-    """Người kế hoạch đổi nguồn giấy của lệnh (spec 2026-10-24-chuan-bi-giay §7): dựng lại Cắt giấy cuộn /
-    Tề giấy in trước In, giấy chuyển sang bước đầu mới. Chặn đúng ba cửa của sửa routing (đã lập kế
-    hoạch · đơn hủy · đang giữ chỗ). Nhu cầu vật tư đổi ⇒ xoá cache cân đối."""
+    """Đổi khổ lấy ở kho của giấy in / sóng (hoặc lề sóng, hoặc về phương án tốt nhất): dựng lại bước
+    chuẩn bị của vật liệu đó. Chặn như sửa routing. Nhu cầu vật tư đổi ⇒ xoá cache cân đối."""
     svc = _svc(db)
     try:
         _guard_scope(db, svc.get(lsx_id), user, authz)
-        lsx = svc.doi_nguon_giay(lsx_id=lsx_id, nguon=payload.nguon, rong_cuon=payload.rong_cuon,
-                                 actor=user)
+        lsx = svc.doi_vat_lieu(lsx_id=lsx_id, vat_lieu=payload.vat_lieu, rong=payload.rong, dai=payload.dai,
+                               tru_le_mm=payload.tru_le_mm, ve_tot_nhat=payload.ve_tot_nhat, actor=user)
     except Exception as exc:
         raise _map(exc)
     xoa_cache_can_doi()

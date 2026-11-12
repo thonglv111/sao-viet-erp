@@ -3493,6 +3493,8 @@ dùng cho bình bài.
 
 **Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `loai`, `caliper_micron`, `tho`, `don_vi_gia`, `don_vi_them`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
 
+`gsm` (INTEGER, định lượng g/m²): NULL được từ mg `0475` (12/11/2026), không bắt buộc khai. Chỗ cần định lượng thì báo thiếu chứ không tự điền: quy kg ↔ tờ báo lỗi, tính giá ghi cảnh báo khi công thức dùng `dinh_luong`, khối Vật liệu đầu vào của lệnh bỏ phương án cuộn.
+
 `loai` (VARCHAR(8) NOT NULL DEFAULT `'giay'`, mg `0426`, 19/10/2026): `giay` = tờ để in, `song` = tấm sóng để bồi. Một sản phẩm tính giá / một lệnh có TỐI ĐA 1 mã mỗi loại (máy chủ chặn khi lưu, `ptg_giay_buoc.loi_tran_giay`); giấy chính (`phieu_thanh_phan.giay_id`) là mã loại `giay`, chỉ có sóng thì là mã sóng. Mã cũ thành `giay`. `giay_gia_version` KHÔNG chụp cột này (không phải giá).
 
 `thay_the_ids` ĐÃ GỠ (mg 0405, 13/10/2026): danh sách giấy thay thế chỉ để tra cứu, không đường nào đọc.
@@ -3502,6 +3504,8 @@ dùng cho bình bài.
 `anh_url` (mg 0191, VARCHAR(500) nullable) = ảnh minh hoạ vật tư (1 ảnh). Lưu đường `/api/files/materials/giay/<id>/…` (đọc qua router có đăng nhập); trang QR công khai serve lại chính key này qua `/api/public/vat-lieu-anh` bằng token QR. NULL = chưa có ảnh.
 
 `don_vi_gia` (mg 0170) là **ĐƠN VỊ GỐC** của mặt hàng: mã trong `don_vi_do`, không còn enum cứng ở frontend. Tồn kho cộng dồn theo đơn vị này; nhập bằng đơn vị nào cũng được rồi quy về đây. NULL = chưa chọn (mg 0170 xoá trắng mã không có trong `don_vi_do`) — không mặc định `kg` nữa vì đơn vị gốc quyết định cách cộng tồn, điền hộ một lần là sai vĩnh viễn.
+
+Đơn vị của mã giấy do máy chủ chốt (`VatLieuKhoService._chot_don_vi_giay`): loại `giay` có đúng `kg` + `to`, ĐVT chính mặc định `kg`; loại `song` (từ 12/11/2026) có đúng `m2` + `to`, ĐVT chính `m2`, đơn giá là giá một mét vuông. Sóng khai m² ở kho / mua hàng quy ra tờ theo khổ (`kho_giay.to_tu_m2`), không cần định lượng. Mg `0476` đổi mã sóng cũ sang `m2`: đ/kg × định lượng/1000 và đ/tờ ÷ diện tích tờ ra đ/m², công thức mặc định thay bằng `dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay`, công thức tự khai giữ nguyên, mã có giá mà thiếu số để quy thì để nguyên.
 
 `don_vi_them` (JSON NULL, mg `0390`, 10/10/2026): mảng MÃ đơn vị khai thêm ngoài ĐVT chính `don_vi_gia`, có thứ tự. Mỗi đơn vị kéo cả nhóm quy đổi của nó (tờ ⇒ ram); hai đơn vị khai không cùng nhóm và không quy đổi lẫn nhau (tờ và kg). Tồn kho, cân đối, mua hàng tách theo đơn vị gốc (`kho_giay.GocMatHang`). Đơn giá `don_gia` chỉ thuộc `don_vi_gia`. NULL = chỉ ĐVT chính; mg 0390 backfill `["to"]` cho giấy có ĐVT chính ngoài họ tờ (trước đó họ tờ được ngầm cho mọi giấy).
 
@@ -3569,7 +3573,9 @@ dùng cho bình bài.
 
 `spoilage_pct` là cột CŨ, chỉ `routing_engine` của hệ tính giá cũ dùng; không có ô nhập và Lệnh SX KHÔNG đọc — hao hụt đi qua bảng bậc `bac_bu_hao` của chính công đoạn (mỗi bậc tự chọn `to`|`pct`).
 
-**Tất cả cột:** `id`, `ma`, `ten`, `ten_hien_thi`, `don_vi_vao`, `don_vi_ra`, `kieu_bu_hao`, `bac_bu_hao`, `nhom`, `nhom_may_cho_phep`, `khoan_ghi_theo`, `allowed_defect_pct`, `allowed_defect_abs`, `che_do_tinh`, `pricing_basis`, `setup_cost`, `setup_time`, `nang_suat`, `run_rate`, `rate_tiers`, `size_tiers`, `first_unit_floor`, `min_charge`, `requires_tooling`, `tooling_type`, `spoilage_pct`, `so_to_bu_hao`, `inline_flag`, `cong_thuc_gia`, `ghi_chu`, `active`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten`, `ten_hien_thi`, `don_vi_vao`, `don_vi_ra`, `kieu_bu_hao`, `bac_bu_hao`, `nhom`, `nhom_may_cho_phep`, `khoan_ghi_theo`, `allowed_defect_pct`, `allowed_defect_abs`, `che_do_tinh`, `pricing_basis`, `setup_cost`, `setup_time`, `nang_suat`, `run_rate`, `rate_tiers`, `size_tiers`, `first_unit_floor`, `min_charge`, `requires_tooling`, `tooling_type`, `spoilage_pct`, `so_to_bu_hao`, `tru_le_mm`, `inline_flag`, `cong_thuc_gia`, `ghi_chu`, `active`, `created_at`, `updated_at`.
+
+`tru_le_mm` (INTEGER nullable, mg `0474`, 12/11/2026) = lề trừ MỖI CHIỀU (mm, 0–50) dùng cho Tề sóng: lệnh mới lấy số này làm lề mặc định, khổ sóng cần = khổ in trừ lề (720 × 1020, lề 5 ⇒ 715 × 1015); lệnh đổi được lề của riêng nó (`lsx.quy_cach_json.song_tru_le_mm`). Migration đặt 5 cho dòng hệ thống `TS` nếu còn trống. NULL = không trừ; công đoạn khác để trống.
 
 🔴 **GỠ 18/09/2026 (mg `0324`): `cong_thuc_san_luong` · `don_vi_san_luong` · `he_so_ngoai_dong`.** Ba cột của bước NGOÀI dòng giấy: công thức sản lượng RA (mg `0214`, vd Ghi kẽm CTP `so_kem` ⇒ 4 bản, rồi engine suy ngược vế VÀO qua cầu quy đổi + bù hao), đơn vị của số ấy (mg `0289`, `kem`) và hệ số vào→ra khai tay (mg `0196`, ngưng dùng từ 20/08/2026). Theo yêu cầu chủ xưởng: số bản kẽm đổi theo từng đơn nên bước ngoài dòng giấy nay chỉ có số khi người lập lệnh TỰ KHAI đơn vị + số ở bước (`lsx_service.tu_khai_don_vi`); không khai thì bước đứng ở 0. Migration xoá luôn dòng `cong_thuc_lich_su` của trường `cong_thuc_san_luong`. Không khôi phục được.
 
@@ -4412,7 +4418,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `han_hoan_thanh_sx` | `Date` → `DATE` | — | yes | — | Hạn nội bộ — kế hoạch nhập. |
 | `is_rush` | `Boolean` → `BOOLEAN` | — | no | `false` | Ưu tiên gấp (snapshot `orders.is_rush`, sửa được). |
 | `giu_cho_bat` | `Boolean` → `BOOLEAN` | — | no | `false` | **CÔNG TẮC giữ chỗ vật tư** (mg `0208`). Bật = ĐĂNG KÝ giữ, không phải chụp một lần: giữ được bao nhiêu hay bấy nhiêu, hàng về sau thì tự nhặt thêm. Cần cờ RIÊNG chứ không suy từ "có dòng nào trong `vat_tu_giu_cho` không" — trạng thái *đã bật mà chưa giữ được gì* (kho trống, đang chờ mua) không có dòng nào để suy, mà đó chính là trạng thái phải nhớ. Xếp lịch chỉ mở khi giữ ĐỦ 100%. |
-| `quy_cach_json` | `JSON` | — | yes | — | Snapshot quy cách: khổ ①②③ · giấy + định lượng · số màu A/B · cách in · chừa · số kẽm · số lượt · ghi chú kỹ thuật. Read-only ở lát 1. |
+| `quy_cach_json` | `JSON` | — | yes | — | Snapshot quy cách: khổ ①②③ · giấy + định lượng · số màu A/B · cách in · chừa · số kẽm · số lượt · ghi chú kỹ thuật. Khối Vật liệu đầu vào (12/11/2026) ghi vào đây khổ giấy in đang lấy ở kho (`kho_nguyen_rong/dai` + `so_manh_xa`; cuộn = rộng cuộn × cạnh cắt) và khổ sóng đang lấy (`song_kho_rong/dai`) cùng lề trừ của Tề sóng (`song_tru_le_mm`, 0–50 mm, mặc định lấy `cong_doan.tru_le_mm` của `TS`). Lệnh cũ thiếu hai khoá sóng thì coi như sóng đúng khổ in, lề 0. |
 | `routing_goc_json` | `JSON` | — | yes | — | Ảnh chụp routing LÚC TẠO lệnh (list rút gọn: `ten`·`nhom`·`loai_buoc`). CHỈ để cảnh báo "routing đã đổi so với bài tính giá" — không dùng tính lại gì. |
 | `may_id` | `Integer` | IX | yes | — | Soft → `may_thiet_bi.id` — máy in dự kiến. |
 | `trang_thai` | `String(20)` | — | no | `nhap` | `nhap` → `cho_bo_sung` → `san_sang` → `da_lap_ke_hoach` (routing khóa) → `da_phat_hanh` (thả xuống xưởng) ⇄ `da_dong` (KCS đóng/mở lại). |
@@ -4424,7 +4430,7 @@ khoá: `bao_tri` → `phieu_bao_tri`, `yeu_cau` → `yeu_cau_sua_chua` **hoặc*
 | `giay_chot_cach` | `String(12)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). **Tổ Cắt chốt giấy** (mg 0356, spec giấy theo khổ §4.6): `cat` = đã chèn bước cắt đầu tuyến, `khong_cat` = đủ giấy đúng khổ; NULL = chưa chốt — khi có tổ bật `departments.la_to_cat`, bước mang giấy chờ chốt mới bắt đầu được (§4.7). |
 | `giay_chot_luc` | `DateTime(timezone=True)` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Lúc tổ Cắt chốt (mg 0356). Gỡ chốt ⇒ NULL. |
 | `giay_chot_boi_id` | `Integer` | — | yes | — | **Không còn dùng từ 18/10/2026** (khâu tổ Cắt chốt giấy đã gỡ, giấy nằm ở bước nào thì bước đó lấy; giữ cột, không đọc không ghi). Soft → `users.id` — người chốt (mg 0356). |
-| `nguon_giay` | `String(12)` | — | yes | — | Nguồn giấy máy chọn lúc lập lệnh (mg 0446, spec 2026-10-24-chuan-bi-giay §7): `to_in` (tờ đúng khổ in, không thêm bước) · `to_nguyen` (thêm Tề giấy in) · `cuon` (thêm Cắt giấy cuộn + Tề) · `mua` (không nguồn nào đủ). NULL = lệnh cũ / không giấy. |
+| `nguon_giay` | `String(12)` | — | yes | — | Nguồn giấy của lệnh (mg 0446): `to_in` (tờ đúng khổ in, không thêm bước) · `to_nguyen` (thêm Tề giấy in) · `cuon` (thêm Cắt giấy cuộn + Tề) · `mua` (chỉ còn ở lệnh cũ). Từ 12/11/2026 dẫn xuất từ khổ đang lấy ở khối Vật liệu đầu vào (phương án điểm cao nhất hoặc người đổi); kho trống thì `to_in`, việc mua để Kế hoạch vật tư lo. NULL = lệnh cũ / không giấy. |
 
 **Tất cả cột:** `id`, `ma`, `loai`, `lsx_goc_id`, `ten`, `order_id`, `order_line_id`, `quote_version_id`, `phieu_thanh_phan_id`, `so_luong_dat`, `don_vi_tinh`, `so_to_ke_hoach`, `so_to_nguyen`, `so_con`, `ban_giao_at`, `han_giao_khach`, `han_hoan_thanh_sx`, `is_rush`, `giu_cho_bat`, `quy_cach_json`, `routing_goc_json`, `may_id`, `trang_thai`, `nguoi_phu_trach_id`, `ghi_chu`, `created_by`, `created_at`, `updated_at`, `giay_chot_cach`, `giay_chot_luc`, `giay_chot_boi_id`, `nguon_giay`.
 

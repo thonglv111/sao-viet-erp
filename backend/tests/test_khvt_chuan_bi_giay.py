@@ -15,7 +15,7 @@ from app.models.stock_request import StockRequestLine
 from app.models.vat_lieu_kho import GiayNguyen
 from app.services.san_xuat.trang_thai_vat_tu import trang_thai_vat_tu
 from tests.test_ke_hoach_vat_tu import svc  # noqa: F401
-from tests.test_lenh_chuan_bi_giay import _cd_he_thong, _in, _ptg, _tao, _theo_ma, _ton
+from tests.test_lenh_chuan_bi_giay import _cd_he_thong, _in, _ptg, _ptg_song_co_te, _tao, _theo_ma, _ton
 from tests.test_lsx_service import (  # noqa: F401
     _don_da_chuyen_sx, _may_in, _to_san_xuat, admin, customer, db, lsx_svc, orders,
 )
@@ -54,7 +54,9 @@ def test_khvt_nhu_cau_cuon_kg_o_cat_cuon(db, orders, lsx_svc, svc, admin, custom
 
 
 def test_khvt_nhu_cau_to_nguyen_o_te(db, orders, lsx_svc, svc, admin, customer):
-    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db))
+    ptg = _ptg(db)
+    _ton(db, "G-DUP350", 650, 860, "to", 999_999)
+    lsx = _tao(db, orders, lsx_svc, admin, customer, ptg)
     tgi = _theo_ma(db, lsx, "TGI")
 
     kq = _dong_giay(svc.can_doi(chi_lsx_ids={lsx.id}), _g(db))
@@ -63,7 +65,7 @@ def test_khvt_nhu_cau_to_nguyen_o_te(db, orders, lsx_svc, svc, admin, customer):
 
 
 def test_khvt_song_o_te_song(db, orders, lsx_svc, svc, admin, customer):
-    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg(db, song=True))
+    lsx = _tao(db, orders, lsx_svc, admin, customer, _ptg_song_co_te(db))
     ts = _theo_ma(db, lsx, "TS")
 
     kq = _dong_giay(svc.can_doi(chi_lsx_ids={lsx.id}), _g(db, "G-SONGE"))
@@ -117,6 +119,8 @@ def test_lenh_cu_giay_o_in_khvt_khong_doi(db, orders, lsx_svc, svc, admin, custo
     lsx.nguon_giay = None
     in_ = _in(lsx)
     g = _g(db)
+    in_.vat_tus[:] = [v for v in in_.vat_tus if v.hang_loai != "giay"]
+    db.flush()
     in_.vat_tus.append(LsxCongDoanVatTu(
         hang_loai="giay", vat_tu_id=g.id, vat_tu_ma_snapshot=g.ma, vat_tu_ten_snapshot=g.ten,
         don_vi_snapshot="to", so_luong=in_.so_luong_vao, thu_tu=0, tu_dong=False, gia_tri_chip={},

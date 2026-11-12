@@ -611,11 +611,47 @@ class LsxBaiGhepOut(BaseModel):
     buoc_bi_de: dict[str, BuocBiDeOut] = Field(default_factory=dict)
 
 
-class DoiNguonGiayIn(BaseModel):
-    """`PUT /lsx/{id}/nguon-giay` — người kế hoạch đổi nguồn giấy; Cuộn phải kèm rộng cuộn (mm)."""
+class DoiVatLieuIn(BaseModel):
+    """`PUT /lsx/{id}/vat-lieu-dau-vao` — đổi khổ lấy ở kho của giấy in / sóng. Cuộn gửi `dai` = 0.
+    Chỉ gửi `tru_le_mm` (sóng) thì giữ khổ đang lấy nếu còn chứa được khổ cần mới."""
 
-    nguon: Literal["to_in", "to_nguyen", "cuon", "mua"]
-    rong_cuon: int | None = None
+    vat_lieu: Literal["giay", "song"]
+    rong: int | None = Field(default=None, gt=0)
+    dai: int | None = Field(default=None, ge=0)
+    tru_le_mm: int | None = None
+    ve_tot_nhat: bool = False
+
+
+class PhuongAnLayOut(BaseModel):
+    dang: Literal["to", "cuon"]
+    rong: int
+    dai: int
+    so_manh: int
+    buoc: list[str]
+    can: float
+    don_vi: Literal["to", "kg"]
+    ton: float
+    diem: int
+
+
+class VatLieuOut(BaseModel):
+    ten_hang: str
+    kho_can: list[int]
+    so_to_can: int
+    vao_buoc: str
+    tru_le_mm: int | None = None
+    dang_lay: PhuongAnLayOut | None = None
+    ds: list[PhuongAnLayOut]
+    tot_nhat: bool
+    tu_khai: bool
+
+
+class VatLieuDauVaoOut(BaseModel):
+    """`GET /lsx/{id}/vat-lieu-dau-vao` — khối Vật liệu đầu vào ở tab Công đoạn."""
+
+    khoa: str | None = None
+    giay: VatLieuOut | None = None
+    song: VatLieuOut | None = None
 
 
 class LsxQuyCachIn(BaseModel):

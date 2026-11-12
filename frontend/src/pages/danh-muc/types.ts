@@ -55,6 +55,9 @@ export interface FieldDef {
    *  đã ngừng dùng, người ta chọn xong bấm Lưu mới ăn lỗi từ server. */
   refParams?: Record<string, unknown>;
   required?: boolean;
+  /** Ô số để trống được: đang có số mà xoá trống rồi lưu thì gửi `null` để máy chủ xoá hẳn. Không
+   *  có cờ thì ô số trống bị bỏ khỏi payload (giữ số cũ) — đúng cho cột NOT NULL như đơn giá. */
+  xoaTrongLaNull?: boolean;
   /** Chuỗi tĩnh, HOẶC hàm dựng câu từ chính form đang gõ — vd quy cách đóng gói hiện
    *  "1 thùng = 3 kg" ghép từ ô đơn vị đóng gói + ô hệ số + ĐVT. Câu đọc được kiểm bằng mắt
    *  ngay lúc khai, đỡ hơn hẳn hai ô số rời không nói lên nghĩa gì. */

@@ -57,7 +57,9 @@ class GiayNguyen(Base):
     ten: Mapped[str] = mapped_column(String(150), nullable=False)
     kho_dai: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)   # mm; 0 = cuộn/khổ mở
     kho_rong: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0", default=0)  # mm; 0 = cuộn/khổ mở
-    gsm: Mapped[int] = mapped_column(Integer, nullable=False)       # định lượng
+    # Định lượng (g/m²). Không bắt buộc từ 12/11/2026 (mg 0475): NULL = chưa khai; chỗ cần nó
+    # (quy kg↔tờ, tiền giấy theo cân) báo thiếu chứ không tự điền.
+    gsm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # LOẠI (mg 0426, 19/10/2026): `giay` (tờ để in) | `song` (tấm sóng để bồi). Một sản phẩm tính
     # giá / một lệnh có tối đa 1 mã mỗi loại; giấy chính lấy mã loại `giay` (ptg_giay_buoc).
     loai: Mapped[str] = mapped_column(String(8), nullable=False, server_default=LOAI_GIAY, default=LOAI_GIAY)
