@@ -807,7 +807,7 @@ export function LsxRoutingTable({
             <col style={{ width: 170 }} />
             <col style={{ width: 210 }} />
             <col style={{ width: 170 }} />
-            <col style={{ width: 104 }} />
+            <col style={{ width: 76 }} />
           </colgroup>
           <thead>
             <tr>
@@ -970,7 +970,7 @@ export function LsxRoutingTable({
                       : sau && <span className="khsx-rt__sautxt" title={sau}>{sau}</span>}
                   </td>
                   {/* Ghi chú là cây bút: chưa có thì chỉ hiện khi rê chuột, có rồi thì luôn hiện
-                      (rê lên đọc). Cấu hình chi tiết mở ngăn; chuyển, chèn, bỏ gom vào menu. Cả hàng
+                      (rê lên đọc). Ngăn chi tiết mở bằng bấm tên bước; chuyển, chèn, bỏ gom vào menu. Cả hàng
                       vẫn kéo-thả được, Alt+↑↓ vẫn đổi thứ tự bằng bàn phím. */}
                   <td>
                     <div className="khsx-rt__acts">
@@ -986,15 +986,6 @@ export function LsxRoutingTable({
                           <Icon name="edit" size={14} />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="khsx-rt__btn"
-                        onClick={(e) => moDrawer(i, e.currentTarget)}
-                        aria-label={`Cấu hình chi tiết bước ${i + 1}`}
-                        title="Cấu hình chi tiết: số lượng, vật tư, phụ thuộc, khuôn"
-                      >
-                        <Icon name="settings" size={14} />
-                      </button>
                       {suaDuoc && (
                         <button
                           type="button"
