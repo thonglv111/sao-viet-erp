@@ -48,7 +48,7 @@ class GiayGiaVersionRow(BaseModel):
 class GiayIn(BaseModel):
     ma: str = Field(min_length=1, max_length=30)
     ten: str = Field(min_length=1, max_length=150)
-    gsm: int = Field(gt=0)
+    gsm: int | None = Field(default=None, gt=0)   # không bắt buộc (mg 0475)
     # Loại Giấy / Sóng (mg 0426) — luật "tối đa 1 mỗi loại" ở tính giá + lệnh bám vào đây.
     loai: Literal["giay", "song"] = "giay"
     caliper_micron: int | None = None
@@ -72,7 +72,7 @@ class GiayRow(BaseModel):
     id: int
     ma: str
     ten: str
-    gsm: int
+    gsm: int | None = None
     loai: str = "giay"
     caliper_micron: int | None = None
     tho: str | None = None

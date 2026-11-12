@@ -3493,6 +3493,8 @@ dùng cho bình bài.
 
 **Tất cả cột:** `id`, `ma`, `ten`, `kho_dai`, `kho_rong`, `gsm`, `loai`, `caliper_micron`, `tho`, `don_vi_gia`, `don_vi_them`, `don_gia`, `gia_thi_truong`, `kho_tinh_gia`, `cong_thuc_gia`, `ghi_chu`, `anh_url`, `version_no`, `active`, `created_at`, `updated_at`.
 
+`gsm` (INTEGER, định lượng g/m²): NULL được từ mg `0475` (12/11/2026), không bắt buộc khai. Chỗ cần định lượng thì báo thiếu chứ không tự điền: quy kg ↔ tờ báo lỗi, tính giá ghi cảnh báo khi công thức dùng `dinh_luong`, khối Vật liệu đầu vào của lệnh bỏ phương án cuộn.
+
 `loai` (VARCHAR(8) NOT NULL DEFAULT `'giay'`, mg `0426`, 19/10/2026): `giay` = tờ để in, `song` = tấm sóng để bồi. Một sản phẩm tính giá / một lệnh có TỐI ĐA 1 mã mỗi loại (máy chủ chặn khi lưu, `ptg_giay_buoc.loi_tran_giay`); giấy chính (`phieu_thanh_phan.giay_id`) là mã loại `giay`, chỉ có sóng thì là mã sóng. Mã cũ thành `giay`. `giay_gia_version` KHÔNG chụp cột này (không phải giá).
 
 `thay_the_ids` ĐÃ GỠ (mg 0405, 13/10/2026): danh sách giấy thay thế chỉ để tra cứu, không đường nào đọc.
@@ -3502,6 +3504,8 @@ dùng cho bình bài.
 `anh_url` (mg 0191, VARCHAR(500) nullable) = ảnh minh hoạ vật tư (1 ảnh). Lưu đường `/api/files/materials/giay/<id>/…` (đọc qua router có đăng nhập); trang QR công khai serve lại chính key này qua `/api/public/vat-lieu-anh` bằng token QR. NULL = chưa có ảnh.
 
 `don_vi_gia` (mg 0170) là **ĐƠN VỊ GỐC** của mặt hàng: mã trong `don_vi_do`, không còn enum cứng ở frontend. Tồn kho cộng dồn theo đơn vị này; nhập bằng đơn vị nào cũng được rồi quy về đây. NULL = chưa chọn (mg 0170 xoá trắng mã không có trong `don_vi_do`) — không mặc định `kg` nữa vì đơn vị gốc quyết định cách cộng tồn, điền hộ một lần là sai vĩnh viễn.
+
+Đơn vị của mã giấy do máy chủ chốt (`VatLieuKhoService._chot_don_vi_giay`): loại `giay` có đúng `kg` + `to`, ĐVT chính mặc định `kg`; loại `song` (từ 12/11/2026) có đúng `m2` + `to`, ĐVT chính `m2`, đơn giá là giá một mét vuông. Sóng khai m² ở kho / mua hàng quy ra tờ theo khổ (`kho_giay.to_tu_m2`), không cần định lượng. Mg `0476` đổi mã sóng cũ sang `m2`: đ/kg × định lượng/1000 và đ/tờ ÷ diện tích tờ ra đ/m², công thức mặc định thay bằng `dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay`, công thức tự khai giữ nguyên, mã có giá mà thiếu số để quy thì để nguyên.
 
 `don_vi_them` (JSON NULL, mg `0390`, 10/10/2026): mảng MÃ đơn vị khai thêm ngoài ĐVT chính `don_vi_gia`, có thứ tự. Mỗi đơn vị kéo cả nhóm quy đổi của nó (tờ ⇒ ram); hai đơn vị khai không cùng nhóm và không quy đổi lẫn nhau (tờ và kg). Tồn kho, cân đối, mua hàng tách theo đơn vị gốc (`kho_giay.GocMatHang`). Đơn giá `don_gia` chỉ thuộc `don_vi_gia`. NULL = chỉ ĐVT chính; mg 0390 backfill `["to"]` cho giấy có ĐVT chính ngoài họ tờ (trước đó họ tờ được ngầm cho mọi giấy).
 

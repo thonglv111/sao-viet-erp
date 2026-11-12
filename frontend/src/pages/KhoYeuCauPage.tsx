@@ -66,7 +66,7 @@ import {
   writeStoredKho,
 } from "./khoShared";
 import { tenDonVi, useNapTenDonVi } from "./tenDonVi";
-import { chuanKho, coDonViGoc, coKho, nhanKhoGiay, toTuKg } from "../lib/khoGiay";
+import { chuanKho, coDonViGoc, coKho, nhanKhoGiay, toTuKg, toTuM2 } from "../lib/khoGiay";
 import { khoaTonKho } from "../auth/quyenKho";
 import {
   LOC_MAN_YCK_TRONG,
@@ -2416,7 +2416,8 @@ function AllocRow({
   // của số đề nghị (đã làm tròn) là ra tờ lẻ / lệch 1 tờ.
   const [rNhan, dNhan] = chuanKho(block.khoRong, block.khoDai);
   const toNhan = l.kg_moi_dvt != null && l.gsm != null
-    ? toTuKg(block.cap * l.kg_moi_dvt, rNhan, dNhan, l.gsm) : undefined;
+    ? toTuKg(block.cap * l.kg_moi_dvt, rNhan, dNhan, l.gsm)
+    : l.m2_moi_dvt != null && rNhan && dNhan ? toTuM2(block.cap * l.m2_moi_dvt, rNhan, dNhan) : undefined;
   const quyDoiHint =
     isNhap && block.heSoVeGoc !== 1 && block.cap > 0 && l.don_vi_goc && toNhan !== null ? (
       <div className="kna-phu__goi">

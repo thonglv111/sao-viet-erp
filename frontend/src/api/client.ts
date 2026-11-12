@@ -10272,6 +10272,8 @@ export interface StockRequestLine {
    *  (làm tròn xuống) theo số gõ và khổ thực nhận. Dòng khác: null. */
   kg_moi_dvt?: number | null;
   gsm?: number | null;
+  /** Sóng khổ hai cạnh khai m² (gốc tờ): m² của một ĐVT — phiếu nhập tự tính lại số tờ theo khổ. */
+  m2_moi_dvt?: number | null;
   canh_bao_dv: string | null;
   sl_de_nghi: number;
   sl_duyet: number;

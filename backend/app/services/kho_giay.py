@@ -191,6 +191,18 @@ DON_VI_TO_KHO = "to"
 #: Ở module Đơn vị & quy đổi hai mã này bị KHOÁ — không xoá, không ngừng dùng, không đổi mã.
 GIAY_DON_VI_BAT_BUOC = (DON_VI_TO_KHO, "kg")
 
+#: Sóng (12/11/2026): ĐVT chính là m² (đơn giá một mét vuông), thêm tờ vì kho và lệnh đếm sóng theo
+#: tờ. m² ↔ tờ đổi theo KHỔ tờ (`to_tu_m2`), không cần định lượng. `VatLieuKhoService._chot_don_vi_giay`.
+DON_VI_M2 = "m2"
+SONG_DON_VI_BAT_BUOC = (DON_VI_M2, DON_VI_TO_KHO)
+
+
+def to_tu_m2(m2: float, rong_mm: float, dai_mm: float) -> int:
+    """Số tờ từ m², LÀM TRÒN XUỐNG như `to_tu_kg`. Thiếu khổ hai cạnh ⇒ ValueError."""
+    if not la_kho_to(rong_mm, dai_mm):
+        raise ValueError("Cần đủ khổ hai cạnh để quy m² ra tờ.")
+    return math.floor(float(m2) / (float(rong_mm) / 1000 * float(dai_mm) / 1000) + 1e-9)
+
 
 def la_ma_to_giay(dvt: str | None) -> bool:
     """Mã đếm TỜ của dòng giấy: đơn vị kho `to` hoặc mã chặng tờ của lệnh (`to_nguyen`, `to`).

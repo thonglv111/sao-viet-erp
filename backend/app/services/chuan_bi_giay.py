@@ -103,7 +103,7 @@ def chon_nguon(dv: DauVaoGiay, ton_tu_do: Callable[[tuple], float]) -> NguonChon
     can = _to_nguyen_can(dv)
     if can_tgi(dv) and ton_tu_do(_khoa_to_nguyen(dv)) >= can:
         return NguonChon("to_nguyen", None, None)
-    for w in _rong_cuon_thu(dv):
+    for w in (_rong_cuon_thu(dv) if dv.gsm else ()):   # chưa khai định lượng ⇒ không tính được kg cuộn
         if ton_tu_do(_khoa_cuon(dv, w)) >= kg_tu_to(can, w, _canh_con_lai(dv.kho_nguyen, w), dv.gsm):
             return NguonChon("cuon", w, None)
     return NguonChon("mua", None, None)
@@ -242,7 +242,9 @@ def phuong_an_lay(vat_lieu: str, kho_can: tuple[int, int], so_to_can: int, gsm: 
         if not rong:
             continue
         kho = _kho(KhoLay("cuon" if not dai else "to", rong, dai or 0))
-        if kho.dang == "cuon" and vat_lieu == "song":
+        # Sóng không xét cuộn; giấy chưa khai định lượng (mg 0475) thì không quy được tờ ra kg
+        # cuộn nên bỏ cuộn, khỏi ra phương án "cần 0 kg".
+        if kho.dang == "cuon" and (vat_lieu == "song" or not gsm):
             continue
         so = float(so or 0)
         if kho.dang == "to" and goc == "kg":

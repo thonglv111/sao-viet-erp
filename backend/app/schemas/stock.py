@@ -122,6 +122,8 @@ class StockRequestLineOut(BaseModel):
     # Giấy khổ hai cạnh khai kg (gốc tờ): kg của MỘT ĐVT + gsm, để phiếu nhập tính lại số tờ làm
     # tròn xuống khi kho gõ số khác hoặc sửa khổ thực nhận. Dòng khác: None.
     kg_moi_dvt: float | None = None
+    # Sóng khổ hai cạnh khai m² (gốc tờ): m² của một ĐVT — phiếu nhập tự tính lại số tờ theo khổ.
+    m2_moi_dvt: float | None = None
     gsm: int | None = None
     canh_bao_dv: str | None = None
     sl_de_nghi: float

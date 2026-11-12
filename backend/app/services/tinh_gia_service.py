@@ -57,7 +57,7 @@ def quy_gia_giay(ma: str | None, nap: DanhMucNapSan) -> tuple[float | None, str 
     if not ma:
         return None, None
     ma = ma.strip().lower()
-    for goc in ("to", "kg"):
+    for goc in ("to", "kg", "m2"):   # m²: đơn giá sóng (12/11/2026), cm² cũng quy về m²
         if ma == goc:
             return 1.0, goc
         duong = duong_di(ma, goc, nap.cap)

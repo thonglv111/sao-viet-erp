@@ -132,15 +132,20 @@ def _vao_boi(res) -> int:
     return next(x["vao"] for x in res["meta"]["components"][0]["bu_hao_chi_tiet"] if x["ten"] == "Bồi")
 
 
-def test_tien_song_theo_so_to_vao_buoc_boi():
-    res = compute_phieu(so_luong=49000, thanh_phans=[_tp_song(_song(don_gia=2000, don_vi_gia="to"))])
+def test_tien_song_theo_m2_so_to_vao_buoc_boi():
+    """Sóng tính theo mét vuông (12/11/2026): mã chưa khai công thức ⇒ khổ in (m²) × số tấm vào bước
+    bồi × đơn giá một m², không cần định lượng."""
+    res = compute_phieu(so_luong=49000, thanh_phans=[_tp_song(_song(don_gia=2000, don_vi_gia="kg", gsm=None))])
     assert _vao_boi(res) == 1020
     s = _dong_song(res)
-    assert s["so_to"] == 1020 and s["thanh_tien"] == 2_040_000
+    assert s["so_to"] == 1020 and s["thanh_tien"] == round(0.65 * 0.43 * 1020 * 2000, 2)
+    assert not any("định lượng" in w for w in res.get("warnings", []))
 
 
-def test_tien_song_gia_kg_theo_kho_in():
-    res = compute_phieu(so_luong=49000, thanh_phans=[_tp_song(_song(don_gia=12000, don_vi_gia="kg"))])
+def test_tien_song_cong_thuc_tu_khai_van_dung():
+    """Mã sóng đã khai công thức riêng (vd theo cân) thì engine dùng đúng công thức đó."""
+    ct = "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen"
+    res = compute_phieu(so_luong=49000, thanh_phans=[_tp_song(_song(don_gia=12000, don_vi_gia="kg", cong_thuc_gia=ct))])
     s = _dong_song(res)
     assert s["thanh_tien"] == round(0.4 * 0.65 * 0.43 * 12000 * 1020, 2)
 

@@ -53,6 +53,8 @@ def test_giay_crud_and_validate():
     assert g.id and g.ma == "C300" and g.gsm == 300
     # Chủng loại giấy gỡ ở mg 0342 — thiếu nó KHÔNG còn bị chặn.
     assert svc.create("giay", dict(ma="Y", ten="y", kho_dai=860, kho_rong=650, gsm=150)).id
+    # Định lượng không bắt buộc (mg 0475): để trống được, khai thì phải > 0.
+    assert svc.create("giay", dict(ma="SONG-140-120", ten="Sóng 140/120", loai="song")).gsm is None
     with pytest.raises(VatLieuKhoValidationError):            # gsm <= 0
         svc.create("giay", dict(ma="X", ten="x", kho_dai=860, kho_rong=650, gsm=0))
     with pytest.raises(VatLieuKhoDuplicate):

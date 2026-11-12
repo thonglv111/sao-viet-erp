@@ -211,3 +211,26 @@ def test_nguon_dan_xuat():
     assert nguon_dan_xuat(KhoLay("to", 1020, 720), (720, 1020)) == "to_in"
     assert nguon_dan_xuat(KhoLay("to", 790, 1090), (720, 1020)) == "to_nguyen"
     assert nguon_dan_xuat(KhoLay("cuon", 750, 0), (720, 1020)) == "cuon"
+
+
+def test_giay_chua_khai_dinh_luong_bo_phuong_an_cuon():
+    """Định lượng không bắt buộc (mg 0475): thiếu thì không quy được kg cuộn ⇒ bỏ cuộn, tờ vẫn xét."""
+    ton = [(760, 1060, "to", 1800), (750, 0, "kg", 3200)]
+    ds = phuong_an_lay("giay", (720, 1020), 1560, 0, ton)
+    assert {p.kho.dang for p in ds} == {"to"}
+
+
+def test_tinh_gia_bao_thieu_dinh_luong_khi_cong_thuc_can():
+    from app.services.thanh_phan_engine import compute_phieu
+    tp = dict(ten="Hộp", so_luong=1000, dai_thanh_pham=200, rong_thanh_pham=100, kho_in_dai=1020,
+              kho_in_rong=720, kho_nguyen_dai=1020, kho_nguyen_rong=720, so_con=4, don_gia_giay=20000,
+              don_gia_don_vi="kg", giay_ten="Duplex", thanh_phams=[])
+    w: list[str] = []
+    compute_phieu(so_luong=1000, thanh_phans=[tp], warnings=w)
+    assert any("chưa khai định lượng" in x for x in w)
+    w = []
+    compute_phieu(so_luong=1000, thanh_phans=[{**tp, "gsm": 250}], warnings=w)
+    assert not any("chưa khai định lượng" in x for x in w)
+    w = []
+    compute_phieu(so_luong=1000, thanh_phans=[{**tp, "don_gia_don_vi": "to"}], warnings=w)
+    assert not any("chưa khai định lượng" in x for x in w)   # giá theo tờ không cần định lượng

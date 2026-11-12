@@ -238,6 +238,29 @@ describe("CatalogDrawer — form của màn danh mục dùng chung", () => {
     expect(ghi.body?.ma).toBe("CD-007");            // ô khoá nhưng VẪN gửi lên
   });
 
+  it("xoá trống ô số có cờ xoaTrongLaNull: PUT gửi null; ô số không cờ thì bỏ khỏi body", async () => {
+    const user = userEvent.setup();
+    const rows: Row[] = [{ id: 7, ma: "G-007", ten: "Sóng B", gsm: 260, don_gia: 5000 }];
+    const goi = moMan({
+      ...CO_BAN,
+      fields: [
+        { key: "gsm", label: "Định lượng", type: "number", xoaTrongLaNull: true },
+        { key: "don_gia", label: "Đơn giá", type: "number" },
+      ],
+    }, rows);
+
+    await user.click(await screen.findByText("Sóng B"));
+    await screen.findByRole("dialog");
+    await user.clear(drawer().getByLabelText(/^Định lượng/));
+    await user.clear(drawer().getByLabelText(/^Đơn giá/));
+    await user.click(drawer().getByRole("button", { name: "Lưu thay đổi" }));
+
+    await waitFor(() => expect(soLanGhi(goi)).toBe(1));
+    const b = bodyGhi(goi).body!;
+    expect(b.gsm).toBeNull();
+    expect("don_gia" in b).toBe(false);
+  });
+
   it("bảng \"Đơn vị bán và giá\": mở sửa nạp đủ đơn vị chính, đơn vị thêm và giá, lưu gửi lại nguyên", async () => {
     // Hai cột `don_vi_gia` / `don_vi_them` không có ô riêng trong `fields` — quên nạp thì bảng trống
     // và lưu là xoá mất đơn vị (lỗi bắt được lúc bấm thử 09/11/2026).

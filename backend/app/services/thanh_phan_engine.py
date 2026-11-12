@@ -867,6 +867,11 @@ def _step_cost_safe(cd: dict, ctx: dict, warnings: list[str], ten: str) -> tuple
     return _f(res.get("total")), ghi
 
 
+# Công thức tiền giấy / sóng có dùng biến định lượng không — định lượng không bắt buộc (mg 0475) nên
+# thiếu mà công thức cần thì báo ở cảnh báo của phiếu, không lặng lẽ ra 0đ.
+_CAN_DINH_LUONG = re.compile(r"\bdinh_luong\b")
+
+
 def _dong_song(song: dict, *, chain: list[dict], buoc: dict, to_sau_in: float, ten_tp: str, sl: int,
                dai_in_m: float, rong_in_m: float, ctx_vars: dict, warnings: list[str]) -> dict:
     """Dòng tiền SÓNG của sản phẩm (spec 2026-10-24-chuan-bi-giay §4). `buoc` = phân rã dòng giấy theo
@@ -884,9 +889,11 @@ def _dong_song(song: dict, *, chain: list[dict], buoc: dict, to_sau_in: float, t
     don_gia = _f(song.get("don_gia"))
     don_vi = song.get("don_vi_gia") or "to"
     he_so = song.get("he_so")
-    formula = (song.get("cong_thuc_gia") or "").strip() or (
-        "dinh_luong * dai_nguyen * rong_nguyen * don_gia_giay * to_nguyen" if don_vi in ("kg", "tan")
-        else "don_gia_giay * to_nguyen")
+    # Sóng tính theo MÉT VUÔNG (12/11/2026): mã chưa khai công thức thì tiền = diện tích tấm × số tấm
+    # × đơn giá một m², không cần định lượng. Khớp `CONG_THUC_GIA_SONG` ở form danh mục Giấy.
+    formula = (song.get("cong_thuc_gia") or "").strip() or "dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay"
+    if _CAN_DINH_LUONG.search(formula) and not _f(song.get("gsm")):
+        warnings.append(f"Thành phần '{ten_tp}': sóng '{ten}' chưa khai định lượng — phần tiền tính theo định lượng ra 0đ.")
     ctx = {**ctx_vars, "dinh_luong": _f(song.get("gsm")) / 1000.0, "dai_nguyen": dai_in_m,
            "rong_nguyen": rong_in_m, "to_nguyen": so_to,
            "don_gia_giay": don_gia * float(he_so) if he_so is not None else _don_gia_co_so(don_gia, don_vi)}
@@ -1204,6 +1211,8 @@ def _compute_one(tp: dict, so_luong_mac_dinh: int, warnings: list[str], flags: d
         else:                          # to | ram | cai → tính theo tờ
             formula = "don_gia_giay * to_nguyen"
 
+    if giay_cap_sp and _CAN_DINH_LUONG.search(formula) and not _f(tp.get("gsm")):
+        warnings.append(f"Thành phần '{name}': giấy chưa khai định lượng — phần tiền tính theo định lượng ra 0đ.")
     eval_ctx = dict(ctx_vars)
     # Hệ số quy về giá MỘT tờ (hoặc một kg với giấy bán theo cân) do tầng service tra bằng cặp
     # đơn vị đã khai (`he_so_gia_giay`) — khai đ/ram thì 1/500. Vắng (gọi thẳng engine) thì lùi về

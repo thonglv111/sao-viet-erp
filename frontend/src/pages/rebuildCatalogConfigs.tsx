@@ -529,6 +529,10 @@ const congThucGiaGiay = (donViGia: unknown): string =>
     ? "dinh_luong * dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay"
     : "don_gia_giay * to_nguyen");
 
+/** Sóng tính tiền theo MÉT VUÔNG (12/11/2026): diện tích tấm (khổ sóng = khổ in) × số tấm × đơn giá
+ *  một m². Không cần định lượng — khớp `thanh_phan_engine._dong_song` khi mã sóng chưa có công thức. */
+const CONG_THUC_GIA_SONG = "dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay";
+
 /** Loại mã giấy — `giay` = tờ để in, `song` = tấm sóng để bồi (mg 0426). */
 const LOAI_GIAY_OPT = [{ value: "giay", label: "Giấy" }, { value: "song", label: "Sóng" }];
 
@@ -552,7 +556,7 @@ export const CFG_GIAY: CatalogConfig = {
   widthTen: 230,
   columns: [
     { key: "loai", label: "Loại", w: 80, render: (r) => (r.loai === "song" ? "Sóng" : "Giấy") },
-    { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => `${r.gsm} g/m²` },
+    { key: "gsm", label: "Định lượng", w: 120, n: true, render: (r) => (r.gsm ? `${r.gsm} g/m²` : "") },
     { key: "don_vi_gia", label: "ĐVT", w: 150, render: (r) => dvCellNhieu(r) },
     { key: "don_gia", label: "Đơn giá", w: 130, n: true, render: (r) => (Number(r.don_gia) ? Number(r.don_gia).toLocaleString("vi-VN") : "") },
     // Cột "Cách tính tiền" đã gỡ khỏi BẢNG (05/10/2026) — vẫn khai/xem ở ô Công thức tính giá.
@@ -562,19 +566,23 @@ export const CFG_GIAY: CatalogConfig = {
     // Loại (mg 0426, 19/10/2026): một sản phẩm tính giá / một lệnh có tối đa 1 Giấy + 1 Sóng.
     { key: "loai", label: "Loại", type: "select", required: true, group: "Thông số", default: "giay",
       options: LOAI_GIAY_OPT },
-    { key: "gsm", label: "Định lượng (g/m²)", type: "number", required: true, group: "Thông số" },
+    // Định lượng KHÔNG bắt buộc (12/11/2026, mg 0475): để trống được; chỗ cần nó (quy kg ↔ tờ, tiền
+    // giấy theo cân) tự báo thiếu.
+    { key: "gsm", label: "Định lượng (g/m²)", type: "number", group: "Thông số", xoaTrongLaNull: true },
     // KHÔNG có ô đơn vị (24/10/2026): giấy có ĐÚNG hai đơn vị kg + tờ, ĐVT chính kg — máy chủ tự
     // điền khi tạo (`VatLieuKhoService._chot_don_vi_giay`). Ẩn hẳn cho khỏi hiểu nhầm là chọn được;
     // cột ĐVT của bảng vẫn hiện "kg tờ". Ram / tấn vẫn nhập kho được qua quy đổi của tờ / kg.
     // Đơn giá theo ĐVT chính — CHỐT CỨNG ở danh mục (engine lấy thẳng, phiếu không sửa).
-    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá", hint: "Giá một kg. Tính giá tự quy về giá một tờ hoặc một kg." },
+    { key: "don_gia", label: "Đơn giá", type: "number", group: "Giá",
+      hint: (f) => (f.loai === "song" ? "Giá một mét vuông. Tiền sóng bằng diện tích tấm nhân số tấm nhân giá này."
+        : "Giá một kg. Tính giá tự quy về giá một tờ hoặc một kg.") },
     { key: "cong_thuc_gia", label: "Công thức tính giá", type: "formula", group: "Giá",
       nhanTab: "Công thức tính giá",
       // ĐIỀN SẴN khi thêm mới (11/09/2026), sửa/xoá được. Trước đó ô này để trống và engine âm
       // thầm chạy đúng hai chuỗi dưới đây làm dự phòng — thứ đang tính tiền giấy mà người khai
       // không nhìn thấy ở đâu cả. Hai chuỗi phải khớp nhánh dự phòng bên
       // `thanh_phan_engine.py`: sửa một bên thì sửa cả hai.
-      macDinhTheo: (f) => congThucGiaGiay(f.don_vi_gia) },
+      macDinhTheo: (f) => (f.loai === "song" ? CONG_THUC_GIA_SONG : congThucGiaGiay(f.don_vi_gia)) },
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Ghi chú" },
     // Ô "Giấy thay thế" (`thay_the_ids`, mg 0239) ĐÃ GỠ 13/10/2026 cùng cột DB (mg 0405).
   ],

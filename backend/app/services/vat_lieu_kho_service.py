@@ -20,7 +20,8 @@ from ..repositories.purchase_repo import SupplierRepository
 from ..repositories.vat_lieu_kho_repo import VERSION_SNAPSHOT, VatLieuKhoRepository
 from . import nhat_ky_danh_muc as nk
 from .kho_giay import (
-    DON_VI_TO_KHO, GIAY_DON_VI_BAT_BUOC, GocMatHang, don_vi_khai, la_kho_to, la_ma_to_giay, to_tu_kg,
+    DON_VI_M2, DON_VI_TO_KHO, GIAY_DON_VI_BAT_BUOC, SONG_DON_VI_BAT_BUOC, GocMatHang, don_vi_khai,
+    la_kho_to, la_ma_to_giay, to_tu_kg, to_tu_m2,
 )
 from .bien_cong_thuc import LOAI_GIAY, LOAI_QUY_DOI, LOAI_VAT_TU, ma_chip_hop_le, ma_tu_ten_chip
 from .catalog_base import (
@@ -159,8 +160,8 @@ class VatLieuKhoService:
         # `MotDanhMucVatLieu` đặt lúc tạo — người dùng không khai. Đơn vị thì CÓ cổng, xem nhánh
         # `elif` bên dưới.
         if kind == "giay":
-            if _f(data.get("gsm")) <= 0:
-                raise VatLieuKhoValidationError("GSM phải > 0.")
+            if data.get("gsm") not in (None, "") and _f(data.get("gsm")) <= 0:
+                raise VatLieuKhoValidationError("Định lượng phải lớn hơn 0.")
             self._chot_don_vi_giay(data, obj)
             self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính",
                               dang_co=getattr(obj, "don_vi_gia", None))
@@ -274,8 +275,12 @@ class VatLieuKhoService:
         (đơn giá tính theo kg hay theo tờ, mặc định kg); đơn vị còn lại máy chủ tự điền vào
         `don_vi_them`. Gửi đơn vị nào khác ⇒ báo lỗi, không lặng lẽ đổi: đơn giá gõ theo ram mà bị đổi
         sang kg là sai tiền. Danh mục Đơn vị chưa có kg / tờ (DB trắng) thì bỏ qua, không tự tạo."""
+        # Sóng (12/11/2026) dùng m² + tờ, ĐVT chính m²: đơn giá sóng là giá một mét vuông.
+        song = (data.get("loai") or getattr(obj, "loai", None)) == "song"
+        bo, mac_dinh, nhan = ((SONG_DON_VI_BAT_BUOC, DON_VI_M2, "Sóng") if song
+                              else (GIAY_DON_VI_BAT_BUOC, "kg", "Giấy"))
         co = {(d.ma or "").strip().lower() for d in self.don_vi.all_rows()}
-        hai = [u for u in GIAY_DON_VI_BAT_BUOC if u in co]
+        hai = [u for u in bo if u in co]
         if not hai:
             return
         theo_ten = self.don_vi.ma_theo_ten()
@@ -285,17 +290,21 @@ class VatLieuKhoService:
             return m if m in co else (theo_ten.get(m) or m).strip().lower()
 
         ten = self.don_vi.ten_theo_ma()
-        ds = " và ".join(nhan_don_vi(ten, u) for u in GIAY_DON_VI_BAT_BUOC)
+        ds = " và ".join(nhan_don_vi(ten, u) for u in bo)
+        gui = bool(data.get("don_vi_gia"))
         chinh = ma(data["don_vi_gia"] if "don_vi_gia" in data else getattr(obj, "don_vi_gia", None))
         if chinh and chinh not in hai:
-            raise VatLieuKhoValidationError(
-                f"Giấy chỉ có hai đơn vị {ds} — ĐVT chính chọn một trong hai, "
-                f"không dùng “{nhan_don_vi(ten, chinh)}”.")
+            if gui:
+                raise VatLieuKhoValidationError(
+                    f"{nhan} chỉ có hai đơn vị {ds} — ĐVT chính chọn một trong hai, "
+                    f"không dùng “{nhan_don_vi(ten, chinh)}”.")
+            # Đơn vị cũ của mã thuộc loại kia (vừa đổi Giấy ↔ Sóng): chọn lại theo loại mới.
+            chinh = ""
         for u in data.get("don_vi_them") or []:
             if ma(u) and ma(u) not in hai:
                 raise VatLieuKhoValidationError(
-                    f"Giấy chỉ có hai đơn vị {ds} — không thêm “{nhan_don_vi(ten, ma(u))}”.")
-        chinh = chinh or ("kg" if "kg" in hai else hai[0])
+                    f"{nhan} chỉ có hai đơn vị {ds} — không thêm “{nhan_don_vi(ten, ma(u))}”.")
+        chinh = chinh or (mac_dinh if mac_dinh in hai else hai[0])
         data["don_vi_gia"] = chinh
         data["don_vi_them"] = [u for u in hai if u != chinh]
 
@@ -647,17 +656,22 @@ class VatLieuKhoService:
 
     def _quy_kg_ra_to(self, giay_id: int, dvt: str, so_luong: float, kho_rong, kho_dai) -> dict | None:
         """Giấy KHỔ HAI CẠNH khai theo họ kg (kg, tấn…) ⇒ quy ra TỜ: số tờ là gốc của giấy tờ (spec
-        2026-10-24-chuan-bi-giay §5), gsm của danh mục, làm tròn xuống. ĐVT thuộc họ khác (tờ, ram) ⇒
-        None, để đường chung xử lý. Ra 0 tờ ⇒ lỗi — lô 0 tờ không có nghĩa."""
+        2026-10-24-chuan-bi-giay §5), gsm của danh mục, làm tròn xuống. Sóng khai theo họ m² (m², cm²)
+        ⇒ quy ra tờ theo khổ, không cần định lượng (12/11/2026). ĐVT thuộc họ khác (tờ, ram) ⇒ None,
+        để đường chung xử lý. Ra 0 tờ ⇒ lỗi — lô 0 tờ không có nghĩa."""
         ra = self.quy_tu_don_vi(self.don_vi_cua_mat_hang("giay", giay_id), dvt, so_luong)
-        if (ra["don_vi_goc"] or "").lower() != "kg":
+        ho = (ra["don_vi_goc"] or "").lower()
+        if ho not in ("kg", DON_VI_M2):
             return None
         obj = self.get("giay", giay_id)
-        try:
-            so_to = to_tu_kg(ra["sl_goc"], kho_rong, kho_dai, obj.gsm)
-        except ValueError:
-            raise VatLieuKhoValidationError(
-                f"“{obj.ten}” chưa khai định lượng nên không quy được kg ra tờ.") from None
+        if ho == DON_VI_M2:
+            so_to = to_tu_m2(ra["sl_goc"], kho_rong, kho_dai)
+        else:
+            try:
+                so_to = to_tu_kg(ra["sl_goc"], kho_rong, kho_dai, obj.gsm)
+            except ValueError:
+                raise VatLieuKhoValidationError(
+                    f"“{obj.ten}” chưa khai định lượng nên không quy được kg ra tờ.") from None
         sl = f"{float(so_luong):g}".replace(".", ",")          # dấu phẩy thập phân kiểu Việt
         if so_to <= 0:
             raise VatLieuKhoValidationError(
@@ -666,7 +680,8 @@ class VatLieuKhoService:
             "ma_don_vi": ra["ma_don_vi"], "sl_goc": float(so_to),
             "don_vi_goc": DON_VI_TO_KHO, "don_vi_goc_ten": "tờ",
             "he_so_ve_goc": so_to / float(so_luong),
-            "dien_giai": f"{sl} {dvt} ≈ {so_to} tờ (khổ {kho_rong}×{kho_dai}, {obj.gsm} gsm)",
+            "dien_giai": (f"{sl} {dvt} ≈ {so_to} tờ (khổ {kho_rong}×{kho_dai})" if ho == DON_VI_M2
+                          else f"{sl} {dvt} ≈ {so_to} tờ (khổ {kho_rong}×{kho_dai}, {obj.gsm} gsm)"),
         }
 
     def quy_tu_don_vi(self, ra: dict, dvt: str, so_luong: float) -> dict:
@@ -847,8 +862,8 @@ class VatLieuKhoService:
 
     def add_giay_version(self, giay_id: int, data: dict, created_by: int | None = None):
         giay = self.get("giay", giay_id)
-        if _f(data.get("gsm")) <= 0:
-            raise VatLieuKhoValidationError("GSM phải > 0.")
+        if data.get("gsm") not in (None, "") and _f(data.get("gsm")) <= 0:
+            raise VatLieuKhoValidationError("Định lượng phải lớn hơn 0.")
         self._chot_don_vi_giay(data, giay)
         self._kiem_don_vi(data.get("don_vi_gia"), "Đơn vị tính")
         self._ensure_v1(giay)

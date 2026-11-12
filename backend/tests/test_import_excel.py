@@ -700,8 +700,8 @@ def test_cong_doan_chua_gan_to_xuat_roi_nhap_lai_khong_bi_dem_la_cap_nhat(client
 
 def test_dong_moi_thieu_o_bat_buoc_bao_theo_ten_cot_khong_phai_ten_truong(client, seed_credentials):
     h = _login(client, **seed_credentials)
-    for loai, cot in (("cong_doan", "Nhóm"), ("giay", "Định lượng (gsm)"),
-                      ("may_thiet_bi", "Loại máy")):
+    # Giấy hết bắt buộc định lượng (mg 0475, 12/11/2026) nên không còn trong danh sách này.
+    for loai, cot in (("cong_doan", "Nhóm"), ("may_thiet_bi", "Loại máy")):
         noi_dung = _wb_tu(["Mã", "Tên"], [["ZZ-MOI", "Dòng mới"]],
                           ten_sheet=SPECS[loai].tieu_de[:31], loai=loai)
         kq = _nhap(client, h, PREFIX[loai], noi_dung).json()

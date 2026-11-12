@@ -797,12 +797,16 @@ Bấm \oo{Thêm giấy}, hoặc mở một dòng có sẵn.
 
 \so{1} \oo{Loại}: \oo{Giấy} hoặc \oo{Sóng}. Một sản phẩm tính giá, một lệnh có tối đa một Giấy và một Sóng.
 
-\so{2} \oo{Định lượng}, tính bằng g/m\textsuperscript{2}.
+\so{2} \oo{Định lượng}, tính bằng g/m\textsuperscript{2}, không bắt buộc. Để trống thì kho không đổi được kg ra tờ
+cho mã đó, lệnh không gợi ý lấy cuộn, và phiếu tính giá báo thiếu nếu công thức tiền giấy có dùng định lượng.
 
-\so{3} \oo{Đơn giá}: giá một kg. Khi tính giá, phần mềm tự quy về giá một tờ hoặc một kg.
-
-Giấy không có ô chọn đơn vị: phần mềm tự gán hai đơn vị kg và tờ, đổi qua lại theo khổ và
+\so{3} \oo{Đơn giá}: giấy là giá một kg, phần mềm tự quy về giá một tờ hoặc một kg khi tính giá. Sóng là giá một
+mét vuông: công thức điền sẵn lấy diện tích tấm (bằng khổ in) nhân số tấm vào bước bồi nhân đơn giá, không cần
 định lượng.
+
+Không có ô chọn đơn vị, phần mềm tự gán theo loại. Giấy có hai đơn vị kg và tờ, đổi qua lại theo khổ và định lượng.
+Sóng có hai đơn vị m\textsuperscript{2} và tờ, đổi qua lại theo khổ tờ: nhập kho hay mua sóng ghi bằng
+m\textsuperscript{2} thì kho tự ra số tờ, ví dụ tờ 720 × 1.020 là 0,7344 m\textsuperscript{2}.
 
 \so{4} Tab \oo{Công thức tính giá} (ảnh dưới).}
 

@@ -21,8 +21,9 @@ def test_tao_giay_mac_dinh_loai_giay():
 
 def test_tao_giay_loai_song():
     _db, svc = _svc()
-    g = svc.create("giay", dict(ma="SONG-E", ten="Sóng E", gsm=300, don_vi_gia="kg", loai="song"))
-    assert g.loai == "song"
+    # Sóng tính theo m² (12/11/2026): máy chủ tự chốt m² + tờ, không nhận kg.
+    g = svc.create("giay", dict(ma="SONG-E", ten="Sóng E", gsm=300, loai="song"))
+    assert g.loai == "song" and g.don_vi_gia == "m2"
     g2 = svc.update("giay", g.id, dict(ma="SONG-E", ten="Sóng E", gsm=300, don_vi_gia="kg", loai="giay"))
     assert g2.loai == "giay"
 
@@ -36,7 +37,7 @@ def test_loai_la_gia_tri_la_bi_422():
 def test_loc_va_dem_theo_loai():
     _db, svc = _svc()
     svc.create("giay", dict(ma="C150", ten="Couche 150", gsm=150, don_vi_gia="kg"))
-    svc.create("giay", dict(ma="SONG-E", ten="Sóng E", gsm=300, don_vi_gia="kg", loai="song"))
+    svc.create("giay", dict(ma="SONG-E", ten="Sóng E", gsm=300, loai="song"))
     rows, total = svc.list("giay", loai="song")
     assert total == 1 and rows[0].ma == "SONG-E"
     dem = {d["value"]: (d["nhan"], d["so"]) for d in svc.dem_theo_cot("giay", "loai")}

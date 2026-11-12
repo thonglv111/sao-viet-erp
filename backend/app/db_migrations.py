@@ -19750,3 +19750,72 @@ def _migrate_vat_lieu_dau_vao(db: Session) -> None:
 
 
 MIGRATIONS.append(("0474_vat_lieu_dau_vao", _migrate_vat_lieu_dau_vao))
+
+
+def _migrate_giay_gsm_khong_bat_buoc(db: Session) -> None:
+    """0475 (12/11/2026) — định lượng của giấy / sóng không bắt buộc: `giay_nguyen.gsm` bỏ NOT NULL.
+
+    `DROP NOT NULL` chỉ Postgres; SQLite (pytest) dựng bảng từ model nên đã nullable. Idempotent."""
+    bind = db.get_bind()
+    if not (bind.dialect.name or "").startswith("postgres"):
+        return
+    if "giay_nguyen" not in set(inspect(bind).get_table_names()):
+        return
+    db.execute(text("ALTER TABLE giay_nguyen ALTER COLUMN gsm DROP NOT NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0475_giay_gsm_khong_bat_buoc", _migrate_giay_gsm_khong_bat_buoc))
+
+
+#: Công thức tiền sóng theo m² — khớp `thanh_phan_engine._dong_song` và form danh mục Giấy.
+_CT_SONG_M2 = "dai_nguyen * rong_nguyen * to_nguyen * don_gia_giay"
+
+
+def _migrate_song_don_vi_m2(db: Session) -> None:
+    """0476 (12/11/2026) — sóng tính theo mét vuông: mã loại `song` đổi ĐVT chính sang `m2`, đơn vị
+    thêm `to` (kho đếm tờ). Đơn giá quy ĐÚNG phép tính, không đoán: đ/kg × định lượng/1000 = đ/m²;
+    đ/tờ ÷ diện tích tờ (khổ của mã) = đ/m². Công thức còn là bản mặc định (theo cân, theo tờ, trống)
+    thì thay bằng bản m²; công thức tự khai giữ nguyên. Mã có giá mà thiếu số để quy (định lượng / khổ)
+    thì để nguyên. Danh mục Đơn vị chưa có `m2` (DB trắng) thì bỏ qua. Raw SQL; idempotent."""
+    import json
+
+    insp = inspect(db.get_bind())
+    if not {"giay_nguyen", "don_vi_do"} <= set(insp.get_table_names()):
+        return
+    if "loai" not in _existing_columns(insp, "giay_nguyen"):
+        return
+    co = {(m or "").strip().lower() for (m,) in db.execute(text("SELECT ma FROM don_vi_do")).all()}
+    if "m2" not in co:
+        return
+    mac_dinh = ({"dinh_luong", "dai_nguyen", "rong_nguyen", "to_nguyen", "don_gia_giay"},
+                {"don_gia_giay", "to_nguyen"})
+    rows = db.execute(text(
+        "SELECT id, don_vi_gia, don_gia, gia_thi_truong, gsm, kho_rong, kho_dai, cong_thuc_gia "
+        "FROM giay_nguyen WHERE loai = 'song'")).all()
+    for gid, dvg, gia, gtt, gsm, kr, kd, ct in rows:
+        chinh = (dvg or "").strip().lower()
+        if chinh == "m2":
+            continue
+        gia, gtt = float(gia or 0), (None if gtt is None else float(gtt))
+        if chinh == "kg":
+            he_so = (float(gsm) / 1000) if gsm else None
+        elif chinh == "to":
+            he_so = (1e6 / (float(kr) * float(kd))) if kr and kd else None
+        else:
+            he_so = None
+        co_gia = gia > 0 or bool(gtt)
+        if co_gia and he_so is None:
+            continue
+        nhan = he_so if he_so is not None else 1.0
+        tach = {x.strip() for x in (ct or "").split("*") if x.strip()}
+        ct_moi = _CT_SONG_M2 if (not tach or tach in mac_dinh) else ct
+        db.execute(text(
+            "UPDATE giay_nguyen SET don_vi_gia = 'm2', don_vi_them = :t, don_gia = :g, "
+            "gia_thi_truong = :gtt, cong_thuc_gia = :ct WHERE id = :i"),
+            {"t": json.dumps(["to"]), "g": round(gia * nhan, 2),
+             "gtt": None if gtt is None else round(gtt * nhan, 2), "ct": ct_moi, "i": int(gid)})
+    db.commit()
+
+
+MIGRATIONS.append(("0476_song_don_vi_m2", _migrate_song_don_vi_m2))
