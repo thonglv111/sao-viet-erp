@@ -282,7 +282,8 @@ Mấy trường hợp cần để ý trong ngăn:
 
 Tạo xong, màn chuyển sang tab \oo{Lệnh SX}, lọc sẵn theo đơn vừa làm, đầu bảng có băng \q{Đã tạo N lệnh}. Lệnh mới
 ở trạng thái Nháp. Hàng gấp và hạn giao chép từ đơn, ô Hạn hoàn thành sản xuất để trống chờ kế hoạch điền. Phần
-mềm tự dựng khâu chuẩn bị giấy (cắt cuộn, tề giấy) theo nguồn giấy đang có trong kho.
+mềm tự chọn khổ giấy và khổ sóng lấy ở kho rồi dựng bước chuẩn bị (cắt cuộn, tề giấy, tề sóng) theo khổ đó, xem
+mục \ref{cong-doan}.
 
 Ở ví dụ, Hùng để nguyên ba dòng đã tick, bấm \oo{Xác nhận tạo 3 lệnh sản xuất}. Màn báo \q{Đã tạo 3 lệnh: LSX26-0021,
 LSX26-0020, LSX26-0019} và hiện ba lệnh Nháp của DH006. DH006 rời tab Tạo lệnh và Hàng chờ tiếp nhận vì cả ba dòng đã
@@ -343,28 +344,49 @@ phiếu tính giá, kế hoạch xoá lệnh Nháp rồi tạo lại từ hàng 
 \Needspace*{16\baselineskip}
 \subsection{Công đoạn}\label{cong-doan}
 
-Tab Công đoạn là chỗ kế hoạch sửa nhiều nhất. Ngay dưới tên chuỗi là \oo{Nguồn giấy}: Tờ đúng khổ in, Tờ khổ
-nguyên, Cuộn (gõ rộng cuộn rồi bấm Áp dụng) hoặc Mua mới. Phần mềm tự chọn nguồn theo tồn kho lúc lập lệnh, chỉ đổi
-khi thực tế lấy giấy khác; chọn tay thì không kiểm tồn. Đổi nguồn giấy thì phần mềm dựng lại bước cắt cuộn hay tề
-giấy cho khớp, không bỏ tay các bước này được. Đang sửa chuỗi chưa lưu thì ô này khoá, lý do ghi ngay cạnh ô.
+Tab Công đoạn là chỗ kế hoạch sửa nhiều nhất. Trên cùng là khối \oo{Vật liệu đầu vào}, dưới là bảng \oo{Các
+bước}.
 
 \rong{khsx-22-cong-doan.png}
 
-Bảng có hai cách nhìn, \oo{Sơ đồ DAG} và \oo{Bảng danh sách}. Ảnh trên là Bảng danh sách của lệnh LSX26-0005. Mỗi
-dòng là một bước: số vào và ra kèm đơn vị, bước đi trước (Tiền nhiệm), ghi chú. Số tròn đen cạnh tên là số món vật
-tư khai ở bước. Nút ba chấm cuối dòng có Chuyển lên, Chuyển xuống, Chèn công đoạn sau, Bỏ bước.
+Khối Vật liệu đầu vào có một dòng Giấy in, thêm dòng Sóng nếu sản phẩm có sóng. Mỗi dòng ghi lấy khổ nào ở kho,
+cần chuẩn bị gì, vào bước nào với khổ nào, tồn so với cần.
 
-\so{1} Loại: \q{Nội bộ} là bước do một bộ phận trong xưởng làm, \q{Gia công} là bước giao nhà gia công ngoài. Bấm
-chip để đổi.
+\so{1} \oo{Lấy ở kho}: phần mềm điền sẵn phương án điểm cao nhất. Bấm vào thấy tối đa 8 phương án, lấy từ các khổ
+đang có trong kho, luôn kèm một dòng tờ đúng khổ cần. Điểm tính trên 100: đủ tồn được 50, không cần bước chuẩn bị
+được 30 (mỗi bước phải thêm trừ 10), giấy thừa ít được tới 20. Chọn phương án khác thì phần mềm dựng lại bước cắt
+cuộn, tề giấy hay tề sóng cho khớp. Đang dùng phương án khác phương án điểm cao nhất thì có link \oo{Về phương án
+tốt nhất}.
 
-\so{2} Bộ phận nhận: bộ phận sẽ nhận bước này khi lệnh được phát. Phần mềm tự chọn theo danh mục Công đoạn: lấy các
-nhóm thợ được tick cho công đoạn, đi lên bộ phận chứa từng nhóm, chọn sẵn bộ phận có nhiều nhóm được tick nhất. Công
-đoạn chỉ thuộc một bộ phận thì ô này không đổi được. Thuộc nhiều bộ phận thì bấm vào để chọn, ô chọn có chỗ gõ tìm.
-Bước gia công thì cột này là nhà gia công.
+\so{2} Ô \oo{trừ lề} của sóng: khổ sóng cần bằng khổ in trừ lề mỗi chiều, mặc định lấy ở công đoạn Tề sóng trong
+danh mục. Sóng lấy ở kho đúng khổ cần thì không có bước Tề sóng, sóng vào thẳng bước bồi.
+
+\so{3} \oo{Tồn / cần}: thiếu thì chữ đỏ ghi thiếu bao nhiêu. Lệnh không mua giấy ở đây, phần thiếu do Kế hoạch vật
+tư lo (mục \ref{de-nghi-mua}). Kho chưa có khổ nào thì phần mềm lấy tờ đúng khổ cần, không thêm bước chuẩn bị.
+
+Khối khoá khi lệnh đã phát hành hay đã đóng, đang giữ chỗ vật tư, đang gia công trọn gói, đang ghép bài, hoặc đang
+sửa chuỗi mà chưa lưu. Lý do ghi ngay dưới khối. Bước chuẩn bị không bỏ hay đổi tay được ở bảng, muốn khác thì đổi
+khổ ở khối này.
+
+Bảng Các bước có hai cách nhìn, \oo{Sơ đồ DAG} và \oo{Bảng danh sách}; ảnh trên là Bảng danh sách. Mỗi dòng là một
+bước. Vạch màu đầu dòng và cột Nhánh cho biết bước thuộc nhánh Giấy (xanh), nhánh Sóng (tím) hay đã gộp sau bước
+bồi; lệnh không có sóng thì không có cột này. Dưới tên bước ghi số vật tư khai ở bước, bấm vào mở tab Vật tư của
+bước. Bước chuẩn bị có chip \q{Chuẩn bị}. Cột Số lượng ghi số vào và số ra trên một dòng, vào bằng ra thì chỉ ghi
+một số.
+
+\so{4} Bộ phận làm: bước nội bộ chỉ ghi tên bộ phận, bước gia công ghi chip \q{Gia công ngoài} kèm nhà gia công.
+Bấm vào để đổi: đầu hộp là hai nút Nội bộ và Gia công, bên dưới là ô chọn bộ phận hoặc nhà gia công. Phần mềm tự
+chọn bộ phận theo danh mục Công đoạn: lấy các nhóm thợ được tick cho công đoạn, đi lên bộ phận chứa từng nhóm, chọn
+sẵn bộ phận có nhiều nhóm được tick nhất. Ô chọn có chỗ gõ tìm.
+
+\so{5} Làm sau: bước đầu mỗi nhánh ghi \q{Bắt đầu}, bước gộp từ nhiều bước ghi tên các bước đó, ví dụ \q{In và Tề
+sóng}. Ô để trống là làm ngay sau bước ở dòng trên.
+
+Cuối dòng có cây bút mở ghi chú cho thợ (bước đã có ghi chú thì bút luôn hiện, chưa có thì rê chuột lên dòng mới
+thấy), nút bánh răng mở ngăn của bước, nút ba chấm có Chuyển lên, Chuyển xuống, Chèn công đoạn sau, Bỏ bước.
 
 Lệnh không chọn máy, không chọn tổ và không tính giờ chạy nữa. Máy, nhóm thợ và thứ tự làm do bộ phận chọn ở Kế
 hoạch bộ phận. Máy in đã chọn lúc tính giá vẫn đi theo lệnh, sang tới bộ phận In thì việc đứng sẵn ở cột máy đó.
-Ở ảnh, bước Tề giấy in ghi \q{chưa có bộ phận nhận} vì công đoạn này chưa tick nhóm nào ở danh mục.
 
 Chuỗi khác bài tính giá, kể cả đổi một bước sang Gia công, thì phải ghi lý do ở ô hiện ngay dưới nút \oo{Lưu công đoạn}, lý do vào Nhật ký của lệnh. Chưa ghi lý do thì nút Lưu mờ. Sửa xong bấm \oo{Lưu công
 đoạn}. Dòng cuối bảng đếm số công đoạn và số bước gia công.
@@ -382,7 +404,7 @@ công có Cấu hình \& Số lượng, Nhà gia công, Phụ thuộc. Mũi tên
 
 \so{2} Loại bước: Nội bộ hoặc Gia công.
 
-\so{3} Bộ phận nhận, cùng luật với cột ở bảng. Ô chọn có chỗ gõ tìm, mỗi dòng ghi số nhóm làm được.
+\so{3} Bộ phận nhận, cùng luật với cột Bộ phận làm ở bảng. Ô chọn có chỗ gõ tìm, mỗi dòng ghi số nhóm làm được.
 
 \so{4} Khuôn của bước: lời nhắn của sale về khuôn chép từ phiếu tính giá, ô chọn khuôn có sẵn của khách, hoặc
 \oo{+ Làm khuôn mới}. Chỉ hiện khuôn của đúng khách này.
@@ -450,7 +472,7 @@ thiếu tự giữ bù khi hàng về. Hai lệnh cùng chờ một món thì l�
 
 \so{1} Món đã giữ đủ chuyển sang \q{Có trong kho}. Nút trên dòng nhóm đổi thành \oo{Nhả hàng}.
 
-Lệnh đang giữ hàng thì khoá sửa số lượng, con/tờ, nguồn giấy, chuỗi công đoạn và không xoá được. Muốn sửa thì
+Lệnh đang giữ hàng thì khoá sửa số lượng, con/tờ, vật liệu đầu vào, chuỗi công đoạn và không xoá được. Muốn sửa thì
 \oo{Nhả hàng}, phần mềm hỏi lại một lần, nhả rồi không hoàn tác được. Giữ hàng không chặn xếp lịch hay phát hành:
 lệnh chưa giữ vẫn phát hành được, chỉ mang chip cảnh báo.
 

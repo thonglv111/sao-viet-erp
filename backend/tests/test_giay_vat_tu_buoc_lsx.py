@@ -56,12 +56,14 @@ def _giay_cua(lsx) -> dict[str, list]:
 
 
 def test_giay_cua_san_pham_xuong_buoc_dau_khau_chuan_bi_kem_so_to(db, orders, lsx_svc, admin, customer):
-    """Kho trống ⇒ nguồn Mua; khổ nguyên 1090×790 xả 2 tờ in ⇒ chèn Tề giấy in, giấy ở đó."""
+    """Kho trống ⇒ tờ đúng khổ in (12/11/2026, trước là Mua khổ nguyên + Tề giấy in): không chèn bước
+    chuẩn bị, giấy ở thẳng bước In; mua thêm là việc của Kế hoạch vật tư."""
     lsx = _tao_lenh(db, orders, lsx_svc, admin, customer, _ptg(db, giay_o="In"))
+    assert lsx.nguon_giay == "to_in"
     giay = _giay_cua(lsx)
-    assert list(giay) == ["Tề giấy in", "In offset", "Cán màng"]
-    assert giay["In offset"] == [] and giay["Cán màng"] == []
-    (g,) = giay["Tề giấy in"]
+    assert list(giay) == ["In offset", "Cán màng"]
+    assert giay["Cán màng"] == []
+    (g,) = giay["In offset"]
     assert float(g.so_luong) > 0 and g.tu_dong is False and g.don_vi_goc == "to"
     assert "thieu_giay" not in lsx_svc.thieu_cua(lsx)
 

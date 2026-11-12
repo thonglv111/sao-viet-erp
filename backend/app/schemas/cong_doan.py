@@ -149,6 +149,7 @@ class CongDoanIn(BaseModel):
     # Mỗi bậc `{sl_den, gia_tri, don_vi}`; luật khai do `cong_doan_service._kiem_bac_bu_hao` soi.
     bac_bu_hao: list[dict] | None = None
     so_to_bu_hao: int = Field(default=50, ge=0)
+    tru_le_mm: int | None = Field(default=None, ge=0, le=50)
     nhom: str
     # Nhóm máy (tên ở danh mục `nhom_may`) làm được công đoạn này — chặn gán máy sai loại ở bài
     # ghép. None/[] = không ràng buộc.
@@ -201,6 +202,7 @@ class CongDoanRow(BaseModel):
     kieu_bu_hao: str = "khong"
     bac_bu_hao: list[dict] | None = None
     so_to_bu_hao: int = 50
+    tru_le_mm: int | None = None
     nhom: str
     nhom_may_cho_phep: list[str] | None = None
     department_ids: list[int] = Field(default_factory=list)

@@ -406,6 +406,14 @@ def test_thieu_cua_buoc_chung_tren_giay(db, orders, lsx_svc, bg_svc, admin, cust
     db.commit()
     bg = bg_svc.tao(lsx_ids=[l.id for l in created], actor=admin)
     _gop_buoc_in(bg_svc, lsx_svc, bg, created, admin)
+    # Từ 12/11/2026 lệnh rời kho trống lấy tờ đúng khổ in, vào bài thì bài dựng lại khâu theo luật bài
+    # (chuỗi ngược nạp lại đơn vị) ⇒ đặt đơn vị lạ cho bước chung SAU khi gộp.
+    from app.models.bai_ghep_cong_doan import BaiGhepCongDoan
+    db.query(BaiGhepCongDoan).filter(BaiGhepCongDoan.bai_ghep_id == bg.id).update(
+        {BaiGhepCongDoan.don_vi_vao: "khong_ton_tai", BaiGhepCongDoan.don_vi_ra: "khong_ton_tai"},
+        synchronize_session=False,
+    )
+    db.commit()
     bg = bg_svc._get(bg.id)
     assert "thieu_buoc_chung_tren_giay" in bg_svc.thieu_cua(bg)
 

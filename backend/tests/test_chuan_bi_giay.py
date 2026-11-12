@@ -144,3 +144,70 @@ def test_mot_manh_kho_nguyen_lon_hon_kho_in_van_te_va_lay_to_nguyen():
     assert n.nguon == "to_nguyen" and ma_buoc_giay(n.nguon, dv) == ["TGI"]
     d = dong_giay_buoc_dau(n, dv, 3060)
     assert (d["so_luong"], d["kho_rong"], d["kho_dai"]) == (3060, 700, 700)
+
+
+# ── Phương án lấy ở kho (12/11/2026) ────────────────────────────────────────────────────────────
+
+from app.models.cong_doan import CD_CAT_CUON, CD_TE_GIAY_IN, CD_TE_SONG  # noqa: E402
+from app.services.chuan_bi_giay import KhoLay, nguon_dan_xuat, phuong_an_lay, so_manh  # noqa: E402
+
+
+def test_so_manh_to_mot_va_hai_manh():
+    assert so_manh(KhoLay("to", 790, 1090), (720, 1020)) == (1, None)
+    assert so_manh(KhoLay("to", 1040, 1440), (720, 1020)) == (2, None)
+
+
+def test_so_manh_cuon_chon_cach_nhieu_manh():
+    assert so_manh(KhoLay("cuon", 1450, 0), (720, 1020)) == (2, 1020)
+    assert so_manh(KhoLay("cuon", 700, 0), (720, 1020)) == (0, None)
+
+
+def test_phuong_an_xep_theo_diem_va_chon_dau():
+    ton = [(720, 1020, "to", 800), (760, 1060, "to", 1800), (790, 1090, "to", 2400), (750, 0, "kg", 3200)]
+    ds = phuong_an_lay("giay", (720, 1020), 1560, 300, ton)
+    assert [p.diem for p in ds] == sorted((p.diem for p in ds), reverse=True)
+    assert ds[0].kho == KhoLay("to", 760, 1060) and ds[0].ma_buoc == [CD_TE_GIAY_IN]
+    dung_kho = next(p for p in ds if p.kho == KhoLay("to", 720, 1020))
+    assert dung_kho.ma_buoc == [] and dung_kho.ton == 800 and dung_kho.can == 1560
+    cuon = next(p for p in ds if p.kho.dang == "cuon")
+    assert cuon.ma_buoc == [CD_CAT_CUON, CD_TE_GIAY_IN] and cuon.don_vi == "kg"
+    assert cuon.can == math.ceil(kg_tu_to(1560, 750, 1020, 300) * 100 - 1e-9) / 100
+
+
+def test_to_hai_manh_chia_luong_can():
+    ds = phuong_an_lay("giay", (720, 1020), 1561, 300, [(1440, 1040, "to", 900)])
+    pa = next(p for p in ds if p.kho == KhoLay("to", 1040, 1440))
+    assert pa.so_manh == 2 and pa.can == 781 and pa.ton == 900
+
+
+def test_kho_trong_van_co_to_dung_kho_ton_0():
+    ds = phuong_an_lay("giay", (1020, 720), 1560, 300, [])
+    assert len(ds) == 1 and ds[0].kho == KhoLay("to", 720, 1020) and ds[0].ton == 0 and ds[0].diem == 50
+
+
+def test_song_bo_cuon_va_kho_nho():
+    ton = [(715, 1015, "to", 1800), (700, 1000, "to", 3000), (900, 0, "kg", 999)]
+    ds = phuong_an_lay("song", (715, 1015), 1500, 560, ton)
+    assert [p.kho for p in ds] == [KhoLay("to", 715, 1015)] and ds[0].diem == 100
+
+
+def test_song_to_lon_hon_qua_te_song():
+    ds = phuong_an_lay("song", (715, 1015), 1500, 560, [(720, 1020, "to", 1800)])
+    assert ds[0].kho == KhoLay("to", 720, 1020) and ds[0].ma_buoc == [CD_TE_SONG]
+
+
+def test_to_luu_theo_kg_doi_ra_to():
+    mot_to = kg_tu_to(1, 720, 1020, 300)
+    ds = phuong_an_lay("giay", (720, 1020), 100, 300, [(720, 1020, "kg", mot_to * 100)])
+    assert ds[0].ton == pytest.approx(100) and ds[0].diem == 100
+
+
+def test_toi_da_8_phuong_an():
+    ton = [(720 + i * 10, 1020 + i * 10, "to", 5000) for i in range(12)]
+    assert len(phuong_an_lay("giay", (720, 1020), 1000, 300, ton)) == 8
+
+
+def test_nguon_dan_xuat():
+    assert nguon_dan_xuat(KhoLay("to", 1020, 720), (720, 1020)) == "to_in"
+    assert nguon_dan_xuat(KhoLay("to", 790, 1090), (720, 1020)) == "to_nguyen"
+    assert nguon_dan_xuat(KhoLay("cuon", 750, 0), (720, 1020)) == "cuon"

@@ -471,6 +471,11 @@ export const CFG_CONG_DOAN: CatalogConfig = {
       showIf: (f) => f.kieu_bu_hao === "theo_bac" },
     { key: "so_to_bu_hao", label: "Số lượng cộng cố định", type: "number", group: "Bù hao", default: 50,
       showIf: (f) => f.kieu_bu_hao === "co_dinh" },
+    // Lề trừ của Tề sóng (mg 0474): lệnh mới lấy làm lề mặc định, khổ sóng cần = khổ in trừ lề mỗi
+    // chiều. Chỉ công đoạn hệ thống Tề sóng dùng số này nên chỉ hiện ở đó.
+    { key: "tru_le_mm", label: "Trừ lề mỗi chiều (mm)", type: "number", group: "Đơn vị",
+      showIf: (f) => f.ma === "TS",
+      hint: "Lệnh mới lấy số này làm lề mặc định: khổ sóng cần bằng khổ in trừ lề ở mỗi chiều. Lệnh vẫn sửa được lề của riêng nó." },
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Thông tin" },
   ],
   // CHỈ TÍNH THEO CÔNG THỨC: công đoạn luôn ở chế độ sản lượng + basis 'per_other' (giá phẳng/công

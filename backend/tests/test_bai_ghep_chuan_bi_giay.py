@@ -19,7 +19,7 @@ from app.services.san_xuat.buoc_giay_bai import buoc_lay_giay_bai_lo
 from tests.test_bai_ghep_service import bg_svc  # noqa: F401 — fixture dùng chung
 from tests.test_ke_hoach_vat_tu import svc  # noqa: F401
 from tests.test_ke_hoach_vat_tu_buoc_dau import _khoa_giay
-from tests.test_lenh_chuan_bi_giay import _cd_he_thong, _ma, _ton
+from tests.test_lenh_chuan_bi_giay import _cd_he_thong, _le_song, _ma, _ton
 from tests.test_lsx_service import (  # noqa: F401
     _don_da_chuyen_sx, _may_in, _to_san_xuat, admin, customer, db, lsx_svc, orders,
 )
@@ -62,8 +62,11 @@ def _ptg_hai_hop(db, *, song_a: bool = False) -> PhieuTinhGia:
     return p
 
 
-def _hai_lenh(db, orders, lsx_svc, admin, customer, **kw):
-    d = _don_da_chuyen_sx(db, orders, admin, customer, _ptg_hai_hop(db, **kw))
+def _hai_lenh(db, orders, lsx_svc, admin, customer, *, song_to=None, **kw):
+    ptg = _ptg_hai_hop(db, **kw)
+    if song_to:
+        _ton(db, "G-SONGE", *song_to, "to", 999_999)
+    d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
     a, b = lsx_svc.tao(order_id=d.id, order_line_ids=ids, actor=admin)
     for l in (a, b):
@@ -87,8 +90,8 @@ def _gop_in(db, bg_svc, lsx_svc, admin, bg, a, b):
 
 
 def test_lenh_vao_bai_dung_khau_theo_nguon_bai_giu_te_song(db, orders, lsx_svc, bg_svc, admin, customer):
-    a, b = _hai_lenh(db, orders, lsx_svc, admin, customer, song_a=True)
-    lsx_svc.doi_nguon_giay(lsx_id=a.id, nguon="to_in", rong_cuon=None, actor=admin)
+    _le_song(db, 5)
+    a, b = _hai_lenh(db, orders, lsx_svc, admin, customer, song_a=True, song_to=(430, 650))
     assert "TGI" not in _ma(db, lsx_svc.get(a.id))
 
     bg = bg_svc.tao(lsx_ids=[a.id, b.id], actor=admin)
@@ -204,6 +207,7 @@ def test_doi_nguon_lenh_trong_bai_bi_chan(db, orders, lsx_svc, bg_svc, admin, cu
     bg = bg_svc.tao(lsx_ids=[a.id, b.id], actor=admin)
     _gop_in(db, bg_svc, lsx_svc, admin, bg, a, b)
     with pytest.raises(LsxConflict, match="bài ghép"):
-        lsx_svc.doi_nguon_giay(lsx_id=a.id, nguon="to_in", rong_cuon=None, actor=admin)
+        lsx_svc.doi_vat_lieu(lsx_id=a.id, vat_lieu="giay", rong=None, dai=None, tru_le_mm=None,
+                             ve_tot_nhat=True, actor=admin)
     keys = {c.step_key for c in lsx_svc.get(a.id).cong_doans} | {c.step_key for c in lsx_svc.get(b.id).cong_doans}
     assert {m.lsx_step_key for m in db.query(BaiGhepCongDoanMap).all()} <= keys

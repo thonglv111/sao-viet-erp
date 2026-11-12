@@ -3303,6 +3303,51 @@ export interface LsxDen {
 export interface LsxTongQuanOut {
   items: { lsx_id: number; slack_ngay: number | null; den: LsxDen }[];
 }
+/** Một phương án lấy vật liệu ở kho (khối Vật liệu đầu vào, 12/11/2026). Cuộn: `dai` = 0, `can`/`ton` kg. */
+export interface PhuongAnLay {
+  dang: "to" | "cuon";
+  rong: number;
+  dai: number;
+  so_manh: number;
+  /** Tên bước chuẩn bị máy chèn, theo thứ tự; rỗng = đúng khổ, lấy thẳng. */
+  buoc: string[];
+  can: number;
+  don_vi: "to" | "kg";
+  ton: number;
+  /** Điểm 100 = đủ tồn 50 + ít bước chuẩn bị 30 + ít thừa giấy 20 (máy chủ chấm). */
+  diem: number;
+}
+
+export interface VatLieuDauVaoMon {
+  ten_hang: string;
+  kho_can: number[];
+  so_to_can: number;
+  vao_buoc: string;
+  /** Sóng: lề trừ mỗi chiều (mm); giấy: null. */
+  tru_le_mm: number | null;
+  dang_lay: PhuongAnLay | null;
+  /** Tối đa 8 phương án, điểm cao trước. */
+  ds: PhuongAnLay[];
+  tot_nhat: boolean;
+  /** Lệnh tự khai bước chuẩn bị giấy (phiếu kiểu cũ) — không đổi ở khối này. */
+  tu_khai: boolean;
+}
+
+export interface VatLieuDauVao {
+  /** Câu khoá phía máy chủ (giữ chỗ, đã phát hành…); null = đổi được. */
+  khoa: string | null;
+  giay: VatLieuDauVaoMon | null;
+  song: VatLieuDauVaoMon | null;
+}
+
+export interface DoiVatLieuBody {
+  vat_lieu: "giay" | "song";
+  rong?: number | null;
+  dai?: number | null;
+  tru_le_mm?: number | null;
+  ve_tot_nhat?: boolean;
+}
+
 export interface LsxDetail {
   id: number; ma: string; loai: string; lsx_goc_id: number | null; ten: string;
   /** Nhãn nhóm đọc sống từ dòng đơn — luôn đúng hiện tại, khác `quy_cach_json` là ảnh chụp. */
@@ -15152,11 +15197,13 @@ export const api = {
     dongBoDanhMuc(token: string, id: number): Promise<LsxDetail> {
       return authed<LsxDetail>(`/api/lsx/${id}/dong-bo-danh-muc`, token, { method: "POST" });
     },
-    /** Đổi nguồn giấy: máy chủ dựng lại Cắt giấy cuộn / Tề giấy in, giấy chuyển sang bước đầu mới. */
-    doiNguonGiay(
-      token: string, id: number, body: { nguon: string; rong_cuon: number | null },
-    ): Promise<LsxDetail> {
-      return authed<LsxDetail>(`/api/lsx/${id}/nguon-giay`, token, {
+    /** Khối Vật liệu đầu vào: khổ cần, khổ đang lấy, tối đa 8 phương án khổ trong kho đã chấm điểm. */
+    vatLieuDauVao(token: string, id: number): Promise<VatLieuDauVao> {
+      return authed<VatLieuDauVao>(`/api/lsx/${id}/vat-lieu-dau-vao`, token);
+    },
+    /** Đổi khổ lấy ở kho / lề sóng / về phương án tốt nhất: máy chủ dựng lại bước chuẩn bị của vật liệu đó. */
+    doiVatLieu(token: string, id: number, body: DoiVatLieuBody): Promise<LsxDetail> {
+      return authed<LsxDetail>(`/api/lsx/${id}/vat-lieu-dau-vao`, token, {
         method: "PUT", body: JSON.stringify(body),
       });
     },

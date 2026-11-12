@@ -19735,3 +19735,18 @@ MIGRATIONS.append(("0471_ke_hoach_tung_bo_phan", _migrate_ke_hoach_tung_bo_phan)
 # 0472 (09/11/2026) — bản đầu của 0456 tạo hai FK người làm lệnh / người giao trên `orders` với ON DELETE
 # SET NULL, trái luật mg 0327. Chạy lại đúng bước 0327: nó quét mọi FK tới `users` chưa CASCADE và đổi.
 MIGRATIONS.append(("0472_user_fks_delete_cascade_lan_2", _migrate_user_fks_delete_cascade))
+
+
+def _migrate_vat_lieu_dau_vao(db: Session) -> None:
+    """0474 (12/11/2026) — lề trừ của Tề sóng (khối Vật liệu đầu vào của lệnh): cột `cong_doan.tru_le_mm`,
+    dòng hệ thống `TS` đặt 5 mm nếu còn trống. Lệnh cũ không đổi (lề vắng trong quy cách = 0). Idempotent."""
+    insp = inspect(db.get_bind())
+    if "cong_doan" not in set(insp.get_table_names()):
+        return
+    if "tru_le_mm" not in _existing_columns(insp, "cong_doan"):
+        db.execute(text("ALTER TABLE cong_doan ADD COLUMN tru_le_mm INTEGER"))
+    db.execute(text("UPDATE cong_doan SET tru_le_mm = 5 WHERE ma = 'TS' AND tru_le_mm IS NULL"))
+    db.commit()
+
+
+MIGRATIONS.append(("0474_vat_lieu_dau_vao", _migrate_vat_lieu_dau_vao))

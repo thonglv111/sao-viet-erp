@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vật liệu đầu vào của lệnh</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0f172a;--ash:#475569;--ash-2:#64748b;--ash-3:#94a3b8;
+  --rule:#cbd5e1;--rule-soft:#e2e8f0;--rule-hair:#f1f5f9;
+  --xanh-bg:#dbeafe;--xanh-fg:#1d4ed8;--tim-bg:#ede9fe;--tim-fg:#6d28d9;
+  --cam-bg:#ffedd5;--cam-fg:#c2410c;--do-bg:#fee2e2;--do-fg:#b91c1c;
+  --la-bg:#dcfce7;--la-fg:#15803d;--vang-bg:#fef3c7;--vang-fg:#b45309;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9edf2;color:var(--ink);font:13.5px/1.45 "Be Vietnam Pro",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button,input{font:inherit;color:inherit}
+.doc{max-width:1260px;margin:0 auto;padding:32px 24px 80px}
+.doc h1{font-size:24px;font-weight:500;margin:0 0 6px}
+.doc p{color:var(--ash);margin:0 0 4px}
+
+.frame{width:1180px;background:#fff;border:1px solid var(--rule);border-radius:12px;padding:16px 20px 20px;margin-top:18px}
+.fhd{display:flex;align-items:baseline;gap:10px}
+.fhd .t{font-size:16px}
+.fhd .s{color:var(--ash-2);font-size:12.5px}
+.tabs{display:flex;gap:18px;border-bottom:1px solid var(--rule-soft);margin:12px 0 16px}
+.tabs span{padding:7px 0;color:var(--ash-2);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tabs span.on{color:var(--ink);border-color:var(--ink)}
+.khoi-hd{font-size:14.5px;margin:0 0 8px}
+
+.chip{display:inline-flex;align-items:center;border-radius:999px;padding:1px 9px;font-size:12px;white-space:nowrap}
+.c-giay{background:var(--xanh-bg);color:var(--xanh-fg)}
+.c-song{background:var(--tim-bg);color:var(--tim-fg)}
+.c-cb{background:var(--cam-bg);color:var(--cam-fg)}
+.dv{color:var(--ash-2);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+
+table{width:100%;border-collapse:collapse}
+th{font-weight:400;color:var(--ash-2);font-size:12px;text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+th.r,td.r{text-align:right}
+td{padding:10px;border-bottom:1px solid var(--rule-hair);vertical-align:middle}
+
+/* bảng vật liệu */
+.vl{border:1px solid var(--rule-soft);border-radius:10px}
+.vl table th{background:#fafbfc}
+.vl table th:first-child{border-top-left-radius:10px}
+.vl table th:last-child{border-top-right-radius:10px}
+.vl tr:last-child td{border-bottom:0}
+.vl .ma{font-size:12px;color:var(--ash-2);margin-left:6px}
+.cb-o{display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.mui{color:var(--ash-3);font-size:12px}
+.khong-can{font-size:12.5px;color:var(--la-fg)}
+td.vao{white-space:nowrap}
+.vao .le{display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:12px;color:var(--ash-2)}
+.vao .le input{width:34px;height:22px;border:1px solid var(--rule-soft);border-radius:5px;text-align:right;padding:0 5px;font-size:12px}
+.vao .le input:focus{outline:2px solid #93c5fd;outline-offset:-1px}
+.ton-o{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ton-o .thieu{color:var(--do-fg)}
+
+.chon{position:relative;display:flex;align-items:center;gap:10px}
+.chon-btn{width:180px;height:32px;border:1px solid var(--rule-soft);background:#fff;border-radius:8px;padding:0 28px 0 10px;text-align:left;cursor:pointer;position:relative;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chon-btn:hover{border-color:var(--rule)}
+.chon-btn.mo{border-color:#93c5fd;outline:2px solid #dbeafe}
+.chon-btn::after{content:"";position:absolute;right:11px;top:50%;width:6px;height:6px;border-right:1.5px solid var(--ash-2);border-bottom:1.5px solid var(--ash-2);transform:translateY(-75%) rotate(45deg)}
+.ve{border:0;background:none;padding:0;color:var(--xanh-fg);font-size:12px;cursor:pointer;white-space:nowrap}
+.ve:hover{text-decoration:underline}
+
+/* hộp phương án */
+.pop{position:absolute;z-index:30;top:calc(100% + 6px);left:0;width:560px;background:#fff;border:1px solid var(--rule-soft);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.06);padding:6px;display:none}
+.pop.mo{display:block}
+.pop .hd,.pa{display:grid;grid-template-columns:22px 150px minmax(0,1fr) 96px 40px;gap:12px;align-items:center}
+.pop .hd{padding:6px 10px;font-size:11.5px;color:var(--ash-3)}
+.pop .hd .r{text-align:right}
+.pa{padding:8px 10px;border-radius:8px;cursor:pointer}
+.pa:hover{background:#f8fafc}
+.pa.dang{background:#eff6ff}
+.pa .tick{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--rule);position:relative}
+.pa.dang .tick{border-color:var(--xanh-fg);background:var(--xanh-fg)}
+.pa.dang .tick::after{content:"";position:absolute;left:4.5px;top:1.5px;width:4px;height:8px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
+.pa .ten{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pa .lam{font-size:12.5px;color:var(--ash);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pa .lam.khop{color:var(--la-fg)}
+.pa .ton{text-align:right;font-variant-numeric:tabular-nums;line-height:1.25;white-space:nowrap}
+.pa .ton .thieu{display:block;font-size:11.5px;color:var(--do-fg)}
+.pa .diem{justify-self:end;width:36px;text-align:center;border-radius:7px;font-size:12.5px;line-height:22px;font-variant-numeric:tabular-nums;background:var(--rule-hair);color:var(--ash)}
+.pa .diem.cao{background:var(--la-bg);color:var(--la-fg)}
+.pa .diem.thap{background:var(--vang-bg);color:var(--vang-fg)}
+.pop .nhom{padding:8px 10px 2px;font-size:11.5px;color:var(--ash-3)}
+.pop .cuoi{padding:8px 10px 4px;font-size:11.5px;color:var(--ash-3);border-top:1px solid var(--rule-hair);margin-top:4px}
+
+/* bảng bước */
+.cd{border:1px solid var(--rule-soft);border-radius:10px}
+.cd table th{background:#fafbfc}
+.cd table th:first-child{border-top-left-radius:10px}
+.cd table th:last-child{border-top-right-radius:10px}
+.cd td{padding:9px 10px}
+.cd tr:hover td{background:#fafbfc}
+.cd tr.cb td{background:#fffaf5}
+.cd td.so-tt{position:relative;padding-left:16px;color:var(--ash-3);font-size:12px;font-variant-numeric:tabular-nums}
+.cd td.so-tt::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.cd tr.n-giay td.so-tt::before{background:#93c5fd}
+.cd tr.n-song td.so-tt::before{background:#c4b5fd}
+.cd tr.n-chung td.so-tt::before{background:var(--rule)}
+.cd .ten-cd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cd .phu{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap}
+.cd .phu .dv{font-size:12px}
+.c-khuon{background:var(--vang-bg);color:var(--vang-fg)}
+.c-ngoai{background:var(--tim-bg);color:var(--tim-fg)}
+.nh{font-size:12.5px}
+.nh.giay{color:var(--xanh-fg)}
+.nh.song{color:var(--tim-fg)}
+.nh.chung{color:var(--ash-2)}
+.sl{font-variant-numeric:tabular-nums;white-space:nowrap}
+.sl .mui{margin:0 6px}
+.sau{font-size:12.5px;color:var(--ash)}
+.sau .goc{color:var(--ash-3)}
+.ghi{border:0;background:none;color:var(--ash-3);cursor:pointer;padding:2px 6px;border-radius:6px;opacity:0}
+.cd tr:hover .ghi{opacity:1}
+.ghi:hover{background:var(--rule-hair);color:var(--ink)}
+.cd-chan{display:flex;align-items:center;gap:16px;padding:10px 12px;border-top:1px solid var(--rule-soft)}
+.btn-luu{border:0;background:var(--ink);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="doc">
+  <h1>Vật liệu đầu vào của lệnh</h1>
+  <p>Mỗi vật liệu một dòng: lấy khổ nào ở kho, cần chuẩn bị gì, vào bước nào với khổ nào, tồn có đủ không. Ô "Lấy ở kho" điền sẵn phương án điểm cao nhất; bấm vào để xem 8 phương án và đổi.</p>
+
+  <div class="frame">
+    <div class="fhd"><span class="t">LSX-0412</span><span class="s">Hộp bánh Tết 2026</span></div>
+    <div class="tabs"><span>Thông tin</span><span class="on">Công đoạn</span><span>Vật tư</span><span>Lịch sử</span></div>
+
+    <div class="khoi-hd">Vật liệu đầu vào</div>
+    <div class="vl">
+      <table>
+        <thead><tr>
+          <th style="width:220px">Vật liệu</th>
+          <th style="width:330px">Lấy ở kho</th>
+          <th>Chuẩn bị</th>
+          <th style="width:250px">Vào bước</th>
+          <th class="r" style="width:130px">Tồn / cần</th>
+        </tr></thead>
+        <tbody id="vl"></tbody>
+      </table>
+    </div>
+
+    <div class="khoi-hd" style="margin-top:24px">Các bước</div>
+    <div class="cd">
+      <table>
+        <thead><tr>
+          <th style="width:58px"></th>
+          <th>Công đoạn</th>
+          <th style="width:110px">Nhánh</th>
+          <th style="width:170px">Bộ phận làm</th>
+          <th style="width:230px">Số lượng</th>
+          <th style="width:190px">Làm sau</th>
+          <th style="width:44px"></th>
+        </tr></thead>
+        <tbody id="cd"></tbody>
+      </table>
+      <div class="cd-chan">
+        <span class="dv" id="cd-dem"></span>
+        <span class="dv">Ô "Làm sau" để trống là làm ngay sau bước ở dòng trên.</span>
+        <span style="flex:1"></span>
+        <button class="btn-luu">Lưu công đoạn</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const kh = (w,h) => `${w} × ${h}`;
+const so = n => n.toLocaleString("vi-VN");
+const KHO_IN = {w:720, h:1020};
+
+/* Hàng có trong kho của từng mã: tờ [rộng, dài, tồn tờ], cuộn [rộng, tồn kg]. */
+const VL = {
+  giay:{ten:"Giấy in", ma:"Ivory 300 gsm", gsm:300, canTo:1560, cb:"Tề giấy in", vao:"In", le:0,
+        to:[[720,1020,800],[760,1060,1800],[790,1090,2400],[800,1100,4000],[880,1200,3000],[650,860,5000]],
+        cuon:[[720,120],[750,3200],[800,2000],[900,1500]]},
+  song:{ten:"Sóng", ma:"Sóng B nâu 140/140", gsm:560, canTo:1500, cb:"Tề sóng", vao:"Bồi carton", le:5, coLe:true,
+        to:[[715,1015,1800],[720,1020,2000],[730,1030,900],[750,1050,2500],[760,1060,1200],[800,1100,600],
+            [820,1120,1000],[900,1200,4000],[700,1000,3000]], cuon:[]},
+};
+const can = v => ({w:KHO_IN.w - v.le, h:KHO_IN.h - v.le});
+
+/* Mọi phương án dùng được, chấm điểm 100: đủ tồn 50 (thiếu thì theo tỉ lệ có), bước 30 (mỗi bước
+   trừ 10), thừa 20 (thừa 0% được 20, thừa từ một nửa diện tích trở lên được 0). Lấy 8 điểm cao nhất. */
+function phuongAn(v){
+  const c = can(v), dt = c.w * c.h, ds = [];
+  for (const [w,h,ton] of v.to){
+    if (w < c.w || h < c.h) continue;
+    const b = (w===c.w && h===c.h) ? [] : [{ten:v.cb, vao:kh(w,h), ra:kh(c.w,c.h)}];
+    ds.push({id:`t${w}x${h}`, ten:`Tờ ${kh(w,h)}`, ton, dv:"tờ", cn:v.canTo, buoc:b, thua:w*h - dt});
+  }
+  for (const [r,ton] of v.cuon){
+    if (r < c.w) continue;
+    const b = [{ten:"Cắt cuộn", vao:`Cuộn rộng ${r}`, ra:kh(r,c.h)}];
+    if (r > c.w) b.push({ten:v.cb, vao:kh(r,c.h), ra:kh(c.w,c.h)});
+    const kg = Math.ceil(v.canTo * r/1000 * c.h/1000 * v.gsm/1000);
+    ds.push({id:`c${r}`, ten:`Cuộn rộng ${r}`, ton, dv:"kg", cn:kg, buoc:b, thua:(r - c.w)*c.h});
+  }
+  ds.forEach(p => {
+    p.du = p.ton >= p.cn;
+    p.diem = Math.round((p.du ? 50 : 50*p.ton/p.cn) + Math.max(0, 30 - 10*p.buoc.length) + Math.max(0, 20*(1 - (p.thua/dt)/0.5)));
+  });
+  ds.sort((a,b) => b.diem - a.diem);
+  return ds.slice(0,8);
+}
+
+const chonTay = {};
+let mo = null;
+function hienTai(k){
+  const ds = phuongAn(VL[k]);
+  const tay = chonTay[k] && ds.find(p => p.id === chonTay[k]);
+  return {ds, p: tay || ds[0], tay: !!tay};
+}
+
+function renderVL(){
+  document.getElementById("vl").innerHTML = Object.entries(VL).map(([k,v]) => {
+    const {ds, p, tay} = hienTai(k), c = can(v);
+    const pop = ds.map(x => `<div class="pa ${x.id===p.id?"dang":""}" data-k="${k}" data-id="${x.id}">
+        <span class="tick"></span>
+        <span class="ten">${x.ten}</span>
+        <span class="lam ${x.buoc.length?"":"khop"}">${x.buoc.length ? x.buoc.map(b=>b.ten).join(" rồi ") : "Đúng khổ"}</span>
+        <span class="ton">${so(x.ton)} <span class="dv">${x.dv}</span>${x.du?"":`<span class="thieu">thiếu ${so(x.cn-x.ton)}</span>`}</span>
+        <span class="diem ${x.diem>=80?"cao":x.diem<70?"thap":""}">${x.diem}</span>
+      </div>`).join("");
+    const cb = p.buoc.length
+      ? `<span class="cb-o">${p.buoc.map(b=>`<span class="chip c-cb">${b.ten}</span>`).join('<span class="mui">rồi</span>')}</span>`
+      : `<span class="khong-can">Không cần, đúng khổ</span>`;
+    const ton = p.du
+      ? `${so(p.ton)} / ${so(p.cn)} <span class="dv">${p.dv}</span>`
+      : `<span class="thieu">${so(p.ton)} / ${so(p.cn)} <span class="dv">${p.dv}</span></span><div class="dv thieu" style="color:var(--do-fg)">thiếu ${so(p.cn-p.ton)}</div>`;
+    return `<tr>
+      <td><span class="chip ${k==="giay"?"c-giay":"c-song"}">${v.ten}</span><span class="ma">${v.ma}</span></td>
+      <td>
+        <div class="chon">
+          <button class="chon-btn ${mo===k?"mo":""}" data-mo="${k}">${p.ten}</button>
+          ${tay ? `<button class="ve" data-ve="${k}">Về phương án tốt nhất</button>` : ""}
+          <div class="pop ${mo===k?"mo":""}">
+            <div class="hd"><span></span><span>Khổ trong kho</span><span>Chuẩn bị</span><span class="r">Tồn kho</span><span class="r">Điểm</span></div>
+            ${pop}
+            <div class="cuoi">Cần ${so(v.canTo)} tờ khổ ${kh(c.w,c.h)}. Điểm 100: đủ tồn 50, ít bước chuẩn bị 30, ít thừa giấy 20.</div>
+          </div>
+        </div>
+      </td>
+      <td>${cb}</td>
+      <td class="vao"><span class="dv">${v.vao}</span> <span class="num">${kh(c.w,c.h)}</span>${v.coLe ? `<span class="le">trừ lề <input class="num" data-k="${k}" data-f="le" value="${v.le}" inputmode="numeric"> mm</span>` : ""}</td>
+      <td class="r ton-o">${ton}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderCD(){
+  /* Bước chuẩn bị suy từ phương án đang dùng của từng vật liệu. */
+  const prep = (k, dvRa) => {
+    const {p} = hienTai(k), v = VL[k];
+    return p.buoc.map((b, i) => {
+      const dau = i === 0;
+      const vao = dau ? [p.dv === "kg" ? p.cn : v.canTo, p.dv] : [v.canTo, "tờ"];
+      const ra = i === p.buoc.length - 1 ? [v.canTo, dvRa] : [v.canTo, "tờ"];
+      return {ten:b.ten, nhanh:k, bp:"Tổ cắt", vao, ra, cb:true};
+    });
+  };
+  const pg = prep("giay", "tờ in"), ps = prep("song", "tờ sóng");
+  const nguonSong = ps.length ? ps[ps.length-1].ten : "sóng lấy thẳng từ kho";
+  const rows = [
+    ...pg,
+    {ten:"In", nhanh:"giay", bp:"Tổ in", vao:[1560,"tờ in"], ra:[1500,"tờ in"], vt:3},
+    ...ps,
+    {ten:"Bồi carton 4,5 lớp BE, BC", nhanh:"chung", bp:"Tổ bồi", vao:[1500,"tờ in"], ra:[1500,"tờ in"], vt:1, sau:`In và ${nguonSong}`},
+    {ten:"Bế carton 5-7 lớp", nhanh:"chung", bp:"Tổ bế", vao:[1500,"tờ in"], ra:[1500,"con"], canh:"Chưa chốt khuôn"},
+    {ten:"Gỡ hàng hộp, thùng giấy carton", nhanh:"chung", bp:"Tổ dán", vao:[1500,"con"], ra:[1500,"con"]},
+    {ten:"Dán BẢN TĐ 1 mảnh sóng 5 lớp", nhanh:"chung", bp:"Tổ dán", vao:[1500,"con"], ra:[1500,"con"], vt:1},
+    {ten:"Kiểm phẩm carton 5 lớp", nhanh:"chung", bp:"Gia công ngoài", ncc:"Bao bì Minh Phát", vao:[1500,"con"], ra:[1500,"con"]},
+    {ten:"Đếm, dán tem, cột hàng carton sóng 5L", nhanh:"chung", bp:"Tổ dán", vao:[1500,"con"], ra:[1500,"thành phẩm"], vt:1},
+  ];
+  // Bước đầu mỗi nhánh ghi "Bắt đầu"; bước nối thẳng dòng trên để trống.
+  let daGiay = false, daSong = false;
+  rows.forEach(r => {
+    if (r.nhanh === "giay" && !daGiay){ r.sau = r.sau || "goc"; daGiay = true; }
+    if (r.nhanh === "song" && !daSong){ r.sau = r.sau || "goc"; daSong = true; }
+  });
+  const sl = r => (r.vao[1] === r.ra[1] && r.vao[0] === r.ra[0])
+    ? `${so(r.vao[0])} <span class="dv">${r.vao[1]}</span>`
+    : `${so(r.vao[0])} <span class="dv">${r.vao[1]}</span><span class="mui">→</span>${so(r.ra[0])} <span class="dv">${r.ra[1]}</span>`;
+  const nhanTen = {giay:"Giấy", song:"Sóng", chung:"Gộp"};
+  document.getElementById("cd").innerHTML = rows.map((r,i)=>`<tr class="n-${r.nhanh} ${r.cb?"cb":""}">
+    <td class="so-tt">${(i+1)*10}</td>
+    <td>
+      <div class="ten-cd">${r.ten}${r.cb?'<span class="chip c-cb">Chuẩn bị</span>':''}${r.canh?`<span class="chip c-khuon">${r.canh}</span>`:''}</div>
+      ${r.vt ? `<div class="phu"><span class="dv">${r.vt} vật tư</span></div>` : ""}
+    </td>
+    <td><span class="nh ${r.nhanh}">${nhanTen[r.nhanh]}</span></td>
+    <td>${r.ncc ? `<span class="chip c-ngoai">Gia công ngoài</span><div class="dv" style="margin-top:2px">${r.ncc}</div>` : r.bp}</td>
+    <td class="sl">${sl(r)}</td>
+    <td class="sau">${r.sau === "goc" ? '<span class="goc">Bắt đầu</span>' : (r.sau || "")}</td>
+    <td class="r"><button class="ghi" title="Thêm ghi chú">✎</button></td>
+  </tr>`).join("");
+  document.getElementById("cd-dem").textContent = `${rows.length} công đoạn`;
+}
+
+function render(){ renderVL(); renderCD(); }
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-mo],.pa,[data-ve]");
+  if (!t){ if (mo){ mo = null; render(); } return; }
+  if (t.dataset.mo){ mo = mo === t.dataset.mo ? null : t.dataset.mo; return render(); }
+  if (t.dataset.ve){ delete chonTay[t.dataset.ve]; return render(); }
+  const k = t.dataset.k;
+  if (t.dataset.id === phuongAn(VL[k])[0].id) delete chonTay[k]; else chonTay[k] = t.dataset.id;
+  mo = null; render();
+});
+document.addEventListener("input", e => {
+  const {k, f} = e.target.dataset;
+  if (f !== "le") return;
+  VL[k].le = parseInt(e.target.value.replace(/\D/g,""),10) || 0;
+  const pos = e.target.selectionStart;
+  render();
+  const inp = document.querySelector(`input[data-k="${k}"][data-f="le"]`);
+  inp.focus(); inp.setSelectionRange(pos,pos);
+});
+render();
+</script>
+</body>
+</html>

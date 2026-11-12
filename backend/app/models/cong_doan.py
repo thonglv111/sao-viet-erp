@@ -97,6 +97,9 @@ class CongDoan(Base):
     # và khoảng chồng (xem `services/bu_hao_engine.py`).
     bac_bu_hao: Mapped[list | None] = mapped_column(JSON, nullable=True)
     so_to_bu_hao: Mapped[int] = mapped_column(Integer, nullable=False, server_default="50", default=50)  # +tờ hao khi kieu_bu_hao=co_dinh
+    # Lề trừ mỗi chiều (mm, mg 0474): Tề sóng dùng làm lề mặc định cho lệnh mới — khổ sóng cần = khổ in
+    # trừ lề. NULL = không trừ. Công đoạn khác để trống.
+    tru_le_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Đơn vị VÀO / RA của công đoạn — KHAI, không đoán theo tên. Từ 06/09/2026 đây là MENU ĐÓNG
     # đúng 5 CHẶNG của dòng giấy (`don_vi_do.TRAM_DONG_GIAY`), KHÔNG còn trỏ vào danh mục đơn vị:
     #   - bước trên dòng giấy khai `to_nguyen → to`, `to → con`, `to → cai`… (chảy một chiều)
