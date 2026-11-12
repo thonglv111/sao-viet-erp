@@ -129,6 +129,7 @@ NHAN: dict[str, str] = {
     "kieu_bu_hao": "Bù hao",
     "bac_bu_hao": "Bậc bù hao",
     "so_to_bu_hao": "Số lượng cộng cố định",
+    "tru_le_mm": "Trừ lề mỗi chiều (mm)",
     "don_vi_vao": "Đơn vị đầu vào",
     "don_vi_ra": "Đơn vị đầu ra",
     # `he_so_ngoai_dong` · `cong_thuc_san_luong` · `don_vi_san_luong` GỠ 18/09/2026 (mg `0324`) —
