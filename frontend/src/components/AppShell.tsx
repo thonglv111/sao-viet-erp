@@ -1255,6 +1255,9 @@ export function AppShell() {
   if (sanXuatDong.length) dynamicItems["to-san-xuat"] = sanXuatDong;
   // Mục "Kho" chỉ cần `kho:read`; tab "Phiếu từ đề nghị" (cần create/view_stock) tự ẩn trong KhoPage.
   const hiddenIds = new Set<string>();
+  // Bản cài không duyệt đơn mua (In Hà Phương): Mua hàng chốt đơn luôn, mục duyệt bên Kế toán ẩn. Màn vẫn
+  // mở được từ link mã đơn ở Phiếu chi, Công nợ phải trả để xem đơn.
+  if (phanHeTat.has("duyet_don_mua")) hiddenIds.add("ke-toan-don-mua-hang");
   // Điện thoại: bảng tra mục menu cho thanh dưới + chuông việc chờ + tên màn trên thanh trên.
   const mucDT = laDT && readable ? bangMuc(dynamicItems, itemChildren, readable, hiddenIds) : null;
 

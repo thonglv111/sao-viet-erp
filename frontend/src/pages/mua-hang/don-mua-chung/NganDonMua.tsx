@@ -21,7 +21,7 @@ import {
   type SupplierCredit,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
-import { useCan } from "../../../auth/permissions";
+import { useCan, useTat } from "../../../auth/permissions";
 import { fmtDate, fmtDateTime } from "../../../utils/format";
 import { NganPhai } from "../../ke-toan/shared/NganPhai";
 import { tenDonVi } from "../../tenDonVi";
@@ -365,6 +365,7 @@ function CotPhai({
   onDoi: (next: PurchaseRequestRow) => void;
   onLoi: (msg: string | null) => void;
 }) {
+  const khongDuyet = useTat()("duyet_don_mua");
   const tienHang = row.lines.reduce((t, l) => t + l.quantity * l.expected_unit_price, 0);
   const tienGiam = row.lines.reduce(
     (t, l) => t + Math.round((l.quantity * l.expected_unit_price * (l.discount_percent || 0)) / 100),
@@ -482,14 +483,24 @@ function CotPhai({
       <div className="mh-sb">
         <h4>Người</h4>
         <div className="mh-r"><span>NV mua hàng</span><span>{row.created_by_name || <span className="mh-mo3">Không rõ</span>}</span></div>
-        <div className="mh-r">
-          <span>Gửi duyệt</span>
-          <span>{row.submitted_at ? fmtDate(row.submitted_at) : <span className="mh-mo3">Chưa gửi</span>}</span>
-        </div>
-        {row.approved_by_name && (
+        {khongDuyet ? (
+          // Bản cài không duyệt đơn mua: gửi là chốt, người chốt nằm ở ô người duyệt.
           <>
-            <div className="mh-r"><span>NV duyệt</span><span>{row.approved_by_name}</span></div>
-            {row.approved_at && <div className="mh-r"><span>Duyệt lúc</span><span>{fmtDateTime(row.approved_at)}</span></div>}
+            <div className="mh-r"><span>Người chốt</span><span>{row.approved_by_name || <span className="mh-mo3">Chưa chốt</span>}</span></div>
+            {row.approved_at && <div className="mh-r"><span>Chốt lúc</span><span>{fmtDateTime(row.approved_at)}</span></div>}
+          </>
+        ) : (
+          <>
+            <div className="mh-r">
+              <span>Gửi duyệt</span>
+              <span>{row.submitted_at ? fmtDate(row.submitted_at) : <span className="mh-mo3">Chưa gửi</span>}</span>
+            </div>
+            {row.approved_by_name && (
+              <>
+                <div className="mh-r"><span>NV duyệt</span><span>{row.approved_by_name}</span></div>
+                {row.approved_at && <div className="mh-r"><span>Duyệt lúc</span><span>{fmtDateTime(row.approved_at)}</span></div>}
+              </>
+            )}
           </>
         )}
         {huy && moc && (

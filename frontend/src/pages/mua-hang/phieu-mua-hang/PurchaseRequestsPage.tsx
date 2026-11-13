@@ -841,6 +841,9 @@ export function PurchaseRequestsPage({
         // lại — lần hai bị server chặn vì yêu cầu nguồn đã bị giữ chỗ. Kể cả đường tách nhiều
         // phiếu theo NCC cũng đi qua đây, nên một chỗ này là đủ cho cả hai.
         setTab("phieu");
+        // Mở luôn đơn vừa lập (13/11/2026) để làm tiếp ngay: khai cọc, chốt / gửi duyệt. Tách nhiều
+        // đơn theo NCC thì mở đơn đầu, các đơn còn lại nằm đầu danh sách.
+        if (items[0]) setSelectedId(items[0].id);
       }
       setMode(null);
       loadSuppliers();

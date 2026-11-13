@@ -848,10 +848,12 @@ def submit_purchase_request(
         )
     except PurchaseError as exc:
         raise _map_error(exc) from None
-    _notify_purchase_changed(
-        row.get("code"), event_type="purchase_pending_approval", notifications=notifications,
-        channel=CHANNEL_KE_TOAN, actor_user_id=user.id,
-    )
+    # Không duyệt đơn mua (phân hệ tắt) thì đơn đã chốt luôn, không có gì chờ Kế toán duyệt.
+    if row.get("status") == "pending_approval":
+        _notify_purchase_changed(
+            row.get("code"), event_type="purchase_pending_approval", notifications=notifications,
+            channel=CHANNEL_KE_TOAN, actor_user_id=user.id,
+        )
     return PurchaseRequestOut(**row)
 
 

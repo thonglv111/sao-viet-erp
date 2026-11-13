@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, api, type PurchaseRequestRow, type SupplierCredit } from "../../../../api/client";
 import { useAuth } from "../../../../auth/useAuth";
+import { useTat } from "../../../../auth/permissions";
 import { Button } from "../../../../components/Button";
 import { Icon } from "../../../../components/Icons";
 import { OGoDinhDang } from "../../../../components/OGoDinhDang";
@@ -38,7 +39,10 @@ export function DaiGuiDuyet({
   onMoNcc?: (supplierId: number) => void;
 }) {
   const { token } = useAuth();
-  const choDuyet = row.status === "pending_approval";
+  // Bản cài không duyệt đơn mua (phân hệ `duyet_don_mua` tắt): nút là Chốt đơn, đơn sang Đã duyệt ngay.
+  // Đơn kẹt Chờ duyệt từ trước khi tắt cũng hiện nút Chốt đơn.
+  const khongDuyet = useTat()("duyet_don_mua");
+  const choDuyet = row.status === "pending_approval" && !khongDuyet;
   const [coc, setCoc] = useState(String(row.deposit_expected || ""));
   useEffect(() => setCoc(String(row.deposit_expected || "")), [row.deposit_expected]);
   const [busy, setBusy] = useState(false);
@@ -73,13 +77,15 @@ export function DaiGuiDuyet({
   }
 
   return (
-    <section className="mh-tiep" aria-label={choDuyet ? "Đơn đang chờ duyệt" : "Việc tiếp theo: gửi duyệt"}>
+    <section className="mh-tiep" aria-label={choDuyet ? "Đơn đang chờ duyệt" : khongDuyet ? "Việc tiếp theo: chốt đơn" : "Việc tiếp theo: gửi duyệt"}>
       <span className="mh-tiep__nhan">
-        {choDuyet ? "Đang chờ duyệt" : row.status === "rejected" ? "Tiếp theo: gửi duyệt lại" : "Tiếp theo: gửi duyệt"}
+        {choDuyet ? "Đang chờ duyệt" : khongDuyet ? "Tiếp theo: chốt đơn"
+          : row.status === "rejected" ? "Tiếp theo: gửi duyệt lại" : "Tiếp theo: gửi duyệt"}
       </span>
       <label
         className="mh-tiep__o"
-        title={choDuyet ? "Đổi được tới khi duyệt." : "Người duyệt đồng ý đúng số này, duyệt xong là khoá."}
+        title={choDuyet ? "Đổi được tới khi duyệt." : khongDuyet ? "Chốt đơn xong là khoá."
+          : "Người duyệt đồng ý đúng số này, duyệt xong là khoá."}
       >
         Cọc
         <span className={`mh-dk__tien${cocVuot ? " is-loi" : ""}`}>
@@ -122,7 +128,8 @@ export function DaiGuiDuyet({
         )
       ) : (
         <Button variant="accent" loading={guiBusy} disabled={busy} onClick={gui}>
-          <Icon name="send" size={14} /> {row.status === "rejected" ? "Gửi duyệt lại" : "Gửi duyệt"}
+          {khongDuyet ? <><Icon name="check" size={14} /> Chốt đơn</>
+            : <><Icon name="send" size={14} /> {row.status === "rejected" ? "Gửi duyệt lại" : "Gửi duyệt"}</>}
         </Button>
       )}
       {loi && <small className="mh-tiep__loi" role="alert">{loi}</small>}

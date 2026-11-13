@@ -3056,8 +3056,13 @@ class PurchaseService:
         """Gửi duyệt. `deposit_expected` = cọc người lập chốt ngay ở dải "Tiếp theo: gửi duyệt"
         (15/10/2026) — ghi CÙNG lần đổi trạng thái để không có lúc đơn đã chờ duyệt mà cọc chưa
         lưu. None = giữ cọc đang có trên đơn."""
+        from ..phan_he import DUYET_DON_MUA, tat
+
         row = self._request_ghi(request_id, actor)
-        if row.status not in (PR_DRAFT, PR_REJECTED):
+        # Bản cài không duyệt đơn mua (phân hệ `duyet_don_mua` tắt): gửi = chốt, đơn sang Đã duyệt ngay,
+        # người chốt là người duyệt. Đơn còn kẹt Chờ duyệt từ trước khi tắt cũng chốt được.
+        khong_duyet = tat(DUYET_DON_MUA)
+        if row.status not in ((PR_DRAFT, PR_REJECTED, PR_PENDING) if khong_duyet else (PR_DRAFT, PR_REJECTED)):
             raise PurchaseConflict("Chỉ phiếu nháp hoặc bị từ chối mới được gửi duyệt.")
         if deposit_expected is not None:
             coc = int(deposit_expected)
@@ -3065,16 +3070,16 @@ class PurchaseService:
                 raise PurchaseValidationError("Cọc dự kiến không được âm.")
             self._chan_coc_vuot_tong(coc, int(purchase_money(row)["total"]), khi="")
             row.deposit_expected = coc
-        self._dat_trang_thai(row, PR_PENDING, doc_type=DOC_PMH, actor=actor)
+        self._dat_trang_thai(row, PR_APPROVED if khong_duyet else PR_PENDING, doc_type=DOC_PMH, actor=actor)
         row.submitted_at = _now()
-        row.approved_by_user_id = None
-        row.approved_at = None
+        row.approved_by_user_id = actor.id if khong_duyet else None
+        row.approved_at = row.submitted_at if khong_duyet else None
         for link in row.sources:
             self._tinh_lai_trang_thai_ycmh(link.department_request)
         saved = self.requests.save(row)
         self.audit.create(
             actor_user_id=actor.id,
-            action="submit_purchase_request",
+            action="chot_purchase_request" if khong_duyet else "submit_purchase_request",
             target=f"purchase_request:{row.id}",
             detail=f"{row.code} — cọc {so_vn(int(row.deposit_expected or 0))}đ" if row.deposit_expected else row.code,
         )

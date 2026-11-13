@@ -271,6 +271,8 @@ _HD += _dong("mua_hang", "yeu_cau_mua_hang", {
     "create_purchase_request": "Tạo yêu cầu mua hàng",
     "update_purchase_request": "Sửa yêu cầu mua hàng",
     "submit_purchase_request": "Gửi yêu cầu mua hàng",
+    # Bản cài không duyệt đơn mua (phân hệ `duyet_don_mua` tắt): gửi là chốt luôn.
+    "chot_purchase_request": "Chốt đơn mua hàng (không qua duyệt)",
     "cancel_purchase_request": "Huỷ yêu cầu mua hàng",
     "delete_purchase_request": "Xoá yêu cầu mua hàng",
     "close_purchase_request": "Đóng yêu cầu mua hàng",
