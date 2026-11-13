@@ -63,9 +63,29 @@ export interface XuatHangState {
   kho: KhoXuat[];
 }
 
+/** Xuất hàng + Thanh toán đã chọn của đơn thương mại còn nháp, lưu kèm "Lưu nháp" (14/11/2026). */
+export interface DuKienThuongMaiInput {
+  xuat_ngay: boolean;
+  kho_id: number | null;
+  phuong_thuc: CachGiaoInput | null;
+  tra_ngay: boolean;
+  cach_nhan: "cash" | "bank_transfer" | null;
+  company_bank_account_id: number | null;
+}
+export interface DuKienThuongMai extends DuKienThuongMaiInput {
+  kho_ten: string | null;
+  nguoi_giao_ten: string | null;
+  xe_ten: string | null;
+  don_vi_vc_ten: string | null;
+  tai_khoan_ten: string | null;
+}
+/** `GET /api/orders/{id}` của đơn thương mại nháp có thêm `tm_du_kien`. */
+export const duKienCua = (o: OrderDetail): DuKienThuongMai | null =>
+  (o as OrderDetail & { tm_du_kien?: DuKienThuongMai | null }).tm_du_kien ?? null;
+
 export const thuongMaiApi = {
   taoDon(token: string, body: { customer_id: number; lines: DongThuongMaiInput[]; deposit_pct?: number | null;
-    deposit_amount?: number | null; ghi_chu?: string | null }): Promise<OrderDetail> {
+    deposit_amount?: number | null; ghi_chu?: string | null; du_kien?: DuKienThuongMaiInput | null }): Promise<OrderDetail> {
     return authed<OrderDetail>("/api/thuong-mai/don", token, { method: "POST", body: JSON.stringify(body) });
   },
   suaDong(token: string, orderId: number, lines: DongThuongMaiInput[]): Promise<OrderDetail> {
@@ -73,13 +93,20 @@ export const thuongMaiApi = {
       method: "PUT", body: JSON.stringify({ lines }),
     });
   },
-  /** Trang Tạo đơn: tạo + chốt, kèm xuất hết hàng (`xuat`) và/hoặc phiếu thu theo đơn (`thu`). */
+  /** Lưu nháp ở trang Sửa đơn: sửa trọn khách, dòng, cọc, ghi chú của đơn còn nháp (14/11/2026). */
+  suaDon(token: string, orderId: number, body: { customer_id: number; lines: DongThuongMaiInput[];
+    deposit_amount?: number | null; ghi_chu?: string | null; du_kien?: DuKienThuongMaiInput | null }): Promise<OrderDetail> {
+    return authed<OrderDetail>(`/api/thuong-mai/don/${orderId}`, token, { method: "PUT", body: JSON.stringify(body) });
+  },
+  /** Trang Tạo đơn: tạo + chốt, kèm xuất hết hàng (`xuat`) và/hoặc phiếu thu theo đơn (`thu`).
+   *  Có `orderId` (trang Sửa đơn) = lưu trọn đơn nháp đó rồi chốt / xuất / thu trên chính nó. */
   banNhanh(token: string, body: { customer_id: number; lines: DongThuongMaiInput[]; deposit_amount?: number | null;
     ghi_chu?: string | null;
     thu?: { receipt_method: "cash" | "bank_transfer"; amount: number; company_bank_account_id?: number | null;
       bank_reference?: string | null } | null;
-    xuat?: { kho_id: number; ghi_so: boolean; phuong_thuc?: CachGiaoInput } | null }): Promise<OrderDetail> {
-    return authed<OrderDetail>("/api/thuong-mai/ban-nhanh", token, { method: "POST", body: JSON.stringify(body) });
+    xuat?: { kho_id: number; ghi_so: boolean; phuong_thuc?: CachGiaoInput } | null }, orderId?: number): Promise<OrderDetail> {
+    return authed<OrderDetail>(orderId != null ? `/api/thuong-mai/don/${orderId}/ban-nhanh` : "/api/thuong-mai/ban-nhanh",
+      token, { method: "POST", body: JSON.stringify(body) });
   },
   /** Kho chọn được ở khối Xuất hàng của trang Tạo đơn. */
   khoXuat(token: string): Promise<KhoXuat[]> {

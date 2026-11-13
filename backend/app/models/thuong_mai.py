@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, false as sa_false, true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
@@ -65,3 +65,38 @@ class LuotXuatThuongMaiDong(Base):
     gia_von: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     luot: Mapped[LuotXuatThuongMai] = relationship("LuotXuatThuongMai", back_populates="dong")
+
+
+class DuKienDonThuongMai(Base):
+    """Lựa chọn Xuất hàng + Thanh toán của đơn thương mại còn NHÁP (14/11/2026).
+
+    Trang Tạo / Sửa đơn ghi lúc bấm "Lưu nháp" để mở lại thấy đúng như đã chọn; ngăn đơn hiện ra cho người
+    xem. Chỉ là DỰ KIẾN: cách giao thật vẫn ghi theo từng lần xuất (`phuong_thuc_giao_hp`), phiếu thu thật
+    lập lúc thu. Mỗi đơn tối đa một dòng."""
+
+    __tablename__ = "du_kien_don_thuong_mai"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    order_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("orders.id", ondelete="CASCADE"), unique=True, index=True, nullable=False)
+    xuat_ngay: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
+    kho_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("kho_hang.id", ondelete="SET NULL"), nullable=True)
+    # Cách giao dự kiến — cùng các ô của `phuong_thuc_giao_hp`.
+    giao_loai: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    nguoi_giao_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    xe_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("xe_giao_hang.id", ondelete="SET NULL"), nullable=True)
+    don_vi_vc_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("don_vi_van_chuyen.id", ondelete="SET NULL"), nullable=True)
+    tien_cuoc: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    ma_van_don: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tra_ngay: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_false(), default=False)
+    # "cash" | "bank_transfer"
+    cach_nhan: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    company_bank_account_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("company_bank_accounts.id", ondelete="SET NULL"), nullable=True)
+    nguoi_luu_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)

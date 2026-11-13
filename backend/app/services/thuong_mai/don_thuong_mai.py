@@ -127,7 +127,7 @@ class DonThuongMaiService:
         self.audit = audit
 
     def tao(self, *, actor, customer_id: int, lines: list[dict], deposit_pct: float | None = None,
-            deposit_amount: int | None = None, ghi_chu: str | None = None) -> Order:
+            deposit_amount: int | None = None, ghi_chu: str | None = None, du_kien: dict | None = None) -> Order:
         if tat(THUONG_MAI):
             raise DonThuongMaiNotFound("Bản cài này không dùng đơn thương mại")
         if not customer_id or self.db.get(Customer, int(customer_id)) is None:
@@ -158,6 +158,51 @@ class DonThuongMaiService:
         )
         self.audit.create(actor_user_id=actor.id, action="create_order", target=f"order:{order.id}",
                           detail=f"Tạo đơn {order.order_no} (Đơn thương mại)")
+        if du_kien is not None:
+            from . import du_kien as dk_svc
+
+            dk_svc.ghi(self.db, order_id=order.id, actor=actor, dk=du_kien)
+            self.db.commit()
+        return order
+
+    def sua_don(self, *, order: Order, actor, customer_id: int, lines: list[dict], deposit_pct: float | None = None,
+                deposit_amount: int | None = None, ghi_chu: str | None = None,
+                du_kien: dict | None = None) -> Order:
+        """Sửa TRỌN đơn thương mại còn nháp (14/11/2026): khách, dòng, cọc, ghi chú — cùng luật lúc tạo.
+        Đổi khách thì người phụ trách theo khách mới (cùng luật `tao`)."""
+        if not la_don_thuong_mai(order):
+            raise DonThuongMaiNotFound("Không tìm thấy đơn thương mại")
+        if order.status != STATUS_DRAFT:
+            raise DonThuongMaiError("Đơn đã chốt hoặc huỷ, không sửa được.")
+        if not customer_id or self.db.get(Customer, int(customer_id)) is None:
+            raise DonThuongMaiError("Chọn khách hàng cho đơn.")
+        dong = chuan_dong(self.db, lines)
+        tong_vat = sum(d["line_total"] * (100 + d["vat_pct_estimate"]) // 100 for d in dong)
+        if deposit_pct is not None and not 0 <= deposit_pct <= 100:
+            raise DonThuongMaiError("% cọc phải trong khoảng 0–100")
+        if deposit_amount:
+            if deposit_amount > tong_vat:
+                raise DonThuongMaiError("Tiền cọc không được vượt giá trị đơn hàng.")
+            deposit_pct = None
+        if int(customer_id) != order.customer_id:
+            order.customer_id = int(customer_id)
+            order.sale_user_id = chu_cua(self.db, int(customer_id), None) or order.sale_user_id or actor.id
+        for ln in list(order.lines):
+            self.db.delete(ln)
+        self.db.flush()
+        for d in dong:
+            self.db.add(OrderLine(order_id=order.id, **d))
+        order.vat_pct_estimate = max((d["vat_pct_estimate"] for d in dong), default=0)
+        order.deposit_pct = deposit_pct
+        order.deposit_amount = deposit_amount or None
+        order.delivery_note = ghi_chu or None
+        from . import du_kien as dk_svc
+
+        dk_svc.ghi(self.db, order_id=order.id, actor=actor, dk=du_kien)
+        self.db.commit()
+        self.audit.create(actor_user_id=actor.id, action="update_order", target=f"order:{order.id}",
+                          detail=f"Cập nhật đơn {order.order_no}")
+        self.db.expire(order)
         return order
 
     def sua_dong(self, *, order: Order, actor, lines: list[dict]) -> Order:

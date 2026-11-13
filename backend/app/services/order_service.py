@@ -428,7 +428,16 @@ class OrderService:
             quote_expired=quote_expired,
             ordered_by_name=names.get(order.ordered_by) if order.ordered_by else None,
             tm_da_thu=self._tm_da_thu(order),
+            tm_du_kien=self._tm_du_kien(order),
         )
+
+    def _tm_du_kien(self, order: Order) -> dict | None:
+        """Đơn thương mại còn nháp: Xuất hàng + Thanh toán dự kiến (14/11/2026)."""
+        if order.source_type != SOURCE_THUONG_MAI or order.status != STATUS_DRAFT:
+            return None
+        from .thuong_mai.du_kien import doc
+
+        return doc(self.repo.db, order.id)
 
     def _tm_da_thu(self, order: Order) -> int | None:
         """Chặng Thu tiền của đơn thương mại: tiền khách đã đưa cho đơn (cọc + thu theo hoá đơn)."""

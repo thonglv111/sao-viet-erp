@@ -3,7 +3,7 @@
 // quầy + Ghi chú. Một lần bấm: tạo, chốt, xuất hết hàng, lập phiếu thu theo đơn (`POST /api/thuong-mai/ban-nhanh`).
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, type OrderDetail } from "../../api/client";
-import { thuongMaiApi, type DongThuongMaiInput, type KhoXuat } from "../../api/thuongMai";
+import { duKienCua, thuongMaiApi, type DongThuongMaiInput, type KhoXuat } from "../../api/thuongMai";
 import { useAuth } from "../../auth/useAuth";
 import { useCan, useTat } from "../../auth/permissions";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
@@ -38,7 +38,10 @@ export function nhanNutChinh(traNgay: boolean, xuatNgay: boolean): string {
   return "Tạo và chốt đơn";
 }
 
-export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
+export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
+  /** Có = "Sửa đơn" của đơn nháp: mở lại đúng trang này, sửa được mọi ô; nút chính chốt / xuất / thu trên
+   *  chính đơn đó (14/11/2026). */
+  order?: OrderDetail;
   onClose: () => void;
   /** Lưu xong (nháp hoặc đã chốt) — mở ngăn đơn. */
   onSaved: (d: OrderDetail) => void;
@@ -51,27 +54,35 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   const tenDvt = useTenDvt();
   const thuDuoc = can("phieu_thu", "create");
   const coCachGiao = !tat("giao_hang_hp");
+  // Sửa đơn nháp: mở lại đúng Xuất hàng + Thanh toán đã chọn lúc Lưu nháp (14/11/2026).
+  const dk = order ? duKienCua(order) : null;
+  const ptDk = dk?.phuong_thuc;
 
-  const [khach, setKhach] = useState<KhachChon | null>(null);
+  const [khach, setKhach] = useState<KhachChon | null>(
+    order?.customer_id ? { id: order.customer_id, name: order.customer_name ?? "" } : null);
   const [dong, setDong] = useState<Dong[]>([dongMoi()]);
-  const [ghiChu, setGhiChu] = useState("");
+  const [ghiChu, setGhiChu] = useState(order?.delivery_note ?? "");
   // Thanh toán
-  const [traNgay, setTraNgay] = useState(thuDuoc);
-  const [cachNhan, setCachNhan] = useState<CachNhan>("cash");
+  const [traNgay, setTraNgay] = useState(dk ? dk.tra_ngay && thuDuoc : thuDuoc);
+  const [cachNhan, setCachNhan] = useState<CachNhan>(dk?.cach_nhan ?? "cash");
   const [dua, setDua] = useState("");
   const [duaSua, setDuaSua] = useState(false);
-  const [tkId, setTkId] = useState<number | null>(null);
+  const [tkId, setTkId] = useState<number | null>(dk?.company_bank_account_id ?? null);
   const [maGd, setMaGd] = useState("");
-  const [coc, setCoc] = useState("");
+  const [coc, setCoc] = useState(order?.deposit_amount ? String(order.deposit_amount) : "");
   const { taiKhoan, dangTai, loiTai } = useTaiKhoanNhan("VND");
   // Xuất hàng
-  const [xuatNgay, setXuatNgay] = useState(true);
+  const [xuatNgay, setXuatNgay] = useState(dk ? dk.xuat_ngay : true);
   // Danh sách kho đã gọi trước từ màn Đơn hàng bán (`napTruocThuongMai`) ⇒ ô Kho xuất có ngay.
   const [khos, setKhos] = useState<KhoXuat[]>(() => daNho<KhoXuat[]>("kho-xuat") ?? []);
-  const [khoId, setKhoId] = useState<number | null>(() => daNho<KhoXuat[]>("kho-xuat")?.[0]?.id ?? null);
+  const [khoId, setKhoId] = useState<number | null>(() => dk?.kho_id ?? daNho<KhoXuat[]>("kho-xuat")?.[0]?.id ?? null);
   const [khoDaTai, setKhoDaTai] = useState(() => daNho<KhoXuat[]>("kho-xuat") !== undefined);
   // Bán tại tiệm: mặc định khách tự lấy hàng, cần giao thì người bán chọn lại.
-  const [cach, setCach] = useState<CachGiao>({ ...CACH_GIAO_TRONG, loai: "khong_giao" });
+  const [cach, setCach] = useState<CachGiao>(() => ptDk?.loai ? {
+    loai: ptDk.loai, nguoiGiaoId: ptDk.nguoi_giao_id ? String(ptDk.nguoi_giao_id) : "",
+    xeId: ptDk.xe_id ? String(ptDk.xe_id) : "", donViVcId: ptDk.don_vi_vc_id ? String(ptDk.don_vi_vc_id) : "",
+    tienCuoc: ptDk.tien_cuoc != null ? String(ptDk.tien_cuoc) : "", maVanDon: ptDk.ma_van_don ?? "",
+  } : { ...CACH_GIAO_TRONG, loai: "khong_giao" });
   const kho = khos.find((k) => k.id === khoId) ?? null;
   // Tồn từng dòng theo ĐVT của dòng: khoá `${hang_id}|${dvt}`. Nhớ kèm kho đã hỏi để
   // lúc vừa đổi kho không hiện tên kho mới với số của kho cũ.
@@ -102,6 +113,21 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   }, [token, khoaTon, khoTon]);
   const ton = tonHoi.kho === khoTon ? tonHoi.so : {};
 
+  // Sửa đơn: nạp lại mặt hàng của từng dòng từ danh mục (cần ĐVT + giá khai).
+  useEffect(() => {
+    if (!token || !order) return;
+    thuongMaiApi.hang(token, "").then((r) => {
+      const theoId = new Map(r.items.map((h) => [h.id, h]));
+      setDong(order.lines.map((l) => {
+        const h = l.hang_thuong_mai_id != null ? theoId.get(l.hang_thuong_mai_id) ?? null : null;
+        const ten = (l.don_vi_tinh ?? "").toLowerCase();
+        const dvt = h ? (dvtCua(h).find((m) => m === ten || tenDvt(m).toLowerCase() === ten) ?? h.don_vi_gia) : "";
+        return { ...dongMoi(), hang: h, dvt, qty: String(l.qty),
+          gia: l.unit_price_snapshot != null ? String(l.unit_price_snapshot) : "", vat: String(l.vat_pct_estimate ?? 0) };
+      }));
+    }).catch((e) => setErr(loi(e, "Không tải được mặt hàng của đơn.")));
+  }, [token, order, tenDvt]);
+
   const sua = (k: number, p: Partial<Dong>) => setDong((ds) => ds.map((d) => (d.khoa === k ? { ...d, ...p } : d)));
   // Luôn chừa đúng một dòng trống cuối bảng để gõ món tiếp (thay nút "Thêm mặt hàng").
   useEffect(() => {
@@ -120,7 +146,8 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   const phieuGhi = Math.min(soDua, tong);
   const traLai = cachNhan === "cash" ? Math.max(0, soDua - tong) : 0;
   const conPhaiThu = Math.max(0, tong - phieuGhi);
-  const nutChinh = nhanNutChinh(traNgay, xuatNgay);
+  // Sửa đơn nháp: đơn đã có nên nút nói "Lưu" thay cho "Tạo".
+  const nutChinh = order ? nhanNutChinh(traNgay, xuatNgay).replace(/^Tạo/, "Lưu") : nhanNutChinh(traNgay, xuatNgay);
 
   function dongGui(): DongThuongMaiInput[] | null {
     if (!khach) { setErr("Chọn khách hàng cho đơn."); return null; }
@@ -143,8 +170,16 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
     setLuu(true);
     setErr(null);
     try {
-      onSaved(await thuongMaiApi.taoDon(token, { customer_id: khach.id, lines,
-        deposit_amount: !traNgay && coc ? Number(coc) : null, ghi_chu: ghiChu.trim() || null }));
+      const body = { customer_id: khach.id, lines,
+        deposit_amount: !traNgay && coc ? Number(coc) : null, ghi_chu: ghiChu.trim() || null,
+        // Giữ Xuất hàng + Thanh toán đang chọn để mở Sửa thấy đúng, ngăn đơn hiện ra (14/11/2026).
+        du_kien: {
+          xuat_ngay: xuatNgay, kho_id: xuatNgay ? khoId : null,
+          phuong_thuc: xuatNgay && coCachGiao && cach.loai ? boCachGiao(cach) : null,
+          tra_ngay: traNgay, cach_nhan: traNgay ? cachNhan : null,
+          company_bank_account_id: traNgay && cachNhan === "bank_transfer" ? tkId : null,
+        } };
+      onSaved(order ? await thuongMaiApi.suaDon(token, order.id, body) : await thuongMaiApi.taoDon(token, body));
     } catch (e) {
       setErr(loi(e, "Không lưu được đơn."));
     } finally {
@@ -177,9 +212,9 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
           bank_reference: cachNhan === "bank_transfer" ? maGd.trim() : null } : null,
         xuat: xuatNgay && khoId ? { kho_id: khoId, ghi_so: !!kho?.ghi_so_duoc,
           ...(coCachGiao ? { phuong_thuc: boCachGiao(cach) } : {}) } : null,
-      }));
+      }, order?.id));
     } catch (e) {
-      setErr(loi(e, "Không tạo được đơn."));
+      setErr(loi(e, order ? "Không lưu được đơn." : "Không tạo được đơn."));
       if (e instanceof ApiError && e.status === 409) onDoDang();
     } finally {
       setLuu(false);
@@ -195,10 +230,10 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   );
 
   return (
-    <main className="tdtm" aria-label="Tạo đơn thương mại">
+    <main className="tdtm" aria-label={order ? `Sửa đơn ${order.order_no}` : "Tạo đơn thương mại"}>
       <header className="tdtm__dau">
         <button type="button" className="tdtm__lui" onClick={onClose} disabled={luu}>← Đơn hàng bán</button>
-        <h1 className="tdtm__ten">Tạo đơn thương mại</h1>
+        <h1 className="tdtm__ten">{order ? `Sửa đơn ${order.order_no}` : "Tạo đơn thương mại"}</h1>
       </header>
 
       <div className="tdtm__than">

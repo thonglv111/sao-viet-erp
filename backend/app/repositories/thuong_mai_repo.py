@@ -88,3 +88,32 @@ class ThuongMaiRepository:
             .all()
         )
         return {int(a): int(b or 0) for a, b in rows}
+
+    # --- Dự kiến Xuất hàng + Thanh toán của đơn nháp (14/11/2026) ---
+    def du_kien(self, order_id: int):
+        from ..models.thuong_mai import DuKienDonThuongMai
+
+        return self.db.query(DuKienDonThuongMai).filter(DuKienDonThuongMai.order_id == order_id).first()
+
+    def them_du_kien(self, order_id: int):
+        from ..models.thuong_mai import DuKienDonThuongMai
+
+        dk = DuKienDonThuongMai(order_id=order_id)
+        self.db.add(dk)
+        return dk
+
+    def ten_du_kien(self, dk) -> dict:
+        """Tên hiện cho người xem của các ô id trong một dòng dự kiến."""
+        from ..models.accounting import CompanyBankAccount
+        from ..models.giao_hang_hp import DonViVanChuyen, XeGiaoHang
+        from ..models.kho_hang import KhoHang
+        from ..models.user import User
+
+        def lay(model, i):
+            return self.db.get(model, i) if i else None
+
+        kho, ng, xe, dv, tk = (lay(KhoHang, dk.kho_id), lay(User, dk.nguoi_giao_id), lay(XeGiaoHang, dk.xe_id),
+                               lay(DonViVanChuyen, dk.don_vi_vc_id), lay(CompanyBankAccount, dk.company_bank_account_id))
+        return {"kho_ten": kho.ten if kho else None, "nguoi_giao_ten": ng.name if ng else None,
+                "xe_ten": f"{xe.ma} {xe.ten}" if xe else None, "don_vi_vc_ten": dv.ten if dv else None,
+                "tai_khoan_ten": f"{tk.account_number} {tk.bank_name}" if tk else None}

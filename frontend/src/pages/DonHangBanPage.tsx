@@ -50,7 +50,8 @@ import "./don-hang-ban.css";
 import { FormDonThuongMai, TheXuatHang, useXuatHangTM } from "./thuong-mai/DonThuongMai";
 import { TaoDonThuongMai } from "./thuong-mai/TaoDonThuongMai";
 import { napTruocThuongMai } from "./thuong-mai/DonThuongMai";
-import { giaoHangHpApi, type CachGiaoRow } from "../api/giaoHangHp";
+import { giaoHangHpApi, NHAN_CACH_GIAO, type CachGiaoRow } from "../api/giaoHangHp";
+import { duKienCua } from "../api/thuongMai";
 import { BangCachGiao, nhanCachGiao } from "./giao-hang-hp/BangCachGiao";
 import { fmtDateTime } from "../utils/format";
 import { homNayVN, ngayCuaMoc } from "../utils/ky";
@@ -169,6 +170,8 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   // Đơn thương mại (chỉ In Hà Phương): bán hàng có sẵn, lập ngay ở màn này — không qua báo giá.
   const coThuongMai = !useTat()("thuong_mai") && can("don_hang_ban", "create");
   const [taoTM, setTaoTM] = useState(false);
+  // "Sửa" của đơn thương mại nháp mở lại đúng trang Tạo đơn thương mại, sửa được mọi ô (14/11/2026).
+  const [suaTM, setSuaTM] = useState<OrderDetail | null>(null);
   // Gọi trước kho, hàng, tồn, tên ĐVT để bấm Tạo đơn thương mại là trang có đủ số ngay.
   useEffect(() => { if (coThuongMai && token) napTruocThuongMai(token); }, [coThuongMai, token]);
   // Giao hàng kiểu Hà Phương: cột Cách giao + Người giao theo lần xuất gần nhất.
@@ -283,10 +286,11 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   const muc = TABS.map((t) => ({ key: t.id, label: t.label, count: stats?.[t.countKey], mau: MAU_TAB[t.id] }));
 
   // Tạo đơn thương mại mở TRANG riêng thay cho danh sách (phương án C, 09/11/2026).
-  if (taoTM) {
+  if (taoTM || suaTM) {
+    const dong = () => { setTaoTM(false); setSuaTM(null); };
     return (
-      <TaoDonThuongMai onClose={() => setTaoTM(false)} onDoDang={load}
-        onSaved={(d) => { setTaoTM(false); setSelected(d); load(); }} />
+      <TaoDonThuongMai order={suaTM ?? undefined} onClose={dong} onDoDang={load}
+        onSaved={(d) => { dong(); setSelected(d); load(); }} />
     );
   }
 
@@ -406,6 +410,7 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
       {selected && (
         <OrderDrawer
           order={selected}
+          onSuaHangTM={setSuaTM}
           canUpdate={canUpdate}
           canRecordDeposit={canRecordDeposit}
           onClose={() => {
@@ -612,9 +617,11 @@ function ThanhKeoNgan() {
 
 function OrderDrawer({
   order, canUpdate, canRecordDeposit, onClose, onSaved, navigate,
-  eventTick, keToanTick, moChang,
+  eventTick, keToanTick, moChang, onSuaHangTM,
 }: {
   order: OrderDetail;
+  /** Đơn thương mại: "Sửa" mở trang Tạo đơn thương mại thay cho hộp nhỏ. */
+  onSuaHangTM?: (d: OrderDetail) => void;
   canUpdate: boolean;
   canRecordDeposit: boolean;
   onClose: () => void;
@@ -862,7 +869,7 @@ function OrderDrawer({
             </div>
           </div>
           {isDraft && canUpdate && (
-            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setEditing(true)}>{laTM ? "Sửa hàng" : "Sửa"}</button>
+            <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => (laTM && onSuaHangTM ? onSuaHangTM(order) : setEditing(true))}>Sửa</button>
           )}
           {canCancel && (
             <button className="btn btn--secondary" style={{ height: 32 }} onClick={() => setCancelling(true)}>Hủy đơn</button>
@@ -1143,6 +1150,35 @@ function OrderDrawer({
                   <DongBen k="Ngày tạo" v={<span className="dhb__mono">{fmtDate(order.created_at)}</span>} />
                   <DongBen k="Cọc quy định" v={order.deposit_amount != null ? `${soVN(order.deposit_amount)} đ` : order.deposit_pct != null ? `${order.deposit_pct}%` : "—"} />
                 </TheBen>
+
+                {/* Đơn thương mại còn nháp: Xuất hàng + Thanh toán đã chọn lúc Lưu nháp (14/11/2026). */}
+                {laTM && isDraft && (() => {
+                  const dk = duKienCua(order);
+                  const pt = dk?.phuong_thuc;
+                  return (
+                    <TheBen tieuDe="Xuất hàng và thanh toán">
+                      {!dk ? <div className="dhb__muted">Chưa chọn. Bấm Sửa để chọn kho, cách giao, cách thanh toán.</div> : (
+                        <>
+                          <DongBen k="Xuất hàng" v={dk.xuat_ngay ? "Xuất ngay khi chốt" : "Xuất sau"} />
+                          {dk.xuat_ngay && <DongBen k="Kho xuất" v={dk.kho_ten ?? "—"} />}
+                          {dk.xuat_ngay && coCachGiao && <DongBen k="Cách giao" v={pt?.loai ? NHAN_CACH_GIAO[pt.loai] : "—"} />}
+                          {pt?.loai === "noi_bo" && <DongBen k="Người giao" v={dk.nguoi_giao_ten ?? "—"} />}
+                          {pt?.loai === "noi_bo" && dk.xe_ten && <DongBen k="Xe" v={dk.xe_ten} />}
+                          {pt?.loai === "dich_vu" && <DongBen k="Đơn vị vận chuyển" v={dk.don_vi_vc_ten ?? "—"} />}
+                          {pt?.loai === "dich_vu" && (
+                            <DongBen k="Tiền cước" v={<span className="dhb__mono">{pt.tien_cuoc != null ? soVN(pt.tien_cuoc) : "—"}</span>} />
+                          )}
+                          {pt?.loai === "dich_vu" && pt.ma_van_don && <DongBen k="Mã vận đơn" v={pt.ma_van_don} />}
+                          <DongBen k="Thanh toán" v={!dk.tra_ngay ? "Thanh toán sau"
+                            : dk.cach_nhan === "bank_transfer" ? "Khách trả ngay, chuyển khoản" : "Khách trả ngay, tiền mặt"} />
+                          {dk.tra_ngay && dk.cach_nhan === "bank_transfer" && dk.tai_khoan_ten && (
+                            <DongBen k="Tài khoản nhận" v={dk.tai_khoan_ten} />
+                          )}
+                        </>
+                      )}
+                    </TheBen>
+                  );
+                })()}
 
                 {/* Lưu ý sản xuất — sửa được cả khi đã chốt (đường hẹp D3 → realtime bàn Kế hoạch). */}
                 {!laTM && <ProductionHintEditor order={order} canEdit={order.status === "ordered" && canUpdate} onSaved={onSaved} />}
