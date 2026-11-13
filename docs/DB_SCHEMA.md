@@ -6168,9 +6168,6 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 ---
 
-### `phuong_thuc_giao_hp`
-
-**Purpose:** Cách giao của MỖI lần xuất hàng ở In Hà Phương (phân hệ `giao_hang_hp`): không cần giao, giao nội bộ (người giao + xe) hoặc giao dịch vụ (đơn vị vận chuyển + tiền cước + mã vận đơn). Lần xuất nối bằng tham chiếu MỀM: đơn sản xuất qua `stock_request_id`, đơn thương mại qua `luot_xuat_tm_id`. Do `create_all` dựng (mg 0463).
 ### `don_vi_van_chuyen`
 
 **Purpose:** Danh sách đơn vị vận chuyển của In Hà Phương (phân hệ `giao_hang_hp`), thêm và bỏ ngay ở ô chọn lúc Xuất hàng; không liên quan nhà cung cấp. Gợi ý đơn vị phổ biến nằm trong code, không seed. Bỏ đơn vị đã dùng thì chỉ tắt `active` để lịch sử và cước chờ trả còn tên (mg 0478).
@@ -6186,6 +6183,9 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 
 ---
 
+### `phuong_thuc_giao_hp`
+
+**Purpose:** Cách giao của MỖI lần xuất hàng ở In Hà Phương (phân hệ `giao_hang_hp`): không cần giao, giao nội bộ (người giao + xe) hoặc giao dịch vụ (đơn vị vận chuyển + tiền cước + mã vận đơn). Lần xuất nối bằng tham chiếu MỀM: đơn sản xuất qua `stock_request_id`, đơn thương mại qua `luot_xuat_tm_id`. Do `create_all` dựng (mg 0463).
 
 | Column | Type | Keys | Null | Default | Description |
 | --- | --- | --- | --- | --- | --- |
