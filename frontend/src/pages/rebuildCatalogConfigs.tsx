@@ -958,11 +958,16 @@ export const CFG_KHO_HANG: CatalogConfig = {
         const n = Number(r.so_vi_tri) || 0;
         return n ? `${n} vị trí` : <span className="lds-cam">Chưa khai vị trí</span>;
       } },
+    // Kho hàng thương mại (13/11/2026, chỉ In Hà Phương): ô Kho xuất của đơn thương mại chỉ liệt kê kho này.
+    { key: "la_kho_thuong_mai", label: "Kho hàng thương mại", w: 160, phanHe: "thuong_mai",
+      render: (r) => (r.la_kho_thuong_mai ? <ChipTT mau="la">Có</ChipTT> : "") },
     { key: "ghi_chu", label: "Ghi chú", render: (r) => (r.ghi_chu ? String(r.ghi_chu) : "") },
   ],
   fields: [
     { key: "vi_tri", label: "Vị trí kho", type: "text", group: "Thông tin"},
     { key: "ghi_chu", label: "Ghi chú", type: "text", group: "Thông tin" },
+    { key: "la_kho_thuong_mai", label: "Kho hàng thương mại", type: "checkbox",
+      group: "Thông tin", phanHe: "thuong_mai" },
   ],
   // Tab thứ 2 trong drawer: khai DANH SÁCH vị trí cất (kệ/ô) của kho — để lập lô/phiếu chọn dropdown
   // thay vì gõ tay. Dùng lại điểm mở rộng `renderExtra` (như bảng quy đổi của Đơn vị). `moLaiSauKhiTao`

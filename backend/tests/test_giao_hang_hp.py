@@ -36,13 +36,10 @@ def _nguoi_giao(ma: str, co_bo_phan: bool = True) -> int:
         db.close()
 
 
-def _ncc(client, h, ten: str, van_chuyen: bool) -> int:
-    mst = str(abs(hash(ten)) % 10**10).rjust(10, "1")
-    r = client.post("/api/suppliers", headers=h, json={
-        "name": ten, "tax_code": mst, "phone": "0900000000", "email": "x@example.com",
-        "address": "1 Le Loi", "contact_name": "A", "supplier_group": "paper",
-        "payment_terms": "Cong no 30 ngay", "items": [], "la_don_vi_van_chuyen": van_chuyen})
-    assert r.status_code in (200, 201), r.text
+def _dvvc(client, h, ten: str) -> int:
+    """Thêm đơn vị vận chuyển ngay ở danh sách riêng (không dính nhà cung cấp)."""
+    r = client.post("/api/giao-hang-hp/don-vi-van-chuyen", headers=h, json={"ten": ten})
+    assert r.status_code == 201, r.text
     return r.json()["id"]
 
 
@@ -95,8 +92,7 @@ def test_xuat_hang_bat_chon_cach_giao(client, hp):
     ngoai = _nguoi_giao("C", co_bo_phan=False)
     r = _xuat(client, h, oid, lid, 10, {"loai": "noi_bo", "nguoi_giao_id": ngoai})
     assert r.status_code == 400
-    thuong = _ncc(client, h, "NCC giấy", van_chuyen=False)
-    r = _xuat(client, h, oid, lid, 10, {"loai": "dich_vu", "don_vi_vc_id": thuong, "tien_cuoc": 50000})
+    r = _xuat(client, h, oid, lid, 10, {"loai": "dich_vu", "don_vi_vc_id": 987654, "tien_cuoc": 50000})
     assert r.status_code == 400 and "Đơn vị vận chuyển" in r.json()["detail"]
 
     uid = _nguoi_giao("D")
@@ -117,7 +113,7 @@ def test_cuoc_vao_hang_cho_chi_va_lap_phieu_chi(client, hp):
     _gan_ho_so_admin()
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="HP2", qty=1000)
-    vc = _ncc(client, h, "Viettel Post", van_chuyen=True)
+    vc = _dvvc(client, h, "Viettel Post")
     assert [d["id"] for d in client.get("/api/giao-hang-hp/don-vi-van-chuyen", headers=h).json()["items"]] == [vc]
     for qty, cuoc in ((10, 30000), (20, 45000)):
         r = _xuat(client, h, oid, lid, qty, {"loai": "dich_vu", "don_vi_vc_id": vc, "tien_cuoc": cuoc,
@@ -147,7 +143,7 @@ def test_tien_cuoc_xoa_khi_khong_quyen_phieu_chi(client, hp, monkeypatch):
     _gan_ho_so_admin()
     h = _admin(client)
     oid, lid = _don_da_chot(suffix="HP3", qty=1000)
-    vc = _ncc(client, h, "GHTK", van_chuyen=True)
+    vc = _dvvc(client, h, "GHTK")
     assert _xuat(client, h, oid, lid, 10, {"loai": "dich_vu", "don_vi_vc_id": vc, "tien_cuoc": 20000}).status_code == 201
     from app.services.rbac_service import AuthorizationService
 
@@ -188,7 +184,7 @@ def test_loc_don_hang_ban_theo_cach_giao_va_nguoi_giao(client, hp):
     b = _don_chot(client, h, hid, dv, qty=1, kh="KH lọc B")["id"]
     c = _don_chot(client, h, hid, dv, qty=1, kh="KH lọc C")["id"]
     uid = _nguoi_giao("L")
-    vc = _ncc(client, h, "VC lọc", True)
+    vc = _dvvc(client, h, "VC lọc")
     with SessionLocal() as db:
         db.add_all([
             PhuongThucGiaoHp(order_id=a, loai="noi_bo", nguoi_giao_id=uid),
@@ -208,3 +204,61 @@ def test_loc_don_hang_ban_theo_cach_giao_va_nguoi_giao(client, hp):
     assert ds(f"don_vi_vc={vc}") == {b}
     assert ds(f"cach_giao=noi_bo&nguoi_giao={uid}") == {a}
     assert client.get("/api/orders?cach_giao=xe_om", headers=h).status_code == 422
+
+
+def test_danh_sach_don_vi_van_chuyen_them_bo_ngay_o_hop_xuat(client, hp):
+    """Đơn vị vận chuyển là danh sách riêng: gợi ý hãng phổ biến, thêm trùng tên dùng lại, bỏ đơn vị đã
+    giao thì chỉ ẩn (lịch sử còn tên), chưa giao thì xoá hẳn; thêm lại tên đã bỏ thì bật lại dòng cũ."""
+    _gan_ho_so_admin()
+    h = _admin(client)
+    url = "/api/giao-hang-hp/don-vi-van-chuyen"
+    dau = client.get(url, headers=h).json()
+    assert dau["items"] == [] and "Viettel Post" in dau["goi_y"]
+
+    vt = _dvvc(client, h, "Viettel Post")
+    assert _dvvc(client, h, "  viettel   post ") == vt
+    sau = client.get(url, headers=h).json()
+    assert [d["ten"] for d in sau["items"]] == ["Viettel Post"] and "Viettel Post" not in sau["goi_y"]
+    assert client.post(url, headers=h, json={"ten": "   "}).status_code == 400
+
+    rieng = _dvvc(client, h, "Xe ôm anh Tư")
+    assert client.delete(f"{url}/{rieng}", headers=h).status_code == 204
+    assert rieng not in [d["id"] for d in client.get(f"{url}?ca_da_bo=true", headers=h).json()["items"]]
+
+    oid, lid = _don_da_chot(suffix="HP9", qty=100)
+    assert _xuat(client, h, oid, lid, 5, {"loai": "dich_vu", "don_vi_vc_id": vt, "tien_cuoc": 10000}).status_code == 201
+    assert client.delete(f"{url}/{vt}", headers=h).status_code == 204
+    assert client.get(url, headers=h).json()["items"] == []
+    da_bo = client.get(f"{url}?ca_da_bo=true", headers=h).json()["items"]
+    assert [(d["id"], d["active"]) for d in da_bo] == [(vt, False)]
+    assert client.get(f"/api/giao-hang-hp/don/{oid}", headers=h).json()["items"][0]["don_vi_vc_ten"] == "Viettel Post"
+    r = _xuat(client, h, oid, lid, 5, {"loai": "dich_vu", "don_vi_vc_id": vt, "tien_cuoc": 10000})
+    assert r.status_code == 400
+    assert _dvvc(client, h, "Viettel Post") == vt
+    assert client.delete(f"{url}/987654", headers=h).status_code == 404
+
+
+def test_them_bo_don_vi_van_chuyen_can_quyen_sua_don_ban(client, hp):
+    """Chỉ xem Đơn hàng bán thì đọc được danh sách, không thêm hay bỏ được (ô Sửa mới xuất hàng được)."""
+    from app.repositories.rbac_repo import DepartmentRepository, RoleRepository
+    from app.repositories.user_repo import UserRepository
+    from app.security import create_access_token, hash_password
+
+    _gan_ho_so_admin()
+    vt = _dvvc(client, _admin(client), "Ahamove")
+    db = SessionLocal()
+    try:
+        dept = DepartmentRepository(db).get_by_name("Sản xuất")
+        roles = RoleRepository(db)
+        role = roles.create(name="Vai chỉ xem đơn bán", department_id=dept.id)
+        roles.set_permission(role_id=role.id, module_key="don_hang_ban", scope="all", can_read=True)
+        users = UserRepository(db)
+        u = users.create(username="chi-xem-dhb", name="chi-xem-dhb", password_hash=hash_password("x"))
+        users.set_assignment(u, department_id=dept.id, role_id=role.id, is_active=True)
+        h = {"Authorization": f"Bearer {create_access_token(str(u.id))}"}
+    finally:
+        db.close()
+    url = "/api/giao-hang-hp/don-vi-van-chuyen"
+    assert client.get(url, headers=h).status_code == 200
+    assert client.post(url, headers=h, json={"ten": "GHN"}).status_code == 403
+    assert client.delete(f"{url}/{vt}", headers=h).status_code == 403

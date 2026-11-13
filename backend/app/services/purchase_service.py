@@ -1084,9 +1084,6 @@ class PurchaseService:
             "status": status,
             # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
             "nhan_gia_cong": bool(values.get("nhan_gia_cong")),
-            # Tích "Đơn vị vận chuyển" (08/11/2026, chỉ In Hà Phương): ô chọn đơn vị vận chuyển lúc
-            # Xuất hàng lọc theo cờ này.
-            "la_don_vi_van_chuyen": bool(values.get("la_don_vi_van_chuyen")),
             "note": (values.get("note") or "").strip() or None,
             "items": items,
         }

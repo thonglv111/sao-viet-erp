@@ -84,7 +84,6 @@ export function emptySupplier(): SupplierInput {
     debt_cutoff_day: null,
     status: "active",
     nhan_gia_cong: false,
-    la_don_vi_van_chuyen: false,
     note: "",
     items: [emptySupplierItem()],
   };
@@ -105,7 +104,6 @@ export function fromSupplier(row: SupplierRow): SupplierInput {
     debt_cutoff_day: row.debt_cutoff_day ?? null,
     status: row.status,
     nhan_gia_cong: row.nhan_gia_cong ?? false,
-    la_don_vi_van_chuyen: row.la_don_vi_van_chuyen ?? false,
     note: row.note ?? "",
     items: row.items.length
       ? row.items.map((item) => ({
@@ -177,7 +175,6 @@ export function cleanSupplier(input: SupplierInput): SupplierInput {
     debt_cutoff_day: input.debt_cutoff_day || null,
     status: input.status ?? "active",
     nhan_gia_cong: Boolean(input.nhan_gia_cong),
-    la_don_vi_van_chuyen: Boolean(input.la_don_vi_van_chuyen),
     note: trimOptional(input.note),
     items: cleanSupplierItems(input.items),
   };

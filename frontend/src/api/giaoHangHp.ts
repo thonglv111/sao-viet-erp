@@ -24,10 +24,12 @@ export interface NguoiGiao {
   xe_id: number | null;
 }
 
+/** Đơn vị vận chuyển: danh sách riêng, thêm và bỏ ngay ở hộp Xuất hàng, không dính nhà cung cấp. */
 export interface DonViVc {
   id: number;
-  ma: string;
   ten: string;
+  /** Sai = đã bỏ khỏi danh sách (chỉ còn trong lịch sử, bộ lọc). */
+  active: boolean;
 }
 
 export interface XeGiaoHang {
@@ -102,8 +104,18 @@ export const giaoHangHpApi = {
   nguoiGiao(token: string): Promise<{ items: NguoiGiao[] }> {
     return authed<{ items: NguoiGiao[] }>("/api/giao-hang-hp/nguoi-giao?size=200", token);
   },
-  donViVc(token: string): Promise<{ items: DonViVc[] }> {
-    return authed<{ items: DonViVc[] }>("/api/giao-hang-hp/don-vi-van-chuyen", token);
+  /** `goi_y`: hãng phổ biến chưa có trong danh sách. `caDaBo` kèm cả đơn vị đã bỏ (cho bộ lọc). */
+  donViVc(token: string, caDaBo = false): Promise<{ items: DonViVc[]; goi_y: string[] }> {
+    return authed<{ items: DonViVc[]; goi_y: string[] }>(
+      `/api/giao-hang-hp/don-vi-van-chuyen${caDaBo ? "?ca_da_bo=true" : ""}`, token);
+  },
+  themDvvc(token: string, ten: string): Promise<DonViVc> {
+    return authed<DonViVc>("/api/giao-hang-hp/don-vi-van-chuyen", token, {
+      method: "POST", body: JSON.stringify({ ten }),
+    });
+  },
+  boDvvc(token: string, id: number): Promise<void> {
+    return authed<void>(`/api/giao-hang-hp/don-vi-van-chuyen/${id}`, token, { method: "DELETE" });
   },
   xe(token: string): Promise<{ items: XeGiaoHang[] }> {
     return authed<{ items: XeGiaoHang[] }>("/api/xe-giao-hang?size=200&active=true", token);

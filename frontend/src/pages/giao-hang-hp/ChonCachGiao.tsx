@@ -6,9 +6,10 @@ import { useAuth } from "../../auth/useAuth";
 import { OGoDinhDang } from "../../components/OGoDinhDang";
 import { OChonGon } from "../../components/OChonGon";
 import {
-  giaoHangHpApi, NHAN_CACH_GIAO, type CachGiaoInput, type DonViVc, type LoaiCachGiao, type NguoiGiao,
+  giaoHangHpApi, NHAN_CACH_GIAO, type CachGiaoInput, type LoaiCachGiao, type NguoiGiao,
   type XeGiaoHang,
 } from "../../api/giaoHangHp";
+import { ChonDonViVc } from "./ChonDonViVc";
 import "./chon-cach-giao.css";
 
 export interface CachGiao {
@@ -60,18 +61,16 @@ export function ChonCachGiao({ value, onChange, oInput = "input" }: {
   const { token } = useAuth();
   const [nguoi, setNguoi] = useState<NguoiGiao[] | null>(null);
   const [xe, setXe] = useState<XeGiaoHang[]>([]);
-  const [dvvc, setDvvc] = useState<DonViVc[] | null>(null);
   const [loi, setLoi] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
     let bo = false;
-    Promise.all([giaoHangHpApi.nguoiGiao(token), giaoHangHpApi.xe(token), giaoHangHpApi.donViVc(token)])
-      .then(([n, x, d]) => {
+    Promise.all([giaoHangHpApi.nguoiGiao(token), giaoHangHpApi.xe(token)])
+      .then(([n, x]) => {
         if (bo) return;
         setNguoi(n.items);
         setXe(x.items);
-        setDvvc(d.items);
       })
       .catch((e: unknown) => { if (!bo) setLoi(e instanceof Error ? e.message : "Không tải được danh sách"); });
     return () => { bo = true; };
@@ -123,17 +122,10 @@ export function ChonCachGiao({ value, onChange, oInput = "input" }: {
 
       {value.loai === "dich_vu" && (
         <div className="ccg__luoi">
-          <label className="ccg__o ccg__o--rong">
+          <div className="ccg__o ccg__o--rong">
             <span>Đơn vị vận chuyển <b>*</b></span>
-            <select className={oInput} aria-label="Đơn vị vận chuyển" value={value.donViVcId}
-              onChange={(e) => doi({ donViVcId: e.target.value })}>
-              <option value="">Chọn đơn vị…</option>
-              {(dvvc ?? []).map((d) => <option key={d.id} value={d.id}>{d.ten}</option>)}
-            </select>
-            {dvvc && dvvc.length === 0 && (
-              <span className="ccg__goi-y">Chưa có nhà cung cấp nào bật cờ Đơn vị vận chuyển (màn Nhà cung cấp).</span>
-            )}
-          </label>
+            <ChonDonViVc token={token} value={value.donViVcId} onChange={(v) => doi({ donViVcId: v })} />
+          </div>
           <label className="ccg__o">
             <span>Tiền cước <b>*</b></span>
             <span className="ccg__tien">

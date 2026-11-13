@@ -171,7 +171,7 @@ function useNguoiGiao(bat: boolean): GiaTriDK[] {
   const [ds, setDs] = useState<GiaTriDK[]>([]);
   useEffect(() => {
     if (!token || !bat) return;
-    Promise.all([giaoHangHpApi.nguoiGiao(token), giaoHangHpApi.donViVc(token)])
+    Promise.all([giaoHangHpApi.nguoiGiao(token), giaoHangHpApi.donViVc(token, true)])
       .then(([n, v]) => setDs([
         ...n.items.map((x) => ({ value: `nv:${x.id}`, nhan: x.ten })),
         ...v.items.map((x) => ({ value: `vc:${x.id}`, nhan: x.ten })),

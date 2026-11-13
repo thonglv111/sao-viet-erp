@@ -23,7 +23,7 @@ def hang_cho_chi(db) -> list[dict]:
     huy = repo.lan_xuat_da_huy(pt for pt, _ in ds)
     ds = [(pt, o) for pt, o in ds if pt.id not in huy]
     da_chi = repo.da_chi_theo_pt([pt.id for pt, _ in ds])
-    ncc = repo.ncc_theo_ids(pt.don_vi_vc_id for pt, _ in ds)
+    dvvc = repo.dvvc_theo_ids(pt.don_vi_vc_id for pt, _ in ds)
     kh_ids = sorted({o.customer_id for _, o in ds if o.customer_id})
     khach = {c.id: c.name for c in db.execute(
         select(Customer).where(Customer.id.in_(kh_ids))).scalars().all()} if kh_ids else {}
@@ -33,11 +33,11 @@ def hang_cho_chi(db) -> list[dict]:
         con = int(pt.tien_cuoc or 0) - chi
         if con <= 0 or o.status == "cancelled":
             continue
-        n = ncc.get(pt.don_vi_vc_id)
+        n = dvvc.get(pt.don_vi_vc_id)
         ra.append({
             "phuong_thuc_giao_hp_id": pt.id, "order_id": o.id, "order_no": o.order_no,
             "customer_name": khach.get(o.customer_id), "ma_lan_xuat": pt.ma_lan_xuat,
-            "don_vi_vc_id": pt.don_vi_vc_id, "don_vi_vc_ten": n.name if n else "",
+            "don_vi_vc_id": pt.don_vi_vc_id, "don_vi_vc_ten": n.ten if n else "",
             "ma_van_don": pt.ma_van_don, "tien_cuoc": int(pt.tien_cuoc or 0), "da_chi": chi,
             "con": con, "created_at": pt.created_at,
         })
@@ -82,7 +82,7 @@ def tao_phieu_chi(svc, *, actor, dong: list[dict], shared: dict) -> dict:
             raise AccountingValidationError(
                 f"Số chi vượt phần cước còn chờ chi của lần {r['ma_lan_xuat'] or r['order_no']} ({so_vn(r['con'])} đ).")
         tong += so
-    ncc = repo.get_supplier(next(iter(dv)))
+    dvvc = repo.get_dvvc(next(iter(dv)))
     ma = [cho[i]["ma_lan_xuat"] or cho[i]["order_no"] for i in ids]
     values = {
         **shared,
@@ -90,7 +90,7 @@ def tao_phieu_chi(svc, *, actor, dong: list[dict], shared: dict) -> dict:
         "currency": "VND",
         "exchange_rate": 1,
         "amount": tong,
-        "cash_recipient_name": (shared.get("cash_recipient_name") or "").strip() or (ncc.name if ncc else ""),
+        "cash_recipient_name": (shared.get("cash_recipient_name") or "").strip() or (dvvc.ten if dvvc else ""),
         "content": (shared.get("content") or "").strip()
                    or f"Chi cước giao hàng {', '.join(ma)}"[:500],
     }

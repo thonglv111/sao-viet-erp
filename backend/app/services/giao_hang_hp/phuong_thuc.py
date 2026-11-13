@@ -50,10 +50,10 @@ def kiem(db: Session, pt: dict | None) -> dict:
         dv = pt.get("don_vi_vc_id")
         if not dv:
             raise PhuongThucLoi("Chọn đơn vị vận chuyển.")
-        ncc = repo.get_supplier(int(dv))
-        if ncc is None or not ncc.la_don_vi_van_chuyen or ncc.status != "active":
-            raise PhuongThucLoi("Đơn vị vận chuyển phải là nhà cung cấp đang hoạt động có cờ Đơn vị vận chuyển.")
-        ra["don_vi_vc_id"] = ncc.id
+        dvvc = repo.get_dvvc(int(dv))
+        if dvvc is None or not dvvc.active:
+            raise PhuongThucLoi("Đơn vị vận chuyển đã chọn không còn trong danh sách.")
+        ra["don_vi_vc_id"] = dvvc.id
         cuoc = pt.get("tien_cuoc")
         if cuoc is None:
             raise PhuongThucLoi("Gõ tiền cước.")
@@ -104,17 +104,17 @@ def ra_dict(db: Session, rows: list[PhuongThucGiaoHp], *, xem_tien: bool) -> lis
     repo = GiaoHangHpRepository(db)
     ten = repo.ten_nguoi([r.nguoi_giao_id for r in rows] + [r.nguoi_chon_id for r in rows])
     xe = repo.xe_theo_ids(r.xe_id for r in rows)
-    ncc = repo.ncc_theo_ids(r.don_vi_vc_id for r in rows)
+    dvvc = repo.dvvc_theo_ids(r.don_vi_vc_id for r in rows)
     ra = []
     for r in rows:
         x = xe.get(r.xe_id) if r.xe_id else None
-        n = ncc.get(r.don_vi_vc_id) if r.don_vi_vc_id else None
+        n = dvvc.get(r.don_vi_vc_id) if r.don_vi_vc_id else None
         ra.append({
             "id": r.id, "order_id": r.order_id, "stock_request_id": r.stock_request_id,
             "luot_xuat_tm_id": r.luot_xuat_tm_id, "ma_lan_xuat": r.ma_lan_xuat, "loai": r.loai,
             "nguoi_giao_id": r.nguoi_giao_id, "nguoi_giao_ten": ten.get(r.nguoi_giao_id),
             "xe_id": r.xe_id, "xe_ten": x.ten if x else None, "xe_bien_so": x.ma if x else None,
-            "don_vi_vc_id": r.don_vi_vc_id, "don_vi_vc_ten": n.name if n else None,
+            "don_vi_vc_id": r.don_vi_vc_id, "don_vi_vc_ten": n.ten if n else None,
             "tien_cuoc": r.tien_cuoc if xem_tien else None, "ma_van_don": r.ma_van_don,
             "nguoi_chon_ten": ten.get(r.nguoi_chon_id), "created_at": r.created_at,
         })

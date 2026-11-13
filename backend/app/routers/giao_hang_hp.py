@@ -1,6 +1,7 @@
 """Giao hàng kiểu In Hà Phương — chỉ bản cài bật `giao_hang_hp` (docs/design-giao-hang-ha-phuong.md).
 
-* Ô chọn của hộp "Cách giao" ở Xuất hàng: người giao (bộ phận giao hàng), đơn vị vận chuyển (NCC có cờ).
+* Ô chọn của hộp "Cách giao" ở Xuất hàng: người giao (bộ phận giao hàng), đơn vị vận chuyển (bảng
+  riêng, thêm và bỏ ngay ở ô chọn).
 * `POST /xuat-hang` — Xuất hàng ĐƠN SẢN XUẤT kèm cách giao. Bọc đường xuất cũ
   (`DeliveryService.xuat_hang`, router `delivery`) mà KHÔNG sửa file nào của module Giao hàng: đường cũ
   lập yêu cầu XUẤT kho, rồi ở đây ghi cách giao trỏ vào yêu cầu đó, cùng một giao dịch.
@@ -29,11 +30,12 @@ from ..phan_he import GIAO_HANG, GIAO_HANG_HP, chan_khi_tat, tat
 from ..repositories.giao_hang_hp_repo import GiaoHangHpRepository
 from ..schemas.accounting import PaymentVoucherOut
 from ..schemas.giao_hang_hp import (
-    CuocChoChiOut, CuocChoChiRow, DonViVcListOut, DonViVcOut, NguoiGiaoListOut, NguoiGiaoOut,
+    CuocChoChiOut, CuocChoChiRow, DonViVcIn, DonViVcListOut, DonViVcOut, NguoiGiaoListOut, NguoiGiaoOut,
     PhieuChiCuocIn, PhuongThucGiaoListOut, PhuongThucGiaoOut, PhuongThucMoiNhatOut, XuatHangHpIn,
     XuatHangHpOut,
 )
 from ..services.giao_hang_hp import cuoc as cuoc_svc
+from ..services.giao_hang_hp import don_vi_vc as dvvc_svc
 from ..services.giao_hang_hp import phuong_thuc as pt_svc
 from ..services.accounting_service import AccountingService
 from ..services.order_service import OrderService
@@ -75,10 +77,32 @@ def nguoi_giao(db: Db, _: Annotated[User, Depends(_DOC_CHON)], size: int = Query
 
 
 @router.get("/don-vi-van-chuyen", response_model=DonViVcListOut)
-def don_vi_van_chuyen(db: Db, _: Annotated[User, Depends(_DOC_CHON)]):
-    return DonViVcListOut(items=[
-        DonViVcOut(id=s.id, ma=s.code or "", ten=s.name) for s in GiaoHangHpRepository(db).don_vi_van_chuyen()
-    ])
+def don_vi_van_chuyen(db: Db, _: Annotated[User, Depends(_DOC_CHON)], ca_da_bo: bool = Query(False)):
+    """Danh sách đơn vị vận chuyển (bảng riêng, không dính nhà cung cấp) + hãng phổ biến gợi ý.
+    `ca_da_bo` kèm cả đơn vị đã bỏ — bộ lọc Đơn hàng bán vẫn lọc được đơn cũ của họ."""
+    ds = GiaoHangHpRepository(db).don_vi_van_chuyen(ca_da_bo=ca_da_bo)
+    return DonViVcListOut(items=[DonViVcOut(id=d.id, ten=d.ten, active=d.active) for d in ds],
+                          goi_y=dvvc_svc.goi_y_con_lai(db))
+
+
+# Ai được xuất hàng (ô Sửa của Đơn hàng bán) thì được thêm, bỏ đơn vị vận chuyển ngay ở hộp Xuất hàng.
+@router.post("/don-vi-van-chuyen", response_model=DonViVcOut, status_code=status.HTTP_201_CREATED)
+def them_don_vi_van_chuyen(body: DonViVcIn, db: Db,
+                           user: Annotated[User, Depends(require_permission("don_hang_ban", "update"))]):
+    try:
+        d = dvvc_svc.them(db, ten=body.ten, actor=user)
+    except dvvc_svc.DonViVcLoi as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from None
+    return DonViVcOut(id=d.id, ten=d.ten, active=d.active)
+
+
+@router.delete("/don-vi-van-chuyen/{dvvc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def bo_don_vi_van_chuyen(dvvc_id: int, db: Db,
+                         user: Annotated[User, Depends(require_permission("don_hang_ban", "update"))]):
+    try:
+        dvvc_svc.bo(db, dvvc_id=dvvc_id, actor=user)
+    except dvvc_svc.DonViVcLoi as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from None
 
 
 # ── Xuất hàng đơn sản xuất kèm cách giao ────────────────────────────────────────

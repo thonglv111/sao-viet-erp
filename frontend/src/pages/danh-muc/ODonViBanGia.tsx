@@ -127,7 +127,9 @@ export function ODonViBanGia({ chinh, them, gia, giaNhap, donVi, coGia, onChange
 
   return (
     <div className="rc-dvbg">
-      <table className="rc-dvbg__bang">
+      {/* `data-khong-goi-y`: ô gợi ý của LuoiDs bắt mọi ô tràn chữ trong `<table>` và in cả danh sách đơn vị
+          đang mở đè lên ô chọn. Bảng khai này không cần gợi ý. */}
+      <table className="rc-dvbg__bang" data-khong-goi-y>
         <thead>
           <tr>
             <th className="rc-dvbg__c-dv">Đơn vị</th>

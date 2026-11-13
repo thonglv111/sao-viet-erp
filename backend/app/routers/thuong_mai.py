@@ -200,11 +200,13 @@ def _state(db: Session, authz: AuthorizationService, user: User, order) -> XuatH
     svc = LuotXuatService(db, request_service=None)
     da = da_dung_theo_dong(db, order.id)
     duoc = kho_duoc(authz, user, "read")
-    khos = db.query(KhoHang).filter(KhoHang.active.is_(True)).order_by(KhoHang.ten).all()
+    # Chỉ kho có cờ kho hàng thương mại (13/11/2026) — tick ở danh mục Kho hàng.
+    khos = db.query(KhoHang).filter(KhoHang.active.is_(True), KhoHang.la_kho_thuong_mai.is_(True)).order_by(
+        KhoHang.ten).all()
     return XuatHangState(
         luot=_luot_out(db, svc.danh_sach(order.id), order, authz.can(user, "kho", "view_cost")),
         con_lai={ln.id: max(int(ln.qty or 0) - da.get(ln.id, 0), 0) for ln in order.lines},
-        # Kho người bán xuất được: mọi kho đang dùng (yêu cầu xuất ai cũng gửi được, như màn Kho).
+        # Kho người bán xuất được: mọi kho hàng thương mại đang dùng (yêu cầu xuất ai cũng gửi được).
         # Kho người đó có dòng quyền xếp trước — mặc định chọn kho đầu.
         kho=sorted([KhoXuatOut(id=k.id, ma=k.ma, ten=k.ten, ghi_so_duoc=_ghi_so_duoc(authz, user, k.id))
                     for k in khos], key=lambda k: (k.id not in duoc, k.ten)),
@@ -220,7 +222,9 @@ def kho_xuat(
     from ..models.kho_hang import KhoHang
 
     duoc = kho_duoc(authz, user, "read")
-    khos = db.query(KhoHang).filter(KhoHang.active.is_(True)).order_by(KhoHang.ten).all()
+    # Chỉ kho có cờ kho hàng thương mại (13/11/2026) — tick ở danh mục Kho hàng.
+    khos = db.query(KhoHang).filter(KhoHang.active.is_(True), KhoHang.la_kho_thuong_mai.is_(True)).order_by(
+        KhoHang.ten).all()
     return sorted([KhoXuatOut(id=k.id, ma=k.ma, ten=k.ten, ghi_so_duoc=_ghi_so_duoc(authz, user, k.id))
                    for k in khos], key=lambda k: (k.id not in duoc, k.ten))
 

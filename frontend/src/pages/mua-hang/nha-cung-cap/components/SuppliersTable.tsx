@@ -208,12 +208,6 @@ function ONcc({ cot, row, moBangGia }: { cot: string; row: SupplierRow; moBangGi
                 Nhận gia công
               </span>
             )}
-            {/* Hà Phương: chỉ bản cài bật giao hàng kiểu HP mới bật được cờ này. */}
-            {row.la_don_vi_van_chuyen && (
-              <span className="lds-tag" title="Hiện trong ô chọn Đơn vị vận chuyển lúc Xuất hàng">
-                Vận chuyển
-              </span>
-            )}
           </span>
         </td>
       );

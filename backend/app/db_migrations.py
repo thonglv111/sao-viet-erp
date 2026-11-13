@@ -19819,3 +19819,80 @@ def _migrate_song_don_vi_m2(db: Session) -> None:
 
 
 MIGRATIONS.append(("0476_song_don_vi_m2", _migrate_song_don_vi_m2))
+
+
+def _migrate_kho_thuong_mai(db: Session) -> None:
+    """0477 (13/11/2026, chỉ In Hà Phương) — cờ `kho_hang.la_kho_thuong_mai`: ô Kho xuất của đơn thương mại
+    chỉ liệt kê kho có cờ. Mặc định sai, không tự đánh dấu kho nào (người dùng tick ở danh mục Kho hàng).
+    Idempotent."""
+    insp = inspect(db.get_bind())
+    if "kho_hang" not in set(insp.get_table_names()):
+        return
+    if "la_kho_thuong_mai" not in _existing_columns(insp, "kho_hang"):
+        db.execute(text("ALTER TABLE kho_hang ADD COLUMN la_kho_thuong_mai BOOLEAN NOT NULL DEFAULT FALSE"))
+    db.commit()
+
+
+MIGRATIONS.append(("0477_kho_thuong_mai", _migrate_kho_thuong_mai))
+
+
+def _migrate_don_vi_van_chuyen_rieng(db: Session) -> None:
+    """0478 (13/11/2026, chỉ In Hà Phương) — đơn vị vận chuyển có bảng riêng `don_vi_van_chuyen`, không
+    dính nhà cung cấp. Lần giao đang trỏ NCC (`phuong_thuc_giao_hp.don_vi_vc_id` → suppliers) chuyển sang
+    đơn vị cùng tên; NCC có cờ mà chưa giao lần nào cũng thành một đơn vị. Khoá ngoại đổi sang bảng mới,
+    gỡ cột `suppliers.la_don_vi_van_chuyen`. Raw SQL; đọc hết cấu trúc TRƯỚC lệnh ghi đầu tiên. Idempotent."""
+    from sqlalchemy import bindparam
+
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "phuong_thuc_giao_hp" not in bang or "don_vi_van_chuyen" not in bang:
+        return
+    co_co = "suppliers" in bang and "la_don_vi_van_chuyen" in _existing_columns(insp, "suppliers")
+    fk_cu = [fk.get("name") for fk in insp.get_foreign_keys("phuong_thuc_giao_hp")
+             if fk.get("referred_table") == "suppliers" and fk.get("constrained_columns") == ["don_vi_vc_id"]]
+    fk_moi = any(fk.get("referred_table") == "don_vi_van_chuyen"
+                 for fk in insp.get_foreign_keys("phuong_thuc_giao_hp"))
+    pg = db.get_bind().dialect.name == "postgresql"
+    if not fk_cu and not co_co:
+        return
+    # NCC cần chuyển: đang được lần giao trỏ (khi khoá ngoại còn trỏ suppliers) + NCC có cờ.
+    ncc_ids: set[int] = set()
+    if fk_cu:
+        ncc_ids |= {int(r[0]) for r in db.execute(text(
+            "SELECT DISTINCT don_vi_vc_id FROM phuong_thuc_giao_hp WHERE don_vi_vc_id IS NOT NULL")).all()}
+    if co_co:
+        ncc_ids |= {int(r[0]) for r in db.execute(text(
+            "SELECT id FROM suppliers WHERE la_don_vi_van_chuyen = :t"), {"t": True}).all()}
+    ten_ncc = {int(i): (n or "").strip() for i, n in db.execute(text(
+        "SELECT id, name FROM suppliers WHERE id IN :ids").bindparams(bindparam("ids", expanding=True)),
+        {"ids": sorted(ncc_ids)}).all()} if ncc_ids else {}
+    if pg:
+        for ten in fk_cu:
+            if ten:
+                db.execute(text(f'ALTER TABLE phuong_thuc_giao_hp DROP CONSTRAINT IF EXISTS "{ten}"'))
+    ban_do: dict[int, int] = {}
+    for nid, ten in ten_ncc.items():
+        if not ten:
+            continue
+        cu = db.execute(text("SELECT id FROM don_vi_van_chuyen WHERE lower(ten) = :t ORDER BY id LIMIT 1"),
+                        {"t": ten.lower()}).first()
+        if cu is None:
+            cu = db.execute(text("INSERT INTO don_vi_van_chuyen (ten, active, created_at) "
+                                 "VALUES (:t, :a, CURRENT_TIMESTAMP) RETURNING id"), {"t": ten[:150], "a": True}).first()
+        ban_do[nid] = int(cu[0])
+    if fk_cu:
+        for nid, dv in ban_do.items():
+            db.execute(text("UPDATE phuong_thuc_giao_hp SET don_vi_vc_id = :dv WHERE don_vi_vc_id = :n"),
+                       {"dv": dv, "n": nid})
+        # NCC không tên (không chuyển được) thì bỏ trỏ, khỏi vướng khoá ngoại mới.
+        db.execute(text("UPDATE phuong_thuc_giao_hp SET don_vi_vc_id = NULL WHERE don_vi_vc_id IS NOT NULL "
+                        "AND don_vi_vc_id NOT IN (SELECT id FROM don_vi_van_chuyen)"))
+    if pg and not fk_moi:
+        db.execute(text("ALTER TABLE phuong_thuc_giao_hp ADD CONSTRAINT fk_ptgh_don_vi_van_chuyen "
+                        "FOREIGN KEY (don_vi_vc_id) REFERENCES don_vi_van_chuyen(id) ON DELETE SET NULL"))
+    if co_co:
+        db.execute(text("ALTER TABLE suppliers DROP COLUMN la_don_vi_van_chuyen"))
+    db.commit()
+
+
+MIGRATIONS.append(("0478_don_vi_van_chuyen_rieng", _migrate_don_vi_van_chuyen_rieng))

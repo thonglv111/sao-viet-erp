@@ -287,3 +287,19 @@ def test_ghi_kem_ip_va_thiet_bi(client):
     dong = next(d for d in r["items"] if "Phòng Có Vết" in d["detail"])
     assert dong["user_agent"] == "may-cua-toi/1.0"
     assert dong["ip"], "phải biết dòng này đến từ đâu"
+
+
+def test_dong_cua_phan_he_tat_thi_an_han_khong_dem_vao_bi_che(client, monkeypatch):
+    """Phân hệ bản cài tắt thì không ai xin quyền được ⇒ dòng của nó ẩn hẳn, không đếm vào
+    "N dòng bị ẩn vì bạn không có quyền" (13/11/2026)."""
+    from app.config import get_settings
+
+    token = _admin(client)
+    _do(n=3, action="km_muc_tao", target="km:1", detail="mức khoán km")
+    truoc = client.get("/api/audit?action=km_muc_tao", headers=_h(token)).json()
+    assert truoc["tong"] >= 3
+
+    monkeypatch.setattr(get_settings(), "phan_he_tat", "luong")
+    sau = client.get("/api/audit?action=km_muc_tao", headers=_h(token)).json()
+    assert sau["tong"] == 0
+    assert sau["so_dong_bi_an"] == 0, "dòng phân hệ tắt không được báo là bị che vì thiếu quyền"

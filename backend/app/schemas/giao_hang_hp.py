@@ -55,12 +55,19 @@ class NguoiGiaoListOut(BaseModel):
 
 class DonViVcOut(BaseModel):
     id: int
-    ma: str
     ten: str
+    #: Sai = đã bỏ khỏi danh sách (chỉ có khi hỏi `ca_da_bo`, cho bộ lọc Đơn hàng bán).
+    active: bool = True
 
 
 class DonViVcListOut(BaseModel):
     items: list[DonViVcOut]
+    #: Hãng phổ biến chưa có trong danh sách — chọn là thêm.
+    goi_y: list[str] = []
+
+
+class DonViVcIn(BaseModel):
+    ten: str = Field(min_length=1, max_length=150)
 
 
 class PhuongThucGiaoIn(BaseModel):

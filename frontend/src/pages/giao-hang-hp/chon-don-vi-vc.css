@@ -1,0 +1,85 @@
+/* Ô chọn Đơn vị vận chuyển (ChonDonViVc.tsx) — chỉ bản cài In Hà Phương. Ô bấm dùng lại khuôn OChonGon. */
+.cdv__cho { color: var(--ash-2); }
+
+/* Ký hiệu chữ đầu của đơn vị, mỗi đơn vị một sắc cố định theo tên. */
+.cdv__ky {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+  font-size: 11px; letter-spacing: .02em; line-height: 1;
+}
+.cdv__ky.is-dai { font-size: 9.5px; letter-spacing: 0; }
+.cdv__ky.is-nho { width: 22px; height: 22px; border-radius: 6px; font-size: 9.5px; margin-left: -4px; }
+.cdv__ky.is-nho.is-dai { font-size: 8px; }
+
+.cdv__pop {
+  position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px);
+  display: flex; flex-direction: column; max-height: 380px;
+  background: var(--canvas); border: 1px solid var(--rule-soft); border-radius: 10px;
+  box-shadow: var(--shadow-lg); overflow: hidden;
+}
+
+.cdv__tim {
+  flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 42px;
+  border-bottom: 1px solid var(--rule-soft); color: var(--ash-2);
+}
+.cdv__tim input {
+  flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: none; background: none;
+  font: inherit; font-size: 13.5px; color: var(--ink);
+}
+.cdv__tim input::placeholder { color: var(--ash-2); }
+
+.cdv__than { flex: 1 1 auto; overflow: auto; padding: 6px 6px 10px; }
+.cdv__nhom { margin: 8px 8px 4px; font-size: 11.5px; color: var(--ash); text-transform: uppercase; letter-spacing: .04em; }
+.cdv__nhom:first-child { margin-top: 4px; }
+
+.cdv__dong { position: relative; display: flex; align-items: center; border-radius: 8px; }
+.cdv__dong:hover { background: var(--rule-hair); }
+.cdv__dong.is-sel { background: var(--tt-xanh-bg); }
+.cdv__chon {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 40px 0 6px;
+  border: 0; background: none; font: inherit; font-size: 13.5px; color: var(--ink); text-align: left; cursor: pointer;
+  border-radius: 8px;
+}
+.cdv__chon:focus-visible { outline: 2px solid var(--tt-xanh-dot); outline-offset: -2px; }
+.cdv__ten { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cdv__ck { flex: none; color: var(--tt-xanh-fg); }
+
+/* Nút bỏ chỉ hiện khi rê chuột vào dòng (màn cảm ứng thì hiện mờ sẵn). */
+.cdv__xoa {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px;
+  background: none; color: var(--ash-2); cursor: pointer; opacity: 0;
+}
+.cdv__dong:hover .cdv__xoa, .cdv__xoa:focus-visible { opacity: 1; }
+.cdv__xoa:hover:not(:disabled) { background: var(--tt-do-bg); color: var(--tt-do-fg); }
+@media (hover: none) { .cdv__xoa { opacity: .6; } }
+
+.cdv__chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 6px 0; }
+.cdv__chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 8px;
+  border: 1px dashed var(--rule); border-radius: 999px; background: var(--canvas);
+  font: inherit; font-size: 12.5px; color: var(--ink-2, var(--ink)); cursor: pointer; white-space: nowrap;
+}
+.cdv__chip svg { color: var(--ash-2); }
+.cdv__chip:hover:not(:disabled) { border-style: solid; border-color: var(--tt-xanh-fg); background: var(--tt-xanh-bg); color: var(--tt-xanh-fg); }
+.cdv__chip:hover:not(:disabled) svg { color: inherit; }
+
+/* Dòng "Thêm <tên>" ghim ở chân khi gõ tên chưa có. */
+.cdv__them {
+  flex: none; display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px;
+  border: 0; border-top: 1px solid var(--rule-soft); background: var(--rule-hair);
+  font: inherit; font-size: 13.5px; color: var(--ink); text-align: left; cursor: pointer;
+}
+.cdv__them:hover:not(:disabled) { background: var(--tt-xanh-bg); }
+.cdv__them-dau {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px;
+  background: var(--tt-xanh-bg); color: var(--tt-xanh-fg);
+}
+.cdv__them:hover .cdv__them-dau { background: var(--canvas); }
+.cdv__them-ten { color: var(--tt-xanh-fg); }
+.cdv__them kbd {
+  flex: none; padding: 1px 6px; border: 1px solid var(--rule); border-radius: 4px; background: var(--canvas);
+  font: inherit; font-size: 11px; color: var(--ash);
+}
+
+.cdv__trong { margin: 4px 8px 6px; font-size: 12.5px; color: var(--ash); }
+.cdv__trong.is-loi { margin: 0; padding: 8px 12px; border-top: 1px solid var(--rule-soft); color: var(--signal); }

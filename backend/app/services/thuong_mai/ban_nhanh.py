@@ -46,10 +46,9 @@ def kiem_thu(thu: ThuNgay, tong: int) -> None:
 
 
 def kiem_kho(db: Session, kho_id: int | None) -> KhoHang:
-    kho = db.get(KhoHang, int(kho_id or 0))
-    if kho is None or not getattr(kho, "active", True):
-        raise DonThuongMaiError("Chọn kho xuất.")
-    return kho
+    from .luot_xuat import kho_xuat_thuong_mai
+
+    return kho_xuat_thuong_mai(db, kho_id)
 
 
 def bang_ten_dvt(db: Session) -> dict[str, str]:

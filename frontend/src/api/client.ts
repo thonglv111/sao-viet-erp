@@ -7600,8 +7600,6 @@ export interface SupplierRow {
   status: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong: boolean;
-  /** Hà Phương: NCC là đơn vị vận chuyển — hiện trong ô chọn "Đơn vị vận chuyển" lúc Xuất hàng. */
-  la_don_vi_van_chuyen?: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -7674,7 +7672,6 @@ export interface SupplierInput {
   status?: SupplierStatus;
   /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
   nhan_gia_cong?: boolean;
-  la_don_vi_van_chuyen?: boolean;
   note?: string | null;
   items?: SupplierItemInput[];
 }
