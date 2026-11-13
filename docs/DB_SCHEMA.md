@@ -2053,7 +2053,6 @@ vật tư/dịch vụ, dùng để chọn vào phiếu yêu cầu mua hàng.
 | `debt_cutoff_day` | `Integer` → `INTEGER` | — | yes | — | Cách tính hạn trả của NCC: `NULL` = từ ngày hoá đơn (chưa có thì ngày nhận) + `credit_days`; 1–31 = **chốt công nợ hằng tháng** ngày đó (31 = cuối tháng, tháng ngắn rơi về ngày cuối) ⇒ hạn = mốc chốt gần nhất không sớm hơn ngày hoá đơn + `credit_days`. Điều khoản thuộc NCC, đơn mua không có điều khoản riêng. Sửa chỉ áp cho đợt ghi từ đó — đợt cũ đã chụp hạn vào `purchase_deliveries.due_date`. Migration 0415 dời từ `purchase_requests.debt_cutoff_day`. |
 | `status`         | `String(16)` → `VARCHAR(16)`                           | —      | no   | `"active"`     | Trạng thái `active`/`inactive`.                      |
 | `nhan_gia_cong`  | `Boolean` → `BOOLEAN`                                  | —      | no   | `false`        | Nhận gia công ngoài; ô chọn Nhà gia công ở KHSX chỉ mời NCC đang hoạt động có cờ này (mg 0339). |
-| `la_don_vi_van_chuyen` | `Boolean` → `BOOLEAN`                            | —      | no   | `false`        | Chỉ In Hà Phương (phân hệ `giao_hang_hp`): NCC là đơn vị vận chuyển; ô chọn Đơn vị vận chuyển lúc Xuất hàng chỉ mời NCC đang hoạt động có cờ này (mg 0463). |
 | `note`           | `Text` → `TEXT`                                        | —      | yes  | —              | Ghi chú.                                             |
 | `created_at`     | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —      | no   | now (UTC)      | Khi tạo.                                             |
 | `updated_at`     | `DateTime(timezone=True)` → `DATETIME` / `TIMESTAMPTZ` | —      | no   | now (UTC)      | Cập nhật cuối.                                       |
@@ -3895,7 +3894,9 @@ Thứ phụ thuộc từng mặt hàng ("1 thùng keo = 3 kg" khác "1 thùng m�
 
 **Purpose:** danh mục KHAI BÁO kho (master data nhẹ) — mỗi dòng = 1 kho (vd "Kho thành phẩm") với mã / tên / vị trí / ghi chú. Đổ động ra navbar (mục "Kho hàng"); vận hành nhập/xuất/tồn để bản sau (KHÔNG kèm ở đây). Bảng mới → `create_all` tự dựng (không migration); tên `kho_hang` tránh đụng bảng `warehouses` cũ đã gỡ. Gác quyền module `kho`.
 
-**Tất cả cột:** `id`, `ma`, `ten`, `vi_tri`, `ghi_chu`, `active`, `created_at`, `updated_at`.
+**Tất cả cột:** `id`, `ma`, `ten`, `vi_tri`, `ghi_chu`, `active`, `la_kho_thuong_mai`, `created_at`, `updated_at`.
+
+`la_kho_thuong_mai` (`Boolean` → `BOOLEAN`, not null, mặc định `false`, mg 0477, 13/11/2026, chỉ In Hà Phương): kho hàng thương mại. Ô Kho xuất của đơn thương mại (trang Tạo đơn, hộp Xuất hàng) chỉ liệt kê kho có cờ này, máy chủ chặn kho không có cờ. Ô tick ở danh mục Kho hàng chỉ hiện khi bật phân hệ `thuong_mai`; phân hệ tắt thì máy chủ bỏ qua giá trị gửi lên.
 
 Kho cố định `KHO-TP` "Kho thành phẩm" (mg 0398, 12/10/2026): dòng hệ thống, migration tạo (hoặc nhận kho tên "Kho thành phẩm" đã khai) — không xoá / ngừng dùng / đổi tên được (`KhoHangService`), sửa vị trí / ghi chú được.
 
@@ -6170,6 +6171,21 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 ### `phuong_thuc_giao_hp`
 
 **Purpose:** Cách giao của MỖI lần xuất hàng ở In Hà Phương (phân hệ `giao_hang_hp`): không cần giao, giao nội bộ (người giao + xe) hoặc giao dịch vụ (đơn vị vận chuyển + tiền cước + mã vận đơn). Lần xuất nối bằng tham chiếu MỀM: đơn sản xuất qua `stock_request_id`, đơn thương mại qua `luot_xuat_tm_id`. Do `create_all` dựng (mg 0463).
+### `don_vi_van_chuyen`
+
+**Purpose:** Danh sách đơn vị vận chuyển của In Hà Phương (phân hệ `giao_hang_hp`), thêm và bỏ ngay ở ô chọn lúc Xuất hàng; không liên quan nhà cung cấp. Gợi ý đơn vị phổ biến nằm trong code, không seed. Bỏ đơn vị đã dùng thì chỉ tắt `active` để lịch sử và cước chờ trả còn tên (mg 0478).
+
+| Column | Type | Keys | Null | Default | Description |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `Integer` → `INTEGER` | **PK** | no | auto | Khoá. |
+| `ten` | `String(150)` → `VARCHAR(150)` | — | no | — | Tên đơn vị; trùng tên (không phân biệt hoa thường) thì dùng lại dòng cũ. |
+| `active` | `Boolean` → `BOOLEAN` | — | no | `true` | Còn trong danh sách chọn. |
+| `created_at` | `DateTime(timezone=True)` → `TIMESTAMPTZ` | — | no | now (UTC) | Khi thêm. |
+
+**Tất cả cột:** `id`, `ten`, `active`, `created_at`.
+
+---
+
 
 | Column | Type | Keys | Null | Default | Description |
 | --- | --- | --- | --- | --- | --- |
@@ -6181,7 +6197,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `loai` | `String(16)` → `VARCHAR(16)` | — | no | — | `khong_giao` / `noi_bo` / `dich_vu`. Bắt buộc chọn, không mặc định. |
 | `nguoi_giao_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE), **IX** | yes | — | Giao nội bộ: người giao, thuộc bộ phận có `departments.la_giao_hang`. |
 | `xe_id` | `Integer` → `INTEGER` | **FK→xe_giao_hang.id** (SET NULL), **IX** | yes | — | Giao nội bộ: xe. |
-| `don_vi_vc_id` | `Integer` → `INTEGER` | **FK→suppliers.id** (SET NULL), **IX** | yes | — | Giao dịch vụ: NCC có `la_don_vi_van_chuyen`. |
+| `don_vi_vc_id` | `Integer` → `INTEGER` | **FK→don_vi_van_chuyen.id** (SET NULL), **IX** | yes | — | Giao dịch vụ: đơn vị vận chuyển (bảng riêng, không dính nhà cung cấp; mg 0478 chuyển từ NCC sang). |
 | `tien_cuoc` | `BigInteger` → `BIGINT` | — | yes | — | Giao dịch vụ: tiền cước công ty chịu, không cộng vào đơn hay hoá đơn. Tiền: chỉ người có ô Xem của Phiếu chi thấy, gác ở router. |
 | `ma_van_don` | `String(64)` → `VARCHAR(64)` | — | yes | — | Giao dịch vụ: mã vận đơn, không bắt buộc. |
 | `nguoi_chon_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE) | yes | — | Người chọn cách giao, máy chủ ghi từ tài khoản. |

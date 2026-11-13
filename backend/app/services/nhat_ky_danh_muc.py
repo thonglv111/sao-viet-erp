@@ -116,6 +116,7 @@ NHAN: dict[str, str] = {
     # Khuôn bế · kho
     "so_ke": "Số kệ",
     "vi_tri": "Vị trí",
+    "la_kho_thuong_mai": "Kho hàng thương mại",
     "tinh_trang": "Tình trạng",
     "ngay_lam": "Ngày làm",
     "khach_hang_id": "Khách hàng",

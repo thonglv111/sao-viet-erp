@@ -71,6 +71,15 @@ class KhoHangService(CatalogService):
 
         dong_bo_dong_quyen_kho(self.repo.db)
 
+    def _chuan_hoa(self, data: dict) -> dict:
+        """Cờ kho hàng thương mại (chỉ In Hà Phương): không gửi thì giữ giá trị cũ (nhập Excel, form bản
+        cài tắt `thuong_mai`); phân hệ tắt thì bỏ qua cả khi có gửi."""
+        from ..phan_he import THUONG_MAI, tat
+
+        if data.get("la_kho_thuong_mai") is None or tat(THUONG_MAI):
+            data = {k: v for k, v in data.items() if k != "la_kho_thuong_mai"}
+        return data
+
     def _validate(self, data: dict, obj=None) -> None:
         if not (data.get("ten") or "").strip():
             raise KhoHangValidationError("Tên kho không được trống.")

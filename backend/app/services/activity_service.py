@@ -17,6 +17,7 @@ import re
 from datetime import date, datetime, timedelta, timezone
 
 from .. import audit_registry as reg
+from ..phan_he import module_bi_tat
 from ..repositories.loc_danh_sach import VN_TZ
 from ..models.user import User
 from ..repositories.audit_repo import AuditLogRepository, BoLoc
@@ -94,6 +95,15 @@ class ActivityService:
         ]
         return chan_action, chan_dm
 
+    @staticmethod
+    def _chan_phan_he_tat() -> tuple[list[str], list[str]]:
+        """(mã action, loại danh mục) thuộc module của phân hệ bản cài đã tắt — tập con của `_chan`
+        vì module tắt thì không ai đọc được."""
+        tat_action = [h.ma for h in reg.HANH_DONG if h.module and module_bi_tat(h.module)]
+        tat_dm = [d.loai for d in reg.DANH_MUC if module_bi_tat(d.module)]
+        tat_dm += [alias for d in reg.DANH_MUC if module_bi_tat(d.module) for alias in d.alias_loai]
+        return tat_action, tat_dm
+
     # --- Đọc -------------------------------------------------------------------------------
     def liet_ke(
         self,
@@ -132,9 +142,13 @@ class ActivityService:
         }
         if trang == 1:
             # Số dòng bị che là COUNT thứ hai và không đổi khi lật trang ⇒ chỉ đếm ở trang đầu.
-            ket["so_dong_bi_an"] = self.audit.dem_bi_chan(
-                loc, chan_action=chan_action, chan_dm=chan_dm, neo=neo
-            )
+            # Dòng của phân hệ bản cài đã TẮT thì ẩn hẳn, không đếm: không ai xin quyền được, báo
+            # "bạn không có quyền" chỉ làm người đọc đi tìm quyền không tồn tại (13/11/2026).
+            an = self.audit.dem_bi_chan(loc, chan_action=chan_action, chan_dm=chan_dm, neo=neo)
+            tat_action, tat_dm = self._chan_phan_he_tat()
+            if an and (tat_action or tat_dm):
+                an -= self.audit.dem_bi_chan(loc, chan_action=tat_action, chan_dm=tat_dm, neo=neo)
+            ket["so_dong_bi_an"] = max(an, 0)
         return ket
 
     def _dong(self, rows) -> list[dict]:

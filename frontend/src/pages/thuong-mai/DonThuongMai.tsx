@@ -18,6 +18,8 @@ import { ChanKhung, TomTat } from "../giao-hang/tien-do-don";
 import { fmtDateTime } from "../../utils/format";
 import "./don-thuong-mai.css";
 
+/** Ô Kho xuất của đơn thương mại chỉ liệt kê kho có cờ kho hàng thương mại (13/11/2026). */
+export const CHUA_CO_KHO_TM = "Chưa có kho hàng thương mại. Đánh dấu ở danh mục Khai báo kho.";
 export const loi = (e: unknown, macDinh: string) => (e instanceof ApiError ? e.message : macDinh);
 export const chuSo = (s: string) => s.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
 
@@ -38,14 +40,48 @@ export const dvtCua = (h: HangThuongMai) =>
     .filter((m, i, a) => m && a.indexOf(m) === i);
 export const giaKhai = (d: Dong) => (d.hang && d.dvt ? d.hang.gia_ban_theo_dvt?.[d.dvt] : undefined);
 
+// Nhớ kết quả trong phiên trang (13/11/2026): mở lại ô gợi ý hay trang Tạo đơn là hiện ngay số lần trước
+// rồi mới cập nhật; nhiều ô cùng hỏi một thứ thì chỉ một lần gọi máy chủ.
+const boNho = new Map<string, unknown>();
+const dangGoi = new Map<string, Promise<unknown>>();
+export const daNho = <T,>(khoa: string) => boNho.get(khoa) as T | undefined;
+export function goiNho<T>(khoa: string, goi: () => Promise<T>): Promise<T> {
+  const cu = dangGoi.get(khoa) as Promise<T> | undefined;
+  if (cu) return cu;
+  const moi = goi().then((v) => { boNho.set(khoa, v); return v; }).finally(() => dangGoi.delete(khoa));
+  dangGoi.set(khoa, moi);
+  return moi;
+}
+
+type BangTon = Record<number, Record<string, number>>;
+export const napHang = (token: string, q: string) =>
+  goiNho(`hang|${q}`, () => thuongMaiApi.hang(token, q).then((r) => r.items));
+export const napTonGoiY = (token: string, khoId: number | null, q: string, ds: HangThuongMai[]) =>
+  goiNho<BangTon>(`ton|${khoId}|${q}`, () =>
+    thuongMaiApi.ton(token, khoId, ds.flatMap((h) => dvtCua(h).map((dvt) => ({ hang_id: h.id, dvt, qty: 1 })))).then((x) => {
+      const m: BangTon = {};
+      for (const y of x) (m[y.hang_id] ??= {})[y.dvt] = y.ton;
+      return m;
+    }));
+const napDvt = (token: string) =>
+  goiNho("dvt", () => thuongMaiApi.donVi(token)
+    .then((r) => Object.fromEntries(r.items.map((d) => [String(d.ma).toLowerCase(), d.ten])) as Record<string, string>));
+
+/** Gọi trước những gì trang Tạo đơn thương mại cần, lúc người dùng còn ở danh sách Đơn hàng bán. */
+export function napTruocThuongMai(token: string) {
+  void napDvt(token).catch(() => undefined);
+  void goiNho("kho-xuat", () => thuongMaiApi.khoXuat(token))
+    .then((khos) => napHang(token, "").then((ds) => (ds.length ? napTonGoiY(token, khos[0]?.id ?? null, "", ds) : null)))
+    .catch(() => undefined);
+}
+
 /** Mã ĐVT → tên ("cai" → "Cái"), theo danh mục Đơn vị & quy đổi. */
 export function useTenDvt(): (ma: string) => string {
   const { token } = useAuth();
-  const [bang, setBang] = useState<Record<string, string>>({});
+  const [bang, setBang] = useState<Record<string, string>>(() => daNho<Record<string, string>>("dvt") ?? {});
   useEffect(() => {
     if (!token) return;
-    thuongMaiApi.donVi(token).then((r) => setBang(Object.fromEntries(r.items.map((d) => [String(d.ma).toLowerCase(), d.ten]))))
-      .catch(() => undefined);
+    napDvt(token).then(setBang).catch(() => undefined);
   }, [token]);
   return useCallback((ma: string) => bang[ma] ?? ma, [bang]);
 }
@@ -95,39 +131,48 @@ export function ChonKhach({ value, onChange }: { value: KhachChon | null; onChan
 }
 
 /** Ô tìm chọn mặt hàng thương mại (mã / tên). Truyền `tonKho` thì danh sách gợi ý kèm tồn ở kho đó
- *  (`khoId` null = cộng mọi kho), tính theo ĐVT bán chính của mặt hàng. */
+ *  (`khoId` null = cộng mọi kho). Mỗi ĐVT của mặt hàng một dòng riêng, mã và tên hai cột riêng. */
 export function ChonHang({ value, onChange, tonKho, goiY = "Gõ mã hoặc tên hàng" }: {
   value: HangThuongMai | null;
-  onChange: (h: HangThuongMai) => void;
+  onChange: (h: HangThuongMai, dvt: string) => void;
   tonKho?: { khoId: number | null };
   goiY?: string;
 }) {
   const { token } = useAuth();
   const tenDvt = useTenDvt();
   const [q, setQ] = useState("");
-  const [ds, setDs] = useState<HangThuongMai[]>([]);
-  const [ton, setTon] = useState<Record<number, number>>({});
-  const [mo, setMo] = useState(false);
-  const [chiSo, setChiSo] = useState(0);
   const coTon = tonKho !== undefined;
   const khoId = tonKho?.khoId ?? null;
+  const [ds, setDs] = useState<HangThuongMai[]>(() => daNho<HangThuongMai[]>("hang|") ?? []);
+  const [ton, setTon] = useState<BangTon>(() => (coTon ? daNho<BangTon>(`ton|${khoId}|`) ?? {} : {}));
+  const [mo, setMo] = useState(false);
+  const [chiSo, setChiSo] = useState(0);
+  // Danh sách để trống nạp ngay lúc ô hiện ra, không đợi bấm; chỉ khi đang gõ chữ mới chờ 200 ms
+  // cho người gõ xong. Có số nhớ từ lần trước thì hiện số đó trong lúc chờ máy chủ.
+  const tuKhoa = mo ? q.trim() : "";
   useEffect(() => {
-    if (!token || !mo) return;
+    if (!token) return;
     let bo = false;
+    const nhoHang = daNho<HangThuongMai[]>(`hang|${tuKhoa}`);
+    if (nhoHang) setDs(nhoHang);
+    const nhoTon = coTon ? daNho<BangTon>(`ton|${khoId}|${tuKhoa}`) : undefined;
+    if (nhoTon) setTon(nhoTon);
     const t = window.setTimeout(() => {
-      thuongMaiApi.hang(token, q).then((r) => {
+      napHang(token, tuKhoa).then((items) => {
         if (bo) return;
-        setDs(r.items);
+        setDs(items);
         setChiSo(0);
-        if (!coTon || r.items.length === 0) { setTon({}); return; }
-        thuongMaiApi.ton(token, khoId, r.items.map((h) => ({ hang_id: h.id, dvt: h.don_vi_gia, qty: 1 })))
-          .then((x) => { if (!bo) setTon(Object.fromEntries(x.map((y) => [y.hang_id, y.ton]))); })
+        if (!coTon || items.length === 0) { setTon({}); return; }
+        napTonGoiY(token, khoId, tuKhoa, items)
+          .then((m) => { if (!bo) setTon(m); })
           .catch(() => { if (!bo) setTon({}); });
       }).catch(() => { if (!bo) setDs([]); });
-    }, 200);
+    }, tuKhoa ? 200 : 0);
     return () => { bo = true; window.clearTimeout(t); };
-  }, [token, q, mo, coTon, khoId]);
-  const chon = (h: HangThuongMai) => { onChange(h); setMo(false); };
+  }, [token, tuKhoa, coTon, khoId]);
+  // Mỗi (mặt hàng, ĐVT) một dòng: bấm dòng "thùng" là dòng đơn lấy luôn ĐVT thùng.
+  const muc = useMemo(() => ds.flatMap((h) => dvtCua(h).map((m) => ({ h, m }))), [ds]);
+  const chon = (h: HangThuongMai, m: string) => { onChange(h, m); setMo(false); };
   return (
     // `data-khong-goi-y`: ô bảng chứa danh sách nổi bị bong bóng chung của bảng coi là "cắt chữ" và
     // bung cả danh sách thành chữ; tên đã chọn bị cắt thì xem bằng `title` của ô gõ.
@@ -138,10 +183,10 @@ export function ChonHang({ value, onChange, tonKho, goiY = "Gõ mã hoặc tên 
         onFocus={() => { setMo(true); setQ(""); }}
         onBlur={() => window.setTimeout(() => setMo(false), 150)}
         onKeyDown={(e) => {
-          if (!mo || ds.length === 0) return;
-          if (e.key === "ArrowDown") { e.preventDefault(); setChiSo((i) => Math.min(ds.length - 1, i + 1)); }
+          if (!mo || muc.length === 0) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setChiSo((i) => Math.min(muc.length - 1, i + 1)); }
           else if (e.key === "ArrowUp") { e.preventDefault(); setChiSo((i) => Math.max(0, i - 1)); }
-          else if (e.key === "Enter") { e.preventDefault(); chon(ds[chiSo]); }
+          else if (e.key === "Enter") { e.preventDefault(); chon(muc[chiSo].h, muc[chiSo].m); }
           else if (e.key === "Escape") setMo(false);
         }}
         onClick={() => setMo(true)}
@@ -152,30 +197,29 @@ export function ChonHang({ value, onChange, tonKho, goiY = "Gõ mã hoặc tên 
             <p className="dtm__goi-y-trong">{q.trim() ? "Không có mặt hàng khớp." : "Chưa có mặt hàng thương mại nào."}</p>
           ) : (
             <>
-              <div className="dtm__goi-y-dau" aria-hidden="true">
-                <span>Mặt hàng</span>
-                {coTon && <span>Tồn</span>}
-                <span>Giá bán</span>
+              <div className={`dtm__goi-y-dau${coTon ? " co-ton" : ""}`} aria-hidden="true">
+                <span>Mã</span>
+                <span>Tên hàng</span>
+                <span>Đơn vị</span>
+                {coTon && <span className="is-phai">Tồn</span>}
+                <span className="is-phai">Giá bán</span>
               </div>
-              {ds.map((h, i) => {
-                const t = ton[h.id];
-                const gia = h.gia_ban_theo_dvt?.[h.don_vi_gia];
+              {muc.map(({ h, m }, i) => {
+                const t = ton[h.id]?.[m];
+                const gia = h.gia_ban_theo_dvt?.[m];
                 return (
-                  <button key={h.id} type="button" role="option" aria-selected={i === chiSo}
+                  <button key={`${h.id}-${m}`} type="button" role="option" aria-selected={i === chiSo}
                     className={`dtm__goi-y-dong${i === chiSo ? " is-chon" : ""}${coTon ? " co-ton" : ""}`}
-                    onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setChiSo(i)} onClick={() => chon(h)}>
-                    <span className="dtm__goi-y-ten">
-                      <span>{h.ten}</span>
-                      <small>{h.ma}</small>
-                    </span>
+                    onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setChiSo(i)} onClick={() => chon(h, m)}>
+                    <span className="dtm__goi-y-ma">{h.ma}</span>
+                    <span className="dtm__goi-y-ten" title={h.ten}>{h.ten}</span>
+                    <span>{tenDvt(m)}</span>
                     {coTon && (
                       <span className={`dtm__goi-y-so${t != null && t <= 0 ? " is-het" : ""}`}>
-                        {t == null ? "—" : t <= 0 ? "Hết" : `${Number(t.toFixed(3)).toLocaleString("vi-VN")} ${tenDvt(h.don_vi_gia)}`}
+                        {t == null ? "—" : t <= 0 ? "Hết" : Number(t.toFixed(3)).toLocaleString("vi-VN")}
                       </span>
                     )}
-                    <span className="dtm__goi-y-so">
-                      {gia == null ? "—" : `${soVN(gia)}/${tenDvt(h.don_vi_gia)}`}
-                    </span>
+                    <span className="dtm__goi-y-so">{gia == null ? "—" : soVN(gia)}</span>
                   </button>
                 );
               })}
@@ -281,7 +325,7 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
               return (
                 <tr key={d.khoa}>
                   <td className="dtm__c-hang" data-khong-goi-y="">
-                    <ChonHang value={d.hang} onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
+                    <ChonHang value={d.hang} onChange={(h, dvt) => sua(d.khoa, { hang: h, dvt, gia: "" })} />
                   </td>
                   <td>
                     <select className="dhb__input" aria-label="Đơn vị" value={d.dvt} disabled={!d.hang}
@@ -441,7 +485,6 @@ function FormXuatHang({ order, st, onClose, onDone }: {
   const { token } = useAuth();
   const [khoId, setKhoId] = useState<number | null>(st.kho[0]?.id ?? null);
   const kho = st.kho.find((k) => k.id === khoId) ?? null;
-  const [ghiSo, setGhiSo] = useState(true);
   const [sl, setSl] = useState<Record<number, string>>(() =>
     Object.fromEntries(order.lines.map((l) => [l.id, String(st.con_lai[String(l.id)] ?? 0)])));
   const [luu, setLuu] = useState(false);
@@ -458,7 +501,7 @@ function FormXuatHang({ order, st, onClose, onDone }: {
     setLuu(true);
     setErr(null);
     try {
-      onDone(await thuongMaiApi.xuatHang(token, order.id, { kho_id: khoId, ghi_so: !!kho?.ghi_so_duoc && ghiSo, lines,
+      onDone(await thuongMaiApi.xuatHang(token, order.id, { kho_id: khoId, ghi_so: !!kho?.ghi_so_duoc, lines,
         ...(coCachGiao ? { phuong_thuc: boCachGiao(cach) } : {}) }));
     } catch (e) {
       setErr(loi(e, "Không xuất được hàng."));
@@ -479,6 +522,7 @@ function FormXuatHang({ order, st, onClose, onDone }: {
             {st.kho.map((k) => <option key={k.id} value={k.id}>{k.ten}</option>)}
           </select>
         </label>
+        {st.kho.length === 0 && <p className="dtm__lead">{CHUA_CO_KHO_TM}</p>}
         <table className="dhb__g dtm__bang">
           <thead>
             <tr>
@@ -503,13 +547,9 @@ function FormXuatHang({ order, st, onClose, onDone }: {
             })}
           </tbody>
         </table>
-        {kho?.ghi_so_duoc ? (
-          <label className="dtm__check">
-            <input type="checkbox" checked={ghiSo} onChange={(e) => setGhiSo(e.target.checked)} />
-            <span>Ghi sổ kho luôn (hàng trừ tồn ngay, khỏi qua màn Kho)</span>
-          </label>
-        ) : (
-          <p className="dtm__lead">Yêu cầu xuất sẽ gửi tới người giữ kho {kho?.ten ?? ""}. Kho ghi sổ xong thì lần xuất tự chuyển Đã xuất.</p>
+        {/* Có quyền ghi sổ kho thì luôn ghi sổ ngay, không hỏi (13/11/2026). */}
+        {kho && !kho.ghi_so_duoc && (
+          <p className="dtm__lead">Yêu cầu xuất sẽ gửi tới người giữ kho {kho.ten}. Kho ghi sổ xong thì lần xuất tự chuyển Đã xuất.</p>
         )}
         {coCachGiao && <ChonCachGiao value={cach} onChange={setCach} oInput="dhb__input" />}
         {err && <div className="banner banner--error" role="alert">{err}</div>}

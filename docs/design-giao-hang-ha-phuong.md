@@ -19,7 +19,7 @@ Không làm:
 ## 2. Bật theo bản cài
 
 MỌI thứ trong tài liệu này chỉ In Hà Phương có (chủ dự án nhắc 08/11/2026). Tắt `giao_hang_hp` thì
-Sao Việt Nhật không thấy hộp chọn phương thức, cột Cách giao và Người giao, mục lọc giao hàng, danh mục xe, cờ đơn vị vận chuyển hay chip
+Sao Việt Nhật không thấy hộp chọn phương thức, cột Cách giao và Người giao, mục lọc giao hàng, danh mục xe, danh sách đơn vị vận chuyển hay chip
 bộ phận giao hàng, và Xuất hàng chạy y như hiện nay. Phải có test chứng minh điều này.
 
 Phân hệ mới `giao_hang_hp`, mặc định tắt. Hà Phương bật bằng `PHAN_HE_BAT`, cùng cơ chế ở
@@ -41,7 +41,17 @@ Bấm "Xuất hàng" ở đơn sản xuất hay đơn thương mại đều như
      thuộc bộ phận giao hàng. Ô Xe: tên xe bên trái, biển số chữ xám bên phải; dòng đầu "Không dùng xe
      của công ty".
 3. **Giao hàng dịch vụ.** Chọn Đơn vị vận chuyển, gõ Tiền cước và Mã vận đơn (không bắt buộc).
-   - Đơn vị vận chuyển chọn trong danh sách nhà cung cấp có cờ "Đơn vị vận chuyển".
+   - Đơn vị vận chuyển là danh sách riêng (`don_vi_van_chuyen`), KHÔNG liên quan nhà cung cấp (đổi 13/11/2026,
+     trước đó là NCC có cờ; mg 0478 chuyển dữ liệu cũ sang). Thêm, bỏ ngay trong ô chọn: ô có ô tìm, trên
+     cùng là "Đơn vị đã dùng" (mỗi dòng một ký hiệu chữ đầu có màu riêng, nút × hiện khi rê chuột), dưới là
+     "Thêm nhanh": các hãng phổ biến ở Việt Nam dạng nút tròn, ghi viết tắt (GHN, GHTK,
+     Viettel Post, VNPost, J&T, Ninja Van, SPX, Best, Ahamove, Grab Express, Lalamove, Nhất Tín). Gợi ý nằm
+     trong code, chưa ai chọn thì không có dòng nào trong DB. Gõ tên chưa có thì hiện dòng "Thêm <tên>" ghim ở chân, Enter cũng thêm.
+   - Trùng tên (không phân biệt hoa thường, dấu cách thừa) thì dùng lại đơn vị cũ. Bỏ đơn vị đã từng giao thì
+     chỉ ẩn khỏi danh sách: lần giao cũ, cước chờ chi và bộ lọc Đơn hàng bán vẫn giữ tên. Chưa giao lần nào thì
+     xoá hẳn. Thêm lại tên đã bỏ thì bật lại dòng cũ.
+   - Ai được xuất hàng (ô Sửa của Đơn hàng bán) thì được thêm, bỏ. Nhật ký ghi "Thêm đơn vị vận chuyển",
+     "Bỏ đơn vị vận chuyển khỏi danh sách".
 
 Phương thức chọn theo từng lần xuất. Một đơn xuất hai lần thì mỗi lần một phương thức được. Bắt buộc
 chọn, không có giá trị mặc định ngầm. Sau đó xuất kho và lập hoá đơn đi đúng đường hiện nay.
@@ -62,7 +72,7 @@ Tiền cước gác ở router theo luật xem tiền.
 - Cây phòng ban: đánh dấu bộ phận giao hàng. Cờ `departments.la_giao_hang` đã có sẵn nhưng đang bị ẩn
   khi tắt `giao_hang` (commit b899fd35). Bật `giao_hang_hp` thì hiện lại chip và ô này. Phần khoán km
   đi kèm cờ vẫn ẩn.
-- Nhà cung cấp: thêm cờ "Đơn vị vận chuyển", chỉ hiện khi bật `giao_hang_hp`.
+- Đơn vị vận chuyển: danh sách riêng, thêm và bỏ ngay ở hộp Xuất hàng (mục 3). Màn Nhà cung cấp không có gì về vận chuyển.
 - Xe: khai ở danh mục Xe giao hàng (mục 6).
 
 ## 6. Danh mục Xe giao hàng
@@ -93,12 +103,12 @@ Các cột, mục lọc và khối này chỉ hiện khi bật `giao_hang_hp`.
 
 - Bảng mới:
   - `xe_giao_hang`.
+  - `don_vi_van_chuyen`: tên, còn dùng hay đã bỏ.
   - `phuong_thuc_giao_hp`: mỗi lần xuất một dòng. Gồm phương thức, người giao, xe, đơn vị vận chuyển,
     cước, mã vận đơn, người chọn (lấy từ tài khoản).
 - Lần xuất nối với `phuong_thuc_giao_hp` bằng tham chiếu mềm:
   - Đơn sản xuất: tới yêu cầu hoặc phiếu xuất kho.
   - Đơn thương mại: tới `luot_xuat_thuong_mai`.
-- Nhà cung cấp thêm cờ đơn vị vận chuyển.
 - Migration ở `db_migrations.py`, ghi `docs/DB_SCHEMA.md`, không seed.
 
 ## 9. Builder cần xem kỹ

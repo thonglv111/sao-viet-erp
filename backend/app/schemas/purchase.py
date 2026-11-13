@@ -105,8 +105,6 @@ class SupplierIn(BaseModel):
     status: str = Field(default="active", max_length=16)
     # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
     nhan_gia_cong: bool = False
-    # Tích "Đơn vị vận chuyển" (08/11/2026, chỉ In Hà Phương — phân hệ `giao_hang_hp`).
-    la_don_vi_van_chuyen: bool = False
     note: str | None = Field(default=None, max_length=2000)
     items: list[SupplierItemIn] = Field(default_factory=list)
 
@@ -161,7 +159,6 @@ class SupplierRow(BaseModel):
     debt_cutoff_day: int | None = None
     status: str
     nhan_gia_cong: bool = False
-    la_don_vi_van_chuyen: bool = False
     note: str | None = None
     created_at: datetime
     updated_at: datetime

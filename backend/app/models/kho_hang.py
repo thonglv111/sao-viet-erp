@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    false as sa_false,
     true as sa_true,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -46,6 +47,9 @@ class KhoHang(Base):
     vi_tri: Mapped[str | None] = mapped_column(String(255), nullable=True)  # "Tầng 1 — xưởng A"
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
+    #: Kho hàng thương mại (13/11/2026, chỉ In Hà Phương, mg 0477): ô Kho xuất của đơn thương mại chỉ liệt
+    #: kê kho có cờ này. Ô tick chỉ hiện khi bật phân hệ `thuong_mai`.
+    la_kho_thuong_mai: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_false(), default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False

@@ -6,24 +6,24 @@
 .dtm__hai { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
 .dtm__chon { display: flex; align-items: center; gap: 8px; min-height: 34px; }
 .dtm__tim { position: relative; }
-/* Danh sách gợi ý rộng hơn ô gõ: tên một dòng, mã nhạt bên dưới, Tồn và Giá bán căn phải. */
+/* Danh sách gợi ý rộng hơn ô gõ: mỗi ĐVT của mặt hàng một dòng; Mã, Tên, Đơn vị, Tồn, Giá bán là năm
+   cột riêng, số căn phải. */
 .dtm__goi-y {
-  position: absolute; z-index: 5; left: 0; top: calc(100% + 2px); width: max(100%, 460px);
+  position: absolute; z-index: 5; left: 0; top: calc(100% + 2px); width: max(100%, 560px);
   max-width: calc(100vw - 32px); padding: 4px 0; background: var(--surface, #fff);
   border: 1px solid var(--border, #d0d5dd); border-radius: 6px;
   box-shadow: 0 6px 16px rgba(16, 24, 40, 0.12); max-height: 320px; overflow: auto;
 }
 .dtm__goi-y-dau, .dtm__goi-y-dong {
-  display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 12px; align-items: center; padding: 6px 12px;
+  display: grid; grid-template-columns: 110px minmax(0, 1fr) 64px 100px; gap: 12px; align-items: center; padding: 6px 12px;
 }
-.dtm__goi-y-dau:has(span:nth-child(3)), .dtm__goi-y-dong.co-ton { grid-template-columns: minmax(0, 1fr) 90px 110px; }
+.dtm__goi-y-dau.co-ton, .dtm__goi-y-dong.co-ton { grid-template-columns: 110px minmax(0, 1fr) 64px 72px 100px; }
 .dtm__goi-y-dau { font-size: 12px; color: var(--text-muted, #667085); border-bottom: 1px solid var(--border-soft, #eaecf0); }
-.dtm__goi-y-dau span + span { text-align: right; }
+.dtm__goi-y-dau .is-phai { text-align: right; }
 .dtm__goi-y-dong { width: 100%; border: 0; background: none; text-align: left; font: inherit; cursor: pointer; }
 .dtm__goi-y-dong.is-chon { background: var(--surface-hover, #f2f4f7); }
-.dtm__goi-y-ten { display: grid; min-width: 0; }
-.dtm__goi-y-ten span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dtm__goi-y-ten small { color: var(--text-muted, #667085); font-size: 12px; }
+.dtm__goi-y-ma { color: var(--text-muted, #667085); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dtm__goi-y-ten { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dtm__goi-y-so { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dtm__goi-y-so.is-het { color: var(--danger, #d92d20); }
 /* Ô chọn khách: danh sách một cột, rộng bằng ô gõ (khối khách hẹp, nằm cột phải). */

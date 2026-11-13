@@ -7,6 +7,8 @@ Ba bảng MỚI, không đụng module Giao hàng cũ (`models/delivery.py`, `mo
 * `phuong_thuc_giao_hp` — mỗi lần xuất hàng một dòng: không giao / nội bộ / dịch vụ (§3, §8). Lần xuất
   nối bằng tham chiếu MỀM: đơn sản xuất trỏ `stock_request_id` (yêu cầu XUẤT kho), đơn thương mại trỏ
   `luot_xuat_tm_id`.
+* `don_vi_van_chuyen` — danh sách đơn vị vận chuyển (GHN, Viettel Post, nhà xe…) của lần giao dịch vụ.
+  Thêm, bỏ ngay ở hộp Xuất hàng; KHÔNG dính bảng nhà cung cấp (13/11/2026, trước đó là NCC có cờ).
 * `phieu_chi_cuoc_giao` — dòng của phiếu chi trả tiền cước (§4). Một phiếu gom nhiều lần giao của cùng
   đơn vị vận chuyển. Không trạng thái riêng: huỷ phiếu là lần giao quay lại hàng chờ chi, nên mọi chỗ
   cộng "đã chi" lọc theo trạng thái của PHIẾU (cùng khuôn `phieu_chi_ck_ke`).
@@ -49,6 +51,17 @@ class XeGiaoHang(Base):
         DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
 
 
+class DonViVanChuyen(Base):
+    """Một đơn vị vận chuyển. Bỏ khỏi danh sách = `active` sai: lần giao cũ, cước chờ chi, bộ lọc vẫn đọc tên."""
+
+    __tablename__ = "don_vi_van_chuyen"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ten: Mapped[str] = mapped_column(String(150), nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=sa_true(), default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+
+
 class PhuongThucGiaoHp(Base):
     """Cách giao của MỘT lần xuất hàng. Người chọn do máy chủ ghi từ tài khoản."""
 
@@ -69,7 +82,7 @@ class PhuongThucGiaoHp(Base):
     xe_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("xe_giao_hang.id", ondelete="SET NULL"), index=True, nullable=True)
     don_vi_vc_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), index=True, nullable=True)
+        Integer, ForeignKey("don_vi_van_chuyen.id", ondelete="SET NULL"), index=True, nullable=True)
     #: Tiền cước công ty chịu (đồng). Không cộng vào đơn hay hoá đơn của khách.
     tien_cuoc: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     ma_van_don: Mapped[str | None] = mapped_column(String(64), nullable=True)

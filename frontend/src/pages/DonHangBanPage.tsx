@@ -49,6 +49,7 @@ import { layHoaDonNapTruoc, layLenhNapTruoc, layNhatKyNapTruoc, napTruocNganDon 
 import "./don-hang-ban.css";
 import { FormDonThuongMai, TheXuatHang, useXuatHangTM } from "./thuong-mai/DonThuongMai";
 import { TaoDonThuongMai } from "./thuong-mai/TaoDonThuongMai";
+import { napTruocThuongMai } from "./thuong-mai/DonThuongMai";
 import { giaoHangHpApi, type CachGiaoRow } from "../api/giaoHangHp";
 import { BangCachGiao, nhanCachGiao } from "./giao-hang-hp/BangCachGiao";
 import { fmtDateTime } from "../utils/format";
@@ -168,6 +169,8 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   // Đơn thương mại (chỉ In Hà Phương): bán hàng có sẵn, lập ngay ở màn này — không qua báo giá.
   const coThuongMai = !useTat()("thuong_mai") && can("don_hang_ban", "create");
   const [taoTM, setTaoTM] = useState(false);
+  // Gọi trước kho, hàng, tồn, tên ĐVT để bấm Tạo đơn thương mại là trang có đủ số ngay.
+  useEffect(() => { if (coThuongMai && token) napTruocThuongMai(token); }, [coThuongMai, token]);
   // Giao hàng kiểu Hà Phương: cột Cách giao + Người giao theo lần xuất gần nhất.
   const coCachGiao = !useTat()("giao_hang_hp");
   const coLoaiDon = !useTat()("thuong_mai");

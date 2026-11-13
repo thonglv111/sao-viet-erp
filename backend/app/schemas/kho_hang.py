@@ -16,6 +16,8 @@ class KhoHangIn(BaseModel):
     vi_tri: str | None = None
     ghi_chu: str | None = None
     active: bool = True
+    #: Kho hàng thương mại (chỉ In Hà Phương) — ô Kho xuất của đơn thương mại chỉ liệt kê kho có cờ này.
+    la_kho_thuong_mai: bool | None = None
 
 
 class KhoHangRow(BaseModel):
@@ -26,6 +28,7 @@ class KhoHangRow(BaseModel):
     vi_tri: str | None = None
     ghi_chu: str | None = None
     active: bool
+    la_kho_thuong_mai: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
     #: Kho cố định của hệ thống (Kho thành phẩm `KHO-TP`) — màn hiện ổ khoá, không nút xoá.

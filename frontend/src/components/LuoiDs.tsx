@@ -815,7 +815,8 @@ export function GoiYBang() {
         noi = coTitle.getAttribute("title") ?? "";
         cat = { el: coTitle, title: noi };
         coTitle.removeAttribute("title");
-      } else if (o && biCat(o)) {
+      } else if (o && biCat(o) && !o.querySelector("input, select, textarea, button, [role='listbox']")) {
+        // Ô có nút/ô chọn: chữ "tràn" là danh sách đang bung của ô chọn, in lại thì đè lên chính nó.
         noi = (o.innerText || o.textContent || "").trim();
       }
       if (!noi.trim()) return;

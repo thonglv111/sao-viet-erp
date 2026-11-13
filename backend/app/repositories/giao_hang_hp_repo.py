@@ -8,9 +8,8 @@ from sqlalchemy.orm import Session
 
 from ..models.accounting import PAYMENT_VOUCHER_CANCELLED, PaymentVoucher
 from ..models.department import Department
-from ..models.giao_hang_hp import PT_DICH_VU, PhieuChiCuocGiao, PhuongThucGiaoHp, XeGiaoHang
+from ..models.giao_hang_hp import DonViVanChuyen, PT_DICH_VU, PhieuChiCuocGiao, PhuongThucGiaoHp, XeGiaoHang
 from ..models.order import Order
-from ..models.purchase import SUPPLIER_ACTIVE, Supplier
 from ..models.user import User
 from .catalog_base import CatalogRepo
 
@@ -60,17 +59,36 @@ class GiaoHangHpRepository:
             ra.setdefault(int(uid), int(xid))
         return ra
 
-    def don_vi_van_chuyen(self) -> list[Supplier]:
-        return list(self.db.execute(
-            select(Supplier).where(Supplier.la_don_vi_van_chuyen.is_(True),
-                                   Supplier.status == SUPPLIER_ACTIVE)
-            .order_by(Supplier.name)).scalars().all())
+    # -- đơn vị vận chuyển (bảng riêng, 13/11/2026) ---------------------------------------
+
+    def don_vi_van_chuyen(self, *, ca_da_bo: bool = False) -> list[DonViVanChuyen]:
+        q = select(DonViVanChuyen)
+        if not ca_da_bo:
+            q = q.where(DonViVanChuyen.active.is_(True))
+        return list(self.db.execute(q.order_by(func.lower(DonViVanChuyen.ten))).scalars().all())
+
+    def get_dvvc(self, dvvc_id: int) -> DonViVanChuyen | None:
+        return self.db.get(DonViVanChuyen, int(dvvc_id))
+
+    def tim_dvvc_theo_ten(self, ten: str) -> DonViVanChuyen | None:
+        return self.db.execute(select(DonViVanChuyen).where(
+            func.lower(DonViVanChuyen.ten) == ten.strip().lower()).order_by(DonViVanChuyen.id)).scalars().first()
+
+    def them_dvvc(self, ten: str) -> DonViVanChuyen:
+        row = DonViVanChuyen(ten=ten.strip(), active=True)
+        self.db.add(row)
+        self.db.flush()
+        return row
+
+    def dvvc_da_dung(self, dvvc_id: int) -> bool:
+        return self.db.execute(select(PhuongThucGiaoHp.id).where(
+            PhuongThucGiaoHp.don_vi_vc_id == int(dvvc_id)).limit(1)).first() is not None
+
+    def xoa_dvvc(self, row: DonViVanChuyen) -> None:
+        self.db.delete(row)
 
     def get_xe(self, xe_id: int) -> XeGiaoHang | None:
         return self.db.get(XeGiaoHang, int(xe_id))
-
-    def get_supplier(self, supplier_id: int) -> Supplier | None:
-        return self.db.get(Supplier, int(supplier_id))
 
     def ten_nguoi(self, user_ids: Iterable[int | None]) -> dict[int, str]:
         ids = sorted({int(u) for u in user_ids if u is not None})
@@ -86,12 +104,12 @@ class GiaoHangHpRepository:
         return {x.id: x for x in self.db.execute(
             select(XeGiaoHang).where(XeGiaoHang.id.in_(ids))).scalars().all()}
 
-    def ncc_theo_ids(self, ids: Iterable[int | None]) -> dict[int, Supplier]:
+    def dvvc_theo_ids(self, ids: Iterable[int | None]) -> dict[int, DonViVanChuyen]:
         ids = sorted({int(i) for i in ids if i is not None})
         if not ids:
             return {}
-        return {s.id: s for s in self.db.execute(
-            select(Supplier).where(Supplier.id.in_(ids))).scalars().all()}
+        return {d.id: d for d in self.db.execute(
+            select(DonViVanChuyen).where(DonViVanChuyen.id.in_(ids))).scalars().all()}
 
     # -- phương thức giao -----------------------------------------------------------------
 

@@ -44,9 +44,7 @@ class LuotXuatService:
             raise DonThuongMaiNotFound("Không tìm thấy đơn thương mại")
         if order.status != STATUS_ORDERED:
             raise DonThuongMaiError("Chỉ xuất hàng cho đơn đã chốt.")
-        kho = self.db.get(KhoHang, int(kho_id or 0))
-        if kho is None or not getattr(kho, "active", True):
-            raise DonThuongMaiError("Chọn kho xuất.")
+        kho = kho_xuat_thuong_mai(self.db, kho_id)
         dong_don = {ln.id: ln for ln in order.lines}
         da_dung = self.repo.da_dung_theo_dong(order.id)
         gom: dict[int, int] = {}
@@ -160,6 +158,17 @@ def _bao_ban_hang(luot: LuotXuatThuongMai) -> None:
     from ...realtime import hub
 
     hub.gui({"type": "order_pending_changed", "luot_xuat_tm_id": luot.id}, quyen=MAN_BAN_HANG)
+
+
+def kho_xuat_thuong_mai(db: Session, kho_id: int | None) -> KhoHang:
+    """Kho xuất của đơn thương mại: đang dùng và có cờ kho hàng thương mại (13/11/2026)."""
+    kho = db.get(KhoHang, int(kho_id or 0))
+    if kho is None or not getattr(kho, "active", True):
+        raise DonThuongMaiError("Chọn kho xuất.")
+    if not getattr(kho, "la_kho_thuong_mai", False):
+        raise DonThuongMaiError(f"{kho.ten} không phải kho hàng thương mại. Chọn kho khác, hoặc đánh dấu "
+                                "kho này ở danh mục Khai báo kho.")
+    return kho
 
 
 def kho_ghi_so_luot_xuat(db: Session, request_id: int | None) -> None:

@@ -249,11 +249,15 @@ Bố cục hai cột:
   chữ thường. Cột Tồn đọc tồn của kho xuất đang chọn theo đúng ĐVT của dòng (đầu cột chỉ ghi "Tồn", tên
   kho nằm ở ô Kho xuất); thiếu thì ô Số lượng nền vàng, rê chuột vào thấy "Thiếu N <đơn vị>". Chọn Xuất
   sau thì cột Tồn cộng mọi kho.
-  Danh sách gợi ý của ô tìm hàng rộng hơn ô gõ, mỗi dòng có tên (mã nhạt bên dưới), Tồn ở cùng kho đó
-  theo ĐVT bán chính (hết thì chữ đỏ "Hết") và Giá bán theo ĐVT đó. Mũi tên lên xuống để dò, Enter để
-  chọn, Esc để đóng.
-- Trái, khối Xuất hàng: "Xuất ngay" hoặc "Xuất sau". Xuất ngay hiện Kho xuất *, ô "Ghi sổ kho luôn (hàng
-  trừ tồn ngay, khỏi qua màn Kho)" và 3 thẻ Cách giao (mặc định chọn sẵn Không cần giao vì bán tại tiệm). Ô Kho xuất là danh sách gọn, mỗi kho một dòng chỉ ghi tên kho, y như hộp Xuất hàng ở ngăn đơn. Xuất ngay là xuất
+  Danh sách gợi ý của ô tìm hàng rộng hơn ô gõ, năm cột riêng: Mã, Tên hàng, Đơn vị, Tồn ở cùng kho đó
+  (hết thì chữ đỏ "Hết"), Giá bán. Mặt hàng nhiều ĐVT thì mỗi ĐVT một dòng; bấm dòng nào thì dòng đơn lấy
+  đúng ĐVT đó (13/11/2026). Mũi tên lên xuống để dò, Enter để chọn, Esc để đóng.
+- Trái, khối Xuất hàng: "Xuất ngay" hoặc "Xuất sau". Xuất ngay hiện Kho xuất * và 3 thẻ Cách giao. Người có
+  quyền ghi sổ kho đã chọn thì luôn ghi sổ ngay (hàng trừ tồn, khỏi qua màn Kho), không còn ô hỏi (bỏ ô
+  "Ghi sổ kho luôn" ngày 13/11/2026). 3 thẻ Cách giao (mặc định chọn sẵn Không cần giao vì bán tại tiệm). Ô Kho xuất là danh sách gọn, mỗi kho một dòng chỉ ghi tên kho, y như hộp Xuất hàng ở ngăn đơn. Cả hai ô chỉ liệt kê kho có cờ
+  `kho_hang.la_kho_thuong_mai` (13/11/2026, mg 0477): danh mục Khai báo kho có công tắc "Kho hàng thương mại" và cột
+  cùng tên, chỉ hiện khi bật `thuong_mai`; máy chủ chặn xuất từ kho không có cờ. Chưa kho nào có cờ thì ô trống, dưới
+  ghi "Chưa có kho hàng thương mại. Đánh dấu ở danh mục Khai báo kho.". Xuất ngay là xuất
   hết số lượng của đơn; muốn xuất một phần thì chọn Xuất sau rồi xuất ở ngăn đơn như hôm nay.
 - Phải, ô Khách hàng: cùng khuôn ô Khách hàng ở dải khách của Phiếu tính giá (thành phần chung `components/ChonKhachHang.tsx`). Bấm ô mở danh sách có ô tìm "Gõ tên, số điện thoại hoặc mã số thuế" (máy chủ tìm theo ba cột này), mỗi dòng là tên, mã và số điện thoại. Chọn xong ô hiện tên khách, dưới là mã và số điện thoại; muốn đổi thì bấm lại ô. Ô tự làm thẻ, không có tiêu đề thẻ riêng.
 - Phải, khối Thanh toán: "Khách trả ngay" hoặc "Thanh toán sau".
@@ -299,8 +303,8 @@ Quyền, gác ở máy chủ:
 
 - Thiếu quyền tạo phiếu thu (`phieu_thu:create`) thì không thấy "Khách trả ngay", khối Thanh toán chỉ
   còn ô Tiền cọc.
-- Thiếu quyền ghi sổ kho đã chọn thì không thấy ô "Ghi sổ kho luôn"; Xuất ngay tạo yêu cầu xuất gửi tới
-  người giữ kho, như hộp Xuất hàng hôm nay.
+- Thiếu quyền ghi sổ kho đã chọn thì Xuất ngay chỉ tạo yêu cầu xuất gửi tới người giữ kho, dưới ô Kho
+  xuất ghi "Yêu cầu xuất sẽ gửi tới người giữ kho …". Hộp Xuất hàng ở ngăn đơn theo cùng luật.
 - Thiếu quyền xem hàng thương mại (`hang_thuong_mai:read`) thì ô tìm hàng báo không có quyền; thiếu
   `hang_thuong_mai:view_cost` thì tìm được hàng nhưng ô đơn giá không tự điền.
 

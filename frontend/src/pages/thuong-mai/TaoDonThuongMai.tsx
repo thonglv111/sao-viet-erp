@@ -13,7 +13,7 @@ import { soVN } from "../../components/LuoiDs";
 import { boCachGiao, CACH_GIAO_TRONG, ChonCachGiao, loiCachGiao, type CachGiao } from "../giao-hang-hp/ChonCachGiao";
 import { useTaiKhoanNhan } from "../ke-toan/phieu-thu/shared/taiKhoanNhan";
 import {
-  ChonHang, chuSo, dongMoi, dvtCua, giaKhai, loi, useTenDvt, type Dong, type KhachChon,
+  CHUA_CO_KHO_TM, ChonHang, chuSo, daNho, dongMoi, dvtCua, giaKhai, goiNho, loi, useTenDvt, type Dong, type KhachChon,
 } from "./DonThuongMai";
 import "./don-thuong-mai.css";
 import "./tao-don-thuong-mai.css";
@@ -66,9 +66,10 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
   const { taiKhoan, dangTai, loiTai } = useTaiKhoanNhan("VND");
   // Xuất hàng
   const [xuatNgay, setXuatNgay] = useState(true);
-  const [khos, setKhos] = useState<KhoXuat[]>([]);
-  const [khoId, setKhoId] = useState<number | null>(null);
-  const [ghiSo, setGhiSo] = useState(true);
+  // Danh sách kho đã gọi trước từ màn Đơn hàng bán (`napTruocThuongMai`) ⇒ ô Kho xuất có ngay.
+  const [khos, setKhos] = useState<KhoXuat[]>(() => daNho<KhoXuat[]>("kho-xuat") ?? []);
+  const [khoId, setKhoId] = useState<number | null>(() => daNho<KhoXuat[]>("kho-xuat")?.[0]?.id ?? null);
+  const [khoDaTai, setKhoDaTai] = useState(() => daNho<KhoXuat[]>("kho-xuat") !== undefined);
   // Bán tại tiệm: mặc định khách tự lấy hàng, cần giao thì người bán chọn lại.
   const [cach, setCach] = useState<CachGiao>({ ...CACH_GIAO_TRONG, loai: "khong_giao" });
   const kho = khos.find((k) => k.id === khoId) ?? null;
@@ -81,7 +82,8 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
 
   useEffect(() => {
     if (!token) return;
-    thuongMaiApi.khoXuat(token).then((ds) => { setKhos(ds); setKhoId((cu) => cu ?? ds[0]?.id ?? null); })
+    goiNho("kho-xuat", () => thuongMaiApi.khoXuat(token))
+      .then((ds) => { setKhos(ds); setKhoDaTai(true); setKhoId((cu) => cu ?? ds[0]?.id ?? null); })
       .catch((e) => setErr(loi(e, "Không tải được danh sách kho.")));
   }, [token]);
 
@@ -173,7 +175,7 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
         thu: traNgay ? { receipt_method: cachNhan, amount: phieuGhi,
           company_bank_account_id: cachNhan === "bank_transfer" ? tkId : null,
           bank_reference: cachNhan === "bank_transfer" ? maGd.trim() : null } : null,
-        xuat: xuatNgay && khoId ? { kho_id: khoId, ghi_so: !!kho?.ghi_so_duoc && ghiSo,
+        xuat: xuatNgay && khoId ? { kho_id: khoId, ghi_so: !!kho?.ghi_so_duoc,
           ...(coCachGiao ? { phuong_thuc: boCachGiao(cach) } : {}) } : null,
       }));
     } catch (e) {
@@ -227,7 +229,7 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
                         <tr key={d.khoa} className="tdtm__dong-moi">
                           <td className="dtm__c-hang" data-khong-goi-y="">
                             <ChonHang value={null} tonKho={{ khoId: khoTon }} goiY="Gõ mã hoặc tên để thêm hàng"
-                              onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
+                              onChange={(h, dvt) => sua(d.khoa, { hang: h, dvt, gia: "" })} />
                           </td>
                           <td colSpan={7} />
                         </tr>
@@ -241,7 +243,7 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
                       <tr key={d.khoa}>
                         <td className="dtm__c-hang" data-khong-goi-y="">
                           <ChonHang value={d.hang} tonKho={{ khoId: khoTon }}
-                            onChange={(h) => sua(d.khoa, { hang: h, dvt: h.don_vi_gia, gia: "" })} />
+                            onChange={(h, dvt) => sua(d.khoa, { hang: h, dvt, gia: "" })} />
                         </td>
                         <td>
                           <select className="dhb__input" aria-label="Đơn vị" value={d.dvt}
@@ -292,13 +294,12 @@ export function TaoDonThuongMai({ onClose, onSaved, onDoDang }: {
                     <OChonGon nhan="Kho xuất" value={khoId == null ? "" : String(khoId)} onChange={(v) => setKhoId(Number(v) || null)}
                       ds={khos.map((k) => ({ value: String(k.id), ten: k.ten }))} />
                   </div>
-                  {kho?.ghi_so_duoc ? (
-                    <label className="dtm__check tdtm__ghi-so">
-                      <input type="checkbox" checked={ghiSo} onChange={(e) => setGhiSo(e.target.checked)} />
-                      <span>Ghi sổ kho luôn (hàng trừ tồn ngay, khỏi qua màn Kho)</span>
-                    </label>
-                  ) : (
-                    <p className="dtm__lead tdtm__ghi-so">Yêu cầu xuất sẽ gửi tới người giữ kho {kho?.ten ?? ""}.</p>
+                  {/* Có quyền ghi sổ kho thì luôn ghi sổ ngay, không hỏi (13/11/2026). */}
+                  {kho && !kho.ghi_so_duoc && (
+                    <p className="dtm__lead tdtm__ghi-so">Yêu cầu xuất sẽ gửi tới người giữ kho {kho.ten}.</p>
+                  )}
+                  {khoDaTai && khos.length === 0 && (
+                    <p className="dtm__lead tdtm__ghi-so">{CHUA_CO_KHO_TM}</p>
                   )}
                 </div>
                 {coCachGiao && <ChonCachGiao value={cach} onChange={setCach} oInput="dhb__input" />}

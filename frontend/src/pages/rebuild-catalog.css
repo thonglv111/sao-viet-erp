@@ -4540,6 +4540,8 @@ button.rc-formula__nhan--nut.is-chon {
 
 /* Bảng "Đơn vị bán và giá" — các phần thêm cho ngăn Hàng thương mại hai cột (09/11/2026). */
 .rc-dvbg .rc-dvbg__c-dv { width: 150px; }
+/* Cột Đơn vị chỉ 150px: danh sách chọn rộng theo chữ, không bóp theo cột (tên và mã đè dòng). */
+.rc-dvbg .rc-ref-search-panel { right: auto; min-width: 240px; }
 .rc-dvbg__c-nhap { width: 140px; }
 .rc-dvbg__bang th.rc-dvbg__so, .rc-dvbg__bang th.rc-dvbg__c-nhap { text-align: right; }
 .rc-dvbg__so { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }

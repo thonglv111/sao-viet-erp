@@ -100,6 +100,11 @@ _HD += _dong("kinh_doanh", "don_hang_ban", {
     "upload_consent": "Đính kèm tệp vào đơn",
     "delete_consent": "Xoá tệp đính kèm của đơn",
 })
+# Đơn vị vận chuyển (13/11/2026, chỉ In Hà Phương): thêm, bỏ ngay ở hộp Xuất hàng.
+_HD += _dong("kinh_doanh", "don_hang_ban", {
+    "dvvc_them": "Thêm đơn vị vận chuyển",
+    "dvvc_bo": "Bỏ đơn vị vận chuyển khỏi danh sách",
+})
 _HD += _dong("kinh_doanh", "tinh_gia_thanh", {
     "create_ptg": "Tạo phiếu tính giá",
     "update_ptg": "Sửa phiếu tính giá",

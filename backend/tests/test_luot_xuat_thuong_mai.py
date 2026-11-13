@@ -12,8 +12,8 @@ def bat_tm(monkeypatch):
     monkeypatch.setattr(settings, "phan_he_bat", "thuong_mai")
 
 
-def _kho(client, h, ten="Kho Cửa hàng") -> int:
-    r = client.post("/api/kho", json={"ten": ten}, headers=h)
+def _kho(client, h, ten="Kho Cửa hàng", thuong_mai: bool = True) -> int:
+    r = client.post("/api/kho", json={"ten": ten, "la_kho_thuong_mai": thuong_mai}, headers=h)
     assert r.status_code in (200, 201), r.text
     return r.json()["id"]
 
@@ -164,3 +164,27 @@ def test_hoa_don_theo_luot_xuat_va_bao_cao_da_giao(client, bat_tm):
     assert don[0]["dong"][0]["da_giao"] == 1 and don[0]["gia_tri_giao"] == 10000
     bc = client.get("/api/bao-cao-kinh-doanh", headers=h, params={"nguon": "san_xuat"}).json()
     assert d["order_no"] not in [x["order_no"] for k in bc["khach"] for x in k["don"]]
+
+
+def test_chi_kho_hang_thuong_mai_moi_xuat_duoc(client, bat_tm):
+    """Ô Kho xuất chỉ liệt kê kho có cờ kho hàng thương mại; máy chủ chặn kho không có cờ (13/11/2026)."""
+    h = _admin(client)
+    co = _kho(client, h, "Kho CH cờ")
+    khong = _kho(client, h, "Kho thường K1", thuong_mai=False)
+    ds = {k["id"] for k in client.get("/api/thuong-mai/kho-xuat", headers=h).json()}
+    assert co in ds and khong not in ds
+
+    hid, dv = _hang(client, h, "TM-X9")
+    _nhap(client, h, khong, hid, dv, 5, 1000)
+    d = _don_chot(client, h, hid, dv, qty=1)
+    r = client.post(f"/api/thuong-mai/don/{d['id']}/xuat", headers=h, json={
+        "kho_id": khong, "lines": [{"order_line_id": d["lines"][0]["id"], "qty": 1}]})
+    assert r.status_code == 400 and "không phải kho hàng thương mại" in r.json()["detail"]
+
+
+def test_ban_cai_tat_thuong_mai_bo_qua_co_kho(client, monkeypatch):
+    """Sao Việt Nhật (phân hệ tắt): gửi cờ lên cũng không ghi."""
+    monkeypatch.setattr(settings, "phan_he_bat", "")
+    h = _admin(client)
+    r = client.post("/api/kho", json={"ten": "Kho SVN cờ", "la_kho_thuong_mai": True}, headers=h)
+    assert r.status_code in (200, 201) and r.json()["la_kho_thuong_mai"] is False

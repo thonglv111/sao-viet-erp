@@ -12,7 +12,7 @@ from .catalog_base import CatalogRepo
 
 class KhoHangRepository(CatalogRepo):
     model = KhoHang
-    fields = ("ten", "vi_tri", "ghi_chu", "active")
+    fields = ("ten", "vi_tri", "ghi_chu", "active", "la_kho_thuong_mai")
     ma_prefix = "KHO-"
     commit_on_write = False   # `KhoHangService` chốt sau khi đã ghi nhật ký — xem `catalog_base`
 
