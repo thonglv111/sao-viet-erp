@@ -250,6 +250,9 @@ KHO_HANG = CatalogExcelSpec(
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),
+    # Cờ kho hàng thương mại chỉ In Hà Phương có (phân hệ `thuong_mai`, mg 0477): bày ra Excel thì bản cài
+    # Sao Việt Nhật cũng thấy cột này. Đánh dấu ở form Khai báo kho.
+    loai_tru=frozenset({"la_kho_thuong_mai"}),
 )
 
 
