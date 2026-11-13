@@ -583,6 +583,7 @@ class VatLieuKhoService:
 
     def tim_mat_hang(
         self, q: str | None = None, size: int = 20, *, chi_co_nha_cung_cap: bool = False,
+        gom_san_xuat: bool = True, gom_thuong_mai: bool = True,
     ) -> list[dict]:
         """Tìm GỘP Giấy + Vật tư khác — nguồn duy nhất của picker mặt hàng ở Kho và NCC.
 
@@ -604,13 +605,19 @@ class VatLieuKhoService:
 
         # Hàng thương mại (chỉ In Hà Phương) cũng mua, nhập, xuất qua kho như vật tư — bản cài không
         # bật phân hệ thì danh mục này rỗng, khỏi tra.
-        cac_loai = ("giay", "vat_tu", "thanh_pham") + (() if tat(THUONG_MAI) else ("hang_thuong_mai",))
+        # Quyền riêng hai nhóm hàng (13/11/2026): hàng sản xuất (giấy, vật tư, thành phẩm) và hàng thương mại
+        # — router quyết người hỏi thấy nhóm nào (`gom_san_xuat` / `gom_thuong_mai`).
+        cac_loai = (("giay", "vat_tu", "thanh_pham") if gom_san_xuat else ()) + (
+            ("hang_thuong_mai",) if gom_thuong_mai and not tat(THUONG_MAI) else ())
         for loai in cac_loai:
             rows, _t = self.repo.list(loai, q=q, active=True, page=1, size=moi_ben)
+            # Hàng thương mại (chỉ In Hà Phương) nằm trong bảng giá NCC với tư cách "vat_tu" (13/11/2026 — so
+            # theo "hang_thuong_mai" thì không bao giờ khớp, ô chọn bỏ sót). Các danh mục khác giữ phép so cũ.
+            khoa = "vat_tu" if loai == "hang_thuong_mai" else loai
             ra.extend(
                 self._mat_hang_row(loai, r)
                 for r in rows
-                if cap_co_ncc is None or (loai, r.id) in cap_co_ncc
+                if cap_co_ncc is None or (khoa, r.id) in cap_co_ncc
             )
         ra.sort(key=lambda d: (d["ma"] or "").upper())
         return ra[:size]

@@ -309,13 +309,13 @@ export function CatalogListPage({ config, onMutate, navigate }: {
   /** Xuất Excel — CHỈ dòng đang dùng, nhưng ĐỦ ô cấu hình hiện hành: mọi công thức, bậc tính và bảng
    *  con đi ra sheet riêng đọc được. Danh mục rỗng thì chỉ còn dòng tiêu đề, tự đóng vai file mẫu —
    *  nên không còn nút "Tải mẫu" riêng. */
-  async function xuatExcel() {
+  async function xuatExcel(chiTieuDe = false) {
     if (!token) return;
     try {
-      const url = await api.templateBlobUrl(token);
+      const url = await api.templateBlobUrl(token, chiTieuDe);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `xuat-${config.prefix.split("/").pop()}.xlsx`;
+      a.download = `${chiTieuDe ? "mau" : "xuat"}-${config.prefix.split("/").pop()}.xlsx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -422,7 +422,7 @@ export function CatalogListPage({ config, onMutate, navigate }: {
         <h1 className="lds-dau__ten">{config.heading ?? config.title}</h1>
         <div className="lds-dau__nut">
           {duocXuatExcel && (
-            <Button variant="ghost" onClick={xuatExcel} title="Xuất toàn bộ cấu hình đang dùng ra Excel — sửa rồi nhập lại để cập nhật hàng loạt">
+            <Button variant="ghost" onClick={() => void xuatExcel()} title="Xuất toàn bộ cấu hình đang dùng ra Excel — sửa rồi nhập lại để cập nhật hàng loạt">
               <DownloadIcon /> Xuất Excel
             </Button>
           )}
@@ -574,7 +574,10 @@ export function CatalogListPage({ config, onMutate, navigate }: {
           // TẠO MỚI" là nói sai, người dùng làm theo là bị bác cả file.
           luat={config.khongTaoTay
             ? `Bấm "Xuất Excel" cạnh nút này để lấy file đúng định dạng đang chạy, sửa trên chính file đó rồi chọn lại ở đây. Chỉ SỬA được dòng đã có — ${config.title.toLowerCase()} không khai tay được nên mã chưa có trong hệ thống sẽ bị báo lỗi và cả file không được ghi. Ô để trống ở một cột CÓ trong file sẽ xoá giá trị cột đó, còn cột không có trong file thì giữ nguyên. Dòng không có trong file được giữ nguyên, không bị xoá. Cả file là MỘT lượt: còn một dòng lỗi thì không ghi gì cả.`
-            : undefined}
+            : config.mauNhap?.luat}
+          taiMau={config.mauNhap ? () => xuatExcel(true) : undefined}
+          kieu={config.mauNhap ? "ba-buoc" : undefined}
+          moTaMau={config.mauNhap?.moTa}
           chay={(f, mode) => crud(config.prefix).importExcel(token, f, mode)}
           onClose={() => setShowImport(false)}
           onImported={() => { setShowImport(false); lamMoi(); onMutate?.(); }}

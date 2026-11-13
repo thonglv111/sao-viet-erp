@@ -33,7 +33,7 @@ from ..repositories.khuon_be_repo import KhuonBeRepository
 from ..repositories.may_thiet_bi_repo import MayThietBiRepository
 from ..repositories.xe_repo import XeRepository
 from ..repositories.vat_lieu_kho_repo import (
-    _GiayRepo, _ThanhPhamRepo, _VatTuRepo,
+    _GiayRepo, _HangThuongMaiRepo, _ThanhPhamRepo, _VatTuRepo,
 )
 from .catalog_excel import NHAN_TRANG_THAI, CatalogExcelSpec, Cot, NguCanh, SheetCon
 
@@ -413,6 +413,124 @@ THANH_PHAM = CatalogExcelSpec(
         Cot("Ghi chú", "ghi_chu", rong=32),
         CO_ACTIVE,
     ),
+)
+
+
+# Hàng thương mại (13/11/2026, chỉ In Hà Phương — phân hệ `thuong_mai`). Giá bán khai theo TỪNG ĐVT nên
+# gói vào MỘT ô "Giá bán" dạng `hộp: 150000; cái: 15000`; ô chỉ có một con số là giá của Đơn vị giá — đủ
+# cho hàng một đơn vị, mà file mẫu điền tay cũng dễ. Giá bán là tiền: người không có ô Xem giá của màn
+# nhận file KHÔNG có cột này (router chọn `HANG_THUONG_MAI_KHONG_GIA`), nhập vào cũng không đụng giá.
+
+_KHOA_DVT_GOC = ""
+"""Khoá tạm cho "giá của Đơn vị giá" khi ô chỉ có con số — `_htm_truoc_khi_ghi` đổi sang mã đơn vị."""
+
+
+def _so_tien(chu: str) -> int:
+    so = "".join(ch for ch in chu if ch.isdigit())
+    if not so:
+        raise ValueError(f'Giá bán "{chu.strip()}" không phải số.')
+    return int(so)
+
+
+def _doc_gia_ban(gt: Any, ctx: NguCanh) -> dict[str, int]:
+    """`hộp: 150000; cái: 15000` → `{mã: giá}`; ô một con số → giá của Đơn vị giá. ĐVT nhận cả mã lẫn
+    tên. Dấu chấm/phẩy ngăn nghìn bỏ qua (giá là đồng nguyên)."""
+    if isinstance(gt, (int, float)) and not isinstance(gt, bool):
+        return {_KHOA_DVT_GOC: int(round(gt))}
+    chu = str(gt).strip()
+    if ":" not in chu:
+        return {_KHOA_DVT_GOC: _so_tien(chu)}
+    co = ctx.nho("dvt_ma", lambda: {(d.ma or "").strip().lower()
+                                    for d in DonViDoRepository(ctx.db).all_rows()})
+    nguoc = ctx.nho("dvt_ma_theo_ten", lambda: DonViDoRepository(ctx.db).ma_theo_ten())
+    ra: dict[str, int] = {}
+    for manh in chu.split(";"):
+        if not manh.strip():
+            continue
+        if ":" not in manh:
+            raise ValueError(f'Giá bán "{manh.strip()}" thiếu đơn vị — viết dạng "hộp: 150000; cái: 15000".')
+        dvt, gia = manh.split(":", 1)
+        dvt = dvt.strip().lower()
+        ma = dvt if dvt in co else nguoc.get(dvt)
+        if not ma:
+            raise ValueError(f'Đơn vị "{dvt}" ở cột Giá bán không có trong danh mục Đơn vị.')
+        ra[ma.lower()] = _so_tien(gia)
+    return ra
+
+
+def _ghi_gia_ban(gt: Any, ctx: NguCanh) -> str | None:
+    """`{mã: giá}` → `hộp: 150000; cái: 15000` (nhãn đơn vị như cột ĐVT thêm)."""
+    if not gt:
+        return None
+    ten = ctx.nho("dvt_ten_theo_ma", lambda: DonViDoRepository(ctx.db).ten_theo_ma())
+    nguoc = ctx.nho("dvt_ma_theo_ten", lambda: DonViDoRepository(ctx.db).ma_theo_ten())
+    ra = []
+    for m, gia in gt.items():
+        nhan = ten.get(m)
+        nhan = nhan if nhan and nguoc.get(nhan.strip().lower()) == m else m
+        ra.append(f"{nhan}: {int(gia)}")
+    return "; ".join(ra)
+
+
+def _ma_dvt(gt: Any, ctx: NguCanh) -> str:
+    """Tên hoặc mã đơn vị → mã viết thường (ô Đơn vị giá nhận cả tên; service đổi sau, mà giá phải khớp mã)."""
+    chu = str(gt or "").strip().lower()
+    co = ctx.nho("dvt_ma", lambda: {(d.ma or "").strip().lower()
+                                    for d in DonViDoRepository(ctx.db).all_rows()})
+    if chu in co:
+        return chu
+    nguoc = ctx.nho("dvt_ma_theo_ten", lambda: DonViDoRepository(ctx.db).ma_theo_ten())
+    return (nguoc.get(chu) or chu).lower()
+
+
+def _htm_truoc_khi_ghi(du_lieu: dict, ctx: NguCanh, cu) -> dict:
+    gia = du_lieu.get("gia_ban_theo_dvt")
+    if gia and _KHOA_DVT_GOC in gia:
+        goc = du_lieu.get("don_vi_gia") if "don_vi_gia" in du_lieu else getattr(cu, "don_vi_gia", None)
+        if not goc:
+            raise ValueError("Giá bán chỉ có con số mà dòng chưa có Đơn vị giá — điền Đơn vị giá, "
+                             'hoặc viết rõ dạng "cái: 15000".')
+        gia = dict(gia)
+        gia[_ma_dvt(goc, ctx)] = gia.pop(_KHOA_DVT_GOC)
+        du_lieu = {**du_lieu, "gia_ban_theo_dvt": gia}
+    if gia:
+        # Form bỏ lặng giá của ĐVT mặt hàng không khai; từ file thì phải báo, không người ta tưởng đã nhập.
+        goc = du_lieu.get("don_vi_gia") if "don_vi_gia" in du_lieu else getattr(cu, "don_vi_gia", None)
+        them = du_lieu.get("don_vi_them") if "don_vi_them" in du_lieu else getattr(cu, "don_vi_them", None)
+        khai = {_ma_dvt(u, ctx) for u in [goc, *(them or [])] if u}
+        la = [k for k in gia if k not in khai]
+        if la:
+            ten = ctx.nho("dvt_ten_theo_ma", lambda: DonViDoRepository(ctx.db).ten_theo_ma())
+            nhan = ", ".join(next((t for m, t in ten.items() if m.lower() == k), k) for k in la)
+            raise ValueError(f"Giá bán có đơn vị {nhan} mà mặt hàng không khai — thêm vào Đơn vị giá "
+                             "hoặc ĐVT thêm.")
+    return du_lieu
+
+
+_COT_HTM = (
+    Cot("Mã", "ma"),
+    Cot("Tên", "ten", rong=32),
+    Cot("Đơn vị giá", "don_vi_gia", rong=14),
+    Cot("ĐVT thêm", "don_vi_them", rong=16, doc=_doc_dvt_them, ghi=_ghi_dvt_them),
+)
+_COT_HTM_CUOI = (
+    Cot("Ghi chú", "ghi_chu", rong=32),
+    CO_ACTIVE,
+)
+
+HANG_THUONG_MAI = CatalogExcelSpec(
+    loai="hang_thuong_mai", tieu_de="Hàng thương mại", repo_cls=_HangThuongMaiRepo,
+    cot=(*_COT_HTM,
+         Cot("Giá bán", "gia_ban_theo_dvt", rong=30, doc=_doc_gia_ban, ghi=_ghi_gia_ban),
+         *_COT_HTM_CUOI),
+    truoc_khi_ghi=_htm_truoc_khi_ghi,
+)
+
+HANG_THUONG_MAI_KHONG_GIA = CatalogExcelSpec(
+    loai="hang_thuong_mai", tieu_de="Hàng thương mại", repo_cls=_HangThuongMaiRepo,
+    cot=(*_COT_HTM, *_COT_HTM_CUOI),
+    # Người không có ô Xem giá: không xuất giá, nhập vào không đụng giá.
+    loai_tru=frozenset({"gia_ban_theo_dvt"}),
 )
 
 

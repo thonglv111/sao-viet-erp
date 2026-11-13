@@ -40,7 +40,7 @@ from ..services.vat_lieu_kho_service import (
 from ..storage import get_storage, key_from_url, make_key, url_from_key
 from ..tai_len import doc_gioi_han, kiem_anh
 from ..services.catalog_excel_specs import (
-    GIAY, THANH_PHAM, VAT_TU,
+    GIAY, HANG_THUONG_MAI, HANG_THUONG_MAI_KHONG_GIA, THANH_PHAM, VAT_TU,
 )
 from .catalog_base import loi_http, make_catalog_router
 
@@ -205,8 +205,14 @@ def _giu_gia_ban(svc: MotDanhMucVatLieu, user: User, item_id: int | None, data: 
         data["gia_ban_theo_dvt"] = svc.get(item_id).gia_ban_theo_dvt
 
 
+def _excel_hang_thuong_mai(svc: MotDanhMucVatLieu, user: User):
+    """Excel Hàng thương mại (13/11/2026): có ô Xem giá thì file mang cột Giá bán, không thì không."""
+    return HANG_THUONG_MAI if _thay_gia_ban(svc.audit.db, user) else HANG_THUONG_MAI_KHONG_GIA
+
+
 _khai("hang_thuong_mai", HangThuongMaiIn, HangThuongMaiRow, "hang-thuong-mai", kem_don_vi="ton",
-      enable_clone=True, che_tien=_che_gia_ban, giu_tien=_giu_gia_ban, **_DON_VI_GIA)
+      enable_clone=True, excel_spec=_excel_hang_thuong_mai,
+      che_tien=_che_gia_ban, giu_tien=_giu_gia_ban, **_DON_VI_GIA)
 
 
 @router.get("/hang-thuong-mai/{item_id}/ton-theo-kho", response_model=list[TonTheoKhoRow],
@@ -231,24 +237,40 @@ _khai("thanh_pham", ThanhPhamIn, ThanhPhamRow, "thanh-pham", kem_don_vi="khach",
 #
 # Quyền rộng hơn CRUD: người lập đề nghị kho/YCMH và người khai bảng giá NCC đều phải CHỌN được
 # mặt hàng, nhưng không được sửa danh mục. Chỉ trả mã · tên · đơn vị — không có giá.
-_doc_mat_hang = require_quyen_to("read", 
+_O_HANG_SAN_XUAT = (
     ("dm_giay", "read"), ("dm_vat_tu", "read"), ("kho", "read"), ("thu_mua", "read"),
     ("yeu_cau_mua_hang", "read"), ("tinh_gia_thanh", "read"), ("san_xuat", "read"))
+_doc_mat_hang = require_quyen_to("read", *_O_HANG_SAN_XUAT, ("hang_thuong_mai", "read"))
+
+
+def _nhom_hang_duoc_xem(db: Session, user: User) -> tuple[bool, bool]:
+    """`(hàng sản xuất, hàng thương mại)` người này được thấy trong ô chọn mặt hàng (13/11/2026).
+
+    Hàng thương mại chỉ người có Xem ở màn Hàng thương mại. Hàng sản xuất cho người có một trong các ô
+    phía sản xuất / kho / mua như trước, hoặc một dòng quyền theo tổ."""
+    from ..services.quyen_to import quyen_to_cua
+
+    authz = AuthorizationService(RoleRepository(db))
+    san_xuat = any(authz.can(user, k, a) for k, a in _O_HANG_SAN_XUAT) or quyen_to_cua(db, user).co_viec("read")
+    return san_xuat, authz.can(user, "hang_thuong_mai", "read")
 
 
 @router.get("/mat-hang", response_model=list[MatHangRow], name="tim_mat_hang")
 def tim_mat_hang(
     svc: Service,
-    _: Annotated[User, Depends(_doc_mat_hang)],
+    user: Annotated[User, Depends(_doc_mat_hang)],
+    db: Annotated[Session, Depends(get_db)],
     q: str | None = Query(default=None),
     # Trần 2000: ô chọn vật tư ở Tồn kho nạp cả danh mục một lần để lọc gần đúng (bỏ dấu) tại chỗ.
     size: int = Query(default=20, ge=1, le=2000),
     chi_co_nha_cung_cap: bool = Query(default=False),
 ) -> list[MatHangRow]:
     """Tìm gộp Giấy + Vật tư khác. Thay `GET /api/kho/de-nghi/vat-tu` (đọc bảng `materials` cũ)."""
+    san_xuat, thuong_mai = _nhom_hang_duoc_xem(db, user)
     return [
         MatHangRow(**r)
-        for r in svc.tim_mat_hang(q=q, size=size, chi_co_nha_cung_cap=chi_co_nha_cung_cap)
+        for r in svc.tim_mat_hang(q=q, size=size, chi_co_nha_cung_cap=chi_co_nha_cung_cap,
+                                  gom_san_xuat=san_xuat, gom_thuong_mai=thuong_mai)
     ]
 
 

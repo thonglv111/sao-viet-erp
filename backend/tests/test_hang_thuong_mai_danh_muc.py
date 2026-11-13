@@ -185,3 +185,176 @@ def test_gia_nhap_gan_nhat_va_ton_theo_kho(client, bat_tm, monkeypatch):
     monkeypatch.setattr(r_vlk, "_thay_gia_ban", lambda db, user: False)
     ds = {x["ma"]: x for x in client.get("/api/vat-lieu-kho/hang-thuong-mai", headers=h).json()["items"]}
     assert ds["TM-GIA"]["gia_nhap_gan_nhat"] is None
+
+
+# --- Excel (13/11/2026): tải mẫu / xuất + nhập Hàng thương mại -------------------------------------
+
+def _wb_htm(headers: list, rows: list[list]) -> bytes:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    from app.services.catalog_excel import PHIEN_BAN, SHEET_META
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = SHEET_META
+    ws.append(["khoa", "gia_tri"])
+    ws.append(["loai", "hang_thuong_mai"])
+    ws.append(["phien_ban", PHIEN_BAN])
+    ws = wb.create_sheet("Hàng thương mại")
+    ws.append(headers)
+    for r in rows:
+        ws.append(r)
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _nhap_htm(client, h, noi_dung: bytes, mode: str):
+    return client.post("/api/vat-lieu-kho/hang-thuong-mai/import-excel", params={"mode": mode}, headers=h,
+                       files={"file": ("m.xlsx", noi_dung,
+                                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
+
+
+def _tieu_de_mau(client, h) -> list:
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    r = client.get("/api/vat-lieu-kho/hang-thuong-mai/mau-excel", headers=h)
+    assert r.status_code == 200, r.text
+    ws = load_workbook(BytesIO(r.content))["Hàng thương mại"]
+    return [list(x) for x in ws.iter_rows(values_only=True)]
+
+
+def test_excel_hang_thuong_mai_mau_nhap_va_gia_ban(client, bat_tm):
+    h = _admin(client)
+    dv = _dvt(client, h)
+    hang = _tieu_de_mau(client, h)
+    assert hang[0] == ["Mã", "Tên", "Đơn vị giá", "ĐVT thêm", "Giá bán", "Ghi chú", "Trạng thái"]
+    assert len(hang) == 1      # danh mục rỗng ⇒ file mẫu chỉ có tiêu đề
+
+    file = _wb_htm(hang[0][:5], [["TM-A", "Bút đỏ", dv, None, 5000],
+                                 ["TM-B", "Bút xanh", dv, None, f"{dv}: 6.500"],
+                                 ["TM-C", "Bút lỗi", dv, None, "hộp: 1000"]])
+    xem = _nhap_htm(client, h, file, "preview").json()
+    assert not xem["hop_le"] and [l["dong"] for l in xem["loi"]] == [4]
+
+    file = _wb_htm(hang[0][:5], [["TM-A", "Bút đỏ", dv, None, 5000],
+                                 ["TM-B", "Bút xanh", dv, None, f"{dv}: 6.500"]])
+    kq = _nhap_htm(client, h, file, "commit").json()
+    assert kq["da_ghi"] and kq["tao_moi"] == 2, kq
+    ds = {x["ma"]: x for x in client.get("/api/vat-lieu-kho/hang-thuong-mai", headers=h).json()["items"]}
+    assert ds["TM-A"]["gia_ban_theo_dvt"] == {dv: 5000}
+    assert ds["TM-B"]["gia_ban_theo_dvt"] == {dv: 6500}
+
+    # Xuất ra rồi nạp lại nguyên file: không dòng nào bị tính là sửa.
+    from io import BytesIO
+
+    xuat = client.get("/api/vat-lieu-kho/hang-thuong-mai/mau-excel", headers=h).content
+    kq = _nhap_htm(client, h, xuat, "preview").json()
+    assert kq["hop_le"] and kq["khong_doi"] == 2 and kq["cap_nhat"] == 0, kq
+
+    # Nút "Tải file mẫu": chỉ tiêu đề, kể cả khi danh mục đã có hàng.
+    from openpyxl import load_workbook
+
+    r = client.get("/api/vat-lieu-kho/hang-thuong-mai/mau-excel?chi_tieu_de=true", headers=h)
+    ws = load_workbook(BytesIO(r.content))["Hàng thương mại"]
+    assert [list(x) for x in ws.iter_rows(values_only=True)] == [hang[0]]
+
+
+def test_excel_hang_thuong_mai_khong_xem_gia_thi_khong_co_cot_gia(client, bat_tm, monkeypatch):
+    from app.routers import vat_lieu_kho as r_vlk
+
+    h = _admin(client)
+    dv = _dvt(client, h)
+    client.post("/api/vat-lieu-kho/hang-thuong-mai", headers=h, json={
+        "ma": "TM-G", "ten": "Giấy note", "don_vi_gia": dv, "gia_ban_theo_dvt": {dv: 9000}})
+    monkeypatch.setattr(r_vlk, "_thay_gia_ban", lambda db, user: False)
+    hang = _tieu_de_mau(client, h)
+    assert "Giá bán" not in hang[0]
+    # File tự chế có cột Giá bán: cột bị bỏ qua, giá cũ giữ nguyên.
+    file = _wb_htm(["Mã", "Tên", "Đơn vị giá", "Giá bán"], [["TM-G", "Giấy note vàng", dv, 1]])
+    kq = _nhap_htm(client, h, file, "commit").json()
+    assert kq["da_ghi"] and kq["cap_nhat"] == 1, kq
+    monkeypatch.setattr(r_vlk, "_thay_gia_ban", lambda db, user: True)
+    ds = client.get("/api/vat-lieu-kho/hang-thuong-mai", headers=h).json()["items"]
+    assert ds[0]["ten"] == "Giấy note vàng" and ds[0]["gia_ban_theo_dvt"] == {dv: 9000}
+
+
+def test_excel_hang_thuong_mai_du_truong_repo():
+    from app.repositories.vat_lieu_kho_repo import _HangThuongMaiRepo
+    from app.services.catalog_excel_specs import HANG_THUONG_MAI, HANG_THUONG_MAI_KHONG_GIA
+
+    for spec in (HANG_THUONG_MAI, HANG_THUONG_MAI_KHONG_GIA):
+        cot = {c.field for c in spec.cot}
+        assert set(_HangThuongMaiRepo.fields) - cot - spec.loai_tru == set()
+        assert cot - set(_HangThuongMaiRepo.fields) - {"ma"} == set()
+
+
+def test_excel_hang_thuong_mai_don_vi_ghi_bang_ten(client, bat_tm):
+    """File điền tay ghi TÊN đơn vị ("cái"), không phải mã: giá vẫn phải vào đúng đơn vị."""
+    h = _admin(client)
+    rows = client.get("/api/don-vi?size=200", headers=h).json()
+    items = rows["items"] if isinstance(rows, dict) else rows
+    dv = next(d for d in items if d.get("ten") and d["ten"].strip().lower() != d["ma"].strip().lower())
+    hai = next(d for d in items if d["ma"] != dv["ma"] and d.get("ten"))
+    file = _wb_htm(["Mã", "Tên", "Đơn vị giá", "ĐVT thêm", "Giá bán"],
+                   [["TM-T1", "Hàng tên 1", dv["ten"], None, 7000],
+                    ["TM-T2", "Hàng tên 2", dv["ten"], hai["ten"], f"{dv['ten']}: 8000; {hai['ten']}: 80000"]])
+    kq = _nhap_htm(client, h, file, "commit").json()
+    assert kq["da_ghi"], kq
+    ds = {x["ma"]: x for x in client.get("/api/vat-lieu-kho/hang-thuong-mai", headers=h).json()["items"]}
+    assert ds["TM-T1"]["gia_ban_theo_dvt"] == {dv["ma"].lower(): 7000}
+    assert ds["TM-T2"]["gia_ban_theo_dvt"] == {dv["ma"].lower(): 8000, hai["ma"].lower(): 80000}
+
+
+# --- Quyền riêng hai nhóm hàng (13/11/2026) ---------------------------------------------------------
+
+def test_khong_quyen_hang_thuong_mai_thi_khong_thay_khong_mua(client, bat_tm, monkeypatch):
+    from app.services.rbac_service import AuthorizationService
+
+    h = _admin(client)
+    dv = _dvt(client, h)
+    hid = client.post("/api/vat-lieu-kho/hang-thuong-mai", headers=h, json={
+        "ma": "TM-QUYEN", "ten": "Hàng thử quyền", "don_vi_gia": dv}).json()["id"]
+    ma_cua = lambda: {m["ma"] for m in client.get("/api/vat-lieu-kho/mat-hang?size=2000", headers=h).json()}
+
+    # Có cả hai nhóm quyền: thấy cả hàng thương mại lẫn hàng sản xuất.
+    tat_ca = ma_cua()
+    assert "TM-QUYEN" in tat_ca
+
+    # Ô chọn của yêu cầu mua chỉ lấy món có nhà cung cấp: hàng thương mại có NCC khai bán (ghi "vat_tu")
+    # thì phải ra — trước 13/11/2026 bộ lọc so nhầm "hang_thuong_mai" nên không bao giờ ra.
+    r = client.post("/api/suppliers", headers=h, json={
+        "name": "NCC hàng thương mại", "tax_code": "0109998887", "phone": "0901000009",
+        "email": "ncc@example.com", "address": "Hà Nội", "contact_name": "Chị Hoa", "supplier_group": "paper",
+        "items": [{"item_name": "Hàng thử quyền", "unit": dv, "unit_price": 1000, "vat_percent": 8,
+                   "hang_loai": "vat_tu", "hang_id": hid}]})
+    assert r.status_code in (200, 201), r.text
+    co_ncc = client.get("/api/vat-lieu-kho/mat-hang?q=TM-QUYEN&chi_co_nha_cung_cap=true", headers=h).json()
+    assert [m["ma"] for m in co_ncc] == ["TM-QUYEN"]
+
+    goc = AuthorizationService.can
+    monkeypatch.setattr(AuthorizationService, "can",
+                        lambda self, u, m, a: False if m == "hang_thuong_mai" else goc(self, u, m, a))
+    chi_sx = ma_cua()
+    assert "TM-QUYEN" not in chi_sx and chi_sx == tat_ca - {"TM-QUYEN"}
+    r = client.post("/api/department-purchase-requests", headers=h, json={
+        "content": "thử", "needed_date": "2026-12-01",
+        "lines": [{"item_name": "Hàng thử quyền", "unit": dv, "quantity": 1, "hang_loai": "vat_tu", "hang_id": hid}]})
+    assert r.status_code == 403 and "Hàng thương mại" in r.json()["detail"], r.text
+
+    # Chỉ có quyền Hàng thương mại: thấy hàng thương mại, không thấy hàng sản xuất.
+    from app.routers import vat_lieu_kho as r_vlk
+    monkeypatch.setattr(AuthorizationService, "can",
+                        lambda self, u, m, a: m == "hang_thuong_mai" or (
+                            m not in {k for k, _ in r_vlk._O_HANG_SAN_XUAT} and goc(self, u, m, a)))
+    import app.services.quyen_to as qt
+
+    class _Khong:
+        def co_viec(self, _v):
+            return False
+    monkeypatch.setattr(qt, "quyen_to_cua", lambda db, u: _Khong())
+    assert ma_cua() == {"TM-QUYEN"}

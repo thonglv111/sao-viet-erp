@@ -712,6 +712,14 @@ export const CFG_HANG_THUONG_MAI: CatalogConfig = {
   title: "Hàng thương mại",
   moduleQuyen: "hang_thuong_mai",
   enableClone: true,
+  enableImport: true,
+  // Nhập Excel (13/11/2026): file mẫu trắng + cách điền ô Giá bán (mỗi đơn vị một giá).
+  mauNhap: {
+    moTa: "Mỗi dòng một mặt hàng. Mã đã có thì sửa, mã mới thì thêm.",
+    luat: "Đơn vị giá và ĐVT thêm ghi tên hoặc mã đơn vị trong danh mục Đơn vị, ĐVT thêm cách nhau dấu phẩy. "
+      + "Giá bán: hàng một đơn vị chỉ cần gõ số (vd 15000), nhiều đơn vị thì ghi dạng \"cái: 15000; hộp: 150000\". "
+      + "Trạng thái ghi Có (đang bán) hoặc Không. Còn một dòng lỗi thì cả file chưa được ghi.",
+  },
   prefix: "/api/vat-lieu-kho/hang-thuong-mai",
   nhatKyLoai: "hang_thuong_mai",
   man: "hang-thuong-mai",
