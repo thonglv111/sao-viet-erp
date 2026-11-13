@@ -119,3 +119,66 @@ def test_thu_tien_sau_chot_tran_la_phan_con_thieu(client, bat_tm, monkeypatch):
     r = client.post(f"/api/orders/{d['id']}/deposit-receipts", headers=h,
                     json={"receipt_method": "cash", "amount": 1})
     assert r.status_code == 422 and "đủ tiền" in r.json()["detail"]
+
+
+def test_sua_don_nhap_roi_chot_xuat_thu_tren_chinh_don_do(client, bat_tm):
+    """Trang Sửa đơn (14/11/2026): đơn nháp sửa được khách, dòng, cọc, ghi chú; nút chính chốt + xuất + thu
+    trên CHÍNH đơn đó, không sinh đơn mới."""
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-SUA1", gia=10000)
+    kho = _kho(client, h, "Cửa hàng SUA1")
+    _nhap(client, h, kho, hid, dv, 10, 6000)
+    k1, k2 = _khach(client, h, "Khách SUA1"), _khach(client, h, "Khách SUA2")
+    d = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": k1, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1}]}).json()
+    r = client.put(f"/api/thuong-mai/don/{d['id']}", headers=h, json={
+        "customer_id": k2, "lines": [{"hang_id": hid, "dvt": dv, "qty": 3}],
+        "deposit_amount": 5000, "ghi_chu": "Lấy chiều"})
+    assert r.status_code == 200, r.text
+    s = r.json()
+    assert s["status"] == "draft" and s["customer_id"] == k2 and s["lines"][0]["qty"] == 3
+    assert s["deposit_amount"] == 5000 and s["delivery_note"] == "Lấy chiều"
+    truoc = _so_don(client, h)
+    r = client.post(f"/api/thuong-mai/don/{d['id']}/ban-nhanh", headers=h, json={
+        "customer_id": k2, "lines": [{"hang_id": hid, "dvt": dv, "qty": 2}],
+        "thu": {"receipt_method": "cash", "amount": 20000},
+        "xuat": {"kho_id": kho, "ghi_so": True}})
+    assert r.status_code == 200, r.text
+    c = r.json()
+    assert c["id"] == d["id"] and c["status"] == "ordered" and c["lines"][0]["qty"] == 2
+    assert c["tm_da_thu"] == 20000 and _so_don(client, h) == truoc
+    st = client.get(f"/api/thuong-mai/don/{d['id']}/xuat", headers=h).json()
+    assert st["luot"][0]["trang_thai"] == "da_xuat"
+    # Đã chốt thì không sửa được nữa.
+    r = client.put(f"/api/thuong-mai/don/{d['id']}", headers=h, json={
+        "customer_id": k2, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1}]})
+    assert r.status_code == 400
+
+
+def test_luu_nhap_giu_du_kien_xuat_hang_va_thanh_toan(client, bat_tm):
+    """Lưu nháp giữ kho xuất, cách giao, cách thanh toán (14/11/2026): ngăn đơn và trang Sửa đọc lại được."""
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-DK1", gia=10000)
+    kho = _kho(client, h, "Cửa hàng DK1")
+    k = _khach(client, h, "Khách DK1")
+    d = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": k, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1}],
+        "du_kien": {"xuat_ngay": True, "kho_id": kho, "phuong_thuc": {"loai": "khong_giao", "nguoi_giao_id": 5},
+                    "tra_ngay": True, "cach_nhan": "cash"}}).json()
+    dk = d["tm_du_kien"]
+    assert dk["kho_id"] == kho and dk["kho_ten"] == "Cửa hàng DK1"
+    # Ô không thuộc cách giao đã chọn bị bỏ.
+    assert dk["phuong_thuc"]["loai"] == "khong_giao" and dk["phuong_thuc"]["nguoi_giao_id"] is None
+    assert dk["tra_ngay"] is True and dk["cach_nhan"] == "cash"
+    # Sửa không gửi dự kiến ⇒ giữ nguyên; gửi ⇒ ghi đè.
+    s = client.put(f"/api/thuong-mai/don/{d['id']}", headers=h, json={
+        "customer_id": k, "lines": [{"hang_id": hid, "dvt": dv, "qty": 2}]}).json()
+    assert s["tm_du_kien"]["kho_id"] == kho
+    s = client.put(f"/api/thuong-mai/don/{d['id']}", headers=h, json={
+        "customer_id": k, "lines": [{"hang_id": hid, "dvt": dv, "qty": 2}],
+        "du_kien": {"xuat_ngay": False, "tra_ngay": False, "cach_nhan": "cash"}}).json()
+    assert s["tm_du_kien"]["xuat_ngay"] is False and s["tm_du_kien"]["cach_nhan"] is None
+    # Chốt rồi thì không còn là dự kiến.
+    c = client.post(f"/api/thuong-mai/don/{d['id']}/ban-nhanh", headers=h, json={
+        "customer_id": k, "lines": [{"hang_id": hid, "dvt": dv, "qty": 2}]}).json()
+    assert c["status"] == "ordered" and c["tm_du_kien"] is None

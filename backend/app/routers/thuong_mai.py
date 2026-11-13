@@ -43,12 +43,24 @@ class DongThuongMaiIn(BaseModel):
     vat_pct: int = Field(0, ge=0, le=100)
 
 
+class DuKienIn(BaseModel):
+    """Lựa chọn Xuất hàng + Thanh toán của đơn nháp, giữ lại để mở Sửa thấy đúng (14/11/2026)."""
+    xuat_ngay: bool = True
+    kho_id: int | None = None
+    phuong_thuc: PhuongThucGiaoIn | None = None
+    tra_ngay: bool = False
+    cach_nhan: str | None = Field(None, max_length=16)
+    company_bank_account_id: int | None = None
+
+
 class DonThuongMaiIn(BaseModel):
     customer_id: int
     lines: list[DongThuongMaiIn] = Field(min_length=1)
     deposit_pct: float | None = None
     deposit_amount: int | None = Field(None, ge=0)
     ghi_chu: str | None = Field(None, max_length=1000)
+    # Vắng ⇒ giữ dự kiến cũ (nếu có).
+    du_kien: DuKienIn | None = None
 
 
 class DongDonThuongMaiIn(BaseModel):
@@ -85,7 +97,7 @@ def tao_don(
         order = tm.tao(actor=user, customer_id=body.customer_id,
                        lines=[ln.model_dump() for ln in body.lines],
                        deposit_pct=body.deposit_pct, deposit_amount=body.deposit_amount,
-                       ghi_chu=body.ghi_chu)
+                       ghi_chu=body.ghi_chu, du_kien=body.du_kien.model_dump() if body.du_kien else None)
     except (DonThuongMaiError, DonThuongMaiNotFound) as e:
         db.rollback()
         raise _loi(e) from None
@@ -105,6 +117,28 @@ def sua_dong(
     except (DonThuongMaiError, DonThuongMaiNotFound) as e:
         db.rollback()
         raise _loi(e) from None
+    return svc._detail(svc.repo.get_with_lines(order_id))
+
+
+@router.put("/don/{order_id}", response_model=OrderDetailOut)
+def sua_don(
+    order_id: int, body: DonThuongMaiIn, svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> OrderDetailOut:
+    """Lưu nháp từ trang Sửa đơn (14/11/2026): sửa trọn khách, dòng, cọc, ghi chú của đơn còn nháp."""
+    from .orders import _order_changed
+
+    order = _don_cua(svc, authz, user, order_id)
+    tm = DonThuongMaiService(db, svc.repo, svc.audit)
+    try:
+        tm.sua_don(order=order, actor=user, customer_id=body.customer_id,
+                   lines=[ln.model_dump() for ln in body.lines],
+                   deposit_pct=body.deposit_pct, deposit_amount=body.deposit_amount, ghi_chu=body.ghi_chu,
+                   du_kien=body.du_kien.model_dump() if body.du_kien else None)
+    except (DonThuongMaiError, DonThuongMaiNotFound) as e:
+        db.rollback()
+        raise _loi(e) from None
+    _order_changed(order.order_no)
     return svc._detail(svc.repo.get_with_lines(order_id))
 
 
@@ -286,6 +320,21 @@ def ban_nhanh(
     body: BanNhanhIn, svc: Service, db: Db, authz: Authz,
     user: Annotated[User, Depends(require_permission(MODULE, "create"))],
 ) -> OrderDetailOut:
+    return _ban_nhanh(body, svc, db, authz, user)
+
+
+@router.post("/don/{order_id}/ban-nhanh", response_model=OrderDetailOut)
+def ban_nhanh_don_nhap(
+    order_id: int, body: BanNhanhIn, svc: Service, db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "update"))],
+) -> OrderDetailOut:
+    """Trang Sửa đơn (14/11/2026): đơn nháp có sẵn đi đúng đường của trang Tạo — lưu trọn đơn, chốt, xuất
+    hết hàng và/hoặc thu tiền trong một lần bấm."""
+    return _ban_nhanh(body, svc, db, authz, user, order=_don_cua(svc, authz, user, order_id))
+
+
+def _ban_nhanh(body: BanNhanhIn, svc: OrderService, db: Session, authz: AuthorizationService, user: User,
+               order=None) -> OrderDetailOut:
     from ..models.customer import Customer
     from ..services.ban_hang_cho_thu_chi import bao_hang_cho
     from ..services.order_service import OrderError
@@ -332,12 +381,14 @@ def ban_nhanh(
         db.rollback()
         raise _loi(e) from None
 
-    # 2) Tạo + chốt.
+    # 2) Tạo (hoặc lưu trọn đơn nháp có sẵn) + chốt.
     tm = DonThuongMaiService(db, svc.repo, svc.audit)
+    co_san = order is not None
     try:
-        order = tm.tao(actor=user, customer_id=body.customer_id, lines=[ln.model_dump() for ln in body.lines],
-                       deposit_pct=(None if body.thu else body.deposit_pct),
-                       deposit_amount=(None if body.thu else body.deposit_amount), ghi_chu=body.ghi_chu)
+        kw = dict(actor=user, customer_id=body.customer_id, lines=[ln.model_dump() for ln in body.lines],
+                  deposit_pct=(None if body.thu else body.deposit_pct),
+                  deposit_amount=(None if body.thu else body.deposit_amount), ghi_chu=body.ghi_chu)
+        order = tm.sua_don(order=order, **kw) if co_san else tm.tao(**kw)
     except (DonThuongMaiError, DonThuongMaiNotFound) as e:
         db.rollback()
         raise _loi(e) from None
@@ -347,7 +398,7 @@ def ban_nhanh(
         db.rollback()
         _order_changed(order.order_no)
         return HTTPException(status_code=status.HTTP_409_CONFLICT,
-                             detail=f"Đã tạo đơn {order.order_no} nhưng chưa {buoc}: {e}")
+                             detail=f"Đã {'lưu' if co_san else 'tạo'} đơn {order.order_no} nhưng chưa {buoc}: {e}")
 
     try:
         svc.confirm(order_id=order.id, actor=user, scope=scope)

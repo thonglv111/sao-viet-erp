@@ -234,6 +234,21 @@ class OrderStatsOut(BaseModel):
     ordered_value: int = 0
 
 
+class TmDuKienOut(BaseModel):
+    xuat_ngay: bool = True
+    kho_id: int | None = None
+    kho_ten: str | None = None
+    # Cùng các ô của `PhuongThucGiaoIn`: loai, nguoi_giao_id, xe_id, don_vi_vc_id, tien_cuoc, ma_van_don.
+    phuong_thuc: dict | None = None
+    nguoi_giao_ten: str | None = None
+    xe_ten: str | None = None
+    don_vi_vc_ten: str | None = None
+    tra_ngay: bool = False
+    cach_nhan: str | None = None
+    company_bank_account_id: int | None = None
+    tai_khoan_ten: str | None = None
+
+
 class OrderDetailOut(OrderRow):
     quotation_version: int | None
     quotation_effective_from: date | None
@@ -268,6 +283,8 @@ class OrderDetailOut(OrderRow):
     # Đơn thương mại: tiền khách đã đưa cho đơn (cọc + thu theo hoá đơn), chặng Thu tiền đối chiếu với
     # tổng đơn gồm VAT. Đơn sản xuất để trống.
     tm_da_thu: int | None = None
+    # Đơn thương mại còn NHÁP: Xuất hàng + Thanh toán dự kiến đã lưu ở trang Tạo / Sửa (14/11/2026).
+    tm_du_kien: TmDuKienOut | None = None
 
 
 class OrderActivityItem(BaseModel):
