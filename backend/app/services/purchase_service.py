@@ -1894,6 +1894,22 @@ class PurchaseService:
             return SOURCE_KINH_DOANH
         return SOURCE_KHAC
 
+    def _chan_nhom_hang_khong_duoc(self, actor, lines) -> None:
+        """Quyền riêng hai nhóm hàng (13/11/2026): dòng hàng thương mại chỉ người có Xem ở màn Hàng thương
+        mại mới lập được — cùng luật ô chọn mặt hàng (`routers/vat_lieu_kho._nhom_hang_duoc_xem`), chặn ở
+        đây để lời gọi thẳng API không lách được."""
+        from ..phan_he import THUONG_MAI, tat
+
+        if self.hang is None or actor is None or tat(THUONG_MAI):   # chỉ In Hà Phương có hàng thương mại
+            return
+        def doc(ln, k):
+            return ln.get(k) if isinstance(ln, dict) else getattr(ln, k, None)
+
+        ids = [int(doc(ln, "hang_id")) for ln in lines or []
+               if doc(ln, "hang_loai") == "vat_tu" and doc(ln, "hang_id") not in (None, "")]
+        if ids and self.hang.repo.la_hang_thuong_mai_ids(ids) and not self.authz.can(actor, "hang_thuong_mai", "read"):
+            raise PurchaseForbidden("Bạn không có quyền Hàng thương mại nên không lập yêu cầu mua hàng thương mại được.")
+
     def _clean_department_lines(self, raw_lines) -> list[DepartmentPurchaseRequestLineInput]:
         if not raw_lines:
             raise PurchaseValidationError("Yeu cau mua phai co it nhat mot dong vat tu.")
@@ -1982,6 +1998,7 @@ class PurchaseService:
         source_type, noi_dung, needed_date = self._clean_department_request_header(
             source_type=source_type, purpose=noi_dung, needed_date=needed_date
         )
+        self._chan_nhom_hang_khong_duoc(actor, lines)
         cleaned_lines = self._clean_department_lines(lines)
         nguon_sach = self._clean_nguon_lenh(nguon_lenh, cleaned_lines)
         self._chan_o_da_co_phieu(nguon_sach, cleaned_lines)
@@ -2187,12 +2204,14 @@ class PurchaseService:
         source_type, noi_dung, needed_date = self._clean_department_request_header(
             source_type=row.source_type, purpose=noi_dung, needed_date=needed_date
         )
+        self._chan_nhom_hang_khong_duoc(actor, lines)
+        dong_sach = self._clean_department_lines(lines)
         saved = self.department_requests.update(
             row,
             purpose=noi_dung[:500],
             content=noi_dung,
             needed_date=needed_date,
-            lines=self._clean_department_lines(lines),
+            lines=dong_sach,
             loai_mua=loai,
         )
         self.audit.create(

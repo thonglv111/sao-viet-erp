@@ -127,8 +127,8 @@ export function crud(prefix: string) {
     /** Xuất Excel — blob URL, tải về ngay. CHỈ dòng đang dùng, nhưng ĐỦ ô cấu hình hiện hành:
      *  mọi công thức, bậc tính và bảng con (bậc bù hao, đầu việc, gói bảo trì…) đi ra sheet con
      *  đọc được. Không kèm lịch sử. Danh mục rỗng thì chỉ còn dòng tiêu đề, tự đóng vai file mẫu. */
-    templateBlobUrl(token: string): Promise<string> {
-      return blobUrl(`${prefix}/mau-excel`, token);
+    templateBlobUrl(token: string, chiTieuDe = false): Promise<string> {
+      return blobUrl(`${prefix}/mau-excel${chiTieuDe ? "?chi_tieu_de=true" : ""}`, token);
     },
     /** Nhập Excel — UPSERT theo mã, CẢ FILE là MỘT giao dịch.
      *

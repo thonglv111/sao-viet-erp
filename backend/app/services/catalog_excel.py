@@ -462,14 +462,16 @@ def doc_con(sheet: SheetCon, obj, ctx: NguCanh) -> list[dict]:
     return ra
 
 
-def xuat_excel(spec: CatalogExcelSpec, svc) -> bytes:
-    """Workbook của màn: `_meta` (ẩn) + sheet chính + các sheet con + `_giu_nguyen` (ẩn)."""
+def xuat_excel(spec: CatalogExcelSpec, svc, *, chi_tieu_de: bool = False) -> bytes:
+    """Workbook của màn: `_meta` (ẩn) + sheet chính + các sheet con + `_giu_nguyen` (ẩn).
+
+    `chi_tieu_de` — file MẪU trắng: đủ sheet và tiêu đề, không dòng dữ liệu nào."""
     # lazy import: thiếu dep chỉ hỏng route này, không sập app.
     from openpyxl import Workbook
     from openpyxl.styles import Font
 
     ctx = NguCanh(svc=svc, db=db_cua(svc))
-    objs = _moi_dong(svc)
+    objs = [] if chi_tieu_de else _moi_dong(svc)
 
     wb = Workbook()
     ws_meta = wb.active

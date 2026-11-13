@@ -91,9 +91,13 @@ class DepartmentBranchHasUsers(DepartmentError):
 
 
 def _dong_bo_quyen_to(db) -> None:
+    from .quyen_ke_hoach import dong_bo_dong_quyen_ke_hoach
     from .quyen_to import dong_bo_dong_quyen_to
 
     dong_bo_dong_quyen_to(db)
+    # Dòng Kế hoạch theo bộ phận cũng soi theo cây (13/11/2026): sửa cây lúc máy chủ đang chạy (tick Sản
+    # xuất lên phòng cha, chuyển tổ) phải ra / gỡ mục Kế hoạch ngay, không đợi khởi động lại.
+    dong_bo_dong_quyen_ke_hoach(db)
 
 
 class DepartmentService:

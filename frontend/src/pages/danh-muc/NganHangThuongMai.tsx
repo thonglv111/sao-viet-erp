@@ -14,9 +14,11 @@ import { ApiError, authed } from "../../api/client";
 import { crud, type Row } from "../../api/rebuildCatalog";
 import { Button } from "../../components/Button";
 import { DiscardChangesDialog } from "../../components/DiscardChangesDialog";
+import { ShoppingCart } from "lucide-react";
 import { useTre } from "../../lib/useTre";
 import { tenDonVi, useNapTenDonVi } from "../tenDonVi";
 import { Drawer } from "./components/Drawer";
+import { useDieuHuongDanhMuc } from "./dieuHuong";
 import { NhatKyTab } from "./nhat-ky/NhatKyTab";
 import { ODonViBanGia } from "./ODonViBanGia";
 import { chuan } from "./ODonViNhieu";
@@ -43,6 +45,9 @@ export function NganHangThuongMai({ config, existing, onClose, onSaved }: NganDa
   const api = useMemo(() => crud(config.prefix), [config.prefix]);
   const isEdit = existing != null;
   const coGia = config.moduleQuyen ? can(config.moduleQuyen, "view_cost") : true;
+  const navigate = useDieuHuongDanhMuc();
+  // Lập yêu cầu mua = đúng ô của màn Yêu cầu mua hàng (Xem để vào màn, Thao tác để lập), như màn Tồn kho.
+  const coTheMua = can("yeu_cau_mua_hang", "read") && can("yeu_cau_mua_hang", "create");
 
   const [form, setForm] = useState<Record<string, unknown>>(() => ({
     ma: existing?.ma ?? "",
@@ -137,6 +142,24 @@ export function NganHangThuongMai({ config, existing, onClose, onSaved }: NganDa
     }
   }
 
+  // "Tạo yêu cầu mua" (13/11/2026): mở form Tạo yêu cầu mua hàng điền sẵn mặt hàng này, cùng đường
+  // điền sẵn của màn Tồn kho. Số lượng và ngày cần hàng để người lập gõ; người bấm Lưu vẫn là người.
+  function moFormMua() {
+    if (!existing || !navigate) return;
+    navigate("yeu-cau-mua-hang", {
+      purchaseSeedLines: [{
+        hang_loai: "vat_tu",
+        hang_id: Number(existing.id),
+        item_name: String(existing.ten ?? existing.ma ?? ""),
+        unit: String(existing.don_vi_gia ?? ""),
+        quantity: 0,
+        note: null,
+      }],
+      purchaseSeedPurpose: `Nhập hàng thương mại ${String(existing.ten ?? "")}`.trim(),
+      purchaseSeedHeader: { source_type: "kinh_doanh", loai_mua: "mua_ton", needed_date: null },
+    });
+  }
+
   // Tồn hiện có: đơn vị đã khai trước (theo thứ tự bảng), rồi đơn vị lạ còn tồn từ lô cũ.
   const ton = bangSo(existing?.ton_theo_dvt);
   const dongTon = useMemo(() => {
@@ -167,6 +190,11 @@ export function NganHangThuongMai({ config, existing, onClose, onSaved }: NganDa
       onClose={yeuCauDong}
       foot={
         <>
+          {isEdit && coTheMua && navigate && (
+            <Button type="button" variant="secondary" onClick={moFormMua}>
+              <ShoppingCart size={14} aria-hidden="true" />Tạo yêu cầu mua
+            </Button>
+          )}
           <Button type="button" variant="ghost" onClick={yeuCauDong}>Huỷ</Button>
           <Button type="button" variant="primary" loading={saving} disabled={maTrung} onClick={() => luu()}>
             {isEdit ? "Lưu" : "Tạo mới"}

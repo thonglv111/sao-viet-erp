@@ -305,14 +305,21 @@ def make_catalog_router(
     if excel_spec is not None:
         from ..services.catalog_excel import ExcelSaiMan, nhap_excel, xuat_excel
 
-        def _mau_excel(svc, _=Depends(doc)) -> Response:
+        def _spec(svc, user):
+            # `excel_spec` gọi được = chọn spec theo người (Hàng thương mại bỏ cột giá bán khi thiếu ô
+            # Xem giá, 13/11/2026): file xuất không mang tiền người đó không được xem.
+            return excel_spec(svc, user) if callable(excel_spec) else excel_spec
+
+        def _mau_excel(svc, _=Depends(doc),
+                       chi_tieu_de: bool = Query(default=False)) -> Response:
             """Xuất workbook cấu hình — CHỈ dòng đang dùng, nhưng ĐỦ ô cấu hình + sheet con.
 
             Danh mục rỗng thì chỉ còn dòng tiêu đề, tự đóng vai file mẫu. Không kèm lịch sử (nhật
             ký sửa đổi, phiên bản giá, "lần trước công thức") — xem `services/catalog_excel_specs`.
             """
             return Response(
-                content=xuat_excel(excel_spec, svc),
+                # `chi_tieu_de` = file mẫu trắng cho nút "Tải file mẫu" (13/11/2026).
+                content=xuat_excel(_spec(svc, _), svc, chi_tieu_de=chi_tieu_de),
                 media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 headers={"Content-Disposition": f'attachment; filename="{ten}.xlsx"'},
             )
@@ -331,7 +338,7 @@ def make_catalog_router(
             """
             try:
                 # Tệp rỗng để `nhap_excel` báo "không đọc được file" như cũ.
-                kq = nhap_excel(excel_spec, svc, InModel,
+                kq = nhap_excel(_spec(svc, user), svc, InModel,
                                 doc_gioi_han(file, TRAN_EXCEL, cho_rong=True),
                                 actor_id=user.id, ghi=(mode == "commit"), bat_loi=BAT)
             except ExcelSaiMan as e:

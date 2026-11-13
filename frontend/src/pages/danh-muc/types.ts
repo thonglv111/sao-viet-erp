@@ -226,6 +226,9 @@ export interface CatalogConfig {
    *  "Nhập Excel" đòi CẢ `create` LẪN `update` — một dòng có thể là tạo mới hoặc cập nhật, server
    *  cũng gác `/import-excel` bằng đúng cặp quyền đó. */
   enableImport?: boolean;
+  /** Hộp "Nhập Excel" có bước "Tải file mẫu" (file trắng, chỉ tiêu đề — `GET /mau-excel?chi_tieu_de=true`)
+   *  và câu riêng hướng dẫn điền. Cho màn hay khai mới hàng loạt từ đầu (Hàng thương mại, 13/11/2026). */
+  mauNhap?: { moTa?: string; luat: string };
   autoCode?: boolean;           // mã sinh NGẦM ở backend → ẩn ô "Mã" lúc tạo, không gửi ma
   /** Đổi CHỮ trên nhãn ô "Mã" (mặc định "Mã"). Cho danh mục mà khoá nghiệp vụ có tên riêng ai
    *  cũng gọi — vd Xe giao hàng: khoá là BIỂN SỐ. Gọi nó là "Mã" thì người khai gõ biển số vào ô

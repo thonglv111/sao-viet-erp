@@ -193,6 +193,14 @@ class VatLieuKhoRepository:
         return {int(i) for i in self.db.execute(
             select(VatTuInAn.id).where(VatTuInAn.id.in_(ids), VatTuInAn.la_thanh_pham.is_(True))).scalars()}
 
+    def la_hang_thuong_mai_ids(self, ids) -> set[int]:
+        """Trong các id `vat_tu_in_an`, những id là hàng thương mại — một câu cho cả nhóm."""
+        ids = {int(i) for i in ids or [] if i is not None}
+        if not ids:
+            return set()
+        return {int(i) for i in self.db.execute(
+            select(VatTuInAn.id).where(VatTuInAn.id.in_(ids), VatTuInAn.la_hang_thuong_mai.is_(True))).scalars()}
+
     def noi_dung_don_vi(self, hang_loai: str, hang_id: int) -> dict:
         """Chỗ đang DÙNG đơn vị của một mã — để chặn bỏ đơn vị ở danh mục (spec 2026-10-10 §2.5).
 
