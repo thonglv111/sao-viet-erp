@@ -24,11 +24,14 @@ SUA_CHUA = "sua_chua"
 KE_GIA = "ke_gia"
 # CHỈ In Hà Phương (08/11/2026): hàng thương mại và giao hàng kiểu Hà Phương. Mặc định TẮT, bật bằng
 # `PHAN_HE_BAT` (docs/design-hang-thuong-mai-ha-phuong.md, docs/design-giao-hang-ha-phuong.md).
+# Duyệt đơn mua ở Kế toán (13/11/2026). Tắt thì nút Gửi duyệt ở Mua hàng thành Chốt đơn: đơn sang Đã duyệt
+# ngay, người chốt ghi là người duyệt, mục Kế toán > Đơn mua hàng ẩn khỏi thanh bên (In Hà Phương tắt).
+DUYET_DON_MUA = "duyet_don_mua"
 THUONG_MAI = "thuong_mai"
 GIAO_HANG_HP = "giao_hang_hp"
 CHI_BAT_KHI_KHAI = frozenset({THUONG_MAI, GIAO_HANG_HP})
 CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA, KE_GIA, THUONG_MAI,
-               GIAO_HANG_HP)
+               GIAO_HANG_HP, DUYET_DON_MUA)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.

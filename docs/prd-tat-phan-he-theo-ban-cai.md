@@ -24,7 +24,7 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`. Hà Phương đặt cả tám. Rỗng = bật hết.
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`, `duyet_don_mua`. Hà Phương đặt cả chín. Rỗng = bật hết.
   Sao Việt Nhật đặt `giao_hang` từ 04/11/2026 (`backend/.env` dev, mặc định trong `docker-compose.yml`): bỏ giao
   hàng, đơn bán Xuất hàng thẳng sang kho, các phân hệ khác giữ. Tắt giao hàng mà giữ lương thì tab Khoán km giao
   hàng của Cấu hình lương cũng ẩn.
@@ -111,6 +111,15 @@ biến môi trường.
   cột Y→AB (giữ chữ cột để cột sau khỏi lệch).
 - Phiếu chi: mục "Chờ chi CK / kê" đổi thành "Chờ chi chiết khấu", bỏ cột Thuế TNDN trên kê.
 - Đơn bán: cột và dòng "Trong đó kê" vốn chỉ hiện khi kê > 0 nên không phải sửa.
+
+### Duyệt đơn mua (`duyet_don_mua`, thêm 13/11/2026)
+- Đơn mua hàng không qua duyệt: nút "Gửi duyệt" ở dải đầu ngăn đơn mua đổi thành "Chốt đơn"; máy chủ
+  chuyển thẳng Nháp/Bị từ chối sang Đã duyệt, người chốt ghi vào ô người duyệt, nhật ký ghi "Chốt đơn mua
+  hàng (không qua duyệt)", không báo kênh Kế toán. Đơn kẹt Chờ duyệt từ trước khi tắt cũng Chốt đơn được.
+- Thanh bên: ẩn Kế toán > Đơn mua hàng. Module `ke_toan` KHÔNG bị chặn vì nó còn là quyền đọc ở màn khác;
+  mã đơn trong Phiếu chi, Công nợ vẫn mở được màn này.
+- Ngăn đơn mua: mục Người hiện "Người chốt", "Chốt lúc" thay cho Gửi duyệt / NV duyệt / Duyệt lúc. Chip
+  trạng thái vẫn ghi "Đã duyệt".
 
 ### Ma trận quyền và tên nhóm
 - Tắt `khoan` ⇒ ẩn ô chi tiết "Xem giá" của Công đoạn (ô này chỉ gác tiền khoán).

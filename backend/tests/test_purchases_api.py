@@ -2716,3 +2716,33 @@ def test_pmh_chi_lay_dong_duoc_chon_dong_con_lai_van_mo(client, auth_headers):
     assert dong[bo["id"]]["fulfilment"] is None, "dòng bỏ tick không vào đơn mua"
     assert dong[bo["id"]]["cancelled_at"] is None, "dòng bỏ tick vẫn mở, không bị huỷ"
 
+
+
+def test_ban_cai_khong_duyet_don_mua_gui_la_chot_luon(client, auth_headers, monkeypatch):
+    """Phân hệ `duyet_don_mua` tắt (In Hà Phương): Gửi = Chốt, đơn sang Đã duyệt ngay, người chốt ghi
+    là người duyệt, nhật ký ghi "Chốt đơn mua hàng". Bật (Sao Việt Nhật) thì vẫn Chờ duyệt như cũ."""
+    from app.config import settings
+    from app.db import SessionLocal
+    from app.models.audit import AuditLog
+
+    supplier = _supplier(client, auth_headers)
+    pr = _create_purchase_request(client, auth_headers, supplier["id"])
+    r = client.post(f"/api/purchase-requests/{pr['id']}/submit", headers=auth_headers)
+    assert r.status_code == 200 and r.json()["status"] == "pending_approval"
+    assert r.json()["approved_by_user_id"] is None
+
+    monkeypatch.setattr(settings, "phan_he_tat", "duyet_don_mua")
+    # Đơn kẹt Chờ duyệt từ trước khi tắt cũng chốt được.
+    r = client.post(f"/api/purchase-requests/{pr['id']}/submit", headers=auth_headers, json={"deposit_expected": 0})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "approved" and r.json()["approved_by_user_id"] is not None
+
+    pr2 = _create_purchase_request(client, auth_headers, supplier["id"])
+    r = client.post(f"/api/purchase-requests/{pr2['id']}/submit", headers=auth_headers)
+    assert r.json()["status"] == "approved" and r.json()["approved_at"]
+    db = SessionLocal()
+    try:
+        assert db.query(AuditLog).filter(AuditLog.action == "chot_purchase_request",
+                                         AuditLog.target == f"purchase_request:{pr2['id']}").count() == 1
+    finally:
+        db.close()
