@@ -85,7 +85,7 @@ class DuKienDonThuongMai(Base):
     # Cách giao dự kiến — cùng các ô của `phuong_thuc_giao_hp`.
     giao_loai: Mapped[str | None] = mapped_column(String(16), nullable=True)
     nguoi_giao_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     xe_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("xe_giao_hang.id", ondelete="SET NULL"), nullable=True)
     don_vi_vc_id: Mapped[int | None] = mapped_column(
@@ -98,5 +98,5 @@ class DuKienDonThuongMai(Base):
     company_bank_account_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("company_bank_accounts.id", ondelete="SET NULL"), nullable=True)
     nguoi_luu_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now, nullable=False)
