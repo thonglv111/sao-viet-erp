@@ -6179,7 +6179,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `xuat_ngay` | `Boolean` → `BOOLEAN` | — | no | `true` | Xuất ngay (true) hay Xuất sau. |
 | `kho_id` | `Integer` → `INTEGER` | **FK→kho_hang.id** (SET NULL) | yes | — | Kho xuất dự kiến. |
 | `giao_loai` | `String(16)` → `VARCHAR(16)` | — | yes | — | Cách giao dự kiến: `khong_giao` · `noi_bo` · `dich_vu` (cùng `phuong_thuc_giao_hp.loai`). |
-| `nguoi_giao_id` | `Integer` → `INTEGER` | **FK→users.id** (SET NULL) | yes | — | Người giao (giao nội bộ). |
+| `nguoi_giao_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE) | yes | — | Người giao (giao nội bộ). |
 | `xe_id` | `Integer` → `INTEGER` | **FK→xe_giao_hang.id** (SET NULL) | yes | — | Xe (giao nội bộ). |
 | `don_vi_vc_id` | `Integer` → `INTEGER` | **FK→don_vi_van_chuyen.id** (SET NULL) | yes | — | Đơn vị vận chuyển (thuê vận chuyển). |
 | `tien_cuoc` | `BigInteger` → `BIGINT` | — | yes | — | Tiền cước dự kiến (đồng). |
@@ -6187,7 +6187,7 @@ không phải toàn cục — bản PDF có dấu là của đúng bản đó.
 | `tra_ngay` | `Boolean` → `BOOLEAN` | — | no | `false` | Khách trả ngay (true) hay Thanh toán sau. |
 | `cach_nhan` | `String(16)` → `VARCHAR(16)` | — | yes | — | `cash` · `bank_transfer`. |
 | `company_bank_account_id` | `Integer` → `INTEGER` | **FK→company_bank_accounts.id** (SET NULL) | yes | — | Tài khoản nhận khi chuyển khoản. |
-| `nguoi_luu_id` | `Integer` → `INTEGER` | **FK→users.id** (SET NULL) | yes | — | Người bấm Lưu nháp lần cuối, server gán từ tài khoản. |
+| `nguoi_luu_id` | `Integer` → `INTEGER` | **FK→users.id** (CASCADE) | yes | — | Người bấm Lưu nháp lần cuối, server gán từ tài khoản. |
 | `updated_at` | `DateTime(timezone=True)` → `TIMESTAMPTZ` | — | no | now (UTC) | Lần lưu cuối. |
 
 **Tất cả cột:** `id`, `order_id`, `xuat_ngay`, `kho_id`, `giao_loai`, `nguoi_giao_id`, `xe_id`, `don_vi_vc_id`, `tien_cuoc`, `ma_van_don`, `tra_ngay`, `cach_nhan`, `company_bank_account_id`, `nguoi_luu_id`, `updated_at`.
