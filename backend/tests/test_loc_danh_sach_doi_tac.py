@@ -113,14 +113,6 @@ def test_ncc_loc_ngay_tao_ranh_gio_vn(client):
     assert _ten_ncc(client, t, p) == {"NCC A"}
 
 
-def test_ncc_loc_nhan_gia_cong(client):
-    t = _token(client)
-    _ncc("NCC gia công", nhan_gia_cong=True)
-    _ncc("NCC giấy", nhan_gia_cong=False)
-    assert _ten_ncc(client, t, {"nhan_gia_cong": "true"}) == {"NCC gia công"}
-    assert "NCC gia công" not in _ten_ncc(client, t, {"nhan_gia_cong": "false"})
-
-
 def test_ncc_loc_ket_hop_trang_thai_nhom_va_ky(client):
     t = _token(client)
     _ncc("NCC 1", status="active", supplier_group="Giấy", created_at=_vn(2025, 10, 2, 9))

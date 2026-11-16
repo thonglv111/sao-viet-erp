@@ -24,7 +24,8 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { Icon } from "../components/Icons";
 import { MucInHang } from "../components/MucIn";
 import { BuocChungForm } from "./BaiGhepBuocChungForm";
-import { GiaCongNgoaiPanel } from "./gia-cong/GiaCongNgoaiPanel";
+import { tgcApi, type TgcTrangThaiViec } from "../api/thueGiaCong";
+import { KhoiThueGiaCong } from "./thue-gia-cong/TrangThaiBuocNgoai";
 import { keVatTuBaiGhep } from "./baiGhep2VatTu";
 import { LsxVatTuPanel } from "./LsxVatTuPanel";
 import {
@@ -605,9 +606,14 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
   const can = useCan();
   const canUpdate = can("bai_ghep_2", "update");
   const canDelete = can("bai_ghep_2", "delete");
-  // Lần gia công của bước chung: cùng quyền với lần của lệnh (`san_xuat:update`), máy chủ gác thêm
-  // phạm vi trên mọi lệnh thành viên (spec 2026-09-27 §5).
-  const canGiaCong = can("san_xuat", "update");
+  // Việc thuê gia công của bước chung — CHỈ ĐỌC (spec 2026-11-13); đặt/giao/nhận ở màn Thuê gia công.
+  const [tgcDs, setTgcDs] = useState<TgcTrangThaiViec[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    let song = true;
+    tgcApi.cuaBaiGhep(token, id).then((ds) => { if (song) setTgcDs(ds); }).catch(() => {});
+    return () => { song = false; };
+  }, [token, id, eventTick]);
   const [tab, setTab] = useState<BaiGhep2TabKey>("chung");
   const [d, setD] = useState<BaiGhep2Detail | null>(null);
   const [form, setForm] = useState<MetaForm | null>(null);
@@ -788,8 +794,13 @@ function BaiGhep2Detail({ id, eventTick, onBack, onChanged, navigate }: {
         <button type="button" className="khsx-xlink" onClick={() => { setStale(false); void load(); }}>Nạp lại</button>
       </div>}
 
-      {/* Gia công ngoài của bước CHUNG (spec 2026-09-27 §4) — thao tác mang đi / chốt / mở lại ở đây. */}
-      <GiaCongNgoaiPanel baiGhepId={id} eventTick={eventTick} canUpdate={canGiaCong} onChanged={onChanged} />
+      {/* Thuê gia công của bước CHUNG — chỉ đọc, đường sang đơn ở màn Thuê gia công. */}
+      <KhoiThueGiaCong
+        ds={tgcDs}
+        onMoDon={navigate && can("thue_gia_cong", "read")
+          ? (donId) => navigate("thue-gia-cong", { openTgcDonId: donId }) : undefined}
+        onMoHangCho={navigate && can("thue_gia_cong", "read") ? () => navigate("thue-gia-cong") : undefined}
+      />
 
       <div className="khsx-tabs bg2-tabs" role="tablist" aria-label="Nội dung bài ghép"
         onKeyDown={(event) => {

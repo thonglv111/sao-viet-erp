@@ -85,14 +85,17 @@ def nhat_ky(db: Session, lsx_id: int) -> list[dict]:
     repo = LsxNhatKyRepository(db)
     cvs = repo.cong_viec(lsx_id)
     cv_ids = [c.id for c in cvs]
-    gcn = repo.gia_cong_ngoai(lsx_id, cv_ids)
-    reqs = repo.yeu_cau_kho(lsx_id, cv_ids, gcn)
+    tgc = repo.thue_gia_cong(lsx_id, cv_ids)
+    reqs = repo.yeu_cau_kho(lsx_id, cv_ids, tgc)
     vouchers = {v.id: v for v in repo.phieu_kho([r.id for r in reqs])}
 
     targets = (
         [f"lsx:{lsx_id}"]
-        + [f"gia_cong_ngoai:{i}" for i in gcn]
-        + [f"payment_voucher:{i}" for i in repo.phieu_chi(gcn)]
+        + [f"tgc_viec:{i}" for i in tgc["viec"]]
+        + [f"tgc_don:{i}" for i in tgc["don"]]
+        + [f"tgc_phieu_giao:{i}" for i in tgc["phieu_giao"]]
+        + [f"tgc_phieu_nhan:{i}" for i in tgc["phieu_nhan"]]
+        + [f"payment_voucher:{i}" for i in repo.phieu_chi(tgc["phieu_nhan"])]
         + [f"bai_ghep:{i}" for i in repo.bai_ghep(lsx_id)]
         + [f"xep_lich:{i}" for i in repo.xep_lich(lsx_id)]
         + [f"san_xuat_nhom:{i}" for i in repo.nhom(lsx_id)]
@@ -128,7 +131,8 @@ def nhat_ky(db: Session, lsx_id: int) -> list[dict]:
     for r in reqs:
         chieu = "nhập" if r.loai == REQ_NHAP else "xuất"
         qua_audit = (r.san_xuat_cong_viec_id in da_co_audit or r.vat_tu_tra_cong_viec_id in da_co_audit
-                     or r.gia_cong_ngoai_id in gcn)
+                     or r.tgc_phieu_giao_id in tgc["phieu_giao"]
+                     or r.tgc_phieu_nhan_id in tgc["phieu_nhan"])
         if not qua_audit:
             items.append(_dong(r.created_at, action="kho_de_nghi", tieu_de=f"Lập đề nghị {chieu} kho {r.ma}",
                                uid=r.nguoi_tao_id, tone="steel"))

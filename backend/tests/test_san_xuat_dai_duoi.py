@@ -1,17 +1,15 @@
 """Ô ĐUÔI của dải ở ngăn chi tiết (11/10/2026) — làm xong bước cuối thì hàng đi đâu.
 
-Bước cuối thuê ngoài: theo đúng mốc của lần gia công (chờ mang đi → ở ngoài → chốt về kho/khách).
+Bước cuối thuê ngoài: chờ Phiếu giao (số bước trước đã bàn giao sang). Các mốc ở ngoài / về kho /
+giao thẳng đi theo phiếu giao, phiếu nhận của module Thuê gia công (test ở đợt 4–5).
 Bước cuối tự làm, không chặng sau: nhập kho thành phẩm.
 """
 from __future__ import annotations
 
-from app.models.gia_cong_ngoai import NOI_VE_KHACH, NOI_VE_KHO, GiaCongNgoai
 from app.models.san_xuat import SanXuatCongViec
 from app.repositories.san_xuat_repo import SanXuatRepository
-from app.services.gia_cong_ngoai.chot import chot
-from app.services.gia_cong_ngoai.mot_phan import mang_di
 from app.services.san_xuat.routing_dai import dung_routing, o_duoi
-from tests.gia_cong_fixtures import cv_ten, dung_lenh_gia_cong, giao_sang, ncc, nhan_vien_cua
+from tests.gia_cong_fixtures import cv_ten, dung_lenh_gia_cong, giao_sang, ncc
 from tests.lenh_sx_fixtures import _cvs, admin, customer, lenh_that, lsx_svc, orders, sess  # noqa: F401
 
 
@@ -30,37 +28,13 @@ def _lenh_cuoi_ngoai(sess, orders, lsx_svc, admin, customer) -> int:
     ])
 
 
-def test_cuoi_thue_ngoai_di_theo_moc_cua_lan(sess, orders, lsx_svc, admin, customer):
+def test_cuoi_thue_ngoai_cho_phieu_giao(sess, orders, lsx_svc, admin, customer):
     lsx_id = _lenh_cuoi_ngoai(sess, orders, lsx_svc, admin, customer)
     giao_sang(sess, admin, cv_ten(sess, lsx_id, "In"), cv_ten(sess, lsx_id, "Cắt thành phẩm"), 330)
 
     d = _duoi(sess, lsx_id)
-    assert d["loai"] == "cho_mang_di" and d["noi"] == "Cắt Thành Công"
+    assert d["loai"] == "cho_mang_di" and d["noi"] is None
     assert d["so"] == 330 and d["don_vi"] == "to"
-
-    lan = sess.query(GiaCongNgoai).filter_by(lsx_id=lsx_id).one()
-    mang_di(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
-    d = _duoi(sess, lsx_id)
-    assert d["loai"] == "o_ngoai" and d["so"] == 330 and d["luc"] is not None
-
-    sess.refresh(lan)
-    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
-         sl_cuoi=1320, noi_ve=NOI_VE_KHO)
-    d = _duoi(sess, lsx_id)
-    assert d["loai"] == "ve_kho" and d["so"] == 1320
-
-
-def test_cuoi_thue_ngoai_giao_thang_khach(sess, orders, lsx_svc, admin, customer):
-    lsx_id = _lenh_cuoi_ngoai(sess, orders, lsx_svc, admin, customer)
-    giao_sang(sess, admin, cv_ten(sess, lsx_id, "In"), cv_ten(sess, lsx_id, "Cắt thành phẩm"), 1000)
-    lan = sess.query(GiaCongNgoai).filter_by(lsx_id=lsx_id).one()
-    mang_di(sess, user=admin, gcn_id=lan.id, expected_version=lan.version)
-    sess.refresh(lan)
-    nhan_vien_cua(sess, admin)
-    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
-         sl_cuoi=1000, noi_ve=NOI_VE_KHACH)
-    d = _duoi(sess, lsx_id)
-    assert d["loai"] == "giao_khach" and d["so"] == 1000
 
 
 def test_cuoi_tu_lam_khong_chang_sau_la_nhap_kho(sess, lenh_that):

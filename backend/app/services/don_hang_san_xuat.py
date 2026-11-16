@@ -20,11 +20,10 @@ from ..models.san_xuat import CV_HOAN_THANH
 from ..repositories.accounting_repo import AccountingRepository
 from ..repositories.delivery_repo import DeliveryRepository
 from ..repositories.employee_repo import EmployeeRepository
-from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.order_repo import OrderRepository
+from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
 from ..repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from .delivery_service import DeliveryService
-from .gia_cong_ngoai import TT_DANG_GIA_CONG, TT_DANG_O_NGOAI, trang_thai as tt_gia_cong
 
 # Mặt hàng đang ở đâu — một giá trị cho mỗi cụm (lấy chỗ "chậm" nhất nếu cụm có nhiều lệnh).
 O_DU_HANG = "du_hang"          # kho đã nhận đủ / nhà gia công giao thẳng đủ / tồn kho gánh đủ
@@ -55,25 +54,26 @@ _O_SANG_CHO = {O_NGOAI: CHO_GIA_CONG, O_XUONG: CHO_XUONG, O_CHO_KHO: CHO_KHO,
 _THU_TU_O = (O_CHUA_LENH, O_CHUA_XUONG, O_NGOAI, O_XUONG, O_CHO_KHO, O_DONG_THIEU, O_DU_HANG)
 
 
-def _lenh_mot(bc, l: Lsx, gcns: list) -> dict:
-    """Một lệnh: đang ở đâu + chi tiết đủ để FE viết câu (bước, %, nhà gia công, từ lúc nào)."""
+def _lenh_mot(bc, l: Lsx, viecs: list, mo_cua: dict) -> dict:
+    """Một lệnh: đang ở đâu + chi tiết đủ để FE viết câu (bước, %, nhà gia công, từ lúc nào).
+    `viecs` = việc thuê gia công của lệnh; `mo_cua` = `ThueGiaCongRepository.dong_dang_mo`."""
     from .lenh_sx import danh_sach, tien_do
 
     da_xuong = l.trang_thai in TT_DA_XUONG_XUONG
     cvs = bc.cong_viec_du(l.id) if (bc is not None and da_xuong) else []
     xong = l.trang_thai == TT_DA_DONG or (bool(cvs) and all(c.trang_thai == CV_HOAN_THANH for c in cvs))
-    mo = [g for g in gcns if tt_gia_cong(g) in (TT_DANG_GIA_CONG, TT_DANG_O_NGOAI)]
+    mo = [v for v in viecs if v.id in mo_cua]
     gc = None
     if mo:
-        g = mo[0]
-        # Một phần: còn bước CỦA XƯỞNG chưa xong ngoài các bước của lần này ⇒ về xưởng làm tiếp.
-        ve_xuong = g.kieu != "tron_goi" and any(
-            c.trang_thai != CV_HOAN_THANH and getattr(c, "gia_cong_ngoai_id", None) != g.id for c in cvs)
+        v = mo[0]
+        don, tu_luc, _da_giao = mo_cua[v.id]
+        # Một phần: còn bước CỦA XƯỞNG chưa xong ngoài các bước của việc này ⇒ về xưởng làm tiếp.
+        ve_xuong = v.kieu != "tron_goi" and any(
+            c.trang_thai != CV_HOAN_THANH and c.tgc_viec_id != v.id for c in cvs)
         gc = {
-            "kieu": g.kieu, "nha_cung_cap_id": g.nha_cung_cap_id, "nha_cung_cap_ten": g.nha_cung_cap_ten,
-            "ten_viec": g.ten_viec,
-            "tu_luc": g.mang_di_luc if g.kieu != "tron_goi" else g.created_at,
-            "ve_xuong": ve_xuong,
+            "kieu": v.kieu, "nha_cung_cap_id": don.nha_cung_cap_id,
+            "nha_cung_cap_ten": don.nha_cung_cap_ten, "ten_viec": v.ten_viec,
+            "tu_luc": tu_luc, "ve_xuong": ve_xuong,
         }
         o = O_NGOAI
     elif not da_xuong:
@@ -87,10 +87,9 @@ def _lenh_mot(bc, l: Lsx, gcns: list) -> dict:
         cv = danh_sach.buoc_hien_tai(bc, l.id)
         buoc = cv.ten_cong_doan if cv is not None else None
         pct = round(float(tien_do.phan_tram(bc, l.id)[0]), 1)
-    # Kiểu làm của lệnh: lần gia công ngoài đã có (kể cả đã xong) nói lệnh này đi đường nào.
-    song = [g for g in gcns if g.huy_luc is None]
-    kieu = ("tron_goi" if any(g.kieu == "tron_goi" for g in song)
-            else "mot_phan" if song else "xuong")
+    # Kiểu làm của lệnh: việc thuê gia công đã có (kể cả đã xong) nói lệnh này đi đường nào.
+    kieu = ("tron_goi" if any(v.kieu == "tron_goi" for v in viecs)
+            else "mot_phan" if viecs else "xuong")
     return {"id": l.id, "ma": l.ma, "o": o, "kieu": kieu, "buoc": buoc, "pct": pct, "gia_cong": gc}
 
 
@@ -123,9 +122,11 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
         lenh, bc_san = (XepLichLenhRepository(db).lsx_theo_ids(lsx_ids) if lsx_ids else {}), None
     chay = [i for i in lsx_ids if lenh[i].trang_thai in TT_DA_XUONG_XUONG]
     bc = bc_san if bc_san is not None else (boi_canh.nap(db, chay) if chay else None)
+    tgc = ThueGiaCongRepository(db)
     gcn_theo_lenh: dict[int, list] = {}
-    for lsx_id, g, _bg in GiaCongNgoaiRepository(db).cua_nhieu_lenh(lsx_ids):
-        gcn_theo_lenh.setdefault(lsx_id, []).append(g)
+    for lsx_id, v, _bg in tgc.viec_cua_nhieu_lenh(lsx_ids):
+        gcn_theo_lenh.setdefault(lsx_id, []).append(v)
+    tgc_mo = tgc.dong_dang_mo({v.id for vs in gcn_theo_lenh.values() for v in vs})
     hd = AccountingRepository(db).issued_invoice_sums([o.id for o in orders])
     tong = OrderRepository(db).money_sums([o.id for o in orders])
 
@@ -139,7 +140,7 @@ def tom_tat_nhieu_don(db: Session, orders: list, *, nguon_san: dict[int, list] |
         cho: set[str] = set()
         for n in nguon[o.id]:
             c = n["cum"]
-            ds = [_lenh_mot(bc, lenh[i], gcn_theo_lenh.get(i, [])) for i in n["lsx_ids"]]
+            ds = [_lenh_mot(bc, lenh[i], gcn_theo_lenh.get(i, []), tgc_mo) for i in n["lsx_ids"]]
             giao_thang = int(n.get("giao_thang", 0))
             # Hàng ĐÃ CÓ = đã giao (kể cả giao thẳng) + đang giữ cho yêu cầu + còn giao được từ tồn
             # của mã. Từ 11/10/2026 (mg 0394) tồn của mã là hàng của khách, nên món có lệnh cũng tính

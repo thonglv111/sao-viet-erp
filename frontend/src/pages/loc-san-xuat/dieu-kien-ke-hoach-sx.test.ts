@@ -49,8 +49,8 @@ describe("thanh lọc Lệnh sản xuất — ba bảng chung một URL", () => 
     const t = locKhsxTuUrl(new URLSearchParams({ gc: "la", c_moc: "han_giao", khach: "x" }));
     expect(t.lenh.loc).toEqual({ khach: undefined, don: undefined, gia_cong: undefined });
     expect(t.cho.ky.moc).toBe("tao");
-    expect(thamSoLocLenhKhsx({ khach: 1, don: 2, gia_cong: "cho_mang_di" }))
-      .toEqual({ customer_id: 1, order_id: 2, gia_cong: "cho_mang_di" });
+    expect(thamSoLocLenhKhsx({ khach: 1, don: 2, gia_cong: "chua_dat" }))
+      .toEqual({ customer_id: 1, order_id: 2, gia_cong: "chua_dat" });
   });
 });
 

@@ -386,8 +386,8 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
             may_id=cv.may_id, du_kien_bat_dau=cv.du_kien_bat_dau,
             du_kien_ket_thuc=cv.du_kien_ket_thuc,
         ))
-        # Việc GIA CÔNG NGOÀI không vào bàn tổ nào, không máy — giữ `may_id=None`, đừng gán đè.
-        if may_id is not None and cv.gia_cong_ngoai_id is None:
+        # Việc THUÊ GIA CÔNG không vào bàn tổ nào, không máy — giữ `may_id=None`, đừng gán đè.
+        if may_id is not None and cv.tgc_viec_id is None:
             cv.may_id = may_id
         # TỔ + MÁY của BƯỚC KẾ HOẠCH (spec máy thuộc tổ §4.8): lệnh xếp ở bàn cấp lệnh không có dòng
         # lịch theo công đoạn nên `may_id` ở trên luôn None, còn tổ thì trước đây không dòng nào
@@ -398,7 +398,7 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         # Bước loại Tổ cũng đổi tổ (như lần phát hành đầu ở `snapshot`); máy chỉ cho bước Máy.
         # 07/11/2026: việc ĐÃ GIAO thì nhóm + máy do bộ phận chốt — cập nhật lệnh không đè. Việc
         # còn ở khay bộ phận thì theo bộ phận nhận mới của bước (đổi bộ phận = rời khay cũ).
-        if buoc is not None and cv.gia_cong_ngoai_id is None and cv.loai_buoc != BUOC_THUE_NGOAI:
+        if buoc is not None and cv.tgc_viec_id is None and cv.loai_buoc != BUOC_THUE_NGOAI:
             bp_moi = so.bo_phan(buoc.department_id)
             if cv.bo_phan_id is not None and cv.da_giao_at is None:
                 if bp_moi is not None and bp_moi != cv.bo_phan_id:
@@ -416,14 +416,12 @@ def phat_hanh_cap_nhat(db: Session, *, nguon: str, id: int, ly_do: str, actor) -
         so_huy_pc += _huy_phan_cong(thuc, cv)
     so_cap_nhat = len(chua) - so_lech_phan_doan
 
-    # GIA CÔNG NGOÀI (spec 2026-09-26, Fix round 1): "Phát hành cập nhật" cũng tạo/giữ lần gia
-    # công — routing có thể đổi nhà gia công / thêm-bớt bước thuê ngoài sau lần phát hành đầu.
-    # Lần đã mang đi / đã chốt được hàm này TỰ giữ nguyên, không cần lọc trước ở đây.
-    from ..gia_cong_ngoai.lan import dong_bo_lan_bai_ghep_khi_cap_nhat, dong_bo_lan_khi_cap_nhat
+    # THUÊ GIA CÔNG (spec 2026-11-13): "Phát hành cập nhật" cũng sinh / giữ việc gia công —
+    # routing có thể thêm-bớt bước thuê ngoài sau lần phát hành đầu. Việc đã vào dòng đơn sống bị
+    # khoá: routing làm mất / đổi dải của nó thì hàm này ném lỗi nêu mã đơn.
+    from ..thue_gia_cong.viec import dong_bo_khi_cap_nhat
 
-    dong_bo_lan_khi_cap_nhat(db, lsx_ids=lsx_ids, actor=actor)
-    # Lần của bước CHUNG bài ghép (spec 2026-09-27) — cùng luật, nguồn là bài.
-    dong_bo_lan_bai_ghep_khi_cap_nhat(db, bai_ghep_ids=bg_ids, actor=actor)
+    dong_bo_khi_cap_nhat(db, lsx_ids=lsx_ids, bai_ghep_ids=bg_ids, actor=actor)
     # Giờ cần của yêu cầu vật tư tự lập đi theo lịch mới (tổ đã sửa thì giữ) — trước audit, vì
     # audit tự commit.
     from .vat_tu_tu_lap import doi_can_luc_theo_lich
@@ -465,11 +463,8 @@ def co_cong_viec_da_bat_dau(db: Session, *, nguon: str, id: int) -> bool:
         return False
     if _da_bat_dau_ids(thuc, repo.cong_viec_cua_goi(goi.id)):
         return True
-    # Hàng đã mang ra nhà gia công (hoặc đã chốt) = việc ĐÃ chạy, dù công việc gia công không có
-    # phiên bắt đầu nào — thu hồi lúc này là xoá dấu vết hàng đang nằm ngoài xưởng.
-    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-
-    return GiaCongNgoaiRepository(db).co_lan_da_di_trong_goi(goi.id)
+    # Việc thuê gia công đã vào đơn chặn riêng ở `thu_hoi_goi` (câu nêu mã đơn).
+    return False
 
 
 def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor, ly_do: str | None = None) -> int:
@@ -486,9 +481,10 @@ def thu_hoi_goi(db: Session, *, nguon: str, id: int, actor, ly_do: str | None = 
     actor_uid = getattr(actor, "id", None)
     for cv in all_cv:
         _huy_phan_cong(thuc, cv)
-    from ..gia_cong_ngoai.lan import huy_lan_cua_goi
+    # Việc thuê gia công CHƯA đặt xoá theo gói; việc đã vào dòng đơn sống ⇒ lỗi nêu mã đơn.
+    from ..thue_gia_cong.viec import xoa_viec_cua_goi
 
-    huy_lan_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
+    xoa_viec_cua_goi(db, goi_id=goi.id, actor=actor, ly_do=f"Thu hồi gói phát hành {goi.ma}")
     # Yêu cầu xuất vật tư kho chưa xuất thì huỷ (spec 2026-10-18 §4.5); id đi lên tầng gọi qua
     # `db.info` để báo kho sau commit.
     from .vat_tu_tu_lap import KHOA_YC_HUY, huy_khi_thu_hoi

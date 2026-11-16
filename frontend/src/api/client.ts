@@ -674,19 +674,19 @@ export type QuoteEvent =
       don_vi?: string | null;
       lsx_ma?: string | null;
     }
-  // Gia công ngoài (spec 2026-09-26): lần vừa CHỐT ⇒ đẩy đích danh người lập phiếu chi (toast) +
-  // broadcast `_changed` để badge Phiếu chi của mọi người nhảy; `gia_cong_ngoai_changed` để khối
-  // Gia công ngoài / danh sách Kế hoạch SX đang mở tự nạp (qua tick chung).
+  // Thuê gia công (spec 2026-11-13): `tgc_changed` = hàng chờ / đơn / phiếu / trạng thái bước trên
+  // lệnh đổi; `tgc_san_sang_giao` = tổ bước trước vừa bàn giao sang việc thuê gia công (toast người
+  // phụ trách); `tgc_cho_tra_tien_changed` = tab Chờ trả tiền + badge Phiếu chi.
+  | { type: "tgc_changed"; lsx_id?: number | null; lsx_ids?: number[]; don_id?: number | null }
   | {
-      type: "gia_cong_cho_chi";
-      gia_cong_ngoai_id: number;
+      type: "tgc_san_sang_giao";
+      viec_id?: number | null;
       lsx_ma?: string | null;
-      nha_cung_cap_ten?: string | null;
       ten_viec?: string | null;
+      so_luong?: number | null;
+      don_vi?: string | null;
     }
-  | { type: "gia_cong_cho_chi_changed" }
-  | { type: "gia_cong_ngoai_changed"; lsx_id?: number | null; gia_cong_ngoai_id?: number | null;
-      lsx_ids?: number[]; bai_ghep_id?: number | null }
+  | { type: "tgc_cho_tra_tien_changed" }
   // KCS theo lệnh (mg 0306) · kho §14 · đóng nhóm §16/§13.3. `*_changed` = tín hiệu NHẸ broadcast
   // để panel/hộp đang mở refetch (quoteTick lo); `san_xuat_kcs_ket_qua` / `san_xuat_kho` = đẩy ĐÍCH
   // DANH tới người cần biết → toast cá nhân. `trang_thai` mang enum backend (kho: cho_kho/nhap_mot_phan/da_nhap/huy · nhóm:
@@ -798,7 +798,7 @@ export type LsxLoaiBuoc = "may" | "to" | "thue_ngoai";
 export const LSX_LOAI_BUOC_META: Record<LsxLoaiBuoc, { label: string; tone: string; hint: string }> = {
   may: { label: "Máy", tone: "may", hint: "Chiếm máy — có thanh trên lịch máy" },
   to: { label: "Tổ", tone: "to", hint: "Tổ lao động làm tay — chiếm nhân công, không chiếm máy" },
-  thue_ngoai: { label: "Thuê ngoài", tone: "ngoai", hint: "Nhà gia công ngoài làm — chọn nhà gia công trong danh mục Nhà cung cấp; không tổ, không máy, không vật tư, không tính thời gian" },
+  thue_ngoai: { label: "Thuê ngoài", tone: "ngoai", hint: "Nhà gia công ngoài làm — đặt nhà, giao, nhận ở màn Thuê gia công; không tổ, không máy, không tính thời gian" },
 };
 
 /** Bước của LỆNH (07/11/2026): chỉ còn Nội bộ | Gia công. `may`/`to` cùng là Nội bộ, bộ phận nhận
@@ -806,7 +806,7 @@ export const LSX_LOAI_BUOC_META: Record<LsxLoaiBuoc, { label: string; tone: stri
 export const LSX_LOAI_BUOC_LENH: Record<LsxLoaiBuoc, { label: string; tone: string; hint: string }> = {
   may: { label: "Nội bộ", tone: "may", hint: "Bộ phận trong xưởng làm — bộ phận nhận tự chọn máy và nhóm thợ ở Kế hoạch bộ phận" },
   to: { label: "Nội bộ", tone: "may", hint: "Bộ phận trong xưởng làm — bộ phận nhận tự chọn máy và nhóm thợ ở Kế hoạch bộ phận" },
-  thue_ngoai: { label: "Gia công", tone: "ngoai", hint: "Nhà gia công ngoài làm — chọn nhà gia công trong danh mục Nhà cung cấp; không qua bộ phận nào" },
+  thue_ngoai: { label: "Gia công", tone: "ngoai", hint: "Nhà gia công ngoài làm — đặt nhà, giao, nhận ở màn Thuê gia công; không qua bộ phận nào" },
 };
 
 /** Đơn vị bốn chặng của lệnh đang xét — xem `pages/lsxBuoc.donViChuoi`. Khai lại hình dạng tối
@@ -832,9 +832,8 @@ export const LSX_THIEU_LABELS: Record<string, NhanMa> = {
   thieu_routing: "Chưa có công đoạn",
   thieu_ngay_giao: "Thiếu ngày giao",
   thieu_bo_phan: "Có công đoạn chưa có bộ phận nhận (khai nhóm làm được ở danh mục Công đoạn)",
-  thieu_nha_gia_cong: "Có bước gia công chưa chọn nhà gia công",
-  // Bước cần dụng cụ lưu kho (khuôn bế) mà chưa trỏ con dao nào. Đứng NGANG HÀNG
-  // với thiếu nhà gia công — cùng một danh sách, người dùng không phải học luật mới.
+  // `thieu_nha_gia_cong` GỠ 13/11/2026: lệnh không chọn nhà gia công nữa (màn Thuê gia công lo).
+  // Bước cần dụng cụ lưu kho (khuôn bế) mà chưa trỏ con dao nào — cùng danh sách với thiếu bộ phận.
   thieu_khuon: "Có công đoạn cần khuôn / khung mà chưa chọn",
   // Bước Máy/Tổ giao cho một tổ chưa khai công việc khoán nào (18/09/2026, spec §5.4): thợ mở bàn
   // tổ ra không có việc nào để ghi mẻ ⇒ cả lệnh đứng ở tổ đó. Thuê ngoài miễn.
@@ -960,7 +959,7 @@ export interface BaiGhepSoDoNode {
   cong_doan_id: number | null;
   /** Khác null = bước này đang bị một bước chung ĐÈ (thẻ chung mới là nơi hiện số/tổ/máy). */
   gop_step_key: string | null;
-  to_ten: string | null; may_ten: string | null; nha_cung_cap: string | null;
+  to_ten: string | null; may_ten: string | null;
   tong_phut: number; chiem_may_phut: number;
   /** Dải nhanh–chậm nhất theo tốc độ tối đa / tối thiểu của máy (= TB nếu chưa khai dải). */
   chiem_may_phut_min: number; chiem_may_phut_max: number;
@@ -1005,7 +1004,6 @@ export interface BaiGhepSoDoBuocChung {
    *  `value` rồi so chuỗi với id — tổ đã gán vẫn hiện "— chọn tổ —". */
   department_id: number | null; to_ten: string | null;
   may_id: number | null; may_ten: string | null;
-  nha_cung_cap: string | null;
   tong_phut: number; chiem_may_phut: number;
   chiem_may_phut_min: number; chiem_may_phut_max: number;
   /** SỐ GIỜ KẾ HOẠCH của lượt chung loại TỔ — ô gõ tay, mặc định 0 (mg `0319`), cùng hợp đồng
@@ -1027,9 +1025,6 @@ export interface BaiGhepSoDoBuocChung {
    *  ra được vẫn có mặt (`so_luong: null`) kèm `ly_do` chỉ chỗ khai công thức. */
   vat_tu_goi_y: { vat_tu_id: number; so_luong: number | null;
                   dien_giai: string | null; ly_do: string | null }[];
-  /** Nhà gia công của bước chung thuê ngoài (spec 2026-09-27) — tên `nha_cung_cap` do máy chủ ghi.
-   *  Mang đi / chốt số nằm ở khối Gia công ngoài của màn bài ghép, không khai dự kiến ở đây. */
-  nha_cung_cap_id: number | null;
   ghi_chu: string | null; ma_bai_ghep: string | null;
   /** Lệnh nào bị đè + ghi chú kỹ thuật của lệnh đó (GOM, không đè). */
   thanh_vien: { lsx_id: number; lsx_ma: string | null; lsx_step_key: string;
@@ -1096,8 +1091,6 @@ export interface BaiGhepBuocChungBody {
   phat_sinh_phut?: number; so_luot_chay?: number;
   ghi_chu?: string | null;
   vat_tus?: { vat_tu_id: number; so_luong: number; nguon_so_luong?: string }[];
-  /** Nhà gia công (NCC có tích "Nhận gia công") — chỉ khi loại bước là thuê ngoài. */
-  nha_cung_cap_id?: number | null;
 }
 /** `step_key → gộp thêm vào được không, không thì vì sao` (kiểm TRƯỚC khi cho bấm Gộp). */
 export interface BaiGhepUngVienGop {
@@ -2114,6 +2107,11 @@ export interface SxCongDoanTruoc {
   da_xac_nhan: number;
   cho_xac_nhan: number;
   don_vi_giao: string | null;
+  /** Bước trước thuê gia công đang chờ hàng về: tổ bước này mở hộp Nhận hàng gia công đúng dòng đơn. */
+  gia_cong?: {
+    don_id: number; don_dong_id: number; ma_don: string; nha_cung_cap_ten: string;
+    ngay_hen_ve: string | null; con_ngoai: number; don_vi: string | null;
+  } | null;
 }
 /** Trần Σ số làm được = số đã nhận × hệ số quy đổi — máy chủ chặn mẻ vượt trần. */
 export interface SxTranGhi {
@@ -2326,6 +2324,8 @@ export interface SxWorkItemChiTiet {
   dai_duoi?: SxDaiDuoi | null;
   /** Báo hỏng còn mở của máy (máy dừng trước, mới trước). Từ chối / sửa xong là rụng khỏi đây. */
   bao_hong_may?: SxBaoHongMay[];
+  /** Ghi chú kế hoạch bộ phận ghi lúc Giao: chữ + người ghi + lúc ghi (giờ xưởng). Chưa ghi = null. */
+  ghi_chu_ke_hoach?: { noi_dung: string; nguoi: string | null; luc: string | null } | null;
   cong_viec: SxWorkItem;
   trang_thai: string;
   version: number;
@@ -3056,18 +3056,12 @@ export interface LsxPreviewOut {
   lines: LsxPreviewLine[];
 }
 
-/** Gia công ngoài của BƯỚC (spec 2026-09-26) — chỉ có nghĩa khi `loai_buoc = "thue_ngoai"`.
- *  Tên nhà gia công do máy chủ ghi theo `nha_cung_cap_id`; việc mang đi / chốt số nằm ở
- *  `api.giaCongNgoai`, không ở bước. */
-interface LsxThueNgoaiFields {
-  nha_cung_cap_id: number | null;
-  nha_cung_cap: string | null;
-}
-
 /** Một bộ phận người lập lệnh chọn được cho bước — `so_nhom` = số nhóm của bộ phận làm được công đoạn. */
 export interface LsxBoPhanChon { id: number; ten: string; so_nhom: number }
 
-export interface LsxCongDoan extends LsxThueNgoaiFields {
+/** Bước thuê ngoài (`loai_buoc = "thue_ngoai"`) không mang nhà gia công: lệnh chỉ gắn cờ, đặt,
+ *  giao, nhận nằm ở màn Thuê gia công (`api/thueGiaCong.ts`, mg 0483 gỡ cột cũ). */
+export interface LsxCongDoan {
   id: number; step_key: string; thu_tu: number; cong_doan_id: number | null;
   ten: string; nhom: string | null; loai_buoc: LsxLoaiBuoc; bat_buoc: boolean;
   /** BỘ PHẬN NHẬN của bước (07/11/2026) — không còn là tổ. */
@@ -3122,6 +3116,8 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
   vat_tus: { id: number; hang_loai?: "giay" | "vat_tu"; giay_loai?: "giay" | "song" | "";
              vat_tu_id: number; vat_tu_ma: string;
              vat_tu_ten: string; don_vi: string; so_luong: number; tu_dong?: boolean; sua_tay?: boolean;
+             /** Nhà gia công tự lo (13/11/2026) — chỉ có nghĩa ở bước thuê ngoài; mặc định true. */
+             ncc_tu_lo?: boolean;
              /** Khổ dòng GIẤY (mm, ngắn × dài) — giấy đếm tờ nguyên theo khổ. Hàng khác 0 · 0. */
              kho_rong?: number; kho_dai?: number;
              /** Vật tư KHÁC giấy: số chip đã chép từ phiếu + danh sách chip của vật tư (chỉ đọc). */
@@ -3150,7 +3146,7 @@ export interface LsxCongDoan extends LsxThueNgoaiFields {
   so_luong_vao_moi: number | null;
   so_luong_ra_moi: number | null;
 }
-export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_cung_cap">> {
+export interface LsxCongDoanBody {
   step_key?: string; thu_tu?: number; cong_doan_id?: number | null; ten?: string; nhom?: string | null;
   /* `bat_buoc` GỠ 07/09/2026 — server không nhận nữa, mọi bước routing đều bắt buộc (mg 0275). */
   loai_buoc?: LsxLoaiBuoc;
@@ -3168,7 +3164,7 @@ export interface LsxCongDoanBody extends Partial<Omit<LsxThueNgoaiFields, "nha_c
   /** Bỏ trống `hang_loai` là server hiểu `"vat_tu"` — giữ đúng nghĩa client cũ. */
   vat_tus?: { hang_loai?: "giay" | "vat_tu"; vat_tu_id: number; so_luong?: number | null;
               tu_dong?: boolean; sua_tay?: boolean; gia_tri_chip?: Record<string, number>;
-              kho_rong?: number; kho_dai?: number }[];
+              kho_rong?: number; kho_dai?: number; ncc_tu_lo?: boolean }[];
   ghi_chu?: string | null;
 }
 export interface LsxPhuThuocOption {
@@ -3252,20 +3248,20 @@ export interface LsxListItem {
    *  có thể đếm bằng đơn vị xưởng tự đặt — nên đơn vị đi theo DÒNG, không nằm ở tiêu đề cột.
    *  Tên lấy bằng `tenDonVi(ma)`; null = lệnh chưa có bước nào trên dòng giấy. */
   don_vi_to: string | null;
-  /** Gia công ngoài của lệnh (lần chưa huỷ) — null = lệnh không đi gia công. Lần ĐẠI DIỆN: đang
-   *  mở trước đã xong; trọn gói / đang ở ngoài trước chờ mang đi. */
+  /** Thuê gia công của lệnh — null = lệnh không có việc thuê gia công. Việc ĐẠI DIỆN: chưa đặt
+   *  trước đã đặt, đã đặt trước đã xong. */
   gia_cong?: LsxListGiaCong | null;
 }
 export interface LsxListGiaCong {
   kieu: "mot_phan" | "tron_goi";
-  trang_thai: GiaCongTrangThai;
-  nha_cung_cap_ten: string;
+  trang_thai: "chua_dat" | "da_dat" | "da_xong";
+  /** null khi chưa đặt (lệnh không chọn nhà gia công — chọn lúc lập đơn). */
+  nha_cung_cap_ten: string | null;
+  ma_don: string | null;
   ten_viec: string;
   bai_ghep_ma: string | null;
-  so_lan: number;
-  so_lan_mo: number;
-  /** Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất giấy — chip "Chờ cấp giấy". */
-  cho_cap_giay?: boolean;
+  so_viec: number;
+  so_viec_mo: number;
 }
 export interface LsxListOut {
   items: LsxListItem[];
@@ -3545,6 +3541,12 @@ export interface KhbpViec {
   don_vi_vao: string | null;
   don_vi_ra: string | null;
   so_mau: number | null;
+  /** Giấy của thẻ quy cách: thường một tên, lệnh nhiều mã giấy thì nhiều tên; rỗng = chưa khai. */
+  giay: string[];
+  /** Định lượng giấy (gsm) — chỉ có khi một giấy. */
+  dinh_luong: number | null;
+  /** Ghi chú kế hoạch đang có (việc vừa rút về thì hộp Giao điền sẵn). */
+  ghi_chu_ke_hoach?: string | null;
   may_id: number | null;
   /** Máy theo báo giá (máy in của bài tính giá) — chạy máy khác phải có lý do. */
   may_goi_y_id: number | null;
@@ -7598,8 +7600,6 @@ export interface SupplierRow {
    *  hằng tháng ngày đó (31 = cuối tháng). Sửa chỉ áp cho đợt giao ghi từ đó. */
   debt_cutoff_day: number | null;
   status: SupplierStatus;
-  /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
-  nhan_gia_cong: boolean;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -7670,32 +7670,8 @@ export interface SupplierInput {
   /** Ngày chốt công nợ hằng tháng 1–31 (31 = cuối tháng) · `null` = tính từ ngày hoá đơn. */
   debt_cutoff_day?: number | null;
   status?: SupplierStatus;
-  /** Tích "Nhận gia công" — hiện trong ô chọn "Nhà gia công" ở Kế hoạch sản xuất. */
-  nhan_gia_cong?: boolean;
   note?: string | null;
   items?: SupplierItemInput[];
-}
-
-/** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
-export interface NhaGiaCong { id: number; ten: string }
-
-/** Một dòng "Gia công chờ chi" — lần đã chốt, chưa có phiếu chi còn hiệu lực. KHÔNG có đơn giá /
- *  tiền (chủ chốt 07/10/2026): kế toán gõ tiền ở phiếu chi theo hoá đơn nhà gia công. */
-export interface GiaCongChoChi {
-  gia_cong_ngoai_id: number;
-  /** `null` với lần của bước chung bài ghép — khi đó `bai_ghep_id` có giá trị. */
-  lsx_id: number | null;
-  lsx_ma: string;
-  bai_ghep_id?: number | null;
-  /** Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)" cho lần của bài ghép. */
-  nhan_nguon?: string;
-  ten_viec: string;
-  nha_cung_cap_id: number | null;
-  nha_cung_cap_ten: string;
-  sl_cuoi: number;
-  don_vi: string | null;
-  chot_luc: string | null;
-  chot_boi_ten: string | null;
 }
 
 /** Một dòng tab "Mua hàng chờ chi" (màn Phiếu chi, docs/prd-mua-hang-cho-chi-o-phieu-chi.md): ĐƠN đã
@@ -7712,100 +7688,6 @@ export interface MuaHangChoChi {
   /** Hạn trả gần nhất trong các đợt còn nợ — `null` = chưa có đợt nào (chỉ còn cọc). */
   han_gan_nhat: string | null;
   qua_han: boolean;
-}
-
-export type GiaCongTrangThai = "cho_mang_di" | "dang_o_ngoai" | "dang_gia_cong" | "da_xong" | "da_huy";
-export type GiaCongNoiVe = "xuong" | "kho" | "khach";
-
-/** MỘT lần gia công ngoài (spec 2026-09-26). Tiền (`don_gia`, `thanh_tien`) là `null` khi người
- *  xem không có quyền xem tiền — máy chủ gác, màn ẨN hẳn đoạn tiền (không hiện "—"). */
-export interface GiaCongNgoaiLan {
-  id: number;
-  /** Lần của LỆNH có `lsx_id`; lần của BƯỚC CHUNG bài ghép có `bai_ghep_id` (spec 2026-09-27). */
-  lsx_id: number | null;
-  lsx_ma: string;
-  bai_ghep_id?: number | null;
-  bai_ghep_ma?: string | null;
-  lenh?: { id: number; ma: string; so_con: number }[];
-  /** Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)". */
-  nhan_nguon?: string;
-  /** Bảng chia số chốt về từng lệnh — rỗng khi lần không toả. Bước nhận nhận
-   *  số chốt × `he_so_nhan` (tính bằng `don_vi`): bước ăn tờ ghép thì 1, ăn con thì = số con/tờ. */
-  chia_theo_lenh?: { lsx_id: number; lsx_ma: string; so_con: number; he_so_nhan?: number | null;
-                     don_vi: string | null; buoc_nhan: string | null }[];
-  /** Không thao tác được ở đây: lần bài ghép trên màn lệnh, hoặc thiếu phạm vi một lệnh. */
-  chi_xem?: boolean;
-  kieu: "mot_phan" | "tron_goi";
-  trang_thai: GiaCongTrangThai;
-  nha_cung_cap_id: number;
-  nha_cung_cap_ten: string;
-  /** Đọc sống từ danh mục Nhà cung cấp — null = NCC chưa khai số. */
-  nha_cung_cap_sdt?: string | null;
-  /** Mốc giao việc: trọn gói = lúc đặt, một phần = lúc phát hành gom ra lần. */
-  tao_boi_ten?: string | null;
-  tao_luc?: string | null;
-  ten_viec: string;
-  don_vi: string | null;
-  sl_dat: number | null;
-  xuong_cap_giay: boolean;
-  don_vi_gui: string | null;
-  sl_cho_mang_di: number;
-  co_buoc_truoc: boolean;
-  mang_di_boi_ten: string | null;
-  mang_di_luc: string | null;
-  sl_gui: number | null;
-  /** Số điền sẵn khi chốt, máy chủ đã quy về đơn vị của lần (vd tờ gửi đi → con nhận về). */
-  sl_goi_y_chot?: number | null;
-  chot_boi_ten: string | null;
-  chot_luc: string | null;
-  sl_cuoi: number | null;
-  noi_ve: GiaCongNoiVe | null;
-  noi_ve_hop_le: GiaCongNoiVe[];
-  chang_sau: { id: number; ten: string }[];
-  huy_boi_ten: string | null;
-  huy_luc: string | null;
-  ly_do_huy: string | null;
-  phieu_chi: { id: number; code: string } | null;
-  /** Máy chủ sẽ từ chối "Mở lại" vì lý do này — null = mở lại được. */
-  ly_do_khong_mo_lai?: string | null;
-  /** Máy chủ sẽ từ chối "Nhận hàng về" vì lý do này (trọn gói xưởng cấp giấy mà kho chưa xuất
-   *  giấy) — null = nhận về được. */
-  ly_do_khong_nhan_ve?: string | null;
-  /** Đề nghị xuất giấy còn sống + khổ / số tờ của dòng giấy (ô Giấy). */
-  xuat_giay: {
-    id: number; ma: string; trang_thai: string;
-    kho_rong?: number; kho_dai?: number; so_to?: number | null; don_vi?: string | null;
-    /** Phiếu xuất kho lập theo đề nghị (bỏ phiếu huỷ) — kho xuất nhiều đợt thì nhiều phiếu. */
-    phieu?: { id: number; ma: string; ngay: string; trang_thai: string }[];
-  } | null;
-  /** Phần "Chọn giấy" — chỉ có khi trọn gói xưởng cấp giấy chưa gửi đề nghị xuất. */
-  cap_giay?: GiaCongCapGiay | null;
-  lich_su: { luc: string | null; ai: string; viec: string; chi_tiet: string }[];
-  version: number;
-}
-
-export interface GiaCongCapGiayKho {
-  kho_rong: number;
-  kho_dai: number;
-  /** Tồn khả dụng của khổ này, theo `don_vi`. */
-  ton: number;
-  /** Đơn vị gốc của dòng: tờ (khổ hai cạnh) hoặc `kg` (cuộn, `kho_dai` = 0). */
-  don_vi: string;
-  dung_de_xuat: boolean;
-}
-export interface GiaCongCapGiay {
-  giay_id: number | null;
-  giay_ma: string | null;
-  giay_ten: string | null;
-  /** Đơn vị của giấy đề xuất (tờ, hoặc `kg` khi lệnh lấy cuộn) — in qua `nhanDonVi`. */
-  don_vi: string;
-  /** Khổ + số lượng đề xuất lấy từ đâu: "phiếu tính giá" | "lệnh". */
-  nguon: string;
-  /** `so_to` là số lượng theo `don_vi` (kg khi cuộn). */
-  de_xuat: { kho_rong: number; kho_dai: number; so_to: number | null; don_vi: string } | null;
-  kho: GiaCongCapGiayKho[];
-  /** Không chọn được giấy (lệnh chưa chọn loại giấy…). */
-  ly_do: string | null;
 }
 
 export interface SupplierListOut {
@@ -9166,8 +9048,8 @@ export type PaymentVoucherSource =
   /** Phiếu chi lập TỪ một phiếu tạm ứng lương đã duyệt (18/08/2026). Số tiền + người nhận do
    *  backend lấy thẳng từ phiếu tạm ứng, payload gửi lên bị bỏ qua. */
   | "salary_advance"
-  /** Phiếu chi lập TỪ một lần gia công ngoài đã chốt (26/09/2026). KHÔNG vào công nợ 331 — ô nhà
-   *  cung cấp công nợ để trống, tên nhà gia công chỉ nằm ở người nhận. */
+  /** Phiếu chi thuê gia công (13/11/2026: trả gộp nhiều phiếu nhận cùng nhà gia công). KHÔNG vào
+   *  công nợ 331 — ô nhà cung cấp công nợ để trống, tên nhà gia công chỉ nằm ở người nhận. */
   | "gia_cong_ngoai"
   | "internal_expense"
   | "customer_refund"
@@ -9272,7 +9154,10 @@ export interface PaymentVoucherInput extends PaymentVoucherBaseInput {
    *  `amount` + `cash_recipient_name` gửi lên BỊ BỎ QUA — backend lấy số tiền và tên nhân viên
    *  của chính phiếu tạm ứng, để phiếu chi không lệch số đã duyệt. */
   salary_advance_id?: number | null;
-  gia_cong_ngoai_id?: number | null;
+  /** Phiếu chi THUÊ GIA CÔNG (`source_type = gia_cong_ngoai`): nhiều phiếu nhận CÙNG nhà gia công,
+   *  chưa có phiếu chi sống. `amount` lệch Σ tạm tính thì bắt `ly_do_lech`. */
+  tgc_phieu_nhan_ids?: number[] | null;
+  ly_do_lech?: string | null;
 }
 
 /** Một khoản trong phiếu chi gộp (17/10/2026): `delivery_id` trống = CỌC của đơn. */
@@ -9393,9 +9278,6 @@ export interface PaymentVoucherRow {
   /** Phiếu tạm ứng lương nguồn — chỉ có giá trị khi `source_type = salary_advance`.
    *  Một phiếu tạm ứng chỉ gắn ĐÚNG MỘT phiếu chi (UNIQUE ở DB). */
   salary_advance_id: number | null;
-  /** Lần gia công ngoài nguồn — chỉ có giá trị khi `source_type = gia_cong_ngoai`. Tùy chọn ở đây
-   *  (dưới `salary_advance_id`) để fixture test dựng `PaymentVoucherRow` bằng tay khỏi vỡ `tsc`. */
-  gia_cong_ngoai_id?: number | null;
   purchase_request_code: string;
   purchase_request_total: number | null;
   purchase_paid_amount: number | null;
@@ -10361,8 +10243,11 @@ export interface StockRequest {
   /** GIỜ cần thật (từ đề nghị sản xuất). `ngay_can` chỉ có DATE nên không diễn đạt được ca chiều. */
   can_luc: string | null;
   san_xuat_cong_viec_id: number | null;
-  /** Nguồn gia công ngoài (mg 0339) — ô Nguồn hiện thẻ "Gia công". */
-  gia_cong_ngoai_id?: number | null;
+  /** Nguồn thuê gia công (13/11/2026) — ô Nguồn hiện thẻ "Thuê gia công": xuất theo phiếu giao,
+   *  nhập thành phẩm theo phiếu nhận, nhập trả vật tư dư lúc hoàn tất dòng đơn. */
+  tgc_phieu_giao_id?: number | null;
+  tgc_phieu_nhan_id?: number | null;
+  tgc_don_dong_id?: number | null;
   san_xuat_cong_doan_ten: string | null;
   /** Hệ thống tự lập lúc phát hành lệnh — ô Nguồn ghi "Tự lập khi phát hành". */
   san_xuat_tu_lap?: boolean;
@@ -14956,73 +14841,6 @@ export const api = {
   },
 
   // --- Lệnh sản xuất (LSX) — bàn Kế hoạch sản xuất ---------------------------
-  giaCongNgoai: {
-    /** Ô chọn Nhà gia công — NCC đang hoạt động có tích "Nhận gia công" (spec gia công ngoài §7). */
-    nhaGiaCong(token: string): Promise<NhaGiaCong[]> {
-      return authed<NhaGiaCong[]>("/api/gia-cong-ngoai/nha-gia-cong", token);
-    },
-    cuaLenh(token: string, lsxId: number): Promise<GiaCongNgoaiLan[]> {
-      return authed<GiaCongNgoaiLan[]>(`/api/gia-cong-ngoai/lenh/${lsxId}`, token);
-    },
-    /** Lần gia công của bước CHUNG bài ghép — khối ở màn Bài ghép (spec 2026-09-27 §4). */
-    cuaBaiGhep(token: string, baiGhepId: number): Promise<GiaCongNgoaiLan[]> {
-      return authed<GiaCongNgoaiLan[]>(`/api/gia-cong-ngoai/bai-ghep/${baiGhepId}`, token);
-    },
-    /** "Đã mang đi" — nhận MỌI bàn giao đang chờ của bước trước. `sl_gui` chỉ khi dải đứng đầu
-     *  lệnh (không có bàn giao để nhận). */
-    mangDi(token: string, id: number, body: { version: number; sl_gui?: number | null }): Promise<GiaCongNgoaiLan> {
-      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/mang-di`, token, {
-        method: "POST", body: JSON.stringify(body),
-      });
-    },
-    chot(
-      token: string,
-      id: number,
-      body: {
-        version: number; sl_cuoi: number; noi_ve: GiaCongNoiVe; dich_cong_viec_id?: number | null;
-        /** Giao thẳng: ngày khách nhận (yyyy-mm-dd) — trống = hôm nay. */
-        ngay_khach_nhan?: string | null;
-      },
-    ): Promise<GiaCongNgoaiLan> {
-      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/chot`, token, {
-        method: "POST", body: JSON.stringify(body),
-      });
-    },
-    moLai(token: string, id: number, version: number): Promise<GiaCongNgoaiLan> {
-      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/mo-lai`, token, {
-        method: "POST", body: JSON.stringify({ version }),
-      });
-    },
-    datTronGoi(
-      token: string,
-      lsxId: number,
-      body: { nha_cung_cap_id: number; sl_dat: number; xuong_cap_giay: boolean },
-    ): Promise<GiaCongNgoaiLan> {
-      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/lenh/${lsxId}/tron-goi`, token, {
-        method: "POST", body: JSON.stringify(body),
-      });
-    },
-    huyTronGoi(token: string, id: number, body: { version: number; ly_do: string }): Promise<GiaCongNgoaiLan> {
-      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/huy-tron-goi`, token, {
-        method: "POST", body: JSON.stringify(body),
-      });
-    },
-    /** Hàng "Gia công chờ chi" đầu màn Phiếu chi (spec §5): lần đã chốt, chưa có phiếu chi. */
-    choChi(token: string): Promise<GiaCongChoChi[]> {
-      return authed<GiaCongChoChi[]>("/api/accounting/gia-cong-cho-chi", token);
-    },
-    demChoChi(token: string): Promise<{ so: number }> {
-      return authed<{ so: number }>("/api/accounting/gia-cong-cho-chi/dem", token);
-    },
-    xuatGiay(
-      token: string, id: number,
-      body: { version: number; kho_rong: number; kho_dai: number; so_to: number },
-    ): Promise<GiaCongNgoaiLan> {
-      return authed<GiaCongNgoaiLan>(`/api/gia-cong-ngoai/${id}/xuat-giay`, token, {
-        method: "POST", body: JSON.stringify(body),
-      });
-    },
-  },
   lsx: {
     /** Đơn Sale đã "Chuyển xuống sản xuất" mà còn dòng chưa lên lệnh. */
     hangCho(
@@ -15599,7 +15417,11 @@ export const api = {
     /** Giao một việc: máy (`null` = Làm tay) + nhóm cùng lúc. Chạy khác máy theo báo giá phải có lý do. */
     giao(
       token: string, congViecId: number,
-      body: { may_id: number | null; department_id: number | null; ly_do?: string | null; version?: number },
+      body: {
+        may_id: number | null; department_id: number | null; ly_do?: string | null; version?: number;
+        /** Ghi chú kế hoạch cho nhóm: bỏ trống / `null` = giữ nguyên, `""` = xoá. */
+        ghi_chu?: string | null;
+      },
     ): Promise<{ id: number; version: number; nhom_id: number }> {
       return authed(`/api/ke-hoach-bo-phan/viec/${congViecId}/giao`, token, {
         method: "POST", body: JSON.stringify(body),
@@ -16402,7 +16224,7 @@ export const api = {
         sort?: string;
         page?: number;
         size?: number;
-        /** Thanh lọc chung: `tu_ngay`/`den_ngay`/`moc`, `nhan_gia_cong` (và các ô lọc ở trên). */
+        /** Thanh lọc chung: `tu_ngay`/`den_ngay`/`moc` (và các ô lọc ở trên). */
         loc?: ThamSoLoc;
       } = {},
     ): Promise<SupplierListOut> {
@@ -18723,7 +18545,7 @@ export interface PhieuKhoCuaChuyen {
 }
 
 export interface GiaoThangCuaChuyen {
-  gia_cong_ngoai_id: number;
+  tgc_phieu_nhan_id: number;
   nha_cung_cap_ten: string | null;
   nha_cung_cap_sdt: string | null;
   lsx_id: number | null;

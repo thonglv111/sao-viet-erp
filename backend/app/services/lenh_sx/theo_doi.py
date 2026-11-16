@@ -25,7 +25,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models.bai_ghep import BaiGhep
-from ...models.gia_cong_ngoai import GiaCongNgoai
 from ...models.may_thiet_bi import MayThietBi
 from ...models.san_xuat import (
     BUOC_MAY,
@@ -74,7 +73,7 @@ class _Nap:
 
 
 def _la_gia_cong(cv: SanXuatCongViec) -> bool:
-    return cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None
+    return cv.loai_buoc == BUOC_THUE_NGOAI or cv.tgc_viec_id is not None
 
 
 def _chua_may(cv: SanXuatCongViec) -> bool:
@@ -234,7 +233,7 @@ TT_VIEC_DANG_CHAY = "dang_chay"
 TT_VIEC_TAM_DUNG = "tam_dung"
 TT_TRONG = "trong"
 TT_O_NHA_GIA_CONG = "o_nha_gia_cong"
-TT_CHO_MANG_DI = "cho_mang_di"
+TT_CHO_GIAO = "cho_giao"
 
 # Nhãn dựng ở MÁY CHỦ, cùng lý do `may_trang_thai.NHAN`: hai màn tự đặt tên là sớm muộn cùng một máy
 # hiện hai chữ. Bốn trạng thái dẫn xuất mượn nguyên chữ của `may_trang_thai`.
@@ -251,15 +250,15 @@ NHAN_TINH_TRANG = {
     TT_TRONG: "Đang trống",
     TT_CHO_XEP_MAY: "Chờ xếp máy",
     TT_O_NHA_GIA_CONG: "Đang ở nhà gia công",
-    TT_CHO_MANG_DI: "Chờ mang đi",
+    TT_CHO_GIAO: "Chờ giao",
 }
 NHAN_NHOM = {
     NHOM_CHUA_MAY: "Chưa có máy",
     NHOM_MAY_DA_XOA: "Máy không còn trong danh mục",
-    NHOM_GIA_CONG: "Gia công ngoài",
+    NHOM_GIA_CONG: "Thuê gia công",
 }
 NHAN_MAY_DA_XOA = "Máy đã xoá"
-NHAN_CHUA_CHON_NCC = "Chưa chọn nhà gia công"
+NHAN_CHUA_CHON_NCC = "Chưa đặt nhà gia công"
 KE_TIEP_TOI_DA = 3
 _MOC_XA = datetime(9999, 12, 31)
 
@@ -352,27 +351,25 @@ def _dong_may(
     )
 
 
-def _ten_nha_gia_cong(cv: SanXuatCongViec, gcn: dict[int, GiaCongNgoai]) -> str:
-    g = gcn.get(cv.gia_cong_ngoai_id) if cv.gia_cong_ngoai_id is not None else None
-    if g is not None and g.huy_luc is None and (g.nha_cung_cap_ten or "").strip():
-        return g.nha_cung_cap_ten.strip()
-    return (cv.nha_cung_cap or "").strip() or NHAN_CHUA_CHON_NCC
+def _ten_nha_gia_cong(cv: SanXuatCongViec, gcn: dict[int, tuple]) -> str:
+    """Tên nhà gia công lấy từ ĐƠN thuê gia công đang mở của việc; chưa đặt thì nhãn chung."""
+    g = gcn.get(cv.tgc_viec_id) if cv.tgc_viec_id is not None else None
+    if g is not None and (g[0].nha_cung_cap_ten or "").strip():
+        return g[0].nha_cung_cap_ten.strip()
+    return NHAN_CHUA_CHON_NCC
 
 
 def _dong_gia_cong(
-    n: _Nap, ten: str, cvs: list[SanXuatCongViec], gcn: dict[int, GiaCongNgoai],
+    n: _Nap, ten: str, cvs: list[SanXuatCongViec], gcn: dict[int, tuple],
     bai_ma: dict[int, str],
 ) -> dict:
     cvs = sorted(cvs, key=_khoa_lich)
-    da_mang = any(
-        (g := gcn.get(cv.gia_cong_ngoai_id)) is not None
-        and g.huy_luc is None and g.mang_di_luc is not None
-        for cv in cvs
-    )
+    # Hàng đã ở nhà gia công = đơn đã có phiếu giao sống.
+    da_mang = any((g := gcn.get(cv.tgc_viec_id)) is not None and g[2] for cv in cvs)
     dau = cvs[0]
     return _dong(
         khoa=f"ncc:{ten}", ten=ten,
-        tinh_trang=TT_O_NHA_GIA_CONG if da_mang else TT_CHO_MANG_DI,
+        tinh_trang=TT_O_NHA_GIA_CONG if da_mang else TT_CHO_GIAO,
         dang_chay=_viec(n, dau, bai_ma), dang_chay_them=len(cvs) - 1,
         ke_hoach_xong=lich_hien_thi(dau.du_kien_ket_thuc),
     )
@@ -406,11 +403,10 @@ def theo_may(
             {cv.bai_ghep_id for cv in n.cv_song.values() if cv.bai_ghep_id is not None}
         ))
     ).all())
-    gcn = {
-        g.id: g for g in db.execute(select(GiaCongNgoai).where(GiaCongNgoai.id.in_(
-            {cv.gia_cong_ngoai_id for cv in n.cv_song.values() if cv.gia_cong_ngoai_id}
-        ))).scalars()
-    }
+    from ...repositories.thue_gia_cong_repo import ThueGiaCongRepository
+
+    gcn = ThueGiaCongRepository(db).dong_dang_mo(
+        {cv.tgc_viec_id for cv in n.cv_song.values() if cv.tgc_viec_id})
 
     chua_may: list[SanXuatCongViec] = []
     gia_cong: dict[str, list[SanXuatCongViec]] = {}

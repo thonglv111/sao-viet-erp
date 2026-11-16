@@ -146,26 +146,6 @@ export function SupplierInfoTab({
               placeholder="0101234567"
             />
           </Dong>
-          <Dong nhan="Nhận gia công ngoài" rong>
-            <span
-              className="ncc-a__cong-tac"
-              title="Bật thì nhà cung cấp này có trong ô chọn nơi làm của công đoạn thuê ngoài."
-            >
-              <input
-                type="checkbox"
-                role="switch"
-                className="ncc-a__cong-tac-o"
-                checked={Boolean(form.nhan_gia_cong)}
-                onChange={(e) => doi({ nhan_gia_cong: e.target.checked })}
-              />
-              <span className="ncc-a__cong-tac-nut" aria-hidden="true" />
-              <span className="ncc-a__cong-tac-chu">
-                {form.nhan_gia_cong
-                  ? "Có, hiện trong ô chọn nơi làm của công đoạn thuê ngoài"
-                  : "Không"}
-              </span>
-            </span>
-          </Dong>
         </div>
       </section>
 

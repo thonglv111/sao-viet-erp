@@ -38,6 +38,7 @@ from ..models.bai_ghep_cong_doan import BaiGhepCongDoan
 from ..models.customer import Customer
 from ..models.order import Order
 from ..models.lsx import (
+    LB_THUE_NGOAI,
     TT_DA_LAP_KE_HOACH,
     TT_DA_PHAT_HANH,
     TT_SAN_SANG,
@@ -93,6 +94,12 @@ CB_GIAY_CHUA_KHO = "giay_chua_kho"
 # lệnh chưa xếp thì "hạn SX − thời gian dẫn", rồi còn chặn đề nghị mua / không cộng hàng về sau
 # ngày đó. Nay ngày cần CHỈ là "Ngày cần hàng" người lập gõ trên yêu cầu mua hàng, đọc ngược qua
 # `yeu_cau_mua_nguon_lenh`; lệnh không phải mua thì để trống, và không có gì bị chặn theo ngày.
+
+
+def la_dong_tu_lo(vt, cd) -> bool:
+    """Dòng vật tư nhà gia công tự lo: bước thuê ngoài + `ncc_tu_lo` (ứng với `sourced_by_supplier`
+    của ERPNext). Không vào kế hoạch vật tư, không giữ chỗ, không lên phiếu giao (13/11/2026)."""
+    return cd.loai_buoc == LB_THUE_NGOAI and bool(getattr(vt, "ncc_tu_lo", True))
 
 
 class KeHoachVatTuError(Exception):
@@ -1225,23 +1232,28 @@ class KeHoachVatTuService:
         # --- vật tư khai tay ở bước lệnh ------------------------------------
         buoc_map = {cd.id: (cd, l) for l in lenh for cd in l.cong_doans}
         bi_buoc_chung_de = self.repo.step_keys_bi_buoc_chung_de({bg.id for bg in bais})
-        # Lệnh gia công TRỌN GÓI (spec gia công ngoài §4): nhà gia công lo vật tư. Xưởng cấp giấy
+        # Lệnh thuê gia công TRỌN GÓI (spec 2026-11-13): nhà gia công lo vật tư. Xưởng cấp giấy
         # thì chỉ GIẤY còn là nhu cầu của xưởng; không thì lệnh không cần gì từ kho.
-        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+        from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
 
-        gc_repo = GiaCongNgoaiRepository(self.db)
+        gc_repo = ThueGiaCongRepository(self.db)
         lan_tg = gc_repo.tron_goi_cua_lenh({l.id for l in lenh})
         tron_goi = {i: bool(g.xuong_cap_giay) for i, g in lan_tg.items()}
         # Giấy của lệnh trọn gói XƯỞNG CẤP (06/10/2026): đã gửi đề nghị xuất ⇒ nhu cầu = đúng dòng
         # đề nghị (khổ + số tờ người kế hoạch chọn, cùng khoá với "đã cấp" nên kho xuất là trừ);
         # chưa gửi ⇒ dòng giấy khai ở bước như mọi lệnh, không có thì theo quy cách lệnh (phiếu
-        # tính giá). Lần đã chốt số: hàng đã về, giấy không còn là việc phải lo.
-        cap_mo = {i: g for i, g in lan_tg.items() if g.xuong_cap_giay and g.chot_luc is None}
-        dong_xuat = gc_repo.dong_xuat_giay_cua_lan([g.id for g in cap_mo.values()])
-        giay_theo_de_nghi = {i for i, g in cap_mo.items() if dong_xuat.get(g.id)}
+        # tính giá). Việc đã hoàn tất ở đơn: hàng đã về, giấy không còn là việc phải lo.
+        xong = {v for v, (_ma, _ten, ht) in gc_repo.dong_song_chi_tiet(
+            [g.id for g in lan_tg.values()]).items() if ht}
+        cap_mo = {i: g for i, g in lan_tg.items() if g.xuong_cap_giay and g.id not in xong}
+        dong_xuat = gc_repo.dong_xuat_giay_cua_lenh(list(cap_mo))
+        giay_theo_de_nghi = {i for i in cap_mo if dong_xuat.get(i)}
         co_giay_buoc: set[int] = set()
         if buoc_map:
-            vts = self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
+            # Dòng NHÀ GIA CÔNG TỰ LO của bước thuê ngoài (13/11/2026, `ncc_tu_lo`) không phải nhu cầu
+            # của xưởng — bỏ trước cả khi chọn bước đầu giấy. Bước khác bỏ qua cờ.
+            vts = [vt for vt in self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
+                   if not la_dong_tu_lo(vt, buoc_map[vt.lsx_cong_doan_id][0])]
             # Giấy: chỉ BƯỚC ĐẦU (theo thu_tu) mang mã đó lấy từ kho (spec 2026-10-01 §5); dòng ở các
             # bước sau là "nhận từ bước trước" — không phải nhu cầu.
             buoc_dau = self._buoc_dau_giay(vts, buoc_map)
@@ -1295,15 +1307,15 @@ class KeHoachVatTuService:
                        co_giay_buoc: set[int]) -> list[dict]:
         """Dòng giấy của lệnh trọn gói xưởng cấp — xem chú thích ở `_gom_nhu_cau`. Lệnh không chạy
         ở xưởng nên dòng không neo bước nào (`buoc_id=None`): không bước nào "chạy xong" làm nó rụng
-        nhầm, và nó rụng đúng lúc lần gia công chốt số. Không query thêm (quy cách đọc sẵn)."""
-        from .gia_cong_ngoai.tron_goi import de_xuat_tu_quy_cach
+        nhầm, và nó rụng đúng lúc việc thuê gia công hoàn tất. Không query thêm (quy cách đọc sẵn)."""
+        from .thue_gia_cong.tron_goi import de_xuat_tu_quy_cach
 
         ra: list[dict] = []
         for lsx_id, g in cap_mo.items():
             l = lenh_map.get(lsx_id)
             if l is None:
                 continue
-            dong = dong_xuat.get(g.id) or []
+            dong = dong_xuat.get(lsx_id) or []
             if dong:
                 for ln in dong:
                     # Cùng khoá với "đã cấp" (`_da_cap_dang_linh` đọc chính dòng này) ⇒ kho xuất là trừ.
@@ -1391,14 +1403,15 @@ class KeHoachVatTuService:
         if not buoc_map:
             return {}
         vts = [v for v in self.repo.vat_tu_theo_buoc_lenh(list(buoc_map))
-               if v.hang_loai == HANG_GIAY and _f(v.so_luong) > 0]
+               if v.hang_loai == HANG_GIAY and _f(v.so_luong) > 0
+               and not la_dong_tu_lo(v, buoc_map[v.lsx_cong_doan_id][0])]
         # Cùng tập bước với `_gom_nhu_cau`: bước bị bước chung của bài đè, hay lệnh gia công trọn gói
         # mà xưởng không cấp giấy, không đóng góp gì — không được làm nhãn "nhận từ" nêu tên nó.
         bais = self._bai_trong_pham_vi({int(lsx_id)})
         bi_de = self.repo.step_keys_bi_buoc_chung_de({bg.id for bg in bais})
-        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+        from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
 
-        tron_goi = GiaCongNgoaiRepository(self.db).tron_goi_dang_chay({l.id for l in lenh})
+        tron_goi = ThueGiaCongRepository(self.db).tron_goi_dang_chay({l.id for l in lenh})
 
         def _dong_gop(v) -> bool:
             cd, l = buoc_map[v.lsx_cong_doan_id]

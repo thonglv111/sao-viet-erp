@@ -147,7 +147,8 @@ def test_chi_tiet_ten_to_mot_truy_van(db, svc3, lenh):
 
 def test_chi_tiet_buoc_bi_bai_ghep_phu_bay_theo_buoc_chung(db, svc3, lenh):
     """E2E 27/09/2026: popup in bước bị bài phủ theo cấu hình CỦA LỆNH ("Tổ cán phủ", loại Máy)
-    trong khi lượt chung là Thuê ngoài — phải bày loại, nhà gia công và mã bài của bước chung."""
+    trong khi lượt chung là Thuê ngoài — phải bày loại và mã bài của bước chung; ô tổ ghi chữ chung
+    "Nhà gia công" (nhà chọn ở đơn thuê gia công, không ở bước)."""
     from app.models.bai_ghep import BaiGhep
     from app.models.bai_ghep_cong_doan import BaiGhepCongDoan, BaiGhepCongDoanMap
     from app.models.lsx import LB_THUE_NGOAI, LsxCongDoan
@@ -159,7 +160,7 @@ def test_chi_tiet_buoc_bi_bai_ghep_phu_bay_theo_buoc_chung(db, svc3, lenh):
     db.add(bg)
     db.flush()
     chung = BaiGhepCongDoan(bai_ghep_id=bg.id, ten=bi_phu.ten, loai_buoc=LB_THUE_NGOAI,
-                            nha_cung_cap="Tân Phát", department_id=None)
+                            department_id=None)
     db.add(chung)
     db.flush()
     db.add(BaiGhepCongDoanMap(bai_ghep_cong_doan_id=chung.id, lsx_id=lenh.id,
@@ -169,7 +170,7 @@ def test_chi_tiet_buoc_bi_bai_ghep_phu_bay_theo_buoc_chung(db, svc3, lenh):
     cds = {c["id"]: c for c in ChiTietOut.model_validate(svc3.chi_tiet(lenh.id)).model_dump()["cong_doans"]}
     c = cds[bi_phu.id]
     assert (c["loai_buoc"], c["la_thue_ngoai"], c["to_ten"], c["may_ten"], c["bai_ghep_ma"]) == (
-        LB_THUE_NGOAI, True, "Tân Phát", None, "GB-XL-1")
+        LB_THUE_NGOAI, True, "Nhà gia công", None, "GB-XL-1")
     assert all(cds[b.id]["bai_ghep_ma"] is None for b in buoc[:-1])
 
 

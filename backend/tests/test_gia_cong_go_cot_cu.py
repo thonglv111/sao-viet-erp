@@ -25,7 +25,8 @@ COT_CU = ("sl_gui", "ngay_gui_dk", "van_chuyen_ngay", "gia_cong_ngay", "ngay_nha
 def test_model_khong_con_cot_cu():
     cot = set(Base.metadata.tables["lsx_cong_doan"].columns.keys())
     assert not (set(COT_CU) & cot)
-    assert {"nha_cung_cap_id", "nha_cung_cap"} <= cot
+    # Nhà gia công rời bước (mg 0483) — chọn lúc lập đơn ở màn Thuê gia công.
+    assert not ({"nha_cung_cap_id", "nha_cung_cap"} & cot)
     assert "don_gia_gia_cong" not in cot          # gỡ 07/10/2026 (mg 0374)
 
 

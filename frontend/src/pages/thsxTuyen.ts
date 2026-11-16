@@ -2,9 +2,13 @@
  *  tuyến nhỏ ở lưới bàn tổ và tuyến lớn trong ngăn chi tiết.
  *
  *  Cùng luật `vi_tri_hang` ở `backend/app/services/san_xuat/loc_ban_to.py` (bộ lọc "Hàng đang tới
- *  đâu" chạy ở máy chủ): bước hàng đang ở = bước XA NHẤT đang chạy/tạm dừng; không bước nào đang
- *  làm thì bước đầu chưa xong; xong hết thì bước cuối. Hai bên lệch nhau là lọc ra một đằng, dải
- *  vẽ một nẻo. */
+ *  đâu" chạy ở máy chủ): bước hàng đang ở = bước XA NHẤT đang có hàng; không bước nào có hàng thì
+ *  bước đầu chưa xong; xong hết thì bước cuối. Hai bên lệch nhau là lọc ra một đằng, dải vẽ một
+ *  nẻo.
+ *
+ *  "Đang có hàng" (16/11/2026) = đang chạy/tạm dừng, HOẶC chưa xong mà đã có sản lượng (bước thuê
+ *  gia công không bao giờ "đang chạy" — hàng về qua phiếu nhận), HOẶC tổ mình đã nhận hàng mà chưa
+ *  bấm Bắt đầu. Thiếu hai vế sau thì hàng gia công về tận cửa tổ, cột vẫn báo "Còn 4 bước tới mình". */
 import type { SxDaiDuoi, SxLenhNhom, SxRoutingBuoc, SxWorkItem } from "../api/client";
 
 export type ViTriHang = { k: "toi" | "sap" | "qua"; c: number; m: number; tong: number };
@@ -18,10 +22,15 @@ function oCuaViec(dai: SxRoutingBuoc[], congViecId: number, stepKey?: string | n
   return i + 1;
 }
 
+function coHang(o: SxRoutingBuoc): boolean {
+  if (DANG_LAM.has(o.trang_thai)) return true;
+  return o.trang_thai !== "completed" && ((o.thuc_te ?? 0) > 0 || (o.da_nhan ?? 0) > 0);
+}
+
 /** Bước hàng đang ở (1-based). */
 export function buocHangDangO(dai: SxRoutingBuoc[]): number {
   let c = 0;
-  dai.forEach((o, i) => { if (DANG_LAM.has(o.trang_thai)) c = i + 1; });
+  dai.forEach((o, i) => { if (coHang(o)) c = i + 1; });
   if (c === 0) {
     const i = dai.findIndex((o) => o.trang_thai !== "completed");
     c = i < 0 ? dai.length : i + 1;

@@ -10,12 +10,13 @@
 //
 // Năng suất là snapshot chỉ đọc từ máy hoặc định mức đầu việc; người dùng chỉ nhập đè thời gian.
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ApiError, api, LSX_LOAI_BUOC_LENH, type LsxLoaiBuoc, type NhaGiaCong } from "../api/client";
-import { useAuth } from "../auth/useAuth";
+import { LSX_LOAI_BUOC_LENH, type LsxLoaiBuoc } from "../api/client";
+import type { TgcTrangThaiViec } from "../api/thueGiaCong";
+import { ChipTT } from "../components/LuoiDs";
 import { Button } from "../components/Button";
 import { Select, type SelectOption } from "../components/Select";
 import { CongThucTip } from "../components/CongThucTip";
-import type { ViTriDai } from "./gia-cong/giaCong";
+import { MAU_TRANG_THAI_VIEC, type ViTriDai } from "./thue-gia-cong/tgc";
 import { dvNhan as dvNhanChung, type RefRow } from "./LsxRoutingTable";
 import { coDonViGoc, nhanDongTon, nhanKho } from "../lib/khoGiay";
 import { KhungKho } from "../components/kho-giay/KhungKho";
@@ -33,9 +34,8 @@ import {
   tenBuoc,
 } from "./lsxBuoc";
 
-// Bước THUÊ NGOÀI (spec gia công ngoài 2026-09-26): nhà gia công lo máy, người, vật tư, thời gian.
-// Drawer chỉ còn NHÀ GIA CÔNG (danh mục Nhà cung cấp tích "Nhận gia công") + ĐƠN GIÁ cả lần ở bước
-// cuối dải. Mang đi / chốt số làm ở khối Gia công ngoài trên lệnh sau phát hành.
+// Bước THUÊ NGOÀI: nhà gia công lo máy, người, vật tư, thời gian. Lệnh chỉ gắn cờ (13/11/2026):
+// tab "Nhà gia công" chỉ đọc tình trạng đơn (`ThueGiaCongCard`), đặt, giao, nhận ở màn Thuê gia công.
 // 07/11/2026: hai loại Nội bộ | Gia công. "Nội bộ" lưu `may`, bước cũ mang `to` vẫn tính là Nội bộ.
 const LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "thue_ngoai"];
 
@@ -98,6 +98,7 @@ export function LsxBuocDrawer({
   phuThuocRefs,
   baiGhep,
   daiGiaCong = null,
+  trangThaiNgoai = null,
   // (`dvChuoi` vẫn là prop — nơi gọi vẫn truyền — nhưng thân drawer hiện KHÔNG đọc tới, nên bỏ
   //  khỏi destructure cho `tsc` sạch. Cần dùng lại thì thêm tên vào đây, không phải sửa kiểu.)
   canUpdate,
@@ -141,6 +142,8 @@ export function LsxBuocDrawer({
   baiGhep: import("../api/client").LsxBaiGhep | null;
   /** Vị trí trong DẢI gia công (bảng cha suy bằng `viTriTrongDai`) — `null` khi không thuê ngoài. */
   daiGiaCong?: ViTriDai | null;
+  /** Trạng thái chỉ đọc của việc thuê gia công chứa bước này (null = chưa phát hành). */
+  trangThaiNgoai?: TgcTrangThaiViec | null;
   /** Đơn vị bốn chặng của cả chuỗi (bảng routing suy ra bằng `donViChuoi`). Drawer chỉ thấy MỘT
    *  bước nên không tự suy được chặng thành phẩm — mà câu "số con sửa tại bài" cần đúng chặng đó. */
   dvChuoi: import("./lsxBuoc").DonViChuoi;
@@ -345,11 +348,12 @@ export function LsxBuocDrawer({
 
   // Danh sách Tab chính cho Drawer
   const tabsList = useMemo(() => {
-    // Thuê ngoài: nhà gia công lo vật tư + thời gian ⇒ chỉ còn Cấu hình, Nhà gia công, Phụ thuộc.
+    // Thuê ngoài: không thời gian; vẫn khai vật tư, mỗi dòng có ô "Nhà gia công tự lo" (13/11/2026).
     const list: { key: MainTab; label: string; badge?: number }[] = ngoai
       ? [
           { key: "cau_hinh", label: "Cấu hình & Số lượng" },
           { key: "phan_cong", label: "Nhà gia công" },
+          { key: "vat_tu", label: "Vật tư", badge: row.vat_tus.length },
         ]
       : [
           // 07/11/2026: lệnh không chọn tổ, máy, giờ nữa ⇒ gỡ "Phân công & Thiết bị" và
@@ -364,7 +368,7 @@ export function LsxBuocDrawer({
 
   // Đang đứng ở tab vừa biến mất (đổi sang thuê ngoài, hoặc badge ngoài bảng mở thẳng tab đó).
   useEffect(() => {
-    if (ngoai && (activeTab === "vat_tu" || activeTab === "tien_do")) setActiveTab("phan_cong");
+    if (ngoai && activeTab === "tien_do") setActiveTab("phan_cong");
     if (!ngoai && (activeTab === "phan_cong" || activeTab === "tien_do")) setActiveTab("cau_hinh");
   }, [ngoai, activeTab]);
 
@@ -787,12 +791,7 @@ export function LsxBuocDrawer({
           {activeTab === "phan_cong" && ngoai && (
             <div className="khsx-tab-pane">
               <div className="khsx-form-stack">
-                <NhaGiaCongCard
-                  row={row}
-                  dai={daiGiaCong}
-                  canUpdate={canUpdate}
-                  onPatch={onPatch}
-                />
+                <ThueGiaCongCard dai={daiGiaCong} tt={trangThaiNgoai} />
               </div>
             </div>
           )}
@@ -809,8 +808,9 @@ export function LsxBuocDrawer({
                   <div>
                     <h3 className="khsx-section-card__title">Định mức vật tư</h3>
                     <p className="khsx-section-card__sub">
-                      Giấy khai ở bước nào thì ngày cần giấy bám theo bước đó. Rê chuột vào tên để xem
-                      công thức.
+                      {ngoai
+                        ? "Dòng tick Nhà gia công tự lo thì không vào kế hoạch vật tư, không giao đi. Bỏ tick là xưởng cấp: dòng vào kế hoạch vật tư và đi theo phiếu giao gia công."
+                        : "Giấy khai ở bước nào thì ngày cần giấy bám theo bước đó. Rê chuột vào tên để xem công thức."}
                     </p>
                   </div>
                 </div>
@@ -822,13 +822,16 @@ export function LsxBuocDrawer({
                       <tr>
                         <th className="khsx-vattu-th">VẬT TƯ</th>
                         <th className="khsx-vattu-th" style={{ width: "240px", textAlign: "right" }}>ĐỊNH MỨC</th>
+                        {ngoai && (
+                          <th className="khsx-vattu-th" style={{ width: "120px", textAlign: "center" }}>NHÀ GIA CÔNG TỰ LO</th>
+                        )}
                         <th className="khsx-vattu-th" style={{ width: "48px" }} aria-label="Xoá"></th>
                       </tr>
                     </thead>
                     <tbody className="khsx-vattu-tbody">
                       {row.vat_tus.length === 0 ? (
                         <tr className="khsx-vattu-tr">
-                          <td colSpan={3} className="khsx-vattu-td" style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>
+                          <td colSpan={ngoai ? 4 : 3} className="khsx-vattu-td" style={{ textAlign: "center", color: "#94a3b8", padding: "20px" }}>
                             Chưa khai món nào cho công đoạn này — chọn giấy hoặc vật tư ở ô bên dưới.
                           </td>
                         </tr>
@@ -965,6 +968,21 @@ export function LsxBuocDrawer({
                                 </div>
                                 )}
                               </td>
+                              {ngoai && (
+                                <td className="khsx-vattu-td" style={{ textAlign: "center" }}>
+                                  <input
+                                    type="checkbox"
+                                    aria-label={`Nhà gia công tự lo ${v.vat_tu_ten}`}
+                                    checked={v.ncc_tu_lo ?? true}
+                                    disabled={!canUpdate}
+                                    onChange={(e) =>
+                                      set("vat_tus", row.vat_tus.map((x, j) => (j === i
+                                        ? { ...x, ncc_tu_lo: e.target.checked }
+                                        : x)))
+                                    }
+                                  />
+                                </td>
+                              )}
                               <td className="khsx-vattu-td khsx-vattu-td--action" style={{ textAlign: "center" }}>
                                 {canUpdate && (
                                   <button
@@ -992,7 +1010,7 @@ export function LsxBuocDrawer({
                     {canUpdate && (vatTuRefs || giayRefs) && (
                       <tfoot className="khsx-vattu-tfoot">
                         <tr>
-                          <td colSpan={3} className="khsx-vattu-td-add">
+                          <td colSpan={ngoai ? 4 : 3} className="khsx-vattu-td-add">
                             <div className="khsx-vattu-add-bar">
                               <span className="khsx-vattu-add-icon">＋</span>
                               <Select
@@ -1031,6 +1049,7 @@ export function LsxBuocDrawer({
                                         ?? item.donVi ?? "",
                                       so_luong: goiY?.so_luong != null ? String(goiY.so_luong) : "",
                                       tu_dong: false,
+                                      ncc_tu_lo: true,
                                       kho_rong: hangLoai === "giay" && goiY?.kho_rong ? String(goiY.kho_rong) : "",
                                       kho_dai: hangLoai === "giay" && goiY?.kho_dai ? String(goiY.kho_dai) : "",
                                       // Giấy rỗng ⇒ dòng còn "chờ lưu" (giayChoLuu) cho tới khi máy chủ dẫn
@@ -1346,100 +1365,33 @@ function KhuonCuaBuoc({
   );
 }
 
-/** Thẻ NHÀ GIA CÔNG của bước thuê ngoài (spec gia công ngoài §7). Nhà gia công = Nhà cung cấp tích
- *  "Nhận gia công" — không thêm nhanh ở đây, bên mua hàng tạo ở màn Nhà cung cấp. */
-function NhaGiaCongCard({
-  row,
-  dai,
-  canUpdate,
-  onPatch,
-}: {
-  row: EditRow;
-  dai: ViTriDai | null;
-  canUpdate: boolean;
-  onPatch: (p: Partial<EditRow>) => void;
-}) {
+/** Thẻ THUÊ GIA CÔNG của bước thuê ngoài (spec 2026-11-13 §2): lệnh chỉ còn cờ Thuê ngoài, nhà gia
+ *  công chọn lúc lập đơn ở màn Thuê gia công. Ở đây chỉ ĐỌC trạng thái việc. */
+function ThueGiaCongCard({ dai, tt }: { dai: ViTriDai | null; tt: TgcTrangThaiViec | null }) {
   return (
     <section className="khsx-section-card">
       <div className="khsx-section-card__head">
-        <h3 className="khsx-section-card__title">Nhà gia công</h3>
+        <h3 className="khsx-section-card__title">Thuê gia công</h3>
       </div>
       <div className="khsx-assign-grid">
-        <label className="khsx-field">
-          <span className="khsx-field__label">NHÀ GIA CÔNG</span>
-          <ChonNhaGiaCong row={row} canUpdate={canUpdate} onPatch={onPatch} />
-          {dai?.truoc && (
-            <span className="khsx-field__hint">
-              Đi chung một lần gia công với bước “{dai.truoc}”.
+        <div className="khsx-field">
+          <span className="khsx-field__label">TRẠNG THÁI</span>
+          {tt ? (
+            <span>
+              <ChipTT mau={MAU_TRANG_THAI_VIEC[tt.trang_thai]}>{tt.nhan}</ChipTT>
+              {tt.nha_cung_cap_ten ? <span className="khsx-field__hint">Nhà gia công: {tt.nha_cung_cap_ten}</span> : null}
             </span>
+          ) : (
+            <span className="khsx-muted">Chưa phát hành</span>
           )}
-        </label>
+          <span className="khsx-field__hint">
+            Nhà gia công, đơn giá, giao và nhận làm ở màn Thuê gia công sau khi lệnh phát hành.
+          </span>
+          {dai?.truoc && (
+            <span className="khsx-field__hint">Đi chung một việc gia công với bước “{dai.truoc}”.</span>
+          )}
+        </div>
       </div>
     </section>
-  );
-}
-
-/** Ô chọn NHÀ GIA CÔNG của bước thuê ngoài — dùng chung cho thẻ trong ngăn và ô "Tổ và máy" trên
- *  bảng công đoạn. Nhà gia công = Nhà cung cấp tích "Nhận gia công". */
-export function ChonNhaGiaCong({
-  row,
-  canUpdate,
-  onPatch,
-}: {
-  row: EditRow;
-  canUpdate: boolean;
-  onPatch: (p: Partial<EditRow>) => void;
-}) {
-  const { token } = useAuth();
-  const [ds, setDs] = useState<NhaGiaCong[] | null>(null);
-  const [loi, setLoi] = useState<string | null>(null);
-  useEffect(() => {
-    if (!token) return;
-    let song = true;
-    api.giaCongNgoai.nhaGiaCong(token)
-      .then((r) => { if (song) setDs(r); })
-      .catch((e: unknown) => { if (song) setLoi(e instanceof ApiError ? e.message : String(e)); });
-    return () => { song = false; };
-  }, [token]);
-  // Nhà đã chọn nhưng nay bỏ tích / ngừng giao dịch vẫn phải HIỆN — không thì ô chọn trống trơn
-  // trong khi bước vẫn trỏ tới họ, và bảng "còn thiếu" không nhắc (máy chủ giữ nguyên id).
-  const mat = row.nha_cung_cap_id != null && ds != null
-    && !ds.some((n) => n.id === row.nha_cung_cap_id);
-  if (loi) return <span className="khsx-field__hint">{loi}</span>;
-  return (
-    <>
-      {/* Tìm GẦN ĐÚNG như ô Tên công đoạn — gõ không dấu, một mẩu tên. */}
-      <Select<number | null>
-        value={row.nha_cung_cap_id ?? null}
-        disabled={!canUpdate || ds == null}
-        ariaLabel="Nhà gia công"
-        placeholder="— chọn nhà gia công —"
-        searchable
-        searchPlaceholder="Gõ tên nhà gia công…"
-        options={[
-          ...(mat && row.nha_cung_cap_id != null
-            ? [{
-                value: row.nha_cung_cap_id,
-                label: row.nha_cung_cap || "Nhà đã chọn",
-                sub: "Đã bỏ tích “Nhận gia công”",
-              }]
-            : []),
-          ...(ds ?? []).map((n) => ({ value: n.id, label: n.ten })),
-        ]}
-        onChange={(id) => {
-          onPatch({
-            nha_cung_cap_id: id,
-            nha_cung_cap: ds?.find((n) => n.id === id)?.ten
-              ?? (id != null && id === row.nha_cung_cap_id ? row.nha_cung_cap ?? "" : ""),
-          });
-        }}
-      />
-      {ds != null && ds.length === 0 && (
-        <span className="khsx-field__hint">
-          Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó cho
-          nhà gia công rồi chọn lại ở đây.
-        </span>
-      )}
-    </>
   );
 }

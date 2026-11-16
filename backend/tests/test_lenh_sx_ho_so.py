@@ -1007,9 +1007,22 @@ def test_buoc_ghep_bay_cau_hinh_cua_buoc_chung(client, seed_credentials, sess, g
 
     lsx_a, _lsx_b, cv_chung = ghep_doi
     chung = sess.get(BaiGhepCongDoan, cv_chung.bai_ghep_cong_doan_id)
-    chung.loai_buoc, chung.nha_cung_cap, chung.department_id = LB_THUE_NGOAI, "Tân Phát", None
-    cv_chung.loai_buoc, cv_chung.nha_cung_cap, cv_chung.department_id = (
-        LB_THUE_NGOAI, "Tân Phát", None)
+    from datetime import date
+
+    from app.models.thue_gia_cong import KIEU_MOT_PHAN, TgcDon, TgcDonDong, TgcNhaGiaCong, TgcViec
+
+    chung.loai_buoc, chung.department_id = LB_THUE_NGOAI, None
+    cv_chung.loai_buoc, cv_chung.department_id = LB_THUE_NGOAI, None
+    # Tên nhà gia công đọc từ đơn thuê gia công của việc (mg 0483 gỡ cột ở bước).
+    ncc = TgcNhaGiaCong(ten="Tân Phát")
+    viec = TgcViec(bai_ghep_id=chung.bai_ghep_id, kieu=KIEU_MOT_PHAN, ten_viec="In")
+    sess.add_all([ncc, viec])
+    sess.flush()
+    don = TgcDon(ma="GC-HS-1", nha_cung_cap_id=ncc.id, nha_cung_cap_ten="Tân Phát", ngay_dat=date.today())
+    sess.add(don)
+    sess.flush()
+    sess.add(TgcDonDong(don_id=don.id, viec_id=viec.id, sl_dat=1, don_gia=0))
+    cv_chung.tgc_viec_id = viec.id
     ma_bai = sess.get(BaiGhep, chung.bai_ghep_id).ma
     sess.commit()
 

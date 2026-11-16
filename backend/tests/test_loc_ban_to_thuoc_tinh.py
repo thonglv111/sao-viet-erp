@@ -50,6 +50,25 @@ def test_khong_thay_buoc_cua_viec():
     assert vi_tri_hang(_dai("running", "released", toi_o=1), 12345) is None
 
 
+def test_buoc_thue_gia_cong_co_san_luong_tinh_la_co_hang():
+    dai = _dai("released", "released", "released", "released", "released", toi_o=5)
+    dai[3]["thuc_te"] = 1000
+    assert vi_tri_hang(dai, 99) == "con_1"
+
+
+def test_to_minh_da_nhan_chua_bat_dau_la_toi():
+    dai = _dai("released", "released", "released", "released", "released", toi_o=5)
+    dai[3]["thuc_te"] = 1000
+    dai[4]["da_nhan"] = 1000
+    assert vi_tri_hang(dai, 99) == "toi"
+
+
+def test_buoc_da_xong_khong_keo_vi_tri():
+    dai = _dai("completed", "released", "released", toi_o=3)
+    dai[0]["thuc_te"] = 500
+    assert vi_tri_hang(dai, 99) == "con_1"
+
+
 def test_phan_doan_sau_tim_o_qua_step_key():
     dai = [{"thu_tu": 1, "step_key": "a", "trang_thai": "running", "cong_viec_id": None},
            {"thu_tu": 2, "step_key": "b", "trang_thai": "released", "cong_viec_id": 7}]

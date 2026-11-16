@@ -157,19 +157,19 @@ def test_viec_ban_to_toi_dung_to_va_man_theo_lenh(monkeypatch):
 
 
 def test_khong_ro_to_thi_moi_ban_to(monkeypatch):
-    from app.routers import gia_cong_ngoai, san_xuat
+    from app.routers import san_xuat
 
     async def kb(hub):
         to_5 = hub.subscribe(1, quyen=frozenset({"to:5", BAN_TO}))
         to_6 = hub.subscribe(2, quyen=frozenset({"to:6", BAN_TO}))
         to_7 = hub.subscribe(3, quyen=frozenset({"to:7", BAN_TO}))
         ke_toan = hub.subscribe(4, quyen=frozenset({"ke_toan"}))
-        # Gia công ngoài mở lại: gói không nói tổ nào ⇒ mọi người có Bàn tổ.
+        # Gói không nói tổ nào ⇒ mọi người có Bàn tổ.
         hub.gui({"type": "san_xuat_cong_viec_changed"},
                 **kem_ban_to(MAN_THEO_LENH, ()))
         return [await _nhan(q) for q in (to_5, to_6, to_7, ke_toan)]
 
-    dot = _chay(monkeypatch, [san_xuat, gia_cong_ngoai], kb)
+    dot = _chay(monkeypatch, [san_xuat], kb)
     assert dot == [["san_xuat_cong_viec_changed"]] * 3 + [[]]
 
 

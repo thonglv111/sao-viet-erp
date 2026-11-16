@@ -165,56 +165,6 @@
   color: var(--ash);
 }
 
-/* Công tắc + chữ nói đang bật hay tắt. */
-.ncc-a__cong-tac {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-.ncc-a__cong-tac-o {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-}
-.ncc-a__cong-tac-nut {
-  position: relative;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 18px;
-  border-radius: 999px;
-  background: var(--rule);
-  transition: background 0.15s ease;
-}
-.ncc-a__cong-tac-nut::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s ease;
-}
-.ncc-a__cong-tac-o:checked + .ncc-a__cong-tac-nut {
-  background: var(--rust);
-}
-.ncc-a__cong-tac-o:checked + .ncc-a__cong-tac-nut::after {
-  transform: translateX(14px);
-}
-.ncc-a__cong-tac-o:focus-visible + .ncc-a__cong-tac-nut {
-  outline: 2px solid var(--rust);
-  outline-offset: 2px;
-}
-.ncc-a__cong-tac-chu {
-  font-size: 13.5px;
-  color: var(--ash);
-}
-
 /* ---- Tab Bảng giá vật tư — danh sách sửa tại dòng ------------------------ */
 .ncc-bg {
   display: flex;
@@ -449,7 +399,7 @@
   display: none;
 }
 
-/* ---- Lưới danh sách: ô tên + thẻ Nhận gia công ---- */
+/* ---- Lưới danh sách: ô tên ---- */
 .ncc-ten { display: flex; align-items: center; min-width: 0; }
 .ncc-ten > span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .ncc-ten > .lds-tag { flex: none; }

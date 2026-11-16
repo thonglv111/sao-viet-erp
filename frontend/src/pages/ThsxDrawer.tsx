@@ -428,6 +428,19 @@ export function ThsxDrawer({
                         ? <p className="thsx-b-dando">{cv.quy_cach.ghi_chu_ky_thuat}</p>
                         : <p className="thsx-b-trong">Không có</p>}
                     </section>
+                    {/* Ghi chú kế hoạch bộ phận ghi lúc Giao (12/11/2026): chữ + ai ghi, lúc nào. */}
+                    <section className="thsx-b-sec">
+                      <h3 className="thsx-b-sec__h">Ghi chú kế hoạch</h3>
+                      {chiTiet.ghi_chu_ke_hoach?.noi_dung?.trim() ? (
+                        <>
+                          <p className="thsx-b-dando">{chiTiet.ghi_chu_ke_hoach.noi_dung}</p>
+                          <p className="thsx-b-ghiboi">
+                            {chiTiet.ghi_chu_ke_hoach.nguoi ?? "Không rõ người ghi"}
+                            {chiTiet.ghi_chu_ke_hoach.luc ? ` ghi lúc ${ngayGio(chiTiet.ghi_chu_ke_hoach.luc)}` : ""}
+                          </p>
+                        </>
+                      ) : <p className="thsx-b-trong">Không có</p>}
+                    </section>
                   </>
                 )}
 

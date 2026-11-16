@@ -52,7 +52,7 @@ def _to_may(db, ma: str):
 def test_cap_nhat_dua_to_va_may_cua_buoc_xuong_viec(db, orders, lsx_svc, xl_svc, admin, customer):
     a, goi = _phat_hanh_cap_lenh(db, orders, lsx_svc, xl_svc, admin, customer)
     cvs = [cv for cv in db.query(SanXuatCongViec).filter_by(goi_id=goi.id)
-           if cv.loai_buoc == BUOC_MAY and cv.lsx_cong_doan_id and cv.gia_cong_ngoai_id is None]
+           if cv.loai_buoc == BUOC_MAY and cv.lsx_cong_doan_id and cv.tgc_viec_id is None]
     assert cvs, "cần ít nhất một việc máy để soi"
     doi = {}
     for i, cv in enumerate(cvs):

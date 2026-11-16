@@ -60,6 +60,8 @@ class GiaoIn(BaseModel):
     department_id: int | None = None
     ly_do: str | None = Field(None, max_length=500)
     version: int | None = None
+    # Ghi chú kế hoạch cho nhóm: không gửi / null = giữ nguyên, "" = xoá.
+    ghi_chu: str | None = Field(None, max_length=2000)
 
 
 class RutIn(BaseModel):
@@ -172,7 +174,7 @@ def giao(
     """Giao một việc: máy (trống = Làm tay) và nhóm cùng lúc. Nhóm thấy việc ngay qua SSE."""
     try:
         v = _svc(db, user, authz).giao(cv_id, may_id=body.may_id, department_id=body.department_id,
-                                       ly_do=body.ly_do, version=body.version)
+                                       ly_do=body.ly_do, version=body.version, ghi_chu=body.ghi_chu)
     except (KhbpKhongThay, KhbpLoi, KhbpXungDot, KhbpCam) as e:
         raise _loi(e) from None
     nhom = int(v.department_id)

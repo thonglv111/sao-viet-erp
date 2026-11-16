@@ -1,14 +1,13 @@
-"""Bước "Thuê ngoài" ở Kế hoạch SX (spec 2026-09-26 §7, §8, §10).
+"""Bước "Thuê ngoài" trên lệnh.
 
-Nhà gia công chọn từ danh mục Nhà cung cấp; bước không tổ, không máy, không vật tư, không thời
-lượng; thiếu nhà gia công thì chặn "Sẵn sàng"."""
+Bước không tổ, không máy, không thời lượng. Từ 13/11/2026 (module Thuê gia công) lệnh KHÔNG chọn
+nhà gia công — chọn lúc lập đơn ở màn Thuê gia công; `nha_cung_cap_id` gửi lên bị bỏ qua và lệnh
+không còn "thiếu nhà gia công"."""
 from __future__ import annotations
-
-import pytest
 
 from app.models.lsx import LB_MAY, LB_THUE_NGOAI
 from app.schemas.lsx import LsxCongDoanIn
-from app.services.lsx_service import LsxValidationError, thoi_luong_buoc
+from app.services.lsx_service import thoi_luong_buoc
 from tests.gia_cong_fixtures import lenh_chua_phat, ncc
 from tests.lenh_sx_fixtures import admin, customer, orders, lsx_svc, sess  # noqa: F401
 
@@ -26,43 +25,35 @@ def _rows(lsx, **sua_buoc_cuoi) -> list[LsxCongDoanIn]:
     return out
 
 
-def test_buoc_thue_ngoai_lay_ten_tu_danh_muc_va_bo_to_may(sess, orders, lsx_svc, admin, customer):
+def test_buoc_thue_ngoai_bo_to_may_va_bo_qua_nha_gia_cong(sess, orders, lsx_svc, admin, customer):
     s = ncc(sess)
     lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
     lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(
         lsx, loai_buoc=LB_THUE_NGOAI, nha_cung_cap_id=s.id,
     ), actor=admin)
     cd = max(lsx.cong_doans, key=lambda c: c.thu_tu)
-    assert (cd.nha_cung_cap_id, cd.nha_cung_cap) == (s.id, "Cán màng Minh Long")
+    assert not hasattr(cd, "nha_cung_cap_id")
     assert cd.department_id is None and cd.may_id is None
-    assert list(cd.vat_tus) == []
+    # Thuê gia công (13/11/2026): bước thuê ngoài GIỮ vật tư, mỗi dòng mặc định nhà gia công tự lo.
+    assert all(v.ncc_tu_lo for v in cd.vat_tus)
 
 
-def test_ncc_khong_tich_nhan_gia_cong_bi_tu_choi(sess, orders, lsx_svc, admin, customer):
-    s = ncc(sess, "Giấy Hoàng Hà", nhan=False)
-    lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
-    with pytest.raises(LsxValidationError, match="Nhận gia công"):
-        lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(
-            lsx, loai_buoc=LB_THUE_NGOAI, nha_cung_cap_id=s.id), actor=admin)
-
-
-def test_doi_ve_buoc_may_thi_xoa_nha_gia_cong(sess, orders, lsx_svc, admin, customer):
-    s = ncc(sess)
+def test_doi_ve_buoc_may_khong_con_nha_gia_cong(sess, orders, lsx_svc, admin, customer):
     lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer)
     lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(
-        lsx, loai_buoc=LB_THUE_NGOAI, nha_cung_cap_id=s.id), actor=admin)
+        lsx, loai_buoc=LB_THUE_NGOAI), actor=admin)
     lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(lsx, loai_buoc=LB_MAY), actor=admin)
     cd = max(lsx.cong_doans, key=lambda c: c.thu_tu)
-    assert cd.nha_cung_cap_id is None and cd.nha_cung_cap is None
+    assert cd.loai_buoc == LB_MAY and cd.department_id is not None
 
 
-def test_thieu_nha_gia_cong_chan_san_sang(sess, orders, lsx_svc, admin, customer):
+def test_thue_ngoai_khong_chan_san_sang(sess, orders, lsx_svc, admin, customer):
     # Khổ nguyên = khổ in: không có bước Tề giấy in (bước máy tự chèn, chưa gán tổ) chen vào đếm thiếu.
     lsx = lenh_chua_phat(sess, orders, lsx_svc, admin, customer, kho_nguyen=(650, 900))
     lsx = lsx_svc.replace_routing(lsx_id=lsx.id, rows_in=_rows(
         lsx, loai_buoc=LB_THUE_NGOAI), actor=admin)
     thieu = lsx_svc.thieu_cua(lsx)
-    assert "thieu_nha_gia_cong" in thieu
+    assert "thieu_nha_gia_cong" not in thieu
     assert "thieu_bo_phan" not in thieu     # bước thuê ngoài không bị đòi tổ/máy
 
 

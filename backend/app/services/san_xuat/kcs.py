@@ -208,7 +208,7 @@ def _cong_doan_nguon_hop_le(db: Session, repo: SanXuatKcsRepository, cv,
     khoa = _thu_tu_cong_doan(bc, lid, repo.thu_tu_buoc([lid]))
     moc = khoa(cv)
     # Bước thuê ngoài không nhận lỗi KCS (11/10/2026) — cùng luật `chuoi_gop`.
-    return {c.id: c for c in cvs if khoa(c) <= moc and (c.gia_cong_ngoai_id is None or c.id == cv.id)}
+    return {c.id: c for c in cvs if khoa(c) <= moc and (c.tgc_viec_id is None or c.id == cv.id)}
 
 
 def _tieu_chi_cua(cv) -> dict[int, dict]:
@@ -350,8 +350,8 @@ def kiem_cong_doan(
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công đoạn.")
-    if cv.gia_cong_ngoai_id is not None:
-        from ..gia_cong_ngoai import CHAN_XUONG
+    if cv.tgc_viec_id is not None:
+        from ..thue_gia_cong import CHAN_XUONG
 
         raise ValueError(CHAN_XUONG)
     from .dong_lenh import chan_neu_da_dong
@@ -543,30 +543,6 @@ def _ket_qua_lan_kiem_cu(db: Session, repo: SanXuatKcsRepository, cv, kcs, user,
         # Router dọn ảnh vừa tải lên của lượt gửi lại — lần kiểm cũ đã giữ ảnh của nó.
         "la_gui_lai": True,
     }
-
-
-def ghi_kcs_ngoai_phan_mem(db: Session, *, cv, so_dat: float, uid: int | None,
-                           ghi_chu: str, theo_lenh: tuple[int | None, str] | None = None,
-                           ) -> SanXuatKcsBatch:
-    """Bản ghi KCS ĐẠT tổng hợp cho công việc GIA CÔNG NGOÀI cuối nhóm (spec gia công §10).
-
-    KCS làm ngoài phần mềm; con số chốt đứng thay. Không gate, không commit — `gia_cong_ngoai.chot`
-    gác `san_xuat:update`. Nhờ bản ghi này "còn gửi kho" / đóng nhóm / trạng thái lệnh chạy nguyên
-    đường cũ. Báo cáo KCS loại nó (`kcs_bao_cao`).
-
-    `theo_lenh=(nhom_id, don_vi)`: công việc CHUNG của bài ghép ghi phần của TỪNG lệnh vào nhóm
-    của lệnh đó (spec gia công bài ghép 2026-09-27 §3)."""
-    luc = _moc()
-    nhom_id, don_vi = theo_lenh if theo_lenh is not None else (cv.nhom_id, cv.don_vi_ra)
-    kcs = SanXuatKcsBatch(
-        cong_viec_id=cv.id, nhom_id=nhom_id, bat_dau=luc, ket_thuc=luc,
-        so_luong_nhan=so_dat, so_luong_dat=so_dat, so_luong_khong_dat=0,
-        don_vi=(don_vi or "").strip(), ket_luan=_ket_luan(so_dat, 0),
-        ghi_chu=ghi_chu[:500], created_by=uid,
-    )
-    db.add(kcs)
-    db.flush()
-    return kcs
 
 
 def _so_da_gui_kho(db: Session, cv) -> float:
@@ -766,7 +742,7 @@ def _da_gui_kho(bc, cv) -> float:
 
 
 def _tom_cuoi(bc, cvs) -> dict | None:
-    cvs = [c for c in cvs if c.gia_cong_ngoai_id is None]
+    cvs = [c for c in cvs if c.tgc_viec_id is None]
     cuoi = [cv for cv in cvs if cv.la_kcs_cuoi]
     if not cuoi:
         return None
@@ -1049,6 +1025,10 @@ def chuoi_cong_doan_kcs(db: Session, user, lsx_id: int) -> dict:
                 acc = quy_ve.setdefault(l["cong_doan_id"], {})
                 acc[khoa] = acc.get(khoa, 0.0) + l["so_luong"]
 
+    # Bước thuê gia công: tên nhà lấy từ đơn gia công sống (lệnh không còn giữ nhà gia công).
+    from ...repositories.thue_gia_cong_repo import ThueGiaCongRepository
+    nha_gc = {vid: d.nha_cung_cap_ten for vid, (_dd, d) in ThueGiaCongRepository(db).dong_song_cua_nhieu_viec(
+        {c.tgc_viec_id for c in cvs if c.tgc_viec_id}).items()}
     cong_doan = []
     for cv in cvs:
         ds = bc.kcs[cv.id]
@@ -1094,10 +1074,10 @@ def chuoi_cong_doan_kcs(db: Session, user, lsx_id: int) -> dict:
             "da_yeu_cau_kho": da_yc,
             "con_gui_kho": (
                 max(0.0, min(dat, tot) - da_yc)
-                if cv.la_kcs_cuoi and cv.gia_cong_ngoai_id is None else 0.0
+                if cv.la_kcs_cuoi and cv.tgc_viec_id is None else 0.0
             ),
-            "gia_cong_ngoai": cv.gia_cong_ngoai_id is not None,
-            "nha_gia_cong": cv.nha_cung_cap if cv.gia_cong_ngoai_id is not None else None,
+            "gia_cong_ngoai": cv.tgc_viec_id is not None,
+            "nha_gia_cong": nha_gc.get(cv.tgc_viec_id) if cv.tgc_viec_id else None,
             "yeu_cau_kho": [
                 {"request_id": d.request_id, "ma": d.request_ma, "trang_thai": d.trang_thai,
                  "sl_de_nghi": round(d.sl_hieu_luc, 3), "sl_da_nhan": round(d.sl_da_nhan, 3),

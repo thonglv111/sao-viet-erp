@@ -264,6 +264,12 @@ class SanXuatCongViec(Base):
     # Nhóm bộ phận ĐÃ CHỌN mà chưa bấm Giao (soft → departments.id). Lúc Giao chép sang
     # `department_id`; rút lại thì nhóm cũ quay về đây.
     nhom_xep_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # GHI CHÚ KẾ HOẠCH (mg `0473`, 12/11/2026): người kế hoạch của bộ phận ghi lúc Giao, nhóm đọc ở
+    # ngăn việc kèm người ghi + lúc ghi. Người do máy chủ gán từ tài khoản (soft → users.id). Rút lại
+    # thì giữ để lần Giao sau điền sẵn; sửa chữ thì người + lúc đổi theo người sửa.
+    ghi_chu_ke_hoach: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ghi_chu_ke_hoach_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ghi_chu_ke_hoach_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # CÔNG ĐOẠN CUỐI của nhóm thành phẩm (bất kể tổ nào làm) — phần KCS kiểm đạt ở đây mới được
     # đề nghị nhập kho (mg `0306`, `docs/design-kcs-theo-lenh.md` mục 6).
     la_kcs_cuoi: Mapped[bool] = mapped_column(
@@ -318,15 +324,13 @@ class SanXuatCongViec(Base):
     # mở nổi hồ sơ lệnh, và lệnh còn sửa được sau khi phát hành (§4.2 — thẻ việc phải tự đứng được).
     # Chụp CHỌN LỌC chứ không bê cả `lsx.quy_cach_json`: thợ cần 8 dòng để đứng máy, không cần 30.
     quy_cach_json: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
-    # Nhà gia công — ẢNH CHỤP lúc phát hành, để chip "Ngoài · <nơi làm>" hiện được ở bàn tổ và các
-    # màn theo dõi mà không phải tra ngược lệnh. Trước 04/09/2026 các màn xưởng chỉ có `loai_buoc`
-    # nên chip thuê ngoài hiện trống trơn, không ai biết hàng đang ở đâu.
-    nha_cung_cap: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # LẦN GIA CÔNG NGOÀI mà công việc này thuộc về (spec 2026-09-26). NULL = việc của xưởng. Công
-    # việc có cột này KHÔNG vào bàn tổ nào (department_id NULL), không bắt đầu / ghi mẻ tay — mọi
-    # ghi nhận đi qua khối Gia công ngoài của lệnh.
-    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("gia_cong_ngoai.id", ondelete="SET NULL"), index=True, nullable=True
+    # Tên nhà gia công KHÔNG chụp ở đây (gỡ mg 0483): đọc từ đơn gia công còn sống của
+    # `tgc_viec_id` — `thue_gia_cong.tom_tat.nha_theo_cong_viec`.
+    # VIỆC THUÊ GIA CÔNG mà công việc này thuộc về (module Thuê gia công, 13/11/2026). NULL = việc
+    # của xưởng. Công việc có cột này KHÔNG vào Việc của tổ (department_id NULL), không bắt đầu /
+    # ghi sản lượng / KCS — giao nhận đi qua phiếu giao / phiếu nhận của module.
+    tgc_viec_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("tgc_viec.id", ondelete="SET NULL"), index=True, nullable=True
     )
     # KHUÔN/KHUNG của bước — ảnh chụp cùng kiểu với `vat_tu_json`. CHỤP chứ không tra sống: tổ phải
     # thấy đúng con dao đã chốt lúc phát hành, kể cả khi kế hoạch đổi dao sau đó.
@@ -343,7 +347,7 @@ class SanXuatCongViec(Base):
     khuon_tra_luc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trang_thai: Mapped[str] = mapped_column(String(16), nullable=False, default=CV_PHAT_HANH)
     # MỐC NGHIỆP VỤ "bước xong lúc nào" — đóng dấu ở `thuc_thi.ket_thuc`, một trong HAI chỗ đặt
-    # `trang_thai='completed'` (chỗ kia: chốt lần gia công ngoài, `services/gia_cong_ngoai/chot.py`).
+    # `trang_thai='completed'` (chỗ kia: phiếu nhận thuê gia công, `services/thue_gia_cong/`).
     # Tồn tại riêng vì `updated_at` là cột BẢO TRÌ: mọi
     # `version += 1` về sau (rút người khỏi bước đã xong, sửa ghi chú…) dời nó, và KPI "công đoạn
     # xong hôm nay" từng đếm nhầm một bước đóng năm 2020 vào hôm nay vì đọc `updated_at`. Bịt từng

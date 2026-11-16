@@ -136,11 +136,11 @@ là việc phòng khác làm, kế hoạch chỉ theo dõi. Chữ trên mũi tê
 cho người phụ trách, người phụ trách tạo lệnh,
 rà cho đủ số rồi bấm \oo{Sẵn sàng lập kế hoạch}. Lệnh sẵn sàng thì lo vật tư (giữ hàng có sẵn, thiếu thì đề nghị mua)
 rồi bấm \oo{Phát hành} ở màn Xếp lịch. Giờ bắt đầu để trống được. Phát hành xong, mỗi bước nội bộ tới bộ phận
-nhận nó với trạng thái Chưa giao, kho nhận yêu cầu xuất vật tư, bước gia công chờ mang đi. Bộ phận chọn máy và
+nhận nó với trạng thái Chưa giao, kho nhận yêu cầu xuất vật tư, bước gia công vào Hàng chờ của màn Thuê gia công. Bộ phận chọn máy và
 nhóm thợ rồi bấm Giao, lúc đó nhóm mới thấy việc ở màn Việc của tổ. Tổ ghi sản lượng, KCS kiểm, gửi thành phẩm
 vào kho và đóng lệnh.
 
-Lệnh giao trọn cho nhà gia công đi đường tắt: không xếp lịch, không xuống tổ, hàng về thì nhập thẳng kho thành phẩm
+Lệnh thuê gia công trọn gói đi đường tắt: không xếp lịch, không xuống tổ, hàng về thì nhập kho thành phẩm
 (chương \ref{gia-cong}).
 
 \Needspace*{10\baselineskip}
@@ -306,7 +306,7 @@ Bấm mã lệnh ở tab Lệnh SX để mở chi tiết. Việc ở chương n�
 \so{2} Ở đây là bước Khuôn hộp chưa chọn khuôn. Bấm tên bước, ngăn của bước đó mở ra.
 \so{3} \oo{Sẵn sàng lập kế hoạch} mờ cho tới khi hết mục thiếu.
 \so{4} Dãy ô số đầu trang: SL đặt, Vào máy, Giấy nguyên, Con/tờ in, số công đoạn, số món vật tư, hạn giao.
-\so{5} \oo{Gia công trọn gói}: giao cả lệnh cho một nhà gia công (mục \ref{tron-goi}).
+\so{5} \oo{Thuê gia công trọn gói}: giao cả lệnh cho một nhà gia công (mục \ref{tron-goi}).
 \so{6} \oo{Xoá lệnh}: chỉ có ở lệnh Nháp chưa giữ chỗ vật tư, và chỉ hiện với người có quyền Xoá ở Sản xuất. Dòng
 đơn quay lại hàng chờ để lên lệnh lại. Lệnh Sẵn sàng phải bấm Mở lại để sửa trước rồi mới xoá.
 
@@ -315,7 +315,7 @@ báo \q{Có thay đổi mới}, bấm mới nạp lại. Sửa ở tab nào mà 
 \oo{Lưu thay đổi}.
 
 Những mục \q{Còn thiếu} hay gặp: chưa có bài tính giá, thiếu loại giấy hay khổ nguyên của giấy, chưa có công đoạn,
-thiếu ngày giao, có bước gia công chưa chọn nhà gia công, có công đoạn chưa có bộ phận nhận, có công đoạn cần khuôn
+thiếu ngày giao, có công đoạn chưa có bộ phận nhận, có công đoạn cần khuôn
 mà chưa chọn, chưa khai Con/tờ. Sách thì thêm Số trang, Trang mỗi tay, số mảnh xả.
 
 Mục \q{Có công đoạn chưa có bộ phận nhận} nghĩa là công đoạn đó chưa tick nhóm thợ nào ở danh mục, phần mềm không
@@ -374,8 +374,9 @@ bồi; lệnh không có sóng thì không có cột này. Dưới tên bước 
 bước. Bước chuẩn bị có chip \q{Chuẩn bị}. Cột Số lượng ghi số vào và số ra trên một dòng, vào bằng ra thì chỉ ghi
 một số.
 
-\so{4} Bộ phận làm: bước nội bộ chỉ ghi tên bộ phận, bước gia công ghi chip \q{Gia công ngoài} kèm nhà gia công.
-Bấm vào để đổi: đầu hộp là hai nút Nội bộ và Gia công, bên dưới là ô chọn bộ phận hoặc nhà gia công. Phần mềm tự
+\so{4} Bộ phận làm: bước nội bộ chỉ ghi tên bộ phận, bước gia công ghi chip \q{Gia công ngoài} kèm tình trạng đơn
+ở màn Thuê gia công (chưa có đơn thì ghi \q{đặt ở màn Thuê gia công}). Bấm vào để đổi: đầu hộp là hai nút Nội bộ
+và Gia công, chọn Nội bộ thì bên dưới là ô chọn bộ phận, chọn Gia công thì không phải chọn gì thêm. Phần mềm tự
 chọn bộ phận theo danh mục Công đoạn: lấy các nhóm thợ được tick cho công đoạn, đi lên bộ phận chứa từng nhóm, chọn
 sẵn bộ phận có nhiều nhóm được tick nhất. Ô chọn có chỗ gõ tìm.
 
@@ -398,7 +399,7 @@ Lệnh đang giữ chỗ vật tư thì tab này khoá, muốn sửa phải nh�
 
 \canh{0.47}{khsx-23-ngan-buoc.png}{%
 Bấm tên bước, ngăn của bước mở bên phải. Bước nội bộ có ba tab: Cấu hình \& Số lượng, Vật tư, Phụ thuộc. Bước gia
-công có Cấu hình \& Số lượng, Nhà gia công, Phụ thuộc. Mũi tên trên đầu chuyển sang bước trước hay bước sau.
+công có Cấu hình \& Số lượng, Nhà gia công, Vật tư, Phụ thuộc. Mũi tên trên đầu chuyển sang bước trước hay bước sau.
 
 \so{1} Tab Cấu hình \& Số lượng. Ảnh là bước Khuôn hộp của LSX26-0005.
 
@@ -414,6 +415,11 @@ công có Cấu hình \& Số lượng, Nhà gia công, Phụ thuộc. Mũi tên
 Bộ phận nhận và khuôn lấy từ danh mục, xem \kb{danh-muc-cong-doan}{Công đoạn} và \kbn{danh-muc-khuon}{Khuôn}.
 Bộ phận cần chọn mà không có trong ô thì nhờ người khai danh mục tick thêm nhóm thợ của bộ phận đó cho công đoạn.
 Việc đã bắt đầu ở xưởng thì không đổi bộ phận nhận được nữa.
+
+Bước gia công vẫn khai vật tư như bước nội bộ. Tab Vật tư của bước này có thêm cột \q{Nhà gia công tự lo}, mọi
+dòng tick sẵn. Dòng còn tick là nhà gia công tự lo món đó: món không vào kế hoạch vật tư, không giữ chỗ, không lên
+phiếu giao. Bỏ tick là xưởng cấp: món vào kế hoạch vật tư như bước nội bộ và đi theo phiếu giao gia công. Đổi bước
+nội bộ sang gia công thì vật tư đã khai giữ nguyên và tick sẵn cả.
 
 \Needspace*{6\baselineskip}
 \subsection{Vật tư, Tệp đính kèm, Nhật ký}\label{tab-khac}
@@ -596,7 +602,7 @@ Phát hành xong:
 thấy gì: tổ thấy việc ở Việc của tổ sau khi bộ phận chọn máy, nhóm và bấm Giao (chương \ref{ke-hoach-bo-phan}).
 \item Mỗi bước có vật tư tự lập một yêu cầu xuất kho, thủ kho nhận thông báo. Thông báo ghi \q{Đã gửi kho N yêu cầu
 xuất}. Món nào chưa tự lập được thì thông báo nói rõ, tổ xin tay ở Việc của tổ.
-\item Bước gia công sang \q{Chờ mang đi} (chương \ref{gia-cong}).
+\item Bước gia công thành việc trong Hàng chờ của màn Thuê gia công (chương \ref{gia-cong}).
 \end{itemize}
 
 Thiếu vật tư hay chưa giữ hàng không chặn phát hành. Người kế hoạch tự quyết dựa trên chip cảnh báo.
@@ -662,10 +668,12 @@ xem lần trước.
 đầu. \oo{Đang chạy}, \oo{Tạm dừng}, \oo{Hoàn thành} đổi theo nút tổ bấm ở Việc của tổ, màn tự nhảy không phải tải
 lại. Muốn xem việc xong trong khoảng nào thì chọn kỳ ở nút thời gian. Dưới chip trạng thái của từng việc có dòng phụ: Đang
 chạy ghi số đã làm trên số kế hoạch, Tạm dừng ghi lý do tổ nhập, Hoàn thành ghi giờ xong.
-\so{3} Cột Máy. Việc chưa giao ghi chữ nhạt tên máy in của phiếu tính giá, dòng dưới \q{theo báo giá}; cột Nhóm
+\so{3} Cột \oo{Giấy}: tên giấy của lệnh, dòng dưới là định lượng (gsm); lệnh dùng nhiều mã giấy thì mỗi tên một
+thẻ nhỏ và không ghi định lượng. Cột \oo{SL kế hoạch}: số lượng bước này phải làm, kèm đơn vị (tờ, con, cái).
+\so{4} Cột Máy. Việc chưa giao ghi chữ nhạt tên máy in của phiếu tính giá, dòng dưới \q{theo báo giá}; cột Nhóm
 ghi chữ nhạt nhóm sẽ được chọn sẵn khi giao. Việc đã giao ghi máy đang chạy; chạy khác máy theo báo giá thì có
 thêm dòng \q{Báo giá chạy ...}.
-\so{4} \oo{Giao} ở việc Chưa giao, \oo{Rút lại} ở việc Đã giao.
+\so{5} \oo{Giao} ở việc Chưa giao, \oo{Rút lại} ở việc Đã giao.
 
 Ô tìm lọc theo mã lệnh, khách, sản phẩm, công đoạn, máy. \oo{Lọc} chọn theo Máy, Nhóm; nút thời gian lọc theo
 ngày việc tới bộ phận; \oo{Cột} ẩn hiện, đổi thứ tự cột, kéo mép tiêu đề để đổi độ rộng. Trên điện thoại bảng thành thẻ, mỗi thẻ có nút to.
@@ -685,11 +693,39 @@ là \oo{Làm tay}. Mỗi máy có chip tình trạng (Xếp được, Đang ch�
 Lý do ghi vào nhật ký của lệnh.
 \so{3} Nhóm làm. Máy chỉ thuộc một nhóm thì điền sẵn, máy thuộc nhiều nhóm thì bấm chọn; chưa chọn thì cạnh nút
 Giao ghi \q{Chọn nhóm làm}.
-\so{4} \oo{Giao}: nhóm thấy việc ngay, việc sang Đã giao.
+\so{4} \oo{Ghi chú kế hoạch}, không bắt buộc: điều muốn dặn nhóm, ví dụ chạy trước 10 giờ. Nhóm đọc ở tab Quy
+cách trong ngăn việc, kèm tên người ghi (lấy từ tài khoản đang đăng nhập) và lúc ghi. Xoá hết chữ rồi Giao là bỏ
+ghi chú.
+\so{5} \oo{Giao}: nhóm thấy việc ngay, việc sang Đã giao.
 
-Việc Đã giao mà nhóm chưa bấm Bắt đầu thì \oo{Rút lại} được: việc về Chưa giao, nhóm không còn thấy. Máy và nhóm
-cũ giữ lại cho lần giao sau. Nhóm đã bắt đầu thì không rút được. Thứ tự chạy do nhóm tự quyết, kế hoạch không sắp.
+Việc Đã giao mà nhóm chưa bấm Bắt đầu thì \oo{Rút lại} được: việc về Chưa giao, nhóm không còn thấy. Máy, nhóm và
+ghi chú kế hoạch cũ giữ lại cho lần giao sau; mở hộp Giao lại thì ghi chú cũ đã điền sẵn để sửa. Nhóm đã bắt đầu thì không rút được. Thứ tự chạy do nhóm tự quyết, kế hoạch không sắp.
 Mỗi lần giao, đổi máy, rút lại đều có ở tab Lịch sử của hồ sơ lệnh (mục \ref{ho-so-lenh}).
+
+\Needspace*{12\baselineskip}
+\subsection{Giao nhiều việc một lượt}\label{khbp-giao-nhieu}
+
+Nhiều việc cùng chạy một máy, một nhóm thì tích chọn rồi giao một lần, khỏi mở hộp Giao từng việc. Chỉ có ở
+Bảng việc trên máy tính, và chỉ người có ô \oo{Giao việc} mới thấy cột tích.
+
+\rong{khsx-48d-chon-nhieu.png}
+
+\so{1} Cột tích đứng đầu bảng, chỉ việc Chưa giao mới có ô tích. Ô ở tiêu đề chọn hoặc bỏ mọi việc Chưa giao trên
+trang đang xem. Đổi trang, đổi chip hay đổi bộ lọc là bỏ chọn.
+\so{2} Đã tích ít nhất một việc thì thanh nổi hiện ở đáy màn: số việc đã chọn, \oo{Bỏ chọn} và \oo{Giao N việc}.
+
+\cat[0.5\linewidth]{0 0 0 0}{khsx-48e-giao-nhieu.png}
+
+\so{1} Các việc sẽ giao, mỗi việc một thẻ gồm mã lệnh và công đoạn.
+\so{2} Máy chạy cho cả lượt. Chỉ hiện máy chạy được mọi việc đã chọn; mọi việc cùng một máy theo báo giá thì máy
+đó được chọn sẵn và có thẻ \q{theo báo giá}. Chọn máy khác máy theo báo giá của việc nào thì phải ghi một lý do,
+lý do đó ghi vào nhật ký của từng việc chạy khác máy. Các việc không có máy chung nào thì hộp báo phải bỏ bớt việc
+khác công đoạn hoặc giao từng việc.
+\so{3} Nhóm làm: chỉ hiện nhóm làm được mọi việc với máy đã chọn; còn một nhóm thì điền sẵn.
+\so{4} \oo{Ghi chú kế hoạch}, không bắt buộc: một ghi chú cho cả lượt, ghi vào từng việc. Để trống thì việc nào
+đã có ghi chú từ lần giao trước vẫn giữ nguyên.
+\so{5} \oo{Giao N việc}: hệ thống giao lần lượt từng việc, đúng luật như giao một việc. Việc nào không giao được thì
+hộp giữ nguyên và ghi rõ việc đó cùng lý do, việc đó vẫn tích để giao lại; việc đã giao thì bỏ tích và sang Đã giao.
 
 \Needspace*{12\baselineskip}
 \subsection{Kanban theo máy}\label{khbp-kanban}
@@ -700,7 +736,8 @@ Hoàn thành không hiện ở đây, xem ở Bảng việc.
 \rong{khsx-48c-kanban.png}
 
 \so{1} Cột \oo{Chờ giao} đứng yên bên trái: việc chưa giao, hạn gần đứng đầu. Thẻ ghi mã lệnh, hạn, sản phẩm,
-số màu, số lượng và máy theo báo giá. Bấm một thẻ để chọn việc, bấm lại hoặc nhấn Esc để thôi.
+công đoạn, số màu, số lượng, dòng giấy (tên giấy và định lượng) và máy theo báo giá. Một lệnh có hai bước ở cùng
+bộ phận thì hai thẻ khác nhau ở công đoạn. Thẻ ở các cột máy cũng ghi công đoạn và giấy như vậy. Bấm một thẻ để chọn việc, bấm lại hoặc nhấn Esc để thôi.
 \so{2} Dải \q{Máy chưa có việc}: máy chưa có việc gom thành chip, không đứng thành cột trống. Đang chọn một việc
 thì chip của máy nhận được việc đó có nút \oo{Giao vào đây}, kéo thả việc vào chip cũng được.
 \so{3} Công tắc \oo{Máy trống thành cột}: bật lên thì máy chưa có việc cũng đứng thành cột. Màn nhớ lựa chọn này.
@@ -742,86 +779,176 @@ thì ngăn tự cập nhật.
 
 % ============================================================
 \Needspace*{16\baselineskip}
-\section{Gia công ngoài}\label{gia-cong}
+\section{Thuê gia công}\label{gia-cong}
 
 Có hai cách đưa hàng ra ngoài. Thuê ngoài một phần: một hay vài bước của lệnh do nhà gia công làm, các bước khác
-vẫn chạy ở xưởng. Gia công trọn gói: cả lệnh giao cho một nhà gia công. Nhà gia công là nhà cung cấp có bật
-\q{Nhận gia công}, do Thu mua khai.
+vẫn chạy ở xưởng. Thuê gia công trọn gói: cả lệnh giao cho một nhà gia công. Nhà gia công là danh sách riêng, không lấy từ
+danh mục Nhà cung cấp: người lập đơn thêm hay bỏ ngay ở ô \oo{Nhà gia công} lúc lập đơn (mục \ref{tgc-hang-cho}).
 
-Người kế hoạch cũng là người mang hàng đi và ghi số nhận về. Mọi việc đó làm ở khối \oo{Gia công ngoài} trên chi tiết
-lệnh, ở màn Lệnh sản xuất.
+Trên lệnh chỉ đánh dấu bước nào thuê ngoài, hoặc cả lệnh thuê trọn gói. Chọn nhà gia công, đặt hàng, giao hàng,
+nhận hàng về và trả tiền đều làm ở màn \oo{Thuê gia công} (nhóm Sản xuất trên thanh bên). Màn này có quyền riêng, người được
+cấp quyền đọc mới thấy.
 
 \Needspace*{14\baselineskip}
 \subsection{Thuê ngoài một phần}\label{mot-phan}
 
-Ở tab Công đoạn, đổi Loại của bước sang Gia công và chọn nhà gia công trong ngăn bước (mục \ref{ngan-buoc}). Phát
-hành xong, các bước gia công liền nhau cùng một nhà gia công thành một lần gia công.
+Ở tab Công đoạn, đổi Loại của bước sang Gia công trong ngăn bước (mục \ref{ngan-buoc}) rồi ghi lý do và lưu. Không
+chọn nhà gia công ở đây. Phát hành xong, các bước gia công liền nhau thành một việc gia công và việc đó vào Hàng chờ
+của màn Thuê gia công.
 
 \rong{khsx-50-gia-cong-mot-phan.png}
 
-\so{1} Chip tình trạng: Chờ mang đi, Đang ở nhà gia công, Đã nhận về, Đã huỷ. Dải chấm bên cạnh là ba nấc đó.
-\so{2} Nhà gia công kèm số điện thoại. \so{3} Bước trước chưa bàn giao hàng sang thì chưa mang đi được.
-\so{4} \oo{Lịch sử}: ai làm gì, lúc nào.
-
-Mang hàng đi:
-
-\begin{itemize}
-\item Bước gia công là bước đầu tiên: gõ Số mang đi rồi bấm \oo{Đã mang đi}.
-\item Có bước trước: số mang đi lấy theo số tổ trước đã bàn giao. Tổ bàn giao thêm thì bấm \oo{Mang thêm}.
-\end{itemize}
-
-Hàng về thì bấm \oo{Nhận hàng về}, gõ Số nhận về, chọn \oo{Hàng về đâu} và bước nhận hàng, rồi \oo{Chốt số nhận về}.
-Còn bước sau thì hàng \q{Về xưởng làm tiếp}, tổ của bước sau thấy hàng để nhận. Bước gia công là bước cuối thì hàng
-nhập kho thành phẩm.
-
-Chốt nhầm thì \oo{Mở lại} khi lần gia công đang Đã nhận về. Mở lại bị khoá khi đã có phiếu chi cho lần gia công, tổ
-nhận đã xác nhận, kho đã lập phiếu, hoặc lệnh đã đóng.
-
-KCS không kiểm bước gia công, số chốt nhận về là số chính thức. Tiền gia công do Kế toán chi: dòng Chi tiền ghi
-\q{Chờ kế toán chi}, chi xong thì hiện mã phiếu chi.
+Chi tiết lệnh có khối \oo{Thuê gia công}, chỉ để xem, mỗi việc một dòng.
+\so{1} Tình trạng: Chưa đặt, Đơn nháp, Đã đặt (kèm ngày hẹn về), Đang ở nhà gia công (còn ở ngoài trên đã giao),
+Xong (số đạt, kèm số hụt nếu có). \so{2} Nhà gia công của đơn. \so{3} Bấm mã đơn để sang màn Thuê gia công mở đúng
+đơn đó. Việc chưa vào đơn thì có \oo{Xem ở Hàng chờ}.
 
 \Needspace*{16\baselineskip}
-\subsection{Gia công trọn gói}\label{tron-goi}
+\subsection{Thuê gia công trọn gói}\label{tron-goi}
 
-Lệnh chưa phát hành, không nằm trong bài ghép, thì có nút \oo{Gia công trọn gói} trên đầu chi tiết lệnh.
+Lệnh chưa phát hành, không nằm trong bài ghép, thì có nút \oo{Thuê gia công trọn gói} trên đầu chi tiết lệnh.
 
 \canh{0.42}{khsx-51-dat-tron-goi.png}{%
-\so{1} Nhà gia công.
+Hộp chỉ hỏi xác nhận. \so{1} Bấm \oo{Thuê gia công trọn gói}.
 
-\so{2} Số đặt, mặc định bằng số lượng lệnh.
-
-\so{3} \oo{Xưởng cấp giấy}: tick khi công ty lo giấy theo phiếu tính giá. Bỏ tick khi nhà gia công tự lo giấy.
-
-\so{4} Bấm \oo{Đặt gia công trọn gói}.
-
-Lệnh trọn gói không xuống tổ, không vào Xếp lịch. Lệnh sang Đã phát hành ngay, chuỗi công đoạn chỉ còn một bước
-\q{Gia công trọn gói} ở nhà gia công đã chọn.}
+Lệnh sang Đã phát hành ngay, không xuống tổ, không vào Xếp lịch. Việc \q{Gia công trọn gói} vào Hàng chờ với số
+cần bằng số lượng lệnh. Giấy mặc định nhà gia công tự lo, đổi sang xưởng cấp ở hộp lập đơn (mục \ref{tgc-hang-cho}). Xưởng cấp thì giấy chọn lúc giao hàng.}
 
 \rong{khsx-52-tron-goi-sau-dat.png}
 
-\so{1} Lệnh đã phát hành. \so{2} Lần gia công sang thẳng \q{Đang ở nhà gia công}, không qua nấc Chờ mang đi.
-\so{3} Xưởng cấp giấy mà chưa chọn giấy thì có dải \q{Chưa cấp giấy cho nhà gia công} kèm nút \oo{Chọn giấy}.
-\so{4} \oo{Huỷ gia công}: lệnh về Nháp, phải ghi lý do. Kho đã lập phiếu xuất giấy cho nhà gia công thì không huỷ được.
+\so{1} Lệnh đã phát hành. \so{2} Dòng \q{Gia công trọn gói} trong khối Thuê gia công. Khi việc còn Chưa đặt thì
+dòng có nút \oo{Huỷ trọn gói}: lệnh về Nháp, phải ghi lý do. Đã vào đơn thì phải huỷ đơn trước. Xưởng cấp giấy mà
+chưa giao giấy thì đầu lệnh có dải \q{Chưa gửi đề nghị xuất giấy cho nhà gia công}.
 
-\Needspace*{14\baselineskip}
-\subsection{Cấp giấy cho nhà gia công}\label{cap-giay}
+\Needspace*{18\baselineskip}
+\subsection{Hàng chờ và lập đơn}\label{tgc-hang-cho}
 
-Bấm \oo{Chọn giấy}.
+Màn Thuê gia công có sáu tab: Hàng chờ, Đơn gia công, Phiếu giao, Phiếu nhận, Hàng đang ở ngoài, Chờ trả tiền.
 
-\rong{khsx-53-chon-giay.png}
+\rong{khsx-53-hang-cho.png}
 
-\so{1} Các khổ của loại giấy này đang có trong kho, kèm số tồn. Khổ đúng lệnh được chọn sẵn.
-\so{2} Số tờ xin xuất, điền sẵn theo lệnh. \so{3} Kho thiếu thì phần mềm báo nhưng vẫn cho gửi, kho xuất trước phần
-đang có. \so{4} \oo{Gửi đề nghị xuất giấy}. \oo{Để sau} thì đóng lại, dải nhắc vẫn còn.
+\so{1} \oo{Hàng chờ}: việc gia công đã phát hành mà chưa vào đơn. \so{2} Lọc theo tình trạng: Sẵn sàng giao (tổ
+bước trước đã bàn giao sang, hoặc việc đứng đầu lệnh), Chờ bước trước, Chưa đặt (việc trọn gói). \so{3} Tick những
+việc giao cùng một nhà gia công, hàng ô tìm đổi thành số việc đã chọn. \so{4} Bấm \oo{Tạo đơn gia công} ngay trên
+hàng đó.
 
-\rong{khsx-54-da-gui-de-nghi-giay.png}
+\rong{khsx-54-lap-don.png}
 
-\so{1} Tình trạng phía kho: Chờ kho soạn, Kho đã nhận, Kho đang soạn, Đã xuất một phần, Đã xuất đủ. Bấm mã đề nghị
-(DNX...) để xem. \so{2} \oo{Nhận hàng về} mờ tới khi kho ghi sổ phiếu xuất giấy, dòng chữ bên dưới nói rõ đang chờ gì.
-Lệnh trọn gói xưởng cấp giấy không giữ chỗ vật tư: đèn vật tư của lệnh vàng khi chưa gửi đề nghị xuất giấy, gửi rồi
-thì xanh.
+\so{1} Nhà gia công: bấm ô để mở danh sách, gõ để tìm. Gõ tên chưa có thì hiện dòng \q{Thêm} kèm tên vừa
+gõ, bấm dòng đó (hoặc Enter) để thêm và chọn luôn. Rê chuột vào một nhà rồi bấm dấu nhân để bỏ khỏi danh sách; nhà
+đã có đơn chỉ ẩn đi, đơn cũ vẫn giữ tên. \so{2} Ngày hẹn về, không được trước ngày đặt. \so{3} Số đặt điền sẵn số cần của việc, sửa
+được. \so{4} Đơn giá: đã thuê nhà này làm việc cùng tên thì điền sẵn giá lần trước và ghi \q{Theo lần trước}
+dưới ô; gõ giá khác thì dòng đó đổi thành \q{Lần trước} kèm giá cũ, bấm vào để dùng lại.
+Tạm tính bằng số đặt nhân đơn giá. \so{5} \oo{Đặt hàng}. \oo{Lưu nháp} thì đơn chưa đặt, sửa tiếp được, việc vẫn
+tính là chưa đặt.
 
-Hàng trọn gói về thì bấm Nhận hàng về, gõ số, hàng nhập thẳng kho thành phẩm.
+Đơn có việc trọn gói thì bảng thêm cột \oo{Giấy} có hai nấc \q{Nhà gia công lo} và \q{Xưởng cấp},
+mặc định \q{Nhà gia công lo}. Chọn \q{Xưởng cấp} thì giấy vào kế hoạch vật tư và giao bằng phiếu giao. Chọn \q{Nhà gia
+công lo} thì xưởng không xuất giấy. Đổi ở hộp \oo{Sửa} đơn cũng được, cho tới khi việc đó đã có phiếu giao:
+lúc đó ô khoá, muốn đổi phải huỷ phiếu giao trước.
+
+Việc còn \q{Chờ bước trước} vẫn đặt được: dưới tên việc ghi \q{Chờ bước trước bàn giao}, đầu hộp có câu nhắc. Đặt
+trước để chốt nhà gia công, giá và ngày hẹn về; hàng chỉ giao được khi tổ bước trước bàn giao sang, vì phiếu giao
+lấy đúng số đã bàn giao (mục \ref{cap-giay}).
+
+\Needspace*{16\baselineskip}
+\subsection{Đơn gia công}\label{tgc-don}
+
+Tab \oo{Đơn gia công} liệt kê đơn theo kỳ, lọc theo tình trạng và nhà gia công. Bấm một đơn để mở ngăn.
+
+\rong{khsx-55-ngan-don.png}
+
+\so{1} Tình trạng đơn tự tính từ giấy tờ: Nháp, Đã đặt, Đã giao một phần, Đã giao đủ, Đã về một phần, Hoàn tất,
+Đã huỷ. \so{2} Các tab Dòng đơn, Phiếu giao, Phiếu nhận, Lịch sử. \so{3} Mỗi dòng đơn là một khối: đầu khối ghi
+việc, kiểu gia công, lệnh và khách; dưới là số đặt, đơn giá, đã giao, đã nhận (kèm hỏng, hụt) và còn ở ngoài.
+Việc trọn gói không có Đã giao và Còn ở ngoài vì xưởng không giao bán thành phẩm. \so{4} Nút ở góc khối:
+\oo{Hoàn tất} khi không chờ thêm hàng, \oo{Mở lại} khi đã hoàn tất (mục \ref{tgc-hoan-tat}).
+
+Trên đầu ngăn có \oo{Giao hàng}, \oo{Nhận hàng}, \oo{Sửa}, \oo{Huỷ đơn}. Đặt rồi thì không đổi nhà gia công hay
+ngày đặt, vẫn sửa được hẹn về, số đặt và đơn giá. Huỷ đơn được khi chưa có phiếu giao hay phiếu nhận còn hiệu lực.
+
+\Needspace*{18\baselineskip}
+\subsection{Phiếu giao}\label{cap-giay}
+
+Bấm \oo{Giao hàng} ở ngăn đơn. Đơn gia công trọn gói mà nhà gia công tự lo giấy và không có vật tư xưởng cấp thì
+xưởng không phải giao gì: nút \oo{Giao hàng} mờ đi, không bấm được.
+
+\rong{khsx-56-phieu-giao.png}
+
+\so{1} Mỗi dòng đơn một khối:
+\begin{itemize}
+\item Bán thành phẩm: số lấy đúng phần tổ bước trước đã bàn giao, không gõ tay. Lưu phiếu là nhận các bàn giao
+đó. Việc đứng đầu lệnh không có bước trước thì gõ số. Tổ bước trước chưa bàn giao thì khối ghi \q{Bước trước chưa
+bàn giao hàng sang}; đã giao hết số tổ bàn giao thì ghi \q{Đã giao hết số tổ bước trước bàn giao}, tổ bàn giao thêm
+thì giao tiếp được. Hai trường hợp này nút \oo{Lưu phiếu giao} đều mờ.
+\item Vật tư xưởng cấp (món bỏ tick \q{Nhà gia công tự lo} ở bước): bảng ghi định mức, đã giao, tồn kho, rồi gõ
+số giao lần này.
+\item Giấy trọn gói xưởng cấp (ảnh trên): mỗi khổ giấy có trong kho là một ô ghi tồn, khổ đúng lệnh đứng đầu với
+chữ \q{Theo lệnh}. Bấm một ô để chọn khổ rồi gõ số xin xuất. Chọn khổ theo lệnh thì số điền sẵn theo lệnh; đổi sang
+khổ khác đơn vị (tờ và kg) thì ô số xoá trắng để gõ lại.
+\end{itemize}
+Tồn kho chỉ cộng các kho người lập được xem, không xem được kho nào thì không có cột tồn. Gõ số vượt tồn thì
+phần mềm ghi kho thiếu bao nhiêu nhưng không chặn, kho xử lý ở đề nghị xuất.
+\so{2} \oo{Lưu phiếu giao}. Vật tư và giấy thành một đề nghị xuất kho, kho lập phiếu xuất như thường. Bán thành phẩm
+không qua kho. Phiếu giao huỷ được khi kho chưa lập phiếu xuất và chưa có phiếu nhận nào sau nó.
+
+\Needspace*{20\baselineskip}
+\subsection{Phiếu nhận}\label{tgc-phieu-nhan}
+
+Hàng về thì bấm \oo{Nhận hàng} ở ngăn đơn. Tổ của bước sau cũng nhận được ngay ở Việc của tổ, tab Giao và nhận,
+nút \oo{Nhận hàng gia công}. Đơn gia công một phần mà chưa lập phiếu giao nào thì chưa có gì để nhận về: nút
+\oo{Nhận hàng} mờ đi.
+
+\rong{khsx-57-phieu-nhan.png}
+
+\so{1} Số đạt. \so{2} Số hỏng. Một phần thì đạt cộng hỏng không vượt số còn ở nhà gia công. Trọn gói nhận vượt
+số đặt thì có câu cảnh báo, vẫn lưu được. \so{3} Tạm tính theo số đạt nhân đơn giá. \so{4} Nơi về: về xưởng làm
+tiếp (chọn bước nhận khi lệnh rẽ nhánh), về kho thành phẩm, hoặc nhà gia công giao thẳng cho khách (gõ ngày khách
+nhận). \so{5} \oo{Lưu phiếu nhận}.
+
+Về xưởng thì tổ bước sau thấy hàng ở Nhận vào như hàng từ tổ trong xưởng. Người lưu phiếu có quyền xác nhận ở tổ
+đó thì bàn giao đã xác nhận sẵn. Về kho thì thành đề nghị nhập thành phẩm. Hàng gia công không qua KCS: kho tự
+kiểm khi nhập.
+
+Người đã lập phiếu giao của đơn thì không tự lập phiếu nhận cho đơn đó: người khác nhận hàng.
+
+Tab \oo{Phiếu nhận} liệt kê mọi lần nhận. Mở một phiếu để xem hàng nhận và đề nghị nhập kho đi kèm. \oo{Huỷ phiếu}
+phải ghi lý do, bị khoá khi kế toán đã lập phiếu chi, tổ sau đã nhận hay đã ghi sản lượng trên hàng đó, kho đã lập phiếu nhập, hoặc dòng
+đơn đã hoàn tất. Câu lý do hiện ngay trên ngăn.
+
+\Needspace*{12\baselineskip}
+\subsection{Hoàn tất và Hàng đang ở ngoài}\label{tgc-hoan-tat}
+
+Không chờ thêm hàng nữa thì bấm \oo{Hoàn tất} ở dòng đơn. Hộp nói số đạt, hỏng và hao hụt (đã giao trừ đạt trừ
+hỏng). Vật tư kho đã xuất cho nhà gia công thì hộp hỏi số trả về, để trống là nhà gia công dùng hết, số trả về
+thành đề nghị nhập kho. Hoàn tất xong thì bước gia công chuyển Hoàn thành, dòng ghi \q{hụt}. Bước chỉ hoàn thành ở
+đây, không tự hoàn thành theo số nhận.
+
+\oo{Mở lại} đưa bước về đang làm để nhận thêm, đề nghị nhập vật tư trả kho bị huỷ. Mở lại bị khoá khi kho đã lập
+phiếu cho đề nghị đó hoặc lệnh đã đóng.
+
+Tab \oo{Hàng đang ở ngoài} là sổ hàng còn ở các nhà gia công, tính từ phiếu giao và phiếu nhận: bán thành phẩm và
+vật tư kho, đã giao, đã về, còn ở ngoài, hẹn về. Lọc theo nhà gia công, bấm một dòng để mở đơn.
+
+\Needspace*{18\baselineskip}
+\subsection{Chờ trả tiền}\label{tgc-tra-tien}
+
+Mỗi phiếu nhận là một khoản phải trả nhà gia công. Tab \oo{Chờ trả tiền} liệt kê các phiếu nhận chưa có phiếu chi.
+Màn Phiếu chi của kế toán có cùng danh sách ở thẻ \oo{Gia công chờ chi}.
+
+\rong{khsx-58-cho-tra-tien.png}
+
+\so{1} Tab \oo{Chờ trả tiền}, tìm theo mã phiếu nhận, mã đơn, mã lệnh, lọc theo nhà gia công. \so{2} Tick các
+phiếu nhận trả chung một lần. Chỉ tick được phiếu cùng nhà gia công, phiếu của nhà khác bị khoá. \so{3} Tạm tính
+bằng số đạt nhân đơn giá trên đơn. Cột Hỏng / hụt chỉ để đối chiếu, không tự trừ. \so{4} Bấm \oo{Lập một phiếu
+chi}. Ô tick và nút này chỉ có với người được lập phiếu chi.
+
+Hộp lập phiếu chi điền sẵn số tiền bằng tổng tạm tính, người nhận là tên nhà gia công. Sửa số tiền theo hoá đơn
+thật thì phải ghi lý do lệch, lý do in vào phần Lý do chi. Lập xong phần mềm mở phiếu chi vừa lập ở màn Phiếu chi,
+các phiếu nhận đã trả rời danh sách. Tiền gia công trả ngay khi lập phiếu, không vào công nợ nhà cung cấp.
+
+Huỷ phiếu chi ở màn Phiếu chi thì các phiếu nhận của nó quay lại Chờ trả tiền. Phiếu nhận đã có phiếu chi thì không
+huỷ được, phải huỷ phiếu chi trước.
 
 % ============================================================
 \Needspace*{16\baselineskip}
@@ -890,7 +1017,8 @@ thành phẩm. Thành phẩm chỉ vào kho khi có người giữ quyền kiể
 Làm ra ít hơn số đặt thì KCS chỉ đóng được khi có quyền \q{Đóng lệnh thiếu}. Lệnh đóng thiếu thì mặt hàng hiện
 \q{Đóng lệnh thiếu} ở cột Đang vướng của Theo dõi sản xuất, đơn giao phần đã có. Phần mềm không tự tạo lệnh làm bù.
 
-Hàng gia công trọn gói và bước gia công cuối chuỗi không qua KCS: số chốt nhận về là số nhập kho.
+Hàng gia công trọn gói và bước gia công cuối chuỗi không qua KCS: số đạt trên phiếu nhận thành đề nghị nhập kho,
+kho tự kiểm khi nhập.
 
 % ============================================================
 \Needspace*{10\baselineskip}
@@ -936,9 +1064,12 @@ có hạn sản xuất). Dời sớm lên, đổi máy, hoặc báo Kinh doanh.
 Nhờ Thu mua khai món đó vào bảng giá của một nhà
 cung cấp, rồi đề nghị lại.
 
-\item[Nút Nhận hàng về ở lệnh trọn gói mờ?]
-Xưởng cấp giấy mà kho chưa xuất giấy cho nhà gia công. Xem tình trạng
-kho ở khối Gia công ngoài (mục \ref{cap-giay}).
+\item[Hộp Nhận hàng báo không tự nhận được?]
+Người đã lập phiếu giao của đơn không lập phiếu nhận cho đơn đó. Nhờ người khác nhận, ví dụ tổ
+bước sau nhận ngay ở Việc của tổ (mục \ref{tgc-phieu-nhan}).
+
+\item[Lệnh trọn gói xưởng cấp giấy, giấy giao ở đâu?]
+Ở Phiếu giao của đơn gia công: chọn khổ giấy trong kho rồi lưu, kho xuất theo đề nghị đó (mục \ref{cap-giay}).
 
 \item[Ai đóng lệnh?]
 KCS. Kế hoạch chỉ theo dõi tới lúc lệnh sang Đã đóng (chương \ref{lenh-xong}).

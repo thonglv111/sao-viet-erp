@@ -254,6 +254,18 @@ const FINE_ACTIONS: Record<string, FineAction[]> = {
   // Kế hoạch vật tư (14/10/2026): nút "Đề nghị mua" trên dòng thiếu + "Huỷ phiếu" trùng trong ngăn hỏi
   // Yêu cầu mua hàng → Thao tác (create mở form, update huỷ). Soi lên đây để người cấp quyền thấy
   // ngay, khỏi đoán sang dòng khác — thiếu ô này thì ô tick trên bảng khoá mà không nói vì sao.
+  thue_gia_cong: [
+    {
+      key: "can_handover",
+      label: "Nhận hàng",
+      hint: "Cho phép lập phiếu nhận hàng gia công về xưởng, kho hoặc giao thẳng khách. Lưu ý: tổ bước sau nhận được hàng về tổ mình bằng quyền Xác nhận sản lượng của tổ, không cần ô này; người đã lập phiếu giao của đơn không tự nhận được.",
+    },
+    {
+      key: "can_cancel",
+      label: "Huỷ",
+      hint: "Cho phép huỷ đơn gia công, phiếu giao, phiếu nhận còn huỷ được.",
+    },
+  ],
   san_xuat: [
     {
       key: "can_reassign",
@@ -664,7 +676,9 @@ const MODULE_HINTS: Record<string, string> = {
   // 6 dòng dưới đây gác 6 MÀN RIÊNG (tách 17/08/2026). Trước đó `san_xuat` mở 4 màn và
   // `ky_thuat_may` mở 2 — nhãn cũ chỉ kể một màn nên người cấp quyền không đoán ra mình vừa mở gì.
   san_xuat:
-    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; giao gia công ngoài (mang đi, chốt, trọn gói). Lưu ý: phạm vi tính theo sale phụ trách đơn; không có ô Chọn người làm lệnh thì chỉ thấy đơn người khác đã chọn mình làm.",
+    "Xem: hàng chờ và lệnh sản xuất. Thao tác: tạo, sửa, xoá lệnh; sửa công đoạn, đánh dấu sẵn sàng; thuê gia công trọn gói. Lưu ý: phạm vi tính theo sale phụ trách đơn; không có ô Chọn người làm lệnh thì chỉ thấy đơn người khác đã chọn mình làm.",
+  thue_gia_cong:
+    "Xem: hàng chờ gia công, đơn, phiếu giao, phiếu nhận, hàng đang ở ngoài, chờ trả tiền (có tiền công). Thao tác: lập, sửa, đặt đơn; lập phiếu giao; hoàn tất dòng đơn; tách việc theo bước.",
   ke_hoach_vat_tu:
     "Xem: bảng cân đối vật tư (không có giá). Thao tác: giữ chỗ, nhả giữ chỗ vật tư cho lệnh. Lưu ý: lập yêu cầu mua từ dòng thiếu là ô chi tiết Đề nghị mua.",
   // Khoá vẫn mang hậu tố `_2` (đổi khoá trong DB không đáng), nhưng đây là màn Bài ghép DUY NHẤT
@@ -855,6 +869,7 @@ const MODULE_GROUPS: {
     // của `ky_thuat_may`, không còn là một dòng.
     modules: [
       "san_xuat",
+      "thue_gia_cong",
       "lenh_san_xuat",
       "theo_doi_san_xuat",
       "ke_hoach_vat_tu",

@@ -1,23 +1,25 @@
-"""Bước CHUNG thuê ngoài của bài ghép — lập kế hoạch (spec 2026-09-27 §2 bước 1, §6).
+"""Bước CHUNG thuê ngoài của bài ghép — lập kế hoạch.
 
-Chọn nhà gia công từ danh mục (chỉ NCC tích "Nhận gia công"), tên do máy chủ ghi; thiếu nhà gia
-công ⇒ bài "Còn thiếu"; gộp chép nhà gia công khi mọi bước gộp cùng một nhà.
+Từ 13/11/2026 (module Thuê gia công) bài ghép KHÔNG chọn nhà gia công: nhà gia công chọn lúc lập
+đơn ở màn Thuê gia công. Bước chung thuê ngoài gỡ tổ/máy, bỏ qua `nha_cung_cap_id`, không "Còn
+thiếu" vì thiếu nhà; xoá bài dọn việc thuê gia công chưa đặt, chặn việc đã nằm trong đơn.
 """
 from __future__ import annotations
 
 import pytest
 
-from app.models.gia_cong_ngoai import KIEU_MOT_PHAN, GiaCongNgoai, _utcnow
-from app.models.lsx import LB_MAY, LB_THUE_NGOAI, LsxCongDoan
-from app.models.purchase import Supplier
+from datetime import date
+
+from app.models.thue_gia_cong import KIEU_MOT_PHAN, TgcDon, TgcDonDong, TgcNhaGiaCong, TgcViec
+from app.models.lsx import LB_THUE_NGOAI, LsxCongDoan
 from app.services.bai_ghep_service import BaiGhepValidationError
 from tests.test_bai_ghep_service import (  # noqa: F401
     _hai_lsx_san_sang, admin, bg_svc, customer, db, lsx_svc, orders,
 )
 
 
-def _ncc(db, ten="Cán màng Tân Phát", nhan=True) -> Supplier:
-    s = Supplier(name=ten, nhan_gia_cong=nhan)
+def _ncc(db, ten="Cán màng Tân Phát", nhan=True) -> TgcNhaGiaCong:
+    s = TgcNhaGiaCong(ten=ten, active=nhan)
     db.add(s)
     db.commit()
     return s
@@ -42,7 +44,7 @@ def _gop(db, bg_svc, admin, bg, a, b):
     return c
 
 
-def test_chon_nha_gia_cong_ten_do_may_chu_ghi_go_to_may(db, bg_svc, admin, bai):
+def test_buoc_chung_thue_ngoai_go_to_may_bo_qua_nha_gia_cong(db, bg_svc, admin, bai):
     bg, a, b = bai
     c = _gop(db, bg_svc, admin, bg, a, b)
     s = _ncc(db)
@@ -51,72 +53,44 @@ def test_chon_nha_gia_cong_ten_do_may_chu_ghi_go_to_may(db, bg_svc, admin, bai):
         patch={"loai_buoc": LB_THUE_NGOAI, "nha_cung_cap_id": s.id, "department_id": 1},
     )
     db.refresh(c)
-    assert c.nha_cung_cap_id == s.id and c.nha_cung_cap == "Cán màng Tân Phát"
+    assert not hasattr(c, "nha_cung_cap_id") and not hasattr(c, "nha_cung_cap")
     assert c.department_id is None and c.may_id is None
-    assert "Chưa chọn nhà gia công" not in bg_svc._thieu_buoc_chung(c)
 
 
-def test_ncc_khong_nhan_gia_cong_bi_tu_choi(db, bg_svc, admin, bai):
-    bg, a, b = bai
-    c = _gop(db, bg_svc, admin, bg, a, b)
-    s = _ncc(db, "Giấy Hoà Bình", nhan=False)
-    with pytest.raises(BaiGhepValidationError, match="Nhận gia công"):
-        bg_svc.lap_ke_hoach_buoc_chung(
-            bai_ghep_id=bg.id, gang_step_key=c.step_key, actor=admin,
-            patch={"loai_buoc": LB_THUE_NGOAI, "nha_cung_cap_id": s.id},
-        )
-
-
-def test_thieu_nha_gia_cong_la_con_thieu(db, bg_svc, admin, bai):
+def test_thue_ngoai_khong_con_thieu_nha_gia_cong(db, bg_svc, admin, bai):
     bg, a, b = bai
     c = _gop(db, bg_svc, admin, bg, a, b)
     bg_svc.lap_ke_hoach_buoc_chung(bai_ghep_id=bg.id, gang_step_key=c.step_key, actor=admin,
                                    patch={"loai_buoc": LB_THUE_NGOAI})
     db.refresh(c)
-    assert "Chưa chọn nhà gia công" in bg_svc._thieu_buoc_chung(c)
-    assert "thieu_ke_hoach_buoc_chung" in bg_svc.thieu_cua(bg_svc._get(bg.id))
+    assert bg_svc._thieu_buoc_chung(c) == []
 
 
-def test_doi_khoi_thue_ngoai_don_nha_gia_cong(db, bg_svc, admin, bai):
+def test_gop_khong_chep_nha_gia_cong(db, bg_svc, admin, bai):
     bg, a, b = bai
-    c = _gop(db, bg_svc, admin, bg, a, b)
-    s = _ncc(db)
-    bg_svc.lap_ke_hoach_buoc_chung(bai_ghep_id=bg.id, gang_step_key=c.step_key, actor=admin,
-                                   patch={"loai_buoc": LB_THUE_NGOAI, "nha_cung_cap_id": s.id})
-    bg_svc.lap_ke_hoach_buoc_chung(bai_ghep_id=bg.id, gang_step_key=c.step_key, actor=admin,
-                                   patch={"loai_buoc": LB_MAY})
-    db.refresh(c)
-    assert c.nha_cung_cap_id is None and c.nha_cung_cap is None
-
-
-def test_gop_chep_nha_gia_cong_khi_moi_buoc_cung_mot_nha(db, bg_svc, admin, bai):
-    bg, a, b = bai
-    s = _ncc(db)
     for l in (a, b):
-        cd = _buoc_in(db, l.id)
-        cd.loai_buoc, cd.nha_cung_cap_id, cd.nha_cung_cap = LB_THUE_NGOAI, s.id, s.name
+        _buoc_in(db, l.id).loai_buoc = LB_THUE_NGOAI
     db.commit()
     c = _gop(db, bg_svc, admin, bg, a, b)
     assert c.loai_buoc == LB_THUE_NGOAI
-    assert c.nha_cung_cap_id == s.id and c.nha_cung_cap == s.name
 
 
-def test_gop_khong_chep_khi_khac_nha(db, bg_svc, admin, bai):
-    bg, a, b = bai
-    s1, s2 = _ncc(db), _ncc(db, "Cán màng Minh Long")
-    for l, s in ((a, s1), (b, s2)):
-        cd = _buoc_in(db, l.id)
-        cd.loai_buoc, cd.nha_cung_cap_id, cd.nha_cung_cap = LB_THUE_NGOAI, s.id, s.name
-    db.commit()
-    c = _gop(db, bg_svc, admin, bg, a, b)
-    assert c.nha_cung_cap_id is None and c.nha_cung_cap is None
-
-
-def test_xoa_bai_don_lan_da_huy(db, bg_svc, admin, bai):
+def test_xoa_bai_don_viec_chua_dat(db, bg_svc, admin, bai):
     bg, _a, _b = bai
-    s = _ncc(db)
-    db.add(GiaCongNgoai(kieu=KIEU_MOT_PHAN, nha_cung_cap_id=s.id, bai_ghep_id=bg.id,
-                        huy_luc=_utcnow(), ly_do_huy="Thu hồi gói"))
+    db.add(TgcViec(kieu=KIEU_MOT_PHAN, bai_ghep_id=bg.id, ten_viec="Cán màng"))
     db.commit()
     bg_svc.xoa(bai_ghep_id=bg.id, actor=admin)
-    assert db.query(GiaCongNgoai).filter_by(bai_ghep_id=bg.id).count() == 0
+    assert db.query(TgcViec).filter_by(bai_ghep_id=bg.id).count() == 0
+
+
+def test_xoa_bai_chan_viec_da_dat(db, bg_svc, admin, bai):
+    bg, _a, _b = bai
+    v = TgcViec(kieu=KIEU_MOT_PHAN, bai_ghep_id=bg.id, ten_viec="Cán màng")
+    s = _ncc(db)
+    don = TgcDon(ma="GC26-9201", nha_cung_cap_id=s.id, nha_cung_cap_ten=s.ten, ngay_dat=date.today())
+    db.add_all([v, don])
+    db.flush()
+    db.add(TgcDonDong(don_id=don.id, viec_id=v.id, sl_dat=100, don_gia=0))
+    db.commit()
+    with pytest.raises(BaiGhepValidationError, match="GC26-9201"):
+        bg_svc.xoa(bai_ghep_id=bg.id, actor=admin)

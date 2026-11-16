@@ -199,15 +199,8 @@ function ONcc({ cot, row, moBangGia }: { cot: string; row: SupplierRow; moBangGi
     case "ten":
       return (
         <td title={row.name}>
-          {/* Tên co lại (cắt "…") trước, thẻ Nhận gia công đứng yên ở cuối ô. */}
           <span className="ncc-ten">
             <span>{tenKhachGon(row.name)}</span>
-            {/* Hộp Gia công trọn gói của lệnh chỉ cho chọn đúng những NCC có cờ này. */}
-            {row.nhan_gia_cong && (
-              <span className="lds-tag" title="Hiện trong ô chọn nơi làm của công đoạn thuê ngoài">
-                Nhận gia công
-              </span>
-            )}
           </span>
         </td>
       );

@@ -240,8 +240,8 @@ hub = EventHub()
 def phat_ban_giao(res: dict) -> None:
     """Bàn giao đổi trạng thái → refresh CẢ hai bàn tổ (nguồn + đích) + đẩy tới người cần hành động.
 
-    Dùng chung cho MỌI cửa ghi bàn giao — bàn tổ (`routers/san_xuat.py`) và "Đã mang đi" của gia
-    công ngoài (`routers/gia_cong_ngoai.py`) đều gọi vào đây, không đẻ bản thứ hai (một gói mang cả
+    Dùng chung cho MỌI cửa ghi bàn giao — bàn tổ (`routers/san_xuat.py`) và Phiếu giao của Thuê
+    gia công đều gọi vào đây, không đẻ bản thứ hai (một gói mang cả
     hai tổ `team_ids`, không phải mỗi tổ một gói: `broadcast` tới MỌI kết nối và mỗi gói bump tick
     chung ở FE, nên hai gói là mọi màn đang mở nạp lại hai lượt cho một cú bấm — đo 16/09/2026 ở
     bàn tổ: danh sách việc ×3, hộp thư kho ×2, chờ xác nhận ×2 cho một Đề xuất)."""

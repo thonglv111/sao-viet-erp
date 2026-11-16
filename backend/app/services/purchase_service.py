@@ -902,7 +902,6 @@ class PurchaseService:
         status: str | None = None,
         supplier_group: str | None = None,
         rating_min: float | None = None,
-        nhan_gia_cong: bool | None = None,
         tu_ngay: date | None = None,
         den_ngay: date | None = None,
         sort: str = "name",
@@ -919,7 +918,6 @@ class PurchaseService:
             status=status,
             supplier_group=supplier_group,
             rating_min=rating_min,
-            nhan_gia_cong=nhan_gia_cong,
             tu_ngay=tu_ngay,
             den_ngay=den_ngay,
             sort=sort,
@@ -1082,8 +1080,6 @@ class PurchaseService:
             "credit_days": so_ngay,
             "debt_cutoff_day": ngay_chot,
             "status": status,
-            # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
-            "nhan_gia_cong": bool(values.get("nhan_gia_cong")),
             "note": (values.get("note") or "").strip() or None,
             "items": items,
         }

@@ -47,7 +47,7 @@ def test_cap_nhat_doi_to_buoc_loai_to_sang_ban_moi(db, orders, lsx_svc, xl_svc, 
 
     a, goi = _phat_hanh_cap_lenh(db, orders, lsx_svc, xl_svc, admin, customer)
     cv = next(c for c in db.query(SanXuatCongViec).filter_by(goi_id=goi.id)
-              if c.lsx_cong_doan_id and c.gia_cong_ngoai_id is None)
+              if c.lsx_cong_doan_id and c.tgc_viec_id is None)
     cv.loai_buoc, cv.may_id = BUOC_TO, None
     to_moi, _ = _to_may(db, "TOX1")
     buoc = db.get(LsxCongDoan, cv.lsx_cong_doan_id)

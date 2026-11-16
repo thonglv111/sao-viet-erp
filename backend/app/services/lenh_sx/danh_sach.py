@@ -147,9 +147,9 @@ def _loc_sql(
     if phu_trach_id is not None:
         stmt = stmt.where(Lsx.order_id.in_(select(Order.id).where(pham_vi.chu_don() == phu_trach_id)))
     if gia_cong:
-        from ...repositories.gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
+        from ...repositories.thue_gia_cong_repo import lsx_ids_loc_thue_gia_cong
 
-        stmt = stmt.where(Lsx.id.in_(lsx_ids_loc_gia_cong(gia_cong)))
+        stmt = stmt.where(Lsx.id.in_(lsx_ids_loc_thue_gia_cong(gia_cong)))
     cot, la_ngay = MOC.get(moc, MOC["tao"])
     for dk in dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay):
         stmt = stmt.where(dk)
@@ -321,7 +321,7 @@ def chang(bc: BoiCanh, lsx_id: int, cv_nay: SanXuatCongViec | None) -> list[dict
             "trang_thai": tt,
             "hien_tai": khoa == khoa_nay,
             # Bước thuê ngoài (viền cam trên tuyến bước) và bước có lô KCS không đạt (viền đỏ mảnh).
-            "ngoai": any(cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None for cv in ds),
+            "ngoai": any(cv.loai_buoc == BUOC_THUE_NGOAI or cv.tgc_viec_id is not None for cv in ds),
             "kcs_loi": any(k.ket_luan == KCS_KHONG_DAT for cv in ds for k in bc.kcs.get(cv.id, ())),
         })
     return ra
@@ -440,10 +440,9 @@ def danh_sach(
     trang = ids[dau:dau + page_size]
     tap_song = set(song)
     bc_trang = boi_canh.nap(db, [i for i in trang if i not in tap_song])
-    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+    from ..thue_gia_cong.tom_tat import tron_goi_theo_lenh
 
-    tron_goi = {i: g.nha_cung_cap_ten for i, g, _bg in GiaCongNgoaiRepository(db).cua_nhieu_lenh(trang)
-                if g.kieu == "tron_goi"}
+    tron_goi = tron_goi_theo_lenh(db, trang)
     return {
         "items": [_dong(bc if i in tap_song else bc_trang, i, kh[i], tron_goi) for i in trang],
         "total": len(ids),

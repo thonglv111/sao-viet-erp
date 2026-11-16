@@ -16077,6 +16077,10 @@ def _migrate_gia_cong_ngoai(db) -> None:
     for ten_bang, cot, kieu in _COT_0339:
         if ten_bang not in bang or cot in _existing_columns(insp, ten_bang):
             continue
+        # 13/11/2026: model `gia_cong_ngoai` đã gỡ (mg 0481 gỡ cột) — DB cài mới không có bảng đích
+        # nên thêm cột trơn, khỏi vấp FK tới bảng không tồn tại.
+        if "gia_cong_ngoai" not in bang:
+            kieu = "INTEGER"
         db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {cot} {kieu}"))
     for ten_bang, cot in (
         ("lsx_cong_doan", "nha_cung_cap_id"),
@@ -19737,6 +19741,26 @@ MIGRATIONS.append(("0471_ke_hoach_tung_bo_phan", _migrate_ke_hoach_tung_bo_phan)
 MIGRATIONS.append(("0472_user_fks_delete_cascade_lan_2", _migrate_user_fks_delete_cascade))
 
 
+def _migrate_ghi_chu_ke_hoach(db: Session) -> None:
+    """0473 (12/11/2026) — ghi chú kế hoạch của bộ phận trên việc: chữ + người ghi + lúc ghi.
+
+    Người kế hoạch ghi lúc Giao, nhóm đọc ở ngăn việc. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "san_xuat_cong_viec" not in set(insp.get_table_names()):
+        return
+    cols = _existing_columns(insp, "san_xuat_cong_viec")
+    if "ghi_chu_ke_hoach" not in cols:
+        db.execute(text("ALTER TABLE san_xuat_cong_viec ADD COLUMN ghi_chu_ke_hoach TEXT"))
+    if "ghi_chu_ke_hoach_by_id" not in cols:
+        db.execute(text("ALTER TABLE san_xuat_cong_viec ADD COLUMN ghi_chu_ke_hoach_by_id INTEGER"))
+    if "ghi_chu_ke_hoach_at" not in cols:
+        db.execute(text("ALTER TABLE san_xuat_cong_viec ADD COLUMN ghi_chu_ke_hoach_at TIMESTAMP WITH TIME ZONE"))
+    db.commit()
+
+
+MIGRATIONS.append(("0473_ghi_chu_ke_hoach", _migrate_ghi_chu_ke_hoach))
+
+
 def _migrate_vat_lieu_dau_vao(db: Session) -> None:
     """0474 (12/11/2026) — lề trừ của Tề sóng (khối Vật liệu đầu vào của lệnh): cột `cong_doan.tru_le_mm`,
     dòng hệ thống `TS` đặt 5 mm nếu còn trống. Lệnh cũ không đổi (lề vắng trong quy cách = 0). Idempotent."""
@@ -19896,3 +19920,410 @@ def _migrate_don_vi_van_chuyen_rieng(db: Session) -> None:
 
 
 MIGRATIONS.append(("0478_don_vi_van_chuyen_rieng", _migrate_don_vi_van_chuyen_rieng))
+
+
+def _migrate_tgc_nen(db: Session) -> None:
+    """0479 (13/11/2026) — nền module Thuê gia công. Bảng `tgc_*` do `create_all` tạo; ở đây chỉ thêm
+    cột nối vào bảng có sẵn: `lsx_cong_doan_vat_tu.ncc_tu_lo` (Nhà gia công tự lo, mặc định true),
+    `san_xuat_cong_viec.tgc_viec_id`, `stock_requests.tgc_phieu_giao_id / tgc_phieu_nhan_id /
+    tgc_don_dong_id`, `delivery_trips.tgc_phieu_nhan_id`. Đọc cột hết TRƯỚC lệnh ghi đầu tiên. Idempotent."""
+    bind = db.get_bind()
+    pg = bind.dialect.name == "postgresql"
+    insp = inspect(bind)
+    bang = set(insp.get_table_names())
+    cot = {t: _existing_columns(insp, t) for t in
+           ("lsx_cong_doan_vat_tu", "san_xuat_cong_viec", "stock_requests", "delivery_trips") if t in bang}
+    if "ncc_tu_lo" not in cot.get("lsx_cong_doan_vat_tu", {"ncc_tu_lo"}):
+        db.execute(text("ALTER TABLE lsx_cong_doan_vat_tu ADD COLUMN ncc_tu_lo BOOLEAN NOT NULL DEFAULT true"))
+    if "tgc_viec_id" not in cot.get("san_xuat_cong_viec", {"tgc_viec_id"}):
+        if pg and "tgc_viec" in bang:
+            db.execute(text("ALTER TABLE san_xuat_cong_viec ADD COLUMN tgc_viec_id INTEGER "
+                            "REFERENCES tgc_viec(id) ON DELETE SET NULL"))
+        else:
+            db.execute(text("ALTER TABLE san_xuat_cong_viec ADD COLUMN tgc_viec_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_san_xuat_cong_viec_tgc_viec_id "
+                        "ON san_xuat_cong_viec (tgc_viec_id)"))
+    for c in ("tgc_phieu_giao_id", "tgc_phieu_nhan_id", "tgc_don_dong_id"):
+        if c not in cot.get("stock_requests", {c}):
+            db.execute(text(f"ALTER TABLE stock_requests ADD COLUMN {c} INTEGER"))
+            db.execute(text(f"CREATE INDEX IF NOT EXISTS ix_stock_requests_{c} ON stock_requests ({c})"))
+    if "tgc_phieu_nhan_id" not in cot.get("delivery_trips", {"tgc_phieu_nhan_id"}):
+        db.execute(text("ALTER TABLE delivery_trips ADD COLUMN tgc_phieu_nhan_id INTEGER"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS ix_delivery_trips_tgc_phieu_nhan_id "
+                        "ON delivery_trips (tgc_phieu_nhan_id)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0479_tgc_nen", _migrate_tgc_nen))
+
+
+# --- mg 0480 / 0481 — THUÊ GIA CÔNG: chuyển dữ liệu `gia_cong_ngoai` sang `tgc_*` rồi gỡ bảng cũ ---
+def _tgc_ma(db, doc_type: str, prefix: str, bang: str, luc) -> str:
+    """Mã chứng từ `GC26-0001` cấp qua bộ đếm `document_sequences` theo năm của `luc` — cùng định
+    dạng `SequenceService.generate_code`, đẩy bộ đếm lên tối thiểu bằng mã lớn nhất đang có."""
+    from .repositories.document_sequence_repo import DocumentSequenceRepository
+
+    if luc is None:
+        nam = datetime.now(timezone.utc).year
+    else:
+        nam = luc.year if hasattr(luc, "year") else int(str(luc)[:4])
+    dau = f"{prefix}{nam % 100:02d}-"
+    san = 0
+    for (ma,) in db.execute(text(f"SELECT ma FROM {bang} WHERE ma LIKE :p"), {"p": dau + "%"}):
+        duoi = str(ma)[len(dau):]
+        if duoi.isdigit():
+            san = max(san, int(duoi))
+    so = DocumentSequenceRepository(db)._tang_tu_san(doc_type, nam, san)
+    return f"{dau}{so:04d}"
+
+
+def _tgc_them(db, sql: str, gia_tri: dict) -> int:
+    return int(db.execute(text(sql + " RETURNING id"), gia_tri).scalar_one())
+
+
+def _tgc_nha_tu_ncc(db, ncc_id, ten_du_phong: str = "") -> int:
+    """Id `tgc_nha_gia_cong` cho một NCC cũ: lấy tên NCC (thiếu thì tên chụp trên đơn), tìm nhà cùng tên
+    (không phân biệt hoa thường), chưa có thì thêm. Nhà gia công là danh sách riêng từ mg 0484."""
+    ten = None
+    if ncc_id is not None:
+        ten = db.execute(text("SELECT name FROM suppliers WHERE id = :i"), {"i": int(ncc_id)}).scalar()
+    ten = " ".join(str(ten or ten_du_phong or "").split())[:255] or f"Nhà gia công #{ncc_id}"
+    cu = db.execute(text("SELECT id FROM tgc_nha_gia_cong WHERE lower(ten) = :t ORDER BY id LIMIT 1"),
+                    {"t": ten.lower()}).first()
+    if cu is not None:
+        return int(cu[0])
+    return _tgc_them(db, "INSERT INTO tgc_nha_gia_cong (ten, active, created_at) "
+                         "VALUES (:t, :a, CURRENT_TIMESTAMP)", {"t": ten, "a": True})
+
+
+def _tgc_ngay(luc):
+    if luc is None:
+        return datetime.now(timezone.utc).date()
+    if hasattr(luc, "date"):
+        return luc.date()
+    return datetime.fromisoformat(str(luc)[:19]).date()
+
+
+def _migrate_tgc_chuyen_du_lieu_cu(db) -> None:
+    """mg 0480 — mỗi LẦN gia công ngoài còn sống ⇒ một việc + một đơn (đơn giá 0) + phiếu giao /
+    phiếu nhận theo mốc mang đi / xuất giấy / chốt; chép liên kết công việc, đề nghị kho, chuyến giao,
+    phiếu chi. Lần đã huỷ bỏ (audit `gia_cong_ngoai:<id>` còn trong `audit_logs`). DB không có bảng
+    cũ (cài mới) ⇒ no-op. Raw SQL đích danh cột, đọc schema TRƯỚC lệnh ghi đầu tiên."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "gia_cong_ngoai" not in bang or "tgc_viec" not in bang:
+        return
+    cot_cv = _existing_columns(insp, "san_xuat_cong_viec")
+    cot_sr = _existing_columns(insp, "stock_requests") if "stock_requests" in bang else set()
+    cot_dt = _existing_columns(insp, "delivery_trips") if "delivery_trips" in bang else set()
+    cot_pv = _existing_columns(insp, "payment_vouchers") if "payment_vouchers" in bang else set()
+    if "gia_cong_ngoai_id" not in cot_cv:
+        return
+    if db.execute(text("SELECT COUNT(*) FROM tgc_viec")).scalar_one():
+        return   # đã chuyển (chạy lại vô hại)
+
+    lans = db.execute(text(
+        "SELECT id, lsx_id, bai_ghep_id, kieu, nha_cung_cap_id, nha_cung_cap_ten, ten_viec, don_vi,"
+        " sl_dat, xuong_cap_giay, mang_di_boi_id, mang_di_luc, sl_gui, chot_boi_id, chot_luc,"
+        " sl_cuoi, noi_ve, created_by, created_at "
+        "FROM gia_cong_ngoai WHERE huy_luc IS NULL ORDER BY id")).mappings().all()
+    for g in lans:
+        cvs = db.execute(text(
+            "SELECT id, so_luong_vao, so_luong_ra, don_vi_vao FROM san_xuat_cong_viec "
+            "WHERE gia_cong_ngoai_id = :g ORDER BY id"), {"g": g["id"]}).mappings().all()
+        dau, cuoi = (cvs[0], cvs[-1]) if cvs else (None, None)
+        sl_can = g["sl_dat"] if g["sl_dat"] is not None else (dau["so_luong_vao"] if dau else None)
+        luc = g["created_at"]
+        viec_id = _tgc_them(db, (
+            "INSERT INTO tgc_viec (lsx_id, bai_ghep_id, kieu, ten_viec, sl_can, don_vi,"
+            " xuong_cap_giay, created_by, created_at, updated_at, version) "
+            "VALUES (:lsx, :bg, :kieu, :ten, :sl, :dv, :cap, :by, :luc, :luc, 1)"), {
+            "lsx": g["lsx_id"], "bg": g["bai_ghep_id"], "kieu": g["kieu"],
+            "ten": (g["ten_viec"] or "")[:255], "sl": sl_can, "dv": g["don_vi"],
+            "cap": bool(g["xuong_cap_giay"]), "by": g["created_by"], "luc": luc})
+        db.execute(text(
+            "UPDATE san_xuat_cong_viec SET tgc_viec_id = :v WHERE gia_cong_ngoai_id = :g"),
+            {"v": viec_id, "g": g["id"]})
+        if g["nha_cung_cap_id"] is None:
+            continue   # không biết nhà gia công ⇒ việc nằm lại Hàng chờ, chưa đặt
+        don_id = _tgc_them(db, (
+            "INSERT INTO tgc_don (ma, nha_cung_cap_id, nha_cung_cap_ten, ngay_dat, dat_luc,"
+            " dat_boi_id, ghi_chu, created_by, created_at, updated_at, version) "
+            "VALUES (:ma, :ncc, :ten, :ngay, :luc, :by, :gc, :by, :luc, :luc, 1)"), {
+            "ma": _tgc_ma(db, "tgc_don", "GC", "tgc_don", luc),
+            # `tgc_don.nha_cung_cap_id` trỏ `tgc_nha_gia_cong` (mg 0484): đổi NCC cũ sang nhà cùng tên.
+            "ncc": _tgc_nha_tu_ncc(db, g["nha_cung_cap_id"], g["nha_cung_cap_ten"] or ""),
+            "ten": g["nha_cung_cap_ten"] or "", "ngay": _tgc_ngay(luc), "luc": luc,
+            "by": g["created_by"], "gc": "Chuyển từ lần gia công ngoài cũ #%s" % g["id"]})
+        sl_dat = next((x for x in (g["sl_dat"], g["sl_gui"], sl_can) if x is not None), 0)
+        hao_hut = None
+        if g["chot_luc"] is not None and g["kieu"] == "mot_phan" and g["sl_gui"] is not None:
+            vao = float(dau["so_luong_vao"] or 0) if dau else 0
+            ra = float(cuoi["so_luong_ra"] or 0) if cuoi else 0
+            giao_qd = float(g["sl_gui"]) * ra / vao if vao > 0 and ra > 0 else float(g["sl_gui"])
+            hao_hut = round(giao_qd - float(g["sl_cuoi"] or 0), 3)
+        dong_id = _tgc_them(db, (
+            "INSERT INTO tgc_don_dong (don_id, viec_id, sl_dat, don_gia, don_vi, thu_tu,"
+            " hoan_tat_luc, hoan_tat_boi_id, hao_hut) "
+            "VALUES (:don, :viec, :sl, 0, :dv, 0, :ht, :htb, :hh)"), {
+            "don": don_id, "viec": viec_id, "sl": sl_dat, "dv": g["don_vi"],
+            "ht": g["chot_luc"], "htb": g["chot_boi_id"] if g["chot_luc"] is not None else None,
+            "hh": hao_hut})
+
+        # Bán thành phẩm đã mang đi.
+        if g["mang_di_luc"] is not None:
+            pg_id = _tgc_them(db, (
+                "INSERT INTO tgc_phieu_giao (ma, don_id, giao_luc, nguoi_giao_id, created_at,"
+                " version) VALUES (:ma, :don, :luc, :ai, :luc, 1)"), {
+                "ma": _tgc_ma(db, "tgc_phieu_giao", "GG", "tgc_phieu_giao", g["mang_di_luc"]),
+                "don": don_id, "luc": g["mang_di_luc"], "ai": g["mang_di_boi_id"]})
+            bgs = db.execute(text(
+                "SELECT id, so_luong, don_vi FROM san_xuat_ban_giao "
+                "WHERE dich_cong_viec_id = :cv AND trang_thai = 'confirmed' ORDER BY id"),
+                {"cv": dau["id"]}).mappings().all() if dau else []
+            dong_bg = [(b["so_luong"], b["don_vi"], b["id"]) for b in bgs] or [
+                (g["sl_gui"] or 0, dau["don_vi_vao"] if dau else g["don_vi"], None)]
+            for sl, dv, bg_id in dong_bg:
+                db.execute(text(
+                    "INSERT INTO tgc_phieu_giao_dong (phieu_id, don_dong_id, loai, so_luong, don_vi,"
+                    " ban_giao_id, kho_rong, kho_dai) "
+                    "VALUES (:p, :d, 'ban_thanh_pham', :sl, :dv, :bg, 0, 0)"),
+                    {"p": pg_id, "d": dong_id, "sl": sl, "dv": dv, "bg": bg_id})
+
+        # Giấy xưởng cấp cho trọn gói (đề nghị xuất còn sống).
+        if "gia_cong_ngoai_id" in cot_sr and "tgc_phieu_giao_id" in cot_sr:
+            xuat = db.execute(text(
+                "SELECT id, created_at, nguoi_tao_id FROM stock_requests WHERE gia_cong_ngoai_id = :g"
+                " AND loai = 'XUAT' AND trang_thai NOT IN ('cancelled', 'rejected') ORDER BY id"),
+                {"g": g["id"]}).mappings().all()
+            for r in xuat:
+                pg_id = _tgc_them(db, (
+                    "INSERT INTO tgc_phieu_giao (ma, don_id, giao_luc, nguoi_giao_id, ghi_chu,"
+                    " created_at, version) VALUES (:ma, :don, :luc, :ai, :gc, :luc, 1)"), {
+                    "ma": _tgc_ma(db, "tgc_phieu_giao", "GG", "tgc_phieu_giao", r["created_at"]),
+                    "don": don_id, "luc": r["created_at"], "ai": r["nguoi_tao_id"],
+                    "gc": "Giấy xưởng cấp (chuyển từ đề nghị xuất cũ)"})
+                for ln in db.execute(text(
+                        "SELECT hang_loai, hang_id, dvt, kho_rong, kho_dai, sl_de_nghi "
+                        "FROM stock_request_lines WHERE request_id = :r ORDER BY id"),
+                        {"r": r["id"]}).mappings().all():
+                    db.execute(text(
+                        "INSERT INTO tgc_phieu_giao_dong (phieu_id, don_dong_id, loai, so_luong,"
+                        " don_vi, hang_loai, hang_id, kho_rong, kho_dai) "
+                        "VALUES (:p, :d, 'vat_tu', :sl, :dv, :hl, :hid, :kr, :kd)"), {
+                        "p": pg_id, "d": dong_id, "sl": ln["sl_de_nghi"] or 0, "dv": ln["dvt"],
+                        "hl": ln["hang_loai"], "hid": ln["hang_id"], "kr": ln["kho_rong"] or 0,
+                        "kd": ln["kho_dai"] or 0})
+                db.execute(text("UPDATE stock_requests SET tgc_phieu_giao_id = :p WHERE id = :r"),
+                           {"p": pg_id, "r": r["id"]})
+
+        # Đã chốt ⇒ một phiếu nhận.
+        if g["chot_luc"] is not None:
+            pn_id = _tgc_them(db, (
+                "INSERT INTO tgc_phieu_nhan (ma, don_id, nhan_luc, nguoi_nhan_id, created_at,"
+                " version) VALUES (:ma, :don, :luc, :ai, :luc, 1)"), {
+                "ma": _tgc_ma(db, "tgc_phieu_nhan", "GN", "tgc_phieu_nhan", g["chot_luc"]),
+                "don": don_id, "luc": g["chot_luc"], "ai": g["chot_boi_id"]})
+            batch = dich = None
+            if cuoi is not None:
+                me = db.execute(text("SELECT id FROM san_xuat_batch WHERE cong_viec_id = :cv"),
+                                {"cv": cuoi["id"]}).scalars().all()
+                batch = me[0] if len(me) == 1 else None
+                dich = db.execute(text(
+                    "SELECT dich_cong_viec_id FROM san_xuat_ban_giao WHERE nguon_cong_viec_id = :cv"
+                    " ORDER BY id LIMIT 1"), {"cv": cuoi["id"]}).scalar()
+            noi_ve = g["noi_ve"] or "xuong"
+            db.execute(text(
+                "INSERT INTO tgc_phieu_nhan_dong (phieu_id, don_dong_id, sl_dat, sl_hong, don_gia,"
+                " noi_ve, dich_cong_viec_id, batch_id) "
+                "VALUES (:p, :d, :sl, 0, 0, :nv, :dich, :b)"), {
+                "p": pn_id, "d": dong_id, "sl": g["sl_cuoi"] or 0, "nv": noi_ve,
+                "dich": dich if noi_ve == "xuong" else None, "b": batch})
+            if "gia_cong_ngoai_id" in cot_sr and "tgc_phieu_nhan_id" in cot_sr:
+                db.execute(text(
+                    "UPDATE stock_requests SET tgc_phieu_nhan_id = :p "
+                    "WHERE gia_cong_ngoai_id = :g AND loai = 'NHAP'"), {"p": pn_id, "g": g["id"]})
+            if "gia_cong_ngoai_id" in cot_dt and "tgc_phieu_nhan_id" in cot_dt:
+                db.execute(text(
+                    "UPDATE delivery_trips SET tgc_phieu_nhan_id = :p WHERE gia_cong_ngoai_id = :g"),
+                    {"p": pn_id, "g": g["id"]})
+            if "gia_cong_ngoai_id" in cot_pv and "tgc_phieu_chi_nhan" in bang:
+                for pv_id, tien in db.execute(text(
+                        "SELECT id, amount_vnd FROM payment_vouchers WHERE gia_cong_ngoai_id = :g"),
+                        {"g": g["id"]}).all():
+                    db.execute(text(
+                        "INSERT INTO tgc_phieu_chi_nhan (payment_voucher_id, phieu_nhan_id,"
+                        " amount_vnd) VALUES (:pv, :pn, :t)"),
+                        {"pv": pv_id, "pn": pn_id, "t": int(tien or 0)})
+    db.commit()
+
+
+MIGRATIONS.append(("0480_tgc_chuyen_du_lieu_cu", _migrate_tgc_chuyen_du_lieu_cu))
+
+
+_BANG_COT_GCN_CU = ("san_xuat_cong_viec", "stock_requests", "delivery_trips", "payment_vouchers")
+
+
+def _migrate_tgc_go_gia_cong_ngoai(db) -> None:
+    """mg 0481 — gỡ module Gia công ngoài cũ: index + cột `gia_cong_ngoai_id` ở bốn bảng, rồi bảng
+    `gia_cong_ngoai`. Chạy SAU 0480. Idempotent. SQLite không DROP COLUMN được (cột dính FK) thì để
+    cột thừa — model đã gỡ, không ai đọc."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    pg = db.get_bind().dialect.name == "postgresql"
+    cot_theo_bang = {b: _existing_columns(insp, b) for b in _BANG_COT_GCN_CU if b in bang}
+    index_theo_bang = {b: [ix["name"] for ix in insp.get_indexes(b)
+                           if "gia_cong_ngoai_id" in (ix.get("column_names") or [])]
+                       for b in cot_theo_bang}
+    db.execute(text("DROP INDEX IF EXISTS uq_payment_voucher_gia_cong_ngoai"))
+    if pg and "payment_vouchers" in bang:
+        db.execute(text("ALTER TABLE payment_vouchers "
+                        "DROP CONSTRAINT IF EXISTS uq_payment_voucher_gia_cong_ngoai"))
+    for b, cot in cot_theo_bang.items():
+        if "gia_cong_ngoai_id" not in cot:
+            continue
+        for ten in index_theo_bang[b]:
+            db.execute(text(f"DROP INDEX IF EXISTS {ten}"))
+        if pg:
+            db.execute(text(f"ALTER TABLE {b} DROP COLUMN IF EXISTS gia_cong_ngoai_id"))
+        else:
+            sp = db.begin_nested()
+            try:
+                db.execute(text(f"ALTER TABLE {b} DROP COLUMN gia_cong_ngoai_id"))
+                sp.commit()
+            except Exception:  # noqa: BLE001 — SQLite: cột dính FK, để cột thừa
+                sp.rollback()
+    if "gia_cong_ngoai" in bang:
+        db.execute(text("DROP TABLE IF EXISTS gia_cong_ngoai" + (" CASCADE" if pg else "")))
+    db.commit()
+
+
+MIGRATIONS.append(("0481_tgc_go_gia_cong_ngoai", _migrate_tgc_go_gia_cong_ngoai))
+
+
+def _migrate_tgc_quyen(db: Session) -> None:
+    """0482 (13/11/2026) — module `thue_gia_cong` (Thuê gia công) vào ma trận quyền.
+
+    Trước đây ai sửa được lệnh (`san_xuat:update`) là thao tác được gia công ngoài trên lệnh. Giữ
+    đúng người đó: vai có `san_xuat:update` nhận đủ năm ô Xem / Thao tác / Huỷ / Nhận hàng, phạm vi
+    Tất cả. Idempotent; đọc bảng/cột TRƯỚC lệnh ghi đầu tiên."""
+    insp = inspect(db.get_bind())
+    tables = set(insp.get_table_names())
+    if not {"modules", "role_permissions"} <= tables:
+        return
+    co_cot = [c for c in sorted(_existing_columns(insp, "role_permissions")) if c.startswith("can_")]
+    db.execute(text(
+        "INSERT INTO modules (key, label, created_at) "
+        "SELECT 'thue_gia_cong', 'Thuê gia công', CURRENT_TIMESTAMP "
+        "WHERE NOT EXISTS (SELECT 1 FROM modules WHERE key = 'thue_gia_cong')"))
+    vai = [r for (r,) in db.execute(text(
+        "SELECT role_id FROM role_permissions WHERE module_key = 'san_xuat' AND can_update")).all()]
+    bat = {"can_read", "can_create", "can_update", "can_cancel", "can_handover"}
+    for role_id in vai:
+        gia_tri = {c: (c in bat) for c in co_cot}
+        db.execute(text(
+            f"INSERT INTO role_permissions (role_id, module_key, scope, {', '.join(gia_tri)}) "
+            f"SELECT :r, 'thue_gia_cong', 'all', {', '.join(':' + c for c in gia_tri)} "
+            "WHERE NOT EXISTS (SELECT 1 FROM role_permissions "
+            "  WHERE role_id = :r AND module_key = 'thue_gia_cong')"),
+            {"r": role_id, **gia_tri})
+    db.commit()
+
+
+MIGRATIONS.append(("0482_tgc_quyen", _migrate_tgc_quyen))
+
+# mg 0483 — nhà gia công rời bước lệnh / bước chung / công việc xưởng (Thuê gia công 13/11/2026, plan
+# đợt 7). Từ đợt 2 máy chủ đã ép hai cột này về NULL và dữ liệu cũ đã chuyển sang `tgc_don` (mg 0480);
+# tên nhà gia công nay đọc từ đơn gia công còn sống của việc.
+_COT_NCC_BUOC = (
+    ("lsx_cong_doan", ("nha_cung_cap_id", "nha_cung_cap")),
+    ("bai_ghep_cong_doan", ("nha_cung_cap_id", "nha_cung_cap")),
+    ("san_xuat_cong_viec", ("nha_cung_cap",)),
+)
+
+
+def _migrate_tgc_go_ncc_buoc(db) -> None:
+    """mg 0483 — DROP các cột nhà gia công ở `lsx_cong_doan`, `bai_ghep_cong_doan`,
+    `san_xuat_cong_viec`. Idempotent; đọc HẾT siêu dữ liệu trước lệnh ghi đầu tiên. SQLite không
+    DROP COLUMN được (cột dính FK / index) thì để cột thừa — model đã gỡ, không ai đọc."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    pg = db.get_bind().dialect.name == "postgresql"
+    can: list[tuple[str, str, list[str]]] = []
+    for b, cots in _COT_NCC_BUOC:
+        if b not in bang:
+            continue
+        co = _existing_columns(insp, b)
+        ix = insp.get_indexes(b)
+        for c in cots:
+            if c in co:
+                can.append((b, c, [i["name"] for i in ix if c in (i.get("column_names") or [])]))
+    for b, c, ixs in can:
+        for ten in ixs:
+            db.execute(text(f"DROP INDEX IF EXISTS {ten}"))
+        if pg:
+            db.execute(text(f"ALTER TABLE {b} DROP COLUMN IF EXISTS {c}"))
+        else:
+            sp = db.begin_nested()
+            try:
+                db.execute(text(f"ALTER TABLE {b} DROP COLUMN {c}"))
+                sp.commit()
+            except Exception:  # noqa: BLE001 — SQLite: cột dính FK, để cột thừa
+                sp.rollback()
+    db.commit()
+
+
+MIGRATIONS.append(("0483_tgc_go_ncc_buoc", _migrate_tgc_go_ncc_buoc))
+
+
+def _migrate_tgc_nha_gia_cong_rieng(db: Session) -> None:
+    """0484 (16/11/2026) — NHÀ GIA CÔNG là danh sách riêng `tgc_nha_gia_cong` (khuôn 0478 của đơn vị vận
+    chuyển), không còn cờ "Nhận gia công" trên nhà cung cấp. NCC đang hoạt động có cờ thành một nhà gia
+    công (giữ danh sách cũ cho người lập đơn). DB đã có `tgc_don` trỏ `suppliers` (dev trước mg này): đổi
+    từng đơn sang nhà cùng tên, khoá ngoại đổi sang bảng mới. Gỡ cột `suppliers.nhan_gia_cong`. Raw SQL;
+    đọc hết cấu trúc và dữ liệu TRƯỚC lệnh ghi đầu tiên. Idempotent."""
+    insp = inspect(db.get_bind())
+    bang = set(insp.get_table_names())
+    if "tgc_nha_gia_cong" not in bang:
+        return
+    co_co = "suppliers" in bang and "nhan_gia_cong" in _existing_columns(insp, "suppliers")
+    fk_cu, fk_moi = [], False
+    if "tgc_don" in bang:
+        for fk in insp.get_foreign_keys("tgc_don"):
+            if fk.get("constrained_columns") != ["nha_cung_cap_id"]:
+                continue
+            if fk.get("referred_table") == "suppliers":
+                fk_cu.append(fk.get("name"))
+            elif fk.get("referred_table") == "tgc_nha_gia_cong":
+                fk_moi = True
+    if not co_co and not fk_cu:
+        return
+    pg = db.get_bind().dialect.name == "postgresql"
+    ncc_co = [(int(i), n or "") for i, n in db.execute(text(
+        "SELECT id, name FROM suppliers WHERE nhan_gia_cong = :t AND status = :st ORDER BY name, id"),
+        {"t": True, "st": "active"}).all()] if co_co else []
+    don_cu = [(int(i), n, t or "") for i, n, t in db.execute(text(
+        "SELECT id, nha_cung_cap_id, nha_cung_cap_ten FROM tgc_don ORDER BY id")).all()] if fk_cu else []
+
+    for nid, ten in ncc_co:
+        _tgc_nha_tu_ncc(db, nid, ten)
+    if fk_cu:
+        if pg:
+            for ten in fk_cu:
+                if ten:
+                    db.execute(text(f'ALTER TABLE tgc_don DROP CONSTRAINT IF EXISTS "{ten}"'))
+        ban_do: dict[int, int] = {}
+        for don_id, ncc, ten in don_cu:
+            if ncc not in ban_do:
+                ban_do[ncc] = _tgc_nha_tu_ncc(db, ncc, ten)
+            # Đổi THEO TỪNG ĐƠN: id mới có thể trùng id NCC của đơn khác chưa đổi.
+            db.execute(text("UPDATE tgc_don SET nha_cung_cap_id = :n WHERE id = :d"), {"n": ban_do[ncc], "d": don_id})
+        if pg and not fk_moi:
+            db.execute(text("ALTER TABLE tgc_don ADD CONSTRAINT fk_tgc_don_nha_gia_cong "
+                            "FOREIGN KEY (nha_cung_cap_id) REFERENCES tgc_nha_gia_cong(id)"))
+    if co_co:
+        db.execute(text("ALTER TABLE suppliers DROP COLUMN nhan_gia_cong"))
+    db.commit()
+
+
+MIGRATIONS.append(("0484_tgc_nha_gia_cong_rieng", _migrate_tgc_nha_gia_cong_rieng))

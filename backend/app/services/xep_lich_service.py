@@ -1178,7 +1178,7 @@ class XepLichService:
         return XepLichCongDoan(
             nguon=NGUON_LSX, lsx_id=lsx.id, lsx_cong_doan_id=cd.id,
             source_thu_tu=cd.thu_tu, loai_buoc=cd.loai_buoc,
-            may_id=cd.may_id, department_id=cd.department_id, nha_cung_cap=cd.nha_cung_cap,
+            may_id=cd.may_id, department_id=cd.department_id,
             trang_thai=TT_CHO_XEP, created_by=getattr(actor, "id", None),
         )
 
@@ -1241,7 +1241,7 @@ class XepLichService:
                 self.repo.add(XepLichCongDoan(
                     nguon=NGUON_IN_GHEP, bai_ghep_id=bg.id, bai_ghep_cong_doan_id=c.id,
                     source_thu_tu=int(c.thu_tu or 0), loai_buoc=c.loai_buoc or LB_MAY,
-                    may_id=c.may_id, department_id=c.department_id, nha_cung_cap=c.nha_cung_cap,
+                    may_id=c.may_id, department_id=c.department_id,
                     trang_thai=TT_CHO_XEP, created_by=getattr(actor, "id", None),
                 ))
         else:

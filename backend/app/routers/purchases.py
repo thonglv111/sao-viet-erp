@@ -477,8 +477,7 @@ def list_suppliers(
     # Lọc theo SAO — chỉ lấy NCC có trung bình ≥ mức này. NCC "Chưa đánh giá" rơi ra khỏi kết quả,
     # đúng ý: hỏi "≥4 sao" là đang hỏi ai ĐÃ chứng minh được, không phải ai chưa bị chê.
     rating_min: float | None = Query(default=None, ge=1, le=5),
-    # Thanh lọc chung (06/10/2026): cờ "Nhận gia công" + kỳ theo Ngày tạo (mốc duy nhất `tao`).
-    nhan_gia_cong: bool | None = Query(default=None),
+    # Thanh lọc chung (06/10/2026): kỳ theo Ngày tạo (mốc duy nhất `tao`).
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
     moc: str = Query(default="tao", pattern="^tao$"),
@@ -495,7 +494,6 @@ def list_suppliers(
         status=status_,
         supplier_group=supplier_group,
         rating_min=rating_min,
-        nhan_gia_cong=nhan_gia_cong,
         tu_ngay=tu_ngay,
         den_ngay=den_ngay,
         sort=sort,

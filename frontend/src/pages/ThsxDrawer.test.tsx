@@ -263,7 +263,9 @@ describe("ThsxDrawer · tab Nhận (§11.5)", () => {
     moNhan({ tabDau: "gn" });
     const [cho, daNhan] = Array.from(document.querySelectorAll<HTMLElement>(".thsx-x-bg"));
     expect(cho.textContent).toContain("Lê Cán Màng");
-    expect(cho.textContent).toContain("Chưa xác nhận");
+    // Nút Xác nhận đứng ngay ô Bên nhận; bảng Nhận vào không có cột thao tác (16/11/2026).
+    expect(cho.querySelectorAll("td")).toHaveLength(5);
+    expect(cho.querySelectorAll("td")[3].textContent).toBe("Xác nhận");
 
     // Một dòng bảng: công đoạn + tổ đầu kia, bên giao ai lúc nào, bên nhận ai lúc nào — tách ô, không nối bằng dấu chấm giữa.
     expect(daNhan.textContent).toMatch(/Cán màng mờTổ cán phủLê Cán Màng.*08:30/);
@@ -278,6 +280,7 @@ describe("ThsxDrawer · tab Nhận (§11.5)", () => {
   it("thiếu quyền Xác nhận sản lượng: không có nút, nói rõ cần quyền gì", () => {
     moNhan({ tabDau: "gn", confirm: false });
     expect(screen.queryByRole("button", { name: "Xác nhận" })).toBeNull();
+    expect(document.querySelector(".thsx-x-bg")!.textContent).toContain("Chưa xác nhận");
     expect(screen.getByText("Xác nhận nhận hàng cần quyền Xác nhận sản lượng của tổ.")).toBeTruthy();
   });
 });
@@ -609,8 +612,17 @@ describe("ThsxDrawer · nội dung các tab (ngăn B)", () => {
   it("Quy cách: có khối Kế hoạch, không có ghi chú kỹ thuật thì nói Không có", () => {
     moTab("qc");
     expect(screen.getByRole("heading", { name: "Kế hoạch" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Ghi chú kỹ thuật" })).toBeTruthy();
-    expect(screen.getByText("Không có")).toBeTruthy();
+    const kyThuat = screen.getByRole("heading", { name: "Ghi chú kỹ thuật" }).closest("section") as HTMLElement;
+    expect(within(kyThuat).getByText("Không có")).toBeTruthy();
+    const keHoach = screen.getByRole("heading", { name: "Ghi chú kế hoạch" }).closest("section") as HTMLElement;
+    expect(within(keHoach).getByText("Không có")).toBeTruthy();
+  });
+
+  it("Quy cách: Ghi chú kế hoạch hiện chữ, người ghi và lúc ghi", () => {
+    moTab("qc", { ghi_chu_ke_hoach: { noi_dung: "Chạy trước 10 giờ", nguoi: "Nguyễn Văn A", luc: "2026-11-12T09:30:00" } });
+    const keHoach = screen.getByRole("heading", { name: "Ghi chú kế hoạch" }).closest("section") as HTMLElement;
+    expect(within(keHoach).getByText("Chạy trước 10 giờ")).toBeTruthy();
+    expect(within(keHoach).getByText(/Nguyễn Văn A ghi lúc .*09:30/)).toBeTruthy();
   });
 
   it("Sản lượng: Các mẻ đã ghi + nút Ghi mẻ, không còn bảng Phiên chạy; số tốt không lặp lại (đã ở cột phải)", () => {

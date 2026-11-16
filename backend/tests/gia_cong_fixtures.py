@@ -8,7 +8,7 @@ from __future__ import annotations
 from itertools import count
 
 from app.models.lsx import LB_THUE_NGOAI, TT_DA_PHAT_HANH, Lsx, LsxCongDoan, LsxCongDoanPhuThuoc
-from app.models.purchase import Supplier
+from app.models.thue_gia_cong import TgcNhaGiaCong
 from app.services.san_xuat import release
 from tests.test_san_xuat_board import _to_moi
 from tests.test_xep_lich_service import _don_da_chuyen_sx, _ptg_2_in
@@ -16,9 +16,9 @@ from tests.test_xep_lich_service import _don_da_chuyen_sx, _ptg_2_in
 _dem = count(1)
 
 
-def ncc(sess, ten: str = "Cán màng Minh Long", *, nhan: bool = True) -> Supplier:
-    """Một nhà cung cấp; `nhan=True` = có tích "Nhận gia công"."""
-    s = Supplier(name=ten, nhan_gia_cong=nhan)
+def ncc(sess, ten: str = "Cán màng Minh Long", *, nhan: bool = True) -> TgcNhaGiaCong:
+    """Một nhà gia công (danh sách riêng, mg 0484); `nhan=False` = đã bỏ khỏi danh sách."""
+    s = TgcNhaGiaCong(ten=ten, active=nhan)
     sess.add(s)
     sess.flush()
     return s
@@ -38,7 +38,8 @@ def lenh_chua_phat(sess, orders, lsx_svc, admin, customer, *, kho_nguyen=(790, 1
 def dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc) -> int:
     """Lệnh ĐÃ PHÁT HÀNH, routing tuyến tính do bài test mô tả. Trả `lsx_id`.
 
-    `buoc` = list `(ten, loai_buoc, nha_cung_cap | None, so_luong_ra, don_vi_ra)`. Bước máy/tổ về
+    `buoc` = list `(ten, loai_buoc, _bỏ_qua, so_luong_ra, don_vi_ra)` (ô thứ ba từ thời bước mang nhà
+    gia công — mg 0483 gỡ, giữ chỗ cho khỏi đổi mọi bài test). Bước máy/tổ về
     MỘT tổ mới (admin có đủ quyền trên tổ); bước thuê ngoài không tổ."""
     i = next(_dem)
     to = _to_moi(sess, f"Tổ GC {i}", f"TO-GC-{i}")
@@ -52,7 +53,6 @@ def dung_lenh_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc) -> int:
         cd = LsxCongDoan(
             lsx_id=lsx.id, thu_tu=k, ten=ten, nhom="print" if k == 0 else "finishing",
             loai_buoc=loai, department_id=None if loai == LB_THUE_NGOAI else to.id,
-            nha_cung_cap_id=s.id if s else None, nha_cung_cap=s.name if s else None,
             so_luong_vao=sl_ra, so_luong_ra=sl_ra, don_vi_vao=dv_truoc, don_vi_ra=dv_ra,
         )
         sess.add(cd)
@@ -186,9 +186,9 @@ def dung_bai_ghep_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc, chun
                            phat_hanh: bool = True):
     """HAI lệnh cùng một bài ghép, routing GIỐNG nhau do bài test mô tả. Trả `(bg, lsx_a, lsx_b)`.
 
-    `buoc` = list `(ten, loai_buoc, nha_cung_cap | None, so_luong, don_vi_vao, don_vi_ra)`;
+    `buoc` = list `(ten, loai_buoc, _bỏ_qua, so_luong, don_vi_vao, don_vi_ra)`;
     `chung` = chỉ số các bước GỘP chung (mỗi chỉ số một bước chung phủ bước đó của cả hai lệnh —
-    loại bước + nhà gia công lấy theo `buoc`); `con` = số con/tờ của lệnh A, B. Bước máy/tổ về MỘT
+    loại bước lấy theo `buoc`); `con` = số con/tờ của lệnh A, B. Bước máy/tổ về MỘT
     tổ mới. Khuôn `lenh_sx_fixtures._lenh_ghep_doi`: bài ghép phải có TRƯỚC phát hành."""
     from tests.test_xep_lich_service import _hai_lsx_san_sang
 
@@ -206,8 +206,7 @@ def dung_bai_ghep_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc, chun
             cd = LsxCongDoan(
                 lsx_id=l.id, thu_tu=k, ten=ten, nhom="print" if k == 0 else "finishing",
                 loai_buoc=loai, department_id=None if loai == LB_THUE_NGOAI else to.id,
-                nha_cung_cap_id=s.id if s else None, nha_cung_cap=s.name if s else None,
-                so_luong_vao=sl, so_luong_ra=sl, don_vi_vao=dv_vao, don_vi_ra=dv_ra,
+                    so_luong_vao=sl, so_luong_ra=sl, don_vi_vao=dv_vao, don_vi_ra=dv_ra,
             )
             sess.add(cd)
             ds.append(cd)
@@ -228,7 +227,6 @@ def dung_bai_ghep_gia_cong(sess, orders, lsx_svc, admin, customer, *, buoc, chun
         cd = BaiGhepCongDoan(
             bai_ghep_id=bg.id, thu_tu=k, ten=ten, nhom="print" if k == 0 else "finishing",
             loai_buoc=loai, department_id=None if loai == LB_THUE_NGOAI else to.id,
-            nha_cung_cap_id=s.id if s else None, nha_cung_cap=s.name if s else None,
             so_luong_vao=sl, so_luong_ra=sl, don_vi_vao=dv_vao, don_vi_ra=dv_ra,
         )
         sess.add(cd)

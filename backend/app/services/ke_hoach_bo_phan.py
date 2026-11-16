@@ -174,6 +174,7 @@ class KeHoachBoPhanService:
             may_chon, nhom_chon = lua_chon[k]
             l = lenh.get(v.lsx_id) if v.lsx_id else None
             qc = v.quy_cach_json or {}
+            giay = qc.get("giay")
             ds.append({
                 "id": v.id, "version": v.version,
                 "lsx_id": v.lsx_id, "lsx_ma": l[0].ma if l else None,
@@ -187,6 +188,12 @@ class KeHoachBoPhanService:
                 "don_vi_vao": v.don_vi_vao, "don_vi_ra": v.don_vi_ra,
                 # Số màu phủ giấy của quy cách (cùng ô "Số màu" trên thẻ quy cách của tổ).
                 "so_mau": qc.get("so_mau"),
+                # Giấy của thẻ quy cách (`snapshot.the_quy_cach`): một tên, hoặc danh sách khi lệnh có
+                # nhiều mã giấy — luôn trả danh sách. Định lượng (gsm) chỉ có khi một giấy.
+                "giay": [giay] if isinstance(giay, str) else [g for g in (giay or []) if g],
+                "dinh_luong": qc.get("dinh_luong"),
+                # Ghi chú kế hoạch đang có (việc vừa rút về thì hộp Giao điền sẵn để sửa).
+                "ghi_chu_ke_hoach": v.ghi_chu_ke_hoach,
                 "may_id": v.may_id, "may_goi_y_id": goi_y,
                 "department_id": v.department_id,
                 "department_ten": self.cay.ten.get(v.department_id) if v.department_id else None,
@@ -307,12 +314,16 @@ class KeHoachBoPhanService:
             detail=detail, commit=False)
 
     def giao(self, cv_id: int, *, may_id: int | None, department_id: int | None,
-             ly_do: str | None = None, version: int | None = None):
+             ly_do: str | None = None, version: int | None = None, ghi_chu: str | None = None):
         """Giao một việc CHƯA GIAO: chọn máy (None = Làm tay) và nhóm trong cùng một thao tác, nhóm
         thấy việc ngay. Chạy khác máy theo báo giá phải có lý do, ghi vào nhật ký của lệnh.
 
         Không truyền nhóm thì lấy nhóm duy nhất hợp lệ (máy chỉ thuộc một nhóm); không suy được thì
-        báo lỗi để người chọn."""
+        báo lỗi để người chọn.
+
+        `ghi_chu` (ghi chú kế hoạch cho nhóm): None = giữ nguyên ghi chú đang có (giao nhiều việc một
+        lượt mà để trống ô); chuỗi rỗng = xoá; chữ khác chữ cũ thì người ghi + lúc ghi đổi theo người
+        đang giao (máy chủ gán từ tài khoản, không nhận từ client)."""
         from .san_xuat.thuc_thi import giao_ca_to
 
         v = self._viec(cv_id, version, ghi=True)
@@ -347,6 +358,14 @@ class KeHoachBoPhanService:
             self._audit(v, "kh_bo_phan_doi_may",
                         f"{v.ten_cong_doan}: chạy {moi} thay máy theo báo giá {goc}. "
                         f"Lý do: {ly_do[:300]}")
+        doi_ghi_chu = False
+        if ghi_chu is not None:
+            moi = ghi_chu.strip()[:2000] or None
+            if moi != (v.ghi_chu_ke_hoach or None):
+                doi_ghi_chu = True
+                v.ghi_chu_ke_hoach = moi
+                v.ghi_chu_ke_hoach_by_id = getattr(self.user, "id", None) if moi else None
+                v.ghi_chu_ke_hoach_at = _now() if moi else None
         v.may_id = may_id
         v.department_id = nhom
         v.nhom_xep_id = nhom
@@ -356,7 +375,10 @@ class KeHoachBoPhanService:
         v.version += 1
         self.db.flush()
         giao_ca_to(self.db, v)
-        self._audit(v, "kh_bo_phan_giao", f"Giao «{v.ten_cong_doan}» cho {self.cay.ten.get(nhom)}")
+        cau = f"Giao «{v.ten_cong_doan}» cho {self.cay.ten.get(nhom)}"
+        if doi_ghi_chu:
+            cau += f". Ghi chú kế hoạch: {v.ghi_chu_ke_hoach[:300]}" if v.ghi_chu_ke_hoach else ". Xoá ghi chú kế hoạch"
+        self._audit(v, "kh_bo_phan_giao", cau)
         self.db.commit()
         return v
 

@@ -255,3 +255,36 @@ def test_luu_vai_bo_trang_dong_to_cha(db, cay):
     assert (p.can_read, p.can_run_order, p.scope) == (False, False, SCOPE_OWN)
     p = roles.get_permission(vai.id, khoa_to(cay["cat"].id))
     assert (p.can_read, p.can_run_order, p.scope) == (True, True, SCOPE_ALL)
+
+
+def test_sua_cay_luc_dang_chay_sinh_ngay_dong_ke_hoach(client):
+    """Tick Sản xuất lên phòng cha khi máy chủ đang chạy (In Hà Phương 13/11/2026: các tổ từng tự tick,
+    sửa lại thành khối) ⇒ mỗi tổ con thành bộ phận, dòng "Kế hoạch <tổ>" ra ngay, không đợi khởi động lại."""
+    from app.db import SessionLocal
+    from tests.test_com_tang_ca import _h
+
+    h = _h(client)
+    cha = client.post("/api/departments", json={"name": "Khối KH sửa cây"}, headers=h).json()
+    to = client.post("/api/departments", json={"name": "Tổ KH sửa cây", "parent_id": cha["id"],
+                                               "la_san_xuat": True}, headers=h).json()
+
+    def dong_ke_hoach() -> set[str]:
+        s = SessionLocal()
+        try:
+            return {k for (k,) in s.query(Module.key) if k.startswith("ke_hoach_bp_")}
+        finally:
+            s.close()
+
+    # Tổ tự tick là gốc khối, không có con ⇒ chưa là bộ phận.
+    assert f"ke_hoach_bp_{to['id']}" not in dong_ke_hoach()
+
+    r = client.put(f"/api/departments/{to['id']}", json={"name": to["name"], "la_san_xuat": False}, headers=h)
+    assert r.status_code == 200, r.text
+    r = client.put(f"/api/departments/{cha['id']}", json={"name": cha["name"], "la_san_xuat": True}, headers=h)
+    assert r.status_code == 200, r.text
+    assert f"ke_hoach_bp_{to['id']}" in dong_ke_hoach()
+
+    # Rời khối ⇒ dòng gỡ ngay.
+    r = client.put(f"/api/departments/{cha['id']}", json={"name": cha["name"], "la_san_xuat": False}, headers=h)
+    assert r.status_code == 200, r.text
+    assert f"ke_hoach_bp_{to['id']}" not in dong_ke_hoach()

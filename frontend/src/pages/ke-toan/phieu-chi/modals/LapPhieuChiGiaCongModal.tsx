@@ -1,13 +1,12 @@
-// Lập PHIẾU CHI từ một lần gia công ngoài đã chốt (spec 2026-09-26 §5; đặc tả UI PC-5).
-// Dùng CHUNG thân form với nút "Lập phiếu chi" trên đầu màn (`ThanPhieuChiRoi`, bố cục chia đôi có
-// tờ phiếu xem trước), thêm khối đầu "Việc gia công" (Việc | Số chốt). Số tiền gõ theo hoá đơn của nhà
-// gia công; người nhận sửa được (nhà gia công, hoặc người kế hoạch cầm tiền mặt đi trả). Không có ô nhà cung cấp công nợ — phiếu này không vào 331.
+// Lập PHIẾU CHI thuê gia công từ NHIỀU phiếu nhận cùng nhà gia công (spec Thuê gia công 2026-11-13
+// §4.6, Q3). Dùng CHUNG thân form với nút "Lập phiếu chi" trên đầu màn (`ThanPhieuChiRoi`), thêm khối
+// đầu "Phiếu nhận" (Phiếu | Đạt | Hỏng | Tạm tính). Số tiền điền sẵn = Σ tạm tính, sửa theo hoá đơn
+// thật; lệch thì bắt ghi lý do. Không có ô nhà cung cấp công nợ — phiếu này không vào 331.
 import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   api,
   type CompanyBankAccountRow,
-  type GiaCongChoChi,
   type PaymentVoucherBaseInput,
   type PaymentVoucherRow,
   type PaymentVoucherType,
@@ -15,46 +14,53 @@ import {
 import { useAuth } from "../../../../auth/useAuth";
 import { homNayVN } from "../../../../utils/ky";
 import { Cum, TheNho } from "../../shared/Cum";
-import { HangDoiChieu, KhoiForm } from "../../shared/KhungFormPhieu";
+import { HangDoiChieu, KhoiForm, OF, idO } from "../../shared/KhungFormPhieu";
 import { THU_TU_O_MOI } from "../components/KhoiPhieuChi";
 import { KhungFormPhieu, loiNgayChi, nhayToiLoi, type DatO, type LoiForm } from "../components/KhungFormPhieu";
 import { mucCoDinh, useMucThuChi } from "../../shared/OChonMuc";
 import { BanXemPhieuChi, ThanPhieuChiRoi } from "../components/ThanPhieuChiRoi";
 import { taiChungTuSauKhiLap } from "../components/VoucherAttachSection";
 import { loiChuyenKhoan } from "../components/VoucherRecipientSection";
-import { cacViec, soChot } from "../shared/giaCong";
+import type { TgcChoTraTien } from "../../../../api/thueGiaCong";
+import { tien } from "../../shared/dinhDang";
+import { congDong, lyDoChiGiaCong, motDonVi, soDv, tongTamTinh } from "../shared/giaCong";
 import { optional } from "../shared/helpers";
 import "../../ke-toan.css";
+import "../../../thue-gia-cong/thue-gia-cong.css";
 
 export function LapPhieuChiGiaCongModal({
-  row,
+  rows,
   onClose,
   onDone,
   onMoTaiKhoan,
 }: {
-  row: GiaCongChoChi;
+  rows: TgcChoTraTien[];
   onClose: () => void;
   onDone: (pc: PaymentVoucherRow) => void;
   onMoTaiKhoan?: () => void;
 }) {
   const { token } = useAuth();
+  const nha = rows[0]?.nha_cung_cap_ten ?? "";
+  const tong = tongTamTinh(rows);
+  const [lyDoLech, setLyDoLech] = useState("");
+  const [loiLech, setLoiLech] = useState<string | null>(null);
   const [form, setForm] = useState<PaymentVoucherBaseInput>(() => ({
     voucher_type: "cash",
     payment_stage: "other",
     voucher_date: homNayVN(),
-    // Gia công không có đơn giá (chủ chốt 07/10/2026): kế toán gõ tiền theo hoá đơn nhà gia công.
-    amount: 0,
+    // Điền sẵn Σ tạm tính của các phiếu nhận; kế toán sửa theo hoá đơn thật.
+    amount: tong,
     currency: "VND",
     exchange_rate: 1,
-    content: `Gia công ${row.ten_viec} — ${row.nhan_nguon || row.lsx_ma} — ${row.nha_cung_cap_ten}`,
+    content: lyDoChiGiaCong(rows),
     // Chứng từ gốc thường mang ngày hôm nay — điền sẵn, chỉ gửi đi khi có Số chứng từ.
     invoice_date: homNayVN(),
     note: null,
-    cash_recipient_name: row.nha_cung_cap_ten,
+    cash_recipient_name: nha,
     cash_recipient_address: null,
     cash_recipient_identity: null,
     company_bank_account_id: null,
-    beneficiary_account_holder: row.nha_cung_cap_ten,
+    beneficiary_account_holder: nha,
     beneficiary_account_number: null,
     beneficiary_bank_name: null,
     beneficiary_bank_branch: null,
@@ -121,6 +127,8 @@ export function LapPhieuChiGiaCongModal({
     return { ...l, ...loiChuyenKhoan(form) };
   }
 
+  const lech = Math.round(Number(form.amount)) !== tong;
+
   async function save() {
     if (!token || busy) return;
     if (daLap) {
@@ -133,12 +141,18 @@ export function LapPhieuChiGiaCongModal({
       nhayToiLoi(l, THU_TU_O_MOI);
       return;
     }
+    if (lech && lyDoLech.trim().length < 3) {
+      setLoiLech("Số tiền lệch tạm tính — ghi lý do (ít nhất 3 ký tự).");
+      document.getElementById(idO("ly_do_lech"))?.focus();
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {
       const pc = await api.accounting.createVoucher(token, {
         source_type: "gia_cong_ngoai",
-        gia_cong_ngoai_id: row.gia_cong_ngoai_id,
+        tgc_phieu_nhan_ids: rows.map((r) => r.phieu_nhan_id),
+        ly_do_lech: lech ? lyDoLech.trim() : null,
         voucher_type: form.voucher_type,
         payment_stage: "other",
         voucher_date: form.voucher_date,
@@ -170,40 +184,61 @@ export function LapPhieuChiGiaCongModal({
       }
       onDone(pc);
     } catch (e) {
-      // 409 (đã có phiếu chi) và 422 (chưa chốt, huỷ, thiếu ô) — câu tiếng Việt của máy chủ.
+      // 409 (phiếu nhận đã có phiếu chi) và 400/422 (khác nhà, huỷ, lệch thiếu lý do) — câu của máy chủ.
       setErr(e instanceof ApiError ? e.message : String(e));
       setBusy(false);
     }
   }
 
-  const viec = cacViec(row.ten_viec);
-
-  // Cùng giao diện với nút "Lập phiếu chi" trên đầu màn (`ThanPhieuChiRoi`), thêm dải tóm tắt việc.
+  // Cùng giao diện với nút "Lập phiếu chi" trên đầu màn (`ThanPhieuChiRoi`), thêm khối phiếu nhận.
   return (
     <KhungFormPhieu
-      duongDan={<>Phiếu chi &gt; Lập mới &gt; Gia công {row.nhan_nguon || row.lsx_ma}</>}
+      duongDan={<>Phiếu chi &gt; Lập mới &gt; Thuê gia công {rows.map((r) => r.ma).join(" ")}</>}
       tieuDe="Lập phiếu chi"
       phuDe={
         <span className="kt-tag">
-          Nhà gia công <b>{row.nha_cung_cap_ten}</b>
+          Nhà gia công <b>{nha}</b>
         </span>
       }
       xemTruoc={daLap ? <>Phiếu <b>{daLap.code}</b> đã lập.</> : "Lập xong không sửa được, chỉ hủy được."}
       dangLuu={busy}
       loiChung={err}
       onDong={onClose}
-      chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0)}
+      chanDong={() => !daLap && (JSON.stringify(form) !== goc.current || files.length > 0 || !!lyDoLech)}
       onSubmit={() => void save()}
       nhanNut={daLap ? "Mở phiếu đã lập" : undefined}
       banXem={<BanXemPhieuChi form={form} taiKhoan={tkList} soChungTu={files.length} nguon="gia_cong_ngoai" tenMuc={tenMuc} />}
     >
-      <KhoiForm tieu="Việc gia công">
-        <HangDoiChieu
-          o={[
-            { nhan: "Việc", giaTri: <Cum>{viec.map((v) => <TheNho key={v}>{v}</TheNho>)}</Cum> },
-            { nhan: "Số chốt", giaTri: soChot(row), chot: true },
-          ]}
-        />
+      <KhoiForm tieu="Phiếu nhận">
+        <table className="tgc-bang" aria-label="Phiếu nhận trả tiền">
+          <thead>
+            <tr><th>Phiếu</th><th>Việc</th><th className="n">Đạt</th><th className="n">Hỏng</th><th className="n">Tạm tính</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const dv = motDonVi(r.dong);
+              return (
+                <tr key={r.phieu_nhan_id}>
+                  <td>{r.ma}</td>
+                  <td><Cum>{r.dong.map((d, i) => <TheNho key={`${d.ten_viec}-${i}`}>{d.ten_viec}</TheNho>)}</Cum></td>
+                  <td className="n">{dv === undefined
+                    ? r.dong.map((d, i) => <span key={i} className="tgc-u">{soDv(d.dat, d.don_vi)}</span>)
+                    : soDv(congDong(r.dong, "dat"), dv)}</td>
+                  <td className="n">{congDong(r.dong, "hong") > 0 ? congDong(r.dong, "hong").toLocaleString("vi-VN") : "—"}</td>
+                  <td className="n">{tien(r.tam_tinh)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <HangDoiChieu o={[{ nhan: "Tạm tính", giaTri: tien(tong), chot: true }]} />
+        {lech && (
+          <OF khoa="ly_do_lech" nhan="Lý do lệch tạm tính" batBuoc rong loi={loiLech ?? undefined}
+            goi={`Số tiền ${tien(Math.round(Number(form.amount)))} khác tạm tính ${tien(tong)}.`}>
+            <input id={idO("ly_do_lech")} value={lyDoLech} placeholder="Ví dụ: trừ hàng hỏng theo hoá đơn"
+              onChange={(e) => { setLyDoLech(e.target.value); setLoiLech(null); }} />
+          </OF>
+        )}
       </KhoiForm>
       <ThanPhieuChiRoi form={form} set={set} loi={loi} onDoiCach={chonCach} taiKhoan={tkList}
         dangTai={tkDangTai}
@@ -214,8 +249,8 @@ export function LapPhieuChiGiaCongModal({
         }
         onMoTaiKhoan={onMoTaiKhoan}
         files={files} setFiles={setFiles} loiTep={loiTep} setLoiTep={setLoiTep}
-        goiSoTien="Gõ theo hoá đơn của nhà gia công."
-        goiY={[{ ten: row.nha_cung_cap_ten, phu: "nhà gia công" }]} />
+        goiSoTien="Điền sẵn tạm tính, sửa theo hoá đơn của nhà gia công."
+        goiY={[{ ten: nha, phu: "nhà gia công" }]} />
     </KhungFormPhieu>
   );
 }

@@ -170,7 +170,7 @@
 .thsx-ng__o.is-mo { color: var(--ash-2); }
 .thsx-ng__ten { min-width: 0; }
 .thsx-ng__the { font-size: 12px; color: var(--ash-2); border: 1px solid var(--rule-soft); border-radius: 6px;
-  padding: 0 6px; line-height: 18px; white-space: nowrap; }
+  padding: 0 6px; line-height: 18px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
 /* Danh sách chọn trong hộp (mẻ giao, bước sau), dòng đích một bước, cặp số trước/sau điều chỉnh. */
 .thsx-hop-ds { border: 1px solid var(--rule-soft); border-radius: 12px; overflow: hidden; }

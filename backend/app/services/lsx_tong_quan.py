@@ -260,15 +260,15 @@ def den_vat_tu_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, dict]
     # Trọn gói + nhà gia công tự lo giấy (spec gia công ngoài §4 bước 2b): lệnh KHÔNG đòi gì từ
     # kho — `dat_tron_goi` đã tắt giữ chỗ, KHVT bỏ nhu cầu. Đèn phải xanh, không thì "Chưa giữ chỗ
     # vật tư" đỏ đẩy lệnh vào tab Cảnh báo mãi, kể cả khi hàng đã về kho chờ giao.
-    from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-    gcn_repo = GiaCongNgoaiRepository(db)
+    from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
+    gcn_repo = ThueGiaCongRepository(db)
     tron_goi = gcn_repo.tron_goi_cua_lenh(ids)
     ncc_lo = {i for i, g in tron_goi.items() if not g.xuong_cap_giay}
-    # Trọn gói mà xưởng cấp giấy: giữ chỗ cũng đã tắt, giấy đi bằng ĐỀ NGHỊ XUẤT gắn lần gia công
-    # (`de_nghi_xuat_giay`), không bằng giữ chỗ. Đèn đọc đề nghị đó, không đọc giữ chỗ — trước
+    # Trọn gói mà xưởng cấp giấy: giữ chỗ cũng đã tắt, giấy đi bằng ĐỀ NGHỊ XUẤT của phiếu giao
+    # thuê gia công, không bằng giữ chỗ. Đèn đọc đề nghị đó, không đọc giữ chỗ — trước
     # 05/11/2026 lệnh loại này đứng đỏ "Chưa giữ chỗ vật tư" mãi dù đề nghị xuất đã gửi.
     xuong_cap = {i: g for i, g in tron_goi.items() if g.xuong_cap_giay}
-    co_dnx = set(gcn_repo.dong_xuat_giay_cua_lan([g.id for g in xuong_cap.values()]))
+    co_dnx = set(gcn_repo.dong_xuat_giay_cua_lenh(list(xuong_cap)))
     # Bước chạy xong thì dòng vật tư của nó rụng khỏi bảng cân đối — lệnh đã phát hành có khai vật
     # tư mà ra "không còn nhu cầu" là đã dùng xong, không phải chưa khai hay chưa giữ chỗ.
     from ..models.lsx import TT_DA_DONG, TT_DA_PHAT_HANH
@@ -282,7 +282,7 @@ def den_vat_tu_va_bang(db: Session, lsx_ids: list[int]) -> tuple[dict[int, dict]
             continue
         if i in xuong_cap:
             ra[i] = (_den(MUC_OK, "Giấy cấp cho nhà gia công qua đề nghị xuất")
-                     if xuong_cap[i].id in co_dnx
+                     if i in co_dnx
                      else _den(MUC_VANG, "Chưa gửi đề nghị xuất giấy cho nhà gia công"))
             continue
         if giu is None:

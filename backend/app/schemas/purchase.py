@@ -103,8 +103,6 @@ class SupplierIn(BaseModel):
     # (31 = cuối tháng). Thuộc NCC — đơn mua không có điều khoản riêng.
     debt_cutoff_day: int | None = Field(default=None, ge=1, le=31)
     status: str = Field(default="active", max_length=16)
-    # Tích "Nhận gia công" (26/09/2026) — ô chọn Nhà gia công ở Kế hoạch SX lọc theo cờ này.
-    nhan_gia_cong: bool = False
     note: str | None = Field(default=None, max_length=2000)
     items: list[SupplierItemIn] = Field(default_factory=list)
 
@@ -158,7 +156,6 @@ class SupplierRow(BaseModel):
     credit_days: int | None = None
     debt_cutoff_day: int | None = None
     status: str
-    nhan_gia_cong: bool = False
     note: str | None = None
     created_at: datetime
     updated_at: datetime

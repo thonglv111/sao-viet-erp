@@ -295,7 +295,8 @@ def test_bao_cao_kho_nhom_thanh_pham_va_ly_do():
     assert _nhom_hang("vat_tu", NS(la_thanh_pham=False)) == "vat_tu"
     assert _nhom_hang("giay", None) == "giay"
 
-    req = NS(purchase_delivery_id=None, san_xuat_cong_viec_id=None, gia_cong_ngoai_id=None,
+    req = NS(purchase_delivery_id=None, san_xuat_cong_viec_id=None, tgc_phieu_giao_id=None,
+             tgc_phieu_nhan_id=None, tgc_don_dong_id=None,
              vat_tu_tra_cong_viec_id=None, delivery_trip_id=None)
     assert _ly_do(NS(loai="NHAP"), NS(**{**vars(req), "san_xuat_cong_viec_id": 3}), False) == "nhap_thanh_pham"
     assert _ly_do(NS(loai="NHAP"), NS(**{**vars(req), "purchase_delivery_id": 1}), False) == "nhap_mua"

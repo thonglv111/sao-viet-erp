@@ -115,16 +115,16 @@ export interface EditRow {
              don_vi: string; so_luong: string; tu_dong: boolean;
              /** Vật tư khác giấy: người đã GÕ định mức ⇒ gửi kèm `so_luong`, máy không tính đè. */
              sua_tay?: boolean;
+             /** Bước thuê ngoài: nhà gia công tự lo dòng này (mặc định) — bỏ tick thì xưởng cấp,
+              *  dòng vào kế hoạch vật tư và lên phiếu giao. Bước khác bỏ qua. */
+             ncc_tu_lo?: boolean;
              /** Dòng GIẤY: khổ (mm) + đơn vị gốc do MÁY CHỦ dẫn xuất từ đầu vào của bước — chỉ đọc,
               *  không gửi. `don_vi_goc` rỗng = dòng vừa chọn, máy chủ chưa dẫn xuất. */
              kho_rong: string; kho_dai: string; don_vi_goc?: string;
              /** Vật tư KHÁC giấy: chip đã chép từ phiếu (gửi lại để máy tính định mức) + nhãn chip. */
              gia_tri_chip?: Record<string, number>;
              chips?: { ma: string; ten: string; don_vi?: string | null }[] }[];
-  // Gia công ngoài (spec 2026-09-26): nhà gia công từ danh mục NCC + đơn giá cả lần.
-  nha_cung_cap_id: number | null;
-  /** Tên do máy chủ ghi — chỉ để hiện, không gửi lên. */
-  nha_cung_cap: string;
+  // Bước thuê ngoài không mang nhà gia công — chọn lúc lập đơn ở màn Thuê gia công (13/11/2026).
   ghi_chu: string;
   /* Khối KHOÁN THEO ĐẦU VIỆC (`khoan_rate_id` · `khoan_chon_duoc` · `khoan_rate_id_luc_tai`) GỠ
      18/09/2026 (mg `0320`): bước thôi mang đầu việc. Việc khoán chọn LÚC GHI MẺ ở bàn tổ. */
@@ -218,10 +218,9 @@ export function toEdit(cd: LsxCongDoan): EditRow {
     vat_tus: (cd.vat_tus ?? []).map((v) => ({
       ...v, hang_loai: v.hang_loai ?? "vat_tu",
       so_luong: String(v.so_luong), tu_dong: Boolean(v.tu_dong), sua_tay: Boolean(v.sua_tay),
+      ncc_tu_lo: v.ncc_tu_lo ?? true,
       kho_rong: v.kho_rong ? String(v.kho_rong) : "", kho_dai: v.kho_dai ? String(v.kho_dai) : "",
     })),
-    nha_cung_cap_id: cd.nha_cung_cap_id ?? null,
-    nha_cung_cap: cd.nha_cung_cap ?? "",
     ghi_chu: cd.ghi_chu ?? "",
   };
 }
@@ -340,7 +339,7 @@ export function patchLoaiBuoc(k: LsxLoaiBuoc): Partial<EditRow> {
   if (k === "thue_ngoai") {
     return {
       loai_buoc: k, may_id: null, department_id: null, department_ten: null,
-      so_luot_chay: "1", vat_tus: [],
+      so_luot_chay: "1",
     };
   }
   if (k === "may") return { loai_buoc: k };
@@ -381,7 +380,6 @@ export function emptyRow(): EditRow {
     thoi_luong_dien_giai: {},
     vat_tu_goi_y: [], so_luong_vao_moi: null, so_luong_ra_moi: null,
     phu_thuoc_step_keys: [], vat_tus: [],
-    nha_cung_cap_id: null, nha_cung_cap: "",
     ghi_chu: "",
   };
 }
@@ -529,7 +527,8 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
       // Ô trống = để máy tính từ năng suất (KHÔNG phải 0 phút).
       phat_sinh_phut: on(r.phat_sinh_phut),
       phu_thuoc_step_keys: r.phu_thuoc_step_keys,
-      vat_tus: ngoai ? [] : r.vat_tus.map((v) => (v.hang_loai === "giay"
+      // Bước thuê ngoài GIỮ vật tư (13/11/2026), mỗi dòng mang ô "Nhà gia công tự lo".
+      vat_tus: r.vat_tus.map((v) => ({ ...(v.hang_loai === "giay"
         // Giấy: chỉ chọn MÃ — số + khổ + đơn vị máy chủ tự ghi theo đầu vào của bước.
         ? { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, so_luong: null,
             tu_dong: v.tu_dong, kho_rong: 0, kho_dai: 0 }
@@ -542,9 +541,9 @@ export function toBody(rows: EditRow[]): LsxCongDoanBody[] {
               kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 }
           : { hang_loai: v.hang_loai, vat_tu_id: v.vat_tu_id, tu_dong: v.tu_dong,
               gia_tri_chip: v.gia_tri_chip ?? {},
-              kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 })),
-      // Chỉ gửi khi bước ĐANG là thuê ngoài — đổi loại rồi thì server tự dọn (Task 3).
-      nha_cung_cap_id: ngoai ? r.nha_cung_cap_id : null,
+              kho_rong: Number(v.kho_rong) || 0, kho_dai: Number(v.kho_dai) || 0 }),
+        // Chỉ bước thuê ngoài gửi cờ; bước khác không gửi ⇒ máy chủ giữ cờ cũ của dòng.
+        ...(ngoai ? { ncc_tu_lo: v.ncc_tu_lo ?? true } : {}) })),
       ghi_chu: ot(r.ghi_chu),
       // `piece_rate_id` GỠ 18/09/2026 (mg `0320`) — bước thôi ghim đầu việc khoán.
     };
@@ -577,10 +576,8 @@ export function loiDong(rows: EditRow[], i: number): string[] {
   if (r.don_vi_vao === r.don_vi_ra && vao > 0 && ra > vao) out.push("ra nhiều hơn vào");
   // KHÔNG kiểm `he_so <= 1` nữa: hệ số nay do server suy, và 1 là HỢP LỆ ở cả hai cầu
   // (1 tờ nguyên ra 1 tờ in là chuyện thường). Luật cũ bắt oan đúng ca đó.
-  // Thuê ngoài không có tổ / máy — đòi nhà gia công chọn từ danh mục NCC (26/09/2026).
-  if (r.loai_buoc === "thue_ngoai") {
-    if (r.nha_cung_cap_id == null) out.push("chưa chọn nhà gia công");
-  } else if (r.department_id == null && r.may_id == null) out.push("chưa gán tổ / máy");
+  // Thuê ngoài không có tổ / máy, nhà gia công chọn lúc lập đơn ở màn Thuê gia công (13/11/2026).
+  if (r.loai_buoc !== "thue_ngoai" && r.department_id == null && r.may_id == null) out.push("chưa gán tổ / máy");
   if (r.tren_dong_giay && r.don_vi_vao) {
     if (tienNhiemGiay(rows, i).some((x) => x.don_vi_ra !== r.don_vi_vao)) out.push("đứt đơn vị");
   }

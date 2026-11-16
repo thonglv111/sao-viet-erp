@@ -835,7 +835,7 @@ class XepLichLenhService:
             goi = _sx_phat_hanh(self.db, lsx_ids=tp.lsx_ids, bai_ghep_ids=tp.bai_ghep_ids,
                                 actor=actor)
         except ValueError as exc:
-            # Gom lần gia công ngoài từ chối (bước thuê ngoài chưa chọn nhà gia công) — trả 400.
+            # Phát hành từ chối (ValueError của gói phát hành) — trả 400.
             self.db.rollback()
             raise XepLichLenhError(str(exc)) from None
         # Tự lập yêu cầu xuất vật tư cho từng bước, CÙNG giao dịch (spec 2026-10-18 §4.1) và
@@ -1272,7 +1272,8 @@ class XepLichLenhService:
         bày mốc bước KẾ HOẠCH). Lệnh ĐÃ phát hành thì mốc bước không còn là số thừa: nó là thứ
         duy nhất so được kế hoạch với việc đã xảy ra.
         """
-        # `phu` = (bước chung, mã bài) khi bài ghép đè bước này: loại/tổ/nhà gia công lấy của bài.
+        # `phu` = (bước chung, mã bài) khi bài ghép đè bước này: loại/tổ lấy của bài. Nhà gia công
+        # không thuộc bước (mg 0483), chọn ở đơn thuê gia công — ô tổ ghi chữ chung.
         goc = phu[0] if phu else cd
         ngoai = (goc.loai_buoc or LB_MAY) == LB_THUE_NGOAI
         dv = str(cd.don_vi_vao) if cd.don_vi_vao else None
@@ -1290,7 +1291,7 @@ class XepLichLenhService:
             "may_ten": None if ngoai else tin.get("may_ten"),
             "may_nguon": None if ngoai else tin.get("may_nguon"),
             "may_ke_hoach_ten": None if ngoai else tin.get("may_ke_hoach_ten"),
-            "to_ten": (goc.nha_cung_cap or "Nhà gia công") if ngoai else self._ten_to(goc.department_id),
+            "to_ten": "Nhà gia công" if ngoai else self._ten_to(goc.department_id),
             "so_luong_vao": sl if sl > 0 else None,
             "don_vi_vao": dv,
             "don_vi_vao_ten": ten_dv.get(dv) if dv else None,

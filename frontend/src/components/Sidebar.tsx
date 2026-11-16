@@ -108,6 +108,8 @@ export const NAV: NavSection[] = [
       // không dời được lịch cả xưởng. Migration 0209 đã sao chép quyền cũ sang 4 khoá mới.
       // 07/11/2026: "Kế hoạch sản xuất" đổi tên "Lệnh sản xuất" — nơi lập lệnh. Id + khoá giữ nguyên.
       { id: "ke-hoach-sx", label: "Lệnh sản xuất", icon: "clipboardList", module: "san_xuat" },
+      // Thuê gia công (13/11/2026): đặt, giao, nhận, trả tiền gia công ngoài — lệnh chỉ còn cờ.
+      { id: "thue-gia-cong", label: "Thuê gia công", icon: "truck", module: "thue_gia_cong" },
       // Bàn TRA (điều độ · QC · sale), khác hẳn Kế hoạch SX là bàn LẬP: chỉ lệnh ĐÃ PHÁT HÀNH, và
       // không một nút ghi nào. Nhãn "Hồ sơ lệnh sản xuất" chứ không "Lệnh sản xuất" — màn Kế hoạch
       // SX đã có sẵn một TAB mang đúng chữ đó. ĐỊNH DANH giữ nguyên: nav id `lenh-san-xuat`,

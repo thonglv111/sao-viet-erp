@@ -435,11 +435,10 @@ def test_phat_hanh_chup_khuon_va_nha_gia_cong(db, orders, lsx_svc, admin, custom
     db.flush()
     steps = _steps(db, a.id)
     steps[0].khuon_be_id = dao.id
-    # Bước thuê ngoài THÊM MỚI, không mượn bước đã có: lệnh mẫu chỉ một bước nên gán cả dao lẫn nhà
-    # gia công lên nó thì không còn bước nào để soi nhánh "không trỏ dao".
+    # Bước THÊM MỚI, không mượn bước đã có: lệnh mẫu chỉ một bước nên không còn bước nào để soi
+    # nhánh "không trỏ dao". (Nhà gia công không chụp lên công việc nữa — mg 0483.)
     ngoai = _them_buoc(db, a.id, thu_tu=99, ten="Cán màng",
                        department_id=steps[0].department_id)
-    ngoai.nha_cung_cap = "Cơ sở Minh Phát"
     db.flush()
 
     goi = release.phat_hanh(db, lsx_ids={a.id}, actor=admin)
@@ -454,7 +453,6 @@ def test_phat_hanh_chup_khuon_va_nha_gia_cong(db, orders, lsx_svc, admin, custom
     assert cv_dao.khuon_nhan_luc is None and cv_dao.khuon_tra_luc is None
     # Bước không trỏ dao → None, không phải dict rỗng (rỗng đọc như "có khuôn mà mất thông tin").
     assert cvs[ngoai.step_key].khuon_json is None
-    assert cvs[ngoai.step_key].nha_cung_cap == "Cơ sở Minh Phát"
 
 
 def test_phat_hanh_khong_mang_dau_viec_hay_tien_vao_cong_viec(

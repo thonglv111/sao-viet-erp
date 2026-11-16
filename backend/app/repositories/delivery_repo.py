@@ -314,7 +314,7 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
             .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
             .where(DeliveryRequest.order_id == order_id,
-                   DeliveryTrip.gia_cong_ngoai_id.is_not(None),
+                   DeliveryTrip.tgc_phieu_nhan_id.is_not(None),
                    DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
             .group_by(DeliveryTripLine.order_line_id)
         ).all()
@@ -330,7 +330,7 @@ class DeliveryRepository:
             .join(DeliveryTrip, DeliveryTrip.id == DeliveryTripLine.trip_id)
             .join(DeliveryRequest, DeliveryRequest.id == DeliveryTrip.request_id)
             .where(DeliveryRequest.order_id.in_(ids),
-                   DeliveryTrip.gia_cong_ngoai_id.is_not(None),
+                   DeliveryTrip.tgc_phieu_nhan_id.is_not(None),
                    DeliveryTrip.trang_thai.in_(LAN_GIAO_CO_HANG_DEN_TAY))
             .group_by(DeliveryTripLine.order_line_id)
         ).all()

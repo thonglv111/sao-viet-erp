@@ -61,7 +61,7 @@ import {
 } from "../shared/helpers";
 import { NutBuocChuyen, type ThaoTacChuyen } from "../tabs/BangKeHoach";
 import { BuocGuiKho } from "../modals/BuocGuiKho";
-import { ChungTuKhoNoi, type ChungTuKho } from "../../../gia-cong/ChungTuKhoNoi";
+import { ChungTuKhoNoi, type ChungTuKho } from "../../../../components/ChungTuKhoNoi";
 import { DrawerChiTiet } from "./DrawerChiTiet";
 import { HopBatDauGiao } from "./HopBatDauGiao";
 import { HopVeKho } from "./HopVeKho";

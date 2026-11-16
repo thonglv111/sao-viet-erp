@@ -27,10 +27,11 @@ import { useAuth } from "../auth/useAuth";
 import { chuanKho, coDonViGoc, coKho, nhanKhoGiay } from "../lib/khoGiay";
 import { TaoYeuCauP2, type DongTuCongViec, type DraftLine, type TuCongViec } from "./KhoDeNghiPage";
 import { num, ngayGio, gioNgan } from "./keHoachSxShared";
-import { ChungTuKhoNoi, type ChungTuKho } from "./gia-cong/ChungTuKhoNoi";
+import { ChungTuKhoNoi, type ChungTuKho } from "../components/ChungTuKhoNoi";
 import { nhanChangLenh, nhanDonVi } from "./lsxBuoc";
 import { tinhTrangChon } from "./thsxTinhTrangNguoi";
 import { ThsxHop } from "./thsx/ThsxHop";
+import { GiaCongChoVe } from "./thue-gia-cong/GiaCongChoVe";
 
 // ============================ hợp đồng hành động (controller cấp) ============================
 export interface ThsxExec {
@@ -314,7 +315,8 @@ export function giaKhoan(v: {
   // Phát sinh có "Cách tính giá" — không phụ thuộc bảng giá theo tổ của nó.
   if (v.cong_thuc_chu && v.chi_gia === undefined) return `tính theo cách tính giá: ${v.cong_thuc_chu}`;
   if (v.cong_thuc_chu === "") return "công đoạn chưa có công thức khoán";
-  if (v.chi_gia === false) return `tính theo công thức: ${v.cong_thuc_chu}`;
+  // Công thức có chip khác: không in công thức ra cho tổ đọc (16/11/2026, chủ xưởng bảo ẩn) — để trống.
+  if (v.chi_gia === false) return "";
   if (v.thieu_gia) return "tổ chưa có giá";
   const dv = `${num(v.don_gia)} đ một ${v.don_vi_ten ?? nhanDonVi(v.don_vi)}`;
   const coDinh = v.dung_gia_co_dinh ?? true;
@@ -505,6 +507,7 @@ export function BatchForm({
   const mats = khoan ? matCuaLenh(khoan) : [];
   const [mat, setMat] = useState<"a" | "b" | null>(null);
   const bac = khoan ? bacTheoTick(khoan, tcGt, mat) : null;
+  const giaDau = !khoan ? "" : mats.length && !mat ? "chọn mặt in để ra giá" : giaKhoan(bac ? { ...khoan, ...bac } : khoan);
   const nSoLuong = toNum(soLuong);
   // Mẻ 0 hợp lệ — ca chỉ làm việc phát sinh (thay kẽm, lên khuôn) vẫn cần mẻ để ghi nhận; nhưng ô
   // phải được GÕ (kể cả số 0), để trống thì chưa cho lưu.
@@ -623,9 +626,7 @@ export function BatchForm({
           <div className="thsx-gm-khoan__dau">
             <span className="thsx-gm-mo">Khoán</span>
             <span>{khoan.ten}</span>
-            <span className="thsx-gm-gia thsx-num">
-              {mats.length && !mat ? "chọn mặt in để ra giá" : giaKhoan(bac ? { ...khoan, ...bac } : khoan)}
-            </span>
+            {giaDau && <span className="thsx-gm-gia thsx-num">{giaDau}</span>}
           </div>
           {mats.length > 0 && <MatInChon khoan={khoan} mat={mat} onDoi={setMat} />}
           {bac && (
@@ -755,7 +756,7 @@ export function NguoiLamChon({
                   onChange={() => doi(n.id)} />
                 <span className="thsx-ng__ten">{n.ten}</span>
                 {n.the.map((t) => typeof t === "string"
-                  ? <span key={t} className="thsx-ng__the">{t}</span>
+                  ? <span key={t} className="thsx-ng__the" title={t}>{t}</span>
                   : <span key={t.chu} className="thsx-ng__the" title={t.goi}>{t.chu}</span>)}
               </label>
             </li>
@@ -1152,7 +1153,10 @@ function GiaoDiSection({
 }
 
 /** Bảng các lần giao/nhận — mỗi lần một dòng: bao nhiêu, công đoạn đầu kia, bên giao, bên nhận,
- *  trạng thái, nút. Dùng chung cho Nhận vào (`den`) và Giao đi (`di`). */
+ *  trạng thái, nút. Dùng chung cho Nhận vào (`den`) và Giao đi (`di`).
+ *
+ *  Nhận vào không có cột thao tác (16/11/2026): nút Xác nhận đứng ngay ô Bên nhận, thay chữ "Chưa
+ *  xác nhận" — chữ đó vốn nói lại chip trạng thái, mà cột thứ sáu đẩy bảng tràn ngang khỏi ngăn. */
 function BanGiaoBang({ phia, children }: { phia: "di" | "den"; children: ReactNode }) {
   return (
     <div className="thsx-b-tw">
@@ -1164,7 +1168,7 @@ function BanGiaoBang({ phia, children }: { phia: "di" | "den"; children: ReactNo
             <th>Bên giao</th>
             <th>Bên nhận</th>
             <th>Trạng thái</th>
-            <th aria-label="Thao tác" />
+            {phia === "di" && <th aria-label="Thao tác" />}
           </tr>
         </thead>
         <tbody>{children}</tbody>
@@ -1201,6 +1205,7 @@ export function ThsxNhanVe({
         <span className="thsx-b-mo3">{dauLenh ? "từ kho" : "từ bước trước"}</span>
         {den.length > 0 && <span className="thsx-b-mo3">{den.length} lần</span>}
       </div>
+      <GiaCongChoVe truoc={chiTiet.cong_doan_truoc ?? []} />
       {den.length === 0 ? (
         <p className="thsx-b-trong">
           {cungTo.length > 0
@@ -1420,7 +1425,11 @@ function BanGiaoRow({
           {g.de_xuat_luc && <div className="thsx-b-bgt__phu thsx-num">{ngayGio(g.de_xuat_luc)}</div>}
         </td>
         <td>
-          {g.xac_nhan_luc == null ? <span className="thsx-b-canh">Chưa xác nhận</span>
+          {canXac ? (
+            <Button variant="accent" onClick={() => void exec.xacNhanBanGiao(g.id, g.version)} disabled={busy}>
+              Xác nhận
+            </Button>
+          ) : g.xac_nhan_luc == null ? <span className="thsx-b-canh">Chưa xác nhận</span>
             : g.cung_to ? "Tự nhận (cùng tổ)"
               : <>
                 {g.nguoi_xac_nhan ?? "—"}
@@ -1428,18 +1437,15 @@ function BanGiaoRow({
               </>}
         </td>
         <td><ChipTT mau={st.mau}>{st.txt}</ChipTT></td>
-        <td className="thsx-b-t__nut">
-          {canSua && (
-            <Button variant="secondary" onClick={() => setSuaOpen((o) => !o)} disabled={busy}>
-              Chọn lại
-            </Button>
-          )}
-          {canXac && (
-            <Button variant="accent" onClick={() => void exec.xacNhanBanGiao(g.id, g.version)} disabled={busy}>
-              Xác nhận
-            </Button>
-          )}
-        </td>
+        {phia === "di" && (
+          <td className="thsx-b-t__nut">
+            {canSua && (
+              <Button variant="secondary" onClick={() => setSuaOpen((o) => !o)} disabled={busy}>
+                Chọn lại
+              </Button>
+            )}
+          </td>
+        )}
       </tr>
       {suaOpen && (
         <SuaMeForm g={g} me={meSua} dvt={dvt} lan={lanTheoId(batches)} conLai={conLai} busy={busy}

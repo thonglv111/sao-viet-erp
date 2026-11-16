@@ -223,8 +223,10 @@ class StockRequestOut(BaseModel):
     # khác hẳn ca sáng cần lúc 6h.
     can_luc: datetime | None = None
     san_xuat_cong_viec_id: int | None = None
-    # NGUỒN GIA CÔNG NGOÀI (mg 0339) — ô Nguồn hiện thẻ "Gia công", khớp điều kiện lọc Nguồn.
-    gia_cong_ngoai_id: int | None = None
+    # NGUỒN THUÊ GIA CÔNG (13/11/2026) — ô Nguồn hiện thẻ "Thuê gia công", khớp điều kiện lọc Nguồn.
+    tgc_phieu_giao_id: int | None = None
+    tgc_phieu_nhan_id: int | None = None
+    tgc_don_dong_id: int | None = None
     san_xuat_cong_doan_ten: str | None = None
     # Hệ thống tự lập lúc phát hành lệnh (spec 2026-10-18) — ô Nguồn ghi "Tự lập khi phát hành".
     san_xuat_tu_lap: bool = False

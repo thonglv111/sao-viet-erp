@@ -1593,11 +1593,9 @@ def test_thieu_buoc_chung_thue_ngoai_khong_doi_to_may(bg_svc):
     công chọn từ danh mục Nhà cung cấp, không khai như một tổ/máy trong danh mục). Trước sửa,
     `_thieu_buoc_chung` vẫn đòi cả hai, khiến "Chưa chọn tổ" · "Chưa chọn máy" treo vĩnh viễn trên
     mọi bước chung thuê ngoài."""
-    c = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None, nha_cung_cap_id=7)
+    # 13/11/2026 (module Thuê gia công): nhà gia công chọn lúc lập đơn, bước chung không còn thiếu.
+    c = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None)
     assert bg_svc._thieu_buoc_chung(c) == []
-    # Spec 27/09/2026: thiếu nhà gia công (chọn từ danh mục) thì báo — thay cho tổ/máy.
-    c_thieu = SimpleNamespace(department_id=None, loai_buoc=LB_THUE_NGOAI, may_id=None, nha_cung_cap_id=None)
-    assert bg_svc._thieu_buoc_chung(c_thieu) == ["Chưa chọn nhà gia công"]
 
     # Bước MÁY thật thì vẫn phải đòi tổ + máy như cũ.
     c_may = SimpleNamespace(department_id=None, loai_buoc=LB_MAY, may_id=None)

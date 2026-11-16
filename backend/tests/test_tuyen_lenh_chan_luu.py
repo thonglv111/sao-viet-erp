@@ -124,10 +124,10 @@ def test_lenh_cu_co_canh_bac_cau_van_bat_dau_duoc(db, orders, lsx_svc, admin, cu
 
 
 # ---------------------------------------------------------------- #16 trọn gói miễn khuôn
-from tests.gia_cong_fixtures import lenh_chua_phat, ncc  # noqa: E402
+from tests.gia_cong_fixtures import lenh_chua_phat  # noqa: E402
 from tests.lenh_sx_fixtures import sess  # noqa: E402,F401
 from app.models.cong_doan import CongDoan  # noqa: E402
-from app.services.gia_cong_ngoai.tron_goi import dat_tron_goi  # noqa: E402
+from app.services.thue_gia_cong.tron_goi import dat as dat_tron_goi  # noqa: E402
 
 
 def test_tron_goi_mien_khuon_moi_buoc(sess, orders, lsx_svc, admin, customer):  # noqa: F811
@@ -139,6 +139,5 @@ def test_tron_goi_mien_khuon_moi_buoc(sess, orders, lsx_svc, admin, customer):  
     buoc.khuon_be_id = None
     sess.commit()
     assert "thieu_khuon" in lsx_svc.thieu_cua(lsx_svc.get(lsx.id))
-    dat_tron_goi(sess, user=admin, lsx_id=lsx.id, nha_cung_cap_id=ncc(sess, "GC TG").id,
-                 sl_dat=1000, xuong_cap_giay=False)
+    dat_tron_goi(sess, user=admin, lsx_id=lsx.id, sl_can=1000, xuong_cap_giay=False)
     assert "thieu_khuon" not in lsx_svc.thieu_cua(lsx_svc.get(lsx.id))

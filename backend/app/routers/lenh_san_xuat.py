@@ -90,7 +90,7 @@ def danh_sach_lenh(
     order_id: int | None = None,
     phu_trach_id: int | None = None,
     gia_cong: Annotated[
-        str | None, Query(pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$")
+        str | None, Query(pattern="^(chua_dat|da_dat|tron_goi)$")
     ] = None,
     # Dải kỳ (06/10/2026): khoảng ngày tính theo `moc` — ngày tạo lệnh (mặc định) / hạn SX / hạn
     # giao khách. `moc=han_sx` (hạn SX nội bộ đã gỡ 08/11/2026) hiểu như `han_giao`.

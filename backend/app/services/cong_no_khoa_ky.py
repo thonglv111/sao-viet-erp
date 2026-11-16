@@ -46,7 +46,7 @@ def _phan_he_phieu_chi(v: PaymentVoucher) -> str | None:
     if v.source_type in (VOUCHER_SOURCE_CHI_CK, VOUCHER_SOURCE_CHI_KE) or v.dong_ck_ke:
         return PHAN_HE_PHAI_THU
     if (v.source_type in (VOUCHER_SOURCE_PURCHASE, VOUCHER_SOURCE_GIA_CONG) or v.purchase_request_id
-            or v.supplier_id or v.gia_cong_ngoai_id
+            or v.supplier_id
             or any(l.purchase_request_id for l in v.lines)):
         return PHAN_HE_PHAI_TRA
     return None

@@ -168,7 +168,7 @@ class GiaoThangOut(BaseModel):
     """Chuyến "nhà gia công giao thẳng cho khách" — không xe, không kíp, không km. Người đứng tên
     chuyến là người CHỐT số trên lần gia công, không phải tài xế."""
 
-    gia_cong_ngoai_id: int
+    tgc_phieu_nhan_id: int
     nha_cung_cap_ten: str | None = None
     nha_cung_cap_sdt: str | None = None
     lsx_id: int | None = None

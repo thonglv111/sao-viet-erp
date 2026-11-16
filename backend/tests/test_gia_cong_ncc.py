@@ -1,10 +1,19 @@
-"""Nhà gia công lấy từ danh mục Nhà cung cấp có tích "Nhận gia công" (spec §7)."""
+"""Nhà gia công là DANH SÁCH RIÊNG `tgc_nha_gia_cong` (16/11/2026, mg 0484), thêm bỏ ngay ở ô Nhà gia công
+của hộp Lập đơn như ô Đơn vị vận chuyển — không còn tích "Nhận gia công" trên nhà cung cấp."""
 from __future__ import annotations
 
-from itertools import count
+from datetime import date
+
+from sqlalchemy import inspect, text
+
+from app.db import SessionLocal
+from app.db_migrations import _migrate_tgc_nha_gia_cong_rieng
+from app.models.audit import AuditLog
+from app.models.purchase import Supplier
+from app.models.thue_gia_cong import TgcDon, TgcNhaGiaCong
 
 ADMIN = {"username": "admin", "password": "admin123"}
-_dem = count(1)
+URL = "/api/thue-gia-cong/nha-gia-cong"
 
 
 def _h(client) -> dict[str, str]:
@@ -12,34 +21,58 @@ def _h(client) -> dict[str, str]:
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
-def _ncc(client, h, ten: str, **them) -> dict:
-    i = next(_dem)
-    r = client.post("/api/suppliers", headers=h, json={
-        "name": ten, "tax_code": f"08{i:08d}", "phone": "0900000000", "email": f"gc{i}@x.vn",
-        "address": "HN", "contact_name": "A", "supplier_group": "gia cong", **them,
-    })
+def _them(client, h, ten: str) -> dict:
+    r = client.post(URL, headers=h, json={"ten": ten})
     assert r.status_code == 201, r.text
     return r.json()
 
 
-def test_luu_va_doc_lai_co_nhan_gia_cong(client):
+def test_them_gom_khoang_trang_va_trung_ten_tra_lai_nha_cu(client):
     h = _h(client)
-    row = _ncc(client, h, "Cán màng Minh Long", nhan_gia_cong=True)
-    assert row["nhan_gia_cong"] is True
-    body = {k: row[k] for k in ("name", "tax_code", "phone", "email", "address",
-                                "contact_name", "supplier_group")}
-    r = client.put(f"/api/suppliers/{row['id']}", headers=h, json={**body, "nhan_gia_cong": False})
-    assert r.status_code == 200, r.text
-    assert r.json()["nhan_gia_cong"] is False
+    a = _them(client, h, "  Cán màng   Minh Long ")
+    assert a["ten"] == "Cán màng Minh Long" and a["active"] is True
+    assert _them(client, h, "cán màng minh long")["id"] == a["id"]
+    assert client.get(URL, headers=h).json() == [a]
+    assert client.post(URL, headers=h, json={"ten": "   "}).status_code == 400
 
 
-def test_o_chon_chi_moi_ncc_dang_hoat_dong_co_tich(client):
+def test_bo_nha_chua_co_don_thi_xoa_han(client):
     h = _h(client)
-    co = _ncc(client, h, "In hộp Phú Thịnh", nhan_gia_cong=True)
-    _ncc(client, h, "Giấy Hoàng Hà")                                  # không tích
-    ngung = _ncc(client, h, "Bế Tân Tiến", nhan_gia_cong=True)
-    assert client.patch(f"/api/suppliers/{ngung['id']}/toggle-active", headers=h).status_code == 200
+    a = _them(client, h, "Bế Tân Tiến")
+    assert client.delete(f"{URL}/{a['id']}", headers=h).status_code == 204
+    assert client.get(URL, params={"ca_da_bo": True}, headers=h).json() == []
+    assert client.delete(f"{URL}/{a['id']}", headers=h).status_code == 404
+    with SessionLocal() as s:
+        hanh_dong = {r.action for r in s.query(AuditLog).filter(AuditLog.target == f"tgc_nha_gia_cong:{a['id']}")}
+    assert hanh_dong == {"tgc_nha_them", "tgc_nha_bo"}
 
-    r = client.get("/api/gia-cong-ngoai/nha-gia-cong", headers=h)
-    assert r.status_code == 200, r.text
-    assert r.json() == [{"id": co["id"], "ten": "In hộp Phú Thịnh"}]
+
+def test_bo_nha_da_co_don_chi_an_gay_lai_ten_thi_bat_lai(client):
+    h = _h(client)
+    a = _them(client, h, "In hộp Phú Thịnh")
+    with SessionLocal() as s:
+        s.add(TgcDon(ma="GC26-9501", nha_cung_cap_id=a["id"], nha_cung_cap_ten=a["ten"], ngay_dat=date.today()))
+        s.commit()
+    assert client.delete(f"{URL}/{a['id']}", headers=h).status_code == 204
+    assert client.get(URL, headers=h).json() == []
+    assert client.get(URL, params={"ca_da_bo": True}, headers=h).json() == [{**a, "active": False}]
+    # Gõ lại đúng tên ở ô chọn: bật lại nhà cũ, không đẻ bản thứ hai.
+    assert _them(client, h, "In hộp Phú Thịnh") == a
+
+
+def test_mg_0484_chuyen_ncc_co_tich_va_go_cot(client):
+    with SessionLocal() as s:
+        s.execute(text("ALTER TABLE suppliers ADD COLUMN nhan_gia_cong BOOLEAN NOT NULL DEFAULT 0"))
+        co = Supplier(name="Cán màng Minh Long")
+        khong = Supplier(name="Giấy Hoàng Hà")
+        ngung = Supplier(name="Bế Tân Tiến", status="inactive")
+        s.add_all([co, khong, ngung])
+        s.flush()
+        s.execute(text("UPDATE suppliers SET nhan_gia_cong = 1 WHERE id IN (:a, :b)"), {"a": co.id, "b": ngung.id})
+        s.add(TgcNhaGiaCong(ten="cán màng minh long"))   # trùng tên (khác hoa thường) ⇒ không thêm bản mới
+        s.commit()
+
+        _migrate_tgc_nha_gia_cong_rieng(s)
+        assert [n.ten for n in s.query(TgcNhaGiaCong)] == ["cán màng minh long"]
+        assert "nhan_gia_cong" not in {c["name"] for c in inspect(s.get_bind()).get_columns("suppliers")}
+        _migrate_tgc_nha_gia_cong_rieng(s)   # chạy lại vô hại

@@ -117,14 +117,8 @@ class BaiGhepCongDoan(Base):
     phat_sinh_phut: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, server_default="0", default=0)
     di_chuyen_phut: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, server_default="0", default=0)
 
-    # --- Gia công ngoài (spec 2026-09-27 §6). Bước chung thuê ngoài ⇒ cả bài đi MỘT lần gia công.
-    # Nhà gia công chọn từ danh mục Nhà cung cấp (tích "Nhận gia công"); `nha_cung_cap` giữ làm TÊN
-    # do máy chủ ghi theo (y `lsx_cong_doan`). Các ô dự kiến cũ (ngày gửi/nhận, số ngày vận
-    # chuyển/gia công, hao hụt cho phép, sl gửi, đơn giá, yêu cầu kỹ thuật) GỠ ở mg `0343`.
-    nha_cung_cap_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("suppliers.id"), index=True, nullable=True
-    )
-    nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Bước chung thuê ngoài ⇒ cả bài đi MỘT việc gia công. Nhà gia công chọn lúc lập đơn ở màn Thuê
+    # gia công, không ở bước (`nha_cung_cap_id` / `nha_cung_cap` gỡ ở mg 0483).
 
     # Ghi chú của BÀI. Ghi chú kỹ thuật của từng lệnh KHÔNG bị đè — service gom lại kèm mã lệnh,
     # vì thợ chạy chung một lượt phải đọc được yêu cầu của mọi khách trên tờ đó.

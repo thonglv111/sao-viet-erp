@@ -76,9 +76,9 @@ def lap_ban_giao(
 ) -> SanXuatBanGiao:
     """LÕI ghi một bàn giao — KHÔNG gate, KHÔNG commit, không tự tính số.
 
-    `de_xuat` gác quyền tổ nguồn + suy số từ mẻ rồi gọi vào đây. Chốt lần gia công ngoài
-    (`services/gia_cong_ngoai/chot.py`) gác `san_xuat:update` và giao ĐÚNG con số chốt — công việc
-    gia công không có tổ nào để gác theo dòng quyền tổ."""
+    `de_xuat` gác quyền tổ nguồn + suy số từ mẻ rồi gọi vào đây. Phiếu nhận thuê gia công về
+    xưởng (`services/thue_gia_cong`) gác quyền module và giao ĐÚNG số nhận — công việc thuê gia
+    công không có tổ nào để gác theo dòng quyền tổ."""
     repo = SanXuatSanLuongRepository(db)
     cung_to = _la_cung_to(nguon_cv, dich_cv)
     now = _moc()
@@ -104,8 +104,8 @@ def lap_ban_giao(
 
 
 def ghi_xac_nhan(db: Session, *, bg: SanXuatBanGiao, user) -> None:
-    """LÕI xác nhận — KHÔNG gate, KHÔNG commit. `xac_nhan` gác quyền tổ đích; "Đã mang đi" của
-    gia công ngoài gác `san_xuat:update` (đích là công việc gia công, không tổ nào nhận)."""
+    """LÕI xác nhận — KHÔNG gate, KHÔNG commit. `xac_nhan` gác quyền tổ đích; Phiếu giao thuê gia
+    công gác quyền module (đích là công việc thuê gia công, không tổ nào nhận)."""
     bg.trang_thai = BG_XAC_NHAN
     bg.xac_nhan_by_id = getattr(user, "id", None)
     bg.xac_nhan_luc = _moc()
@@ -118,19 +118,20 @@ def ghi_xac_nhan(db: Session, *, bg: SanXuatBanGiao, user) -> None:
 
 def ket_qua_cho_ben_nhan(db: Session, *, user, bg, nguon_cv, dich_cv) -> dict:
     """Bàn giao MỚI chờ bên nhận: báo người Xác nhận sản lượng ở tổ ĐÍCH (cùng tổ ⇒ không báo ai).
-    Đích là công việc GIA CÔNG NGOÀI thì không tổ nào nhận — báo người mang hàng đi (ai sửa được
-    lệnh, spec gia công §6) bằng sự kiện "chờ mang đi"."""
-    if dich_cv.gia_cong_ngoai_id is not None:
-        from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+    Đích là công việc THUÊ GIA CÔNG thì không tổ nào nhận — báo người lập phiếu giao (ô
+    `thue_gia_cong:create`) bằng sự kiện "sẵn sàng giao": Hàng chờ đổi tình trạng không cần F5."""
+    if dich_cv.tgc_viec_id is not None:
+        from ...repositories.thue_gia_cong_repo import ThueGiaCongRepository
+        from ..thue_gia_cong.thong_tin_lenh import cua_viec
 
         uid = getattr(user, "id", None)
-        ra = _ket_qua(bg, nguon_cv, dich_cv, su_kien="cho_mang_di", notify_user_ids=[
-            u for u in GiaCongNgoaiRepository(db).nguoi_sua_lenh() if u != uid])
-        from ..gia_cong_ngoai.lan import nguon_lan
-
-        # Nhãn nguồn: mã lệnh, hoặc "BG-.. (LSX-A, LSX-B)" khi lần thuộc bài ghép (spec 2026-09-27).
-        gcn = GiaCongNgoaiRepository(db).get(dich_cv.gia_cong_ngoai_id)
-        ra["lsx_ma"] = nguon_lan(db, gcn)["nhan_nguon"] if gcn is not None else ""
+        tgc = ThueGiaCongRepository(db)
+        ra = _ket_qua(bg, nguon_cv, dich_cv, su_kien="san_sang_giao", notify_user_ids=[
+            u for u in tgc.nguoi_co("thue_gia_cong", "create") if u != uid])
+        viec = tgc.viec(dich_cv.tgc_viec_id)
+        lenh = cua_viec(db, [viec]).get(viec.id, []) if viec is not None else []
+        ra["lsx_ma"] = ", ".join(l["lsx_ma"] for l in lenh)
+        ra["tgc_viec_id"] = dich_cv.tgc_viec_id
         return ra
     notify = [] if bg.trang_thai == BG_XAC_NHAN else _nguoi_nhan(db, user, dich_cv.department_id)
     return _ket_qua(bg, nguon_cv, dich_cv, notify_user_ids=notify, su_kien="de_xuat")
@@ -302,9 +303,11 @@ def xac_nhan(
         raise ValueError("Công đoạn nhận của bàn giao này không còn — không xác nhận được.")
     nguon_cv = repo.cong_viec(bg.nguon_cong_viec_id)
     dich_cv = repo.cong_viec(bg.dich_cong_viec_id)
-    if dich_cv is not None and dich_cv.gia_cong_ngoai_id is not None:
-        # Hàng giao sang bước gia công ngoài: không tổ nào nhận — người kế hoạch bấm "Đã mang đi".
-        raise ValueError("Bàn giao sang gia công ngoài — người kế hoạch nhận bằng nút “Đã mang đi”.")
+    if dich_cv is not None and dich_cv.tgc_viec_id is not None:
+        # Hàng giao sang bước thuê gia công: không tổ nào nhận — nhận bằng Phiếu giao.
+        from ..thue_gia_cong import CHAN_NHAN_TAY
+
+        raise ValueError(CHAN_NHAN_TAY)
     _gate(db, user, dich_cv, VIEC_XAC_NHAN)
     if nguon_cv is not None:
         from .dong_lenh import chan_neu_da_dong

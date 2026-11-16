@@ -902,9 +902,9 @@ export function BaiGhepDagCanvas({
                         </span>
                       )}
                       {g.loai_buoc === "thue_ngoai" ? (
-                        <span className="dag-node__badge" title="Cả bài đi một phiếu, một nhà cung cấp">
+                        <span className="dag-node__badge" title="Nhà gia công chọn lúc lập đơn ở màn Thuê gia công">
                           <Icon name="truck" size={11} />
-                          {g.nha_cung_cap || "chưa có nhà gia công"}
+                          Gia công ngoài
                         </span>
                       ) : (
                         g.may_ten && (
@@ -1186,7 +1186,7 @@ export function BaiGhepDagCanvas({
                                 </span>
                               )}
                               {b.loai_buoc === "thue_ngoai"
-                                ? <span className="dag-node__badge"><Icon name="truck" size={11} />{b.nha_cung_cap || "chưa có nhà gia công"}</span>
+                                ? <span className="dag-node__badge"><Icon name="truck" size={11} />Gia công ngoài</span>
                                 : b.may_ten && <span className="dag-node__badge" title={`Máy: ${b.may_ten}`}><Icon name="cpu" size={11} />{b.may_ten}</span>}
                             </div>
                             <LuongSoLuong vao={b.so_luong_vao} ra={b.so_luong_ra} dvVao={b.don_vi_vao} dvRa={b.don_vi_ra} />

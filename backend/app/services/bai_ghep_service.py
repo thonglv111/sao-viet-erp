@@ -929,11 +929,7 @@ class BaiGhepService:
             # chứ không phải lệch lịch. Máy vẫn KHÔNG bị chiếm trong khoảng này.
             thu_tu=int(mau.thu_tu or 0),
         )
-        # NHÀ GIA CÔNG (spec 2026-09-27 §6): mọi bước gộp cùng thuê ngoài ở CÙNG một nhà ⇒ lượt chung
-        # thừa kế nhà đó (khỏi chọn lại). Khác nhà hoặc có bước chưa chọn ⇒ để trống, "Còn thiếu" nhắc.
-        ncc_ids = {cd.nha_cung_cap_id for cd in cds}
-        if mau.loai_buoc == LB_THUE_NGOAI and len(ncc_ids) == 1 and None not in ncc_ids:
-            chung.nha_cung_cap_id, chung.nha_cung_cap = mau.nha_cung_cap_id, mau.nha_cung_cap
+        # Nhà gia công KHÔNG chép sang lượt chung: chọn lúc lập đơn ở màn Thuê gia công (13/11/2026).
         if mau.loai_buoc == LB_MAY:
             chung.may_id = self._may_cho_luot_chung(mau.cong_doan_id, cds)
             if chung.may_id is not None and mau.cong_doan_id:
@@ -1017,8 +1013,7 @@ class BaiGhepService:
         "so_gio_ke_hoach", "phat_sinh_phut",
         # Chờ kỹ thuật: gộp lấy mức lớn nhất làm MẶC ĐỊNH, người lập kế hoạch sửa đè được (mục B).
         "so_luot_chay", "ghi_chu",
-        # Nhà gia công KHÔNG nằm ở đây: `nha_cung_cap_id` kiểm riêng (danh mục NCC tích "Nhận gia
-        # công"), tên `nha_cung_cap` do máy chủ ghi — client không gửi (spec 2026-09-27 §6).
+        # Nhà gia công không thuộc bước chung (gỡ mg 0483) — chọn lúc lập đơn ở màn Thuê gia công.
     )
 
     def lap_ke_hoach_buoc_chung(
@@ -1077,29 +1072,14 @@ class BaiGhepService:
         return self._get(bg.id)
 
     def _ap_nha_gia_cong(self, chung: BaiGhepCongDoan, patch: dict) -> None:
-        """Bước chung THUÊ NGOÀI: không tổ, không máy; nhà gia công chọn từ danh mục Nhà cung cấp
-        (tích "Nhận gia công", đang hoạt động) và TÊN do máy chủ ghi theo — cùng luật bước lệnh
-        (`LsxService.replace_routing`). Đổi khỏi thuê ngoài ⇒ dọn nhà gia công."""
-        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-
+        """Bước chung THUÊ NGOÀI: không tổ, không máy — cùng luật bước lệnh
+        (`LsxService.replace_routing`). Nhà gia công KHÔNG chọn ở đây: chọn lúc lập đơn ở màn Thuê
+        gia công (spec 2026-11-13)."""
         if chung.loai_buoc != LB_THUE_NGOAI:
-            chung.nha_cung_cap_id, chung.nha_cung_cap = None, None
             return
         chung.department_id = None
         chung.may_id = None
         chung.so_luot_chay = 1
-        if "nha_cung_cap_id" not in patch:
-            return
-        ncc_id = patch.get("nha_cung_cap_id")
-        if ncc_id is None:
-            chung.nha_cung_cap_id, chung.nha_cung_cap = None, None
-        elif ncc_id != chung.nha_cung_cap_id:
-            ncc = GiaCongNgoaiRepository(self.db).nha_gia_cong(ncc_id)
-            if ncc is None:
-                raise BaiGhepValidationError(
-                    "Nhà gia công phải là nhà cung cấp đang hoạt động có tích “Nhận gia công” — "
-                    "vào màn Nhà cung cấp để tích.")
-            chung.nha_cung_cap_id, chung.nha_cung_cap = ncc.id, ncc.name
 
     # ⚠️ `_ghim_khoan_chung()` + `_khoan_chung_dict()` GỠ 18/09/2026 (mg `0320`): lượt chạy
     #    chung thôi ghim đầu việc khoán, y như bước lệnh. Việc khoán chọn LÚC GHI MẺ ở bàn tổ,
@@ -1794,7 +1774,6 @@ class BaiGhepService:
                 # Máy CÒN DÙNG chạy được công đoạn, máy "Đặt mặc định" đứng đầu — form lượt chung lọc
                 # theo tổ trên danh sách này như ngăn bước lệnh (23/10/2026).
                 "may_chon_duoc": may_chon_duoc(self.db, cd_obj, None),
-                "nha_cung_cap": c.nha_cung_cap,
                 "tong_phut": t["tong_phut"], "chiem_may_phut": t["chiem_may_phut"],
                 "chiem_may_phut_min": t["chiem_may_phut_min"],
                 "chiem_may_phut_max": t["chiem_may_phut_max"],
@@ -1823,8 +1802,6 @@ class BaiGhepService:
                 # cần biến riêng-từng-lệnh (`so_luong`, `dai_tp`…) vẫn báo tịt qua `ly_do` vì các
                 # biến đó = 0 theo `BIEN_KHONG_CO_O_BAI`, không mượn số của một thành viên bất kỳ.
                 "vat_tu_goi_y": self._lsx_svc()._goi_y_luong_vat_tu(c, qc_bien),
-                # Gia công ngoài (spec 2026-09-27) — bước chung thuê ngoài ⇒ cả bài đi MỘT lần.
-                "nha_cung_cap_id": c.nha_cung_cap_id,
                 "ghi_chu": c.ghi_chu,
                 "thanh_vien": ds,
                 "ma_bai_ghep": bg.ma,
@@ -1834,8 +1811,7 @@ class BaiGhepService:
                 # tách không hỏi, và ai đã khai máy + năng suất nhưng chưa chọn tổ thì mất trắng.
                 "da_lap_ke_hoach": bool(
                     c.department_id or c.may_id or _f(c.phat_sinh_phut)
-                    or _f(c.so_gio_ke_hoach) or (c.ghi_chu or "").strip()
-                    or (c.nha_cung_cap or "").strip() or c.vat_tus
+                    or _f(c.so_gio_ke_hoach) or (c.ghi_chu or "").strip() or c.vat_tus
                 ),
             })
         return out
@@ -1971,13 +1947,10 @@ class BaiGhepService:
         # cùng lẽ với "Chưa chọn máy" đã sửa ở fix round 1.
         if c.loai_buoc != LB_THUE_NGOAI and not c.department_id:
             thieu.append("Chưa chọn tổ")
-        # Bước thuê ngoài KHÔNG máy — nhà gia công chọn từ danh mục Nhà cung cấp (kiểm dưới).
+        # Bước thuê ngoài KHÔNG máy, KHÔNG nhà gia công — nhà gia công chọn lúc lập đơn ở màn Thuê
+        # gia công (13/11/2026), nên không còn "Chưa chọn nhà gia công".
         if c.loai_buoc == LB_MAY and not c.may_id:
             thieu.append("Chưa chọn máy")
-        # Spec 2026-09-27: bước chung thuê ngoài phải chọn nhà gia công từ danh mục — tên gõ tay
-        # kiểu cũ (`nha_cung_cap` có chữ, không id) không tính. Thiếu ⇒ phát hành không gom được lần.
-        if c.loai_buoc == LB_THUE_NGOAI and c.nha_cung_cap_id is None:
-            thieu.append("Chưa chọn nhà gia công")
         # ⚠️ Chip "Chưa có năng suất" GỠ 18/09/2026 (mg `0319`): bước TỔ thôi chia theo năng suất,
         #    giờ của nó là SỐ GIỜ KẾ HOẠCH gõ tay và để 0 là HỢP LỆ — chủ xưởng 18/09/2026:
         #    *"không cần cảnh báo, bản chất nó là số giờ kế hoạch, nếu thiếu thì cứ để 0"*.
@@ -2014,7 +1987,6 @@ class BaiGhepService:
             "gop_step_key": gop_step_key,
             "to_ten": dept_names.get(cd.department_id),
             "may_ten": may_names.get(cd.may_id),
-            "nha_cung_cap": cd.nha_cung_cap,
             "tong_phut": t["tong_phut"], "chiem_may_phut": t["chiem_may_phut"],
             "phu_thuoc_step_keys": [
                 p.step_key for edge in cd.phu_thuoc
@@ -2147,17 +2119,19 @@ class BaiGhepService:
         # không lệnh nào biết mà nhặt — im lặng mất chỗ.
         self._chan_dang_giu_cho(bg)
         ma = bg.ma
-        # Lần gia công của bài (FK RESTRICT): bài về nháp được nghĩa là gói đã thu hồi ⇒ mọi lần đã
-        # HUỶ theo gói. Lần huỷ không có phiếu chi, không chứng từ nào trỏ tới ⇒ dọn cùng bài. Còn lần
-        # sống (lỗi dữ liệu) thì chặn, không xoá mù.
-        from ..models.gia_cong_ngoai import GiaCongNgoai
+        # Việc thuê gia công của bài: thu hồi phát hành đã xoá việc chưa đặt. Việc còn nằm trong
+        # dòng đơn sống (lỗi dữ liệu) thì chặn, không xoá mù; việc chưa đặt sót lại thì dọn cùng bài.
+        from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
 
-        lans = list(self.db.scalars(select(GiaCongNgoai).where(GiaCongNgoai.bai_ghep_id == bg.id)))
-        if any(g.huy_luc is None for g in lans):
+        tgc = ThueGiaCongRepository(self.db)
+        viecs = tgc.viec_cua_bai_ghep(bg.id)
+        dat = tgc.dong_song_cua_viec([v.id for v in viecs])
+        if dat:
             raise BaiGhepValidationError(
-                "Bài ghép còn lần gia công ngoài chưa huỷ — thu hồi phát hành trước rồi mới xoá.")
-        for g in lans:
-            self.db.delete(g)
+                f"Bài ghép còn việc thuê gia công nằm trong đơn {', '.join(sorted(set(dat.values())))} "
+                "— huỷ dòng đơn trước rồi mới xoá.")
+        for v in viecs:
+            self.db.delete(v)
         self.db.flush()
         lsx_ids = [tv.lsx_id for tv in bg.thanh_viens]
         self.repo.delete(bg)  # cascade xoá thành viên → LSX tự do lại

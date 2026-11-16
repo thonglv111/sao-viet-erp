@@ -67,9 +67,9 @@ def _lay_cong_viec(repo: SanXuatThucThiRepository, cong_viec_id: int, *,
     cv = repo.cong_viec(cong_viec_id, khoa=khoa)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
-    # Công việc gia công ngoài không phân công / bắt đầu / đổi máy / tạm dừng (spec gia công §10).
-    if cv.gia_cong_ngoai_id is not None:
-        from ..gia_cong_ngoai import CHAN_XUONG
+    # Công việc thuê gia công không phân công / bắt đầu / đổi máy / tạm dừng.
+    if cv.tgc_viec_id is not None:
+        from ..thue_gia_cong import CHAN_XUONG
 
         raise ValueError(CHAN_XUONG)
     return cv
@@ -136,7 +136,7 @@ def giao_ca_to(db: Session, cv: SanXuatCongViec) -> None:
 
     Không kiểm nghỉ: người nghỉ vẫn có tên, hộp Ghi sản lượng làm mờ họ đúng ngày nghỉ. Bước thuê
     ngoài và việc không có tổ thì bỏ qua. Không audit từng người — phát hành đã có dòng lịch sử."""
-    if not cv.department_id or cv.loai_buoc == BUOC_THUE_NGOAI or cv.gia_cong_ngoai_id is not None:
+    if not cv.department_id or cv.loai_buoc == BUOC_THUE_NGOAI or cv.tgc_viec_id is not None:
         return
     repo = SanXuatThucThiRepository(db)
     la_khoan = thuoc_khoi_san_xuat(db, cv.department_id)

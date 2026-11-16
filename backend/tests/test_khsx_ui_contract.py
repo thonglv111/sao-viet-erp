@@ -150,10 +150,9 @@ def test_so_do_bai_ghep_ve_routing_day_du_va_mot_cua_ghi() -> None:
     assert "BaiGhepDagCanvas" in page
 
 
-def test_thue_ngoai_chon_nha_gia_cong_khong_to_may() -> None:
-    """Bước THUÊ NGOÀI (spec gia công ngoài 2026-09-26 §7): chọn NHÀ GIA CÔNG từ danh mục Nhà cung
-    cấp + đơn giá cả lần; không tổ, không máy, không vật tư. Sổ giao–nhận cũ đã gỡ hẳn cả ở server
-    (Task 4) — việc mang đi / chốt số nằm ở khối Gia công ngoài trên lệnh, không ở bước."""
+def test_thue_ngoai_chi_gan_co_khong_to_may() -> None:
+    """Bước THUÊ NGOÀI (spec 2026-11-13): lệnh chỉ gắn cờ, không tổ, không máy, không chọn nhà gia
+    công. Nhà gia công chọn lúc lập đơn ở màn Thuê gia công; drawer chỉ đọc tình trạng đơn."""
     drawer = DRAWER.read_text(encoding="utf-8")
     bang = ROUTING.read_text(encoding="utf-8")
     card = (DRAWER.parents[1] / "components" / "DagNodeCard.tsx").read_text(encoding="utf-8")
@@ -164,8 +163,10 @@ def test_thue_ngoai_chon_nha_gia_cong_khong_to_may() -> None:
         assert "onGiaoNhan(" not in src
     # 07/11/2026: bước lệnh chỉ còn Nội bộ (khoá `may`) hoặc Gia công (`thue_ngoai`), không chọn tổ.
     assert 'LOAI_BUOC_ORDER: LsxLoaiBuoc[] = ["may", "thue_ngoai"]' in drawer
-    # Ô chọn đọc danh mục Nhà cung cấp tích "Nhận gia công", không gõ chữ tự do.
-    assert "api.giaCongNgoai.nhaGiaCong" in drawer
+    # Lệnh không còn ô chọn nhà gia công (mg 0483 gỡ cột), chỉ thẻ đọc tình trạng đơn.
+    for src in (drawer, bang, card):
+        assert "nhaGiaCong" not in src and "nha_cung_cap_id" not in src
+    assert "<ThueGiaCongCard" in drawer
     # Đổi sang thuê ngoài là dọn tổ / máy / vật tư ngay trong bản nháp — luật nằm ở `patchLoaiBuoc`
     # (lsxBuoc.ts), drawer và ô "Loại" trên bảng công đoạn cùng gọi.
     luat = (DRAWER.parent / "lsxBuoc.ts").read_text(encoding="utf-8")

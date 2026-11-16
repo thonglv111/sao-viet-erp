@@ -3,6 +3,8 @@
 // BUOC=2: ngăn Ép kim (Bế TD - Kiệt, tổ 21) lúc hàng chưa về: hộp "Chưa bắt đầu được vì", chỉ chụp.
 // BUOC=4: tab Giao và nhận của Ép kim khi hàng gia công đã về, chưa xác nhận, chỉ chụp.
 // BUOC=3: bấm Xác nhận nhận hàng ở Ép kim (GHI dữ liệu), chụp.
+// TO, MA đổi tổ và lệnh cho BUOC 2 đến 4. Ảnh vtt-41 chụp lại 16/11/2026 bằng TO=30 MA=LSX26-0026 BUOC=4
+// (bước Dán, một lần đã xác nhận, một lần chờ), vì mọi lần giao của LSX26-0007 đã xác nhận hết.
 import { moViec, moTab, clipNgan } from "./chung.mjs";
 
 export default async ({ page, chup, khoanh }) => {
@@ -18,7 +20,7 @@ export default async ({ page, chup, khoanh }) => {
     await chup("vtt-40-giao-di", await clipNgan(page));
     return;
   }
-  const ngan = await moViec(page, "thuc-hien-sx:21", "LSX26-0007");
+  const ngan = await moViec(page, `thuc-hien-sx:${process.env.TO ?? "21"}`, process.env.MA ?? "LSX26-0007");
   if (BUOC === "2") {
     await khoanh([{ loc: ngan.getByText("Chưa bắt đầu được vì").locator(".."), so: 1 }]);
     await chup("vtt-24-chua-bat-dau-duoc", await clipNgan(page));
@@ -27,7 +29,7 @@ export default async ({ page, chup, khoanh }) => {
   await moTab(page, "Giao và nhận");
   if (BUOC === "4") {
     console.log(await ngan.innerText());
-    await khoanh([{ loc: ngan.getByRole("button", { name: /Xác nhận/ }).first(), so: 1 }]);
+    await khoanh([{ loc: ngan.getByRole("button", { name: /^Xác nhận$/ }).first(), so: 1 }]);
     await chup("vtt-41-nhan-vao", await clipNgan(page));
   }
   if (BUOC === "3") {

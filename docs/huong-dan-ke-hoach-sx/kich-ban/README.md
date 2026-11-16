@@ -20,8 +20,8 @@ Biến `BUOC` chọn đoạn của kịch bản (đọc chú thích đầu từn
 | c03c-cong-doan.mjs | 3 Rà lệnh, tab Công đoạn và ngăn bước (Loại, Bộ phận nhận) | khsx-22, 23 |
 | c04-vat-tu.mjs | 4 Vật tư (`BUOC=1` giữ hàng, `BUOC=2 GUI=1` đề nghị mua) | khsx-30 đến 34 |
 | c05-xep-lich.mjs | 5 Xếp lịch (`BUOC=1` kéo thả, `2` ngăn, `3` thu hồi rồi phát hành, `4` chỉ chụp, `5` lệnh LSX26-0011 chưa có giờ: thu hồi, phát lại, khay chip Đã phát) | khsx-40 đến 47, 40b |
-| c08-ke-hoach-bo-phan.mjs | Kế hoạch của bộ phận (Tổ in: thanh bên, Bảng việc, khay Giao đổi máy có lý do rồi Hủy, Kanban chọn việc, Giao vào máy theo báo giá, ngăn, cuối cùng Rút lại) | khsx-48, 48a, 48b, 48c, 49 |
-| c06-gia-cong.mjs | 6 Gia công ngoài (`BUOC=1` một phần, `2` đặt trọn gói, `3` chọn giấy) | khsx-50 đến 54 |
+| c08-ke-hoach-bo-phan.mjs | Kế hoạch của bộ phận (Tổ in: thanh bên, Bảng việc, khay Giao đổi máy có lý do rồi Hủy, Kanban chọn việc, Giao vào máy theo báo giá, ngăn, cuối cùng Rút lại; Tổ Cán màng: tích hai việc, khay Giao nhiều việc rồi Hủy). `BUOC=bang` chỉ chụp Bảng việc và giao nhiều việc, không ghi dữ liệu; `LENH` chọn lệnh mẫu ở Tổ in, bỏ trống thì lấy việc Chưa giao đầu bảng | khsx-48, 48a, 48b, 48c, 48d, 48e, 49 |
+| c06-gia-cong.mjs | 6 Thuê gia công (`BUOC=1` khối chỉ đọc trên LSX26-0009 và LSX26-0019, `2` hộp trọn gói trên `LENH`, thêm `DAT=1` thì gắn cờ thật, `3` màn Thuê gia công: Hàng chờ, lập đơn, ngăn đơn GC26-0006, phiếu giao và nhận hàng GC26-0007, không lưu, `4` tab Chờ trả tiền, tick một phiếu nhận) | khsx-50 đến 58 |
 | c07-theo-doi.mjs | 7 Theo dõi (`BUOC=1` theo đơn, `2` hồ sơ lệnh) | khsx-60 đến 64 |
 
 `xuat-so-do.mjs <html> <png>` xuất sơ đồ archify ra `khsx-00-luong.png`. `kiem-lien-ket.py <thư mục docs>`

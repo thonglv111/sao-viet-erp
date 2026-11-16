@@ -354,7 +354,9 @@ def _serialize(req, *, db: Session, can_view_stock: bool, can_view_cost: bool,
         san_xuat_cong_doan_ten=bc.get("cong_doan_ten"),
         san_xuat_tu_lap=bool(bc.get("tu_lap")),
         san_xuat_lenh_thu_hoi=bool(bc.get("lenh_thu_hoi")),
-        gia_cong_ngoai_id=getattr(req, "gia_cong_ngoai_id", None),
+        tgc_phieu_giao_id=getattr(req, "tgc_phieu_giao_id", None),
+        tgc_phieu_nhan_id=getattr(req, "tgc_phieu_nhan_id", None),
+        tgc_don_dong_id=getattr(req, "tgc_don_dong_id", None),
         created_at=req.created_at, updated_at=req.updated_at, lines=lines,
     )
 
@@ -639,7 +641,7 @@ def loc_vat_tu(
 #: Nhãn điều kiện "Nguồn" — trùng chữ ô Nguồn trên danh sách.
 _NHAN_NGUON = {
     "mua_hang": "Mua hàng", "dieu_chuyen": "Điều chuyển", "giao_hang": "Giao hàng", "kcs": "KCS",
-    "gia_cong": "Gia công ngoài", "san_xuat": "Lệnh sản xuất", "khong": "Không nguồn",
+    "gia_cong": "Thuê gia công", "san_xuat": "Lệnh sản xuất", "khong": "Không nguồn",
 }
 
 

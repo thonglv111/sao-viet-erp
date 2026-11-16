@@ -1,5 +1,7 @@
 # Gia công ngoài — trọn gói & một phần — Thiết kế
 
+> **Đã thay bằng `2026-11-13-module-gia-cong-ngoai-design.md`** (module Thuê gia công, bảng `tgc_*`, 13/11/2026). Bảng `gia_cong_ngoai` gỡ ở mg `0481`, cột nhà gia công trên bước gỡ ở mg `0483`. Giữ file này để đọc lịch sử.
+
 **Ngày chốt:** 26/09/2026
 **Phạm vi:** Kế hoạch SX (lệnh) · Phát hành SX · Thực hiện SX (bàn giao giữa công đoạn) · Kho
 (xuất giấy, nhập thành phẩm) · Giao hàng · Phiếu chi · Xếp lịch 3 (chỉ bỏ phần ngày).

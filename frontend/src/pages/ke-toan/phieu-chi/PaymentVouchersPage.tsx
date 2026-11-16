@@ -15,7 +15,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
-  ApiError, api, type CkKeChoChi, type GiaCongChoChi, type MuaHangChoChi, type PaymentVoucherRow, type TraLaiKhachChoChi,
+  ApiError, api, type CkKeChoChi, type MuaHangChoChi, type PaymentVoucherRow, type TraLaiKhachChoChi,
 } from "../../../api/client";
 import { useAuth } from "../../../auth/useAuth";
 import { useCan, useTat } from "../../../auth/permissions";
@@ -24,11 +24,12 @@ import { Button } from "../../../components/Button";
 import {
   ChonCot, LocNhanhTrangThai, OTim, useCauHinhLuoi, type MucLocNhanh,
 } from "../../../components/LuoiDs";
-import { BAI_GHEP_ENABLED, VOUCHER_PAGE_LABEL } from "../../../constants/features";
+import { VOUCHER_PAGE_LABEL } from "../../../constants/features";
 import { GoiYPhim } from "../shared/BangPhieu";
 import { soPhieuCong } from "../shared/PhieuGon";
 import { useTrangPhieu, type CauHinhTrangPhieu } from "../shared/trangPhieu";
 import { COT_GIA_CONG, HangChoGiaCong } from "./components/HangChoGiaCong";
+import { tgcApi, type TgcChoTraTien } from "../../../api/thueGiaCong";
 import { COT_MUA_HANG, dongMuaHang, HangChoMuaHang, type KhoanChi } from "./components/HangChoMuaHang";
 import { COT_TRA_LAI, HangChoTraLai } from "./components/HangChoTraLai";
 import { cotCkKe, HangChoCkKe } from "./components/HangChoCkKe";
@@ -95,10 +96,11 @@ export function PaymentVouchersPage({
   const coXemDonBan = can("don_hang_ban", "read");
   const coXemSx = can("san_xuat", "read");
 
-  const [gc, setGc] = useState<GiaCongChoChi[] | null>(null);
+  const [gc, setGc] = useState<TgcChoTraTien[] | null>(null);
   const [gcLoi, setGcLoi] = useState<string | null>(null);
   const [lapRoi, setLapRoi] = useState(false);
-  const [lapGc, setLapGc] = useState<GiaCongChoChi | null>(null);
+  const [lapGc, setLapGc] = useState<TgcChoTraTien[] | null>(null);
+  const [lanGc, setLanGc] = useState(0);
   const [tl, setTl] = useState<TraLaiKhachChoChi[] | null>(null);
   const [tlLoi, setTlLoi] = useState<string | null>(null);
   const [lapTl, setLapTl] = useState<TraLaiKhachChoChi | null>(null);
@@ -115,8 +117,8 @@ export function PaymentVouchersPage({
 
   const taiGc = useCallback(() => {
     if (!token) return;
-    api.giaCongNgoai
-      .choChi(token)
+    tgcApi
+      .choTraTien(token)
       .then((r) => {
         setGc(r);
         setGcLoi(null);
@@ -273,13 +275,7 @@ export function PaymentVouchersPage({
   const luoiCuoc = useCauHinhLuoi(`${MAN}:cuoc-giao`);
   const luoiMh = useCauHinhLuoi(`${MAN}:mua-hang`);
   const moDon = coXemDonBan ? (id: number) => navigate("don-hang-ban", { openOrderId: id }) : undefined;
-  const moNguonGc = (r: GiaCongChoChi) => {
-    if (r.bai_ghep_id != null) {
-      if (BAI_GHEP_ENABLED) navigate("bai-ghep-2", { openBaiGhepId: r.bai_ghep_id });
-    } else if (r.lsx_id != null) navigate("ke-hoach-sx", { openLsxId: r.lsx_id });
-  };
-  const coMoNguonGc = (r: GiaCongChoChi) =>
-    coXemSx && (r.bai_ghep_id != null ? BAI_GHEP_ENABLED : r.lsx_id != null);
+  const moLenhGc = coXemSx ? (lsxId: number) => navigate("ke-hoach-sx", { openLsxId: lsxId }) : undefined;
   const cotHien = luoi.rongHien(luoi.xep(COT_PHIEU_CHI).filter((c) => !luoi.an.has(c.key)));
 
   return (
@@ -331,8 +327,8 @@ export function PaymentVouchersPage({
       </section>
 
       {the === "gc" ? (
-        <HangChoGiaCong rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} luoi={luoiGc}
-          onMoNguon={moNguonGc} coMoNguon={coMoNguonGc} />
+        <HangChoGiaCong key={lanGc} rows={gc} loi={gcLoi} onLap={coLap ? setLapGc : undefined} luoi={luoiGc}
+          onMoLenh={moLenhGc} />
       ) : the === "tl" ? (
         <HangChoTraLai rows={tl} loi={tlLoi} onLap={coLap ? setLapTl : undefined} onMoDon={moDon} luoi={luoiTl} />
       ) : the === "ck" ? (
@@ -434,13 +430,14 @@ export function PaymentVouchersPage({
           }}
         />
       )}
-      {lapGc && (
+      {lapGc && lapGc.length > 0 && (
         <LapPhieuChiGiaCongModal
-          row={lapGc}
+          rows={lapGc}
           onClose={() => setLapGc(null)}
           onMoTaiKhoan={() => navigate("ke-toan-tai-khoan-ngan-hang")}
           onDone={(saved) => {
             setLapGc(null);
+            setLanGc((n) => n + 1);
             setMo(saved);
             load();
             taiGc();

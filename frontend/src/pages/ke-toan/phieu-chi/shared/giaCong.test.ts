@@ -7,15 +7,26 @@ vi.mock("../../../tenDonVi", async (g) => ({
     ({ to: "tờ in", tay: "tay sách", con: "con" } as Record<string, string>)[(ma ?? "").toLowerCase()],
 }));
 
-import { soChot } from "./giaCong";
+import { lyDoChiGiaCong, motDonVi, soDv, tongTamTinh } from "./giaCong";
 
-describe("soChot", () => {
-  it("Số chốt gia công in nhãn chặng 790 tờ in (phiếu một phần lưu mã chặng vào don_vi)", () => {
-    expect(soChot({ sl_cuoi: 790, don_vi: "to" })).toBe("790 tờ in");
-    expect(soChot({ sl_cuoi: 250, don_vi: "tay" })).toBe("250 tay sách");
+const dong = (don_vi: string | null) => ({ ten_viec: "Cán", dat: 1, hong: 0, hut: null, don_vi, don_gia: 1, tam_tinh: 1 });
+
+describe("đọc phiếu nhận chờ trả tiền", () => {
+  it("số kèm nhãn chặng 790 tờ in", () => {
+    expect(soDv(790, "to")).toBe("790 tờ in");
+    expect(soDv(1200, null)).toBe("1.200");
   });
 
-  it("không có đơn vị thì chỉ hiện số, có định dạng nghìn kiểu Việt", () => {
-    expect(soChot({ sl_cuoi: 1200, don_vi: null })).toBe("1.200");
+  it("lý do chi điền sẵn liệt kê mã phiếu nhận", () => {
+    expect(lyDoChiGiaCong([{ ma: "GN-0015" }, { ma: "GN-0016" }])).toBe("Trả tiền thuê gia công GN-0015, GN-0016");
+  });
+
+  it("tổng tạm tính làm tròn đồng từng phiếu", () => {
+    expect(tongTamTinh([{ tam_tinh: 600000.4 }, { tam_tinh: 390000 }])).toBe(990000);
+  });
+
+  it("một đơn vị khi mọi dòng chung đơn vị, khác thì undefined", () => {
+    expect(motDonVi([dong("to"), dong("to")])).toBe("to");
+    expect(motDonVi([dong("to"), dong("con")])).toBeUndefined();
   });
 });

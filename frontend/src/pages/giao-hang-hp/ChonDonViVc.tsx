@@ -28,7 +28,7 @@ function chuKyHieu(ten: string): string {
 const tenNgan = (ten: string) => vietTat(ten) ?? ten.replace(/\s*\(.*?\)\s*/g, " ").trim();
 
 const SAC = ["xanh", "la", "cam", "tim", "cyan", "ngoc", "vang", "cham", "do", "slate"];
-function KyHieu({ ten, nho }: { ten: string; nho?: boolean }) {
+export function KyHieu({ ten, nho }: { ten: string; nho?: boolean }) {
   let h = 0;
   for (const c of boDau(ten)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const sac = SAC[h % SAC.length];

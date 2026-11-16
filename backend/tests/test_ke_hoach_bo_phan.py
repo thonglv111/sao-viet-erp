@@ -196,6 +196,59 @@ def test_bang_viec_dem_chip_tim_ky_va_cat_trang_o_may_chu(db, admin, lenh_phat, 
         svc.trang_viec(bp, trang_thai="la")
 
 
+def test_ghi_chu_ke_hoach_luc_giao_nguoi_ghi_tu_tai_khoan_rut_lai_van_giu(db, admin, lenh_phat, cay_bp):
+    """Ghi chú kế hoạch: ghi lúc Giao (người + lúc do máy chủ gán), ngăn việc đọc được kèm tên người;
+    rút lại vẫn giữ và dòng bảng việc mang ghi chú để hộp Giao điền sẵn; None = giữ, "" = xoá."""
+    from app.services.san_xuat.board import chi_tiet_cong_viec
+
+    c = cay_bp
+    bp = c["bp_in"].id
+    svc = _svc(db, admin)
+    cv = _cv(db, lenh_phat)
+    svc.giao(cv.id, may_id=c["m2"].id, department_id=None, ghi_chu="  Chạy trước 10h, giấy để kho B  ")
+    cv = _cv(db, lenh_phat)
+    assert cv.ghi_chu_ke_hoach == "Chạy trước 10h, giấy để kho B"
+    assert cv.ghi_chu_ke_hoach_by_id == admin.id and cv.ghi_chu_ke_hoach_at is not None
+    ct = chi_tiet_cong_viec(db, admin, None, cong_viec_id=cv.id, chi_xem=True)
+    assert ct["ghi_chu_ke_hoach"]["noi_dung"] == "Chạy trước 10h, giấy để kho B"
+    assert ct["ghi_chu_ke_hoach"]["nguoi"] == admin.name and ct["ghi_chu_ke_hoach"]["luc"]
+    # Đi qua đúng schema trả ra của ngăn (cả /work-items và /ke-hoach-bo-phan): trường không khai
+    # trong schema là bị lọc mất.
+    from app.schemas.san_xuat import WorkItemChiTietOut
+    ra = WorkItemChiTietOut.model_validate(ct).model_dump(mode="json")["ghi_chu_ke_hoach"]
+    assert ra["noi_dung"] == "Chạy trước 10h, giấy để kho B" and ra["nguoi"] == admin.name and ra["luc"]
+
+    svc.rut(cv.id)
+    v = svc.trang_viec(bp, trang_thai="chua_giao")["items"][0]
+    assert v["ghi_chu_ke_hoach"] == "Chạy trước 10h, giấy để kho B"
+    # Giao nhiều việc để trống ô: None, ghi chú cũ giữ nguyên.
+    svc.giao(cv.id, may_id=c["m2"].id, department_id=None, ghi_chu=None)
+    assert _cv(db, lenh_phat).ghi_chu_ke_hoach == "Chạy trước 10h, giấy để kho B"
+    svc.rut(cv.id)
+    svc.giao(cv.id, may_id=c["m2"].id, department_id=None, ghi_chu="")
+    cv = _cv(db, lenh_phat)
+    assert cv.ghi_chu_ke_hoach is None and cv.ghi_chu_ke_hoach_by_id is None
+    assert chi_tiet_cong_viec(db, admin, None, cong_viec_id=cv.id, chi_xem=True)["ghi_chu_ke_hoach"] is None
+
+
+def test_dong_viec_mang_giay_va_dinh_luong_cua_the_quy_cach(db, admin, lenh_phat, cay_bp):
+    """Bảng việc có cột Giấy: tên giấy + gsm đọc từ thẻ quy cách của việc; nhiều giấy vẫn là danh sách."""
+    bp = cay_bp["bp_in"].id
+    svc = _svc(db, admin)
+    cv = _cv(db, lenh_phat)
+    cv.quy_cach_json = {"giay": "Couche 250", "dinh_luong": 250.0}
+    db.commit()
+    v = svc.trang_viec(bp, trang_thai="chua_giao")["items"][0]
+    assert v["giay"] == ["Couche 250"] and v["dinh_luong"] == 250.0
+    cv.quy_cach_json = {"giay": ["Couche 250", "Ivory 300"]}
+    db.commit()
+    v = svc.trang_viec(bp, trang_thai="chua_giao")["items"][0]
+    assert v["giay"] == ["Couche 250", "Ivory 300"] and v["dinh_luong"] is None
+    cv.quy_cach_json = None
+    db.commit()
+    assert svc.trang_viec(bp, trang_thai="chua_giao")["items"][0]["giay"] == []
+
+
 
 def test_thu_hoi_roi_phat_hanh_lai_moi_viec_chi_hien_mot_lan(db, admin, lenh_phat, cay_bp):
     """Thu hồi giữ việc của gói cũ (gói `da_thu_hoi`); phát hành lại không được hiện việc hai lần."""

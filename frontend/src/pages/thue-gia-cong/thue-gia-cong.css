@@ -1,0 +1,412 @@
+/* Thuê gia công (spec docs/superpowers/specs/2026-11-13-module-gia-cong-ngoai-design.md).
+   Màu chip trạng thái đi qua ChipTT (bộ --tt-*); ở đây chỉ bố cục, chữ thường, không viền 1 cạnh,
+   không nền hồng. */
+
+/* Mỗi tab bọc khung lọc + lưới trong một <section>: phải xếp dọc cách 10px như `.lds`, vì
+   `.lds-loc + .lds-sheet` kéo lưới lên -10px để dính khung lọc — thiếu gap thì lưới đè hàng ô tìm. */
+.tgc-man > section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* --- Form trong hộp thoại (trọn gói, lập đơn, phiếu giao/nhận) ------------------------------- */
+.tgc-f { display: flex; flex-direction: column; gap: 0.875rem; min-width: 0; }
+.tgc-f--cot { max-width: 34rem; }
+.tgc-f__dan {
+  margin: 0;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--rule-hair, #eef0f3);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ash, #666);
+}
+.tgc-f__o { display: flex; flex-direction: column; gap: 0.375rem; min-width: 0; font-size: 0.875rem; }
+.tgc-f__nhan { font-size: 0.8125rem; color: var(--ink-2, #334155); }
+.tgc-f__o > input,
+.tgc-f__o > select,
+.tgc-f__o > textarea,
+.tgc-f__khung {
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.9375rem;
+  border: 1px solid var(--rule, #cbd5e1);
+  border-radius: var(--r-2, 6px);
+  background: var(--canvas, #ffffff);
+}
+.tgc-f__o > input,
+.tgc-f__o > select,
+.tgc-f__o > textarea { padding: 0.5rem 0.75rem; }
+/* Ô chọn / ô gõ cùng dáng ô ngày (`ChonNgay`: cao 38px, viền nhạt, góc 10px) để một hàng ô không
+   lệch nhau; ô ghi chú dùng phông của app (trình duyệt mặc định cho textarea phông máy chữ). */
+.tgc-f__o > input,
+.tgc-f__o > select { height: 38px; padding-top: 0; padding-bottom: 0; }
+.tgc-f__o > input,
+.tgc-f__o > select,
+.tgc-f__o > textarea { border-color: var(--rule-soft); border-radius: var(--r-5); }
+.tgc-f__o > input:hover,
+.tgc-f__o > select:hover,
+.tgc-f__o > textarea:hover { border-color: var(--rule); }
+.tgc-f textarea { font-family: inherit; line-height: 1.5; resize: vertical; }
+.tgc-f__o > input:focus,
+.tgc-f__o > select:focus,
+.tgc-f__o > textarea:focus,
+.tgc-f__khung:focus-within {
+  outline: none;
+  border-color: var(--rust, #c5400a);
+  box-shadow: 0 0 0 3px var(--rule-hair, #eef0f3);
+}
+/* Ô số có đơn vị: cùng dáng ô ngày / ô chọn (38px, viền nhạt, góc 10px), số căn phải sát đơn vị. */
+.tgc-f__khung { display: flex; align-items: center; height: 38px; border-color: var(--rule-soft); border-radius: var(--r-5); }
+.tgc-f__khung:hover { border-color: var(--rule); }
+.tgc-f__khung input {
+  flex: 1 1 auto;
+  height: 100%;
+  text-align: right;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+.tgc-f__khung input:focus { outline: none; }
+.tgc-f__hau {
+  flex: none;
+  padding-right: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--ash, #64748b);
+  white-space: nowrap;
+}
+.tgc-f__duoi { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: -0.375rem; }
+.tgc-f__nhanh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: 999px;
+  background: var(--canvas, #fff);
+  font-size: 0.8125rem;
+  color: var(--ink-2, #334155);
+  cursor: pointer;
+}
+.tgc-f__nhanh:hover { border-color: var(--rule, #cbd5e1); background: var(--paper-2, #f8fafc); }
+.tgc-f__tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding-top: 0.875rem;
+  border-top: 1px solid var(--rule-hair, #eef0f3);
+  cursor: pointer;
+  user-select: none;
+}
+.tgc-f__tick input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0.125rem 0 0;
+  accent-color: var(--rust, #c5400a);
+}
+.tgc-f__tick > span { display: flex; flex-direction: column; gap: 0.125rem; }
+.tgc-f__goi-y { font-size: 0.8125rem; color: var(--ash, #666); line-height: 1.5; }
+.tgc-f__loi { font-size: 0.8125rem; color: var(--signal, #8a1f1f); }
+.tgc-f__canh { font-size: 0.8125rem; color: var(--tt-vang-ink, #8a5a00); }
+.tgc-f__hang2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+@media (max-width: 560px) { .tgc-f__hang2 { grid-template-columns: 1fr; } }
+
+/* --- Khối "Thuê gia công" chỉ đọc trên màn lệnh / bài ghép --------------------------------- */
+.tgc-khoi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 12px 0 1rem;
+  padding: 12px 16px;
+  background: var(--canvas, #fff);
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: var(--r-3, 8px);
+}
+.tgc-khoi__dau { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.tgc-khoi__tieu-de { font-size: 14px; color: var(--ink, #0f172a); }
+.tgc-khoi__phu { font-size: 12.5px; color: var(--ash, #64748b); }
+.tgc-khoi__dong {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--rule-hair, #eef0f3);
+  font-size: 13.5px;
+}
+.tgc-khoi__dong:first-of-type { border-top: 0; }
+.tgc-khoi__viec { min-width: 8rem; color: var(--ink, #0f172a); }
+.tgc-khoi__nha { color: var(--ink-2, #334155); }
+.tgc-khoi__so { color: var(--ash, #64748b); font-variant-numeric: tabular-nums; }
+.tgc-khoi__nut { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.tgc-khoi__nut .btn { min-height: 30px; height: 30px; padding: 0 10px; font-size: 13px; }
+.tgc-lien-ket {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--link, #1d4ed8);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tgc-lien-ket:disabled { color: inherit; text-decoration: none; cursor: default; }
+
+/* --- Màn Thuê gia công ---------------------------------------------------------------------- */
+.tgc-man { display: flex; flex-direction: column; min-width: 0; }
+.tgc-tab-hang {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-bottom: 1px solid var(--rule-soft, #e2e8f0);
+  margin-bottom: 12px;
+}
+.tgc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: 14px;
+  color: var(--ash, #64748b);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.tgc-tab:hover { color: var(--ink, #0f172a); }
+.tgc-tab[aria-selected="true"] { color: var(--ink, #0f172a); border-bottom-color: var(--rust, #c5400a); }
+.tgc-tab__so {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--paper-2, #f1f5f9);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--ink-2, #334155);
+}
+.tgc-u { display: block; font-size: 12px; color: var(--ash, #64748b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tgc-trong { padding: 32px 16px; text-align: center; color: var(--ash, #64748b); font-size: 14px; }
+.tgc-o-nut { white-space: nowrap; text-align: right; }
+.tgc-o-nut .btn { min-height: 28px; height: 28px; padding: 0 10px; font-size: 13px; }
+
+/* Bảng dòng trong ngăn / form (dòng đơn, dòng phiếu) */
+.tgc-bang { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tgc-bang th {
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--ash, #64748b);
+  border-bottom: 1px solid var(--rule-soft, #e2e8f0);
+  white-space: nowrap;
+}
+.tgc-bang td { padding: 6px 8px; border-bottom: 1px solid var(--rule-hair, #eef0f3); vertical-align: top; }
+.tgc-bang td.n, .tgc-bang th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.tgc-bang input { width: 100%; min-width: 0; padding: 4px 8px; border: 1px solid var(--rule, #cbd5e1); border-radius: var(--r-2, 6px); font-size: 13.5px; }
+.tgc-bang .tgc-f__khung input { border: 0; padding: 0 8px 0 10px; font-size: 0.9375rem; }
+/* Ai lo giấy (việc trọn gói): công tắc hai nấc, cao bằng ô số bên cạnh, hiện đủ cả hai lựa chọn. */
+.tgc-giay {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 2px;
+  height: 38px;
+  padding: 2px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-5);
+  background: var(--paper);
+}
+.tgc-giay label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: calc(var(--r-5) - 2px);
+  font-size: 13.5px;
+  color: var(--ash);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tgc-giay input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.tgc-giay label:hover { color: var(--ink); }
+/* Nấc đang chọn tô màu (16/11/2026): nền trắng nổi lên trông như nút chưa bấm, người dùng đọc ngược. */
+.tgc-giay label:has(input:checked) {
+  background: var(--tt-xanh-bg);
+  border-color: transparent;
+  color: var(--tt-xanh-fg);
+}
+.tgc-giay label:has(input:focus-visible) { outline: 2px solid var(--charcoal); outline-offset: 1px; }
+.tgc-giay label:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
+.tgc-giay input:disabled { cursor: not-allowed; }
+.tgc-bang tfoot td { border-bottom: 0; }
+.tgc-bang__tong { font-weight: 500; color: var(--ink); }
+/* Bảng có ô gõ (dòng đơn, vật tư giao): chữ và ô gõ cùng nằm giữa dòng. */
+.tgc-bang--don td,
+.tgc-pg-vt td { vertical-align: middle; padding-top: 8px; padding-bottom: 8px; }
+/* Dòng đơn: mọi ô bám mép trên, chữ một dòng cao bằng ô gõ 38px. Dòng gợi ý ("Cần…", "Lần trước…")
+   treo dưới ô gõ mà không đẩy lệch ô bên cạnh. */
+.tgc-bang--don tbody td { vertical-align: top; }
+.tgc-bang--don tbody td:first-child,
+.tgc-bang--don tbody td.n:not(:has(.tgc-f__khung)) { line-height: 38px; }
+.tgc-bang--don tbody td.tgc-c-lenh { padding-top: 9px; }
+/* Chỉ tên việc canh theo ô nhập; các dòng phụ dưới nó (kiểu, chờ bước trước) giữ dòng thường, sát nhau. */
+.tgc-bang--don tbody td:first-child .tgc-u { line-height: 1.5; }
+/* Đang gõ: viền xanh như ô chọn nhà gia công, không dùng màu cam dễ đọc thành báo lỗi. */
+.tgc-bang--don .tgc-f__khung:focus-within { border-color: var(--tt-xanh-dot); box-shadow: 0 0 0 3px var(--tt-xanh-bg); }
+.tgc-bang--don td.n .tgc-u { margin-top: 4px; }
+.tgc-canh { color: var(--tt-vang-ink, #8a5a00); }
+/* Thẻ nhỏ nền nhạt cho mẩu phân loại (vd "Theo lệnh") — tách thông tin bằng hình, không bằng dấu. */
+.tgc-the { display: inline-block; padding: 1px 8px; border-radius: var(--r-2); background: var(--rule-hair); font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.tgc-cuon { overflow-x: auto; max-width: 100%; }
+.tgc-tong { display: flex; justify-content: flex-end; gap: 16px; padding: 8px; font-size: 14px; }
+.tgc-the-dong {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  font-size: 13.5px;
+}
+.tgc-the-dong > dt { color: var(--ash, #64748b); }
+.tgc-the-dong > dd { margin: 0; color: var(--ink, #0f172a); min-width: 0; overflow-wrap: anywhere; }
+
+/* --- Đơn gia công: form + ngăn ---------------------------------------------------------------- */
+.tgc-f__hang3 { display: grid; grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+@media (max-width: 720px) { .tgc-f__hang3 { grid-template-columns: 1fr; } }
+/* Tên việc không bị bóp xuống dòng từng chữ khi tên khách dài; tên khách cắt bớt, đủ tên ở title.
+   Hộp rộng 960: đủ chỗ cho cả cột Giấy (việc trọn gói) mà không cuộn ngang. */
+/* Ô số rộng cố định (đủ "1.500.000 thùng"), cột Việc không xuống dòng: chỗ dư dồn cho cột Lệnh
+   để tên khách ít bị cắt (16/11/2026). */
+.tgc-bang--don td:first-child { white-space: nowrap; }
+/* Cột Lệnh ăn hết chỗ còn lại (width 100% + max-width 0) và cắt tên khách theo đúng chỗ đó —
+   không đặt trần cứng, nên hộp không bao giờ phải cuộn ngang. */
+.tgc-bang--don td.tgc-c-lenh { width: 100%; max-width: 0; }
+.tgc-bang--don .tgc-dong-lenh { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tgc-bang--don .tgc-f__khung { width: 8.5rem; margin-left: auto; }
+.tgc-bang--don td.n { white-space: nowrap; }
+.tgc-f__nhanh--nho { margin-top: 4px; padding: 1px 8px; font-size: 12px; }
+/* Gợi ý giá lần trước: dòng chữ bấm được, gọn như "Cần…" dưới ô Số đặt, không đóng khung viên thuốc. */
+.tgc-bang--don .tgc-f__nhanh--nho {
+  display: block; margin: 4px 0 0 auto; padding: 0; border: 0; border-radius: 0; background: none;
+  color: var(--tt-xanh-fg); text-decoration: underline dotted; text-underline-offset: 3px;
+}
+.tgc-bang--don .tgc-f__nhanh--nho:hover { background: none; text-decoration-style: solid; }
+.tgc-dong-lenh { display: block; }
+.tgc-dong-lenh + .tgc-dong-lenh { margin-top: 4px; }
+.tgc-mu { color: var(--ash, #64748b); }
+.tgc-bo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--r-2, 6px);
+  background: none;
+  color: var(--ash, #64748b);
+  cursor: pointer;
+}
+.tgc-bo:hover { background: var(--paper-2, #f1f5f9); color: var(--ink, #0f172a); }
+/* min-width 0: thân ngăn là ô lưới, không thì tên khách dài (không xuống dòng) đẩy ngăn cuộn ngang. */
+.tgc-ngan-than { display: flex; flex-direction: column; gap: 16px; padding: 12px 0; min-width: 0; }
+.tgc-ngan-the { padding: 0 8px; }
+/* Ngăn đơn, tab Dòng đơn: mỗi dòng đơn một khối (16/11/2026), số xếp lưới tự gãy theo độ rộng ngăn. */
+.tgc-dd__dau { display: flex; align-items: flex-start; gap: 12px; }
+.tgc-dd__viec { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.tgc-dd__ten { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 14px; color: var(--ink, #0f172a); }
+/* Mã lệnh và hạn một hàng, tên khách xuống hàng riêng để còn đủ chỗ đọc (cắt bớt khi quá dài). */
+.tgc-dd__lenh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; font-size: 13.5px; }
+.tgc-dd__lenh .tgc-dd__khach { flex: 1 1 100%; }
+.tgc-dd__lenh .tgc-u { display: inline; min-width: 0; }
+.tgc-dd__lenh .tgc-dd__han, .tgc-dd__lenh .tgc-lien-ket { flex: none; white-space: nowrap; }
+.tgc-dd__nut { display: flex; align-items: center; gap: 8px; flex: none; }
+.tgc-dd__ten .tgc-dd__xong { display: inline; }
+.tgc-dd__so {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule-hair, #eef0f3);
+}
+.tgc-dd__so dt { font-size: 12px; color: var(--ash, #64748b); }
+.tgc-dd__so dd { margin: 2px 0 0; font-size: 14px; color: var(--ink, #0f172a); font-variant-numeric: tabular-nums; }
+.tgc-dd__so dd .tgc-u { margin-top: 2px; }
+.tgc-dd__dv { font-size: 12px; color: var(--ash, #64748b); }
+.tgc-lich-su { list-style: none; margin: 0; padding: 0 8px; display: flex; flex-direction: column; }
+.tgc-lich-su > li { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--rule-hair, #eef0f3); font-size: 13.5px; }
+.tgc-lich-su__dau { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.tgc-lich-su__dau .tgc-u { display: inline; }
+.tgc-lich-su__ct { color: var(--ink-2, #334155); overflow-wrap: anywhere; }
+
+/* Hộp lập phiếu giao: mỗi dòng đơn một khối. */
+.tgc-pg-khoi {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: var(--r-3, 8px);
+}
+.tgc-pg-khoi__dau { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.tgc-pg-khoi__dau .tgc-u { display: inline; }
+.tgc-pg-muc { display: flex; flex-direction: column; gap: 6px; }
+.tgc-pg-tick { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.tgc-pg-tick input { margin-top: 3px; }
+.tgc-pg-o { width: 200px; max-width: 100%; }
+.tgc-pg-muc__dau { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.tgc-pg-vt { width: 100%; }
+.tgc-pg-vt__giao .tgc-f__khung { width: 10rem; margin-left: auto; }
+/* Lưới ô khổ giấy (hộp giao hàng): hiện đủ mọi khổ, nhiều ô một hàng để khỏi cuộn; ô chọn viền đủ
+   bốn cạnh. */
+.tgc-kho-giay { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tgc-kho-giay__o {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-3);
+  background: var(--canvas);
+  font-size: 14px;
+  cursor: pointer;
+}
+.tgc-kho-giay__o:hover { background: var(--rule-hair); }
+.tgc-kho-giay__o input { position: absolute; opacity: 0; pointer-events: none; }
+.tgc-kho-giay__o.is-chon { border-color: var(--rust); background: var(--canvas); }
+.tgc-kho-giay__o:focus-within { outline: 2px solid var(--rust); outline-offset: 1px; }
+.tgc-kho-giay__dau { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 6px; }
+/* Ô chọn dạng thẻ (hộp phiếu nhận: Nơi về, Bước nhận). */
+.tgc-pg-kho { display: flex; flex-wrap: wrap; gap: 8px; }
+.tgc-pg-kho__o {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule-soft, #e2e8f0);
+  border-radius: var(--r-2, 6px);
+  cursor: pointer;
+}
+.tgc-pg-kho__o input { position: absolute; opacity: 0; pointer-events: none; }
+.tgc-pg-kho__o.is-chon { border-color: var(--rust, #c5400a); }
+.tgc-pg-kho__o:focus-within { outline: 2px solid var(--rust, #c5400a); outline-offset: 1px; }
+.tgc-pg-xin { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding-top: 4px; font-size: 13px; }
+@media (max-width: 640px) {
+  .tgc-pg-o { width: 100%; }
+  .tgc-pg-kho__o { flex: 1 1 100%; }
+}
+
+/* Hộp lập phiếu nhận: hàng số đạt / hỏng / tạm tính */
+.tgc-pn-so { display: grid; grid-template-columns: repeat(3, minmax(0, 200px)); gap: 12px; }
+.tgc-pn-tien { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .tgc-pn-so { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Nhắc hàng gia công hẹn về ở tab Nhận của Việc của tổ */
+.tgc-cho-ve { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.tgc-cho-ve > span { display: flex; flex-direction: column; gap: 2px; }

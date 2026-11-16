@@ -47,6 +47,8 @@ MAN_NHAN_SU = ("cham_cong", "nghi_phep", "tang_ca", "luong")
 MAN_THEO_LENH = (
     KCS, "don_hang_ban", "san_xuat", "lenh_san_xuat", "theo_doi_san_xuat", "ke_hoach_vat_tu",
     "bai_ghep_2", "xep_lich",
+    # Thuê gia công (13/11/2026): hàng chờ / đơn / phiếu đổi theo lệnh và ngược lại.
+    "thue_gia_cong",
     # Kế hoạch của từng bộ phận (`ke_hoach_bp_<id>`, 08/11/2026): khoá giả, xem `nap_quyen_nhan`.
     "ke_hoach_bp",
 )

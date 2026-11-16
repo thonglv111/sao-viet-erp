@@ -27,7 +27,7 @@ from app.services.san_xuat import viec_khoan
 
 CFG = [
     {'id': 6, 'ma': 'CGC', 'unit': 'kg', 'ct': 'sl_ghi * dai_nguyen * rong_nguyen * dinh_luong * don_gia_khoan', 'gcd': 0.0, 'dg': 110.0, 'gtt': None, 'tc': None},
-    {'id': 80, 'ma': 'CR', 'unit': 'kg', 'ct': 'sl_ghi * (don_gia_khoan + ru_rom * 150)', 'gcd': 0.0, 'dg': 150.0, 'gtt': None, 'tc': [{'ma': 'ru_rom', 'ten': 'Có rũ rơm (thêm 150 đ/kg)', 'kieu': 'co_khong', 'goi_y': None}]},
+    {'id': 80, 'ma': 'CR', 'unit': 'kg', 'ct': 'sl_ghi * (don_gia_khoan + ru_rom * 150)', 'gcd': 0.0, 'dg': 150.0, 'gtt': None, 'tc': [{'ma': 'ru_rom', 'ten': 'Có rũ rơm', 'kieu': 'co_khong', 'goi_y': None}]},
     {'id': 183, 'ma': 'CT', 'unit': 'kg', 'ct': 'sl_ghi * dai_nguyen * rong_nguyen * dinh_luong * don_gia_khoan', 'gcd': 0.0, 'dg': 130.0, 'gtt': None, 'tc': None},
     {'id': 59, 'ma': 'DGC', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * don_gia_khoan', 'gcd': 0.0, 'dg': 2.0, 'gtt': None, 'tc': None},
     {'id': 101, 'ma': 'GNTM', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * don_gia_khoan', 'gcd': 0.0, 'dg': 5.0, 'gtt': None, 'tc': None}

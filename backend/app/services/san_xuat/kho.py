@@ -307,17 +307,16 @@ def _chia_theo_cum(so: float, cums: list[CumBan]) -> list[float]:
 # --- Ghi -----------------------------------------------------------------------------------------
 def lap_yeu_cau_nhap_tp(
     db: Session, *, user, cv, so_kcs: float, nguon_ghi: str = "KCS",
-    gia_cong_ngoai_id: int | None = None, theo_lenh: tuple[int | None, int, str] | None = None,
+    tgc_phieu_nhan_id: int | None = None, theo_lenh: tuple[int | None, int, str] | None = None,
 ):
     """LÕI lập đề nghị NHẬP thành phẩm cho `so_kcs` (đơn vị ra của công đoạn cuối) — KHÔNG gate,
     KHÔNG khoá, KHÔNG commit. Trả `(req, dong_ra)`.
 
     Hai cửa gọi: nút của KCS (`tao_yeu_cau_nhap_kho_cong_doan` — gate KCS + khoá + số còn gửi) và
-    chốt lần gia công ngoài về kho (spec gia công §4 bước 4 — KCS làm ngoài phần mềm, số chốt đi
-    thẳng). Đề nghị vẫn mang `san_xuat_cong_viec_id` ⇒ "giao được" của Giao hàng đếm như thường.
+    Phiếu nhận thuê gia công về kho (KCS làm ngoài phần mềm, số nhận đạt đi thẳng). Đề nghị vẫn mang `san_xuat_cong_viec_id` ⇒ "giao được" của Giao hàng đếm như thường.
 
     `theo_lenh=(nhom_id, lsx_id, don_vi)`: công việc CHUNG của bài ghép nhập phần của TỪNG lệnh
-    (gia công ngoài chốt về kho — spec 2026-09-27 §3) — nhóm/lệnh/đơn vị lấy theo lệnh đó thay
+    (phiếu nhận thuê gia công về kho) — nhóm/lệnh/đơn vị lấy theo lệnh đó thay
     vì theo công việc (công việc chung không thuộc riêng nhóm nào)."""
     nhom_id, lsx_id, don_vi_kcs = (theo_lenh if theo_lenh is not None
                                    else (cv.nhom_id, cv.lsx_id, cv.don_vi_ra))
@@ -353,7 +352,7 @@ def lap_yeu_cau_nhap_tp(
 
     req_svc = _req_service(db, hang)
     ten = " + ".join(c.ten for c in nguon.cums)
-    them = {"gia_cong_ngoai_id": gia_cong_ngoai_id} if gia_cong_ngoai_id else {}
+    them = {"tgc_phieu_nhan_id": tgc_phieu_nhan_id} if tgc_phieu_nhan_id else {}
     try:
         req = req_svc.create(
             user=user, loai=REQ_NHAP, lines=lines, commit=False,
@@ -397,8 +396,8 @@ def tao_yeu_cau_nhap_kho_cong_doan(db: Session, *, user, cong_viec_id: int) -> d
     from .dong_lenh import chan_neu_da_dong
 
     chan_neu_da_dong(db, cv)
-    if cv.gia_cong_ngoai_id is not None:
-        raise ValueError("Công đoạn gia công ngoài — số chốt tự đi vào kho, KCS không gửi lại.")
+    if cv.tgc_viec_id is not None:
+        raise ValueError("Công đoạn thuê gia công — hàng về kho theo Phiếu nhận, KCS không gửi.")
 
     SanXuatKcsRepository(db).khoa_kcs_cua_cong_viec(cv.id)   # khoá TRƯỚC khi đọc — chặn bấm đúp
     dong = dong_nhap_kho_cua_cong_viec(db, [cv.id]).get(cv.id, [])
