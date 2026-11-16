@@ -16078,8 +16078,9 @@ def _migrate_gia_cong_ngoai(db) -> None:
         if ten_bang not in bang or cot in _existing_columns(insp, ten_bang):
             continue
         # 13/11/2026: model `gia_cong_ngoai` đã gỡ (mg 0481 gỡ cột) — DB cài mới không có bảng đích
-        # nên thêm cột trơn, khỏi vấp FK tới bảng không tồn tại.
-        if "gia_cong_ngoai" not in bang:
+        # nên thêm cột trơn, khỏi vấp FK tới bảng không tồn tại. Chỉ cột có FK tới bảng đó; cột cờ
+        # BOOLEAN của `suppliers` giữ nguyên kiểu (mg 0484 còn đọc nó bằng `= true`).
+        if "gia_cong_ngoai" not in bang and "REFERENCES gia_cong_ngoai" in kieu:
             kieu = "INTEGER"
         db.execute(text(f"ALTER TABLE {ten_bang} ADD COLUMN {cot} {kieu}"))
     for ten_bang, cot in (
