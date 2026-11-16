@@ -1,6 +1,6 @@
 // Đơn thương mại — chỉ In Hà Phương (phân hệ `thuong_mai`, docs/design-hang-thuong-mai-ha-phuong.md).
 // Máy chủ: `backend/app/routers/thuong_mai.py`. Bản cài tắt phân hệ thì mọi đường ở đây trả 404.
-import { authed, type OrderDetail } from "./client";
+import { ApiError, authed, refreshSession, type OrderDetail } from "./client";
 import type { CachGiaoInput } from "./giaoHangHp";
 
 export interface DongThuongMaiInput {
@@ -10,6 +10,15 @@ export interface DongThuongMaiInput {
   /** Trước VAT. Bỏ trống = giá bán khai theo ĐVT ở danh mục. */
   don_gia?: number | null;
   vat_pct: number;
+}
+
+/** Một dòng đọc từ file Excel: không có đơn giá, trang lấy giá bán khai hoặc để người lập gõ. */
+export interface DongNhapExcel {
+  hang_id: number;
+  dvt: string;
+  qty: number;
+  vat_pct: number;
+  hang: HangThuongMai;
 }
 
 export interface HangThuongMai {
@@ -129,6 +138,28 @@ export const thuongMaiApi = {
     return authed<XuatHangState>(`/api/thuong-mai/don/${orderId}/xuat`, token, {
       method: "POST", body: JSON.stringify(body),
     });
+  },
+  /** Dòng hàng trên trang ra file Excel (16/11/2026). `lines` rỗng = file mẫu chỉ có tiêu đề. */
+  async xuatExcelDong(token: string, lines: { hang_id: number; dvt: string; qty: number; vat_pct: number }[]): Promise<Blob> {
+    const goc = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+    const goi = (bearer: string) => fetch(`${goc}/api/thuong-mai/dong/xuat-excel`, {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ lines }),
+    });
+    let r = await goi(token);
+    if (r.status === 401) {
+      const moi = await refreshSession().catch(() => null);
+      if (moi) r = await goi(moi.access_token);
+    }
+    if (!r.ok) throw new ApiError(`Tải file thất bại (mã ${r.status}).`, r.status);
+    return r.blob();
+  },
+  /** Đọc file Excel dòng hàng — máy chủ chỉ kiểm và trả dòng, chưa ghi gì vào đơn. */
+  nhapExcelDong(token: string, file: File): Promise<DongNhapExcel[]> {
+    const form = new FormData();
+    form.append("file", file);
+    return authed<DongNhapExcel[]>("/api/thuong-mai/dong/nhap-excel", token, { method: "POST", body: form });
   },
   /** Danh mục Đơn vị & quy đổi — đổi mã ĐVT ra tên hiện cho người dùng. */
   donVi(token: string): Promise<{ items: { ma: string; ten: string }[] }> {
