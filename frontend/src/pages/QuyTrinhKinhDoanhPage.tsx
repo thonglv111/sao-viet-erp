@@ -12,7 +12,7 @@ import "./quy-trinh-kinh-doanh.css";
   * một ô số, mũi tên mang điều kiện ngắn ("cần cọc", "kho đã nhận"). Trên sơ đồ chỉ có tên bước —
   * bấm vào ô mới hiện mô tả và nút mở màn. Toạ độ x/y TÍNH từ làn + hàng, không gõ pixel. */
 
-export type BoPhan = "kd" | "kt" | "khsx" | "to" | "kcs" | "kho" | "gh";
+export type BoPhan = "kd" | "kt" | "khsx" | "to" | "kcs" | "kho" | "gh" | "mh";
 
 export const BO_PHAN: { key: BoPhan; nhan: string }[] = [
   { key: "kd", nhan: "Kinh doanh" },
@@ -123,14 +123,88 @@ const THE_W = 300;
 
 const KHOA_LOC = "qtkd:bo-phan";
 
+const KHOA_LOAI = "qtkd:loai";
+
 function docLoc(): BoPhan | "all" {
   try {
     const v = localStorage.getItem(KHOA_LOC);
-    return BO_PHAN.some((b) => b.key === v) ? (v as BoPhan) : "all";
+    return [...BO_PHAN, ...BO_PHAN_TM].some((b) => b.key === v) ? (v as BoPhan) : "all";
   } catch {
     return "all";
   }
 }
+
+function docLoai(): "sx" | "tm" {
+  try {
+    return localStorage.getItem(KHOA_LOAI) === "tm" ? "tm" : "sx";
+  } catch {
+    return "sx";
+  }
+}
+
+/** Hàng thương mại — chỉ bản cài bật phân hệ `thuong_mai` (In Hà Phương, 16/11/2026). Hàng mua về bán lại,
+ *  không qua sản xuất: phần trên là đường nhập hàng vào kho cửa hàng, phần dưới là đường bán
+ *  (docs/design-hang-thuong-mai-ha-phuong.md, cuốn Kinh doanh HP chương Đơn thương mại). */
+export const BO_PHAN_TM: { key: BoPhan; nhan: string }[] = [
+  { key: "kd", nhan: "Kinh doanh" },
+  { key: "mh", nhan: "Mua hàng" },
+  { key: "kho", nhan: "Kho" },
+  { key: "kt", nhan: "Kế toán" },
+];
+
+/** Dải tách hai đường trên cùng một sơ đồ: hàng bắt đầu + tên dải. */
+export interface Nhom { hang: number; ten: string }
+
+export const NHOM_TM: Nhom[] = [
+  { hang: 0, ten: "Nhập hàng về cửa hàng" },
+  { hang: 4, ten: "Bán hàng cho khách" },
+];
+
+export const BUOC_TM: Buoc[] = [
+  { id: "dau-nhap", ten: "Cần hàng để bán", boPhan: "kd", hang: 0, loai: "dau" },
+  { id: "mathang", stt: 1, ten: "Khai mặt hàng", boPhan: "kd", hang: 1, man: "hang-thuong-mai", tenMan: "Hàng thương mại",
+    moTa: "Khai mã, tên, đơn vị và giá bán của mặt hàng. Nhiều mặt hàng thì tải mẫu Excel, điền rồi nhập một lần. Chỉ người có quyền hàng thương mại thấy và khai được." },
+  { id: "ycmh", stt: 2, ten: "Tạo yêu cầu mua", boPhan: "kd", hang: 2, man: "hang-thuong-mai", tenMan: "Hàng thương mại",
+    moTa: "Ở ngăn mặt hàng bấm Tạo yêu cầu mua, ghi số lượng cần. Yêu cầu sang bộ phận Mua hàng." },
+  { id: "muahang", stt: 3, ten: "Đặt mua, nhận hàng", boPhan: "mh", hang: 2, man: "mua-hang", tenMan: "Mua hàng",
+    moTa: "Lập đơn mua với nhà cung cấp từ yêu cầu. Hàng về thì ghi đợt giao, phần mềm tự gửi yêu cầu nhập sang kho." },
+  { id: "nhapkho", stt: 4, ten: "Nhập kho cửa hàng", boPhan: "kho", hang: 2, man: "kho-main", tenMan: "Yêu cầu nhập xuất",
+    moTa: "Thủ kho đối chiếu rồi ghi sổ nhập vào kho hàng thương mại, thường là kho Cửa hàng. Ghi sổ xong hàng mới có tồn để bán." },
+  { id: "trancc", stt: 5, ten: "Trả tiền nhà cung cấp", boPhan: "kt", hang: 2, man: "ke-toan-phieu-chi", tenMan: "Phiếu chi",
+    moTa: "Lập phiếu chi cho đơn mua khi tới hạn trả theo điều khoản của nhà cung cấp." },
+  { id: "coton", ten: "Hàng có ở cửa hàng", boPhan: "kho", hang: 3, loai: "cuoi" },
+  { id: "dau-ban", ten: "Khách mua hàng", boPhan: "kd", hang: 4, loai: "dau" },
+  { id: "dontm", stt: 6, ten: "Lập đơn thương mại", boPhan: "kd", hang: 5, man: "don-hang-ban", tenMan: "Đơn hàng bán",
+    moTa: "Ở Đơn hàng bán bấm Tạo đơn thương mại, chọn khách và mặt hàng. Khách trả ngay tại tiệm thì một nút lưu, chốt, xuất hàng và thu tiền luôn. Mã đơn bắt đầu bằng TM." },
+  { id: "coctm", stt: 7, ten: "Thu cọc", boPhan: "kt", hang: 5, man: "ke-toan-phieu-thu", tenMan: "Phiếu thu",
+    moTa: "Đơn có tiền cọc thì lập phiếu thu cọc. Cọc không chặn xuất hàng: hàng chưa về vẫn chốt và thu cọc được." },
+  { id: "xuattm", stt: 8, ten: "Xuất hàng", boPhan: "kd", hang: 6, man: "don-hang-ban", tenMan: "Đơn hàng bán",
+    moTa: "Bấm Xuất hàng ở đơn, chọn kho hàng thương mại, số lượng và cách giao. Người có quyền ghi sổ kho đó thì hàng trừ tồn ngay, khỏi qua bước 9." },
+  { id: "ghisotm", stt: 9, ten: "Kho ghi sổ xuất", boPhan: "kho", hang: 6, man: "kho-main", tenMan: "Yêu cầu nhập xuất",
+    moTa: "Người bấm xuất không có quyền ghi sổ kho thì yêu cầu xuất tới đây. Kho ghi sổ xong thì lần xuất tự chuyển Đã xuất." },
+  { id: "hoadontm", stt: 10, ten: "Ghi hóa đơn", boPhan: "kt", hang: 7, man: "don-hang-ban", tenMan: "Đơn hàng bán",
+    moTa: "Ghi số hóa đơn theo từng lần xuất đã xong, ở chặng Hóa đơn của đơn. Có hóa đơn mới phát sinh công nợ." },
+  { id: "thutm", stt: 11, ten: "Thu tiền, đối công nợ", boPhan: "kt", hang: 8, man: "ke-toan-cong-no-phai-thu", tenMan: "Công nợ phải thu",
+    moTa: "Theo dõi khoản phải thu của từng khách, lập phiếu thu khi khách trả." },
+  { id: "cuoitm", ten: "Đơn hoàn tất", boPhan: "kt", hang: 9, loai: "cuoi" },
+];
+
+export const NOI_TM: Noi[] = [
+  { tu: "dau-nhap", toi: "mathang" },
+  { tu: "mathang", toi: "ycmh" },
+  { tu: "ycmh", toi: "muahang", nhan: "cần nhập" },
+  { tu: "muahang", toi: "nhapkho", nhan: "hàng về" },
+  { tu: "nhapkho", toi: "trancc", nhan: "tới hạn trả" },
+  { tu: "nhapkho", toi: "coton" },
+  { tu: "dau-ban", toi: "dontm" },
+  { tu: "dontm", toi: "coctm", nhan: "có cọc" },
+  { tu: "dontm", toi: "xuattm", nhan: "chốt đơn" },
+  { tu: "xuattm", toi: "ghisotm", nhan: "chờ kho ghi sổ" },
+  { tu: "xuattm", toi: "hoadontm", nhan: "trừ tồn ngay" },
+  { tu: "ghisotm", toi: "hoadontm", nhan: "đã xuất" },
+  { tu: "hoadontm", toi: "thutm" },
+  { tu: "thutm", toi: "cuoitm", nhan: "thu đủ" },
+];
 
 /** Bản cài tắt giao hàng (Hà Phương): không có làn Giao hàng, sale bấm Xuất hàng ở đơn, kho xuất là xong
  *  (docs/prd-tat-phan-he-theo-ban-cai.md, mục Xuất hàng ở đơn bán). */
@@ -155,21 +229,27 @@ const NOI_XUAT: Noi[] = [
   { tu: "thutien", toi: "cuoi", nhan: "thu đủ" },
 ];
 
-export function soDo(tatGiaoHang: boolean) {
-  const boPhan = tatGiaoHang ? BO_PHAN.filter((b) => b.key !== "gh") : BO_PHAN;
-  const buoc = tatGiaoHang ? BUOC_XUAT : BUOC;
+function dung(boPhan: { key: BoPhan; nhan: string }[], buoc: Buoc[], noi: Noi[], nhom: Nhom[] = []) {
   const theoId = new Map(buoc.map((b) => [b.id, b]));
   return {
+    NHOM: nhom,
     BO_PHAN: boPhan,
     BUOC: buoc,
-    NOI: tatGiaoHang ? NOI_XUAT : NOI,
+    NOI: noi,
     theoId,
     lanCua: (b: Buoc) => boPhan.findIndex((x) => x.key === b.boPhan),
     SO_HANG: Math.max(...buoc.map((b) => b.hang)) + 1,
   };
 }
+
+export function soDo(tatGiaoHang: boolean) {
+  return tatGiaoHang
+    ? dung(BO_PHAN.filter((b) => b.key !== "gh"), BUOC_XUAT, NOI_XUAT)
+    : dung(BO_PHAN, BUOC, NOI);
+}
 const SO_DO_DU = soDo(false);
 const SO_DO_XUAT = soDo(true);
+export const SO_DO_TM = dung(BO_PHAN_TM, BUOC_TM, NOI_TM, NHOM_TM);
 
 export function QuyTrinhKinhDoanhPage({
   navigate,
@@ -180,8 +260,14 @@ export function QuyTrinhKinhDoanhPage({
   moDuoc?: (manId: string) => boolean;
 }) {
   const laDT = useLaDienThoai();
-  const { BO_PHAN, BUOC, NOI, theoId, lanCua, SO_HANG } = useTat()("giao_hang") ? SO_DO_XUAT : SO_DO_DU;
-  const [loc, setLoc] = useState<BoPhan | "all">(docLoc);
+  const tat = useTat();
+  const coTM = !tat("thuong_mai");
+  const [loaiQT, setLoaiQT] = useState<"sx" | "tm">(docLoai);
+  const xemTM = coTM && loaiQT === "tm";
+  const { NHOM, BO_PHAN, BUOC, NOI, theoId, lanCua, SO_HANG } = xemTM ? SO_DO_TM : tat("giao_hang") ? SO_DO_XUAT : SO_DO_DU;
+  const [locLuu, setLoc] = useState<BoPhan | "all">(docLoc);
+  // Lọc bộ phận không có làn trong sơ đồ đang xem (vd Mua hàng khi xem đơn sản xuất) ⇒ coi như xem tất cả.
+  const loc = locLuu !== "all" && BO_PHAN.some((b) => b.key === locLuu) ? locLuu : "all";
   const [chon, setChon] = useState<string | null>(null);
   const [roi, setRoi] = useState<string | null>(null);
   const [rong, setRong] = useState(0);
@@ -210,6 +296,23 @@ export function QuyTrinhKinhDoanhPage({
     setLoc(moi);
     try { localStorage.setItem(KHOA_LOC, moi); } catch { /* chỉ là tiện ích nhớ lựa chọn */ }
   };
+
+  const chonLoai = (v: "sx" | "tm") => {
+    setLoaiQT(v);
+    setChon(null);
+    try { localStorage.setItem(KHOA_LOAI, v); } catch { /* chỉ là tiện ích nhớ lựa chọn */ }
+  };
+
+  const nutLoai = coTM && (
+    <div className="qtkd__loai" role="radiogroup" aria-label="Loại đơn">
+      {([["sx", "Đơn sản xuất"], ["tm", "Hàng thương mại"]] as const).map(([k, nhan]) => (
+        <button key={k} type="button" role="radio" aria-checked={loaiQT === k}
+          className={`seg${loaiQT === k ? " is-active" : ""}`} onClick={() => chonLoai(k)}>
+          {nhan}
+        </button>
+      ))}
+    </div>
+  );
 
   // ---- Toạ độ: tính từ làn + hàng ----
   const soLan = BO_PHAN.length;
@@ -268,6 +371,7 @@ export function QuyTrinhKinhDoanhPage({
   if (laDT) {
     return (
       <main className="qtkd qtkd--dt">
+        {nutLoai}
         <div className="qtkd-dt__loc" role="group" aria-label="Lọc theo bộ phận">
           <button type="button" className={loc === "all" ? "is-on" : ""}
             onClick={() => loc !== "all" && chonLoc(loc)}>
@@ -282,7 +386,10 @@ export function QuyTrinhKinhDoanhPage({
           ))}
         </div>
         <ol className="qtkd-dt">
-          {BUOC.filter((b) => b.loai || loc === "all" || b.boPhan === loc).map((b) =>
+          {BUOC.filter((b) => b.loai || loc === "all" || b.boPhan === loc).flatMap((b) => [
+            ...NHOM.filter((n) => n.hang === b.hang).map((n) => (
+              <li key={`nhom-${n.hang}`} className="qtkd-dt__nhom">{n.ten}</li>
+            )),
             b.loai ? (
               <li key={b.id} className={`qtkd-dt__moc${b.loai === "cuoi" ? " is-cuoi" : ""}`}>{b.ten}</li>
             ) : (
@@ -309,7 +416,7 @@ export function QuyTrinhKinhDoanhPage({
                 </div>
               </li>
             ),
-          )}
+          ])}
         </ol>
       </main>
     );
@@ -319,6 +426,7 @@ export function QuyTrinhKinhDoanhPage({
     <main className="qtkd">
       <header className="qtkd__head">
         <h1 className="qtkd__title">Quy trình kinh doanh</h1>
+        {nutLoai}
       </header>
 
       <div className="qtkd__khung" ref={khungRef}>
@@ -344,6 +452,9 @@ export function QuyTrinhKinhDoanhPage({
               <line key={b.key} className="qtkd__lan-ke" x1={(i + 1) * lanW} y1={0} x2={(i + 1) * lanW} y2={H} />
             ))}
             <line className="qtkd__lan-ke" x1={0} y1={DAU_H} x2={W} y2={DAU_H} />
+            {NHOM.filter((n) => n.hang > 0).map((n) => (
+              <line key={n.hang} className="qtkd__nhom-ke" x1={0} y1={DAU_H + n.hang * HANG_H} x2={W} y2={DAU_H + n.hang * HANG_H} />
+            ))}
 
             {duong.map((d) => {
               const dam = sang != null && (d.tu === sang || d.toi === sang);
@@ -355,6 +466,14 @@ export function QuyTrinhKinhDoanhPage({
               );
             })}
           </svg>
+
+          {/* Tên dải: góc phải của hàng đầu dải — làn cuối hàng đó luôn trống (kiểm trong test). */}
+          {NHOM.map((n) => (
+            <span key={`nhom-${n.hang}`} className="qtkd__nhom"
+              style={{ right: 10, top: DAU_H + n.hang * HANG_H + HANG_H / 2 }}>
+              {n.ten}
+            </span>
+          ))}
 
           {/* Điều kiện trên mũi tên — chữ HTML để không bị co theo khung vẽ. */}
           {duong.filter((d) => d.nhan).map((d) => (

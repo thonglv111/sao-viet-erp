@@ -15,6 +15,7 @@
   --qtkd-kcs: var(--charcoal-2);
   --qtkd-kho: var(--moss);
   --qtkd-gh: var(--heat-3);
+  --qtkd-mh: var(--steel); /* chỉ sơ đồ hàng thương mại, không chung sơ đồ với Kế hoạch SX */
 }
 
 .qtkd .is-kd { --qtkd-mau: var(--qtkd-kd); }
@@ -24,6 +25,33 @@
 .qtkd .is-kcs { --qtkd-mau: var(--qtkd-kcs); }
 .qtkd .is-kho { --qtkd-mau: var(--qtkd-kho); }
 .qtkd .is-gh { --qtkd-mau: var(--qtkd-gh); }
+.qtkd .is-mh { --qtkd-mau: var(--qtkd-mh); }
+
+/* Đơn sản xuất | Hàng thương mại — chỉ bản cài bật phân hệ thương mại. */
+.qtkd__loai { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.qtkd--dt .qtkd__loai { margin-bottom: var(--sp-3); }
+
+/* Dải tách hai đường (sơ đồ hàng thương mại): kẻ đứt ngang + tên dải ở góc phải. */
+.qtkd__nhom-ke { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 4 4; }
+.qtkd__nhom {
+  position: absolute;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  color: var(--ash);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.qtkd-dt__nhom {
+  list-style: none;
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: 12px;
+  font-weight: var(--fw-medium);
+  color: var(--ash);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 .qtkd__head {
   display: grid;
