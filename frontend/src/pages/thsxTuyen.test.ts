@@ -48,6 +48,22 @@ describe("vị trí hàng trên tuyến", () => {
     expect(viTriHang([], 99)).toBeNull();
     expect(viTriHang(dai(["running", "released"], 1), 12345)).toBeNull();
   });
+  it("bước thuê gia công có sản lượng về tính là đang có hàng dù không 'đang chạy'", () => {
+    const d = dai(["released", "released", "released", "released", "released"], 5);
+    d[3].thuc_te = 1000;
+    expect(dKhoang(d)).toBe(1);
+  });
+  it("tổ mình đã nhận hàng mà chưa bắt đầu: hàng đã tới tổ mình", () => {
+    const d = dai(["released", "released", "released", "released", "released"], 5);
+    d[3].thuc_te = 1000;
+    d[4].da_nhan = 1000;
+    expect(k(d)).toBe("toi");
+  });
+  it("bước đã xong không kéo vị trí theo sản lượng của nó", () => {
+    const d = dai(["completed", "released", "released"], 3);
+    d[0].thuc_te = 500;
+    expect(dKhoang(d)).toBe(1);
+  });
   it("phân đoạn sau tìm ô qua step_key", () => {
     expect(k(dai(["running", "released"], 2), 8, "b2")).toBe("sap");
   });

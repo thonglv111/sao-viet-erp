@@ -24,7 +24,7 @@ biến môi trường.
 ## Cơ chế tắt
 
 - Backend: `Settings.phan_he_tat` đọc từ env `PHAN_HE_TAT`, danh sách cách nhau dấu phẩy:
-  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`, `duyet_don_mua`. Hà Phương đặt cả chín. Rỗng = bật hết.
+  `luong`, `khoan`, `hoa_hong`, `giao_hang`, `tai_san`, `cham_cong`, `sua_chua`, `ke_gia`, `duyet_don_mua`, `thue_gia_cong`. Hà Phương đặt cả mười. Rỗng = bật hết.
   Sao Việt Nhật đặt `giao_hang` từ 04/11/2026 (`backend/.env` dev, mặc định trong `docker-compose.yml`): bỏ giao
   hàng, đơn bán Xuất hàng thẳng sang kho, các phân hệ khác giữ. Tắt giao hàng mà giữ lương thì tab Khoán km giao
   hàng của Cấu hình lương cũng ẩn.
@@ -120,6 +120,16 @@ biến môi trường.
   mã đơn trong Phiếu chi, Công nợ vẫn mở được màn này.
 - Ngăn đơn mua: mục Người hiện "Người chốt", "Chốt lúc" thay cho Gửi duyệt / NV duyệt / Duyệt lúc. Chip
   trạng thái vẫn ghi "Đã duyệt".
+
+### Thuê gia công (`thue_gia_cong`, thêm 17/11/2026)
+- Module `thue_gia_cong` mất quyền ở mọi vai: thanh bên ẩn Sản xuất > Thuê gia công, ma trận không hiện dòng,
+  router module trả 403. Đường thuê trọn gói (gác theo quyền Sản xuất) chặn riêng bằng `chan_khi_tat`, trả 404.
+- Lệnh và bài ghép: ô Loại bước không còn lựa chọn Thuê ngoài / Gia công; máy chủ từ chối đặt bước thuê ngoài
+  MỚI, nhà gia công trong routing của phiếu không biến bước thành thuê ngoài. Bước thuê ngoài đã có giữ nguyên,
+  vẫn đổi về Máy được, để lệnh cũ không kẹt.
+- Chi tiết lệnh: ẩn nút "Thuê gia công trọn gói". Phiếu chi: không nạp và không hiện mục "Gia công chờ chi".
+- Các chỗ chỉ hiện trạng thái bước thuê ngoài (chip, Việc của tổ, Theo dõi SX) để nguyên: không có bước thuê
+  ngoài thì tự không hiện gì.
 
 ### Ma trận quyền và tên nhóm
 - Tắt `khoan` ⇒ ẩn ô chi tiết "Xem giá" của Công đoạn (ô này chỉ gác tiền khoán).

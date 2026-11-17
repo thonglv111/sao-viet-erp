@@ -152,7 +152,7 @@ export function DagNodeCard({
           /* Thẻ chỉ rộng 240px: chip "Ngoài · <nhà gia công>" ở đầu thẻ đẩy tên bước về 0 rồi tràn
              khỏi thẻ, mà kể cả chip ngắn "Thuê ngoài" cũng cắt tên bước còn vài chữ. Bước thuê
              ngoài nói chuyện đó MỘT lần ở hàng nơi làm bên dưới (icon xe + tên nhà, màu thuê ngoài). */
-          !ngoai && <ChipLoaiBuoc loai_buoc={row.loai_buoc} nha_cung_cap={row.nha_cung_cap} capLenh />
+          !ngoai && <ChipLoaiBuoc loai_buoc={row.loai_buoc} capLenh />
         )}
         {/* Con dao của bước — thẻ DAG là chỗ người kế hoạch nhìn cả chuỗi một lượt, thiếu dao phải
             thấy ngay ở đây chứ không phải mở từng drawer. */}
@@ -195,24 +195,14 @@ export function DagNodeCard({
 
       {/* Body của Card */}
       <div className="dag-node__body">
-        {/* Tổ / Máy — bước thuê ngoài không có tổ trong xưởng: hàng này nói NƠI LÀM (nhà gia
-            công), "Chưa chọn tổ" ở đó là kêu thiếu một thứ không bao giờ phải điền. */}
+        {/* Tổ / Máy — bước thuê ngoài không có tổ trong xưởng, lệnh cũng không chọn nhà gia công
+            (chọn lúc lập đơn ở màn Thuê gia công): hàng này chỉ nói bước làm ở ngoài. */}
         <div className="dag-node__row">
           {ngoai ? (
-            <span
-              className={`dag-node__badge ${
-                row.nha_cung_cap_id == null ? "dag-node__badge--thieu" : "dag-node__badge--ngoai"
-              }`}
-              title={
-                row.nha_cung_cap_id != null
-                  ? `Thuê ngoài tại ${row.nha_cung_cap || "nhà đã chọn"}`
-                  : "Bước thuê ngoài chưa chọn nhà gia công"
-              }
-            >
+            <span className="dag-node__badge dag-node__badge--ngoai"
+              title="Nhà gia công chọn lúc lập đơn ở màn Thuê gia công">
               <Icon name="truck" size={11} />
-              <span className="dag-node__badge-chu">
-                {row.nha_cung_cap_id != null ? row.nha_cung_cap || "Nhà đã chọn" : "Chưa chọn nhà gia công"}
-              </span>
+              <span className="dag-node__badge-chu">Gia công ngoài</span>
             </span>
           ) : (
             <span className="dag-node__badge">

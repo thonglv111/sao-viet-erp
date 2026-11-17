@@ -188,14 +188,10 @@ def test_doi_lenh_da_xuong_xuong_409(db, orders, lsx_svc, admin, customer, tt, c
 
 
 def test_doi_lenh_tron_goi_409(db, orders, lsx_svc, admin, customer):
-    from app.models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
-    from app.models.purchase import Supplier
+    from app.models.thue_gia_cong import KIEU_TRON_GOI, TgcViec
 
     lsx = _lenh_cuon(db, orders, lsx_svc, admin, customer)
-    s = Supplier(name="In ngoài", nhan_gia_cong=True)
-    db.add(s)
-    db.flush()
-    db.add(GiaCongNgoai(kieu=KIEU_TRON_GOI, nha_cung_cap_id=s.id, lsx_id=lsx.id))
+    db.add(TgcViec(kieu=KIEU_TRON_GOI, lsx_id=lsx.id, ten_viec="Gia công trọn gói"))
     db.commit()
     with pytest.raises(LsxConflict, match="trọn gói"):
         _doi(lsx_svc, lsx, admin, ve=True)

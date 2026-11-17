@@ -87,8 +87,10 @@ def lap_khi_phat_hanh(db: Session, *, goi_id: int, nguoi) -> KetQuaTuLap:
     kq: KetQuaTuLap = {"request_ids": [], "cv_ids": [], "bo_qua": []}
     if nguoi is None:
         return kq
+    # Bước THUÊ NGOÀI không tự lập đề nghị (13/11/2026): vật tư xưởng cấp (`ncc_tu_lo=False`) đi
+    # theo PHIẾU GIAO của module Thuê gia công, dòng tự lo thì không phải việc của kho.
     cvs = [cv for cv in SanXuatRepository(db).cong_viec_cua_goi(goi_id)
-           if cv.gia_cong_ngoai_id is None]
+           if cv.tgc_viec_id is None and cv.loai_buoc != "thue_ngoai"]
     if not cvs:
         return kq
     hang = vtdn._hang_service(db)

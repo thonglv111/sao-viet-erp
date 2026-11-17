@@ -59,9 +59,13 @@ type Xem = "bang" | "kb";
  *  của tổ, Thao tác đứng ngoài nút Cột và ghim mép phải. */
 type CotBang = CotLuoi & { w?: number };
 const COT_BANG: CotBang[] = [
+  // Tích chọn nhiều việc Chưa giao rồi giao một lượt (chỉ hiện khi có quyền Giao việc).
+  { key: "chon", label: "Chọn", coDinh: true, w: 38 },
   { key: "lenh", label: "Lệnh", coDinh: true, w: 130 },
   { key: "sp", label: "Sản phẩm", coDinh: true, w: 210 },
+  { key: "giay", label: "Giấy", w: 150 },
   { key: "cd", label: "Công đoạn", w: 150 },
+  { key: "sl", label: "SL kế hoạch", w: 110 },
   { key: "tt", label: "Trạng thái", w: 160 },
   { key: "may", label: "Máy", w: 190 },
   { key: "nhom", label: "Nhóm", w: 140 },
@@ -106,6 +110,11 @@ function soLuong(v: KhbpViec): string {
   return sl == null ? "" : `${so(sl)} ${nhanDonVi(dv)}`.trim();
 }
 
+/** Định lượng giấy theo cách xưởng nói ("250 gsm"); nhiều giấy thì máy chủ không trả. */
+function gsm(v: KhbpViec): string {
+  return v.dinh_luong ? `${so(v.dinh_luong)} gsm` : "";
+}
+
 /** Chữ phụ dưới chip: thông tin tổ vừa ghi (số đã làm, lý do tạm dừng, giờ xong). */
 function phuTT(v: KhbpViec): string {
   if (v.trang_thai_kh === "dang_chay" && v.da_lam != null) {
@@ -147,8 +156,20 @@ interface HopGiao {
   may: number | null | undefined;
   nhom: number | null;
   lyDo: string;
+  /** Ghi chú kế hoạch gửi kèm cho nhóm; mở hộp thì điền sẵn ghi chú đang có của việc. */
+  ghiChu: string;
   /** Mở danh sách máy (bấm Đổi, hoặc chưa có máy nào chọn sẵn). */
   doi: boolean;
+}
+
+/** Khay Giao nhiều việc: một máy và một nhóm cho cả lượt; lý do dùng chung cho việc chạy khác máy
+ *  theo báo giá. */
+interface HopGiaoNhieu {
+  may: number | null | undefined;
+  nhom: number | null;
+  lyDo: string;
+  /** Để trống = giữ ghi chú kế hoạch đang có của từng việc. */
+  ghiChu: string;
 }
 
 interface ThongBao { chu: string; hoanTac?: { id: number; version: number } }
@@ -188,6 +209,9 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
   const [moId, setMoId] = useState<number | null>(null);
   const [chiTiet, setChiTiet] = useState<SxWorkItemChiTiet | null>(null);
   const [ctLoi, setCtLoi] = useState(false);
+  // Bảng việc: các việc Chưa giao đã tích để giao một lượt, và khay Giao nhiều việc.
+  const [chonNhieu, setChonNhieu] = useState<Set<number>>(new Set());
+  const [hopNhieu, setHopNhieu] = useState<HopGiaoNhieu | null>(null);
 
   // Bảng việc: tìm, kỳ, lọc, trang — máy chủ lọc, đếm năm chip và cắt trang.
   const timCham = useDebounced(q.trim());
@@ -202,6 +226,8 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
   const luoi = useCauHinhLuoi("khbp-bang");
   const khoaLoc = JSON.stringify({ ...thamSoKy(ky), may_id: locBang.may, nhom_id: locBang.nhom });
   useEffect(() => { setTrang(1); }, [timCham, khoaLoc, chip, boPhanId]);
+  // Chọn theo TRANG đang xem: đổi trang, lọc, cách xem là bỏ chọn.
+  useEffect(() => { setChonNhieu(new Set()); setHopNhieu(null); }, [timCham, khoaLoc, chip, boPhanId, trang, coTrang, xem]);
 
   const luot = useRef(0);
   const luotTv = useRef(0);
@@ -229,7 +255,16 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
     api.keHoachBoPhan.viec(token, boPhanId, {
       trang_thai: chip, tim: timCham || undefined, trang, co_trang: coTrang, loc: JSON.parse(khoaLoc),
     })
-      .then((r) => { if (l === luotTv.current) { setTv(r); setTvLoi(null); } })
+      .then((r) => {
+        if (l !== luotTv.current) return;
+        setTv(r);
+        setTvLoi(null);
+        // Nạp lại (SSE, người khác vừa giao) thì bỏ việc không còn Chưa giao trên trang khỏi lựa chọn.
+        setChonNhieu((cu) => {
+          const con = new Set([...cu].filter((id) => r.items.some((x) => x.id === id && x.trang_thai_kh === "chua_giao")));
+          return con.size === cu.size ? cu : con;
+        });
+      })
       .catch((e) => { if (l === luotTv.current) setTvLoi(loiChu(e)); })
       .finally(() => { if (l === luotTv.current) setTvDangNap(false); });
   }, [token, boPhanId, xem, chip, timCham, trang, coTrang, khoaLoc, tick, eventTick]);
@@ -342,7 +377,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
     const { m, nhom } = duKien(v, may);
     setHopLoi(null);
     setTb(null);
-    setHop({ v, may: m, nhom, lyDo: "", doi: m === undefined });
+    setHop({ v, may: m, nhom, lyDo: "", ghiChu: v.ghi_chu_ke_hoach ?? "", doi: m === undefined });
   };
 
 
@@ -351,8 +386,9 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
   const doiTaiCho = (id: number, sua: Partial<KhbpViec>) =>
     setBang((b) => (b ? { ...b, viec: b.viec.map((x) => (x.id === id ? { ...x, ...sua } : x)) } : b));
 
-  /** Gọi Giao. Việc đang Đã giao (kéo sang máy khác) thì rút về trước rồi giao lại. */
-  const guiGiao = async (v: KhbpViec, may: number | null, nhom: number, lyDo: string): Promise<boolean> => {
+  /** Gọi Giao. Việc đang Đã giao (kéo sang máy khác) thì rút về trước rồi giao lại.
+   *  `ghiChu` không truyền = giữ ghi chú kế hoạch đang có (kéo thả trên Kanban). */
+  const guiGiao = async (v: KhbpViec, may: number | null, nhom: number, lyDo: string, ghiChu?: string): Promise<boolean> => {
     if (!token) return false;
     setBusy(true);
     try {
@@ -360,6 +396,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       if (v.trang_thai_kh === "da_giao") version = (await api.keHoachBoPhan.rut(token, v.id, version)).version;
       const kq = await api.keHoachBoPhan.giao(token, v.id, {
         may_id: may, department_id: nhom, ly_do: lyDo.trim() || null, version,
+        ...(ghiChu === undefined ? {} : { ghi_chu: ghiChu.trim() }),
       });
       setTb({
         chu: `Đã giao ${v.lsx_ma ?? v.bai_ghep_ma ?? ""} vào ${tenMay(may)} cho ${tenNhom.get(nhom) ?? "nhóm"}`.replace(/\s+/g, " "),
@@ -368,6 +405,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       doiTaiCho(v.id, {
         trang_thai_kh: "da_giao", may_id: may, department_id: nhom,
         department_ten: tenNhom.get(nhom) ?? v.department_ten, version: kq.version,
+        ...(ghiChu === undefined ? {} : { ghi_chu_ke_hoach: ghiChu.trim() || null }),
       });
       setChonId(null);
       nap();
@@ -428,6 +466,91 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
     cot === "cho" ? rutDuoc(v)
       : (giaoCho(v) && nhanDuoc(v, cot)) || (rutDuoc(v) && (v.may_id ?? "tay") !== cot && nhanDuoc(v, cot));
 
+  // ---------------- giao nhiều việc một lượt (Bảng việc) ----------------
+
+  const doiChon = (id: number) => setChonNhieu((cu) => {
+    const moi = new Set(cu);
+    if (moi.has(id)) moi.delete(id);
+    else moi.add(id);
+    return moi;
+  });
+  const choGiaoTrang = (tv?.items ?? []).filter(giaoCho);
+  const viecChon = choGiaoTrang.filter((v) => chonNhieu.has(v.id));
+  const tatCaChon = choGiaoTrang.length > 0 && choGiaoTrang.every((v) => chonNhieu.has(v.id));
+  /** Máy `m` (null = Làm tay) có nhận được việc `v` không — cùng luật nút Giao từng việc. */
+  const mayHopLe = (v: KhbpViec, m: number | null) =>
+    m == null ? v.nhom_chon.length > 0 : v.may_chon.includes(m) || m === v.may_goi_y_id;
+  /** Máy chạy được MỌI việc đã chọn: máy theo báo giá đứng đầu, Làm tay cuối. */
+  const mayChung = (ds: KhbpViec[]): (number | null)[] => {
+    if (!ds.length) return [];
+    const thu: (number | null)[] = [];
+    for (const v of ds) {
+      for (const m of [v.may_goi_y_id, ...v.may_chon]) if (m != null && !thu.includes(m)) thu.push(m);
+    }
+    const goiY = new Set<number | null>(ds.map((v) => v.may_goi_y_id).filter((m) => m != null));
+    thu.sort((a, b) => Number(goiY.has(b)) - Number(goiY.has(a)));
+    return [...thu, null].filter((m) => ds.every((v) => mayHopLe(v, m)));
+  };
+  /** Nhóm làm được mọi việc đã chọn khi chạy máy `m`. */
+  const nhomChung = (ds: KhbpViec[], m: number | null): number[] =>
+    ds.reduce<number[]>((acc, v, i) => (i === 0 ? nhomCho(v, m) : acc.filter((n) => nhomCho(v, m).includes(n))), []);
+  const chonNhomNhieu = (ds: KhbpViec[], m: number | null, cu: number | null): number | null => {
+    const ns = nhomChung(ds, m);
+    if (cu != null && ns.includes(cu)) return cu;
+    const goiY = ds[0]?.nhom_goi_y_id;
+    if (goiY != null && ns.includes(goiY) && ds.every((v) => v.nhom_goi_y_id === goiY)) return goiY;
+    return ns.length === 1 ? ns[0] : null;
+  };
+  const moHopNhieu = () => {
+    const ms = mayChung(viecChon);
+    const goiY = viecChon[0]?.may_goi_y_id;
+    const may = goiY != null && ms.includes(goiY) && viecChon.every((v) => v.may_goi_y_id === goiY) ? goiY
+      : ms.length === 1 ? ms[0] : undefined;
+    setTb(null);
+    setHopLoi(null);
+    setHopNhieu({ may, nhom: may === undefined ? null : chonNhomNhieu(viecChon, may, null), lyDo: "", ghiChu: "" });
+  };
+
+  /** Giao lần lượt từng việc đã chọn bằng đúng API Giao một việc (máy chủ gác từng việc). Việc nào
+   *  hỏng thì giữ tích để giao lại, việc đã giao thì bỏ tích. */
+  const guiGiaoNhieu = async (may: number | null, nhom: number, lyDo: string, ghiChu: string): Promise<boolean> => {
+    if (!token || !viecChon.length) return false;
+    setBusy(true);
+    const loi: string[] = [];
+    let ok = 0;
+    try {
+      for (const v of viecChon) {
+        try {
+          const kq = await api.keHoachBoPhan.giao(token, v.id, {
+            may_id: may, department_id: nhom, ly_do: canLyDo(v, may) ? lyDo.trim() : null, version: v.version,
+            ghi_chu: ghiChu.trim() || null,
+          });
+          ok += 1;
+          setChonNhieu((cu) => { const moi = new Set(cu); moi.delete(v.id); return moi; });
+          doiTaiCho(v.id, {
+            trang_thai_kh: "da_giao", may_id: may, department_id: nhom,
+            department_ten: tenNhom.get(nhom) ?? v.department_ten, version: kq.version,
+            ...(ghiChu.trim() ? { ghi_chu_ke_hoach: ghiChu.trim() } : {}),
+          });
+        } catch (e) {
+          loi.push(`${maViec(v)} ${v.ten_cong_doan}: ${loiChu(e)}`);
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+    const noi = `vào ${tenMay(may)} cho ${tenNhom.get(nhom) ?? "nhóm"}`;
+    if (loi.length) {
+      setHopLoi(`Đã giao ${ok}/${ok + loi.length} việc. Chưa giao được:\n${loi.join("\n")}`);
+      setTb({ chu: `Đã giao ${ok}/${ok + loi.length} việc ${noi}, còn ${loi.length} việc chưa giao được` });
+    } else {
+      setTb({ chu: `Đã giao ${ok} việc ${noi}` });
+    }
+    nap();
+    if (moId != null) napNgan();
+    return loi.length === 0;
+  };
+
   // ---------------- phần vẽ dùng chung ----------------
 
   const chipTT = (v: KhbpViec) => <ChipTT mau={TT[v.trang_thai_kh].mau}>{TT[v.trang_thai_kh].chu}</ChipTT>;
@@ -465,7 +588,8 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
   const coLoc = !!timCham || ky.loai !== "tat_ca" || locBang.may != null || locBang.nhom != null;
   const chuTrong = coLoc ? "Không có việc nào khớp điều kiện đang lọc." : chip === "tat_ca" ? "Bộ phận chưa có việc nào." : `Không có việc nào ${TT[chip].chu.toLowerCase()}.`;
   const xoaLoc = () => { setQ(""); setKy({ loai: "tat_ca", moc: "toi" }); setLocBang({}); };
-  const cotHien = luoi.rongHien(luoi.xep(COT_BANG).filter((c) => !luoi.an.has(c.key)));
+  const cotHien = luoi.rongHien(luoi.xep(COT_BANG)
+    .filter((c) => !luoi.an.has(c.key) && (c.key !== "chon" || (giaoDuoc && !laDT))));
   // Ô hai tầng của lưới chuẩn (khuôn Việc của tổ): dòng chính + dòng phụ xám, mỗi tầng một dòng, dài
   // thì cắt "…" và rê chuột đọc đủ.
   const o2 = (key: string, chinh: ReactNode, phu?: ReactNode, title?: string) => (
@@ -482,8 +606,29 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       case "sp":
         return o2(key, v.lsx_ten ?? "—", v.khach_hang,
           [v.lsx_ten, v.khach_hang ? `Khách hàng: ${v.khach_hang}` : ""].filter(Boolean).join("\n") || undefined);
+      case "chon":
+        return (
+          <td key={key} className="c" onClick={(e) => e.stopPropagation()}>
+            {giaoCho(v) && (
+              <input type="checkbox" className="lds-cb" checked={chonNhieu.has(v.id)} disabled={busy}
+                aria-label={`Chọn ${maViec(v)} ${v.ten_cong_doan}`} onChange={() => doiChon(v.id)} />
+            )}
+          </td>
+        );
+      case "giay": {
+        // Nhiều mã giấy: mỗi tên một thẻ nhỏ cách bằng khoảng trống, không nối bằng dấu phẩy.
+        // (`?? []`: máy chủ chưa khởi động lại sau bản này thì chưa có trường — không để sập màn.)
+        const giays = v.giay ?? [];
+        return giays.length === 0 ? o2(key, <span className="khbp-mo">—</span>) : o2(key,
+          giays.length === 1 ? giays[0] : giays.map((g) => <span key={g} className="khbp-giay">{g}</span>),
+          gsm(v) || null, [...giays, gsm(v)].filter(Boolean).join("\n"));
+      }
       case "cd":
-        return o2(key, v.ten_cong_doan, soLuong(v));
+        return o2(key, v.ten_cong_doan, null, v.ten_cong_doan);
+      case "sl": {
+        const sl = soLuong(v);
+        return sl ? o2(key, sl) : o2(key, <span className="khbp-mo">—</span>);
+      }
       case "tt":
         return o2(key, chipTT(v), phu, phu || undefined);
       case "may": {
@@ -529,7 +674,15 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
           </colgroup>
           <thead>
             <tr>
-              {cotHien.map((c) => <th key={c.key}>{c.label}{luoi.keo(c.key)}</th>)}
+              {cotHien.map((c) => (c.key === "chon" ? (
+                <th key={c.key} className="c">
+                  <input type="checkbox" className="lds-cb" checked={tatCaChon}
+                    disabled={busy || choGiaoTrang.length === 0}
+                    aria-label="Chọn tất cả việc chưa giao trên trang"
+                    title={choGiaoTrang.length ? "Chọn tất cả việc chưa giao trên trang" : "Trang này không có việc chưa giao"}
+                    onChange={() => setChonNhieu(tatCaChon ? new Set() : new Set(choGiaoTrang.map((v) => v.id)))} />
+                </th>
+              ) : <th key={c.key}>{c.label}{luoi.keo(c.key)}</th>))}
               {giaoDuoc && <th className="khbp-g2__nut">Thao tác</th>}
             </tr>
           </thead>
@@ -549,7 +702,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
             ) : dsLoc.map((v) => {
               const chon = moId === v.id || hop?.v.id === v.id;
               return (
-                <tr key={v.id} className={`lds-dong khbp-dong${chon ? " is-chon" : ""}`} tabIndex={0}
+                <tr key={v.id} className={`lds-dong khbp-dong${chon ? " is-chon" : ""}${chonNhieu.has(v.id) ? " is-tick" : ""}`} tabIndex={0}
                   aria-current={chon ? "true" : undefined} onClick={() => moNgan(v)}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;
@@ -586,6 +739,8 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
             <div className="khbp-the__hang">
               <span className="khbp-tag">{v.ten_cong_doan}</span>
               {soLuong(v) && <span className="khbp-tag">{soLuong(v)}</span>}
+              {(v.giay ?? []).map((g) => <span key={g} className="khbp-tag">{g}</span>)}
+              {gsm(v) && <span className="khbp-tag">{gsm(v)}</span>}
               {v.han_giao && <span className={`khbp-tag${lopHan(v) === "tre" ? " khbp-tre" : ""}`}>Hạn {ngayNgan(v.han_giao)}{lopHan(v) === "tre" ? " trễ" : ""}</span>}
             </div>
             <div className="khbp-the__hang">
@@ -670,12 +825,26 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       </div>
     );
   };
+  // Thẻ Kanban: công đoạn đứng đầu (một lệnh có nhiều bước ở cùng bộ phận thì thẻ mới phân biệt được),
+  // rồi số màu, số lượng; giấy một dòng riêng bên dưới.
   const nhanMau = (v: KhbpViec) => (
     <>
+      <span className="kb-tag kb-tag--cd" title={v.ten_cong_doan}>{v.ten_cong_doan}</span>
       {v.so_mau != null && <span className="kb-tag kb-tag--mau">{v.so_mau} màu</span>}
       {soLuong(v) && <span className="kb-tag">{soLuong(v)}</span>}
     </>
   );
+  /** Dòng giấy của thẻ: mỗi tên giấy một mẩu, định lượng sau cùng; chưa khai thì không có dòng. */
+  const dongGiay = (v: KhbpViec, lop = "kb-giay") => {
+    const giays = v.giay ?? [];
+    if (!giays.length) return null;
+    return (
+      <div className={lop} title={[...giays, gsm(v)].filter(Boolean).join("\n")}>
+        {giays.map((g) => <span key={g}>{g}</span>)}
+        {gsm(v) && <span>{gsm(v)}</span>}
+      </div>
+    );
+  };
   const goiY = (v: KhbpViec) => [v.lsx_ten ?? v.ten_cong_doan, v.khach_hang ? `Khách hàng: ${v.khach_hang}` : ""]
     .filter(Boolean).join("\n");
 
@@ -711,6 +880,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
         <div className="kb-1"><span className="kb-ma">{maViec(v)}</span>{han(v, true)}</div>
         <div className="kb-sp">{v.lsx_ten ?? v.ten_cong_doan}</div>
         <div className="kb-3">{nhanMau(v)}{chipTT(v)}</div>
+        {dongGiay(v)}
         {tienDo(v)}
         {v.trang_thai_kh === "tam_dung" && v.ly_do_tam_dung && <div className="kb-ly">{v.ly_do_tam_dung}</div>}
         {lech && <div className="kb-may">Báo giá chạy {tenMay(v.may_goi_y_id)}</div>}
@@ -736,6 +906,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       <div className="kb-1"><span className="kb-ma">{maViec(v)}</span>{han(v, true)}</div>
       <div className="kb-sp">{v.lsx_ten ?? v.ten_cong_doan}</div>
       <div className="kb-3">{nhanMau(v)}</div>
+      {dongGiay(v)}
       <div className="kb-may">{v.may_goi_y_id != null ? `Báo giá: ${tenMay(v.may_goi_y_id)}` : "Chưa có máy báo giá"}</div>
     </div>
   );
@@ -838,9 +1009,11 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       <div className="mdt-v1"><span className="mdt-sp">{v.lsx_ten ?? v.ten_cong_doan}</span>{han(v, true)}</div>
       <div className="mdt-v2">
         <span>{maViec(v)}</span>{chipTT(v)}
+        <span>{v.ten_cong_doan}</span>
         {v.so_mau != null && <span>{v.so_mau} màu</span>}
         {soLuong(v) && <span>{soLuong(v)}</span>}
       </div>
+      {dongGiay(v)}
       {tienDo(v)}
       {v.trang_thai_kh === "tam_dung" && v.ly_do_tam_dung && <div className="mdt-ly">{v.ly_do_tam_dung}</div>}
       {rutDuoc(v) && (
@@ -994,6 +1167,14 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
                 )}
               </div>
             )}
+            {coMay && (
+              <div className="hg__muc">
+                <label className="hg__nh" htmlFor="hg-ghichu">Ghi chú kế hoạch</label>
+                <textarea id="hg-ghichu" className="hg__ghichu" rows={3} maxLength={2000} value={hop.ghiChu}
+                  placeholder="Không bắt buộc. Nhóm thấy ở ngăn việc, tab Quy cách"
+                  onChange={(e) => setHop({ ...hop, ghiChu: e.target.value })} />
+              </div>
+            )}
             {hopLoi && <div className="hg__loi" role="alert">{hopLoi}</div>}
           </div>
           <div className="hg__chan">
@@ -1002,8 +1183,122 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
             <button type="button" className="khbp-nut khbp-nut--chinh" disabled={!du || busy}
               onClick={async () => {
                 if (!du || hop.nhom == null) return;
-                if (await guiGiao(v, hop.may ?? null, hop.nhom, ly ? hop.lyDo : "")) setHop(null);
+                if (await guiGiao(v, hop.may ?? null, hop.nhom, ly ? hop.lyDo : "", hop.ghiChu)) setHop(null);
               }}>Giao</button>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  /** Khay Giao nhiều việc: chỉ bày máy chạy được MỌI việc đã chọn và nhóm làm được mọi việc với máy
+   *  đó; việc nào có máy theo báo giá khác máy chọn thì bắt lý do (một lý do cho cả lượt). */
+  const veHopNhieu = () => {
+    if (!hopNhieu || !viecChon.length) return null;
+    const h = hopNhieu;
+    const dsMay = mayChung(viecChon);
+    const coMay = h.may !== undefined;
+    const m = h.may ?? null;
+    const ns = coMay ? nhomChung(viecChon, m) : [];
+    const lech = coMay ? viecChon.filter((v) => canLyDo(v, h.may)) : [];
+    const du = coMay && h.nhom != null && (lech.length === 0 || h.lyDo.trim().length > 0);
+    const thieu = !dsMay.length ? null : !coMay ? "Chọn máy chạy" : lech.length && !h.lyDo.trim() ? "Nhập lý do đổi máy"
+      : !ns.length ? null : h.nhom == null ? "Chọn nhóm làm" : null;
+    const soGoiY = (x: number | null) => viecChon.filter((v) => x != null && v.may_goi_y_id === x).length;
+    const chonMay = (x: number | null) => setHopNhieu({ ...h, may: x, nhom: chonNhomNhieu(viecChon, x, h.nhom) });
+    const dong = () => { setHopNhieu(null); setHopLoi(null); };
+    return (
+      <>
+        <div className="khbp-man" onClick={dong} />
+        <div className="hg hg--giao" role="dialog" aria-modal="true" aria-label={`Giao ${viecChon.length} việc`}>
+          <div className="hg__keo" aria-hidden="true" />
+          <div className="hg__dau">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h3>Giao {viecChon.length} việc</h3>
+              <div className="hg__tags khbp-nhieu__ds">
+                {viecChon.map((v) => (
+                  <span key={v.id} className="khbp-tag" title={[v.lsx_ten, soLuong(v)].filter(Boolean).join("\n")}>
+                    {maViec(v)} {v.ten_cong_doan}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="hg__x" onClick={dong} aria-label="Đóng">×</button>
+          </div>
+          <div className="hg__than">
+            {dsMay.length === 0 ? (
+              <div className="hg__loi" role="alert">
+                Các việc đã chọn không có máy chung nào chạy được. Bỏ bớt việc khác công đoạn hoặc giao từng việc.
+              </div>
+            ) : (
+              <>
+                <div className="hg__muc">
+                  <div className="hg__nh" id="hgn-may">Máy chạy cho cả {viecChon.length} việc</div>
+                  <div className="hg__ds" role="radiogroup" aria-labelledby="hgn-may">
+                    {dsMay.map((x) => {
+                      const may = x != null ? mayCua.get(x) : undefined;
+                      const n = soGoiY(x);
+                      return (
+                        <button key={String(x)} type="button" className="hg__may" role="radio"
+                          aria-checked={h.may === x} onClick={() => chonMay(x)}>
+                          <span className="hg__o" aria-hidden="true" />
+                          <span className="hg__ten">{tenMay(x)}</span>
+                          <span className="hg__phu">
+                            {n > 0 && <span className="khbp-tag">theo báo giá{n === viecChon.length ? "" : ` ${n}/${viecChon.length} việc`}</span>}
+                            {may?.tinh_trang && <ChipTT mau={mauMay(may)}>{may.tinh_trang.nhan}</ChipTT>}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {lech.length > 0 && (
+                    <div className="hg__ly">
+                      <label className="hg__nh" htmlFor="hgn-lydo">
+                        Lý do không chạy máy theo báo giá ({lech.length === viecChon.length ? "cả lượt" : `${lech.length} việc`})
+                      </label>
+                      <input id="hgn-lydo" className="hg__lydo" value={h.lyDo} maxLength={500}
+                        placeholder="Bắt buộc khi chạy máy khác báo giá"
+                        onChange={(e) => setHopNhieu({ ...h, lyDo: e.target.value })} />
+                    </div>
+                  )}
+                </div>
+                {coMay && (
+                  <div className="hg__muc">
+                    <div className="hg__nh" id="hgn-nhom">Nhóm làm</div>
+                    {ns.length === 0 ? (
+                      <div className="hg__loi">Không nhóm nào làm được hết các việc này trên {tenMay(m)}. Chọn máy khác hoặc giao từng việc.</div>
+                    ) : ns.length === 1 ? (
+                      <div className="hg__mot">{tenNhom.get(ns[0]) ?? "—"}</div>
+                    ) : (
+                      <div className="hg__seg" role="radiogroup" aria-labelledby="hgn-nhom">
+                        {ns.map((n) => (
+                          <button key={n} type="button" role="radio" aria-checked={h.nhom === n}
+                            onClick={() => setHopNhieu({ ...h, nhom: n })}>{tenNhom.get(n) ?? `Nhóm #${n}`}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {coMay && (
+                  <div className="hg__muc">
+                    <label className="hg__nh" htmlFor="hgn-ghichu">Ghi chú kế hoạch</label>
+                    <textarea id="hgn-ghichu" className="hg__ghichu" rows={3} maxLength={2000} value={h.ghiChu}
+                      placeholder="Không bắt buộc. Ghi cho cả lượt; để trống thì giữ ghi chú đang có của từng việc"
+                      onChange={(e) => setHopNhieu({ ...h, ghiChu: e.target.value })} />
+                  </div>
+                )}
+              </>
+            )}
+            {hopLoi && <div className="hg__loi khbp-nhieu__loi" role="alert">{hopLoi}</div>}
+          </div>
+          <div className="hg__chan">
+            {thieu && <span className="hg__thieu">{thieu}</span>}
+            <button type="button" className="khbp-nut" onClick={dong}>Hủy</button>
+            <button type="button" className="khbp-nut khbp-nut--chinh" disabled={!du || busy}
+              onClick={async () => {
+                if (!du || h.nhom == null) return;
+                if (await guiGiaoNhieu(m, h.nhom, h.lyDo, h.ghiChu)) setHopNhieu(null);
+              }}>Giao {viecChon.length} việc</button>
           </div>
         </div>
       </>
@@ -1140,6 +1435,16 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       {moId != null && <div className="thsx-scrim" onClick={dongNgan} aria-hidden="true" />}
 
       {veHop()}
+      {veHopNhieu()}
+      {xem === "bang" && !laDT && viecChon.length > 0 && !hopNhieu && (
+        <div className="khbp-chon-noi" role="region" aria-label="Việc đã chọn">
+          <span>Đã chọn {viecChon.length} việc</span>
+          <button type="button" className="khbp-nut" disabled={busy} onClick={() => setChonNhieu(new Set())}>Bỏ chọn</button>
+          <button type="button" className="khbp-nut khbp-nut--chinh" disabled={busy} onClick={moHopNhieu}>
+            Giao {viecChon.length} việc
+          </button>
+        </div>
+      )}
       {tb && (
         <div className="khbp-toast" role="status">
           <span>{tb.chu}</span>

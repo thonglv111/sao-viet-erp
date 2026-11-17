@@ -337,6 +337,12 @@ def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[in
         truoc[b].append(a)
 
     hien_tai = danh_sach.buoc_hien_tai(bc, lsx_id)
+    # Tên nhà gia công đọc từ đơn còn sống của việc gia công — bước không mang nhà (mg 0483).
+    from sqlalchemy.orm import object_session
+
+    from ..thue_gia_cong.tom_tat import nha_theo_cong_viec
+
+    ncc = nha_theo_cong_viec(object_session(bc.lenh[lsx_id]), [c for c, _ in cv_theo_buoc.values()])
     nodes = []
     for b in sorted(buocs, key=lambda x: (lop[x.id], x.thu_tu, x.id)):
         cv, la_ghep = cv_theo_buoc.get(b.id, (None, False))
@@ -356,7 +362,7 @@ def _routing(bc: BoiCanh, lsx_id: int, buocs: list[LsxCongDoan], ten_to: dict[in
             "nhom": b.nhom,
             "loai_buoc": phu.loai_buoc if phu is not None else b.loai_buoc,
             "bat_buoc": bool(b.bat_buoc),
-            "nha_cung_cap": phu.nha_cung_cap if phu is not None else b.nha_cung_cap,
+            "nha_cung_cap": ncc.get(cv.id) if cv is not None else None,
             "cong_viec_id": cv.id if cv is not None else None,
             "la_buoc_ghep": la_ghep,
             "bai_ghep_ma": bai_ma,
@@ -1150,16 +1156,15 @@ def ngan(db: Session, lsx_id: int, *, sale_ids: set[int] | None, bay_gio: dateti
     """Ngăn hồ sơ gọn: đúng cửa quyền của `ho_so` (gọi thẳng nó với `chi_khoi`), cộng thông tin
     lệnh gia công trọn gói để ngăn bày MỘT bước thay routing mẫu không ai ghi."""
     from ...models.lsx import TT_DA_DONG as _DONG
-    from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
+    from ..thue_gia_cong.tom_tat import tron_goi_theo_lenh
 
     ra = ho_so(db, lsx_id, sale_ids=sale_ids, bay_gio=bay_gio, chi_khoi=set(KHOI_NGAN))
     ra["kcs_cuoi"] = _kcs_cuoi_nhom(db, lsx_id, ra["kcs"]["batch"])
-    tron = next((g for _i, g, _bg in GiaCongNgoaiRepository(db).cua_nhieu_lenh([lsx_id])
-                 if g.kieu == "tron_goi"), None)
-    if tron is not None:
+    tron = tron_goi_theo_lenh(db, [lsx_id])
+    if lsx_id in tron:
         lsx = db.get(Lsx, lsx_id)
         ra["tron_goi"] = {
-            "nha_cung_cap": tron.nha_cung_cap_ten,
+            "nha_cung_cap": tron[lsx_id],
             "xong": lsx.trang_thai == _DONG or ra["tien_do"]["khau"] != trang_thai.KHAU_DANG_SX,
         }
     ra["quy_cach"], ra["dai_duoi"] = _cua_ban_to(db, lsx_id)

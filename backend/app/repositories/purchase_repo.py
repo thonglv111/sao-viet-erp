@@ -328,8 +328,7 @@ class SupplierRepository:
         # Lọc theo SAO: chỉ lấy NCC có trung bình ≥ mức này. NCC "Chưa đánh giá" (`sao_tb` NULL)
         # tự rơi ra khỏi kết quả — đúng ý, vì lọc "≥4 sao" là đang hỏi ai ĐÃ chứng minh được.
         rating_min: float | None = None,
-        # Thanh lọc chung (06/10/2026): cờ "Nhận gia công" + kỳ theo Ngày tạo.
-        nhan_gia_cong: bool | None = None,
+        # Thanh lọc chung (06/10/2026): kỳ theo Ngày tạo.
         tu_ngay: date | None = None,
         den_ngay: date | None = None,
         # MỚI NHẤT TRƯỚC (chủ chốt 12/08/2026). Trước đây xếp theo TÊN — NCC vừa khai xong nằm
@@ -340,8 +339,6 @@ class SupplierRepository:
     ) -> tuple[list[tuple[Supplier, dict | None]], int]:
         danh_gia = self._bang_danh_gia()
         conditions = list(dk_khoang_ngay(Supplier.created_at, tu_ngay, den_ngay))
-        if nhan_gia_cong is not None:
-            conditions.append(Supplier.nhan_gia_cong.is_(nhan_gia_cong))
         if q:
             like = f"%{q.strip().lower()}%"
             conditions.append(
@@ -427,7 +424,6 @@ class SupplierRepository:
         credit_days: int | None = None,
         debt_cutoff_day: int | None = None,
         status: str = SUPPLIER_ACTIVE,
-        nhan_gia_cong: bool = False,
         note: str | None = None,
         items: Sequence["SupplierItemInput"] | None = None,
     ) -> Supplier:
@@ -445,7 +441,6 @@ class SupplierRepository:
             credit_days=credit_days,
             debt_cutoff_day=debt_cutoff_day,
             status=status,
-            nhan_gia_cong=nhan_gia_cong,
             note=note,
         )
         row.items = [

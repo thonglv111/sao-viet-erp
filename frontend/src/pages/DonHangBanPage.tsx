@@ -289,7 +289,7 @@ export function DonHangBanPage({ navigate, openOrderId, openOrderChang, eventTic
   if (taoTM || suaTM) {
     const dong = () => { setTaoTM(false); setSuaTM(null); };
     return (
-      <TaoDonThuongMai order={suaTM ?? undefined} onClose={dong} onDoDang={load}
+      <TaoDonThuongMai order={suaTM ?? undefined} onClose={dong} onDoDang={load} navigate={navigate}
         onSaved={(d) => { dong(); setSelected(d); load(); }} />
     );
   }

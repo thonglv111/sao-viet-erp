@@ -237,9 +237,10 @@ class DeliveryTrip(Base):
     # Giờ lấy hàng / dự kiến giao GỠ (mg 0400, 12/10/2026): người lên đơn không biết trước, ô chỉ
     # mang số mặc định. Giờ kho phải soạn xong nằm ở `can_luc` của đề nghị xuất kho của chuyến.
     ghi_chu_phan_cong: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    # NHÀ GIA CÔNG GIAO THẲNG (mg 0339): chuyến này không có xe, không xuất kho — chỉ để "đã giao"
+    # NHÀ GIA CÔNG GIAO THẲNG: phiếu nhận thuê gia công giao thẳng khách (13/11/2026, thay
+    # `gia_cong_ngoai_id` của mg 0339). Chuyến này không có xe, không xuất kho — chỉ để "đã giao"
     # của dòng đơn cộng đúng số khách nhận. `khoan_km_service` loại chuyến có cột này.
-    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    tgc_phieu_nhan_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
     trang_thai: Mapped[str] = mapped_column(
         String(20), index=True, nullable=False,

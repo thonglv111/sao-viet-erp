@@ -450,9 +450,9 @@ def _cong_viec_theo_phan_doan(
             vat_tu_json=_vat_tu(cd),
             # Dặn dò + thẻ quy cách: chụp CÙNG LÚC với vật tư, cùng lý do — thẻ việc phải tự đủ.
             ghi_chu=hanh_ly["ghi_chu"], quy_cach_json=hanh_ly["quy_cach_json"],
-            # Nhà gia công + con dao: chụp CÙNG LÚC với vật tư, cùng một lý do — bàn tổ và các màn
-            # theo dõi phải tự đứng được, không tra ngược lệnh (lệnh còn sửa được sau khi phát).
-            nha_cung_cap=getattr(cd, "nha_cung_cap", None),
+            # Con dao: chụp CÙNG LÚC với vật tư, cùng một lý do — bàn tổ và các màn theo dõi phải tự
+            # đứng được, không tra ngược lệnh (lệnh còn sửa được sau khi phát). Nhà gia công thì
+            # đọc từ đơn gia công (`tom_tat.nha_theo_cong_viec`), không chụp ở đây.
             khuon_json=_khuon(repo.db, cd),
             # Gọi lại `_checklist` cho TỪNG phân đoạn: mỗi dòng phải giữ bản JSON riêng, dùng
             # chung một list Python là sửa checklist của mẻ này lan sang mẻ kia.

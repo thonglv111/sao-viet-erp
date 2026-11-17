@@ -45,7 +45,7 @@ class KeHoachBoPhanRepository:
             select(cv)
             .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
             .outerjoin(Lsx, Lsx.id == cv.lsx_id)
-            .where(cv.bo_phan_id == bo_phan_id, cv.gia_cong_ngoai_id.is_(None), _goi_con_hieu_luc(), dk)
+            .where(cv.bo_phan_id == bo_phan_id, cv.tgc_viec_id.is_(None), _goi_con_hieu_luc(), dk)
             .order_by(cv.id.desc())
         )
         return list(self.db.execute(q).scalars())
@@ -72,7 +72,7 @@ class KeHoachBoPhanRepository:
         cv = SanXuatCongViec
         song = (cv.trang_thai != CV_HOAN_THANH) & (cv.lsx_id.is_(None) | (Lsx.trang_thai == TT_DA_PHAT_HANH))
         xong = (cv.trang_thai == CV_HOAN_THANH) & (cv.lsx_id.is_(None) | Lsx.trang_thai.in_(TT_DA_XUONG_XUONG))
-        dk = [cv.bo_phan_id == bo_phan_id, cv.gia_cong_ngoai_id.is_(None), _goi_con_hieu_luc(), or_(song, xong)]
+        dk = [cv.bo_phan_id == bo_phan_id, cv.tgc_viec_id.is_(None), _goi_con_hieu_luc(), or_(song, xong)]
         if tim:
             mau = f"%{tim.strip()}%"
             dk.append(or_(Lsx.ma.ilike(mau), Lsx.ten.ilike(mau), Customer.name.ilike(mau),
@@ -129,7 +129,7 @@ class KeHoachBoPhanRepository:
             select(cv.may_id, cv.trang_thai, func.count(cv.id))
             .join(SanXuatGoiPhatHanh, SanXuatGoiPhatHanh.id == cv.goi_id)
             .outerjoin(Lsx, Lsx.id == cv.lsx_id)
-            .where(cv.bo_phan_id == bo_phan_id, cv.gia_cong_ngoai_id.is_(None),
+            .where(cv.bo_phan_id == bo_phan_id, cv.tgc_viec_id.is_(None),
                    _goi_con_hieu_luc(),
                    (cv.trang_thai == CV_DANG_CHAY)
                    | ((cv.trang_thai == CV_PHAT_HANH) & cv.da_giao_at.is_not(None)),

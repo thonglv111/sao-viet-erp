@@ -1,6 +1,6 @@
 // Đầu màn Nhà cung cấp — khuôn danh sách Kinh doanh đã duyệt (`lds-dau` + `lds-loc` dính mép trên
 // lưới, 07/10/2026): hàng tên màn + nút thêm; thẻ lọc có dải lọc nhanh trạng thái hợp tác (số đếm ở
-// máy chủ, toàn danh mục) rồi hàng ô tìm + `ThanhLoc` (kỳ + Nhóm / Số sao / Nhận gia công).
+// máy chủ, toàn danh mục) rồi hàng ô tìm + `ThanhLoc` (kỳ + Nhóm / Số sao).
 // Trạng thái chỉ chọn ở dải lọc nhanh — không lặp thành ô "Trạng thái" trong nút Lọc.
 import type { ReactNode } from "react";
 import { Button } from "../../../../components/Button";

@@ -137,8 +137,9 @@ lại khi tổ chưa bắt đầu thì việc biến khỏi Việc của tổ. T
 phẩm, kho ghi sổ nhập, KCS đóng lệnh. Giữa chừng KCS thấy lỗi ở bước nào thì ghi lỗi ngay ở bước đó, tổ gây lỗi
 thấy liền ở tab KCS của việc.
 
-Bước gia công không thuộc tổ nào nên không hiện ở Việc của tổ. Kế hoạch sản xuất mang hàng đi và nhận về (xem
-\kh{mot-phan}{Thuê ngoài một phần}), tổ của bước sau chỉ việc xác nhận nhận hàng như nhận từ tổ trong xưởng.
+Bước gia công không thuộc tổ nào nên không hiện ở Việc của tổ. Đặt hàng, giao cho nhà gia công và nhận hàng về
+làm ở màn Thuê gia công (xem \kh{gia-cong}{Thuê gia công}). Hàng nhà gia công trả về bước của tổ mình thì tổ
+thấy ở tab Giao và nhận như hàng từ tổ trong xưởng.
 
 % ============================================================
 \Needspace*{30\baselineskip}
@@ -160,7 +161,8 @@ xác nhận thì hiện thêm chip hàng chờ nhận, có lỗi KCS tổ chưa 
 \so{5} Cột Vật tư: \oo{Sẵn sàng} là kho đã cấp đủ, còn lại là đang chờ kho hoặc kho mới cấp một phần.
 \so{6} Cột Tốt / cần: số tốt đã ghi trên số phải làm, thanh xanh là phần đã xong.
 \so{7} Cột Hàng đang tới đâu: dải chấm là các bước của lệnh, chấm to là tổ mình, dòng chữ dưới nói hàng đang ở đâu.
-Lệnh xong hết các bước thì dòng chữ ghi \q{Xong cả N bước}.
+Lệnh xong hết các bước thì dòng chữ ghi \q{Xong cả N bước}. Tổ mình đã xác nhận nhận hàng thì dòng ghi \q{Hàng ở tổ
+mình} dù chưa bấm Bắt đầu. Bước thuê ngoài đã có hàng về xưởng tính là hàng đang ở bước đó.
 
 Mỗi dòng là một việc. Cột Công đoạn có chip \oo{Máy} hay \oo{Tổ} (việc chạy máy hay làm tay) và chip khuôn nếu bước
 cần khuôn. Cột Trạng thái ghi giờ xong hoặc tên người đang làm. Bấm vào dòng để mở ngăn của việc.
@@ -189,7 +191,9 @@ ba chấm) nằm góc phải, đổi theo trạng thái.
 
 \so{1} Sáu tab: \oo{Quy cách} (giấy, khổ, màu, số kẽm, kế hoạch khối lượng và giờ), \oo{Sản lượng} (chương
 \ref{ghi-san-luong}), \oo{Giao và nhận} (chương \ref{giao-nhan}), \oo{Vật tư} (chương \ref{vat-tu}), \oo{KCS}
-(mục \ref{to-xem-loi}), \oo{Lịch sử} (ai bấm gì, lúc nào).
+(mục \ref{to-xem-loi}), \oo{Lịch sử} (ai bấm gì, lúc nào). Cuối tab Quy cách là \oo{Ghi chú kỹ thuật} của lệnh
+và \oo{Ghi chú kế hoạch}: điều kế hoạch bộ phận dặn lúc giao việc, kèm tên người ghi và lúc ghi; không có thì ghi
+\q{Không có}.
 
 \so{2} \oo{Hàng đang tới đâu}: các bước của lệnh từ trên xuống, chữ \q{tổ mình} đánh dấu bước của tổ, cuối dải là
 Nhập kho thành phẩm. Câu đầu nói gọn hàng đang ở đâu.
@@ -298,7 +302,8 @@ việc khác cùng lúc thì có chữ nhắc bên cạnh tên.
 \canh{0.46}{vtt-30b-ghi-san-luong-duoi.png}{%
 Kéo xuống dưới hộp:
 
-\so{6} \oo{Khoán}: công thức tính tiền của bước, và \oo{Bậc giá} lệnh này rơi vào (bước in theo số màu). Công thức
+\so{6} \oo{Khoán}: tên khoán của bước, kèm giá khi bước chỉ tính theo giá (ví dụ \q{30 đ một tờ}). Bước tính theo công
+thức có điều kiện thì không in công thức ra hộp. \oo{Bậc giá} là bậc lệnh này rơi vào (bước in theo số màu). Công thức
 khai ở \kb{danh-muc-khoan}{Tiền khoán của công đoạn}.
 
 \so{7} \oo{Tuỳ chọn lần này}: tick thì giá cả lần ghi đổi theo, ví dụ in mực UV.
@@ -348,8 +353,10 @@ hàng tốt chưa giao, dùng khi ghi sản lượng không tự đề xuất đ
 
 \rong[0.85\linewidth]{vtt-41-nhan-vao.png}
 
-Tổ sau thấy chấm đỏ trên tab Giao và nhận. Đếm hàng thực nhận rồi tổ trưởng bấm \so{1} \oo{Xác nhận}. Bấm là xong,
-không có hộp hỏi lại. Trạng thái dòng đổi thành \oo{đã xác nhận}, khung \q{Chưa bắt đầu được vì} mất lý do chờ hàng.
+Tổ sau thấy chấm đỏ trên tab Giao và nhận. Đếm hàng thực nhận rồi tổ trưởng bấm \so{1} \oo{Xác nhận} ở cột Bên
+nhận của dòng \oo{chờ xác nhận}. Bấm là xong, không có hộp hỏi lại. Cột Bên nhận đổi thành tên người bấm và giờ bấm,
+trạng thái đổi thành \oo{đã xác nhận}, khung \q{Chưa bắt đầu được vì} mất lý do chờ hàng. Người không có quyền xác
+nhận thì cột Bên nhận chỉ ghi \q{Chưa xác nhận}.
 
 Hai bước liền nhau cùng một tổ thì không phải xác nhận: dòng nhận ghi \q{Tự nhận (cùng tổ)} và đã xác nhận sẵn.
 
@@ -357,6 +364,17 @@ Hai bước liền nhau cùng một tổ thì không phải xác nhận: dòng n
 
 Hàng thuê ngoài về (ảnh trên là 250 tờ cán màng về bước Ép kim) cũng xác nhận y như vậy. Cột Từ ghi tên nhà gia
 công.
+
+\Needspace*{8\baselineskip}
+\subsection{Hàng ở nhà gia công}\label{nhan-gia-cong}
+
+Bước ngay trước bước của tổ mình đang thuê ngoài thì đầu phần Nhận vào có dòng \q{Hàng <bước> ở <nhà gia công>
+hẹn về <ngày>} và số còn ở ngoài. Hàng về tới xưởng thì bấm \oo{Nhận hàng gia công}: hộp nhận hàng mở đúng dòng
+đơn, gõ số đạt, số hỏng rồi \oo{Lưu phiếu nhận} (\kh{tgc-phieu-nhan}{Phiếu nhận}). Người lưu có quyền xác nhận
+ở tổ mình thì hàng vào Nhận vào ở trạng thái đã xác nhận, không phải bấm Xác nhận nữa. Nhận đủ thì dòng nhắc mất.
+
+Ngược lại, bước sau của tổ mình là bước thuê ngoài thì hàng giao đi không có ai trong xưởng xác nhận: người giao
+hàng cho nhà gia công nhận phần đó bằng Phiếu giao ở màn Thuê gia công.
 
 \Needspace*{10\baselineskip}
 \subsection{Bước cuối}\label{buoc-cuoi}
@@ -622,7 +640,7 @@ xuất đúng phần đang lọc.
 \item[Tổ trước nói đã giao mà không thấy hàng?]
 Mở tab Giao và nhận. Dòng Nhận vào còn \q{chờ xác nhận} thì tổ
 trưởng bấm Xác nhận. Không có dòng nào là tổ trước chưa ghi sản lượng hoặc chưa đề xuất giao, hỏi tổ trước. Hàng
-thuê ngoài thì hỏi Kế hoạch sản xuất đã nhận về chưa.
+thuê ngoài thì xem dòng hẹn về ở đầu Nhận vào: hàng về rồi thì bấm Nhận hàng gia công (mục ef{nhan-gia-cong}).
 
 \item[Ghi nhầm số?]
 Tổ trưởng mở dòng Lần N ở tab Sản lượng, bấm Sửa số, ghi lý do (mục \ref{sua-so}).

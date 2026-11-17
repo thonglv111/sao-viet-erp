@@ -27,11 +27,14 @@ KE_GIA = "ke_gia"
 # Duyệt đơn mua ở Kế toán (13/11/2026). Tắt thì nút Gửi duyệt ở Mua hàng thành Chốt đơn: đơn sang Đã duyệt
 # ngay, người chốt ghi là người duyệt, mục Kế toán > Đơn mua hàng ẩn khỏi thanh bên (In Hà Phương tắt).
 DUYET_DON_MUA = "duyet_don_mua"
+# Thuê gia công (17/11/2026): màn Thuê gia công, bước loại Thuê ngoài ở lệnh / bài ghép, nút thuê trọn gói,
+# hàng chờ trả tiền gia công ở Phiếu chi. Tắt thì không đặt được bước thuê ngoài mới (In Hà Phương tắt).
+THUE_GIA_CONG = "thue_gia_cong"
 THUONG_MAI = "thuong_mai"
 GIAO_HANG_HP = "giao_hang_hp"
 CHI_BAT_KHI_KHAI = frozenset({THUONG_MAI, GIAO_HANG_HP})
 CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA, KE_GIA, THUONG_MAI,
-               GIAO_HANG_HP, DUYET_DON_MUA)
+               GIAO_HANG_HP, DUYET_DON_MUA, THUE_GIA_CONG)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.
@@ -46,6 +49,7 @@ MODULE_CUA_PHAN_HE: dict[str, frozenset[str]] = {
     SUA_CHUA: frozenset({"ky_thuat_may", "phieu_bao_tri"}),
     THUONG_MAI: frozenset({"hang_thuong_mai"}),
     GIAO_HANG_HP: frozenset({"xe_giao_hang"}),
+    THUE_GIA_CONG: frozenset({"thue_gia_cong"}),
 }
 
 

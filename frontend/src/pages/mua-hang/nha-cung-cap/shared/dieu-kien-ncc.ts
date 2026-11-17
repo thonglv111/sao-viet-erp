@@ -1,5 +1,5 @@
 /** Điều kiện lọc của danh sách Nhà cung cấp (06/10/2026). Lọc ở máy chủ; thanh lọc chung lo giao diện. */
-import { Factory, Layers, Star } from "lucide-react";
+import { Layers, Star } from "lucide-react";
 
 import type { SupplierTongQuan, ThamSoLoc } from "../../../../api/client";
 import type { GiaTriUrl } from "../../../ke-toan/shared/urlMan";
@@ -10,7 +10,6 @@ export type LocNcc = {
   nhom?: string;
   /** Sao trung bình tối thiểu — NCC "Chưa đánh giá" rơi ra khỏi kết quả. */
   sao?: "4" | "3";
-  gia_cong?: "co" | "khong";
 };
 
 export const LOC_NCC_TRONG: LocNcc = {};
@@ -19,34 +18,27 @@ const SAO: GiaTriDK[] = [
   { value: "4", nhan: "Từ 4 sao trở lên" },
   { value: "3", nhan: "Từ 3 sao trở lên" },
 ];
-const GIA_CONG: GiaTriDK[] = [
-  { value: "co", nhan: "Có nhận gia công" },
-  { value: "khong", nhan: "Không nhận gia công" },
-];
 
 export function thamSoLocNcc(loc: LocNcc): ThamSoLoc {
   return {
     status: loc.trang_thai,
     supplier_group: loc.nhom,
     rating_min: loc.sao ? Number(loc.sao) : undefined,
-    nhan_gia_cong: loc.gia_cong ? loc.gia_cong === "co" : undefined,
   };
 }
 
 export function locNccTuUrl(p: URLSearchParams): LocNcc {
   const tt = p.get("tt");
   const sao = p.get("sao");
-  const gc = p.get("gia_cong");
   return {
     trang_thai: tt === "active" || tt === "inactive" ? tt : undefined,
     nhom: p.get("nhom") || undefined,
     sao: sao === "4" || sao === "3" ? sao : undefined,
-    gia_cong: gc === "co" || gc === "khong" ? gc : undefined,
   };
 }
 
 export function locNccLenUrl(loc: LocNcc): GiaTriUrl {
-  return { tt: loc.trang_thai, nhom: loc.nhom, sao: loc.sao, gia_cong: loc.gia_cong };
+  return { tt: loc.trang_thai, nhom: loc.nhom, sao: loc.sao };
 }
 
 /** Số đếm lấy từ `/api/suppliers/tong-quan` (toàn danh mục) — màn đã nạp sẵn cho thanh đếm.
@@ -66,11 +58,6 @@ export function dieuKienNcc(tq: SupplierTongQuan | null): DieuKien<LocNcc>[] {
       khoa: "sao", nhan: "Số sao", icon: Star, kieu: "mot", giaTri: SAO,
       doc: (l) => l.sao,
       ghi: (l, v) => ({ ...l, sao: v as LocNcc["sao"] }),
-    },
-    {
-      khoa: "gia_cong", nhan: "Nhận gia công", icon: Factory, kieu: "mot", giaTri: GIA_CONG,
-      doc: (l) => l.gia_cong,
-      ghi: (l, v) => ({ ...l, gia_cong: v as LocNcc["gia_cong"] }),
     },
   ];
 }

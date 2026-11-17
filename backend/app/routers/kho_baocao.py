@@ -242,13 +242,13 @@ def _report_rows(
 _NHAN_LY_DO = {
     "nhap_mua": "Nhập mua hàng",
     "nhap_thanh_pham": "Nhập thành phẩm từ sản xuất",
-    "nhap_gia_cong": "Nhập hàng gia công ngoài",
+    "nhap_gia_cong": "Nhập hàng thuê gia công",
     "nhap_tra_vat_tu": "Nhập lại vật tư thừa",
     "nhap_tay": "Nhập tay ở Tồn kho",
     "nhap_khac": "Nhập khác",
     "xuat_giao_khach": "Xuất giao khách",
     "xuat_san_xuat": "Xuất cho sản xuất",
-    "xuat_gia_cong": "Xuất cho gia công ngoài",
+    "xuat_gia_cong": "Xuất cho thuê gia công",
     "xuat_tay": "Giảm tay ở Tồn kho",
     "xuat_khac": "Xuất khác",
 }
@@ -270,14 +270,14 @@ def _ly_do(v, req, co_lenh: bool) -> str:
                 return "nhap_mua"
             if req.san_xuat_cong_viec_id:
                 return "nhap_thanh_pham"
-            if req.gia_cong_ngoai_id:
+            if req.tgc_phieu_nhan_id or req.tgc_don_dong_id:
                 return "nhap_gia_cong"
             if req.vat_tu_tra_cong_viec_id:
                 return "nhap_tra_vat_tu"
         else:
             if req.delivery_trip_id:
                 return "xuat_giao_khach"
-            if req.gia_cong_ngoai_id:
+            if req.tgc_phieu_giao_id:
                 return "xuat_gia_cong"
             if co_lenh:
                 return "xuat_san_xuat"
@@ -286,7 +286,7 @@ def _ly_do(v, req, co_lenh: bool) -> str:
 
 def _nguon_dong(v, ln, req, n: NguonPhieu) -> dict:
     """Các cột nguồn của một dòng phiếu: lý do, lệnh, đơn, khách, NCC, bộ phận, người lập…"""
-    gcn = n.gia_cong.get(req.gia_cong_ngoai_id) if req is not None and req.gia_cong_ngoai_id else None
+    gcn = n.gia_cong.get(req.id) if req is not None else None
     lsx_id = n.lsx_cua_dong.get(ln.request_line_id) or (gcn[1] if gcn else None)
     lsx = n.lsx.get(lsx_id) if lsx_id else None
     chuyen = n.chuyen_don.get(req.delivery_trip_id) if req is not None and req.delivery_trip_id else None

@@ -103,12 +103,11 @@ describe("loiDong — các kiểm còn lại giữ nguyên", () => {
     expect(loiDong([r], 0)).toContain("chưa gán tổ / máy");
   });
 
-  it("thuê ngoài không đòi tổ / máy — đòi nhà gia công", () => {
-    // Bước thuê ngoài chọn nhà gia công từ danh mục NCC (26/09/2026), không có tổ / máy.
+  it("thuê ngoài không đòi tổ / máy, không đòi nhà gia công", () => {
+    // Nhà gia công chọn lúc lập đơn ở màn Thuê gia công (13/11/2026), lệnh chỉ gắn cờ.
     const r = { ...emptyRow(), loai_buoc: "thue_ngoai" as const, department_id: null, may_id: null };
     expect(loiDong([r], 0)).not.toContain("chưa gán tổ / máy");
-    expect(loiDong([r], 0)).toContain("chưa chọn nhà gia công");
-    expect(loiDong([{ ...r, nha_cung_cap_id: 3 }], 0)).not.toContain("chưa chọn nhà gia công");
+    expect(loiDong([r], 0)).toEqual([]);
   });
 
   it("trùng bước trước", () => {
@@ -337,6 +336,14 @@ describe("toBody — vật tư khác giấy", () => {
       { hang_loai: "vat_tu", vat_tu_id: 1, tu_dong: false, sua_tay: true, so_luong: 12.5, gia_tri_chip: {},
         kho_rong: 0, kho_dai: 0 });
   });
+  it("bước thuê ngoài giữ vật tư và gửi ô Nhà gia công tự lo (thiếu thì mặc định tự lo)", () => {
+    const r = { ...emptyRow(), loai_buoc: "thue_ngoai", vat_tus: [
+      { hang_loai: "vat_tu", vat_tu_id: 1, so_luong: "0.2", tu_dong: true, gia_tri_chip: {}, chips: [], ncc_tu_lo: false },
+      { hang_loai: "vat_tu", vat_tu_id: 2, so_luong: "1", tu_dong: true, gia_tri_chip: {}, chips: [] },
+    ] } as never;
+    const body = toBody([r])[0];
+    expect(body.vat_tus!.map((v) => [v.vat_tu_id, v.ncc_tu_lo])).toEqual([[1, false], [2, true]]);
+  });
 });
 
 describe("nhanGiayTheoDauVao", () => {
@@ -452,10 +459,10 @@ describe("bước đã bắt đầu + tổ khác của máy (23/10/2026)", () =>
 // Bảng công đoạn sửa loại bước + tổ ngay trên ô (phương án B, 28/10/2026) — cùng luật với ngăn chi
 // tiết. Hai nơi tự viết hai bản là lệch nhau ở lần sửa sau.
 describe("patchLoaiBuoc — đổi loại bước dọn gì", () => {
-  it("sang Thuê ngoài: bỏ tổ, máy, vật tư, về một lượt", () => {
+  it("sang Thuê ngoài: bỏ tổ, máy, về một lượt, giữ vật tư (ô Nhà gia công tự lo)", () => {
     expect(patchLoaiBuoc("thue_ngoai")).toEqual({
       loai_buoc: "thue_ngoai", may_id: null, department_id: null, department_ten: null,
-      so_luot_chay: "1", vat_tus: [],
+      so_luot_chay: "1",
     });
   });
   it("sang Tổ: bỏ máy, về một lượt, giữ tổ", () => {

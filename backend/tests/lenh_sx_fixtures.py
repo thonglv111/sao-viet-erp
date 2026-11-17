@@ -302,8 +302,9 @@ def lenh_thue_ngoai(sess, orders, lsx_svc, admin, customer) -> int:
     không ai thấy. Sửa `_dung_lenh` thì đụng 8 fixture của Task 7-12 đang dựa vào nó, nên chỉ
     LẬT một bước sau khi lệnh đã phát hành.
 
-    Lật sau phát hành là hợp lệ, không phải mẹo: `ho_so._routing` đọc thẳng `lsx_cong_doan`
-    (`ho_so.py:286-288` lấy `b.loai_buoc` / `b.nha_cung_cap`), không đọc snapshot công việc.
+    Lật sau phát hành là hợp lệ, không phải mẹo: `ho_so._routing` đọc loại bước thẳng ở
+    `lsx_cong_doan`. Tên nhà gia công đọc từ ĐƠN THUÊ GIA CÔNG còn sống của việc (mg 0483 gỡ cột ở
+    bước) — fixture dựng việc + đơn đã đặt cho công việc của bước đó.
 
     Cán màng là khâu xưởng in offset hay thuê ngoài thật, nên bước cuối mang đúng nghĩa.
     """
@@ -318,7 +319,19 @@ def lenh_thue_ngoai(sess, orders, lsx_svc, admin, customer) -> int:
         .one()
     )
     buoc_cuoi.loai_buoc = LB_THUE_NGOAI
-    buoc_cuoi.nha_cung_cap = NHA_GIA_CONG
+    from app.models.thue_gia_cong import KIEU_MOT_PHAN, TgcDon, TgcDonDong, TgcNhaGiaCong, TgcViec
+
+    ncc = TgcNhaGiaCong(ten=NHA_GIA_CONG)
+    viec = TgcViec(lsx_id=lsx_id, kieu=KIEU_MOT_PHAN, ten_viec="Cán màng", sl_can=5000)
+    sess.add_all([ncc, viec])
+    sess.flush()
+    don = TgcDon(ma=f"GC-FX-{lsx_id}", nha_cung_cap_id=ncc.id, nha_cung_cap_ten=NHA_GIA_CONG,
+                 ngay_dat=date.today(), dat_luc=datetime.now(timezone.utc))
+    sess.add(don)
+    sess.flush()
+    sess.add(TgcDonDong(don_id=don.id, viec_id=viec.id, sl_dat=5000, don_gia=0))
+    for cv in sess.query(SanXuatCongViec).filter_by(lsx_cong_doan_id=buoc_cuoi.id):
+        cv.tgc_viec_id = viec.id
     sess.commit()
     return lsx_id
 

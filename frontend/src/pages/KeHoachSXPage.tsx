@@ -59,8 +59,7 @@ import { LsxDetailView } from "./LsxDetailView";
 import { LsxPreviewDrawer } from "./LsxPreviewDrawer";
 import { HopGiaoDon } from "./HopGiaoDon";
 import { nhanDonVi } from "./lsxBuoc";
-import { laTronGoi } from "./gia-cong/GiaCongDong";
-import { NHAN_NGAN } from "./gia-cong/giaCong";
+import { NHAN_NGAN_LENH } from "./thue-gia-cong/tgc";
 import { useNapTenDonVi } from "./tenDonVi";
 import {
   BangLoi,
@@ -898,12 +897,14 @@ function OLenh({
     case "tt":
       return (
         <td>
-          {laTronGoi(l.gia_cong) && l.trang_thai === "da_phat_hanh" ? (
+          {l.gia_cong?.kieu === "tron_goi" && l.trang_thai === "da_phat_hanh" ? (
             <ChipTT
               mau={conMoGc(l.gia_cong) ? "vang" : "ngoc"}
-              title="Lệnh đã giao trọn gói cho nhà gia công, không xuống xưởng"
+              title="Lệnh thuê gia công trọn gói, không xuống xưởng"
             >
-              {conMoGc(l.gia_cong) ? "Ở nhà gia công" : "Đã nhận về"}
+              {l.gia_cong.trang_thai === "chua_dat"
+                ? "Chờ đặt gia công"
+                : conMoGc(l.gia_cong) ? "Ở nhà gia công" : "Đã nhận về"}
             </ChipTT>
           ) : (
             <ChipTT mau={MAU_TT_LENH[l.trang_thai] ?? "slate"}>{nhanTrangThaiLsx(l.trang_thai)}</ChipTT>
@@ -917,20 +918,19 @@ function OLenh({
       if (g?.kieu === "tron_goi") {
         // Trọn gói: lệnh không xuống tổ — "6 bước / Cắt 2" ở đây là nói sai chỗ.
         return (
-          <td
-            title={`${g.nha_cung_cap_ten}${g.cho_cap_giay ? "\nChờ cấp giấy: mở lệnh, bấm “Chọn giấy” ở khối Gia công ngoài" : ""}`}
-          >
+          <td title={g.ma_don ? `Đơn gia công ${g.ma_don}` : "Chưa đặt nhà gia công"}>
             <ChipTT mau={conMoGc(g) ? "ngoc" : "la"} vuong>
               Gia công trọn gói
             </ChipTT>
-            <span className="lds-u">{g.nha_cung_cap_ten}</span>
-            {g.cho_cap_giay ? <span className="lds-u lds-vang">Chờ cấp giấy</span> : null}
+            {g.nha_cung_cap_ten
+              ? <span className="lds-u">{g.nha_cung_cap_ten}</span>
+              : <span className="lds-u lds-vang">Chưa đặt</span>}
           </td>
         );
       }
       const tieuDeGc = g && conMoGc(g)
         ? [
-            `${g.ten_viec} ở ${g.nha_cung_cap_ten}${g.so_lan_mo > 1 ? ` và ${g.so_lan_mo - 1} lần khác` : ""}`,
+            `${g.ten_viec} ${g.nha_cung_cap_ten ? `ở ${g.nha_cung_cap_ten}` : "chưa đặt nhà gia công"}${g.so_viec_mo > 1 ? ` và ${g.so_viec_mo - 1} việc khác` : ""}`,
             g.bai_ghep_ma ? `Đi chung bài ghép ${g.bai_ghep_ma}` : null,
           ].filter(Boolean).join("\n")
         : undefined;
@@ -939,8 +939,8 @@ function OLenh({
           {/* Chip gia công đứng ĐẦU ô: ô hẹp thì dấu ba chấm cắt "N bước" chứ không nuốt chip (11/10/2026). */}
           {g && conMoGc(g) ? (
             <span className="khsx-cach-sau">
-              <ChipTT mau={g.trang_thai === "cho_mang_di" ? "cham" : "ngoc"} vuong>
-                {g.ten_viec} {NHAN_NGAN[g.trang_thai]}
+              <ChipTT mau={g.trang_thai === "chua_dat" ? "cham" : "ngoc"} vuong>
+                {g.ten_viec} {NHAN_NGAN_LENH[g.trang_thai]}
               </ChipTT>
             </span>
           ) : null}

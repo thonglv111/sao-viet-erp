@@ -39,7 +39,7 @@ describe("LsxRoutingTable — bảng Các bước theo mockup", () => {
     buoc({ step_key: "boi", ten: "Bồi", phu_thuoc_step_keys: ["in", "ts"] }),
     buoc({ step_key: "be", ten: "Bế", phu_thuoc_step_keys: ["boi"], don_vi_ra: "con" }),
     buoc({ step_key: "kp", ten: "Kiểm phẩm", phu_thuoc_step_keys: ["be"], loai_buoc: "thue_ngoai",
-      nha_cung_cap: "Bao bì Minh Phát", don_vi_vao: "con", don_vi_ra: "con" }),
+      don_vi_vao: "con", don_vi_ra: "con" }),
   ];
 
   it("có cột Nhánh, vạch theo nhánh, Làm sau ghi Bắt đầu và tên bước gộp", () => {
@@ -58,13 +58,13 @@ describe("LsxRoutingTable — bảng Các bước theo mockup", () => {
     expect(screen.getByText("Ô Làm sau để trống là làm ngay sau bước ở dòng trên.")).toBeInTheDocument();
   });
 
-  it("chip Chuẩn bị cho Tề sóng, chip Gia công ngoài kèm nhà gia công, không chữ Nội bộ", () => {
+  it("chip Chuẩn bị cho Tề sóng, chip Gia công ngoài chưa có đơn thì mời đặt ở màn Thuê gia công, không chữ Nội bộ", () => {
     const { container } = ve(rows, 2);
     const tr = container.querySelectorAll("tbody tr");
     expect(within(tr[1] as HTMLElement).getByText("Chuẩn bị")).toBeInTheDocument();
     expect(within(tr[0] as HTMLElement).queryByText("Chuẩn bị")).toBeNull();
     expect(within(tr[4] as HTMLElement).getByText("Gia công ngoài")).toBeInTheDocument();
-    expect(within(tr[4] as HTMLElement).getByText("Bao bì Minh Phát")).toBeInTheDocument();
+    expect(within(tr[4] as HTMLElement).getByText("đặt ở màn Thuê gia công")).toBeInTheDocument();
     expect(within(tr[0] as HTMLElement).getByText("Tổ in")).toBeInTheDocument();
     expect(container.querySelector("tbody")?.textContent).not.toContain("Nội bộ");
     expect(within(tr[0] as HTMLElement).getByText("1 vật tư")).toBeInTheDocument();

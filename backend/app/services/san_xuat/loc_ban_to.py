@@ -33,8 +33,10 @@ _DANG_LAM = (CV_DANG_CHAY, CV_TAM_DUNG)
 def vi_tri_hang(dai: list[dict], cong_viec_id: int, step_key: str | None = None) -> str | None:
     """Hàng đang tới đâu so với bước của `cong_viec_id`.
 
-    Bước hàng đang ở (c) = bước XA NHẤT đang chạy/tạm dừng; không bước nào đang làm thì bước đầu
-    chưa xong; xong hết thì bước cuối. So với bước của việc (m): c>m `qua`, c==m `toi`, m-c==1
+    Bước hàng đang ở (c) = bước XA NHẤT đang có hàng; không bước nào có hàng thì bước đầu chưa
+    xong; xong hết thì bước cuối. "Đang có hàng" (16/11/2026) = đang chạy/tạm dừng, HOẶC chưa xong
+    mà đã có sản lượng (`thuc_te` — bước thuê gia công không bao giờ "đang chạy", hàng về qua phiếu
+    nhận), HOẶC tổ mình đã nhận hàng chưa bắt đầu (`da_nhan`). So với bước của việc (m): c>m `qua`, c==m `toi`, m-c==1
     `con_1`, 2..3 `con_2_3`, ≥4 `con_4`. Dải rỗng hoặc không thấy bước của việc ⇒ None (bài ghép
     chưa có dải). Ô dải chỉ ghi `cong_viec_id` của phân đoạn ĐẦU — các phân đoạn sau của cùng
     bước tìm lại ô mình qua `step_key`. Cùng luật `viTriHang` ở FE."""
@@ -46,7 +48,9 @@ def vi_tri_hang(dai: list[dict], cong_viec_id: int, step_key: str | None = None)
         return None
     c = 0
     for i, o in enumerate(dai, start=1):
-        if o.get("trang_thai") in _DANG_LAM:
+        if o.get("trang_thai") in _DANG_LAM or (
+                o.get("trang_thai") != CV_HOAN_THANH
+                and ((o.get("thuc_te") or 0) > 0 or (o.get("da_nhan") or 0) > 0)):
             c = i
     if c == 0:
         c = next((i for i, o in enumerate(dai, start=1) if o.get("trang_thai") != CV_HOAN_THANH), len(dai))

@@ -20,6 +20,7 @@ from ..deps import (
     require_permission,
 )
 from ..doi_tuong_nhan import MAN_BAN_HANG, MAN_MUA_KE_TOAN, MAN_NHAN_SU, MAN_THEO_LENH, hop
+from ..models.accounting import VOUCHER_SOURCE_GIA_CONG
 from ..models.order import SOURCE_THUONG_MAI
 from ..models.purchase import PR_DRAFT
 from ..realtime import hub
@@ -27,7 +28,6 @@ from ..repositories.org_scope import chu_cua
 from ..services.chi_ck_ke import bao_ck_ke
 from ..services.thong_bao_man import bao
 from ..models.user import User
-from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ..repositories.rbac_repo import DepartmentRepository
 from ..repositories.module_notification_repo import (
     CHANNEL_THU_MUA,
@@ -43,8 +43,6 @@ from ..schemas.accounting import (
     CongNoKhoaSoRow,
     CongNoKhoaSoTrangThaiOut,
     CongNoKyRow,
-    GiaCongChoChiDemOut,
-    GiaCongChoChiOut,
     DonHangChoThuOut,
     TraLaiKhachChoChiOut,
     CancelSalesInvoiceIn,
@@ -87,7 +85,6 @@ from ..schemas.loc_danh_sach import LuaChonLoc
 from ..schemas.purchase import MuaHangChoChiOut, PurchaseRequestListOut
 from ..services import bao_cao_cong_no, bao_cao_cong_no_excel
 from ..services import ban_hang_cho_thu_chi
-from ..services.gia_cong_ngoai import cho_chi as gc_cho_chi
 from ..services.accounting_service import (
     AccountingBulkBlocked,
     AccountingConflict,
@@ -171,31 +168,10 @@ def _notify_accounting_changed(
     hub.gui(su_kien, quyen=MAN_MUA_KE_TOAN, nguoi=[recipient_user_id] if recipient_user_id else None)
 
 
-def _phat_gia_cong_chi_doi(svc: AccountingService, gia_cong_ngoai_id: int | None) -> None:
-    """Phiếu chi gia công ngoài vừa lập / huỷ ⇒ hàng "Gia công chờ chi" + badge Phiếu chi (nhóm
-    `mua_ke_toan`) và khối Gia công ngoài trên lệnh / bài ghép (màn theo lệnh, nhóm `san_xuat`).
-    Bàn tổ không bày tiền gia công nên không nhận."""
-    hub.gui({"type": "gia_cong_cho_chi_changed"}, quyen=MAN_MUA_KE_TOAN)
-    hub.gui({
-        "type": "gia_cong_ngoai_changed",
-        "gia_cong_ngoai_id": gia_cong_ngoai_id,
-        **_khoa_gia_cong(svc, gia_cong_ngoai_id),
-    }, quyen=MAN_THEO_LENH)
-
-
-def _khoa_gia_cong(svc: AccountingService, gia_cong_ngoai_id: int | None) -> dict:
-    """Lệnh SX (hoặc bài ghép + các lệnh thành viên) của lần gia công — để SSE
-    `gia_cong_ngoai_changed` nạp lại đúng khối trên màn lệnh / màn bài ghép."""
-    if gia_cong_ngoai_id is None:
-        return {"lsx_id": None}
-    from ..services.gia_cong_ngoai.lan import nguon_lan
-
-    db = svc.repo.db
-    gcn = GiaCongNgoaiRepository(db).get(int(gia_cong_ngoai_id))
-    if gcn is None:
-        return {"lsx_id": None}
-    ids = [l["id"] for l in nguon_lan(db, gcn)["lenh"]] or [gcn.lsx_id]
-    return {"lsx_id": ids[0], "lsx_ids": ids, "bai_ghep_id": gcn.bai_ghep_id}
+def _phat_gia_cong_chi_doi() -> None:
+    """Phiếu chi thuê gia công vừa lập / huỷ ⇒ tab Chờ trả tiền của màn Thuê gia công + badge Phiếu
+    chi đổi ngay. Bàn tổ không bày tiền gia công nên không nhận."""
+    hub.gui({"type": "tgc_cho_tra_tien_changed"}, quyen=MAN_MUA_KE_TOAN + ("thue_gia_cong",))
 
 
 def _map_error(exc: Exception) -> HTTPException:
@@ -1124,24 +1100,6 @@ def list_payment_vouchers(
     return PaymentVoucherListOut(items=rows, total=total, page=page, size=size, **totals)
 
 
-@router.get("/api/accounting/gia-cong-cho-chi", response_model=list[GiaCongChoChiOut])
-def gia_cong_cho_chi(
-    db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
-):
-    """Lần gia công ngoài đã chốt số, chưa có phiếu chi (spec gia công ngoài §5). Tiền gia
-    công hiện cho mọi người xem được màn — chủ chốt 27/09/2026, KHÔNG gác `kho:view_cost`."""
-    return gc_cho_chi.hang_cho_chi(db)
-
-
-@router.get("/api/accounting/gia-cong-cho-chi/dem", response_model=GiaCongChoChiDemOut)
-def gia_cong_cho_chi_dem(
-    db: Annotated[Session, Depends(get_db)],
-    _: Annotated[User, Depends(require_permission(MODULE_PC, "read"))],
-):
-    return {"so": gc_cho_chi.dem_cho_chi(db)}
-
-
 @router.get("/api/accounting/tra-lai-khach-cho-chi", response_model=list[TraLaiKhachChoChiOut])
 def tra_lai_khach_cho_chi(
     svc: Annotated[AccountingService, Depends(get_accounting_service)],
@@ -1205,6 +1163,8 @@ def create_payment_voucher(
         row = svc.create_voucher(actor=user, **payload.model_dump())
     except (AccountingValidationError, AccountingConflict, AccountingNotFound) as exc:
         raise _map_error(exc) from None
+    if row.get("source_type") == VOUCHER_SOURCE_GIA_CONG:
+        _phat_gia_cong_chi_doi()
     purchase_code = row.get("purchase_request_code")
     _notify_accounting_changed(
         purchase_code or row.get("code"),
@@ -1215,10 +1175,6 @@ def create_payment_voucher(
         actor_user_id=user.id,
         recipient_user_id=row.get("purchase_created_by_user_id"),
     )
-    if row.get("source_type") == "gia_cong_ngoai":
-        # Hàng "Gia công chờ chi" + badge Phiếu chi + khối Gia công ngoài trên lệnh đổi ngay.
-        # `lsx_id` để FE nạp lại đúng khối trên màn lệnh (Task 13 bắt cả hai khoá).
-        _phat_gia_cong_chi_doi(svc, row.get("gia_cong_ngoai_id"))
     return PaymentVoucherOut(**row)
 
 
@@ -1383,8 +1339,8 @@ def cancel_payment_voucher(
         # Huỷ phiếu chi tạm ứng ⇒ cả lô về "Chờ chi" — màn Tạm ứng của HCNS phải thấy ngay.
         hub.gui({"type": "advance_pending_changed", "code": row.get("code")}, quyen=MAN_NHAN_SU)
     if row.get("source_type") == "gia_cong_ngoai":
-        # Huỷ phiếu chi gia công ngoài ⇒ lần đó về lại "Chờ chi" ngay.
-        _phat_gia_cong_chi_doi(svc, row.get("gia_cong_ngoai_id"))
+        # Huỷ phiếu chi thuê gia công ⇒ phiếu nhận về lại "Chờ trả tiền" ngay.
+        _phat_gia_cong_chi_doi()
     return PaymentVoucherOut(**row)
 
 

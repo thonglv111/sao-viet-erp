@@ -2342,8 +2342,8 @@ def _thong_ke_chuyen(trips, ve_kho, trong_khung) -> dict:
     cộng chặng về kho của lượt xe trong khung. Chung cho thống kê ngày lẫn tháng."""
     xong, tong_km = 0, 0
     for t in trips:
-        # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người chốt số — người đó không chạy xe.
-        if t.gia_cong_ngoai_id:
+        # Chuyến "nhà gia công giao thẳng" chỉ đứng tên người nhận phiếu — người đó không chạy xe.
+        if t.tgc_phieu_nhan_id:
             continue
         if t.thoi_gian_ket_thuc is None or not trong_khung(t.thoi_gian_ket_thuc):
             continue

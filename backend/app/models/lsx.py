@@ -339,12 +339,8 @@ class LsxCongDoan(Base):
     # `san_xuat_kcs_tieu_chi` gắn theo công đoạn — xem `docs/design-kcs-theo-cong-doan.md`. Đừng
     # bày lại ô gõ thêm dòng riêng cho một lệnh: hai nguồn cho cùng một checklist thì không ai
     # biết bản nào chuẩn, mà dòng gõ tay không mã, không lịch sử, không tái dùng cho lệnh sau.
-    # --- Gia công ngoài (spec 2026-09-26) — chỉ dùng khi `loai_buoc = thue_ngoai`. Nhà gia công
-    # chọn từ danh mục Nhà cung cấp (cờ `nhan_gia_cong`) — tham chiếu MỀM như máy/tổ/khuôn của
-    # lệnh. `nha_cung_cap` (chữ) do MÁY CHỦ ghi theo NCC đã chọn: bảy chỗ đang đọc tên (snapshot,
-    # hồ sơ lệnh, phiếu công nghệ, chip…) khỏi phải đổi. Client không gửi cột chữ.
-    nha_cung_cap_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
-    nha_cung_cap: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    # Nhà gia công KHÔNG nằm ở bước (gỡ mg 0483): bước chỉ mang `loai_buoc = thue_ngoai`, nhà
+    # chọn lúc lập đơn ở màn Thuê gia công — tên đọc từ đơn còn sống của việc (`tgc_don`).
 
     ghi_chu: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
@@ -419,6 +415,12 @@ class LsxCongDoanVatTu(Base):
     # ĐƠN VỊ GỐC của dòng GIẤY (`to` / `don_vi_gia` của mã) — máy chủ ghi theo ĐẦU VÀO của bước (spec
     # 2026-10-01 dong-giay-theo-dau-vao §4), không ai gõ. Hàng khác rỗng. Thay `dang_giay` (mg 0360) từ mg 0388.
     don_vi_goc: Mapped[str] = mapped_column(String(16), nullable=False, server_default="", default="")
+    # NHÀ GIA CÔNG TỰ LO (module Thuê gia công, 13/11/2026 — ứng với `bom_item.sourced_by_supplier` của
+    # ERPNext). Chỉ có nghĩa khi bước là THUÊ NGOÀI: tick ⇒ dòng không vào kế hoạch vật tư / giữ chỗ,
+    # không lên phiếu giao; bỏ tick ⇒ xưởng cấp như bước thường. Mặc định tick (Q6).
+    ncc_tu_lo: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sa_true(), default=True
+    )
     buoc: Mapped["LsxCongDoan"] = relationship("LsxCongDoan", back_populates="vat_tus")
 
 

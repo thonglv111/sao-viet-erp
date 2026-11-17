@@ -106,18 +106,12 @@ def test_buoc_nhan_tu_bo_qua_buoc_bi_buoc_chung_de(db, svc, customer):
 
 
 def test_buoc_nhan_tu_bo_qua_lenh_tron_goi(db, svc, customer):
-    from app.models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
-    from app.models.purchase import Supplier
+    from app.models.thue_gia_cong import KIEU_TRON_GOI, TgcViec
 
     g = _giay(db)
     l, _cat, _in = _lenh_cat_in(db, customer, g)
-    s = Supplier(name="NCC trọn gói", tax_code="0900000001", phone="0900000000",
-                 email="tg@x.vn", address="HN", contact_name="A", supplier_group="giay",
-                 status="active")
-    db.add(s)
-    db.flush()
-    db.add(GiaCongNgoai(kieu=KIEU_TRON_GOI, lsx_id=l.id, nha_cung_cap_id=s.id,
-                        xuong_cap_giay=False))
+    db.add(TgcViec(kieu=KIEU_TRON_GOI, lsx_id=l.id, ten_viec="Gia công trọn gói",
+                   xuong_cap_giay=False))
     db.commit()
     assert svc.buoc_nhan_tu(l.id) == {}
 

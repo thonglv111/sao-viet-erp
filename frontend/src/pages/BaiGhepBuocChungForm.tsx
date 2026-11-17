@@ -16,10 +16,10 @@
 // style đi theo component chứ không đi theo trang nào.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  ApiError, LSX_LOAI_BUOC_META, api, type BaiGhepBuocChungBody, type BaiGhepSoDo, type LsxLoaiBuoc,
-  type NhaGiaCong,
+  LSX_LOAI_BUOC_META, type BaiGhepBuocChungBody, type BaiGhepSoDo, type LsxLoaiBuoc,
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
+import { useTat } from "../auth/permissions";
 import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
@@ -80,6 +80,8 @@ export function BuocChungForm({
   /** Băng thông báo của trang (lỗi lưu, "bước vừa gộp chưa có cấu hình") — nằm ngay dưới thanh tab. */
   banner?: ReactNode;
 }) {
+  // Bản cài tắt Thuê gia công: không cho chọn bước Thuê ngoài mới (bước đã thuê ngoài vẫn đổi về được).
+  const tatTgc = useTat()("thue_gia_cong");
   const { token } = useAuth();
   const [toRefs, setToRefs] = useState<{ id: number; ten: string }[] | null>(null);
   const [mayRefs, setMayRefs] = useState<MayRef[] | null>(null);
@@ -98,19 +100,6 @@ export function BuocChungForm({
   // quyết lượt chung đi máy, đi tổ hay gửi nhà gia công. Mọi chỗ trong form đọc `loai` (bản nháp
   // trước, server sau) để đổi loại là tab/ô đổi theo ngay, chưa cần lưu.
   const loai = f.loai_buoc ?? g.loai_buoc;
-  const ngoaiBuoc = loai === "thue_ngoai";
-  const [nhaDs, setNhaDs] = useState<NhaGiaCong[] | null>(null);
-  const [nhaLoi, setNhaLoi] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!token || !ngoaiBuoc) return;
-    let song = true;
-    api.giaCongNgoai.nhaGiaCong(token)
-      .then((r) => { if (song) setNhaDs(r); })
-      .catch((e: unknown) => { if (song) setNhaLoi(e instanceof ApiError ? e.message : String(e)); });
-    return () => { song = false; };
-  }, [token, ngoaiBuoc]);
-
   useEffect(() => {
     if (!token) return;
     crud("/api/cong-doan/phong-ban").list(token)
@@ -164,15 +153,9 @@ export function BuocChungForm({
       setTab("gia_cong");
       return;
     }
-    // Bỏ thuê ngoài thì máy chủ dọn nhà gia công; bước tổ không có máy và chỉ một lượt.
-    const { nha_cung_cap_id: _bo, ...conLai } = f;
-    void _bo;
-    setF(k === "to" ? { ...conLai, loai_buoc: k, may_id: null, so_luot_chay: 1 } : { ...conLai, loai_buoc: k });
+    // Bước tổ không có máy và chỉ một lượt.
+    setF(k === "to" ? { ...f, loai_buoc: k, may_id: null, so_luot_chay: 1 } : { ...f, loai_buoc: k });
   };
-  // Nhà gia công chọn từ danh mục NCC có tích "Nhận gia công" — cùng nguồn với bước lệnh; tên do
-  // máy chủ ghi theo id. Nhà đã chọn mà nay bỏ tích vẫn phải HIỆN (ô chọn không rơi về trống).
-  const nhaId = val("nha_cung_cap_id", g.nha_cung_cap_id);
-  const nhaMat = nhaId != null && nhaDs != null && !nhaDs.some((n) => n.id === nhaId);
   const dvVao = nhanChang(g.don_vi_vao);
   const dvRa = nhanChang(g.don_vi_ra);
 
@@ -260,7 +243,7 @@ export function BuocChungForm({
     { key: "phan_cong", label: "Phân công & Thiết bị" },
     { key: "vat_tu", label: "Vật tư", badge: vtHienTai.length },
     { key: "tien_do", label: "Tiến độ & Thời gian" },
-    ...(ngoai ? [{ key: "gia_cong" as TabKey, label: "Gia công ngoài" }] : []),
+    ...(ngoai ? [{ key: "gia_cong" as TabKey, label: "Thuê gia công" }] : []),
     { key: "cac_lenh", label: "Các lệnh trên tờ", badge: g.thanh_vien.length },
   ];
 
@@ -478,7 +461,7 @@ export function BuocChungForm({
               <div className="khsx-field">
                 <span className="khsx-field__label">LOẠI BƯỚC THỰC HIỆN</span>
                 <div className="khsx-seg-std" role="group" aria-label="Loại bước">
-                  {LOAI_BUOC_ORDER.map((k) => (
+                  {LOAI_BUOC_ORDER.filter((k) => k !== "thue_ngoai" || !tatTgc || loai === "thue_ngoai").map((k) => (
                     <button
                       key={k}
                       type="button"
@@ -497,7 +480,7 @@ export function BuocChungForm({
               {ngoai && (
                 // Bước thuê ngoài không có tổ/máy trong xưởng — máy chủ gỡ khi lưu.
                 <div className="khsx-note-banner">
-                  <span>Bước thuê ngoài không cần tổ và máy — chọn nhà gia công ở thẻ “Gia công ngoài”.</span>
+                  <span>Bước thuê ngoài không cần tổ và máy. Nhà gia công chọn lúc lập đơn ở màn Thuê gia công.</span>
                 </div>
               )}
 
@@ -1120,46 +1103,13 @@ export function BuocChungForm({
             <section className="khsx-section-card">
               <div className="khsx-section-card__head">
                 <div>
-                  <h3 className="khsx-section-card__title">Nhà gia công</h3>
-                  {/* Bước chung nằm TRƯỚC điểm toả nên cả tờ ghép đi MỘT lần gia công, một nhà. */}
+                  <h3 className="khsx-section-card__title">Thuê gia công</h3>
+                  {/* Bước chung nằm TRƯỚC điểm toả nên cả tờ ghép đi MỘT việc gia công, một đơn. */}
                   <p className="khsx-section-card__sub">
-                    Cả tờ ghép đi một lần gia công. Mang đi và chốt số làm ở khối “Gia công ngoài”
-                    của bài ghép sau khi phát hành.
+                    Cả tờ ghép đi một việc gia công. Nhà gia công, đơn giá, giao và nhận làm ở màn
+                    Thuê gia công sau khi bài ghép phát hành.
                   </p>
                 </div>
-              </div>
-              <div className="khsx-assign-grid">
-                <label className="khsx-field">
-                  <span className="khsx-field__label">NHÀ GIA CÔNG</span>
-                  {nhaLoi ? (
-                    <span className="khsx-field__hint">{nhaLoi}</span>
-                  ) : (
-                    <select
-                      className="khsx-select-std"
-                      value={nhaId ?? ""}
-                      disabled={!canUpdate || nhaDs == null}
-                      onChange={(e) => setF({
-                        ...f, nha_cung_cap_id: e.target.value ? Number(e.target.value) : null,
-                      })}
-                    >
-                      <option value="">— chọn nhà gia công —</option>
-                      {nhaMat && (
-                        <option value={nhaId ?? ""}>
-                          {(g.nha_cung_cap || "Nhà đã chọn") + " (đã bỏ tích “Nhận gia công”)"}
-                        </option>
-                      )}
-                      {(nhaDs ?? []).map((n) => (
-                        <option key={n.id} value={n.id}>{n.ten}</option>
-                      ))}
-                    </select>
-                  )}
-                  {nhaDs != null && nhaDs.length === 0 && (
-                    <span className="khsx-field__hint">
-                      Chưa có nhà cung cấp nào tích “Nhận gia công” — vào màn Nhà cung cấp tích ô đó
-                      cho nhà gia công rồi chọn lại ở đây.
-                    </span>
-                  )}
-                </label>
               </div>
             </section>
           </div>

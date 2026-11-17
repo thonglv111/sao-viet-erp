@@ -170,7 +170,7 @@ def _guard_scope(db: Session, lsx, user: User, authz: AuthorizationService) -> N
 
 
 def _out(svc: LsxService, lsx) -> LsxOut:
-    from ..services.gia_cong_ngoai.tron_goi import _DAT_DUOC, chan_tron_goi
+    from ..services.thue_gia_cong.tron_goi import _DAT_DUOC, chan_tron_goi
     chan = chan_tron_goi(svc.db, lsx.id) if lsx.trang_thai in _DAT_DUOC else None
     return LsxOut.model_validate({
         **lsx.__dict__, **svc.detail_dict(lsx),
@@ -367,7 +367,7 @@ def list_items(
     customer_id: int | None = Query(default=None),
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
+    gia_cong: str | None = Query(default=None, pattern="^(chua_dat|da_dat|tron_goi)$"),
     # Dải kỳ (06/10/2026): khoảng ngày tính theo `moc` — ngày tạo lệnh / hạn SX / hạn giao khách.
     tu_ngay: date | None = Query(default=None),
     den_ngay: date | None = Query(default=None),
@@ -404,7 +404,7 @@ def bo_loc(
     user: Annotated[User, Depends(require_permission(MODULE, "read"))],
     trang_thai: str | None = Query(default=None),
     q: str | None = Query(default=None),
-    gia_cong: str | None = Query(default=None, pattern="^(cho_mang_di|dang_o_ngoai|tron_goi)$"),
+    gia_cong: str | None = Query(default=None, pattern="^(chua_dat|da_dat|tron_goi)$"),
 ) -> LsxBoLocOut:
     """Đơn / khách để đổ vào hai ô lọc. Cùng scope với `list` — người chỉ thấy lệnh của mình thì
     ô chọn cũng chỉ chào đơn của mình."""

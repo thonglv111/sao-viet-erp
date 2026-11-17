@@ -799,12 +799,6 @@
   font-weight: 600;
 }
 
-/* Bước thuê ngoài chưa chọn nhà gia công — thiếu thật, chặn phát hành. */
-.dag-node__badge--thieu {
-  background: #fef3c7;
-  color: #b45309;
-}
-
 /* Đầu thẻ: tên bước luôn giữ chỗ tối thiểu, chip/nút không được ép nó về 0 hoặc tràn khỏi thẻ. */
 .dag-node__head > .dag-node__title {
   min-width: 56px;

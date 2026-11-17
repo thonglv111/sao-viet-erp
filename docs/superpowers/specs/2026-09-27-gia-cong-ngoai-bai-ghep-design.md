@@ -1,5 +1,7 @@
 # Gia công ngoài cho bước chung của bài ghép (đợt 2) — Thiết kế
 
+> **Đã thay bằng `2026-11-13-module-gia-cong-ngoai-design.md`** (module Thuê gia công, bảng `tgc_*`, 13/11/2026). Bảng `gia_cong_ngoai` gỡ ở mg `0481`, cột nhà gia công trên bước gỡ ở mg `0483`. Giữ file này để đọc lịch sử.
+
 **Ngày:** 27/09/2026 · **Trạng thái:** chờ chủ duyệt
 **Nối tiếp:** `2026-09-26-gia-cong-ngoai-design.md` §9 — "cùng cơ chế, lần gia công gắn bài ghép
 thay vì lệnh; khi làm thì gỡ luôn tab Gia công ngoài cũ của bước chung".

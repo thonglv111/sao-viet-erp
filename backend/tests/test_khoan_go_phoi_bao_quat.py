@@ -40,10 +40,10 @@ CFG = [
     {'id': 85, 'ma': 'DL', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_lo >= 30, 175, if(so_lo >= 7, 35, 0)))', 'gcd': 0.0, 'dg': 25.0, 'tc': [{'ma': 'so_lo', 'ten': 'Số lỗ đục', 'kieu': 'so', 'goi_y': 'số lỗ trên mỗi con'}]},
     {'id': 82, 'ma': 'DLDM', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * don_gia_khoan', 'gcd': 0.0, 'dg': 10.0, 'tc': None},
     {'id': 83, 'ma': 'DLM', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_lo >= 7, 30, 0))', 'gcd': 0.0, 'dg': 15.0, 'tc': [{'ma': 'so_lo', 'ten': 'Số lỗ đục', 'kieu': 'so', 'goi_y': 'số lỗ trên mỗi con'}]},
-    {'id': 109, 'ma': 'GCT', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_con >= 5, 0, if(so_con >= 2, 5, 15)) + 10 * lop_5_7)', 'gcd': 0.0, 'dg': 15.0, 'tc': [{'ma': 'lop_5_7', 'ten': 'Carton 5-7 lớp (+10 đ/con)', 'kieu': 'co_khong', 'goi_y': None}]},
+    {'id': 109, 'ma': 'GCT', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_con >= 5, 0, if(so_con >= 2, 5, 15)) + 10 * lop_5_7)', 'gcd': 0.0, 'dg': 15.0, 'tc': [{'ma': 'lop_5_7', 'ten': 'Carton 5-7 lớp', 'kieu': 'co_khong', 'goi_y': None}]},
     {'id': 77, 'ma': 'GID', 'unit': 'con', 'ct': 'sl_ghi * (don_gia_khoan + if(so_con >= 5, 0, 5))', 'gcd': 0.0, 'dg': 5.0, 'tc': None},
     {'id': 115, 'ma': 'GNTM', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * don_gia_khoan', 'gcd': 0.0, 'dg': 5.0, 'tc': None},
-    {'id': 156, 'ma': 'KVN', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * (don_gia_khoan + 5 * lop_5)', 'gcd': 0.0, 'dg': 10.0, 'tc': [{'ma': 'lop_5', 'ten': 'Sóng 5 lớp (+5 đ/con)', 'kieu': 'co_khong', 'goi_y': None}]}
+    {'id': 156, 'ma': 'KVN', 'unit': 'con', 'ct': 'gia_co_dinh + sl_ghi * (don_gia_khoan + 5 * lop_5)', 'gcd': 0.0, 'dg': 10.0, 'tc': [{'ma': 'lop_5', 'ten': 'Sóng 5 lớp', 'kieu': 'co_khong', 'goi_y': None}]}
 ]
 
 

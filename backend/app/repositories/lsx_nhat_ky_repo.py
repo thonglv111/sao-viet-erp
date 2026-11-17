@@ -1,6 +1,6 @@
 """Tra các đối tượng GẮN VỚI một lệnh sản xuất — nguồn cho tab Nhật ký của lệnh.
 
-Nhật ký ghi audit theo ĐỐI TƯỢNG bị tác động (`gia_cong_ngoai:7`, `payment_voucher:3`…), không
+Nhật ký ghi audit theo ĐỐI TƯỢNG bị tác động (`tgc_don:7`, `payment_voucher:3`…), không
 theo lệnh. Muốn kể đủ chuyện của một lệnh thì phải biết lệnh đó đang kéo theo những đối tượng nào —
 đọc từ BẢNG, không quét chữ trong `detail` của cả bảng nhật ký.
 """
@@ -9,13 +9,14 @@ from __future__ import annotations
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from ..models.accounting import PaymentVoucher
 from ..models.bai_ghep import BaiGhepThanhVien
-from ..models.gia_cong_ngoai import GiaCongNgoai
 from ..models.purchase import YeuCauMuaNguonLenh
 from ..models.san_xuat import SanXuatCongViec, SanXuatNhomLsx
 from ..models.stock_request import StockRequest, StockRequestLine
 from ..models.stock_voucher import StockVoucher
+from ..models.thue_gia_cong import (
+    TgcDonDong, TgcPhieuChiNhan, TgcPhieuGiao, TgcPhieuNhan, TgcViec,
+)
 from ..models.xep_lich import XepLichCongDoan
 
 
@@ -32,19 +33,31 @@ class LsxNhatKyRepository:
             select(SanXuatCongViec).where(SanXuatCongViec.lsx_id == lsx_id).order_by(SanXuatCongViec.id)
         ).scalars())
 
-    def gia_cong_ngoai(self, lsx_id: int, cong_viec_ids: list[int]) -> list[int]:
-        """Trọn gói neo `lsx_id`; từng công đoạn neo qua `san_xuat_cong_viec.gia_cong_ngoai_id`."""
-        dk = [GiaCongNgoai.lsx_id == lsx_id]
+    def thue_gia_cong(self, lsx_id: int, cong_viec_ids: list[int]) -> dict[str, list[int]]:
+        """Việc thuê gia công của lệnh (neo `lsx_id`, hoặc qua `san_xuat_cong_viec.tgc_viec_id` cho
+        việc của bài ghép) + đơn, dòng đơn, phiếu giao, phiếu nhận của các việc đó."""
+        dk = [TgcViec.lsx_id == lsx_id]
         if cong_viec_ids:
-            dk.append(GiaCongNgoai.id.in_(
-                select(SanXuatCongViec.gia_cong_ngoai_id).where(SanXuatCongViec.id.in_(cong_viec_ids))
-            ))
-        return self._ids(select(GiaCongNgoai.id).where(or_(*dk)))
+            dk.append(TgcViec.id.in_(
+                select(SanXuatCongViec.tgc_viec_id).where(SanXuatCongViec.id.in_(cong_viec_ids))))
+        viec = self._ids(select(TgcViec.id).where(or_(*dk)))
+        ra = {"viec": viec, "don": [], "dong": [], "phieu_giao": [], "phieu_nhan": []}
+        if not viec:
+            return ra
+        dongs = self.db.execute(select(TgcDonDong.id, TgcDonDong.don_id)
+                                .where(TgcDonDong.viec_id.in_(viec))).all()
+        ra["dong"] = sorted({int(i) for i, _ in dongs})
+        ra["don"] = sorted({int(d) for _, d in dongs})
+        if ra["don"]:
+            ra["phieu_giao"] = self._ids(select(TgcPhieuGiao.id).where(TgcPhieuGiao.don_id.in_(ra["don"])))
+            ra["phieu_nhan"] = self._ids(select(TgcPhieuNhan.id).where(TgcPhieuNhan.don_id.in_(ra["don"])))
+        return ra
 
-    def phieu_chi(self, gcn_ids: list[int]) -> list[int]:
-        if not gcn_ids:
+    def phieu_chi(self, phieu_nhan_ids: list[int]) -> list[int]:
+        if not phieu_nhan_ids:
             return []
-        return self._ids(select(PaymentVoucher.id).where(PaymentVoucher.gia_cong_ngoai_id.in_(gcn_ids)))
+        return self._ids(select(TgcPhieuChiNhan.payment_voucher_id)
+                         .where(TgcPhieuChiNhan.phieu_nhan_id.in_(phieu_nhan_ids)))
 
     def nhom(self, lsx_id: int) -> list[int]:
         return self._ids(select(SanXuatNhomLsx.nhom_id).where(SanXuatNhomLsx.lsx_id == lsx_id))
@@ -65,14 +78,19 @@ class LsxNhatKyRepository:
         return self._ids(select(YeuCauMuaNguonLenh.department_request_id)
                          .where(YeuCauMuaNguonLenh.lsx_id == lsx_id))
 
-    def yeu_cau_kho(self, lsx_id: int, cong_viec_ids: list[int], gcn_ids: list[int]) -> list[StockRequest]:
-        """Đề nghị nhập/xuất kho của lệnh: qua công việc xưởng, lần gia công ngoài, hoặc dòng ghi lệnh."""
+    def yeu_cau_kho(self, lsx_id: int, cong_viec_ids: list[int], tgc: dict | None = None) -> list[StockRequest]:
+        """Đề nghị nhập/xuất kho của lệnh: qua công việc xưởng, chứng từ thuê gia công, hoặc dòng ghi lệnh."""
         dk = [StockRequest.id.in_(select(StockRequestLine.request_id).where(StockRequestLine.lsx_id == lsx_id))]
         if cong_viec_ids:
             dk += [StockRequest.san_xuat_cong_viec_id.in_(cong_viec_ids),
                    StockRequest.vat_tu_tra_cong_viec_id.in_(cong_viec_ids)]
-        if gcn_ids:
-            dk.append(StockRequest.gia_cong_ngoai_id.in_(gcn_ids))
+        tgc = tgc or {}
+        if tgc.get("phieu_giao"):
+            dk.append(StockRequest.tgc_phieu_giao_id.in_(tgc["phieu_giao"]))
+        if tgc.get("phieu_nhan"):
+            dk.append(StockRequest.tgc_phieu_nhan_id.in_(tgc["phieu_nhan"]))
+        if tgc.get("dong"):
+            dk.append(StockRequest.tgc_don_dong_id.in_(tgc["dong"]))
         return list(self.db.execute(select(StockRequest).where(or_(*dk))).scalars())
 
     def phieu_kho(self, request_ids: list[int]) -> list[StockVoucher]:

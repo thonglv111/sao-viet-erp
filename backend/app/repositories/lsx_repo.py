@@ -60,6 +60,7 @@ MOC_HANG_CHO = {
 
 _COT_BUOC_MRP = tuple(getattr(LsxCongDoan, c) for c in (
     "id", "lsx_id", "step_key", "ten", "thu_tu", "nhom", "don_vi_vao", "don_vi_ra", "cong_doan_id", "so_luong_ra",
+    "loai_buoc",
 ))
 
 
@@ -172,10 +173,10 @@ class LsxRepository:
             # Chip "Của tôi" (08/11/2026): lệnh mình phụ trách — vẫn trong phạm vi ở trên.
             conds.append(Lsx.nguoi_phu_trach_id == phu_trach_id)
         if gia_cong:
-            # Ô lọc "Gia công ngoài" (spec gia công ngoài §7) — chờ mang đi / đang ở ngoài / trọn gói.
-            from .gia_cong_ngoai_repo import lsx_ids_loc_gia_cong
+            # Ô lọc "Thuê gia công" (spec 2026-11-13) — chưa đặt / đã đặt / trọn gói.
+            from .thue_gia_cong_repo import lsx_ids_loc_thue_gia_cong
 
-            conds.append(Lsx.id.in_(lsx_ids_loc_gia_cong(gia_cong)))
+            conds.append(Lsx.id.in_(lsx_ids_loc_thue_gia_cong(gia_cong)))
         cot, la_ngay = MOC_LENH.get(moc, MOC_LENH["tao"])
         conds += dk_khoang_ngay(cot, tu_ngay, den_ngay, cot_ngay=la_ngay)
         return conds

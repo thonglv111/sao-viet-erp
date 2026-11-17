@@ -980,7 +980,7 @@ describe("Giao hàng · MỘT LƯỢT = MỘT DÒNG, bấm dòng mở ngăn (06/
       thoi_gian_ket_thuc: "2026-10-04T05:00:00Z", created_at: "2026-10-06T05:46:00Z",
       ngay_can_giao: "2026-10-30", dia_chi: "Số 18 Đại lộ Độc Lập, KCN VSIP 1, Phường Thuận An, TP Hồ Chí Minh",
       lines: [{ order_line_id: 11, qty_giao: 5000 }],
-      giao_thang: { gia_cong_ngoai_id: 3, nha_cung_cap_ten: "Cơ sở Gia công Cán màng Thành Công",
+      giao_thang: { tgc_phieu_nhan_id: 3, nha_cung_cap_ten: "Cơ sở Gia công Cán màng Thành Công",
                     nha_cung_cap_sdt: "0910726420", lsx_id: 2, lsx_ma: "LSX26-0002" },
     };
     stubApi({ trips: [gt] });
@@ -1433,7 +1433,7 @@ describe("Giao hàng · bảng hàng của ngăn đi kèm bảng giao (07/10/202
       employee_name: "Nguyễn Thị Minh Phương", tong_km: 0, yeu_cau_kho_ma: null,
       thoi_gian_ket_thuc: "2026-10-04T05:00:00Z", created_at: "2026-10-06T05:46:00Z",
       ngay_can_giao: "2026-10-30", dia_chi: "Số 18 Đại lộ Độc Lập", lines: [],
-      giao_thang: { gia_cong_ngoai_id: 3, nha_cung_cap_ten: "Cán màng Thành Công",
+      giao_thang: { tgc_phieu_nhan_id: 3, nha_cung_cap_ten: "Cán màng Thành Công",
                     nha_cung_cap_sdt: "0910726420", lsx_id: 2, lsx_ma: "LSX26-0002" },
       hang: [{ id: 1, order_line_id: 11, qty: 5000, mo_ta: "Hộp kem 50ml", don_vi_tinh: "cái", da_giao: 5000 }],
     };

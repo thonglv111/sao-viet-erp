@@ -137,7 +137,6 @@ def test_gop_bg2_chi_ke_thua_nhan_dien_danh_muc_don_vi_va_thu_tu(
     mau = sorted(lsx_svc.get(lsxs[0].id).cong_doans, key=lambda x: x.thu_tu)[0]
     mau.department_id = 123
     mau.may_id = 456
-    mau.nha_cung_cap = "NCC mẫu"
     mau.so_gio_ke_hoach = 4.5
     mau.ghi_chu = "Không được bê sang lượt chung"
     db.commit()
@@ -166,7 +165,6 @@ def test_gop_bg2_chi_ke_thua_nhan_dien_danh_muc_don_vi_va_thu_tu(
     assert chung.may_id == cd.may_lam_duoc[0].may_id
     assert chung.department_id == to_cho_may(db, cd, chung.may_id, uu_tien=None)
     assert (chung.department_id, chung.may_id) != (123, 456)
-    assert chung.nha_cung_cap is None
     # Số giờ kế hoạch là số của TỪNG lệnh — lượt chung khai lại từ 0, không bê của lệnh mẫu.
     assert float(chung.so_gio_ke_hoach) == 0
     assert chung.ghi_chu is None

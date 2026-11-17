@@ -83,7 +83,6 @@ export function emptySupplier(): SupplierInput {
     credit_days: null,
     debt_cutoff_day: null,
     status: "active",
-    nhan_gia_cong: false,
     note: "",
     items: [emptySupplierItem()],
   };
@@ -103,7 +102,6 @@ export function fromSupplier(row: SupplierRow): SupplierInput {
     credit_days: row.credit_days ?? null,
     debt_cutoff_day: row.debt_cutoff_day ?? null,
     status: row.status,
-    nhan_gia_cong: row.nhan_gia_cong ?? false,
     note: row.note ?? "",
     items: row.items.length
       ? row.items.map((item) => ({
@@ -174,7 +172,6 @@ export function cleanSupplier(input: SupplierInput): SupplierInput {
         : Math.max(0, Math.round(Number(input.credit_days) || 0)),
     debt_cutoff_day: input.debt_cutoff_day || null,
     status: input.status ?? "active",
-    nhan_gia_cong: Boolean(input.nhan_gia_cong),
     note: trimOptional(input.note),
     items: cleanSupplierItems(input.items),
   };

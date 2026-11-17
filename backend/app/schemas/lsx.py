@@ -174,6 +174,9 @@ class LsxBuocVatTuIn(BaseModel):
     gia_tri_chip: dict[str, float] | None = None
     # True = người gõ định mức ⇒ máy giữ `so_luong` gửi lên thay vì tính bằng công thức (vật tư khác).
     sua_tay: bool = False
+    # Nhà gia công tự lo (13/11/2026) — chỉ có nghĩa ở bước thuê ngoài. None = client không gửi ⇒ giữ
+    # cờ dòng cũ cùng món, dòng mới mặc định True.
+    ncc_tu_lo: bool | None = None
 
 
 class LsxBuocVatTuOut(BaseModel):
@@ -193,6 +196,7 @@ class LsxBuocVatTuOut(BaseModel):
     don_vi_goc: str = ""
     tu_dong: bool = False
     sua_tay: bool = False
+    ncc_tu_lo: bool = True
     gia_tri_chip: dict[str, float] = Field(default_factory=dict)
     chips: list[dict] = Field(default_factory=list)
 
@@ -252,9 +256,6 @@ class LsxCongDoanIn(BaseModel):
     # Hai ô gõ được ở tab Thời gian. `setup_phut` · `chay_phut` · `di_chuyen_phut` vẫn BỎ khỏi
     # input: chuẩn bị + tốc độ kế thừa SỐNG từ module Máy, người kế hoạch không sửa tại bước.
     phat_sinh_phut: float | None = Field(default=None, ge=0)
-    # Gia công ngoài (spec 2026-09-26): nhà gia công = NCC có tích "Nhận gia công". Chỉ gửi ID —
-    # tên (`nha_cung_cap`) do máy chủ ghi theo NCC đã chọn, client không gửi chữ.
-    nha_cung_cap_id: int | None = None
     ghi_chu: str | None = None
     phu_thuoc_step_keys: list[str] | None = None
     vat_tus: list[LsxBuocVatTuIn] | None = None
@@ -330,8 +331,6 @@ class LsxCongDoanOut(BaseModel):
     tong_phut: float = 0
     thoi_luong_dien_giai: dict = Field(default_factory=dict)
 
-    nha_cung_cap_id: int | None = None
-    nha_cung_cap: str | None = None
     ghi_chu: str | None = None
 
     # ⚠️ `khoan_rate_id` · `khoan_ten` · `khoan_chon_duoc` GỠ 18/09/2026 (mg `0320`): bước thôi chọn
@@ -377,17 +376,16 @@ class LsxListItem(BaseModel):
 
 
 class LsxListGiaCong(BaseModel):
-    """Lần ĐẠI DIỆN của lệnh trên dòng danh sách — xem `gia_cong_ngoai.tom_tat_theo_lenh`."""
+    """Việc thuê gia công ĐẠI DIỆN của lệnh trên dòng danh sách — xem `thue_gia_cong.tom_tat`."""
 
     kieu: str                     # mot_phan | tron_goi
-    trang_thai: str               # cho_mang_di | dang_o_ngoai | dang_gia_cong | da_xong
-    nha_cung_cap_ten: str
+    trang_thai: str               # chua_dat | da_dat | da_xong
+    nha_cung_cap_ten: str | None = None   # None khi chưa đặt
+    ma_don: str | None = None
     ten_viec: str
     bai_ghep_ma: str | None = None
-    so_lan: int = 1
-    so_lan_mo: int = 0
-    # Trọn gói xưởng cấp giấy chưa gửi đề nghị xuất giấy — bảng lệnh hiện chip "Chờ cấp giấy".
-    cho_cap_giay: bool = False
+    so_viec: int = 1
+    so_viec_mo: int = 0
 
 
 LsxListItem.model_rebuild()
@@ -551,7 +549,7 @@ class LsxOut(BaseModel):
     # `thieu` CHẶN nút "Sẵn sàng lập kế hoạch" (§12). Rổ cảnh báo MỀM §14 (`canh_bao`) đã gỡ
     # 25/08/2026 — server vẫn tính mỗi lần mở lệnh mà không màn nào đọc.
     thieu: list[str] = Field(default_factory=list)
-    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_bo_phan`, `thieu_nha_gia_cong`, `thieu_khuon`):
+    # Mã thiếu cấp BƯỚC → id các bước dính (`thieu_bo_phan`, `thieu_khuon`):
     # màn lệnh gọi đích danh bước nào chặn nút Sẵn sàng, khỏi phải mở từng bước ra dò.
     thieu_buoc: dict[str, list[int]] = Field(default_factory=dict)
     lead_time: LeadTimeOut | None = None

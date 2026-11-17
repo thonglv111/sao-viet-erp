@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from app.models.gia_cong_ngoai import KIEU_MOT_PHAN, GiaCongNgoai
 from app.models.lsx import Lsx
 from app.models.machine_unavailable import KIEU_CHAN, LY_DO_HONG_HOC, MachineUnavailablePeriod
 from app.models.may_thiet_bi import MayThietBi
 from app.models.purchase import Supplier
 from app.models.san_xuat import BUOC_THUE_NGOAI, CV_DANG_CHAY, CV_TAM_DUNG
 from app.models.san_xuat_san_luong import SanXuatBatch
+from app.models.thue_gia_cong import KIEU_MOT_PHAN, TgcDon, TgcDonDong, TgcPhieuGiao, TgcViec
 from app.services import may_trang_thai
 from app.services.lenh_sx import theo_doi
 from tests.lenh_sx_fixtures import (  # noqa: F401
@@ -166,21 +166,20 @@ def test_may_hong_thang_viec_dang_chay(sess, lenh_that):
 
 
 def test_gia_cong_ngoai_mot_dong_moi_nha_khong_lap_o_nhom_may(sess, lenh_that):
+    """Việc chưa đặt: gom chung một dòng "Chưa đặt nhà gia công", trạng thái Chờ giao."""
     cvs = _cvs(sess, lenh_that)
     may = _may(sess, "MAY-TM-GC", "Máy in (GC)")
     cvs[0].may_id = may.id
     cvs[1].loai_buoc = BUOC_THUE_NGOAI
-    cvs[1].nha_cung_cap = "Cán màng Minh Long"
     cvs[1].may_id = may.id
     cvs[2].loai_buoc = BUOC_THUE_NGOAI
-    cvs[2].nha_cung_cap = "Cán màng Minh Long"
     sess.commit()
     d = _theo_may(sess)
     gc = _nhom(d, theo_doi.NHOM_GIA_CONG)
     assert len(gc) == 1 and d["nhom"][-1]["loai"] == theo_doi.NHOM_GIA_CONG
-    assert [r["ten"] for r in gc[0]["dong"]] == ["Cán màng Minh Long"]
+    assert [r["ten"] for r in gc[0]["dong"]] == [theo_doi.NHAN_CHUA_CHON_NCC]
     r = gc[0]["dong"][0]
-    assert r["tinh_trang"] == theo_doi.TT_CHO_MANG_DI
+    assert r["tinh_trang"] == theo_doi.TT_CHO_GIAO
     assert r["dang_chay_them"] == 1
     assert r["san_luong"] is None
     tren_may = _dong_may(d, may.id)
@@ -188,20 +187,20 @@ def test_gia_cong_ngoai_mot_dong_moi_nha_khong_lap_o_nhom_may(sess, lenh_that):
     assert [v["cong_viec_id"] for v in viec if v] == [cvs[0].id]
 
 
-def test_gia_cong_da_mang_di_lay_ten_tu_lan_gia_cong(sess, lenh_that):
+def test_gia_cong_da_giao_lay_ten_tu_don(sess, lenh_that):
     cv = _cvs(sess, lenh_that)[2]
     ncc = Supplier(name="Xưởng bế Hoà Phát")
     sess.add(ncc)
     sess.flush()
-    lan = GiaCongNgoai(
-        lsx_id=lenh_that, kieu=KIEU_MOT_PHAN, nha_cung_cap_id=ncc.id,
-        nha_cung_cap_ten="Xưởng bế Hoà Phát", mang_di_luc=datetime.now(timezone.utc),
-    )
-    sess.add(lan)
+    viec = TgcViec(lsx_id=lenh_that, kieu=KIEU_MOT_PHAN, ten_viec="Bế")
+    don = TgcDon(ma="GC26-9401", nha_cung_cap_id=ncc.id, nha_cung_cap_ten="Xưởng bế Hoà Phát",
+                 ngay_dat=datetime.now(timezone.utc).date(), dat_luc=datetime.now(timezone.utc))
+    sess.add_all([viec, don])
     sess.flush()
+    sess.add(TgcDonDong(don_id=don.id, viec_id=viec.id, sl_dat=1000, don_gia=0))
+    sess.add(TgcPhieuGiao(ma="GG26-9401", don_id=don.id))
     cv.loai_buoc = BUOC_THUE_NGOAI
-    cv.nha_cung_cap = "Tên cũ chụp trên công việc"
-    cv.gia_cong_ngoai_id = lan.id
+    cv.tgc_viec_id = viec.id
     sess.commit()
     r = _nhom(_theo_may(sess), theo_doi.NHOM_GIA_CONG)[0]["dong"][0]
     assert r["ten"] == "Xưởng bế Hoà Phát"

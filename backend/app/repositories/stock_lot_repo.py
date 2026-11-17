@@ -313,10 +313,12 @@ class StockLotRepository:
         keys = [tuple(h) for h in hangs]
         return {k: v.get(None, 0.0) for k, v in self._tong_theo_khoa(keys, kho_id, False).items()}
 
-    def ton_giay_theo_kho(self, giay_id: int) -> list[tuple[int, int, str, float]]:
+    def ton_giay_theo_kho(self, giay_id: int, kho_ids: set[int] | None = None) -> list[tuple[int, int, str, float]]:
         """Tồn khả dụng của MỘT mã giấy, chia theo khổ: `[(rộng, dài, đơn vị gốc, số lượng)]` — tờ
         đủ hai cạnh đếm tờ (`to`), cuộn `(rộng, 0)` đếm kg. Một câu GROUP BY, đi đúng chỉ mục
-        `ix_stock_lots_giay_kho` — chọn khổ để cấp giấy cho nhà gia công."""
+        `ix_stock_lots_giay_kho` — chọn khổ để cấp giấy cho nhà gia công. `kho_ids` = chỉ cộng lô ở các
+        kho đó (kho người xem được); None = mọi kho."""
+        loc_kho = [StockLot.kho_id.in_(sorted(kho_ids))] if kho_ids is not None else []
         rows = self.db.execute(
             select(StockLot.kho_rong, StockLot.kho_dai, StockLot.don_vi_goc,
                    func.sum(StockLot.sl_con_lai))
@@ -324,7 +326,7 @@ class StockLotRepository:
                    StockLot.kho_rong > 0,
                    or_(and_(StockLot.don_vi_goc == "to", StockLot.kho_dai > 0),
                        and_(StockLot.don_vi_goc == "kg", StockLot.kho_dai == 0)),
-                   StockLot.sl_con_lai > 0, StockLot.trang_thai.in_(LOT_ISSUABLE))
+                   StockLot.sl_con_lai > 0, StockLot.trang_thai.in_(LOT_ISSUABLE), *loc_kho)
             .group_by(StockLot.kho_rong, StockLot.kho_dai, StockLot.don_vi_goc))
         return [(int(r), int(d), g, float(s or 0)) for r, d, g, s in rows]
 

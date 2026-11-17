@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -292,6 +292,81 @@ def ton_dong(
             continue
         ra.append(TonDongOut(hang_id=ln.hang_id, dvt=dvt,
                              ton=ton_theo_dvt(db, hang, body.kho_id, ln.hang_id, dvt)))
+    return ra
+
+
+class DongXuatExcelIn(BaseModel):
+    hang_id: int
+    dvt: str | None = Field(None, max_length=24)
+    qty: float | None = None
+    vat_pct: int | None = None
+
+
+class XuatExcelIn(BaseModel):
+    # Rỗng ⇒ file mẫu chỉ có tiêu đề.
+    lines: list[DongXuatExcelIn] = Field(default_factory=list, max_length=500)
+
+
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.post("/dong/xuat-excel")
+def xuat_excel_dong(
+    body: XuatExcelIn, db: Db,
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+) -> Response:
+    """Dòng hàng đang có trên trang Tạo / Sửa đơn ra Excel (16/11/2026). File không có cột đơn giá: giá
+    lấy giá bán khai trên trang, chưa khai thì gõ trên trang."""
+    from ..services.thuong_mai.excel_dong import xuat
+
+    ten = "mau-dong-don-thuong-mai" if not body.lines else "dong-don-thuong-mai"
+    return Response(content=xuat(db, [ln.model_dump() for ln in body.lines]), media_type=XLSX,
+                    headers={"Content-Disposition": f'attachment; filename="{ten}.xlsx"'})
+
+
+class HangNhapOut(BaseModel):
+    id: int
+    ma: str
+    ten: str
+    don_vi_gia: str
+    don_vi_them: list[str] | None = None
+    # Vắng khi người nhập không có ô Xem giá của Hàng thương mại — như danh mục.
+    gia_ban_theo_dvt: dict[str, float] | None = None
+    active: bool = True
+
+
+class DongNhapOut(BaseModel):
+    hang_id: int
+    dvt: str
+    qty: int
+    vat_pct: int
+    hang: HangNhapOut
+
+
+@router.post("/dong/nhap-excel", response_model=list[DongNhapOut])
+def nhap_excel_dong(
+    db: Db, authz: Authz,
+    user: Annotated[User, Depends(require_permission(MODULE, "create"))],
+    file: UploadFile = File(...),
+) -> list[DongNhapOut]:
+    """Đọc file dòng hàng, trả các dòng đã kiểm để trang điền vào bảng. Không ghi gì vào DB."""
+    from ..services.thuong_mai.excel_dong import doc
+
+    du_lieu = file.file.read(5 * 1024 * 1024 + 1)
+    if len(du_lieu) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File quá 5 MB.")
+    try:
+        dong = doc(db, du_lieu)
+    except DonThuongMaiError as e:
+        raise _loi(e) from None
+    xem_gia = authz.can(user, "hang_thuong_mai", "view_cost")
+    ra: list[DongNhapOut] = []
+    for d in dong:
+        h = d.pop("hang")
+        ra.append(DongNhapOut(**d, hang=HangNhapOut(
+            id=h.id, ma=h.ma or "", ten=h.ten or "", don_vi_gia=h.don_vi_gia or "",
+            don_vi_them=list(h.don_vi_them or []) or None,
+            gia_ban_theo_dvt=(h.gia_ban_theo_dvt or None) if xem_gia else None, active=bool(h.active))))
     return ra
 
 

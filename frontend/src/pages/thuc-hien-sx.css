@@ -2445,6 +2445,7 @@
 .thsx-b-dd-nut { margin-top: 6px; }
 .thsx-b-dando { margin: 0; font-size: 13px; white-space: pre-wrap; }
 .thsx-b-dando.is-trong { color: var(--b-mo3); }
+.thsx-b-ghiboi { margin: 4px 0 0; font-size: 12px; color: var(--ash-2); }
 
 .thsx-b-sec { margin-bottom: 24px; }
 .thsx-b-sec__h { margin: 0 0 8px; font-size: 14px; font-weight: 500; display: flex; gap: 10px; align-items: center; }

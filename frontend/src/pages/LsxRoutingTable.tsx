@@ -23,10 +23,10 @@ import { Select } from "../components/Select";
 import { Icon } from "../components/Icons";
 import { DagRoutingCanvas } from "../components/DagRoutingCanvas";
 import { PopoverO } from "../components/PopoverO";
-import {
-  ChonNhaGiaCong, LsxBuocDrawer, type TabKey as DrawerTabKey,
-} from "./LsxBuocDrawer";
-import { viTriTrongDai } from "./gia-cong/giaCong";
+import { useTat } from "../auth/permissions";
+import { LsxBuocDrawer, type TabKey as DrawerTabKey } from "./LsxBuocDrawer";
+import type { TgcTrangThaiViec } from "../api/thueGiaCong";
+import { viTriTrongDai } from "./thue-gia-cong/tgc";
 import { ChuoiCongDoan, num } from "./keHoachSxShared";
 import { nhanTram, tenDonVi, useNapTenDonVi } from "./tenDonVi";
 import {
@@ -136,7 +136,11 @@ export function LsxRoutingTable({
   dauChuoi,
   giayId = null,
   songId = null,
+  trangThaiNgoai,
 }: {
+  /** Trạng thái CHỈ ĐỌC của việc thuê gia công theo `step_key` (lệnh đã phát hành). Lệnh không
+   *  chọn nhà gia công — đặt, giao, nhận làm ở màn Thuê gia công. */
+  trangThaiNgoai?: Record<string, TgcTrangThaiViec>;
   /** Khối đặt ngay dưới thanh tiêu đề chuỗi (màn lệnh truyền khối Vật liệu đầu vào). */
   dauChuoi?: ReactNode;
   /** Giấy in và sóng của lệnh — để tô vạch nhánh Giấy / Sóng / Gộp. Không sóng ⇒ bảng bỏ cột Nhánh. */
@@ -199,6 +203,8 @@ export function LsxRoutingTable({
   /** Đã mở xong — cha xoá yêu cầu, nếu không bảng dựng lại (đổi tab rồi quay về) lại tự mở. */
   onDaMo?: () => void;
 }) {
+  // Bản cài tắt Thuê gia công: không cho chọn bước Thuê ngoài mới (bước đã thuê ngoài vẫn đổi về được).
+  const tatTgc = useTat()("thue_gia_cong");
   // Nhãn đơn vị đọc từ DANH MỤC — nạp một lần cho cả phiên. Hook ở ĐÂY (gốc của bảng + DAG +
   // drawer) nên mọi chỗ gọi `dvNhan` vẽ lại khi danh mục về, khỏi phải truyền prop qua 22 chỗ.
   useNapTenDonVi();
@@ -906,8 +912,11 @@ export function LsxRoutingTable({
                       const noiDung = ngoai ? (
                         <>
                           <span className="khsx-rt__chip khsx-rt__chip--ngoai">Gia công ngoài</span>
-                          <span className={`khsx-rt__ncc${r.nha_cung_cap ? "" : " khsx-muted"}`}>
-                            {r.nha_cung_cap || "chưa chọn nhà gia công"}
+                          <span
+                            className={`khsx-rt__ncc${trangThaiNgoai?.[r.key] ? "" : " khsx-muted"}`}
+                            title={trangThaiNgoai?.[r.key]?.ma_don ? `Đơn gia công ${trangThaiNgoai[r.key].ma_don}` : undefined}
+                          >
+                            {trangThaiNgoai?.[r.key]?.nhan ?? "đặt ở màn Thuê gia công"}
                           </span>
                         </>
                       ) : (
@@ -1087,6 +1096,7 @@ export function LsxRoutingTable({
         // nhà gia công theo loại đang chọn. Cột Loại riêng gỡ 12/11/2026.
         const doiLoai = (
           <>
+            {(!tatTgc || r.loai_buoc === "thue_ngoai") && (
             <div className="khsx-seg-std popo__seg" role="group" aria-label="Loại bước">
               {(["may", "thue_ngoai"] as const).map((k) => {
                 const dang = k === "thue_ngoai" ? r.loai_buoc === "thue_ngoai" : r.loai_buoc !== "thue_ngoai";
@@ -1109,14 +1119,16 @@ export function LsxRoutingTable({
                 );
               })}
             </div>
+            )}
           </>
         );
         if (r.loai_buoc === "thue_ngoai") {
           return (
             <PopoverO anchor={oMo.el} label="Bộ phận làm" width={320} onDong={dongO} onHuy={huyO}>
               {doiLoai}
-              <span className="popo__lb">Nhà gia công</span>
-              <ChonNhaGiaCong row={r} canUpdate={suaDuoc} onPatch={(p) => patch(r.key, p)} />
+              <span className="popo__hint">
+                Nhà gia công chọn lúc lập đơn ở màn Thuê gia công, sau khi lệnh phát hành.
+              </span>
             </PopoverO>
           );
         }
@@ -1176,6 +1188,7 @@ export function LsxRoutingTable({
           phuThuocRefs={phuThuocRefs}
           baiGhep={baiGhep}
           daiGiaCong={viTriTrongDai(rows, moBuoc)}
+          trangThaiNgoai={trangThaiNgoai?.[rows[moBuoc].key] ?? null}
           dvChuoi={dvChuoi}
           canUpdate={suaDuoc}
           onPatch={(p) => patch(rows[moBuoc].key, p)}

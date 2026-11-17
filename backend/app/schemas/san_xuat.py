@@ -198,7 +198,7 @@ class RoutingBuocOut(BaseModel):
 class DaiDuoiOut(BaseModel):
     """Ô ĐUÔI của dải ở ngăn chi tiết (11/10/2026) — làm xong bước cuối của lệnh thì hàng đi đâu.
 
-    `loai`: `cho_mang_di` · `o_ngoai` (bước cuối thuê ngoài, lần chưa chốt) · `ve_buoc` (sang bước
+    `loai`: `cho_mang_di` (bước cuối thuê ngoài — hàng chờ Phiếu nhận) · `ve_buoc` (sang bước
     của lệnh khác — lệnh đi kèm nhập vào lệnh chính) · `ve_kho` · `giao_khach`.
     `noi`: nhà gia công (`cho_mang_di`/`o_ngoai`) hoặc tên bước nhận (`ve_buoc`).
     `so` + `don_vi`: số của trạng thái đó — chờ mang đi / đã mang đi / đã giao sang / về kho /
@@ -805,6 +805,17 @@ class BanGiaoChangSauOut(BaseModel):
     trang_thai: str
 
 
+class GiaCongChoVeOut(BaseModel):
+    """Bước trước thuê gia công đang chờ hàng về (đơn đã đặt, dòng chưa hoàn tất)."""
+    don_id: int
+    don_dong_id: int
+    ma_don: str
+    nha_cung_cap_ten: str = ""
+    ngay_hen_ve: date | None = None
+    con_ngoai: float = 0
+    don_vi: str | None = None
+
+
 class CongDoanTruocOut(BaseModel):
     """Một công đoạn TRƯỚC theo routing (từng lần chạy) — khối "Công đoạn trước" của tab Nhận
     (19/09/2026). Kế hoạch / thực tế theo đơn vị RA của nó; đã giao theo đơn vị bàn giao."""
@@ -823,6 +834,7 @@ class CongDoanTruocOut(BaseModel):
     da_xac_nhan: float = 0
     cho_xac_nhan: float = 0
     don_vi_giao: str | None = None
+    gia_cong: GiaCongChoVeOut | None = None
 
 
 class TranGhiOut(BaseModel):
@@ -1022,6 +1034,12 @@ class BaoHongMayOut(BaseModel):
     thoi_diem: datetime | None = None
 
 
+class GhiChuKeHoachOut(BaseModel):
+    noi_dung: str
+    nguoi: str | None = None
+    luc: datetime | None = None
+
+
 class WorkItemChiTietOut(BaseModel):
     cong_viec: WorkItemOut
     trang_thai: str
@@ -1033,6 +1051,8 @@ class WorkItemChiTietOut(BaseModel):
     dai_duoi: DaiDuoiOut | None = None
     # Báo hỏng còn mở của máy đang làm việc này (11/10/2026) — rỗng khi việc không gắn máy.
     bao_hong_may: list[BaoHongMayOut] = []
+    # Ghi chú kế hoạch bộ phận ghi lúc Giao (12/11/2026): {noi_dung, nguoi, luc}; None = không có.
+    ghi_chu_ke_hoach: GhiChuKeHoachOut | None = None
     # Bốn quyền chi tiết của NGƯỜI ĐANG XEM trên chính việc này (mg 0302) — drawer bật/tắt nút.
     quyen: dict[str, bool] = {}
     # Mức của từng quyền đó ở tổ ("all" | "own") — để drawer phân biệt "không được cấp" với

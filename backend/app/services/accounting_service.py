@@ -1658,16 +1658,18 @@ class AccountingService:
                     raise AccountingValidationError(loi)
 
     def create_voucher(self, *, actor, purchase_request_id: int | None = None,
-                       salary_advance_id: int | None = None,
-                       gia_cong_ngoai_id: int | None = None, **values):
+                       salary_advance_id: int | None = None, tgc_phieu_nhan_ids: list[int] | None = None,
+                       ly_do_lech: str | None = None, **values):
         source_type = (values.get("source_type") or VOUCHER_SOURCE_PURCHASE).strip()
         advance = None
-        gia_cong = None
-        if source_type == VOUCHER_SOURCE_GIA_CONG or gia_cong_ngoai_id is not None:
-            purchase = None
-            gia_cong = self._gia_cong_cho_phieu_chi(gia_cong_ngoai_id)
-            prepared = self._prepare_standalone_voucher(values, gia_cong=gia_cong)
-        elif source_type == VOUCHER_SOURCE_SALARY_ADVANCE or salary_advance_id is not None:
+        if source_type == VOUCHER_SOURCE_GIA_CONG or tgc_phieu_nhan_ids:
+            # Thuê gia công (spec 2026-11-13 §4.6): một phiếu chi trả gộp các phiếu nhận cùng nhà gia
+            # công, tiền chia về từng phiếu nhận ở `tgc_phieu_chi_nhan`. Không vào công nợ 331.
+            from .thue_gia_cong.cho_tra_tien import tao_phieu_chi
+
+            return tao_phieu_chi(self, actor=actor, phieu_nhan_ids=tgc_phieu_nhan_ids,
+                                 ly_do_lech=ly_do_lech, values=values)
+        if source_type == VOUCHER_SOURCE_SALARY_ADVANCE or salary_advance_id is not None:
             purchase = None
             advance = self._advance_cho_phieu_chi(salary_advance_id)
             prepared = self._prepare_standalone_voucher(values, advance=advance)
@@ -4099,12 +4101,12 @@ class AccountingService:
             VOUCHER_SOURCE_CHI_CK: "Chi chiết khấu",
             VOUCHER_SOURCE_CHI_KE: "Chi kê",
             VOUCHER_SOURCE_CUOC_GIAO: "Cước giao hàng",
+            VOUCHER_SOURCE_GIA_CONG: "Thuê gia công",
         }
         # Phiếu tạm ứng: mã nguồn in trên chứng từ là MÃ PHIẾU TẠM ỨNG (TU26-0001), để lần ngược
         # từ sổ quỹ về đúng phiếu đã duyệt.
         return {
             "salary_advance_id": advance.id if advance is not None else None,
-            "gia_cong_ngoai_id": gia_cong.id if gia_cong is not None else None,
             "source_type": source_type,
             "voucher_type": voucher_type,
             "payment_stage": "other",
@@ -4132,7 +4134,6 @@ class AccountingService:
             "note": _text(values.get("note"), label="Ghi chú", max_length=2000),
             "source_code_snapshot": (advance.code or f"TU#{advance.id}") if advance is not None
                                     else f"Lô {len(lo_tam_ung)} phiếu tạm ứng" if lo_tam_ung
-                                    else self._ma_lenh_gia_cong(gia_cong) if gia_cong is not None
                                     else source_labels[source_type],
             "muc_thu_chi_id": values.get("muc_thu_chi_id"),
             "customer_id": values.get("customer_id"),
@@ -4144,14 +4145,6 @@ class AccountingService:
             "beneficiary_bank_name_snapshot": beneficiary_bank_name,
             "beneficiary_bank_branch_snapshot": beneficiary_bank_branch,
         }
-
-    def _ma_lenh_gia_cong(self, gcn) -> str:
-        from .gia_cong_ngoai.lan import nguon_lan
-
-        # Lần của bài ghép: mã bài ghép (mã lệnh thành viên nằm ở lý do chi — cột này chỉ 32 ký tự).
-        nguon = nguon_lan(self.repo.db, gcn)
-        ma = nguon["bai_ghep_ma"] or nguon["lsx_ma"] or f"#{gcn.id}"
-        return f"Gia công {ma}"[:32]  # cột String(32)
 
     def _next_voucher_doc_no(self) -> str:
         """Số IN trên mẫu 02-TT (PC00445) — chung bộ đếm cho tiền mặt lẫn UNC.
@@ -4463,26 +4456,6 @@ class AccountingService:
             )
         return a
 
-    def _gia_cong_cho_phieu_chi(self, gia_cong_ngoai_id: int | None):
-        """Lần gia công nguồn: phải ĐÃ CHỐT, chưa huỷ, chưa có phiếu chi còn hiệu lực. Khoá dòng để
-        hai kế toán bấm cùng lúc không đẻ hai phiếu (index partial unique là chốt chặn cuối)."""
-        from ..repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
-
-        if gia_cong_ngoai_id is None:
-            raise AccountingValidationError("Phiếu chi gia công ngoài phải chọn lần gia công nguồn.")
-        repo = GiaCongNgoaiRepository(self.repo.db)
-        gcn = repo.khoa(int(gia_cong_ngoai_id))
-        if gcn is None:
-            raise AccountingNotFound("Không tìm thấy lần gia công.")
-        if gcn.huy_luc is not None:
-            raise AccountingValidationError("Lần gia công đã huỷ.")
-        if gcn.chot_luc is None:
-            raise AccountingValidationError("Lần gia công chưa chốt số — chưa chi được.")
-        pc = repo.phieu_chi_song([gcn.id]).get(gcn.id)
-        if pc is not None:
-            raise AccountingConflict(f"Lần gia công này đã có phiếu chi {pc.code}.")
-        return gcn
-
     def _ten_nhan_vien(self, employee_id: int) -> str:
         if self._employees is None:
             raise AccountingValidationError("Chưa nối được phân hệ Nhân sự để lấy tên người nhận.")
@@ -4636,7 +4609,6 @@ class AccountingService:
             "credit_account": row.credit_account,
             "source_type": row.source_type or VOUCHER_SOURCE_PURCHASE,
             "salary_advance_id": row.salary_advance_id,
-            "gia_cong_ngoai_id": row.gia_cong_ngoai_id,
             "receipt_received_amount": receipt_received_amount,
             "receipt_pending_amount": receipt_pending_amount,
             "attachment_count": len(row.attachments),

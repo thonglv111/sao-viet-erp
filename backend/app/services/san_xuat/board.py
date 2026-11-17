@@ -51,6 +51,7 @@ from .thuc_thi import _aware
 from .tinh_trang_nguoi import hom_nay, tinh_trang_nhieu
 from .trang_thai_vat_tu import chan_bat_dau, ly_do_vat_tu, trang_thai_vat_tu
 from .vat_tu_de_nghi import _hang_service, _kh_service, can_luc_hien_thi, lan_con_mo
+from ..thue_gia_cong.tom_tat import nha_theo_cong_viec
 
 MODULE = "san_xuat"
 
@@ -331,8 +332,9 @@ def _item_dict(cv, lsx_map, bg_map, may_map, nhom_map, phien_map=None, so_map=No
         "loi": (so_map or {}).get(cv.id, {}).get("loi"),
         # Định mức vật tư đóng băng lúc phát hành (§4.2) — đã đúng hình `VatTuDinhMucOut`, không cần dựng lại.
         "dinh_muc_vat_tu": cv.vat_tu_json or [],
-        # Nhà gia công + khuôn — ảnh chụp lúc phát hành, thẻ việc tự đứng được không tra ngược lệnh.
-        "nha_cung_cap": cv.nha_cung_cap,
+        # Khuôn — ảnh chụp lúc phát hành. Việc của tổ không bao giờ là việc gia công (công việc gia
+        # công không có tổ), nên thẻ việc không có nhà gia công.
+        "nha_cung_cap": None,
         "khuon": cv.khuon_json or None,
         "khuon_da_nhan": cv.khuon_nhan_luc is not None,
         "khuon_da_tra": cv.khuon_tra_luc is not None,
@@ -1403,10 +1405,11 @@ def chi_tiet_cong_viec(
     # giao ghi đủ "công đoạn · tổ · ai · lúc nào" cho CẢ bên giao lẫn bên nhận.
     _ben_cvs = {cv.id: cv, **doi_tac_cvs}
     _ben_to = repo.to_ten_nhan({c.department_id for c in _ben_cvs.values() if c.department_id})
+    _ben_ncc = nha_theo_cong_viec(db, _ben_cvs.values())
     ben_map = {
         i: {
             "cong_doan": c.ten_cong_doan,
-            "to": (c.nha_cung_cap if c.loai_buoc == "thue_ngoai" and c.nha_cung_cap
+            "to": (_ben_ncc.get(i) if c.loai_buoc == "thue_ngoai" and _ben_ncc.get(i)
                    else _ben_to.get(c.department_id) if c.department_id else None),
         }
         for i, c in _ben_cvs.items()
@@ -1427,6 +1430,7 @@ def chi_tiet_cong_viec(
     # sau tách lần chạy/rẽ nhánh. Rỗng = bước cuối lệnh — không bàn giao, thành phẩm qua KCS.
     chang_sau = sl.cong_viec_chang_sau(cv)
     chang_sau_to_ten = repo.to_ten_nhan({c.department_id for c in chang_sau if c.department_id})
+    ncc_sau = nha_theo_cong_viec(db, chang_sau)
     # Mẻ nào đã đi theo lần giao nào — form bàn giao chỉ tick sẵn mẻ chưa giao.
     me_map = sl.me_cua_ban_giao_nhieu([b.id for b in bg_di] + [b.id for b in bg_den])
     me_da_giao = sl.batch_da_giao_ids(cv.id)
@@ -1452,6 +1456,13 @@ def chi_tiet_cong_viec(
         "routing": routing,
         "dai_duoi": dai_duoi,
         "bao_hong_may": bao_hong_dang_mo(db, cv.may_id),
+        # Ghi chú kế hoạch bộ phận ghi lúc Giao (mg 0473): chữ + người ghi (tên tra từ tài khoản) +
+        # lúc ghi (UTC thật → giờ xưởng như `nhan_luc`). Chưa ghi thì None, ngăn nói "Không có".
+        "ghi_chu_ke_hoach": ({
+            "noi_dung": cv.ghi_chu_ke_hoach,
+            "nguoi": SanXuatKcsRepository(db).ten_nguoi({cv.ghi_chu_ke_hoach_by_id}).get(cv.ghi_chu_ke_hoach_by_id),
+            "luc": thuc_te_hien_thi(cv.ghi_chu_ke_hoach_at),
+        } if cv.ghi_chu_ke_hoach else None),
         # Vòng sửa 1, mục 2: truyền đúng bộ số đã tính ở trên — nếu không, "cong_viec.con_thieu"
         # trả null trong khi "san_luong.con_thieu" ngay bên dưới có số, hai giá trị khác nhau cho
         # CÙNG một khái niệm trong CÙNG một response là nói dối.
@@ -1659,7 +1670,7 @@ def chi_tiet_cong_viec(
                 "phan_doan_so": c.phan_doan_so,
                 "phan_doan_tong": c.phan_doan_tong,
                 "loai_buoc": c.loai_buoc,
-                "nha_cung_cap": c.nha_cung_cap,
+                "nha_cung_cap": ncc_sau.get(c.id),
                 "trang_thai": c.trang_thai,
             }
             for c in chang_sau

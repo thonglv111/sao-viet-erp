@@ -58,6 +58,7 @@ const KeHoachSXPage = lazy(() => import("../pages/KeHoachSXPage").then((m) => ({
 const LenhSanXuatPage = lazy(() => import("../pages/LenhSanXuatPage").then((m) => ({ default: m.LenhSanXuatPage })));
 const TheoDoiSanXuatPage = lazy(() =>
   import("../pages/TheoDoiSanXuatPage").then((m) => ({ default: m.TheoDoiSanXuatPage })));
+const ThueGiaCongPage = lazy(() => import("../pages/thue-gia-cong/ThueGiaCongPage").then((m) => ({ default: m.ThueGiaCongPage })));
 const KeHoachVatTuPage = lazy(() => import("../pages/KeHoachVatTuPage").then((m) => ({ default: m.KeHoachVatTuPage })));
 const BaiGhep2Page = lazy(() => import("../pages/BaiGhep2Page").then((m) => ({ default: m.BaiGhep2Page })));
 const XepLichPage = lazy(() => import("../pages/XepLichPage").then((m) => ({ default: m.XepLichPage })));
@@ -161,6 +162,8 @@ export interface NavParams {
    *  Không có nó thì bấm chấm chỉ tới được MÀN, còn phải tự dò lệnh trong danh sách — vẫn là đổi
    *  màn, chỉ đỡ được nửa việc. */
   focusLsxMa?: string;
+  /** Liên thông: mở màn Thuê gia công, bung ngăn đơn gia công này (link từ trạng thái bước của lệnh). */
+  openTgcDonId?: number;
   /** Liên thông: mở màn Phiếu chi / UNC với ô tìm kiếm điền sẵn (mã PC/PMH...). */
   focusVoucherQuery?: string;
   /** Liên thông Đơn mua hàng → Phiếu chi: mở tab "Mua hàng chờ chi", bung sẵn đơn mã này. */
@@ -1038,17 +1041,16 @@ export function AppShell() {
     ) {
       napBadge("tat_ca", reloadBadges);
     } else if (
-      readable.has("phieu_chi") &&
-      (e.type === "gia_cong_cho_chi" || e.type === "gia_cong_cho_chi_changed")
+      (readable.has("phieu_chi") || readable.has("thue_gia_cong")) && e.type === "tgc_cho_tra_tien_changed"
     ) {
-      if (e.type === "gia_cong_cho_chi") {
-        pushToast(
-          `💸 Gia công ${e.ten_viec ?? ""} — ${e.nha_cung_cap_ten ?? ""}${e.lsx_ma ? ` (${e.lsx_ma})` : ""} đã chốt số, chờ lập phiếu chi`,
-          "info",
-          9000,
-        );
-      }
       napBadge("tat_ca", reloadBadges);
+    } else if (readable.has("thue_gia_cong") && e.type === "tgc_san_sang_giao") {
+      // Tổ bước trước vừa bàn giao sang việc thuê gia công — người phụ trách lập Phiếu giao.
+      pushToast(
+        `🚚 ${e.ten_viec ?? "Việc gia công"}${e.lsx_ma ? ` ${e.lsx_ma}` : ""} sẵn sàng giao cho nhà gia công`,
+        "info",
+        9000,
+      );
     } else if (readable.has("luong") && e.type === "advance_pending_changed") {
       napBadge("tat_ca", reloadBadges);
     } else if (readable.has("kho") && e.type === "stock_request") {
@@ -1486,6 +1488,15 @@ export function AppShell() {
         // Theo dõi THEO ĐƠN (12/10/2026), chỉ đọc. Ngăn một đơn do chính màn này mở; mã lệnh trong
         // ngăn điều hướng sang `lenh-san-xuat` (openHoSoLsxId) — màn không có deep-link riêng.
         return <TheoDoiSanXuatPage eventTick={tickCua("san_xuat")} navigate={navigate} />;
+      case "thue-gia-cong":
+        return (
+          <ThueGiaCongPage
+            navigate={navigate}
+            eventTick={tickCua("san_xuat", "kho", "mua_ke_toan")}
+            openDonId={navParams?.openTgcDonId ?? null}
+            openSeq={navParams?.navSeq ?? null}
+          />
+        );
       case "ke-hoach-vat-tu":
         return (
           <KeHoachVatTuPage

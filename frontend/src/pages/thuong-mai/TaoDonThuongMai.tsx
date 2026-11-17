@@ -1,7 +1,7 @@
 // Trang Tạo đơn thương mại — chỉ In Hà Phương (docs/design-hang-thuong-mai-ha-phuong.md §6, phương án C).
 // Khuôn trang Tạo đơn hàng của Sapo: trái là Mặt hàng + Xuất hàng, phải là Khách hàng + Thanh toán kiểu
 // quầy + Ghi chú. Một lần bấm: tạo, chốt, xuất hết hàng, lập phiếu thu theo đơn (`POST /api/thuong-mai/ban-nhanh`).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, type OrderDetail } from "../../api/client";
 import { duKienCua, thuongMaiApi, type DongThuongMaiInput, type KhoXuat } from "../../api/thuongMai";
 import { useAuth } from "../../auth/useAuth";
@@ -38,7 +38,19 @@ export function nhanNutChinh(traNgay: boolean, xuatNgay: boolean): string {
   return "Tạo và chốt đơn";
 }
 
-export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
+/** Tải một Blob về máy với tên cho trước. */
+function taiVe(blob: Blob, ten: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = ten;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }: {
   /** Có = "Sửa đơn" của đơn nháp: mở lại đúng trang này, sửa được mọi ô; nút chính chốt / xuất / thu trên
    *  chính đơn đó (14/11/2026). */
   order?: OrderDetail;
@@ -47,12 +59,17 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
   onSaved: (d: OrderDetail) => void;
   /** Đơn đã tạo nhưng bước sau hỏng — nạp lại danh sách để thấy đơn. */
   onDoDang: () => void;
+  /** Mở màn khác (Tạo yêu cầu mua điền sẵn phần thiếu). Vắng thì không có nút đó. */
+  navigate?: (id: string, params?: Record<string, unknown>) => void;
 }) {
   const { token } = useAuth();
   const can = useCan();
   const tat = useTat();
   const tenDvt = useTenDvt();
   const thuDuoc = can("phieu_thu", "create");
+  // Lập yêu cầu mua = đúng ô của màn Yêu cầu mua hàng, như ngăn mặt hàng và màn Tồn kho.
+  const coTheMua = !!navigate && can("yeu_cau_mua_hang", "read") && can("yeu_cau_mua_hang", "create");
+  const oFile = useRef<HTMLInputElement>(null);
   const coCachGiao = !tat("giao_hang_hp");
   // Sửa đơn nháp: mở lại đúng Xuất hàng + Thanh toán đã chọn lúc Lưu nháp (14/11/2026).
   const dk = order ? duKienCua(order) : null;
@@ -112,6 +129,13 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
     return () => { bo = true; window.clearTimeout(t); };
   }, [token, khoaTon, khoTon]);
   const ton = tonHoi.kho === khoTon ? tonHoi.so : {};
+  // Thiếu = số lượng vượt tồn (kho xuất đang chọn, hoặc cộng mọi kho khi Xuất sau).
+  const thieuCua = (d: Dong) => {
+    const t = d.hang && d.dvt ? ton[`${d.hang.id}|${d.dvt}`] : undefined;
+    const sl = Number(d.qty) || 0;
+    return t != null && t < sl ? sl - t : 0;
+  };
+  const dongThieu = dong.filter((d) => d.hang && thieuCua(d) > 0);
 
   // Sửa đơn: nạp lại mặt hàng của từng dòng từ danh mục (cần ĐVT + giá khai).
   useEffect(() => {
@@ -163,10 +187,11 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
     return lines;
   }
 
-  async function luuNhap() {
-    if (!token || luu) return;
+  /** Lưu nháp; trả đơn vừa lưu (null khi lỗi, lỗi đã hiện ở chân trang). */
+  async function ghiNhap(): Promise<OrderDetail | null> {
+    if (!token || luu) return null;
     const lines = dongGui();
-    if (!lines || !khach) return;
+    if (!lines || !khach) return null;
     setLuu(true);
     setErr(null);
     try {
@@ -179,11 +204,71 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
           tra_ngay: traNgay, cach_nhan: traNgay ? cachNhan : null,
           company_bank_account_id: traNgay && cachNhan === "bank_transfer" ? tkId : null,
         } };
-      onSaved(order ? await thuongMaiApi.suaDon(token, order.id, body) : await thuongMaiApi.taoDon(token, body));
+      return order ? await thuongMaiApi.suaDon(token, order.id, body) : await thuongMaiApi.taoDon(token, body);
     } catch (e) {
       setErr(loi(e, "Không lưu được đơn."));
+      return null;
     } finally {
       setLuu(false);
+    }
+  }
+
+  async function luuNhap() {
+    const d = await ghiNhap();
+    if (d) onSaved(d);
+  }
+
+  // Thiếu tồn (16/11/2026): lưu nháp để đơn có mã, rồi mở form Tạo yêu cầu mua điền sẵn đúng phần thiếu
+  // của từng dòng, gắn mã đơn ở ô Chứng từ liên quan. Ngày cần hàng để người lập gõ.
+  async function muaPhanThieu() {
+    if (!navigate || dongThieu.length === 0) return;
+    const thieu = dongThieu.map((d) => ({ d, sl: thieuCua(d) }));
+    const o = await ghiNhap();
+    if (!o) return;
+    navigate("yeu-cau-mua-hang", {
+      purchaseSeedLines: thieu.map(({ d, sl }) => ({
+        hang_loai: "vat_tu", hang_id: d.hang!.id, item_name: d.hang!.ten, unit: d.dvt, quantity: sl, note: null,
+      })),
+      purchaseSeedPurpose: `Mua hàng cho đơn ${o.order_no}`,
+      purchaseSeedHeader: {
+        source_type: "kinh_doanh", loai_mua: "theo_yeu_cau", needed_date: null,
+        related_document_type: "don_hang_ban", related_document_code: o.order_no,
+      },
+    });
+  }
+
+  // Excel dòng hàng (16/11/2026), không có cột đơn giá (giá lấy giá khai, chưa khai thì gõ trên trang): Tải mẫu = file
+  // kẻ sẵn dòng kèm trang Danh mục hàng; Xuất = các dòng đang có trên trang;
+  // Nhập = máy chủ đọc và kiểm file rồi trả dòng, trang thêm các dòng đó vào bảng (chưa lưu gì).
+  const [dangExcel, setDangExcel] = useState(false);
+  async function xuatExcel(mau: boolean) {
+    if (!token || dangExcel) return;
+    setDangExcel(true);
+    setErr(null);
+    try {
+      const lines = mau ? [] : dong.filter((d) => d.hang).map((d) => ({
+        hang_id: d.hang!.id, dvt: d.dvt, qty: Number(d.qty) || 0, vat_pct: Number(d.vat) || 0 }));
+      taiVe(await thuongMaiApi.xuatExcelDong(token, lines),
+        mau ? "mau-dong-don-thuong-mai.xlsx" : `${order?.order_no ?? "don-thuong-mai"}.xlsx`);
+    } catch (e) {
+      setErr(loi(e, "Không tải được file."));
+    } finally {
+      setDangExcel(false);
+    }
+  }
+  async function nhapExcel(f: File) {
+    if (!token || dangExcel) return;
+    setDangExcel(true);
+    setErr(null);
+    try {
+      const ds = await thuongMaiApi.nhapExcelDong(token, f);
+      setDong((cu) => [...cu.filter((d) => d.hang), ...ds.map((x) => ({
+        ...dongMoi(), hang: x.hang, dvt: x.dvt, qty: String(x.qty), vat: String(x.vat_pct) }))]);
+    } catch (e) {
+      setErr(loi(e, "Không nhập được file."));
+    } finally {
+      setDangExcel(false);
+      if (oFile.current) oFile.current.value = "";
     }
   }
 
@@ -239,7 +324,25 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
       <div className="tdtm__than">
         <div className="tdtm__cot">
           <section className="tdtm__the" aria-label="Mặt hàng">
-            <h2 className="tdtm__tieu">Mặt hàng</h2>
+            <div className="tdtm__tieu-hang">
+              <h2 className="tdtm__tieu">Mặt hàng</h2>
+              <div className="tdtm__excel">
+                <button type="button" className="btn btn--ghost" disabled={dangExcel} onClick={() => void xuatExcel(true)}
+                  title="File Excel kẻ sẵn cột Mã hàng, Tên hàng, Đơn vị, Số lượng, VAT % và trang Danh mục hàng để chọn mã">
+                  Tải mẫu
+                </button>
+                <button type="button" className="btn btn--ghost" disabled={dangExcel} onClick={() => oFile.current?.click()}
+                  title="Mỗi dòng một mặt hàng. Đơn vị bỏ trống là đơn vị chính. Đơn giá lấy giá bán đã khai. Dòng nhập thêm vào sau các dòng đang có.">
+                  Nhập Excel
+                </button>
+                <button type="button" className="btn btn--ghost" disabled={dangExcel || !dong.some((d) => d.hang)}
+                  onClick={() => void xuatExcel(false)}>
+                  Xuất Excel
+                </button>
+                <input ref={oFile} type="file" hidden accept=".xlsx" aria-label="Chọn file Excel dòng hàng"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void nhapExcel(f); }} />
+              </div>
+            </div>
             <div className="tdtm__cuon">
               <table className="dtm__bang tdtm__luoi">
                 <thead>
@@ -273,7 +376,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
                     const g = giaDong(d);
                     const sl = Number(d.qty) || 0;
                     const t = d.dvt ? ton[`${d.hang.id}|${d.dvt}`] : undefined;
-                    const thieu = xuatNgay && t != null && t < sl ? sl - t : 0;
+                    const thieu = thieuCua(d);
                     return (
                       <tr key={d.khoa}>
                         <td className="dtm__c-hang" data-khong-goi-y="">
@@ -312,6 +415,19 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang }: {
                 </tbody>
               </table>
             </div>
+            {dongThieu.length > 0 && (
+              <div className="tdtm__thieu" role="status">
+                <span>
+                  {dongThieu.length} mặt hàng thiếu tồn {xuatNgay && kho ? `ở kho ${kho.ten}` : "ở mọi kho"}
+                </span>
+                {coTheMua && (
+                  <button type="button" className="btn btn--secondary" disabled={luu} onClick={() => void muaPhanThieu()}
+                    title="Lưu nháp đơn rồi mở form Tạo yêu cầu mua đã điền sẵn phần thiếu của từng mặt hàng">
+                    Lưu nháp và tạo yêu cầu mua
+                  </button>
+                )}
+              </div>
+            )}
             <div className="tdtm__tong"><span>Tổng gồm VAT</span><span>{soVN(tong)}</span></div>
           </section>
 

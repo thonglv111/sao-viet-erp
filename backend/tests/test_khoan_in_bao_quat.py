@@ -41,7 +41,7 @@ M2, M4, M5, M6, M7 = 11, 12, 13, 14, 15
 CT = ("(gia_co_dinh + max(0, sl_ghi * (1 + tu_tro) - 3000) * don_gia_khoan)"
       " * if(metaline > 0, 3, if(muc_uv > 0, if(gia_gom_uv > 0, 1, 2), 1))")
 TC = [{"ma": "muc_uv", "ten": "Mực UV", "kieu": "co_khong", "goi_y": None},
-      {"ma": "metaline", "ten": "Mực UV cán metaline (tính gấp 3)", "kieu": "co_khong", "goi_y": None}]
+      {"ma": "metaline", "ten": "Mực UV cán metaline", "kieu": "co_khong", "goi_y": None}]
 
 
 def _b(ma, ten, tu, den, pha=None, tick=None):

@@ -261,8 +261,8 @@ def tao_batch(
     cv = repo.cong_viec(cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc.")
-    if cv.gia_cong_ngoai_id is not None:
-        from ..gia_cong_ngoai import CHAN_XUONG
+    if cv.tgc_viec_id is not None:
+        from ..thue_gia_cong import CHAN_XUONG
 
         raise ValueError(CHAN_XUONG)
     _gate(db, user, cv)
@@ -468,8 +468,8 @@ def sua_so_me(
     cv = repo.cong_viec(batch.cong_viec_id)
     if cv is None:
         raise ValueError("Không tìm thấy công việc của lần ghi sản lượng.")
-    if cv.gia_cong_ngoai_id is not None:
-        from ..gia_cong_ngoai import CHAN_XUONG
+    if cv.tgc_viec_id is not None:
+        from ..thue_gia_cong import CHAN_XUONG
 
         raise ValueError(CHAN_XUONG)
     _gate(db, user, cv, VIEC_XAC_NHAN)
@@ -532,9 +532,9 @@ def sua_so_me(
         sl_bg_cu = float(bg.so_luong)
         bg.so_luong = round(max(0.0, sl_bg_cu + moi - cu), 3)
         bg.version += 1
-        # Đã xác nhận ⇒ bên nhận xác nhận lại số mới; trừ cùng tổ và bước gia công ngoài (không tổ nào nhận).
+        # Đã xác nhận ⇒ bên nhận xác nhận lại số mới; trừ cùng tổ và bước thuê gia công (không tổ nào nhận).
         cho_nhan_lai = (bg.trang_thai == BG_XAC_NHAN and not bg.cung_to and dich_cv is not None
-                        and dich_cv.gia_cong_ngoai_id is None)
+                        and dich_cv.tgc_viec_id is None)
         if cho_nhan_lai:
             bg.xac_nhan_by_id = None
             bg.xac_nhan_luc = None
@@ -576,7 +576,7 @@ def sua_so_me(
         nguon_cv = cv
         # Bên nhận cần biết khi phải xác nhận lại, hoặc khi đề xuất đang chờ họ vừa đổi số.
         bao = cho_nhan_lai or (bg.trang_thai != BG_XAC_NHAN and dich_cv is not None
-                               and dich_cv.gia_cong_ngoai_id is None)
+                               and dich_cv.tgc_viec_id is None)
         ra["ban_giao"] = _ket_qua(
             bg, nguon_cv, dich_cv,
             su_kien="sua_me" if cho_nhan_lai else "sua",

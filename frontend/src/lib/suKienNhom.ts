@@ -107,7 +107,9 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   san_xuat_kho_changed: ["san_xuat", "kho"],
   san_xuat_kho: ["san_xuat", "kho"],
   san_xuat_lenh_dong: ["san_xuat", "ban_hang", "giao_hang"],
-  gia_cong_ngoai_changed: ["san_xuat"],
+  // Thuê gia công: hàng chờ / đơn / phiếu + trạng thái bước trên lệnh; phiếu nhận về kho đụng Kho.
+  tgc_changed: ["san_xuat", "kho"],
+  tgc_san_sang_giao: ["san_xuat"],
 
   // Mua hàng · kế toán.
   purchase_changed: ["mua_ke_toan", "khvt"],
@@ -124,8 +126,7 @@ const BANG_NHOM: Record<QuoteEvent["type"], readonly NhomSuKien[]> &
   purchase_invoice_updated: ["mua_ke_toan"],
   payment_voucher_created: ["mua_ke_toan"],
   payment_voucher_cancelled: ["mua_ke_toan"],
-  gia_cong_cho_chi: ["mua_ke_toan"],
-  gia_cong_cho_chi_changed: ["mua_ke_toan"],
+  tgc_cho_tra_tien_changed: ["mua_ke_toan"],
 
   // Kho.
   stock_request: ["kho"],

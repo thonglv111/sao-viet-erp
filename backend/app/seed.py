@@ -91,6 +91,9 @@ MODULES: list[tuple[str, str]] = [
     # Thứ tự bám đúng menu để người cấp quyền dò theo màn hình.
     # Nhãn "Lệnh sản xuất" từ 07/11/2026 (mg `0455`) — khoá giữ nguyên `san_xuat`.
     ("san_xuat", "Lệnh sản xuất"),
+    # Thuê gia công (13/11/2026, mg `0482`): đặt / giao / nhận / trả tiền gia công ngoài — lệnh chỉ
+    # còn cờ Thuê ngoài. Ô Nhận hàng dùng lại cột `can_handover`. Phạm vi luôn Tất cả.
+    ("thue_gia_cong", "Thuê gia công"),
     ("ke_hoach_vat_tu", "Kế hoạch vật tư"),
     # Khoá `bai_ghep` (màn cũ) gỡ 18/08/2026 — mg `0216` chép quyền sang `bai_ghep_2` rồi xoá.
     # Khoá giữ hậu tố "_2" để khỏi phải đổi khoá trong DB; NHÃN là "Bài ghép", đây là màn duy nhất.
@@ -535,6 +538,8 @@ ROLES: list[tuple[str, str, dict[str, dict]]] = [
             "theo_doi_san_xuat": _read(SCOPE_ALL),
             "ke_hoach_vat_tu": _rcu(SCOPE_ALL),
             "bai_ghep_2": _rcu(SCOPE_ALL),
+            # Thuê gia công (Q7 13/11/2026): Kế hoạch SX đặt, giao, nhận, huỷ — đủ năm ô.
+            "thue_gia_cong": {**_rcu(SCOPE_ALL), "can_cancel": True, "can_handover": True},
             # can_approve = phát hành lịch. `can_approve_exception` (duyệt ngoại lệ — bỏ qua cảnh
             # báo lúc phát hành) là di sản của bàn theo công đoạn đã xoá 18/09/2026: bàn cấp lệnh
             # KHÔNG chặn gì nên không ai hỏi tới bit này nữa. Giữ cấp cho trưởng điều độ để hàng

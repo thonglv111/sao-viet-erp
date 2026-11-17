@@ -2,8 +2,8 @@
 // Giữ ở đây: state + `load()`/`loadAll()` + handlers (`taiFile` · `nhapExcel` · `openCreate` ·
 // `openEdit` · `closeDrawer` · `setSupplierItem` · `ghiQuyDoiDong` · `save` · `toggle`) + KHUNG
 // ngăn `NganPhai` kiểu 3 (tên · 3 tab · <form> · cột thuộc tính · chân) và chỗ mount ba tab.
-// Lọc (06/10/2026): thanh lọc chung `ThanhLoc` — kỳ theo Ngày tạo + Trạng thái / Nhóm NCC / Số sao /
-// Nhận gia công, lọc ở máy chủ, ghi lên URL `?man=nha-cung-cap`. Dải pill nhóm cũ đã gỡ.
+// Lọc (06/10/2026): thanh lọc chung `ThanhLoc` — kỳ theo Ngày tạo + Trạng thái / Nhóm NCC / Số sao,
+// lọc ở máy chủ, ghi lên URL `?man=nha-cung-cap`. Dải pill nhóm cũ đã gỡ.
 import {
   useCallback,
   useEffect,

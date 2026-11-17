@@ -35,7 +35,7 @@ def _lsx_chinh(repo: SanXuatKcsRepository, cv, lsx_id: int | None) -> int | None
 
 def _viec_thue_ngoai(bc, ids) -> list:
     """Công việc thuê ngoài của các lệnh trong bối cảnh — chuỗi KCS bỏ qua chúng."""
-    return [c for l in ids if l in bc.lenh for c in bc.cong_viec_du(l) if c.gia_cong_ngoai_id is not None]
+    return [c for l in ids if l in bc.lenh for c in bc.cong_viec_du(l) if c.tgc_viec_id is not None]
 
 
 def chuoi_gop(db: Session, cv, lsx_id: int | None = None) -> list:

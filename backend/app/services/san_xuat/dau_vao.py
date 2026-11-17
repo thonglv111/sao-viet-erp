@@ -409,6 +409,7 @@ def cong_doan_truoc(db: Session, repo: SanXuatSanLuongRepository, cv) -> list[di
     tot = repo.tong_tot_nhieu({c.id for c in cac})
     bgs = repo.ban_giao_toi_dich(cv.id)
     to_ten = SanXuatRepository(db).to_ten_nhan({c.department_id for c in cac if c.department_id})
+    gia_cong = _gia_cong_cho_ve(db, cac)
     ra = []
     for c in cac:
         cua_no = [b for b in bgs if b.nguon_cong_viec_id == c.id]
@@ -430,5 +431,25 @@ def cong_doan_truoc(db: Session, repo: SanXuatSanLuongRepository, cv) -> list[di
             "cho_xac_nhan": sum(float(b.so_luong or 0) for b in cua_no if b.trang_thai == BG_DE_XUAT),
             # Bàn giao ghi đơn vị riêng (nhánh toả bài ghép giao theo đơn vị của bên nhận).
             "don_vi_giao": next((b.don_vi for b in cua_no if b.don_vi), None) or c.don_vi_ra,
+            "gia_cong": gia_cong.get(c.tgc_viec_id) if c.tgc_viec_id else None,
         })
     return ra
+
+
+def _gia_cong_cho_ve(db: Session, cac) -> dict[int, dict]:
+    """Bước trước thuê gia công: đơn đã đặt, dòng chưa hoàn tất ⇒ tổ bước sau thấy "hàng … hẹn về"
+    và mở được hộp Nhận hàng gia công đúng dòng (spec Thuê gia công 2026-11-13 §5.1 bước 5)."""
+    from ...repositories.thue_gia_cong_repo import ThueGiaCongRepository
+    from ..thue_gia_cong import so_lieu
+
+    vids = {c.tgc_viec_id for c in cac if c.tgc_viec_id}
+    if not vids:
+        return {}
+    song = {vid: (dd, d) for vid, (dd, d) in ThueGiaCongRepository(db).dong_song_cua_nhieu_viec(vids).items()
+            if d.dat_luc is not None and d.huy_luc is None and dd.hoan_tat_luc is None}
+    sl = so_lieu.cua_dong(db, [dd for dd, _d in song.values()])
+    return {vid: {
+        "don_id": d.id, "don_dong_id": dd.id, "ma_don": d.ma, "nha_cung_cap_ten": d.nha_cung_cap_ten,
+        "ngay_hen_ve": d.ngay_hen_ve, "con_ngoai": float(sl.get(dd.id, {}).get("con_ngoai") or 0),
+        "don_vi": sl.get(dd.id, {}).get("don_vi_nhan"),
+    } for vid, (dd, d) in song.items()}

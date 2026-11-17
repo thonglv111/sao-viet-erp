@@ -76,11 +76,11 @@ from .routers import (
     san_xuat_kcs_tieu_chi,
     cong_doan_tag,
     lenh_san_xuat,
+    thue_gia_cong,
     theo_doi_san_xuat,
     tai_san,
     muc_thu_chi,
     bao_cao_thu_chi,
-    gia_cong_ngoai,
 )
 
 # File người dùng tải lên KHÔNG còn mount công khai ở /static — chúng đi qua kho file
@@ -248,8 +248,8 @@ app.include_router(ky_thuat_may.router)      # sửa chữa + phiếu bảo trì
 app.include_router(san_xuat.router)          # bàn Thực hiện sản xuất tại tổ (cùng module quyền `san_xuat`)
 app.include_router(cong_doan_tag.router)     # nhãn gán cho bước công đoạn — dùng chung LSX + Bài ghép (module quyền `san_xuat`)
 app.include_router(lenh_san_xuat.router)    # màn Lệnh sản xuất (danh sách + KPI) — module quyền `lenh_san_xuat`, phạm vi theo NGƯỜI BÁN
+app.include_router(thue_gia_cong.router)    # Thuê gia công (spec 2026-11-13) — module `thue_gia_cong`
 app.include_router(theo_doi_san_xuat.router)  # màn Theo dõi sản xuất (Kanban) — module quyền `theo_doi_san_xuat`, cột lấy động từ danh mục cong_doan (Ruling C113)
-app.include_router(gia_cong_ngoai.router)    # Gia công ngoài — cùng module quyền `san_xuat`
 app.include_router(tai_san.router)            # sổ tài sản cố định + CCDC (module quyền `tai_san`; không còn kỳ chốt từ 08/09/2026)
 app.include_router(muc_thu_chi.router)        # danh mục Mục thu chi (module quyền `dm_muc_thu_chi`)
 app.include_router(bao_cao_thu_chi.router)    # Báo cáo thu chi theo mục × tháng (module quyền `bao_cao_thu_chi`)

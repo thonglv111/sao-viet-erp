@@ -29,12 +29,12 @@ from ...repositories.bai_ghep_repo import BaiGhepRepository
 from ...repositories.delivery_repo import DeliveryRepository
 from ...repositories.don_vi_do_repo import DonViDoRepository, nhan_don_vi
 from ...repositories.employee_repo import EmployeeRepository
-from ...repositories.gia_cong_ngoai_repo import GiaCongNgoaiRepository
 from ...repositories.loc_danh_sach import dk_khoang_ngay
 from ...repositories.order_repo import OrderRepository
 from ...repositories.xep_lich_lenh_repo import XepLichLenhRepository
 from .. import don_hang_san_xuat as dhsx
 from ..delivery_service import DeliveryService
+from ..thue_gia_cong.tom_tat import tron_goi_theo_lenh
 
 from ..thanh_pham_khai_bao import cum_ban
 from . import danh_sach, pham_vi, tien_do, trang_thai
@@ -129,12 +129,8 @@ def _tinh(db: Session, orders: list[Order], bay_gio: datetime) -> tuple[dict[int
     chay = [i for i in lsx_ids if lenh[i].trang_thai in TT_DA_XUONG_XUONG]
     bc, tinh = danh_sach._soi(db, chay, bay_gio) if chay else (None, {})
     tom = dhsx.tom_tat_nhieu_don(db, orders, nguon_san=nguon, lenh_san=lenh, bc_san=bc)
-    ncc: dict[int, str | None] = {}
-    tron_goi: set[int] = set()
-    for lsx_id, g, _bg in GiaCongNgoaiRepository(db).cua_nhieu_lenh(lsx_ids):
-        if g.kieu == "tron_goi":
-            tron_goi.add(lsx_id)
-            ncc[lsx_id] = g.nha_cung_cap_ten
+    ncc = tron_goi_theo_lenh(db, lsx_ids)
+    tron_goi = set(ncc)
 
     def lenh_mot(x: dict) -> dict:
         i = x["id"]

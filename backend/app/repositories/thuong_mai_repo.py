@@ -117,3 +117,36 @@ class ThuongMaiRepository:
         return {"kho_ten": kho.ten if kho else None, "nguoi_giao_ten": ng.name if ng else None,
                 "xe_ten": f"{xe.ma} {xe.ten}" if xe else None, "don_vi_vc_ten": dv.ten if dv else None,
                 "tai_khoan_ten": f"{tk.account_number} {tk.bank_name}" if tk else None}
+
+    # ---- Nhập / xuất Excel dòng đơn thương mại (16/11/2026) ----
+    def hang_thuong_mai_theo_ma(self, mas: list[str]) -> dict:
+        """Mặt hàng thương mại theo mã (so không phân biệt hoa thường), khoá = mã viết thường."""
+        from ..models.vat_lieu_kho import VatTuInAn
+
+        ds = [m.strip().lower() for m in mas if m and m.strip()]
+        if not ds:
+            return {}
+        rows = (self.db.query(VatTuInAn)
+                .filter(VatTuInAn.la_hang_thuong_mai.is_(True), func.lower(VatTuInAn.ma).in_(ds)).all())
+        return {(h.ma or "").strip().lower(): h for h in rows}
+
+    def hang_theo_id(self, ids: list[int]) -> dict:
+        from ..models.vat_lieu_kho import VatTuInAn
+
+        if not ids:
+            return {}
+        return {h.id: h for h in self.db.query(VatTuInAn).filter(VatTuInAn.id.in_(ids)).all()}
+
+    def don_vi_ma_ten(self) -> list[tuple[str, str]]:
+        """(mã, tên) của mọi đơn vị trong danh mục Đơn vị."""
+        from ..models.don_vi_do import DonViDo
+
+        return [(m or "", t or "") for m, t in self.db.query(DonViDo.ma, DonViDo.ten).all()]
+
+    def hang_thuong_mai_dang_ban(self) -> list:
+        """Mọi mặt hàng thương mại còn bán, theo mã (trang Danh mục hàng của file mẫu Excel)."""
+        from ..models.vat_lieu_kho import VatTuInAn
+
+        return (self.db.query(VatTuInAn)
+                .filter(VatTuInAn.la_hang_thuong_mai.is_(True), VatTuInAn.active.is_(True))
+                .order_by(VatTuInAn.ma).all())

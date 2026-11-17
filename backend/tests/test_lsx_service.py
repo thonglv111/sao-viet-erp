@@ -13,7 +13,6 @@ from types import SimpleNamespace
 import pytest
 
 from tests.conftest import phien_da_seed
-from tests.gia_cong_fixtures import ncc
 
 from app.db import engine
 from app.db_migrations import run_migrations
@@ -773,7 +772,7 @@ def test_sua_routing_khong_dung_phieu_tinh_gia_va_khong_anh_huong_lenh_khac(
         LsxCongDoanIn(ten="Bế", nhom="finishing", so_luong_vao=5200, so_luong_ra=5200,
                       don_vi_vao="to"),
         LsxCongDoanIn(ten="Dán hộp", nhom="finishing", so_luong_vao=20500, so_luong_ra=20000,
-                      don_vi_vao="cai", loai_buoc="thue_ngoai", nha_cung_cap="Cơ sở Tân Bình"),
+                      don_vi_vao="cai", loai_buoc="thue_ngoai"),
     ])
     hop2 = lsx_svc.get(hop.id)
     assert [cd.ten for cd in hop2.cong_doans] == ["In offset", "Cán màng", "Bế", "Dán hộp"]
@@ -2485,13 +2484,13 @@ def test_doi_giay_tai_lenh_keo_theo_dinh_luong_va_ten(db, orders, lsx_svc, admin
 def test_thue_ngoai_doi_nha_gia_cong_tu_danh_muc(db, orders, lsx_svc, admin, customer):
     """Bước THUÊ NGOÀI không đi đường máy nữa (spec gia công ngoài 2026-09-26 §7).
 
-    Nhà gia công chọn từ danh mục Nhà cung cấp (cờ `nhan_gia_cong`) — không tổ, không máy. Cổng
-    phát hành đòi `nha_cung_cap_id`, KHÔNG còn đòi tổ/máy như bước máy.
+    Nhà gia công chọn ở đơn thuê gia công (danh sách riêng, mg 0484) — không tổ, không máy. Cổng
+    phát hành KHÔNG đòi tổ/máy như bước máy. Từ 13/11/2026 cũng không đòi nhà gia công (chọn ở
+    đơn thuê gia công, mg 0483 gỡ cột ở bước).
 
     (Trước 26/09/2026 bước này "ăn chung đường" bước máy — nhà thầu khai như một MÁY giả trong
     danh mục Máy; hành vi đó đã đổi hẳn, xem `docs/superpowers/specs/2026-09-26-gia-cong-ngoai-design.md`.)
     """
-    s = ncc(db)
     ptg = _ptg_2_san_pham(db)
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
@@ -2507,21 +2506,17 @@ def test_thue_ngoai_doi_nha_gia_cong_tu_danh_muc(db, orders, lsx_svc, admin, cus
         ])
         return lsx_svc.thieu_cua(lsx_svc.get(hop.id))
 
-    # Chưa chọn nhà gia công → chặn bằng mã mới, KHÔNG đòi tổ/máy cho bước thuê ngoài.
+    # 13/11/2026 (module Thuê gia công): lệnh không chọn nhà gia công nữa — không thiếu gì, và
+    # KHÔNG đòi tổ/máy cho bước thuê ngoài.
     thieu = dat_routing()
-    assert "thieu_nha_gia_cong" in thieu
+    assert "thieu_nha_gia_cong" not in thieu
     assert "thieu_bo_phan" not in thieu
-
-    # Chọn nhà gia công từ danh mục → hết thiếu.
-    assert "thieu_nha_gia_cong" not in dat_routing(nha_cung_cap_id=s.id)
 
 
 def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, customer):
     """REPLACE-ALL không được làm rơi dữ liệu người dùng vừa khai ở drawer.
 
-    26/09/2026: client thôi gửi `nha_cung_cap` (chữ) — chỉ gửi `nha_cung_cap_id`, tên do server
-    ghi theo NCC đã chọn từ danh mục (spec gia công ngoài §7)."""
-    s = ncc(db, "Cơ sở Tân Bình")
+    13/11/2026: bước không mang nhà gia công (mg 0483) — chọn lúc lập đơn ở màn Thuê gia công."""
     ptg = _ptg_2_san_pham(db)
     d = _don_da_chuyen_sx(db, orders, admin, customer, ptg)
     ids = [l["order_line_id"] for l in lsx_svc.preview(d.id)["lines"]]
@@ -2531,15 +2526,14 @@ def test_replace_routing_giu_nguyen_khoi_thue_ngoai(db, orders, lsx_svc, admin, 
         LsxCongDoanIn(
             ten="Cán màng", nhom="finishing", loai_buoc="thue_ngoai",
             so_luong_vao=5300, so_luong_ra=5250, don_vi_vao="to",
-            nha_cung_cap_id=s.id,
         ),
     ])
     cd = lsx_svc.get(hop.id).cong_doans[0]
-    assert cd.nha_cung_cap == "Cơ sở Tân Bình"
+    assert not hasattr(cd, "nha_cung_cap") and cd.loai_buoc == "thue_ngoai"
     assert not hasattr(cd, "don_gia_gia_cong")  # gỡ 07/10/2026 (mg 0374)
     assert not hasattr(cd, "dieu_kien_json")
     # Task 4 (26/09/2026) gỡ 13 cột thuê ngoài cũ (sổ giao–nhận + ngày/đơn giá vận chuyển/yêu cầu
-    # kỹ thuật…) khỏi model — khối còn sống chỉ còn `nha_cung_cap_id`/`nha_cung_cap`.
+    # kỹ thuật…) khỏi model; hai cột nhà gia công gỡ nốt ở mg 0483.
     # `bat_buoc` cũng rời hợp đồng lưu routing (07/09/2026): mọi bước đều bắt buộc, server giữ
     # TRUE nên client có gửi `false` cũng không ghi được (mg 0275 backfill dòng cũ).
     assert cd.bat_buoc is True

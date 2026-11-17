@@ -135,7 +135,7 @@ export const tuKcs = (r: StockRequest) => r.lines.some((l) => l.tu_kcs);
  *  công về kho cũng mang cờ thành phẩm (`tu_kcs` — cờ đó lo cột giá gốc), nhưng hàng do nhà gia công
  *  giao về, KCS không kiểm. Cùng thứ tự với bộ lọc Nguồn ở máy chủ. */
 export function nguonSanXuat(r: StockRequest): "gia_cong" | "kcs" | null {
-  if (r.gia_cong_ngoai_id != null) return "gia_cong";
+  if (r.tgc_phieu_giao_id != null || r.tgc_phieu_nhan_id != null) return "gia_cong";
   return tuKcs(r) ? "kcs" : null;
 }
 

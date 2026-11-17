@@ -20,7 +20,6 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    false as sa_false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -160,12 +159,8 @@ class Supplier(Base):
     # `purchase_requests.debt_cutoff_day` sang đây.
     debt_cutoff_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default=SUPPLIER_ACTIVE)
-    # NHẬN GIA CÔNG (26/09/2026) — nhà cung cấp này nhận gia công ngoài cho xưởng. Ô chọn "Nhà gia
-    # công" ở Kế hoạch SX chỉ mời NCC đang hoạt động có cờ này. KHÔNG lọc theo chữ `supplier_group`
-    # (gõ tự do: "GC ngoài", "gia cong"… là lọt).
-    nhan_gia_cong: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=sa_false(), default=False
-    )
+    # Cờ "Nhận gia công" (`nhan_gia_cong`) GỠ 16/11/2026 (mg 0484): nhà gia công có danh sách riêng
+    # `tgc_nha_gia_cong`, thêm bỏ ngay ở hộp Lập đơn gia công, không dính nhà cung cấp.
     # Cờ "Đơn vị vận chuyển" (`la_don_vi_van_chuyen`) GỠ 13/11/2026 (mg 0478): đơn vị vận chuyển có
     # bảng riêng `don_vi_van_chuyen`, không dính nhà cung cấp.
     note: Mapped[str | None] = mapped_column(Text, nullable=True)

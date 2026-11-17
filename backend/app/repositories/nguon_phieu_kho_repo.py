@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from ..models.customer import Customer
 from ..models.delivery import DeliveryRequest, DeliveryTrip, LuotXe, LuotXeDiem
 from ..models.department import Department
-from ..models.gia_cong_ngoai import GiaCongNgoai
 from ..models.lsx import Lsx
 from ..models.order import Order
 from ..models.purchase import PurchaseDelivery, PurchaseRequest, Supplier
@@ -27,7 +26,7 @@ class NguonPhieu:
     khach: dict[int, str] = field(default_factory=dict)
     chuyen_don: dict[int, tuple[int | None, int | None]] = field(default_factory=dict)  # chuyến → (đơn, khách)
     ncc_dot_mua: dict[int, str] = field(default_factory=dict)          # đợt giao mua → tên NCC
-    gia_cong: dict[int, tuple[str, int | None]] = field(default_factory=dict)  # gia công → (NCC, lệnh)
+    gia_cong: dict[int, tuple[str, int | None]] = field(default_factory=dict)  # đề nghị thuê gia công → (NCC, lệnh)
     bo_phan: dict[int, str] = field(default_factory=dict)
     nguoi: dict[int, str] = field(default_factory=dict)
 
@@ -46,14 +45,9 @@ class NguonPhieuKhoRepository:
                     .where(StockRequestLine.id.in_(dong_yc_ids), StockRequestLine.lsx_id.is_not(None))
                 ).all()
             }
-        gcn_ids = {r.gia_cong_ngoai_id for r in reqs if r.gia_cong_ngoai_id}
-        if gcn_ids:
-            n.gia_cong = {
-                i: (ten or "", lsx) for i, ten, lsx in db.execute(
-                    select(GiaCongNgoai.id, GiaCongNgoai.nha_cung_cap_ten, GiaCongNgoai.lsx_id)
-                    .where(GiaCongNgoai.id.in_(gcn_ids))
-                ).all()
-            }
+        from .thue_gia_cong_repo import ThueGiaCongRepository
+
+        n.gia_cong = ThueGiaCongRepository(db).nguon_yeu_cau_kho(reqs)
         trip_ids = {r.delivery_trip_id for r in reqs if r.delivery_trip_id}
         if trip_ids:
             n.chuyen_don = {

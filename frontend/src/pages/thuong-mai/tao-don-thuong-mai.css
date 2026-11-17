@@ -20,6 +20,16 @@
   padding: 14px 16px; display: grid; gap: 12px; min-width: 0;
 }
 .tdtm__tieu { margin: 0; font-size: 15px; font-weight: var(--fw-medium, 500); }
+/* Đầu thẻ Mặt hàng: tiêu đề trái, ba nút Excel phải (16/11/2026). */
+.tdtm__tieu-hang { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.tdtm__tieu-hang .tdtm__tieu { flex: 1 1 120px; }
+.tdtm__excel { display: flex; gap: 4px; flex-wrap: wrap; }
+/* Dải thiếu tồn dưới bảng: nền vàng như ô Số lượng thiếu, nút tạo yêu cầu mua bên phải. */
+.tdtm__thieu {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 8px; background: var(--tt-vang-bg); color: var(--tt-vang-fg); font-size: 13px;
+}
+.tdtm__thieu > span { flex: 1 1 200px; }
 .tdtm__sao, .tdtm__the .dtm__o > span b { color: var(--rust); font-weight: var(--fw-regular, 400); }
 /* Không cuộn ở màn rộng: khung cuộn cắt mất danh sách gợi ý mặt hàng (ô tìm nổi dưới ô gõ). */
 .tdtm__cuon { min-width: 0; }

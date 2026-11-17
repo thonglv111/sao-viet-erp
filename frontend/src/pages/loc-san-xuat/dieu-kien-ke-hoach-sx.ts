@@ -26,15 +26,15 @@ export type LocLenhKhsx = {
    *  hết lệnh (xoá lệnh cuối) không còn trong đó và thẻ lọc chỉ biết id nội bộ ("Đơn hàng là 40").
    *  Nhãn nhớ ở đây để thẻ vẫn ghi đúng mã đơn. Chọn đơn khác từ menu thì nhãn tự bỏ. */
   nhan?: string;
-  gia_cong?: "cho_mang_di" | "dang_o_ngoai" | "tron_goi";
+  gia_cong?: "chua_dat" | "da_dat" | "tron_goi";
 };
 
 export const LOC_LENH_KHSX_TRONG: LocLenhKhsx = {};
 
 const GIA_CONG: GiaTriDK[] = [
-  { value: "cho_mang_di", nhan: "Chờ mang đi" },
-  { value: "dang_o_ngoai", nhan: "Đang ở nhà gia công" },
-  { value: "tron_goi", nhan: "Đang gia công trọn gói" },
+  { value: "chua_dat", nhan: "Chưa đặt" },
+  { value: "da_dat", nhan: "Đã đặt" },
+  { value: "tron_goi", nhan: "Trọn gói" },
 ];
 
 export function thamSoLocLenhKhsx(loc: LocLenhKhsx): ThamSoLoc {
@@ -183,7 +183,7 @@ export function useDieuKienLenhKhsx(tick: number, locDangAp?: LocLenhKhsx): Dieu
       ghi: (l, v) => ({ ...l, don: chuThanhId(v), nhan: undefined }),
     },
     {
-      khoa: "gia_cong", nhan: "Gia công ngoài", icon: Factory, kieu: "mot", giaTri: GIA_CONG,
+      khoa: "gia_cong", nhan: "Thuê gia công", icon: Factory, kieu: "mot", giaTri: GIA_CONG,
       doc: (l) => l.gia_cong,
       ghi: (l, v) => ({ ...l, gia_cong: giaCongTuUrl(v ?? null) }),
     },

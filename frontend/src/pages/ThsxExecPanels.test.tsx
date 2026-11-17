@@ -196,7 +196,7 @@ describe("Tuỳ chọn khi ghi (Đợt 2)", () => {
     expect(giaKhoan({ ...g, cong_thuc_chu: "Giá cố định", chi_gia: true,
       dung_gia_co_dinh: true, dung_don_gia: false })).toBe("225.000 đ một lần ghi");
     expect(giaKhoan({ ...g, cong_thuc_chu: "Tiền giờ × 2", chi_gia: false,
-      dung_gia_co_dinh: false, dung_don_gia: false })).toBe("tính theo công thức: Tiền giờ × 2");
+      dung_gia_co_dinh: false, dung_don_gia: false })).toBe("");  // công thức có chip khác: ẩn (16/11/2026)
     expect(giaKhoan({ ...g, cong_thuc_chu: "", chi_gia: true })).toBe("công đoạn chưa có công thức khoán");
     // Việc phát sinh có cách tính giá: nói cách tính, không in đơn giá thô.
     expect(giaKhoan({ ...g, gia_co_dinh: undefined, cong_thuc_chu: "0.5 × Giá cố định" }))

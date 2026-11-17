@@ -5,12 +5,11 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from app.models.gia_cong_ngoai import NOI_VE_KHACH, GiaCongNgoai
 from app.models.order import Order, OrderLine
+from app.models.thue_gia_cong import TgcDon, TgcDonDong
 from app.repositories.order_repo import LocDonHang
 from app.services.don_hang_san_xuat import tom_tat_nhieu_don
-from app.services.gia_cong_ngoai.chot import chot
-from app.services.gia_cong_ngoai.tron_goi import dat_tron_goi
+from app.services.thue_gia_cong.tron_goi import dat as dat_tron_goi
 from tests.gia_cong_fixtures import lenh_chua_phat, ncc, nhan_vien_cua
 from tests.lenh_sx_fixtures import admin, customer, orders, lsx_svc, sess  # noqa: F401
 
@@ -34,10 +33,16 @@ def test_lenh_chua_phat_hanh_cho_ke_hoach(sess, admin, lenh):
     assert "ke_hoach" in t["dang_cho"]
 
 
-def test_tron_goi_dang_o_nha_gia_cong_roi_giao_thang(sess, admin, orders, lenh):
+def test_tron_goi_dang_o_nha_gia_cong(sess, admin, orders, lenh):
+    """Phần "nhà gia công giao thẳng đủ ⇒ đủ hàng" đi theo Phiếu nhận (đợt 5, `test_tgc_phieu_nhan`)."""
     nha = ncc(sess, "In bao bì Phú Thịnh")
-    kq = dat_tron_goi(sess, user=admin, lsx_id=lenh.id, nha_cung_cap_id=nha.id, sl_dat=20_000,
-                      xuong_cap_giay=False)
+    viec = dat_tron_goi(sess, user=admin, lsx_id=lenh.id, sl_can=20_000, xuong_cap_giay=False)
+    dgc = TgcDon(ma="GC26-9301", nha_cung_cap_id=nha.id, nha_cung_cap_ten=nha.ten,
+                 ngay_dat=date.today(), dat_luc=datetime.now(timezone.utc))
+    sess.add(dgc)
+    sess.flush()
+    sess.add(TgcDonDong(don_id=dgc.id, viec_id=viec.id, sl_dat=20_000, don_gia=0))
+    sess.commit()
     don = sess.get(Order, lenh.order_id)
     sess.refresh(don)
 
@@ -61,20 +66,6 @@ def test_tron_goi_dang_o_nha_gia_cong_roi_giao_thang(sess, admin, orders, lenh):
     assert orders.dem_dang_cho(actor=admin, scope="all")["gia_cong"] >= 1
     assert (nha.id, "In bao bì Phú Thịnh", 1) in orders.repo.dem_theo_nha_gia_cong(scope="all", actor=admin)
     assert don.order_no in _ma(orders, admin, giao="chua")
-
-    # Nhà gia công giao thẳng đủ cho dòng của lệnh.
-    dong = sess.get(OrderLine, lenh.order_line_id)
-    nhan_vien_cua(sess, admin)
-    lan = sess.get(GiaCongNgoai, kq["gia_cong_ngoai_id"])
-    chot(sess, user=admin, gcn_id=lan.id, expected_version=lan.version,
-         sl_cuoi=float(dong.qty), noi_ve=NOI_VE_KHACH)
-    sess.expire_all()
-    don = sess.get(Order, lenh.order_id)
-    t = tom_tat_nhieu_don(sess, [don])[don.id]
-    mon = next(m for m in t["mon"] if m["lenh"])
-    assert mon["du_hang"] and mon["o"] == "du_hang" and mon["giao_thang"] == dong.qty
-    assert "gia_cong" not in t["dang_cho"]
-    assert don.order_no in _ma(orders, admin, gia_cong="giao_thang")
 
 
 def test_hen_giao_qua_bo_don_da_giao_du(sess, admin, orders, monkeypatch):

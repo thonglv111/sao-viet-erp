@@ -553,27 +553,28 @@ def _giao_thang_out(db: Session, trip) -> GiaoThangOut | None:
 
 
 def _giao_thang_nhieu(db: Session, trips) -> dict[int, GiaoThangOut]:
-    """`_giao_thang_out` cho nhiều chuyến: ba truy vấn (lần gia công, NCC, lệnh) khi trang có chuyến
-    giao thẳng, không truy vấn nào khi không có."""
-    from ..models.gia_cong_ngoai import GiaCongNgoai
+    """`_giao_thang_out` cho nhiều chuyến: hai truy vấn (phiếu nhận thuê gia công kèm NCC + lệnh)
+    khi trang có chuyến giao thẳng, không truy vấn nào khi không có."""
     from ..models.lsx import Lsx
     from ..models.purchase import Supplier
+    from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
 
-    gcn = _theo_id(db, GiaCongNgoai, {t.gia_cong_ngoai_id for t in trips if t.gia_cong_ngoai_id})
-    if not gcn:
+    pn = ThueGiaCongRepository(db).nguon_phieu_nhan(
+        {t.tgc_phieu_nhan_id for t in trips if t.tgc_phieu_nhan_id})
+    if not pn:
         return {}
-    ncc = _theo_id(db, Supplier, {g.nha_cung_cap_id for g in gcn.values() if g.nha_cung_cap_id})
-    lsx = _theo_id(db, Lsx, {g.lsx_id for g in gcn.values() if g.lsx_id})
+    ncc = _theo_id(db, Supplier, {g[0] for g in pn.values()})
+    lsx = _theo_id(db, Lsx, {g[2] for g in pn.values() if g[2]})
     ra: dict[int, GiaoThangOut] = {}
     for t in trips:
-        g = gcn.get(t.gia_cong_ngoai_id) if t.gia_cong_ngoai_id else None
+        g = pn.get(t.tgc_phieu_nhan_id) if t.tgc_phieu_nhan_id else None
         if g is None:
             continue
-        n = ncc.get(g.nha_cung_cap_id) if g.nha_cung_cap_id else None
-        l = lsx.get(g.lsx_id) if g.lsx_id else None
+        n = ncc.get(g[0])
+        l = lsx.get(g[2]) if g[2] else None
         ra[t.id] = GiaoThangOut(
-            gia_cong_ngoai_id=g.id, nha_cung_cap_ten=g.nha_cung_cap_ten or getattr(n, "name", None),
-            nha_cung_cap_sdt=getattr(n, "phone", None), lsx_id=g.lsx_id, lsx_ma=getattr(l, "ma", None),
+            tgc_phieu_nhan_id=t.tgc_phieu_nhan_id, nha_cung_cap_ten=g[1] or getattr(n, "name", None),
+            nha_cung_cap_sdt=getattr(n, "phone", None), lsx_id=g[2], lsx_ma=getattr(l, "ma", None),
         )
     return ra
 

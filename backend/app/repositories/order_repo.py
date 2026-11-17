@@ -123,20 +123,27 @@ def _hoa_don_x100():
     )
 
 
-def _gia_cong_cua_don(*dk):
-    """EXISTS lần gia công ngoài CHƯA HUỶ của lệnh thuộc đơn — trực tiếp hoặc qua bước chung bài
-    ghép (lần của bài ghép tính cho mọi lệnh thành viên, cùng luật `lsx_ids_loc_gia_cong`)."""
+def _gia_cong_cua_don(*dk, can_don: bool = False):
+    """EXISTS việc THUÊ GIA CÔNG của lệnh thuộc đơn — trực tiếp hoặc qua bước chung bài ghép (việc
+    của bài ghép tính cho mọi lệnh thành viên). `can_don=True`: chỉ việc đã vào dòng đơn gia công
+    còn sống (điều kiện `dk` được đọc `TgcDon` / `TgcDonDong`)."""
     from ..models.bai_ghep import BaiGhepThanhVien
-    from ..models.gia_cong_ngoai import GiaCongNgoai
     from ..models.lsx import Lsx
+    from ..models.thue_gia_cong import TgcDon, TgcDonDong, TgcViec
 
-    song = (GiaCongNgoai.huy_luc.is_(None), *dk)
-    truc_tiep = exists(select(GiaCongNgoai.id).join(Lsx, Lsx.id == GiaCongNgoai.lsx_id)
-                       .where(Lsx.order_id == Order.id, *song))
-    qua_bai = exists(select(GiaCongNgoai.id)
-                     .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == GiaCongNgoai.bai_ghep_id)
-                     .join(Lsx, Lsx.id == BaiGhepThanhVien.lsx_id)
-                     .where(Lsx.order_id == Order.id, *song))
+    def goc(q):
+        if can_don:
+            q = (q.join(TgcDonDong, and_(TgcDonDong.viec_id == TgcViec.id,
+                                         TgcDonDong.huy_luc.is_(None)))
+                 .join(TgcDon, TgcDon.id == TgcDonDong.don_id))
+        return q
+
+    truc_tiep = exists(goc(select(TgcViec.id).join(Lsx, Lsx.id == TgcViec.lsx_id))
+                       .where(Lsx.order_id == Order.id, *dk))
+    qua_bai = exists(goc(select(TgcViec.id)
+                         .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == TgcViec.bai_ghep_id)
+                         .join(Lsx, Lsx.id == BaiGhepThanhVien.lsx_id))
+                     .where(Lsx.order_id == Order.id, *dk))
     return or_(truc_tiep, qua_bai)
 
 
@@ -542,22 +549,30 @@ class OrderRepository:
         if loc.chi_id is not None:
             conditions.append(Order.id.in_(loc.chi_id) if loc.chi_id else Order.id.is_(None))
         if loc.gia_cong or loc.nha_gia_cong is not None:
-            from ..models.gia_cong_ngoai import KIEU_MOT_PHAN, KIEU_TRON_GOI, NOI_VE_KHACH, GiaCongNgoai
+            from ..models.thue_gia_cong import (
+                KIEU_MOT_PHAN, KIEU_TRON_GOI, NOI_VE_KHACH, TgcDon, TgcDonDong, TgcPhieuNhan,
+                TgcPhieuNhanDong, TgcViec,
+            )
 
             dk = []
+            can_don = loc.nha_gia_cong is not None or loc.gia_cong == "giao_thang"
             if loc.nha_gia_cong is not None:
-                dk.append(GiaCongNgoai.nha_cung_cap_id == loc.nha_gia_cong)
+                dk.append(TgcDon.nha_cung_cap_id == loc.nha_gia_cong)
             if loc.gia_cong == "tron_goi":
-                dk.append(GiaCongNgoai.kieu == KIEU_TRON_GOI)
+                dk.append(TgcViec.kieu == KIEU_TRON_GOI)
             elif loc.gia_cong == "mot_phan":
-                dk.append(GiaCongNgoai.kieu == KIEU_MOT_PHAN)
+                dk.append(TgcViec.kieu == KIEU_MOT_PHAN)
             elif loc.gia_cong == "giao_thang":
-                dk += [GiaCongNgoai.chot_luc.is_not(None), GiaCongNgoai.noi_ve == NOI_VE_KHACH]
+                dk.append(exists(select(TgcPhieuNhanDong.id)
+                                 .join(TgcPhieuNhan, TgcPhieuNhan.id == TgcPhieuNhanDong.phieu_id)
+                                 .where(TgcPhieuNhanDong.don_dong_id == TgcDonDong.id,
+                                        TgcPhieuNhanDong.noi_ve == NOI_VE_KHACH,
+                                        TgcPhieuNhan.huy_luc.is_(None))))
             if loc.gia_cong == "khong":
                 conditions.append(Order.status == STATUS_ORDERED)
-                conditions.append(~_gia_cong_cua_don(*dk))
+                conditions.append(~_gia_cong_cua_don(*dk, can_don=can_don))
             else:
-                conditions.append(_gia_cong_cua_don(*dk))
+                conditions.append(_gia_cong_cua_don(*dk, can_don=can_don))
         if loc.giao:
             conditions.append(Order.status == STATUS_ORDERED)
             if loc.giao == "du":
@@ -787,19 +802,25 @@ class OrderRepository:
             select(Order.id).where(Order.status == STATUS_CANCELLED, *conds)).scalars()]
 
     def dem_theo_nha_gia_cong(self, *, scope: str, actor) -> list[tuple[int, str, int]]:
-        """(id, tên, số đơn) của nhà gia công có lần CHƯA HUỶ trên đơn trong tầm nhìn."""
+        """(id, tên, số đơn) của nhà gia công có dòng đơn gia công CÒN SỐNG trên đơn trong tầm nhìn."""
         from ..models.bai_ghep import BaiGhepThanhVien
-        from ..models.gia_cong_ngoai import GiaCongNgoai
         from ..models.lsx import Lsx
+        from ..models.thue_gia_cong import TgcDon, TgcDonDong, TgcViec
 
-        truc_tiep = (select(GiaCongNgoai.nha_cung_cap_id.label("ncc"), Lsx.order_id.label("oid"))
-                     .join(Lsx, Lsx.id == GiaCongNgoai.lsx_id).where(GiaCongNgoai.huy_luc.is_(None)))
-        qua_bai = (select(GiaCongNgoai.nha_cung_cap_id.label("ncc"), Lsx.order_id.label("oid"))
-                   .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == GiaCongNgoai.bai_ghep_id)
-                   .join(Lsx, Lsx.id == BaiGhepThanhVien.lsx_id).where(GiaCongNgoai.huy_luc.is_(None)))
+        def song(q):
+            return (q.join(TgcDonDong, and_(TgcDonDong.viec_id == TgcViec.id,
+                                            TgcDonDong.huy_luc.is_(None)))
+                    .join(TgcDon, TgcDon.id == TgcDonDong.don_id))
+
+        truc_tiep = song(select(TgcDon.nha_cung_cap_id.label("ncc"), Lsx.order_id.label("oid"))
+                         .select_from(TgcViec).join(Lsx, Lsx.id == TgcViec.lsx_id))
+        qua_bai = song(select(TgcDon.nha_cung_cap_id.label("ncc"), Lsx.order_id.label("oid"))
+                       .select_from(TgcViec)
+                       .join(BaiGhepThanhVien, BaiGhepThanhVien.bai_ghep_id == TgcViec.bai_ghep_id)
+                       .join(Lsx, Lsx.id == BaiGhepThanhVien.lsx_id))
         cap = truc_tiep.union(qua_bai).subquery()
-        ten = (select(GiaCongNgoai.nha_cung_cap_id, func.max(GiaCongNgoai.nha_cung_cap_ten).label("ten"))
-               .group_by(GiaCongNgoai.nha_cung_cap_id).subquery())
+        ten = (select(TgcDon.nha_cung_cap_id, func.max(TgcDon.nha_cung_cap_ten).label("ten"))
+               .group_by(TgcDon.nha_cung_cap_id).subquery())
         stmt = (select(cap.c.ncc, ten.c.ten, func.count(func.distinct(cap.c.oid)))
                 .join(Order, Order.id == cap.c.oid)
                 .join(ten, ten.c.nha_cung_cap_id == cap.c.ncc)

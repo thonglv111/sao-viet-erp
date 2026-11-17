@@ -27,8 +27,10 @@ vi.mock("../../../api/client", async (goc) => ({
       ckKeChoChi: (...a: unknown[]) => ckKe(...a),
       muaHangChoChi: (...a: unknown[]) => muaHangChoChi(...a),
     },
-    giaCongNgoai: { choChi: (...a: unknown[]) => choChi(...a) },
   },
+}));
+vi.mock("../../../api/thueGiaCong", () => ({
+  tgcApi: { choTraTien: (...a: unknown[]) => choChi(...a) },
 }));
 
 import { PaymentVouchersPage } from "./PaymentVouchersPage";
@@ -107,7 +109,7 @@ describe("PaymentVouchersPage — nối dây", () => {
   });
 
   it("có việc gia công chờ chi thì dải tab có mục đó kèm số việc", async () => {
-    choChi.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+    choChi.mockResolvedValue([{ phieu_nhan_id: 1 }, { phieu_nhan_id: 2 }]);
     window.history.replaceState(null, "", "/?man=ke-toan-phieu-chi&ky=tat_ca");
     render(<PaymentVouchersPage navigate={() => {}} />);
     const dai = screen.getByRole("group", { name: "Lọc theo trạng thái" });

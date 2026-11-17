@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     # `assert_secure_config` CHẶN production chạy dưới `MIN_BCRYPT_ROUNDS`.
     bcrypt_rounds: int = 12
 
+    # Thuê gia công (spec 13/11/2026 §8): chặn người đã lập phiếu giao của một đơn gia công tự lập
+    # phiếu nhận cho đơn đó (tách vai giao / nhận). Repo không có bảng cấu hình chung nên để biến
+    # môi trường `TGC_CHAN_NGUOI_GIAO_TU_NHAN`; đặt false khi xưởng nhỏ một người lo cả hai.
+    tgc_chan_nguoi_giao_tu_nhan: bool = True
+
     # --- Seed user (no self-registration this spec) ----------------------
     seed_admin_username: str = "admin"
     seed_admin_password: str = "admin123"

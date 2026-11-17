@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup module Thuê gia công</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--fg:#1f2328;--mut:#6b7280;--line:#e3e5e8;--acc:#e8590c;--acc-bg:#fff1e6;--blue:#1c64d6;--blue-bg:#e8f0fd;--ok:#1a7f37;--ok-bg:#e6f4ea;--warn:#9a6700;--warn-bg:#fff6d6;--red:#c62828;--red-bg:#fdecec;--gray-bg:#f0f1f3}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;font-weight:600}
+.wrap{display:flex;min-height:calc(100vh - 54px)}
+nav{width:240px;background:var(--card);border-right:1px solid var(--line);padding:12px 0;flex-shrink:0}
+nav .grp{font-size:11px;text-transform:uppercase;color:var(--mut);padding:12px 18px 4px;letter-spacing:.04em}
+nav a{display:block;padding:7px 18px;color:var(--fg);text-decoration:none;cursor:pointer;border-left:3px solid transparent}
+nav a:hover{background:var(--gray-bg)}
+nav a.on{background:var(--acc-bg);border-left-color:var(--acc);color:var(--acc);font-weight:600}
+main{flex:1;padding:20px 24px;min-width:0}
+.scr{display:none}.scr.on{display:block}
+.crumb{font-size:12px;color:var(--mut)}
+h2{font-size:20px;margin:2px 0 14px;font-weight:600}
+h3{font-size:15px;margin:18px 0 8px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+table{width:100%;border-collapse:collapse;background:var(--card)}
+th,td{border-bottom:1px solid var(--line);padding:8px 8px;text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--mut);font-weight:600;background:#fafbfc;white-space:nowrap}
+td small{display:block;color:var(--mut);font-size:12px}
+.tb{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.b{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;white-space:nowrap}
+.b-acc{background:var(--acc-bg);color:var(--acc)}.b-blue{background:var(--blue-bg);color:var(--blue)}.b-ok{background:var(--ok-bg);color:var(--ok)}.b-warn{background:var(--warn-bg);color:var(--warn)}.b-red{background:var(--red-bg);color:var(--red)}.b-gray{background:var(--gray-bg);color:var(--mut)}
+button{font:inherit;border:1px solid #c9ccd1;background:#fff;border-radius:6px;padding:6px 12px;cursor:pointer}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.sm{padding:3px 9px;font-size:12px}
+input[type=text],input[type=number],input[type=date],select{font:inherit;border:1px solid #c9ccd1;border-radius:6px;padding:5px 8px;background:#fff}
+input.n{width:90px;text-align:right}
+.ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 16px;background:var(--gray-bg);border-radius:8px;padding:10px 14px;margin-bottom:14px}
+.ctx div{font-size:13px}.ctx span{display:block;font-size:11px;color:var(--mut)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.kpi span{display:block;font-size:12px;color:var(--mut)}.kpi b{font-size:18px}
+.note{border-left:3px solid var(--blue);background:var(--blue-bg);padding:8px 12px;font-size:13px;margin:10px 0;border-radius:0}
+.warn{border-left:3px solid var(--warn);background:var(--warn-bg);padding:8px 12px;font-size:13px;margin:10px 0}
+.case{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.case .card{margin:0;cursor:pointer}.case .card:hover{border-color:var(--acc)}
+.case h4{margin:0 0 4px;font-size:14px}
+.case ol{margin:6px 0 0;padding-left:18px;font-size:13px}
+.lk{color:var(--blue);cursor:pointer;text-decoration:underline}
+.dis{color:#aab0b8}
+.flow{font-family:Consolas,monospace;font-size:12.5px;background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;white-space:pre;overflow-x:auto}
+.modal{background:rgba(0,0,0,.35);border-radius:8px;padding:28px;display:flex;justify-content:center}
+.modal .card{width:100%;max-width:820px;margin:0}
+.hl{background:#fff8ef}
+@media (max-width:820px){nav{display:none}main{padding:14px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mockup — Module Thuê gia công (bản 13/11/2026)</h1>
+  <span class="b b-gray">Bám doc 2026-11-13-module-gia-cong-ngoai-design.md</span>
+  <span class="sp"></span>
+  <span class="crumb">Dữ liệu minh hoạ, không phải dữ liệu thật</span>
+</header>
+<div class="wrap">
+<nav id="nav">
+  <div class="grp">Bắt đầu</div>
+  <a data-s="cases" class="on">Các trường hợp</a>
+  <div class="grp">Kế hoạch SX (chỉ gắn cờ)</div>
+  <a data-s="lsx1">Lệnh — gia công một phần</a>
+  <a data-s="lsx2">Lệnh — gia công trọn gói</a>
+  <a data-s="lich">Xếp lịch</a>
+  <div class="grp">Thuê gia công (module mới)</div>
+  <a data-s="cho">Hàng chờ gia công</a>
+  <a data-s="taodon">Tạo đơn gia công</a>
+  <a data-s="don">Đơn GC-0007 (một phần)</a>
+  <a data-s="don8">Đơn GC-0008 (trọn gói)</a>
+  <a data-s="giao">Phiếu giao</a>
+  <a data-s="nhan">Phiếu nhận</a>
+  <a data-s="hoantat">Hoàn tất dòng đơn</a>
+  <a data-s="ngoai">Hàng đang ở ngoài</a>
+  <a data-s="tra">Chờ trả tiền</a>
+</nav>
+<main>
+
+<!-- ============ CÁC TRƯỜNG HỢP ============ -->
+<section class="scr on" id="cases">
+  <div class="crumb">Bắt đầu</div>
+  <h2>Các trường hợp gia công</h2>
+  <p>Lệnh sản xuất chỉ gắn cờ. Mọi việc đặt — giao — nhận — trả tiền làm ở module <b>Thuê gia công</b>.
+  Bấm một thẻ để đi theo luồng của trường hợp đó.</p>
+  <div class="case">
+    <div class="card" data-go="lsx1">
+      <h4>A. Một phần — xưởng cấp vật tư</h4>
+      <span class="b b-blue">LSX-0123</span> <span class="b b-gray">Dược Minh An · hạn 18/11</span>
+      <ol><li>In ở xưởng → <b>Cán màng thuê Minh Phát</b> → Bế ở xưởng</li>
+      <li>Màng mờ <b>xưởng cấp</b> (bỏ tick "Nhà gia công tự lo")</li>
+      <li>Giao: 1.660 tờ in + 66 m² màng</li>
+      <li>Nhận 2 đợt về bước Bế, hụt 10 tờ, dư 4 m² màng trả kho</li></ol>
+    </div>
+    <div class="card" data-go="lsx1">
+      <h4>B. Một phần — nhà gia công tự lo vật tư</h4>
+      <span class="b b-blue">LSX-0127</span> <span class="b b-gray">Trà Hồng Lam · hạn 20/11</span>
+      <ol><li>Cùng việc Cán màng, <b>gộp chung đơn GC-0007</b> với LSX-0123</li>
+      <li>Màng giữ tick "Nhà gia công tự lo" ⇒ không giữ chỗ, không xuất kho</li>
+      <li>Phiếu giao chỉ có tờ in</li></ol>
+    </div>
+    <div class="card" data-go="lsx2">
+      <h4>C. Trọn gói — xưởng cấp giấy, về kho</h4>
+      <span class="b b-blue">LSX-0130</span> <span class="b b-gray">Bánh kẹo Thiên Phúc · hạn 25/11</span>
+      <ol><li>Bấm "Thuê gia công trọn gói" thay cho Phát hành</li>
+      <li>Tick "Xưởng cấp giấy": chọn khổ + số tờ → kho xuất cho In Tân Phát</li>
+      <li>Nhận từng đợt <b>về kho thành phẩm</b>, rồi giao khách như đơn thường</li></ol>
+    </div>
+    <div class="card" data-go="lsx2">
+      <h4>D. Trọn gói — nhà gia công tự lo, giao thẳng khách</h4>
+      <span class="b b-blue">LSX-0131</span> <span class="b b-gray">Mỹ phẩm Lan Chi · hạn 22/11</span>
+      <ol><li>Không có phiếu giao (không đưa gì đi)</li>
+      <li>Phiếu nhận chọn nơi về <b>Giao thẳng khách</b> + ngày khách nhận</li>
+      <li>Đơn bán cộng "đã giao" luôn, không qua kho</li></ol>
+    </div>
+    <div class="card" data-go="cho">
+      <h4>E. Bài ghép — bước chung thuê ngoài</h4>
+      <span class="b b-blue">BG-012</span> <span class="b b-gray">LSX-0140 + LSX-0141</span>
+      <ol><li>Ép kim chung tờ ghép, thuê Kim Long</li>
+      <li>Nhận 980 tờ ghép ⇒ tự chia: LSX-0140 ×4 = 3.920 con, LSX-0141 ×2 = 1.960 con</li>
+      <li>Không có nơi về "khách"</li></ol>
+    </div>
+  </div>
+  <h3>Bốn bước chung của mọi trường hợp</h3>
+<div class="flow">Kế hoạch SX            Phụ trách gia công        Tổ sau / Kho              Kế toán
+─────────────          ──────────────────        ────────────              ───────
+Tick "Thuê ngoài"  ──▶ 1. ĐẶT  Đơn gia công  ──▶ 3. NHẬN  Phiếu nhận ──▶ 4. TRẢ  Phiếu chi
+hoặc "Trọn gói"        2. GIAO Phiếu giao        (nhiều đợt, đạt/hỏng,     (gộp nhiều phiếu
+                       (tờ in + vật tư xưởng cấp)  về xưởng/kho/khách)       nhận cùng nhà GC)</div>
+</section>
+
+<!-- ============ LỆNH MỘT PHẦN ============ -->
+<section class="scr" id="lsx1">
+  <div class="crumb">Kế hoạch SX › Lệnh sản xuất</div>
+  <div class="row"><h2>LSX-0123</h2><span class="b b-blue">Đã phát hành</span><span class="sp"></span><button>Thu hồi</button></div>
+  <div class="ctx">
+    <div><span>Khách hàng</span>Cty CP Dược Minh An</div>
+    <div><span>Đơn hàng</span>ĐH-0451</div>
+    <div><span>Mặt hàng</span>Hộp trà Ivory cán màng mờ</div>
+    <div><span>Số lượng</span>5.000 hộp · 1.660 tờ in</div>
+    <div><span>Hạn giao</span><b style="color:var(--red)">18/11/2026</b></div>
+  </div>
+  <h3>Các bước</h3>
+  <div class="tb"><table>
+    <tr><th>#</th><th>Bước</th><th>Thuê ngoài</th><th>Tổ / máy</th><th>Trạng thái</th></tr>
+    <tr><td>1</td><td>In offset 4 màu</td><td><input type="checkbox"></td><td>Tổ in · Máy in 1</td><td><span class="b b-ok">Xong 1.660 tờ</span></td></tr>
+    <tr class="hl"><td>2</td><td><b>Cán màng mờ</b></td><td><input type="checkbox" checked></td><td class="dis">— (không giao tổ)</td>
+      <td><span class="b b-warn">Đang ở Minh Phát 860/1.660</span><br><small>Đơn <span class="lk" data-go="don">GC-0007</span> · hẹn về 13/11 · chỉ đọc</small></td></tr>
+    <tr><td>3</td><td>Bế hộp</td><td><input type="checkbox"></td><td>Tổ bế · Máy bế 2</td><td><span class="b b-blue">Đang làm 800 tờ đã về</span></td></tr>
+    <tr><td>4</td><td>Dán + đóng gói</td><td><input type="checkbox"></td><td>Tổ hoàn thiện</td><td><span class="b b-gray">Chờ</span></td></tr>
+  </table></div>
+  <h3>Vật tư của bước 2 — Cán màng mờ (thuê ngoài)</h3>
+  <div class="tb"><table>
+    <tr><th>Vật tư</th><th>Định mức</th><th>Nhà gia công tự lo</th><th>Kế hoạch vật tư / giữ chỗ</th><th>Ghi chú</th></tr>
+    <tr><td>Màng BOPP mờ 18mic</td><td>66 m²</td><td><input type="checkbox"> <small>bỏ tick = xưởng cấp</small></td><td><span class="b b-ok">Đã giữ 66 m²</span></td><td>Tự điền lên phiếu giao, kho xuất</td></tr>
+    <tr><td>Keo cán màng</td><td>1,2 kg</td><td><input type="checkbox" checked></td><td class="dis">Không tính</td><td>Tiền nằm trong đơn giá gia công</td></tr>
+  </table></div>
+  <div class="note">Lệnh <b>chỉ</b> có: ô tick Thuê ngoài, định mức vật tư (+ ô "Nhà gia công tự lo"), và dòng trạng thái chỉ đọc. Không chọn nhà gia công, không đơn giá, không nút Mang đi / Chốt.</div>
+  <div class="warn">Trường hợp B (LSX-0127): cùng bước Cán màng nhưng cả hai dòng vật tư đều tick "Nhà gia công tự lo" ⇒ không giữ chỗ, phiếu giao chỉ có tờ in.</div>
+</section>
+
+<!-- ============ LỆNH TRỌN GÓI ============ -->
+<section class="scr" id="lsx2">
+  <div class="crumb">Kế hoạch SX › Lệnh sản xuất</div>
+  <div class="row"><h2>LSX-0130</h2><span class="b b-gray">Nháp</span><span class="sp"></span><button>Phát hành</button><button class="pri">Thuê gia công trọn gói</button></div>
+  <div class="ctx">
+    <div><span>Khách hàng</span>Cty Bánh kẹo Thiên Phúc</div>
+    <div><span>Đơn hàng</span>ĐH-0460</div>
+    <div><span>Mặt hàng</span>Hộp bánh Tết 2027</div>
+    <div><span>Số lượng</span>5.000 hộp</div>
+    <div><span>Hạn giao</span>25/11/2026</div>
+  </div>
+  <div class="modal"><div class="card">
+    <h3 style="margin-top:0">Thuê gia công trọn gói — LSX-0130</h3>
+    <p class="crumb">Lệnh không phát hành xuống xưởng, sinh một việc "Trọn gói" trong Hàng chờ gia công.</p>
+    <div class="row" style="margin:10px 0"><label><input type="checkbox" checked> <b>Xưởng cấp giấy</b></label><small class="crumb">(tick sẵn theo nguồn giấy của phiếu tính giá)</small></div>
+    <div class="tb"><table>
+      <tr><th>Mã giấy</th><th>Khổ tờ</th><th>Tồn kho</th><th>Số tờ cấp</th></tr>
+      <tr><td>Ivory 300</td><td><select><option>65×86 (phiếu tính giá)</option><option>79×109</option></select></td><td>4.200 tờ</td><td><input class="n" type="number" value="2600"></td></tr>
+    </table></div>
+    <p class="crumb">Bỏ tick ⇒ nhà gia công tự lo giấy: lệnh thôi đòi giấy, nhả giữ chỗ.</p>
+    <div class="row"><span class="sp"></span><button>Huỷ</button><button class="pri" data-go="cho">Xác nhận trọn gói</button></div>
+  </div></div>
+  <h3>Sau khi xác nhận</h3>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Trạng thái gia công</th></tr>
+    <tr><td>LSX-0130</td><td>Bánh kẹo Thiên Phúc<small>ĐH-0460</small></td><td>Hộp bánh Tết 2027</td><td>25/11</td><td><span class="b b-acc">Trọn gói · In Tân Phát</span> <span class="lk" data-go="don8">GC-0008</span><small>Đã về kho 3.000/5.000</small></td></tr>
+    <tr><td>LSX-0131</td><td>Mỹ phẩm Lan Chi<small>ĐH-0462</small></td><td>Hộp kem dưỡng 50ml</td><td>22/11</td><td><span class="b b-acc">Trọn gói · In Tân Phát</span> <span class="lk" data-go="don8">GC-0008</span><small>NCC tự lo giấy · giao thẳng khách</small></td></tr>
+  </table></div>
+</section>
+
+<!-- ============ XẾP LỊCH ============ -->
+<section class="scr" id="lich">
+  <div class="crumb">Kế hoạch SX › Xếp lịch</div>
+  <h2>Xếp lịch — không đổi</h2>
+  <p>Xếp lịch chỉ hẹn ngày/giờ <b>đẩy lệnh xuống xưởng</b> để các tổ chia việc. Module gia công không ghi gì vào đây.</p>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng</th><th>Đơn hàng</th><th>Mặt hàng</th><th>Hạn giao</th><th>Hẹn đẩy</th><th>Ghi chú</th></tr>
+    <tr><td>LSX-0123</td><td>Dược Minh An</td><td>ĐH-0451</td><td>Hộp trà Ivory</td><td>18/11</td><td>10/11 08:00</td><td><span class="b b-gray">Có bước thuê ngoài: Cán màng</span><small>Bước đó không giao tổ nào; các tổ khác chia việc như thường</small></td></tr>
+    <tr><td>LSX-0127</td><td>Trà Hồng Lam</td><td>ĐH-0455</td><td>Hộp trà túi lọc</td><td>20/11</td><td>11/11 08:00</td><td><span class="b b-gray">Có bước thuê ngoài: Cán màng</span></td></tr>
+    <tr class="dis"><td>LSX-0130</td><td>Bánh kẹo Thiên Phúc</td><td>ĐH-0460</td><td>Hộp bánh Tết</td><td>25/11</td><td>—</td><td>Trọn gói ⇒ <b>không có trong Xếp lịch</b> (minh hoạ, thực tế không hiện)</td></tr>
+  </table></div>
+</section>
+
+<!-- ============ HÀNG CHỜ ============ -->
+<section class="scr" id="cho">
+  <div class="crumb">Thuê gia công › Hàng chờ</div>
+  <div class="row"><h2>Hàng chờ gia công</h2><span class="sp"></span>
+    <select><option>Tất cả tình trạng</option><option>Sẵn sàng giao</option><option>Chưa đặt</option></select>
+    <button class="pri" data-go="taodon">Tạo đơn gia công (2 việc)</button></div>
+  <div class="tb"><table>
+    <tr><th></th><th>Lệnh</th><th>Khách hàng</th><th>Đơn hàng</th><th>Mặt hàng</th><th>Hạn giao</th><th>Việc</th><th>Kiểu</th><th>Số lượng</th><th>Vật tư xưởng cấp</th><th>Tình trạng</th></tr>
+    <tr class="hl"><td><input type="checkbox" checked></td><td>LSX-0123</td><td>Dược Minh An</td><td>ĐH-0451</td><td>Hộp trà Ivory cán màng</td><td><b style="color:var(--red)">18/11</b></td><td>Cán màng mờ</td><td>Một phần</td><td>1.660 tờ</td><td>Màng 66 m²</td><td><span class="b b-ok">Sẵn sàng giao</span><small>Tổ in đã bàn giao</small></td></tr>
+    <tr class="hl"><td><input type="checkbox" checked></td><td>LSX-0127</td><td>Trà Hồng Lam</td><td>ĐH-0455</td><td>Hộp trà túi lọc</td><td>20/11</td><td>Cán màng mờ</td><td>Một phần</td><td>2.000 tờ</td><td class="dis">Không (NCC tự lo)</td><td><span class="b b-gray">Chờ tổ in xong</span></td></tr>
+    <tr><td><input type="checkbox"></td><td>LSX-0130</td><td>Bánh kẹo Thiên Phúc</td><td>ĐH-0460</td><td>Hộp bánh Tết 2027</td><td>25/11</td><td>Gia công trọn gói</td><td>Trọn gói</td><td>5.000 hộp</td><td>Giấy Ivory 2.600 tờ</td><td><span class="b b-gray">Chưa đặt</span></td></tr>
+    <tr><td><input type="checkbox"></td><td>LSX-0131</td><td>Mỹ phẩm Lan Chi</td><td>ĐH-0462</td><td>Hộp kem dưỡng 50ml</td><td>22/11</td><td>Gia công trọn gói</td><td>Trọn gói</td><td>3.000 hộp</td><td class="dis">Không (NCC tự lo)</td><td><span class="b b-gray">Chưa đặt</span></td></tr>
+    <tr><td><input type="checkbox"></td><td>BG-012<small>LSX-0140, LSX-0141</small></td><td>Gốm Bình Minh<small>Rượu Sơn Hà</small></td><td>ĐH-0470<small>ĐH-0472</small></td><td>Hộp quà gốm<small>Hộp rượu</small></td><td>24/11<small>27/11</small></td><td>Ép kim (bước chung)</td><td>Bài ghép</td><td>1.000 tờ ghép</td><td class="dis">Không</td><td><span class="b b-gray">Chưa đặt</span></td></tr>
+  </table></div>
+  <div class="note">Dòng tự sinh khi lệnh có cờ được phát hành (hoặc bấm trọn gói). Chuyển <b>Sẵn sàng giao</b> khi tổ bước trước bàn giao. Tick nhiều dòng để gộp vào một đơn cùng nhà gia công.</div>
+</section>
+
+<!-- ============ TẠO ĐƠN ============ -->
+<section class="scr" id="taodon">
+  <div class="crumb">Thuê gia công › Hàng chờ › Tạo đơn</div>
+  <h2>Tạo đơn gia công</h2>
+  <div class="card">
+    <div class="row">
+      <label>Nhà gia công <select><option>Xưởng gia công bao bì Minh Phát</option><option>In Tân Phát</option><option>Ép kim Kim Long</option></select></label>
+      <label>Ngày đặt <input type="date" value="2026-11-10"></label>
+      <label>Hẹn về <input type="date" value="2026-11-13"></label>
+    </div>
+    <p class="crumb">Chỉ liệt kê nhà cung cấp đang hoạt động có tích "Nhận gia công".</p>
+  </div>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Việc</th><th>Số lượng đặt</th><th>Đơn giá</th><th>Tạm tính</th></tr>
+    <tr><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory cán màng</td><td>18/11</td><td>Cán màng mờ</td><td><input class="n" value="1660"> tờ</td><td><input class="n" value="600"> đ/tờ<small>lần trước Minh Phát: 600đ</small></td><td>996.000đ</td></tr>
+    <tr><td>LSX-0127</td><td>Trà Hồng Lam<small>ĐH-0455</small></td><td>Hộp trà túi lọc</td><td>20/11</td><td>Cán màng mờ</td><td><input class="n" value="2000"> tờ</td><td><input class="n" value="600"> đ/tờ</td><td>1.200.000đ</td></tr>
+  </table></div>
+  <div class="row" style="margin-top:12px"><span class="sp"></span><button>Lưu nháp</button><button class="pri" data-go="don">Đặt hàng → GC-0007</button></div>
+</section>
+
+<!-- ============ ĐƠN GC-0007 ============ -->
+<section class="scr" id="don">
+  <div class="crumb">Thuê gia công › Đơn gia công</div>
+  <div class="row"><h2>GC-0007 · Xưởng gia công bao bì Minh Phát</h2><span class="b b-warn">Đã về một phần</span><span class="sp"></span>
+    <button data-go="giao">+ Giao hàng</button><button data-go="nhan" class="pri">+ Nhận hàng</button></div>
+  <div class="kpi">
+    <div><span>Ngày đặt</span><b>10/11</b></div><div><span>Hẹn về</span><b>13/11</b></div>
+    <div><span>Đang ở ngoài</span><b>860 tờ · 66 m² màng</b></div><div><span>Tiền công tạm tính (đã nhận)</span><b>480.000đ</b></div>
+  </div>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Việc</th><th>Đặt</th><th>Đơn giá</th><th>Đã giao</th><th>Đã nhận đạt / hỏng</th><th>Còn ngoài</th><th></th></tr>
+    <tr class="hl"><td><span class="lk" data-go="lsx1">LSX-0123</span></td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory cán màng</td><td><b style="color:var(--red)">18/11</b></td><td>Cán màng mờ</td><td>1.660</td><td>600đ/tờ</td><td>1.660 tờ<small>+ 66 m² màng</small></td><td>800 / 0</td><td>860 tờ</td><td><button class="sm" data-go="hoantat">Hoàn tất</button></td></tr>
+    <tr><td><span class="lk">LSX-0127</span></td><td>Trà Hồng Lam<small>ĐH-0455</small></td><td>Hộp trà túi lọc</td><td>20/11</td><td>Cán màng mờ</td><td>2.000</td><td>600đ/tờ</td><td>0</td><td>0 / 0</td><td>0</td><td><span class="b b-gray">Chờ tổ in</span></td></tr>
+  </table></div>
+  <h3>Phiếu giao</h3>
+  <div class="tb"><table>
+    <tr><th>Phiếu</th><th>Ngày</th><th>Người giao</th><th>Nội dung</th><th>Kho</th></tr>
+    <tr><td><span class="lk" data-go="giao">GG-0011</span></td><td>10/11 14:20</td><td>Nguyễn Văn A</td><td>LSX-0123: 1.660 tờ in + 66 m² màng mờ</td><td><span class="b b-ok">Kho đã xuất màng (PX-0312)</span></td></tr>
+  </table></div>
+  <h3>Phiếu nhận</h3>
+  <div class="tb"><table>
+    <tr><th>Phiếu</th><th>Ngày</th><th>Người nhận</th><th>Nội dung</th><th>Về đâu</th><th>Tạm tính</th><th>Phiếu chi</th></tr>
+    <tr><td><span class="lk" data-go="nhan">GN-0015</span></td><td>12/11 09:05</td><td>Trần Thị B (Tổ bế)</td><td>LSX-0123: 800 đạt, 0 hỏng</td><td>Bước Bế hộp</td><td>480.000đ</td><td><span class="b b-warn">Chờ trả</span></td></tr>
+  </table></div>
+</section>
+
+<!-- ============ ĐƠN GC-0008 TRỌN GÓI ============ -->
+<section class="scr" id="don8">
+  <div class="crumb">Thuê gia công › Đơn gia công</div>
+  <div class="row"><h2>GC-0008 · In Tân Phát</h2><span class="b b-warn">Đã về một phần</span><span class="sp"></span>
+    <button data-go="giao">+ Giao hàng</button><button data-go="nhan" class="pri">+ Nhận hàng</button></div>
+  <div class="kpi">
+    <div><span>Ngày đặt</span><b>08/11</b></div><div><span>Hẹn về</span><b>20/11</b></div>
+    <div><span>Đang ở ngoài</span><b>2.600 tờ Ivory 300</b></div><div><span>Tiền công tạm tính (đã nhận)</span><b>7.200.000đ</b></div>
+  </div>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Việc</th><th>Đặt</th><th>Đơn giá</th><th>Xưởng cấp</th><th>Đã nhận</th><th>Về đâu</th></tr>
+    <tr><td>LSX-0130</td><td>Bánh kẹo Thiên Phúc<small>ĐH-0460</small></td><td>Hộp bánh Tết 2027</td><td>25/11</td><td>Trọn gói</td><td>5.000 hộp</td><td>1.200đ</td><td>Giấy 2.600 tờ<small>GG-0012 · kho đã xuất</small></td><td>3.000 / 0</td><td>Kho thành phẩm</td></tr>
+    <tr><td>LSX-0131</td><td>Mỹ phẩm Lan Chi<small>ĐH-0462</small></td><td>Hộp kem dưỡng 50ml</td><td>22/11</td><td>Trọn gói</td><td>3.000 hộp</td><td>1.200đ</td><td class="dis">Không (NCC tự lo)</td><td>3.000 / 0</td><td>Giao thẳng khách<small>khách nhận 19/11</small></td></tr>
+  </table></div>
+  <div class="note">LSX-0131 không có phiếu giao vì không đưa gì đi. Nhận hàng chọn "Giao thẳng khách" ⇒ đơn bán ĐH-0462 cộng "đã giao 3.000", không qua kho.</div>
+</section>
+
+<!-- ============ PHIẾU GIAO ============ -->
+<section class="scr" id="giao">
+  <div class="crumb">Thuê gia công › GC-0007 › Giao hàng</div>
+  <h2>Phiếu giao gia công — GG-0011</h2>
+  <div class="card row"><label>Đơn <b>GC-0007 · Minh Phát</b></label><label>Người giao <b>Nguyễn Văn A</b></label><label>Ngày <input type="date" value="2026-11-10"></label></div>
+  <h3>Bán thành phẩm (nhận bàn giao từ bước trước)</h3>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Hàng</th><th>Bàn giao từ</th><th>Số giao</th></tr>
+    <tr><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory cán màng</td><td>18/11</td><td>Tờ in (sau bước In)</td><td>Tổ in · BG-2231</td><td><b>1.660 tờ</b><small>điền sẵn theo bàn giao, không gõ tay</small></td></tr>
+  </table></div>
+  <h3>Vật tư từ kho (dòng xưởng cấp của bước Cán màng)</h3>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Vật tư</th><th>Định mức</th><th>Đã giữ chỗ</th><th>Số giao</th><th>Kho</th></tr>
+    <tr><td>LSX-0123</td><td>Màng BOPP mờ 18mic</td><td>66 m²</td><td>66 m²</td><td><input class="n" value="66"> m²</td><td><span class="b b-blue">Sẽ tạo đề nghị xuất kho</span></td></tr>
+    <tr class="dis"><td>LSX-0123</td><td>Keo cán màng</td><td>1,2 kg</td><td>—</td><td>—</td><td>Nhà gia công tự lo — không hiện ở phiếu giao (minh hoạ)</td></tr>
+  </table></div>
+  <div class="row" style="margin-top:12px"><span class="sp"></span><button>Huỷ</button><button class="pri" data-go="don">Lưu phiếu giao</button></div>
+  <div class="note">Lưu ⇒ xác nhận bàn giao của tổ in; tạo đề nghị xuất màng mang mã GG-0011; sổ "Hàng đang ở ngoài": Minh Phát +1.660 tờ in, +66 m² màng (sau khi kho xuất).</div>
+</section>
+
+<!-- ============ PHIẾU NHẬN ============ -->
+<section class="scr" id="nhan">
+  <div class="crumb">Thuê gia công › GC-0007 › Nhận hàng</div>
+  <h2>Phiếu nhận gia công — GN-0016 (đợt 2)</h2>
+  <div class="card row"><label>Đơn <b>GC-0007 · Minh Phát</b></label><label>Người nhận <b>Trần Thị B (Tổ bế)</b></label><label>Ngày <input type="date" value="2026-11-13"></label></div>
+  <div class="tb"><table>
+    <tr><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Việc</th><th>Còn ngoài</th><th>Đạt</th><th>Hỏng</th><th>Về đâu</th></tr>
+    <tr><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory cán màng</td><td><b style="color:var(--red)">18/11</b></td><td>Cán màng mờ</td><td>860 tờ</td><td><input class="n" value="850"></td><td><input class="n" value="0"></td>
+      <td><select><option>Bước sau: Bế hộp</option></select><small>dải còn bước sau ⇒ chỉ về xưởng</small></td></tr>
+  </table></div>
+  <h3>Các nơi về có thể chọn (minh hoạ)</h3>
+  <div class="tb"><table>
+    <tr><th>Khi nào</th><th>Nơi về</th><th>Hệ thống làm gì</th></tr>
+    <tr><td>Dải còn bước sau</td><td>Bước sau (xưởng)</td><td>Bàn giao thẳng cho tổ bước sau</td></tr>
+    <tr><td>Dải là bước cuối / trọn gói</td><td>Kho thành phẩm</td><td>Tạo đề nghị nhập kho thành phẩm; kho đếm khi lập phiếu nhập</td></tr>
+    <tr><td>Dải là bước cuối / trọn gói, dòng đơn đứng riêng</td><td>Giao thẳng khách <input type="date" value="2026-11-19"></td><td>Ghi "đã giao" cho đơn bán theo ngày khách nhận</td></tr>
+    <tr><td>Bài ghép</td><td>Bước sau / điểm toả / kho</td><td>Chia số tờ ghép × số con/tờ cho từng lệnh; không có "khách"</td></tr>
+  </table></div>
+  <div class="warn">Người đã lập phiếu giao của đơn này (Nguyễn Văn A) không được lập phiếu nhận — máy chủ chặn.</div>
+  <div class="row" style="margin-top:12px"><span class="sp"></span><button>Huỷ</button><button class="pri" data-go="hoantat">Lưu phiếu nhận</button></div>
+</section>
+
+<!-- ============ HOÀN TẤT ============ -->
+<section class="scr" id="hoantat">
+  <div class="crumb">Thuê gia công › GC-0007 › Hoàn tất dòng đơn</div>
+  <h2>Hoàn tất — LSX-0123 · Cán màng mờ</h2>
+  <div class="ctx">
+    <div><span>Khách hàng</span>Dược Minh An</div><div><span>Đơn hàng</span>ĐH-0451</div>
+    <div><span>Mặt hàng</span>Hộp trà Ivory cán màng</div><div><span>Hạn giao</span>18/11/2026</div>
+  </div>
+  <div class="modal"><div class="card">
+    <h3 style="margin-top:0">Bán thành phẩm</h3>
+    <div class="tb"><table>
+      <tr><th>Đã giao</th><th>Nhận đạt</th><th>Hỏng</th><th>Hụt</th></tr>
+      <tr><td>1.660 tờ</td><td>1.650 tờ<small>GN-0015: 800 · GN-0016: 850</small></td><td>0</td><td><b style="color:var(--red)">10 tờ</b></td></tr>
+    </table></div>
+    <h3>Vật tư xưởng cấp còn ở nhà gia công</h3>
+    <div class="tb"><table>
+      <tr><th>Vật tư</th><th>Đã giao</th><th>Xử lý</th><th>Số trả về kho</th></tr>
+      <tr><td>Màng BOPP mờ 18mic</td><td>66 m²</td><td><label><input type="radio" name="m"> Dùng hết</label> <label><input type="radio" name="m" checked> Trả về kho</label></td><td><input class="n" value="4"> m²<small>⇒ đề nghị nhập trả kho</small></td></tr>
+    </table></div>
+    <p class="crumb">Hụt không tự trừ tiền; kế toán thấy số này khi lập phiếu chi.</p>
+    <div class="row"><span class="sp"></span><button>Huỷ</button><button class="pri" data-go="lsx1">Hoàn tất</button></div>
+  </div></div>
+  <div class="note">Hoàn tất ⇒ bước Cán màng trên LSX-0123 chuyển "Xong 1.650 (hụt 10)"; sổ "Hàng đang ở ngoài" của dòng này về 0.</div>
+</section>
+
+<!-- ============ HÀNG ĐANG Ở NGOÀI ============ -->
+<section class="scr" id="ngoai">
+  <div class="crumb">Thuê gia công › Hàng đang ở ngoài</div>
+  <div class="row"><h2>Hàng đang ở ngoài</h2><span class="sp"></span><select><option>Tất cả nhà gia công</option><option>Minh Phát</option><option>In Tân Phát</option></select></div>
+  <div class="tb"><table>
+    <tr><th>Nhà gia công</th><th>Hàng</th><th>Số lượng</th><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Đơn GC · hẹn về</th></tr>
+    <tr><td>Minh Phát</td><td>Tờ in (chờ cán màng)</td><td>860 tờ</td><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory cán màng</td><td><b style="color:var(--red)">18/11</b></td><td><span class="lk" data-go="don">GC-0007</span><small>13/11</small></td></tr>
+    <tr><td>Minh Phát</td><td>Màng BOPP mờ 18mic</td><td>66 m²</td><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory cán màng</td><td>18/11</td><td><span class="lk" data-go="don">GC-0007</span><small>13/11</small></td></tr>
+    <tr><td>In Tân Phát</td><td>Giấy Ivory 300 65×86</td><td>2.600 tờ</td><td>LSX-0130</td><td>Bánh kẹo Thiên Phúc<small>ĐH-0460</small></td><td>Hộp bánh Tết 2027</td><td>25/11</td><td><span class="lk" data-go="don8">GC-0008</span><small>20/11</small></td></tr>
+  </table></div>
+  <div class="note">Chỉ đếm số lượng, tính ra từ phiếu giao − phiếu nhận − hụt đã hoàn tất − vật tư trả về. Không phải kho thật, không có giá trị tiền.</div>
+</section>
+
+<!-- ============ CHỜ TRẢ TIỀN ============ -->
+<section class="scr" id="tra">
+  <div class="crumb">Thuê gia công › Chờ trả tiền (kế toán)</div>
+  <div class="row"><h2>Chờ trả tiền</h2><span class="sp"></span><button class="pri">Lập phiếu chi (2 phiếu nhận · 990.000đ)</button></div>
+  <div class="tb"><table>
+    <tr><th></th><th>Nhà gia công</th><th>Phiếu nhận</th><th>Lệnh</th><th>Khách hàng / Đơn</th><th>Mặt hàng</th><th>Hạn giao</th><th>Đã nhận</th><th>Hỏng / hụt</th><th>Tạm tính</th></tr>
+    <tr class="hl"><td><input type="checkbox" checked></td><td>Minh Phát</td><td>GN-0015</td><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory</td><td>18/11</td><td>800 tờ × 600đ</td><td>0</td><td>480.000đ</td></tr>
+    <tr class="hl"><td><input type="checkbox" checked></td><td>Minh Phát</td><td>GN-0016</td><td>LSX-0123</td><td>Dược Minh An<small>ĐH-0451</small></td><td>Hộp trà Ivory</td><td>18/11</td><td>850 tờ × 600đ</td><td>hụt 10</td><td>510.000đ</td></tr>
+    <tr><td><input type="checkbox"></td><td>In Tân Phát</td><td>GN-0017</td><td>LSX-0130</td><td>Bánh kẹo Thiên Phúc<small>ĐH-0460</small></td><td>Hộp bánh Tết</td><td>25/11</td><td>3.000 hộp × 1.200đ</td><td>0</td><td>3.600.000đ</td></tr>
+    <tr><td><input type="checkbox"></td><td>In Tân Phát</td><td>GN-0018</td><td>LSX-0131</td><td>Mỹ phẩm Lan Chi<small>ĐH-0462</small></td><td>Hộp kem dưỡng</td><td>22/11</td><td>3.000 hộp × 1.200đ</td><td>0</td><td>3.600.000đ</td></tr>
+  </table></div>
+  <div class="note">Tick nhiều phiếu nhận <b>cùng nhà gia công</b> → một phiếu chi. Số tiền điền sẵn, sửa được theo hoá đơn thật (lệch bắt ghi lý do). Không 331, không tuổi nợ.</div>
+</section>
+
+</main>
+</div>
+<script>
+function show(id){
+  document.querySelectorAll('.scr').forEach(s=>s.classList.toggle('on',s.id===id));
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.s===id));
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('[data-s]').forEach(a=>a.onclick=()=>show(a.dataset.s));
+document.querySelectorAll('[data-go]').forEach(a=>a.addEventListener('click',e=>{e.stopPropagation();show(a.dataset.go)}));
+</script>
+</body>
+</html>

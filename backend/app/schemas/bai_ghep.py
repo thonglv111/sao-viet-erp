@@ -54,9 +54,6 @@ class BuocChungUpdateIn(BaseModel):
     so_luot_chay: int | None = None
     ghi_chu: str | None = None
     vat_tus: list[dict] | None = None
-    # Bước chung thuê ngoài → cả bài đi MỘT lần gia công (spec 2026-09-27). Chọn nhà gia công từ
-    # danh mục; TÊN do máy chủ ghi — client không gửi `nha_cung_cap`.
-    nha_cung_cap_id: int | None = None
 
 
 class BaiGhepUpdateIn(BaseModel):
@@ -306,7 +303,6 @@ class SoDoNode(BaseModel):
     gop_step_key: str | None = None    # khác None = đang bị một bước chung ĐÈ
     to_ten: str | None = None
     may_ten: str | None = None
-    nha_cung_cap: str | None = None
     tong_phut: float = 0
     chiem_may_phut: float = 0
     # Dải nhanh/chậm nhất (tốc độ tối đa / tối thiểu của máy). Máy chưa khai dải ⇒ = TB.
@@ -356,7 +352,6 @@ class SoDoBuocChung(BaseModel):
     to_chon_duoc: list[int] = Field(default_factory=list)
     # Máy còn dùng của công đoạn theo thứ tự bảng máy (máy mặc định đầu). [] = công đoạn chưa khai máy.
     may_chon_duoc: list[int] = Field(default_factory=list)
-    nha_cung_cap: str | None = None
     tong_phut: float = 0
     chiem_may_phut: float = 0
     # Dải nhanh/chậm nhất (tốc độ tối đa / tối thiểu của máy). Máy chưa khai dải ⇒ = TB.
@@ -381,8 +376,6 @@ class SoDoBuocChung(BaseModel):
     # dien_giai, ly_do}` với bước lệnh. Món chưa tính ra được vẫn có mặt với `so_luong=None` kèm
     # lý do, để drawer nói được "vì sao trống" thay vì im lặng.
     vat_tu_goi_y: list[dict] = Field(default_factory=list)
-    # Gia công ngoài (spec 2026-09-27) — nhà gia công của bước chung thuê ngoài.
-    nha_cung_cap_id: int | None = None
     ghi_chu: str | None = None
     ma_bai_ghep: str | None = None
     # Lệnh nào bị đè + ghi chú kỹ thuật của lệnh đó (GOM, không đè — thợ chạy chung một lượt phải

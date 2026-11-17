@@ -15,7 +15,7 @@ from ..models.bai_ghep_cong_doan import BaiGhepCongDoanMap
 from ..models.cong_doan import CongDoan
 from ..models.customer import Customer
 from ..models.department import Department
-from ..models.gia_cong_ngoai import KIEU_TRON_GOI, GiaCongNgoai
+from ..models.thue_gia_cong import KIEU_TRON_GOI, TgcViec
 from ..models.lsx import Lsx, LsxCongDoan
 from ..models.order import Order
 from ..models.san_xuat import (
@@ -127,12 +127,11 @@ class SanXuatKcsRepository:
         return {i: ma for i, ma in self.db.execute(select(Lsx.id, Lsx.ma).where(Lsx.id.in_(ids))).all()}
 
     def _lenh_trong_nhom(self):
-        """Lệnh đã vào nhóm thành phẩm — TRỪ lệnh đang gia công trọn gói (lần chưa huỷ): đặt trọn gói
-        cũng đưa lệnh vào nhóm nhưng không xuống xưởng, KCS không kiểm hàng gia công về (09/10/2026)."""
+        """Lệnh đã vào nhóm thành phẩm — TRỪ lệnh đang thuê gia công trọn gói: đặt trọn gói cũng
+        đưa lệnh vào nhóm nhưng không xuống xưởng, KCS không kiểm hàng gia công về (09/10/2026)."""
         tron_goi = (
-            select(GiaCongNgoai.id)
-            .where(GiaCongNgoai.lsx_id == Lsx.id, GiaCongNgoai.kieu == KIEU_TRON_GOI,
-                   GiaCongNgoai.huy_luc.is_(None))
+            select(TgcViec.id)
+            .where(TgcViec.lsx_id == Lsx.id, TgcViec.kieu == KIEU_TRON_GOI)
             .exists()
         )
         return (

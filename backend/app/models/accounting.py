@@ -185,9 +185,6 @@ class PaymentVoucher(Base):
         Index("uq_payment_voucher_salary_advance", "salary_advance_id", unique=True,
               postgresql_where=text("status <> 'cancelled'"),
               sqlite_where=text("status <> 'cancelled'")),
-        Index("uq_payment_voucher_gia_cong_ngoai", "gia_cong_ngoai_id", unique=True,
-              postgresql_where=text("status <> 'cancelled'"),
-              sqlite_where=text("status <> 'cancelled'")),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -217,12 +214,8 @@ class PaymentVoucher(Base):
         Integer, ForeignKey("salary_advances.id", ondelete="RESTRICT"),
         nullable=True, index=True,
     )
-    # LẦN GIA CÔNG NGOÀI nguồn (mg 0339). Chỉ có giá trị khi `source_type = gia_cong_ngoai`.
-    # RESTRICT: còn phiếu chi thì không xoá được lần. Một lần chỉ MỘT phiếu chi CÒN HIỆU LỰC
-    # (`uq_payment_voucher_gia_cong_ngoai`), huỷ phiếu thì lần tự về "chờ chi".
-    gia_cong_ngoai_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("gia_cong_ngoai.id", ondelete="RESTRICT"), nullable=True, index=True,
-    )
+    # Phiếu chi THUÊ GIA CÔNG (`source_type = gia_cong_ngoai`) nối phiếu nhận qua bảng
+    # `tgc_phieu_chi_nhan` (một phiếu chi trả gộp nhiều phiếu nhận) — không có cột nối ở đây.
     supplier_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("suppliers.id", ondelete="SET NULL"), nullable=True, index=True
     )

@@ -167,7 +167,17 @@ from .san_xuat_kcs import (
     SanXuatKcsTieuChi,
 )
 from .san_xuat_vat_tu import SanXuatVatTuDeNghi, SanXuatVatTuDeNghiDong
-from .gia_cong_ngoai import GiaCongNgoai
+from .thue_gia_cong import (
+    TgcDon,
+    TgcDonDong,
+    TgcNhaGiaCong,
+    TgcPhieuChiNhan,
+    TgcPhieuGiao,
+    TgcPhieuGiaoDong,
+    TgcPhieuNhan,
+    TgcPhieuNhanDong,
+    TgcViec,
+)
 from .cong_doan_tag import CongDoanTag, CongDoanTagCatalog
 from .tai_san import (
     TaiSan,
@@ -340,7 +350,15 @@ __all__ = [
     "SanXuatKcsLoiAnh",
     "SanXuatKcsTieuChi",
     "SanXuatVatTuDeNghi",
-    "GiaCongNgoai",
+    "TgcDon",
+    "TgcDonDong",
+    "TgcNhaGiaCong",
+    "TgcPhieuChiNhan",
+    "TgcPhieuGiao",
+    "TgcPhieuGiaoDong",
+    "TgcPhieuNhan",
+    "TgcPhieuNhanDong",
+    "TgcViec",
     "SanXuatVatTuDeNghiDong",
     "TaiSan",
     "TaiSanChiPhi",

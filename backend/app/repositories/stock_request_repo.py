@@ -88,8 +88,8 @@ _HEADER_FIELDS = ("bo_phan_id", "kho_id", "ngay_can", "can_luc", "uu_tien", "ghi
                   "nhap_tay",
                   # NGUỒN KCS (mg 0309): công đoạn KCS cuối gửi thành phẩm vào kho.
                   "san_xuat_cong_viec_id",
-                  # NGUỒN GIA CÔNG NGOÀI (Task 8): lần chốt về kho đẻ ra đề nghị này.
-                  "gia_cong_ngoai_id",
+                  # NGUỒN THUÊ GIA CÔNG (13/11/2026): phiếu giao / phiếu nhận / dòng đơn.
+                  "tgc_phieu_giao_id", "tgc_phieu_nhan_id", "tgc_don_dong_id",
                   # NHẬP LẠI VẬT TƯ THỪA (mg 0361): công việc của tổ trả vật tư dư về kho.
                   "vat_tu_tra_cong_viec_id",
                   # LƯỢT XUẤT ĐƠN THƯƠNG MẠI (mg 0462, chỉ In Hà Phương).
@@ -163,7 +163,8 @@ def _dk_nguon(nguon: str):
         StockRequest.purchase_delivery_id.is_not(None),
         StockRequest.dieu_chuyen.is_(True),
         StockRequest.delivery_trip_id.is_not(None),
-        StockRequest.gia_cong_ngoai_id.is_not(None),
+        or_(StockRequest.tgc_phieu_giao_id.is_not(None), StockRequest.tgc_phieu_nhan_id.is_not(None),
+            StockRequest.tgc_don_dong_id.is_not(None)),
         and_(StockRequest.loai == REQ_NHAP, StockRequest.san_xuat_cong_viec_id.is_not(None)),
     ]
     co_lenh = StockRequest.id.in_(select(StockRequestLine.request_id).where(or_(

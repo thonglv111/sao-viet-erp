@@ -108,8 +108,10 @@ class PaymentVoucherIn(PaymentVoucherBaseIn):
     # `salary_advance`, và SỐ TIỀN + NGƯỜI NHẬN lấy từ phiếu tạm ứng — payload gửi lên bị bỏ qua,
     # để phiếu chi không thể lệch số đã duyệt.
     salary_advance_id: int | None = Field(default=None, gt=0)
-    # Lần gia công ngoài nguồn — spec 2026-09-26 §5.
-    gia_cong_ngoai_id: int | None = Field(default=None, gt=0)
+    # Thuê gia công (spec 2026-11-13 §4.6): nguồn `gia_cong_ngoai` trả gộp các PHIẾU NHẬN cùng nhà gia
+    # công. `amount` là số kế toán chốt theo hoá đơn; khác Σ tạm tính thì phải có `ly_do_lech`.
+    tgc_phieu_nhan_ids: list[int] | None = Field(default=None, max_length=50)
+    ly_do_lech: str | None = Field(default=None, max_length=500)
 
 
 class ApproveAndCreateVoucherIn(PaymentVoucherBaseIn):
@@ -158,7 +160,6 @@ class PaymentVoucherOut(BaseModel):
     order_code: str | None = None
     purchase_request_id: int | None = None
     salary_advance_id: int | None = None
-    gia_cong_ngoai_id: int | None = None
     purchase_request_code: str
     purchase_request_total: int | None = None
     purchase_paid_amount: int | None = None
@@ -226,21 +227,6 @@ class PaymentVoucherOut(BaseModel):
     doi_chieu: list[DoiChieuDongChiOut] = Field(default_factory=list)
 
 
-class GiaCongChoChiOut(BaseModel):
-    gia_cong_ngoai_id: int
-    lsx_id: int | None = None
-    lsx_ma: str
-    bai_ghep_id: int | None = None
-    nhan_nguon: str = ""
-    ten_viec: str
-    nha_cung_cap_id: int | None = None
-    nha_cung_cap_ten: str
-    sl_cuoi: float
-    don_vi: str | None = None
-    chot_luc: datetime | None = None
-    chot_boi_ten: str | None = None
-
-
 class CocChoThuOut(BaseModel):
     """Một dòng "cọc chờ thu" — đơn đã chốt, cọc chưa đủ (17/10/2026)."""
     order_id: int
@@ -291,10 +277,6 @@ class TraLaiKhachChoChiOut(BaseModel):
     da_tra_lai: int
     con_lai: int
     tinh_trang: str | None = None
-
-
-class GiaCongChoChiDemOut(BaseModel):
-    so: int
 
 
 # --- MỘT phiếu chi trả NHIỀU khoản của cùng một NCC (17/10/2026: "một phiếu cho cả lượt") ---
