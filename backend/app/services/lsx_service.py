@@ -254,6 +254,13 @@ def khoan_chuan_bi_cua_may(may) -> list[dict]:
     ]
 
 
+def _tat_tgc() -> bool:
+    """Bản cài tắt Thuê gia công (`PHAN_HE_TAT=thue_gia_cong`): không đặt bước thuê ngoài MỚI. Bước thuê
+    ngoài đã có giữ nguyên để lệnh cũ vẫn mở, sửa được."""
+    from .. import phan_he
+    return phan_he.tat(phan_he.THUE_GIA_CONG)
+
+
 class _BuocThu:
     """Bản sao CHỈ ĐỌC của một bước, thay vài thuộc tính để tính THỬ.
 
@@ -1559,7 +1566,7 @@ class LsxService:
                 # Đặt loại bước NGAY TỪ ĐÂY để màn "lệnh dự kiến" và màn lệnh đã tạo nói cùng một
                 # thứ tiếng — trước đó preview chỉ có cờ thuê-ngoài nên hai màn hiển thị lệch nhau.
                 # Công đoạn mà mọi tổ đã tick đều chưa có máy chạy nó ⇒ bước loại TỔ (23/10/2026).
-                "loai_buoc": (LB_THUE_NGOAI if row.get("nha_cung_cap")
+                "loai_buoc": (LB_THUE_NGOAI if row.get("nha_cung_cap") and not _tat_tgc()
                               else LB_TO if to_khong_may(self.db, self.db.get(CongDoan, cd_id)
                                                          if cd_id else None)
                               else LB_MAY),
@@ -1691,8 +1698,10 @@ class LsxService:
         cd_obj = self.db.get(CongDoan, r["cong_doan_id"]) if r.get("cong_doan_id") else None
         # Loại là thuộc tính của BƯỚC KHSX, không phải của danh mục Công đoạn. Routing từ phiếu có
         # thể đưa gợi ý ban đầu; sau đó kế hoạch đổi tự do trong drawer.
-        loai_buoc = (LB_THUE_NGOAI if r.get("nha_cung_cap") else
+        loai_buoc = (LB_THUE_NGOAI if r.get("nha_cung_cap") and not _tat_tgc() else
                      r.get("loai_buoc") or LB_MAY)
+        if loai_buoc == LB_THUE_NGOAI and _tat_tgc():
+            loai_buoc = LB_MAY
         # Máy của PHIẾU chỉ mang xuống bước IN (ô đó là "Máy in"); tổ đi theo máy — xem
         # `_to_va_may_mac_dinh`. Bước không phải máy giữ tổ của routing, không máy.
         dept, may_id = r.get("department_id"), None
@@ -4075,6 +4084,8 @@ class LsxService:
             loai = d.get("loai_buoc") or old_loai or LB_MAY
             if loai not in LOAI_BUOC:
                 raise LsxValidationError("Loại bước chỉ nhận Máy, Tổ hoặc Thuê ngoài")
+            if loai == LB_THUE_NGOAI and old_loai != LB_THUE_NGOAI and _tat_tgc():
+                raise LsxValidationError("Bản cài này không dùng Thuê gia công — chọn Máy hoặc Tổ.")
             row.loai_buoc = loai
             for f in self._ROUTING_FIELD_THUAN:
                 if f in d and (d.get(f) is not None or f in self._ROUTING_FIELD_NULLABLE):

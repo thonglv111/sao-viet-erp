@@ -83,6 +83,8 @@ export function PaymentVouchersPage({
   const coKe = !useTat()("ke_gia");
   // Cước chờ chi: chỉ bản cài bật giao hàng kiểu Hà Phương (`giao_hang_hp`).
   const coCuoc = !useTat()("giao_hang_hp");
+  // Gia công chờ chi: bản cài tắt Thuê gia công (In Hà Phương) thì không nạp, không có mục.
+  const coGc = !useTat()("thue_gia_cong");
   // Khoá RIÊNG của màn Phiếu chi. `create` = LẬP phiếu + gán chứng từ.
   const coLap = can("phieu_chi", "create");
   const coHuy = can("phieu_chi", "cancel");
@@ -116,7 +118,7 @@ export function PaymentVouchersPage({
   const [lanCuoc, setLanCuoc] = useState(0);
 
   const taiGc = useCallback(() => {
-    if (!token) return;
+    if (!token || !coGc) return;
     tgcApi
       .choTraTien(token)
       .then((r) => {
@@ -124,7 +126,7 @@ export function PaymentVouchersPage({
         setGcLoi(null);
       })
       .catch((e: unknown) => setGcLoi(e instanceof ApiError ? e.message : "Không tải được hàng gia công chờ chi."));
-  }, [token]);
+  }, [token, coGc]);
   useEffect(() => {
     taiGc();
   }, [taiGc]);
@@ -238,7 +240,7 @@ export function PaymentVouchersPage({
     // Gia công không có đơn giá (chủ chốt 07/10/2026) ⇒ mục đếm việc, không cộng tiền. Không có việc
     // (hoặc đang tải) thì ẩn — trừ khi đang đứng ở mục đó (vd mở từ link) hoặc tải LỖI: lỗi thì mục vẫn
     // hiện (không số) để bấm vào thấy câu lỗi, việc chờ chi không lặng lẽ biến mất.
-    ...(the !== "gc" && !gcLoi && (gc?.length ?? 0) === 0
+    ...(!coGc || (the !== "gc" && !gcLoi && (gc?.length ?? 0) === 0)
       ? []
       : [{ key: "gc", label: "Gia công chờ chi", mau: "cam" as const, count: gc?.length }]),
     ...(the !== "tl" && !tlLoi && (tl?.length ?? 0) === 0
@@ -254,7 +256,7 @@ export function PaymentVouchersPage({
     // Đếm KHOẢN (cọc, từng đợt) như dòng của hàng — cùng cách đếm "Đơn hàng chờ thu".
     { key: "mh", label: "Mua hàng chờ chi", mau: "cam", count: mh ? dongMuaHang(mh).length : undefined },
     { key: "da_huy", label: "Đã hủy", mau: "xam", count: soThe?.da_huy },
-  ], [soThe, gc, gcLoi, tl, tlLoi, ck, ckLoi, cuoc, cuocLoi, coCuoc, the, mh]);
+  ], [soThe, gc, gcLoi, coGc, tl, tlLoi, ck, ckLoi, cuoc, cuocLoi, coCuoc, the, mh]);
   // Trạng thái trong nút Lọc = các tab có bảng (các hàng chờ thay cả bảng nên không vào).
   const dieuKien = useMemo(
     () => [

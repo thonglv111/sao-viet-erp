@@ -17,6 +17,7 @@ from ..db import get_db
 from ..deps import CurrentUser, get_authorization_service, require_any_permission, require_permission
 from ..doi_tuong_nhan import MAN_KHO, MAN_MUA_KE_TOAN, MAN_THEO_LENH
 from ..models.user import User
+from ..phan_he import THUE_GIA_CONG, chan_khi_tat
 from ..realtime import hub, phat_ban_giao
 from ..repositories.san_xuat_repo import SanXuatRepository
 from ..repositories.thue_gia_cong_repo import ThueGiaCongRepository
@@ -161,7 +162,10 @@ def cua_bai_ghep(
     return trang_thai_cua_bai_ghep(db, bai_ghep_id)
 
 
-@router.post("/lenh/{lsx_id}/tron-goi", response_model=TrangThaiViecOut)
+# Bản cài tắt Thuê gia công: không thuê trọn gói mới (module `thue_gia_cong` đã mất quyền ở mọi vai, riêng
+# đường này gác theo quyền Sản xuất nên chặn tay).
+@router.post("/lenh/{lsx_id}/tron-goi", response_model=TrangThaiViecOut,
+             dependencies=[Depends(chan_khi_tat(THUE_GIA_CONG))])
 def dat_tron_goi(
     lsx_id: int,
     body: TronGoiIn,

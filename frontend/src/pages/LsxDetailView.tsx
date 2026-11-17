@@ -22,7 +22,7 @@ import {
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
-import { useCan } from "../auth/permissions";
+import { useCan, useTat } from "../auth/permissions";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DinhKemTep } from "../components/DinhKemTep";
@@ -199,6 +199,8 @@ export function LsxDetailView({
   const [readyErr, setReadyErr] = useState<string | null>(null);
   const [askDelete, setAskDelete] = useState(false);
   const [moTronGoi, setMoTronGoi] = useState(false);
+  // Bản cài tắt Thuê gia công (In Hà Phương): không có nút thuê trọn gói.
+  const coTgc = !useTat()("thue_gia_cong");
   // Việc thuê gia công của lệnh (trạng thái CHỈ ĐỌC, spec 2026-11-13). Có việc trọn gói thì lệnh
   // không xuống xưởng: băng số liệu bỏ các ô của dây chuyền (vào máy, số công đoạn).
   const [tgcDs, setTgcDs] = useState<TgcTrangThaiViec[]>([]);
@@ -771,7 +773,7 @@ export function LsxDetailView({
                 hành. Lệnh đi chung lệnh khác / bài ghép thì máy chủ báo sẵn `tron_goi_chan`: thay nút
                 bằng chip nêu đích danh lệnh đang dính (cùng lý do với chip Xoá lệnh bên dưới), khỏi
                 để người kế hoạch điền xong hộp thoại mới bị trả về. */}
-            {canUpdate && ["nhap", "cho_bo_sung", "san_sang", "da_lap_ke_hoach"].includes(d.trang_thai) && (
+            {coTgc && canUpdate && ["nhap", "cho_bo_sung", "san_sang", "da_lap_ke_hoach"].includes(d.trang_thai) && (
               d.tron_goi_chan ? (
                 <span className="khsx-khoa-chip" title={d.tron_goi_chan}>
                   <Icon name="lock" size={13} /> {d.tron_goi_chan_ngan ?? "Chưa giao trọn gói được"}

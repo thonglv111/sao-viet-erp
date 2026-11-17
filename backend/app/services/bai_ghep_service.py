@@ -1032,6 +1032,10 @@ class BaiGhepService:
         to_moi = patch.get("department_id")
         # Bước thuê ngoài không tổ (tổ bị gỡ ở `_ap_nha_gia_cong`) — khỏi soi tổ phụ trách.
         thue_ngoai = patch.get("loai_buoc", chung.loai_buoc) == LB_THUE_NGOAI
+        if (thue_ngoai and chung.loai_buoc != LB_THUE_NGOAI):
+            from ..phan_he import THUE_GIA_CONG, tat
+            if tat(THUE_GIA_CONG):
+                raise BaiGhepValidationError("Bản cài này không dùng Thuê gia công — chọn Máy hoặc Tổ.")
         if (to_moi is not None and not thue_ngoai and to_moi != chung.department_id
                 and chung.cong_doan_id):
             cd_obj = self.db.get(CongDoan, chung.cong_doan_id)

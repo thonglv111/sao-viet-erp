@@ -23,6 +23,7 @@ import { Select } from "../components/Select";
 import { Icon } from "../components/Icons";
 import { DagRoutingCanvas } from "../components/DagRoutingCanvas";
 import { PopoverO } from "../components/PopoverO";
+import { useTat } from "../auth/permissions";
 import { LsxBuocDrawer, type TabKey as DrawerTabKey } from "./LsxBuocDrawer";
 import type { TgcTrangThaiViec } from "../api/thueGiaCong";
 import { viTriTrongDai } from "./thue-gia-cong/tgc";
@@ -202,6 +203,8 @@ export function LsxRoutingTable({
   /** Đã mở xong — cha xoá yêu cầu, nếu không bảng dựng lại (đổi tab rồi quay về) lại tự mở. */
   onDaMo?: () => void;
 }) {
+  // Bản cài tắt Thuê gia công: không cho chọn bước Thuê ngoài mới (bước đã thuê ngoài vẫn đổi về được).
+  const tatTgc = useTat()("thue_gia_cong");
   // Nhãn đơn vị đọc từ DANH MỤC — nạp một lần cho cả phiên. Hook ở ĐÂY (gốc của bảng + DAG +
   // drawer) nên mọi chỗ gọi `dvNhan` vẽ lại khi danh mục về, khỏi phải truyền prop qua 22 chỗ.
   useNapTenDonVi();
@@ -1093,6 +1096,7 @@ export function LsxRoutingTable({
         // nhà gia công theo loại đang chọn. Cột Loại riêng gỡ 12/11/2026.
         const doiLoai = (
           <>
+            {(!tatTgc || r.loai_buoc === "thue_ngoai") && (
             <div className="khsx-seg-std popo__seg" role="group" aria-label="Loại bước">
               {(["may", "thue_ngoai"] as const).map((k) => {
                 const dang = k === "thue_ngoai" ? r.loai_buoc === "thue_ngoai" : r.loai_buoc !== "thue_ngoai";
@@ -1115,6 +1119,7 @@ export function LsxRoutingTable({
                 );
               })}
             </div>
+            )}
           </>
         );
         if (r.loai_buoc === "thue_ngoai") {

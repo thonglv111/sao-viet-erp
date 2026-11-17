@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { LSX_LOAI_BUOC_LENH, type LsxLoaiBuoc } from "../api/client";
 import type { TgcTrangThaiViec } from "../api/thueGiaCong";
+import { useTat } from "../auth/permissions";
 import { ChipTT } from "../components/LuoiDs";
 import { Button } from "../components/Button";
 import { Select, type SelectOption } from "../components/Select";
@@ -165,6 +166,8 @@ export function LsxBuocDrawer({
   onPrev: () => void;
   onNext: () => void;
 }) {
+  // Bản cài tắt Thuê gia công: không cho chọn bước Thuê ngoài mới (bước đã thuê ngoài vẫn đổi về được).
+  const tatTgc = useTat()("thue_gia_cong");
   const panelRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [activeTab, setActiveTab] = useState<MainTab>(() => normalizeTab(tabDau));
@@ -520,7 +523,7 @@ export function LsxBuocDrawer({
                   <div className="khsx-field">
                     <span className="khsx-field__label">LOẠI BƯỚC THỰC HIỆN</span>
                     <div className="khsx-seg-std" role="group" aria-label="Loại bước">
-                      {LOAI_BUOC_ORDER.map((k) => {
+                      {LOAI_BUOC_ORDER.filter((k) => k !== "thue_ngoai" || !tatTgc || ngoai).map((k) => {
                         const m = LSX_LOAI_BUOC_LENH[k];
                         const dang = k === "thue_ngoai" ? ngoai : !ngoai;
                         return (

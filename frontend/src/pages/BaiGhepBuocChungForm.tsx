@@ -19,6 +19,7 @@ import {
   LSX_LOAI_BUOC_META, type BaiGhepBuocChungBody, type BaiGhepSoDo, type LsxLoaiBuoc,
 } from "../api/client";
 import { crud } from "../api/rebuildCatalog";
+import { useTat } from "../auth/permissions";
 import { nhanDonViTocDo } from "./danh-muc/fields/DonViTocDo";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
@@ -79,6 +80,8 @@ export function BuocChungForm({
   /** Băng thông báo của trang (lỗi lưu, "bước vừa gộp chưa có cấu hình") — nằm ngay dưới thanh tab. */
   banner?: ReactNode;
 }) {
+  // Bản cài tắt Thuê gia công: không cho chọn bước Thuê ngoài mới (bước đã thuê ngoài vẫn đổi về được).
+  const tatTgc = useTat()("thue_gia_cong");
   const { token } = useAuth();
   const [toRefs, setToRefs] = useState<{ id: number; ten: string }[] | null>(null);
   const [mayRefs, setMayRefs] = useState<MayRef[] | null>(null);
@@ -458,7 +461,7 @@ export function BuocChungForm({
               <div className="khsx-field">
                 <span className="khsx-field__label">LOẠI BƯỚC THỰC HIỆN</span>
                 <div className="khsx-seg-std" role="group" aria-label="Loại bước">
-                  {LOAI_BUOC_ORDER.map((k) => (
+                  {LOAI_BUOC_ORDER.filter((k) => k !== "thue_ngoai" || !tatTgc || loai === "thue_ngoai").map((k) => (
                     <button
                       key={k}
                       type="button"
