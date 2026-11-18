@@ -1576,9 +1576,13 @@ export function SuaSoMeForm({
     n.so_luong != null ? String(n.so_luong) : nguoiCu.length === 1 ? String(b.tot) : ""]));
   const [slNguoi, setSlNguoi] = useState<Record<number, string>>(slCu);
   const idChon = dsNguoi.filter((n) => !n.mo && chonNguoi.has(n.id)).map((n) => n.id);
-  const slDoi = tungNguoi && (nguoiDoi || idChon.some((id) => toNum(slNguoi[id] ?? "") !== toNum(slCu[id] ?? "")));
+  // Lần ghi trước khi có số từng người (nhiều người, chưa ai có số): chưa gõ ô nào thì tổng giữ số cũ,
+  // đừng hiện 0 kèm "bớt" như sắp xoá số.
+  const chuaChia = tungNguoi && idChon.length > 0 && idChon.every((id) => (slNguoi[id] ?? "").trim() === "");
+  const slDoi = tungNguoi && !chuaChia
+    && (nguoiDoi || idChon.some((id) => toNum(slNguoi[id] ?? "") !== toNum(slCu[id] ?? "")));
   const [soGo, setSo] = useState(String(b.tot));
-  const so = tungNguoi ? tongSoNguoi(idChon, slNguoi) || "0" : soGo;
+  const so = tungNguoi ? (chuaChia ? String(b.tot) : tongSoNguoi(idChon, slNguoi) || "0") : soGo;
   const [lyDo, setLyDo] = useState("");
   const nSo = toNum(so);
   const daGo = so.trim() !== "" && Number.isFinite(Number(so.replace(/,/g, "")));
@@ -1634,7 +1638,13 @@ export function SuaSoMeForm({
             value={so} readOnly={tungNguoi} onChange={(e) => setSo(e.target.value)} />
           {dv && <span className="thsx-gm-mo">{dv}</span>}
         </div>
-        {tungNguoi ? <span className="thsx-f__g">Tổng số của từng người bên dưới.</span> : (
+        {tungNguoi ? (
+          <span className="thsx-f__g">
+            {chuaChia && nguoiCu.some((n) => n.so_luong == null)
+              ? <>Lần này ghi khi chưa có số từng người. Chia <span className="thsx-num">{num(b.tot)}</span> {dv} cho từng người bên dưới.</>
+              : "Tổng số của từng người bên dưới."}
+          </span>
+        ) : (
         <div className="thsx-chips">
           {BUOC_SUA_SO.map((d) => (
             <button key={d} type="button" className="thsx-chip thsx-num"
@@ -1686,10 +1696,12 @@ export function SuaSoMeForm({
               Lần giao <span className="thsx-num">{num(banGiao.so_luong)}</span> đổi thành{" "}
               <span className="thsx-num">{num(Math.max(0, banGiao.so_luong + chenhLech))}</span> {dv}.
             </>
+          ) : nguoiDoi || slDoi || tcDoi ? (
+            <>Số không đổi nên lần giao <span className="thsx-num">{num(banGiao.so_luong)}</span> {dv} giữ nguyên.</>
           ) : (
             <>Sửa số thì lần giao <span className="thsx-num">{num(banGiao.so_luong)}</span> {dv} đổi theo.</>
           )}
-          {!banGiao.cung_to && (banGiao.trang_thai === "confirmed"
+          {!banGiao.cung_to && !(Math.abs(chenhLech) <= 0.0001 && (nguoiDoi || slDoi || tcDoi)) && (banGiao.trang_thai === "confirmed"
             ? ` ${benNhan} sẽ phải xác nhận lại.`
             : ` ${benNhan} chưa xác nhận, sẽ thấy số mới.`)}
         </div>
