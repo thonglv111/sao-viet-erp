@@ -20328,3 +20328,31 @@ def _migrate_tgc_nha_gia_cong_rieng(db: Session) -> None:
 
 
 MIGRATIONS.append(("0484_tgc_nha_gia_cong_rieng", _migrate_tgc_nha_gia_cong_rieng))
+
+
+def _migrate_order_lines_ck_pct(db: Session) -> None:
+    """0485 (18/11/2026) — `order_lines.ck_pct`: CK % của dòng đơn thương mại (chỉ In Hà Phương).
+    Cột trống = không CK, đơn cũ giữ nguyên `line_total`. Đọc cột TRƯỚC lệnh ghi. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "order_lines" not in set(insp.get_table_names()):
+        return
+    if "ck_pct" not in _existing_columns(insp, "order_lines"):
+        db.execute(text("ALTER TABLE order_lines ADD COLUMN ck_pct NUMERIC(5,2)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0485_order_lines_ck_pct", _migrate_order_lines_ck_pct))
+
+
+def _migrate_batch_nguoi_so_luong(db: Session) -> None:
+    """0486 (18/11/2026) — `san_xuat_batch_nguoi.so_luong`: số làm được của từng người trong lần ghi
+    (chỉ In Hà Phương bật `san_luong_tung_nguoi`). Trống = lần ghi theo số tổng. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "san_xuat_batch_nguoi" not in set(insp.get_table_names()):
+        return
+    if "so_luong" not in _existing_columns(insp, "san_xuat_batch_nguoi"):
+        db.execute(text("ALTER TABLE san_xuat_batch_nguoi ADD COLUMN so_luong NUMERIC(18,3)"))
+    db.commit()
+
+
+MIGRATIONS.append(("0486_batch_nguoi_so_luong", _migrate_batch_nguoi_so_luong))

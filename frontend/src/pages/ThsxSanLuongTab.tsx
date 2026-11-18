@@ -158,6 +158,7 @@ function NguoiMe({ ds }: { ds: SxSlMe["nguoi"] }) {
         <li key={n.employee_id}>
           <span>{n.ho_ten}</span>
           {n.to_ten && <>{" "}<span className="thsx-sl__to">{n.to_ten}</span></>}
+          {n.so_luong != null && <>{" "}<span className="thsx-num">{num(n.so_luong)}</span></>}
         </li>
       ))}
     </ul>

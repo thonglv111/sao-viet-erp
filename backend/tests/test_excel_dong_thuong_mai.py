@@ -44,7 +44,7 @@ def test_xuat_roi_nhap_lai_ra_dung_dong(client, bat_tm):
     wb = load_workbook(BytesIO(r.content))
     rows = list(wb["Mặt hàng"].iter_rows(values_only=True))
     # Không có cột đơn giá; đơn vị in TÊN; Tên hàng là công thức tra trang Danh mục hàng.
-    assert rows[0] == ("Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %")
+    assert rows[0] == ("Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %")
     assert rows[1][0] == "TM-EX1" and rows[1][2] == _ten_dv(client, h, dv) and rows[1][3] == 3 and rows[1][4] == 8
     assert rows[1][1].startswith("=IF(A2")
     dm = list(wb["Danh mục hàng"].iter_rows(values_only=True))
@@ -127,3 +127,30 @@ def test_khong_xem_gia_hang_thuong_mai_thi_dong_nhap_khong_co_gia_khai(client, b
     r = _nhap(client, h, _file(("TM-EX4", None, None, 2, 0)))
     assert r.status_code == 200, r.text
     assert r.json()[0]["hang"]["gia_ban_theo_dvt"] is None
+
+
+def test_cot_ck_xuat_ra_va_nhap_lai(client, bat_tm):
+    """CK % (18/11/2026): xuất ra đúng số đang có trên trang, nhập vào đọc được số lẻ «2,5»; trống là 0."""
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-CK1", gia=10000)
+    r = client.post("/api/thuong-mai/dong/xuat-excel", headers=h,
+                    json={"lines": [{"hang_id": hid, "dvt": dv, "qty": 2, "vat_pct": 8, "ck_pct": 5}]})
+    rows = list(load_workbook(BytesIO(r.content))["Mặt hàng"].iter_rows(values_only=True))
+    assert rows[1][5] == 5
+    assert _nhap(client, h, r.content).json()[0]["ck_pct"] == 5
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %"])
+    ws.append(["TM-CK1", None, None, 3, 0, "2,5"])
+    ws.append(["TM-CK1", None, None, 1, 0, None])
+    out = BytesIO()
+    wb.save(out)
+    d = _nhap(client, h, out.getvalue()).json()
+    assert [x["ck_pct"] for x in d] == [2.5, 0]
+
+    ws.append(["TM-CK1", None, None, 1, 0, 120])
+    out = BytesIO()
+    wb.save(out)
+    r = _nhap(client, h, out.getvalue())
+    assert r.status_code == 400 and "Dòng 4" in r.json()["detail"] and "CK %" in r.json()["detail"]

@@ -35,6 +35,46 @@ from .tinh_trang_nguoi import LY_DO_NGHI, nhan_viec
 CAN_MOT_NGUOI = "Chọn ít nhất một người làm lần này."
 
 
+def chuan_so_luong_nguoi(so_luong_nguoi: dict | None, tot: float) -> dict[int, float] | None:
+    """Số làm được của từng người (18/11/2026, chỉ In Hà Phương bật `san_luong_tung_nguoi`).
+
+    Tốt của lần ghi = tổng số từng người; máy chủ kiểm lại để số tổng không lệch số người. None =
+    lần ghi theo số tổng như cũ."""
+    if so_luong_nguoi is None:
+        return None
+    from ...phan_he import SAN_LUONG_TUNG_NGUOI, tat
+
+    if tat(SAN_LUONG_TUNG_NGUOI):
+        raise ValueError("Bản cài này ghi sản lượng theo số tổng, không ghi riêng từng người.")
+    ds = {int(k): round(float(v or 0), 3) for k, v in so_luong_nguoi.items()}
+    if not ds:
+        raise ValueError(CAN_MOT_NGUOI)
+    if any(v < 0 for v in ds.values()):
+        raise ValueError("Số của từng người không được âm.")
+    if abs(sum(ds.values()) - float(tot)) > 0.0005:
+        raise ValueError("Số tốt phải bằng tổng số của từng người.")
+    return ds
+
+
+def dat_so_luong(db: Session, batch_id: int, ds: dict[int, float] | None) -> list[str]:
+    """Ghi số từng người vào các dòng người làm của lần ghi. Trả ["Tên: cũ→mới"] của người đổi số."""
+    if ds is None:
+        return []
+    db.flush()  # dòng người vừa thêm / xoá phải xuống DB trước khi đọc lại (session không tự flush)
+    repo = SanXuatBatchNguoiRepository(db)
+    rows = repo.cua_batch(batch_id)
+    emps = repo.nhan_vien_nhieu({r.employee_id for r in rows})
+    doi = []
+    for r in rows:
+        moi = ds.get(r.employee_id, 0.0)
+        cu = float(r.so_luong) if r.so_luong is not None else None
+        if cu is None or abs(cu - moi) > 0.0005:
+            ten = getattr(emps.get(r.employee_id), "full_name", None) or f"#{r.employee_id}"
+            doi.append(f"{ten}: {'-' if cu is None else f'{cu:g}'}->{moi:g}")
+            r.so_luong = moi
+    return doi
+
+
 def tinh_trang_ghi(db: Session, cv: SanXuatCongViec, emp_ids: set[int], ngay: date | None) -> dict[int, dict]:
     """{employee_id: {nghi, dang_o}} — hai thứ hộp Ghi sản lượng ghi cạnh tên.
 

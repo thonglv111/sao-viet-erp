@@ -190,3 +190,44 @@ describe("Người làm lần này", () => {
     expect(within(hop).getByRole("button", { name: "Ghi sản lượng" })).toBeDisabled();
   });
 });
+
+describe("Ghi số từng người (chỉ In Hà Phương, cờ san_luong_tung_nguoi)", () => {
+  it("mỗi người tick có ô số, số làm được là tổng, chỉ đọc; gửi so_luong_nguoi", async () => {
+    const { PermissionsProvider, buildCapabilities } = await import("../auth/permissions");
+    const taoBatch = vi.fn().mockResolvedValue([]);
+    render(
+      <PermissionsProvider caps={buildCapabilities([])} phanHeTat={new Set()}>
+        <BatchForm cv={cv} khoan={null} busy={false} tranGhi={TRAN}
+          nguoiGhi={[nguoi(1, "Đào Văn Hoan"), nguoi(2, "Lê Thị Mai")]} onXong={vi.fn()}
+          exec={{ taoBatch } as unknown as ThsxExec} />
+      </PermissionsProvider>,
+    );
+    const hop = screen.getByRole("dialog", { name: "Ghi sản lượng" });
+    const tong = within(hop).getByLabelText("Số lượng làm được") as HTMLInputElement;
+    expect(tong.readOnly).toBe(true);
+    expect(within(hop).queryByRole("button", { name: "+50" })).toBeNull();
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Đào Văn Hoan"), { target: { value: "100" } });
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Lê Thị Mai"), { target: { value: "40" } });
+    expect(tong.value).toBe("140");
+    // Còn ghi được 150 áp lên tổng: 100 + 60 = 160 vượt ⇒ khoá nút.
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Lê Thị Mai"), { target: { value: "60" } });
+    expect(within(hop).getByRole("button", { name: "Ghi sản lượng" })).toBeDisabled();
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Lê Thị Mai"), { target: { value: "40" } });
+    // Bỏ tick người thì ô số của họ biến mất, tổng chỉ còn người đang tick.
+    fireEvent.click(within(hop).getByRole("checkbox", { name: /Lê Thị Mai/ }));
+    expect(within(hop).queryByLabelText("Số làm được của Lê Thị Mai")).toBeNull();
+    expect(tong.value).toBe("100");
+    fireEvent.click(within(hop).getByRole("checkbox", { name: /Lê Thị Mai/ }));
+    fireEvent.keyDown(hop, { key: "Enter", ctrlKey: true });
+    const body = taoBatch.mock.calls[0][0];
+    expect(body).toMatchObject({ tot: 140, tong: 140, nguoi_ids: [1, 2], so_luong_nguoi: { 1: 100, 2: 40 } });
+  });
+
+  it("Sao Việt Nhật (cờ tắt) giữ ô số tổng gõ tay, không có ô từng người", () => {
+    const { hop, taoBatch } = mo(TRAN);
+    expect(within(hop).queryByLabelText(/Số làm được của/)).toBeNull();
+    fireEvent.change(within(hop).getByLabelText("Số lượng làm được"), { target: { value: "50" } });
+    fireEvent.keyDown(hop, { key: "Enter", ctrlKey: true });
+    expect(taoBatch.mock.calls[0][0]).not.toHaveProperty("so_luong_nguoi");
+  });
+});

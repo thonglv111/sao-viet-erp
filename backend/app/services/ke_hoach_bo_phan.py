@@ -241,7 +241,7 @@ class KeHoachBoPhanService:
 
     def trang_viec(self, bo_phan_id: int, *, trang_thai: str, tim: str | None = None,
                    tu_ngay=None, den_ngay=None, may_id: int | None = None, nhom_id: int | None = None,
-                   trang: int = 1, co_trang: int = 25) -> dict:
+                   trang: int = 1, co_trang: int = 25, sap_xep: str | None = None) -> dict:
         """Bảng việc: một trang ở chip `trang_thai` (`tat_ca` = mọi trạng thái), kèm tổng khớp và số
         ở từng chip (cùng tìm, kỳ, lọc). Việc Hoàn thành không giới hạn ngày ở đây — kỳ của thanh lọc
         lo phần đó. Kèm máy (nhóm, tình trạng, số việc chờ) và nhóm của bộ phận để chọn máy, nhóm
@@ -253,7 +253,7 @@ class KeHoachBoPhanService:
                "may_id": may_id, "nhom_id": nhom_id}
         co_trang = max(1, min(int(co_trang), 100))
         viec, tong = self.repo.trang_viec(bp, trang_thai=trang_thai, offset=(max(1, trang) - 1) * co_trang,
-                                          limit=co_trang, **loc)
+                                          limit=co_trang, sap_xep=sap_xep, **loc)
         dem = self.repo.dem_trang_thai(bp, **loc)
         may_bp, to_cua_may = self._may_bo_phan(bp)
         ds, ngoai = self._dong_viec(bp, viec, may_bp, to_cua_may)

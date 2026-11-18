@@ -19,6 +19,7 @@ import { crud } from "../api/rebuildCatalog";
 import { useAuth } from "../auth/useAuth";
 import {
   buildCapabilities,
+  PHAN_HE_TAT_MAC_DINH,
   PermissionsProvider,
   type Capabilities,
   type PhanHe,
@@ -261,7 +262,7 @@ export function AppShell() {
   useEffect(() => (laDT ? theoDoiBanPhim() : undefined), [laDT]);
   const [readable, setReadable] = useState<Set<string> | null>(null);
   const [caps, setCaps] = useState<Capabilities>(new Map());
-  const [phanHeTat, setPhanHeTat] = useState<ReadonlySet<PhanHe>>(new Set());
+  const [phanHeTat, setPhanHeTat] = useState<ReadonlySet<PhanHe>>(PHAN_HE_TAT_MAC_DINH);
   // Chấm đỏ theo nav id (1 = có bản ghi mới chưa xem). Nguồn DUY NHẤT: tóm tắt thông báo
   // (`napThongBao`) — Sidebar chỉ vẽ chấm, không in số.
   const [badges, setBadges] = useState<Record<string, number>>({});

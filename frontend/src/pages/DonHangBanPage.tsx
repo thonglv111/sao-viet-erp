@@ -702,6 +702,12 @@ function OrderDrawer({
     const t = ds.reduce((x, l) => x + (l.chiet_khau ?? 0), 0);
     return t > 0 ? soVN(t) : "—";
   };
+  // Đơn thương mại (chỉ In Hà Phương, 18/11/2026): cột CK là CK % trừ thẳng vào thành tiền dòng, khác chiết
+  // khấu hoàn lại khách của đơn sản xuất. Tiền đã trừ = SL × đơn giá − thành tiền.
+  const ckPct = (ds: { ck_pct?: number | null }[]) =>
+    ds.length === 1 && ds[0].ck_pct ? `${Number(ds[0].ck_pct).toLocaleString("vi-VN")}%` : "—";
+  const tienCkTM = laTM ? order.lines.reduce((t, l) => t + (l.ck_pct && l.unit_price_snapshot != null && l.line_total != null
+    ? l.unit_price_snapshot * l.qty - l.line_total : 0), 0) : 0;
   const keDong = (ds: { ke_gia?: number | null }[]) => {
     const t = ds.reduce((x, l) => x + (l.ke_gia ?? 0), 0);
     return t > 0 ? soVN(t) : "—";
@@ -1224,7 +1230,11 @@ function OrderDrawer({
                         <th>Đơn vị</th>
                         <th className="dhb__text-right">Đơn giá</th>
                         <th className="dhb__text-right">VAT</th>
-                        <th className="dhb__text-right" title="Đã nằm trong đơn giá — chi lại cho khách khi hóa đơn thu đủ">Chiết khấu</th>
+                        {laTM ? (
+                          <th className="dhb__text-right" title="Chiết khấu % trừ thẳng vào thành tiền, VAT tính sau chiết khấu">CK</th>
+                        ) : (
+                          <th className="dhb__text-right" title="Đã nằm trong đơn giá — chi lại cho khách khi hóa đơn thu đủ">Chiết khấu</th>
+                        )}
                         {tongKe > 0 && (
                           <th className="dhb__text-right" title="Đã cộng vào đơn giá — chi lại cho người bên khách, trừ thuế TNDN, khi hóa đơn thu đủ">Kê</th>
                         )}
@@ -1253,9 +1263,13 @@ function OrderDrawer({
                             </td>
                             <td className="dhb__mono dhb__text-right">{soVN(g.soLuong)}</td>
                             <td>{g.donViTinh || "—"}</td>
-                            <td className="dhb__mono dhb__text-right">{g.donGia == null ? "—" : soVN(g.donGia)}</td>
+                            {/* Đơn thương mại có CK: thành tiền ÷ số lượng là giá SAU CK — bày giá bán lúc lập. */}
+                            <td className="dhb__mono dhb__text-right">
+                              {laTM && dongLe && g.goc[0].unit_price_snapshot != null ? soVN(g.goc[0].unit_price_snapshot)
+                                : g.donGia == null ? "—" : soVN(g.donGia)}
+                            </td>
                             <td className="dhb__mono dhb__text-right">{g.vatPct === null ? "—" : `${g.vatPct}%`}</td>
-                            <td className="dhb__mono dhb__text-right">{ckDong(g.goc)}</td>
+                            <td className="dhb__mono dhb__text-right">{laTM ? ckPct(g.goc) : ckDong(g.goc)}</td>
                             {tongKe > 0 && <td className="dhb__mono dhb__text-right">{keDong(g.goc)}</td>}
                             <td className="dhb__mono dhb__text-right">{soVN(g.thanhTien)}</td>
                           </tr>,
@@ -1267,7 +1281,7 @@ function OrderDrawer({
                               <td>{l.don_vi_tinh || "—"}</td>
                               <td className="dhb__mono dhb__text-right">{l.unit_price_snapshot == null ? "—" : soVN(l.unit_price_snapshot)}</td>
                               <td className="dhb__mono dhb__text-right">{l.vat_pct_estimate}%</td>
-                              <td className="dhb__mono dhb__text-right">{ckDong([l])}</td>
+                              <td className="dhb__mono dhb__text-right">{laTM ? ckPct([l]) : ckDong([l])}</td>
                               {tongKe > 0 && <td className="dhb__mono dhb__text-right">{keDong([l])}</td>}
                               <td className="dhb__mono dhb__text-right">{l.line_total == null ? "—" : soVN(l.line_total)}</td>
                             </tr>
@@ -1289,6 +1303,7 @@ function OrderDrawer({
                     </p>
                   )}
                   <TomTat d={[
+                    ...(tienCkTM > 0 ? [{ nhan: "Chiết khấu đã trừ", so: soVN(tienCkTM) }] : []),
                     { nhan: "Cộng trước VAT", so: order.total == null ? "—" : soVN(order.total) },
                     ...(tongCk > 0 ? [{ nhan: "Trong đó chiết khấu", so: soVN(tongCk) }] : []),
                     ...(tongKe > 0 ? [{ nhan: "Trong đó kê", so: soVN(tongKe) }] : []),

@@ -172,6 +172,9 @@ class SanXuatBatchNguoi(Base):
     la_ho_tro: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sa_false(), default=False
     )
+    # Số làm được của RIÊNG người này (18/11/2026, mg 0486, chỉ In Hà Phương bật `san_luong_tung_nguoi`):
+    # tổng tốt của lần ghi = Σ cột này. Trống = lần ghi theo số tổng (Sao Việt Nhật, lần ghi cũ).
+    so_luong: Mapped[float | None] = mapped_column(Numeric(18, 3), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
