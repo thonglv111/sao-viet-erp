@@ -1388,7 +1388,9 @@ def chi_tiet_cong_viec(
                            if n["department_id"] and n["department_id"] != cv.department_id
                            else None),
                 "la_ho_tro": n["la_ho_tro"],
-                "so_luong": n["so_luong"],
+                # Chỉ In Hà Phương ghi số từng người; chưa có số thì không gửi khoá — Sao Việt Nhật
+                # giữ nguyên dạng cũ (tên + tổ, không phần chia).
+                **({"so_luong": n["so_luong"]} if n["so_luong"] is not None else {}),
             }
             for n in theo_me.get(batch_id, [])
         ]

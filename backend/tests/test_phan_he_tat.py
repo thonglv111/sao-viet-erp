@@ -23,8 +23,9 @@ def test_rong_la_bat_het(client, monkeypatch):
     monkeypatch.setattr(settings, "phan_he_bat", "")
     h = _admin(client)
     r = client.get("/api/auth/permissions", headers=h).json()
-    # Hai phân hệ chỉ In Hà Phương có thì mặc định tắt (08/11/2026) — Sao Việt Nhật không khai gì.
-    assert r["phan_he_tat"] == ["giao_hang_hp", "thuong_mai"]
+    # Phân hệ chỉ In Hà Phương có thì mặc định tắt (08/11 và 18/11/2026) — Sao Việt Nhật không khai gì.
+    assert r["phan_he_tat"] == ["chuyen_kho_tp", "giao_hang_hp", "san_luong_tung_nguoi", "sap_xep_giay",
+                                "thuong_mai"]
     assert {"luong", "giao_hang", "dm_xe", "tai_san"} <= set(r["modules"])
     assert client.get("/api/luong/params", headers=h).status_code == 200
     assert client.get("/api/tai-san/thang/2026/10", headers=h).status_code == 200
@@ -34,8 +35,9 @@ def test_rong_la_bat_het(client, monkeypatch):
 def test_tat_thi_admin_cung_mat_quyen(client, tat_het):
     h = _admin(client)
     r = client.get("/api/auth/permissions", headers=h).json()
-    assert r["phan_he_tat"] == ["cham_cong", "giao_hang", "giao_hang_hp", "hoa_hong", "khoan", "luong",
-                                "sua_chua", "tai_san", "thuong_mai"]
+    assert r["phan_he_tat"] == ["cham_cong", "chuyen_kho_tp", "giao_hang", "giao_hang_hp", "hoa_hong", "khoan",
+                                "luong", "san_luong_tung_nguoi", "sap_xep_giay", "sua_chua", "tai_san",
+                                "thuong_mai"]
     assert not {"luong", "giao_hang", "dm_xe", "tai_san"} & set(r["modules"])
     assert not any(p["module_key"] in ("luong", "giao_hang", "dm_xe", "tai_san") for p in r["permissions"])
     ns = next(p for p in r["permissions"] if p["module_key"] == "nhan_su")
