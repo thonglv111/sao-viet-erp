@@ -44,6 +44,7 @@ def nguoi_theo_me(db: Session, batch_ids: set[int] | list[int]) -> dict[int, lis
             "ho_ten": ten or f"#{r.employee_id}",
             "department_id": r.department_id,
             "la_ho_tro": bool(r.la_ho_tro),
+            "so_luong": float(r.so_luong) if r.so_luong is not None else None,
         })
     for ds in ra.values():
         ds.sort(key=lambda x: (x["ho_ten"], x["employee_id"]))

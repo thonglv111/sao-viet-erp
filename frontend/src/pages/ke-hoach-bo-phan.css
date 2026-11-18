@@ -34,6 +34,7 @@
 .lds-g.khbp-g2 td { height: auto; padding-top: 7px; padding-bottom: 7px; line-height: 1.35; vertical-align: top; }
 .lds-g.khbp-g2 .khbp-g2__1 { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lds-g.khbp-g2 .khbp-g2__1 .khbp-mo { font-size: inherit; }
+.lds-g.khbp-g2 .khbp-sx { display: inline-flex; gap: 12px; }
 .lds-g.khbp-g2 .khbp-g2__2 { display: block; font-size: 12px; color: var(--ash-2); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

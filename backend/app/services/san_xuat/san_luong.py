@@ -33,7 +33,7 @@ from ...repositories.san_xuat_san_luong_repo import SanXuatSanLuongRepository
 from ..gio_xuong import moc_tu_client, ve_utc_that
 from ..ky_luong_guard import ly_do_ky_luong_da_khoa
 from .dau_vao import _so, bang_dv_viec, kiem_giam_buoc_sau, kiem_tran_ghi, tran_buoc_sau
-from .nguoi_ghi import chot_nguoi, ghi_nguoi, sua_nguoi
+from .nguoi_ghi import chot_nguoi, chuan_so_luong_nguoi, dat_so_luong, ghi_nguoi, sua_nguoi
 from .nguoi_trong_me import ngay_cua_me
 from .thuc_thi import _gate, _kiem_version, _moc
 from .viec_khoan import anh_chup_tuy_chon, chuan_hoa_khi_ghi, chup_lai_bac, quy_cach_cua_viec
@@ -245,6 +245,7 @@ def tao_batch(
     tuy_chon: dict[str, float] | None = None,
     mat_in: str | None = None,
     tu_giao: bool = True,
+    so_luong_nguoi: dict[int, float] | None = None,
 ) -> dict:
     """Ghi MỘT batch sản lượng (§11.1) + lot đầu vào (§10.3) + việc khoán & phát sinh (§7.1).
 
@@ -279,6 +280,10 @@ def tao_batch(
     # ghi nhận ai có mặt + việc phát sinh; số 0 không cộng gì vào tiến độ/bàn giao.
     if abs(tong_f - (tot_f + hong_f)) > _EPS:
         raise ValueError("Tổng số lượng phải bằng Tốt + Hỏng.")
+    # In Hà Phương ghi số từng người: tốt = tổng các số, người làm = người có ô số.
+    sl_nguoi = chuan_so_luong_nguoi(so_luong_nguoi, tot_f)
+    if sl_nguoi is not None:
+        nguoi_ids = list(sl_nguoi)
 
     tu_lay_gio = bat_dau is None and ket_thuc is None
     if not tu_lay_gio and (bat_dau is None or ket_thuc is None):
@@ -376,6 +381,7 @@ def tao_batch(
         ps.batch_id = batch.id
         repo.add(ps)
     ghi_nguoi(db, batch.id, nguoi)
+    dat_so_luong(db, batch.id, sl_nguoi)
 
     from ...repositories.audit_repo import AuditLogRepository
     AuditLogRepository(db).create(
@@ -435,6 +441,7 @@ def sua_so_me(
     expected_version: int | None = None,
     nguoi_ids: list[int] | None = None,
     tuy_chon: dict[str, float] | None = None,
+    so_luong_nguoi: dict[int, float] | None = None,
 ) -> dict:
     """Sửa SỐ LÀM ĐƯỢC của một mẻ đã ghi (10/10/2026) — thay "Điều chỉnh số" trên lần giao: chủ
     xưởng *"bỏ điều chỉnh số ở các lần giao, sửa số ở chỗ lần mẻ ấy"*.
@@ -485,6 +492,9 @@ def sua_so_me(
 
     moi = _so_khong_am(tot, "Số lượng làm được")
     cu = float(batch.tot)
+    sl_nguoi = chuan_so_luong_nguoi(so_luong_nguoi, moi)
+    if sl_nguoi is not None:
+        nguoi_ids = list(sl_nguoi)
     tc_moi = None
     if tuy_chon is not None:
         khoan, _ten = repo.khoan_cua_cong_viec(cv)
@@ -494,7 +504,7 @@ def sua_so_me(
     if abs(moi - cu) <= _EPS:
         if nguoi_ids is None and tc_moi is None:
             raise ValueError("Số mới trùng số đang ghi.")
-        return _sua_nguoi_me(db, user, batch, cv, nguoi_ids, ly_do, tc_moi)
+        return _sua_nguoi_me(db, user, batch, cv, nguoi_ids, ly_do, tc_moi, sl_nguoi)
     if repo.co_ket_qua_nhanh(batch.id):
         raise ValueError("Lần ghi này đã chia số cho từng lệnh trong bài ghép — không sửa số được.")
     repo.khoa_cong_viec(cv.id)
@@ -539,6 +549,7 @@ def sua_so_me(
             bg.xac_nhan_by_id = None
             bg.xac_nhan_luc = None
     doi_nguoi = sua_nguoi(db, batch, cv, nguoi_ids) if nguoi_ids is not None else None
+    doi_sl = dat_so_luong(db, batch.id, sl_nguoi)
     repo.flush()
     if moi < cu:
         try:
@@ -556,7 +567,7 @@ def sua_so_me(
         actor_user_id=uid, action="san_xuat_sua_batch", target=f"san_xuat_batch:{batch.id}",
         detail=(f"tot={cu:g}->{moi:g} ban_giao={bg.id if bg else '-'}"
                 f"{' cho_nhan_lai' if cho_nhan_lai else ''}" + _doi_tuy_chon(tc_cu, tc_moi)
-                + (f" | {ly}" if ly else "")),
+                + _doi_so_nguoi(doi_sl) + (f" | {ly}" if ly else "")),
         commit=False,
     )
     if bg is not None:
@@ -604,25 +615,39 @@ def _doi_tuy_chon(cu: list | None, moi: list | None) -> str:
     return f" tuy_chon={'/'.join(doi)}" if doi else ""
 
 
+def _doi_so_nguoi(doi: list[str]) -> str:
+    return f" so_tung_nguoi={'; '.join(doi)}" if doi else ""
+
+
 def _sua_nguoi_me(db: Session, user, batch: SanXuatBatch, cv, nguoi_ids: list[int] | None,
-                  ly_do: str | None, tc_moi: list | None = None) -> dict:
-    """Nhánh của `sua_so_me` khi số giữ nguyên, chỉ đổi người làm và/hoặc tuỳ chọn khi ghi."""
+                  ly_do: str | None, tc_moi: list | None = None,
+                  sl_nguoi: dict[int, float] | None = None) -> dict:
+    """Nhánh của `sua_so_me` khi số tổng giữ nguyên: đổi người làm, số từng người (chia lại giữa
+    người với nhau) và/hoặc tuỳ chọn khi ghi."""
     from ...repositories.audit_repo import AuditLogRepository
 
     doi = sua_nguoi(db, batch, cv, nguoi_ids) if nguoi_ids is not None else None
-    if doi is None and tc_moi is None:
+    doi_sl = dat_so_luong(db, batch.id, sl_nguoi)
+    if doi is None and tc_moi is None and not doi_sl:
         raise ValueError("Số và người làm đều chưa đổi gì.")
     audit = AuditLogRepository(db)
     uid = getattr(user, "id", None)
     ly = (ly_do or "").strip()[:300]
     if doi is not None:
         _audit_nguoi(audit, uid, batch, doi, ly)
+    if doi_sl and tc_moi is None:
+        f = float(batch.tot)
+        audit.create(
+            actor_user_id=uid, action="san_xuat_sua_batch", target=f"san_xuat_batch:{batch.id}",
+            detail=f"tot={f:g}->{f:g}" + _doi_so_nguoi(doi_sl) + (f" | {ly}" if ly else ""),
+            commit=False,
+        )
     if tc_moi is not None:
         f = float(batch.tot)
         audit.create(
             actor_user_id=uid, action="san_xuat_sua_batch", target=f"san_xuat_batch:{batch.id}",
             detail=f"tot={f:g}->{f:g}" + _doi_tuy_chon(batch.tuy_chon_khoan, tc_moi)
-                   + (f" | {ly}" if ly else ""),
+                   + _doi_so_nguoi(doi_sl) + (f" | {ly}" if ly else ""),
             commit=False,
         )
         batch.tuy_chon_khoan = tc_moi

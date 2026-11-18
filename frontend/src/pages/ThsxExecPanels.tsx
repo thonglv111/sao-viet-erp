@@ -496,7 +496,12 @@ export function BatchForm({
   const [themNguoi, setThemNguoi] = useState<NguoiLam[]>([]);
   const dsNguoi = [...nguoiLamGhi(nguoiGhi), ...themNguoi];
   const soNguoi = demNguoiLam(dsNguoi, chonNguoi);
-  const [soLuong, setSoLuong] = useState("");
+  // In Hà Phương ghi số từng người (18/11/2026): mỗi người tick có ô số riêng, số làm được = tổng.
+  const tungNguoi = !useTat()("san_luong_tung_nguoi");
+  const [slNguoi, setSlNguoi] = useState<Record<number, string>>({});
+  const idChon = dsNguoi.filter((n) => !n.mo && chonNguoi.has(n.id)).map((n) => n.id);
+  const [soGo, setSoLuong] = useState("");
+  const soLuong = tungNguoi ? tongSoNguoi(idChon, slNguoi) : soGo;
   const [ghiChu, setGhiChu] = useState("");
   // Việc phát sinh → số đang gõ. Ô hiện sẵn (22/10/2026), số > 0 là có làm, trống / 0 là không.
   const [psSl, setPsSl] = useState<Record<number, string>>({});
@@ -533,7 +538,8 @@ export function BatchForm({
       mo_ta_loi: null,
       ghi_chu: ghiChu.trim() || null,
       phat_sinh: psTick.map(([id, s]) => ({ phat_sinh_id: Number(id), so_luong: toNum(s) })),
-      nguoi_ids: dsNguoi.filter((n) => !n.mo && chonNguoi.has(n.id)).map((n) => n.id),
+      nguoi_ids: idChon,
+      ...(tungNguoi ? { so_luong_nguoi: bodySoNguoi(idChon, slNguoi) } : {}),
       ...(tuyChon.length ? { tuy_chon: tuyChonBody(tuyChon, tcGt) } : {}),
       ...(mats.length ? { mat_in: mat } : {}),
     };
@@ -571,15 +577,20 @@ export function BatchForm({
           )}
         </div>
         <div className="thsx-gso__o">
-          <input id={`gm-so-${cv.id}`} type="number" min={0} inputMode="numeric" placeholder="0" autoFocus
-            className="thsx-gso__in" value={soLuong} onChange={(e) => setSoLuong(e.target.value)} />
+          <input id={`gm-so-${cv.id}`} type="number" min={0} inputMode="numeric" placeholder="0" autoFocus={!tungNguoi}
+            className="thsx-gso__in" value={soLuong} readOnly={tungNguoi}
+            title={tungNguoi ? "Tổng số của từng người bên dưới" : undefined}
+            onChange={(e) => setSoLuong(e.target.value)} />
           <span className="thsx-gso__dv">{donViHienThi}</span>
-          {tranGhi && conSo && (
+          {tranGhi && conSo && !tungNguoi && (
             <button type="button" className="thsx-gso__max" onClick={() => setSoLuong(String(tranGhi.con_ghi_duoc))}>
               Tối đa {num(tranGhi.con_ghi_duoc)}
             </button>
           )}
         </div>
+        {tungNguoi ? (
+          <span className="thsx-f__g">Tổng số của từng người bên dưới.</span>
+        ) : (
         <div className="thsx-gso__nhanh">
           <div className="thsx-gso__cong" role="group" aria-label="Cộng nhanh">
             {[10, 50, 100, 1000].map((v) => (
@@ -588,6 +599,7 @@ export function BatchForm({
           </div>
           <button type="button" className="thsx-b-lk thsx-gso__ve0" onClick={() => setSoLuong("0")}>Về 0</button>
         </div>
+        )}
         {tranGhi && (
           <div className="thsx-gso__tien">
             <div className="thsx-gso__thanh" aria-hidden="true">
@@ -618,6 +630,8 @@ export function BatchForm({
 
       <NguoiLamChon ds={dsNguoi} chon={chonNguoi} onDoi={setChonNguoi} toKhac={toKhac}
         ngay={toKhac?.homNay ?? nowDtLocal().slice(0, 10)}
+        soLuong={tungNguoi ? slNguoi : undefined} donVi={donViHienThi}
+        onSoLuong={(id, s) => setSlNguoi((cu) => ({ ...cu, [id]: s }))}
         onThem={(n) => { setThemNguoi((cu) => [...cu, n]); setChonNguoi((cu) => new Set(cu).add(n.id)); }} />
 
 
@@ -714,12 +728,24 @@ export function demNguoiLam(ds: NguoiLam[], chon: Set<number>): number {
   return ds.filter((n) => !n.mo && chon.has(n.id)).length;
 }
 
+/** Số làm được khi ghi từng người = tổng ô số của người đang tick; "" khi chưa ai gõ số nào. */
+export function tongSoNguoi(ids: number[], sl: Record<number, string>): string {
+  const go = ids.filter((id) => (sl[id] ?? "").trim() !== "");
+  if (!go.length) return "";
+  return String(Math.round(go.reduce((t, id) => t + toNum(sl[id]), 0) * 1000) / 1000);
+}
+
+/** `so_luong_nguoi` gửi máy chủ: mọi người đang tick, ô trống là 0. */
+export function bodySoNguoi(ids: number[], sl: Record<number, string>): Record<number, number> {
+  return Object.fromEntries(ids.map((id) => [id, toNum(sl[id] ?? "")]));
+}
+
 /** Khối tick "Người làm lần này" — dùng chung hộp Ghi sản lượng và Sửa số sản lượng. Có `toKhac` thì
  *  kèm nút "Thêm người tổ khác" mở popup chọn tổ rồi chọn người (10/10/2026): người được chọn vào
  *  danh sách, tick sẵn; người nghỉ đúng `ngay` hoặc đã nghỉ việc thì mờ, không chọn được. */
 export function NguoiLamChon({
   ds, chon, onDoi, baoThieu = true, toKhac, ngay, onThem, tieuDe = "Người làm lần này",
-  cauThieu = "Chọn ít nhất một người làm lần này.",
+  cauThieu = "Chọn ít nhất một người làm lần này.", soLuong, onSoLuong, donVi,
 }: {
   ds: NguoiLam[]; chon: Set<number>; onDoi: (moi: Set<number>) => void;
   /** Hộp Báo dừng máy dùng lại khối này với chữ "Người hưởng". */
@@ -731,8 +757,13 @@ export function NguoiLamChon({
   /** Ngày của lần ghi (YYYY-MM-DD) — xét người tổ khác nghỉ hôm đó. */
   ngay?: string;
   onThem?: (n: NguoiLam) => void;
+  /** Có = ghi số từng người (In Hà Phương): người đang tick có ô số riêng cạnh tên. */
+  soLuong?: Record<number, string>;
+  onSoLuong?: (id: number, s: string) => void;
+  donVi?: string;
 }) {
   const so = demNguoiLam(ds, chon);
+  const coSo = soLuong != null && onSoLuong != null;
   function doi(id: number) {
     const moi = new Set(chon);
     if (moi.has(id)) moi.delete(id); else moi.add(id);
@@ -750,7 +781,7 @@ export function NguoiLamChon({
       ) : (
         <ul className="thsx-ng" aria-label={tieuDe}>
           {ds.map((n) => (
-            <li key={n.id}>
+            <li key={n.id} className={coSo ? "thsx-ng__dong" : undefined}>
               <label className={`thsx-ng__o${n.mo ? " is-mo" : ""}`}>
                 <input type="checkbox" checked={!n.mo && chon.has(n.id)} disabled={n.mo}
                   onChange={() => doi(n.id)} />
@@ -759,6 +790,14 @@ export function NguoiLamChon({
                   ? <span key={t} className="thsx-ng__the" title={t}>{t}</span>
                   : <span key={t.chu} className="thsx-ng__the" title={t.goi}>{t.chu}</span>)}
               </label>
+              {coSo && !n.mo && chon.has(n.id) && (
+                <span className="thsx-ng__so">
+                  <input type="number" min={0} step="any" inputMode="decimal" placeholder="0"
+                    aria-label={`Số làm được của ${n.ten}`} value={soLuong[n.id] ?? ""}
+                    onChange={(e) => onSoLuong(n.id, e.target.value)} />
+                  {donVi && <span className="thsx-gm-mo">{donVi}</span>}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -965,7 +1004,8 @@ export function BatchRow({
             ? <>
               {(mo || b.nguoi_tham_gia.length <= NGUOI_GON + 1 ? b.nguoi_tham_gia : b.nguoi_tham_gia.slice(0, NGUOI_GON))
                 .map((x) => (
-                  <span key={x.employee_id}>{x.ho_ten}{x.to_ten && <small className="thsx-b-mo3"> ({x.to_ten})</small>}</span>
+                  <span key={x.employee_id}>{x.ho_ten}{x.to_ten && <small className="thsx-b-mo3"> ({x.to_ten})</small>}
+                    {x.so_luong != null && <small className="thsx-num"> {num(x.so_luong)}</small>}</span>
                 ))}
               {!mo && b.nguoi_tham_gia.length > NGUOI_GON + 1 && (
                 <span className="thsx-b-mo3">+{b.nguoi_tham_gia.length - NGUOI_GON} người</span>
@@ -1529,7 +1569,20 @@ export function SuaSoMeForm({
   const [chonNguoi, setChonNguoi] = useState<Set<number>>(() => new Set(idCu));
   const nguoiDoi = chonNguoi.size !== idCu.length || idCu.some((id) => !chonNguoi.has(id));
   const soNguoi = demNguoiLam(dsNguoi, chonNguoi);
-  const [so, setSo] = useState(String(b.tot));
+  // In Hà Phương: sửa số từng người, số làm được = tổng. Lần ghi cũ chưa có số riêng mà chỉ một người
+  // thì mở sẵn số tổng cho người đó.
+  const tungNguoi = !useTat()("san_luong_tung_nguoi");
+  const slCu: Record<number, string> = Object.fromEntries(nguoiCu.map((n) => [n.employee_id,
+    n.so_luong != null ? String(n.so_luong) : nguoiCu.length === 1 ? String(b.tot) : ""]));
+  const [slNguoi, setSlNguoi] = useState<Record<number, string>>(slCu);
+  const idChon = dsNguoi.filter((n) => !n.mo && chonNguoi.has(n.id)).map((n) => n.id);
+  // Lần ghi trước khi có số từng người (nhiều người, chưa ai có số): chưa gõ ô nào thì tổng giữ số cũ,
+  // đừng hiện 0 kèm "bớt" như sắp xoá số.
+  const chuaChia = tungNguoi && idChon.length > 0 && idChon.every((id) => (slNguoi[id] ?? "").trim() === "");
+  const slDoi = tungNguoi && !chuaChia
+    && (nguoiDoi || idChon.some((id) => toNum(slNguoi[id] ?? "") !== toNum(slCu[id] ?? "")));
+  const [soGo, setSo] = useState(String(b.tot));
+  const so = tungNguoi ? (chuaChia ? String(b.tot) : tongSoNguoi(idChon, slNguoi) || "0") : soGo;
   const [lyDo, setLyDo] = useState("");
   const nSo = toNum(so);
   const daGo = so.trim() !== "" && Number.isFinite(Number(so.replace(/,/g, "")));
@@ -1541,7 +1594,7 @@ export function SuaSoMeForm({
   const vuotTran = toiDa != null && nSo > toiDa + 0.0005;
   const veKhong = banGiao != null && daGo && nSo <= 0.0005;
   // Lần ghi cũ chưa có ai (gia công ngoài, dữ liệu rỗng) vẫn sửa số được; chỉ chặn khi tổ bỏ tick hết.
-  const hopLe = daGo && nSo >= 0 && (Math.abs(chenhLech) > 0.0005 || nguoiDoi || tcDoi) && !vuotTran && !veKhong
+  const hopLe = daGo && nSo >= 0 && (Math.abs(chenhLech) > 0.0005 || nguoiDoi || tcDoi || slDoi) && !vuotTran && !veKhong
     && (!nguoiDoi || soNguoi > 0);
   const sang = banGiao ? (banGiao.dich_cong_doan ?? banGiao.doi_tac_ten) : null;
   const benNhan = banGiao ? (banGiao.dich_to ?? banGiao.doi_tac_ten ?? "bên nhận") : "";
@@ -1551,6 +1604,7 @@ export function SuaSoMeForm({
     const body: SxSuaSoMeIn = {
       tot: nSo, ly_do: lyDo.trim() || null, expected_version: b.version,
       ...(nguoiDoi ? { nguoi_ids: [...chonNguoi] } : {}),
+      ...(slDoi ? { so_luong_nguoi: bodySoNguoi(idChon, slNguoi) } : {}),
       ...(tcDoi ? { tuy_chon: tcMoi } : {}),
     };
     if (await exec.suaSoMe(b.id, body)) onXong();
@@ -1581,9 +1635,16 @@ export function SuaSoMeForm({
         <label className="thsx-f__n" htmlFor={`ss-so-${b.id}`}>Số lượng làm được</label>
         <div className={`thsx-gm-so${vuotTran || veKhong ? " is-loi" : ""}`}>
           <input id={`ss-so-${b.id}`} type="number" min={0} inputMode="numeric" className="thsx-o-so"
-            value={so} onChange={(e) => setSo(e.target.value)} />
+            value={so} readOnly={tungNguoi} onChange={(e) => setSo(e.target.value)} />
           {dv && <span className="thsx-gm-mo">{dv}</span>}
         </div>
+        {tungNguoi ? (
+          <span className="thsx-f__g">
+            {chuaChia && nguoiCu.some((n) => n.so_luong == null)
+              ? <>Lần này ghi khi chưa có số từng người. Chia <span className="thsx-num">{num(b.tot)}</span> {dv} cho từng người bên dưới.</>
+              : "Tổng số của từng người bên dưới."}
+          </span>
+        ) : (
         <div className="thsx-chips">
           {BUOC_SUA_SO.map((d) => (
             <button key={d} type="button" className="thsx-chip thsx-num"
@@ -1597,6 +1658,7 @@ export function SuaSoMeForm({
             </button>
           )}
         </div>
+        )}
         {toiDa != null && !vuotTran && <span className="thsx-f__g thsx-num">Sửa tối đa {num(toiDa)} {dv}</span>}
         {vuotTran && toiDa != null && (
           <span className="thsx-f__g thsx-f__g--loi">
@@ -1608,6 +1670,8 @@ export function SuaSoMeForm({
 
       <NguoiLamChon ds={dsNguoi} chon={chonNguoi} onDoi={setChonNguoi} baoThieu={nguoiDoi}
         toKhac={toKhac} ngay={toDtLocal(b.bat_dau).slice(0, 10)}
+        soLuong={tungNguoi ? slNguoi : undefined} donVi={dv}
+        onSoLuong={(id, s) => setSlNguoi((cu) => ({ ...cu, [id]: s }))}
         onThem={(n) => { setThemNguoi((cu) => [...cu, n]); setChonNguoi((cu) => new Set(cu).add(n.id)); }} />
 
       {tuyChon.length > 0 && <TuyChonGhi ds={tuyChon} gt={tcGt} onDoi={setTcGt} />}
@@ -1632,10 +1696,12 @@ export function SuaSoMeForm({
               Lần giao <span className="thsx-num">{num(banGiao.so_luong)}</span> đổi thành{" "}
               <span className="thsx-num">{num(Math.max(0, banGiao.so_luong + chenhLech))}</span> {dv}.
             </>
+          ) : nguoiDoi || slDoi || tcDoi ? (
+            <>Số không đổi nên lần giao <span className="thsx-num">{num(banGiao.so_luong)}</span> {dv} giữ nguyên.</>
           ) : (
             <>Sửa số thì lần giao <span className="thsx-num">{num(banGiao.so_luong)}</span> {dv} đổi theo.</>
           )}
-          {!banGiao.cung_to && (banGiao.trang_thai === "confirmed"
+          {!banGiao.cung_to && !(Math.abs(chenhLech) <= 0.0001 && (nguoiDoi || slDoi || tcDoi)) && (banGiao.trang_thai === "confirmed"
             ? ` ${benNhan} sẽ phải xác nhận lại.`
             : ` ${benNhan} chưa xác nhận, sẽ thấy số mới.`)}
         </div>

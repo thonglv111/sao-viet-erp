@@ -32,9 +32,16 @@ DUYET_DON_MUA = "duyet_don_mua"
 THUE_GIA_CONG = "thue_gia_cong"
 THUONG_MAI = "thuong_mai"
 GIAO_HANG_HP = "giao_hang_hp"
-CHI_BAT_KHI_KHAI = frozenset({THUONG_MAI, GIAO_HANG_HP})
+# CHỈ In Hà Phương (18/11/2026), bật bằng `PHAN_HE_BAT`, không có module riêng:
+# - sắp xếp bảng việc Kế hoạch tổ theo tên giấy / định lượng;
+# - chuyển kho thành phẩm: thành phẩm ra khỏi Kho thành phẩm sang kho khác (vd Cửa hàng) và ngược lại;
+# - ghi sản lượng từng người: mỗi người làm một số, số của lần ghi là tổng các số đó.
+SAP_XEP_GIAY = "sap_xep_giay"
+CHUYEN_KHO_TP = "chuyen_kho_tp"
+SAN_LUONG_TUNG_NGUOI = "san_luong_tung_nguoi"
+CHI_BAT_KHI_KHAI = frozenset({THUONG_MAI, GIAO_HANG_HP, SAP_XEP_GIAY, CHUYEN_KHO_TP, SAN_LUONG_TUNG_NGUOI})
 CAC_PHAN_HE = (LUONG, KHOAN, HOA_HONG, GIAO_HANG, TAI_SAN, CHAM_CONG, SUA_CHUA, KE_GIA, THUONG_MAI,
-               GIAO_HANG_HP, DUYET_DON_MUA, THUE_GIA_CONG)
+               GIAO_HANG_HP, DUYET_DON_MUA, THUE_GIA_CONG, SAP_XEP_GIAY, CHUYEN_KHO_TP, SAN_LUONG_TUNG_NGUOI)
 
 # Module quyền mất hẳn khi tắt phân hệ. `khoan` / `hoa_hong` không có module riêng — chúng nằm
 # trong màn khác nên tắt bằng cờ ở service và giao diện.

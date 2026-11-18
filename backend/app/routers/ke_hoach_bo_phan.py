@@ -108,13 +108,16 @@ def bang_viec(
     nhom_id: int | None = Query(None),
     trang: int = Query(1, ge=1),
     co_trang: int = Query(25, ge=1, le=100),
+    # Sắp theo tên giấy / định lượng, "-" là giảm dần (18/11/2026, chỉ In Hà Phương bật ở giao diện).
+    # Vắng = việc mới tới đứng đầu như cũ.
+    sap_xep: str | None = Query(None, pattern="^-?(giay|dinh_luong)$"),
 ) -> dict:
-    """Bảng việc: tìm, kỳ (theo lúc việc tới bộ phận), lọc máy / nhóm, đếm năm chip và cắt trang
-    ở máy chủ."""
+    """Bảng việc: tìm, kỳ (theo lúc việc tới bộ phận), lọc máy / nhóm, sắp xếp, đếm năm chip và cắt
+    trang ở máy chủ."""
     try:
         return JSONResponse(_svc(db, user, authz).trang_viec(
             bo_phan_id, trang_thai=trang_thai, tim=tim, tu_ngay=tu_ngay, den_ngay=den_ngay,
-            may_id=may_id, nhom_id=nhom_id, trang=trang, co_trang=co_trang))
+            may_id=may_id, nhom_id=nhom_id, trang=trang, co_trang=co_trang, sap_xep=sap_xep))
     except (KhbpKhongThay, KhbpLoi, KhbpXungDot, KhbpCam) as e:
         raise _loi(e) from None
 

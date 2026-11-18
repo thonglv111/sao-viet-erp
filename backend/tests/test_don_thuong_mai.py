@@ -120,3 +120,27 @@ def test_loc_danh_sach_theo_san_xuat_hay_thuong_mai(client, bat_tm):
     assert ids[0] in ds("thuong_mai") and ids[1] not in ds("thuong_mai")
     assert ids[1] in ds("san_xuat") and ids[0] not in ds("san_xuat")
     assert client.get("/api/orders?ban=khac", headers=h).status_code == 422
+
+
+def test_ck_tru_vao_thanh_tien_va_vat_tinh_sau_ck(client, bat_tm):
+    """CK % (18/11/2026): thành tiền = SL × đơn giá × (1 − CK%); cọc so với tổng gồm VAT sau CK."""
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-CK", gia=10000)
+    kh = _khach(client, h)
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 3, "vat_pct": 10, "ck_pct": 12.5}]})
+    assert r.status_code == 201, r.text
+    ln = r.json()["lines"][0]
+    assert ln["unit_price_snapshot"] == 10000 and ln["ck_pct"] == 12.5 and ln["line_total"] == 26250
+    # Tổng gồm VAT sau CK = 28.875: cọc 28.876 bị chặn.
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "deposit_amount": 28876,
+        "lines": [{"hang_id": hid, "dvt": dv, "qty": 3, "vat_pct": 10, "ck_pct": 12.5}]})
+    assert r.status_code == 400
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1, "ck_pct": 101}]})
+    assert r.status_code == 422
+    # Không gửi CK: như cũ, cột trống.
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 2}]})
+    assert r.json()["lines"][0]["ck_pct"] is None and r.json()["lines"][0]["line_total"] == 20000

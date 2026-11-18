@@ -855,6 +855,7 @@ ordered`) the lines are read-only (sửa → chặn; đổi phải change_order)
 | `cost_snapshot`       | `BigInteger` → `BIGINT`               | —                        | yes  | —              | **Copy-on-write**: giá vốn đông cứng từ `QuoteItem.total_cost_snapshot` lúc tạo — CÙNG GRAIN với `line_total` (tổng cả SL), dùng soi biên lợi nhuận. NULL cho đơn cũ (trước A2). |
 | `chiet_khau`          | `BigInteger` → `BIGINT`               | —                        | yes  | —              | Tiền CHIẾT KHẤU của dòng (migration `0417`, 18/10/2026): phần NẰM TRONG `line_total` (giá bán = vốn + chiết khấu + lợi nhuận) mà công ty sẽ hoàn lại khách. Chép từ `quote_items.discount_amount` lúc chốt đơn. NULL = đơn cũ / nhập tay. |
 | `ke_gia` | `BigInteger` → `BIGINT` | — | yes | — | Tiền KÊ GIÁ của dòng: NẰM TRONG `line_total` (giá bán sau kê), chép từ `quote_items.ke_gia` lúc chốt đơn. NULL = đơn cũ / nhập tay. Migration 0428. |
+| `ck_pct` | `Numeric(5,2)` → `NUMERIC(5,2)` | — | yes | — | CK % của dòng ĐƠN THƯƠNG MẠI (migration `0485`, chỉ In Hà Phương): giảm thẳng vào giá bán, `line_total` = `qty` × `unit_price_snapshot` × (1 − CK%), VAT tính trên số sau CK. Khác `chiet_khau` (tiền hoàn lại khách nằm trong `line_total`). NULL = không CK / dòng đơn sản xuất. |
 | `phieu_thanh_phan_id` | `Integer` → `INTEGER`                 | (soft)                   | yes  | —              | Pin truy vết ấn phẩm: `PhieuThanhPhan` của PTG mà dòng báo giá nguồn trỏ tới (song sinh `QuoteItem.phieu_thanh_phan_id`). Soft ref, KHÔNG FK cứng, copy lúc snapshot. NULL cho đơn nhập tay. Migration 0071. |
 | `thanh_pham_id`       | `Integer` → `INTEGER`                 | **IX** (soft)            | yes  | —              | Mã THÀNH PHẨM của cụm bán chứa dòng (soft → `vat_tu_in_an.id`, mg `0394`, 11/10/2026). Đóng dấu lúc chốt đơn (`thanh_pham_khai_bao.khai_cho_don`): ruột + bìa cùng cụm mang cùng mã; kho, giao hàng, tiến độ đọc mã ở đây chứ không tra lại theo tên. NULL = đơn chốt trước 11/10/2026 ⇒ đọc rơi về tìm theo (khách, tên). |
 | `hang_thuong_mai_id`  | `Integer` → `INTEGER`                 | **IX** (soft)            | yes  | —              | Mặt hàng THƯƠNG MẠI của dòng (soft → `vat_tu_in_an.id` có `la_hang_thuong_mai`, mg `0461`, 08/11/2026). Chỉ dòng của đơn `source_type = 'thuong_mai'` có; đơn sản xuất luôn NULL. |
@@ -5376,9 +5377,10 @@ hoạt động trên một công việc; cho phép nhiều dòng `removed` để
 | `employee_id` | `Integer` FK→`employees.id` (CASCADE) | IX, **UQ**(batch_id, employee_id) | no | — | Người làm. |
 | `department_id` | `Integer` | IX | yes | — | Tổ GỐC của người lúc ghi (soft-ref `departments.id`) — tab Sản lượng lọc mục "người của tổ đi làm ở tổ khác" theo cột này. |
 | `la_ho_tro` | `Boolean` | — | no | `false` | Người ngoài danh sách được giao của việc (thường là người tổ khác sang giúp) — tổ thêm lúc ghi hoặc sửa số. |
+| `so_luong` | `Numeric(18,3)` | — | yes | — | Số làm được của riêng người này (18/11/2026, mg `0486`, chỉ In Hà Phương bật `san_luong_tung_nguoi`). Lần ghi có cột này thì tốt của lần ghi = tổng cột của mọi người. Trống = lần ghi theo số tổng (Sao Việt Nhật, lần ghi cũ). |
 | `created_at` | `DateTime(timezone=True)` | — | no | now (UTC) | |
 
-**Tất cả cột:** `id`, `batch_id`, `employee_id`, `department_id`, `la_ho_tro`, `created_at`.
+**Tất cả cột:** `id`, `batch_id`, `employee_id`, `department_id`, `la_ho_tro`, `so_luong`, `created_at`.
 
 ---
 

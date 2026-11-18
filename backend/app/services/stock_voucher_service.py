@@ -39,6 +39,7 @@ from ..repositories.kho_ky_ton_repo import KhoKyTonRepository
 from ..repositories.stock_lot_repo import goc_cua
 from .kho_giay import chuan_kho, co_don_vi_goc, co_kho, khoa_dong, khoa_ton, nhan_kho
 from ..storage import get_storage, key_from_url, url_from_key
+from ..phan_he import CHUYEN_KHO_TP, tat
 
 # Đính kèm phiếu kho: byte đi qua storage.py (LocalStorage <backend>/static hoặc MinIO) rồi phục vụ
 # qua /api/files/<key> (đăng nhập mới đọc) — KHÔNG dùng mount /static (đã gỡ vì lộ file). key = "kho/<id>/..".
@@ -333,6 +334,10 @@ class StockVoucherService:
         from .kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
 
         if loai == VOUCHER_XUAT and getattr(req, "dieu_chuyen", False):
+            return
+        # In Hà Phương (cờ `chuyen_kho_tp`, 18/11/2026): thành phẩm được chuyển sang kho khác (vd Cửa hàng)
+        # và xuất từ kho đang giữ nó. Nhập thường (từ sản xuất) vẫn chỉ vào Kho thành phẩm.
+        if not tat(CHUYEN_KHO_TP) and (loai == VOUCHER_XUAT or getattr(req, "dieu_chuyen", False)):
             return
         tp = hang_thanh_pham(self.vouchers.db, [(rl.hang_loai, rl.hang_id) for rl in req.lines])
         kho_tp = id_kho_thanh_pham(self.vouchers.db)
@@ -875,7 +880,7 @@ class StockVoucherService:
         # Vế nhập đích (`create(_dc_dest=True)`) cũng chặn — kiểm sớm để báo trước khi dựng gì.
         from .kho_thanh_pham import hang_thanh_pham, id_kho_thanh_pham
         kho_tp = id_kho_thanh_pham(self.vouchers.db)
-        if (kho_tp is not None and kho_den_id != kho_tp
+        if (tat(CHUYEN_KHO_TP) and kho_tp is not None and kho_den_id != kho_tp
                 and hang_thanh_pham(self.vouchers.db, [(it["hang_loai"], it["hang_id"]) for it in items])):
             raise StockVoucherError("Thành phẩm nằm ở Kho thành phẩm — không điều chuyển sang kho khác.")
 

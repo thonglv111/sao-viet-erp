@@ -15,11 +15,12 @@ import { Cog, Users } from "lucide-react";
 
 import { ApiError, api } from "../api/client";
 import type { KhbpBang, KhbpChip, KhbpMay, KhbpTrangThai, KhbpTrangViec, KhbpViec, SxWorkItemChiTiet } from "../api/client";
+import { useTat } from "../auth/permissions";
 import { useAuth } from "../auth/useAuth";
 import { Button } from "../components/Button";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { Icon } from "../components/Icons";
-import { ChipTT, ChonCot, CuonLuoi, OTim, rongLuoi, useCauHinhLuoi, type CotLuoi, type MauTT } from "../components/LuoiDs";
+import { ChipTT, ChonCot, CuonLuoi, OTim, rongLuoi, TieuDeSapXep, useCauHinhLuoi, type CotLuoi, type MauTT } from "../components/LuoiDs";
 import { PhanTrangDayDu } from "../components/PhanTrangDayDu";
 import { useLaDienThoai } from "../utils/dienThoai";
 import { useDebounced } from "../utils/useDebounced";
@@ -219,13 +220,16 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
   const [locBang, setLocBang] = useState<LocBang>({});
   const [locKb, setLocKb] = useState<LocKb>({});
   const [trang, setTrang] = useState(1);
+  // Sắp theo tên giấy / định lượng ở cột Giấy (18/11/2026, chỉ In Hà Phương bật). "" = việc mới tới đứng đầu.
+  const sapXepGiay = !useTat()("sap_xep_giay");
+  const [sapXep, setSapXep] = useState("");
   const [coTrang, setCoTrang] = useState(25);
   const [tv, setTv] = useState<KhbpTrangViec | null>(null);
   const [tvLoi, setTvLoi] = useState<string | null>(null);
   const [tvDangNap, setTvDangNap] = useState(false);
   const luoi = useCauHinhLuoi("khbp-bang");
   const khoaLoc = JSON.stringify({ ...thamSoKy(ky), may_id: locBang.may, nhom_id: locBang.nhom });
-  useEffect(() => { setTrang(1); }, [timCham, khoaLoc, chip, boPhanId]);
+  useEffect(() => { setTrang(1); }, [timCham, khoaLoc, chip, boPhanId, sapXep]);
   // Chọn theo TRANG đang xem: đổi trang, lọc, cách xem là bỏ chọn.
   useEffect(() => { setChonNhieu(new Set()); setHopNhieu(null); }, [timCham, khoaLoc, chip, boPhanId, trang, coTrang, xem]);
 
@@ -254,6 +258,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
     setTvDangNap(true);
     api.keHoachBoPhan.viec(token, boPhanId, {
       trang_thai: chip, tim: timCham || undefined, trang, co_trang: coTrang, loc: JSON.parse(khoaLoc),
+      sap_xep: sapXepGiay ? sapXep : undefined,
     })
       .then((r) => {
         if (l !== luotTv.current) return;
@@ -267,7 +272,7 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
       })
       .catch((e) => { if (l === luotTv.current) setTvLoi(loiChu(e)); })
       .finally(() => { if (l === luotTv.current) setTvDangNap(false); });
-  }, [token, boPhanId, xem, chip, timCham, trang, coTrang, khoaLoc, tick, eventTick]);
+  }, [token, boPhanId, xem, chip, timCham, trang, coTrang, khoaLoc, tick, eventTick, sapXep, sapXepGiay]);
 
   const napNgan = useCallback(() => {
     if (!token || moId == null) return;
@@ -681,6 +686,14 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
                     aria-label="Chọn tất cả việc chưa giao trên trang"
                     title={choGiaoTrang.length ? "Chọn tất cả việc chưa giao trên trang" : "Trang này không có việc chưa giao"}
                     onChange={() => setChonNhieu(tatCaChon ? new Set() : new Set(choGiaoTrang.map((v) => v.id)))} />
+                </th>
+              ) : c.key === "giay" && sapXepGiay ? (
+                <th key={c.key}>
+                  <span className="khbp-sx">
+                    <TieuDeSapXep label="Giấy" cot="giay" sort={sapXep} onSort={setSapXep} />
+                    <TieuDeSapXep label="Định lượng" cot="dinh_luong" sort={sapXep} onSort={setSapXep} />
+                  </span>
+                  {luoi.keo(c.key)}
                 </th>
               ) : <th key={c.key}>{c.label}{luoi.keo(c.key)}</th>))}
               {giaoDuoc && <th className="khbp-g2__nut">Thao tác</th>}

@@ -811,6 +811,7 @@ def tao_batch(
         lot_vao=[lot.model_dump() for lot in body.lot_vao],
         phat_sinh=[ps.model_dump() for ps in body.phat_sinh],
         nguoi_ids=body.nguoi_ids, tuy_chon=body.tuy_chon, mat_in=body.mat_in,
+        so_luong_nguoi=body.so_luong_nguoi,
     ))
     _phat_sse(res)
     # Ghi xong tự đề xuất giao sang chặng sau — báo bên nhận như bấm Đề xuất giao.
@@ -848,6 +849,7 @@ def sua_so_me(
     res = _chay(lambda: san_luong.sua_so_me(
         db, user=user, batch_id=batch_id, tot=body.tot, ly_do=body.ly_do,
         expected_version=body.expected_version, nguoi_ids=body.nguoi_ids, tuy_chon=body.tuy_chon,
+        so_luong_nguoi=body.so_luong_nguoi,
     ))
     _phat_sse(res)
     bg = res.get("ban_giao")

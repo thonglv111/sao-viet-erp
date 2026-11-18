@@ -168,6 +168,12 @@
 .thsx-ng__o input { margin: 0; flex: none; }
 .thsx-ng__o:has(input:disabled) { cursor: default; }
 .thsx-ng__o.is-mo { color: var(--ash-2); }
+/* Ghi số từng người (In Hà Phương): ô số nằm cùng hàng với tên, đường kẻ chuyển lên cả hàng. */
+.thsx-ng li.thsx-ng__dong { display: flex; align-items: center; gap: 8px; }
+.thsx-ng li.thsx-ng__dong .thsx-ng__o { flex: 1; min-width: 0; border-top: 0; }
+.thsx-ng li + li.thsx-ng__dong { border-top: 1px solid var(--rule-hair); }
+.thsx-ng__so { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.thsx-ng__so input { width: 96px; padding: 4px 8px; border: 1px solid var(--rule-soft); border-radius: 8px; font: inherit; text-align: right; }
 .thsx-ng__ten { min-width: 0; }
 .thsx-ng__the { font-size: 12px; color: var(--ash-2); border: 1px solid var(--rule-soft); border-radius: 6px;
   padding: 0 6px; line-height: 18px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

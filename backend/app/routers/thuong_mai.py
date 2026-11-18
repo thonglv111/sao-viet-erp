@@ -41,6 +41,8 @@ class DongThuongMaiIn(BaseModel):
     # Đơn giá trước VAT. Vắng = lấy giá bán khai theo ĐVT ở danh mục.
     don_gia: float | None = Field(None, ge=0)
     vat_pct: int = Field(0, ge=0, le=100)
+    # CK % giảm thẳng vào thành tiền dòng (VAT tính sau CK). Vắng = 0.
+    ck_pct: float = Field(0, ge=0, le=100)
 
 
 class DuKienIn(BaseModel):
@@ -300,6 +302,7 @@ class DongXuatExcelIn(BaseModel):
     dvt: str | None = Field(None, max_length=24)
     qty: float | None = None
     vat_pct: int | None = None
+    ck_pct: float | None = None
 
 
 class XuatExcelIn(BaseModel):
@@ -340,6 +343,7 @@ class DongNhapOut(BaseModel):
     dvt: str
     qty: int
     vat_pct: int
+    ck_pct: float = 0
     hang: HangNhapOut
 
 

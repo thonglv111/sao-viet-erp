@@ -10,6 +10,8 @@ export interface DongThuongMaiInput {
   /** Trước VAT. Bỏ trống = giá bán khai theo ĐVT ở danh mục. */
   don_gia?: number | null;
   vat_pct: number;
+  /** CK % trừ thẳng vào thành tiền dòng, VAT tính sau CK. Vắng = 0. */
+  ck_pct?: number;
 }
 
 /** Một dòng đọc từ file Excel: không có đơn giá, trang lấy giá bán khai hoặc để người lập gõ. */
@@ -18,6 +20,7 @@ export interface DongNhapExcel {
   dvt: string;
   qty: number;
   vat_pct: number;
+  ck_pct: number;
   hang: HangThuongMai;
 }
 
@@ -140,7 +143,7 @@ export const thuongMaiApi = {
     });
   },
   /** Dòng hàng trên trang ra file Excel (16/11/2026). `lines` rỗng = file mẫu chỉ có tiêu đề. */
-  async xuatExcelDong(token: string, lines: { hang_id: number; dvt: string; qty: number; vat_pct: number }[]): Promise<Blob> {
+  async xuatExcelDong(token: string, lines: { hang_id: number; dvt: string; qty: number; vat_pct: number; ck_pct?: number }[]): Promise<Blob> {
     const goc = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
     const goi = (bearer: string) => fetch(`${goc}/api/thuong-mai/dong/xuat-excel`, {
       method: "POST", credentials: "include", cache: "no-store",

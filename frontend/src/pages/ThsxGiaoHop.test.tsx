@@ -101,6 +101,42 @@ describe("Hộp Sửa số mẻ", () => {
     const { hop } = mo(null);
     expect(within(hop).queryByText(/Lần này đã giao/)).toBeNull();
   });
+
+  it("In Hà Phương: lần ghi cũ chưa có số từng người giữ tổng cũ, chia đủ thì lần giao giữ nguyên, không bắt xác nhận lại", async () => {
+    const { PermissionsProvider, buildCapabilities } = await import("../auth/permissions");
+    const suaSoMe = vi.fn().mockResolvedValue(true);
+    const cu = {
+      ...b, nguoi_tham_gia: [
+        { employee_id: 1, ho_ten: "Đào Văn Hoan", so_luong: null },
+        { employee_id: 2, ho_ten: "Lê Minh Tú", so_luong: null },
+      ],
+    } as unknown as SxBatch;
+    render(
+      <PermissionsProvider caps={buildCapabilities([])} phanHeTat={new Set()}>
+        <SuaSoMeForm b={cu} tranGhi={tran} banGiao={{ ...g, trang_thai: "confirmed" } as SxBanGiao} busy={false}
+          onXong={vi.fn()} exec={{ suaSoMe } as unknown as ThsxExec} />
+      </PermissionsProvider>,
+    );
+    const hop = screen.getByRole("dialog", { name: "Sửa số sản lượng" });
+    const tong = within(hop).getByLabelText("Số lượng làm được") as HTMLInputElement;
+    expect(tong.value).toBe("120");
+    expect(hop.textContent).toMatch(/Lần này ghi khi chưa có số từng người\. Chia 120/);
+    expect(within(hop).queryByText(/^bớt/)).toBeNull();
+    expect(within(hop).queryByText("Lần này đã giao, không sửa về 0 được.")).toBeNull();
+    expect(within(hop).getByRole("button", { name: "Lưu" })).toBeDisabled();
+
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Đào Văn Hoan"), { target: { value: "70" } });
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Lê Minh Tú"), { target: { value: "50" } });
+    expect(tong.value).toBe("120");
+    expect(hop.textContent).toMatch(/Số không đổi nên lần giao 120 .*giữ nguyên\./);
+    expect(hop.textContent).not.toMatch(/xác nhận lại/);
+    fireEvent.click(within(hop).getByRole("button", { name: "Lưu" }));
+    expect(suaSoMe).toHaveBeenCalledWith(1, { tot: 120, ly_do: null, expected_version: 2, so_luong_nguoi: { 1: 70, 2: 50 } });
+
+    // Chia lệch tổng thì lần giao đổi theo và bên nhận phải xác nhận lại.
+    fireEvent.change(within(hop).getByLabelText("Số làm được của Lê Minh Tú"), { target: { value: "40" } });
+    expect(hop.textContent).toMatch(/Lần giao 120 đổi thành 110 .*sẽ phải xác nhận lại\./);
+  });
 });
 
 describe("Hộp Sửa mẻ của lần giao", () => {

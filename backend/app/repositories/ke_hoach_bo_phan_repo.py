@@ -96,17 +96,32 @@ class KeHoachBoPhanRepository:
                 .outerjoin(MayThietBi, MayThietBi.id == cv.may_id))
 
     def trang_viec(self, bo_phan_id: int, *, trang_thai: str, offset: int, limit: int,
-                   **loc) -> tuple[list[SanXuatCongViec], int]:
-        """Một trang bảng việc ở chip `trang_thai`, việc mới tới đứng đầu, kèm tổng khớp."""
+                   sap_xep: str | None = None, **loc) -> tuple[list[SanXuatCongViec], int]:
+        """Một trang bảng việc ở chip `trang_thai`, kèm tổng khớp. Mặc định việc mới tới đứng đầu;
+        `sap_xep` = `giay` / `dinh_luong` (thêm "-" là giảm dần) đọc từ quy cách chụp ở việc, việc
+        không có giấy luôn đứng cuối."""
         cv = SanXuatCongViec
         dk = self._loc_bang(bo_phan_id, **loc)
         if trang_thai != "tat_ca":
             dk.append(self.bieu_thuc_trang_thai() == trang_thai)
         tong = self.db.execute(self._tu(select(func.count(cv.id))).where(*dk)).scalar_one()
         rows = self.db.execute(
-            self._tu(select(cv)).where(*dk).order_by(cv.id.desc()).offset(offset).limit(limit)
+            self._tu(select(cv)).where(*dk).order_by(*self._thu_tu(sap_xep), cv.id.desc())
+            .offset(offset).limit(limit)
         ).scalars().all()
         return list(rows), int(tong)
+
+    @staticmethod
+    def _thu_tu(sap_xep: str | None) -> list:
+        if not sap_xep:
+            return []
+        qc = SanXuatCongViec.quy_cach_json
+        cot = sap_xep.lstrip("-")
+        giam = sap_xep.startswith("-")
+        gsm = qc["dinh_luong"].as_float()
+        # Theo giấy thì cùng giấy xếp tiếp theo định lượng (cùng chiều), theo định lượng thì chỉ định lượng.
+        cac = [func.lower(qc["giay"].as_string()), gsm] if cot == "giay" else [gsm]
+        return [cac[0].is_(None), *(c.desc() if giam else c.asc() for c in cac)]
 
     def dem_trang_thai(self, bo_phan_id: int, **loc) -> dict[str, int]:
         """Số việc khớp tìm / kỳ / lọc ở từng chip."""

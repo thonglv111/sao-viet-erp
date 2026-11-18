@@ -507,6 +507,8 @@ class NguoiThamGiaBatchOut(BaseModel):
     to_ten: str | None = None
     # Người ngoài danh sách được giao, tổ thêm lúc ghi (người tổ khác sang giúp).
     la_ho_tro: bool = False
+    # Số làm được của riêng người này (chỉ In Hà Phương ghi từng người); None = lần ghi theo số tổng.
+    so_luong: float | None = None
 
 
 class ViecNganOut(BaseModel):
@@ -542,6 +544,7 @@ class SlToMeNguoiOut(BaseModel):
     employee_id: int
     ho_ten: str
     to_ten: str | None = None
+    so_luong: float | None = None       # số riêng người này (In Hà Phương); None = theo số tổng
 
 
 class SlToMePhatSinhOut(BaseModel):
@@ -1109,6 +1112,9 @@ class BatchIn(BaseModel):
     phat_sinh: list[MePhatSinhIn] = []
     # Người làm lần này: tổ mình tick + người tổ khác tổ thêm; None = bộ tick sẵn của tổ.
     nguoi_ids: list[int] | None = None
+    # Số làm được của từng người `{employee_id: số}` (chỉ In Hà Phương, cờ `san_luong_tung_nguoi`):
+    # `tot` phải bằng tổng các số, người làm lấy theo khoá. None = ghi theo số tổng.
+    so_luong_nguoi: dict[int, float] | None = None
     # Giá trị tuỳ chọn khi ghi `{ma: giá trị}` (Đợt 2); thiếu mã ⇒ 0.
     tuy_chon: dict[str, float] = {}
     # Lệnh in AB: mặt máy chạy ở lần ghi này ("a" / "b") — bậc giá theo số màu mặt đó.
@@ -1213,6 +1219,7 @@ class SuaSoMeIn(BaseModel):
     ly_do: str | None = None            # tuỳ chọn — hiện ở Lịch sử cho cả bên nhận đọc
     expected_version: int | None = None
     nguoi_ids: list[int] | None = None  # người làm lần đó, kể cả tổ khác; None = không đổi
+    so_luong_nguoi: dict[int, float] | None = None  # số từng người (cờ `san_luong_tung_nguoi`); None = không đổi
     tuy_chon: dict[str, float] | None = None  # tuỳ chọn khi ghi (Đợt 2); None = không đổi
 
 

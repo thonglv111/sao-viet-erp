@@ -76,14 +76,20 @@ interface PermissionsCtx {
 /** Phân hệ tắt được theo bản cài — khớp `app/phan_he.py`. */
 // `thuong_mai`, `giao_hang_hp`: chỉ In Hà Phương có, máy chủ coi là TẮT khi bản cài không khai `PHAN_HE_BAT`.
 export type PhanHe = "luong" | "khoan" | "hoa_hong" | "giao_hang" | "tai_san" | "cham_cong" | "sua_chua" | "ke_gia"
-  | "thuong_mai" | "giao_hang_hp" | "duyet_don_mua" | "thue_gia_cong";
-const KHONG_TAT: ReadonlySet<PhanHe> = new Set();
+  | "thuong_mai" | "giao_hang_hp" | "duyet_don_mua" | "thue_gia_cong"
+  // Chỉ In Hà Phương (18/11/2026), bật bằng PHAN_HE_BAT: sắp xếp theo giấy ở Kế hoạch tổ, chuyển kho thành phẩm,
+  // ghi sản lượng từng người.
+  | "sap_xep_giay" | "chuyen_kho_tp" | "san_luong_tung_nguoi";
+// Khi chưa có danh sách từ máy chủ (test dựng màn không bọc quyền), mấy phân hệ CHỈ In Hà Phương
+// mới thêm 18/11/2026 coi như tắt — đúng mặc định máy chủ (`phan_he.CHI_BAT_KHI_KHAI`), để màn Sao
+// Việt Nhật không tự đổi dáng. Thực tế danh sách luôn tới từ máy chủ nên dòng này không đổi gì.
+export const PHAN_HE_TAT_MAC_DINH: ReadonlySet<PhanHe> = new Set<PhanHe>(["sap_xep_giay", "chuyen_kho_tp", "san_luong_tung_nguoi"]);
 
 const PermissionsContext = createContext<PermissionsCtx>({
   can: () => false,
   scopeOf: () => null,
   reload: () => {},
-  phanHeTat: KHONG_TAT,
+  phanHeTat: PHAN_HE_TAT_MAC_DINH,
 });
 
 export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
@@ -93,7 +99,7 @@ export function buildCapabilities(rows: ModuleCapability[]): Capabilities {
 export function PermissionsProvider({
   caps,
   onReload,
-  phanHeTat = KHONG_TAT,
+  phanHeTat = PHAN_HE_TAT_MAC_DINH,
   children,
 }: {
   caps: Capabilities;

@@ -293,6 +293,10 @@ class OrderLine(Base):
     # Tiền KÊ GIÁ của dòng (mg 0428): NẰM TRONG `line_total` (giá bán sau kê), chép từ
     # `quote_items.ke_gia`. NULL = đơn cũ / nhập tay.
     ke_gia: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # CK % của dòng ĐƠN THƯƠNG MẠI (mg 0485, 18/11/2026, chỉ In Hà Phương): giảm thẳng vào giá bán,
+    # `line_total` = qty × đơn giá × (1 − CK%) — khác `chiet_khau` (tiền hoàn lại khách, vẫn nằm trong
+    # line_total). NULL = không CK / dòng đơn sản xuất.
+    ck_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="lines")
 

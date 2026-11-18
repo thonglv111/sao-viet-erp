@@ -1388,6 +1388,7 @@ def chi_tiet_cong_viec(
                            if n["department_id"] and n["department_id"] != cv.department_id
                            else None),
                 "la_ho_tro": n["la_ho_tro"],
+                "so_luong": n["so_luong"],
             }
             for n in theo_me.get(batch_id, [])
         ]

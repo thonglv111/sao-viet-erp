@@ -31,10 +31,26 @@ export type Dong = {
   /** Chuỗi chữ số; "" = lấy giá bán khai ở danh mục. */
   gia: string;
   vat: string;
+  /** CK % như người gõ ("2,5"); "" = không CK. */
+  ck: string;
 };
 
 let dem = 0;
-export const dongMoi = (): Dong => ({ khoa: ++dem, hang: null, dvt: "", qty: "1", gia: "", vat: "0" });
+export const dongMoi = (): Dong => ({ khoa: ++dem, hang: null, dvt: "", qty: "1", gia: "", vat: "0", ck: "" });
+
+/** Ô CK %: giữ chữ số và một dấu phẩy, tối đa 2 số lẻ, không quá 100. */
+export function goCk(s: string): string {
+  const [n, ...le] = s.replace(/\./g, ",").replace(/[^\d,]/g, "").split(",");
+  const v = n.replace(/^0+(?=\d)/, "").slice(0, 3) + (le.length ? `,${le.join("").slice(0, 2)}` : "");
+  return Number(v.replace(",", ".")) > 100 ? "100" : v;
+}
+export const soCk = (ck: string) => Number(ck.replace(",", ".")) || 0;
+export const chuCk = (v: number | null | undefined) => (v ? String(Number(v)).replace(".", ",") : "");
+/** Thành tiền trước VAT của dòng = SL × đơn giá × (1 − CK%), làm tròn đồng — khớp `thanh_tien` ở máy chủ. */
+export const thanhTienDong = (g: number, sl: number, ck: string) => Math.round((g * sl * (100 - soCk(ck))) / 100);
+/** Tổng gồm VAT, cùng công thức máy chủ chặn cọc: cộng từng dòng thành tiền × (100 + VAT) / 100, cắt lẻ. */
+export const tongGomVat = (ds: { g: number | null | undefined; sl: number; ck: string; vat: string }[]) =>
+  ds.reduce((t, d) => (d.g == null ? t : t + Math.floor((thanhTienDong(d.g, d.sl, d.ck) * (100 + (Number(d.vat) || 0))) / 100)), 0);
 export const dvtCua = (h: HangThuongMai) =>
   [h.don_vi_gia, ...(h.don_vi_them ?? [])].map((m) => (m ?? "").trim().toLowerCase())
     .filter((m, i, a) => m && a.indexOf(m) === i);
@@ -257,18 +273,14 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
         const ten = (l.don_vi_tinh ?? "").toLowerCase();
         const dvt = h ? (dvtCua(h).find((m) => m === ten || tenDvt(m).toLowerCase() === ten) ?? h.don_vi_gia) : "";
         return { khoa: ++dem, hang: h, dvt, qty: String(l.qty), gia: l.unit_price_snapshot != null ? String(l.unit_price_snapshot) : "",
-          vat: String(l.vat_pct_estimate ?? 0) };
+          vat: String(l.vat_pct_estimate ?? 0), ck: chuCk(l.ck_pct) };
       }));
     }).catch(() => undefined);
   }, [token, order, tenDvt]);
 
   const sua = (k: number, p: Partial<Dong>) => setDong((ds) => ds.map((d) => (d.khoa === k ? { ...d, ...p } : d)));
   const giaDong = (d: Dong) => (d.gia !== "" ? Number(d.gia) : giaKhai(d));
-  const tong = useMemo(() => dong.reduce((t, d) => {
-    const g = giaDong(d);
-    const sl = Number(d.qty) || 0;
-    return g == null ? t : t + Math.floor((g * sl * (100 + (Number(d.vat) || 0))) / 100);
-  }, 0), [dong]);
+  const tong = useMemo(() => tongGomVat(dong.map((d) => ({ g: giaDong(d), sl: Number(d.qty) || 0, ck: d.ck, vat: d.vat }))), [dong]);
 
   async function luuDon() {
     if (!token || luu) return;
@@ -279,7 +291,8 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
       const sl = Number(d.qty);
       if (!Number.isInteger(sl) || sl <= 0) { setErr(`Số lượng của «${d.hang.ten}» phải là số nguyên lớn hơn 0.`); return; }
       if (giaDong(d) == null) { setErr(`«${d.hang.ten}» chưa có giá bán theo đơn vị này, gõ đơn giá.`); return; }
-      lines.push({ hang_id: d.hang.id, dvt: d.dvt, qty: sl, don_gia: d.gia !== "" ? Number(d.gia) : null, vat_pct: Number(d.vat) || 0 });
+      lines.push({ hang_id: d.hang.id, dvt: d.dvt, qty: sl, don_gia: d.gia !== "" ? Number(d.gia) : null, vat_pct: Number(d.vat) || 0,
+        ck_pct: soCk(d.ck) });
     }
     setLuu(true);
     setErr(null);
@@ -313,6 +326,7 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
               <th>Đơn vị</th>
               <th className="dhb__text-right">Số lượng</th>
               <th className="dhb__text-right">Đơn giá</th>
+              <th className="dhb__text-right" title="Chiết khấu % trừ thẳng vào thành tiền, VAT tính sau chiết khấu">CK %</th>
               <th className="dhb__text-right">VAT %</th>
               <th className="dhb__text-right">Thành tiền</th>
               <th aria-label="Xoá dòng" />
@@ -344,10 +358,14 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
                       onChange={(e) => sua(d.khoa, { gia: chuSo(e.target.value) })} />
                   </td>
                   <td>
+                    <input className="dhb__input dhb__text-right" inputMode="decimal" aria-label="CK %" value={d.ck} placeholder="0"
+                      onChange={(e) => sua(d.khoa, { ck: goCk(e.target.value) })} />
+                  </td>
+                  <td>
                     <input className="dhb__input dhb__text-right" inputMode="numeric" aria-label="VAT" value={d.vat}
                       onChange={(e) => sua(d.khoa, { vat: chuSo(e.target.value).slice(0, 3) })} />
                   </td>
-                  <td className="dhb__mono dhb__text-right">{g == null ? "—" : soVN(g * sl)}</td>
+                  <td className="dhb__mono dhb__text-right">{g == null ? "—" : soVN(thanhTienDong(g, sl, d.ck))}</td>
                   <td>
                     {dong.length > 1 && (
                       <button type="button" className="btn btn--ghost" aria-label="Xoá dòng"

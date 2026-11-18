@@ -136,7 +136,9 @@ def test_quan_doc_thay_tron_lenh_cong_doan_me_va_nguoi(db, admin, xuong):
     assert me[xuong["m3"].id]["nguoi"] == []
     # Người nhà thì không dán nhãn tổ; không ai có số phút hay phần chia.
     assert all(n["to_ten"] is None for n in me[xuong["m1"].id]["nguoi"])
-    assert all(set(n) == {"employee_id", "ho_ten", "to_ten"} for m in cd["me"] for n in m["nguoi"])
+    # `so_luong` là số tổ tự ghi cho từng người (chỉ In Hà Phương), Sao Việt Nhật luôn trống.
+    assert all(set(n) == {"employee_id", "ho_ten", "to_ten", "so_luong"} and n["so_luong"] is None
+               for m in cd["me"] for n in m["nguoi"])
     assert "tien" not in str(res) and "don_gia" not in str(res) and "phut" not in str(res)
 
 

@@ -496,3 +496,27 @@ def test_tick_nhom_o_danh_muc_dien_bo_phan_cho_buoc_lenh_trong(db, orders, lsx_s
     db.refresh(buoc)
     assert buoc.department_id == cay_bp["bp_be"].id
     assert "thieu_bo_phan" not in lsx_svc.kiem_thieu(db.get(Lsx, a.id))[0]
+
+
+def test_sap_xep_bang_viec_theo_giay_va_dinh_luong(db, admin, lenh_phat, cay_bp):
+    """Chỉ In Hà Phương bật ở giao diện (18/11/2026): sắp theo tên giấy (cùng giấy thì theo định lượng) hoặc
+    theo định lượng, tăng / giảm; việc không có giấy luôn đứng cuối. Vắng tham số: việc mới tới đứng đầu."""
+    bp = cay_bp["bp_in"].id
+    svc = _svc(db, admin)
+    goc = _cv(db, lenh_phat)
+    cot = {c.key: getattr(goc, c.key) for c in SanXuatCongViec.__table__.columns if c.key != "id"}
+    goc.quy_cach_json = {"giay": "Ivory", "dinh_luong": 300.0}
+    for qc in ({"giay": "Couche", "dinh_luong": 250.0}, {"giay": "couche", "dinh_luong": 150.0}, None):
+        db.add(SanXuatCongViec(**{**cot, "quy_cach_json": qc}))
+    db.commit()
+
+    def thu_tu(sx):
+        return [(v["giay"][0] if v["giay"] else None, v["dinh_luong"])
+                for v in svc.trang_viec(bp, trang_thai="chua_giao", sap_xep=sx)["items"]]
+
+    assert thu_tu("giay") == [("couche", 150.0), ("Couche", 250.0), ("Ivory", 300.0), (None, None)]
+    assert thu_tu("-giay") == [("Ivory", 300.0), ("Couche", 250.0), ("couche", 150.0), (None, None)]
+    assert [d for _g, d in thu_tu("dinh_luong")] == [150.0, 250.0, 300.0, None]
+    assert [d for _g, d in thu_tu("-dinh_luong")] == [300.0, 250.0, 150.0, None]
+    # Mặc định: việc mới tới (id lớn) đứng đầu.
+    assert thu_tu(None)[0] == (None, None)

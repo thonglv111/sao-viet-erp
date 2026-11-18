@@ -159,6 +159,7 @@ def san_luong(
                 "employee_id": n["employee_id"],
                 "ho_ten": n["ho_ten"],
                 "to_ten": ten_to.get(n["department_id"]) if _ngoai(n["department_id"]) else None,
+                "so_luong": n["so_luong"],
             }
             for n in theo_me.get(batch_id, [])
         ]

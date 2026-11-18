@@ -1461,7 +1461,11 @@ export interface SxTeamsOut {
 
 /** Một người có mặt trong mẻ. `to_ten` CHỈ có khi người đó không thuộc tổ chủ mẻ — nhãn
  *  "(Tổ bế)" để biết ngay ai là người nhà, ai sang giúp (spec 2026-09-18 §7.3b). */
-export interface SxMeNguoi { employee_id: number; ho_ten: string; to_ten?: string | null }
+export interface SxMeNguoi {
+  employee_id: number; ho_ten: string; to_ten?: string | null;
+  /** Số riêng người này (chỉ In Hà Phương ghi từng người); null = lần ghi theo số tổng. */
+  so_luong?: number | null;
+}
 
 /** Tab SẢN LƯỢNG của bàn tổ (spec 2026-09-14 §6, sửa 2026-09-18 §7.3b). Ngày = ngày BẮT ĐẦU mẻ
  *  theo giờ xưởng; mọi số đi theo ĐƠN VỊ, không cộng lẫn. Mẻ có MỘT chủ: tổ khác có người trong mẻ
@@ -2021,6 +2025,8 @@ export interface SxNguoiThamGiaBatch {
   to_ten?: string | null;
   /** Người tổ khác được tổ thêm thẳng vào lần ghi (mg 0389) — sửa số bỏ được như người tổ mình. */
   la_ho_tro?: boolean;
+  /** Số riêng người này (chỉ In Hà Phương ghi từng người); null = lần ghi theo số tổng. */
+  so_luong?: number | null;
 }
 /** Mã lệnh + tên công đoạn — ghi chú cạnh tên người trong hộp Ghi sản lượng. */
 export interface SxViecNgan { cong_viec_id: number; ma: string | null; ten_cong_doan: string }
@@ -2450,6 +2456,8 @@ export interface SxBatchIn {
   phat_sinh?: { phat_sinh_id: number; so_luong: number }[];
   /** Người TỔ MÌNH tick làm lần này; người hỗ trợ máy chủ tự thêm. */
   nguoi_ids?: number[];
+  /** Số từng người `{employee_id: số}` (chỉ In Hà Phương) — `tot` phải bằng tổng. */
+  so_luong_nguoi?: Record<number, number>;
   /** Tuỳ chọn khi ghi `{ma: giá trị}` — thiếu mã là 0. */
   tuy_chon?: Record<string, number>;
   /** Lệnh in AB: mặt máy chạy lần này — bậc giá theo số màu mặt đó. */
@@ -2468,6 +2476,8 @@ export interface SxSuaSoMeIn {
   tot: number; ly_do?: string | null; expected_version?: number | null;
   /** Người tổ mình làm lần đó; bỏ trống = không đổi. */
   nguoi_ids?: number[];
+  /** Số từng người (chỉ In Hà Phương); gửi thì người làm lấy theo khoá. */
+  so_luong_nguoi?: Record<number, number>;
   /** Tuỳ chọn khi ghi; bỏ trống = không đổi. */
   tuy_chon?: Record<string, number>;
 }
@@ -3599,6 +3609,8 @@ export interface KhbpThamSoViec {
   trang?: number;
   co_trang?: number;
   loc?: ThamSoLoc;
+  /** Sắp theo `giay` / `dinh_luong`, thêm "-" là giảm dần (chỉ In Hà Phương). Vắng = việc mới tới đứng đầu. */
+  sap_xep?: string;
 }
 
 export interface SxTepLenhNhom {
@@ -9656,6 +9668,8 @@ export interface OrderLineOut {
   nhom: string | null;
   /** Đơn thương mại (chỉ In Hà Phương): mặt hàng thương mại của dòng. */
   hang_thuong_mai_id?: number | null;
+  /** CK % dòng đơn thương mại — đã trừ thẳng vào `line_total`, VAT tính sau. null = không CK. */
+  ck_pct?: number | null;
 }
 export interface AttachmentOut {
   id: number;
@@ -15400,6 +15414,7 @@ export const api = {
     viec(token: string, boPhanId: number, p: KhbpThamSoViec): Promise<KhbpTrangViec> {
       const s = new URLSearchParams(qs({
         trang_thai: p.trang_thai, tim: p.tim?.trim() || undefined, trang: p.trang, co_trang: p.co_trang,
+        sap_xep: p.sap_xep || undefined,
       }).replace(/^\?/, ""));
       ganThamSoLoc(s, p.loc);
       return authed<KhbpTrangViec>(`/api/ke-hoach-bo-phan/bo-phan/${boPhanId}/viec?${s}`, token);

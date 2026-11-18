@@ -209,3 +209,40 @@ def test_migration_0389_bo_bang_ho_tro(db):
     _migrate_bo_ho_tro_cheo(db)
     assert "san_xuat_ho_tro" not in inspect(db.get_bind()).get_table_names()
     _migrate_bo_ho_tro_cheo(db)                            # chạy lại vô hại
+
+
+def test_ghi_san_luong_tung_nguoi_chi_khi_bat_co(db, orders, lsx_svc, admin, customer, monkeypatch):
+    """In Hà Phương (cờ `san_luong_tung_nguoi`, 18/11/2026): mỗi người một số, tốt = tổng; sửa lần
+    ghi chia lại được giữa người với nhau. Sao Việt Nhật (cờ tắt) gửi số từng người ⇒ bị chặn."""
+    from app.config import settings
+
+    to, cv, _b, a, b = _canh(db, orders, lsx_svc, admin, customer, "NG7")
+    moc = T0 + timedelta(hours=2)
+    kw = dict(user=admin, cong_viec_id=cv.id, bat_dau=moc, ket_thuc=moc + timedelta(hours=1))
+    monkeypatch.setattr(settings, "phan_he_bat", "")
+    with pytest.raises(ValueError, match="theo số tổng"):
+        tao_me(db, tong=30, tot=30, so_luong_nguoi={a.id: 10, b.id: 20}, **kw)
+    db.rollback()
+
+    monkeypatch.setattr(settings, "phan_he_bat", "san_luong_tung_nguoi")
+    with pytest.raises(ValueError, match="bằng tổng số của từng người"):
+        tao_me(db, tong=25, tot=25, so_luong_nguoi={a.id: 10, b.id: 20}, **kw)
+    db.rollback()
+    r = tao_me(db, tong=32, tot=30, hong=2, so_luong_nguoi={a.id: 10, b.id: 20}, **kw)
+    me = db.get(SanXuatBatch, r["batch_id"])
+    so = {n["employee_id"]: n["so_luong"] for n in nguoi_theo_me(db, [me.id])[me.id]}
+    assert so == {a.id: 10, b.id: 20} and float(me.tot) == 30
+
+    # Cùng tổng, chia lại giữa hai người ⇒ vẫn là một lần sửa.
+    san_luong.sua_so_me(db, user=admin, batch_id=me.id, tot=30, so_luong_nguoi={a.id: 15, b.id: 15},
+                        expected_version=me.version)
+    so = {n["employee_id"]: n["so_luong"] for n in nguoi_theo_me(db, [me.id])[me.id]}
+    assert so == {a.id: 15, b.id: 15}
+    with pytest.raises(ValueError, match="chưa đổi gì"):
+        san_luong.sua_so_me(db, user=admin, batch_id=me.id, tot=30, so_luong_nguoi={a.id: 15, b.id: 15})
+    db.rollback()
+    # Đổi tổng + bỏ một người.
+    san_luong.sua_so_me(db, user=admin, batch_id=me.id, tot=12, so_luong_nguoi={b.id: 12})
+    me = db.get(SanXuatBatch, me.id)
+    assert float(me.tot) == 12 and float(me.tong) == 14
+    assert {n["employee_id"]: n["so_luong"] for n in nguoi_theo_me(db, [me.id])[me.id]} == {b.id: 12}

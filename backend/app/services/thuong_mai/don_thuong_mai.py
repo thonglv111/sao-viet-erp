@@ -68,7 +68,8 @@ def chuan_dong(db: Session, lines: list[dict]) -> list[dict]:
 
     Mỗi dòng: `hang_id` (mặt hàng mang cờ thương mại, còn dùng), `dvt` (mã, phải là ĐVT đã khai của
     mặt hàng), `qty` nguyên > 0, `don_gia` (đồng, trước VAT; vắng thì lấy giá bán khai theo ĐVT),
-    `vat_pct` 0–100. Máy chủ chặn dòng không phải hàng thương mại — không chỉ giao diện chặn."""
+    `vat_pct` 0–100, `ck_pct` 0–100 (giảm thẳng vào thành tiền, VAT tính sau CK). Máy chủ chặn dòng không
+    phải hàng thương mại — không chỉ giao diện chặn."""
     if not lines:
         raise DonThuongMaiError("Đơn phải có ít nhất một mặt hàng.")
     ids = {int(ln.get("hang_id") or 0) for ln in lines}
@@ -101,16 +102,28 @@ def chuan_dong(db: Session, lines: list[dict]) -> list[dict]:
         vat = int(ln.get("vat_pct") or 0)
         if not 0 <= vat <= 100:
             raise DonThuongMaiError("VAT phải trong khoảng 0–100.")
+        try:
+            ck = round(float(ln.get("ck_pct") or 0), 2)
+        except (TypeError, ValueError):
+            raise DonThuongMaiError("CK % phải là số.") from None
+        if not 0 <= ck <= 100:
+            raise DonThuongMaiError("CK % phải trong khoảng 0–100.")
         ra.append(dict(
             description=h.ten,
             qty=qty,
             don_vi_tinh=_ten_dvt(db, dvt),
             unit_price_snapshot=gia,
-            line_total=gia * qty,
+            line_total=thanh_tien(gia, qty, ck),
+            ck_pct=ck or None,
             vat_pct_estimate=vat,
             hang_thuong_mai_id=h.id,
         ))
     return ra
+
+
+def thanh_tien(gia: int, qty: int, ck_pct: float | None) -> int:
+    """Thành tiền trước VAT của dòng thương mại = SL × đơn giá × (1 − CK%), làm tròn đồng."""
+    return int(round(gia * qty * (100 - float(ck_pct or 0)) / 100))
 
 
 def ma_dvt_cua_dong(db: Session, ln: OrderLine) -> str | None:
