@@ -1338,7 +1338,14 @@ export function KeHoachBoPhanPage({ boPhanId, tenBoPhan, eventTick = 0 }: {
     <div className="khbp">
       <div className="khbp-dau">
         <h1>{tieuDe}</h1>
-        <span className="khbp-dau__phu">{xem === "kb" ? "Mỗi máy một cột" : "Việc mới tới đứng đầu"}</span>
+        <span className="khbp-dau__phu">
+          {xem === "kb" ? "Mỗi máy một cột"
+            : sapXep === "giay" ? "Xếp theo tên giấy, A tới Z"
+            : sapXep === "-giay" ? "Xếp theo tên giấy, Z tới A"
+            : sapXep === "dinh_luong" ? "Xếp theo định lượng, mỏng trước"
+            : sapXep === "-dinh_luong" ? "Xếp theo định lượng, dày trước"
+            : "Việc mới tới đứng đầu"}
+        </span>
         <div className="khbp-xem" role="tablist" aria-label="Cách xem">
           <button type="button" role="tab" aria-selected={xem === "bang"} title="Bảng việc"
             onClick={() => { setXem("bang"); setChonId(null); }}>
