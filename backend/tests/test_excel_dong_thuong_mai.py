@@ -44,7 +44,7 @@ def test_xuat_roi_nhap_lai_ra_dung_dong(client, bat_tm):
     wb = load_workbook(BytesIO(r.content))
     rows = list(wb["Mặt hàng"].iter_rows(values_only=True))
     # Không có cột đơn giá; đơn vị in TÊN; Tên hàng là công thức tra trang Danh mục hàng.
-    assert rows[0] == ("Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %")
+    assert rows[0] == ("Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %", "CK (đ)")
     assert rows[1][0] == "TM-EX1" and rows[1][2] == _ten_dv(client, h, dv) and rows[1][3] == 3 and rows[1][4] == 8
     assert rows[1][1].startswith("=IF(A2")
     dm = list(wb["Danh mục hàng"].iter_rows(values_only=True))
@@ -154,3 +154,25 @@ def test_cot_ck_xuat_ra_va_nhap_lai(client, bat_tm):
     wb.save(out)
     r = _nhap(client, h, out.getvalue())
     assert r.status_code == 400 and "Dòng 4" in r.json()["detail"] and "CK %" in r.json()["detail"]
+
+
+def test_cot_ck_so_tien_xuat_ra_va_nhap_lai(client, bat_tm):
+    """CK (đ) (19/11/2026): xuất ra cột riêng, nhập lại đọc được «1.500»; điền cả hai cột CK thì báo lỗi dòng."""
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-CK2", gia=10000)
+    r = client.post("/api/thuong-mai/dong/xuat-excel", headers=h,
+                    json={"lines": [{"hang_id": hid, "dvt": dv, "qty": 2, "vat_pct": 8, "ck_tien": 1500}]})
+    rows = list(load_workbook(BytesIO(r.content))["Mặt hàng"].iter_rows(values_only=True))
+    assert rows[1][5] is None and rows[1][6] == 1500
+    x = _nhap(client, h, r.content).json()[0]
+    assert x["ck_tien"] == 1500 and x["ck_pct"] == 0
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %", "CK (đ)"])
+    ws.append(["TM-CK2", None, None, 3, 0, None, "1.500"])
+    ws.append(["TM-CK2", None, None, 1, 0, 5, 200])
+    out = BytesIO()
+    wb.save(out)
+    r = _nhap(client, h, out.getvalue())
+    assert r.status_code == 400 and "Dòng 3" in r.json()["detail"] and "một trong hai" in r.json()["detail"]

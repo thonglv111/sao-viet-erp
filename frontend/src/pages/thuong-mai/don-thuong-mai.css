@@ -43,3 +43,30 @@ ul.dtm__goi-y small { display: flex; gap: 12px; color: var(--text-muted, #667085
 .dtm__check { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .dtm__phu { display: block; color: var(--text-muted, #667085); font-size: 12px; }
 @media (max-width: 640px) { .dtm__hai { grid-template-columns: 1fr; } }
+
+/* Ô CK hai tab "%" | "Số" (19/11/2026) — cùng dáng ô chiết khấu ở báo giá: ô nhập và hai tab chung một
+   khung một hàng, dưới là số quy đổi nhỏ căn phải. Tab đang chọn nền trắng viền đủ bốn cạnh. */
+.ck2 { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.ck2__o {
+  display: inline-flex; align-items: center; height: 34px; padding-right: 3px; box-sizing: border-box;
+  border: 1px solid var(--rule-soft); border-radius: var(--r-3); background: var(--canvas);
+}
+.ck2__o:focus-within { border-color: var(--rust); background: #fff; }
+.ck2__in {
+  width: 52px; height: 32px; padding: 0 6px; border: 0; background: none; outline: none; text-align: right;
+  font-family: var(--ff-sans); font-size: 13px; color: var(--ink);
+}
+.ck2__in--tien { width: 92px; }
+.ck2__in::placeholder { color: var(--ash-2); }
+.ck2__tab { display: inline-flex; padding: 2px; gap: 2px; border-radius: 6px; background: var(--paper); }
+.ck2__tab button {
+  border: 1px solid transparent; border-radius: 4px; background: transparent; padding: 0 7px;
+  font-size: 11px; line-height: 20px; cursor: pointer; color: var(--ash-2);
+}
+.ck2__tab button:hover:not(.is-on) { color: var(--ink); }
+.ck2__tab button.is-on { border-color: var(--rule); background: var(--canvas); color: var(--ink); }
+.ck2__phu { font-size: 11px; color: var(--ash-2); white-space: nowrap; }
+@media screen and (max-width: 768px) {
+  .ck2__o { height: 44px; }
+  .ck2__tab button { min-height: 38px; }
+}

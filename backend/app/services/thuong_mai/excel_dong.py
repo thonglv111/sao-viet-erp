@@ -1,6 +1,7 @@
 """Nhập / xuất Excel dòng hàng của trang Tạo đơn thương mại — chỉ In Hà Phương (16/11/2026).
 
-Trang đầu "Mặt hàng" có sáu cột: Mã hàng, Tên hàng, Đơn vị, Số lượng, VAT %, CK % (CK thêm 18/11/2026). File không có cột đơn giá: dòng nhập
+Trang đầu "Mặt hàng" có bảy cột: Mã hàng, Tên hàng, Đơn vị, Số lượng, VAT %, CK % (thêm 18/11/2026), CK (đ) (thêm
+19/11/2026, CK bằng số tiền cho cả dòng; một dòng chỉ điền một trong hai cột CK). File không có cột đơn giá: dòng nhập
 vào lấy giá bán khai trên trang, chưa khai thì người lập gõ trên trang. Trang thứ hai "Danh mục hàng" liệt kê mọi
 hàng thương mại đang bán (mã, tên, đơn vị) để chọn mã trong ô Mã hàng; Tên hàng tự hiện theo mã, chỉ để nhìn.
 
@@ -17,8 +18,8 @@ from sqlalchemy.orm import Session
 from ...repositories.thuong_mai_repo import ThuongMaiRepository
 from .don_thuong_mai import DonThuongMaiError, dvt_cua_hang
 
-COT = ["Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %"]
-RONG = [18, 44, 14, 14, 10, 10]
+COT = ["Mã hàng", "Tên hàng", "Đơn vị", "Số lượng", "VAT %", "CK %", "CK (đ)"]
+RONG = [18, 44, 14, 14, 10, 10, 14]
 GHI_CHU = [
     "Bắt buộc. Chọn trong danh sách hoặc gõ mã (không phân biệt chữ hoa, chữ thường). "
     "Mã có ở trang Danh mục hàng.",
@@ -27,6 +28,8 @@ GHI_CHU = [
     "Bắt buộc. Số nguyên lớn hơn 0.",
     "Số nguyên từ 0 đến 100. Bỏ trống là 0.",
     "Chiết khấu % trừ thẳng vào thành tiền, VAT tính sau chiết khấu. Từ 0 đến 100, được có số lẻ. Bỏ trống là 0.",
+    "Chiết khấu bằng số tiền (đồng) cho cả dòng, trừ thẳng vào thành tiền, VAT tính sau chiết khấu. "
+    "Một dòng chỉ điền một trong hai cột CK % hoặc CK (đ). Bỏ trống là 0.",
 ]
 TOI_DA_DONG = 500
 DONG_MAU = 200  # số dòng kẻ sẵn của file mẫu
@@ -112,23 +115,26 @@ def xuat(db: Session, lines: list[dict]) -> bytes:
             continue
         dvt = (ln.get("dvt") or h.don_vi_gia or "").strip().lower()
         ck = float(ln.get("ck_pct") or 0)
+        ck_tien = int(round(float(ln.get("ck_tien") or 0)))
         dong.append([h.ma, ten_dvt.get(dvt, dvt), ln.get("qty"), int(ln.get("vat_pct") or 0),
-                     (int(ck) if ck.is_integer() else ck) or None])
+                     (int(ck) if ck.is_integer() else ck) or None, ck_tien or None])
 
     nen_tu_hien = PatternFill("solid", fgColor=NEN_TU_HIEN)
     so_dong = max(DONG_MAU, len(dong) + 50)
     _ke_dong(ws, 2, so_dong + 1, len(COT))
     for r in range(2, so_dong + 2):
-        d = dong[r - 2] if r - 2 < len(dong) else [None, None, None, None, None]
+        d = dong[r - 2] if r - 2 < len(dong) else [None] * 6
         ws.cell(r, 1, d[0])
         ws.cell(r, 2, f'=IF(A{r}="","",IFERROR(VLOOKUP(A{r},\'{TRANG_DM}\'!$A:$B,2,FALSE),"Không có mã này"))')
         ws.cell(r, 3, d[1])
         ws.cell(r, 4, d[2])
         ws.cell(r, 5, d[3])
         ws.cell(r, 6, d[4])
+        ws.cell(r, 7, d[5])
         ws.cell(r, 2).fill = nen_tu_hien
         ws.cell(r, 4).number_format = "#,##0"
-        for c in (4, 5, 6):
+        ws.cell(r, 7).number_format = "#,##0"
+        for c in (4, 5, 6, 7):
             ws.cell(r, c).alignment = Alignment(horizontal="right", vertical="center")
 
     vung = lambda c: f"{c}2:{c}{so_dong + 1}"  # noqa: E731
@@ -141,7 +147,9 @@ def xuat(db: Session, lines: list[dict]) -> bytes:
                          showErrorMessage=True, errorTitle="VAT %", error="VAT % là số nguyên từ 0 đến 100.")
     ck = DataValidation(type="decimal", operator="between", formula1="0", formula2="100", allow_blank=True,
                         showErrorMessage=True, errorTitle="CK %", error="CK % là số từ 0 đến 100.")
-    for dv, c in ((ma, "A"), (sl, "D"), (vat, "E"), (ck, "F")):
+    ck_tien = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0", allow_blank=True,
+                             showErrorMessage=True, errorTitle="CK (đ)", error="CK (đ) là số tiền nguyên, không âm.")
+    for dv, c in ((ma, "A"), (sl, "D"), (vat, "E"), (ck, "F"), (ck_tien, "G")):
         ws.add_data_validation(dv)
         dv.add(vung(c))
 
@@ -187,7 +195,7 @@ def _so_le(v, nhan: str) -> float | None:
 
 
 def doc(db: Session, du_lieu: bytes) -> list[dict]:
-    """Các dòng `{hang_id, dvt, qty, vat_pct, ck_pct, hang}` đọc từ file (`hang` là mặt hàng, router lọc tiền). Lỗi ⇒ `DonThuongMaiError` kể đủ dòng."""
+    """Các dòng `{hang_id, dvt, qty, vat_pct, ck_pct, ck_tien, hang}` đọc từ file (`hang` là mặt hàng, router lọc tiền). Lỗi ⇒ `DonThuongMaiError` kể đủ dòng."""
     from openpyxl import load_workbook
 
     try:
@@ -248,8 +256,13 @@ def doc(db: Session, du_lieu: bytes) -> list[dict]:
             ck = _so_le(o(r, "CK %"), "CK %") or 0
             if not 0 <= ck <= 100:
                 raise ValueError("CK % phải từ 0 đến 100")
+            ck_tien = _so(o(r, "CK (đ)"), "CK (đ)") or 0
+            if ck_tien < 0 or not float(ck_tien).is_integer():
+                raise ValueError("CK (đ) phải là số tiền nguyên, không âm")
+            if ck and ck_tien:
+                raise ValueError("chỉ điền một trong hai cột CK % hoặc CK (đ)")
             ra.append({"hang_id": h.id, "dvt": dvt, "qty": int(sl), "vat_pct": int(vat), "ck_pct": round(ck, 2),
-                       "hang": h})
+                       "ck_tien": int(ck_tien), "hang": h})
         except ValueError as e:
             loi.append(f"Dòng {so}: {e}.")
     if loi:

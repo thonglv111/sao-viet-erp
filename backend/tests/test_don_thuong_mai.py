@@ -144,3 +144,27 @@ def test_ck_tru_vao_thanh_tien_va_vat_tinh_sau_ck(client, bat_tm):
     r = client.post("/api/thuong-mai/don", headers=h, json={
         "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 2}]})
     assert r.json()["lines"][0]["ck_pct"] is None and r.json()["lines"][0]["line_total"] == 20000
+
+
+def test_ck_bang_so_tien_cho_ca_dong(client, bat_tm):
+    """CK gõ theo số tiền (19/11/2026): thành tiền = SL × đơn giá − tiền CK, VAT tính sau; một dòng chỉ một
+    trong hai cách; tiền CK không quá thành tiền của dòng."""
+    h = _admin(client)
+    hid, dv = _hang(client, h, "TM-CKT", gia=10000)
+    kh = _khach(client, h)
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 3, "vat_pct": 10, "ck_tien": 3750}]})
+    assert r.status_code == 201, r.text
+    ln = r.json()["lines"][0]
+    assert ln["ck_tien"] == 3750 and ln["ck_pct"] is None and ln["line_total"] == 26250
+    # Tổng gồm VAT sau CK = 28.875: cọc 28.876 bị chặn như CK %.
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "deposit_amount": 28876,
+        "lines": [{"hang_id": hid, "dvt": dv, "qty": 3, "vat_pct": 10, "ck_tien": 3750}]})
+    assert r.status_code == 400
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1, "ck_pct": 5, "ck_tien": 100}]})
+    assert r.status_code == 400 and "một cách" in r.json()["detail"]
+    r = client.post("/api/thuong-mai/don", headers=h, json={
+        "customer_id": kh, "lines": [{"hang_id": hid, "dvt": dv, "qty": 1, "ck_tien": 10001}]})
+    assert r.status_code == 400 and "Tiền CK" in r.json()["detail"]

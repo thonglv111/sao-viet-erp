@@ -43,6 +43,8 @@ class DongThuongMaiIn(BaseModel):
     vat_pct: int = Field(0, ge=0, le=100)
     # CK % giảm thẳng vào thành tiền dòng (VAT tính sau CK). Vắng = 0.
     ck_pct: float = Field(0, ge=0, le=100)
+    # Hoặc CK bằng số tiền cho cả dòng (đồng). Một dòng chỉ một trong hai.
+    ck_tien: float = Field(0, ge=0)
 
 
 class DuKienIn(BaseModel):
@@ -303,6 +305,7 @@ class DongXuatExcelIn(BaseModel):
     qty: float | None = None
     vat_pct: int | None = None
     ck_pct: float | None = None
+    ck_tien: float | None = None
 
 
 class XuatExcelIn(BaseModel):
@@ -344,6 +347,7 @@ class DongNhapOut(BaseModel):
     qty: int
     vat_pct: int
     ck_pct: float = 0
+    ck_tien: int = 0
     hang: HangNhapOut
 
 

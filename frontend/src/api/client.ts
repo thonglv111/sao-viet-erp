@@ -9670,6 +9670,8 @@ export interface OrderLineOut {
   hang_thuong_mai_id?: number | null;
   /** CK % dòng đơn thương mại — đã trừ thẳng vào `line_total`, VAT tính sau. null = không CK. */
   ck_pct?: number | null;
+  /** Hoặc CK bằng số tiền cho cả dòng đơn thương mại, đã trừ vào `line_total`. null = theo % / không CK. */
+  ck_tien?: number | null;
 }
 export interface AttachmentOut {
   id: number;

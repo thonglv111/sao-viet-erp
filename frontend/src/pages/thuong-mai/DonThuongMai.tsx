@@ -31,12 +31,15 @@ export type Dong = {
   /** Chuỗi chữ số; "" = lấy giá bán khai ở danh mục. */
   gia: string;
   vat: string;
-  /** CK % như người gõ ("2,5"); "" = không CK. */
+  /** CK như người gõ: theo % ("2,5") hoặc theo số tiền cả dòng (chuỗi chữ số), tuỳ `ckKieu`; "" = không CK. */
   ck: string;
+  ckKieu: KieuCk;
 };
+/** Cách gõ CK của dòng (19/11/2026, như ô chiết khấu ở báo giá): "%" hoặc "Số" tiền cho cả dòng. */
+export type KieuCk = "pct" | "so";
 
 let dem = 0;
-export const dongMoi = (): Dong => ({ khoa: ++dem, hang: null, dvt: "", qty: "1", gia: "", vat: "0", ck: "" });
+export const dongMoi = (): Dong => ({ khoa: ++dem, hang: null, dvt: "", qty: "1", gia: "", vat: "0", ck: "", ckKieu: "pct" });
 
 /** Ô CK %: giữ chữ số và một dấu phẩy, tối đa 2 số lẻ, không quá 100. */
 export function goCk(s: string): string {
@@ -46,11 +49,59 @@ export function goCk(s: string): string {
 }
 export const soCk = (ck: string) => Number(ck.replace(",", ".")) || 0;
 export const chuCk = (v: number | null | undefined) => (v ? String(Number(v)).replace(".", ",") : "");
-/** Thành tiền trước VAT của dòng = SL × đơn giá × (1 − CK%), làm tròn đồng — khớp `thanh_tien` ở máy chủ. */
-export const thanhTienDong = (g: number, sl: number, ck: string) => Math.round((g * sl * (100 - soCk(ck))) / 100);
+/** Thành tiền trước VAT của dòng = SL × đơn giá × (1 − CK%), hoặc SL × đơn giá − tiền CK khi gõ theo số;
+ *  làm tròn đồng — khớp `thanh_tien` ở máy chủ. Tiền CK quá thành tiền thì coi như bằng (máy chủ chặn lúc lưu). */
+export const thanhTienDong = (g: number, sl: number, ck: string, kieu: KieuCk = "pct") =>
+  kieu === "so" ? g * sl - Math.min(Number(ck) || 0, g * sl) : Math.round((g * sl * (100 - soCk(ck))) / 100);
 /** Tổng gồm VAT, cùng công thức máy chủ chặn cọc: cộng từng dòng thành tiền × (100 + VAT) / 100, cắt lẻ. */
-export const tongGomVat = (ds: { g: number | null | undefined; sl: number; ck: string; vat: string }[]) =>
-  ds.reduce((t, d) => (d.g == null ? t : t + Math.floor((thanhTienDong(d.g, d.sl, d.ck) * (100 + (Number(d.vat) || 0))) / 100)), 0);
+export const tongGomVat = (ds: { g: number | null | undefined; sl: number; ck: string; ckKieu?: KieuCk; vat: string }[]) =>
+  ds.reduce((t, d) => (d.g == null ? t
+    : t + Math.floor((thanhTienDong(d.g, d.sl, d.ck, d.ckKieu) * (100 + (Number(d.vat) || 0))) / 100)), 0);
+/** CK đã lưu ở dòng đơn → ô CK: có tiền CK thì mở tab Số, không thì tab %. */
+export const ckTuDong = (l: { ck_pct?: number | null; ck_tien?: number | null }): Pick<Dong, "ck" | "ckKieu"> =>
+  l.ck_tien ? { ck: String(l.ck_tien), ckKieu: "so" } : { ck: chuCk(l.ck_pct), ckKieu: "pct" };
+/** Ô CK → hai trường gửi máy chủ; một dòng chỉ một trong hai. */
+export const ckGui = (d: Pick<Dong, "ck" | "ckKieu">) =>
+  d.ckKieu === "so" ? { ck_pct: 0, ck_tien: Number(d.ck) || 0 } : { ck_pct: soCk(d.ck), ck_tien: 0 };
+/** Tiền CK gõ quá thành tiền của dòng — chặn trước khi gửi. */
+export const ckQuaTien = (d: Pick<Dong, "ck" | "ckKieu">, g: number, sl: number) =>
+  d.ckKieu === "so" && (Number(d.ck) || 0) > g * sl;
+
+/** Ô CK của dòng đơn thương mại: hai tab "%" và "Số" như ô chiết khấu ở báo giá. Đổi tab thì quy số
+ *  đang có sang cách gõ kia; dưới ô hiện số theo cách kia. `goc` = SL × đơn giá (null khi chưa có giá). */
+export function OCk({ d, goc, onDoi }: { d: Dong; goc: number | null; onDoi: (p: Pick<Dong, "ck" | "ckKieu">) => void }) {
+  const tien = goc == null ? null : goc - thanhTienDong(goc, 1, d.ck, d.ckKieu);
+  const pct = goc && tien != null ? (tien / goc) * 100 : null;
+  const phu = !d.ck || tien == null || tien === 0 ? null
+    : d.ckKieu === "pct" ? `${soVN(tien)} đ` : pct != null ? `${pct.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} %` : null;
+  function doiKieu(k: KieuCk) {
+    if (k === d.ckKieu) return;
+    if (!d.ck || tien == null) { onDoi({ ck: "", ckKieu: k }); return; }
+    onDoi(k === "so" ? { ck: String(tien), ckKieu: k }
+      : { ck: pct != null ? chuCk(Math.round(pct * 100) / 100) : "", ckKieu: k });
+  }
+  return (
+    <div className="ck2">
+      <div className="ck2__o">
+        {d.ckKieu === "pct" ? (
+          <input className="ck2__in" inputMode="decimal" aria-label="CK %" value={d.ck} placeholder="0"
+            onChange={(e) => onDoi({ ck: goCk(e.target.value), ckKieu: "pct" })} />
+        ) : (
+          <OGoDinhDang className="ck2__in ck2__in--tien" inputMode="numeric" aria-label="CK số tiền" placeholder="0"
+            value={d.ck ? Number(d.ck).toLocaleString("vi-VN") : ""}
+            onChange={(e) => onDoi({ ck: chuSo(e.target.value), ckKieu: "so" })} />
+        )}
+        <div className="ck2__tab" role="tablist" aria-label="CK, cách nhập">
+          {(["pct", "so"] as const).map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={d.ckKieu === k} className={d.ckKieu === k ? "is-on" : undefined}
+              onClick={() => doiKieu(k)}>{k === "pct" ? "%" : "Số"}</button>
+          ))}
+        </div>
+      </div>
+      {phu && <span className="ck2__phu">{phu}</span>}
+    </div>
+  );
+}
 export const dvtCua = (h: HangThuongMai) =>
   [h.don_vi_gia, ...(h.don_vi_them ?? [])].map((m) => (m ?? "").trim().toLowerCase())
     .filter((m, i, a) => m && a.indexOf(m) === i);
@@ -273,14 +324,14 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
         const ten = (l.don_vi_tinh ?? "").toLowerCase();
         const dvt = h ? (dvtCua(h).find((m) => m === ten || tenDvt(m).toLowerCase() === ten) ?? h.don_vi_gia) : "";
         return { khoa: ++dem, hang: h, dvt, qty: String(l.qty), gia: l.unit_price_snapshot != null ? String(l.unit_price_snapshot) : "",
-          vat: String(l.vat_pct_estimate ?? 0), ck: chuCk(l.ck_pct) };
+          vat: String(l.vat_pct_estimate ?? 0), ...ckTuDong(l) };
       }));
     }).catch(() => undefined);
   }, [token, order, tenDvt]);
 
   const sua = (k: number, p: Partial<Dong>) => setDong((ds) => ds.map((d) => (d.khoa === k ? { ...d, ...p } : d)));
   const giaDong = (d: Dong) => (d.gia !== "" ? Number(d.gia) : giaKhai(d));
-  const tong = useMemo(() => tongGomVat(dong.map((d) => ({ g: giaDong(d), sl: Number(d.qty) || 0, ck: d.ck, vat: d.vat }))), [dong]);
+  const tong = useMemo(() => tongGomVat(dong.map((d) => ({ g: giaDong(d), sl: Number(d.qty) || 0, ck: d.ck, ckKieu: d.ckKieu, vat: d.vat }))), [dong]);
 
   async function luuDon() {
     if (!token || luu) return;
@@ -291,8 +342,9 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
       const sl = Number(d.qty);
       if (!Number.isInteger(sl) || sl <= 0) { setErr(`Số lượng của «${d.hang.ten}» phải là số nguyên lớn hơn 0.`); return; }
       if (giaDong(d) == null) { setErr(`«${d.hang.ten}» chưa có giá bán theo đơn vị này, gõ đơn giá.`); return; }
+      if (ckQuaTien(d, giaDong(d)!, sl)) { setErr(`Tiền CK của «${d.hang.ten}» lớn hơn thành tiền của dòng.`); return; }
       lines.push({ hang_id: d.hang.id, dvt: d.dvt, qty: sl, don_gia: d.gia !== "" ? Number(d.gia) : null, vat_pct: Number(d.vat) || 0,
-        ck_pct: soCk(d.ck) });
+        ...ckGui(d) });
     }
     setLuu(true);
     setErr(null);
@@ -358,14 +410,13 @@ export function FormDonThuongMai({ order, onClose, onSaved }: {
                       onChange={(e) => sua(d.khoa, { gia: chuSo(e.target.value) })} />
                   </td>
                   <td>
-                    <input className="dhb__input dhb__text-right" inputMode="decimal" aria-label="CK %" value={d.ck} placeholder="0"
-                      onChange={(e) => sua(d.khoa, { ck: goCk(e.target.value) })} />
+                    <OCk d={d} goc={g == null ? null : g * sl} onDoi={(p) => sua(d.khoa, p)} />
                   </td>
                   <td>
                     <input className="dhb__input dhb__text-right" inputMode="numeric" aria-label="VAT" value={d.vat}
                       onChange={(e) => sua(d.khoa, { vat: chuSo(e.target.value).slice(0, 3) })} />
                   </td>
-                  <td className="dhb__mono dhb__text-right">{g == null ? "—" : soVN(thanhTienDong(g, sl, d.ck))}</td>
+                  <td className="dhb__mono dhb__text-right">{g == null ? "—" : soVN(thanhTienDong(g, sl, d.ck, d.ckKieu))}</td>
                   <td>
                     {dong.length > 1 && (
                       <button type="button" className="btn btn--ghost" aria-label="Xoá dòng"

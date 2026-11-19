@@ -13,7 +13,7 @@ import { soVN } from "../../components/LuoiDs";
 import { boCachGiao, CACH_GIAO_TRONG, ChonCachGiao, loiCachGiao, type CachGiao } from "../giao-hang-hp/ChonCachGiao";
 import { useTaiKhoanNhan } from "../ke-toan/phieu-thu/shared/taiKhoanNhan";
 import {
-  CHUA_CO_KHO_TM, ChonHang, chuCk, chuSo, daNho, dongMoi, dvtCua, giaKhai, goCk, goiNho, loi, soCk, thanhTienDong, tongGomVat,
+  CHUA_CO_KHO_TM, ChonHang, chuSo, ckGui, ckQuaTien, ckTuDong, daNho, dongMoi, dvtCua, giaKhai, goiNho, loi, OCk, thanhTienDong, tongGomVat,
   useTenDvt, type Dong, type KhachChon,
 } from "./DonThuongMai";
 import "./don-thuong-mai.css";
@@ -149,7 +149,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
         const dvt = h ? (dvtCua(h).find((m) => m === ten || tenDvt(m).toLowerCase() === ten) ?? h.don_vi_gia) : "";
         return { ...dongMoi(), hang: h, dvt, qty: String(l.qty),
           gia: l.unit_price_snapshot != null ? String(l.unit_price_snapshot) : "", vat: String(l.vat_pct_estimate ?? 0),
-          ck: chuCk(l.ck_pct) };
+          ...ckTuDong(l) };
       }));
     }).catch((e) => setErr(loi(e, "Không tải được mặt hàng của đơn.")));
   }, [token, order, tenDvt]);
@@ -161,7 +161,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
   }, [dong]);
   const giaDong = (d: Dong) => (d.gia !== "" ? Number(d.gia) : giaKhai(d));
   const tong = useMemo(() => tongGomVat(dong.filter((d) => d.hang).map((d) => ({
-    g: d.gia !== "" ? Number(d.gia) : giaKhai(d), sl: Number(d.qty) || 0, ck: d.ck, vat: d.vat }))), [dong]);
+    g: d.gia !== "" ? Number(d.gia) : giaKhai(d), sl: Number(d.qty) || 0, ck: d.ck, ckKieu: d.ckKieu, vat: d.vat }))), [dong]);
 
   // Tiền khách đưa bám theo tổng cho tới khi người bán tự gõ.
   useEffect(() => { if (!duaSua) setDua(tong > 0 ? String(tong) : ""); }, [tong, duaSua]);
@@ -180,8 +180,9 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
       const sl = Number(d.qty);
       if (!Number.isInteger(sl) || sl <= 0) { setErr(`Số lượng của «${d.hang.ten}» phải là số nguyên lớn hơn 0.`); return null; }
       if (giaDong(d) == null) { setErr(`«${d.hang.ten}» chưa có giá bán theo đơn vị này, gõ đơn giá.`); return null; }
+      if (ckQuaTien(d, giaDong(d)!, sl)) { setErr(`Tiền CK của «${d.hang.ten}» lớn hơn thành tiền của dòng.`); return null; }
       lines.push({ hang_id: d.hang.id, dvt: d.dvt, qty: sl, don_gia: d.gia !== "" ? Number(d.gia) : null, vat_pct: Number(d.vat) || 0,
-        ck_pct: soCk(d.ck) });
+        ...ckGui(d) });
     }
     if (lines.length === 0) { setErr("Chọn ít nhất một mặt hàng."); return null; }
     return lines;
@@ -247,7 +248,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
     setErr(null);
     try {
       const lines = mau ? [] : dong.filter((d) => d.hang).map((d) => ({
-        hang_id: d.hang!.id, dvt: d.dvt, qty: Number(d.qty) || 0, vat_pct: Number(d.vat) || 0, ck_pct: soCk(d.ck) }));
+        hang_id: d.hang!.id, dvt: d.dvt, qty: Number(d.qty) || 0, vat_pct: Number(d.vat) || 0, ...ckGui(d) }));
       taiVe(await thuongMaiApi.xuatExcelDong(token, lines),
         mau ? "mau-dong-don-thuong-mai.xlsx" : `${order?.order_no ?? "don-thuong-mai"}.xlsx`);
     } catch (e) {
@@ -263,7 +264,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
     try {
       const ds = await thuongMaiApi.nhapExcelDong(token, f);
       setDong((cu) => [...cu.filter((d) => d.hang), ...ds.map((x) => ({
-        ...dongMoi(), hang: x.hang, dvt: x.dvt, qty: String(x.qty), vat: String(x.vat_pct), ck: chuCk(x.ck_pct) }))]);
+        ...dongMoi(), hang: x.hang, dvt: x.dvt, qty: String(x.qty), vat: String(x.vat_pct), ...ckTuDong(x) }))]);
     } catch (e) {
       setErr(loi(e, "Không nhập được file."));
     } finally {
@@ -328,7 +329,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
               <h2 className="tdtm__tieu">Mặt hàng</h2>
               <div className="tdtm__excel">
                 <button type="button" className="btn btn--ghost" disabled={dangExcel} onClick={() => void xuatExcel(true)}
-                  title="File Excel kẻ sẵn cột Mã hàng, Tên hàng, Đơn vị, Số lượng, VAT %, CK % và trang Danh mục hàng để chọn mã">
+                  title="File Excel kẻ sẵn cột Mã hàng, Tên hàng, Đơn vị, Số lượng, VAT %, CK %, CK (đ) và trang Danh mục hàng để chọn mã">
                   Tải mẫu
                 </button>
                 <button type="button" className="btn btn--ghost" disabled={dangExcel} onClick={() => oFile.current?.click()}
@@ -354,7 +355,7 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
                     </th>
                     <th className="dhb__text-right">Số lượng</th>
                     <th className="dhb__text-right">Đơn giá</th>
-                    <th className="dhb__text-right" title="Chiết khấu % trừ thẳng vào thành tiền, VAT tính sau chiết khấu">CK %</th>
+                    <th className="dhb__text-right" title="Chiết khấu theo % hoặc số tiền cả dòng, trừ thẳng vào thành tiền, VAT tính sau chiết khấu">CK</th>
                     <th className="dhb__text-right">VAT %</th>
                     <th className="dhb__text-right">Thành tiền</th>
                     <th aria-label="Xoá dòng" />
@@ -402,14 +403,13 @@ export function TaoDonThuongMai({ order, onClose, onSaved, onDoDang, navigate }:
                             value={tienO(d.gia)} onChange={(e) => sua(d.khoa, { gia: chuSo(e.target.value) })} />
                         </td>
                         <td>
-                          <input className="dhb__input dhb__text-right" inputMode="decimal" aria-label="CK %" value={d.ck} placeholder="0"
-                            onChange={(e) => sua(d.khoa, { ck: goCk(e.target.value) })} />
+                          <OCk d={d} goc={g == null ? null : g * sl} onDoi={(p) => sua(d.khoa, p)} />
                         </td>
                         <td>
                           <input className="dhb__input dhb__text-right" inputMode="numeric" aria-label="VAT" value={d.vat}
                             onChange={(e) => sua(d.khoa, { vat: chuSo(e.target.value).slice(0, 3) })} />
                         </td>
-                        <td className="tdtm__chu dhb__text-right tdtm__so">{g == null ? "—" : soVN(thanhTienDong(g, sl, d.ck))}</td>
+                        <td className="tdtm__chu dhb__text-right tdtm__so">{g == null ? "—" : soVN(thanhTienDong(g, sl, d.ck, d.ckKieu))}</td>
                         <td className="tdtm__chu">
                           <button type="button" className="tdtm__xoa" aria-label="Xoá dòng" title="Xoá dòng"
                             onClick={() => setDong((ds) => ds.filter((x) => x.khoa !== d.khoa))}>×</button>

@@ -68,7 +68,8 @@ def chuan_dong(db: Session, lines: list[dict]) -> list[dict]:
 
     Mỗi dòng: `hang_id` (mặt hàng mang cờ thương mại, còn dùng), `dvt` (mã, phải là ĐVT đã khai của
     mặt hàng), `qty` nguyên > 0, `don_gia` (đồng, trước VAT; vắng thì lấy giá bán khai theo ĐVT),
-    `vat_pct` 0–100, `ck_pct` 0–100 (giảm thẳng vào thành tiền, VAT tính sau CK). Máy chủ chặn dòng không
+    `vat_pct` 0–100, CK theo một trong hai cách: `ck_pct` 0–100 hoặc `ck_tien` (đồng, cho cả dòng, không quá
+    SL × đơn giá); giảm thẳng vào thành tiền, VAT tính sau CK. Máy chủ chặn dòng không
     phải hàng thương mại — không chỉ giao diện chặn."""
     if not lines:
         raise DonThuongMaiError("Đơn phải có ít nhất một mặt hàng.")
@@ -108,21 +109,33 @@ def chuan_dong(db: Session, lines: list[dict]) -> list[dict]:
             raise DonThuongMaiError("CK % phải là số.") from None
         if not 0 <= ck <= 100:
             raise DonThuongMaiError("CK % phải trong khoảng 0–100.")
+        try:
+            ck_tien = int(round(float(ln.get("ck_tien") or 0)))
+        except (TypeError, ValueError):
+            raise DonThuongMaiError("Tiền CK phải là số.") from None
+        if ck_tien and ck:
+            raise DonThuongMaiError(f"«{h.ten}»: CK chỉ gõ một cách, theo % hoặc theo số tiền.")
+        if not 0 <= ck_tien <= gia * qty:
+            raise DonThuongMaiError(f"Tiền CK của «{h.ten}» phải từ 0 tới thành tiền của dòng.")
         ra.append(dict(
             description=h.ten,
             qty=qty,
             don_vi_tinh=_ten_dvt(db, dvt),
             unit_price_snapshot=gia,
-            line_total=thanh_tien(gia, qty, ck),
+            line_total=thanh_tien(gia, qty, ck, ck_tien),
             ck_pct=ck or None,
+            ck_tien=ck_tien or None,
             vat_pct_estimate=vat,
             hang_thuong_mai_id=h.id,
         ))
     return ra
 
 
-def thanh_tien(gia: int, qty: int, ck_pct: float | None) -> int:
-    """Thành tiền trước VAT của dòng thương mại = SL × đơn giá × (1 − CK%), làm tròn đồng."""
+def thanh_tien(gia: int, qty: int, ck_pct: float | None, ck_tien: int | None = None) -> int:
+    """Thành tiền trước VAT của dòng thương mại = SL × đơn giá × (1 − CK%), hoặc SL × đơn giá − tiền CK
+    khi CK gõ theo số tiền; làm tròn đồng."""
+    if ck_tien:
+        return gia * qty - int(ck_tien)
     return int(round(gia * qty * (100 - float(ck_pct or 0)) / 100))
 
 
