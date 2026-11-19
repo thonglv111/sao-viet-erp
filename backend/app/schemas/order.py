@@ -25,6 +25,7 @@ class OrderLineOut(BaseModel):
     nhom: str | None = None                  # nhãn gộp dòng khi IN xác nhận đơn (khớp báo giá)
     hang_thuong_mai_id: int | None = None    # đơn thương mại (chỉ In Hà Phương): mặt hàng của dòng
     ck_pct: float | None = None              # CK % dòng đơn thương mại (giảm thẳng vào line_total)
+    ck_tien: int | None = None               # hoặc CK bằng số tiền cho cả dòng đơn thương mại
     model_config = ConfigDict(from_attributes=True)
 
 

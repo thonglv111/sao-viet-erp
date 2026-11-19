@@ -704,9 +704,11 @@ function OrderDrawer({
   };
   // Đơn thương mại (chỉ In Hà Phương, 18/11/2026): cột CK là CK % trừ thẳng vào thành tiền dòng, khác chiết
   // khấu hoàn lại khách của đơn sản xuất. Tiền đã trừ = SL × đơn giá − thành tiền.
-  const ckPct = (ds: { ck_pct?: number | null }[]) =>
-    ds.length === 1 && ds[0].ck_pct ? `${Number(ds[0].ck_pct).toLocaleString("vi-VN")}%` : "—";
-  const tienCkTM = laTM ? order.lines.reduce((t, l) => t + (l.ck_pct && l.unit_price_snapshot != null && l.line_total != null
+  // CK gõ theo số tiền (19/11/2026) thì cột hiện số tiền, gõ theo % thì hiện %.
+  const ckPct = (ds: { ck_pct?: number | null; ck_tien?: number | null }[]) =>
+    ds.length !== 1 ? "—" : ds[0].ck_tien ? soVN(ds[0].ck_tien)
+      : ds[0].ck_pct ? `${Number(ds[0].ck_pct).toLocaleString("vi-VN")}%` : "—";
+  const tienCkTM = laTM ? order.lines.reduce((t, l) => t + ((l.ck_pct || l.ck_tien) && l.unit_price_snapshot != null && l.line_total != null
     ? l.unit_price_snapshot * l.qty - l.line_total : 0), 0) : 0;
   const keDong = (ds: { ke_gia?: number | null }[]) => {
     const t = ds.reduce((x, l) => x + (l.ke_gia ?? 0), 0);
@@ -1231,7 +1233,7 @@ function OrderDrawer({
                         <th className="dhb__text-right">Đơn giá</th>
                         <th className="dhb__text-right">VAT</th>
                         {laTM ? (
-                          <th className="dhb__text-right" title="Chiết khấu % trừ thẳng vào thành tiền, VAT tính sau chiết khấu">CK</th>
+                          <th className="dhb__text-right" title="Chiết khấu theo % hoặc số tiền cả dòng, trừ thẳng vào thành tiền, VAT tính sau chiết khấu">CK</th>
                         ) : (
                           <th className="dhb__text-right" title="Đã nằm trong đơn giá — chi lại cho khách khi hóa đơn thu đủ">Chiết khấu</th>
                         )}

@@ -20356,3 +20356,17 @@ def _migrate_batch_nguoi_so_luong(db: Session) -> None:
 
 
 MIGRATIONS.append(("0486_batch_nguoi_so_luong", _migrate_batch_nguoi_so_luong))
+
+
+def _migrate_order_lines_ck_tien(db: Session) -> None:
+    """0487 (19/11/2026) — `order_lines.ck_tien`: CK gõ bằng số tiền cho cả dòng đơn thương mại (chỉ In
+    Hà Phương), thay cho `ck_pct` khi người bán gõ theo "Số". Trống = CK theo % hoặc không CK. Idempotent."""
+    insp = inspect(db.get_bind())
+    if "order_lines" not in set(insp.get_table_names()):
+        return
+    if "ck_tien" not in _existing_columns(insp, "order_lines"):
+        db.execute(text("ALTER TABLE order_lines ADD COLUMN ck_tien BIGINT"))
+    db.commit()
+
+
+MIGRATIONS.append(("0487_order_lines_ck_tien", _migrate_order_lines_ck_tien))

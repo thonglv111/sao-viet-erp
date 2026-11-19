@@ -727,6 +727,7 @@ class OrderRepository:
                     dvt_nhom=ln.get("dvt_nhom"),   # ĐVT của cụm khi in gộp (ruột + bìa → "cuốn")
                     hang_thuong_mai_id=ln.get("hang_thuong_mai_id"),   # chỉ đơn thương mại
                     ck_pct=ln.get("ck_pct"),   # CK % dòng đơn thương mại
+                    ck_tien=ln.get("ck_tien"),   # hoặc CK bằng số tiền cho cả dòng
                 )
             )
         self.db.add(order)

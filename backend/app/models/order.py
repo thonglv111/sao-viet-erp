@@ -297,6 +297,9 @@ class OrderLine(Base):
     # `line_total` = qty × đơn giá × (1 − CK%) — khác `chiet_khau` (tiền hoàn lại khách, vẫn nằm trong
     # line_total). NULL = không CK / dòng đơn sản xuất.
     ck_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
+    # CK gõ bằng SỐ TIỀN cho cả dòng đơn thương mại (mg 0487, 19/11/2026): `line_total` = qty × đơn giá
+    # − ck_tien. Một dòng chỉ có một trong hai: `ck_pct` hoặc `ck_tien`. NULL = CK theo % / không CK.
+    ck_tien: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     order: Mapped["Order"] = relationship("Order", back_populates="lines")
 
